@@ -1,0 +1,29 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0078-Give-display-flow-root-its-own-block-formatting-cont.patch
+  s_50d45ac3d4c7e5::t_8d1082309a4ebb 1-48
+scripts/patches/blitz-paint-0.3.0-beta.1/0014-Budget-open-layers-by-depth-not-cumulative-pushes.patch
+  s_50d45ac3d4c7e5::t_8d1082309a4ebb 1-80
+scripts/patches/blitz-dom-0.3.0-beta.1/0079-Expose-the-document-s-animation-set-and-a-narrow-is-.patch
+  s_50d45ac3d4c7e5::t_8d1082309a4ebb 1-53
+scripts/patches/blitz-paint-0.3.0-beta.1/0013-kitesurf-keep-position-fixed-boxes-out-of-the-docume.patch
+  s_50d45ac3d4c7e5::t_8d1082309a4ebb 1-52
+scripts/patches/blitz-dom-0.3.0-beta.1/0077-kitesurf-keep-incremental-layout-from-losing-content.patch
+  s_50d45ac3d4c7e5::t_8d1082309a4ebb 1-544
+scripts/patches/blitz-paint-0.3.0-beta.1/0012-Honour-empty-clip-regions-and-the-legacy-clip-proper.patch
+  s_50d45ac3d4c7e5::t_8d1082309a4ebb 1-143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8374b4e9df757dfc3f21c26658b00e2f8c867547",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

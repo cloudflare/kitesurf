@@ -1,0 +1,20 @@
+scripts/check-no-explicit-any.mjs
+  s_19dcae60277223::t_6221857f538938 31-33
+  s_19dcae60277223::t_8705ae52d01a8d 9-10,12-13,25-26,34,39-56,63,66-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "337d1e1954214c812c88f8bd1631d246415c0422",
+  "prompts": {},
+  "sessions": {
+    "s_19dcae60277223": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb5008010ffetjH3RwXgLAS3XT",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

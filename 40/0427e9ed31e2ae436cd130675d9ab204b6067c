@@ -1,0 +1,26 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_50d45ac3d4c7e5::t_a19c2afa89d555 818-846,1930-1931
+scripts/patches/taffy-0.12.2/0009-Clear-past-every-float-on-the-cleared-sides-not-the-.patch
+  s_50d45ac3d4c7e5::t_a19c2afa89d555 1-117
+packages/engine/test/e2e/float-containment.e2e.test.ts
+  s_50d45ac3d4c7e5::t_e06d74cd43ca03 1-2,19,30,45-46
+  s_50d45ac3d4c7e5::t_a19c2afa89d555 3-18,20-29,31-44,47-53
+scripts/patches/blitz-dom-0.3.0-beta.1/0084-Give-display-flow-root-its-own-block-formatting-cont.patch
+  s_50d45ac3d4c7e5::t_e06d74cd43ca03 1-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "400427e9ed31e2ae436cd130675d9ab204b6067c",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

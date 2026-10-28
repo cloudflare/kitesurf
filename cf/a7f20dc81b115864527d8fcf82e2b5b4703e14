@@ -1,0 +1,76 @@
+packages/engine/src/cdp/page-session.ts
+  s_103b7f1f0713cd::t_2feaf605b9b067 144-147,153
+  s_103b7f1f0713cd::t_8048ad3c8884f1 144-147,153
+packages/engine/src/cdp/page.ts
+  s_103b7f1f0713cd::t_1e99ac49d21358 2383,2405,4645,4651-4655,4663,6682-6689,8178-8181,8374-8377,8495-8500,8614-8625,8627-8629
+  s_103b7f1f0713cd::t_746172d4d5b83b 1705-1712
+  s_103b7f1f0713cd::t_0af3c5f1fdb5c6 6682-6689
+  s_103b7f1f0713cd::t_1c81c82e4d4ea3 2383,8181,8374-8377,8495-8500,8614-8615,8620-8625,8627-8629
+  s_103b7f1f0713cd::t_1dfc20fe1bbdcf 2405,4645,4651-4655,4663
+  s_103b7f1f0713cd::t_578bac7b4d453f 8178-8180
+  s_103b7f1f0713cd::t_a4417b7a5e0a46 8616-8619
+  s_103b7f1f0713cd::t_70dab421726f8f 4646
+packages/engine/src/cdp/types.ts
+  s_103b7f1f0713cd::t_abb194971b7aa9 471-474
+  s_103b7f1f0713cd::t_0af3c5f1fdb5c6 471-474
+packages/engine/test/e2e/demos/screencast-idle-skip.e2e.test.ts
+  s_103b7f1f0713cd::t_3dc4a6fa135670 305-352
+  s_103b7f1f0713cd::t_3122e0a95668e8 632-696
+  s_103b7f1f0713cd::t_31b0d1950fa7b3 305-306,310,312-331,349-352
+  s_103b7f1f0713cd::t_cce1db1f923ec6 332-348
+packages/page-script/src/globals.ts
+  s_103b7f1f0713cd::t_99d675e70782b8 7,124-127,5625-5628
+  s_103b7f1f0713cd::t_1388a216127871 7
+  s_103b7f1f0713cd::t_a9cda610712353 124-127,5625-5628
+packages/page-script/src/index.ts
+  s_103b7f1f0713cd::t_76cadab663eca3 35,228,4297-4302,4304-4306
+  s_103b7f1f0713cd::t_504c24c5fac3c1 4302
+  s_103b7f1f0713cd::t_a9cda610712353 35,228,4297-4299,4306
+  s_103b7f1f0713cd::t_1fa1deafacf913 4300-4301,4304-4305
+  s_103b7f1f0713cd::t_22670513dcb790 4303,4307
+packages/page-script/src/internal-state.ts
+  s_103b7f1f0713cd::t_62cd969e7ba7f0 182-197,199,203-209
+  s_103b7f1f0713cd::t_17adbe7e0844af 182-197,199,203-209
+packages/core/src/scene_replay.rs
+  s_103b7f1f0713cd::t_8d8651a203a830 1368,1376,1385,1415,1605,1684
+  s_103b7f1f0713cd::t_702e1e801bec98 2091
+  s_103b7f1f0713cd::t_62ec91fb3fa10f 1356,1372-1373
+packages/core/src/screenshot.rs
+  s_103b7f1f0713cd::t_726987c4e8b924 566-568,570-582,584-590,599-601
+  s_103b7f1f0713cd::t_fb3e18b839d8df 520
+  s_103b7f1f0713cd::t_c4f7eec9789f98 487-494,496-503,521
+  s_103b7f1f0713cd::t_1fd2ae5c8e8147 353-354,358-379,381,387-397,399-400,407,409-419,421-435,440,454,456-457,459,477-482,522-532
+  s_103b7f1f0713cd::t_1ebd6f93afe963 465-470
+  s_103b7f1f0713cd::t_b1c015ab335226 420
+  s_103b7f1f0713cd::t_166c995eec71ff 533-537,556,565
+  s_103b7f1f0713cd::t_938fb9e7182a6c 542,547-555,557-564
+  s_103b7f1f0713cd::t_7362ee6442b2fb 436,438-439,441-453,455,458,460-464,471-476,483-486,538
+  s_103b7f1f0713cd::t_10f3198d5b7711 398,401-406,408
+  s_103b7f1f0713cd::t_8e12ed66f22740 495
+  s_103b7f1f0713cd::t_7e17e6f226fcf7 345,356-357
+  s_c1a6940130844c::t_ccbfc0e5056e04 569,591-598
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cfa7f20dc81b115864527d8fcf82e2b5b4703e14",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

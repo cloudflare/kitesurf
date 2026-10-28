@@ -1,0 +1,19 @@
+packages/page-script/src/init-shims.ts
+  s_4efb85c8268621::t_30d3b68b0de37b 66-73,77-89,138-142,146,164-166,171-176,188-192,196,213-215,220-222,234,276-292,300,336,353
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b501ca0712c678a21dafcbb39b0390a45791fed5",
+  "prompts": {},
+  "sessions": {
+    "s_4efb85c8268621": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5fd5b5a1ffe1z0IsHJABtiE5U",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

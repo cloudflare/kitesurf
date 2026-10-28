@@ -1,0 +1,28 @@
+packages/engine/test/e2e/demos/webgl-paint-demo.e2e.test.ts
+  s_13716c95882f21::t_7024795d0f9d0f 35
+packages/engine/test/e2e/html/webgl.html
+  s_13716c95882f21::t_7024795d0f9d0f 48-50
+packages/dom-shim/src/webgl.ts
+  s_13716c95882f21::t_7024795d0f9d0f 356-360
+packages/core/src/webgl_test.rs
+  s_13716c95882f21::t_7024795d0f9d0f 530-623
+packages/core/src/webgl/gl.rs
+  s_13716c95882f21::t_7024795d0f9d0f 108-110,124-125,761-762,804-806,1016-1022,1039-1044,1066-1070,1219,1233,1245,1289-1315
+  s_13716c95882f21::t_3cc1256aee2be0 1316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "97bcb29840cab2a1f894bcf1528dbc93e8dead9f",
+  "prompts": {},
+  "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

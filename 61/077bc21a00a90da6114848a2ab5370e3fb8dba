@@ -1,0 +1,19 @@
+packages/core/src/lib.rs
+  s_40a77a88c7e719::t_20328cb5f40fc4 4747-4755
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "61077bc21a00a90da6114848a2ab5370e3fb8dba",
+  "prompts": {},
+  "sessions": {
+    "s_40a77a88c7e719": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00899d021ffeusxbvHVto59doi",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

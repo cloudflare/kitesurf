@@ -1,0 +1,24 @@
+scripts/wpt-ref-cache.test.mjs
+  s_0954394ff464d4::t_e86732bbdd8f36 1-48
+scripts/wpt-ref-cache.mjs
+  s_0954394ff464d4::t_5431d4c0967e14 1-25
+scripts/wpt-exec.mjs
+  s_0954394ff464d4::t_d22f175e068026 98,663,665,668,872,881,884-891,895-897
+  s_0954394ff464d4::t_f986a5c9d3db45 820-822,824-825
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "675cfcfc840c15ca1733502f4026de6fb1016150",
+  "prompts": {},
+  "sessions": {
+    "s_0954394ff464d4": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0c99a-7f13-703f-85fd-fb3d1a0ed3c1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

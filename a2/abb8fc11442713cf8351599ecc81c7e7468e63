@@ -1,0 +1,19 @@
+README.md
+  s_4ba79f911c93c4::t_16666046e1bf1f 66-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a2abb8fc11442713cf8351599ecc81c7e7468e63",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+packages/engine/src/quickactions/index.ts
+  s_4ba79f911c93c4::t_4d70e9a1e93ddb 1763-1764,1766
+  s_4ba79f911c93c4::t_fbc2e871bfbae1 1229-1231,1234-1237,1254-1257
+  s_4ba79f911c93c4::t_a43435b5982d89 1759-1762,1765,1767-1778
+  s_4ba79f911c93c4::t_be7755425d15a7 241-246,256,283,411,416
+  s_77e8d6f4044102::t_2470e4e1a6bc32 1779-1780
+  s_77e8d6f4044102::t_aa6e7f727879f5 665
+packages/engine/src/quickactions/crawl.ts
+  s_4ba79f911c93c4::t_a8692fbba1eb0f 5
+  s_4ba79f911c93c4::t_f02a3772e4e720 13,232-236,238-250,252
+  s_4ba79f911c93c4::t_55bcef21381d25 346-354,356-369
+packages/engine/test/quickaction.test.ts
+  s_4ba79f911c93c4::t_9b4daf49499c0c 778
+  s_4ba79f911c93c4::t_5fca8ecdf2b81c 386-395
+packages/engine/test/e2e/quickaction-tag-failures.e2e.test.ts
+  s_4ba79f911c93c4::t_f2ab73e3d2f46c 1-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "98cb98bfd303a98f2b98fa85cb09daa55f230102",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_77e8d6f4044102": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4f901311ffeo2aSUrZQyjGdML",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}

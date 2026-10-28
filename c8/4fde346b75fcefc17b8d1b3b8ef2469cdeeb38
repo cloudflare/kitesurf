@@ -1,0 +1,25 @@
+.envrc
+  s_8e99f83297903a::t_833fea1ee5f8a6 1-6
+.githooks/post-checkout
+  s_8e99f83297903a::t_d514e3df715674 1-44
+scripts/dev-ports.sh
+  s_8e99f83297903a::t_447ec84eb7a68a 1-42
+package.json
+  s_8e99f83297903a::t_df1fbafb06e506 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c84fde346b75fcefc17b8d1b3b8ef2469cdeeb38",
+  "prompts": {},
+  "sessions": {
+    "s_8e99f83297903a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0588efc5affeYx90eKdzztJ0rK",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

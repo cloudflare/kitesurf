@@ -1,0 +1,39 @@
+docs/CORS.md
+  s_0d1d30f19cc9dc::t_50e6c052a3e35b 86-95
+  s_0d1d30f19cc9dc::t_106f7affea27e2 177-182
+  s_0d1d30f19cc9dc::t_3cec910cd6bd17 174-176
+  s_0d1d30f19cc9dc::t_fce82506852cce 183
+packages/engine/test/e2e/cross-origin-font-cors.e2e.test.ts
+  s_0d1d30f19cc9dc::t_6a26d9d858154a 5-6
+  s_0d1d30f19cc9dc::t_b06c4486cb33df 1-4,7-106
+packages/engine/src/eval/outbound.ts
+  s_0d1d30f19cc9dc::t_5c8e43ae6deadd 476
+  s_0d1d30f19cc9dc::t_38cd360c340a2e 504
+  s_0d1d30f19cc9dc::t_c7f0809931592e 501-503
+packages/engine/test/e2e/cors-bypass-matrix.e2e.test.ts
+  s_0d1d30f19cc9dc::t_895787096882f1 30,39-43
+packages/core/src/fonts.rs
+  s_0d1d30f19cc9dc::t_91f2d653f00197 297-316,355,357-358
+  s_0d1d30f19cc9dc::t_2c9b1dc7572ef4 2058,2061-2089,2094,2096-2104
+  s_0d1d30f19cc9dc::t_1db63ff33ca81c 2090-2093,2095
+  s_0d1d30f19cc9dc::t_7bc5c1e30b8dc8 2009-2026,2028-2057,2059,2105-2119
+  s_0d1d30f19cc9dc::t_b437e2e681481c 317-354,356
+  s_0d1d30f19cc9dc::t_19cc1ccd8bae9e 2027
+  s_0d1d30f19cc9dc::t_34679f6fb415c6 2060
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ba9906688541510d77eb0b4c00ff0bf52d5247b4",
+  "prompts": {},
+  "sessions": {
+    "s_0d1d30f19cc9dc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_037c06dd9ffesDNWihuHLbPLHI",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

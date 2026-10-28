@@ -1,0 +1,26 @@
+packages/core/src/lib.rs
+  s_0d774ef1069d39::t_8b1f355b32c724 2755-2818
+packages/page-script/src/index.ts
+  s_0d774ef1069d39::t_4d7be33a32849e 4090-4138
+  s_0d774ef1069d39::t_8c41e505b3281e 4087-4089
+packages/engine/src/cdp/kitesurf.ts
+  s_0d774ef1069d39::t_197c40aa13042d 435-493
+  s_0d774ef1069d39::t_766a074e459d6c 28-35
+  s_0d774ef1069d39::t_2c6efd5c6ca4a1 432-434
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7af0ea55738288272345354850a6b0f7c111d3a8",
+  "prompts": {},
+  "sessions": {
+    "s_0d774ef1069d39": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0876a9dcbffeZsgVh2Ep2whLyT",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

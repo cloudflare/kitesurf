@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0124-Keep-the-LAST-duplicate-OpenType-tag-in-font_feature.patch
+  s_4bd836ca1cbc20::t_f670cb7c9b8924 1-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a8b491dbb5d253bd9b2ff1a0556968698a19766f",
+  "prompts": {},
+  "sessions": {
+    "s_4bd836ca1cbc20": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5673f067ffe5hsIMQQpLeYlMf",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

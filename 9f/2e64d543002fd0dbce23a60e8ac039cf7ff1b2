@@ -1,0 +1,42 @@
+packages/rbi-client/src/cache-db.ts
+  s_0d774ef1069d39::t_15f48b007b77d5 1-259
+packages/engine/src/rbi.ts
+  s_0d774ef1069d39::t_4f7b3443f3d4b8 293
+  s_0d774ef1069d39::t_246c25730e0987 389-395
+  s_0d774ef1069d39::t_64753ca12b2d75 235-240
+  s_0d774ef1069d39::t_d6f8a74dd2650f 143-147,153-165,168-179
+  s_0d774ef1069d39::t_b3399eff48dbdd 241,243-247
+  s_0d774ef1069d39::t_33d0ab631516d0 250-262
+  s_0d774ef1069d39::t_0738718ad87c1e 282-292,294-308
+  s_0d774ef1069d39::t_57641bc753d170 263
+packages/page-script/src/index.ts
+  s_0d774ef1069d39::t_895cdd2fb42929 4181,4183
+  s_0d774ef1069d39::t_62349984378816 4158-4173
+  s_0d774ef1069d39::t_9ae32a07c03ba3 4145-4154,4156-4157,4174-4180,4182,4184-4199
+  s_0d774ef1069d39::t_cddcc999b44258 4155
+packages/engine/src/cdp/kitesurf.ts
+  s_0d774ef1069d39::t_0609a3f4315224 538-578
+packages/rbi-client/src/index.ts
+  s_0d774ef1069d39::t_9a9e626b26dec1 15
+  s_0d774ef1069d39::t_3ca0790caa938e 30-61,69-72
+packages/rbi-client/src/painter.ts
+  s_0d774ef1069d39::t_a737c57c314eb1 12
+  s_0d774ef1069d39::t_36b986997dd1ce 34-55,59-143,145-156
+  s_0d774ef1069d39::t_cb8e3cf73bd3cf 289-296
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9f2e64d543002fd0dbce23a60e8ac039cf7ff1b2",
+  "prompts": {},
+  "sessions": {
+    "s_0d774ef1069d39": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0876a9dcbffeZsgVh2Ep2whLyT",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

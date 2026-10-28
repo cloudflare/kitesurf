@@ -1,0 +1,19 @@
+packages/engine/test/e2e/svg-text-escape.e2e.test.ts
+  s_79b514ed72f0d7::t_82b4b1453c9434 1-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "59fd734cae0291d1449b3cf7685bb27ff63b2ce0",
+  "prompts": {},
+  "sessions": {
+    "s_79b514ed72f0d7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ed34042e8ffetjAofbwkhZe692",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

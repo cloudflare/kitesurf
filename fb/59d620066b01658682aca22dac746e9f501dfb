@@ -1,0 +1,21 @@
+docs/RBI.md
+  s_dfd792beae87ba::t_9229fe87c58c6f 149-150
+AGENTS.md
+  s_dfd792beae87ba::t_d02eeb84650780 108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fb59d620066b01658682aca22dac746e9f501dfb",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

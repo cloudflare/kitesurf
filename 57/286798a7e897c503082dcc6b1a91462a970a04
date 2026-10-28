@@ -1,0 +1,26 @@
+packages/kitesurf-cli/src/main.rs
+  s_4ba7a10fc24412::t_0b4ccbe8cb1a62 1267
+  s_4ba7a10fc24412::t_3209db522bcbf0 898-901
+packages/kitesurf-cli/src/wasm.rs
+  s_4ba7a10fc24412::t_521d2a926d30b1 68
+packages/kitesurf-cli/src/access.rs
+  s_4ba7a10fc24412::t_efefc4cd1d0058 9,27,140-141
+packages/kitesurf-cli/src/cli.rs
+  s_4ba7a10fc24412::t_f79aa60c846a50 99-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "57286798a7e897c503082dcc6b1a91462a970a04",
+  "prompts": {},
+  "sessions": {
+    "s_4ba7a10fc24412": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f039850efffeBQSi5xVbdQfKSf",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

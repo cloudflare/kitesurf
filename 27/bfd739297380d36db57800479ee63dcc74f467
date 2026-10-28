@@ -1,0 +1,30 @@
+packages/dom-shim/src/input-types.ts
+  s_f50b7cd97baf3e::t_18d1a25d21ea2e 234-239
+packages/dom-shim/src/element.ts
+  s_f50b7cd97baf3e::t_600fce9b8b6698 3829-3830
+  s_f50b7cd97baf3e::t_88df566efcc9a7 4639-4645,4647,4649-4651
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "27bfd739297380d36db57800479ee63dcc74f467",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_f50b7cd97baf3e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06546ac45ffeQxSoeXrxfOrTBJ",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

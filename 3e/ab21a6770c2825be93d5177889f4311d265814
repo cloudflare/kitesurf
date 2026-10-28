@@ -1,0 +1,25 @@
+bazel/runtime-inputs-test.bzl
+  s_4ba79f911c93c4::t_83103e38664cef 1-2,4-12,15-30
+  s_4ba79f911c93c4::t_b7f8b131487093 3,13-14
+packages/engine-cf/BUILD.bazel
+  s_4ba79f911c93c4::t_6bf4f7acf371dc 219-220
+  s_4ba79f911c93c4::t_c302c1c52150f7 9,227-238
+BUILD.bazel
+  s_4ba79f911c93c4::t_3484453c0338f1 96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3eab21a6770c2825be93d5177889f4311d265814",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

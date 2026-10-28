@@ -1,0 +1,23 @@
+packages/engine/src/cdp/dom.ts
+  s_4ba79f911c93c4::t_6f671385eaf8aa 468-472
+packages/engine/test/e2e/dom-attribute-namespace-wire.e2e.test.ts
+  s_4ba79f911c93c4::t_8389ac576ab9f9 33-69
+packages/page-script/src/cdp-nodes.ts
+  s_4ba79f911c93c4::t_322ce2a9b116f8 28-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "18602a3ccffb7724a8debd62b4566124774e4052",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

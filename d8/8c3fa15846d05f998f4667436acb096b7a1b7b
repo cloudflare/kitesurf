@@ -1,0 +1,19 @@
+packages/engine/test/e2e/tabs-tab-stops.e2e.test.ts
+  s_4ba79f911c93c4::t_a143100ea37034 1-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d88c3fa15846d05f998f4667436acb096b7a1b7b",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

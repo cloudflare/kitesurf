@@ -1,0 +1,21 @@
+packages/engine/test/e2e/rehomed-fixed-paint-parent.e2e.test.ts
+  s_972c4410edfcfd::t_689d4cf151733d 1-56
+scripts/patches/blitz-dom-0.3.0-beta.3/0148-kitesurf-place-re-homed-boxes-under-a-scrolled-or-ho.patch
+  s_972c4410edfcfd::t_8772ebe557501a 1-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3d16d9eadd7734742115183204492dc4d8838f51",
+  "prompts": {},
+  "sessions": {
+    "s_972c4410edfcfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec88a6a7effeDXk6QR3xmgtjdQ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,55 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0077-kitesurf-keep-incremental-layout-from-dropping-the-l.patch
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 1-109
+packages/core/Cargo.toml
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 90
+scripts/patches/blitz-dom-0.3.0-beta.1/0082-kitesurf-re-break-clobbered-inlines-without-rebuildi.patch
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 1-271
+scripts/patches/blitz-dom-0.3.0-beta.1/0078-kitesurf-rebuild-the-inline-svg-snapshot-when-its-su.patch
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 1-84
+packages/core/src/svg_mutation_resnapshot_test.rs
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 90-91,93-95
+AGENTS.md
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 85-86,267-309,530-532
+packages/core/src/hoist_incremental_test.rs
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 1-93
+packages/engine/test/e2e/hoisted-inline-rebreak.e2e.test.ts
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 1-45
+packages/core/src/lib.rs
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 112-113,803,840,845,5844-5864,6253-6308
+packages/core/src/radar_grid_repro_test.rs
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 29-89
+packages/page-script/src/paint.ts
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 26,61-63
+packages/core/src/animation_clock_test.rs
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 1-2,4-11,37-40,69-74
+scripts/patches/blitz-dom-0.3.0-beta.1/0080-kitesurf-re-break-inline-containers-a-measure-pass-l.patch
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 1-236
+scripts/patches/blitz-dom-0.3.0-beta.1/0079-kitesurf-replay-hoists-from-parents-a-partial-resolv.patch
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 1-115
+scripts/patches/blitz-dom-0.3.0-beta.1/0083-kitesurf-bust-the-layout-cache-for-nodes-that-regist.patch
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 1-83
+docs/SVG.md
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 32-38
+scripts/patches/blitz-dom-0.3.0-beta.1/0081-kitesurf-re-collect-nodes-that-hoisted-a-box-away.patch
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 1-40
+scripts/patches/blitz-dom-0.3.0-beta.1/0085-kitesurf-give-a-rebuilt-inline-tree-its-lines-back.patch
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 1-109
+scripts/patches/stylo-0.19.0/0024-kitesurf-never-start-a-CSS-transition.patch
+  s_febe8d41b549be::t_4a6e07ea0c3e3b 1-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "44a3e848e98aa60fe54c9ff49215401fdb98ea3a",
+  "prompts": {},
+  "sessions": {
+    "s_febe8d41b549be": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009852b04ffe7Ekgf56JFt99fh",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

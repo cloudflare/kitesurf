@@ -1,0 +1,20 @@
+scripts/ci-wpt-remote.mjs
+  s_8deef65a89b902::t_ff9aef7acdfda8 101-105,109-112
+  s_8deef65a89b902::t_9010a620ebf721 154-157,159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ad464b89403461289a6193392419bc6e5ddd5503",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

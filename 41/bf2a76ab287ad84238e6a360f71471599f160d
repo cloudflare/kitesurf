@@ -1,0 +1,45 @@
+packages/engine/src/cdp/dispatch.ts
+  s_070997616aef0b::t_d07642529832f5 37-39
+packages/engine/wrangler.jsonc
+  s_070997616aef0b::t_61711ca26f017c 108,260
+  s_070997616aef0b::t_0d894ae7d9c02c 107
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_070997616aef0b::t_4736dc85f0db2e 4048-4050
+  s_070997616aef0b::t_a4e9d9b1fac0ff 4051
+  s_070997616aef0b::t_9905dd22dca372 2341-2342,4026-4047
+packages/page-script/src/index.ts
+  s_070997616aef0b::t_0d894ae7d9c02c 2675-2676,2678
+  s_070997616aef0b::t_3dfb9201a22dfe 2689,2705-2706,2714
+  s_070997616aef0b::t_9905dd22dca372 2703-2704,2707
+  s_070997616aef0b::t_61711ca26f017c 29,2677
+  s_070997616aef0b::t_210ba6bc955699 2673-2674
+packages/page-script/src/wasm.d.ts
+  s_070997616aef0b::t_61711ca26f017c 94
+packages/engine/test/e2e/post-load-settle.e2e.test.ts
+  s_070997616aef0b::t_210ba6bc955699 73
+  s_070997616aef0b::t_9905dd22dca372 74-78
+packages/engine/src/eval/page-script.ts
+  s_070997616aef0b::t_61711ca26f017c 795,916,919,975-976
+  s_070997616aef0b::t_d991842634b4ab 974
+  s_070997616aef0b::t_0d894ae7d9c02c 915,917-918,920-921,977
+packages/engine/src/cdp/connection.ts
+  s_070997616aef0b::t_d07642529832f5 435-436
+packages/page-script/src/startup-probe.ts
+  s_070997616aef0b::t_61711ca26f017c 14,74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "41bf2a76ab287ad84238e6a360f71471599f160d",
+  "prompts": {},
+  "sessions": {
+    "s_070997616aef0b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_014a966c5ffe6ksSxqGEB5cmTr",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}

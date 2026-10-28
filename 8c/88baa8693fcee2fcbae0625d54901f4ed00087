@@ -1,0 +1,21 @@
+packages/mcp/README.md
+  s_1d6dfed42b1fe9::t_3843c0e32bcde4 1-51,54-96,102-127
+  s_1d6dfed42b1fe9::t_cec7c9a7fe7925 52-53
+  s_1d6dfed42b1fe9::t_a03f002d43bcd4 97-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8c88baa8693fcee2fcbae0625d54901f4ed00087",
+  "prompts": {},
+  "sessions": {
+    "s_1d6dfed42b1fe9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03079ac50ffehHp0CIBXySekCk",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

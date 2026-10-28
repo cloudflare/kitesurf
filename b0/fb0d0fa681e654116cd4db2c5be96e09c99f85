@@ -1,0 +1,33 @@
+packages/core/src/scan_test.rs
+  s_070997616aef0b::t_72d7019d641a28 414-430,469-482
+  s_070997616aef0b::t_9dbb1ef03dbd98 409-413
+  s_070997616aef0b::t_015a17077006de 431-468
+packages/core/src/scan.rs
+  s_070997616aef0b::t_673674b22ec693 35
+  s_070997616aef0b::t_86092cf47f6268 203
+  s_070997616aef0b::t_f802db1f947ae0 204-207
+  s_070997616aef0b::t_b29f4f3c6f02fd 430-433
+  s_070997616aef0b::t_abfa2a80961921 198-202
+  s_070997616aef0b::t_beaf99d3e7210a 36-52
+  s_070997616aef0b::t_45ba0f2ffef408 114-117
+  s_070997616aef0b::t_9d2ca78e130d8e 127-131
+  s_070997616aef0b::t_dedf68d8d1812b 150
+  s_070997616aef0b::t_27eeb0580e77a5 113,118-126,132-135
+  s_070997616aef0b::t_b0d2c0a1fc522b 148-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b0fb0d0fa681e654116cd4db2c5be96e09c99f85",
+  "prompts": {},
+  "sessions": {
+    "s_070997616aef0b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_014a966c5ffe6ksSxqGEB5cmTr",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

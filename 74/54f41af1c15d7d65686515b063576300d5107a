@@ -1,0 +1,25 @@
+packages/engine/test/e2e/boa-realm-intrinsics.e2e.test.ts
+  s_8f2876ddc9923d::t_7e37f84db2596c 1-104
+packages/core/src/boa_bridge.rs
+  s_8f2876ddc9923d::t_8bbec72a470984 1152,1852-1891,1894,1908,1916-1921,1935,2049,2052
+  s_8f2876ddc9923d::t_b1ec138a1df6cb 1135-1139,1144
+  s_8f2876ddc9923d::t_e03bb73a644519 1133-1134,1140-1143
+  s_8f2876ddc9923d::t_18728e175eabd2 624-676
+  s_8f2876ddc9923d::t_220c06d962f841 2039-2048,2050
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7454f41af1c15d7d65686515b063576300d5107a",
+  "prompts": {},
+  "sessions": {
+    "s_8f2876ddc9923d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd73a0956ffe0L2bWk0EeOISK4",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

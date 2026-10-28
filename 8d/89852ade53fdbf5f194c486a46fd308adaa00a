@@ -1,0 +1,58 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0137-Keep-the-inline-strut-off-empty-and-top-aligned-line.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-144
+scripts/patches/blitz-dom-0.3.0-beta.2/0132-Fix-absolute-inline-box-positioning.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-47
+scripts/patches/blitz-dom-0.3.0-beta.2/0138-Give-outside-list-markers-the-natural-line-height-fl.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-71
+scripts/patches/blitz-dom-0.3.0-beta.2/0128-Resolve-fixed-percentage-sizes-against-the-viewport.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-34
+scripts/patches/blitz-dom-0.3.0-beta.2/0124-Restyle-container-queries-against-laid-out-container.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-165
+scripts/patches/blitz-dom-0.3.0-beta.2/0130-Preserve-parent-line-metrics-for-inline-boxes.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-281
+scripts/patches/blitz-dom-0.3.0-beta.2/0135-Fix-hit-testing-for-padded-inline-roots.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0127-memory-manage-cached-author-sheet-lifetimes.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-158
+scripts/patches/blitz-dom-0.3.0-beta.2/0134-Preserve-supported-font-source-fallbacks.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0125-Resolve-an-atomic-inline-s-own-intrinsic-width-keywo.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-140
+scripts/patches/blitz-dom-0.3.0-beta.2/0129-memory-support-embedder-managed-node-reclamation.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-57
+scripts/patches/blitz-dom-0.3.0-beta.2/0133-Resolve-relative-inline-insets-against-used-height.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-61
+scripts/patches/blitz-dom-0.3.0-beta.2/0123-Pass-inline-alignment-and-x-height-to-Parley.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-431
+scripts/patches/blitz-dom-0.3.0-beta.2/0131-Apply-relative-insets-to-inline-floats.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-92
+scripts/patches/blitz-dom-0.3.0-beta.2/0136-Round-natural-font-metrics-to-whole-pixels.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-55
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_6917a4c76239ca::t_d921440582f835 5
+  s_6917a4c76239ca::t_b129b7b5f6e90f 413
+  s_6917a4c76239ca::t_7b088b9da10da1 186-189
+  s_6917a4c76239ca::t_f799b25d5ee9eb 424
+  s_6917a4c76239ca::t_0ebeb5128ab60e 460
+  s_6917a4c76239ca::t_747fde3a5222a6 312-313
+  s_6917a4c76239ca::t_9de8663982e146 207
+  s_6917a4c76239ca::t_4ebd7eda8b334c 343-412,414-423,425-459,461-469
+scripts/patches/blitz-dom-0.3.0-beta.2/0126-Use-natural-font-metrics-for-inline-line-height.patch
+  s_6917a4c76239ca::t_706f85af67331a 1-299
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8d89852ade53fdbf5f194c486a46fd308adaa00a",
+  "prompts": {},
+  "sessions": {
+    "s_6917a4c76239ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4957e992ffeVbjatLtj1w4960",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

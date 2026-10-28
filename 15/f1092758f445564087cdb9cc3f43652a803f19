@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0103-Restyle-dir-dependents-when-dir-auto-text-changes.patch
+  s_991c8660c98c38::t_ba5618ac74017f 1-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "15f1092758f445564087cdb9cc3f43652a803f19",
+  "prompts": {},
+  "sessions": {
+    "s_991c8660c98c38": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009892ce1ffeHHnJ6vwrpWm3CZ",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

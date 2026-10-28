@@ -1,0 +1,54 @@
+packages/native/src/page.rs
+  s_32c3dba7fedc7c::t_f7eb63876dee6b 25-27
+  s_32c3dba7fedc7c::t_e8e22cb9bd1201 1-24,28-232
+AGENTS.md
+  s_32c3dba7fedc7c::t_c14d7a8efc6050 59-63
+packages/native/Cargo.toml
+  s_32c3dba7fedc7c::t_c33085c8111142 57-59
+  s_32c3dba7fedc7c::t_73bcf152fccc6e 44-56,60-70
+  s_32c3dba7fedc7c::t_6b03a07221efa1 22
+  s_32c3dba7fedc7c::t_8e3a8fc1fb0b5d 71-75
+  s_32c3dba7fedc7c::t_fd602a94a5a905 16-21,23
+packages/native/src/input.rs
+  s_32c3dba7fedc7c::t_089d4bbac0365d 1-144
+packages/native/src/wire.rs
+  s_32c3dba7fedc7c::t_a88810eb9f03a4 39-44
+  s_32c3dba7fedc7c::t_c0e900677b2197 1-38,45-277
+packages/native/src/main.rs
+  s_32c3dba7fedc7c::t_bc068872b280f1 86-92,105,116,123-132,134-136,139,146-150,154-184,194-195,200-214,257-258,289-295
+  s_32c3dba7fedc7c::t_e6523a48acdc66 650,698-716,721-763
+  s_32c3dba7fedc7c::t_e9989886b80eee 304-307,312,318-328,338,340
+  s_32c3dba7fedc7c::t_9458f7364bd87a 54
+  s_32c3dba7fedc7c::t_9b4cadb569526d 13
+  s_32c3dba7fedc7c::t_fd602a94a5a905 15,18,25,28-30,33
+  s_32c3dba7fedc7c::t_7017bb21edac4c 3-10,12,48,55-56,59,67-79,109-111,113-115,117-118
+  s_32c3dba7fedc7c::t_6229ae93afa3fb 20-24,26-27,31-32,34-41
+  s_32c3dba7fedc7c::t_145f14c6319f6b 237,239-241,253-256,259-264,267,346-361,363-373,375-384
+  s_32c3dba7fedc7c::t_66695371239d63 442-447,455-460,466-469,479-515,563,568-649
+  s_32c3dba7fedc7c::t_05a434af07691c 19,80,651,764
+packages/native/src/net.rs
+  s_32c3dba7fedc7c::t_f7eb63876dee6b 155,171-175,181,186,192,196,204,208,224-231,233,239,241,245,249,251-260,263,329
+  s_32c3dba7fedc7c::t_24da8d802aed71 1-59,61-154,156-170,176-180,182-185,187-191,193-195,197-203,205-207,209-223,232,234-238,240,242-244,246-248,250,261-262,264-292,296-328,330-335,363-370
+  s_32c3dba7fedc7c::t_e19492f2e90030 336-362
+  s_32c3dba7fedc7c::t_9458f7364bd87a 60,293-295
+docs/RBI.md
+  s_32c3dba7fedc7c::t_c14d7a8efc6050 98-102
+packages/native/Cargo.lock
+  s_32c3dba7fedc7c::t_ab821c4394be4a 40-45,71-97,128-133,146-154,164-172,199-210,276-281,341-349,365-374,390-411,632-640,665-674,685-695,719-728,740,782-797,925-972,983-988,1072-1077,1081-1083,1085-1088,1091,1651-1663,1711-1719,1738-1743,1774-1803,1847-1860,1905-1939,2010-2033,2162-2167,2335-2337,2345-2371,2384-2422,2441,2455,2475-2480,2674-2697,2981-2991,3124-3129,3164-3184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "facc6842a4f63fbe5607cf8cd44513d7f434a7cd",
+  "prompts": {},
+  "sessions": {
+    "s_32c3dba7fedc7c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0431e510effe1Vue1bxbBlApwn",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

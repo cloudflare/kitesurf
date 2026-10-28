@@ -1,0 +1,31 @@
+docs/MEMPROF.md
+  s_455e9fe7b283e3::t_bfe6f382acb6d4 199-209
+packages/engine/src/wasm.ts
+  s_455e9fe7b283e3::t_3a1a8793421972 161-164
+packages/engine/src/cdp/css.ts
+  s_455e9fe7b283e3::t_15d75ab579e4da 365-366,368
+packages/engine/src/cdp/page.ts
+  s_455e9fe7b283e3::t_83df4a2b07678b 1284-1287
+packages/engine/src/cdp/dom.ts
+  s_455e9fe7b283e3::t_15d75ab579e4da 139-141,166-168
+packages/engine/src/cdp/accessibility.ts
+  s_455e9fe7b283e3::t_15d75ab579e4da 310-311,313
+packages/engine/src/cdp/dom-release.ts
+  s_455e9fe7b283e3::t_fdaa822e611eb8 169-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fd1859d3620c781fb7ac183878c9f501cafffdf4",
+  "prompts": {},
+  "sessions": {
+    "s_455e9fe7b283e3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_031e8773fffeDWEtrTxYKjunEJ",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

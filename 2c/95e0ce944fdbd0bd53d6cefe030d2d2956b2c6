@@ -1,0 +1,27 @@
+scripts/update-kitesurf-submodule.test.mjs
+  s_4ba79f911c93c4::t_667c8900502d2c 10-11,20
+  s_4ba79f911c93c4::t_488eeecd64db4e 201-210,212
+  s_4ba79f911c93c4::t_0d519a3c343512 211
+  s_4ba79f911c93c4::t_fed3947be7eb68 213-214
+scripts/update-kitesurf-submodule.mjs
+  s_4ba79f911c93c4::t_f2a4153e52b570 41-43
+  s_4ba79f911c93c4::t_7f94cf2b022c39 44-45
+docs/CI.md
+  s_4ba79f911c93c4::t_3b1a3e669d51f4 93-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2c95e0ce944fdbd0bd53d6cefe030d2d2956b2c6",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+packages/page-script/src/globals.ts
+  s_e96f525a1fab81::t_f87cbf3024f1f5 1151-1153
+  s_e96f525a1fab81::t_6f9bc430bb74cd 1111-1120,1122-1127,1129-1132
+  s_e96f525a1fab81::t_c3836d6ef64f36 1065-1110,1121,1128,1133-1150,1154-1172
+packages/engine/test/e2e/domexception-binding-shape.e2e.test.ts
+  s_e96f525a1fab81::t_57e441f562ac97 10-15,30-56,79-96
+  s_e96f525a1fab81::t_490f810611851f 1-9,16-29,57-78,97-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "816bb2f09c97ff704447fbade487528c7e16f7eb",
+  "prompts": {},
+  "sessions": {
+    "s_e96f525a1fab81": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ffb760b57ffeQtAX5nnhqtSUoB",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

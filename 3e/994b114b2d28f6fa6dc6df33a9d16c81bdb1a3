@@ -1,0 +1,139 @@
+scripts/patches/jpeg-encoder-0.7.0/0001-Encode-RGBA-images-with-wasm-SIMD128.patch
+  s_103b7f1f0713cd::t_38ae52fde36cfa 3,15-27,30-33,35,39-41,45,75,97-102,121,147,175,270,273,312-315,323-354,578-590,604-607,629-631,730-841
+packages/core/src/lib.rs
+  s_103b7f1f0713cd::t_13bc2274b2bf36 6784,6793,6796-6800
+  s_103b7f1f0713cd::t_d7fadb67c9cbe4 949-956,965
+  s_03997f732ec005::t_a5d50904f6ba36 5365,5369-5370,5372-5381,5385-5395,5459,6001,6005-6006,6008-6017,6021-6031,6135
+  s_03997f732ec005::t_970118394c5e0d 5366-5368,5382-5384,6002-6004,6018-6020
+  s_03997f732ec005::t_1f0bbf52ebc332 5371,6007
+packages/core/src/rbi_image_cache_test.rs
+  s_103b7f1f0713cd::t_7baee366ee4b65 24-27,29
+  s_103b7f1f0713cd::t_2ba64cc6f8a898 138,143-145,147-150,158-159,165-176,178-180
+  s_103b7f1f0713cd::t_aa3feb33651d05 151-154
+  s_103b7f1f0713cd::t_0ab60a0985fd3b 177
+  s_103b7f1f0713cd::t_4bc475836d4dae 139-142,146,155-157,160-164
+  s_03997f732ec005::t_a56587d63136e3 43-54,60-71,80-84,89-93
+  s_03997f732ec005::t_1f0bbf52ebc332 55-59,72-79,85-88
+  s_03997f732ec005::t_7e01cc4b4391d3 42
+packages/core/src/pdf.rs
+  s_103b7f1f0713cd::t_f1d27660dbf9a3 165
+  s_103b7f1f0713cd::t_4355a94d617d0a 138
+packages/engine/src/cdp/page.ts
+  s_103b7f1f0713cd::t_277cd028095f22 3328,3334,6074
+  s_03997f732ec005::t_5846cfaf5ba6b3 3328,3334,6074
+packages/engine/src/rbi.ts
+  s_103b7f1f0713cd::t_0836ba4b3418ee 282
+  s_103b7f1f0713cd::t_59e9b35ee89a82 118
+  s_03997f732ec005::t_5846cfaf5ba6b3 118,282
+packages/page-script/src/globals.ts
+  s_103b7f1f0713cd::t_277cd028095f22 68-74,77-78,81-82,88-91,96-103,142,168,172
+  s_103b7f1f0713cd::t_b4db3c4248c03a 75-76,79-80,83-87,92-93
+  s_103b7f1f0713cd::t_12e224f32d5a16 94-95
+  s_389aa8bfb4b14f::t_a27749d237c0d7 126
+  s_389aa8bfb4b14f::t_2a3874dd44c035 127-128,137
+  s_03997f732ec005::t_5846cfaf5ba6b3 68-103,142,172
+packages/page-script/src/index.ts
+  s_103b7f1f0713cd::t_277cd028095f22 4368,4388
+  s_103b7f1f0713cd::t_b4db3c4248c03a 229-230,1479-1490,4367,4369,4389
+  s_03997f732ec005::t_5846cfaf5ba6b3 229-230,1479-1490,4367-4369,4388-4389
+  s_03997f732ec005::t_a13d27be0748fa 2668,4382,4425,4651-4652,4656,4665,4676,4684
+packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
+  s_103b7f1f0713cd::t_7c7e30fe443127 3,5,15-20,22-23,27-33,35-38,88-93,95-96,98-99,101,106-119,121-127
+  s_103b7f1f0713cd::t_b4db3c4248c03a 6-11,94,102-105
+  s_62bd79c66854c1::t_a2c5cb5d99ebca 12-14,21,24-26,39,41-58,60,62-63,65-70,72-74,82-84,86-87
+  s_62bd79c66854c1::t_eac90054dfd024 61,64,85
+  s_62bd79c66854c1::t_486a3622f3a4e2 40
+  s_389aa8bfb4b14f::t_2a3874dd44c035 97,100,120,128-130,134-147,151-154,156-186
+  s_389aa8bfb4b14f::t_31aa6a75a1002f 131-133,148-150,155
+  s_03997f732ec005::t_5846cfaf5ba6b3 3,5-11,15-20,22-23,27-33,35-38,88-96,98-99,101-114,115-119,121-127
+  s_03997f732ec005::t_2076222924cf46 97,100,120
+packages/engine/src/cdp/page-session.ts
+  s_103b7f1f0713cd::t_dc04101517e3f1 138
+  s_103b7f1f0713cd::t_4336a6a343dde2 158-159
+  s_389aa8bfb4b14f::t_6c11c7bdfc2c03 136
+  s_03997f732ec005::t_5846cfaf5ba6b3 138,158-159
+packages/engine/src/cdp/kitesurf.ts
+  s_389aa8bfb4b14f::t_6c11c7bdfc2c03 418
+docs/PLATFORM.md
+  s_389aa8bfb4b14f::t_2a3874dd44c035 92-96
+packages/engine/test/e2e/demos/canvas-2d-paint-demo.e2e.test.ts
+  s_389aa8bfb4b14f::t_0ba9c829b8c484 18,44-51,53-60
+  s_389aa8bfb4b14f::t_2a3874dd44c035 10-15,31,33
+packages/engine/test/e2e/canvas-raw-renderer.e2e.test.ts
+  s_03997f732ec005::t_dad4807078af48 24-26,30,34-35
+  s_03997f732ec005::t_a56587d63136e3 1-23,27-29,31-33,36-42
+packages/core/src/scene_record.rs
+  s_03997f732ec005::t_970118394c5e0d 236-238,560,600,1690,1695,1698,1700-1702
+  s_03997f732ec005::t_dad4807078af48 2669
+  s_03997f732ec005::t_fdda3c5a19ba64 1688-1689
+  s_03997f732ec005::t_a5d50904f6ba36 559,599
+  s_03997f732ec005::t_a56587d63136e3 2671-2688,2696-2708,2713-2714
+  s_03997f732ec005::t_1f0bbf52ebc332 558,2689-2695,2709-2712
+  s_03997f732ec005::t_3e5d98139a96e8 2670
+docs/PAGE_RENDERER.md
+  s_03997f732ec005::t_3159a570371fa3 40
+  s_03997f732ec005::t_1f62fb3ebdabab 37,46
+  s_03997f732ec005::t_39179fb6046704 41-45
+  s_b28f10956c0cd2::t_2008ba48b8ce7a 38-39,47-52
+packages/core/src/scene_decode.rs
+  s_03997f732ec005::t_6ff55eac275a01 613-628,659-667,684-686
+packages/core/src/scene_replay.rs
+  s_03997f732ec005::t_0547f931686f90 2279
+  s_03997f732ec005::t_a5d50904f6ba36 1154,1546
+  s_03997f732ec005::t_2076222924cf46 662-668,1893-1896
+  s_03997f732ec005::t_1f0bbf52ebc332 2281-2284
+  s_03997f732ec005::t_1f62fb3ebdabab 1892,1897
+  s_03997f732ec005::t_a56587d63136e3 2270,2278,2280
+  s_03997f732ec005::t_f61e06342a742e 1161-1163,1205,2275-2276
+  s_03997f732ec005::t_a0ff3e8323e248 1181,1197-1198,1711-1712
+  s_03997f732ec005::t_6ff55eac275a01 402,2724-2744
+  s_03997f732ec005::t_2ab1749aef7253 2745-2746
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3e994b114b2d28f6fa6dc6df33a9d16c81bdb1a3",
+  "prompts": {},
+  "sessions": {
+    "s_03997f732ec005": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0eae1bebffeH0x3Q3vwkoOycu",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_389aa8bfb4b14f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f022761b6ffeDwKc838hYL9uGA",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_62bd79c66854c1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0daa0868ffeEIQuXt2gq1KU8H",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_b28f10956c0cd2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0c4dbffeffeRpYsE4LTa4LDna",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

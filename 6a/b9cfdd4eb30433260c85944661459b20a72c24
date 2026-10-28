@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0124-Restyle-container-queries-after-every-layout-change.patch
+  s_f19c180209e8f6::t_e6b2b9c4186081 1-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6ab9cfdd4eb30433260c85944661459b20a72c24",
+  "prompts": {},
+  "sessions": {
+    "s_f19c180209e8f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f84d2e622ffePrvxMg81ouqXdB",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

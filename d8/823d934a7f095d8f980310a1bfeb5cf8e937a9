@@ -1,0 +1,64 @@
+packages/engine/src/tty/params.ts
+  s_296f2365729419::t_2c53ce2486cdd6 41-43
+  s_296f2365729419::t_cc67b145f7df7b 29-36,40
+packages/engine/test/e2e/term-session.e2e.test.ts
+  s_296f2365729419::t_fe5d5255351342 100,102-112
+  s_296f2365729419::t_a8761a76aa4341 88
+  s_296f2365729419::t_34a316b71e95c6 101,113-114,122-130,132-133
+  s_296f2365729419::t_c314b94b9cd932 90,92
+scripts/dev-tui-args.test.mjs
+  s_296f2365729419::t_37778ed9ec9f5e 14,17,21,23,33-34
+packages/engine/src/tty/route.ts
+  s_296f2365729419::t_9044d7f34de1b9 87-88
+packages/core/src/tty_grid.rs
+  s_296f2365729419::t_78f666a6ac6d26 305-306
+  s_296f2365729419::t_e8adec45516389 1327
+packages/core/src/tty_modes.rs
+  s_296f2365729419::t_ebdeb7a9920cec 1,20,23-24,26-27,34-35,40,49-50,58,67,92-93,336-337,340,468-470,476,486,493,515,531,547,554,559,568,580,592,605,620,651,655
+  s_296f2365729419::t_1b5322bed767b6 511,527,575,615,650
+  s_296f2365729419::t_819ddc9f3f637c 660
+  s_296f2365729419::t_9044d7f34de1b9 4-7,25,28-29
+packages/engine/src/tty/session.ts
+  s_296f2365729419::t_3fc63599c3418b 27,1523-1525,1527-1529,1532-1535
+  s_296f2365729419::t_bf31a2cf03b7a8 621-622,625-627,637-638,1397-1398
+  s_296f2365729419::t_7151ddc444fb9b 190,545,665,667-669,671,673-674,685,1111,1285
+  s_296f2365729419::t_2c53ce2486cdd6 269-277,546-549,634-635,639
+  s_296f2365729419::t_03903854f072e2 1431,1510-1512,1514-1515,1517,1536-1544,1546-1552,1555,1560-1562
+  s_296f2365729419::t_a7f5441e785d45 15-17,141-145,147
+packages/engine/src/wasm.ts
+  s_296f2365729419::t_c0a988d934dd37 10,185
+packages/engine/test/term-params.test.ts
+  s_296f2365729419::t_c314b94b9cd932 61-62,65-67,70
+  s_296f2365729419::t_34a316b71e95c6 40,68-69,71
+docs/TERMINAL.md
+  s_296f2365729419::t_6f48b5fdfeb3c1 173
+  s_296f2365729419::t_9044d7f34de1b9 33-34,43,103,107-108,110-114
+  s_296f2365729419::t_0c626654ab247c 28,100,102,116-117,171
+scripts/dev-tui.mjs
+  s_296f2365729419::t_9044d7f34de1b9 22,24-25
+packages/core/src/tty_cell_grid_test.rs
+  s_296f2365729419::t_37778ed9ec9f5e 292-295
+packages/engine/test/e2e/terminal-selection-after-navigation.e2e.test.ts
+  s_296f2365729419::t_c314b94b9cd932 89
+scripts/dev-tui-args.mjs
+  s_296f2365729419::t_37778ed9ec9f5e 12
+packages/engine/test/term-target.test.ts
+  s_296f2365729419::t_34a316b71e95c6 7,13-27
+  s_296f2365729419::t_108ba8861668cd 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d8823d934a7f095d8f980310a1bfeb5cf8e937a9",
+  "prompts": {},
+  "sessions": {
+    "s_296f2365729419": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f28b529a3ffeo0w45PqHM10i01",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}

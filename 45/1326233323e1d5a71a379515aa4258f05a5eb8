@@ -1,0 +1,66 @@
+packages/engine/src/tty-stylesheet-level2.css
+  s_91836f22884cfe::t_e05792f4d893d2 11
+packages/engine/src/tty-stylesheet.css
+  s_91836f22884cfe::t_953376c1f6e7f4 67
+  s_91836f22884cfe::t_081d9aa488985c 41-42,44-47
+  s_91836f22884cfe::t_e964bbfd83595b 30-31
+  s_91836f22884cfe::t_1e2f34ab9b8209 14
+  s_91836f22884cfe::t_572d7874d3ecba 82-87
+  s_91836f22884cfe::t_7ffb540c718065 32,164-171,173
+  s_91836f22884cfe::t_95a5d8ca97b4c7 88-94
+  s_91836f22884cfe::t_25405a97094425 53-66,68-69,157-158
+  s_91836f22884cfe::t_b1ec06e4602ace 172
+  s_91836f22884cfe::t_e387fd84ea82f2 70-77
+  s_91836f22884cfe::t_c6c65d975f789d 34-39
+  s_91836f22884cfe::t_448d9033ecfdd0 10
+  s_91836f22884cfe::t_95d4be6c11fdba 103-120
+  s_91836f22884cfe::t_2625181ccbdce4 40,43
+  s_91836f22884cfe::t_dd344f910318db 121-131
+  s_91836f22884cfe::t_321c1666fbb498 4-6,9,11
+  s_91836f22884cfe::t_e05792f4d893d2 48-52,78-81,95-102,132-144
+  s_91836f22884cfe::t_0638d99a7f566b 33
+  s_91836f22884cfe::t_65d9f62c45fedb 174
+packages/engine/test/tty-stylesheet.test.ts
+  s_91836f22884cfe::t_953376c1f6e7f4 214
+  s_91836f22884cfe::t_448d9033ecfdd0 7,12,18-19
+  s_91836f22884cfe::t_321c1666fbb498 3,6,10-11,13-16
+  s_91836f22884cfe::t_572d7874d3ecba 175-178
+  s_91836f22884cfe::t_2625181ccbdce4 180
+  s_91836f22884cfe::t_1e2f34ab9b8209 51-60
+  s_91836f22884cfe::t_95d4be6c11fdba 225-231,239
+  s_91836f22884cfe::t_213e60e027bc19 22-24,35-37
+  s_91836f22884cfe::t_e05792f4d893d2 170-174,204-205,217-224
+  s_91836f22884cfe::t_7ffb540c718065 95-100
+  s_91836f22884cfe::t_081d9aa488985c 179,181-198
+  s_91836f22884cfe::t_bfe3079fded0e9 81-88,91-92
+  s_91836f22884cfe::t_c6c65d975f789d 61-69,93
+  s_91836f22884cfe::t_b1ec06e4602ace 101
+  s_91836f22884cfe::t_dd344f910318db 232-238
+  s_91836f22884cfe::t_25405a97094425 206-213
+  s_91836f22884cfe::t_14062b1ce3bfad 44,47
+  s_91836f22884cfe::t_e387fd84ea82f2 215-216
+  s_91836f22884cfe::t_95a5d8ca97b4c7 199-203
+  s_91836f22884cfe::t_6677677292a39f 70
+  s_91836f22884cfe::t_4e633355b7d9d9 94
+packages/engine/src/tty-stylesheet.ts
+  s_91836f22884cfe::t_321c1666fbb498 12-13,15-17
+  s_91836f22884cfe::t_448d9033ecfdd0 11,14
+packages/engine/src/cdp/page.ts
+  s_91836f22884cfe::t_448d9033ecfdd0 3081
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "451326233323e1d5a71a379515aa4258f05a5eb8",
+  "prompts": {},
+  "sessions": {
+    "s_91836f22884cfe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fc027c856ffehWe4PxmxlV2l5z",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

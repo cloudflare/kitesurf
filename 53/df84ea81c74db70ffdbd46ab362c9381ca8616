@@ -1,0 +1,58 @@
+packages/page-script/src/index.ts
+  s_6aaa3704780b80::t_ee85f03e3ee504 5377-5380
+  s_efcd58b93e48ff::t_4b1ac38148ccb8 244
+packages/engine/test/e2e/timer-wheel.e2e.test.ts
+  s_6aaa3704780b80::t_4110289d42ce0c 150-152,160-162
+  s_6aaa3704780b80::t_1e4f7b5fca9c58 1-8,10-13,15-20,22-25,27,30,49-52,54-58,62,64-77,118,120-126,130,164-171,173,175
+  s_6aaa3704780b80::t_a4c9a6c2c75d61 14,21,26,53
+  s_6aaa3704780b80::t_ce62ece59472af 153-159
+  s_6aaa3704780b80::t_ee85f03e3ee504 136-141,148
+  s_6aaa3704780b80::t_9b9344bdf760e4 35-47,84,86-109,115-117
+  s_6aaa3704780b80::t_834dbcda6e6e0c 131-135,142-147,149
+  s_6aaa3704780b80::t_7ed9aaf72f5c7d 28,31-34,48,59-61,63,78-83,119,127-129,163,172,174
+  s_6aaa3704780b80::t_9b4dcda8965d36 9
+  s_6aaa3704780b80::t_0e6b60d64e5ac7 29
+  s_6aaa3704780b80::t_5b9bc5b443c146 85
+  s_6aaa3704780b80::t_ad56527836333b 110-114
+packages/page-script/src/globals.ts
+  s_6aaa3704780b80::t_9b9344bdf760e4 27-29,228,283-295,302,310,314-317,319-320,361,387
+  s_6aaa3704780b80::t_b0a8d0e12b6b47 30
+  s_6aaa3704780b80::t_9026e7e4dae3f0 233-235,237-257,259,262-274,278,280
+  s_6aaa3704780b80::t_b3053880bc9477 260-261,275,318
+  s_6aaa3704780b80::t_e3034de941cd50 137-138,142-148,216,221,223-227,230-231,281-282,296-301,321-323,327-331,334-338,363,368-369,376,396-399,424
+  s_6aaa3704780b80::t_c10cd28efd5224 168-170,185-187,189,192-194,197,217-218,222,236,258,279,383-384,390
+  s_6aaa3704780b80::t_16b38321b6bcca 324-325,332-333,339-349,360,367,372-374,377-379
+  s_6aaa3704780b80::t_8e5be848b0ae8e 408
+  s_6aaa3704780b80::t_834dbcda6e6e0c 132-133,141,151,159-167,171-184,188,190-191,195-196,198-209,219-220,229,304-309,311-313,388-389,392,401-407,414-423,425,436-437
+  s_6aaa3704780b80::t_ee85f03e3ee504 210-215,303,326
+  s_6aaa3704780b80::t_ed51f8df4c914d 391,393-394
+  s_6aaa3704780b80::t_a4c9a6c2c75d61 232,276-277
+  s_6aaa3704780b80::t_95eed3ca1d3ff6 375
+  s_6aaa3704780b80::t_95dab34f03edfa 400
+  s_efcd58b93e48ff::t_4b1ac38148ccb8 25,354,438-441
+  s_efcd58b93e48ff::t_f317d9d11ba35c 409-413
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "53df84ea81c74db70ffdbd46ab362c9381ca8616",
+  "prompts": {},
+  "sessions": {
+    "s_6aaa3704780b80": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f7fb4f1bfffetWy0uMcVTwuQPB",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_efcd58b93e48ff": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f74b34fe8ffe1qO503QG3YN650",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

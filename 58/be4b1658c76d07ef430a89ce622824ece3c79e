@@ -1,0 +1,70 @@
+packages/engine/src/eval/page-script.ts
+  s_4b450167e630e8::t_ec7f42bb6ddf26 952
+  s_4b450167e630e8::t_36435d78edc4c9 1190-1194,1211-1213,1228-1231,1237,1239-1242,1244-1249,1253
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_4b450167e630e8::t_36435d78edc4c9 216-228,626-627,1362-1390,1418-1423,1540-1543,1548-1550,3002-3011
+packages/page-script/src/inserted-scripts.ts
+  s_4b450167e630e8::t_36435d78edc4c9 118-125
+docs/SCRIPT_LOADING.md
+  s_4b450167e630e8::t_36435d78edc4c9 124-161
+packages/engine/src/eval/script-bundle.ts
+  s_4b450167e630e8::t_36435d78edc4c9 18,161-168,613-614,671,997-999,1003
+packages/script-gate/test/gate.test.ts
+  s_4b450167e630e8::t_36435d78edc4c9 17,324,326-328,331,337,341-381
+packages/page-script/src/globals.ts
+  s_4b450167e630e8::t_36435d78edc4c9 7,366-376,379-382,387,390-391,394
+packages/engine/test/fixtures-worker/assets/module-registry-config.json
+  s_4b450167e630e8::t_36435d78edc4c9 1
+packages/engine/test/fixtures-worker/assets/module-registry-lib.js
+  s_4b450167e630e8::t_36435d78edc4c9 1
+packages/engine/test/script-bundle-runtime.test.ts
+  s_4b450167e630e8::t_36435d78edc4c9 136
+packages/engine/test/walk-module-graph.test.ts
+  s_4b450167e630e8::t_36435d78edc4c9 67-91
+packages/engine/src/cdp/page.ts
+  s_4b450167e630e8::t_36435d78edc4c9 2694-2697,2706,2725,2728-2731,3549-3551
+packages/engine/vitest.e2e.config.mts
+  s_4b450167e630e8::t_36435d78edc4c9 192-194
+packages/script-gate/src/gate.ts
+  s_4b450167e630e8::t_36435d78edc4c9 27-31,66-75,352-360,362-368,381-387,401-405,408,440
+packages/script-gate/src/index.ts
+  s_4b450167e630e8::t_36435d78edc4c9 26-27,29
+packages/engine/test/fixtures-worker/wrangler.jsonc
+  s_4b450167e630e8::t_36435d78edc4c9 23-24
+packages/script-gate/src/mime.ts
+  s_4b450167e630e8::t_36435d78edc4c9 52-87
+packages/page-script/scripts/build.mjs
+  s_4b450167e630e8::t_36435d78edc4c9 217
+packages/engine/test/fixtures-worker/assets/module-registry.html
+  s_4b450167e630e8::t_36435d78edc4c9 1-48
+packages/engine/test/fixtures-worker/assets/module-registry-meta.js
+  s_4b450167e630e8::t_36435d78edc4c9 1
+packages/page-script/src/wasm-glue.d.ts
+  s_4b450167e630e8::t_36435d78edc4c9 38
+packages/engine/test/e2e/module-registry.e2e.test.ts
+  s_4b450167e630e8::t_36435d78edc4c9 1-57
+packages/page-script/src/index.ts
+  s_4b450167e630e8::t_36435d78edc4c9 1363-1371,2524-2562,2568-2569,2571-2581,2591-2601
+packages/core/src/boa_eval.rs
+  s_4b450167e630e8::t_36435d78edc4c9 49-77,84-89,91-92,241-250,277-282,1075-1077,1079,1100-1102
+packages/engine/src/eval/walk-module-graph.ts
+  s_4b450167e630e8::t_36435d78edc4c9 7-18,46-57,68,118-163,192-276,281-285,315-316,323-332,344,367-375,478-486,548-550,555-556,610-613,653-657,670-674,726-730,771-772,784,787-792,892-895,909,927,1049,1083-1114,1254,1384,1389,1422-1423,1446,1514-1553,1555-1567,1569-1572,1574,1585-1592,1594-1596,1602,1604-1609,1618-1622,1625-1660,1664,1669-1674,1696,1722,1724-1726,1729-1733
+packages/engine/test/fixtures-worker/assets/module-registry-tla.js
+  s_4b450167e630e8::t_36435d78edc4c9 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "58be4b1658c76d07ef430a89ce622824ece3c79e",
+  "prompts": {},
+  "sessions": {
+    "s_4b450167e630e8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5e08b52affe2claqo3m243AcK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

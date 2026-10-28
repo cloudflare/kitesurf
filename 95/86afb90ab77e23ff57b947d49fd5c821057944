@@ -1,0 +1,32 @@
+packages/engine/test/e2e/dom-parser-dataset.e2e.test.ts
+  s_4ba79f911c93c4::t_10f05b002109cc 1-46
+packages/dom-shim/src/parser.ts
+  s_4ba79f911c93c4::t_69f1d6a1220f7c 30
+  s_4ba79f911c93c4::t_dd14b3dbf65eed 257-260,266,269-271
+  s_4ba79f911c93c4::t_b55cdd5f67b41c 261-265,267-268,272-274
+  s_f5785bea72e01e::t_d368cbe20ff1f8 275
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9586afb90ab77e23ff57b947d49fd5c821057944",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_f5785bea72e01e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f51217a23ffeok4Sc2bqio2KUk",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

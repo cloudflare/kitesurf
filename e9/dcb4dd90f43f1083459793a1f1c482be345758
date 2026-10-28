@@ -1,0 +1,33 @@
+packages/ci-workflow/src/index.ts
+  s_8deef65a89b902::t_0b4ded0c7a05e9 45-46,53-55,63
+scripts/ci-wpt-remote.mjs
+  s_8deef65a89b902::t_a29b12b23cf1b6 15,53-54,137
+packages/ci-workflow/src/driver.ts
+  s_8deef65a89b902::t_ffcade1223b9f9 90-96
+packages/ci-workflow/src/env.ts
+  s_8deef65a89b902::t_0b4ded0c7a05e9 2-4
+tests/unit/workflow-sharding.test.ts
+  s_8deef65a89b902::t_ffcade1223b9f9 8
+  s_8deef65a89b902::t_527bfa100a94c3 1-7,9-50
+packages/ci-workflow/src/workflow.ts
+  s_8deef65a89b902::t_ffcade1223b9f9 12
+  s_8deef65a89b902::t_e462ed3e4ba8f4 3-8,13-17,22-24,26,29-32,34,40-60,62-63,65-67,69-90
+packages/ci-workflow/wrangler.jsonc
+  s_8deef65a89b902::t_a29b12b23cf1b6 11-14,16-20,24-25,30-32,44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e9dcb4dd90f43f1083459793a1f1c482be345758",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

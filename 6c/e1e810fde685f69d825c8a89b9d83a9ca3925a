@@ -1,0 +1,22 @@
+scripts/patches/stylo-0.22.0/0042-Allow-the-unreachable-fallback-arm-in-shorthand-seri.patch
+  s_d0b7ef49ec411f::t_0266ed330d1def 3
+  s_d0b7ef49ec411f::t_b4fa30ac26cbc8 1-2,4-34
+MODULE.bazel.lock
+  s_d0b7ef49ec411f::t_ed1b6786ae75d6 1094-1095,1097-1098,1100-1101,1103-1104,5277-5278
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6ce1e810fde685f69d825c8a89b9d83a9ca3925a",
+  "prompts": {},
+  "sessions": {
+    "s_d0b7ef49ec411f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb7b953deffe6fWRfTT3Ug1jIW",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}

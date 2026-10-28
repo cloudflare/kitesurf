@@ -1,0 +1,20 @@
+scripts/get-patched-vendor-crates.mjs
+  s_66dcd752fbc9dc::t_d0318115753995 136-137,139
+  s_66dcd752fbc9dc::t_a09a52bef84532 138,140-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4235aa315bd35a0221186efce9b33f49c44be965",
+  "prompts": {},
+  "sessions": {
+    "s_66dcd752fbc9dc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_007c4ca0cffem64CSPljVfAf1E",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

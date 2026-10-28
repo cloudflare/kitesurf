@@ -1,0 +1,24 @@
+README.md
+  s_c6d6a3ac21fe46::t_fb5e714e5ee889 83,86,89
+  s_c6d6a3ac21fe46::t_237d6db90f969a 18-20,23-25,32-33,35,45,107
+  s_c6d6a3ac21fe46::t_a2d2095d2b7d2c 139,297-298,302
+  s_c6d6a3ac21fe46::t_d9ddb889efc13c 90
+packages/kitesurf-cli/README.md
+  s_c6d6a3ac21fe46::t_a2d2095d2b7d2c 77,80-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7dac1c38a8085fc8585b2fa687ec53ef95525d90",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

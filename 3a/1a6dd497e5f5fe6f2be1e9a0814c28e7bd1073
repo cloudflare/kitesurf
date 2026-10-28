@@ -1,0 +1,24 @@
+packages/core/src/scene_replay.rs
+  s_198fdbc4c2e86a::t_310c6233c1c534 167-177
+  s_198fdbc4c2e86a::t_3ec058abecf3cd 1697-1725,1727-1733,1735-1739
+  s_198fdbc4c2e86a::t_f3950fccccb401 1206-1214
+  s_198fdbc4c2e86a::t_4c81dbb7adb87d 1726,1734
+  s_198fdbc4c2e86a::t_cd9daadd1184d3 144-156
+  s_198fdbc4c2e86a::t_be55a1409ba932 1740
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3a1a6dd497e5f5fe6f2be1e9a0814c28e7bd1073",
+  "prompts": {},
+  "sessions": {
+    "s_198fdbc4c2e86a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_038f9c03effej9If9NChDlRX8m",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

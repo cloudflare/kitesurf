@@ -1,0 +1,19 @@
+.gitignore
+  s_c6d6a3ac21fe46::t_2761500b69f9f6 36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e0266fa04307671290a7cbe7ab36dc4caf427443",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

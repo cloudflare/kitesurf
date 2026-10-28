@@ -1,0 +1,30 @@
+packages/core/src/lib.rs
+  s_0b62245bd53100::t_ade64d117d328a 4052,4057
+  s_0b62245bd53100::t_e031d31dc2cb3d 6638,6678-6679,6688
+  s_0b62245bd53100::t_896d83eff634b0 6640-6660
+  s_0b62245bd53100::t_e7ce5926aea12f 6661-6662,6669-6671,6673,6687
+packages/core/src/transitions.rs
+  s_0b62245bd53100::t_ef79eba438adb0 193-194
+packages/core/src/animation_clock_test.rs
+  s_0b62245bd53100::t_ef79eba438adb0 439-455
+packages/engine/test/e2e/mousedown-focus-default-action.e2e.test.ts
+  s_0b62245bd53100::t_4a833ed4f27604 116
+packages/dom-shim/src/element.ts
+  s_0b62245bd53100::t_4a833ed4f27604 3446
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1620400638e976f81dba6c5173ada515b56bd58b",
+  "prompts": {},
+  "sessions": {
+    "s_0b62245bd53100": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb909e891ffeOysb1haJ2cDJYI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

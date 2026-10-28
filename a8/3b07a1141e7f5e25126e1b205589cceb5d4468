@@ -1,0 +1,23 @@
+packages/engine/src/rbi.ts
+  s_a6dfb03333579b::t_dc0d5d72a09120 18,26,775-778,780,895-897,958-965,1329-1334
+packages/engine/src/rbi-protocol.ts
+  s_a6dfb03333579b::t_dc0d5d72a09120 23-88
+packages/engine/test/rbi-resource-batch.test.ts
+  s_a6dfb03333579b::t_dc0d5d72a09120 1-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a83b07a1141e7f5e25126e1b205589cceb5d4468",
+  "prompts": {},
+  "sessions": {
+    "s_a6dfb03333579b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe0584afbffeoAB9k6DTB9mkLz",
+        "model": "@cf/qwen/qwen3.8-27b"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

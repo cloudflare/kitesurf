@@ -1,0 +1,21 @@
+bench/harness/run.mjs
+  s_3fc265f386e88a::t_61677984bc8d8b 74-76
+.gitlab-ci.yml
+  s_3fc265f386e88a::t_52cdc7f9a2229c 2278-2279,2329-2332,2334,2337
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4ef55cb64437cff0b435330468284f70a62ba599",
+  "prompts": {},
+  "sessions": {
+    "s_3fc265f386e88a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f152787e0ffe51sPhnS0pmtLDd",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

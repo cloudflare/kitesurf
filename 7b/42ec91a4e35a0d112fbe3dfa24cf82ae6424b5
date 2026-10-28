@@ -1,0 +1,21 @@
+packages/dom-shim/BUILD.bazel
+  s_325e022d8487b0::t_4145401d2409d1 6
+packages/dom-shim/package.json
+  s_325e022d8487b0::t_4145401d2409d1 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7b42ec91a4e35a0d112fbe3dfa24cf82ae6424b5",
+  "prompts": {},
+  "sessions": {
+    "s_325e022d8487b0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e87e6cc17ffeE3am0OA8I2bLOK",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+packages/page-script/src/inserted-scripts.ts
+  s_41d5a40b9168bd::t_591e4517be79fa 176,184-188,191,216,221-225
+packages/page-script/src/native-http.ts
+  s_41d5a40b9168bd::t_591e4517be79fa 8-26,36,49-59,151-165
+packages/page-script/src/resource-fetch.ts
+  s_41d5a40b9168bd::t_53ad1751c5ed9c 36-37
+  s_41d5a40b9168bd::t_591e4517be79fa 21-25,27,35,38-76,709-710,720-724,726-737,746-753,756-759,765-766,769-772,774-775,777,779
+  s_059e99c81ea16a::t_3b3e67c6443dd4 780,782,789-790
+packages/page-script/src/fetch-shim.ts
+  s_41d5a40b9168bd::t_591e4517be79fa 12,15-19,641-665,677,698-699,722-723,727,732-734,748-750,757-759,762,790,826-832,914-926,1118-1135,1151,1154-1160,1162-1164
+packages/engine/test/e2e/script-gate.e2e.test.ts
+  s_41d5a40b9168bd::t_591e4517be79fa 278-406
+packages/page-script/src/trusted-fetch.ts
+  s_41d5a40b9168bd::t_591e4517be79fa 16-23,41-47,60-66
+packages/engine/src/eval/outbound.ts
+  s_41d5a40b9168bd::t_591e4517be79fa 1125-1161,1179,1225,1409
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2f55109a7135b6e1aca1278df5bedf273c9e5ade",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_41d5a40b9168bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ede483919ffe2mF0OUxdj7pj4Y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

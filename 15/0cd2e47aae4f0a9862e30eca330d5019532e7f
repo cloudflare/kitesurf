@@ -1,0 +1,383 @@
+packages/page-script/src/scripts.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 7,49,51-84,248,269,272,282-283,292,359,362-364,473,480-482,486,488,502
+  s_c3a5a4d70c5a2b::t_e7bc201aea163a 1-3
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 16,50,94-157,177,179-180,188-189,191-197,492-495,500-501
+  s_c3a5a4d70c5a2b::t_812cc08485a965 8-12,158-176,178,181-187,190,387-396,420-422,496-498
+  s_090f1138f4038a::t_b5225e2db18f1a 506-538
+packages/engine/test/e2e/workerd-native-browser.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1,7-10,26,31,64,80-89,92,94-95,99-145,161-175,221-223,265-269,334,336,351-354,358,361
+examples/top-sites-smoke.mjs
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 2,4-6
+packages/engine/src/eval/native-module-source.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1-12,26-84,89-91,97-100
+  s_c3a5a4d70c5a2b::t_812cc08485a965 85-88,92-96
+  s_c3a5a4d70c5a2b::t_03133af63263a9 13-25
+docs/SCRIPT_LOADING.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1-60,93-96
+packages/engine/test/e2e/cors-stylesheets.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 3,125,133,164
+packages/dom-shim/src/current-script.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 58-59
+packages/core/Cargo.toml
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 196,211
+  s_c3a5a4d70c5a2b::t_6438c4f8f2e8d5 178
+packages/page-script/src/globals.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 126-127,132-141,160-168,189,198,202,254,3690
+  s_c3a5a4d70c5a2b::t_243e787dbf5648 518-519,2380-2381,3417
+  s_c3a5a4d70c5a2b::t_812cc08485a965 9-10,190-197,199-201,203-239
+  s_c3a5a4d70c5a2b::t_e51b8ef8242104 1089-1100
+  s_c3a5a4d70c5a2b::t_f6461e992d1766 285-287,293,298,3853-3854
+  s_c3a5a4d70c5a2b::t_3630b18d86a596 3856,3858-3859
+  s_c3a5a4d70c5a2b::t_5fbf55084e5d34 13,3720
+packages/page-script/tsconfig.json
+  s_c3a5a4d70c5a2b::t_021a66b6936cc8 11
+scripts/wpt-exec.mjs
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1304
+tests/interactivity-flows/findings.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 4-5
+packages/page-script/src/wasm-glue.d.ts
+  s_c3a5a4d70c5a2b::t_021a66b6936cc8 161
+packages/engine/src/cdp/debugger.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 124-125,127
+packages/engine/test/e2e/header-intrinsic-tamper.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 86-87,152,217,223
+packages/engine/test/e2e/demos/absolute-path-import-demo.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1,5-6
+scripts/build-wasm.mjs
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 104,277,323,497-498
+scripts/wpt-testdriver.mjs
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 20
+examples/wikipedia-portal-demo.mjs
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 9-10
+scripts/patches/README.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 248
+packages/engine/test/page-script-compat.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 3,12,14-16,18,20,23,32
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 13,19
+packages/page-script/scripts/build.mjs
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 206-207,242-243
+packages/page-script/src/native-http.ts
+  s_c3a5a4d70c5a2b::t_021a66b6936cc8 3-5
+docs/PLATFORM.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 116,118-121
+  s_c3a5a4d70c5a2b::t_5fbf55084e5d34 82-93
+packages/engine/test/fixtures-worker/assets/graphprobe/g9.js
+  s_c3a5a4d70c5a2b::t_4eecaf325f3688 1-2
+packages/dom-shim/src/document.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 18
+packages/engine/test/fixtures-worker/assets/dynprobe-imports-static.js
+  s_c3a5a4d70c5a2b::t_4eecaf325f3688 1-2
+examples/dynamic-behavior-demo.mjs
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 3,5,7,22,30-31
+docs/NETWORKING.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1,8-14,192-198
+  s_c3a5a4d70c5a2b::t_072e394db9d169 68-77,82-87
+examples/dynamic-import-demo.mjs
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1-62
+tests/interactivity-flows/flows.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 430-431,1081-1082,1195,1658,1869,1903
+packages/core/src/ks_tracing.rs
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 42,121
+examples/manifest.json
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 101
+packages/engine/test/e2e/classic-computed-import.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 3-4,44
+packages/dom-shim/src/node-base.ts
+  s_c3a5a4d70c5a2b::t_6d09445a500967 6
+packages/engine/test/fixtures-worker/assets/dynprobe.html
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 6,30-31,40,51
+packages/engine/src/cdp/page-session.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 194
+packages/page-script/src/__ks_startup_probe_input.d.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 5
+packages/engine/test/e2e/demos/absolute-path-transitive-demo.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 3-5
+README.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 226-236,314,325,328,346-349,374-377
+  s_090f1138f4038a::t_9aaefa79cc7e35 378-381
+packages/engine/src/cdp/page.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 35,75-77,81,1901-1905,1957-1961,2009-2017,2022,2024-2026,2029-2037,2040,2046,2050,2053,2059,2069,2077,2307,2570-2571,2574,2585-2591,2594-2596,2598-2599
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 3023-3024
+  s_c3a5a4d70c5a2b::t_812cc08485a965 79,4483-4508
+  s_c3a5a4d70c5a2b::t_5a95d51df2e864 4509
+  s_c3a5a4d70c5a2b::t_03133af63263a9 78,80,4510-4541
+  s_c3a5a4d70c5a2b::t_15d3b0f38c031c 4542
+AGENTS.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 59-60,129,141,146,151-152,267,288-289,292-293,429,431-433
+docs/MEMPROF.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 121
+examples/todomvc-react-render-probe.mjs
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 9
+packages/engine/test/e2e/demos/ce-upgrade-pipeline.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 7
+packages/engine/test/e2e/demos/offscreen-canvas-demo.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 23
+packages/engine/test/fixtures-worker/assets/dynprobe-static.js
+  s_c3a5a4d70c5a2b::t_4eecaf325f3688 1-2
+packages/engine/wrangler.jsonc
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 176
+docs/TESTING.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 261,402
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 96-97
+packages/engine/package.json
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 8
+packages/engine/test/e2e/module-registry.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 2-14,43-45,52-55
+packages/engine/test/fixtures-worker/assets/graphprobe/g8.js
+  s_c3a5a4d70c5a2b::t_4eecaf325f3688 1-2
+packages/dom-shim/src/element.ts
+  s_c3a5a4d70c5a2b::t_6d09445a500967 5
+package.json
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 55
+packages/engine/src/eval/page-script-compat.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 9,23,25-27
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 24
+packages/engine/test/e2e/demos/tla-import-iife-fix-probe.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1,14-15,28,37
+packages/page-script/src/inserted-scripts.ts
+  s_c3a5a4d70c5a2b::t_4117ed1c629ba6 21,225,227
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 224,226,228
+  s_c3a5a4d70c5a2b::t_4d5fe9b4f3ccb0 3-4
+  s_c3a5a4d70c5a2b::t_03133af63263a9 6,17,19,62-140
+  s_c3a5a4d70c5a2b::t_284d2f607e52f3 141
+docs/SCRIPT_GATE.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 11,15-17,19-21,44-45
+tests/interactivity-flows/README.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 4,18-19,387,389-391,395,398
+packages/engine/test/e2e/demos/native-concurrent-import-demo.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1-40
+docs/CORS.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 127-130,232-235,297
+packages/engine/test/e2e/demos/wasm-native-demo.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1-47
+packages/page-script/src/startup-probe.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1-2,94,99,101-106
+packages/engine/test/fixtures-worker/assets/graphprobe/g-static-default.js
+  s_c3a5a4d70c5a2b::t_4eecaf325f3688 1
+packages/engine/test/e2e/timer-wheel-foreign-clear.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 2-9
+packages/engine/test/fixtures-worker/src/static.ts
+  s_c3a5a4d70c5a2b::t_3836300ff02268 616-617
+  s_c3a5a4d70c5a2b::t_821a3aa35ae741 52,56,80-81,294-296,368-369,378-379,381-382,391-393,395-396,400,411,426,441-442,456,461,601-602,607-608,685-687
+  s_c3a5a4d70c5a2b::t_effcb7d2ccad85 627-628
+  s_c3a5a4d70c5a2b::t_ce07cc5635a4e7 137,371-375
+packages/engine/test/e2e/global-setup.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 12,15-20,34,36,40,50-52
+packages/engine/test/fixtures-worker/assets/module-registry.html
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 10-12,20-21,27-28
+packages/engine/src/cdp/types.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 276
+packages/engine/test/fixtures-worker/wrangler.jsonc
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 32,34
+docs/PAGE_SCRIPT_PROTOCOL.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 87-89
+packages/engine/test/fixtures-worker/assets/graphprobe/g10.js
+  s_c3a5a4d70c5a2b::t_4eecaf325f3688 1-2
+docs/NATIVE_V8.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1-15,17-31
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 16
+packages/engine/test/e2e/native-import-meta-url.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1-45
+packages/engine/test/e2e/raf-wrap-reentrancy.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 6
+scripts/get-patched-vendor-crates.mjs
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 249
+packages/shadow-replay/test/workerd/fake-engine-worker.mjs
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 58
+packages/engine/test/fixtures-worker/src/dynamic/scripts.ts
+  s_c3a5a4d70c5a2b::t_821a3aa35ae741 130
+  s_c3a5a4d70c5a2b::t_effcb7d2ccad85 148-248
+  s_c3a5a4d70c5a2b::t_5d8caf26da2048 249-320
+  s_c3a5a4d70c5a2b::t_ce07cc5635a4e7 321-350
+docs/TRANSITIONS.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 130-132
+examples/todomvc-react-screenshot-demo.mjs
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 27
+packages/engine/test/fixtures-worker/assets/nested-modinit-target.js
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 30-39
+packages/engine/test/fixtures-worker/assets/graphprobe/g16.js
+  s_c3a5a4d70c5a2b::t_4eecaf325f3688 1
+packages/dom-shim/src/model-context.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1523
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 388-392
+  s_c3a5a4d70c5a2b::t_e51b8ef8242104 466-467
+packages/engine/test/e2e/inline-wasm-native.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1-42
+turbo.json
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 96
+packages/engine/src/wasm.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 161,174,178
+packages/engine/test/fixtures-worker/assets/module-registry-tla.js
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1-3
+docs/ANALYTICS.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 111-112
+packages/engine/test/native-module-source.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1-37
+packages/page-script/src/page-tasks.ts
+  s_c3a5a4d70c5a2b::t_49fad027e92133 44,411-418,420,423
+  s_c3a5a4d70c5a2b::t_8ae12b5e22f74c 549-550
+packages/page-script/src/fetch-shim.ts
+  s_c3a5a4d70c5a2b::t_c11a97c1c6d9a4 1050
+packages/engine/test/fixtures-worker/assets/dynprobe-graph.html
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 4-6,42
+packages/page-script/src/session-methods.ts
+  s_c3a5a4d70c5a2b::t_021a66b6936cc8 46-47
+packages/page-script/src/index.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 282,1325,1608-1612,1681-1690,2135-2148,2227-2229,2282-2288,2308-2310,2318-2319,2331,5338
+  s_c3a5a4d70c5a2b::t_83607647cfb8f2 2311-2317,2320,2322-2323,2346,2348,2964-2965,3029,3059
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 219,1849-1865,2059
+  s_c3a5a4d70c5a2b::t_0d6e3583579d17 2321
+  s_c3a5a4d70c5a2b::t_812cc08485a965 62,2168-2189
+  s_c3a5a4d70c5a2b::t_03133af63263a9 57-61,2190-2192,2197-2198,2205-2207,2215-2220,2222-2225
+  s_090f1138f4038a::t_4a8ee6ab138b90 220-221,2193-2195
+  s_090f1138f4038a::t_246ed80feaf0ec 2307
+packages/page-script/src/native-scheduling.ts
+  s_c3a5a4d70c5a2b::t_021a66b6936cc8 37
+packages/engine/test/e2e/README.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 53,57-58,63,77
+packages/page-script/src/eval-mode.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 19-23
+  s_c3a5a4d70c5a2b::t_812cc08485a965 26-38,41,49
+packages/dom-shim/src/otel.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 186
+packages/engine/test/e2e/demos/top-level-await-fetch-probe.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1-3
+packages/page-script/src/transitions.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 89,91-93
+  s_c3a5a4d70c5a2b::t_e51b8ef8242104 85-87,95-96
+packages/engine/test/e2e/blob-file-shape.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1-35
+packages/dom-shim/src/collections.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 2752,2781,2827
+  s_c3a5a4d70c5a2b::t_6d09445a500967 2779
+packages/page-script/src/websocket.ts
+  s_c3a5a4d70c5a2b::t_021a66b6936cc8 117-118
+packages/engine/test/fixtures-worker/assets/graphprobe/g-static.js
+  s_c3a5a4d70c5a2b::t_4eecaf325f3688 1-4
+packages/engine/test/e2e/native-module-graph.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 1-21
+packages/engine/test/e2e/smoke.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 6
+docs/WEBMCP.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 11-12
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 99-101,107-112
+packages/engine/src/eval/outbound.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 78-82,298-299,308-309,544,546-559,580-582,1105-1108,1118,1242,1244-1247,1350,1353,1355-1358,1374-1375,1378-1386
+  s_c3a5a4d70c5a2b::t_f0510ac48189bb 77
+  s_c3a5a4d70c5a2b::t_072e394db9d169 87,483-519,546,943-951,955,1018-1023,1025-1031,1037-1040,1043-1044,1051-1052,1136,1303-1314,1317,1319-1331,1333
+  s_c3a5a4d70c5a2b::t_812cc08485a965 92-100,310,387-466,468-480,1115,1129-1130,1155-1176,1180,1183-1190,1192-1197,1199-1204,1249-1254
+  s_c3a5a4d70c5a2b::t_03133af63263a9 89-91,311-386,467,560,570-578,1177-1179,1181-1182,1207-1208
+  s_c3a5a4d70c5a2b::t_125d7203413e57 88
+packages/engine/src/eval/page-script.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 4,29-30,603-605,732,813,832,849-850,852-853,872,880-881,936,1008-1015
+packages/page-script/src/internal-state.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 71-72
+  s_c3a5a4d70c5a2b::t_021a66b6936cc8 112
+packages/page-script/src/eval-helpers.ts
+  s_c3a5a4d70c5a2b::t_c6f8400556c6a3 7,209
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 184
+packages/engine/src/cdp/target.ts
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 13-17,402-406
+docs/CANVAS2D.md
+  s_c3a5a4d70c5a2b::t_0b46c41bb42b8f 79-80
+packages/engine/src/cdp/webmcp.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 230
+packages/engine/test/e2e/demos/module-init-shim-demo.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 1-3,64,66,102,104,109,139,147,151,153
+packages/engine/test/e2e/trusted-fetch-metadata.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 2-4,13
+packages/engine/test/e2e/native-module-preload.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 1-37
+packages/page-script/src/workerd-unsafe-eval.d.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 4-7
+packages/page-script/src/trusted-fetch.ts
+  s_c3a5a4d70c5a2b::t_0d6e3583579d17 2-3
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 54-56
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_7821e6d39aaca7 558,562-564
+packages/engine/test/e2e/native-module-fanout.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_072e394db9d169 1-59
+packages/engine/test/egress-ledger.test.ts
+  s_c3a5a4d70c5a2b::t_072e394db9d169 1-188
+packages/engine/src/eval/egress-ledger.ts
+  s_c3a5a4d70c5a2b::t_072e394db9d169 1-37,55-208
+packages/page-script/src/import-maps.ts
+  s_c3a5a4d70c5a2b::t_812cc08485a965 1-414
+packages/dom-shim/src/mutations/observer.ts
+  s_c3a5a4d70c5a2b::t_812cc08485a965 567-570,576
+packages/page-script/src/script-policy.ts
+  s_c3a5a4d70c5a2b::t_812cc08485a965 76-97,104-106,117,125
+  s_c3a5a4d70c5a2b::t_04ea204ee0f322 75
+packages/engine/test/fixtures-worker/assets/importmap-scoped-entry.js
+  s_c3a5a4d70c5a2b::t_033419400e1a73 1-4
+packages/engine/test/fixtures-worker/assets/importmap.html
+  s_c3a5a4d70c5a2b::t_033419400e1a73 2-5,7-17,20-25,27-29,31-117,119-120
+packages/engine/test/e2e/native-import-map.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_033419400e1a73 1-8,10-82
+  s_c3a5a4d70c5a2b::t_c4b034ab399945 9
+packages/dom-shim/src/window.ts
+  s_c3a5a4d70c5a2b::t_e51b8ef8242104 1360-1362
+  s_c3a5a4d70c5a2b::t_3630b18d86a596 40-46,1301-1325,1448-1451
+packages/engine/test/e2e/inserted-script-globals.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_e51b8ef8242104 56-58,68
+  s_c3a5a4d70c5a2b::t_3630b18d86a596 1-3
+packages/page-script/src/wasm-compile.ts
+  s_c3a5a4d70c5a2b::t_3b90832d9eaf63 1-24,27-32,34,36-40,42-47,49-53,56-57,59
+  s_c3a5a4d70c5a2b::t_055a5516cb1783 25-26,33,35,41,48,55,58
+  s_c3a5a4d70c5a2b::t_9e6818678a2aed 54
+packages/engine/test/e2e/wasm-compile-io-context.e2e.test.ts
+  s_c3a5a4d70c5a2b::t_d376cf8244b9ed 1-52
+Cargo.lock
+  s_83cbebb813e639::t_2cdc502a3ab9d8 423,976,978,987,990,992-993,1003,1005-1007,1022-1025,1027,1042,1044-1045,1047,1066-1067,1070,1080,1082,1086,1124-1125,1333,1593-1594,1608,1654-1655,1665-1666,1676,1685-1686,1761-1762,2094,2299,2310-2311,2657,3099,3207,3271,3273,3283,3285
+packages/engine/test/e2e/render-blocking-warning.e2e.test.ts
+  s_090f1138f4038a::t_f7a940eba55706 1-27
+tests/wpt-expectations.json
+  s_090f1138f4038a::t_e3b548994f5ca3 32753-32755,32758-32760
+packages/engine/src/cdp/connection.ts
+  s_83cbebb813e639::t_321114dfd736b7 176,183,190,197,200,201,208,363,431,478
+  s_83cbebb813e639::t_5a9e4769a8ba92 355
+  s_83cbebb813e639::t_a62e95adaee347 180
+packages/engine/src/index.ts
+  s_83cbebb813e639::t_e0c3d492cac781 293
+  s_83cbebb813e639::t_b02989f3bb9af2 283-292,296
+packages/engine/src/cookies.ts
+  s_83cbebb813e639::t_d5b4cd05e9b2da 635-639,644,655-693
+packages/engine/src/eval/resource-store.ts
+  s_83cbebb813e639::t_c3318b9d5b70a3 153
+packages/engine/test/cookies.test.ts
+  s_83cbebb813e639::t_d5b4cd05e9b2da 5,523-549
+packages/engine/src/cdp/network.ts
+  s_83cbebb813e639::t_d5b4cd05e9b2da 3,92,98,132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "150cd2e47aae4f0a9862e30eca330d5019532e7f",
+  "prompts": {},
+  "sessions": {
+    "s_090f1138f4038a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0b0703e6ffeN05VE2WmscgF7t",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_83cbebb813e639": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0388623affeMZhtpmKWNkHzTW",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_c3a5a4d70c5a2b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0138ddb2ffe2O8lnmc1pCGk6d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

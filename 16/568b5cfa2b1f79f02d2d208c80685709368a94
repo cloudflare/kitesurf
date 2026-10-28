@@ -1,0 +1,89 @@
+packages/dom-shim/src/element.ts
+  s_fe05a8ab03b384::t_eec6e375dd2bc3 9588-9593,9753,9766,9781
+  s_fe05a8ab03b384::t_7c456e0c5f10ba 126,869,914,1156,1187,1275,1356-1357,1385,1567,1812,1964,1984,3349,5018,5052,5108,5283,6720,6764,6818,6968,7569,8115,8152-8153,8344,8983,9585-9587,9800
+packages/dom-shim/src/collections.ts
+  s_ea85e5af559beb::t_689326486c9e65 1219-1220,1223,1403,1427,1454-1455,1529,1538,1565,1621,1627,1635,1642,1646-1648,1653-1658,1672,1682,1684,1690,1698,2153,2499,3208,3268,3387,3776,3905
+  s_def98e589d21bd::t_04d14fdc7f7efe 763,776
+  s_ea85e5af559beb::t_b8945b2e3b0599 1216-1218
+packages/dom-shim/src/node-base.ts
+  s_def98e589d21bd::t_064fa25205f32f 33,398,562,1197-1199,1472-1474,1697-1699,2203,2237-2242,2282,2310,2478
+packages/dom-shim/src/form-data.ts
+  s_def98e589d21bd::t_8f1f2928dbf439 19,38,113,202
+packages/dom-shim/src/css-typed-om.ts
+  s_4dddc610bc6e8e::t_23099b1ab90453 708
+packages/dom-shim/src/index.ts
+  s_4dddc610bc6e8e::t_23099b1ab90453 1050-1052,1271
+packages/dom-shim/tsconfig.json
+  s_8d4a10d11caf91::t_98840d6a2cb646 8-10
+packages/dom-shim/src/xpath.ts
+  s_4dddc610bc6e8e::t_23099b1ab90453 452,458,464,470,537,634-635
+packages/dom-shim/src/parser.ts
+  s_4dddc610bc6e8e::t_d09a6d0098e12c 249,348,391,577,600,819,840,1120,1158
+packages/dom-shim/src/state.ts
+  s_8d4a10d11caf91::t_c06130aa119d7f 98,157
+packages/dom-shim/src/mutations/observer.ts
+  s_def98e589d21bd::t_b8f4aa9824ce1a 556
+packages/dom-shim/src/range.ts
+  s_def98e589d21bd::t_c36797d0d2e976 353,363,375
+packages/dom-shim/src/document.ts
+  s_8d4a10d11caf91::t_c06130aa119d7f 1755
+  s_4dddc610bc6e8e::t_ee5f6b47634198 772,865,883,893,902,911,920
+packages/dom-shim/src/record.ts
+  s_def98e589d21bd::t_b8f4aa9824ce1a 74
+packages/page-script/src/globals.ts
+  s_8d4a10d11caf91::t_7a537a8301b374 102,879-883,894,1287,1297,1443-1450,1695,1705,1745-1751,1805,1824,1829,1930,3457,3661
+packages/page-script/src/index.ts
+  s_8d4a10d11caf91::t_948b893273e8e6 225,498,1590-1602,1715,2083-2085,2348-2350,2514,3294,3350,3352,3354,3390,3468,3483,3765,3805,3823,3838,3970-3971,4128,5144,5172,5465,5480
+packages/page-script/src/startup-probe.ts
+  s_8d4a10d11caf91::t_d5e74f40cb2ad2 28
+packages/page-script/tsconfig.json
+  s_8d4a10d11caf91::t_427ffe90db7768 11,13-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "16568b5cfa2b1f79f02d2d208c80685709368a94",
+  "prompts": {},
+  "sessions": {
+    "s_4dddc610bc6e8e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef3265054ffeLPoVNVaa2X3f0w",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_8d4a10d11caf91": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef34dedf4ffeD0RXnnKFngi2DZ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_def98e589d21bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef326265effeCWn3kY2gqmbk4b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_ea85e5af559beb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef3269da1ffeYorn72A5PoGrIl",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_fe05a8ab03b384": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef326763cffeo3mavlkDYF83cG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

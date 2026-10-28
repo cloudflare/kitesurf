@@ -1,0 +1,32 @@
+packages/page-script/src/intersection-observer.ts
+  s_103b7f1f0713cd::t_3e1ac1f4a00bbb 11-12,341,343-346,349-357
+  s_103b7f1f0713cd::t_2db1b1cd9934f9 366
+  s_103b7f1f0713cd::t_28ab17878f4891 62
+  s_103b7f1f0713cd::t_041f90d9b47703 451-454
+packages/dom-shim/src/state.ts
+  s_103b7f1f0713cd::t_3e1ac1f4a00bbb 98,140-142,518-520
+  s_103b7f1f0713cd::t_cf691590734dae 521
+packages/page-script/src/index.ts
+  s_103b7f1f0713cd::t_3e1ac1f4a00bbb 1589
+  s_103b7f1f0713cd::t_1b1c271485c424 219
+packages/dom-shim/src/mutations/seq.ts
+  s_103b7f1f0713cd::t_3e1ac1f4a00bbb 16,45
+packages/engine/test/e2e/intersection-observer.e2e.test.ts
+  s_103b7f1f0713cd::t_1c277e18386316 458-501
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bf71d22ecf4cc37c72ce1527aba1a830c60c3eea",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

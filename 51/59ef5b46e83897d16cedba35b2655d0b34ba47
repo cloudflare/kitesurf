@@ -1,0 +1,19 @@
+MODULE.bazel
+  s_4ba79f911c93c4::t_0d29ef89d93426 50-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5159ef5b46e83897d16cedba35b2655d0b34ba47",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

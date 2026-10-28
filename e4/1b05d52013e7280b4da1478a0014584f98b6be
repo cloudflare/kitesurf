@@ -1,0 +1,25 @@
+.github/VOUCHED.td
+  s_c6d6a3ac21fe46::t_6b4a60b6af83b5 1-2
+.github/workflows/vouch.yml
+  s_c6d6a3ac21fe46::t_6b4a60b6af83b5 1-30
+.github/vouch-pr-response.md
+  s_c6d6a3ac21fe46::t_6b4a60b6af83b5 1-5
+CONTRIBUTING.md
+  s_c6d6a3ac21fe46::t_6b4a60b6af83b5 13-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e41b05d52013e7280b4da1478a0014584f98b6be",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

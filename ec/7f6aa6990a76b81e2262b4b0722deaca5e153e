@@ -1,0 +1,22 @@
+packages/engine/test/e2e/bridge-pin-identity.e2e.test.ts
+  s_a3b42a28f6acb3::t_cc1f2b56bf2596 39-44
+  s_a3b42a28f6acb3::t_c0eea43336c429 10-11
+  s_a3b42a28f6acb3::t_6c229322a77b0b 83-90
+  s_a3b42a28f6acb3::t_06d286e1741931 59,61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ec7f6aa6990a76b81e2262b4b0722deaca5e153e",
+  "prompts": {},
+  "sessions": {
+    "s_a3b42a28f6acb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efbfcb188ffeANErVj3Qn55enm",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

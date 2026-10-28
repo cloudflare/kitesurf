@@ -1,0 +1,19 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0143-kitesurf-anchor-auto-inset-fixed-boxes-at-their-stat.patch
+  s_103b7f1f0713cd::t_20927e68605df2 1-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0a02ce56746170d22943bd93123decf9dc9b2268",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

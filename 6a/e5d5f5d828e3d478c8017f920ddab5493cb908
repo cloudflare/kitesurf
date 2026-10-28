@@ -1,0 +1,21 @@
+packages/engine/test/e2e/children-options-sameobject.e2e.test.ts
+  s_f70b272515436f::t_23ab915f883eb4 12-14,21-26,32
+packages/dom-shim/src/registries.ts
+  s_f70b272515436f::t_127f9281d2ef8f 160-161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6ae5d5f5d828e3d478c8017f920ddab5493cb908",
+  "prompts": {},
+  "sessions": {
+    "s_f70b272515436f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee3accdeaffe8lRMgSeLfyUGrr",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

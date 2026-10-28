@@ -1,0 +1,39 @@
+packages/core/Cargo.toml
+  s_63365f51c8df96::t_214f3a9c694956 22-27
+packages/scene-client/Cargo.toml
+  s_63365f51c8df96::t_214f3a9c694956 27-32,54
+packages/terminal-client/src/tty_app.rs
+  s_63365f51c8df96::t_b375a1bc26f645 252-258,260-261
+  s_63365f51c8df96::t_d3bc38cc8715e8 10
+packages/terminal-client/tests/omni.rs
+  s_63365f51c8df96::t_02dc5976201025 219-322,327-328,330-336,342-415
+  s_63365f51c8df96::t_6d02c7dbfce439 77,323-326,329,337-341
+packages/terminal-client/tests/input_decode.rs
+  s_63365f51c8df96::t_eab9c66261470a 220-232
+packages/core/src/tty_omni.rs
+  s_63365f51c8df96::t_b70d8de764db28 23,99-106,297,309,336-337,342-416,418-419,431,436-437,476-478,480,491,493-499,502-531
+packages/engine/src/term-session.ts
+  s_63365f51c8df96::t_d3bc38cc8715e8 599-605
+packages/core/Cargo.lock
+  s_63365f51c8df96::t_c02cee377d3e09 1519,3123-3131
+packages/scene-client/Cargo.lock
+  s_63365f51c8df96::t_14ea840393b4f4 639,763-771
+packages/terminal-client/Cargo.lock
+  s_63365f51c8df96::t_a236b5e53e4982 1106,1368-1376
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3174f1714edcac5d7e4ab11f3e4652eb5297ff22",
+  "prompts": {},
+  "sessions": {
+    "s_63365f51c8df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe16660cbffeVcSYG4VVXZrUuA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

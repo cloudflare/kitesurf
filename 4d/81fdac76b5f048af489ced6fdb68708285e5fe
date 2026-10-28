@@ -1,0 +1,32 @@
+pnpm-workspace.yaml
+  s_c6d6a3ac21fe46::t_2575a4106d36fb 3,7
+scripts/check-no-dts.mjs
+  s_c6d6a3ac21fe46::t_8f4f906dc5f588 2
+  s_c6d6a3ac21fe46::t_e7df3b0684d6e0 12-21
+Cargo.toml
+  s_c6d6a3ac21fe46::t_73dd84773ab0c1 2-6
+  s_c6d6a3ac21fe46::t_253c82afedcdf7 20-27
+.githooks/post-checkout
+  s_c6d6a3ac21fe46::t_cdb19c0434f463 3
+scripts/check-ts-coverage.mjs
+  s_c6d6a3ac21fe46::t_0fe44f84afb97a 37-42
+  s_c6d6a3ac21fe46::t_811bf9cfb76f29 67,70-73
+.gitignore
+  s_c6d6a3ac21fe46::t_cfa8ce4ca542cf 3,35-36,42-44,49-75,86-87,89,100,102,106-107,119,124-127,130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4d81fdac76b5f048af489ced6fdb68708285e5fe",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+packages/kitesurf-app/Cargo.toml
+  s_f1929c5c748783::t_130c033dd7239c 19
+packages/kitesurf-app/assets/ui.html
+  s_f1929c5c748783::t_752060e0f08e4e 103-118,127,210-217
+packages/kitesurf-app/Cargo.lock
+  s_f1929c5c748783::t_fdb63074b7e4d9 489-490,1213,1479,1952-1978
+packages/kitesurf-app/src/app.rs
+  s_f1929c5c748783::t_3ca543e2237efc 70-74,103-104,200-269,329-331,350-352,607,633,693,801-805,857-872
+packages/kitesurf-app/src/engine.rs
+  s_f1929c5c748783::t_cf03586765e9b6 81-87,117-120,503-526
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "29d0a0c94c319a45362ca97eff275805c6656c42",
+  "prompts": {},
+  "sessions": {
+    "s_f1929c5c748783": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb67e1014ffeeXTE6BiuRnAJLk",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

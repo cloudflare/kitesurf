@@ -1,0 +1,22 @@
+scripts/BUILD.bazel
+  s_4ba79f911c93c4::t_f8e093962e582d 57-58,68-73
+  s_4ba79f911c93c4::t_3ae50887c01ba7 75
+  s_4ba79f911c93c4::t_0d9dbe8f989ad1 55,64-65
+  s_4ba79f911c93c4::t_438d1da6ce70c2 54,62-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8d092e679ada55ee167595b6c37d03b51225e174",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+packages/engine/test/e2e/demos/grid-min-content-floor-demo.e2e.test.ts
+  s_46371821d5f8e9::t_445a7876a34d6f 25-31,33-51
+packages/engine/test/e2e/set-content.ts
+  s_46371821d5f8e9::t_c4a3a37dd68eef 1-31
+packages/engine/test/e2e/demos/style-media-attr-demo.e2e.test.ts
+  s_46371821d5f8e9::t_b1ef49bbcde02b 14-15,17-25,35,39-42
+packages/engine/test/e2e/demos/fixed-in-fixed-demo.e2e.test.ts
+  s_46371821d5f8e9::t_594083b251001b 19-20,22-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "889f13bfe723dbbf058e43a72869e8272e67c244",
+  "prompts": {},
+  "sessions": {
+    "s_46371821d5f8e9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00d107a2bffegmHwZNZ4m4wIp9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

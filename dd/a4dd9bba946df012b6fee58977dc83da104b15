@@ -1,0 +1,40 @@
+packages/engine/src/rbi.ts
+  s_de9b73755c1191::t_c1b9c9dd40938f 270
+  s_de9b73755c1191::t_3d67bc737da87f 130-134,138
+  s_de9b73755c1191::t_dc9788765e3488 220
+  s_de9b73755c1191::t_07c931762f0d29 300
+  s_de9b73755c1191::t_a7a4b0e446d5ee 244,247,249,255,257
+packages/engine/src/cdp/page.ts
+  s_de9b73755c1191::t_0cd7f7c8e32fe1 5779-5780
+  s_de9b73755c1191::t_88fa0b244f6355 6011
+  s_de9b73755c1191::t_990f3a8eb278fc 6022
+  s_de9b73755c1191::t_e6fd81b26aa0a8 6089
+  s_de9b73755c1191::t_110605af5c5413 43
+  s_de9b73755c1191::t_cef0d967a08226 6176
+  s_de9b73755c1191::t_df6a4305d2688b 5875
+  s_de9b73755c1191::t_d556ddef93a49f 6033
+  s_de9b73755c1191::t_19c9c88b76dcf0 5985
+  s_de9b73755c1191::t_ca17a5bda5eba2 5966
+  s_de9b73755c1191::t_61f66ea2fe2473 5855
+  s_de9b73755c1191::t_b50e7a839dd210 5781-5782
+  s_de9b73755c1191::t_e14fb01af38c82 6092
+packages/engine/src/cdp/scene-stream.ts
+  s_de9b73755c1191::t_bdb62c52bf1de1 16
+  s_de9b73755c1191::t_b6cfcb0bece933 220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "dda4dd9bba946df012b6fee58977dc83da104b15",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

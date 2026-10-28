@@ -1,0 +1,21 @@
+packages/page-script/src/transitions.ts
+  s_4ba79f911c93c4::t_99166dcd611ce1 66-68
+packages/dom-shim/src/transitions.ts
+  s_4ba79f911c93c4::t_608bf3390920f6 25,29,37-39,48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d7d585774339e384fdb92b030b9cd14f14aac890",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

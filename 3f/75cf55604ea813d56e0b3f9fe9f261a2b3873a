@@ -1,0 +1,21 @@
+docs/UPSTREAMING.md
+  s_b94a861549b344::t_5588009d4d68b1 3-29,33-34,40,44-47,49-53,55,57-139,141-160
+scripts/patches/upstream-triage.json
+  s_b94a861549b344::t_e958aa3914f21d 1-1356
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3f75cf55604ea813d56e0b3f9fe9f261a2b3873a",
+  "prompts": {},
+  "sessions": {
+    "s_b94a861549b344": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe8c1db7cffeW6q5yoxbw4OR7K",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

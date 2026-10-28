@@ -1,0 +1,28 @@
+packages/page-script/src/globals.ts
+  s_03997f732ec005::t_3dc1f0e514dcb3 68-70,77-78,85-89,167,209-211,215-216
+  s_03997f732ec005::t_4dcd99a95f3271 84
+packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
+  s_03997f732ec005::t_13e7b77cef11d1 1,76-77,80-86,88-100,102
+  s_03997f732ec005::t_4c3aa4d11ee6e7 103-131
+  s_03997f732ec005::t_36966fdd8ba3c5 78-79,87,101
+packages/page-script/src/index.ts
+  s_03997f732ec005::t_3dc1f0e514dcb3 229,1479,1482-1483
+docs/PLATFORM.md
+  s_03997f732ec005::t_a18e23863c3e00 94-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7e88df89c022c35aec2ebc389aaffd59c2d53951",
+  "prompts": {},
+  "sessions": {
+    "s_03997f732ec005": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0eae1bebffeH0x3Q3vwkoOycu",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

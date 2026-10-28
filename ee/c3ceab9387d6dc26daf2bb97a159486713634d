@@ -1,0 +1,22 @@
+packages/engine/test/e2e/inline-span-white-space.e2e.test.ts
+  s_e6ab61d4f00763::t_3121ed62065747 1-20,22-54
+  s_e6ab61d4f00763::t_29423c79918108 21
+scripts/patches/parley-0.11.1/0013-kitesurf-collapse-white-space-across-inline-span-edg.patch
+  s_e6ab61d4f00763::t_f3c94b13f09758 1-206
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "eec3ceab9387d6dc26daf2bb97a159486713634d",
+  "prompts": {},
+  "sessions": {
+    "s_e6ab61d4f00763": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f16fe73bbffeo0U4VYRaCxcy4U",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

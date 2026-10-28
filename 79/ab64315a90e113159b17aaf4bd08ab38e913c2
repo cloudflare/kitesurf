@@ -1,0 +1,38 @@
+packages/page-script/src/wasm-glue.d.ts
+  s_ba35fbf4cf2ff5::t_b0373403e1cdf2 162-165
+packages/page-script/src/index.ts
+  s_ba35fbf4cf2ff5::t_ded6dcc270a519 3299-3301
+  s_ba35fbf4cf2ff5::t_e937a22a16102b 222
+  s_ba35fbf4cf2ff5::t_18252d6b5fd3f9 2810
+packages/page-script/src/__ks_user_classic_async.d.ts
+  s_ba35fbf4cf2ff5::t_b0373403e1cdf2 1-8
+packages/page-script/src/state.ts
+  s_ba35fbf4cf2ff5::t_8a903a8572eb50 118-125
+packages/page-script/src/__ks_probe_cjs_sloppy.d.ts
+  s_ba35fbf4cf2ff5::t_b0373403e1cdf2 1-10,12-15
+  s_ba35fbf4cf2ff5::t_1e44e7ab5d0771 11
+packages/page-script/src/shims.d.ts
+  s_ba35fbf4cf2ff5::t_b0373403e1cdf2 20-28,34
+  s_ba35fbf4cf2ff5::t_1e44e7ab5d0771 29-33
+packages/page-script/src/__ks_user_classic_regular.d.ts
+  s_ba35fbf4cf2ff5::t_b0373403e1cdf2 1-8
+packages/page-script/src/dom-shim.d.ts
+  s_ba35fbf4cf2ff5::t_b0373403e1cdf2 28-33,36-37
+  s_ba35fbf4cf2ff5::t_1e44e7ab5d0771 34-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "79ab64315a90e113159b17aaf4bd08ab38e913c2",
+  "prompts": {},
+  "sessions": {
+    "s_ba35fbf4cf2ff5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009539e58ffe2AW5wz0TMPGefw",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

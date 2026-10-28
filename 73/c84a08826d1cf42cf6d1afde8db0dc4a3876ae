@@ -1,0 +1,19 @@
+AGENTS.md
+  s_8d4a10d11caf91::t_def17e0be7a3ee 73-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "73c84a08826d1cf42cf6d1afde8db0dc4a3876ae",
+  "prompts": {},
+  "sessions": {
+    "s_8d4a10d11caf91": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef34dedf4ffeD0RXnnKFngi2DZ",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

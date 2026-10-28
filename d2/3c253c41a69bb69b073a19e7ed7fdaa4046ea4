@@ -1,0 +1,24 @@
+packages/dom-shim/src/idl/type-gaps.json
+  s_89db36e0a74dbd::t_d48e079e364bc1 42-43
+packages/dom-shim/src/document.ts
+  s_89db36e0a74dbd::t_a65db7d1f01c93 2497,2499,2523
+  s_89db36e0a74dbd::t_d48e079e364bc1 224,1449,2356-2360,2367-2368
+packages/dom-shim/src/idl/types.generated.ts
+  s_89db36e0a74dbd::t_5865d2c1498438 728
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d23c253c41a69bb69b073a19e7ed7fdaa4046ea4",
+  "prompts": {},
+  "sessions": {
+    "s_89db36e0a74dbd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec8081742ffeOUo1byYY6GJ5h5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

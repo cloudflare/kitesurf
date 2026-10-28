@@ -1,0 +1,19 @@
+tests/wpt-expectations.json
+  s_f2f1dbce2d5d5d::t_a0f5f040e92904 16329,24307,24311,24315,24319,24323,24327,24331,24335,24339,24343,24347,24351,24355,24359,24363,24367,24371,24375,24379,24383,24387,24391,24395,24399,24403,24407,24411,24415,24419,24423,24427,24431,24515,24519,24523,24527,24531,24535,24539,24647,38979-38986
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f1a88f65a470e9176909dc58b346867c646ad19a",
+  "prompts": {},
+  "sessions": {
+    "s_f2f1dbce2d5d5d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eaf4cb2b5ffeHlvt6Yw56JGX3h",
+        "model": "unknown"
+      },
+      "human_author": "Nuno Pereira <npereira@cloudflare.com>"
+    }
+  }
+}

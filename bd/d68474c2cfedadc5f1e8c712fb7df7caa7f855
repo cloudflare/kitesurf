@@ -1,0 +1,52 @@
+packages/engine/test/fixtures-worker/assets/webmcp-declarative.html
+  s_40903f47007d04::t_e5d9c755f602f7 38-44
+packages/engine/test/e2e/webmcp.e2e.test.ts
+  s_40903f47007d04::t_ef1ac8d2c26f23 624-626,640,690,702-703,708,710-712,725
+  s_40903f47007d04::t_3805127ded9e4a 635,638-639,641-644,675-689,691-701,704-707,709,713-724
+  s_c1d1c93f383cfd::t_f9438421d9eb2d 726
+docs/WEBMCP.md
+  s_40903f47007d04::t_29d1d41c3bfffe 39-40,43
+  s_103b7f1f0713cd::t_9b65cd0869c103 41-42
+packages/dom-shim/src/model-context.ts
+  s_9e427e87de8d03::t_ea09a263fd7100 1520-1521
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bdd68474c2cfedadc5f1e8c712fb7df7caa7f855",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_40903f47007d04": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f31c06df3ffeEKUOnQurm3CCTI",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_9e427e87de8d03": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f31c8f218ffe2UTBOjN0V8QwMX",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

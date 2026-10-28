@@ -1,0 +1,46 @@
+packages/engine/test/e2e/cssom-page-rules.e2e.test.ts
+  s_d6cf09da1fc80a::t_4c242fcdfac984 1-178
+  s_d6cf09da1fc80a::t_491e85d17d65c4 179-185
+packages/dom-shim/src/collections.ts
+  s_d6cf09da1fc80a::t_6bfa5c2e2fd8a1 2069-2073
+  s_d6cf09da1fc80a::t_2d95160bb82240 1509,1529-1536
+  s_d6cf09da1fc80a::t_2c96f4ba60e470 1626-1632
+  s_d6cf09da1fc80a::t_50818abf12d1f3 1414-1432
+  s_d6cf09da1fc80a::t_95c03725b1a31e 1788-1792
+  s_d6cf09da1fc80a::t_3b350e7f9b7134 1858,1861-1862,1866-1871,1881-1888,1892-1895
+  s_d6cf09da1fc80a::t_91b99f628d05b0 2472-2478,2480-2501,2504-2509,2511,2515-2522,2525-2527,2529
+  s_d6cf09da1fc80a::t_34865473828d43 2992-2994
+  s_d6cf09da1fc80a::t_68ee96429b9992 1234-1242
+  s_d6cf09da1fc80a::t_737920ab5cb146 1849-1850
+  s_d6cf09da1fc80a::t_c6fbaf157e69b9 3028-3030
+  s_d6cf09da1fc80a::t_4fa09f47f74527 1433,1537,1555-1575,1578-1586,1589-1625,1633-1642,1644-1662,1896,2128
+  s_d6cf09da1fc80a::t_92da43ce79e282 2839-2843
+  s_d6cf09da1fc80a::t_f8696b2b4deec4 2115-2117,2122-2127
+  s_d6cf09da1fc80a::t_8579d8242c4ba9 2203-2206,2212
+  s_d6cf09da1fc80a::t_57e7920387ef98 2704-2706
+  s_d6cf09da1fc80a::t_4cfdd4887fd4a0 1643
+  s_d6cf09da1fc80a::t_5369b52f64cf76 1434
+  s_d6cf09da1fc80a::t_c6edb37cb5987d 1538
+  s_d6cf09da1fc80a::t_50534201a2bfc9 1897
+  s_d6cf09da1fc80a::t_a47d32fc85a7c6 2129
+packages/page-script/src/paint.ts
+  s_d6cf09da1fc80a::t_d403da324d0a49 266,269-277
+packages/page-script/src/globals.ts
+  s_d6cf09da1fc80a::t_65c99ab0886d93 1786
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ade045723a41d80fdc304da2e80aa27bb3e93556",
+  "prompts": {},
+  "sessions": {
+    "s_d6cf09da1fc80a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5067d496ffebCxCQbifGSa4ON",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,63 @@
+packages/engine/src/eval/page-script.ts
+  s_5f3448ddbd7fba::t_064f947e1d7031 544-546
+  s_5f3448ddbd7fba::t_fd97efc4b09752 1342-1344,1364
+packages/engine/src/cdp/kitesurf.ts
+  s_5f3448ddbd7fba::t_b1c7e8983327e2 347-348,351-353,355,372-373,378-402,405-406,409-414,421-435,440-454
+  s_5f3448ddbd7fba::t_4848dcee60d18f 344-345
+  s_5f3448ddbd7fba::t_e678b5a0c778a2 436-439
+packages/bench-report/scripts/build.mjs
+  s_5f3448ddbd7fba::t_a00f36018668e2 144-147,149-152,154-158
+  s_5f3448ddbd7fba::t_969ad08b1257b7 159-162
+bench/README.md
+  s_5f3448ddbd7fba::t_decbaab20a76a4 11-12,50-53,55-58
+  s_5f3448ddbd7fba::t_0b4189b47301a5 40-48
+packages/engine/test/e2e/runtime-get-heap-usage.e2e.test.ts
+  s_5f3448ddbd7fba::t_f70660b6a089bb 63-135
+packages/bench-report/src/bench-routes.ts
+  s_5f3448ddbd7fba::t_0b4189b47301a5 786
+  s_5f3448ddbd7fba::t_a00f36018668e2 488-494,797,799-800,802
+  s_5f3448ddbd7fba::t_969ad08b1257b7 289,291-293,295-299,303-314,352,495-496,499,571
+packages/bench-report/src/bench-aggregator.ts
+  s_5f3448ddbd7fba::t_6bafb32653c804 53-57
+packages/bench-report/src/bench-runner.ts
+  s_5f3448ddbd7fba::t_e10cdf821c37dc 14-15,329,368-373,392
+  s_5f3448ddbd7fba::t_8b62e989e16796 55-57
+  s_5f3448ddbd7fba::t_bea0e905778880 88-94,98-102,107-111,113
+packages/engine/src/quickactions/screenshot.ts
+  s_5f3448ddbd7fba::t_b1582c26fab84e 347,349-351
+  s_5f3448ddbd7fba::t_ed10db0c969dc1 451,457-458,461-467,469-473,476-478
+bench/harness/run.mjs
+  s_5f3448ddbd7fba::t_c4dfe503be1446 259-261,265,290,422-427,430
+packages/engine/src/eval/page-renderer.ts
+  s_5f3448ddbd7fba::t_4186ec391e6b64 43-45,145,173-189,260-262,273-278,282,295-300
+packages/engine/src/eval/oopif-render.ts
+  s_5f3448ddbd7fba::t_fd97efc4b09752 81-82,209
+packages/bench-report/src/bench-tail.ts
+  s_5f3448ddbd7fba::t_6bafb32653c804 1-8
+packages/engine/src/quickactions/content.ts
+  s_5f3448ddbd7fba::t_cd3a3233ded962 18
+  s_5f3448ddbd7fba::t_3050d37d54f9f4 156,158-160
+packages/engine/src/cdp/page.ts
+  s_5f3448ddbd7fba::t_4186ec391e6b64 98
+  s_5f3448ddbd7fba::t_fd97efc4b09752 4634-4635
+packages/engine/src/eval/bench-tail.ts
+  s_5f3448ddbd7fba::t_064f947e1d7031 48-61,70-71,75-81,92-93,95-96,102
+docs/MEMPROF.md
+  s_5f3448ddbd7fba::t_74b919dc16ab5e 228-237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2e0545b173c0a430820f25b7d0a842957524a011",
+  "prompts": {},
+  "sessions": {
+    "s_5f3448ddbd7fba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_046e753d3ffes03EhHMjlrJN7V",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

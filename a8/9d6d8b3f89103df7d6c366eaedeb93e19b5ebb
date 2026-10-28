@@ -1,0 +1,33 @@
+packages/engine/src/rbi-protocol.ts
+  s_32c3dba7fedc7c::t_b0058dae433cb9 23-25,27-30,35-41,47,56,81,83-88,115,129
+  s_32c3dba7fedc7c::t_74b2e0296bcb10 143
+  s_32c3dba7fedc7c::t_750e4c307b3c95 31-32,91,95-97
+  s_32c3dba7fedc7c::t_aef6250134bbf1 34
+packages/engine/src/rbi.ts
+  s_32c3dba7fedc7c::t_7aa0648f1d6420 446-449,923-994,1011-1027,1030-1039,1052-1056,1058-1067
+  s_32c3dba7fedc7c::t_caa0bebb40801f 402-440,475,478-488
+  s_32c3dba7fedc7c::t_d89f13885514ed 892-904,906
+  s_32c3dba7fedc7c::t_bd5f759b6df446 25,168,174,199,205,226,232
+  s_32c3dba7fedc7c::t_5ba25f2d30e44f 463,667,720
+  s_32c3dba7fedc7c::t_c2d3c0ff9d5660 1139
+  s_32c3dba7fedc7c::t_9d5b74d0b283a8 530-533,553,556,558,590-615
+  s_32c3dba7fedc7c::t_a08250d03bb6ed 1094-1097,1099-1101,1114-1118
+packages/engine/test/rbi-client-frame.test.ts
+  s_32c3dba7fedc7c::t_8ca4dd6c91feb4 32,46,57-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a89d6d8b3f89103df7d6c366eaedeb93e19b5ebb",
+  "prompts": {},
+  "sessions": {
+    "s_32c3dba7fedc7c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0431e510effe1Vue1bxbBlApwn",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,106 @@
+scripts/e2e-shards.mjs
+  s_c6d6a3ac21fe46::t_da90732adcfafe 6
+  s_1766deb6deca2f::t_0c9423a38c39a7 53-54,57-58
+  s_1766deb6deca2f::t_a6c65bb2dfc451 16-21,46-47,60-63,79-81,96-98,100-102
+scripts/e2e-gate.mjs
+  s_1766deb6deca2f::t_a6c65bb2dfc451 11-15,17-20,41-47,50-58,67-72,107-109
+  s_c6d6a3ac21fe46::t_da90732adcfafe 6
+  s_1766deb6deca2f::t_0c9423a38c39a7 22-31,35,64
+  s_1766deb6deca2f::t_b892b802465570 21
+scripts/BUILD.bazel
+  s_c6d6a3ac21fe46::t_da90732adcfafe 76-77
+  s_68f612160d5274::t_405ce7ea742c15 62
+scripts/wpt-runplan.test.mjs
+  s_c6d6a3ac21fe46::t_35aea5f502fd04 31-34,38-42,44-47,53-56
+  s_c6d6a3ac21fe46::t_da90732adcfafe 5
+scripts/wpt-gate.mjs
+  s_1766deb6deca2f::t_0c9423a38c39a7 28-29,35-37,39-41,61,68,78-79
+  s_c6d6a3ac21fe46::t_da90732adcfafe 7
+  s_1766deb6deca2f::t_a6c65bb2dfc451 20-24,53-55,83-87,92-94,99-105,117-119,121-126,149-151,161-164,169-172
+  s_1766deb6deca2f::t_fc6294d16c0bd5 30-34,38
+scripts/wpt-bazel-retry.mjs
+  s_68f612160d5274::t_9ba0f3324945e1 72-78,82-84,90-91,125-128
+  s_68f612160d5274::t_258afb936de108 1-2,23,33-41,43
+  s_68f612160d5274::t_7832c3d923c37e 32
+  s_68f612160d5274::t_405ce7ea742c15 8-10
+scripts/wpt-stamp.mjs
+  s_68f612160d5274::t_258afb936de108 1-2,9
+  s_68f612160d5274::t_9ba0f3324945e1 14-18,21-22,28-32
+  s_68f612160d5274::t_405ce7ea742c15 5
+BUILD.bazel
+  s_c6d6a3ac21fe46::t_da90732adcfafe 21-27
+scripts/wpt-compare.test.mjs
+  s_1766deb6deca2f::t_045512d0693bda 348
+  s_c6d6a3ac21fe46::t_da90732adcfafe 420
+  s_1766deb6deca2f::t_a6c65bb2dfc451 356-363,384-388,405-408,410-413,419,421,432-436,445-448
+docs/TESTING.md
+  s_d45e9ba06bd6cb::t_f34a310e72afca 403-417
+  s_d45e9ba06bd6cb::t_3aa0ac939dbccd 471,475,483
+  s_d45e9ba06bd6cb::t_4b62c8376be3cf 38,46,78,82,91,100
+  s_d45e9ba06bd6cb::t_5c9ca9034f1b75 699-706
+  s_d45e9ba06bd6cb::t_191d2c776a7013 232,245,249,300,320
+  s_d45e9ba06bd6cb::t_6914ec0f74d0f6 774-775,777,783,788,796,805-806,815-816,822-823,825
+  s_d45e9ba06bd6cb::t_0a4f9f1faa5753 19
+  s_d45e9ba06bd6cb::t_21e3b40a3a3c1e 599,604,612,617,620-621,626-627,630
+  s_d45e9ba06bd6cb::t_b83f3ae1dfff32 445,450-451
+  s_d45e9ba06bd6cb::t_e3cdc6737a8d5b 657-662,666-674
+  s_d45e9ba06bd6cb::t_68d67df12651f2 362-365,385,387,389
+  s_d45e9ba06bd6cb::t_80e8419204bee7 697-698,707-715,727-728
+  s_d45e9ba06bd6cb::t_3e3f088dd1d081 24,272,276,283,319,329,346,372-381,504-510,520-527,570-575,602-603,605-609,640-651,716-724,810
+  s_d45e9ba06bd6cb::t_dcf0403987cbcb 10-11,35-37,51-52,55,77,93,98,185,327
+  s_d45e9ba06bd6cb::t_59a380f61624ae 200-201
+  s_d45e9ba06bd6cb::t_d544dff7105c91 634-638,654
+  s_d45e9ba06bd6cb::t_8e271adb86874a 564-566,578
+  s_d45e9ba06bd6cb::t_19f3c6d855d64e 23
+  s_d45e9ba06bd6cb::t_9deea384e84641 366
+  s_d45e9ba06bd6cb::t_568133f46ba33a 639
+scripts/wpt-update-expectations.mjs
+  s_1766deb6deca2f::t_0c9423a38c39a7 12-21
+  s_c6d6a3ac21fe46::t_da90732adcfafe 6
+  s_1766deb6deca2f::t_045512d0693bda 1-2
+  s_1766deb6deca2f::t_a6c65bb2dfc451 24-28,51-57,63-65
+scripts/pw-gate.mjs
+  s_1766deb6deca2f::t_0c9423a38c39a7 28-32
+  s_1766deb6deca2f::t_a6c65bb2dfc451 6-14,22-26,36-61,67-72,103-106,108-110,119-121,128-129
+  s_c6d6a3ac21fe46::t_da90732adcfafe 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ea7e9e3124d94ddb1b2a02d8b884b785ff8333d9",
+  "prompts": {},
+  "sessions": {
+    "s_1766deb6deca2f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb46e6e95ffeuhoNudlBzduupp",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_68f612160d5274": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb50dc78cffeHxrVi6XCBevr9C",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_d45e9ba06bd6cb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eb4621b57ffesMpfZYDu1N645c",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

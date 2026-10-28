@@ -1,0 +1,24 @@
+tests/unit/driver.test.ts
+  s_8deef65a89b902::t_2ae6b21cac4e65 62-74
+packages/ci-workflow/src/driver.ts
+  s_8deef65a89b902::t_5cf91f6b69ca17 25-27,41-48,80,89,93,98,126
+  s_8deef65a89b902::t_827c059a810a52 77-79,83-88,90-92,94-97,102
+tests/unit/shard-recovery.test.ts
+  s_8deef65a89b902::t_291dec8d3dbe8c 17-20,25-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c8f5c54a9191803b621aff1dcffdcc4f04412b87",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

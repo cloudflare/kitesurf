@@ -1,0 +1,19 @@
+packages/core/src/scene_record.rs
+  s_88a1e4a82dcd93::t_3c60e61263da22 660-669,706-709
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "38e35bad14610dc67a61f65eaca67a25b71e7178",
+  "prompts": {},
+  "sessions": {
+    "s_88a1e4a82dcd93": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01e3d630fffeIXmijb5gEbqoHg",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

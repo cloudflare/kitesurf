@@ -1,0 +1,25 @@
+packages/bench-report/src/bench-tail.ts
+  s_dae2a321c55580::t_93f220395eba7b 131,146
+bench/README.md
+  s_dae2a321c55580::t_93f220395eba7b 473-474
+packages/bench-report/scripts/tail-attribution.test.mjs
+  s_dae2a321c55580::t_93f220395eba7b 81,145
+packages/bench-report/src/bench-aggregator.ts
+  s_dae2a321c55580::t_93f220395eba7b 123-126,128-129,133,135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "33f3f3eb9aad5ebf9565e682143c99c0e7c3435a",
+  "prompts": {},
+  "sessions": {
+    "s_dae2a321c55580": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f039868a3ffelpQrAvKruzw0dY",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

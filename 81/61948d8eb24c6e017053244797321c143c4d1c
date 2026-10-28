@@ -1,0 +1,25 @@
+packages/engine-cf/test/fixtures-worker/assets/agent-landing.html
+  s_4ba79f911c93c4::t_aa36b3a6136499 1-10
+docs/ENGINE_TEST_CONTRACTS.md
+  s_4ba79f911c93c4::t_435be9debdbb6f 60-62
+packages/engine-cf/test/fixtures-worker/assets/agent-reloading.html
+  s_4ba79f911c93c4::t_aa36b3a6136499 1-13
+packages/engine-cf/test/fixtures-worker/src/index.ts
+  s_4ba79f911c93c4::t_d017fd48b7e43a 1-2,13-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8161948d8eb24c6e017053244797321c143c4d1c",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

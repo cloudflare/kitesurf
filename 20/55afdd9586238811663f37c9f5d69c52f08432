@@ -1,0 +1,23 @@
+tests/wpt-expectations.json
+  s_479f7a46340b56::t_72bb9257efc916 9407
+packages/dom-shim/src/node-base.ts
+  s_479f7a46340b56::t_8ec3b06d1f4395 1697-1702
+  s_479f7a46340b56::t_234a488b297c77 1457-1462
+  s_479f7a46340b56::t_bac659765b3ad3 1290-1295
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2055afdd9586238811663f37c9f5d69c52f08432",
+  "prompts": {},
+  "sessions": {
+    "s_479f7a46340b56": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_012e8f953ffeBE1ySMwmNeqr7E",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

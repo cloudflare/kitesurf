@@ -1,0 +1,23 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0126-Tolerate-a-sub-cell-width-change-instead-of-re-break.patch
+  s_1c957943e307aa::t_10dd7ee46273bb 1-57
+docs/TERMINAL.md
+  s_1c957943e307aa::t_15faa4153f20f3 174-188
+packages/core/src/tty_cell_grid_test.rs
+  s_1c957943e307aa::t_15faa4153f20f3 294-349
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7ff6a9486330aa5acecba55aefd011e6c33d1878",
+  "prompts": {},
+  "sessions": {
+    "s_1c957943e307aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54b1177bffe1d3E5M5mww2VgK",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

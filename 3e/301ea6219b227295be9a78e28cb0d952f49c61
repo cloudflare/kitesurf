@@ -1,0 +1,37 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_699c89212dda54::t_a13fb41c9f0b5f 2507-2508,4595-4596
+  s_699c89212dda54::t_2c0e731a3cff24 4243-4282
+packages/page-script/src/inserted-scripts.ts
+  s_699c89212dda54::t_4ff8f6e0931c59 99
+  s_699c89212dda54::t_b6d00752ece48f 51
+  s_699c89212dda54::t_3298c2593d37ce 130
+  s_699c89212dda54::t_d3b816efb4f5c6 98,100,102-112,114
+  s_699c89212dda54::t_8fc0c1333488ff 138,142-143,148-156
+  s_699c89212dda54::t_7b7e1b15aaffdd 16-21
+  s_699c89212dda54::t_12fa451f04bb2d 25
+packages/page-script/src/resource-fetch.ts
+  s_699c89212dda54::t_271d756858192d 743-792
+packages/engine/test/e2e/inserted-script.e2e.test.ts
+  s_699c89212dda54::t_21de64afb8cb55 1-49
+packages/page-script/src/fetch-slots.ts
+  s_699c89212dda54::t_4b97076ba1218b 54-56
+docs/SCRIPT_LOADING.md
+  s_699c89212dda54::t_4236b794ba177e 72
+  s_699c89212dda54::t_479a018072986a 88-100,103-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3e301ea6219b227295be9a78e28cb0d952f49c61",
+  "prompts": {},
+  "sessions": {
+    "s_699c89212dda54": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0214e8732ffeTP1VvjG2jaoZd1",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

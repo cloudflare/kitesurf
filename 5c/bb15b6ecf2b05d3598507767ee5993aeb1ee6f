@@ -1,0 +1,19 @@
+docs/WEBMCP.md
+  s_4ba79f911c93c4::t_d25932977a434a 78,113,119,123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5cbb15b6ecf2b05d3598507767ee5993aeb1ee6f",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

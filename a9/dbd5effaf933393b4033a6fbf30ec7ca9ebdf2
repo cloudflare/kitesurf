@@ -1,0 +1,19 @@
+packages/engine/src/term.ts
+  s_63365f51c8df96::t_e8102cf4909388 349-370
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a9dbd5effaf933393b4033a6fbf30ec7ca9ebdf2",
+  "prompts": {},
+  "sessions": {
+    "s_63365f51c8df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe16660cbffeVcSYG4VVXZrUuA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

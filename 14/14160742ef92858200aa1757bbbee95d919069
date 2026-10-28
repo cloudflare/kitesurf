@@ -1,0 +1,24 @@
+packages/page-script/src/index.ts
+  s_103b7f1f0713cd::t_b4db3c4248c03a 229-230,1479-1490,4367,4369,4388
+packages/page-script/src/globals.ts
+  s_103b7f1f0713cd::t_b4db3c4248c03a 75-76,79-80,83-87,92-93
+  s_103b7f1f0713cd::t_12e224f32d5a16 94-95
+packages/engine/test/e2e/demos/screencast-raf-pacing.e2e.test.ts
+  s_103b7f1f0713cd::t_b4db3c4248c03a 7-12,42,49-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1414160742ef92858200aa1757bbbee95d919069",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

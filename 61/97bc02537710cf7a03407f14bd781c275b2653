@@ -1,0 +1,26 @@
+packages/engine/test/e2e/inline-style-flush.e2e.test.ts
+  s_e0767559f6d463::t_660ebc59640c95 89-153
+packages/dom-shim/src/element.ts
+  s_e0767559f6d463::t_4b992d6a63c9ef 2988
+  s_e0767559f6d463::t_8e47ab78696111 121-125
+  s_e0767559f6d463::t_b359b2062f64e6 3029
+  s_e0767559f6d463::t_472ba386d1171f 2919,2924-2931
+  s_e0767559f6d463::t_69fc11c1d9420d 2889-2918,2920-2923,2932-2933
+  s_e0767559f6d463::t_b528718bed01b5 3095
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6197bc02537710cf7a03407f14bd781c275b2653",
+  "prompts": {},
+  "sessions": {
+    "s_e0767559f6d463": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54d3d415ffeRNpeaLXNHmD6hH",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

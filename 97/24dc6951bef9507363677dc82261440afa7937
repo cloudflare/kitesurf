@@ -1,0 +1,31 @@
+packages/dom-shim/src/layout/cheap.ts
+  s_50d45ac3d4c7e5::t_79efbfac43be0e 473,478-481
+packages/page-script/src/types.ts
+  s_50d45ac3d4c7e5::t_79efbfac43be0e 66-68
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_50d45ac3d4c7e5::t_79efbfac43be0e 874-913,1973-1974
+scripts/patches/blitz-paint-0.3.0-beta.1/0012-kitesurf-keep-position-fixed-boxes-out-of-the-docume.patch
+  s_50d45ac3d4c7e5::t_79efbfac43be0e 1-52
+packages/engine/test/e2e/fixed-position-scroll.e2e.test.ts
+  s_50d45ac3d4c7e5::t_79efbfac43be0e 1-110
+packages/core/src/lib.rs
+  s_50d45ac3d4c7e5::t_79efbfac43be0e 2714,2751-2753,2756,2764,5933-5935,5944,6008-6030,6145
+packages/page-script/src/paint.ts
+  s_50d45ac3d4c7e5::t_79efbfac43be0e 93-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9724dc6951bef9507363677dc82261440afa7937",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,39 @@
+docs/FONTS.md
+  s_51467ee0987b73::t_feb5f0dc001038 74-77
+  s_51467ee0987b73::t_56b27dbf1eaf77 19-23,49-51
+packages/engine/test/e2e/ua-default-serif.e2e.test.ts
+  s_280ef410dd4391::t_dfff8d26e57997 24-27
+  s_280ef410dd4391::t_c3a4c904c96faa 28-30
+  s_51467ee0987b73::t_cec4054fcd9b6a 1-11,13-23,31
+  s_51467ee0987b73::t_feb5f0dc001038 12
+packages/core/src/fonts.rs
+  s_51467ee0987b73::t_ba42f8bf4e30b7 1427-1428,1475-1476
+packages/page-script/src/font-loader.ts
+  s_51467ee0987b73::t_feb5f0dc001038 745-746
+  s_51467ee0987b73::t_ba42f8bf4e30b7 558-563,567,574,665-668,674
+  s_51467ee0987b73::t_899ca66411feb6 774
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2d056af5323cf22d255c1193f714b901ff2fb290",
+  "prompts": {},
+  "sessions": {
+    "s_280ef410dd4391": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3f8f6783ffeu8A4j6VBSym1ud",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_51467ee0987b73": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3736c910ffemd63JRrAIPv7t6",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

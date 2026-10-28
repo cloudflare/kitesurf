@@ -1,0 +1,25 @@
+scripts/patches/stylo_taffy-0.3.0-beta.2/0001-Strip-sticky-insets-from-the-taffy-style-conversion.patch
+  s_280ef410dd4391::t_a70058f7b5622d 4,36,64
+scripts/patches/stylo-0.20.0/0033-Preserve-clipped-overflow-axes.patch
+  s_280ef410dd4391::t_c555c5728ab7d9 1-42
+scripts/patches/stylo_taffy-0.3.0-beta.2/0002-Strip-inset-properties-from-position-static-boxes-to.patch
+  s_280ef410dd4391::t_a70058f7b5622d 4,27,46
+scripts/patches/stylo-0.20.0/0031-Enable-container-queries-in-Servo.patch
+  s_280ef410dd4391::t_c555c5728ab7d9 1-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cd20512494d75910f82c7497614b23f1249f6365",
+  "prompts": {},
+  "sessions": {
+    "s_280ef410dd4391": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3f8f6783ffeu8A4j6VBSym1ud",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

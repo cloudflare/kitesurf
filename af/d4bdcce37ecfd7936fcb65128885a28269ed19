@@ -1,0 +1,21 @@
+packages/engine/test/e2e/intrinsic-sizing.e2e.test.ts
+  s_f19c180209e8f6::t_b76f0e11170619 83-136
+scripts/patches/blitz-dom-0.3.0-beta.2/0124-Resolve-an-atomic-inline-s-own-intrinsic-width-keywo.patch
+  s_f19c180209e8f6::t_9e085a1c610835 1-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "afd4bdcce37ecfd7936fcb65128885a28269ed19",
+  "prompts": {},
+  "sessions": {
+    "s_f19c180209e8f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f84d2e622ffePrvxMg81ouqXdB",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

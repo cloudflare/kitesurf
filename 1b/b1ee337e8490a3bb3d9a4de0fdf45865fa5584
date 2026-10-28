@@ -1,0 +1,27 @@
+packages/engine/test/e2e/record-scene-layers.e2e.test.ts
+  s_dfd792beae87ba::t_74b6bce7015a4d 1-80
+packages/engine/src/cdp/kitesurf.ts
+  s_dfd792beae87ba::t_c2516d276af572 598-600,611-618
+packages/engine/src/cdp/page-session.ts
+  s_dfd792beae87ba::t_8a6bbcbdec842f 151,156-159
+packages/engine/src/rbi.ts
+  s_dfd792beae87ba::t_f98b0599d3be72 38-41,246-269,451,499-501,528-530,533-536,626-629,683-688,978-983,990-995,1279-1344,1425-1434,1445-1449
+packages/page-script/src/index.ts
+  s_dfd792beae87ba::t_440140a60e486a 5308-5313,5325-5328,5357,5391-5413,5452-5467,5470-5473
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1bb1ee337e8490a3bb3d9a4de0fdf45865fa5584",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

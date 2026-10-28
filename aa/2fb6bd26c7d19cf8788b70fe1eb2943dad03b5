@@ -1,0 +1,23 @@
+packages/core/src/webgl/raster.rs
+  s_492d322fdb5636::t_da488ff7681b50 217-221,230-236,241,482-484
+packages/core/src/webgl/exec.rs
+  s_492d322fdb5636::t_da488ff7681b50 6,24-31,126,144,171,179,193,232,235-274,276-287,289,294,297-317,324-327,350-353,367-370,372,384,387-407,422-425,438,677-695,726-759
+packages/core/src/webgl/gl.rs
+  s_492d322fdb5636::t_da488ff7681b50 622-623,625-626,641-644
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "aa2fb6bd26c7d19cf8788b70fe1eb2943dad03b5",
+  "prompts": {},
+  "sessions": {
+    "s_492d322fdb5636": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ff5bcdb4effed9sVCVwDFXLQ3u",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

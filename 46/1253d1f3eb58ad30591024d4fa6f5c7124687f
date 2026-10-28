@@ -1,0 +1,28 @@
+.gitlab-ci.yml
+  s_ed42c140dc5554::t_c134ec73039c0f 1039-1040,1042
+  s_ed42c140dc5554::t_e14ae4aed7a510 988-992
+scripts/pw-run.mjs
+  s_ed42c140dc5554::t_b51a02204bd757 74-76
+  s_ed42c140dc5554::t_7f414c6d1bc351 68-72
+  s_ed42c140dc5554::t_66d04ce05fc7db 380
+  s_ed42c140dc5554::t_4f0279f40a4ba5 20
+  s_ed42c140dc5554::t_fda32a37a64086 49-56
+docs/TESTING.md
+  s_ed42c140dc5554::t_e8a6e708fc6dcf 309-312
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "461253d1f3eb58ad30591024d4fa6f5c7124687f",
+  "prompts": {},
+  "sessions": {
+    "s_ed42c140dc5554": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00431c173ffeNb2EcjlYLbALXc",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

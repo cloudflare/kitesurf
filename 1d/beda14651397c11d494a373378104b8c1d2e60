@@ -1,0 +1,31 @@
+packages/engine/test/e2e/current-script-microtask.e2e.test.ts
+  s_10325f09f363f7::t_493dcb2225b9d4 2,5,7-9,23,27,31-37,39,42-45,50,53,59-67,69-76
+  s_10325f09f363f7::t_e700c956fd03ae 54
+  s_10325f09f363f7::t_3ea75eeb2b3cd6 1,3-4,6,10-22,24-26,28-30,38,40-41,46-49,51-52,55-58,68,77-80
+packages/engine/src/eval/script-bundle.ts
+  s_10325f09f363f7::t_4318c84582e9cc 464-473,477
+  s_10325f09f363f7::t_ac345b5e651a0d 815
+  s_10325f09f363f7::t_b8918ccc2f96d3 632-633,635-636,638-642
+  s_10325f09f363f7::t_ae6f7cba828b54 634,637
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_10325f09f363f7::t_b641b13b44875f 1947-1953,1963-1971,1973-1974,1977,1980-1981
+  s_10325f09f363f7::t_890e094c21ff5f 1988
+  s_10325f09f363f7::t_72e0ec34fd27f6 1991,1993,1997-1998
+  s_10325f09f363f7::t_ccab8e63ad672f 1954-1962,1972,1975-1976,1978-1979,1982-1987,1989-1990,1992,1994-1996,2637-2638,4471-4474
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1dbeda14651397c11d494a373378104b8c1d2e60",
+  "prompts": {},
+  "sessions": {
+    "s_10325f09f363f7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_028d94f7bffeLPzCR3nArdny7w",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

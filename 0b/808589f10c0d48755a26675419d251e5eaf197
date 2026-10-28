@@ -1,0 +1,20 @@
+packages/engine/test/e2e/concurrent-cdp-sessions.e2e.test.ts
+  s_8deef65a89b902::t_3555917b1a15f2 1-72,76-79
+  s_8deef65a89b902::t_ac47e9e6877e71 73-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0b808589f10c0d48755a26675419d251e5eaf197",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

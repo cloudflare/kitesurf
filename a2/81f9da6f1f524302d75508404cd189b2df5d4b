@@ -1,0 +1,100 @@
+scripts/patches/blitz-paint-0.3.0-beta.2/0026-Resolve-collapsed-borders-per-edge.patch
+  s_280ef410dd4391::t_1f494a391183fd 1-362
+scripts/patches/blitz-dom-0.3.0-beta.2/0133-Expose-collapsed-table-border-geometry.patch
+  s_280ef410dd4391::t_9040fe891cb0ec 1-40
+scripts/patches/blitz-paint-0.3.0-beta.2/0028-Ignore-none-widths-in-collapsed-edge-claims.patch
+  s_280ef410dd4391::t_15e26f2fc3b563 1-43
+scripts/patches/blitz-paint-0.3.0-beta.2/0029-Paint-collapsed-edges-at-winner-width.patch
+  s_280ef410dd4391::t_eb68d41c5cdd20 1-77
+scripts/patches/blitz-dom-0.3.0-beta.2/0137-Reserve-half-collapsed-borders-in-layout.patch
+  s_280ef410dd4391::t_5789875ef28885 1-36
+packages/engine/test/e2e/table-collapsed-border-winner.e2e.test.ts
+  s_280ef410dd4391::t_3ae7541a3c819d 123
+  s_280ef410dd4391::t_a1cae8399c7f18 242,262-263
+  s_280ef410dd4391::t_20403c5459bf4c 264-265
+  s_280ef410dd4391::t_0883c270111b24 164,169-172,174-181,185-196,206-207,210
+  s_3ca689191be741::t_f489050f349bfc 1-9,11-27,40-46,48-50,62,68,70-119,124-148,152-156
+  s_280ef410dd4391::t_e0fefa734c5371 10,28-39,51-61,63-67,69
+  s_280ef410dd4391::t_070a097bdc9864 47,243-261,266-268
+  s_615f841060a7a9::t_8092935cb9a144 157-163,165-168,173,182-184,197,203-205,208-209,211-212,215-241,269
+  s_280ef410dd4391::t_f2002590be4e5c 199-202,214
+  s_280ef410dd4391::t_d090f6ba007f7b 120-122,149-151
+  s_280ef410dd4391::t_8db26a79272178 198,213
+  s_469ed59a2df5e7::t_e750dcf6e3b520 270-323
+scripts/patches/taffy-0.14.0/0009-Expose-grid-item-identities.patch
+  s_280ef410dd4391::t_1f494a391183fd 1-36
+scripts/patches/taffy-0.14.0/0010-Support-per-line-grid-gutters.patch
+  s_280ef410dd4391::t_01323d57a88762 1-152
+scripts/patches/blitz-dom-0.3.0-beta.2/0131-Use-flexible-tracks-for-fixed-tables.patch
+  s_280ef410dd4391::t_f0061d4f4f443f 1-74
+scripts/patches/blitz-dom-0.3.0-beta.2/0135-Keep-collapsed-cell-borders-out-of-fixed-tracks.patch
+  s_280ef410dd4391::t_9c6410522ab109 1-48
+scripts/patches/stylo_taffy-0.3.0-beta.2/0005-Mark-fixed-table-cells-outside-style-conversion.patch
+  s_280ef410dd4391::t_a70058f7b5622d 1-27
+scripts/patches/blitz-dom-0.3.0-beta.2/0134-Normalize-collapsed-table-border-widths.patch
+  s_280ef410dd4391::t_15e26f2fc3b563 1-146
+scripts/patches/blitz-paint-0.3.0-beta.2/0032-Paint-full-collapsed-border-widths.patch
+  s_280ef410dd4391::t_5789875ef28885 1-112
+scripts/patches/taffy-0.14.0/0008-Opt-out-fixed-table-cells-from-grid-padding-minimum.patch
+  s_280ef410dd4391::t_a70058f7b5622d 1-118
+packages/engine/test/e2e/table-fixed-layout-columns.e2e.test.ts
+  s_ce9c8a9ab7ce1b::t_85defdd97d7b28 1-78
+scripts/patches/blitz-dom-0.3.0-beta.2/0136-Place-collapsed-table-cells-on-definite-lines.patch
+  s_280ef410dd4391::t_01323d57a88762 1-247
+scripts/patches/blitz-dom-0.3.0-beta.2/0132-Retain-widest-collapsed-cell-borders.patch
+  s_280ef410dd4391::t_1f494a391183fd 1-180
+scripts/patches/blitz-paint-0.3.0-beta.2/0027-Paint-collapsed-borders-in-grid-space.patch
+  s_280ef410dd4391::t_9040fe891cb0ec 1-148
+scripts/patches/blitz-paint-0.3.0-beta.2/0030-Convert-collapsed-edge-widths-for-paint.patch
+  s_280ef410dd4391::t_086f39d52a1096 1-55
+scripts/patches/blitz-paint-0.3.0-beta.2/0031-Resolve-collapsed-table-perimeter-claims.patch
+  s_280ef410dd4391::t_bac1fa99602576 1-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a281f9da6f1f524302d75508404cd189b2df5d4b",
+  "prompts": {},
+  "sessions": {
+    "s_280ef410dd4391": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3f8f6783ffeu8A4j6VBSym1ud",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_3ca689191be741": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3e223dc2ffeXvJXjg5ZS6Mgo8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_469ed59a2df5e7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f37b3516fffe823v6ZUN9XgAPa",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_615f841060a7a9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f37d9c3f7ffePfaCPhgqosQT4A",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_ce9c8a9ab7ce1b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3e4ec864ffetkxdqIeNIpxLs7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

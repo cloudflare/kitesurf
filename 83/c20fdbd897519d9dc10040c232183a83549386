@@ -1,0 +1,62 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0012-Implement-slot-assignment-named-slots-fallback-slott.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-539
+scripts/patches/blitz-dom-0.3.0-beta.1/0010-Scope-shadow-tree-stylesheets-via-per-root-AuthorSty.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-365
+scripts/patches/blitz-dom-0.3.0-beta.1/0008-Route-layout-construction-through-the-flat-tree-shad.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-329
+scripts/patches/blitz-dom-0.3.0-beta.1/0009-kitesurf_clear_canvas_image-guard-on-canvas-local-na.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-33
+scripts/patches/blitz-dom-0.3.0-beta.1/0015-Dims-only-image-loads-for-out-of-isolate-rendering-r.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-27,35-337
+  s_c9f68948e839d2::t_20881340ee112e 28-34
+scripts/patches/blitz-dom-0.3.0-beta.1/0004-Only-clamp-replaced-elements-to-available-INLINE-spa.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-51
+scripts/patches/blitz-dom-0.3.0-beta.1/0005-Wire-attach_shadow-through-the-mutator-shadow-aware-.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-164
+scripts/patches/blitz-dom-0.3.0-beta.1/0006-Implement-stylo-s-shadow-topology-traits-flat-tree-t.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-161
+scripts/patches/blitz-dom-0.3.0-beta.1/0003-Derive-replaced-aspect-ratio-from-attributes-when-co.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-107
+scripts/patches/blitz-dom-0.3.0-beta.1/0013-Keep-shadow-tree-ids-out-of-the-document-ID-map.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-57
+packages/core/src/scene_record.rs
+  s_c9f68948e839d2::t_16d26b29313bfb 566,607,1332-1336,1340-1357
+  s_c9f68948e839d2::t_faee56105d9811 659
+scripts/patches/blitz-dom-0.3.0-beta.1/0011-Parse-shadow-root-innerHTML-under-a-temp-host-named-.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-51
+packages/core/src/scene_replay.rs
+  s_c9f68948e839d2::t_b654c03b713af2 309-313,317-318
+  s_c9f68948e839d2::t_b2e05c2492cc83 1121-1233
+  s_c9f68948e839d2::t_a42e758bb27b7c 196-197,199,216-223,225-226,228,233,245-257,265-266,278-282,307-308,314-316,319-324,332-335,458,460,543,545
+scripts/patches/blitz-dom-0.3.0-beta.1/0007-Treat-canvas-as-a-replaced-element-with-a-JS-fed-fra.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-121
+packages/core/src/lib.rs
+  s_c9f68948e839d2::t_9bf044f1a6b45a 223-238,540-541
+  s_c9f68948e839d2::t_916a4ca85cb963 2984-3003,3028,3134,3273-3288,3293-3297,4076
+packages/engine/src/cdp/page.ts
+  s_c9f68948e839d2::t_c090869b24dd6f 2275-2279
+scripts/patches/blitz-dom-0.3.0-beta.1/0014-Skip-slot-assignment-recompute-when-nothing-could-ha.patch
+  s_c9f68948e839d2::t_acc3b35c6fabe9 1-110
+packages/engine/src/eval/page-script-session.ts
+  s_c9f68948e839d2::t_c090869b24dd6f 454
+packages/engine/src/eval/page-script.ts
+  s_c9f68948e839d2::t_3d88068f63965e 284
+packages/page-script/src/index.ts
+  s_c9f68948e839d2::t_c090869b24dd6f 123,1062-1068
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "83c20fdbd897519d9dc10040c232183a83549386",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+packages/shadow-replay/src/comparison/accessibility.ts
+  s_47461e6af773a3::t_c2e90cea0b5b1e 22,25,153
+packages/shadow-replay/test/comparators.test.ts
+  s_47461e6af773a3::t_66e67ae3dfe908 174-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9c239dd6502e887193075138648c5ea91cff8e49",
+  "prompts": {},
+  "sessions": {
+    "s_47461e6af773a3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecfb22472ffeHmFwF7YQFPmr1S",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

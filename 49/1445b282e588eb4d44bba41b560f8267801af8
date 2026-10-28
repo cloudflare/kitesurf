@@ -1,0 +1,26 @@
+packages/core/src/input_caret_test.rs
+  s_4ba79f911c93c4::t_a8c5ecbb0c4cde 29-31
+packages/core/src/transitions.rs
+  s_4ba79f911c93c4::t_37ab413a5b5904 170,185,205,225,233
+  s_4ba79f911c93c4::t_d7ca65179889bd 279,284,291,295,297,300,305,308,317
+  s_4ba79f911c93c4::t_053dd228724991 176,257,259
+  s_4ba79f911c93c4::t_8d386d0aa5ea48 69,106-110,119-121,152
+packages/core/src/lib.rs
+  s_4ba79f911c93c4::t_bb9f9f4874e650 2927,2938
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "491445b282e588eb4d44bba41b560f8267801af8",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

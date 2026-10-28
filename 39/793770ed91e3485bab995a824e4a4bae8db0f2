@@ -1,0 +1,19 @@
+packages/engine/src/eval/script-bundle.ts
+  s_10325f09f363f7::t_ac345b5e651a0d 815,824-830
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "39793770ed91e3485bab995a824e4a4bae8db0f2",
+  "prompts": {},
+  "sessions": {
+    "s_10325f09f363f7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_028d94f7bffeLPzCR3nArdny7w",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

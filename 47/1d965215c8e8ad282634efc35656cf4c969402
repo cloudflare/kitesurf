@@ -1,0 +1,20 @@
+tests/wpt-expectations.json
+  s_4bd836ca1cbc20::t_f5ccd7ec4450aa 2869,2877,3001,3009,3081,3085,3093,5390,5398,5402,5442,5462,5710,5718,8471,8495,8503
+  s_4bd836ca1cbc20::t_db3a2d8a236b0b 5370-5371
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "471d965215c8e8ad282634efc35656cf4c969402",
+  "prompts": {},
+  "sessions": {
+    "s_4bd836ca1cbc20": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5673f067ffe5hsIMQQpLeYlMf",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

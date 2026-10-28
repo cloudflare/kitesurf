@@ -1,0 +1,19 @@
+packages/core/src/scene_record.rs
+  s_198fdbc4c2e86a::t_00c2ee0e3febe6 666-671
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ca8cbbbd9b25d6d7897ab59e412c17c296407521",
+  "prompts": {},
+  "sessions": {
+    "s_198fdbc4c2e86a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_038f9c03effej9If9NChDlRX8m",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

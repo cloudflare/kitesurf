@@ -1,0 +1,21 @@
+packages/core/src/lib.rs
+  s_c9f68948e839d2::t_3c0294606f2297 4446-4451
+packages/core/src/pdf.rs
+  s_c9f68948e839d2::t_3c0294606f2297 198,201-207,234-236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "34b914f2280dcd6b0b9456b23115ab695bd462ff",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

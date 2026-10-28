@@ -1,0 +1,51 @@
+packages/control/src/cdp/cloudscura.ts
+  6a2a9b274b991f2d 1-125
+packages/control/src/cdp/page.ts
+  6a2a9b274b991f2d 750-765
+packages/control/src/cdp/types.ts
+  6a2a9b274b991f2d 65-69,162-167
+packages/control/src/eval/page-script-source.ts
+  6a2a9b274b991f2d 2385-2408
+packages/dom-shim/src/index.ts
+  6a2a9b274b991f2d 141-426,511-518,5654-5661,5663
+packages/core/pkg/cloudscura_core.glue.js
+  6a2a9b274b991f2d 321-337,611-626,692-703
+packages/core/src/lib.rs
+  6a2a9b274b991f2d 105-124,144-146,205-209,777-781,783-785,797-843,857-863,886-890,927-933
+packages/core/pkg/cloudscura_core.js
+  6a2a9b274b991f2d 321-337,611-626,692-703
+examples/layout-cheap-demo.mjs
+  6a2a9b274b991f2d 1-169
+packages/core/pkg/cloudscura_core.d.ts
+  6a2a9b274b991f2d 158-162,315-326,352-358,462,477,482
+packages/core/pkg/cloudscura_core_bg.wasm.d.ts
+  6a2a9b274b991f2d 29,44,49
+packages/control/src/cdp/target.ts
+  6a2a9b274b991f2d 144,167-169
+packages/control/src/index.ts
+  6a2a9b274b991f2d 299,308-324,374-375
+packages/control/src/cdp/dispatch.ts
+  6a2a9b274b991f2d 8,59-62
+examples/layout-toggle-bench-demo.mjs
+  6a2a9b274b991f2d 1-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "948107c4e1a2f325a27cef44a7be2217181e4896",
+  "prompts": {
+    "6a2a9b274b991f2d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_20bc9a875ffeCiJYS2gPu5dB8E",
+        "model": "anthropic/claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira",
+      "messages": [],
+      "total_additions": 7911,
+      "total_deletions": 6854,
+      "accepted_lines": 7911,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,26 @@
+packages/dom-shim/src/reclaim.ts
+  s_4376a60b5dde28::t_14cf4ce2901b66 121
+packages/dom-shim/src/collections.ts
+  s_4376a60b5dde28::t_14cf4ce2901b66 2814-2818,2835-2836,3122-3123
+packages/engine/test/e2e/detached-subtree-liveness.e2e.test.ts
+  s_4376a60b5dde28::t_d128c84b746c42 96-147
+  s_4376a60b5dde28::t_a873776796d128 60-95
+packages/dom-shim/src/registries.ts
+  s_4376a60b5dde28::t_14cf4ce2901b66 288-292,295
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "95efe473154305654be679ee9a9be6b289c59286",
+  "prompts": {},
+  "sessions": {
+    "s_4376a60b5dde28": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f14b8631efferhlYRR5J3BCy65",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

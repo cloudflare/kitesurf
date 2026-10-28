@@ -1,0 +1,41 @@
+packages/core/src/tty_cell_grid_test.rs
+  s_ccf5542acfcceb::t_3616478cd68e5b 207,209-220
+  s_ccf5542acfcceb::t_35aa70128d5d9b 74-82,159-206,208
+  s_ccf5542acfcceb::t_f3d48c88358553 221,255,258,264,271,276-280,282-284,292-293,323,344,384,389
+  s_ccf5542acfcceb::t_9b1ed04559d854 266-270,272-275
+  s_ccf5542acfcceb::t_0996bf72fc397d 256-257,259-263,265,281,285-291,294-322,324-343,345-383,385-388
+  s_748a25868f96d0::t_0762dcabc3cf09 222
+scripts/patches/taffy-0.12.2/0014-Let-a-backend-round-layout-to-something-other-than-a.patch
+  s_ccf5542acfcceb::t_bb16679126dd54 20-30,38-40,43,119-164
+packages/engine/src/tty-stylesheet.ts
+  s_ccf5542acfcceb::t_d37a261b0e7b7d 100-113,115-118,120
+packages/engine/test/tty-stylesheet.test.ts
+  s_ccf5542acfcceb::t_651e99acd9d019 24-41
+docs/TERMINAL.md
+  s_ccf5542acfcceb::t_0fb914d31442c1 170-179,195-208
+  s_ccf5542acfcceb::t_9050c92fab757c 209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "fbc9ab29b5508b3a4d9a57db1d644f9156b505d8",
+  "prompts": {},
+  "sessions": {
+    "s_748a25868f96d0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fccc0f54affe1bh2BFFK0PXWWe",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    },
+    "s_ccf5542acfcceb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd06b55adffe5EMRjho5XAqDfp",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

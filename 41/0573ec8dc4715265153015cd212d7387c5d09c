@@ -1,0 +1,21 @@
+packages/core/src/container_query_image_flush_test.rs
+  s_4ba79f911c93c4::t_8c2d67f3a2b8c3 1,7,19,53
+packages/dom-shim/src/window.ts
+  s_4ba79f911c93c4::t_96c1bb427d2563 614
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "410573ec8dc4715265153015cd212d7387c5d09c",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

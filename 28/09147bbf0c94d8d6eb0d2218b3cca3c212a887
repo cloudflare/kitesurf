@@ -1,0 +1,95 @@
+packages/website/src/client/bench.tsx
+  s_c1a6940130844c::t_9d5db67dc86152 15-22
+packages/website/src/styles/wpt.css
+  s_c1a6940130844c::t_fa19924b458392 38-43
+  s_c1a6940130844c::t_7272a908b68aa2 450-454
+  s_c1a6940130844c::t_0e6cc20218ab74 195-197
+  s_c1a6940130844c::t_e6420b01279a39 228,363-366,368-371,374-376,379,383-384,455
+  s_c1a6940130844c::t_047628ce42e69f 243
+  s_c1a6940130844c::t_14ea357582d7e3 491,496-507
+  s_c1a6940130844c::t_c64c2e33c08b7d 147
+  s_c1a6940130844c::t_23b8473f0d1ab7 214-227
+  s_c1a6940130844c::t_f17202638b4755 350
+  s_c1a6940130844c::t_b5f9dad4a2e3f8 353-362
+  s_c1a6940130844c::t_3365eeb6922740 303
+  s_c1a6940130844c::t_0d4bac00e4c129 61
+  s_c1a6940130844c::t_1aa67923550358 56
+  s_c1a6940130844c::t_cb9abdf7f58575 126,163,281,409,472
+packages/website/src/pages/wpt/Folder.tsx
+  s_c1a6940130844c::t_1953c276c2f24f 25-26,40
+packages/website/src/pages/wpt/WptPage.tsx
+  s_c1a6940130844c::t_b23f3e8bc2a1e4 24
+packages/website/src/pages/bench/Explorer.tsx
+  s_c1a6940130844c::t_e2bf9b8d10f276 310-312
+  s_c1a6940130844c::t_bdc0b1462d7f96 379
+  s_c1a6940130844c::t_0ec8f0e3eccc77 55-66
+packages/website/src/styles/bench.css
+  s_c1a6940130844c::t_aca209b183ae4f 476-477,479-481,486-489,494,496,498-500,505
+  s_c1a6940130844c::t_9fd99a001ec237 657
+  s_c1a6940130844c::t_1e8480db61ad27 546
+  s_c1a6940130844c::t_bd34485e9bd6c9 462
+  s_c1a6940130844c::t_b8abb2c263c77d 258
+  s_c1a6940130844c::t_9811e9039a3340 83
+  s_c1a6940130844c::t_95885c2143bdb8 677-679
+  s_c1a6940130844c::t_ba4b03c54bd872 589-591
+  s_c1a6940130844c::t_3d630e94a7cee7 507-508,511-513,523,528-529,535
+  s_c1a6940130844c::t_5e84992a098175 41,183,229
+  s_c1a6940130844c::t_0af3dfc9146cde 332,561
+  s_c1a6940130844c::t_7dcc3a560b454a 211
+  s_c1a6940130844c::t_b3f0576c19bd40 7-8
+  s_c1a6940130844c::t_1a0c03f7b97b10 90,96,98-99,101-102
+  s_c1a6940130844c::t_1ea9a9cd84ecfb 40
+  s_c1a6940130844c::t_4e5ed31420a6e5 603-606,608,611
+  s_c1a6940130844c::t_f7a4834684f626 285
+  s_c1a6940130844c::t_2d3bec30a0ad08 514,516-517
+  s_c1a6940130844c::t_ea1a2ec3074d44 105
+  s_c1a6940130844c::t_2a3fec713f2a65 9,490,607
+  s_c1a6940130844c::t_28f2dec09980d4 515
+  s_c1a6940130844c::t_b7dbfd1e69c1bf 675-676,680
+  s_c1a6940130844c::t_5d5681ef90ec11 57
+  s_103b7f1f0713cd::t_f85a2ed7f2b935 681
+packages/website/src/styles/dashboard.css
+  s_c1a6940130844c::t_e1dd1f3a960f44 66,135,149
+  s_c1a6940130844c::t_8e83970f72a083 183-186,194,197
+  s_c1a6940130844c::t_edfca1a0c3262c 52
+  s_c1a6940130844c::t_3a6a0586a39d20 60
+  s_c1a6940130844c::t_d044c8eea490c1 24
+packages/website/src/pages/bench/Benchmarks.tsx
+  s_c1a6940130844c::t_06b4a6aaa17658 17-21,26-40,47
+  s_c1a6940130844c::t_24d3da02c24314 22-25
+  s_c1a6940130844c::t_95a128f518a411 46
+  s_c1a6940130844c::t_f4c2d8f88e3e45 110,113-121
+  s_c1a6940130844c::t_a48cd876c44327 136
+packages/website/src/pages/wpt/Trend.tsx
+  s_c1a6940130844c::t_723bb8d6652d69 140-151
+  s_c1a6940130844c::t_53434bd35167d5 55
+  s_c1a6940130844c::t_e4de2b85a82281 73-75
+  s_c1a6940130844c::t_1e234fd66b3329 52-54
+packages/website/src/pages/wpt/parts.tsx
+  s_c1a6940130844c::t_aa8edddf25fa28 174
+  s_c1a6940130844c::t_008ecc9126c110 137-146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2809147bbf0c94d8d6eb0d2218b3cca3c212a887",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

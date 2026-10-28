@@ -1,0 +1,30 @@
+packages/website/src/styles/bench.css
+  s_c1a6940130844c::t_7d97f32a78a539 30,550-552,557-559,565,668-704
+packages/website/src/styles/dashboard.css
+  s_c1a6940130844c::t_e528c5053602a0 183-186,194,197
+  s_c1a6940130844c::t_e4b7bea6bd6634 60
+packages/website/src/pages/bench/Explorer.tsx
+  s_c1a6940130844c::t_7d97f32a78a539 349-352,405
+packages/website/src/pages/wpt/Trend.tsx
+  s_c1a6940130844c::t_4bf15be6a3460e 52-55,73-75,140-151
+packages/website/src/pages/bench/Benchmarks.tsx
+  s_c1a6940130844c::t_7d97f32a78a539 42
+packages/website/src/styles/wpt.css
+  s_c1a6940130844c::t_767ae89c9e1f43 415-420
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a5b249f3fea51e82b218938c78d18176dd2c9eb9",
+  "prompts": {},
+  "sessions": {
+    "s_c1a6940130844c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f270f2a2bffeOsJb5qpvyrS5FG",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

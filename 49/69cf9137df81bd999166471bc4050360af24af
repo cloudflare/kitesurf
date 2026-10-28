@@ -1,0 +1,19 @@
+packages/dom-shim/src/webidl.ts
+  s_325e022d8487b0::t_aacb2b2b61395e 10-11,21,41-46,50,54,56,58-60,76,94-99,119,126,129,153,180,241,297-301,326,341,357-360
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4969cf9137df81bd999166471bc4050360af24af",
+  "prompts": {},
+  "sessions": {
+    "s_325e022d8487b0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_e87e6cc17ffeE3am0OA8I2bLOK",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

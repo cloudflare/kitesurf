@@ -1,0 +1,29 @@
+packages/core/src/scene_record.rs
+  s_dfd792beae87ba::t_7fca8b7a8f46d1 705
+  s_dfd792beae87ba::t_e99f4ca2758f60 600
+  s_dfd792beae87ba::t_a3ee6b8f1196c1 517
+  s_dfd792beae87ba::t_e139ee3f0f2f0b 305,311-313,318,320-321,323
+  s_dfd792beae87ba::t_7d26631ca1e04c 442-444
+  s_dfd792beae87ba::t_88431b89879273 696-698
+  s_dfd792beae87ba::t_1daadc9f6b8784 1570-1574,1578-1579,1588-1593,1597-1599,1601
+  s_dfd792beae87ba::t_346c8fd75a66e0 618
+  s_dfd792beae87ba::t_3a5c3ed24a440c 645
+  s_dfd792beae87ba::t_6a13a107d74144 2342
+  s_dfd792beae87ba::t_14fab59a4fdd0e 777,1092-1093,1839
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8c863c3a5dab24e35b5cd43ef2516e5247df59f4",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

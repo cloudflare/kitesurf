@@ -1,0 +1,23 @@
+packages/page-script/src/globals.ts
+  s_b1966cfb8f6c29::t_2dba0cd7ba5ad1 182-186
+  s_b1966cfb8f6c29::t_20a1ddbeef8349 187-189
+packages/engine/test/e2e/raf-overrun-frame-gap.e2e.test.ts
+  s_b1966cfb8f6c29::t_c10cac1048ccf7 1-3,32,41,47-48
+  s_b1966cfb8f6c29::t_a5e88a964ec087 4-31,33-40,42-46,49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f1ba09d390965a596bfe1b6fb873b466a1a867c2",
+  "prompts": {},
+  "sessions": {
+    "s_b1966cfb8f6c29": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f01d16946ffeP3yF6gjdtoI05e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}

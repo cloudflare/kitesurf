@@ -1,0 +1,25 @@
+scripts/patches/blitz-dom-0.3.0-beta.1/0092-Parse-an-SVG-s-XML-once-when-its-root-needs-no-rewri.patch
+  s_dfd792beae87ba::t_9e1a22f893a6fa 1-49
+scripts/patches/blitz-dom-0.3.0-beta.1/0093-Cache-parsed-SVG-trees-on-their-source.patch
+  s_dfd792beae87ba::t_9e1a22f893a6fa 1-103
+scripts/patches/blitz-dom-0.3.0-beta.1/0091-Invalidate-an-attribute-write-from-its-snapshot-not-.patch
+  s_dfd792beae87ba::t_9e1a22f893a6fa 1-183
+scripts/patches/blitz-dom-0.3.0-beta.1/0090-Cache-the-class-attribute-pre-split-and-interned.patch
+  s_dfd792beae87ba::t_9e1a22f893a6fa 1-168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0558945b62a26fa3b7533cc62fd0260bf416fc2c",
+  "prompts": {},
+  "sessions": {
+    "s_dfd792beae87ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01dfa549cffenpjABRpSNIoxbM",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

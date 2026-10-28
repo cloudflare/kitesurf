@@ -1,0 +1,43 @@
+packages/core/src/webgl_test.rs
+  s_13716c95882f21::t_fe334b4c129329 1-134
+packages/core/examples/webgl-render.rs
+  s_13716c95882f21::t_fe334b4c129329 3,5,15,17,22
+packages/core/src/webgl/mod.rs
+  s_13716c95882f21::t_fe334b4c129329 1-32
+packages/core/Cargo.toml
+  s_13716c95882f21::t_fe334b4c129329 148-156
+packages/core/src/webgl/exec.rs
+  s_13716c95882f21::t_fe334b4c129329 5
+packages/core/src/lib.rs
+  s_13716c95882f21::t_fe334b4c129329 86-91
+packages/core/examples/webgl-aquarium.rs
+  s_13716c95882f21::t_fe334b4c129329 11,92-93
+packages/core/examples/webgl-disasm.rs
+  s_13716c95882f21::t_fe334b4c129329 1,3
+packages/core/examples/webgl-spvgap.rs
+  s_13716c95882f21::t_fe334b4c129329 3
+packages/core/src/webgl/pipeline.rs
+  s_13716c95882f21::t_fe334b4c129329 4-8
+AGENTS.md
+  s_13716c95882f21::t_fe334b4c129329 64-66,155,677-681
+packages/core/src/webgl/raster.rs
+  s_13716c95882f21::t_fe334b4c129329 7-9
+docs/WEBGL.md
+  s_13716c95882f21::t_fe334b4c129329 1,3-5,7-14,45,156-157,304,358,431-433,437-438,445-446,448-454,457-462
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "550837b2a837b1e324104d13d618da8d112e33a5",
+  "prompts": {},
+  "sessions": {
+    "s_13716c95882f21": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eddd118e6ffe2ftJETKUWTMzDO",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,56 @@
+packages/engine/src/cdp/dispatch.ts
+  s_ef6ce202359404::t_5af13708908984 255-271
+packages/engine/src/rbi.ts
+  s_ef6ce202359404::t_9421c92e68b9e8 272-276
+  s_ef6ce202359404::t_37e7bde9ddc9a2 303-308
+  s_ef6ce202359404::t_a9c7753fb12a24 193-197
+  s_ef6ce202359404::t_cb0d82cf8fff76 409-420
+  s_ef6ce202359404::t_0c3d893a51e2a0 466-467
+  s_ef6ce202359404::t_9b252a21446578 349-397
+  s_ef6ce202359404::t_95bb43cc3834f9 497-526
+  s_ef6ce202359404::t_cc7cedaf61b453 527-550
+  s_ef6ce202359404::t_7492c561974ab7 698-701
+  s_ef6ce202359404::t_6aad675aecf1b0 65-69
+  s_ef6ce202359404::t_3113cd82989967 296-302
+  s_ef6ce202359404::t_5fd04034fa20b6 217-233
+  s_ef6ce202359404::t_0d8a9dfa04a9bd 49-54,57-62
+  s_ef6ce202359404::t_dc3e1df7c0e974 264-271
+packages/rbi-client/src/index.ts
+  s_ef6ce202359404::t_f1711f082e01b2 221-222,225-229
+  s_ef6ce202359404::t_beafd9e9d0ff96 344,349,351
+  s_ef6ce202359404::t_12b71b3b3439fb 9-11
+  s_ef6ce202359404::t_f7d3da8965104b 306-308
+  s_ef6ce202359404::t_9828e5ebb2d914 64-110
+  s_ef6ce202359404::t_90653d4f04f86c 279-287
+  s_ef6ce202359404::t_03bdf581f167e9 142-220,223-224
+  s_ef6ce202359404::t_e61e0764ea2a28 275,277-278
+  s_ef6ce202359404::t_817bc36ececf69 364-365,373
+  s_ef6ce202359404::t_e7d052b41b2273 242-245
+  s_ef6ce202359404::t_eedd367ed82d90 246-252,262,264,266
+  s_ef6ce202359404::t_c889de7e363744 111
+packages/rbi-client/src/input.ts
+  s_ef6ce202359404::t_0db9dc8b00d86f 26-28
+  s_ef6ce202359404::t_c9d020882f1e57 5-10
+packages/engine/src/index.ts
+  s_ef6ce202359404::t_6aade062636bfe 238-241,244
+packages/engine/src/rbi-view.ts
+  s_ef6ce202359404::t_f37c4d1007b587 23-34,42
+  s_ef6ce202359404::t_1592aa56221afb 12-16,21
+  s_ef6ce202359404::t_4515888e4b9726 69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3c2429ffec8bee6037e573f39b57a33488edc33a",
+  "prompts": {},
+  "sessions": {
+    "s_ef6ce202359404": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_081c17b83ffeQNYGKFcf1ZdpzC",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

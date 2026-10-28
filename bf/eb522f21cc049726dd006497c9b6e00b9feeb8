@@ -1,0 +1,30 @@
+scripts/patches/README.md
+  s_a3b42a28f6acb3::t_9a5262d7fa3cc8 85,150-151
+packages/core/src/lib.rs
+  s_a3b42a28f6acb3::t_9a5262d7fa3cc8 454
+  s_a3b42a28f6acb3::t_ec5704ec262e7a 455
+packages/core/src/boa_parse_peak_test.rs
+  s_a3b42a28f6acb3::t_9a5262d7fa3cc8 1-94
+scripts/patches/boa_engine-0.20.0/0015-bytecompiler-read-var-scoped-declarations-by-referen.patch
+  s_a3b42a28f6acb3::t_9a5262d7fa3cc8 1-62
+scripts/patches/boa_parser-0.20.0/0002-parser-move-a-parenthesized-expression-instead-of-cl.patch
+  s_a3b42a28f6acb3::t_9a5262d7fa3cc8 1-31
+scripts/patches/boa_ast-0.20.0/0002-operations-borrow-var-scoped-declarations-from-the-A.patch
+  s_a3b42a28f6acb3::t_9a5262d7fa3cc8 1-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bfeb522f21cc049726dd006497c9b6e00b9feeb8",
+  "prompts": {},
+  "sessions": {
+    "s_a3b42a28f6acb3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efbfcb188ffeANErVj3Qn55enm",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

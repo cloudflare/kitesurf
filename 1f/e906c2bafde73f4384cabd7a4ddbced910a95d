@@ -1,0 +1,26 @@
+scripts/k6-urlscan.js
+  s_43181cbdfaeda1::t_c08756cc19b462 239-241
+  s_43181cbdfaeda1::t_67851bea5a7ce8 31-33
+  s_43181cbdfaeda1::t_50e4f0f0d60b7c 65
+  s_43181cbdfaeda1::t_c9d0dc49cbf46d 19
+  s_43181cbdfaeda1::t_65df9e1d2a2205 1-18,20-30,34-64,66-97,121,123-238,242
+  s_43181cbdfaeda1::t_0ad636d5026977 98-120,122
+package.json
+  s_43181cbdfaeda1::t_ecda919323e3a0 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1fe906c2bafde73f4384cabd7a4ddbced910a95d",
+  "prompts": {},
+  "sessions": {
+    "s_43181cbdfaeda1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f02ebc95fffe5DoocFRzIM38Cb",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

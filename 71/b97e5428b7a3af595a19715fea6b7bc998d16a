@@ -1,0 +1,26 @@
+packages/core/src/screenshot.rs
+  s_4ba79f911c93c4::t_2889deb3c2f5c3 326-336
+packages/engine/test/page-script-rpc-session.test.ts
+  s_4ba79f911c93c4::t_e93c5a55defb78 327-350
+packages/engine/src/cdp/page.ts
+  s_4ba79f911c93c4::t_c704086ce0b3c4 6528,6530-6536
+  s_4ba79f911c93c4::t_e45a746150937a 8000-8006,8009-8030,8154,8284,8316-8317,8322,8329,8386,8393,8398,8414
+packages/engine/src/eval/page-script-rpc-session.ts
+  s_4ba79f911c93c4::t_0cde807265c40d 178-180,194-204,208,347-349,368,411,481
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "71b97e5428b7a3af595a19715fea6b7bc998d16a",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

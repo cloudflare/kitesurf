@@ -1,0 +1,34 @@
+packages/engine/src/cdp/page.ts
+  s_41d5a40b9168bd::t_2389273f514f75 988,2467-2468,2471,4341
+packages/engine/src/cdp/types.ts
+  s_41d5a40b9168bd::t_2389273f514f75 128-158,249-251
+packages/engine/src/cdp/connection.ts
+  s_41d5a40b9168bd::t_2389273f514f75 1-10,26,62,73,92-112,114,116-120,123,126,128,130-135,137-152,156,158-160,167,175,179,183-191,193-234,236-303,305-327,329-503,505-514,518-626,628-781,783-835,837-847,849,860-862,864-866,870-880,882,890-891,894,896-906,908-911,913-920,922-940,943-947,949-950,952-955,958-970,972-979,981-983,985-1000,1002-1003,1005-1016,1018-1019,1021,1023,1035,1039-1043,1045,1049-1050,1053-1059,1062,1068-1070,1072,1074,1079-1092,1094-1101,1112-1117,1129,1131-1134,1136-1137,1140-1144,1155-1205,1212
+  s_41d5a40b9168bd::t_2b5bba9efde9e9 235,782,836,980,1030
+packages/engine/src/cdp/fetch-interception.ts
+  s_41d5a40b9168bd::t_2389273f514f75 43-45,73,102-117
+packages/engine/src/cdp/dispatch.ts
+  s_41d5a40b9168bd::t_2389273f514f75 3,71-78
+packages/engine/src/cdp/runtime.ts
+  s_41d5a40b9168bd::t_2389273f514f75 560-568,572-574
+packages/engine/src/cdp/fetch.ts
+  s_41d5a40b9168bd::t_2389273f514f75 29-30,34
+packages/engine/src/cdp/target.ts
+  s_41d5a40b9168bd::t_2389273f514f75 35-49,140-141,144,147-150,156,179,246-250,274,292,296,318,327,611,636,662,668-669,706,738,879-880,891
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e1cfdeaa2d8b77d3e34950e99833868327993ea7",
+  "prompts": {},
+  "sessions": {
+    "s_41d5a40b9168bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ede483919ffe2mF0OUxdj7pj4Y",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

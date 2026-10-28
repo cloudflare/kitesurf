@@ -1,0 +1,21 @@
+tests/wpt-expectations.json
+  s_5c1b02e84abf98::t_bf39425b9168f7 29399-30950
+tests/wpt-tests.json
+  s_5c1b02e84abf98::t_224bd369649539 6504-6893
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b7093eeefadcf5ebf5cb2665fc71da6f42fe4a13",
+  "prompts": {},
+  "sessions": {
+    "s_5c1b02e84abf98": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f30040622ffeRDWxAQLi3obXvV",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

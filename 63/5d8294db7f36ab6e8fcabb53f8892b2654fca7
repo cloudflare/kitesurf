@@ -1,0 +1,19 @@
+docs/CORS.md
+  s_d99b1338b2e6ad::t_2890907ef94776 155-180
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "635d8294db7f36ab6e8fcabb53f8892b2654fca7",
+  "prompts": {},
+  "sessions": {
+    "s_d99b1338b2e6ad": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe52051e6ffe5b3Ay8nnxWhl15",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+packages/engine/test/e2e/sandbox-escape-probe.e2e.test.ts
+  s_b524cf97c98914::t_c87c55ebbf710a 1-3,6,9-21,24,27,43-44,56
+  s_b524cf97c98914::t_d83fafaf68c35f 4-5,7-8,22-23,25-26,28-42,45-55
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_b524cf97c98914::t_59fbd15301ca6c 21-72
+  s_b524cf97c98914::t_52fb1d424cee3c 1577-1578
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "65232696094c1bbbb6d7572e31f107b9e3084f28",
+  "prompts": {},
+  "sessions": {
+    "s_b524cf97c98914": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03d73a4c1ffet1b80RoPrkRgfN",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

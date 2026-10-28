@@ -1,0 +1,64 @@
+packages/engine/test/e2e/canvas-raw-renderer.e2e.test.ts
+  s_03997f732ec005::t_dad4807078af48 24-26,30,34-35
+  s_03997f732ec005::t_a56587d63136e3 1-23,27-29,31-33,36-42
+packages/core/src/scene_record.rs
+  s_03997f732ec005::t_970118394c5e0d 236-238,560,600,1690,1695,1698,1700-1702
+  s_03997f732ec005::t_dad4807078af48 2669
+  s_03997f732ec005::t_fdda3c5a19ba64 1688-1689
+  s_03997f732ec005::t_a5d50904f6ba36 559,599
+  s_03997f732ec005::t_a56587d63136e3 2671-2688,2696-2708,2713-2714
+  s_03997f732ec005::t_1f0bbf52ebc332 558,2689-2695,2709-2712
+  s_03997f732ec005::t_3e5d98139a96e8 2670
+docs/PAGE_RENDERER.md
+  s_03997f732ec005::t_3159a570371fa3 40
+  s_03997f732ec005::t_1f62fb3ebdabab 37,46
+  s_03997f732ec005::t_39179fb6046704 41-45
+  s_b28f10956c0cd2::t_2008ba48b8ce7a 38-39,47-52
+packages/core/src/scene_decode.rs
+  s_03997f732ec005::t_6ff55eac275a01 613-628,659-667,684-686
+packages/core/src/lib.rs
+  s_03997f732ec005::t_a5d50904f6ba36 5391,5395-5396,5398-5407,5411-5421,5485,6027,6031-6032,6034-6043,6047-6057,6161
+  s_03997f732ec005::t_970118394c5e0d 5392-5394,5408-5410,6028-6030,6044-6046
+  s_03997f732ec005::t_1f0bbf52ebc332 5397,6033
+packages/core/src/scene_replay.rs
+  s_03997f732ec005::t_0547f931686f90 2257
+  s_03997f732ec005::t_a5d50904f6ba36 1153,1545
+  s_03997f732ec005::t_2076222924cf46 661-667,1880-1883
+  s_03997f732ec005::t_1f0bbf52ebc332 2259-2262
+  s_03997f732ec005::t_1f62fb3ebdabab 1879,1884
+  s_03997f732ec005::t_a56587d63136e3 2248,2256,2258
+  s_03997f732ec005::t_f61e06342a742e 1160-1162,1204,2253-2254
+  s_03997f732ec005::t_a0ff3e8323e248 1180,1196-1197,1701-1702
+  s_03997f732ec005::t_6ff55eac275a01 401,2702-2722
+  s_03997f732ec005::t_2ab1749aef7253 2723-2724
+packages/core/src/rbi_image_cache_test.rs
+  s_03997f732ec005::t_a56587d63136e3 43-54,60-71,80-84,89-93
+  s_03997f732ec005::t_1f0bbf52ebc332 55-59,72-79,85-88
+  s_03997f732ec005::t_7e01cc4b4391d3 42
+packages/page-script/src/index.ts
+  s_03997f732ec005::t_a13d27be0748fa 2666,4522,4565,4791-4792,4796,4805,4816,4824
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "14732d7dc051568454a1116c6d00990345bbd998",
+  "prompts": {},
+  "sessions": {
+    "s_03997f732ec005": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0eae1bebffeH0x3Q3vwkoOycu",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_b28f10956c0cd2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0c4dbffeffeRpYsE4LTa4LDna",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

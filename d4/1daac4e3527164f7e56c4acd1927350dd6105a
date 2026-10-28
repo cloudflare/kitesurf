@@ -1,0 +1,20 @@
+tests/wpt/defs.bzl
+  s_4ba79f911c93c4::t_6c271f50e1cac3 110-111,132,134,136,138
+  s_4ba79f911c93c4::t_e0d2de73f1a041 140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d41daac4e3527164f7e56c4acd1927350dd6105a",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

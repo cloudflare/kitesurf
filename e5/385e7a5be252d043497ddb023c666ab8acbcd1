@@ -1,0 +1,62 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_86e5da766eb425::t_b1482083bf8896 986-989
+  s_86e5da766eb425::t_dadc7b2f8575d5 1217-1261
+packages/page-script/src/globals.ts
+  s_86e5da766eb425::t_c1c9c9ee57c56f 131-136
+packages/dom-shim/src/internal-state.d.ts
+  s_86e5da766eb425::t_7f43fcbfac5c3d 60-63,66-71
+packages/engine/src/cdp/page.ts
+  s_86e5da766eb425::t_488acfb2f92de9 4273-4304,4316-4385,4393-4397
+  s_86e5da766eb425::t_74d61e48ef26e9 4305-4315
+  s_86e5da766eb425::t_ae9bcc78cda30b 3182-3193,3201-3207,3209
+  s_86e5da766eb425::t_e6c57814c9fb93 3166-3173,3181,3208
+packages/engine/test/e2e/demos/oopif-postmessage.e2e.test.ts
+  s_86e5da766eb425::t_da056990acf811 1-91
+packages/engine/src/eval/page-script.ts
+  s_86e5da766eb425::t_8b83a53f041519 355-367
+packages/dom-shim/src/window.ts
+  s_86e5da766eb425::t_ad769eda491263 1006-1087
+  s_86e5da766eb425::t_5e0fa7ced82961 41
+  s_86e5da766eb425::t_6c8842b02fcf71 42
+  s_86e5da766eb425::t_f6613bd1bd275b 1112-1118,1125-1126
+  s_86e5da766eb425::t_1730dcb652649a 1123-1124,1129
+  s_86e5da766eb425::t_992b32674b1669 1127-1128
+  s_86e5da766eb425::t_55ca7450807d8a 1130
+packages/engine/src/cdp/types.ts
+  s_86e5da766eb425::t_194132479705dd 391-399
+packages/page-script/src/internal-state.ts
+  s_86e5da766eb425::t_67dc72cb02e90a 103-109
+  s_86e5da766eb425::t_8ddcb51a4265e2 127
+packages/page-script/src/index.ts
+  s_86e5da766eb425::t_1d5646dcf5160d 3354-3362
+  s_86e5da766eb425::t_462d39d5f66b79 373
+  s_86e5da766eb425::t_b62a835e9dc23c 602
+  s_86e5da766eb425::t_9bf551767d2ff0 2216
+  s_86e5da766eb425::t_3d28bfdf5466da 2076-2117
+  s_86e5da766eb425::t_5a186b2a589426 204-239
+packages/page-script/src/ws-dispatch.ts
+  s_86e5da766eb425::t_3536b0cb952679 201
+packages/engine/src/eval/page-script-session.ts
+  s_86e5da766eb425::t_65166c29155ed1 549-560
+packages/engine/src/eval/oopif-render.ts
+  s_86e5da766eb425::t_91ac6cd50102a1 62-68
+  s_86e5da766eb425::t_f4f2800382d0a5 204-215
+  s_86e5da766eb425::t_b835cba7036e25 183-186
+  s_86e5da766eb425::t_56d4bf238e7ba8 55-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e5385e7a5be252d043497ddb023c666ab8acbcd1",
+  "prompts": {},
+  "sessions": {
+    "s_86e5da766eb425": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0665bed1cffeoMugykK9pn22Wf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

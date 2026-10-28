@@ -1,0 +1,22 @@
+.gitignore
+  s_48191ea07870ee::t_fb979e011f549a 114,122
+  s_48191ea07870ee::t_5cbd80dafb18a9 115-120
+vendor/raytrace/worker-configuration.d.ts
+  s_48191ea07870ee::t_2b39b7dca7ef94 1-11303
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0a3cecd540e417bbc61370b3e35cb5a2853b661d",
+  "prompts": {},
+  "sessions": {
+    "s_48191ea07870ee": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_009082396ffeXKnEicNrzluRoG",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+packages/engine/test/e2e/intersection-observer.e2e.test.ts
+  s_49fd263338764b::t_993dc231f7964d 115
+packages/core/src/lib.rs
+  s_49fd263338764b::t_21bd506cd826e7 3335-3342,3345-3350
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "5f2e8eafb1a4e6ae0d9d68a30538f62a4971a1d3",
+  "prompts": {},
+  "sessions": {
+    "s_49fd263338764b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author bpereira/radar-intersection-observer",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

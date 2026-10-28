@@ -1,0 +1,44 @@
+tests/wpt-tests.json
+  s_1dcff5bc38c3a1::t_290cb49c0408be 6235,6310-6321
+packages/engine/src/wasm.ts
+  s_1dcff5bc38c3a1::t_290cb49c0408be 188-193
+docs/SCRIPT_LOADING.md
+  s_1dcff5bc38c3a1::t_290cb49c0408be 134-136,142-143
+packages/core/src/scan_test.rs
+  s_1dcff5bc38c3a1::t_290cb49c0408be 108,119-135,229,311-322
+  s_1dcff5bc38c3a1::t_cb50f8cc1c2de9 323-324
+packages/engine/test/fixtures-worker/assets/importmap.html
+  s_1dcff5bc38c3a1::t_290cb49c0408be 1-33
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_1dcff5bc38c3a1::t_290cb49c0408be 214-215,218-219,630-631,1424-1425
+packages/page-script/src/__ks_import_map.d.ts
+  s_1dcff5bc38c3a1::t_290cb49c0408be 1-2
+packages/engine/test/e2e/import-map.e2e.test.ts
+  s_1dcff5bc38c3a1::t_290cb49c0408be 1-21
+packages/core/src/scan.rs
+  s_1dcff5bc38c3a1::t_290cb49c0408be 99-106,117-118,243,291-300,610,621
+  s_1dcff5bc38c3a1::t_b556daab09e05c 98
+packages/engine/test/walk-module-graph.test.ts
+  s_1dcff5bc38c3a1::t_290cb49c0408be 13-19,99-218
+  s_1dcff5bc38c3a1::t_2fd27d558d702b 219
+packages/engine/src/cdp/page.ts
+  s_1dcff5bc38c3a1::t_290cb49c0408be 2681-2687,2704
+packages/engine/test/fixtures-worker/assets/importmap-lazy.js
+  s_1dcff5bc38c3a1::t_290cb49c0408be 1-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "49ce5f3923cc7d7712fa05db4599dd65cbf57382",
+  "prompts": {},
+  "sessions": {
+    "s_1dcff5bc38c3a1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5e310ec6ffen31DSEk4bSFAtg",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

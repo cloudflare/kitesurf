@@ -1,0 +1,23 @@
+packages/core/src/lib.rs
+  s_6917a4c76239ca::t_384eb914ba3431 74-81,84-86,94-96
+packages/core/Cargo.toml
+  s_6917a4c76239ca::t_6d83d9b231894d 40-44
+Cargo.lock
+  s_6917a4c76239ca::t_88980c4bd3d9ac 1448
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7f038894bc157e20045dde18a896c1011d33e399",
+  "prompts": {},
+  "sessions": {
+    "s_6917a4c76239ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f4957e992ffeVbjatLtj1w4960",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

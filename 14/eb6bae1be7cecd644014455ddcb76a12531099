@@ -1,0 +1,25 @@
+.gitlab-ci.yml
+  s_38a0bf52e4dc1d::t_08eaf8cde83112 1429,1433,1435
+  s_38a0bf52e4dc1d::t_a7c45fe185b2d2 1381-1386,1388-1392,1398-1399
+  s_38a0bf52e4dc1d::t_d8c5d156623402 1430-1432,1434
+scripts/flows-workerd-probe.sh
+  s_38a0bf52e4dc1d::t_c95caaf2289ecd 11-15
+  s_38a0bf52e4dc1d::t_790ca0c2f79e57 7-10,16-19,21-25
+  s_38a0bf52e4dc1d::t_822be992080514 1-6,20,26-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "14eb6bae1be7cecd644014455ddcb76a12531099",
+  "prompts": {},
+  "sessions": {
+    "s_38a0bf52e4dc1d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f8e4b47a7ffeVSUDRGBOtAte1Z",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

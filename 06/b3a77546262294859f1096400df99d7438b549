@@ -1,0 +1,19 @@
+AGENTS.md
+  s_0fb3273840725a::t_8291e8a216cee5 543-547
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "06b3a77546262294859f1096400df99d7438b549",
+  "prompts": {},
+  "sessions": {
+    "s_0fb3273840725a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5527082dffeHpy9UcLv8wZNq2",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

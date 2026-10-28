@@ -1,0 +1,21 @@
+research/page-renderer-plan.md
+  s_c9f68948e839d2::t_2cbcda14465f52 234-238
+  s_c9f68948e839d2::t_63ed2a5b6a069f 183-225
+  s_c9f68948e839d2::t_4dda1241520a87 23-24,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d11e4566572690e957a40c5892d77cd8eadc241d",
+  "prompts": {},
+  "sessions": {
+    "s_c9f68948e839d2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06bcd7bf9ffeCyPtlT43vRpstI",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

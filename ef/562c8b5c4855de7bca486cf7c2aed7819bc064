@@ -1,0 +1,21 @@
+scripts/patches/boa_engine-0.20.0/0018-module-profile-deferred-source-re-parsing.patch
+  s_c1d1c93f383cfd::t_f70841c2cc41bd 1-21
+scripts/patches/boa_engine-0.20.0/0017-module-preserve-source-path-and-parsing-profile-when.patch
+  s_c1d1c93f383cfd::t_f70841c2cc41bd 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ef562c8b5c4855de7bca486cf7c2aed7819bc064",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

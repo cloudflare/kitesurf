@@ -1,0 +1,26 @@
+packages/page-script/src/transitions.ts
+  s_4ba79f911c93c4::t_e88796a055d5bd 1,6,48,51,71,94,108-109,131,147
+  s_4ba79f911c93c4::t_345130dd1bb6ca 115,145
+packages/core/src/transitions.rs
+  s_4ba79f911c93c4::t_f8c3b840eb09b9 226,254,266,293,300
+  s_4ba79f911c93c4::t_8979b8826b9cfd 95
+  s_4ba79f911c93c4::t_1847b22b17348b 360,366,389,414
+  s_4ba79f911c93c4::t_77621a283d16df 27-28,31
+  s_4ba79f911c93c4::t_7ec797f765c9d4 142,181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "556a06b3495494c9a29fd2a676d6154e9653e099",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,359 @@
+packages/engine-cf/src/playground-rate-limit.ts
+  s_9a5f50de70830e::t_2bb969432a942f 1-37
+packages/engine-cf/src/account-rate-limit.ts
+  s_9a5f50de70830e::t_4aeb33258f85a3 4
+scripts/wpt-report-refresh.mjs
+  s_c7ab7e49842a97::t_bbf0b8835b2b7f 25
+  s_c7ab7e49842a97::t_7115a375a95caf 27
+  s_c7ab7e49842a97::t_c341e390175e61 23-24
+  s_c7ab7e49842a97::t_2d507e93a97dbe 26
+  s_c7ab7e49842a97::t_864b45f438cab2 28
+packages/engine-cf/src/quickactions/forward-headers.ts
+  s_9a5f50de70830e::t_4aeb33258f85a3 1
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 2-30
+packages/engine-cf/vitest.config.mts
+  s_9a5f50de70830e::t_0d074dce441d6a 4
+  s_9a5f50de70830e::t_64f6aaabeb2c92 5
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1-3,6-9
+packages/engine-cf/test/unit/quickaction.test.ts
+  s_9a5f50de70830e::t_4aeb33258f85a3 16
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 12,21-26,234,249,305,409,422,442,462,607,631,650,675,685,812,962,1212,1333,1396,1449,1460-1461,1467,1476,1481,1483,1521,1542,1550,1553-1555,1558,1562,1566,1570,1575,1577,1601,1603,1608,1612,1621,1623,1636,1638,1640,1647,1651,1660,1665,1674,1696,1698
+packages/engine-cf/src/unsafe-bindings.ts
+  s_9a5f50de70830e::t_2bb969432a942f 7-8
+  s_9a5f50de70830e::t_a6d4a7ec5b50a6 5-6
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1-4,9
+packages/grafana/src/cli.ts
+  s_c7ab7e49842a97::t_3fabe99b9a54a3 30,35
+packages/comparison-core/Cargo.toml
+  s_c6d6a3ac21fe46::t_854e803cc02222 1-6,18-24
+packages/engine-cf/src/index.ts
+  s_c6d6a3ac21fe46::t_43e2611111dfe2 61
+  s_9a5f50de70830e::t_1b61df5a6c1450 13,51
+  s_9a5f50de70830e::t_12fb1948c26a33 6,11,14,38-44,47,63,69
+  s_9a5f50de70830e::t_4aeb33258f85a3 3-5,7-10,12,19,28,32,37,45-46,48-50,52-53,62,64-68,70-77,94-95,101,112,126,151,164,166,182,203-204,220-221,235-236,239,241
+  s_c6d6a3ac21fe46::t_4a3dda44bc31dc 15-18,23-27,29-31,33-36,54-60,97-100,103-111,114-125,127-132,134-149,163,196-202,206-219,223-234
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1-2,20-22,78-93,96,102,113,133,150,152-162,165,167-181,183-195,205,222,237-238,240
+tests/interactivity-flows/run.ts
+  s_c7ab7e49842a97::t_aa0d0e7410766a 45-47,153,238,257,259-261
+packages/engine-cf/src/cdp-client.ts
+  s_9a5f50de70830e::t_2bb969432a942f 9-13
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 107-108
+bench/harness/run.mjs
+  s_c7ab7e49842a97::t_b4200fd721fcc9 941
+  s_c7ab7e49842a97::t_3fabe99b9a54a3 47,50,368
+packages/ra-schema/src/emit-yaml.ts
+  s_c7ab7e49842a97::t_d10194173b1955 190
+pnpm-workspace.yaml
+  s_c6d6a3ac21fe46::t_5ffe5b5997203a 1-5,9-10
+.gitlab-ci.yml
+  s_0bd50a19442eec::t_a4a85d48c99ada 414-416,521-526,656,1408
+  s_0bd50a19442eec::t_548fe123c778f2 563,654,1016-1017,1019-1022,1404-1407,1472,1475-1477,2234
+  s_0bd50a19442eec::t_8e443a31e2a434 404,652,657-658,1668
+  s_0bd50a19442eec::t_1f9dab0d2b1506 1691,1695,1698,1756,1825,1888,1948,1957,2009,2068,2185
+  s_0bd50a19442eec::t_f00300a1baa280 580-582,595,597,620,659,779-780,790-791,795,868,886,920,945,1018,1025,1049,1069,1131,1133,1140
+  s_0bd50a19442eec::t_ee366194c40ef0 16-19,63,155,158,164,410,425,434,490-492,502-504,517,535-536,538-539,541
+  s_0bd50a19442eec::t_b0773a6e9c59b8 493,1434
+  s_0bd50a19442eec::t_bd3eaf41a95f89 707-709
+  s_0bd50a19442eec::t_1d55c44e3ed97b 1285-1286,1302-1303,1320,1331-1332,1357,1400-1403,1415-1417,1421-1423,1441-1442,1473-1474,1502,1504,1508,1578-1579,1583-1584,1586-1588,1594-1596,1601,1603-1604
+  s_0bd50a19442eec::t_4e77e40ea072f2 2309,2317,2414,2431,2466
+  s_0bd50a19442eec::t_27f7c5fa883b72 621
+  s_0bd50a19442eec::t_ff7da0b1dae715 712
+  s_0bd50a19442eec::t_72f99cc9e9986d 1471
+  s_0bd50a19442eec::t_30d91fe8aa6300 1478
+  s_0916feb956c724::t_7d0c477c5f2e4d 626-630
+  s_0916feb956c724::t_386d7bc47253dc 710-711
+  s_0916feb956c724::t_edc21a5aea0746 660
+  s_0916feb956c724::t_2385a3ae8baef8 1374
+package.json
+  s_c6d6a3ac21fe46::t_5ffe5b5997203a 2,5,8,10-12,15-18,20-25,28-29,36-37,46,48,50-52
+  s_c6d6a3ac21fe46::t_9a083b752d0716 9
+  s_0916feb956c724::t_1ffab9230f7af3 34-35
+docs/ANALYTICS.md
+  s_c7ab7e49842a97::t_afefa8d2455568 3-4,20,23,25,58,65,162-163,172-173,197
+  s_c7ab7e49842a97::t_00092a4d33ce29 1-2
+packages/shadow-replay/turbo.json
+  s_c6d6a3ac21fe46::t_6339dbd5587ff4 1-15
+packages/agent-bench/revisions.json
+  s_c7ab7e49842a97::t_c2f43c88cc061c 4
+packages/agent-bench/src/benches/browsecomp.ts
+  s_c7ab7e49842a97::t_1c86e7de24b3ea 59
+packages/comparison-core/scripts/build.mjs
+  s_c7ab7e49842a97::t_d6c6819b8fd2f6 6-7,35,37
+packages/engine-cf/src/admit.ts
+  s_9a5f50de70830e::t_4aeb33258f85a3 1-2
+  s_9a5f50de70830e::t_61b366f0f121ca 3-5
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 6-37
+packages/ra-schema/src/cli.ts
+  s_c7ab7e49842a97::t_983202e654592f 38
+  s_c7ab7e49842a97::t_3fabe99b9a54a3 33
+packages/engine-cf/src/sentry.ts
+  s_9a5f50de70830e::t_e092daf9bcfe37 1-230
+packages/engine-cf/test/e2e/tsconfig.json
+  s_c6d6a3ac21fe46::t_f8039d65e681db 3
+  s_9a5f50de70830e::t_0d074dce441d6a 2
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1,4-5
+.gitignore
+  s_c6d6a3ac21fe46::t_854e803cc02222 16-21,24,27,43,48,50,64,67-70
+  s_0916feb956c724::t_5dce31d9f8122f 23,55
+turbo.json
+  s_c6d6a3ac21fe46::t_6339dbd5587ff4 3-6,24-30,33-38,42-44,51-53,57-62,66,79,81-82,85-92,94-95,100-101,103-106,108,110-111,150-152,182-184
+  s_0916feb956c724::t_cbc02e09725ed5 63-65
+scripts/flows-run-cacheable.mjs
+  s_c7ab7e49842a97::t_bbf0b8835b2b7f 43-44
+AGENTS.md
+  s_c7ab7e49842a97::t_31afbb80e8cfa6 1-12,19-22,24,26,49,54-55,73,81,101
+  s_0916feb956c724::t_a6d2c4fa2da594 13-18,23,25,27-39,41-48,50-53,56-72,82-87,89-92,94-95,97-98,100
+bench/README.md
+  s_c7ab7e49842a97::t_d5b9a155ddba9d 109,113,410,487
+.opencode/skills/kitesurf-scoped-verification/SKILL.md
+  s_c7ab7e49842a97::t_1782ce77e97486 50,57-61,75-76
+.gitmodules
+  s_c6d6a3ac21fe46::t_119c0b0c7c32eb 1-3
+packages/engine-cf/package.json
+  s_9a5f50de70830e::t_0d074dce441d6a 7-26
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1-6,27-39
+tests/interactivity-flows/README.md
+  s_c7ab7e49842a97::t_971d13be92c45f 199-206,208
+docs/TRACING.md
+  s_c7ab7e49842a97::t_1e63b53082a7de 3-4,6,22,29,79-82
+  s_c7ab7e49842a97::t_383cf7b3e41cd7 53
+  s_c7ab7e49842a97::t_99e4fd0a1b7d8f 77-78
+  s_c7ab7e49842a97::t_8f3fd797de1816 83-85
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1
+.envrc
+  s_c7ab7e49842a97::t_bbf0b8835b2b7f 6
+packages/ra-schema/turbo.json
+  s_c6d6a3ac21fe46::t_6339dbd5587ff4 1-15
+packages/engine-cf/tsconfig.json
+  s_9a5f50de70830e::t_0d074dce441d6a 2
+  s_c6d6a3ac21fe46::t_43e2611111dfe2 3
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1,4-5
+packages/agent-bench/src/benches/assistantbench.ts
+  s_c7ab7e49842a97::t_1c86e7de24b3ea 33
+packages/agent-bench/src/benches/webbench.ts
+  s_c7ab7e49842a97::t_1c86e7de24b3ea 18
+packages/bench-report/src/bench-tail.ts
+  s_c7ab7e49842a97::t_983202e654592f 12
+.gitlab/build-images/Dockerfile.build
+  s_0bd50a19442eec::t_4e77e40ea072f2 32-33
+packages/comparison-core/package.json
+  s_c7ab7e49842a97::t_d6c6819b8fd2f6 7
+scripts/wpt-compare.mjs
+  s_c7ab7e49842a97::t_d10194173b1955 181
+  s_c6d6a3ac21fe46::t_89ede7de189c18 104
+  s_c7ab7e49842a97::t_7115a375a95caf 345,640
+packages/engine-cf/src/quickactions/render-session.ts
+  s_9a5f50de70830e::t_4aeb33258f85a3 10
+  s_9a5f50de70830e::t_144961b0364834 7-9
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 4-6,12,23,63
+packages/engine-cf/test/unit/sentry-tail.test.ts
+  s_9a5f50de70830e::t_987eabd4eb44a5 1,64-106,109-121
+  s_9a5f50de70830e::t_55b293c1b8530f 2-63,122-123
+  s_9a5f50de70830e::t_3ad9fbd3fb36dc 107-108
+packages/engine-cf/src/external-session.ts
+  s_9a5f50de70830e::t_2bb969432a942f 7-23
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 154,170
+tests/interactivity-flows/bbc-hydration-probe.mjs
+  s_c7ab7e49842a97::t_1782ce77e97486 15,17
+packages/engine-cf/src/connection-headers.ts
+  s_9a5f50de70830e::t_2bb969432a942f 1-3
+packages/website/scripts/capture-showcase.mjs
+  s_c7ab7e49842a97::t_1782ce77e97486 3,14
+scripts/trace-pull.mjs
+  s_c7ab7e49842a97::t_b4200fd721fcc9 4,20
+  s_c7ab7e49842a97::t_50780be747d3d9 30
+packages/website/AGENTS.md
+  s_c7ab7e49842a97::t_527bfc12057ac3 5,25-26
+packages/engine-cf/wrangler.jsonc
+  s_9a5f50de70830e::t_54e51af5cb7e90 123
+  s_9a5f50de70830e::t_0d074dce441d6a 2,130-212,237-265,270,272-340,345,347-413
+  s_9a5f50de70830e::t_a771ac3ee41855 3-4
+  s_9a5f50de70830e::t_0f492fcd255cac 124-126
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 28,51,92,477
+packages/agent-bench/src/benches/webvoyager.ts
+  s_c7ab7e49842a97::t_1c86e7de24b3ea 63
+packages/engine-cf/vitest.e2e.config.mts
+  s_9a5f50de70830e::t_0d074dce441d6a 6-9,27
+  s_9a5f50de70830e::t_54e51af5cb7e90 26
+  s_9a5f50de70830e::t_411072d81a71d0 23-25
+  s_9a5f50de70830e::t_d3e20cb73d6dac 28-30
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1-5,10-22,31-32
+packages/website/src/content/showcase.ts
+  s_c7ab7e49842a97::t_527bfc12057ac3 10
+packages/engine-cf/turbo.json
+  s_c6d6a3ac21fe46::t_6339dbd5587ff4 1-26
+packages/engine-cf/test/unit/playground-rate-limit.test.ts
+  s_9a5f50de70830e::t_55b293c1b8530f 1-51
+scripts/flows-engine-id.mjs
+  s_c7ab7e49842a97::t_c8bec7c1a3142f 10-11
+  s_c7ab7e49842a97::t_d6c6819b8fd2f6 6-8,13,16,35,39-46
+.opencode/skills/kitesurf-deslop/SKILL.md
+  s_c7ab7e49842a97::t_207f9d849d97be 154,419
+  s_c7ab7e49842a97::t_cf94d3e2b6f1d6 374-375,388
+  s_c7ab7e49842a97::t_1782ce77e97486 404
+packages/engine-cf/src/ready-analytics.ts
+  s_9a5f50de70830e::t_4aeb33258f85a3 24
+  s_9a5f50de70830e::t_264db3836fe277 21-23
+  s_9a5f50de70830e::t_7f021c057796c9 25-26
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1-20,27-135
+output/ra-schema/kitesurf-global-metrics.yaml
+  s_c7ab7e49842a97::t_d10194173b1955 3
+scripts/autoresearch-bench.mjs
+  s_c7ab7e49842a97::t_bbf0b8835b2b7f 137
+packages/engine-cf/src/bench-tail.ts
+  s_9a5f50de70830e::t_4aeb33258f85a3 7
+  s_9a5f50de70830e::t_f7a6295f12b605 8-10
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 27-30,35
+docs/RELEASING.md
+  s_c7ab7e49842a97::t_383cf7b3e41cd7 119
+  s_c7ab7e49842a97::t_1e63b53082a7de 6-7,30,65,116
+docs/WEB_BOT_AUTH.md
+  s_c7ab7e49842a97::t_1e63b53082a7de 15
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1,3-4
+packages/ra-schema/src/wrapper-tail.ts
+  s_c7ab7e49842a97::t_983202e654592f 5
+packages/agent-bench/src/benches/webarena-family.ts
+  s_c7ab7e49842a97::t_1c86e7de24b3ea 158
+packages/grafana/README.md
+  s_c7ab7e49842a97::t_983202e654592f 11-13
+packages/comparison-core/Cargo.lock
+  s_c6d6a3ac21fe46::t_6205b90ce18671 6-7,9,19,21,24-25,27,30-31,33,36-37,39,42-43,45,48-49,51,54-55,57-58,62-63,65-68,71-72,74-77,80-81,83-87,90-91,93,95-96,100-101,103,105-113,117-120,122-123,127-128,130-134,137-138,140,142,152-153,155,157-161,165-166,168,170,174-175,177,180-181,183,185,189-190,192,195-196,198,202,204,218-219,221-228,231-232,234,236-237,241-242,244,246,250,254-255,257,259,263-264,266,269-270,272,275-276,278,280
+packages/engine-cf/src/caller.ts
+  s_c6d6a3ac21fe46::t_d512995cdc7bfb 6-11
+packages/engine-cf/src/quickactions/accessibility-tree.ts
+  s_c6d6a3ac21fe46::t_0611729aec041f 1,5,26-28,30,43-46,50,53,57,60-61,66,77,87,90-91,107,112,115,118,126,133,137,141,150,168,170,173,179,185,203,205,214,216,218,223
+packages/engine-cf/src/quickactions/ax-serialize.ts
+  s_c6d6a3ac21fe46::t_39023dcdf600e0 1
+packages/engine-cf/src/quickactions/capture.ts
+  s_c6d6a3ac21fe46::t_d6adacb817a5a0 158
+packages/engine-cf/src/quickactions/content.ts
+  s_c6d6a3ac21fe46::t_28a50f7fead460 33,35,46-49,52,55,59,62-63,75-79,91,95,107-108,110-111,118,126,130,139,141,147,163,165,167
+packages/engine-cf/src/quickactions/crawl.ts
+  s_c6d6a3ac21fe46::t_8a00f6eb6dff11 1,7,19,23,46,48,50,65,113,129,143,153,163,166,210,215,225,228
+packages/engine-cf/src/quickactions/dispatch.ts
+  s_c6d6a3ac21fe46::t_1e23e78e5a4152 14-17,20-22
+packages/engine-cf/src/quickactions/envelope.ts
+  s_c6d6a3ac21fe46::t_2d7cbbeef15eea 1-3,5-6,15-24,50-51,71,78,94,97,101,150,159,198,202,212,224,227,230,235,242,247,251,255,258,265,268,295,298,319-336
+packages/engine-cf/src/quickactions/index.ts
+  s_c6d6a3ac21fe46::t_2527e87c6a3945 2,20,46,289,360,371,373,486,792,860,1047,1049-1050,1111,1159,1187,1353,1357,1380,1407,1512,1604,1616
+packages/engine-cf/src/quickactions/links.ts
+  s_c6d6a3ac21fe46::t_5f865fa0478c10 4,17,20,23,53,55,57,61,65,73,82,84,131,135,151,156,158
+packages/engine-cf/src/quickactions/pdf.ts
+  s_c6d6a3ac21fe46::t_d56115c3810903 1,22,24,42-45,48,51,55,58-59,86,106-110,116,120,132,134,136-137,162,171-172,185-186,194-195,201,216,218,220
+packages/engine-cf/src/quickactions/scrape.ts
+  s_c6d6a3ac21fe46::t_9b3372b1650982 4,18,21,24,52,54,56,60,64,72,81,83,135,149,152,155,162,168,170
+packages/engine-cf/src/quickactions/screenshot.ts
+  s_c6d6a3ac21fe46::t_e1819d9fb377c5 34,36,43,52-55,58,61,65,68-69,79-83,89,93,105-106,108-109,113,160-161,167,176,183,201,211,215,227,239,247,260,292,294,296
+packages/engine-cf/src/quickactions/snapshot.ts
+  s_c6d6a3ac21fe46::t_88f11ed5bfb8d8 1,5,18,21,36,48,52,54,62,67,75,82,84,87,112,122,129,134,136
+packages/engine-cf/test/e2e/accessibility-tree-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_82de7877bd5e09 8,274,293,398,514
+packages/engine-cf/test/e2e/cloudflare-env.ts
+  s_c6d6a3ac21fe46::t_b78606f4b0ff7f 1,23,37-38
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 2-22,24-36
+packages/engine-cf/test/e2e/crawl-quick-action.e2e.test.ts
+  s_c6d6a3ac21fe46::t_e8cfa1c3ee3e22 5,45,52-54,56,58-59,62,67,87,91,95,100,105,116,123,142,147,158,165,170,190,198,204,209,221
+packages/engine-cf/test/e2e/entry.ts
+  s_c6d6a3ac21fe46::t_7ed6fccee8285b 1
+packages/engine-cf/test/e2e/external-outbound.e2e.test.ts
+  s_c6d6a3ac21fe46::t_4858b344c3bcce 8,119,225,288
+packages/engine-cf/test/e2e/html-font-defer.e2e.test.ts
+  s_c6d6a3ac21fe46::t_56d0aee242d5ab 4
+packages/engine-cf/test/e2e/links-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_bd5fcf4c56675c 5,30,64,84
+packages/engine-cf/test/e2e/quickaction-body-retention.e2e.test.ts
+  s_c6d6a3ac21fe46::t_b33357b9c31faa 5-9
+packages/engine-cf/test/e2e/quickaction-containment.e2e.test.ts
+  s_c6d6a3ac21fe46::t_69a273563a98e1 28-29,46,110-111,115,129,132
+packages/engine-cf/test/e2e/ready-analytics.e2e.test.ts
+  s_c6d6a3ac21fe46::t_60fbd728d6a081 5-6
+packages/engine-cf/test/e2e/scrape-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_d647bd6a25d7a8 3-4,37,44,63
+packages/engine-cf/test/e2e/screenshot-pdf-brapi.e2e.test.ts
+  s_c6d6a3ac21fe46::t_3ba05f7aa9b765 6-7
+packages/engine-cf/test/e2e/snapshot-quickaction.e2e.test.ts
+  s_c6d6a3ac21fe46::t_1c850de49ad27f 3-4,33,50,73,96
+packages/engine-cf/test/unit/account-rate-limit.test.ts
+  s_c6d6a3ac21fe46::t_6f33ee2b8cb0b0 1,4-5
+packages/engine-cf/test/unit/ax-serialize.test.ts
+  s_c6d6a3ac21fe46::t_9a391766e18450 19
+packages/engine-cf/test/unit/caller.test.ts
+  s_c6d6a3ac21fe46::t_111de0627b09e0 7,9-10,67,70,77-78
+packages/engine-cf/test/unit/cdp-client.test.ts
+  s_c6d6a3ac21fe46::t_07d4bbe69f024c 7-8
+packages/engine-cf/test/unit/crawl.test.ts
+  s_c6d6a3ac21fe46::t_589a8092f1d9bf 3-5
+packages/wpt-report/turbo.json
+  s_c6d6a3ac21fe46::t_019821489f585f 2-18
+  s_c6d6a3ac21fe46::t_804de8ab3d5403 1,19-20
+pnpm-lock.yaml
+  s_c6d6a3ac21fe46::t_2ce8658c0e4b06 42,44,66,110,128,130,140,142,155,177-188,190-207,209-214,242-317,408-412,4841,4849,5759,5766-5767,8374,8385
+rust-toolchain.toml
+  s_c6d6a3ac21fe46::t_d70798d00d0ecb 1
+scripts/mr-preview.mjs
+  s_c6d6a3ac21fe46::t_1471c7bae51c8f 38
+packages/agent-bench/src/benches/webcanvas.ts
+  s_02e38e3d2190a9::t_4426421670fdc4 41
+packages/agent-bench/src/benches/real.ts
+  s_02e38e3d2190a9::t_4426421670fdc4 262
+packages/agent-bench/src/llm.ts
+  s_02e38e3d2190a9::t_4426421670fdc4 14
+packages/agent-bench/src/engines.ts
+  s_02e38e3d2190a9::t_4426421670fdc4 61-62,172,199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "297680191669297c2e75298773e53d0165c34f9f",
+  "prompts": {},
+  "sessions": {
+    "s_02e38e3d2190a9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebfbbb8c8ffe4bygi6PP3qlDi9",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_0916feb956c724": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ebfbbb938ffew0OwPs3pyW7em5",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_0bd50a19442eec": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec997f644ffedvv6kMZYBW3ta8",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_9a5f50de70830e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec9983c81ffeuWYm1uJyhtRd10",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c7ab7e49842a97": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec998a425ffeMXADrTrm6CmNql",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

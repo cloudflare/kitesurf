@@ -1,0 +1,27 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0121-Fix-replaced-inline-and-root-line-metrics.patch
+  s_a2feeea1972b1e::t_9420464787d194 1-2,4-5,7,11,41-106
+  s_a2feeea1972b1e::t_85decd1f06d598 3,6
+  s_a2feeea1972b1e::t_20fd145499293a 8-10,12-40
+scripts/patches/blitz-dom-0.3.0-beta.2/0119-Fix-font-and-inline-metrics.patch
+  s_a2feeea1972b1e::t_46d47a65bde3de 1-299
+scripts/patches/parley-0.11.1/0007-Preserve-parent-line-height-for-inline-boxes.patch
+  s_a2feeea1972b1e::t_39cc27af6f7a5a 1-28
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_a2feeea1972b1e::t_23c5daed775d0f 1-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b4532e48daf119dd35a565d0e6313e1d22750e2f",
+  "prompts": {},
+  "sessions": {
+    "s_a2feeea1972b1e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb8019587ffefn2OpVG68X0ZmI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,51 @@
+scripts/patches/stylo_taffy-0.3.0-beta.2/0004-Honor-unresolved-anchor-fallbacks-in-Taffy.patch
+  s_5de5a0b7011c6d::t_ec5bd4b1fdf6a7 1-8,11-89
+  s_5de5a0b7011c6d::t_9b845c3c0275b7 9-10
+packages/engine/test/e2e/anchor-positioning-parsing.e2e.test.ts
+  s_5de5a0b7011c6d::t_6305df6fcb635e 2,4-5,20-22,24-25,31,55
+  s_5de5a0b7011c6d::t_758c7e8e2a365b 26-27,35-39
+  s_5de5a0b7011c6d::t_a89fc0779faf10 1
+  s_5de5a0b7011c6d::t_40652af2b8e3e1 3,16-19,30,32-34,54
+  s_5de5a0b7011c6d::t_e17cd3d1ae7d28 28
+  s_5de5a0b7011c6d::t_4c54284f3351d1 41-46
+  s_5de5a0b7011c6d::t_3febb87fd02eff 6-12,23,29,40,47-53
+  s_5de5a0b7011c6d::t_073fa74eb8ba8d 13-15
+tests/wpt-expectations.json
+  s_5de5a0b7011c6d::t_a4f893ea8ecf1b 990-993,1022-1025,1166-1169,1182-1183,1185
+  s_5de5a0b7011c6d::t_41430a94549c1a 1184
+  s_5de5a0b7011c6d::t_757635a719287c 974-977,986,1018-1021,1030-1037,1094-1105,1158-1165
+  s_5de5a0b7011c6d::t_44b92fd404fbb1 987-989
+  s_5de5a0b7011c6d::t_582762586377de 944,956,968,972,1040,1156
+  s_5de5a0b7011c6d::t_d9fd314676af4e 922-942,946-954,958-966,970,978-985,994-998,1002-1010,1014-1015,1026-1029,1038,1042-1059,1062-1063,1066-1075,1078-1093,1106-1111,1154,1170-1171,1174-1181,1186-1195
+  s_5de5a0b7011c6d::t_14374b329cd602 943,955,967,971,999,1011
+  s_5de5a0b7011c6d::t_effaeeb20e1e75 945,957,969,973,1000-1001,1012-1013,1016-1017,1039,1041,1060-1061,1064-1065,1076-1077,1112-1113,1155,1157,1172-1173,1196-1197
+scripts/patches/stylo_taffy-0.3.0-beta.2/0003-Handle-unresolved-anchor-values-without-panicking.patch
+  s_5de5a0b7011c6d::t_9b845c3c0275b7 9-11
+  s_5de5a0b7011c6d::t_b494016a783752 1-3,5-8,12-84
+  s_5de5a0b7011c6d::t_e4b0f6ebbb9b6c 4
+tests/wpt-tests.json
+  s_5de5a0b7011c6d::t_97304b73696a71 651,659,695,699
+  s_5de5a0b7011c6d::t_757635a719287c 647,650,658,661-662,677-679,693-694
+  s_5de5a0b7011c6d::t_c32d874cab1ab6 634-637,640-641,643-644,648-649,652-657,660,664-676,680-681,697-698,700-702,3770,5927-5928,5930-5931,5933-5934,5936
+  s_5de5a0b7011c6d::t_2ea05055dba484 638-639,642,645-646,663,692,696
+scripts/wpt-exec.mjs
+  s_5de5a0b7011c6d::t_ab468704d1cee4 923-925,929-930
+  s_5de5a0b7011c6d::t_78c30e0b1385f3 932,940-957,989
+  s_5de5a0b7011c6d::t_2f013b6980b2e9 926-927,934-939,1028-1032,1060,1062-1064
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "751a6438ee00f07c3b727bab9c9264b7b1561907",
+  "prompts": {},
+  "sessions": {
+    "s_5de5a0b7011c6d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f594feed1ffenbEe9zCda9KV19",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

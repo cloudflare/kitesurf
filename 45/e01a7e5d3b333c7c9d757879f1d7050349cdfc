@@ -1,0 +1,23 @@
+scripts/patches/taffy-0.14.0/0008-Resolve-initial-containing-blocks-against-the-viewpo.patch
+  s_4ba79f911c93c4::t_deeba703fb39e0 1-96
+packages/engine/test/e2e/fixed-position-scroll.e2e.test.ts
+  s_4ba79f911c93c4::t_eaf3383ee5235f 78-107
+scripts/patches/blitz-dom-0.3.0-beta.2/0132-Provide-viewport-containing-blocks-for-root-hoists.patch
+  s_4ba79f911c93c4::t_deeba703fb39e0 1-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "45e01a7e5d3b333c7c9d757879f1d7050349cdfc",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

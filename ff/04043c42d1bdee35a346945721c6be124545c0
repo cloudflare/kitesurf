@@ -1,0 +1,19 @@
+scripts/patches/boa_engine-0.20.0/0014-boa-remove-obsolete-lexical-binding-lint-allowance.patch
+  s_51ed5497a9ef32::t_8cbb40c772cd05 1-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ff04043c42d1bdee35a346945721c6be124545c0",
+  "prompts": {},
+  "sessions": {
+    "s_51ed5497a9ef32": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f514775d7ffeg9CJ8X6f7RZn0V",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

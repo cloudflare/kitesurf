@@ -1,0 +1,135 @@
+packages/engine/test/e2e/demos/perf-timing-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_55d572cc36ee47 113-160
+  s_8b9ca30c9ec141::t_7dd747e38cba5f 1-57,59-112,161
+  s_c6d6a3ac21fe46::t_4d48f35039ec00 58
+  s_c6d6a3ac21fe46::t_bd025bd199c289 162-176
+packages/engine/test/e2e/demos/unforgeable-location-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_ae6937918a9662 1-5,10-17,19-21,61,63-65,67,73-75,86-90,92-97,99-100,104-106,108-119,121-122,124-136,138,140,143-146,149-152,155,160,163-172,174-183,187-191,194,196-197,199-200,203-217,219,221-287
+  s_5a1e67ba6f9022::t_61f18d88d68907 6-9,18,22-40,42-44,46-48,50-52,54-56,58-60,62,66,68-72,76-85,91,98,101-103,107,120,123,137,139,141-142,147-148,153,156-158,161-162,173,184-186,192-193,195,198,220,288-289
+  s_c6d6a3ac21fe46::t_55d572cc36ee47 41,45,49,53,57,154,159,218
+  s_c6d6a3ac21fe46::t_db53548452772a 201-202
+packages/engine/test/e2e/demos/cssom-stub-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_b3a891ccc6b092 3-4,8,17,51-54,62,64-70
+  s_83021f6b264d04::t_e74ca3684d0740 1-2,5-7,11-13,15-16,18-50,55,71
+  s_83021f6b264d04::t_aca79b3c87516b 9-10,14
+  s_c6d6a3ac21fe46::t_55d572cc36ee47 56-61,63
+packages/engine/test/e2e/demos/dom-eval-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_55d572cc36ee47 42,46-47,51,56-57,61,65
+  s_c6d6a3ac21fe46::t_cd646a4dc6b06e 6
+  s_c6d6a3ac21fe46::t_1561411dda14b3 66
+  s_c6d6a3ac21fe46::t_04fea2e4c01c92 1
+  s_f73dfc52558584::t_8b648fa84bed44 2-5,7-41,43-45,48-50,52-55,58-60,62-64,67
+packages/engine/test/e2e/demos/webrtc-stub-demo.e2e.test.ts
+  s_5a1e67ba6f9022::t_61f18d88d68907 1-75,77-132,134-152,208-210,213-216
+  s_c6d6a3ac21fe46::t_fc7d50f6769194 76
+  s_c6d6a3ac21fe46::t_3f254afc0aec5a 178
+  s_c6d6a3ac21fe46::t_55d572cc36ee47 153-177,179-207,211-212
+  s_5a1e67ba6f9022::t_c6c5df51657538 133
+packages/engine/test/e2e/demos/css-external-sheets-demo.e2e.test.ts
+  s_8b9ca30c9ec141::t_56a3170f82be60 13-18,42
+  s_8b9ca30c9ec141::t_7dd747e38cba5f 1-12,19-41,43-68
+packages/engine/test/e2e/demos/mutation-settle-probe.e2e.test.ts
+  s_8b9ca30c9ec141::t_7dd747e38cba5f 1-36
+packages/engine/test/e2e/demos/dom-primitives-demo.e2e.test.ts
+  s_f73dfc52558584::t_8b648fa84bed44 1-63
+packages/engine/test/e2e/demos/forms-validation-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_b79458cdb7bb6a 165-166,170-173,176,178,184-185,191-201,204-205,212-213
+  s_f73dfc52558584::t_8b648fa84bed44 1,4-37,39-63,65-68,70,72-127,214
+  s_c6d6a3ac21fe46::t_3978c2c66858cc 174-175
+  s_f73dfc52558584::t_0a87e339d3bc0e 69,71
+  s_c6d6a3ac21fe46::t_55d572cc36ee47 128-162
+  s_c6d6a3ac21fe46::t_15c1768a25340c 2-3,38,64,163-164,167-169,177,179-183,186-190,202-203,206-211
+packages/engine/test/e2e/demos/dynamic-import-bake-demo.e2e.test.ts
+  s_240f75e342f713::t_26c3b189e59d20 1-31
+packages/engine/test/e2e/demos/location-mutate-probe.e2e.test.ts
+  s_240f75e342f713::t_26c3b189e59d20 1-88
+packages/engine/test/e2e/demos/html-instanceof-demo.e2e.test.ts
+  s_f73dfc52558584::t_8b648fa84bed44 1-108
+packages/engine/test/e2e/demos/layout-cheap-demo.e2e.test.ts
+  s_83021f6b264d04::t_aca79b3c87516b 8-9,13
+  s_83021f6b264d04::t_e74ca3684d0740 1-7,10-12,14-71
+packages/engine/test/e2e/demos/runtime-compile-script-demo.e2e.test.ts
+  s_8b9ca30c9ec141::t_7dd747e38cba5f 1-10,12-19,22-27,31-37,40-41,48-52,56-60,62-66,68-77,79-87
+  s_c6d6a3ac21fe46::t_fcddddeb6858ae 88-106
+  s_c6d6a3ac21fe46::t_55d572cc36ee47 20-21,28-30,38-39,42-47,53-55,61,67
+  s_8b9ca30c9ec141::t_56a3170f82be60 11,78
+packages/engine/test/e2e/demos/dynamic-behavior-demo.e2e.test.ts
+  s_240f75e342f713::t_26c3b189e59d20 1-20
+packages/engine/test/e2e/demos/pushstate-refetch-demo.e2e.test.ts
+  s_c6d6a3ac21fe46::t_a1b1af206d511b 59-60
+  s_c6d6a3ac21fe46::t_747db3ec5da093 16-22
+  s_240f75e342f713::t_26c3b189e59d20 1-15,23-56,58,72,75
+  s_c6d6a3ac21fe46::t_fe2c96489877b9 57,61-71,73-74
+packages/engine/test/e2e/demos/auto-navigate-demo.e2e.test.ts
+  s_240f75e342f713::t_e0b7fcd8deae64 7
+  s_240f75e342f713::t_7da1dded0583c9 1,3
+  s_240f75e342f713::t_26c3b189e59d20 2,4-6,8-28
+packages/engine/test/e2e/demos/window-computed-style-probe.e2e.test.ts
+  s_83021f6b264d04::t_aca79b3c87516b 27-28,34,37
+  s_83021f6b264d04::t_e74ca3684d0740 1-26,29-33,35-36,38-110
+packages/engine/test/e2e/demos/puppeteer-eval.e2e.test.ts
+  s_f73dfc52558584::t_8b648fa84bed44 1-38
+packages/engine/test/e2e/demos/cssom-roundtrip-probe.e2e.test.ts
+  s_c6d6a3ac21fe46::t_86809ab382a62f 73-75
+  s_c6d6a3ac21fe46::t_8a7b08b5cb9519 4-5,25,34,62,64-66,70-72,76,80-81,84-90
+  s_83021f6b264d04::t_e74ca3684d0740 3,6-24,28,30,32-33,35-61,63,78-79,83,91
+  s_83021f6b264d04::t_aca79b3c87516b 26-27,29,31
+  s_c6d6a3ac21fe46::t_45084c23213f3f 1-2
+  s_c6d6a3ac21fe46::t_55d572cc36ee47 67-69,77,82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "363ee525a69f34b54fa1c8ae45bed95e625d475b",
+  "prompts": {},
+  "sessions": {
+    "s_240f75e342f713": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecb3036a6ffexps0c80Jar0LAM",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_5a1e67ba6f9022": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecb301da1ffe5akjDWIH5TtpfJ",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_83021f6b264d04": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecb3051a7ffeNjoQIsuV1GgYxE",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_8b9ca30c9ec141": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecb302a95ffeW6IvNTUok1dD91",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_f73dfc52558584": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecb3043bbffeQq1mujD7vKWn56",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

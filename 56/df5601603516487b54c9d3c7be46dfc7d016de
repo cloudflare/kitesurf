@@ -1,0 +1,19 @@
+packages/dom-shim/src/collections.ts
+  s_96d0de0c7f4a8f::t_895670317a3a6e 1422-1423,1429
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "56df5601603516487b54c9d3c7be46dfc7d016de",
+  "prompts": {},
+  "sessions": {
+    "s_96d0de0c7f4a8f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3be1f534ffezA6WaRLxL5jMhW",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

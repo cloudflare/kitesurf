@@ -1,0 +1,44 @@
+packages/engine/src/cdp/types.ts
+  s_7c2648d7b6bf06::t_e678027c45ae58 17-18,28-63
+  s_7c2648d7b6bf06::t_b2852a38c0719a 19-27
+packages/core/src/lib.rs
+  s_7c2648d7b6bf06::t_b42f61d33ae0de 5471
+packages/core/src/tty_ansi.rs
+  s_7c2648d7b6bf06::t_2a1ab311fa463f 150-180
+packages/engine/src/term-session.ts
+  s_7c2648d7b6bf06::t_0bbcbdcbc68174 1267,1313,1555
+  s_7c2648d7b6bf06::t_8125279b7da4c0 747-748,752,766,840,1030,1033,1210-1211,1216,1353,1360,1459,1472,1475,1608
+  s_7c2648d7b6bf06::t_17f38116998fae 1228,1230-1231,1251-1252,1258,1270-1271,1301,1317,1387,1422,1491,1499-1501,1568,1570,1596
+packages/core/src/scene_record.rs
+  s_7c2648d7b6bf06::t_837644c04baf76 2666
+  s_7c2648d7b6bf06::t_ef9fe880a00444 554-556,594,607-611,1909-1914,1918-1921
+  s_7c2648d7b6bf06::t_de75f35b753952 2656-2665,2667-2668
+packages/dom-shim/src/layout/scroll.ts
+  s_7c2648d7b6bf06::t_18fe599fef4e12 162-165,168-196,221-236
+packages/engine/src/wasm.ts
+  s_7c2648d7b6bf06::t_c6593ad3df8b64 299
+  s_7c2648d7b6bf06::t_0d04ecbf9533f4 215-282,293-298,300-311
+packages/engine/src/cdp-client.ts
+  s_7c2648d7b6bf06::t_cb373535894142 38,46,52,56,58,60,64,109-110
+  s_7c2648d7b6bf06::t_de8c3f655d2a9b 47-51
+scripts/patches/blitz-dom-0.3.0-beta.2/0144-Gate-terminal-table-track-work-on-layout-changes.patch
+  s_7c2648d7b6bf06::t_b20d7ec4d30484 1-41
+scripts/patches/blitz-paint-0.3.0-beta.2/0032-Keep-tty-table-border-fallback-off-pixel-renderers.patch
+  s_7c2648d7b6bf06::t_2caeead70ca099 1-220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "a9ffa992f9fe9d3e027a6facb3fa51006cec9ab5",
+  "prompts": {},
+  "sessions": {
+    "s_7c2648d7b6bf06": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0c8c3-0734-70fe-8100-8b61f59bf74a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+packages/core/src/style.rs
+  s_4bd836ca1cbc20::t_08378d429d714e 54-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "33b1ae9e1b0cfcb0cefbf65ccebc7437b46065de",
+  "prompts": {},
+  "sessions": {
+    "s_4bd836ca1cbc20": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5673f067ffe5hsIMQQpLeYlMf",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+scripts/patches/stylo_taffy-0.3.0-beta.2/0002-Strip-inset-properties-from-position-static-boxes-to.patch
+  s_280ef410dd4391::t_e832fac5de437f 4
+  s_280ef410dd4391::t_3de7044de278bc 27,46
+scripts/patches/stylo_taffy-0.3.0-beta.2/0001-Strip-sticky-insets-from-the-taffy-style-conversion.patch
+  s_280ef410dd4391::t_e832fac5de437f 4
+  s_280ef410dd4391::t_2ff0bdd80e4b2a 36,64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "df5b062687b0141980bd966eac5273431d77f772",
+  "prompts": {},
+  "sessions": {
+    "s_280ef410dd4391": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3f8f6783ffeu8A4j6VBSym1ud",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

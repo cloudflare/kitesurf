@@ -1,0 +1,21 @@
+scripts/patches/jpeg-encoder-0.7.0/0002-Convert-chroma-for-even-pixels-only-on-4-2-0-rows.patch
+  s_de9b73755c1191::t_8c5eb2fc4ece65 1-160
+scripts/patches/README.md
+  s_de9b73755c1191::t_8c5eb2fc4ece65 151-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1ed7a4c730355050654c0786fbac932d8159731f",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

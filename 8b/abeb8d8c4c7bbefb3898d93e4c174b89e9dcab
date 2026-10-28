@@ -1,0 +1,24 @@
+scripts/upstream-rows.mjs
+  s_b94a861549b344::t_c69f88e3f6428e 89
+  s_b94a861549b344::t_38cec55d934bd5 55-74
+scripts/patches/upstream-triage.json
+  s_b94a861549b344::t_10375eefea4f8d 427
+docs/UPSTREAMING.md
+  s_b94a861549b344::t_4a361410206e31 15-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8babeb8d8c4c7bbefb3898d93e4c174b89e9dcab",
+  "prompts": {},
+  "sessions": {
+    "s_b94a861549b344": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe8c1db7cffeW6q5yoxbw4OR7K",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,56 @@
+packages/engine/test/e2e/cssom-page-rules.e2e.test.ts
+  s_d6cf09da1fc80a::t_4c242fcdfac984 1-178
+  s_d6cf09da1fc80a::t_491e85d17d65c4 179-185
+packages/dom-shim/src/collections.ts
+  s_d6cf09da1fc80a::t_6bfa5c2e2fd8a1 2194-2198
+  s_d6cf09da1fc80a::t_2d95160bb82240 1512,1532-1539
+  s_d6cf09da1fc80a::t_2c96f4ba60e470 1629-1635
+  s_d6cf09da1fc80a::t_50818abf12d1f3 1417-1435
+  s_d6cf09da1fc80a::t_95c03725b1a31e 1913-1917
+  s_d6cf09da1fc80a::t_3b350e7f9b7134 1983,1986-1987,1991-1996,2006-2013,2017-2020
+  s_d6cf09da1fc80a::t_91b99f628d05b0 2598-2604,2606-2627,2630-2635,2637,2641-2648,2651-2653,2655
+  s_d6cf09da1fc80a::t_34865473828d43 3150-3152
+  s_d6cf09da1fc80a::t_68ee96429b9992 1236-1244
+  s_d6cf09da1fc80a::t_737920ab5cb146 1974-1975
+  s_d6cf09da1fc80a::t_c6fbaf157e69b9 3186-3188
+  s_d6cf09da1fc80a::t_4fa09f47f74527 1436,1540,1558-1578,1581-1589,1592-1628,1636-1645,1647-1665,2021,2254
+  s_d6cf09da1fc80a::t_92da43ce79e282 3004-3006
+  s_d6cf09da1fc80a::t_f8696b2b4deec4 2241-2243,2248-2253
+  s_d6cf09da1fc80a::t_8579d8242c4ba9 2329-2332,2338
+  s_d6cf09da1fc80a::t_57e7920387ef98 2865-2867
+  s_d6cf09da1fc80a::t_4cfdd4887fd4a0 1646
+  s_d6cf09da1fc80a::t_5369b52f64cf76 1437
+  s_d6cf09da1fc80a::t_c6edb37cb5987d 1541
+  s_d6cf09da1fc80a::t_50534201a2bfc9 2022
+  s_d6cf09da1fc80a::t_a47d32fc85a7c6 2255
+  s_77fdd72a09ebcc::t_8d46fad37f1894 3221
+  s_77fdd72a09ebcc::t_6655d6ca1c356f 3000-3003
+packages/page-script/src/paint.ts
+  s_d6cf09da1fc80a::t_d403da324d0a49 265,268-276
+packages/page-script/src/globals.ts
+  s_77fdd72a09ebcc::t_2a609664d1cafb 1788
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "48436d472b3c84bbc24285dabb0f732c68534f19",
+  "prompts": {},
+  "sessions": {
+    "s_77fdd72a09ebcc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c0619e5ffeeTShC6Mf3l5XUl",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    },
+    "s_d6cf09da1fc80a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5067d496ffebCxCQbifGSa4ON",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

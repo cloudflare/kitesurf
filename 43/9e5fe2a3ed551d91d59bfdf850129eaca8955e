@@ -1,0 +1,19 @@
+packages/core/src/boa_bridge.rs
+  s_c1d1c93f383cfd::t_0215d2df42710d 13,15,2474-2536
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "439e5fe2a3ed551d91d59bfdf850129eaca8955e",
+  "prompts": {},
+  "sessions": {
+    "s_c1d1c93f383cfd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3c7b1719ffeJQrklH4nOV6I30",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+packages/engine/wrangler.jsonc
+  s_4ba79f911c93c4::t_e4976e2c2532b5 40-41
+packages/engine/test/e2e/engine-routes.e2e.test.ts
+  s_4ba79f911c93c4::t_46656373e01ec6 88-111
+  s_4ba79f911c93c4::t_b701c1c0ce6f34 112
+AGENTS.md
+  s_4ba79f911c93c4::t_208d00d16f066e 181-184
+packages/engine/src/index.ts
+  s_4ba79f911c93c4::t_94d82b2acb6cf9 35-36,195-199
+packages/engine/vitest.e2e.config.mts
+  s_4ba79f911c93c4::t_5061077edb4266 167,170-171,177,213-216
+packages/engine/src/inspector.ts
+  s_4ba79f911c93c4::t_54f45bfcf1f950 5
+docs/DEPLOYING.md
+  s_4ba79f911c93c4::t_552b4673a09e64 75-85
+  s_4ba79f911c93c4::t_bc1cdaf075c234 86
+packages/engine/test/e2e/cloudflare-env.ts
+  s_4ba79f911c93c4::t_d984c79e2d84f9 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4f3dc16df84d2ccbd59db0f76ae0f8b6f56f5a27",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

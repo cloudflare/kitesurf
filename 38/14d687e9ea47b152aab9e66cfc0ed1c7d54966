@@ -1,0 +1,207 @@
+packages/engine/test/e2e/demos/cookie-passthrough-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/mouse-move-debounce-probe.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 13
+packages/engine/test/e2e/demos/absolute-path-import-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 20
+packages/engine/test/e2e/demos/inline-bidi-direction.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/selection-api.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/img-src-change.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 11
+packages/engine/test/e2e/demos/oopif-rerender.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/forms-select-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 5
+packages/engine/test/e2e/demos/print-media-emulation-probe.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/mousedown-focus-default-action.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 77
+packages/engine/test/e2e/demos/inline-bidi-isolation.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/absolute-path-transitive-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 17
+packages/engine/test/e2e/demos/forms-activation-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 5
+packages/engine/test/e2e/demos/forms-select-cdp-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 15
+packages/engine/test/e2e/demos/forms-textarea-default-paint.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/css-computed-style-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/lifecycle-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/matchmedia-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/blank-page-document.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 10,29,60
+packages/engine/test/e2e/demos/network-stylesheet-headers-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 5
+packages/engine/test/e2e/demos/forms-realworld-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/svg-overflow-clip.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 7
+packages/engine/test/e2e/demos/wasm-bake-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 17
+packages/engine/test/e2e/demos/forms-file-input-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 7,67
+packages/engine/test/e2e/demos/forms-radio-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 5
+packages/engine/test/e2e/demos/ws-boot-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 7
+packages/engine/test/e2e/demos/clock-floor-stamp-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 8
+packages/engine/test/e2e/demos/forms-selection-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 5
+packages/engine/test/e2e/demos/img-load-events-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 25
+packages/engine/test/e2e/demos/dom-mutation-events-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/accessibility.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 158
+packages/engine/test/e2e/demos/xhr-boot-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 8
+packages/engine/test/e2e/demos/element-scroll-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/boa-seam-plain-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 18
+packages/engine/test/e2e/demos/boa-concurrent-import-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/forms-step-numeric-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 7
+packages/engine/test/e2e/demos/screencast-placeholder-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 14
+packages/engine/test/e2e/demos/forms-post-submit-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 38,52,65,80,95,109
+packages/engine/test/e2e/demos/shadow-dir-directionality.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/inline-wasm-bake.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 7
+packages/engine/test/e2e/demos/forms-select-dropdown-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 7
+packages/engine/test/e2e/inserted-script-bake.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 38
+packages/engine/test/e2e/css-supports-condition.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 10
+packages/engine/test/e2e/demos/iframe-bitmap-paint.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 7
+packages/engine/test/e2e/demos/css-getstylesheettext-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 5
+packages/engine/test/e2e/demos/oopif-quads-paint.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 18
+packages/engine/test/e2e/demos/network-event-shape-probe.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 7
+packages/engine/test/e2e/demos/event-handler-hydration.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/event-listener-fixes-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 8
+packages/engine/test/e2e/demos/onhashchange-probe.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 5
+packages/engine/test/e2e/demos/css-stylesheet-added-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 7
+packages/engine/test/e2e/webkit-box-line-clamp.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 10
+packages/engine/test/e2e/demos/script-execution-probe.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 7
+packages/engine/test/e2e/demos/forms-value-repaint-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 9
+packages/engine/test/e2e/demos/mjs-import-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/selection-paint-bridge.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/navigation-fidelity.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6,35,45
+packages/engine/test/e2e/script-font-dir.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 5
+packages/engine/test/e2e/session-outbound.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 16,27,47,62,74,86,102
+packages/engine/test/e2e/tracker-blocklist.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 37,115
+packages/engine/test/e2e/demos/forms-range-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 8,86,113
+packages/engine/test/e2e/demos/svg-sprite-sidebar.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 7
+packages/engine/test/e2e/tty-todomvc-controls.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 3
+packages/engine/test/e2e/demos/forms-misc-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/offscreen-canvas-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/transition-settles-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 8
+packages/engine/test/e2e/demos/css-inline-style-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 21
+packages/engine/test/e2e/eval-during-navigate.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 59,85
+packages/engine/test/e2e/demos/boa-seam-collections-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 26
+packages/engine/test/e2e/runtime-remote-object-classname.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 4
+packages/engine/test/e2e/demos/forms-instanceof-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 7
+packages/engine/test/e2e/demos/range-live-mutation-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/storage-cookies.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 13
+packages/engine/test/e2e/demos/svg-document-render.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 38
+packages/engine/test/e2e/demos/scrollintoview-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 5
+packages/engine/test/e2e/boa-object-from-page.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 41,62,87,108,135,158
+packages/engine/test/e2e/demos/css-matched-styles-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 5
+packages/engine/test/e2e/demos/forms-dir-auto-value.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/boa-seam-identity-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 17
+packages/engine/test/e2e/demos/forms-form-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 5
+packages/engine/test/e2e/demos/forms-textarea-bidi.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/demos/css-ua-styles-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 8
+packages/engine/test/e2e/tty-wheel-grid.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 3
+packages/engine/test/e2e/demos/entity-parse-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 23
+packages/engine/test/e2e/demos/navigate-style-script-order.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 13,24,35
+packages/engine/test/e2e/demos/css-inherited-styles-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 8
+packages/engine/test/e2e/demos/history-shim-probe.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 5
+packages/engine/test/e2e/demos/forms-formdata-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 5
+packages/engine/test/e2e/style-churn-memory.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 19,98
+packages/engine/test/e2e/demos/forms-input-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 6
+packages/engine/test/e2e/background-reopen-lifecycle.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 8
+packages/engine/test/e2e/demos/defer-shim-nested-modinit-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 24
+packages/engine/test/e2e/demos/forms-selection-paint-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 7
+packages/engine/test/e2e/demos/iframe-dynamic-cdp-demo.e2e.test.ts
+  s_49377e0ccd6381::t_54454987ce8994 5
+packages/engine/test/e2e/positioned-root-hoist.e2e.test.ts
+  s_49377e0ccd6381::t_ce278ac5e909be 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3814d687e9ea47b152aab9e66cfc0ed1c7d54966",
+  "prompts": {},
+  "sessions": {
+    "s_49377e0ccd6381": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efcecfa0affeFCU8e6JUtLopyp",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

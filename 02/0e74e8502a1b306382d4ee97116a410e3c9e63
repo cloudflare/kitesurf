@@ -1,0 +1,24 @@
+packages/dom-shim/src/registries.ts
+  s_a4cd376a121cc2::t_1444ef55242592 6-7,33,40,45,51-52,54,59,94,97,102,134,144
+packages/dom-shim/src/node-base.ts
+  s_a4cd376a121cc2::t_65157a1b3da26b 155,191,193-195,229
+packages/dom-shim/src/reclaim.ts
+  s_a4cd376a121cc2::t_49b76258c1f604 207-208
+  s_a4cd376a121cc2::t_289c715ee76eb1 77-78,84,237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "020e74e8502a1b306382d4ee97116a410e3c9e63",
+  "prompts": {},
+  "sessions": {
+    "s_a4cd376a121cc2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author bpereira/radar-speedtest-consolidated-mr",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

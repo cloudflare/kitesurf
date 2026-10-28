@@ -1,0 +1,25 @@
+scripts/regen-vendor-patches.mjs
+  s_14fc14ef8f57e3::t_1eb8cfc72496f7 60-61,67-77,82-85,160-161,165
+  s_14fc14ef8f57e3::t_6d066ef765a865 62-66,78-81
+  s_14fc14ef8f57e3::t_f3fdae12630f56 25,156-157,166
+  s_14fc14ef8f57e3::t_ed9872b5858fe4 154-155
+  s_14fc14ef8f57e3::t_70ab26041cba6e 158-159
+  s_14fc14ef8f57e3::t_39b92bfb8caf25 162-164
+  s_14fc14ef8f57e3::t_73f2661a8bd2b4 167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b01ab2518fca16c1754a07f54ecd8c3129824ede",
+  "prompts": {},
+  "sessions": {
+    "s_14fc14ef8f57e3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f91943103ffemcQ5v9AuqJiB0D",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+packages/dom-shim/src/css-typed-om.ts
+  s_5de5a0b7011c6d::t_c8f7f2314fcef8 1337,1339-1341,1365-1370,1372,1375,1591-1595,1610,1616,1636,1639,1643,1653-1654,1656,1660,1662,1667,1670
+packages/engine/test/e2e/css-typed-om.e2e.test.ts
+  s_5de5a0b7011c6d::t_c8f7f2314fcef8 397-403,475,517
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d4ac85c2bcbafc4f577736b339b37ca2a2ef8c53",
+  "prompts": {},
+  "sessions": {
+    "s_5de5a0b7011c6d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f594feed1ffenbEe9zCda9KV19",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+docs/TRANSITIONS.md
+  s_4ba79f911c93c4::t_04ddfd78cde14a 69-71
+packages/core/src/lib.rs
+  s_4ba79f911c93c4::t_5fc93f20def2a2 535-538
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4b1267fb1e03f7a15f47030440205da6b6550f6b",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

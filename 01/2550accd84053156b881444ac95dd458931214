@@ -1,0 +1,24 @@
+.gitlab/ci/engine.yml
+  s_4ba79f911c93c4::t_d51e03c651727b 412,558,837,844
+  s_4ba79f911c93c4::t_fc119b3ae00aab 410-411
+  s_4ba79f911c93c4::t_82803613697375 1105
+docs/CI.md
+  s_4ba79f911c93c4::t_de0cc3fba990df 184-190,218-220
+  s_4ba79f911c93c4::t_59166d8658e4e3 221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "012550accd84053156b881444ac95dd458931214",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

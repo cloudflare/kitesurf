@@ -1,0 +1,28 @@
+Cargo.toml
+  s_ccf5542acfcceb::t_8162a02cfee604 75-80
+scripts/patches/anyrender-0.11.1/0002-Carry-form-control-state-on-ScenePart.patch
+  s_ccf5542acfcceb::t_709c04d21aaa68 1-5,14-35
+  s_ccf5542acfcceb::t_6c2b3fc032ca47 6-13
+scripts/get-patched-vendor-crates.mjs
+  s_ccf5542acfcceb::t_08fcb8263428e4 50
+scripts/patches/anyrender-0.11.1/0001-Add-PaintScene-begin_part-end_part.patch
+  s_ccf5542acfcceb::t_709c04d21aaa68 1-70
+scripts/patches/README.md
+  s_ccf5542acfcceb::t_1804d86af77958 74,105-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "897ca800ce7587e077484c26dd72a693676b3e4d",
+  "prompts": {},
+  "sessions": {
+    "s_ccf5542acfcceb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd06b55adffe5EMRjho5XAqDfp",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

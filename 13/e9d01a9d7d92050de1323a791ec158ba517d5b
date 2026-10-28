@@ -1,0 +1,59 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 794-817,2291-2292
+scripts/patches/blitz-dom-0.3.0-beta.1/0077-kitesurf-keep-incremental-layout-from-dropping-the-l.patch
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 1-109
+packages/core/src/radar_grid_repro_test.rs
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 29-89
+AGENTS.md
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 82-83,239-281,501-503
+scripts/patches/blitz-dom-0.3.0-beta.1/0078-kitesurf-rebuild-the-inline-svg-snapshot-when-its-su.patch
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 1-84
+scripts/patches/blitz-dom-0.3.0-beta.1/0085-kitesurf-give-a-rebuilt-inline-tree-its-lines-back.patch
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 1-109
+packages/engine/test/e2e/hoisted-inline-rebreak.e2e.test.ts
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 1-45
+docs/SVG.md
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 32-38
+packages/core/src/animation_clock_test.rs
+  s_50d45ac3d4c7e5::t_2ad5130b9f5d64 75
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 1-2,4-11,37-40,69-74
+packages/core/src/svg_mutation_resnapshot_test.rs
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 90-91,93-95
+scripts/patches/stylo-0.19.0/0024-kitesurf-never-start-a-CSS-transition.patch
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 1-78
+packages/core/src/lib.rs
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 112-113,793,830,835,5834-5854,6243-6298
+  s_50d45ac3d4c7e5::t_e0f6900b03641e 111,6299-6300
+scripts/patches/blitz-dom-0.3.0-beta.1/0079-kitesurf-replay-hoists-from-parents-a-partial-resolv.patch
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 1-115
+scripts/patches/blitz-dom-0.3.0-beta.1/0082-kitesurf-re-break-clobbered-inlines-without-rebuildi.patch
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 1-271
+packages/core/src/hoist_incremental_test.rs
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 1-93
+packages/core/Cargo.toml
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 90
+scripts/patches/blitz-dom-0.3.0-beta.1/0080-kitesurf-re-break-inline-containers-a-measure-pass-l.patch
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 1-236
+scripts/patches/blitz-dom-0.3.0-beta.1/0081-kitesurf-re-collect-nodes-that-hoisted-a-box-away.patch
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 1-40
+scripts/patches/blitz-dom-0.3.0-beta.1/0083-kitesurf-bust-the-layout-cache-for-nodes-that-regist.patch
+  s_50d45ac3d4c7e5::t_a40a2b2c9ed9e6 1-83
+packages/page-script/src/paint.ts
+  s_50d45ac3d4c7e5::t_e1aa2cb748240a 26,61-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "13e9d01a9d7d92050de1323a791ec158ba517d5b",
+  "prompts": {},
+  "sessions": {
+    "s_50d45ac3d4c7e5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_03a44d37dffeLFgl1v0ET83dF0",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

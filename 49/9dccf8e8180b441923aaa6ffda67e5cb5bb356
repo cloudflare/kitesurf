@@ -1,0 +1,23 @@
+AGENTS.md
+  s_c6d6a3ac21fe46::t_5e8a0cd583c369 95-97,187-189,439,441-445,448-449
+internal/AGENTS.md
+  s_c6d6a3ac21fe46::t_c045b5e2bcfb53 1-35,41-77
+  s_c6d6a3ac21fe46::t_b680b5def5a45d 36
+  s_c6d6a3ac21fe46::t_1665d8ad712a42 37-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "499dccf8e8180b441923aaa6ffda67e5cb5bb356",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

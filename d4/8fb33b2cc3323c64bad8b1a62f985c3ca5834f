@@ -1,0 +1,21 @@
+packages/engine/test/e2e/form-controls-named-item.e2e.test.ts
+  s_1db1ff95925c36::t_b1db8b250b7869 2-3,18-28,30,32-33,46
+packages/dom-shim/src/collections.ts
+  s_1db1ff95925c36::t_b1db8b250b7869 266-271,280-282,287-290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "d48fb33b2cc3323c64bad8b1a62f985c3ca5834f",
+  "prompts": {},
+  "sessions": {
+    "s_1db1ff95925c36": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ec51c5826ffemXbNFrFL368zkL",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

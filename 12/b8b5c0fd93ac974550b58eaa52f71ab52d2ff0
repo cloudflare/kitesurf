@@ -1,0 +1,19 @@
+packages/page-script/src/trusted-fetch.ts
+  s_d99b1338b2e6ad::t_ca521af0b3b7a2 49-54,61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "12b8b5c0fd93ac974550b58eaa52f71ab52d2ff0",
+  "prompts": {},
+  "sessions": {
+    "s_d99b1338b2e6ad": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe52051e6ffe5b3Ay8nnxWhl15",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

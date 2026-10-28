@@ -1,0 +1,21 @@
+scripts/wpt-exec.mjs
+  s_5de5a0b7011c6d::t_ab468704d1cee4 923-925,929-930
+  s_5de5a0b7011c6d::t_78c30e0b1385f3 932,940-957,989
+  s_5de5a0b7011c6d::t_2f013b6980b2e9 926-927,934-939,1028-1032,1060,1062-1064
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4b8fb0a5f4b3e44208b3684b4f02c6e0e4e7f1b7",
+  "prompts": {},
+  "sessions": {
+    "s_5de5a0b7011c6d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f594feed1ffenbEe9zCda9KV19",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

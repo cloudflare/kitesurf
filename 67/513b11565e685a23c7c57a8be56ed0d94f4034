@@ -1,0 +1,26 @@
+scripts/patches/blitz-paint-0.3.0-beta.2/0027-Mark-semantic-parts-in-painted-scenes.patch
+  s_021c8ae3a22af0::t_ed68e61f7f0f53 2,4,13-16,19,72-99,101,104-112,116,120,128-151
+  s_021c8ae3a22af0::t_08fbd4651cdfe8 3,9,11
+packages/core/src/scene_record.rs
+  s_021c8ae3a22af0::t_db58f2af7fa6c5 548-551,554,592,602,1903-1905,1908,1913-1915
+packages/core/src/scene_decode.rs
+  s_021c8ae3a22af0::t_5e9f9f77b358ff 1719
+  s_021c8ae3a22af0::t_db58f2af7fa6c5 29,72,78,574,850-863,1582,1586,1658,1665,1683-1686,1695-1718
+  s_021c8ae3a22af0::t_e729a73d637f7d 73-77,445-450
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "67513b11565e685a23c7c57a8be56ed0d94f4034",
+  "prompts": {},
+  "sessions": {
+    "s_021c8ae3a22af0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f39c24d05fferZ4lzWSV89oFnz",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

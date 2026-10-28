@@ -1,0 +1,19 @@
+packages/engine/test/e2e/message-channel-task-queue.e2e.test.ts
+  s_059e99c81ea16a::t_822734863f5524 14-31,33-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b5bcbfc9d377cddd4898624904a7844d9941fc1d",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

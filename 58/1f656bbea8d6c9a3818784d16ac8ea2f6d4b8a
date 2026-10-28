@@ -1,0 +1,21 @@
+packages/engine/test/e2e/boa-finally-stack.e2e.test.ts
+  s_4ba79f911c93c4::t_64a21ebe0aab1e 1-112
+scripts/patches/boa_engine-0.20.0/0012-Keep-the-value-stack-aligned-across-try-finally.patch
+  s_4ba79f911c93c4::t_c7ba2c1b20791f 1-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "581f656bbea8d6c9a3818784d16ac8ea2f6d4b8a",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

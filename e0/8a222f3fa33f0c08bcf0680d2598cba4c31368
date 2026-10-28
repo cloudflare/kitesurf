@@ -1,0 +1,19 @@
+packages/engine/src/cdp/connection.ts
+  s_53806db5ffcdc2::t_489d9580a16bbf 87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e08a222f3fa33f0c08bcf0680d2598cba4c31368",
+  "prompts": {},
+  "sessions": {
+    "s_53806db5ffcdc2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f91c49fe4ffeXETbByJyRzfnM1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

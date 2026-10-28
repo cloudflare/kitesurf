@@ -1,0 +1,23 @@
+scripts/patches/boa_engine-0.20.0/0013-script-run-a-re-entrant-Context-eval-at-global-scope.patch
+  s_ef26f8dd06f5df::t_64056efb03734b 1-117
+packages/engine/test/e2e/reentrant-new-function-scope.e2e.test.ts
+  s_ef26f8dd06f5df::t_bde902e95efc1d 1-67
+docs/BOA_V8_FLOW.md
+  s_ef26f8dd06f5df::t_153bde85175f51 384-413
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cd016ab3c8c252c7c860537c3d750aba77643775",
+  "prompts": {},
+  "sessions": {
+    "s_ef26f8dd06f5df": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3be04914ffe7HHtOkszWCc5pa",
+        "model": "claude-opus-5"
+      },
+      "human_author": null
+    }
+  }
+}

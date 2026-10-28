@@ -1,0 +1,21 @@
+packages/engine/test/e2e/demos/forms-post-submit-demo.e2e.test.ts
+  s_db62237ce9a445::t_3ccf2bed1645c4 126-145
+packages/engine/src/cdp/page.ts
+  s_db62237ce9a445::t_855ed4a4e8da8a 6874,6992
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7173cdaf5e29a0d0337b15c0fc911853491ca891",
+  "prompts": {},
+  "sessions": {
+    "s_db62237ce9a445": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f25d89749ffe1DHFSv3WId84ba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

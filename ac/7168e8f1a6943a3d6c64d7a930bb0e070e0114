@@ -1,0 +1,19 @@
+packages/engine/test/attribution-tail.test.ts
+  s_4ba79f911c93c4::t_ad48959252eb3b 23,27,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ac7168e8f1a6943a3d6c64d7a930bb0e070e0114",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

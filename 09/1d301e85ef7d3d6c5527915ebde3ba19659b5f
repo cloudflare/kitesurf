@@ -1,0 +1,39 @@
+packages/engine/src/cdp/types.ts
+  s_103b7f1f0713cd::t_0af3c5f1fdb5c6 471-474
+packages/engine/src/cdp/page-session.ts
+  s_103b7f1f0713cd::t_8048ad3c8884f1 144-147,151
+packages/page-script/src/internal-state.ts
+  s_103b7f1f0713cd::t_17adbe7e0844af 175-190,192,194-200
+packages/engine/src/cdp/page.ts
+  s_103b7f1f0713cd::t_0af3c5f1fdb5c6 6610-6617
+  s_103b7f1f0713cd::t_1c81c82e4d4ea3 2379,8109,8302-8305,8423-8428,8542-8543,8548-8553,8555-8557
+  s_103b7f1f0713cd::t_1dfc20fe1bbdcf 2401,4625-4626,4631-4635,4642
+  s_103b7f1f0713cd::t_578bac7b4d453f 8106-8108
+  s_103b7f1f0713cd::t_a4417b7a5e0a46 8544-8547
+packages/page-script/src/globals.ts
+  s_103b7f1f0713cd::t_1388a216127871 7
+  s_103b7f1f0713cd::t_a9cda610712353 122-125,5605-5608
+packages/engine/test/e2e/demos/screencast-idle-skip.e2e.test.ts
+  s_103b7f1f0713cd::t_31b0d1950fa7b3 305-329,347-350
+  s_103b7f1f0713cd::t_cce1db1f923ec6 330-346
+packages/page-script/src/index.ts
+  s_103b7f1f0713cd::t_504c24c5fac3c1 4275-4276
+  s_103b7f1f0713cd::t_a9cda610712353 35,227,4270-4272,4279-4280
+  s_103b7f1f0713cd::t_1fa1deafacf913 4273-4274,4277-4278
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "091d301e85ef7d3d6c5527915ebde3ba19659b5f",
+  "prompts": {},
+  "sessions": {
+    "s_103b7f1f0713cd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f36832252ffeM1uJML1Dn2cXSm",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

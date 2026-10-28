@@ -1,0 +1,21 @@
+packages/core/src/tab_expansion_test.rs
+  s_ef26f8dd06f5df::t_a211c5f7988c78 171-208
+packages/engine/test/e2e/tabs-tab-stops.e2e.test.ts
+  s_ef26f8dd06f5df::t_6b45de9f17fd96 28-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e5fcd4473700ed420fa5a0693dafd8551232d083",
+  "prompts": {},
+  "sessions": {
+    "s_ef26f8dd06f5df": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3be04914ffe7HHtOkszWCc5pa",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

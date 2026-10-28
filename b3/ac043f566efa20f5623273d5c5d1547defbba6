@@ -1,0 +1,19 @@
+packages/engine/test/e2e/inline-metrics-regressions.e2e.test.ts
+  s_6646632b4d228c::t_9b62120816070b 51-58,127-135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b3ac043f566efa20f5623273d5c5d1547defbba6",
+  "prompts": {},
+  "sessions": {
+    "s_6646632b4d228c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54f92cc6ffeiduS3xYxEFL6rA",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

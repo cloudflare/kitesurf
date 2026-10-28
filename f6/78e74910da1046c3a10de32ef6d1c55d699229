@@ -1,0 +1,189 @@
+packages/engine/vitest.e2e.config.mts
+  s_d4d76e11edf985::t_ab560ff344cc1a 95-97
+  s_d4d76e11edf985::t_b4abb42ed88036 214-218
+packages/core/src/lib.rs
+  s_d4d76e11edf985::t_97c3053fc3f3bd 189,555,559,561,563-564,568,587,595,603,618,1483,1497,1505
+packages/page-script/src/startup-probe.ts
+  s_d4d76e11edf985::t_06d5be5692a198 36,154-166
+  s_d4d76e11edf985::t_2d4d5cda837cde 13,94
+packages/page-script/src/index.ts
+  s_d4d76e11edf985::t_e5ac056ba6d17f 2631
+  s_d4d76e11edf985::t_4e58a004ecbe46 2362,2644-2649,2701,2728-2729,3889-3892
+  s_d4d76e11edf985::t_f2329c008dc695 235,2233-2237
+  s_d4d76e11edf985::t_cd8922a8205a1f 1438,2524,2588,2615-2623,2627-2629,2632-2633
+  s_d4d76e11edf985::t_9b71e08a64ddd8 2630
+  s_d4d76e11edf985::t_764210da52adc8 2624-2626
+  s_d4d76e11edf985::t_8493c8612ffbaf 3070-3072,3074-3076
+scripts/build-wasm.mjs
+  s_d4d76e11edf985::t_6a33cae75f5faa 93-94,102,104-108,281-285,327-329,332,335,620-624
+  s_d4d76e11edf985::t_92174ca7a1df69 625
+packages/engine/test/e2e/global-setup.ts
+  s_d4d76e11edf985::t_6a33cae75f5faa 73
+  s_d4d76e11edf985::t_2d4d5cda837cde 16,42-45,48,52-53,81
+  s_d4d76e11edf985::t_f400d57d11e6c4 36-41,46-47,49-51,54,72
+packages/page-script/src/state.ts
+  s_d4d76e11edf985::t_8493c8612ffbaf 111-113,200-203
+packages/page-script/scripts/build.mjs
+  s_d4d76e11edf985::t_fd3b1d6f327538 202
+packages/engine/test/e2e/script-gate.e2e.test.ts
+  s_d4d76e11edf985::t_3b9a3ac515fe1b 246,251-256,259,261-265
+  s_d4d76e11edf985::t_25e721472753b8 371-384
+  s_d4d76e11edf985::t_b3983f59c181b0 386
+  s_d4d76e11edf985::t_167951608ef8fc 366-370,385,387-390
+packages/engine/src/eval/page-script-compat.ts
+  s_d4d76e11edf985::t_e148e937dab5a2 30
+  s_d4d76e11edf985::t_e32e58f712e758 31
+packages/page-script/src/globals.ts
+  s_d4d76e11edf985::t_e5ac056ba6d17f 425-439,442,444
+  s_d4d76e11edf985::t_64a57a325ea9f5 452-458
+  s_d4d76e11edf985::t_06d5be5692a198 24-28
+  s_d4d76e11edf985::t_825c04c4b9fe9f 445,466-468
+  s_d4d76e11edf985::t_4e58a004ecbe46 351-386
+  s_d4d76e11edf985::t_6dbdf3b4288c0b 21,29,319-329,489-493
+  s_d4d76e11edf985::t_9c1f1072758be3 420-424,446-447
+packages/page-script/src/native-script-source.ts
+  s_d4d76e11edf985::t_9c1f1072758be3 40-42
+  s_d4d76e11edf985::t_06d5be5692a198 1-31,33-36,43-44,46-49
+  s_d4d76e11edf985::t_b2b8227f346d8d 37-39
+  s_d4d76e11edf985::t_64a57a325ea9f5 32,45
+packages/engine/package.json
+  s_d4d76e11edf985::t_6a33cae75f5faa 9
+packages/core/Cargo.toml
+  s_d4d76e11edf985::t_f400d57d11e6c4 210
+  s_d4d76e11edf985::t_97c3053fc3f3bd 180,185,208-209
+packages/core/src/boa_disabled.rs
+  s_d4d76e11edf985::t_49a9b7ce0cc7e3 28
+  s_d4d76e11edf985::t_97c3053fc3f3bd 1-27,29-72
+packages/engine/test/e2e/workerd-native-browser.e2e.test.ts
+  s_d4d76e11edf985::t_74349b98e5b5ac 78
+  s_d4d76e11edf985::t_c470b0ba200648 26-27,112-134,209-216,247-248
+  s_d4d76e11edf985::t_e55f4a15526d99 320,322-325,340
+  s_d4d76e11edf985::t_d3aea1746ed6c7 33-34,36-37,39-61,290-319,321,326-328,332-334
+  s_d4d76e11edf985::t_f3f55af48710b5 92-95,98
+  s_d4d76e11edf985::t_4f86b62db5597d 169
+  s_d4d76e11edf985::t_b4abb42ed88036 5-6,31
+  s_d4d76e11edf985::t_167951608ef8fc 96-97,335-339,341-363
+  s_d4d76e11edf985::t_825c04c4b9fe9f 177,183-186,252,264-267
+  s_d4d76e11edf985::t_64a57a325ea9f5 178,200
+  s_d4d76e11edf985::t_4e58a004ecbe46 180-181,199,201-208,217-246
+  s_d4d76e11edf985::t_8f8598c11a73f4 70-76,162-168
+  s_d4d76e11edf985::t_ab560ff344cc1a 1-4,32,62,64-65,77,79-85,160-161,170-172,274,287,364
+  s_d4d76e11edf985::t_c2a7b2f07af91f 7-16,22-24,28-30,63,275-286,288-289
+  s_d4d76e11edf985::t_aa542582ff82e4 66-69
+  s_d4d76e11edf985::t_6e4d1cd0f6c248 86-87,89-91,147-159,329-331
+  s_d4d76e11edf985::t_25e721472753b8 173-176,179,182,187-198,249-251,253-263,268-273
+  s_d4d76e11edf985::t_d8d2e45df7ef73 17-21,25,35,38,88,99-111,135-146
+packages/page-script/src/scripts.ts
+  s_d4d76e11edf985::t_764210da52adc8 16,29-31,108-111,133-136,141-146,149-153,157-158,167-168,172-173,180-191,206,208,310,318-319,321
+  s_d4d76e11edf985::t_fd3b1d6f327538 18-21,154-156,169-171,194-196
+  s_d4d76e11edf985::t_231c54bb657c9d 320
+  s_d4d76e11edf985::t_8cbf6d1634a215 36,205,207,216,394,408-412
+  s_d4d76e11edf985::t_c0faaa6d201d47 33,137-140,174-179,285-293,297,306,331,346,370,398,451-457
+  s_d4d76e11edf985::t_f7dc555877ac2c 55,265,268,334,395,413-417,655-663,666,668-691,693-726
+  s_d4d76e11edf985::t_d820c59170eff7 17,37,112,201,209-215,217-220,222-225,243-249,356,362,380
+  s_d4d76e11edf985::t_825c04c4b9fe9f 221
+  s_d4d76e11edf985::t_e5ac056ba6d17f 226-242
+  s_d4d76e11edf985::t_cd8922a8205a1f 14-15,34-35,200,323,358-361,363
+packages/engine/src/eval/outbound.ts
+  s_d4d76e11edf985::t_8cbf6d1634a215 750-759
+  s_d4d76e11edf985::t_7e0397a218c188 55-58,222-223,225-226,234-240,272,656-660,664-667,669-716,762-770,772-794,805-817,832-834,836-865,878-879
+  s_d4d76e11edf985::t_f400d57d11e6c4 224,227-230,233,795-798,818-819,835
+  s_d4d76e11edf985::t_a12522ff9d2d1f 220-221,274-300,717-719,730-732,736-738,747,820,828,831,866
+  s_d4d76e11edf985::t_269f9d7d63a4ba 218-219,231-232,661-663,734-735,739-746,748,760-761,771,800-804,821-827,829-830
+  s_d4d76e11edf985::t_f2329c008dc695 273,873-877
+  s_d4d76e11edf985::t_a80b04bed589cf 668,720-729,733,749
+  s_d4d76e11edf985::t_233e4ae5dcc7ab 54
+  s_d4d76e11edf985::t_084bd4d4c313a3 799
+  s_d4d76e11edf985::t_f21ec60cb302ba 867
+packages/engine/test/page-script-compat.test.ts
+  s_d4d76e11edf985::t_e32e58f712e758 32
+  s_d4d76e11edf985::t_a7a54aae786e3d 48
+  s_d4d76e11edf985::t_e148e937dab5a2 31,47
+packages/page-script/src/eval-mode.ts
+  s_d4d76e11edf985::t_8cbf6d1634a215 15
+  s_d4d76e11edf985::t_9c1f1072758be3 5,16,18-48
+  s_d4d76e11edf985::t_06d5be5692a198 13-14,17,49-50
+packages/page-script/src/script-policy.ts
+  s_d4d76e11edf985::t_2d4d5cda837cde 26-30,53-55
+packages/page-script/src/__ks_startup_probe_input.d.ts
+  s_d4d76e11edf985::t_73032a8ce13a47 18-20
+  s_d4d76e11edf985::t_9b71e08a64ddd8 26
+  s_d4d76e11edf985::t_2d4d5cda837cde 64
+  s_d4d76e11edf985::t_06d5be5692a198 23-25,28
+  s_d4d76e11edf985::t_975a70684df97d 27
+packages/engine/src/wasm.ts
+  s_d4d76e11edf985::t_06d5be5692a198 373-374
+  s_d4d76e11edf985::t_9b71e08a64ddd8 375-376
+  s_d4d76e11edf985::t_e148e937dab5a2 370-372
+packages/engine/src/eval/page-script.ts
+  s_d4d76e11edf985::t_f94a02f119337e 36,998,1001-1006
+  s_d4d76e11edf985::t_269f9d7d63a4ba 984-985,1017-1018,1416
+  s_d4d76e11edf985::t_9b71e08a64ddd8 999-1000,1013
+  s_d4d76e11edf985::t_2d4d5cda837cde 1097
+  s_d4d76e11edf985::t_f400d57d11e6c4 980-983,986,1016
+  s_d4d76e11edf985::t_3f04d6f3d70384 827-828,977-979,987-988,1007,1014-1015,1019-1022,1070-1071,1253,1258,1263,1323,1414-1415,1418-1426
+  s_d4d76e11edf985::t_f2329c008dc695 989-997,1008-1012
+  s_d4d76e11edf985::t_a12522ff9d2d1f 1417
+  s_d4d76e11edf985::t_de019b66ad037f 1072
+packages/engine/test/native-script-source.test.ts
+  s_d4d76e11edf985::t_8f8598c11a73f4 36-46
+  s_d4d76e11edf985::t_9c1f1072758be3 47-56,65
+  s_d4d76e11edf985::t_825c04c4b9fe9f 66-76
+  s_d4d76e11edf985::t_4e58a004ecbe46 57-64
+  s_d4d76e11edf985::t_a12d30cdc1621a 1-35,88
+  s_d4d76e11edf985::t_64a57a325ea9f5 77-87
+packages/page-script/src/eval-helpers.ts
+  s_d4d76e11edf985::t_4e58a004ecbe46 25-26,1253,1283-1300,1614-1616,1623,1632
+  s_d4d76e11edf985::t_f2329c008dc695 823-825
+  s_d4d76e11edf985::t_825c04c4b9fe9f 12,826-828
+packages/engine/test/walk-module-graph.test.ts
+  s_d4d76e11edf985::t_64a57a325ea9f5 75,88,91-104
+  s_d4d76e11edf985::t_f94a02f119337e 13-16,71-74,76-87,89-90
+  s_d4d76e11edf985::t_52fc1d2fbb3c02 105
+packages/page-script/src/workerd-unsafe-eval.d.ts
+  s_d4d76e11edf985::t_9c1f1072758be3 3
+  s_d4d76e11edf985::t_fd3b1d6f327538 1-2,4-7
+packages/page-script/package.json
+  s_d4d76e11edf985::t_06d5be5692a198 20-21
+packages/engine/src/eval/walk-module-graph.ts
+  s_d4d76e11edf985::t_e148e937dab5a2 87
+  s_d4d76e11edf985::t_64a57a325ea9f5 120-137,143
+  s_d4d76e11edf985::t_f94a02f119337e 96-119,138-142,144-164
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_d4d76e11edf985::t_47ff240a1a5095 2122-2136
+  s_d4d76e11edf985::t_167951608ef8fc 2067-2079,2082,2090-2092,2097-2100,2105-2115
+  s_d4d76e11edf985::t_d3aea1746ed6c7 2084
+  s_d4d76e11edf985::t_f676d1c608395f 2094,2096
+  s_d4d76e11edf985::t_6e4d1cd0f6c248 2116
+  s_d4d76e11edf985::t_a80b04bed589cf 2080-2081,2083
+  s_d4d76e11edf985::t_d8d2e45df7ef73 2093,2095
+  s_d4d76e11edf985::t_41d07a0b622f18 2137
+packages/page-script/src/inserted-scripts.ts
+  s_d4d76e11edf985::t_f2329c008dc695 39,216-218
+packages/engine/src/cdp/page.ts
+  s_d4d76e11edf985::t_06d5be5692a198 2697
+  s_d4d76e11edf985::t_4e58a004ecbe46 2689
+  s_d4d76e11edf985::t_f2329c008dc695 2684-2688,2690-2691
+  s_d4d76e11edf985::t_9b71e08a64ddd8 2700-2704
+  s_d4d76e11edf985::t_597367aec74ad3 25-28,128,2602,2669-2683,2692-2696,2698-2699,2705-2706,2835,2914-2915,2967-2969
+turbo.json
+  s_d4d76e11edf985::t_6a33cae75f5faa 84-86,91
+pnpm-lock.yaml
+  s_d4d76e11edf985::t_d435929b22f8ae 202-204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f678e74910da1046c3a10de32ef6d1c55d699229",
+  "prompts": {},
+  "sessions": {
+    "s_d4d76e11edf985": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f8a143d87ffezSkHU6q0WBxs5M",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

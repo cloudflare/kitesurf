@@ -1,0 +1,21 @@
+packages/engine/src/state/local-storage.ts
+  s_059e99c81ea16a::t_ac18153cda465a 20-24,67-69,71-93
+packages/engine/test/node/local-storage.test.ts
+  s_059e99c81ea16a::t_e145cd4062ec38 1-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b1088cfc45afda34b8ed5e98d57a5bdadc29b367",
+  "prompts": {},
+  "sessions": {
+    "s_059e99c81ea16a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecf5498f7ffeRXbgcYZk4OL8t2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

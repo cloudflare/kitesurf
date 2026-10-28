@@ -1,0 +1,19 @@
+packages/core/src/transitions.rs
+  s_e7dc27bdab5fff::t_89898bf1a7d39c 13,18-21,84,101,131,134,200,208,214,223,231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "27b4336db10115e060fdb41c676d7a4491bcdcc0",
+  "prompts": {},
+  "sessions": {
+    "s_e7dc27bdab5fff": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_00a4f8786ffeFB2n8VkGusS6CL",
+        "model": "claude-opus-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

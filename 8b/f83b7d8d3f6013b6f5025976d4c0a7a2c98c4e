@@ -1,0 +1,25 @@
+packages/engine/test/e2e/bridge-dom-fastpath.e2e.test.ts
+  s_4ba79f911c93c4::t_a24f3004ef10ea 250,252-253,260,262-263
+  s_4ba79f911c93c4::t_746c226a6f815a 240,247
+  s_4ba79f911c93c4::t_1bc7582188dae4 241-244
+packages/page-script/src/index.ts
+  s_4ba79f911c93c4::t_f63120d624ee13 261
+packages/dom-shim/src/element.ts
+  s_4ba79f911c93c4::t_17eb2c24208f98 167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8bf83b7d8d3f6013b6f5025976d4c0a7a2c98c4e",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

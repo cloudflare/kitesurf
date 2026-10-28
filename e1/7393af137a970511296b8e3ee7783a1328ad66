@@ -1,0 +1,19 @@
+packages/engine/src/cdp/runtime.ts
+  s_a4cd376a121cc2::t_4215d48524c473 291-293
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e17393af137a970511296b8e3ee7783a1328ad66",
+  "prompts": {},
+  "sessions": {
+    "s_a4cd376a121cc2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "Author bpereira/radar-speedtest-consolidated-mr",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

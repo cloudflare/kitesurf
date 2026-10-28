@@ -1,0 +1,23 @@
+scripts/patches/taffy-0.14.0/0007-block-apply-relative-insets-to-floats.patch
+  s_c06dc570d7afc3::t_85c87b6af9292e 1-71
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_c06dc570d7afc3::t_f696732ea339a9 105,108,153-155
+  s_c06dc570d7afc3::t_0b6da78d98afcd 96-104,106-107,109-113,150-152
+  s_c06dc570d7afc3::t_bc938655f2f7cc 156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7933a49939b206d79534183e5a6f31714519a044",
+  "prompts": {},
+  "sessions": {
+    "s_c06dc570d7afc3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54fa4034ffepBE1L2SqMCP6u4",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

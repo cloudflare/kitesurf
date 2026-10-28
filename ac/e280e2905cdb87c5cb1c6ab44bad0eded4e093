@@ -1,0 +1,38 @@
+packages/grafana/src/dashboards/kitesurf-usage.ts
+  s_6d3689ca249947::t_9bd87f91971e47 1-154
+.cloudflare/grafana/kitesurf-usage.json
+  s_6d3689ca249947::t_36e4fc243273f4 265,427,600
+  s_6d3689ca249947::t_1563fe9132eae4 1-264,266-426,428-599,601-782
+packages/grafana/src/dashboard.ts
+  s_6d3689ca249947::t_a09ad6762ebca2 9,28-32,68-73,97-105,107-114
+packages/grafana/test/dashboard.test.ts
+  s_6d3689ca249947::t_c797e69a3e85f9 22-24,27,29-30,34-41,95-150
+packages/grafana/test/query.test.ts
+  s_6d3689ca249947::t_ad7f1d984875c3 115-150,154-159,171-182
+  s_6d3689ca249947::t_3d08a9e9f44026 151-153
+  s_6d3689ca249947::t_86d4c57e55e884 160-170
+packages/grafana/src/registry.ts
+  s_6d3689ca249947::t_c9db9daca6f61b 5,26-29
+  s_6d3689ca249947::t_c8573f2c2b58d6 30
+packages/grafana/src/query.ts
+  s_6d3689ca249947::t_3d08a9e9f44026 419
+  s_6d3689ca249947::t_98f9201537df7e 29,42,101-102,109-116,126,132,151-175,217-223,239-245,261-267,279-285,300,307-375,379-418,420-474,476-483
+  s_6d3689ca249947::t_86d4c57e55e884 376-378
+  s_6d3689ca249947::t_2df3d19e7cc466 475
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ace280e2905cdb87c5cb1c6ab44bad0eded4e093",
+  "prompts": {},
+  "sessions": {
+    "s_6d3689ca249947": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0140e861bffez5uNrzuGw9TKvb",
+        "model": "gpt-5.6"
+      },
+      "human_author": "Dina Kozlov <dkozlov@cloudflare.com>"
+    }
+  }
+}

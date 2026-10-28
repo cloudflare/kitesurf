@@ -1,0 +1,23 @@
+packages/engine/test/fixtures-worker/src/serve.ts
+  s_8deef65a89b902::t_f9b707d540a9f6 1311-1314,1317-1327,1332-1336,1338-1341
+  s_8deef65a89b902::t_3defd885f88851 1315-1316,2392-2401
+  s_8deef65a89b902::t_6304dd7c028e67 1328-1331,1337
+packages/engine/test/e2e/wpt-driver.e2e.test.ts
+  s_8deef65a89b902::t_a2adce0de3dd46 1-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "200b2ba0e6264639dff3d8400bf43fe2a74e3021",
+  "prompts": {},
+  "sessions": {
+    "s_8deef65a89b902": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0215edc58ffeCtMiAyWT7v8YjZ",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

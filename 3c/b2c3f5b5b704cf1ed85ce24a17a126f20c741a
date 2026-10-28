@@ -1,0 +1,50 @@
+packages/core/Cargo.toml
+  s_63365f51c8df96::t_aa5a1c6c30d80d 17-22
+packages/scene-client/Cargo.toml
+  s_63365f51c8df96::t_c6e6b64b97e9ef 24-27,45-48
+  s_63365f51c8df96::t_aa5a1c6c30d80d 21-23
+packages/scene-client/src/lib.rs
+  s_63365f51c8df96::t_e78eecfb70db59 64-65
+  s_63365f51c8df96::t_c6e6b64b97e9ef 50-57,60,63,66
+packages/engine/src/term-session.ts
+  s_63365f51c8df96::t_9d9c7e28a20cfa 854-858,861-862
+  s_63365f51c8df96::t_ce01d87d1f453f 670,672
+packages/core/src/tty_omni.rs
+  s_63365f51c8df96::t_1cbd5e1fa053fc 19-25,31-32,36-83
+  s_63365f51c8df96::t_4c236a94d8d3d1 179-184,189-190,206-207,270-285,341-342,344-359,361-371,373-380,382-387,389-403,406-408,410-456
+packages/terminal-client/src/tty_app.rs
+  s_63365f51c8df96::t_ce01d87d1f453f 210,215-228,239,345,350
+packages/core/src/tty_ansi.rs
+  s_63365f51c8df96::t_8fc4316bf31db1 23,33-40,42-45,50
+  s_63365f51c8df96::t_74404ce5399627 1-22,24-32,41,46-49,51-149
+packages/terminal-client/tests/omni.rs
+  s_63365f51c8df96::t_8fc4316bf31db1 94-95
+  s_63365f51c8df96::t_76e52c31c17618 1-93,96-218
+packages/core/src/lib.rs
+  s_63365f51c8df96::t_e78eecfb70db59 70
+packages/terminal-client/Cargo.toml
+  s_63365f51c8df96::t_c6e6b64b97e9ef 23
+  s_63365f51c8df96::t_3c09e680db8c33 70
+packages/core/Cargo.lock
+  s_63365f51c8df96::t_c4cee311235eb4 303,388,409-423,451-464,539,554-565,578-591,600,602-613,666,677,877,1295,1390-1411,1504,1519,1619-1627,1635,1721,1771,1985,1998,2208-2227,2427,2591-2605,2612-2624,2634,2674-2675,2708,2711,2816-2826,2835,2887,3010,3013,3173-3183,3190-3201,3376,3552,3564,3585,3605,3652,3663
+packages/scene-client/Cargo.lock
+  s_63365f51c8df96::t_861f2c8556b503 17-22,119-133,155-168,188-221,228-239,274-279,312-313,330-340,347,350-361,389-425,456-464,490-495,574-593,616-621,635,639,667-700,768-796,806,820
+packages/terminal-client/Cargo.lock
+  s_63365f51c8df96::t_92c331231ad6ff 17-22,140-154,186-199,254-287,321-332,389-394,483-484,501-511,518,521-526,626-631,680-710,737,784-792,878-883,1028-1047,1083-1088,1102,1106,1218-1251,1398-1426,1479,1493
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3cb2c3f5b5b704cf1ed85ce24a17a126f20c741a",
+  "prompts": {},
+  "sessions": {
+    "s_63365f51c8df96": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fe16660cbffeVcSYG4VVXZrUuA",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Rui Figueira <rfigueira@cloudflare.com>"
+    }
+  }
+}

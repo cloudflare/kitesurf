@@ -1,0 +1,22 @@
+internal/docs/WEB_BOT_AUTH.md
+  s_c6d6a3ac21fe46::t_098c88287bc1ca 1-46
+docs/WEB_BOT_AUTH.md
+  s_c6d6a3ac21fe46::t_c6a11d040eedc6 13-14
+  s_c6d6a3ac21fe46::t_098c88287bc1ca 8-12,19-22,27,38,42-43,48,68,72-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2c68ba6d1136898193ab3b541acd6b3f68187afe",
+  "prompts": {},
+  "sessions": {
+    "s_c6d6a3ac21fe46": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ecec82066ffeyeS1WBrmNEU5qr",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

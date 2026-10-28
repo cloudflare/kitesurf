@@ -1,0 +1,21 @@
+packages/engine/test/e2e/incremental-shadow-insert.e2e.test.ts
+  s_74bdb8d7eb50dd::t_bbaa87faaea584 1-50
+scripts/patches/blitz-dom-0.3.0-beta.1/0108-kitesurf-propagate-damage-through-shadow-roots.patch
+  s_74bdb8d7eb50dd::t_7a681bacf8f824 1-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "6869fc3ee208bfe2c4bfa327f04a7e0d16b22e1c",
+  "prompts": {},
+  "sessions": {
+    "s_74bdb8d7eb50dd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0047be798ffeo63pr3eHm9deOh",
+        "model": "@cf/moonshotai/kimi-k2.7-code"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

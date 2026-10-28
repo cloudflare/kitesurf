@@ -1,0 +1,48 @@
+docs/ENGINE_CF.md
+  s_4ba79f911c93c4::t_a5227c95e9c3dd 47-52
+packages/website/BUILD.bazel
+  s_4ba79f911c93c4::t_a3580c5694506c 9-16
+packages/engine-cf/scripts/stage-assets.ts
+  s_4ba79f911c93c4::t_1198686198db54 1-53
+packages/website/public/cloudflare.svg
+  s_4ba79f911c93c4::t_41d2bdaebd56e4 1
+packages/website/public/corpus.txt
+  s_4ba79f911c93c4::t_41d2bdaebd56e4 1-14
+packages/website/public/robots.txt
+  s_4ba79f911c93c4::t_41d2bdaebd56e4 1-11
+packages/website/public/sitemap.xml
+  s_4ba79f911c93c4::t_41d2bdaebd56e4 1-6
+packages/engine-cf/vitest.e2e.config.mts
+  s_4ba79f911c93c4::t_1198686198db54 5,10-12
+  s_4ba79f911c93c4::t_cb90b645950289 13
+packages/website/public/hero-texture.svg
+  s_4ba79f911c93c4::t_41d2bdaebd56e4 1-27
+packages/website/public/favicon.svg
+  s_4ba79f911c93c4::t_41d2bdaebd56e4 1
+.gitignore
+  s_4ba79f911c93c4::t_054937683e2bfa 9-10
+packages/engine-cf/package.json
+  s_4ba79f911c93c4::t_ed102cdbe7551c 8
+packages/engine-cf/wrangler.config.ts
+  s_4ba79f911c93c4::t_896e11a5c9e1c6 14-16
+packages/engine-cf/wrangler.jsonc
+  s_4ba79f911c93c4::t_6a6480bc8a4a03 123-124
+packages/website/AGENTS.md
+  s_4ba79f911c93c4::t_b60f62e78287fc 5,25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "67ce15e12c891aba8e9ba4ba42442b79d15309c9",
+  "prompts": {},
+  "sessions": {
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

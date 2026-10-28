@@ -1,0 +1,19 @@
+packages/dom-shim/src/collections.ts
+  s_d3331fe4df3409::t_d96c078a493e24 2425,2454
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ea14bf1e59058be2fb210fc934e93f757561f5ef",
+  "prompts": {},
+  "sessions": {
+    "s_d3331fe4df3409": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f649d4dd3ffeZ9Zfp0qsWRxmBj",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Ruskin Constant <ruskin@cloudflare.com>"
+    }
+  }
+}

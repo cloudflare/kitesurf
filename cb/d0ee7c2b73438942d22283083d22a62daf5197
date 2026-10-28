@@ -1,0 +1,26 @@
+packages/engine/test/e2e/demos/screencast-partial-frames.e2e.test.ts
+  s_de9b73755c1191::t_b9583519f1ff0c 31,132,189,285,353,427,449,520,618,639,667-668,762
+packages/engine/src/cdp/types.ts
+  s_de9b73755c1191::t_1746237f632a64 18-22
+packages/engine/src/cdp/kitesurf-types.ts
+  s_de9b73755c1191::t_1746237f632a64 1-173
+packages/engine/test/e2e/kitesurf-cdp.d.ts
+  s_de9b73755c1191::t_1746237f632a64 1
+  s_de9b73755c1191::t_fab48e378ea947 2-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "cbd0ee7c2b73438942d22283083d22a62daf5197",
+  "prompts": {},
+  "sessions": {
+    "s_de9b73755c1191": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efc886985ffexlWhY4eGsU9i2J",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

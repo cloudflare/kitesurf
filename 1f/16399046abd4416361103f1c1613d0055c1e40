@@ -1,0 +1,107 @@
+packages/engine/test/e2e/mousedown-focus-default-action.e2e.test.ts
+  s_0b62245bd53100::t_69311a10d8af15 219-260
+  s_0b62245bd53100::t_6d4fc4618ff321 162-218,261-264
+  s_0b62245bd53100::t_d28ef8a3837777 113,115-116,118-121
+  s_0b62245bd53100::t_9d4df8285b13f3 94-112,114,117,122-161
+packages/page-script/src/font-loader.ts
+  s_0b62245bd53100::t_1f2719ac5974c8 246-248
+  s_0b62245bd53100::t_d9d57628d6fb5a 251-252
+packages/page-script/src/index.ts
+  s_0b62245bd53100::t_a6019bf172ebf0 4847-4853,4855,4868-4869,4876-4877,4892,4909-4911,4914
+  s_0b62245bd53100::t_6cd2d97b130e10 4023-4027
+  s_0b62245bd53100::t_cb893f00edf1a2 336-338,4316-4318,4334,4340-4343
+  s_0b62245bd53100::t_8e9f6579d97bea 4320
+  s_0b62245bd53100::t_350f86e6c81872 3982-3983
+  s_0b62245bd53100::t_fdaad038160eee 4327-4329,4333,4336-4339,4347-4348
+  s_0b62245bd53100::t_27e559f2a8b62a 4028-4030,4315,4319,4324-4326,4335,4344,4349,4351-4354,4455
+  s_0b62245bd53100::t_0174724d6dcbea 4870-4873,4878,4886
+  s_0b62245bd53100::t_34e836fe45db3e 4856-4857,4879-4885,4887-4891
+  s_0b62245bd53100::t_9d21f966929b0c 4417-4428
+  s_0b62245bd53100::t_07173b1dc03e90 342,4395-4405,4407-4415,4429-4445,4452-4454
+  s_0b62245bd53100::t_1eeb232261c896 4345
+  s_4ba79f911c93c4::t_7e58435602f3eb 4321-4322,4330-4332,4346,4350
+packages/dom-shim/src/element.ts
+  s_0b62245bd53100::t_9f81041af07417 4787-4789,4791
+  s_0b62245bd53100::t_dadace9a0effee 3443-3446
+  s_0b62245bd53100::t_05bb5112b975c4 5400-5401
+packages/engine/test/e2e/demos/text-input-caret-font.e2e.test.ts
+  s_0b62245bd53100::t_560f6baa43f5ec 6
+  s_0b62245bd53100::t_69f187c3046fd5 1-5,7-60
+scripts/patches/blitz-dom-0.3.0-beta.2/0109-Apply-computed-font-family-to-text-editors.patch
+  s_0b62245bd53100::t_17581967e783db 1-21
+packages/page-script/src/types.ts
+  s_0b62245bd53100::t_6c7ed0e4a640b5 43-45
+packages/core/src/animation_clock_test.rs
+  s_0b62245bd53100::t_9f5e8156705fc1 185-187
+  s_0b62245bd53100::t_31c293bb94d23a 399
+  s_0b62245bd53100::t_29144d3c46f8c1 24,62-66,376-398
+  s_0b62245bd53100::t_db5c0901a72497 400,438
+  s_0b62245bd53100::t_05846986136ffa 401-437
+packages/engine/test/e2e/css-transitions.e2e.test.ts
+  s_0b62245bd53100::t_4a441c89850c24 248-291
+packages/core/src/lib.rs
+  s_0b62245bd53100::t_db3faea97c13bb 4031-4036
+  s_0b62245bd53100::t_17c1b048c277a1 2897-2904
+  s_0b62245bd53100::t_c158579cdd2b5d 4025-4030
+  s_0b62245bd53100::t_53780360f24810 54-56,525-529,932-933
+packages/dom-shim/src/state.ts
+  s_0b62245bd53100::t_237a3056cf4574 65,104-106
+packages/dom-shim/src/events/dispatch.ts
+  s_0b62245bd53100::t_d4f4248ea3dd56 30,173-174,228
+  s_0b62245bd53100::t_cffc4a13190f84 658-661
+packages/core/src/transitions.rs
+  s_0b62245bd53100::t_0f721cdeafe720 118,121,123,125-130,132-133,145
+  s_0b62245bd53100::t_9defefae4c31a4 12
+  s_0b62245bd53100::t_6fa60d6d26e13e 25-27,67-78,93-117,119-120,122,124,135-144,146-173,179-232,234-249,251-298
+  s_0b62245bd53100::t_9f5e8156705fc1 134,174-178,233,250
+  s_0b62245bd53100::t_df0e90913a5b64 131
+  s_0b62245bd53100::t_5fc18a6e13b302 299
+packages/page-script/src/globals.ts
+  s_0b62245bd53100::t_88d91347c24b1a 5493
+  s_0b62245bd53100::t_3b2202cf8e6bf8 1559
+packages/dom-shim/src/transitions.ts
+  s_0b62245bd53100::t_06f208ef9220a1 26,32-34,38-41,47-49
+  s_0b62245bd53100::t_5e5189f2f2e2ba 44-45
+  s_0b62245bd53100::t_e81fcec35b74c5 1,18-23,36-37
+  s_0b62245bd53100::t_8c6eb45d12e89f 35
+packages/dom-shim/src/events/event.ts
+  s_0b62245bd53100::t_ac39e630c9508d 430-444
+  s_0b62245bd53100::t_5abd63588d5b8a 1027
+  s_0b62245bd53100::t_9d4df8285b13f3 768-770
+docs/TRANSITIONS.md
+  s_0b62245bd53100::t_1488862ef15833 3-4,44-46,65-69,88-92,96-98,108-111
+packages/dom-shim/src/index.ts
+  s_0b62245bd53100::t_6fbda7e0701262 228,1392
+packages/page-script/src/transitions.ts
+  s_0b62245bd53100::t_7a5921f2a57405 5-6
+  s_0b62245bd53100::t_db5c0901a72497 163-170
+  s_0b62245bd53100::t_7a2ac3e3a042b7 41-46
+  s_0b62245bd53100::t_69ee2ed8f7677e 39,60-61,73,90-91,93-98,105-106,108-111,113,115-118,149-162,172
+  s_0b62245bd53100::t_23e190ecc5b0f1 1-3
+  s_0b62245bd53100::t_82841628bbf4ea 171
+  s_0b62245bd53100::t_54f50a2007d971 173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1f16399046abd4416361103f1c1613d0055c1e40",
+  "prompts": {},
+  "sessions": {
+    "s_0b62245bd53100": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fb909e891ffeOysb1haJ2cDJYI",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    },
+    "s_4ba79f911c93c4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "",
+        "model": "unknown"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

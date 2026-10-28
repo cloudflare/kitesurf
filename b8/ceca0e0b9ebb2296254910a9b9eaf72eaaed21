@@ -1,0 +1,24 @@
+scripts/patches/blitz-dom-0.3.0-beta.2/0123-inline-apply-relative-inset-to-inline-floats.patch
+  s_c06dc570d7afc3::t_97f5d8ca6882cc 1-53
+packages/engine/test/e2e/inline-positioning-regressions.e2e.test.ts
+  s_c06dc570d7afc3::t_e8d2744800d2ec 103-111,113,125
+  s_c06dc570d7afc3::t_1ae3ee5351e92f 112
+  s_c06dc570d7afc3::t_063098f91706fa 101
+  s_c06dc570d7afc3::t_e21151f9747125 96-97,164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b8ceca0e0b9ebb2296254910a9b9eaf72eaaed21",
+  "prompts": {},
+  "sessions": {
+    "s_c06dc570d7afc3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54fa4034ffepBE1L2SqMCP6u4",
+        "model": "gpt-5.6-luna"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}

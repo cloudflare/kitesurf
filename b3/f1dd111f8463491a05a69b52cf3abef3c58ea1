@@ -1,0 +1,27 @@
+packages/engine/src/cdp/page.ts
+  s_d8fad5eeb4fdcb::t_06cf32acdab046 1975
+  s_d8fad5eeb4fdcb::t_9243d91c96e539 1971-1974
+packages/engine/src/cdp/types.ts
+  s_d8fad5eeb4fdcb::t_d74adc4d469d51 325
+packages/core/src/screenshot.rs
+  s_d8fad5eeb4fdcb::t_df204ff9fcf5e5 331-335
+packages/engine/src/rbi.ts
+  s_d8fad5eeb4fdcb::t_235467f874394e 696-698
+  s_d8fad5eeb4fdcb::t_7956680c844d6c 994
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b3f1dd111f8463491a05a69b52cf3abef3c58ea1",
+  "prompts": {},
+  "sessions": {
+    "s_d8fad5eeb4fdcb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_01055fa9dffenvZ4bpG6DnAtSH",
+        "model": "@cf/moonshotai/kimi-k2.6"
+      },
+      "human_author": "bpereira <bpereira@cloudflare.com>"
+    }
+  }
+}
