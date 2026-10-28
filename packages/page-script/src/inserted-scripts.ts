@@ -77,9 +77,40 @@ export interface InsertedScriptInfo {
 
 // A document.write'd script is parser-inserted, so it runs in write order,
 // not fetch-completion order, and DOMContentLoaded waits for it. Pre-ES6
-// loaders such as tdl.js depend on both.
+// loaders such as tdl.js depend on both. Gap: a parser-inserted script after
+// the writing one does not wait; only DOMContentLoaded does.
 let writtenChain: Promise<void> = Promise.resolve();
 let writtenPending = 0;
+
+const trackWritten = (run: Promise<void>): void => {
+  writtenPending++;
+  writtenChain = run.then(
+    () => {
+      writtenPending--;
+    },
+    () => {
+      writtenPending--;
+    },
+  );
+};
+
+// Runs a written script's task in write order. With nothing queued ahead it
+// runs now, so an inline script runs inside the document.write that wrote it.
+// Otherwise it runs in a fresh task after the queued ones settle.
+export function queueWrittenScript(task: () => Promise<void> | undefined): void {
+  if (writtenPending === 0) {
+    const run = task();
+    if (run) trackWritten(run);
+    return;
+  }
+  const deferred = async () => {
+    await new Promise<void>((resolve) => {
+      nativeSetTimeout(resolve, 0);
+    });
+    await task();
+  };
+  trackWritten(writtenChain.then(deferred, deferred));
+}
 
 // A written script can write more, so the drain re-checks the count instead
 // of awaiting a snapshot. On timeout DCL goes ahead without the stragglers.
@@ -255,17 +286,6 @@ export function runInsertedExternalScript(info: InsertedScriptInfo): void {
     }
   };
 
-  if (info.written) {
-    writtenPending++;
-    writtenChain = writtenChain.then(body, body).then(
-      () => {
-        writtenPending--;
-      },
-      () => {
-        writtenPending--;
-      },
-    );
-    return;
-  }
-  void body();
+  if (info.written) queueWrittenScript(body);
+  else void body();
 }

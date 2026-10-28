@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import addWasm from "../../assets/add.wasm";
 import insertedBakeJs from "../../assets/inserted-bake.js";
 import inlineWasmTemplate from "../../assets/inline-wasm.js";
-import { dataModule, sleep } from "../util.ts";
+import { dataModule, intQuery, sleep } from "../util.ts";
 
 export const scripts = new Hono();
 
@@ -97,3 +97,17 @@ const inlineWasmJs = inlineWasmTemplate.replace(
   btoa(String.fromCharCode(...new Uint8Array(dataModule(addWasm)))),
 );
 scripts.all("/inline-wasm.js", (c) => c.body(inlineWasmJs, 200, { "content-type": JS }));
+
+// A script for document.write order tests: it waits `ms`, records `tag`, and
+// writes the script for `next` when given.
+scripts.all("/written-script.js", async (c) => {
+  const word = (name: string) => (c.req.query(name) ?? "").replace(/[^a-z0-9-]/gi, "");
+  await sleep(intQuery(c, "ms", { fallback: 0, min: 0, max: 3000 }));
+  const tag = word("tag");
+  const next = word("next");
+  const write = next
+    ? `document.write('<script src="/__fixtures/written-script.js?tag=${next}"><\\/script>');\n`
+    : "";
+  const record = `globalThis.__written = (globalThis.__written || []).concat([${JSON.stringify(tag)}]);\n`;
+  return c.body(record + write, 200, { "content-type": JS });
+});

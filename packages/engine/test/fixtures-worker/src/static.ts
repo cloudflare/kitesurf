@@ -240,9 +240,6 @@ import webmcpToolsHtml from "../assets/webmcp-tools.html";
 import workerAtLoadHtml from "../assets/worker-at-load.html";
 import workerEchoJs from "../assets/worker-echo.js";
 import workerHostHtml from "../assets/worker-host.html";
-import writtenModAJs from "../assets/written-mod-a.js";
-import writtenModBJs from "../assets/written-mod-b.js";
-import writtenScriptOrderHtml from "../assets/written-script-order.html";
 import wsBootHtml from "../assets/ws-boot.html";
 import xhrBootHtml from "../assets/xhr-boot.html";
 import xhrBootJs from "../assets/xhr-boot.js";
@@ -459,9 +456,6 @@ export const STATIC_FIXTURES: Record<string, string | ArrayBuffer> = {
   "worker-at-load.html": workerAtLoadHtml,
   "oopif-host-worker.html": oopifHostWorkerHtml,
   "oopif-child-worker.html": oopifChildWorkerHtml,
-  "written-script-order.html": writtenScriptOrderHtml,
-  "written-mod-a.js": writtenModAJs,
-  "written-mod-b.js": writtenModBJs,
   "inserted-bake.html": insertedBakeHtml,
   "inserted-bake.js": insertedBakeJs,
   "cs-microtask.html": csMicrotaskHtml,
