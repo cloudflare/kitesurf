@@ -85,6 +85,9 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           rust: "true"
+          pnpm-cache: "true"
+      # The boundary-return rule resolves contracts from the workspace's installed type packages.
+      - run: pnpm install --frozen-lockfile
       - name: Check formatting
         run: pnpm run format:check
       - name: Check workspace boundaries and license headers

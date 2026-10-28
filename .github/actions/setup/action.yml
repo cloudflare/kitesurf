@@ -5,6 +5,10 @@ inputs:
     description: Install the pinned Rust toolchain and the rust-cache.
     required: false
     default: "false"
+  pnpm-cache:
+    description: Cache the pnpm store for jobs that install workspace dependencies.
+    required: false
+    default: "false"
   bazel-cache:
     description: Restore Bazel's disk and repository caches; the job saves them itself.
     required: false
@@ -49,6 +53,7 @@ runs:
     - uses: actions/setup-node@v4
       with:
         node-version: 22
+        cache: ${{ inputs.pnpm-cache == 'true' && 'pnpm' || '' }}
     - if: inputs.rust == 'true'
       shell: bash
       run: rustup show
