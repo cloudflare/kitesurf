@@ -319,6 +319,8 @@ import {
   ks_js_span_enter,
   ks_js_span_exit,
   ks_call_cdp,
+  ks_code_stats,
+  ks_swap_alloc_stats,
 } from "./wasm-glue.js";
 import {
   buildDocument,
@@ -6782,7 +6784,12 @@ function queryDomMemoryStats(): QueryDomResult<"getMemoryStats"> {
   const initialBytes = getCoreWasmMemoryInitialBytes();
   let bridge = null;
   try {
-    bridge = { ...JSON.parse(ks_bridge_pins()), ...JSON.parse(ks_cycle_stats()) };
+    bridge = {
+      ...JSON.parse(ks_bridge_pins()),
+      ...JSON.parse(ks_cycle_stats()),
+      boaCode: JSON.parse(ks_code_stats()),
+      swapAlloc: JSON.parse(ks_swap_alloc_stats()),
+    };
   } catch {
     bridge = null;
   }

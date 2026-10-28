@@ -7,6 +7,7 @@
 import type { Protocol } from "devtools-protocol";
 
 // Each nested gauge group comes from one producer and is null when unavailable.
+
 export interface PageScriptGauges {
   bridge?: {
     v8Pins: number;
@@ -44,6 +45,55 @@ export interface PageScriptGauges {
     ccDeadReads: number;
     ccLastMs: number;
     ccSkipped: number;
+    /** What compiled code retains, in bytes by form (vendored boa ks_code_stats). Shared
+     * strings and scopes are not counted; blocksRun is blocks whose bytecode expanded. */
+    boaCode: {
+      blocks: number;
+      blocksRun: number;
+      sourceTexts: number;
+      sourceBytes: number;
+      /** Source texts boa's code store holds instead of wasm memory, toString reads of
+       * them, and store reads that failed (toString then says "[native code]"). */
+      sourceSwappedTexts: number;
+      sourceSwappedBytes: number;
+      sourceReads: number;
+      storeFailures: number;
+      /** Blocks whose packed bytecode is in the code store, its bytes, first runs that read
+       * it back, executable bytes a forced round dropped, and blocks it still could. */
+      swappedBlocks: number;
+      swappedBytes: number;
+      bytecodeReads: number;
+      flushes: number;
+      flushableBlocks: number;
+      forcedRounds: number;
+      packedBytes: number;
+      expandedBytes: number;
+      icBytes: number;
+      sourceMapBytes: number;
+      otherBytes: number;
+      /** Blocks whose body is in the code store, bodies read back, records written (one per
+       * block, nested ones too) and their bytes, and subtrees left resident (vendored ks_body). */
+      bodiesSwapped: number;
+      bodyFaults: number;
+      bodyRecords: number;
+      bodyRecordBytes: number;
+      bodySkips: number;
+    };
+    /** The wasm allocator's swap trigger (core swap_alloc.rs): live bytes, the budget past
+     * which an allocation forces a swap round (-1 when off), and what those rounds did. */
+    swapAlloc: {
+      liveBytes: number;
+      budgetBytes: number;
+      rounds: number;
+      rescued: number;
+      freedBytes: number;
+      failedAllocs: number;
+      /** The worst moment this isolate had: wasm pages are one-way, so the high-water is what
+       * it is charged for from then on, however much it frees later. */
+      peakLiveBytes: number;
+      /** Wasm linear memory right now, which is what the platform charges. */
+      wasmBytes: number;
+    };
   } | null;
   domFastpath?: {
     fastHits: number;
@@ -61,6 +111,10 @@ export interface PageScriptGauges {
     forced: number;
     skipped: number;
   } | null;
+  /**
+   * Page timer wheel (page-tasks.ts timerWheelStats); armed-but-overdue means every page timer
+   * is frozen. `shim` is the defer-shim's real-timer accounting underneath it.
+   */
   timerWheel?: {
     entries: number;
     armed: boolean;
@@ -391,6 +445,8 @@ export interface QueryDomMethods {
     } & PageScriptGauges;
   };
   boaForceCollect: { args: EmptyArgs; result: BoaCollectStats };
+  // Sets the live wasm bytes past which an allocation forces a boa swap round (core
+  // swap_alloc.rs); zero turns it off. Replies with the allocator's gauges after.
   getFontFaces: { args: EmptyArgs; result: FontFaces };
   getMemprofDump: { args: EmptyArgs; result: { json?: string; error?: string } };
   resetMemprof: { args: EmptyArgs; result: { ok?: boolean; error?: string } };

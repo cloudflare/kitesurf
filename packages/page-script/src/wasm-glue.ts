@@ -150,3 +150,22 @@ export declare function monoAdvancePerEm(): number;
 export declare function setTtyUaCss(css: string): void;
 
 export declare function setTtyCellGrid(w: number, h: number): void;
+
+// boa's code store (core boa_code_store.rs): an append log where put returns a key >= 0, or -1
+// to keep the bytes resident; read returns exactly len bytes from that key's offset.
+export declare function ks_set_code_store(
+  minBytes: number,
+  put: ((bytes: Uint8Array) => number) | null,
+  read: ((key: number, offset: number, len: number) => Uint8Array | undefined) | null,
+  release: ((key: number, len: number) => void) | null,
+  flush: (() => void) | null,
+): void;
+
+/** Live wasm bytes past which an allocation forces a swap round; 0 turns it off. */
+export declare function ks_set_swap_budget(bytes: number): void;
+
+/** What compiled code retains by form, as JSON; the shape of `bridge.boaCode`. */
+export declare function ks_code_stats(): string;
+
+/** Live bytes, budget and forced rounds from the counting allocator, as JSON. */
+export declare function ks_swap_alloc_stats(): string;

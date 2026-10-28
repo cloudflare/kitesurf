@@ -20,6 +20,16 @@ use style::transitions::{AnimationEvent, AnimationStates, TransitionEvent, Trans
 
 mod dom;
 mod js;
+#[cfg(target_arch = "wasm32")]
+mod boa_code_store;
+#[cfg(target_arch = "wasm32")]
+mod swap_alloc;
+
+// The counting allocator: it is what lets the store know when wasm memory is under pressure,
+// so the store's own paths are the only callers of its hook.
+#[cfg(target_arch = "wasm32")]
+#[global_allocator]
+static ALLOCATOR: swap_alloc::SwapAlloc = swap_alloc::SwapAlloc;
 mod ks_tracing;
 mod layout;
 mod paint;

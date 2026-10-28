@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 16 Oct 2026 12:29:41 +0100
+Subject: [PATCH] source_text: lend out the compact form for an embedder's
+ store
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A script keeps its whole source for Function.prototype.toString, and
+most of it is never read again. An embedder that can keep bytes outside
+the heap needs the compact text as bytes to store it, plus whether they
+are Latin-1 or UTF-16, to decode the spans it reads back.
+
+beep-boop-🤖
+---
+ src/source_text.rs | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/src/source_text.rs b/src/source_text.rs
+index f2419f9..d75ae83 100644
+--- a/src/source_text.rs
++++ b/src/source_text.rs
+@@ -87,6 +87,17 @@ impl SourceText {
+         }
+     }
+
++    /// Kitesurf: the compacted text as bytes an embedder can store, and whether they are
++    /// Latin-1 (else UTF-16LE); None until `compact` has run.
++    #[must_use]
++    pub fn stored_form(&self) -> Option<(Cow<'_, [u8]>, bool)> {
++        match &self.repr {
++            Repr::Collecting(_) => None,
++            Repr::Latin1(v) => Some((Cow::Borrowed(v), true)),
++            Repr::Utf16(v) => Some((Cow::Owned(v.iter().flat_map(|c| c.to_le_bytes()).collect()), false)),
++        }
++    }
++
+     // Collection after `compact` is not expected, but stays correct: re-expand.
+     #[inline]
+     fn collecting(&mut self) -> &mut Vec<u16> {
