@@ -1,0 +1,818 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 19 Oct 2026 17:21:16 +0100
+Subject: [PATCH] code_block: split a block into a shell and a body
+
+Most of a bundle's functions never run, yet each keeps its constants, binding locators,
+handlers, IC names, source map and global tables resident (about 540 B a block, 25 MiB on
+a large app). Moving those out needs them behind one door: the shell keeps what making a
+function object, printing its source and running its bytecode read (flags, length, this
+mode, name, toString span, bytecode), and everything else goes in a `CodeBody` reached
+through `body()`. The toString span moves out of `SourceInfo` into the shell, its only
+reader. No behaviour changes.
+---
+ src/builtins/function/mod.rs     |   2 +-
+ src/bytecompiler/mod.rs          |  30 +++--
+ src/context/mod.rs               |  10 +-
+ src/ks_swap.rs                   |   2 +-
+ src/vm/call_frame/mod.rs         |   2 +-
+ src/vm/code_block.rs             | 188 +++++++++++++++++++++----------
+ src/vm/mod.rs                    |  15 +--
+ src/vm/opcode/arguments.rs       |   2 +-
+ src/vm/opcode/define/mod.rs      |   8 +-
+ src/vm/opcode/delete/mod.rs      |   2 +-
+ src/vm/opcode/environment/mod.rs |   2 +-
+ src/vm/opcode/get/name.rs        |  10 +-
+ src/vm/opcode/mod.rs             |   2 +-
+ src/vm/opcode/push/literal.rs    |   2 +-
+ src/vm/opcode/set/name.rs        |   2 +-
+ src/vm/source_info/mod.rs        |  13 +--
+ 16 files changed, 172 insertions(+), 120 deletions(-)
+
+diff --git a/src/builtins/function/mod.rs b/src/builtins/function/mod.rs
+index ef6195f..2a841a1 100644
+--- a/src/builtins/function/mod.rs
++++ b/src/builtins/function/mod.rs
+@@ -882,7 +882,7 @@ impl BuiltInFunctionObject {
+             .ok_or_else(|| JsNativeError::typ().with_message("not a function"))?;
+
+         let code = function.codeblock();
+-        if let Some(text) = code.source_info().text_spanned().map_code_points(|points| JsString::from(points)) {
++        if let Some(text) = code.text_spanned.map_code_points(|points| JsString::from(points)) {
+             return Ok(text.into());
+         }
+
+diff --git a/src/bytecompiler/mod.rs b/src/bytecompiler/mod.rs
+index 1a70597..4414e5b 100644
+--- a/src/bytecompiler/mod.rs
++++ b/src/bytecompiler/mod.rs
+@@ -35,7 +35,6 @@ mod utils;
+
+ use std::{
+     borrow::{Borrow, BorrowMut},
+-    cell::Cell,
+     ops::{Deref, DerefMut},
+ };
+
+@@ -44,7 +43,7 @@ use crate::{
+     builtins::function::{ThisMode, arguments::MappedArguments},
+     js_string,
+     vm::{
+-        CallFrame, CodeBlock, CodeBlockFlags, Constant, GeneratorResumeKind, GlobalFunctionBinding,
++        CallFrame, CodeBlock, CodeBlockFlags, CodeBody, Constant, GeneratorResumeKind, GlobalFunctionBinding,
+         Handler,
+         opcode::{Address, BindingOpcode, BytecodeEmitter, RegisterOperand},
+         source_info::{SourceInfo, SourceMap, SourceMapBuilder, SourcePath},
+@@ -2821,33 +2820,32 @@ impl<'ctx> ByteCompiler<'ctx> {
+             }
+         }
+
+-        CodeBlock {
+-            length: self.length,
+-            register_count,
+-            this_mode: self.this_mode,
++        let body = CodeBody {
+             parameter_length: self.params.as_ref().len() as u32,
++            register_count,
+             mapped_arguments_binding_indices,
+-            bytecode: self.bytecode.into_bytecode(),
+             constants: self.constants,
+             bindings: self.bindings.into_boxed_slice(),
+             handlers: self.handlers,
+-            flags: Cell::new(self.code_block_flags),
+             ic_names: self.ic.into_boxed_slice(),
+             ic: std::cell::OnceCell::new(),
+             source_info: SourceInfo::new(
+                 SourceMap::new(source_map_entries, self.source_path),
+-                self.function_name,
+-                self.spanned_source_text,
++                self.function_name.clone(),
+             ),
+             global_lexs: self.global_lexs.into_boxed_slice(),
+             global_fns: self.global_fns.into_boxed_slice(),
+             global_vars: self.global_vars.into_boxed_slice(),
+-            debug_id: CodeBlock::get_next_codeblock_id(),
+-            ks_charge: crate::ks_code_stats::CodeCharge::default(),
+-            #[cfg(feature = "trace")]
+-            traced: Cell::new(false),
+-        }
+-        .ks_charged()
++        };
++        CodeBlock::from_parts(
++            self.code_block_flags,
++            self.length,
++            self.this_mode,
++            self.function_name,
++            self.spanned_source_text,
++            self.bytecode.into_bytecode(),
++            body,
++        )
+     }
+
+     fn compile_declaration_pattern(
+diff --git a/src/context/mod.rs b/src/context/mod.rs
+index 982dedf..baeb943 100644
+--- a/src/context/mod.rs
++++ b/src/context/mod.rs
+@@ -935,7 +935,7 @@ impl Context {
+         //       i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an AsyncGeneratorDeclaration.
+         //       ii. NOTE: If there are multiple function declarations for the same name, the last declaration is used.
+         //       iii. Let fn be the sole element of the BoundNames of d.
+-        for fun in codeblock.global_fns.iter().rev() {
++        for fun in codeblock.body().global_fns.iter().rev() {
+             // ...
+             // 1. Let fnDefinable be ? env.CanDeclareGlobalFunction(fn).
+             // 2. If fnDefinable is false, throw a TypeError exception.
+@@ -946,7 +946,7 @@ impl Context {
+         }
+
+         // 10. For each element d of varDeclarations, do
+-        for global_var in &codeblock.global_vars {
++        for global_var in &codeblock.body().global_vars {
+             // ...
+             // a. Let vnDefinable be ? env.CanDeclareGlobalVar(vn).
+             // b. If vnDefinable is false, throw a TypeError exception.
+@@ -957,7 +957,7 @@ impl Context {
+         }
+
+         // 16. For each Parse Node f of functionsToInitialize, do
+-        for fun in &codeblock.global_fns {
++        for fun in &codeblock.body().global_fns {
+             // ...
+             // c. Perform ? env.CreateGlobalFunctionBinding(fn, fo, false).
+             let function = create_function_object_fast(
+@@ -969,7 +969,7 @@ impl Context {
+         }
+
+         // 17. For each String vn of declaredVarNames, do
+-        for global_declared_var in &codeblock.global_vars {
++        for global_declared_var in &codeblock.body().global_vars {
+             // a. Perform ? env.CreateGlobalVarBinding(vn, false).
+             let name = codeblock.constant_string(*global_declared_var as usize);
+             self.create_global_var_binding(name, configurable_globals)?;
+@@ -989,7 +989,7 @@ impl Context {
+         codeblock: &CodeBlock,
+     ) -> JsResult<()> {
+         // 3. For each element name of lexNames, do
+-        for global_lex in &codeblock.global_lexs {
++        for global_lex in &codeblock.body().global_lexs {
+             // c. Let hasRestrictedGlobal be ? env.HasRestrictedGlobalProperty(name).
+             // d. If hasRestrictedGlobal is true, throw a SyntaxError exception.
+             let name = codeblock.constant_string(*global_lex as usize);
+diff --git a/src/ks_swap.rs b/src/ks_swap.rs
+index dc782f1..a49fb43 100644
+--- a/src/ks_swap.rs
++++ b/src/ks_swap.rs
+@@ -92,7 +92,7 @@ fn walk(block: &CodeBlock, store: &dyn crate::CodeStore, keep_expanded: bool, de
+     if keep_expanded {
+         block.bytecode.store_expanded(store);
+     }
+-    for constant in &block.constants {
++    for constant in &block.body().constants {
+         if let Constant::Function(inner) = constant {
+             freed += walk(inner, store, true, depth + 1);
+         }
+diff --git a/src/vm/call_frame/mod.rs b/src/vm/call_frame/mod.rs
+index cd560f1..db42fed 100644
+--- a/src/vm/call_frame/mod.rs
++++ b/src/vm/call_frame/mod.rs
+@@ -96,7 +96,7 @@ impl CallFrame {
+     #[inline]
+     #[must_use]
+     pub fn position(&self) -> CallFrameLocation {
+-        let source_info = &self.code_block.source_info;
++        let source_info = &self.code_block.source_info();
+         CallFrameLocation {
+             function_name: source_info.function_name().clone(),
+             path: source_info.map().path().clone(),
+diff --git a/src/vm/code_block.rs b/src/vm/code_block.rs
+index 004f2b3..d553a5d 100644
+--- a/src/vm/code_block.rs
++++ b/src/vm/code_block.rs
+@@ -123,7 +123,7 @@ pub(crate) struct GlobalFunctionBinding {
+ /// A `CodeBlock` is generated for each function compiled by the
+ /// [`ByteCompiler`](crate::bytecompiler::ByteCompiler). It stores the bytecode and the other
+ /// attributes of the function.
+-#[derive(Clone, Debug, Trace, Finalize)]
++#[derive(Debug, Trace, Finalize)]
+ pub struct CodeBlock {
+     #[unsafe_ignore_trace]
+     pub(crate) flags: Cell<CodeBlockFlags>,
+@@ -131,21 +131,51 @@ pub struct CodeBlock {
+     /// The number of arguments expected.
+     pub(crate) length: u32,
+
+-    pub(crate) parameter_length: u32,
+-
+-    pub(crate) register_count: u32,
+-
+     /// `[[ThisMode]]`
+     pub(crate) this_mode: ThisMode,
+
+-    /// Used for constructing a `MappedArguments` object.
++    /// The function's name, for function objects and call frames; kept beside the body's
++    /// source info so that making a function object reads nothing else.
++    pub(crate) name: JsString,
++
++    /// The function's source text, for `Function.prototype.toString`, its only reader,
++    /// which so never needs the body.
+     #[unsafe_ignore_trace]
+-    pub(crate) mapped_arguments_binding_indices: ThinVec<Option<u32>>,
++    pub(crate) text_spanned: SpannedSourceText,
+
+     /// Bytecode
+     #[unsafe_ignore_trace]
+     pub(crate) bytecode: Bytecode,
+
++    // Used for identifying anonymous functions in compiled output and call frames.
++    pub(crate) debug_id: u64,
++
++    // Kitesurf: this block's share of the code counters (crate::ks_code_stats), refunded
++    // when it drops; `ks_charged` sets it once the block's parts are in place.
++    #[unsafe_ignore_trace]
++    pub(crate) ks_charge: crate::ks_code_stats::CodeCharge,
++
++    // Kitesurf: what only running the block reads; the fields above are what making a
++    // function object, printing its source and running its bytecode need.
++    body: Box<CodeBody>,
++
++    #[cfg(feature = "trace")]
++    #[unsafe_ignore_trace]
++    pub(crate) traced: Cell<bool>,
++}
++
++/// Kitesurf: the part of a [`CodeBlock`] that only running it reads: constants, bindings,
++/// handlers, inline caches, source map and global tables.
++#[derive(Debug, Trace, Finalize)]
++pub(crate) struct CodeBody {
++    pub(crate) parameter_length: u32,
++
++    pub(crate) register_count: u32,
++
++    /// Used for constructing a `MappedArguments` object.
++    #[unsafe_ignore_trace]
++    pub(crate) mapped_arguments_binding_indices: ThinVec<Option<u32>>,
++
+     pub(crate) constants: ThinVec<Constant>,
+
+     /// Locators for all bindings in the codeblock.
+@@ -169,18 +199,22 @@ pub struct CodeBlock {
+     pub(crate) global_lexs: Box<[u32]>,
+     pub(crate) global_fns: Box<[GlobalFunctionBinding]>,
+     pub(crate) global_vars: Box<[u32]>,
++}
+
+-    // Used for identifying anonymous functions in compiled output and call frames.
+-    pub(crate) debug_id: u64,
+-
+-    // Kitesurf: this block's share of the code counters (crate::ks_code_stats), refunded
+-    // when it drops; `ks_charged` sets it once the block's parts are in place.
+-    #[unsafe_ignore_trace]
+-    pub(crate) ks_charge: crate::ks_code_stats::CodeCharge,
+-
+-    #[cfg(feature = "trace")]
+-    #[unsafe_ignore_trace]
+-    pub(crate) traced: Cell<bool>,
++impl CodeBody {
++    /// Kitesurf: the heap bytes this body owns, apart from its source map: the box and the
++    /// arrays. Shared strings, scopes and nested blocks are not its own.
++    pub(crate) fn ks_fixed_bytes(&self) -> usize {
++        size_of::<Self>()
++            + self.mapped_arguments_binding_indices.capacity() * size_of::<Option<u32>>()
++            + self.constants.capacity() * size_of::<Constant>()
++            + size_of_val::<[BindingLocator]>(&self.bindings)
++            + self.handlers.capacity() * size_of::<Handler>()
++            + size_of_val::<[JsString]>(&self.ic_names)
++            + size_of_val::<[u32]>(&self.global_lexs)
++            + size_of_val::<[GlobalFunctionBinding]>(&self.global_fns)
++            + size_of_val::<[u32]>(&self.global_vars)
++    }
+ }
+
+ /// ---- `CodeBlock` public API ----
+@@ -188,9 +222,10 @@ impl CodeBlock {
+     /// The inline caches, built from [`Self::ic_names`] the first time any is used.
+     #[inline]
+     pub(crate) fn ic(&self) -> &[InlineCache] {
+-        self.ic.get_or_init(|| {
++        let body = self.body();
++        body.ic.get_or_init(|| {
+             let ic: Box<[InlineCache]> =
+-                self.ic_names.iter().cloned().map(InlineCache::new).collect();
++                body.ic_names.iter().cloned().map(InlineCache::new).collect();
+             self.ks_charge.charge_ic(size_of_val::<[InlineCache]>(&ic));
+             ic
+         })
+@@ -200,16 +235,8 @@ impl CodeBlock {
+     /// and its source map apart. Shared strings, scopes and nested blocks are not its own.
+     #[must_use]
+     pub(crate) fn ks_charged(mut self) -> Self {
+-        let fixed = size_of::<Self>()
+-            + self.mapped_arguments_binding_indices.capacity() * size_of::<Option<u32>>()
+-            + self.constants.capacity() * size_of::<Constant>()
+-            + size_of_val::<[BindingLocator]>(&self.bindings)
+-            + self.handlers.capacity() * size_of::<Handler>()
+-            + size_of_val::<[JsString]>(&self.ic_names)
+-            + size_of_val::<[u32]>(&self.global_lexs)
+-            + size_of_val::<[GlobalFunctionBinding]>(&self.global_fns)
+-            + size_of_val::<[u32]>(&self.global_vars);
+-        let map = self.source_info.map().ks_heap_bytes();
++        let fixed = size_of::<Self>() + self.body().ks_fixed_bytes();
++        let map = self.body().source_info.map().ks_heap_bytes();
+         self.ks_charge = crate::ks_code_stats::CodeCharge::new(fixed, map);
+         self
+     }
+@@ -219,29 +246,31 @@ impl CodeBlock {
+     pub fn new(name: JsString, length: u32, strict: bool) -> Self {
+         let mut flags = CodeBlockFlags::empty();
+         flags.set(CodeBlockFlags::STRICT, strict);
+-        Self {
+-            bytecode: Bytecode::default(),
+-            constants: ThinVec::default(),
+-            bindings: Box::default(),
+-            flags: Cell::new(flags),
+-            length,
++        let body = CodeBody {
++            parameter_length: 0,
+             register_count: 0,
+-            this_mode: ThisMode::Global,
+             mapped_arguments_binding_indices: ThinVec::new(),
+-            parameter_length: 0,
++            constants: ThinVec::default(),
++            bindings: Box::default(),
+             handlers: ThinVec::default(),
+             ic_names: Box::default(),
+             ic: OnceCell::new(),
+-            source_info: SourceInfo::new(
+-                SourceMap::new(Box::default(), SourcePath::None),
+-                name,
+-                SpannedSourceText::new_empty(),
+-            ),
++            source_info: SourceInfo::new(SourceMap::new(Box::default(), SourcePath::None), name.clone()),
+             global_lexs: Box::default(),
+             global_fns: Box::default(),
+             global_vars: Box::default(),
++        };
++        let fixed = size_of::<Self>() + body.ks_fixed_bytes();
++        Self {
++            flags: Cell::new(flags),
++            length,
++            this_mode: ThisMode::Global,
++            name,
++            text_spanned: SpannedSourceText::new_empty(),
++            bytecode: Bytecode::default(),
+             debug_id: CodeBlock::get_next_codeblock_id(),
+-            ks_charge: crate::ks_code_stats::CodeCharge::new(size_of::<Self>(), 0),
++            ks_charge: crate::ks_code_stats::CodeCharge::new(fixed, 0),
++            body: Box::new(body),
+             #[cfg(feature = "trace")]
+             traced: Cell::new(false),
+         }
+@@ -250,13 +279,47 @@ impl CodeBlock {
+     /// Retrieves the name associated with this code block.
+     #[must_use]
+     pub fn name(&self) -> &JsString {
+-        self.source_info.function_name()
++        &self.name
+     }
+
+     /// Retrieves the path of this code block.
+     #[must_use]
+     pub fn path(&self) -> &SourcePath {
+-        self.source_info.map().path()
++        self.body().source_info.map().path()
++    }
++
++    /// Kitesurf: the part only running the block reads, behind one accessor so that it can
++    /// later live elsewhere.
++    #[inline]
++    pub(crate) fn body(&self) -> &CodeBody {
++        &self.body
++    }
++
++    /// Kitesurf: assembles a block from its two parts as the compiler finishes it, charging
++    /// it to the code counters.
++    pub(crate) fn from_parts(
++        flags: CodeBlockFlags,
++        length: u32,
++        this_mode: ThisMode,
++        name: JsString,
++        text_spanned: SpannedSourceText,
++        bytecode: Bytecode,
++        body: CodeBody,
++    ) -> Self {
++        Self {
++            flags: Cell::new(flags),
++            length,
++            this_mode,
++            name,
++            text_spanned,
++            bytecode,
++            debug_id: CodeBlock::get_next_codeblock_id(),
++            ks_charge: crate::ks_code_stats::CodeCharge::default(),
++            body: Box::new(body),
++            #[cfg(feature = "trace")]
++            traced: Cell::new(false),
++        }
++        .ks_charged()
+     }
+
+     /// Check if the function is traced.
+@@ -343,7 +406,8 @@ impl CodeBlock {
+     /// Find exception [`Handler`] in the code block given the current program counter (`pc`).
+     #[inline]
+     pub(crate) fn find_handler(&self, pc: u32) -> Option<(usize, &Handler)> {
+-        self.handlers
++        self.body()
++            .handlers
+             .iter()
+             .enumerate()
+             .rev()
+@@ -357,7 +421,7 @@ impl CodeBlock {
+     /// If the type of the [`Constant`] is not [`Constant::String`].
+     /// Or `index` is greater or equal to length of `constants`.
+     pub(crate) fn constant_string(&self, index: usize) -> JsString {
+-        if let Some(Constant::String(value)) = self.constants.get(index) {
++        if let Some(Constant::String(value)) = self.body().constants.get(index) {
+             return value.clone();
+         }
+
+@@ -371,7 +435,7 @@ impl CodeBlock {
+     /// If the type of the [`Constant`] is not [`Constant::Function`].
+     /// Or `index` is greater or equal to length of `constants`.
+     pub(crate) fn constant_function(&self, index: usize) -> Gc<Self> {
+-        if let Some(Constant::Function(value)) = self.constants.get(index) {
++        if let Some(Constant::Function(value)) = self.body().constants.get(index) {
+             return value.clone();
+         }
+
+@@ -385,7 +449,7 @@ impl CodeBlock {
+     /// If the type of the [`Constant`] is not [`Constant::Scope`].
+     /// Or `index` is greater or equal to length of `constants`.
+     pub(crate) fn constant_scope(&self, index: usize) -> Scope {
+-        if let Some(Constant::Scope(value)) = self.constants.get(index) {
++        if let Some(Constant::Scope(value)) = self.body().constants.get(index) {
+             return value.clone();
+         }
+
+@@ -393,7 +457,7 @@ impl CodeBlock {
+     }
+
+     pub(crate) fn source_info(&self) -> &SourceInfo {
+-        &self.source_info
++        &self.body().source_info
+     }
+
+     pub(crate) fn get_next_codeblock_id() -> u64 {
+@@ -693,7 +757,7 @@ impl CodeBlock {
+                 value,
+                 ic_index,
+             } => {
+-                let ic = &self.ic_names[u32::from(*ic_index) as usize].display_escaped();
++                let ic = &self.body().ic_names[u32::from(*ic_index) as usize].display_escaped();
+                 format!("dst:{dst}, value:{value}, ic:{ic}")
+             }
+             Instruction::GetPropertyByNameWithThis {
+@@ -702,7 +766,7 @@ impl CodeBlock {
+                 value,
+                 ic_index,
+             } => {
+-                let ic = &self.ic_names[u32::from(*ic_index) as usize].display_escaped();
++                let ic = &self.body().ic_names[u32::from(*ic_index) as usize].display_escaped();
+                 format!("dst:{dst}, receiver:{receiver}, value:{value}, ic:{ic}")
+             }
+             Instruction::SetPropertyByName {
+@@ -710,7 +774,7 @@ impl CodeBlock {
+                 object,
+                 ic_index,
+             } => {
+-                let ic = &self.ic_names[u32::from(*ic_index) as usize].display_escaped();
++                let ic = &self.body().ic_names[u32::from(*ic_index) as usize].display_escaped();
+                 format!("object:{object}, value:{value}, ic:{ic}")
+             }
+             Instruction::SetPropertyByNameWithThis {
+@@ -719,7 +783,7 @@ impl CodeBlock {
+                 object,
+                 ic_index,
+             } => {
+-                let ic = &self.ic_names[u32::from(*ic_index) as usize].display_escaped();
++                let ic = &self.body().ic_names[u32::from(*ic_index) as usize].display_escaped();
+                 format!("object:{object}, receiver:{receiver}, value:{value}, ic:{ic}")
+             }
+             Instruction::GetPropertyByValue {
+@@ -1023,15 +1087,15 @@ impl Display for CodeBlock {
+         writeln!(
+             f,
+             "\nRegister Count: {}, Flags: {:?}",
+-            self.register_count,
++            self.body().register_count,
+             self.flags.get()
+         )?;
+         f.write_str("Constants:")?;
+-        if self.constants.is_empty() {
++        if self.body().constants.is_empty() {
+             f.write_str(" <empty>\n")?;
+         } else {
+             f.write_char('\n')?;
+-            for (i, value) in self.constants.iter().enumerate() {
++            for (i, value) in self.body().constants.iter().enumerate() {
+                 write!(f, "    {i:04}: ")?;
+                 match value {
+                     Constant::String(v) => {
+@@ -1060,11 +1124,11 @@ impl Display for CodeBlock {
+             }
+         }
+         f.write_str("Bindings:")?;
+-        if self.bindings.is_empty() {
++        if self.body().bindings.is_empty() {
+             f.write_str(" <empty>\n")?;
+         } else {
+             f.write_char('\n')?;
+-            for (i, binding_locator) in self.bindings.iter().enumerate() {
++            for (i, binding_locator) in self.body().bindings.iter().enumerate() {
+                 writeln!(
+                     f,
+                     "    {i:04}: {}, scope: {:?}",
+@@ -1074,11 +1138,11 @@ impl Display for CodeBlock {
+             }
+         }
+         f.write_str("Handlers:")?;
+-        if self.handlers.is_empty() {
++        if self.body().handlers.is_empty() {
+             f.write_str(" <empty>\n")?;
+         } else {
+             f.write_char('\n')?;
+-            for (i, handler) in self.handlers.iter().enumerate() {
++            for (i, handler) in self.body().handlers.iter().enumerate() {
+                 writeln!(
+                     f,
+                     "    {i:04}: Range: [{:04}, {:04}): Handler: {:04}, Environment: {:02}",
+diff --git a/src/vm/mod.rs b/src/vm/mod.rs
+index c2ad792..58c695e 100644
+--- a/src/vm/mod.rs
++++ b/src/vm/mod.rs
+@@ -28,7 +28,8 @@ pub(crate) use opcode::{Instruction, InstructionIterator, Opcode};
+ pub(crate) use {
+     call_frame::CallFrameFlags,
+     code_block::{
+-        CodeBlockFlags, Constant, Handler, create_function_object, create_function_object_fast,
++        CodeBlockFlags, CodeBody, Constant, Handler, create_function_object,
++        create_function_object_fast,
+     },
+     completion_record::CompletionRecord,
+     inline_cache::InlineCache,
+@@ -199,7 +200,7 @@ impl Stack {
+     /// Get the rest arguments of the given frame.
+     pub(crate) fn pop_rest_arguments(&mut self, frame: &CallFrame) -> Option<Vec<JsValue>> {
+         let argument_count = frame.argument_count as usize;
+-        let param_count = frame.code_block().parameter_length as usize;
++        let param_count = frame.code_block().body().parameter_length as usize;
+         if argument_count < param_count {
+             return None;
+         }
+@@ -608,7 +609,7 @@ impl Vm {
+             let current_stack_length = self.stack.stack.len() as u32;
+             frame.fp = current_stack_length - frame.argument_count - CallFrame::FUNCTION_PROLOGUE;
+
+-            let register_count = frame.code_block.register_count as usize;
++            let register_count = frame.code_block.body().register_count as usize;
+             frame.rp = self.stack.stack.len() as u32;
+             self.stack.stack.resize(
+                 self.stack.stack.len() + register_count,
+@@ -625,7 +626,7 @@ impl Vm {
+
+         let current_pc = self.frame().pc;
+         self.shadow_stack
+-            .push_bytecode(current_pc, frame.code_block().source_info.clone());
++            .push_bytecode(current_pc, frame.code_block().source_info().clone());
+
+         self.frames.push(frame);
+         // Kitesurf: pinned after the push, which can allocate and so run a forced swap round:
+@@ -670,9 +671,9 @@ impl Vm {
+
+         let catch_address = handler.handler();
+         let environment_sp = frame.env_fp + handler.environment_count;
+-        // Nothing above the registers is live at a catch; only half-built calls
+-        // push there.
+-        let registers_end = frame.rp as usize + frame.code_block().register_count as usize;
++        // Kitesurf: nothing above the registers is live at a catch (only half-built calls
++        // push there), and 0.20's stack_count truncation has no register-VM equivalent.
++        let registers_end = frame.rp as usize + frame.code_block().body().register_count as usize;
+
+         // Go to handler location.
+         frame.pc = u32::from(catch_address);
+diff --git a/src/vm/opcode/arguments.rs b/src/vm/opcode/arguments.rs
+index 4708155..e5f0a7d 100644
+--- a/src/vm/opcode/arguments.rs
++++ b/src/vm/opcode/arguments.rs
+@@ -32,7 +32,7 @@ impl CreateMappedArgumentsObject {
+         };
+         let arguments = MappedArguments::new(
+             &function_object,
+-            &code.mapped_arguments_binding_indices,
++            &code.body().mapped_arguments_binding_indices,
+             args,
+             &env,
+             context,
+diff --git a/src/vm/opcode/define/mod.rs b/src/vm/opcode/define/mod.rs
+index 27477d9..fd1184e 100644
+--- a/src/vm/opcode/define/mod.rs
++++ b/src/vm/opcode/define/mod.rs
+@@ -18,7 +18,7 @@ impl DefVar {
+     #[inline(always)]
+     pub(super) fn operation(index: IndexOperand, context: &mut Context) {
+         // TODO: spec specifies to return `empty` on empty vars, but we're trying to initialize.
+-        let binding_locator = context.vm.frame().code_block.bindings[usize::from(index)].clone();
++        let binding_locator = context.vm.frame().code_block.body().bindings[usize::from(index)].clone();
+
+         {
+             let frame = context.vm.frame_mut();
+@@ -45,7 +45,7 @@ pub(crate) struct DefEvalVar;
+ impl DefEvalVar {
+     #[inline(always)]
+     pub(super) fn operation(index: IndexOperand, context: &mut Context) {
+-        let binding_locator = context.vm.frame().code_block.bindings[usize::from(index)].clone();
++        let binding_locator = context.vm.frame().code_block.body().bindings[usize::from(index)].clone();
+
+         if context.is_deleted_binding(&binding_locator) {
+             context.restore_deleted_binding(&binding_locator);
+@@ -86,7 +86,7 @@ impl DefInitVar {
+         let value = context.vm.get_register(value.into()).clone();
+         let frame = context.vm.frame();
+         let strict = frame.code_block.strict();
+-        let mut binding_locator = frame.code_block.bindings[usize::from(index)].clone();
++        let mut binding_locator = frame.code_block.body().bindings[usize::from(index)].clone();
+
+         if context.is_deleted_binding(&binding_locator) {
+             context.restore_deleted_binding(&binding_locator);
+@@ -119,7 +119,7 @@ impl PutLexicalValue {
+         context: &mut Context,
+     ) {
+         let value = context.vm.get_register(value.into()).clone();
+-        let binding_locator = context.vm.frame().code_block.bindings[usize::from(index)].clone();
++        let binding_locator = context.vm.frame().code_block.body().bindings[usize::from(index)].clone();
+         {
+             let frame = context.vm.frame_mut();
+             let global = frame.realm.environment();
+diff --git a/src/vm/opcode/delete/mod.rs b/src/vm/opcode/delete/mod.rs
+index f301e8e..b0638d8 100644
+--- a/src/vm/opcode/delete/mod.rs
++++ b/src/vm/opcode/delete/mod.rs
+@@ -97,7 +97,7 @@ impl DeleteName {
+         context: &mut Context,
+     ) -> JsResult<()> {
+         let mut binding_locator =
+-            context.vm.frame().code_block.bindings[usize::from(index)].clone();
++            context.vm.frame().code_block.body().bindings[usize::from(index)].clone();
+         context.find_runtime_binding(&mut binding_locator)?;
+         let deleted = context.delete_binding(&binding_locator)?;
+         context.vm.set_register(value.into(), deleted.into());
+diff --git a/src/vm/opcode/environment/mod.rs b/src/vm/opcode/environment/mod.rs
+index b6a4437..ee471b4 100644
+--- a/src/vm/opcode/environment/mod.rs
++++ b/src/vm/opcode/environment/mod.rs
+@@ -98,7 +98,7 @@ impl ThisForObjectEnvironmentName {
+         (dst, index): (RegisterOperand, IndexOperand),
+         context: &mut Context,
+     ) -> JsResult<()> {
+-        let binding_locator = context.vm.frame().code_block.bindings[usize::from(index)].clone();
++        let binding_locator = context.vm.frame().code_block.body().bindings[usize::from(index)].clone();
+         let this = context
+             .this_from_object_environment_binding(&binding_locator)?
+             .map_or(JsValue::undefined(), Into::into);
+diff --git a/src/vm/opcode/get/name.rs b/src/vm/opcode/get/name.rs
+index d4d5b6d..5338428 100644
+--- a/src/vm/opcode/get/name.rs
++++ b/src/vm/opcode/get/name.rs
+@@ -20,7 +20,7 @@ impl GetName {
+         context: &mut Context,
+     ) -> JsResult<()> {
+         let mut binding_locator =
+-            context.vm.frame().code_block.bindings[usize::from(index)].clone();
++            context.vm.frame().code_block.body().bindings[usize::from(index)].clone();
+         context.find_runtime_binding(&mut binding_locator)?;
+         let result = context.get_binding_live(&binding_locator)?.ok_or_else(|| {
+             let name = binding_locator.name().to_std_string_escaped();
+@@ -51,7 +51,7 @@ impl GetNameGlobal {
+         context: &mut Context,
+     ) -> JsResult<()> {
+         let mut binding_locator =
+-            context.vm.frame().code_block.bindings[usize::from(index)].clone();
++            context.vm.frame().code_block.body().bindings[usize::from(index)].clone();
+         context.find_runtime_binding(&mut binding_locator)?;
+
+         if binding_locator.is_global() {
+@@ -133,7 +133,7 @@ impl GetLocator {
+     #[inline(always)]
+     pub(crate) fn operation(index: IndexOperand, context: &mut Context) -> JsResult<()> {
+         let mut binding_locator =
+-            context.vm.frame().code_block.bindings[usize::from(index)].clone();
++            context.vm.frame().code_block.body().bindings[usize::from(index)].clone();
+         context.find_runtime_binding(&mut binding_locator)?;
+
+         context.vm.frame_mut().binding_stack.push(binding_locator);
+@@ -163,7 +163,7 @@ impl GetNameAndLocator {
+         context: &mut Context,
+     ) -> JsResult<()> {
+         let mut binding_locator =
+-            context.vm.frame().code_block.bindings[usize::from(index)].clone();
++            context.vm.frame().code_block.body().bindings[usize::from(index)].clone();
+         context.find_runtime_binding(&mut binding_locator)?;
+         let result = context.get_binding_live(&binding_locator)?.ok_or_else(|| {
+             let name = binding_locator.name().to_std_string_escaped();
+@@ -196,7 +196,7 @@ impl GetNameOrUndefined {
+         context: &mut Context,
+     ) -> JsResult<()> {
+         let mut binding_locator =
+-            context.vm.frame().code_block.bindings[usize::from(index)].clone();
++            context.vm.frame().code_block.body().bindings[usize::from(index)].clone();
+
+         let is_global = binding_locator.is_global();
+
+diff --git a/src/vm/opcode/mod.rs b/src/vm/opcode/mod.rs
+index 396d9e0..96f4fe6 100644
+--- a/src/vm/opcode/mod.rs
++++ b/src/vm/opcode/mod.rs
+@@ -71,7 +71,7 @@ pub(crate) fn null_base_error_by_name(
+     ic_index: usize,
+     context: &Context,
+ ) -> crate::JsError {
+-    let name = context.vm.frame().code_block().ic_names[ic_index].to_std_string_escaped();
++    let name = context.vm.frame().code_block().body().ic_names[ic_index].to_std_string_escaped();
+     null_base_error(value, access, &name)
+ }
+ use std::cell::{Cell, UnsafeCell};
+diff --git a/src/vm/opcode/push/literal.rs b/src/vm/opcode/push/literal.rs
+index 62d20fb..3148402 100644
+--- a/src/vm/opcode/push/literal.rs
++++ b/src/vm/opcode/push/literal.rs
+@@ -17,7 +17,7 @@ pub(crate) struct StoreLiteral;
+ impl StoreLiteral {
+     #[inline(always)]
+     pub(crate) fn operation((dst, index): (RegisterOperand, IndexOperand), context: &mut Context) {
+-        let constant = &context.vm.frame().code_block().constants[usize::from(index)];
++        let constant = &context.vm.frame().code_block().body().constants[usize::from(index)];
+         let value: JsValue = match constant {
+             Constant::BigInt(v) => v.clone().into(),
+             Constant::String(v) => v.clone().into(),
+diff --git a/src/vm/opcode/set/name.rs b/src/vm/opcode/set/name.rs
+index 79379f4..7a19f0d 100644
+--- a/src/vm/opcode/set/name.rs
++++ b/src/vm/opcode/set/name.rs
+@@ -52,7 +52,7 @@ impl SetName {
+     ) -> JsResult<()> {
+         let value = context.vm.get_register(value.into()).clone();
+         let code_block = context.vm.frame().code_block();
+-        let mut binding_locator = code_block.bindings[usize::from(index)].clone();
++        let mut binding_locator = code_block.body().bindings[usize::from(index)].clone();
+         let strict = code_block.strict();
+
+         context.find_runtime_binding(&mut binding_locator)?;
+diff --git a/src/vm/source_info/mod.rs b/src/vm/source_info/mod.rs
+index aa42c53..0354296 100644
+--- a/src/vm/source_info/mod.rs
++++ b/src/vm/source_info/mod.rs
+@@ -12,7 +12,6 @@ use boa_gc::{Finalize, Trace};
+ use boa_string::JsString;
+ pub(crate) use builder::SourceMapBuilder;
+
+-use crate::SpannedSourceText;
+
+ #[cfg(test)]
+ mod tests;
+@@ -26,16 +25,11 @@ pub(crate) struct SourceInfo {
+ }
+
+ impl SourceInfo {
+-    pub(crate) fn new(
+-        source_map: SourceMap,
+-        function_name: JsString,
+-        source_text_spanned: SpannedSourceText,
+-    ) -> Self {
++    pub(crate) fn new(source_map: SourceMap, function_name: JsString) -> Self {
+         Self {
+             inner: Rc::new(Inner {
+                 map: source_map,
+                 function_name,
+-                text_spanned: source_text_spanned,
+             }),
+         }
+     }
+@@ -48,17 +42,12 @@ impl SourceInfo {
+         &self.inner.function_name
+     }
+
+-    pub(crate) fn text_spanned(&self) -> &SpannedSourceText {
+-        &self.inner.text_spanned
+-    }
+ }
+
+ #[derive(Debug, Default, Clone)]
+ struct Inner {
+     map: SourceMap,
+     function_name: JsString,
+-
+-    text_spanned: SpannedSourceText,
+ }
+
+ /// Bytecode to source code mapping.

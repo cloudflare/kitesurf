@@ -6,4 +6,9 @@
 
 mod boa_cc_graph;
 mod boa_panic_recovery;
+mod boa_source_swap;
+mod boa_scope_lookup;
+mod boa_code_stats;
+mod boa_bytecode_swap;
+mod boa_body_swap;
 mod boa_live_marker;

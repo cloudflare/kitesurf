@@ -1,0 +1,1296 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 19 Oct 2026 17:42:10 +0100
+Subject: [PATCH] ks_body: move never-run function bodies to the code store
+
+A block that never ran has no frame and no instantiated nested function, so its body and
+everything nested in it are referenced only from its own constants. At the idle round,
+each never-run child of a block that ran leaves its body to the store, one record per
+block of its subtree, and keeps a shell (flags, length, name, toString span, bytecode)
+that function objects hold. The first read of the body fetches its record (checked by
+hash), rebuilds it, and makes each nested block a shell over its own record, so loading
+is per level, as lazy compilation would be. A subtree's scopes travel as one table in its
+root record, rebuilt under the anchor: the first scope up the chain that a block which
+ran holds. Nested blocks' bytecode store copies pass to the records and then to the
+shells rebuilt from them, so each is released once. A subtree that nests too deep, mixes
+scripts, or would hang from two scopes stays resident (bodySkips).
+---
+ src/ks_body.rs             | 685 +++++++++++++++++++++++++++++++++++++
+ src/ks_code_stats.rs       |  45 ++-
+ src/ks_swap.rs             |  55 ++-
+ src/lib.rs                 |   2 +
+ src/spanned_source_text.rs |  16 +
+ src/vm/call_frame/mod.rs   |   1 +
+ src/vm/code_block.rs       | 139 +++++++-
+ src/vm/mod.rs              |   2 +-
+ src/vm/opcode/mod.rs       |  61 ++++
+ src/vm/source_info/mod.rs  |  17 +
+ 10 files changed, 994 insertions(+), 29 deletions(-)
+ create mode 100644 src/ks_body.rs
+
+diff --git a/src/ks_body.rs b/src/ks_body.rs
+new file mode 100644
+index 0000000..25d3716
+--- /dev/null
++++ b/src/ks_body.rs
+@@ -0,0 +1,685 @@
++//! Kitesurf: moves never-run function bodies, with everything nested in them, to the code
++//! store as one record per block, and rebuilds a body (and shells for its nested blocks) on first read.
++
++use std::rc::Rc;
++
++use boa_ast::scope::{BindingLocator, KsScopeParts, Scope};
++use boa_ast::{LinearPosition, LinearSpan};
++use boa_gc::Gc;
++use boa_string::{JsStr, JsStrVariant, JsString};
++use rustc_hash::{FxHashMap, FxHashSet};
++use thin_vec::ThinVec;
++
++use crate::{
++    CodeStore, JsBigInt, SpannedSourceText,
++    builtins::function::ThisMode,
++    vm::{
++        BodyState, CodeBlock, CodeBlockFlags, CodeBody, Constant, GlobalFunctionBinding, Handler,
++        opcode::{Address, Bytecode, KsBytecodeExport},
++        source_info::{SourceInfo, SourceMap, SourcePath},
++    },
++};
++
++const VERSION: u8 = 1;
++// Kitesurf: a subtree nested deeper than this stays resident, since collecting and dumping
++// it recurse on the shadow stack.
++const MAX_DEPTH: usize = 256;
++
++/// Kitesurf: where a swapped body is in the store, and what rebuilding it needs that its
++/// record lacks: the scopes it hangs from and the script's path.
++pub(crate) struct BodyDesc {
++    key: u32,
++    len: u32,
++    hash: u32,
++    scopes: ScopeCtx,
++    path: SourcePath,
++}
++
++// Kitesurf: a subtree's root rebuilds the scope table under its anchor; the blocks below it
++// index the table the root's fault-in built.
++enum ScopeCtx {
++    Anchor(Option<Scope>),
++    Table(Rc<[Scope]>),
++}
++
++impl BodyDesc {
++    fn new(key: u32, len: u32, hash: u32, scopes: ScopeCtx, path: SourcePath) -> Self {
++        crate::ks_code_stats::update(|s| s.bodies_swapped += 1);
++        Self { key, len, hash, scopes, path }
++    }
++}
++
++impl Drop for BodyDesc {
++    fn drop(&mut self) {
++        crate::ks_code_stats::update(|s| s.bodies_swapped -= 1);
++        if let Some(store) = crate::ks_code_store::current() {
++            store.release(self.key, self.len as usize);
++        }
++    }
++}
++
++fn fnv1a(bytes: &[u8]) -> u32 {
++    bytes
++        .iter()
++        .fold(0x811c_9dc5_u32, |h, &b| (h ^ u32::from(b)).wrapping_mul(0x0100_0193))
++}
++
++#[derive(Default)]
++struct Writer {
++    out: Vec<u8>,
++}
++
++impl Writer {
++    fn u8(&mut self, v: u8) {
++        self.out.push(v);
++    }
++    fn var(&mut self, mut v: u64) {
++        while v >= 0x80 {
++            self.out.push((v as u8) | 0x80);
++            v >>= 7;
++        }
++        self.out.push(v as u8);
++    }
++    fn u32(&mut self, v: u32) {
++        self.var(u64::from(v));
++    }
++    fn bytes(&mut self, b: &[u8]) {
++        self.u32(b.len() as u32);
++        self.out.extend_from_slice(b);
++    }
++}
++
++struct Reader<'a> {
++    buf: &'a [u8],
++    pos: usize,
++}
++
++impl Reader<'_> {
++    fn u8(&mut self) -> u8 {
++        let v = self.buf[self.pos];
++        self.pos += 1;
++        v
++    }
++    fn var(&mut self) -> u64 {
++        let (mut v, mut shift) = (0u64, 0);
++        loop {
++            let b = self.u8();
++            v |= u64::from(b & 0x7f) << shift;
++            if b & 0x80 == 0 {
++                return v;
++            }
++            shift += 7;
++        }
++    }
++    fn u32(&mut self) -> u32 {
++        self.var() as u32
++    }
++    fn bytes(&mut self) -> &[u8] {
++        let n = self.u32() as usize;
++        let b = &self.buf[self.pos..self.pos + n];
++        self.pos += n;
++        b
++    }
++}
++
++// The strings a record uses, each written once ahead of the record's body and named by
++// its position from then on.
++#[derive(Default)]
++struct Strings {
++    index: FxHashMap<JsString, u32>,
++    order: Vec<JsString>,
++}
++
++impl Strings {
++    fn id(&mut self, s: &JsString) -> u32 {
++        if let Some(&i) = self.index.get(s) {
++            return i;
++        }
++        let i = self.order.len() as u32;
++        self.index.insert(s.clone(), i);
++        self.order.push(s.clone());
++        i
++    }
++    fn write(&self, w: &mut Writer) {
++        w.u32(self.order.len() as u32);
++        for s in &self.order {
++            match s.as_str().variant() {
++                JsStrVariant::Latin1(b) => {
++                    w.u8(0);
++                    w.bytes(b);
++                }
++                JsStrVariant::Utf16(units) => {
++                    w.u8(1);
++                    w.u32(units.len() as u32);
++                    for &u in units {
++                        w.out.extend_from_slice(&u.to_le_bytes());
++                    }
++                }
++            }
++        }
++    }
++    fn read(r: &mut Reader<'_>) -> Vec<JsString> {
++        let n = r.u32() as usize;
++        let mut out = Vec::with_capacity(n);
++        for _ in 0..n {
++            if r.u8() == 0 {
++                out.push(JsString::from(JsStr::latin1(r.bytes())));
++            } else {
++                let len = r.u32() as usize;
++                let raw = &r.buf[r.pos..r.pos + len * 2];
++                r.pos += len * 2;
++                let units: Vec<u16> = raw.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
++                out.push(JsString::from(JsStr::utf16(&units)));
++            }
++        }
++        out
++    }
++}
++
++fn this_mode_tag(mode: &ThisMode) -> u8 {
++    match mode {
++        ThisMode::Lexical => 0,
++        ThisMode::Strict => 1,
++        ThisMode::Global => 2,
++    }
++}
++
++fn this_mode_of(tag: u8) -> ThisMode {
++    match tag {
++        0 => ThisMode::Lexical,
++        1 => ThisMode::Strict,
++        _ => ThisMode::Global,
++    }
++}
++
++// What a parent's record says about a nested block: its own record, and where its
++// bytecode is, which the shell a fault-in builds will own.
++struct ChildRecord {
++    key: u32,
++    len: u32,
++    hash: u32,
++    bytecode: (KsBytecodeExport, u32),
++}
++
++// The scope table of a subtree, outer scopes first, keyed by identity: only the root's
++// record carries it, and the blocks under the root index it.
++struct ScopeTable {
++    scopes: Vec<Scope>,
++    index: FxHashMap<usize, u32>,
++    anchor: Option<Scope>,
++}
++
++impl ScopeTable {
++    // Every scope the subtree's constants hold, plus those between them and the anchor.
++    // None when the chains leave the subtree at more than one scope, or reach the top.
++    fn build(blocks: &[&CodeBlock], outside: &FxHashSet<usize>) -> Option<Self> {
++        let is_outside = |s: &Scope| s.is_global() || outside.contains(&s.ks_ptr());
++        let mut found: FxHashMap<usize, Scope> = FxHashMap::default();
++        let mut anchor: Option<Scope> = None;
++        for block in blocks {
++            for constant in &block.resident_body()?.constants {
++                let Constant::Scope(scope) = constant else { continue };
++                if is_outside(scope) {
++                    return None;
++                }
++                let mut cur = Some(scope.clone());
++                while let Some(s) = cur {
++                    if found.contains_key(&s.ks_ptr()) {
++                        break;
++                    }
++                    if is_outside(&s) {
++                        match &anchor {
++                            Some(a) if a.ks_ptr() != s.ks_ptr() => return None,
++                            Some(_) => {}
++                            None => anchor = Some(s),
++                        }
++                        break;
++                    }
++                    cur = s.outer().cloned();
++                    if cur.is_none() {
++                        return None;
++                    }
++                    found.insert(s.ks_ptr(), s);
++                }
++            }
++        }
++        let depth = |s: &Scope| {
++            let mut d = 0usize;
++            let mut cur = s.outer();
++            while let Some(o) = cur {
++                d += 1;
++                cur = o.outer();
++            }
++            d
++        };
++        let mut scopes: Vec<Scope> = found.into_values().collect();
++        scopes.sort_by_cached_key(|s| (depth(s), s.unique_id()));
++        let index = scopes.iter().enumerate().map(|(i, s)| (s.ks_ptr(), i as u32)).collect();
++        Some(Self { scopes, index, anchor })
++    }
++
++    // How an entry names its outer scope: 0 for none, 1 for the anchor, 2 + i for the
++    // table's scope i, which sorting outer-first has already rebuilt.
++    fn outer_ref(&self, scope: &Scope) -> u32 {
++        match scope.outer() {
++            None => 0,
++            Some(o) if self.anchor.as_ref().is_some_and(|a| a.ks_ptr() == o.ks_ptr()) => 1,
++            Some(o) => 2 + self.index[&o.ks_ptr()],
++        }
++    }
++
++    fn write(&self, w: &mut Writer, strings: &mut Strings) {
++        w.u32(self.scopes.len() as u32);
++        for scope in &self.scopes {
++            let parts = scope.ks_parts();
++            w.u32(self.outer_ref(scope));
++            w.u32(parts.unique_id);
++            w.u32(parts.index);
++            w.u8(u8::from(parts.function) | (u8::from(parts.this_escaped) << 1));
++            w.u32(parts.bindings.len() as u32);
++            for (name, index, flags) in &parts.bindings {
++                w.u32(strings.id(name));
++                w.u32(*index);
++                w.u8(*flags);
++            }
++        }
++    }
++
++    fn read(r: &mut Reader<'_>, strings: &[JsString], anchor: Option<&Scope>) -> Vec<Scope> {
++        let n = r.u32() as usize;
++        let mut scopes: Vec<Scope> = Vec::with_capacity(n);
++        for _ in 0..n {
++            let outer = match r.u32() {
++                0 => None,
++                1 => anchor.cloned(),
++                i => Some(scopes[i as usize - 2].clone()),
++            };
++            let unique_id = r.u32();
++            let index = r.u32();
++            let flags = r.u8();
++            let count = r.u32() as usize;
++            let bindings = (0..count)
++                .map(|_| (strings[r.u32() as usize].clone(), r.u32(), r.u8()))
++                .collect();
++            let parts = KsScopeParts {
++                unique_id,
++                index,
++                function: flags & 1 != 0,
++                this_escaped: flags & 2 != 0,
++                bindings,
++            };
++            scopes.push(Scope::ks_rebuild(outer, parts));
++        }
++        scopes
++    }
++}
++
++fn write_body(
++    block: &CodeBlock,
++    body: &CodeBody,
++    children: &FxHashMap<usize, ChildRecord>,
++    table: &ScopeTable,
++    w: &mut Writer,
++    strings: &mut Strings,
++) {
++    w.u32(body.parameter_length);
++    w.u32(body.register_count);
++    w.u32(body.mapped_arguments_binding_indices.len() as u32);
++    for i in &body.mapped_arguments_binding_indices {
++        w.u32(i.map_or(0, |i| i + 1));
++    }
++    w.u32(body.constants.len() as u32);
++    for constant in &body.constants {
++        match constant {
++            Constant::String(s) => {
++                w.u8(0);
++                w.u32(strings.id(s));
++            }
++            Constant::Function(child) => {
++                let rec = &children[&(std::ptr::from_ref::<CodeBlock>(child) as usize)];
++                w.u8(1);
++                w.u32(rec.key);
++                w.u32(rec.len);
++                w.u32(rec.hash);
++                w.u32(u32::from((child.flags.get() - CodeBlockFlags::KS_RAN).bits()));
++                w.u32(child.length);
++                w.u8(this_mode_tag(&child.this_mode));
++                w.u32(strings.id(&child.name));
++                match child.text_spanned.span() {
++                    Some(span) => {
++                        w.u8(1);
++                        w.var(span.start().pos() as u64);
++                        w.var(span.end().pos() as u64);
++                    }
++                    None => w.u8(0),
++                }
++                w.var(child.debug_id);
++                match &rec.bytecode.0 {
++                    KsBytecodeExport::Desc { key, len, hash } => {
++                        w.u8(0);
++                        w.u32(*key);
++                        w.u32(*len);
++                        w.u32(*hash);
++                    }
++                    KsBytecodeExport::Inline(bytes) => {
++                        w.u8(1);
++                        w.bytes(bytes);
++                    }
++                }
++                w.u32(rec.bytecode.1);
++            }
++            Constant::BigInt(n) => {
++                w.u8(2);
++                w.bytes(n.to_string_radix(10).as_bytes());
++            }
++            Constant::Scope(s) => {
++                w.u8(3);
++                w.u32(table.index[&s.ks_ptr()]);
++            }
++        }
++    }
++    w.u32(body.bindings.len() as u32);
++    for locator in &body.bindings {
++        let (name, scope, index, unique) = locator.ks_parts();
++        w.u32(strings.id(name));
++        w.u32(scope);
++        w.u32(index);
++        w.u32(unique);
++    }
++    w.u32(body.handlers.len() as u32);
++    for h in &body.handlers {
++        w.u32(u32::from(h.start));
++        w.u32(u32::from(h.end));
++        w.u32(h.environment_count);
++    }
++    w.u32(body.ic_names.len() as u32);
++    for name in &body.ic_names {
++        w.u32(strings.id(name));
++    }
++    let (data, checkpoints) = body.source_info.map().ks_parts();
++    w.bytes(data);
++    let checkpoints: Vec<[u32; 4]> = checkpoints.collect();
++    w.u32(checkpoints.len() as u32);
++    for c in checkpoints {
++        c.iter().for_each(|&v| w.u32(v));
++    }
++    w.u32(body.global_lexs.len() as u32);
++    body.global_lexs.iter().for_each(|&v| w.u32(v));
++    w.u32(body.global_fns.len() as u32);
++    for f in &body.global_fns {
++        w.u32(f.name_index);
++        w.u32(f.function_index);
++    }
++    w.u32(body.global_vars.len() as u32);
++    body.global_vars.iter().for_each(|&v| w.u32(v));
++    let _ = block;
++}
++
++// A record: version, whether it carries the scope table, the strings, the table, then
++// the body. Only a subtree's root record carries the table.
++fn record(
++    block: &CodeBlock,
++    body: &CodeBody,
++    children: &FxHashMap<usize, ChildRecord>,
++    table: &ScopeTable,
++    with_table: bool,
++) -> Vec<u8> {
++    let mut strings = Strings::default();
++    let mut scopes = Writer::default();
++    if with_table {
++        table.write(&mut scopes, &mut strings);
++    }
++    let mut rest = Writer::default();
++    write_body(block, body, children, table, &mut rest, &mut strings);
++    let mut w = Writer::default();
++    w.u8(VERSION);
++    w.u8(u8::from(with_table));
++    strings.write(&mut w);
++    w.out.extend_from_slice(&scopes.out);
++    w.out.extend_from_slice(&rest.out);
++    w.out
++}
++
++fn collect<'a>(block: &'a CodeBlock, out: &mut Vec<&'a CodeBlock>, depth: usize) -> bool {
++    if depth > MAX_DEPTH {
++        return false;
++    }
++    out.push(block);
++    let Some(body) = block.resident_body() else {
++        return false;
++    };
++    for constant in &body.constants {
++        if let Constant::Function(child) = constant {
++            if child.ks_ran() || !collect(child, out, depth + 1) {
++                return false;
++            }
++        }
++    }
++    true
++}
++
++/// Kitesurf: moves never-run `block`'s body and everything nested in it to `store`, leaving
++/// a shell. `outside` holds the scopes of the blocks above it that ran. Returns the records.
++pub(crate) fn swap_out(block: &CodeBlock, store: &dyn CodeStore, outside: &FxHashSet<usize>) -> usize {
++    let skip = || {
++        crate::ks_code_stats::update(|s| s.body_skips += 1);
++        0
++    };
++    if block.ks_ran() {
++        return 0;
++    }
++    let mut blocks = Vec::new();
++    if block.resident_body().is_none() || !collect(block, &mut blocks, 0) {
++        return skip();
++    }
++    let path = block.body().source_info.map().path().clone();
++    for nested in &blocks[1..] {
++        if !nested.text_spanned.ks_same_source(&block.text_spanned)
++            || *nested.body().source_info.map().path() != path
++        {
++            return skip();
++        }
++    }
++    let Some(table) = ScopeTable::build(&blocks, outside) else {
++        return skip();
++    };
++    // Children before their parents, so each parent's record names its children's keys. A
++    // failed put leaves every block as it was; what went to the store is never read.
++    let mut children: FxHashMap<usize, ChildRecord> = FxHashMap::default();
++    let mut root: Option<(u32, u32, u32)> = None;
++    let mut written = 0usize;
++    for (i, b) in blocks.iter().enumerate().rev() {
++        let body = b.body();
++        let bytes = record(b, body, &children, &table, i == 0);
++        let hash = fnv1a(&bytes);
++        let Some(key) = store.put(&bytes) else {
++            return skip();
++        };
++        written += bytes.len();
++        if i == 0 {
++            root = Some((key, bytes.len() as u32, hash));
++        } else {
++            let Some(bytecode) = b.bytecode.ks_export(store) else {
++                return skip();
++            };
++            children.insert(
++                std::ptr::from_ref::<CodeBlock>(b) as usize,
++                ChildRecord { key, len: bytes.len() as u32, hash, bytecode },
++            );
++        }
++    }
++    let Some((key, len, hash)) = root else {
++        return skip();
++    };
++    for b in &blocks[1..] {
++        b.bytecode.ks_disown();
++    }
++    let n = blocks.len() as i64;
++    let desc = BodyDesc::new(key, len, hash, ScopeCtx::Anchor(table.anchor.clone()), path);
++    drop(blocks);
++    drop(children);
++    // SAFETY: an idle round runs no JS, and the references taken above are gone; the block
++    // never ran, so no frame holds its body either.
++    let old = unsafe { block.replace_body(BodyState::Swapped(Box::new(desc))) };
++    block.ks_charge.recharge(CodeBlock::ks_shell_bytes(), 0);
++    drop(old);
++    crate::ks_code_stats::update(|s| {
++        s.body_records += n;
++        s.body_record_bytes += crate::ks_code_stats::bytes(written);
++    });
++    written
++}
++
++#[cold]
++#[inline(never)]
++pub(crate) fn fault_in(block: &CodeBlock) -> &CodeBody {
++    let Some(desc) = block.body_desc() else {
++        return block.resident_body().expect("a block's body is resident or swapped");
++    };
++    let mut bytes = Vec::new();
++    let ok = crate::ks_code_store::current().is_some_and(|store| {
++        store.read(desc.key, 0, desc.len as usize, &mut bytes)
++            && bytes.len() == desc.len as usize
++            && fnv1a(&bytes) == desc.hash
++    });
++    if !ok {
++        crate::ks_code_stats::update(|s| s.store_failures += 1);
++        panic!("kitesurf: a swapped function body could not be read back intact");
++    }
++    let path = desc.path.clone();
++    let mut r = Reader { buf: &bytes, pos: 0 };
++    assert_eq!(r.u8(), VERSION, "kitesurf: a body record of another version");
++    let with_table = r.u8() != 0;
++    let strings = Strings::read(&mut r);
++    let table: Rc<[Scope]> = match (&desc.scopes, with_table) {
++        (ScopeCtx::Anchor(anchor), true) => ScopeTable::read(&mut r, &strings, anchor.as_ref()).into(),
++        (ScopeCtx::Table(table), false) => table.clone(),
++        _ => panic!("kitesurf: a body record that does not match its descriptor"),
++    };
++    let body = read_body(block, &mut r, &strings, &table, &path);
++    let fixed = size_of::<CodeBlock>() + body.ks_fixed_bytes();
++    let map = body.source_info.map().ks_heap_bytes();
++    // SAFETY: the body was swapped, so no reference into it exists, and `desc` (the only
++    // reference taken above) is not used past this point.
++    let old = unsafe { block.replace_body(BodyState::Resident(Box::new(body))) };
++    drop(old);
++    block.ks_charge.recharge(fixed, map);
++    crate::ks_code_stats::update(|s| s.body_faults += 1);
++    block.resident_body().expect("installed just above")
++}
++
++fn read_body(block: &CodeBlock, r: &mut Reader<'_>, strings: &[JsString], table: &Rc<[Scope]>, path: &SourcePath) -> CodeBody {
++    let parameter_length = r.u32();
++    let register_count = r.u32();
++    let mapped_arguments_binding_indices = (0..r.u32())
++        .map(|_| r.u32().checked_sub(1))
++        .collect::<ThinVec<_>>();
++    let n = r.u32() as usize;
++    let mut constants = ThinVec::with_capacity(n);
++    for _ in 0..n {
++        let constant = match r.u8() {
++            0 => Constant::String(strings[r.u32() as usize].clone()),
++            1 => {
++                let (key, len, hash) = (r.u32(), r.u32(), r.u32());
++                let flags = CodeBlockFlags::from_bits_retain(r.u32() as u16);
++                let length = r.u32();
++                let this_mode = this_mode_of(r.u8());
++                let name = strings[r.u32() as usize].clone();
++                let span = (r.u8() != 0).then(|| {
++                    let start = LinearPosition::new(r.var() as usize);
++                    LinearSpan::new(start, LinearPosition::new(r.var() as usize))
++                });
++                let debug_id = r.var();
++                let export = if r.u8() == 0 {
++                    KsBytecodeExport::Desc { key: r.u32(), len: r.u32(), hash: r.u32() }
++                } else {
++                    KsBytecodeExport::Inline(r.bytes().into())
++                };
++                let bytecode = Bytecode::ks_import(export, r.u32());
++                let desc = BodyDesc::new(key, len, hash, ScopeCtx::Table(table.clone()), path.clone());
++                let text = SpannedSourceText::new(block.text_spanned.source_text(), span);
++                Constant::Function(Gc::new(CodeBlock::ks_shell(
++                    flags, length, this_mode, name, text, bytecode, debug_id, desc,
++                )))
++            }
++            2 => {
++                let digits = std::str::from_utf8(r.bytes()).unwrap_or_default();
++                Constant::BigInt(JsBigInt::from_string(digits).expect("a stored BigInt"))
++            }
++            _ => Constant::Scope(table[r.u32() as usize].clone()),
++        };
++        constants.push(constant);
++    }
++    let bindings = (0..r.u32())
++        .map(|_| {
++            let name = strings[r.u32() as usize].clone();
++            BindingLocator::ks_from_parts(name, r.u32(), r.u32(), r.u32())
++        })
++        .collect::<Box<[_]>>();
++    let handlers = (0..r.u32())
++        .map(|_| Handler {
++            start: Address::from(r.u32()),
++            end: Address::from(r.u32()),
++            environment_count: r.u32(),
++        })
++        .collect::<ThinVec<_>>();
++    let ic_names = (0..r.u32())
++        .map(|_| strings[r.u32() as usize].clone())
++        .collect::<Box<[_]>>();
++    let data: Box<[u8]> = r.bytes().into();
++    let checkpoints: Vec<[u32; 4]> = (0..r.u32()).map(|_| [r.u32(), r.u32(), r.u32(), r.u32()]).collect();
++    let source_info = SourceInfo::new(SourceMap::ks_from_parts(data, &checkpoints, path.clone()), block.name.clone());
++    let global_lexs = (0..r.u32()).map(|_| r.u32()).collect::<Box<[_]>>();
++    let global_fns = (0..r.u32())
++        .map(|_| GlobalFunctionBinding { name_index: r.u32(), function_index: r.u32() })
++        .collect::<Box<[_]>>();
++    let global_vars = (0..r.u32()).map(|_| r.u32()).collect::<Box<[_]>>();
++    CodeBody {
++        parameter_length,
++        register_count,
++        mapped_arguments_binding_indices,
++        constants,
++        bindings,
++        handlers,
++        ic_names,
++        ic: std::cell::OnceCell::new(),
++        source_info,
++        global_lexs,
++        global_fns,
++        global_vars,
++    }
++}
++
++/// Kitesurf: a compiled tree as text (each block's disassembly and its scopes' parts),
++/// fetching swapped bodies; tests compare a swapped tree with one that never left memory.
++#[doc(hidden)]
++#[must_use]
++pub fn ks_debug_dump(block: &CodeBlock) -> String {
++    let mut out = String::new();
++    dump(block, &mut out, 0);
++    out
++}
++
++fn dump(block: &CodeBlock, out: &mut String, depth: usize) {
++    use std::fmt::Write;
++    let _ = write!(out, "{block}");
++    for constant in &block.body().constants {
++        if let Constant::Scope(scope) = constant {
++            let parts = scope.ks_parts();
++            let mut chain = 0;
++            let mut cur = scope.outer();
++            while let Some(o) = cur {
++                chain += 1;
++                cur = o.outer();
++            }
++            let _ = writeln!(out, "scope depth {chain}: {parts:?}");
++        }
++    }
++    if depth < MAX_DEPTH {
++        for constant in &block.body().constants {
++            if let Constant::Function(child) = constant {
++                dump(child, out, depth + 1);
++            }
++        }
++    }
++}
+diff --git a/src/ks_code_stats.rs b/src/ks_code_stats.rs
+index 5b29808..590aec1 100644
+--- a/src/ks_code_stats.rs
++++ b/src/ks_code_stats.rs
+@@ -24,6 +24,11 @@ pub(crate) struct Stats {
+     pub(crate) ic_bytes: i64,
+     pub(crate) source_map_bytes: i64,
+     pub(crate) other_bytes: i64,
++    pub(crate) bodies_swapped: i64,
++    pub(crate) body_faults: i64,
++    pub(crate) body_records: i64,
++    pub(crate) body_record_bytes: i64,
++    pub(crate) body_skips: i64,
+ }
+
+ impl Stats {
+@@ -47,6 +52,11 @@ impl Stats {
+         ic_bytes: 0,
+         source_map_bytes: 0,
+         other_bytes: 0,
++        bodies_swapped: 0,
++        body_faults: 0,
++        body_records: 0,
++        body_record_bytes: 0,
++        body_skips: 0,
+     };
+ }
+
+@@ -71,7 +81,7 @@ pub(crate) fn bytes(n: usize) -> i64 {
+ /// Kitesurf: live compiled code as (name, value) pairs: blocks, source texts and bytecode by
+ /// form (resident, swapped, expanded), store traffic and swap rounds. Shared strings uncounted.
+ #[must_use]
+-pub fn ks_code_stats() -> [(&'static str, i64); 19] {
++pub fn ks_code_stats() -> [(&'static str, i64); 24] {
+     let s = STATS.try_with(Cell::get).unwrap_or(Stats::ZERO);
+     [
+         ("blocks", s.blocks),
+@@ -93,6 +103,11 @@ pub fn ks_code_stats() -> [(&'static str, i64); 19] {
+         ("icBytes", s.ic_bytes),
+         ("sourceMapBytes", s.source_map_bytes),
+         ("otherBytes", s.other_bytes),
++        ("bodiesSwapped", s.bodies_swapped),
++        ("bodyFaults", s.body_faults),
++        ("bodyRecords", s.body_records),
++        ("bodyRecordBytes", s.body_record_bytes),
++        ("bodySkips", s.body_skips),
+     ]
+ }
+
+@@ -101,8 +116,8 @@ pub fn ks_code_stats() -> [(&'static str, i64); 19] {
+ #[derive(Debug, Default)]
+ pub(crate) struct CodeCharge {
+     counted: bool,
+-    fixed: i64,
+-    map: i64,
++    fixed: Cell<i64>,
++    map: Cell<i64>,
+     ic: Cell<i64>,
+ }
+
+@@ -120,12 +135,26 @@ impl CodeCharge {
+         });
+         Self {
+             counted: true,
+-            fixed,
+-            map,
++            fixed: Cell::new(fixed),
++            map: Cell::new(map),
+             ic: Cell::new(ic),
+         }
+     }
+
++    /// Kitesurf: moves the charge to new sizes, as a body leaves memory or comes back; the
++    /// block's count and its inline caches stay as they are.
++    pub(crate) fn recharge(&self, fixed: usize, map: usize) {
++        if !self.counted {
++            return;
++        }
++        let (fixed, map) = (bytes(fixed), bytes(map));
++        let (old_fixed, old_map) = (self.fixed.replace(fixed), self.map.replace(map));
++        update(|s| {
++            s.other_bytes += fixed - old_fixed;
++            s.source_map_bytes += map - old_map;
++        });
++    }
++
+     pub(crate) fn charge_ic(&self, n: usize) {
+         if !self.counted {
+             return;
+@@ -141,7 +170,7 @@ impl Clone for CodeCharge {
+         if !self.counted {
+             return Self::default();
+         }
+-        Self::charge(self.fixed, self.map, self.ic.get())
++        Self::charge(self.fixed.get(), self.map.get(), self.ic.get())
+     }
+ }
+
+@@ -153,8 +182,8 @@ impl Drop for CodeCharge {
+         let ic = self.ic.get();
+         update(|s| {
+             s.blocks -= 1;
+-            s.other_bytes -= self.fixed;
+-            s.source_map_bytes -= self.map;
++            s.other_bytes -= self.fixed.get();
++            s.source_map_bytes -= self.map.get();
+             s.ic_bytes -= ic;
+         });
+     }
+diff --git a/src/ks_swap.rs b/src/ks_swap.rs
+index a49fb43..e03406d 100644
+--- a/src/ks_swap.rs
++++ b/src/ks_swap.rs
+@@ -84,7 +84,7 @@ impl Drop for RoundGuard {
+
+ // Kitesurf: swaps every packed block of the tree and stores a copy of each function that
+ // already ran, which then counts as flushable; run-once top-level code is not worth one.
+-fn walk(block: &CodeBlock, store: &dyn crate::CodeStore, keep_expanded: bool, depth: usize) -> usize {
++fn walk_packed(block: &CodeBlock, store: &dyn crate::CodeStore, keep_expanded: bool, depth: usize) -> usize {
+     if depth > MAX_DEPTH {
+         return 0;
+     }
+@@ -92,9 +92,55 @@ fn walk(block: &CodeBlock, store: &dyn crate::CodeStore, keep_expanded: bool, de
+     if keep_expanded {
+         block.bytecode.store_expanded(store);
+     }
+-    for constant in &block.body().constants {
++    let Some(body) = block.resident_body() else {
++        return freed;
++    };
++    for constant in &body.constants {
+         if let Constant::Function(inner) = constant {
+-            freed += walk(inner, store, true, depth + 1);
++            freed += walk_packed(inner, store, true, depth + 1);
++        }
++    }
++    freed
++}
++
++// Kitesurf: as `walk_packed`, but a nested block that never ran leaves its whole body to the
++// store (crate::ks_body); `outside` gathers the scopes of the blocks walked through, which ran.
++fn walk(
++    block: &CodeBlock,
++    store: &dyn crate::CodeStore,
++    keep_expanded: bool,
++    depth: usize,
++    outside: &mut FxHashSet<usize>,
++) -> usize {
++    if depth > MAX_DEPTH {
++        return 0;
++    }
++    let mut freed = block.bytecode.swap_packed(store);
++    if keep_expanded {
++        block.bytecode.store_expanded(store);
++    }
++    let Some(body) = block.resident_body() else {
++        return freed;
++    };
++    for constant in &body.constants {
++        if let Constant::Scope(scope) = constant {
++            let mut cur = Some(scope.clone());
++            while let Some(s) = cur {
++                if !outside.insert(s.ks_ptr()) {
++                    break;
++                }
++                cur = s.outer().cloned();
++            }
++        }
++    }
++    for constant in &body.constants {
++        let Constant::Function(inner) = constant else { continue };
++        if inner.ks_ran() {
++            freed += walk(inner, store, true, depth + 1, outside);
++        } else if inner.resident_body().is_some() {
++            freed += inner.bytecode.swap_packed(store);
++            let moved = crate::ks_body::swap_out(inner, store, outside);
++            freed += if moved > 0 { moved } else { walk_packed(inner, store, true, depth + 1) };
+         }
+     }
+     freed
+@@ -115,7 +161,8 @@ pub fn ks_swap_at_idle() -> usize {
+         .unwrap_or_default();
+     for (weak, is_function) in &roots {
+         if let Some(root) = weak.upgrade() {
+-            swapped += usize::from(walk(&root, &*store, *is_function, 0) > 0);
++            let mut outside = FxHashSet::default();
++            swapped += usize::from(walk(&root, &*store, *is_function, 0, &mut outside) > 0);
+         }
+     }
+     if swapped > 0 || !roots.is_empty() {
+diff --git a/src/lib.rs b/src/lib.rs
+index ccad2f7..a072404 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -109,6 +109,8 @@ mod sys;
+
+ mod ks_code_stats;
+ pub use ks_code_stats::ks_code_stats;
++mod ks_body;
++pub use ks_body::ks_debug_dump;
+
+ mod ks_code_store;
+ pub use ks_code_store::{CodeStore, ks_set_code_store};
+diff --git a/src/spanned_source_text.rs b/src/spanned_source_text.rs
+index a6dd1a8..85cc14e 100644
+--- a/src/spanned_source_text.rs
++++ b/src/spanned_source_text.rs
+@@ -252,6 +252,22 @@ impl SpannedSourceText {
+         self.source_text.clone()
+     }
+
++    /// Kitesurf: the span alone, for an embedder that rebuilds this text from its parts
++    /// around a source text it already holds.
++    pub(crate) fn span(&self) -> Option<LinearSpan> {
++        self.span
++    }
++
++    /// Kitesurf: whether `other` points into the same source text, which the blocks of
++    /// one swapped subtree must share.
++    pub(crate) fn ks_same_source(&self, other: &Self) -> bool {
++        match (&self.source_text.source_text, &other.source_text.source_text) {
++            (Some(a), Some(b)) => Rc::ptr_eq(a, b),
++            (None, None) => true,
++            _ => false,
++        }
++    }
++
+     /// Test if the span is empty.
+     #[inline]
+     #[must_use]
+diff --git a/src/vm/call_frame/mod.rs b/src/vm/call_frame/mod.rs
+index db42fed..8c02a60 100644
+--- a/src/vm/call_frame/mod.rs
++++ b/src/vm/call_frame/mod.rs
+@@ -141,6 +141,7 @@ impl CallFrame {
+         environments: EnvironmentStack,
+         realm: Realm,
+     ) -> Self {
++        code_block.ks_mark_ran();
+         Self {
+             pc: 0,
+             fp: 0,
+diff --git a/src/vm/code_block.rs b/src/vm/code_block.rs
+index d553a5d..41383dc 100644
+--- a/src/vm/code_block.rs
++++ b/src/vm/code_block.rs
+@@ -12,9 +12,9 @@ use crate::{
+ };
+ use bitflags::bitflags;
+ use boa_ast::scope::{BindingLocator, Scope};
+-use boa_gc::{Finalize, Gc, Trace, empty_trace};
++use boa_gc::{Finalize, Gc, Trace, custom_trace, empty_trace};
+ use itertools::Itertools;
+-use std::{cell::Cell, cell::OnceCell, fmt::Display, fmt::Write as _};
++use std::{cell::Cell, cell::OnceCell, cell::UnsafeCell, fmt::Display, fmt::Write as _};
+ use thin_vec::ThinVec;
+
+ use super::{
+@@ -51,6 +51,10 @@ bitflags! {
+         /// If the function requires a function scope.
+         const HAS_FUNCTION_SCOPE = 0b1_0000_0000;
+
++        /// Kitesurf: a frame of this block was ever pushed. Only a block that never ran can
++        /// leave its body to the code store: no frame and no nested function hold it yet.
++        const KS_RAN = 0b10_0000_0000;
++
+         /// Trace instruction execution to `stdout`.
+         #[cfg(feature = "trace")]
+         const TRACEABLE = 0b1000_0000_0000_0000;
+@@ -123,9 +127,8 @@ pub(crate) struct GlobalFunctionBinding {
+ /// A `CodeBlock` is generated for each function compiled by the
+ /// [`ByteCompiler`](crate::bytecompiler::ByteCompiler). It stores the bytecode and the other
+ /// attributes of the function.
+-#[derive(Debug, Trace, Finalize)]
++#[derive(Finalize)]
+ pub struct CodeBlock {
+-    #[unsafe_ignore_trace]
+     pub(crate) flags: Cell<CodeBlockFlags>,
+
+     /// The number of arguments expected.
+@@ -140,11 +143,9 @@ pub struct CodeBlock {
+
+     /// The function's source text, for `Function.prototype.toString`, its only reader,
+     /// which so never needs the body.
+-    #[unsafe_ignore_trace]
+     pub(crate) text_spanned: SpannedSourceText,
+
+     /// Bytecode
+-    #[unsafe_ignore_trace]
+     pub(crate) bytecode: Bytecode,
+
+     // Used for identifying anonymous functions in compiled output and call frames.
+@@ -152,18 +153,45 @@ pub struct CodeBlock {
+
+     // Kitesurf: this block's share of the code counters (crate::ks_code_stats), refunded
+     // when it drops; `ks_charged` sets it once the block's parts are in place.
+-    #[unsafe_ignore_trace]
+     pub(crate) ks_charge: crate::ks_code_stats::CodeCharge,
+
+-    // Kitesurf: what only running the block reads; the fields above are what making a
+-    // function object, printing its source and running its bytecode need.
+-    body: Box<CodeBody>,
++    // Kitesurf: resident, or in the code store (crate::ks_body); see `replace_body` for when
++    // it may change, which is what makes the references `body()` hands out sound.
++    body: UnsafeCell<BodyState>,
+
+     #[cfg(feature = "trace")]
+-    #[unsafe_ignore_trace]
+     pub(crate) traced: Cell<bool>,
+ }
+
++/// Kitesurf: where a block's body is: in memory, or in the code store under a
++/// descriptor (crate::ks_body).
++pub(crate) enum BodyState {
++    Resident(Box<CodeBody>),
++    Swapped(Box<crate::ks_body::BodyDesc>),
++}
++
++// SAFETY: the shell holds no GC pointers; a resident body is traced, a swapped one has its
++// edges in the store. A fault-in installs the body only once it is complete.
++unsafe impl Trace for CodeBlock {
++    custom_trace!(this, mark, {
++        if let Some(body) = this.resident_body() {
++            mark(body);
++        }
++    });
++}
++
++impl std::fmt::Debug for CodeBlock {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        f.debug_struct("CodeBlock")
++            .field("name", &self.name)
++            .field("length", &self.length)
++            .field("flags", &self.flags.get())
++            .field("bytecode", &self.bytecode)
++            .field("body", &self.resident_body())
++            .finish_non_exhaustive()
++    }
++}
++
+ /// Kitesurf: the part of a [`CodeBlock`] that only running it reads: constants, bindings,
+ /// handlers, inline caches, source map and global tables.
+ #[derive(Debug, Trace, Finalize)]
+@@ -270,7 +298,7 @@ impl CodeBlock {
+             bytecode: Bytecode::default(),
+             debug_id: CodeBlock::get_next_codeblock_id(),
+             ks_charge: crate::ks_code_stats::CodeCharge::new(fixed, 0),
+-            body: Box::new(body),
++            body: UnsafeCell::new(BodyState::Resident(Box::new(body))),
+             #[cfg(feature = "trace")]
+             traced: Cell::new(false),
+         }
+@@ -288,11 +316,90 @@ impl CodeBlock {
+         self.body().source_info.map().path()
+     }
+
+-    /// Kitesurf: the part only running the block reads, behind one accessor so that it can
+-    /// later live elsewhere.
++    /// Kitesurf: the part only running the block reads, fetched from the code store if it
++    /// was swapped out.
+     #[inline]
+     pub(crate) fn body(&self) -> &CodeBody {
+-        &self.body
++        match self.resident_body() {
++            Some(body) => body,
++            None => crate::ks_body::fault_in(self),
++        }
++    }
++
++    /// Kitesurf: the body if it is in memory, without fetching it: what tracing and the
++    /// swap rounds read, since neither may run a fault-in.
++    #[inline]
++    pub(crate) fn resident_body(&self) -> Option<&CodeBody> {
++        // SAFETY: a shared read of the state under `replace_body`'s contract: nothing
++        // replaces the state while the returned reference lives.
++        match unsafe { &*self.body.get() } {
++            BodyState::Resident(body) => Some(body),
++            BodyState::Swapped(_) => None,
++        }
++    }
++
++    /// Kitesurf: the swap descriptor, if the body is in the store; a fault-in reads it and
++    /// then replaces it.
++    pub(crate) fn body_desc(&self) -> Option<&crate::ks_body::BodyDesc> {
++        // SAFETY: a shared read of the state under `replace_body`'s contract: nothing
++        // replaces the state while the returned reference lives.
++        match unsafe { &*self.body.get() } {
++            BodyState::Resident(_) => None,
++            BodyState::Swapped(desc) => Some(desc),
++        }
++    }
++
++    /// Kitesurf: swaps the body state. Safety: no reference from `body`, `resident_body` or
++    /// `body_desc` may be live; bodies leave only never-run blocks at idle, and return on read.
++    pub(crate) unsafe fn replace_body(&self, state: BodyState) -> BodyState {
++        // SAFETY: the caller guarantees no reference into the state is live, so the exclusive
++        // access below aliases nothing.
++        unsafe { std::mem::replace(&mut *self.body.get(), state) }
++    }
++
++    /// Kitesurf: a block whose body is in the store, as a fault-in rebuilds each block
++    /// nested in the body it reads back.
++    #[allow(clippy::too_many_arguments)]
++    pub(crate) fn ks_shell(
++        flags: CodeBlockFlags,
++        length: u32,
++        this_mode: ThisMode,
++        name: JsString,
++        text_spanned: SpannedSourceText,
++        bytecode: Bytecode,
++        debug_id: u64,
++        desc: crate::ks_body::BodyDesc,
++    ) -> Self {
++        Self {
++            flags: Cell::new(flags),
++            length,
++            this_mode,
++            name,
++            text_spanned,
++            bytecode,
++            debug_id,
++            ks_charge: crate::ks_code_stats::CodeCharge::new(Self::ks_shell_bytes(), 0),
++            body: UnsafeCell::new(BodyState::Swapped(Box::new(desc))),
++            #[cfg(feature = "trace")]
++            traced: Cell::new(false),
++        }
++    }
++
++    /// Kitesurf: what a block whose body is in the store keeps in memory: the shell and
++    /// its descriptor, for the code counters.
++    pub(crate) fn ks_shell_bytes() -> usize {
++        size_of::<Self>() + size_of::<crate::ks_body::BodyDesc>()
++    }
++
++    pub(crate) fn ks_ran(&self) -> bool {
++        self.flags.get().contains(CodeBlockFlags::KS_RAN)
++    }
++
++    pub(crate) fn ks_mark_ran(&self) {
++        let flags = self.flags.get();
++        if !flags.contains(CodeBlockFlags::KS_RAN) {
++            self.flags.set(flags | CodeBlockFlags::KS_RAN);
++        }
+     }
+
+     /// Kitesurf: assembles a block from its two parts as the compiler finishes it, charging
+@@ -315,7 +422,7 @@ impl CodeBlock {
+             bytecode,
+             debug_id: CodeBlock::get_next_codeblock_id(),
+             ks_charge: crate::ks_code_stats::CodeCharge::default(),
+-            body: Box::new(body),
++            body: UnsafeCell::new(BodyState::Resident(Box::new(body))),
+             #[cfg(feature = "trace")]
+             traced: Cell::new(false),
+         }
+diff --git a/src/vm/mod.rs b/src/vm/mod.rs
+index 58c695e..6c1729a 100644
+--- a/src/vm/mod.rs
++++ b/src/vm/mod.rs
+@@ -28,7 +28,7 @@ pub(crate) use opcode::{Instruction, InstructionIterator, Opcode};
+ pub(crate) use {
+     call_frame::CallFrameFlags,
+     code_block::{
+-        CodeBlockFlags, CodeBody, Constant, Handler, create_function_object,
++        BodyState, CodeBlockFlags, CodeBody, Constant, Handler, create_function_object,
+         create_function_object_fast,
+     },
+     completion_record::CompletionRecord,
+diff --git a/src/vm/opcode/mod.rs b/src/vm/opcode/mod.rs
+index 96f4fe6..01d23a3 100644
+--- a/src/vm/opcode/mod.rs
++++ b/src/vm/opcode/mod.rs
+@@ -259,6 +259,13 @@ impl Default for Packed {
+     }
+ }
+
++// Kitesurf: a never-run block's bytecode as a body record carries it: its place in the
++// store, or its packed bytes when they stay resident (too small, or the store refused).
++pub(crate) enum KsBytecodeExport {
++    Desc { key: u32, len: u32, hash: u32 },
++    Inline(Box<[u8]>),
++}
++
+ // Kitesurf: a swapped packed form's place in the code store and the hash it must read back
+ // with: registers are read unchecked, so bytes that differ must never run.
+ pub(crate) struct SwapDesc {
+@@ -573,6 +580,60 @@ impl Bytecode {
+         len
+     }
+
++    /// Kitesurf: what a body record needs to rebuild this never-run bytecode, and its
++    /// executable length; packs it to `store` first. None if it ever expanded or is pinned.
++    pub(crate) fn ks_export(&self, store: &dyn crate::CodeStore) -> Option<(KsBytecodeExport, u32)> {
++        let exec_len = self.exec_len() as u32;
++        if exec_len == 0 {
++            return Some((KsBytecodeExport::Inline(Box::default()), 0));
++        }
++        if self.pins() != 0 || !self.is_packed() {
++            return None;
++        }
++        self.swap_packed(store);
++        let export = match self.peek_packed() {
++            Packed::Swapped(d) => KsBytecodeExport::Desc {
++                key: d.key,
++                len: d.len,
++                hash: d.hash,
++            },
++            Packed::Resident(p) if !p.is_empty() => KsBytecodeExport::Inline(p.clone()),
++            Packed::Resident(_) => return None,
++        };
++        Some((export, exec_len))
++    }
++
++    /// Kitesurf: hands this bytecode's store copy to the body record that exported it, so
++    /// dropping the block does not release it; the block must never run again.
++    pub(crate) fn ks_disown(&self) {
++        match self.packed.take() {
++            Packed::Swapped(d) => {
++                let n = crate::ks_code_stats::bytes(d.len as usize);
++                crate::ks_code_stats::update(|s| {
++                    s.swapped_blocks -= 1;
++                    s.swapped_bytes -= n;
++                });
++            }
++            other => self.packed.set(other),
++        }
++    }
++
++    /// Kitesurf: a never-run block's bytecode, rebuilt from what [`Self::ks_export`] gave; it
++    /// owns the store copy from here on.
++    pub(crate) fn ks_import(export: KsBytecodeExport, exec_len: u32) -> Self {
++        let packed = match export {
++            KsBytecodeExport::Desc { key, len, hash } => Packed::Swapped(Box::new(SwapDesc { key, len, hash })),
++            KsBytecodeExport::Inline(p) => Packed::Resident(p),
++        };
++        let bytecode = Self {
++            bytes: UnsafeCell::default(),
++            packed: Cell::new(packed),
++            len_pins: Cell::new(exec_len & LEN_MASK),
++        };
++        bytecode.charge(1);
++        bytecode
++    }
++
+     /// Kitesurf: gives a block that ran before it could swap a copy in the store, so a forced
+     /// round can drop its executable bytes later. Returns whether it now has one.
+     pub(crate) fn store_expanded(&self, store: &dyn crate::CodeStore) -> bool {
+diff --git a/src/vm/source_info/mod.rs b/src/vm/source_info/mod.rs
+index 0354296..57043f2 100644
+--- a/src/vm/source_info/mod.rs
++++ b/src/vm/source_info/mod.rs
+@@ -69,6 +69,23 @@ impl SourceMap {
+     pub(crate) fn ks_heap_bytes(&self) -> usize {
+         self.data.len() + size_of_val::<[Checkpoint]>(&self.checkpoints)
+     }
++
++    /// Kitesurf: the encoded entries and checkpoints (`pc, offset, line, column`), for an
++    /// embedder that moves the map out of memory; [`Self::ks_from_parts`] rebuilds it.
++    pub(crate) fn ks_parts(&self) -> (&[u8], impl Iterator<Item = [u32; 4]> + '_) {
++        let checkpoints = self.checkpoints.iter().map(|c| [c.pc, c.offset, c.line, c.column]);
++        (&self.data, checkpoints)
++    }
++
++    /// Kitesurf: the map [`Self::ks_parts`] read, rebuilt for `path`, which every block of
++    /// a script shares and so is not stored with each.
++    pub(crate) fn ks_from_parts(data: Box<[u8]>, checkpoints: &[[u32; 4]], path: SourcePath) -> Self {
++        let checkpoints = checkpoints
++            .iter()
++            .map(|&[pc, offset, line, column]| Checkpoint { pc, offset, line, column })
++            .collect();
++        Self { data, checkpoints, path }
++    }
+ }
+
+ /// Decoder state at the start of an entry: its pc, byte offset, and the last

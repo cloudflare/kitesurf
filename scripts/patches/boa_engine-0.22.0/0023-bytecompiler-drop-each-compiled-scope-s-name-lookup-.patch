@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 19 Oct 2026 17:14:52 +0100
+Subject: [PATCH] bytecompiler: drop each compiled scope's name lookup map
+
+A finished code block resolves every name by index, so the scopes it owns no longer need
+their lookup maps; boa_ast rebuilds one if a direct eval asks. The realm's scope keeps its
+map, since every later script compiles against it.
+---
+ src/bytecompiler/mod.rs | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/src/bytecompiler/mod.rs b/src/bytecompiler/mod.rs
+index 3d51ec9..1a70597 100644
+--- a/src/bytecompiler/mod.rs
++++ b/src/bytecompiler/mod.rs
+@@ -2811,6 +2811,16 @@ impl<'ctx> ByteCompiler<'ctx> {
+
+         let source_map_entries = self.source_map_builder.build(final_bytecode_len.as_u32());
+
++        // Kitesurf: names resolved to indices by now, and a later direct eval rebuilds the map
++        // it needs. The realm's scope stays mapped, since every script compiles against it.
++        for constant in &self.constants {
++            if let Constant::Scope(scope) = constant {
++                if !scope.is_global() {
++                    scope.ks_drop_lookup();
++                }
++            }
++        }
++
+         CodeBlock {
+             length: self.length,
+             register_count,

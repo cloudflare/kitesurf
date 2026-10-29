@@ -15,6 +15,31 @@ pub async fn ks_spike_await(promise: js_sys::Promise) -> Result<JsValue, JsValue
     Ok(JsValue::from_f64(n + 1.0))
 }
 
+/// What compiled code retains, by form: the counters boa keeps behind the code store. Pairs
+/// are already camelCase, so they land in `bridge.boaCode` as they are.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn ks_code_stats() -> String {
+    let mut out = String::with_capacity(512);
+    out.push('{');
+    for (i, (name, value)) in boa_engine::ks_code_stats().iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        let _ = core::fmt::Write::write_fmt(&mut out, format_args!("\"{name}\":{value}"));
+    }
+    out.push('}');
+    out
+}
+
+/// What the counting allocator has seen: live bytes, the swap budget and the rounds it forced.
+/// Reported beside the bridge's gauges, since a page's wasm memory is what the swap acts on.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn ks_swap_alloc_stats() -> String {
+    crate::swap_alloc::stats_json()
+}
+
 #[wasm_bindgen]
 pub fn ks_bridge_pins() -> String {
     let (v8, boa, wrappers, rel_v8, rel_boa) = super::boa_bridge::bridge_pin_stats();
