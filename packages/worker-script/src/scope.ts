@@ -157,8 +157,14 @@ export class ImageDataClass {
   readonly colorSpace = "srgb";
   constructor(a: unknown, b: unknown, c?: unknown) {
     if (a instanceof Uint8ClampedArray) {
+      if (a.length === 0 || a.length % 4 !== 0) {
+        throw new DOMException(
+          "The input data length is not a nonzero multiple of 4.",
+          "InvalidStateError",
+        );
+      }
       const w = Number(b) >>> 0;
-      if (w === 0 || a.length % 4 !== 0 || (a.length / 4) % w !== 0) {
+      if (w === 0 || (a.length / 4) % w !== 0) {
         throw new DOMException(
           "The input data length is not a multiple of (4 * width).",
           "IndexSizeError",
