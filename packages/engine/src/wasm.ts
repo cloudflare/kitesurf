@@ -94,6 +94,7 @@ export interface ScannedScript {
 export interface ScannedIframe {
   src: string | null;
   name: string | null;
+  id: string | null;
   loading: string | null;
   docOrderIndex: number;
 }

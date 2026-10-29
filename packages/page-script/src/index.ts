@@ -1210,12 +1210,20 @@ function handleDynamicIframeInsert(iframeEl: any) {
   const frameId = mintDynamicFrameId();
   (iframeEl as any).__ks_iframeFrameId = frameId;
   const ownerBackendNodeId = (iframeEl as any)._id ?? -1;
+  let name = "";
+  let id = "";
+  try {
+    name = String(iframeEl.getAttribute?.("name") ?? "");
+    id = String(iframeEl.getAttribute?.("id") ?? "");
+  } catch {}
   sendUpstreamEvent({
     event: "kitesurf.frameAttached",
     params: {
       frameId,
       ownerBackendNodeId,
       url: resolvedUrl,
+      name,
+      id,
     },
   });
 

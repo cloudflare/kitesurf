@@ -161,6 +161,7 @@ fn ground_truth(html: &str) -> Value {
         iframes.push(json!({
             "src": attr(&attrs, "src"),
             "name": attr(&attrs, "name"),
+            "id": attr(&attrs, "id"),
             "loading": attr(&attrs, "loading"),
             "docOrderIndex": iframes.len(),
         }));
@@ -618,6 +619,26 @@ fn iframe_loading_attribute_is_scanned() {
     assert_eq!(iframes[1]["loading"], "lazy");
     assert_eq!(iframes[2]["loading"], "LAZY");
     assert_eq!(iframes[3]["loading"], "eager");
+}
+
+#[test]
+fn iframe_name_and_id_are_scanned() {
+    let html = concat!(
+        "<html><body>",
+        "<iframe src=\"a.html\" name=\"named\" id=\"first\"></iframe>",
+        "<iframe src=\"b.html\" id=\"second\"></iframe>",
+        "<iframe src=\"c.html\"></iframe>",
+        "</body></html>",
+    );
+    check(html);
+    let v = scan_value(html);
+    let iframes = v["iframes"].as_array().unwrap();
+    assert_eq!(iframes.len(), 3);
+    assert_eq!(iframes[0]["name"], "named");
+    assert_eq!(iframes[0]["id"], "first");
+    assert!(iframes[1]["name"].is_null());
+    assert_eq!(iframes[1]["id"], "second");
+    assert!(iframes[2]["id"].is_null());
 }
 
 #[test]

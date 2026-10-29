@@ -33,6 +33,7 @@ pub(crate) struct ScanScript {
 pub(crate) struct ScanIframe {
     pub src: Option<String>,
     pub name: Option<String>,
+    pub id: Option<String>,
     pub loading: Option<String>,
     #[serde(rename = "docOrderIndex")]
     pub doc_order_index: usize,
@@ -394,6 +395,7 @@ impl TokenSink for ScanSink {
                     s.iframes.push(ScanIframe {
                         src: attr(&attrs, "src").map(|v| v.to_string()),
                         name: attr(&attrs, "name").map(|v| v.to_string()),
+                        id: attr(&attrs, "id").map(|v| v.to_string()),
                         loading: attr(&attrs, "loading").map(|v| v.to_string()),
                         doc_order_index: idx,
                     });

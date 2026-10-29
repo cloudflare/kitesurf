@@ -82,7 +82,8 @@ test("a fragment link click has moved the frame's URL by the time it replies", a
     clickCount: 1,
   });
   const { frameTree } = await cdp.send("Page.getFrameTree");
-  expect(frameTree.frame.url).toBe("https://ks.invalid/__fixtures/lifecycle.html#later");
+  expect(frameTree.frame.url).toBe("https://ks.invalid/__fixtures/lifecycle.html");
+  expect(frameTree.frame.urlFragment).toBe("#later");
   expect(started).toEqual([]);
 }, 60_000);
 

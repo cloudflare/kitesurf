@@ -181,6 +181,10 @@ export interface FrameState {
   parentFrameId: string | null;
   loaderId: string;
   url: string;
+  // A child frame's iframe name and id attributes, from which Page.Frame derives its name. Main
+  // frames leave both unset, because Chrome never reports a name for them.
+  name?: string;
+  ownerElementId?: string;
   securityOrigin: string;
   mimeType: string;
   // Nested frames apply their own response policy to descendant requests.
