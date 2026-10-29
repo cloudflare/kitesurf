@@ -7,6 +7,7 @@
 mod descendants;
 mod inner_text;
 mod font_face_unicode_range;
+mod id_map;
 mod node_handle;
 mod outer_html;
 mod scan;
