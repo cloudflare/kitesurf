@@ -79,63 +79,92 @@ export interface InsertedScriptInfo {
 // not fetch-completion order, and DOMContentLoaded waits for it. Pre-ES6
 // loaders such as tdl.js depend on both. Gap: a parser-inserted script after
 // the writing one does not wait; only DOMContentLoaded does.
-let writtenChain: Promise<void> = Promise.resolve();
-let writtenPending = 0;
-// Written scripts in writtenPending whose code is running now. An inline
-// script they write is not queued behind them, only behind the waiting ones.
+type WrittenTask = () => Promise<void> | undefined;
+const writtenQueue: WrittenTask[] = [];
+let writtenCurrent = false;
+// Set while the current written script's code runs. Its writes go in at
+// writtenInsertAt, after what it wrote before and ahead of its later
+// siblings, as at the parser insertion point.
 let writtenExecuting = 0;
+let writtenInsertAt = 0;
+let writtenIdleWaiters: Array<() => void> = [];
 
-const trackWritten = (run: Promise<void>): void => {
-  writtenPending++;
-  const settled = run.then(
-    () => {
-      writtenPending--;
-    },
-    () => {
-      writtenPending--;
-    },
-  );
-  writtenChain = writtenChain.then(() => settled);
-};
-
-// Runs a written script's task in write order, in a fresh task after the
-// queued ones settle. With nothing waiting ahead it runs now: an inline script
-// runs inside the document.write that wrote it, even inside a written script.
-export function queueWrittenScript(task: () => Promise<void> | undefined, inline: boolean): void {
-  if (writtenPending - (inline ? writtenExecuting : 0) === 0) {
-    const run = task();
-    if (run) trackWritten(run);
-    return;
-  }
-  const deferred = async () => {
+const pumpWritten = async (): Promise<void> => {
+  if (writtenCurrent) return;
+  writtenCurrent = true;
+  for (let task = writtenQueue.shift(); task; task = writtenQueue.shift()) {
+    writtenInsertAt = 0;
     await new Promise<void>((resolve) => {
       nativeSetTimeout(resolve, 0);
     });
-    // An external script's body counts itself while its code runs.
-    if (inline) writtenExecuting++;
     try {
       await task();
-    } finally {
-      if (inline) writtenExecuting--;
+    } catch {}
+  }
+  writtenCurrent = false;
+  const waiters = writtenIdleWaiters;
+  writtenIdleWaiters = [];
+  for (const wake of waiters) wake();
+};
+
+// An external script's body counts its own code. An inline task counts here.
+const runAsWritten =
+  (task: WrittenTask): WrittenTask =>
+  () => {
+    writtenExecuting++;
+    let run: Promise<void> | undefined;
+    try {
+      run = task();
+    } catch (err) {
+      writtenExecuting--;
+      throw err;
     }
+    if (!run) {
+      writtenExecuting--;
+      return undefined;
+    }
+    return run.finally(() => {
+      writtenExecuting--;
+    });
   };
-  trackWritten(writtenChain.then(deferred, deferred));
+
+// Queues a written script's task in write order. An inline script with nothing
+// waiting ahead of it runs now, inside the document.write that wrote it.
+export function queueWrittenScript(task: WrittenTask, inline: boolean): void {
+  const inWriter = writtenExecuting > 0;
+  const nothingAhead = inWriter
+    ? writtenInsertAt === 0
+    : writtenQueue.length === 0 && !writtenCurrent;
+  let queued: WrittenTask = inline ? runAsWritten(task) : task;
+  if (inline && nothingAhead) {
+    const run = task();
+    if (!run) return;
+    // An async gate holds the scripts written after this one until it settles.
+    queued = () => run;
+  }
+  if (inWriter) writtenQueue.splice(writtenInsertAt++, 0, queued);
+  else writtenQueue.push(queued);
+  void pumpWritten();
 }
 
-// A written script can write more, so the drain re-checks the count instead
-// of awaiting a snapshot. On timeout DCL goes ahead without the stragglers.
+const writtenIdle = (): Promise<void> =>
+  !writtenCurrent && writtenQueue.length === 0
+    ? Promise.resolve()
+    : new Promise<void>((resolve) => {
+        writtenIdleWaiters.push(resolve);
+      });
+
+// A written script can write more, so the drain re-checks instead of awaiting
+// a snapshot. On timeout DCL goes ahead without the stragglers.
 export async function drainWrittenScripts(timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + (timeoutMs > 0 ? timeoutMs : 0);
-  while (writtenPending > 0) {
+  while (writtenCurrent || writtenQueue.length > 0) {
     if (Date.now() > deadline) return false;
     const expired = new Promise<"t">((r) => {
       nativeSetTimeout(() => r("t"), Math.max(1, deadline - Date.now()));
     });
-    const settled = writtenChain.then(
-      () => "d" as const,
-      () => "d" as const,
-    );
-    if ((await Promise.race([settled, expired])) === "t") return false;
+    const idle = writtenIdle().then(() => "d" as const);
+    if ((await Promise.race([idle, expired])) === "t") return false;
     // A finished script queues its own writes synchronously, so one turn
     // makes them visible.
     await new Promise<void>((r) => {
