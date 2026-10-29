@@ -6,15 +6,14 @@
 
 mod access;
 mod cli;
+mod oauth;
 mod tls;
 
 use kitesurf_playback::{play, FontSource, PlaybackOptions};
-use std::{error::Error, time::Duration};
-use tokio_tungstenite::{connect_async, tungstenite};
+use std::{error::Error, io};
+use tokio_tungstenite::tungstenite;
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
-
-const WS_CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 
 fn user_error(error: &(dyn Error + 'static)) -> String {
     let mut cause = Some(error);
@@ -30,7 +29,7 @@ fn user_error(error: &(dyn Error + 'static)) -> String {
                 tungstenite::Error::Io(error)
                     if matches!(
                         error.kind(),
-                        std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::TimedOut
+                        io::ErrorKind::ConnectionRefused | io::ErrorKind::TimedOut
                     ) =>
                 {
                     "Could not reach the Kitesurf server. Check that it is running, then try again."
@@ -38,6 +37,15 @@ fn user_error(error: &(dyn Error + 'static)) -> String {
                 }
                 tungstenite::Error::Io(_) => {
                     "Connection to the Kitesurf server was lost. Check that it is still running, then try again.".into()
+                }
+                tungstenite::Error::Http(response) if response.status().as_u16() == 401 => {
+                    "CDP authentication failed (HTTP 401). Run 'kitesurf login' again or check your API token.".into()
+                }
+                tungstenite::Error::Http(response) if response.status().as_u16() == 403 => {
+                    "CDP access denied (HTTP 403). Check the selected account and Browser Rendering - Edit permission.".into()
+                }
+                tungstenite::Error::Http(response) if response.status().as_u16() == 429 => {
+                    "Browser session limit or rate limit reached (HTTP 429). Try again later.".into()
                 }
                 tungstenite::Error::Http(response) => format!(
                     "Kitesurf server rejected the connection (HTTP {}).",
@@ -77,9 +85,26 @@ async fn run() -> Result<()> {
         println!("kitesurf {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
+    if args
+        .iter()
+        .any(|arg| matches!(arg.as_str(), "--help" | "-h"))
+    {
+        print!("{}", cli::HELP);
+        return Ok(());
+    }
+    if let Some(command @ ("login" | "logout")) = args.first().map(String::as_str) {
+        if args.len() != 1 {
+            return Err(format!("Usage: kitesurf {command}").into());
+        }
+        return if command == "login" {
+            oauth::login().await
+        } else {
+            oauth::logout().await
+        };
+    }
     let server_env = std::env::var("KITESURF_SERVER").ok();
-    let opts = match cli::parse(args, server_env.as_deref()) {
-        Ok(Some(opts)) => opts,
+    let options = match cli::parse(args, server_env.as_deref()) {
+        Ok(Some(options)) => options,
         Ok(None) => {
             print!("{}", cli::HELP);
             return Ok(());
@@ -89,51 +114,32 @@ async fn run() -> Result<()> {
             std::process::exit(2);
         }
     };
-    let access_token = access::token()?;
-    run_playback(opts, access_token.as_ref()).await
+    run_playback(options).await
 }
 
-async fn run_playback(
-    opts: cli::Options,
-    access_token: Option<&reqwest::header::HeaderValue>,
-) -> Result<()> {
+async fn run_playback(options: cli::Options) -> Result<()> {
     let cli::Options {
         url,
-        server,
+        backend,
         seconds,
         display,
         debug,
         mode,
         fps,
-    } = opts;
-    if access_token.is_some() && server.scheme() == "http" {
+    } = options;
+    let mut connection = access::Connection::resolve(backend).await?;
+    if connection.has_unencrypted_access_token() {
         eprintln!("warning: CF_ACCESS_TOKEN will be sent over an unencrypted HTTP/WS connection");
     }
     if debug {
         eprintln!(
-            "kitesurf: debug: server: {server} (Access token: {})",
-            if access_token.is_some() {
-                "present"
-            } else {
-                "absent"
-            }
+            "kitesurf: debug: connecting CDP WebSocket to {}",
+            connection.websocket
         );
     }
-    let client = access::font_client(&server, access_token)?;
-    let font_source = FontSource::new(server.clone(), client)?;
-    let mut ws_url = server.join("devtools/browser")?;
-    ws_url
-        .set_scheme(if server.scheme() == "https" {
-            "wss"
-        } else {
-            "ws"
-        })
-        .map_err(|_| "invalid scheme")?;
-    if debug {
-        eprintln!("kitesurf: debug: connecting CDP WebSocket to {ws_url}");
-    }
-    let request = access::websocket_request(ws_url.as_str(), access_token)?;
-    let (ws, _) = tokio::time::timeout(WS_CONNECT_TIMEOUT, connect_async(request)).await??;
+    let ws = connection.connect().await?;
+    // After connect: a rejected saved login is replaced, and fonts use the replacement's origin.
+    let font_source = FontSource::new(connection.font_server.clone(), connection.font_client()?)?;
     let options = PlaybackOptions::new(url, mode, seconds, display, debug, fps)?;
     play(ws, options, font_source).await
 }
