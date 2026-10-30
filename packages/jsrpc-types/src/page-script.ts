@@ -299,6 +299,8 @@ export interface UpstreamEvents {
     frameId: string;
     ownerBackendNodeId: number;
     url: string;
+    name?: string;
+    id?: string;
     loading?: string;
   };
   "kitesurf.frameDetached": { frameId: string };

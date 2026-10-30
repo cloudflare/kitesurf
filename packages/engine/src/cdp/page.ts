@@ -953,7 +953,12 @@ export async function handlePage(
         const childFrames = [...target.frames.values()].filter(
           (frame) => frame.parentFrameId !== null && frame.lifecycle === "init",
         );
-        emitChildFrameAttachAndStart(ctx, childFrames, targetSessions(target, req.sessionId));
+        emitChildFrameAttachAndStart(
+          ctx,
+          target.frames,
+          childFrames,
+          targetSessions(target, req.sessionId),
+        );
         resetPrespawnBudget(target);
         for (const f of target.frames.values()) {
           if (f.parentFrameId === null) continue;
@@ -2491,7 +2496,7 @@ function emitFrameNavigated(
     emitContextsCleared(ctx, target, sessionId);
   }
   const params: Protocol.Page.FrameNavigatedEvent = {
-    frame: makeFrameInfo(frame),
+    frame: makeFrameInfo(frame, target.frames),
     type: "Navigation",
   };
   for (const s of targetSessions(target, sessionId)) {
@@ -2929,7 +2934,7 @@ function emitNavigationLifecycle(
   const childFrames = [...target.frames.values()].filter(
     (frame) => frame.parentFrameId !== null && frame.lifecycle === "init",
   );
-  emitChildFrameAttachAndStart(ctx, childFrames, targetSessions(target, sessionId));
+  emitChildFrameAttachAndStart(ctx, target.frames, childFrames, targetSessions(target, sessionId));
   for (const f of target.frames.values()) {
     if (f.parentFrameId === null) continue;
     f.readyState = "complete";
@@ -3291,6 +3296,7 @@ function findIframes(dom: DomHandle): Array<{
   nodeId: number;
   src: string | null;
   name: string | null;
+  id: string | null;
   loading: string | null;
 }> {
   let ids: Int32Array;
@@ -3303,6 +3309,7 @@ function findIframes(dom: DomHandle): Array<{
     nodeId: number;
     src: string | null;
     name: string | null;
+    id: string | null;
     loading: string | null;
   }> = [];
   for (const id of ids) {
@@ -3311,11 +3318,13 @@ function findIframes(dom: DomHandle): Array<{
     if (!info) continue;
     const src = readAttr(info.attributes, "src");
     const name = readAttr(info.attributes, "name");
+    const idAttr = readAttr(info.attributes, "id");
     const loading = readAttr(info.attributes, "loading");
     out.push({
       nodeId: id,
       src: src ?? null,
       name: name ?? null,
+      id: idAttr ?? null,
       loading: loading ?? null,
     });
   }
@@ -3354,6 +3363,8 @@ function discoverChildFramesFor(
       parentFrameId: parentFrame.frameId,
       loaderId: childLoaderId,
       url: resolvedUrl,
+      name: ifr.name ?? "",
+      ownerElementId: ifr.id ?? "",
       ownerBackendNodeId: ifr.nodeId,
       isCrossOrigin,
       delaysLoadEvent: iframeDelaysLoadEvent(ifr.loading),
@@ -3896,6 +3907,8 @@ function discoverChildFramesFromScan(
       parentFrameId: parentFrame.frameId,
       loaderId: childLoaderId,
       url: resolvedUrl,
+      name: ifr.name ?? "",
+      ownerElementId: ifr.id ?? "",
       ownerBackendNodeId: -1,
       isCrossOrigin,
       delaysLoadEvent: iframeDelaysLoadEvent(ifr.loading),
@@ -4296,6 +4309,8 @@ function handleUpstreamFrameEvent(
       parentFrameId: target.frameId,
       loaderId: mintLoaderId(),
       url,
+      name: typeof params.name === "string" ? params.name : "",
+      ownerElementId: typeof params.id === "string" ? params.id : "",
       ownerBackendNodeId,
       isCrossOrigin,
       delaysLoadEvent: iframeDelaysLoadEvent(
@@ -4586,7 +4601,12 @@ async function loadChildFrame(
       const attachableGrandchildren = grandchildren.filter(
         (frame) => frame.parentFrameId !== null && frame.lifecycle === "init",
       );
-      emitChildFrameAttachAndStart(ctx, attachableGrandchildren, targetSessions(target, sessionId));
+      emitChildFrameAttachAndStart(
+        ctx,
+        target.frames,
+        attachableGrandchildren,
+        targetSessions(target, sessionId),
+      );
       const waits: Promise<void>[] = [];
       for (const gc of grandchildren) {
         const cycled = nextAncestors.has(gc.url);

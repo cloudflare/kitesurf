@@ -638,7 +638,7 @@ async function maybeFollowAnchor(
     ctx.emit({
       method: "Page.frameNavigated",
       params: {
-        frame: makeFrameInfo(frame),
+        frame: makeFrameInfo(frame, target.frames),
         type: "Navigation",
       },
       sessionId,

@@ -8,7 +8,7 @@ import type { BrowserState, CdpRequest } from "./types.ts";
 import { makeSessionId, makeTargetId, type FrameState, type TargetState } from "./types.ts";
 import type { Protocol } from "devtools-protocol";
 import type { DispatchCtx } from "./dispatch.ts";
-import { domainAndRegistryOf, makeMainFrameState } from "./frames.ts";
+import { buildFrameResourceTree, buildFrameTree, makeMainFrameState } from "./frames.ts";
 import { retireStub } from "./page-script-generation.ts";
 import { createCookieJar, type CookieJar } from "../cookies.ts";
 import { engineWasmBytes, engineWasmInitialBytes } from "../engine-wasm-probe.ts";
@@ -754,7 +754,7 @@ export function destroyOopifTarget(
 export async function handleOopifSession(
   ctx: DispatchCtx,
   req: CdpRequest,
-  _target: TargetState,
+  target: TargetState,
   frame: FrameState,
 ): Promise<unknown> {
   switch (req.method) {
@@ -774,22 +774,9 @@ export async function handleOopifSession(
       ctx.browser.networkEvents.setEnabled(req.sessionId, false);
       return {};
     case "Page.getFrameTree":
-    case "Page.getResourceTree": {
-      const frameJson = {
-        id: frame.frameId,
-        loaderId: frame.loaderId,
-        url: frame.url,
-        domainAndRegistry: domainAndRegistryOf(frame.url),
-        securityOrigin: originOfUrl(frame.url),
-        mimeType: "text/html",
-        secureContextType: "Secure",
-        crossOriginIsolatedContextType: "NotIsolated",
-        gatedAPIFeatures: [],
-      };
-      return req.method === "Page.getFrameTree"
-        ? { frameTree: { frame: frameJson, childFrames: [] } }
-        : { frameTree: { frame: frameJson, resources: [] } };
-    }
+      return { frameTree: buildFrameTree(target, frame) };
+    case "Page.getResourceTree":
+      return { frameTree: buildFrameResourceTree(target, frame) };
     case "Runtime.enable": {
       ctx.emit({
         method: "Runtime.executionContextCreated",
