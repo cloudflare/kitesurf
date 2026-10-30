@@ -1052,8 +1052,8 @@
           "FILE:@@+cargo_workspaces+cargo_ws_scene_host//patched.json 97073039161481ebe174a9f4771eda65e582ab73da0c388f5a9a8c4568964286",
           "FILE:@@+cargo_workspaces+cargo_ws_memprof//Cargo.lock 700ce60a085805e81be18248290fa55c12fd753835006ab68256b8f397261384",
           "FILE:@@+cargo_workspaces+cargo_ws_memprof//Cargo.toml 6982e34060f201166856e8294a4c4a42cd957eb79df82f72f536b5318e6244b8",
-          "FILE:@@//packages/kitesurf-cli/Cargo.lock 76e76fdf9154f302f821a435d2fd976b465f5a930d2ad5b52cb8413497fcbbc2",
-          "FILE:@@//packages/kitesurf-cli/Cargo.toml 39e635334fca5cdcfa0c32c4254cc11fdd1c1580298e92f6e603d3925ac6b6a5",
+          "FILE:@@//packages/kitesurf-cli/Cargo.lock 152fed308b4920eadd2828ba02d0dda6109d0a733cba973a78a25394334fd143",
+          "FILE:@@//packages/kitesurf-cli/Cargo.toml 0930d028d1037963e6f884602147b260beefc9ffda4d4653e19f7311e9c07298",
           "FILE:@@//scripts/lint/rust-check/Cargo.lock 4d560f072c7029a0f8b10ec52facb832f95b6339d3763411549b6ad7d3f05829",
           "FILE:@@//scripts/lint/rust-check/Cargo.toml 953bbd47cd83b590c5d4f3b9203f9057d2c30ba810bface4c41f59d5381d8e5e"
         ],
