@@ -139,7 +139,8 @@ One-line orientation (see each series' patches for the full why):
   layer composite (`core/src/paint/scene_replay.rs`). Also skips premultiplying
   opaque images, such as canvas frames.
 - **taffy** — layout fixes for floats, grid sizing, absolute grid
-  placement, a host rounding step, and lazy per-node cache allocation.
+  placement, a host rounding step, lazy per-node cache allocation, and packed
+  populated measurement-cache slots.
 - **stylo_taffy** — map anchor-dependent values to their fallback (or
   the property's initial value) instead of panicking.
 - **ratatui-image** — feature-gates the terminal-capability query

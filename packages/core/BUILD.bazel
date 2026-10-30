@@ -93,6 +93,14 @@ rust_test(
 )
 
 rust_test(
+    name = "taffy_cache_test",
+    srcs = ["tests/taffy_cache.rs"],
+    edition = "2021",
+    exec_properties = RUST,
+    deps = ["@crates//:taffy"],
+)
+
+rust_test(
     name = "boa_gc_test",
     crate = "@crates__boa_gc-0.22.0//:boa_gc",
 )
@@ -121,6 +129,7 @@ test_suite(
         ":boa_interner_test",
         ":core_test",
         ":svg_cache_test",
+        ":taffy_cache_test",
         ":vello_common_test",
         ":vello_cpu_fallback_test",
     ],
@@ -156,5 +165,5 @@ rust_comments_test(
 )
 
 rust_lint_tests(
-    targets = ["core_test", "kitesurf_core", "kitesurf_core_memprof", "svg_cache_test"],
+    targets = ["core_test", "kitesurf_core", "kitesurf_core_memprof", "svg_cache_test", "taffy_cache_test"],
 )
