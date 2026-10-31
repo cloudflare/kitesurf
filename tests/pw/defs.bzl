@@ -33,3 +33,23 @@ def pw_shard(name, shard, shards = PW_SHARDS, exec_properties = PW, **kwargs):
         visibility = ["//scripts:__pkg__"],
         **kwargs
     )
+
+def pw_html_report(name, shards, exec_properties = PW, **kwargs):
+    """Merge the shards' blob reports into one Playwright HTML report at <name>/report."""
+    js_run_binary(
+        name = name,
+        tool = "//scripts:pw_html_report",
+        srcs = shards,
+        out_dirs = [name + "/report"],
+        args = [
+            "--shards",
+            bin_relative(native.package_name()),
+            "--out",
+            bin_relative(native.package_name() + "/" + name + "/report"),
+        ],
+        use_default_shell_env = True,
+        exec_properties = exec_properties,
+        mnemonic = "PwHtmlReport",
+        progress_message = "playwright html report",
+        **kwargs
+    )

@@ -263,7 +263,9 @@ function idGrep(id) {
 function runPlaywright(wsEndpoint, specFiles, grep, tag) {
   mkdirSync(OUT_DIR, { recursive: true });
   const jsonOut = join(OUT_DIR, `kitesurf-report-${tag}.json`);
+  const blobOut = join(OUT_DIR, "blob", `${tag}.zip`);
   rmSync(jsonOut, { force: true });
+  rmSync(blobOut, { force: true });
   const cliArgs = [
     "packages/playwright/cli.js",
     "test",
@@ -282,6 +284,7 @@ function runPlaywright(wsEndpoint, specFiles, grep, tag) {
       PWPAGE_IMPL: "kitesurf",
       KITESURF_WS: wsEndpoint,
       PWTEST_JSON_OUTPUT: jsonOut,
+      PLAYWRIGHT_BLOB_OUTPUT_FILE: blobOut,
     },
   });
   if (!existsSync(jsonOut)) {
