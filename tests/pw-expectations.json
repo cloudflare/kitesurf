@@ -1,1 +1,2498 @@
-{}
+{
+  "elementhandle-bounding-box.spec.ts::should force a layout": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "elementhandle-bounding-box.spec.ts::should get bounding box of element inside a cross-origin iframe": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "elementhandle-bounding-box.spec.ts::should get frame box": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "elementhandle-bounding-box.spec.ts::should handle nested frames": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "elementhandle-bounding-box.spec.ts::should handle scroll offset and click": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "elementhandle-bounding-box.spec.ts::should work": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "elementhandle-bounding-box.spec.ts::should work when inline box child is outside of viewport": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "elementhandle-bounding-box.spec.ts::should work with SVG nodes": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'boundingBox')"
+  },
+  "elementhandle-click.spec.ts::should throw for <br> elements with force": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "elementhandle-click.spec.ts::should work for Shadow DOM v1": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "elementhandle-click.spec.ts::should work for TextNodes": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "elementhandle-convenience.spec.ts::inputValue should work": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "elementhandle-convenience.spec.ts::textContent should work on ShadowRoot": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "elementhandle-misc.spec.ts::should hover": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'id') (unknown at :1:52)"
+  },
+  "elementhandle-misc.spec.ts::should hover when Node is removed": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'id') (unknown at :1:52)"
+  },
+  "elementhandle-misc.spec.ts::should select single option": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "elementhandle-press.spec.ts::should work with number input": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "elementhandle-query-selector.spec.ts::should work for adopted elements": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "elementhandle-screenshot.spec.ts::element screenshot › should capture full element when larger than viewport": {
+    "expected": "FAIL",
+    "reason": "Error: expect(Buffer).toMatchSnapshot(expected) failed"
+  },
+  "elementhandle-screenshot.spec.ts::element screenshot › should capture full element when larger than viewport in parallel": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "elementhandle-screenshot.spec.ts::element screenshot › should scroll element into view": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "elementhandle-screenshot.spec.ts::element screenshot › should take into account padding and border": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "elementhandle-screenshot.spec.ts::element screenshot › should work": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "elementhandle-screenshot.spec.ts::element screenshot › should work for an element with an offset": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "elementhandle-screenshot.spec.ts::element screenshot › should work for an element with fractional dimensions": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "elementhandle-screenshot.spec.ts::element screenshot › should work when main world busts JSON.stringify": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "elementhandle-screenshot.spec.ts::element screenshot › should work with a rotated element": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "elementhandle-scroll-into-view.spec.ts::should scroll display:contents into view": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBeLessThan(expected)"
+  },
+  "elementhandle-scroll-into-view.spec.ts::should throw for detached element": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of undefined (reading 'message')"
+  },
+  "elementhandle-scroll-into-view.spec.ts::should timeout waiting for visible": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of undefined (reading 'message')"
+  },
+  "elementhandle-scroll-into-view.spec.ts::should wait for display:none to become visible": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "elementhandle-scroll-into-view.spec.ts::should wait for nested display:none to become visible": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "elementhandle-select-text.spec.ts::should select input": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "elementhandle-select-text.spec.ts::should select textarea": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "elementhandle-type.spec.ts::should work with number input": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "elementhandle-wait-for-element-state.spec.ts::should wait for stable position": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "eval-on-selector-all.spec.ts::should support * capture": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "eval-on-selector-all.spec.ts::should support * capture when multiple paths match": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "expect-boolean.spec.ts::toBeAttached › with frameLocator": {
+    "expected": "SKIP",
+    "reason": "fails slowly (10s): Error: expect(locator).toBeAttached() failed"
+  },
+  "expect-boolean.spec.ts::toBeChecked › friendly log": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "expect-boolean.spec.ts::toBeChecked › with role": {
+    "expected": "FAIL",
+    "reason": "Error: expect(locator).toBeChecked() failed"
+  },
+  "expect-boolean.spec.ts::toBeFocused with shadow elements": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'activeElement') (unknown at :1:52)"
+  },
+  "expect-boolean.spec.ts::toBeVisible › with frameLocator": {
+    "expected": "SKIP",
+    "reason": "fails slowly (10s): Error: expect(locator).toBeVisible() failed"
+  },
+  "expect-boolean.spec.ts::toBeVisible › with frameLocator 2": {
+    "expected": "FAIL",
+    "reason": "Error: expect(locator).toBeVisible() failed"
+  },
+  "expect-matcher-result.spec.ts::toHaveScreenshot should populate matcherResult": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "expect-misc.spec.ts::strict mode violation error format": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "expect-misc.spec.ts::toHaveCount › eventually pass not non-zero": {
+    "expected": "SKIP",
+    "reason": "fails slowly (11s): Error: expect(locator).not.toHaveCount(expected) failed"
+  },
+  "expect-misc.spec.ts::toHaveCount › toHaveCount pass": {
+    "expected": "SKIP",
+    "reason": "fails slowly (12s): Error: expect(locator).toHaveCount(expected) failed"
+  },
+  "expect-misc.spec.ts::toHaveURL › resolve predicate after retries": {
+    "expected": "SKIP",
+    "reason": "flaky: navigates after 500 ms against a 1 s toHaveURL timeout"
+  },
+  "expect-to-have-accessible.spec.ts::toHaveAccessibleDescription": {
+    "expected": "FAIL",
+    "reason": "Error: expect(locator).toHaveAccessibleDescription(expected) failed"
+  },
+  "expect-to-have-accessible.spec.ts::toHaveAccessibleName": {
+    "expected": "SKIP",
+    "reason": "fails slowly (11s): Error: expect(locator).toHaveAccessibleName(expected) failed"
+  },
+  "frame-evaluate.spec.ts::should allow cross-frame element handles": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "frame-evaluate.spec.ts::should be isolated between frames": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "frame-evaluate.spec.ts::should dispose context on cross-origin navigation": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "frame-evaluate.spec.ts::should dispose context on navigation": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "frame-evaluate.spec.ts::should have correct execution contexts @smoke": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "frame-evaluate.spec.ts::should have different execution contexts": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "frame-evaluate.spec.ts::should not allow cross-frame element handles when frames do not script each other": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading '$')"
+  },
+  "frame-evaluate.spec.ts::should not allow cross-frame js handles": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "frame-evaluate.spec.ts::should throw for detached frames": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'evaluate')"
+  },
+  "frame-evaluate.spec.ts::should work in iframes that failed initial navigation": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "frame-evaluate.spec.ts::should work in iframes that interrupted initial javascript url navigation": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+  },
+  "frame-frame-element.spec.ts::should throw when detached": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'frameElement')"
+  },
+  "frame-frame-element.spec.ts::should work @smoke": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'frameElement')"
+  },
+  "frame-frame-element.spec.ts::should work with contentFrame": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'frameElement')"
+  },
+  "frame-frame-element.spec.ts::should work with frameset": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'frameElement')"
+  },
+  "frame-hierarchy.spec.ts::should refuse to display x-frame-options:deny iframe": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "frame-hierarchy.spec.ts::should report different frame instance when frame re-attaches": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'isDetached')"
+  },
+  "frame-hierarchy.spec.ts::should report frame.name()": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "frame-hierarchy.spec.ts::should support framesets": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "interception.spec.ts::should intercept after a service worker": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+  },
+  "interception.spec.ts::should intercept blob url requests": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "interception.spec.ts::should intercept network activity from worker": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "interception.spec.ts::should intercept network activity from worker 2": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "interception.spec.ts::should intercept worker requests when enabled after worker creation": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "interception.spec.ts::should not break remote worker importScripts": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "interception.spec.ts::should work with navigation @smoke": {
+    "expected": "SKIP",
+    "reason": "fails slowly (12s): Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "jshandle-properties.spec.ts::should work with unserializable values": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "jshandle-to-string.spec.ts::should beautifully render sparse arrays": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "jshandle-to-string.spec.ts::should work with different subtypes @smoke": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "jshandle-to-string.spec.ts::should work with previewable subtypes": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "locator-convenience.spec.ts::inputValue should work": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "locator-frame.spec.ts::click should survive frame reattach": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "locator-frame.spec.ts::click should survive iframe navigation": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "locator-frame.spec.ts::getBy coverage": {
+    "expected": "SKIP",
+    "reason": "fails slowly (10s): Error: expect(locator).toHaveText(expected) failed"
+  },
+  "locator-frame.spec.ts::locator.contentFrame should work": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "locator-frame.spec.ts::locator.frameLocator should not throw on first/last/nth": {
+    "expected": "SKIP",
+    "reason": "fails slowly (10s): Error: expect(locator).toHaveText(expected) failed"
+  },
+  "locator-frame.spec.ts::locator.frameLocator should work for iframe": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "locator-frame.spec.ts::should click in lazy iframe": {
+    "expected": "SKIP",
+    "reason": "fails slowly (10s): Error: expect(locator).toHaveText(expected) failed"
+  },
+  "locator-frame.spec.ts::should wait for frame 2": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "locator-frame.spec.ts::should work for $ and $$": {
+    "expected": "SKIP",
+    "reason": "fails slowly (10s): Error: expect(locator).toHaveText(expected) failed"
+  },
+  "locator-frame.spec.ts::should work for iframe @smoke": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "locator-frame.spec.ts::should work for nested iframe": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "locator-frame.spec.ts::should work with COEP/COOP/CORP isolated iframe": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "locator-frame.spec.ts::waitFor should survive frame reattach": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "locator-misc-1.spec.ts::should hover @smoke": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'id') (unknown at :1:52)"
+  },
+  "locator-misc-1.spec.ts::should hover when Node is removed": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'id') (unknown at :1:52)"
+  },
+  "locator-misc-1.spec.ts::should select single option": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "locator-misc-2.spec.ts::locator.count should work with deleted Map in main world": {
+    "expected": "FAIL",
+    "reason": "Error: locator.count: Error: TypeError: not a constructor (unknown at :8280:11)"
+  },
+  "locator-misc-2.spec.ts::Locator.locator() and FrameLocator.locator() should accept locator": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "locator-misc-2.spec.ts::should return bounding box": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "locator-misc-2.spec.ts::should scroll zero-sized element into view": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "locator-misc-2.spec.ts::should select textarea": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "locator-misc-2.spec.ts::should take screenshot": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "locator-query.spec.ts::count() should not throw during navigation": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "locator-query.spec.ts::should allow some, but not all nested frameLocators": {
+    "expected": "SKIP",
+    "reason": "fails slowly (10s): Error: expect(locator).toHaveText(expected) failed"
+  },
+  "locator-query.spec.ts::should filter by regex with a single quote": {
+    "expected": "SKIP",
+    "reason": "fails slowly (21s): Error: expect(locator).not.toBeVisible() failed"
+  },
+  "page-add-init-script-callback.spec.ts::should work in a child frame": {
+    "expected": "SKIP",
+    "reason": "fails slowly (11s): Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-add-init-script.spec.ts::init script should run only once in iframe": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-add-init-script.spec.ts::should remove init script after dispose": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-add-locator-handler.spec.ts::should work when owner frame detaches": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-add-locator-handler.spec.ts::should work with locator.hover()": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-add-locator-handler.spec.ts::should work with toHaveScreenshot": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-add-script-tag.spec.ts::should include sourceURL when path is provided": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-add-script-tag.spec.ts::should work with a content and type=module": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-add-script-tag.spec.ts::should work with a path and type=module": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-add-script-tag.spec.ts::should work with a url and type=module": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-add-style-tag.spec.ts::should include sourceURL when path is provided": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-add-style-tag.spec.ts::should throw when added with content to the CSP page": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-add-style-tag.spec.ts::should throw when added with URL to the CSP page": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBeTruthy()"
+  },
+  "page-add-style-tag.spec.ts::should work with a path": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-add-style-tag.spec.ts::should work with content": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-aria-snapshot-ai.spec.ts::emit generic roles for nodes w/o roles": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-aria-snapshot-ai.spec.ts::should include active element information": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-aria-snapshot-ai.spec.ts::should limit depth across iframe boundary": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-aria-snapshot-ai.spec.ts::should list iframes": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-aria-snapshot-ai.spec.ts::should mark iframe as active when it contains focused element": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-aria-snapshot-ai.spec.ts::should persist iframe references": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-aria-snapshot-ai.spec.ts::should snapshot a locator inside a frameset frame": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of undefined (reading 'locator')"
+  },
+  "page-aria-snapshot-ai.spec.ts::should snapshot a locator inside an iframe": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-aria-snapshot-ai.spec.ts::should snapshot frameset pages": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-aria-snapshot-ai.spec.ts::should stitch all frame snapshots": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-aria-snapshot-ai.spec.ts::should stitch iframes inside a frameset frame": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-aria-snapshot-ai.spec.ts::should stitch nested frameset documents": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-aria-snapshot-ai.spec.ts::should support many properties on iframes": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-aria-snapshot.spec.ts::should snapshot a locator inside a frameset frame": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-aria-snapshot.spec.ts::should snapshot a locator inside an iframe": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-aria-snapshot.spec.ts::should work with slots": {
+    "expected": "SKIP",
+    "reason": "fails slowly (11s): Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-autowaiting-no-hang.spec.ts::assigning location to about:blank": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Execution context was destroyed, most likely because of a navigation."
+  },
+  "page-autowaiting-no-hang.spec.ts::assigning location to about:blank after non-about:blank": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Execution context was destroyed, most likely because of a navigation."
+  },
+  "page-autowaiting-no-hang.spec.ts::clicking a link intercepted by the Navigation API same-document": {
+    "expected": "SKIP",
+    "reason": "fails slowly (11s): Error: expect(locator).toHaveText(expected) failed"
+  },
+  "page-autowaiting-no-hang.spec.ts::opening a popup": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-basic.spec.ts::frame.press should work": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-basic.spec.ts::page.close should work with window.close": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-basic.spec.ts::page.press should work for Enter": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of undefined (reading 'text')"
+  },
+  "page-basic.spec.ts::should have sane user agent": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-basic.spec.ts::should provide access to the opener page": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-check.spec.ts::should check the label with position": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-click-react.spec.ts::should timeout when click opens alert": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of undefined (reading 'message')"
+  },
+  "page-click-scroll.spec.ts::should not scroll nested container when scroll is \"none\"": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBeTruthy()"
+  },
+  "page-click-scroll.spec.ts::should scroll into view display:contents": {
+    "expected": "FAIL",
+    "reason": "TimeoutError: page.click: Timeout 5000ms exceeded."
+  },
+  "page-click-scroll.spec.ts::should scroll into view display:contents with position": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-click-scroll.spec.ts::should scroll into view element in iframe": {
+    "expected": "FAIL",
+    "reason": "TimeoutError: locator.click: Timeout 5000ms exceeded."
+  },
+  "page-click-timeout-4.spec.ts::should timeout waiting for stable position": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of undefined (reading 'message')"
+  },
+  "page-click.spec.ts::ensure events are dispatched in the individual tasks": {
+    "expected": "SKIP",
+    "reason": "fails slowly (10s): Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-click.spec.ts::should click a button in scrolling container with offset": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-click.spec.ts::should click a button that is overlaid by a permission popup": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of undefined (reading 'getCurrentPosition') (unknown at :1:52)"
+  },
+  "page-click.spec.ts::should click a very large button with offset": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-click.spec.ts::should click button inside frameset": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'click')"
+  },
+  "page-click.spec.ts::should click if opened select covers the button": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-click.spec.ts::should click in a nested transformed iframe": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-click.spec.ts::should click in a transformed iframe": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-click.spec.ts::should click in a transformed iframe with force": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-click.spec.ts::should click in an iframe with border": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-click.spec.ts::should click in an iframe with border 2": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-click.spec.ts::should click into shadow root with slotted div": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-click.spec.ts::should click svg": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-click.spec.ts::should click the button inside an iframe": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-click.spec.ts::should click the button when window.innerWidth is corrupted": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-click.spec.ts::should click the button with em border with offset": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-click.spec.ts::should click the button with fixed position inside an iframe": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-click.spec.ts::should click the button with px border with offset": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-click.spec.ts::should click with tweened mouse movement": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-click.spec.ts::should fire contextmenu event on right click in correct order": {
+    "expected": "SKIP",
+    "reason": "fails slowly (10s): Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-click.spec.ts::should issue clicks in parallel in page and popup": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-click.spec.ts::should not hang when frame is detached": {
+    "expected": "FAIL",
+    "reason": "Error: frame.goto: Frame was detached"
+  },
+  "page-click.spec.ts::should not wait with noAutoWaiting 2": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of undefined (reading 'message')"
+  },
+  "page-click.spec.ts::should report nice error when element is detached and force-clicked": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of undefined (reading 'message')"
+  },
+  "page-click.spec.ts::should scroll and click the button with smooth scroll behavior": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-click.spec.ts::should select the text by triple clicking": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-click.spec.ts::should set PointerEvent.pressure on pointerdown": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-click.spec.ts::should set PointerEvent.pressure on pointermove": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-click.spec.ts::should wait for stable position": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-dialog.spec.ts::should accept the confirm prompt": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: TypeError: kitesurf: not yet supported in this sandbox (Day 6) (tried to set/call 'confirm')"
+  },
+  "page-dialog.spec.ts::should allow accepting prompts @smoke": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: TypeError: kitesurf: not yet supported in this sandbox (Day 6) (tried to set/call 'prompt')"
+  },
+  "page-dialog.spec.ts::should auto-dismiss the alert without listeners": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-dialog.spec.ts::should auto-dismiss the prompt without listeners": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: TypeError: kitesurf: not yet supported in this sandbox (Day 6) (tried to set/call 'prompt')"
+  },
+  "page-dialog.spec.ts::should be able to close context with open alert": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-dialog.spec.ts::should dismiss the confirm prompt": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: TypeError: kitesurf: not yet supported in this sandbox (Day 6) (tried to set/call 'confirm')"
+  },
+  "page-dialog.spec.ts::should dismiss the prompt": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: TypeError: kitesurf: not yet supported in this sandbox (Day 6) (tried to set/call 'prompt')"
+  },
+  "page-dialog.spec.ts::should fire": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: TypeError: kitesurf: not yet supported in this sandbox (Day 6) (tried to set/call 'alert')"
+  },
+  "page-dispatchevent.spec.ts::should throw if argument is from different frame": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-drag.spec.ts::Drag and drop › iframe › should drag into an iframe": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-drag.spec.ts::Drag and drop › iframe › should drag out of an iframe": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-drag.spec.ts::Drag and drop › should allow specifying the position": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-drag.spec.ts::Drag and drop › should be able to drag the mouse in a frame": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-drag.spec.ts::Drag and drop › should cancel on escape": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-drag.spec.ts::Drag and drop › should dragAndDrop with tweened mouse movement": {
+    "expected": "SKIP",
+    "reason": "fails slowly (11s): Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-drag.spec.ts::Drag and drop › should dragTo with tweened mouse movement": {
+    "expected": "SKIP",
+    "reason": "fails slowly (11s): Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-drag.spec.ts::Drag and drop › should not send dragover on the first mousemove": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-drag.spec.ts::Drag and drop › should respect the drop effect": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-drag.spec.ts::Drag and drop › should send the right events": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-drag.spec.ts::Drag and drop › should work @smoke": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-drag.spec.ts::Drag and drop › should work if a frame is stalled": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-drag.spec.ts::Drag and drop › should work if the drag event is captured but not canceled": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-drag.spec.ts::Drag and drop › should work inside iframe": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading '$')"
+  },
+  "page-drag.spec.ts::Drag and drop › should work with locators": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-drag.spec.ts::Drag and drop › should work with the helper method": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-drag.spec.ts::should handle custom dataTransfer": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-drop.spec.ts::should drop a file by local path": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-drop.spec.ts::should drop a file payload": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-drop.spec.ts::should drop files and data together": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-drop.spec.ts::should drop multiple file payloads": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-emulate-media.spec.ts::should change the actual colors in css": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-emulate-media.spec.ts::should default to light": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-emulate-media.spec.ts::should emulate colorScheme should work @smoke": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-emulate-media.spec.ts::should emulate contrast ": {
+    "expected": "FAIL",
+    "reason": "Error: Expected \"(prefers-contrast: no-preference)\" not to match, but it did"
+  },
+  "page-emulate-media.spec.ts::should emulate forcedColors ": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-emulate-media.spec.ts::should emulate reduced motion": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-emulate-media.spec.ts::should emulate type @smoke": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-emulate-media.spec.ts::should keep reduced motion and color emulation after reload": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-emulate-media.spec.ts::should work during navigation": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-evaluate-callback.spec.ts::should work in a child frame": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'evaluate')"
+  },
+  "page-evaluate-callback.spec.ts::should work with locator.evaluate inside an iframe": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'evaluate')"
+  },
+  "page-evaluate-handle.spec.ts::should accept object handle as an argument": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-evaluate-handle.spec.ts::should accept object handle to unserializable value": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-evaluate.spec.ts::promise collected": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-evaluate.spec.ts::should await promise from popup": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: not a constructor (unknown at :1:52)"
+  },
+  "page-evaluate.spec.ts::should not leak utility script": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-evaluate.spec.ts::should not throw an error when evaluation does a synchronous navigation and returns an object": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Execution context was destroyed, most likely because of a navigation."
+  },
+  "page-evaluate.spec.ts::should not throw an error when evaluation does a synchronous navigation and returns undefined": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Execution context was destroyed, most likely because of a navigation."
+  },
+  "page-evaluate.spec.ts::should not use Array.prototype.toJSON when evaluating": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-evaluate.spec.ts::should simulate a user gesture": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-evaluate.spec.ts::should throw a nice error after a navigation": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Execution context was destroyed, most likely because of a navigation."
+  },
+  "page-evaluate.spec.ts::should throw for too deep reference chain": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).rejects.toThrow(expected)"
+  },
+  "page-evaluate.spec.ts::should throw for too deep reference chain 2": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).rejects.toThrow(expected)"
+  },
+  "page-evaluate.spec.ts::should transfer 100Mb of data from page to node.js": {
+    "expected": "SKIP",
+    "reason": "fails slowly (21s): Error: page.evaluate: PanicError: capacity overflow"
+  },
+  "page-evaluate.spec.ts::should work even when JSON is set to null": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-evaluate.spec.ts::should work with a using declaration": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-evaluate.spec.ts::should work with busted Array.prototype.map/push": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-evaluate.spec.ts::should work with overwritten Promise": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-event-console.spec.ts::should format the message correctly with time/timeLog/timeEnd": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-event-console.spec.ts::should have location for console API calls": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-event-console.spec.ts::should not fail for window object": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-event-console.spec.ts::should not throw when there are console messages in detached iframes": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'body')"
+  },
+  "page-event-console.spec.ts::should trigger correct Log": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toMatch(expected)"
+  },
+  "page-event-console.spec.ts::should use object previews for arrays and objects": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-event-console.spec.ts::should use object previews for errors": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-event-console.spec.ts::should work @smoke": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-event-console.spec.ts::should work for different console API calls": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-event-load.spec.ts::should fire once with iframe navigation": {
+    "expected": "SKIP",
+    "reason": "fails slowly (10s): Error: expect(locator).toContainText(expected) failed"
+  },
+  "page-event-network.spec.ts::Page.Events.RequestFailed @smoke": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-event-network.spec.ts::should resolve responses after a navigation": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-event-pageerror.spec.ts::clearPageErrors should work": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-event-pageerror.spec.ts::pageErrors should work": {
+    "expected": "FAIL",
+    "reason": "Error: should be at least 100 errors"
+  },
+  "page-event-pageerror.spec.ts::should contain sourceURL": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-event-pageerror.spec.ts::should contain the Error.name property": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-event-pageerror.spec.ts::should emit error from unhandled rejects": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-event-pageerror.spec.ts::should fire": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-event-pageerror.spec.ts::should handle object": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-event-pageerror.spec.ts::should handle odd values": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-event-pageerror.spec.ts::should handle window": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-event-pageerror.spec.ts::should not receive console message for pageError": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-event-pageerror.spec.ts::should support an empty Error.name property": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-event-request.spec.ts::main resource xhr should have type xhr": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-event-request.spec.ts::should finish 204 request": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-event-request.spec.ts::should fire for iframes": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-event-request.spec.ts::should fire requestfailed when intercepting race": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-event-request.spec.ts::should not expose preflight OPTIONS request with network interception": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-event-request.spec.ts::should report navigation requests and responses handled by service worker": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-event-request.spec.ts::should report navigation requests and responses handled by service worker with routing": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-event-request.spec.ts::should report requests and responses handled by service worker": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+  },
+  "page-event-request.spec.ts::should report requests and responses handled by service worker with routing": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+  },
+  "page-event-request.spec.ts::should return last requests": {
+    "expected": "FAIL",
+    "reason": "TypeError: response.text: Cannot read properties of undefined (reading 'stream')"
+  },
+  "page-expose-function.spec.ts::should dispose": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-expose-function.spec.ts::should work on frames": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-expose-function.spec.ts::should work on frames before navigation": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-expose-function.spec.ts::should work with busted Array.prototype.map/push": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should accept single file": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should be able to read selected file": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should be able to reset selected files with empty file list": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should emit event addListener/removeListener": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should emit event after navigation": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should emit event for iframe": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'setContent')"
+  },
+  "page-filechooser.spec.ts::should emit event on/off": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should emit event once": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should emit event via prepend": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should not throw when filechooser belongs to iframe": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should not throw when frame is detached immediately": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should not trim big uploaded files": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-filechooser.spec.ts::should return the same file chooser when there are many watchdogs simultaneously": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should trigger listener added before navigation": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should upload multiple large files": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should work for \"multiple\"": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should work for \"webkitdirectory\"": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should work for single file pick": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should work when file input is attached to DOM": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should work when file input is not attached to DOM": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-filechooser.spec.ts::should work with no timeout": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-fill.spec.ts::should be able to fill input[type=number] with empty string": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-fill.spec.ts::should be able to fill the body": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-fill.spec.ts::should be able to fill when focus is in the wrong frame": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-fill.spec.ts::should fill contenteditable": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-fill.spec.ts::should fill contenteditable with new lines": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-fill.spec.ts::should not double-fill in contenteditable with beforeinput handler in Firefox": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-fill.spec.ts::should throw nice error without injected script stack when element is not an <input>": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-fill.spec.ts::should throw on unsupported inputs": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-focus.spec.ts::keeps focus on element when attempting to focus a non-focusable element": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-focus.spec.ts::should traverse only form elements": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-focus.spec.ts::tab should cycle between document elements and browser": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-focus.spec.ts::tab should cycle between single input and browser": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-goto.spec.ts::js redirect overrides url bar navigation ": {
+    "expected": "SKIP",
+    "reason": "fails slowly (29s): Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-goto.spec.ts::should capture cross-process iframe navigation request": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-goto.spec.ts::should capture iframe navigation request": {
+    "expected": "SKIP",
+    "reason": "fails slowly (21s): Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-goto.spec.ts::should fail when navigating to bad SSL": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toMatch(expected)"
+  },
+  "page-goto.spec.ts::should fail when navigating to bad SSL after redirects": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toMatch(expected)"
+  },
+  "page-goto.spec.ts::should fail when replaced by another navigation": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-goto.spec.ts::should not resolve goto upon window.stop()": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-goto.spec.ts::should return from goto if new navigation is started": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-goto.spec.ts::should work with file URL": {
+    "expected": "FAIL",
+    "reason": "Error: page.goto: Fetch API cannot load: file://tests/assets/empty.html at file://tests/assets/empty.html"
+  },
+  "page-goto.spec.ts::should work with file URL with subframes": {
+    "expected": "FAIL",
+    "reason": "Error: page.goto: Fetch API cannot load: file://tests/assets/frames/two-frames.html at file://tests/assets/frames/two-frames.html"
+  },
+  "page-history.spec.ts::page.goBack should work for file urls": {
+    "expected": "FAIL",
+    "reason": "Error: page.goto: Fetch API cannot load: file://tests/assets/consolelog.html at file://tests/assets/consolelog.html"
+  },
+  "page-history.spec.ts::page.reload during renderer-initiated navigation": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-history.spec.ts::page.reload should work with data url": {
+    "expected": "FAIL",
+    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+  },
+  "page-history.spec.ts::regression test for issue 20791": {
+    "expected": "SKIP",
+    "reason": "fails slowly (11s): Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-history.spec.ts::should reload proper page": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-keyboard.spec.ts::insertText should only emit input event": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-keyboard.spec.ts::should close dialog on Escape key press in contenteditable": {
+    "expected": "FAIL",
+    "reason": "Error: locator.evaluate: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+  },
+  "page-keyboard.spec.ts::should dispatch key events in separate tasks": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-keyboard.spec.ts::should emit keydown, keypress, textInput and input when typing a character": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-keyboard.spec.ts::should expose keyIdentifier in webkit": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-keyboard.spec.ts::should handle selectAll": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should move around the selection in a contenteditable": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should move to the start of the document": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-keyboard.spec.ts::should move with the arrow keys": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should press Enter": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should press plus": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should press shift plus": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should report shiftKey": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should send a character with insertText": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should send proper codes while typing": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should send proper codes while typing with shift": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should shift raw codes": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should support MacOS shortcuts": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-keyboard.spec.ts::should support plus-separated modifiers": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should support simple copy-pasting": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should support simple cut-pasting": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should support undo-redo": {
+    "expected": "SKIP",
+    "reason": "fails slowly (11s): Error: expect(locator).toHaveText(expected) failed"
+  },
+  "page-keyboard.spec.ts::should type all kinds of characters": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should type emoji into an iframe": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-keyboard.spec.ts::should type repeatedly in contenteditable in shadow dom": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::should type repeatedly in contenteditable in shadow dom with nested elements": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-keyboard.spec.ts::type to non-focusable element should maintain old focus": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-localstorage.spec.ts::storage methods are scoped to the current origin": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-mouse.spec.ts::should always round down": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-mouse.spec.ts::should pointerdown the div with a custom button": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-mouse.spec.ts::should select the text with mouse": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-mouse.spec.ts::should track hover across iframe boundaries": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-mouse.spec.ts::should trigger hover state": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'id') (unknown at :1:52)"
+  },
+  "page-mouse.spec.ts::should trigger hover state on disabled button": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'id') (unknown at :1:52)"
+  },
+  "page-mouse.spec.ts::should trigger hover state with removed window.Node": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'id') (unknown at :1:52)"
+  },
+  "page-mouse.spec.ts::should tween mouse movement": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-navigation.spec.ts::should work with _blank target in form": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-network-idle.spec.ts::should not wait for an open EventSource connection in setContent": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: SyntaxError: Cannot open an EventSource to '/sse'. The URL is invalid."
+  },
+  "page-network-idle.spec.ts::should wait for networkidle from the child frame": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-network-idle.spec.ts::should wait for networkidle from the popup": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-network-idle.spec.ts::should wait for networkidle in setContent from the child frame": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-network-idle.spec.ts::should wait for networkidle when navigating iframe": {
+    "expected": "FAIL",
+    "reason": "Error: frame.waitForNavigation: Navigating frame was detached!"
+  },
+  "page-network-idle.spec.ts::should work after repeated navigations in the same page": {
+    "expected": "SKIP",
+    "reason": "flaky: network-idle timing fails under load"
+  },
+  "page-network-request.spec.ts::page.reload return 304 status code": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-network-request.spec.ts::should get the same headers as the server": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-network-request.spec.ts::should get the same headers as the server CORS": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-network-request.spec.ts::should handle mixed-content blocked requests": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-network-request.spec.ts::should not allow to access frame on popup main request": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of undefined (reading 'message')"
+  },
+  "page-network-request.spec.ts::should not get preflight CORS requests when intercepting": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-network-request.spec.ts::should not return allHeaders() until they are available": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-network-request.spec.ts::should parse the data if content-type is application/x-www-form-urlencoded": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-network-request.spec.ts::should parse the data if content-type is application/x-www-form-urlencoded; charset=UTF-8": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-network-request.spec.ts::should parse the json post data": {
+    "expected": "SKIP",
+    "reason": "fails slowly (10s): Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-network-request.spec.ts::should report raw headers": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-network-request.spec.ts::should return event source": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: SyntaxError: Cannot open an EventSource to '/sse'. The URL is invalid."
+  },
+  "page-network-request.spec.ts::should return multipart/form-data": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'toString')"
+  },
+  "page-network-request.spec.ts::should return navigation bit": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-network-request.spec.ts::should return postData": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-network-request.spec.ts::should work for subframe navigation request": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-network-request.spec.ts::should work with binary post data": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'length')"
+  },
+  "page-network-request.spec.ts::should work with binary post data and interception": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'length')"
+  },
+  "page-network-response.spec.ts::should bypass disk cache when page interception is enabled": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-network-response.spec.ts::should give a readable error when response.body() races with navigation": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-network-response.spec.ts::should provide a Response with a file URL": {
+    "expected": "FAIL",
+    "reason": "Error: page.goto: Fetch API cannot load: file://tests/assets/frames/two-frames.html at file://tests/assets/frames/two-frames.html"
+  },
+  "page-network-response.spec.ts::should report all headers": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-network-response.spec.ts::should report if request was fromServiceWorker": {
+    "expected": "SKIP",
+    "reason": "fails slowly (15s): Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-network-response.spec.ts::should report multiple set-cookie headers": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-network-response.spec.ts::should return body for prefetch script": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-network-response.spec.ts::should return json": {
+    "expected": "FAIL",
+    "reason": "SyntaxError: Unexpected token '<', \"<!doctype \"... is not valid JSON"
+  },
+  "page-network-response.spec.ts::should return non-utf8 body even when content-type says utf8": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-network-response.spec.ts::should return text": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-network-response.spec.ts::should return uncompressed text": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-network-response.spec.ts::should return uncompressed text for brotli encoding": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-network-response.spec.ts::should wait until response completes": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-network-sizes.spec.ts::should handle redirects": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-network-sizes.spec.ts::should have correct responseBodySize for 404 with content": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-network-sizes.spec.ts::should have the correct responseBodySize": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-network-sizes.spec.ts::should have the correct responseBodySize for chunked request": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-network-sizes.spec.ts::should return sizes without hanging": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-network-sizes.spec.ts::should set bodySize and headersSize": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-network-sizes.spec.ts::should set bodySize to 0 when there was no response body": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBeGreaterThanOrEqual(expected)"
+  },
+  "page-network-sizes.spec.ts::should set bodySize, headersSize, and transferSize": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBeGreaterThanOrEqual(expected)"
+  },
+  "page-network-sizes.spec.ts::should work with 200 status code": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-network-sizes.spec.ts::should work with 401 status code": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-network-sizes.spec.ts::should work with 404 status code": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-network-sizes.spec.ts::should work with 500 status code": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-request-continue.spec.ts::continue should delete headers on redirects": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBeFalsy()"
+  },
+  "page-request-continue.spec.ts::continue should drop content-length on redirects": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-request-continue.spec.ts::continue should not override cookie": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-request-continue.spec.ts::continue should not propagate cookie override to redirects": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-request-continue.spec.ts::continue with headers should send fresh cookie after a redirect": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-request-continue.spec.ts::continue with headers should send fresh cookie from the browser cookie store": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-request-continue.spec.ts::propagate headers cross origin redirect after interception": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-request-continue.spec.ts::redirected requests should report overridden headers": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-request-continue.spec.ts::should continue preload link requests": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-request-continue.spec.ts::should intercept css variable with background url": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-request-continue.spec.ts::should not delete the origin header": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: TypeError: Failed to fetch"
+  },
+  "page-request-continue.spec.ts::should not throw if request was cancelled by the page": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-request-continue.spec.ts::should respect set-cookie in redirect response": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-request-fulfill.spec.ts::should allow mocking binary responses": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-request-fulfill.spec.ts::should allow mocking svg with charset": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-request-fulfill.spec.ts::should fulfill preload link requests": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-request-fulfill.spec.ts::should fulfill with fetch result": {
+    "expected": "FAIL",
+    "reason": "SyntaxError: Unexpected token '<', \"<!doctype \"... is not valid JSON"
+  },
+  "page-request-fulfill.spec.ts::should fulfill with fetch result and overrides": {
+    "expected": "FAIL",
+    "reason": "SyntaxError: Unexpected token '<', \"<!doctype \"... is not valid JSON"
+  },
+  "page-request-fulfill.spec.ts::should fulfill with global fetch result": {
+    "expected": "FAIL",
+    "reason": "SyntaxError: Unexpected token '<', \"<!doctype \"... is not valid JSON"
+  },
+  "page-request-fulfill.spec.ts::should fulfill with unuassigned status codes": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-request-fulfill.spec.ts::should not modify the headers sent to the server": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: TypeError: Failed to fetch"
+  },
+  "page-request-fulfill.spec.ts::should not throw if request was cancelled by the page": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-request-intercept.spec.ts::request.postData is not null when fetching FormData with a Blob": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-request-intercept.spec.ts::should fulfill with any response": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-request-intercept.spec.ts::should intercept multipart/form-data request body": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-request-intercept.spec.ts::should not follow redirects when maxRedirects is set to 0 in route.fetch": {
+    "expected": "FAIL",
+    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+  },
+  "page-route.spec.ts::should be abortable": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-route.spec.ts::should intercept when postData is more than 1MB": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-route.spec.ts::should not auto-intercept non-preflight OPTIONS with network interception": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-route.spec.ts::should not fulfill with redirect status": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "page-route.spec.ts::should not override cookie header": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-route.spec.ts::should not support ? in glob pattern": {
+    "expected": "FAIL",
+    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+  },
+  "page-route.spec.ts::should not throw \"Invalid Interception Id\" if the request was cancelled": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-route.spec.ts::should not throw if request was cancelled by the page": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-route.spec.ts::should pause intercepted XHR until continue": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-route.spec.ts::should work with custom referer headers": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-route.spec.ts::should work with encoded server - 2": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-route.spec.ts::should work with redirect inside sync XHR": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-route.spec.ts::should work with redirects for subresources": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-screenshot.spec.ts::page screenshot › mask option › should hide elements based on attr": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › mask option › should mask in parallel": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-screenshot.spec.ts::page screenshot › mask option › should mask inside iframe": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-screenshot.spec.ts::page screenshot › mask option › should mask multiple elements": {
+    "expected": "FAIL",
+    "reason": "Error: page.screenshot: Error: TypeError: cannot read properties of undefined (reading 'push') (unknown at :1:52)"
+  },
+  "page-screenshot.spec.ts::page screenshot › mask option › should remove elements based on attr": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › mask option › should remove mask after screenshot": {
+    "expected": "FAIL",
+    "reason": "Error: page.screenshot: Error: TypeError: cannot read properties of undefined (reading 'push') (unknown at :1:52)"
+  },
+  "page-screenshot.spec.ts::page screenshot › mask option › should work": {
+    "expected": "FAIL",
+    "reason": "Error: page.screenshot: Error: TypeError: cannot read properties of undefined (reading 'push') (unknown at :1:52)"
+  },
+  "page-screenshot.spec.ts::page screenshot › mask option › should work when mask color is not pink #F0F": {
+    "expected": "FAIL",
+    "reason": "Error: page.screenshot: Error: TypeError: cannot read properties of undefined (reading 'push') (unknown at :1:52)"
+  },
+  "page-screenshot.spec.ts::page screenshot › mask option › should work when subframe used document.open after a weird url": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+  },
+  "page-screenshot.spec.ts::page screenshot › mask option › should work with elementhandle": {
+    "expected": "FAIL",
+    "reason": "Error: elementHandle.screenshot: Error: TypeError: cannot read properties of undefined (reading 'push') (unknown at :1:52)"
+  },
+  "page-screenshot.spec.ts::page screenshot › mask option › should work with locator": {
+    "expected": "FAIL",
+    "reason": "Error: locator.screenshot: Error: TypeError: cannot read properties of undefined (reading 'push') (unknown at :1:52)"
+  },
+  "page-screenshot.spec.ts::page screenshot › quality option should work for webp": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBeLessThan(expected)"
+  },
+  "page-screenshot.spec.ts::page screenshot › should allow transparency": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › should allow transparency with webp": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-screenshot.spec.ts::page screenshot › should capture blinking caret if explicitly asked for": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-screenshot.spec.ts::page screenshot › should capture canvas changes": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › should clip elements to the viewport": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › should clip rect": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › should produce a valid webp screenshot": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › should render white background on jpeg file": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › should run in parallel": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › should take fullPage screenshots": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › should take fullPage screenshots and mask elements outside of it": {
+    "expected": "FAIL",
+    "reason": "Error: page.screenshot: Error: TypeError: cannot read properties of undefined (reading 'push') (unknown at :1:52)"
+  },
+  "page-screenshot.spec.ts::page screenshot › should work @smoke": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › should work for canvas": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › should work for translateZ": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › should work for webgl": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › should work while navigating": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-screenshot.spec.ts::page screenshot › should work with iframe in shadow": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › should work with odd clip size on Retina displays": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot › webp screenshots should be lossless by default": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-screenshot.spec.ts::page screenshot animations › should capture screenshots after layoutchanges in transitionend event": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-screenshot.spec.ts::page screenshot animations › should fire transitionend for finite transitions": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-screenshot.spec.ts::page screenshot animations › should not capture css animations in shadow DOM": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-screenshot.spec.ts::page screenshot animations › should not capture infinite css animation": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-screenshot.spec.ts::page screenshot animations › should not capture pseudo element css animation": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-screenshot.spec.ts::page screenshot animations › should not change animation with playbackRate equal to 0": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of undefined (reading 'ready')"
+  },
+  "page-screenshot.spec.ts::page screenshot animations › should stop animations that happen right before screenshot": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-screenshot.spec.ts::page screenshot animations › should trigger particular events for css transitions": {
+    "expected": "FAIL",
+    "reason": "Error: locator.evaluate: Error: TypeError: cannot set properties of undefined (setting 'oncancel')"
+  },
+  "page-screenshot.spec.ts::page screenshot animations › should trigger particular events for finite css animation": {
+    "expected": "FAIL",
+    "reason": "Error: locator.evaluate: Error: TypeError: cannot set properties of undefined (setting 'oncancel')"
+  },
+  "page-screenshot.spec.ts::page screenshot animations › should trigger particular events for INfinite css animation": {
+    "expected": "FAIL",
+    "reason": "Error: locator.evaluate: Error: TypeError: cannot set properties of undefined (setting 'oncancel')"
+  },
+  "page-screenshot.spec.ts::page screenshot animations › should wait for fonts to load": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::page screenshot should capture css transform": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-screenshot.spec.ts::should capture css box-shadow": {
+    "expected": "SKIP",
+    "reason": "no kitesurf screenshot baseline"
+  },
+  "page-select-option.spec.ts::should fall back to selecting by label": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-select-option.spec.ts::should respect event bubbling": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-select-option.spec.ts::should select multiple options": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-select-option.spec.ts::should select multiple options with attributes": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-select-option.spec.ts::should select only first option": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-select-option.spec.ts::should select single option @smoke": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-select-option.spec.ts::should select single option by handle": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-select-option.spec.ts::should select single option by index": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-select-option.spec.ts::should select single option by label": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-select-option.spec.ts::should select single option by label with html whitespace": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-select-option.spec.ts::should select single option by multiple attributes": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-select-option.spec.ts::should select single option by value": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "page-select-option.spec.ts::should work when re-defining top-level Event class": {
+    "expected": "FAIL",
+    "reason": "Error: page.selectOption: Error: TypeError: not a constructor"
+  },
+  "page-set-content.spec.ts::content() should throw nice error during navigation": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-set-content.spec.ts::should handle timeout properly": {
+    "expected": "FAIL",
+    "reason": "Error: expect(locator).toHaveText(expected) failed"
+  },
+  "page-set-content.spec.ts::should return empty content there is no iframe src": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-set-content.spec.ts::should work @smoke": {
+    "expected": "FAIL",
+    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+  },
+  "page-set-content.spec.ts::should work with commit": {
+    "expected": "FAIL",
+    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+  },
+  "page-set-content.spec.ts::should work with doctype": {
+    "expected": "FAIL",
+    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+  },
+  "page-set-content.spec.ts::should work with domcontentloaded": {
+    "expected": "FAIL",
+    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+  },
+  "page-set-content.spec.ts::should work with HTML 4 doctype": {
+    "expected": "FAIL",
+    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+  },
+  "page-set-input-files.spec.ts::should detect mime type": {
+    "expected": "FAIL",
+    "reason": "Error: Cannot set input files to detached element"
+  },
+  "page-set-input-files.spec.ts::should emit input and change events": {
+    "expected": "FAIL",
+    "reason": "Error: Cannot set input files to detached element"
+  },
+  "page-set-input-files.spec.ts::should not trim big uploaded files": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-set-input-files.spec.ts::should throw an error if the file does not exist": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-set-input-files.spec.ts::should throw if a directory and files are passed": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).rejects.toThrow(expected)"
+  },
+  "page-set-input-files.spec.ts::should throw when uploading a file in a directory upload input": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).rejects.toThrow(expected)"
+  },
+  "page-set-input-files.spec.ts::should throw when uploading a folder in a normal file upload input": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).rejects.toThrow(expected)"
+  },
+  "page-set-input-files.spec.ts::should upload a file after popup": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-set-input-files.spec.ts::should upload a folder": {
+    "expected": "FAIL",
+    "reason": "Error: Cannot set input files to detached element"
+  },
+  "page-set-input-files.spec.ts::should upload a folder and throw for multiple directories": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).rejects.toThrow(expected)"
+  },
+  "page-set-input-files.spec.ts::should upload large file": {
+    "expected": "FAIL",
+    "reason": "Error: locator.setInputFiles: Cannot transfer files larger than 50Mb to a browser not co-located with the server"
+  },
+  "page-set-input-files.spec.ts::should upload large file with relative path": {
+    "expected": "FAIL",
+    "reason": "Error: locator.setInputFiles: Cannot transfer files larger than 50Mb to a browser not co-located with the server"
+  },
+  "page-set-input-files.spec.ts::should upload the file": {
+    "expected": "FAIL",
+    "reason": "Error: Cannot set input files to detached element"
+  },
+  "page-set-input-files.spec.ts::should upload the file with spaces in name": {
+    "expected": "FAIL",
+    "reason": "Error: Cannot set input files to detached element"
+  },
+  "page-wait-for-load-state.spec.ts::should resolve after popup load": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-wait-for-load-state.spec.ts::should wait for load state of about:blank popup ": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-wait-for-load-state.spec.ts::should wait for load state of about:blank popup with noopener ": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-wait-for-load-state.spec.ts::should wait for load state of empty url popup": {
+    "expected": "FAIL",
+    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'readyState') (unknown at :1:52)"
+  },
+  "page-wait-for-load-state.spec.ts::should wait for load state of newPage": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-wait-for-load-state.spec.ts::should wait for load state of popup with network url ": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-wait-for-load-state.spec.ts::should wait for load state of popup with network url and noopener ": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-wait-for-load-state.spec.ts::should work for frame": {
+    "expected": "FAIL",
+    "reason": "Error: frame.goto: Frame was detached"
+  },
+  "page-wait-for-load-state.spec.ts::should work with clicking target=_blank": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-wait-for-load-state.spec.ts::should work with pages that have loaded before being connected to": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-wait-for-navigation.spec.ts::should fail when frame detaches": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'message')"
+  },
+  "page-wait-for-navigation.spec.ts::should work on frame": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-wait-for-navigation.spec.ts::should work when subframe issues window.stop()": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-wait-for-navigation.spec.ts::should work with clicking on anchor links": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-wait-for-navigation.spec.ts::should work with clicking on links which do not commit navigation": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toMatch(expected)"
+  },
+  "page-wait-for-selector-1.spec.ts::page.waitForSelector is shortcut for main frame": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-wait-for-selector-1.spec.ts::should run in specified frame": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-wait-for-selector-2.spec.ts::should not consider visible when zero-sized": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "page-wait-for-selector-2.spec.ts::should run in specified frame xpath": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-wait-for-selector-2.spec.ts::should work when navigating before node adoption": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "page-wait-for-url.spec.ts::should work on frame": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "page-wait-for-url.spec.ts::should work with clicking on anchor links": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "retarget.spec.ts::check retargeting": {
+    "expected": "FAIL",
+    "reason": "Error: locator.isChecked: Error: Error: strict mode violation: locator('label') resolved to 2 elements:"
+  },
+  "retarget.spec.ts::direct actions retargeting": {
+    "expected": "FAIL",
+    "reason": "Error: locator.innerText: Error: Error: strict mode violation: locator('div') resolved to 2 elements:"
+  },
+  "retarget.spec.ts::editable retargeting": {
+    "expected": "FAIL",
+    "reason": "Error: locator.isEditable: Error: Error: strict mode violation: locator('label') resolved to 2 elements:"
+  },
+  "retarget.spec.ts::enabled/disabled retargeting": {
+    "expected": "FAIL",
+    "reason": "Error: locator.isEnabled: Error: Error: strict mode violation: locator('label') resolved to 2 elements:"
+  },
+  "retarget.spec.ts::input value retargeting": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "retarget.spec.ts::select options retargeting": {
+    "expected": "FAIL",
+    "reason": "Error: locator.inputValue: Error: Error: strict mode violation: locator('label') resolved to 2 elements:"
+  },
+  "retarget.spec.ts::selection retargeting": {
+    "expected": "FAIL",
+    "reason": "Error: locator.isEditable: Error: Error: strict mode violation: locator('div') resolved to 2 elements:"
+  },
+  "retarget.spec.ts::should check the box outside shadow dom label": {
+    "expected": "FAIL",
+    "reason": "Error: page.check: Error: Error: Not a checkbox or radio button (unknown at :1:52)"
+  },
+  "retarget.spec.ts::should not retarget anchor into parent label": {
+    "expected": "FAIL",
+    "reason": "Error: locator.click: Error: Error: strict mode violation: locator('a') resolved to 2 elements:"
+  },
+  "retarget.spec.ts::visible/hidden retargeting": {
+    "expected": "FAIL",
+    "reason": "Error: locator.isVisible: Error: Error: strict mode violation: locator('label') resolved to 2 elements:"
+  },
+  "selectors-css.spec.ts::should work with :has": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "selectors-css.spec.ts::should work with :nth-child(of) notation with nested functions": {
+    "expected": "FAIL",
+    "reason": "Error: page.$$eval: SyntaxError: Failed to execute 'querySelectorAll': 'span:nth-child(1 of .foo)' is not a valid selector. ParseError { kin"
+  },
+  "selectors-css.spec.ts::should work with :scope": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "selectors-css.spec.ts::should work with large DOM @smoke": {
+    "expected": "SKIP",
+    "reason": "takes about 29s of its 30s timeout"
+  },
+  "selectors-css.spec.ts::should work with wrong-case id": {
+    "expected": "FAIL",
+    "reason": "Error: page.$eval: Failed to find element matching selector \"#hello\""
+  },
+  "selectors-frame.spec.ts::click should survive frame reattach": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "selectors-frame.spec.ts::click should survive iframe navigation": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "selectors-frame.spec.ts::should capture after the enter-frame": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "selectors-frame.spec.ts::should click in lazy iframe": {
+    "expected": "SKIP",
+    "reason": "fails slowly (10s): Error: expect(locator).toHaveText(expected) failed"
+  },
+  "selectors-frame.spec.ts::should work for $ and $$": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'textContent')"
+  },
+  "selectors-frame.spec.ts::should work for $ and $$ (handle)": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of null (reading 'textContent')"
+  },
+  "selectors-frame.spec.ts::should work for $$eval": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "selectors-frame.spec.ts::should work for $$eval (handle)": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "selectors-frame.spec.ts::should work for $eval": {
+    "expected": "FAIL",
+    "reason": "Error: page.$eval: Failed to find element matching selector \"iframe >> internal:control=enter-frame >> button\""
+  },
+  "selectors-frame.spec.ts::should work for $eval (handle)": {
+    "expected": "FAIL",
+    "reason": "Error: elementHandle.$eval: Failed to find element matching selector \"iframe >> internal:control=enter-frame >> button\""
+  },
+  "selectors-frame.spec.ts::should work for iframe (handle)": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "selectors-frame.spec.ts::should work for iframe @smoke": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "selectors-frame.spec.ts::should work for nested iframe": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "selectors-frame.spec.ts::should work for nested iframe (handle)": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "selectors-frame.spec.ts::waitFor should survive frame reattach": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "selectors-frame.spec.ts::waitForSelector should survive frame reattach (handle)": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "selectors-frame.spec.ts::waitForSelector should survive iframe navigation (handle)": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "selectors-get-by.spec.ts::getBy escaping": {
+    "expected": "SKIP",
+    "reason": "fails slowly (30s): Error: expect(locator).toHaveAttribute(expected) failed"
+  },
+  "selectors-get-by.spec.ts::getByLabel should work with ancestor label and for": {
+    "expected": "FAIL",
+    "reason": "Error: locator.evaluate: Error: Error: strict mode violation: getByLabel('Name') resolved to 2 elements:"
+  },
+  "selectors-get-by.spec.ts::getByLabel should work with ancestor label and multiple controls": {
+    "expected": "FAIL",
+    "reason": "Error: locator.evaluate: Error: Error: strict mode violation: getByLabel('Name') resolved to 2 elements:"
+  },
+  "selectors-get-by.spec.ts::getByText should work": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toContain(expected) // indexOf"
+  },
+  "selectors-misc.spec.ts::chaining should work with large DOM @smoke": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "selectors-misc.spec.ts::should properly determine visibility of display:contents elements": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "selectors-misc.spec.ts::should work with internal:has=": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "selectors-role.spec.ts::should filter hidden, unless explicitly asked for": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "selectors-role.spec.ts::should support checked": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "selectors-role.spec.ts::should support disabled": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "selectors-role.spec.ts::should support option name with html whitespace": {
+    "expected": "SKIP",
+    "reason": "fails slowly (11s): Error: expect(locator).toHaveCount(expected) failed"
+  },
+  "selectors-role.spec.ts::should support selected": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toEqual(expected) // deep equality"
+  },
+  "selectors-text.spec.ts::hasText and internal:text should match full node text in strict mode": {
+    "expected": "FAIL",
+    "reason": "Error: expect(locator).toHaveId(expected) failed"
+  },
+  "selectors-text.spec.ts::should skip head, script and style": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "selectors-text.spec.ts::should work @smoke": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "selectors-text.spec.ts::should work with large DOM": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "to-match-aria-snapshot.spec.ts::pressed attribute": {
+    "expected": "FAIL",
+    "reason": "TypeError: Cannot read properties of undefined (reading 'message')"
+  },
+  "wheel.spec.ts::should dispatch wheel events after popup was opened @smoke": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::Page.workers @smoke": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should attribute network activity for worker inside iframe to the iframe": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "workers.spec.ts::should clear upon cross-process navigation": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should clear upon navigation": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should dispatch console messages when page has workers": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should emit created and destroyed events": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should evaluate": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should have JSHandles for console logs": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should have timestamp on worker console messages": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should not report console logs from workers twice": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should report and intercept network from nested worker": {
+    "expected": "SKIP",
+    "reason": "fails slowly (10s): Error: expect(received).toBe(expected) // Object.is equality"
+  },
+  "workers.spec.ts::should report console event on the worker": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should report console event on the worker when not listening on page or context": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should report console logs": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should report errors": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should report network activity": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should report worker script as network request after redirect": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "workers.spec.ts::should resolve worker script allHeaders in iframe": {
+    "expected": "SKIP",
+    "reason": "skipped upstream for chromium"
+  },
+  "workers.spec.ts::should resolve worker script allHeaders in main frame": {
+    "expected": "FAIL",
+    "reason": "Error: expect(received).toBeTruthy()"
+  },
+  "workers.spec.ts::should resolve worker script allHeaders in nested worker inside iframe": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should support extra http headers": {
+    "expected": "SKIP",
+    "reason": "times out"
+  },
+  "workers.spec.ts::should support offline": {
+    "expected": "SKIP",
+    "reason": "times out"
+  }
+}

@@ -4,7 +4,7 @@ load("@aspect_rules_js//js:defs.bzl", "js_run_binary")
 load("//bazel:executors.bzl", "PW")
 load("//bazel:paths.bzl", "bin_relative")
 
-PW_SHARDS = 10
+PW_SHARDS = 30
 
 def pw_shard(name, shard, shards = PW_SHARDS, exec_properties = PW, **kwargs):
     """Run one deterministic round-robin slice of the Playwright allow-list."""

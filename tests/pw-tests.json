@@ -1,299 +1,125 @@
 [
-  {
-    "file": "elementhandle-convenience.spec.ts",
-    "only": ["getAttribute should work", "innerHTML should work", "textContent should work"]
-  },
-  {
-    "file": "elementhandle-query-selector.spec.ts",
-    "only": [
-      "should query existing element",
-      "should return null for non-existing element",
-      "should query existing elements"
-    ]
-  },
-  {
-    "file": "elementhandle-screenshot.spec.ts",
-    "only": [
-      "element screenshot › should work with webp",
-      "element screenshot › should fail to screenshot a detached element",
-      "element screenshot › should timeout waiting for visible",
-      "element screenshot › should take screenshot of disabled button",
-      "element screenshot › should prefer type over extension",
-      "element screenshot › should not issue resize event"
-    ]
-  },
-  {
-    "file": "eval-on-selector-all.spec.ts",
-    "only": ["should work with css selector", "should return complex values"]
-  },
-  {
-    "file": "eval-on-selector.spec.ts",
-    "only": ["should work with css selector", "should work with text selector"]
-  },
-  {
-    "file": "interception.spec.ts",
-    "only": ["should work with glob", "should intercept by glob"]
-  },
-  {
-    "file": "jshandle-evaluate.spec.ts",
-    "only": ["should work with function @smoke", "should work with expression"]
-  },
-  {
-    "file": "jshandle-json-value.spec.ts",
-    "only": ["should work @smoke", "should work with dates"]
-  },
-  {
-    "file": "jshandle-properties.spec.ts",
-    "only": ["should work @smoke", "getProperties should work"]
-  },
-  {
-    "file": "jshandle-to-string.spec.ts",
-    "only": ["should work for primitives"]
-  },
-  {
-    "file": "locator-convenience.spec.ts",
-    "only": ["getAttribute should work", "textContent should work"]
-  },
-  {
-    "file": "locator-query.spec.ts",
-    "only": [
-      "should respect first() and last() @smoke",
-      "should respect nth()",
-      "should filter by text"
-    ]
-  },
-  {
-    "file": "page-add-init-script.spec.ts",
-    "only": [
-      "should work with content @smoke",
-      "should support multiple scripts",
-      "should work after a cross origin navigation"
-    ]
-  },
-  {
-    "file": "page-add-script-tag.spec.ts",
-    "only": ["should work with a url"]
-  },
-  {
-    "file": "page-add-style-tag.spec.ts",
-    "only": ["should work with a url @smoke"]
-  },
-  {
-    "file": "page-basic.spec.ts",
-    "only": [
-      "should fire load when expected",
-      "should fire domcontentloaded when expected",
-      "page.url should work",
-      "page.title should return the page title"
-    ]
-  },
-  {
-    "file": "page-dispatchevent.spec.ts",
-    "only": ["should dispatch click event @smoke", "should dispatch click event properties"]
-  },
-  {
-    "file": "page-evaluate-handle.spec.ts",
-    "only": ["should work", "should accept nested handle"]
-  },
-  {
-    "file": "page-evaluate-no-stall.spec.ts",
-    "only": ["should work"]
-  },
-  {
-    "file": "page-evaluate.spec.ts",
-    "only": [
-      "should work @smoke",
-      "should transfer arrays",
-      "should roundtrip unserializable values",
-      "should await promise",
-      "should reject promise with exception",
-      "should accept element handle as an argument",
-      "should work right after framenavigated"
-    ]
-  },
-  {
-    "file": "page-event-load.spec.ts",
-    "only": ["should fire once"]
-  },
-  {
-    "file": "page-event-network.spec.ts",
-    "only": [
-      "Page.Events.Request @smoke",
-      "Page.Events.Response @smoke",
-      "should fire events in proper order",
-      "should support redirects"
-    ]
-  },
-  {
-    "file": "page-event-request.spec.ts",
-    "only": ["should fire for navigation requests", "should fire for fetches"]
-  },
-  {
-    "file": "page-expose-function.spec.ts",
-    "only": [
-      "exposeBinding should work @smoke",
-      "should work",
-      "should survive navigation",
-      "should await returned promise",
-      "should work after cross origin navigation"
-    ]
-  },
-  {
-    "file": "page-fill.spec.ts",
-    "only": ["should fill textarea @smoke", "should fill input"]
-  },
-  {
-    "file": "page-focus.spec.ts",
-    "only": ["should work @smoke", "should emit focus event", "should emit blur event"]
-  },
-  {
-    "file": "page-goto.spec.ts",
-    "only": [
-      "should work @smoke",
-      "should work cross-process",
-      "should work with anchor navigation",
-      "should work with redirects",
-      "should navigate to about:blank",
-      "should fail when navigating to bad url",
-      "should send referer"
-    ]
-  },
-  {
-    "file": "page-history.spec.ts",
-    "only": ["page.goBack should work @smoke", "page.reload should work"]
-  },
-  {
-    "file": "page-keyboard.spec.ts",
-    "only": ["should type into a textarea @smoke"]
-  },
-  {
-    "file": "page-localstorage.spec.ts",
-    "only": [
-      "localStorage.setItem persists and surfaces in items()/getItem()",
-      "localStorage.clear empties storage",
-      "sessionStorage round-trip"
-    ]
-  },
-  {
-    "file": "page-network-request.spec.ts",
-    "only": ["should work for fetch requests @smoke", "should return headers"]
-  },
-  {
-    "file": "page-network-response.spec.ts",
-    "only": ["should work @smoke", "should return status text"]
-  },
-  {
-    "file": "page-network-sizes.spec.ts",
-    "only": ["should set bodySize to 0 if there was no body"]
-  },
-  {
-    "file": "page-request-continue.spec.ts",
-    "only": ["should work", "should amend HTTP headers", "should amend method"]
-  },
-  {
-    "file": "page-request-fallback.spec.ts",
-    "only": ["should work", "should fall back", "should amend HTTP headers"]
-  },
-  {
-    "file": "page-request-fulfill.spec.ts",
-    "only": ["should work", "should work with status code 422"]
-  },
-  {
-    "file": "page-request-intercept.spec.ts",
-    "only": ["should fulfill intercepted response", "should fulfill response with empty body"]
-  },
-  {
-    "file": "page-route.spec.ts",
-    "only": [
-      "should intercept @smoke",
-      "should unroute",
-      "should show custom HTTP headers",
-      "should be abortable with custom error codes",
-      "should fulfill with redirect status",
-      "should add Access-Control-Allow-Origin by default when fulfill"
-    ]
-  },
-  {
-    "file": "page-screenshot.spec.ts",
-    "only": [
-      "page screenshot › should not capture blinking caret by default",
-      "page screenshot › should throw on clip outside the viewport",
-      "page screenshot › should throw on a negative clip size",
-      "page screenshot › should restore viewport after fullPage screenshot",
-      "page screenshot › quality option should throw for webp when out of range",
-      "page screenshot › path option should throw for unsupported mime type",
-      "page screenshot › quality option should throw for png",
-      "page screenshot › zero quality option should throw for png",
-      "page screenshot › quality option should work for jpeg",
-      "page screenshot › should prefer type over extension",
-      "page screenshot › should not issue resize event",
-      "page screenshot › should take fullPage screenshots during navigation",
-      "page screenshot › mask option › should work when subframe has stalled navigation",
-      "page screenshot animations › should resume infinite animations",
-      "page screenshot animations › should not capture infinite web animations",
-      "should throw if screenshot size is too large"
-    ]
-  },
-  {
-    "file": "page-set-content.spec.ts",
-    "only": ["should work with tricky content"]
-  },
-  {
-    "file": "page-set-extra-http-headers.spec.ts",
-    "only": ["should work @smoke", "should work with redirects"]
-  },
-  {
-    "file": "page-strict.spec.ts",
-    "only": ["should fail page.textContent in strict mode", "should fail page.$ in strict mode"]
-  },
-  {
-    "file": "page-wait-for-function.spec.ts",
-    "only": ["should accept a string", "should poll on raf"]
-  },
-  {
-    "file": "page-wait-for-load-state.spec.ts",
-    "only": [
-      "should resolve immediately if loaded",
-      "should resolve immediately if load state matches"
-    ]
-  },
-  {
-    "file": "page-wait-for-request.spec.ts",
-    "only": ["should work", "should work with predicate", "should work with url match"]
-  },
-  {
-    "file": "page-wait-for-response.spec.ts",
-    "only": ["should work", "should work with predicate"]
-  },
-  {
-    "file": "page-wait-for-selector-1.spec.ts",
-    "only": [
-      "should immediately resolve promise if node exists",
-      "should resolve promise when node is added"
-    ]
-  },
-  {
-    "file": "page-wait-for-url.spec.ts",
-    "only": ["should work with url match for same document navigations"]
-  },
-  {
-    "file": "queryselector.spec.ts",
-    "only": [
-      "should query existing element with css selector @smoke",
-      "should query existing element with text selector",
-      "should return null for non-existing element"
-    ]
-  },
-  {
-    "file": "selectors-css.spec.ts",
-    "only": ["should work with > combinator and spaces", "should work with comma separated list"]
-  },
-  {
-    "file": "selectors-get-by.spec.ts",
-    "only": ["getByTestId should work", "getByLabel should work"]
-  },
-  {
-    "file": "selectors-text.spec.ts",
-    "only": ["should work with :text"]
-  }
+  "elementhandle-bounding-box.spec.ts",
+  "elementhandle-click.spec.ts",
+  "elementhandle-convenience.spec.ts",
+  "elementhandle-eval-on-selector.spec.ts",
+  "elementhandle-misc.spec.ts",
+  "elementhandle-press.spec.ts",
+  "elementhandle-query-selector.spec.ts",
+  "elementhandle-screenshot.spec.ts",
+  "elementhandle-scroll-into-view.spec.ts",
+  "elementhandle-select-text.spec.ts",
+  "elementhandle-type.spec.ts",
+  "elementhandle-wait-for-element-state.spec.ts",
+  "eval-on-selector-all.spec.ts",
+  "eval-on-selector.spec.ts",
+  "expect-boolean.spec.ts",
+  "expect-builtins.spec.ts",
+  "expect-matcher-result.spec.ts",
+  "expect-misc.spec.ts",
+  "expect-timeout.spec.ts",
+  "expect-to-have-accessible.spec.ts",
+  "expect-to-have-text.spec.ts",
+  "expect-to-have-value.spec.ts",
+  "expect-with-snapshot.spec.ts",
+  "frame-evaluate.spec.ts",
+  "frame-frame-element.spec.ts",
+  "frame-hierarchy.spec.ts",
+  "interception.spec.ts",
+  "jshandle-as-element.spec.ts",
+  "jshandle-evaluate.spec.ts",
+  "jshandle-json-value.spec.ts",
+  "jshandle-properties.spec.ts",
+  "jshandle-to-string.spec.ts",
+  "locator-click.spec.ts",
+  "locator-convenience.spec.ts",
+  "locator-element-handle.spec.ts",
+  "locator-evaluate.spec.ts",
+  "locator-frame.spec.ts",
+  "locator-is-visible.spec.ts",
+  "locator-list.spec.ts",
+  "locator-misc-1.spec.ts",
+  "locator-misc-2.spec.ts",
+  "locator-query.spec.ts",
+  "locator-wait-for-function.spec.ts",
+  "matchers.misc.spec.ts",
+  "page-add-init-script-callback.spec.ts",
+  "page-add-init-script.spec.ts",
+  "page-add-locator-handler.spec.ts",
+  "page-add-script-tag.spec.ts",
+  "page-add-style-tag.spec.ts",
+  "page-aria-snapshot-ai.spec.ts",
+  "page-aria-snapshot.spec.ts",
+  "page-autowaiting-basic.spec.ts",
+  "page-autowaiting-no-hang.spec.ts",
+  "page-basic.spec.ts",
+  "page-check.spec.ts",
+  "page-click-during-navigation.spec.ts",
+  "page-click-react.spec.ts",
+  "page-click-scroll.spec.ts",
+  "page-click-timeout-1.spec.ts",
+  "page-click-timeout-2.spec.ts",
+  "page-click-timeout-3.spec.ts",
+  "page-click-timeout-4.spec.ts",
+  "page-click.spec.ts",
+  "page-dialog.spec.ts",
+  "page-dispatchevent.spec.ts",
+  "page-drag.spec.ts",
+  "page-drop.spec.ts",
+  "page-emulate-media.spec.ts",
+  "page-evaluate-callback.spec.ts",
+  "page-evaluate-handle.spec.ts",
+  "page-evaluate-no-stall.spec.ts",
+  "page-evaluate.spec.ts",
+  "page-event-console.spec.ts",
+  "page-event-load.spec.ts",
+  "page-event-network.spec.ts",
+  "page-event-pageerror.spec.ts",
+  "page-event-request.spec.ts",
+  "page-expose-function.spec.ts",
+  "page-filechooser.spec.ts",
+  "page-fill.spec.ts",
+  "page-focus.spec.ts",
+  "page-goto.spec.ts",
+  "page-history.spec.ts",
+  "page-keyboard.spec.ts",
+  "page-listeners.spec.ts",
+  "page-localstorage.spec.ts",
+  "page-mouse.spec.ts",
+  "page-navigation.spec.ts",
+  "page-network-idle.spec.ts",
+  "page-network-request.spec.ts",
+  "page-network-response.spec.ts",
+  "page-network-sizes.spec.ts",
+  "page-request-continue.spec.ts",
+  "page-request-fallback.spec.ts",
+  "page-request-fulfill.spec.ts",
+  "page-request-intercept.spec.ts",
+  "page-route.spec.ts",
+  "page-screenshot.spec.ts",
+  "page-select-option.spec.ts",
+  "page-set-content.spec.ts",
+  "page-set-extra-http-headers.spec.ts",
+  "page-set-input-files.spec.ts",
+  "page-strict.spec.ts",
+  "page-wait-for-function.spec.ts",
+  "page-wait-for-load-state.spec.ts",
+  "page-wait-for-navigation.spec.ts",
+  "page-wait-for-request.spec.ts",
+  "page-wait-for-response.spec.ts",
+  "page-wait-for-selector-1.spec.ts",
+  "page-wait-for-selector-2.spec.ts",
+  "page-wait-for-url.spec.ts",
+  "queryselector.spec.ts",
+  "retarget.spec.ts",
+  "selectors-css.spec.ts",
+  "selectors-frame.spec.ts",
+  "selectors-get-by.spec.ts",
+  "selectors-misc.spec.ts",
+  "selectors-register.spec.ts",
+  "selectors-role.spec.ts",
+  "selectors-text.spec.ts",
+  "to-match-aria-snapshot.spec.ts",
+  "wheel.spec.ts",
+  "workers.spec.ts"
 ]
