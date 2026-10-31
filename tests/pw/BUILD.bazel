@@ -1,10 +1,15 @@
-load(":defs.bzl", "PW_SHARDS", "pw_shard")
+load(":defs.bzl", "PW_SHARDS", "pw_html_report", "pw_shard")
 
 [pw_shard(name = "shard_%d" % index, shard = index) for index in range(1, PW_SHARDS + 1)]
 
 filegroup(
     name = "shards",
     srcs = [":shard_%d" % index for index in range(1, PW_SHARDS + 1)],
+)
+
+pw_html_report(
+    name = "html_report",
+    shards = [":shard_%d" % index for index in range(1, PW_SHARDS + 1)],
 )
 
 test_suite(

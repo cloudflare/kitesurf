@@ -201,6 +201,12 @@ js_binary(
 )
 
 js_binary(
+    name = "pw_html_report",
+    entry_point = "pw-html-report.mjs",
+    visibility = ["//tests/pw:__pkg__"],
+)
+
+js_binary(
     name = "wpt_inventory",
     data = [":wpt_shared"],
     entry_point = "wpt-inventory.mjs",
