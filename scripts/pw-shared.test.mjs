@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { coverageGaps, deviations, rebaseline } from "./pw-shared.mjs";
+import { coverageGaps, deviations, rebaseline, reportResults } from "./pw-shared.mjs";
 import { junit } from "./pw-gate.mjs";
 
 const specs = [
@@ -32,6 +32,37 @@ test("coverage identifies empty specs and vanished pins", () => {
   assert.deepEqual(coverageGaps(results, specs, expectations), {
     emptyFiles: ["c.spec.ts"],
     missingPins: ["a.spec.ts::gone"],
+  });
+});
+
+test("report ids follow each test's describe path, not the file suite", () => {
+  const spec = (title, status) => ({
+    title,
+    file: "a.spec.ts",
+    tests: [{ results: status ? [{ status }] : [] }],
+  });
+  const report = {
+    suites: [
+      {
+        title: "a.spec.ts",
+        specs: [spec("top", "passed")],
+        suites: [
+          {
+            title: "outer",
+            specs: [spec("same", "failed")],
+            suites: [{ title: "inner", specs: [spec("same", "timedOut"), spec("idle")] }],
+          },
+          { title: "", specs: [spec("anonymous", "skipped")] },
+        ],
+      },
+    ],
+  };
+  assert.deepEqual(reportResults(report), {
+    "a.spec.ts::top": "PASS",
+    "a.spec.ts::outer › same": "FAIL",
+    "a.spec.ts::outer › inner › same": "TIMEOUT",
+    "a.spec.ts::outer › inner › idle": "SKIP",
+    "a.spec.ts::anonymous": "SKIP",
   });
 });
 

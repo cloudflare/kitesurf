@@ -22,6 +22,7 @@ import {
   loadExpectations as readExpectations,
   rebaseline,
   reportGaps,
+  reportResults,
   summarize,
 } from "./pw-shared.mjs";
 
@@ -292,26 +293,7 @@ function runPlaywright(wsEndpoint, specFiles, grep, tag) {
 }
 
 function collectResults(jsonPath) {
-  const report = JSON.parse(readFileSync(jsonPath, "utf8"));
-  const out = {};
-  const mapStatus = (s) =>
-    s === "passed" ? "PASS" : s === "timedOut" ? "TIMEOUT" : s === "skipped" ? "SKIP" : "FAIL";
-  const walk = (suite, titles) => {
-    for (const child of suite.suites ?? [])
-      walk(child, suite.title ? [...titles, suite.title] : titles);
-    for (const spec of suite.specs ?? []) {
-      const file = spec.file.replace(/\\/g, "/");
-      for (const t of spec.tests ?? []) {
-        const status = t.results?.length
-          ? mapStatus(t.results[t.results.length - 1].status)
-          : "SKIP";
-        const id = `${file}::${[...titles, spec.title].join(" › ")}`;
-        out[id] = status;
-      }
-    }
-  };
-  for (const suite of report.suites ?? []) walk(suite, []);
-  return out;
+  return reportResults(JSON.parse(readFileSync(jsonPath, "utf8")));
 }
 
 function deviations(results) {
