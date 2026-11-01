@@ -11,11 +11,11 @@ are unchanged.
 
 Signed-off-by: bpereira <bpereira@cloudflare.com>
 ---
- src/tree/cache.rs | 307 +++++++++++++++++++++++++++++++++++++++++++---
- 1 file changed, 289 insertions(+), 18 deletions(-)
+ src/tree/cache.rs | 306 ++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 272 insertions(+), 34 deletions(-)
 
 diff --git a/src/tree/cache.rs b/src/tree/cache.rs
-index 82d136f..12ea998 100644
+index 82d136f..bcb1b7f 100644
 --- a/src/tree/cache.rs
 +++ b/src/tree/cache.rs
 @@ -2,9 +2,13 @@
@@ -223,7 +223,7 @@ index 82d136f..12ea998 100644
              }
              RunMode::ComputeSize => {
                  // Measure entries only store the size, and cache hits are reconstructed with
-@@ -321,10 +444,9 @@ impl Cache {
+@@ -321,27 +444,7 @@ impl Cache {
                      return;
                  }
                  let inner = self.inner.get_or_insert_with(|| Box::new(CacheInner::new(mode)));
@@ -231,36 +231,28 @@ index 82d136f..12ea998 100644
 -                    inner.measure_entries.iter().position(|entry| entry.as_ref().is_some_and(|entry| entry.key == key))
 -                {
 -                    inner.measure_entries[index].as_mut().unwrap().content = layout_output.size;
-+                let entries = &mut inner.measure_entries;
-+                if let Some(index) = entries.iter().position(|entry| entry.key == key) {
-+                    entries[index].content = layout_output.size;
-                     inner.recently_used_entries |= 1 << index;
-                     return;
-                 }
-@@ -336,7 +458,21 @@ impl Cache {
-                     }
-                 }
-                 let entry_index = inner.next_measure_entry as usize;
+-                    inner.recently_used_entries |= 1 << index;
+-                    return;
+-                }
+-                while inner.recently_used_entries & (1 << inner.next_measure_entry) != 0 {
+-                    inner.recently_used_entries &= !(1 << inner.next_measure_entry);
+-                    inner.next_measure_entry += 1;
+-                    if inner.next_measure_entry == CACHE_SIZE as u8 {
+-                        inner.next_measure_entry = 0;
+-                    }
+-                }
+-                let entry_index = inner.next_measure_entry as usize;
 -                inner.measure_entries[entry_index] = Some(CacheEntry { key, content: layout_output.size });
-+                let entry = CacheEntry { key, content: layout_output.size };
-+                if entry_index == entries.len() {
-+                    // Slots fill in cursor order before the clock can wrap. Keep
-+                    // their indices stable: lookup order and second chances depend on them.
-+                    if entries.len() == entries.capacity() {
-+                        // Double while small, then grow by one: most caches that pass four
-+                        // entries settle at five, which doubling would round up to eight.
-+                        let len = entries.len();
-+                        let capacity = (if len < 4 { (len * 2).max(1) } else { len + 1 }).min(CACHE_SIZE);
-+                        entries.reserve_exact(capacity - entries.len());
-+                    }
-+                    entries.push(entry);
-+                } else {
-+                    entries[entry_index] = entry;
-+                }
-                 inner.recently_used_entries |= 1 << entry_index;
-                 inner.next_measure_entry += 1;
-                 if inner.next_measure_entry == CACHE_SIZE as u8 {
-@@ -414,10 +550,23 @@ mod tests {
+-                inner.recently_used_entries |= 1 << entry_index;
+-                inner.next_measure_entry += 1;
+-                if inner.next_measure_entry == CACHE_SIZE as u8 {
+-                    inner.next_measure_entry = 0;
+-                }
++                inner.store_measurement(key, layout_output.size);
+             }
+             RunMode::PerformHiddenLayout => {}
+         }
+@@ -414,10 +517,23 @@ mod tests {
          cache.store(&input(2.0), output(2.0));
          cache.store(&input(1.0), output(3.0));
 
@@ -285,7 +277,7 @@ index 82d136f..12ea998 100644
      #[test]
      fn measurements_with_margin_collapse_metadata_are_not_cached() {
          let mut cache = Cache::new();
-@@ -507,7 +656,7 @@ mod tests {
+@@ -507,7 +623,7 @@ mod tests {
              cache.store(&other, output(3.0));
              assert_eq!(cache.get(&other), Some(output(3.0)));
              assert!(cache.inner.as_ref().unwrap().final_layout_entry.is_none());
@@ -294,7 +286,7 @@ index 82d136f..12ea998 100644
 
              // The old entries are gone, even for inputs that have the mode that the cache had before
              cache.store(&input(4.0), output(4.0));
-@@ -524,7 +673,7 @@ mod tests {
+@@ -524,7 +640,7 @@ mod tests {
 
              cache.store(&other, output(3.0));
              assert_eq!(cache.get(&other), Some(output(3.0)));
@@ -303,7 +295,7 @@ index 82d136f..12ea998 100644
              assert_eq!(cache.get(&perform_layout_input(100.0, 50.0)), None);
          }
      }
-@@ -537,6 +686,128 @@ mod tests {
+@@ -537,6 +653,128 @@ mod tests {
          assert_eq!(cache.get(&input(1.0)), Some(output(1.0)));
      }
 
