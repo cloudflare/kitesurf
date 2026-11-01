@@ -273,9 +273,9 @@
     "//bazel/rust:crates.bzl%cargo_workspaces": {
       "general": {
         "bzlTransitiveDigest": "Azt4Ub+gfepkRli3W2Ekw9F1bhXQ2J4Sc24M58PeNEs=",
-        "usagesDigest": "fbK9zGiubAA06rvLe2I0KfYyjGlq6F+wTeB4ZbRdtKY=",
+        "usagesDigest": "xJUf08Qr0x2z4G4hRbkonWPQnT6MDon6SpDUjYFAJYI=",
         "recordedInputs": [
-          "FILE:@@//Cargo.toml 32964f1a43dd5ace3e91115f9e5f8bd6f34deda4e32fbbe9d40aae6a3aff7d06"
+          "FILE:@@//Cargo.toml b4bd9cd63bb83f98dd01a072f645a50952265e9b48ed8711719e7e2308f39dde"
         ],
         "generatedRepoSpecs": {
           "patched_vello_cpu-0.3.0": {
@@ -338,6 +338,15 @@
               "crate": "blitz-html",
               "version": "0.3.0-beta.4",
               "sha256": "eddd638e05f3f3efb9f2d37f0406e7834ea023727e1678524488aa70eb639615",
+              "patches_marker": "@@//scripts:patches/README.md"
+            }
+          },
+          "patched_blitz-traits-0.3.0-beta.4": {
+            "repoRuleId": "@@//bazel/rust:crates.bzl%_patched_crate",
+            "attributes": {
+              "crate": "blitz-traits",
+              "version": "0.3.0-beta.4",
+              "sha256": "d339c3ff7fe8bed623e27695a4c15dd1ec8faa9bf9158b7475bf180280e4018c",
               "patches_marker": "@@//scripts:patches/README.md"
             }
           },
@@ -489,6 +498,7 @@
                 "blitz-dom-0.3.0-beta.4": "@@+cargo_workspaces+patched_blitz-dom-0.3.0-beta.4//:BUILD.bazel",
                 "blitz-paint-0.3.0-beta.4": "@@+cargo_workspaces+patched_blitz-paint-0.3.0-beta.4//:BUILD.bazel",
                 "blitz-html-0.3.0-beta.4": "@@+cargo_workspaces+patched_blitz-html-0.3.0-beta.4//:BUILD.bazel",
+                "blitz-traits-0.3.0-beta.4": "@@+cargo_workspaces+patched_blitz-traits-0.3.0-beta.4//:BUILD.bazel",
                 "anyrender-0.14.0": "@@+cargo_workspaces+patched_anyrender-0.14.0//:BUILD.bazel",
                 "anyrender_vello_cpu-0.18.0": "@@+cargo_workspaces+patched_anyrender_vello_cpu-0.18.0//:BUILD.bazel",
                 "taffy-0.15.0": "@@+cargo_workspaces+patched_taffy-0.15.0//:BUILD.bazel",
@@ -522,6 +532,7 @@
                 "blitz-dom": "blitz-dom-0.3.0-beta.4",
                 "blitz-paint": "blitz-paint-0.3.0-beta.4",
                 "blitz-html": "blitz-html-0.3.0-beta.4",
+                "blitz-traits": "blitz-traits-0.3.0-beta.4",
                 "anyrender": "anyrender-0.14.0",
                 "anyrender_vello_cpu": "anyrender_vello_cpu-0.18.0",
                 "taffy": "taffy-0.15.0",
@@ -545,6 +556,7 @@
                 "blitz-dom": "@@+cargo_workspaces+patched_blitz-dom-0.3.0-beta.4//:BUILD.bazel",
                 "blitz-paint": "@@+cargo_workspaces+patched_blitz-paint-0.3.0-beta.4//:BUILD.bazel",
                 "blitz-html": "@@+cargo_workspaces+patched_blitz-html-0.3.0-beta.4//:BUILD.bazel",
+                "blitz-traits": "@@+cargo_workspaces+patched_blitz-traits-0.3.0-beta.4//:BUILD.bazel",
                 "anyrender": "@@+cargo_workspaces+patched_anyrender-0.14.0//:BUILD.bazel",
                 "anyrender_vello_cpu": "@@+cargo_workspaces+patched_anyrender_vello_cpu-0.18.0//:BUILD.bazel",
                 "taffy": "@@+cargo_workspaces+patched_taffy-0.15.0//:BUILD.bazel",
@@ -567,6 +579,7 @@
                 "blitz-dom-0.3.0-beta.4": "a814bfd3ad19e6d8d26f99c75188062baca499564f9abe44250230962427d183",
                 "blitz-html-0.3.0-beta.4": "eddd638e05f3f3efb9f2d37f0406e7834ea023727e1678524488aa70eb639615",
                 "blitz-paint-0.3.0-beta.4": "28803328124d7b7ea5f8f41501513ccb005559e9f6baf33fa0c1fb7612654a93",
+                "blitz-traits-0.3.0-beta.4": "d339c3ff7fe8bed623e27695a4c15dd1ec8faa9bf9158b7475bf180280e4018c",
                 "boa_ast-0.22.0": "9221b0a090572b4a118b46c5874c0781fe4bc9546b85f0a615b8bfb609ca4ed7",
                 "boa_engine-0.22.0": "5d6aaf7fdc4299df68adb67e1a5440a51d34630a1f5271b9698fd74bc97b60d9",
                 "boa_gc-0.22.0": "af82119558ab1002d1978c8459b53a3ebb506177d29a3aca37c07c1777b1d966",
@@ -602,6 +615,7 @@
                 "blitz-dom": "blitz-dom-0.3.0-beta.4",
                 "blitz-paint": "blitz-paint-0.3.0-beta.4",
                 "blitz-html": "blitz-html-0.3.0-beta.4",
+                "blitz-traits": "blitz-traits-0.3.0-beta.4",
                 "anyrender": "anyrender-0.14.0",
                 "anyrender_vello_cpu": "anyrender_vello_cpu-0.18.0",
                 "taffy": "taffy-0.15.0",
@@ -625,6 +639,7 @@
                 "blitz-dom": "@@+cargo_workspaces+patched_blitz-dom-0.3.0-beta.4//:BUILD.bazel",
                 "blitz-paint": "@@+cargo_workspaces+patched_blitz-paint-0.3.0-beta.4//:BUILD.bazel",
                 "blitz-html": "@@+cargo_workspaces+patched_blitz-html-0.3.0-beta.4//:BUILD.bazel",
+                "blitz-traits": "@@+cargo_workspaces+patched_blitz-traits-0.3.0-beta.4//:BUILD.bazel",
                 "anyrender": "@@+cargo_workspaces+patched_anyrender-0.14.0//:BUILD.bazel",
                 "anyrender_vello_cpu": "@@+cargo_workspaces+patched_anyrender_vello_cpu-0.18.0//:BUILD.bazel",
                 "taffy": "@@+cargo_workspaces+patched_taffy-0.15.0//:BUILD.bazel",
@@ -647,6 +662,7 @@
                 "blitz-dom-0.3.0-beta.4": "a814bfd3ad19e6d8d26f99c75188062baca499564f9abe44250230962427d183",
                 "blitz-html-0.3.0-beta.4": "eddd638e05f3f3efb9f2d37f0406e7834ea023727e1678524488aa70eb639615",
                 "blitz-paint-0.3.0-beta.4": "28803328124d7b7ea5f8f41501513ccb005559e9f6baf33fa0c1fb7612654a93",
+                "blitz-traits-0.3.0-beta.4": "d339c3ff7fe8bed623e27695a4c15dd1ec8faa9bf9158b7475bf180280e4018c",
                 "boa_ast-0.22.0": "9221b0a090572b4a118b46c5874c0781fe4bc9546b85f0a615b8bfb609ca4ed7",
                 "boa_engine-0.22.0": "5d6aaf7fdc4299df68adb67e1a5440a51d34630a1f5271b9698fd74bc97b60d9",
                 "boa_gc-0.22.0": "af82119558ab1002d1978c8459b53a3ebb506177d29a3aca37c07c1777b1d966",
@@ -682,6 +698,7 @@
                 "blitz-dom": "blitz-dom-0.3.0-beta.4",
                 "blitz-paint": "blitz-paint-0.3.0-beta.4",
                 "blitz-html": "blitz-html-0.3.0-beta.4",
+                "blitz-traits": "blitz-traits-0.3.0-beta.4",
                 "anyrender": "anyrender-0.14.0",
                 "anyrender_vello_cpu": "anyrender_vello_cpu-0.18.0",
                 "taffy": "taffy-0.15.0",
@@ -705,6 +722,7 @@
                 "blitz-dom": "@@+cargo_workspaces+patched_blitz-dom-0.3.0-beta.4//:BUILD.bazel",
                 "blitz-paint": "@@+cargo_workspaces+patched_blitz-paint-0.3.0-beta.4//:BUILD.bazel",
                 "blitz-html": "@@+cargo_workspaces+patched_blitz-html-0.3.0-beta.4//:BUILD.bazel",
+                "blitz-traits": "@@+cargo_workspaces+patched_blitz-traits-0.3.0-beta.4//:BUILD.bazel",
                 "anyrender": "@@+cargo_workspaces+patched_anyrender-0.14.0//:BUILD.bazel",
                 "anyrender_vello_cpu": "@@+cargo_workspaces+patched_anyrender_vello_cpu-0.18.0//:BUILD.bazel",
                 "taffy": "@@+cargo_workspaces+patched_taffy-0.15.0//:BUILD.bazel",
@@ -727,6 +745,7 @@
                 "blitz-dom-0.3.0-beta.4": "a814bfd3ad19e6d8d26f99c75188062baca499564f9abe44250230962427d183",
                 "blitz-html-0.3.0-beta.4": "eddd638e05f3f3efb9f2d37f0406e7834ea023727e1678524488aa70eb639615",
                 "blitz-paint-0.3.0-beta.4": "28803328124d7b7ea5f8f41501513ccb005559e9f6baf33fa0c1fb7612654a93",
+                "blitz-traits-0.3.0-beta.4": "d339c3ff7fe8bed623e27695a4c15dd1ec8faa9bf9158b7475bf180280e4018c",
                 "boa_ast-0.22.0": "9221b0a090572b4a118b46c5874c0781fe4bc9546b85f0a615b8bfb609ca4ed7",
                 "boa_engine-0.22.0": "5d6aaf7fdc4299df68adb67e1a5440a51d34630a1f5271b9698fd74bc97b60d9",
                 "boa_gc-0.22.0": "af82119558ab1002d1978c8459b53a3ebb506177d29a3aca37c07c1777b1d966",
@@ -1553,7 +1572,17 @@
                 "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0070-layout-rebuild-inline-backgrounds-when-fragment-pres.patch",
                 "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0071-Resolve-placeholder-style-for-text-controls.patch",
                 "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0072-Stamp-CSS-opacity-and-blend-mode-on-inner-SVG-elemen.patch",
-                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0073-Rebuild-a-text-control-when-its-placeholder-look-cha.patch"
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0073-Rebuild-a-text-control-when-its-placeholder-look-cha.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0074-Hold-cached-svg-trees-weakly.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0075-Keep-shadow-ids-out-of-the-id-map-across-mutations.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0076-Compact-retained-DOM-node-storage.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0077-Drop-box-state-under-subtrees-that-become-display-no.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0078-Evict-the-shaped-text-of-inline-roots-far-from-the-v.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0079-Keep-derived-child-lists-only-on-box-nodes.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0080-Rebuild-table-cells-grid-styles-instead-of-storing-t.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0081-Shape-outside-list-markers-when-painted-instead-of-k.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0082-Box-scroll-and-pin-offsets-only-for-boxes-that-have-.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0083-Key-the-id-map-by-atom-instead-of-a-copied-string.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "a814bfd3ad19e6d8d26f99c75188062baca499564f9abe44250230962427d183",
@@ -1573,7 +1602,8 @@
               ],
               "patches": [
                 "@@//scripts:patches/blitz-html-0.3.0-beta.4/0001-Stop-the-XHTML-sniff-at-the-first-non-root-start-tag.patch",
-                "@@//scripts:patches/blitz-html-0.3.0-beta.4/0002-Parse-template-contents-inline-under-the-template-el.patch"
+                "@@//scripts:patches/blitz-html-0.3.0-beta.4/0002-Parse-template-contents-inline-under-the-template-el.patch",
+                "@@//scripts:patches/blitz-html-0.3.0-beta.4/0003-Read-element-names-and-build-attributes-through-blit.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "eddd638e05f3f3efb9f2d37f0406e7834ea023727e1678524488aa70eb639615",
@@ -1619,7 +1649,12 @@
                 "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0025-Paint-placeholder-text-in-its-placeholder-colour.patch",
                 "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0026-Apply-ancestor-overflow-clips-to-hoisted-z-index-chi.patch",
                 "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0027-Draw-only-the-gradient-tiles-that-reach-the-viewport.patch",
-                "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0028-Bound-repeated-SVG-background-work-with-a-node-visit.patch"
+                "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0028-Bound-repeated-SVG-background-work-with-a-node-visit.patch",
+                "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0028-Paint-optional-text-style-decorations.patch",
+                "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0029-Read-compact-DOM-storage-through-accessors.patch",
+                "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0030-Read-inline-layouts-through-the-rebuilding-accessor.patch",
+                "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0031-Read-box-child-lists-through-node-accessors.patch",
+                "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0032-Shape-outside-list-markers-when-painted.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "28803328124d7b7ea5f8f41501513ccb005559e9f6baf33fa0c1fb7612654a93",
@@ -1634,6 +1669,12 @@
           "crates__blitz-traits-0.3.0-beta.4": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
             "attributes": {
+              "patch_args": [
+                "-p1"
+              ],
+              "patches": [
+                "@@//scripts:patches/blitz-traits-0.3.0-beta.4/0001-Store-NodeId-as-two-u32-halves.patch"
+              ],
               "remote_patch_strip": 1,
               "sha256": "d339c3ff7fe8bed623e27695a4c15dd1ec8faa9bf9158b7475bf180280e4018c",
               "type": "tar.gz",
@@ -3929,7 +3970,9 @@
                 "@@//scripts:patches/parley-0.12.0/0004-Add-Layout-truncate_lines-for-CSS-line-clamp.patch",
                 "@@//scripts:patches/parley-0.12.0/0005-Fix-line-breaks-around-out-of-flow-and-atomic-inline.patch",
                 "@@//scripts:patches/parley-0.12.0/0006-Expand-horizontal-tabs-to-CSS-tab-size-stops.patch",
-                "@@//scripts:patches/parley-0.12.0/0007-Add-Blink-s-extra-pixel-to-sub-and-super-shifts.patch"
+                "@@//scripts:patches/parley-0.12.0/0007-Add-Blink-s-extra-pixel-to-sub-and-super-shifts.patch",
+                "@@//scripts:patches/parley-0.12.0/0008-Compact-retained-Parley-layouts.patch",
+                "@@//scripts:patches/parley-0.12.0/0009-Break-lines-from-a-summary-of-a-layout-s-break-segme.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "61bd0c0c1737f0b3d3726dc06b225083af213b61913e4fbae1670613a106c6ce",
@@ -3938,7 +3981,7 @@
                 "https://static.crates.io/crates/parley/0.12.0/download"
               ],
               "strip_prefix": "parley-0.12.0",
-              "build_file_content": "###############################################################################\n# @generated\n# DO NOT MODIFY: This file is auto-generated by a crate_universe tool. To \n# regenerate this file, run the following:\n#\n#     bazel mod show_repo 'kitesurf'\n###############################################################################\n\nload(\"@rules_rust//cargo:defs.bzl\", \"cargo_toml_env_vars\")\n\nload(\"@rules_rust//rust:defs.bzl\", \"rust_library\")\n\n# buildifier: disable=bzl-visibility\nload(\"@rules_rust//crate_universe/private:selects.bzl\", \"selects\")\n\npackage(default_visibility = [\"//visibility:public\"])\n\ncargo_toml_env_vars(\n    name = \"cargo_toml_env_vars\",\n    src = \"Cargo.toml\",\n)\n\nrust_library(\n    name = \"parley\",\n    deps = [\n        \"@crates__fontique-0.12.0//:fontique\",\n        \"@crates__hashbrown-0.17.1//:hashbrown\",\n        \"@crates__linebender_resource_handle-0.1.1//:linebender_resource_handle\",\n        \"@crates__parlance-0.1.1//:parlance\",\n        \"@crates__parley_engine-0.12.0//:parley_engine\",\n        \"@crates__skrifa-0.44.0//:skrifa\",\n        \"@crates__smallvec-1.16.3//:smallvec\",\n    ],\n    compile_data = glob(\n        allow_empty = True,\n        include = [\"**\"],\n        exclude = [\n            \"**/* *\",\n            \".tmp_git_root/**/*\",\n            \"BUILD\",\n            \"BUILD.bazel\",\n            \"WORKSPACE\",\n            \"WORKSPACE.bazel\",\n        ],\n    ),\n    crate_features = [\n        \"bytemuck\",\n        \"std\",\n    ],\n    crate_root = \"src/lib.rs\",\n    edition = \"2024\",\n    rustc_env_files = [\n        \":cargo_toml_env_vars\",\n    ],\n    rustc_flags = [\n        \"--cap-lints=allow\",\n    ],\n    srcs = glob(\n        allow_empty = True,\n        include = [\"**/*.rs\"],\n    ),\n    tags = [\n        \"cargo-bazel\",\n        \"crate-name=parley\",\n        \"manual\",\n        \"noclippy\",\n        \"norustfmt\",\n    ],\n    target_compatible_with = select({\n        \"@rules_rust//rust/platform:aarch64-apple-darwin\": [],\n        \"@rules_rust//rust/platform:aarch64-unknown-linux-gnu\": [],\n        \"@rules_rust//rust/platform:wasm32-unknown-unknown\": [],\n        \"@rules_rust//rust/platform:x86_64-unknown-linux-gnu\": [],\n        \"//conditions:default\": [\"@platforms//:incompatible\"],\n    }),\n    version = \"0.12.0\",\n)\n"
+              "build_file_content": "###############################################################################\n# @generated\n# DO NOT MODIFY: This file is auto-generated by a crate_universe tool. To \n# regenerate this file, run the following:\n#\n#     bazel mod show_repo 'kitesurf'\n###############################################################################\n\nload(\"@rules_rust//cargo:defs.bzl\", \"cargo_toml_env_vars\")\n\nload(\"@rules_rust//rust:defs.bzl\", \"rust_library\")\n\n# buildifier: disable=bzl-visibility\nload(\"@rules_rust//crate_universe/private:selects.bzl\", \"selects\")\n\npackage(default_visibility = [\"//visibility:public\"])\n\ncargo_toml_env_vars(\n    name = \"cargo_toml_env_vars\",\n    src = \"Cargo.toml\",\n)\n\nrust_library(\n    name = \"parley\",\n    deps = [\n        \"@crates__fontique-0.12.0//:fontique\",\n        \"@crates__hashbrown-0.17.1//:hashbrown\",\n        \"@crates__linebender_resource_handle-0.1.1//:linebender_resource_handle\",\n        \"@crates__parlance-0.1.1//:parlance\",\n        \"@crates__parley_engine-0.12.0//:parley_engine\",\n        \"@crates__skrifa-0.44.0//:skrifa\",\n        \"@crates__smallvec-1.16.3//:smallvec\",\n        \"@crates__thin-vec-0.2.21//:thin_vec\",\n    ],\n    compile_data = glob(\n        allow_empty = True,\n        include = [\"**\"],\n        exclude = [\n            \"**/* *\",\n            \".tmp_git_root/**/*\",\n            \"BUILD\",\n            \"BUILD.bazel\",\n            \"WORKSPACE\",\n            \"WORKSPACE.bazel\",\n        ],\n    ),\n    crate_features = [\n        \"bytemuck\",\n        \"std\",\n    ],\n    crate_root = \"src/lib.rs\",\n    edition = \"2024\",\n    rustc_env_files = [\n        \":cargo_toml_env_vars\",\n    ],\n    rustc_flags = [\n        \"--cap-lints=allow\",\n    ],\n    srcs = glob(\n        allow_empty = True,\n        include = [\"**/*.rs\"],\n    ),\n    tags = [\n        \"cargo-bazel\",\n        \"crate-name=parley\",\n        \"manual\",\n        \"noclippy\",\n        \"norustfmt\",\n    ],\n    target_compatible_with = select({\n        \"@rules_rust//rust/platform:aarch64-apple-darwin\": [],\n        \"@rules_rust//rust/platform:aarch64-unknown-linux-gnu\": [],\n        \"@rules_rust//rust/platform:wasm32-unknown-unknown\": [],\n        \"@rules_rust//rust/platform:x86_64-unknown-linux-gnu\": [],\n        \"//conditions:default\": [\"@platforms//:incompatible\"],\n    }),\n    version = \"0.12.0\",\n)\n"
             }
           },
           "crates__parley_data-0.12.0": {
@@ -3975,7 +4018,8 @@
               ],
               "patches": [
                 "@@//scripts:patches/parley_engine-0.12.0/0001-Add-per-paragraph-auto-base-direction-and-first-stro.patch",
-                "@@//scripts:patches/parley_engine-0.12.0/0002-Expand-horizontal-tabs-to-CSS-tab-size-stops.patch"
+                "@@//scripts:patches/parley_engine-0.12.0/0002-Expand-horizontal-tabs-to-CSS-tab-size-stops.patch",
+                "@@//scripts:patches/parley_engine-0.12.0/0003-Compact-retained-shaped-text.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "b74c0d373e462e504ad4436710a39f099e18e848e1ee711f70cd2dcd5a69b290",
@@ -3984,7 +4028,7 @@
                 "https://static.crates.io/crates/parley_engine/0.12.0/download"
               ],
               "strip_prefix": "parley_engine-0.12.0",
-              "build_file_content": "###############################################################################\n# @generated\n# DO NOT MODIFY: This file is auto-generated by a crate_universe tool. To \n# regenerate this file, run the following:\n#\n#     bazel mod show_repo 'kitesurf'\n###############################################################################\n\nload(\"@rules_rust//cargo:defs.bzl\", \"cargo_toml_env_vars\")\n\nload(\"@rules_rust//rust:defs.bzl\", \"rust_library\")\n\n# buildifier: disable=bzl-visibility\nload(\"@rules_rust//crate_universe/private:selects.bzl\", \"selects\")\n\npackage(default_visibility = [\"//visibility:public\"])\n\ncargo_toml_env_vars(\n    name = \"cargo_toml_env_vars\",\n    src = \"Cargo.toml\",\n)\n\nrust_library(\n    name = \"parley_engine\",\n    deps = [\n        \"@crates__fontique-0.12.0//:fontique\",\n        \"@crates__harfrust-0.12.0//:harfrust\",\n        \"@crates__hashbrown-0.17.1//:hashbrown\",\n        \"@crates__icu_locale_core-2.3.0//:icu_locale_core\",\n        \"@crates__icu_normalizer-2.3.0//:icu_normalizer\",\n        \"@crates__icu_properties-2.3.0//:icu_properties\",\n        \"@crates__icu_segmenter-2.3.0//:icu_segmenter\",\n        \"@crates__linebender_resource_handle-0.1.1//:linebender_resource_handle\",\n        \"@crates__parlance-0.1.1//:parlance\",\n        \"@crates__parley_data-0.12.0//:parley_data\",\n        \"@crates__parley_emoji-0.12.0//:parley_emoji\",\n        \"@crates__skrifa-0.44.0//:skrifa\",\n    ],\n    compile_data = glob(\n        allow_empty = True,\n        include = [\"**\"],\n        exclude = [\n            \"**/* *\",\n            \".tmp_git_root/**/*\",\n            \"BUILD\",\n            \"BUILD.bazel\",\n            \"WORKSPACE\",\n            \"WORKSPACE.bazel\",\n        ],\n    ),\n    crate_features = [\n        \"bytemuck\",\n        \"std\",\n    ],\n    crate_root = \"src/lib.rs\",\n    edition = \"2024\",\n    rustc_env_files = [\n        \":cargo_toml_env_vars\",\n    ],\n    rustc_flags = [\n        \"--cap-lints=allow\",\n    ],\n    srcs = glob(\n        allow_empty = True,\n        include = [\"**/*.rs\"],\n    ),\n    tags = [\n        \"cargo-bazel\",\n        \"crate-name=parley_engine\",\n        \"manual\",\n        \"noclippy\",\n        \"norustfmt\",\n    ],\n    target_compatible_with = select({\n        \"@rules_rust//rust/platform:aarch64-apple-darwin\": [],\n        \"@rules_rust//rust/platform:aarch64-unknown-linux-gnu\": [],\n        \"@rules_rust//rust/platform:wasm32-unknown-unknown\": [],\n        \"@rules_rust//rust/platform:x86_64-unknown-linux-gnu\": [],\n        \"//conditions:default\": [\"@platforms//:incompatible\"],\n    }),\n    version = \"0.12.0\",\n)\n"
+              "build_file_content": "###############################################################################\n# @generated\n# DO NOT MODIFY: This file is auto-generated by a crate_universe tool. To \n# regenerate this file, run the following:\n#\n#     bazel mod show_repo 'kitesurf'\n###############################################################################\n\nload(\"@rules_rust//cargo:defs.bzl\", \"cargo_toml_env_vars\")\n\nload(\"@rules_rust//rust:defs.bzl\", \"rust_library\")\n\n# buildifier: disable=bzl-visibility\nload(\"@rules_rust//crate_universe/private:selects.bzl\", \"selects\")\n\npackage(default_visibility = [\"//visibility:public\"])\n\ncargo_toml_env_vars(\n    name = \"cargo_toml_env_vars\",\n    src = \"Cargo.toml\",\n)\n\nrust_library(\n    name = \"parley_engine\",\n    deps = [\n        \"@crates__fontique-0.12.0//:fontique\",\n        \"@crates__harfrust-0.12.0//:harfrust\",\n        \"@crates__hashbrown-0.17.1//:hashbrown\",\n        \"@crates__icu_locale_core-2.3.0//:icu_locale_core\",\n        \"@crates__icu_normalizer-2.3.0//:icu_normalizer\",\n        \"@crates__icu_properties-2.3.0//:icu_properties\",\n        \"@crates__icu_segmenter-2.3.0//:icu_segmenter\",\n        \"@crates__linebender_resource_handle-0.1.1//:linebender_resource_handle\",\n        \"@crates__parlance-0.1.1//:parlance\",\n        \"@crates__parley_data-0.12.0//:parley_data\",\n        \"@crates__parley_emoji-0.12.0//:parley_emoji\",\n        \"@crates__skrifa-0.44.0//:skrifa\",\n        \"@crates__thin-vec-0.2.21//:thin_vec\",\n    ],\n    compile_data = glob(\n        allow_empty = True,\n        include = [\"**\"],\n        exclude = [\n            \"**/* *\",\n            \".tmp_git_root/**/*\",\n            \"BUILD\",\n            \"BUILD.bazel\",\n            \"WORKSPACE\",\n            \"WORKSPACE.bazel\",\n        ],\n    ),\n    crate_features = [\n        \"bytemuck\",\n        \"std\",\n    ],\n    crate_root = \"src/lib.rs\",\n    edition = \"2024\",\n    rustc_env_files = [\n        \":cargo_toml_env_vars\",\n    ],\n    rustc_flags = [\n        \"--cap-lints=allow\",\n    ],\n    srcs = glob(\n        allow_empty = True,\n        include = [\"**/*.rs\"],\n    ),\n    tags = [\n        \"cargo-bazel\",\n        \"crate-name=parley_engine\",\n        \"manual\",\n        \"noclippy\",\n        \"norustfmt\",\n    ],\n    target_compatible_with = select({\n        \"@rules_rust//rust/platform:aarch64-apple-darwin\": [],\n        \"@rules_rust//rust/platform:aarch64-unknown-linux-gnu\": [],\n        \"@rules_rust//rust/platform:wasm32-unknown-unknown\": [],\n        \"@rules_rust//rust/platform:x86_64-unknown-linux-gnu\": [],\n        \"//conditions:default\": [\"@platforms//:incompatible\"],\n    }),\n    version = \"0.12.0\",\n)\n"
             }
           },
           "crates__paste-1.0.15": {
@@ -5340,7 +5384,9 @@
                 "@@//scripts:patches/taffy-0.15.0/0004-Anchor-auto-line-grid-abspos-areas-to-padding.patch",
                 "@@//scripts:patches/taffy-0.15.0/0005-Size-content-determined-containers-from-their-non-cy.patch",
                 "@@//scripts:patches/taffy-0.15.0/0006-Let-a-backend-round-layout-to-something-other-than-a.patch",
-                "@@//scripts:patches/taffy-0.15.0/0007-Report-a-block-container-s-last-baseline.patch"
+                "@@//scripts:patches/taffy-0.15.0/0007-Report-a-block-container-s-last-baseline.patch",
+                "@@//scripts:patches/taffy-0.15.0/0008-Allocate-and-pack-measurement-cache-slots-only-when-.patch",
+                "@@//scripts:patches/taffy-0.15.0/0009-Commit-block-children-s-layouts-as-they-are-laid-out.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "3c8480887e8803986d96a7173729565520d4bbb721ad6b7ad6941a22897207aa",

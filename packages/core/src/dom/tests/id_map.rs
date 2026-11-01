@@ -68,6 +68,27 @@ fn id_map_matches_a_tree_query_across_mutations() {
     assert_same(&dom, &ids, "id set inside a shadow tree");
 }
 
+#[test]
+fn id_map_keeps_the_remaining_duplicates_when_the_first_one_goes() {
+    let dom = DomHandle::new(
+        r##"<!DOCTYPE html><html><body>
+<p id="x" class="one"></p><p id="x" class="two"></p><p id="x" class="three"></p>
+</body></html>"##,
+        "https://test.example/",
+    );
+    let ids = ["x"];
+    assert_same(&dom, &ids, "parsed");
+    let by_class = |selector: &str| dom.query_selector(selector).expect("query ok") as u32;
+    let (one, three, body) = (by_class(".one"), by_class(".three"), by_class("body"));
+    // The first one added holds the main entry; removing it leaves two duplicates.
+    assert!(dom.remove_node(one));
+    assert_same(&dom, &ids, "first removed");
+    assert!(dom.set_attribute(three, "id", "y"));
+    assert_same(&dom, &["x", "y"], "last renamed");
+    assert!(dom.append_child_node(body, one));
+    assert_same(&dom, &ids, "first reinserted after the others");
+}
+
 /// Connected-to-connected moves across a shadow boundary never flip
 /// `is_in_document`, so the id map must be updated from the boundary change.
 #[test]
@@ -112,6 +133,59 @@ fn id_map_tracks_moves_across_a_shadow_boundary() {
         "shadow element moved to the light tree"
     );
     assert_same(&dom, &ids, "after shadow boundary moves");
+}
+
+/// A moved subtree derives containment from its root: deep light descendants follow the move,
+/// while ids inside a nested host's shadow tree stay hidden in both directions.
+#[test]
+fn id_map_tracks_deep_subtrees_with_nested_hosts_across_a_shadow_boundary() {
+    let dom = DomHandle::new(
+        r##"<!DOCTYPE html><html><body><div id="host"></div></body></html>"##,
+        "https://test.example/",
+    );
+    let ids = ["outer", "deep", "nested", "after"];
+    let host = by_query(&dom, "host") as u32;
+    let body = dom.query_selector("body").expect("query ok") as u32;
+    let root = dom.attach_shadow(host, "open") as u32;
+
+    let outer = dom.create_element("div");
+    assert!(dom.set_attribute(outer, "id", "outer"));
+    let inner_host = dom.create_element("section");
+    assert!(dom.append_child_node(outer, inner_host));
+    let deep = dom.create_element("b");
+    assert!(dom.set_attribute(deep, "id", "deep"));
+    assert!(dom.append_child_node(inner_host, deep));
+    let after = dom.create_element("i");
+    assert!(dom.set_attribute(after, "id", "after"));
+    assert!(dom.append_child_node(outer, after));
+    let nested_root = dom.attach_shadow(inner_host, "open") as u32;
+    let nested = dom.create_element("span");
+    assert!(dom.set_attribute(nested, "id", "nested"));
+    assert!(dom.append_child_node(nested_root, nested));
+
+    assert!(dom.append_child_node(body, outer));
+    assert_same(&dom, &ids, "light subtree inserted");
+    assert_eq!(dom.get_element_by_id("nested"), -1, "nested shadow id");
+
+    assert!(dom.append_child_node(root, outer));
+    for id in ids {
+        assert_eq!(
+            dom.get_element_by_id(id),
+            -1,
+            "moved into a shadow tree: #{id}"
+        );
+    }
+
+    assert!(dom.append_child_node(body, outer));
+    assert_same(&dom, &ids, "moved back to the light tree");
+    for id in ["outer", "deep", "after"] {
+        assert_ne!(dom.get_element_by_id(id), -1, "light id restored: #{id}");
+    }
+    assert_eq!(
+        dom.get_element_by_id("nested"),
+        -1,
+        "nested shadow id after moves"
+    );
 }
 
 #[test]
