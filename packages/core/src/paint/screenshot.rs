@@ -86,18 +86,7 @@ pub(crate) fn paint_document_to_image_scrolled(
         omit_background && matches!(format, ImageFormat::Png | ImageFormat::Webp);
 
     let buffer_size = (render_w as usize) * (render_h as usize) * 4;
-    let mut buffer: Vec<u8> = Vec::with_capacity(buffer_size);
-    if effective_omit_bg {
-        buffer.resize(buffer_size, 0);
-    } else {
-        // SAFETY: vello_cpu's render path writes every byte before
-        // any reader (encode_png / encode_jpeg) sees the buffer.
-        // The Vec is immediately filled below; nothing reads from
-        // the uninitialized region in between.
-        unsafe {
-            buffer.set_len(buffer_size);
-        }
-    }
+    let mut buffer = vec![0u8; buffer_size];
     let mut renderer = VelloCpuImageRenderer::new(render_w, render_h);
     renderer.render(
         |scene| {
