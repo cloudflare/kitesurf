@@ -120,7 +120,8 @@ One-line orientation (see each series' patches for the full why):
   relative-selector invalidator so `:has()` invalidates, + assorted layout
   and robustness fixes (placeholder polyfill, float paint-order gate,
   inline metrics/positioning, font loading, `clear_style_snapshots`
-  cascade-panic recovery, …); compact node storage.
+  cascade-panic recovery, …); compact node storage and release of hidden
+  subtree box state.
 - **blitz-html** — the XHTML sniff stops at the first non-root start
   tag outside comments and quoted literals, so text later on a minified
   one-line page cannot route it to the XML parser (`core/src/dom/scan.rs`

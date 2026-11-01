@@ -49,6 +49,47 @@ fn reconstructed_paragraph_keeps_its_wrapped_lines() {
 }
 
 #[test]
+fn removing_the_last_block_child_clears_the_inline_parents_layout_children() {
+    let html = r##"<!DOCTYPE html>
+<html><body><span id="inline"><div id="block">block</div></span></body></html>"##;
+    let dom = DomHandle::new(html, "https://test.example/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+
+    let inline = dom.query_selector("#inline").expect("query parses") as u32;
+    let block = dom.query_selector("#block").expect("query parses") as u32;
+    assert_eq!(
+        dom.test_layout_children(inline),
+        vec![block],
+        "the inline parent must own the block child's box"
+    );
+
+    assert!(dom.remove_node(block));
+    dom.resolve_layout();
+
+    assert!(
+        !dom.test_layout_children(inline).contains(&block),
+        "the flattened inline parent kept its removed child's box"
+    );
+
+    assert!(dom.drop_node(block));
+    dom.resolve_layout();
+    assert!(
+        dom.test_layout_children(inline).is_empty(),
+        "the dropped child's slot stayed referenced"
+    );
+
+    let replacement = dom.create_element("div");
+    assert!(dom.append_child_node(inline, replacement));
+    dom.resolve_layout();
+    assert_eq!(
+        dom.test_layout_children(inline),
+        vec![replacement],
+        "the inline parent did not recover its box after a block child returned"
+    );
+}
+
+#[test]
 fn narrowing_and_restoring_width_rebreaks_both_ways() {
     let dom = DomHandle::new(WRAP_HTML, "https://test.example/");
     dom.set_viewport(800, 600);

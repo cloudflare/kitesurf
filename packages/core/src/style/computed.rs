@@ -15,6 +15,18 @@ use wasm_bindgen::prelude::*;
 
 use crate::{DomHandle, LayoutMode};
 
+/// The style traversal culls `display: none` subtrees, so their elements store no styles;
+/// `getComputedStyle` still reports them, resolved on demand and not stored.
+fn element_styles(
+    doc: &BaseDocument,
+    node: &blitz_dom::Node,
+) -> Option<::style::servo_arc::Arc<::style::properties::ComputedValues>> {
+    match node.primary_styles() {
+        Some(styles) => Some(::style::servo_arc::Arc::clone(&styles)),
+        None => doc.resolve_undisplayed_style(node.id),
+    }
+}
+
 fn grid_template_resolved(doc: &BaseDocument, node_id: NodeId, columns: bool) -> Option<String> {
     let info = doc.grid_track_info(node_id)?;
     let mut tracks = if columns {
@@ -228,7 +240,7 @@ impl DomHandle {
             let Some(node) = internal_id.and_then(|id| doc.get_node(id)) else {
                 return Vec::new();
             };
-            let Some(primary) = node.primary_styles() else {
+            let Some(primary) = element_styles(&doc, node) else {
                 return Vec::new();
             };
             let pseudo_enum = match normalized.as_str() {
@@ -331,7 +343,7 @@ impl DomHandle {
             let Some(node) = internal_id.and_then(|id| doc.get_node(id)) else {
                 return Vec::new();
             };
-            let Some(styles) = node.primary_styles() else {
+            let Some(styles) = element_styles(&doc, node) else {
                 return Vec::new();
             };
             let no_box = |d: ::style::values::specified::box_::Display| {
@@ -365,7 +377,8 @@ impl DomHandle {
                 }
                 has_box && connected
             };
-            let width_applies = {
+            // An element styled on demand has no box, and layout_style() needs stored styles.
+            let width_applies = node.primary_styles().is_some() && {
                 use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
                 let display = styles.clone_display();
                 CoreStyle::is_replaced(&node.layout_style())
@@ -719,7 +732,7 @@ impl DomHandle {
         let doc = self.doc.try_borrow().ok()?;
         panic::catch_unwind(panic::AssertUnwindSafe(|| {
             use style_traits::ToCss as _;
-            let styles = doc.get_node(internal_id)?.primary_styles()?;
+            let styles = element_styles(&doc, doc.get_node(internal_id)?)?;
             let atom = ::stylo_atoms::Atom::from(name);
             let value = styles.custom_properties().get_for_cssom(&atom);
             Some(value.map(|v| v.to_css_string()).unwrap_or_default())
@@ -747,7 +760,7 @@ impl DomHandle {
         let internal_id = self.resolve_node_id(node_id)?;
         let doc = self.doc.try_borrow().ok()?;
         panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            let styles = doc.get_node(internal_id)?.primary_styles()?;
+            let styles = element_styles(&doc, doc.get_node(internal_id)?)?;
             let mut value = String::new();
             let mut ctx = ::style::values::resolved::Context {
                 style: &styles,

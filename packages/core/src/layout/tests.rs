@@ -6,6 +6,7 @@
 mod abs_filters_width;
 mod abspos_containing_block;
 mod box_decorations;
+mod display_none_release;
 mod float_cache_incremental;
 mod float_with_trailing_comment;
 mod grid_minmax;

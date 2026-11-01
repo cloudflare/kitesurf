@@ -93,6 +93,14 @@ rust_test(
 )
 
 rust_test(
+    name = "blitz_dom_undisplayed_layout_test",
+    crate = "@crates//:blitz-dom",
+    crate_features = ["svg", "floats", "woff"],
+    args = ["nested_slot_edges_visit_each_reachable_node_once_and_release_layout"],
+    exec_properties = RUST,
+)
+
+rust_test(
     name = "taffy_cache_test",
     srcs = ["tests/taffy_cache.rs"],
     edition = "2021",
@@ -125,6 +133,7 @@ build_test(
 test_suite(
     name = "host_tests",
     tests = [
+        ":blitz_dom_undisplayed_layout_test",
         ":boa_gc_test",
         ":boa_interner_test",
         ":core_test",
