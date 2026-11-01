@@ -59,31 +59,39 @@ impl DomHandle {
                 };
             }
         }
-        let mut fonts_ref = match self.rbi_font_bytes.try_borrow_mut() {
-            Ok(f) => f,
-            Err(_) => return Vec::new(),
+        // Set only after the last fallible document borrow, so every exit resets it.
+        doc.set_inline_keep_extent(Some((
+            0.0,
+            crate::paint::pdf::max_printed_height(content_h),
+        )));
+        let caches = (
+            self.rbi_font_bytes.try_borrow_mut(),
+            self.rbi_image_cache.try_borrow_mut(),
+        );
+        let result = match caches {
+            (Ok(mut fonts_ref), Ok(mut images_ref)) => {
+                let mut pdf_images = Vec::new();
+                let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+                    let base: &mut blitz_dom::BaseDocument = &mut doc;
+                    crate::paint::pdf::record_doc_pdf_scenes(
+                        base,
+                        content_w,
+                        content_h,
+                        &mut fonts_ref,
+                        &mut images_ref,
+                        &mut pdf_images,
+                    )
+                }));
+                if let Ok(mut recency) = self.rbi_image_recency.try_borrow_mut() {
+                    recency.note(pdf_images);
+                }
+                result.ok()
+            }
+            _ => None,
         };
-        let mut images_ref = match self.rbi_image_cache.try_borrow_mut() {
-            Ok(i) => i,
-            Err(_) => return Vec::new(),
-        };
-        let mut pdf_images = Vec::new();
-        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            let base: &mut blitz_dom::BaseDocument = &mut doc;
-            crate::paint::pdf::record_doc_pdf_scenes(
-                base,
-                content_w,
-                content_h,
-                &mut fonts_ref,
-                &mut images_ref,
-                &mut pdf_images,
-            )
-        }));
-        if let Ok(mut recency) = self.rbi_image_recency.try_borrow_mut() {
-            recency.note(pdf_images);
-        }
+        doc.set_inline_keep_extent(None);
         match result {
-            Ok(env) if env.len() > crate::paint::scene_replay::PDF_ENVELOPE_U32_BYTES => env,
+            Some(env) if env.len() > crate::paint::scene_replay::PDF_ENVELOPE_U32_BYTES => env,
             _ => Vec::new(),
         }
     }

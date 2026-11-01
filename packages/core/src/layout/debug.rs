@@ -281,7 +281,7 @@ impl DomHandle {
             let Some(inline) = elem.inline_layout_data() else {
                 continue;
             };
-            for (idx, line) in inline.layout.lines().enumerate() {
+            for (idx, line) in inline.layout(base.tree()).lines().enumerate() {
                 let m = line.metrics();
                 let _ = writeln!(
                     out,
@@ -347,7 +347,7 @@ impl DomHandle {
             let Some(inline) = elem.inline_layout_data() else {
                 continue;
             };
-            let layout = &inline.layout;
+            let layout = inline.layout(base.tree());
             let frags = layout.span_fragments();
             let lay = node.final_layout();
             let text_align = node
@@ -371,7 +371,7 @@ impl DomHandle {
                 display,
                 text_align,
                 frags.len(),
-                inline.text.as_str(),
+                inline.text(base.tree()),
             );
             for f in frags {
                 let style = layout.styles().get(f.style_index as usize);

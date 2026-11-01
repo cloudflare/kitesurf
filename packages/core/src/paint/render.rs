@@ -422,6 +422,10 @@ impl DomHandle {
             scene.finish_framed()
         }));
         doc.set_viewport_scroll(entry_scroll);
+        // Scrolling paints through strips, so this path must age layouts too;
+        // after the restore, so the band follows the viewport, not the strip.
+        let base: &mut blitz_dom::BaseDocument = &mut doc;
+        base.evict_offscreen_inline_layouts();
         result.unwrap_or_default()
     }
 
@@ -842,6 +846,9 @@ impl DomHandle {
             if let Ok(mut recency) = self.rbi_image_recency.try_borrow_mut() {
                 recency.evict_stale(&mut images_ref, &scene);
             }
+            // Scrolling resolves nothing, so this is where text that scrolled
+            // far out of view drops its shaped layout again.
+            base.evict_offscreen_inline_layouts();
             scene.finish_framed()
         }));
         result.unwrap_or_default()

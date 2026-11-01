@@ -11,8 +11,14 @@ use crate::paint::scene_record::ImageInfo;
 
 const MAX_PAGES: u32 = 200;
 
+/// The document rows a print of pages `page_height` tall can reach: a band is
+/// at most a page tall, and there are at most [`MAX_PAGES`] of them.
+pub(crate) fn max_printed_height(page_height: u32) -> f64 {
+    MAX_PAGES as f64 * page_height as f64
+}
+
 pub(crate) fn compute_page_bands(doc: &blitz_dom::BaseDocument, height: u32) -> Vec<(f64, f64)> {
-    let node_ranges = collect_node_y_ranges(doc);
+    let node_ranges = collect_node_y_ranges(doc, max_printed_height(height) as f32);
     let unbreakable = merge_break_intervals(&node_ranges, height as f32 * 0.5);
 
     let (forced_breaks, avoid_ranges) = collect_break_intents(doc);
@@ -150,7 +156,9 @@ fn collect_break_intents(doc: &blitz_dom::BaseDocument) -> (Vec<f32>, Vec<(f32, 
     (forced, avoid)
 }
 
-fn collect_node_y_ranges(doc: &blitz_dom::BaseDocument) -> Vec<(f32, f32)> {
+/// Boxes and line boxes starting above `limit`. A range starting at or below
+/// it cannot hold a band end, and skipping it leaves evicted text unrebuilt.
+fn collect_node_y_ranges(doc: &blitz_dom::BaseDocument, limit: f32) -> Vec<(f32, f32)> {
     let mut out: Vec<(f32, f32)> = Vec::with_capacity(1024);
     for (_, node) in doc.tree().iter() {
         // Text, comments, and shadow roots have no independent layout.
@@ -164,7 +172,7 @@ fn collect_node_y_ranges(doc: &blitz_dom::BaseDocument) -> Vec<(f32, f32)> {
         let pos = doc_position(doc, node);
         let top = pos.y;
         let bot = top + h;
-        if !top.is_finite() || !bot.is_finite() {
+        if !top.is_finite() || !bot.is_finite() || top >= limit {
             continue;
         }
         out.push((top, bot));
@@ -175,7 +183,7 @@ fn collect_node_y_ranges(doc: &blitz_dom::BaseDocument) -> Vec<(f32, f32)> {
         let Some(text_layout) = el.inline_layout_data() else {
             continue;
         };
-        for line in text_layout.layout.lines() {
+        for line in text_layout.layout(node.tree()).lines() {
             let m = line.metrics();
             let l_top = top + m.block_min_coord;
             let l_bot = top + m.block_max_coord;
@@ -224,10 +232,83 @@ fn safe_break_above(unbreakable: &[(f32, f32)], ideal: f32, lower_bound: f32) ->
 
 #[cfg(test)]
 mod band_tests {
-    use super::select_band_end;
+    use super::{
+        collect_break_intents, collect_node_y_ranges, compute_page_bands, max_printed_height,
+        merge_break_intervals, select_band_end, MAX_PAGES,
+    };
 
     const PAGE: f64 = 1000.0;
     const TOTAL: f64 = 5000.0;
+
+    #[test]
+    fn pages_beyond_the_print_cap_stay_evicted_without_changing_bands_or_pdf() {
+        let paragraphs: String = (0..600)
+            .map(|i| {
+                format!(
+                    "<p id=p{i}>{}</p>",
+                    "words that wrap across lines ".repeat(5)
+                )
+            })
+            .collect();
+        let html = format!(
+            "<!DOCTYPE html><style>body {{margin:0;font:16px/17px serif}} p {{margin:7px 0}}</style>{paragraphs}"
+        );
+        let load = |eviction| {
+            let dom = crate::DomHandle::new(&html, "https://test.example/");
+            dom.set_viewport(300, 100);
+            dom.doc
+                .borrow_mut()
+                .as_mut()
+                .set_inline_layout_eviction(eviction);
+            dom.resolve_layout();
+            dom
+        };
+        let keep = load(None);
+        let evict = load(Some(2.0));
+        let limited = {
+            let doc = evict.doc.borrow();
+            let base = doc.as_ref();
+            assert!(base.root_element().scroll_height() as f64 > max_printed_height(100));
+            let bands = compute_page_bands(base, 100);
+            assert_eq!(bands.len(), MAX_PAGES as usize);
+            let last = base.get_element_by_id("p599").unwrap();
+            assert!(
+                base.tree()[last]
+                    .element_data()
+                    .unwrap()
+                    .inline_layout_data()
+                    .unwrap()
+                    .is_evicted(),
+                "collecting page bands must not rebuild text beyond the print cap"
+            );
+            bands
+        };
+        let unrestricted = {
+            let doc = keep.doc.borrow();
+            let base = doc.as_ref();
+            let ranges = collect_node_y_ranges(base, f32::INFINITY);
+            assert!(ranges
+                .iter()
+                .any(|&(top, _)| top as f64 >= max_printed_height(100)));
+            let heuristic = merge_break_intervals(&ranges, 50.0);
+            let (forced, avoid) = collect_break_intents(base);
+            let author = merge_break_intervals(&avoid, 100.0);
+            let total = base.root_element().scroll_height() as f64;
+            let mut bands = Vec::new();
+            let mut top = 0.0;
+            for _ in 0..MAX_PAGES {
+                let bottom = select_band_end(top, total, 100.0, &forced, &author, &heuristic);
+                bands.push((top, bottom));
+                top = bottom;
+            }
+            bands
+        };
+        assert_eq!(limited, unrestricted);
+        assert_eq!(
+            evict.record_pdf_scenes(300, 100, 0, 0, 0, 0),
+            keep.record_pdf_scenes(300, 100, 0, 0, 0, 0)
+        );
+    }
 
     #[test]
     fn no_intent_no_overlap_breaks_at_ideal() {

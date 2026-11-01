@@ -490,7 +490,7 @@ fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rec
     let inline_root = node.inline_root_ancestor()?;
     let elem = inline_root.element_data()?;
     let inline = elem.inline_layout_data()?;
-    let layout = &inline.layout;
+    let layout = inline.layout(node.tree());
 
     let lines: Vec<parley::layout::Line<'_, _>> = layout.lines().collect();
 
@@ -635,12 +635,12 @@ fn text_node_rect(doc: &BaseDocument, node: &Node) -> Option<Rect> {
     let inline_root = inline_root?;
     let inline = inline_root.element_data()?.inline_layout_data()?;
     let range = inline
-        .node_ranges
+        .node_ranges(node.tree())
         .iter()
         .find(|(id, _)| *id == node.id)?
         .1
         .clone();
-    let layout = &inline.layout;
+    let layout = inline.layout(node.tree());
     let scale = layout.scale();
     if !scale.is_finite() || scale <= 0.0 {
         return None;

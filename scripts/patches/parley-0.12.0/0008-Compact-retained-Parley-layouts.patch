@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: bpereira <bpereira@cloudflare.com>
 Date: Sat, 24 Oct 2026 20:57:06 +0100
-Subject: [PATCH 8/9] Compact retained Parley layouts
+Subject: [PATCH] Compact retained Parley layouts
 
 A retained paragraph layout kept growth slack and data most layouts
 never use:
@@ -20,17 +20,17 @@ Layout and paint output are unchanged.
 
 Signed-off-by: bpereira <bpereira@cloudflare.com>
 ---
- Cargo.toml               |  4 +++
- src/builder.rs           | 17 +++++++----
+ Cargo.toml               |  4 ++++
+ src/builder.rs           | 17 ++++++++++----
  src/context.rs           |  5 ++--
- src/layout/data.rs       | 62 +++++++++++++++++++++-------------------
- src/layout/layout.rs     | 33 ++++++++++-----------
- src/layout/line_break.rs | 28 +++++++++---------
- src/layout/mod.rs        | 15 +++++-----
+ src/layout/data.rs       | 51 +++++++++++++++++++---------------------
+ src/layout/layout.rs     | 33 ++++++++++++--------------
+ src/layout/line_break.rs | 28 ++++++++++------------
+ src/layout/mod.rs        | 15 ++++++------
  src/layout/run.rs        |  2 +-
- src/layout/whitespace.rs | 22 +++++++-------
- src/resolve/mod.rs       | 38 ++++++++++++++++++++----
- 10 files changed, 134 insertions(+), 92 deletions(-)
+ src/layout/whitespace.rs | 22 +++++++++--------
+ src/resolve/mod.rs       | 38 ++++++++++++++++++++++++++----
+ 10 files changed, 125 insertions(+), 90 deletions(-)
 
 diff --git a/Cargo.toml b/Cargo.toml
 index fc9c001..55e3712 100644
@@ -113,7 +113,7 @@ index 9aa2c89..a157311 100644
              analysis: Analysis::new(),
              line_break: Vec::new(),
 diff --git a/src/layout/data.rs b/src/layout/data.rs
-index ca07bfd..8cd5fdd 100644
+index ca07bfd..1f61c55 100644
 --- a/src/layout/data.rs
 +++ b/src/layout/data.rs
 @@ -15,6 +15,7 @@ use core::ops::Range;
@@ -227,12 +227,10 @@ index ca07bfd..8cd5fdd 100644
              let is_atom_start = i == 0 || cluster.is_grapheme_start();
              if is_atom_start {
                  skip_atom = false;
-@@ -908,18 +914,16 @@ impl ContentWidthsMeasurer {
-
-             // A cluster hangs if all of its characters hang. Its first character is checked via the
+@@ -910,16 +916,7 @@ impl ContentWidthsMeasurer {
              // cached flags so the common case never touches `characters`.
--            let hangs = can_hang
--                && whitespace_hangs(whitespace, style)
+             let hangs = can_hang
+                 && whitespace_hangs(whitespace, style)
 -                && (cluster.char_len() == 1
 -                    || slice
 -                        .characters_in(cluster.chars_range())
@@ -243,16 +241,7 @@ index ca07bfd..8cd5fdd 100644
 -                                &styles[character.style_index as usize],
 -                            )
 -                        }));
-+            let hangs = can_hang && whitespace_hangs(whitespace, style) && {
-+                let char_range = slice.shaped_cluster_char_range(cluster_idx);
-+                char_range.end - char_range.start == 1
-+                    || slice.characters_in(char_range).iter().all(|character| {
-+                        whitespace_hangs(
-+                            character.whitespace,
-+                            &styles[character.style_index as usize],
-+                        )
-+                    })
-+            };
++                && cluster_hangs(slice, cluster_idx, styles);
              if hangs {
                  self.running_hanging_whitespace += min_advance;
                  self.running_hanging_whitespace_max += max_advance;

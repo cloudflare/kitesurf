@@ -340,9 +340,11 @@ impl DomHandle {
             let scroll_height = layout.scroll_height() as f64;
             let clamped_x = x.clamp(0.0, scroll_width.max(0.0));
             let clamped_y = y.clamp(0.0, scroll_height.max(0.0));
+            let previous_y = node.scroll_offset().y;
             node.scroll_offset_mut().x = clamped_x;
             node.scroll_offset_mut().y = clamped_y;
             doc.note_boxes_moved(&[node_id]);
+            doc.note_inner_scroll(clamped_y - previous_y);
             Some(ScrollOffset {
                 x: clamped_x,
                 y: clamped_y,

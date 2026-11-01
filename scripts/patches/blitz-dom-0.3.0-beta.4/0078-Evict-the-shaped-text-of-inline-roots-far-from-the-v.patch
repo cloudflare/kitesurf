@@ -1,0 +1,2229 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 28 Oct 2026 15:10:34 +0000
+Subject: [PATCH] Evict the shaped text of inline roots far from the viewport
+
+Shaped runs, glyphs and lines are the largest derived data of a long
+document, yet once a root's box is settled only paint and geometry
+queries read them. After each resolve, inline roots more than two
+viewport heights away drop their shaped layout. TextLayout::layout is
+the only way to read it and rebuilds it on demand from the DOM, the
+saved inline box sizes and indent, and the last line break.
+
+- Inline roots are shaped inside their layout call, and their text is
+  filled there instead of during box construction, so an evicted root
+  keeps no placeholder text or lines.
+- An evicted root keeps a compact break summary (48 bytes) so layout can
+  rebreak and measure it, read its line extents, and lay out its
+  absolutely positioned boxes, pre-wrap text and top/bottom aligned
+  spans without reshaping; the summary is dropped once the root is
+  rebuilt. Roots without a summary, and lines shaped around floats, stay
+  shaped.
+- Recently laid out roots, roots near the viewport or inside a caller's
+  extent, the last 256 roots a pass broke, and roots read since the last
+  scan stay shaped, so per-frame readers do not reshape every frame.
+  Inner scrolling rescans, roots a measure broke are evicted as after a
+  full layout, a viewport with no height keeps everything resident, and
+  a content slot that differs only by rounding counts as unchanged.
+- A root's shaped layout and text share one allocation, its text
+  classification is one byte, and the rebuild context lives on the tree.
+- Element clones discard derived text layouts.
+
+Text eviction is on by default. Layout, geometry and paint output are
+unchanged.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/debug.rs            |  13 +-
+ src/document.rs         |  61 ++++-
+ src/layout/construct.rs |   9 +-
+ src/layout/evict.rs     | 397 ++++++++++++++++++++++++++++
+ src/layout/inline.rs    | 562 ++++++++++++++++++++++++++++++----------
+ src/layout/mod.rs       |   1 +
+ src/node/element.rs     |  20 ++
+ src/node/mod.rs         |   8 +-
+ src/node/node.rs        |   6 +-
+ src/node/text.rs        | 517 ++++++++++++++++++++++++++++++++++--
+ src/resolve.rs          |  31 +++
+ src/scrolling.rs        |   1 +
+ src/tree.rs             |  17 +-
+ 13 files changed, 1459 insertions(+), 184 deletions(-)
+ create mode 100644 src/layout/evict.rs
+
+diff --git a/src/debug.rs b/src/debug.rs
+index 0b0be26..d5b3e98 100644
+--- a/src/debug.rs
++++ b/src/debug.rs
+@@ -40,20 +40,17 @@ impl BaseDocument {
+                 .unwrap()
+                 .inline_layout_data()
+                 .unwrap();
++            let layout = inline_layout.layout(&self.nodes);
+
+-            println!(
+-                "Size: {}x{}",
+-                inline_layout.layout.width(),
+-                inline_layout.layout.height()
+-            );
+-            println!("Text content: {:?}", inline_layout.text);
++            println!("Size: {}x{}", layout.width(), layout.height());
++            println!("Text content: {:?}", inline_layout.text(&self.nodes));
+             println!("Inline Boxes:");
+-            for ibox in inline_layout.layout.inline_boxes() {
++            for ibox in layout.inline_boxes() {
+                 print!("(id: {}) ", ibox.id);
+             }
+             println!();
+             println!("Lines:");
+-            for (i, line) in inline_layout.layout.lines().enumerate() {
++            for (i, line) in layout.lines().enumerate() {
+                 let metrics = line.metrics();
+                 let x = metrics.inline_min_coord;
+                 let y = metrics.block_min_coord;
+diff --git a/src/document.rs b/src/document.rs
+index c483593..d8832f3 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -474,6 +474,33 @@ pub struct BaseDocument {
+     /// Length of `inline_roots` when it was last left sorted+deduped, so a
+     /// frame that pushed nothing new can skip re-sorting 80k+ entries.
+     pub(crate) inline_roots_settled: usize,
++    /// Inline roots farther than this many viewport heights from the viewport
++    /// drop their shaped text after each resolve; `None` keeps every layout.
++    pub(crate) inline_layout_eviction_viewports: Option<f32>,
++    /// Document rows whose inline roots keep their shaped text regardless of
++    /// the viewport, such as the pages a print is about to paint.
++    pub(crate) inline_keep_extent: Option<(f64, f64)>,
++    /// The last eviction scan, which a resolve that moved nothing need not repeat.
++    pub(crate) last_inline_eviction_scan: Option<crate::layout::evict::InlineEvictionScan>,
++    /// Counts resolves that moved boxes, so the scan can tell a paint that
++    /// follows one from a paint of unchanged geometry.
++    pub(crate) inline_eviction_layout_epoch: u64,
++    /// Total vertical distance inner scrollers have scrolled, in CSS px.
++    pub(crate) inline_eviction_inner_scroll: f64,
++    /// Inline roots that may hold shaped text: a superset the eviction scan
++    /// visits instead of every root, and prunes as it goes.
++    pub(crate) inline_resident: Vec<NodeId>,
++    /// Roots rebuilt since the last scan. Rebuilds happen behind shared
++    /// references (paint, geometry reads), hence the lock.
++    pub(crate) inline_rebuilt: Arc<Mutex<Vec<NodeId>>>,
++    /// Whether the next scan must visit every root, as when eviction is enabled
++    /// after layouts were built without tracking.
++    pub(crate) inline_resident_unknown: bool,
++    /// Roots the running layout pass laid out last, with their sequence number.
++    pub(crate) inline_pass_window: std::collections::VecDeque<(NodeId, u32)>,
++    pub(crate) inline_pass_seq: u32,
++    /// Roots this pass kept shaped for being near the viewport.
++    pub(crate) inline_pass_kept: usize,
+     /// Nodes holding rehomed paint children, and the ancestor chains whose
+     /// rehomed_reach we set last resolve. Both replace a full-tree scan in
+     /// compute_rehomed_reach; the host list is a self-pruning superset.
+@@ -621,9 +648,14 @@ impl BaseDocument {
+         // the doubling overshoot on large documents. with_capacity(0)
+         // is equivalent to Slab::new(), so the default path is unchanged.
+         let guard = SharedRwLock::new();
++        let inline_rebuilt = Arc::<Mutex<Vec<NodeId>>>::default();
+         let nodes = Box::new(NodeTree::with_capacity(
+             config.node_capacity_hint.unwrap_or(0),
+             guard.clone(),
++            crate::node::InlineRebuild {
++                font_ctx: font_ctx.clone(),
++                rebuilt: inline_rebuilt.clone(),
++            },
+         ));
+         let nodes_to_id = HashMap::new();
+
+@@ -708,6 +740,17 @@ impl BaseDocument {
+             any_node_created: false,
+             inline_roots: Vec::new(),
+             inline_roots_settled: 0,
++            inline_layout_eviction_viewports: Some(2.0),
++            inline_keep_extent: None,
++            last_inline_eviction_scan: None,
++            inline_eviction_layout_epoch: 0,
++            inline_eviction_inner_scroll: 0.0,
++            inline_resident: Vec::new(),
++            inline_rebuilt,
++            inline_resident_unknown: false,
++            inline_pass_window: std::collections::VecDeque::new(),
++            inline_pass_seq: 0,
++            inline_pass_kept: 0,
+             rehomed_hosts: Vec::new(),
+             any_construct_damage: false,
+             layout_changed: true,
+@@ -3828,7 +3871,7 @@ impl BaseDocument {
+         let el = inline_root.element_data()?;
+         let il = el.inline_layout_data()?;
+         let (node_id, range) = il
+-            .node_ranges
++            .node_ranges(&self.nodes)
+             .iter()
+             .find(|(_, r)| byte_offset >= r.start && byte_offset <= r.end)
+             .map(|(nid, r)| (*nid, r.clone()))?;
+@@ -3837,9 +3880,10 @@ impl BaseDocument {
+             NodeData::Text(t) => &t.content,
+             _ => return None,
+         };
+-        let slice_start = range.start.min(il.text.len());
+-        let slice_end = byte_offset.min(il.text.len());
+-        let slice = il.text.get(slice_start..slice_end)?;
++        let il_text = il.text(&self.nodes);
++        let slice_start = range.start.min(il_text.len());
++        let slice_end = byte_offset.min(il_text.len());
++        let slice = il_text.get(slice_start..slice_end)?;
+         let node_u16_len = content.encode_utf16().count();
+         let u16 = slice.encode_utf16().count().min(node_u16_len);
+         Some((node_id, u16))
+@@ -4017,7 +4061,7 @@ impl BaseDocument {
+                 let el = n.element_data()?;
+                 let il = el.inline_layout_data()?;
+                 let range = il
+-                    .node_ranges
++                    .node_ranges(&self.nodes)
+                     .iter()
+                     .find(|(nid, _)| *nid == text_id)?
+                     .1
+@@ -4110,14 +4154,15 @@ impl BaseDocument {
+             let element_data = node.element_data()?;
+             let inline_layout = element_data.inline_layout_data()?;
+
+-            if *end > inline_layout.text.len() {
++            let text = inline_layout.text(&self.nodes);
++            if *end > text.len() {
+                 continue;
+             }
+
+             if !result.is_empty() {
+                 result.push(' ');
+             }
+-            result.push_str(&inline_layout.text[*start..*end]);
++            result.push_str(&text[*start..*end]);
+         }
+
+         if result.is_empty() {
+@@ -4213,7 +4258,7 @@ impl BaseDocument {
+                 continue;
+             };
+
+-            let text_len = inline_layout.text.len();
++            let text_len = inline_layout.text(&self.nodes).len();
+
+             if node_id == first_node && node_id == last_node {
+                 let start = first_offset.min(last_offset);
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index e8daff8..fd397f0 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -1158,7 +1158,7 @@ fn collect_layout_children_with_wrap(
+                 let existing_layout = doc.nodes[container_node_id]
+                     .element_data_mut()
+                     .and_then(|el| el.take_inline_layout_data());
+-                let layout = existing_layout.unwrap_or_else(|| Box::new(TextLayout::new()));
++                let layout = existing_layout.unwrap_or_else(|| Box::new(TextLayout::unfilled()));
+
+                 // Queue node for inline layout construction. Deferring construction of inline layouts to a
+                 // dedicated phase allows us to multithread the expensive text shaping step.
+@@ -1921,11 +1921,8 @@ pub(crate) fn build_inline_layout_into(
+         );
+     }
+
+-    // Both live as long as the paragraph; drop their push-growth slack.
+-    text_layout.text = builder.build_into(&mut text_layout.layout);
+-    text_layout.text.shrink_to_fit();
+-    text_layout.node_ranges = core::mem::take(node_ranges);
+-    text_layout.node_ranges.shrink_to_fit();
++    let text = builder.build_into(text_layout.layout_for_build());
++    text_layout.set_content(text, core::mem::take(node_ranges));
+     return;
+
+     fn build_inline_layout_recursive(
+diff --git a/src/layout/evict.rs b/src/layout/evict.rs
+new file mode 100644
+index 0000000..45702d8
+--- /dev/null
++++ b/src/layout/evict.rs
+@@ -0,0 +1,397 @@
++//! Dropping the shaped text of inline roots far from the viewport.
++//!
++//! Shaped runs, glyphs and lines are the largest derived data of a long
++//! document. Once a root's box is settled they are only read by paint and
++//! geometry queries, so far-away roots drop them and `TextLayout::layout`
++//! rebuilds them on the next read, replaying the line break they last had.
++//!
++//! With eviction on, box construction collects only each root's text, the
++//! layout pass shapes a root inside its own layout call and evicts it right
++//! after, so no pass holds the shaped text of the whole document at once.
++
++use crate::BaseDocument;
++use crate::node::{EvictedBreak, EvictedLayout, EvictedSummary, SummaryCell};
++use blitz_traits::node_id::NodeId;
++use style::values::specified::box_::DisplayOutside;
++
++/// Roots laid out most recently in a pass keep their text until this many
++/// more are laid out: about 2.5 KB each on long documents.
++const IN_PASS_WINDOW: usize = 256;
++
++/// Roots a pass keeps shaped because they lie near the viewport.
++const IN_PASS_KEEP_BUDGET: usize = 512;
++
++/// The state an eviction scan ran against, so an unchanged resolve can skip it.
++#[derive(Clone, Copy)]
++pub(crate) struct InlineEvictionScan {
++    scroll_y: f64,
++    inner_scroll: f64,
++    layout_epoch: u64,
++    spared_read_layouts: bool,
++}
++
++/// The document-space rows a root must overlap to keep its shaped text.
++#[derive(Clone, Copy)]
++struct KeepBand {
++    top: f64,
++    bottom: f64,
++    viewport_height: f64,
++}
++
++#[derive(Clone, Copy, PartialEq, Eq)]
++enum Eviction {
++    Evicted,
++    /// Kept for now: the eviction scan visits the root again.
++    Refused,
++    /// Kept until a layout pass breaks the root again, as only that can
++    /// give it a summary: the scan stops visiting it.
++    Unsummarized,
++}
++
++impl BaseDocument {
++    /// Evict inline roots farther than `viewports` viewport heights above or
++    /// below the viewport (`None` disables eviction).
++    pub fn set_inline_layout_eviction(&mut self, viewports: Option<f32>) {
++        if self.inline_layout_eviction_viewports.is_none() && viewports.is_some() {
++            // Layouts built while eviction was off were never tracked.
++            self.inline_resident_unknown = true;
++        }
++        self.inline_layout_eviction_viewports = viewports;
++        self.last_inline_eviction_scan = None;
++    }
++
++    /// Keep the shaped text of inline roots overlapping the document rows
++    /// `top..bottom` as well as those near the viewport (`None` stops). A
++    /// print sets the rows of its pages before laying them out, so painting
++    /// them does not rebuild what the layout pass just shaped.
++    pub fn set_inline_keep_extent(&mut self, extent: Option<(f64, f64)>) {
++        if self.inline_keep_extent != extent {
++            self.inline_keep_extent = extent;
++            // Roots the old extent kept may now be far.
++            self.last_inline_eviction_scan = None;
++        }
++    }
++
++    /// Record an inner scroller scrolling by `dy`: it moves roots through the
++    /// keep band as viewport scroll does, so the next scan must not skip.
++    pub fn note_inner_scroll(&mut self, dy: f64) {
++        self.inline_eviction_inner_scroll += dy.abs();
++    }
++
++    /// Number of inline roots the next eviction scan will visit (an upper bound
++    /// on the roots holding shaped text, before pruning).
++    pub fn inline_resident_count(&self) -> usize {
++        self.inline_resident.len() + self.inline_rebuilt.lock().unwrap().len()
++    }
++
++    /// Drop `node_id`'s shaped text if it can be rebuilt with identical lines.
++    /// Returns whether it was evicted.
++    pub fn evict_inline_layout(&mut self, node_id: NodeId) -> bool {
++        self.try_evict_inline_layout(node_id) == Eviction::Evicted
++    }
++
++    fn try_evict_inline_layout(&mut self, node_id: NodeId) -> Eviction {
++        let scale = self.viewport.scale();
++        // Decide before the style lookups: every scan retries the far roots
++        // this refuses.
++        let Some(inline) = self.inline_layout_mut(node_id) else {
++            return Eviction::Refused;
++        };
++        if !inline.replayable_break || !inline.last_break_width.is_finite() {
++            return Eviction::Refused;
++        }
++        if inline.is_evicted() {
++            return Eviction::Refused;
++        }
++        let layout = inline.live_mut();
++        // Scale changes rebuild every layout, but a stale one cannot replay.
++        if layout.scale() != scale {
++            return Eviction::Refused;
++        }
++        // Without a summary every width change would reshape the root, so
++        // such roots keep their shaped text.
++        let Some(lines) = layout.break_summary() else {
++            return Eviction::Unsummarized;
++        };
++        // A summary holds only absolutely positioned boxes, and only the line
++        // each lands on.
++        let out_of_flow: Box<[NodeId]> = layout
++            .inline_boxes()
++            .map(|ibox| NodeId::from_u64(ibox.id))
++            .collect();
++        if !out_of_flow.is_empty()
++            && (is_vertical(&self.nodes[node_id])
++                || !out_of_flow
++                    .iter()
++                    .all(|&id| self.abspos_static_x_is_unused(id)))
++        {
++            return Eviction::Unsummarized;
++        }
++        let clamp_lines = self.inline_clamp_lines(node_id);
++        let (_, last_line_alignment) = self.inline_alignment(node_id);
++        let inline = self
++            .inline_layout_mut(node_id)
++            .expect("the root was found above");
++        let layout = inline.live_mut();
++        let max_advance = layout.layout_max_advance();
++        let indent = layout.text_indent();
++        let alignment = layout.alignment();
++        let boxes = layout
++            .inline_boxes()
++            .map(|ibox| (ibox.width, ibox.height, ibox.baseline))
++            .collect();
++        // Content widths the layout pass measured stay in `inline.content_widths`.
++        let summary = Some(EvictedSummary { lines, out_of_flow });
++        let breaking = EvictedBreak::new(
++            max_advance,
++            indent,
++            alignment,
++            last_line_alignment,
++            clamp_lines,
++            boxes,
++            SummaryCell::new(summary),
++        );
++        inline.evict(EvictedLayout {
++            node_id,
++            scale,
++            breaking: Some(Box::new(breaking)),
++        });
++        Eviction::Evicted
++    }
++
++    /// Whether the static position of the absolutely positioned box `id`
++    /// does not depend on where along its line it is: a block-level box's
++    /// starts at the content box edge, and an inline-axis inset replaces it.
++    pub(super) fn abspos_static_x_is_unused(&self, id: NodeId) -> bool {
++        let Some(node) = self.nodes.get(id) else {
++            return false;
++        };
++        let Some(style) = node.primary_styles() else {
++            return false;
++        };
++        if is_vertical(node) {
++            return false;
++        }
++        if style.get_box().original_display.outside() != DisplayOutside::Inline {
++            return true;
++        }
++        let position = style.get_position();
++        !position.left.is_auto() || !position.right.is_auto()
++    }
++
++    fn inline_keep_band(&self, viewports: f32) -> Option<KeepBand> {
++        let scale = self.viewport.scale_f64();
++        let viewport_height = self.viewport.window_size.1 as f64 / scale;
++        if viewport_height <= 0.0 {
++            return None;
++        }
++        let scroll_y = self.viewport_scroll().y;
++        let band = viewport_height * viewports as f64;
++        Some(KeepBand {
++            top: scroll_y - band,
++            bottom: scroll_y + viewport_height + band,
++            viewport_height,
++        })
++    }
++
++    /// The document rows of `id`'s box, as last committed.
++    fn inline_root_rows(&self, id: NodeId) -> (f64, f64) {
++        let (pos, layout) = self.physical_unrounded_geometry(id);
++        let top = pos.y as f64;
++        (top, top + layout.size.height as f64)
++    }
++
++    /// Whether `id`'s box lies outside `band`.
++    fn inline_root_is_far(&self, id: NodeId, band: KeepBand) -> bool {
++        let (top, bottom) = self.inline_root_rows(id);
++        bottom < band.top || top > band.bottom
++    }
++
++    /// Whether `id`'s box overlaps the extent set by [`Self::set_inline_keep_extent`].
++    fn inline_root_in_keep_extent(&self, id: NodeId) -> bool {
++        self.inline_keep_extent.is_some_and(|(keep_top, keep_bottom)| {
++            let (top, bottom) = self.inline_root_rows(id);
++            bottom >= keep_top && top <= keep_bottom
++        })
++    }
++
++    /// Called after a pass breaks a root's lines, to measure or lay it out.
++    /// The root stays shaped while it is among the last [`IN_PASS_WINDOW`]
++    /// broken, since tables and flex containers lay a child out again soon
++    /// after.
++    pub(crate) fn evict_inline_layout_after_break(&mut self, node_id: NodeId) {
++        if self.inline_layout_eviction_viewports.is_none() {
++            return;
++        }
++        self.inline_pass_seq = self.inline_pass_seq.wrapping_add(1);
++        let seq = self.inline_pass_seq;
++        let Some(inline) = self.inline_layout_mut(node_id) else {
++            return;
++        };
++        inline.in_pass_seq = seq;
++        self.inline_pass_window.push_back((node_id, seq));
++        if self.inline_pass_window.len() > IN_PASS_WINDOW {
++            let (id, seq) = self.inline_pass_window.pop_front().expect("over capacity");
++            self.leave_inline_pass_window(id, seq);
++        }
++    }
++
++    /// Decide whether a root leaving the window keeps its text. Ancestors may
++    /// still be unplaced, so its position is a lower bound: near roots stay
++    /// shaped (the first paint needs them) up to a budget per pass.
++    fn leave_inline_pass_window(&mut self, id: NodeId, seq: u32) {
++        let Some(viewports) = self.inline_layout_eviction_viewports else {
++            return;
++        };
++        let Some(band) = self.inline_keep_band(viewports) else {
++            self.inline_resident.push(id);
++            return;
++        };
++        // A newer entry for this root is still in the window, or it was laid
++        // out from its break summary and never rebuilt.
++        if self
++            .inline_layout_mut(id)
++            .is_none_or(|inline| inline.in_pass_seq != seq || inline.is_evicted())
++        {
++            return;
++        }
++        // The keep extent is not budgeted: its owner asked for those roots.
++        let kept = self.inline_root_in_keep_extent(id);
++        let near = !kept
++            && self.inline_pass_kept < IN_PASS_KEEP_BUDGET
++            && !self.inline_root_is_far(id, band);
++        if kept || near || self.try_evict_inline_layout(id) == Eviction::Refused {
++            self.inline_pass_kept += usize::from(near);
++            self.inline_resident.push(id);
++        }
++    }
++
++    fn inline_layout_mut(&mut self, id: NodeId) -> Option<&mut crate::node::TextLayout> {
++        self.nodes
++            .get_mut(id)
++            .and_then(|node| node.data.downcast_element_mut())
++            .and_then(|el| el.inline_layout_data_mut())
++    }
++
++    /// Evict far-away inline roots after a resolve or paint. Visits only the
++    /// roots that may hold shaped text: all of them when the geometry or the
++    /// scroll position changed, or the last scan spared recently read layouts
++    /// (one more scan ages them), and otherwise only the ones rebuilt since.
++    pub fn evict_offscreen_inline_layouts(&mut self) {
++        let Some(viewports) = self.inline_layout_eviction_viewports else {
++            return;
++        };
++        let mut rebuilt = std::mem::take(&mut *self.inline_rebuilt.lock().unwrap());
++        rebuilt.extend(self.inline_pass_window.drain(..).map(|(id, _)| id));
++        self.inline_pass_kept = 0;
++        if self.inline_resident_unknown {
++            self.inline_resident_unknown = false;
++            rebuilt.extend_from_slice(&self.inline_roots);
++        }
++
++        let Some(band) = self.inline_keep_band(viewports) else {
++            self.inline_resident.append(&mut rebuilt);
++            self.inline_resident.sort_unstable();
++            self.inline_resident.dedup();
++            self.inline_resident.retain(|&id| {
++                self.nodes.get(id).is_some_and(|node| {
++                    node.flags.is_in_document()
++                        && node.element_data().and_then(|el| el.inline_layout_data())
++                            .is_some_and(|inline| !inline.is_evicted())
++                })
++            });
++            self.last_inline_eviction_scan = None;
++            return;
++        };
++
++        let scroll_y = self.viewport_scroll().y;
++        let inner_scroll = self.inline_eviction_inner_scroll;
++        let layout_epoch = self.inline_eviction_layout_epoch;
++        let unmoved = self.last_inline_eviction_scan.filter(|last| {
++            last.layout_epoch == layout_epoch
++                && (scroll_y - last.scroll_y).abs() + (inner_scroll - last.inner_scroll)
++                    < band.viewport_height / 2.0
++        });
++        let has_new_rebuilt = !rebuilt.is_empty();
++        let (mut visit, follow_up) = match unmoved {
++            // Nothing moved: only fresh rebuilds need a look, and aging the
++            // others again would evict a layout read once per frame.
++            Some(last) if !last.spared_read_layouts => {
++                if rebuilt.is_empty() {
++                    return;
++                }
++                (rebuilt, false)
++            }
++            Some(_) => {
++                self.inline_resident.append(&mut rebuilt);
++                (std::mem::take(&mut self.inline_resident), true)
++            }
++            None => {
++                self.inline_resident.append(&mut rebuilt);
++                (std::mem::take(&mut self.inline_resident), false)
++            }
++        };
++        visit.sort_unstable();
++        visit.dedup();
++        let mut spared = false;
++        let mut far = Vec::new();
++        visit.retain(|&id| {
++            let Some(node) = self.nodes.get(id) else {
++                return false;
++            };
++            if !node.flags.is_in_document() {
++                return false;
++            }
++            // Evicted roots rejoin through the rebuild queue, and roots that
++            // cannot replay rejoin when a layout pass leaves them live.
++            let Some(inline) = node
++                .element_data()
++                .and_then(|el| el.inline_layout_data())
++                .filter(|inline| inline.replayable_break && !inline.is_evicted())
++            else {
++                return false;
++            };
++            if !self.inline_root_is_far(id, band) || self.inline_root_in_keep_extent(id) {
++                return true;
++            }
++            // Visible layouts are read every frame: only far ones age.
++            if inline.take_recently_read() {
++                spared = true;
++                return true;
++            }
++            far.push(id);
++            false
++        });
++        self.inline_resident.append(&mut visit);
++        // Stable reads do not chain follow-ups, but fresh rebuilds arriving
++        // during one still need their own aging scan.
++        self.last_inline_eviction_scan = Some(match unmoved {
++            Some(last) if !follow_up => InlineEvictionScan {
++                spared_read_layouts: spared,
++                ..last
++            },
++            _ => InlineEvictionScan {
++                scroll_y,
++                inner_scroll,
++                layout_epoch,
++                spared_read_layouts: spared && (!follow_up || has_new_rebuilt),
++            },
++        });
++        for id in far {
++            if self.try_evict_inline_layout(id) == Eviction::Refused {
++                self.inline_resident.push(id);
++            }
++        }
++    }
++}
++
++/// Whether `node` lays out in a vertical writing mode.
++pub(super) fn is_vertical(node: &crate::Node) -> bool {
++    #[cfg(feature = "writing-mode")]
++    return node.writing_mode().is_vertical();
++    #[cfg(not(feature = "writing-mode"))]
++    {
++        let _ = node;
++        false
++    }
++}
+diff --git a/src/layout/inline.rs b/src/layout/inline.rs
+index b8185a9..684a9b2 100644
+--- a/src/layout/inline.rs
++++ b/src/layout/inline.rs
+@@ -22,6 +22,7 @@ use stylo_taffy::StyleFlags;
+
+ use super::resolve_calc_value;
+ use crate::layout::LayoutPassState;
++use crate::node::{TextBrush, count_inline_summary};
+ use crate::stylo_to_parley;
+
+ /// Subtract a child's margins from the definite axes of the available space it is laid out in.
+@@ -217,6 +218,74 @@ impl LayoutPassState<'_> {
+         }
+     }
+
++    /// The out-of-flow candidate for the absolutely positioned inline box `box_id` on `line`,
++    /// in a container whose content box spans `content_inline`.
++    fn abspos_inline_candidate(
++        &self,
++        box_id: NodeId,
++        order: u32,
++        line: AbsposLine,
++        content_inline: taffy::Line<f32>,
++        container_direction: Direction,
++    ) -> OofCandidate {
++        let style = self.child_layout_style(&self.nodes[box_id]);
++        let item_direction = style.direction();
++        // Inline formatting contexts have no `justify-items`/`align-items` for an
++        // `auto` self-alignment to defer to, so it behaves as `normal`.
++        let justify_self = OofItemStyle::justify_self(&style).unwrap_or(taffy::AlignItems::NORMAL);
++        let align_self = OofItemStyle::align_self(&style).unwrap_or(taffy::AlignItems::NORMAL);
++        // The static position of an absolutely positioned box depends on the
++        // display its hypothetical box would have had (the display specified
++        // before position:absolute blockified it): inline-level boxes sit at
++        // their position within the line, while block-level boxes start at the
++        // content-box left edge of their containing block.
++        let is_inline_level =
++            style.style.get_box().original_display.outside() == DisplayOutside::Inline;
++        // The static-position rectangle
++        // (https://www.w3.org/TR/css-position-3/#staticpos-rect):
++        // - An inline-level box's rectangle is zero-width at its position
++        //   within the line and spans the line box in the block axis.
++        // - A block-level box's rectangle spans the containing block's content
++        //   box in the inline axis and is zero-height below the line box.
++        let (inline_area, block_area) = if is_inline_level {
++            (
++                taffy::Line {
++                    start: line.x,
++                    end: line.x,
++                },
++                taffy::Line {
++                    start: line.top,
++                    end: line.bottom,
++                },
++            )
++        } else {
++            (
++                content_inline,
++                taffy::Line {
++                    start: line.bottom,
++                    end: line.bottom,
++                },
++            )
++        };
++        OofCandidate {
++            node: crate::taffy_node_id(box_id),
++            order,
++            position: style.position(),
++            static_position: taffy::Point {
++                x: AxisStaticPosition::from_alignment(
++                    justify_self.resolve_self_relative(item_direction, container_direction, true),
++                    inline_area,
++                    container_direction.is_rtl(),
++                ),
++                y: AxisStaticPosition::from_alignment(
++                    align_self.resolve_self_relative(item_direction, container_direction, false),
++                    block_area,
++                    false,
++                ),
++            },
++        }
++    }
++
+     /// The out-of-flow positions for which an inline span between the inline box `box_id` and its
+     /// inline root `root_id` is a containing block (as `SPAN_*_CB` flags)
+     fn inline_span_cb_flags(&self, root_id: NodeId, box_id: NodeId) -> StyleFlags {
+@@ -275,6 +344,15 @@ impl LayoutPassState<'_> {
+             .unwrap()
+             .take_inline_layout()
+             .unwrap();
++        // A cache miss on an evicted root: break it from its summary if it has
++        // one, and reshape it before laying out otherwise. From here on, a root
++        // still evicted has a summary.
++        if inline_layout.evicted_summary().is_none() {
++            if inline_layout.evicted_break().is_some() {
++                count_inline_summary(|stats| stats.unsummarized += 1);
++            }
++            inline_layout.layout_mut(&self.nodes);
++        }
+
+         let style = self.nodes[node_id].layout_style();
+
+@@ -317,7 +395,7 @@ impl LayoutPassState<'_> {
+         // || matches!(node_size.height, Some(h) if h > 0.0)
+         // || matches!(node_min_size.height, Some(h) if h > 0.0)
+         // || !inline_layout.text.is_empty();
+-        // || inline_layout.layout.inline_boxes().len() > 0;
++        // || inline_layout.live().inline_boxes().len() > 0;
+
+         // Resolve node's preferred/min/max sizes (width/heights) against the available space (percentages resolve to pixel values)
+         // For ContentSize mode, we pretend that the node has no size styles as these should be ignored.
+@@ -360,16 +438,20 @@ impl LayoutPassState<'_> {
+         // line of nothing. They render nothing, so the text is empty for
+         // the line-box rules below. tldraw's canvas sits in Radix's
+         // `<span dir="ltr">` and every panel below it slid down a line.
+-        let text_is_only_bidi_controls = inline_layout
+-            .text
+-            .chars()
+-            .all(|c| matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'));
++        let text_kind = inline_layout.text_kind(&self.nodes);
++        let text_is_only_bidi_controls = text_kind.only_bidi_controls;
+
+         // Short circuit if inline context contains no text or inline boxes
+         if !has_styles_preventing_being_collapsed_through
+             && text_is_only_bidi_controls
+-            && inline_layout.layout.inline_boxes().len() == 0
++            && match inline_layout.live_layout() {
++                Some(layout) => layout.inline_boxes().len() == 0,
++                None => inline_layout
++                    .evicted_summary()
++                    .is_none_or(|summary| summary.out_of_flow.is_empty()),
++            }
+         {
++            inline_layout.replayable_break = false;
+             // Put layout back
+             self.nodes[node_id]
+                 .data
+@@ -434,7 +516,11 @@ impl LayoutPassState<'_> {
+         };
+
+         // Update inline boxes
+-        for ibox in inline_layout.layout.inline_boxes_mut() {
++        for ibox in inline_layout
++            .live_layout_mut()
++            .into_iter()
++            .flat_map(|layout| layout.inline_boxes_mut())
++        {
+             let style = self.child_layout_style(&self.nodes[NodeId::from_u64(ibox.id)]);
+             let margin = style
+                 .margin()
+@@ -526,10 +612,10 @@ impl LayoutPassState<'_> {
+             hanging: text_indent.hanging,
+         };
+         // Percentage indents do not contribute to intrinsic widths.
+-        inline_layout.layout.set_text_indent(
+-            text_indent.length.resolve(CSSPixelLength::new(0.0)).px() * scale,
+-            indent_options,
+-        );
++        let fixed_indent = text_indent.length.resolve(CSSPixelLength::new(0.0)).px() * scale;
++        if let Some(layout) = inline_layout.live_layout_mut() {
++            layout.set_text_indent(fixed_indent, indent_options);
++        }
+
+         let pbw = container_pb.horizontal_components().sum() * scale;
+         let width = known_dimensions
+@@ -541,7 +627,23 @@ impl LayoutPassState<'_> {
+                 // This is a little tricky as the size of the inline boxes may depend on whether we are sizing under
+                 // and a min-content or max-content constraint. So if we want to compute both widths in one pass then
+                 // we need to store both a min-content and max-content size on each box.
+-                let content_sizes = inline_layout.layout.calculate_content_widths();
++                let stored = inline_layout
++                    .content_widths
++                    .filter(|&(indent, _)| inline_layout.is_evicted() && indent == fixed_indent);
++                let content_sizes = match stored {
++                    Some((_, widths)) => widths,
++                    None => {
++                        let layout = inline_layout.layout_mut(&self.nodes);
++                        layout.set_text_indent(fixed_indent, indent_options);
++                        let widths = layout.calculate_content_widths();
++                        let independent = layout.inline_boxes().all(|ibox| {
++                            ibox.kind == parley::InlineBoxKind::OutOfFlow
++                        });
++                        inline_layout.content_widths =
++                            independent.then_some((fixed_indent, widths));
++                        widths
++                    }
++                };
+                 let min_content_width = content_sizes.min;
+                 let max_content_width = content_sizes.max;
+
+@@ -550,7 +652,11 @@ impl LayoutPassState<'_> {
+                     AvailableSpace::Definite(_) => 0.0,
+                     AvailableSpace::MinContent => {
+                         let mut width: f32 = 0.0;
+-                        for ibox in inline_layout.layout.inline_boxes_mut() {
++                        for ibox in inline_layout
++                            .live_layout_mut()
++                            .into_iter()
++                            .flat_map(|layout| layout.inline_boxes_mut())
++                        {
+                             let (is_floated, margin) = {
+                                 let style =
+                                     self.child_layout_style(&self.nodes[NodeId::from_u64(ibox.id)]);
+@@ -585,7 +691,11 @@ impl LayoutPassState<'_> {
+                         let mut left_band: f32 = 0.0;
+                         let mut right_band: f32 = 0.0;
+                         let mut width: f32 = 0.0;
+-                        for ibox in inline_layout.layout.inline_boxes_mut() {
++                        for ibox in inline_layout
++                            .live_layout_mut()
++                            .into_iter()
++                            .flat_map(|layout| layout.inline_boxes_mut())
++                        {
+                             let (float, clear, margin) = {
+                                 let style =
+                                     self.child_layout_style(&self.nodes[NodeId::from_u64(ibox.id)]);
+@@ -670,6 +780,11 @@ impl LayoutPassState<'_> {
+         if inputs.run_mode == taffy::RunMode::ComputeSize
+             && inputs.axis == RequestedAxis::Horizontal
+         {
++            // The box sizes and indent above no longer match the lines. An
++            // evicted root's lines are in its rebuild inputs, which still hold.
++            if !inline_layout.is_evicted() {
++                inline_layout.replayable_break = false;
++            }
+             // Put layout back
+             self.nodes[node_id]
+                 .data
+@@ -698,18 +813,58 @@ impl LayoutPassState<'_> {
+             .length
+             .resolve(CSSPixelLength::new((width / scale).max(0.0)))
+             .px();
+-        inline_layout
+-            .layout
+-            .set_text_indent(resolved_text_indent * scale, indent_options);
++        let indent = (resolved_text_indent * scale, indent_options);
++
++        // An evicted root breaks from its summary when its lines are what
++        // `break_all_lines(width)` gives, and is rebuilt when the summary
++        // cannot decide a break exactly.
++        let mut summary_lines = None;
++        if inline_layout.is_evicted() {
++            #[cfg(feature = "floats")]
++            let clear_of_floats = slot_is_clear(
++                &block_ctx.find_content_slot(0.0, Clear::None, None),
++                width,
++                scale,
++            );
++            #[cfg(not(feature = "floats"))]
++            let clear_of_floats = true;
++            let summary = inline_layout
++                .evicted_summary()
++                .filter(|summary| {
++                    !super::evict::is_vertical(&self.nodes[node_id])
++                        && summary.out_of_flow.iter().all(|&id| self.abspos_static_x_is_unused(id))
++                })
++                .map(|summary| &summary.lines)
++                .filter(|_| clear_of_floats);
++            summary_lines =
++                summary.and_then(|summary| summary.break_lines(width, indent.0, indent.1));
++            count_inline_summary(|stats| match (summary.is_some(), summary_lines.is_some()) {
++                (true, true) => stats.summarized += 1,
++                (true, false) => stats.ambiguous += 1,
++                (false, _) => stats.unsummarized += 1,
++            });
++            if summary_lines.is_none() {
++                inline_layout.layout_mut(&self.nodes);
++            }
++        }
+
+-        // Remember the content width these lines were broken
+-        // at, in CSS px. A later measure pass can clobber parley, and
+-        // resolve re-breaks to this width to put it back.
+-        inline_layout.last_break_width = width / scale;
++        if summary_lines.is_none() {
++            inline_layout.live_mut().set_text_indent(indent.0, indent.1);
++            // Remember the content width these lines were broken
++            // at, in CSS px. A later measure pass can clobber parley, and
++            // resolve re-breaks to this width to put it back.
++            inline_layout.last_break_width = width / scale;
++        }
++        // Whether `break_all_lines(width)` reproduces these lines, which
++        // eviction relies on: any float band in the way makes it false.
++        #[cfg(not(feature = "floats"))]
++        let replayable_break = true;
++        #[cfg(feature = "floats")]
++        let mut replayable_break = false;
+
+         #[cfg(not(feature = "floats"))]
+-        {
+-            inline_layout.layout.break_all_lines(Some(width));
++        if summary_lines.is_none() {
++            inline_layout.live_mut().break_all_lines(Some(width));
+         }
+
+         // Out-of-flow candidates bubbled up from this container and its in-flow subtree.
+@@ -718,15 +873,23 @@ impl LayoutPassState<'_> {
+
+         // Perform inline layout
+         #[cfg(feature = "floats")]
+-        {
+-            let mut breaker = inline_layout.layout.break_lines();
++        if summary_lines.is_none() {
++            let mut breaker = inline_layout.live_mut().break_lines();
+             let initial_slot = block_ctx.find_content_slot(0.0, Clear::None, None);
+             let mut has_active_floats = initial_slot.segment_id.is_some();
++            replayable_break = slot_is_clear(&initial_slot, width, scale);
+             let state = breaker.state_mut();
+             state.set_layout_max_advance(width);
+-            state.set_line_max_advance(initial_slot.width * scale);
+-            state.set_line_x(initial_slot.x * scale);
+-            state.set_line_y((initial_slot.y * scale) as f64);
++            if replayable_break {
++                // Break as without floats, not at the slot's rounded copy of the width.
++                state.set_line_max_advance(width);
++                state.set_line_x(0.0);
++                state.set_line_y(0.0);
++            } else {
++                state.set_line_max_advance(initial_slot.width * scale);
++                state.set_line_x(initial_slot.x * scale);
++                state.set_line_y((initial_slot.y * scale) as f64);
++            }
+
+             // TODO: revert state and retry layout if a line doesn't fit
+             //
+@@ -741,6 +904,7 @@ impl LayoutPassState<'_> {
+                         let state = breaker.state_mut();
+
+                         if has_active_floats {
++                            replayable_break = false;
+                             // TODO: revert state and retry layout if a line doesn't fit
+                             // saved_state = state.clone();
+
+@@ -764,6 +928,7 @@ impl LayoutPassState<'_> {
+                         continue;
+                     }
+                     YieldData::InlineBoxBreak(box_break_data) => {
++                        replayable_break = false;
+                         let state = breaker.state_mut();
+                         // Not the container: naming it node_id
+                         // shadowed the container and sent its cache bust here.
+@@ -904,8 +1069,29 @@ impl LayoutPassState<'_> {
+             breaker.finish();
+         }
+
+-        if let Some(max_lines) = self.inline_clamp_lines(node_id) {
+-            inline_layout.layout.truncate_lines(max_lines);
++        let clamp_lines = self.inline_clamp_lines(node_id);
++        let (alignment, last_line_alignment) = self.inline_alignment(node_id);
++        if let Some(lines) = &mut summary_lines {
++            if let Some(max_lines) = clamp_lines {
++                lines.truncate_lines(max_lines);
++            }
++            // The rebuild replays the committed lines, not measured ones.
++            if inputs.run_mode == RunMode::PerformLayout {
++                let breaking = inline_layout
++                    .evicted_break_mut()
++                    .expect("a summarized root is still evicted");
++                breaking.max_advance = width;
++                breaking.set_indent(indent);
++                breaking.alignment = Some(alignment);
++                breaking.last_line_alignment = last_line_alignment;
++                breaking.set_clamp_lines(clamp_lines);
++                inline_layout.last_break_width = width / scale;
++            }
++        } else {
++            inline_layout.replayable_break = replayable_break;
++            if let Some(max_lines) = clamp_lines {
++                inline_layout.live_mut().truncate_lines(max_lines);
++            }
+         }
+
+         // Propagate the height consumed by floats placed within this container to the
+@@ -917,34 +1103,42 @@ impl LayoutPassState<'_> {
+             container_pb.top + float_height_contribution,
+         );
+
+-        let (alignment, last_line_alignment) = self.inline_alignment(node_id);
++        if let Some(layout) = inline_layout.live_layout_mut() {
++            layout.align(
++                alignment,
++                AlignmentOptions {
++                    align_when_overflowing: false,
++                    last_line_alignment,
++                },
++            );
++        }
+
+-        inline_layout.layout.align(
+-            alignment,
+-            AlignmentOptions {
+-                align_when_overflowing: false,
+-                last_line_alignment,
+-            },
+-        );
++        let lines = match &summary_lines {
++            Some(lines) => BrokenLines::Summary(lines),
++            None => BrokenLines::Live(inline_layout.live()),
++        };
+
+         // Parley lays out empty text as a single strut-height line (text-editor semantics),
+         // but a line box containing no text, inline boxes or other in-flow content is a
+         // zero-height line box in CSS (CSS2 §9.4.2).
+         let has_inline_content = if !text_is_only_bidi_controls {
+             true
+-        } else if inline_layout.text.is_empty() {
+-            inline_layout.layout.inline_boxes().len() > 0
++        } else if text_kind.empty {
++            inline_layout
++                .live_layout()
++                .is_some_and(|layout| layout.inline_boxes().len() > 0)
+         } else {
+             // On a line of bidi controls an out-of-flow box (tldraw's abspos
+             // canvas) is no content either, but parley sizes the line.
+-            inline_layout
+-                .layout
+-                .inline_boxes()
+-                .any(|inline_box| inline_box.kind == parley::InlineBoxKind::InFlow)
++            inline_layout.live_layout().is_some_and(|layout| {
++                layout
++                    .inline_boxes()
++                    .any(|inline_box| inline_box.kind == parley::InlineBoxKind::InFlow)
++            })
+         };
+
+         let mut height = if has_inline_content {
+-            inline_layout.layout.height()
++            lines.height()
+         } else {
+             0.0
+         };
+@@ -953,20 +1147,19 @@ impl LayoutPassState<'_> {
+         // content ends the final line box without starting a new one. Parley still emits an
+         // empty line after it (so that editors have a line to place the cursor on), so that
+         // line is excluded from the measured height (and from the last baseline).
+-        let line_count = inline_layout.layout.len();
++        let line_count = lines.len();
+         let mut trailing_empty_line = None;
+         if line_count >= 2
+-            && let (Some(prev_line), Some(last_line)) = (
+-                inline_layout.layout.get(line_count - 2),
+-                inline_layout.layout.get(line_count - 1),
+-            )
+-            && prev_line.break_reason() == BreakReason::Explicit
+-            && last_line.text_range().is_empty()
+-            && last_line.items().next().is_none()
++            && lines.break_reason(line_count - 2) == BreakReason::Explicit
++            && lines.is_empty_line(line_count - 1)
+         {
+-            height -= last_line.metrics().line_height;
++            height -= lines.line_height(line_count - 1);
+             trailing_empty_line = Some(line_count - 1);
+         }
++        let lines_width = lines.width();
++        let last_line_index = trailing_empty_line.unwrap_or(line_count).checked_sub(1);
++        let first_line_baseline = (line_count > 0).then(|| lines.baseline(0));
++        let last_line_baseline = last_line_index.map(|i| lines.baseline(i));
+
+         #[cfg(feature = "floats")]
+         {
+@@ -987,7 +1180,7 @@ impl LayoutPassState<'_> {
+         // Unbreakable content (e.g. `white-space: pre` text) may overflow the max advance the
+         // lines were broken at. `width` is the advance the lines were broken at, so the actual
+         // extent of the line boxes must be taken from the laid-out lines for `content_size`.
+-        let content_width = f32_max(width, inline_layout.layout.width()) / scale;
++        let content_width = f32_max(width, lines_width) / scale;
+
+         let clamped_size = inputs
+             .known_dimensions
+@@ -1029,7 +1222,43 @@ impl LayoutPassState<'_> {
+         // the right edge of the narrower box the container committed to,
+         // and it clips away.
+         let commit_positions = inputs.run_mode == taffy::RunMode::PerformLayout;
+-        for line in inline_layout.layout.lines() {
++        // A summarized root's inline boxes are all absolutely positioned, with
++        // static positions that need only their line (see eviction).
++        if let (true, Some(lines), Some(summary)) = (
++            commit_positions,
++            &summary_lines,
++            inline_layout.evicted_summary(),
++        ) {
++            let content_inline = taffy::Line {
++                start: container_pb.left,
++                end: final_size.width - container_pb.right,
++            };
++            for (&box_id, &line) in summary.out_of_flow.iter().zip(lines.box_lines()) {
++                // Clamped away: the missing-box pass below offers it.
++                let Some(line) = lines.lines().get(line as usize) else {
++                    continue;
++                };
++                span_cb_flags |= self.inline_span_cb_flags(node_id, box_id);
++                oof_candidates.push(self.abspos_inline_candidate(
++                    box_id,
++                    ibox_order,
++                    AbsposLine {
++                        // Unused: eviction requires a horizontal inset.
++                        x: container_pb.left,
++                        top: (line.block_min_coord / scale) + line_box_top,
++                        bottom: (line.block_max_coord / scale) + line_box_top,
++                    },
++                    content_inline,
++                    container_direction,
++                ));
++                ibox_order += 1;
++            }
++        }
++        for line in inline_layout
++            .live_layout()
++            .into_iter()
++            .flat_map(|layout| layout.lines())
++        {
+             for item in line.items() {
+                 if !commit_positions {
+                     break;
+@@ -1060,21 +1289,6 @@ impl LayoutPassState<'_> {
+
+                     let position = style.position();
+                     let is_absolute = position.is_out_of_flow();
+-                    let item_direction = style.direction();
+-                    // Inline formatting contexts have no `justify-items`/`align-items` for an
+-                    // `auto` self-alignment to defer to, so it behaves as `normal`.
+-                    let justify_self =
+-                        OofItemStyle::justify_self(&style).unwrap_or(taffy::AlignItems::NORMAL);
+-                    let align_self =
+-                        OofItemStyle::align_self(&style).unwrap_or(taffy::AlignItems::NORMAL);
+-
+-                    // The static position of an absolutely positioned box depends on the
+-                    // display its hypothetical box would have had (the display specified
+-                    // before position:absolute blockified it): inline-level boxes sit at
+-                    // their position within the line, while block-level boxes start at the
+-                    // content-box left edge of their containing block.
+-                    let is_inline_level =
+-                        style.style.get_box().original_display.outside() == DisplayOutside::Inline;
+
+                     // Resolve relative inset offsets against the containing block
+                     // (the content box of the inline container).
+@@ -1105,63 +1319,21 @@ impl LayoutPassState<'_> {
+                     drop(style);
+
+                     if is_absolute {
+-                        // The static-position rectangle
+-                        // (https://www.w3.org/TR/css-position-3/#staticpos-rect):
+-                        // - An inline-level box's rectangle is zero-width at its position
+-                        //   within the line (`ibox.y` is the baseline as out-of-flow boxes are
+-                        //   zero-sized) and spans the line box in the block axis.
+-                        // - A block-level box's rectangle spans the containing block's content
+-                        //   box in the inline axis and is zero-height below the line box.
+                         let line_metrics = line.metrics();
+-                        let line_top = (line_metrics.block_min_coord / scale) + line_box_top;
+-                        let line_bottom = (line_metrics.block_max_coord / scale) + line_box_top;
+-                        let (inline_area, block_area) = if is_inline_level {
+-                            let x = (ibox.x / scale) + container_pb.left;
+-                            (
+-                                taffy::Line { start: x, end: x },
+-                                taffy::Line {
+-                                    start: line_top,
+-                                    end: line_bottom,
+-                                },
+-                            )
+-                        } else {
+-                            (
+-                                taffy::Line {
+-                                    start: container_pb.left,
+-                                    end: final_size.width - container_pb.right,
+-                                },
+-                                taffy::Line {
+-                                    start: line_bottom,
+-                                    end: line_bottom,
+-                                },
+-                            )
+-                        };
+-
+-                        oof_candidates.push(OofCandidate {
+-                            node: taffy::NodeId::from(ibox.id),
++                        oof_candidates.push(self.abspos_inline_candidate(
++                            NodeId::from_u64(ibox.id),
+                             order,
+-                            position,
+-                            static_position: taffy::Point {
+-                                x: AxisStaticPosition::from_alignment(
+-                                    justify_self.resolve_self_relative(
+-                                        item_direction,
+-                                        container_direction,
+-                                        true,
+-                                    ),
+-                                    inline_area,
+-                                    container_direction.is_rtl(),
+-                                ),
+-                                y: AxisStaticPosition::from_alignment(
+-                                    align_self.resolve_self_relative(
+-                                        item_direction,
+-                                        container_direction,
+-                                        false,
+-                                    ),
+-                                    block_area,
+-                                    false,
+-                                ),
++                            AbsposLine {
++                                x: (ibox.x / scale) + container_pb.left,
++                                top: (line_metrics.block_min_coord / scale) + line_box_top,
++                                bottom: (line_metrics.block_max_coord / scale) + line_box_top,
+                             },
+-                        });
++                            taffy::Line {
++                                start: container_pb.left,
++                                end: final_size.width - container_pb.right,
++                            },
++                            container_direction,
++                        ));
+                     } else if is_floated {
+                         let layout = self.nodes[NodeId::from_u64(ibox.id)].unrounded_layout_mut();
+                         layout.padding = padding; //.map(|p| p / scale);
+@@ -1278,19 +1450,18 @@ impl LayoutPassState<'_> {
+
+         // println!("INLINE LAYOUT FOR {:?}. max_advance: {:?}", node_id, max_advance);
+         // dbg!(&inline_layout.text);
+-        // println!("Computed: w: {} h: {}", inline_layout.layout.width(), inline_layout.layout.height());
++        // println!("Computed: w: {} h: {}", inline_layout.live().width(), inline_layout.live().height());
+         // println!("known_dimensions: w: {:?} h: {:?}", inputs.known_dimensions.width, inputs.known_dimensions.height);
+         // println!("\n");
+
+-        let line_baseline =
+-            |line: parley::Line<'_, _>| (line.metrics().baseline / scale) + line_box_top;
++        let line_baseline = |baseline: f32| (baseline / scale) + line_box_top;
+         let exports_baseline = has_inline_content && !suppresses_baseline;
+         let first_baseline = exports_baseline
+-            .then(|| inline_layout.layout.lines().next().map(line_baseline))
+-            .flatten();
+-        let last_line_index = trailing_empty_line.unwrap_or(line_count).checked_sub(1);
++            .then_some(first_line_baseline)
++            .flatten()
++            .map(line_baseline);
+         let last_baseline = exports_baseline
+-            .then(|| last_line_index.and_then(|i| inline_layout.layout.get(i)))
++            .then_some(last_line_baseline)
+             .flatten()
+             .map(line_baseline);
+
+@@ -1305,6 +1476,9 @@ impl LayoutPassState<'_> {
+             .unwrap()
+             .set_inline_layout_data(Some(inline_layout));
+         self.inline_roots.push(node_id);
++        // A measure that broke lines shapes the root as a final layout does:
++        // a flex item measures its whole subtree before laying any of it out.
++        self.evict_inline_layout_after_break(node_id);
+
+         let oof_position_inset = taffy::Rect {
+             left: border.left,
+@@ -1348,6 +1522,95 @@ impl LayoutPassState<'_> {
+     }
+ }
+
++/// Relative difference between a content slot's width and the root's content
++/// width that is float rounding, not a float.
++#[cfg(feature = "floats")]
++const SLOT_ROUNDING: f32 = 1e-5;
++
++/// Whether `slot`, the first content slot of an inline root with content
++/// width `width` (in layout units), has no float beside it. The block context
++/// derives the slot's edges from its own insets, so they can differ from the
++/// root's content box by rounding.
++#[cfg(feature = "floats")]
++fn slot_is_clear(slot: &taffy::ContentSlot, width: f32, scale: f32) -> bool {
++    let tolerance = SLOT_ROUNDING * width.abs().max(1.0);
++    slot.segment_id.is_none()
++        && slot.y == 0.0
++        && (slot.x * scale).abs() <= tolerance
++        && (slot.width * scale - width).abs() <= tolerance
++}
++
++/// Where an absolutely positioned inline box sits in its container, in CSS px:
++/// its inline position on the line and the line box's block extent.
++struct AbsposLine {
++    x: f32,
++    top: f32,
++    bottom: f32,
++}
++
++/// The broken lines inline layout sizes a root from: the shaped layout's,
++/// or those its break summary computed while it is evicted.
++enum BrokenLines<'a> {
++    Live(&'a parley::Layout<TextBrush>),
++    Summary(&'a parley::SummaryLines),
++}
++
++impl BrokenLines<'_> {
++    fn len(&self) -> usize {
++        match self {
++            Self::Live(layout) => layout.len(),
++            Self::Summary(lines) => lines.lines().len(),
++        }
++    }
++
++    fn width(&self) -> f32 {
++        match self {
++            Self::Live(layout) => layout.width(),
++            Self::Summary(lines) => lines.width(),
++        }
++    }
++
++    fn height(&self) -> f32 {
++        match self {
++            Self::Live(layout) => layout.height(),
++            Self::Summary(lines) => lines.height(),
++        }
++    }
++
++    fn break_reason(&self, line: usize) -> BreakReason {
++        match self {
++            Self::Live(layout) => layout.get(line).expect("line in range").break_reason(),
++            Self::Summary(lines) => lines.lines()[line].break_reason,
++        }
++    }
++
++    fn line_height(&self, line: usize) -> f32 {
++        match self {
++            Self::Live(layout) => layout.get(line).expect("line in range").metrics().line_height,
++            Self::Summary(lines) => lines.lines()[line].line_height,
++        }
++    }
++
++    fn baseline(&self, line: usize) -> f32 {
++        match self {
++            Self::Live(layout) => layout.get(line).expect("line in range").metrics().baseline,
++            Self::Summary(lines) => lines.lines()[line].baseline,
++        }
++    }
++
++    /// Whether `line` has no text and nothing to paint, like the line parley
++    /// adds after a final forced break.
++    fn is_empty_line(&self, line: usize) -> bool {
++        match self {
++            Self::Live(layout) => {
++                let line = layout.get(line).expect("line in range");
++                line.text_range().is_empty() && line.items().next().is_none()
++            }
++            Self::Summary(lines) => lines.lines()[line].is_trailing_empty,
++        }
++    }
++}
++
+ #[inline(always)]
+ fn f32_max(a: f32, b: f32) -> f32 {
+     a.max(b)
+@@ -1363,18 +1626,34 @@ impl crate::BaseDocument {
+         let scale = self.viewport.scale();
+         let clamp_lines = self.inline_clamp_lines(node_id);
+         let (alignment, last_line_alignment) = self.inline_alignment(node_id);
+-        let Some(inline_layout) = self.nodes[node_id]
++        let Some(mut inline_layout) = self.nodes[node_id]
+             .data
+             .downcast_element_mut()
+-            .and_then(|el| el.inline_layout_data_mut())
++            .and_then(|el| el.take_inline_layout())
+         else {
+             return;
+         };
+-        inline_layout.layout.break_all_lines(Some(css_width * scale));
++        // An evicted root needs no lines until it is read: its rebuild breaks
++        // at the new width.
++        if let Some(breaking) = inline_layout.evicted_break_mut() {
++            breaking.max_advance = css_width * scale;
++            breaking.alignment = Some(alignment);
++            breaking.last_line_alignment = last_line_alignment;
++            breaking.set_clamp_lines(clamp_lines);
++            inline_layout.last_break_width = css_width;
++            inline_layout.replayable_break = true;
++            self.nodes[node_id]
++                .element_data_mut()
++                .expect("took the layout from this element")
++                .set_inline_layout_data(Some(inline_layout));
++            return;
++        }
++        let layout = inline_layout.layout_mut(&self.nodes);
++        layout.break_all_lines(Some(css_width * scale));
+         if let Some(max_lines) = clamp_lines {
+-            inline_layout.layout.truncate_lines(max_lines);
++            layout.truncate_lines(max_lines);
+         }
+-        inline_layout.layout.align(
++        layout.align(
+             alignment,
+             AlignmentOptions {
+                 align_when_overflowing: false,
+@@ -1382,11 +1661,16 @@ impl crate::BaseDocument {
+             },
+         );
+         inline_layout.last_break_width = css_width;
++        inline_layout.replayable_break = true;
++        self.nodes[node_id]
++            .element_data_mut()
++            .expect("took the layout from this element")
++            .set_inline_layout_data(Some(inline_layout));
+     }
+
+     // -webkit-box + orient:vertical + line-clamp:N was rewritten to
+     // flow-root at computed-value time; the stylo flag says clamp here.
+-    fn inline_clamp_lines(&self, node_id: NodeId) -> Option<usize> {
++    pub(crate) fn inline_clamp_lines(&self, node_id: NodeId) -> Option<usize> {
+         self.nodes[node_id].primary_styles().and_then(|s| {
+             use style::computed_value_flags::ComputedValueFlags;
+             if !s.flags.contains(ComputedValueFlags::IS_WEBKIT_LINE_CLAMP_CONTEXT) {
+@@ -1397,7 +1681,7 @@ impl crate::BaseDocument {
+         })
+     }
+
+-    fn inline_alignment(
++    pub(crate) fn inline_alignment(
+         &self,
+         node_id: NodeId,
+     ) -> (parley::layout::Alignment, Option<parley::layout::Alignment>) {
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 0c38c06..31ee407 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -26,6 +26,7 @@ use taffy::{
+ pub(crate) mod construct;
+ pub(crate) mod counters;
+ pub(crate) mod damage;
++pub(crate) mod evict;
+ pub(crate) mod inline;
+ pub(crate) mod list;
+ pub(crate) mod paint_tree;
+diff --git a/src/node/element.rs b/src/node/element.rs
+index 245c26b..603d48c 100644
+--- a/src/node/element.rs
++++ b/src/node/element.rs
+@@ -1451,6 +1451,26 @@ mod tests {
+     use super::TextInputData;
+     use parley::{FontContext, LayoutContext};
+
++    #[test]
++    fn cloning_an_element_discards_derived_text_layouts() {
++        use crate::node::{
++            ElementData, ListItemLayout, ListItemLayoutPosition, Marker, TextLayout,
++        };
++
++        let mut element = ElementData::new(crate::qual_name!("li", html), Vec::new());
++        element.set_inline_layout_data(Some(Box::default()));
++        element.set_list_item_data(Some(Box::new(ListItemLayout {
++            marker: Marker::Char('•'),
++            position: ListItemLayoutPosition::Inside,
++        })));
++
++        let cloned = element.clone();
++        assert!(cloned.inline_layout_data().is_none());
++        assert!(cloned.list_item_data().is_none());
++        assert!(element.inline_layout_data().is_some());
++        assert!(element.list_item_data().is_some());
++    }
++
+     /// Build a [`TextInputData`] with the given text laid out at scale 1.0.
+     fn make_input(is_multiline: bool, text: &str) -> TextInputData {
+         let mut font_ctx = FontContext::new();
+diff --git a/src/node/mod.rs b/src/node/mod.rs
+index e6ea225..05146a7 100644
+--- a/src/node/mod.rs
++++ b/src/node/mod.rs
+@@ -27,4 +27,10 @@ pub use scrollbar::{ScrollbarColor, ScrollbarRef, ScrollbarWidth};
+ pub use stylo_data::ComputedStyleRef;
+ #[cfg(feature = "svg")]
+ pub use svg::{SvgImageData, SvgIntrinsicDimensions};
+-pub use text::{GeneratedTextInputEvent, TextBrush, TextInputData, TextLayout};
++pub use text::{
++    GeneratedTextInputEvent, InlineSummaryStats, TextBrush, TextInputData, TextLayout,
++    inline_layout_rebuild_count, inline_summary_stats,
++};
++pub(crate) use text::{
++    EvictedBreak, EvictedLayout, EvictedSummary, InlineRebuild, SummaryCell, count_inline_summary,
++};
+diff --git a/src/node/node.rs b/src/node/node.rs
+index e8bba70..971e0b4 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -2404,7 +2404,7 @@ impl Node {
+         if self.flags.is_inline_root() {
+             let element_data = &self.element_data().unwrap();
+             if let Some(ild) = element_data.inline_layout_data() {
+-                let layout = &ild.layout;
++                let layout = ild.layout(self.tree());
+                 let scale = layout.scale();
+                 let content_box_offset = taffy::Point {
+                     x: self.final_layout().padding.left + self.final_layout().border.left,
+@@ -2492,7 +2492,7 @@ impl Node {
+
+         let element_data = self.element_data()?;
+         let inline_layout = element_data.inline_layout_data()?;
+-        let layout = &inline_layout.layout;
++        let layout = inline_layout.layout(self.tree());
+         let scale = layout.scale();
+         let y = y - inline_layout.block_offset;
+
+@@ -2608,7 +2608,7 @@ impl Node {
+
+         let inline_root = self.inline_root_ancestor()?;
+         let inline_layout = inline_root.element_data()?.inline_layout_data()?;
+-        let layout = &inline_layout.layout;
++        let layout = inline_layout.layout(self.tree());
+         let scale = layout.scale();
+
+         // Walk up the DOM parent chain from `id` to check whether it is (or is
+diff --git a/src/node/text.rs b/src/node/text.rs
+index 274849e..83ce847 100644
+--- a/src/node/text.rs
++++ b/src/node/text.rs
+@@ -4,7 +4,11 @@ use blitz_traits::{
+     shell::ShellProvider,
+ };
+ use keyboard_types::{Key, Modifiers, NamedKey};
+-use parley::{ContentWidths, FontContext, LayoutContext};
++use parley::{Alignment, AlignmentOptions, ContentWidths, FontContext, IndentOptions, LayoutContext};
++use std::cell::{Cell, RefCell};
++use std::num::NonZeroU32;
++use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
++use std::sync::{Arc, Mutex, OnceLock};
+
+ use crate::util::ACTION_MOD;
+
+@@ -23,9 +27,27 @@ impl TextBrush {
+
+ #[derive(Clone)]
+ pub struct TextLayout {
+-    pub text: String,
+-    pub content_widths: Option<ContentWidths>,
+-    pub layout: parley::layout::Layout<TextBrush>,
++    /// Shaped text and lines, with the text and source ranges they were
++    /// built from. Empty while evicted or not yet shaped, and then `evicted`
++    /// holds what rebuilds it: read it through [`Self::layout`] or
++    /// [`Self::layout_mut`], which rebuild first.
++    built: OnceLock<Box<Built>>,
++    text_kind: TextKindCell,
++    /// The content widths inline layout last measured, and the indent it
++    /// measured them with (the fixed part of `text-indent`). Kept only for a
++    /// layout without inline boxes, whose widths depend on nothing else, so
++    /// that an evicted root is measured without rebuilding it.
++    pub content_widths: Option<(f32, ContentWidths)>,
++    evicted: Option<Box<EvictedLayout>>,
++    /// Whether the last line break can be replayed from the layout alone:
++    /// false when floats shaped the lines, which needs the gone block context.
++    pub replayable_break: bool,
++    /// Set by every read; the eviction scan spares a far layout that was read
++    /// since its last visit once, so a layout queried every frame stays live.
++    recently_read: ReadFlag,
++    /// Sequence number of this root's latest entry in the layout pass's
++    /// eviction window, so older entries for it are skipped.
++    pub(crate) in_pass_seq: u32,
+     /// Block-axis offset (in CSS px) of the line boxes from the top of the container's content
+     /// box, as applied by `align-content`.
+     pub block_offset: f32,
+@@ -33,11 +55,6 @@ pub struct TextLayout {
+     /// containing block (as `SPAN_*_CB` flags). The inline root claims those boxes in its place.
+     /// Set by each `RunMode::PerformLayout` run of inline layout.
+     pub span_cb_flags: stylo_taffy::StyleFlags,
+-    // (text node id, byte range in the layout text) per
+-    // pushed text node: approximate under whitespace collapse
+-    // (measured committed+pending around each push), consumed by
+-    // the DOM-selection paint bridge with clamping.
+-    pub node_ranges: Vec<(NodeId, core::ops::Range<usize>)>,
+     /// Content width `layout` currently holds lines for, or
+     /// NaN when it holds none: a rebuilt tree has no lines until
+     /// something breaks it. resolve compares this against the committed
+@@ -45,15 +62,100 @@ pub struct TextLayout {
+     pub last_break_width: f32,
+ }
+
++// Every inline root keeps one, evicted or not: 44 bytes fill a 48-byte
++// wasm32 allocator chunk.
++#[cfg(target_pointer_width = "32")]
++const _: () = assert!(size_of::<TextLayout>() <= 44);
++
++/// A shaped layout and the text it was built from, which are always built
++/// and evicted together.
++#[derive(Clone, Default)]
++struct Built {
++    layout: parley::layout::Layout<TextBrush>,
++    content: TextContent,
++}
++
++#[derive(Clone, Default)]
++struct TextContent {
++    text: String,
++    // (text node id, byte range in the layout text) per
++    // pushed text node: approximate under whitespace collapse
++    // (measured committed+pending around each push), consumed by
++    // the DOM-selection paint bridge with clamping.
++    node_ranges: Vec<(NodeId, core::ops::Range<usize>)>,
++}
++
++#[derive(Clone, Copy)]
++pub(crate) struct TextKind {
++    pub(crate) empty: bool,
++    pub(crate) only_bidi_controls: bool,
++}
++
++impl TextKind {
++    fn of(text: &str) -> Self {
++        Self {
++            empty: text.is_empty(),
++            only_bidi_controls: text
++                .chars()
++                .all(|c| matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')),
++        }
++    }
++}
++
++/// A [`TextKind`] once known, packed into one byte.
++#[derive(Default)]
++struct TextKindCell(AtomicU8);
++
++impl TextKindCell {
++    const KNOWN: u8 = 1;
++    const EMPTY: u8 = 2;
++    const ONLY_BIDI_CONTROLS: u8 = 4;
++
++    fn get_or_init(&self, init: impl FnOnce() -> TextKind) -> TextKind {
++        let bits = self.0.load(Ordering::Relaxed);
++        if bits & Self::KNOWN != 0 {
++            return TextKind {
++                empty: bits & Self::EMPTY != 0,
++                only_bidi_controls: bits & Self::ONLY_BIDI_CONTROLS != 0,
++            };
++        }
++        let kind = init();
++        let bits = Self::KNOWN
++            | if kind.empty { Self::EMPTY } else { 0 }
++            | if kind.only_bidi_controls { Self::ONLY_BIDI_CONTROLS } else { 0 };
++        self.0.store(bits, Ordering::Relaxed);
++        kind
++    }
++}
++
++impl Clone for TextKindCell {
++    fn clone(&self) -> Self {
++        Self(AtomicU8::new(self.0.load(Ordering::Relaxed)))
++    }
++}
++
+ impl Default for TextLayout {
+     fn default() -> Self {
++        let mut layout = Self::unfilled();
++        layout.built = OnceLock::from(Box::default());
++        layout
++    }
++}
++
++impl TextLayout {
++    /// A layout holding neither text nor lines, for box construction to
++    /// build or leave unbuilt next: an empty box would be freed unread.
++    pub(crate) fn unfilled() -> Self {
+         Self {
+-            text: String::new(),
++            built: OnceLock::new(),
++            text_kind: TextKindCell::default(),
+             content_widths: None,
+-            layout: parley::layout::Layout::default(),
++            evicted: None,
++            replayable_break: false,
++            recently_read: ReadFlag::default(),
++            in_pass_seq: 0,
+             block_offset: 0.0,
+             span_cb_flags: stylo_taffy::StyleFlags::empty(),
+-            node_ranges: Vec::new(),
+             // NaN = no lines yet; the repair scan gives it some once
+             // the node has a committed box.
+             last_break_width: f32::NAN,
+@@ -61,16 +163,399 @@ impl Default for TextLayout {
+     }
+ }
+
++// Every evicted root keeps one: 20 bytes fill a 24-byte wasm32 chunk.
++#[cfg(target_pointer_width = "32")]
++const _: () = assert!(size_of::<EvictedLayout>() <= 20);
++
++/// What every evicted root of a document rebuilds with.
++pub(crate) struct InlineRebuild {
++    pub(crate) font_ctx: Arc<Mutex<FontContext>>,
++    /// The document's queue of rebuilt roots, which become resident again.
++    pub(crate) rebuilt: Arc<Mutex<Vec<NodeId>>>,
++}
++
++/// Everything needed to rebuild an evicted layout with the lines it had:
++/// the shaping inputs are re-read from the DOM, the line-breaking inputs are
++/// the ones the dropped layout was last broken with.
++#[derive(Clone)]
++pub(crate) struct EvictedLayout {
++    pub(crate) node_id: NodeId,
++    pub(crate) scale: f32,
++    /// `None` for a layout never broken (only its text was collected), which
++    /// rebuilds shaped but without lines, as box construction left it.
++    pub(crate) breaking: Option<Box<EvictedBreak>>,
++}
++
++/// The line-breaking inputs an evicted layout was last broken with.
++#[derive(Clone)]
++pub(crate) struct EvictedBreak {
++    pub(crate) max_advance: f32,
++    // The indent and clamp are stored apart and narrowed so that every
++    // evicted root's state fits a smaller wasm32 chunk.
++    indent: f32,
++    indent_options: IndentOptions,
++    pub(crate) alignment: Option<Alignment>,
++    pub(crate) last_line_alignment: Option<Alignment>,
++    clamp_lines: Option<NonZeroU32>,
++    /// (width, height, baseline) per inline box, in text order.
++    pub(crate) boxes: Box<[(f32, f32, Option<f32>)]>,
++    /// Sizes the root at another width without rebuilding, when parley can
++    /// summarize this paragraph. The rebuild drops it.
++    pub(crate) summary: SummaryCell,
++}
++
++// 44 bytes fill a 48-byte wasm32 chunk.
++#[cfg(target_pointer_width = "32")]
++const _: () = assert!(size_of::<EvictedBreak>() <= 44);
++
++impl EvictedBreak {
++    pub(crate) fn new(
++        max_advance: f32,
++        indent: (f32, IndentOptions),
++        alignment: Option<Alignment>,
++        last_line_alignment: Option<Alignment>,
++        clamp_lines: Option<usize>,
++        boxes: Box<[(f32, f32, Option<f32>)]>,
++        summary: SummaryCell,
++    ) -> Self {
++        let mut breaking = Self {
++            max_advance,
++            indent: indent.0,
++            indent_options: indent.1,
++            alignment,
++            last_line_alignment,
++            clamp_lines: None,
++            boxes,
++            summary,
++        };
++        breaking.set_clamp_lines(clamp_lines);
++        breaking
++    }
++
++    pub(crate) fn set_indent(&mut self, (indent, options): (f32, IndentOptions)) {
++        self.indent = indent;
++        self.indent_options = options;
++    }
++
++    pub(crate) fn clamp_lines(&self) -> Option<usize> {
++        self.clamp_lines.map(|lines| lines.get() as usize)
++    }
++
++    /// Line clamps are at least one line and come from a CSS integer.
++    pub(crate) fn set_clamp_lines(&mut self, lines: Option<usize>) {
++        self.clamp_lines = lines.map(|lines| {
++            u32::try_from(lines)
++                .ok()
++                .and_then(NonZeroU32::new)
++                .expect("a line clamp is a positive 32-bit count")
++        });
++    }
++}
++
++/// What lays out an evicted root without rebuilding it.
++pub(crate) struct EvictedSummary {
++    /// Breaks the lines at another width.
++    pub(crate) lines: parley::BreakSummary,
++    /// The root's inline boxes, all absolutely positioned, in layout order.
++    pub(crate) out_of_flow: Box<[NodeId]>,
++}
++
++/// An [`EvictedSummary`] that a rebuild, which only borrows the layout, can
++/// still drop: the live layout makes it redundant.
++#[derive(Default)]
++pub(crate) struct SummaryCell(Mutex<Option<EvictedSummary>>);
++
++impl SummaryCell {
++    pub(crate) fn new(summary: Option<EvictedSummary>) -> Self {
++        Self(Mutex::new(summary))
++    }
++
++    pub(crate) fn get_mut(&mut self) -> Option<&EvictedSummary> {
++        self.0
++            .get_mut()
++            .unwrap_or_else(std::sync::PoisonError::into_inner)
++            .as_ref()
++    }
++
++    fn take(&self) -> Option<EvictedSummary> {
++        self.0
++            .lock()
++            .unwrap_or_else(std::sync::PoisonError::into_inner)
++            .take()
++    }
++
++    fn heap_size(&self) -> usize {
++        self.0
++            .lock()
++            .unwrap_or_else(std::sync::PoisonError::into_inner)
++            .as_ref()
++            .map_or(0, |summary| {
++                summary.lines.heap_size() + size_of_val(&*summary.out_of_flow)
++            })
++    }
++}
++
++impl Clone for SummaryCell {
++    fn clone(&self) -> Self {
++        let summary = self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
++        Self::new(summary.as_ref().map(|summary| EvictedSummary {
++            lines: summary.lines.clone(),
++            out_of_flow: summary.out_of_flow.clone(),
++        }))
++    }
++}
++
++#[derive(Default)]
++struct ReadFlag(AtomicBool);
++
++impl Clone for ReadFlag {
++    fn clone(&self) -> Self {
++        Self(AtomicBool::new(self.0.load(Ordering::Relaxed)))
++    }
++}
++
++std::thread_local! {
++    static REBUILD_LAYOUT_CTX: RefCell<LayoutContext<TextBrush>> =
++        RefCell::new(LayoutContext::new());
++    static REBUILD_COUNT: Cell<u64> = const { Cell::new(0) };
++    static SUMMARY_STATS: Cell<InlineSummaryStats> = const {
++        Cell::new(InlineSummaryStats { summarized: 0, ambiguous: 0, unsummarized: 0 })
++    };
++}
++
++/// Number of evicted layouts rebuilt on this thread so far.
++pub fn inline_layout_rebuild_count() -> u64 {
++    REBUILD_COUNT.with(Cell::get)
++}
++
++/// How inline layout broke evicted roots' lines on this thread so far.
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub struct InlineSummaryStats {
++    /// Broken from the root's break summary, without rebuilding it.
++    pub summarized: u64,
++    /// Rebuilt because the summary could not decide a break exactly.
++    pub ambiguous: u64,
++    /// Rebuilt because the root has no summary, or floats were in the way.
++    pub unsummarized: u64,
++}
++
++pub fn inline_summary_stats() -> InlineSummaryStats {
++    SUMMARY_STATS.with(Cell::get)
++}
++
++pub(crate) fn count_inline_summary(update: impl FnOnce(&mut InlineSummaryStats)) {
++    SUMMARY_STATS.with(|stats| {
++        let mut value = stats.get();
++        update(&mut value);
++        stats.set(value);
++    });
++}
++
+ impl TextLayout {
+     pub fn new() -> Self {
+         Default::default()
+     }
+
+-    pub fn content_widths(&mut self) -> ContentWidths {
+-        *self
+-            .content_widths
+-            .get_or_insert_with(|| self.layout.calculate_content_widths())
++    /// The shaped, line-broken layout. Rebuilds it first if it was evicted,
++    /// so callers never see the evicted state.
++    pub fn layout(&self, nodes: &crate::NodeTree) -> &parley::layout::Layout<TextBrush> {
++        self.recently_read.0.store(true, Ordering::Relaxed);
++        &self.built(nodes).layout
++    }
++
++    fn built(&self, nodes: &crate::NodeTree) -> &Built {
++        self.built.get_or_init(|| {
++            let evicted = self
++                .evicted
++                .as_deref()
++                .expect("an empty text layout always has its rebuild inputs");
++            rebuild_evicted_layout(nodes, evicted)
++        })
++    }
++
++    fn content(&self, nodes: &crate::NodeTree) -> &TextContent {
++        &self.built(nodes).content
++    }
++
++    /// The text the layout was built from, building it first if construction
++    /// left it unshaped.
++    pub fn text(&self, nodes: &crate::NodeTree) -> &str {
++        &self.content(nodes).text
++    }
++
++    /// (text node id, byte range in [`Self::text`]) per text node.
++    pub fn node_ranges(&self, nodes: &crate::NodeTree) -> &[(NodeId, core::ops::Range<usize>)] {
++        &self.content(nodes).node_ranges
++    }
++
++    /// Empty-line sizing needs only this classification, not rebuilt text.
++    pub(crate) fn text_kind(&self, nodes: &crate::NodeTree) -> TextKind {
++        self.text_kind
++            .get_or_init(|| TextKind::of(&self.content(nodes).text))
++    }
++
++    pub(crate) fn set_content(
++        &mut self,
++        mut text: String,
++        mut node_ranges: Vec<(NodeId, core::ops::Range<usize>)>,
++    ) {
++        // Both live as long as the paragraph; drop their push-growth slack.
++        text.shrink_to_fit();
++        node_ranges.shrink_to_fit();
++        self.text_kind = TextKindCell::default();
++        self.built.get_or_init(Box::default);
++        let built = self.built.get_mut().expect("initialised just above");
++        built.content = TextContent { text, node_ranges };
++    }
++
++    /// Leave the layout unshaped and its text unknown: the first build,
++    /// normally its own layout call, fills both. Box construction uses this
++    /// so it does not walk the subtree once more than shaping does.
++    pub(crate) fn set_unbuilt(&mut self, inputs: EvictedLayout) {
++        debug_assert!(inputs.breaking.is_none(), "an unbuilt layout has no lines");
++        self.built = OnceLock::new();
++        self.text_kind = TextKindCell::default();
++        self.evict(inputs);
++    }
++
++    /// Mutable [`Self::layout`] for layout itself, so not a read that keeps it
++    /// live. The text layout must not be inside `nodes` (take it out of its
++    /// element first), since the rebuild reads the tree.
++    pub fn layout_mut(
++        &mut self,
++        nodes: &crate::NodeTree,
++    ) -> &mut parley::layout::Layout<TextBrush> {
++        self.built(nodes);
++        &mut self.built.get_mut().expect("initialised just above").layout
++    }
++
++    /// The layout, which the caller has already rebuilt with [`Self::layout_mut`].
++    pub(crate) fn live(&self) -> &parley::layout::Layout<TextBrush> {
++        &self.built.get().expect("text layout used while evicted").layout
++    }
++
++    /// Mutable [`Self::live`].
++    pub(crate) fn live_mut(&mut self) -> &mut parley::layout::Layout<TextBrush> {
++        &mut self
++            .built
++            .get_mut()
++            .expect("text layout used while evicted")
++            .layout
++    }
++
++    /// The layout for box construction to build into from scratch. Drops any
++    /// eviction state, since the built layout replaces whatever it described.
++    pub(crate) fn layout_for_build(&mut self) -> &mut parley::layout::Layout<TextBrush> {
++        self.evicted = None;
++        self.built.get_or_init(Box::default);
++        &mut self.built.get_mut().expect("initialised just above").layout
++    }
++
++    /// Whether the shaped layout is currently dropped.
++    pub fn is_evicted(&self) -> bool {
++        self.built.get().is_none()
++    }
++
++    /// The line-breaking inputs a rebuild replays, while evicted with lines.
++    pub(crate) fn evicted_break(&self) -> Option<&EvictedBreak> {
++        if self.built.get().is_some() {
++            return None;
++        }
++        self.evicted.as_deref()?.breaking.as_deref()
++    }
++
++    /// Mutable [`Self::evicted_break`], so laying out an evicted root at a
++    /// new width changes the lines its rebuild will have.
++    pub(crate) fn evicted_break_mut(&mut self) -> Option<&mut EvictedBreak> {
++        if self.built.get().is_some() {
++            return None;
++        }
++        self.evicted.as_deref_mut()?.breaking.as_deref_mut()
++    }
++
++    /// What lays out this root without rebuilding it, while evicted with one.
++    pub(crate) fn evicted_summary(&mut self) -> Option<&EvictedSummary> {
++        self.evicted_break_mut()?.summary.get_mut()
++    }
++
++    /// Heap bytes held by the break summaries of this root's eviction state,
++    /// which a rebuild drops.
++    pub fn break_summary_heap_size(&self) -> usize {
++        self.evicted
++            .as_deref()
++            .and_then(|evicted| evicted.breaking.as_deref())
++            .map_or(0, |breaking| breaking.summary.heap_size())
++    }
++
++    /// The live layout, or `None` while evicted. For the eviction pass only.
++    pub(crate) fn live_layout(&self) -> Option<&parley::layout::Layout<TextBrush>> {
++        self.built.get().map(|built| &built.layout)
++    }
++
++    /// Mutable [`Self::live_layout`].
++    pub(crate) fn live_layout_mut(&mut self) -> Option<&mut parley::layout::Layout<TextBrush>> {
++        self.built.get_mut().map(|built| &mut built.layout)
++    }
++
++    /// Clear the read flag, returning whether it was set.
++    pub(crate) fn take_recently_read(&self) -> bool {
++        self.recently_read.0.swap(false, Ordering::Relaxed)
++    }
++
++    /// Drop the shaped layout, if any; [`Self::layout`] rebuilds it from `inputs`.
++    pub(crate) fn evict(&mut self, inputs: EvictedLayout) {
++        if let Some(built) = self.built.take() {
++            self.text_kind
++                .get_or_init(|| TextKind::of(&built.content.text));
++        }
++        self.evicted = Some(Box::new(inputs));
++    }
++}
++
++fn rebuild_evicted_layout(nodes: &crate::NodeTree, evicted: &EvictedLayout) -> Box<Built> {
++    REBUILD_COUNT.with(|count| count.set(count.get() + 1));
++    let mut scratch = TextLayout::unfilled();
++    REBUILD_LAYOUT_CTX.with(|layout_ctx| {
++        let mut font_ctx = nodes.inline_rebuild.font_ctx.lock().unwrap();
++        crate::layout::construct::build_inline_layout_into(
++            nodes,
++            &mut layout_ctx.borrow_mut(),
++            &mut font_ctx,
++            &mut scratch,
++            evicted.scale,
++            evicted.node_id,
++        );
++    });
++    nodes.inline_rebuild.rebuilt.lock().unwrap().push(evicted.node_id);
++    let mut built = scratch.built.take().expect("built just above");
++    let Some(breaking) = evicted.breaking.as_deref() else {
++        return built;
++    };
++    let layout = &mut built.layout;
++    // The live layout sizes the root until it is evicted again, which
++    // summarizes it afresh.
++    drop(breaking.summary.take());
++    debug_assert_eq!(layout.inline_boxes().len(), breaking.boxes.len());
++    for (ibox, &(width, height, baseline)) in layout.inline_boxes_mut().zip(breaking.boxes.iter()) {
++        ibox.width = width;
++        ibox.height = height;
++        ibox.baseline = baseline;
++    }
++    layout.set_text_indent(breaking.indent, breaking.indent_options);
++    layout.break_all_lines(Some(breaking.max_advance));
++    if let Some(max_lines) = breaking.clamp_lines() {
++        layout.truncate_lines(max_lines);
++    }
++    if let Some(alignment) = breaking.alignment {
++        layout.align(
++            alignment,
++            AlignmentOptions {
++                align_when_overflowing: false,
++                last_line_alignment: breaking.last_line_alignment,
++            },
++        );
+     }
++    built
+ }
+
+ impl std::fmt::Debug for TextLayout {
+diff --git a/src/resolve.rs b/src/resolve.rs
+index 1eaa68d..6d7fec2 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -7,6 +7,8 @@ use std::collections::HashSet;
+ use debug_timer::debug_timer;
+ use kurbo::{Affine, Rect};
+ use parley::LayoutContext;
++
++use crate::node::EvictedLayout;
+ use selectors::Element as _;
+ use style::dom::TDocument;
+
+@@ -325,6 +327,13 @@ impl BaseDocument {
+         // if the hovered node actually changes.
+         self.refresh_hover();
+
++        // After paint-tree and hover work, the last readers of this pass.
++        if self.layout_changed {
++            self.inline_eviction_layout_epoch += 1;
++        }
++        self.evict_offscreen_inline_layouts();
++        timer.record_time("evict");
++
+         let mut subdoc_is_animating = false;
+         for &node_id in &self.sub_document_nodes {
+             let node = &mut self.nodes[node_id];
+@@ -740,6 +749,28 @@ impl BaseDocument {
+         deferred_construction_nodes.sort_unstable_by_key(|task| task.node_id);
+         deferred_construction_nodes.dedup_by_key(|task| task.node_id);
+
++        // With eviction on, each root is built inside its own layout call and
++        // may be evicted right after, so the pass never holds all shaped text.
++        if self.inline_layout_eviction_viewports.is_some() {
++            for task in deferred_construction_nodes {
++                let ConstructionTaskData::InlineLayout(mut layout) = task.data;
++                layout.content_widths = None;
++                layout.last_break_width = f32::NAN;
++                layout.set_unbuilt(EvictedLayout {
++                    node_id: task.node_id,
++                    scale: self.viewport.scale(),
++                    breaking: None,
++                });
++                self.nodes[task.node_id].clear_layout_cache();
++                self.nodes[task.node_id]
++                    .element_data_mut()
++                    .unwrap()
++                    .set_inline_layout_data(Some(layout));
++                self.inline_roots.push(task.node_id);
++            }
++            return;
++        }
++
+         #[cfg(feature = "parallel-construct")]
+         let iter = deferred_construction_nodes.into_par_iter();
+         #[cfg(not(feature = "parallel-construct"))]
+diff --git a/src/scrolling.rs b/src/scrolling.rs
+index 659adbe..d5eea17 100644
+--- a/src/scrolling.rs
++++ b/src/scrolling.rs
+@@ -334,6 +334,7 @@ impl BaseDocument {
+
+                 let layout = *node.final_layout();
+                 self.nodes.bump_geometry_generation();
++                self.note_inner_scroll(offset.y - initial.y);
+                 let event = BlitzScrollEvent {
+                     scroll_top: offset.y,
+                     scroll_left: offset.x,
+diff --git a/src/tree.rs b/src/tree.rs
+index 5df11cf..cb675fb 100644
+--- a/src/tree.rs
++++ b/src/tree.rs
+@@ -50,6 +50,9 @@ pub struct NodeTree {
+     slot_versions: Vec<u32>,
+     /// The owning document's shared style lock, reached by nodes through their tree pointer.
+     pub(crate) guard: style::shared_lock::SharedRwLock,
++    /// What every evicted inline root rebuilds with, kept once here rather
++    /// than in each root's eviction state.
++    pub(crate) inline_rebuild: crate::node::InlineRebuild,
+ }
+
+ /// The slot index of an id: the low half of the slotmap FFI encoding, which
+@@ -60,7 +63,10 @@ fn slot_index(raw: u64) -> usize {
+ }
+
+ impl NodeTree {
+-    pub(crate) fn new(guard: style::shared_lock::SharedRwLock) -> Self {
++    pub(crate) fn new(
++        guard: style::shared_lock::SharedRwLock,
++        inline_rebuild: crate::node::InlineRebuild,
++    ) -> Self {
+         Self {
+             map: SlotMap::with_key(),
+             geometry_generation: AtomicU64::new(1),
+@@ -68,6 +74,7 @@ impl NodeTree {
+             fixed_anchor: None,
+             slot_versions: Vec::new(),
+             guard,
++            inline_rebuild,
+         }
+     }
+
+@@ -129,8 +136,12 @@ impl NodeTree {
+         self.geometry_generation.fetch_add(1, Ordering::Relaxed);
+     }
+
+-    pub(crate) fn with_capacity(capacity: usize, guard: style::shared_lock::SharedRwLock) -> Self {
+-        let mut tree = Self::new(guard);
++    pub(crate) fn with_capacity(
++        capacity: usize,
++        guard: style::shared_lock::SharedRwLock,
++        inline_rebuild: crate::node::InlineRebuild,
++    ) -> Self {
++        let mut tree = Self::new(guard, inline_rebuild);
+         tree.map = SlotMap::with_capacity_and_key(capacity);
+         tree
+     }

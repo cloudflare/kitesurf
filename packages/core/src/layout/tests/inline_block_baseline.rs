@@ -19,7 +19,10 @@ fn line_baselines(dom: &DomHandle, sel: &str) -> Vec<f32> {
         .element_data()
         .and_then(|e| e.inline_layout_data())
         .expect("an inline formatting context");
-    text.layout.lines().map(|l| l.metrics().baseline).collect()
+    text.layout(node.tree())
+        .lines()
+        .map(|l| l.metrics().baseline)
+        .collect()
 }
 
 #[test]
