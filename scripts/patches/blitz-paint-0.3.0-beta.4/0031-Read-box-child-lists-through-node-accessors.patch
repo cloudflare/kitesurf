@@ -12,10 +12,10 @@ Signed-off-by: bpereira <bpereira@cloudflare.com>
  1 file changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/src/render.rs b/src/render.rs
-index da63a61..ab6ab58 100644
+index 723e104..dcf399a 100644
 --- a/src/render.rs
 +++ b/src/render.rs
-@@ -1201,8 +1201,8 @@ impl ElementCx<'_, '_> {
+@@ -1263,8 +1263,8 @@ impl ElementCx<'_, '_> {
          }
 
          // Regular children
@@ -26,7 +26,7 @@ index da63a61..ab6ab58 100644
                  let child = &self.context.dom.as_ref().tree()[*child_id];
                  let child_transform = match child.paint_parent_override() {
                      Some(parent) if parent == self.node.id => {
-@@ -1362,10 +1362,10 @@ impl ElementCx<'_, '_> {
+@@ -1424,10 +1424,10 @@ impl ElementCx<'_, '_> {
          parent_style_transform: Affine,
          clip_rect: Rect,
      ) {

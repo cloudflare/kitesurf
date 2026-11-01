@@ -14,10 +14,10 @@ Signed-off-by: bpereira <bpereira@cloudflare.com>
  1 file changed, 9 insertions(+), 5 deletions(-)
 
 diff --git a/src/render.rs b/src/render.rs
-index 5a5baba..da63a61 100644
+index 8dbcf72..723e104 100644
 --- a/src/render.rs
 +++ b/src/render.rs
-@@ -1004,12 +1004,13 @@ impl ElementCx<'_, '_> {
+@@ -1066,12 +1066,13 @@ impl ElementCx<'_, '_> {
                  x: pos.x,
                  y: pos.y + text_layout.block_offset as f64,
              };
@@ -32,7 +32,7 @@ index 5a5baba..da63a61 100644
                  self.context.dom,
                  transform,
                  self.node.id,
-@@ -1019,7 +1020,7 @@ impl ElementCx<'_, '_> {
+@@ -1081,7 +1082,7 @@ impl ElementCx<'_, '_> {
              if let Some(&(sel_start, sel_end)) = self.context.selection_ranges.get(&self.node.id) {
                  crate::text::draw_text_selection(
                      scene,
@@ -41,7 +41,7 @@ index 5a5baba..da63a61 100644
                      transform,
                      sel_start,
                      sel_end,
-@@ -1030,7 +1031,7 @@ impl ElementCx<'_, '_> {
+@@ -1092,7 +1093,7 @@ impl ElementCx<'_, '_> {
              let mut draw_text_context = self.context.draw_text_context.borrow_mut();
              crate::text::stroke_text(
                  scene,
@@ -50,7 +50,7 @@ index 5a5baba..da63a61 100644
                  self.context.dom,
                  transform,
                  self.scale,
-@@ -1041,7 +1042,7 @@ impl ElementCx<'_, '_> {
+@@ -1103,7 +1104,7 @@ impl ElementCx<'_, '_> {
 
              crate::text_box_decorations::paint_span_fragment_borders(
                  scene,
@@ -59,7 +59,7 @@ index 5a5baba..da63a61 100644
                  self.context.dom,
                  transform,
                  self.node.id,
-@@ -1142,7 +1143,10 @@ impl ElementCx<'_, '_> {
+@@ -1204,7 +1205,10 @@ impl ElementCx<'_, '_> {
              let y_offset = if let Some((text_layout, first_text_line)) = &self
                  .element
                  .inline_layout_data()

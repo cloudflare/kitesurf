@@ -24,6 +24,7 @@ mod inline_break_restore;
 mod inline_eviction;
 mod inline_flow_rect;
 mod inline_font_family;
+mod list_marker;
 mod nested_inline_abspos;
 mod nowrap_leading_inline_box;
 mod radar_grid_repro;

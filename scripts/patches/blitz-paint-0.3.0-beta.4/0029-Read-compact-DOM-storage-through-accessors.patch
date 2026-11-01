@@ -16,10 +16,10 @@ Signed-off-by: bpereira <bpereira@cloudflare.com>
  4 files changed, 16 insertions(+), 18 deletions(-)
 
 diff --git a/src/render.rs b/src/render.rs
-index 83348ff..5a5baba 100644
+index d961a32..8dbcf72 100644
 --- a/src/render.rs
 +++ b/src/render.rs
-@@ -404,14 +404,14 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+@@ -466,14 +466,14 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
          let overflow = *node.scrollable_overflow();
          let transform = parent_style_transform
              * Affine::translate(box_position)
@@ -36,7 +36,7 @@ index 83348ff..5a5baba 100644
              Some((x0, y0, x1, y1)) => {
                  let reach = Rect::new(
                      x0 as f64 * self.scale,
-@@ -459,7 +459,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+@@ -521,7 +521,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
          if should_clip
              && clip_area < 0.01
              && overflow_area < 0.01
@@ -45,7 +45,7 @@ index 83348ff..5a5baba 100644
          {
              return;
          }
-@@ -769,7 +769,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+@@ -831,7 +831,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
                  _ => None,
              },
              text_input: element.text_input_data(),
@@ -54,7 +54,7 @@ index 83348ff..5a5baba 100644
              devtools: self.dom.devtools(),
              custom_widget_scene,
          }
-@@ -995,8 +995,7 @@ impl ElementCx<'_, '_> {
+@@ -1057,8 +1057,7 @@ impl ElementCx<'_, '_> {
      fn draw_inline_layout(&self, scene: &mut impl PaintScene, pos: Point) {
          if self.node.flags.is_inline_root() {
              let text_layout = self.element
@@ -64,7 +64,7 @@ index 83348ff..5a5baba 100644
                  .unwrap_or_else(|| {
                      panic!("Tried to render node marked as inline root that does not have an inline layout: {:?}", self.node);
                  });
-@@ -1142,8 +1141,7 @@ impl ElementCx<'_, '_> {
+@@ -1204,8 +1203,7 @@ impl ElementCx<'_, '_> {
              // Align the marker with the baseline of the first line of text in the list item
              let y_offset = if let Some((text_layout, first_text_line)) = &self
                  .element
@@ -74,7 +74,7 @@ index 83348ff..5a5baba 100644
                  .and_then(|text_layout| Some((text_layout, text_layout.layout.lines().next()?)))
              {
                  (first_text_line.metrics().baseline
-@@ -1185,7 +1183,7 @@ impl ElementCx<'_, '_> {
+@@ -1247,7 +1245,7 @@ impl ElementCx<'_, '_> {
      ) {
          // Negative z_index hoisted nodes
 
@@ -83,7 +83,7 @@ index 83348ff..5a5baba 100644
              for hoisted_child in hoisted.neg_z_hoisted_children() {
                  let position = hoisted_child.position(self.node.tree(), self.node.id);
                  self.render_hoisted_child(
-@@ -1202,7 +1200,7 @@ impl ElementCx<'_, '_> {
+@@ -1264,7 +1262,7 @@ impl ElementCx<'_, '_> {
          if let Some(children) = &*self.node.paint_children.borrow() {
              for child_id in children {
                  let child = &self.context.dom.as_ref().tree()[*child_id];
@@ -92,7 +92,7 @@ index 83348ff..5a5baba 100644
                      Some(parent) if parent == self.node.id => {
                          if skip_rehomed {
                              continue;
-@@ -1235,7 +1233,7 @@ impl ElementCx<'_, '_> {
+@@ -1297,7 +1295,7 @@ impl ElementCx<'_, '_> {
          }
 
          // Positive z_index hoisted nodes
@@ -101,7 +101,7 @@ index 83348ff..5a5baba 100644
              for hoisted_child in hoisted.pos_z_hoisted_children() {
                  let position = hoisted_child.position(self.node.tree(), self.node.id);
                  self.render_hoisted_child(
-@@ -1365,7 +1363,7 @@ impl ElementCx<'_, '_> {
+@@ -1427,7 +1425,7 @@ impl ElementCx<'_, '_> {
          };
          for child_id in children {
              let child = &self.context.dom.as_ref().tree()[*child_id];
@@ -111,7 +111,7 @@ index 83348ff..5a5baba 100644
              }
              let translation = child.rehomed_paint_translate(self.node.id);
 diff --git a/src/render/background.rs b/src/render/background.rs
-index 6f9ce97..b02bc1d 100644
+index a315c2c..cf4fd25 100644
 --- a/src/render/background.rs
 +++ b/src/render/background.rs
 @@ -138,7 +138,7 @@ impl<'a> ImageLayerStyles<'a> {
