@@ -33,5 +33,6 @@ mod stylo_extraction;
 mod svg_descendant_rect;
 mod svg_natural_size;
 mod tab_expansion;
+mod table_cell_style;
 mod text_node_rect;
 mod transform_2d_subset;
