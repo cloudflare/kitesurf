@@ -132,6 +132,7 @@ pnpm run check             # bazel test //:check, then the tracked-file checks
 pnpm run test:e2e <file-substring>
 pnpm run test:wpt --filter <substring>
 pnpm run test:playwright --filter <substring>
+pnpm run test:puppeteer --filter <substring>   # after pnpm run pptr:setup
 ```
 
 Use an explicit `KITESURF_PORT` or `--port` when other engines may be running, and stop only the

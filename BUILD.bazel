@@ -47,6 +47,18 @@ copy_to_bin(
     visibility = ["//scripts:__pkg__"],
 )
 
+copy_to_bin(
+    name = "pptr_expectations",
+    srcs = ["tests/pptr-expectations.json"],
+    visibility = ["//scripts:__pkg__"],
+)
+
+copy_to_bin(
+    name = "pptr_tests",
+    srcs = ["tests/pptr-tests.json"],
+    visibility = ["//scripts:__pkg__"],
+)
+
 _CONFIG_PACKAGES = [
     "packages/core/pkg",
     "packages/dom-shim",

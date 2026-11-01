@@ -1,0 +1,31 @@
+diff --git a/test/src/mocha-utils.ts b/test/src/mocha-utils.ts
+index 746c584..266e2c7 100644
+--- a/test/src/mocha-utils.ts
++++ b/test/src/mocha-utils.ts
+@@ -108,9 +108,12 @@ defaultBrowserOptions.args!.push(
+ );
+ defaultBrowserOptions.args!.push(`--force-device-scale-factor=1`);
+ 
++// Kitesurf: attach to a running engine's /devtools/browser endpoint instead of launching Chrome.
++const kitesurfWS = process.env['KITESURF_WS'];
++
+ let executableExists = false;
+ async function verifyExecutable() {
+-  if (executableExists) {
++  if (executableExists || kitesurfWS) {
+     return;
+   }
+ 
+@@ -195,6 +198,12 @@ export const setupTestBrowserHooks = (): void => {
+     await verifyExecutable();
+     try {
+       if (!state.browser) {
++        if (!browserPromise && kitesurfWS) {
++          browserPromise = (puppeteer as unknown as PuppeteerNode).connect({
++            browserWSEndpoint: kitesurfWS,
++            protocolTimeout,
++          });
++        }
+         if (!browserPromise) {
+           browserPromise = (puppeteer as unknown as PuppeteerNode).launch({
+             ...processVariables.defaultBrowserOptions,
