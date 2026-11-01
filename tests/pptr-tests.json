@@ -1,1 +1,12 @@
-[]
+[
+  "click.test",
+  "elementhandle.test",
+  "evaluation.test",
+  "injected.test",
+  "jshandle.test",
+  "locator.test",
+  "navigation.test",
+  "queryhandler.test",
+  "queryselector.test",
+  "waittask.test"
+]

@@ -1,1 +1,318 @@
-{}
+{
+  "[click.test] Page.click should click svg": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: 42 / Received: undefined"
+  },
+  "[click.test] Page.click should click the button inside an iframe": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[click.test] Page.click should click the button with deviceScaleFactor set": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: 5 / Received: 1"
+  },
+  "[click.test] Page.click should click the button with fixed position inside an iframe": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[click.test] Page.click should click with disabled javascript": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[click.test] Page.click should scroll and click with disabled javascript": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[click.test] Page.click should select the text by triple clicking": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: \"This is the text that we are going to try to select. Let's see how it goes.\" / Received: \"\""
+  },
+  "[elementhandle.test] ElementHandle specs ElementHandle.boundingBox should handle nested frames": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[elementhandle.test] ElementHandle specs ElementHandle.boxModel should work": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[elementhandle.test] ElementHandle specs ElementHandle.clickablePoint should not work if the click box is not visible": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).rejects.toBeInstanceOf() / Received promise resolved instead of rejected / Resolved to value: {\"x\": 2, \"y\": 15}"
+  },
+  "[elementhandle.test] ElementHandle specs ElementHandle.clickablePoint should not work if the click box is not visible due to the iframe": {
+    "expected": "FAIL",
+    "reason": "auto: Protocol error (DOM.getFrameOwner): Frame with the given id was not found."
+  },
+  "[elementhandle.test] ElementHandle specs ElementHandle.clickablePoint should work for iframes": {
+    "expected": "FAIL",
+    "reason": "auto: Cannot read properties of undefined (reading '$')"
+  },
+  "[elementhandle.test] ElementHandle specs ElementHandle.contentFrame should work": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: {\"_frameManager\": {\"_frameTree\": {}}, \"_hasStartedLoading\": true, \"_id\": \"9afd64947a148a1db0549b609a3e2ca6\", \"_lifecycleEvents\": Set …"
+  },
+  "[elementhandle.test] ElementHandle specs ElementHandle.hover should work": {
+    "expected": "FAIL",
+    "reason": "auto: TypeError: cannot read properties of null (reading 'id') (unknown at :2:67) / <main> (unknown at :2:67) / __wbg_new_358857d90afd5a2d (file:///bundle/wasm-glue.js:6379:25)"
+  },
+  "[elementhandle.test] ElementHandle specs ElementHandle.isIntersectingViewport should work": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: false / Received: true"
+  },
+  "[elementhandle.test] ElementHandle specs ElementHandle.isIntersectingViewport should work with threshold": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: false / Received: true"
+  },
+  "[elementhandle.test] ElementHandle specs ElementHandle.touchEnd should work": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toEqual(expected) // deep equality / - Expected  - 25 / + Received  +  1"
+  },
+  "[elementhandle.test] ElementHandle specs ElementHandle.touchMove should work": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toEqual(expected) // deep equality / - Expected  - 30 / + Received  +  1"
+  },
+  "[elementhandle.test] ElementHandle specs ElementHandle.touchMove should work with a pre-existing Touch": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toEqual(expected) // deep equality / - Expected  - 52 / + Received  +  1"
+  },
+  "[elementhandle.test] ElementHandle specs ElementHandle.touchStart should work": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toEqual(expected) // deep equality / - Expected  - 16 / + Received  +  1"
+  },
+  "[elementhandle.test] ElementHandle specs ElementHandle.touchStart should work with the returned Touch": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toEqual(expected) // deep equality / - Expected  - 30 / + Received  +  1"
+  },
+  "[evaluation.test] Evaluation specs Frame.evaluate should have correct execution contexts": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[evaluation.test] Evaluation specs Frame.evaluate should have different execution contexts": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should replace symbols with undefined": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toEqual(expected) // deep equality / - Expected  - 1 / + Received  + 1"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should return -0": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: true / Received: false"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should return -Infinity": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: true / Received: false"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should return BigInt": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: 42n / Received: {\"__bigint\": \"42\"}"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should return Infinity": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: true / Received: false"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should return NaN": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: true / Received: false"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should return properly serialize objects with unknown type fields": {
+    "expected": "FAIL",
+    "reason": "auto: ReferenceError: createImageBitmap is not defined / __wbg_new_358857d90afd5a2d (file:///bundle/wasm-glue.js:6379:25) / kitesurf_core.wasm.<js_sys[a6174709d61e686f]::Error>::new::__wbg_new_358857d90afd…"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should return RegEx": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: true / Received: false"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should return undefined for non-serializable objects": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: undefined / Received: null"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should simulate a user gesture": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: true / Received: false"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should support thrown numbers as error messages": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toEqual(expected) // deep equality / Expected: 100500 / Received: [Error: 100500"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should support thrown strings as error messages": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toEqual(expected) // deep equality / Expected: \"qwerty\" / Received: [Error: \"qwerty\""
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should throw if elementHandles are from other frames": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should transfer -0": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: true / Received: false"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should transfer -Infinity": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: true / Received: false"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should transfer 100Mb of data from page to node.js": {
+    "expected": "SKIP",
+    "reason": "auto: FAIL after 10.6s: capacity overflow / __wbg___wbindgen_panic_error_f153dd2564290663 (file:///bundle/wasm-glue.js:6092:25) / kitesurf_core.wasm.wasm_bindgen[850068d9710d5473]::__rt::__wbindgen_panic_error::__wbg___wbin…"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should transfer BigInt": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: 42n / Received: null"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should transfer Infinity": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: true / Received: false"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should transfer NaN": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: true / Received: false"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should transfer RegEx": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: \"World!\" / Received: undefined"
+  },
+  "[evaluation.test] Evaluation specs Page.evaluate should work for circular object": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toMatchObject(expected) / Matcher error: received value must be a non-null object / Received has value: null"
+  },
+  "[evaluation.test] Evaluation specs Page.removeScriptToEvaluateOnNewDocument should remove new document script": {
+    "expected": "SKIP",
+    "reason": "order-dependent: fails (the removed script still runs) after the rest of the file, passes alone"
+  },
+  "[jshandle.test] JSHandle JSHandle.jsonValue should work with dates": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBeInstanceOf(expected) / Expected constructor: Date / Received value has no prototype"
+  },
+  "[jshandle.test] JSHandle JSHandle.toString should work with different subtypes": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: \"JSHandle@symbol\" / Received: \"JSHandle:undefined\""
+  },
+  "[jshandle.test] JSHandle JSHandle.toString should work with window subtypes": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: \"JSHandle@window\" / Received: \"JSHandle@object\""
+  },
+  "[jshandle.test] JSHandle Page.evaluateHandle should accept object handle as an argument": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toContain(expected) // indexOf / Expected substring: \"Mozilla\" / Received string:    \"Kitesurf/0.0.1\""
+  },
+  "[jshandle.test] JSHandle Page.evaluateHandle should accept object handle to unserializable value": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: true / Received: false"
+  },
+  "[locator.test] Locator Locator.click should work with a OOPIF": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[navigation.test] navigation Frame.goto should navigate subframes": {
+    "expected": "FAIL",
+    "reason": "auto: Navigating frame was detached"
+  },
+  "[navigation.test] navigation Frame.goto should reject when frame detaches": {
+    "expected": "SKIP",
+    "reason": "auto: FAIL after 14.2s: \"Page.navigate timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.\" didn't contain any of the strings [\"Navigating frame was detached\",\"Frame det…"
+  },
+  "[navigation.test] navigation Frame.goto should return matching responses": {
+    "expected": "FAIL",
+    "reason": "auto: Cannot read properties of null (reading 'goto')"
+  },
+  "[navigation.test] navigation Frame.waitForNavigation should fail when frame detaches": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[navigation.test] navigation Frame.waitForNavigation should work": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[navigation.test] navigation Page.goBack should work with HistoryAPI": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBeNull() / Received: {}"
+  },
+  "[navigation.test] navigation Page.goto should disable timeout when its set to 0": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: true / Received: false"
+  },
+  "[navigation.test] navigation Page.goto should fail when navigating to bad SSL": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toMatch(expected) / Expected pattern: /net::ERR_CERT_INVALID|net::ERR_CERT_AUTHORITY_INVALID|MOZILLA_PKIX_ERROR_SELF_SIGNED_CERT|SSL_ERROR_UNKNOWN/ / Received string:  \"internal erro…"
+  },
+  "[navigation.test] navigation Page.goto should fail when navigating to bad SSL after redirects": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toMatch(expected) / Expected pattern: /net::ERR_CERT_INVALID|net::ERR_CERT_AUTHORITY_INVALID|MOZILLA_PKIX_ERROR_SELF_SIGNED_CERT|SSL_ERROR_UNKNOWN/ / Received string:  \"internal erro…"
+  },
+  "[navigation.test] navigation Page.goto should navigate to empty page with networkidle2": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[navigation.test] navigation Page.goto should navigate to page with iframe and networkidle0": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[navigation.test] navigation Page.goto should return response when page replaces its state during load": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[navigation.test] navigation Page.goto should send referer policy": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBeUndefined() / Received: \"http://localhost:53378/\""
+  },
+  "[navigation.test] navigation Page.goto should work when navigating to a URL with a client redirect": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: \"http://localhost:53378/client-redirect.html\" / Received: \"http://localhost:53378/empty.html\""
+  },
+  "[navigation.test] navigation Page.waitForNavigation should work when subframe issues window.stop()": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[navigation.test] navigation Page.waitForNavigation should work with clicking on anchor links": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[navigation.test] with network events disabled \"before all\" hook for \"should work\"": {
+    "expected": "FAIL",
+    "reason": "auto: Could not find Chrome (ver. 156.0.8078.47). This can occur if either / 1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or / 2. your cac…"
+  },
+  "[queryhandler.test] Query handler tests P selectors should work ARIA selectors": {
+    "expected": "SKIP",
+    "reason": "auto: FAIL after 14.3s: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed."
+  },
+  "[queryhandler.test] Query handler tests P selectors should work ARIA selectors with name and role": {
+    "expected": "FAIL",
+    "reason": "auto: TypeError: cyclic object value / __wbg_new_358857d90afd5a2d (file:///bundle/wasm-glue.js:6379:25) / kitesurf_core.wasm.<js_sys[a6174709d61e686f]::Error>::new::__wbg_new_358857d90afd5a2d externref shi…"
+  },
+  "[queryhandler.test] Query handler tests P selectors should work ARIA selectors with role": {
+    "expected": "FAIL",
+    "reason": "auto: TypeError: cyclic object value / __wbg_new_358857d90afd5a2d (file:///bundle/wasm-glue.js:6379:25) / kitesurf_core.wasm.<js_sys[a6174709d61e686f]::Error>::new::__wbg_new_358857d90afd5a2d externref shi…"
+  },
+  "[queryhandler.test] Query handler tests P selectors should work for ARIA selectors in multiple isolated worlds": {
+    "expected": "SKIP",
+    "reason": "auto: FAIL after 14.3s: Waiting for selector `[[[{\"name\":\"aria\",\"value\":\"world\"}]]]` failed"
+  },
+  "[queryhandler.test] Query handler tests P selectors should work with :hover": {
+    "expected": "FAIL",
+    "reason": "auto: Could not find element"
+  },
+  "[waittask.test] waittask specs Frame.waitForSelector Page.waitForSelector is shortcut for main frame": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[waittask.test] waittask specs Frame.waitForSelector should run in specified frame": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[waittask.test] waittask specs Frame.waitForSelector should wait for element to be hidden (bounding box)": {
+    "expected": "SKIP",
+    "reason": "auto: FAIL after 14.2s: expect(received).resolves.toBeTruthy() / Received promise rejected instead of resolved / Rejected to value: [Error: Waiting for selector `div` failed]"
+  },
+  "[waittask.test] waittask specs Frame.waitForSelector should wait for element to be visible (bounding box)": {
+    "expected": "FAIL",
+    "reason": "auto: expect(received).resolves.toBeFalsy() / Received: {\"handle\": {}, \"isolatedHandle\": undefined, Symbol(_isElementHandle): true}"
+  },
+  "[waittask.test] waittask specs Frame.waitForSelector xpath should run in specified frame": {
+    "expected": "SKIP",
+    "reason": "auto: TIMEOUT after 15.0s"
+  },
+  "[waittask.test] waittask specs protocol timeout should error if underlying protocol command times out with raf polling": {
+    "expected": "FAIL",
+    "reason": "auto: Could not find Chrome (ver. 156.0.8078.47). This can occur if either / 1. you did not perform an installation before running the script (e.g. `npx puppeteer browsers install chrome`) or / 2. your cac…"
+  }
+}
