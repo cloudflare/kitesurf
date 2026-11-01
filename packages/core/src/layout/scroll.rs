@@ -255,14 +255,17 @@ impl DomHandle {
                 }
                 // Root and root-hoisted abspos children contribute to document
                 // scroll; fixed boxes do not.
-                let layout_children = doc.root_element().layout_children.borrow();
+                let layout_children = doc.root_element().layout_children();
                 let hoisted_children = doc.root_element().hoisted_children();
-                let root_children = layout_children.iter().flatten().chain(
-                    hoisted_children
-                        .as_deref()
-                        .into_iter()
-                        .flat_map(|children| children.iter()),
-                );
+                let root_children = layout_children
+                    .iter()
+                    .flat_map(|children| children.iter())
+                    .chain(
+                        hoisted_children
+                            .as_deref()
+                            .into_iter()
+                            .flat_map(|children| children.iter()),
+                    );
                 for child in root_children.filter_map(|id| doc.get_node(*id)) {
                     if child
                         .primary_styles()

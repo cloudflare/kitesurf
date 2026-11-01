@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sun, 25 Oct 2026 09:57:55 +0000
+Subject: [PATCH] Read box child lists through node accessors
+
+blitz-dom keeps layout and paint child lists only on box nodes. Read them
+through the node accessors.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/render.rs | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index da63a61..ab6ab58 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -1201,8 +1201,8 @@ impl ElementCx<'_, '_> {
+         }
+
+         // Regular children
+-        if let Some(children) = &*self.node.paint_children.borrow() {
+-            for child_id in children {
++        if let Some(children) = self.node.paint_children() {
++            for child_id in children.iter() {
+                 let child = &self.context.dom.as_ref().tree()[*child_id];
+                 let child_transform = match child.paint_parent_override() {
+                     Some(parent) if parent == self.node.id => {
+@@ -1362,10 +1362,10 @@ impl ElementCx<'_, '_> {
+         parent_style_transform: Affine,
+         clip_rect: Rect,
+     ) {
+-        let Some(children) = &*self.node.paint_children.borrow() else {
++        let Some(children) = self.node.paint_children() else {
+             return;
+         };
+-        for child_id in children {
++        for child_id in children.iter() {
+             let child = &self.context.dom.as_ref().tree()[*child_id];
+             if child.paint_parent_override() != Some(self.node.id) {
+                 continue;

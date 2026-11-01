@@ -93,6 +93,14 @@ rust_test(
 )
 
 rust_test(
+    name = "blitz_dom_child_lists_test",
+    srcs = ["tests/blitz_dom_child_lists.rs"],
+    edition = "2021",
+    exec_properties = RUST,
+    deps = ["@crates//:blitz-dom"],
+)
+
+rust_test(
     name = "blitz_dom_undisplayed_layout_test",
     crate = "@crates//:blitz-dom",
     crate_features = ["svg", "floats", "woff"],
@@ -133,6 +141,7 @@ build_test(
 test_suite(
     name = "host_tests",
     tests = [
+        ":blitz_dom_child_lists_test",
         ":blitz_dom_undisplayed_layout_test",
         ":boa_gc_test",
         ":boa_interner_test",

@@ -121,8 +121,8 @@ One-line orientation (see each series' patches for the full why):
   and robustness fixes (placeholder polyfill, float paint-order gate,
   inline metrics/positioning, font loading, `clear_style_snapshots`
   cascade-panic recovery, …); compact node storage, offscreen inline-layout
-  eviction and summary replay, release of hidden subtree box state, and
-  compact resident and evicted inline text state.
+  eviction and summary replay, release of hidden subtree box state, box-only
+  derived child lists, and compact resident and evicted inline text state.
 - **blitz-html** — the XHTML sniff stops at the first non-root start
   tag outside comments and quoted literals, so text later on a minified
   one-line page cannot route it to the XML parser (`core/src/dom/scan.rs`
@@ -132,8 +132,9 @@ One-line orientation (see each series' patches for the full why):
 - **blitz-paint** — paints the span-fragment decorations; canvas
   background propagation; SVG background-repeat tiling; and the
   `begin_part`/`end_part` markers a consumer needs to know what a rect
-  is FOR (see `anyrender` below); accessors for compact element data and
-  on-demand rebuilding of evicted inline layouts.
+  is FOR (see `anyrender` below); accessors for compact element data,
+  on-demand rebuilding of evicted inline layouts and box-only child-list
+  accessors.
 - **anyrender** — `PaintScene::begin_part`/`end_part`, defaulted to
   no-ops, so the painter can name which part of which element it is
   about to draw instead of the consumer inferring it back from

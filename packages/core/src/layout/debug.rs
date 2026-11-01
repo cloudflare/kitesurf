@@ -70,7 +70,7 @@ impl DomHandle {
             .map(|&id| self.external_node_id(id))
             .collect();
         let _ = writeln!(out, "  children: {:?}", children);
-        if let Some(pc) = node.paint_children.borrow().as_ref() {
+        if let Some(pc) = node.paint_children() {
             let paint_children: Vec<u32> = pc.iter().map(|&id| self.external_node_id(id)).collect();
             let _ = writeln!(out, "  paint_children: {:?}", paint_children);
         } else {
@@ -454,8 +454,7 @@ impl DomHandle {
             return Vec::new();
         };
         let kids = node
-            .layout_children
-            .borrow()
+            .layout_children()
             .as_ref()
             .map(|v| {
                 v.iter()

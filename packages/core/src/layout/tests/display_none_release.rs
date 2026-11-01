@@ -92,10 +92,7 @@ fn hiding_a_flattened_inline_releases_its_atomic_descendant() {
     {
         let doc = dom.doc.borrow();
         let node = doc.get_node(dom.resolve_node_id(outer).unwrap()).unwrap();
-        assert!(
-            node.layout_children.borrow().is_none(),
-            "the inline is flattened"
-        );
+        assert!(node.layout_children().is_none(), "the inline is flattened");
         drop(doc);
     }
     let before = dom.test_bounding_rect(p);
