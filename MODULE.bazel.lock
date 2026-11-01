@@ -231,7 +231,7 @@
   "moduleExtensions": {
     "//bazel:executor_profiles.bzl%executor_profiles": {
       "general": {
-        "bzlTransitiveDigest": "CwKYLCcdVPC/MuqvhKtizQX5y8PSsMXTVEVC40RxZXw=",
+        "bzlTransitiveDigest": "koALcERVkPHDgiJPBz/pGwIxSCh+eCiJtoBROuu2zmU=",
         "usagesDigest": "BjynKaepUGnREY2aK+BxrP7weHrvCspp3vYI2cf3Yhc=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -241,7 +241,8 @@
               "rust": {},
               "e2e": {},
               "wpt": {},
-              "pw": {}
+              "pw": {},
+              "pptr": {}
             }
           }
         }

@@ -4,6 +4,7 @@ load("//bazel:checks.bzl", "node_test", "tsc_test", "workspace_configs")
 load("//bazel:executors.bzl", "PW", "WPT", "for_test")
 load("//tests/e2e:defs.bzl", "e2e_shard_name")
 load("//tests/e2e:shards.bzl", "E2E_SHARD_STARTS")
+load("//tests/pptr:defs.bzl", "PPTR_SHARDS")
 load("//tests/pw:defs.bzl", "PW_SHARDS")
 
 js_library(
@@ -243,6 +244,13 @@ js_binary(
 )
 
 js_binary(
+    name = "pptr_shard",
+    data = [":pptr_runner"],
+    entry_point = "pptr-shard.mjs",
+    visibility = ["//tests/pptr:__pkg__"],
+)
+
+js_binary(
     name = "wpt_inventory",
     data = [":wpt_shared"],
     entry_point = "wpt-inventory.mjs",
@@ -445,6 +453,47 @@ js_binary(
     ] + _PW_RESULTS,
     entry_point = "pw-gate.mjs",
     visibility = ["//tests/pw:__pkg__"],
+)
+
+_PPTR_RESULTS = [
+    "//tests/pptr:shard_%d/results.json" % index
+    for index in range(1, PPTR_SHARDS + 1)
+]
+
+_PPTR_GATE_ARGS = [
+    "--tests",
+    "$(rootpath //:pptr_tests)",
+    "--expectations",
+    "$(rootpath //:pptr_expectations)",
+] + [
+    arg
+    for result in _PPTR_RESULTS
+    for arg in ["--results", "$(rootpath %s)" % result]
+]
+
+_PPTR_GATE_DATA = [
+    ":pptr_shared",
+    ":pw_shared",
+    ":wpt_shared",
+    "//:pptr_expectations",
+    "//:pptr_tests",
+] + _PPTR_RESULTS
+
+js_test(
+    name = "pptr_expectations_test",
+    size = "small",
+    args = _PPTR_GATE_ARGS,
+    data = _PPTR_GATE_DATA,
+    entry_point = "pptr-gate.mjs",
+    visibility = ["//tests/pptr:__pkg__"],
+)
+
+js_binary(
+    name = "pptr_update_expectations",
+    args = _PPTR_GATE_ARGS + ["--update-expectations"],
+    data = _PPTR_GATE_DATA,
+    entry_point = "pptr-gate.mjs",
+    visibility = ["//tests/pptr:__pkg__"],
 )
 
 _E2E_REPORTS = [

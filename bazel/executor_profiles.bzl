@@ -1,6 +1,6 @@
 """Root-module configuration for optional generic execution properties."""
 
-_PROFILES = ["rust", "e2e", "wpt", "pw"]
+_PROFILES = ["rust", "e2e", "wpt", "pw", "pptr"]
 
 def _profile_repository_impl(rctx):
     profiles = {
@@ -8,6 +8,7 @@ def _profile_repository_impl(rctx):
         "e2e": rctx.attr.e2e,
         "wpt": rctx.attr.wpt,
         "pw": rctx.attr.pw,
+        "pptr": rctx.attr.pptr,
     }
     lines = ["EXECUTORS = {"]
     for name in _PROFILES:
@@ -47,6 +48,7 @@ def _executor_profiles_impl(mctx):
         e2e = profiles["e2e"],
         wpt = profiles["wpt"],
         pw = profiles["pw"],
+        pptr = profiles["pptr"],
     )
 
 executor_profiles = module_extension(

@@ -21,6 +21,7 @@ import {
   skipConfig,
   splitId,
 } from "./pptr-shared.mjs";
+import { junit } from "./pptr-gate.mjs";
 
 const t = (fullTitle, extra = {}) => ({
   title: fullTitle.split(" ").pop(),
@@ -217,5 +218,22 @@ test("a hook failure or an empty run retries the whole file", () => {
       skipIds: [],
     }),
     retry,
+  );
+});
+
+test("JUnit names each test by spec and full title", () => {
+  const results = { "[a.test] S ok": "PASS", "[a.test] S bad": "FAIL", "[a.test] S off": "SKIP" };
+  const devs = [{ id: "[a.test] S bad", expected: "PASS", actual: "FAIL" }];
+  const xml = junit(results, devs, ["c.test"], ["[a.test] S gone"], ["c.test"]);
+  assert.match(xml, /<testsuite name="puppeteer" tests="5" failures="3">/);
+  assert.match(
+    xml,
+    /classname="pptr\.a\.test" name="S bad"><failure message="expected PASS, got FAIL"/,
+  );
+  assert.match(xml, /name="S off"><skipped\/>/);
+  assert.match(xml, /name="S gone"><failure message="pinned test missing from the report"/);
+  assert.match(
+    xml,
+    /classname="pptr\.c\.test" name="\(spec file\)"><failure message="no shard ran it"/,
   );
 });
