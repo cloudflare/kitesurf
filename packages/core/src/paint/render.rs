@@ -535,7 +535,7 @@ impl DomHandle {
         };
         drop(fan);
         let target = self.resolve_node_id(exclude);
-        let parent = |id: NodeId| base.get_node(id).and_then(|n| n.parent);
+        let parent = |id: NodeId| base.get_node(id).and_then(|n| n.parent.get());
         let mut lineage = std::collections::HashSet::new();
         let mut cur = target;
         while let Some(id) = cur {

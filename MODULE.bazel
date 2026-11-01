@@ -110,6 +110,8 @@ cargo_workspaces.patched(
             "eddd638e05f3f3efb9f2d37f0406e7834ea023727e1678524488aa70eb639615",
         "blitz-paint-0.3.0-beta.4":
             "28803328124d7b7ea5f8f41501513ccb005559e9f6baf33fa0c1fb7612654a93",
+        "blitz-traits-0.3.0-beta.4":
+            "d339c3ff7fe8bed623e27695a4c15dd1ec8faa9bf9158b7475bf180280e4018c",
         "boa_ast-0.22.0": "9221b0a090572b4a118b46c5874c0781fe4bc9546b85f0a615b8bfb609ca4ed7",
         "boa_engine-0.22.0": "5d6aaf7fdc4299df68adb67e1a5440a51d34630a1f5271b9698fd74bc97b60d9",
         "boa_gc-0.22.0": "af82119558ab1002d1978c8459b53a3ebb506177d29a3aca37c07c1777b1d966",

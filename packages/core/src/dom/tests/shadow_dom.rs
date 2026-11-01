@@ -412,13 +412,13 @@ fn named_and_default_slots_assign_and_render() {
     let doc = dom.doc.borrow();
     let named = doc.get_node(internal_id(&dom, named_slot)).unwrap();
     assert_eq!(
-        named.assigned_nodes.as_deref(),
+        named.assigned_nodes().map(|nodes| &nodes[..]),
         Some(&[internal_id(&dom, span)][..]),
         "named slot gets the slot=a child"
     );
     let default = doc.get_node(internal_id(&dom, default_slot)).unwrap();
     assert_eq!(
-        default.assigned_nodes.as_deref(),
+        default.assigned_nodes().map(|nodes| &nodes[..]),
         Some(
             &[
                 internal_id(&dom, text),
@@ -429,7 +429,9 @@ fn named_and_default_slots_assign_and_render() {
         "default slot gets text + un-attributed elements, in host order"
     );
     assert_eq!(
-        doc.get_node(internal_id(&dom, span)).unwrap().assigned_slot,
+        doc.get_node(internal_id(&dom, span))
+            .unwrap()
+            .assigned_slot(),
         Some(internal_id(&dom, named_slot)),
         "slottable back-pointer"
     );
@@ -606,7 +608,9 @@ fn slot_attribute_change_reassigns() {
     {
         let doc = dom.doc.borrow();
         assert_eq!(
-            doc.get_node(internal_id(&dom, span)).unwrap().assigned_slot,
+            doc.get_node(internal_id(&dom, span))
+                .unwrap()
+                .assigned_slot(),
             Some(internal_id(&dom, default_slot)),
             "no slot attr -> default slot"
         );
@@ -616,15 +620,17 @@ fn slot_attribute_change_reassigns() {
     dom.resolve_layout();
     let doc = dom.doc.borrow();
     assert_eq!(
-        doc.get_node(internal_id(&dom, span)).unwrap().assigned_slot,
+        doc.get_node(internal_id(&dom, span))
+            .unwrap()
+            .assigned_slot(),
         Some(internal_id(&dom, named_slot)),
         "slot attr flip moves the assignment"
     );
     assert_eq!(
         doc.get_node(internal_id(&dom, default_slot))
             .unwrap()
-            .assigned_nodes
-            .as_deref(),
+            .assigned_nodes()
+            .map(|nodes| &nodes[..]),
         Some(&[][..]),
         "old slot loses it"
     );
@@ -797,7 +803,9 @@ fn freeing_a_slot_clears_its_slottables_assigned_slot() {
     dom.resolve_layout();
     let doc = dom.doc.borrow();
     assert_eq!(
-        doc.get_node(internal_id(&dom, span)).unwrap().assigned_slot,
+        doc.get_node(internal_id(&dom, span))
+            .unwrap()
+            .assigned_slot(),
         None
     );
 }

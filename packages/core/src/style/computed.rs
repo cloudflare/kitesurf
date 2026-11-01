@@ -347,7 +347,7 @@ impl DomHandle {
                 } else {
                     styles.clone_display().outside() != DisplayOutside::None
                 };
-                let mut cur = node.parent;
+                let mut cur = node.parent.get();
                 while has_box {
                     let Some(pid) = cur else { break };
                     let Some(parent) = doc.get_node(pid) else {
@@ -361,7 +361,7 @@ impl DomHandle {
                         connected = true;
                         break;
                     }
-                    cur = parent.parent;
+                    cur = parent.parent.get();
                 }
                 has_box && connected
             };

@@ -227,8 +227,6 @@ dependencies = [
 [[package]]
 name = "blitz-traits"
 version = "0.3.0-beta.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d339c3ff7fe8bed623e27695a4c15dd1ec8faa9bf9158b7475bf180280e4018c"
 dependencies = [
  "atomic_refcell",
  "bitflags 2.13.2",
@@ -1959,6 +1957,7 @@ dependencies = [
  "parley_engine",
  "skrifa 0.44.0",
  "smallvec",
+ "thin-vec",
 ]
 
 [[package]]
@@ -1993,6 +1992,7 @@ dependencies = [
  "parley_data",
  "parley_emoji",
  "skrifa 0.44.0",
+ "thin-vec",
 ]
 
 [[package]]

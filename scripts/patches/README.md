@@ -68,29 +68,30 @@ All plumbing git invocations run with `GIT_CONFIG_GLOBAL=/dev/null` /
 
 ## Provenance
 
-| Crate                 | Version        | Upstream                                         | Source           |
-| --------------------- | -------------- | ------------------------------------------------ | ---------------- |
-| `parley`              | `0.12.0`       | `linebender/parley`, path `parley/`              | registry tarball |
-| `parley_engine`       | `0.12.0`       | `linebender/parley`, path `parley_engine/`       | registry tarball |
-| `blitz-dom`           | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/blitz-dom/`   | registry tarball |
-| `blitz-paint`         | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/blitz-paint/` | registry tarball |
-| `blitz-html`          | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/blitz-html/`  | registry tarball |
-| `anyrender`           | `0.14.0`       | `DioxusLabs/anyrender`, path `crates/anyrender/` | registry tarball |
-| `anyrender_vello_cpu` | `0.18.0`       | `DioxusLabs/anyrender`                           | registry tarball |
-| `taffy`               | `0.15.0`       | `DioxusLabs/taffy`                               | registry tarball |
-| `stylo_taffy`         | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/stylo_taffy/` | registry tarball |
-| `stylo`               | `0.22.0`       | servo `stylo`                                    | registry tarball |
-| `selectors`           | `0.41.0`       | servo `selectors`                                | registry tarball |
-| `boa_ast`             | `0.22.0`       | `boa-dev/boa`, path `core/ast/`                  | registry tarball |
-| `boa_interner`        | `0.22.0`       | `boa-dev/boa`, path `core/interner/`             | registry tarball |
-| `boa_gc`              | `0.22.0`       | `boa-dev/boa`, path `core/gc/`                   | registry tarball |
-| `boa_engine`          | `0.22.0`       | `boa-dev/boa`, path `core/engine/`               | registry tarball |
-| `boa_parser`          | `0.22.0`       | `boa-dev/boa`, path `core/parser/`               | registry tarball |
-| `usvg`                | `0.48.1`       | `linebender/resvg`, path `crates/usvg/`          | registry tarball |
-| `vello_common`        | `0.3.0`        | `linebender/vello`, path `vello_common/`         | registry tarball |
-| `vello_cpu`           | `0.3.0`        | `linebender/vello`, path `vello_cpu/`            | registry tarball |
-| `ratatui-image`       | `8.1.1`        | `benjajaja/ratatui-image`                        | registry tarball |
-| `jpeg-encoder`        | `0.7.0`        | `vstroebel/jpeg-encoder`                         | registry tarball |
+| Crate                 | Version        | Upstream                                          | Source           |
+| --------------------- | -------------- | ------------------------------------------------- | ---------------- |
+| `parley`              | `0.12.0`       | `linebender/parley`, path `parley/`               | registry tarball |
+| `parley_engine`       | `0.12.0`       | `linebender/parley`, path `parley_engine/`        | registry tarball |
+| `blitz-dom`           | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/blitz-dom/`    | registry tarball |
+| `blitz-paint`         | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/blitz-paint/`  | registry tarball |
+| `blitz-html`          | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/blitz-html/`   | registry tarball |
+| `blitz-traits`        | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/blitz-traits/` | registry tarball |
+| `anyrender`           | `0.14.0`       | `DioxusLabs/anyrender`, path `crates/anyrender/`  | registry tarball |
+| `anyrender_vello_cpu` | `0.18.0`       | `DioxusLabs/anyrender`                            | registry tarball |
+| `taffy`               | `0.15.0`       | `DioxusLabs/taffy`                                | registry tarball |
+| `stylo_taffy`         | `0.3.0-beta.4` | `DioxusLabs/blitz`, path `packages/stylo_taffy/`  | registry tarball |
+| `stylo`               | `0.22.0`       | servo `stylo`                                     | registry tarball |
+| `selectors`           | `0.41.0`       | servo `selectors`                                 | registry tarball |
+| `boa_ast`             | `0.22.0`       | `boa-dev/boa`, path `core/ast/`                   | registry tarball |
+| `boa_interner`        | `0.22.0`       | `boa-dev/boa`, path `core/interner/`              | registry tarball |
+| `boa_gc`              | `0.22.0`       | `boa-dev/boa`, path `core/gc/`                    | registry tarball |
+| `boa_engine`          | `0.22.0`       | `boa-dev/boa`, path `core/engine/`                | registry tarball |
+| `boa_parser`          | `0.22.0`       | `boa-dev/boa`, path `core/parser/`                | registry tarball |
+| `usvg`                | `0.48.1`       | `linebender/resvg`, path `crates/usvg/`           | registry tarball |
+| `vello_common`        | `0.3.0`        | `linebender/vello`, path `vello_common/`          | registry tarball |
+| `vello_cpu`           | `0.3.0`        | `linebender/vello`, path `vello_cpu/`             | registry tarball |
+| `ratatui-image`       | `8.1.1`        | `benjajaja/ratatui-image`                         | registry tarball |
+| `jpeg-encoder`        | `0.7.0`        | `vstroebel/jpeg-encoder`                          | registry tarball |
 
 fontique is no longer patched: 0.12 offers every face with the best match's
 attributes, which is what our unicode-range-subset patch did.
@@ -110,22 +111,26 @@ One-line orientation (see each series' patches for the full why):
 - **parley** — inline-span box decorations (padding/border/background/
   radius on text spans) + the per-line span-fragment sidecar the
   painter consumes; tab-size stops, per-paragraph `dir=auto`,
-  `first_strong_direction`, `truncate_lines` for line-clamp.
+  `first_strong_direction`, `truncate_lines` for line-clamp; compact layout
+  buffers and font-family reuse.
 - **parley_engine** — the engine halves of the base-direction and tab
-  patches: parley 0.12 moved analysis, bidi and shaping into this crate.
+  patches: parley 0.12 moved analysis, bidi and shaping into this crate;
+  packed character flags and compact shaped-text storage.
 - **blitz-dom** — stylo→parley decoration extraction, driving stylo's
   relative-selector invalidator so `:has()` invalidates, + assorted layout
   and robustness fixes (placeholder polyfill, float paint-order gate,
   inline metrics/positioning, font loading, `clear_style_snapshots`
-  cascade-panic recovery, …).
+  cascade-panic recovery, …); compact node storage.
 - **blitz-html** — the XHTML sniff stops at the first non-root start
   tag outside comments and quoted literals, so text later on a minified
   one-line page cannot route it to the XML parser (`core/src/dom/scan.rs`
-  mirrors the rule).
+  mirrors the rule); parser accessors for compact element names and attributes.
+- **blitz-traits** — `NodeId` stored as two `u32` halves, so node storage
+  is 4-byte aligned on wasm32 and node slots carry no padding.
 - **blitz-paint** — paints the span-fragment decorations; canvas
   background propagation; SVG background-repeat tiling; and the
   `begin_part`/`end_part` markers a consumer needs to know what a rect
-  is FOR (see `anyrender` below).
+  is FOR (see `anyrender` below); accessors for compact element data.
 - **anyrender** — `PaintScene::begin_part`/`end_part`, defaulted to
   no-ops, so the painter can name which part of which element it is
   about to draw instead of the consumer inferring it back from

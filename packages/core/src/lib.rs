@@ -485,6 +485,7 @@ impl DomHandle {
             ..Default::default()
         };
         let mut doc = HtmlDocument::from_html(html, config);
+        doc.shrink_node_storage();
         if let Some(sheet) = tty_ua_sheet() {
             doc.add_user_agent_stylesheet(sheet);
         }
@@ -749,7 +750,7 @@ impl DomHandle {
             if id == root_id {
                 return Some(internal_id);
             }
-            current = doc.get_node(id).and_then(|node| node.parent);
+            current = doc.get_node(id).and_then(|node| node.parent.get());
         }
         None
     }

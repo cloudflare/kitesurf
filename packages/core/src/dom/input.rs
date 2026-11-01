@@ -53,7 +53,7 @@ impl DomHandle {
 
         {
             use ::style::invalidation::element::restyle_hints::RestyleHint;
-            let parent_id = doc.get_node(nid).and_then(|n| n.parent);
+            let parent_id = doc.get_node(nid).and_then(|n| n.parent.get());
             if let Some(node) = doc.get_node_mut(nid) {
                 if let Some(mut data) = node.stylo_element_data_mut().get_mut() {
                     data.hint |= RestyleHint::restyle_subtree();
@@ -101,7 +101,7 @@ impl DomHandle {
                 }
                 doc.snapshot_node(nid);
                 if let Some(elem) = doc.get_node_mut(nid).and_then(|n| n.element_data_mut()) {
-                    elem.special_data = SpecialElementData::RangeInput(v);
+                    elem.special_data = SpecialElementData::RangeInput(Box::new(v));
                 }
                 if let Some(node) = doc.get_node(nid) {
                     node.mark_ancestors_dirty();

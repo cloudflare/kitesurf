@@ -73,6 +73,9 @@ blitz-paint = { path = "packages/core/target/vendor-patched/blitz-paint-0.3.0-be
 # Patched so the XHTML sniff stops at the first non-root start tag: a minified
 # page mentioning "xhtml" anywhere on its one line was parsed as XML.
 blitz-html = { path = "packages/core/target/vendor-patched/blitz-html-0.3.0-beta.4" }
+# Patched to store NodeId as two u32 halves: 4-byte alignment drops the padding
+# from every node slot.
+blitz-traits = { path = "packages/core/target/vendor-patched/blitz-traits-0.3.0-beta.4" }
 # Patched to add PaintScene::begin_part/end_part — defaulted no-ops that
 # let blitz-paint say WHICH part of WHICH element it is about to draw, so
 # a consumer does not have to infer it back from geometry. The scene

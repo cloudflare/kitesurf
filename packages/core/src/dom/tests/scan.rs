@@ -34,20 +34,20 @@ fn element_local(doc: &BaseDocument, id: NodeId) -> Option<&str> {
 
 fn element_is_html_ns(doc: &BaseDocument, id: NodeId) -> bool {
     match &doc.get_node(id).map(|n| &n.data) {
-        Some(NodeData::Element(d)) => &*d.name.ns == "http://www.w3.org/1999/xhtml",
+        Some(NodeData::Element(d)) => &**d.namespace() == "http://www.w3.org/1999/xhtml",
         _ => false,
     }
 }
 
 fn has_ancestor_in(doc: &BaseDocument, id: NodeId, names: &[&str]) -> bool {
-    let mut cur = doc.get_node(id).and_then(|n| n.parent);
+    let mut cur = doc.get_node(id).and_then(|n| n.parent.get());
     while let Some(pid) = cur {
         if let Some(local) = element_local(doc, pid) {
             if names.contains(&local) {
                 return true;
             }
         }
-        cur = doc.get_node(pid).and_then(|n| n.parent);
+        cur = doc.get_node(pid).and_then(|n| n.parent.get());
     }
     false
 }
@@ -519,7 +519,7 @@ fn html_doctype_with_xhtml_later_on_its_line_parses_as_html() {
     let document = parse_full(html);
     let doc: &BaseDocument = &document;
     let title = doc.query_selector_all("title").unwrap()[0];
-    let parent = doc.get_node(title).and_then(|n| n.parent).unwrap();
+    let parent = doc.get_node(title).and_then(|n| n.parent.get()).unwrap();
     assert_eq!(
         element_local(doc, parent),
         Some("head"),

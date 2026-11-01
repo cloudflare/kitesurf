@@ -172,7 +172,7 @@ fn collect_node_y_ranges(doc: &blitz_dom::BaseDocument) -> Vec<(f32, f32)> {
         let Some(el) = node.element_data() else {
             continue;
         };
-        let Some(text_layout) = el.inline_layout_data.as_ref() else {
+        let Some(text_layout) = el.inline_layout_data() else {
             continue;
         };
         for line in text_layout.layout.lines() {
