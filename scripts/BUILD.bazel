@@ -52,6 +52,17 @@ js_library(
 )
 
 js_library(
+    name = "local_engine",
+    srcs = ["local-engine.mjs"],
+    data = ["//packages/engine:package_json"],
+    deps = [
+        ":engine_launcher",
+        "//packages/engine:node_modules/miniflare",
+        "//packages/engine:node_modules/wrangler",
+    ],
+)
+
+js_library(
     name = "pw_runner",
     srcs = ["pw-run.mjs", "pw-setup.mjs"] + glob(["patches/playwright/*.patch"]),
     data = [
@@ -61,6 +72,7 @@ js_library(
     ],
     deps = [
         ":engine_launcher",
+        ":local_engine",
         ":pw_shared",
         ":wpt_shared",
         "//packages/engine:node_modules/miniflare",
