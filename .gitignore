@@ -51,6 +51,8 @@ packages/engine/public/rbi/
 
 # playwright checkout (tag-pinned shallow clone via `pnpm run pw:setup`).
 .playwright/
+# puppeteer checkout (tag-pinned shallow clone via `pnpm run pptr:setup`).
+.puppeteer/
 
 # slop
 **/PLAN*.md

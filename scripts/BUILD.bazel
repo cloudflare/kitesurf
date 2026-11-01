@@ -81,6 +81,30 @@ js_library(
 )
 
 js_library(
+    name = "pptr_shared",
+    srcs = ["pptr-shared.mjs"],
+    deps = [":pw_shared"],
+)
+
+js_library(
+    name = "pptr_runner",
+    srcs = [
+        "pptr-reporter.mjs",
+        "pptr-run.mjs",
+        "pptr-setup.mjs",
+    ] + glob(["patches/puppeteer/*.patch"]),
+    data = [
+        "//:pptr_expectations",
+        "//:pptr_tests",
+    ],
+    deps = [
+        ":local_engine",
+        ":pptr_shared",
+        ":pw_shared",
+    ],
+)
+
+js_library(
     name = "wasm_build_helpers",
     srcs = [
         "get-patched-vendor-crates.mjs",
