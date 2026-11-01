@@ -1,0 +1,147 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 28 Oct 2026 16:32:24 +0000
+Subject: [PATCH] Box scroll and pin offsets only for boxes that have them
+
+Every LayoutData carried a scroll offset and a sticky pin offset, though
+only scrolled or pinned boxes ever set them. They now live in one box
+allocated on the first nonzero write, which shrinks LayoutData from 248
+to 232 bytes on wasm32.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/layout/mod.rs   |  2 +-
+ src/node/element.rs | 48 ++++++++++++++++++++++++++++++++++++++++-----
+ src/node/node.rs    | 12 ++++++------
+ 3 files changed, 50 insertions(+), 12 deletions(-)
+
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index d1b40fe..d0a5f00 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -967,7 +967,7 @@ impl RoundTree for LayoutPassState<'_> {
+         layout_data.final_layout = *layout;
+         // This is the only wholesale write of a location, so it is also the
+         // only place a baked sticky shift can silently disappear.
+-        layout_data.pin_offset = taffy::Point { x: 0.0, y: 0.0 };
++        layout_data.set_pin_offset(taffy::Point { x: 0.0, y: 0.0 });
+     }
+
+     fn is_out_of_flow(&self, node_id: NodeId) -> bool {
+diff --git a/src/node/element.rs b/src/node/element.rs
+index a31c7ad..0c5b2e9 100644
+--- a/src/node/element.rs
++++ b/src/node/element.rs
+@@ -104,9 +104,8 @@ pub struct LayoutData {
+     pub cache: Cache,
+     pub unrounded_layout: Layout,
+     pub final_layout: Layout,
+-    /// Post-layout shift currently baked into `final_layout.location`.
+-    pub pin_offset: taffy::Point<f32>,
+-    pub scroll_offset: crate::Point<f64>,
++    /// Allocated by the first offset written: few boxes are scrolled or pinned.
++    offsets: Option<Box<BoxOffsets>>,
+     pub scrollable_overflow: KurboRect,
+     /// The writing mode this node's layout algorithm ran in (the root takes it from `<body>`),
+     /// recorded by the layout pass for CSSOM geometry lookups.
+@@ -123,8 +122,7 @@ impl LayoutData {
+             cache: Cache::new(),
+             unrounded_layout: Layout::new(),
+             final_layout: Layout::new(),
+-            pin_offset: taffy::Point { x: 0.0, y: 0.0 },
+-            scroll_offset: crate::Point::ZERO,
++            offsets: None,
+             scrollable_overflow: KurboRect::ZERO,
+             #[cfg(feature = "writing-mode")]
+             writing_mode: stylo_taffy::WritingMode::empty(),
+@@ -139,6 +137,46 @@ impl Default for LayoutData {
+     }
+ }
+
++#[derive(Debug, Clone, Copy)]
++struct BoxOffsets {
++    /// Post-layout shift currently baked into `final_layout.location`.
++    pin: taffy::Point<f32>,
++    scroll: crate::Point<f64>,
++}
++
++static NO_OFFSETS: BoxOffsets = BoxOffsets {
++    pin: taffy::Point { x: 0.0, y: 0.0 },
++    scroll: crate::Point::ZERO,
++};
++
++impl LayoutData {
++    fn offsets(&self) -> &BoxOffsets {
++        self.offsets.as_deref().unwrap_or(&NO_OFFSETS)
++    }
++
++    fn offsets_mut(&mut self) -> &mut BoxOffsets {
++        self.offsets.get_or_insert_with(|| Box::new(NO_OFFSETS))
++    }
++
++    pub fn pin_offset(&self) -> &taffy::Point<f32> {
++        &self.offsets().pin
++    }
++
++    pub fn set_pin_offset(&mut self, pin: taffy::Point<f32>) {
++        if self.offsets.is_some() || pin != NO_OFFSETS.pin {
++            self.offsets_mut().pin = pin;
++        }
++    }
++
++    pub fn scroll_offset(&self) -> &crate::Point<f64> {
++        &self.offsets().scroll
++    }
++
++    pub fn scroll_offset_mut(&mut self) -> &mut crate::Point<f64> {
++        &mut self.offsets_mut().scroll
++    }
++}
++
+ /// Shared read-only default returned by accessors for nodes whose
+ /// [`LayoutData`] has never been allocated.
+ pub(crate) static DEFAULT_LAYOUT_DATA: LayoutData = LayoutData::new();
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 1946b1e..fd4891b 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -803,7 +803,7 @@ impl Node {
+     /// (see `set_pin_offset`).
+     #[inline]
+     pub fn pin_offset(&self) -> &taffy::Point<f32> {
+-        &self.layout_data().pin_offset
++        self.layout_data().pin_offset()
+     }
+
+     /// Reconcile the baked post-layout shift to `(x, y)`, moving the location
+@@ -815,25 +815,25 @@ impl Node {
+     /// Returns whether the box moved.
+     pub fn set_pin_offset(&mut self, x: f32, y: f32) -> bool {
+         let layout_data = self.layout_data_mut();
+-        let dx = x - layout_data.pin_offset.x;
+-        let dy = y - layout_data.pin_offset.y;
++        let dx = x - layout_data.pin_offset().x;
++        let dy = y - layout_data.pin_offset().y;
+         if dx == 0.0 && dy == 0.0 {
+             return false;
+         }
+         layout_data.final_layout.location.x += dx;
+         layout_data.final_layout.location.y += dy;
+-        layout_data.pin_offset = taffy::Point { x, y };
++        layout_data.set_pin_offset(taffy::Point { x, y });
+         true
+     }
+
+     #[inline]
+     pub fn scroll_offset(&self) -> &crate::Point<f64> {
+-        &self.layout_data().scroll_offset
++        self.layout_data().scroll_offset()
+     }
+
+     #[inline]
+     pub fn scroll_offset_mut(&mut self) -> &mut crate::Point<f64> {
+-        &mut self.layout_data_mut().scroll_offset
++        self.layout_data_mut().scroll_offset_mut()
+     }
+
+     pub fn set_scroll_offset(&mut self, offset: crate::Point<f64>) {
