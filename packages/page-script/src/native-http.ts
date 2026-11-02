@@ -35,6 +35,7 @@ export function isNativeUint8Array(value: unknown): value is Uint8Array {
 }
 
 const NativeHeaders: typeof Headers | undefined = ksGlobal.Headers;
+const NativeResponse: typeof Response | undefined = ksGlobal.Response;
 const headersProto: Headers | undefined = NativeHeaders?.prototype;
 const nativeGet = headersProto?.get;
 const nativeSet = headersProto?.set;
@@ -151,6 +152,10 @@ type HeadersArg = ConstructorParameters<typeof Headers>[0];
 
 export function newHeaders(init?: HeadersArg): Headers {
   return NativeHeaders ? new NativeHeaders(init) : new Headers(init);
+}
+
+export function newResponse(body?: BodyInit | null, init?: ResponseInit): Response {
+  return NativeResponse ? new NativeResponse(body, init) : new Response(body, init);
 }
 
 export function hdrGet(headers: Headers | null, name: string): string | null {

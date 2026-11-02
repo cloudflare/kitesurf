@@ -16,6 +16,7 @@ import {
   hdrHas,
   hdrSet,
   newHeaders,
+  newResponse,
   responseHeaderGet,
   responseHeaders,
   responseStatus,
@@ -256,10 +257,10 @@ function validateAndStripCache(init: any, isFetchCall: boolean): any {
   return strippedInit;
 }
 
-function installRequestShim(): void {
+function installRequestShim(): typeof Request {
   const RealRequest = ksGlobal.Request;
-  if (typeof RealRequest !== "function") return;
-  if ((RealRequest as any).__ksWrapped) return;
+  if (typeof RealRequest !== "function") return RealRequest;
+  if ((RealRequest as any).__ksWrapped) return RealRequest;
 
   function resolveRequestInput(input: any): any {
     if (typeof input === "string") {
@@ -309,6 +310,7 @@ function installRequestShim(): void {
   patchFormDataRealmCrossing(RealRequest.prototype);
   patchBodyBlobMimeType(RealRequest.prototype);
   installRequestReferrerAttributes(RealRequest.prototype);
+  return ksGlobal.Request;
 }
 
 // workerd's Request omits `referrer` and `referrerPolicy`, so the shim keeps them per instance and
@@ -709,7 +711,7 @@ function redirectDowngradesToGet(status: number, method: string): boolean {
 }
 
 function opaqueRedirect(response: Response): Response {
-  const opaqueResponse = new Response(null, { status: responseStatus(response), statusText: "" });
+  const opaqueResponse = newResponse(null, { status: responseStatus(response), statusText: "" });
   try {
     Object.defineProperty(opaqueResponse, "type", {
       value: "opaqueredirect",
@@ -851,7 +853,9 @@ async function followRedirects(
 
 export function installFetchShim(): void {
   installHeadersForbiddenFilter();
-  installRequestShim();
+  // Page script may replace the Request global; fetch must still recognise a request built with
+  // the constructor installed here, as a browser's fetch never consults the global.
+  const EngineRequest = installRequestShim();
   installResponseShim();
   const nativeFetch = globalThis.fetch;
   if (typeof nativeFetch !== "function") return;
@@ -867,7 +871,9 @@ export function installFetchShim(): void {
       resolved = input.toString();
     }
     const inputRequest =
-      typeof Request === "function" && input instanceof Request ? (input as PageRequest) : null;
+      typeof EngineRequest === "function" && input instanceof EngineRequest
+        ? (input as PageRequest)
+        : null;
     const origin = state.documentOrigin;
     const initMaybeCoerced: KsRequestInit | undefined = serializeFormDataBodyInInit(
       validateAndStripCache(init, true),
@@ -1027,7 +1033,7 @@ export function installFetchShim(): void {
     } catch (error) {
       const retryMethod = String(
         mergedInit.method ??
-          (typeof Request === "function" && resolved instanceof Request
+          (typeof EngineRequest === "function" && resolved instanceof EngineRequest
             ? (resolved as any).method
             : "GET"),
       ).toUpperCase();
@@ -1039,8 +1045,8 @@ export function installFetchShim(): void {
       const bodiless =
         mergedInit.body == null &&
         !(
-          typeof Request === "function" &&
-          resolved instanceof Request &&
+          typeof EngineRequest === "function" &&
+          resolved instanceof EngineRequest &&
           (resolved as any).body != null
         );
       const aborted = mergedInit.signal?.aborted === true;
@@ -1097,7 +1103,7 @@ export function installFetchShim(): void {
       }
       if (computedType === "opaque") {
         const OPAQUE_RESPONSE_CONSTRUCTION_STATUS = 400;
-        const opaque = new Response(null, {
+        const opaque = newResponse(null, {
           status: OPAQUE_RESPONSE_CONSTRUCTION_STATUS,
           headers: newHeaders(),
         });
@@ -1139,8 +1145,8 @@ export function installFetchShim(): void {
       if (error instanceof TypeError) throw error;
       const aborted =
         (init as KsRequestInit | undefined)?.signal?.aborted === true ||
-        (typeof Request === "function" &&
-          input instanceof Request &&
+        (typeof EngineRequest === "function" &&
+          input instanceof EngineRequest &&
           input.signal?.aborted === true);
       if (aborted || (error as any)?.name === "AbortError") throw error;
       if (isDisallowedError(error)) throw error;
