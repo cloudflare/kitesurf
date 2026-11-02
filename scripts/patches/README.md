@@ -127,7 +127,9 @@ One-line orientation (see each series' patches for the full why):
 - **blitz-html** — the XHTML sniff stops at the first non-root start
   tag outside comments and quoted literals, so text later on a minified
   one-line page cannot route it to the XML parser (`core/src/dom/scan.rs`
-  mirrors the rule); parser accessors for compact element names and attributes.
+  mirrors the rule); parser accessors for compact element names and attributes;
+  and an opt-in parser scripting flag (`ScriptingHtmlProvider`), so a document
+  whose scripts run keeps `<noscript>` content as text.
 - **blitz-traits** — `NodeId` stored as two `u32` halves, so node storage
   is 4-byte aligned on wasm32 and node slots carry no padding.
 - **blitz-paint** — paints the span-fragment decorations; canvas
