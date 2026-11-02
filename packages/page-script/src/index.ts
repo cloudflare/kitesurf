@@ -3394,7 +3394,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     const marker = sourceDoctype
       ? `__kitesurf_doctype_${Math.random().toString(36).slice(2)}__`
       : null;
-    const navigateDom = DomHandle.newUtf8(
+    const navigateDom = DomHandle.scriptedUtf8(
       source.utf8,
       sourceDoctype?.utf8End ?? 0,
       marker ? `<!--${marker}-->` : "",

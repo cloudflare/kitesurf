@@ -148,7 +148,6 @@ fn try_render(
     quality: u8,
 ) -> Result<Vec<u8>, String> {
     use blitz_dom::DocumentConfig;
-    use blitz_html::{HtmlDocument, HtmlProvider};
     use blitz_traits::shell::{ColorScheme, Viewport};
     use std::sync::Arc;
 
@@ -161,16 +160,18 @@ fn try_render(
 
     let net_provider = Arc::new(crate::resources::net::KitesurfNetProvider::new());
 
-    let mut document = HtmlDocument::from_html(
+    // The HTML comes from a page DOM whose scripts ran, so its <noscript> content is text
+    // and must stay inert when it is parsed again here.
+    let mut document = crate::parse_html_document(
         html,
         DocumentConfig {
             base_url: Some(resolved_base),
-            html_parser_provider: Some(Arc::new(HtmlProvider)),
             net_provider: Some(net_provider),
             viewport: Some(Viewport::new(width, height, scale, ColorScheme::Light)),
             font_ctx: Some(get_or_init_font_context()),
             ..Default::default()
         },
+        true,
     );
 
     document.as_mut().handle_messages();

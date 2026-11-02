@@ -168,11 +168,13 @@ const VOID_ELEMENTS: &[&str] = &[
     "track", "wbr",
 ];
 
-fn is_raw_text_element(local: &str) -> bool {
+// With scripting on, the parser keeps <noscript> content as text, so it serializes unescaped
+// like the other raw-text elements; with it off, its children are real nodes.
+fn is_raw_text_element(local: &str, scripting: bool) -> bool {
     matches!(
         local,
         "script" | "style" | "xmp" | "iframe" | "noembed" | "noframes" | "plaintext"
-    )
+    ) || (scripting && local == "noscript")
 }
 
 pub(crate) fn has_layout_data(node: &Node) -> bool {
@@ -213,6 +215,7 @@ pub(crate) fn generates_box(doc: &BaseDocument, node: &Node) -> bool {
 
 enum SerializeStep<'a> {
     Open(&'a Node),
+    RawText(&'a str),
     Close(&'a str),
 }
 
@@ -220,18 +223,24 @@ enum SerializeStep<'a> {
 #[derive(Clone, Copy)]
 enum StreamStep {
     Open(NodeId),
+    RawText(NodeId),
     Close(NodeId),
 }
 
 /// Where [`write_node_open`] queues the children and end tag still to write.
 trait StepStack<'a> {
     fn open(&mut self, node: &'a Node);
+    /// A text child of a raw-text element, written as it is rather than escaped.
+    fn raw_text(&mut self, node: &'a Node, text: &'a str);
     fn close(&mut self, node: &'a Node, local: &'a str);
 }
 
 impl<'a> StepStack<'a> for Vec<SerializeStep<'a>> {
     fn open(&mut self, node: &'a Node) {
         self.push(SerializeStep::Open(node));
+    }
+    fn raw_text(&mut self, _node: &'a Node, text: &'a str) {
+        self.push(SerializeStep::RawText(text));
     }
     fn close(&mut self, _node: &'a Node, local: &'a str) {
         self.push(SerializeStep::Close(local));
@@ -241,6 +250,9 @@ impl<'a> StepStack<'a> for Vec<SerializeStep<'a>> {
 impl<'a> StepStack<'a> for Vec<StreamStep> {
     fn open(&mut self, node: &'a Node) {
         self.push(StreamStep::Open(node.id()));
+    }
+    fn raw_text(&mut self, node: &'a Node, _text: &'a str) {
+        self.push(StreamStep::RawText(node.id()));
     }
     fn close(&mut self, node: &'a Node, _local: &'a str) {
         self.push(StreamStep::Close(node.id()));
@@ -281,31 +293,33 @@ impl HtmlSink for ByteCount {
 }
 
 /// `outerHTML` of `node`; a document serializes its children.
-fn write_node_outer_html<S: HtmlSink>(doc: &BaseDocument, node: &Node, out: &mut S) {
+fn write_node_outer_html<S: HtmlSink>(
+    doc: &BaseDocument,
+    node: &Node,
+    scripting: bool,
+    out: &mut S,
+) {
     if matches!(node.data, NodeData::Document(_)) {
         for cid in node.children() {
             if let Some(c) = doc.get_node(cid) {
-                write_outer_html(doc, c, out);
+                write_outer_html(doc, c, scripting, out);
             }
         }
     } else {
-        write_outer_html(doc, node, out);
+        write_outer_html(doc, node, scripting, out);
     }
 }
 
-fn write_inner_html<S: HtmlSink>(doc: &BaseDocument, node: &Node, out: &mut S) {
+fn write_inner_html<S: HtmlSink>(doc: &BaseDocument, node: &Node, scripting: bool, out: &mut S) {
     let raw_text = match &node.data {
-        NodeData::Element(data) => is_raw_text_element(&data.name.local),
+        NodeData::Element(data) => is_raw_text_element(&data.name.local, scripting),
         _ => false,
     };
     for cid in node.children() {
         if let Some(c) = doc.get_node(cid) {
-            if raw_text {
-                if let NodeData::Text(t) = &c.data {
-                    out.push_str(&t.content);
-                }
-            } else {
-                write_outer_html(doc, c, out);
+            match &c.data {
+                NodeData::Text(t) if raw_text => out.push_str(&t.content),
+                _ => write_outer_html(doc, c, scripting, out),
             }
         }
     }
@@ -316,14 +330,15 @@ fn write_inner_html<S: HtmlSink>(doc: &BaseDocument, node: &Node, out: &mut S) {
 fn serialize_exact(
     doc: &BaseDocument,
     node: &Node,
-    count: fn(&BaseDocument, &Node, &mut ByteCount),
-    write: fn(&BaseDocument, &Node, &mut String),
+    scripting: bool,
+    count: fn(&BaseDocument, &Node, bool, &mut ByteCount),
+    write: fn(&BaseDocument, &Node, bool, &mut String),
     spare: usize,
 ) -> String {
     let mut bytes = ByteCount(0);
-    count(doc, node, &mut bytes);
+    count(doc, node, scripting, &mut bytes);
     let mut out = String::with_capacity(bytes.0 + spare);
-    write(doc, node, &mut out);
+    write(doc, node, scripting, &mut out);
     debug_assert_eq!(out.len(), bytes.0);
     out
 }
@@ -388,11 +403,12 @@ fn is_js_whitespace(ch: char) -> bool {
 }
 
 // An explicit stack, not recursion: a deeply nested DOM overflowed the wasm call stack.
-fn write_outer_html<S: HtmlSink>(doc: &BaseDocument, node: &Node, out: &mut S) {
+fn write_outer_html<S: HtmlSink>(doc: &BaseDocument, node: &Node, scripting: bool, out: &mut S) {
     let mut stack = vec![SerializeStep::Open(node)];
     while let Some(step) = stack.pop() {
         match step {
-            SerializeStep::Open(node) => write_node_open(doc, node, out, &mut stack),
+            SerializeStep::Open(node) => write_node_open(doc, node, scripting, out, &mut stack),
+            SerializeStep::RawText(text) => out.push_str(text),
             SerializeStep::Close(local) => {
                 out.push_str("</");
                 out.push_str(local);
@@ -402,10 +418,18 @@ fn write_outer_html<S: HtmlSink>(doc: &BaseDocument, node: &Node, out: &mut S) {
     }
 }
 
-fn push_children<'a>(doc: &'a BaseDocument, node: &'a Node, stack: &mut impl StepStack<'a>) {
+fn push_children<'a>(
+    doc: &'a BaseDocument,
+    node: &'a Node,
+    raw_text: bool,
+    stack: &mut impl StepStack<'a>,
+) {
     for cid in node.children().iter().rev() {
         if let Some(c) = doc.get_node(cid) {
-            stack.open(c);
+            match &c.data {
+                NodeData::Text(text) if raw_text => stack.raw_text(c, &text.content),
+                _ => stack.open(c),
+            }
         }
     }
 }
@@ -413,12 +437,13 @@ fn push_children<'a>(doc: &'a BaseDocument, node: &'a Node, stack: &mut impl Ste
 fn write_node_open<'a, S: HtmlSink>(
     doc: &'a BaseDocument,
     node: &'a Node,
+    scripting: bool,
     out: &mut S,
     stack: &mut impl StepStack<'a>,
 ) {
     use blitz_dom::node::{Attribute, SpecialElementData};
     match &node.data {
-        NodeData::Document(_) | NodeData::ShadowRoot(_) => push_children(doc, node, stack),
+        NodeData::Document(_) | NodeData::ShadowRoot(_) => push_children(doc, node, false, stack),
         NodeData::Comment { contents } => {
             out.push_str("<!--");
             out.push_str(contents);
@@ -460,19 +485,7 @@ fn write_node_open<'a, S: HtmlSink>(
             }
 
             stack.close(node, local);
-            if is_raw_text_element(local) {
-                for cid in node.children() {
-                    let Some(child) = doc.get_node(cid) else {
-                        continue;
-                    };
-                    let NodeData::Text(text) = &child.data else {
-                        continue;
-                    };
-                    out.push_str(&text.content);
-                }
-            } else {
-                push_children(doc, node, stack);
-            }
+            push_children(doc, node, is_raw_text_element(local, scripting), stack);
         }
     }
 }
@@ -710,6 +723,7 @@ impl StreamSink {
 #[wasm_bindgen]
 pub struct OuterHtmlStream {
     stack: Vec<StreamStep>,
+    scripting: bool,
     sink: StreamSink,
     expected_hash: u64,
     expected_raw_len: usize,
@@ -727,8 +741,17 @@ impl OuterHtmlStream {
             };
             match step {
                 StreamStep::Open(id) => match doc.get_node(id) {
-                    Some(node) => write_node_open(doc, node, &mut self.sink, &mut self.stack),
+                    Some(node) => {
+                        write_node_open(doc, node, self.scripting, &mut self.sink, &mut self.stack)
+                    }
                     None => {
+                        self.torn = true;
+                        return;
+                    }
+                },
+                StreamStep::RawText(id) => match doc.get_node(id).map(|n| &n.data) {
+                    Some(NodeData::Text(text)) => self.sink.push_str(&text.content),
+                    _ => {
                         self.torn = true;
                         return;
                     }
@@ -826,13 +849,14 @@ impl DomHandle {
         // First pass: the output's length, keyed hash, first marker offset and its start.
         let key = output_hash_key().ok()?;
         let mut probe = Probe::new(marker, key);
-        write_node_outer_html(&doc, node, &mut probe);
+        write_node_outer_html(&doc, node, self.scripting, &mut probe);
         drop(doc);
 
         let (at, cut, insert) = marker_edit(&probe, marker, doctype)?;
         let len = probe.len - cut + insert.len();
         Some(OuterHtmlStream {
             stack: vec![StreamStep::Open(internal_id)],
+            scripting: self.scripting,
             sink: StreamSink {
                 pending: Vec::new(),
                 taken: 0,
@@ -1226,6 +1250,17 @@ impl DomHandle {
 
     #[wasm_bindgen(js_name = "outerHTML")]
     pub fn outer_html(&self, node_id: u32) -> String {
+        self.outer_html_as(node_id, self.scripting)
+    }
+
+    // For a node of a document with no browsing context, whose <noscript> holds real nodes
+    // even in a scripted handle: its text is escaped like any other element's.
+    #[wasm_bindgen(js_name = "outerHTMLWithoutScripting")]
+    pub fn outer_html_without_scripting(&self, node_id: u32) -> String {
+        self.outer_html_as(node_id, false)
+    }
+
+    fn outer_html_as(&self, node_id: u32, scripting: bool) -> String {
         let Some(internal_id) = self.resolve_node_id(node_id) else {
             return String::new();
         };
@@ -1236,7 +1271,14 @@ impl DomHandle {
         let Some(n) = doc.get_node(internal_id) else {
             return String::new();
         };
-        serialize_exact(&doc, n, write_node_outer_html, write_node_outer_html, 0)
+        serialize_exact(
+            &doc,
+            n,
+            scripting,
+            write_node_outer_html,
+            write_node_outer_html,
+            0,
+        )
     }
 
     /// `outerHTML` as UTF-8 that JS reads in chunks, so the page never holds a whole copy.
@@ -1261,6 +1303,7 @@ impl DomHandle {
         let mut out = serialize_exact(
             &doc,
             n,
+            self.scripting,
             write_node_outer_html,
             write_node_outer_html,
             doctype.len(),
@@ -1279,6 +1322,15 @@ impl DomHandle {
 
     #[wasm_bindgen(js_name = "innerHTML")]
     pub fn inner_html(&self, node_id: u32) -> String {
+        self.inner_html_as(node_id, self.scripting)
+    }
+
+    #[wasm_bindgen(js_name = "innerHTMLWithoutScripting")]
+    pub fn inner_html_without_scripting(&self, node_id: u32) -> String {
+        self.inner_html_as(node_id, false)
+    }
+
+    fn inner_html_as(&self, node_id: u32, scripting: bool) -> String {
         let Some(internal_id) = self.resolve_node_id(node_id) else {
             return String::new();
         };
@@ -1289,7 +1341,7 @@ impl DomHandle {
         let Some(node) = doc.get_node(internal_id) else {
             return String::new();
         };
-        serialize_exact(&doc, node, write_inner_html, write_inner_html, 0)
+        serialize_exact(&doc, node, scripting, write_inner_html, write_inner_html, 0)
     }
 
     #[wasm_bindgen(js_name = "textContent")]

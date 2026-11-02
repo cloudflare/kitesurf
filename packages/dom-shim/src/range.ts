@@ -658,7 +658,7 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
     }
     const fragment = createDocumentFragmentInternal();
     if (doc !== document) nodeOwnerDoc.set(fragment, doc);
-    parseFragmentInContext(fragment, ns, localName, html);
+    parseFragmentInContext(fragment, ns, localName, html, doc !== document);
     for (const id of dom.querySelectorAllInSubtree(fragment._id, "script")) {
       markRuntimeCreatedScript(id);
     }

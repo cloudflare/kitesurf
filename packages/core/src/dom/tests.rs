@@ -13,6 +13,7 @@ mod font_arrival_reshape;
 mod font_face_unicode_range;
 mod id_map;
 mod node_handle;
+mod noscript;
 mod outer_html;
 mod scan;
 mod selector_queries;

@@ -832,7 +832,7 @@ export async function handlePage(
         target.fallbackHtmlReleased = false;
         const blitzUrl = sanitizeBaseUrl(url);
         try {
-          target.dom = createDom(html, blitzUrl);
+          target.dom = createDom(html, blitzUrl, true);
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           console.warn("kitesurf: navigate(about:blank) createDom trap:", msg);
@@ -5042,7 +5042,7 @@ async function loadChildFrame(
     return;
   }
   try {
-    frame.dom = createDom(html, docBaseUrl);
+    frame.dom = createDom(html, docBaseUrl, false);
     budget.bytes += docBytes;
     frame.domBytes = docBytes;
     frame.domBudget = budget;
