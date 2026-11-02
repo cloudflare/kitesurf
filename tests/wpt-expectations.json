@@ -2546,8 +2546,8 @@
     "reason": "T18 enrollment (css-display): measured PASS"
   },
   "/css/css-display/display-contents-focusable-001.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-display): 0/1 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-display/display-contents-inline-001.html": {
     "expected": "PASS",
@@ -4614,6 +4614,34 @@
     "expected": "FAIL",
     "reason": "T18 enrollment (css-masking): 38/55 subtests pass"
   },
+  "/css/css-mixins/function-relative-units.html": {
+    "expected": "FAIL",
+    "reason": "0/11 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched."
+  },
+  "/css/css-mixins/functions/dashed-function-cycles.html": {
+    "expected": "FAIL",
+    "reason": "0/25 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched."
+  },
+  "/css/css-mixins/functions/dashed-function-eval.html": {
+    "expected": "FAIL",
+    "reason": "0/89 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched."
+  },
+  "/css/css-mixins/functions/function-conditionals.html": {
+    "expected": "FAIL",
+    "reason": "0/22 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched."
+  },
+  "/css/css-mixins/functions/function-parameter-types.tentative.html": {
+    "expected": "FAIL",
+    "reason": "0/7 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched."
+  },
+  "/css/css-mixins/functions/function-shadow.html": {
+    "expected": "FAIL",
+    "reason": "1/11 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched."
+  },
+  "/css/css-mixins/functions/local-if-substitution.html": {
+    "expected": "FAIL",
+    "reason": "0/20 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched."
+  },
   "/css/css-multicol/inheritance.html": {
     "expected": "PASS",
     "reason": null
@@ -6236,8 +6264,8 @@
     "reason": "T18 enrollment (css-values): 0/1 subtests pass"
   },
   "/css/css-values/attr-css-wide-keywords.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 7/21 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-values/attr-cycle.html": {
     "expected": "FAIL",
@@ -6252,8 +6280,8 @@
     "reason": null
   },
   "/css/css-values/attr-length-specified.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 0/3 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-values/attr-namespace-wildcard.html": {
     "expected": "PASS",
@@ -6296,8 +6324,8 @@
     "reason": "T18 enrollment (css-values): 9/14 subtests pass"
   },
   "/css/css-values/attr-security-transition-interpolated.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 1/3 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-values/attr-security-transition.html": {
     "expected": "PASS",
@@ -7062,8 +7090,8 @@
     "reason": "T18 enrollment (css-values): 10/37 subtests pass"
   },
   "/css/css-values/random-in-container-query.tentative.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 2/9 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-values/random-in-custom-function.tentative.html": {
     "expected": "FAIL",
@@ -9689,8 +9717,8 @@
     "reason": "15/20 subtests pass. dir=auto input-type gating is incomplete: the value is consulted for types whose directionality must NOT come from it (checkbox, radio, image), the telephone state is not forced to ltr inside an RTL block, and a dynamic type change doesn't re-resolve. HTML \u00a7the-dir-attribute limits value-derived directionality to the text-ish input states."
   },
   "/css/selectors/has-specificity.html": {
-    "expected": "FAIL",
-    "reason": "Not a :has() bug: the test reads CSS custom properties via getComputedStyle().getPropertyValue('--tN'), which kitesurf doesn't expose (all 8 subtests read '' so fail). :has() specificity itself is computed by the selectors crate; blocked on custom-property CSSOM support."
+    "expected": "PASS",
+    "reason": null
   },
   "/css/selectors/invalidation/dir-pseudo-class-in-has.html": {
     "expected": "FAIL",
@@ -23060,7 +23088,7 @@
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-large-top.tentative.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-left-002.html": {
