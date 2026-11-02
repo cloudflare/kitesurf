@@ -1035,11 +1035,6 @@ export async function handlePage(
         }
         emitFrameNavigated(ctx, target, mainFrame(target), req.sessionId);
 
-        let inlinedPageHtml = pageHtml;
-        if (target.docScan) {
-          inlinedPageHtml = removeHtmlTagSpans(pageHtml, htmlTagSpans(pageHtml, "noscript", true));
-        }
-
         // One admission owner for every child frame and child DOM this navigation retains,
         // shared by discovery and every load branch.
         const childBudget = newChildFrameBudget();
@@ -1075,7 +1070,7 @@ export async function handlePage(
           console: capturedConsole,
           cdpMutations,
           exceptions,
-        } = await pushNavigateToPageScript(ctx, target, inlinedPageHtml, finalUrl, armedIframeGate);
+        } = await pushNavigateToPageScript(ctx, target, pageHtml, finalUrl, armedIframeGate);
         if (target.pageScript) releaseTargetDom(target);
         await backfillIframeOwnerNodeIds(target);
         emitFrameDclComplete(ctx, target, mainFrame(target), req.sessionId);

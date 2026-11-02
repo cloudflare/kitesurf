@@ -8,6 +8,7 @@ import type { CDPSession, Page } from "@cloudflare/puppeteer";
 
 import { expect, test } from "./harness";
 import { bbox, decodePng } from "./png";
+import { setContent } from "./set-content";
 
 const ORIGIN = "https://ks.invalid";
 const STYLE = `<style>
@@ -67,6 +68,28 @@ test("a parsed noscript keeps its markup as text and renders nothing", async ({
     innerHTML: '<p id="fallback">JS required</p>',
     innerText: false,
   });
+});
+
+test("navigation keeps the served noscript where it was", async ({ page, cdpSession: session }) => {
+  await page.setViewport({ width: 300, height: 300 });
+  await setContent(
+    page,
+    `<!doctype html><head><noscript><img src="x.png"></noscript><meta name="marker">${STYLE}</head>
+<body><div id="root">${FALLBACK}<input id="q"></div><button id="go"></button>
+<script>
+  const first = document.getElementById("root").firstElementChild;
+  document.title = first && first.localName === "noscript" ? "kept" : "stripped";
+  window.__literal = "<noscript>x</noscript>";
+</script></body>`,
+  );
+
+  expect(await page.title()).toBe("kept");
+  const state = await page.evaluate(() => ({
+    marker: document.head.querySelector('meta[name="marker"]') !== null,
+    literal: (globalThis as { __literal?: string }).__literal,
+  }));
+  expect(state).toEqual({ marker: true, literal: "<noscript>x</noscript>" });
+  await expectButtonOnTop(page, session);
 });
 
 test("a noscript created at runtime renders nothing", async ({ page, cdpSession: session }) => {
