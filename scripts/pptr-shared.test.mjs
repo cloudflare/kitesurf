@@ -234,6 +234,6 @@ test("JUnit names each test by spec and full title", () => {
   assert.match(xml, /name="S gone"><failure message="pinned test missing from the report"/);
   assert.match(
     xml,
-    /classname="pptr\.c\.test" name="\(spec file\)"><failure message="no shard ran it"/,
+    /classname="pptr\.c\.test" name="\(spec file\)"><failure message="no spec action ran it"/,
   );
 });

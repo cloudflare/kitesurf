@@ -301,6 +301,12 @@ wpt_buckets(
     tests = "//:tests/wpt-tests.json",
 )
 
+pptr_specs = use_repo_rule("//tests/pptr:specs_repo.bzl", "pptr_specs")
+pptr_specs(
+    name = "pptr_specs",
+    tests = "//:tests/pptr-tests.json",
+)
+
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 # One release binary per host; //bazel:wasm_bindgen and //bazel:wasm_opt pick the running host's.
 http_archive(

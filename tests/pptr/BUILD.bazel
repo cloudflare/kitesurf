@@ -1,10 +1,13 @@
-load(":defs.bzl", "PPTR_SHARDS", "pptr_shard")
+load("@pptr_specs//:defs.bzl", "PPTR_SPECS")
+load(":defs.bzl", "pptr_spec", "pptr_test_project")
 
-[pptr_shard(name = "shard_%d" % index, shard = index) for index in range(1, PPTR_SHARDS + 1)]
+pptr_test_project(name = "test_project")
+
+[pptr_spec(name = spec, spec = spec, test_project = "test_project") for spec in PPTR_SPECS]
 
 filegroup(
-    name = "shards",
-    srcs = [":shard_%d" % index for index in range(1, PPTR_SHARDS + 1)],
+    name = "specs",
+    srcs = [":" + spec for spec in PPTR_SPECS],
 )
 
 test_suite(
