@@ -105,6 +105,12 @@ pnpm run build
 and copies them into the source tree. Run `pnpm run dev` to build and serve the
 engine locally and `pnpm run test:e2e <substring>` for a focused e2e subset.
 
+Maintainers with a Cloudflare Access login can add `--config=bazelflare` to any
+Bazel command on Linux x86-64. It runs every action on bazelflare, the remote
+execution service CI builds on, and reads the cache main's CI writes. Log in
+once with `cloudflared access login https://bazelflare.kitesurf.workers.dev`.
+Everyone else builds locally, as above.
+
 ## Checks
 
 Before you open a pull request, run:

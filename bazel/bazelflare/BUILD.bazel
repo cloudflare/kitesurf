@@ -1,0 +1,103 @@
+load("@rules_cc//cc:defs.bzl", "cc_toolchain")
+load("@rules_cc//cc/private/toolchain:unix_cc_toolchain_config.bzl", "cc_toolchain_config")
+load("//bazel:executors.bzl", "RUST")
+
+exports_files(["credential-helper"])
+
+# Marks bazelflare's executors, so only they select the toolchain below; --config=bazelflare in
+# .bazelrc makes these the execution platforms.
+constraint_setting(name = "executor")
+
+constraint_value(
+    name = "bazelflare",
+    constraint_setting = ":executor",
+)
+
+platform(
+    name = "linux_x86_64",
+    constraint_values = [
+        ":bazelflare",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+platform(
+    name = "linux_x86_64_rust",
+    constraint_values = ["//bazel/rust:rust_pool"],
+    exec_properties = RUST,
+    parents = [":linux_x86_64"],
+)
+
+# The executor image's GCC, whatever the client's: an autoconfigured toolchain names the client's
+# include directories, which the image's GCC does not have.
+cc_toolchain_config(
+    name = "gcc_config",
+    abi_libc_version = "glibc",
+    abi_version = "gcc",
+    compiler = "gcc",
+    cpu = "k8",
+    cxx_builtin_include_directories = [
+        "/usr/include",
+        "/usr/lib/gcc",
+    ],
+    host_system_name = "x86_64-unknown-linux-gnu",
+    link_flags = ["-no-canonical-prefixes"],
+    link_libs = [
+        "-lstdc++",
+        "-lm",
+    ],
+    target_libc = "glibc",
+    target_system_name = "x86_64-unknown-linux-gnu",
+    tool_paths = {
+        "ar": "/usr/bin/ar",
+        "cpp": "/usr/bin/cpp",
+        "gcc": "/usr/bin/gcc",
+        "gcov": "/usr/bin/gcov",
+        "ld": "/usr/bin/ld",
+        "nm": "/usr/bin/nm",
+        "objcopy": "/usr/bin/objcopy",
+        "objdump": "/usr/bin/objdump",
+        "strip": "/usr/bin/strip",
+    },
+    toolchain_identifier = "bazelflare-linux-x86_64",
+    unfiltered_compile_flags = [
+        "-no-canonical-prefixes",
+        "-Wno-builtin-macro-redefined",
+        '-D__DATE__="redacted"',
+        '-D__TIMESTAMP__="redacted"',
+        '-D__TIME__="redacted"',
+    ],
+)
+
+filegroup(name = "empty")
+
+cc_toolchain(
+    name = "gcc",
+    all_files = ":empty",
+    ar_files = ":empty",
+    as_files = ":empty",
+    compiler_files = ":empty",
+    dwp_files = ":empty",
+    linker_files = ":empty",
+    objcopy_files = ":empty",
+    strip_files = ":empty",
+    supports_param_files = 1,
+    toolchain_config = ":gcc_config",
+    toolchain_identifier = "bazelflare-linux-x86_64",
+)
+
+toolchain(
+    name = "cc_toolchain",
+    exec_compatible_with = [
+        ":bazelflare",
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    toolchain = ":gcc",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)

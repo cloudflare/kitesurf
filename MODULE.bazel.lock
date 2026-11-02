@@ -232,16 +232,38 @@
     "//bazel:executor_profiles.bzl%executor_profiles": {
       "general": {
         "bzlTransitiveDigest": "koALcERVkPHDgiJPBz/pGwIxSCh+eCiJtoBROuu2zmU=",
-        "usagesDigest": "BjynKaepUGnREY2aK+BxrP7weHrvCspp3vYI2cf3Yhc=",
+        "usagesDigest": "dSedh+nkw+A6prZOzmMeJNC4Mty5fpkucGpxRAQoNB8=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
           "kitesurf_executor_profiles": {
             "repoRuleId": "@@//bazel:executor_profiles.bzl%_profile_repository",
             "attributes": {
-              "rust": {},
-              "e2e": {},
-              "wpt": {},
-              "pw": {},
+              "rust": {
+                "idle-ms": "120000",
+                "instance": "standard-4",
+                "max-vcpu": "400",
+                "slots": "2"
+              },
+              "e2e": {
+                "idle-ms": "60000",
+                "instance": "standard-4",
+                "max-vcpu": "200",
+                "slots": "1"
+              },
+              "wpt": {
+                "container-image": "wpt-6efb1b12",
+                "idle-ms": "60000",
+                "instance": "standard-4",
+                "max-vcpu": "1000",
+                "slots": "1"
+              },
+              "pw": {
+                "container-image": "playwright-1.62.0",
+                "idle-ms": "60000",
+                "instance": "standard-4",
+                "max-vcpu": "200",
+                "slots": "1"
+              },
               "pptr": {}
             }
           }

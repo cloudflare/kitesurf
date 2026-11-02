@@ -6,6 +6,7 @@ bazel_dep(name = "aspect_rules_js", version = "3.5.1")
 bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "rules_cc", version = "0.2.17")
 bazel_dep(name = "rules_nodejs", version = "6.7.7")
 bazel_dep(name = "rules_rust", version = "0.74.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
@@ -406,3 +407,49 @@ wpt_editing(
 # Root modules may provide typed string maps for these profiles; empty maps run locally.
 executor_profiles = use_extension("//bazel:executor_profiles.bzl", "executor_profiles")
 use_repo(executor_profiles, "kitesurf_executor_profiles")
+
+# bazelflare's pools for these profiles (--config=bazelflare), by the names of the images its
+# deployment declares; dev-only, so a module that wraps this one keeps its own.
+bazelflare_profiles = use_extension(
+    "//bazel:executor_profiles.bzl",
+    "executor_profiles",
+    dev_dependency = True,
+)
+bazelflare_profiles.profile(
+    name = "rust",
+    exec_properties = {
+        "idle-ms": "120000",
+        "instance": "standard-4",
+        "max-vcpu": "400",
+        "slots": "2",
+    },
+)
+bazelflare_profiles.profile(
+    name = "e2e",
+    exec_properties = {
+        "idle-ms": "60000",
+        "instance": "standard-4",
+        "max-vcpu": "200",
+        "slots": "1",
+    },
+)
+bazelflare_profiles.profile(
+    name = "wpt",
+    exec_properties = {
+        "container-image": "wpt-6efb1b12",  # bakes tests/wpt-revision.json's corpus at /opt/wpt
+        "idle-ms": "60000",
+        "instance": "standard-4",
+        "max-vcpu": "1000",
+        "slots": "1",
+    },
+)
+bazelflare_profiles.profile(
+    name = "pw",
+    exec_properties = {
+        "container-image": "playwright-1.62.0",  # bakes scripts/pw-setup.mjs's PW_TAG at /opt/playwright
+        "idle-ms": "60000",
+        "instance": "standard-4",
+        "max-vcpu": "200",
+        "slots": "1",
+    },
+)
