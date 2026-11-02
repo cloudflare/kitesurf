@@ -39,6 +39,7 @@ const firstPort = parseInt(optionValue("--port") ?? "9780", 10);
 const maxFileMs = parseInt(optionValue("--max-file-ms") ?? "600000", 10);
 const resultsOut = optionValue("--results-out");
 const filter = optionValue("--filter");
+const spec = optionValue("--spec");
 const userGrep = optionValue("--grep");
 const noGate = args.includes("--no-gate");
 const noRetry = args.includes("--no-retry");
@@ -47,18 +48,6 @@ if (launcher !== "wrangler" && launcher !== "miniflare") {
   console.error(`[${TAG}] --engine-launcher wants wrangler or miniflare, got ${launcher}`);
   process.exit(2);
 }
-const shard = (() => {
-  const value = optionValue("--shard");
-  if (value === null) return null;
-  const m = /^(\d+)\/(\d+)$/.exec(value);
-  const k = m && parseInt(m[1], 10),
-    n = m && parseInt(m[2], 10);
-  if (!m || k < 1 || k > n) {
-    console.error(`[${TAG}] bad --shard "${value}" (want k/n, 1<=k<=n)`);
-    process.exit(2);
-  }
-  return { k, n };
-})();
 
 const MOCHA = join(PPTR_DIR, "node_modules/mocha/bin/mocha.js");
 const RUNNER_BIN = join(PPTR_DIR, "tools/mocha-runner/bin");
@@ -70,13 +59,13 @@ if (!existsSync(join(PPTR_DIR, "test/build/mocha-utils.js")) || !existsSync(MOCH
 
 const allowList = loadAllowList(TESTS_JSON);
 let specs = filter ? allowList.filter((e) => e.file.includes(filter)) : allowList;
-if (shard) specs = specs.filter((_, i) => i % shard.n === shard.k - 1);
+if (spec) specs = specs.filter((e) => e.file === spec);
 if (specs.length === 0) {
-  if (shard && !filter) {
-    console.log(`[${TAG}] shard ${shard.k}/${shard.n}: no specs — nothing to do`);
-    process.exit(0);
-  }
-  console.error(`[${TAG}] no allow-listed specs match filter "${filter}"`);
+  console.error(
+    spec
+      ? `[${TAG}] ${spec} is not an allow-listed spec${filter ? ` matching "${filter}"` : ""}`
+      : `[${TAG}] no allow-listed specs match filter "${filter}"`,
+  );
   process.exit(1);
 }
 for (const entry of specs) {
@@ -213,9 +202,7 @@ if (externalWs) {
 } else {
   await buildBundles();
 }
-console.log(
-  `[${TAG}] ${specs.length} spec file(s)${shard ? ` (shard ${shard.k}/${shard.n})` : ""}${noRetry ? " (retry off)" : ""}`,
-);
+console.log(`[${TAG}] ${specs.length} spec file(s)${noRetry ? " (retry off)" : ""}`);
 
 const merged = {};
 const durations = {};
