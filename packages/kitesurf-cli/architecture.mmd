@@ -2,13 +2,27 @@ sequenceDiagram
     participant Site as Website
     participant Page as PageScript isolate
     participant Engine as Engine Worker CDP
+    participant Fonts as Font host
     participant CLI as Rust CLI
+    participant Cache as Local disk cache
     participant Wasm as Wasm rasterizer
     participant TTY as Terminal
 
-    CLI->>Engine: HTTP GET /rbi/scene_host.json and scene_host.wasm
-    Engine-->>CLI: Versioned rasterizer code, no font files
-    CLI->>Engine: CDP WebSocket attach and set viewport
+    Note over Engine,CLI: Browser Run API with OAuth/API token, or direct engine
+    CLI->>Engine: Connect CDP WebSocket
+    CLI->>Engine: Kitesurf.getSceneHostManifest
+    Engine-->>CLI: Deployed rasterizer manifest and SHA-256
+    CLI->>Cache: Read Wasm by manifest SHA-256
+    Cache-->>CLI: Cached bytes or miss
+    CLI->>CLI: Verify cached Wasm size and SHA-256
+    opt Missing or invalid cached Wasm
+        CLI->>Engine: Kitesurf.readSceneHost in bounded chunks
+        Engine-->>CLI: Matching rasterizer code, no font files
+        CLI->>CLI: Verify downloaded Wasm size and SHA-256
+        CLI->>Cache: Save verified Wasm by hash
+    end
+    CLI->>Wasm: Compile the connected engine's rasterizer
+    CLI->>Engine: Attach page and set viewport
     CLI->>Engine: Start scene stream, then navigate
     Engine->>Site: Fetch document
     Site-->>Engine: HTML response
@@ -31,8 +45,23 @@ sequenceDiagram
         end
         opt Built-in Noto Sans asset needed
             Wasm-->>CLI: Pending font asset /fonts/NotoSans.ttf
-            CLI->>Engine: HTTP GET /rbi/fonts/NotoSans.ttf
-            Engine-->>CLI: Noto Sans font file bytes
+            CLI->>Cache: Read font bytes, ETag, size and SHA-256 by URL
+            Cache-->>CLI: Cached entry or miss
+            CLI->>CLI: Verify cached font size and SHA-256
+            alt Verified font and saved ETag
+                CLI->>Fonts: HTTP GET font with If-None-Match
+                alt HTTP 304 Not Modified
+                    Fonts-->>CLI: No body, reuse verified cached bytes
+                else HTTP 200, font changed
+                    Fonts-->>CLI: New font bytes and ETag
+                    CLI->>Cache: Replace font files using atomic renames
+                end
+            else Cache miss, damaged entry or no ETag
+                CLI->>Fonts: HTTP GET font
+                Fonts-->>CLI: Font bytes and optional ETag
+                CLI->>Cache: Save font bytes, size, SHA-256 and ETag
+            end
+            Note over Fonts,Cache: Browser Run: kitesurf.dev, no credentials<br/>Direct: engine origin, optional Access token<br/>Best-effort cache writes, 16 MiB per font
             CLI->>Wasm: Register font bytes for pending asset
         end
         Note over Engine,Wasm: Author fonts from @font-face arrive as bytes in the CDP batch
