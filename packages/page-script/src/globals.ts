@@ -35,6 +35,7 @@ import { ensurePaintDom, invalidatePaintDom } from "./paint.ts";
 import { fetchGatedModuleSource } from "./inserted-scripts.ts";
 import { startupJsonModuleUrls } from "./startup-probe.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
+import { newHeaders } from "./native-http.ts";
 import { indexedDbGlobals } from "./indexeddb.ts";
 import { createScheduler } from "./scheduler.ts";
 import { installIdleCallbackGlobals, installPageTaskGlobals, queuePortTask } from "./page-tasks.ts";
@@ -4204,7 +4205,7 @@ export function installGlobals(
                 this.status = 200;
                 this.statusText = "OK";
                 this.responseURL = url;
-                this._resHeaders = new Headers({
+                this._resHeaders = newHeaders({
                   "content-type": blob.type || "",
                   "content-length": String(blob.size ?? 0),
                 });
@@ -4238,7 +4239,9 @@ export function installGlobals(
               }, this.timeout);
             } catch {}
           }
-          const headers = new Headers();
+          // A page may replace the Headers global, so the request uses the class captured before
+          // page script ran; its prototype's append still drops forbidden method overrides.
+          const headers = newHeaders();
           for (const [n, v] of this._reqHeaders || []) {
             try {
               headers.append(n, v);

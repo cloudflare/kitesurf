@@ -114,6 +114,16 @@ cors.all("/echo-headers.json", (c) => {
   return c.body(JSON.stringify(requestHeaders(c.req.raw)), 200, headers);
 });
 
+// echo-request.json: the method, header map and body text the request arrived with, so a test
+// can check what a script's request carried on the wire.
+cors.all("/echo-request.json", async (c) => {
+  let body = "";
+  try {
+    body = await c.req.text();
+  } catch {}
+  return c.json({ method: c.req.method, headers: requestHeaders(c.req.raw), body });
+});
+
 // echo-headers-frame.html: the same header map as a document, for
 // frames. Scriptless, so the frame stays an in-process contentDocument
 // (echo-headers.html below is the scripted variant).
