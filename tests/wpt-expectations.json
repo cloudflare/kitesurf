@@ -4616,31 +4616,38 @@
   },
   "/css/css-mixins/function-relative-units.html": {
     "expected": "FAIL",
-    "reason": "0/11 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched."
+    "reason": "0/11 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-mixins/functions/dashed-function-cycles.html": {
     "expected": "FAIL",
-    "reason": "0/25 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched."
+    "reason": "0/25 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-mixins/functions/dashed-function-eval.html": {
     "expected": "FAIL",
-    "reason": "0/89 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched."
+    "reason": "0/89 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-mixins/functions/function-conditionals.html": {
     "expected": "FAIL",
-    "reason": "0/22 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched."
+    "reason": "0/22 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-mixins/functions/function-parameter-types.tentative.html": {
     "expected": "FAIL",
-    "reason": "0/7 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched."
+    "reason": "0/7 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-mixins/functions/function-shadow.html": {
     "expected": "FAIL",
-    "reason": "1/11 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched."
+    "reason": "1/11 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-mixins/functions/local-if-substitution.html": {
     "expected": "FAIL",
-    "reason": "0/20 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched."
+    "reason": "0/20 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-multicol/inheritance.html": {
     "expected": "PASS",
@@ -6257,7 +6264,8 @@
   },
   "/css/css-values/attr-argument-grammar.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 9/15 subtests pass"
+    "reason": "8/15 subtests pass. attr() does not take var() in its name, type or unit arguments. The one further earlier pass compared \"\" with \"\" while getComputedStyle read no custom property. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-values/attr-container-style-query.html": {
     "expected": "FAIL",
@@ -6871,11 +6879,13 @@
   },
   "/css/css-values/if-conditionals.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 16/202 subtests pass"
+    "reason": "0/203 subtests pass. CSS if() is not implemented: stylo keeps `if(...)` unsubstituted, so a custom property set to one reads back verbatim. The 16 earlier passes compared \"\" with \"\" while getComputedStyle read no custom property. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-values/if-cycle.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 17/46 subtests pass"
+    "reason": "10/46 subtests pass. CSS if() is not implemented: stylo keeps `if(...)` unsubstituted, so a custom property set to one reads back verbatim. The 7 further earlier passes compared \"\" with \"\" while getComputedStyle read no custom property. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-values/if-function-revert-rule.html": {
     "expected": "FAIL",
@@ -7679,7 +7689,8 @@
   },
   "/css/css-variables/variable-css-wide-keywords-after-substitution.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-variables): 5/6 subtests pass"
+    "reason": "4/6 subtests pass. A revert-layer that var() substitution produces does not revert to the previous cascade layer. The one further earlier pass compared \"\" with \"\" while getComputedStyle read no custom property. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-variables/variable-css-wide-keywords.html": {
     "expected": "FAIL",
@@ -8501,7 +8512,8 @@
   },
   "/css/css-variables/variables-animation-math-functions.html": {
     "expected": "FAIL",
-    "reason": "getComputedStyle now reads custom properties, so the old vacuous pass (\"\" against \"\") is gone: CSS transitions do not interpolate a registered custom property, and animations land 0.01deg off."
+    "reason": "getComputedStyle now reads custom properties, so the old vacuous pass (\"\" against \"\") is gone: CSS transitions do not interpolate a registered custom property, and animations land 0.01deg off. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-variables/variables-substitute-guaranteed-invalid.html": {
     "expected": "PASS",
