@@ -45,3 +45,42 @@ test("placeholder text paints in its ::placeholder colour", async ({ page }) => 
   // use nothing else.
   expect(bbox(png, 180, 220, near([0, 150, 0]))).not.toBeNull();
 });
+
+test("placeholder colour follows a restyle of its control", async ({ page }) => {
+  await page.setViewport({ width: 400, height: 180 });
+  await setContent(
+    page,
+    `<!doctype html>
+<meta charset="utf-8">
+<style>
+  body { margin: 0; background: #fff }
+  input { display: block; margin: 0 0 20px; width: 300px; height: 40px; border: 0; padding: 0;
+          font: 24px sans-serif; background: #fff }
+  .flagged::placeholder { color: rgb(220, 0, 0) }
+  [data-g]::placeholder { color: rgb(0, attr(data-g number, 0), 0) }
+</style>
+<input id="cls" placeholder="WWWWWW">
+<input id="attr" data-g="80" placeholder="WWWWWW">
+<input id="sib" placeholder="WWWWWW">`,
+    { waitUntil: "domcontentloaded" },
+  );
+  const shot = async () => decodePng(new Uint8Array((await page.screenshot()) as Uint8Array));
+
+  const before = await shot();
+  expect(bbox(before, 0, 40, near([117, 117, 117]))).not.toBeNull();
+  expect(bbox(before, 60, 100, near([0, 80, 0]))).not.toBeNull();
+
+  await page.evaluate(() => {
+    document.getElementById("cls")?.classList.add("flagged");
+    document.getElementById("attr")?.setAttribute("data-g", "200");
+  });
+  const after = await shot();
+  // A class that only an author ::placeholder rule reads.
+  expect(bbox(after, 0, 40, near([220, 0, 0]))).not.toBeNull();
+  expect(bbox(after, 0, 40, near([117, 117, 117]))).toBeNull();
+  // An attribute the ::placeholder colour reads through attr().
+  expect(bbox(after, 60, 100, near([0, 200, 0]))).not.toBeNull();
+  expect(bbox(after, 60, 100, near([0, 80, 0]))).toBeNull();
+  // Control: an untouched input keeps the UA colour.
+  expect(bbox(after, 120, 160, near([117, 117, 117]))).not.toBeNull();
+});

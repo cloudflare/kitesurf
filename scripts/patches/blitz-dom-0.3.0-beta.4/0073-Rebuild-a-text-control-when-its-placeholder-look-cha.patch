@@ -1,0 +1,215 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Mon, 2 Nov 2026 11:34:23 +0000
+Subject: [PATCH] Rebuild a text control when its ::placeholder look changes
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Box construction resolves a shown placeholder's ::placeholder style and
+copies its colour and font style onto the text input. Stylo's damage
+diffs only the control's own style, so a restyle that changed just the
+pseudo left the copy stale: `.invalid::placeholder { color: red }` with
+the class toggled by script, or an attr() that only the pseudo reads,
+kept the old colour until something else rebuilt the box.
+
+After a control showing its placeholder is restyled, the traversal now
+resolves ::placeholder again and asks for box construction when the
+colour or font style differs from what construction stored.
+
+beep-boop-🤖
+---
+ src/layout/construct.rs | 60 +++++++++++++++++++++++++++--------------
+ src/node/text.rs        |  4 +++
+ src/stylo.rs            | 32 +++++++++++++++++++++-
+ 3 files changed, 75 insertions(+), 21 deletions(-)
+
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index 9093730..5df309d 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -1466,36 +1466,57 @@ fn collect_complex_layout_children(
+
+ /// The `::placeholder` style of a text control that has a non-empty
+ /// `placeholder` attribute. It is a lazy pseudo, so nothing in the style
+-/// traversal computes it; resolve it against the control's own style here.
+-fn placeholder_pseudo_style(
+-    doc: &BaseDocument,
+-    input_element_id: NodeId,
++/// traversal computes it; resolve it against the control's own style.
++pub(crate) fn placeholder_pseudo_style(
++    stylist: &style::stylist::Stylist,
++    guards: &StylesheetGuards,
++    node: &Node,
++    primary: &style::properties::ComputedValues,
+ ) -> Option<style::servo_arc::Arc<style::properties::ComputedValues>> {
+     use style::selector_parser::PseudoElement;
+     use style::stylist::RuleInclusion;
+-    let node = doc.get_node(input_element_id)?;
+     if node
+         .attr(local_name!("placeholder"))
+         .is_none_or(|p| p.is_empty())
+     {
+         return None;
+     }
+-    let primary = node.primary_styles()?;
+-    let guard = doc.guard().read();
+-    let guards = StylesheetGuards::same(&guard);
+-    doc.stylist.lazily_compute_pseudo_element_style(
+-        &guards,
++    stylist.lazily_compute_pseudo_element_style(
++        guards,
+         node,
+         &PseudoElement::Placeholder,
+         RuleInclusion::All,
+-        &primary,
++        primary,
+         false,
+         None,
+     )
+ }
+
++/// What a shown placeholder takes from its `::placeholder` style: the colour,
++/// with opacity folded into its alpha, and the font style.
++pub(crate) fn placeholder_look(
++    style: &style::properties::ComputedValues,
++) -> (style::color::AbsoluteColor, parley::FontStyle) {
++    let color = style.clone_color();
++    (
++        color.with_alpha(color.alpha * style.get_effects().opacity),
++        stylo_to_parley::font_style(style.clone_font_style()),
++    )
++}
++
++fn document_placeholder_style(
++    doc: &BaseDocument,
++    input_element_id: NodeId,
++) -> Option<style::servo_arc::Arc<style::properties::ComputedValues>> {
++    let node = doc.get_node(input_element_id)?;
++    let primary = node.primary_styles()?;
++    let guard = doc.guard().read();
++    let guards = StylesheetGuards::same(&guard);
++    placeholder_pseudo_style(&doc.stylist, &guards, node, &primary)
++}
++
+ fn create_text_editor(doc: &mut BaseDocument, input_element_id: NodeId, is_multiline: bool) {
+-    let placeholder_style = placeholder_pseudo_style(doc, input_element_id);
++    let placeholder_style = document_placeholder_style(doc, input_element_id);
+     let node = &mut doc.nodes[input_element_id];
+     let parley_style = node
+         .primary_styles()
+@@ -1569,14 +1590,11 @@ fn create_text_editor(doc: &mut BaseDocument, input_element_id: NodeId, is_multi
+     // The ::placeholder cascade (UA `color: #757575`, plus any author
+     // rules) supplies the colour and font style while the placeholder
+     // shows. Without it the text keeps the input's own style.
+-    let placeholder_style = placeholder_style.filter(|_| is_placeholder);
+-    let placeholder_color = placeholder_style.as_ref().map(|s| {
+-        s.clone_color()
+-            .with_alpha(s.clone_color().alpha * s.get_effects().opacity)
+-    });
+-    let placeholder_font_style = placeholder_style
+-        .as_ref()
+-        .map(|s| stylo_to_parley::font_style(s.clone_font_style()));
++    let placeholder_look = placeholder_style
++        .filter(|_| is_placeholder)
++        .map(|s| placeholder_look(&s));
++    let placeholder_color = placeholder_look.map(|(color, _)| color);
++    let placeholder_font_style = placeholder_look.map(|(_, font_style)| font_style);
+
+     if !matches!(element.special_data, SpecialElementData::TextInput(_)) {
+         let mut text_input_data = TextInputData::new(is_multiline);
+@@ -1584,6 +1602,7 @@ fn create_text_editor(doc: &mut BaseDocument, input_element_id: NodeId, is_multi
+         editor.set_text(&display_text);
+         text_input_data.is_showing_placeholder = is_placeholder;
+         text_input_data.placeholder_color = placeholder_color;
++        text_input_data.placeholder_font_style = placeholder_font_style;
+         element.special_data = SpecialElementData::TextInput(text_input_data);
+     } else if let SpecialElementData::TextInput(data) = &mut element.special_data {
+         // Update the editor's text on subsequent layouts so an
+@@ -1597,6 +1616,7 @@ fn create_text_editor(doc: &mut BaseDocument, input_element_id: NodeId, is_multi
+         }
+         data.is_showing_placeholder = is_placeholder;
+         data.placeholder_color = placeholder_color;
++        data.placeholder_font_style = placeholder_font_style;
+     }
+
+     let SpecialElementData::TextInput(text_input_data) = &mut element.special_data else {
+diff --git a/src/node/text.rs b/src/node/text.rs
+index c4a9d34..274849e 100644
+--- a/src/node/text.rs
++++ b/src/node/text.rs
+@@ -106,6 +106,9 @@ pub struct TextInputData {
+     /// while the placeholder shows. Paint draws the placeholder
+     /// text in it instead of the input's own `color`.
+     pub placeholder_color: Option<style::color::AbsoluteColor>,
++    /// The `::placeholder` font style while the placeholder shows. Kept
++    /// so a restyle can tell whether the editor's style is stale.
++    pub placeholder_font_style: Option<parley::FontStyle>,
+     /// Authoritative IDL `.value` override. When Some,
+     /// layout construction displays this instead of the `value`
+     /// content attribute: HTML decouples the IDL value (live,
+@@ -131,6 +134,7 @@ impl TextInputData {
+             scroll_offset: 0.0,
+             is_showing_placeholder: false,
+             placeholder_color: None,
++            placeholder_font_style: None,
+             value_override: None,
+         }
+     }
+diff --git a/src/stylo.rs b/src/stylo.rs
+index 8c15d6f..b72b9b2 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -26,7 +26,7 @@ use style::animation::AnimationState;
+ use style::applicable_declarations::ApplicableDeclarationBlock;
+ use style::bloom::each_relevant_element_hash;
+ use style::color::AbsoluteColor;
+-use style::data::{ElementDataMut, ElementDataRef};
++use style::data::{ElementDataFlags, ElementDataMut, ElementDataRef};
+ use style::global_style_data::STYLE_THREAD_POOL;
+ use style::invalidation::element::element_wrapper::ElementSnapshot;
+ use style::invalidation::element::invalidator::SiblingTraversalMap;
+@@ -1755,6 +1755,13 @@ impl<'dom> DomTraversal<BlitzNode<'dom>> for RecalcStyle<'_> {
+                 }
+             }
+
++            // Box construction copies a shown placeholder's look onto its text input, and stylo's
++            // damage covers only the control's own style.
++            let styled = !data.flags.contains(ElementDataFlags::TRAVERSED_WITHOUT_STYLING);
++            if styled && placeholder_look_is_stale(&self.context, el, &data) {
++                data.damage.insert(CONSTRUCT_BOX);
++            }
++
+             sync_pseudo_element_styles(el, &data, &self.nodes_needing_style_image_flush);
+
+             if !data.damage.is_empty() {
+@@ -1798,6 +1805,29 @@ impl<'dom> DomTraversal<BlitzNode<'dom>> for RecalcStyle<'_> {
+     }
+ }
+
++/// Whether a text control showing its placeholder holds a `::placeholder`
++/// colour or font style that its fresh style no longer gives: a class or an
++/// attr() that only the pseudo reads changes nothing stylo diffs.
++fn placeholder_look_is_stale(
++    context: &SharedStyleContext,
++    el: &Node,
++    data: &style::data::ElementData,
++) -> bool {
++    use crate::layout::construct::{placeholder_look, placeholder_pseudo_style};
++    let Some(input) = el.element_data().and_then(|e| e.text_input_data()) else {
++        return false;
++    };
++    if !input.is_showing_placeholder {
++        return false;
++    }
++    let Some(primary) = data.styles.get_primary() else {
++        return false;
++    };
++    let fresh = placeholder_pseudo_style(context.stylist, &context.guards, el, primary)
++        .map(|style| placeholder_look(&style));
++    fresh != input.placeholder_color.zip(input.placeholder_font_style)
++}
++
+ /// Flush updated pseudo-element (`::before`/`::after`) styles from the owning
+ /// element's freshly-computed stylo data to the pseudo-element's anonymous node.
+ ///
