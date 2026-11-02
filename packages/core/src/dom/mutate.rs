@@ -4,7 +4,10 @@
 
 //! DOM writes: batched ops, node creation, and attribute and text edits.
 
+use std::sync::Arc;
+
 use blitz_dom::{local_name, ns, BaseDocument, LocalName, Namespace, NodeData, QualName};
+use blitz_html::HtmlProvider;
 use blitz_traits::NodeId;
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
@@ -30,8 +33,15 @@ enum Op {
     #[serde(rename = "setNodeText")]
     SetNodeText { node: u32, text: String },
 
+    // `scriptingOff` marks a node of a document with no browsing context, such as one from
+    // createHTMLDocument: its markup parses with scripting off even in a scripted handle.
     #[serde(rename = "setInnerHtml")]
-    SetInnerHtml { node: u32, html: String },
+    SetInnerHtml {
+        node: u32,
+        html: String,
+        #[serde(default, rename = "scriptingOff")]
+        scripting_off: bool,
+    },
 
     #[serde(rename = "appendChildHtml")]
     AppendChildHtml { parent: u32, html: String },
@@ -71,8 +81,20 @@ fn apply_one(
             mutr.set_node_text(node_handles.resolve(node).unwrap(), &text);
             Ok(())
         }
-        Op::SetInnerHtml { node, html } => {
-            mutr.set_inner_html(node_handles.resolve(node).unwrap(), &html);
+        Op::SetInnerHtml {
+            node,
+            html,
+            scripting_off,
+        } => {
+            let node_id = node_handles.resolve(node).unwrap();
+            if scripting_off {
+                let own =
+                    std::mem::replace(&mut mutr.doc.html_parser_provider, Arc::new(HtmlProvider));
+                mutr.set_inner_html(node_id, &html);
+                mutr.doc.html_parser_provider = own;
+            } else {
+                mutr.set_inner_html(node_id, &html);
+            }
             Ok(())
         }
         Op::AppendChildHtml { parent, html } => {

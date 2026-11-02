@@ -3233,7 +3233,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           `<!--${marker}-->` +
           safeHtml.slice(sourceDoctype.end)
         : safeHtml;
-    const navigateDom = new DomHandle(parsedHtml, safeUrl);
+    const navigateDom = DomHandle.scripted(parsedHtml, safeUrl);
     state.dom = navigateDom;
     noteNavigateText(navigateDom);
     state.sourceDoctype = sourceDoctype && marker ? { markup: sourceDoctype.markup, marker } : null;

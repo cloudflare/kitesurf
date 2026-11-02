@@ -12,6 +12,7 @@ import type { AttrCls as AttrImpl, DOMTokenListCls, DocumentFragmentImpl } from 
 import {
   makeDOMTokenList,
   dom,
+  inScriptlessDocument,
   makeStyleSheetStub,
   ksGlobal,
   cdpMutations,
@@ -275,10 +276,11 @@ export function parseFragmentInContext(
   ns: string | null,
   localName: string,
   html: string,
+  scriptingOff = false,
 ): void {
   demandSvgTextOutlines(html, ns);
   const contextId = dom.createElementNS(ns ?? "", localName);
-  recordOp({ kind: "setInnerHtml", node: contextId, html });
+  recordOp({ kind: "setInnerHtml", node: contextId, html, ...(scriptingOff && { scriptingOff }) });
   const kids = Array.from(dom.childIds(contextId));
   for (const kid of kids) {
     dom.removeNode(kid);
@@ -1294,11 +1296,8 @@ class Element extends NodeBase implements Idl.Element {
   }
 
   get innerHTML() {
-    if (isTemplateElement(this._id)) {
-      const frag = ensureTemplateContent(this._id);
-      return dom.innerHTML(frag._id);
-    }
-    return dom.innerHTML(this._id);
+    const id = isTemplateElement(this._id) ? ensureTemplateContent(this._id)._id : this._id;
+    return inScriptlessDocument(this) ? dom.innerHTMLWithoutScripting(id) : dom.innerHTML(id);
   }
   set innerHTML(value) {
     // [LegacyNullToEmptyString]: null becomes "", but undefined stays "undefined".
@@ -1307,8 +1306,9 @@ class Element extends NodeBase implements Idl.Element {
     demandSvgTextOutlines(htmlText, this.namespaceURI);
     ksSpan("dom.innerHTML", { html_bytes: htmlText.length }, () => this.__setInnerHTML(htmlText));
   }
-  __setInnerHTML(htmlText: string): void {
+  __setInnerHTML(htmlText: string, scriptingOff = inScriptlessDocument(this)): void {
     maybeScheduleSlotchange(this._id);
+    const parse = { html: htmlText, ...(scriptingOff && { scriptingOff }) };
     // Keep old child wrappers for childList records that expose them in removedNodes.
     if (isTemplateElement(this._id)) {
       const frag = ensureTemplateContent(this._id);
@@ -1323,7 +1323,7 @@ class Element extends NodeBase implements Idl.Element {
           }
         }
       }
-      recordOp({ kind: "setInnerHtml", node: frag._id, html: htmlText });
+      recordOp({ kind: "setInnerHtml", node: frag._id, ...parse });
       if (!observed) dropUnwrappedSubtrees(oldChildIds);
       if (oldChildren) {
         const newChildren = Array.from<NodeBase>(frag.childNodes);
@@ -1346,7 +1346,7 @@ class Element extends NodeBase implements Idl.Element {
         }
       }
     }
-    recordOp({ kind: "setInnerHtml", node: this._id, html: htmlText });
+    recordOp({ kind: "setInnerHtml", node: this._id, ...parse });
     if (!observed) dropUnwrappedSubtrees(oldChildIds);
     if (oldChildren) {
       const newChildren = Array.from<NodeBase>(this.childNodes);
@@ -1362,7 +1362,9 @@ class Element extends NodeBase implements Idl.Element {
     return ensureTemplateContent(this._id);
   }
   get outerHTML() {
-    return dom.outerHTML(this._id);
+    return inScriptlessDocument(this)
+      ? dom.outerHTMLWithoutScripting(this._id)
+      : dom.outerHTML(this._id);
   }
   set outerHTML(value) {
     const htmlText = value === null ? "" : String(value);
@@ -1386,7 +1388,10 @@ class Element extends NodeBase implements Idl.Element {
       );
     }
     const tmp: Element = createElementInternal("div");
-    tmp.innerHTML = htmlText;
+    // The scratch element is the page's own, but the markup is this element's: in a document
+    // with no browsing context it keeps its noscript content as markup.
+    if (inScriptlessDocument(this)) tmp.__setInnerHTML(htmlText, true);
+    else tmp.innerHTML = htmlText;
     const moved: NodeBase[] = Array.from<NodeBase>(tmp.childNodes);
     const prevSibling = this.previousSibling || null;
     const nextSibling = this.nextSibling || null;

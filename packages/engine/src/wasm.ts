@@ -74,12 +74,14 @@ function ensureInit(): void {
   initialized = true;
 }
 
-export function createDom(html: string, baseUrl: string): DomHandle {
+// `scripting` is on for a document whose scripts run, so its <noscript> stays inert; it is off
+// for frames whose scripts were stripped, which keep their fallback content.
+export function createDom(html: string, baseUrl: string, scripting: boolean): DomHandle {
   ensureInit();
-  return new DomHandle(html, baseUrl);
+  return scripting ? DomHandle.scripted(html, baseUrl) : new DomHandle(html, baseUrl);
 }
 
-setDomFactory(createDom);
+setDomFactory((html, baseUrl) => createDom(html, baseUrl, true));
 
 export interface ScannedScript {
   src: string | null;

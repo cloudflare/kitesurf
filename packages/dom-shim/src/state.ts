@@ -26,6 +26,7 @@ import {
   DOCUMENT_FRAGMENT_NODE,
   DOCUMENT_NODE,
   ELEMENT_NODE,
+  MAX_NODE_ANCESTOR_HOPS,
   PROCESSING_INSTRUCTION_NODE,
   TEXT_NODE,
 } from "./constants.js";
@@ -37,7 +38,7 @@ import type {
   NodeBase,
   TextNode,
 } from "./node-base.js";
-import { fragmentIds, resetRegistries } from "./registries.js";
+import { fragmentIds, hostIdToDoc, nodeOwnerDoc, resetRegistries } from "./registries.js";
 import type { ShimGlobal } from "./global-scope.js";
 
 type DomHandle = WasmDomHandle;
@@ -59,7 +60,7 @@ export type DomOperation =
   | { kind: "setAttribute"; node: number; name: string; value: string }
   | { kind: "removeAttribute"; node: number; name: string }
   | { kind: "setNodeText"; node: number; text: string }
-  | { kind: "setInnerHtml"; node: number; html: string }
+  | { kind: "setInnerHtml"; node: number; html: string; scriptingOff?: true }
   | { kind: "appendChildHtml"; parent: number; html: string };
 
 export interface AuthRectSnapshot {
@@ -164,6 +165,27 @@ export interface BuildDocumentOpts {
 }
 
 export let dom!: DomHandle;
+
+// A document with no browsing context (createHTMLDocument, new Document) has scripting off, so
+// its <noscript> is markup. A parsed-in node has no owner entry: its host tells whose it is.
+export function inScriptlessDocument(node: { _id: number }): boolean {
+  const owner = nodeOwnerDoc.get(node);
+  if (owner) return Reflect.get(owner, "defaultView") == null;
+  if (hostIdToDoc.size === 0) return false;
+  let id = node._id;
+  for (let hops = 0; hops < MAX_NODE_ANCESTOR_HOPS; hops++) {
+    if (hostIdToDoc.has(id)) return true;
+    let parent: number;
+    try {
+      parent = dom.parentId(id);
+    } catch {
+      return false;
+    }
+    if (parent < 0 || parent === id) return false;
+    id = parent;
+  }
+  return false;
+}
 export let pageUrl: string = "";
 export let initialCookieString: string = "";
 export let opts: BuildDocumentOpts | undefined = undefined;
@@ -527,6 +549,7 @@ type ParseFragmentInContext = (
   ns: string | null,
   localName: string,
   html: string,
+  scriptingOff?: boolean,
 ) => void;
 let parseFragmentInContextFn: ParseFragmentInContext | null = null;
 export function setParseFragmentInContext(fn: ParseFragmentInContext): void {
