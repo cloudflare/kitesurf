@@ -74,3 +74,6 @@ packages/engine/test/e2e/.fixtures-dist/
 # Local Bazel flags, read by .bazelrc.
 .bazelrc.user
 .turbo/
+
+# Triage skill scratch space (.agents/skills/triage).
+/triage/

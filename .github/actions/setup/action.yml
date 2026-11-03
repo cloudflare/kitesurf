@@ -9,6 +9,10 @@ inputs:
     description: Restore Bazel's disk and repository caches; the job saves them itself.
     required: false
     default: "false"
+  save-cache:
+    description: Use the pnpm cache and let the rust-cache save on main. Set "false" in jobs that run untrusted input.
+    required: false
+    default: "true"
 outputs:
   bazel-cache-key:
     description: The key the job saves the Bazel caches under.
@@ -41,7 +45,8 @@ runs:
     - uses: actions/setup-node@v4
       with:
         node-version: 22
-        cache: pnpm
+        # setup-node saves the pnpm store whenever it restores it.
+        cache: ${{ inputs.save-cache == 'true' && 'pnpm' || '' }}
     - if: inputs.rust == 'true'
       shell: bash
       run: rustup show
@@ -51,7 +56,7 @@ runs:
       uses: Swatinem/rust-cache@v2
       with:
         cache-directories: packages/core/target
-        save-if: ${{ github.ref == 'refs/heads/main' }}
+        save-if: ${{ inputs.save-cache == 'true' && github.ref == 'refs/heads/main' }}
         cache-on-failure: "true"
     # The runner image ships bazelisk as `bazel`. CI must never rewrite MODULE.bazel.lock: a stale
     # one is a commit missing its lockfile update.
