@@ -21,7 +21,7 @@ import type {
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
 import type { RenderPortStub } from "@kitesurf/jsrpc-types/page-renderer";
 import type { PageScriptStub, UpstreamEventHandler } from "./page-script.ts";
-import { notifyIsolateLimit } from "./limit-registry.ts";
+import { isIsolateGoneError, notifyIsolateLimit } from "./limit-registry.ts";
 
 export type RpcSessionCallable = Pick<RetainedPageScriptSessionStub, "close"> &
   Pick<RetainedPageScriptSession, "call"> & {
@@ -83,6 +83,10 @@ export class PageScriptRpcSession implements PageScriptStub {
   private inflight = new Set<InflightCall>();
   private dead = false;
   private deadReason: string | null = null;
+  // An entrypoint call on an evicted or killed isolate starts a fresh one just to serve it, so the
+  // kill is sent at most once and never after the isolate is known to be gone.
+  private isolateGone = false;
+  private killing: Promise<void> | null = null;
   private wallCapTimer: ReturnType<typeof setTimeout> | null = null;
   private closeReady: Promise<void> | null = null;
   private scriptName: string | null = null;
@@ -135,6 +139,7 @@ export class PageScriptRpcSession implements PageScriptStub {
         return session;
       },
       (err) => {
+        this.isolateGone = true;
         this.markDead(`session open failed: ${(err as Error)?.message ?? String(err)}`);
         throw err;
       },
@@ -143,8 +148,9 @@ export class PageScriptRpcSession implements PageScriptStub {
   }
 
   private noteTransportDeath(raw: string): void {
+    if (!isIsolateGoneError(raw)) return;
+    this.isolateGone = true;
     if (this.dead) return;
-    if (!/execution context which hosts this/i.test(raw)) return;
     const announce = !this.retiring;
     if (announce) {
       console.warn(`[kitesurf] page isolate unreachable, ending session: ${raw}`);
@@ -308,16 +314,21 @@ export class PageScriptRpcSession implements PageScriptStub {
     return this.renderPort;
   }
 
-  killIsolate(reason = "generation retired"): Promise<void> {
+  killIsolate(reason = "generation retired", opts: { atOnce?: boolean } = {}): Promise<void> {
+    if (this.killing) return this.killing;
     const ep = this.entrypoint;
     if (typeof ep.killIsolate !== "function") return Promise.resolve();
-    const sessionClosed = this.closeReady ?? Promise.resolve();
-    // Give the retained close one grace window before the entrypoint kill.
-    return settleTeardownWithin(sessionClosed).then(() => {
+    // Give the retained close one grace window before the entrypoint kill, unless nothing waits on
+    // the close: until the kill lands, the isolate keeps holding a loaded-worker slot.
+    const sessionClosed = opts.atOnce ? Promise.resolve() : (this.closeReady ?? Promise.resolve());
+    this.killing = settleTeardownWithin(sessionClosed).then(() => {
+      if (this.isolateGone) return;
+      this.isolateGone = true;
       try {
         return settleTeardownWithin(Promise.resolve(ep.killIsolate?.(reason)));
       } catch {}
     });
+    return this.killing;
   }
 
   close(reason = "session close"): void {
@@ -327,7 +338,10 @@ export class PageScriptRpcSession implements PageScriptStub {
       const dispose = () => disposeStub(session);
       if (typeof session.close === "function") {
         try {
-          return Promise.resolve(session.close()).then(dispose, dispose);
+          return Promise.resolve(session.close()).then(dispose, (err: unknown) => {
+            this.noteTransportDeath((err as Error)?.message ?? String(err));
+            dispose();
+          });
         } catch {
           dispose();
           return Promise.resolve();

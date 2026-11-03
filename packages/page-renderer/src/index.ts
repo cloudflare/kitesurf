@@ -25,6 +25,7 @@ import type {
   RenderPdfReply,
   RenderPort,
   RenderStage,
+  RendererMemoryStats,
 } from "@kitesurf/jsrpc-types/page-renderer";
 
 interface RendererEnv {
@@ -422,7 +423,7 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
     return { pong: Date.now() };
   }
 
-  memoryStats(): { bytes: number; initialBytes: number; deltaBytes: number } {
+  memoryStats(): RendererMemoryStats {
     const memory = getCoreWasmMemory();
     const bytes = memory ? memory.buffer.byteLength : 0;
     return {
@@ -441,7 +442,8 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
   ): Promise<RenderFrameReply> {
     armRendererTracing(this.env, opts.traced === true, opts.tp);
     try {
-      return await this.renderFrameImpl(port, opts, fetchAsset, fetchImage, fetchFont);
+      const reply = await this.renderFrameImpl(port, opts, fetchAsset, fetchImage, fetchFont);
+      return { ...reply, memory: this.memoryStats() };
     } finally {
       await flushSpanBatch();
     }
@@ -623,7 +625,8 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
   ): Promise<RenderPdfReply> {
     armRendererTracing(this.env, opts.traced === true, opts.tp);
     try {
-      return await this.renderPdfImpl(port, opts, fetchAsset, fetchImage, fetchFont);
+      const reply = await this.renderPdfImpl(port, opts, fetchAsset, fetchImage, fetchFont);
+      return { ...reply, memory: this.memoryStats() };
     } finally {
       await flushSpanBatch();
     }

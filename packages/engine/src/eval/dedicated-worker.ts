@@ -25,6 +25,7 @@ import {
   PAGE_SCRIPT_SUBREQUEST_CAP,
 } from "./page-script.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
+import { isIsolateGoneError } from "./limit-registry.ts";
 
 const TEARDOWN_GRACE_MS = 1_000;
 
@@ -64,7 +65,9 @@ export interface SpawnDedicatedWorkerOptions {
 export interface DedicatedWorkerHandle {
   start(params: WorkerStartParams): Promise<WorkerStartReply>;
   deliverMessage(data: unknown): Promise<void>;
-  terminate(reason: string): Promise<void>;
+  // `gone` says the platform already ended the isolate, so it is not killed: a kill would start a
+  // fresh isolate only to abort it.
+  terminate(reason: string, opts?: { gone?: boolean }): Promise<void>;
 }
 
 export const WORKER_SCRIPT_LINE_OFFSET = 3;
@@ -176,35 +179,54 @@ export function spawnDedicatedWorker(
       }
     },
   };
+  // A kill on an isolate that is already gone starts a fresh one only to abort it: a session that
+  // never opened, an eviction, or a platform limit all mean there is nothing left to kill.
+  let gone = false;
+  const noteFailure = (err: unknown) => {
+    if (isIsolateGoneError(err instanceof Error ? err.message : String(err))) gone = true;
+  };
   const sessionReady = Promise.resolve(entrypoint.openSession(init));
-  sessionReady.catch(() => {});
+  sessionReady.catch(() => {
+    gone = true;
+  });
   let terminated: Promise<void> | null = null;
   return {
     async start(params) {
       const session = await sessionReady;
-      return await session.start(params);
+      return await session.start(params).catch((err: unknown) => {
+        noteFailure(err);
+        throw err;
+      });
     },
     async deliverMessage(data) {
       const session = await sessionReady;
-      await session.deliverMessage(data);
+      await session.deliverMessage(data).catch((err: unknown) => {
+        noteFailure(err);
+        throw err;
+      });
     },
-    terminate(reason) {
+    terminate(reason, opts = {}) {
+      if (opts.gone) gone = true;
       if (terminated) return terminated;
       terminated = (async () => {
         await settleWithin(
           sessionReady.then(async (session) => {
             try {
               await session.close();
+            } catch (err) {
+              noteFailure(err);
             } finally {
               disposeStub(session);
             }
           }),
           TEARDOWN_GRACE_MS,
         );
-        await settleWithin(
-          Promise.resolve().then(() => entrypoint.killIsolate(reason)),
-          TEARDOWN_GRACE_MS,
-        );
+        if (!gone) {
+          await settleWithin(
+            Promise.resolve().then(() => entrypoint.killIsolate(reason)),
+            TEARDOWN_GRACE_MS,
+          );
+        }
         disposeStub(entrypoint);
       })();
       return terminated;

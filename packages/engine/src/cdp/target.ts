@@ -685,7 +685,7 @@ export async function handleRendererSession(ctx: DispatchCtx, req: CdpRequest): 
       return {};
     }
     case "Runtime.getHeapUsage": {
-      const mem = await ctx.browser.rendererManager?.memoryStats();
+      const mem = ctx.browser.rendererManager?.memoryStats();
       const usedSize = mem?.bytes ?? 0;
       return { usedSize, totalSize: usedSize };
     }

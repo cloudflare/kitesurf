@@ -213,7 +213,7 @@ export async function handleKitesurf(ctx: DispatchCtx, req: CdpRequest): Promise
 
     case "Kitesurf.getRendererInfo": {
       const m = ctx.browser.rendererManager;
-      const memory = m ? await m.memoryStats() : null;
+      const memory = m ? m.memoryStats() : null;
       return cdpResult(req, {
         enabled: true,
         active: !!m,
@@ -421,7 +421,7 @@ export async function handleKitesurf(ctx: DispatchCtx, req: CdpRequest): Promise
           pageScriptDeltaBytes += stats.wasmDeltaBytes + stats.frameWasmDeltaBytes;
         }
         const engine = engineMemoryBreakdown(ctx.browser);
-        const rendererMem = (await ctx.browser.rendererManager?.memoryStats()) ?? null;
+        const rendererMem = ctx.browser.rendererManager?.memoryStats() ?? null;
         const renderer = {
           wasmBytes: rendererMem?.bytes ?? 0,
           wasmInitialBytes: rendererMem?.initialBytes ?? 0,

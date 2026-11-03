@@ -100,7 +100,12 @@ import {
   type PageScriptStub,
 } from "../eval/page-script.ts";
 import { registerIsolateLimitListener } from "../eval/limit-registry.ts";
-import { disposeStub, publishStub, retireStub } from "./page-script-generation.ts";
+import {
+  disposeStub,
+  publishStub,
+  retireStub,
+  type GenerationDeps,
+} from "./page-script-generation.ts";
 import { emitSessionStart } from "../observability.ts";
 import type { CallerOutboundProps, SandboxOutboundOverride } from "../eval/outbound.ts";
 import { getOutboundInflight } from "../eval/outbound.ts";
@@ -1970,6 +1975,11 @@ async function pushNavigateToPageScriptInner(
     );
   }
 
+  // The bundle and prefetch awaits above can outlast the connection or be overtaken by a newer
+  // navigate; either way, load no isolate for this one.
+  if (ctx.browser.wsClosing || target.navigateGeneration !== generation) {
+    return { console: consoleAcc };
+  }
   const raInitTimings: PageScriptInitTimings = {};
   let pendingPageScript: ReturnType<typeof getOrCreatePageScript> | null;
   try {
@@ -2252,6 +2262,9 @@ async function pushNavigateToPageScriptInner(
         await pendingPageScript.unload();
       } catch {}
     }
+    // Reporting success here leaves a target with no page, and its next DOM call starts a blank
+    // isolate that answers as this document, so a failed load is served as an empty page.
+    if (target.navigateGeneration === generation && !target.pageScript) throw err;
     return { console: consoleAcc };
   }
 }
@@ -3663,14 +3676,18 @@ async function takeOopifPrespawn(
   return pre;
 }
 
-async function discardOopifPrespawnResult(pre: PrespawnedFrame, reason: string): Promise<void> {
+async function discardOopifPrespawnResult(
+  pre: PrespawnedFrame,
+  reason: string,
+  final = false,
+): Promise<void> {
   try {
     const { discardPrespawnedFrame } = await import("../eval/oopif-render.ts");
-    await discardPrespawnedFrame(pre, reason);
+    await discardPrespawnedFrame(pre, reason, final);
   } catch {}
 }
 
-function discardOopifPrespawn(f: FrameState, reason: string): void {
+function discardOopifPrespawn(f: FrameState, reason: string, atClose?: GenerationDeps): void {
   const entry = f.oopifPrespawn;
   if (!entry) return;
   f.oopifPrespawn = undefined;
@@ -3678,7 +3695,10 @@ function discardOopifPrespawn(f: FrameState, reason: string): void {
     f.pageScriptLease?.release();
     f.pageScriptLease = null;
   }
-  void entry.promise.then((pre) => (pre ? discardOopifPrespawnResult(pre, reason) : undefined));
+  const discarding = entry.promise.then((pre) =>
+    pre ? discardOopifPrespawnResult(pre, reason, atClose !== undefined) : undefined,
+  );
+  if (atClose?.waitUntil) atClose.waitUntil(discarding);
 }
 
 async function spawnOopifPipeline(
@@ -3832,9 +3852,16 @@ async function spawnOopifPipeline(
   }
 }
 
-export function teardownOopifStubs(target: TargetState, reason: string, ctx?: DispatchCtx): void {
+// `atClose` is for the socket close: nothing reads a frame again, so its isolate is killed without
+// the background unload, and the kill stays within the request's lifetime.
+export function teardownOopifStubs(
+  target: TargetState,
+  reason: string,
+  ctx?: DispatchCtx,
+  atClose?: GenerationDeps,
+): void {
   for (const f of target.frames.values()) {
-    teardownOopifStubForFrame(target, f, reason, ctx);
+    teardownOopifStubForFrame(target, f, reason, ctx, atClose);
     releaseFrameDom(f);
   }
 }
@@ -3844,8 +3871,9 @@ function teardownOopifStubForFrame(
   f: FrameState,
   reason: string,
   ctx?: DispatchCtx,
+  atClose?: GenerationDeps,
 ): void {
-  discardOopifPrespawn(f, reason);
+  discardOopifPrespawn(f, reason, atClose);
   if (ctx && f.parentFrameId !== null) {
     ctx.browser.dedicatedWorkers.terminateFrame(target.targetId, f.frameId, reason);
   }
@@ -3860,9 +3888,12 @@ function teardownOopifStubForFrame(
   const destroyedCtxId = f.execContextId;
   f.lastRenderSeq = -1;
   f.execContextId = 0;
-  void retireStub(f, "frameTeardown", `oopif teardown: ${reason}`, {
-    budget: ctx?.browser.workerBudget,
-  });
+  void retireStub(
+    f,
+    atClose ? "wsClosed" : "frameTeardown",
+    `oopif teardown: ${reason}`,
+    atClose ?? { budget: ctx?.browser.workerBudget },
+  );
   if (ctx && destroyedCtxId > 0) {
     (async () => {
       const { emitOopifExecutionContextDestroyed } = await import("./runtime.ts");

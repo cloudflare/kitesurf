@@ -446,12 +446,11 @@ export async function handleWebSocket(
     stopSceneStreams(browser);
     for (const state of browser.screencasts.values()) state.stopped = true;
     browser.screencasts.clear();
-    if (browser.rendererManager) {
-      try {
-        browser.rendererManager.dispose("engine WS closed");
-      } catch {}
-      browser.rendererManager = null;
-    }
+    // Close rather than drop the renderer manager, so a capture still running fails instead of
+    // creating a new manager and loading a renderer after the connection is gone.
+    try {
+      browser.rendererManager?.close("engine WS closed");
+    } catch {}
     unregisterTracker(connectionId);
     memAtClose = engineMemoryBreakdown(browser);
     networkEvents.dispose();
@@ -463,8 +462,18 @@ export async function handleWebSocket(
     dropConnectionImages(connectionId);
     browser.dedicatedWorkers.terminateAll("engine WS closed");
     for (const target of browser.targets.values()) {
+      // An in-flight navigate would otherwise load and publish a PageScript after this loop has
+      // retired the target, and nothing would ever kill it.
+      try {
+        target.pendingNavAbort?.abort();
+      } catch {}
+      target.pendingNavAbort = null;
+      target.navigateGeneration++;
       void cancelAndRemoveTargetWheelQueues(browser, target.targetId);
-      teardownOopifStubs(target, "engine WS closed");
+      teardownOopifStubs(target, "engine WS closed", undefined, {
+        budget: browser.workerBudget,
+        waitUntil: (promise) => ctx.waitUntil(promise),
+      });
       void retireStub(target, "wsClosed", "engine WS closed", {
         budget: browser.workerBudget,
         waitUntil: (promise) => ctx.waitUntil(promise),

@@ -12,6 +12,7 @@ import { traceSpan } from "../tracing.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
 import { attributionTails, type AttributionTailExports } from "./attribution-tail.ts";
 import { getFontBytes, getImageBytes } from "./resource-store.ts";
+import { isIsolateGoneError } from "./limit-registry.ts";
 import type { Tracer } from "../tracing.ts";
 import type {
   PageRendererEntrypoint,
@@ -19,6 +20,7 @@ import type {
   RenderPdfOpts,
   RenderPortStub,
   RenderStage,
+  RendererMemoryStats,
 } from "@kitesurf/jsrpc-types/page-renderer";
 import type { DynamicWorkerBudget, WorkerLease } from "./worker-budget.ts";
 
@@ -165,6 +167,8 @@ export class PageRendererManager {
   private initialRes: { width: number; height: number } | null = null;
   private lease: WorkerLease | null = null;
   private budget: DynamicWorkerBudget | null = null;
+  private closed = false;
+  private lastMemory: RendererMemoryStats | null = null;
   relaunchCount = 0;
   framesRendered = 0;
   partialFramesRendered = 0;
@@ -188,6 +192,7 @@ export class PageRendererManager {
   }
 
   private ensure(): RendererStub {
+    if (this.closed) throw new Error("renderer closed with its connection");
     if (!this.stub) {
       if (this.everLoaded) this.relaunchCount += 1;
       this.everLoaded = true;
@@ -242,17 +247,10 @@ export class PageRendererManager {
     return new Uint8Array(await resp.arrayBuffer());
   }
 
-  async memoryStats(): Promise<{
-    bytes: number;
-    initialBytes: number;
-    deltaBytes: number;
-  } | null> {
-    if (!this.stub) return null;
-    try {
-      return await withTimeout(this.stub.memoryStats(), 5_000, "memoryStats");
-    } catch {
-      return null;
-    }
+  // What the renderer reported with its last frame or PDF. Asking it directly would start a fresh
+  // renderer when the idle one was evicted, or after it was disposed.
+  memoryStats(): RendererMemoryStats | null {
+    return this.lastMemory;
   }
 
   initialResString(): string | null {
@@ -260,16 +258,25 @@ export class PageRendererManager {
   }
 
   /** Releases the worker lease and requests isolate shutdown without waiting for completion. */
-  dispose(reason = "renderer disposed"): void {
+  dispose(reason = "renderer disposed", gone = false): void {
     const stub = this.stub;
     this.stub = null;
     this.lease?.release();
     this.lease = null;
-    if (stub && typeof stub.killIsolate === "function") {
+    // `gone` means the isolate was evicted: a call on its entrypoint would start a fresh one only
+    // for the kill to abort it.
+    if (!gone && stub && typeof stub.killIsolate === "function") {
       try {
         Promise.resolve(stub.killIsolate(reason)).catch(() => {});
       } catch {}
     }
+  }
+
+  // Called when the connection closes: a render still queued then fails instead of loading a
+  // renderer that nothing would ever kill.
+  close(reason = "renderer closed"): void {
+    this.closed = true;
+    this.dispose(reason);
   }
 
   /**
@@ -291,9 +298,11 @@ export class PageRendererManager {
             throw new Error(result.error ?? "renderFrame raster failure");
           } catch (error) {
             lastError = error instanceof Error ? error.message : String(error);
-            this.dispose(`renderFrame failed: ${lastError}`);
-            // A timed-out RPC may still be running, so do not retry against this renderer.
-            if (error instanceof RendererTimeoutError) break;
+            const gone = isIsolateGoneError(lastError);
+            this.dispose(`renderFrame failed: ${lastError}`, gone);
+            // A timed-out RPC may still be running, so do not retry against this renderer. An
+            // evicted one means workers are scarce, and a reload would evict another.
+            if (error instanceof RendererTimeoutError || gone || this.closed) break;
           }
         }
         return {
@@ -312,7 +321,6 @@ export class PageRendererManager {
     source: RenderPortSource,
     opts: RenderFrameOptions,
   ): Promise<RenderFrameResult> {
-    const stub = this.ensure();
     const traceParentId = this.traceParentId();
     let port: RenderPortStub;
     try {
@@ -327,6 +335,9 @@ export class PageRendererManager {
         scrollY: 0,
       };
     }
+    // Load the renderer only once the port exists: when the page is already gone, minting fails
+    // and no renderer is spent on it.
+    const stub = this.ensure();
     const reply = await withTimeout(
       stub.renderFrame(
         port,
@@ -350,6 +361,7 @@ export class PageRendererManager {
       RENDER_CALL_TIMEOUT_MS,
       "renderFrame",
     );
+    if (reply.memory) this.lastMemory = reply.memory;
     const seq = typeof reply.seq === "number" ? reply.seq : 0;
     const scrollX = typeof reply.scrollX === "number" ? reply.scrollX : 0;
     const scrollY = typeof reply.scrollY === "number" ? reply.scrollY : 0;
@@ -398,8 +410,9 @@ export class PageRendererManager {
             throw new Error(result.error ?? "renderPdf raster failure");
           } catch (error) {
             lastError = error instanceof Error ? error.message : String(error);
-            this.dispose(`renderPdf failed: ${lastError}`);
-            if (error instanceof RendererTimeoutError) break;
+            const gone = isIsolateGoneError(lastError);
+            this.dispose(`renderPdf failed: ${lastError}`, gone);
+            if (error instanceof RendererTimeoutError || gone || this.closed) break;
           }
         }
         return { ok: false, error: lastError };
@@ -412,7 +425,6 @@ export class PageRendererManager {
     source: RenderPortSource,
     opts: RenderPdfOptions,
   ): Promise<RenderPdfResult> {
-    const stub = this.ensure();
     const traceParentId = this.traceParentId();
     let port: RenderPortStub;
     try {
@@ -424,6 +436,7 @@ export class PageRendererManager {
         error: `getRenderPort failed: ${error instanceof Error ? error.message : String(error)}`,
       };
     }
+    const stub = this.ensure();
     const reply = await withTimeout(
       stub.renderPdf(
         port,
@@ -445,6 +458,7 @@ export class PageRendererManager {
       PDF_CALL_TIMEOUT_MS,
       "renderPdf",
     );
+    if (reply.memory) this.lastMemory = reply.memory;
     this.logSlowPhases("renderPdf", reply.phases);
     if (reply.error || !(reply.bytes instanceof Uint8Array) || reply.bytes.length === 0) {
       return {
