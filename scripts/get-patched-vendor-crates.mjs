@@ -41,6 +41,7 @@ const CRATES = [
   { name: "boa_engine", version: "0.22.0" },
   { name: "boa_parser", version: "0.22.0" },
   { name: "usvg", version: "0.48.1" },
+  { name: "vello_common", version: "0.3.0" },
   { name: "vello_cpu", version: "0.3.0" },
   { name: "ratatui-image", version: "8.1.1" },
   { name: "jpeg-encoder", version: "0.7.0" },
