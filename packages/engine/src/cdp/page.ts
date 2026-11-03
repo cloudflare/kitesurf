@@ -3067,7 +3067,16 @@ export function pumpBackgroundEvents(ctx: DispatchCtx, target: TargetState): voi
   if (target.type !== "page") return;
   if (target.domEnabledSessions.size === 0) return;
   const pageScript = target.pageScript;
-  if (!pageScript || typeof pageScript.drainConsole !== "function") return;
+  if (!pageScript) return;
+  drainInBackground(ctx, target, pageScript);
+}
+
+function drainInBackground(
+  ctx: DispatchCtx,
+  target: TargetState,
+  pageScript: PageScriptStub,
+): void {
+  if (typeof pageScript.drainConsole !== "function") return;
   if (backgroundDrainInFlight.has(target)) return;
   backgroundDrainInFlight.add(target);
   const work = (async () => {
@@ -3101,6 +3110,31 @@ export function pumpBackgroundEvents(ctx: DispatchCtx, target: TargetState): voi
     }
   })();
   ctx.ctx.waitUntil(work);
+}
+
+// A page that keeps raising exceptions would set the drain rate from its own task rate, so a wake
+// drains at most once per interval; one inside it, or during a drain, drains when that ends.
+const WAKE_DRAIN_INTERVAL_MS = 100;
+const wakeDrainNext = new WeakMap<TargetState, number>();
+const wakeDrainQueued = new WeakSet<TargetState>();
+
+function drainOnWake(ctx: DispatchCtx, target: TargetState, pageScript: PageScriptStub): void {
+  if (wakeDrainQueued.has(target)) return;
+  const wait = (wakeDrainNext.get(target) ?? 0) - Date.now();
+  if (wait <= 0 && !backgroundDrainInFlight.has(target)) {
+    wakeDrainNext.set(target, Date.now() + WAKE_DRAIN_INTERVAL_MS);
+    drainInBackground(ctx, target, pageScript);
+    return;
+  }
+  wakeDrainQueued.add(target);
+  setTimeout(
+    () => {
+      wakeDrainQueued.delete(target);
+      if (ctx.browser.wsClosing || target.pageScript !== pageScript) return;
+      drainOnWake(ctx, target, pageScript);
+    },
+    Math.max(wait, WAKE_DRAIN_INTERVAL_MS / 4),
+  );
 }
 
 const PUMP_TASKS_TIMEOUT_MS = 5_000;
@@ -4228,6 +4262,12 @@ export function installUpstreamEventHandler(
       return;
     }
     if (target.navigateGeneration !== generation) return;
+    if (event === "kitesurf.exceptionsPending") {
+      // A document still loading has no published stub yet, and its load summary carries the
+      // exceptions it raised.
+      if (target.pageScript === stub) drainOnWake(ctx, target, stub);
+      return;
+    }
     if (event === "kitesurf.diag") {
       target.diagSpans?.handle(params);
       return;

@@ -152,7 +152,13 @@ import {
   installConsoleWrapper,
   resetConsoleBuffer,
 } from "./console-buffer.ts";
-import { drainExceptions, pushException, resetExceptionBuffer } from "./exception-buffer.ts";
+import {
+  drainExceptions,
+  pushException,
+  resetExceptionBuffer,
+  setExceptionPushedHook,
+} from "./exception-buffer.ts";
+import { installPromiseRejectionEvents } from "./promise-rejection-events.ts";
 import {
   computedStyleForAuthId,
   computedStyleValueForAuthId,
@@ -2493,6 +2499,18 @@ installConsoleWrapper();
 // Install deferral after the fetch shim so retries still use the page's outbound path.
 installDeferShim();
 captureTrustedFetch();
+installPromiseRejectionEvents(__ks_dispatchTrusted);
+// An exception raised after load, by a timer or a rejection, waits for no command: the engine
+// drains its buffer on this wake, since only DOM-enabled sessions get the periodic drain.
+let exceptionWakeQueued = false;
+setExceptionPushedHook(() => {
+  if (exceptionWakeQueued) return;
+  exceptionWakeQueued = true;
+  nativeSetTimeout(() => {
+    exceptionWakeQueued = false;
+    sendUpstreamEvent({ event: "kitesurf.exceptionsPending", params: {} });
+  }, 0);
+});
 
 let __ksSpanBuf: string[] = [];
 let __ksSpanFlushScheduled = false;

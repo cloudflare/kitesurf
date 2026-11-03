@@ -1948,10 +1948,13 @@ fn bridge_v8_promise(p: Promise, ctx: &mut Context) -> BoaValue {
     let native: JsValue = p.clone().into();
     let object: JsObject = promise.clone().into();
     stamp_native_promise(&object, &native, ctx);
+    // V8 must see a handler as the promise crosses into boa. Attached on the job's first poll,
+    // a timer away, a rejection that boa code goes on to handle was reported as unhandled.
+    let crossed = wasm_bindgen_futures::JsFuture::from(p);
     // The await is the async job; settling is a promise job, so the boa reaction
     // runs in a drain batch under the context lock like every other reaction.
     let job = NativeAsyncJob::new(async move |ctx: &std::cell::RefCell<&mut Context>| {
-        let settled = wasm_bindgen_futures::JsFuture::from(p).await;
+        let settled = crossed.await;
         let settle = PromiseJob::new(move |ctx: &mut Context| match settled {
             Ok(v) => {
                 let bv = v8_to_boa(v, ctx);

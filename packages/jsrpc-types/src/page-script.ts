@@ -367,6 +367,9 @@ export type PageScriptEntrypointStub = Fetcher<PageScriptEntrypoint>;
 export interface UpstreamEvents {
   "kitesurf.bindingCalled": { name: string; payload: string };
   "kitesurf.diag": { ev: "start" | "end"; op: string; t: number };
+  // The page buffered an exception that no command's reply may carry for a while: the engine
+  // drains the document to report it.
+  "kitesurf.exceptionsPending": Record<never, never>;
   "kitesurf.formSubmitNavigate": NavigatePost;
   "kitesurf.frameAttached": {
     frameId: string;

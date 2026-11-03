@@ -8,6 +8,13 @@ import type { ExceptionEntry } from "@kitesurf/jsrpc-types/shared";
 
 const __exceptionBuffer: ExceptionEntry[] = [];
 const EXCEPTION_BUFFER_CAP = 200;
+let onPushed: (() => void) | null = null;
+
+// Calls `notify` after each exception is buffered, so the page can ask the engine to drain
+// the buffer instead of waiting for a command's reply.
+export function setExceptionPushedHook(notify: (() => void) | null): void {
+  onPushed = notify;
+}
 
 export interface PushExceptionOptions {
   scriptId: string;
@@ -44,6 +51,7 @@ export function pushException(err: unknown, opts: PushExceptionOptions): void {
     message,
     stack,
   });
+  onPushed?.();
 }
 
 export function drainExceptions(): ExceptionEntry[] {
