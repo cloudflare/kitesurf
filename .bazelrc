@@ -12,4 +12,35 @@ common --@rules_rust//rust/settings:pipelined_compilation=true
 # Repository rules get no PATH; cc autoconfiguration needs one to find the gcc that links
 # proc-macros and build scripts.
 common --repo_env=PATH=/usr/bin:/bin
+# Remote execution on bazelflare, a Remote Execution API server on Cloudflare Containers. CI's jobs
+# send their GitHub OIDC token, people their Access login (bazel/bazelflare/credential-helper).
+common:bazelflare --remote_executor=grpcs://bazelflare.kitesurf.dev:8980
+# Cloudflare's Origin ECC root, which signs the certificate bazelflare's front door presents; it
+# expires on 2029-08-15, before that certificate, so replace it by then.
+common:bazelflare --tls_certificate=bazel/bazelflare/tls.pem
+common:bazelflare --credential_helper=bazelflare.kitesurf.dev=%workspace%/bazel/bazelflare/credential-helper
+common:bazelflare --credential_helper_timeout=30s
+# Only bazelflare's executors write its action cache. Main's CI builds in the instance every other
+# build falls back to (--remote_instance_name=trusted), where bazelflare runs no one else's actions.
+common:bazelflare --noremote_upload_local_results
+# Every tool an action runs is a Linux x86-64 binary from the executor's toolchains, so nothing can
+# fall back to running here.
+common:bazelflare --remote_local_fallback=false
+common:bazelflare --platforms=//bazel/bazelflare:linux_x86_64
+common:bazelflare --extra_execution_platforms=//bazel/bazelflare:linux_x86_64,//bazel/bazelflare:linux_x86_64_rust
+common:bazelflare --extra_toolchains=//bazel/bazelflare:cc_toolchain
+common:bazelflare --jobs=200 --remote_cache_compression --remote_timeout=600
+# bazelflare sends nothing while an action runs, so only pings notice a connection that died
+# without closing; Bazel then retries on a new one instead of waiting out the timeout.
+common:bazelflare --grpc_keepalive_time=30s --grpc_keepalive_timeout=20s
+# Bazel otherwise prepares only as many remote actions at once as this machine has CPUs, and packs
+# 100 calls onto each connection, which one single-threaded Worker invocation serves.
+common:bazelflare --noexperimental_throttle_remote_action_building --remote_max_concurrency_per_connection=8
+# rules_js unpacks and copies hundreds of npm files, each cheaper here than a remote round trip.
+# Their outputs still reach the executors as the inputs of the actions that read them.
+common:bazelflare --modify_execution_info=CopyFile=+no-remote-exec,CopyDirectory=+no-remote-exec,NpmPackageExtract=+no-remote-exec
+# The WPT and Playwright pools' images bake their pinned checkouts (MODULE.bazel), which the
+# executors have instead of the .wpt and .playwright checkouts in this tree.
+common:bazelflare --action_env=KITESURF_PW_BASE=/opt/playwright
+common:bazelflare --action_env=KITESURF_WPT_DIR=/opt/wpt
 try-import %workspace%/.bazelrc.user
