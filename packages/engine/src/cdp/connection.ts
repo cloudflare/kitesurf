@@ -462,6 +462,13 @@ export async function handleWebSocket(
     dropConnectionImages(connectionId);
     browser.dedicatedWorkers.terminateAll("engine WS closed");
     for (const target of browser.targets.values()) {
+      // An in-flight navigate would otherwise load and publish a PageScript after this loop has
+      // retired the target, and nothing would ever kill it.
+      try {
+        target.pendingNavAbort?.abort();
+      } catch {}
+      target.pendingNavAbort = null;
+      target.navigateGeneration++;
       void cancelAndRemoveTargetWheelQueues(browser, target.targetId);
       teardownOopifStubs(target, "engine WS closed");
       void retireStub(target, "wsClosed", "engine WS closed", {

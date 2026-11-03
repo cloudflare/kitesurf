@@ -1970,6 +1970,11 @@ async function pushNavigateToPageScriptInner(
     );
   }
 
+  // The bundle and prefetch awaits above can outlast the connection or be overtaken by a newer
+  // navigate; either way, load no isolate for this one.
+  if (ctx.browser.wsClosing || target.navigateGeneration !== generation) {
+    return { console: consoleAcc };
+  }
   const raInitTimings: PageScriptInitTimings = {};
   let pendingPageScript: ReturnType<typeof getOrCreatePageScript> | null;
   try {
