@@ -113,11 +113,12 @@ async function discardFrameIsolate(
   stub: PageScriptStub,
   warmup: Promise<void>,
   reason: string,
+  final = false,
 ): Promise<void> {
   try {
     await warmup;
   } catch {}
-  await disposeStub(stub, { unload: "awaited", reason });
+  await disposeStub(stub, { unload: final ? "none" : "awaited", reason, killAtOnce: final });
 }
 
 function attachUpstreamHandler(
@@ -316,8 +317,14 @@ export async function navigatePrespawnedFrame(
   return { ok: true, stub, finalUrl };
 }
 
-export async function discardPrespawnedFrame(pre: PrespawnedFrame, reason: string): Promise<void> {
-  await discardFrameIsolate(pre.stub, pre.warmup, reason);
+// `final` means nothing reads the frame again, so it is killed without the awaited unload first;
+// at socket close that unload would only hold the isolate longer.
+export async function discardPrespawnedFrame(
+  pre: PrespawnedFrame,
+  reason: string,
+  final = false,
+): Promise<void> {
+  await discardFrameIsolate(pre.stub, pre.warmup, reason, final);
 }
 
 export async function recordAndRasterizeFrame(

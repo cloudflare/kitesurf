@@ -470,7 +470,10 @@ export async function handleWebSocket(
       target.pendingNavAbort = null;
       target.navigateGeneration++;
       void cancelAndRemoveTargetWheelQueues(browser, target.targetId);
-      teardownOopifStubs(target, "engine WS closed");
+      teardownOopifStubs(target, "engine WS closed", undefined, {
+        budget: browser.workerBudget,
+        waitUntil: (promise) => ctx.waitUntil(promise),
+      });
       void retireStub(target, "wsClosed", "engine WS closed", {
         budget: browser.workerBudget,
         waitUntil: (promise) => ctx.waitUntil(promise),
