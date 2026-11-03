@@ -332,6 +332,77 @@ describe("PageScriptRpcSession", () => {
     expect(fake.disposed, "scheduled close does not dispose twice").toBe(1);
   });
 
+  it("an isolate evicted under load ends the session and is never called again", async () => {
+    let kills = 0;
+    const fake = makeFake({
+      onCall: () => Promise.reject(new Error("Too many dynamic workers.")),
+    });
+    fake.entrypoint.killIsolate = async () => {
+      kills += 1;
+    };
+    const s = openPageScriptRpcSession(fake.entrypoint);
+
+    await expect(s.evaluate("1+1", {})).rejects.toThrow(/Too many dynamic workers/);
+    const callsAfterEviction = fake.calls.length;
+    await expect(s.queryDom("getDocument", {})).rejects.toThrow(/session is dead/);
+    s.close("retired");
+    await s.killIsolate("retired");
+    expect(fake.calls.length).toBe(callsAfterEviction);
+    expect(kills, "a kill would start a fresh isolate only to abort it").toBe(0);
+  });
+
+  it("skips the kill when the session close finds the isolate gone", async () => {
+    let kills = 0;
+    const fake = makeFake({
+      onClose: () =>
+        Promise.reject(
+          new Error("The execution context which hosts this callback is no longer running."),
+        ),
+    });
+    fake.entrypoint.killIsolate = async () => {
+      kills += 1;
+    };
+    const s = openPageScriptRpcSession(fake.entrypoint);
+    await s.syncCookies("warm=up");
+
+    s.close("retired");
+    await s.killIsolate("retired");
+    expect(kills).toBe(0);
+    expect(fake.disposed).toBe(1);
+  });
+
+  it("does not kill an isolate whose session never opened", async () => {
+    let kills = 0;
+    const entrypoint: RpcSessionEntrypoint = {
+      openSession: () =>
+        Promise.reject(new Error("Too many dynamic workers are starting concurrently.")),
+      killIsolate: async () => {
+        kills += 1;
+      },
+    };
+    const s = openPageScriptRpcSession(entrypoint);
+
+    await expect(s.evaluate("1+1", {})).rejects.toThrow(/session open failed/);
+    s.close("retired");
+    await s.killIsolate("retired");
+    expect(kills).toBe(0);
+  });
+
+  it("sends the kill once however many paths retire the generation", async () => {
+    let kills = 0;
+    const fake = makeFake();
+    fake.entrypoint.killIsolate = async () => {
+      kills += 1;
+    };
+    const s = openPageScriptRpcSession(fake.entrypoint);
+    await s.syncCookies("warm=up");
+
+    await s.killIsolate("wall cap");
+    s.close("retired");
+    await s.killIsolate("retired");
+    expect(kills).toBe(1);
+  });
+
   it("an ordinary page error does not end the session", async () => {
     const notices: IsolateLimitNotice[] = [];
     const scriptName = `ks-test-live-${Math.random().toString(36).slice(2)}`;

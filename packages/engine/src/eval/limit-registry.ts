@@ -15,6 +15,14 @@ export interface IsolateLimitNotice {
   detail?: string;
 }
 
+// A loaded worker evicted under load fails its in-flight calls with the limit error and later ones
+// with the destroyed-context error. Either way its isolate is gone.
+const ISOLATE_GONE = /execution context which hosts this|Too many dynamic workers/i;
+
+export function isIsolateGoneError(message: string): boolean {
+  return ISOLATE_GONE.test(message);
+}
+
 type Listener = (notice: IsolateLimitNotice) => void;
 
 const listeners = new Map<string, Listener>();
