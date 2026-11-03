@@ -1954,8 +1954,9 @@ fn trap_get(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<
     };
     if let Some(sym) = args.get(1).and_then(|k| k.as_symbol()) {
         let v8sym = boa_symbol_to_v8(&sym, ctx);
+        let recv = inheriting_receiver_v8(args.get(2), handle, ctx);
         let v8 = get_v8(handle);
-        return match with_v8(ctx, || Reflect::get(&v8, v8sym.as_ref())) {
+        return match with_v8(ctx, || reflect_get(&v8, v8sym.as_ref(), recv.as_ref())) {
             Ok(res) => Ok(v8_property_to_boa(res, None, (handle, &target), ctx)),
             Err(e) => getter_threw(e, ctx),
         };
@@ -1971,8 +1972,9 @@ fn trap_get(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<
     if let Some(fast) = crate::js::dom_fastpath::try_fast_get(handle, &key, &target, ctx) {
         return Ok(fast);
     }
+    let recv = inheriting_receiver_v8(args.get(2), handle, ctx);
     let v8 = get_v8(handle);
-    match with_v8(ctx, || Reflect::get(&v8, &v8_key(&key))) {
+    match with_v8(ctx, || reflect_get(&v8, &v8_key(&key), recv.as_ref())) {
         Ok(res) => Ok(v8_property_to_boa(
             res,
             Some(key.as_str()),
@@ -1980,6 +1982,28 @@ fn trap_get(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<
             ctx,
         )),
         Err(e) => getter_threw(e, ctx),
+    }
+}
+
+// A V8 getter found through a boa object's prototype chain runs with that object as `this`,
+// as OrdinaryGet passes the receiver; a direct read keeps the two-argument form.
+fn inheriting_receiver_v8(
+    recv: Option<&BoaValue>,
+    handle: u64,
+    ctx: &mut Context,
+) -> Option<JsValue> {
+    let recv = recv?.as_object()?;
+    receives_through(&recv, handle, ctx).then(|| boa_to_v8(&recv.into(), ctx))
+}
+
+fn reflect_get(
+    target: &JsValue,
+    key: &JsValue,
+    recv: Option<&JsValue>,
+) -> Result<JsValue, JsValue> {
+    match recv {
+        Some(recv) => reflect_get_with_receiver(target, key, recv),
+        None => Reflect::get(target, key),
     }
 }
 
@@ -2065,7 +2089,12 @@ fn trap_apply(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResul
         return Ok(BoaValue::undefined());
     };
     let this_v8 = match read_handle(&target, "__ks_t", ctx) {
-        Some(h) => get_v8(h),
+        // Methods stay bound to the object they were read from, keeping their identity; a boa
+        // object that inherited one through it is still the receiver when it is `this`.
+        Some(h) => match args.get(1).and_then(|t| t.as_object()) {
+            Some(t) if receives_through(&t, h, ctx) => boa_to_v8(&t.into(), ctx),
+            _ => get_v8(h),
+        },
         None => match args.get(1) {
             Some(t)
                 if t.as_object()
@@ -2145,11 +2174,7 @@ fn trap_set(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<
     // OrdinarySet writes inherited data to the receiver. Preserve V8 super-setters,
     // the global-proxy exception, and foreign Proxy forwarding.
     if let Some(recv) = args.get(3).and_then(|v| v.as_object()) {
-        let is_global = JsObject::equals(&recv, &ctx.global_object());
-        if !is_global
-            && bridged_v8_handle(&recv, ctx) != Some(handle)
-            && inherits_from_bridged(&recv, handle, ctx)
-        {
+        if receives_through(&recv, handle, ctx) {
             return set_on_receiver(handle, args.get(1), value, recv, ctx);
         }
     }
@@ -2163,6 +2188,14 @@ fn trap_set(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<
         Ok(ok) => Ok(BoaValue::from(ok)),
         Err(e) => Err(JsError::from_opaque(v8_to_boa(e, ctx))),
     }
+}
+
+// Whether OrdinaryGet/OrdinarySet reached `handle` through `recv`'s own boa prototype chain. A
+// Proxy receiver forwards as before, and boa's global stays out: V8 natives need V8's global.
+fn receives_through(recv: &JsObject, handle: u64, ctx: &mut Context) -> bool {
+    !recv.is::<boa_engine::builtins::proxy::Proxy>()
+        && !JsObject::equals(recv, &ctx.global_object())
+        && inherits_from_bridged(recv, handle, ctx)
 }
 
 fn inherits_from_bridged(recv: &JsObject, handle: u64, ctx: &mut Context) -> bool {

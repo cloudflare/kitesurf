@@ -117,6 +117,31 @@ const V8_SIDE = `<!doctype html>
     }
   };
 
+  // A Closure-style base: the constructor sets the fields its prototype methods and
+  // accessor read back through \`this\`, so a wrong receiver loses them.
+  function Target() { this.listeners = {}; this.self = this; }
+  Target.prototype.listen = function (type, fn) {
+    (this.listeners[type] = this.listeners[type] || []).push(fn);
+  };
+  Target.prototype.dispatch = function (type) {
+    var ls = this.self.listeners[type] || [];
+    for (var i = 0; i < ls.length; i++) ls[i]();
+    return ls.length;
+  };
+  Target.prototype.whoAmI = function () { return this; };
+  Object.defineProperty(Target.prototype, "selfGetter", {
+    get: function () { return this; },
+    configurable: true,
+  });
+  Target.whoAmI = function () { return this; };
+  globalThis.Target = Target;
+  globalThis.inheritsFrom = function (child, parent) {
+    function T() {}
+    T.prototype = parent.prototype;
+    child.prototype = new T();
+    child.prototype.constructor = child;
+  };
+
   globalThis.__ksForIn = function (inst) {
     var out = [];
     for (var k in inst) out.push(k);
@@ -238,6 +263,69 @@ test("a set through a bridged prototype lands on the receiver", async ({ page })
   expect(out.z).toBe(2);
   expect(out.leaked).toEqual([]);
   expect(out.setterSaw).toBe("s");
+});
+
+test("a V8 method a boa object inherits runs with that object as `this`", async ({ page }) => {
+  await setContent(page, V8_SIDE, { waitUntil: "domcontentloaded" });
+  const out = (await page.evaluate(`(async () => {
+    const t = (f) => { try { return f(); } catch (e) { return "threw: " + (e && e.message || e); } };
+    function Sub() { Target.call(this); this.own = 1; }
+    inheritsFrom(Sub, Target);
+    const viaCall = new Sub();
+    const viaCreate = Object.create(Target.prototype);
+    Target.call(viaCreate);
+    const r = {};
+    for (const [name, inst] of [["call", viaCall], ["create", viaCreate]]) {
+      let fired = 0;
+      r[name] = {
+        listen: t(() => inst.listen("x", () => fired++)),
+        dispatched: t(() => inst.dispatch("x")),
+        fired,
+        self: t(() => inst.whoAmI() === inst),
+        getter: t(() => inst.selfGetter === inst),
+        explicit: t(() => Target.prototype.whoAmI.call(inst) === inst),
+        hasOwn: t(() => inst.hasOwnProperty("listeners")),
+        identity: t(() => inst.whoAmI === Object.getPrototypeOf(inst).whoAmI),
+      };
+    }
+    r.timer = await new Promise((resolve) => setTimeout(() => resolve(t(() => viaCall.dispatch("x"))), 0));
+    r.xhr = await new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", "http://127.0.0.1:8787/__fixtures/policy-script.js");
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) resolve(t(() => viaCreate.dispatch("x")));
+      };
+      xhr.onerror = () => resolve("xhr error");
+      xhr.send();
+    });
+    function Static() {}
+    Object.setPrototypeOf(Static, Target);
+    r.staticSelf = t(() => Static.whoAmI() === Static);
+    class Klass extends Target {}
+    r.instanceOf = t(() => [new Klass() instanceof Klass, new Target() instanceof Klass]);
+    r.global = await new Promise((resolve) => {
+      addEventListener("ks-probe", () => resolve(true), { once: true });
+      setTimeout(() => dispatchEvent(new Event("ks-probe")), 0);
+    });
+    return r;
+  })()`)) as Record<string, unknown>;
+  const inherited = {
+    listen: undefined,
+    dispatched: 1,
+    fired: 1,
+    self: true,
+    getter: true,
+    explicit: true,
+    hasOwn: true,
+    identity: true,
+  };
+  expect(out.call).toEqual(inherited);
+  expect(out.create).toEqual(inherited);
+  expect(out.timer).toBe(1);
+  expect(out.xhr).toBe(1);
+  expect(out.staticSelf).toBe(true);
+  expect(out.instanceOf).toEqual([true, false]);
+  expect(out.global).toBe(true);
 });
 
 test("V8 reads through a boa subclass prototype resolve on the V8 super with the receiver", async ({
