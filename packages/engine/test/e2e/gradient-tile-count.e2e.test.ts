@@ -40,9 +40,16 @@ test("a repeating gradient with thousands of tiles still paints", async ({ page 
   expect(later.h).toBeGreaterThan(190);
 });
 
-// A dot pattern behind a whole page is ~20k visible tiles at 1440x900, so
-// the cap on visible tiles has to sit above that.
-test("a dot pattern across the whole viewport still paints", async ({ page }) => {
+// A dot pattern behind a whole page is ~20k visible tiles at 1440x900, so the tile cap sits above
+// that. With a hard stop each tile built its own 4096-entry colour table, and the renderer's wasm
+// grew to ~430 MB. Local workerd does not enforce the isolate's 128 MB, so check the wasm size;
+// with one shared table it stays near 60 MB.
+const RENDERER_WASM_LIMIT = 96 * 1024 * 1024;
+
+test("a dot pattern across the whole viewport paints in bounded memory", async ({
+  page,
+  cdpSession,
+}) => {
   await page.setViewport({ width: 1440, height: 900 });
   await setContent(
     page,
@@ -58,4 +65,10 @@ test("a dot pattern across the whole viewport still paints", async ({ page }) =>
   if (!dots) throw new Error("no dots painted across the viewport");
   expect(dots.w).toBeGreaterThan(1430);
   expect(dots.h).toBeGreaterThan(890);
+
+  // Wasm memory never shrinks, so its size is the renderer's peak.
+  const info = await cdpSession.send("Kitesurf.getRendererInfo");
+  expect(info.framesRendered).toBeGreaterThanOrEqual(1);
+  expect(info.rendererWasmBytes).not.toBeNull();
+  expect(info.rendererWasmBytes).toBeLessThan(RENDERER_WASM_LIMIT);
 });
