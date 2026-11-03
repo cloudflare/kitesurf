@@ -446,12 +446,11 @@ export async function handleWebSocket(
     stopSceneStreams(browser);
     for (const state of browser.screencasts.values()) state.stopped = true;
     browser.screencasts.clear();
-    if (browser.rendererManager) {
-      try {
-        browser.rendererManager.dispose("engine WS closed");
-      } catch {}
-      browser.rendererManager = null;
-    }
+    // Close rather than drop the renderer manager, so a capture still running fails instead of
+    // creating a new manager and loading a renderer after the connection is gone.
+    try {
+      browser.rendererManager?.close("engine WS closed");
+    } catch {}
     unregisterTracker(connectionId);
     memAtClose = engineMemoryBreakdown(browser);
     networkEvents.dispose();
