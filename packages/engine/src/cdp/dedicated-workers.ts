@@ -265,7 +265,8 @@ export class DedicatedWorkers {
             : notice.kind === "wall"
               ? "wall-clock time limit"
               : "isolate (reclaimed by the platform)";
-      this.kill(entry, url, `Kitesurf: worker exceeded its ${what} and was terminated.`);
+      const gone = notice.kind !== "wall";
+      this.kill(entry, url, `Kitesurf: worker exceeded its ${what} and was terminated.`, gone);
     });
     const cookieKey = cookieKeyFor(ctx.connectionId, target.browserContextId);
     const navigator = readNavigator(params.navigator);
@@ -363,11 +364,11 @@ export class DedicatedWorkers {
     });
   }
 
-  private kill(entry: WorkerEntry, filename: string, message: string): void {
+  private kill(entry: WorkerEntry, filename: string, message: string, gone = false): void {
     const workerId = entry.workerId;
     this.toPage(entry, { workerId, type: "error", message, filename, lineno: 0, colno: 0 });
     this.toPage(entry, { workerId, type: "closed" });
-    this.retire(entry, message);
+    this.retire(entry, message, gone);
   }
 
   private fail(owner: WorkerOwner, workerId: number, url: string, reason: string): void {
@@ -391,7 +392,7 @@ export class DedicatedWorkers {
       });
   }
 
-  private retire(entry: WorkerEntry, reason: string): void {
+  private retire(entry: WorkerEntry, reason: string, gone = false): void {
     if (entry.dead) return;
     entry.dead = true;
     entry.pending = [];
@@ -402,6 +403,6 @@ export class DedicatedWorkers {
     entry.lease.release();
     const handle = entry.handle;
     if (!handle) return;
-    this.waitUntil(handle.terminate(reason).then(() => this.budget.noteIsolateKilled()));
+    this.waitUntil(handle.terminate(reason, { gone }).then(() => this.budget.noteIsolateKilled()));
   }
 }

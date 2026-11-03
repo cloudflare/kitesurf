@@ -165,6 +165,10 @@ describe("DedicatedWorkers", () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(budget.liveOf("worker")).toBe(0);
     expect(spawned[0]!.terminate).toHaveBeenCalledOnce();
+    expect(spawned[0]!.terminate, "the isolate is still alive").toHaveBeenCalledWith(
+      expect.any(String),
+      { gone: false },
+    );
     expect(delivered).toContainEqual({ workerId: 1, type: "closed" });
   });
 
@@ -174,6 +178,10 @@ describe("DedicatedWorkers", () => {
     await settle();
     notifyIsolateLimit(spawned[0]!.opts.label, { kind: "cpu", capMs: 0, fromTail: true });
     expect(budget.liveOf("worker")).toBe(0);
+    expect(spawned[0]!.terminate, "the platform ended the isolate").toHaveBeenCalledWith(
+      expect.any(String),
+      { gone: true },
+    );
     expect(delivered).toContainEqual({ workerId: 1, type: "closed" });
   });
 
