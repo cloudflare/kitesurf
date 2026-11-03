@@ -38,7 +38,7 @@ export interface GenerationDeps {
  */
 export async function disposeStub(
   stub: PageScriptStub,
-  opts: { unload: "awaited" | "background" | "none"; reason: string },
+  opts: { unload: "awaited" | "background" | "none"; reason: string; killAtOnce?: boolean },
   deps: GenerationDeps = {},
 ): Promise<UnloadHarvest | null> {
   const closeAndEnd = (): Promise<void> | null => {
@@ -53,7 +53,7 @@ export async function disposeStub(
     if (typeof stub.killIsolate === "function") {
       const kill = (): Promise<void> | null => {
         try {
-          const killing = stub.killIsolate?.(opts.reason);
+          const killing = stub.killIsolate?.(opts.reason, { atOnce: opts.killAtOnce === true });
           if (!killing) {
             deps.budget?.noteIsolateKilled();
             return null;
@@ -130,7 +130,7 @@ export async function retireStub(
     holder.blankReady = null;
     releaseLease(holder);
     if (stub) {
-      await disposeStub(stub, { unload: "none", reason }, deps);
+      await disposeStub(stub, { unload: "none", reason, killAtOnce: true }, deps);
     }
     return null;
   }
@@ -139,7 +139,11 @@ export async function retireStub(
   if (stub) {
     harvest = await disposeStub(
       stub,
-      { unload: intent === "navigate" ? "awaited" : "none", reason },
+      {
+        unload: intent === "navigate" ? "awaited" : "none",
+        reason,
+        killAtOnce: intent === "wsClosed",
+      },
       deps,
     );
   }

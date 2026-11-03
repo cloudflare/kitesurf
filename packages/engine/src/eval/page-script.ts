@@ -65,7 +65,7 @@ export function loadWasmBytesFromVfs(filename = "kitesurf_core_bg.wasm"): ArrayB
 
 export interface PageScriptStub extends PageScriptSession {
   close?(reason?: string): void;
-  killIsolate?(reason?: string): Promise<unknown> | void;
+  killIsolate?(reason?: string, opts?: { atOnce?: boolean }): Promise<unknown> | void;
   setUpstreamEventHandler?(handler: UpstreamEventHandler | null): void;
   armAwaitLoad?(): void;
   getRenderPort(): Promise<RenderPortStub>;

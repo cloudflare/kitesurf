@@ -314,12 +314,13 @@ export class PageScriptRpcSession implements PageScriptStub {
     return this.renderPort;
   }
 
-  killIsolate(reason = "generation retired"): Promise<void> {
+  killIsolate(reason = "generation retired", opts: { atOnce?: boolean } = {}): Promise<void> {
     if (this.killing) return this.killing;
     const ep = this.entrypoint;
     if (typeof ep.killIsolate !== "function") return Promise.resolve();
-    const sessionClosed = this.closeReady ?? Promise.resolve();
-    // Give the retained close one grace window before the entrypoint kill.
+    // Give the retained close one grace window before the entrypoint kill, unless nothing waits on
+    // the close: until the kill lands, the isolate keeps holding a loaded-worker slot.
+    const sessionClosed = opts.atOnce ? Promise.resolve() : (this.closeReady ?? Promise.resolve());
     this.killing = settleTeardownWithin(sessionClosed).then(() => {
       if (this.isolateGone) return;
       this.isolateGone = true;

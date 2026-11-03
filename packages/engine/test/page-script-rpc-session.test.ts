@@ -206,6 +206,26 @@ describe("PageScriptRpcSession", () => {
     expect(killed).toBe(true);
   });
 
+  it("kills at once, without the close grace, when nothing waits on the close", async () => {
+    vi.useFakeTimers();
+    try {
+      let killed = false;
+      const fake = makeFake({ onClose: () => new Promise(() => {}) });
+      fake.entrypoint.killIsolate = async () => {
+        killed = true;
+      };
+      const s = openPageScriptRpcSession(fake.entrypoint);
+      await s.syncCookies("warm=up");
+
+      s.close("target closed");
+      void s.killIsolate("target closed", { atOnce: true });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(killed, "the kill does not wait for the hung close").toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("bounds hung close and kill RPCs", async () => {
     vi.useFakeTimers();
     try {

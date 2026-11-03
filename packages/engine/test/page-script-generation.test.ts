@@ -39,8 +39,8 @@ function makeStub(opts: { failClose?: boolean; failUnload?: boolean } = {}) {
       }
       events.push("close");
     },
-    killIsolate(_reason?: string) {
-      events.push("kill");
+    killIsolate(_reason?: string, opts?: { atOnce?: boolean }) {
+      events.push(opts?.atOnce ? "kill:atOnce" : "kill");
     },
   };
   return stub as typeof stub & PageScriptStub;
@@ -89,8 +89,10 @@ describe("retireStub", () => {
       const holder = spawnedHolder(budget, stub);
       stub.releaseUnload();
       await retireStub(holder, intent, "test", { budget });
-      await vi.waitFor(() => expect(stub.events).toContain("kill"));
+      await vi.waitFor(() => expect(stub.events.some((e) => e.startsWith("kill"))).toBe(true));
       expect(budget.isolatesKilled, intent).toBe(1);
+      const final = intent === "closeTarget" || intent === "wsClosed";
+      expect(stub.events.includes("kill:atOnce"), `${intent} skips the close grace`).toBe(final);
     }
   });
 
@@ -143,7 +145,7 @@ describe("retireStub", () => {
     const stub = makeStub({ failClose: true });
     const holder = spawnedHolder(budget, stub);
     await retireStub(holder, "wsClosed", "test", { budget });
-    expect(stub.events).toEqual(["close:threw", "kill"]);
+    expect(stub.events).toEqual(["close:threw", "kill:atOnce"]);
     expect(holder.pageScriptLease).toBeNull();
     expect(budget.liveOf("pageScript")).toBe(0);
   });
