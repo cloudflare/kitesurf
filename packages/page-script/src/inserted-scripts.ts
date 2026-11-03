@@ -7,7 +7,7 @@
 
 import { scriptSourceDigest } from "@kitesurf/script-gate";
 import type { ModulePreloadPin } from "@kitesurf/jsrpc-types/page-script";
-import { ks_eval_page, ks_import } from "./wasm-glue.js";
+import { ks_eval_page, ks_eval_page_at, ks_import } from "./wasm-glue.js";
 import { globalizeForBoa } from "./boa-classic.ts";
 import { getInternalState, sendUpstreamEvent } from "./internal-state.js";
 import { importModule, startupInsertedBaked } from "./startup-probe.ts";
@@ -42,8 +42,9 @@ let insertedBytes = 0;
 let insertedCount = 0;
 const startedUrls = new Set<string>();
 const bakedByUrl = new Map(startupInsertedBaked.map((e) => [e.url, e]));
-export function evalInsertedOnBoa(source: string): void {
-  ks_eval_page(globalizeForBoa(source));
+export function evalInsertedOnBoa(source: string, url?: string): void {
+  if (url) ks_eval_page_at(globalizeForBoa(source), url);
+  else ks_eval_page(globalizeForBoa(source));
 }
 
 async function runBaked(module: string): Promise<void> {
@@ -451,7 +452,9 @@ export function runInsertedExternalScript(info: InsertedScriptInfo): void {
             params: { url, bytes: source.length, run: "baked" },
           });
         } else {
-          evalInsertedOnBoa(source);
+          // A redirected script is named by the URL that served it, and its relative imports
+          // resolve against that URL, not the one the page asked for.
+          evalInsertedOnBoa(source, response.finalUrl ?? pre.upgradeTo ?? url);
           sendUpstreamEvent({
             event: "kitesurf.insertedScriptRan",
             params: { url, bytes: source.length, run: baked ? "stale" : "boa" },
