@@ -2257,6 +2257,9 @@ async function pushNavigateToPageScriptInner(
         await pendingPageScript.unload();
       } catch {}
     }
+    // Reporting success here leaves a target with no page, and its next DOM call starts a blank
+    // isolate that answers as this document, so a failed load is served as an empty page.
+    if (target.navigateGeneration === generation && !target.pageScript) throw err;
     return { console: consoleAcc };
   }
 }
