@@ -170,6 +170,8 @@ export interface CspScriptRequest {
   url: string | null;
   documentUrl: string;
   nonce?: string | null;
+  /** The element is not there to show its nonce yet: a policy that names one is taken as met. */
+  nonceAssumed?: boolean;
   runtimeInserted?: boolean;
   /** The URL is a redirect target, so source paths are not matched. */
   redirected?: boolean;
@@ -205,6 +207,7 @@ function sourceListAllows(
 
   const nonce = request.nonce ?? "";
   if (nonce && nonces.includes(nonce)) return true;
+  if (request.nonceAssumed === true && request.url !== null && nonces.length > 0) return true;
 
   if (request.url === null) {
     // A nonce, a hash or 'strict-dynamic' turns 'unsafe-inline' off:

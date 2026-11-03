@@ -478,6 +478,40 @@ test("a meta policy is one policy, commas and all", async () => {
   assert.equal(header.policies.length, 2);
 });
 
+// A script the page inserts itself is fetched ahead of the insertion, with no element to show a
+// nonce: a policy's nonce is taken as met, while its hosts and 'none' bind the fetch as ever.
+test("a check ahead of an insertion assumes the nonce and keeps the host rules", async () => {
+  const ahead = (...csp: string[]) => ({ ...gateWith(...csp), aheadOfInsertion: true });
+  const cross = { url: "https://cdn.example.net/a.js" };
+  const own = { url: "https://example.com/a.js" };
+  const allows = async (gate: ReturnType<typeof gateWith>, request = cross) =>
+    (await checkScriptBeforeFetch(gate, request)).allowed;
+
+  assert.equal(await allows(gateWith("script-src 'nonce-r4nd0m'")), false);
+  assert.equal(await allows(ahead("script-src 'nonce-r4nd0m'")), true);
+  assert.equal(await allows(ahead("script-src 'sha256-abc=' 'strict-dynamic'")), true);
+  assert.equal(await allows(ahead("script-src 'none'")), false);
+  assert.equal(await allows(ahead("script-src 'self'")), false);
+  assert.equal(await allows(ahead("script-src 'self'"), own), true);
+  assert.equal(
+    (await checkScriptBeforeFetch(ahead("script-src 'nonce-r4nd0m'"), { url: null, body: "1" }))
+      .allowed,
+    false,
+  );
+
+  const elsewhere = "https://elsewhere.example/a.js";
+  assert.equal(
+    checkScriptRedirect(ahead("script-src 'nonce-r4nd0m'"), cross, elsewhere).allowed,
+    true,
+  );
+  assert.equal(checkScriptRedirect(ahead("script-src 'self'"), own, elsewhere).reason, "csp");
+
+  const reportOnly = buildScriptGateContext(DOC, { cspReportOnlyHeaders: ["script-src 'self'"] });
+  const reported = await checkScriptBeforeFetch({ ...reportOnly, aheadOfInsertion: true }, cross);
+  assert.equal(reported.allowed, true);
+  assert.match(reported.reportOnly ?? "", /^\[Report Only\] Refused to execute/);
+});
+
 test("report-only refuses without blocking, and says so", async () => {
   const gate = buildScriptGateContext(DOC, {
     cspReportOnlyHeaders: ["script-src 'none'"],

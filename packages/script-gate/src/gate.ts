@@ -42,6 +42,9 @@ export interface ScriptGateContext {
   policies: CspPolicy[];
   reportOnlyPolicies: CspPolicy[];
   upgradeInsecureRequests: boolean;
+  /** The check is for a script the page will insert itself, ahead of the insertion: a nonce
+   *  source counts as met and the script as runtime-inserted. Hosts and 'none' still bind. */
+  aheadOfInsertion?: boolean;
 }
 
 export interface ScriptGateSources {
@@ -173,7 +176,8 @@ export async function checkScriptBeforeFetch(
       url,
       documentUrl: ctx.documentUrl,
       nonce: request.nonce ?? null,
-      runtimeInserted: request.runtimeInserted === true,
+      nonceAssumed: ctx.aheadOfInsertion === true,
+      runtimeInserted: request.runtimeInserted === true || ctx.aheadOfInsertion === true,
     },
     inlineHashes,
   );
@@ -210,7 +214,8 @@ export async function checkScriptBeforeFetch(
         url,
         documentUrl: ctx.documentUrl,
         nonce: request.nonce ?? null,
-        runtimeInserted: request.runtimeInserted === true,
+        nonceAssumed: ctx.aheadOfInsertion === true,
+        runtimeInserted: request.runtimeInserted === true || ctx.aheadOfInsertion === true,
       },
       reportOnlyHashes,
     );
@@ -259,7 +264,8 @@ export function checkScriptRedirect(
     url,
     documentUrl: ctx.documentUrl,
     nonce: request.nonce ?? null,
-    runtimeInserted: request.runtimeInserted === true,
+    nonceAssumed: ctx.aheadOfInsertion === true,
+    runtimeInserted: request.runtimeInserted === true || ctx.aheadOfInsertion === true,
     redirected: true,
   });
   if (verdict.allowed)
