@@ -142,6 +142,14 @@ const V8_SIDE = `<!doctype html>
     child.prototype.constructor = child;
   };
 
+  globalThis.V8Class = class { constructor(a) { this.a = a; } };
+  globalThis.__ksConstruct = function (C, NewTarget) {
+    return NewTarget ? Reflect.construct(C, [1], NewTarget) : new C(1);
+  };
+  globalThis.__ksLiterals = function () {
+    return { plain: {}, array: [], bare: Object.create(null) };
+  };
+
   globalThis.__ksForIn = function (inst) {
     var out = [];
     for (var k in inst) out.push(k);
@@ -326,6 +334,55 @@ test("a V8 method a boa object inherits runs with that object as `this`", async 
   expect(out.staticSelf).toBe(true);
   expect(out.instanceOf).toEqual([true, false]);
   expect(out.global).toBe(true);
+});
+
+test("Object.getPrototypeOf in boa answers a V8 object's own prototype", async ({ page }) => {
+  await setContent(page, V8_SIDE, { waitUntil: "domcontentloaded" });
+  const out = (await page.evaluate(`(() => {
+    const t = (f) => { try { return f(); } catch (e) { return "threw: " + (e && e.message || e); } };
+    class Ctl extends V8Class {}
+    class Unrelated {}
+    const made = {
+      boaNew: new Ctl(1),
+      v8New: __ksConstruct(Ctl),
+      v8Reflect: __ksConstruct(V8Class, Ctl),
+    };
+    const r = {};
+    for (const k of Object.keys(made)) r[k] = t(() => Object.getPrototypeOf(made[k]) === Ctl.prototype);
+    const lit = __ksLiterals();
+    r.base = t(() => Object.getPrototypeOf(new V8Class(1)) === V8Class.prototype);
+    r.plain = t(() => Object.getPrototypeOf(lit.plain) === Object.prototype);
+    r.array = t(() => Reflect.getPrototypeOf(lit.array) === Array.prototype);
+    r.bare = t(() => Object.getPrototypeOf(lit.bare) === null);
+    r.isPrototypeOf = t(() => Object.prototype.isPrototypeOf.call(Ctl.prototype, made.v8New));
+    r.instanceOf = t(() => [
+      __ksConstruct(V8Class, Unrelated) instanceof Unrelated,
+      new V8Class(1) instanceof Unrelated,
+    ]);
+    r.chain = t(() => Object.getPrototypeOf(Ctl.prototype) === V8Class.prototype);
+    const sealed = new V8Class(2);
+    Object.preventExtensions(sealed);
+    r.sealed = t(() => [
+      Object.getPrototypeOf(sealed) === Object.prototype,
+      sealed instanceof V8Class,
+    ]);
+    return r;
+  })()`)) as Record<string, unknown>;
+  expect(out).toEqual({
+    boaNew: true,
+    v8New: true,
+    v8Reflect: true,
+    base: true,
+    plain: true,
+    array: true,
+    bare: true,
+    isPrototypeOf: true,
+    instanceOf: [true, false],
+    chain: true,
+    // The Proxy invariant holds a non-extensible target to its own prototype, and the target is
+    // boa's shadow: a sealed object answers Object.prototype, while instanceof still asks V8.
+    sealed: [true, true],
+  });
 });
 
 test("V8 reads through a boa subclass prototype resolve on the V8 super with the receiver", async ({
