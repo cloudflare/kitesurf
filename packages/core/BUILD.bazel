@@ -92,6 +92,13 @@ rust_test(
     crate = "@crates__boa_interner-0.22.0//:boa_interner",
 )
 
+rust_test(
+    name = "vello_common_test",
+    crate = "@crates__vello_common-0.3.0//:vello_common",
+    # rust_test does not inherit the library's features, and the crate needs std or libm.
+    crate_features = ["std"],
+)
+
 build_test(
     name = "vello_cpu_fallback_test",
     targets = ["@crates__vello_cpu-0.3.0//:vello_cpu_fallback"],
@@ -103,6 +110,7 @@ test_suite(
         ":boa_gc_test",
         ":boa_interner_test",
         ":core_test",
+        ":vello_common_test",
         ":vello_cpu_fallback_test",
     ],
 )

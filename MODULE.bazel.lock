@@ -273,9 +273,9 @@
     "//bazel/rust:crates.bzl%cargo_workspaces": {
       "general": {
         "bzlTransitiveDigest": "Azt4Ub+gfepkRli3W2Ekw9F1bhXQ2J4Sc24M58PeNEs=",
-        "usagesDigest": "Px5rTqry10k8NwQa6Xg4rjp+miOm/SqVBcdhj40clb4=",
+        "usagesDigest": "fbK9zGiubAA06rvLe2I0KfYyjGlq6F+wTeB4ZbRdtKY=",
         "recordedInputs": [
-          "FILE:@@//Cargo.toml a723c0f79f637d1f5b1e7cb0f354de9fbfb0d17d582f5eb2c53f5ca766b6bcf5"
+          "FILE:@@//Cargo.toml 32964f1a43dd5ace3e91115f9e5f8bd6f34deda4e32fbbe9d40aae6a3aff7d06"
         ],
         "generatedRepoSpecs": {
           "patched_vello_cpu-0.3.0": {
@@ -284,6 +284,15 @@
               "crate": "vello_cpu",
               "version": "0.3.0",
               "sha256": "ed1fec424fbba6acf6cbc78bb526447eb77590d95f40419d598870fe37535212",
+              "patches_marker": "@@//scripts:patches/README.md"
+            }
+          },
+          "patched_vello_common-0.3.0": {
+            "repoRuleId": "@@//bazel/rust:crates.bzl%_patched_crate",
+            "attributes": {
+              "crate": "vello_common",
+              "version": "0.3.0",
+              "sha256": "73c2fbe53548bcd25c8ff42f75a93770a8611a16b37bee56d7ef7b44e36027f1",
               "patches_marker": "@@//scripts:patches/README.md"
             }
           },
@@ -474,6 +483,7 @@
               "lockfile": "@@//:Cargo.lock",
               "patched": {
                 "vello_cpu-0.3.0": "@@+cargo_workspaces+patched_vello_cpu-0.3.0//:BUILD.bazel",
+                "vello_common-0.3.0": "@@+cargo_workspaces+patched_vello_common-0.3.0//:BUILD.bazel",
                 "parley-0.12.0": "@@+cargo_workspaces+patched_parley-0.12.0//:BUILD.bazel",
                 "parley_engine-0.12.0": "@@+cargo_workspaces+patched_parley_engine-0.12.0//:BUILD.bazel",
                 "blitz-dom-0.3.0-beta.4": "@@+cargo_workspaces+patched_blitz-dom-0.3.0-beta.4//:BUILD.bazel",
@@ -506,6 +516,7 @@
               },
               "keys": {
                 "vello_cpu": "vello_cpu-0.3.0",
+                "vello_common": "vello_common-0.3.0",
                 "parley": "parley-0.12.0",
                 "parley_engine": "parley_engine-0.12.0",
                 "blitz-dom": "blitz-dom-0.3.0-beta.4",
@@ -528,6 +539,7 @@
               },
               "patched": {
                 "vello_cpu": "@@+cargo_workspaces+patched_vello_cpu-0.3.0//:BUILD.bazel",
+                "vello_common": "@@+cargo_workspaces+patched_vello_common-0.3.0//:BUILD.bazel",
                 "parley": "@@+cargo_workspaces+patched_parley-0.12.0//:BUILD.bazel",
                 "parley_engine": "@@+cargo_workspaces+patched_parley_engine-0.12.0//:BUILD.bazel",
                 "blitz-dom": "@@+cargo_workspaces+patched_blitz-dom-0.3.0-beta.4//:BUILD.bazel",
@@ -569,6 +581,7 @@
                 "stylo_taffy-0.3.0-beta.4": "3d932deb3145f9e1c4159d09237f7999a29632fba9125896abb364dab080e0c0",
                 "taffy-0.15.0": "3c8480887e8803986d96a7173729565520d4bbb721ad6b7ad6941a22897207aa",
                 "usvg-0.48.1": "977d0a4abdef933f424a99fe09f95576e089b90aebc6f016a3bc813762493e91",
+                "vello_common-0.3.0": "73c2fbe53548bcd25c8ff42f75a93770a8611a16b37bee56d7ef7b44e36027f1",
                 "vello_cpu-0.3.0": "ed1fec424fbba6acf6cbc78bb526447eb77590d95f40419d598870fe37535212"
               }
             }
@@ -583,6 +596,7 @@
               },
               "keys": {
                 "vello_cpu": "vello_cpu-0.3.0",
+                "vello_common": "vello_common-0.3.0",
                 "parley": "parley-0.12.0",
                 "parley_engine": "parley_engine-0.12.0",
                 "blitz-dom": "blitz-dom-0.3.0-beta.4",
@@ -605,6 +619,7 @@
               },
               "patched": {
                 "vello_cpu": "@@+cargo_workspaces+patched_vello_cpu-0.3.0//:BUILD.bazel",
+                "vello_common": "@@+cargo_workspaces+patched_vello_common-0.3.0//:BUILD.bazel",
                 "parley": "@@+cargo_workspaces+patched_parley-0.12.0//:BUILD.bazel",
                 "parley_engine": "@@+cargo_workspaces+patched_parley_engine-0.12.0//:BUILD.bazel",
                 "blitz-dom": "@@+cargo_workspaces+patched_blitz-dom-0.3.0-beta.4//:BUILD.bazel",
@@ -646,6 +661,7 @@
                 "stylo_taffy-0.3.0-beta.4": "3d932deb3145f9e1c4159d09237f7999a29632fba9125896abb364dab080e0c0",
                 "taffy-0.15.0": "3c8480887e8803986d96a7173729565520d4bbb721ad6b7ad6941a22897207aa",
                 "usvg-0.48.1": "977d0a4abdef933f424a99fe09f95576e089b90aebc6f016a3bc813762493e91",
+                "vello_common-0.3.0": "73c2fbe53548bcd25c8ff42f75a93770a8611a16b37bee56d7ef7b44e36027f1",
                 "vello_cpu-0.3.0": "ed1fec424fbba6acf6cbc78bb526447eb77590d95f40419d598870fe37535212"
               }
             }
@@ -660,6 +676,7 @@
               },
               "keys": {
                 "vello_cpu": "vello_cpu-0.3.0",
+                "vello_common": "vello_common-0.3.0",
                 "parley": "parley-0.12.0",
                 "parley_engine": "parley_engine-0.12.0",
                 "blitz-dom": "blitz-dom-0.3.0-beta.4",
@@ -682,6 +699,7 @@
               },
               "patched": {
                 "vello_cpu": "@@+cargo_workspaces+patched_vello_cpu-0.3.0//:BUILD.bazel",
+                "vello_common": "@@+cargo_workspaces+patched_vello_common-0.3.0//:BUILD.bazel",
                 "parley": "@@+cargo_workspaces+patched_parley-0.12.0//:BUILD.bazel",
                 "parley_engine": "@@+cargo_workspaces+patched_parley_engine-0.12.0//:BUILD.bazel",
                 "blitz-dom": "@@+cargo_workspaces+patched_blitz-dom-0.3.0-beta.4//:BUILD.bazel",
@@ -723,6 +741,7 @@
                 "stylo_taffy-0.3.0-beta.4": "3d932deb3145f9e1c4159d09237f7999a29632fba9125896abb364dab080e0c0",
                 "taffy-0.15.0": "3c8480887e8803986d96a7173729565520d4bbb721ad6b7ad6941a22897207aa",
                 "usvg-0.48.1": "977d0a4abdef933f424a99fe09f95576e089b90aebc6f016a3bc813762493e91",
+                "vello_common-0.3.0": "73c2fbe53548bcd25c8ff42f75a93770a8611a16b37bee56d7ef7b44e36027f1",
                 "vello_cpu-0.3.0": "ed1fec424fbba6acf6cbc78bb526447eb77590d95f40419d598870fe37535212"
               }
             }
@@ -1064,15 +1083,15 @@
           "REPO_MAPPING:rules_rust+,bazel_skylib bazel_skylib+",
           "REPO_MAPPING:rules_rust+,bazel_tools bazel_tools",
           "REPO_MAPPING:rules_rust+,rules_cc rules_cc+",
-          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.lock 4f3fc0d1f6fc5f492dcd51b6b6922ce1044b786e816f5d1e69c1481cae6b5966",
-          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.toml 1e9c38ea1416c0416ae87a1ade6dbca7f48ca92b2c8870dfa602cfe4b7e60979",
-          "FILE:@@+cargo_workspaces+cargo_ws_core//patched.json 69fa69bb0a6a597a5b1c2760cbf037754e5aa96c8f799ed082036c4a933c7bd1",
-          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.lock 08c2c31bf17628b62dcec93f07e64ff14972d99edcef6dbcc546a02b5d562ebb",
-          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.toml b50a3fc3eb90c23b01e4aad8caf672254874bc48e859ea0152ba537b2f15d00e",
-          "FILE:@@+cargo_workspaces+cargo_ws_renderer//patched.json 69fa69bb0a6a597a5b1c2760cbf037754e5aa96c8f799ed082036c4a933c7bd1",
-          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.lock 7d2be77560219a8ac6fa2927ec00d7ab1a2de1954083af0773a6a9b7cc19030b",
-          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.toml ff203071d5ef7b794dbab16a999121d27828eb2b7895a2f8eb61175240ff8bd0",
-          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//patched.json 69fa69bb0a6a597a5b1c2760cbf037754e5aa96c8f799ed082036c4a933c7bd1",
+          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.lock 7ef5164c5134ed6354f2e101571c3159f52788ef5b2899cf8531c7426c8193e9",
+          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.toml 8742c2b7122500894e760dc6be668b3c6a9f869789ef4d23efcad61ee16c31ff",
+          "FILE:@@+cargo_workspaces+cargo_ws_core//patched.json d2b5778a920d108340e5766742102b9908e9e6036bf93ed5b623c153038086d0",
+          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.lock 1ab87e853899a5444313ddd1797557dcc94a5741fc907d49c778fb49541e80b2",
+          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.toml 0330cdd3ec98017edc71a2a4cf81ada2060c3f76dfd94eebdcf5923739b649c1",
+          "FILE:@@+cargo_workspaces+cargo_ws_renderer//patched.json d2b5778a920d108340e5766742102b9908e9e6036bf93ed5b623c153038086d0",
+          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.lock db62744d346bc74ca88638eb7485fba7bf37c8a5868057b0bf1640a2ee67a5aa",
+          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.toml 14305d10d40dd7677658444d637bc4bfd7dbbcc48265f39bee4ceab617418262",
+          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//patched.json d2b5778a920d108340e5766742102b9908e9e6036bf93ed5b623c153038086d0",
           "FILE:@@+cargo_workspaces+cargo_ws_memprof//Cargo.lock 700ce60a085805e81be18248290fa55c12fd753835006ab68256b8f397261384",
           "FILE:@@+cargo_workspaces+cargo_ws_memprof//Cargo.toml 6982e34060f201166856e8294a4c4a42cd957eb79df82f72f536b5318e6244b8",
           "FILE:@@//packages/kitesurf-cli/Cargo.lock 152fed308b4920eadd2828ba02d0dda6109d0a733cba973a78a25394334fd143",
@@ -5964,6 +5983,12 @@
           "crates__vello_common-0.3.0": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
             "attributes": {
+              "patch_args": [
+                "-p1"
+              ],
+              "patches": [
+                "@@//scripts:patches/vello_common-0.3.0/0001-Share-one-gradient-LUT-across-consecutive-equal-grad.patch"
+              ],
               "remote_patch_strip": 1,
               "sha256": "73c2fbe53548bcd25c8ff42f75a93770a8611a16b37bee56d7ef7b44e36027f1",
               "type": "tar.gz",
@@ -8173,6 +8198,12 @@
           "crates_renderer__vello_common-0.3.0": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
             "attributes": {
+              "patch_args": [
+                "-p1"
+              ],
+              "patches": [
+                "@@//scripts:patches/vello_common-0.3.0/0001-Share-one-gradient-LUT-across-consecutive-equal-grad.patch"
+              ],
               "remote_patch_strip": 1,
               "sha256": "73c2fbe53548bcd25c8ff42f75a93770a8611a16b37bee56d7ef7b44e36027f1",
               "type": "tar.gz",
@@ -9384,6 +9415,12 @@
           "crates_scene_host__vello_common-0.3.0": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
             "attributes": {
+              "patch_args": [
+                "-p1"
+              ],
+              "patches": [
+                "@@//scripts:patches/vello_common-0.3.0/0001-Share-one-gradient-LUT-across-consecutive-equal-grad.patch"
+              ],
               "remote_patch_strip": 1,
               "sha256": "73c2fbe53548bcd25c8ff42f75a93770a8611a16b37bee56d7ef7b44e36027f1",
               "type": "tar.gz",

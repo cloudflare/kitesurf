@@ -87,6 +87,7 @@ All plumbing git invocations run with `GIT_CONFIG_GLOBAL=/dev/null` /
 | `boa_engine`          | `0.22.0`       | `boa-dev/boa`, path `core/engine/`               | registry tarball |
 | `boa_parser`          | `0.22.0`       | `boa-dev/boa`, path `core/parser/`               | registry tarball |
 | `usvg`                | `0.48.1`       | `linebender/resvg`, path `crates/usvg/`          | registry tarball |
+| `vello_common`        | `0.3.0`        | `linebender/vello`, path `vello_common/`         | registry tarball |
 | `vello_cpu`           | `0.3.0`        | `linebender/vello`, path `vello_cpu/`            | registry tarball |
 | `ratatui-image`       | `8.1.1`        | `benjajaja/ratatui-image`                        | registry tarball |
 | `jpeg-encoder`        | `0.7.0`        | `vstroebel/jpeg-encoder`                         | registry tarball |
@@ -157,6 +158,9 @@ One-line orientation (see each series' patches for the full why):
   speedups, plus even-pixel-only chroma conversion on 4:2:0 rows, for
   screencast JPEG encoding. Output stays byte-identical
   to upstream.
+- **vello_common** — consecutive fills of one gradient share one colour
+  lookup table, so the thousands of tiles blitz-paint draws for a
+  repeating gradient do not each allocate their own.
 
 ## Editing vendor source and regenerating the series
 

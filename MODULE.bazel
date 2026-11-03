@@ -125,6 +125,7 @@ cargo_workspaces.patched(
             "3d932deb3145f9e1c4159d09237f7999a29632fba9125896abb364dab080e0c0",
         "taffy-0.15.0": "3c8480887e8803986d96a7173729565520d4bbb721ad6b7ad6941a22897207aa",
         "usvg-0.48.1": "977d0a4abdef933f424a99fe09f95576e089b90aebc6f016a3bc813762493e91",
+        "vello_common-0.3.0": "73c2fbe53548bcd25c8ff42f75a93770a8611a16b37bee56d7ef7b44e36027f1",
         "vello_cpu-0.3.0": "ed1fec424fbba6acf6cbc78bb526447eb77590d95f40419d598870fe37535212",
     },
 )
@@ -248,7 +249,13 @@ rust_library(
     repositories = ["crates"],
 )
 use_repo(crate, "crates", "crates_cli", "crates_memprof", "crates_renderer", "crates_rust_check", "crates_scene_host")
-use_repo(crate, "crates__boa_gc-0.22.0", "crates__boa_interner-0.22.0", "crates__vello_cpu-0.3.0")
+use_repo(
+    crate,
+    "crates__boa_gc-0.22.0",
+    "crates__boa_interner-0.22.0",
+    "crates__vello_common-0.3.0",
+    "crates__vello_cpu-0.3.0",
+)
 
 wasm_std_repo = use_repo_rule("//bazel/rust:repos.bzl", "wasm_std_repo")
 wasm_std_repo(

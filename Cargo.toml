@@ -61,6 +61,9 @@ boa_engine = { version = "0.22", default-features = false, features = ["annex-b"
 # Patched to replace the blurred-rounded-rect powf with a polynomial fit,
 # which box-shadow paints through here too (blitz-paint -> draw_box_shadow -> vello_cpu).
 vello_cpu = { path = "packages/core/target/vendor-patched/vello_cpu-0.3.0" }
+# Patched so consecutive fills of one gradient share one colour LUT: blitz-paint draws a
+# repeating gradient as thousands of tile fills, and each built its own 4096-entry LUT.
+vello_common = { path = "packages/core/target/vendor-patched/vello_common-0.3.0" }
 parley = { path = "packages/core/target/vendor-patched/parley-0.12.0" }
 # parley 0.12 moved analysis, bidi and shaping into parley_engine, so the
 # base-direction and tab-stop patches carry an engine half here.
