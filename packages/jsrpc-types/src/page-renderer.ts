@@ -8,6 +8,12 @@ import type { QueryDomArgs, QueryDomResult } from "./query-dom.ts";
 
 export type RenderStage = "record" | "resources" | "raster";
 
+export interface RendererMemoryStats {
+  bytes: number;
+  initialBytes: number;
+  deltaBytes: number;
+}
+
 export interface RenderFrameOpts {
   format: string;
   quality: number;
@@ -28,6 +34,9 @@ export interface RenderFrameReply {
   stage?: RenderStage;
   info?: string;
   phases?: string[];
+  // Sent with every reply because a renderer idle after its last frame may have been evicted, and
+  // a separate call only to ask would start a fresh one.
+  memory?: RendererMemoryStats;
   seq: number;
   scrollX: number;
   scrollY: number;
@@ -51,6 +60,7 @@ export interface RenderPdfReply {
   stage?: RenderStage;
   info?: string;
   phases?: string[];
+  memory?: RendererMemoryStats;
 }
 
 type RenderPortMethod = "recordScene" | "getPaintResources" | "getFontUrlData" | "recordPdfScenes";
@@ -69,7 +79,7 @@ export type FetchFont = (key: string) => Promise<Uint8Array | ArrayBuffer>;
 
 export interface PageRendererRpc {
   ping(): { pong: number };
-  memoryStats(): { bytes: number; initialBytes: number; deltaBytes: number };
+  memoryStats(): RendererMemoryStats;
   renderFrame(
     port: RenderPort,
     opts: RenderFrameOpts,

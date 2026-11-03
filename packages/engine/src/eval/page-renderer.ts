@@ -20,6 +20,7 @@ import type {
   RenderPdfOpts,
   RenderPortStub,
   RenderStage,
+  RendererMemoryStats,
 } from "@kitesurf/jsrpc-types/page-renderer";
 import type { DynamicWorkerBudget, WorkerLease } from "./worker-budget.ts";
 
@@ -167,6 +168,7 @@ export class PageRendererManager {
   private lease: WorkerLease | null = null;
   private budget: DynamicWorkerBudget | null = null;
   private closed = false;
+  private lastMemory: RendererMemoryStats | null = null;
   relaunchCount = 0;
   framesRendered = 0;
   partialFramesRendered = 0;
@@ -245,17 +247,10 @@ export class PageRendererManager {
     return new Uint8Array(await resp.arrayBuffer());
   }
 
-  async memoryStats(): Promise<{
-    bytes: number;
-    initialBytes: number;
-    deltaBytes: number;
-  } | null> {
-    if (!this.stub) return null;
-    try {
-      return await withTimeout(this.stub.memoryStats(), 5_000, "memoryStats");
-    } catch {
-      return null;
-    }
+  // What the renderer reported with its last frame or PDF. Asking it directly would start a fresh
+  // renderer when the idle one was evicted, or after it was disposed.
+  memoryStats(): RendererMemoryStats | null {
+    return this.lastMemory;
   }
 
   initialResString(): string | null {
@@ -366,6 +361,7 @@ export class PageRendererManager {
       RENDER_CALL_TIMEOUT_MS,
       "renderFrame",
     );
+    if (reply.memory) this.lastMemory = reply.memory;
     const seq = typeof reply.seq === "number" ? reply.seq : 0;
     const scrollX = typeof reply.scrollX === "number" ? reply.scrollX : 0;
     const scrollY = typeof reply.scrollY === "number" ? reply.scrollY : 0;
@@ -462,6 +458,7 @@ export class PageRendererManager {
       PDF_CALL_TIMEOUT_MS,
       "renderPdf",
     );
+    if (reply.memory) this.lastMemory = reply.memory;
     this.logSlowPhases("renderPdf", reply.phases);
     if (reply.error || !(reply.bytes instanceof Uint8Array) || reply.bytes.length === 0) {
       return {

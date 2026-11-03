@@ -153,3 +153,18 @@ describe("renderer eviction and close", () => {
     expect(counts.kills).toBe(1);
   });
 });
+
+describe("renderer memory stats", () => {
+  it("reports what the renderer sent with its last frame, without calling it", async () => {
+    const memory = { bytes: 3_000_000, initialBytes: 2_000_000, deltaBytes: 1_000_000 };
+    const { counts, render, manager } = harness(async () => ({
+      bytes: new Uint8Array([1]),
+      memory,
+    }));
+    expect(manager.memoryStats()).toBeNull();
+    expect((await render()).ok).toBe(true);
+    manager.dispose("done");
+    expect(manager.memoryStats(), "still known once the renderer is gone").toEqual(memory);
+    expect(counts.loads).toBe(1);
+  });
+});
