@@ -10251,6 +10251,7 @@
   "/html/webappapis/scripting/processing-model-2/integration-with-the-javascript-agent-formalism/requires-failure.https.any.html",
   "/html/webappapis/scripting/processing-model-2/integration-with-the-javascript-agent-formalism/requires-success.any.html",
   "/html/webappapis/scripting/processing-model-2/unhandled-promise-rejections/promise-rejection-event-constructor.html",
+  "/html/webappapis/scripting/processing-model-2/unhandled-promise-rejections/promise-rejection-events-attached-in-event.html",
   "/html/webappapis/scripting/reporterror-in-detached-window-crash.html",
   "/html/webappapis/scripting/reporterror.any.html",
   "/html/webappapis/structured-clone/structured-clone-detached-window-crash.html",
