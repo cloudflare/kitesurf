@@ -21865,7 +21865,7 @@
     "reason": null
   },
   "/webidl/ecmascript-binding/interface-object-set-receiver.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/webidl/ecmascript-binding/interface-object.html": {
