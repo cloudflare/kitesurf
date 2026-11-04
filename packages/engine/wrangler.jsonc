@@ -51,13 +51,19 @@
 
   "env": {
     "local": {
+      // Envs do not inherit the top-level vars, and wrangler dev warns about each one an env
+      // leaves off. The engine reads "" the same as unset, so the empty ones only quiet that.
       "vars": {
         "KITESURF_ENV": "local",
         "KITESURF_VERSION": "dev",
         "KITESURF_RESOURCE_DRAIN_QUIET_TURNS": "5",
         "KITESURF_SIMULATE_PROD_EVAL": "",
+        "KITESURF_DISABLE_PARTIAL_RASTER": "",
+        "KITESURF_PAGE_CPU_MS_CAP": "",
+        "KITESURF_PAGE_WALL_MS_CAP": "",
         "KITESURF_LAG_WATCHDOG": "1",
         "KITESURF_INSPECTOR_BASE_URL": "",
+        "WEB_BOT_AUTH_SIGNATURE_AGENT": "",
         "KITESURF_OTLP_ENDPOINT": "http://localhost:4318/v1/traces",
       },
       "worker_loaders": [{ "binding": "LOADER" }],
