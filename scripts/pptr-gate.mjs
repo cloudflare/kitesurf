@@ -101,7 +101,7 @@ function main(argv) {
     );
   if (reportGaps("pptr-gate", { devs, emptyFiles, missingPins })) {
     console.error(
-      "[pptr-gate] rebaseline deliberate changes with: bazel run //tests/pptr:update_expectations",
+      "[pptr-gate] rebaseline deliberate changes with: bazel run --//bazel:keep_deviations //tests/pptr:update_expectations",
     );
     process.exit(1);
   }

@@ -1,5 +1,6 @@
 load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 
 _HOSTS = ["linux_aarch64", "linux_x86_64", "macos_aarch64"]
 
@@ -49,4 +50,19 @@ copy_to_directory(
     srcs = ["@pyyaml//:yaml"],
     include_external_repositories = ["*pyyaml"],
     visibility = ["//tests/wpt:__pkg__"],
+)
+
+# The pw and pptr spec actions fail when a deviation survives their retry, so Bazel never caches a
+# flaky result. Rebaselining needs the deviating results, so set this for it:
+# bazel run --//bazel:keep_deviations //tests/pw:update_expectations
+bool_flag(
+    name = "keep_deviations",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "keep_deviations_on",
+    flag_values = {":keep_deviations": "true"},
+    visibility = ["//visibility:public"],
 )
