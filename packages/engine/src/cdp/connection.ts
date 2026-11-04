@@ -439,6 +439,7 @@ export async function handleWebSocket(
       endReason: "close",
       closeCode: closeEv.code ?? 0,
       wasClean: closeEv.wasClean ? 1 : 0,
+      workerLeases: workerBudget.snapshot(),
     });
     wsClosing = true;
     browser.wsClosing = true;
@@ -494,6 +495,7 @@ export async function handleWebSocket(
         endReason: "error",
         closeCode: 0,
         wasClean: 0,
+        workerLeases: workerBudget.snapshot(),
       });
     }
     const detail = {
