@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-// Run one Playwright shard against a patched upstream checkout and the public engine dist.
+// Run one allow-listed Playwright spec file against a patched upstream checkout and engine dist.
 
 import { spawnSync } from "node:child_process";
 import {
@@ -22,7 +22,7 @@ import { dirname, join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const PATCH_DIR = resolve(ROOT, "scripts/patches/playwright");
-const USAGE = `usage: node scripts/pw-shard.mjs --shard <k>/<n> --dist <engine dist> --out-dir <dir>
+const USAGE = `usage: node scripts/pw-spec.mjs --spec <file> --dist <engine dist> --out-dir <dir>
        [--pw-base <directory>] [--max-wall-ms <ms>]
 --pw-base defaults to KITESURF_PW_BASE or .playwright. The checkout must be built by pw:setup.`;
 
@@ -31,7 +31,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const next = () => argv[++i];
-    if (arg === "--shard") options.shard = next();
+    if (arg === "--spec") options.spec = next();
     else if (arg === "--dist") options.dist = resolve(next());
     else if (arg === "--out-dir") options.outDir = resolve(next());
     else if (arg === "--pw-base") options.base = resolve(next());
@@ -39,13 +39,13 @@ function parseArgs(argv) {
     else fail(`unknown option ${arg}\n${USAGE}`);
   }
   options.base ??= resolve(process.env.KITESURF_PW_BASE ?? resolve(ROOT, ".playwright"));
-  if (!options.shard || !options.dist || !options.outDir)
-    fail(`--shard, --dist, and --out-dir are required\n${USAGE}`);
+  if (!options.spec || !options.dist || !options.outDir)
+    fail(`--spec, --dist, and --out-dir are required\n${USAGE}`);
   return options;
 }
 
 function fail(message, log) {
-  console.error(`[pw-shard] ${message}`);
+  console.error(`[pw-spec] ${message}`);
   if (log && existsSync(log))
     console.error(readFileSync(log, "utf8").split("\n").slice(-60).join("\n"));
   process.exit(2);
@@ -108,8 +108,8 @@ function main(options) {
       "miniflare",
       "--dist",
       options.dist,
-      "--shard",
-      options.shard,
+      "--spec",
+      options.spec,
       "--results-out",
       results,
       "--no-gate",
@@ -134,7 +134,7 @@ function main(options) {
       .filter((line) => line.startsWith("[pw-run]"))
       .join("\n"),
   );
-  console.log(`[pw-shard] shard ${options.shard} done in ${seconds}s`);
+  console.log(`[pw-spec] ${options.spec} done in ${seconds}s`);
 }
 
 main(parseArgs(process.argv.slice(2)));

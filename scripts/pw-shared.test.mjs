@@ -75,12 +75,12 @@ test("rebaseline removes passing pins and sorts the output", () => {
   assert.equal(next["b::t"].expected, "TIMEOUT");
 });
 
-test("JUnit includes deviations and specs that no shard ran", () => {
+test("JUnit includes deviations and specs that no spec action ran", () => {
   const xml = junit(results, deviations(results, expectations), ["c.spec.ts"], [], ["c.spec.ts"]);
   assert.match(xml, /<testsuite name="playwright" tests="4" failures="2">/);
   assert.match(
     xml,
     /classname="pw\.b\.spec\.ts" name="kept"><failure message="expected FAIL, got PASS"/,
   );
-  assert.match(xml, /name="\(spec file\)"><failure message="no shard ran it"/);
+  assert.match(xml, /name="\(spec file\)"><failure message="no spec action ran it"/);
 });

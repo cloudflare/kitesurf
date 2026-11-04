@@ -1,11 +1,11 @@
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_test")
 load("@npm//:typescript/package_json.bzl", tsc = "bin")
-load("@pptr_specs//:defs.bzl", "PPTR_SPECS")
+load("@pptr_specs//:defs.bzl", PPTR_SPECS = "SPECS")
+load("@pw_specs//:defs.bzl", PW_SPECS = "SPECS")
 load("//bazel:checks.bzl", "node_test", "tsc_test", "workspace_configs")
 load("//bazel:executors.bzl", "PW", "WPT", "for_test")
 load("//tests/e2e:defs.bzl", "e2e_shard_name")
 load("//tests/e2e:shards.bzl", "E2E_SHARD_STARTS")
-load("//tests/pw:defs.bzl", "PW_SHARDS")
 
 js_library(
     name = "wpt_shared",
@@ -238,9 +238,9 @@ js_binary(
 )
 
 js_binary(
-    name = "pw_shard",
+    name = "pw_spec",
     data = [":pw_runner"],
-    entry_point = "pw-shard.mjs",
+    entry_point = "pw-spec.mjs",
     visibility = ["//tests/pw:__pkg__"],
 )
 
@@ -429,10 +429,7 @@ js_test(
     exec_properties = for_test(WPT),
 )
 
-_PW_RESULTS = [
-    "//tests/pw:shard_%d/results.json" % index
-    for index in range(1, PW_SHARDS + 1)
-]
+_PW_RESULTS = ["//tests/pw:%s/results.json" % spec for spec in PW_SPECS]
 
 _PW_GATE_ARGS = [
     "--tests",

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-// Judge merged Playwright shards against the public allow-list and expectations.
+// Judge the Playwright spec actions' results against the public allow-list and expectations.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -18,7 +18,7 @@ import {
 import { isMain } from "./wpt-shared.mjs";
 
 const USAGE =
-  "usage: node scripts/pw-gate.mjs --results <shard.json>... [--tests <file>] [--expectations <file>] [--junit <file>] [--update-expectations]";
+  "usage: node scripts/pw-gate.mjs --results <results.json>... [--tests <file>] [--expectations <file>] [--junit <file>] [--update-expectations]";
 const xml = (value) =>
   String(value).replace(
     /[<>&\"']/g,
@@ -48,7 +48,7 @@ export function junit(results, devs, emptyFiles, missingPins, unrun) {
       row(
         file,
         "(spec file)",
-        failure(unrun.includes(file) ? "no shard ran it" : "produced no results"),
+        failure(unrun.includes(file) ? "no spec action ran it" : "produced no results"),
       ),
     );
   for (const id of missingPins)
@@ -89,9 +89,9 @@ function main(argv) {
   const results = {};
   const ran = new Set();
   for (const file of options.results) {
-    const shard = JSON.parse(readFileSync(resolve(file), "utf8"));
-    for (const spec of shard.files) ran.add(spec);
-    Object.assign(results, shard.results);
+    const run = JSON.parse(readFileSync(resolve(file), "utf8"));
+    for (const spec of run.files) ran.add(spec);
+    Object.assign(results, run.results);
   }
   const unrun = allowList.map((entry) => entry.file).filter((file) => !ran.has(file));
   if (options.update) return update(options, results);
@@ -100,10 +100,10 @@ function main(argv) {
   const { emptyFiles, missingPins } = coverageGaps(results, allowList, expectations);
   if (options.junit)
     writeFileSync(options.junit, junit(results, devs, emptyFiles, missingPins, unrun));
-  console.log(`[pw-gate] ${options.results.length} shard(s): ${summarize(results)}`);
+  console.log(`[pw-gate] ${options.results.length} spec result(s): ${summarize(results)}`);
   if (unrun.length)
     console.error(
-      `[pw-gate] ${unrun.length} allow-listed spec(s) ran in no shard: ${unrun.join(", ")}`,
+      `[pw-gate] ${unrun.length} allow-listed spec(s) have no results file: ${unrun.join(", ")}`,
     );
   if (reportGaps("pw-gate", { devs, emptyFiles, missingPins })) {
     console.error(
