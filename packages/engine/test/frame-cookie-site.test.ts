@@ -82,6 +82,7 @@ async function frameDocumentCookies(cookieSiteOrigin: string) {
       ancestorOrigins: [{ kind: "tuple", origin: "https://parent.test" }],
       parentOrigin: "https://parent.test",
       cookieSiteOrigin,
+      fontProfile: "noto",
     },
   );
   expect(r.ok).toBe(true);
