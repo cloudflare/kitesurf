@@ -3,6 +3,8 @@
   "name": "kitesurf-fixtures",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-11",
+  // `fallthrough: false` states the default: wrangler's built-in Text and Data rules stay off,
+  // and it stops warning that they are ignored.
   "rules": [
     {
       "type": "Text",
@@ -15,10 +17,12 @@
         "*/assets/*.txt",
         "*/assets/*.json",
       ],
+      "fallthrough": false,
     },
     {
       "type": "Data",
       "globs": ["*/assets/*.woff2", "*/assets/*.png", "*/assets/*.wasm", "*/assets/*.bin"],
+      "fallthrough": false,
     },
   ],
   "env": {
