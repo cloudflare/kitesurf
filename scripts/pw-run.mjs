@@ -47,18 +47,8 @@ const batchSizeIdx = args.indexOf("--batch-size");
 const batchSize = batchSizeIdx >= 0 ? Math.max(1, parseInt(args[batchSizeIdx + 1], 10) || 1) : 1;
 const grepIdx = args.indexOf("--grep");
 const userGrep = grepIdx >= 0 ? args[grepIdx + 1] : null;
-const shardIdx = args.indexOf("--shard");
-const shard = (() => {
-  if (shardIdx < 0) return null;
-  const m = /^(\d+)\/(\d+)$/.exec(args[shardIdx + 1] ?? "");
-  const k = m && parseInt(m[1], 10),
-    n = m && parseInt(m[2], 10);
-  if (!m || k < 1 || k > n) {
-    console.error(`[pw-run] bad --shard "${args[shardIdx + 1]}" (want k/n, 1<=k<=n)`);
-    process.exit(2);
-  }
-  return { k, n };
-})();
+const specIdx = args.indexOf("--spec");
+const spec = specIdx >= 0 ? args[specIdx + 1] : null;
 
 if (!existsSync(join(PW_DIR, "packages/playwright/cli.js"))) {
   console.error("[pw-run] .playwright/ missing or unbuilt — run `pnpm run pw:setup` first");
@@ -67,13 +57,13 @@ if (!existsSync(join(PW_DIR, "packages/playwright/cli.js"))) {
 
 const allowList = loadAllowList(TESTS_JSON);
 let specs = filter ? allowList.filter((e) => e.file.includes(filter)) : allowList;
-if (shard) specs = specs.filter((_, i) => i % shard.n === shard.k - 1);
+if (spec) specs = specs.filter((e) => e.file === spec);
 if (specs.length === 0) {
-  if (shard && !filter) {
-    console.log(`[pw-run] shard ${shard.k}/${shard.n}: no specs — nothing to do`);
-    process.exit(0);
-  }
-  console.error(`[pw-run] no allow-listed specs match filter "${filter}"`);
+  console.error(
+    spec
+      ? `[pw-run] ${spec} is not an allow-listed spec${filter ? ` matching "${filter}"` : ""}`
+      : `[pw-run] no allow-listed specs match filter "${filter}"`,
+  );
   process.exit(1);
 }
 
@@ -239,7 +229,7 @@ for (const e of specs) {
   else last.push(e);
 }
 console.log(
-  `[pw-run] ${specs.length} spec file(s) → ${batches.length} batch(es) of ${batchSize}${shard ? ` (shard ${shard.k}/${shard.n})` : ""}${noRetry ? " (retry off)" : ""}`,
+  `[pw-run] ${specs.length} spec file(s) → ${batches.length} batch(es) of ${batchSize}${noRetry ? " (retry off)" : ""}`,
 );
 
 const merged = {};

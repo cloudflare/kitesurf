@@ -1,4 +1,4 @@
-load("@pptr_specs//:defs.bzl", "PPTR_SPECS")
+load("@pptr_specs//:defs.bzl", PPTR_SPECS = "SPECS")
 load(":defs.bzl", "pptr_spec", "pptr_test_project")
 
 pptr_test_project(name = "test_project")
