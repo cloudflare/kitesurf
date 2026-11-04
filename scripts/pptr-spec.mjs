@@ -19,9 +19,10 @@ import { checkoutBase, checkoutProblem, copyWritable, overlay } from "./pptr-che
 
 const ROOT = resolve(import.meta.dirname, "..");
 const USAGE = `usage: node scripts/pptr-spec.mjs --spec <file> --test-project <dir> --dist <engine dist>
-       --out-dir <dir> [--pptr-base <directory>] [--max-wall-ms <ms>]
+       --out-dir <dir> [--pptr-base <directory>] [--max-wall-ms <ms>] [--keep-deviations]
 --test-project is pptr-build's output. --pptr-base defaults to KITESURF_PPTR_BASE or .puppeteer,
-and must be the checkout pptr-build used.`;
+and must be the checkout pptr-build used. It exits 2 when the spec deviates from its expectations
+after the retry; --keep-deviations writes the results and exits 0 instead, as rebaselining needs.`;
 
 function parseArgs(argv) {
   const options = { maxWallMs: 600_000 };
@@ -34,6 +35,7 @@ function parseArgs(argv) {
     else if (arg === "--out-dir") options.outDir = resolve(next());
     else if (arg === "--pptr-base") next();
     else if (arg === "--max-wall-ms") options.maxWallMs = parseInt(next(), 10);
+    else if (arg === "--keep-deviations") options.keepDeviations = true;
     else fail(`unknown option ${arg}\n${USAGE}`);
   }
   options.base = checkoutBase(argv);
@@ -84,7 +86,7 @@ function main(options) {
       options.spec,
       "--results-out",
       results,
-      "--no-gate",
+      ...(options.keepDeviations ? ["--no-gate"] : []),
     ],
     {
       stdio: ["ignore", fd, fd],
@@ -98,8 +100,18 @@ function main(options) {
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
   if (result.error?.code === "ETIMEDOUT" || result.signal)
     fail(`pptr-run killed after ${seconds}s (${result.signal ?? result.error.code})`, log);
-  if (result.status !== 0 || !existsSync(results))
+  if (!existsSync(results))
     fail(`pptr-run exited ${result.status} after ${seconds}s without results`, log);
+  if (result.status !== 0 && options.keepDeviations)
+    fail(`pptr-run exited ${result.status} after ${seconds}s`, log);
+  // Without --keep-deviations pptr-run gates its own results; failing keeps a flaky one out of
+  // Bazel's cache, so a rerun runs this spec again.
+  if (result.status !== 0)
+    fail(
+      `${options.spec} deviates from tests/pptr-expectations.json after its retry. Rebaseline with: ` +
+        "bazel run --//bazel:keep_deviations //tests/pptr:update_expectations",
+      log,
+    );
   console.log(
     readFileSync(log, "utf8")
       .split("\n")

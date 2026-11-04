@@ -23,8 +23,10 @@ import { dirname, join, resolve } from "node:path";
 const ROOT = resolve(import.meta.dirname, "..");
 const PATCH_DIR = resolve(ROOT, "scripts/patches/playwright");
 const USAGE = `usage: node scripts/pw-spec.mjs --spec <file> --dist <engine dist> --out-dir <dir>
-       [--pw-base <directory>] [--max-wall-ms <ms>]
---pw-base defaults to KITESURF_PW_BASE or .playwright. The checkout must be built by pw:setup.`;
+       [--pw-base <directory>] [--max-wall-ms <ms>] [--keep-deviations]
+--pw-base defaults to KITESURF_PW_BASE or .playwright. The checkout must be built by pw:setup.
+It exits 2 when the spec deviates from its expectations after the retry; --keep-deviations
+writes the results and exits 0 instead, as rebaselining needs.`;
 
 function parseArgs(argv) {
   const options = { maxWallMs: 600_000 };
@@ -36,6 +38,7 @@ function parseArgs(argv) {
     else if (arg === "--out-dir") options.outDir = resolve(next());
     else if (arg === "--pw-base") options.base = resolve(next());
     else if (arg === "--max-wall-ms") options.maxWallMs = parseInt(next(), 10);
+    else if (arg === "--keep-deviations") options.keepDeviations = true;
     else fail(`unknown option ${arg}\n${USAGE}`);
   }
   options.base ??= resolve(process.env.KITESURF_PW_BASE ?? resolve(ROOT, ".playwright"));
@@ -112,7 +115,7 @@ function main(options) {
       options.spec,
       "--results-out",
       results,
-      "--no-gate",
+      ...(options.keepDeviations ? ["--no-gate"] : []),
     ],
     {
       stdio: ["ignore", fd, fd],
@@ -126,8 +129,18 @@ function main(options) {
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
   if (result.error?.code === "ETIMEDOUT" || result.signal)
     fail(`pw-run killed after ${seconds}s (${result.signal ?? result.error.code})`, log);
-  if (result.status !== 0 || !existsSync(results))
+  if (!existsSync(results))
     fail(`pw-run exited ${result.status} after ${seconds}s without results`, log);
+  if (result.status !== 0 && options.keepDeviations)
+    fail(`pw-run exited ${result.status} after ${seconds}s`, log);
+  // Without --keep-deviations pw-run gates its own results; failing keeps a flaky one out of
+  // Bazel's cache, so a rerun runs this spec again.
+  if (result.status !== 0)
+    fail(
+      `${options.spec} deviates from tests/pw-expectations.json after its retry. Rebaseline with: ` +
+        "bazel run --//bazel:keep_deviations //tests/pw:update_expectations",
+      log,
+    );
   console.log(
     readFileSync(log, "utf8")
       .split("\n")

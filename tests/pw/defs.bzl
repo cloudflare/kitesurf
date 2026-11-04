@@ -22,7 +22,10 @@ def pw_spec(name, spec, exec_properties = PW, **kwargs):
             bin_relative("packages/engine/dist"),
             "--out-dir",
             bin_relative(native.package_name() + "/" + name),
-        ],
+        ] + select({
+            "//bazel:keep_deviations_on": ["--keep-deviations"],
+            "//conditions:default": [],
+        }),
         # Build actions see host variables only through --action_env.
         use_default_shell_env = True,
         exec_properties = exec_properties,

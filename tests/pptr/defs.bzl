@@ -46,7 +46,10 @@ def pptr_spec(name, spec, test_project, exec_properties = PPTR, **kwargs):
             bin_relative("packages/engine/dist"),
             "--out-dir",
             bin_relative(native.package_name() + "/" + name),
-        ],
+        ] + select({
+            "//bazel:keep_deviations_on": ["--keep-deviations"],
+            "//conditions:default": [],
+        }),
         use_default_shell_env = True,
         exec_properties = exec_properties,
         # Each spec boots an engine; run locally all at once, they time out and drop connections.

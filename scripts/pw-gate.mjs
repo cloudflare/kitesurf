@@ -107,7 +107,7 @@ function main(argv) {
     );
   if (reportGaps("pw-gate", { devs, emptyFiles, missingPins })) {
     console.error(
-      "[pw-gate] rebaseline deliberate changes with: bazel run //tests/pw:update_expectations",
+      "[pw-gate] rebaseline deliberate changes with: bazel run --//bazel:keep_deviations //tests/pw:update_expectations",
     );
     process.exit(1);
   }
