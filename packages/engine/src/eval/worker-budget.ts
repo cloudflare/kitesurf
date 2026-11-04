@@ -14,6 +14,16 @@ export const MAX_CONCURRENT_OOPIF = 1;
 
 export type DynamicWorkerKind = "pageScript" | "renderer" | "oopif" | "worker";
 
+/** Engine lease counts, not runtime in-flight requests or resident isolates. */
+export interface WorkerLeaseStats {
+  live: number;
+  peak: number;
+  liveByKind: Readonly<Record<DynamicWorkerKind, number>>;
+  peakByKind: Readonly<Record<DynamicWorkerKind, number>>;
+  oopifDenied: number;
+  workerDenied: number;
+}
+
 export interface WorkerLease {
   readonly kind: DynamicWorkerKind;
   released: boolean;
@@ -27,6 +37,13 @@ export class DynamicWorkerBudget {
     oopif: 0,
     worker: 0,
   };
+  private peaks: Record<DynamicWorkerKind, number> = {
+    pageScript: 0,
+    renderer: 0,
+    oopif: 0,
+    worker: 0,
+  };
+  private peak = 0;
   oopifDenied = 0;
   workerDenied = 0;
 
@@ -46,6 +63,17 @@ export class DynamicWorkerBudget {
     return this.counts.pageScript + this.counts.renderer + this.counts.oopif + this.counts.worker;
   }
 
+  snapshot(): WorkerLeaseStats {
+    return {
+      live: this.live,
+      peak: this.peak,
+      liveByKind: { ...this.counts },
+      peakByKind: { ...this.peaks },
+      oopifDenied: this.oopifDenied,
+      workerDenied: this.workerDenied,
+    };
+  }
+
   canSpawnOopif(): boolean {
     return this.freeForOopif() >= 1;
   }
@@ -61,6 +89,8 @@ export class DynamicWorkerBudget {
       return null;
     }
     this.counts[kind] += 1;
+    this.peaks[kind] = Math.max(this.peaks[kind], this.counts[kind]);
+    this.peak = Math.max(this.peak, this.live);
     const lease: WorkerLease = {
       kind,
       released: false,

@@ -26,6 +26,7 @@ export type {
   TelemetryFactory,
   TelemetryInit,
 } from "./observability.ts";
+export type { DynamicWorkerKind, WorkerLeaseStats } from "./eval/worker-budget.ts";
 export { traceSpan } from "./tracing.ts";
 export type { Tracer } from "./tracing.ts";
 export { armLocalTracing, localTraceparentHeader } from "./tracing-local.ts";
