@@ -32,6 +32,9 @@
     "KITESURF_PAGE_CPU_MS_CAP": "",
     "KITESURF_PAGE_WALL_MS_CAP": "",
     "KITESURF_LAG_WATCHDOG": "",
+    // UA font profile: "noto" (the default when empty) or "macos". A connection's
+    // `?ks_font_profile=` overrides it. Envs don't inherit vars, so set it in each.
+    "KITESURF_FONT_PROFILE": "",
     // DevTools frontend for the landing page, `/?url=` and `/json/list`. It must accept
     // `?wss=<endpoint>` or `?ws=<endpoint>`. Empty disables the web shortcut; Chrome
     // discovery falls back to its bundled frontend. A `--config=devtools` build serves
@@ -68,6 +71,7 @@
         "KITESURF_PAGE_CPU_MS_CAP": "",
         "KITESURF_PAGE_WALL_MS_CAP": "",
         "KITESURF_LAG_WATCHDOG": "1",
+        "KITESURF_FONT_PROFILE": "",
         // The same-origin copy when a --config=devtools build staged it, else Chrome's hosted
         // frontend at Chrome 156.0.8078.47 (chromiumdash `hashes.chromium`). The hosted CSP
         // allows only `ws://127.0.0.1:*`, and Chrome asks once to allow access to this device.

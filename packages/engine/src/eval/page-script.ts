@@ -45,6 +45,7 @@ import type { SandboxOutboundOverride } from "./outbound.ts";
 import type { ParentScriptDescriptor } from "../wasm.ts";
 import type { ScriptBundle } from "./script-bundle.ts";
 import { FALLBACK_MODULE_RESOLVER_SOURCE } from "./walk-module-graph.ts";
+import { DEFAULT_FONT_PROFILE, type FontProfile } from "../cdp/font-profile.ts";
 import type { WasmBake } from "./prefetch-wasm.ts";
 
 export interface PageScriptStub extends PageScriptSession {
@@ -157,6 +158,7 @@ export interface PageScriptStartupInput {
   cdpDebug: boolean;
   pixelFree: boolean;
   fontDefer?: boolean;
+  fontProfile?: FontProfile;
 }
 
 function emptyWasmBytes(): ArrayBuffer {
@@ -238,6 +240,7 @@ export function getOrCreatePageScript({
   const cdpDebug = startupInput.cdpDebug === true;
   const pixelFree = startupInput.pixelFree === true;
   const fontDefer = startupInput.fontDefer === true;
+  const fontProfile = startupInput.fontProfile ?? DEFAULT_FONT_PROFILE;
   const configuredQuietTurns = Number.parseInt(env.KITESURF_RESOURCE_DRAIN_QUIET_TURNS ?? "", 10);
   const resourceDrainQuietTurns = Number.isFinite(configuredQuietTurns)
     ? Math.max(1, configuredQuietTurns)
@@ -278,6 +281,7 @@ export const cdpDebug = ${JSON.stringify(cdpDebug)};
 export const lagWatchdog = ${JSON.stringify(lagWatchdog)};
 export const pixelFree = ${JSON.stringify(pixelFree)};
 export const fontDefer = ${JSON.stringify(fontDefer)};
+export const fontProfile = ${JSON.stringify(fontProfile)};
 export const resourceDrainQuietTurns = ${JSON.stringify(resourceDrainQuietTurns)};
 export const csp = ${JSON.stringify(csp)};
 export const metaCsp = ${JSON.stringify(metaCsp)};
@@ -464,6 +468,7 @@ export function spawnFramePageScript(
     cookieSiteOrigin?: string;
     extraHeaders?: Record<string, string>;
     attributionHeaders?: Record<string, string>;
+    fontProfile: FontProfile;
     sandboxOutbound: SandboxOutboundOverride;
   },
 ): PageScriptStub {
@@ -483,7 +488,7 @@ export function spawnFramePageScript(
     key,
     pageOrigin,
     cookieSiteOrigin: args.cookieSiteOrigin,
-    startupInput: {},
+    startupInput: { fontProfile: args.fontProfile },
     attributionHeaders: args.attributionHeaders ?? {},
     mainLoaderId: args.frameLoaderId,
     extraHeaders: args.extraHeaders ?? {},

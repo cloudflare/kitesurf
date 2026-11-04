@@ -47,6 +47,7 @@ it("seals a frame isolate's outbound with its browser context's cookie jar", () 
       sandbox: SANDBOX_ALLOW_ALL,
       cookieKey: "conn:context-1",
       sandboxOutbound,
+      fontProfile: "noto",
     },
   );
   expect(sealed.map((p) => p.cookieKey)).toEqual(["conn:context-1", "conn:context-1"]);

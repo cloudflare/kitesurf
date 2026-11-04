@@ -20,6 +20,7 @@ import {
   type UpstreamEventHandler,
 } from "./page-script.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
+import type { FontProfile } from "../cdp/font-profile.ts";
 import { stubQueryDom } from "../cdp/page-session.ts";
 import { disposeStub } from "../cdp/page-script-generation.ts";
 import { navigateSourceOf } from "@kitesurf/page-script/source-scan";
@@ -61,6 +62,7 @@ export interface RenderFrameArgs {
   makeUpstreamHandler?: (isolate: { stub: PageScriptStub; url: string }) => UpstreamEventHandler;
   raster?: Partial<RasterizeOptions>;
   attributionHeaders?: Record<string, string>;
+  fontProfile: FontProfile;
 }
 
 export interface RenderFrameResult {
@@ -219,6 +221,7 @@ export async function prespawnFrameIsolate(
       cookieKey: args.cookieKey,
       cookieSiteOrigin: frameDocumentCookieSite(args.cookieSiteOrigin, args.frameUrl),
       attributionHeaders: args.attributionHeaders,
+      fontProfile: args.fontProfile,
       sandboxOutbound: args.sandboxOutbound,
     });
   } catch (e) {
@@ -387,6 +390,7 @@ export async function prespawnFrameIsolate(
         cookieKey: args.cookieKey,
         cookieSiteOrigin: frameDocumentCookieSite(args.cookieSiteOrigin, finalUrl),
         attributionHeaders: args.attributionHeaders,
+        fontProfile: args.fontProfile,
         sandboxOutbound: args.sandboxOutbound,
       });
     } catch (e) {

@@ -10,6 +10,7 @@ import {
   type TelemetryFactory,
 } from "./observability.ts";
 import type { EngineCdpCommandExtension } from "./cdp/dispatch.ts";
+import { resolveFontProfile, type FontProfile } from "./cdp/font-profile.ts";
 import type { ExternalOutbound } from "./eval/external-outbound.ts";
 import { resolveInspectorBaseUrl } from "./inspector.ts";
 import { landingPage } from "./landing.ts";
@@ -24,6 +25,8 @@ export interface ConnectionOptions {
   entrypoint?: SessionEntrypoint;
   /** Defer font work until layout demand (BrowserState.fontDefer). */
   fontDefer?: boolean;
+  /** UA font profile; wins over `?ks_font_profile=` and KITESURF_FONT_PROFILE. */
+  fontProfile?: FontProfile;
 }
 
 export interface EngineHost {
@@ -85,16 +88,30 @@ export function resolveSessionStore(
   return host?.createSessionStore?.(connectionId, env) ?? new MemorySessionStore();
 }
 
+function fontProfileQuery(request: Request): string | null {
+  try {
+    return new URL(request.url).searchParams.get("ks_font_profile");
+  } catch {
+    return null;
+  }
+}
+
 /** Applies host overrides and defaults before opening a CDP connection. */
 export function resolveConnectionOptions(
   request: Request,
   connectionId: string,
   host?: EngineHost,
+  env?: { KITESURF_FONT_PROFILE?: string },
 ): Required<ConnectionOptions> {
   const overrides = host?.connectionOptions?.(request, connectionId);
   return {
     entrypoint: overrides?.entrypoint ?? resolveEntrypoint(request),
     fontDefer: overrides?.fontDefer ?? false,
+    fontProfile: resolveFontProfile(
+      overrides?.fontProfile,
+      fontProfileQuery(request),
+      env?.KITESURF_FONT_PROFILE,
+    ),
   };
 }
 

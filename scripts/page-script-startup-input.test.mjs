@@ -59,6 +59,7 @@ const engine = execute(
     "./attribution-tail.ts": dependency({ attributionTails: () => [] }),
     "./host-clock.ts": dependency({ makeWallClock: () => () => 0 }),
     "./walk-module-graph.ts": dependency({ FALLBACK_MODULE_RESOLVER_SOURCE: "resolver" }),
+    "../cdp/font-profile.ts": dependency({ DEFAULT_FONT_PROFILE: "noto" }),
   },
   { crypto: { randomUUID: () => "test-uuid" }, URL },
 );
@@ -160,6 +161,7 @@ test("other startup inputs survive generation and reach the probe", () => {
     userAgent: "test agent",
     referrer: "https://example.test/previous",
     cdpDebug: true,
+    fontProfile: "macos",
     scriptDescriptors: [
       { src: "/app.js", kind: "classic", body: "body", prefetchedSource: "source" },
     ],
@@ -171,6 +173,7 @@ test("other startup inputs survive generation and reach the probe", () => {
   assert.equal(generated.userAgent, input.userAgent);
   assert.equal(generated.referrer, input.referrer);
   assert.equal(generated.cdpDebug, true);
+  assert.equal(generated.fontProfile, "macos");
   // The descriptors come from the generated module's realm, so compare them as plain JSON.
   assert.deepEqual(JSON.parse(JSON.stringify(generated.scriptDescriptors)), [
     { src: "/app.js", kind: "classic", body: "body", prefetchedLength: 6 },

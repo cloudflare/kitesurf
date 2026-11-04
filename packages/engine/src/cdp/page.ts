@@ -2241,6 +2241,7 @@ async function pushNavigateToPageScriptInner(
             cdpDebug: ctx.browser.cdpDebug,
             pixelFree: ctx.browser.skipSpeculativeRaster,
             fontDefer: ctx.browser.fontDefer,
+            fontProfile: ctx.browser.fontProfile,
             userAgent: target.userAgentOverride || null,
             referrerPolicy: target.docReferrerPolicy ?? null,
             referrer: target.docReferrer ?? null,
@@ -3657,6 +3658,7 @@ function oopifSpawnArgs(ctx: DispatchCtx, target: TargetState, f: FrameState): R
     parentOrigin: originOf(embedder ? embedder.url : target.url),
     cookieSiteOrigin: frameCookieSiteOrigin(target, f),
     attributionHeaders: ctx.browser.attributionHeaders,
+    fontProfile: ctx.browser.fontProfile,
     makeUpstreamHandler: ({ stub, url }) => {
       // The isolate is sealed with the restrictions active when it was spawned; a later navigation
       // reassigns frame.sandbox before this document's unload handlers run.
