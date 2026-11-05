@@ -62,6 +62,11 @@ export interface KitesurfInternalState {
   currentScriptBodyKey?: string | undefined;
 
   endClassicScript: (() => Promise<void>) | null;
+  // Fires load (ok) or error at a parser-inserted external classic script. domIndex is its
+  // ordinal among the document's <script> elements; rawSrc and src check the match.
+  parserScriptLifecycle:
+    | ((domIndex: number, rawSrc: string, src: string, ok: boolean) => Promise<void>)
+    | null;
 
   bundleDiag: BundleDiag | null;
 
@@ -143,6 +148,7 @@ export function createInternalState(): KitesurfInternalState {
     setCurrentScript: null,
     currentScriptSrc: undefined,
     endClassicScript: null,
+    parserScriptLifecycle: null,
     bundleDiag: null,
     afterIframeInsert: null,
     afterIframeRemove: null,

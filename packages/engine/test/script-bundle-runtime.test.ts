@@ -38,6 +38,9 @@ const __ks_is = getInternalState();
 if (typeof __ks_is.setCurrentScript !== "function") {
   __ks_is.setCurrentScript = function () {};
 }
+__ks_is.parserScriptLifecycle = async function (domIndex, rawSrc, src, ok) {
+  (globalThis.__log = globalThis.__log || []).push((ok ? "load:" : "error:") + rawSrc);
+};
 
 const globalsToCollect = ${JSON.stringify(globalsToCollect)};
 const moduleUrls = ${JSON.stringify(moduleUrls)};
@@ -259,6 +262,34 @@ describe("legacy bucket runtime behaviour", () => {
     expect(globals.__order).toEqual({
       kind: "object",
       value: ["regular", "module", "async"],
+    });
+  });
+
+  it("an external script gets load after its body, a failed one error in its place", async () => {
+    const globals = await bootBundleAndCollectGlobals(
+      [
+        classic(`globalThis.__log = ["inline"];`),
+        classic("", { src: "/a.js", prefetchedSource: 'globalThis.__log.push("a");' }),
+        classic("", { src: "/gone.js", prefetchError: "HTTP 404" }),
+        classic(`globalThis.__log.push("inline-2");`),
+        classic("", { src: "/d.js", defer: true, prefetchedSource: 'globalThis.__log.push("d");' }),
+        classic("", { src: "/s.js", async: true, prefetchedSource: 'globalThis.__log.push("s");' }),
+      ],
+      ["__log"],
+    );
+    expect(globals.__log).toEqual({
+      kind: "object",
+      value: [
+        "inline",
+        "a",
+        "load:/a.js",
+        "error:/gone.js",
+        "inline-2",
+        "d",
+        "load:/d.js",
+        "s",
+        "load:/s.js",
+      ],
     });
   });
 

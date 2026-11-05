@@ -10,6 +10,7 @@
 import { globalizeForBoa } from "./boa-classic.ts";
 import { ksEventCtors, state } from "./state.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
+import type { ShimElement } from "./types.ts";
 import { ks_eval_page, ks_import } from "./wasm-glue.js";
 
 export interface ScriptDescriptor {
@@ -21,6 +22,7 @@ export interface ScriptDescriptor {
   // Empty collapses to null, the rule scan.rs and the engine's DOM fallback use.
   nonce: string | null;
   integrity: string | null;
+  nodeId?: number;
   _resolvedUrl?: string;
 }
 
@@ -93,6 +95,7 @@ export function extractScripts(): ScriptDescriptor[] {
       body,
       nonce: attrs.nonce || null,
       integrity: attrs.integrity?.trim() || null,
+      nodeId: id,
     });
   }
   return out;
@@ -183,26 +186,44 @@ export function planScripts(scripts: ScriptDescriptor[]): ScriptPlan {
   return { regular, deferred, async_, modules, sourceCache };
 }
 
+// The legacy plan runs in the document it scanned, so the scanned node id names the element.
+function fireScriptLifecycle(script: ScriptDescriptor, ok: boolean): void {
+  if (!script.src || typeof script.nodeId !== "number") return;
+  let element: ShimElement | null = null;
+  try {
+    element = state.resolveNodeId(script.nodeId);
+  } catch {}
+  dispatchLifecycle(element, ok ? "load" : "error", { bubbles: false, cancelable: false });
+}
+
 export async function runRegularPhase(plan: ScriptPlan): Promise<void> {
   for (const script of plan.regular) {
     if (script.src) {
       const url = script._resolvedUrl;
-      if (!url) continue;
+      if (!url) {
+        fireScriptLifecycle(script, false);
+        continue;
+      }
       const fetchResult = await plan.sourceCache.get(url);
       if (!fetchResult || !fetchResult.ok) {
         console.error(
           "[kitesurf] <script src> fetch failed for " + url + ": " + fetchErrorDetail(fetchResult),
         );
+        fireScriptLifecycle(script, false);
         continue;
       }
       await runOneClassic(fetchResult.source, url);
+      fireScriptLifecycle(script, true);
     } else {
       await runOneClassic(script.body, "<inline>");
     }
   }
   for (const script of plan.deferred) {
     const url = script._resolvedUrl;
-    if (!url) continue;
+    if (!url) {
+      fireScriptLifecycle(script, false);
+      continue;
+    }
     const fetchResult = await plan.sourceCache.get(url);
     if (!fetchResult || !fetchResult.ok) {
       console.error(
@@ -211,9 +232,11 @@ export async function runRegularPhase(plan: ScriptPlan): Promise<void> {
           ": " +
           fetchErrorDetail(fetchResult),
       );
+      fireScriptLifecycle(script, false);
       continue;
     }
     await runOneClassic(fetchResult.source, url);
+    fireScriptLifecycle(script, true);
   }
 }
 
@@ -227,7 +250,10 @@ export async function runAsyncPhase(plan: ScriptPlan): Promise<void> {
   await Promise.all(
     plan.async_.map(async (s) => {
       const url = s._resolvedUrl;
-      if (!url) return;
+      if (!url) {
+        fireScriptLifecycle(s, false);
+        return;
+      }
       const fetchResult = await plan.sourceCache.get(url);
       if (!fetchResult || !fetchResult.ok) {
         console.error(
@@ -236,9 +262,11 @@ export async function runAsyncPhase(plan: ScriptPlan): Promise<void> {
             ": " +
             fetchErrorDetail(fetchResult),
         );
+        fireScriptLifecycle(s, false);
         return;
       }
       await runOneClassic(fetchResult.source, url);
+      fireScriptLifecycle(s, true);
     }),
   );
 }
@@ -303,6 +331,55 @@ export async function runModulePhase(plan: ScriptPlan): Promise<void> {
       entryModuleAttributes.delete(moduleUrl);
     }
   }
+}
+
+// The document's scripts in scan order: scan.rs gives no ordinal to a script inside <template>,
+// which the tree keeps in place, so those are left out here too.
+export function scriptsInScanOrder(): ShimElement[] {
+  const out: ShimElement[] = [];
+  let all: ArrayLike<ShimElement> | undefined;
+  try {
+    all = state.document?.querySelectorAll("script");
+  } catch {
+    return out;
+  }
+  for (let i = 0; all && i < all.length; i++) {
+    const node = all[i];
+    let inTemplate = false;
+    try {
+      inTemplate = !!node?.closest?.("template");
+    } catch {}
+    if (node && !inTemplate) out.push(node);
+  }
+  return out;
+}
+
+// The bundle names a parser-inserted script by its scan ordinal. Earlier scripts can add or
+// remove <script> nodes, so the ordinal must agree with src; else take the first src match.
+export function findParserScript(
+  domIndex: number,
+  rawSrc: string,
+  src: string,
+): ShimElement | null {
+  const scripts = scriptsInScanOrder();
+  const matches = (node: ShimElement | undefined): boolean => {
+    let attr: string | null | undefined;
+    try {
+      attr = node?.getAttribute?.("src");
+    } catch {
+      return false;
+    }
+    if (attr == null) return false;
+    const trimmed = attr.trim();
+    return trimmed === rawSrc || trimmed === src;
+  };
+  if (domIndex >= 0 && domIndex < scripts.length && matches(scripts[domIndex])) {
+    return scripts[domIndex] ?? null;
+  }
+  for (let i = 0; i < scripts.length; i++) {
+    if (matches(scripts[i])) return scripts[i] ?? null;
+  }
+  return null;
 }
 
 export function dispatchLifecycle(

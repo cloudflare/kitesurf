@@ -257,7 +257,9 @@ import { packException, packResult } from "./pack.ts";
 import {
   dispatchLifecycle,
   extractScripts,
+  findParserScript,
   planScripts,
+  scriptsInScanOrder,
   runAsyncPhase,
   runModulePhase,
   runRegularPhase,
@@ -3328,6 +3330,32 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       } catch {}
       try {
         getInternalState().setCurrentScript?.(null);
+      } catch {}
+    };
+    // The parser's script wrappers, taken before page code runs, so each external script's event
+    // reaches its own element after inserts shift the ordinals, or after it leaves the tree.
+    const parserScripts = new Map<number, { node: ShimElement; src: string }>();
+    try {
+      const nodes = scriptsInScanOrder();
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        const parsedSrc = node?.getAttribute?.("src")?.trim();
+        if (node && parsedSrc) parserScripts.set(i, { node, src: parsedSrc });
+      }
+    } catch {}
+    getInternalState().parserScriptLifecycle = async (domIndex, rawSrc, src, ok) => {
+      const parsed = parserScripts.get(domIndex);
+      parserScripts.delete(domIndex);
+      const target =
+        parsed && (parsed.src === rawSrc || parsed.src === src)
+          ? parsed.node
+          : findParserScript(domIndex, rawSrc, src);
+      dispatchLifecycle(target, ok ? "load" : "error", {
+        bubbles: false,
+        cancelable: false,
+      });
+      try {
+        await drainSettleMicrotasks();
       } catch {}
     };
     getInternalState().afterScriptInsert = (info: unknown) => {
