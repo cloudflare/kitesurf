@@ -56,6 +56,15 @@ cors.all("/set-cookie", (c) =>
   }),
 );
 
+// Allows any origin and only the request headers named in ?allow=, preflight included.
+cors.all("/allow-headers", (c) =>
+  c.body("ok", 200, {
+    "content-type": "text/plain; charset=utf-8",
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers": c.req.query("allow") ?? "",
+  }),
+);
+
 const requestHeaders = (request: Request): Record<string, string> =>
   Object.fromEntries([...request.headers].map(([k, v]) => [k.toLowerCase(), v]));
 

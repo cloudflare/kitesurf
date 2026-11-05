@@ -157,12 +157,27 @@ export function isSafelistedRequestHeader(name: string, value: string): boolean 
   }
 }
 
+// page-script marks the headers a fetch cache mode added, not the page; only these two qualify.
+const CACHE_MODE_MARK = "x-kitesurf-cache-mode";
+const CACHE_MODE_REQUEST_HEADERS = new Set(["cache-control", "pragma"]);
+
+function cacheModeHeaders(headers: Headers): Set<string> {
+  const marked = new Set<string>();
+  for (const raw of (headers.get(CACHE_MODE_MARK) ?? "").split(",")) {
+    const name = raw.trim().toLowerCase();
+    if (CACHE_MODE_REQUEST_HEADERS.has(name)) marked.add(name);
+  }
+  return marked;
+}
+
 export function corsUnsafeRequestHeaderNames(headers: Headers): string[] {
   const unsafe = new Set<string>();
+  const fromCacheMode = cacheModeHeaders(headers);
   for (const [rawName, value] of headers.entries()) {
     const name = rawName.toLowerCase();
     if (name.startsWith("x-kitesurf-")) continue;
     if (UA_OWNED_REQUEST_HEADERS.has(name)) continue;
+    if (fromCacheMode.has(name)) continue;
     if (name.startsWith("proxy-") || name.startsWith("sec-")) continue;
     if (!isSafelistedRequestHeader(name, value)) unsafe.add(name);
   }

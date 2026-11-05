@@ -27,13 +27,22 @@ function isNetworkUrl(request: Request): boolean {
   return /^https?:/i.test(request.url);
 }
 
+// A cache mode adds these headers as the browser's own; the mark names the ones it added, so
+// CORS does not count them as the page's. A value the page set stays the page's.
 function applyCacheMode(headers: Headers, cache: string): void {
+  const added: string[] = [];
+  const add = (name: string, value: string): void => {
+    if (hdrHas(headers, name)) return;
+    hdrSet(headers, name, value);
+    added.push(name);
+  };
   if (cache === "no-store") {
-    if (!hdrHas(headers, "pragma")) hdrSet(headers, "pragma", "no-cache");
-    if (!hdrHas(headers, "cache-control")) hdrSet(headers, "cache-control", "no-cache");
+    add("pragma", "no-cache");
+    add("cache-control", "no-cache");
   } else if (cache === "no-cache") {
-    if (!hdrHas(headers, "cache-control")) hdrSet(headers, "cache-control", "max-age=0");
+    add("cache-control", "max-age=0");
   }
+  if (added.length > 0) hdrSet(headers, "x-kitesurf-cache-mode", added.join(","));
 }
 
 function withRequestUrl(response: Response, url: string): void {
