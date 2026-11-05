@@ -1,0 +1,83 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 5 Nov 2026 01:49:12 +0000
+Subject: [PATCH] Collect parsed attributes straight into the element's list
+
+Attributes implements FromIterator and create_element takes impl Into<Attributes>, so the parser no longer builds a Vec only to copy it into the ThinVec.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/mutator.rs         |  6 +++++-
+ src/node/attributes.rs | 18 ++++++++++++++++++
+ src/node/element.rs    |  5 +++--
+ 3 files changed, 26 insertions(+), 3 deletions(-)
+
+diff --git a/src/mutator.rs b/src/mutator.rs
+index bb458a5..4e31064 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -190,7 +190,11 @@ impl DocumentMutator<'_> {
+         self.doc.create_text_node(text)
+     }
+
+-    pub fn create_element(&mut self, name: QualName, attrs: Vec<Attribute>) -> NodeId {
++    pub fn create_element(
++        &mut self,
++        name: QualName,
++        attrs: impl Into<crate::node::Attributes>,
++    ) -> NodeId {
+         let mut data = ElementData::new(name, attrs);
+         data.flush_style_attribute(self.doc.guard(), &self.doc.url.url_extra_data());
+
+diff --git a/src/node/attributes.rs b/src/node/attributes.rs
+index a8371ba..55e816e 100644
+--- a/src/node/attributes.rs
++++ b/src/node/attributes.rs
+@@ -88,6 +88,24 @@ impl Attributes {
+             inner: inner.into_iter().collect(),
+         }
+     }
++}
++
++impl From<Vec<Attribute>> for Attributes {
++    fn from(inner: Vec<Attribute>) -> Self {
++        Self::new(inner)
++    }
++}
++
++/// Collects straight into the list, without a `Vec` to copy from first.
++impl FromIterator<Attribute> for Attributes {
++    fn from_iter<I: IntoIterator<Item = Attribute>>(iter: I) -> Self {
++        Self {
++            inner: iter.into_iter().collect(),
++        }
++    }
++}
++
++impl Attributes {
+
+     pub fn get(&mut self, name: &QualName) -> Option<&Attribute> {
+         self.inner.iter().find(|attr| attr.has_name(name))
+diff --git a/src/node/element.rs b/src/node/element.rs
+index 136d1c8..20d5396 100644
+--- a/src/node/element.rs
++++ b/src/node/element.rs
+@@ -1278,7 +1278,8 @@ pub fn parse_class_list(value: &str) -> ThinVec<Atom> {
+ }
+
+ impl ElementData {
+-    pub fn new(name: QualName, attrs: Vec<Attribute>) -> Self {
++    pub fn new(name: QualName, attrs: impl Into<Attributes>) -> Self {
++        let attrs: Attributes = attrs.into();
+         let id_attr_atom = attrs
+             .iter()
+             .find(|attr| &attr.name.local == "id")
+@@ -1304,7 +1305,7 @@ impl ElementData {
+             name: ElementName { local },
+             id: id_attr_atom,
+             classes: class_atoms,
+-            attrs: Attributes::new(attrs),
++            attrs,
+             rare: None,
+
+             stylo_element_data: Default::default(),
