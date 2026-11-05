@@ -298,6 +298,15 @@ impl DomHandle {
         self.base_url.clone()
     }
 
+    /// Moves when a connected `<base>` is added or removed or its href is written, so callers
+    /// re-resolve `baseURI` only then. -1 while the document is borrowed.
+    #[wasm_bindgen(js_name = "baseEpoch")]
+    pub fn base_epoch(&self) -> f64 {
+        self.doc
+            .try_borrow()
+            .map_or(-1.0, |d| f64::from(d.base_epoch))
+    }
+
     #[wasm_bindgen(js_name = "getDocument", unchecked_return_type = "KsNodeInfo | null")]
     pub fn get_document(&self) -> Result<JsValue, JsError> {
         let doc = match self.doc.try_borrow() {

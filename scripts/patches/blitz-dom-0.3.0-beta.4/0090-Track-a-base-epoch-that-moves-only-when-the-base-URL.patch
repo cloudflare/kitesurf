@@ -1,0 +1,130 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 4 Nov 2026 03:43:59 +0000
+Subject: [PATCH] Track a base epoch that moves only when the base URL can
+ change
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/document.rs |  4 ++++
+ src/mutator.rs  | 55 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 59 insertions(+)
+
+diff --git a/src/document.rs b/src/document.rs
+index 61145f8..a8f056a 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -568,6 +568,9 @@ pub struct BaseDocument {
+     /// embedder loads fallback faces for scripts it finds in the navigate
+     /// HTML; a bump here tells it script-written text may need more.
+     pub(crate) non_latin_text_writes: u32,
++    /// Moves whenever a connected `<base>` is added or removed or its href is written, so the
++    /// embedder re-resolves the base URL only when it can have changed.
++    pub base_epoch: u32,
+
+     /// Tracks in-flight image requests. When an image is being fetched, additional
+     /// requests for the same URL are queued here instead of starting new fetches.
+@@ -776,6 +779,7 @@ impl BaseDocument {
+             used_font_families: std::collections::HashSet::new(),
+             used_codepoints: Vec::new(),
+             non_latin_text_writes: 0,
++            base_epoch: 0,
+             pending_images: HashMap::new(),
+             pending_style_image_nodes: Vec::new(),
+             pending_critical_resources: HashSet::new(),
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 976901b..bb458a5 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -396,6 +396,7 @@ impl DocumentMutator<'_> {
+
+     pub fn set_attribute(&mut self, node_id: NodeId, name: QualName, value: &str) {
+         let node_is_in_document = self.doc.nodes[node_id].flags.is_in_document();
++        self.note_base_href_write(node_id, &name, node_is_in_document);
+         if node_is_in_document {
+             self.doc.snapshot_node_for_attr(node_id, Some(&name.local));
+
+@@ -627,8 +628,19 @@ impl DocumentMutator<'_> {
+         }
+     }
+
++    /// A connected `<base>`'s href decides the document base URL, so its writes move the epoch.
++    fn note_base_href_write(&mut self, node_id: NodeId, name: &QualName, in_document: bool) {
++        if in_document
++            && name.local == local_name!("href")
++            && self.doc.nodes[node_id].data.is_element_with_tag_name(&local_name!("base"))
++        {
++            self.doc.base_epoch = self.doc.base_epoch.wrapping_add(1);
++        }
++    }
++
+     pub fn clear_attribute(&mut self, node_id: NodeId, name: QualName) {
+         let node_is_in_document = self.doc.nodes[node_id].flags.is_in_document();
++        self.note_base_href_write(node_id, &name, node_is_in_document);
+         if node_is_in_document {
+             self.doc.snapshot_node_for_attr(node_id, Some(&name.local));
+
+@@ -1465,6 +1477,7 @@ impl<'doc> DocumentMutator<'doc> {
+                 "style" => {
+                     self.style_nodes.insert(node_id);
+                 }
++                "base" => doc.base_epoch = doc.base_epoch.wrapping_add(1),
+                 _ if has_custom_widget => {}
+                 "link" => self.eager_op_queue.push(SpecialOp::LoadStylesheet(node_id)),
+                 "img" => self.eager_op_queue.push(SpecialOp::LoadImage(node_id)),
+@@ -1509,6 +1522,9 @@ impl<'doc> DocumentMutator<'doc> {
+             // ancestor chain, IME disable on blur of a focused input).
+             doc.clear_interaction_state_for_removed_node(node_id);
+
++            if doc.nodes[node_id].data.is_element_with_tag_name(&local_name!("base")) {
++                doc.base_epoch = doc.base_epoch.wrapping_add(1);
++            }
+             let is_style = doc.nodes[node_id]
+                 .data
+                 .is_element_with_tag_name(&local_name!("style"));
+@@ -2976,6 +2992,45 @@ mod test {
+         );
+     }
+
++    #[test]
++    fn base_epoch_moves_only_for_connected_base_changes() {
++        let mut document = BaseDocument::new(DocumentConfig::default());
++        let base = document.create_node(NodeData::Element(crate::pool::PoolBox::new(
++            ElementData::new(qual_name!("base"), vec![]),
++        )));
++        let div = document.create_node(NodeData::Element(crate::pool::PoolBox::new(
++            ElementData::new(qual_name!("div"), vec![]),
++        )));
++        let root = document.root_node().id();
++        let mut mutator = document.mutate();
++        mutator.set_attribute(base, qual_name!("href"), "/detached/");
++        drop(mutator);
++        assert_eq!(document.base_epoch, 0, "a detached base does not count");
++
++        let mut mutator = document.mutate();
++        mutator.append_children(root, &[base, div]);
++        drop(mutator);
++        let attached = document.base_epoch;
++        assert_ne!(attached, 0, "connecting a base moves the epoch");
++
++        let mut mutator = document.mutate();
++        mutator.set_attribute(div, qual_name!("href"), "/x/");
++        mutator.set_attribute(base, qual_name!("target"), "_top");
++        drop(mutator);
++        assert_eq!(document.base_epoch, attached, "other writes leave it");
++
++        let mut mutator = document.mutate();
++        mutator.set_attribute(base, qual_name!("href"), "/y/");
++        drop(mutator);
++        let rewritten = document.base_epoch;
++        assert_ne!(rewritten, attached, "a base href write moves it");
++
++        let mut mutator = document.mutate();
++        mutator.clear_attribute(base, qual_name!("href"));
++        drop(mutator);
++        assert_ne!(document.base_epoch, rewritten, "removing the href moves it");
++    }
++
+     #[test]
+     fn mutator_set_disabled() {
+         let mut document = BaseDocument::new(DocumentConfig::default());

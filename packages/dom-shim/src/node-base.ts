@@ -1931,28 +1931,44 @@ NodeBase.prototype.isDefaultNamespace = function (namespace: string | null): boo
   const def = this.lookupNamespaceURI(null);
   return def === ns;
 };
-function computeBaseURI(): string {
-  const docUrl = pageUrl || "about:blank";
+// The document's base URL: the first connected <base href> resolved against `fallback`. The
+// document's base epoch moves only when a connected <base> or its href changes, so the lookup
+// reruns only then (-1, a borrowed document, always reruns).
+let baseURIState: { dom: DomHandle; epoch: number; fallback: string; value: string } | null = null;
+export function documentBaseURI(fallback: string): string {
+  const epoch = dom ? dom.baseEpoch() : -1;
+  const s = baseURIState;
+  if (s && epoch >= 0 && s.dom === dom && s.epoch === epoch && s.fallback === fallback) {
+    return s.value;
+  }
+  const value = resolveBaseURI(fallback);
+  baseURIState = dom && epoch >= 0 ? { dom, epoch, fallback, value } : null;
+  return value;
+}
+function resolveBaseURI(fallback: string): string {
   try {
     const baseId = dom ? dom.querySelector("base[href]") : -1;
     if (baseId && baseId > 0) {
+      // DomHandle has no getAttribute, so read through the Element wrapper.
       const node = elementFor(baseId);
       const href =
         node && typeof node.getAttribute === "function" ? node.getAttribute("href") : null;
       if (href != null && href !== "") {
         try {
-          return new URL(String(href), docUrl).toString();
-        } catch {}
+          return new URL(String(href), fallback).toString();
+        } catch {
+          /* malformed: the spec falls back to the fallback URL */
+        }
       }
     }
   } catch {}
-  return docUrl;
+  return fallback;
 }
 Object.defineProperty(NodeBase.prototype, "baseURI", {
   configurable: true,
   enumerable: true,
   get: function () {
-    return computeBaseURI();
+    return documentBaseURI(pageUrl || "about:blank");
   },
 });
 
