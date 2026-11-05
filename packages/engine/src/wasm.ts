@@ -189,6 +189,8 @@ export function extractScriptDescriptorsFromDom(dom: DomHandle | null): ParentSc
     ) {
       continue;
     }
+    // A browser that runs modules skips a classic script marked nomodule (scan.rs agrees).
+    if (rawType !== "module" && "nomodule" in attrs) continue;
     const src = attrs.src ? String(attrs.src).trim() : "";
     let body = "";
     if (!src) {

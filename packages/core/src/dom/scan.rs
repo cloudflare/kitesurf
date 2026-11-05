@@ -201,6 +201,10 @@ impl ScanState {
         {
             return;
         }
+        // A browser that runs modules skips a classic script marked nomodule: no fetch, no events.
+        if raw_type != "module" && attr(&attrs, "nomodule").is_some() {
+            return;
+        }
         let src = attr(&attrs, "src").map(str::trim).unwrap_or("");
         let body = if src.is_empty() { body } else { String::new() };
         let body = if self.is_xhtml {
