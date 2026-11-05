@@ -4,7 +4,7 @@
 
 // Defines helpers that map element IDL properties to HTML content attributes.
 
-import type { Element } from "./element.js";
+import { type Element, elementAttributes } from "./element.js";
 
 type IfEquals<X, Y, A, B> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? A : B;
@@ -64,11 +64,11 @@ function defineReflectedString<P extends Element>(
     configurable: true,
     enumerable: true,
     get(this: Element) {
-      const v = this.getAttribute(attrName);
+      const v = elementAttributes.get.call(this, attrName);
       return v == null ? "" : v;
     },
     set(this: Element, value: string) {
-      this.setAttribute(attrName, String(value));
+      elementAttributes.set.call(this, attrName, String(value));
     },
   });
 }
@@ -82,15 +82,15 @@ function defineReflectedStringNullEmpty<P extends Element>(
     configurable: true,
     enumerable: true,
     get(this: Element) {
-      const v = this.getAttribute(attrName);
+      const v = elementAttributes.get.call(this, attrName);
       return v == null ? "" : v;
     },
     set(this: Element, value: string | null) {
       if (value === null) {
-        this.setAttribute(attrName, "");
+        elementAttributes.set.call(this, attrName, "");
         return;
       }
-      this.setAttribute(attrName, String(value));
+      elementAttributes.set.call(this, attrName, String(value));
     },
   });
 }
@@ -103,11 +103,11 @@ function defineReflectedBoolean<P extends Element>(
     configurable: true,
     enumerable: true,
     get(this: Element) {
-      return this.hasAttribute(attrName);
+      return elementAttributes.has.call(this, attrName);
     },
     set(this: Element, value: boolean) {
-      if (value) this.setAttribute(attrName, "");
-      else this.removeAttribute(attrName);
+      if (value) elementAttributes.set.call(this, attrName, "");
+      else elementAttributes.remove.call(this, attrName);
     },
   });
 }
@@ -134,13 +134,13 @@ function defineReflectedEnumWithDefaults<P extends Element>(
     configurable: true,
     enumerable: true,
     get(this: Element) {
-      const v = this.getAttribute(attrName);
+      const v = elementAttributes.get.call(this, attrName);
       if (v == null) return missingDefault;
       const lc = asciiLowercaseFast(String(v));
       return lookup.has(lc) ? lc : invalidDefault;
     },
     set(this: Element, value: string) {
-      this.setAttribute(attrName, String(value));
+      elementAttributes.set.call(this, attrName, String(value));
     },
   });
 }
@@ -163,14 +163,14 @@ function defineReflectedLong<P extends Element>(
     configurable: true,
     enumerable: true,
     get(this: Element) {
-      const raw = this.getAttribute(attrName);
+      const raw = elementAttributes.get.call(this, attrName);
       if (raw == null) return def;
       const n = htmlParseInteger(raw);
       return n == null ? def : n;
     },
     set(this: Element, value) {
       const n = value | 0;
-      this.setAttribute(attrName, String(n));
+      elementAttributes.set.call(this, attrName, String(n));
     },
   });
 }
@@ -187,7 +187,7 @@ function defineClampedLong<P extends Element>(
     configurable: true,
     enumerable: true,
     get(this: Element) {
-      const raw = this.getAttribute(attrName);
+      const raw = elementAttributes.get.call(this, attrName);
       if (raw == null) return def;
       const m = /^[\t\n\f\r ]*([+-]?\d+)/.exec(raw);
       if (!m) return def;
@@ -201,7 +201,7 @@ function defineClampedLong<P extends Element>(
     set(this: Element, value) {
       const u = value >>> 0;
       const n = u > 2147483647 ? def : u;
-      this.setAttribute(attrName, String(n));
+      elementAttributes.set.call(this, attrName, String(n));
     },
   });
 }
@@ -216,7 +216,7 @@ function defineReflectedUrl<P extends Element>(
     configurable: true,
     enumerable: true,
     get(this: Element) {
-      const raw = this.getAttribute(attrName);
+      const raw = elementAttributes.get.call(this, attrName);
       if (raw == null) return "";
       try {
         return new URL(raw, this.baseURI || undefined).toString();
@@ -225,7 +225,7 @@ function defineReflectedUrl<P extends Element>(
       }
     },
     set(this: Element, value: string) {
-      this.setAttribute(attrName, String(value));
+      elementAttributes.set.call(this, attrName, String(value));
     },
   });
 }
@@ -240,7 +240,7 @@ function defineReflectedUnsignedLong<P extends Element>(
     configurable: true,
     enumerable: true,
     get(this: Element) {
-      const raw = this.getAttribute(attrName);
+      const raw = elementAttributes.get.call(this, attrName);
       if (raw == null) return def;
       const n = htmlParseInteger(raw);
       if (n == null || n < 0) return def;
@@ -249,7 +249,7 @@ function defineReflectedUnsignedLong<P extends Element>(
     set(this: Element, value) {
       const u = value >>> 0;
       const n = u > 2147483647 ? def : u;
-      this.setAttribute(attrName, String(n));
+      elementAttributes.set.call(this, attrName, String(n));
     },
   });
 }
@@ -265,7 +265,7 @@ function defineReflectedLimitedPositiveUnsignedLong<P extends Element>(
     configurable: true,
     enumerable: true,
     get(this: Element) {
-      const raw = this.getAttribute(attrName);
+      const raw = elementAttributes.get.call(this, attrName);
       if (raw == null) return def;
       const n = htmlParseInteger(raw);
       if (n == null || n <= 0 || n > 2147483647) return def;
@@ -283,7 +283,7 @@ function defineReflectedLimitedPositiveUnsignedLong<P extends Element>(
         );
       }
       const n = u > 2147483647 ? def : u;
-      this.setAttribute(attrName, String(n));
+      elementAttributes.set.call(this, attrName, String(n));
     },
   });
 }
@@ -299,7 +299,7 @@ function defineReflectedLimitedPositiveUnsignedLongFallback<P extends Element>(
     configurable: true,
     enumerable: true,
     get(this: Element) {
-      const raw = this.getAttribute(attrName);
+      const raw = elementAttributes.get.call(this, attrName);
       if (raw == null) return def;
       const n = htmlParseInteger(raw);
       if (n == null || n <= 0 || n > 2147483647) return def;
@@ -308,7 +308,7 @@ function defineReflectedLimitedPositiveUnsignedLongFallback<P extends Element>(
     set(this: Element, value) {
       const u = value >>> 0;
       const n = u === 0 || u > 2147483647 ? def : u;
-      this.setAttribute(attrName, String(n));
+      elementAttributes.set.call(this, attrName, String(n));
     },
   });
 }
@@ -324,7 +324,7 @@ function defineReflectedNonNegativeLong<P extends Element>(
     configurable: true,
     enumerable: true,
     get(this: Element) {
-      const raw = this.getAttribute(attrName);
+      const raw = elementAttributes.get.call(this, attrName);
       if (raw == null) return def;
       const n = htmlParseInteger(raw);
       if (n == null || n < 0) return def;
@@ -342,7 +342,7 @@ function defineReflectedNonNegativeLong<P extends Element>(
           "IndexSizeError",
         );
       }
-      this.setAttribute(attrName, String(n));
+      elementAttributes.set.call(this, attrName, String(n));
     },
   });
 }
@@ -373,7 +373,7 @@ function defineReflectedCrossOrigin<P extends Element>(
     configurable: true,
     enumerable: true,
     get(this: Element) {
-      const v = this.getAttribute("crossorigin");
+      const v = elementAttributes.get.call(this, "crossorigin");
       if (v == null) return null;
       const lc = String(v).toLowerCase();
       if (lc === "use-credentials") return "use-credentials";
@@ -381,10 +381,10 @@ function defineReflectedCrossOrigin<P extends Element>(
     },
     set(this: Element, value: string | null) {
       if (value === null || value === undefined) {
-        this.removeAttribute("crossorigin");
+        elementAttributes.remove.call(this, "crossorigin");
         return;
       }
-      this.setAttribute("crossorigin", String(value));
+      elementAttributes.set.call(this, "crossorigin", String(value));
     },
   });
 }

@@ -20,7 +20,7 @@ import {
   REFERRER_POLICY_KEYWORDS,
 } from "./reflect.js";
 import { clearScriptForceAsync, scriptForceAsync } from "../mutations/observer.js";
-import { attributeChangeSteps, Element } from "./element.js";
+import { attributeChangeSteps, Element, elementAttributes } from "./element.js";
 import { installIdlHandlersOn } from "./event-handlers.js";
 import { HTMLInputElement } from "./forms/input.js";
 import { HTMLImageElement } from "./image.js";
@@ -191,12 +191,12 @@ ownElementAccessor(HTMLScriptElement, "type");
 // https://html.spec.whatwg.org/#dom-script-async
 defineAttribute(HTMLScriptElement.prototype, "async", {
   get() {
-    return scriptForceAsync(this._id) || this.hasAttribute("async");
+    return scriptForceAsync(this._id) || elementAttributes.has.call(this, "async");
   },
   set(v) {
     clearScriptForceAsync(this._id);
-    if (v) this.setAttribute("async", "");
-    else this.removeAttribute("async");
+    if (v) elementAttributes.set.call(this, "async", "");
+    else elementAttributes.remove.call(this, "async");
   },
 });
 const scriptInheritedChangeSteps = HTMLScriptElement.prototype[attributeChangeSteps];

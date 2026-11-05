@@ -27,9 +27,16 @@ document.createElement = function (tag) {
     src: { get: function () { return own.src.get.call(this); }, set: function (v) { own.src.set.call(this, v); } },
     type: { get: function () { return own.type.get.call(this); }, set: function (v) { own.type.set.call(this, v); } }
   });
+  // The attribute path goes back through the saved setters, so those must not call it.
+  el.setAttribute = function (name, value) {
+    if (name === "type") own.type.set.call(el, value);
+    else if (name === "src") own.src.set.call(el, value);
+    else HTMLScriptElement.prototype.setAttribute.call(el, name, value);
+  };
   return el;
 };
 var s = document.createElement("script");
+s.type = "text/javascript";
 s.src = ${JSON.stringify(`${ORIGIN}/__fixtures/policy-script.js?tag=wrapped`)};
 s.onload = function () { window.__outcome = "load:" + (window.__ksRan || []).join(); };
 s.onerror = function () { window.__outcome = "error"; };
@@ -91,4 +98,16 @@ test("src, type and async are own accessors, and async follows force async", asy
     own: [true, true, true, true, true],
     async: [false, true, true, false, false, false],
   });
+}, 60_000);
+
+test("a reflected boolean ignores a page override of getAttribute", async ({ page }) => {
+  await page.goto(docUrl(""), { waitUntil: "load" });
+  expect(
+    await page.evaluate(() => {
+      const el = document.createElement("div");
+      el.setAttribute("hidden", "");
+      el.getAttribute = () => null;
+      return el.hidden;
+    }),
+  ).toBe(true);
 }, 60_000);

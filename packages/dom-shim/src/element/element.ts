@@ -718,7 +718,8 @@ class Element extends NodeBase implements Idl.Element {
     return null;
   }
   hasAttribute(name: string) {
-    return this.getAttribute(name) !== null;
+    // The captured getter, not this.getAttribute: a page override must not answer for it.
+    return elementAttributes.get.call(this, name) !== null;
   }
   hasAttributes() {
     return this._attrFlat().length > 0;
@@ -2398,16 +2399,16 @@ class Element extends NodeBase implements Idl.Element {
     this.setAttribute("placeholder", String(v));
   }
   get type(): string {
-    return this.getAttribute("type") ?? "";
+    return elementAttributes.get.call(this, "type") ?? "";
   }
   set type(v) {
-    this.setAttribute("type", String(v));
+    elementAttributes.set.call(this, "type", String(v));
   }
   // URL reflection: a missing value gives "" and an invalid value stays raw.
   // Parsing uses the node document's encoding for non-ASCII queries.
   // https://html.spec.whatwg.org/#reflecting-content-attributes-in-idl-attributes
   get href(): string {
-    const raw = this.getAttribute("href");
+    const raw = elementAttributes.get.call(this, "href");
     if (raw == null) return "";
     try {
       return parseUrlForNode(this, raw, this.baseURI || pageUrl || undefined).toString();
@@ -2416,10 +2417,10 @@ class Element extends NodeBase implements Idl.Element {
     }
   }
   set href(v) {
-    this.setAttribute("href", String(v));
+    elementAttributes.set.call(this, "href", String(v));
   }
   get src(): string {
-    const raw = this.getAttribute("src");
+    const raw = elementAttributes.get.call(this, "src");
     if (raw == null) return "";
     try {
       return parseUrlForNode(this, raw, this.baseURI || pageUrl || undefined).toString();
@@ -2428,7 +2429,7 @@ class Element extends NodeBase implements Idl.Element {
     }
   }
   set src(v) {
-    this.setAttribute("src", String(v));
+    elementAttributes.set.call(this, "src", String(v));
   }
   select(): void {}
   setSelectionRange(_start: number, _end: number, _dir?: string): void {}
@@ -2660,4 +2661,14 @@ function renderedTextFragmentNodes(value: unknown, doc: TextFragmentDocument): N
   return nodes;
 }
 
-export { Element, renderedTextFragmentNodes };
+// Reflection reads and writes the content attribute directly, as a native accessor does. A
+// page override of an element's setAttribute (consent blockers set one) that assigns the
+// matching property would otherwise re-enter it without end.
+const elementAttributes = {
+  get: Element.prototype.getAttribute,
+  set: Element.prototype.setAttribute,
+  has: Element.prototype.hasAttribute,
+  remove: Element.prototype.removeAttribute,
+};
+
+export { Element, elementAttributes, renderedTextFragmentNodes };
