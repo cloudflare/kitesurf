@@ -2276,7 +2276,14 @@ function renderScrollScenePatches(
   const patches: ScenePatch[] = [];
   for (const [x, y, width, height] of scrollClips) {
     const clip = { x: x + scrollX, y: y + scrollY, w: width, h: height };
-    const patchScene = renderClip(clip.x, clip.y, width, height, false, clientWire);
+    const patchScene = renderClip(
+      clip.x,
+      clip.y,
+      Math.min(MAX_SCENE_CLIP_DIMENSION_PX, width),
+      Math.min(MAX_SCENE_CLIP_DIMENSION_PX, height),
+      false,
+      clientWire,
+    );
     if (!patchScene || patchScene.length === 0) {
       throw new Error("renderSceneClip returned empty");
     }
@@ -5969,8 +5976,8 @@ function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecor
         ? renderClip(
             Math.floor(clip.x),
             Math.floor(clip.y),
-            Math.min(MAX_SCENE_CLIP_DIMENSION_PX, Math.ceil(clip.width)),
-            Math.min(MAX_SCENE_CLIP_DIMENSION_PX, Math.ceil(clip.height)),
+            Math.ceil(clip.width),
+            Math.ceil(clip.height),
             omitBg,
             clientWire,
           )

@@ -584,7 +584,16 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
           partialKey,
         );
       } else {
-        bytes = rasterizer.rasterize(scene, format, quality, opts.omitBackground === true);
+        bytes =
+          format === "png" || format === "jpeg"
+            ? rasterizer.rasterizeLimited(
+                scene,
+                format,
+                quality,
+                opts.omitBackground === true,
+                opts.encodedLimit ?? 0xffffffff,
+              )
+            : rasterizer.rasterize(scene, format, quality, opts.omitBackground === true);
       }
     } catch {
       bytes = null;
@@ -600,7 +609,9 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
         retainedImage = null;
       }
       return {
-        error: `rasterize failed: ${info}`,
+        error: info.startsWith('{"error":"encoded-limit:')
+          ? `encoded-limit:${info}`
+          : `rasterize failed: ${info}`,
         stage: "raster",
         info,
         phases,

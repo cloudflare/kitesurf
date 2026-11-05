@@ -1221,6 +1221,319 @@ pub(crate) fn replay_to_rgba(
 
 const RENDERER_IMAGE_CACHE_BYTES: usize = 16 * 1024 * 1024;
 const RENDERER_IMAGE_CACHE_PRUNE_FRAMES: u64 = 1;
+const RASTER_BAND_ROWS: u16 = 128;
+const MAX_BANDED_SCENE_DIMENSION: u32 = u16::MAX as u32;
+
+/// A recorded scene whose pixels are produced a bounded band at a time.
+struct SceneRasterBands {
+    render: vello_cpu::PreparedRender,
+    width: u16,
+    height: u16,
+    next_row: u16,
+}
+
+impl SceneRasterBands {
+    /// Render the next band, or return an empty buffer after the final band.
+    fn next_band(&mut self) -> Vec<u8> {
+        if self.next_row == self.height {
+            return Vec::new();
+        }
+        let rows = (self.height - self.next_row).min(RASTER_BAND_ROWS);
+        let mut pixels = vec![0; usize::from(self.width) * usize::from(rows) * 4];
+        let target = vello_cpu::PixmapMut::new(self.width, rows, &mut pixels)
+            .expect("band buffer matches its dimensions");
+        // Each band traverses the scene; 1280x40,000 measured 919 ms.
+        self.render.render_with(
+            target,
+            vello_cpu::RasterizerSettings {
+                source_y: self.next_row,
+                ..Default::default()
+            },
+        );
+        self.next_row += rows;
+        pixels
+    }
+}
+
+#[derive(Clone, Default)]
+struct PngOutput(std::rc::Rc<RefCell<Vec<u8>>>);
+
+impl std::io::Write for PngOutput {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.borrow_mut().extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn filter_png_row(previous: &[u8], row: &[u8], filtered: &mut [u8]) {
+    filtered[0] = 4;
+    for i in 0..row.len() {
+        let a = if i >= 4 { i32::from(row[i - 4]) } else { 0 };
+        let b = i32::from(previous[i]);
+        let c = if i >= 4 {
+            i32::from(previous[i - 4])
+        } else {
+            0
+        };
+        let p = a + b - c;
+        let (pa, pb, pc) = ((p - a).abs(), (p - b).abs(), (p - c).abs());
+        let predictor = if pa <= pb && pa <= pc {
+            a
+        } else if pb <= pc {
+            b
+        } else {
+            c
+        };
+        filtered[i + 1] = row[i].wrapping_sub(predictor as u8);
+    }
+}
+
+fn append_png_chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+    out.extend_from_slice(&(data.len() as u32).to_be_bytes());
+    out.extend_from_slice(kind);
+    out.extend_from_slice(data);
+    let mut crc = crc32fast::Hasher::new();
+    crc.update(kind);
+    crc.update(data);
+    out.extend_from_slice(&crc.finalize().to_be_bytes());
+}
+
+const PNG_IDAT_LENGTH_OFFSET: usize = 33;
+const PNG_FIXED_BYTES: usize = 57;
+
+fn patch_png_idat_length(bytes: &mut [u8]) -> Result<usize, String> {
+    let data_len = bytes
+        .len()
+        .checked_sub(PNG_FIXED_BYTES)
+        .ok_or("invalid encoded PNG length")?;
+    if data_len > (u32::MAX >> 1) as usize {
+        return Err("PNG IDAT exceeds transport limits".to_string());
+    }
+    bytes[PNG_IDAT_LENGTH_OFFSET..PNG_IDAT_LENGTH_OFFSET + 4]
+        .copy_from_slice(&(data_len as u32).to_be_bytes());
+    Ok(data_len)
+}
+
+struct StoredPng {
+    remaining: usize,
+    block_remaining: usize,
+    adler_a: u32,
+    adler_b: u32,
+}
+
+impl StoredPng {
+    fn write(&mut self, mut data: &[u8], out: &mut Vec<u8>) {
+        while !data.is_empty() {
+            if self.block_remaining == 0 {
+                let size = self.remaining.min(u16::MAX as usize) as u16;
+                out.push(u8::from(usize::from(size) == self.remaining));
+                out.extend_from_slice(&size.to_le_bytes());
+                out.extend_from_slice(&(!size).to_le_bytes());
+                self.block_remaining = usize::from(size);
+            }
+            let n = data.len().min(self.block_remaining).min(5552);
+            let chunk = &data[..n];
+            for byte in chunk {
+                self.adler_a += u32::from(*byte);
+                self.adler_b += self.adler_a;
+            }
+            self.adler_a %= 65521;
+            self.adler_b %= 65521;
+            out.extend_from_slice(chunk);
+            self.block_remaining -= n;
+            self.remaining -= n;
+            data = &data[n..];
+        }
+    }
+}
+
+enum PngCompressor {
+    Fast(Option<fdeflate::Compressor<PngOutput>>),
+    Stored(StoredPng),
+}
+
+/// PNG encoder that emits the same IDAT stream as the full-frame encoder.
+struct ScenePngStream {
+    bands: SceneRasterBands,
+    compressor: PngCompressor,
+    output: PngOutput,
+    previous: Vec<u8>,
+    filtered: Vec<u8>,
+    crc: crc32fast::Hasher,
+    prefix: Vec<u8>,
+    done: bool,
+    poisoned: bool,
+}
+
+// Each mutable operation marks the stream poisoned until it completes successfully.
+impl std::panic::RefUnwindSafe for ScenePngStream {}
+
+impl ScenePngStream {
+    /// Encode the next band, returning empty bytes after the final chunk.
+    fn next_chunk(&mut self) -> Result<Vec<u8>, String> {
+        if self.poisoned {
+            return Err("PNG stream failed and cannot be reused".to_string());
+        }
+        self.poisoned = true;
+        let result = self.next_chunk_inner();
+        if result.is_ok() {
+            self.poisoned = false;
+        }
+        result
+    }
+}
+
+impl ScenePngStream {
+    fn next_chunk_inner(&mut self) -> Result<Vec<u8>, String> {
+        if self.done {
+            return Ok(Vec::new());
+        }
+        let pixels = self.bands.next_band();
+        let stride = usize::from(self.bands.width) * 4;
+        for row in pixels.chunks_exact(stride) {
+            match &mut self.compressor {
+                PngCompressor::Fast(Some(compressor)) => {
+                    filter_png_row(&self.previous, row, &mut self.filtered);
+                    compressor
+                        .write_data(&self.filtered)
+                        .map_err(|e| format!("png encode: {e}"))?;
+                    self.previous.copy_from_slice(row);
+                }
+                PngCompressor::Fast(None) => {
+                    return Err("PNG compressor already finished".to_string())
+                }
+                PngCompressor::Stored(stored) => {
+                    let mut output = self.output.0.borrow_mut();
+                    stored.write(&[0], &mut output);
+                    stored.write(row, &mut output);
+                }
+            }
+        }
+        if self.bands.next_row == self.bands.height {
+            match &mut self.compressor {
+                PngCompressor::Fast(compressor) => {
+                    compressor
+                        .take()
+                        .ok_or("PNG compressor already finished")?
+                        .finish()
+                        .map_err(|e| format!("png finish: {e}"))?;
+                }
+                PngCompressor::Stored(stored) => {
+                    let adler = (stored.adler_b << 16) | stored.adler_a;
+                    self.output
+                        .0
+                        .borrow_mut()
+                        .extend_from_slice(&adler.to_be_bytes());
+                }
+            }
+            self.done = true;
+        }
+        let mut output = std::mem::take(&mut *self.output.0.borrow_mut());
+        self.crc.update(&output);
+        if !self.prefix.is_empty() {
+            let mut prefix = std::mem::take(&mut self.prefix);
+            prefix.append(&mut output);
+            output = prefix;
+        }
+        if self.done {
+            output.extend_from_slice(&self.crc.clone().finalize().to_be_bytes());
+            append_png_chunk(&mut output, b"IEND", &[]);
+        }
+        Ok(output)
+    }
+}
+
+/// JPEG encoder that consumes the recorded scene in MCU-aligned bands.
+#[cfg_attr(not(feature = "native-host"), wasm_bindgen)]
+pub struct SceneJpegStream {
+    bands: SceneRasterBands,
+    quality: u8,
+    row_count: usize,
+    done: bool,
+    poisoned: bool,
+}
+
+// A failed or unwound operation leaves the stream poisoned, so it cannot be reused.
+impl std::panic::RefUnwindSafe for SceneJpegStream {}
+
+#[cfg_attr(not(feature = "native-host"), wasm_bindgen)]
+impl SceneJpegStream {
+    /// Encode the next band, returning empty bytes only after the final chunk.
+    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "nextChunk"))]
+    pub fn next_chunk(&mut self) -> Result<Vec<u8>, String> {
+        if self.poisoned {
+            return Err("JPEG stream failed and cannot be reused".to_string());
+        }
+        self.poisoned = true;
+        let result = self.next_chunk_inner();
+        if result.is_ok() {
+            self.poisoned = false;
+        }
+        result
+    }
+}
+
+impl SceneJpegStream {
+    fn next_chunk_inner(&mut self) -> Result<Vec<u8>, String> {
+        if self.done {
+            return Ok(Vec::new());
+        }
+        let start = self.bands.next_row;
+        let mut pixels = self.bands.next_band();
+        let height = self.bands.next_row - start;
+        let jpeg = crate::paint::screenshot::encode_jpeg(
+            &mut pixels,
+            self.bands.width.into(),
+            height.into(),
+            self.quality,
+        )?;
+        let (header_end, rows) = crate::paint::screenshot::split_jpeg_rows(&jpeg)?;
+        let mut output = Vec::new();
+        if self.row_count == 0 {
+            output.extend_from_slice(&jpeg[..header_end]);
+            set_jpeg_height(&mut output, self.bands.height)?;
+        }
+        for row in rows {
+            if self.row_count > 0 {
+                output.extend_from_slice(&[0xff, 0xd0 + ((self.row_count - 1) % 8) as u8]);
+            }
+            output.extend_from_slice(&jpeg[row]);
+            self.row_count += 1;
+        }
+        if self.bands.next_row == self.bands.height {
+            output.extend_from_slice(&[0xff, 0xd9]);
+            self.done = true;
+        }
+        Ok(output)
+    }
+}
+
+fn set_jpeg_height(header: &mut [u8], height: u16) -> Result<(), String> {
+    let mut pos = 2;
+    while let Some(segment) = header.get(pos..pos + 4) {
+        if segment[0] != 0xff {
+            break;
+        }
+        let marker = segment[1];
+        let len = usize::from(u16::from_be_bytes([segment[2], segment[3]]));
+        if marker == 0xc0 {
+            let field = header
+                .get_mut(pos + 5..pos + 7)
+                .ok_or("invalid JPEG frame header")?;
+            field.copy_from_slice(&height.to_be_bytes());
+            return Ok(());
+        }
+        if len < 2 {
+            break;
+        }
+        pos += 2 + len;
+    }
+    Err("missing JPEG frame header".to_string())
+}
 
 pub(crate) struct CachedRenderer {
     w: u32,
@@ -1633,12 +1946,234 @@ pub struct SceneRasterizer {
 // RefCell guards. A raster panic discards renderer state but keeps resources.
 impl RefUnwindSafe for SceneRasterizer {}
 
+impl SceneRasterizer {
+    /// Record a scene once and retain its resources until its bands are dropped.
+    fn start_bands(&self, scene: &[u8]) -> Result<SceneRasterBands, String> {
+        let header = scene_decode::parse_header(scene).map_err(|e| e.to_string())?;
+        let height = if header.render_h > 0 {
+            header.render_h
+        } else {
+            header.viewport_h
+        };
+        if header.viewport_w == 0 || height == 0 {
+            return Err("scene dimensions must be nonzero".to_string());
+        }
+        if header.viewport_w > MAX_BANDED_SCENE_DIMENSION || height > MAX_BANDED_SCENE_DIMENSION {
+            return Err(format!(
+                "scene dimensions {}x{} exceed band rasterizer limit of {} pixels per axis",
+                header.viewport_w, height, MAX_BANDED_SCENE_DIMENSION
+            ));
+        }
+        let width = u16::try_from(header.viewport_w)
+            .map_err(|_| "scene width exceeds band rasterizer limit".to_string())?;
+        let height = u16::try_from(height)
+            .map_err(|_| "scene height exceeds band rasterizer limit".to_string())?;
+        let mut replay = Ok(ReplayStats::default());
+        let store = self.store.borrow();
+        let render = anyrender_vello_cpu::VelloCpuImageRenderer::new(width.into(), height.into())
+            .prepare(|painter| replay = replay_into(scene, &store, painter));
+        *self.last_stats.borrow_mut() = replay?;
+        drop(store);
+        Ok(SceneRasterBands {
+            render,
+            width,
+            height,
+            next_row: 0,
+        })
+    }
+
+    fn encode_banded(
+        &self,
+        scene: &[u8],
+        format: crate::paint::screenshot::ImageFormat,
+        quality: u8,
+        encoded_limit: Option<usize>,
+    ) -> Result<Vec<u8>, String> {
+        use crate::paint::screenshot::ImageFormat;
+        if matches!(format, ImageFormat::Png) {
+            return self.encode_banded_png(scene, encoded_limit);
+        }
+        let mut bytes = Vec::new();
+        match format {
+            ImageFormat::Jpeg => {
+                let mut stream = self.start_jpeg(scene, quality)?;
+                while !stream.done {
+                    append_encoded_chunk(
+                        &mut bytes,
+                        stream.next_chunk()?,
+                        encoded_limit,
+                        &stream.bands,
+                    )?;
+                }
+            }
+            ImageFormat::Webp | ImageFormat::Rgba => unreachable!("not a banded format"),
+            ImageFormat::Png => unreachable!("PNG is encoded separately"),
+        }
+        Ok(bytes)
+    }
+
+    fn encode_banded_png(
+        &self,
+        scene: &[u8],
+        encoded_limit: Option<usize>,
+    ) -> Result<Vec<u8>, String> {
+        let fast_stream = self.start_png(scene)?;
+        let width = fast_stream.bands.width;
+        let height = fast_stream.bands.height;
+        let raw_len = (usize::from(width) * 4 + 1)
+            .checked_mul(usize::from(height))
+            .ok_or("PNG scanlines exceed addressable memory")?;
+        let stored_threshold =
+            fdeflate::StoredOnlyCompressor::<std::io::Cursor<Vec<u8>>>::compressed_size(raw_len);
+        let stored_data_len = raw_len
+            .checked_add(
+                raw_len
+                    .div_ceil(u16::MAX as usize)
+                    .checked_mul(5)
+                    .ok_or("PNG compressed data exceeds addressable memory")?,
+            )
+            .and_then(|size| size.checked_add(6))
+            .ok_or("PNG compressed data exceeds addressable memory")?;
+        let stored_png_len = PNG_FIXED_BYTES
+            .checked_add(stored_data_len)
+            .ok_or("PNG compressed data exceeds addressable memory")?;
+
+        let fast = collect_png_stream(fast_stream, encoded_limit);
+        let fallback = match &fast {
+            Ok((_, compressed_len)) => *compressed_len > stored_threshold,
+            Err(error) if error.starts_with("encoded-limit:") => {
+                if let Some(limit) = encoded_limit {
+                    if stored_png_len > limit {
+                        return Err(encoded_limit_error(width, height, stored_png_len, limit));
+                    }
+                }
+                true
+            }
+            Err(error) => return Err(error.clone()),
+        };
+        if !fallback {
+            return fast.map(|(bytes, _)| bytes);
+        }
+        if let Some(limit) = encoded_limit {
+            if stored_png_len > limit {
+                return Err(encoded_limit_error(width, height, stored_png_len, limit));
+            }
+        }
+        let stored_stream = self.start_png_with_storage(scene, true)?;
+        collect_png_stream(stored_stream, encoded_limit).map(|(bytes, _)| bytes)
+    }
+}
+
+fn collect_png_stream(
+    mut stream: ScenePngStream,
+    encoded_limit: Option<usize>,
+) -> Result<(Vec<u8>, usize), String> {
+    let mut bytes = Vec::new();
+    while !stream.done {
+        append_encoded_chunk(
+            &mut bytes,
+            stream.next_chunk()?,
+            encoded_limit,
+            &stream.bands,
+        )?;
+    }
+    let data_len = patch_png_idat_length(&mut bytes)?;
+    Ok((bytes, data_len))
+}
+
+fn encoded_limit_error(width: u16, height: u16, size: usize, limit: usize) -> String {
+    format!(
+        "encoded-limit: screenshot {width}x{height} encoded {size} bytes, exceeding limit {limit} bytes; use a clip, JPEG, or lower quality"
+    )
+}
+
+fn append_encoded_chunk(
+    bytes: &mut Vec<u8>,
+    chunk: Vec<u8>,
+    limit: Option<usize>,
+    bands: &SceneRasterBands,
+) -> Result<(), String> {
+    let size = bytes.len().saturating_add(chunk.len());
+    if let Some(limit) = limit {
+        if size > limit {
+            return Err(encoded_limit_error(bands.width, bands.height, size, limit));
+        }
+        if bytes.capacity() < size {
+            let capacity = size.max(bytes.capacity().saturating_mul(2)).min(limit);
+            bytes.reserve_exact(capacity - bytes.len());
+        }
+    }
+    bytes.extend(chunk);
+    Ok(())
+}
+
 #[cfg_attr(not(feature = "native-host"), wasm_bindgen)]
 impl SceneRasterizer {
     /// Create a rasterizer with an empty resource store and no retained frame.
     #[cfg_attr(not(feature = "native-host"), wasm_bindgen(constructor))]
     pub fn new() -> SceneRasterizer {
         SceneRasterizer::default()
+    }
+
+    /// Start a JPEG capture without retaining a full-frame pixel buffer.
+    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "startJpeg"))]
+    pub fn start_jpeg(&self, scene: &[u8], quality: u8) -> Result<SceneJpegStream, String> {
+        Ok(SceneJpegStream {
+            bands: self.start_bands(scene)?,
+            quality,
+            row_count: 0,
+            done: false,
+            poisoned: false,
+        })
+    }
+
+    fn start_png(&self, scene: &[u8]) -> Result<ScenePngStream, String> {
+        self.start_png_with_storage(scene, false)
+    }
+
+    fn start_png_with_storage(&self, scene: &[u8], stored: bool) -> Result<ScenePngStream, String> {
+        let bands = self.start_bands(scene)?;
+        let stride = usize::from(bands.width) * 4;
+        let raw_len = (stride + 1)
+            .checked_mul(usize::from(bands.height))
+            .ok_or("PNG scanlines exceed addressable memory")?;
+        let output = PngOutput::default();
+        let compressor = if stored {
+            output.0.borrow_mut().extend_from_slice(&[0x78, 0x01]);
+            PngCompressor::Stored(StoredPng {
+                remaining: raw_len,
+                block_remaining: 0,
+                adler_a: 1,
+                adler_b: 0,
+            })
+        } else {
+            PngCompressor::Fast(Some(
+                fdeflate::Compressor::new(output.clone())
+                    .map_err(|e| format!("png compressor: {e}"))?,
+            ))
+        };
+        let mut prefix = vec![137, 80, 78, 71, 13, 10, 26, 10];
+        let mut ihdr = [0; 13];
+        ihdr[..4].copy_from_slice(&u32::from(bands.width).to_be_bytes());
+        ihdr[4..8].copy_from_slice(&u32::from(bands.height).to_be_bytes());
+        ihdr[8] = 8;
+        ihdr[9] = 6;
+        append_png_chunk(&mut prefix, b"IHDR", &ihdr);
+        prefix.extend_from_slice(&0u32.to_be_bytes());
+        prefix.extend_from_slice(b"IDAT");
+        let mut crc = crc32fast::Hasher::new();
+        crc.update(b"IDAT");
+        Ok(ScenePngStream {
+            bands,
+            compressor,
+            output,
+            previous: vec![0; stride],
+            filtered: vec![0; stride + 1],
+            crc,
+            prefix,
+            done: false,
+            poisoned: false,
+        })
     }
 
     /// Scan a framed scene for resources the store can't satisfy.
@@ -1750,7 +2285,30 @@ impl SceneRasterizer {
         quality: u8,
         omit_background: bool,
     ) -> Vec<u8> {
-        self.rasterize_inner(scene, format, quality, omit_background, None)
+        self.rasterize_inner(scene, format, quality, omit_background, None, None)
+    }
+
+    /// Rasterize PNG or JPEG with a limit on encoded output bytes.
+    #[cfg_attr(
+        not(feature = "native-host"),
+        wasm_bindgen(js_name = "rasterizeLimited")
+    )]
+    pub fn rasterize_limited(
+        &self,
+        scene: &[u8],
+        format: &str,
+        quality: u8,
+        omit_background: bool,
+        limit: u32,
+    ) -> Vec<u8> {
+        self.rasterize_inner(
+            scene,
+            format,
+            quality,
+            omit_background,
+            None,
+            Some(limit as usize),
+        )
     }
 
     /// Rasterize a full frame and retain its RGBA under `key` for later partial updates.
@@ -1767,7 +2325,7 @@ impl SceneRasterizer {
         omit_background: bool,
         key: &str,
     ) -> Vec<u8> {
-        self.rasterize_inner(scene, format, quality, omit_background, Some(key))
+        self.rasterize_inner(scene, format, quality, omit_background, Some(key), None)
     }
 
     fn rasterize_inner(
@@ -1777,17 +2335,31 @@ impl SceneRasterizer {
         quality: u8,
         omit_background: bool,
         retain_key: Option<&str>,
+        encoded_limit: Option<usize>,
     ) -> Vec<u8> {
         let _ks_span =
             tracing::info_span!("wasm.rasterize", scene_bytes = scene.len(), format).entered();
         let fmt = crate::paint::screenshot::ImageFormat::from_str(format);
-        let store = self.store.borrow();
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if retain_key.is_none()
+                && matches!(
+                    fmt,
+                    crate::paint::screenshot::ImageFormat::Png
+                        | crate::paint::screenshot::ImageFormat::Jpeg
+                )
+            {
+                return self.encode_banded(scene, fmt, quality, encoded_limit);
+            }
+            if encoded_limit.is_some() {
+                return Err("encoded size limit requires PNG or JPEG".to_string());
+            }
+            let store = self.store.borrow();
             let (buffer, w, h, stats) = {
                 let _sp = tracing::info_span!("wasm.rasterize.replay").entered();
                 let buffer = std::mem::take(&mut *self.scratch.borrow_mut());
                 replay_to_rgba_with(scene, &store, &mut self.renderer.borrow_mut(), buffer)?
             };
+            drop(store);
             *self.last_stats.borrow_mut() = stats;
             let _ = omit_background;
             match retain_key {
@@ -2290,6 +2862,371 @@ mod tests {
     struct RecordingSceneDrains {
         images: Vec<(u64, crate::paint::scene_record::ImageInfo)>,
         fonts: Vec<(u64, Blob<u8>, u32)>,
+    }
+
+    fn whole_frame_encoded(
+        raster: &SceneRasterizer,
+        scene: &[u8],
+        format: &str,
+        quality: u8,
+    ) -> Vec<u8> {
+        let store = raster.store.borrow();
+        let (buffer, width, height, _) =
+            replay_to_rgba_with(scene, &store, &mut None, Vec::new()).unwrap();
+        drop(store);
+        encode_rgba_frame_owned(
+            crate::paint::screenshot::ImageFormat::from_str(format),
+            buffer,
+            width,
+            height,
+            quality,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn limited_band_encoding_rejects_excess_and_recovers() {
+        let (scene, _) = record_scene(None, None);
+        let raster = SceneRasterizer::new();
+        for format in ["png", "jpeg"] {
+            let expected = raster.rasterize(&scene, format, 80, false);
+            let limit = u32::try_from(expected.len()).unwrap();
+            assert!(!expected.is_empty());
+            assert!(raster
+                .rasterize_limited(&scene, format, 80, false, limit - 1)
+                .is_empty());
+            let info = raster.last_rasterize_info();
+            assert!(info.contains(&format!("screenshot {W}x{H}")), "{info}");
+            assert!(
+                info.contains(&format!("limit {} bytes", limit - 1)),
+                "{info}"
+            );
+            assert!(info.contains("clip, JPEG, or lower quality"), "{info}");
+            assert_eq!(
+                raster.rasterize_limited(&scene, format, 80, false, limit),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn non_retained_bands_match_whole_frame_at_seams() {
+        let (width, height) = (1280, 4000);
+        let font = test_font();
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(width, height, 0, 0);
+        scene.fill(
+            peniko::Fill::NonZero,
+            Affine::IDENTITY,
+            Color::WHITE,
+            None,
+            &Rect::new(0.0, 0.0, width as f64, height as f64),
+        );
+        for y in [128.0, 2048.0, 3840.0] {
+            scene.fill(
+                peniko::Fill::NonZero,
+                Affine::IDENTITY,
+                Color::from_rgba8(40, 150, 240, 180),
+                None,
+                &Rect::new(4.3, y - 11.2, 1200.7, y + 19.8),
+            );
+            scene.draw_glyphs(
+                &font,
+                30.0,
+                true,
+                &[],
+                kurbo::Vec2::ZERO,
+                peniko::Fill::NonZero,
+                Color::BLACK,
+                1.0,
+                Affine::IDENTITY,
+                None,
+                [AnyGlyph {
+                    id: 40,
+                    x: 18.0,
+                    y: y as f32 + 5.0,
+                }]
+                .into_iter(),
+            );
+        }
+        let fonts = scene.drain_font_bytes();
+        let scene = scene.finish_framed();
+        let raster = SceneRasterizer::new();
+        raster.store.borrow_mut().insert_font(fonts[0].0, font);
+        for (format, quality) in [("png", 80), ("jpeg", 80), ("jpeg", 95)] {
+            let expected = whole_frame_encoded(&raster, &scene, format, quality);
+            assert_eq!(
+                raster.rasterize(&scene, format, quality, false),
+                expected,
+                "{format} {quality}"
+            );
+        }
+    }
+
+    #[test]
+    fn non_retained_png_decodes_full_tall_scene() {
+        let (width, height) = (1280, 15_000);
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(width, height, 0, 0);
+        scene.fill(
+            peniko::Fill::NonZero,
+            Affine::IDENTITY,
+            Color::from_rgba8(40, 150, 240, 255),
+            None,
+            &Rect::new(0.0, 0.0, width as f64, height as f64),
+        );
+        let raster = SceneRasterizer::new();
+        let bytes = raster.rasterize(&scene.finish_framed(), "png", 80, false);
+        let mut reader = png::Decoder::new(std::io::Cursor::new(bytes))
+            .read_info()
+            .unwrap();
+        let mut pixels = vec![0; reader.output_buffer_size().unwrap()];
+        let frame = reader.next_frame(&mut pixels).unwrap();
+        assert_eq!((frame.width, frame.height), (width, height));
+        assert_eq!(&pixels[pixels.len() - 4..], &[40, 150, 240, 255]);
+    }
+
+    #[test]
+    fn non_retained_bands_report_coordinate_limit() {
+        let raster = SceneRasterizer::new();
+        for (width, height) in [(65_536, 1), (1, 65_536)] {
+            let mut scene = RecordingScene::for_replay();
+            scene.set_viewport(width, height, 0, 0);
+            let scene = scene.finish_framed();
+            for format in ["png", "jpeg"] {
+                assert!(raster.rasterize(&scene, format, 80, false).is_empty());
+                assert!(raster
+                    .last_rasterize_info()
+                    .contains("limit of 65535 pixels per axis"));
+            }
+        }
+    }
+
+    #[test]
+    fn banded_scene_matches_full_frame_with_resources_and_seams() {
+        let font = test_font();
+        let image = test_image(64);
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(W, 257, 0, 0);
+        script_ops(&mut scene, Some(&font), Some(&image));
+        scene.fill(
+            peniko::Fill::NonZero,
+            Affine::IDENTITY,
+            Color::from_rgba8(40, 150, 240, 180),
+            None,
+            &Rect::new(4.3, 119.2, 135.7, 251.8),
+        );
+        scene.draw_glyphs(
+            &font,
+            30.0,
+            true,
+            &[],
+            kurbo::Vec2::ZERO,
+            peniko::Fill::NonZero,
+            Color::BLACK,
+            1.0,
+            Affine::IDENTITY,
+            None,
+            [AnyGlyph {
+                id: 40,
+                x: 18.0,
+                y: 135.0,
+            }]
+            .into_iter(),
+        );
+        let images = scene.drain_rbi_images();
+        let fonts = scene.drain_font_bytes();
+        let scene = scene.finish_framed();
+        let raster = SceneRasterizer::new();
+        {
+            let mut store = raster.store.borrow_mut();
+            store.insert_font(fonts[0].0, font);
+            store.insert_image(images[0].0, image);
+        }
+        let full = raster.rasterize(&scene, "rgba", 80, false);
+        assert_eq!(&full[..8], &[160, 0, 0, 0, 1, 1, 0, 0]);
+        let mut bands = raster.start_bands(&scene).unwrap();
+        let mut joined = Vec::new();
+        for _ in 0..3 {
+            joined.extend(bands.next_band());
+        }
+        assert!(bands.next_band().is_empty());
+        assert_eq!(joined, full[8..]);
+        let stride = W as usize * 4;
+        assert_ne!(&joined[..stride], &joined[128 * stride..129 * stride]);
+        for quality in [80, 95] {
+            let expected = whole_frame_encoded(&raster, &scene, "jpeg", quality);
+            let mut stream = raster.start_jpeg(&scene, quality).unwrap();
+            let mut actual = Vec::new();
+            for _ in 0..3 {
+                actual.extend(stream.next_chunk().unwrap());
+            }
+            assert!(stream.next_chunk().unwrap().is_empty());
+            assert_eq!(actual, expected, "quality {quality}");
+        }
+        let expected = whole_frame_encoded(&raster, &scene, "png", 80);
+        let stream = raster.start_png(&scene).unwrap();
+        assert!(matches!(stream.compressor, PngCompressor::Fast(_)));
+        let (actual, _) = collect_png_stream(stream, None).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn banded_png_matches_stored_fallback() {
+        let (width, height) = (160u32, 257u32);
+        let mut random = 0x1234_5678u32;
+        let mut pixels = Vec::new();
+        for _ in 0..width * height {
+            for _ in 0..3 {
+                random ^= random << 13;
+                random ^= random >> 17;
+                random ^= random << 5;
+                pixels.push(random as u8);
+            }
+            pixels.push(255);
+        }
+        let image = ImageData {
+            data: Blob::from(pixels),
+            format: peniko::ImageFormat::Rgba8,
+            alpha_type: peniko::ImageAlphaType::Alpha,
+            width,
+            height,
+        };
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(width, height, 0, 0);
+        let brush = ImageBrush {
+            image: image.clone(),
+            sampler: image_sampler(),
+        };
+        scene.fill(
+            peniko::Fill::NonZero,
+            Affine::IDENTITY,
+            brush.as_ref(),
+            None,
+            &Rect::new(0.0, 0.0, width as f64, height as f64),
+        );
+        let images = scene.drain_rbi_images();
+        let scene = scene.finish_framed();
+        let raster = SceneRasterizer::new();
+        raster.store.borrow_mut().insert_image(images[0].0, image);
+        let expected = whole_frame_encoded(&raster, &scene, "png", 80);
+        let actual = raster.rasterize(&scene, "png", 80, false);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn banded_encoding_matches_transparent_frame() {
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(19, 257, 0, 0);
+        scene.fill(
+            peniko::Fill::NonZero,
+            Affine::IDENTITY,
+            Color::from_rgba8(30, 160, 220, 127),
+            None,
+            &Rect::new(2.3, 119.2, 17.8, 252.8),
+        );
+        let scene = scene.finish_framed();
+        let raster = SceneRasterizer::new();
+        let expected = whole_frame_encoded(&raster, &scene, "png", 80);
+        let stream = raster.start_png(&scene).unwrap();
+        let (actual, _) = collect_png_stream(stream, None).unwrap();
+        assert_eq!(actual, expected);
+        for quality in [80, 95] {
+            let expected = whole_frame_encoded(&raster, &scene, "jpeg", quality);
+            let mut stream = raster.start_jpeg(&scene, quality).unwrap();
+            let mut actual = Vec::new();
+            for _ in 0..3 {
+                actual.extend(stream.next_chunk().unwrap());
+            }
+            assert!(stream.next_chunk().unwrap().is_empty());
+            assert_eq!(actual, expected, "quality {quality}");
+        }
+    }
+
+    #[test]
+    fn banded_png_matches_stored_block_boundary() {
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(4, 3855, 0, 0);
+        scene.fill(
+            peniko::Fill::NonZero,
+            Affine::IDENTITY,
+            Color::WHITE,
+            None,
+            &Rect::new(0.0, 0.0, 4.0, 3855.0),
+        );
+        let scene = scene.finish_framed();
+        let raster = SceneRasterizer::new();
+        let expected = whole_frame_encoded(&raster, &scene, "png", 80);
+        assert_eq!(raster.rasterize(&scene, "png", 80, false), expected);
+    }
+
+    #[test]
+    fn failed_png_stream_cannot_be_reused() {
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(4, 10, 0, 0);
+        let raster = SceneRasterizer::new();
+        let mut stream = raster.start_png(&scene.finish_framed()).unwrap();
+        stream.compressor = PngCompressor::Fast(None);
+        assert_eq!(
+            stream.next_chunk().unwrap_err(),
+            "PNG compressor already finished"
+        );
+        assert_eq!(
+            stream.next_chunk().unwrap_err(),
+            "PNG stream failed and cannot be reused"
+        );
+    }
+
+    #[test]
+    fn panicked_png_stream_cannot_be_reused() {
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(4, 10, 0, 0);
+        let raster = SceneRasterizer::new();
+        let mut stream = raster.start_png(&scene.finish_framed()).unwrap();
+        stream.previous.clear();
+        let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| stream.next_chunk()));
+        assert!(panic.is_err());
+        assert_eq!(
+            stream.next_chunk().unwrap_err(),
+            "PNG stream failed and cannot be reused"
+        );
+    }
+
+    #[test]
+    fn banded_tall_scene_matches_direct_raster() {
+        let (width, height) = (8, 40_000);
+        let draw = |scene: &mut anyrender_vello_cpu::VelloCpuScenePainter| {
+            scene.fill(
+                peniko::Fill::NonZero,
+                Affine::IDENTITY,
+                Color::from_rgba8(40, 120, 210, 180),
+                None,
+                &Rect::new(1.0, 39_900.0, 7.0, 40_000.0),
+            );
+        };
+        let mut direct = vec![0; width as usize * height as usize * 4];
+        VelloCpuImageRenderer::new(width, height).render(draw, &mut direct);
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(width, height, 0, 0);
+        scene.fill(
+            peniko::Fill::NonZero,
+            Affine::IDENTITY,
+            Color::from_rgba8(40, 120, 210, 180),
+            None,
+            &Rect::new(1.0, 39_900.0, 7.0, 40_000.0),
+        );
+        let raster = SceneRasterizer::new();
+        let mut bands = raster.start_bands(&scene.finish_framed()).unwrap();
+        let mut actual = Vec::new();
+        loop {
+            let band = bands.next_band();
+            if band.is_empty() {
+                break;
+            }
+            actual.extend(band);
+        }
+        assert!(direct.iter().any(|&byte| byte != 0));
+        assert_eq!(actual, direct);
     }
 
     #[test]

@@ -37,6 +37,8 @@ krilla = { version = "0.8", default-features = false, features = ["raster-images
 image = { version = "=0.25.6", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 jpeg-encoder = { version = "=0.7.0", default-features = false }
 png = { version = "0.18", default-features = false }
+fdeflate = "0.3.7"
+crc32fast = "1"
 wuff = "0.2"
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 smallvec = "1"

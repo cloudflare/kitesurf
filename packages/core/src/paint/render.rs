@@ -359,7 +359,8 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return Vec::new(),
         };
-        const MAX_CLIP_DIM: u32 = 2560;
+        // Raster coordinates are u16.
+        const MAX_CLIP_DIM: u32 = u16::MAX as u32;
         let overhang_x = (-clip_x).max(0) as u32;
         let overhang_y = (-clip_y).max(0) as u32;
         let sx = clip_x.max(0) as u32;

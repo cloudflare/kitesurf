@@ -38,6 +38,13 @@ export declare class SceneRasterizer {
     quality: number,
     omitBackground: boolean,
   ): Uint8Array;
+  rasterizeLimited(
+    scene: Uint8Array,
+    format: string,
+    quality: number,
+    omitBackground: boolean,
+    limit: number,
+  ): Uint8Array;
   rasterizeAndRetain(
     scene: Uint8Array,
     format: string,

@@ -193,6 +193,12 @@ const AUTO_RELOAD_SETTLED_MS = 2_000;
 const MILLISECONDS_PER_SECOND = 1_000;
 const MAX_IMAGE_QUALITY = 100;
 const DEFAULT_IMAGE_QUALITY = 80;
+// Encoded bytes E plus base64 and JSON strings cost about 3.7E in the engine.
+// At 16 MiB that leaves room for a ~40–60 MB baseline in a 128 MB isolate.
+const MAX_SCREENSHOT_ENCODED_BYTES = 16 * 1024 * 1024;
+const MAX_SCREENSHOT_DIMENSION = 65_535;
+const MAX_WEBP_SCREENSHOT_PIXELS = 2_560 * 2_560;
+const MAX_WEBP_SCREENSHOT_DIMENSION = 4_096;
 const MIN_SCREENCAST_DIMENSION = 32;
 const MIN_SCREENCAST_FRAME_INTERVAL_MS = 16;
 const MAX_SCREENCAST_FRAME_INTERVAL_MS = 1_000;
@@ -302,6 +308,7 @@ async function renderViaPageRenderer(
     sinceSeq?: number;
     clip?: { x: number; y: number; width: number; height: number };
     partialKey?: string;
+    encodedLimit?: number;
     images?: "raw" | "encoded";
   },
 ): Promise<
@@ -1215,6 +1222,49 @@ export async function handlePage(
             : DEFAULT_IMAGE_QUALITY;
         const omitBackground = req.params?.omitBackground === true;
         const clip = req.params?.clip;
+        if (clip && clip.scale !== undefined && clip.scale !== 1) {
+          throw new Error(
+            "Page.captureScreenshot failed: clip.scale other than 1 is not supported",
+          );
+        }
+        const validClip =
+          clip &&
+          typeof clip.x === "number" &&
+          typeof clip.y === "number" &&
+          typeof clip.width === "number" &&
+          typeof clip.height === "number"
+            ? { x: clip.x, y: clip.y, width: clip.width, height: clip.height }
+            : null;
+        const metrics =
+          !validClip && req.params?.captureBeyondViewport === true
+            ? await sessionOf(ctx, target).callIfLive.layoutMetrics({})
+            : null;
+        const effectiveClip =
+          validClip ??
+          (metrics
+            ? { x: 0, y: 0, width: metrics.contentWidth, height: metrics.contentHeight }
+            : null);
+        const captureWidth = Math.ceil(
+          effectiveClip?.width ?? target.viewportWidth ?? DEFAULT_VIEWPORT_WIDTH,
+        );
+        const captureHeight = Math.ceil(
+          effectiveClip?.height ?? target.viewportHeight ?? DEFAULT_VIEWPORT_HEIGHT,
+        );
+        if (captureWidth > MAX_SCREENSHOT_DIMENSION || captureHeight > MAX_SCREENSHOT_DIMENSION) {
+          throw new Error(
+            `Page.captureScreenshot failed: requested ${captureWidth}x${captureHeight} px exceeds the 65535 px per-side raster limit; capture a smaller clip`,
+          );
+        }
+        if (
+          format === "webp" &&
+          (captureWidth > MAX_WEBP_SCREENSHOT_DIMENSION ||
+            captureHeight > MAX_WEBP_SCREENSHOT_DIMENSION ||
+            captureWidth * captureHeight > MAX_WEBP_SCREENSHOT_PIXELS)
+        ) {
+          throw new Error(
+            `Page.captureScreenshot failed: requested ${captureWidth}x${captureHeight} px exceeds WebP limits of ${MAX_WEBP_SCREENSHOT_DIMENSION} px per side and ${MAX_WEBP_SCREENSHOT_PIXELS} px total; use png or jpeg`,
+          );
+        }
 
         const pageUrl = target.url || "https://kitesurf.local/";
         if (target.pageScript) {
@@ -1223,8 +1273,8 @@ export async function handlePage(
           let drainInfo: Record<string, unknown> | null = null;
           let __graceTimer: ReturnType<typeof setTimeout> | null = null;
           const __clipRect = (() => {
-            if (!clip || typeof clip !== "object") return null;
-            const { x, y, width, height } = clip;
+            if (!effectiveClip) return null;
+            const { x, y, width, height } = effectiveClip;
             return typeof x === "number" &&
               typeof y === "number" &&
               typeof width === "number" &&
@@ -1275,7 +1325,8 @@ export async function handlePage(
             format,
             quality,
             omitBackground,
-            ...(clip ? { clip } : {}),
+            ...(effectiveClip ? { clip: effectiveClip } : {}),
+            encodedLimit: MAX_SCREENSHOT_ENCODED_BYTES,
             ...(ctx.browser.screencasts.has(target.targetId)
               ? {}
               : { partialKey: partialKeyFor(ctx, target) }),
@@ -1292,6 +1343,11 @@ export async function handlePage(
             );
           }
           if ("failed" in viaRenderer) {
+            if (viaRenderer.failed.startsWith("encoded-limit:")) {
+              throw new Error(
+                `Page.captureScreenshot failed: encoded image exceeds ${MAX_SCREENSHOT_ENCODED_BYTES} bytes (${captureWidth}x${captureHeight} px); capture a smaller clip, or use format "jpeg" with a lower quality`,
+              );
+            }
             throw new Error(`Page.captureScreenshot failed: ${viaRenderer.failed}`);
           }
           if (viaRenderer.bytes && viaRenderer.bytes.length > 0) {
