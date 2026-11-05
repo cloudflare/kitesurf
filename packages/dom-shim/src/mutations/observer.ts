@@ -596,6 +596,15 @@ function notifyScriptInserts(insertedNode: LinkishNode, nested: LinkishNode[]): 
       source = String(el.textContent || "");
     } catch {}
     if (!src && source === "") return;
+    // A browser that runs modules skips a classic script marked nomodule: no fetch, no events.
+    // It counts as started, so dropping the attribute later does not run it. An empty script
+    // has not started, so it is checked first.
+    try {
+      if (type !== "module" && el.hasAttribute?.("nomodule")) {
+        executedScriptIds.add(id);
+        return;
+      }
+    } catch {}
     let integrity = "";
     try {
       integrity = String(el.getAttribute?.("integrity") || "").trim();
