@@ -50,7 +50,7 @@ pub(crate) fn inner_text(doc: &BaseDocument, node_id: NodeId) -> Option<String> 
     if !node.is_element() {
         return None;
     }
-    let root_id = doc.root_node().id;
+    let root_id = doc.root_node().id();
     let mut cur = Some(node_id);
     let mut connected = false;
     while let Some(id) = cur {
@@ -68,7 +68,7 @@ pub(crate) fn inner_text(doc: &BaseDocument, node_id: NodeId) -> Option<String> 
         if id == root_id {
             connected = true;
         }
-        cur = n.parent.get();
+        cur = n.parent_id();
     }
     if !connected {
         return None;
@@ -165,7 +165,7 @@ fn collect_children(doc: &BaseDocument, id: NodeId, ctx: Ctx, out: &mut Vec<Item
             .unwrap_or(false);
     let mut saw_cell = false;
     let mut saw_row = false;
-    for &cid in node.children.iter() {
+    for cid in node.children().iter() {
         let Some(child) = doc.get_node(cid) else {
             continue;
         };

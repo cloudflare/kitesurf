@@ -110,7 +110,7 @@ fn seeded_handles_keep_tree_iteration_order_with_dense_storage() {
     let dom = DomHandle::new(&html, "https://example.test/");
     let doc = dom.doc.borrow();
     let handles = dom.node_handles.borrow();
-    let root = doc.root_node().id;
+    let root = doc.root_node().id();
     let expected: Vec<_> = std::iter::once(root)
         .chain(doc.tree().iter().map(|(id, _)| id).filter(|&id| id != root))
         .collect();

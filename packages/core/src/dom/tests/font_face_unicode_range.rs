@@ -124,7 +124,7 @@ fn detached_text_triggers_a_subset_fetch_only_after_insertion() {
 
     {
         let doc: &mut BaseDocument = document.as_mut();
-        let root_id = doc.root_node().id;
+        let root_id = doc.root_node().id();
         let mut mutator = doc.mutate();
         mutator.append_children(root_id, &[text_id]);
     }

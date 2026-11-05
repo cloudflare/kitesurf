@@ -19,7 +19,7 @@ fn input_caret_from_point(doc: &mut BaseDocument, x: f32, y: f32) -> Option<(Nod
     doc.with_text_input(input_id, |mut driver| driver.refresh_layout());
     let node = doc.get_node(input_id)?;
     let element = node.element_data()?;
-    let SpecialElementData::TextInput(input) = &element.special_data else {
+    let SpecialElementData::TextInput(input) = element.special_data() else {
         return None;
     };
     let content_box_x = node.final_layout().padding.left + node.final_layout().border.left;
@@ -75,7 +75,7 @@ impl DomHandle {
                     return -1;
                 };
                 match &node.data {
-                    NodeData::AnonymousBlock(_) | NodeData::Text(_) => match node.parent.get() {
+                    NodeData::AnonymousBlock(_) | NodeData::Text(_) => match node.parent_id() {
                         Some(parent) => id = parent,
                         None => return -1,
                     },
@@ -129,7 +129,7 @@ impl DomHandle {
                 let Some(node) = doc.get_node(id) else {
                     return 0;
                 };
-                if let Some(parent_id) = node.parent.get() {
+                if let Some(parent_id) = node.parent_id() {
                     if let Some(parent) = doc.get_node(parent_id) {
                         if parent.before() == Some(id) {
                             return 1;
@@ -140,7 +140,7 @@ impl DomHandle {
                     }
                 }
                 match &node.data {
-                    NodeData::AnonymousBlock(_) | NodeData::Text(_) => match node.parent.get() {
+                    NodeData::AnonymousBlock(_) | NodeData::Text(_) => match node.parent_id() {
                         Some(parent) => id = parent,
                         None => return 0,
                     },

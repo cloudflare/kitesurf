@@ -39,7 +39,7 @@ fn svg_tree_for(dom: &DomHandle, sel: &str) -> Option<std::sync::Arc<Tree>> {
     let doc = dom.doc.borrow();
     let node = doc.get_node(crate::blitz_node_id(id as u32))?;
     let elem = node.element_data()?;
-    match &elem.special_data {
+    match elem.special_data() {
         SpecialElementData::Image(data) => match &**data {
             ImageData::Svg(svg) => Some(svg.tree.clone()),
             _ => None,

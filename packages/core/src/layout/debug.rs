@@ -65,9 +65,9 @@ impl DomHandle {
             node.pe_by_index(0).map(|id| self.external_node_id(id))
         );
         let children: Vec<u32> = node
-            .children
+            .children()
             .iter()
-            .map(|&id| self.external_node_id(id))
+            .map(|id| self.external_node_id(id))
             .collect();
         let _ = writeln!(out, "  children: {:?}", children);
         if let Some(pc) = node.paint_children() {
@@ -112,7 +112,7 @@ impl DomHandle {
         let mut out = String::new();
         let lay = node.final_layout();
         let abs = node.absolute_position(0.0, 0.0);
-        let parent = node.layout_parent.get().map(|id| self.external_node_id(id));
+        let parent = node.layout_parent_id().map(|id| self.external_node_id(id));
         let _ = writeln!(
             out,
             "node #{}: location=({:.1},{:.1}), size={:.1}x{:.1}, absolute=({:.1},{:.1}), layout_parent={:?}",
@@ -181,9 +181,9 @@ impl DomHandle {
                             pl.location.x, pl.location.y, pl.size.width, pl.size.height,
                         );
                         let children: Vec<u32> = pe_node
-                            .children
+                            .children()
                             .iter()
-                            .map(|&id| self.external_node_id(id))
+                            .map(|id| self.external_node_id(id))
                             .collect();
                         let _ = writeln!(out, "    children: {:?}", children);
                         if let Some(styles) = pe_node.primary_styles() {
@@ -197,7 +197,7 @@ impl DomHandle {
                         } else {
                             let _ = writeln!(out, "    no primary_styles");
                         }
-                        for &child_id in &pe_node.children {
+                        for child_id in pe_node.children() {
                             debug_write_pseudo_child(self, base, child_id, &mut out);
                         }
                     }
@@ -263,7 +263,7 @@ impl DomHandle {
         let base: &BaseDocument = doc.as_ref();
         let mut out = String::new();
         let mut all_ids: Vec<u32> = Vec::new();
-        let root_id = base.root_node().id;
+        let root_id = base.root_node().id();
         all_ids.push(self.external_node_id(root_id));
         collect_descendants(
             base,
@@ -328,7 +328,7 @@ impl DomHandle {
         let base: &BaseDocument = doc.as_ref();
         let mut out = String::new();
         let mut all_ids: Vec<u32> = Vec::new();
-        let root_id = base.root_node().id;
+        let root_id = base.root_node().id();
         all_ids.push(self.external_node_id(root_id));
         collect_descendants_with_pseudos(
             base,
@@ -434,7 +434,7 @@ impl DomHandle {
             .iter()
             .filter_map(|(_, node)| {
                 let cb = node.oof_containing_block()?;
-                Some((self.external_node_id(node.id), self.external_node_id(cb)))
+                Some((self.external_node_id(node.id()), self.external_node_id(cb)))
             })
             .collect();
         claims.sort_unstable();

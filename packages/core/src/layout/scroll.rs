@@ -226,15 +226,15 @@ impl DomHandle {
             let has_box = generates_box(&doc, node);
             let mut scroll_width = layout.scroll_width();
             let mut scroll_height = layout.scroll_height();
-            if node.id == doc.root_element().id {
+            if node.id() == doc.root_element().id() {
                 scroll_width = 0.0;
                 scroll_height = 0.0;
                 let root_client_width =
                     (layout.size.width - layout.border.left - layout.border.right).max(0.0);
                 let root_client_height =
                     (layout.size.height - layout.border.top - layout.border.bottom).max(0.0);
-                let body_layout = doc.root_element().children.iter().find_map(|child_id| {
-                    let child = doc.get_node(*child_id)?;
+                let body_layout = doc.root_element().children().iter().find_map(|child_id| {
+                    let child = doc.get_node(child_id)?;
                     (child
                         .element_data()
                         .is_some_and(|element| element.name.local == local_name!("body"))

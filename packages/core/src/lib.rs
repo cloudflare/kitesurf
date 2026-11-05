@@ -76,7 +76,7 @@ impl NodeHandleMap {
     const NO_EXTERNAL: u32 = u32::MAX;
 
     fn seeded(doc: &BaseDocument) -> Self {
-        let root = doc.root_node().id;
+        let root = doc.root_node().id();
         assert_eq!(slot_of(root), 1, "the document root must be handle 0");
         let slots = doc
             .tree()
@@ -98,7 +98,7 @@ impl NodeHandleMap {
         }
     }
 
-    /// The live seeded handle for `slot`, if any (slot 0 is the slotmap's sentinel).
+    /// The live seeded handle for `slot`, if any (slot 0 is the node tree's sentinel).
     #[inline]
     fn seeded_external(&self, slot: usize) -> Option<u32> {
         let index = slot.checked_sub(1)?;
@@ -558,32 +558,6 @@ pub struct DomHandle {
 // style snapshots and rebuilds inline trees stranded by a panic.
 impl std::panic::RefUnwindSafe for DomHandle {}
 
-fn estimate_node_capacity(html: &str) -> usize {
-    let bytes = html.as_bytes();
-    let n = bytes.len();
-    let mut open_tags = 0usize;
-    let mut close_tags = 0usize;
-    let mut text_runs = 0usize;
-    let mut i = 0;
-    while i < n {
-        match bytes[i] {
-            b'<' => {
-                if i + 1 < n && bytes[i + 1] == b'/' {
-                    close_tags += 1;
-                } else {
-                    open_tags += 1;
-                }
-            }
-            b'>' if i + 1 < n && bytes[i + 1] != b'<' => text_runs += 1,
-            _ => {}
-        }
-        i += 1;
-    }
-    let parsed = open_tags + text_runs.max(close_tags);
-
-    (parsed + parsed / 6).min(262_144)
-}
-
 #[wasm_bindgen]
 impl DomHandle {
     #[inline]
@@ -622,7 +596,6 @@ impl DomHandle {
             net_provider: Some(net_provider.clone()),
             viewport: Some(Viewport::new(1280, 720, 1.0, emulated_color_scheme())),
             font_ctx: Some(crate::resources::fonts::get_or_init_font_context()),
-            node_capacity_hint: Some(estimate_node_capacity(html)),
             dims_only_images: DIMS_ONLY_IMAGES.load(Ordering::Relaxed),
             ..Default::default()
         };
@@ -708,7 +681,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return 0,
         };
-        let root_id = doc.root_node().id;
+        let root_id = doc.root_node().id();
         let count = Cell::new(0u32);
         let count_ref = &count;
         doc.iter_subtree_mut(root_id, move |node_id, d| {
@@ -886,13 +859,13 @@ impl DomHandle {
         let Ok(doc) = self.doc.try_borrow() else {
             return None;
         };
-        let root_id = doc.root_node().id;
+        let root_id = doc.root_node().id();
         let mut current = Some(internal_id);
         while let Some(id) = current {
             if id == root_id {
                 return Some(internal_id);
             }
-            current = doc.get_node(id).and_then(|node| node.parent.get());
+            current = doc.get_node(id).and_then(|node| node.parent_id());
         }
         None
     }
@@ -933,7 +906,7 @@ impl DomHandle {
 }
 
 fn clear_unstyled_cascade(doc: &mut BaseDocument) -> u32 {
-    let root_id = doc.root_node().id;
+    let root_id = doc.root_node().id();
     let count = Cell::new(0u32);
     let count_ref = &count;
     doc.iter_subtree_mut(root_id, move |node_id, d| {

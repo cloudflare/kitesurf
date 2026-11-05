@@ -177,8 +177,8 @@ pub(crate) fn composed_transform_for_node(
             .map(|parent| (parent.scroll_offset().x, parent.scroll_offset().y))
             .unwrap_or((0.0, 0.0));
         // A viewport-fixed box cancels the scroll (see fixed_scroll_anchor).
-        if node.taffy_position() == Position::Fixed
-            && parent.is_some_and(|parent| parent.id == doc.root_element().id)
+        if node.taffy_position() == taffy::Position::Fixed
+            && parent.is_some_and(|parent| parent.id() == doc.root_element().id())
         {
             let viewport_scroll = doc.tree().fixed_anchor_scroll();
             parent_scroll_x = -viewport_scroll.x;
@@ -238,7 +238,7 @@ fn containing_block_of(doc: &HtmlDocument, node: &Node) -> Option<NodeId> {
     let position = node
         .primary_styles()
         .map_or(Position::Static, |s| s.clone_position());
-    let mut current = node.parent.get();
+    let mut current = node.parent_id();
     while let Some(id) = current {
         let parent = doc.get_node(id)?;
         if let Some(styles) = parent.primary_styles().filter(|_| parent.is_element()) {
@@ -252,7 +252,7 @@ fn containing_block_of(doc: &HtmlDocument, node: &Node) -> Option<NodeId> {
                 return Some(id);
             }
         }
-        current = parent.parent.get();
+        current = parent.parent_id();
     }
     None
 }
@@ -275,11 +275,11 @@ fn clip_to_containing_blocks(
             return Some(rect);
         }
         node = doc.get_node(id)?;
-        let is_body = node.parent.get() == Some(root_element.id)
+        let is_body = node.parent_id() == Some(root_element.id())
             && node
                 .element_data()
                 .is_some_and(|e| &*e.name.local == "body");
-        if id == root_element.id || (is_body && body_propagates) {
+        if id == root_element.id() || (is_body && body_propagates) {
             continue;
         }
         let (clip_x, clip_y) = overflow_clips(node);
@@ -361,13 +361,13 @@ fn clip_path_edges(node: &Node, [l, t, r, b]: [f32; 4]) -> Option<[f32; 4]> {
 /// Document-space scroll compensation shared by geometry and IntersectionObserver.
 /// A viewport-fixed box stays put on screen, so its document-space position adds the scroll.
 pub(crate) fn fixed_scroll_anchor(doc: &BaseDocument, node: &blitz_dom::Node) -> (f32, f32) {
-    let root_element_id = doc.root_element().id;
+    let root_element_id = doc.root_element().id();
     let mut cur = Some(node);
     while let Some(n) = cur {
         let cb = n.containing_block().and_then(|id| doc.get_node(id));
         if n.taffy_position() == Position::Fixed {
             return match cb {
-                Some(cb) if cb.id == root_element_id => {
+                Some(cb) if cb.id() == root_element_id => {
                     let viewport_scroll = doc.tree().fixed_anchor_scroll();
                     (
                         cb.scroll_offset().x as f32 + viewport_scroll.x as f32,
@@ -414,7 +414,7 @@ pub(crate) fn bounding_rect_for_node(doc: &HtmlDocument, node: &Node) -> Rect {
                 };
             }
         }
-        ancestor = n.parent.get().and_then(|p| doc.get_node(p));
+        ancestor = n.parent_id().and_then(|p| doc.get_node(p));
     }
     // Only box-bearing nodes have Blitz layout storage; text nodes use their
     // inline geometry, while comments and other non-box nodes have no rect.
@@ -433,14 +433,14 @@ pub(crate) fn bounding_rect_for_node(doc: &HtmlDocument, node: &Node) -> Rect {
     };
     let size = node.final_layout().size;
     if size.width <= 0.0 || size.height <= 0.0 {
-        if let Some(rect) = svg_descendant_rect_for_node(doc.as_ref(), node.id) {
+        if let Some(rect) = svg_descendant_rect_for_node(doc.as_ref(), node.id()) {
             return rect;
         }
-        if let Some(rect) = inline_aware_rect_for_node(doc, node.id) {
+        if let Some(rect) = inline_aware_rect_for_node(doc, node.id()) {
             return rect;
         }
     }
-    if let Some(rect) = transformed_rect_for_node(doc, node.id) {
+    if let Some(rect) = transformed_rect_for_node(doc, node.id()) {
         return rect;
     }
     Rect::resolved(pos.x, pos.y, size.width, size.height)
@@ -500,7 +500,7 @@ fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rec
         inline_root.final_layout().padding.left + inline_root.final_layout().border.left;
     let content_off_y =
         inline_root.final_layout().padding.top + inline_root.final_layout().border.top;
-    let composed = composed_transform_for_node(base, inline_root.id);
+    let composed = composed_transform_for_node(base, inline_root.id());
     let root_scroll = inline_root.scroll_offset();
     let transform_bounds = |x0: f32, y0: f32, x1: f32, y1: f32| {
         let Some((composed, scale)) = composed.as_ref() else {
@@ -540,13 +540,13 @@ fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rec
             let Some(n) = base.get_node(cur) else {
                 return false;
             };
-            let Some(parent) = n.parent.get() else {
+            let Some(parent) = n.parent_id() else {
                 return false;
             };
             if parent == node_id {
                 return true;
             }
-            if parent == inline_root.id {
+            if parent == inline_root.id() {
                 return false;
             }
             if out_of_flow(parent) {
@@ -622,7 +622,7 @@ fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rec
 /// when the text was not laid out (whitespace-only, or collapsed away).
 fn text_node_rect(doc: &BaseDocument, node: &Node) -> Option<Rect> {
     // Anonymous blocks wrap loose text and are only on the layout chain.
-    let mut cur = node.layout_parent.get().or(node.parent.get());
+    let mut cur = node.layout_parent_id().or(node.parent_id());
     let mut inline_root = None;
     for _ in 0..512 {
         let n = doc.get_node(cur?)?;
@@ -630,14 +630,14 @@ fn text_node_rect(doc: &BaseDocument, node: &Node) -> Option<Rect> {
             inline_root = Some(n);
             break;
         }
-        cur = n.layout_parent.get().or(n.parent.get());
+        cur = n.layout_parent_id().or(n.parent_id());
     }
     let inline_root = inline_root?;
     let inline = inline_root.element_data()?.inline_layout_data()?;
     let range = inline
         .node_ranges(node.tree())
         .iter()
-        .find(|(id, _)| *id == node.id)?
+        .find(|(id, _)| *id == node.id())?
         .1
         .clone();
     let layout = inline.layout(node.tree());
@@ -670,7 +670,7 @@ fn text_node_rect(doc: &BaseDocument, node: &Node) -> Option<Rect> {
     // Text scrolls with its inline root's content. absolute_position
     // already subtracts the root's own scroll offset; the composed
     // transform maps the unscrolled box, so that branch subtracts it.
-    let rect = match composed_transform_for_node(doc, inline_root.id) {
+    let rect = match composed_transform_for_node(doc, inline_root.id()) {
         Some((composed, device)) => {
             let scroll = inline_root.scroll_offset();
             let local = local - kurbo::Vec2::new(scroll.x, scroll.y);
@@ -704,7 +704,7 @@ fn svg_canvas_bbox(
     let key: &str = match elem.attr(local_name!("id")).filter(|s| !s.is_empty()) {
         Some(id) => id,
         None => {
-            synthetic = host.svg_snapshot_id(node.id)?;
+            synthetic = host.svg_snapshot_id(node.id())?;
             &synthetic
         }
     };
@@ -715,7 +715,7 @@ fn svg_canvas_bbox(
         return None;
     }
     let mut union: Option<usvg::Rect> = None;
-    for &child_id in &node.children {
+    for child_id in node.children() {
         let Some(child) = doc.get_node(child_id) else {
             continue;
         };
@@ -745,7 +745,7 @@ fn svg_descendant_rect_for_node(doc: &BaseDocument, node_id: NodeId) -> Option<R
         return None;
     }
     let mut host: Option<&Node> = None;
-    let mut cur = node.parent.get();
+    let mut cur = node.parent_id();
     while let Some(pid) = cur {
         let p = doc.get_node(pid)?;
         let Some(pel) = p.element_data() else { break };
@@ -755,7 +755,7 @@ fn svg_descendant_rect_for_node(doc: &BaseDocument, node_id: NodeId) -> Option<R
         if pel.svg_image_data().is_some() {
             host = Some(p);
         }
-        cur = p.parent.get();
+        cur = p.parent_id();
     }
     let host = host?;
     let host_layout = host.final_layout();
@@ -802,7 +802,7 @@ fn svg_descendant_rect_for_node(doc: &BaseDocument, node_id: NodeId) -> Option<R
     let x1 = x0 + bbox.width() * scale_x;
     let y1 = y0 + bbox.height() * scale_y;
 
-    let (x0, y0, x1, y1) = match composed_transform_for_node(doc, host.id) {
+    let (x0, y0, x1, y1) = match composed_transform_for_node(doc, host.id()) {
         Some((composed, scale)) => {
             let local = kurbo::Rect::new(
                 (x0 - host_abs.x) as f64 * scale,
@@ -1017,7 +1017,7 @@ impl DomHandle {
                 GeometryRect::from_edges(l - scroll_x, t - scroll_y, r - scroll_x, b - scroll_y)
             };
             let root_node = root_internal.flatten();
-            let intersection = (root_node != Some(target_node.id))
+            let intersection = (root_node != Some(target_node.id()))
                 .then(|| {
                     clip_to_containing_blocks(
                         &doc,
@@ -1064,7 +1064,7 @@ impl DomHandle {
         };
         let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let node = doc.get_node(internal_id?)?;
-            let root_element_id = doc.root_element().id;
+            let root_element_id = doc.root_element().id();
 
             let local_name =
                 |n: &Node| -> Option<String> { n.element_data().map(|e| e.name.local.to_string()) };
@@ -1078,10 +1078,10 @@ impl DomHandle {
                     let Some(n) = doc.get_node(cid) else {
                         return false;
                     };
-                    if n.is_element() && no_box(*n.display_constructed_as()) {
+                    if n.is_element() && no_box(n.display_constructed_as()) {
                         return false;
                     }
-                    cur = n.parent.get();
+                    cur = n.parent_id();
                 }
                 true
             };
@@ -1101,10 +1101,10 @@ impl DomHandle {
                 .unwrap_or(true);
 
             if own_name == "body"
-                || node.id == root_element_id
+                || node.id() == root_element_id
                 || !node.is_element()
                 || self_boxless
-                || !has_layout_box(node.id)
+                || !has_layout_box(node.id())
             {
                 return Some(OffsetMetrics {
                     parent: -1.0,
@@ -1123,7 +1123,7 @@ impl DomHandle {
                 None
             } else {
                 let mut found = None;
-                let mut cur = node.parent.get();
+                let mut cur = node.parent_id();
                 while let Some(pid) = cur {
                     let Some(p) = doc.get_node(pid) else { break };
                     if p.is_element() && generates_box(p) {
@@ -1139,7 +1139,7 @@ impl DomHandle {
                             break;
                         }
                     }
-                    cur = p.parent.get();
+                    cur = p.parent_id();
                 }
                 found
             };
@@ -1159,7 +1159,7 @@ impl DomHandle {
                 ))
             };
 
-            let (node_x, node_y) = viewport_pos(node.id)?;
+            let (node_x, node_y) = viewport_pos(node.id())?;
             let Some(op_id) = offset_parent else {
                 return Some(OffsetMetrics {
                     parent: -1.0,

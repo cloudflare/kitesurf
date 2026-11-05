@@ -112,7 +112,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return vec![-1; node_ids.len()],
         };
-        let root = doc.root_node().id;
+        let root = doc.root_node().id();
         let mut out = Vec::with_capacity(node_ids.len());
         for external in node_ids {
             let Some(mut cur) = self.resolve_node_id(external) else {
@@ -125,7 +125,7 @@ impl DomHandle {
             }
             for _ in 0..100_000 {
                 let Some(node) = doc.get_node(cur) else { break };
-                if let Some(p) = node.parent.get() {
+                if let Some(p) = node.parent_id() {
                     cur = p;
                 } else if let Some(d) = node.shadow_root_data() {
                     cur = d.host;
