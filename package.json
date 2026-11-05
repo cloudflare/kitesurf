@@ -22,6 +22,8 @@
     "build": "bazel run //packages/engine:dev_build",
     "build:dist": "bazel build //packages/engine:dist",
     "build:wasm:memprof": "bazel run //packages/engine:dev_build && bazel run //packages/core/pkg:stage_memprof && KITESURF_MEMPROF=1 pnpm --dir packages/page-script run build",
+    "deploy": "pnpm --filter @kitesurf/engine run deploy",
+    "deploy:preview": "pnpm --filter @kitesurf/engine run deploy:preview",
     "webidl:generate": "node scripts/generate-webidl-bindings.mjs",
     "webidl:check": "bazel test //scripts:webidl_check",
     "script-gate:test": "bazel test //packages/script-gate:test",
