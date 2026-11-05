@@ -499,34 +499,130 @@ fn capture_meta_csp(state: &mut ScanState, tag: &Tag) {
     }
 }
 
-pub(crate) fn scan_document(html: &str) -> ScanResult {
-    let sink = ScanSink {
-        state: RefCell::new(ScanState {
-            is_xhtml: blitz_html::is_xhtml_document(html),
-            ..ScanState::default()
-        }),
-    };
-    let tokenizer = Tokenizer::new(sink, TokenizerOpts::default());
-    let input = BufferQueue::default();
-    input.push_back(StrTendril::from_slice(html));
-    let _ = tokenizer.feed(&input);
-    tokenizer.end();
-    let s = tokenizer.sink.state.into_inner();
-    ScanResult {
-        title: s.title.unwrap_or_default(),
-        base_href: s.base_href,
-        meta_csp: s.meta_csp,
-        import_maps: s.import_maps,
-        scripts: s.scripts,
-        iframes: s.iframes,
-        module_preloads: s.module_preloads,
+const SCAN_CHUNK_BYTES: usize = 64 * 1024;
+
+/// Splits `text` into pieces of about `chunk_bytes`, never inside a character.
+fn str_chunks(mut text: &str, chunk_bytes: usize) -> impl Iterator<Item = &str> {
+    std::iter::from_fn(move || {
+        if text.is_empty() {
+            return None;
+        }
+        let mut end = chunk_bytes.max(1).min(text.len());
+        while !text.is_char_boundary(end) {
+            end += 1;
+        }
+        let (chunk, rest) = text.split_at(end);
+        text = rest;
+        Some(chunk)
+    })
+}
+
+pub(crate) fn scan_document_in_chunks(html: &str, chunk_bytes: usize) -> ScanResult {
+    let mut scanner = DocScanner::new();
+    for chunk in str_chunks(html, chunk_bytes) {
+        scanner.push_str(chunk);
+    }
+    scanner.finish_scan()
+}
+
+/// Scans a page pushed in parts, so the page is never copied into wasm whole: wasm memory
+/// never shrinks, and a whole copy kept the page's size in the engine for the session.
+#[wasm_bindgen]
+pub struct DocScanner {
+    tokenizer: Tokenizer<ScanSink>,
+    input: BufferQueue,
+    /// The page's start, held until it settles whether the page is XHTML, which decides how
+    /// its tokens are read. `None` once the tokenizer has started.
+    pending: Option<String>,
+    /// Pending length at which the sniff runs next; doubling keeps a long prolog linear.
+    next_sniff: usize,
+}
+
+// wasm-bindgen requires this marker for exported receivers. A panic leaves the tokenizer
+// half-updated, but `scanDocument` frees a scanner whose push threw and never reads it again.
+impl std::panic::RefUnwindSafe for DocScanner {}
+
+impl Default for DocScanner {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 #[wasm_bindgen]
-pub fn ks_scan_document(html: &str) -> String {
-    serde_json::to_string(&scan_document(html)).unwrap_or_else(|_| {
-        "{\"title\":\"\",\"baseHref\":null,\"metaCsp\":[],\"importMaps\":[],\"scripts\":[],\"iframes\":[],\"modulePreloads\":[]}"
-            .to_string()
-    })
+impl DocScanner {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> DocScanner {
+        let sink = ScanSink {
+            state: RefCell::new(ScanState::default()),
+        };
+        DocScanner {
+            tokenizer: Tokenizer::new(sink, TokenizerOpts::default()),
+            input: BufferQueue::default(),
+            pending: Some(String::new()),
+            next_sniff: 0,
+        }
+    }
+
+    /// Adds the next part of the page as UTF-8. A part must not split a character.
+    pub fn push(&mut self, chunk: &[u8]) {
+        self.push_str(&String::from_utf8_lossy(chunk));
+    }
+
+    /// The scan of everything pushed, as JSON.
+    pub fn finish(self) -> String {
+        serde_json::to_string(&self.finish_scan()).unwrap_or_else(|_| {
+            "{\"title\":\"\",\"baseHref\":null,\"metaCsp\":[],\"importMaps\":[],\"scripts\":[],\"iframes\":[],\"modulePreloads\":[]}"
+                .to_string()
+        })
+    }
+}
+
+impl DocScanner {
+    fn push_str(&mut self, chunk: &str) {
+        let Some(pending) = &mut self.pending else {
+            self.feed(chunk);
+            return;
+        };
+        pending.push_str(chunk);
+        if pending.len() < self.next_sniff {
+            return;
+        }
+        match blitz_html::is_xhtml_document_prefix(pending) {
+            Some(is_xhtml) => self.start(is_xhtml),
+            None => self.next_sniff = pending.len() * 2,
+        }
+    }
+
+    fn start(&mut self, is_xhtml: bool) {
+        let pending = self.pending.take().unwrap_or_default();
+        self.tokenizer.sink.state.borrow_mut().is_xhtml = is_xhtml;
+        self.feed(&pending);
+    }
+
+    /// The tokenizer copies its input into tendrils; feeding it a piece at a time keeps that
+    /// copy small.
+    fn feed(&self, text: &str) {
+        for chunk in str_chunks(text, SCAN_CHUNK_BYTES) {
+            self.input.push_back(StrTendril::from_slice(chunk));
+            let _ = self.tokenizer.feed(&self.input);
+        }
+    }
+
+    fn finish_scan(mut self) -> ScanResult {
+        if let Some(pending) = &self.pending {
+            let is_xhtml = blitz_html::is_xhtml_document(pending);
+            self.start(is_xhtml);
+        }
+        self.tokenizer.end();
+        let s = self.tokenizer.sink.state.into_inner();
+        ScanResult {
+            title: s.title.unwrap_or_default(),
+            base_href: s.base_href,
+            meta_csp: s.meta_csp,
+            import_maps: s.import_maps,
+            scripts: s.scripts,
+            iframes: s.iframes,
+            module_preloads: s.module_preloads,
+        }
+    }
 }
