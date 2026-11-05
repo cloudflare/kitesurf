@@ -434,7 +434,7 @@ export interface QueryDomMethods {
       marginBottom: number;
       marginLeft: number;
     };
-    result: { envelope?: Uint8Array; error?: string };
+    result: { pages?: ReadableStream<Uint8Array>; pageCount?: number; error?: string };
   };
   getOuterHTMLAndSeq: {
     args: EmptyArgs;

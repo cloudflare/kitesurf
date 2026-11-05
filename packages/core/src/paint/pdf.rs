@@ -17,7 +17,10 @@ pub(crate) fn max_printed_height(page_height: u32) -> f64 {
     MAX_PAGES as f64 * page_height as f64
 }
 
-pub(crate) fn compute_page_bands(doc: &blitz_dom::BaseDocument, height: u32) -> Vec<(f64, f64)> {
+pub(crate) fn compute_page_bands(
+    doc: &mut blitz_dom::BaseDocument,
+    height: u32,
+) -> Vec<(f64, f64)> {
     let node_ranges = collect_node_y_ranges(doc, max_printed_height(height) as f32);
     let unbreakable = merge_break_intervals(&node_ranges, height as f32 * 0.5);
 
@@ -57,24 +60,46 @@ pub(crate) fn record_doc_pdf_scenes(
     images_ref: &mut HashMap<u64, ImageInfo>,
     seen_images: &mut Vec<u64>,
 ) -> Vec<u8> {
-    use blitz_paint::paint_scene;
     let bands = compute_page_bands(doc, content_h);
     let mut out: Vec<u8> = Vec::new();
     out.extend_from_slice(&(bands.len() as u32).to_le_bytes());
     for (y_top, y_bot) in bands {
-        let stripe_h = (y_bot - y_top).ceil().max(1.0) as u32;
-        doc.set_viewport_scroll(blitz_dom::Point { x: 0.0, y: y_top });
-        let mut scene = crate::paint::scene_record::RecordingScene::for_replay();
-        scene.set_viewport(content_w, stripe_h, 0, y_top as u32);
-        scene.set_render_region(y_top as u32, stripe_h);
-        paint_scene(&mut scene, doc, 1.0, content_w, stripe_h, 0, 0);
-        seen_images.extend(scene.image_hashes());
-        crate::paint::render::cache_recorded_resources(&mut scene, fonts_ref, images_ref);
-        let framed = scene.finish_framed();
+        let framed = record_doc_pdf_page(
+            doc,
+            content_w,
+            (y_top, y_bot),
+            fonts_ref,
+            images_ref,
+            seen_images,
+        );
         out.extend_from_slice(&(framed.len() as u32).to_le_bytes());
         out.extend_from_slice(&framed);
     }
     out
+}
+
+pub(crate) fn record_doc_pdf_page(
+    doc: &mut blitz_dom::BaseDocument,
+    content_w: u32,
+    (y_top, y_bot): (f64, f64),
+    fonts_ref: &mut std::collections::HashMap<u64, (peniko::Blob<u8>, u32)>,
+    images_ref: &mut std::collections::HashMap<u64, crate::paint::scene_record::ImageInfo>,
+    seen_images: &mut Vec<u64>,
+) -> Vec<u8> {
+    let stripe_h = (y_bot - y_top).ceil().max(1.0) as u32;
+    doc.set_inline_keep_extent(Some((y_top, y_bot)));
+    doc.set_viewport_scroll(blitz_dom::Point { x: 0.0, y: y_top });
+    let mut scene = crate::paint::scene_record::RecordingScene::for_replay();
+    scene.set_viewport(content_w, stripe_h, 0, y_top as u32);
+    scene.set_render_region(y_top as u32, stripe_h);
+    blitz_paint::paint_scene(&mut scene, doc, 1.0, content_w, stripe_h, 0, 0);
+    seen_images.extend(scene.image_hashes());
+    crate::paint::render::cache_recorded_resources(&mut scene, fonts_ref, images_ref);
+    let framed = scene.finish_framed();
+    // Age read grace before evicting layouts from earlier pages.
+    doc.evict_offscreen_inline_layouts();
+    doc.evict_offscreen_inline_layouts();
+    framed
 }
 fn select_band_end(
     y_cur: f64,
@@ -158,9 +183,11 @@ fn collect_break_intents(doc: &blitz_dom::BaseDocument) -> (Vec<f32>, Vec<(f32, 
 
 /// Boxes and line boxes starting above `limit`. A range starting at or below
 /// it cannot hold a band end, and skipping it leaves evicted text unrebuilt.
-fn collect_node_y_ranges(doc: &blitz_dom::BaseDocument, limit: f32) -> Vec<(f32, f32)> {
+fn collect_node_y_ranges(doc: &mut blitz_dom::BaseDocument, limit: f32) -> Vec<(f32, f32)> {
     let mut out: Vec<(f32, f32)> = Vec::with_capacity(1024);
-    for (_, node) in doc.tree().iter() {
+    let ids: Vec<_> = doc.tree().iter().map(|(id, _)| id).collect();
+    for id in ids {
+        let node = &doc.tree()[id];
         // Text, comments, and shadow roots have no independent layout.
         if node.try_stylo_element_data().is_none() {
             continue;
@@ -183,6 +210,7 @@ fn collect_node_y_ranges(doc: &blitz_dom::BaseDocument, limit: f32) -> Vec<(f32,
         let Some(text_layout) = el.inline_layout_data() else {
             continue;
         };
+        let was_evicted = text_layout.is_evicted();
         for line in text_layout.layout(node.tree()).lines() {
             let m = line.metrics();
             let l_top = top + m.block_min_coord;
@@ -190,6 +218,10 @@ fn collect_node_y_ranges(doc: &blitz_dom::BaseDocument, limit: f32) -> Vec<(f32,
             if l_top.is_finite() && l_bot.is_finite() && l_bot > l_top {
                 out.push((l_top, l_bot));
             }
+        }
+        // Leave layouts that were evicted before the read evicted afterwards.
+        if was_evicted {
+            doc.evict_inline_layout(id);
         }
     }
     out
@@ -253,8 +285,8 @@ mod band_tests {
         let html = format!(
             "<!DOCTYPE html><style>body {{margin:0;font:16px/17px serif}} p {{margin:7px 0}}</style>{paragraphs}"
         );
-        let load = |eviction| {
-            let dom = crate::DomHandle::new(&html, "https://test.example/");
+        let load = |html: &str, eviction| {
+            let dom = crate::DomHandle::new(html, "https://test.example/");
             dom.set_viewport(300, 100);
             dom.doc
                 .borrow_mut()
@@ -263,11 +295,11 @@ mod band_tests {
             dom.resolve_layout();
             dom
         };
-        let keep = load(None);
-        let evict = load(Some(2.0));
+        let keep = load(&html, None);
+        let evict = load(&html, Some(2.0));
         let limited = {
-            let doc = evict.doc.borrow();
-            let base = doc.as_ref();
+            let mut doc = evict.doc.borrow_mut();
+            let base = doc.as_mut();
             assert!(base.root_element().scroll_height() as f64 > max_printed_height(100));
             let bands = compute_page_bands(base, 100);
             assert_eq!(bands.len(), MAX_PAGES as usize);
@@ -284,8 +316,8 @@ mod band_tests {
             bands
         };
         let unrestricted = {
-            let doc = keep.doc.borrow();
-            let base = doc.as_ref();
+            let mut doc = keep.doc.borrow_mut();
+            let base = doc.as_mut();
             let ranges = collect_node_y_ranges(base, f32::INFINITY);
             assert!(ranges
                 .iter()
@@ -304,10 +336,38 @@ mod band_tests {
             bands
         };
         assert_eq!(limited, unrestricted);
+        let expected = keep.record_pdf_scenes(300, 100, 0, 0, 0, 0);
+        assert!(!expected.is_empty(), "the fixture must produce PDF scenes");
+        let before = blitz_dom::node::inline_layout_rebuild_count();
+        assert_eq!(evict.record_pdf_scenes(300, 100, 0, 0, 0, 0), expected);
+        let rebuilds = blitz_dom::node::inline_layout_rebuild_count() - before;
+        let shorter = load(html.split("<p id=p400>").next().unwrap(), Some(2.0));
+        {
+            let mut doc = shorter.doc.borrow_mut();
+            assert!(doc.root_element().scroll_height() as f64 > max_printed_height(100));
+            assert_eq!(compute_page_bands(doc.as_mut(), 100), limited);
+            drop(doc);
+        }
+        let before = blitz_dom::node::inline_layout_rebuild_count();
+        assert_eq!(shorter.record_pdf_scenes(300, 100, 0, 0, 0, 0), expected);
         assert_eq!(
-            evict.record_pdf_scenes(300, 100, 0, 0, 0, 0),
-            keep.record_pdf_scenes(300, 100, 0, 0, 0, 0)
+            blitz_dom::node::inline_layout_rebuild_count() - before,
+            rebuilds,
+            "unprinted rows must not add transient text rebuilds"
         );
+        let doc = evict.doc.borrow();
+        let base = doc.as_ref();
+        let last = base.get_element_by_id("p599").unwrap();
+        assert!(
+            base.tree()[last]
+                .element_data()
+                .unwrap()
+                .inline_layout_data()
+                .unwrap()
+                .is_evicted(),
+            "printing must leave text beyond the print cap evicted"
+        );
+        drop(doc);
     }
 
     #[test]

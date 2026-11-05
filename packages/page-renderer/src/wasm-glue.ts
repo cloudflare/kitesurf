@@ -10,6 +10,10 @@ export declare function set_ks_tracing(enabled: boolean): void;
 export declare function set_ks_trace_parent(spanIdHex: string): void;
 export declare function ks_set_emit_hook(callback: ((spanRecord: string) => void) | null): void;
 
+export declare class StreamingPdf {
+  free(): void;
+}
+
 export declare class SceneRasterizer {
   constructor();
   missingResources(scene: Uint8Array): Uint8Array;
@@ -21,6 +25,18 @@ export declare class SceneRasterizer {
   abandonImage(key: string): number;
   resetResources(): void;
   missingResourcesPdf(envelope: Uint8Array): Uint8Array;
+  // eslint-disable-next-line max-params -- Keep the generated wasm-bindgen ABI.
+  beginPdf(
+    paperWidth: number,
+    paperHeight: number,
+    omitBackground: boolean,
+    marginTop: number,
+    marginRight: number,
+    marginBottom: number,
+    marginLeft: number,
+  ): StreamingPdf;
+  appendPdfPage(pdf: StreamingPdf, scene: Uint8Array): boolean;
+  finishPdf(pdf: StreamingPdf): Uint8Array;
   // eslint-disable-next-line max-params -- Keep the generated wasm-bindgen ABI.
   renderPdf(
     envelope: Uint8Array,

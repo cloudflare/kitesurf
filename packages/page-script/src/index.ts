@@ -7,6 +7,7 @@
 // returned function becomes a live capability that extends the session.
 
 import { WorkerEntrypoint, RpcTarget, abortIsolate } from "cloudflare:workers";
+import { pdfScenePages } from "./pdf-stream.ts";
 import { createFrameBitmapDeliveryGate } from "./frame-bitmap-gate.ts";
 import type {
   ArgSpec,
@@ -361,6 +362,7 @@ import {
   pageTimerDueWithin,
   pumpDuePageTasks,
   pumpPageTask,
+  pausePageTaskPump,
   deferPageTaskWhilePaused,
   timerWheelStats,
   timersScheduledCount,
@@ -6143,9 +6145,9 @@ function queryDomHasPendingCriticalResources(
   }
 }
 
-function queryDomRecordPdfScenes(
+async function queryDomRecordPdfScenes(
   queryArgs: Record<string, unknown>,
-): QueryDomResult<"recordPdfScenes"> {
+): Promise<QueryDomResult<"recordPdfScenes">> {
   const DEFAULT_PDF_PAPER_WIDTH_CSS_PX = 816;
   const DEFAULT_PDF_PAPER_HEIGHT_CSS_PX = 1056;
   const pdfW =
@@ -6158,22 +6160,25 @@ function queryDomRecordPdfScenes(
       : DEFAULT_PDF_PAPER_HEIGHT_CSS_PX;
   const readPx = (v: unknown) =>
     typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
-  const { paint, fresh: isFreshPaint } = takePaintPrep();
-  if (!paint) {
-    return {
-      envelope: new Uint8Array(0),
-      error: "ensurePaintDom returned null",
-    } satisfies QueryDomResult<"recordPdfScenes">;
-  }
-  prepareCachedPaint(paint, isFreshPaint);
+  let releaseTasks: (() => void) | null = null;
+  let releaseFrameBitmaps: (() => void) | null = null;
+  let source: ReturnType<DomHandle["startPdfSceneStream"]> | null = null;
   try {
-    if (typeof paint.recordPdfScenes !== "function") {
+    releaseTasks = await pausePageTaskPump();
+    releaseFrameBitmaps = frameBitmapDeliveryGate.hold();
+    const { paint, fresh: isFreshPaint } = takePaintPrep();
+    if (!paint) {
       return {
-        envelope: new Uint8Array(0),
-        error: "recordPdfScenes not exported",
+        error: "ensurePaintDom returned null",
       } satisfies QueryDomResult<"recordPdfScenes">;
     }
-    const envelope = paint.recordPdfScenes(
+    prepareCachedPaint(paint, isFreshPaint);
+    if (typeof paint.startPdfSceneStream !== "function") {
+      return {
+        error: "startPdfSceneStream not exported",
+      } satisfies QueryDomResult<"recordPdfScenes">;
+    }
+    const sceneSource = paint.startPdfSceneStream(
       pdfW,
       pdfH,
       readPx(queryArgs.marginTop),
@@ -6181,19 +6186,63 @@ function queryDomRecordPdfScenes(
       readPx(queryArgs.marginBottom),
       readPx(queryArgs.marginLeft),
     );
-    if (!envelope || envelope.length === 0) {
+    source = sceneSource;
+    if (!sceneSource || sceneSource.pageCount === 0) {
       return {
-        envelope: new Uint8Array(0),
-        error: "empty pdf scene envelope",
+        error: "empty pdf scene stream",
       } satisfies QueryDomResult<"recordPdfScenes">;
     }
-    return { envelope } satisfies QueryDomResult<"recordPdfScenes">;
+    const pageCount = sceneSource.pageCount;
+    // setInputText calls bumpMutationSeq(), so this covers form-control editor text too.
+    const paintRevision = cascadeSeq();
+    const viewportW = state.paintViewportW;
+    const viewportH = state.paintViewportH;
+    const media = state.currentMediaType;
+    const scrollX = state.scrollX;
+    const scrollY = state.scrollY;
+    const releasePageTaskPump = releaseTasks;
+    const releaseOopifBitmaps = releaseFrameBitmaps;
+    if (!releasePageTaskPump || !releaseOopifBitmaps) {
+      throw new Error("PDF task gate was not acquired");
+    }
+    const pages = pdfScenePages(
+      sceneSource,
+      () => sceneSource.nextPage(paint),
+      () => {
+        if (
+          state.dom !== paint ||
+          state.paintCacheHandle !== paint ||
+          cascadeSeq() !== paintRevision ||
+          state.paintViewportW !== viewportW ||
+          state.paintViewportH !== viewportH ||
+          state.currentMediaType !== media ||
+          state.scrollX !== scrollX ||
+          state.scrollY !== scrollY
+        ) {
+          throw new Error("PDF document changed during scene streaming");
+        }
+      },
+      invalidatePaintDom,
+      () => {
+        releaseOopifBitmaps();
+        releasePageTaskPump();
+      },
+    );
+    source = null;
+    releaseFrameBitmaps = null;
+    releaseTasks = null;
+    return { pages, pageCount } satisfies QueryDomResult<"recordPdfScenes">;
   } catch (e) {
     invalidatePaintDom();
     return {
-      envelope: new Uint8Array(0),
       error: errorMessage(e),
     } satisfies QueryDomResult<"recordPdfScenes">;
+  } finally {
+    try {
+      source?.free();
+    } catch {}
+    releaseFrameBitmaps?.();
+    releaseTasks?.();
   }
 }
 

@@ -3,6 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import type { Page } from "@cloudflare/puppeteer";
+import { createHash } from "node:crypto";
 
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
@@ -22,10 +23,11 @@ function countPdfPages(buf: Uint8Array): number {
   return m ? m.length : 0;
 }
 
-async function pdfPageCount(page: Page, html: string): Promise<number> {
+async function pdfPageCount(page: Page, html: string, hash: string): Promise<number> {
   await setContent(page, html);
   const cdp = await page.createCDPSession();
   const r = (await cdp.send("Page.printToPDF", ZERO_MARGIN)) as { data: string };
+  expect(createHash("sha256").update(Buffer.from(r.data, "base64")).digest("hex")).toBe(hash);
   return countPdfPages(new Uint8Array(Buffer.from(r.data, "base64")));
 }
 
@@ -42,6 +44,7 @@ test("break-before:page forces one PDF page per section", async ({ page }) => {
 <section>two</section>
 <section>three</section>
 <div class="keep">keep-together</div>`,
+    "d921d2c9ec05a0d9b945a99a7780e0eadf84c172a731358beb5700734f0cea88",
   );
   expect(pages).toBe(3);
 }, 120_000);
@@ -58,6 +61,7 @@ test("break-inside:avoid moves blocks the heuristic would cut", async ({ page })
 <div class="filler"></div>
 <div class="keep"></div>
 <div class="keep"></div>`,
+    "d99517aa24982082ae7414450e4ccfed58fbcb65a1d64f5b6b5803fe04b8e557",
   );
   expect(pages).toBe(3);
 }, 120_000);

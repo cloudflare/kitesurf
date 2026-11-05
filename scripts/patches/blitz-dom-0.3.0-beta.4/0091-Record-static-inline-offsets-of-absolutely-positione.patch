@@ -1,0 +1,309 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 4 Nov 2026 19:18:39 +0000
+Subject: [PATCH] Record static inline offsets of absolutely positioned boxes
+ when evicting
+
+A root whose absolutely positioned boxes sit at their static inline
+position stayed shaped, since its summary knew only each box's line.
+Record each box's offset along its line with the inputs that aligned it,
+and reuse it only for a layout pass with identical inputs; any other pass
+rebuilds the root. Measure passes place no boxes, so they keep breaking
+from the summary.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/layout/evict.rs  | 58 +++++++++++++++++++++++++++++++++++++-------
+ src/layout/inline.rs | 48 +++++++++++++++++++++++++++++++-----
+ src/node/mod.rs      |  3 ++-
+ src/node/text.rs     | 57 +++++++++++++++++++++++++++++++++++++++++--
+ 4 files changed, 148 insertions(+), 18 deletions(-)
+
+diff --git a/src/layout/evict.rs b/src/layout/evict.rs
+index 45702d8..7623331 100644
+--- a/src/layout/evict.rs
++++ b/src/layout/evict.rs
+@@ -10,7 +10,9 @@
+ //! after, so no pass holds the shaped text of the whole document at once.
+
+ use crate::BaseDocument;
+-use crate::node::{EvictedBreak, EvictedLayout, EvictedSummary, SummaryCell};
++use crate::node::{
++    AlignInputs, EvictedBreak, EvictedLayout, EvictedSummary, OutOfFlow, StaticX, SummaryCell,
++};
+ use blitz_traits::node_id::NodeId;
+ use style::values::specified::box_::DisplayOutside;
+
+@@ -113,20 +115,18 @@ impl BaseDocument {
+         let Some(lines) = layout.break_summary() else {
+             return Eviction::Unsummarized;
+         };
+-        // A summary holds only absolutely positioned boxes, and only the line
+-        // each lands on.
++        // A summary holds only absolutely positioned boxes, the line each
++        // lands on, and where along it when their static position needs that.
+         let out_of_flow: Box<[NodeId]> = layout
+             .inline_boxes()
+             .map(|ibox| NodeId::from_u64(ibox.id))
+             .collect();
+-        if !out_of_flow.is_empty()
+-            && (is_vertical(&self.nodes[node_id])
+-                || !out_of_flow
+-                    .iter()
+-                    .all(|&id| self.abspos_static_x_is_unused(id)))
+-        {
++        if !out_of_flow.is_empty() && is_vertical(&self.nodes[node_id]) {
+             return Eviction::Unsummarized;
+         }
++        let needs_static_x = !out_of_flow
++            .iter()
++            .all(|&id| self.abspos_static_x_is_unused(id));
+         let clamp_lines = self.inline_clamp_lines(node_id);
+         let (_, last_line_alignment) = self.inline_alignment(node_id);
+         let inline = self
+@@ -136,11 +136,28 @@ impl BaseDocument {
+         let max_advance = layout.layout_max_advance();
+         let indent = layout.text_indent();
+         let alignment = layout.alignment();
++        let static_x = if needs_static_x {
++            let Some(x) = static_x_of(layout, &out_of_flow) else {
++                return Eviction::Unsummarized;
++            };
++            let aligned = AlignInputs {
++                max_advance,
++                indent,
++                alignment,
++                last_line_alignment,
++                clamp_lines,
++            };
++            Some(StaticX { aligned, x })
++        } else {
++            None
++        };
+         let boxes = layout
+             .inline_boxes()
+             .map(|ibox| (ibox.width, ibox.height, ibox.baseline))
+             .collect();
+         // Content widths the layout pass measured stay in `inline.content_widths`.
++        let out_of_flow = (!out_of_flow.is_empty())
++            .then(|| Box::new(OutOfFlow { ids: out_of_flow, static_x }));
+         let summary = Some(EvictedSummary { lines, out_of_flow });
+         let breaking = EvictedBreak::new(
+             max_advance,
+@@ -386,6 +403,29 @@ impl BaseDocument {
+ }
+
+ /// Whether `node` lays out in a vertical writing mode.
++/// Each box's offset along its line in `layout`, in `ids` order, or `None`
++/// when one was clamped away. Looked up by id: bidi lines list items visually.
++fn static_x_of(
++    layout: &parley::layout::Layout<crate::node::TextBrush>,
++    ids: &[NodeId],
++) -> Option<Box<[f32]>> {
++    let mut placed: Vec<(u64, f32)> = layout
++        .lines()
++        .flat_map(|line| line.items())
++        .filter_map(|item| match item {
++            parley::layout::PositionedLayoutItem::InlineBox(ibox) => Some((ibox.id, ibox.x)),
++            parley::layout::PositionedLayoutItem::GlyphRun(_) => None,
++        })
++        .collect();
++    placed.sort_unstable_by_key(|&(id, _)| id);
++    ids.iter()
++        .map(|id| {
++            let at = placed.binary_search_by_key(&id.as_u64(), |&(id, _)| id).ok()?;
++            Some(placed[at].1)
++        })
++        .collect()
++}
++
+ pub(super) fn is_vertical(node: &crate::Node) -> bool {
+     #[cfg(feature = "writing-mode")]
+     return node.writing_mode().is_vertical();
+diff --git a/src/layout/inline.rs b/src/layout/inline.rs
+index c6a7d82..81a0dba 100644
+--- a/src/layout/inline.rs
++++ b/src/layout/inline.rs
+@@ -448,7 +448,7 @@ impl LayoutPassState<'_> {
+                 Some(layout) => layout.inline_boxes().len() == 0,
+                 None => inline_layout
+                     .evicted_summary()
+-                    .is_none_or(|summary| summary.out_of_flow.is_empty()),
++                    .is_none_or(|summary| summary.out_of_flow.is_none()),
+             }
+         {
+             inline_layout.replayable_break = false;
+@@ -828,11 +828,23 @@ impl LayoutPassState<'_> {
+             );
+             #[cfg(not(feature = "floats"))]
+             let clear_of_floats = true;
++            // Boxes whose static position needs their place along the line
++            // reuse the recorded one only when it is what aligning these lines
++            // again gives; a measure pass places no boxes.
+             let summary = inline_layout
+                 .evicted_summary()
+                 .filter(|summary| {
++                    let static_x = summary.out_of_flow.as_deref().and_then(|oof| oof.static_x.as_ref());
+                     !super::evict::is_vertical(&self.nodes[node_id])
+-                        && summary.out_of_flow.iter().all(|&id| self.abspos_static_x_is_unused(id))
++                        && (summary
++                            .out_of_flow_ids()
++                            .iter()
++                            .all(|&id| self.abspos_static_x_is_unused(id))
++                            || static_x.is_some_and(|static_x| {
++                                inputs.run_mode != RunMode::PerformLayout
++                                    || static_x.aligned
++                                        == self.inline_align_inputs(node_id, width, indent)
++                            }))
+                 })
+                 .map(|summary| &summary.lines)
+                 .filter(|_| clear_of_floats);
+@@ -1225,7 +1237,8 @@ impl LayoutPassState<'_> {
+         // and it clips away.
+         let commit_positions = inputs.run_mode == taffy::RunMode::PerformLayout;
+         // A summarized root's inline boxes are all absolutely positioned, with
+-        // static positions that need only their line (see eviction).
++        // static positions that need only their line, or recorded offsets
++        // along it that the summary check found current (see eviction).
+         if let (true, Some(lines), Some(summary)) = (
+             commit_positions,
+             &summary_lines,
+@@ -1235,7 +1248,9 @@ impl LayoutPassState<'_> {
+                 start: container_pb.left,
+                 end: final_size.width - container_pb.right,
+             };
+-            for (&box_id, &line) in summary.out_of_flow.iter().zip(lines.box_lines()) {
++            let static_x = summary.out_of_flow.as_deref().and_then(|oof| oof.static_x.as_ref());
++            let ids = summary.out_of_flow_ids();
++            for (index, (&box_id, &line)) in ids.iter().zip(lines.box_lines()).enumerate() {
+                 // Clamped away: the missing-box pass below offers it.
+                 let Some(line) = lines.lines().get(line as usize) else {
+                     continue;
+@@ -1245,8 +1260,11 @@ impl LayoutPassState<'_> {
+                     box_id,
+                     ibox_order,
+                     AbsposLine {
+-                        // Unused: eviction requires a horizontal inset.
+-                        x: container_pb.left,
++                        // Without recorded offsets every box has a horizontal
++                        // inset or is block-level, so this is unused.
++                        x: static_x.map_or(container_pb.left, |static_x| {
++                            (static_x.x[index] / scale) + container_pb.left
++                        }),
+                         top: (line.block_min_coord / scale) + line_box_top,
+                         bottom: (line.block_max_coord / scale) + line_box_top,
+                     },
+@@ -1675,6 +1693,24 @@ impl crate::BaseDocument {
+
+     // -webkit-box + orient:vertical + line-clamp:N was rewritten to
+     // flow-root at computed-value time; the stylo flag says clamp here.
++    /// The [`AlignInputs`] a pass breaking `node_id` at `width` (layout
++    /// units) with `indent` aligns its lines with.
++    fn inline_align_inputs(
++        &self,
++        node_id: NodeId,
++        width: f32,
++        indent: (f32, parley::IndentOptions),
++    ) -> crate::node::AlignInputs {
++        let (alignment, last_line_alignment) = self.inline_alignment(node_id);
++        crate::node::AlignInputs {
++            max_advance: width,
++            indent,
++            alignment: Some(alignment),
++            last_line_alignment,
++            clamp_lines: self.inline_clamp_lines(node_id),
++        }
++    }
++
+     pub(crate) fn inline_clamp_lines(&self, node_id: NodeId) -> Option<usize> {
+         self.nodes[node_id].primary_styles().and_then(|s| {
+             use style::computed_value_flags::ComputedValueFlags;
+diff --git a/src/node/mod.rs b/src/node/mod.rs
+index 07ccf19..7d5cf0d 100644
+--- a/src/node/mod.rs
++++ b/src/node/mod.rs
+@@ -33,6 +33,7 @@ pub use text::{
+     inline_layout_rebuild_count, inline_summary_stats,
+ };
+ pub(crate) use text::{
+-    EvictedBreak, EvictedLayout, EvictedSummary, InlineRebuild, SummaryCell, count_inline_summary,
++    AlignInputs, EvictedBreak, EvictedLayout, EvictedSummary, InlineRebuild, OutOfFlow, StaticX,
++    SummaryCell, count_inline_summary,
+     with_rebuild_contexts,
+ };
+diff --git a/src/node/text.rs b/src/node/text.rs
+index 97167e8..0b95ad9 100644
+--- a/src/node/text.rs
++++ b/src/node/text.rs
+@@ -256,8 +256,56 @@ impl EvictedBreak {
+ pub(crate) struct EvictedSummary {
+     /// Breaks the lines at another width.
+     pub(crate) lines: parley::BreakSummary,
++    /// `None` when the root has no inline boxes. A thin box keeps every
++    /// evicted root's state within its wasm32 chunk.
++    pub(crate) out_of_flow: Option<Box<OutOfFlow>>,
++}
++
++impl EvictedSummary {
+     /// The root's inline boxes, all absolutely positioned, in layout order.
+-    pub(crate) out_of_flow: Box<[NodeId]>,
++    pub(crate) fn out_of_flow_ids(&self) -> &[NodeId] {
++        self.out_of_flow.as_deref().map_or(&[], |oof| &oof.ids)
++    }
++}
++
++#[derive(Clone)]
++pub(crate) struct OutOfFlow {
++    pub(crate) ids: Box<[NodeId]>,
++    /// Kept when a box's static position depends on where along its line it
++    /// sits, which only the shaped line knows.
++    pub(crate) static_x: Option<StaticX>,
++}
++
++/// The inline offset of each out-of-flow box in its line, in layout units, as
++/// the live layout placed it when broken and aligned with `aligned`. A pass
++/// with other inputs rebuilds the root instead.
++#[derive(Clone)]
++pub(crate) struct StaticX {
++    pub(crate) aligned: AlignInputs,
++    /// Per box in [`EvictedSummary::out_of_flow_ids`] order.
++    pub(crate) x: Box<[f32]>,
++}
++
++/// The inputs that place items along a broken line. Floats compare by bits,
++/// so the recorded offsets are only reused for identical inputs.
++#[derive(Clone, Copy)]
++pub(crate) struct AlignInputs {
++    pub(crate) max_advance: f32,
++    pub(crate) indent: (f32, IndentOptions),
++    pub(crate) alignment: Option<Alignment>,
++    pub(crate) last_line_alignment: Option<Alignment>,
++    pub(crate) clamp_lines: Option<usize>,
++}
++
++impl PartialEq for AlignInputs {
++    fn eq(&self, other: &Self) -> bool {
++        self.max_advance.to_bits() == other.max_advance.to_bits()
++            && self.indent.0.to_bits() == other.indent.0.to_bits()
++            && self.indent.1 == other.indent.1
++            && self.alignment == other.alignment
++            && self.last_line_alignment == other.last_line_alignment
++            && self.clamp_lines == other.clamp_lines
++    }
+ }
+
+ /// An [`EvictedSummary`] that a rebuild, which only borrows the layout, can
+@@ -290,7 +338,12 @@ impl SummaryCell {
+             .unwrap_or_else(std::sync::PoisonError::into_inner)
+             .as_ref()
+             .map_or(0, |summary| {
+-                summary.lines.heap_size() + size_of_val(&*summary.out_of_flow)
++                let oof = summary.out_of_flow.as_deref().map_or(0, |oof| {
++                    size_of::<OutOfFlow>()
++                        + size_of_val(&*oof.ids)
++                        + oof.static_x.as_ref().map_or(0, |s| size_of_val(&*s.x))
++                });
++                summary.lines.heap_size() + oof
+             })
+     }
+ }

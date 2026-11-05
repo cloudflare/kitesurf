@@ -1627,14 +1627,44 @@ struct PdfRenderOptions {
 }
 
 #[cfg(feature = "pdf")]
+#[cfg_attr(not(feature = "native-host"), wasm_bindgen)]
+pub struct StreamingPdf {
+    document: Option<krilla::Document>,
+    options: PdfRenderOptions,
+    pages: usize,
+}
+
+// Replay takes the document out before catching a panic, so it cannot be reused after unwinding.
+#[cfg(feature = "pdf")]
+impl std::panic::RefUnwindSafe for StreamingPdf {}
+
+#[cfg(feature = "pdf")]
 fn render_pdf_impl(
     store: &ResourceStore,
     envelope: &[u8],
     options: PdfRenderOptions,
 ) -> Result<Vec<u8>, String> {
-    use krilla::page::PageSettings;
-    use krilla::Document;
+    let scenes = split_pdf_envelope(envelope);
+    if scenes.is_empty() {
+        return Err("empty pdf scene envelope".to_string());
+    }
+    let mut pdf_doc = krilla::Document::new();
+    for scene_bytes in scenes {
+        replay_pdf_page(&mut pdf_doc, store, scene_bytes, options)?;
+    }
+    pdf_doc
+        .finish()
+        .map_err(|e| format!("krilla finish: {:?}", e))
+}
 
+#[cfg(feature = "pdf")]
+fn replay_pdf_page(
+    pdf_doc: &mut krilla::Document,
+    store: &ResourceStore,
+    scene_bytes: &[u8],
+    options: PdfRenderOptions,
+) -> Result<(), String> {
+    use krilla::page::PageSettings;
     let PdfRenderOptions {
         paper_width,
         paper_height,
@@ -1644,11 +1674,7 @@ fn render_pdf_impl(
         margin_bottom,
         margin_left,
     } = options;
-    let scenes = split_pdf_envelope(envelope);
-    if scenes.is_empty() {
-        return Err("empty pdf scene envelope".to_string());
-    }
-    let (ml, mt, content_w, _content_h) = content_box(
+    let (ml, mt, content_w, _content_h) = crate::paint::pdf_paint::content_box(
         paper_width,
         paper_height,
         margin_top,
@@ -1659,40 +1685,35 @@ fn render_pdf_impl(
     const PX_TO_PT: f32 = 72.0 / 96.0;
     let page_w_pt = (paper_width as f32) * PX_TO_PT;
     let page_h_pt = (paper_height as f32) * PX_TO_PT;
-    let mut pdf_doc = Document::new();
-    for scene_bytes in scenes {
-        let header = scene_decode::parse_header(scene_bytes).map_err(|e| e.to_string())?;
-        let stripe_h = if header.render_h > 0 {
-            header.render_h
-        } else {
-            header.viewport_h
-        };
-        let settings = PageSettings::from_wh(page_w_pt, page_h_pt)
-            .ok_or_else(|| format!("invalid page size {}x{}pt", page_w_pt, page_h_pt))?;
-        let mut page = pdf_doc.start_page_with(settings);
-        let mut surface = page.surface();
-        push_px_to_pt_scale(&mut surface);
-        if !omit_background {
-            paint_white_background(&mut surface, paper_width, paper_height)?;
-        }
-        if ml > 0 || mt > 0 {
-            let t = Transform::from_row(1.0, 0.0, 0.0, 1.0, ml as f32, mt as f32);
-            surface.push_transform(&t);
-        }
-        push_page_clip(&mut surface, content_w as f32, stripe_h as f32);
-        {
-            let mut kps = KrillaPaintScene::new(&mut surface);
-            replay_into(scene_bytes, store, &mut kps)?;
-        }
-        surface.pop();
-        if ml > 0 || mt > 0 {
-            surface.pop();
-        }
+    let header = scene_decode::parse_header(scene_bytes).map_err(|e| e.to_string())?;
+    let stripe_h = if header.render_h > 0 {
+        header.render_h
+    } else {
+        header.viewport_h
+    };
+    let settings = PageSettings::from_wh(page_w_pt, page_h_pt)
+        .ok_or_else(|| format!("invalid page size {}x{}pt", page_w_pt, page_h_pt))?;
+    let mut page = pdf_doc.start_page_with(settings);
+    let mut surface = page.surface();
+    crate::paint::pdf_paint::push_px_to_pt_scale(&mut surface);
+    if !omit_background {
+        crate::paint::pdf_paint::paint_white_background(&mut surface, paper_width, paper_height)?;
+    }
+    if ml > 0 || mt > 0 {
+        let t = krilla::geom::Transform::from_row(1.0, 0.0, 0.0, 1.0, ml as f32, mt as f32);
+        surface.push_transform(&t);
+    }
+    crate::paint::pdf_paint::push_page_clip(&mut surface, content_w as f32, stripe_h as f32);
+    {
+        let mut kps = crate::paint::pdf_paint::KrillaPaintScene::new(&mut surface);
+        replay_into(scene_bytes, store, &mut kps)?;
+    }
+    surface.pop();
+    if ml > 0 || mt > 0 {
         surface.pop();
     }
-    pdf_doc
-        .finish()
-        .map_err(|e| format!("krilla finish: {:?}", e))
+    surface.pop();
+    Ok(())
 }
 
 fn u32_le(b: &[u8]) -> u32 {
@@ -2619,6 +2640,86 @@ impl SceneRasterizer {
         encode_missing(&union)
     }
 
+    #[cfg(feature = "pdf")]
+    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "beginPdf"))]
+    #[allow(clippy::too_many_arguments)]
+    pub fn begin_pdf(
+        &self,
+        paper_width: u32,
+        paper_height: u32,
+        omit_background: bool,
+        margin_top: u32,
+        margin_right: u32,
+        margin_bottom: u32,
+        margin_left: u32,
+    ) -> StreamingPdf {
+        StreamingPdf {
+            document: Some(krilla::Document::new()),
+            options: PdfRenderOptions {
+                paper_width,
+                paper_height,
+                omit_background,
+                margin_top,
+                margin_right,
+                margin_bottom,
+                margin_left,
+            },
+            pages: 0,
+        }
+    }
+
+    #[cfg(feature = "pdf")]
+    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "appendPdfPage"))]
+    pub fn append_pdf_page(&self, pdf: &mut StreamingPdf, scene: &[u8]) -> bool {
+        let Some(mut document) = pdf.document.take() else {
+            *self.last_error.borrow_mut() = "PDF session already closed".to_string();
+            return false;
+        };
+        let store = self.store.borrow();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            replay_pdf_page(&mut document, &store, scene, pdf.options)
+        }));
+        drop(store);
+        match result {
+            Ok(Ok(())) => {
+                pdf.document = Some(document);
+                pdf.pages += 1;
+                self.last_error.borrow_mut().clear();
+                true
+            }
+            failure => {
+                *self.last_error.borrow_mut() = match failure {
+                    Ok(Err(error)) => error,
+                    _ => "appendPdfPage panicked".to_string(),
+                };
+                false
+            }
+        }
+    }
+
+    #[cfg(feature = "pdf")]
+    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "finishPdf"))]
+    pub fn finish_pdf(&self, pdf: &mut StreamingPdf) -> Vec<u8> {
+        let Some(document) = pdf.document.take().filter(|_| pdf.pages > 0) else {
+            *self.last_error.borrow_mut() = "empty or closed PDF session".to_string();
+            return Vec::new();
+        };
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| document.finish())) {
+            Ok(Ok(bytes)) => {
+                self.last_error.borrow_mut().clear();
+                bytes
+            }
+            Ok(Err(error)) => {
+                *self.last_error.borrow_mut() = format!("krilla finish: {:?}", error);
+                Vec::new()
+            }
+            Err(_) => {
+                *self.last_error.borrow_mut() = "finishPdf panicked".to_string();
+                Vec::new()
+            }
+        }
+    }
+
     /// Replay a `recordPdfScenes` envelope into a Krilla document, one scene per page.
     /// Pages use a point-sized MediaBox, px-to-pt scale, and optional white fill.
     /// Margins and `render_h` set paint bounds. Failures return empty bytes; read
@@ -3249,6 +3350,10 @@ mod tests {
         drop(store);
         assert_eq!(u32_le(&raster.missing_resources_pdf(&envelope)[0..4]), 0);
         let pdf = raster.render_pdf(&envelope, 816, 1056, false, 10, 10, 10, 10);
+        let mut streamed = raster.begin_pdf(816, 1056, false, 10, 10, 10, 10);
+        assert!(raster.append_pdf_page(&mut streamed, &page1));
+        assert!(raster.append_pdf_page(&mut streamed, &page2));
+        assert_eq!(raster.finish_pdf(&mut streamed), pdf);
         assert!(pdf.len() > 500, "got {} bytes", pdf.len());
         assert_eq!(&pdf[0..5], b"%PDF-");
         let text = String::from_utf8_lossy(&pdf);

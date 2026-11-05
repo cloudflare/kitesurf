@@ -3,6 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import type { Page } from "@cloudflare/puppeteer";
+import { createHash } from "node:crypto";
 
 import { expect, test } from "../harness";
 
@@ -36,6 +37,9 @@ function pageCount(pdf: Uint8Array): number {
 
 test("printToPDF renders via the pageRenderer without inflating pageScript", async ({ page }) => {
   const renderer = await pdfFor(page, FIXTURE);
+  expect(createHash("sha256").update(renderer.bytes).digest("hex")).toBe(
+    "bff285e3a33451d4444e004b49373f7ad4b62bfa3c09be0b8add8b37aa917ea2",
+  );
   expect(renderer.bytes.length).toBeGreaterThan(10_000);
   expect(new TextDecoder().decode(renderer.bytes.subarray(0, 5))).toBe("%PDF-");
   expect(pageCount(renderer.bytes)).toBeGreaterThanOrEqual(2);
