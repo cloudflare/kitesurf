@@ -104,7 +104,23 @@ rust_test(
     name = "blitz_dom_undisplayed_layout_test",
     crate = "@crates//:blitz-dom",
     crate_features = ["svg", "floats", "woff"],
-    args = ["nested_slot_edges_visit_each_reachable_node_once_and_release_layout"],
+    args = [
+        "nested_slot_edges_visit_each_reachable_node_once_and_release_layout",
+        "display_none_retention_tests",
+        "compact_node_tests",
+        "rare_tests",
+        "attribute_names_round_trip_and_match_exactly",
+        "node_data_stays_four_words",
+        "opaque_ids_follow_slot_reuse_and_reject_free_slots",
+        "cloning_an_element_discards_derived_text_layouts",
+    ],
+    exec_properties = RUST,
+)
+
+rust_test(
+    name = "blitz_traits_node_id_test",
+    crate = "@crates//:blitz-traits",
+    args = ["halves_round_trip_and_hash_order_like_the_raw_u64"],
     exec_properties = RUST,
 )
 
@@ -143,6 +159,7 @@ test_suite(
     tests = [
         ":blitz_dom_child_lists_test",
         ":blitz_dom_undisplayed_layout_test",
+        ":blitz_traits_node_id_test",
         ":boa_gc_test",
         ":boa_interner_test",
         ":core_test",
