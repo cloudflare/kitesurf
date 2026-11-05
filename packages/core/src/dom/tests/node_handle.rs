@@ -153,6 +153,47 @@ fn seeded_handles_name_their_slots_across_freed_slots() {
 }
 
 #[test]
+fn seeding_a_slot_past_its_first_version_names_that_version() {
+    let html = format!("<i id=gap></i>{}", "<span>x</span>".repeat(64));
+    let dom = DomHandle::new(&html, "https://example.test/");
+    let gap = dom.query_selector("#gap").expect("gap node") as u32;
+    let gap_id = dom.resolve_node_id(gap).expect("seeded id");
+    assert!(dom.drop_node(gap));
+    let reused = dom.create_element("b");
+    let reused_id = dom.resolve_node_id(reused).expect("mapped node");
+    assert_eq!(
+        gap_id.as_u64() as u32,
+        reused_id.as_u64() as u32,
+        "the slot is reused"
+    );
+    assert_ne!(gap_id, reused_id, "at a later version");
+
+    let doc = dom.doc.borrow();
+    let mut handles = NodeHandleMap::seeded(&doc);
+    for (id, _) in doc.tree().iter() {
+        let external = handles.existing_external(id).expect("seeded node");
+        assert_eq!(external, (id.as_u64() as u32) - 1);
+        assert_eq!(handles.resolve(external), Some(id));
+    }
+    assert_eq!(
+        handles.seeded_versions.other.len(),
+        1,
+        "only the reused slot is stored apart"
+    );
+    handles.retire(reused_id);
+    assert_eq!(handles.resolve(gap), None);
+    assert!(handles.seeded_versions.other.is_empty());
+    let next = doc
+        .tree()
+        .iter()
+        .map(|(id, _)| id)
+        .find(|&id| id != reused_id && id != doc.root_node().id());
+    let next = next.expect("another node");
+    assert_eq!(handles.resolve((next.as_u64() as u32) - 1), Some(next));
+    drop(doc);
+}
+
+#[test]
 fn a_reused_seeded_slot_keeps_both_generations_apart() {
     // An empty element frees one slot, which the next node then reuses.
     let dom = DomHandle::new("<p id=old></p><p>b</p>", "https://example.test/");

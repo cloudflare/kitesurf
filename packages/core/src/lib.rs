@@ -57,7 +57,7 @@ pub(crate) struct NodeHandleMap {
     next_external: u32,
     /// The version seeded handle `e` was given for slot `e + 1`; 0 for a slot
     /// that was free when seeded, or once the handle is retired.
-    seeded_versions: Vec<u32>,
+    seeded_versions: SeededVersions,
     dynamic_forward: HandleMap<u32, NodeId>,
     /// Latest handle of each slot past the seeded range, from its first slot.
     latest_beyond: Vec<u32>,
@@ -65,6 +65,79 @@ pub(crate) struct NodeHandleMap {
     /// handle (`NO_EXTERNAL` once that one is retired), and of outlier slots.
     sparse_latest: HandleMap<u32, u32>,
     displaced: HandleMap<NodeId, u32>,
+}
+
+/// [`NodeHandleMap::seeded_versions`] in about two bits a slot: almost every
+/// slot of a parsed tree holds its first version, so only the others are kept.
+struct SeededVersions {
+    len: usize,
+    /// Bit `e`: handle `e` is live.
+    live: Box<[u32]>,
+    /// Bit `e`: handle `e`'s version is in `other`, not [`Self::FIRST`].
+    has_other: Box<[u32]>,
+    other: HandleMap<u32, u32>,
+}
+
+impl SeededVersions {
+    /// The version a node tree gives a slot's first node.
+    const FIRST: u32 = 1;
+
+    fn new(versions: impl IntoIterator<Item = (usize, u32)>, len: usize) -> Self {
+        let words = len.div_ceil(32);
+        let mut seeded = Self {
+            len,
+            live: vec![0; words].into_boxed_slice(),
+            has_other: vec![0; words].into_boxed_slice(),
+            other: HandleMap::default(),
+        };
+        for (index, version) in versions {
+            debug_assert_ne!(version, 0, "a live node's version is never 0");
+            seeded.live[index / 32] |= 1 << (index % 32);
+            if version != Self::FIRST {
+                seeded.has_other[index / 32] |= 1 << (index % 32);
+                seeded.other.insert(index as u32, version);
+            }
+        }
+        seeded
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    #[inline]
+    fn bit(bits: &[u32], index: usize) -> bool {
+        bits[index / 32] & (1 << (index % 32)) != 0
+    }
+
+    /// Handle `index`'s version, 0 once retired; `None` past the seeded range.
+    #[inline]
+    fn get(&self, index: usize) -> Option<u32> {
+        if index >= self.len {
+            return None;
+        }
+        if !Self::bit(&self.live, index) {
+            return Some(0);
+        }
+        if !Self::bit(&self.has_other, index) {
+            return Some(Self::FIRST);
+        }
+        Some(self.other[&(index as u32)])
+    }
+
+    /// Retire handle `index`, returning whether it is in the seeded range.
+    fn retire(&mut self, index: usize) -> bool {
+        if index >= self.len {
+            return false;
+        }
+        self.live[index / 32] &= !(1 << (index % 32));
+        if Self::bit(&self.has_other, index) {
+            self.has_other[index / 32] &= !(1 << (index % 32));
+            self.other.remove(&(index as u32));
+        }
+        true
+    }
 }
 
 #[inline]
@@ -84,10 +157,12 @@ impl NodeHandleMap {
             .map(|(id, _)| slot_of(id))
             .max()
             .unwrap_or(0);
-        let mut seeded_versions = vec![0; slots];
-        for (id, _) in doc.tree().iter() {
-            seeded_versions[slot_of(id) - 1] = (id.as_u64() >> 32) as u32;
-        }
+        let seeded_versions = SeededVersions::new(
+            doc.tree()
+                .iter()
+                .map(|(id, _)| (slot_of(id) - 1, (id.as_u64() >> 32) as u32)),
+            slots,
+        );
         Self {
             next_external: u32::try_from(slots).expect("external node handle space exhausted"),
             seeded_versions,
@@ -102,7 +177,7 @@ impl NodeHandleMap {
     #[inline]
     fn seeded_external(&self, slot: usize) -> Option<u32> {
         let index = slot.checked_sub(1)?;
-        (*self.seeded_versions.get(index)? != 0).then_some(index as u32)
+        (self.seeded_versions.get(index)? != 0).then_some(index as u32)
     }
 
     #[inline]
@@ -118,7 +193,7 @@ impl NodeHandleMap {
 
     #[inline]
     pub(crate) fn resolve(&self, external: u32) -> Option<NodeId> {
-        if let Some(&version) = self.seeded_versions.get(external as usize) {
+        if let Some(version) = self.seeded_versions.get(external as usize) {
             (version != 0)
                 .then(|| NodeId::from_u64((u64::from(version) << 32) | u64::from(external + 1)))
         } else {
@@ -237,11 +312,10 @@ impl NodeHandleMap {
 
     /// Drop `external` itself: a seeded version, or the dynamic forward entry.
     fn forget_handle(&mut self, slot: usize, external: u32) {
-        let Some(version) = self.seeded_versions.get_mut(external as usize) else {
+        if !self.seeded_versions.retire(external as usize) {
             self.dynamic_forward.remove(&external);
             return;
-        };
-        *version = 0;
+        }
         // The slot's tombstone only shadowed this handle.
         if self.sparse_latest.get(&(slot as u32)) == Some(&Self::NO_EXTERNAL) {
             self.sparse_latest.remove(&(slot as u32));
