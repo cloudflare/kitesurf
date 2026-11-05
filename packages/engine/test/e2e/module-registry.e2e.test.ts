@@ -53,6 +53,7 @@ test("module graph resolves through the new module registry", async ({ page }) =
     fallbackMalformed: expect.stringMatching(
       /module refused for \S+\/module-registry-malformed\.json.*SyntaxError/s,
     ),
+    attributedJson: { ownProto: true, plain: 1, tag: "[object Module]", same: true },
     boaLiveCount: [1, 2, 2],
     done: true,
   });
