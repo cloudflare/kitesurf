@@ -137,6 +137,7 @@ getrandom = { workspace = true }
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { workspace = true }
+ryu-js = "1.0.3"
 
 tracing = { workspace = true }
 tracing-core = { workspace = true }

@@ -1582,6 +1582,7 @@ dependencies = [
  "ratatui",
  "ratatui-image",
  "rustc-hash",
+ "ryu-js",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",

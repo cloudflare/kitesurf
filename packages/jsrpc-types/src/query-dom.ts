@@ -268,6 +268,24 @@ export interface QueryDomMethods {
     args: ReadStampArgs;
     result: { displayNone?: number[]; invisible?: number[]; readStamp?: ReadStamp };
   };
+  accessibilityTree: {
+    args: {
+      method: "full" | "root" | "partial" | "children" | "ancestors" | "query";
+      nodeId: number | null;
+      axId: string | null;
+      fetchRelatives: boolean;
+      role: string | null;
+      accessibleName: string | null;
+      depth?: number;
+      frameId: string;
+      title: string;
+      url: string;
+      buffered?: boolean;
+    };
+    result:
+      | { budgetError: { nodes: number; bytes: number; budget: number } }
+      | { byteLength: number; json: ReadableStream<Uint8Array> };
+  };
   formStateSnapshot: {
     args: ReadStampArgs;
     result: FormStateSnapshot & { readStamp?: ReadStamp };

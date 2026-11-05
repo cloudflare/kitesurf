@@ -32,6 +32,8 @@ export function stubQueryDom<M extends QueryDomMethod>(
 // Matches the PageScript RPC call budget; the cap is far above any page the isolate can hold.
 const OUTER_HTML_READ_DEADLINE_MS = 60_000;
 const MAX_OUTER_HTML_BYTES = 512 * 1024 * 1024;
+const ACCESSIBILITY_READ_DEADLINE_MS = 60_000;
+const MAX_ACCESSIBILITY_BYTES = 512 * 1024 * 1024;
 
 type OuterHtmlRequest = (
   args: Pick<QueryDomArgs<"getOuterHTML">, "snapshot">,
@@ -117,6 +119,67 @@ async function readEscapedStream(
   // Only a complete read flushes the decoder: a truncated stream may end mid-character.
   if (filled === byteLength) escape(decoder.decode());
   return { escaped, filled };
+}
+
+type AccessibilityTreeRequest = (buffered: boolean) => Promise<QueryDomResult<"accessibilityTree">>;
+
+type AccessibilityTreeRead =
+  | { complete: true; pieces: string[]; filled: number; byteLength: number }
+  | { complete: false; pieces: string[]; filled: number; byteLength: number };
+
+export async function accessibilityTreeResponse(
+  request: AccessibilityTreeRequest,
+  method: string,
+): Promise<{ budgetError: { nodes: number; bytes: number; budget: number } } | RawJsonResult> {
+  const live = await request(false);
+  if ("budgetError" in live) return live;
+  const first = await readAccessibilityTree(live);
+  if (first.complete) return new RawJsonResult(first.pieces);
+
+  const buffered = await request(true);
+  if ("budgetError" in buffered) return buffered;
+  const retry = await readAccessibilityTree(buffered);
+  if (retry.complete) return new RawJsonResult(retry.pieces);
+  throw new Error(
+    `${method}: PageScript stream ended after ${retry.filled} of ${retry.byteLength} bytes`,
+  );
+}
+
+async function readAccessibilityTree(
+  result: Extract<QueryDomResult<"accessibilityTree">, { byteLength: number }>,
+): Promise<AccessibilityTreeRead> {
+  const { byteLength } = result;
+  if (!Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > MAX_ACCESSIBILITY_BYTES) {
+    await result.json.cancel("invalid byteLength").catch(() => {});
+    throw new Error(`Accessibility: PageScript sent an invalid byteLength ${byteLength}`);
+  }
+  const decoder = new TextDecoder("utf-8", { ignoreBOM: true, fatal: true });
+  const pieces: string[] = [];
+  const reader = withDeadline(result.json, ACCESSIBILITY_READ_DEADLINE_MS).getReader();
+  let filled = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value.byteLength > byteLength - filled) {
+        throw new Error(`Accessibility: PageScript sent more than ${byteLength} bytes`);
+      }
+      filled += value.byteLength;
+      const piece = decoder.decode(value, { stream: true });
+      if (piece) pieces.push(piece);
+    }
+  } catch (error) {
+    await reader.cancel(error).catch(() => {});
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+  if (filled !== byteLength) {
+    return { complete: false, pieces: [], filled, byteLength };
+  }
+  const tail = decoder.decode();
+  if (tail) pieces.push(tail);
+  return { complete: true, pieces, filled, byteLength };
 }
 
 type EnsurePageScriptFn = (

@@ -61,6 +61,10 @@ test(
         positive.bridge.swapAlloc.peakLiveBytes - after.bridge.swapAlloc.peakLiveBytes;
       expect(positiveDelta).toBeGreaterThan(0);
       expect(rejectedDelta).toBeLessThan(positiveDelta * 0.05);
+      // The accessibility tree no longer reads a DOM snapshot, and this page's large
+      // subtrees are hidden, so it stays small (its own budget: accessibility-budget).
+      const { nodes } = await session.send("Accessibility.getFullAXTree");
+      expect(nodes.length).toBeLessThan(100);
     } finally {
       await session.detach();
     }

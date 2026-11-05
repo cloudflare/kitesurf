@@ -5346,6 +5346,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         return queryDomPaintGeometry(method, queryArgs);
       case "notRenderedNodeIds":
         return queryDomNotRenderedNodeIds(queryArgs);
+      case "accessibilityTree":
+        return queryDomAccessibilityTree(state, queryArgs);
       case "formStateSnapshot":
       case "setControlValueAsUser":
         return queryDomFormState(state, method, queryArgs);
@@ -6517,6 +6519,81 @@ async function queryDomNotRenderedNodeIds(
     invalidatePaintDom();
     return { displayNone: [], invisible: [] } satisfies QueryDomResult<"notRenderedNodeIds">;
   }
+}
+
+async function queryDomAccessibilityTree(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): Promise<QueryDomResult<"accessibilityTree">> {
+  await awaitDeferredFonts();
+  const visibility = accessibilityVisibility(pageState);
+  const formState = queryDomFormState(pageState, "formStateSnapshot", {});
+  const values =
+    "values" in formState
+      ? formState.values?.map(([id, value]): [number, string | number[]] => [
+          id,
+          isWellFormedUtf16(value)
+            ? value
+            : Array.from({ length: value.length }, (_, index) => value.charCodeAt(index)),
+        ])
+      : undefined;
+  const serializedFormState = values === undefined ? formState : { ...formState, values };
+  const start = pageState.dom.accessibilityStream(
+    JSON.stringify({ ...queryArgs, visibility, ...serializedFormState }),
+  );
+  try {
+    const budgetJson = start.budgetError();
+    if (budgetJson) {
+      const value: unknown = JSON.parse(budgetJson);
+      if (
+        !isObjectRecord(value) ||
+        typeof value.nodes !== "number" ||
+        typeof value.bytes !== "number" ||
+        typeof value.budget !== "number"
+      ) {
+        throw new Error("accessibility stream returned an invalid budget error");
+      }
+      return {
+        budgetError: { nodes: value.nodes, bytes: value.bytes, budget: value.budget },
+      } satisfies QueryDomResult<"accessibilityTree">;
+    }
+    const stream = start.takeStream();
+    if (stream) {
+      return {
+        byteLength: stream.byteLength,
+        json: byteStream(stream, () => stream.nextChunk(pageState.dom, OUTER_HTML_CHUNK_BYTES)),
+      } satisfies QueryDomResult<"accessibilityTree">;
+    }
+    const bytes = start.takeBytes();
+    if (bytes) {
+      return {
+        byteLength: bytes.byteLength,
+        json: byteStream(bytes, () => bytes.nextChunk(OUTER_HTML_CHUNK_BYTES)),
+      } satisfies QueryDomResult<"accessibilityTree">;
+    }
+    throw new Error("accessibility stream returned no result");
+  } finally {
+    start.free();
+  }
+}
+
+function isWellFormedUtf16(value: string): boolean {
+  for (let index = 0; index < value.length; index++) {
+    const unit = value.charCodeAt(index);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (index + 1 >= value.length || next < 0xdc00 || next > 0xdfff) return false;
+      index++;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function accessibilityVisibility(pageState: QueryDomActiveState): boolean {
+  if (pageState.dom.layoutMode?.() === "off") return false;
+  return ensurePaintDom() !== null;
 }
 
 function queryDomSetViewport(
