@@ -6,7 +6,7 @@
 
 import type { RawCdpMutation } from "@kitesurf/jsrpc-types/shared";
 import type { DomHandle } from "../../core/pkg/kitesurf_core";
-import { dom, ops, cdpMutations, type DomOperation } from "./state.js";
+import { dom, cdpMutations, type DomOperation } from "./state.js";
 import { stampNamedGlobal } from "./window.js";
 import { bumpMutationSeq } from "./mutations/seq.js";
 import { isAttachedToDocument, safeChildNodeCount } from "./mutations/attached.js";
@@ -64,7 +64,6 @@ function recordOpImpl(op: DomOperation): void {
     throw new TypeError("kitesurf: mutation rejected: " + msg);
   }
   if (applied > 0) {
-    ops.push(op);
     bumpMutationSeq();
     switch (op.kind) {
       case "setAttribute":

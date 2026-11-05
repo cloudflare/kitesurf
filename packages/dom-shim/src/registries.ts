@@ -196,7 +196,7 @@ export const postMutationHooks: Array<(hint?: MutationHint) => void> = [];
 
 interface NamedGlobalEntry {
   getter: () => unknown;
-  nodeIds: Set<number>;
+  nodeIds: number | Set<number>;
 }
 
 // Scalar owner IDs bound accessor metadata to the nodes that introduced each name.
@@ -211,8 +211,12 @@ export function forgetIdGlobal(nodeId: number): void {
   nodeIdName.delete(nodeId);
   const entry = stampedNames.get(name);
   if (!entry) return;
-  entry.nodeIds.delete(nodeId);
-  if (entry.nodeIds.size > 0) return;
+  if (typeof entry.nodeIds === "number") {
+    if (entry.nodeIds !== nodeId) return;
+  } else {
+    entry.nodeIds.delete(nodeId);
+    if (entry.nodeIds.size > 0) return;
+  }
   stampedNames.delete(name);
   // Do not delete a page-defined replacement or execute its getter during GC cleanup.
   if (Object.getOwnPropertyDescriptor(namedGlobalObject, name)?.get === entry.getter) {

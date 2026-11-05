@@ -31,6 +31,52 @@ test("bare named globals follow removal, duplicate IDs, and replacement", async 
   expect(seen).toEqual(["one", "duplicate", null, "two", null]);
 });
 
+test("named global getter keeps its metadata and identity across duplicate owners", async ({
+  page,
+}) => {
+  await setContent(
+    page,
+    `<p id="descriptorBox">one</p><script>
+    const first = document.getElementById("descriptorBox");
+    const getter = Object.getOwnPropertyDescriptor(globalThis, "descriptorBox")?.get;
+    if (!first || !getter) throw new Error("missing named-global getter or node");
+    let nonConstructible = false;
+    try {
+      Reflect.construct(Object, [], getter);
+    } catch (error) {
+      if (!(error instanceof TypeError)) throw error;
+      nonConstructible = true;
+    }
+    const duplicate = document.createElement("p");
+    duplicate.id = "descriptorBox";
+    duplicate.textContent = "duplicate";
+    document.body.appendChild(duplicate);
+    const sameAfterDuplicate =
+      Object.getOwnPropertyDescriptor(globalThis, "descriptorBox")?.get === getter;
+    first.id = "renamedDescriptorBox";
+    globalThis.namedGetterResult = {
+      name: getter.name,
+      length: getter.length,
+      hasPrototype: Object.prototype.hasOwnProperty.call(getter, "prototype"),
+      nonConstructible,
+      sameAfterDuplicate,
+      sameAfterRename: Object.getOwnPropertyDescriptor(globalThis, "descriptorBox")?.get === getter,
+      valueAfterRename: getter()?.textContent,
+    };
+  </script>`,
+  );
+  const result = await page.evaluate(() => Reflect.get(globalThis, "namedGetterResult"));
+  expect(result).toEqual({
+    name: "getter",
+    length: 0,
+    hasPrototype: false,
+    nonConstructible: true,
+    sameAfterDuplicate: true,
+    sameAfterRename: true,
+    valueAfterRename: "duplicate",
+  });
+});
+
 test("iframe IDs resolve to elements and frame names resolve to windows", async ({ page }) => {
   await setContent(
     page,
@@ -73,7 +119,7 @@ test("a page assignment to a named global survives later ID changes", async ({ p
   expect(await page.evaluate(() => Reflect.get(globalThis, "assignedResult"))).toEqual([7, 7]);
 });
 
-test("a cloned duplicate keeps its bare global when the original is renamed", async ({ page }) => {
+test("cloned duplicate globals survive until the last owner is renamed", async ({ page }) => {
   await setContent(
     page,
     `<p id="clonedBox">one</p><script>
@@ -84,13 +130,26 @@ test("a cloned duplicate keeps its bare global when the original is renamed", as
     const read: unknown = Reflect.get(globalThis, "readClone");
     const first = document.getElementById("clonedBox");
     if (typeof read !== "function" || !first) throw new Error("missing named node");
+    first.id = "clonedBox";
+    first.id = "clonedBox";
     const clone = first.cloneNode(true);
     clone.textContent = "clone";
     document.body.appendChild(clone);
     first.id = "renamedClone";
-    return read();
+    const afterFirstRename = read();
+    if (!(clone instanceof Element)) throw new Error("clone is not an element");
+    clone.id = "renamedDuplicate";
+    return {
+      afterFirstRename,
+      afterLastRename: read(),
+      accessorRemoved: Object.getOwnPropertyDescriptor(globalThis, "clonedBox") === undefined,
+    };
   });
-  expect(value).toBe("clone");
+  expect(value).toEqual({
+    afterFirstRename: "clone",
+    afterLastRename: null,
+    accessorRemoved: true,
+  });
 });
 
 test("fragment IDs resolve after insertion without calling page selectors", async ({ page }) => {

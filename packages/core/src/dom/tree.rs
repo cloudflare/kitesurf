@@ -15,7 +15,9 @@ use ::style::dom_apis::{
 use wasm_bindgen::prelude::*;
 
 use crate::{DomHandle, LayoutMode, NodeHandleMap};
-use crate::dom::cdp::{check_node_budget, check_subtree_budget, describe_node, Subtree};
+use crate::dom::cdp::{
+    check_node_budget, check_subtree_budget, describe_node, describe_node_identity, Subtree,
+};
 
 fn find_html_title(doc: &BaseDocument) -> Option<&Node> {
     let mut stack = vec![doc.root_node().id()];
@@ -1295,6 +1297,44 @@ impl DomHandle {
             &mut self.node_handles.borrow_mut(),
         )
         .ok_or_else(|| JsError::new("node not found"))?;
+        serde_wasm_bindgen::to_value(&info).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// The first non-empty value of an attribute whose qualified name is `id`, as found in
+    /// `nodeInfo`'s attribute list. Named-global stamping reads it for every `[id]` element and
+    /// every insertion, where building the full `nodeInfo` record dominated allocation.
+    #[wasm_bindgen(js_name = "idAttribute")]
+    pub fn id_attribute(&self, node_id: u32) -> Option<String> {
+        let internal_id = self.resolve_node_id(node_id)?;
+        let doc = self.doc.try_borrow().ok()?;
+        let value = match &doc.get_node(internal_id)?.data {
+            NodeData::Element(data) | NodeData::AnonymousBlock(data) => data
+                .attrs
+                .iter()
+                .find(|a| a.prefix().is_none() && &*a.name.local == "id" && !a.value.is_empty())
+                .map(|a| a.value.to_string()),
+            _ => None,
+        };
+        drop(doc);
+        value
+    }
+
+    // Wrapper creation does not need CDP ids, child counts or attribute snapshots.
+    #[wasm_bindgen(
+        js_name = "nodeIdentity",
+        unchecked_return_type = "KsNodeIdentity | null"
+    )]
+    pub fn node_identity(&self, node_id: u32) -> Result<JsValue, JsError> {
+        let internal_id = self
+            .resolve_node_id(node_id)
+            .ok_or_else(|| JsError::new("node not found"))?;
+        let doc = match self.doc.try_borrow() {
+            Ok(doc) => doc,
+            Err(_) => return Ok(JsValue::NULL),
+        };
+        let info = doc.get_node(internal_id).map(describe_node_identity);
+        drop(doc);
+        let info = info.ok_or_else(|| JsError::new("node not found"))?;
         serde_wasm_bindgen::to_value(&info).map_err(|e| JsError::new(&e.to_string()))
     }
 
