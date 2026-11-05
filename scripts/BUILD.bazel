@@ -422,6 +422,7 @@ node_test(
         exclude = [
             "page-script-pdf-stream.test.mjs",
             "page-renderer-pdf-stream.test.mjs",
+            "page-script-startup-input.test.mjs",
             "page-script-frame-bitmap-gate.test.mjs",
             "wasm-memory-views.test.mjs",
             "wpt-compare.test.mjs",
@@ -449,6 +450,17 @@ node_test(
         "page-script-pdf-stream.test.mjs",
         "//:node_modules/typescript",
         "//packages/page-script:pdf_stream_source",
+    ],
+)
+
+node_test(
+    name = "page_script_startup_input_test",
+    args = ["page-script-startup-input.test.mjs"],
+    data = [
+        "page-script-startup-input.test.mjs",
+        "//:node_modules/typescript",
+        "//packages/engine:startup_input_generator_source",
+        "//packages/page-script:startup_probe_source",
     ],
 )
 

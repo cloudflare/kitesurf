@@ -194,6 +194,7 @@ test_suite(
         "//scripts:page_renderer_pdf_stream_test",
         "//scripts:page_script_frame_bitmap_gate_test",
         "//scripts:page_script_pdf_stream_test",
+        "//scripts:page_script_startup_input_test",
         "//scripts:wasm_memory_views_test",
     ],
 )

@@ -7,6 +7,7 @@
 import type Protocol from "devtools-protocol";
 import { pageIsolateEntry } from "./page-isolate-entry.ts";
 import wasmGlueSource from "../../../core/pkg/kitesurf_core.glue.js";
+import coreWasmModule from "../../../core/pkg/kitesurf_core_bg.wasm";
 import { DOM_SHIM_SOURCE } from "@kitesurf/dom-shim";
 import { INTERNAL_STATE_SOURCE, PAGE_SCRIPT_SOURCE } from "@kitesurf/page-script";
 import type { RenderPortStub } from "@kitesurf/jsrpc-types/page-renderer";
@@ -41,29 +42,10 @@ import { MAX_DOCUMENT_BYTES } from "../read-capped.ts";
 import { attributionTails, type AttributionTailExports } from "./attribution-tail.ts";
 import { makeWallClock, type HostClock } from "./host-clock.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
-import fs from "node:fs";
 import type { ParentScriptDescriptor } from "../wasm.ts";
 import type { ScriptBundle } from "./script-bundle.ts";
 import { FALLBACK_MODULE_RESOLVER_SOURCE } from "./walk-module-graph.ts";
 import type { WasmBake } from "./prefetch-wasm.ts";
-
-const cachedWasmBytes = new Map<string, ArrayBuffer>();
-export function loadWasmBytesFromVfs(filename = "kitesurf_core_bg.wasm"): ArrayBuffer {
-  const cached = cachedWasmBytes.get(filename);
-  if (cached) return cached;
-  const entries = fs.readdirSync("/bundle");
-  const name = entries.find((n) => n.endsWith(`-${filename}`) || n === filename);
-  if (!name) {
-    throw new Error(
-      `page-script: could not find ${filename} in /bundle. Entries: ${entries.join(", ")}`,
-    );
-  }
-  const buf = fs.readFileSync(`/bundle/${name}`);
-  const out = new ArrayBuffer(buf.byteLength);
-  new Uint8Array(out).set(buf);
-  cachedWasmBytes.set(filename, out);
-  return out;
-}
 
 export interface PageScriptStub extends PageScriptSession {
   /** Identity this isolate stamps into its Runtime handles and compiled-script ids. */
@@ -233,7 +215,10 @@ export function getOrCreatePageScript({
   // Routes Runtime handles and compiled-script ids back to the isolate that minted them.
   const isolateStamp = crypto.randomUUID();
 
-  const html = typeof startupInput.html === "string" ? startupInput.html : null;
+  // HTML reaches navigate over RPC. Embedding it here retains both the literal
+  // and generated module source for the page's lifetime; diagnostics need only metadata.
+  const hasHtml = typeof startupInput.html === "string";
+  const htmlLength = typeof startupInput.html === "string" ? startupInput.html.length : 0;
   const url = typeof startupInput.url === "string" ? startupInput.url : null;
   const cookies = typeof startupInput.cookies === "string" ? startupInput.cookies : "";
   // The classic bundle already carries every body. A copy here stayed live as
@@ -276,7 +261,8 @@ export function getOrCreatePageScript({
   const startupInputModule = `// AUTO-GENERATED per navigate by getOrCreatePageScript.
 // Carries parent-extracted, parent-pre-fetched per-navigate
 // inputs into the loaded worker's module-init phase.
-export const html = ${JSON.stringify(html)};
+export const hasHtml = ${JSON.stringify(hasHtml)};
+export const htmlLength = ${JSON.stringify(htmlLength)};
 export const url = ${JSON.stringify(url)};
 export const cookies = ${JSON.stringify(cookies)};
 export const scriptDescriptors = ${JSON.stringify(scriptDescriptors)};
@@ -300,13 +286,19 @@ export const insertedBaked = ${JSON.stringify(scriptBundle?.insertedManifest ?? 
 
   const modules: Record<
     string,
-    string | { wasm: ArrayBuffer } | { cjs: string } | { js: string } | { json: unknown }
+    | string
+    | { wasm: ArrayBuffer | WebAssembly.Module }
+    | { cjs: string }
+    | { js: string }
+    | { json: unknown }
   > = {
     "page.js": PAGE_SCRIPT_SOURCE,
     "dom-shim.js": DOM_SHIM_SOURCE,
     "internal-state.js": INTERNAL_STATE_SOURCE,
     "wasm-glue.js": wasmGlueSource,
-    "core_bg.wasm": { wasm: loadWasmBytesFromVfs() },
+    // The parent's compiled module: each page isolate shares its code instead of compiling
+    // 27 MB of bytes again on every navigation.
+    "core_bg.wasm": { wasm: coreWasmModule },
     "__ks_startup_probe_input.js": startupInputModule,
     "__ks_import_map.js": scriptBundle?.importMapModuleSource ?? FALLBACK_MODULE_RESOLVER_SOURCE,
   };

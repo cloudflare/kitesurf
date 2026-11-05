@@ -4,10 +4,6 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("../src/eval/page-script.ts", () => ({
-  loadWasmBytesFromVfs: () => new Uint8Array(0),
-}));
-
 import type { RenderPortStub } from "@kitesurf/jsrpc-types/page-renderer";
 import { PageRendererManager, type RendererEnv } from "../src/eval/page-renderer.ts";
 
