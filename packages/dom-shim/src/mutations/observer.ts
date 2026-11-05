@@ -489,6 +489,23 @@ export function markRuntimeCreatedScript(id: number): void {
   if (typeof id === "number" && id >= 0) runtimeCreatedScriptIds.add(id);
 }
 
+// A script from createElement starts with force async set, so its async IDL reads true until
+// the page sets async. Parser-created scripts never have it.
+// https://html.spec.whatwg.org/#script-force-async
+const forceAsyncScriptIds = new Set<number>();
+
+export function markForceAsyncScript(id: number): void {
+  if (typeof id === "number" && id >= 0) forceAsyncScriptIds.add(id);
+}
+
+export function scriptForceAsync(id: number): boolean {
+  return forceAsyncScriptIds.has(id);
+}
+
+export function clearScriptForceAsync(id: number): void {
+  forceAsyncScriptIds.delete(id);
+}
+
 // A document.write'd script is parser-inserted: it must run in write order
 // and before DOMContentLoaded. An appended script has no such ordering, so
 // written scripts carry their own mark.
