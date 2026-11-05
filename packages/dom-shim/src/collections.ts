@@ -246,6 +246,58 @@ NodeListCls.prototype.every = Array.prototype.every;
 NodeListCls.prototype.reduce = Array.prototype.reduce;
 NodeListCls.prototype.concat = Array.prototype.concat;
 
+function readNodeList(target: NodeListCls): NodeBase[] {
+  const getList = nodeListGetters.get(target);
+  if (getList === undefined) throw new TypeError("dom-shim: NodeList target has no getter");
+  return getList();
+}
+
+const nodeListHandler: ProxyHandler<NodeListCls> = {
+  // The indexes and length are read-only; false makes a strict-mode write
+  // throw. Any other write is an ordinary set, so RadioNodeList's value
+  // setter runs and an expando lands on the target.
+  set(t, prop, value, receiver) {
+    if (prop === "length" || (typeof prop === "string" && /^\d+$/.test(prop))) return false;
+    return Reflect.set(t, prop, value, receiver);
+  },
+  // The target's own keys are the page's expandos. A Proxy must list them,
+  // since Object.defineProperty makes them non-configurable by default.
+  ownKeys(t) {
+    const list = readNodeList(t);
+    const keys: (string | symbol)[] = [];
+    for (let i = 0; i < list.length; i++) keys.push(String(i));
+    keys.push("length");
+    const seen = new Set(keys);
+    for (const key of Reflect.ownKeys(t)) {
+      if (!seen.has(key)) keys.push(key);
+    }
+    return keys;
+  },
+  getOwnPropertyDescriptor(t, prop) {
+    if (prop === "length") {
+      return {
+        value: readNodeList(t).length,
+        writable: false,
+        enumerable: false,
+        configurable: true,
+      };
+    }
+    if (typeof prop === "string" && /^\d+$/.test(prop)) {
+      const i = +prop;
+      const list = readNodeList(t);
+      if (i < list.length) {
+        return {
+          value: list[i],
+          writable: false,
+          enumerable: true,
+          configurable: true,
+        };
+      }
+    }
+    return Reflect.getOwnPropertyDescriptor(t, prop);
+  },
+};
+
 // Child lists pass seqKey "childSeq" so attribute writes do not force a rebuild.
 // cls picks the list's interface: NodeList, or a subclass such as
 // RadioNodeList.
@@ -271,14 +323,20 @@ function makeNodeList(
   // share one wasm call and wrapper walk; the next mutation invalidates it.
   let cachedList: NodeBase[] | null = null;
   let cachedSeq = -1;
-  function memoGetList() {
-    const curSeq = ksState()[seqKey] | 0;
-    if (cachedList !== null && cachedSeq === curSeq) return cachedList;
-    cachedList = getList();
-    cachedSeq = curSeq;
-    return cachedList;
-  }
+  // Concise methods avoid esbuild keepNames name redefinitions and the property
+  // array each redefined closure would retain.
+  const { memoGetList } = {
+    memoGetList() {
+      const curSeq = ksState()[seqKey] | 0;
+      if (cachedList !== null && cachedSeq === curSeq) return cachedList;
+      cachedList = getList();
+      cachedSeq = curSeq;
+      return cachedList;
+    },
+  };
+  // Keep frequent reads closure-local; only reflection needs a registry lookup.
   const proxy = new Proxy(target, {
+    ...nodeListHandler,
     get(t, prop, receiver) {
       if (prop === "length") return memoGetList().length;
       if (typeof prop === "string" && /^\d+$/.test(prop)) {
@@ -288,55 +346,12 @@ function makeNodeList(
       }
       return Reflect.get(t, prop, receiver);
     },
-    // The indexes and length are read-only; false makes a strict-mode write
-    // throw. Any other write is an ordinary set, so RadioNodeList's value
-    // setter runs and an expando lands on the target.
-    set(t, prop, value, receiver) {
-      if (prop === "length" || (typeof prop === "string" && /^\d+$/.test(prop))) return false;
-      return Reflect.set(t, prop, value, receiver);
-    },
     has(t, prop) {
       if (prop === "length") return true;
       if (typeof prop === "string" && /^\d+$/.test(prop)) {
         return +prop < memoGetList().length;
       }
       return prop in t;
-    },
-    // The target's own keys are the page's expandos. A Proxy must list them,
-    // since Object.defineProperty makes them non-configurable by default.
-    ownKeys(t) {
-      const list = memoGetList();
-      const keys: (string | symbol)[] = [];
-      for (let i = 0; i < list.length; i++) keys.push(String(i));
-      keys.push("length");
-      const seen = new Set(keys);
-      for (const key of Reflect.ownKeys(t)) {
-        if (!seen.has(key)) keys.push(key);
-      }
-      return keys;
-    },
-    getOwnPropertyDescriptor(t, prop) {
-      if (prop === "length") {
-        return {
-          value: memoGetList().length,
-          writable: false,
-          enumerable: false,
-          configurable: true,
-        };
-      }
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        const i = +prop;
-        const list = memoGetList();
-        if (i < list.length) {
-          return {
-            value: list[i],
-            writable: false,
-            enumerable: true,
-            configurable: true,
-          };
-        }
-      }
-      return Reflect.getOwnPropertyDescriptor(t, prop);
     },
   });
   nodeListGetters.set(target, memoGetList);
@@ -760,6 +775,46 @@ type HtmlCollectionConstructor =
   | typeof HTMLFormControlsCollectionCls
   | typeof HTMLOptionsCollectionCls;
 
+function exposedNames(list: Element[]): string[] {
+  const names: string[] = [];
+  const seen = new Set();
+  for (const el of list) {
+    if (!el || !el.getAttribute) continue;
+    const id = el.getAttribute("id");
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      names.push(id);
+    }
+    if (htmlCollectionExposesName(el)) {
+      const nm = el.getAttribute("name");
+      if (nm && !seen.has(nm)) {
+        seen.add(nm);
+        names.push(nm);
+      }
+    }
+  }
+  return names;
+}
+
+// form.elements shares named RadioNodeLists; other collections prefer an id match.
+function namedValue(
+  target: object,
+  name: string,
+  list: Element[],
+  protoCls: { prototype: HtmlCollectionProxyTarget } | HtmlCollectionConstructor | undefined,
+) {
+  if (protoCls?.prototype === HTMLFormControlsCollectionCls.prototype)
+    return formControlsNamedItem.call(target, name);
+  for (const el of list) {
+    if (el.getAttribute && el.getAttribute("id") === name) return el;
+  }
+  for (const el of list) {
+    if (!htmlCollectionExposesName(el)) continue;
+    if (el.getAttribute && el.getAttribute("name") === name) return el;
+  }
+  return null;
+}
+
 /**
  * Creates a live HTMLCollection; contents refresh when the DOM mutation sequence changes.
  */
@@ -794,232 +849,230 @@ function makeHtmlCollection(
       });
     }
   }
-  // Keep expandos separate so a property can shadow a live name added later.
-  const shadow: Record<PropertyKey, unknown> = Object.create(null);
-  // Reuse per mutation sequence so reads do not rerun childIds and the nodeFor
-  // wrapper walk. Mutations invalidate the cached list.
-  let cachedList: Element[] | null = null;
-  let cachedSeq = -1;
-  function memoGetList() {
-    const curSeq = ksState().mutationSeq | 0;
-    if (cachedList !== null && cachedSeq === curSeq) return cachedList;
-    cachedList = getList();
-    cachedSeq = curSeq;
-    return cachedList;
-  }
-
-  let cachedNames: string[] | null = null;
-  let cachedNamesSeq = -1;
-  function memoExposedNames(list: Element[]) {
-    const curSeq = ksState().mutationSeq | 0;
-    if (cachedNames !== null && cachedNamesSeq === curSeq) return cachedNames;
-    cachedNames = exposedNames(list);
-    cachedNamesSeq = curSeq;
-    return cachedNames;
-  }
-
-  function exposedNames(list: Element[]) {
-    const names: string[] = [];
-    const seen = new Set();
-    for (const el of list) {
-      if (!el || !el.getAttribute) continue;
-      const id = el.getAttribute("id");
-      if (id && !seen.has(id)) {
-        seen.add(id);
-        names.push(id);
-      }
-      if (htmlCollectionExposesName(el)) {
-        const nm = el.getAttribute("name");
-        if (nm && !seen.has(nm)) {
-          seen.add(nm);
-          names.push(nm);
-        }
-      }
-    }
-    return names;
-  }
-
-  // A supported name's value, the same for a read and for reflection:
-  // form.elements answers a shared name with a RadioNodeList; otherwise the
-  // first id match wins, then the first name match.
-  function namedValue(t: object, name: string, list: Element[]) {
-    if (protoCls?.prototype === HTMLFormControlsCollectionCls.prototype)
-      return formControlsNamedItem.call(t, name);
-    for (const el of list) {
-      if (el.getAttribute && el.getAttribute("id") === name) return el;
-    }
-    for (const el of list) {
-      if (!htmlCollectionExposesName(el)) continue;
-      if (el.getAttribute && el.getAttribute("name") === name) return el;
-    }
-    return null;
-  }
-  // Supported names exclude indexes and own/prototype properties, as WebIDL
-  // specifies for named-property visibility:
-  // https://webidl.spec.whatwg.org/#legacy-platform-object-named-property-visibility
-  function isVisibleName(t: object, prop: PropertyKey): prop is string {
-    if (typeof prop !== "string") return false;
-    if (/^\d+$/.test(prop) && Number(prop) < 4294967295) return false;
-    if (Object.prototype.hasOwnProperty.call(shadow, prop) || prop in t) return false;
-    return memoExposedNames(memoGetList()).includes(prop);
-  }
-
-  let proxy: HtmlCollectionProxyTarget;
-  proxy = new Proxy(target, {
-    get(t, prop, receiver) {
-      const isOwn = receiver === proxy;
-      if (isOwn && Object.prototype.hasOwnProperty.call(shadow, prop)) {
-        return shadow[prop];
-      }
-      if (isOwn) {
-        if (prop === "length") return memoGetList().length;
-        if (typeof prop === "string" && /^\d+$/.test(prop)) {
-          const i = Number(prop);
-          if (i >= 0 && i < 4294967295) {
-            const list = memoGetList();
-            return i < list.length ? list[i] : undefined;
-          }
-        }
-      }
-      if (isOwn && typeof prop !== "symbol" && Object.prototype.hasOwnProperty.call(t, prop)) {
-        return Reflect.get(t, prop, receiver);
-      }
-      // Named lookup: visible names act as own properties, and they also
-      // answer reads through a derived object (`Object.create(coll).named`,
-      // WPT HTMLCollection-as-prototype). Anything else falls through to the
-      // prototype.
-      if (isVisibleName(t, prop)) {
-        const found = namedValue(t, prop, memoGetList());
-        if (found) return found;
-      }
-      const v: unknown = Reflect.get(t, prop, receiver);
-      return v;
-    },
-    set(t, prop, value, receiver) {
-      if (receiver !== proxy) {
-        return Reflect.set(t, prop, value, receiver);
-      }
-      const optionsOwner = t[OPTIONS_OWNER_SYM];
-      if (optionsOwner && (prop === "length" || (typeof prop === "string" && /^\d+$/.test(prop)))) {
-        // Only makeHtmlCollection's extras put a <select> under this symbol.
-        return optionsCollectionSet(optionsOwner as HTMLSelectElement, prop, value, memoGetList());
-      }
-      // selectedIndex is the prototype's setter, not an expando.
-      if (optionsOwner && prop === "selectedIndex") {
-        return Reflect.set(t, prop, value, receiver);
-      }
-      // Numeric indexes are read-only. Returning false causes strict-mode
-      // assignment to throw and sloppy-mode assignment to fail silently.
-      // Other names may shadow unless they resolve to a named property,
-      // whose WebIDL descriptor is non-configurable.
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        return false;
-      }
-      if (typeof prop === "string" && memoExposedNames(memoGetList()).includes(prop)) {
-        return false;
-      }
-      shadow[prop] = value;
-      return true;
-    },
-    has(t, prop) {
-      if (Object.prototype.hasOwnProperty.call(shadow, prop)) return true;
-      if (prop === "length") return true;
-      if (typeof prop === "string") {
-        if (/^\d+$/.test(prop)) return +prop < memoGetList().length;
-        if (memoExposedNames(memoGetList()).includes(prop)) return true;
-      }
-      return prop in t;
-    },
-    deleteProperty(t, prop) {
-      if (Object.prototype.hasOwnProperty.call(shadow, prop)) {
-        delete shadow[prop];
-        return true;
-      }
-      if (typeof prop === "string") {
-        if (/^\d+$/.test(prop)) {
-          const i = +prop;
-          if (i < memoGetList().length) return false;
-        }
-      }
-      if (isVisibleName(t, prop)) return false;
-      return Reflect.deleteProperty(t, prop);
-    },
-    defineProperty(t, prop, desc) {
-      if (typeof prop === "string") {
-        if (/^\d+$/.test(prop) && Number(prop) < 4294967295) {
-          return false;
-        }
-        if (memoExposedNames(memoGetList()).includes(prop)) return false;
-      }
-      return Reflect.defineProperty(t, prop, desc);
-    },
-    ownKeys(t) {
-      // Expose indexes, visible names, and string expandos, but omit `length`,
-      // prototype methods, and hidden symbols. Live-key descriptors stay
-      // configurable so the proxy can report the current collection.
-      const list = memoGetList();
-      const keys: (string | symbol)[] = [];
-      for (let i = 0; i < list.length; i++) keys.push(String(i));
-      for (const n of memoExposedNames(list)) {
-        if (isVisibleName(t, n)) keys.push(n);
-      }
-      const seen = new Set(keys);
-      for (const k of [...Object.keys(shadow), ...Object.getOwnPropertyNames(t)]) {
-        if (!seen.has(k)) {
-          seen.add(k);
-          keys.push(k);
-        }
-      }
-      return keys;
-    },
-    getOwnPropertyDescriptor(t, prop) {
-      if (Object.prototype.hasOwnProperty.call(shadow, prop)) {
-        return {
-          value: shadow[prop],
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        };
-      }
-      if (prop === "length") {
-        return {
-          value: memoGetList().length,
-          writable: false,
-          enumerable: false,
-          configurable: true,
-        };
-      }
-      if (typeof prop === "string") {
-        if (/^\d+$/.test(prop)) {
-          const i = +prop;
-          const list = memoGetList();
-          if (i < list.length) {
-            return {
-              value: list[i],
-              writable: false,
-              enumerable: true,
-              configurable: true,
-            };
-          }
-        }
-        if (isVisibleName(t, prop)) {
-          const named = namedValue(t, prop, memoGetList());
-          if (named) {
-            return {
-              value: named,
-              writable: false,
-              enumerable: false,
-              configurable: true,
-            };
-          }
-        }
-      }
-      return Reflect.getOwnPropertyDescriptor(t, prop);
-    },
-  });
+  const state: HtmlCollectionState = {
+    getList,
+    protoCls,
+    shadow: Object.create(null),
+    proxy: null,
+    cachedList: null,
+    cachedSeq: -1,
+    cachedNames: null,
+    cachedNamesSeq: -1,
+  };
+  htmlCollectionStates.set(target, state);
+  const proxy = new Proxy(target, htmlCollectionHandler);
+  state.proxy = proxy;
   htmlCollectionGetters.set(proxy, getList);
   return proxy;
 }
+
+// One record per collection, read by a handler every collection shares: a handler and its
+// trap closures per collection cost about 400 bytes, and pages keep thousands of `children`.
+interface HtmlCollectionState {
+  getList: () => Element[];
+  protoCls: { prototype: HtmlCollectionProxyTarget } | HtmlCollectionConstructor | undefined;
+  // Expandos live apart so a property can shadow a live name added later.
+  shadow: Record<PropertyKey, unknown>;
+  proxy: HtmlCollectionProxyTarget | null;
+  // Reused per mutation sequence so reads do not rerun childIds and the nodeFor wrapper walk.
+  cachedList: Element[] | null;
+  cachedSeq: number;
+  cachedNames: string[] | null;
+  cachedNamesSeq: number;
+}
+const htmlCollectionStates = new WeakMap<object, HtmlCollectionState>();
+
+function collectionState(target: object): HtmlCollectionState {
+  const state = htmlCollectionStates.get(target);
+  if (!state) throw new TypeError("Illegal invocation");
+  return state;
+}
+
+function memoGetList(s: HtmlCollectionState): Element[] {
+  const curSeq = ksState().mutationSeq | 0;
+  if (s.cachedList !== null && s.cachedSeq === curSeq) return s.cachedList;
+  s.cachedList = s.getList();
+  s.cachedSeq = curSeq;
+  return s.cachedList;
+}
+
+function memoExposedNames(s: HtmlCollectionState, list: Element[]): string[] {
+  const curSeq = ksState().mutationSeq | 0;
+  if (s.cachedNames !== null && s.cachedNamesSeq === curSeq) return s.cachedNames;
+  s.cachedNames = exposedNames(list);
+  s.cachedNamesSeq = curSeq;
+  return s.cachedNames;
+}
+
+// Supported names exclude indexes and own/prototype properties, as WebIDL
+// specifies for named-property visibility:
+// https://webidl.spec.whatwg.org/#legacy-platform-object-named-property-visibility
+function isVisibleName(s: HtmlCollectionState, t: object, prop: PropertyKey): prop is string {
+  if (typeof prop !== "string") return false;
+  if (/^\d+$/.test(prop) && Number(prop) < 4294967295) return false;
+  if (Object.prototype.hasOwnProperty.call(s.shadow, prop) || prop in t) return false;
+  return memoExposedNames(s, memoGetList(s)).includes(prop);
+}
+
+const htmlCollectionHandler: ProxyHandler<HtmlCollectionProxyTarget> = {
+  get(t, prop, receiver) {
+    const s = collectionState(t);
+    const isOwn = receiver === s.proxy;
+    if (isOwn && Object.prototype.hasOwnProperty.call(s.shadow, prop)) {
+      return s.shadow[prop];
+    }
+    if (isOwn) {
+      if (prop === "length") return memoGetList(s).length;
+      if (typeof prop === "string" && /^\d+$/.test(prop)) {
+        const i = Number(prop);
+        if (i >= 0 && i < 4294967295) {
+          const list = memoGetList(s);
+          return i < list.length ? list[i] : undefined;
+        }
+      }
+    }
+    if (isOwn && typeof prop !== "symbol" && Object.prototype.hasOwnProperty.call(t, prop)) {
+      return Reflect.get(t, prop, receiver);
+    }
+    // Named lookup: visible names act as own properties, and they also
+    // answer reads through a derived object (`Object.create(coll).named`,
+    // WPT HTMLCollection-as-prototype). Anything else falls through to the
+    // prototype.
+    if (isVisibleName(s, t, prop)) {
+      const found = namedValue(t, prop, memoGetList(s), s.protoCls);
+      if (found) return found;
+    }
+    const v: unknown = Reflect.get(t, prop, receiver);
+    return v;
+  },
+  set(t, prop, value, receiver) {
+    const s = collectionState(t);
+    if (receiver !== s.proxy) {
+      return Reflect.set(t, prop, value, receiver);
+    }
+    const optionsOwner = t[OPTIONS_OWNER_SYM];
+    if (optionsOwner && (prop === "length" || (typeof prop === "string" && /^\d+$/.test(prop)))) {
+      // Only makeHtmlCollection's extras put a <select> under this symbol.
+      return optionsCollectionSet(optionsOwner as HTMLSelectElement, prop, value, memoGetList(s));
+    }
+    // selectedIndex is the prototype's setter, not an expando.
+    if (optionsOwner && prop === "selectedIndex") {
+      return Reflect.set(t, prop, value, receiver);
+    }
+    // Numeric indexes are read-only. Returning false causes strict-mode
+    // assignment to throw and sloppy-mode assignment to fail silently.
+    // Other names may shadow unless they resolve to a named property,
+    // whose WebIDL descriptor is non-configurable.
+    if (typeof prop === "string" && /^\d+$/.test(prop)) {
+      return false;
+    }
+    if (typeof prop === "string" && memoExposedNames(s, memoGetList(s)).includes(prop)) {
+      return false;
+    }
+    s.shadow[prop] = value;
+    return true;
+  },
+  has(t, prop) {
+    const s = collectionState(t);
+    if (Object.prototype.hasOwnProperty.call(s.shadow, prop)) return true;
+    if (prop === "length") return true;
+    if (typeof prop === "string") {
+      if (/^\d+$/.test(prop)) return +prop < memoGetList(s).length;
+      if (memoExposedNames(s, memoGetList(s)).includes(prop)) return true;
+    }
+    return prop in t;
+  },
+  deleteProperty(t, prop) {
+    const s = collectionState(t);
+    if (Object.prototype.hasOwnProperty.call(s.shadow, prop)) {
+      delete s.shadow[prop];
+      return true;
+    }
+    if (typeof prop === "string") {
+      if (/^\d+$/.test(prop)) {
+        const i = +prop;
+        if (i < memoGetList(s).length) return false;
+      }
+    }
+    if (isVisibleName(s, t, prop)) return false;
+    return Reflect.deleteProperty(t, prop);
+  },
+  defineProperty(t, prop, desc) {
+    const s = collectionState(t);
+    if (typeof prop === "string") {
+      if (/^\d+$/.test(prop) && Number(prop) < 4294967295) {
+        return false;
+      }
+      if (memoExposedNames(s, memoGetList(s)).includes(prop)) return false;
+    }
+    return Reflect.defineProperty(t, prop, desc);
+  },
+  ownKeys(t) {
+    const s = collectionState(t);
+    // Expose indexes, visible names, and string expandos, but omit `length`,
+    // prototype methods, and hidden symbols. Live-key descriptors stay
+    // configurable so the proxy can report the current collection.
+    const list = memoGetList(s);
+    const keys: (string | symbol)[] = [];
+    for (let i = 0; i < list.length; i++) keys.push(String(i));
+    for (const n of memoExposedNames(s, list)) {
+      if (isVisibleName(s, t, n)) keys.push(n);
+    }
+    const seen = new Set(keys);
+    for (const k of [...Object.keys(s.shadow), ...Object.getOwnPropertyNames(t)]) {
+      if (!seen.has(k)) {
+        seen.add(k);
+        keys.push(k);
+      }
+    }
+    return keys;
+  },
+  getOwnPropertyDescriptor(t, prop) {
+    const s = collectionState(t);
+    if (Object.prototype.hasOwnProperty.call(s.shadow, prop)) {
+      return {
+        value: s.shadow[prop],
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      };
+    }
+    if (prop === "length") {
+      return {
+        value: memoGetList(s).length,
+        writable: false,
+        enumerable: false,
+        configurable: true,
+      };
+    }
+    if (typeof prop === "string") {
+      if (/^\d+$/.test(prop)) {
+        const i = +prop;
+        const list = memoGetList(s);
+        if (i < list.length) {
+          return {
+            value: list[i],
+            writable: false,
+            enumerable: true,
+            configurable: true,
+          };
+        }
+      }
+      if (isVisibleName(s, t, prop)) {
+        const named = namedValue(t, prop, memoGetList(s), s.protoCls);
+        if (named) {
+          return {
+            value: named,
+            writable: false,
+            enumerable: false,
+            configurable: true,
+          };
+        }
+      }
+    }
+    return Reflect.getOwnPropertyDescriptor(t, prop);
+  },
+};
 
 // ----- DOMTokenList -------------------------------------------------------
 // Live tokenized view for classList and reflected attributes:
@@ -3470,75 +3523,81 @@ function parseTokens(serialized: string | null): string[] {
   }
   return out;
 }
+function readTokenList(target: DOMTokenListCls): string[] {
+  const { read } = tokenListState(target);
+  return parseTokens(read());
+}
+
+const tokenListHandler: ProxyHandler<DOMTokenListCls> = {
+  get(t, prop, receiver) {
+    if (prop === "length") return readTokenList(t).length;
+    if (typeof prop === "string" && /^\d+$/.test(prop)) {
+      const i = +prop;
+      const tokens = readTokenList(t);
+      return i < tokens.length ? tokens[i] : undefined;
+    }
+    // WebIDL iterable<DOMString>: WPT DOMTokenList-iteration checks that
+    // these are Array.prototype's own functions. finalizeInterface would
+    // wrap them on the prototype, so the proxy serves them.
+    if (prop === "values") return Array.prototype.values;
+    if (prop === "keys") return Array.prototype.keys;
+    if (prop === "entries") return Array.prototype.entries;
+    if (prop === "forEach") return Array.prototype.forEach;
+    return Reflect.get(t, prop, receiver);
+  },
+  set(t, prop, value) {
+    // Indexed writes are rejected.
+    if (typeof prop === "string" && /^\d+$/.test(prop)) return false;
+    return Reflect.set(t, prop, value);
+  },
+  has(t, prop) {
+    if (prop === "length") return true;
+    if (typeof prop === "string" && /^\d+$/.test(prop)) {
+      return +prop < readTokenList(t).length;
+    }
+    if (prop === "values" || prop === "keys" || prop === "entries" || prop === "forEach")
+      return true;
+    return prop in t;
+  },
+  ownKeys(t) {
+    const tokens = readTokenList(t);
+    const keys: (string | symbol)[] = [];
+    for (let i = 0; i < tokens.length; i++) keys.push(String(i));
+    keys.push("length");
+    return keys;
+  },
+  getOwnPropertyDescriptor(t, prop) {
+    if (prop === "length") {
+      return {
+        value: readTokenList(t).length,
+        writable: false,
+        enumerable: false,
+        configurable: true,
+      };
+    }
+    if (typeof prop === "string" && /^\d+$/.test(prop)) {
+      const i = +prop;
+      const tokens = readTokenList(t);
+      if (i < tokens.length) {
+        return {
+          value: tokens[i],
+          writable: false,
+          enumerable: true,
+          configurable: true,
+        };
+      }
+    }
+    return Reflect.getOwnPropertyDescriptor(t, prop);
+  },
+};
+
 function makeDOMTokenList(
   read: () => string | null,
   write: (value: string) => void,
   supported?: ReadonlySet<string>,
 ): DOMTokenListCls {
   const target: DOMTokenListCls = Object.create(DOMTokenListCls.prototype);
-  const getter = () => parseTokens(read());
-  const proxy = new Proxy(target, {
-    get(t, prop, receiver) {
-      if (prop === "length") return getter().length;
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        const i = +prop;
-        const tokens = getter();
-        return i < tokens.length ? tokens[i] : undefined;
-      }
-      // WebIDL iterable<DOMString>: WPT DOMTokenList-iteration checks that
-      // these are Array.prototype's own functions. finalizeInterface would
-      // wrap them on the prototype, so the proxy serves them.
-      if (prop === "values") return Array.prototype.values;
-      if (prop === "keys") return Array.prototype.keys;
-      if (prop === "entries") return Array.prototype.entries;
-      if (prop === "forEach") return Array.prototype.forEach;
-      return Reflect.get(t, prop, receiver);
-    },
-    set(t, prop, value) {
-      // Indexed writes are rejected.
-      if (typeof prop === "string" && /^\d+$/.test(prop)) return false;
-      return Reflect.set(t, prop, value);
-    },
-    has(t, prop) {
-      if (prop === "length") return true;
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        return +prop < getter().length;
-      }
-      if (prop === "values" || prop === "keys" || prop === "entries" || prop === "forEach")
-        return true;
-      return prop in t;
-    },
-    ownKeys() {
-      const tokens = getter();
-      const keys: (string | symbol)[] = [];
-      for (let i = 0; i < tokens.length; i++) keys.push(String(i));
-      keys.push("length");
-      return keys;
-    },
-    getOwnPropertyDescriptor(t, prop) {
-      if (prop === "length") {
-        return {
-          value: getter().length,
-          writable: false,
-          enumerable: false,
-          configurable: true,
-        };
-      }
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        const i = +prop;
-        const tokens = getter();
-        if (i < tokens.length) {
-          return {
-            value: tokens[i],
-            writable: false,
-            enumerable: true,
-            configurable: true,
-          };
-        }
-      }
-      return Reflect.getOwnPropertyDescriptor(t, prop);
-    },
-  });
+  const proxy = new Proxy(target, tokenListHandler);
   // Both are registered: a prototype method runs on the proxy, and the
   // set trap runs the value setter on the target.
   const state: TokenListState = { read, write, supported };
