@@ -52,6 +52,173 @@ test.for(["transition", "animation"])(
   },
 );
 
+test("unchanged values under transition all do not start transitions", async ({ page }) => {
+  await setContent(
+    page,
+    `<!doctype html><style>
+    #target { opacity: 0.5; transition: all 100s linear }
+    #target.same { opacity: 0.5 }
+    #control { width: 0; transition: width 100s linear }
+  </style><div id="target"></div><div id="control"></div>`,
+  );
+
+  const result = await page.evaluate(async () => {
+    const target = document.getElementById("target");
+    const control = document.getElementById("control");
+    if (!target || !control) throw new Error("missing transition target");
+    const events: string[] = [];
+    target.addEventListener("transitionrun", (event) => events.push(event.type));
+    const controlRun = new Promise<void>((resolve) => {
+      control.addEventListener("transitionrun", () => resolve(), { once: true });
+    });
+    const before = getComputedStyle(target).opacity;
+    getComputedStyle(control).width;
+    target.classList.add("same");
+    const after = getComputedStyle(target).opacity;
+    control.style.width = "10px";
+    getComputedStyle(control).width;
+    await controlRun;
+    return { values: [before, after], events };
+  });
+
+  expect(result).toEqual({ values: ["0.5", "0.5"], events: [] });
+});
+
+test.for(["normal", "allow-discrete"])(
+  "transition-behavior %s controls discrete transitions",
+  async (behavior, { page }) => {
+    await setContent(
+      page,
+      `<!doctype html><style>
+      #target {
+        text-transform: none;
+        transition: text-transform 100s linear;
+        transition-behavior: ${behavior};
+      }
+      #control { opacity: 0; transition: opacity 100s linear }
+    </style><div id="target"></div><div id="control"></div>`,
+    );
+
+    const result = await page.evaluate(async () => {
+      const target = document.getElementById("target");
+      const control = document.getElementById("control");
+      if (!target || !control) throw new Error("missing transition target");
+      const events: string[] = [];
+      const record = (event: TransitionEvent) => {
+        events.push(`${event.type}:${event.propertyName}`);
+      };
+      target.addEventListener("transitionrun", record);
+      target.addEventListener("transitionstart", record);
+      target.addEventListener("transitioncancel", record);
+      target.addEventListener("transitionend", record);
+      const controlRun = new Promise<void>((resolve) => {
+        control.addEventListener("transitionrun", () => resolve(), { once: true });
+      });
+      const before = getComputedStyle(target).textTransform;
+      getComputedStyle(control).opacity;
+      target.style.textTransform = "uppercase";
+      const after = getComputedStyle(target).textTransform;
+      control.style.opacity = "1";
+      getComputedStyle(control).opacity;
+      await controlRun;
+      return { values: [before, after], events };
+    });
+
+    expect(result).toEqual(
+      behavior === "normal"
+        ? { values: ["none", "uppercase"], events: [] }
+        : {
+            values: ["none", "none"],
+            events: ["transitionrun:text-transform", "transitionstart:text-transform"],
+          },
+    );
+  },
+);
+
+test("switching to normal cancels an active discrete transition without replacement", async ({
+  page,
+}) => {
+  await setContent(
+    page,
+    `<!doctype html><style>
+    #target {
+      text-transform: none;
+      transition: text-transform 100s linear;
+      transition-behavior: allow-discrete;
+    }
+    #control { opacity: 0; transition: opacity 100s linear }
+  </style><div id="target"></div><div id="control"></div>`,
+  );
+
+  const result = await page.evaluate(async () => {
+    const target = document.getElementById("target");
+    const control = document.getElementById("control");
+    if (!target || !control) throw new Error("missing transition target");
+    const events: string[] = [];
+    for (const type of ["transitionrun", "transitionstart", "transitioncancel"]) {
+      target.addEventListener(type, (event) => events.push(event.type));
+    }
+    const canceled = new Promise<void>((resolve) => {
+      target.addEventListener("transitioncancel", () => resolve(), { once: true });
+    });
+    const controlRun = new Promise<void>((resolve) => {
+      control.addEventListener("transitionrun", () => resolve(), { once: true });
+    });
+    getComputedStyle(target).textTransform;
+    getComputedStyle(control).opacity;
+    target.style.textTransform = "uppercase";
+    const transitioning = getComputedStyle(target).textTransform;
+    target.style.transitionBehavior = "normal";
+    target.style.textTransform = "lowercase";
+    const retargeted = getComputedStyle(target).textTransform;
+    control.style.opacity = "1";
+    getComputedStyle(control).opacity;
+    await canceled;
+    await controlRun;
+    return { transitioning, retargeted, events };
+  });
+
+  expect(result).toEqual({
+    transitioning: "none",
+    retargeted: "lowercase",
+    events: ["transitionrun", "transitionstart", "transitioncancel"],
+  });
+});
+
+test("retargeting to the sampled current value cancels without replacement", async ({ page }) => {
+  await setContent(
+    page,
+    `<!doctype html><style>
+    #target { opacity: 0; transition: opacity 100s -50s linear }
+  </style><div id="target"></div>`,
+  );
+
+  const result = await page.evaluate(async () => {
+    const target = document.getElementById("target");
+    if (!target) throw new Error("missing transition target");
+    const events: string[] = [];
+    for (const type of ["transitionrun", "transitionstart", "transitioncancel"]) {
+      target.addEventListener(type, (event) => events.push(event.type));
+    }
+    const canceled = new Promise<void>((resolve) => {
+      target.addEventListener("transitioncancel", () => resolve(), { once: true });
+    });
+    getComputedStyle(target).opacity;
+    target.style.opacity = "1";
+    const sampled = getComputedStyle(target).opacity;
+    target.style.opacity = sampled;
+    const retargeted = getComputedStyle(target).opacity;
+    await canceled;
+    return { sampled, retargeted, events };
+  });
+
+  expect(result).toEqual({
+    sampled: "0.5",
+    retargeted: "0.5",
+    events: ["transitionrun", "transitionstart", "transitioncancel"],
+  });
+});
+
 test("a transition interpolates instead of jumping to its target", async ({ page }) => {
   await setContent(page, html);
 
