@@ -12,6 +12,7 @@ mod color_serialization;
 mod focus_pseudoclass;
 mod has_invalidation;
 mod insertion_invalidation;
+mod link_style_sharing;
 mod resolved_transform;
 mod single_value_used;
 mod style_only_flush;
