@@ -890,6 +890,8 @@ export function installFetchShim(): void {
     }
     const requestMode = String(initMaybeCoerced?.mode ?? inputRequest?.mode ?? "cors");
     hdrSet(requestHeaders, "x-kitesurf-mode", requestMode === "no-cors" ? "no-cors" : "cors");
+    // Only applyCacheMode (session-outbound.ts) may mark the headers a cache mode adds.
+    hdrDelete(requestHeaders, "x-kitesurf-cache-mode");
     // SAFETY: Strip page-supplied referrer carriers before deriving the trusted page referrer.
     hdrDelete(requestHeaders, "x-kitesurf-referrer");
     {

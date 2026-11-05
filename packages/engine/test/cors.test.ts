@@ -128,6 +128,27 @@ describe("needsPreflight / corsUnsafeRequestHeaderNames", () => {
     expect(needsPreflight("GET", h)).toBe(false);
   });
 
+  it("does not count the headers a fetch cache mode adds as the page's", () => {
+    const fromMode = new Headers({
+      "cache-control": "no-cache",
+      pragma: "no-cache",
+      "x-kitesurf-cache-mode": "pragma,cache-control",
+    });
+    expect(needsPreflight("GET", fromMode)).toBe(false);
+    const fromPage = new Headers({ "cache-control": "no-cache", pragma: "no-cache" });
+    expect(corsUnsafeRequestHeaderNames(fromPage)).toEqual(["cache-control", "pragma"]);
+    // The page set cache-control itself; the mode added only pragma.
+    const mixed = new Headers({
+      "cache-control": "no-cache",
+      pragma: "no-cache",
+      "x-kitesurf-cache-mode": "pragma",
+    });
+    expect(corsUnsafeRequestHeaderNames(mixed)).toEqual(["cache-control"]);
+    // The mark covers only the two cache headers, whatever it names.
+    const spoofed = new Headers({ "x-custom": "1", "x-kitesurf-cache-mode": "x-custom" });
+    expect(corsUnsafeRequestHeaderNames(spoofed)).toEqual(["x-custom"]);
+  });
+
   it("reports author headers lowercased and sorted", () => {
     const h = new Headers({ "Y-Print": "b", "X-Print": "a" });
     expect(corsUnsafeRequestHeaderNames(h)).toEqual(["x-print", "y-print"]);
