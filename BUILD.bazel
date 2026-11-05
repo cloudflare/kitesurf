@@ -191,6 +191,7 @@ test_suite(
         "//scripts:helpers_test",
         "//scripts:lint_test",
         "//scripts:lint_types",
+        "//scripts:page_script_frame_bitmap_gate_test",
     ],
 )
 

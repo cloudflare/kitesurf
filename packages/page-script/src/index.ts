@@ -7,6 +7,7 @@
 // returned function becomes a live capability that extends the session.
 
 import { WorkerEntrypoint, RpcTarget, abortIsolate } from "cloudflare:workers";
+import { createFrameBitmapDeliveryGate } from "./frame-bitmap-gate.ts";
 import type {
   ArgSpec,
   CallFunctionOnOptions,
@@ -214,6 +215,61 @@ const sessionClosingSignal = new NativePromise<void>((resolve) => {
   resolveSessionClosing = resolve;
 });
 
+const frameBitmapDeliveryGate = createFrameBitmapDeliveryGate(applyFrameBitmap);
+
+function applyFrameBitmap(params: FrameBitmapParams): FrameBitmapReply {
+  const bitmap: {
+    ownerBackendNodeId: unknown;
+    width: unknown;
+    height: unknown;
+    rgba: unknown;
+  } = isObjectRecord(params)
+    ? {
+        ownerBackendNodeId: params.ownerBackendNodeId,
+        width: params.width,
+        height: params.height,
+        rgba: params.rgba,
+      }
+    : {
+        ownerBackendNodeId: undefined,
+        width: undefined,
+        height: undefined,
+        rgba: undefined,
+      };
+  const { ownerBackendNodeId, width, height, rgba } = bitmap;
+  if (
+    typeof ownerBackendNodeId !== "number" ||
+    typeof width !== "number" ||
+    typeof height !== "number" ||
+    !isNativeUint8Array(rgba)
+  ) {
+    return { ok: false, rc: -1, error: "bad args" };
+  }
+  if (!state.dom || typeof nativeSetIframeImage !== "function") {
+    return { ok: false, rc: -1, error: "dom missing" };
+  }
+  try {
+    const resultCode = nativeApply(nativeSetIframeImage, state.dom, [
+      ownerBackendNodeId,
+      width,
+      height,
+      rgba,
+    ]);
+    if (resultCode === 0) {
+      try {
+        getInternalState().damageNodes.add(ownerBackendNodeId | 0);
+      } catch {}
+    }
+    return { ok: resultCode >= 0, rc: resultCode };
+  } catch (e) {
+    return {
+      ok: false,
+      rc: -1,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
 function afterFontUpgrade(): void {
   try {
     state.dom?.fontsUpgraded?.();
@@ -305,6 +361,7 @@ import {
   pageTimerDueWithin,
   pumpDuePageTasks,
   pumpPageTask,
+  deferPageTaskWhilePaused,
   timerWheelStats,
   timersScheduledCount,
 } from "./page-tasks.ts";
@@ -4230,56 +4287,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   }
 
   async setFrameBitmap(params: FrameBitmapParams): Promise<FrameBitmapReply> {
-    const bitmap: {
-      ownerBackendNodeId: unknown;
-      width: unknown;
-      height: unknown;
-      rgba: unknown;
-    } = isObjectRecord(params)
-      ? {
-          ownerBackendNodeId: params.ownerBackendNodeId,
-          width: params.width,
-          height: params.height,
-          rgba: params.rgba,
-        }
-      : {
-          ownerBackendNodeId: undefined,
-          width: undefined,
-          height: undefined,
-          rgba: undefined,
-        };
-    const { ownerBackendNodeId, width, height, rgba } = bitmap;
-    if (
-      typeof ownerBackendNodeId !== "number" ||
-      typeof width !== "number" ||
-      typeof height !== "number" ||
-      !isNativeUint8Array(rgba)
-    ) {
-      return { ok: false, rc: -1, error: "bad args" };
-    }
-    if (!state.dom || typeof nativeSetIframeImage !== "function") {
-      return { ok: false, rc: -1, error: "dom missing" };
-    }
-    try {
-      const resultCode = nativeApply(nativeSetIframeImage, state.dom, [
-        ownerBackendNodeId,
-        width,
-        height,
-        rgba,
-      ]);
-      if (resultCode === 0) {
-        try {
-          getInternalState().damageNodes.add(ownerBackendNodeId | 0);
-        } catch {}
-      }
-      return { ok: resultCode >= 0, rc: resultCode };
-    } catch (e) {
-      return {
-        ok: false,
-        rc: -1,
-        error: e instanceof Error ? e.message : String(e),
-      };
-    }
+    return frameBitmapDeliveryGate.deliver(params);
   }
 
   async clearFrameBitmap(params: ClearFrameBitmapParams): Promise<OkReply> {
@@ -4324,7 +4332,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         origin: String(origin ?? ""),
         source,
       });
-      win.dispatchEvent(event);
+      if (!deferPageTaskWhilePaused(() => win.dispatchEvent(event))) win.dispatchEvent(event);
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -4332,7 +4340,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   }
 
   async deliverWorkerEvent(params: WorkerEventParams): Promise<OkReply> {
-    deliverWorkerEvent(params);
+    if (!deferPageTaskWhilePaused(() => deliverWorkerEvent(params))) deliverWorkerEvent(params);
     return { ok: true };
   }
 

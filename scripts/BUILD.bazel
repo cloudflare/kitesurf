@@ -416,9 +416,25 @@ _HELPERS_DATA = glob(["*.mjs"]) + [
 # profile the test runs locally, as before.
 node_test(
     name = "helpers_test",
-    args = glob(["*.test.mjs"], exclude = ["wpt-compare.test.mjs"]),
+    args = glob(
+        ["*.test.mjs"],
+        exclude = [
+            "page-script-frame-bitmap-gate.test.mjs",
+            "wpt-compare.test.mjs",
+        ],
+    ),
     data = _HELPERS_DATA,
     exec_properties = for_test(PW),
+)
+
+node_test(
+    name = "page_script_frame_bitmap_gate_test",
+    args = ["page-script-frame-bitmap-gate.test.mjs"],
+    data = [
+        "page-script-frame-bitmap-gate.test.mjs",
+        "//:node_modules/typescript",
+        "//packages/page-script:frame_bitmap_gate_source",
+    ],
 )
 
 js_test(
