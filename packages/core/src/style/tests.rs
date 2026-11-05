@@ -13,6 +13,8 @@ mod focus_pseudoclass;
 mod has_invalidation;
 mod insertion_invalidation;
 mod resolved_transform;
+mod single_value_used;
+mod style_only_flush;
 mod stylesheet_anchor;
 mod svg_css_fill;
 mod svg_css_opacity;
