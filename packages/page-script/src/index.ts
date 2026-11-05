@@ -29,6 +29,7 @@ import type {
   NavigateOptions,
   NavigateSummary,
   OkReply,
+  NavigateSource,
   PageScriptMethod,
   PageScriptReply,
   PageScriptSession,
@@ -204,6 +205,7 @@ import {
   upgradePendingPromise,
   upgradeToFullFonts,
 } from "./font-loader.ts";
+import { leadsWithDoctype, navigateSourceOf, releaseNavigateSource } from "./source-scan.ts";
 
 // The UA stylesheet text, cached by the first enumerateStyleSheets query;
 // it never changes within an isolate.
@@ -334,7 +336,6 @@ import {
   state,
 } from "./state.ts";
 import { sanitizeCdpNodeTree } from "./cdp-nodes.ts";
-import { leadsWithDoctype, sourceDoctypeOf } from "./source-doctype.ts";
 import type { ShimElement } from "./types.ts";
 import {
   intersectionObserverStats,
@@ -3075,26 +3076,32 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   }
 
   async navigate(
-    html: string,
+    html: string | NavigateSource,
     url: string,
     navigateOptions?: NavigateOptions,
   ): Promise<NavigateSummary> {
     state.navigateStarted = true;
     startCycleCollector();
     const safeUrl = typeof url === "string" ? url : "about:blank";
-    const safeHtml =
-      typeof html === "string" && html.length > 0
+    let source: NavigateSource | null =
+      typeof html === "object" && html !== null
         ? html
-        : "<html><head></head><body></body></html>";
+        : navigateSourceOf(
+            typeof html === "string" && html.length > 0
+              ? html
+              : "<html><head></head><body></body></html>",
+          );
     if (startupCdpDebug) {
-      const NAVIGATE_HTML_PREVIEW_CHARS = 200;
+      const NAVIGATE_HTML_PREVIEW_BYTES = 200;
       try {
         console.log(
           "[kitesurf-debug] PageScript.navigate() called",
           JSON.stringify({
             url: safeUrl,
-            htmlLength: safeHtml.length,
-            htmlPreview: safeHtml.slice(0, NAVIGATE_HTML_PREVIEW_CHARS),
+            htmlBytes: source.utf8.byteLength,
+            htmlPreview: new TextDecoder().decode(
+              source.utf8.subarray(0, NAVIGATE_HTML_PREVIEW_BYTES),
+            ),
             startupScriptCount: startupInputSnapshot?.scriptDescriptorCount,
             startupSample: startupInputSnapshot?.scriptDescriptorSample,
             startupHasClassicRegular: startupHasClassicRegular,
@@ -3208,9 +3215,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     }
     emitNavigateDiagnostic("start", "fonts");
     if (fontDeferActive()) {
-      startFontPrefetch(safeHtml);
+      startFontPrefetch(source.fonts);
     } else {
-      await ensureFontsRegistered(safeHtml);
+      await ensureFontsRegistered(source.fonts);
     }
     emitNavigateDiagnostic("end", "fonts");
     markPhase("fontsMs");
@@ -3260,20 +3267,26 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     }
     emitNavigateDiagnostic("start", "parse");
 
-    const sourceDoctype = sourceDoctypeOf(safeHtml);
+    const sourceDoctype = source.doctype;
     const marker = sourceDoctype
       ? `__kitesurf_doctype_${Math.random().toString(36).slice(2)}__`
       : null;
-    const parsedHtml =
-      sourceDoctype && marker
-        ? safeHtml.slice(0, sourceDoctype.end) +
-          `<!--${marker}-->` +
-          safeHtml.slice(sourceDoctype.end)
-        : safeHtml;
-    const navigateDom = new DomHandle(parsedHtml, safeUrl);
+    const navigateDom = DomHandle.newUtf8(
+      source.utf8,
+      sourceDoctype?.utf8End ?? 0,
+      marker ? `<!--${marker}-->` : "",
+      safeUrl,
+    );
+    const hasScriptObservers = startupScriptDescriptors.length > 0 || source.eventHandlerAttributes;
+    // Free the source before scripts and first layout so it does not count against the isolate
+    // limit at the Wasm peak.
+    releaseNavigateSource(source);
+    html = "";
+    source = null;
     state.dom = navigateDom;
     noteNavigateText(navigateDom);
-    state.sourceDoctype = sourceDoctype && marker ? { markup: sourceDoctype.markup, marker } : null;
+    state.sourceDoctype =
+      sourceDoctype && marker ? { markup: unsharedString(sourceDoctype.markup), marker } : null;
     if (
       navigateOptions &&
       typeof navigateOptions.viewportWidth === "number" &&
@@ -3682,7 +3695,6 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     }
     emitNavigateDiagnostic("end", "shim");
     markPhase("shimMs");
-    const hasScriptObservers = startupScriptDescriptors.length > 0 || /\son\w+\s*=/i.test(safeHtml);
     if (fontDeferActive() && hasScriptObservers) {
       await awaitDeferredFontBytes();
     }
@@ -7289,6 +7301,12 @@ function hasControlChar(text: string): boolean {
       return true;
   }
   return false;
+}
+
+// V8 substrings of 13+ chars point into their parent, so a long doctype ID would keep the whole
+// page source reachable for the life of the page. join() builds a fresh string.
+function unsharedString(value: string): string {
+  return [...value].join("");
 }
 
 function numericNodeId(params: Record<string, unknown>): number | null {

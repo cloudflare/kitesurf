@@ -3,7 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { describe, expect, it } from "vitest";
-import { leadsWithDoctype, sourceDoctypeOf } from "../../page-script/src/source-doctype.ts";
+import { leadsWithDoctype, sourceDoctypeOf } from "../../page-script/src/source-scan.ts";
 
 describe("sourceDoctypeOf", () => {
   it.each([

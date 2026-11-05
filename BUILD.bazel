@@ -192,6 +192,7 @@ test_suite(
         "//scripts:lint_test",
         "//scripts:lint_types",
         "//scripts:page_renderer_pdf_stream_test",
+        "//scripts:page_script_font_loader_test",
         "//scripts:page_script_frame_bitmap_gate_test",
         "//scripts:page_script_pdf_stream_test",
         "//scripts:page_script_startup_input_test",
