@@ -40,6 +40,13 @@ pub fn ks_swap_alloc_stats() -> String {
     crate::swap_alloc::stats_json()
 }
 
+/// Resets only the diagnostic allocator peak window; the lifetime high-water remains available.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn ks_swap_alloc_reset_peak_window() {
+    crate::swap_alloc::reset_peak_window();
+}
+
 #[wasm_bindgen]
 pub fn ks_bridge_pins() -> String {
     let (v8, boa, wrappers, rel_v8, rel_boa) = super::boa_bridge::bridge_pin_stats();

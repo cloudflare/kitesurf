@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 5 Nov 2026 02:11:54 +0000
+Subject: [PATCH] Align computed calc values for Taffy's tagged pointers
+
+Taffy's CompactLength keeps its tag in the low three bits of a pointer to the calc value. On wasm32 the struct only asked for 4-byte alignment, which held only because dlmalloc rounds every chunk to 8; an allocator that honours the requested alignment failed Taffy's assertion and left calc() insets unresolved.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ values/computed/length_percentage.rs | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/values/computed/length_percentage.rs b/values/computed/length_percentage.rs
+index cc5b853..2b52955 100644
+--- a/values/computed/length_percentage.rs
++++ b/values/computed/length_percentage.rs
+@@ -571,7 +571,9 @@ pub type CalcNode = calc::GenericCalcNode<ComputedLeaf>;
+     ToCss,
+     ToTyped,
+ )]
+-#[repr(C)]
++// Taffy's CompactLength keeps a tag in the low three bits of a pointer to this, so it must be
++// 8-aligned on 32-bit targets too rather than relying on the allocator rounding up.
++#[repr(C, align(8))]
+ pub struct CalcLengthPercentage {
+     #[animation(constant)]
+     #[css(skip)]

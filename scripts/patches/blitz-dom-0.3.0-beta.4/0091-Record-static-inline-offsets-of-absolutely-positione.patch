@@ -13,28 +13,29 @@ from the summary.
 
 Signed-off-by: bpereira <bpereira@cloudflare.com>
 ---
- src/layout/evict.rs  | 58 +++++++++++++++++++++++++++++++++++++-------
- src/layout/inline.rs | 48 +++++++++++++++++++++++++++++++-----
+ src/layout/evict.rs  | 59 +++++++++++++++++++++++++++++++++++++-------
+ src/layout/inline.rs | 48 ++++++++++++++++++++++++++++++-----
  src/node/mod.rs      |  3 ++-
- src/node/text.rs     | 57 +++++++++++++++++++++++++++++++++++++++++--
- 4 files changed, 148 insertions(+), 18 deletions(-)
+ src/node/text.rs     | 57 ++++++++++++++++++++++++++++++++++++++++--
+ 4 files changed, 149 insertions(+), 18 deletions(-)
 
 diff --git a/src/layout/evict.rs b/src/layout/evict.rs
-index 45702d8..7623331 100644
+index 45702d8..28fcd04 100644
 --- a/src/layout/evict.rs
 +++ b/src/layout/evict.rs
-@@ -10,7 +10,9 @@
+@@ -10,7 +10,10 @@
  //! after, so no pass holds the shaped text of the whole document at once.
 
  use crate::BaseDocument;
 -use crate::node::{EvictedBreak, EvictedLayout, EvictedSummary, SummaryCell};
 +use crate::node::{
 +    AlignInputs, EvictedBreak, EvictedLayout, EvictedSummary, OutOfFlow, StaticX, SummaryCell,
++    TextLayout,
 +};
  use blitz_traits::node_id::NodeId;
  use style::values::specified::box_::DisplayOutside;
 
-@@ -113,20 +115,18 @@ impl BaseDocument {
+@@ -113,20 +116,18 @@ impl BaseDocument {
          let Some(lines) = layout.break_summary() else {
              return Eviction::Unsummarized;
          };
@@ -61,7 +62,7 @@ index 45702d8..7623331 100644
          let clamp_lines = self.inline_clamp_lines(node_id);
          let (_, last_line_alignment) = self.inline_alignment(node_id);
          let inline = self
-@@ -136,11 +136,28 @@ impl BaseDocument {
+@@ -136,11 +137,28 @@ impl BaseDocument {
          let max_advance = layout.layout_max_advance();
          let indent = layout.text_indent();
          let alignment = layout.alignment();
@@ -90,10 +91,10 @@ index 45702d8..7623331 100644
          let summary = Some(EvictedSummary { lines, out_of_flow });
          let breaking = EvictedBreak::new(
              max_advance,
-@@ -386,6 +403,29 @@ impl BaseDocument {
+@@ -385,6 +403,29 @@ impl BaseDocument {
+     }
  }
 
- /// Whether `node` lays out in a vertical writing mode.
 +/// Each box's offset along its line in `layout`, in `ids` order, or `None`
 +/// when one was clamped away. Looked up by id: bidi lines list items visually.
 +fn static_x_of(
@@ -117,9 +118,9 @@ index 45702d8..7623331 100644
 +        .collect()
 +}
 +
+ /// Whether `node` lays out in a vertical writing mode.
  pub(super) fn is_vertical(node: &crate::Node) -> bool {
      #[cfg(feature = "writing-mode")]
-     return node.writing_mode().is_vertical();
 diff --git a/src/layout/inline.rs b/src/layout/inline.rs
 index c6a7d82..81a0dba 100644
 --- a/src/layout/inline.rs

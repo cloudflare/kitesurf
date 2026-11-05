@@ -27,6 +27,8 @@ mod dom;
 mod js;
 #[cfg(target_arch = "wasm32")]
 mod boa_code_store;
+#[cfg(any(target_arch = "wasm32", test))]
+mod small_alloc;
 #[cfg(target_arch = "wasm32")]
 mod swap_alloc;
 

@@ -173,3 +173,6 @@ export declare function ks_code_stats(): string;
 
 /** Live bytes, budget and forced rounds from the counting allocator, as JSON. */
 export declare function ks_swap_alloc_stats(): string;
+
+/** Resets only the diagnostic peak window for the counting allocator. */
+export declare function ks_swap_alloc_reset_peak_window(): void;

@@ -441,7 +441,7 @@ export interface QueryDomMethods {
     result: { outerHTML: string; seq: number; scrollX: number; scrollY: number };
   };
   getMemoryStats: {
-    args: EmptyArgs;
+    args: { resetPeak?: boolean };
     result: {
       bytes?: number;
       initialBytes?: number;

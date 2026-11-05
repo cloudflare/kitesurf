@@ -355,9 +355,10 @@ export async function handleKitesurf(ctx: DispatchCtx, req: CdpRequest): Promise
 
     case "Kitesurf.getMemoryStats": {
       const targetId = targetIdOf(req.params);
+      const resetPeak = req.params?.resetPeak === true;
       const askStub = async (stub: QueryDomCarrier) => {
         try {
-          const reply = await stubQueryDom(stub, "getMemoryStats", {});
+          const reply = await stubQueryDom(stub, "getMemoryStats", { resetPeak });
           return {
             wasmBytes: typeof reply?.bytes === "number" ? reply.bytes : 0,
             wasmInitialBytes: typeof reply?.initialBytes === "number" ? reply.initialBytes : 0,

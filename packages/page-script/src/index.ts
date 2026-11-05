@@ -404,6 +404,7 @@ import {
   ks_call_cdp,
   ks_code_stats,
   ks_swap_alloc_stats,
+  ks_swap_alloc_reset_peak_window,
 } from "./wasm-glue.js";
 import {
   buildDocument,
@@ -5336,7 +5337,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       case "hasPendingCriticalResources":
         return queryDomHasPendingCriticalResources(state);
       case "getMemoryStats":
-        return queryDomMemoryStats();
+        return queryDomMemoryStats(queryArgs);
       case "boaForceCollect":
       case "getFontFaces":
       case "getMemprofDump":
@@ -7116,7 +7117,8 @@ function queryDomPaintDamage(
   }
 }
 
-function queryDomMemoryStats(): QueryDomResult<"getMemoryStats"> {
+function queryDomMemoryStats(queryArgs: Record<string, unknown>): QueryDomResult<"getMemoryStats"> {
+  if (queryArgs.resetPeak === true) ks_swap_alloc_reset_peak_window();
   const bytes = getCoreWasmMemoryBytes();
   const initialBytes = getCoreWasmMemoryInitialBytes();
   let bridge = null;

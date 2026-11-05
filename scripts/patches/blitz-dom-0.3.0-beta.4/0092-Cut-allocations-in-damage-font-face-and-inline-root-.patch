@@ -22,16 +22,16 @@ Output is unchanged.
 ---
  src/document.rs         | 30 ++++++++++----
  src/layout/construct.rs | 29 +++++++++-----
- src/layout/evict.rs     |  6 +--
+ src/layout/evict.rs     |  8 ++--
  src/layout/inline.rs    | 42 ++++++++++----------
  src/net.rs              | 30 ++++++++++----
  src/node/text.rs        | 28 +++++++++++--
  src/resolve.rs          | 17 ++++++--
  src/stylo_to_parley.rs  | 88 ++++++++++++++++++++++++++---------------
- 8 files changed, 181 insertions(+), 89 deletions(-)
+ 8 files changed, 183 insertions(+), 89 deletions(-)
 
 diff --git a/src/document.rs b/src/document.rs
-index a8f056a..c5955e3 100644
+index fd53041..6a4040b 100644
 --- a/src/document.rs
 +++ b/src/document.rs
 @@ -487,6 +487,10 @@ pub struct BaseDocument {
@@ -83,7 +83,7 @@ index a8f056a..c5955e3 100644
                      }
                  }
              }
-@@ -5201,8 +5217,10 @@ impl BaseDocument {
+@@ -5200,8 +5216,10 @@ impl BaseDocument {
          use style::selector_parser::RestyleDamage;
          let repaint_bits = RestyleDamage::REPAINT.bits();
          let overflow_bits = RestyleDamage::RECALCULATE_OVERFLOW.bits();
@@ -95,7 +95,7 @@ index a8f056a..c5955e3 100644
          for (id, node) in self.nodes.iter() {
              if !node.flags.contains(NodeFlags::IS_IN_DOCUMENT) {
                  continue;
-@@ -5221,11 +5239,6 @@ impl BaseDocument {
+@@ -5220,11 +5238,6 @@ impl BaseDocument {
              } else {
                  DamageClass::Layout
              };
@@ -107,7 +107,7 @@ index a8f056a..c5955e3 100644
              let (list, overflow) = match class {
                  DamageClass::Layout => (&mut s.layout_nodes, &mut s.layout_overflow),
                  DamageClass::Ink => (&mut s.ink_nodes, &mut s.ink_overflow),
-@@ -5240,6 +5253,7 @@ impl BaseDocument {
+@@ -5239,6 +5252,7 @@ impl BaseDocument {
                  list.push(id);
              }
          }
@@ -116,10 +116,10 @@ index a8f056a..c5955e3 100644
 
      /// A box that moved with no damage of its own (a sticky pin written through
 diff --git a/src/layout/construct.rs b/src/layout/construct.rs
-index 758f532..6964754 100644
+index 57859fb..5b92f02 100644
 --- a/src/layout/construct.rs
 +++ b/src/layout/construct.rs
-@@ -1804,6 +1804,13 @@ fn bidi_wrap_chars(
+@@ -1820,6 +1820,13 @@ fn bidi_wrap_chars(
      }
  }
 
@@ -133,7 +133,7 @@ index 758f532..6964754 100644
  pub(crate) fn build_inline_layout_into(
      nodes: &crate::NodeTree,
      layout_ctx: &mut LayoutContext<TextBrush>,
-@@ -1879,7 +1886,8 @@ pub(crate) fn build_inline_layout_into(
+@@ -1895,7 +1902,8 @@ pub(crate) fn build_inline_layout_into(
 
      // Per-text-node byte ranges for the DOM-selection
      // paint bridge; measured around each push (see TextLayout).
@@ -143,7 +143,7 @@ index 758f532..6964754 100644
 
      if let Some(before_id) = root_node.before() {
          build_inline_layout_recursive(
-@@ -1913,7 +1921,10 @@ pub(crate) fn build_inline_layout_into(
+@@ -1929,7 +1937,10 @@ pub(crate) fn build_inline_layout_into(
      }
 
      let text = builder.build_into(text_layout.layout_for_build());
@@ -155,7 +155,7 @@ index 758f532..6964754 100644
      return;
 
      fn build_inline_layout_recursive(
-@@ -2040,15 +2051,15 @@ pub(crate) fn build_inline_layout_into(
+@@ -2056,15 +2067,15 @@ pub(crate) fn build_inline_layout_into(
                              });
 
                              // node.remove_damage(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
@@ -179,15 +179,17 @@ index 758f532..6964754 100644
                              if let Some((open, _)) = bidi_wrap {
                                  builder.push_text(open);
 diff --git a/src/layout/evict.rs b/src/layout/evict.rs
-index 7623331..c962229 100644
+index 28fcd04..126398f 100644
 --- a/src/layout/evict.rs
 +++ b/src/layout/evict.rs
-@@ -240,12 +240,12 @@ impl BaseDocument {
+@@ -241,12 +241,14 @@ impl BaseDocument {
          if self.inline_layout_eviction_viewports.is_none() {
              return;
          }
 -        self.inline_pass_seq = self.inline_pass_seq.wrapping_add(1);
-+        self.inline_pass_seq = self.inline_pass_seq.wrapping_add(1) & !crate::node::TextLayout::ROOT_INDEXED;
++        // The low bits of the seq word carry `ROOT_INDEXED`, so step the seq past it.
++        self.inline_pass_seq =
++            self.inline_pass_seq.wrapping_add(1) & !TextLayout::ROOT_INDEXED;
          let seq = self.inline_pass_seq;
          let Some(inline) = self.inline_layout_mut(node_id) else {
              return;
@@ -197,7 +199,7 @@ index 7623331..c962229 100644
          self.inline_pass_window.push_back((node_id, seq));
          if self.inline_pass_window.len() > IN_PASS_WINDOW {
              let (id, seq) = self.inline_pass_window.pop_front().expect("over capacity");
-@@ -268,7 +268,7 @@ impl BaseDocument {
+@@ -269,7 +271,7 @@ impl BaseDocument {
          // out from its break summary and never rebuilt.
          if self
              .inline_layout_mut(id)
@@ -386,10 +388,10 @@ index 0b95ad9..ef8436e 100644
              span_cb_flags: stylo_taffy::StyleFlags::empty(),
              // NaN = no lines yet; the repair scan gives it some once
 diff --git a/src/resolve.rs b/src/resolve.rs
-index e7af5e5..e1c2b83 100644
+index e2b7de5..e9b2154 100644
 --- a/src/resolve.rs
 +++ b/src/resolve.rs
-@@ -790,12 +790,14 @@ impl BaseDocument {
+@@ -835,12 +835,14 @@ impl BaseDocument {
                      scale: self.viewport.scale(),
                      breaking: None,
                  });
@@ -404,7 +406,7 @@ index e7af5e5..e1c2b83 100644
              }
              return;
          }
-@@ -862,13 +864,15 @@ impl BaseDocument {
+@@ -907,13 +909,15 @@ impl BaseDocument {
 
          for result in results {
              match result.data {
@@ -421,7 +423,7 @@ index e7af5e5..e1c2b83 100644
                  }
              }
          }
-@@ -911,7 +915,7 @@ impl BaseDocument {
+@@ -956,7 +960,7 @@ impl BaseDocument {
          //
          // Except a rebuilt inline tree has no lines, and the restore pass below
          // re-breaks it against final_layout, which must not be a stale box.
@@ -430,7 +432,7 @@ index e7af5e5..e1c2b83 100644
              #[cfg(feature = "writing-mode")]
              state.physicalise_and_round_layout(root_element_id);
              #[cfg(not(feature = "writing-mode"))]
-@@ -981,7 +985,7 @@ impl BaseDocument {
+@@ -1026,7 +1030,7 @@ impl BaseDocument {
      fn restore_clobbered_inline_breaks(&mut self) {
          // Debug builds run the walk anyway and assert it finds nothing, so
          // every test exercises the skip predicate rather than trusting it.
@@ -439,7 +441,7 @@ index e7af5e5..e1c2b83 100644
          if skip && !cfg!(debug_assertions) {
              return;
          }
-@@ -1029,8 +1033,15 @@ impl BaseDocument {
+@@ -1074,8 +1078,15 @@ impl BaseDocument {
              }
              true
          });

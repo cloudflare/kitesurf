@@ -13,7 +13,7 @@ Signed-off-by: bpereira <bpereira@cloudflare.com>
  3 files changed, 26 insertions(+), 3 deletions(-)
 
 diff --git a/src/mutator.rs b/src/mutator.rs
-index bb458a5..4e31064 100644
+index 493ce5b..5ea17c9 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
 @@ -190,7 +190,11 @@ impl DocumentMutator<'_> {
@@ -59,10 +59,10 @@ index a8371ba..55e816e 100644
      pub fn get(&mut self, name: &QualName) -> Option<&Attribute> {
          self.inner.iter().find(|attr| attr.has_name(name))
 diff --git a/src/node/element.rs b/src/node/element.rs
-index 136d1c8..20d5396 100644
+index 614cf9a..f295067 100644
 --- a/src/node/element.rs
 +++ b/src/node/element.rs
-@@ -1278,7 +1278,8 @@ pub fn parse_class_list(value: &str) -> ThinVec<Atom> {
+@@ -1285,7 +1285,8 @@ pub fn parse_class_list(value: &str) -> ThinVec<Atom> {
  }
 
  impl ElementData {
@@ -72,7 +72,7 @@ index 136d1c8..20d5396 100644
          let id_attr_atom = attrs
              .iter()
              .find(|attr| &attr.name.local == "id")
-@@ -1304,7 +1305,7 @@ impl ElementData {
+@@ -1311,7 +1312,7 @@ impl ElementData {
              name: ElementName { local },
              id: id_attr_atom,
              classes: class_atoms,
