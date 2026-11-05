@@ -657,6 +657,7 @@ export async function fetchInsertedScript(
   try {
     const corsMode = crossOrigin == null ? "no-cors" : "cors";
     const headers: Record<string, string> = {
+      "x-kitesurf-allow-cross-origin": "1",
       "x-kitesurf-script-cors": corsMode,
       accept: "*/*",
     };

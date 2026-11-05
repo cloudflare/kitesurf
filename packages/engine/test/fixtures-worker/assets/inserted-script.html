@@ -21,8 +21,8 @@ https://opensource.org/licenses/Apache-2.0
   window.__insertedRan = false;
   insert("/__fixtures/inserted-ok.js");
   insert("/__fixtures/inserted-missing.js");
-  // Unroutable host: the fetch fails before any response exists.
-  insert("http://127.0.0.1:1/inserted-dead.js");
+  // The connection drops mid-response, so the fetch has no usable response.
+  insert("/__fixtures/dropped-script.js");
   // Report late enough that every one of the three has settled.
   setTimeout(function () {
     document.title = "INSERTED:" + JSON.stringify({

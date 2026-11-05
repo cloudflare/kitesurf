@@ -27,6 +27,16 @@ scripts.all("/policy-script.js", (c) => {
   );
 });
 
+// The connection drops before the body completes, so the fetch has no usable response.
+scripts.all("/dropped-script.js", () => {
+  const dropped = new ReadableStream<Uint8Array>({
+    pull(ctl) {
+      ctl.error(new Error("dropped-script: connection dropped"));
+    },
+  });
+  return new Response(dropped, { headers: { "content-type": JS } });
+});
+
 scripts.all("/policy-doc.html", (c) => {
   const headers: Record<string, string> = {};
   const csp = c.req.query("csp");
