@@ -8,7 +8,7 @@ import { packException, packResult } from "./pack.ts";
 import { ks_eval_cdp } from "./wasm-glue.js";
 import type { EvalResult } from "@kitesurf/jsrpc-types/page-script";
 import { drainEvalResult, type EvalResultBody } from "./eval-results.ts";
-import type { DomRect, ShimElement } from "./types.ts";
+import type { ShimElement } from "./types.ts";
 
 // Native eval is only a probe; workerd's code-generation EvalError falls back to Boa.
 const NATIVE_INDIRECT_EVAL: (source: string) => unknown = globalThis.eval;
@@ -22,8 +22,6 @@ export const SyncFunction = function () {}.constructor as new (
 ) => (...args: unknown[]) => unknown;
 
 const INPUT_ANCESTOR_DEPTH = 32;
-const ANCHOR_SEARCH_DEPTH = 8;
-const MAX_ANCHOR_WRAPPER_AREA_RATIO = 4;
 
 export function findAnchorAncestor(el: ShimElement | null): ShimElement | null {
   let currentElement: ShimElement | null = el;
@@ -37,6 +35,32 @@ export function findAnchorAncestor(el: ShimElement | null): ShimElement | null {
 }
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+
+/**
+ * The link under (`x`, `y`) inside an inline `<svg>` target. Inline SVG paints from a snapshot,
+ * so hit testing stops at the `<svg>` and never reaches the shape inside a link. Later links
+ * paint on top, so they are checked first.
+ */
+export function findSvgAnchorAtPoint(
+  targetEl: ShimElement | null,
+  x: number,
+  y: number,
+): ShimElement | null {
+  if (!targetEl || targetEl.namespaceURI !== SVG_NAMESPACE || targetEl.tagName !== "svg") {
+    return null;
+  }
+  // `[href]` matches only a no-namespace href (Selectors 3 §6.3.4); `*|` also finds xlink:href.
+  const anchors = targetEl.querySelectorAll?.("a[*|href]");
+  if (!anchors) return null;
+  for (let k = anchors.length - 1; k >= 0; k--) {
+    const anchor = anchors[k];
+    const rect = anchor.getBoundingClientRect?.();
+    if (rect && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+      return anchor;
+    }
+  }
+  return null;
+}
 
 export function anchorHrefAttribute(anchor: ShimElement): string | null {
   const href = anchor.getAttribute?.("href") ?? null;
@@ -73,109 +97,6 @@ export function findFocusableAncestor(el: ShimElement | null): ShimElement | nul
       (currentElement.parentNode as ShimElement | null) || currentElement.parentElement || null;
   }
   return null;
-}
-
-export function findAnchorViaSingleChild(
-  targetEl: ShimElement | null,
-  x: number,
-  y: number,
-): ShimElement | null {
-  if (targetEl) {
-    const tag = typeof targetEl.tagName === "string" ? targetEl.tagName.toUpperCase() : "";
-    if (
-      tag === "INPUT" ||
-      tag === "TEXTAREA" ||
-      tag === "SELECT" ||
-      tag === "OPTION" ||
-      tag === "BUTTON" ||
-      (tag === "LABEL" && !!(targetEl.getAttribute && targetEl.getAttribute("for"))) ||
-      (typeof targetEl.isContentEditable === "boolean" && targetEl.isContentEditable)
-    ) {
-      return null;
-    }
-  }
-  if (hasInteractiveNonAnchorAncestor(targetEl)) return null;
-
-  const rectContains = (rect: DomRect | null | undefined, px: number, py: number) =>
-    !!rect &&
-    rect.width > 0 &&
-    rect.height > 0 &&
-    px >= rect.left &&
-    px <= rect.right &&
-    py >= rect.top &&
-    py <= rect.bottom;
-  const rectArea = (rect: DomRect | null | undefined) =>
-    rect && rect.width > 0 && rect.height > 0 ? rect.width * rect.height : 0;
-  let currentElement: ShimElement | null = targetEl;
-  for (let i = 0; currentElement && i < ANCHOR_SEARCH_DEPTH; i++) {
-    if (currentElement.querySelectorAll) {
-      // `[href]` matches only a no-namespace href (Selectors 3 §6.3.4), so an
-      // SVG <a> with only xlink:href needs `*|`. anchorHrefAttribute still
-      // ignores namespaced hrefs on HTML anchors.
-      const anchors = currentElement.querySelectorAll("a[*|href]");
-      if (!anchors || anchors.length === 0) {
-        currentElement =
-          (currentElement.parentNode as ShimElement | null) || currentElement.parentElement || null;
-        continue;
-      }
-      for (let k = 0; k < anchors.length; k++) {
-        const anchor = anchors[k];
-        if (!anchor.getBoundingClientRect) continue;
-        const rect = anchor.getBoundingClientRect();
-        if (!rectContains(rect, x, y)) continue;
-        const href = anchorHrefAttribute(anchor);
-        if (href && href !== "" && !/^javascript:/i.test(href)) return anchor;
-      }
-      for (let k = 0; k < anchors.length; k++) {
-        const anchor = anchors[k];
-        const parent =
-          (anchor.parentElement as ShimElement | null) || (anchor.parentNode as ShimElement | null);
-        if (!parent?.getBoundingClientRect || !anchor.getBoundingClientRect) continue;
-        const parentRect = parent.getBoundingClientRect();
-        if (!rectContains(parentRect, x, y)) continue;
-        const anchorArea = rectArea(anchor.getBoundingClientRect());
-        const parentArea = rectArea(parentRect);
-        if (anchorArea <= 0 || parentArea > anchorArea * MAX_ANCHOR_WRAPPER_AREA_RATIO) continue;
-        const href = anchorHrefAttribute(anchor);
-        if (href && href !== "" && !/^javascript:/i.test(href)) return anchor;
-      }
-    }
-    currentElement =
-      (currentElement.parentNode as ShimElement | null) || currentElement.parentElement || null;
-  }
-  return null;
-}
-
-function hasInteractiveNonAnchorAncestor(el: ShimElement | null): boolean {
-  let currentElement: ShimElement | null = el;
-  for (let i = 0; currentElement && i < INPUT_ANCESTOR_DEPTH; i++) {
-    const tag =
-      typeof currentElement.tagName === "string" ? currentElement.tagName.toUpperCase() : "";
-    if (tag === "BUTTON" || tag === "SUMMARY") return true;
-    if (currentElement.getAttribute) {
-      const role = currentElement.getAttribute("role");
-      if (role) {
-        const name = role.toLowerCase();
-        if (
-          name === "button" ||
-          name === "tab" ||
-          name === "link" ||
-          name === "menuitem" ||
-          name === "menuitemcheckbox" ||
-          name === "menuitemradio" ||
-          name === "switch" ||
-          name === "checkbox" ||
-          name === "radio" ||
-          name === "option"
-        ) {
-          return true;
-        }
-      }
-    }
-    currentElement =
-      (currentElement.parentNode as ShimElement | null) || currentElement.parentElement || null;
-  }
-  return false;
 }
 
 export interface RunExpressionOpts {

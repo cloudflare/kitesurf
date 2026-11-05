@@ -133,8 +133,8 @@ import {
   SyncFunction,
   anchorHrefAttribute,
   findAnchorAncestor,
-  findAnchorViaSingleChild,
   findFocusableAncestor,
+  findSvgAnchorAtPoint,
   packBoaResult,
   runExpression,
 } from "./eval-helpers.ts";
@@ -2736,13 +2736,14 @@ function toggleDetailsFromSummary(targetEl: MouseTarget): void {
 
 type AnchorNavigation = { kind: "hash" | "navigate"; url: string };
 
+// A click follows a link only when it lands on the link or inside it (HTML's activation behavior
+// runs on the event path), never on a nearby one.
 function activateAnchorNavigation(
   targetEl: MouseTarget,
   clientX: number,
   clientY: number,
 ): AnchorNavigation | null {
-  const anchor =
-    findAnchorAncestor(targetEl) || findAnchorViaSingleChild(targetEl, clientX, clientY);
+  const anchor = findAnchorAncestor(targetEl) || findSvgAnchorAtPoint(targetEl, clientX, clientY);
   if (!anchor) return null;
   const rawHref = anchorHrefAttribute(anchor);
   if (typeof rawHref !== "string" || rawHref.length === 0) return null;
