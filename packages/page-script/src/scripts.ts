@@ -277,13 +277,28 @@ export async function runAsyncPhase(plan: ScriptPlan): Promise<void> {
 // inline module a distinct record.
 const inlineModuleSources = new Map<string, string>();
 let inlineModuleCounter = 0;
-// The gate needs an entry module's own nonce and integrity; its imports carry neither.
-const entryModuleAttributes = new Map<string, { nonce: string | null; integrity: string | null }>();
+// The gate needs an entry module's own nonce and integrity; its imports carry neither. Elements
+// that share a URL share its one fetch, which a browser makes with the first one's options, so
+// those stay until every holder releases them: a later element cannot replace them mid-fetch.
+type EntryModuleAttributes = { nonce: string | null; integrity: string | null };
+const entryModuleAttributes = new Map<
+  string,
+  { attributes: EntryModuleAttributes; holders: number }
+>();
 
-export function entryModuleGateAttributes(
-  url: string,
-): { nonce: string | null; integrity: string | null } | undefined {
-  return entryModuleAttributes.get(url);
+export function entryModuleGateAttributes(url: string): EntryModuleAttributes | undefined {
+  return entryModuleAttributes.get(url)?.attributes;
+}
+
+export function setEntryModuleGateAttributes(url: string, attributes: EntryModuleAttributes): void {
+  const held = entryModuleAttributes.get(url);
+  if (held) held.holders++;
+  else entryModuleAttributes.set(url, { attributes, holders: 1 });
+}
+
+export function clearEntryModuleGateAttributes(url: string): void {
+  const held = entryModuleAttributes.get(url);
+  if (held && --held.holders === 0) entryModuleAttributes.delete(url);
 }
 
 // One-shot: boa caches the parsed record, so the source is never asked for twice.
@@ -310,7 +325,7 @@ export async function runModulePhase(plan: ScriptPlan): Promise<void> {
         continue;
       }
       moduleUrl = url;
-      entryModuleAttributes.set(url, { nonce: script.nonce, integrity: script.integrity });
+      setEntryModuleGateAttributes(url, { nonce: script.nonce, integrity: script.integrity });
     } else {
       const source = script.body || "";
       if (!source.trim()) continue;
@@ -321,6 +336,8 @@ export async function runModulePhase(plan: ScriptPlan): Promise<void> {
         continue;
       }
       inlineModuleSources.set(moduleUrl, source);
+      // No integrity for inline source, but its imports inherit its nonce.
+      setEntryModuleGateAttributes(moduleUrl, { nonce: script.nonce, integrity: null });
     }
     try {
       await ks_import(moduleUrl, state.pageUrl || "about:blank");
@@ -328,7 +345,7 @@ export async function runModulePhase(plan: ScriptPlan): Promise<void> {
       console.error("[" + (script.src ? moduleUrl : "<inline-module>") + "]", err);
     } finally {
       inlineModuleSources.delete(moduleUrl);
-      entryModuleAttributes.delete(moduleUrl);
+      clearEntryModuleGateAttributes(moduleUrl);
     }
   }
 }

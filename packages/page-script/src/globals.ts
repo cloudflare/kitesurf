@@ -412,8 +412,11 @@ export function installGlobals(
     };
   }
   if (!ksInternals.fetchModuleSource) {
-    ksInternals.fetchModuleSource = function (url) {
-      return fetchGatedModuleSource(String(url));
+    ksInternals.fetchModuleSource = function (url, referrer) {
+      return fetchGatedModuleSource(
+        String(url),
+        typeof referrer === "string" ? referrer : undefined,
+      );
     };
   }
   if (!evalPatched) {
