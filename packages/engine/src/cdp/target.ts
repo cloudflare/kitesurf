@@ -19,6 +19,13 @@ import { clearLearnedScripts } from "../eval/learned-scripts.ts";
 import { releaseParkedForConnection } from "./fetch-interception.ts";
 import { releaseAllDomHandles } from "./dom-release.ts";
 import { outerHtmlResponse, stubQueryDom } from "./page-session.ts";
+import {
+  childNodesSubtree,
+  documentSubtree,
+  GET_DOCUMENT_DEPTH,
+  GET_FLATTENED_DOCUMENT_DEPTH,
+  subtreeBudgetError,
+} from "./dom-frontend.ts";
 import { detachWebMcpSession } from "./webmcp.ts";
 import { stopSceneStreams } from "./scene-stream.ts";
 import { cancelAndRemoveTargetWheelQueues, stopAndRemoveWheelQueue } from "./wheel-queue.ts";
@@ -829,19 +836,37 @@ export async function handleOopifSession(
       return {};
     }
     case "DOM.getDocument": {
+      const subtree = documentSubtree(req.params, GET_DOCUMENT_DEPTH);
       const r = frame.pageScript
-        ? await stubQueryDom(frame.pageScript, "getDocument", {})
+        ? await stubQueryDom(frame.pageScript, "getDocument", subtree)
         : undefined;
-      return r?.root ? r : { root: null };
+      if (r?.budgetError) throw subtreeBudgetError(req.method, r.budgetError);
+      return r?.root ? { root: r.root } : { root: null };
     }
     case "DOM.getFlattenedDocument": {
+      const subtree = documentSubtree(req.params, GET_FLATTENED_DOCUMENT_DEPTH);
       const r = frame.pageScript
-        ? await stubQueryDom(frame.pageScript, "getDocument", {})
+        ? await stubQueryDom(frame.pageScript, "getDocument", subtree)
         : undefined;
+      if (r?.budgetError) throw subtreeBudgetError(req.method, r.budgetError);
       return { nodes: r?.root ? [r.root] : [] };
     }
-    case "DOM.requestChildNodes":
+    case "DOM.requestChildNodes": {
+      const subtree = childNodesSubtree(req.params);
+      const nodeId = oopifNodeId(req.params);
+      if (!frame.pageScript || nodeId == null || nodeId <= 0) return {};
+      const r = await stubQueryDom(frame.pageScript, "nodeSubtree", { nodeId, ...subtree });
+      if (r.budgetError) throw subtreeBudgetError(req.method, r.budgetError);
+      const nodes = r.node?.children;
+      if (nodes) {
+        ctx.emit({
+          method: "DOM.setChildNodes",
+          params: { parentId: nodeId, nodes },
+          sessionId: req.sessionId,
+        });
+      }
       return {};
+    }
     case "DOM.getOuterHTML": {
       const nodeId = oopifNodeId(req.params);
       const pageScript = frame.pageScript;
@@ -856,7 +881,13 @@ export async function handleOopifSession(
     case "DOM.describeNode": {
       const nodeId = oopifNodeId(req.params);
       if (!frame.pageScript) return undefined;
-      return await stubQueryDom(frame.pageScript, "describeNode", nodeId != null ? { nodeId } : {});
+      const result = await stubQueryDom(
+        frame.pageScript,
+        "describeNode",
+        nodeId != null ? { nodeId } : {},
+      );
+      if (result.budgetError) throw subtreeBudgetError(req.method, result.budgetError);
+      return result;
     }
     case "DOM.getAttributes": {
       const nodeId = oopifNodeId(req.params);

@@ -5320,6 +5320,10 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         return queryDomSelectorRead(state, method, queryArgs);
       case "getAncestorElementIds":
         return queryDomAncestorElementIds(state, queryArgs);
+      case "nodeAncestors":
+        return queryDomNodeAncestors(state, queryArgs);
+      case "childNodeLists":
+        return queryDomChildNodeLists(state, queryArgs);
       case "parseStyleSheet":
         return queryDomParseStylesheet(queryArgs);
       case "enumerateStyleSheets":
@@ -5406,6 +5410,58 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
 
 type QueryDomActiveState = typeof state & { dom: DomHandle };
 
+// The whole tree, shadow roots included, unless the caller passes CDP's depth and pierce.
+function subtreeArgs(queryArgs: Record<string, unknown>): { depth: number; pierce: boolean } {
+  const depth = typeof queryArgs.depth === "number" ? queryArgs.depth : -1;
+  const pierce = typeof queryArgs.pierce === "boolean" ? queryArgs.pierce : depth < 0;
+  return { depth, pierce };
+}
+
+function queryDomNodeAncestors(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"nodeAncestors"> {
+  const ids = Array.isArray(queryArgs.nodeIds) ? queryArgs.nodeIds : [];
+  const seen = new Set<number>();
+  const ancestorIds: number[] = [];
+  for (const id of ids) {
+    if (typeof id !== "number") continue;
+    // Walk up to the first ancestor already listed, then list the new ones top-down.
+    const chain: number[] = [];
+    let current = id;
+    for (;;) {
+      let parent: number;
+      try {
+        parent = pageState.dom.parentId(current);
+      } catch {
+        break;
+      }
+      if (typeof parent !== "number" || parent < 0 || seen.has(parent)) break;
+      seen.add(parent);
+      chain.push(parent);
+      current = parent;
+    }
+    for (let i = chain.length - 1; i >= 0; i--) ancestorIds.push(chain[i]);
+  }
+  return { ancestorIds } satisfies QueryDomResult<"nodeAncestors">;
+}
+
+function queryDomChildNodeLists(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"childNodeLists"> {
+  const ids = Array.isArray(queryArgs.nodeIds) ? queryArgs.nodeIds : [];
+  const { depth, pierce } = subtreeArgs(queryArgs);
+  const lists: QueryDomResult<"childNodeLists">["lists"] = [];
+  for (const id of ids) {
+    if (typeof id !== "number") continue;
+    // The children at `depth` are the node's own subtree one level deeper.
+    const node = sanitizeCdpNodeTree(pageState.dom.nodeSubtree(id, depth, pierce));
+    if (node) lists.push({ parentId: id, nodes: node.children ?? [] });
+  }
+  return { lists } satisfies QueryDomResult<"childNodeLists">;
+}
+
 function requireQueryDomDocument(
   pageState: typeof state,
 ): asserts pageState is QueryDomActiveState {
@@ -5426,7 +5482,10 @@ function queryDomDocumentRead(
     case "getDocument": {
       // Read stamps bracket the synchronous DOM read with the mutation sequence.
       const before = getInternalState().mutationSeq | 0;
-      const root = sanitizeCdpNodeTree(pageState.dom.getDocument()) ?? undefined;
+      const { depth, pierce } = subtreeArgs(queryArgs);
+      const budgetError = pageState.dom.documentBudgetError(depth, pierce);
+      if (budgetError) return { budgetError } satisfies QueryDomResult<"getDocument">;
+      const root = sanitizeCdpNodeTree(pageState.dom.getDocument(depth, pierce)) ?? undefined;
       return {
         root,
         ...(queryArgs.includeReadStamp === true
@@ -5444,7 +5503,10 @@ function queryDomDocumentRead(
       const id = numericNodeId(queryArgs);
       if (id == null) return { node: null } satisfies QueryDomResult<"nodeSubtree">;
       try {
-        const subtree = pageState.dom.nodeSubtree ? pageState.dom.nodeSubtree(id) : null;
+        const { depth, pierce } = subtreeArgs(queryArgs);
+        const budgetError = pageState.dom.nodeSubtreeBudgetError(id, depth, pierce);
+        if (budgetError) return { budgetError } satisfies QueryDomResult<"nodeSubtree">;
+        const subtree = pageState.dom.nodeSubtree(id, depth, pierce);
         return {
           node: sanitizeCdpNodeTree(subtree) || null,
         } satisfies QueryDomResult<"nodeSubtree">;
@@ -6985,6 +7047,8 @@ function queryDomNodeHandle(
         } satisfies QueryDomResult<"describeNode">;
       }
       try {
+        const budgetError = pageState.dom.nodeDescriptionBudgetError(id);
+        if (budgetError) return { budgetError } satisfies QueryDomResult<"describeNode">;
         const info = pageState.dom.nodeInfo(id);
         if (info) {
           delete info.attributeNamespaces;

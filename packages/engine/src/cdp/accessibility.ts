@@ -287,7 +287,7 @@ export async function buildTree(
   const fallbackDom = root || options.fallback === false ? null : ensureTargetDom(target);
   if (!root && fallbackDom) {
     try {
-      root = fallbackDom.getDocument() as DomNode;
+      root = fallbackDom.getDocument(-1, true) as DomNode;
     } catch {
       root = null;
     }

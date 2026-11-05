@@ -63,7 +63,8 @@ HTMLElement.prototype.attachShadow = function (this: HTMLElement, opts) {
   }
   shadowRootModes.set(rootId, mode);
   try {
-    const root = dom.nodeSubtree(rootId);
+    // Depth 0 keeps the event small whatever the root holds; clients request its children.
+    const root = dom.nodeSubtree(rootId, 0, false);
     if (root) {
       recordCdpMutation({
         kind: "shadowRootPushed",

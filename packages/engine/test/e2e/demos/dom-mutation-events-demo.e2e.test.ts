@@ -55,7 +55,7 @@ test("dom-mutation-events-demo", async ({ page }) => {
   ).toBeTruthy();
 
   await session.send("DOM.enable");
-  const doc = await session.send("DOM.getDocument");
+  const doc = await session.send("DOM.getDocument", { depth: -1 });
   expect(
     typeof doc?.root?.nodeId === "number",
     "DOM.getDocument returned a root node: no root in response",

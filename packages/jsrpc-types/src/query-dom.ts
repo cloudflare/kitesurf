@@ -197,17 +197,40 @@ export interface FormStateSnapshot {
   selected?: Array<[number, boolean]>;
 }
 
+export interface SubtreeBudgetError {
+  nodes: number;
+  /** Lower bound that already exceeds budget. */
+  atLeastBytes: number;
+  nodesAtLeast: boolean;
+  budget: number;
+}
+
 /** Typed wire operations multiplexed over the retained PageScript session.
  * Node IDs and object handles expire with that generation; read stamps expose snapshot mutations.
  */
 export interface QueryDomMethods {
+  // CDP `depth` (-1 for all) and `pierce`; without them the whole tree, shadow roots included.
   getDocument: {
-    args: ReadStampArgs;
-    result: Partial<Protocol.DOM.GetDocumentResponse> & { readStamp?: ReadStamp };
+    args: ReadStampArgs & SubtreeArgs;
+    result: Partial<Protocol.DOM.GetDocumentResponse> & {
+      readStamp?: ReadStamp;
+      budgetError?: SubtreeBudgetError;
+    };
   };
+  // The node with its children to `depth`, as CDP describes nodes; without it, the whole subtree.
   nodeSubtree: {
-    args: { nodeId: number };
-    result: { node?: Protocol.DOM.Node | null };
+    args: { nodeId: number } & SubtreeArgs;
+    result: { node?: Protocol.DOM.Node | null; budgetError?: SubtreeBudgetError };
+  };
+  // Every ancestor of `nodeIds`, the document included, each once and after its own ancestors.
+  nodeAncestors: {
+    args: { nodeIds: number[] };
+    result: { ancestorIds: number[] };
+  };
+  // The children of each of `nodeIds`, described to `depth`; a missing node is left out.
+  childNodeLists: {
+    args: { nodeIds: number[] } & SubtreeArgs;
+    result: { lists: Array<{ parentId: number; nodes: Protocol.DOM.Node[] }> };
   };
   querySelector: {
     args: { selector: string };
@@ -227,7 +250,7 @@ export interface QueryDomMethods {
   };
   describeNode: {
     args: { nodeId?: number; objectId?: string };
-    result: Partial<Protocol.DOM.DescribeNodeResponse>;
+    result: Partial<Protocol.DOM.DescribeNodeResponse> & { budgetError?: SubtreeBudgetError };
   };
   getAttributes: {
     args: { nodeId?: number };
@@ -507,6 +530,7 @@ type EmptyArgs = Record<string, never>;
 
 // Read stamps bracket snapshots with mutationSeq to expose concurrent DOM changes.
 type ReadStampArgs = { includeReadStamp?: boolean };
+type SubtreeArgs = { depth?: number; pierce?: boolean };
 
 export interface PendingImageDrain {
   waited: boolean;

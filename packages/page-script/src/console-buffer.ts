@@ -174,8 +174,8 @@ export function drainCdpMutations(): CdpMutation[] {
     if (mutation.kind === "childNodeInserted") {
       let nodeShape: InsertedNode | null = null;
       try {
-        const dom = state.dom as { nodeSubtree?: (id: number) => unknown } | null;
-        const subtree = dom?.nodeSubtree?.(mutation.nodeId);
+        // Depth 0 keeps the event small whatever the subtree holds; clients request the rest.
+        const subtree = state.dom?.nodeSubtree(mutation.nodeId, 0, false);
         nodeShape = isInsertedNode(subtree) ? sanitizeCdpNodeTree(subtree) : null;
       } catch {
         nodeShape = null;
@@ -186,12 +186,26 @@ export function drainCdpMutations(): CdpMutation[] {
         parentNodeId: mutation.parentNodeId,
         previousNodeId: mutation.previousNodeId,
         node: nodeShape,
+        parentChildNodeCount: childNodeCount(mutation.parentNodeId),
       });
+      continue;
+    }
+    if (mutation.kind === "childNodeRemoved") {
+      mutations.push({ ...mutation, parentChildNodeCount: childNodeCount(mutation.parentNodeId) });
       continue;
     }
     mutations.push(mutation);
   }
   return mutations;
+}
+
+// At drain time, so a batch reports the count after its last change.
+function childNodeCount(parentId: number): number {
+  try {
+    return state.dom?.childIds(parentId)?.length ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 export function resetConsoleBuffer(): void {

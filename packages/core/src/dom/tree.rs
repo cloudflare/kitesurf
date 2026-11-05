@@ -15,7 +15,7 @@ use ::style::dom_apis::{
 use wasm_bindgen::prelude::*;
 
 use crate::{DomHandle, LayoutMode, NodeHandleMap};
-use crate::dom::cdp::{describe_node, describe_node_ext};
+use crate::dom::cdp::{check_node_budget, check_subtree_budget, describe_node, Subtree};
 
 fn find_html_title(doc: &BaseDocument) -> Option<&Node> {
     let mut stack = vec![doc.root_node().id()];
@@ -854,21 +854,33 @@ impl DomHandle {
             .map_or(-1.0, |d| f64::from(d.base_epoch))
     }
 
+    /// The document described as CDP `DOM.getDocument` with `depth` (negative for the whole
+    /// tree) and `pierce`.
     #[wasm_bindgen(js_name = "getDocument", unchecked_return_type = "KsNodeInfo | null")]
-    pub fn get_document(&self) -> Result<JsValue, JsError> {
+    pub fn get_document(&self, depth: i32, pierce: bool) -> Result<JsValue, JsError> {
         let doc = match self.doc.try_borrow() {
             Ok(d) => d,
             Err(_) => return Ok(JsValue::NULL),
         };
         let doc_id = doc.root_node().id();
+        let subtree = Subtree { depth, pierce };
         let mut node_handles = self.node_handles.borrow_mut();
-        let cdp = describe_node(&doc, doc_id, &self.base_url, true, &mut node_handles)
-            .ok_or_else(|| JsError::new("document node missing"))?;
-        serde_wasm_bindgen::to_value(&cdp).map_err(|e| JsError::new(&e.to_string()))
+        let cdp = describe_node(
+            &doc,
+            doc_id,
+            &self.base_url,
+            Some(subtree),
+            &mut node_handles,
+        )
+        .ok_or_else(|| JsError::new("document node missing"));
+        drop(node_handles);
+        drop(doc);
+        serde_wasm_bindgen::to_value(&cdp?).map_err(|e| JsError::new(&e.to_string()))
     }
 
+    /// `node_id` with its children to `depth` (negative for all), as CDP describes a node.
     #[wasm_bindgen(js_name = "nodeSubtree", unchecked_return_type = "KsNodeInfo | null")]
-    pub fn node_subtree(&self, node_id: u32) -> Result<JsValue, JsError> {
+    pub fn node_subtree(&self, node_id: u32, depth: i32, pierce: bool) -> Result<JsValue, JsError> {
         let Some(internal_id) = self.resolve_node_id(node_id) else {
             return Ok(JsValue::NULL);
         };
@@ -877,19 +889,109 @@ impl DomHandle {
             Err(_) => return Ok(JsValue::NULL),
         };
         if doc.get_node(internal_id).is_none() {
+            drop(doc);
             return Ok(JsValue::NULL);
         }
-        let cdp = describe_node_ext(
+        let subtree = Subtree { depth, pierce };
+        let mut node_handles = self.node_handles.borrow_mut();
+        let cdp = describe_node(
             &doc,
             internal_id,
             &self.base_url,
-            true,
-            false,
-            &mut self.node_handles.borrow_mut(),
+            Some(subtree),
+            &mut node_handles,
         );
+        drop(node_handles);
+        drop(doc);
         match cdp {
             Some(node) => {
                 serde_wasm_bindgen::to_value(&node).map_err(|e| JsError::new(&e.to_string()))
+            }
+            None => Ok(JsValue::NULL),
+        }
+    }
+
+    #[wasm_bindgen(
+        js_name = "documentBudgetError",
+        unchecked_return_type = "KsSubtreeBudgetError | null"
+    )]
+    pub fn document_budget_error(&self, depth: i32, pierce: bool) -> Result<JsValue, JsError> {
+        let doc = match self.doc.try_borrow() {
+            Ok(doc) => doc,
+            Err(_) => return Ok(JsValue::NULL),
+        };
+        let handles = self.node_handles.borrow();
+        let error = check_subtree_budget(
+            &doc,
+            doc.root_node().id(),
+            &self.base_url,
+            Subtree { depth, pierce },
+            &handles,
+        );
+        drop(handles);
+        drop(doc);
+        match error {
+            Some(error) => {
+                serde_wasm_bindgen::to_value(&error).map_err(|e| JsError::new(&e.to_string()))
+            }
+            None => Ok(JsValue::NULL),
+        }
+    }
+
+    #[wasm_bindgen(
+        js_name = "nodeSubtreeBudgetError",
+        unchecked_return_type = "KsSubtreeBudgetError | null"
+    )]
+    pub fn node_subtree_budget_error(
+        &self,
+        node_id: u32,
+        depth: i32,
+        pierce: bool,
+    ) -> Result<JsValue, JsError> {
+        let Some(id) = self.resolve_node_id(node_id) else {
+            return Ok(JsValue::NULL);
+        };
+        let doc = match self.doc.try_borrow() {
+            Ok(doc) => doc,
+            Err(_) => return Ok(JsValue::NULL),
+        };
+        let handles = self.node_handles.borrow();
+        let error = check_subtree_budget(
+            &doc,
+            id,
+            &self.base_url,
+            Subtree { depth, pierce },
+            &handles,
+        );
+        drop(handles);
+        drop(doc);
+        match error {
+            Some(error) => {
+                serde_wasm_bindgen::to_value(&error).map_err(|e| JsError::new(&e.to_string()))
+            }
+            None => Ok(JsValue::NULL),
+        }
+    }
+
+    #[wasm_bindgen(
+        js_name = "nodeDescriptionBudgetError",
+        unchecked_return_type = "KsSubtreeBudgetError | null"
+    )]
+    pub fn node_description_budget_error(&self, node_id: u32) -> Result<JsValue, JsError> {
+        let Some(id) = self.resolve_node_id(node_id) else {
+            return Ok(JsValue::NULL);
+        };
+        let doc = match self.doc.try_borrow() {
+            Ok(doc) => doc,
+            Err(_) => return Ok(JsValue::NULL),
+        };
+        let handles = self.node_handles.borrow();
+        let error = check_node_budget(&doc, id, &self.base_url, &handles);
+        drop(handles);
+        drop(doc);
+        match error {
+            Some(error) => {
+                serde_wasm_bindgen::to_value(&error).map_err(|e| JsError::new(&e.to_string()))
             }
             None => Ok(JsValue::NULL),
         }
@@ -1189,7 +1291,7 @@ impl DomHandle {
             &doc,
             internal_id,
             &self.base_url,
-            false,
+            None,
             &mut self.node_handles.borrow_mut(),
         )
         .ok_or_else(|| JsError::new("node not found"))?;
