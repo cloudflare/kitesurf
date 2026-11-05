@@ -205,7 +205,7 @@ import {
   upgradePendingPromise,
   upgradeToFullFonts,
 } from "./font-loader.ts";
-import { leadsWithDoctype, navigateSourceOf, releaseNavigateSource } from "./source-scan.ts";
+import { navigateSourceOf, releaseNavigateSource } from "./source-scan.ts";
 
 // The UA stylesheet text, cached by the first enumerateStyleSheets query;
 // it never changes within an isolate.
@@ -5432,30 +5432,64 @@ function queryDomOuterHTML(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<"getOuterHTML"> {
   const id = numericNodeId(queryArgs) ?? 0;
-  // Let a serialization failure reach the CDP caller; an empty string reads as an empty page.
-  const rawOuterHTML = pageState.dom.outerHTML(id);
   const sourceDoctype =
     state.document?.doctype?.parentNode === state.document ? state.sourceDoctype : null;
-  const markerMarkup = state.sourceDoctype ? `<!--${state.sourceDoctype.marker}-->` : null;
-  const markerIndex = id === 0 && markerMarkup ? rawOuterHTML.indexOf(markerMarkup) : -1;
-  const outerHTML =
-    markerIndex >= 0 && markerMarkup
-      ? rawOuterHTML.slice(0, markerIndex) + rawOuterHTML.slice(markerIndex + markerMarkup.length)
-      : rawOuterHTML;
-  if (
-    id !== 0 ||
-    queryArgs.includeDoctype !== true ||
-    !sourceDoctype ||
-    markerIndex < 0 ||
-    leadsWithDoctype(outerHTML)
-  ) {
-    return { outerHTML } satisfies QueryDomResult<"getOuterHTML">;
+  const marker = id === 0 && state.sourceDoctype ? `<!--${state.sourceDoctype.marker}-->` : "";
+  const doctype =
+    id === 0 && queryArgs.includeDoctype === true && sourceDoctype ? sourceDoctype.markup : "";
+  // Let a serialization failure reach the CDP caller; empty output reads as an empty page.
+  const dom = pageState.dom;
+  const live = queryArgs.snapshot === true ? undefined : dom.outerHTMLStream(id, marker, doctype);
+  if (live) {
+    return outerHtmlResult(live, () => live.nextChunk(dom, OUTER_HTML_CHUNK_BYTES));
   }
+  const bytes = dom.outerHTMLBytes(id, marker, doctype);
+  return outerHtmlResult(bytes, () => bytes.nextChunk(OUTER_HTML_CHUNK_BYTES));
+}
+
+function outerHtmlResult(
+  source: { readonly byteLength: number; free(): void },
+  nextChunk: () => Uint8Array,
+): QueryDomResult<"getOuterHTML"> {
   return {
-    outerHTML:
-      outerHTML.slice(0, markerIndex) + sourceDoctype.markup + outerHTML.slice(markerIndex),
+    byteLength: source.byteLength,
+    outerHTMLUtf8: byteStream(source, nextChunk),
   } satisfies QueryDomResult<"getOuterHTML">;
 }
+
+function byteStream(
+  source: { free(): void },
+  nextChunk: () => Uint8Array,
+): ReadableStream<Uint8Array> {
+  let freed = false;
+  const release = () => {
+    if (freed) return;
+    freed = true;
+    source.free();
+  };
+  return new ReadableStream({
+    type: "bytes",
+    pull(controller) {
+      let chunk: Uint8Array;
+      try {
+        chunk = nextChunk();
+      } catch (error) {
+        release();
+        throw error;
+      }
+      if (chunk.byteLength > 0) {
+        controller.enqueue(chunk);
+        return;
+      }
+      release();
+      controller.close();
+    },
+    cancel: release,
+  });
+}
+
+// Small next to the isolate limit, large enough that a long page needs few RPC stream writes.
+const OUTER_HTML_CHUNK_BYTES = 256 * 1024;
 
 type QueryDomSelectorReadMethod = Extract<
   QueryDomMethod,

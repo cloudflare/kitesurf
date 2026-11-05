@@ -18,7 +18,7 @@ import { assetCacheRetainedBytes } from "../eval/outbound.ts";
 import { clearLearnedScripts } from "../eval/learned-scripts.ts";
 import { releaseParkedForConnection } from "./fetch-interception.ts";
 import { releaseAllDomHandles } from "./dom-release.ts";
-import { stubQueryDom } from "./page-session.ts";
+import { outerHtmlResponse, stubQueryDom } from "./page-session.ts";
 import { detachWebMcpSession } from "./webmcp.ts";
 import { stopSceneStreams } from "./scene-stream.ts";
 import { cancelAndRemoveTargetWheelQueues, stopAndRemoveWheelQueue } from "./wheel-queue.ts";
@@ -844,8 +844,14 @@ export async function handleOopifSession(
       return {};
     case "DOM.getOuterHTML": {
       const nodeId = oopifNodeId(req.params);
-      if (!frame.pageScript) return undefined;
-      return await stubQueryDom(frame.pageScript, "getOuterHTML", nodeId != null ? { nodeId } : {});
+      const pageScript = frame.pageScript;
+      if (!pageScript) return undefined;
+      return await outerHtmlResponse((mode) =>
+        stubQueryDom(pageScript, "getOuterHTML", {
+          ...(nodeId != null ? { nodeId } : {}),
+          ...mode,
+        }),
+      );
     }
     case "DOM.describeNode": {
       const nodeId = oopifNodeId(req.params);

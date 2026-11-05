@@ -22,6 +22,7 @@ import { cookieKeyFor } from "./cookie-jar-registry.ts";
 import { publishStub } from "./page-script-generation.ts";
 import { ensureTargetDom } from "./dom-release.ts";
 import {
+  outerHtmlResponse,
   registerEnsurePageScript,
   resolveTarget,
   sessionOf,
@@ -160,10 +161,13 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       const id = numericNodeId(req.params);
       if (ps) {
         const includeDoctype = req.params?.includeDoctype === true;
-        return await session.call.getOuterHTML({
-          ...(id != null ? { nodeId: id } : {}),
-          ...(includeDoctype ? { includeDoctype: true } : {}),
-        });
+        return await outerHtmlResponse((mode) =>
+          session.call.getOuterHTML({
+            ...(id != null ? { nodeId: id } : {}),
+            ...(includeDoctype ? { includeDoctype: true } : {}),
+            ...mode,
+          }),
+        );
       }
       const dom = requireDom(target);
       if (id == null) return { outerHTML: "" };

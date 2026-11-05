@@ -177,11 +177,6 @@ export function scanSourceFonts(html: string): SourceFontScan {
 // backtracks exponentially on `<!----><!---->…` without a doctype.
 const LEADING_COMMENTS = String.raw`(?:\s|<!--(?:(?!-->)[\s\S])*-->)*`;
 const SOURCE_DOCTYPE = new RegExp(String.raw`^(${LEADING_COMMENTS})(<!doctype\b[^>]*>)`, "i");
-const LEADING_DOCTYPE = new RegExp(String.raw`^${LEADING_COMMENTS}<!doctype\b`, "i");
-
-export function leadsWithDoctype(html: string): boolean {
-  return LEADING_DOCTYPE.test(html);
-}
 
 /** The leading doctype, normalised, and the UTF-16 offset just past it. */
 export function sourceDoctypeOf(html: string): { markup: string; end: number } | null {

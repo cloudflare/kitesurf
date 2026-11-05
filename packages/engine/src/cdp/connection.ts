@@ -15,6 +15,8 @@ import {
   type CdpEvent,
   type CdpRequest,
   type CdpResponse,
+  type CdpSuccess,
+  RawJsonResult,
 } from "./types.ts";
 import { ensureBrowserTarget, createPageTarget, engineMemoryBreakdown } from "./target.ts";
 import { pumpBackgroundEvents, teardownOopifStubs } from "./page.ts";
@@ -65,6 +67,46 @@ const MAX_SESSION_MS = 60 * 60_000;
 const BACKGROUND_EVENT_DRAIN_INTERVAL_MS = 200;
 const CDP_CONNECTION_ID_LENGTH = 10;
 const CDP_DEBUG_SESSION_ID_PREFIX_CHARS = 6;
+
+function isRawJsonSuccess(payload: unknown): payload is CdpSuccess & { result: RawJsonResult } {
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) return false;
+  const id: unknown = Reflect.get(payload, "id");
+  const sessionId: unknown = Reflect.get(payload, "sessionId");
+  return (
+    typeof id === "number" &&
+    (sessionId === undefined || typeof sessionId === "string") &&
+    !Reflect.has(payload, "error") &&
+    Reflect.get(payload, "result") instanceof RawJsonResult
+  );
+}
+
+export function registerDispatchConsumer(
+  onDispatch: ((dispatch: (req: CdpRequest) => Promise<CdpResponse>) => void) | undefined,
+  dispatch: (req: CdpRequest) => Promise<CdpResponse>,
+): void {
+  onDispatch?.(async (req) => {
+    const response = await dispatch(req);
+    if (!isRawJsonSuccess(response)) return response;
+    const result = response.result.parse();
+    return { ...response, result };
+  });
+}
+
+export function serializeCdpPayload(payload: unknown): string {
+  if (isRawJsonSuccess(payload)) {
+    return [
+      '{"id":',
+      JSON.stringify(payload.id),
+      ',"result":',
+      ...payload.result.pieces,
+      payload.sessionId === undefined ? "" : ',"sessionId":' + JSON.stringify(payload.sessionId),
+      "}",
+    ].join("");
+  }
+  const serialized = JSON.stringify(payload);
+  if (serialized === undefined) throw new TypeError("CDP payload is not JSON serializable");
+  return serialized;
+}
 
 /**
  * Accepts a CDP WebSocket request and returns a 101 response with its session ID.
@@ -170,7 +212,7 @@ export async function handleWebSocket(
       return;
     }
     try {
-      const str = JSON.stringify(payload);
+      const str = serializeCdpPayload(payload);
       if (
         payload &&
         typeof payload === "object" &&
@@ -305,7 +347,7 @@ export async function handleWebSocket(
 
   try {
     onCtx?.(dispatchCtx);
-    opts?.onDispatch?.(tracedDispatch);
+    registerDispatchConsumer(opts?.onDispatch, tracedDispatch);
   } catch (err) {
     console.warn("[kitesurf-ws] in-process consumer threw:", err);
   }

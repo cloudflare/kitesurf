@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  outerHtmlResponse,
   PageSession,
   registerEnsurePageScript,
   resolveTarget,
@@ -12,6 +13,7 @@ import {
 } from "../src/cdp/page-session.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { TargetState } from "../src/cdp/types.ts";
+import { RawJsonResult } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
 import type { Protocol } from "devtools-protocol";
@@ -333,5 +335,95 @@ describe("PageSession.ready — the navigate window", () => {
     expect(await sessionFor(target).ready()).toBe(stub);
     order.push("ready");
     expect(order).toEqual(["blank", "ready"]);
+  });
+});
+
+describe("outerHtmlResponse", () => {
+  const streamOf = (chunks: Uint8Array[], onCancel?: () => void) =>
+    new ReadableStream<Uint8Array>({
+      pull(controller) {
+        const next = chunks.shift();
+        if (next) controller.enqueue(next);
+        else controller.close();
+      },
+      cancel: onCancel,
+    });
+  const utf8 = new TextEncoder().encode("<p>é𝔽</p>");
+  type Result = QueryDomResult<"getOuterHTML">;
+  const once = (result: Result) => () => Promise.resolve(result);
+  // Replies in turn, recording whether each request asked for a snapshot.
+  const replying = (...results: Result[]) => {
+    const modes: Array<boolean | undefined> = [];
+    const request = (args: Pick<QueryDomArgs<"getOuterHTML">, "snapshot">) => {
+      modes.push(args.snapshot);
+      const next = results.shift();
+      return next ? Promise.resolve(next) : Promise.reject(new Error("no more replies"));
+    };
+    return { modes, request };
+  };
+  const short = () => ({ byteLength: utf8.byteLength + 1, outerHTMLUtf8: streamOf([utf8]) });
+  // The wire text must match stringifying the whole response, and parse() must give the value.
+  const expectOuterHtml = (result: RawJsonResult, outerHTML: string) => {
+    expect(result.pieces.join("")).toBe(JSON.stringify({ outerHTML }));
+    expect(result.parse()).toEqual({ outerHTML });
+  };
+
+  it("joins chunks that split a multibyte character", async () => {
+    const chunks = [utf8.slice(0, 5), utf8.slice(5, 7), utf8.slice(7)];
+    const result = { byteLength: utf8.byteLength, outerHTMLUtf8: streamOf(chunks) };
+    expectOuterHtml(await outerHtmlResponse(once(result)), "<p>é𝔽</p>");
+  });
+
+  it("escapes JSON specials in every chunk", async () => {
+    const html = '<p title="a\\b">\n\t\u0001\u2028</p>';
+    const bytes = new TextEncoder().encode(html);
+    const chunks = Array.from(bytes, (byte) => Uint8Array.of(byte));
+    const result = { byteLength: bytes.byteLength, outerHTMLUtf8: streamOf(chunks) };
+    expectOuterHtml(await outerHtmlResponse(once(result)), html);
+  });
+
+  it("asks for a snapshot once when the live stream ends short", async () => {
+    const { modes, request } = replying(short(), {
+      byteLength: utf8.byteLength,
+      outerHTMLUtf8: streamOf([utf8.slice()]),
+    });
+    expectOuterHtml(await outerHtmlResponse(request), "<p>é𝔽</p>");
+    expect(modes).toEqual([undefined, true]);
+  });
+
+  it("rejects a snapshot stream shorter than byteLength", async () => {
+    const { modes, request } = replying(short(), short());
+    await expect(outerHtmlResponse(request)).rejects.toThrow(
+      `DOM.getOuterHTML: PageScript stream ended after ${utf8.byteLength} of ${utf8.byteLength + 1} bytes`,
+    );
+    expect(modes).toEqual([undefined, true]);
+  });
+
+  it("cancels a stream longer than byteLength", async () => {
+    let cancelled = false;
+    const endless = new ReadableStream<Uint8Array>({
+      pull: (controller) => controller.enqueue(utf8.slice()),
+      cancel: () => {
+        cancelled = true;
+      },
+    });
+    const result = { byteLength: utf8.byteLength, outerHTMLUtf8: endless };
+    await expect(outerHtmlResponse(once(result))).rejects.toThrow(
+      `DOM.getOuterHTML: PageScript sent more than ${utf8.byteLength} bytes`,
+    );
+    expect(cancelled).toBe(true);
+  });
+
+  it("cancels the stream when byteLength is invalid", async () => {
+    for (const byteLength of [-1, 1.5, Number.NaN]) {
+      let cancelled = false;
+      const stream = streamOf([utf8], () => {
+        cancelled = true;
+      });
+      await expect(outerHtmlResponse(once({ byteLength, outerHTMLUtf8: stream }))).rejects.toThrow(
+        "DOM.getOuterHTML: PageScript sent an invalid byteLength",
+      );
+      expect(cancelled).toBe(true);
+    }
   });
 });

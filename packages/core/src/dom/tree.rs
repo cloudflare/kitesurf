@@ -171,8 +171,177 @@ enum SerializeStep<'a> {
     Close(&'a str),
 }
 
+/// A step of a serialization that resumes across calls, so it holds ids rather than borrows.
+#[derive(Clone, Copy)]
+enum StreamStep {
+    Open(NodeId),
+    Close(NodeId),
+}
+
+/// Where [`write_node_open`] queues the children and end tag still to write.
+trait StepStack<'a> {
+    fn open(&mut self, node: &'a Node);
+    fn close(&mut self, node: &'a Node, local: &'a str);
+}
+
+impl<'a> StepStack<'a> for Vec<SerializeStep<'a>> {
+    fn open(&mut self, node: &'a Node) {
+        self.push(SerializeStep::Open(node));
+    }
+    fn close(&mut self, _node: &'a Node, local: &'a str) {
+        self.push(SerializeStep::Close(local));
+    }
+}
+
+impl<'a> StepStack<'a> for Vec<StreamStep> {
+    fn open(&mut self, node: &'a Node) {
+        self.push(StreamStep::Open(node.id()));
+    }
+    fn close(&mut self, node: &'a Node, _local: &'a str) {
+        self.push(StreamStep::Close(node.id()));
+    }
+}
+
+/// Serializer output. A [`ByteCount`] pass sizes the `String` exactly, because growing a
+/// document-sized `String` by doubling raised the Wasm high-water mark by about twice its size.
+trait HtmlSink {
+    fn push_str(&mut self, s: &str);
+    fn push(&mut self, ch: char);
+}
+
+impl HtmlSink for String {
+    #[inline]
+    fn push_str(&mut self, s: &str) {
+        String::push_str(self, s);
+    }
+    #[inline]
+    fn push(&mut self, ch: char) {
+        String::push(self, ch);
+    }
+}
+
+struct ByteCount(usize);
+
+impl HtmlSink for ByteCount {
+    #[inline]
+    fn push_str(&mut self, s: &str) {
+        self.0 += s.len();
+    }
+    #[inline]
+    fn push(&mut self, ch: char) {
+        self.0 += ch.len_utf8();
+    }
+}
+
+/// `outerHTML` of `node`; a document serializes its children.
+fn write_node_outer_html<S: HtmlSink>(doc: &BaseDocument, node: &Node, out: &mut S) {
+    if matches!(node.data, NodeData::Document(_)) {
+        for cid in node.children() {
+            if let Some(c) = doc.get_node(cid) {
+                write_outer_html(doc, c, out);
+            }
+        }
+    } else {
+        write_outer_html(doc, node, out);
+    }
+}
+
+fn write_inner_html<S: HtmlSink>(doc: &BaseDocument, node: &Node, out: &mut S) {
+    let raw_text = match &node.data {
+        NodeData::Element(data) => is_raw_text_element(&data.name.local),
+        _ => false,
+    };
+    for cid in node.children() {
+        if let Some(c) = doc.get_node(cid) {
+            if raw_text {
+                if let NodeData::Text(t) = &c.data {
+                    out.push_str(&t.content);
+                }
+            } else {
+                write_outer_html(doc, c, out);
+            }
+        }
+    }
+}
+
+/// Runs the same writer twice: once to count bytes, then into a `String` with that capacity
+/// plus `spare` bytes.
+fn serialize_exact(
+    doc: &BaseDocument,
+    node: &Node,
+    count: fn(&BaseDocument, &Node, &mut ByteCount),
+    write: fn(&BaseDocument, &Node, &mut String),
+    spare: usize,
+) -> String {
+    let mut bytes = ByteCount(0);
+    count(doc, node, &mut bytes);
+    let mut out = String::with_capacity(bytes.0 + spare);
+    write(doc, node, &mut out);
+    debug_assert_eq!(out.len(), bytes.0);
+    out
+}
+
+/// Whether `s` matches the JS regex `/^(?:\s|<!--(?:(?!-->)[\s\S])*-->)*<!doctype\b/i`, the
+/// page-script source scan: whitespace and comments, each comment ending at its first `-->`.
+pub(crate) fn matches_leading_doctype(s: &str) -> bool {
+    leading_doctype(s, true) == Some(true)
+}
+
+/// [`matches_leading_doctype`] where `s` may be only a prefix (`complete` false) of the input;
+/// `None` when that prefix is too short to decide.
+fn leading_doctype(s: &str, complete: bool) -> Option<bool> {
+    // "<!doctype" plus the byte that must not continue the word.
+    const LOOKAHEAD: usize = 10;
+    // Running out of input decides only when `s` is the whole input.
+    let undecided = if complete { Some(false) } else { None };
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    loop {
+        let rest = &bytes[i..];
+        if !complete && rest.len() < LOOKAHEAD {
+            return None;
+        }
+        if rest.len() >= 9
+            && rest[..9].eq_ignore_ascii_case(b"<!doctype")
+            && !rest
+                .get(9)
+                .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_')
+        {
+            return Some(true);
+        }
+        if rest.starts_with(b"<!--") {
+            // The body starts after the opener, so `<!---->` is one empty comment.
+            let Some(end) = rest[4..].windows(3).position(|w| w == b"-->") else {
+                return undecided;
+            };
+            i += 4 + end + 3;
+            continue;
+        }
+        match s[i..].chars().next() {
+            Some(ch) if is_js_whitespace(ch) => i += ch.len_utf8(),
+            Some(_) => return Some(false),
+            None => return undecided,
+        }
+    }
+}
+
+/// JS `\s` outside Unicode mode.
+fn is_js_whitespace(ch: char) -> bool {
+    matches!(
+        ch,
+        '\t' | '\n' | '\u{000B}' | '\u{000C}' | '\r' | ' ' | '\u{00A0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200A}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202F}'
+                | '\u{205F}'
+                | '\u{3000}'
+                | '\u{FEFF}'
+    )
+}
+
 // An explicit stack, not recursion: a deeply nested DOM overflowed the wasm call stack.
-fn write_outer_html(doc: &BaseDocument, node: &Node, out: &mut String) {
+fn write_outer_html<S: HtmlSink>(doc: &BaseDocument, node: &Node, out: &mut S) {
     let mut stack = vec![SerializeStep::Open(node)];
     while let Some(step) = stack.pop() {
         match step {
@@ -186,19 +355,19 @@ fn write_outer_html(doc: &BaseDocument, node: &Node, out: &mut String) {
     }
 }
 
-fn push_children<'a>(doc: &'a BaseDocument, node: &'a Node, stack: &mut Vec<SerializeStep<'a>>) {
+fn push_children<'a>(doc: &'a BaseDocument, node: &'a Node, stack: &mut impl StepStack<'a>) {
     for cid in node.children().iter().rev() {
         if let Some(c) = doc.get_node(cid) {
-            stack.push(SerializeStep::Open(c));
+            stack.open(c);
         }
     }
 }
 
-fn write_node_open<'a>(
+fn write_node_open<'a, S: HtmlSink>(
     doc: &'a BaseDocument,
     node: &'a Node,
-    out: &mut String,
-    stack: &mut Vec<SerializeStep<'a>>,
+    out: &mut S,
+    stack: &mut impl StepStack<'a>,
 ) {
     use blitz_dom::node::{Attribute, SpecialElementData};
     match &node.data {
@@ -243,7 +412,7 @@ fn write_node_open<'a>(
                 return;
             }
 
-            stack.push(SerializeStep::Close(local));
+            stack.close(node, local);
             if is_raw_text_element(local) {
                 for cid in node.children() {
                     let Some(child) = doc.get_node(cid) else {
@@ -261,7 +430,7 @@ fn write_node_open<'a>(
     }
 }
 
-fn escape_attr_value(s: &str, out: &mut String) {
+fn escape_attr_value<S: HtmlSink>(s: &str, out: &mut S) {
     for ch in s.chars() {
         match ch {
             '&' => out.push_str("&amp;"),
@@ -271,7 +440,7 @@ fn escape_attr_value(s: &str, out: &mut String) {
     }
 }
 
-fn escape_text_content(s: &str, out: &mut String) {
+fn escape_text_content<S: HtmlSink>(s: &str, out: &mut S) {
     for ch in s.chars() {
         match ch {
             '&' => out.push_str("&amp;"),
@@ -280,6 +449,370 @@ fn escape_text_content(s: &str, out: &mut String) {
             '\u{00a0}' => out.push_str("&nbsp;"),
             _ => out.push(ch),
         }
+    }
+}
+
+/// Serialized bytes that JS copies out in bounded chunks. The buffer is freed once read.
+#[wasm_bindgen]
+pub struct OuterHtmlBytes {
+    bytes: Vec<u8>,
+    read: usize,
+    len: usize,
+}
+
+impl OuterHtmlBytes {
+    pub(crate) fn from_vec(bytes: Vec<u8>) -> Self {
+        let len = bytes.len();
+        OuterHtmlBytes {
+            bytes,
+            read: 0,
+            len,
+        }
+    }
+}
+
+#[wasm_bindgen]
+impl OuterHtmlBytes {
+    #[wasm_bindgen(getter, js_name = "byteLength")]
+    pub fn byte_length(&self) -> usize {
+        self.len
+    }
+
+    /// Up to `max` (at least 1) further bytes; empty once everything has been read.
+    #[wasm_bindgen(js_name = "nextChunk")]
+    pub fn next_chunk(&mut self, max: usize) -> Vec<u8> {
+        let end = self.bytes.len().min(self.read.saturating_add(max.max(1)));
+        let chunk = self.bytes[self.read..end].to_vec();
+        self.read = end;
+        if self.read == self.bytes.len() {
+            self.bytes = Vec::new();
+            self.read = 0;
+        }
+        chunk
+    }
+}
+
+// Enough of the output's start to find the marker and settle the leading-doctype check.
+const STREAM_PREFIX_BYTES: usize = 64 * 1024;
+
+#[allow(deprecated)] // std's SipHasher is the only keyed hasher without a new dependency.
+pub(crate) type OutputHasher = std::hash::SipHasher;
+
+#[allow(deprecated)]
+pub(crate) fn output_hasher(key: (u64, u64)) -> OutputHasher {
+    std::hash::SipHasher::new_with_keys(key.0, key.1)
+}
+
+pub(crate) fn output_hash_key() -> Result<(u64, u64), getrandom::Error> {
+    let mut key = [0u8; 16];
+    getrandom::getrandom(&mut key)?;
+    let [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p] = key;
+    Ok((
+        u64::from_le_bytes([a, b, c, d, e, f, g, h]),
+        u64::from_le_bytes([i, j, k, l, m, n, o, p]),
+    ))
+}
+
+/// First serialization pass: length, keyed hash, first marker offset and the output's start.
+struct Probe<'m> {
+    len: usize,
+    hasher: OutputHasher,
+    marker: &'m [u8],
+    // Knuth-Morris-Pratt state: failure table and bytes of the marker matched so far.
+    failure: Vec<usize>,
+    matched: usize,
+    marker_at: Option<usize>,
+    prefix: String,
+}
+
+impl<'m> Probe<'m> {
+    fn new(marker: &'m str, key: (u64, u64)) -> Self {
+        let marker = marker.as_bytes();
+        let mut failure = vec![0; marker.len()];
+        let mut k = 0;
+        for i in 1..marker.len() {
+            while k > 0 && marker[i] != marker[k] {
+                k = failure[k - 1];
+            }
+            if marker[i] == marker[k] {
+                k += 1;
+            }
+            failure[i] = k;
+        }
+        Probe {
+            len: 0,
+            hasher: output_hasher(key),
+            marker,
+            failure,
+            matched: 0,
+            marker_at: None,
+            prefix: String::new(),
+        }
+    }
+
+    fn find_marker(&mut self, bytes: &[u8]) {
+        for (offset, &b) in bytes.iter().enumerate() {
+            while self.matched > 0 && b != self.marker[self.matched] {
+                self.matched = self.failure[self.matched - 1];
+            }
+            if b == self.marker[self.matched] {
+                self.matched += 1;
+            }
+            if self.matched == self.marker.len() {
+                self.marker_at = Some(self.len + offset + 1 - self.marker.len());
+                return;
+            }
+        }
+    }
+}
+
+impl HtmlSink for Probe<'_> {
+    fn push_str(&mut self, s: &str) {
+        std::hash::Hasher::write(&mut self.hasher, s.as_bytes());
+        let room = STREAM_PREFIX_BYTES.saturating_sub(self.prefix.len());
+        if room > 0 {
+            let mut take = room.min(s.len());
+            while !s.is_char_boundary(take) {
+                take -= 1;
+            }
+            self.prefix.push_str(&s[..take]);
+        }
+        if !self.marker.is_empty() && self.marker_at.is_none() {
+            self.find_marker(s.as_bytes());
+        }
+        self.len += s.len();
+    }
+
+    fn push(&mut self, ch: char) {
+        self.push_str(ch.encode_utf8(&mut [0; 4]));
+    }
+}
+
+/// Second pass: the output with `cut` bytes at raw offset `at` replaced by `insert`, queued in
+/// `pending` for JS to take. The raw bytes are hashed again to compare with the first pass.
+struct StreamSink {
+    pending: Vec<u8>,
+    // Bytes at the start of `pending` already returned; compacted lazily, so a large node is
+    // not shifted down on every chunk.
+    taken: usize,
+    hasher: OutputHasher,
+    raw_pos: usize,
+    at: usize,
+    cut: usize,
+    insert: Vec<u8>,
+    inserted: bool,
+}
+
+impl HtmlSink for StreamSink {
+    fn push_str(&mut self, s: &str) {
+        std::hash::Hasher::write(&mut self.hasher, s.as_bytes());
+        let mut rest = s.as_bytes();
+        while !rest.is_empty() {
+            let pos = self.raw_pos;
+            if !self.inserted && pos >= self.at {
+                self.pending.extend_from_slice(&self.insert);
+                self.inserted = true;
+            }
+            let n = if pos < self.at {
+                let n = rest.len().min(self.at - pos);
+                self.pending.extend_from_slice(&rest[..n]);
+                n
+            } else if pos < self.at + self.cut {
+                rest.len().min(self.at + self.cut - pos)
+            } else {
+                self.pending.extend_from_slice(rest);
+                rest.len()
+            };
+            rest = &rest[n..];
+            self.raw_pos += n;
+        }
+    }
+
+    fn push(&mut self, ch: char) {
+        self.push_str(ch.encode_utf8(&mut [0; 4]));
+    }
+}
+
+impl StreamSink {
+    fn unread(&self) -> usize {
+        self.pending.len() - self.taken
+    }
+
+    fn take(&mut self, n: usize) -> Vec<u8> {
+        let chunk = self.pending[self.taken..self.taken + n].to_vec();
+        self.taken += n;
+        if self.taken * 2 >= self.pending.len() {
+            self.pending.drain(..self.taken);
+            self.taken = 0;
+        }
+        chunk
+    }
+
+    fn clear(&mut self) {
+        self.pending = Vec::new();
+        self.taken = 0;
+    }
+}
+
+/// `outerHTML` serialized as JS pulls it, so Wasm holds about one chunk or one text node,
+/// whichever is larger, rather than the page. Page JS can change the DOM between pulls; the
+/// stream then ends short, and the caller must discard the bytes and serialize in one go.
+#[wasm_bindgen]
+pub struct OuterHtmlStream {
+    stack: Vec<StreamStep>,
+    sink: StreamSink,
+    expected_hash: u64,
+    expected_raw_len: usize,
+    len: usize,
+    emitted: usize,
+    torn: bool,
+}
+
+impl OuterHtmlStream {
+    /// Runs serialization steps until `max` bytes are pending or the tree is done.
+    fn fill(&mut self, doc: &BaseDocument, max: usize) {
+        while self.sink.unread() < max {
+            let Some(step) = self.stack.pop() else {
+                return;
+            };
+            match step {
+                StreamStep::Open(id) => match doc.get_node(id) {
+                    Some(node) => write_node_open(doc, node, &mut self.sink, &mut self.stack),
+                    None => {
+                        self.torn = true;
+                        return;
+                    }
+                },
+                StreamStep::Close(id) => match doc.get_node(id).and_then(|n| n.element_data()) {
+                    Some(data) => {
+                        self.sink.push_str("</");
+                        self.sink.push_str(&data.name.local);
+                        self.sink.push('>');
+                    }
+                    None => {
+                        self.torn = true;
+                        return;
+                    }
+                },
+            }
+        }
+    }
+}
+
+#[wasm_bindgen]
+impl OuterHtmlStream {
+    #[wasm_bindgen(getter, js_name = "byteLength")]
+    pub fn byte_length(&self) -> usize {
+        self.len
+    }
+
+    /// Up to `max` (at least 1) further bytes of `dom`'s output; empty once `byteLength` bytes
+    /// were returned. If the tree changed since the first pass, the last chunk is withheld, so
+    /// a torn stream always ends short of `byteLength`.
+    #[wasm_bindgen(js_name = "nextChunk")]
+    pub fn next_chunk(&mut self, dom: &DomHandle, max: usize) -> Vec<u8> {
+        let remaining = self.len - self.emitted;
+        if remaining == 0 || self.torn {
+            return Vec::new();
+        }
+        let want = max.max(1).min(remaining);
+        let Ok(doc) = dom.doc.try_borrow() else {
+            return self.tear();
+        };
+        self.fill(&doc, want);
+        let last = want == remaining;
+        if last {
+            // One byte past the end shows whether the tree now serializes longer.
+            self.fill(&doc, want + 1);
+        }
+        drop(doc);
+        let n = want.min(self.sink.unread());
+        if self.torn || n == 0 || (last && !self.ends_consistently(n)) {
+            return self.tear();
+        }
+        let chunk = self.sink.take(n);
+        self.emitted += n;
+        if self.emitted == self.len {
+            self.sink.clear();
+        }
+        chunk
+    }
+}
+
+impl OuterHtmlStream {
+    /// Whether taking the `n` pending bytes ends the output exactly as the first pass saw it.
+    fn ends_consistently(&self, n: usize) -> bool {
+        n == self.len - self.emitted
+            && self.stack.is_empty()
+            && self.sink.unread() == n
+            && self.sink.raw_pos == self.expected_raw_len
+            && std::hash::Hasher::finish(&self.sink.hasher) == self.expected_hash
+    }
+
+    fn tear(&mut self) -> Vec<u8> {
+        self.torn = true;
+        self.stack = Vec::new();
+        self.sink.clear();
+        Vec::new()
+    }
+}
+
+#[wasm_bindgen]
+impl DomHandle {
+    /// Starts [`OuterHtmlStream`] with the marker and doctype rule of `outerHTMLBytes`. Returns
+    /// `None` when the stream cannot apply that rule from the output's start; use
+    /// `outerHTMLBytes` then.
+    #[wasm_bindgen(js_name = "outerHTMLStream")]
+    pub fn outer_html_stream(
+        &self,
+        node_id: u32,
+        marker: &str,
+        doctype: &str,
+    ) -> Option<OuterHtmlStream> {
+        let internal_id = self.resolve_node_id(node_id)?;
+        let doc = self.doc.try_borrow().ok()?;
+        let node = doc.get_node(internal_id)?;
+        let key = output_hash_key().ok()?;
+        let mut probe = Probe::new(marker, key);
+        write_node_outer_html(&doc, node, &mut probe);
+        drop(doc);
+        let (at, cut, insert) = match probe.marker_at {
+            None => (usize::MAX, 0, Vec::new()),
+            Some(at) => {
+                let prefix = &probe.prefix;
+                if at + marker.len() > prefix.len() {
+                    return None;
+                }
+                let stripped = [&prefix[..at], &prefix[at + marker.len()..]].concat();
+                let complete = prefix.len() == probe.len;
+                let keep = doctype.is_empty() || leading_doctype(&stripped, complete)?;
+                let insert = if keep {
+                    Vec::new()
+                } else {
+                    doctype.as_bytes().to_vec()
+                };
+                (at, marker.len(), insert)
+            }
+        };
+        let len = probe.len - cut + insert.len();
+        Some(OuterHtmlStream {
+            stack: vec![StreamStep::Open(internal_id)],
+            sink: StreamSink {
+                pending: Vec::new(),
+                taken: 0,
+                hasher: output_hasher(key),
+                raw_pos: 0,
+                at,
+                cut,
+                inserted: insert.is_empty(),
+                insert,
+            },
+            expected_hash: std::hash::Hasher::finish(&probe.hasher),
+            expected_raw_len: probe.len,
+            len,
+            emitted: 0,
+            torn: false,
+        })
     }
 }
 
@@ -558,17 +1091,45 @@ impl DomHandle {
         let Some(n) = doc.get_node(internal_id) else {
             return String::new();
         };
-        let mut out = String::new();
-        if matches!(n.data, NodeData::Document(_)) {
-            for cid in n.children() {
-                if let Some(c) = doc.get_node(cid) {
-                    write_outer_html(&doc, c, &mut out);
+        serialize_exact(&doc, n, write_node_outer_html, write_node_outer_html, 0)
+    }
+
+    /// `outerHTML` as UTF-8 that JS reads in chunks, so the page never holds a whole copy.
+    /// When `marker` is not empty, its first occurrence is removed; `doctype` (if not empty) is
+    /// inserted there unless the rest already starts with a doctype after spaces and comments.
+    #[wasm_bindgen(js_name = "outerHTMLBytes")]
+    pub fn outer_html_bytes(&self, node_id: u32, marker: &str, doctype: &str) -> OuterHtmlBytes {
+        OuterHtmlBytes::from_vec(self.outer_html_utf8(node_id, marker, doctype))
+    }
+
+    fn outer_html_utf8(&self, node_id: u32, marker: &str, doctype: &str) -> Vec<u8> {
+        let Some(internal_id) = self.resolve_node_id(node_id) else {
+            return Vec::new();
+        };
+        let doc = match self.doc.try_borrow() {
+            Ok(d) => d,
+            Err(_) => return Vec::new(),
+        };
+        let Some(n) = doc.get_node(internal_id) else {
+            return Vec::new();
+        };
+        let mut out = serialize_exact(
+            &doc,
+            n,
+            write_node_outer_html,
+            write_node_outer_html,
+            doctype.len(),
+        );
+        drop(doc);
+        if !marker.is_empty() {
+            if let Some(at) = out.find(marker) {
+                out.replace_range(at..at + marker.len(), "");
+                if !doctype.is_empty() && !matches_leading_doctype(&out) {
+                    out.insert_str(at, doctype);
                 }
             }
-        } else {
-            write_outer_html(&doc, n, &mut out);
         }
-        out
+        out.into_bytes()
     }
 
     #[wasm_bindgen(js_name = "innerHTML")]
@@ -583,23 +1144,7 @@ impl DomHandle {
         let Some(node) = doc.get_node(internal_id) else {
             return String::new();
         };
-        let mut out = String::new();
-        let raw_text = match &node.data {
-            NodeData::Element(data) => is_raw_text_element(&data.name.local),
-            _ => false,
-        };
-        for cid in node.children() {
-            if let Some(c) = doc.get_node(cid) {
-                if raw_text {
-                    if let NodeData::Text(t) = &c.data {
-                        out.push_str(&t.content);
-                    }
-                } else {
-                    write_outer_html(&doc, c, &mut out);
-                }
-            }
-        }
-        out
+        serialize_exact(&doc, node, write_inner_html, write_inner_html, 0)
     }
 
     #[wasm_bindgen(js_name = "textContent")]

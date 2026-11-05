@@ -42,6 +42,14 @@ export interface CdpSuccess {
   sessionId?: string;
 }
 
+export class RawJsonResult {
+  constructor(
+    readonly pieces: readonly string[],
+    /** The parsed result, for in-process callers; a result may parse cheaper than its text. */
+    readonly parse: () => unknown = () => JSON.parse(pieces.join("")),
+  ) {}
+}
+
 export interface CdpError {
   id: number;
   error: { code: number; message: string };
