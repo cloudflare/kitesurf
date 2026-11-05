@@ -132,6 +132,15 @@ describe("CSS.getInlineStylesForNode", () => {
     const r = await handleCss(makeCtx(target), req("CSS.getInlineStylesForNode", { nodeId: 5 }));
     expect(r).toEqual({});
   });
+
+  it("does not read a PageScript node id from the engine DOM when the isolate fails", async () => {
+    const target = makeTarget(makeStub({}, new Error("wasm panicked")));
+    const engineDom = { nodeInfo: () => ({ attributes: ["style", "color: red"] }) };
+    // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- partial DomHandle fixture.
+    target.dom = engineDom as unknown as TargetState["dom"];
+    const r = await handleCss(makeCtx(target), req("CSS.getInlineStylesForNode", { nodeId: 5 }));
+    expect(r).toEqual({});
+  });
 });
 
 describe("CSS replies from the isolate", () => {

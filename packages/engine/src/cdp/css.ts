@@ -210,7 +210,8 @@ async function readStyleAttribute(
   if (Array.isArray(attrs)) {
     return findStyleInFlat(attrs);
   }
-  const fallbackDom = target ? ensureTargetDom(target) : null;
+  // `nodeId` belongs to PageScript when one exists; the engine DOM numbers nodes differently.
+  const fallbackDom = target && !session?.available() ? ensureTargetDom(target) : null;
   if (fallbackDom) {
     try {
       const info = fallbackDom.nodeInfo(nodeId) as { attributes?: string[] };
