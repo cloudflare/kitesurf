@@ -30,7 +30,9 @@ import {
   activeElement,
   setReadyState,
   setCookieString,
+  fastpathMarkSpecial,
 } from "./state.js";
+import { elementAttributes } from "./element/element.js";
 import { installWindow, stampInitialNamedGlobals } from "./window.js";
 import {
   setDocumentImpl,
@@ -192,6 +194,7 @@ import {
   customValidity,
   elemNs,
   fragmentIds,
+  registerFormProxy,
 } from "./registries.js";
 import { installDetachedWrapperHooks } from "./detached-wrappers.js";
 
@@ -215,6 +218,76 @@ const peekHasOwn = Object.prototype.hasOwnProperty;
 const peekApply = Reflect.apply;
 const peekGopd = Object.getOwnPropertyDescriptor;
 
+// Members a form's named controls never override, though HTML lets them: the engine walks trees
+// and reads attributes through these, so a control named parentNode would loop every ancestor
+// walk. Pages do not rely on clobbering them. The form's own members (id, action, submit,
+// elements, ...) stay overridable.
+const ELEMENT_TREE_MEMBERS = [
+  "namespaceURI",
+  "prefix",
+  "localName",
+  "tagName",
+  "attributes",
+  "shadowRoot",
+  "assignedSlot",
+  "hasAttributes",
+  "getAttributeNames",
+  "getAttribute",
+  "getAttributeNS",
+  "setAttribute",
+  "setAttributeNS",
+  "removeAttribute",
+  "removeAttributeNS",
+  "toggleAttribute",
+  "hasAttribute",
+  "hasAttributeNS",
+  "getAttributeNode",
+  "getAttributeNodeNS",
+  "setAttributeNode",
+  "setAttributeNodeNS",
+  "removeAttributeNode",
+  "attachShadow",
+  "closest",
+  "matches",
+  "webkitMatchesSelector",
+  "getElementsByTagName",
+  "getElementsByTagNameNS",
+  "getElementsByClassName",
+  "insertAdjacentElement",
+  "insertAdjacentText",
+  "insertAdjacentHTML",
+  "children",
+  "firstElementChild",
+  "lastElementChild",
+  "childElementCount",
+  "previousElementSibling",
+  "nextElementSibling",
+  "prepend",
+  "append",
+  "replaceChildren",
+  "moveBefore",
+  "querySelector",
+  "querySelectorAll",
+  "before",
+  "after",
+  "replaceWith",
+  "remove",
+];
+let formOwnMembers: Set<string> | null = null;
+const isFormOwnMember = (name: string): boolean => {
+  if (!formOwnMembers) {
+    formOwnMembers = new Set([
+      ...Object.getOwnPropertyNames(KsEventTarget.prototype),
+      ...Object.getOwnPropertyNames(NodeBase.prototype),
+      ...ELEMENT_TREE_MEMBERS,
+    ]);
+  }
+  return formOwnMembers.has(name);
+};
+// A canonical array index stays the indexed getter's, ahead of a control named "0".
+const isArrayIndex = (name: string): boolean =>
+  /^(?:0|[1-9]\d*)$/.test(name) && Number(name) < 4294967295;
+
 const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocumentOpts) {
   initState(dom, opts.pageUrl, opts.initialCookieString, opts);
   installDetachedWrapperHooks(dom);
@@ -225,8 +298,55 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
 
   function makeNamedAccessProxy(node: Element, localName: string) {
     const isForm = localName === "form";
-    return new Proxy(node, {
+    // HTMLFormElement is [LegacyOverrideBuiltIns]: a listed control's id or name reads ahead of
+    // the form's own members, so form.id can be an <input name="id">. Indices, tree members and
+    // names starting with "_" stay ours. The fast path reads id from the tree, so it skips forms.
+    // https://html.spec.whatwg.org/#the-form-element
+    let namesSeq = -1;
+    let names = new Set<string>();
+    let resolving = false;
+    const supportedNames = (t: Element, receiver: unknown): Set<string> => {
+      const seq = ksState().mutationSeq | 0;
+      if (seq === namesSeq) return names;
+      const next = new Set<string>();
+      const list: unknown = Reflect.get(t, "elements", receiver);
+      const len = Number(Reflect.get(Object(list), "length")) || 0;
+      for (let i = 0; i < len; i++) {
+        const el: unknown = Reflect.get(Object(list), i);
+        if (!(el instanceof Element)) continue;
+        const id = elementAttributes.get.call(el, "id");
+        if (id) next.add(id);
+        const name = elementAttributes.get.call(el, "name");
+        if (name) next.add(name);
+      }
+      names = next;
+      namesSeq = seq;
+      return names;
+    };
+    // The control or RadioNodeList a supported name reads, else undefined.
+    const namedOverride = (t: Element, prop: string, receiver: unknown): unknown => {
+      if (resolving || prop === "" || prop[0] === "_") return undefined;
+      if (isArrayIndex(prop) || isFormOwnMember(prop)) return undefined;
+      resolving = true;
+      try {
+        if (!supportedNames(t, receiver).has(prop)) return undefined;
+        const m: unknown = Reflect.get(t, "namedItem", receiver);
+        if (typeof m !== "function") return undefined;
+        const named: unknown = m.call(receiver, prop);
+        return named ?? undefined;
+      } catch {
+        return undefined;
+      } finally {
+        resolving = false;
+      }
+    };
+    if (isForm) fastpathMarkSpecial(node._id);
+    const proxy = new Proxy(node, {
       get(t, prop, receiver) {
+        if (isForm && typeof prop === "string") {
+          const named = namedOverride(t, prop, receiver);
+          if (named !== undefined) return named;
+        }
         if (typeof prop === "symbol" || prop in t) {
           return Reflect.get(t, prop, receiver);
         }
@@ -252,6 +372,8 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
         return undefined;
       },
     });
+    if (isForm) registerFormProxy(proxy, node);
+    return proxy;
   }
 
   function evictCachedNode(nodeId: number): void {

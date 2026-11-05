@@ -45,6 +45,7 @@ import {
   fragmentIds,
   stampedPiIds,
   commentData,
+  formBehindProxy,
 } from "./registries.js";
 import { getInternalState } from "./internal-state.js";
 import {
@@ -2909,6 +2910,8 @@ export {
   __ks_detachedDocument_location_get,
   __ks_detachedDocument_location_set,
 };
+
+ksInternals.formBehindProxy = formBehindProxy;
 
 // For page-script's HTMLElement constructor: a wrapper with no upgrade.
 // `new CustomElementCtor()` already runs the user constructor, and a

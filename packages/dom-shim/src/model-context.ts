@@ -11,7 +11,7 @@ import type { UpstreamMessage, WebMcpTool } from "@kitesurf/jsrpc-types/page-scr
 import { sendUpstreamEvent } from "./internal-state.js";
 import { KsEvent, KsInputEvent, KsSubmitEvent, submitEventResponse } from "./events/event.js";
 import { dispatchTrustedEvent } from "./events/dispatch.js";
-import { postMutationHooks } from "./registries.js";
+import { formBehindProxy, postMutationHooks } from "./registries.js";
 import type { MutationHint } from "./mutations/seq.js";
 import { DOCUMENT_NODE } from "./constants.js";
 
@@ -160,7 +160,8 @@ export function listModelContextTools(watchRevision: unknown): CdpTool[] {
 function declarativeSchema(form: DeclarativeForm): Record<string, unknown> {
   const properties: Record<string, Record<string, unknown>> = {};
   const required = new Set<string>();
-  const elements = form?.elements;
+  // Off the form behind its proxy: a control named "elements" must not hide the controls.
+  const elements = form ? formBehindProxy(form).elements : undefined;
   for (let i = 0; elements && i < elements.length; i++) {
     const control = elements[i];
     const name = String(control?.name ?? "");
@@ -829,7 +830,7 @@ export function isToolSubmitActive(el: unknown): boolean {
 
 function dispatchToolSubmit(form: DeclarativeForm): unknown {
   let submitter: DeclarativeControl | null = null;
-  const elements = form.elements;
+  const elements = formBehindProxy(form).elements;
   for (let i = 0; elements && i < elements.length; i++) {
     const control = elements[i];
     const tag = String(control?.localName ?? "").toLowerCase();
@@ -849,7 +850,7 @@ function dispatchToolSubmit(form: DeclarativeForm): unknown {
     agentInvoked: true,
     submitter,
   });
-  if (typeof form.dispatchEvent === "function") {
+  if (typeof formBehindProxy(form).dispatchEvent === "function") {
     const fire = () => {
       dispatchTrustedEvent(form, ev);
     };
@@ -942,7 +943,7 @@ function makeDeclarativeExec(entry: DeclarativeTool): WebMCP.ToolExecuteCallback
 }
 
 function fillDeclarativeControls(form: DeclarativeForm, args: Record<string, unknown>): void {
-  const elements = form?.elements;
+  const elements = form ? formBehindProxy(form).elements : undefined;
   for (let i = 0; elements && i < elements.length; i++) {
     const control = elements[i];
     const field = String(control?.name ?? "");

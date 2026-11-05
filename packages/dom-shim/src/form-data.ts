@@ -21,6 +21,7 @@ import {
 } from "./element/index.js";
 import type { HTMLOptionElement } from "./element/index.js";
 import { ksGlobal } from "./state.js";
+import { formBehindProxy } from "./registries.js";
 import type * as Idl from "./idl/types.generated.js";
 
 type FormDataEntry = { name: string; value: string | File };
@@ -92,10 +93,10 @@ class FormData implements Idl.FormData {
         formData: FormData;
       };
       fdEv.formData = this;
-      form.dispatchEvent(fdEv);
+      formBehindProxy(form).dispatchEvent.call(form, fdEv);
     } catch {}
 
-    const els = form.elements;
+    const els = formBehindProxy(form).elements;
     for (let i = 0; i < els.length; i++) {
       const el = els[i];
       const name = el.getAttribute && el.getAttribute("name");

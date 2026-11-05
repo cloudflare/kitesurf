@@ -16,7 +16,8 @@ import { fileInputFiles, binaryString } from "../../file-input.js";
 import { inputTypeOf } from "./input-state.js";
 import { isDisabledInFormContext } from "./listed.js";
 import { selectedOptionsOf, isOptionEffectivelyDisabled } from "./select-options.js";
-import type { Element } from "../element.js";
+import { type Element, elementAttributes } from "../element.js";
+import { formBehindProxy } from "../../registries.js";
 import type { HTMLFormElement } from "./form.js";
 import type { HTMLInputElement } from "./input.js";
 import { isHtmlTag } from "../html-tag.js";
@@ -53,7 +54,8 @@ function collectFormEntries(
   encoding: string,
 ): SubmissionEntry[] {
   const entries: SubmissionEntry[] = [];
-  const els = form.elements;
+  // The form behind the proxy: a control named "elements" must not hide the controls.
+  const els = formBehindProxy(form).elements;
   for (let i = 0; i < els.length; i++) {
     const el: unknown = els[i];
     if (
@@ -167,7 +169,7 @@ function formStringEntries(entries: readonly SubmissionEntry[]): Array<[string, 
 }
 
 function formEncoding(form: HTMLFormElement): string {
-  const accept = form.getAttribute("accept-charset");
+  const accept = elementAttributes.get.call(form, "accept-charset");
   if (accept) {
     for (const token of accept.split(/[\t\n\f\r ]+/)) {
       if (!token) continue;

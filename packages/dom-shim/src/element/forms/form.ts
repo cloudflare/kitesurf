@@ -17,7 +17,7 @@ import {
 } from "../../state.js";
 import { parseUrlForNode, urlencodedSerialize } from "../../text-encoding.js";
 import { dispatchTrustedEvent } from "../../events/dispatch.js";
-import { elemNs, optionSelected } from "../../registries.js";
+import { elemNs, formBehindProxy, optionSelected } from "../../registries.js";
 import {
   getInternalState,
   type IframePost,
@@ -40,7 +40,7 @@ import {
   encodeFormBody,
   formStringEntries,
 } from "./submission.js";
-import type { Element } from "../element.js";
+import { type Element, elementAttributes } from "../element.js";
 import { HTMLElement } from "../html-element.js";
 import { HTMLInputElement } from "./input.js";
 import { HTMLTextAreaElement } from "./textarea.js";
@@ -133,24 +133,30 @@ interface HTMLFormElement extends Pick<Idl.HTMLFormElement, "rel"> {}
 
 class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
   get elements() {
-    const cached = elementsCollections.get(this);
+    // Keyed and compared by the form behind the proxy, so page and engine share one list.
+    const form = formBehindProxy(this);
+    const cached = elementsCollections.get(form);
     if (cached) return cached;
-    const form = this;
+    const ownedHere = (control: Element): boolean => {
+      const owner = control.form;
+      return !!owner && formBehindProxy(owner) === form;
+    };
     const coll = makeHtmlCollection<HTMLFormControlsCollection>(() => {
       const out: Element[] = [];
       const seen = new Set<Element>();
       for (const control of formListedDescendants(form)) {
-        if (control.form === form) {
+        if (ownedHere(control)) {
           out.push(control);
           seen.add(control);
         }
       }
-      if (form.id) {
+      const formId = elementAttributes.get.call(form, "id");
+      if (formId) {
         const doc = elementDocument(form);
         try {
-          const externals = doc.querySelectorAll(`[form="${form.id}"]`);
+          const externals = doc.querySelectorAll(`[form="${formId}"]`);
           for (const e of externals) {
-            if (!seen.has(e) && isFormListed(e) && e.form === form) {
+            if (!seen.has(e) && isFormListed(e) && ownedHere(e)) {
               out.push(e);
               seen.add(e);
             }
@@ -159,11 +165,11 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
       }
       return out;
     }, HTMLFormControlsCollectionCls);
-    elementsCollections.set(this, coll);
+    elementsCollections.set(form, coll);
     return coll;
   }
   get length() {
-    const els = this.elements;
+    const els = formBehindProxy(this).elements;
     let n = 0;
     for (let i = 0; i < els.length; i++) {
       const e = els[i];
@@ -174,7 +180,7 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
   }
   namedItem(name: string): Element | NodeListCls | null {
     if (!name) return null;
-    const els = this.elements;
+    const els = formBehindProxy(this).elements;
     const matches: Element[] = [];
     for (let i = 0; i < els.length; i++) {
       const e = els[i];
@@ -187,12 +193,12 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
     return makeNodeList(() => matches);
   }
   item(index: number): Element | null {
-    const els = this.elements;
+    const els = formBehindProxy(this).elements;
     const i = Number(index) | 0;
     return i >= 0 && i < els.length ? els[i] : null;
   }
   get action() {
-    const raw = this.getAttribute("action");
+    const raw = elementAttributes.get.call(this, "action");
     if (raw == null || raw === "") {
       try {
         const doc = ksGlobal.document;
@@ -202,68 +208,68 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
       }
     }
     try {
-      return new URL(raw, this.baseURI || undefined).toString();
+      return new URL(raw, formBehindProxy(this).baseURI || undefined).toString();
     } catch {
       return raw;
     }
   }
   set action(v) {
-    this.setAttribute("action", String(v));
+    elementAttributes.set.call(this, "action", String(v));
   }
   get method() {
-    const raw = (this.getAttribute("method") || "").toLowerCase();
+    const raw = (elementAttributes.get.call(this, "method") || "").toLowerCase();
     if (raw === "post" || raw === "dialog") return raw;
     return "get";
   }
   set method(v) {
-    this.setAttribute("method", String(v));
+    elementAttributes.set.call(this, "method", String(v));
   }
   get enctype() {
-    const raw = (this.getAttribute("enctype") || "").toLowerCase();
+    const raw = (elementAttributes.get.call(this, "enctype") || "").toLowerCase();
     if (raw === "multipart/form-data") return raw;
     if (raw === "text/plain") return raw;
     return "application/x-www-form-urlencoded";
   }
   set enctype(v) {
-    this.setAttribute("enctype", String(v));
+    elementAttributes.set.call(this, "enctype", String(v));
   }
   get encoding() {
-    return this.enctype;
+    return formBehindProxy(this).enctype;
   }
   set encoding(v) {
-    this.enctype = v;
+    formBehindProxy(this).enctype = v;
   }
   get name() {
-    return this.getAttribute("name") || "";
+    return elementAttributes.get.call(this, "name") || "";
   }
   set name(v) {
-    this.setAttribute("name", String(v));
+    elementAttributes.set.call(this, "name", String(v));
   }
   get target() {
-    return this.getAttribute("target") || "";
+    return elementAttributes.get.call(this, "target") || "";
   }
   set target(v) {
-    this.setAttribute("target", String(v));
+    elementAttributes.set.call(this, "target", String(v));
   }
   get acceptCharset() {
-    return this.getAttribute("accept-charset") || "";
+    return elementAttributes.get.call(this, "accept-charset") || "";
   }
   set acceptCharset(v) {
-    this.setAttribute("accept-charset", String(v));
+    elementAttributes.set.call(this, "accept-charset", String(v));
   }
   get autocomplete() {
-    const raw = (this.getAttribute("autocomplete") || "").toLowerCase();
+    const raw = (elementAttributes.get.call(this, "autocomplete") || "").toLowerCase();
     return raw === "off" ? "off" : "on";
   }
   set autocomplete(v) {
-    this.setAttribute("autocomplete", String(v));
+    elementAttributes.set.call(this, "autocomplete", String(v));
   }
   get noValidate() {
-    return this.hasAttribute("novalidate");
+    return elementAttributes.has.call(this, "novalidate");
   }
   set noValidate(v) {
-    if (v) this.setAttribute("novalidate", "");
-    else this.removeAttribute("novalidate");
+    if (v) elementAttributes.set.call(this, "novalidate", "");
+    else elementAttributes.remove.call(this, "novalidate");
   }
   submit() {
     this.__ksRequestSubmit(null);
@@ -273,15 +279,15 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
     return undefined;
   }
   __ksFiringSubmit(fire: () => void): void {
-    formsFiringSubmit.add(this);
+    formsFiringSubmit.add(formBehindProxy(this));
     try {
       fire();
     } finally {
-      formsFiringSubmit.delete(this);
+      formsFiringSubmit.delete(formBehindProxy(this));
     }
   }
   __ksRequestSubmit(submitter?: SubmitterLike | null): string | null {
-    if (formsFiringSubmit.has(this)) {
+    if (formsFiringSubmit.has(formBehindProxy(this))) {
       return this.__ksPerformSubmission(submitter ?? null);
     }
     if (submitter !== null && submitter !== undefined) {
@@ -295,7 +301,7 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
           "TypeError",
         );
       }
-      if (submitter.form !== this) {
+      if (!submitter.form || formBehindProxy(submitter.form) !== formBehindProxy(this)) {
         throw new DOMException(
           "requestSubmit: submitter is not associated with this form",
           "NotFoundError",
@@ -307,7 +313,7 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
       cancelable: true,
       submitter: submitter || null,
     });
-    this.__ksFiringSubmit(() => this.dispatchEvent(ev));
+    this.__ksFiringSubmit(() => formBehindProxy(this).dispatchEvent.call(this, ev));
     if (ev.defaultPrevented) return null;
     return this.__ksPerformSubmission(submitter || null);
   }
@@ -317,7 +323,7 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
       const targetAttr =
         submitter && submitter.hasAttribute && submitter.hasAttribute("formtarget")
           ? submitter.getAttribute("formtarget") || ""
-          : this.getAttribute("target") || "";
+          : elementAttributes.get.call(this, "target") || "";
       const keyword = targetAttr.toLowerCase();
       if (targetAttr && keyword !== "_self" && keyword !== "_top" && keyword !== "_parent") {
         if (keyword === "_blank") return null;
@@ -348,12 +354,12 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
       };
       const method = submitterHas("method")
         ? resolveMethod(submitterAttr("method"))
-        : resolveMethod(this.getAttribute("method"));
+        : resolveMethod(elementAttributes.get.call(this, "method"));
       if (method === "dialog") return null;
       const base = (windowObj && windowObj.location && windowObj.location.href) || undefined;
       const actionAttr = submitterHas("action")
         ? submitterAttr("action")
-        : this.getAttribute("action");
+        : elementAttributes.get.call(this, "action");
       const url = parseUrlForNode(
         this,
         actionAttr && actionAttr.length ? actionAttr : base || "about:blank",
@@ -366,7 +372,7 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
       if (method === "post") {
         const enctype = submitterHas("enctype")
           ? resolveEnctype(submitterAttr("enctype"))
-          : resolveEnctype(this.getAttribute("enctype"));
+          : resolveEnctype(elementAttributes.get.call(this, "enctype"));
         post = encodeFormBody(enctype, entries, encoding);
         navReq = { url: url.toString(), postData: post.body, postContentType: post.contentType };
       } else {
@@ -405,7 +411,7 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
     const ev = new KsEvent("reset", { bubbles: true, cancelable: true });
     dispatchTrustedEvent(this, ev);
     if (ev.defaultPrevented) return;
-    const els = this.elements;
+    const els = formBehindProxy(this).elements;
     for (let i = 0; i < els.length; i++) {
       const e = els[i];
       if (e instanceof HTMLInputElement) {
@@ -418,7 +424,7 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
     }
   }
   checkValidity() {
-    const els = this.elements;
+    const els = formBehindProxy(this).elements;
     let allValid = true;
     for (let i = 0; i < els.length; i++) {
       const c = els[i];
@@ -429,7 +435,7 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
     return allValid;
   }
   reportValidity() {
-    const els = this.elements;
+    const els = formBehindProxy(this).elements;
     let allValid = true;
     for (let i = 0; i < els.length; i++) {
       const c = els[i];
