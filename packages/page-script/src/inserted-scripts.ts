@@ -6,13 +6,19 @@
 // Every inline insert and external fetch passes the shared script gate before it runs.
 
 import { scriptSourceDigest } from "@kitesurf/script-gate";
-import { ks_eval_page } from "./wasm-glue.js";
+import { ks_eval_page, ks_import } from "./wasm-glue.js";
 import { globalizeForBoa } from "./boa-classic.ts";
 import { getInternalState, sendUpstreamEvent } from "./internal-state.js";
 import { importModule, startupInsertedBaked } from "./startup-probe.ts";
 import { nativeSetTimeout } from "./native-scheduling.ts";
 import { fetchInsertedScript, resourceInflight } from "./resource-fetch.ts";
-import { dispatchLifecycle, entryModuleGateAttributes, takeInlineModuleSource } from "./scripts.ts";
+import {
+  clearEntryModuleGateAttributes,
+  dispatchLifecycle,
+  entryModuleGateAttributes,
+  setEntryModuleGateAttributes,
+  takeInlineModuleSource,
+} from "./scripts.ts";
 import {
   insertedResponseAllowed,
   insertedScriptAllowed,
@@ -174,12 +180,47 @@ export async function drainWrittenScripts(timeoutMs: number): Promise<boolean> {
   return true;
 }
 
-export function fetchGatedModuleSource(url: string): Promise<string> {
+// Module URLs whose fetch failed or was blocked. A rejected import whose graph hit one names it
+// in its reason (gated_module_source in core's boa_eval.rs: "module refused for <url>"); a
+// module that threw while evaluating names none. So the event follows this element's own graph.
+const failedModuleUrls = new Set<string>();
+const MODULE_REFUSED_PREFIX = "module refused for ";
+
+function importHitFailedFetch(reason: string): boolean {
+  if (!reason.includes(MODULE_REFUSED_PREFIX)) return false;
+  for (const failed of failedModuleUrls) {
+    if (reason.includes(MODULE_REFUSED_PREFIX + failed)) return true;
+  }
+  return false;
+}
+
+// The nonce each module was fetched with. An import inherits its referrer's nonce, as HTML's
+// descendant script fetch options do, but not its integrity: an import has none of its own.
+const moduleFetchNonces = new Map<string, string | null>();
+
+function moduleGateAttributes(
+  url: string,
+  referrer: string | undefined,
+): { nonce: string | null; integrity: string | null } {
+  const entry = entryModuleGateAttributes(url);
+  if (entry) return entry;
+  const nonce = referrer === undefined ? null : (moduleFetchNonces.get(referrer) ?? null);
+  return { nonce, integrity: null };
+}
+
+export function fetchGatedModuleSource(url: string, referrer?: string): Promise<string> {
+  const attributes = moduleGateAttributes(url, referrer);
+  moduleFetchNonces.set(url, attributes.nonce);
   const inline = takeInlineModuleSource(url);
   if (inline !== undefined) return Promise.resolve(inline);
   let pending = moduleSourceInflight.get(url);
   if (!pending) {
-    pending = fetchGatedModuleSourceOnce(url).finally(() => moduleSourceInflight.delete(url));
+    pending = fetchGatedModuleSourceOnce(url, attributes)
+      .catch((err: unknown) => {
+        failedModuleUrls.add(url);
+        throw err;
+      })
+      .finally(() => moduleSourceInflight.delete(url));
     moduleSourceInflight.set(url, pending);
   }
   return pending;
@@ -187,8 +228,11 @@ export function fetchGatedModuleSource(url: string): Promise<string> {
 
 const moduleSourceInflight = new Map<string, Promise<string>>();
 
-async function fetchGatedModuleSourceOnce(url: string): Promise<string> {
-  const meta = { url, module: true, ...entryModuleGateAttributes(url) };
+async function fetchGatedModuleSourceOnce(
+  url: string,
+  attributes: { nonce: string | null; integrity: string | null },
+): Promise<string> {
+  const meta = { url, module: true, ...attributes };
   const pre = await insertedScriptAllowed(meta);
   reportOnly(pre);
   if (!pre.allowed) {
@@ -208,15 +252,74 @@ async function fetchGatedModuleSourceOnce(url: string): Promise<string> {
     reportBlocked(post);
     throw new Error(post.message ?? "module blocked by policy");
   }
+  // Module source feeds the same boa parse as inserted classic source, so it shares the budget.
+  // A refused fetch fails the graph, so the element gets error.
+  if (insertedBytes + response.bytes.length > MAX_INSERTED_SCRIPT_BYTES) {
+    throw new Error(`fetch(${url}) refused: byte budget exceeded (${response.bytes.length} bytes)`);
+  }
+  insertedBytes += response.bytes.length;
   if (post.moduleType === "json") {
     return "export default " + JSON.stringify(JSON.parse(response.source)) + ";";
   }
   return response.source;
 }
 
+// An inserted module runs on boa through the parser modules' loader, which gates every fetch
+// in its graph. A failed fetch fires error; a module that throws while evaluating still fires
+// load, as in browsers. The module map runs a URL once, but each element gets its event.
+function runInsertedModuleScript(info: InsertedScriptInfo): void {
+  const url = resolveUrl(info.src);
+  if (!url) return;
+  if (insertedCount >= MAX_INSERTED_SCRIPTS) {
+    console.warn(
+      `[ks-inserted-script] budget: skipping ${url} (cap ${MAX_INSERTED_SCRIPTS} per navigate)`,
+    );
+    return;
+  }
+  insertedCount++;
+  const inflightKey = "inserted-module:" + info.id + ":" + url;
+  resourceInflight.add(inflightKey);
+  const body = async (): Promise<void> => {
+    let ok = false;
+    let holdsAttributes = false;
+    try {
+      // Off the inserting call stack: the insert can come from code running on boa.
+      await new Promise<void>((resolve) => {
+        nativeSetTimeout(resolve, 0);
+      });
+      setEntryModuleGateAttributes(url, {
+        nonce: info.nonce || null,
+        integrity: info.integrity || null,
+      });
+      holdsAttributes = true;
+      await ks_import(url, state.pageUrl || "about:blank");
+      ok = true;
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      ok = !importHitFailedFetch(reason);
+      try {
+        console.error(
+          "[ks-inserted-script] module " + url + (ok ? " threw: " : " failed: "),
+          reason,
+        );
+      } catch {}
+    } finally {
+      if (holdsAttributes) clearEntryModuleGateAttributes(url);
+      resourceInflight.delete(inflightKey);
+      try {
+        fireLifecycle(info.id, ok);
+      } catch {}
+    }
+  };
+  void body();
+}
+
 export function runInsertedExternalScript(info: InsertedScriptInfo): void {
   const rawSrc = info.src;
-  if (info.type === "module") return;
+  if (info.type === "module") {
+    runInsertedModuleScript(info);
+    return;
+  }
   const url = resolveUrl(rawSrc);
   if (!url) return;
   if (startedUrls.has(url)) return;

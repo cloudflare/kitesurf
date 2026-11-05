@@ -27,6 +27,46 @@ scripts.all("/policy-script.js", (c) => {
   );
 });
 
+// Modules a page inserts at runtime: one registers a WebMCP tool through an import, one
+// throws while evaluating, and one imports a module that is not there.
+const INSERTED_MODULES: Record<string, string> = {
+  "tool.js": `import { label } from "./dep.js";
+document.modelContext.registerTool({
+  name: "inserted_tool",
+  description: "Registered by an inserted module",
+  execute: () => label,
+});
+globalThis.__insertedModule = (globalThis.__insertedModule || []).concat(["tool"]);
+`,
+  "dep.js": `export const label = "from-dep";\n`,
+  "throws.js": `globalThis.__insertedModule = (globalThis.__insertedModule || []).concat(["throws"]);
+throw new Error("inserted module threw");
+`,
+  // A lazy chunk 404s while this module evaluates; its own graph loaded, so it still gets load.
+  "throws-after-lazy-404.js": `globalThis.__insertedModule = (globalThis.__insertedModule || []).concat(["lazy"]);
+await import("./lazy-missing.js").catch(() => {});
+throw new Error("inserted module threw after a lazy 404");
+`,
+  // A parse error: HTML fires load on the element and reports the error to the window.
+  "syntax.js": `globalThis.__insertedModule = ["unreachable"];\nexport const = ;\n`,
+  "broken.js": `import "./missing.js";
+globalThis.__insertedModule = (globalThis.__insertedModule || []).concat(["broken"]);
+`,
+};
+// Past the 8 MiB budget for inserted script source, which bounds what boa buffers and parses.
+const OVER_BUDGET_BYTES = 9 * 1024 * 1024;
+scripts.all("/inserted-module/big.js", (c) =>
+  c.body(`// ${"x".repeat(OVER_BUDGET_BYTES)}\nglobalThis.__insertedModule = ["big"];\n`, 200, {
+    "content-type": JS,
+    "access-control-allow-origin": "*",
+  }),
+);
+scripts.all("/inserted-module/:file{[\\w-]+\\.js}", (c) => {
+  const body = INSERTED_MODULES[c.req.param("file")];
+  if (body === undefined) return c.text("not found", 404);
+  return c.body(body, 200, { "content-type": JS, "access-control-allow-origin": "*" });
+});
+
 // The connection drops before the body completes, so the fetch has no usable response.
 scripts.all("/dropped-script.js", () => {
   const dropped = new ReadableStream<Uint8Array>({

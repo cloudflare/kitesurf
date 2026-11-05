@@ -90,12 +90,15 @@ fn resolve_specifier(specifier: &str, referrer: &Referrer) -> Result<String, Str
     }
 }
 
-async fn gated_module_source(url: &str) -> Option<Result<String, String>> {
+// The referrer's URL lets the gate give an import its referrer's nonce (HTML's descendant
+// script fetch options); an entry import's referrer is the page.
+async fn gated_module_source(url: &str, referrer: Option<&str>) -> Option<Result<String, String>> {
     let hook: js_sys::Function = crate::js::internals::get("fetchModuleSource")?
         .dyn_into()
         .ok()?;
+    let referrer = referrer.map_or(JsValue::UNDEFINED, JsValue::from_str);
     let promise = hook
-        .call1(&JsValue::UNDEFINED, &JsValue::from_str(url))
+        .call2(&JsValue::UNDEFINED, &JsValue::from_str(url), &referrer)
         .map_err(|_| format!("fetchModuleSource({url}) threw"));
     let promise = match promise {
         Ok(p) => p,
@@ -110,8 +113,8 @@ async fn gated_module_source(url: &str) -> Option<Result<String, String>> {
     }
 }
 
-async fn fetch_module_source(url: String) -> Result<String, String> {
-    if let Some(gated) = gated_module_source(&url).await {
+async fn fetch_module_source(url: String, referrer: Option<String>) -> Result<String, String> {
+    if let Some(gated) = gated_module_source(&url, referrer.as_deref()).await {
         return gated;
     }
     let global = js_sys::global();
@@ -213,6 +216,7 @@ impl ModuleLoader for KsModuleLoader {
     ) -> JsResult<Module> {
         let url = resolve_specifier(&request.specifier().to_std_string_escaped(), &referrer)
             .map_err(|message| JsNativeError::typ().with_message(message))?;
+        let referrer_url = referrer.path().and_then(|p| p.to_str()).map(String::from);
         if let Some(m) = self.cache.borrow().get(&url).cloned() {
             return Ok(m);
         }
@@ -220,7 +224,7 @@ impl ModuleLoader for KsModuleLoader {
         let loaded = if let Some(ns) = native_import_namespace(url.clone()).await {
             LoadedModule::Native(ns)
         } else {
-            match fetch_module_source(url.clone()).await {
+            match fetch_module_source(url.clone(), referrer_url).await {
                 Ok(src) => LoadedModule::Source(src),
                 Err(msg) => LoadedModule::Err(msg),
             }

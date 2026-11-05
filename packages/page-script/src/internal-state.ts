@@ -234,7 +234,8 @@ export interface KitesurfInternals {
   // A baked module's V8 namespace, so boa reuses it instead of fetching.
   nativeImport?: (url: unknown) => Promise<unknown>;
   // A module body for boa's fetch-and-interpret path, through the script gate.
-  fetchModuleSource?: (url: unknown) => Promise<string>;
+  // The referrer is the importing module's URL, or the page's for an entry import.
+  fetchModuleSource?: (url: unknown, referrer?: unknown) => Promise<string>;
   // Run due page timers while boa awaits; returns how many ran. Installed read-only.
   readonly pumpDueTimers?: (deadlineMs?: number) => number;
   // Ms until the next page timer is due, or Infinity.
