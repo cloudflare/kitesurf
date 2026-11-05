@@ -122,26 +122,32 @@ function buildClassicSegment(
   opts: { currentScript?: boolean } = {},
 ): { source: string; sourceLineOffset: number } {
   const label = commentSafe(d.src ? d.src : `inline#${index}`);
+  const currentScriptUrl = d.resolvedSrc ?? d.src ?? "";
+  const domIdx = typeof d.scriptDomIndex === "number" ? d.scriptDomIndex : -1;
+  const rawSrc = d.src ?? "";
+  const bracket = opts.currentScript !== false;
+  // Only parser-inserted external scripts get load or error here; inserted bakes
+  // (currentScript: false) get theirs from the insert path.
+  const lifecycle = (ok: boolean): string =>
+    !bracket || !d.src
+      ? ""
+      : `if (__ks_state_local.parserScriptLifecycle) { await __ks_state_local.parserScriptLifecycle(${domIdx}, ${JSON.stringify(rawSrc)}, ${JSON.stringify(currentScriptUrl)}, ${ok}); }\n`;
   if (d.blocked) {
     return {
-      source: `console.error(${JSON.stringify(d.blocked.message)});\n`,
+      source: `console.error(${JSON.stringify(d.blocked.message)});\n${lifecycle(false)}`,
       sourceLineOffset: 0,
     };
   }
   if (d.prefetchError) {
     return {
-      source: `console.error(${JSON.stringify(`[${label}] prefetch failed: ${d.prefetchError}`)});\n`,
+      source: `console.error(${JSON.stringify(`[${label}] prefetch failed: ${d.prefetchError}`)});\n${lifecycle(false)}`,
       sourceLineOffset: 0,
     };
   }
   const source = d.src ? (d.prefetchedSource ?? "") : (d.body ?? "");
-  if (!source.trim()) return { source: "", sourceLineOffset: 0 };
+  if (!source.trim()) return { source: lifecycle(true), sourceLineOffset: 0 };
 
-  const currentScriptUrl = d.resolvedSrc ?? d.src ?? "";
-  const domIdx = typeof d.scriptDomIndex === "number" ? d.scriptDomIndex : -1;
   const bodyKey = !d.src ? (d.body || "").trim().slice(0, INLINE_SCRIPT_BODY_KEY_PREFIX_CHARS) : "";
-  const rawSrc = d.src ?? "";
-  const bracket = opts.currentScript !== false;
   const setCurrent = !bracket
     ? ""
     : `__ks_state_local.setCurrentScript(${JSON.stringify(currentScriptUrl)}, ${domIdx}, ${JSON.stringify(bodyKey)}, ${JSON.stringify(rawSrc)});
@@ -185,7 +191,7 @@ ${lines.join("\n")}
   }
   const prefix = `// === ${label} ===\n${predeclareHead}${setCurrent}`;
   return {
-    source: `${prefix}${bodySource}\n${promoteTail}${clearCurrent}\n`,
+    source: `${prefix}${bodySource}\n${promoteTail}${clearCurrent}${lifecycle(true)}\n`,
     sourceLineOffset: countLines(prefix),
   };
 }

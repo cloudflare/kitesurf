@@ -84,6 +84,73 @@ describe("buildScriptBundle.classicRegularSource", () => {
   });
 });
 
+describe("buildScriptBundle parser-inserted script lifecycle", () => {
+  const LIFECYCLE = "__ks_state_local.parserScriptLifecycle(";
+
+  it("fires load after an external script's body and the currentScript reset", () => {
+    const bundle = buildScriptBundle([
+      classic("", {
+        src: "/a.js",
+        resolvedSrc: "https://example.com/a.js",
+        prefetchedSource: "globalThis.ranA = true;",
+        scriptDomIndex: 3,
+      }),
+    ]);
+    const src = bundle.classicRegularSource!;
+    const call = `${LIFECYCLE}3, "/a.js", "https://example.com/a.js", true)`;
+    expect(src).toContain(call);
+    expect(src.indexOf("globalThis.ranA = true;")).toBeLessThan(src.indexOf(call));
+    expect(src.indexOf("endClassicScript()")).toBeLessThan(src.indexOf(call));
+  });
+
+  it("fires load in the defer and async buckets, and for an empty external body", () => {
+    const bundle = buildScriptBundle([
+      classic("", { src: "/d.js", defer: true, prefetchedSource: "1;", scriptDomIndex: 0 }),
+      classic("", { src: "/e.js", prefetchedSource: "", scriptDomIndex: 1 }),
+      classic("", { src: "/s.js", async: true, prefetchedSource: "2;", scriptDomIndex: 2 }),
+    ]);
+    expect(bundle.classicRegularSource).toContain(`${LIFECYCLE}0, "/d.js", "/d.js", true)`);
+    expect(bundle.classicRegularSource).toContain(`${LIFECYCLE}1, "/e.js", "/e.js", true)`);
+    expect(bundle.classicAsyncSource).toContain(`${LIFECYCLE}2, "/s.js", "/s.js", true)`);
+  });
+
+  it("fires error for a blocked or failed external script", () => {
+    const bundle = buildScriptBundle([
+      classic("", {
+        src: "/blocked.js",
+        blocked: { reason: "sri", message: "integrity mismatch" },
+        scriptDomIndex: 0,
+      }),
+      classic("", { src: "/gone.js", prefetchError: "HTTP 404", scriptDomIndex: 1 }),
+    ]);
+    const src = bundle.classicRegularSource!;
+    expect(src).toContain("integrity mismatch");
+    expect(src).toContain(`${LIFECYCLE}0, "/blocked.js", "/blocked.js", false)`);
+    expect(src).toContain(`${LIFECYCLE}1, "/gone.js", "/gone.js", false)`);
+    expect(src).not.toContain(", true)");
+  });
+
+  it("fires nothing for inline scripts or inserted bakes", () => {
+    const bundle = buildScriptBundle(
+      [
+        classic("globalThis.inline = 1;", { scriptDomIndex: 0 }),
+        classic("globalThis.blockedInline = 1;", {
+          blocked: { reason: "csp", message: "inline blocked" },
+        }),
+      ],
+      {
+        insertedBake: [classic("", { src: "/i.js", prefetchedSource: "globalThis.i = 1;" })],
+        insertedDigests: new Map([["/i.js", "digest"]]),
+      },
+    );
+    expect(bundle.classicRegularSource).toContain("globalThis.inline = 1;");
+    expect(bundle.classicRegularSource).not.toContain(LIFECYCLE);
+    const inserted = Object.values(bundle.insertedModules);
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).not.toContain(LIFECYCLE);
+  });
+});
+
 describe("buildScriptBundle.moduleScriptUrls + additionalModules", () => {
   it("preserves module entries in document order and bakes bodies by URL", () => {
     const bundle = buildScriptBundle([
