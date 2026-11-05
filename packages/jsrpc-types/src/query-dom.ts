@@ -408,7 +408,6 @@ export interface QueryDomMethods {
       scrollX?: number;
       scrollY?: number;
       error?: string;
-      fallbackHtml?: string;
       damageCount?: number;
       layoutDirty?: boolean;
       skipReason?: string;

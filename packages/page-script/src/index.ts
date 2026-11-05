@@ -2507,16 +2507,9 @@ function mouseTargetAtPoint(
   try {
     const paint = ensurePaintDom();
     if (!paint) return null;
-    const seqNow = cascadeSeq();
     try {
       if (typeof paint.resolveLayout === "function") paint.resolveLayout();
     } catch {}
-    if (seqNow > state.lastForceRestyleSeq) {
-      try {
-        if (typeof paint.forceFullRestyle === "function") paint.forceFullRestyle();
-      } catch {}
-      state.lastForceRestyleSeq = seqNow;
-    }
     let paintHitId: unknown;
     try {
       paintHitId = paint.elementFromPoint(clientX + state.scrollX, clientY + state.scrollY);
@@ -2965,27 +2958,13 @@ function drainPageCustomElementUpgrades(upgrades: (() => void) | null): void {
   }
 }
 
-type PaintSequence = number | (() => number);
-
-function readPaintSequence(sequence: PaintSequence): number {
-  return typeof sequence === "function" ? sequence() : sequence;
-}
-
-function prepareCachedPaint(
-  paint: DomHandle,
-  fresh: boolean,
-  sequence: PaintSequence,
-  sequenceAfterRestyle: PaintSequence = sequence,
-): void {
+// Incremental invalidation keeps a cached handle current; a full restyle here would redo the
+// whole document's style and layout on every frame or hit test after any DOM change.
+function prepareCachedPaint(paint: DomHandle, fresh: boolean): void {
   if (fresh) return;
   try {
     if (typeof paint.resolveLayout === "function") paint.resolveLayout();
   } catch {}
-  if (readPaintSequence(sequence) <= state.lastForceRestyleSeq) return;
-  try {
-    if (typeof paint.forceFullRestyle === "function") paint.forceFullRestyle();
-  } catch {}
-  state.lastForceRestyleSeq = readPaintSequence(sequenceAfterRestyle);
 }
 
 async function runClassicRegularBucket(
@@ -3207,7 +3186,6 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     state.opaqueOriginId = crypto.randomUUID();
     // Every navigation resets the gate's cache, including one to the same URL.
     setNavigationScriptPolicy(navigateOptions?.scriptPolicy);
-    state.lastForceRestyleSeq = -1;
     state.currentMediaType = "screen";
 
     emitNavigateDiagnostic("end", "teardown");
@@ -5657,7 +5635,6 @@ function appendLinkedStyleSheets(
 function queryDomSceneStats(): QueryDomResult<"getSceneStats"> {
   const recordStartedAt = Date.now();
   const seqNow = getInternalState().mutationSeq | 0;
-  const cascadeSeqNow = cascadeSeq();
   const { paint, fresh: isFreshPaint } = takePaintPrep();
   if (!paint) {
     return {
@@ -5665,7 +5642,7 @@ function queryDomSceneStats(): QueryDomResult<"getSceneStats"> {
       error: "ensurePaintDom returned null",
     } satisfies QueryDomResult<"getSceneStats">;
   }
-  prepareCachedPaint(paint, isFreshPaint, cascadeSeqNow);
+  prepareCachedPaint(paint, isFreshPaint);
   const prepFinishedAt = Date.now();
   let statsJson = "";
   try {
@@ -5835,7 +5812,6 @@ function prepareQueryDomRecordScene(
   queryArgs: Record<string, unknown>,
   wake: QueryDomRecordSceneWake,
 ): QueryDomRecordScenePreparation {
-  const cascadeSeqNow = cascadeSeq();
   const omitBg = queryArgs.omitBackground === true;
   const clientWire = queryArgs.producer === "client";
   const rawImages = queryArgs.images === "raw";
@@ -5849,23 +5825,18 @@ function prepareQueryDomRecordScene(
   const epochBase = internalState.lastRecordSeq | 0;
   const { paint, fresh: isFreshPaint } = takePaintPrep();
   if (!paint) {
-    let fallbackHtml = "";
-    try {
-      fallbackHtml = pageState.dom.outerHTML(0) || "";
-    } catch {}
     return {
       kind: "response",
       response: {
         scene: new Uint8Array(0),
         seq: wake.seqNow,
         error: "ensurePaintDom returned null (serialize/parse failed)",
-        fallbackHtml,
         scrollX: state.scrollX,
         scrollY: state.scrollY,
       } satisfies QueryDomResult<"recordScene">,
     };
   }
-  prepareCachedPaint(paint, isFreshPaint, cascadeSeqNow);
+  prepareCachedPaint(paint, isFreshPaint);
   const clip = readSceneClip(queryArgs.clip);
   const hasClip = clip !== null;
   const scrollDx = state.scrollX - state.lastRecordScrollX;
@@ -5994,17 +5965,12 @@ function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecor
   } catch (e) {
     invalidatePaintDom();
     reportEngineError("wasm", e, "renderScene threw");
-    let fallbackHtml = "";
-    try {
-      fallbackHtml = pageState.dom.outerHTML(0) || "";
-    } catch {}
     return {
       kind: "response",
       response: {
         scene: new Uint8Array(0),
         seq: getInternalState().mutationSeq | 0,
         error: errorMessage(e),
-        fallbackHtml,
         scrollX: state.scrollX,
         scrollY: state.scrollY,
       } satisfies QueryDomResult<"recordScene">,
@@ -6013,17 +5979,12 @@ function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecor
   if (!scene || scene.length === 0) {
     invalidatePaintDom();
     reportEngineError("wasm", new Error("renderScene returned empty"));
-    let fallbackHtml = "";
-    try {
-      fallbackHtml = pageState.dom.outerHTML(0) || "";
-    } catch {}
     return {
       kind: "response",
       response: {
         scene: new Uint8Array(0),
         seq: getInternalState().mutationSeq | 0,
         error: "renderScene returned empty",
-        fallbackHtml,
         scrollX: state.scrollX,
         scrollY: state.scrollY,
       } satisfies QueryDomResult<"recordScene">,
@@ -6204,7 +6165,7 @@ function queryDomRecordPdfScenes(
       error: "ensurePaintDom returned null",
     } satisfies QueryDomResult<"recordPdfScenes">;
   }
-  prepareCachedPaint(paint, isFreshPaint, cascadeSeq, cascadeSeq);
+  prepareCachedPaint(paint, isFreshPaint);
   try {
     if (typeof paint.recordPdfScenes !== "function") {
       return {
