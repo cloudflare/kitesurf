@@ -1990,7 +1990,7 @@ export interface HTMLScriptElement extends HTMLElement {
   type: string;
   src: string;
   noModule: boolean;
-  // async: boolean;
+  async: boolean;
   defer: boolean;
   // readonly blocking: DOMTokenList;
   crossOrigin: string | null;

@@ -19,8 +19,11 @@ import {
   defineReflectedUnsignedLong,
   REFERRER_POLICY_KEYWORDS,
 } from "./reflect.js";
+import { clearScriptForceAsync, scriptForceAsync } from "../mutations/observer.js";
+import { attributeChangeSteps, Element } from "./element.js";
 import { installIdlHandlersOn } from "./event-handlers.js";
 import { HTMLInputElement } from "./forms/input.js";
+import { HTMLImageElement } from "./image.js";
 import { HTMLLegendElement } from "./forms/fieldset.js";
 import {
   HTMLDetailsElement,
@@ -28,6 +31,8 @@ import {
   HTMLAreaElement,
   HTMLLinkElement,
   HTMLScriptElement,
+  HTMLSourceElement,
+  HTMLTrackElement,
   HTMLTableCaptionElement,
   HTMLTableColElement,
   HTMLDivElement,
@@ -159,6 +164,50 @@ defineAttribute(HTMLScriptElement.prototype, "text", {
     this.textContent = String(v);
   },
 });
+
+// Consent and lazy-load scripts wrap these through the interface's own descriptor, e.g.
+// Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, "src"). Element's accessor
+// already has the behavior, so each interface gets that same accessor as its own.
+const ownElementAccessor = (cls: { prototype: object }, name: "src" | "type"): void => {
+  const accessor = Object.getOwnPropertyDescriptor(Element.prototype, name);
+  if (accessor) Object.defineProperty(cls.prototype, name, accessor);
+};
+for (const cls of [
+  HTMLEmbedElement,
+  HTMLFrameElement,
+  HTMLIFrameElement,
+  HTMLImageElement,
+  HTMLMediaElement,
+  HTMLScriptElement,
+  HTMLSourceElement,
+  HTMLTrackElement,
+]) {
+  ownElementAccessor(cls, "src");
+}
+ownElementAccessor(HTMLScriptElement, "type");
+
+// A script from createElement reads async as true until the page sets async or adds the
+// attribute; a parser-created one reflects the attribute.
+// https://html.spec.whatwg.org/#dom-script-async
+defineAttribute(HTMLScriptElement.prototype, "async", {
+  get() {
+    return scriptForceAsync(this._id) || this.hasAttribute("async");
+  },
+  set(v) {
+    clearScriptForceAsync(this._id);
+    if (v) this.setAttribute("async", "");
+    else this.removeAttribute("async");
+  },
+});
+const scriptInheritedChangeSteps = HTMLScriptElement.prototype[attributeChangeSteps];
+HTMLScriptElement.prototype[attributeChangeSteps] = function (
+  this: InstanceType<typeof HTMLScriptElement>,
+  localName: string,
+  value: string | null,
+): void {
+  scriptInheritedChangeSteps.call(this, localName, value);
+  if (localName === "async" && value !== null) clearScriptForceAsync(this._id);
+};
 
 defineReflectedEnum(HTMLLinkElement.prototype, "as", "as", [
   "fetch",

@@ -82,7 +82,11 @@ import {
   XMLNS_NS,
 } from "./util/validation.js";
 import { bumpMutationSeq } from "./mutations/seq.js";
-import { markRuntimeCreatedScript, markWrittenScript } from "./mutations/observer.js";
+import {
+  markForceAsyncScript,
+  markRuntimeCreatedScript,
+  markWrittenScript,
+} from "./mutations/observer.js";
 import { addListener, removeListener, dispatchOnKey } from "./events/dispatch.js";
 import {
   KsEvent,
@@ -904,7 +908,10 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     }
     const asciiLower = t.replace(/[A-Z]/g, (c) => c.toLowerCase());
     const id = dom.createElement(asciiLower);
-    if (asciiLower === "script") markRuntimeCreatedScript(id);
+    if (asciiLower === "script") {
+      markRuntimeCreatedScript(id);
+      markForceAsyncScript(id);
+    }
     // createElement never splits on a colon: prefix is null. viaNS=false
     // keeps the localName getter from slicing the qname.
     elemNs.set(id, {
