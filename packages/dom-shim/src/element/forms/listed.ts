@@ -6,6 +6,7 @@
 
 import type * as Idl from "../../idl/types.generated.js";
 import { elementDocument } from "../../state.js";
+import { formBehindProxy } from "../../registries.js";
 import { htmlTagOf, isHtmlTag } from "../html-tag.js";
 import type { Element } from "../element.js";
 import type { HTMLFormElement } from "./form.js";
@@ -106,7 +107,8 @@ function activateFormButton(
     }
   } else {
     try {
-      form.reset();
+      // Read off the form behind the proxy: a control named "reset" must not shadow it.
+      formBehindProxy(form).reset.call(form);
     } catch {
       /* unlikely */
     }

@@ -76,6 +76,28 @@ export const linkLoadFired = new Map<number, string>();
 
 export const formState = new Map<number, { value?: string; checked?: boolean }>();
 
+// A form's page-facing proxy lets named controls override its members. The engine's form
+// algorithms read members off the form behind it, as a browser's own steps never see named
+// properties, and keep the proxy as `this` and event target so listeners see the page's form.
+const formProxyTargets = new WeakMap<object, object>();
+const formPageProxies = new WeakMap<object, object>();
+
+export function registerFormProxy(proxy: object, form: object): void {
+  formProxyTargets.set(proxy, form);
+  formPageProxies.set(form, proxy);
+}
+
+// The page-facing proxy for a form, for registries keyed by the wrapper the page sees.
+export function formPageProxy<T extends object>(form: T): T {
+  const proxy = formPageProxies.get(form);
+  return proxy === undefined ? form : (proxy as T);
+}
+
+export function formBehindProxy<T extends object>(form: T): T {
+  const behind = formProxyTargets.get(form);
+  return behind === undefined ? form : (behind as T);
+}
+
 export const inputState = new Map<number, InputControlState>();
 
 export let selectednessWrites = 0;

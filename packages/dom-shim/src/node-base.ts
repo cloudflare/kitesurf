@@ -47,6 +47,7 @@ import {
   elemNs,
   hostIdToDoc,
   nodeOwnerDoc,
+  formPageProxy,
   type NodeOwnerDocument,
   syntheticParent,
   fragmentIds,
@@ -1047,7 +1048,8 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     return null;
   }
   get ownerDocument(): NodeOwnerDocument | null {
-    const owner = nodeOwnerDoc.get(this);
+    // A form read from behind its proxy finds the owner its page-facing proxy holds.
+    const owner = nodeOwnerDoc.get(this) ?? nodeOwnerDoc.get(formPageProxy(this));
     if (owner) return owner;
     return liveWindow().document;
   }

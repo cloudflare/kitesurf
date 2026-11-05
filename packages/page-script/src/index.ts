@@ -2449,7 +2449,9 @@ function buttonActivationNavigation(targetEl: MouseTarget): string | null {
     const navUrl = form.__ksRequestSubmit(activator);
     return typeof navUrl === "string" && navUrl.length > 0 ? navUrl : null;
   }
-  if (isReset && typeof form.reset === "function") form.reset();
+  // Read off the form behind its proxy: a reset control named "reset" must not shadow reset().
+  const behind = ksInternals.formBehindProxy?.(form) ?? form;
+  if (isReset && typeof behind.reset === "function") behind.reset.call(form);
   return null;
 }
 
@@ -2572,7 +2574,7 @@ function notifyControlValueMutation(
 
 function findDefaultSubmitButton(form: NonNullable<ShimElement["form"]>): ShimElement | null {
   let defaultButton: ShimElement | null = null;
-  const elements = form.elements;
+  const elements = (ksInternals.formBehindProxy?.(form) ?? form).elements;
   for (let i = 0; i < elements.length; i++) {
     const element = elements[i];
     const type = ((element.getAttribute && element.getAttribute("type")) || "").toLowerCase();
