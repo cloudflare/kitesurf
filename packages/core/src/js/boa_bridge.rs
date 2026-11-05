@@ -1890,6 +1890,105 @@ fn trap_get(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<
     }
 }
 
+// [[GetPrototypeOf]] answers from V8, so a walk up a bridged chain (a sanitizer's getter
+// lookup on Element.prototype, isPrototypeOf) sees the real one. V8 intrinsic prototypes map to
+// boa's own, so plain objects and arrays keep Object.prototype and Array.prototype.
+fn trap_get_prototype_of(
+    _this: &BoaValue,
+    args: &[BoaValue],
+    ctx: &mut Context,
+) -> JsResult<BoaValue> {
+    let Some(target) = args.first().and_then(|v| v.as_object()) else {
+        return Ok(BoaValue::null());
+    };
+    let own = target
+        .prototype()
+        .clone()
+        .map_or(BoaValue::null(), BoaValue::from);
+    // The Proxy invariant pins a non-extensible target's answer to its own prototype.
+    if !target.is_extensible(ctx)? {
+        return Ok(own);
+    }
+    let Some(handle) = read_handle(&target, "__ks_h", ctx) else {
+        return Ok(own);
+    };
+    let v8 = get_v8(handle);
+    // Not dyn_ref: its instanceof check rejects an object with a null prototype.
+    if !v8.is_object() {
+        return Ok(own);
+    }
+    let obj: js_sys::Object = v8.unchecked_into();
+    let proto: wasm_bindgen::JsValue =
+        match with_v8(ctx, || js_sys::Reflect::get_prototype_of(&obj)) {
+            Ok(p) => p.into(),
+            Err(e) => return Err(JsError::from_opaque(v8_to_boa(e, ctx))),
+        };
+    if proto.is_null() {
+        return Ok(BoaValue::null());
+    }
+    if let Some(p) = boa_intrinsic_prototype_for(&proto, ctx) {
+        return Ok(p.into());
+    }
+    // Not v8_to_boa: its Promise probe costs a crossing, and a prototype is not a promise to
+    // bridge.
+    Ok(v8_node_to_boa(proto, ctx))
+}
+
+thread_local! {
+    // V8 prototype -> its index in INTRINSIC_CTOR_NAMES, or -1. Neither answer can change, so a
+    // prototype walk probes each prototype once; a WeakMap lookup runs no page code.
+    static PROTO_VERDICTS: RefCell<Option<js_sys::WeakMap>> = const { RefCell::new(None) };
+}
+
+fn boa_intrinsic_prototype_for(
+    proto: &wasm_bindgen::JsValue,
+    ctx: &mut Context,
+) -> Option<JsObject> {
+    let verdicts = PROTO_VERDICTS.with(|c| {
+        c.borrow_mut()
+            .get_or_insert_with(js_sys::WeakMap::new)
+            .clone()
+    });
+    let key: &js_sys::Object = proto.unchecked_ref();
+    let index = match verdicts.get(key).as_f64() {
+        Some(index) => index,
+        None => {
+            // A probe that threw is not cached, so a passing getter error cannot stick.
+            let index = probe_intrinsic_index(proto, ctx)
+                .ok()?
+                .map_or(-1.0, |i| i as f64);
+            verdicts.set(key, &wasm_bindgen::JsValue::from_f64(index));
+            index
+        }
+    };
+    if index < 0.0 {
+        return None;
+    }
+    let name = INTRINSIC_CTOR_NAMES.get(index as usize)?;
+    boa_intrinsic_ctor(name, ctx)?
+        .get(js_string!("prototype"), ctx)
+        .ok()?
+        .as_object()
+}
+
+// Some(index) when `proto` is the prototype of a V8 intrinsic constructor.
+fn probe_intrinsic_index(
+    proto: &wasm_bindgen::JsValue,
+    ctx: &mut Context,
+) -> Result<Option<usize>, ()> {
+    let ctor =
+        with_v8(ctx, || js_sys::Reflect::get(proto, &v8_key("constructor"))).map_err(|_| ())?;
+    let Some(name) = v8_intrinsic_ctor_name(&ctor) else {
+        return Ok(None);
+    };
+    let ctor_proto =
+        with_v8(ctx, || js_sys::Reflect::get(&ctor, &v8_key("prototype"))).map_err(|_| ())?;
+    if !js_sys::Object::is(&ctor_proto, proto) {
+        return Ok(None);
+    }
+    Ok(INTRINSIC_CTOR_NAMES.iter().position(|n| *n == name))
+}
+
 fn trap_has(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<BoaValue> {
     let Some(target) = args.first().and_then(|v| v.as_object()) else {
         return Ok(BoaValue::from(false));
@@ -2445,7 +2544,12 @@ fn proxy_handler(callable: bool, ctx: &mut Context) -> JsObject {
             ("apply", trap_apply, 3),
             ("construct", trap_construct, 3),
         ];
-        for &(name, f, len) in &traps[..if callable { 9 } else { 7 }] {
+        // A function keeps boa's Function.prototype, so only plain objects ask V8.
+        let proto_trap: &[(&str, NativeFunctionPointer, usize)] =
+            &[("getPrototypeOf", trap_get_prototype_of, 1)];
+        let selected = if callable { &traps[..9] } else { &traps[..7] };
+        let plain_extra = if callable { &[][..] } else { proto_trap };
+        for &(name, f, len) in selected.iter().chain(plain_extra) {
             let f = FunctionObjectBuilder::new(ctx.realm(), NativeFunction::from_fn_ptr(f))
                 .length(len)
                 .build();
