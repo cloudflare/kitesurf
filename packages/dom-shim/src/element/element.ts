@@ -4,6 +4,7 @@
 
 // Implements Element attributes, queries, geometry, style, scrolling, and focus behavior.
 
+import type { KsAttributeNamespace } from "../../../core/pkg/kitesurf_core";
 import type { WrapperInfo } from "../node-base.js";
 import type * as Idl from "../idl/types.generated.js";
 import { makeStyleDeclaration, type StyleDeclarationBackend } from "../style-declaration.js";
@@ -138,7 +139,6 @@ const computedStyleMaps = new WeakMap<object, ReturnType<typeof makeComputedStyl
 const inlineStyleResync = new WeakMap<object, (text: string | null) => void>();
 const inlineStyleProxies = new WeakMap<object, ReturnType<typeof makeStyleDeclaration>>();
 const longhandKeysCache = new Map<string, string[]>();
-const parsedAttributeNamespaceSync = new WeakMap<object, { info: unknown; attrSeq: number }>();
 type PseudoElementStub = { readonly type: string; readonly element: Element };
 type OffsetMetrics = { parent?: unknown; top: number; left?: unknown };
 
@@ -154,20 +154,15 @@ function ksState() {
   return getInternalState();
 }
 
-function isAttributeNamespaceRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function syncParsedAttributeNamespaces(el: { _id: number; _info?: unknown }): void {
-  const info = el._info;
-  const parsed = isAttributeNamespaceRecord(info) ? info.attributeNamespaces : undefined;
+// Replaces el's parsed namespace entries with `parsed`, read from wasm with the attribute list
+// it describes. _attrFlat calls it on each refresh only, so a cached list's entries stay as
+// synced; entries set by setAttributeNS (not parsed) win over parsed ones.
+function syncParsedAttributeNamespaces(
+  el: { _id: number },
+  parsed: readonly KsAttributeNamespace[] | undefined,
+): void {
   let nsMap = attrNs.get(el._id);
-  if (!nsMap && (!Array.isArray(parsed) || parsed.length === 0)) return;
-  const attrSeq = ksState().attrSeq | 0;
-  const previousSync = parsedAttributeNamespaceSync.get(el);
-  if (previousSync !== undefined && previousSync.info === info && previousSync.attrSeq === attrSeq)
-    return;
-
+  if (!nsMap && (parsed === undefined || parsed.length === 0)) return;
   if (nsMap) {
     for (const [name, info] of nsMap) {
       if (info.parsed) nsMap.delete(name);
@@ -177,25 +172,12 @@ function syncParsedAttributeNamespaces(el: { _id: number; _info?: unknown }): vo
       nsMap = undefined;
     }
   }
-  if (!Array.isArray(parsed) || parsed.length === 0) {
-    parsedAttributeNamespaceSync.set(el, { info, attrSeq });
-    return;
-  }
+  if (parsed === undefined || parsed.length === 0) return;
   if (!nsMap) {
     nsMap = new Map();
     attrNs.set(el._id, nsMap);
   }
-  const entries: unknown[] = parsed;
-  for (const rawInfo of entries) {
-    if (!isAttributeNamespaceRecord(rawInfo)) continue;
-    const info = rawInfo;
-    if (
-      typeof info?.qualifiedName !== "string" ||
-      typeof info.namespaceURI !== "string" ||
-      typeof info.localName !== "string"
-    ) {
-      continue;
-    }
+  for (const info of parsed) {
     const existing = nsMap.get(info.qualifiedName);
     if (existing && !existing.parsed) continue;
     nsMap.set(info.qualifiedName, {
@@ -207,8 +189,11 @@ function syncParsedAttributeNamespaces(el: { _id: number; _info?: unknown }): vo
     });
   }
   fastpathMarkSpecial(el._id);
-  parsedAttributeNamespaceSync.set(el, { info, attrSeq });
 }
+
+// The attribute list of every attribute-less element; never mutated (frozen to keep it so).
+const NO_ATTRIBUTES: string[] = [];
+Object.freeze(NO_ATTRIBUTES);
 
 function getFormState(id: number) {
   let s = formState.get(id);
@@ -607,34 +592,28 @@ class Element extends NodeBase implements Idl.Element {
   _attrFlat(): string[] {
     const curSeqEarly = ksState().attrSeq | 0;
     if (this._attrFlatCache !== null && this._attrFlatCacheSeq === curSeqEarly) {
-      syncParsedAttributeNamespaces(this);
       return this._attrFlatCache;
     }
-    if (this._attrFlatCache !== null && this._attrFlatCacheSeq !== curSeqEarly) {
-      this._attrFlatCache = null;
-    }
-    if (this._attrFlatCache !== null) {
-      syncParsedAttributeNamespaces(this);
-      return this._attrFlatCache;
-    }
+    this._attrFlatCache = null;
     const curSeq = ksState().mutationSeq | 0;
     if (this._typeCheckSeq === curSeq && this._info && this._info.attributes) {
       const arr = this._info.attributes;
       this._attrFlatCache = arr;
       this._attrFlatCacheSeq = curSeqEarly;
-      syncParsedAttributeNamespaces(this);
+      syncParsedAttributeNamespaces(this, this._info.attributeNamespaces);
       return arr;
     }
+    // attributeList, not nodeInfo: _info stays the identity record nodeFor shares between
+    // elements of one name, rather than a full per-element record.
     try {
-      const fresh = dom.nodeInfo(this._id);
-      const arr = (fresh && fresh.attributes) || [];
+      const fresh = dom.attributeList(this._id);
+      const arr = fresh?.attributes ?? NO_ATTRIBUTES;
       this._attrFlatCache = arr;
       this._attrFlatCacheSeq = curSeqEarly;
-      if (fresh) this._info = fresh;
-      syncParsedAttributeNamespaces(this);
+      if (fresh) syncParsedAttributeNamespaces(this, fresh.attributeNamespaces);
       return arr;
     } catch {
-      return [];
+      return NO_ATTRIBUTES;
     }
   }
 

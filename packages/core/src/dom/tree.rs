@@ -16,9 +16,19 @@ use wasm_bindgen::prelude::*;
 
 use crate::{DomHandle, LayoutMode, NodeHandleMap};
 use crate::dom::cdp::{
-    check_node_budget, check_subtree_budget, describe_node, describe_node_identity, subtree_size,
-    Subtree, SubtreeBudgetError, SUBTREE_BUDGET_BYTES,
+    check_node_budget, check_subtree_budget, describe_attributes, describe_node,
+    describe_node_identity, subtree_size, AttributeList, Subtree, SubtreeBudgetError,
+    SUBTREE_BUDGET_BYTES,
 };
+
+/// The outcomes `nodeInfo` distinguishes, for reads that mirror it.
+pub(crate) enum NodeRead<T> {
+    /// The id names no live node; `nodeInfo` throws.
+    Missing,
+    /// The document is mutably borrowed; `nodeInfo` returns null.
+    Busy,
+    Read(T),
+}
 
 /// A budget error as JS, or null when the reply fits.
 fn budget_error_json(error: Option<SubtreeBudgetError>) -> Result<JsValue, JsError> {
@@ -1315,6 +1325,37 @@ impl DomHandle {
         )
         .ok_or_else(|| JsError::new("node not found"))?;
         serde_wasm_bindgen::to_value(&info).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// `nodeInfo`'s `attributes` and `attributeNamespaces` alone. The shim's attribute cache
+    /// reads it, so an element wrapper never keeps a full `nodeInfo` record.
+    #[wasm_bindgen(
+        js_name = "attributeList",
+        unchecked_return_type = "KsAttributeList | null"
+    )]
+    pub fn attribute_list(&self, node_id: u32) -> Result<JsValue, JsError> {
+        match self.read_attribute_list(node_id) {
+            NodeRead::Missing => Err(JsError::new("node not found")),
+            NodeRead::Busy => Ok(JsValue::NULL),
+            NodeRead::Read(list) => {
+                serde_wasm_bindgen::to_value(&list).map_err(|e| JsError::new(&e.to_string()))
+            }
+        }
+    }
+
+    pub(crate) fn read_attribute_list(&self, node_id: u32) -> NodeRead<AttributeList> {
+        let Some(internal_id) = self.resolve_node_id(node_id) else {
+            return NodeRead::Missing;
+        };
+        let Ok(doc) = self.doc.try_borrow() else {
+            return NodeRead::Busy;
+        };
+        let list = doc.get_node(internal_id).map(describe_attributes);
+        drop(doc);
+        match list {
+            Some(list) => NodeRead::Read(list),
+            None => NodeRead::Missing,
+        }
     }
 
     /// The first non-empty value of an attribute whose qualified name is `id`, as found in

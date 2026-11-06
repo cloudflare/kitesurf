@@ -60,10 +60,10 @@ fn next_visibility_node(doc: &BaseDocument, stack: &mut Vec<VisibilityCursor>) -
     }
 }
 
-// The TypeScript shape of a serialized CdpNode, for the methods that return
-// one (nodeInfo, getDocument, nodeSubtree). serde_wasm_bindgen writes a
-// skipped or None field as absent or undefined, hence the optional members.
-// Keep it in step with CdpNode and CdpAttributeNamespace.
+// The TypeScript shape of a serialized CdpNode (nodeInfo, getDocument, nodeSubtree) and
+// AttributeList (attributeList). serde_wasm_bindgen writes a skipped or None field as absent
+// or undefined, hence the optional members. Keep it in step with CdpNode, AttributeList and
+// CdpAttributeNamespace.
 #[wasm_bindgen(typescript_custom_section)]
 const TS_CDP_NODE: &str = r#"
 export interface KsAttributeNamespace {
@@ -78,6 +78,10 @@ export interface KsNodeIdentity {
     localName: string;
     nodeValue: string;
     namespaceURI?: string;
+}
+export interface KsAttributeList {
+    attributes?: string[];
+    attributeNamespaces?: KsAttributeNamespace[];
 }
 export interface KsNodeInfo extends KsNodeIdentity {
     nodeId: number;
@@ -686,6 +690,52 @@ fn budget_error(size: SubtreeSize) -> Option<SubtreeBudgetError> {
     None
 }
 
+/// A node's attributes as `nodeInfo` reports them: flat qualified-name/value pairs, plus the
+/// namespace of each namespaced attribute. Both are absent when empty or for a non-element.
+#[derive(Serialize)]
+pub(crate) struct AttributeList {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) attributes: Option<Vec<String>>,
+    #[serde(
+        rename = "attributeNamespaces",
+        skip_serializing_if = "Option::is_none"
+    )]
+    attribute_namespaces: Option<Vec<CdpAttributeNamespace>>,
+}
+
+pub(crate) fn describe_attributes(node: &Node) -> AttributeList {
+    let (NodeData::Element(data) | NodeData::AnonymousBlock(data)) = &node.data else {
+        return AttributeList {
+            attributes: None,
+            attribute_namespaces: None,
+        };
+    };
+    let mut flat: Vec<String> = Vec::with_capacity(data.attrs.len() * 2);
+    let mut attribute_namespaces = Vec::new();
+    for attr in data.attrs.iter() {
+        let local_name = attr.name.local.to_string();
+        let prefix = attr.prefix().map(ToString::to_string);
+        let qualified_name = prefix
+            .as_ref()
+            .map(|prefix| format!("{prefix}:{local_name}"))
+            .unwrap_or_else(|| local_name.clone());
+        flat.push(qualified_name.clone());
+        flat.push(attr.value.to_string());
+        if !attr.namespace().is_empty() {
+            attribute_namespaces.push(CdpAttributeNamespace {
+                qualified_name,
+                namespace_uri: attr.namespace().to_string(),
+                prefix,
+                local_name,
+            });
+        }
+    }
+    AttributeList {
+        attributes: (!flat.is_empty()).then_some(flat),
+        attribute_namespaces: (!attribute_namespaces.is_empty()).then_some(attribute_namespaces),
+    }
+}
+
 /// Describes node `id`; `subtree` None leaves out children and shadow roots.
 pub(crate) fn describe_node(
     doc: &BaseDocument,
@@ -711,35 +761,10 @@ pub(crate) fn describe_node(
         namespace_uri,
     } = describe_node_identity(node);
     let is_doc = matches!(node.data, NodeData::Document(_));
-    let (attributes, attribute_namespaces) = match &node.data {
-        NodeData::Element(data) | NodeData::AnonymousBlock(data) => {
-            let mut flat: Vec<String> = Vec::with_capacity(data.attrs.len() * 2);
-            let mut attribute_namespaces = Vec::new();
-            for attr in data.attrs.iter() {
-                let local_name = attr.name.local.to_string();
-                let prefix = attr.prefix().map(ToString::to_string);
-                let qualified_name = prefix
-                    .as_ref()
-                    .map(|prefix| format!("{prefix}:{local_name}"))
-                    .unwrap_or_else(|| local_name.clone());
-                flat.push(qualified_name.clone());
-                flat.push(attr.value.to_string());
-                if !attr.namespace().is_empty() {
-                    attribute_namespaces.push(CdpAttributeNamespace {
-                        qualified_name,
-                        namespace_uri: attr.namespace().to_string(),
-                        prefix,
-                        local_name,
-                    });
-                }
-            }
-            (
-                (!flat.is_empty()).then_some(flat),
-                (!attribute_namespaces.is_empty()).then_some(attribute_namespaces),
-            )
-        }
-        _ => (None, None),
-    };
+    let AttributeList {
+        attributes,
+        attribute_namespaces,
+    } = describe_attributes(node);
 
     let child_node_count = node.children().len() as u32;
     let children =
