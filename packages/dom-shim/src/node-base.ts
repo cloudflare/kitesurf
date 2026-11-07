@@ -39,7 +39,6 @@ import {
 } from "./range.js";
 import { runIteratorPreRemove } from "./traversal.js";
 import { ksSpan } from "./otel.js";
-import { stampConnectedNamedGlobals } from "./window.js";
 import {
   cache,
   hasLiveWrapper,
@@ -104,6 +103,12 @@ import { addListener, removeListener } from "./events/dispatch.js";
 import { dispatchOnKey } from "./events/dispatch.js";
 import { maybeScheduleSlotchange } from "./events/slotchange.js";
 import { ksInternals } from "./internals.js";
+import {
+  captureNamedGlobals,
+  forgetCapturedNamedGlobals,
+  installConnectedNamedGlobals,
+  syncNamedGlobals,
+} from "./window.js";
 
 const MAX_CONNECTED_NODE_ANCESTOR_HOPS = 8192;
 
@@ -390,11 +395,16 @@ export function subtreeHasCachedWrapper(nodeId: number): boolean {
   return unwrappedSubtreeIds(nodeId) === null;
 }
 
-function dropUnwrappedSubtree(nodeId: number): boolean {
+// One subtree, for a caller that has to know which children the drop freed.
+export function dropUnwrappedSubtree(nodeId: number): boolean {
   if (nodeId < 0) return false;
   const droppedIds = unwrappedSubtreeIds(nodeId);
-  if (!droppedIds || !dom.dropNode(nodeId)) return false;
+  if (!droppedIds) return false;
+  // The drop frees the nodes, so the names their ids installed are read first.
+  const names = captureNamedGlobals(droppedIds);
+  if (!dom.dropNode(nodeId)) return false;
   forgetNodeIds(droppedIds);
+  forgetCapturedNamedGlobals(names);
   return true;
 }
 
@@ -946,6 +956,8 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     const text = String(value ?? "");
     const existing: NodeBase[] = [];
     const removedIds: number[] = [];
+    // Children a drop did not free: only these still exist in wasm to lose a name.
+    const keptIds: number[] = [];
     const rawIds = Array.from(dom.childIds(this._id));
     const observed = hasChildListObserver(this._id);
     const transientlyObserved = hasSubtreeObserver(this._id);
@@ -953,6 +965,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       removedIds.push(cid);
       // Preserve wrapped removed nodes when an observer needs them in the childList record.
       if (!observed && dropUnwrappedSubtree(cid)) continue;
+      keptIds.push(cid);
       if (transientlyObserved) registerTransientObservers(cid);
       const c = nodeFor(cid);
       if (!c) continue;
@@ -976,6 +989,8 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       }
     }
     bumpMutationSeq("text");
+    // A dropped child's names went with the drop; only the kept children are left to read.
+    for (const cid of keptIds) syncNamedGlobals(cid);
     for (const cid of removedIds) {
       recordCdpMutation({
         kind: "childNodeRemoved",
@@ -1184,7 +1199,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       recordChildListMutation(child, [], kids, null, null);
       recordChildListMutation(this, kids, [], prevSiblingForAdd, null);
       for (const k of kids) {
-        stampConnectedNamedGlobals(k._id);
+        installConnectedNamedGlobals(k._id);
         notifySubtreeInserts(k);
         notifyConnectedCallbacks(k);
       }
@@ -1240,7 +1255,9 @@ class NodeBase extends KsEventTarget implements Idl.Node {
         recordChildListMutation(oldParent, [], [child], oldPrevSibling, oldNextSibling);
       }
       recordChildListMutation(this, [child], [], prevSiblingForAdd, null);
-      stampConnectedNamedGlobals(child._id);
+      // A child that had a parent may have left the document; a fresh one had no name to lose.
+      if (oldParent) syncNamedGlobals(child._id);
+      else installConnectedNamedGlobals(child._id);
       notifySubtreeInserts(child);
       notifyConnectedCallbacks(child);
       return child;
@@ -1340,7 +1357,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       recordChildListMutation(newChild, [], kids, null, null);
       recordChildListMutation(this, kids, [], prevSiblingForAdd, nextSiblingForAdd);
       for (const k of kids) {
-        stampConnectedNamedGlobals(k._id);
+        installConnectedNamedGlobals(k._id);
         notifySubtreeInserts(k);
         notifyConnectedCallbacks(k);
       }
@@ -1422,7 +1439,9 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       recordChildListMutation(oldParent, [], [newChild], oldPrevSibling, oldNextSibling);
     }
     recordChildListMutation(this, [newChild], [], prevSiblingForAdd, nextSiblingForAdd);
-    stampConnectedNamedGlobals(newChild._id);
+    // A child that had a parent may have left the document; a fresh one had no name to lose.
+    if (oldParent) syncNamedGlobals(newChild._id);
+    else installConnectedNamedGlobals(newChild._id);
     notifySubtreeInserts(newChild);
     notifyConnectedCallbacks(newChild);
     return newChild;
@@ -1472,6 +1491,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       nodeId: removedNodeId,
     });
     recordChildListMutation(this, [], [child], removedPrev, removedNext);
+    syncNamedGlobals(removedNodeId);
     return child;
   }
   replaceChild<T extends NodeBase>(newChild: NodeBase, oldChild: T): T {
@@ -1584,7 +1604,10 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     }
     const swapRemoved = isSelfReplace ? [] : [oldChild];
     recordChildListMutation(this, [newChild], swapRemoved, swapPrev, swapNext);
-    stampConnectedNamedGlobals(newChild._id);
+    // The inserted node takes its names; the replaced one loses them unless it is the same node,
+    // which sync sees as still connected.
+    syncNamedGlobals(newChild._id);
+    syncNamedGlobals(oldChild._id);
     return oldChild;
   }
   before(...nodes: Array<NodeBase | string>): void {

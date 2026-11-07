@@ -32,7 +32,11 @@ import {
   fastpathMarkSpecial,
 } from "./state.js";
 import { elementAttributes } from "./element/element.js";
-import { installWindow, stampInitialNamedGlobals } from "./window.js";
+import {
+  installInitialNamedGlobals,
+  installNamedPropertiesObject,
+  installWindow,
+} from "./window.js";
 import {
   setDocumentImpl,
   setNodeFor,
@@ -625,6 +629,8 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
   setDocumentImpl(document);
 
   const { window, Window } = installWindow(document);
+  installNamedPropertiesObject();
+  installInitialNamedGlobals();
 
   createModelContext({
     getWindow: () => window,
@@ -917,7 +923,6 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     },
     __ks_dispatchTrustedEvent: dispatchTrustedEvent,
     __ks_activateLabel: activateLabel,
-    stampInitialNamedGlobals: stampInitialNamedGlobals,
     applyDeclarativeShadowRoots: () => applyDeclarativeShadowRoots(document),
   };
 

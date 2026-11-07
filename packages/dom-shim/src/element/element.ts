@@ -51,12 +51,14 @@ import {
 import { hasLayoutBox, getRect } from "../layout/cheap.js";
 import { isToolFormActive, isToolSubmitActive } from "../model-context.js";
 import { maybeScheduleSlotchange } from "../events/slotchange.js";
-import {
-  stampDetachedSubtreeNamedGlobals,
-  stampNamedGlobal,
-  stampSubtreeNamedGlobals,
-} from "../window.js";
+import {} from "../window.js";
 import { dispatchTrustedEvent } from "../events/dispatch.js";
+import {
+  installConnectedNamedGlobals,
+  namedGlobalIdOf,
+  syncNamedGlobals,
+  updateNamedGlobal,
+} from "../window.js";
 import {
   focusForwardedTextControl,
   forwardedClickFrom,
@@ -118,6 +120,7 @@ import {
   isTemplateElement,
   ensureTemplateContent,
   subtreeHasCachedWrapper,
+  dropUnwrappedSubtree,
   dropUnwrappedSubtrees,
 } from "../node-base.js";
 import type { DetachedDocument } from "../document.js";
@@ -272,7 +275,6 @@ export function parseFragmentInContext(
   dom.dropNode(contextId);
   if (kids.length > 0) bumpMutationSeq();
   syncCheckedFromAttrs(fragment);
-  if (html.indexOf("id") !== -1) stampDetachedSubtreeNamedGlobals(fragment._id);
 }
 
 // Bind on first use. The `dom` binding is null until initState runs.
@@ -724,9 +726,11 @@ class Element extends NodeBase implements Idl.Element {
     const strValue = String(value);
     ensureDomAttrFns();
     if (domSetAttr) {
+      // The old name has to be read before the write; the deferred path updates it in recordOp.
+      const previousId = finalName === "id" ? namedGlobalIdOf(this._id) : null;
       if (domSetAttr(this._id, finalName, strValue)) {
         bumpMutationSeq({ attribute: finalName, node: this._id });
-        if (finalName === "id") stampNamedGlobal(this._id, strValue);
+        if (finalName === "id") updateNamedGlobal(previousId, strValue);
         if (ksInternals.cdpDomActive) {
           cdpMutations.push({
             kind: "attributeModified",
@@ -837,9 +841,10 @@ class Element extends NodeBase implements Idl.Element {
     this._attrFlatCache = null;
     ensureDomAttrFns();
     if (domRemoveAttr) {
+      const previousId = wasmKey === "id" ? namedGlobalIdOf(this._id) : null;
       if (domRemoveAttr(this._id, wasmKey)) {
         bumpMutationSeq({ attribute: wasmKey, node: this._id });
-        if (wasmKey === "id") stampNamedGlobal(this._id, "");
+        if (wasmKey === "id") updateNamedGlobal(previousId, null);
         if (ksInternals.cdpDomActive) {
           cdpMutations.push({
             kind: "attributeRemoved",
@@ -1314,7 +1319,6 @@ class Element extends NodeBase implements Idl.Element {
         }
       }
       syncCheckedFromAttrs(frag);
-      if (htmlText.indexOf("id") !== -1) stampSubtreeNamedGlobals(frag);
       return;
     }
     const observed = hasChildListObserver(this._id);
@@ -1329,7 +1333,15 @@ class Element extends NodeBase implements Idl.Element {
       }
     }
     recordOp({ kind: "setInnerHtml", node: this._id, html: htmlText });
-    if (!observed) dropUnwrappedSubtrees(oldChildIds);
+    // The replaced children are detached but still exist in wasm, so their ids are readable. A
+    // dropped subtree captured and forgot its names already, so only the kept ones are left.
+    for (const childId of oldChildIds) {
+      if (!observed && dropUnwrappedSubtree(childId)) continue;
+      syncNamedGlobals(childId);
+    }
+    // New markup brings its own ids; without one there is nothing to install. HTML lowercases
+    // attribute names, so the guard cannot be case-sensitive.
+    if (/id/i.test(htmlText)) installConnectedNamedGlobals(this._id);
     if (oldChildren) {
       const newChildren = Array.from<NodeBase>(this.childNodes);
       if (oldChildren.length > 0 || newChildren.length > 0) {
@@ -1337,7 +1349,6 @@ class Element extends NodeBase implements Idl.Element {
       }
     }
     syncCheckedFromAttrs(this);
-    if (htmlText.indexOf("id") !== -1) stampSubtreeNamedGlobals(this);
   }
   get content(): DocumentFragmentImpl | undefined {
     if (!isTemplateElement(this._id)) return undefined;
@@ -1379,12 +1390,14 @@ class Element extends NodeBase implements Idl.Element {
         dom.removeNode(k._id);
       } catch {}
       dom.insertBeforeNode(parent._id, k._id, refId);
+      installConnectedNamedGlobals(k._id);
     }
     const removedSelfId = this._id;
     runIteratorPreRemove(this);
     try {
       dom.removeNode(this._id);
     } catch {}
+    syncNamedGlobals(removedSelfId);
     bumpMutationSeq();
     let prevForCdp = prevSibling ? prevSibling._id : 0;
     for (const k of moved) {

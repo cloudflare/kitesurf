@@ -94,6 +94,10 @@ Do not undo these.
 
 - The sandbox ships a pure-JS `MessagePort`; page JS must never reach the native one.
 - Every outbound request needs a deadline, and an ignored response body must be cancelled.
+- The global's named-properties object (`packages/dom-shim/src/window.ts`) is an ordinary object,
+  never a Proxy: with a Proxy in the global's prototype chain, V8 resolves an unresolvable
+  reference without calling its `has` trap and assigns through `set`, so strict code created a
+  global instead of throwing ReferenceError.
 
 We do not shim single-subtest differences from the spec in the platform; we pin the test and report
 upstream. Reproduce by running the snippet under `node` and under

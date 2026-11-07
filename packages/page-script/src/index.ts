@@ -3729,11 +3729,6 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         built.applyDeclarativeShadowRoots();
       } catch {}
     }
-    if (typeof built.stampInitialNamedGlobals === "function") {
-      try {
-        built.stampInitialNamedGlobals();
-      } catch {}
-    }
     emitNavigateDiagnostic("end", "shim");
     markPhase("shimMs");
     if (fontDeferActive() && hasScriptObservers) {

@@ -13,6 +13,7 @@ import {
   ksGlobalByKey,
   dom,
   documentImpl,
+  elementFor,
   documentOpaqueOrigin,
   getCurrentUrl,
   getDocumentUrl,
@@ -30,7 +31,7 @@ import {
   cookieString,
   setCookieString,
 } from "./state.js";
-import { stampedNames, nodeIdName, forgetIdGlobal, boundFromGlobal } from "./registries.js";
+import { boundFromGlobal } from "./registries.js";
 import { getDocId } from "./mutations/attached.js";
 import {
   DEFAULT_VIEWPORT_HEIGHT_CSS_PX,
@@ -40,9 +41,8 @@ import {
   notSupported,
 } from "./constants.js";
 import { ksSpan } from "./otel.js";
-import { isReservedGlobalName, cssPropCamelToKebab } from "./util/strings.js";
+import { cssPropCamelToKebab } from "./util/strings.js";
 import { normalizeScrollArgs } from "./util/scroll-args.js";
-import type { Element } from "./element/element.js";
 import {
   addListener,
   removeListener,
@@ -1345,52 +1345,125 @@ function buildWindow(document: DocumentImpl) {
   return { window, windowObj, Window };
 }
 
-// Every owner is recorded, so reclaiming one node keeps the accessor for a connected same-ID node.
-// The accessor is installed only once an owner is in the document: a detached-only ID must leave
-// `name in window` false and a bare read a ReferenceError.
-export function stampNamedGlobal(nodeId: number, name: string): void {
-  recordNamedGlobal(nodeId, name, isConnectedNode(nodeId));
+// The HTML named properties object sits between the global and its prototype, the slot Blink's
+// WindowProperties fills. It must stay an ORDINARY object: with a Proxy in the global's prototype
+// chain, V8 resolves an unresolvable reference without calling the proxy's `has` trap, so strict
+// code created a global instead of throwing ReferenceError (AGENTS.md, platform quirks).
+
+// A name gets an accessor only while a connected element carries that id: one is installed when
+// the element joins the document and dropped when the last owner leaves, so a detached id stays
+// invisible without paying one accessor per id at parse time.
+interface NamedProperties {
+  readonly object: object;
+  // The object's prototype. A member the prototype chain already has wins, so a named property
+  // never shadows one: `Reflect.has(props.parent, name)` skips ids like `toString`.
+  readonly parent: object;
+  // One getter per installed name, for identity checks when a name loses its last owner.
+  readonly getters: Map<string, () => unknown>;
 }
 
-function recordNamedGlobal(nodeId: number, name: string, connected: boolean): void {
-  if (nodeIdName.get(nodeId) !== name) forgetIdGlobal(nodeId);
-  if (typeof name !== "string" || name.length === 0) return;
-  if (/^[0-9_$]/.test(name)) return;
-  nodeIdName.set(nodeId, name);
-  let entry = stampedNames.get(name);
-  if (!entry) {
-    entry = {
-      getter() {
-        return namedGlobalValue(name);
-      },
-      nodeIds: nodeId,
-    };
-    stampedNames.set(name, entry);
-  } else if (typeof entry.nodeIds === "number") {
-    // Most names have one owner; allocate the set only for a second node.
-    if (entry.nodeIds !== nodeId) entry.nodeIds = new Set([entry.nodeIds, nodeId]);
-  } else {
-    entry.nodeIds.add(nodeId);
+let namedProperties: NamedProperties | null = null;
+
+export function installNamedPropertiesObject(): void {
+  const installed = namedProperties;
+  if (installed !== null && Object.getPrototypeOf(ksGlobal) === installed.object) {
+    // A second document in one isolate keeps the object but none of the old document's names. A
+    // name the page made undeletable keeps its getters entry, so a later forget retries it.
+    for (const name of [...installed.getters.keys()]) {
+      if (Reflect.deleteProperty(installed.object, name)) installed.getters.delete(name);
+    }
+    return;
   }
-  // An own property here is a real global or the page's own; a named property never shadows it.
-  if (!connected || isReservedGlobalName(name)) return;
-  const getter = entry.getter;
+  const parent = Object.getPrototypeOf(ksGlobal);
+  const object = Object.create(parent);
+  namedProperties = { object, parent, getters: new Map() };
+  Object.setPrototypeOf(ksGlobal, object);
+}
+
+// Same names the eager registry stamped: no numeric, underscore, or dollar prefixes.
+function isBareNamedProperty(name: string): boolean {
+  return name.length > 0 && !/^[0-9_$]/.test(name);
+}
+
+// The wasm id map answers the connected light-tree element that carries an id: shadow-tree ids
+// and template contents stay out of it, and no page-replaceable method is involved.
+function hasDocumentOwner(name: string): boolean {
   try {
-    Object.defineProperty(ksGlobal, name, {
+    return dom.getElementById(name) >= 0;
+  } catch {
+    return false;
+  }
+}
+
+// The getter resolves through the live id map at read time, so a duplicate id answers the
+// connected owner the map reports.
+function installNamedGlobal(name: string): void {
+  const props = namedProperties;
+  if (props === null || props.getters.has(name)) return;
+  if (!isBareNamedProperty(name) || Reflect.has(props.parent, name)) return;
+  const getter = () => namedGlobalValue(name);
+  // An assignment makes a real global that shadows the named property, as Chrome's writable
+  // named property does, and the accessor stays so deleting that global exposes it again. A
+  // getter-only accessor would instead throw TypeError in strict code and drop the value in
+  // sloppy code.
+  const setter = function (this: unknown, value: unknown): void {
+    const receiver = typeof this === "object" && this !== null ? this : ksGlobal;
+    try {
+      Reflect.defineProperty(receiver, name, {
+        value,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+    } catch {}
+  };
+  try {
+    Object.defineProperty(props.object, name, {
       configurable: true,
-      enumerable: true,
+      // Chrome keeps named properties off the global's own keys, and every enumeration here
+      // already skips them; enumerating this object would only add ids to a for-in over the
+      // global.
+      enumerable: false,
       get: getter,
-      set(value: unknown) {
-        stampedNames.delete(name);
-        Object.defineProperty(ksGlobal, name, {
-          value,
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        });
-      },
+      set: setter,
     });
-  } catch {}
+  } catch {
+    // A page can freeze the named properties object or keep a non-configurable same-name
+    // property on it. The mutation that asked for the name still applies without it.
+    return;
+  }
+  props.getters.set(name, getter);
+}
+
+// An id installs a name only while the id map holds it, so a shadow-tree or template id never
+// gets an accessor and any connected owner keeps a duplicate id visible.
+function installOwnedNamedGlobal(name: string): void {
+  if (hasDocumentOwner(name)) installNamedGlobal(name);
+}
+
+// A name keeps its accessor while any connected element carries that id.
+function forgetNamedGlobal(name: string): void {
+  const props = namedProperties;
+  if (props === null) return;
+  const getter = props.getters.get(name);
+  if (getter === undefined) return;
+  if (hasDocumentOwner(name)) return;
+  const desc = Object.getOwnPropertyDescriptor(props.object, name);
+  // A page that replaced the accessor through the prototype keeps its property.
+  if (desc !== undefined && desc.get !== getter) {
+    props.getters.delete(name);
+    return;
+  }
+  // A name the page made undeletable keeps its getters entry, so a later forget retries it.
+  if (Reflect.deleteProperty(props.object, name)) props.getters.delete(name);
+}
+
+function idAttributeOf(nodeId: number): string | null {
+  try {
+    return dom.idAttribute(nodeId) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function isConnectedNode(nodeId: number): boolean {
@@ -1403,41 +1476,126 @@ function isConnectedNode(nodeId: number): boolean {
   }
 }
 
-// Insertion is when a detached owner's name becomes visible. Read IDs from
-// wasm so a page-replaced querySelectorAll or getAttribute is never called.
-export function stampConnectedNamedGlobals(rootId: number): void {
-  if (!isConnectedNode(rootId)) return;
-  const rootIdAttr = idAttributeOf(rootId);
-  if (rootIdAttr !== null) recordNamedGlobal(rootId, rootIdAttr, true);
-  stampSubtreeIds(rootId, true);
-}
-
-function idAttributeOf(nodeId: number): string | null {
+// Descendant ids only: the selector engine scopes to the root and skips it. Read from wasm so a
+// page-replaced querySelectorAll is never called.
+function subtreeIdNodes(rootId: number): Iterable<number> {
   try {
-    return dom.idAttribute(nodeId) ?? null;
+    return dom.querySelectorAllInSubtree(rootId, "[id]");
   } catch {
-    return null;
+    return [];
   }
 }
 
-// Descendants only: the selector engine scopes to the root and skips it.
-function stampSubtreeIds(rootId: number, connected: boolean) {
-  try {
-    for (const nodeId of dom.querySelectorAllInSubtree(rootId, "[id]")) {
-      const id = idAttributeOf(nodeId);
-      if (id !== null) recordNamedGlobal(nodeId, id, connected);
-    }
-  } catch {}
+function installNodeNamedGlobal(nodeId: number): void {
+  const name = idAttributeOf(nodeId);
+  if (name !== null) installOwnedNamedGlobal(name);
 }
 
-// The accessor behind a bare ID, resolved through blitz's ID map. Frame names without a
-// matching ID go through the window proxy instead, which scans every iframe and would make
-// each bare read O(document).
+function forgetNodeNamedGlobal(nodeId: number): void {
+  const name = idAttributeOf(nodeId);
+  if (name !== null) forgetNamedGlobal(name);
+}
+
+function installSubtreeNamedGlobals(rootId: number): void {
+  installNodeNamedGlobal(rootId);
+  for (const nodeId of subtreeIdNodes(rootId)) installNodeNamedGlobal(nodeId);
+}
+
+// The removed subtree still exists in wasm, so its ids are still readable here.
+function forgetSubtreeNamedGlobals(rootId: number): void {
+  forgetNodeNamedGlobal(rootId);
+  for (const nodeId of subtreeIdNodes(rootId)) forgetNodeNamedGlobal(nodeId);
+}
+
+// The parsed document's ids, stamped once at build. The document-scoped query already answers
+// only connected light-tree ids, so no id here needs the owner lookup.
+export function installInitialNamedGlobals(): void {
+  if (namedProperties === null) return;
+  let ids: Int32Array;
+  try {
+    ids = dom.querySelectorAll("[id]");
+  } catch {
+    return;
+  }
+  for (const nodeId of ids) {
+    const name = idAttributeOf(nodeId);
+    if (name !== null) installNamedGlobal(name);
+  }
+}
+
+// Insertion is when a detached id's name becomes visible.
+export function installConnectedNamedGlobals(rootId: number): void {
+  if (namedProperties === null || !isConnectedNode(rootId)) return;
+  installSubtreeNamedGlobals(rootId);
+}
+
+// One entry for a mutation that can move a name across the document boundary: a connected root
+// installs its subtree's ids, a detached one forgets them. With no name installed a detached
+// root has nothing to forget, so it skips the subtree query.
+export function syncNamedGlobals(rootId: number): void {
+  const props = namedProperties;
+  if (props === null) return;
+  if (isConnectedNode(rootId)) {
+    installSubtreeNamedGlobals(rootId);
+    return;
+  }
+  if (props.getters.size === 0) return;
+  forgetSubtreeNamedGlobals(rootId);
+}
+
+// A dropped subtree's nodes are freed by the drop, so its names are read first and forgotten
+// afterwards.
+export function captureNamedGlobals(ids: Iterable<number>): string[] {
+  const props = namedProperties;
+  if (props === null || props.getters.size === 0) return [];
+  const names: string[] = [];
+  for (const nodeId of ids) {
+    const name = idAttributeOf(nodeId);
+    if (name !== null && props.getters.has(name)) names.push(name);
+  }
+  return names;
+}
+
+export function forgetCapturedNamedGlobals(names: readonly string[]): void {
+  for (const name of names) forgetNamedGlobal(name);
+}
+
+// An id write: the old name may have lost its last owner, and the new one becomes visible.
+// `idAttributeOf` reports no id for an empty value, so "" and null both mean "no id".
+export function updateNamedGlobal(previousId: string | null, nextId: string | null): void {
+  if (previousId !== null) forgetNamedGlobal(previousId);
+  if (nextId === null || nextId.length === 0) return;
+  installOwnedNamedGlobal(nextId);
+}
+
+// The id a node carries now, for a caller that is about to change it.
+export function namedGlobalIdOf(nodeId: number): string | null {
+  return idAttributeOf(nodeId);
+}
+
+// An attribute value read straight from wasm, so a page-replaced getAttribute cannot answer it.
+function attributeValueOf(nodeId: number, name: string): string | null {
+  try {
+    const flat = dom.attributeList(nodeId)?.attributes;
+    if (!flat) return null;
+    for (let i = 0; i < flat.length; i += 2) {
+      if (flat[i] === name) return flat[i + 1];
+    }
+  } catch {}
+  return null;
+}
+
+// The value behind a named global, resolved through the wasm id map and the wrapper builder
+// document.getElementById uses, so a page-replaced getElementById or getAttribute cannot answer
+// for it. Frame names without a matching ID go through the window proxy instead, which scans
+// every iframe and would make each bare read O(document).
 function namedGlobalValue(name: string): unknown {
   try {
-    const el = documentImpl?.getElementById(name);
+    const nodeId = dom.getElementById(name);
+    if (nodeId < 0) return undefined;
+    const el = elementFor(nodeId);
     if (!el) return undefined;
-    if (el.localName === "iframe" && el.getAttribute("name") === name) {
+    if (el.localName === "iframe" && attributeValueOf(nodeId, "name") === name) {
       const frame: NamedIframe = el;
       return frame.contentWindow ?? undefined;
     }
@@ -1509,23 +1667,6 @@ function namedAccess(prop: PropertyKey) {
   return undefined;
 }
 
-export function stampSubtreeNamedGlobals(el: Element): void {
-  try {
-    const withIds = el.querySelectorAll("[id]");
-    for (let i = 0; i < withIds.length; i++) {
-      const node = withIds[i];
-      const id = node && node.getAttribute && node.getAttribute("id");
-      if (typeof id === "string" && id.length > 0) stampNamedGlobal(node._id, id);
-    }
-  } catch {}
-}
-
-// Parse-created fragments bypass setAttribute. Record their owners without
-// page-replaceable DOM calls; insertion installs the accessors.
-export function stampDetachedSubtreeNamedGlobals(rootId: number): void {
-  stampSubtreeIds(rootId, isConnectedNode(rootId));
-}
-
 const KS_NO_BIND = Symbol("ks-no-bind");
 function markNoBind<F extends object>(fn: F, idlName?: string): F {
   try {
@@ -1548,20 +1689,4 @@ function assertWindowReceiver(self: unknown) {
   if (self === null || self === undefined) return;
   if (self === stateWindowObj || self === windowProxy || self === globalThis) return;
   throw new TypeError("Illegal invocation");
-}
-
-export function stampInitialNamedGlobals(): void {
-  let ids: Int32Array | null;
-  try {
-    ids = dom.querySelectorAll("[id]");
-  } catch {
-    return;
-  }
-  for (let i = 0; i < ids.length; i++) {
-    const nodeId = ids[i];
-    if (typeof nodeId !== "number" || nodeId <= 0) continue;
-    const id = idAttributeOf(nodeId);
-    // A document-scoped query only returns connected nodes.
-    if (id !== null) recordNamedGlobal(nodeId, id, true);
-  }
 }
