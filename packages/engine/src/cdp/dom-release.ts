@@ -69,6 +69,15 @@ export function releaseAllDomHandles(target: TargetState): void {
   releaseTargetDom(target);
 }
 
+// The engine keeps the source only to rehydrate a fallback DOM when PageScript is absent. A
+// large document's source is a second full copy of the page, so keep the fallback for small
+// pages and let PageScript own the document once it is live.
+export const MAX_RETAINED_FALLBACK_HTML_CHARS = 1 << 20;
+
+export function releaseFallbackHtml(target: TargetState): void {
+  if (target.html.length > MAX_RETAINED_FALLBACK_HTML_CHARS) target.html = "";
+}
+
 export function stripNoscript(dom: DomHandle): void {
   let ids: Int32Array;
   try {

@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from "vitest";
 import { handleDom } from "../src/cdp/dom.ts";
+import { MAX_RETAINED_FALLBACK_HTML_CHARS, releaseFallbackHtml } from "../src/cdp/dom-release.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
@@ -39,5 +40,19 @@ describe("DOM.getDocument before PageScript has a document", () => {
 
     expect(reply).toMatchObject({ root: { nodeName: "#document", childNodeCount: 0 } });
     expect(engineParsed).toBe(false);
+  });
+});
+
+describe("fallback HTML retention", () => {
+  it("keeps the source for small documents", () => {
+    const target = { html: "x".repeat(MAX_RETAINED_FALLBACK_HTML_CHARS) } as TargetState;
+    releaseFallbackHtml(target);
+    expect(target.html).toHaveLength(MAX_RETAINED_FALLBACK_HTML_CHARS);
+  });
+
+  it("drops the source for large documents once PageScript owns them", () => {
+    const target = { html: "x".repeat(MAX_RETAINED_FALLBACK_HTML_CHARS + 1) } as TargetState;
+    releaseFallbackHtml(target);
+    expect(target.html).toBe("");
   });
 });

@@ -171,6 +171,7 @@ import {
 import {
   ensureTargetDom,
   freeDetachedDom,
+  releaseFallbackHtml,
   releaseFrameDom,
   releaseTargetDom,
 } from "./dom-release.ts";
@@ -1170,7 +1171,10 @@ export async function handlePage(
           cdpMutations,
           exceptions,
         } = await pushNavigateToPageScript(ctx, target, inlinedPageHtml, finalUrl, armedIframeGate);
-        if (target.pageScript) releaseTargetDom(target);
+        if (target.pageScript) {
+          releaseTargetDom(target);
+          releaseFallbackHtml(target);
+        }
         await backfillIframeOwnerNodeIds(target);
         emitFrameDclComplete(ctx, target, mainFrame(target), req.sessionId);
         scheduleLoadCompleteEmit(ctx, target, req.sessionId, armedIframeGate);
@@ -1293,7 +1297,10 @@ export async function handlePage(
       emitCapturedConsole(ctx, target, capturedConsole, req.sessionId);
       emitCapturedExceptions(ctx, target, exceptions, req.sessionId);
       emitMutations(ctx, target, cdpMutations);
-      if (target.pageScript) releaseTargetDom(target);
+      if (target.pageScript) {
+        releaseTargetDom(target);
+        releaseFallbackHtml(target);
+      }
       return {};
     }
 
