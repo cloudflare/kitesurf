@@ -246,7 +246,7 @@ index 3ee3356..1eaa68d 100644
  fn snap_table_tracks(
      tracks: &mut taffy::DetailedGridTracksInfo<style::Atom>,
      raw_origin: f32,
-@@ -640,6 +674,44 @@ impl BaseDocument {
+@@ -640,6 +674,45 @@ impl BaseDocument {
          }
      }
 
