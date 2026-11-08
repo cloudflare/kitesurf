@@ -51,7 +51,6 @@ import {
 import { hasLayoutBox, getRect } from "../layout/cheap.js";
 import { isToolFormActive, isToolSubmitActive } from "../model-context.js";
 import { maybeScheduleSlotchange } from "../events/slotchange.js";
-import {} from "../window.js";
 import { dispatchTrustedEvent } from "../events/dispatch.js";
 import {
   installConnectedNamedGlobals,
@@ -597,14 +596,6 @@ class Element extends NodeBase implements Idl.Element {
       return this._attrFlatCache;
     }
     this._attrFlatCache = null;
-    const curSeq = ksState().mutationSeq | 0;
-    if (this._typeCheckSeq === curSeq && this._info && this._info.attributes) {
-      const arr = this._info.attributes;
-      this._attrFlatCache = arr;
-      this._attrFlatCacheSeq = curSeqEarly;
-      syncParsedAttributeNamespaces(this, this._info.attributeNamespaces);
-      return arr;
-    }
     // attributeList, not nodeInfo: _info stays the identity record nodeFor shares between
     // elements of one name, rather than a full per-element record.
     try {
