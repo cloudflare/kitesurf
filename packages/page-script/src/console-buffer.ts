@@ -178,7 +178,12 @@ export function drainCdpMutations(): CdpMutation[] {
       let nodeShape: InsertedNode | null = null;
       try {
         // Depth 0 keeps the event small whatever the subtree holds; clients request the rest.
-        const subtree = state.dom?.nodeSubtree(mutation.nodeId, 0, false);
+        // A shadow host or a lone text child still expands at depth 0, so fall back to the node's
+        // own description when that would exceed the reply budget.
+        const over = state.dom?.nodeSubtreeBudgetError(mutation.nodeId, 0, false);
+        const subtree = over
+          ? state.dom?.nodeInfo(mutation.nodeId)
+          : state.dom?.nodeSubtree(mutation.nodeId, 0, false);
         nodeShape = isInsertedNode(subtree) ? sanitizeCdpNodeTree(subtree) : null;
       } catch {
         nodeShape = null;
