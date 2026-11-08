@@ -113,6 +113,12 @@ rust_test(
         "node_data_stays_four_words",
         "opaque_ids_follow_slot_reuse_and_reject_free_slots",
         "cloning_an_element_discards_derived_text_layouts",
+        "node::attributes::tests",
+        "node::child_list::tests",
+        "node::stylo_data::tests",
+        "pool::tests",
+        "tree::tests",
+        "mutator::test",
     ],
     exec_properties = RUST,
 )
