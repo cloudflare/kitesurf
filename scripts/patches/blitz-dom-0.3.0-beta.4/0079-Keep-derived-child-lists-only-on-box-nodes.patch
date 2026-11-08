@@ -554,7 +554,7 @@ diff --git a/src/layout/construct.rs b/src/layout/construct.rs
 index 6c0e9a2..3c0e9c1 100644
 --- a/src/layout/construct.rs
 +++ b/src/layout/construct.rs
-@@ -1790,9 +1790,9 @@ pub(crate) fn find_inline_layout_embedded_boxes(
+@@ -1790,11 +1790,11 @@ pub(crate) fn find_inline_layout_embedded_boxes(
      /// A node flattened into an ancestor's inline formatting context owns no
      /// box children. Drop the list and any anonymous blocks it built while it
      /// was still a box container, before the walk assigns new layout parents.
