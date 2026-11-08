@@ -197,6 +197,9 @@ const DEFAULT_IMAGE_QUALITY = 80;
 // At 16 MiB that leaves room for a ~40–60 MB baseline in a 128 MB isolate.
 const MAX_SCREENSHOT_ENCODED_BYTES = 16 * 1024 * 1024;
 const MAX_SCREENSHOT_DIMENSION = 65_535;
+// The band rasterizer walks the whole scene once per 128-row band, so a large area is minutes of
+// work even when both sides are legal. 64M px admits a 1280x40000 full-page capture.
+const MAX_SCREENSHOT_PIXELS = 64 * 1024 * 1024;
 const MAX_WEBP_SCREENSHOT_PIXELS = 2_560 * 2_560;
 const MAX_WEBP_SCREENSHOT_DIMENSION = 4_096;
 const MIN_SCREENCAST_DIMENSION = 32;
@@ -1261,6 +1264,13 @@ export async function handlePage(
         if (captureWidth > MAX_SCREENSHOT_DIMENSION || captureHeight > MAX_SCREENSHOT_DIMENSION) {
           throw new Error(
             `Page.captureScreenshot failed: requested ${captureWidth}x${captureHeight} px exceeds the 65535 px per-side raster limit; capture a smaller clip`,
+          );
+        }
+        // The band rasterizer traverses the whole scene once per 128-row band, so a clip that is
+        // large in area but small per side would run for minutes. Bound the area for every format.
+        if (captureWidth * captureHeight > MAX_SCREENSHOT_PIXELS) {
+          throw new Error(
+            `Page.captureScreenshot failed: requested ${captureWidth}x${captureHeight} px exceeds the ${MAX_SCREENSHOT_PIXELS} px total raster limit; capture a smaller clip`,
           );
         }
         if (
