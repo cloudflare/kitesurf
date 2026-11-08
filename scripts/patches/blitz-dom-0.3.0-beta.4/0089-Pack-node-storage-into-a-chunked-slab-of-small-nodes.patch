@@ -6628,18 +6628,25 @@ index 3366504..e7af5e5 100644
                      }
 
                      doc.nodes[node_id].set_layout_children(Some(layout_children));
-@@ -728,14 +728,14 @@ impl BaseDocument {
+@@ -728,20 +728,20 @@ impl BaseDocument {
              node.take_paint_children();
              if !is_root {
                  // The root keeps its own box slot: its container may still list it.
 -                node.layout_parent.set(None);
 +                node.set_layout_parent_id(None);
              }
+             // A user or script set the scroll offset, and layout cannot rebuild
+             // it, so a scrolled box keeps its layout data while hidden. Text and
+             // comment nodes have no layout data, so ask only element kinds.
+             let scrolled = node.element_data().is_some_and(|_| {
+                 let offset = node.scroll_offset();
+                 offset.x != 0.0 || offset.y != 0.0
+             });
              if let Some(element) = node.element_data_mut() {
                  element.set_inline_layout_data(None);
                  element.set_list_item_data(None);
                  element.clear_detailed_layout_info();
-                 if !is_root {
+                 if !is_root && !scrolled {
 -                    element.layout_data = None;
 +                    element.layout_data.take();
                  }
