@@ -728,16 +728,15 @@ function mutationEvent(
       if (mutation.kind === "childNodeInserted") {
         // An insert can be a move: the client drops the old subtree, and the node
         // arrives at depth 0, so clear what it was sent with before rebinding it.
-        nodes.unbind(mutation.node.nodeId);
-        nodes.bindTree(mutation.node);
+        nodes.noteInserted(parentId, mutation.node);
       } else {
-        nodes.unbind(mutation.nodeId);
+        nodes.noteRemoved(parentId, mutation.nodeId);
       }
       return nodeEvent(mutation, sessionId);
     }
     case "shadowRootPushed":
       if (!nodes.isBound(mutation.hostId)) return null;
-      nodes.bindTree(mutation.root);
+      nodes.noteInserted(mutation.hostId, mutation.root);
       return nodeEvent(mutation, sessionId);
     case "stylesheetResourceLoaded":
       return null;

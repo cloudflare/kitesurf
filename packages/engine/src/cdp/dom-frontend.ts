@@ -23,6 +23,9 @@ export class DomFrontendNodes {
   readonly #bound = new Set<number>();
   readonly #childrenSent = new Set<number>();
   readonly #children = new Map<number, number[]>();
+  // Every id sent under a node, including shadow roots, and the owner of each.
+  readonly #owned = new Map<number, number[]>();
+  readonly #parentOf = new Map<number, number>();
 
   hasDocument(): boolean {
     return this.#bound.size > 0;
@@ -40,12 +43,30 @@ export class DomFrontendNodes {
     this.#bound.clear();
     this.#childrenSent.clear();
     this.#children.clear();
+    this.#owned.clear();
+    this.#parentOf.clear();
   }
 
-  bindTree(root: Protocol.DOM.Node): void {
-    const stack = [root];
-    for (let node = stack.pop(); node; node = stack.pop()) {
+  #addOwned(ownerId: number, nodeId: number): void {
+    const owned = this.#owned.get(ownerId);
+    if (owned) {
+      if (!owned.includes(nodeId)) owned.push(nodeId);
+    } else {
+      this.#owned.set(ownerId, [nodeId]);
+    }
+  }
+
+  bindTree(root: Protocol.DOM.Node, ownerId?: number): void {
+    const stack: Array<{ node: Protocol.DOM.Node; owner: number | undefined }> = [
+      { node: root, owner: ownerId },
+    ];
+    for (let item = stack.pop(); item; item = stack.pop()) {
+      const { node, owner } = item;
       this.#bound.add(node.nodeId);
+      if (owner !== undefined) {
+        this.#parentOf.set(node.nodeId, owner);
+        this.#addOwned(owner, node.nodeId);
+      }
       if (node.children) {
         this.#childrenSent.add(node.nodeId);
         this.#children.set(
@@ -54,10 +75,10 @@ export class DomFrontendNodes {
         );
         // A wide parent can exceed the argument limit of a spread call, and a
         // whole-tree read is allowed to reach that width.
-        for (const child of node.children) stack.push(child);
+        for (const child of node.children) stack.push({ node: child, owner: node.nodeId });
       }
       if (node.shadowRoots) {
-        for (const root of node.shadowRoots) stack.push(root);
+        for (const shadow of node.shadowRoots) stack.push({ node: shadow, owner: node.nodeId });
       }
     }
   }
@@ -70,27 +91,65 @@ export class DomFrontendNodes {
       parentId,
       children.map((child) => child.nodeId),
     );
-    for (const child of children) this.bindTree(child);
+    for (const child of children) this.bindTree(child, parentId);
+  }
+
+  noteInserted(parentId: number, node: Protocol.DOM.Node): void {
+    this.unbind(node.nodeId);
+    this.bindTree(node, parentId);
+    const children = this.#children.get(parentId);
+    if (children && !children.includes(node.nodeId)) children.push(node.nodeId);
+  }
+
+  noteRemoved(parentId: number, nodeId: number): void {
+    const children = this.#children.get(parentId);
+    if (children) {
+      const at = children.indexOf(nodeId);
+      if (at >= 0) children.splice(at, 1);
+    }
+    this.unbind(nodeId);
   }
 
   unbindChildren(parentId: number): void {
     const children = this.#children.get(parentId);
-    if (!children) return;
-    this.#children.delete(parentId);
-    for (const child of children) this.unbind(child);
+    if (children) {
+      this.#children.delete(parentId);
+      for (const child of [...children]) this.unbind(child);
+    }
+    const owned = this.#owned.get(parentId);
+    if (owned) {
+      for (const nodeId of [...owned]) this.unbind(nodeId);
+    }
   }
 
   // A removal, or a move, drops the whole subtree the client was sent under this node.
   unbind(nodeId: number): void {
     const stack = [nodeId];
+    const seen = new Set<number>();
     while (stack.length > 0) {
       const id = stack.pop() as number;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const owner = this.#parentOf.get(id);
+      if (owner !== undefined) {
+        this.#parentOf.delete(id);
+        const owned = this.#owned.get(owner);
+        if (owned) {
+          const at = owned.indexOf(id);
+          if (at >= 0) owned.splice(at, 1);
+        }
+      }
       this.#bound.delete(id);
       this.#childrenSent.delete(id);
       const children = this.#children.get(id);
       if (children) {
         this.#children.delete(id);
-        stack.push(...children);
+        for (const child of children) stack.push(child);
+      }
+      const owned = this.#owned.get(id);
+      if (owned) {
+        this.#owned.delete(id);
+        for (const child of owned) stack.push(child);
       }
     }
   }
