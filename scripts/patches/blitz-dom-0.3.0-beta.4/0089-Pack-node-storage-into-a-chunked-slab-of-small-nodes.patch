@@ -6611,7 +6611,7 @@ index 3366504..e7af5e5 100644
 
          fn resolve_layout_children_recursive(doc: &mut BaseDocument, node_id: NodeId) {
              // Anonymous blocks and pseudo-elements can be removed from the slab
-@@ -673,7 +673,7 @@ impl BaseDocument {
+@@ -673,14 +673,28 @@ impl BaseDocument {
                      if !doc.nodes.contains_key(child_id) {
                          continue;
                      }
@@ -6620,6 +6620,27 @@ index 3366504..e7af5e5 100644
                      if let Some(mut data) = doc.nodes[child_id]
                          .try_stylo_element_data_mut()
                          .and_then(|s| s.get_mut())
+                     {
+                         data.damage
+                             .remove(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
+                     }
+                 }
+ 
++                // Child links are bare slot indexes, so a child that dropped out of this
++                // list must not keep one to us: once our slot is reused, that index names
++                // the new occupant. Clear the ones this pass did not re-collect.
++                let previous = doc.nodes[node_id].take_layout_children();
++                for child_id in previous.unwrap_or_default() {
++                    if layout_children.contains(&child_id) {
++                        continue;
++                    }
++                    if let Some(child) = doc.nodes.get_mut(child_id) {
++                        if child.layout_parent_id() == Some(node_id) {
++                            child.set_layout_parent_id(None);
++                        }
++                    }
++                }
+                 doc.nodes[node_id].set_layout_children(Some(layout_children.clone()));
 @@ -698,7 +698,7 @@ impl BaseDocument {
                              continue;
                          }
@@ -6627,7 +6648,7 @@ index 3366504..e7af5e5 100644
 -                        doc.nodes[child_id].layout_parent.set(Some(node_id));
 +                        doc.nodes[child_id].set_layout_parent_id(Some(node_id));
                      }
-
+ 
                      doc.nodes[node_id].set_layout_children(Some(layout_children));
 @@ -728,21 +728,21 @@ impl BaseDocument {
              node.take_paint_children();
