@@ -161,8 +161,13 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       const id = numericNodeId(req.params);
       if (ps) {
         const includeDoctype = req.params?.includeDoctype === true;
+        // Both reads must describe one document: the snapshot retry happens after an await, so
+        // an unpinned call could apply this node id to the document a navigation just installed.
+        await session.ready();
+        const pinned = session.pin();
+        if (!pinned) throw new Error("No PageScript isolate for target");
         return await outerHtmlResponse((mode) =>
-          session.call.getOuterHTML({
+          pinned.call.getOuterHTML({
             ...(id != null ? { nodeId: id } : {}),
             ...(includeDoctype ? { includeDoctype: true } : {}),
             ...mode,
