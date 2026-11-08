@@ -183,5 +183,12 @@ rust_comments_test(
 )
 
 rust_lint_tests(
-    targets = ["core_test", "kitesurf_core", "kitesurf_core_memprof", "svg_cache_test", "taffy_cache_test"],
+    targets = [
+        "blitz_dom_child_lists_test",
+        "core_test",
+        "kitesurf_core",
+        "kitesurf_core_memprof",
+        "svg_cache_test",
+        "taffy_cache_test",
+    ],
 )
