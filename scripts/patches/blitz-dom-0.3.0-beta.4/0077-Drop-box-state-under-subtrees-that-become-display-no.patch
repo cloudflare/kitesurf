@@ -246,7 +246,7 @@ index 3ee3356..1eaa68d 100644
  fn snap_table_tracks(
      tracks: &mut taffy::DetailedGridTracksInfo<style::Atom>,
      raw_origin: f32,
-@@ -640,6 +674,38 @@ impl BaseDocument {
+@@ -640,6 +674,44 @@ impl BaseDocument {
          }
      }
 
@@ -268,11 +268,17 @@ index 3ee3356..1eaa68d 100644
 +                // The root keeps its own box slot: its container may still list it.
 +                node.layout_parent.set(None);
 +            }
++            // A user or script set the scroll offset, and layout cannot rebuild
++            // it, so a scrolled box keeps its layout data while hidden.
++            let scrolled = {
++                let offset = node.scroll_offset();
++                offset.x != 0.0 || offset.y != 0.0
++            };
 +            if let Some(element) = node.element_data_mut() {
 +                element.set_inline_layout_data(None);
 +                element.set_list_item_data(None);
 +                element.clear_detailed_layout_info();
-+                if !is_root {
++                if !is_root && !scrolled {
 +                    element.layout_data = None;
 +                }
 +            }
