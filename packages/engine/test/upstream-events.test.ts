@@ -49,7 +49,7 @@ function installFor(isolateUrl: string) {
   installUpstreamEventHandler(ctx, target, stub, 1, isolateUrl);
   const send = (event: UpstreamEventName, params: ReceivedUpstreamParams) =>
     handler!(event, params);
-  return { store, emitted, target, send };
+  return { store, emitted, target, send, ctx, stub };
 }
 
 describe("kitesurf.insertedScriptRan", () => {
@@ -59,6 +59,15 @@ describe("kitesurf.insertedScriptRan", () => {
     send("kitesurf.insertedScriptRan", { url: "https://cdn.test/a.js", bytes: BIG, run: "boa" });
     expect(learnedScriptsFor(store, "https://second.test/")).toEqual([]);
     expect(learnedScriptsFor(store, "https://first.test/")).toEqual(["https://cdn.test/a.js"]);
+  });
+});
+
+describe("pageScriptUrl", () => {
+  it("records the isolate's url, and a superseded install leaves it alone", () => {
+    const { ctx, stub, target } = installFor("https://first.test/");
+    expect(target.pageScriptUrl).toBe("https://first.test/");
+    installUpstreamEventHandler(ctx, target, stub, 0, "https://stale.test/");
+    expect(target.pageScriptUrl).toBe("https://first.test/");
   });
 });
 

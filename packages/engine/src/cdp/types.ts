@@ -261,6 +261,9 @@ export interface TargetState {
   blankReady?: Promise<void> | null;
   frames: Map<string, FrameState>;
   pageScript: PageScriptStub | null;
+  // The url the page isolate was sealed with. Page.navigate moves target.url to the next
+  // document before it retires the isolate, so writes from the isolate's unload use this url.
+  pageScriptUrl?: string;
   pageSession?: PageSession;
   pageScriptLease: WorkerLease | null;
   navigateGeneration: number;

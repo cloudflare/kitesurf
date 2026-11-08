@@ -1651,9 +1651,9 @@ async function pushNavigateToPageScriptInner(
         budget: ctx.browser.workerBudget,
       });
       for (const e of harvest?.console ?? []) consoleAcc.push(e);
-      if (target.url) {
+      if (target.pageScriptUrl) {
         for (const raw of harvest?.cookieWrites ?? []) {
-          jarForTarget(ctx, target).setFromDocumentCookie(target.url, raw);
+          jarForTarget(ctx, target).setFromDocumentCookie(target.pageScriptUrl, raw);
         }
       }
     }
@@ -4020,6 +4020,7 @@ export function installUpstreamEventHandler(
   generation: number,
   url: string,
 ): void {
+  if (target.navigateGeneration === generation) target.pageScriptUrl = url;
   if (typeof stub.setUpstreamEventHandler !== "function") return;
   const workerOwner = ctx.browser.dedicatedWorkers.ownerFor(
     target,
