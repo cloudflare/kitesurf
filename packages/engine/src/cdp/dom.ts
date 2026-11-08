@@ -49,6 +49,9 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       if (!f || f.ownerBackendNodeId <= 0) {
         throw new Error("Frame with the given id was not found.");
       }
+      // The default document read stops at `<head>`/`<body>`, so the client may never have been
+      // sent the owner; it places the returned id in its model, so send the path first.
+      if (ps) await pushNodePaths(ctx, target, session, req.sessionId, [f.ownerBackendNodeId]);
       return {
         backendNodeId: f.ownerBackendNodeId,
         nodeId: f.ownerBackendNodeId,
@@ -122,6 +125,9 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       if (!node) return {};
       assertDomReplyGraph(node);
       const nodes = childNodesForRebind(node) ?? [];
+      // These nodes come straight from PageScript, which does not know frame ids.
+      for (const child of nodes) annotateIframeFrameIds(child, target);
+      frontendNodes(target, sessionKeyOf(req.sessionId)).bindChildren(id, nodes);
       ctx.emit({
         method: "DOM.setChildNodes",
         params: { parentId: id, nodes },
@@ -673,6 +679,40 @@ function registerDomObserver(target: TargetState, sessionId: string | undefined)
   }
 }
 
+// Parents per RPC when pushing node paths; each brings its children, so keep replies small.
+const PUSH_PARENTS_PER_READ = 64;
+
+/**
+ * Sends `DOM.setChildNodes` down to each of `nodeIds` before their ids are returned, so the
+ * client can place every node it is given. Only for a session that read the document.
+ */
+async function pushNodePaths(
+  ctx: DispatchCtx,
+  target: TargetState,
+  session: PageSession,
+  sessionId: string | undefined,
+  nodeIds: readonly number[],
+): Promise<void> {
+  const sessionKey = sessionKeyOf(sessionId);
+  if (!target.domEnabledSessions.has(sessionKey)) return;
+  const nodes = frontendNodes(target, sessionKey);
+  if (!nodes.hasDocument()) return;
+  const unknown = nodeIds.filter((id) => id > 0 && !nodes.isBound(id));
+  if (unknown.length === 0) return;
+  const { ancestorIds } = await session.call.nodeAncestors({ nodeIds: unknown });
+  const parents = ancestorIds.filter((id) => !nodes.childrenSent(id));
+  for (let at = 0; at < parents.length; at += PUSH_PARENTS_PER_READ) {
+    const nodeIds = parents.slice(at, at + PUSH_PARENTS_PER_READ);
+    const { lists } = await session.call.childNodeLists({ nodeIds, depth: 1, pierce: false });
+    for (const { parentId, nodes: children } of lists) {
+      // PageScript does not know frame ids; the client needs them to attach a child document.
+      for (const child of children) annotateIframeFrameIds(child, target);
+      nodes.bindChildren(parentId, children);
+      ctx.emit({ method: "DOM.setChildNodes", params: { parentId, nodes: children }, sessionId });
+    }
+  }
+}
+
 export function emitMutations(
   ctx: DispatchCtx,
   target: TargetState,
@@ -826,7 +866,10 @@ function scheduleChildRebinds(ctx: DispatchCtx, target: TargetState, parentIds: 
     for (const { id, node } of reads) {
       const nodes = childNodesForRebind(node);
       if (!nodes) continue;
-      for (const sessionId of target.domEnabledSessions) {
+      for (const child of nodes) annotateIframeFrameIds(child, target);
+      for (const sessionKey of parents.get(id) ?? []) {
+        if (!target.domEnabledSessions.has(sessionKey)) continue;
+        frontendNodes(target, sessionKey).bindChildren(id, nodes);
         ctx.emit({
           method: "DOM.setChildNodes",
           params: { parentId: id, nodes },
