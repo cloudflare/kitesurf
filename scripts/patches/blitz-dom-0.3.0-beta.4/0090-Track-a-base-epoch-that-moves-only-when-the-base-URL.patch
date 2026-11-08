@@ -1,4 +1,4 @@
-From 457e0d7013ec07c83dd4c6c5f7ab65360e0b5d3f Mon Sep 17 00:00:00 2001
+From 176bdf8cf6693712746bc9ef3d31de96ce38f161 Mon Sep 17 00:00:00 2001
 From: bpereira <bpereira@cloudflare.com>
 Date: Wed, 4 Nov 2026 03:43:59 +0000
 Subject: [PATCH] Track a base epoch that moves only when the base URL can
@@ -33,7 +33,7 @@ index 61145f8..a8f056a 100644
              pending_style_image_nodes: Vec::new(),
              pending_critical_resources: HashSet::new(),
 diff --git a/src/mutator.rs b/src/mutator.rs
-index dca7655..8b86e4c 100644
+index 2062a7a..b6394cb 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
 @@ -396,6 +396,7 @@ impl DocumentMutator<'_> {
@@ -76,7 +76,7 @@ index dca7655..8b86e4c 100644
              if new_parent_is_in_document
                  && child_was_in_doc
                  && child.containing_shadow_root_id().is_some() != new_in_shadow
-@@ -1466,6 +1483,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1472,6 +1489,7 @@ impl<'doc> DocumentMutator<'doc> {
                  "style" => {
                      self.style_nodes.insert(node_id);
                  }
@@ -84,7 +84,7 @@ index dca7655..8b86e4c 100644
                  _ if has_custom_widget => {}
                  "link" => self.eager_op_queue.push(SpecialOp::LoadStylesheet(node_id)),
                  "img" => self.eager_op_queue.push(SpecialOp::LoadImage(node_id)),
-@@ -1510,6 +1528,9 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1516,6 +1534,9 @@ impl<'doc> DocumentMutator<'doc> {
              // ancestor chain, IME disable on blur of a focused input).
              doc.clear_interaction_state_for_removed_node(node_id);
  
@@ -94,7 +94,7 @@ index dca7655..8b86e4c 100644
              let is_style = doc.nodes[node_id]
                  .data
                  .is_element_with_tag_name(&local_name!("style"));
-@@ -2977,6 +2998,45 @@ mod test {
+@@ -2983,6 +3004,45 @@ mod test {
          );
      }
  
