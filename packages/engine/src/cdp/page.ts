@@ -1222,7 +1222,14 @@ export async function handlePage(
             : DEFAULT_IMAGE_QUALITY;
         const omitBackground = req.params?.omitBackground === true;
         const clip = req.params?.clip;
-        if (clip && clip.scale !== undefined && clip.scale !== 1) {
+        // Rendering is in CSS pixels, so a clip scale is only meaningful when it
+        // cancels the emulated device pixel ratio. Playwright's `scale: "css"`
+        // sends exactly that (1 / deviceScaleFactor).
+        if (
+          clip &&
+          clip.scale !== undefined &&
+          clip.scale * (target.deviceScaleFactor || 1) !== 1
+        ) {
           throw new Error(
             "Page.captureScreenshot failed: clip.scale other than 1 is not supported",
           );
