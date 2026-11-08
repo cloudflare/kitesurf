@@ -104,22 +104,6 @@ rust_test(
     name = "blitz_dom_undisplayed_layout_test",
     crate = "@crates//:blitz-dom",
     crate_features = ["svg", "floats", "woff"],
-    args = [
-        "nested_slot_edges_visit_each_reachable_node_once_and_release_layout",
-        "display_none_retention_tests",
-        "compact_node_tests",
-        "rare_tests",
-        "attribute_names_round_trip_and_match_exactly",
-        "node_data_stays_four_words",
-        "opaque_ids_follow_slot_reuse_and_reject_free_slots",
-        "cloning_an_element_discards_derived_text_layouts",
-        "node::attributes::tests",
-        "node::child_list::tests",
-        "node::stylo_data::tests",
-        "pool::tests",
-        "tree::tests",
-        "mutator::test",
-    ],
     exec_properties = RUST,
 )
 
