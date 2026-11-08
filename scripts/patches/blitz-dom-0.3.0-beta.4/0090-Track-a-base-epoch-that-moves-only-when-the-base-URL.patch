@@ -82,11 +82,13 @@ index 976901b..bb458a5 100644
              let is_style = doc.nodes[node_id]
                  .data
                  .is_element_with_tag_name(&local_name!("style"));
-@@ -970,4 +970,7 @@ impl DocumentMutator<'_> {
+@@ -970,4 +970,9 @@ impl DocumentMutator<'_> {
              let child = &mut self.doc.nodes[child_id];
              let child_was_in_doc = child.flags.is_in_document();
              self.mutations_occurred |= child_was_in_doc;
-+            if child_was_in_doc && child.data.is_element_with_tag_name(&local_name!("base")) {
++            // A connected move can change which `base[href]` comes first even when the moved
++            // node is not the base itself, so every connected move invalidates the cached URL.
++            if child_was_in_doc {
 +                self.doc.base_epoch = self.doc.base_epoch.wrapping_add(1);
 +            }
              if new_parent_is_in_document
