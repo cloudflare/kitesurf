@@ -94,10 +94,24 @@ function needsSymbols2(html: string): boolean {
 function needsMono(html: string): boolean {
   if (typeof html !== "string" || html.length === 0) return false;
   if (/<(pre|code|kbd|samp|tt|xmp|listing|plaintext)[\s/>]/i.test(html)) return true;
-  for (const [context] of html.matchAll(
-    /<style\b[^>]*>[\s\S]*?<\/style>|(?:class|style)\s*=\s*(?:"[^"]*"|'[^']*')/gi,
-  )) {
-    if (/(?:monospace|font-mono|DM(?:%20|\+|\s)+Mono)/i.test(context)) return true;
+  const mono = /(?:monospace|font-mono|DM(?:%20|\+|\s)+Mono)/i;
+  // Scanned with indexOf rather than a lazy regex: `<style` with no closing `>` or `</style>`
+  // made every candidate rescan the rest of the page, and this runs in the engine isolate
+  // before the navigate RPC.
+  const opens = /<style/gi;
+  for (let match = opens.exec(html); match !== null; match = opens.exec(html)) {
+    const at = match.index;
+    if (isAsciiWordChar(html.charCodeAt(at + "<style".length))) continue;
+    const open = html.indexOf(">", at);
+    if (open < 0) break;
+    const closes = /<\/style>/gi;
+    closes.lastIndex = open + 1;
+    const close = closes.exec(html);
+    if (!close) break;
+    if (mono.test(html.slice(open + 1, close.index))) return true;
+  }
+  for (const [context] of html.matchAll(/(?:class|style)\s*=\s*(?:"[^"]*"|'[^']*')/gi)) {
+    if (mono.test(context)) return true;
   }
   return false;
 }
