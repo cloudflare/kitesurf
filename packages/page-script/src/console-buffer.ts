@@ -161,6 +161,9 @@ function isInsertedNode(value: unknown): value is InsertedNode {
 
 export function drainCdpMutations(): CdpMutation[] {
   const rawMutations = state.drainCdpMutationsRaw();
+  // One count per parent per batch: every event reports the state after the
+  // batch's last change, and a wide parent's childIds copy is not free.
+  const childCounts = new Map<number, number>();
   const styleSheetHints: CdpMutation[] = [];
   const internalState = getInternalState();
   if (internalState.styleSheetsDirty) {
@@ -186,12 +189,15 @@ export function drainCdpMutations(): CdpMutation[] {
         parentNodeId: mutation.parentNodeId,
         previousNodeId: mutation.previousNodeId,
         node: nodeShape,
-        parentChildNodeCount: childNodeCount(mutation.parentNodeId),
+        parentChildNodeCount: childNodeCount(mutation.parentNodeId, childCounts),
       });
       continue;
     }
     if (mutation.kind === "childNodeRemoved") {
-      mutations.push({ ...mutation, parentChildNodeCount: childNodeCount(mutation.parentNodeId) });
+      mutations.push({
+        ...mutation,
+        parentChildNodeCount: childNodeCount(mutation.parentNodeId, childCounts),
+      });
       continue;
     }
     mutations.push(mutation);
@@ -200,12 +206,15 @@ export function drainCdpMutations(): CdpMutation[] {
 }
 
 // At drain time, so a batch reports the count after its last change.
-function childNodeCount(parentId: number): number {
+function childNodeCount(parentId: number, counts: Map<number, number>): number {
+  const cached = counts.get(parentId);
+  if (cached !== undefined) return cached;
+  let count = 0;
   try {
-    return state.dom?.childIds(parentId)?.length ?? 0;
-  } catch {
-    return 0;
-  }
+    count = state.dom?.childIds(parentId)?.length ?? 0;
+  } catch {}
+  counts.set(parentId, count);
+  return count;
 }
 
 export function resetConsoleBuffer(): void {
