@@ -448,3 +448,22 @@ fn dropping_a_host_retires_shadow_tree_handle_metadata() {
     assert_eq!(handles.existing_external(root_id), None);
     assert_eq!(handles.existing_external(child_id), None);
 }
+
+#[test]
+fn dropping_a_parent_after_a_child_moved_out_keeps_no_link_to_its_slot() {
+    let dom = DomHandle::new(
+        "<!DOCTYPE html><body><div id=host><div id=p><span id=c>x</span></div></div>",
+        "https://test.example/",
+    );
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let host = dom.query_selector("#host").expect("host") as u32;
+    let parent = dom.query_selector("#p").expect("parent") as u32;
+    let child = dom.query_selector("#c").expect("child") as u32;
+
+    // Moving the child leaves its layout parent pointing at `#p`; dropping `#p`
+    // frees that slot, and dropping the child must not read it.
+    assert!(dom.insert_before_node(host, child, 0));
+    assert!(dom.drop_node(parent));
+    assert!(dom.drop_node(child));
+}
