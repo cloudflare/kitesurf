@@ -19,6 +19,7 @@ import type {
   WorkerUpstreamMessage,
 } from "@kitesurf/jsrpc-types/dedicated-worker";
 import type { SandboxOutboundOverride } from "./outbound.ts";
+import type { SessionContext } from "../cdp/dispatch.ts";
 import {
   PAGE_SCRIPT_COMPAT_DATE,
   pageScriptCompatOptions,
@@ -129,7 +130,7 @@ function disposeStub(stub: unknown): void {
 
 export function spawnDedicatedWorker(
   env: { LOADER: WorkerLoader; KITESURF_NATIVE_EVAL?: string },
-  ctx: ExecutionContext,
+  ctx: SessionContext,
   opts: SpawnDedicatedWorkerOptions,
 ): DedicatedWorkerHandle {
   const outboundProps = {

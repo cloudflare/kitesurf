@@ -23,6 +23,7 @@ import type {
   RendererMemoryStats,
 } from "@kitesurf/jsrpc-types/page-renderer";
 import type { DynamicWorkerBudget, WorkerLease } from "./worker-budget.ts";
+import type { SessionContext } from "../cdp/dispatch.ts";
 
 export type { RenderStage };
 
@@ -36,7 +37,7 @@ const PDF_CALL_TIMEOUT_MS = 30_000;
 const PORT_MINT_TIMEOUT_MS = 5_000;
 const MAX_RENDER_RASTER_ATTEMPTS = 2;
 
-type CtxWithExports = ExecutionContext & {
+type CtxWithExports = SessionContext & {
   exports: AttributionTailExports & {
     DeniedOutbound(opts: Record<string, never>): Fetcher;
     PageScriptTail(opts: {
@@ -77,7 +78,7 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): 
 
 function loadRenderer(
   env: RendererEnv,
-  ctx: ExecutionContext,
+  ctx: SessionContext,
   connectionId: string,
   attributionHeaders: Record<string, string>,
   initialRes: { width: number; height: number } | null,
@@ -165,7 +166,7 @@ function isTerminalRenderFailure(result: RenderFrameResult): boolean {
 
 export class PageRendererManager {
   private env: RendererEnv;
-  private ctx: ExecutionContext;
+  private ctx: SessionContext;
   private connectionId: string;
   private attributionHeaders: Record<string, string>;
   private stub: RendererStub | null = null;
@@ -195,7 +196,7 @@ export class PageRendererManager {
 
   constructor(
     env: RendererEnv,
-    ctx: ExecutionContext,
+    ctx: SessionContext,
     connectionId: string,
     attributionHeaders: Record<string, string> = {},
     budget: DynamicWorkerBudget | null = null,

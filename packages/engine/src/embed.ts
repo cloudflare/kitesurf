@@ -43,7 +43,7 @@ export type { AxNode, BuiltTree, DomNode } from "./cdp/accessibility.ts";
 export { handlePage, mainFrame } from "./cdp/page.ts";
 export { sessionOf } from "./cdp/page-session.ts";
 export type { PageSession } from "./cdp/page-session.ts";
-export type { DispatchCtx, EngineCdpCommandExtension } from "./cdp/dispatch.ts";
+export type { DispatchCtx, EngineCdpCommandExtension, SessionContext } from "./cdp/dispatch.ts";
 export type { TargetState } from "./cdp/types.ts";
 export { makeWallClock } from "./eval/host-clock.ts";
 export { isRecord, isStringArray, oneOf } from "./guards.ts";

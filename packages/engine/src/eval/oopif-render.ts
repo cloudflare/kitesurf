@@ -21,6 +21,7 @@ import {
 } from "./page-script.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
 import type { FontProfile } from "../cdp/font-profile.ts";
+import type { SessionContext } from "../cdp/dispatch.ts";
 import { stubQueryDom } from "../cdp/page-session.ts";
 import { disposeStub } from "../cdp/page-script-generation.ts";
 import { navigateSourceOf } from "@kitesurf/page-script/source-scan";
@@ -174,7 +175,7 @@ function attachUpstreamHandler(
 
 export async function spawnAndNavigateFrame(
   env: FrameSpawnEnv,
-  ctx: ExecutionContext,
+  ctx: SessionContext,
   args: RenderFrameArgs,
 ): Promise<{ ok: true; stub: PageScriptStub; finalUrl: string } | RenderFrameError> {
   const pre = await prespawnFrameIsolate(env, ctx, args);
@@ -184,7 +185,7 @@ export async function spawnAndNavigateFrame(
 
 export async function prespawnFrameIsolate(
   env: FrameSpawnEnv,
-  ctx: ExecutionContext,
+  ctx: SessionContext,
   args: RenderFrameArgs,
 ): Promise<PrespawnedFrame | RenderFrameError> {
   const sandbox = args.sandbox;

@@ -46,6 +46,12 @@ export type EngineCdpCommandExtension = (
   req: EngineCdpCommandRequest,
 ) => Promise<EngineCdpCommandResult>;
 
+/** The part of an ExecutionContext a browser session uses. A host builds one without a cast. */
+export type SessionContext = Pick<
+  ExecutionContext,
+  "waitUntil" | "passThroughOnException" | "exports" | "props"
+>;
+
 export interface DispatchCtx {
   browser: BrowserState;
   emit: EventEmitter;
@@ -66,7 +72,7 @@ export interface DispatchCtx {
     HOST_TRACER?: Tracer;
     HOST_CLOCK?: HostClock;
   };
-  ctx: ExecutionContext;
+  ctx: SessionContext;
   connectionId: string;
   analytics: KitesurfAnalytics;
 }

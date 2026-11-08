@@ -42,6 +42,7 @@ import { MAX_DOCUMENT_BYTES } from "../read-capped.ts";
 import { attributionTails, type AttributionTailExports } from "./attribution-tail.ts";
 import { makeWallClock, type HostClock } from "./host-clock.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
+import type { SessionContext } from "../cdp/dispatch.ts";
 import type { ParentScriptDescriptor } from "../wasm.ts";
 import type { ScriptBundle } from "./script-bundle.ts";
 import { FALLBACK_MODULE_RESOLVER_SOURCE } from "./walk-module-graph.ts";
@@ -58,7 +59,7 @@ export interface PageScriptStub extends PageScriptSession {
   getRenderPort(): Promise<RenderPortStub>;
 }
 
-type CtxWithExports = ExecutionContext & {
+type CtxWithExports = SessionContext & {
   exports: AttributionTailExports & {
     SandboxOutbound(opts: { props: OutboundProps }): Fetcher;
     PageScriptTail(opts: {
@@ -196,7 +197,7 @@ interface GetOrCreatePageScriptOptions {
     HOST_TRACER?: Tracer;
     HOST_CLOCK?: HostClock;
   };
-  ctx: ExecutionContext;
+  ctx: SessionContext;
   key: PageScriptKey;
   pageOrigin: string;
   cookieSiteOrigin?: string;
@@ -475,7 +476,7 @@ export function spawnFramePageScript(
     KITESURF_NATIVE_EVAL?: string;
     KITESURF_LAG_WATCHDOG?: string;
   },
-  ctx: ExecutionContext,
+  ctx: SessionContext,
   args: {
     connectionId: string;
     targetId: string;
