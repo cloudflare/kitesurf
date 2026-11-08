@@ -83,7 +83,7 @@ diff --git a/src/layout/damage.rs b/src/layout/damage.rs
 index eb33360..98009f1 100644
 --- a/src/layout/damage.rs
 +++ b/src/layout/damage.rs
-@@ -604,6 +604,83 @@ pub(crate) fn sort_layout_children_by_order(
+@@ -604,6 +604,89 @@ pub(crate) fn sort_layout_children_by_order(
  }
 
  impl BaseDocument {
@@ -103,7 +103,13 @@ index eb33360..98009f1 100644
 +            styles.get_font().font_family.families.list.iter().any(|family| match family {
 +                style::values::computed::font::SingleFontFamily::FamilyName(name) => {
 +                    let name = name.name.as_ref();
-+                    families.iter().any(|f| f.eq_ignore_ascii_case(name))
++                    families.iter().any(|f| {
++                        if name.is_ascii() {
++                            f.eq_ignore_ascii_case(name)
++                        } else {
++                            f.as_str() == name.to_lowercase().as_str()
++                        }
++                    })
 +                }
 +                style::values::computed::font::SingleFontFamily::Generic(_) => false,
 +            })

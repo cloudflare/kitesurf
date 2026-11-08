@@ -2984,7 +2984,7 @@ index 0c5b2e9..136d1c8 100644
      };
  }
 
-+impl crate::pool::Pooled for ElementData {
++unsafe impl crate::pool::Pooled for ElementData {
 +    fn pool() -> &'static std::sync::Mutex<crate::pool::Pool> {
 +        static POOL: std::sync::Mutex<crate::pool::Pool> =
 +            std::sync::Mutex::new(crate::pool::Pool::new());
@@ -3058,7 +3058,7 @@ index 0c5b2e9..136d1c8 100644
  /// Lazily boxed on [`ElementData`] / [`DocumentData`]: inline-level elements
  /// are positioned by the inline (parley) layout rather than by taffy, so most
  /// nodes on text-heavy pages never allocate one.
-+impl crate::pool::Pooled for LayoutData {
++unsafe impl crate::pool::Pooled for LayoutData {
 +    fn pool() -> &'static std::sync::Mutex<crate::pool::Pool> {
 +        static POOL: std::sync::Mutex<crate::pool::Pool> =
 +            std::sync::Mutex::new(crate::pool::Pool::new());
@@ -3142,7 +3142,7 @@ index 0c5b2e9..136d1c8 100644
 +    rounded: Edges,
 +}
 +
-+impl crate::pool::Pooled for BoxEdges {
++unsafe impl crate::pool::Pooled for BoxEdges {
 +    fn pool() -> &'static std::sync::Mutex<crate::pool::Pool> {
 +        static POOL: std::sync::Mutex<crate::pool::Pool> =
 +            std::sync::Mutex::new(crate::pool::Pool::new());
@@ -6324,7 +6324,7 @@ new file mode 100644
 index 0000000..9ef24f0
 --- /dev/null
 +++ b/src/pool.rs
-@@ -0,0 +1,188 @@
+@@ -0,0 +1,189 @@
 +//! Typed slot pools for the per-node boxes a document holds hundreds of thousands of.
 +//!
 +//! A `PoolBox<T>` is a `Box<T>` whose slot comes from a pool of same-typed slots carved from
@@ -6365,8 +6365,9 @@ index 0000000..9ef24f0
 +    }
 +}
 +
-+/// A type whose boxes come from a pool. `slot_layout` must cover `T` and hold a pointer.
-+pub trait Pooled: Sized {
++/// A type whose boxes come from a pool. `slot_layout` must cover `T` and hold a pointer, and the
++/// pool must only ever be used by this one type.
++pub unsafe trait Pooled: Sized {
 +    fn pool() -> &'static Mutex<Pool>;
 +}
 +
@@ -6492,7 +6493,7 @@ index 0000000..9ef24f0
 +
 +    #[derive(Debug, Clone, PartialEq)]
 +    struct Probe(u64, String);
-+    impl Pooled for Probe {
++    unsafe impl Pooled for Probe {
 +        fn pool() -> &'static Mutex<Pool> {
 +            static POOL: Mutex<Pool> = Mutex::new(Pool::new());
 +            &POOL
