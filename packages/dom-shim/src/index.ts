@@ -409,7 +409,11 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
   const sharedElementIdentity = (info: KsNodeIdentity): KsNodeIdentity => {
     const { nodeName, localName } = info;
     const ns = info.namespaceURI ?? "";
-    if (nodeName.length > MAX_INTERNED_NAME_LENGTH || localName.length > MAX_INTERNED_NAME_LENGTH) {
+    if (
+      nodeName.length > MAX_INTERNED_NAME_LENGTH ||
+      localName.length > MAX_INTERNED_NAME_LENGTH ||
+      ns.length > MAX_INTERNED_NAME_LENGTH
+    ) {
       return info;
     }
     // Length prefixes keep the key unambiguous whatever characters the names hold.
