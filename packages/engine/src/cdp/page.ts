@@ -3989,6 +3989,30 @@ function isSameOriginPathChange(from: string, to: string): boolean {
   }
 }
 
+// HTML's "can have its URL rewritten". A document never moves to another origin, and a
+// non-HTTP(S) one such as data: or about: changes only its fragment (file: also its query).
+function canRewriteDocumentUrl(documentUrl: string, targetUrl: string): boolean {
+  let doc: URL;
+  let next: URL;
+  try {
+    doc = new URL(documentUrl);
+    next = new URL(targetUrl);
+  } catch {
+    return false;
+  }
+  if (
+    doc.protocol !== next.protocol ||
+    doc.username !== next.username ||
+    doc.password !== next.password ||
+    doc.host !== next.host
+  ) {
+    return false;
+  }
+  if (next.protocol === "http:" || next.protocol === "https:") return true;
+  if (next.protocol === "file:") return doc.pathname === next.pathname;
+  return doc.pathname === next.pathname && doc.search === next.search;
+}
+
 export function installUpstreamEventHandler(
   ctx: DispatchCtx,
   target: TargetState,
@@ -4041,7 +4065,7 @@ export function installUpstreamEventHandler(
       ctx.browser.dedicatedWorkers.handle(ctx, workerOwner, event, params);
       return;
     }
-    handleUpstreamFrameEvent(ctx, target, undefined, event, params);
+    handleUpstreamFrameEvent(ctx, target, undefined, event, params, url);
   });
 }
 
@@ -4183,6 +4207,7 @@ function handleUpstreamFrameEvent(
   sessionId: string | undefined,
   event: UpstreamEventName,
   params: ReceivedUpstreamParams,
+  isolateUrl: string,
 ): void {
   if (event === "kitesurf.bindingCalled") {
     const name = typeof params.name === "string" ? params.name : "";
@@ -4308,6 +4333,8 @@ function handleUpstreamFrameEvent(
       return;
     }
 
+    // Checked against the isolate's url because target.url is what this event would overwrite.
+    if (!canRewriteDocumentUrl(isolateUrl, url)) return;
     target.url = url;
     if (kind === "replaceState") {
       const live = target.navigationHistory[target.navigationHistoryIndex];
