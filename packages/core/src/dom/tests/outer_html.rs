@@ -70,7 +70,10 @@ fn utf8_source_parses_like_the_string_source() {
     assert_eq!(spliced.outer_html(0), joined.outer_html(0));
 
     let plain = DomHandle::new(source, url);
-    assert_eq!(DomHandle::new_utf8(source.as_bytes(), 0, "", url).outer_html(0), plain.outer_html(0));
+    assert_eq!(
+        DomHandle::new_utf8(source.as_bytes(), 0, "", url).outer_html(0),
+        plain.outer_html(0)
+    );
     // An offset inside "é" is not a char boundary, so nothing is spliced in.
     let inside = source.find('é').unwrap_or(0) + 1;
     let unspliced = DomHandle::new_utf8(source.as_bytes(), inside, "<!--marker-->", url);

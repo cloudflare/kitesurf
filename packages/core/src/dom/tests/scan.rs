@@ -41,10 +41,21 @@ fn scan_is_the_same_whatever_the_input_chunking() {
         </script><svg><script>1</script></svg><textarea><script>no</script></textarea>\
         <iframe src=\"f.html\" srcdoc=\"&lt;p&gt;\"></iframe><p>&notin;&#x1F600;&#128512;</p></body></html>";
     let whole = scan_in_chunks(html, html.len());
-    assert_eq!(whole, scan_value(html), "the exported scan reads the same document");
-    assert!(whole["scripts"].as_array().is_some_and(|s| s.len() >= 2), "{whole}");
+    assert_eq!(
+        whole,
+        scan_value(html),
+        "the exported scan reads the same document"
+    );
+    assert!(
+        whole["scripts"].as_array().is_some_and(|s| s.len() >= 2),
+        "{whole}"
+    );
     for chunk_bytes in [1, 2, 3, 5, 7, 64] {
-        assert_eq!(scan_in_chunks(html, chunk_bytes), whole, "chunks of {chunk_bytes} bytes");
+        assert_eq!(
+            scan_in_chunks(html, chunk_bytes),
+            whole,
+            "chunks of {chunk_bytes} bytes"
+        );
     }
 }
 
@@ -55,9 +66,17 @@ fn xhtml_scan_is_the_same_whatever_the_input_chunking() {
     let html = "<!-- lead \u{e9} -->\n<html xmlns=\"http://www.w3.org/1999/xhtml\"><head>\
         <title>X</title><script src=\"a.js\"/><script src=\"b.js\"></script></head><body/></html>";
     let whole = scan_value(html);
-    assert_eq!(whole["scripts"].as_array().map(Vec::len), Some(2), "{whole}");
+    assert_eq!(
+        whole["scripts"].as_array().map(Vec::len),
+        Some(2),
+        "{whole}"
+    );
     for chunk_bytes in [1, 2, 3, 5, 7, 64, html.len()] {
-        assert_eq!(scan_in_chunks(html, chunk_bytes), whole, "chunks of {chunk_bytes} bytes");
+        assert_eq!(
+            scan_in_chunks(html, chunk_bytes),
+            whole,
+            "chunks of {chunk_bytes} bytes"
+        );
     }
 }
 
