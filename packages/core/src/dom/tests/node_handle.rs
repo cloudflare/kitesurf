@@ -466,4 +466,18 @@ fn dropping_a_parent_after_a_child_moved_out_keeps_no_link_to_its_slot() {
     assert!(dom.insert_before_node(host, child, 0));
     assert!(dom.drop_node(parent));
     assert!(dom.drop_node(child));
+
+    // `removeChild` from an inline parent is the same hazard, and the inline layout does not
+    // list the child in `layout_children`, so only the removal itself can clear the link.
+    let dom = DomHandle::new(
+        "<!DOCTYPE html><body><span id=p><b id=c>x</b></span>",
+        "https://test.example/",
+    );
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let parent = dom.query_selector("#p").expect("parent") as u32;
+    let child = dom.query_selector("#c").expect("child") as u32;
+    assert!(dom.remove_node(child));
+    assert!(dom.drop_node(parent));
+    assert!(dom.drop_node(child));
 }
