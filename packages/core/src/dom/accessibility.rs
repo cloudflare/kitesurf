@@ -1487,6 +1487,11 @@ impl Context<'_> {
             let Some(current) = self.doc.get_node(id) else {
                 break;
             };
+            // A shadow root's parent is its host, but a label outside the shadow
+            // tree does not name a control inside it.
+            if matches!(current.data, NodeData::ShadowRoot(_)) {
+                break;
+            }
             if tag(current) == "label" {
                 return self.text_from_subtree(current, Some(node.id()));
             }

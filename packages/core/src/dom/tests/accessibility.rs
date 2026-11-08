@@ -367,7 +367,9 @@ fn accessibility_select_value_without_live_state() {
     };
     // The last option marked selected wins.
     assert_eq!(
-        value_of("<select id='s'><option selected>One</option><option selected>Two</option></select>"),
+        value_of(
+            "<select id='s'><option selected>One</option><option selected>Two</option></select>"
+        ),
         "Two"
     );
     // The default skips options in a disabled optgroup.
@@ -385,7 +387,9 @@ fn accessibility_select_value_without_live_state() {
     );
     // A closed single select defaults to its first enabled option.
     assert_eq!(
-        value_of("<select id='s' size='1'><option disabled>Nope</option><option>Yes</option></select>"),
+        value_of(
+            "<select id='s' size='1'><option disabled>Nope</option><option>Yes</option></select>"
+        ),
         "Yes"
     );
 }
@@ -741,4 +745,27 @@ fn accessibility_full_depth_limits_nodes_but_keeps_child_ids() {
     assert_eq!(nodes[2]["backendDOMNodeId"], body_id);
     assert_eq!(nodes[2]["childIds"][0], main_id.to_string());
     assert!(full["nodes"].as_array().unwrap().len() > nodes.len());
+}
+
+#[test]
+fn a_label_outside_a_shadow_root_does_not_name_a_control_inside_it() {
+    let dom = DomHandle::new(
+        "<label>Email <x-field id=h></x-field></label>",
+        "https://example.test/",
+    );
+    let host = node_id(&dom, "#h");
+    let root = u32::try_from(dom.attach_shadow(host, "open")).expect("shadow root");
+    let input = dom.create_element("input");
+    assert!(dom.set_attribute(input, "placeholder", "you@x"));
+    assert!(dom.append_child_node(root, input));
+
+    let output = build_json(&dom, r#"{"method":"full"}"#).expect("accessibility json");
+    let reply: serde_json::Value = serde_json::from_str(&output).expect("json");
+    let textbox = reply["nodes"]
+        .as_array()
+        .expect("nodes")
+        .iter()
+        .find(|node| node["role"]["value"] == "textbox")
+        .expect("textbox");
+    assert_eq!(textbox["name"]["value"], "you@x");
 }
