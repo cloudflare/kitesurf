@@ -2402,6 +2402,7 @@ impl SceneRasterizer {
                     fmt,
                     crate::paint::screenshot::ImageFormat::Png
                         | crate::paint::screenshot::ImageFormat::Jpeg
+                        | crate::paint::screenshot::ImageFormat::Webp
                 )
             {
                 return Err("encoded size limit requires PNG or JPEG".to_string());

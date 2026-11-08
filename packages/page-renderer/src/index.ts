@@ -678,7 +678,15 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
                 opts.omitBackground === true,
                 opts.encodedLimit ?? 0xffffffff,
               )
-            : rasterizer.rasterize(scene, format, quality, opts.omitBackground === true);
+            : opts.encodedLimit !== undefined
+              ? rasterizer.rasterizeLimited(
+                  scene,
+                  format,
+                  quality,
+                  opts.omitBackground === true,
+                  opts.encodedLimit,
+                )
+              : rasterizer.rasterize(scene, format, quality, opts.omitBackground === true);
       }
     } catch {
       bytes = null;

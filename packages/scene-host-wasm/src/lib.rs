@@ -258,7 +258,7 @@ fn retained_frame(raster: &SceneRasterizer, partial: bool, input: &[u8]) -> Vec<
         let output = if partial {
             raster.rasterize_partial(scene, x, y, format, 80, KEY)
         } else {
-            raster.rasterize_and_retain(scene, format, 80, false, KEY)
+            raster.rasterize_and_retain(scene, format, 80, false, KEY, u32::MAX)
         };
         if !output.is_empty() && raster.retained_frame_key() == KEY {
             base.set(Some(seq));
