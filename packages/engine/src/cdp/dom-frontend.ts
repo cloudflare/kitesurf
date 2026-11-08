@@ -18,9 +18,11 @@ export function subtreeBudgetError(method: string, error: SubtreeBudgetError): E
 }
 
 export class DomFrontendNodes {
-  // Nodes the client was sent, and the subset whose children it was sent too.
+  // Nodes the client was sent, the subset whose children it was sent too, and the child ids each
+  // of those was sent with, so a removal or a move can unbind the whole subtree.
   readonly #bound = new Set<number>();
   readonly #childrenSent = new Set<number>();
+  readonly #children = new Map<number, number[]>();
 
   hasDocument(): boolean {
     return this.#bound.size > 0;
@@ -37,6 +39,7 @@ export class DomFrontendNodes {
   reset(): void {
     this.#bound.clear();
     this.#childrenSent.clear();
+    this.#children.clear();
   }
 
   bindTree(root: Protocol.DOM.Node): void {
@@ -45,6 +48,10 @@ export class DomFrontendNodes {
       this.#bound.add(node.nodeId);
       if (node.children) {
         this.#childrenSent.add(node.nodeId);
+        this.#children.set(
+          node.nodeId,
+          node.children.map((child) => child.nodeId),
+        );
         // A wide parent can exceed the argument limit of a spread call, and a
         // whole-tree read is allowed to reach that width.
         for (const child of node.children) stack.push(child);
@@ -56,14 +63,36 @@ export class DomFrontendNodes {
   }
 
   bindChildren(parentId: number, children: Protocol.DOM.Node[]): void {
+    // `DOM.setChildNodes` replaces the parent's previous children on the client.
+    this.unbindChildren(parentId);
     this.#childrenSent.add(parentId);
+    this.#children.set(
+      parentId,
+      children.map((child) => child.nodeId),
+    );
     for (const child of children) this.bindTree(child);
   }
 
-  // Descendants stay listed: ids are never reused, and a reinserted node is sent again.
+  unbindChildren(parentId: number): void {
+    const children = this.#children.get(parentId);
+    if (!children) return;
+    this.#children.delete(parentId);
+    for (const child of children) this.unbind(child);
+  }
+
+  // A removal, or a move, drops the whole subtree the client was sent under this node.
   unbind(nodeId: number): void {
-    this.#bound.delete(nodeId);
-    this.#childrenSent.delete(nodeId);
+    const stack = [nodeId];
+    while (stack.length > 0) {
+      const id = stack.pop() as number;
+      this.#bound.delete(id);
+      this.#childrenSent.delete(id);
+      const children = this.#children.get(id);
+      if (children) {
+        this.#children.delete(id);
+        stack.push(...children);
+      }
+    }
   }
 }
 

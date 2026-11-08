@@ -21,6 +21,7 @@ import { installIsolateLimitSurface, installUpstreamEventHandler } from "./page.
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
 import { publishStub } from "./page-script-generation.ts";
 import { ensureTargetDom } from "./dom-release.ts";
+import { frontendNodes, sessionKeyOf } from "./dom-frontend.ts";
 import {
   outerHtmlResponse,
   registerEnsurePageScript,
@@ -690,14 +691,62 @@ export function emitMutations(
       staleParents.add(m.nodeId);
     }
     for (const sessionId of target.domEnabledSessions) {
-      const event = mutationEvent(m, sessionId.length === 0 ? undefined : sessionId);
+      const nodes = frontendNodes(target, sessionKeyOf(sessionId));
+      const event = mutationEvent(m, nodes, sessionId.length === 0 ? undefined : sessionId);
       if (event) ctx.emit(event);
     }
   }
   if (staleParents.size > 0) scheduleChildRebinds(ctx, target, staleParents);
 }
 
-function mutationEvent(mutation: CdpMutation, sessionId: string | undefined): CdpEvent | null {
+/**
+ * The event for `mutation` in a session that was sent `nodes`, binding what it sends. A change
+ * under a parent whose children the client lacks is only a count update: it has no list to edit.
+ */
+function mutationEvent(
+  mutation: CdpMutation,
+  nodes: DomFrontendNodes,
+  sessionId: string | undefined,
+): CdpEvent | null {
+  switch (mutation.kind) {
+    case "attributeModified":
+    case "attributeRemoved":
+    case "characterDataModified":
+    case "childNodeCountUpdated":
+      return nodes.isBound(mutation.nodeId) ? nodeEvent(mutation, sessionId) : null;
+    case "childNodeInserted":
+    case "childNodeRemoved": {
+      const parentId = mutation.parentNodeId;
+      if (!nodes.childrenSent(parentId)) {
+        if (!nodes.isBound(parentId)) return null;
+        return {
+          method: "DOM.childNodeCountUpdated",
+          params: { nodeId: parentId, childNodeCount: mutation.parentChildNodeCount },
+          sessionId,
+        };
+      }
+      if (mutation.kind === "childNodeInserted") {
+        // An insert can be a move: the client drops the old subtree, and the node
+        // arrives at depth 0, so clear what it was sent with before rebinding it.
+        nodes.unbind(mutation.node.nodeId);
+        nodes.bindTree(mutation.node);
+      } else {
+        nodes.unbind(mutation.nodeId);
+      }
+      return nodeEvent(mutation, sessionId);
+    }
+    case "shadowRootPushed":
+      if (!nodes.isBound(mutation.hostId)) return null;
+      nodes.bindTree(mutation.root);
+      return nodeEvent(mutation, sessionId);
+    case "stylesheetResourceLoaded":
+      return null;
+    default:
+      return null;
+  }
+}
+
+function nodeEvent(mutation: CdpMutation, sessionId: string | undefined): CdpEvent | null {
   switch (mutation.kind) {
     case "attributeModified":
       return {
