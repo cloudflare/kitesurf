@@ -22,9 +22,9 @@ export class DomFrontendNodes {
   // of those was sent with, so a removal or a move can unbind the whole subtree.
   readonly #bound = new Set<number>();
   readonly #childrenSent = new Set<number>();
-  readonly #children = new Map<number, number[]>();
+  readonly #children = new Map<number, Set<number>>();
   // Every id sent under a node, including shadow roots, and the owner of each.
-  readonly #owned = new Map<number, number[]>();
+  readonly #owned = new Map<number, Set<number>>();
   readonly #parentOf = new Map<number, number>();
 
   hasDocument(): boolean {
@@ -47,13 +47,12 @@ export class DomFrontendNodes {
     this.#parentOf.clear();
   }
 
+  // Sets, not arrays: a whole-tree read can send tens of thousands of siblings, and a membership
+  // scan per sibling made binding them quadratic.
   #addOwned(ownerId: number, nodeId: number): void {
     const owned = this.#owned.get(ownerId);
-    if (owned) {
-      if (!owned.includes(nodeId)) owned.push(nodeId);
-    } else {
-      this.#owned.set(ownerId, [nodeId]);
-    }
+    if (owned) owned.add(nodeId);
+    else this.#owned.set(ownerId, new Set([nodeId]));
   }
 
   bindTree(root: Protocol.DOM.Node, ownerId?: number): void {
@@ -69,10 +68,7 @@ export class DomFrontendNodes {
       }
       if (node.children) {
         this.#childrenSent.add(node.nodeId);
-        this.#children.set(
-          node.nodeId,
-          node.children.map((child) => child.nodeId),
-        );
+        this.#children.set(node.nodeId, new Set(node.children.map((child) => child.nodeId)));
         // A wide parent can exceed the argument limit of a spread call, and a
         // whole-tree read is allowed to reach that width.
         for (const child of node.children) stack.push({ node: child, owner: node.nodeId });
@@ -87,26 +83,18 @@ export class DomFrontendNodes {
     // `DOM.setChildNodes` replaces the parent's previous children on the client.
     this.unbindChildren(parentId);
     this.#childrenSent.add(parentId);
-    this.#children.set(
-      parentId,
-      children.map((child) => child.nodeId),
-    );
+    this.#children.set(parentId, new Set(children.map((child) => child.nodeId)));
     for (const child of children) this.bindTree(child, parentId);
   }
 
   noteInserted(parentId: number, node: Protocol.DOM.Node): void {
     this.unbind(node.nodeId);
     this.bindTree(node, parentId);
-    const children = this.#children.get(parentId);
-    if (children && !children.includes(node.nodeId)) children.push(node.nodeId);
+    this.#children.get(parentId)?.add(node.nodeId);
   }
 
   noteRemoved(parentId: number, nodeId: number): void {
-    const children = this.#children.get(parentId);
-    if (children) {
-      const at = children.indexOf(nodeId);
-      if (at >= 0) children.splice(at, 1);
-    }
+    this.#children.get(parentId)?.delete(nodeId);
     this.unbind(nodeId);
   }
 
@@ -133,11 +121,7 @@ export class DomFrontendNodes {
       const owner = this.#parentOf.get(id);
       if (owner !== undefined) {
         this.#parentOf.delete(id);
-        const owned = this.#owned.get(owner);
-        if (owned) {
-          const at = owned.indexOf(id);
-          if (at >= 0) owned.splice(at, 1);
-        }
+        this.#owned.get(owner)?.delete(id);
       }
       this.#bound.delete(id);
       this.#childrenSent.delete(id);
