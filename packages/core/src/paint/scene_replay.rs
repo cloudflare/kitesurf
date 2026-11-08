@@ -2381,7 +2381,13 @@ impl SceneRasterizer {
                     return self.encode_banded(scene, fmt, quality, encoded_limit);
                 }
             }
-            if encoded_limit.is_some() {
+            if encoded_limit.is_some()
+                && !matches!(
+                    fmt,
+                    crate::paint::screenshot::ImageFormat::Png
+                        | crate::paint::screenshot::ImageFormat::Jpeg
+                )
+            {
                 return Err("encoded size limit requires PNG or JPEG".to_string());
             }
             let store = self.store.borrow();
@@ -2439,7 +2445,13 @@ impl SceneRasterizer {
                         }
                     }
                     let _sp = tracing::info_span!("wasm.rasterize.encode", format).entered();
-                    encode_rgba_frame_owned(fmt, buffer, w, h, quality)
+                    let bytes = encode_rgba_frame_owned(fmt, buffer, w, h, quality)?;
+                    match encoded_limit {
+                        Some(limit) if bytes.len() > limit => {
+                            Err(encoded_limit_error(w as u16, h as u16, bytes.len(), limit))
+                        }
+                        _ => Ok(bytes),
+                    }
                 }
             }
         }));
@@ -3100,7 +3112,8 @@ mod tests {
     #[test]
     fn non_retained_bands_report_coordinate_limit() {
         let raster = SceneRasterizer::new();
-        for (width, height) in [(65_536, 1), (1, 65_536)] {
+        // Above the retained-frame cap, so the banded path is the one under test.
+        for (width, height) in [(65_536, 200), (200, 65_536)] {
             let mut scene = RecordingScene::for_replay();
             scene.set_viewport(width, height, 0, 0);
             let scene = scene.finish_framed();
