@@ -166,6 +166,15 @@ export function frontendNodes(target: TargetState, sessionKey: string): DomFront
   return nodes;
 }
 
+/**
+ * Drops a detached session's bindings. Nothing reads them again, and the mutation path would
+ * otherwise keep walking a tree no client holds.
+ */
+export function forgetFrontendNodes(target: TargetState, sessionKey: string): void {
+  bySession.get(target)?.sessions.delete(sessionKey);
+  target.domEnabledSessions.delete(sessionKey);
+}
+
 export type SubtreeParams = { depth: number; pierce: boolean };
 
 type SubtreeRequest = { depth?: number; pierce?: boolean } | undefined;

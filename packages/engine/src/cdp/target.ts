@@ -22,6 +22,7 @@ import { outerHtmlResponse, stubQueryDom } from "./page-session.ts";
 import {
   childNodesSubtree,
   documentSubtree,
+  forgetFrontendNodes,
   GET_DOCUMENT_DEPTH,
   GET_FLATTENED_DOCUMENT_DEPTH,
   subtreeBudgetError,
@@ -264,6 +265,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
             );
           }
           detachWebMcpSession(t, sessionId);
+          forgetFrontendNodes(t, sessionId);
           const stream = ctx.browser.screencasts.get(t.targetId);
           if (stream?.ownerSessionId === sessionId) {
             stream.stopped = true;
