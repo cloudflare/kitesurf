@@ -653,7 +653,7 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
       } else if (isPartial && clip) {
         const [x, y] = toViewportPoint(clip);
         bytes = rasterizer.rasterizePartial(scene, x, y, format, quality, partialKey);
-      } else if (partialKey !== "") {
+      } else if (partialKey !== "" && opts.encodedLimit === undefined) {
         bytes = rasterizer.rasterizeAndRetain(
           scene,
           format,
