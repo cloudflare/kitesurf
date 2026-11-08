@@ -28,6 +28,10 @@ impl PdfSceneStream {
     #[wasm_bindgen(js_name = "nextPage")]
     pub fn next_page(&mut self, dom: &DomHandle) -> Result<Vec<u8>, JsError> {
         let Some(&band) = self.bands.get(self.next) else {
+            // A stream that records no page never reaches `record_stream_page`'s clear.
+            if let Ok(mut doc) = dom.doc.try_borrow_mut() {
+                doc.set_inline_keep_extent(None);
+            }
             return Ok(Vec::new());
         };
         let page = record_stream_page(dom, self.content_width, band)?;
@@ -103,7 +107,6 @@ impl DomHandle {
         if self.layout_mode.get() == LayoutMode::Off {
             return None;
         }
-        self.resolve_until_images_settle();
         let (_, _, content_width, content_height) = crate::paint::pdf_paint::content_box(
             width,
             height,
@@ -112,6 +115,16 @@ impl DomHandle {
             margin_bottom,
             margin_left,
         );
+        // Set before the layout passes it protects: the resolve below and the print-viewport
+        // `ensure_layout` end with an eviction scan.
+        match self.doc.try_borrow_mut() {
+            Ok(mut doc) => doc.set_inline_keep_extent(Some((
+                0.0,
+                crate::paint::pdf::max_printed_height(content_height),
+            ))),
+            Err(_) => return None,
+        }
+        self.resolve_until_images_settle();
         let mut doc = self.doc.try_borrow_mut().ok()?;
         let cur = doc.viewport();
         if cur.window_size.0 != content_width || cur.window_size.1 != content_height {
