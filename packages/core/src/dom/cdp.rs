@@ -508,6 +508,37 @@ fn subtree_size_impl(
                             .saturating_add(string_size(&[&attr.value]));
                     }
                 }
+                let namespaced = data
+                    .attrs
+                    .iter()
+                    .filter(|attr| !attr.namespace().is_empty())
+                    .count();
+                if namespaced > 0 {
+                    bytes = bytes
+                        .saturating_add(property_size("attributeNamespaces"))
+                        .saturating_add(array_size(namespaced))
+                        .saturating_add(
+                            (property_size("qualifiedName")
+                                + property_size("namespaceURI")
+                                + property_size("prefix")
+                                + property_size("localName"))
+                            .saturating_mul(namespaced),
+                        );
+                    for attr in data
+                        .attrs
+                        .iter()
+                        .filter(|attr| !attr.namespace().is_empty())
+                    {
+                        let prefix = attr.prefix().map_or("", |p| p.as_ref());
+                        let local = attr.name.local.as_ref();
+                        let separator = if prefix.is_empty() { "" } else { ":" };
+                        bytes = bytes
+                            .saturating_add(string_size(&[prefix, separator, local]))
+                            .saturating_add(string_size(&[attr.namespace().as_ref()]))
+                            .saturating_add(string_size(&[prefix]))
+                            .saturating_add(string_size(&[local]));
+                    }
+                }
             }
         }
         if let Some(length) = children {
