@@ -1228,6 +1228,7 @@ export async function handlePage(
         if (
           clip &&
           clip.scale !== undefined &&
+          clip.scale !== 1 &&
           clip.scale * (target.deviceScaleFactor || 1) !== 1
         ) {
           throw new Error(
