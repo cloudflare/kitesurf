@@ -54,8 +54,8 @@ pub(super) fn page(paragraphs: usize) -> String {
     )
 }
 
-fn setup(eviction: Option<f32>, paragraphs: usize) -> DomHandle {
-    let dom = DomHandle::new(&page(paragraphs), "https://test.example/");
+pub(super) fn setup_with(html: &str, eviction: Option<f32>) -> DomHandle {
+    let dom = DomHandle::new(html, "https://test.example/");
     dom.set_viewport(800, 600);
     dom.doc
         .borrow_mut()
@@ -63,6 +63,10 @@ fn setup(eviction: Option<f32>, paragraphs: usize) -> DomHandle {
         .set_inline_layout_eviction(eviction);
     dom.resolve_layout();
     dom
+}
+
+fn setup(eviction: Option<f32>, paragraphs: usize) -> DomHandle {
+    setup_with(&page(paragraphs), eviction)
 }
 
 fn inline_roots(base: &BaseDocument) -> Vec<NodeId> {
@@ -275,16 +279,7 @@ fn boxes(base: &BaseDocument) -> Vec<(NodeId, String)> {
 #[test]
 fn width_changes_lay_out_evicted_roots_without_reshaping() {
     let html = page(120).replace("width: 600px;", "");
-    let load = |eviction| {
-        let dom = DomHandle::new(&html, "https://test.example/");
-        dom.set_viewport(800, 600);
-        dom.doc
-            .borrow_mut()
-            .as_mut()
-            .set_inline_layout_eviction(eviction);
-        dom.resolve_layout();
-        dom
-    };
+    let load = |eviction| setup_with(&html, eviction);
     let keep = load(None);
     let evict = load(Some(2.0));
     let far = evicted_count(evict.doc.borrow().as_ref());
@@ -369,16 +364,7 @@ fn width_changes_place_absolute_boxes_of_evicted_roots() {
             "</body>",
             &format!("{annotated}<p id=static>{words}<i class=static>s</i>{words}</p></body>"),
         );
-    let load = |eviction| {
-        let dom = DomHandle::new(&html, "https://test.example/");
-        dom.set_viewport(800, 600);
-        dom.doc
-            .borrow_mut()
-            .as_mut()
-            .set_inline_layout_eviction(eviction);
-        dom.resolve_layout();
-        dom
-    };
+    let load = |eviction| setup_with(&html, eviction);
     let keep = load(None);
     let evict = load(Some(2.0));
     assert!(
@@ -444,16 +430,7 @@ fn rounded_content_slots_do_not_count_as_floats() {
          </style></head><body><div style=\"display: flow-root; padding: 0 1.9px\">{body}</div>\
          </body></html>"
     );
-    let load = |eviction| {
-        let dom = DomHandle::new(&html, "https://test.example/");
-        dom.set_viewport(800, 600);
-        dom.doc
-            .borrow_mut()
-            .as_mut()
-            .set_inline_layout_eviction(eviction);
-        dom.resolve_layout();
-        dom
-    };
+    let load = |eviction| setup_with(&html, eviction);
     let keep = load(None);
     let evict = load(Some(2.0));
     for width in [613, 800] {
@@ -641,16 +618,7 @@ fn a_flex_item_s_measure_evicts_roots_before_its_final_layout() {
             1,
         )
         .replacen("</body>", "</div></div></body>", 1);
-    let build = |eviction: Option<f32>| {
-        let dom = DomHandle::new(&html, "https://test.example/");
-        dom.set_viewport(800, 600);
-        dom.doc
-            .borrow_mut()
-            .as_mut()
-            .set_inline_layout_eviction(eviction);
-        dom.resolve_layout();
-        dom
-    };
+    let build = |eviction: Option<f32>| setup_with(&html, eviction);
     let keep = build(None);
     let before = blitz_dom::node::inline_summary_stats().summarized;
     let evict = build(Some(2.0));
@@ -840,16 +808,7 @@ fn evicted_shrink_to_fit_roots_are_measured_without_rebuilding() {
     let html = page(120)
         .replace("width: 600px;", "")
         .replace("</body>", &format!("{fitted}</body>"));
-    let load = |eviction| {
-        let dom = DomHandle::new(&html, "https://test.example/");
-        dom.set_viewport(800, 600);
-        dom.doc
-            .borrow_mut()
-            .as_mut()
-            .set_inline_layout_eviction(eviction);
-        dom.resolve_layout();
-        dom
-    };
+    let load = |eviction| setup_with(&html, eviction);
     let keep = load(None);
     let evict = load(Some(2.0));
     assert!(
@@ -926,16 +885,7 @@ fn removing_an_absolute_inset_rebuilds_the_static_inline_position() {
     let html = page(120)
         .replace("</style>", ".rel { position: relative; }</style>")
         .replace("</body>", &format!("{annotated}</body>"));
-    let load = |eviction| {
-        let dom = DomHandle::new(&html, "https://test.example/");
-        dom.set_viewport(800, 600);
-        dom.doc
-            .borrow_mut()
-            .as_mut()
-            .set_inline_layout_eviction(eviction);
-        dom.resolve_layout();
-        dom
-    };
+    let load = |eviction| setup_with(&html, eviction);
     let keep = load(None);
     let evict = load(Some(2.0));
     assert!(is_evicted(&evict, "o39"), "the pin initially has an inset");

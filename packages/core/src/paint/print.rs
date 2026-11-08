@@ -74,11 +74,10 @@ impl DomHandle {
                 };
             }
         }
-        let caches = (
+        let result = match (
             self.rbi_font_bytes.try_borrow_mut(),
             self.rbi_image_cache.try_borrow_mut(),
-        );
-        let result = match caches {
+        ) {
             (Ok(mut fonts_ref), Ok(mut images_ref)) => {
                 let mut pdf_images = Vec::new();
                 let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {

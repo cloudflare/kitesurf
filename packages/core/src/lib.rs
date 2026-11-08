@@ -107,11 +107,10 @@ impl NodeHandleMap {
 
     #[inline]
     fn latest(&self, slot: usize) -> Option<u32> {
+        let seeded = self.seeded_versions.len();
         let latest = match self.sparse_latest.get(&(slot as u32)) {
             Some(&external) => external,
-            None if slot > self.seeded_versions.len() => *self
-                .latest_beyond
-                .get(slot - self.seeded_versions.len() - 1)?,
+            None if slot > seeded => *self.latest_beyond.get(slot - seeded - 1)?,
             None => return self.seeded_external(slot),
         };
         (latest != Self::NO_EXTERNAL).then_some(latest)
@@ -129,20 +128,13 @@ impl NodeHandleMap {
 
     #[inline]
     pub(crate) fn external_for_opaque(&self, opaque: usize) -> Option<u32> {
-        let latest = self.latest(opaque as u32 as usize);
+        let id = NodeId::from_u64(opaque as u64);
+        // An opaque ID carries the generation on 64-bit, but not on wasm32, where
+        // the slot's latest handle is the only answer available.
         if usize::BITS == 32 {
-            return latest;
+            return self.latest(slot_of(id));
         }
-        latest
-            .filter(|&external| {
-                self.resolve(external)
-                    .is_some_and(|id| id.as_u64() as usize == opaque)
-            })
-            .or_else(|| {
-                self.displaced
-                    .get(&NodeId::from_u64(opaque as u64))
-                    .copied()
-            })
+        self.existing_external(id)
     }
 
     #[inline]
@@ -189,14 +181,9 @@ impl NodeHandleMap {
                 .or_else(|| self.seeded_external(slot))
         } else if slot > self.next_external as usize {
             // A forged ID must not allocate a reverse vector up to its slot.
-            // Outliers use a sparse entry instead of growing the dense vector.
-            self.sparse_latest
-                .insert(slot as u32, external)
-                .or_else(|| {
-                    self.latest_beyond
-                        .get_mut(slot - seeded - 1)
-                        .map(|entry| std::mem::replace(entry, Self::NO_EXTERNAL))
-                })
+            // Outliers use a sparse entry instead of growing the dense vector,
+            // which is also why `latest_beyond` cannot hold this slot yet.
+            self.sparse_latest.insert(slot as u32, external)
         } else {
             let index = slot - seeded - 1;
             if index >= self.latest_beyond.len() {

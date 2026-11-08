@@ -5,7 +5,7 @@
 //! Differential tests: lines broken from a `parley::BreakSummary` must match the lines parley
 //! breaks from the shaped layout at the same width and indent.
 
-use super::inline_eviction::page;
+use super::inline_eviction::{page, setup_with};
 use crate::DomHandle;
 use blitz_dom::BaseDocument;
 use blitz_dom::node::TextBrush;
@@ -204,14 +204,7 @@ const TARGETED: [&str; 14] = [
 ];
 
 fn load(html: &str) -> DomHandle {
-    let dom = DomHandle::new(html, "https://test.example/");
-    dom.set_viewport(800, 600);
-    dom.doc
-        .borrow_mut()
-        .as_mut()
-        .set_inline_layout_eviction(None);
-    dom.resolve_layout();
-    dom
+    setup_with(html, None)
 }
 
 fn layouts(base: &BaseDocument) -> Vec<(String, Layout<TextBrush>)> {
