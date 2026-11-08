@@ -102,7 +102,7 @@ index eb33360..98009f1 100644
 +            };
 +            styles.get_font().font_family.families.list.iter().any(|family| match family {
 +                style::values::computed::font::SingleFontFamily::FamilyName(name) => {
-+                    let name = name.name.as_ref();
++                    let name: &str = name.name.as_ref();
 +                    families.iter().any(|f| {
 +                        if name.is_ascii() {
 +                            f.eq_ignore_ascii_case(name)
