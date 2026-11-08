@@ -345,7 +345,14 @@ async function documentRoot(
     }
   }
   const dom = ensureTargetDom(target);
-  if (!dom) return syntheticBlankDocument();
+  if (!dom) {
+    if (target.fallbackHtmlReleased) {
+      throw new Error(
+        "DOM.getDocument failed: this target's document source was released after a PageScript failure; navigate again",
+      );
+    }
+    return syntheticBlankDocument();
+  }
   const budgetError = dom.documentBudgetError(subtree.depth, subtree.pierce);
   if (budgetError) throw subtreeBudgetError(cdpMethod, budgetError);
   const root = dom.getDocument(subtree.depth, subtree.pierce);

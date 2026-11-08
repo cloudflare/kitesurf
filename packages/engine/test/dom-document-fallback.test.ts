@@ -48,11 +48,33 @@ describe("fallback HTML retention", () => {
     const target = { html: "x".repeat(MAX_RETAINED_FALLBACK_HTML_CHARS) } as TargetState;
     releaseFallbackHtml(target);
     expect(target.html).toHaveLength(MAX_RETAINED_FALLBACK_HTML_CHARS);
+    expect(target.fallbackHtmlReleased).toBe(false);
   });
 
   it("drops the source for large documents once PageScript owns them", () => {
     const target = { html: "x".repeat(MAX_RETAINED_FALLBACK_HTML_CHARS + 1) } as TargetState;
     releaseFallbackHtml(target);
     expect(target.html).toBe("");
+    expect(target.fallbackHtmlReleased).toBe(true);
+  });
+
+  it("does not report a released document as an empty one", async () => {
+    const target = {
+      type: "page",
+      sessions: new Set(["s1"]),
+      pageScript: null,
+      blankReady: null,
+      frames: new Map(),
+      domEnabledSessions: new Set<string>(),
+      dom: null,
+      html: "x".repeat(MAX_RETAINED_FALLBACK_HTML_CHARS + 1),
+      fallbackHtmlReleased: false,
+    } as unknown as TargetState;
+    releaseFallbackHtml(target);
+    const ctx = { browser: { targets: new Map([["t1", target]]) } } as DispatchCtx;
+
+    await expect(
+      handleDom(ctx, { id: 1, method: "DOM.getDocument", sessionId: "s1" }),
+    ).rejects.toThrow(/released after a PageScript failure/);
   });
 });
