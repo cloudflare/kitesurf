@@ -330,7 +330,9 @@ mod tests {
         let other = class_of(layout(100, 4)).unwrap();
         let per_other = (PAGE - HEADER) / CLASSES[other] as usize;
         let bump = slabs.chunk_next;
-        let more: Vec<*mut u8> = (0..per_other * 3).map(|_| unsafe { slabs.alloc(other) }).collect();
+        let more: Vec<*mut u8> = (0..per_other * 3)
+            .map(|_| unsafe { slabs.alloc(other) })
+            .collect();
         assert_eq!(slabs.pages, 4);
         assert_eq!(slabs.chunk_next, bump, "the three freed pages are reused");
         assert_eq!(slabs.page_bytes(), CHUNK);
@@ -344,8 +346,13 @@ mod tests {
         let mut slabs = Slabs::new();
         let class = class_of(layout(256, 8)).unwrap();
         let per_page = (PAGE - HEADER) / 256;
-        let first: Vec<*mut u8> = (0..per_page).map(|_| unsafe { slabs.alloc(class) }).collect();
-        assert!(slabs.partial[class].is_null(), "a full page leaves the list");
+        let first: Vec<*mut u8> = (0..per_page)
+            .map(|_| unsafe { slabs.alloc(class) })
+            .collect();
+        assert!(
+            slabs.partial[class].is_null(),
+            "a full page leaves the list"
+        );
         unsafe { slabs.dealloc(first[3], class) };
         assert_eq!(unsafe { slabs.alloc(class) }, first[3]);
         assert_eq!(slabs.pages, 1);

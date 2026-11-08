@@ -261,7 +261,8 @@ pub fn stats_json() -> String {
         ("lifetimePeakLiveBytes", PEAK.load(Relaxed) as i64),
         ("wasmBytes", wasm_memory_bytes() as i64),
         // SAFETY: a read between allocator calls on the one thread.
-        ("slabPageBytes", unsafe { (*SLABS.0.get()).page_bytes() } as i64),
+        ("slabPageBytes", unsafe { (*SLABS.0.get()).page_bytes() }
+            as i64),
     ] {
         if out.len() > 1 {
             out.push(',');
