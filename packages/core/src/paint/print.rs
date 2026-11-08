@@ -38,7 +38,7 @@ impl DomHandle {
         // Set before the layout passes it protects: both the resolve below and the
         // print-viewport `ensure_layout` end with an eviction scan.
         match self.doc.try_borrow_mut() {
-            Ok(doc) => doc.set_inline_keep_extent(Some((
+            Ok(mut doc) => doc.set_inline_keep_extent(Some((
                 0.0,
                 crate::paint::pdf::max_printed_height(content_h),
             ))),

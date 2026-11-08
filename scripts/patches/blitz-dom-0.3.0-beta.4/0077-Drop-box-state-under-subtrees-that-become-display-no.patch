@@ -269,11 +269,12 @@ index 3ee3356..1eaa68d 100644
 +                node.layout_parent.set(None);
 +            }
 +            // A user or script set the scroll offset, and layout cannot rebuild
-+            // it, so a scrolled box keeps its layout data while hidden.
-+            let scrolled = {
++            // it, so a scrolled box keeps its layout data while hidden. Text and
++            // comment nodes have no layout data, so ask only element kinds.
++            let scrolled = node.element_data().is_some_and(|_| {
 +                let offset = node.scroll_offset();
 +                offset.x != 0.0 || offset.y != 0.0
-+            };
++            });
 +            if let Some(element) = node.element_data_mut() {
 +                element.set_inline_layout_data(None);
 +                element.set_list_item_data(None);
