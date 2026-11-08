@@ -35,6 +35,11 @@ function countLines(s: string): number {
   return n;
 }
 
+// A line terminator in a script URL would end the `//` comment or directive it is placed in.
+function commentSafe(text: string): string {
+  return text.replace(/[\n\r\u2028\u2029]/g, (c) => encodeURI(c));
+}
+
 interface ClassicSegment {
   source: string;
   generatedLine: number;
@@ -116,7 +121,7 @@ function buildClassicSegment(
   index: number,
   opts: { currentScript?: boolean } = {},
 ): { source: string; sourceLineOffset: number } {
-  const label = d.src ? d.src : `inline#${index}`;
+  const label = commentSafe(d.src ? d.src : `inline#${index}`);
   if (d.blocked) {
     return {
       source: `console.error(${JSON.stringify(d.blocked.message)});\n`,
@@ -446,7 +451,7 @@ __ks_diag.exited = true;
       prodWrap(
         buildClassicSegment(d, i, { currentScript: false }).source,
         hasUseStrictDirective(source),
-      ) + `\n//# sourceURL=${url}\n`;
+      ) + `\n//# sourceURL=${commentSafe(url)}\n`;
     insertedManifest.push({ url, module, digest });
   }
 

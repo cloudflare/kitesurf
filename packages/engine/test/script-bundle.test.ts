@@ -3,7 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { buildScriptBundle } from "../src/eval/script-bundle.ts";
+import { buildScriptBundle, insertedSourceDigests } from "../src/eval/script-bundle.ts";
 import type { ParentScriptDescriptor } from "../src/wasm.ts";
 
 function classic(body: string, opts: Partial<ParentScriptDescriptor> = {}): ParentScriptDescriptor {
@@ -141,5 +141,37 @@ describe("buildScriptBundle.moduleScriptUrls + additionalModules", () => {
     const body = bundle.additionalModules[errUrl]!;
     expect(body).toContain("module prefetch failed");
     expect(body).toContain("/broken.js");
+  });
+});
+
+describe("script URLs in generated comments", () => {
+  const payload = "globalThis.injected = 1;//";
+  const spellings = ["\n", "\r", "\u2028", "\u2029"].map(
+    (terminator) => `https://cdn.test/a.js${terminator}${payload}`,
+  );
+  const body = "var a = 1;\nlet b = 2;\nglobalThis.ran = a + b;";
+  // String literals may hold U+2028 and U+2029, so quoted copies of the src are not code.
+  const linesStartingWithPayload = (source: string, src: string): string[] =>
+    source
+      .replaceAll(JSON.stringify(src), '""')
+      .split(/\r\n|[\n\r\u2028\u2029]/)
+      .filter((line) => line.trimStart().startsWith(payload));
+
+  it.each(spellings)("keeps a parser-inserted script's src inside its comments (%j)", (src) => {
+    const bundle = buildScriptBundle([classic("", { src, prefetchedSource: body })]);
+    const source = bundle.classicRegularSource!;
+    expect(source).toContain("globalThis.ran = a + b;");
+    expect(linesStartingWithPayload(source, src)).toEqual([]);
+  });
+
+  it.each(spellings)("keeps an inserted bake's src inside its comments (%j)", async (src) => {
+    const insertedBake = [classic("", { src, resolvedSrc: src, prefetchedSource: body })];
+    const insertedDigests = await insertedSourceDigests(insertedBake);
+    const bundle = buildScriptBundle([], { insertedBake, insertedDigests });
+    expect(bundle.insertedManifest).toHaveLength(1);
+    const source = bundle.insertedModules[bundle.insertedManifest[0]!.module]!;
+    expect(source).toContain("globalThis.ran = a + b;");
+    expect(source).toContain("//# sourceURL=https://cdn.test/a.js");
+    expect(linesStartingWithPayload(source, src)).toEqual([]);
   });
 });

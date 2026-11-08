@@ -342,3 +342,19 @@ describe("legacy bucket runtime behaviour", () => {
     expect(globals.__exportsLeak).toEqual({ kind: "string", value: "undefined" });
   });
 });
+
+describe("script URLs in generated comments", () => {
+  it.each(["\n", "\u2028"])("code after a line terminator in src does not run (%j)", async (t) => {
+    const globals = await bootBundleAndCollectGlobals(
+      [
+        classic("", {
+          src: `https://cdn.test/a.js${t}globalThis.__injected = 1;//`,
+          prefetchedSource: "var a = 1;\nglobalThis.__ran = a;",
+        }),
+      ],
+      ["__injected", "__ran"],
+    );
+    expect(globals.__injected).toEqual({ kind: "undefined" });
+    expect(globals.__ran).toEqual({ kind: "number", value: 1 });
+  });
+});
