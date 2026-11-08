@@ -1541,8 +1541,12 @@ pub(crate) struct CachedRenderer {
     renderer: anyrender_vello_cpu::VelloCpuImageRenderer,
 }
 
+/// The single-pass rasterizer's per-side cap. A frame above it must take the banded path, or the
+/// replay silently clamps it.
+const MAX_SINGLE_PASS_DIMENSION: u32 = 4096;
+
 fn raster_dimensions(header: &scene_decode::SceneHeader) -> (u32, u32) {
-    const MAX_DIM: u32 = 4096;
+    const MAX_DIM: u32 = MAX_SINGLE_PASS_DIMENSION;
     let h = if header.render_h > 0 {
         header.render_h
     } else {
@@ -2345,8 +2349,16 @@ impl SceneRasterizer {
         quality: u8,
         omit_background: bool,
         key: &str,
+        encoded_limit: u32,
     ) -> Vec<u8> {
-        self.rasterize_inner(scene, format, quality, omit_background, Some(key), None)
+        self.rasterize_inner(
+            scene,
+            format,
+            quality,
+            omit_background,
+            Some(key),
+            Some(encoded_limit as usize),
+        )
     }
 
     fn rasterize_inner(
@@ -2377,11 +2389,15 @@ impl SceneRasterizer {
                 } else {
                     header.viewport_h
                 };
-                if (header.viewport_w as usize) * (height as usize) > MAX_RETAINED_PIXELS {
+                if header.viewport_w > MAX_SINGLE_PASS_DIMENSION
+                    || height > MAX_SINGLE_PASS_DIMENSION
+                    || (header.viewport_w as usize) * (height as usize) > MAX_RETAINED_PIXELS
+                {
                     return self.encode_banded(scene, fmt, quality, encoded_limit);
                 }
             }
-            if encoded_limit.is_some()
+            if retain_key.is_none()
+                && encoded_limit.is_some()
                 && !matches!(
                     fmt,
                     crate::paint::screenshot::ImageFormat::Png
@@ -2435,6 +2451,16 @@ impl SceneRasterizer {
                         let _sp = tracing::info_span!("wasm.rasterize.encode", format).entered();
                         frame.encode(fmt, quality, dirty, &mut self.scratch.borrow_mut())?
                     };
+                    if let Some(limit) = encoded_limit {
+                        if bytes.len() > limit {
+                            return Err(encoded_limit_error(
+                                w as u16,
+                                h as u16,
+                                bytes.len(),
+                                limit,
+                            ));
+                        }
+                    }
                     frame.key.push_str(key);
                     Ok(bytes)
                 }
@@ -3407,7 +3433,7 @@ mod tests {
         let (image, _) = record_scene(None, Some(&test_image(2)));
         for scene in [&red, &blue, &small, &blue, &image, &image] {
             assert_eq!(raster.rasterize(scene, "rgba", 0, false), fresh(scene));
-            let jpeg = retained.rasterize_and_retain(scene, "jpeg", 80, false, "warm");
+            let jpeg = retained.rasterize_and_retain(scene, "jpeg", 80, false, "warm", 0xffff_ffff);
             assert!(!jpeg.is_empty());
             let expected = SceneRasterizer::new().rasterize(scene, "jpeg", 80, false);
             assert_eq!(
@@ -3421,7 +3447,7 @@ mod tests {
     fn rasterize_partial_composites_into_retained_frame() {
         let raster = SceneRasterizer::new();
         let base = solid_scene(W, H, Color::from_rgba8(0, 0, 255, 255));
-        let full = raster.rasterize_and_retain(&base, "rgba", 80, false, "k1");
+        let full = raster.rasterize_and_retain(&base, "rgba", 80, false, "k1", 0xffff_ffff);
         assert_eq!(raster.retained_frame_key(), "k1");
         assert_eq!(u32_le(&full[0..4]), W);
         let patch = solid_scene(20, 10, Color::from_rgba8(255, 0, 0, 255));
@@ -3444,7 +3470,7 @@ mod tests {
         let offframe = solid_scene(8, 8, Color::from_rgba8(255, 0, 0, 255));
 
         let pristine = SceneRasterizer::new();
-        let expected = pristine.rasterize_and_retain(&base, "rgba", 80, false, "k");
+        let expected = pristine.rasterize_and_retain(&base, "rgba", 80, false, "k", 0xffff_ffff);
         assert!(
             expected[8..]
                 .as_chunks::<4>()
@@ -3455,7 +3481,7 @@ mod tests {
         );
 
         let raster = SceneRasterizer::new();
-        let jpeg = raster.rasterize_and_retain(&base, "jpeg", 80, false, "k");
+        let jpeg = raster.rasterize_and_retain(&base, "jpeg", 80, false, "k", 0xffff_ffff);
         assert!(!jpeg.is_empty(), "jpeg retain produced bytes");
         let after_jpeg = raster.rasterize_partial(&offframe, 10_000, 10_000, "rgba", 80, "k");
         assert_eq!(
@@ -3479,7 +3505,14 @@ mod tests {
         let scene = solid_scene(W, H, Color::from_rgba8(0, 0, 255, 128));
         for fmt in ["png", "jpeg", "rgba"] {
             let plain = SceneRasterizer::new().rasterize(&scene, fmt, 80, false);
-            let retained = SceneRasterizer::new().rasterize_and_retain(&scene, fmt, 80, false, "k");
+            let retained = SceneRasterizer::new().rasterize_and_retain(
+                &scene,
+                fmt,
+                80,
+                false,
+                "k",
+                0xffff_ffff,
+            );
             assert!(!plain.is_empty(), "{fmt}: rasterize produced bytes");
             assert_eq!(retained, plain, "{fmt}: retaining changed the output");
         }
@@ -3516,7 +3549,14 @@ mod tests {
             None,
             &Rect::new(0.0, 0.0, W as f64, H as f64),
         );
-        let base = r.rasterize_and_retain(&rec.finish_framed(), "rgba", 0, false, "opaque");
+        let base = r.rasterize_and_retain(
+            &rec.finish_framed(),
+            "rgba",
+            0,
+            false,
+            "opaque",
+            0xffff_ffff,
+        );
         assert_eq!(base.len(), 8 + (W * H * 4) as usize);
         assert!(base[8..]
             .as_chunks::<4>()
@@ -3583,12 +3623,12 @@ mod tests {
             rec.pop_layer();
             let r = SceneRasterizer::new();
             let framed = rec.finish_framed();
-            let rgba = r.rasterize_and_retain(&framed, "rgba", 0, false, "group");
+            let rgba = r.rasterize_and_retain(&framed, "rgba", 0, false, "group", 0xffff_ffff);
             assert_eq!(rgba.len(), 8 + (W * H * 4) as usize);
             assert_eq!(rgba[11], if erase { 0 } else { 128 });
             let fresh = encode_jpeg(&mut rgba[8..].to_vec(), W, H, 60).unwrap();
             assert_eq!(
-                r.rasterize_and_retain(&framed, "jpeg", 60, false, "group"),
+                r.rasterize_and_retain(&framed, "jpeg", 60, false, "group", 0xffff_ffff),
                 fresh
             );
             assert_eq!(r.encode_retained("rgba", 0, "group"), rgba);
@@ -3609,7 +3649,8 @@ mod tests {
             for (i, &(x, y)) in frames.iter().enumerate() {
                 let scene = block_scene(x, y);
                 let fresh = SceneRasterizer::new().rasterize(&scene, "jpeg", quality, false);
-                let out = raster.rasterize_and_retain(&scene, "jpeg", quality, false, "k");
+                let out =
+                    raster.rasterize_and_retain(&scene, "jpeg", quality, false, "k", 0xffff_ffff);
                 assert_eq!(out, fresh, "q{quality} frame {i}: retained encode differs");
             }
         }
@@ -3647,7 +3688,14 @@ mod tests {
         ];
         for format in ["rgba", "jpeg"] {
             let raster = SceneRasterizer::new();
-            raster.rasterize_and_retain(&page_window(0, 0, W, H), format, 80, false, "k");
+            raster.rasterize_and_retain(
+                &page_window(0, 0, W, H),
+                format,
+                80,
+                false,
+                "k",
+                0xffff_ffff,
+            );
             for pair in scrolls.windows(2) {
                 let ((ox, oy), (sx, sy)) = (pair[0], pair[1]);
                 let (dx, dy) = (sx - ox, sy - oy);
@@ -3681,7 +3729,7 @@ mod tests {
             .rasterize_partial(&patch, 0, 0, "rgba", 80, "k1")
             .is_empty());
         let base = solid_scene(W, H, Color::WHITE);
-        let _ = raster.rasterize_and_retain(&base, "rgba", 80, false, "k1");
+        let _ = raster.rasterize_and_retain(&base, "rgba", 80, false, "k1", 0xffff_ffff);
         assert!(raster
             .rasterize_partial(&patch, 0, 0, "rgba", 80, "other")
             .is_empty());
@@ -3699,7 +3747,7 @@ mod tests {
             .rasterize_partial(&patch, 0, 0, "rgba", 80, "k1")
             .is_empty());
         let base = solid_scene(W, H, Color::from_rgba8(0, 0, 255, 255));
-        let _ = raster.rasterize_and_retain(&base, "rgba", 80, false, "k1");
+        let _ = raster.rasterize_and_retain(&base, "rgba", 80, false, "k1", 0xffff_ffff);
         assert_eq!(raster.retained_frame_key(), "k1");
         let out = raster.rasterize_partial(&patch, 30, 40, "rgba", 80, "k1");
         assert_eq!(u32_le(&out[0..4]), W);
@@ -3715,7 +3763,7 @@ mod tests {
     fn rasterize_partial_clamps_offframe_patches() {
         let raster = SceneRasterizer::new();
         let base = solid_scene(W, H, Color::from_rgba8(0, 0, 255, 255));
-        let _ = raster.rasterize_and_retain(&base, "rgba", 80, false, "k");
+        let _ = raster.rasterize_and_retain(&base, "rgba", 80, false, "k", 0xffff_ffff);
         let patch = solid_scene(20, 10, Color::from_rgba8(255, 0, 0, 255));
         let out = raster.rasterize_partial(&patch, -10, -5, "rgba", 80, "k");
         let px = |x: u32, y: u32| {

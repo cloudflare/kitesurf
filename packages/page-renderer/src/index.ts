@@ -658,7 +658,7 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
         retainsFrame = true;
         const [x, y] = toViewportPoint(clip);
         bytes = rasterizer.rasterizePartial(scene, x, y, format, quality, partialKey);
-      } else if (partialKey !== "" && opts.encodedLimit === undefined) {
+      } else if (partialKey !== "") {
         retainsFrame = true;
         bytes = rasterizer.rasterizeAndRetain(
           scene,
@@ -666,6 +666,7 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
           quality,
           opts.omitBackground === true,
           partialKey,
+          opts.encodedLimit ?? 0xffffffff,
         );
       } else {
         bytes =

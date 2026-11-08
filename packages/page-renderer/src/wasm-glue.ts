@@ -67,6 +67,7 @@ export declare class SceneRasterizer {
     quality: number,
     omitBackground: boolean,
     key: string,
+    limit: number,
   ): Uint8Array;
   rasterizePartial(
     scene: Uint8Array,
