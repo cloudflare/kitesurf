@@ -7,8 +7,8 @@ Subject: [PATCH] Track a base epoch that moves only when the base URL can
 Signed-off-by: bpereira <bpereira@cloudflare.com>
 ---
  src/document.rs |  4 ++++
- src/mutator.rs  | 55 +++++++++++++++++++++++++++++++++++++++++++++++++
- 2 files changed, 59 insertions(+)
+ src/mutator.rs  | 58 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 62 insertions(+)
 
 diff --git a/src/document.rs b/src/document.rs
 index 61145f8..a8f056a 100644
@@ -82,6 +82,14 @@ index 976901b..bb458a5 100644
              let is_style = doc.nodes[node_id]
                  .data
                  .is_element_with_tag_name(&local_name!("style"));
+@@ -970,4 +970,7 @@ impl DocumentMutator<'_> {
+             let child = &mut self.doc.nodes[child_id];
+             let child_was_in_doc = child.flags.is_in_document();
+             self.mutations_occurred |= child_was_in_doc;
++            if child_was_in_doc && child.data.is_element_with_tag_name(&local_name!("base")) {
++                self.doc.base_epoch = self.doc.base_epoch.wrapping_add(1);
++            }
+             if new_parent_is_in_document
 @@ -2976,6 +2992,45 @@ mod test {
          );
      }
