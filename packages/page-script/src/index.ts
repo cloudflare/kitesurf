@@ -5453,11 +5453,18 @@ function queryDomChildNodeLists(
   const ids = Array.isArray(queryArgs.nodeIds) ? queryArgs.nodeIds : [];
   const { depth, pierce } = subtreeArgs(queryArgs);
   const lists: QueryDomResult<"childNodeLists">["lists"] = [];
+  // One reply carries every parent's list, so the transport budget applies to their sum: a batch
+  // of individually acceptable lists could otherwise be many times the cap.
+  const budget = pageState.dom.subtreeBudgetBytes();
+  let total = 0;
   for (const id of ids) {
     if (typeof id !== "number") continue;
     // Measure before serializing: a wide parent's child list can exceed the
     // JSRPC reply cap. Skipping it degrades to the client requesting it itself.
-    if (pageState.dom.nodeSubtreeBudgetError(id, depth, pierce)) continue;
+    const bytes = pageState.dom.nodeSubtreeBytes(id, depth, pierce);
+    if (bytes > budget) continue;
+    if (lists.length > 0 && total + bytes > budget) break;
+    total += bytes;
     // The children at `depth` are the node's own subtree one level deeper.
     const node = sanitizeCdpNodeTree(pageState.dom.nodeSubtree(id, depth, pierce));
     if (node) lists.push({ parentId: id, nodes: node.children ?? [] });

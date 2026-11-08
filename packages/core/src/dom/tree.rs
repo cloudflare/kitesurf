@@ -16,7 +16,8 @@ use wasm_bindgen::prelude::*;
 
 use crate::{DomHandle, LayoutMode, NodeHandleMap};
 use crate::dom::cdp::{
-    check_node_budget, check_subtree_budget, describe_node, describe_node_identity, Subtree,
+    check_node_budget, check_subtree_budget, describe_node, describe_node_identity, subtree_size,
+    Subtree, SUBTREE_BUDGET_BYTES,
 };
 
 fn find_html_title(doc: &BaseDocument) -> Option<&Node> {
@@ -973,6 +974,36 @@ impl DomHandle {
             }
             None => Ok(JsValue::NULL),
         }
+    }
+
+    /// The estimated serialized size past which one CDP reply is no longer safe to send.
+    #[wasm_bindgen(js_name = "subtreeBudgetBytes")]
+    pub fn subtree_budget_bytes(&self) -> f64 {
+        SUBTREE_BUDGET_BYTES as f64
+    }
+
+    /// The estimated serialized size of one subtree. A caller that combines several reads into a
+    /// single reply sums these, since the cap applies to the reply and not to each read.
+    #[wasm_bindgen(js_name = "nodeSubtreeBytes")]
+    pub fn node_subtree_bytes(&self, node_id: u32, depth: i32, pierce: bool) -> f64 {
+        let Some(id) = self.resolve_node_id(node_id) else {
+            return 0.0;
+        };
+        let doc = match self.doc.try_borrow() {
+            Ok(doc) => doc,
+            Err(_) => return 0.0,
+        };
+        let handles = self.node_handles.borrow();
+        let size = subtree_size(
+            &doc,
+            id,
+            &self.base_url,
+            Subtree { depth, pierce },
+            &handles,
+        );
+        drop(handles);
+        drop(doc);
+        size.at_least_bytes as f64
     }
 
     #[wasm_bindgen(
