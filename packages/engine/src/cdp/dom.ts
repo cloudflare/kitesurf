@@ -702,12 +702,27 @@ async function pushNodePaths(
   if (!nodes.hasDocument()) return;
   const unknown = nodeIds.filter((id) => id > 0 && !nodes.isBound(id));
   if (unknown.length === 0) return;
-  const { ancestorIds } = await session.call.nodeAncestors({ nodeIds: unknown });
+  // The push is advisory: the client can request the children itself, so a generation that
+  // retired mid-push must not turn a computed result into a CDP error.
+  let ancestorIds: readonly number[];
+  try {
+    ({ ancestorIds } = await session.call.nodeAncestors({ nodeIds: unknown }));
+  } catch {
+    return;
+  }
+  // Ancestors come outermost-first, so keep the head: its first entry hangs off a parent the
+  // client already has, and each later one is a child of the entry before it. A tail would start
+  // at a parent that was sliced away, so the client could not place any of it.
   const parents = ancestorIds.filter((id) => !nodes.childrenSent(id)).slice(0, MAX_PUSHED_PARENTS);
   const byOwner = iframeFrameIdsByOwner(target);
   for (let at = 0; at < parents.length; at += PUSH_PARENTS_PER_READ) {
-    const nodeIds = parents.slice(at, at + PUSH_PARENTS_PER_READ);
-    const { lists } = await session.call.childNodeLists({ nodeIds, depth: 1, pierce: false });
+    const batch = parents.slice(at, at + PUSH_PARENTS_PER_READ);
+    let lists: readonly { parentId: number; nodes: Protocol.DOM.Node[] }[];
+    try {
+      ({ lists } = await session.call.childNodeLists({ nodeIds: batch, depth: 1, pierce: false }));
+    } catch {
+      return;
+    }
     for (const { parentId, nodes: children } of lists) {
       // PageScript does not know frame ids; the client needs them to attach a child document.
       for (const child of children) annotateIframeFrameIds(child, target);

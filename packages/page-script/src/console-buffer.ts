@@ -180,11 +180,18 @@ export function drainCdpMutations(): CdpMutation[] {
         // Depth 0 keeps the event small whatever the subtree holds; clients request the rest.
         // A shadow host or a lone text child still expands at depth 0, so fall back to the node's
         // own description when that would exceed the reply budget.
-        const over = state.dom?.nodeSubtreeBudgetError(mutation.nodeId, 0, false);
-        const subtree = over
-          ? state.dom?.nodeInfo(mutation.nodeId)
-          : state.dom?.nodeSubtree(mutation.nodeId, 0, false);
-        nodeShape = isInsertedNode(subtree) ? sanitizeCdpNodeTree(subtree) : null;
+        // The fallback is only smaller when the excess was a child; a large attribute is the
+        // same size in either form, so a node that cannot be described at all is dropped rather
+        // than failing the whole batch.
+        if (state.dom?.nodeDescriptionBudgetError(mutation.nodeId)) {
+          nodeShape = null;
+        } else {
+          const over = state.dom?.nodeSubtreeBudgetError(mutation.nodeId, 0, false);
+          const subtree = over
+            ? state.dom?.nodeInfo(mutation.nodeId)
+            : state.dom?.nodeSubtree(mutation.nodeId, 0, false);
+          nodeShape = isInsertedNode(subtree) ? sanitizeCdpNodeTree(subtree) : null;
+        }
       } catch {
         nodeShape = null;
       }
