@@ -4013,11 +4013,13 @@ export function installUpstreamEventHandler(
     }
     if (event === "kitesurf.insertedScriptRan") {
       const p = params as { url?: unknown; bytes?: unknown; run?: unknown };
-      if (typeof p.url === "string" && typeof p.bytes === "number" && target.url) {
+      if (typeof p.url === "string" && typeof p.bytes === "number") {
         const run = p.run === "baked" || p.run === "stale" ? p.run : "boa";
+        // The isolate's own url, not target.url: during Page.navigate target.url already names
+        // the next document while this isolate can still report.
         recordInsertedScript(
           ctx.browser.learnedInsertedScripts,
-          target.url,
+          url,
           p.url,
           p.bytes,
           run,
