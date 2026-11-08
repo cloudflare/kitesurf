@@ -6534,7 +6534,11 @@ async function queryDomAccessibilityTree(
   queryArgs: Record<string, unknown>,
 ): Promise<QueryDomResult<"accessibilityTree">> {
   await awaitDeferredFonts();
-  const visibility = accessibilityVisibility(pageState);
+  // `unload()` nulls `state.dom` while this await is suspended, so the narrowing above is only a
+  // type-level claim; re-read it and capture the handle for the stream's pulls.
+  const dom = pageState.dom as QueryDomActiveState["dom"] | null;
+  if (!dom) throw new Error("PageScript: no document loaded");
+  const visibility = accessibilityVisibility(dom);
   const formState = queryDomFormState(pageState, "formStateSnapshot", {});
   const values =
     "values" in formState
@@ -6546,7 +6550,7 @@ async function queryDomAccessibilityTree(
         ])
       : undefined;
   const serializedFormState = values === undefined ? formState : { ...formState, values };
-  const start = pageState.dom.accessibilityStream(
+  const start = dom.accessibilityStream(
     JSON.stringify({ ...queryArgs, visibility, ...serializedFormState }),
   );
   try {
@@ -6569,7 +6573,7 @@ async function queryDomAccessibilityTree(
     if (stream) {
       return {
         byteLength: stream.byteLength,
-        json: byteStream(stream, () => stream.nextChunk(pageState.dom, OUTER_HTML_CHUNK_BYTES)),
+        json: byteStream(stream, () => stream.nextChunk(dom, OUTER_HTML_CHUNK_BYTES)),
       } satisfies QueryDomResult<"accessibilityTree">;
     }
     const bytes = start.takeBytes();
@@ -6599,8 +6603,8 @@ function isWellFormedUtf16(value: string): boolean {
   return true;
 }
 
-function accessibilityVisibility(pageState: QueryDomActiveState): boolean {
-  if (pageState.dom.layoutMode?.() === "off") return false;
+function accessibilityVisibility(dom: QueryDomActiveState["dom"]): boolean {
+  if (dom.layoutMode?.() === "off") return false;
   return ensurePaintDom() !== null;
 }
 
