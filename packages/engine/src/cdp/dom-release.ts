@@ -77,7 +77,10 @@ export function releaseAllDomHandles(target: TargetState): void {
 export const MAX_RETAINED_FALLBACK_HTML_CHARS = 1 << 20;
 
 export function releaseFallbackHtml(target: TargetState): void {
-  if (target.html.length > MAX_RETAINED_FALLBACK_HTML_CHARS) target.html = "";
+  if (target.html.length > MAX_RETAINED_FALLBACK_HTML_CHARS) {
+    target.html = "";
+    target.fallbackHtmlReleased = true;
+  }
 }
 
 export function stripNoscript(dom: DomHandle): void {

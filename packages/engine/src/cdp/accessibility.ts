@@ -163,7 +163,9 @@ function accessibilityTreeFallback(
 ): AccessibilityTreeReply {
   const dom = ensureTargetDom(target);
   if (!dom) {
-    if (args.method === "root") throw new Error("No document loaded");
+    if (args.method === "root" || target.fallbackHtmlReleased) {
+      throw new Error("No document loaded");
+    }
     return { result: new RawJsonResult(['{"nodes":[]}']) };
   }
   const start = dom.accessibilityStream(

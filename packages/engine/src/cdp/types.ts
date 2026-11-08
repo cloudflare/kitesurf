@@ -294,6 +294,7 @@ export interface TargetState {
   url: string;
   title: string;
   html: string;
+  fallbackHtmlReleased: boolean;
   dom: DomHandle | null;
   docScan: DocScan | null;
   domEpoch: number;

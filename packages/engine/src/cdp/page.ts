@@ -1419,6 +1419,11 @@ export async function handlePage(
           }
         }
         if (!html) {
+          if (target.fallbackHtmlReleased) {
+            throw new Error(
+              "Page.captureScreenshot failed: this target's document source was released after a PageScript failure; navigate again",
+            );
+          }
           return { data: TINY_TRANSPARENT_PNG_B64 };
         }
         const width = target.viewportWidth ?? DEFAULT_VIEWPORT_WIDTH;
