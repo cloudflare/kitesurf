@@ -412,9 +412,11 @@ impl DomHandle {
                     id,
                     LonghandId::GridTemplateColumns | LonghandId::GridTemplateRows
                 ) {
-                    if let Some(value) =
-                        grid_template_resolved(&doc, node.id(), id == LonghandId::GridTemplateColumns)
-                    {
+                    if let Some(value) = grid_template_resolved(
+                        &doc,
+                        node.id(),
+                        id == LonghandId::GridTemplateColumns,
+                    ) {
                         let name = NonCustomPropertyId::from(id).name();
                         out.push(CdpComputedProp {
                             name: name.to_string(),
