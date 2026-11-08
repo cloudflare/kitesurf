@@ -681,6 +681,9 @@ function registerDomObserver(target: TargetState, sessionId: string | undefined)
 
 // Parents per RPC when pushing node paths; each brings its children, so keep replies small.
 const PUSH_PARENTS_PER_READ = 64;
+// A broad selector can match thousands of nodes under distinct parents, and every parent pushed is
+// an RPC and an event before the command returns. The client can request the rest itself.
+const MAX_PUSHED_PARENTS = 256;
 
 /**
  * Sends `DOM.setChildNodes` down to each of `nodeIds` before their ids are returned, so the
@@ -700,7 +703,8 @@ async function pushNodePaths(
   const unknown = nodeIds.filter((id) => id > 0 && !nodes.isBound(id));
   if (unknown.length === 0) return;
   const { ancestorIds } = await session.call.nodeAncestors({ nodeIds: unknown });
-  const parents = ancestorIds.filter((id) => !nodes.childrenSent(id));
+  const parents = ancestorIds.filter((id) => !nodes.childrenSent(id)).slice(0, MAX_PUSHED_PARENTS);
+  const byOwner = iframeFrameIdsByOwner(target);
   for (let at = 0; at < parents.length; at += PUSH_PARENTS_PER_READ) {
     const nodeIds = parents.slice(at, at + PUSH_PARENTS_PER_READ);
     const { lists } = await session.call.childNodeLists({ nodeIds, depth: 1, pierce: false });
