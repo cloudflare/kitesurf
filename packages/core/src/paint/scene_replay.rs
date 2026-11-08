@@ -2369,7 +2369,17 @@ impl SceneRasterizer {
                         | crate::paint::screenshot::ImageFormat::Jpeg
                 )
             {
-                return self.encode_banded(scene, fmt, quality, encoded_limit);
+                // Banding re-walks the scene once per band, so it only pays off for a frame that
+                // cannot be retained whole. Smaller frames keep one replay and the retained slot.
+                let header = scene_decode::parse_header(scene).map_err(|e| e.to_string())?;
+                let height = if header.render_h > 0 {
+                    header.render_h
+                } else {
+                    header.viewport_h
+                };
+                if (header.viewport_w as usize) * (height as usize) > MAX_RETAINED_PIXELS {
+                    return self.encode_banded(scene, fmt, quality, encoded_limit);
+                }
             }
             if encoded_limit.is_some() {
                 return Err("encoded size limit requires PNG or JPEG".to_string());
