@@ -6628,7 +6628,7 @@ index 3366504..e7af5e5 100644
                      }
 
                      doc.nodes[node_id].set_layout_children(Some(layout_children));
-@@ -728,20 +728,20 @@ impl BaseDocument {
+@@ -728,21 +728,21 @@ impl BaseDocument {
              node.take_paint_children();
              if !is_root {
                  // The root keeps its own box slot: its container may still list it.
