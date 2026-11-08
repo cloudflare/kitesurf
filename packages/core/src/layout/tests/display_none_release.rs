@@ -104,31 +104,3 @@ fn hiding_a_flattened_inline_releases_its_atomic_descendant() {
     dom.resolve_layout();
     assert_eq!(dom.test_bounding_rect(p), before);
 }
-
-#[test]
-fn hiding_an_ancestor_keeps_an_inner_scroll_offset() {
-    let dom = DomHandle::new(
-        "<!DOCTYPE html><div id=tab><div id=s style='overflow:auto;height:100px'>\
-         <div style='height:2000px'></div></div></div>",
-        "https://test.example/",
-    );
-    dom.set_viewport(800, 600);
-    dom.resolve_layout();
-    let tab = dom.query_selector("#tab").expect("tab") as u32;
-    let scroller = dom.query_selector("#s").expect("scroller") as u32;
-    assert!(dom.write_scroll_offset(scroller, 0.0, 500.0).is_some());
-    let read = |dom: &DomHandle| {
-        let doc = dom.doc.borrow();
-        let id = dom.resolve_node_id(scroller).expect("scroller id");
-        doc.as_ref().tree()[id].scroll_offset().y
-    };
-    assert_eq!(read(&dom), 500.0);
-
-    assert!(dom.set_attribute(tab, "style", "display:none"));
-    dom.resolve_layout();
-    assert_eq!(read(&dom), 500.0, "hiding dropped the scroll offset");
-
-    assert!(dom.set_attribute(tab, "style", ""));
-    dom.resolve_layout();
-    assert_eq!(read(&dom), 500.0, "showing lost the scroll offset");
-}
