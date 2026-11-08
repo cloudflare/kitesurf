@@ -5455,6 +5455,9 @@ function queryDomChildNodeLists(
   const lists: QueryDomResult<"childNodeLists">["lists"] = [];
   for (const id of ids) {
     if (typeof id !== "number") continue;
+    // Measure before serializing: a wide parent's child list can exceed the
+    // JSRPC reply cap. Skipping it degrades to the client requesting it itself.
+    if (pageState.dom.nodeSubtreeBudgetError(id, depth, pierce)) continue;
     // The children at `depth` are the node's own subtree one level deeper.
     const node = sanitizeCdpNodeTree(pageState.dom.nodeSubtree(id, depth, pierce));
     if (node) lists.push({ parentId: id, nodes: node.children ?? [] });
