@@ -41,8 +41,8 @@ const MARKUP = `<span id="s1" class="a">one</span><span id="s2">two</span><b></b
   attrs.getNamedItem("data-k").value = "w";
   out.attrNodeWrite = s1.getAttribute("data-k");
 
-  // Parsed namespaced attributes survive a refresh of the attribute list. The list is read
-  // first: getAttributeNS alone does not see parsed namespaces before one (at 83c77f77 too).
+  // Parsed namespaced attributes survive a refresh of the attribute list. Reading the list
+  // first used to be required for getAttributeNS to see them.
   const nsRead = () => {
     const attr = sa.attributes[1];
     return [sa.getAttributeNS(XLINK, "href"), attr.name, attr.namespaceURI, attr.localName];

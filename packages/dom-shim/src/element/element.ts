@@ -1021,6 +1021,9 @@ class Element extends NodeBase implements Idl.Element {
   getAttributeNS(namespace: string | null, localName: string) {
     if (typeof localName !== "string") return null;
     const ns = namespace ? String(namespace) : null;
+    // Parsed namespaces live in a sidecar that only `_attrFlat` fills, and this reads the
+    // sidecar before the flat list.
+    this._attrFlat();
     const nsMap = attrNs.get(this._id);
     if (nsMap) {
       for (const [qname, info] of nsMap) {
@@ -1050,6 +1053,8 @@ class Element extends NodeBase implements Idl.Element {
     const ns = namespace ? String(namespace) : null;
     const elNs = elemNs.get(this._id);
     const runsChangeSteps = ns === null && (!elNs || elNs.ns === HTML_NS);
+    // Same sidecar as `getAttributeNS`: refresh it before deciding a namespaced attribute is absent.
+    this._attrFlat();
     const customAttributeHook =
       ksInternals.customElementObservesAttribute?.(this, localName) &&
       typeof ksInternals.notifyCustomElementAttributeChanged === "function"
