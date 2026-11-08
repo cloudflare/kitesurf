@@ -736,7 +736,7 @@ function mutationEvent(
     }
     case "shadowRootPushed":
       if (!nodes.isBound(mutation.hostId)) return null;
-      nodes.noteInserted(mutation.hostId, mutation.root);
+      nodes.noteShadowRoot(mutation.hostId, mutation.root);
       return nodeEvent(mutation, sessionId);
     case "stylesheetResourceLoaded":
       return null;

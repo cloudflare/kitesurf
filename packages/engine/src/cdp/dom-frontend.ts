@@ -93,21 +93,26 @@ export class DomFrontendNodes {
     this.#children.get(parentId)?.add(node.nodeId);
   }
 
+  // A shadow root is not a light child: `DOM.setChildNodes` never replaces it, so it is owned by
+  // its host without joining the host's child list. A host gets one root; a push for an id the
+  // client already holds replaces that subtree.
+  noteShadowRoot(hostId: number, root: Protocol.DOM.Node): void {
+    this.unbind(root.nodeId);
+    this.bindTree(root, hostId);
+  }
+
   noteRemoved(parentId: number, nodeId: number): void {
     this.#children.get(parentId)?.delete(nodeId);
     this.unbind(nodeId);
   }
 
+  // `DOM.setChildNodes` replaces the light children on the client. A shadow tree sent under this
+  // node is not one of them and stays bound.
   unbindChildren(parentId: number): void {
     const children = this.#children.get(parentId);
-    if (children) {
-      this.#children.delete(parentId);
-      for (const child of [...children]) this.unbind(child);
-    }
-    const owned = this.#owned.get(parentId);
-    if (owned) {
-      for (const nodeId of [...owned]) this.unbind(nodeId);
-    }
+    if (!children) return;
+    this.#children.delete(parentId);
+    for (const child of [...children]) this.unbind(child);
   }
 
   // A removal, or a move, drops the whole subtree the client was sent under this node.
