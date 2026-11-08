@@ -5445,7 +5445,13 @@ function queryDomOuterHTML(
   const dom = pageState.dom;
   const live = queryArgs.snapshot === true ? undefined : dom.outerHTMLStream(id, marker, doctype);
   if (live) {
-    return outerHtmlResult(live, () => live.nextChunk(dom, OUTER_HTML_CHUNK_BYTES));
+    return outerHtmlResult(live, () => {
+      // A navigate or unload frees `dom`, and this stream is pulled long after the read returns.
+      // End it instead of entering wasm through a freed handle, so the engine's snapshot retry
+      // takes over.
+      if (pageState.dom !== dom) return new Uint8Array(0);
+      return live.nextChunk(dom, OUTER_HTML_CHUNK_BYTES);
+    });
   }
   const bytes = dom.outerHTMLBytes(id, marker, doctype);
   return outerHtmlResult(bytes, () => bytes.nextChunk(OUTER_HTML_CHUNK_BYTES));
