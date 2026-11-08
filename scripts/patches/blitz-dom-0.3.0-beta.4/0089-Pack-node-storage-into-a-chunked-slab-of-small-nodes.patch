@@ -6650,8 +6650,12 @@ index 3366504..e7af5e5 100644
                      }
  
                      doc.nodes[node_id].set_layout_children(Some(layout_children));
-@@ -728,21 +728,21 @@ impl BaseDocument {
+@@ -728,21 +728,25 @@ impl BaseDocument {
              node.take_paint_children();
++            node.clear_hoisted_children();
++            node.clear_sc_contribution_cache();
++            node.set_oof_containing_block(None);
++            node.set_stacking_context(None);
              if !is_root {
                  // The root keeps its own box slot: its container may still list it.
 -                node.layout_parent.set(None);
