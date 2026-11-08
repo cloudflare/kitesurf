@@ -20,7 +20,7 @@ import { syncStyleSheetsFromMutations } from "./css.ts";
 import { installIsolateLimitSurface, installUpstreamEventHandler } from "./page.ts";
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
 import { publishStub } from "./page-script-generation.ts";
-import { ensureTargetDom } from "./dom-release.ts";
+import { ensureTargetDom, releasedFallbackError } from "./dom-release.ts";
 import {
   childNodesSubtree,
   documentSubtree,
@@ -346,11 +346,7 @@ async function documentRoot(
   }
   const dom = ensureTargetDom(target);
   if (!dom) {
-    if (target.fallbackHtmlReleased) {
-      throw new Error(
-        "DOM.getDocument failed: this target's document source was released after a PageScript failure; navigate again",
-      );
-    }
+    if (target.fallbackHtmlReleased) throw releasedFallbackError("DOM.getDocument");
     return syntheticBlankDocument();
   }
   const budgetError = dom.documentBudgetError(subtree.depth, subtree.pierce);

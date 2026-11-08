@@ -217,7 +217,7 @@ pub(crate) struct CdpNode {
 }
 
 #[derive(Serialize)]
-struct CdpAttributeNamespace {
+pub(crate) struct CdpAttributeNamespace {
     #[serde(rename = "qualifiedName")]
     qualified_name: String,
     #[serde(rename = "namespaceURI")]

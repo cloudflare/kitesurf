@@ -83,6 +83,14 @@ export function releaseFallbackHtml(target: TargetState): void {
   }
 }
 
+// The explanation every read gives once the source is gone, so a released document is never
+// reported as an empty one.
+export function releasedFallbackError(method: string): Error {
+  return new Error(
+    `${method} failed: this target's document source was released after a PageScript failure; navigate again`,
+  );
+}
+
 export function stripNoscript(dom: DomHandle): void {
   let ids: Int32Array;
   try {

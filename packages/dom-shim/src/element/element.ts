@@ -163,8 +163,9 @@ function syncParsedAttributeNamespaces(
   el: { _id: number },
   parsed: readonly KsAttributeNamespace[] | undefined,
 ): void {
+  const entries = parsed?.length ? parsed : undefined;
   let nsMap = attrNs.get(el._id);
-  if (!nsMap && (parsed === undefined || parsed.length === 0)) return;
+  if (!nsMap && entries === undefined) return;
   if (nsMap) {
     for (const [name, info] of nsMap) {
       if (info.parsed) nsMap.delete(name);
@@ -174,17 +175,17 @@ function syncParsedAttributeNamespaces(
       nsMap = undefined;
     }
   }
-  if (parsed === undefined || parsed.length === 0) return;
+  if (entries === undefined) return;
   if (!nsMap) {
     nsMap = new Map();
     attrNs.set(el._id, nsMap);
   }
-  for (const info of parsed) {
+  for (const info of entries) {
     const existing = nsMap.get(info.qualifiedName);
     if (existing && !existing.parsed) continue;
     nsMap.set(info.qualifiedName, {
       ns: info.namespaceURI,
-      prefix: typeof info.prefix === "string" ? info.prefix : null,
+      prefix: info.prefix ?? null,
       localName: info.localName,
       qname: info.qualifiedName,
       parsed: true,

@@ -174,6 +174,7 @@ import {
   releaseFallbackHtml,
   releaseFrameDom,
   releaseTargetDom,
+  releasedFallbackError,
 } from "./dom-release.ts";
 import { clearStyleSheetsForNavigate, syncStyleSheetsFromEnumeration } from "./css.ts";
 import { emitScriptParsed, hasDebuggerListeners, makeCompiledScriptMeta } from "./debugger.ts";
@@ -781,6 +782,7 @@ export async function handlePage(
       target.url = url;
       target.title = "";
       target.html = "";
+      target.fallbackHtmlReleased = false;
       releaseTargetDom(target);
       target.docScan = null;
       target.docCsp = null;
@@ -806,6 +808,8 @@ export async function handlePage(
       if (url === "about:blank" || url === "") {
         const html = "<html><head></head><body></body></html>";
         target.html = html;
+        target.fallbackHtmlReleased = false;
+        target.fallbackHtmlReleased = false;
         const blitzUrl = sanitizeBaseUrl(url);
         try {
           target.dom = createDom(html, blitzUrl);
@@ -1070,6 +1074,7 @@ export async function handlePage(
             html = '<?xml version="1.0" encoding="UTF-8"?>\n' + sniffHead;
           }
           target.html = html;
+          target.fallbackHtmlReleased = false;
           releaseTargetDom(target);
           target.docScan = traceSpan(
             ctx.env.HOST_TRACER,
@@ -1107,6 +1112,7 @@ export async function handlePage(
           releaseTargetDom(target);
           target.docScan = scanDocument(wrapper);
           target.html = wrapper;
+          target.fallbackHtmlReleased = false;
           pageHtml = wrapper;
         }
 
@@ -1419,11 +1425,7 @@ export async function handlePage(
           }
         }
         if (!html) {
-          if (target.fallbackHtmlReleased) {
-            throw new Error(
-              "Page.captureScreenshot failed: this target's document source was released after a PageScript failure; navigate again",
-            );
-          }
+          if (target.fallbackHtmlReleased) throw releasedFallbackError("Page.captureScreenshot");
           return { data: TINY_TRANSPARENT_PNG_B64 };
         }
         const width = target.viewportWidth ?? DEFAULT_VIEWPORT_WIDTH;

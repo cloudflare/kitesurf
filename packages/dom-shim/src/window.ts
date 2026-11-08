@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-// Window object construction. `installWindow(document, dom)` is a
-// factory called from buildDocument body (it needs per-navigate
-// locals) and returns { window (Proxy), windowObj (target), Window
-// (proto anchor) }. Named-globals helpers live at module scope.
+// Window object construction. `installWindow(document)` is a factory
+// called from buildDocument body (it needs per-navigate locals) and
+// returns { window (Proxy), windowObj (target), Window (proto anchor) }.
+// Named-globals helpers live at module scope.
 
 import { makeStyleDeclaration, type StyleDeclarationBackend } from "./style-declaration.js";
 import {
