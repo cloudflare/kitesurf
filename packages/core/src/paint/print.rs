@@ -27,11 +27,6 @@ impl DomHandle {
         if self.layout_mode.get() == LayoutMode::Off {
             return Vec::new();
         }
-        self.resolve_until_images_settle();
-        let mut doc = match self.doc.try_borrow_mut() {
-            Ok(d) => d,
-            Err(_) => return Vec::new(),
-        };
         let (_ml, _mt, content_w, content_h) = content_box(
             width,
             height,
@@ -40,6 +35,23 @@ impl DomHandle {
             margin_bottom,
             margin_left,
         );
+        // Set before the layout passes it protects: both the resolve below and the
+        // print-viewport `ensure_layout` end with an eviction scan.
+        match self.doc.try_borrow_mut() {
+            Ok(doc) => doc.set_inline_keep_extent(Some((
+                0.0,
+                crate::paint::pdf::max_printed_height(content_h),
+            ))),
+            Err(_) => return Vec::new(),
+        }
+        self.resolve_until_images_settle();
+        let mut doc = match self.doc.try_borrow_mut() {
+            Ok(d) => d,
+            Err(_) => {
+                self.clear_inline_keep_extent();
+                return Vec::new();
+            }
+        };
         {
             use blitz_traits::shell::Viewport;
             let cur = doc.viewport();
@@ -55,15 +67,13 @@ impl DomHandle {
                 self.ensure_layout();
                 doc = match self.doc.try_borrow_mut() {
                     Ok(d) => d,
-                    Err(_) => return Vec::new(),
+                    Err(_) => {
+                        self.clear_inline_keep_extent();
+                        return Vec::new();
+                    }
                 };
             }
         }
-        // Set only after the last fallible document borrow, so every exit resets it.
-        doc.set_inline_keep_extent(Some((
-            0.0,
-            crate::paint::pdf::max_printed_height(content_h),
-        )));
         let caches = (
             self.rbi_font_bytes.try_borrow_mut(),
             self.rbi_image_cache.try_borrow_mut(),
@@ -89,10 +99,17 @@ impl DomHandle {
             }
             _ => None,
         };
-        doc.set_inline_keep_extent(None);
+        drop(doc);
+        self.clear_inline_keep_extent();
         match result {
             Some(env) if env.len() > crate::paint::scene_replay::PDF_ENVELOPE_U32_BYTES => env,
             _ => Vec::new(),
+        }
+    }
+
+    fn clear_inline_keep_extent(&self) {
+        if let Ok(mut doc) = self.doc.try_borrow_mut() {
+            doc.set_inline_keep_extent(None);
         }
     }
 

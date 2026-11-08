@@ -311,6 +311,37 @@ mod band_tests {
     }
 
     #[test]
+    fn a_print_does_not_reshape_the_rows_its_layout_pass_just_shaped() {
+        let paragraphs: String = (0..40)
+            .map(|i| {
+                format!(
+                    "<p id=p{i}>{}</p>",
+                    "words that wrap across lines ".repeat(5)
+                )
+            })
+            .collect();
+        let html = format!(
+            "<!DOCTYPE html><style>body {{margin:0;font:16px/17px serif}} p {{margin:7px 0}}</style>{paragraphs}"
+        );
+        let dom = crate::DomHandle::new(&html, "https://test.example/");
+        dom.set_viewport(800, 600);
+        dom.doc
+            .borrow_mut()
+            .as_mut()
+            .set_inline_layout_eviction(Some(2.0));
+        dom.resolve_layout();
+        let before = blitz_dom::node::inline_layout_rebuild_count();
+        // The paper box differs from the session viewport, so this re-lays out the
+        // document at the print width before collecting the page bands.
+        assert!(!dom.record_pdf_scenes(300, 100, 0, 0, 0, 0).is_empty());
+        assert_eq!(
+            blitz_dom::node::inline_layout_rebuild_count(),
+            before,
+            "the print reshaped rows its own layout pass had just shaped"
+        );
+    }
+
+    #[test]
     fn no_intent_no_overlap_breaks_at_ideal() {
         let y = select_band_end(0.0, TOTAL, PAGE, &[], &[], &[]);
         assert_eq!(y, 1000.0);
