@@ -51,6 +51,15 @@ it("keeps a shadow tree when the host's light children are replaced", () => {
   expect(nodes.isBound(3)).toBe(true);
 });
 
+it("keeps a same-parent reorder's subtree bound", () => {
+  const nodes = new DomFrontendNodes();
+  nodes.bindChildren(1, [element(2, "DIV", { children: [element(3, "SPAN")] })]);
+  // A same-parent reorder sends no childNodeRemoved, and the client keeps the subtree.
+  nodes.noteInserted(1, element(2, "DIV"));
+  expect(nodes.isBound(2)).toBe(true);
+  expect(nodes.isBound(3)).toBe(true);
+});
+
 it("keeps a pushed shadow tree and drops replaced light children", () => {
   const nodes = new DomFrontendNodes();
   nodes.bindTree(element(1, "DIV", { children: [element(4, "P")] }));
