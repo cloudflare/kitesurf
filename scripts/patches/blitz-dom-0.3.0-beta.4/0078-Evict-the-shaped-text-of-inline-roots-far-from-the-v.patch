@@ -211,7 +211,7 @@ index c483593..d8832f3 100644
              if node_id == first_node && node_id == last_node {
                  let start = first_offset.min(last_offset);
 diff --git a/src/layout/construct.rs b/src/layout/construct.rs
-index e8daff8..fd397f0 100644
+index c495fde..77bf35e 100644
 --- a/src/layout/construct.rs
 +++ b/src/layout/construct.rs
 @@ -1158,7 +1158,7 @@ fn collect_layout_children_with_wrap(
@@ -223,7 +223,7 @@ index e8daff8..fd397f0 100644
 
                  // Queue node for inline layout construction. Deferring construction of inline layouts to a
                  // dedicated phase allows us to multithread the expensive text shaping step.
-@@ -1921,11 +1921,8 @@ pub(crate) fn build_inline_layout_into(
+@@ -1937,11 +1937,8 @@ pub(crate) fn build_inline_layout_into(
          );
      }
 
@@ -1512,10 +1512,10 @@ index e6ea225..05146a7 100644
 +    EvictedBreak, EvictedLayout, EvictedSummary, InlineRebuild, SummaryCell, count_inline_summary,
 +};
 diff --git a/src/node/node.rs b/src/node/node.rs
-index e8bba70..971e0b4 100644
+index 94ed250..a2a8d75 100644
 --- a/src/node/node.rs
 +++ b/src/node/node.rs
-@@ -2404,7 +2404,7 @@ impl Node {
+@@ -2396,7 +2396,7 @@ impl Node {
          if self.flags.is_inline_root() {
              let element_data = &self.element_data().unwrap();
              if let Some(ild) = element_data.inline_layout_data() {
@@ -1524,7 +1524,7 @@ index e8bba70..971e0b4 100644
                  let scale = layout.scale();
                  let content_box_offset = taffy::Point {
                      x: self.final_layout().padding.left + self.final_layout().border.left,
-@@ -2492,7 +2492,7 @@ impl Node {
+@@ -2484,7 +2484,7 @@ impl Node {
 
          let element_data = self.element_data()?;
          let inline_layout = element_data.inline_layout_data()?;
@@ -1533,7 +1533,7 @@ index e8bba70..971e0b4 100644
          let scale = layout.scale();
          let y = y - inline_layout.block_offset;
 
-@@ -2608,7 +2608,7 @@ impl Node {
+@@ -2600,7 +2600,7 @@ impl Node {
 
          let inline_root = self.inline_root_ancestor()?;
          let inline_layout = inline_root.element_data()?.inline_layout_data()?;
@@ -2111,7 +2111,7 @@ index 274849e..83ce847 100644
 
  impl std::fmt::Debug for TextLayout {
 diff --git a/src/resolve.rs b/src/resolve.rs
-index 1eaa68d..6d7fec2 100644
+index 985efd2..d3c2102 100644
 --- a/src/resolve.rs
 +++ b/src/resolve.rs
 @@ -7,6 +7,8 @@ use std::collections::HashSet;
@@ -2137,7 +2137,7 @@ index 1eaa68d..6d7fec2 100644
          let mut subdoc_is_animating = false;
          for &node_id in &self.sub_document_nodes {
              let node = &mut self.nodes[node_id];
-@@ -740,6 +749,28 @@ impl BaseDocument {
+@@ -747,6 +756,28 @@ impl BaseDocument {
          deferred_construction_nodes.sort_unstable_by_key(|task| task.node_id);
          deferred_construction_nodes.dedup_by_key(|task| task.node_id);
 

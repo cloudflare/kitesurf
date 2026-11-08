@@ -95,6 +95,19 @@ index d8832f3..dab8668 100644
              let inline = node.element_data().is_some_and(|e| e.inline_layout_data().is_some());
              let layout = node.try_layout_data_mut().is_some();
              (styled, children, inline, layout)
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index 77bf35e..0d07834 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -1795,7 +1795,7 @@ pub(crate) fn find_inline_layout_embedded_boxes(
+         for anon_id in anonymous_blocks {
+             doc.deallocate_anonymous_block(anon_id);
+         }
+-        doc.nodes[node_id].layout_children.get_mut().take();
++        doc.nodes[node_id].take_layout_children();
+     }
+ }
+
 diff --git a/src/layout/inline.rs b/src/layout/inline.rs
 index 684a9b2..95e7df8 100644
 --- a/src/layout/inline.rs
@@ -282,7 +295,7 @@ index 603d48c..1bdb177 100644
              bits: ElementBits::new(name_ns),
              id: id_attr_atom,
 diff --git a/src/node/node.rs b/src/node/node.rs
-index 971e0b4..1946b1e 100644
+index a2a8d75..c2c517e 100644
 --- a/src/node/node.rs
 +++ b/src/node/node.rs
 @@ -174,6 +174,34 @@ impl NodeIdCell {
@@ -393,7 +406,7 @@ index 971e0b4..1946b1e 100644
      fn rare(&self) -> &NodeRare {
          self.rare.get_or_init(|| Box::new(NodeRare::default()))
      }
-@@ -887,8 +957,6 @@ impl Node {
+@@ -879,8 +949,6 @@ impl Node {
              parent: OptNodeId::default(),
              children: ThinVec::new(),
              layout_parent: NodeIdCell::new(None),
@@ -402,7 +415,7 @@ index 971e0b4..1946b1e 100644
              rare: OnceCell::new(),
 
              flags: NodeFlags::empty(),
-@@ -2345,7 +2413,8 @@ impl Node {
+@@ -2337,7 +2405,8 @@ impl Node {
          }
 
          // Call `.hit()` on each child in turn. If any return `Some` then return that value. Else return `Some(self.id).
@@ -412,7 +425,7 @@ index 971e0b4..1946b1e 100644
              let child = self.with(*child_id);
              let child_position = child.taffy_position();
              let mut child_x = x;
-@@ -2382,6 +2451,7 @@ impl Node {
+@@ -2374,6 +2443,7 @@ impl Node {
                  return Some(hit);
              }
          }
@@ -420,7 +433,7 @@ index 971e0b4..1946b1e 100644
 
          // Negative z_index hoisted children
          if matches_hoisted_content {
-@@ -2839,7 +2909,7 @@ impl std::fmt::Debug for Node {
+@@ -2831,7 +2901,7 @@ impl std::fmt::Debug for Node {
              .field("id", &self.id)
              .field("is_inline_root", &self.flags.is_inline_root())
              .field("children", &self.children)
@@ -430,7 +443,7 @@ index 971e0b4..1946b1e 100644
              .field("node", &self.data)
              .field("stylo_element_data", &self.try_stylo_element_data())
 diff --git a/src/resolve.rs b/src/resolve.rs
-index 6d7fec2..1feec18 100644
+index d3c2102..a7c33ff 100644
 --- a/src/resolve.rs
 +++ b/src/resolve.rs
 @@ -394,7 +394,7 @@ impl BaseDocument {
@@ -506,7 +519,7 @@ index 6d7fec2..1feec18 100644
              if !is_root {
                  // The root keeps its own box slot: its container may still list it.
                  node.layout_parent.set(None);
-@@ -726,10 +725,10 @@ impl BaseDocument {
+@@ -733,10 +732,10 @@ impl BaseDocument {
              if !node.flags.contains(NodeFlags::IS_IN_DOCUMENT) {
                  continue;
              }
@@ -550,20 +563,3 @@ index 7dd6dce..5d81829 100644
          let Some(children) = layout_children.as_ref() else {
              return;
          };
-diff --git a/src/layout/construct.rs b/src/layout/construct.rs
-index 6c0e9a2..3c0e9c1 100644
---- a/src/layout/construct.rs
-+++ b/src/layout/construct.rs
-@@ -1790,11 +1790,11 @@ pub(crate) fn find_inline_layout_embedded_boxes(
-     /// A node flattened into an ancestor's inline formatting context owns no
-     /// box children. Drop the list and any anonymous blocks it built while it
-     /// was still a box container, before the walk assigns new layout parents.
-     fn release_flattened_layout(doc: &mut BaseDocument, node_id: NodeId) {
-         let anonymous_blocks = doc.nodes[node_id].take_anonymous_blocks();
-         for anon_id in anonymous_blocks {
-             doc.deallocate_anonymous_block(anon_id);
-         }
--        doc.nodes[node_id].layout_children.get_mut().take();
-+        doc.nodes[node_id].take_layout_children();
-     }
- }

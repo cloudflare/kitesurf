@@ -11,11 +11,11 @@ Signed-off-by: bpereira <bpereira@cloudflare.com>
  src/accessibility.rs  |  2 +-
  src/document.rs       | 13 +++++----
  src/mutator.rs        |  4 +--
- src/query_selector.rs | 66 +++++++++++++++++++++++++++++++++++--------
- 4 files changed, 65 insertions(+), 20 deletions(-)
+ src/query_selector.rs | 68 ++++++++++++++++++++++++++++++++++---------
+ 4 files changed, 66 insertions(+), 21 deletions(-)
 
 diff --git a/src/accessibility.rs b/src/accessibility.rs
-index a182f3e..13e2c9b 100644
+index a182f3e..f62d7bf 100644
 --- a/src/accessibility.rs
 +++ b/src/accessibility.rs
 @@ -103,7 +103,7 @@ impl BaseDocument {
@@ -23,7 +23,7 @@ index a182f3e..13e2c9b 100644
          nodes_reference
              .split_ascii_whitespace()
 -            .filter_map(|dom_id| self.nodes_to_id.get(dom_id)?.first().copied())
-+            .filter_map(|dom_id| self.nodes_to_id.get(dom_id).copied())
++            .filter_map(|dom_id| self.get_element_by_id(dom_id))
      }
 
      fn build_accessibility_node(
@@ -82,10 +82,10 @@ index 2113374..a85e9ab 100644
              }
 
 diff --git a/src/query_selector.rs b/src/query_selector.rs
-index 02f2613..a721eb4 100644
+index 02f2613..e010772 100644
 --- a/src/query_selector.rs
 +++ b/src/query_selector.rs
-@@ -8,16 +8,20 @@ use style::dom_apis::{
+@@ -8,17 +8,21 @@ use style::dom_apis::{
  use style::selector_parser::{SelectorImpl, SelectorParser};
  use style_traits::ParseError;
 
@@ -100,17 +100,19 @@ index 02f2613..a721eb4 100644
 -            [] => None,
 -            [node_id] => Some(*node_id),
 -            candidates => self.first_in_tree_order(candidates),
+-        }
 +        let id = Atom::from(id);
 +        let first = *self.nodes_to_id.get(&id)?;
-+        match self.id_duplicates.get(&id) {
-+            None => Some(first),
-+            Some(later) => {
-+                let candidates: Vec<NodeId> = std::iter::once(first).chain(later.iter().copied()).collect();
-+                self.first_in_tree_order(&candidates)
-+            }
-         }
++        let Some(later) = self.id_duplicates.get(&id) else {
++            return Some(first);
++        };
++        let candidates: Vec<NodeId> = std::iter::once(first)
++            .chain(later.iter().copied())
++            .collect();
++        self.first_in_tree_order(&candidates)
      }
 
+     /// Find the first of `candidates` in tree order
 @@ -38,18 +42,56 @@ impl BaseDocument {
          if id.is_empty() {
              return;

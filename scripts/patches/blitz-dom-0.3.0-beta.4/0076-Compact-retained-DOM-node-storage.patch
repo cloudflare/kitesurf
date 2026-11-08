@@ -44,7 +44,7 @@ Signed-off-by: bpereira <bpereira@cloudflare.com>
  src/node/attributes.rs   | 112 +++++-
  src/node/element.rs      | 754 +++++++++++++++++++++++++++++++++------
  src/node/mod.rs          |   8 +-
- src/node/node.rs         | 731 ++++++++++++++++++++++++++++---------
+ src/node/node.rs         | 723 ++++++++++++++++++++++++++++---------
  src/node/serialize.rs    |  34 +-
  src/resolve.rs           |  54 +--
  src/resolved_style.rs    |  18 +-
@@ -52,7 +52,7 @@ Signed-off-by: bpereira <bpereira@cloudflare.com>
  src/stylo.rs             |  37 +-
  src/traversal.rs         |  24 +-
  src/tree.rs              |  58 ++-
- 24 files changed, 1683 insertions(+), 650 deletions(-)
+ 24 files changed, 1675 insertions(+), 650 deletions(-)
 
 diff --git a/src/accessibility.rs b/src/accessibility.rs
 index 8ea6572..a182f3e 100644
@@ -2935,7 +2935,7 @@ index 45c5f18..e6ea225 100644
  pub use node::*;
  pub use scrollbar::{ScrollbarColor, ScrollbarRef, ScrollbarWidth};
 diff --git a/src/node/node.rs b/src/node/node.rs
-index 9d6b547..e8bba70 100644
+index 9d6b547..94ed250 100644
 --- a/src/node/node.rs
 +++ b/src/node/node.rs
 @@ -11,8 +11,7 @@ use keyboard_types::Modifiers;
@@ -3306,7 +3306,7 @@ index 9d6b547..e8bba70 100644
 
      // Flags
      pub flags: NodeFlags,
-@@ -208,19 +413,228 @@ macro_rules! universal_accessors {
+@@ -208,19 +413,220 @@ macro_rules! universal_accessors {
 
  universal_accessors! {
      stylo_element_data / stylo_element_data_mut: StyloData,
@@ -3327,6 +3327,11 @@ index 9d6b547..e8bba70 100644
  impl Node {
 +    fn rare(&self) -> &NodeRare {
 +        self.rare.get_or_init(|| Box::new(NodeRare::default()))
++    }
++
++    fn rare_mut(&mut self) -> &mut NodeRare {
++        self.rare.get_or_init(|| Box::new(NodeRare::default()));
++        self.rare.get_mut().expect("rare fields are initialized above")
 +    }
 +
 +    pub fn assigned_slot(&self) -> Option<NodeId> {
@@ -3355,21 +3360,12 @@ index 9d6b547..e8bba70 100644
 +
 +    pub fn set_assigned_nodes(&mut self, nodes: Option<ThinVec<NodeId>>) {
 +        if nodes.is_some() || self.rare.get().is_some() {
-+            self.rare.get_or_init(|| Box::new(NodeRare::default()));
-+            self.rare
-+                .get_mut()
-+                .expect("rare fields are initialized above")
-+                .assigned_nodes = nodes;
++            self.rare_mut().assigned_nodes = nodes;
 +        }
 +    }
 +
 +    pub fn assigned_nodes_mut(&mut self) -> &mut ThinVec<NodeId> {
-+        self.rare.get_or_init(|| Box::new(NodeRare::default()));
-+        self.rare
-+            .get_mut()
-+            .expect("rare fields are initialized above")
-+            .assigned_nodes
-+            .get_or_insert_with(ThinVec::new)
++        self.rare_mut().assigned_nodes.get_or_insert_with(ThinVec::new)
 +    }
 +
 +    /// Anonymous block boxes this node owns (see `NodeRare::anonymous_blocks`).
@@ -3385,11 +3381,7 @@ index 9d6b547..e8bba70 100644
 +
 +    pub fn set_anonymous_blocks(&mut self, blocks: ThinVec<NodeId>) {
 +        if !blocks.is_empty() || self.rare.get().is_some() {
-+            self.rare.get_or_init(|| Box::new(NodeRare::default()));
-+            self.rare
-+                .get_mut()
-+                .expect("rare fields are initialized above")
-+                .anonymous_blocks = blocks;
++            self.rare_mut().anonymous_blocks = blocks;
 +        }
 +    }
 +
@@ -3538,7 +3530,7 @@ index 9d6b547..e8bba70 100644
      /// This node's layout output state, or a shared default if layout has
      /// never written to this node.
      ///
-@@ -279,7 +693,7 @@ impl Node {
+@@ -279,7 +685,7 @@ impl Node {
          if let Some(inline_layout) = self
              .data
              .downcast_element_mut()
@@ -3547,7 +3539,7 @@ index 9d6b547..e8bba70 100644
          {
              inline_layout.content_widths = None;
          }
-@@ -352,6 +766,15 @@ impl Node {
+@@ -352,6 +758,15 @@ impl Node {
          &mut self.layout_data_mut().scroll_offset
      }
 
@@ -3563,7 +3555,7 @@ index 9d6b547..e8bba70 100644
      #[inline]
      pub fn scrollable_overflow(&self) -> &KurboRect {
          &self.layout_data().scrollable_overflow
-@@ -416,18 +839,18 @@ impl Node {
+@@ -416,18 +831,18 @@ impl Node {
      /// document nodes.
      #[inline]
      pub fn guard(&self) -> &SharedRwLock {
@@ -3589,7 +3581,7 @@ index 9d6b547..e8bba70 100644
              NodeData::Document(data) => data.has_snapshot,
              _ => false,
          }
-@@ -436,7 +859,9 @@ impl Node {
+@@ -436,7 +851,9 @@ impl Node {
      #[inline]
      pub fn set_has_snapshot(&mut self, value: bool) {
          match &mut self.data {
@@ -3600,7 +3592,7 @@ index 9d6b547..e8bba70 100644
              NodeData::Document(data) => data.has_snapshot = value,
              _ => {}
          }
-@@ -444,52 +869,27 @@ impl Node {
+@@ -444,52 +861,27 @@ impl Node {
 
      #[inline]
      pub fn before(&self) -> Option<NodeId> {
@@ -3659,7 +3651,7 @@ index 9d6b547..e8bba70 100644
 
              flags: NodeFlags::empty(),
              data,
-@@ -515,11 +915,10 @@ impl Node {
+@@ -515,11 +907,10 @@ impl Node {
              })
          });
 
@@ -3675,7 +3667,7 @@ index 9d6b547..e8bba70 100644
          }
          transform
      }
-@@ -537,8 +936,8 @@ impl Node {
+@@ -537,8 +928,8 @@ impl Node {
              return;
          };
          match index {
@@ -3686,7 +3678,7 @@ index 9d6b547..e8bba70 100644
              _ => panic!("Invalid pseudo element index"),
          }
      }
-@@ -615,6 +1014,7 @@ impl Node {
+@@ -615,6 +1006,7 @@ impl Node {
          }
          let white_space_collapse = self
              .parent
@@ -3694,7 +3686,7 @@ index 9d6b547..e8bba70 100644
              .and_then(|parent_id| self.with(parent_id).primary_styles())
              .map(|style| style.clone_white_space_collapse());
          match white_space_collapse {
-@@ -627,7 +1027,7 @@ impl Node {
+@@ -627,7 +1019,7 @@ impl Node {
      pub fn is_focussable(&self) -> bool {
          self.data
              .downcast_element()
@@ -3703,7 +3695,7 @@ index 9d6b547..e8bba70 100644
              .unwrap_or(false)
      }
 
-@@ -683,13 +1083,13 @@ impl Node {
+@@ -683,13 +1075,13 @@ impl Node {
      /// Style, damage and construct walks all follow the flat tree: a slotted
      /// node sits under its slot, and a shadow root's content under the host.
      pub(crate) fn flat_tree_parent(&self) -> Option<NodeId> {
@@ -3719,7 +3711,7 @@ index 9d6b547..e8bba70 100644
      }
 
      /// Returns whether this node or any of its descendants may carry damage.
-@@ -993,12 +1393,13 @@ pub enum NodeData {
+@@ -993,12 +1385,13 @@ pub enum NodeData {
 
      /// A comment.
      Comment {
@@ -3736,7 +3728,7 @@ index 9d6b547..e8bba70 100644
      // /// A `DOCTYPE` with name, public id, and system id. See
      // /// [document type declaration on wikipedia][https://en.wikipedia.org/wiki/Document_type_declaration]
      // Doctype { name: String, public_id: String, system_id: String },
-@@ -1007,6 +1408,10 @@ pub enum NodeData {
+@@ -1007,6 +1400,10 @@ pub enum NodeData {
      // ProcessingInstruction { target: String, contents: String },
  }
 
@@ -3747,7 +3739,7 @@ index 9d6b547..e8bba70 100644
  impl NodeData {
      pub fn downcast_element(&self) -> Option<&ElementData> {
          match self {
-@@ -1114,7 +1519,7 @@ impl Node {
+@@ -1114,7 +1511,7 @@ impl Node {
              "{} {} {:?} {} {:?}",
              "  ".repeat(level),
              self.id,
@@ -3756,7 +3748,7 @@ index 9d6b547..e8bba70 100644
              self.node_debug_str().replace('\n', ""),
              self.children
          );
-@@ -1132,7 +1537,7 @@ impl Node {
+@@ -1132,7 +1529,7 @@ impl Node {
 
      // Get the index of the current node in the parents child list
      pub fn child_index(&self) -> Option<usize> {
@@ -3765,7 +3757,7 @@ index 9d6b547..e8bba70 100644
              .children
              .iter()
              .position(|id| *id == self.id)
-@@ -1141,7 +1546,7 @@ impl Node {
+@@ -1141,7 +1538,7 @@ impl Node {
      // Get the nth node in the parents child list
      pub fn forward(&self, n: usize) -> Option<&Node> {
          let child_idx = self.child_index().unwrap_or(0);
@@ -3774,7 +3766,7 @@ index 9d6b547..e8bba70 100644
              .children
              .get(child_idx + n)
              .map(|id| self.with(*id))
-@@ -1153,7 +1558,7 @@ impl Node {
+@@ -1153,7 +1550,7 @@ impl Node {
              return None;
          }
 
@@ -3783,7 +3775,7 @@ index 9d6b547..e8bba70 100644
              .children
              .get(child_idx - n)
              .map(|id| self.with(*id))
-@@ -1178,19 +1583,19 @@ impl Node {
+@@ -1178,19 +1575,19 @@ impl Node {
      /// Shadow-root node id when this node is a shadow host.
      /// None for non-elements and hosts without an attached root.
      pub fn attached_shadow_root_id(&self) -> Option<NodeId> {
@@ -3806,7 +3798,7 @@ index 9d6b547..e8bba70 100644
          }
          None
      }
-@@ -1201,7 +1606,7 @@ impl Node {
+@@ -1201,7 +1598,7 @@ impl Node {
          if let Some(shadow_root_id) = self.attached_shadow_root_id() {
              return &self.with(shadow_root_id).children;
          }
@@ -3815,7 +3807,7 @@ index 9d6b547..e8bba70 100644
              if !assigned.is_empty() {
                  return assigned;
              }
-@@ -1325,7 +1730,7 @@ impl Node {
+@@ -1325,7 +1722,7 @@ impl Node {
              if el.is_button_input() {
                  flags |= stylo_taffy::StyleFlags::IS_BUTTON_INPUT;
              }
@@ -3824,7 +3816,7 @@ index 9d6b547..e8bba70 100644
                  flags |= inline_layout.span_cb_flags;
              }
          }
-@@ -1469,7 +1874,7 @@ impl Node {
+@@ -1469,7 +1866,7 @@ impl Node {
      }
 
      fn directionality_flat_parent(&self) -> Option<NodeId> {
@@ -3833,7 +3825,7 @@ index 9d6b547..e8bba70 100644
          if let NodeData::ShadowRoot(ref data) = self.with(parent_id).data {
              return Some(data.host);
          }
-@@ -1567,10 +1972,9 @@ impl Node {
+@@ -1567,10 +1964,9 @@ impl Node {
      }
 
      pub fn flush_style_attribute(&mut self, url_extra_data: &UrlExtraData) {
@@ -3846,7 +3838,7 @@ index 9d6b547..e8bba70 100644
          }
      }
 
-@@ -1608,7 +2012,7 @@ impl Node {
+@@ -1608,7 +2004,7 @@ impl Node {
      /// convention as the hoisted-child positions).
      pub fn rehomed_paint_translate(&self, paint_parent: NodeId) -> taffy::Point<f32> {
          let mut offset = taffy::Point { x: 0.0, y: 0.0 };
@@ -3855,7 +3847,7 @@ index 9d6b547..e8bba70 100644
              return offset;
          };
          let tree = self.tree();
-@@ -1641,8 +2045,7 @@ impl Node {
+@@ -1641,8 +2037,7 @@ impl Node {
              // not its flow parent, so continue the walk from there.
              let next = match node.taffy_position() {
                  taffy::Position::Absolute | taffy::Position::Fixed => node
@@ -3865,7 +3857,7 @@ index 9d6b547..e8bba70 100644
                      .or(node.layout_parent.get()),
                  _ => node.layout_parent.get(),
              };
-@@ -1665,8 +2068,7 @@ impl Node {
+@@ -1665,8 +2060,7 @@ impl Node {
              return false;
          }
          let tree = self.tree();
@@ -3875,7 +3867,7 @@ index 9d6b547..e8bba70 100644
              .and_then(|cb| tree.get(cb))
              .is_some_and(|cb| {
                  cb.containing_block()
-@@ -1692,8 +2094,8 @@ impl Node {
+@@ -1692,8 +2086,8 @@ impl Node {
              (t.x + layout.location.x) as f64 * scale,
              (t.y + layout.location.y) as f64 * scale,
          ));
@@ -3886,7 +3878,7 @@ index 9d6b547..e8bba70 100644
          }
          let r = full.transform_rect_bbox(local);
          (
-@@ -1709,7 +2111,7 @@ impl Node {
+@@ -1709,7 +2103,7 @@ impl Node {
      // at call time, unlike the resolve-time rehomed_reach cache, so
      // this stays correct on pure-scroll frames that skip resolve.
      pub fn live_rehomed_reach(&self, scale: f64) -> Option<(f32, f32, f32, f32)> {
@@ -3895,7 +3887,7 @@ index 9d6b547..e8bba70 100644
          if children.is_empty() {
              return None;
          }
-@@ -1846,7 +2248,7 @@ impl Node {
+@@ -1846,7 +2240,7 @@ impl Node {
          let mut x = x - self.final_layout().location.x + self.scroll_offset().x as f32;
          let mut y = y - self.final_layout().location.y + self.scroll_offset().y as f32;
 
@@ -3904,7 +3896,7 @@ index 9d6b547..e8bba70 100644
              // Only a singular matrix has no inverse; small nonzero scales still map points.
              if t.determinant() == 0.0 {
                  return None;
-@@ -1868,7 +2270,7 @@ impl Node {
+@@ -1868,7 +2262,7 @@ impl Node {
              || y < 0.0
              || y > overflow_rect.bottom + self.scroll_offset().y as f32);
 
@@ -3913,7 +3905,7 @@ index 9d6b547..e8bba70 100644
              Some(sc) => {
                  // Both the point (after the scroll adjustment above) and the
                  // bbox are in this node's unscrolled content coordinates.
-@@ -1893,7 +2295,7 @@ impl Node {
+@@ -1893,7 +2287,7 @@ impl Node {
          // This node's own re-homed boxes paint unscrolled, while reach
          // propagated up from descendants is in its scrolled content space,
          // so try the point in both: a false match only costs a descent.
@@ -3922,7 +3914,7 @@ index 9d6b547..e8bba70 100644
              Some((x0, y0, x1, y1)) => {
                  let inside = |px: f32, py: f32| px >= x0 && px <= x1 && py >= y0 && py <= y1;
                  inside(x, y)
-@@ -1927,7 +2329,7 @@ impl Node {
+@@ -1927,7 +2321,7 @@ impl Node {
 
          // Positive z_index hoisted children
          if matches_hoisted_content {
@@ -3931,7 +3923,7 @@ index 9d6b547..e8bba70 100644
                  for hoisted_child in hoisted.pos_z_hoisted_children().rev() {
                      let pos = hoisted_child.position(self.tree(), self.id);
                      let x = x - pos.x;
-@@ -1971,7 +2373,7 @@ impl Node {
+@@ -1971,7 +2365,7 @@ impl Node {
              // A re-homed abspos keeps its containing block's layout
              // origin, so undo the difference before descending. It paints
              // unscrolled, so leave this node's scrolled content space too.
@@ -3940,7 +3932,7 @@ index 9d6b547..e8bba70 100644
                  let t = child.rehomed_paint_translate(self.id);
                  child_x -= t.x + self.scroll_offset().x as f32;
                  child_y -= t.y + self.scroll_offset().y as f32;
-@@ -1983,7 +2385,7 @@ impl Node {
+@@ -1983,7 +2377,7 @@ impl Node {
 
          // Negative z_index hoisted children
          if matches_hoisted_content {
@@ -3949,7 +3941,7 @@ index 9d6b547..e8bba70 100644
                  for hoisted_child in hoisted.neg_z_hoisted_children().rev() {
                      let pos = hoisted_child.position(self.tree(), self.id);
                      let x = x - pos.x;
-@@ -2001,7 +2403,7 @@ impl Node {
+@@ -2001,7 +2395,7 @@ impl Node {
          // Inline children
          if self.flags.is_inline_root() {
              let element_data = &self.element_data().unwrap();
@@ -3958,7 +3950,7 @@ index 9d6b547..e8bba70 100644
                  let layout = &ild.layout;
                  let scale = layout.scale();
                  let content_box_offset = taffy::Point {
-@@ -2089,7 +2491,7 @@ impl Node {
+@@ -2089,7 +2483,7 @@ impl Node {
          }
 
          let element_data = self.element_data()?;
@@ -3967,7 +3959,7 @@ index 9d6b547..e8bba70 100644
          let layout = &inline_layout.layout;
          let scale = layout.scale();
          let y = y - inline_layout.block_offset;
-@@ -2142,8 +2544,7 @@ impl Node {
+@@ -2142,8 +2536,7 @@ impl Node {
      /// `oof_containing_block` for a hoisted out-of-flow box, otherwise the
      /// `layout_parent`.
      pub fn containing_block(&self) -> Option<NodeId> {
@@ -3977,7 +3969,7 @@ index 9d6b547..e8bba70 100644
              .or_else(|| self.layout_parent.get())
      }
 
-@@ -2206,7 +2607,7 @@ impl Node {
+@@ -2206,7 +2599,7 @@ impl Node {
          }
 
          let inline_root = self.inline_root_ancestor()?;
@@ -3986,7 +3978,7 @@ index 9d6b547..e8bba70 100644
          let layout = &inline_layout.layout;
          let scale = layout.scale();
 
-@@ -2221,7 +2622,7 @@ impl Node {
+@@ -2221,7 +2614,7 @@ impl Node {
                  if id == inline_root_id {
                      return false;
                  }
@@ -3995,7 +3987,7 @@ index 9d6b547..e8bba70 100644
                      Some(parent) => id = parent,
                      None => return false,
                  }
-@@ -2459,10 +2860,7 @@ mod test {
+@@ -2459,10 +2852,7 @@ mod test {
          let mut document = BaseDocument::new(DocumentConfig::default());
          let node = document.create_node(NodeData::Element(Box::new(ElementData::new(
              qual_name!("button"),
@@ -4007,7 +3999,7 @@ index 9d6b547..e8bba70 100644
          ))));
          let node = document.get_node(node).unwrap();
 
-@@ -2481,10 +2879,7 @@ mod test {
+@@ -2481,10 +2871,7 @@ mod test {
          let mut document = BaseDocument::new(DocumentConfig::default());
          let node = document.create_node(NodeData::Element(Box::new(ElementData::new(
              qual_name!("button"),
@@ -4019,7 +4011,7 @@ index 9d6b547..e8bba70 100644
          ))));
          let node = document.get_node(node).unwrap();
 
-@@ -2503,10 +2898,7 @@ mod test {
+@@ -2503,10 +2890,7 @@ mod test {
          let mut document = BaseDocument::new(DocumentConfig::default());
          let node = document.create_node(NodeData::Element(Box::new(ElementData::new(
              qual_name!("a"),
@@ -4031,7 +4023,7 @@ index 9d6b547..e8bba70 100644
          ))));
          let node = document.get_node(node).unwrap();
 
-@@ -2535,3 +2927,14 @@ mod test {
+@@ -2535,3 +2919,14 @@ mod test {
          );
      }
  }

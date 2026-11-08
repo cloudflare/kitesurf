@@ -102,10 +102,10 @@ index a31c7ad..0c5b2e9 100644
  /// [`LayoutData`] has never been allocated.
  pub(crate) static DEFAULT_LAYOUT_DATA: LayoutData = LayoutData::new();
 diff --git a/src/node/node.rs b/src/node/node.rs
-index 1946b1e..fd4891b 100644
+index c2c517e..27490a3 100644
 --- a/src/node/node.rs
 +++ b/src/node/node.rs
-@@ -803,7 +803,7 @@ impl Node {
+@@ -795,7 +795,7 @@ impl Node {
      /// (see `set_pin_offset`).
      #[inline]
      pub fn pin_offset(&self) -> &taffy::Point<f32> {
@@ -114,7 +114,7 @@ index 1946b1e..fd4891b 100644
      }
 
      /// Reconcile the baked post-layout shift to `(x, y)`, moving the location
-@@ -815,25 +815,25 @@ impl Node {
+@@ -807,25 +807,25 @@ impl Node {
      /// Returns whether the box moved.
      pub fn set_pin_offset(&mut self, x: f32, y: f32) -> bool {
          let layout_data = self.layout_data_mut();
