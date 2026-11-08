@@ -99,18 +99,18 @@ function needsMono(html: string): boolean {
   // made every candidate rescan the rest of the page, and this runs in the engine isolate
   // before the navigate RPC.
   const opens = /<style/gi;
-  let scannedOpen = -1;
+  let scannedTo = -1;
   for (let match = opens.exec(html); match !== null; match = opens.exec(html)) {
     const at = match.index;
     if (isAsciiWordChar(html.charCodeAt(at + "<style".length))) continue;
-    if (at < scannedOpen) continue;
+    if (at < scannedTo) continue;
     const open = html.indexOf(">", at);
     if (open < 0) break;
-    scannedOpen = open;
     const closes = /<\/style>/gi;
     closes.lastIndex = open + 1;
     const close = closes.exec(html);
     if (!close) break;
+    scannedTo = close.index + "</style>".length;
     if (mono.test(html.slice(open + 1, close.index))) return true;
   }
   for (const [context] of html.matchAll(/(?:class|style)\s*=\s*(?:"[^"]*"|'[^']*')/gi)) {
