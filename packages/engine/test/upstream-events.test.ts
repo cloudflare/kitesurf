@@ -61,3 +61,45 @@ describe("kitesurf.insertedScriptRan", () => {
     expect(learnedScriptsFor(store, "https://first.test/")).toEqual(["https://cdn.test/a.js"]);
   });
 });
+
+describe("kitesurf.navigatedWithinDocument", () => {
+  const navigate = (isolateUrl: string, url: string, kind = "pushState") => {
+    const h = installFor(isolateUrl);
+    h.send("kitesurf.navigatedWithinDocument", {
+      url,
+      kind,
+      navigationType: kind === "hash" ? "fragment" : "historyApi",
+      previousUrl: isolateUrl,
+    });
+    return {
+      url: h.target.url,
+      history: h.target.navigationHistory.map((e) => e.url),
+      emitted: h.emitted.flatMap((e) =>
+        e.method === "Page.navigatedWithinDocument" ? [e.params.url] : [],
+      ),
+    };
+  };
+
+  it.each([
+    ["https://a.test/x", "https://a.test/y?q#f"],
+    ["data:text/html,doc", "data:text/html,doc#f"],
+    ["about:blank", "about:blank#f"],
+    ["file:///doc.html", "file:///doc.html?q"],
+  ])("moves %s to %s", (from, to) => {
+    expect(navigate(from, to)).toEqual({ url: to, history: [from, to], emitted: [to] });
+  });
+
+  it.each([
+    ["https://a.test/x", "https://b.test/x"],
+    ["https://a.test/x", "http://a.test/x"],
+    ["https://a.test/x", "https://a.test:8443/x"],
+    ["https://a.test/x", "https://user@a.test/x"],
+    ["data:text/html,doc", "data:text/html,other"],
+    ["about:blank", "about:srcdoc"],
+    ["file:///doc.html", "file:///other.html"],
+    ["https://a.test/x", "not a url"],
+  ])("keeps %s when the page reports %s", (from, to) => {
+    expect(navigate(from, to)).toEqual({ url: from, history: [from], emitted: [] });
+    expect(navigate(from, to, "replaceState")).toEqual({ url: from, history: [from], emitted: [] });
+  });
+});
