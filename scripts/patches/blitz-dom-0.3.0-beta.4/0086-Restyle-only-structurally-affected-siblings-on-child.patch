@@ -42,13 +42,14 @@ index a85e9ab..9819b58 100644
  macro_rules! tag_and_attr {
      ($tag:tt, $attr:tt) => {
          (&local_name!($tag), &local_name!($attr))
-@@ -984,13 +1001,16 @@ impl DocumentMutator<'_> {
+@@ -984,13 +1001,17 @@ impl DocumentMutator<'_> {
++        let has_relative_selectors = self.doc.has_relative_selectors();
          let new_parent = &mut self.doc.nodes[parent_id];
          new_parent.insert_damage(ALL_DAMAGE);
 
 -        // TODO: make this fine grained / conditional based on ElementSelectorFlags
 +        let restyle_whole_parent = new_parent_is_in_document
-+            && (insertion_restyles_whole_parent(new_parent) || self.doc.has_relative_selectors());
++            && (insertion_restyles_whole_parent(new_parent) || has_relative_selectors);
          if new_parent_is_in_document {
 -            if let Some(mut data) = new_parent
 -                .try_stylo_element_data_mut()
