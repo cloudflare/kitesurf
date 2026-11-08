@@ -21,5 +21,8 @@ fn svg_cache_does_not_keep_unused_trees_alive() {
     assert!(tree.upgrade().is_some(), "the parsed tree is live");
 
     drop(image);
-    assert!(tree.upgrade().is_none(), "the cache retained the unused tree");
+    assert!(
+        tree.upgrade().is_none(),
+        "the cache retained the unused tree"
+    );
 }
