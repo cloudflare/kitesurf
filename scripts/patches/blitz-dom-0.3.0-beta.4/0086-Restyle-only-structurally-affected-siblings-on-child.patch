@@ -47,8 +47,8 @@ index a85e9ab..9819b58 100644
          new_parent.insert_damage(ALL_DAMAGE);
 
 -        // TODO: make this fine grained / conditional based on ElementSelectorFlags
-+        let restyle_whole_parent =
-+            new_parent_is_in_document && insertion_restyles_whole_parent(new_parent);
++        let restyle_whole_parent = new_parent_is_in_document
++            && (insertion_restyles_whole_parent(new_parent) || self.doc.has_relative_selectors());
          if new_parent_is_in_document {
 -            if let Some(mut data) = new_parent
 -                .try_stylo_element_data_mut()

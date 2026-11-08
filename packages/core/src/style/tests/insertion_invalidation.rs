@@ -122,3 +122,31 @@ fn reinserted_element_inherits_from_its_new_parent() {
     assert!(dom.append_child_node(q, s));
     assert_eq!(color(&dom, s), GREEN);
 }
+
+#[test]
+fn appending_a_sibling_restyles_an_earlier_has_anchor() {
+    let dom = styled(
+        ".a { color: red } .a:has(+ .b) { color: green }",
+        r#"<div id="p"><span class="a" id="a">a</span></div>"#,
+    );
+    let (p, a) = (id(&dom, "#p"), id(&dom, "#a"));
+    assert_eq!(color(&dom, a), RED);
+    let b = dom.create_element("i");
+    assert!(dom.set_attribute(b, "class", "b"));
+    assert!(dom.append_child_node(p, b));
+    assert_eq!(color(&dom, a), GREEN);
+}
+
+#[test]
+fn appending_a_later_sibling_restyles_an_earlier_has_tilde_anchor() {
+    let dom = styled(
+        ".a { color: red } .a:has(~ .b) { color: green }",
+        r#"<div id="p"><span class="a" id="a">a</span></div>"#,
+    );
+    let (p, a) = (id(&dom, "#p"), id(&dom, "#a"));
+    assert_eq!(color(&dom, a), RED);
+    let b = dom.create_element("i");
+    assert!(dom.set_attribute(b, "class", "b"));
+    assert!(dom.append_child_node(p, b));
+    assert_eq!(color(&dom, a), GREEN);
+}
