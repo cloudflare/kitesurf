@@ -13,6 +13,7 @@ import {
   type CallerOutboundProps,
   type SandboxOutboundEnv,
 } from "../src/eval/outbound.ts";
+import { testClient } from "./client-state.ts";
 
 const CONNECTION = "log-conn";
 const PAGE_SESSION = "sess-page";
@@ -66,7 +67,10 @@ describe("Log domain", () => {
   it("tracks Log.enable and Log.disable per session", async () => {
     const { tracker } = tracked();
     // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only the ledger is read.
-    const ctx = { browser: { networkEvents: tracker } } as unknown as DispatchCtx;
+    const ctx = {
+      browser: { networkEvents: tracker },
+      client: testClient(),
+    } as unknown as DispatchCtx;
     const enable = { id: 1, method: "Log.enable", sessionId: PAGE_SESSION } as CdpRequest;
     const disable = { id: 2, method: "Log.disable", sessionId: PAGE_SESSION } as CdpRequest;
 

@@ -16,6 +16,7 @@ import { handlePage } from "../src/cdp/page.ts";
 import { StyleCache } from "../src/cdp/style-cache.ts";
 import type { TargetState } from "../src/cdp/types.ts";
 import type { DomHandle } from "../src/wasm.ts";
+import { testClient } from "./client-state.ts";
 
 // Reaches the pre-PageScript screenshot fallback: no pageScript, so the retained HTML is reparsed
 // through the registered DOM factory and inlineStylesheets runs on the cached sheet.
@@ -60,6 +61,7 @@ async function capture(links: number, chars: number): Promise<string[]> {
       sandboxOutbound: { parent: () => ({ fetch: () => Promise.reject(new Error("cached")) }) },
     },
     connectionId: "inline-css-budget",
+    client: testClient(),
   } as unknown as DispatchCtx;
   await handlePage(ctx, { id: 1, method: "Page.captureScreenshot", params: {} });
   return copied;

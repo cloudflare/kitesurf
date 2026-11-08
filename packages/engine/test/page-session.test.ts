@@ -18,6 +18,7 @@ import { RawJsonResult } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
 import type { Protocol } from "devtools-protocol";
+import { testClient } from "./client-state.ts";
 
 type StubReplies = Partial<{ [M in QueryDomMethod]: QueryDomResult<M> }>;
 type StubWithTestState = PageScriptStub & {
@@ -62,7 +63,7 @@ function makeTarget(over: Partial<TargetState> = {}): TargetState {
   } as TargetState;
 }
 
-const fakeCtx = {} as DispatchCtx;
+const fakeCtx = { client: testClient() } as DispatchCtx;
 
 function sessionFor(target: TargetState): PageSession {
   return new PageSession(fakeCtx, target);
@@ -186,6 +187,7 @@ describe("sessionOf / resolveTarget", () => {
           ["t2", attached],
         ]),
       },
+      client: testClient(),
     } as DispatchCtx;
     expect(resolveTarget(ctx, "s1")).toBe(attached);
     expect(resolveTarget(ctx, undefined)).toBe(first);
@@ -194,6 +196,7 @@ describe("sessionOf / resolveTarget", () => {
   it("throws the caller's message when no page target exists", () => {
     const ctx = {
       browser: { targets: new Map() },
+      client: testClient(),
     } as DispatchCtx;
     expect(() => resolveTarget(ctx, undefined)).toThrow("No page target attached to session");
     expect(() => resolveTarget(ctx, undefined, "WebMCP: nope")).toThrow("WebMCP: nope");

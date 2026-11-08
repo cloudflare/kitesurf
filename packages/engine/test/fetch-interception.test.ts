@@ -13,6 +13,7 @@ import {
   MAX_GLOB_PATTERNS,
   unregisterInterception,
 } from "../src/cdp/fetch-interception.ts";
+import { testClient } from "./client-state.ts";
 
 // The exact expression Fetch.enable used to compile each urlPattern with.
 const oldGlobToRegExp = (pattern: string): RegExp => {
@@ -21,7 +22,11 @@ const oldGlobToRegExp = (pattern: string): RegExp => {
 };
 
 // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- partial dispatch context fixture.
-const ctx = { connectionId: "glob-test", emit: () => {} } as unknown as DispatchCtx;
+const ctx = {
+  connectionId: "glob-test",
+  emit: () => {},
+  client: testClient(),
+} as unknown as DispatchCtx;
 
 const enable = (urlPattern: string) =>
   handleFetch(ctx, { id: 1, method: "Fetch.enable", params: { patterns: [{ urlPattern }] } });

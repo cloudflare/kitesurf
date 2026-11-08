@@ -8,6 +8,7 @@ import { pumpBackgroundEvents } from "../src/cdp/page.ts";
 import type { TargetState } from "../src/cdp/types.ts";
 import { createCookieJar } from "../src/cookies.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
+import { testClient } from "./client-state.ts";
 
 const FIRST = "https://first.test/";
 const NEXT = "https://next.test/";
@@ -34,6 +35,7 @@ function setup(cookieWrites: string[]) {
     browser: { wsClosing: false, cookies, contexts: new Map() },
     ctx: { waitUntil: (p: Promise<unknown>) => background.push(p) },
     emit: () => {},
+    client: testClient(),
   } as unknown as DispatchCtx;
   const pump = async () => {
     pumpBackgroundEvents(ctx, target);

@@ -9,6 +9,7 @@ import { installUpstreamEventHandler } from "../src/cdp/page.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { DedicatedWorkers, WorkerOwner } from "../src/cdp/dedicated-workers.ts";
 import type { CdpEvent, TargetState } from "../src/cdp/types.ts";
+import { testClient } from "./client-state.ts";
 import { NetworkEventTracker } from "../src/cdp/network-events.ts";
 import { learnedScriptsFor, type LearnedScripts } from "../src/eval/learned-scripts.ts";
 import type { PageScriptStub, UpstreamEventHandler } from "../src/eval/page-script.ts";
@@ -43,6 +44,7 @@ function installFor(
     emit: (e: CdpEvent) => {
       emitted.push(e);
     },
+    client: testClient(),
   } as DispatchCtx;
   const target = {
     type: "page",

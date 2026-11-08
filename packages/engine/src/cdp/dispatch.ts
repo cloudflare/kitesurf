@@ -4,7 +4,14 @@
 
 // Routes CDP commands to target sessions, domain handlers, and host extensions.
 
-import type { BrowserState, CdpRequest, CdpResponse, EventEmitter, TargetState } from "./types.ts";
+import type {
+  BrowserState,
+  CdpClientState,
+  CdpRequest,
+  CdpResponse,
+  EventEmitter,
+  TargetState,
+} from "./types.ts";
 import type { RequestBlocker } from "../request-blocker.ts";
 import { CDP_COMMAND_UNHANDLED } from "./types.ts";
 import {
@@ -75,6 +82,9 @@ export interface DispatchCtx {
   ctx: SessionContext;
   connectionId: string;
   analytics: KitesurfAnalytics;
+  // The client this context acts for. Background work that captured the context keeps acting
+  // for that client, even after it leaves.
+  client: CdpClientState;
 }
 
 const STORAGE_CLEAR_METHODS = new Set([

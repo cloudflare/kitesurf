@@ -115,16 +115,16 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
     case "Target.setAutoAttach": {
       if (req.sessionId) return {};
 
-      ctx.browser.autoAttach = Boolean(req.params?.autoAttach);
-      ctx.browser.flatten = Boolean(req.params?.flatten);
-      if (ctx.browser.autoAttach && ctx.browser.connectionMode !== "page") {
+      ctx.client.autoAttach = Boolean(req.params?.autoAttach);
+      ctx.client.flatten = Boolean(req.params?.flatten);
+      if (ctx.client.autoAttach && ctx.client.connectionMode !== "page") {
         for (const t of ctx.browser.targets.values()) {
           if (t.type !== "page") continue;
           if (t.sessions.size > 0) continue;
           autoAttachTarget(ctx, t);
         }
       }
-      if (ctx.browser.autoAttach && ctx.browser.connectionMode === "page") {
+      if (ctx.client.autoAttach && ctx.client.connectionMode === "page") {
         announceRendererTarget(ctx);
         announceEngineTarget(ctx);
         announceExistingOopifTargets(ctx);
@@ -136,7 +136,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
       const infos: Protocol.Target.TargetInfo[] = [];
       for (const t of ctx.browser.targets.values()) {
         infos.push(targetInfo(ctx, t));
-        if (t.type !== "page" || ctx.browser.connectionMode !== "browser") continue;
+        if (t.type !== "page" || ctx.client.connectionMode !== "browser") continue;
         for (const frame of t.frames.values()) {
           if (frame.parentFrameId === null) continue;
           infos.push(frameTargetInfo(frame));
@@ -199,7 +199,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
         method: "Target.targetCreated",
         params: { targetInfo: targetInfo(ctx, target) },
       });
-      if (ctx.browser.autoAttach) {
+      if (ctx.client.autoAttach) {
         autoAttachTarget(ctx, target);
       }
       return { targetId: target.targetId };
@@ -239,7 +239,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
         });
         return { sessionId };
       }
-      if (ctx.browser.connectionMode === "browser") {
+      if (ctx.client.connectionMode === "browser") {
         for (const parent of ctx.browser.targets.values()) {
           const frame = parent.frames.get(id);
           if (!frame || frame.parentFrameId === null || frame.detached) continue;
@@ -539,7 +539,7 @@ function targetInfo(ctx: DispatchCtx, t: TargetState) {
     type: t.type,
     title: t.title,
     url: t.url,
-    attached: t.sessions.size > 0 || (ctx.browser.connectionMode === "page" && t.type === "page"),
+    attached: t.sessions.size > 0 || (ctx.client.connectionMode === "page" && t.type === "page"),
     canAccessOpener: false,
     browserContextId: t.browserContextId ?? "default",
   };
@@ -559,13 +559,13 @@ export function frameTargetInfo(frame: FrameState): Protocol.Target.TargetInfo {
 }
 
 export function emitFrameTarget(ctx: DispatchCtx, frame: FrameState): string | null {
-  if (ctx.browser.connectionMode !== "browser") return null;
+  if (ctx.client.connectionMode !== "browser") return null;
   const info = frameTargetInfo(frame);
   ctx.emit({
     method: "Target.targetCreated",
     params: { targetInfo: info },
   });
-  if (!ctx.browser.autoAttach) return null;
+  if (!ctx.client.autoAttach) return null;
   const sessionId = makeSessionId();
   frame.sessions.add(sessionId);
   ctx.browser.networkEvents.setTargetAttribution(
@@ -742,8 +742,8 @@ export function findOopifFrameBySession(
 }
 
 export function announceOopifTarget(ctx: DispatchCtx, frame: FrameState): string | null {
-  if (ctx.browser.connectionMode !== "page") return null;
-  if (!ctx.browser.autoAttach) return null;
+  if (ctx.client.connectionMode !== "page") return null;
+  if (!ctx.client.autoAttach) return null;
   if (!frame.pageScript) return null;
   const existing = frame.sessions.values().next();
   if (!existing.done) {

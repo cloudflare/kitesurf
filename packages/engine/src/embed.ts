@@ -44,7 +44,7 @@ export { handlePage, mainFrame } from "./cdp/page.ts";
 export { sessionOf } from "./cdp/page-session.ts";
 export type { PageSession } from "./cdp/page-session.ts";
 export type { DispatchCtx, EngineCdpCommandExtension, SessionContext } from "./cdp/dispatch.ts";
-export type { TargetState } from "./cdp/types.ts";
+export type { CdpClientState, TargetState } from "./cdp/types.ts";
 export { makeWallClock } from "./eval/host-clock.ts";
 export { isRecord, isStringArray, oneOf } from "./guards.ts";
 export { clampSide, clampViewport, MAX_PIXELS, MAX_SIDE, MIN_DIM } from "./cdp/viewport.ts";

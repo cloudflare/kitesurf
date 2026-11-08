@@ -9,6 +9,7 @@ import { registerEnsurePageScript } from "../src/cdp/page-session.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { CdpRequest, TargetState } from "../src/cdp/types.ts";
 import type { DomHandle } from "../src/wasm.ts";
+import { testClient } from "./client-state.ts";
 type Node = Record<string, unknown>;
 const node = (over: Node = {}): Node => ({ nodeId: 2, nodeType: 1, nodeName: "DIV", ...over });
 const doc = (...children: unknown[]): Node =>
@@ -104,7 +105,11 @@ function call(handler: typeof handleDom, method: string, over: Record<string, un
     domEnabledSessions: new Set<string>(),
     ...over,
   } as unknown as TargetState;
-  const ctx = { browser: { targets: new Map([["t1", target]]) }, emit: () => {} };
+  const ctx = {
+    browser: { targets: new Map([["t1", target]]) },
+    emit: () => {},
+    client: testClient(),
+  };
   // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- partial dispatch fixture.
   return handler(ctx as unknown as DispatchCtx, { method, sessionId: "s1" } as CdpRequest);
 }

@@ -293,8 +293,6 @@ export async function handleWebSocket(
     contexts: new Map(),
     localStorage: new LocalStorage(new MemorySessionStore()),
     nextBrowserContextId: 1,
-    autoAttach: false,
-    flatten: false,
     cookies,
     screencasts: new Map(),
     styleCache: new StyleCache(),
@@ -303,7 +301,6 @@ export async function handleWebSocket(
     layoutMode: initialLayoutMode,
     cdpDebug,
     isolateCapOverrides,
-    connectionMode,
     ttyKeyboard: false,
     preNavScripts: new Map<string, string>(),
     learnedInsertedScripts: new Map(),
@@ -343,6 +340,7 @@ export async function handleWebSocket(
     ctx,
     connectionId,
     analytics,
+    client: { connectionMode, autoAttach: false, flatten: false },
   };
 
   const tracedDispatch = (req: CdpRequest) =>

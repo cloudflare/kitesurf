@@ -16,6 +16,7 @@ import {
   registerIsolateLimitListener,
   unregisterIsolateLimitListener,
 } from "../src/eval/limit-registry.ts";
+import { testClient } from "./client-state.ts";
 
 function makeCtx(budget: DynamicWorkerBudget, background: Promise<unknown>[]) {
   // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- partial DispatchCtx teardown fixture.
@@ -40,6 +41,7 @@ function makeCtx(budget: DynamicWorkerBudget, background: Promise<unknown>[]) {
       },
     },
     connectionId: "test",
+    client: testClient(),
   } as unknown as DispatchCtx;
 }
 

@@ -9,6 +9,7 @@ import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
+import { testClient } from "./client-state.ts";
 
 describe("DOM.getDocument before PageScript has a document", () => {
   it("returns an empty document instead of parsing the source HTML in the engine", async () => {
@@ -34,7 +35,10 @@ describe("DOM.getDocument before PageScript has a document", () => {
         return null;
       },
     } as TargetState;
-    const ctx = { browser: { targets: new Map([["t1", target]]) } } as DispatchCtx;
+    const ctx = {
+      browser: { targets: new Map([["t1", target]]) },
+      client: testClient(),
+    } as DispatchCtx;
 
     const reply = await handleDom(ctx, { id: 1, method: "DOM.getDocument", sessionId: "s1" });
 
@@ -74,7 +78,10 @@ describe("fallback HTML retention", () => {
       fallbackHtmlReleased: false,
     } as TargetState;
     releaseFallbackHtml(target);
-    const ctx = { browser: { targets: new Map([["t1", target]]) } } as DispatchCtx;
+    const ctx = {
+      browser: { targets: new Map([["t1", target]]) },
+      client: testClient(),
+    } as DispatchCtx;
 
     await expect(
       handleDom(ctx, { id: 1, method: "DOM.getDocument", sessionId: "s1" }),

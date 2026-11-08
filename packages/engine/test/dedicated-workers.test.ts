@@ -34,6 +34,7 @@ import { notifyIsolateLimit } from "../src/eval/limit-registry.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
+import { testClient } from "./client-state.ts";
 
 const PAGE = "https://example.test/app.html";
 const PAGE_ORIGIN = "https://example.test";
@@ -73,6 +74,7 @@ function setup(env: Record<string, string> = {}) {
     env: { LOADER: {}, ...env },
     ctx: {},
     connectionId: "c1",
+    client: testClient(),
   } as DispatchCtx;
   const page = fakeStub();
   const owner = workers.ownerFor(target, "t1", page.stub, PAGE, "l1", PAGE_ORIGIN);

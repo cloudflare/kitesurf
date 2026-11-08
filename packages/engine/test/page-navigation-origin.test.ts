@@ -21,6 +21,7 @@ import {
   type SandboxOutboundExports,
 } from "../src/eval/outbound.ts";
 import type { PageScriptStub, UpstreamEventHandler } from "../src/eval/page-script.ts";
+import { testClient } from "./client-state.ts";
 
 const CONN = "page-navigation-origin";
 const SID = "session-1";
@@ -84,6 +85,7 @@ async function navigate(opts: NavigateOptions) {
     env: {},
     ctx: { waitUntil: () => {} },
     connectionId: CONN,
+    client: testClient(),
   } as unknown as DispatchCtx;
   const target = createPageTarget(ctx, "about:blank");
   target.sessions.add(SID);

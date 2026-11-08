@@ -7,6 +7,7 @@ import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import { makeMainFrameState } from "../src/cdp/frames.ts";
 import { handleInput } from "../src/cdp/input.ts";
 import type { CdpEvent, CdpRequest, TargetState } from "../src/cdp/types.ts";
+import { testClient } from "./client-state.ts";
 
 function setup(url: string, hashNavigateTo: string, pageScriptUrl: string | undefined = url) {
   const main = makeMainFrameState({ frameId: "F", loaderId: "L", url });
@@ -42,6 +43,7 @@ function setup(url: string, hashNavigateTo: string, pageScriptUrl: string | unde
     emit: (e: CdpEvent) => {
       emitted.push(e);
     },
+    client: testClient(),
   } as DispatchCtx;
   return { ctx, target, main, emitted };
 }

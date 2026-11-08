@@ -7,6 +7,7 @@ import { sceneStreamCommand, type SceneStreamRequest } from "../src/cdp/scene-st
 import type { TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import { MAX_CONCURRENT_READ_BYTES } from "../src/read-capped.ts";
+import { testClient } from "./client-state.ts";
 
 test("warns once when a scene is over the read cap", async () => {
   const oversized = new Uint8Array(MAX_CONCURRENT_READ_BYTES + 1);
@@ -30,6 +31,7 @@ test("warns once when a scene is over the read cap", async () => {
     browser: { targets: new Map([["t", target]]) },
     emit: () => {},
     ctx: { waitUntil: () => {} },
+    client: testClient(),
   } as unknown as DispatchCtx;
   const send = (method: SceneStreamRequest["method"], params: Record<string, unknown> = {}) =>
     sceneStreamCommand(ctx, { id: 1, method, params } as SceneStreamRequest);

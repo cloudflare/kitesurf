@@ -6,6 +6,7 @@ import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import { sceneStreamCommand, type SceneStreamRequest } from "../src/cdp/scene-stream.ts";
 import type { TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
+import { testClient } from "./client-state.ts";
 // One font-data entry (hash 5) with a one-byte inline body.
 const fontBatch = new Uint8Array([1, 0, 0, 0, 3, 5, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0]);
 test("delivered scene resources reset per navigation generation", async () => {
@@ -28,6 +29,7 @@ test("delivered scene resources reset per navigation generation", async () => {
     browser: { targets: new Map([["t", target]]) },
     emit: () => {},
     ctx: { waitUntil: () => {} },
+    client: testClient(),
   } as unknown as DispatchCtx;
   const send = (method: SceneStreamRequest["method"], params: Record<string, unknown> = {}) =>
     sceneStreamCommand(ctx, { id: 1, method, params } as SceneStreamRequest);

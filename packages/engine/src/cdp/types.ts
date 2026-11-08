@@ -113,11 +113,20 @@ export type CdpEvent = {
 
 export type EventEmitter = (event: CdpEvent) => void;
 
+/**
+ * One CDP client (one WebSocket) on a browser session: the state Chrome keeps per DevTools
+ * client, not per browser. Everything the clients share stays on BrowserState.
+ */
+export interface CdpClientState {
+  // Page mode treats the socket as the page's own session; browser mode exposes page targets.
+  readonly connectionMode: "page" | "browser";
+  autoAttach: boolean;
+  flatten: boolean;
+}
+
 export interface BrowserState {
   targets: Map<string, TargetState>;
   sandboxOutbound: SandboxOutboundOverride;
-  autoAttach: boolean;
-  flatten: boolean;
   cookies: CookieJar;
   contexts: Map<string, { cookieJar: CookieJar; localStorage: LocalStorage }>;
   // The default context's localStorage, shared by its pages across navigations.
@@ -130,7 +139,6 @@ export interface BrowserState {
   layoutMode: "full" | "off";
   cdpDebug: boolean;
   isolateCapOverrides?: PageIsolateCapOverrides;
-  connectionMode: "page" | "browser";
   ttyKeyboard?: boolean;
   preNavScripts: Map<string, string>;
   learnedInsertedScripts: LearnedScripts;

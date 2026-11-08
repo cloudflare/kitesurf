@@ -46,6 +46,7 @@ import type { SandboxOutboundOverride } from "../src/eval/outbound.ts";
 import { DynamicWorkerBudget } from "../src/eval/worker-budget.ts";
 import { LocalStorage } from "../src/state/local-storage.ts";
 import { MemorySessionStore } from "../src/state/session-store.ts";
+import { testClient } from "./client-state.ts";
 
 const FIRST = "https://first.test/";
 const NEXT = "https://next.test/";
@@ -119,7 +120,6 @@ function setup() {
     networkEvents: new NetworkEventTracker(emit, CONN),
     layoutMode: "full",
     cdpDebug: false,
-    connectionMode: "browser",
     preNavScripts: new Map(),
     learnedInsertedScripts: new Map(),
     pendingBindings: new Set<string>(),
@@ -142,6 +142,7 @@ function setup() {
     env: {},
     ctx: { waitUntil: (p: Promise<unknown>) => background.push(p) },
     connectionId: CONN,
+    client: testClient(),
     analytics: { now: () => 0, sessionAgeMs: () => 0, once: () => false, emit: () => {} },
   } as unknown as DispatchCtx;
   const target = createPageTarget(ctx, "about:blank");

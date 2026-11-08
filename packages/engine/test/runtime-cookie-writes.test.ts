@@ -11,6 +11,7 @@ import { handleRuntime } from "../src/cdp/runtime.ts";
 import type { CdpRequest, FrameState, TargetState } from "../src/cdp/types.ts";
 import { createCookieJar } from "../src/cookies.ts";
 import { consoleEntryToCdpEvent, type PageScriptStub } from "../src/eval/page-script.ts";
+import { testClient } from "./client-state.ts";
 
 const FIRST = "https://first.test/";
 const NEXT = "https://next.test/";
@@ -51,6 +52,7 @@ function setup(stamp?: string) {
     env: {},
     emit: () => {},
     browser: { targets: new Map([["T", target]]), cookies, contexts: new Map() },
+    client: testClient(),
   } as unknown as DispatchCtx;
   return { ctx, target, cookies, held };
 }

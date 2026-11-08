@@ -9,6 +9,7 @@ import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
+import { testClient } from "./client-state.ts";
 
 function pageTarget(over: Partial<TargetState> = {}): TargetState {
   return {
@@ -34,7 +35,10 @@ describe("document read failure", () => {
       },
     };
     const target = pageTarget({ pageScript: stub as PageScriptStub });
-    const ctx = { browser: { targets: new Map([["t", target]]) } } as DispatchCtx;
+    const ctx = {
+      browser: { targets: new Map([["t", target]]) },
+      client: testClient(),
+    } as DispatchCtx;
     await expect(
       handleAccessibility(ctx, { id: 1, method: "Accessibility.getFullAXTree" }),
     ).rejects.toThrow("Worker exceeded memory limit");

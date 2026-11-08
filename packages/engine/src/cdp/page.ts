@@ -2501,7 +2501,7 @@ async function pushNavigateToPageScriptInner(
         });
       } catch {}
     }
-    if (target.cssEnabledSessions.size > 0 || ctx.browser.connectionMode === "page") {
+    if (target.cssEnabledSessions.size > 0 || ctx.client.connectionMode === "page") {
       try {
         await syncStyleSheetsFromEnumeration(ctx, target, pendingPageScript);
       } catch {}
@@ -4066,7 +4066,7 @@ function teardownOopifStubForFrame(
     ctx.browser.dedicatedWorkers.terminateFrame(target.targetId, f.frameId, reason);
   }
   if (ctx && f.parentFrameId !== null) {
-    if (ctx.browser.connectionMode === "browser" || f.sessions.size > 0) {
+    if (ctx.client.connectionMode === "browser" || f.sessions.size > 0) {
       destroyOopifTarget(ctx, f);
     } else {
       ctx.browser.networkEvents.deleteTargetAttribution(f.frameId);
