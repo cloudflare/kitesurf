@@ -45,9 +45,13 @@ export class DomFrontendNodes {
       this.#bound.add(node.nodeId);
       if (node.children) {
         this.#childrenSent.add(node.nodeId);
-        stack.push(...node.children);
+        // A wide parent can exceed the argument limit of a spread call, and a
+        // whole-tree read is allowed to reach that width.
+        for (const child of node.children) stack.push(child);
       }
-      if (node.shadowRoots) stack.push(...node.shadowRoots);
+      if (node.shadowRoots) {
+        for (const root of node.shadowRoots) stack.push(root);
+      }
     }
   }
 
