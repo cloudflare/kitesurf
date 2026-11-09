@@ -190,9 +190,13 @@ ${lines.join("\n")}
     }
   }
   const prefix = `// === ${label} ===\n${predeclareHead}if (typeof globalThis.require !== "undefined") require = globalThis.require;\n${setCurrent}`;
+  const segmentBody = `try {\n${bodySource}\n${promoteTail}${lifecycle(true)}} catch (__ks_segment_error) {
+  ${lifecycle(false)}console.error("classic script threw: " + String(__ks_segment_error && __ks_segment_error.message || __ks_segment_error));
+} finally {
+${clearCurrent}}\n`;
   return {
-    source: `${prefix}${bodySource}\n${promoteTail}${clearCurrent}${lifecycle(true)}\n`,
-    sourceLineOffset: countLines(prefix),
+    source: `${prefix}${segmentBody}`,
+    sourceLineOffset: countLines(prefix) + 1,
   };
 }
 
