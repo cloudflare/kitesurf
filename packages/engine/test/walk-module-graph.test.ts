@@ -127,9 +127,38 @@ describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
 
   it("does not rewrite member calls or names that end in import", () => {
     const body = `{}\n/}/.test(""); a.import(1); a?.import(2); reimport(3); import("./x.js");`;
-    expect(extractClassicDynamicSeeds(body, BASE).rewritten).toBe(
-      `{}\n/}/.test(""); a.import(1); a?.import(2); reimport(3); __ks_import("./x.js");`,
+    const { rewritten } = extractClassicDynamicSeeds(body, BASE);
+    expect(rewritten).toMatch(
+      /^\{\}\n\/\}\/\.test\(""\); a\.import\(1\); a\?\.import\(2\); reimport\(3\); __ks_import_\w+\("\.\/x\.js"\);\n/,
     );
+  });
+
+  // Runs rewritten classic scripts in one scope, as the bundle does, and records the loader calls.
+  function runClassic(...scripts: string[]): unknown[][] {
+    const calls: unknown[][] = [];
+    new Function("__ks_import", scripts.join("\n"))((...args: unknown[]) => calls.push(args));
+    return calls;
+  }
+
+  it("resolves the runtime imports against each script, not the document", () => {
+    const other = "https://cdn.example/lib/b.js";
+    const a = extractClassicDynamicSeeds(
+      `{}\n/}/.test(""); import("./chunk.js", { with: { type: "json" } });`,
+      BASE,
+    );
+    const b = extractClassicDynamicSeeds(`{}\n/}/.test(""); import("./c.js");`, other);
+    expect(runClassic(a.rewritten, b.rewritten)).toEqual([
+      ["./chunk.js", BASE],
+      ["./c.js", other],
+    ]);
+  });
+
+  it("keeps a method named import valid", () => {
+    const { rewritten } = extractClassicDynamicSeeds(
+      `{}\n/}/.test(""); const o = { import(x) { return x; } }; import("./x.js");`,
+      BASE,
+    );
+    expect(runClassic(rewritten)).toEqual([["./x.js", BASE]]);
   });
 
   it.each([
