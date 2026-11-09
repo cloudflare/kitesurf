@@ -95,6 +95,8 @@ export interface AuthOffsetMetricsSnapshot {
   parent: number;
   top: number;
   left: number;
+  width: number;
+  height: number;
 }
 
 export interface ListenerEntry {
