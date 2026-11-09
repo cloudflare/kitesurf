@@ -444,25 +444,38 @@ export function extractClassicDynamicSeeds(
   const calls = [...body.matchAll(IMPORT_CALL)].map((m) => m.index);
   if (calls.length === 0) return { rewritten: body, seeds: [] };
   // The lexer is not a parser: it can throw on valid code, or misread a regex and skip live code.
-  // A native import() left in the bundle resolves next to the isolate's own modules, so when
-  // the lexer did not see every call, send all of them to the runtime loader.
+  // A native import() left in the bundle resolves next to the isolate's own modules, so a call
+  // the lexer did not see goes to the runtime loader. Text in a comment or string costs the same.
   let imports: ReturnType<typeof lexerParse>[0] | null = null;
   try {
     imports = lexerParse(body, baseUrl)[0];
   } catch {}
   const dynamics = imports?.filter((imp) => imp.t === 2) ?? [];
   const lexedCalls = new Set(dynamics.map((imp) => imp.ss));
+  const unlexed = calls.filter((at) => !lexedCalls.has(at));
   const ref = JSON.stringify(baseUrl);
-  if (!imports || calls.some((at) => !lexedCalls.has(at))) {
-    // Only the keyword is replaced, so a hoisted function per script url passes it as the referrer.
-    // A name keeps a method called `import` valid; scripts in one bundle share a scope.
-    const callee = `__ks_import_${fnv1aHex(baseUrl)}`;
-    const binding = `\nfunction ${callee}(s) { return __ks_import(s, ${ref}); }`;
+  // Only the keyword is replaced, so a hoisted function per script url passes it as the referrer.
+  // A name keeps a method called `import` valid; scripts in one bundle share a scope.
+  const callee = `__ks_import_${fnv1aHex(baseUrl)}`;
+  const binding = `\nfunction ${callee}(s) { return __ks_import(s, ${ref}); }`;
+  // A lexed call is rewritten as a whole, so one that holds an unlexed call would drop its edit.
+  const nested = unlexed.some((at) =>
+    dynamics.some((imp) => imp.se <= imp.ss || (at > imp.ss && at < imp.se)),
+  );
+  if (!imports || nested) {
     return { rewritten: body.replace(IMPORT_CALL, callee) + binding, seeds: [] };
   }
+  const edits = [
+    ...dynamics.map((imp) => ({ at: imp.ss, imp })),
+    ...unlexed.map((at) => ({ at, imp: null })),
+  ].sort((a, c) => c.at - a.at);
   const seeds: string[] = [];
   let b = body;
-  for (const imp of dynamics.sort((a, c) => c.ss - a.ss)) {
+  for (const { at, imp } of edits) {
+    if (!imp) {
+      b = b.slice(0, at) + callee + b.slice(at + "import".length);
+      continue;
+    }
     const spec = imp.n ?? constSpecifier(body.slice(imp.s, imp.e));
     if (spec) {
       const resolved = resolveSpecifier(spec, baseUrl);
@@ -483,7 +496,7 @@ export function extractClassicDynamicSeeds(
       b = b.slice(0, imp.ss) + `__ks_import(${expr}, ${ref})` + b.slice(imp.se);
     }
   }
-  return { rewritten: b, seeds };
+  return { rewritten: unlexed.length > 0 ? b + binding : b, seeds };
 }
 
 function maybeWrapInlineModule(body: string, url: string): string {
