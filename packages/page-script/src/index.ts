@@ -5919,7 +5919,7 @@ function queryDomRecordSceneSkipResult(
 }
 
 function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecordSceneRender {
-  const { pageState, paint, rawImages, clientWire, hasClip, clip, omitBg } = context;
+  const { paint, rawImages, clientWire, hasClip, clip, omitBg } = context;
   let scene: Uint8Array | null = null;
   let emittedPartial = false;
   let partialClip = context.partialPlan.partialClip;

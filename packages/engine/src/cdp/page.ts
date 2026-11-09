@@ -1350,12 +1350,7 @@ export async function handlePage(
             );
           }
           if ("failed" in viaRenderer) {
-            if (viaRenderer.failed.startsWith("encoded-limit:")) {
-              throw new Error(
-                `Page.captureScreenshot failed: encoded image exceeds ${MAX_SCREENSHOT_ENCODED_BYTES} bytes (${captureWidth}x${captureHeight} px); capture a smaller clip, or use format "jpeg" with a lower quality`,
-              );
-            }
-            throw new Error(`Page.captureScreenshot failed: ${viaRenderer.failed}`);
+            throw rendererFailure(viaRenderer.failed, captureWidth, captureHeight);
           }
           if (viaRenderer.bytes && viaRenderer.bytes.length > 0) {
             return { data: bytesToBase64(viaRenderer.bytes) };
@@ -1732,6 +1727,15 @@ const TINY_TRANSPARENT_PNG_B64 =
 
 const EMPTY_PDF_B64 =
   "JVBERi0xLjQKMSAwIG9iago8PC9UeXBlIC9DYXRhbG9nIC9QYWdlcyAyIDAgUj4+CmVuZG9iagoyIDAgb2JqCjw8L1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlIC9QYWdlIC9QYXJlbnQgMiAwIFIgL01lZGlhQm94IFswIDAgNjEyIDc5Ml0gL1Jlc291cmNlcyA8PD4+IC9Db250ZW50cyA0IDAgUj4+CmVuZG9iago0IDAgb2JqCjw8L0xlbmd0aCAwPj4Kc3RyZWFtCgplbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA1CjAwMDAwMDAwMDAgNjU1MzUgZgowMDAwMDAwMDA5IDAwMDAwIG4KMDAwMDAwMDA1OCAwMDAwMCBuCjAwMDAwMDAxMTEgMDAwMDAgbgowMDAwMDAwMjEzIDAwMDAwIG4KdHJhaWxlcgo8PC9TaXplIDUgL1Jvb3QgMSAwIFI+PgpzdGFydHhyZWYKMjY0CiUlRU9G";
+
+function rendererFailure(failed: string, width: number, height: number): Error {
+  if (failed.startsWith("encoded-limit:")) {
+    return new Error(
+      `Page.captureScreenshot failed: encoded image exceeds ${MAX_SCREENSHOT_ENCODED_BYTES} bytes (${width}x${height} px); capture a smaller clip, or use format "jpeg" with a lower quality`,
+    );
+  }
+  return new Error(`Page.captureScreenshot failed: ${failed}`);
+}
 
 function bytesToBase64(bytes: Uint8Array): string {
   return bytes.toBase64();
