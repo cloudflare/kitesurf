@@ -239,7 +239,14 @@ export interface QueryDomMethods {
   };
   notRenderedNodeIds: {
     args: ReadStampArgs;
-    result: { displayNone?: number[]; invisible?: number[]; readStamp?: ReadStamp };
+    result: {
+      displayNone?: number[];
+      invisible?: number[];
+      // The focused element and its ancestors, innermost first, as the ids getDocument reports
+      // for them as backendNodeId: the accessibility tree matches the two by number.
+      focusPath?: number[];
+      readStamp?: ReadStamp;
+    };
   };
   formStateSnapshot: {
     args: ReadStampArgs;

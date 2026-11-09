@@ -240,6 +240,16 @@ export interface AccessibilityReadState {
 
 export type MeasurePageRead = <T>(phase: string, run: () => Promise<T>) => Promise<T>;
 
+// The ids are one document's: a navigation starts with none, since the next document's nodes
+// reuse them.
+function discardedAriaHidden(target: TargetState): Set<number> {
+  const kept = target.axDiscardedAriaHidden;
+  if (kept && kept.generation === target.navigateGeneration) return kept.ids;
+  const ids = new Set<number>();
+  target.axDiscardedAriaHidden = { generation: target.navigateGeneration, ids };
+  return ids;
+}
+
 export async function buildTree(
   ps: {
     tryCall: Pick<SessionSoftOps, "getDocument" | "notRenderedNodeIds" | "formStateSnapshot">;
@@ -254,6 +264,7 @@ export async function buildTree(
   let root: DomNode | null = null;
   let displayNone = new Set<number>();
   let invisible = new Set<number>();
+  let focusPath = new Set<number>();
   let liveValues = new Map<number, string>();
   let liveChecked = new Map<number, boolean>();
   let liveSelected = new Map<number, boolean>();
@@ -277,6 +288,7 @@ export async function buildTree(
     if (Array.isArray(hiddenRes?.invisible)) {
       invisible = new Set(hiddenRes.invisible);
     }
+    if (Array.isArray(hiddenRes?.focusPath)) focusPath = new Set(hiddenRes.focusPath);
     if (Array.isArray(formRes?.values)) liveValues = new Map(formRes.values);
     if (Array.isArray(formRes?.checked)) {
       liveChecked = new Map(formRes.checked);
@@ -284,6 +296,9 @@ export async function buildTree(
     if (Array.isArray(formRes?.selected)) liveSelected = new Map(formRes.selected);
   }
   const usedFallback = !root;
+  // The fallback tree is a rehydrated DOM whose ids start over, so the page's focus path would
+  // name unrelated nodes in it and expose a subtree that should stay hidden.
+  if (usedFallback) focusPath = new Set();
   const fallbackDom = root || options.fallback === false ? null : ensureTargetDom(target);
   if (!root && fallbackDom) {
     try {
@@ -304,6 +319,8 @@ export async function buildTree(
   ctx.liveValues = liveValues;
   ctx.liveChecked = liveChecked;
   ctx.liveSelected = liveSelected;
+  ctx.focusPath = focusPath;
+  if (!usedFallback) ctx.discardedAriaHidden = discardedAriaHidden(target);
   ctx.indexIds(root);
   const rootAx = ctx.build(root, null, {
     ariaHidden: false,
@@ -364,11 +381,20 @@ class BuildCtx {
   liveSelected = new Map<number, boolean>();
   backendToNode = new Map<number, DomNode>();
   labelForId = new Map<string, DomNode>();
+  focusPath = new Set<number>();
+  discardedAriaHidden = new Set<number>();
 
   constructor(frameId: string, displayNone: Set<number>, invisible: Set<number>) {
     this.frameId = frameId;
     this.displayNone = displayNone;
     this.invisible = invisible;
+  }
+
+  // True for an element on the focus path, and for one that was on it when an earlier tree of
+  // this document was built: the mark is discarded once, not for as long as focus stays.
+  private dropsAriaHidden(backendId: number): boolean {
+    if (this.focusPath.has(backendId)) this.discardedAriaHidden.add(backendId);
+    return this.discardedAriaHidden.has(backendId);
   }
 
   inSelect(optionId: number): boolean {
@@ -452,7 +478,11 @@ class BuildCtx {
     const backendId = node.backendNodeId ?? node.nodeId ?? 0;
     const axId = String(backendId);
 
-    const selfAriaHidden = attrs.get("aria-hidden") === "true";
+    // Chrome drops aria-hidden on the focused element and its ancestors, and keeps it dropped: a
+    // modal in an app root that its modal manager marks aria-hidden stays exposed from then on.
+    const markedHidden = attrs.get("aria-hidden") === "true";
+    if (!markedHidden) this.discardedAriaHidden.delete(backendId); // a later mark counts anew
+    const selfAriaHidden = markedHidden && !this.dropsAriaHidden(backendId);
     const ariaHidden = inh.ariaHidden || selfAriaHidden;
     const uaHiddenOption =
       tag === "option" && this.inSelect(backendId) && !inlineDisplayNone(attrs.get("style"));

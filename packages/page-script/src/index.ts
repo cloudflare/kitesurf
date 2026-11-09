@@ -6556,13 +6556,36 @@ function queryDomPaintGeometry(
   }
 }
 
+// Chrome ignores aria-hidden on the focused element and its ancestors, and the accessibility
+// tree is built from a DOM snapshot that does not say where focus is.
+function focusPathNodeIds(): number[] {
+  const path: number[] = [];
+  let node: unknown = state.getActiveElement();
+  try {
+    // Counted in steps, not in ids found: a page can give a node no id and itself for a
+    // parent, and a walk that waits for ids would never end.
+    for (let hops = 0; isObjectRecord(node) && hops < MAX_ANCESTOR_CHAIN_NODES; hops++) {
+      if (typeof node._id === "number" && node._id >= 0) path.push(node._id);
+      const parent: unknown = node.parentNode ?? (node.nodeType === 11 ? node.host : null);
+      if (parent === node) break;
+      node = parent;
+    }
+  } catch {}
+  return path;
+}
+
 async function queryDomNotRenderedNodeIds(
   queryArgs: Record<string, unknown>,
 ): Promise<QueryDomResult<"notRenderedNodeIds">> {
   await awaitDeferredFonts();
+  const focusPath = focusPathNodeIds();
   const paint = ensurePaintDom();
   if (!paint)
-    return { displayNone: [], invisible: [] } satisfies QueryDomResult<"notRenderedNodeIds">;
+    return {
+      displayNone: [],
+      invisible: [],
+      focusPath,
+    } satisfies QueryDomResult<"notRenderedNodeIds">;
   try {
     const before = getInternalState().mutationSeq | 0;
     // Call through DomHandle rather than asserting a local method shape.
@@ -6578,6 +6601,7 @@ async function queryDomNotRenderedNodeIds(
     return {
       displayNone: Array.from(displayNone),
       invisible: Array.from(invisible),
+      focusPath,
       ...(queryArgs.includeReadStamp === true
         ? {
             readStamp: {
@@ -6590,7 +6614,11 @@ async function queryDomNotRenderedNodeIds(
     } satisfies QueryDomResult<"notRenderedNodeIds">;
   } catch {
     invalidatePaintDom();
-    return { displayNone: [], invisible: [] } satisfies QueryDomResult<"notRenderedNodeIds">;
+    return {
+      displayNone: [],
+      invisible: [],
+      focusPath,
+    } satisfies QueryDomResult<"notRenderedNodeIds">;
   }
 }
 
