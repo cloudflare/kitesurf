@@ -20,8 +20,13 @@ export const MAX_STYLESHEET_BYTES = 8 * 1024 * 1024;
 
 export const MAX_CONCURRENT_READ_BYTES = 48 * 1024 * 1024;
 
+/** One connection's share of the shared budget. Half leaves room for another connection's
+ *  document and stylesheet reads; it still fits one document plus one stylesheet. */
+export const MAX_CONNECTION_READ_BYTES = MAX_CONCURRENT_READ_BYTES / 2;
+
 let inFlightBytes = 0;
 let peakInFlightBytes = 0;
+const inFlightByConnection = new Map<string, number>();
 
 export function inFlightReadBytes(): number {
   return inFlightBytes;
@@ -113,9 +118,17 @@ export type CappedBody =
   | { ok: true; bytes: Uint8Array<ArrayBuffer> }
   | { ok: false; failure: CappedFailure };
 
-/** Reads a response under `cap` and the shared byte budget; it cancels the body on failure. */
-export async function readCappedBytes(resp: Response, cap: number): Promise<CappedBody> {
-  if (inFlightBytes >= MAX_CONCURRENT_READ_BYTES) {
+/** Reads a response under `cap`, the shared byte budget and `connectionId`'s share of it;
+ *  it cancels the body on failure. */
+export async function readCappedBytes(
+  resp: Response,
+  cap: number,
+  connectionId: string,
+): Promise<CappedBody> {
+  if (
+    inFlightBytes >= MAX_CONCURRENT_READ_BYTES ||
+    (inFlightByConnection.get(connectionId) ?? 0) >= MAX_CONNECTION_READ_BYTES
+  ) {
     await cancelBody(resp);
     return { ok: false, failure: "budget" };
   }
@@ -130,7 +143,9 @@ export async function readCappedBytes(resp: Response, cap: number): Promise<Capp
       charged += delta;
       inFlightBytes += delta;
       if (inFlightBytes > peakInFlightBytes) peakInFlightBytes = inFlightBytes;
-      return inFlightBytes <= MAX_CONCURRENT_READ_BYTES;
+      const own = (inFlightByConnection.get(connectionId) ?? 0) + delta;
+      inFlightByConnection.set(connectionId, own);
+      return inFlightBytes <= MAX_CONCURRENT_READ_BYTES && own <= MAX_CONNECTION_READ_BYTES;
     });
     if (got.bytes === null) {
       await got.rest.cancel().catch(() => {});
@@ -139,14 +154,20 @@ export async function readCappedBytes(resp: Response, cap: number): Promise<Capp
     return { ok: true, bytes: got.bytes };
   } finally {
     inFlightBytes -= charged;
+    if (charged > 0) {
+      const own = (inFlightByConnection.get(connectionId) ?? 0) - charged;
+      if (own > 0) inFlightByConnection.set(connectionId, own);
+      else inFlightByConnection.delete(connectionId);
+    }
   }
 }
 
 export async function readCappedText(
   resp: Response,
   cap: number,
+  connectionId: string,
 ): Promise<{ ok: true; text: string } | { ok: false; failure: CappedFailure }> {
-  const got = await readCappedBytes(resp, cap);
+  const got = await readCappedBytes(resp, cap, connectionId);
   if (!got.ok) return got;
   return { ok: true, text: new TextDecoder().decode(got.bytes) };
 }

@@ -253,7 +253,11 @@ export async function prefetchWasmModules({
               "skipped: total .wasm bake budget exceeded (" + cl + " bytes over cap)";
             return;
           }
-          const capped = await readCappedBytes(res, Math.min(remaining, MAX_SINGLE_WASM_BYTES));
+          const capped = await readCappedBytes(
+            res,
+            Math.min(remaining, MAX_SINGLE_WASM_BYTES),
+            connectionId,
+          );
           if (!capped.ok) {
             bake.errors[wasmUrl] =
               capped.failure === "error"

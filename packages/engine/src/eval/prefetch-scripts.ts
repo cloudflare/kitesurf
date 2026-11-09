@@ -217,7 +217,7 @@ export async function prefetchExternalScripts({
             d.prefetchError = "<script src> fetch returned HTTP " + res.status + " for " + resolved;
             return;
           }
-          const capped = await readCappedBytes(res, MAX_DOCUMENT_BYTES);
+          const capped = await readCappedBytes(res, MAX_DOCUMENT_BYTES, connectionId);
           if (!capped.ok) {
             d.prefetchError = "<script src> body " + capped.failure + " for " + resolved;
             return;

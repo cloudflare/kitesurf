@@ -927,7 +927,7 @@ export async function handlePage(
         let networkBody: { body: string; length: number } | null = null;
         if (docKind === "html") {
           const read = await traceSpan(ctx.env.HOST_TRACER, "navigate.read_document_body", () =>
-            readCappedBytes(resp, MAX_DOCUMENT_BYTES),
+            readCappedBytes(resp, MAX_DOCUMENT_BYTES, ctx.connectionId),
           );
           if (!read.ok) {
             const errorText = cappedErrorText(read.failure);
@@ -954,7 +954,7 @@ export async function handlePage(
           target.title = target.docScan.title;
           pageHtml = html;
         } else {
-          const read = await readCappedBytes(resp, MAX_DOCUMENT_BYTES);
+          const read = await readCappedBytes(resp, MAX_DOCUMENT_BYTES, ctx.connectionId);
           if (!read.ok) {
             const errorText = cappedErrorText(read.failure);
             ctx.browser.networkEvents.failRequest(requestId, errorText);
@@ -1272,10 +1272,13 @@ export async function handlePage(
               leased,
               pageUrl,
               ctx.browser.sandboxOutbound,
-              ctx.browser.styleCache,
-              ctx.browser.networkEvents,
-              target.loaderId,
-              target.frameId,
+              ctx.connectionId,
+              {
+                cache: ctx.browser.styleCache,
+                tracker: ctx.browser.networkEvents,
+                loaderId: target.loaderId,
+                frameId: target.frameId,
+              },
             );
             html = leased.outerHTML(0);
           } finally {
@@ -4758,7 +4761,7 @@ async function loadChildFrame(
   frame.referrerPolicy = resp.headers.get("referrer-policy");
   let html: string;
   try {
-    const read = await readCappedBytes(resp, MAX_DOCUMENT_BYTES);
+    const read = await readCappedBytes(resp, MAX_DOCUMENT_BYTES, ctx.connectionId);
     if (!read.ok) {
       console.warn(`[kitesurf-iframe] body read refused (${read.failure}) for ${frame.url}`);
       frame.readyState = "complete";
@@ -4899,10 +4902,18 @@ async function inlineStylesheets(
   dom: DomHandle,
   pageUrl: string,
   sandboxOutbound: SandboxOutboundOverride,
-  cache?: Map<string, { css: string; fetchedAt: number }>,
-  tracker?: NetworkEventTracker,
-  loaderId?: string,
-  frameId?: string,
+  connectionId: string,
+  {
+    cache,
+    tracker,
+    loaderId,
+    frameId,
+  }: {
+    cache?: Map<string, { css: string; fetchedAt: number }>;
+    tracker?: NetworkEventTracker;
+    loaderId?: string;
+    frameId?: string;
+  } = {},
 ): Promise<void> {
   const links = findStylesheetLinks(dom);
   if (links.length === 0) return;
@@ -5008,7 +5019,7 @@ async function inlineStylesheets(
         }
         const resp = walk.response;
         if (resp.status >= 200 && resp.status < 300) {
-          const read = await readCappedText(resp, MAX_STYLESHEET_BYTES);
+          const read = await readCappedText(resp, MAX_STYLESHEET_BYTES, connectionId);
           if (!read.ok) {
             console.warn(`[kitesurf-css] stylesheet read refused (${read.failure}): ${t.resolved}`);
             if (reqId && tracker) {

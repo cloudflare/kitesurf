@@ -258,7 +258,7 @@ export async function prespawnFrameIsolate(
     // MAX_DOCUMENT_BYTES; this sibling path must use the same control so a
     // page-chosen iframe cannot buffer an unbounded body in the shared
     // engine isolate.
-    const body = await readCappedText(resp, MAX_DOCUMENT_BYTES);
+    const body = await readCappedText(resp, MAX_DOCUMENT_BYTES, args.connectionId);
     if (!body.ok) {
       await discardFrameIsolate(stub, warmup, `oopif doc body ${body.failure}`);
       return { ok: false, error: `frame body ${body.failure}` };

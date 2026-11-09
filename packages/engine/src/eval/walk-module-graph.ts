@@ -1010,7 +1010,7 @@ export async function walkModuleGraph({
         };
       }
       const integrity = integrityByUrl.get(url) ?? null;
-      const capped = await readCappedBytes(res, MAX_DOCUMENT_BYTES);
+      const capped = await readCappedBytes(res, MAX_DOCUMENT_BYTES, connectionId);
       if (!capped.ok) {
         return {
           ok: false,
