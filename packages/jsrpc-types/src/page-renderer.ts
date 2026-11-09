@@ -23,6 +23,8 @@ export interface RenderFrameOpts {
   partialKey?: string;
   // "encoded" opts out of the renderer's default raw RGBA transport.
   images?: "raw" | "encoded";
+  // The document whose resources the call may use; the renderer drops its cache when it changes.
+  scope?: string;
   traced?: boolean;
   tp?: string;
 }
@@ -50,6 +52,7 @@ export interface RenderPdfOpts {
   marginRight: number;
   marginBottom: number;
   marginLeft: number;
+  scope?: string;
   traced?: boolean;
   tp?: string;
 }

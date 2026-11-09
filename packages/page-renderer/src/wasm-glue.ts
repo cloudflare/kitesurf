@@ -19,6 +19,7 @@ export declare class SceneRasterizer {
   pendingImages(): string[];
   putImageBytes(key: string, bytes: Uint8Array): number;
   abandonImage(key: string): number;
+  resetResources(): void;
   missingResourcesPdf(envelope: Uint8Array): Uint8Array;
   // eslint-disable-next-line max-params -- Keep the generated wasm-bindgen ABI.
   renderPdf(

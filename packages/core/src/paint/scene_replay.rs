@@ -1613,6 +1613,13 @@ impl SceneRasterizer {
         self.store.borrow_mut().put_batch(batch)
     }
 
+    /// Drop every cached font and image. Batch entries are stored under the hash the page
+    /// reports, so the host calls this when the document that supplies them changes.
+    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "resetResources"))]
+    pub fn reset_resources(&self) {
+        *self.store.borrow_mut() = ResourceStore::default();
+    }
+
     /// Engine-store image keys awaiting putImageBytes, as decimal
     /// strings (a u64 doesn't survive a JS number). Format-3 refs
     /// land here instead of being stored — see IMAGE_FORMAT_ENGINE_REF.
@@ -3099,6 +3106,24 @@ mod tests {
             store.pending_images().is_empty(),
             "abandoned ref was re-pended by the next replay"
         );
+    }
+
+    #[test]
+    fn reset_resources_forgets_every_supplied_image() {
+        let raster = SceneRasterizer::default();
+        let mut batch = Vec::new();
+        batch.extend_from_slice(&1u32.to_le_bytes());
+        batch.push(RBI_RESOURCE_KIND_IMAGE);
+        batch.extend_from_slice(&9u64.to_le_bytes());
+        batch.extend_from_slice(&13u32.to_le_bytes());
+        batch.extend_from_slice(&1u32.to_le_bytes());
+        batch.extend_from_slice(&1u32.to_le_bytes());
+        batch.push(0);
+        batch.extend_from_slice(&[255, 0, 0, 255]);
+        assert_eq!(raster.put_resources(&batch), 1);
+        assert!(raster.store.borrow().images.contains_key(&9));
+        raster.reset_resources();
+        assert!(raster.store.borrow().images.is_empty());
     }
 
     fn png_bytes(rgba: &[u8], w: u32, h: u32) -> Vec<u8> {
