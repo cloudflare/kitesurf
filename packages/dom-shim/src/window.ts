@@ -836,9 +836,9 @@ function buildWindow(document: DocumentImpl) {
     set cancelAnimationFrame(v: unknown) {
       ksGlobalByKey.cancelAnimationFrame = v;
     },
-    alert: () => {
-      throw notSupported("alert");
-    },
+    // TODO: surface alert() as a dialog like Chrome instead of dropping it.
+    // A no-op keeps load listeners from aborting until the dialog exists.
+    alert: () => {},
     confirm: () => {
       throw notSupported("confirm");
     },
