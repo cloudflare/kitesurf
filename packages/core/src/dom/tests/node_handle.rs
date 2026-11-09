@@ -480,4 +480,16 @@ fn dropping_a_parent_after_a_child_moved_out_keeps_no_link_to_its_slot() {
     assert!(dom.remove_node(child));
     assert!(dom.drop_node(parent));
     assert!(dom.drop_node(child));
+
+    // Dropping a resolved subtree removes the parent before its children, so a child's parent
+    // link names a freed slot by then. The text sits in an anonymous block, so its layout parent
+    // differs from its DOM parent and the wrapper check reads both.
+    let dom = DomHandle::new(
+        "<!DOCTYPE html><body><div id=p><p style='height:10px'></p>hello</div>",
+        "https://test.example/",
+    );
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let parent = dom.query_selector("#p").expect("parent") as u32;
+    assert!(dom.drop_node(parent));
 }

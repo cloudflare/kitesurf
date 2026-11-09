@@ -1,4 +1,4 @@
-From 41d6694601f347be3abf59afaa13f0777da84c62 Mon Sep 17 00:00:00 2001
+From c3114a7e0bc6aa0e2a2289c932688df9e7a0915f Mon Sep 17 00:00:00 2001
 From: bpereira <bpereira@cloudflare.com>
 Date: Wed, 4 Nov 2026 03:43:59 +0000
 Subject: [PATCH] Track a base epoch that moves only when the base URL can
