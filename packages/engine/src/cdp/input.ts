@@ -12,11 +12,7 @@ import type { MouseEventInit } from "@kitesurf/jsrpc-types/page-script";
 import type { ConsoleEntry } from "@kitesurf/jsrpc-types/shared";
 import { consoleEntryToCdpEvent } from "../eval/page-script.ts";
 import { emitMutations } from "./dom.ts";
-import {
-  canRewriteDocumentUrl,
-  emitInputNavigationStarted,
-  initiatorOriginOf,
-} from "./page.ts";
+import { canRewriteDocumentUrl, emitInputNavigationStarted, initiatorOriginOf } from "./page.ts";
 import { terminalSceneWheelQueue } from "./scene-stream.ts";
 import {
   fenceWheelQueues,

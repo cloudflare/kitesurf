@@ -5,7 +5,7 @@
 // Fetches external classic scripts before navigation and checks their script policy.
 
 import {
-  checkScriptBeforeFetch,
+  checkScriptRedirect,
   checkScriptResponse,
   scriptGateIsNoop,
   type ScriptGateContext,
@@ -170,37 +170,30 @@ export async function prefetchExternalScripts({
           if (originClass === "cross" && pageOrigin) {
             headers["origin"] = pageOrigin;
           }
-          let redirectBlocked: ParentScriptDescriptor["blocked"];
-          const checkRedirect =
-            gate && d.injected !== true && !scriptGateIsNoop(gate)
-              ? async (next: string): Promise<string | null> => {
-                  const pre = await checkScriptBeforeFetch(gate, {
-                    url: next,
-                    integrity: d.integrity ?? null,
-                    nonce: d.nonce ?? null,
-                  });
-                  if (pre.reportOnly) console.warn(`[kitesurf-csp] ${pre.reportOnly}`);
-                  if (pre.allowed) return pre.upgradeTo ?? next;
-                  redirectBlocked = {
-                    reason: pre.reason ?? "csp",
-                    message: pre.message ?? "blocked by policy",
-                  };
-                  return null;
-                }
-              : undefined;
+          let refusedReason: string = "csp";
           const walk = await walkRedirects({
             url: resolved,
             signal: ctrl.signal,
             headers,
             taintOriginFrom: pageOrigin || undefined,
             fetchHop: (hopReq) => outbound.fetch(hopReq),
-            checkRedirect,
+            refuseHop:
+              gate && d.injected !== true && !scriptGateIsNoop(gate)
+                ? (hopUrl) => {
+                    const hop = checkScriptRedirect(
+                      gate,
+                      { url: resolved, nonce: d.nonce ?? null },
+                      hopUrl,
+                    );
+                    if (hop.allowed) return null;
+                    refusedReason = hop.reason ?? "csp";
+                    return hop.message ?? "blocked by policy";
+                  }
+                : undefined,
           });
-          if (!walk.ok && walk.reason === "redirect-blocked") {
-            d.blocked = redirectBlocked ?? { reason: "csp", message: "blocked by policy" };
-            console.warn(
-              `[kitesurf-csp] blocked (${d.blocked.reason}) ${walk.url}: ` + d.blocked.message,
-            );
+          if (!walk.ok && walk.reason === "refused") {
+            d.blocked = { reason: refusedReason, message: walk.message };
+            console.warn(`[kitesurf-csp] blocked (${refusedReason}) ${resolved}: ${walk.message}`);
             return;
           }
           if (!walk.ok) {
