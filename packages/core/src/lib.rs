@@ -6,7 +6,7 @@
 //! paint, and resource APIs.
 
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock};
@@ -624,6 +624,9 @@ pub struct DomHandle {
     /// Maps blitz node IDs to the stable IDs JavaScript and CDP see. Shared with the Boa fast
     /// path, which mints IDs for nodes it returns.
     node_handles: Rc<RefCell<NodeHandleMap>>,
+    /// Elements whose aria-hidden the accessibility tree dropped because they held focus. Chrome
+    /// keeps such an element exposed after focus moves on, for as long as the document lives.
+    pub(crate) ax_discarded_aria_hidden: RefCell<HashSet<u32>>,
     /// The document URL; relative URLs resolve against it.
     base_url: String,
     /// Whether the page's scripts run in this document, which decides how `<noscript>` parses,
@@ -765,6 +768,7 @@ impl DomHandle {
         DomHandle {
             doc: Rc::new(RefCell::new(doc)),
             node_handles: Rc::new(RefCell::new(node_handles)),
+            ax_discarded_aria_hidden: RefCell::default(),
             base_url: resolved_base,
             scripting,
             layout_dirty: LayoutDirty::new(),

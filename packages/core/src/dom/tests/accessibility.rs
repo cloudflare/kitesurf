@@ -755,3 +755,129 @@ fn a_label_outside_a_shadow_root_does_not_name_a_control_inside_it() {
         .expect("textbox");
     assert_eq!(textbox["name"]["value"], "you@x");
 }
+
+// The page's own modal pattern: an app root its modal manager marks aria-hidden, a dialog
+// inside it that holds focus, and a skip link that is itself marked and can take focus.
+const ARIA_HIDDEN_FOCUS: &str = "<div id='app' aria-hidden='true'>\
+     <button>Outside</button>\
+     <div id='dialog' role='dialog' aria-label='Compose'>\
+     <div id='trap' tabindex='-1'><input aria-label='To'>\
+     <button>Send<span id='icon' aria-hidden='true'>decorative icon</span></button></div>\
+     </div></div>\
+     <button id='elsewhere'>Elsewhere</button>\
+     <button id='skip' aria-hidden='true'>Skip</button>";
+
+fn ax_with_focus(dom: &DomHandle, focused: &[&str]) -> Vec<serde_json::Value> {
+    let mut path: Vec<u32> = focused.iter().map(|s| node_id(dom, s)).collect();
+    path.extend(["body", "html"].iter().map(|s| node_id(dom, s)));
+    let request = serde_json::json!({"method": "full", "frameId": "F", "focusPath": path});
+    let reply: serde_json::Value =
+        serde_json::from_str(&build_json(dom, &request.to_string()).unwrap()).unwrap();
+    reply["nodes"].as_array().unwrap().clone()
+}
+
+fn exposed_controls(nodes: &[serde_json::Value]) -> Vec<String> {
+    nodes
+        .iter()
+        .filter(|n| n["ignored"] == false)
+        .filter(|n| {
+            ["button", "textbox", "dialog"].contains(&n["role"]["value"].as_str().unwrap_or(""))
+        })
+        .map(|n| {
+            format!(
+                "{}:{}",
+                n["role"]["value"].as_str().unwrap(),
+                n["name"]["value"].as_str().unwrap_or("")
+            )
+        })
+        .collect()
+}
+
+fn ignored_reasons(nodes: &[serde_json::Value], id: u32) -> Vec<String> {
+    let node = nodes.iter().find(|n| n["backendDOMNodeId"] == id).unwrap();
+    node["ignoredReasons"]
+        .as_array()
+        .map(|r| {
+            r.iter()
+                .map(|x| x["name"].as_str().unwrap().to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[test]
+fn accessibility_aria_hidden_hides_a_subtree_that_does_not_hold_focus() {
+    let dom = DomHandle::new(ARIA_HIDDEN_FOCUS, "https://example.test/");
+    let nodes = ax_with_focus(&dom, &["#elsewhere"]);
+    assert_eq!(exposed_controls(&nodes), ["button:Elsewhere"]);
+    assert_eq!(
+        ignored_reasons(&nodes, node_id(&dom, "#app")),
+        ["ariaHiddenElement"]
+    );
+    assert_eq!(
+        ignored_reasons(&nodes, node_id(&dom, "#dialog")),
+        ["ariaHiddenSubtree"]
+    );
+}
+
+#[test]
+fn accessibility_aria_hidden_on_the_focus_path_is_dropped() {
+    let dom = DomHandle::new(ARIA_HIDDEN_FOCUS, "https://example.test/");
+    let nodes = ax_with_focus(&dom, &["#trap", "#dialog", "#app"]);
+    assert_eq!(
+        exposed_controls(&nodes),
+        [
+            "button:Outside",
+            "dialog:Compose",
+            "textbox:To",
+            "button:Send",
+            "button:Elsewhere"
+        ]
+    );
+    assert!(ignored_reasons(&nodes, node_id(&dom, "#app")).is_empty());
+    assert_eq!(
+        ignored_reasons(&nodes, node_id(&dom, "#icon")),
+        ["ariaHiddenElement"]
+    );
+
+    let skip = DomHandle::new(ARIA_HIDDEN_FOCUS, "https://example.test/");
+    let nodes = ax_with_focus(&skip, &["#skip"]);
+    assert_eq!(
+        exposed_controls(&nodes),
+        ["button:Elsewhere", "button:Skip"]
+    );
+    assert_eq!(
+        ignored_reasons(&nodes, node_id(&skip, "#app")),
+        ["ariaHiddenElement"]
+    );
+}
+
+// Chrome discards the mark for good, so the tree does not flip back when focus moves on; the
+// ids it remembers are the document's, and a mark set again afterwards counts anew.
+#[test]
+fn accessibility_aria_hidden_stays_dropped_after_focus_leaves_until_marked_again() {
+    let dom = DomHandle::new(ARIA_HIDDEN_FOCUS, "https://example.test/");
+    let app = node_id(&dom, "#app");
+    assert!(ignored_reasons(&ax_with_focus(&dom, &["#trap", "#dialog", "#app"]), app).is_empty());
+    let after = ax_with_focus(&dom, &["#elsewhere"]);
+    assert!(ignored_reasons(&after, app).is_empty());
+    assert_eq!(
+        ignored_reasons(&after, node_id(&dom, "#skip")),
+        ["ariaHiddenElement"]
+    );
+
+    assert!(dom.remove_attribute(app, "aria-hidden"));
+    ax_with_focus(&dom, &["#elsewhere"]);
+    assert!(dom.set_attribute(app, "aria-hidden", "true"));
+    assert_eq!(
+        ignored_reasons(&ax_with_focus(&dom, &["#elsewhere"]), app),
+        ["ariaHiddenElement"]
+    );
+
+    let next_document = DomHandle::new(ARIA_HIDDEN_FOCUS, "https://example.test/");
+    let app = node_id(&next_document, "#app");
+    assert_eq!(
+        ignored_reasons(&ax_with_focus(&next_document, &["#elsewhere"]), app),
+        ["ariaHiddenElement"]
+    );
+}

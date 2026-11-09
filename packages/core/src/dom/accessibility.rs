@@ -416,6 +416,10 @@ struct Request {
     checked: Vec<(u32, bool)>,
     #[serde(default)]
     selected: Vec<(u32, bool)>,
+    /// The focused element and its ancestors, innermost first, as external node ids: Chrome
+    /// ignores aria-hidden on each of them.
+    #[serde(default)]
+    focus_path: Vec<u32>,
 }
 
 fn default_fetch_relatives() -> bool {
@@ -485,6 +489,7 @@ struct AxIndex {
     values: HashMap<u32, FormValue>,
     checked: HashMap<u32, bool>,
     selected: HashMap<u32, bool>,
+    focus_path: HashSet<u32>,
     base_url: String,
     root_ax: Option<NodeId>,
 }
@@ -494,6 +499,9 @@ struct Context<'a> {
     req: &'a Request,
     handles: RefCell<&'a mut NodeHandleMap>,
     index: &'a AxIndex,
+    /// The document's dropped aria-hidden marks (`DomHandle::ax_discarded_aria_hidden`), which
+    /// outlive this tree so that a mark stays dropped once focus moves on.
+    discarded_aria_hidden: &'a RefCell<HashSet<u32>>,
 }
 
 fn tag(node: &Node) -> String {
@@ -554,6 +562,7 @@ impl AxIndex {
                 .collect(),
             checked: req.checked.iter().copied().collect(),
             selected: req.selected.iter().copied().collect(),
+            focus_path: req.focus_path.iter().copied().collect(),
             base_url: req.url.clone(),
             root_ax: None,
         };
@@ -645,12 +654,14 @@ impl<'a> Context<'a> {
         req: &'a Request,
         handles: &'a mut NodeHandleMap,
         index: &'a AxIndex,
+        discarded_aria_hidden: &'a RefCell<HashSet<u32>>,
     ) -> Self {
         Self {
             doc,
             req,
             handles: RefCell::new(handles),
             index,
+            discarded_aria_hidden,
         }
     }
 
@@ -744,7 +755,13 @@ pub(crate) fn build_json(dom: &DomHandle, request_json: &str) -> Result<String, 
         visibility.display_none.into_iter().collect(),
         visibility.invisible.into_iter().collect(),
     );
-    let context = Context::new(doc.as_ref(), &request, &mut handles, &index);
+    let context = Context::new(
+        doc.as_ref(),
+        &request,
+        &mut handles,
+        &index,
+        &dom.ax_discarded_aria_hidden,
+    );
     let mut count = ByteCount::default();
     context.write_reply(&mut count);
     let mut result = String::with_capacity(count.0);
@@ -869,7 +886,13 @@ impl AxJsonStream {
             return false;
         };
         let mut handles = dom.node_handles.borrow_mut();
-        let context = Context::new(doc.as_ref(), &self.request, &mut handles, &self.index);
+        let context = Context::new(
+            doc.as_ref(),
+            &self.request,
+            &mut handles,
+            &self.index,
+            &dom.ax_discarded_aria_hidden,
+        );
         self.traversal.fill(&context, &mut self.sink, want, last)
     }
 
@@ -1211,7 +1234,13 @@ pub(crate) fn start_accessibility_with_budget(
         visibility.invisible.into_iter().collect(),
     );
     let mut handles = dom.node_handles.borrow_mut();
-    let context = Context::new(doc.as_ref(), &request, &mut handles, &index);
+    let context = Context::new(
+        doc.as_ref(),
+        &request,
+        &mut handles,
+        &index,
+        &dom.ax_discarded_aria_hidden,
+    );
     let mut measure = MeasureSink::new(key, budget);
     context.write_reply(&mut measure);
     if measure.bytes > budget {
@@ -2145,11 +2174,27 @@ fn marks_data_table(node: &Node, name: &str) -> bool {
 }
 
 impl Context<'_> {
+    // True for an element on the focus path, and for one that was on it when an earlier tree of
+    // this document was built: the mark is discarded once, not for as long as focus stays.
+    fn drops_aria_hidden(&self, id: u32) -> bool {
+        let mut discarded = self.discarded_aria_hidden.borrow_mut();
+        if self.index.focus_path.contains(&id) {
+            discarded.insert(id);
+        }
+        discarded.contains(&id)
+    }
+
     fn element_status<'a>(&self, node: &'a Node, inherited: Inherited) -> ElementStatus<'a> {
         let id = self.id(node.id());
         let name = tag(node);
 
-        let self_aria = attr(node, "aria-hidden") == Some("true");
+        // Chrome drops aria-hidden on the focused element and its ancestors for good: a modal
+        // inside an app root its modal manager marks aria-hidden stays exposed from then on.
+        let marked = attr(node, "aria-hidden") == Some("true");
+        let self_aria = marked && !self.drops_aria_hidden(id);
+        if !marked {
+            self.discarded_aria_hidden.borrow_mut().remove(&id); // a later mark counts anew
+        }
         let aria_hidden = inherited.aria_hidden || self_aria;
         let no_box = self.has_no_box(node, &name, id);
         let subtree_hidden = inherited.hidden || aria_hidden || no_box;

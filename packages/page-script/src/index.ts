@@ -6953,6 +6953,24 @@ async function queryDomNotRenderedNodeIds(
   }
 }
 
+// Chrome ignores aria-hidden on the focused element and its ancestors; the tree's builder reads
+// the DOM, which does not say where focus is, so it gets the path as the ids it numbers nodes by.
+function focusPathNodeIds(): number[] {
+  const path: number[] = [];
+  let node: unknown = state.getActiveElement();
+  try {
+    // Counted in steps, not in ids found: a page can give a node no id and itself for a
+    // parent, and a walk that waits for ids would never end.
+    for (let hops = 0; isObjectRecord(node) && hops < MAX_ANCESTOR_CHAIN_NODES; hops++) {
+      if (typeof node._id === "number" && node._id >= 0) path.push(node._id);
+      const parent: unknown = node.parentNode ?? (node.nodeType === 11 ? node.host : null);
+      if (parent === node) break;
+      node = parent;
+    }
+  } catch {}
+  return path;
+}
+
 async function queryDomAccessibilityTree(
   pageState: QueryDomActiveState,
   queryArgs: Record<string, unknown>,
@@ -6975,6 +6993,7 @@ async function queryDomAccessibilityTree(
       ...queryArgs,
       ...(includeStamp ? { buffered: true } : {}),
       visibility,
+      focusPath: focusPathNodeIds(),
       ...serializedFormState,
     }),
   );
