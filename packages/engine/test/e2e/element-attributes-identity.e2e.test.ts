@@ -21,6 +21,10 @@ const MARKUP = `<span id="s1" class="a">one</span><span id="s2">two</span><b></b
   out.names = [s1.tagName, s2.tagName, sa.tagName, ha.tagName, sa.localName, ha.localName];
   out.namespaces = [sa.namespaceURI, ha.namespaceURI];
 
+  // The first attribute operation on this element is the namespaced read, with no list refresh
+  // ahead of it: the sidecar must already be reachable.
+  out.nsFirst = sa.getAttributeNS(XLINK, "href");
+
   // Attribute-less elements share one empty list; setting on one must not reach the other.
   out.bEmpty = [b1.hasAttributes(), b2.hasAttributes(), b1.attributes.length];
   b1.setAttribute("title", "t");
@@ -87,6 +91,7 @@ test("shared element identities keep per-element names, attributes and text", as
   expect(r.dataset).toEqual(["v", true, true]);
   expect(r.attrNodeWrite).toBe("w");
   const xlink = "http://www.w3.org/1999/xlink";
+  expect(r.nsFirst).toBe("#h");
   expect(r.nsBefore).toEqual(["#h", "xlink:href", xlink, "href"]);
   expect(r.nsAfter).toEqual(["#h", "xlink:href", xlink, "href"]);
   expect(r.nsSet).toEqual(["#j", "xlink:href", xlink, "href"]);
