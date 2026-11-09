@@ -63,3 +63,18 @@ test("an inserted script cannot import the isolate's own modules", async ({ page
   );
   await expect.poll(() => page.evaluate(() => document.title)).toBe("refused");
 });
+
+test("a classic script the module lexer misreads cannot import the isolate's own modules", async ({
+  page,
+}) => {
+  // The lexer stops at a regex after a block, which is valid in a script.
+  await setContent(
+    page,
+    `<!doctype html><title>start</title><script>
+      {}
+      /}/.test("");
+      import("./internal-state.js").then(${report("lexer")}, () => { document.title = "refused"; });
+    </script>`,
+  );
+  await expect.poll(() => page.evaluate(() => document.title)).toBe("refused");
+});

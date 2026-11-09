@@ -94,6 +94,40 @@ describe("extractClassicDynamicSeeds", () => {
   });
 });
 
+describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
+  const nativeCalls = (source: string) => source.match(/(?<![\w$])import\s*(?:\/\*.*?\*\/\s*)*\(/g);
+
+  it.each([
+    ["the lexer throws", `{}\n/}/.test(""); import("./internal-state.js").then(go);`],
+    ["the lexer skips code", `with ({}) /a\\//.test(""); import("./internal-state.js");`],
+    ["a call is spread", `{}\n/}/.test(""); [...import("./x.js").then(go)];`],
+  ])("sends every import() to the runtime loader when %s", (_, body) => {
+    expect(() => new Function(body)).not.toThrow();
+    const { rewritten, seeds } = extractClassicDynamicSeeds(body, BASE);
+    expect(seeds).toEqual([]);
+    expect(nativeCalls(rewritten)).toBeNull();
+    expect(rewritten).toContain("__ks_import");
+  });
+
+  it("absolutizes an import() with a comment before the paren", () => {
+    const { rewritten, seeds } = extractClassicDynamicSeeds(`import/**/("./x.js");`, BASE);
+    expect(seeds).toEqual(["https://example.com/js/x.js"]);
+    expect(rewritten).toBe(`import/**/("https://example.com/js/x.js");`);
+  });
+
+  it("does not rewrite member calls or names that end in import", () => {
+    const body = `{}\n/}/.test(""); a.import(1); a?.import(2); reimport(3); import("./x.js");`;
+    expect(extractClassicDynamicSeeds(body, BASE).rewritten).toBe(
+      `{}\n/}/.test(""); a.import(1); a?.import(2); reimport(3); __ks_import("./x.js");`,
+    );
+  });
+
+  it("leaves a script without import() calls alone", () => {
+    const body = `{}\n/}/.test(""); const s = "imports";`;
+    expect(extractClassicDynamicSeeds(body, BASE)).toEqual({ rewritten: body, seeds: [] });
+  });
+});
+
 function stubOutbound(
   bodies: Record<string, string> = {},
   delays: Record<string, number> = {},
