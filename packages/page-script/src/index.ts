@@ -3180,6 +3180,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       try {
         state.dom.free();
       } catch {}
+      // Null it now: the next document arrives after an await, and a reader in that window would
+      // otherwise see a freed handle that still compares equal to itself.
+      state.dom = null;
     }
     state.pageUrl = safeUrl;
     state.documentUrl = safeUrl;
