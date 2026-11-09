@@ -1367,6 +1367,9 @@ export function buildForwardRequest({
   }
   if (!headers.has("user-agent")) headers.set("user-agent", BROWSER_UA);
   if (!headers.has("accept")) headers.set("accept", defaultAcceptFor(resourceType));
+  // The fetch shim adds Origin where Fetch requires it (non-GET, cross-origin); the
+  // gateway keeps the header but supplies the committed value, not the page's.
+  if (pageRealm && original.headers.has("origin")) headers.set("origin", pageOrigin || "null");
   if (!headers.has("origin") && !pageOrigin) headers.set("origin", "null");
   if (corsMode) headers.set("origin", pageOrigin || "null");
   const policy = parseReferrerPolicy(referrerPolicy);
