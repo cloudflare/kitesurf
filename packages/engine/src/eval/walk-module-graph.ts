@@ -414,6 +414,11 @@ export function modulePreloadSeeds(html: string, baseUrl: string): ModulePreload
   return [...seeds].map(([url, nonce]) => ({ url, nonce }));
 }
 
+// Every `import` that can start a call: not part of a name or a member access (`...import(` is a
+// spread), with comments allowed before the `(`. It also matches text in strings and comments.
+const IMPORT_CALL =
+  /(?<![\p{ID_Continue}$#\u200c\u200d]|(?<!\.\.)\.\s*)import(?=(?:\s|\/\*[\s\S]*?\*\/|(?:\/\/|<!--|-->)[^\n\r\u2028\u2029]*)*\()/gu;
+
 export function extractClassicDynamicSeeds(
   body: string,
   baseUrl: string,
@@ -422,15 +427,20 @@ export function extractClassicDynamicSeeds(
     importer,
   ) => (isUrlLikeSpecifier(specifier) ? resolveAgainstImporter(specifier, importer) : null),
 ): { rewritten: string; seeds: string[] } {
-  if (!/import\s*\(/.test(body)) return { rewritten: body, seeds: [] };
-  let imports: ReturnType<typeof lexerParse>[0];
+  const calls = [...body.matchAll(IMPORT_CALL)].map((m) => m.index);
+  if (calls.length === 0) return { rewritten: body, seeds: [] };
+  // The lexer is not a parser: it can throw on valid code, or misread a regex and skip live code.
+  // A native import() left in the bundle resolves next to the isolate's own modules, so when
+  // the lexer did not see every call, send all of them to the runtime loader.
+  let imports: ReturnType<typeof lexerParse>[0] | null = null;
   try {
     imports = lexerParse(body, baseUrl)[0];
-  } catch {
-    return { rewritten: body, seeds: [] };
+  } catch {}
+  const dynamics = imports?.filter((imp) => imp.t === 2) ?? [];
+  const lexedCalls = new Set(dynamics.map((imp) => imp.ss));
+  if (!imports || calls.some((at) => !lexedCalls.has(at))) {
+    return { rewritten: body.replace(IMPORT_CALL, "__ks_import"), seeds: [] };
   }
-  const dynamics = imports.filter((imp) => imp.t === 2);
-  if (dynamics.length === 0) return { rewritten: body, seeds: [] };
   const seeds: string[] = [];
   let b = body;
   const ref = JSON.stringify(baseUrl);
