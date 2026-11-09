@@ -39024,5 +39024,77 @@
   "/html/semantics/document-metadata/the-meta-element/pragma-directives/attr-meta-http-equiv-refresh/parsing.html?131-last": {
     "expected": "PASS",
     "reason": "document.referrer on frame documents: measured PASS on two runs"
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/closed-dialog-does-not-block-mouse-events.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/dialog-close-event.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/dialog-focusing-steps-prevent-autofocus.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/dialog-keydown-preventDefault.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/dialog-light-dismiss-drag.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/dialog-no-throw-requested-state.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/dialog-open-2.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/dialog-requestclose-closedby.tentative.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/dialog-return-value.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/dialog-showModal-remove.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/dialog-synthetic-keydown.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/form-submit-dialog-shadow.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/inert-does-not-match-disabled-selector.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/non-modal-dialog-does-not-block-mouse-events.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/non-modal-dialog-layout.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/showmodal-shadow-sibling-frame-crash.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/simulated-click-inert.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/html/semantics/interactive-elements/the-dialog-element/synthetic-click-inert.html": {
+    "expected": "PASS",
+    "reason": null
   }
 }
