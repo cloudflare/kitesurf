@@ -191,6 +191,7 @@ interface GetOrCreatePageScriptOptions {
   ctx: ExecutionContext;
   key: PageScriptKey;
   pageOrigin: string;
+  cookieSiteOrigin?: string;
   startupInput?: Partial<PageScriptStartupInput>;
   attributionHeaders?: Record<string, string>;
   mainLoaderId?: string;
@@ -208,6 +209,7 @@ export function getOrCreatePageScript({
   ctx,
   key,
   pageOrigin,
+  cookieSiteOrigin,
   startupInput = {},
   attributionHeaders = {},
   mainLoaderId = "",
@@ -341,6 +343,7 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
   const outboundProps = {
     ...localTraceParentProps(),
     pageOrigin,
+    ...(cookieSiteOrigin !== undefined ? { cookieSiteOrigin } : {}),
     pageUrl: url ?? undefined,
     referrerPolicy:
       typeof startupInput.referrerPolicy === "string" ? startupInput.referrerPolicy : undefined,
@@ -438,6 +441,7 @@ export function spawnFramePageScript(
     frameId: string;
     frameLoaderId: string;
     frameUrl: string;
+    cookieSiteOrigin?: string;
     extraHeaders?: Record<string, string>;
     attributionHeaders?: Record<string, string>;
     sandboxOutbound: SandboxOutboundOverride;
@@ -455,6 +459,7 @@ export function spawnFramePageScript(
     ctx,
     key,
     pageOrigin,
+    cookieSiteOrigin: args.cookieSiteOrigin,
     startupInput: {},
     attributionHeaders: args.attributionHeaders ?? {},
     mainLoaderId: args.frameLoaderId,
