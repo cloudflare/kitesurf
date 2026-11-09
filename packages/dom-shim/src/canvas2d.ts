@@ -170,6 +170,13 @@ type CanvasOp = {
 
 type CanvasImageSource = { id: number; kind: "canvas" } | { id: number; kind: "img"; oc: boolean };
 
+// Captured before page script runs, which can replace JSON.stringify or add toJSON to a prototype.
+// The replacer returns each holder's own value, which undoes any toJSON hook.
+const stringifyBatch = JSON.stringify;
+const ownValue = function (this: Record<string, unknown>, key: string): unknown {
+  return this[key];
+};
+
 // Keep operation metadata private so page properties cannot forge renderer input.
 const gradientSpecs = new WeakMap<object, CanvasGradientSpec>();
 const patternSpecs = new WeakMap<object, CanvasPatternSpec>();
@@ -591,7 +598,7 @@ function buildContextImpl(canvas: CanvasHost) {
     const batch = q;
     q = [];
     try {
-      const rc = dom.canvasApplyOps(canvas._id, JSON.stringify(batch));
+      const rc = dom.canvasApplyOps(canvas._id, stringifyBatch(batch, ownValue));
       dbg.opsSent += batch.length;
       dbg.last = "ops rc=" + rc;
     } catch (e) {
