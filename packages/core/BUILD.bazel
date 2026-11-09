@@ -94,6 +94,26 @@ rust_test(
 )
 
 rust_test(
+    name = "taffy_test",
+    crate = "@crates__taffy-0.15.0//:taffy",
+    # rust_test does not inherit the library's features. taffy_tree adds the TaffyTree that the
+    # patch series' regression tests lay their cases out in.
+    crate_features = [
+        "block_layout",
+        "calc",
+        "content_size",
+        "detailed_layout_info",
+        "flexbox",
+        "flexbox_balance",
+        "float_layout",
+        "grid",
+        "std",
+        "taffy_tree",
+    ],
+    deps = ["@crates__slotmap-1.1.1//:slotmap"],
+)
+
+rust_test(
     name = "vello_common_test",
     crate = "@crates__vello_common-0.3.0//:vello_common",
     # rust_test does not inherit the library's features, and the crate needs std or libm.
@@ -111,6 +131,7 @@ test_suite(
         ":boa_gc_test",
         ":boa_interner_test",
         ":core_test",
+        ":taffy_test",
         ":vello_common_test",
         ":vello_cpu_fallback_test",
     ],
