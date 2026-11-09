@@ -762,7 +762,6 @@ impl DomHandle {
 
     /// Parse `head + insert + tail` like [`DomHandle::new`]. Joining here, not in JS, avoids
     /// flattening a document-sized JS string that lives until the next major GC.
-    #[wasm_bindgen(js_name = "newSpliced")]
     pub fn new_spliced(head: &str, insert: &str, tail: &str, base_url: &str) -> DomHandle {
         let mut html = String::with_capacity(head.len() + insert.len() + tail.len());
         html.push_str(head);

@@ -517,6 +517,7 @@ fn str_chunks(mut text: &str, chunk_bytes: usize) -> impl Iterator<Item = &str> 
     })
 }
 
+#[cfg(test)]
 pub(crate) fn scan_document_in_chunks(html: &str, chunk_bytes: usize) -> ScanResult {
     let mut scanner = DocScanner::new();
     for chunk in str_chunks(html, chunk_bytes) {
