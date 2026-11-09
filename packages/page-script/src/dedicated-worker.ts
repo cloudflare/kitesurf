@@ -158,6 +158,7 @@ async function loadSource(url: string): Promise<string> {
     contentTypeOptions: response.nosniff,
     bytes: response.bytes,
     opaque: response.opaque,
+    ...(response.finalUrl ? { finalUrl: response.finalUrl } : {}),
   });
   if (!post.allowed) {
     reportBlocked(post);

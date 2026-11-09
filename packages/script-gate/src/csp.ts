@@ -108,7 +108,9 @@ function safeDecode(value: string): string {
   }
 }
 
-function sourceExpressionMatches(source: string, url: URL): boolean {
+// After a redirect the path part of a source is not matched (CSP3 §6.7.2.5), so a
+// policy does not reveal where a cross-origin redirect led.
+function sourceExpressionMatches(source: string, url: URL, redirected = false): boolean {
   if (/^[a-z][a-z0-9+.-]*:$/i.test(source)) {
     return schemeMatches(source.toLowerCase(), url.protocol);
   }
@@ -151,7 +153,7 @@ function sourceExpressionMatches(source: string, url: URL): boolean {
     return false;
   }
   if (!hostMatches(sourceHost, url.hostname)) return false;
-  if (sourcePort === "*") return pathMatches(path, url.pathname);
+  if (sourcePort === "*") return redirected || pathMatches(path, url.pathname);
   if (sourcePort) {
     if (sourcePort !== portOf(url)) return false;
   } else if (!sourceScheme) {
@@ -161,7 +163,7 @@ function sourceExpressionMatches(source: string, url: URL): boolean {
       return false;
     }
   }
-  return pathMatches(path, url.pathname);
+  return redirected || pathMatches(path, url.pathname);
 }
 
 export interface CspScriptRequest {
@@ -169,6 +171,8 @@ export interface CspScriptRequest {
   documentUrl: string;
   nonce?: string | null;
   runtimeInserted?: boolean;
+  /** The URL is a redirect target, so source paths are not matched. */
+  redirected?: boolean;
 }
 
 export interface CspVerdict {
@@ -242,7 +246,7 @@ function sourceListAllows(
       continue;
     }
     if (lowercaseSource.startsWith("'")) continue;
-    if (sourceExpressionMatches(source, url)) return true;
+    if (sourceExpressionMatches(source, url, request.redirected === true)) return true;
   }
   return false;
 }

@@ -315,3 +315,43 @@ test("CSP: script-src-attr governs handlers independently of script-src", async 
   await new Promise((r) => setTimeout(r, 200));
   expect([...(await ran(page))].sort()).toEqual(["onerror", "parsed", "setAttribute"]);
 });
+
+const viaRedirect = (to: string): string =>
+  `${ORIGIN}/__fixtures/loud-redirect?to=${encodeURIComponent(to)}`;
+const OTHER_SCRIPT = "https://ks-other.invalid/__fixtures/policy-script.js";
+
+test("CSP: a parser script that redirects off the allowlist does not run", async ({ browser }) => {
+  const csp = `script-src ${ORIGIN} 'nonce-n0nce'`;
+  const page = await browser.newPage();
+  await page.goto(
+    docUrl(csp, `<script src="${viaRedirect(`${OTHER_SCRIPT}?tag=redirected`)}"></script>`),
+    { waitUntil: "load" },
+  );
+  expect(await ran(page)).toEqual([]);
+
+  // A redirect inside the allowlist still runs, and a source path is not matched after it.
+  const page2 = await browser.newPage();
+  await page2.goto(
+    docUrl(
+      `script-src ${ORIGIN}/__fixtures/loud-redirect`,
+      `<script src="${viaRedirect(scriptUrl({ tag: "same-host" }))}"></script>`,
+    ),
+    { waitUntil: "load" },
+  );
+  expect(await ran(page2)).toEqual(["same-host"]);
+});
+
+test("CSP: a runtime-inserted script that redirects off the allowlist does not run", async ({
+  page,
+}) => {
+  const body =
+    `<script nonce="n0nce">` +
+    `for (const src of ${JSON.stringify([
+      viaRedirect(`${OTHER_SCRIPT}?tag=inserted-off`),
+      viaRedirect(scriptUrl({ tag: "inserted-on" })),
+    ])}) { const s = document.createElement("script"); s.src = src; document.head.append(s); }` +
+    `</script>`;
+  await page.goto(docUrl(`script-src ${ORIGIN} 'nonce-n0nce'`, body), { waitUntil: "load" });
+  await settle(page);
+  expect(await ran(page)).toEqual(["inserted-on"]);
+});

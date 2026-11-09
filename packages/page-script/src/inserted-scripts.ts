@@ -247,6 +247,7 @@ async function fetchGatedModuleSourceOnce(
     contentTypeOptions: response.nosniff,
     bytes: response.bytes,
     opaque: response.opaque,
+    ...(response.finalUrl ? { finalUrl: response.finalUrl } : {}),
   });
   if (!post.allowed) {
     reportBlocked(post);
@@ -364,6 +365,7 @@ export function runInsertedExternalScript(info: InsertedScriptInfo): void {
         contentTypeOptions: response.nosniff,
         bytes: response.bytes,
         opaque: response.opaque,
+        ...(response.finalUrl ? { finalUrl: response.finalUrl } : {}),
       });
       if (!post.allowed) {
         reportBlocked(post);
