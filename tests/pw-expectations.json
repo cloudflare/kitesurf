@@ -1399,10 +1399,6 @@
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-localstorage.spec.ts::storage methods are scoped to the current origin": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
   "page-mouse.spec.ts::should always round down": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toEqual(expected) // deep equality"
