@@ -583,6 +583,12 @@ export function installGlobals(
     installBoundShadow(globalThis, "btoa");
     installBoundShadow(globalThis, "structuredClone");
 
+    // Chrome exposes these as bare globals; the shim only had them on window.
+    for (const name of ["alert", "confirm", "prompt"]) {
+      const method = Reflect.get(win, name);
+      if (typeof method === "function") Reflect.set(globalThis, name, method.bind(win));
+    }
+
     {
       type StructuredCloneFunction = (value: unknown, options?: unknown) => unknown;
       type StructuredCloneGlobal = Omit<typeof globalThis, "structuredClone"> & {
