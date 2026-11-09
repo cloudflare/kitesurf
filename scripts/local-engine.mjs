@@ -19,7 +19,7 @@ const MINIFLARE_VARS = [
   "KITESURF_ENV:local",
   "KITESURF_RESOURCE_DRAIN_QUIET_TURNS:5",
   "KITESURF_LAG_WATCHDOG:1",
-  "KITESURF_OTLP_ENDPOINT:http://localhost:4318/v1/traces",
+  "KITESURF_OTLP_ENDPOINT:http://127.0.0.1:4318/v1/traces",
 ];
 
 const ALL_STOPS = new Set();

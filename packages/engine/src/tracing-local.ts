@@ -623,7 +623,7 @@ export function armLocalTracing(
   if (!parent) {
     console.log(
       `[local-trace] sampled trace ${traceId} — ` +
-        `http://localhost:16686/trace/${traceId.padStart(TRACE_ID_HEX_CHARS, "0")}`,
+        `http://127.0.0.1:16686/trace/${traceId.padStart(TRACE_ID_HEX_CHARS, "0")}`,
     );
   }
   const runTags = { "http.method": request.method, "http.path": url.pathname };
