@@ -128,10 +128,10 @@ impl Slabs {
         self.chunk_bytes
     }
 
-    /// A slot of `class`, or null when no page can be had.
-    ///
     /// # Safety
     /// `self` must not be used concurrently.
+    ///
+    /// A slot of `class`, or null when no page can be had.
     pub(crate) unsafe fn alloc(&mut self, class: usize) -> *mut u8 {
         let size = CLASSES[class] as usize;
         let mut page = self.partial[class];
@@ -162,11 +162,11 @@ impl Slabs {
         slot
     }
 
-    /// Returns `slot`, from `alloc(class)`, to its page.
-    ///
     /// # Safety
     /// `slot` must be live and come from `alloc` with the same `class`, and `self` must not be
     /// used concurrently.
+    ///
+    /// Returns `slot`, from `alloc(class)`, to its page.
     pub(crate) unsafe fn dealloc(&mut self, slot: *mut u8, class: usize) {
         let page = (slot as usize & !(PAGE - 1)) as *mut Page;
         // SAFETY: every slot lies in a page whose header is at its page-aligned base.

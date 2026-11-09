@@ -35,11 +35,11 @@ unsafe impl Sync for SlabCell {}
 
 static SLABS: SlabCell = SlabCell(UnsafeCell::new(Slabs::new()));
 
-/// `layout` from the slabs when it is small, else from `System`. Which one serves a block is
-/// decided by its layout alone, so `dealloc` and `realloc` find it again.
-///
 /// # Safety
 /// `layout` has a nonzero size.
+///
+/// `layout` from the slabs when it is small, else from `System`. Which one serves a block is
+/// decided by its layout alone, so `dealloc` and `realloc` find it again.
 #[inline(never)]
 unsafe fn raw_alloc(layout: Layout, zeroed: bool) -> *mut u8 {
     match class_of(layout) {
@@ -69,10 +69,10 @@ unsafe fn raw_dealloc(ptr: *mut u8, layout: Layout) {
     }
 }
 
-/// Null leaves `ptr` allocated as it was.
-///
 /// # Safety
 /// `GlobalAlloc::realloc`'s contract, with `ptr` from `raw_alloc` or `raw_realloc`.
+///
+/// Null leaves `ptr` allocated as it was.
 #[inline(never)]
 unsafe fn raw_realloc(ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
     // SAFETY: the caller guarantees `new_size` rounded to `layout.align()` does not overflow.
