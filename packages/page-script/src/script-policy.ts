@@ -21,7 +21,7 @@ let cached: ScriptGateContext | null = null;
 let cachedUrl = "";
 
 function gateContext(): ScriptGateContext {
-  const documentUrl = state.pageUrl || "";
+  const documentUrl = state.documentUrl || state.pageUrl || "";
   if (cached && cachedUrl === documentUrl) return cached;
   cachedUrl = documentUrl;
   cached = buildScriptGateContext(documentUrl, {

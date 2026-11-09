@@ -185,6 +185,32 @@ test("a runtime-inserted script is gated too", async ({ browser }) => {
   expect(await ran(page2)).toEqual(["chunk"]);
 });
 
+test("'self' stays the committed document's origin during a pending navigation", async ({
+  browser,
+}) => {
+  // The 204 aborts the navigation, so the inserting document stays live.
+  const OTHER = "https://ks-other.invalid";
+  const insert = (src: string) =>
+    `<script nonce="n0nce">` +
+    `location.href = ${JSON.stringify(`${OTHER}/__fixtures/status-204`)};` +
+    `var s = document.createElement("script");` +
+    `s.src = ${JSON.stringify(src)};` +
+    `document.head.appendChild(s);` +
+    `</script>`;
+  const policy = "script-src 'nonce-n0nce' 'self'";
+  const crossOrigin = scriptUrl({ tag: "xo" }).replace(ORIGIN, OTHER);
+
+  const page = await browser.newPage();
+  await page.goto(docUrl(policy, insert(crossOrigin)), { waitUntil: "load" });
+  await settle(page);
+  expect(await ran(page)).toEqual([]);
+
+  const page2 = await browser.newPage();
+  await page2.goto(docUrl(policy, insert(scriptUrl({ tag: "self" }))), { waitUntil: "load" });
+  await settle(page2);
+  expect(await ran(page2)).toEqual(["self"]);
+});
+
 test("a runtime-inserted script's nonce is read from the IDL property", async ({ browser }) => {
   const inline = `globalThis.__ksRan=(globalThis.__ksRan||[]).concat(["inline"]);`;
   const insert = (how: string, body: string) =>

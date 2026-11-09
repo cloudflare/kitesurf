@@ -50,7 +50,7 @@ async function runBaked(module: string): Promise<void> {
 
 function resolveUrl(src: string): string | null {
   try {
-    return new URL(src, state.pageUrl || undefined).toString();
+    return new URL(src, state.documentUrl || state.pageUrl || undefined).toString();
   } catch {
     return null;
   }

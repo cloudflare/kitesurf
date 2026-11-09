@@ -2516,6 +2516,7 @@ function activateAnchorNavigation(
     if (!isHashOnly) return { kind: "navigate", url: resolved };
     const previous = state.pageUrl;
     state.pageUrl = resolved;
+    state.documentUrl = resolved;
     const win = state.window;
     if (win) {
       const stateForPopstate = win.history?.state ?? null;
@@ -2941,6 +2942,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       } catch {}
     }
     state.pageUrl = safeUrl;
+    state.documentUrl = safeUrl;
     state.lastForceRestyleSeq = -1;
     state.currentMediaType = "screen";
 
@@ -3149,6 +3151,11 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
             } catch {}
           }
           state.pageUrl = newUrl;
+          // A same-document change commits now; a cross-document one waits
+          // for the new document, so the current one keeps its URL until then.
+          if (kind === "hash" || kind === "pushState" || kind === "replaceState") {
+            state.documentUrl = newUrl;
+          }
           if (kind === "hash" && previous !== newUrl && state.window) {
             const stateForPopstate = state.window.history?.state ?? null;
             queuePageTask(() => {
@@ -3962,6 +3969,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     }
     invalidatePaintDom();
     state.pageUrl = "";
+    state.documentUrl = "";
     state.document = null;
     state.window = null;
     state.getOpLog = () => [];
