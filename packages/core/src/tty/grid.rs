@@ -5,6 +5,9 @@
 //! Maps decoded paint scenes, text, and image resources onto terminal cells.
 //! Supplies the cell data used by the ANSI and Kitty rendering paths.
 
+use std::collections::HashMap;
+use std::rc::Rc;
+
 #[cfg(not(feature = "native-host"))]
 use wasm_bindgen::prelude::*;
 
@@ -14,6 +17,7 @@ use crate::paint::scene_decode::{
 };
 use crate::paint::scene_record::Q3_UNITS_PER_PIXEL;
 use crate::paint::scene_replay::{MISSING_RESOURCE_ENTRY_BYTES, RESOURCE_COUNT_BYTES};
+use crate::tty::modes::ImageMode;
 
 const BASELINE_ASCENT_FRAC: f32 = 0.8;
 
@@ -55,7 +59,7 @@ pub struct KittyPlacement {
     pub cols: usize,
     pub rows: usize,
     pub key: String,
-    img: std::rc::Rc<GridImage>,
+    img: Rc<GridImage>,
     crop: SrcRect,
     px_w: u32,
     px_h: u32,
@@ -92,10 +96,10 @@ pub struct TtyGrid {
     pending_rules: Vec<(isize, isize, isize, [u8; 3])>,
     pending_table_bg: Option<(f32, f32, f32, f32, [u8; 3])>,
     pub cell_collisions: u64,
-    images: std::collections::HashMap<u64, std::rc::Rc<GridImage>>,
+    images: HashMap<u64, Rc<GridImage>>,
     pub images_placed: u32,
     pub images_missing: u32,
-    image_mode: crate::tty::modes::ImageMode,
+    image_mode: ImageMode,
     pub placements: Vec<KittyPlacement>,
 }
 
@@ -119,15 +123,15 @@ impl TtyGrid {
             pending_rules: Vec::new(),
             pending_table_bg: None,
             cell_collisions: 0,
-            images: std::collections::HashMap::new(),
+            images: HashMap::new(),
             images_placed: 0,
             images_missing: 0,
-            image_mode: crate::tty::modes::ImageMode::Halfblocks,
+            image_mode: ImageMode::Halfblocks,
             placements: Vec::new(),
         }
     }
 
-    pub fn set_image_mode(&mut self, m: crate::tty::modes::ImageMode) {
+    pub fn set_image_mode(&mut self, m: ImageMode) {
         self.image_mode = m;
     }
 
@@ -143,7 +147,7 @@ impl TtyGrid {
         }
     }
 
-    pub fn set_images(&mut self, images: std::collections::HashMap<u64, std::rc::Rc<GridImage>>) {
+    pub fn set_images(&mut self, images: HashMap<u64, Rc<GridImage>>) {
         self.images = images;
     }
 
@@ -183,7 +187,7 @@ impl TtyGrid {
         let (sx, sw) = visible_span(img.width, bc0, bc1, c0 as f32, c1 as f32);
         let (sy, sh) = visible_span(img.height, br0, br1, r0 as f32, r1 as f32);
         let crop = (sx, sy, sw, sh);
-        if self.image_mode == crate::tty::modes::ImageMode::Kitty {
+        if self.image_mode == ImageMode::Kitty {
             let pw = ((c1 - c0) as f32 * self.cell_w).round().max(1.0) as u32;
             let ph = ((r1 - r0) as f32 * self.cell_h).round().max(1.0) as u32;
             if u64::from(pw) * u64::from(ph) > MAX_PLACEMENT_PX {
@@ -796,9 +800,9 @@ pub fn scene_to_ansi(scene: &[u8], cols: u32, rows: u32, cell_w: f32, cell_h: f3
     grid.render_ansi()
 }
 
-pub fn inline_images(scene: &[u8]) -> std::collections::HashMap<u64, std::rc::Rc<GridImage>> {
+pub fn inline_images(scene: &[u8]) -> HashMap<u64, Rc<GridImage>> {
     use crate::paint::scene_decode::{ResourceKind, parse_header, parse_resources};
-    let mut out = std::collections::HashMap::new();
+    let mut out = HashMap::new();
     let Ok(header) = parse_header(scene) else {
         return out;
     };
@@ -821,7 +825,7 @@ pub fn inline_images(scene: &[u8]) -> std::collections::HashMap<u64, std::rc::Rc
         ) {
             out.insert(
                 hash,
-                std::rc::Rc::new(GridImage {
+                Rc::new(GridImage {
                     width: img.width,
                     height: img.height,
                     rgba: img.data.clone(),
@@ -883,17 +887,14 @@ impl TtyImages {
         self.store.abandon_image_key(key)
     }
 
-    pub fn images_for(
-        &self,
-        scene: &[u8],
-    ) -> std::collections::HashMap<u64, std::rc::Rc<GridImage>> {
-        let mut out: std::collections::HashMap<u64, std::rc::Rc<GridImage>> = self
+    pub fn images_for(&self, scene: &[u8]) -> HashMap<u64, Rc<GridImage>> {
+        let mut out: HashMap<u64, Rc<GridImage>> = self
             .store
             .images_iter()
             .map(|(hash, img)| {
                 (
                     *hash,
-                    std::rc::Rc::new(GridImage {
+                    Rc::new(GridImage {
                         width: img.width,
                         height: img.height,
                         rgba: img.data.clone(),
@@ -912,7 +913,7 @@ impl TtyImages {
         rows: u32,
         cell_w: f32,
         cell_h: f32,
-        images: crate::tty::modes::ImageMode,
+        images: ImageMode,
     ) -> Option<TtyGrid> {
         if !grid_dims_ok(cols, rows, cell_w, cell_h) {
             return None;
@@ -933,7 +934,7 @@ pub struct TtyRenderer {
     last_placed: std::cell::Cell<u32>,
     last_missing: std::cell::Cell<u32>,
     last_collisions: std::cell::Cell<u32>,
-    image_mode: std::cell::Cell<crate::tty::modes::ImageMode>,
+    image_mode: std::cell::Cell<ImageMode>,
     placements: std::cell::RefCell<Vec<KittyPlacement>>,
 }
 
@@ -1004,10 +1005,8 @@ impl TtyRenderer {
 
     #[wasm_bindgen(js_name = "setImageMode")]
     pub fn set_image_mode(&self, mode: &str) {
-        self.image_mode.set(
-            crate::tty::modes::ImageMode::from_slug(mode)
-                .unwrap_or(crate::tty::modes::ImageMode::Halfblocks),
-        );
+        self.image_mode
+            .set(ImageMode::from_slug(mode).unwrap_or(ImageMode::Halfblocks));
     }
 
     #[wasm_bindgen(js_name = "placementMeta")]
@@ -1841,14 +1840,14 @@ mod tests {
         );
     }
 
-    fn solid(w: u32, h: u32, px: [u8; 4]) -> std::rc::Rc<GridImage> {
+    fn solid(w: u32, h: u32, px: [u8; 4]) -> Rc<GridImage> {
         let rgba: Vec<u8> = px
             .iter()
             .copied()
             .cycle()
             .take((w * h * 4) as usize)
             .collect();
-        std::rc::Rc::new(GridImage {
+        Rc::new(GridImage {
             width: w,
             height: h,
             rgba: peniko::Blob::from(rgba),
@@ -1880,7 +1879,7 @@ mod tests {
     #[test]
     fn a_missing_image_is_marked_rather_than_dropped() {
         let mut g = grid(6, 3);
-        g.set_image_mode(crate::tty::modes::ImageMode::Halfblocks);
+        g.set_image_mode(ImageMode::Halfblocks);
         img_fill(&mut g, 42, 0.0, 0.0, 24.0, 32.0);
         assert_eq!(g.images_missing, 1, "the miss must be counted");
         assert!(
@@ -1904,7 +1903,7 @@ mod tests {
             &[],
             0,
         );
-        g.set_image_mode(crate::tty::modes::ImageMode::Halfblocks);
+        g.set_image_mode(ImageMode::Halfblocks);
         img_fill(&mut g, 1, 0.0, 0.0, 64.0, 16.0);
         let out = g.render_ansi();
         assert!(
@@ -1916,8 +1915,8 @@ mod tests {
     #[test]
     fn halfblocks_draw_pixels_not_a_marker() {
         let mut g = grid(6, 3);
-        g.set_image_mode(crate::tty::modes::ImageMode::Halfblocks);
-        let mut m = std::collections::HashMap::new();
+        g.set_image_mode(ImageMode::Halfblocks);
+        let mut m = HashMap::new();
         m.insert(9u64, solid(8, 8, [200, 40, 40, 255]));
         g.set_images(m);
         img_fill(&mut g, 9, 0.0, 0.0, 24.0, 32.0);
@@ -1943,8 +1942,8 @@ mod tests {
             &[],
             0,
         );
-        g.set_image_mode(crate::tty::modes::ImageMode::Halfblocks);
-        let mut m = std::collections::HashMap::new();
+        g.set_image_mode(ImageMode::Halfblocks);
+        let mut m = HashMap::new();
         m.insert(9u64, solid(8, 8, [200, 40, 40, 255]));
         g.set_images(m);
         img_fill(&mut g, 9, 0.0, 0.0, 64.0, 16.0);
@@ -1963,8 +1962,8 @@ mod tests {
     #[test]
     fn kitty_mode_records_a_placement_instead_of_drawing() {
         let mut g = grid(6, 3);
-        g.set_image_mode(crate::tty::modes::ImageMode::Kitty);
-        let mut m = std::collections::HashMap::new();
+        g.set_image_mode(ImageMode::Kitty);
+        let mut m = HashMap::new();
         m.insert(9u64, solid(8, 8, [10, 20, 30, 255]));
         g.set_images(m);
         img_fill(&mut g, 9, 0.0, 0.0, 24.0, 32.0);
@@ -1985,8 +1984,8 @@ mod tests {
     fn a_placement_key_names_exactly_what_its_png_depends_on() {
         let key = |y0: f32, w: f32| {
             let mut g = grid(12, 6);
-            g.set_image_mode(crate::tty::modes::ImageMode::Kitty);
-            let mut m = std::collections::HashMap::new();
+            g.set_image_mode(ImageMode::Kitty);
+            let mut m = HashMap::new();
             m.insert(9u64, solid(8, 8, [10, 20, 30, 255]));
             g.set_images(m);
             img_fill(&mut g, 9, 0.0, y0, w, y0 + 32.0);
@@ -2000,14 +1999,14 @@ mod tests {
     #[test]
     fn kitty_mode_still_marks_an_image_it_has_no_bytes_for() {
         let mut g = grid(6, 3);
-        g.set_image_mode(crate::tty::modes::ImageMode::Kitty);
+        g.set_image_mode(ImageMode::Kitty);
         img_fill(&mut g, 5, 0.0, 0.0, 24.0, 32.0);
         assert!(g.placements.is_empty());
         assert_eq!(g.images_missing, 1);
         assert!(g.render_ansi().contains('\u{2591}'));
     }
 
-    fn red_over_blue() -> std::rc::Rc<GridImage> {
+    fn red_over_blue() -> Rc<GridImage> {
         let rgba: Vec<u8> = (0..64)
             .flat_map(|i| {
                 if i < 32 {
@@ -2017,7 +2016,7 @@ mod tests {
                 }
             })
             .collect();
-        std::rc::Rc::new(GridImage {
+        Rc::new(GridImage {
             width: 8,
             height: 8,
             rgba: peniko::Blob::from(rgba),
@@ -2036,8 +2035,8 @@ mod tests {
     #[test]
     fn kitty_crops_an_image_cut_off_at_the_top() {
         let mut g = grid(6, 3);
-        g.set_image_mode(crate::tty::modes::ImageMode::Kitty);
-        let mut m = std::collections::HashMap::new();
+        g.set_image_mode(ImageMode::Kitty);
+        let mut m = HashMap::new();
         m.insert(9u64, red_over_blue());
         g.set_images(m);
         img_fill(&mut g, 9, 0.0, -32.0, 24.0, 32.0);
@@ -2060,8 +2059,8 @@ mod tests {
     #[test]
     fn halfblocks_crops_an_image_cut_off_at_the_top() {
         let mut g = grid(2, 2);
-        g.set_image_mode(crate::tty::modes::ImageMode::Halfblocks);
-        let mut m = std::collections::HashMap::new();
+        g.set_image_mode(ImageMode::Halfblocks);
+        let mut m = HashMap::new();
         m.insert(9u64, red_over_blue());
         g.set_images(m);
         img_fill(&mut g, 9, 0.0, -16.0, 16.0, 16.0);
@@ -2081,8 +2080,8 @@ mod tests {
     fn kitty_placement_is_capped_before_resize() {
         assert!(grid_dims_ok(200, 80, 64.0, 64.0));
         let mut g = TtyGrid::new(200, 80, 64.0, 64.0);
-        g.set_image_mode(crate::tty::modes::ImageMode::Kitty);
-        let mut m = std::collections::HashMap::new();
+        g.set_image_mode(ImageMode::Kitty);
+        let mut m = HashMap::new();
         m.insert(9u64, solid(8, 8, [10, 20, 30, 255]));
         g.set_images(m);
         img_fill(&mut g, 9, 0.0, 0.0, 12800.0, 5120.0);

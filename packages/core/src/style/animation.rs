@@ -8,6 +8,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::DomHandle;
 use crate::style::transitions::{AnimationEvent, TransitionEvent};
+use crate::style::waapi::parse_timing;
 
 #[wasm_bindgen]
 impl DomHandle {
@@ -30,8 +31,7 @@ impl DomHandle {
         timing: &[f64],
         easing: &str,
     ) -> Result<(), JsError> {
-        let timing =
-            crate::style::waapi::parse_timing(timing, easing).map_err(|e| JsError::new(&e))?;
+        let timing = parse_timing(timing, easing).map_err(|e| JsError::new(&e))?;
         let target = if node_id == 0 {
             None
         } else {
@@ -83,8 +83,7 @@ impl DomHandle {
         local_time: Option<f64>,
         rate: f64,
     ) -> Result<Vec<f64>, JsError> {
-        let timing =
-            crate::style::waapi::parse_timing(timing, easing).map_err(|e| JsError::new(&e))?;
+        let timing = parse_timing(timing, easing).map_err(|e| JsError::new(&e))?;
         let out = crate::style::waapi::computed_timing(&timing, local_time, rate);
         let phase = match out.phase {
             crate::style::waapi::Phase::Before => 0.0,

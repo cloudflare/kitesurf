@@ -4,6 +4,9 @@
 
 //! Hit testing: the element, caret, and pseudo-element at a point.
 
+use std::panic::{catch_unwind, AssertUnwindSafe};
+
+use blitz_dom::node::SpecialElementData;
 use blitz_dom::{BaseDocument, NodeData};
 use blitz_traits::NodeId;
 use wasm_bindgen::prelude::*;
@@ -16,7 +19,7 @@ fn input_caret_from_point(doc: &mut BaseDocument, x: f32, y: f32) -> Option<(Nod
     doc.with_text_input(input_id, |mut driver| driver.refresh_layout());
     let node = doc.get_node(input_id)?;
     let element = node.element_data()?;
-    let blitz_dom::node::SpecialElementData::TextInput(input) = &element.special_data else {
+    let SpecialElementData::TextInput(input) = &element.special_data else {
         return None;
     };
     let content_box_x = node.final_layout().padding.left + node.final_layout().border.left;
@@ -60,7 +63,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return -1,
         };
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = catch_unwind(AssertUnwindSafe(|| {
             let Some(hit) = doc.hit(x, y) else {
                 return -1;
             };
@@ -93,7 +96,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return JsValue::NULL,
         };
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = catch_unwind(AssertUnwindSafe(|| {
             input_caret_from_point(&mut doc, x, y).or_else(|| doc.dom_caret_from_point(x, y))
         }));
         match result {
@@ -117,7 +120,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return 0,
         };
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = catch_unwind(AssertUnwindSafe(|| {
             let Some(hit) = doc.hit(x, y) else {
                 return 0;
             };

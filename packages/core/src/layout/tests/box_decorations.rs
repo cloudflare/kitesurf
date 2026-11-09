@@ -4,7 +4,9 @@
 
 #![cfg(test)]
 
-use parley::style::{BorderRadius, BoxDecorations, FontFamily, GenericFamily};
+use parley::layout::{PositionedLayoutItem, SpanFragment};
+use parley::style::{BorderRadius, BoxDecorations, FontFamily, GenericFamily, TextStyle};
+use parley::{BaseDirection, LayoutContext};
 
 use crate::resources::fonts::make_font_context;
 
@@ -13,9 +15,9 @@ type Brush = u32;
 #[test]
 fn no_decorations_emits_no_fragments() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
 
-    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+    let root_style = TextStyle::<'_, '_, Brush> {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 16.0,
         ..Default::default()
@@ -35,14 +37,14 @@ fn no_decorations_emits_no_fragments() {
 #[test]
 fn background_only_span_emits_single_line_fragment() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
 
-    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+    let root_style = TextStyle::<'_, '_, Brush> {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 16.0,
         ..Default::default()
     };
-    let span_style = parley::style::TextStyle {
+    let span_style = TextStyle {
         brush: 42,
         box_decorations: BoxDecorations {
             background_brush: Some(42),
@@ -76,12 +78,12 @@ fn background_only_span_emits_single_line_fragment() {
 
 fn build_bidi_layout_with_spans(
     fcx: &mut parley::FontContext,
-    lcx: &mut parley::LayoutContext<Brush>,
-    direction: parley::BaseDirection,
+    lcx: &mut LayoutContext<Brush>,
+    direction: BaseDirection,
     max_width: f32,
     segments: &[(&str, Option<Brush>)],
 ) -> (parley::Layout<Brush>, String) {
-    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+    let root_style = TextStyle::<'_, '_, Brush> {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 16.0,
         ..Default::default()
@@ -90,7 +92,7 @@ fn build_bidi_layout_with_spans(
     tb.set_base_direction(direction);
     for &(text, background_brush) in segments {
         if let Some(background_brush) = background_brush {
-            let span_style = parley::style::TextStyle {
+            let span_style = TextStyle {
                 brush: background_brush,
                 box_decorations: BoxDecorations {
                     background_brush: Some(background_brush),
@@ -149,10 +151,7 @@ fn style_index_for_brush(layout: &parley::Layout<Brush>, brush: Brush) -> u16 {
     u16::try_from(index).expect("style index fits u16")
 }
 
-fn fragment_for_brush(
-    layout: &parley::Layout<Brush>,
-    brush: Brush,
-) -> &parley::layout::SpanFragment {
+fn fragment_for_brush(layout: &parley::Layout<Brush>, brush: Brush) -> &SpanFragment {
     let style_index = style_index_for_brush(layout, brush);
     layout
         .span_fragments()
@@ -161,10 +160,7 @@ fn fragment_for_brush(
         .unwrap_or_else(|| panic!("no span fragment for brush {brush}"))
 }
 
-fn assert_fragment_covers_line(
-    layout: &parley::Layout<Brush>,
-    fragment: &parley::layout::SpanFragment,
-) {
+fn assert_fragment_covers_line(layout: &parley::Layout<Brush>, fragment: &SpanFragment) {
     assert_eq!(fragment.line_index, 0);
     assert!(
         fragment.x_start.abs() < 0.5,
@@ -180,12 +176,12 @@ fn assert_fragment_covers_line(
 #[test]
 fn bidi_reordered_spans_each_emit_a_fragment() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
 
     let (ltr_layout, ltr_text) = build_bidi_layout_with_spans(
         &mut fcx,
         &mut lcx,
-        parley::BaseDirection::Ltr,
+        BaseDirection::Ltr,
         800.0,
         &[("before ", None), ("שלום", Some(1)), (" after", None)],
     );
@@ -195,7 +191,7 @@ fn bidi_reordered_spans_each_emit_a_fragment() {
     let (rtl_layout, rtl_text) = build_bidi_layout_with_spans(
         &mut fcx,
         &mut lcx,
-        parley::BaseDirection::Rtl,
+        BaseDirection::Rtl,
         800.0,
         &[("שלום", Some(1)), (" ", None), ("abc", Some(2))],
     );
@@ -211,12 +207,12 @@ fn bidi_reordered_spans_each_emit_a_fragment() {
 #[test]
 fn rtl_reordered_spans_and_later_ltr_line_keep_fragments() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
 
     let (layout, text) = build_bidi_layout_with_spans(
         &mut fcx,
         &mut lcx,
-        parley::BaseDirection::Rtl,
+        BaseDirection::Rtl,
         80.0,
         &[
             ("שלום", Some(1)),
@@ -249,13 +245,13 @@ fn rtl_reordered_spans_and_later_ltr_line_keep_fragments() {
 #[test]
 fn decorated_parent_starts_at_leading_child_text() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
-    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
+    let root_style = TextStyle::<'_, '_, Brush> {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 16.0,
         ..Default::default()
     };
-    let mark_style = parley::style::TextStyle {
+    let mark_style = TextStyle {
         brush: 1,
         box_decorations: BoxDecorations {
             background_brush: Some(1),
@@ -263,7 +259,7 @@ fn decorated_parent_starts_at_leading_child_text() {
         },
         ..root_style.clone()
     };
-    let child_style = parley::style::TextStyle {
+    let child_style = TextStyle {
         brush: 2,
         ..root_style.clone()
     };
@@ -285,13 +281,13 @@ fn decorated_parent_starts_at_leading_child_text() {
 #[test]
 fn decorated_parent_closes_after_trailing_child_text() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
-    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
+    let root_style = TextStyle::<'_, '_, Brush> {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 16.0,
         ..Default::default()
     };
-    let span_style = parley::style::TextStyle {
+    let span_style = TextStyle {
         brush: 1,
         box_decorations: BoxDecorations {
             background_brush: Some(1),
@@ -299,7 +295,7 @@ fn decorated_parent_closes_after_trailing_child_text() {
         },
         ..root_style.clone()
     };
-    let child_style = parley::style::TextStyle {
+    let child_style = TextStyle {
         brush: 2,
         ..root_style.clone()
     };
@@ -321,13 +317,13 @@ fn decorated_parent_closes_after_trailing_child_text() {
 #[test]
 fn padded_parent_closes_around_background_span_with_trailing_child() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
-    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
+    let root_style = TextStyle::<'_, '_, Brush> {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 16.0,
         ..Default::default()
     };
-    let outer_style = parley::style::TextStyle {
+    let outer_style = TextStyle {
         brush: 1,
         box_decorations: BoxDecorations {
             padding_inline_start: 3.0,
@@ -338,7 +334,7 @@ fn padded_parent_closes_around_background_span_with_trailing_child() {
         },
         ..root_style.clone()
     };
-    let background_style = parley::style::TextStyle {
+    let background_style = TextStyle {
         brush: 2,
         box_decorations: BoxDecorations {
             background_brush: Some(2),
@@ -346,7 +342,7 @@ fn padded_parent_closes_around_background_span_with_trailing_child() {
         },
         ..root_style.clone()
     };
-    let child_style = parley::style::TextStyle {
+    let child_style = TextStyle {
         brush: 3,
         ..root_style.clone()
     };
@@ -378,9 +374,9 @@ fn padded_parent_closes_around_background_span_with_trailing_child() {
 #[test]
 fn styled_span_emits_single_line_fragment() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
 
-    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+    let root_style = TextStyle::<'_, '_, Brush> {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 16.0,
         ..Default::default()
@@ -420,7 +416,7 @@ fn styled_span_emits_single_line_fragment() {
 
     let width_with_decos = layout.full_width();
 
-    let mut lcx2: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx2: LayoutContext<Brush> = LayoutContext::new();
     let mut tb2 = lcx2.tree_builder(&mut fcx, 1.0, true, &root_style);
     tb2.push_style_span(root_style.clone());
     tb2.push_text("All");
@@ -471,9 +467,9 @@ fn styled_span_emits_single_line_fragment() {
 #[test]
 fn nested_styled_spans_emit_separate_fragments() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
 
-    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+    let root_style = TextStyle::<'_, '_, Brush> {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 16.0,
         ..Default::default()
@@ -530,9 +526,9 @@ fn nested_styled_spans_emit_separate_fragments() {
 #[test]
 fn pill_topology_emits_fragment() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
 
-    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+    let root_style = TextStyle::<'_, '_, Brush> {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 16.0,
         ..Default::default()
@@ -582,7 +578,7 @@ fn pill_topology_emits_fragment() {
 
     let with_decos = layout.full_width();
 
-    let mut lcx2: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx2: LayoutContext<Brush> = LayoutContext::new();
     let bare_style = root_style.clone();
     let mut tb2 = lcx2.tree_builder(&mut fcx, 1.0, true, &bare_style);
     tb2.push_style_span(bare_style.clone());
@@ -603,9 +599,9 @@ fn pill_topology_emits_fragment() {
 #[test]
 fn pill_in_paragraph_aligns_with_following_text() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
 
-    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+    let root_style = TextStyle::<'_, '_, Brush> {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 16.0,
         ..Default::default()
@@ -659,7 +655,7 @@ fn pill_in_paragraph_aligns_with_following_text() {
     let mut last_pill_glyph_right = 0.0_f32;
     let mut first_after_glyph_left = f32::INFINITY;
     for item in line.items() {
-        if let parley::layout::PositionedLayoutItem::GlyphRun(gr) = item {
+        if let PositionedLayoutItem::GlyphRun(gr) = item {
             glyph_runs_seen += 1;
             let style = gr.style();
             let text_x_start = gr.offset();
@@ -703,9 +699,9 @@ fn pill_in_paragraph_aligns_with_following_text() {
 #[test]
 fn one_pill_with_text_around_aligns_correctly() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
 
-    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+    let root_style = TextStyle::<'_, '_, Brush> {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 14.0,
         ..Default::default()
@@ -756,7 +752,7 @@ fn one_pill_with_text_around_aligns_correctly() {
     let line = layout.lines().next().unwrap();
     eprintln!("=== one_pill glyph runs ===");
     for item in line.items() {
-        if let parley::layout::PositionedLayoutItem::GlyphRun(gr) = item {
+        if let PositionedLayoutItem::GlyphRun(gr) = item {
             eprintln!(
                 "  brush={}, offset={}, advance={}",
                 gr.style().brush,
@@ -778,7 +774,7 @@ fn one_pill_with_text_around_aligns_correctly() {
     let line = layout.lines().next().unwrap();
     let mut runs: std::vec::Vec<(u32, f32, f32)> = std::vec::Vec::new();
     for item in line.items() {
-        if let parley::layout::PositionedLayoutItem::GlyphRun(gr) = item {
+        if let PositionedLayoutItem::GlyphRun(gr) = item {
             runs.push((gr.style().brush, gr.offset(), gr.offset() + gr.advance()));
         }
     }
@@ -803,9 +799,9 @@ fn one_pill_with_text_around_aligns_correctly() {
 #[test]
 fn todomvc_footer_topology_emits_three_correctly_positioned_fragments() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
 
-    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+    let root_style = TextStyle::<'_, '_, Brush> {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 14.0,
         ..Default::default()
@@ -884,7 +880,7 @@ fn todomvc_footer_topology_emits_three_correctly_positioned_fragments() {
     );
     let mut pill_glyph_runs: std::vec::Vec<(u32, f32, f32)> = std::vec::Vec::new();
     for item in line.items() {
-        if let parley::layout::PositionedLayoutItem::GlyphRun(gr) = item {
+        if let PositionedLayoutItem::GlyphRun(gr) = item {
             let s = gr.style();
             eprintln!(
                 "  glyph run: brush={}, offset={}, advance={}",
@@ -962,9 +958,9 @@ fn todomvc_footer_topology_emits_three_correctly_positioned_fragments() {
 #[test]
 fn block_only_padding_emits_no_fragment_today() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
 
-    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+    let root_style = TextStyle::<'_, '_, Brush> {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 16.0,
         ..Default::default()

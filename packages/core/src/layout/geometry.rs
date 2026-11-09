@@ -5,10 +5,14 @@
 //! Element geometry: viewport, bounding, inline-aware, and intersection rects, and offset
 //! metrics.
 
-use blitz_dom::{local_name, ns, BaseDocument, Node, NodeData};
+use std::panic::{catch_unwind, AssertUnwindSafe};
+
+use blitz_dom::{local_name, ns, util::Point, BaseDocument, Node, NodeData};
 use blitz_html::HtmlDocument;
 use blitz_traits::NodeId;
+use parley::{Affinity, Cursor};
 use serde::Serialize;
+use taffy::Position;
 use wasm_bindgen::prelude::*;
 
 use crate::{emulated_color_scheme, DomHandle, LayoutMode};
@@ -173,7 +177,7 @@ pub(crate) fn composed_transform_for_node(
             .map(|parent| (parent.scroll_offset().x, parent.scroll_offset().y))
             .unwrap_or((0.0, 0.0));
         // A viewport-fixed box cancels the scroll (see fixed_scroll_anchor).
-        if node.taffy_position() == taffy::Position::Fixed
+        if node.taffy_position() == Position::Fixed
             && parent.is_some_and(|parent| parent.id == doc.root_element().id)
         {
             let viewport_scroll = doc.tree().fixed_anchor_scroll();
@@ -217,7 +221,7 @@ fn resolve_margins(margins: &[f32], width: f32, height: f32) -> [f32; 4] {
     })
 }
 
-fn padding_edges(node: &blitz_dom::Node, [l, t, r, b]: [f32; 4]) -> [f32; 4] {
+fn padding_edges(node: &Node, [l, t, r, b]: [f32; 4]) -> [f32; 4] {
     let border = node.final_layout().border;
     let (left, top) = (l + border.left, t + border.top);
     [
@@ -228,7 +232,7 @@ fn padding_edges(node: &blitz_dom::Node, [l, t, r, b]: [f32; 4]) -> [f32; 4] {
     ]
 }
 
-fn containing_block_of(doc: &HtmlDocument, node: &blitz_dom::Node) -> Option<NodeId> {
+fn containing_block_of(doc: &HtmlDocument, node: &Node) -> Option<NodeId> {
     use ::style::properties::generated::longhands::position::computed_value::T as Position;
     use ::style::values::specified::box_::DisplayOutside;
     let position = node
@@ -255,7 +259,7 @@ fn containing_block_of(doc: &HtmlDocument, node: &blitz_dom::Node) -> Option<Nod
 
 fn clip_to_containing_blocks(
     doc: &HtmlDocument,
-    target: &blitz_dom::Node,
+    target: &Node,
     root: Option<NodeId>,
     scroll_margin: &[f32],
     mut rect: [f32; 4],
@@ -310,7 +314,7 @@ fn clip_to_containing_blocks(
     }
 }
 
-fn clip_path_edges(node: &blitz_dom::Node, [l, t, r, b]: [f32; 4]) -> Option<[f32; 4]> {
+fn clip_path_edges(node: &Node, [l, t, r, b]: [f32; 4]) -> Option<[f32; 4]> {
     use ::style::values::computed::basic_shape::ClipPath;
     use ::style::values::computed::CSSPixelLength;
     use ::style::values::generics::basic_shape::{GenericBasicShape, ShapeBox, ShapeGeometryBox};
@@ -361,7 +365,7 @@ pub(crate) fn fixed_scroll_anchor(doc: &BaseDocument, node: &blitz_dom::Node) ->
     let mut cur = Some(node);
     while let Some(n) = cur {
         let cb = n.containing_block().and_then(|id| doc.get_node(id));
-        if n.taffy_position() == taffy::Position::Fixed {
+        if n.taffy_position() == Position::Fixed {
             return match cb {
                 Some(cb) if cb.id == root_element_id => {
                     let viewport_scroll = doc.tree().fixed_anchor_scroll();
@@ -381,19 +385,16 @@ pub(crate) fn fixed_scroll_anchor(doc: &BaseDocument, node: &blitz_dom::Node) ->
 
 /// `Node::absolute_position(0, 0)` in doc space: pinned for boxes in a
 /// viewport-fixed box (see [`fixed_scroll_anchor`]).
-pub(crate) fn doc_position(
-    doc: &BaseDocument,
-    node: &blitz_dom::Node,
-) -> blitz_dom::util::Point<f32> {
+pub(crate) fn doc_position(doc: &BaseDocument, node: &Node) -> Point<f32> {
     let pos = node.absolute_position(0.0, 0.0);
     let (x, y) = fixed_scroll_anchor(doc, node);
-    blitz_dom::util::Point {
+    Point {
         x: pos.x + x,
         y: pos.y + y,
     }
 }
 
-pub(crate) fn bounding_rect_for_node(doc: &HtmlDocument, node: &blitz_dom::Node) -> Rect {
+pub(crate) fn bounding_rect_for_node(doc: &HtmlDocument, node: &Node) -> Rect {
     let mut ancestor = Some(node);
     while let Some(n) = ancestor {
         if let Some(styles) = n.primary_styles() {
@@ -426,7 +427,7 @@ pub(crate) fn bounding_rect_for_node(doc: &HtmlDocument, node: &blitz_dom::Node)
     // `absolute_position` subtracts this node's scroll as well as its ancestors';
     // add it back because scrolling content does not move the border box.
     let raw_pos = doc_position(doc, node);
-    let pos = blitz_dom::util::Point {
+    let pos = Point {
         x: raw_pos.x + node.scroll_offset().x as f32,
         y: raw_pos.y + node.scroll_offset().y as f32,
     };
@@ -642,8 +643,8 @@ fn text_node_rect(doc: &BaseDocument, node: &Node) -> Option<Rect> {
     if !scale.is_finite() || scale <= 0.0 {
         return None;
     }
-    let anchor = parley::Cursor::from_byte_index(layout, range.start, parley::Affinity::Downstream);
-    let focus = parley::Cursor::from_byte_index(layout, range.end, parley::Affinity::Downstream);
+    let anchor = Cursor::from_byte_index(layout, range.start, Affinity::Downstream);
+    let focus = Cursor::from_byte_index(layout, range.end, Affinity::Downstream);
     let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
     parley::Selection::new(anchor, focus).geometry_with(layout, |r, _line| {
         x0 = x0.min(r.x0);
@@ -871,7 +872,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return Ok(JsValue::NULL),
         };
-        let rect_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let rect_result = catch_unwind(AssertUnwindSafe(|| {
             let Some(node) = internal_id.and_then(|id| doc.get_node(id)) else {
                 return Rect::ZERO;
             };
@@ -899,7 +900,7 @@ impl DomHandle {
         let Ok(doc) = self.doc.try_borrow() else {
             return Vec::new();
         };
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = catch_unwind(AssertUnwindSafe(|| {
             let node = doc.get_node(internal_id)?;
             if !has_layout_data(node) {
                 return None;
@@ -957,7 +958,7 @@ impl DomHandle {
             .doc
             .try_borrow()
             .map_err(|e| JsError::new(&e.to_string()))?;
-        let geometry = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let geometry = catch_unwind(AssertUnwindSafe(|| {
             let boxed = |id: Option<NodeId>| {
                 id.and_then(|id| doc.get_node(id))
                     .map(|node| (node, bounding_rect_for_node(&doc, node)))
@@ -1059,13 +1060,12 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return Ok(JsValue::NULL),
         };
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = catch_unwind(AssertUnwindSafe(|| {
             let node = doc.get_node(internal_id?)?;
             let root_element_id = doc.root_element().id;
 
-            let local_name = |n: &blitz_dom::Node| -> Option<String> {
-                n.element_data().map(|e| e.name.local.to_string())
-            };
+            let local_name =
+                |n: &Node| -> Option<String> { n.element_data().map(|e| e.name.local.to_string()) };
             let no_box = |d: ::style::values::specified::box_::Display| {
                 use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
                 d.outside() == DisplayOutside::None && d.inside() == DisplayInside::None
@@ -1111,7 +1111,7 @@ impl DomHandle {
                 });
             }
 
-            let generates_box = |p: &blitz_dom::Node| -> bool {
+            let generates_box = |p: &Node| -> bool {
                 use ::style::values::specified::box_::DisplayOutside;
                 p.primary_styles()
                     .map(|s| s.clone_display().outside() != DisplayOutside::None)

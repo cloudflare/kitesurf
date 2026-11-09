@@ -2,18 +2,24 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
+use style::context::QuirksMode;
+use style::properties::PropertyId;
 use style::properties::declaration_block::parse_style_attribute;
 use style::stylesheets::{CssRuleType, UrlExtraData};
+use style::values::resolved::Context;
 use style_traits::ToCss as StyleToCss;
 
+use crate::DomHandle;
+use crate::style::cssom::init_style_prefs;
+
 fn specified(property: &str, value: &str) -> String {
-    crate::style::cssom::init_style_prefs();
+    init_style_prefs();
     let url = UrlExtraData::from(url::Url::parse("about:kitesurf-test").unwrap());
     let block = parse_style_attribute(
         &format!("{}: {}", property, value),
         &url,
         None,
-        style::context::QuirksMode::NoQuirks,
+        QuirksMode::NoQuirks,
         CssRuleType::Style,
     );
     let mut out = String::new();
@@ -32,13 +38,13 @@ fn color(value: &str) -> String {
 
 fn computed_color(value: &str) -> String {
     use style::properties::PropertyDeclaration;
-    crate::style::cssom::init_style_prefs();
+    init_style_prefs();
     let url = UrlExtraData::from(url::Url::parse("about:kitesurf-test").unwrap());
     let block = parse_style_attribute(
         &format!("color: {}", value),
         &url,
         None,
-        style::context::QuirksMode::NoQuirks,
+        QuirksMode::NoQuirks,
         CssRuleType::Style,
     );
     for (decl, _) in block.declaration_importance_iter() {
@@ -59,12 +65,12 @@ fn computed_color(value: &str) -> String {
 
 fn cascade_computed_color(value: &str) -> String {
     use style::properties::LonghandId;
-    crate::style::cssom::init_style_prefs();
+    init_style_prefs();
     let html = format!(
         r#"<!DOCTYPE html><html><body><div id="t" style="color: {}">x</div></body></html>"#,
         value
     );
-    let dom = crate::DomHandle::new(&html, "https://test.example/");
+    let dom = DomHandle::new(&html, "https://test.example/");
     dom.resolve_layout();
     let id = dom.query_selector("#t").unwrap();
     assert!(id >= 0, "#t not found");
@@ -72,9 +78,9 @@ fn cascade_computed_color(value: &str) -> String {
     let node = doc.get_node(crate::blitz_node_id(id as u32)).unwrap();
     let styles = node.primary_styles().unwrap();
     let mut out = String::new();
-    let mut ctx = style::values::resolved::Context {
+    let mut ctx = Context {
         style: &styles,
-        for_property: style::properties::PropertyId::NonCustom(LonghandId::Color.into()),
+        for_property: PropertyId::NonCustom(LonghandId::Color.into()),
         current_longhand: None,
     };
     styles
@@ -110,12 +116,12 @@ fn cascade_direct_none_forms() {
 #[test]
 fn cascade_cqw_resolves_against_container() {
     use style::properties::LonghandId;
-    crate::style::cssom::init_style_prefs();
+    init_style_prefs();
     let html = r#"<!DOCTYPE html><html><body>
       <div style="container-type: inline-size; width: 1000px">
         <div id="t">x</div>
       </div></body></html>"#;
-    let dom = crate::DomHandle::new(html, "https://test.example/");
+    let dom = DomHandle::new(html, "https://test.example/");
     dom.resolve_layout();
     let id = dom.query_selector("#t").unwrap();
     assert!(id >= 0);
@@ -129,9 +135,9 @@ fn cascade_cqw_resolves_against_container() {
     let node = doc.get_node(crate::blitz_node_id(id as u32)).unwrap();
     let styles = node.primary_styles().unwrap();
     let mut out = String::new();
-    let mut ctx = style::values::resolved::Context {
+    let mut ctx = Context {
         style: &styles,
-        for_property: style::properties::PropertyId::NonCustom(LonghandId::Color.into()),
+        for_property: PropertyId::NonCustom(LonghandId::Color.into()),
         current_longhand: None,
     };
     styles
@@ -478,25 +484,23 @@ fn p6_unresolvable_rgb_canonicalizes() {
 #[test]
 fn cascade_theme_attribute_flip_updates_var_color() {
     use style::properties::LonghandId;
-    crate::style::cssom::init_style_prefs();
+    init_style_prefs();
     let html = r#"<!DOCTYPE html><html><head><style>
       html { --bg: oklch(0.96 0 0); }
       html[data-theme=dark] { --bg: oklch(0.2 0 0); }
       body { background-color: var(--bg); }
     </style></head><body>x</body></html>"#;
-    let dom = crate::DomHandle::new(html, "https://test.example/");
+    let dom = DomHandle::new(html, "https://test.example/");
     dom.resolve_layout();
-    let read = |dom: &crate::DomHandle| {
+    let read = |dom: &DomHandle| {
         let bid = dom.query_selector("body").unwrap();
         let doc = dom.doc.borrow();
         let node = doc.get_node(crate::blitz_node_id(bid as u32)).unwrap();
         let styles = node.primary_styles().unwrap();
         let mut out = String::new();
-        let mut ctx = style::values::resolved::Context {
+        let mut ctx = Context {
             style: &styles,
-            for_property: style::properties::PropertyId::NonCustom(
-                LonghandId::BackgroundColor.into(),
-            ),
+            for_property: PropertyId::NonCustom(LonghandId::BackgroundColor.into()),
             current_longhand: None,
         };
         styles
