@@ -261,6 +261,13 @@ export function parserResponseAllowed(
   return responseAllowed(meta, response, fetchedUrl, false);
 }
 
+/** Whether the document's CSP and sandbox let inline on* attributes compile, without logging. */
+export function inlineHandlersRun(): boolean {
+  if (!state.sandbox.scripts) return false;
+  const ctx = gateContext();
+  return ctx.policies.length === 0 || cspAllowsInlineHandler(ctx.policies).allowed;
+}
+
 /** Whether the document's CSP and sandbox let an inline on* attribute compile; logs a refusal. */
 export function inlineHandlerAllowed(attributeName: string): boolean {
   if (!state.sandbox.scripts) {

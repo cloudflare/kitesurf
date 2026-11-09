@@ -420,6 +420,10 @@ struct Request {
     /// ignores aria-hidden on each of them.
     #[serde(default)]
     focus_path: Vec<u32>,
+    /// Elements with their own listener or handler attribute for an event a click fires, which
+    /// the tree marks clickable.
+    #[serde(default)]
+    clickable: Vec<u32>,
 }
 
 fn default_fetch_relatives() -> bool {
@@ -490,6 +494,7 @@ struct AxIndex {
     checked: HashMap<u32, bool>,
     selected: HashMap<u32, bool>,
     focus_path: HashSet<u32>,
+    clickable: HashSet<u32>,
     base_url: String,
     root_ax: Option<NodeId>,
 }
@@ -563,6 +568,7 @@ impl AxIndex {
             checked: req.checked.iter().copied().collect(),
             selected: req.selected.iter().copied().collect(),
             focus_path: req.focus_path.iter().copied().collect(),
+            clickable: req.clickable.iter().copied().collect(),
             base_url: req.url.clone(),
             root_ax: None,
         };
@@ -2004,6 +2010,11 @@ impl Context<'_> {
                 "focusable",
                 bool_value("booleanOrUndefined", true),
             ));
+        }
+        // html and body are skipped: pages hang delegated listeners there, and a clickable root
+        // claims every click. A framework's root container (React's div#root) is still flagged.
+        if !matches!(name, "html" | "body") && self.index.clickable.contains(&self.id(node.id())) {
+            out.push(Property::new("clickable", bool_value("boolean", true)));
         }
 
         if let Some(key) = attr(node, "accesskey").filter(|value| !value.is_empty()) {

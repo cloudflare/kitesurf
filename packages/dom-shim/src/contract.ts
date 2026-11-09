@@ -26,6 +26,8 @@ export {
   setAnimationTaskScheduler,
   setInlineHandlerGate,
   detachedWrapperStats,
+  ACTIVATION_EVENT_TYPES,
+  activationListenerNodeIds,
   armKsOtel,
   ksSpan,
 } from "./index.js";

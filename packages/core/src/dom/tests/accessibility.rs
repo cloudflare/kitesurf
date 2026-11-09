@@ -881,3 +881,37 @@ fn accessibility_aria_hidden_stays_dropped_after_focus_leaves_until_marked_again
         ["ariaHiddenElement"]
     );
 }
+
+#[test]
+fn accessibility_flags_the_elements_it_is_told_handle_clicks_except_html_and_body() {
+    let dom = DomHandle::new(
+        "<div id='root'><div id='row'>Row</div><span id='plain'>Plain</span></div>",
+        "https://example.test/",
+    );
+    let ids: Vec<u32> = ["html", "body", "#root", "#row"]
+        .iter()
+        .map(|s| node_id(&dom, s))
+        .collect();
+    let request = serde_json::json!({"method": "full", "frameId": "F", "clickable": ids});
+    let reply: serde_json::Value =
+        serde_json::from_str(&build_json(&dom, &request.to_string()).unwrap()).unwrap();
+    let nodes = reply["nodes"].as_array().unwrap();
+    let clickable = |selector: &str| {
+        let id = node_id(&dom, selector);
+        nodes
+            .iter()
+            .find(|n| n["backendDOMNodeId"] == id)
+            .and_then(|n| n["properties"].as_array())
+            .is_some_and(|props| {
+                props.iter().any(|p| {
+                    p["name"] == "clickable"
+                        && p["value"] == serde_json::json!({"type": "boolean", "value": true})
+                })
+            })
+    };
+    assert!(clickable("#root"));
+    assert!(clickable("#row"));
+    assert!(!clickable("#plain"));
+    assert!(!clickable("html"));
+    assert!(!clickable("body"));
+}

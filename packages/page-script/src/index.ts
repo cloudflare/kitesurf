@@ -132,6 +132,7 @@ import {
 } from "./contenteditable-input.ts";
 import {
   inlineHandlerAllowed,
+  inlineHandlersRun,
   inlineInsertDecisionSync,
   insertedScriptAllowed,
   reportBlocked,
@@ -429,6 +430,8 @@ import {
   parseUrlForNode,
   detachedWrapperStats,
   setInlineHandlerGate,
+  ACTIVATION_EVENT_TYPES,
+  activationListenerNodeIds,
 } from "./dom-shim.js";
 import type { BuildDocumentResult } from "./dom-shim.js";
 import { ksInternals } from "./internals.ts";
@@ -6971,6 +6974,24 @@ function focusPathNodeIds(): number[] {
   return path;
 }
 
+// The events a click fires, as the handler attributes for them: those register their listener
+// only when an event first reaches the element, so the page's listener registry misses them.
+const ACTIVATION_HANDLER_SELECTOR = [...ACTIVATION_EVENT_TYPES]
+  .map((type) => `[on${type}]`)
+  .join(",");
+
+// Elements that handle a click themselves, which the tree flags clickable as Chrome's does. A
+// handler attribute counts only where the document's policy lets inline handlers compile.
+function clickableNodeIds(dom: QueryDomActiveState["dom"]): number[] {
+  const ids = new Set(activationListenerNodeIds());
+  if (inlineHandlersRun()) {
+    try {
+      for (const id of dom.querySelectorAll(ACTIVATION_HANDLER_SELECTOR)) if (id >= 0) ids.add(id);
+    } catch {} // a poisoned DOM answers no query; the tree then shows listeners only
+  }
+  return [...ids];
+}
+
 async function queryDomAccessibilityTree(
   pageState: QueryDomActiveState,
   queryArgs: Record<string, unknown>,
@@ -6994,6 +7015,7 @@ async function queryDomAccessibilityTree(
       ...(includeStamp ? { buffered: true } : {}),
       visibility,
       focusPath: focusPathNodeIds(),
+      clickable: clickableNodeIds(dom),
       ...serializedFormState,
     }),
   );
