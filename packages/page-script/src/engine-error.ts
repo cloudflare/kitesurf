@@ -15,13 +15,20 @@ let tailToken = "";
 // The tail accepts only lines with the engine-minted token. Keep it in module
 // scope, away from page JS; it leaves only inside [ks-err] reports.
 
+// Bound before index.ts installs the page-visible console wrapper, which page
+// JS can overwrite, so token-bearing lines never pass through page code.
+const nativeLog: (...a: unknown[]) => void =
+  typeof console?.log === "function" ? console.log.bind(console) : () => {};
+const nativeError: (...a: unknown[]) => void =
+  typeof console?.error === "function" ? console.error.bind(console) : nativeLog;
+
 export function setTailToken(token: unknown): void {
   if (typeof token === "string" && token) tailToken = token;
 }
 
-/** Returns the authenticated kill line, or null before a session sets the token. */
-export function isolateKillLine(marker: string, reason: string): string | null {
-  return tailToken ? `${marker} ${tailToken} ${reason}` : null;
+/** Writes the authenticated kill line; a no-op before a session sets the token. */
+export function writeIsolateKillLine(marker: string, reason: string): void {
+  if (tailToken) nativeLog(`${marker} ${tailToken} ${reason}`);
 }
 
 // After a trap is reported, every later wasm call throws "Module terminated". Those are echoes of
@@ -45,7 +52,7 @@ export function reportEngineError(origin: EngineErrorOrigin, err: unknown, note?
       error && typeof error.stack === "string"
         ? error.stack.slice(0, MAX_ENGINE_ERROR_STACK_CHARS)
         : undefined;
-    console.error(
+    nativeError(
       "[ks-err] " +
         JSON.stringify({
           token: tailToken,

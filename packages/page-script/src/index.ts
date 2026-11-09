@@ -278,7 +278,7 @@ import {
   intersectionObserverStats,
   recheckIntersectionObservers,
 } from "./intersection-observer.ts";
-import { isolateKillLine, reportEngineError, setTailToken } from "./engine-error.ts";
+import { reportEngineError, setTailToken, writeIsolateKillLine } from "./engine-error.ts";
 import { installWasmTerminatedHandler } from "./wasm-crash.ts";
 import { armTransitionDrain, isAnimating } from "./transitions.ts";
 import {
@@ -3862,8 +3862,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
 
   killIsolate(reason?: string): void {
     const why = reason || "generation retired";
-    const killLine = isolateKillLine(ISOLATE_KILL_MARKER, why);
-    if (killLine) console.log(killLine);
+    writeIsolateKillLine(ISOLATE_KILL_MARKER, why);
     abortIsolate(`kitesurf: ${why}`);
   }
 
