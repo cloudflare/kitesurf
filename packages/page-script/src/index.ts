@@ -3077,6 +3077,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     if (navigateOptions && typeof navigateOptions.cookieKey === "string") {
       state.cookieKey = navigateOptions.cookieKey;
     }
+    if (navigateOptions && Array.isArray(navigateOptions.localStorage)) {
+      state.localStorageSeed = navigateOptions.localStorage;
+    }
 
     if (navigateOptions && Array.isArray(navigateOptions.bindingNames)) {
       this.installBindings(navigateOptions.bindingNames);

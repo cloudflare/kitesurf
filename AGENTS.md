@@ -211,4 +211,4 @@ Use an explicit `KITESURF_PORT` or `--port` when other engines may be running, a
 - Synchronous XHR. workerd has no way to block the JS thread on network I/O.
 - A fake `crypto.subtle`; Workers provide the real one.
 - WebGL, WebGPU, WebAudio, WebRTC, MediaStream and anti-bot fingerprinting.
-- Persistent storage across navigations or connections, and WebDriver; Kitesurf speaks CDP.
+- Storage that outlives the connection, and WebDriver; Kitesurf speaks CDP.

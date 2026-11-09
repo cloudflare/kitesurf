@@ -140,6 +140,7 @@ import { isRecord } from "../guards.ts";
 import { classifyRequest } from "../request-blocker.ts";
 import { emitMutations } from "./dom.ts";
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
+import { webStorageOrigin, type WebStorage, type WebStorageOp } from "../state/web-storage.ts";
 import { dropTargetImages } from "../eval/resource-store.ts";
 import {
   documentKind,
@@ -164,6 +165,7 @@ import {
 import {
   emitFrameTarget,
   jarForTarget,
+  localStorageForTarget,
   announceOopifTarget,
   destroyOopifTarget,
 } from "./target.ts";
@@ -2132,8 +2134,19 @@ async function pushNavigateToPageScriptInner(
 
   const raBakeMs = ctx.analytics.now() - raBakeStart;
 
+  const lsOrigin = webStorageOrigin(url);
+  const sharedLocalStorage = lsOrigin
+    ? { storage: localStorageForTarget(ctx, target), origin: lsOrigin }
+    : undefined;
   if (pendingPageScript) {
-    installUpstreamEventHandler(ctx, target, pendingPageScript, generation, url);
+    installUpstreamEventHandler(
+      ctx,
+      target,
+      pendingPageScript,
+      generation,
+      url,
+      sharedLocalStorage,
+    );
     installIsolateLimitSurface(
       ctx,
       target,
@@ -2198,6 +2211,9 @@ async function pushNavigateToPageScriptInner(
           cspReportOnlyHeaders: target.docCspReportOnly ? [target.docCspReportOnly] : [],
           metaCsp: target.docScan?.metaCsp ?? [],
         },
+        ...(sharedLocalStorage
+          ? { localStorage: sharedLocalStorage.storage.entries(sharedLocalStorage.origin) }
+          : {}),
         bindingNames:
           ctx.browser.pendingBindings.size > 0
             ? Array.from(ctx.browser.pendingBindings)
@@ -4022,6 +4038,9 @@ export function installUpstreamEventHandler(
   stub: PageScriptStub,
   generation: number,
   url: string,
+  // Where this isolate's localStorage changes go; absent for an opaque origin, which keeps
+  // localStorage in the page.
+  sharedLocalStorage?: { storage: WebStorage; origin: string },
 ): void {
   if (target.navigateGeneration === generation) target.pageScriptUrl = url;
   if (typeof stub.setUpstreamEventHandler !== "function") return;
@@ -4035,8 +4054,16 @@ export function installUpstreamEventHandler(
   );
   const loaderId = target.loaderId;
   stub.setUpstreamEventHandler((event, params) => {
-    if (target.navigateGeneration !== generation) return;
     if (ctx.browser.wsClosing) return;
+    // Before the generation check: a write the old document made just before a navigate still
+    // happened, and this closure knows the origin it belongs to.
+    if (event === "kitesurf.localStorage") {
+      if (sharedLocalStorage) {
+        sharedLocalStorage.storage.apply(sharedLocalStorage.origin, readWebStorageOps(params));
+      }
+      return;
+    }
+    if (target.navigateGeneration !== generation) return;
     if (event === "kitesurf.diag") {
       target.diagSpans?.handle(params);
       return;
@@ -4077,6 +4104,20 @@ export function installUpstreamEventHandler(
     if (target.loaderId !== loaderId) return;
     handleUpstreamFrameEvent(ctx, target, undefined, event, params, url);
   });
+}
+
+function readWebStorageOps(params: ReceivedUpstreamParams): WebStorageOp[] {
+  const out: WebStorageOp[] = [];
+  for (const raw of Array.isArray(params.ops) ? params.ops : []) {
+    if (!isRecord(raw)) continue;
+    if (raw.op === "clear") out.push({ op: "clear" });
+    else if (raw.op === "remove" && typeof raw.key === "string") {
+      out.push({ op: "remove", key: raw.key });
+    } else if (raw.op === "set" && typeof raw.key === "string" && typeof raw.value === "string") {
+      out.push({ op: "set", key: raw.key, value: raw.value });
+    }
+  }
+  return out;
 }
 
 export function installIsolateLimitSurface(

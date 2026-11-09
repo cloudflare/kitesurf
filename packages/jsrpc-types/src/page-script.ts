@@ -42,6 +42,9 @@ export interface NavigateOptions {
     cspReportOnlyHeaders: string[];
     metaCsp: string[];
   };
+  // The browser context's localStorage area for the document's origin (engine
+  // state/web-storage.ts); absent for an opaque origin, which keeps it in the isolate.
+  localStorage?: Array<[string, string]>;
   bindingNames?: string[];
   charset?: string;
   viewportWidth?: number;
@@ -344,6 +347,9 @@ export interface UpstreamEvents {
   "kitesurf.frameNavigated": { frameId: string; url: string; sandbox?: string | null };
   "kitesurf.frameStoppedLoading": { frameId: string };
   "kitesurf.insertedScriptRan": { url: string; bytes: number; run: "baked" | "stale" | "boa" };
+  // An http(s) page's localStorage changes, batched per microtask, for the engine to apply to
+  // the browser context's area for the origin.
+  "kitesurf.localStorage": { ops: WebStorageOp[] };
   "kitesurf.modelContextToolsAdded": { tools: WebMcpTool[] };
   "kitesurf.modelContextToolsRemoved": { names: string[] };
   "kitesurf.navigatedWithinDocument": {
@@ -376,6 +382,11 @@ export interface UpstreamEvents {
 }
 
 export type UpstreamEventName = keyof UpstreamEvents;
+
+export type WebStorageOp =
+  | { op: "set"; key: string; value: string }
+  | { op: "remove"; key: string }
+  | { op: "clear" };
 
 export interface WebMcpTool {
   name: string;

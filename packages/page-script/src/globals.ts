@@ -34,6 +34,8 @@ import {
 import { ensurePaintDom, invalidatePaintDom } from "./paint.ts";
 import { fetchGatedModuleSource } from "./inserted-scripts.ts";
 import { startupJsonModuleUrls } from "./startup-probe.ts";
+import { sendUpstreamEvent } from "./internal-state.js";
+import { memoryArea, sharedArea, type StorageArea } from "./web-storage.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
 import { newHeaders } from "./native-http.ts";
 import { indexedDbGlobals } from "./indexeddb.ts";
@@ -3096,34 +3098,42 @@ export function installGlobals(
       };
     }
     installIdleCallbackGlobals();
+    // One isolate holds one document, so the origin is fixed by now: an http(s) page's
+    // localStorage is a copy of the browser context's area that sends its changes back.
     if (Object.getOwnPropertyDescriptor(globalThis, "localStorage") === undefined) {
-      const makeStorage = () => {
-        const data = Object.create(null);
-        const api = {
-          getItem(key) {
-            return Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null;
-          },
-          setItem(key, value) {
-            data[String(key)] = String(value);
-          },
-          removeItem(key) {
-            delete data[key];
-          },
-          clear() {
-            for (const key of Object.keys(data)) delete data[key];
-          },
-          key(index) {
-            const keys = Object.keys(data);
-            return index >= 0 && index < keys.length ? keys[index] : null;
-          },
-          get length() {
-            return Object.keys(data).length;
-          },
-        };
-        return api;
-      };
+      const makeStorage = (area: StorageArea) => ({
+        getItem(key) {
+          return area.get(String(key));
+        },
+        setItem(key, value) {
+          area.set(String(key), String(value));
+        },
+        removeItem(key) {
+          area.remove(String(key));
+        },
+        clear() {
+          area.clear();
+        },
+        key(index) {
+          const keys = area.keys();
+          return index >= 0 && index < keys.length ? keys[index] : null;
+        },
+        get length() {
+          return area.keys().length;
+        },
+      });
+      const seed = state.localStorageSeed;
       // An opaque sandboxed origin has no storage bucket; the accessor throws, as in Chrome.
-      const buckets = { localStorage: makeStorage(), sessionStorage: makeStorage() };
+      const buckets = {
+        localStorage: makeStorage(
+          seed
+            ? sharedArea(seed, (ops) =>
+                sendUpstreamEvent({ event: "kitesurf.localStorage", params: { ops } }),
+              )
+            : memoryArea(),
+        ),
+        sessionStorage: makeStorage(memoryArea()),
+      };
       const storageAccessor =
         (name: keyof typeof buckets): (() => unknown) =>
         () => {
