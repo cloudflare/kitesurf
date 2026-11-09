@@ -6,7 +6,7 @@
 
 import type { SandboxOutboundOverride } from "./outbound.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
-import { readCapped } from "../read-capped.ts";
+import { readCappedBytes } from "../read-capped.ts";
 import { walkRedirects } from "./redirect-walk.ts";
 
 export interface WasmBakeManifestEntry {
@@ -253,9 +253,8 @@ export async function prefetchWasmModules({
               "skipped: total .wasm bake budget exceeded (" + cl + " bytes over cap)";
             return;
           }
-          const capped = await readCapped(res.body, Math.min(remaining, MAX_SINGLE_WASM_BYTES));
-          if (capped.bytes === null) {
-            await capped.rest.cancel().catch(() => {});
+          const capped = await readCappedBytes(res, Math.min(remaining, MAX_SINGLE_WASM_BYTES));
+          if (!capped.ok) {
             bake.errors[wasmUrl] =
               capped.failure === "error"
                 ? "skipped: .wasm body failed mid-stream"

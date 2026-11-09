@@ -16,6 +16,7 @@ import type { ParentScriptDescriptor } from "../wasm.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
 import { walkRedirects } from "./redirect-walk.ts";
+import { MAX_DOCUMENT_BYTES, readCappedBytes } from "../read-capped.ts";
 
 // Page modules are baked under http(s) urls. Any other scheme names the loaded worker's own
 // registry (file:///bundle/, cloudflare:, node:), which page code must never link to.
@@ -1009,10 +1010,18 @@ export async function walkModuleGraph({
         };
       }
       const integrity = integrityByUrl.get(url) ?? null;
-      const bytes = integrity ? new Uint8Array(await res.arrayBuffer()) : null;
-      const body = bytes
-        ? new TextDecoder("utf-8", { fatal: false, ignoreBOM: false }).decode(bytes)
-        : await res.text();
+      const capped = await readCappedBytes(res, MAX_DOCUMENT_BYTES);
+      if (!capped.ok) {
+        return {
+          ok: false,
+          error: `module body ${capped.failure} for ${url}`,
+        };
+      }
+      const bytes = integrity ? capped.bytes : null;
+      const body = new TextDecoder("utf-8", {
+        fatal: false,
+        ignoreBOM: false,
+      }).decode(capped.bytes);
       const verdict = await checkScriptResponse(
         { url, integrity, module: true },
         {
