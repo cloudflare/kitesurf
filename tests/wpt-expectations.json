@@ -5366,6 +5366,18 @@
     "expected": "PASS",
     "reason": null
   },
+  "/css/css-tables/bounding-box-computation-1.html": {
+    "expected": "FAIL",
+    "reason": "0/12 subtests pass. A specified table width does not include the outer border-spacing (the table measures 140px for width: 120px with 10px spacing), so every table-internal box is 20px too large; table columns and column groups also report no box."
+  },
+  "/css/css-tables/bounding-box-computation-2.html": {
+    "expected": "FAIL",
+    "reason": "8/12 subtests pass. Table columns and column groups report no box; the table, its cell, row and row group measure right."
+  },
+  "/css/css-tables/bounding-box-computation-3.html": {
+    "expected": "FAIL",
+    "reason": "8/10 subtests pass. An empty row group has no cells to take its box from, so it sits at the document origin rather than inside the table's border-spacing."
+  },
   "/css/css-tables/inheritance.html": {
     "expected": "PASS",
     "reason": null
