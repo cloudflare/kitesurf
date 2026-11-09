@@ -482,7 +482,11 @@ fn callback_code(target: &str, state: &str) -> Result<Option<String>> {
     if !target.starts_with('/') || target.starts_with("//") {
         return Ok(None);
     }
-    let url = Url::parse(REDIRECT_URI)?.join(target)?;
+    // A target that does not join onto the redirect URI is an unrelated
+    // request; it must not end the login.
+    let Ok(url) = Url::parse(REDIRECT_URI)?.join(target) else {
+        return Ok(None);
+    };
     if url.origin() != Url::parse(REDIRECT_URI)?.origin() || url.path() != "/oauth/callback" {
         return Ok(None);
     }
