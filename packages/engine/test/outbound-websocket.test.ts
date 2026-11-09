@@ -65,3 +65,27 @@ describe("WebSocket handshakes and outbound filters", () => {
     expect(seen.map((r) => r.url)).toEqual(["https://socket.test/echo"]);
   });
 });
+
+describe("WebSocket handshake headers", () => {
+  const sent = async (headers: Record<string, string>, pageOrigin = "https://page.test") => {
+    const { seen } = await handshake(headers, { pageOrigin });
+    expect(seen).toHaveLength(1);
+    return { origin: seen[0]!.headers.get("origin"), ua: seen[0]!.headers.get("user-agent") };
+  };
+
+  it("sends the sealed page origin and a user agent", async () => {
+    const { origin, ua } = await sent({});
+    expect(origin).toBe("https://page.test");
+    expect(ua).toBeTruthy();
+  });
+
+  it("keeps the sealed origin when the page marks the request opaque", async () => {
+    const { origin, ua } = await sent({ "x-kitesurf-page-origin": "null" });
+    expect(origin).toBe("https://page.test");
+    expect(ua).toBeTruthy();
+  });
+
+  it("sends Origin: null for an opaque document", async () => {
+    expect(await sent({}, "")).toEqual({ origin: "null", ua: expect.any(String) });
+  });
+});

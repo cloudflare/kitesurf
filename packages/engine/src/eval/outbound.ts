@@ -538,7 +538,11 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       wsHeaders.set("Upgrade", "websocket");
       const proto = request.headers.get("Sec-WebSocket-Protocol");
       if (proto) wsHeaders.set("Sec-WebSocket-Protocol", proto);
-      if (pageOrigin) wsHeaders.set("Origin", pageOrigin);
+      // A handshake does not follow redirects, so the page's opaque-origin header has no use here.
+      // A browser always sends Origin, "null" for an opaque document, and its User-Agent.
+      const wsOrigin = sealed ? props.pageOrigin : pageOrigin;
+      wsHeaders.set("Origin", wsOrigin || "null");
+      wsHeaders.set("User-Agent", request.headers.get("user-agent") || BROWSER_UA);
       const wsCookieKey = sealed
         ? props.cookieKey || connectionId
         : request.headers.get("x-kitesurf-cookie-key") || connectionId;
