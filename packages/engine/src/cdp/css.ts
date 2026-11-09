@@ -16,7 +16,7 @@ import {
   type QueryDomCarrier,
   type EnumeratedStyleSheet,
 } from "./page-session.ts";
-import { ensureTargetDom } from "./dom-release.ts";
+import { ensureTargetDom, releasedFallbackError } from "./dom-release.ts";
 import { parseStyleSheetRules } from "../wasm.ts";
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
 import { originOf } from "./frames.ts";
@@ -211,7 +211,11 @@ async function readStyleAttribute(
     return findStyleInFlat(attrs);
   }
   // `nodeId` belongs to PageScript when one exists; the engine DOM numbers nodes differently.
-  const fallbackDom = target && !session?.available() ? ensureTargetDom(target) : null;
+  const useFallback = target !== undefined && !session?.available();
+  if (useFallback && target.fallbackHtmlReleased) {
+    throw releasedFallbackError("CSS.getInlineStylesForNode");
+  }
+  const fallbackDom = useFallback ? ensureTargetDom(target) : null;
   if (fallbackDom) {
     try {
       const info = fallbackDom.nodeInfo(nodeId) as { attributes?: string[] };
