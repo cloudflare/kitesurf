@@ -35285,7 +35285,47 @@
     "expected": "PASS",
     "reason": null
   },
+  "/webstorage/defineProperty.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/webstorage/missing_arguments.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/webstorage/set.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/webstorage/storage_builtins.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/webstorage/storage_clear.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/webstorage/storage_enumerate.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
   "/webstorage/storage_functions_not_overwritten.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/webstorage/storage_getitem.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/webstorage/storage_in.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/webstorage/storage_indexing.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/webstorage/storage_key.window.html": {
     "expected": "PASS",
     "reason": null
   },
@@ -35293,7 +35333,31 @@
     "expected": "PASS",
     "reason": null
   },
+  "/webstorage/storage_length.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/webstorage/storage_removeitem.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
   "/webstorage/storage_set_value_enumerate.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/webstorage/storage_setitem.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/webstorage/storage_string_conversion.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/webstorage/storage_supported_property_names.window.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/webstorage/symbol-props.window.html": {
     "expected": "PASS",
     "reason": null
   },
