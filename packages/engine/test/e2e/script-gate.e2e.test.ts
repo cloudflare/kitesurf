@@ -211,6 +211,22 @@ test("'self' stays the committed document's origin during a pending navigation",
   expect(await ran(page2)).toEqual(["self"]);
 });
 
+test("a relative script src resolves against the URL a history traversal returns to", async ({
+  page,
+}) => {
+  const body =
+    `<script>` +
+    `history.pushState(null, "", "/elsewhere/x");` +
+    `history.back();` +
+    `var s = document.createElement("script");` +
+    `s.src = "policy-script.js?tag=original-dir";` +
+    `document.head.appendChild(s);` +
+    `</script>`;
+  await page.goto(docUrl("", body), { waitUntil: "load" });
+  await settle(page);
+  expect(await ran(page)).toEqual(["original-dir"]);
+});
+
 test("a runtime-inserted script's nonce is read from the IDL property", async ({ browser }) => {
   const inline = `globalThis.__ksRan=(globalThis.__ksRan||[]).concat(["inline"]);`;
   const insert = (how: string, body: string) =>
