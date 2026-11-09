@@ -186,6 +186,13 @@ describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
     expect(runClassic(rewritten.replace(/import\("[^"]*"\);/, ""))).toEqual([["./b.js", BASE]]);
   });
 
+  it("sends a call nested in another call to the runtime loader", () => {
+    const { rewritten, seeds } = extractClassicDynamicSeeds(`import(import("./a.js"));`, BASE);
+    expect(seeds).toEqual([]);
+    expect(nativeCalls(rewritten)).toBeNull();
+    expect(runClassic(rewritten).length).toBe(2);
+  });
+
   it("keeps a method named import valid", () => {
     const { rewritten } = extractClassicDynamicSeeds(
       `{}\n/}/.test(""); const o = { import(x) { return x; } }; import("./x.js");`,

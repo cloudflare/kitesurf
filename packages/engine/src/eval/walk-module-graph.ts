@@ -474,9 +474,10 @@ export function extractClassicDynamicSeeds(
   // A name keeps a method called `import` valid; scripts in one bundle share a scope.
   const callee = `__ks_import_${fnv1aHex(baseUrl)}`;
   const binding = `\nfunction ${callee}(s) { return __ks_import(s, ${ref}); }`;
-  // A lexed call is rewritten as a whole, so one that holds an unlexed call would drop its edit.
-  const nested = unlexed.some((at) =>
-    dynamics.some((imp) => imp.se <= imp.ss || (at > imp.ss && at < imp.se)),
+  // A lexed call is rewritten as a whole, so one that holds another call would drop its edit.
+  const inner = [...unlexed, ...lexedCalls];
+  const nested = dynamics.some(
+    (imp) => imp.se <= imp.ss || inner.some((at) => at > imp.ss && at < imp.se),
   );
   if (!imports || nested) {
     const keep = new Set(calls);
