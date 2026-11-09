@@ -1225,13 +1225,17 @@ export async function handlePage(
       const source = typeof req.params?.source === "string" ? req.params.source : "";
       if (source) {
         ctx.browser.preNavScripts.set(id, source);
+        ctx.client.preNavScriptIds.add(id);
       }
       return { identifier: id };
     }
 
     case "Page.removeScriptToEvaluateOnNewDocument": {
       const id = typeof req.params?.identifier === "string" ? req.params.identifier : null;
-      if (id) ctx.browser.preNavScripts.delete(id);
+      if (id) {
+        ctx.browser.preNavScripts.delete(id);
+        ctx.client.preNavScriptIds.delete(id);
+      }
       return {};
     }
 
@@ -1651,6 +1655,7 @@ export async function handlePage(
         maxInFlight,
         wheelQueue: getWheelQueue(ctx.browser, target.targetId, nextOwner),
         ownerSessionId: nextOwner,
+        ownerClientId: ctx.client.id,
         configurationVersion,
         appliedConfigurationVersion: configurationVersion - 1,
         lastAckedSeq: 0,
@@ -1664,6 +1669,7 @@ export async function handlePage(
         framesDropped: 0,
       };
       state.configurationVersion = configurationVersion;
+      state.ownerClientId = ctx.client.id;
       if (!existing) {
         ctx.browser.screencasts.set(target.targetId, state);
         ctx.ctx.waitUntil(screencastLoop(ctx, target, state));

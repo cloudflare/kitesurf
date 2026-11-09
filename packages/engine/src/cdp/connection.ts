@@ -20,11 +20,16 @@ import {
   type TargetState,
   RawJsonResult,
 } from "./types.ts";
-import { ensureBrowserTarget, createPageTarget, engineMemoryBreakdown } from "./target.ts";
+import {
+  ensureBrowserTarget,
+  createPageTarget,
+  detachClientSession,
+  engineMemoryBreakdown,
+} from "./target.ts";
 import { pumpBackgroundEvents, teardownOopifStubs } from "./page.ts";
 import { retireStub } from "./page-script-generation.ts";
 import { releaseAllDomHandles } from "./dom-release.ts";
-import { cancelAndRemoveTargetWheelQueues } from "./wheel-queue.ts";
+import { cancelAndRemoveTargetWheelQueues, stopAndRemoveWheelQueue } from "./wheel-queue.ts";
 import { stopSceneStreams } from "./scene-stream.ts";
 import { DynamicWorkerBudget } from "../eval/worker-budget.ts";
 import { DedicatedWorkers } from "./dedicated-workers.ts";
@@ -42,7 +47,11 @@ import type { ExternalOutbound } from "../eval/external-outbound.ts";
 import { createSandboxOutboundOverride, type SandboxOutboundExports } from "../eval/outbound.ts";
 import { unregisterOutboundFilters } from "./outbound-filter-registry.ts";
 import { registerRequestBlocker, unregisterRequestBlocker } from "../request-blocker.ts";
-import { unregisterInterception, drainInterception } from "./fetch-interception.ts";
+import {
+  disableInterceptionForClient,
+  unregisterInterception,
+  drainInterception,
+} from "./fetch-interception.ts";
 import {
   KitesurfAnalytics,
   SafePerformance,
@@ -197,6 +206,8 @@ export interface BrowserSessionOptions {
   externalOutbound?: ExternalOutbound;
   // The host's egress for this session. Called once, and only without an external outbound.
   egress?: () => ExternalOutbound | undefined;
+  // A client left a persistent session that keeps running; `remaining` clients are connected.
+  onClientLeft?: (remaining: number) => void;
 }
 
 export interface ClientOptions {
@@ -226,6 +237,7 @@ export class BrowserSession {
   readonly #dispatchEnv: DispatchCtx["env"];
   readonly #persistent: boolean;
   readonly #maxSessionMs: number;
+  readonly #onClientLeft: BrowserSessionOptions["onClientLeft"];
   readonly #commandExtension: DispatchCtx["commandExtension"];
   readonly #requestBlocker: DispatchCtx["requestBlocker"];
   // Insertion order is connection order.
@@ -252,6 +264,7 @@ export class BrowserSession {
     this.#ctx = ctx;
     this.#persistent = opts.persistent === true;
     this.#maxSessionMs = params.maxSessionMs;
+    this.#onClientLeft = opts.onClientLeft;
     const connectionId = this.id;
     const options = resolveConnectionOptions(request, connectionId, opts.host, env);
 
@@ -412,6 +425,9 @@ export class BrowserSession {
     }
     const client = new ClientConnection(this, server, params, opts, {
       onLeave: (c, end) => this.#clientLeft(c, end),
+      onLateDispatch: (c) => {
+        if (this.#persistent && !this.#disposed) this.#releaseClient(c);
+      },
     });
     this.#clients.set(client.state.id, client);
     client.start();
@@ -420,7 +436,47 @@ export class BrowserSession {
 
   #clientLeft(client: ClientConnection, end: SessionEndFields): void {
     this.#clients.delete(client.state.id);
-    if (!this.#persistent) this.dispose(end);
+    if (!this.#persistent) {
+      this.dispose(end);
+      return;
+    }
+    if (this.#disposed) return;
+    this.#releaseClient(client);
+    try {
+      this.#onClientLeft?.(this.#clients.size);
+    } catch (err) {
+      console.warn("[kitesurf-ws] onClientLeft threw:", err);
+    }
+  }
+
+  // Undoes what a departed client held on a session that keeps running: its CDP sessions and
+  // their domain enables, its screencasts, new-document scripts and Fetch interception. Safe
+  // to repeat, for a command that was still running when the client left.
+  #releaseClient(client: ClientConnection): void {
+    const browser = this.browser;
+    const state = client.state;
+    for (const id of state.preNavScriptIds) browser.preNavScripts.delete(id);
+    state.preNavScriptIds.clear();
+    for (const [targetId, stream] of Array.from(browser.screencasts)) {
+      if (stream.ownerClientId !== state.id) continue;
+      stream.stopped = true;
+      stream.wake?.();
+      browser.screencasts.delete(targetId);
+      stopAndRemoveWheelQueue(browser, targetId, stream.ownerSessionId, stream.wheelQueue);
+    }
+    for (const sessionId of Array.from(state.sessions)) {
+      detachClientSession(client.ctx, sessionId);
+      browser.runtimeEnabledSessions.delete(sessionId);
+      for (const t of browser.targets.values()) {
+        t.debuggerEnabledSessions.delete(sessionId);
+        t.domEnabledSessions.delete(sessionId);
+        t.cssEnabledSessions.delete(sessionId);
+      }
+    }
+    state.sessions.clear();
+    state.memoryTargets.renderer = null;
+    state.memoryTargets.engine = null;
+    disableInterceptionForClient(this.id, state.id);
   }
 
   /** Closes every client and ends the session. */
@@ -525,6 +581,7 @@ function newClientState(connectionMode: "page" | "browser", id: string): CdpClie
     autoAttach: false,
     flatten: false,
     sessions: new Set(),
+    preNavScriptIds: new Set(),
     memoryTargets: { renderer: null, engine: null },
   };
 }
@@ -541,6 +598,8 @@ function addressedSession(event: CdpEvent): string | undefined {
 interface ClientHooks {
   // The client is gone. Called once.
   onLeave: (client: ClientConnection, end: SessionEndFields) => void;
+  // A command finished after the client left.
+  onLateDispatch: (client: ClientConnection) => void;
 }
 
 /** One CDP WebSocket on a BrowserSession: sending, the idle deadline and the message loop. */
@@ -768,6 +827,7 @@ export class ClientConnection {
           sessionId: req.sessionId,
         });
       }
+      if (this.#left) this.#hooks.onLateDispatch(this);
     });
   }
 

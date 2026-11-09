@@ -126,6 +126,8 @@ export interface CdpClientState {
   // The CDP sessions this client attached. On a persistent session, events on one of them
   // reach this client only.
   readonly sessions: Set<string>;
+  // Page.addScriptToEvaluateOnNewDocument identifiers this client added.
+  readonly preNavScriptIds: Set<string>;
   // This client's sessions on the synthetic Memory-panel targets, null until announced to it.
   readonly memoryTargets: { renderer: string | null; engine: string | null };
 }
@@ -180,6 +182,8 @@ export interface ScreencastState {
   maxInFlight: number;
   wheelQueue: WheelQueue;
   ownerSessionId: string | undefined;
+  // The client that started or last took over the stream; it stops when that client leaves.
+  ownerClientId: string;
   configurationVersion: number;
   appliedConfigurationVersion: number;
   lastAckedSeq: number;
