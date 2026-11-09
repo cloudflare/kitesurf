@@ -391,15 +391,26 @@ export async function handleInput(
       if (!releaseWheelFences) return {};
       try {
         assertExpected(target);
-        const result = await target.pageScript.dispatchKeyEvent("keydown", {
-          bubbles: true,
-          cancelable: true,
-          key: "",
-          code: "",
-          text,
-        });
+        // Chrome commits this text as an IME would, with no key events, so a page's key handlers
+        // never see it and a keydown's preventDefault cannot drop it.
+        const inputPageScript = target.pageScript;
+        const inputPageScriptUrl = target.pageScriptUrl;
+        if (!inputPageScript) return {};
+        const result = await inputPageScript.insertText(text);
         emitConsole(ctx, result.console, req.sessionId);
         emitMutations(ctx, target, result.cdpMutations);
+        for (const release of releaseWheelFences) release();
+        if (target.pageScript !== inputPageScript || target.pageScriptUrl !== inputPageScriptUrl) {
+          return {};
+        }
+        await followNavigation(
+          ctx,
+          target,
+          result,
+          req.sessionId,
+          !replyOnDispatch,
+          initiatorOriginOf(inputPageScriptUrl) ?? "null",
+        );
       } catch (err) {
         assertExpected(target);
         console.warn(
