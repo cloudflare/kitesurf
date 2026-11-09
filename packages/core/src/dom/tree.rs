@@ -65,19 +65,48 @@ fn find_title<'a>(doc: &'a BaseDocument) -> Option<&'a Node> {
     })
 }
 
+// Pre-order with an explicit stack, as write_outer_html: page-chosen depth must not
+// overflow the wasm call stack.
+fn collect_preorder(
+    doc: &BaseDocument,
+    start: NodeId,
+    out: &mut Vec<u32>,
+    node_handles: &mut NodeHandleMap,
+    with_pseudos: bool,
+) {
+    let mut stack: Vec<NodeId> = Vec::new();
+    let push_children = |id: NodeId, stack: &mut Vec<NodeId>| {
+        let Some(node) = doc.get_node(id) else {
+            return;
+        };
+        let after = if with_pseudos {
+            node.pe_by_index(0)
+        } else {
+            None
+        };
+        let before = if with_pseudos {
+            node.pe_by_index(1)
+        } else {
+            None
+        };
+        stack.extend(after);
+        stack.extend(node.children.iter().rev().copied());
+        stack.extend(before);
+    };
+    push_children(start, &mut stack);
+    while let Some(id) = stack.pop() {
+        out.push(node_handles.external_for(id));
+        push_children(id, &mut stack);
+    }
+}
+
 pub(crate) fn collect_descendants(
     doc: &BaseDocument,
     start: NodeId,
     out: &mut Vec<u32>,
     node_handles: &mut NodeHandleMap,
 ) {
-    let Some(node) = doc.get_node(start) else {
-        return;
-    };
-    for &cid in &node.children {
-        out.push(node_handles.external_for(cid));
-        collect_descendants(doc, cid, out, node_handles);
-    }
+    collect_preorder(doc, start, out, node_handles, false);
 }
 
 pub(crate) fn collect_descendants_with_pseudos(
@@ -86,21 +115,7 @@ pub(crate) fn collect_descendants_with_pseudos(
     out: &mut Vec<u32>,
     node_handles: &mut NodeHandleMap,
 ) {
-    let Some(node) = doc.get_node(start) else {
-        return;
-    };
-    if let Some(before) = node.pe_by_index(1) {
-        out.push(node_handles.external_for(before));
-        collect_descendants_with_pseudos(doc, before, out, node_handles);
-    }
-    for &cid in &node.children {
-        out.push(node_handles.external_for(cid));
-        collect_descendants_with_pseudos(doc, cid, out, node_handles);
-    }
-    if let Some(after) = node.pe_by_index(0) {
-        out.push(node_handles.external_for(after));
-        collect_descendants_with_pseudos(doc, after, out, node_handles);
-    }
+    collect_preorder(doc, start, out, node_handles, true);
 }
 
 const VOID_ELEMENTS: &[&str] = &[
