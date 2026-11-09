@@ -12,6 +12,7 @@ import { sessionOf, type SessionSoftOps } from "./page-session.ts";
 import type { ReadStamp } from "@kitesurf/jsrpc-types/query-dom";
 import { ensureTargetDom } from "./dom-release.ts";
 import { assertDomReplyGraph } from "./dom.ts";
+import { buildScriptGateContext, cspAllowsInlineHandler } from "@kitesurf/script-gate";
 
 export interface AxNode {
   nodeId: string;
@@ -229,6 +230,7 @@ export interface AccessibilityReadState {
     document?: ReadStamp;
     visibility?: ReadStamp;
     forms?: ReadStamp;
+    activation?: ReadStamp;
   };
   forms: {
     values: Map<number, string>;
@@ -252,7 +254,10 @@ function discardedAriaHidden(target: TargetState): Set<number> {
 
 export async function buildTree(
   ps: {
-    tryCall: Pick<SessionSoftOps, "getDocument" | "notRenderedNodeIds" | "formStateSnapshot">;
+    tryCall: Pick<
+      SessionSoftOps,
+      "getDocument" | "notRenderedNodeIds" | "formStateSnapshot" | "activationListenerNodeIds"
+    >;
   } | null,
   target: TargetState,
   options: {
@@ -268,19 +273,22 @@ export async function buildTree(
   let liveValues = new Map<number, string>();
   let liveChecked = new Map<number, boolean>();
   let liveSelected = new Map<number, boolean>();
+  let activationListeners = new Set<number>();
   const stamps: AccessibilityReadState["stamps"] = {};
   if (ps) {
     const read = <T>(phase: string, run: () => Promise<T>): Promise<T> =>
       options.measureRead ? options.measureRead(phase, run) : run();
     const args = options.includeReadState ? { includeReadStamp: true } : {};
-    const [docRes, hiddenRes, formRes] = await Promise.all([
+    const [docRes, hiddenRes, formRes, activationRes] = await Promise.all([
       read("axtree.dom", () => ps.tryCall.getDocument(args)),
       read("axtree.visibility", () => ps.tryCall.notRenderedNodeIds(args)),
       read("axtree.forms", () => ps.tryCall.formStateSnapshot(args)),
+      read("axtree.activation", () => ps.tryCall.activationListenerNodeIds(args)),
     ]);
     stamps.document = docRes?.readStamp;
     stamps.visibility = hiddenRes?.readStamp;
     stamps.forms = formRes?.readStamp;
+    stamps.activation = activationRes?.readStamp;
     root = (docRes?.root as DomNode | undefined) ?? null;
     if (Array.isArray(hiddenRes?.displayNone)) {
       displayNone = new Set(hiddenRes.displayNone);
@@ -294,6 +302,7 @@ export async function buildTree(
       liveChecked = new Map(formRes.checked);
     }
     if (Array.isArray(formRes?.selected)) liveSelected = new Map(formRes.selected);
+    if (Array.isArray(activationRes?.ids)) activationListeners = new Set(activationRes.ids);
   }
   const usedFallback = !root;
   // The fallback tree is a rehydrated DOM whose ids start over, so the page's focus path would
@@ -321,6 +330,8 @@ export async function buildTree(
   ctx.liveSelected = liveSelected;
   ctx.focusPath = focusPath;
   if (!usedFallback) ctx.discardedAriaHidden = discardedAriaHidden(target);
+  ctx.activationListeners = activationListeners;
+  ctx.handlerAttributesRun = handlerAttributesRun(target);
   ctx.indexIds(root);
   const rootAx = ctx.build(root, null, {
     ariaHidden: false,
@@ -379,6 +390,8 @@ class BuildCtx {
   liveValues = new Map<number, string>();
   liveChecked = new Map<number, boolean>();
   liveSelected = new Map<number, boolean>();
+  activationListeners = new Set<number>();
+  handlerAttributesRun = true;
   backendToNode = new Map<number, DomNode>();
   labelForId = new Map<string, DomNode>();
   focusPath = new Set<number>();
@@ -1073,6 +1086,7 @@ function computeProperties(
   }
 
   if (isFocusable(tag, attrs)) push("focusable", "booleanOrUndefined", true);
+  if (isClickable(tag, attrs, node, ctx)) push("clickable", "boolean", true);
 
   const accessKey = attrs.get("accesskey");
   if (accessKey && !attrs.get("aria-keyshortcuts")) {
@@ -1288,6 +1302,41 @@ function isFocusable(tag: string, attrs: Map<string, string>): boolean {
     default:
       return false;
   }
+}
+
+// A policy that refuses inline event handlers leaves an onclick attribute with no handler
+// behind it, and an element that only has such an attribute handles no click.
+function handlerAttributesRun(target: TargetState): boolean {
+  const gate = buildScriptGateContext(target.url, {
+    cspHeaders: [target.docCsp],
+    metaCsp: target.docScan?.metaCsp ?? [],
+  });
+  return cspAllowsInlineHandler(gate.policies).allowed;
+}
+
+// Handler attributes for the events a click fires, which register their listener only when the
+// event first reaches the element, so the page's listener registry does not list them yet.
+export const ACTIVATION_HANDLER_ATTRS = [
+  "onclick",
+  "onmousedown",
+  "onmouseup",
+  "onpointerdown",
+  "onpointerup",
+  "onauxclick",
+];
+
+// html and body are skipped: pages hang delegated listeners there, and a clickable root claims
+// every click. A framework's root container (React's div#root) holds them too and is flagged.
+function isClickable(
+  tag: string,
+  attrs: Map<string, string>,
+  node: DomNode,
+  ctx: BuildCtx,
+): boolean {
+  if (tag === "html" || tag === "body") return false;
+  const id = node.backendNodeId;
+  if (typeof id === "number" && ctx.activationListeners.has(id)) return true;
+  return ctx.handlerAttributesRun && ACTIVATION_HANDLER_ATTRS.some((name) => !!attrs.get(name));
 }
 
 function findWrappingLabel(ctx: BuildCtx, node: DomNode): string {

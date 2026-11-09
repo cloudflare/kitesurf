@@ -924,3 +924,4 @@ export {
 } from "./detached-wrappers.js";
 export { setAnimationTaskScheduler } from "./animations.js";
 export { setInlineHandlerGate } from "./element/event-handlers.js";
+export { activationListenerNodeIds } from "./events/dispatch.js";

@@ -68,10 +68,15 @@ export function forgetNodeIds(ids: Iterable<number>): void {
     linkLoadFired.delete(id);
     forgetIdGlobal(id);
     elementScrollendSeq.delete(id);
+    activationListenerIds.delete(id);
   }
 }
 
 export const adoptedWrapperIds = new Set<number>();
+
+// Nodes that took a listener for an event a click fires; a superset, since removing one does not
+// update it. `activationListenerNodeIds` re-checks each id against the live listener registry.
+export const activationListenerIds = new Set<number>();
 
 export const linkLoadFired = new Map<number, string>();
 
@@ -338,6 +343,7 @@ export function resetRegistries(): void {
   nodeIdName.clear();
   moPendingObservers.clear();
   elementScrollendSeq.clear();
+  activationListenerIds.clear();
   scrollendSeq = 0;
   localScrollX = 0;
   localScrollY = 0;

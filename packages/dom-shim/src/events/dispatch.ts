@@ -17,7 +17,7 @@ import {
 } from "../state.js";
 import type { ListenerEntry } from "../state.js";
 import type * as Idl from "../idl/types.generated.js";
-import { liveWrapper } from "../registries.js";
+import { activationListenerIds, liveWrapper } from "../registries.js";
 import { hostIdToDoc } from "../registries.js";
 import { ksSpan, safeEventType } from "../otel.js";
 import {
@@ -68,6 +68,35 @@ function isObjectKey(key: unknown): key is Idl.EventTarget {
 }
 
 const nodeListenerRegistry = new WeakMap<object, Map<string, ListenerEntry[]>>();
+
+// The events a mouse click fires at its target: a listener for one makes its element clickable
+// in the accessibility tree, as Chrome's automation tree marks it.
+export const ACTIVATION_EVENT_TYPES: ReadonlySet<string> = new Set([
+  "click",
+  "mousedown",
+  "mouseup",
+  "pointerdown",
+  "pointerup",
+  "auxclick",
+]);
+
+function hasActivationListener(byType: Map<string, ListenerEntry[]>): boolean {
+  for (const type of ACTIVATION_EVENT_TYPES) {
+    if ((byType.get(type)?.length ?? 0) > 0) return true;
+  }
+  return false;
+}
+
+export function activationListenerNodeIds(): number[] {
+  const ids: number[] = [];
+  for (const id of activationListenerIds) {
+    const wrapper = liveWrapper(id);
+    const byType = wrapper ? nodeListenerRegistry.get(wrapper) : undefined;
+    if (byType && hasActivationListener(byType)) ids.push(id);
+    else activationListenerIds.delete(id);
+  }
+  return ids;
+}
 
 export function listenersFor(
   key: EventTargetKey,
@@ -155,6 +184,7 @@ export function addListener(
     if (entry.listener === listener && entry.capture === opts.capture) return;
   }
   list.push({ listener, capture: opts.capture, once: opts.once, passive });
+  if (typeof key === "number" && ACTIVATION_EVENT_TYPES.has(type)) activationListenerIds.add(key);
   noteListenerType(type);
 }
 
