@@ -921,7 +921,23 @@ export async function walkModuleGraph({
         headers,
         taintOriginFrom: pageOrigin || undefined,
         fetchHop: (hopReq) => outbound.fetch(hopReq),
+        checkRedirect: gate
+          ? async (next) => {
+              const pre = await checkScriptBeforeFetch(gate, {
+                url: next,
+                integrity: integrityByUrl.get(url) ?? null,
+                nonce: nonceByUrl.get(url) ?? null,
+                runtimeInserted: viaTrustedImporter.has(url),
+                module: true,
+              });
+              if (pre.reportOnly) console.warn(`[kitesurf-csp] ${pre.reportOnly}`);
+              return pre.allowed ? (pre.upgradeTo ?? next) : null;
+            }
+          : undefined,
       });
+      if (!walk.ok && walk.reason === "redirect-blocked") {
+        return { ok: false, error: `module blocked: redirect to ${walk.url}` };
+      }
       if (!walk.ok) {
         return { ok: false, error: `module fetch too many redirects for ${url}` };
       }

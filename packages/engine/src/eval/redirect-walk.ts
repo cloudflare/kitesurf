@@ -29,6 +29,9 @@ export interface RedirectWalkOptions {
   readonly cookieHeaderFor?: (url: string) => string | null | undefined;
   readonly onSetCookie?: (url: string, resp: Response) => void;
   readonly onRedirect?: (hop: RedirectHop) => void;
+  // Vets each redirect target before it is fetched: the url to fetch (an upgraded one, say), or
+  // null to stop the walk with "redirect-blocked".
+  readonly checkRedirect?: (url: string) => Promise<string | null>;
   readonly taintOriginFrom?: string;
 }
 
@@ -44,7 +47,8 @@ export type RedirectWalkResult =
        */
       readonly referrer: string;
     }
-  | { readonly ok: false; readonly reason: "too-many-redirects" };
+  | { readonly ok: false; readonly reason: "too-many-redirects" }
+  | { readonly ok: false; readonly reason: "redirect-blocked"; readonly url: string };
 
 export class InvalidRedirectError extends Error {
   constructor(location: string, reason: string) {
@@ -139,6 +143,12 @@ export async function walkRedirects(opts: RedirectWalkOptions): Promise<Redirect
 
     // Store this hop's cookies before the next loop reads its jar header.
     opts.onSetCookie?.(currentUrl, resp);
+
+    if (opts.checkRedirect) {
+      const allowed = await opts.checkRedirect(next.toString());
+      if (allowed === null) return { ok: false, reason: "redirect-blocked", url: next.toString() };
+      next = new URL(allowed);
+    }
 
     const fromOrigin = originOfUrl(currentUrl);
     const crossOriginHop = fromOrigin === null || next.origin !== fromOrigin;

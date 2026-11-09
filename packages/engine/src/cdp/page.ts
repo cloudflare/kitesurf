@@ -1735,6 +1735,7 @@ async function pushNavigateToPageScriptInner(
           cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
           baseUrl: scriptBaseUrl,
           sandboxOutbound: ctx.browser.sandboxOutbound,
+          gate: scriptGate,
         }),
     );
     const routeChunkUrls = nextRouteChunkUrls(afterClassicPrefetch, url).filter(
@@ -1772,6 +1773,7 @@ async function pushNavigateToPageScriptInner(
                     baseUrl: scriptBaseUrl,
                     sandboxOutbound: ctx.browser.sandboxOutbound,
                     signal,
+                    gate: scriptGate,
                   }).then((fetched) => fetched[0] ?? d),
               ),
             ),
