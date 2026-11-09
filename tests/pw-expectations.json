@@ -571,10 +571,6 @@
     "expected": "SKIP",
     "reason": "times out"
   },
-  "page-basic.spec.ts::page.press should work for Enter": {
-    "expected": "FAIL",
-    "reason": "TypeError: Cannot read properties of undefined (reading 'text')"
-  },
   "page-basic.spec.ts::should have sane user agent": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
@@ -1299,10 +1295,6 @@
     "expected": "FAIL",
     "reason": "Error: expect(received).toEqual(expected) // deep equality"
   },
-  "page-keyboard.spec.ts::should emit keydown, keypress, textInput and input when typing a character": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toEqual(expected) // deep equality"
-  },
   "page-keyboard.spec.ts::should expose keyIdentifier in webkit": {
     "expected": "SKIP",
     "reason": "skipped upstream for chromium"
@@ -1323,37 +1315,9 @@
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-keyboard.spec.ts::should press plus": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
-  "page-keyboard.spec.ts::should press shift plus": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
-  "page-keyboard.spec.ts::should report shiftKey": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
-  "page-keyboard.spec.ts::should send proper codes while typing": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
-  "page-keyboard.spec.ts::should send proper codes while typing with shift": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
-  "page-keyboard.spec.ts::should shift raw codes": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
   "page-keyboard.spec.ts::should support MacOS shortcuts": {
     "expected": "SKIP",
     "reason": "skipped upstream for chromium"
-  },
-  "page-keyboard.spec.ts::should support plus-separated modifiers": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
   "page-keyboard.spec.ts::should support simple copy-pasting": {
     "expected": "FAIL",

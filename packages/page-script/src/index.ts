@@ -2741,7 +2741,58 @@ function activateAnchorNavigation(
   }
 }
 
-function notifyControlValueMutation(control: ShimElement, cursor: number): void {
+type EditingEventCtor = new (type: string, init: Record<string, unknown>) => unknown;
+
+// Chrome gives InputEvent and TextEvent the window as their view; the shim's window is not a
+// DOM-typed Window, so these two constructors take a looser init here.
+function editingEvent(
+  name: "InputEvent" | "TextEvent",
+  type: string,
+  init: Record<string, unknown>,
+): unknown {
+  const EventCtor = ksEventCtors[name] as EditingEventCtor | undefined;
+  if (typeof EventCtor !== "function") throw new TypeError(`${name} is not installed yet`);
+  return new EventCtor(type, { bubbles: true, composed: true, view: state.window, ...init });
+}
+
+type ControlInputType =
+  | "insertText"
+  | "insertLineBreak"
+  | "deleteContentBackward"
+  | "deleteContentForward";
+
+function dispatchBeforeInput(
+  control: ShimElement,
+  inputType: ControlInputType,
+  data: string | null,
+): boolean {
+  try {
+    return __ks_dispatchTrusted(
+      control,
+      editingEvent("InputEvent", "beforeinput", { cancelable: true, inputType, data }),
+    );
+  } catch {
+    return true;
+  }
+}
+
+function dispatchTextInput(control: ShimElement, data: string): boolean {
+  try {
+    return __ks_dispatchTrusted(
+      control,
+      editingEvent("TextEvent", "textInput", { cancelable: true, data }),
+    );
+  } catch {
+    return true;
+  }
+}
+
+function notifyControlValueMutation(
+  control: ShimElement,
+  cursor: number,
+  inputType: ControlInputType,
+  data: string | null,
+): void {
   try {
     if (typeof control.__ksMarkUserEdited === "function") control.__ksMarkUserEdited();
   } catch {}
@@ -2753,11 +2804,10 @@ function notifyControlValueMutation(control: ShimElement, cursor: number): void 
     }
   } catch {}
   try {
-    const inputEvent = new (shimEventCtor("Event"))("input", {
-      bubbles: true,
-      cancelable: false,
-    });
-    __ks_dispatchTrusted(control, inputEvent);
+    __ks_dispatchTrusted(
+      control,
+      editingEvent("InputEvent", "input", { cancelable: false, inputType, data }),
+    );
   } catch {}
 }
 
@@ -2822,11 +2872,14 @@ function controlSelection(control: ShimElement, value: string): { start: number;
   return { start, end: Math.max(start, Math.min(rawEnd, value.length)) };
 }
 
-// Enter breaks a line only in a textarea: a single-line field keeps no line break, and Enter
-// there is the key for implicit submission instead.
-function insertIntoTextControl(control: ShimElement, rawText: string, lineBreak: boolean): void {
+// Chrome's order is a cancelable beforeinput and textInput, then the edit and its input event.
+// Enter in a single-line field fires beforeinput alone; it is implicit submission's key there.
+function insertIntoTextControl(control: ShimElement, rawText: string, lineBreak: boolean): boolean {
   const multiline = control.tagName === "TEXTAREA";
-  if (lineBreak && !multiline) return;
+  const inputType = lineBreak ? "insertLineBreak" : "insertText";
+  if (!dispatchBeforeInput(control, inputType, lineBreak ? null : rawText)) return false;
+  if (lineBreak && !multiline) return true;
+  if (!dispatchTextInput(control, lineBreak ? "\n" : rawText)) return false;
   const text = lineBreak
     ? "\n"
     : multiline
@@ -2834,12 +2887,15 @@ function insertIntoTextControl(control: ShimElement, rawText: string, lineBreak:
       : singleLineText(rawText);
   const oldValue = getValueRawOnControl(control);
   const { start, end } = controlSelection(control, oldValue);
-  if (!text && start === end) return;
+  if (!text && start === end) return true;
   setValueRawOnControl(control, oldValue.slice(0, start) + text + oldValue.slice(end));
-  notifyControlValueMutation(control, start + text.length);
+  notifyControlValueMutation(control, start + text.length, inputType, lineBreak ? null : text);
+  return true;
 }
 
 function deleteInTextControl(control: ShimElement, forward: boolean): void {
+  const inputType = forward ? "deleteContentForward" : "deleteContentBackward";
+  if (!dispatchBeforeInput(control, inputType, null)) return;
   const oldValue = getValueRawOnControl(control);
   const { start, end } = controlSelection(control, oldValue);
   const HIGH_SURROGATE_START_CODE_UNIT = 0xd800;
@@ -2871,7 +2927,46 @@ function deleteInTextControl(control: ShimElement, forward: boolean): void {
   }
   if (deleteStart === deleteEnd) return;
   setValueRawOnControl(control, oldValue.slice(0, deleteStart) + oldValue.slice(deleteEnd));
-  notifyControlValueMutation(control, deleteStart);
+  notifyControlValueMutation(control, deleteStart, inputType, null);
+}
+
+// Chrome enters a key's text, and runs Enter's implicit submission, as keypress's default action;
+// cancelling Enter's beforeinput in a text field stops the submission too.
+function enterKeyText(focused: ShimElement | null, text: string, shiftKey: boolean): string | null {
+  const editHost = editingHostOf(focused);
+  if (editHost) {
+    if (isLineBreakKeyText(text)) {
+      editContentEditable(
+        editHost,
+        shiftKey ? "insertLineBreak" : "insertParagraph",
+        null,
+        __ks_dispatchTrusted,
+      );
+    } else if (isEnterableText(text)) {
+      editContentEditable(editHost, "insertText", normalizeLineBreaks(text), __ks_dispatchTrusted);
+    }
+    return null;
+  }
+  if (!focused) return null;
+  if (!isLineBreakKeyText(text)) {
+    if (isTextEntryControl(focused) && isEnterableText(text)) {
+      insertIntoTextControl(focused, text, false);
+    }
+    return null;
+  }
+  if (isTextEntryControl(focused) && !insertIntoTextControl(focused, text, true)) return null;
+  if (focused.tagName !== "INPUT") return null;
+  dispatchEnterChange(focused);
+  return submitFormOnEnter(focused);
+}
+
+// A keypress's keyCode and charCode are the code of the character it enters, which for a letter
+// is not the keydown's virtual key code (97 for "a", not 65).
+function keypressInit(init: KeyEventInit): KeyEventInit & { charCode?: number; composed: true } {
+  const charCode = init?.text ? init.text.codePointAt(0) : undefined;
+  return charCode === undefined
+    ? { ...init, composed: true }
+    : { ...init, composed: true, charCode, keyCode: charCode };
 }
 
 // Input.insertText commits text as an IME does, with no key events, so a line break in it is
@@ -2927,12 +3022,9 @@ function submitFormOnEnter(focused: ShimElement): string | null {
   }
 }
 
-function dispatchEnterChange(
-  focused: ShimElement,
-  keyboardEventConstructor: BuildDocumentResult["Event"] | BuildDocumentResult["KeyboardEvent"],
-): void {
+function dispatchEnterChange(focused: ShimElement): void {
   try {
-    const changeEvent = new (ksEventCtors.Event || keyboardEventConstructor)("change", {
+    const changeEvent = new (shimEventCtor("Event"))("change", {
       bubbles: true,
       cancelable: false,
     });
@@ -5223,10 +5315,10 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     internalState.pendingSubmitNav = null;
     try {
       const eventType = String(type || "keydown");
-      const event = new KeyboardEventConstructor(eventType, {
-        ...(init || {}),
-        composed: true,
-      });
+      const event = new KeyboardEventConstructor(
+        eventType,
+        eventType === "keypress" ? keypressInit(init) : { ...(init || {}), composed: true },
+      );
       const focused = state.getActiveElement();
       const targetEl =
         focused || state.document.body || state.document.documentElement || state.document;
@@ -5234,6 +5326,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       defaultPrevented = !allowed;
       if (eventType === "keydown" && defaultPrevented) __ksSuppressChar = true;
 
+      let activated = false;
       // Chrome's Tab moves focus as keydown's default action and then drops the key's "\t", so
       // neither the field it leaves nor the one it reaches takes a tab.
       let tabNavigated = false;
@@ -5271,69 +5364,53 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
             focused.click?.();
           } catch {}
         }
+        // An Enter that activated a link or button was handled by its keydown, so Chrome sends
+        // no keypress for it and drops a char event that follows.
+        if (activateNow && eventType === "keydown") {
+          activated = true;
+          __ksSuppressChar = true;
+        }
       }
 
-      const isCharBearing = (eventType === "keydown" || eventType === "keypress") && !tabNavigated;
-      const editHost = defaultPrevented ? null : editingHostOf(focused);
-      if (editHost) {
-        const text = typeof init?.text === "string" ? init.text : "";
-        const key = typeof init?.key === "string" ? init.key : "";
-        if (eventType === "keydown" && (key === "Backspace" || key === "Delete")) {
+      const text = typeof init?.text === "string" ? init.text : "";
+      const key = typeof init?.key === "string" ? init.key : "";
+      const shortcut = !!init?.metaKey || (!!init?.ctrlKey && !init?.altKey);
+      const typesText = text !== "" && !shortcut && !tabNavigated && !activated;
+      if (
+        eventType === "keydown" &&
+        !defaultPrevented &&
+        (key === "Backspace" || key === "Delete")
+      ) {
+        const editHost = editingHostOf(focused);
+        if (editHost) {
           editContentEditable(
             editHost,
             key === "Backspace" ? "deleteContentBackward" : "deleteContentForward",
             null,
             __ks_dispatchTrusted,
           );
-        } else if (isCharBearing && text && !init.ctrlKey && !init.metaKey) {
-          let typed = true;
-          if (eventType === "keydown") {
-            typed = __ks_dispatchTrusted(
-              targetEl,
-              new KeyboardEventConstructor("keypress", { ...init, composed: true }),
-            );
-          }
-          if (!typed) {
-            defaultPrevented = true;
-          } else if (isLineBreakKeyText(text)) {
-            editContentEditable(
-              editHost,
-              init.shiftKey ? "insertLineBreak" : "insertParagraph",
-              null,
-              __ks_dispatchTrusted,
-            );
-          } else if (isEnterableText(text)) {
-            editContentEditable(
-              editHost,
-              "insertText",
-              normalizeLineBreaks(text),
-              __ks_dispatchTrusted,
-            );
-          }
+        } else if (isTextEntryControl(focused)) {
+          deleteInTextControl(focused, key === "Delete");
         }
       }
-      if (
-        focused &&
-        !defaultPrevented &&
-        isCharBearing &&
-        (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA")
-      ) {
-        const text = init && typeof init.text === "string" ? init.text : "";
-        const key = init && typeof init.key === "string" ? init.key : "";
-        if (isTextEntryControl(focused)) {
-          if (isLineBreakKeyText(text)) {
-            insertIntoTextControl(focused, text, true);
-          } else if (isEnterableText(text)) {
-            insertIntoTextControl(focused, text, false);
-          } else if (eventType === "keydown" && (key === "Backspace" || key === "Delete")) {
-            deleteInTextControl(focused, key === "Delete");
-          }
+      // A keydown that carries text gets its keypress at whatever its handlers left focused.
+      // The text entry, and Enter's submission, then follow unless the page cancels that keypress.
+      if (eventType === "keydown" && !defaultPrevented && typesText) {
+        const charFocus = state.getActiveElement();
+        const charTarget =
+          charFocus || state.document.body || state.document.documentElement || state.document;
+        if (
+          !__ks_dispatchTrusted(
+            charTarget,
+            new KeyboardEventConstructor("keypress", keypressInit(init)),
+          )
+        ) {
+          defaultPrevented = true;
+        } else {
+          navigateTo = enterKeyText(charFocus, text, !!init.shiftKey);
         }
-        if (eventType === "keydown" && key === "Enter" && focused.tagName === "INPUT") {
-          dispatchEnterChange(focused, KeyboardEventConstructor);
-          const implicitNavigation = submitFormOnEnter(focused);
-          if (implicitNavigation) navigateTo = implicitNavigation;
-        }
+      } else if (eventType === "keypress" && !defaultPrevented && typesText) {
+        navigateTo = enterKeyText(focused, text, !!init.shiftKey);
       }
     } catch (err) {
       console.error("[kitesurf] Input.dispatchKeyEvent failed", err);

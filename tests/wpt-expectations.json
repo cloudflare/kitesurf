@@ -19375,6 +19375,10 @@
     "expected": "TIMEOUT",
     "reason": null
   },
+  "/input-events/input-events-typing.html": {
+    "expected": "FAIL",
+    "reason": "10/13 subtests pass. Undo and Redo key combinations fire no historyUndo or historyRedo input events, and InputEvent.dataTransfer reads undefined instead of null"
+  },
   "/intersection-observer/callback-cross-realm-report-exception.html": {
     "expected": "FAIL",
     "reason": "Cross-realm iframe IntersectionObserver execution is outside the supported iframe model."
@@ -21092,10 +21096,6 @@
     "expected": "PASS",
     "reason": null
   },
-  "/uievents/textInput/basic.html": {
-    "expected": "FAIL",
-    "reason": "<input> and <textarea> fire no beforeinput or textInput; the contenteditable subtest passes"
-  },
   "/uievents/textInput/delete-selection.html": {
     "expected": "PASS",
     "reason": null
@@ -21103,10 +21103,6 @@
   "/uievents/textInput/delete.html": {
     "expected": "PASS",
     "reason": null
-  },
-  "/uievents/textInput/enter-textarea-contenteditable.html": {
-    "expected": "TIMEOUT",
-    "reason": "Enter does not insert a newline in textarea, and contenteditable is not an editing host"
   },
   "/uievents/ui_event_pseudo_target.html": {
     "expected": "FAIL",
