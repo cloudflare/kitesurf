@@ -734,7 +734,6 @@ pub(crate) fn build_json(dom: &DomHandle, request_json: &str) -> Result<String, 
     context.write_reply(&mut count);
     let mut result = String::with_capacity(count.0);
     context.write_reply(&mut result);
-    drop(context);
     drop(handles);
     drop(doc);
     Ok(result)
