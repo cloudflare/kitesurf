@@ -1686,8 +1686,23 @@ function matrixState(matrix: DOMMatrixReadOnly): MatrixState {
   return state;
 }
 
-function matrixValues(values: Iterable<number>): { values: number[]; is2D: boolean } {
-  const input = Array.from(values, Number);
+function parseMatrixString(value: string): number[] | null {
+  const text = value.trim();
+  if (text === "" || text === "none") return [1, 0, 0, 1, 0, 0];
+  const match = /^matrix(3d)?\(([^)]*)\)$/i.exec(text);
+  if (!match) return null;
+  const parts = match[2].split(",").map((part) => Number(part.trim()));
+  if (parts.some((part) => !Number.isFinite(part))) return null;
+  const wanted = match[1] ? 16 : 6;
+  return parts.length === wanted ? parts : null;
+}
+
+function matrixValues(values: string | Iterable<number> | ArrayLike<number>): {
+  values: number[];
+  is2D: boolean;
+} {
+  const parsed = typeof values === "string" ? parseMatrixString(values) : null;
+  const input = parsed ?? Array.from(values as Iterable<number>, Number);
   if (input.length === 6) {
     const [a, b, c, d, e, f] = input;
     return { values: [a, b, 0, 0, c, d, 0, 0, 0, 0, 1, 0, e, f, 0, 1], is2D: true };
@@ -1719,7 +1734,7 @@ function twoDimensionalValues(values: readonly number[]): number[] {
 }
 
 export class DOMMatrixReadOnly implements Idl.DOMMatrixReadOnly {
-  constructor(values: Iterable<number> = [1, 0, 0, 1, 0, 0]) {
+  constructor(values: string | Iterable<number> | ArrayLike<number> = [1, 0, 0, 1, 0, 0]) {
     matrixStates.set(this, matrixValues(values));
   }
 
