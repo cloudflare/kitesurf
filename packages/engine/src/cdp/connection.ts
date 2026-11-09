@@ -595,7 +595,12 @@ export class ClientConnection {
 
     try {
       this.#opts.onCtx?.(this.ctx);
-      registerDispatchConsumer(this.#opts.onDispatch, this.#tracedDispatch);
+      // An in-process consumer's commands never cross `server`, so they must reset the idle clock
+      // here or its session closes idleMs after it opened, however busy it is.
+      registerDispatchConsumer(this.#opts.onDispatch, (req) => {
+        this.#lastClientMessageAt = Date.now();
+        return this.#tracedDispatch(req);
+      });
     } catch (err) {
       console.warn("[kitesurf-ws] in-process consumer threw:", err);
     }
