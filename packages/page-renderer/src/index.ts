@@ -91,6 +91,19 @@ let retainedScene: Uint8Array | null = null;
 // a new frame.
 let retainedImage: { bytes: Uint8Array; scrollX: number; scrollY: number } | null = null;
 
+// Fonts and images come keyed by hashes the page reports, so cached ones serve only the document
+// that supplied them. Another scope, or a call without one, starts from an empty cache.
+let resourceScope: string | null = null;
+function enterResourceScope(scope: string | undefined): void {
+  if (scope !== undefined && scope === resourceScope) return;
+  rasterizer.resetResources();
+  retainedKey = "";
+  retainedSeq = -1;
+  retainedScene = null;
+  retainedImage = null;
+  resourceScope = scope ?? null;
+}
+
 function sameBytes(leftBytes: Uint8Array, rightBytes: Uint8Array): boolean {
   const length = leftBytes.length;
   if (length !== rightBytes.length) return false;
@@ -458,6 +471,7 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
   ): Promise<RenderFrameReply> {
     const phases: string[] = [];
     const timed = makePhaseTimer(phases);
+    enterResourceScope(opts.scope);
     const partialKey =
       typeof opts.partialKey === "string" &&
       opts.partialKey.length > 0 &&
@@ -641,6 +655,7 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
   ): Promise<RenderPdfReply> {
     const phases: string[] = [];
     const timed = makePhaseTimer(phases);
+    enterResourceScope(opts.scope);
     const pdfPx = (value: unknown, fallback: number) =>
       typeof value === "number" && Number.isFinite(value) ? Math.max(0, value | 0) : fallback;
     const paperWidth = pdfPx(opts.paperWidth, DEFAULT_PDF_PAPER_WIDTH_CSS_PX);

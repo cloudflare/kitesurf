@@ -351,6 +351,7 @@ export class PageRendererManager {
             ? { partialKey: opts.partialKey }
             : {}),
           ...(opts.images ? { images: opts.images } : {}),
+          ...(opts.scope !== undefined ? { scope: opts.scope } : {}),
           ...(opts.traced ? { traced: true } : {}),
           ...(traceParentId ? { tp: traceParentId } : {}),
         },
@@ -448,6 +449,7 @@ export class PageRendererManager {
           marginRight: opts.marginRight,
           marginBottom: opts.marginBottom,
           marginLeft: opts.marginLeft,
+          ...(opts.scope !== undefined ? { scope: opts.scope } : {}),
           ...(opts.traced ? { traced: true } : {}),
           ...(traceParentId ? { tp: traceParentId } : {}),
         },
