@@ -122,6 +122,16 @@ describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
     );
   });
 
+  it.each([
+    ["line comments", `const s = "import${"//".repeat(2000)}x";`],
+    ["block comments", `const s = "import${"/**/".repeat(2000)}x";`],
+    ["nested block comments", `const s = "import${"/*a/*b*/c*/".repeat(1000)}";`],
+  ])("scans a run of %s that no call follows in linear time", (_, body) => {
+    const start = performance.now();
+    expect(extractClassicDynamicSeeds(body, BASE)).toEqual({ rewritten: body, seeds: [] });
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+
   it("leaves a script without import() calls alone", () => {
     const body = `{}\n/}/.test(""); const s = "imports";`;
     expect(extractClassicDynamicSeeds(body, BASE)).toEqual({ rewritten: body, seeds: [] });

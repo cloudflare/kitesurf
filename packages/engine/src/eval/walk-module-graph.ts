@@ -419,8 +419,10 @@ export function modulePreloadSeeds(html: string, baseUrl: string): ModulePreload
 
 // Every `import` that can start a call: not part of a name or a member access (`...import(` is a
 // spread), with comments allowed before the `(`. It also matches text in strings and comments.
+// Each comment matches in exactly one way, to its first `*/` or its line end, so a run of them
+// that no `(` follows fails in linear time instead of backtracking through every split.
 const IMPORT_CALL =
-  /(?<![\p{ID_Continue}$#\u200c\u200d]|(?<!\.\.)\.\s*)import(?=(?:\s|\/\*[\s\S]*?\*\/|(?:\/\/|<!--|-->)[^\n\r\u2028\u2029]*)*\()/gu;
+  /(?<![\p{ID_Continue}$#\u200c\u200d]|(?<!\.\.)\.\s*)import(?=(?:\s|\/\*(?:[^*]|\*(?!\/))*\*\/|(?:\/\/|<!--|-->)[^\n\r\u2028\u2029]*(?![^\n\r\u2028\u2029]))*\()/gu;
 
 export function extractClassicDynamicSeeds(
   body: string,
