@@ -30,6 +30,7 @@ mod svg_descendant_rect;
 mod svg_natural_size;
 mod tab_expansion;
 mod table_fixed_columns;
+mod table_row_rect;
 mod text_field_size;
 mod text_node_rect;
 mod transform_2d_subset;
