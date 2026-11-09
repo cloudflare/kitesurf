@@ -279,7 +279,8 @@ import {
   intersectionObserverStats,
   recheckIntersectionObservers,
 } from "./intersection-observer.ts";
-import { reportEngineError, setTailToken, writeIsolateKillLine } from "./engine-error.ts";
+import { reportEngineError } from "./engine-error.ts";
+import { setTailToken, writeIsolateKillLine } from "./tail-channel.ts";
 import { installWasmTerminatedHandler } from "./wasm-crash.ts";
 import { armTransitionDrain, isAnimating } from "./transitions.ts";
 import {

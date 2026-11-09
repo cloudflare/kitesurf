@@ -18,8 +18,8 @@ describe("page-script engine error channel", () => {
   it("keeps the tail token away from page-overwritten console methods", async () => {
     const nativeError = vi.spyOn(console, "error").mockImplementation(() => {});
     const nativeLog = vi.spyOn(console, "log").mockImplementation(() => {});
-    const { reportEngineError, setTailToken, writeIsolateKillLine } =
-      await import("../../page-script/src/engine-error.ts");
+    const { setTailToken, writeEngineErrorLine, writeIsolateKillLine } =
+      await import("../../page-script/src/tail-channel.ts");
     setTailToken(TOKEN);
 
     // Page JS can assign over the members of the console it shares.
@@ -28,7 +28,7 @@ describe("page-script engine error channel", () => {
     console.error = capture;
     console.log = capture;
 
-    reportEngineError("shim", new Error("boom"));
+    writeEngineErrorLine({ origin: "shim", message: "boom" });
     writeIsolateKillLine("[ks-kill]", "generation retired");
     console.error = nativeError;
     console.log = nativeLog;
