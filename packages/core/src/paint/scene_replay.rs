@@ -8,13 +8,23 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::io::Cursor;
+use std::panic::{catch_unwind, AssertUnwindSafe, RefUnwindSafe};
 
 use anyrender::{Glyph as AnyGlyph, ImageRenderer as _, PaintScene};
-use kurbo::{Affine, BezPath, Point, Shape};
-use peniko::{BlendMode, Blob, Color, FontData, ImageBrush, ImageData, ImageSampler};
+#[cfg(feature = "pdf")]
+use krilla::geom::Transform;
+use kurbo::{Affine, BezPath, Point, Shape, Vec2};
+use peniko::{
+    BlendMode, Blob, Color, Fill, FontData, ImageAlphaType, ImageBrush, ImageData, ImageSampler,
+};
 #[cfg(not(feature = "native-host"))]
 use wasm_bindgen::prelude::*;
 
+#[cfg(feature = "pdf")]
+use crate::paint::pdf_paint::{
+    content_box, paint_white_background, push_page_clip, push_px_to_pt_scale, KrillaPaintScene,
+};
 use crate::paint::scene_decode::{
     self, DecodedCap, DecodedFillRule, DecodedJoin, DecodedPaint, DecodedPathEl, DecodedResources,
     DecodedTransform, SceneVisitor,
@@ -22,6 +32,10 @@ use crate::paint::scene_decode::{
 use crate::paint::scene_record::{
     font_data_key, fx_hash_u64, FONT_DATA_REF_ASSET, FONT_DATA_REF_BLOB, IMAGE_REF_HINT_BYTES,
     RBI_RESOURCE_KIND_FONT_DATA, RBI_RESOURCE_KIND_IMAGE,
+};
+use crate::paint::screenshot::{
+    encode_jpeg, encode_jpeg_retained, encode_png, encode_webp, ImageFormat,
+    JpegRowCache,
 };
 
 pub(crate) const RESOURCE_COUNT_BYTES: usize = 4;
@@ -420,7 +434,7 @@ pub(crate) fn decode_image_payload(
         }
         2 => {
             {
-                let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes.as_ref()));
+                let mut reader = image::ImageReader::new(Cursor::new(bytes.as_ref()));
                 match reader.with_guessed_format() {
                     Ok(r) => reader = r,
                     Err(e) => {
@@ -471,7 +485,7 @@ pub(crate) fn decode_image_payload(
     Some(ImageData {
         data: Blob::from(rgba),
         format: peniko::ImageFormat::Rgba8,
-        alpha_type: peniko::ImageAlphaType::Alpha,
+        alpha_type: ImageAlphaType::Alpha,
         width: out_w,
         height: out_h,
     })
@@ -824,7 +838,7 @@ fn image_sampler() -> ImageSampler {
 impl<'a, 'b, S: PaintScene> ReplayVisitor<'a, 'b, S> {
     fn fill_with_paint(
         &mut self,
-        rule: peniko::Fill,
+        rule: Fill,
         t: Affine,
         brush_transform: Option<Affine>,
         paint: &DecodedPaint,
@@ -868,7 +882,7 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
         let blend = BlendMode::new(mix_from_u8(blend_mix), compose_from_u8(blend_compose));
         // The wire carries no clip fill rule (see RecordingScene::push_layer).
         self.scene.push_layer(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             blend,
             alpha,
             affine(transform),
@@ -882,17 +896,11 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
     fn on_push_clip_layer(&mut self, transform: DecodedTransform, clip_path: &[DecodedPathEl]) {
         let as_path = self.clip_paths && is_whole_pixel_rect(transform, clip_path);
         if as_path {
-            self.scene.push_clip_path(
-                peniko::Fill::NonZero,
-                affine(transform),
-                &bez_path(clip_path),
-            );
+            self.scene
+                .push_clip_path(Fill::NonZero, affine(transform), &bez_path(clip_path));
         } else {
-            self.scene.push_clip_layer(
-                peniko::Fill::NonZero,
-                affine(transform),
-                &bez_path(clip_path),
-            );
+            self.scene
+                .push_clip_layer(Fill::NonZero, affine(transform), &bez_path(clip_path));
         }
         self.open_clip_paths.push(as_path);
     }
@@ -914,8 +922,8 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
         path: &[DecodedPathEl],
     ) {
         let rule = match fill_rule {
-            DecodedFillRule::NonZero => peniko::Fill::NonZero,
-            DecodedFillRule::EvenOdd => peniko::Fill::EvenOdd,
+            DecodedFillRule::NonZero => Fill::NonZero,
+            DecodedFillRule::EvenOdd => Fill::EvenOdd,
         };
         let p = bez_path(path);
         let bt = brush_transform.map(affine);
@@ -1009,8 +1017,8 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
                     font_size,
                     true,
                     normalized_coords,
-                    kurbo::Vec2::ZERO,
-                    peniko::Fill::NonZero,
+                    Vec2::ZERO,
+                    Fill::NonZero,
                     solid(*r, *g, *b, *a),
                     1.0,
                     t,
@@ -1025,8 +1033,8 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
                     font_size,
                     true,
                     normalized_coords,
-                    kurbo::Vec2::ZERO,
-                    peniko::Fill::NonZero,
+                    Vec2::ZERO,
+                    Fill::NonZero,
                     &pg,
                     1.0,
                     t,
@@ -1045,8 +1053,8 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
                         font_size,
                         true,
                         normalized_coords,
-                        kurbo::Vec2::ZERO,
-                        peniko::Fill::NonZero,
+                        Vec2::ZERO,
+                        Fill::NonZero,
                         brush.as_ref(),
                         1.0,
                         t,
@@ -1273,7 +1281,7 @@ fn render_pdf_impl(
     if scenes.is_empty() {
         return Err("empty pdf scene envelope".to_string());
     }
-    let (ml, mt, content_w, _content_h) = crate::paint::pdf_paint::content_box(
+    let (ml, mt, content_w, _content_h) = content_box(
         paper_width,
         paper_height,
         margin_top,
@@ -1296,21 +1304,21 @@ fn render_pdf_impl(
             .ok_or_else(|| format!("invalid page size {}x{}pt", page_w_pt, page_h_pt))?;
         let mut page = pdf_doc.start_page_with(settings);
         let mut surface = page.surface();
-        crate::paint::pdf_paint::push_px_to_pt_scale(&mut surface);
+        push_px_to_pt_scale(&mut surface);
         if !omit_background {
-            crate::paint::pdf_paint::paint_white_background(
+            paint_white_background(
                 &mut surface,
                 paper_width,
                 paper_height,
             )?;
         }
         if ml > 0 || mt > 0 {
-            let t = krilla::geom::Transform::from_row(1.0, 0.0, 0.0, 1.0, ml as f32, mt as f32);
+            let t = Transform::from_row(1.0, 0.0, 0.0, 1.0, ml as f32, mt as f32);
             surface.push_transform(&t);
         }
-        crate::paint::pdf_paint::push_page_clip(&mut surface, content_w as f32, stripe_h as f32);
+        push_page_clip(&mut surface, content_w as f32, stripe_h as f32);
         {
-            let mut kps = crate::paint::pdf_paint::KrillaPaintScene::new(&mut surface);
+            let mut kps = KrillaPaintScene::new(&mut surface);
             replay_into(scene_bytes, store, &mut kps)?;
         }
         surface.pop();
@@ -1344,9 +1352,9 @@ struct RetainedFrame {
     w: u32,
     h: u32,
     opaque: bool,
-    jpeg: Option<crate::paint::screenshot::JpegRowCache>,
+    jpeg: Option<JpegRowCache>,
     dirty: (u32, u32),
-    history: Vec<crate::paint::screenshot::JpegRowCache>,
+    history: Vec<JpegRowCache>,
 }
 
 const JPEG_ROW_HISTORY: usize = 4;
@@ -1354,12 +1362,11 @@ const JPEG_ROW_HISTORY: usize = 4;
 impl RetainedFrame {
     fn encode(
         &mut self,
-        fmt: crate::paint::screenshot::ImageFormat,
+        fmt: ImageFormat,
         quality: u8,
         dirty: Option<(u32, u32)>,
         scratch: &mut Vec<u8>,
     ) -> Result<Vec<u8>, String> {
-        use crate::paint::screenshot::{ImageFormat, JpegRowCache};
         let cache = self.jpeg.take();
         self.dirty = (0, 0);
         if !matches!(fmt, ImageFormat::Jpeg) {
@@ -1525,22 +1532,20 @@ fn blit_rgba(
 }
 
 fn encode_rgba_frame_owned(
-    fmt: crate::paint::screenshot::ImageFormat,
+    fmt: ImageFormat,
     mut buffer: Vec<u8>,
     w: u32,
     h: u32,
     quality: u8,
 ) -> Result<Vec<u8>, String> {
     match fmt {
-        crate::paint::screenshot::ImageFormat::Jpeg => {
-            crate::paint::screenshot::encode_jpeg(&mut buffer, w, h, quality)
-        }
+        ImageFormat::Jpeg => encode_jpeg(&mut buffer, w, h, quality),
         _ => encode_rgba_frame(fmt, &mut buffer, w, h, quality, &mut Vec::new()),
     }
 }
 
 fn encode_rgba_frame(
-    fmt: crate::paint::screenshot::ImageFormat,
+    fmt: ImageFormat,
     buffer: &mut [u8],
     w: u32,
     h: u32,
@@ -1548,16 +1553,10 @@ fn encode_rgba_frame(
     scratch: &mut Vec<u8>,
 ) -> Result<Vec<u8>, String> {
     match fmt {
-        crate::paint::screenshot::ImageFormat::Png => {
-            crate::paint::screenshot::encode_png(buffer, w, h)
-        }
-        crate::paint::screenshot::ImageFormat::Jpeg => {
-            crate::paint::screenshot::encode_jpeg_retained(buffer, w, h, quality, false, scratch)
-        }
-        crate::paint::screenshot::ImageFormat::Webp => {
-            crate::paint::screenshot::encode_webp(buffer, w, h)
-        }
-        crate::paint::screenshot::ImageFormat::Rgba => {
+        ImageFormat::Png => encode_png(buffer, w, h),
+        ImageFormat::Jpeg => encode_jpeg_retained(buffer, w, h, quality, false, scratch),
+        ImageFormat::Webp => encode_webp(buffer, w, h),
+        ImageFormat::Rgba => {
             let mut out = Vec::with_capacity(8 + buffer.len());
             out.extend_from_slice(&w.to_le_bytes());
             out.extend_from_slice(&h.to_le_bytes());
@@ -1582,7 +1581,7 @@ pub struct SceneRasterizer {
 
 // Manual RefUnwindSafe is valid in single-threaded Wasm: unwinding drops
 // RefCell guards. A raster panic discards renderer state but keeps resources.
-impl std::panic::RefUnwindSafe for SceneRasterizer {}
+impl RefUnwindSafe for SceneRasterizer {}
 
 #[cfg_attr(not(feature = "native-host"), wasm_bindgen)]
 impl SceneRasterizer {
@@ -1749,13 +1748,13 @@ impl SceneRasterizer {
                     let frame = match slot.as_mut() {
                         Some(f) => {
                             f.key.clear();
-                            if matches!(fmt, crate::paint::screenshot::ImageFormat::Jpeg)
+                            if matches!(fmt, ImageFormat::Jpeg)
                                 && f.jpeg.as_ref().is_some_and(|c| c.matches(w, h, quality))
                             {
                                 dirty = Some(changed_rows(&f.buf, &buffer, w));
                             }
                             let prev = std::mem::replace(&mut f.buf, buffer);
-                            if matches!(fmt, crate::paint::screenshot::ImageFormat::Jpeg) {
+                            if matches!(fmt, ImageFormat::Jpeg) {
                                 *self.scratch.borrow_mut() = prev;
                             }
                             f.w = w;
@@ -1828,7 +1827,7 @@ impl SceneRasterizer {
         let _ks_span =
             tracing::info_span!("wasm.rasterize_partial", scene_bytes = scene.len(), format)
                 .entered();
-        let fmt = crate::paint::screenshot::ImageFormat::from_str(format);
+        let fmt = ImageFormat::from_str(format);
         self.with_retained(key, "rasterizePartial", |frame| {
             self.blit_patch(frame, scene, dst_x, dst_y)?;
             let dirty = frame.dirty;
@@ -1862,7 +1861,7 @@ impl SceneRasterizer {
     /// Returns empty bytes when `key` is not the retained base or encoding fails.
     #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "encodeRetained"))]
     pub fn encode_retained(&self, format: &str, quality: u8, key: &str) -> Vec<u8> {
-        let fmt = crate::paint::screenshot::ImageFormat::from_str(format);
+        let fmt = ImageFormat::from_str(format);
         self.with_retained(key, "encodeRetained", |frame| {
             let dirty = frame.dirty;
             frame.encode(fmt, quality, Some(dirty), &mut self.scratch.borrow_mut())
@@ -1878,9 +1877,7 @@ impl SceneRasterizer {
     ) -> Option<T> {
         let mut retained = self.retained.borrow_mut();
         let result = match retained.as_mut() {
-            Some(frame) if frame.key == key => {
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(frame)))
-            }
+            Some(frame) if frame.key == key => catch_unwind(AssertUnwindSafe(|| f(frame))),
             _ => Ok(Err("no retained base frame for key".to_string())),
         };
         // A failed operation on a matching base clears its key so a later partial
@@ -2021,7 +2018,7 @@ impl SceneRasterizer {
         margin_left: u32,
     ) -> Vec<u8> {
         let store = self.store.borrow();
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = catch_unwind(AssertUnwindSafe(|| {
             render_pdf_impl(
                 &store,
                 envelope,
@@ -2082,14 +2079,14 @@ mod tests {
 
     fn script_ops<S: PaintScene>(scene: &mut S, font: Option<&FontData>, img: Option<&ImageData>) {
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             Color::WHITE,
             None,
             &Rect::new(0.0, 0.0, W as f64, H as f64),
         );
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::translate((10.0, 10.0)),
             Color::from_rgba8(200, 30, 30, 255),
             None,
@@ -2100,7 +2097,7 @@ mod tests {
             Color::from_rgba8(0, 255, 0, 255),
         ]);
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             &grad,
             None,
@@ -2114,12 +2111,12 @@ mod tests {
             &kurbo::Line::new((10.0, 60.0), (150.0, 70.0)),
         );
         scene.push_clip_layer(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             &Rect::new(20.0, 75.0, 90.0, 110.0),
         );
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             Color::from_rgba8(255, 160, 0, 255),
             None,
@@ -2156,8 +2153,8 @@ mod tests {
                 16.0,
                 true,
                 &[],
-                kurbo::Vec2::ZERO,
-                peniko::Fill::NonZero,
+                Vec2::ZERO,
+                Fill::NonZero,
                 Color::from_rgba8(20, 20, 120, 255),
                 1.0,
                 Affine::IDENTITY,
@@ -2171,7 +2168,7 @@ mod tests {
                 sampler: image_sampler(),
             };
             scene.fill(
-                peniko::Fill::NonZero,
+                Fill::NonZero,
                 Affine::translate((110.0, 10.0)),
                 brush.as_ref(),
                 None,
@@ -2214,7 +2211,7 @@ mod tests {
         ImageData {
             data: Blob::from(rgba),
             format: peniko::ImageFormat::Rgba8,
-            alpha_type: peniko::ImageAlphaType::Alpha,
+            alpha_type: ImageAlphaType::Alpha,
             width: side,
             height: side,
         }
@@ -2274,7 +2271,7 @@ mod tests {
         let mut rec = RecordingScene::for_replay();
         rec.set_viewport(w, h, 0, 0);
         rec.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             color,
             None,
@@ -2376,7 +2373,7 @@ mod tests {
         let mut rec = RecordingScene::for_replay();
         rec.set_viewport(W, H, 0, 0);
         let fill = |rec: &mut RecordingScene, color, rect: Rect| {
-            rec.fill(peniko::Fill::NonZero, Affine::IDENTITY, color, None, &rect)
+            rec.fill(Fill::NonZero, Affine::IDENTITY, color, None, &rect)
         };
         fill(
             &mut rec,
@@ -2397,7 +2394,7 @@ mod tests {
         let mut rec = RecordingScene::for_replay();
         rec.set_viewport(W, H, 0, 0);
         rec.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             Color::WHITE,
             None,
@@ -2414,7 +2411,7 @@ mod tests {
         let mut patch = RecordingScene::for_replay();
         patch.set_viewport(16, 16, 0, 0);
         patch.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             Color::from_rgba8(0, 200, 0, 128),
             None,
@@ -2427,7 +2424,7 @@ mod tests {
             }
         }
         let jpeg = r.rasterize_partial(&patch.finish_framed(), 8, 8, "jpeg", 60, "opaque");
-        let fresh = crate::paint::screenshot::encode_jpeg(&mut expected.clone(), W, H, 60).unwrap();
+        let fresh = encode_jpeg(&mut expected.clone(), W, H, 60).unwrap();
         assert_eq!(jpeg, fresh);
         assert_eq!(
             &r.encode_retained("rgba", 0, "opaque")[8..],
@@ -2442,16 +2439,10 @@ mod tests {
             rec.set_viewport(W, H, 0, 0);
             let bounds = Rect::new(0.0, 0.0, W as f64, H as f64);
             if erase {
-                rec.fill(
-                    peniko::Fill::NonZero,
-                    Affine::IDENTITY,
-                    Color::WHITE,
-                    None,
-                    &bounds,
-                );
+                rec.fill(Fill::NonZero, Affine::IDENTITY, Color::WHITE, None, &bounds);
             }
             rec.push_layer(
-                peniko::Fill::NonZero,
+                Fill::NonZero,
                 BlendMode::new(
                     peniko::Mix::Normal,
                     if erase {
@@ -2467,7 +2458,7 @@ mod tests {
                 None,
             );
             rec.fill(
-                peniko::Fill::NonZero,
+                Fill::NonZero,
                 Affine::IDENTITY,
                 Color::from_rgba8(255, 0, 0, 255),
                 None,
@@ -2479,8 +2470,7 @@ mod tests {
             let rgba = r.rasterize_and_retain(&framed, "rgba", 0, false, "group");
             assert_eq!(rgba.len(), 8 + (W * H * 4) as usize);
             assert_eq!(rgba[11], if erase { 0 } else { 128 });
-            let fresh =
-                crate::paint::screenshot::encode_jpeg(&mut rgba[8..].to_vec(), W, H, 60).unwrap();
+            let fresh = encode_jpeg(&mut rgba[8..].to_vec(), W, H, 60).unwrap();
             assert_eq!(
                 r.rasterize_and_retain(&framed, "jpeg", 60, false, "group"),
                 fresh
@@ -2519,7 +2509,7 @@ mod tests {
                     Color::from_rgba8((row * 37 % 256) as u8, (col * 53 % 256) as u8, 128, 255);
                 let (cx, cy) = ((col * CELL - x) as f64, (row * CELL - y) as f64);
                 let cell = Rect::new(cx, cy, cx + CELL as f64, cy + CELL as f64);
-                rec.fill(peniko::Fill::NonZero, Affine::IDENTITY, color, None, &cell);
+                rec.fill(Fill::NonZero, Affine::IDENTITY, color, None, &cell);
             }
         }
         rec.finish_framed()
@@ -2642,14 +2632,14 @@ mod tests {
 
     fn translucent_overlaps_in_fractional_clip<S: PaintScene>(scene: &mut S) {
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             Color::WHITE,
             None,
             &Rect::new(0.0, 0.0, W as f64, H as f64),
         );
         scene.push_clip_layer(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             &Rect::new(20.5, 20.5, 100.5, 80.5),
         );
@@ -2659,7 +2649,7 @@ mod tests {
         ] {
             let [r, g, b, a] = rgba;
             scene.fill(
-                peniko::Fill::NonZero,
+                Fill::NonZero,
                 Affine::IDENTITY,
                 Color::from_rgba8(r, g, b, a),
                 None,
@@ -2671,19 +2661,19 @@ mod tests {
 
     fn dest_out_layer_in_whole_pixel_clip<S: PaintScene>(scene: &mut S) {
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             Color::WHITE,
             None,
             &Rect::new(0.0, 0.0, W as f64, H as f64),
         );
         scene.push_clip_layer(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             &Rect::new(20.0, 20.0, 100.0, 80.0),
         );
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             Color::from_rgba8(255, 0, 0, 255),
             None,
@@ -2691,7 +2681,7 @@ mod tests {
         );
         let hole = Rect::new(40.0, 30.0, 80.0, 60.0);
         scene.push_layer(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             BlendMode::new(peniko::Mix::Normal, peniko::Compose::DestOut),
             1.0,
             Affine::IDENTITY,
@@ -2699,13 +2689,7 @@ mod tests {
             None,
             None,
         );
-        scene.fill(
-            peniko::Fill::NonZero,
-            Affine::IDENTITY,
-            Color::BLACK,
-            None,
-            &hole,
-        );
+        scene.fill(Fill::NonZero, Affine::IDENTITY, Color::BLACK, None, &hole);
         scene.pop_layer();
         scene.pop_layer();
     }
@@ -2769,7 +2753,7 @@ mod tests {
         ImageData {
             data: Blob::from(rgba.repeat((side * side) as usize)),
             format: peniko::ImageFormat::Rgba8,
-            alpha_type: peniko::ImageAlphaType::Alpha,
+            alpha_type: ImageAlphaType::Alpha,
             width: side,
             height: side,
         }
@@ -2781,7 +2765,7 @@ mod tests {
             sampler: image_sampler(),
         };
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::translate((10.3, 7.6)) * Affine::scale_non_uniform(0.84, 1.7),
             brush.as_ref(),
             None,
@@ -2842,8 +2826,8 @@ mod tests {
             48.0,
             true,
             &[],
-            kurbo::Vec2::ZERO,
-            peniko::Fill::NonZero,
+            Vec2::ZERO,
+            Fill::NonZero,
             Color::from_rgba8(0, 0, 0, 255),
             1.0,
             Affine::IDENTITY,
@@ -3128,7 +3112,7 @@ mod tests {
 
     fn png_bytes(rgba: &[u8], w: u32, h: u32) -> Vec<u8> {
         let img = image::RgbaImage::from_raw(w, h, rgba.to_vec()).unwrap();
-        let mut out = std::io::Cursor::new(Vec::new());
+        let mut out = Cursor::new(Vec::new());
         image::DynamicImage::ImageRgba8(img)
             .write_to(&mut out, image::ImageFormat::Png)
             .unwrap();
@@ -3139,7 +3123,7 @@ mod tests {
         ImageData {
             data: Blob::from(png),
             format: peniko::ImageFormat::Rgba8,
-            alpha_type: peniko::ImageAlphaType::Alpha,
+            alpha_type: ImageAlphaType::Alpha,
             width: w,
             height: h,
         }
@@ -3224,7 +3208,7 @@ mod tests {
             sampler: image_sampler(),
         };
         rec.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::scale(0.25),
             brush.as_ref(),
             None,
@@ -3281,7 +3265,7 @@ mod tests {
                 sampler: image_sampler(),
             };
             rec.fill(
-                peniko::Fill::NonZero,
+                Fill::NonZero,
                 Affine::scale(scale),
                 brush.as_ref(),
                 None,
@@ -3322,7 +3306,7 @@ mod tests {
             sampler: image_sampler(),
         };
         rec.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             brush.as_ref(),
             None,
@@ -3399,7 +3383,7 @@ mod tests {
             sampler: image_sampler(),
         };
         rec.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::scale(0.394),
             brush.as_ref(),
             None,

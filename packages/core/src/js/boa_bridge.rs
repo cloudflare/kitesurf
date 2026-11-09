@@ -4,7 +4,7 @@
 
 //! Bridges Boa values, callbacks, and promise jobs to the V8-backed page isolate.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use boa_engine::{
@@ -23,17 +23,19 @@ use boa_engine::{
 
 // A runtime-limit (engine) error has no JS value, so page code cannot catch boa's
 // recursion guard; hand V8 a plain Error so the callback fails, not the trampoline.
-fn error_to_v8(e: &JsError, ctx: &mut Context) -> wasm_bindgen::JsValue {
+fn error_to_v8(e: &JsError, ctx: &mut Context) -> JsValue {
     match e.clone().into_opaque(ctx) {
         Ok(v) => boa_to_v8(&v, ctx),
         Err(_) => js_sys::Error::new(&format!("kitesurf boa: {e}")).into(),
     }
 }
+use js_sys::{Array, Function, Object, Promise, Proxy, Reflect, Symbol, WeakMap};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::JsValue;
 
 thread_local! {
-    static CTX: std::cell::Cell<*mut Context> = const { std::cell::Cell::new(std::ptr::null_mut()) };
+    static CTX: Cell<*mut Context> = const { Cell::new(std::ptr::null_mut()) };
 }
 
 pub(crate) struct CtxPtrGuard(*mut Context, u64);
@@ -68,9 +70,7 @@ pub(crate) fn with_context<R>(f: impl FnOnce(&mut Context) -> R) -> Option<R> {
     let _depth = DepthGuard::enter();
     // A nested entry without a new publication means a V8 call skipped
     // `with_v8`, which would alias a live `&mut Context`.
-    if REENTRY_DEPTH.with(std::cell::Cell::get) > 1
-        && PUB_DEPTH.with(std::cell::Cell::get) == FRAME_PUB.with(std::cell::Cell::get)
-    {
+    if REENTRY_DEPTH.with(Cell::get) > 1 && PUB_DEPTH.with(Cell::get) == FRAME_PUB.with(Cell::get) {
         UNCHAPERONED.with(|u| u.set(u.get() + 1));
     }
     let ctx: &mut Context =
@@ -121,18 +121,18 @@ pub(crate) fn with_v8_quiet<R>(ctx: &mut Context, f: impl FnOnce() -> R) -> R {
 // Tracks live Context borrows; Drop restores the depth during unwind.
 // `heal_at_entry` only reclaims residual values on the outermost entry.
 thread_local! {
-    static REENTRY_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
-    static REENTRY_MAX: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
-    static PUB_DEPTH: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
-    static FRAME_PUB: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
-    static UNCHAPERONED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    static REENTRY_DEPTH: Cell<u32> = const { Cell::new(0) };
+    static REENTRY_MAX: Cell<u32> = const { Cell::new(0) };
+    static PUB_DEPTH: Cell<u64> = const { Cell::new(0) };
+    static FRAME_PUB: Cell<u64> = const { Cell::new(0) };
+    static UNCHAPERONED: Cell<u64> = const { Cell::new(0) };
 }
 
 struct FramePubGuard(u64);
 
 impl FramePubGuard {
     fn own() -> Self {
-        FramePubGuard(FRAME_PUB.with(|f| f.replace(PUB_DEPTH.with(std::cell::Cell::get))))
+        FramePubGuard(FRAME_PUB.with(|f| f.replace(PUB_DEPTH.with(Cell::get))))
     }
 }
 
@@ -167,14 +167,14 @@ impl Drop for DepthGuard {
 
 pub(crate) fn reentry_depth() -> (u32, u32, u64) {
     (
-        REENTRY_DEPTH.with(std::cell::Cell::get),
-        REENTRY_MAX.with(std::cell::Cell::get),
-        UNCHAPERONED.with(std::cell::Cell::get),
+        REENTRY_DEPTH.with(Cell::get),
+        REENTRY_MAX.with(Cell::get),
+        UNCHAPERONED.with(Cell::get),
     )
 }
 
 thread_local! {
-    static BOA_STRICT: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+    static BOA_STRICT: Cell<bool> = const { Cell::new(true) };
 }
 
 pub(crate) fn set_boa_strict(v: bool) {
@@ -190,7 +190,7 @@ fn boa_strict() -> bool {
 const SWALLOWED_CTOR_WARN_LIMIT: u32 = 16;
 
 thread_local! {
-    static SWALLOWED_CTOR_WARNS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    static SWALLOWED_CTOR_WARNS: Cell<u32> = const { Cell::new(0) };
 }
 
 fn warn_swallowed_ctor_throw(e: &impl std::fmt::Display) {
@@ -267,7 +267,7 @@ impl<T: Clone> PinSlab<T> {
 }
 
 thread_local! {
-    static V8: RefCell<PinSlab<wasm_bindgen::JsValue>> = const { RefCell::new(PinSlab::new()) };
+    static V8: RefCell<PinSlab<JsValue>> = const { RefCell::new(PinSlab::new()) };
 }
 
 pub(crate) fn ever_minted() -> bool {
@@ -290,10 +290,10 @@ pub(crate) fn bridge_pin_stats() -> (usize, usize, usize, u64, u64) {
 // WeakRef and FinalizationRegistry are optional. Without them, pins remain
 // alive until the isolate is destroyed.
 struct WeakRt {
-    weakref_ctor: js_sys::Function,
-    weakref_deref: js_sys::Function,
-    registry: wasm_bindgen::JsValue,
-    register: js_sys::Function,
+    weakref_ctor: Function,
+    weakref_deref: Function,
+    registry: JsValue,
+    register: Function,
 }
 
 thread_local! {
@@ -301,28 +301,28 @@ thread_local! {
 }
 
 fn weak_rt_init() -> Option<WeakRt> {
-    let g: wasm_bindgen::JsValue = js_sys::global().into();
-    let wr = js_sys::Reflect::get(&g, &wasm_bindgen::JsValue::from_str("WeakRef"))
+    let g: JsValue = js_sys::global().into();
+    let wr = Reflect::get(&g, &JsValue::from_str("WeakRef"))
         .ok()?
-        .dyn_into::<js_sys::Function>()
+        .dyn_into::<Function>()
         .ok()?;
-    let proto = js_sys::Reflect::get(&wr, &wasm_bindgen::JsValue::from_str("prototype")).ok()?;
-    let deref = js_sys::Reflect::get(&proto, &wasm_bindgen::JsValue::from_str("deref"))
+    let proto = Reflect::get(&wr, &JsValue::from_str("prototype")).ok()?;
+    let deref = Reflect::get(&proto, &JsValue::from_str("deref"))
         .ok()?
-        .dyn_into::<js_sys::Function>()
+        .dyn_into::<Function>()
         .ok()?;
-    let frc = js_sys::Reflect::get(&g, &wasm_bindgen::JsValue::from_str("FinalizationRegistry"))
+    let frc = Reflect::get(&g, &JsValue::from_str("FinalizationRegistry"))
         .ok()?
-        .dyn_into::<js_sys::Function>()
+        .dyn_into::<Function>()
         .ok()?;
     // One registry per isolate; its Rust callback is a deliberate,
     // bounded leak (a single Closure for the isolate's lifetime).
-    let cb = Closure::<dyn FnMut(wasm_bindgen::JsValue)>::new(finalize_held);
-    let registry = js_sys::Reflect::construct(&frc, &js_sys::Array::of1(cb.as_ref())).ok()?;
+    let cb = Closure::<dyn FnMut(JsValue)>::new(finalize_held);
+    let registry = Reflect::construct(&frc, &Array::of1(cb.as_ref())).ok()?;
     cb.forget();
-    let register = js_sys::Reflect::get(&registry, &wasm_bindgen::JsValue::from_str("register"))
+    let register = Reflect::get(&registry, &JsValue::from_str("register"))
         .ok()?
-        .dyn_into::<js_sys::Function>()
+        .dyn_into::<Function>()
         .ok()?;
     Some(WeakRt {
         weakref_ctor: wr,
@@ -333,19 +333,19 @@ fn weak_rt_init() -> Option<WeakRt> {
 }
 
 fn log_missing_weak_runtime() {
-    let g: wasm_bindgen::JsValue = js_sys::global().into();
-    let Ok(console) = js_sys::Reflect::get(&g, &wasm_bindgen::JsValue::from_str("console")) else {
+    let g: JsValue = js_sys::global().into();
+    let Ok(console) = Reflect::get(&g, &JsValue::from_str("console")) else {
         return;
     };
-    let Ok(err) = js_sys::Reflect::get(&console, &wasm_bindgen::JsValue::from_str("error")) else {
+    let Ok(err) = Reflect::get(&console, &JsValue::from_str("error")) else {
         return;
     };
-    let Some(f) = err.dyn_ref::<js_sys::Function>() else {
+    let Some(f) = err.dyn_ref::<Function>() else {
         return;
     };
     let _ = f.call1(
         &console,
-        &wasm_bindgen::JsValue::from_str(
+        &JsValue::from_str(
             "[kitesurf] FinalizationRegistry/WeakRef missing — bridge \
              pin eviction DISABLED; long-dwelling boa pages will leak \
              to the isolate memory cap",
@@ -373,23 +373,18 @@ fn weak_available() -> bool {
     with_weak_rt(|_| ()).is_some()
 }
 
-fn make_weak(v: &wasm_bindgen::JsValue) -> Option<wasm_bindgen::JsValue> {
-    with_weak_rt(|rt| js_sys::Reflect::construct(&rt.weakref_ctor, &js_sys::Array::of1(v)).ok())
-        .flatten()
+fn make_weak(v: &JsValue) -> Option<JsValue> {
+    with_weak_rt(|rt| Reflect::construct(&rt.weakref_ctor, &Array::of1(v)).ok()).flatten()
 }
 
-fn weak_deref(w: &wasm_bindgen::JsValue) -> wasm_bindgen::JsValue {
-    with_weak_rt(|rt| {
-        rt.weakref_deref
-            .call0(w)
-            .unwrap_or(wasm_bindgen::JsValue::UNDEFINED)
-    })
-    .unwrap_or(wasm_bindgen::JsValue::UNDEFINED)
+fn weak_deref(w: &JsValue) -> JsValue {
+    with_weak_rt(|rt| rt.weakref_deref.call0(w).unwrap_or(JsValue::UNDEFINED))
+        .unwrap_or(JsValue::UNDEFINED)
 }
 
 // Watch a minted wrapper: when V8 collects it, release the boa pin
 // (+ its wrapper-cache slot) so boa GC can reclaim the object graph.
-fn fr_register(wrapper: &wasm_bindgen::JsValue, boa_pin: u64, wrapper_slot: Option<u64>) {
+fn fr_register(wrapper: &JsValue, boa_pin: u64, wrapper_slot: Option<u64>) {
     let watched = match wrapper_slot {
         // boa_v8_store already holds this wrapper in a WeakRef.
         Some(slot) if weak_available() => Some(PinWrapper::Slot(slot)),
@@ -400,9 +395,9 @@ fn fr_register(wrapper: &wasm_bindgen::JsValue, boa_pin: u64, wrapper_slot: Opti
         CC.with(|s| s.borrow_mut().wrapper_gen += 1);
     }
     let _ = with_weak_rt(|rt| {
-        let held = js_sys::Array::of2(
-            &wasm_bindgen::JsValue::from_f64(boa_pin as f64),
-            &wasm_bindgen::JsValue::from_f64(wrapper_slot.map(|h| h as f64).unwrap_or(-1.0)),
+        let held = Array::of2(
+            &JsValue::from_f64(boa_pin as f64),
+            &JsValue::from_f64(wrapper_slot.map(|h| h as f64).unwrap_or(-1.0)),
         );
         let _ = rt.register.call2(&rt.registry, wrapper, &held);
     });
@@ -410,9 +405,9 @@ fn fr_register(wrapper: &wasm_bindgen::JsValue, boa_pin: u64, wrapper_slot: Opti
 
 // Runs as its own V8 job, never inside a synchronous bridge call, so
 // the slab borrows here can't collide with an in-flight crossing.
-fn finalize_held(held: wasm_bindgen::JsValue) {
+fn finalize_held(held: JsValue) {
     drain_v8_releases();
-    let arr: &js_sys::Array = held.unchecked_ref();
+    let arr: &Array = held.unchecked_ref();
     let boa_pin = arr.get(0).as_f64().unwrap_or(-1.0);
     let slot = arr.get(1).as_f64().unwrap_or(-1.0);
     if boa_pin >= 0.0 {
@@ -477,7 +472,7 @@ struct CycleState {
     pin_comp: rustc_hash::FxHashMap<u64, usize>,
     // V8 handles whose slab entry holds a WeakRef. None: the object is gone.
     weak: rustc_hash::FxHashMap<u64, Option<usize>>,
-    keepers: Option<js_sys::WeakMap>,
+    keepers: Option<WeakMap>,
     runs: u64,
     weakened: u64,
     revoked: u64,
@@ -512,7 +507,7 @@ fn gray_graph_sig(g: &GrayGraph) -> u64 {
 
 thread_local! {
     static CC: RefCell<CycleState> = RefCell::new(CycleState::default());
-    static CC_ACTIVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static CC_ACTIVE: Cell<bool> = const { Cell::new(false) };
     // Boa pin -> the V8 wrapper whose death releases it, held weakly.
     static PIN_WRAPPER: RefCell<rustc_hash::FxHashMap<u64, PinWrapper>> =
         RefCell::new(rustc_hash::FxHashMap::default());
@@ -521,10 +516,10 @@ thread_local! {
 enum PinWrapper {
     // The wrapper's BOA_V8 identity-cache slot, released together with the pin.
     Slot(u64),
-    Weak(wasm_bindgen::JsValue),
+    Weak(JsValue),
 }
 
-fn pin_wrapper(pin: u64) -> Option<wasm_bindgen::JsValue> {
+fn pin_wrapper(pin: u64) -> Option<JsValue> {
     let weak = PIN_WRAPPER.with(|m| match m.borrow().get(&pin)? {
         PinWrapper::Slot(slot) => BOA_V8.with(|t| t.borrow().get(*slot)),
         PinWrapper::Weak(w) => Some(w.clone()),
@@ -533,7 +528,7 @@ fn pin_wrapper(pin: u64) -> Option<wasm_bindgen::JsValue> {
 }
 
 fn cc_weak_state(h: u64) -> Option<Option<usize>> {
-    if !CC_ACTIVE.with(std::cell::Cell::get) {
+    if !CC_ACTIVE.with(Cell::get) {
         return None;
     }
     CC.with(|s| s.borrow().weak.get(&h).copied())
@@ -588,7 +583,7 @@ fn cc_touch_v8(h: u64) {
 }
 
 fn cc_touch_pin(pin: u64) {
-    if !CC_ACTIVE.with(std::cell::Cell::get) {
+    if !CC_ACTIVE.with(Cell::get) {
         return;
     }
     if let Some(c) = CC.with(|s| s.borrow().pin_comp.get(&pin).copied()) {
@@ -710,7 +705,7 @@ fn cc_idle_sig() -> [u64; 9] {
 pub(crate) fn cycle_collect(idle_skip: bool) -> f64 {
     use std::collections::HashMap;
     if !weak_available()
-        || (PIN_WRAPPER.with(|m| m.borrow().is_empty()) && !CC_ACTIVE.with(std::cell::Cell::get))
+        || (PIN_WRAPPER.with(|m| m.borrow().is_empty()) && !CC_ACTIVE.with(Cell::get))
     {
         return 0.0;
     }
@@ -766,16 +761,16 @@ pub(crate) fn cycle_collect(idle_skip: bool) -> f64 {
     });
     // A keeper per SCC holds its own V8 values plus its children's keepers, so a wrapper keeps
     // alive exactly what its boa object reaches.
-    let mut keeper: Vec<Option<wasm_bindgen::JsValue>> = Vec::with_capacity(g.handles.len());
-    let mut values: Vec<Vec<(u64, wasm_bindgen::JsValue)>> = Vec::with_capacity(g.handles.len());
+    let mut keeper: Vec<Option<JsValue>> = Vec::with_capacity(g.handles.len());
+    let mut values: Vec<Vec<(u64, JsValue)>> = Vec::with_capacity(g.handles.len());
     for s in 0..g.handles.len() {
-        let own: Vec<(u64, wasm_bindgen::JsValue)> = g.handles[s]
+        let own: Vec<(u64, JsValue)> = g.handles[s]
             .iter()
             .filter(|h| cc_weak_state(**h).is_none())
             .filter_map(|&h| V8.with(|t| t.borrow().get(h)).map(|v| (h, v)))
             .filter(|(_, v)| v.is_object() || v.is_function())
             .collect();
-        let kids: Vec<&wasm_bindgen::JsValue> = g.children[s]
+        let kids: Vec<&JsValue> = g.children[s]
             .iter()
             .filter_map(|&c| keeper[c].as_ref())
             .collect();
@@ -783,7 +778,7 @@ pub(crate) fn cycle_collect(idle_skip: bool) -> f64 {
             (0, 0) => None,
             (0, 1) => Some(kids[0].clone()),
             _ => {
-                let arr = js_sys::Array::new();
+                let arr = Array::new();
                 for (_, v) in &own {
                     arr.push(v);
                 }
@@ -797,7 +792,7 @@ pub(crate) fn cycle_collect(idle_skip: bool) -> f64 {
     }
     // The ephemerons must be in place before any slab entry turns weak: a
     // V8 GC can run at any allocation below.
-    let keepers = js_sys::WeakMap::new();
+    let keepers = WeakMap::new();
     for &(pin, s) in &g.pins {
         let Some(k) = &keeper[s] else { continue };
         let w = pin_wrapper(pin);
@@ -898,13 +893,13 @@ pub(crate) fn drain_v8_release_queue() {
     drain_v8_releases();
 }
 
-pub(crate) fn is_our_wrapper(v: &wasm_bindgen::JsValue) -> bool {
+pub(crate) fn is_our_wrapper(v: &JsValue) -> bool {
     our_v8_lookup(v).is_some()
 }
 
 // V8 natives take only real buffer sources, never our proxies: hand them a
 // copy of the bytes a boa ArrayBuffer, TypedArray or DataView views.
-pub(crate) fn boa_buffer_bytes(v: &wasm_bindgen::JsValue) -> Option<js_sys::Uint8Array> {
+pub(crate) fn boa_buffer_bytes(v: &JsValue) -> Option<js_sys::Uint8Array> {
     let obj = get_boa(our_v8_lookup(v)?)?;
     with_context(|ctx| {
         use boa_engine::object::builtins::{JsArrayBuffer, JsDataView, JsTypedArray};
@@ -1022,27 +1017,27 @@ pub(crate) fn bridged_v8_handle(o: &JsObject, ctx: &mut Context) -> Option<u64> 
     read_handle(&target, "__ks_h", ctx)
 }
 
-fn pin(v: wasm_bindgen::JsValue) -> u64 {
+fn pin(v: JsValue) -> u64 {
     V8.with(|t| t.borrow_mut().insert(v))
 }
 
-pub(crate) fn pin_v8_value(v: wasm_bindgen::JsValue) -> u64 {
+pub(crate) fn pin_v8_value(v: JsValue) -> u64 {
     pin(v)
 }
 
-pub(crate) fn get_v8(handle: u64) -> wasm_bindgen::JsValue {
+pub(crate) fn get_v8(handle: u64) -> JsValue {
     if cc_weak_state(handle).is_some() {
         cc_touch_v8(handle);
         if cc_weak_state(handle).is_some() {
             CC.with(|s| s.borrow_mut().dead_reads += 1);
-            return wasm_bindgen::JsValue::UNDEFINED;
+            return JsValue::UNDEFINED;
         }
     }
     V8.with(|t| t.borrow().get(handle))
-        .unwrap_or(wasm_bindgen::JsValue::UNDEFINED)
+        .unwrap_or(JsValue::UNDEFINED)
 }
 
-pub(crate) fn replace_v8_value(handle: u64, value: wasm_bindgen::JsValue) -> bool {
+pub(crate) fn replace_v8_value(handle: u64, value: JsValue) -> bool {
     V8.with(|t| t.borrow_mut().replace(handle, value)).is_some()
 }
 
@@ -1064,24 +1059,24 @@ fn get_boa(handle: u64) -> Option<JsObject> {
 const BOA_UNWRAP_KEY: &str = "__ks_boa_handle_unwrap_7f2a__";
 
 thread_local! {
-    static OUR_V8: RefCell<Option<js_sys::WeakMap>> = const { RefCell::new(None) };
+    static OUR_V8: RefCell<Option<WeakMap>> = const { RefCell::new(None) };
 }
 
-fn our_v8_register(v: &wasm_bindgen::JsValue, handle: u64) {
+fn our_v8_register(v: &JsValue, handle: u64) {
     if !v.is_object() && !v.is_function() {
         return;
     }
     OUR_V8.with(|c| {
         let mut b = c.borrow_mut();
-        let m = b.get_or_insert_with(js_sys::WeakMap::new);
+        let m = b.get_or_insert_with(WeakMap::new);
         m.set(
-            v.unchecked_ref::<js_sys::Object>(),
-            &wasm_bindgen::JsValue::from_f64(handle as f64),
+            v.unchecked_ref::<Object>(),
+            &JsValue::from_f64(handle as f64),
         );
     });
 }
 
-fn our_v8_lookup(v: &wasm_bindgen::JsValue) -> Option<u64> {
+fn our_v8_lookup(v: &JsValue) -> Option<u64> {
     if !v.is_object() && !v.is_function() {
         return None;
     }
@@ -1090,16 +1085,16 @@ fn our_v8_lookup(v: &wasm_bindgen::JsValue) -> Option<u64> {
         let m = b.as_ref()?;
         // The map holds numbers only, so a miss reads undefined and one get()
         // answers both questions: one crossing instead of has() then get().
-        m.get(v.unchecked_ref::<js_sys::Object>())
+        m.get(v.unchecked_ref::<Object>())
             .as_f64()
             .map(|n| n as u64)
     })
 }
 
-fn v8_builtin_prototype(name: &str) -> Option<wasm_bindgen::JsValue> {
+fn v8_builtin_prototype(name: &str) -> Option<JsValue> {
     let global = js_sys::global();
-    let ctor = js_sys::Reflect::get(&global, &wasm_bindgen::JsValue::from_str(name)).ok()?;
-    let proto = js_sys::Reflect::get(&ctor, &wasm_bindgen::JsValue::from_str("prototype")).ok()?;
+    let ctor = Reflect::get(&global, &JsValue::from_str(name)).ok()?;
+    let proto = Reflect::get(&ctor, &JsValue::from_str("prototype")).ok()?;
     if proto.is_object() {
         Some(proto)
     } else {
@@ -1191,15 +1186,15 @@ fn boa_intrinsic_ctor_name(o: &JsObject, ctx: &Context) -> Option<&'static str> 
 }
 
 // Snapshot constructors mapped to Boa; read other globals, including DOMException, live.
-fn v8_intrinsic(name: &str) -> Option<wasm_bindgen::JsValue> {
+fn v8_intrinsic(name: &str) -> Option<JsValue> {
     if let Some(i) = INTRINSIC_CTOR_NAMES.iter().position(|n| *n == name) {
         return v8_intrinsics().0[i].clone();
     }
-    let v = js_sys::Reflect::get(&js_sys::global(), &wasm_bindgen::JsValue::from_str(name)).ok()?;
+    let v = Reflect::get(&js_sys::global(), &JsValue::from_str(name)).ok()?;
     v.is_function().then_some(v)
 }
 
-fn v8_intrinsic_ctor_name(v: &wasm_bindgen::JsValue) -> Option<&'static str> {
+fn v8_intrinsic_ctor_name(v: &JsValue) -> Option<&'static str> {
     // Every name is a constructor, so only a function can match.
     if !v.is_function() {
         return None;
@@ -1211,25 +1206,25 @@ fn v8_intrinsic_ctor_name(v: &wasm_bindgen::JsValue) -> Option<&'static str> {
 thread_local! {
     // V8 strings for property keys that cross the bridge. Re-encoding the key on
     // every access was ~23% of a bridged method call (TextDecoder on the JS side).
-    static V8_KEYS: RefCell<std::collections::HashMap<String, wasm_bindgen::JsValue>> =
+    static V8_KEYS: RefCell<std::collections::HashMap<String, JsValue>> =
         RefCell::new(std::collections::HashMap::new());
 }
 
 // Short boa strings crossing as values (element types, class names, keys in
 // ownKeys) repeat per render; each crossing was a TextDecoder call in the glue.
 thread_local! {
-    static V8_STRS: RefCell<std::collections::HashMap<JsString, wasm_bindgen::JsValue>> =
+    static V8_STRS: RefCell<std::collections::HashMap<JsString, JsValue>> =
         RefCell::new(std::collections::HashMap::new());
 }
 
-pub(crate) fn boa_str_to_v8(s: &JsString) -> wasm_bindgen::JsValue {
+pub(crate) fn boa_str_to_v8(s: &JsString) -> JsValue {
     if s.len() > 64 {
-        return wasm_bindgen::JsValue::from_str(&s.to_std_string_escaped());
+        return JsValue::from_str(&s.to_std_string_escaped());
     }
     if let Some(v) = V8_STRS.with(|m| m.borrow().get(s).cloned()) {
         return v;
     }
-    let v = wasm_bindgen::JsValue::from_str(&s.to_std_string_escaped());
+    let v = JsValue::from_str(&s.to_std_string_escaped());
     V8_STRS.with(|m| {
         let mut m = m.borrow_mut();
         if m.len() >= 4096 {
@@ -1242,14 +1237,14 @@ pub(crate) fn boa_str_to_v8(s: &JsString) -> wasm_bindgen::JsValue {
 
 // Keys are a page's property names, so the set is small; the cap only bounds a
 // page that generates keys (`obj["k" + i]`), and long keys skip the cache.
-fn v8_key(key: &str) -> wasm_bindgen::JsValue {
+fn v8_key(key: &str) -> JsValue {
     if key.len() > 64 {
-        return wasm_bindgen::JsValue::from_str(key);
+        return JsValue::from_str(key);
     }
     if let Some(v) = V8_KEYS.with(|m| m.borrow().get(key).cloned()) {
         return v;
     }
-    let v = wasm_bindgen::JsValue::from_str(key);
+    let v = JsValue::from_str(key);
     V8_KEYS.with(|m| {
         let mut m = m.borrow_mut();
         if m.len() >= 4096 {
@@ -1260,7 +1255,7 @@ fn v8_key(key: &str) -> wasm_bindgen::JsValue {
     v
 }
 
-type V8Intrinsics = (Vec<Option<wasm_bindgen::JsValue>>, js_sys::Map);
+type V8Intrinsics = (Vec<Option<JsValue>>, js_sys::Map);
 
 thread_local! {
     // Read once per isolate: every function crossing used to do 24 global reads
@@ -1280,12 +1275,12 @@ fn v8_intrinsics() -> Rc<V8Intrinsics> {
         .iter()
         .enumerate()
         .map(|(i, name)| {
-            let v = js_sys::Reflect::get(&global, &wasm_bindgen::JsValue::from_str(name)).ok()?;
+            let v = Reflect::get(&global, &JsValue::from_str(name)).ok()?;
             if !v.is_function() {
                 return None;
             }
             if !by_fn.has(&v) {
-                by_fn.set(&v, &wasm_bindgen::JsValue::from(i as u32));
+                by_fn.set(&v, &JsValue::from(i as u32));
             }
             Some(v)
         })
@@ -1326,23 +1321,23 @@ fn boa_intrinsic_ctor(name: &str, ctx: &Context) -> Option<JsObject> {
 }
 
 thread_local! {
-    static V8_BOA_CACHE: RefCell<Option<js_sys::WeakMap>> = const { RefCell::new(None) };
+    static V8_BOA_CACHE: RefCell<Option<WeakMap>> = const { RefCell::new(None) };
 }
 
 thread_local! {
-    static V8_FN_HANDLES: RefCell<Option<js_sys::WeakMap>> = const { RefCell::new(None) };
+    static V8_FN_HANDLES: RefCell<Option<WeakMap>> = const { RefCell::new(None) };
     static METHOD_PROXY_CACHE: RefCell<std::collections::HashMap<(u64, Option<u64>), boa_engine::object::WeakJsObject>> =
         RefCell::new(std::collections::HashMap::new());
-    static MPC_SWEEP_AT: std::cell::Cell<usize> = const { std::cell::Cell::new(4096) };
+    static MPC_SWEEP_AT: Cell<usize> = const { Cell::new(4096) };
 }
 
-fn pin_v8_fn(v: &wasm_bindgen::JsValue) -> u64 {
+fn pin_v8_fn(v: &JsValue) -> u64 {
     let cached = V8_FN_HANDLES.with(|c| {
         let b = c.borrow();
         let m = b.as_ref()?;
         // The map holds numbers only, so a miss reads undefined and one get()
         // answers both questions: one crossing instead of has() then get().
-        m.get(v.unchecked_ref::<js_sys::Object>())
+        m.get(v.unchecked_ref::<Object>())
             .as_f64()
             .map(|n| n as u64)
     });
@@ -1356,22 +1351,15 @@ fn pin_v8_fn(v: &wasm_bindgen::JsValue) -> u64 {
     let h = pin(v.clone());
     V8_FN_HANDLES.with(|c| {
         let mut b = c.borrow_mut();
-        let m = b.get_or_insert_with(js_sys::WeakMap::new);
-        m.set(
-            v.unchecked_ref::<js_sys::Object>(),
-            &wasm_bindgen::JsValue::from_f64(h as f64),
-        );
+        let m = b.get_or_insert_with(WeakMap::new);
+        m.set(v.unchecked_ref::<Object>(), &JsValue::from_f64(h as f64));
     });
     h
 }
 
 // Cache one proxy per live (function, receiver) pair. Weak values let Boa
 // collect unused proxies; thresholded sweeps remove dead map entries.
-fn v8_fn_to_boa_proxy(
-    v: &wasm_bindgen::JsValue,
-    this: Option<(u64, &JsObject)>,
-    ctx: &mut Context,
-) -> JsObject {
+fn v8_fn_to_boa_proxy(v: &JsValue, this: Option<(u64, &JsObject)>, ctx: &mut Context) -> JsObject {
     let fn_handle = pin_v8_fn(v);
     let this_handle = this.map(|(h, _)| h);
     let key = (fn_handle, this_handle);
@@ -1391,7 +1379,7 @@ fn v8_fn_to_boa_proxy(
 }
 
 thread_local! {
-    static BOA_V8: RefCell<PinSlab<wasm_bindgen::JsValue>> = const { RefCell::new(PinSlab::new()) };
+    static BOA_V8: RefCell<PinSlab<JsValue>> = const { RefCell::new(PinSlab::new()) };
 }
 
 thread_local! {
@@ -1408,11 +1396,11 @@ fn stamp_pk() -> PropertyKey {
     })
 }
 
-fn boa_v8_push(v: wasm_bindgen::JsValue) -> u64 {
+fn boa_v8_push(v: JsValue) -> u64 {
     BOA_V8.with(|t| t.borrow_mut().insert(v))
 }
 
-fn boa_v8_get(handle: u64) -> Option<wasm_bindgen::JsValue> {
+fn boa_v8_get(handle: u64) -> Option<JsValue> {
     let s = BOA_V8.with(|t| t.borrow().get(handle))?;
     if !weak_available() {
         return Some(s);
@@ -1425,7 +1413,7 @@ fn boa_v8_get(handle: u64) -> Option<wasm_bindgen::JsValue> {
     }
 }
 
-fn boa_v8_lookup(o: &JsObject, ctx: &mut Context) -> Option<wasm_bindgen::JsValue> {
+fn boa_v8_lookup(o: &JsObject, ctx: &mut Context) -> Option<JsValue> {
     if !o.has_own_property(stamp_pk(), ctx).unwrap_or(false) {
         return None;
     }
@@ -1433,7 +1421,7 @@ fn boa_v8_lookup(o: &JsObject, ctx: &mut Context) -> Option<wasm_bindgen::JsValu
     boa_v8_get(idx)
 }
 
-fn boa_v8_store(o: &JsObject, v: &wasm_bindgen::JsValue, _ctx: &mut Context) -> u64 {
+fn boa_v8_store(o: &JsObject, v: &JsValue, _ctx: &mut Context) -> u64 {
     let stored = make_weak(v).unwrap_or_else(|| v.clone());
     let idx = boa_v8_push(stored);
     let desc = PropertyDescriptor::builder()
@@ -1446,7 +1434,7 @@ fn boa_v8_store(o: &JsObject, v: &wasm_bindgen::JsValue, _ctx: &mut Context) -> 
     idx
 }
 
-fn v8_boa_cache_get(v: &wasm_bindgen::JsValue) -> Option<u64> {
+fn v8_boa_cache_get(v: &JsValue) -> Option<u64> {
     if !v.is_object() {
         return None;
     }
@@ -1455,27 +1443,27 @@ fn v8_boa_cache_get(v: &wasm_bindgen::JsValue) -> Option<u64> {
         let m = b.as_ref()?;
         // The map holds numbers only, so a miss reads undefined and one get()
         // answers both questions: one crossing instead of has() then get().
-        m.get(v.unchecked_ref::<js_sys::Object>())
+        m.get(v.unchecked_ref::<Object>())
             .as_f64()
             .map(|n| n as u64)
     })
 }
 
-fn v8_boa_cache_set(v: &wasm_bindgen::JsValue, handle: u64) {
+fn v8_boa_cache_set(v: &JsValue, handle: u64) {
     if !v.is_object() {
         return;
     }
     V8_BOA_CACHE.with(|c| {
         let mut b = c.borrow_mut();
-        let m = b.get_or_insert_with(js_sys::WeakMap::new);
+        let m = b.get_or_insert_with(WeakMap::new);
         m.set(
-            v.unchecked_ref::<js_sys::Object>(),
-            &wasm_bindgen::JsValue::from_f64(handle as f64),
+            v.unchecked_ref::<Object>(),
+            &JsValue::from_f64(handle as f64),
         );
     });
 }
 
-fn boa_unwrap_handle(v: &wasm_bindgen::JsValue) -> Option<u64> {
+fn boa_unwrap_handle(v: &JsValue) -> Option<u64> {
     our_v8_lookup(v)
 }
 
@@ -1483,9 +1471,9 @@ thread_local! {
     static BOA_SYMBOL_FOR: RefCell<Option<JsFunction>> = const { RefCell::new(None) };
     static BOA_SYMBOL_KEYFOR: RefCell<Option<JsFunction>> = const { RefCell::new(None) };
 
-    static WK_PAIRS: RefCell<Vec<(JsSymbol, js_sys::Symbol)>> = const { RefCell::new(Vec::new()) };
+    static WK_PAIRS: RefCell<Vec<(JsSymbol, Symbol)>> = const { RefCell::new(Vec::new()) };
 
-    static UNIQUE_SYMS: RefCell<Vec<(u64, JsSymbol, js_sys::Symbol)>> = const { RefCell::new(Vec::new()) };
+    static UNIQUE_SYMS: RefCell<Vec<(u64, JsSymbol, Symbol)>> = const { RefCell::new(Vec::new()) };
 }
 
 fn capture_symbol_builtins(ctx: &mut Context) {
@@ -1517,21 +1505,21 @@ fn ensure_wk() {
         if !v.is_empty() {
             return;
         }
-        v.push((JsSymbol::async_iterator(), js_sys::Symbol::async_iterator()));
-        v.push((JsSymbol::has_instance(), js_sys::Symbol::has_instance()));
+        v.push((JsSymbol::async_iterator(), Symbol::async_iterator()));
+        v.push((JsSymbol::has_instance(), Symbol::has_instance()));
         v.push((
             JsSymbol::is_concat_spreadable(),
-            js_sys::Symbol::is_concat_spreadable(),
+            Symbol::is_concat_spreadable(),
         ));
-        v.push((JsSymbol::iterator(), js_sys::Symbol::iterator()));
-        v.push((JsSymbol::r#match(), js_sys::Symbol::match_()));
-        v.push((JsSymbol::replace(), js_sys::Symbol::replace()));
-        v.push((JsSymbol::search(), js_sys::Symbol::search()));
-        v.push((JsSymbol::species(), js_sys::Symbol::species()));
-        v.push((JsSymbol::split(), js_sys::Symbol::split()));
-        v.push((JsSymbol::to_primitive(), js_sys::Symbol::to_primitive()));
-        v.push((JsSymbol::to_string_tag(), js_sys::Symbol::to_string_tag()));
-        v.push((JsSymbol::unscopables(), js_sys::Symbol::unscopables()));
+        v.push((JsSymbol::iterator(), Symbol::iterator()));
+        v.push((JsSymbol::r#match(), Symbol::match_()));
+        v.push((JsSymbol::replace(), Symbol::replace()));
+        v.push((JsSymbol::search(), Symbol::search()));
+        v.push((JsSymbol::species(), Symbol::species()));
+        v.push((JsSymbol::split(), Symbol::split()));
+        v.push((JsSymbol::to_primitive(), Symbol::to_primitive()));
+        v.push((JsSymbol::to_string_tag(), Symbol::to_string_tag()));
+        v.push((JsSymbol::unscopables(), Symbol::unscopables()));
     });
 }
 
@@ -1555,23 +1543,23 @@ fn boa_symbol_for(key: &str, ctx: &mut Context) -> Option<JsSymbol> {
     res.as_symbol()
 }
 
-fn mint_v8_unique(desc: Option<String>) -> js_sys::Symbol {
-    let global: wasm_bindgen::JsValue = js_sys::global().into();
+fn mint_v8_unique(desc: Option<String>) -> Symbol {
+    let global: JsValue = js_sys::global().into();
     let arg = match desc {
-        Some(d) => wasm_bindgen::JsValue::from_str(&d),
-        None => wasm_bindgen::JsValue::UNDEFINED,
+        Some(d) => JsValue::from_str(&d),
+        None => JsValue::UNDEFINED,
     };
-    if let Ok(ctor) = js_sys::Reflect::get(&global, &wasm_bindgen::JsValue::from_str("Symbol")) {
-        if let Ok(f) = ctor.dyn_into::<js_sys::Function>() {
-            if let Ok(res) = f.call1(&wasm_bindgen::JsValue::UNDEFINED, &arg) {
-                return res.unchecked_into::<js_sys::Symbol>();
+    if let Ok(ctor) = Reflect::get(&global, &JsValue::from_str("Symbol")) {
+        if let Ok(f) = ctor.dyn_into::<Function>() {
+            if let Ok(res) = f.call1(&JsValue::UNDEFINED, &arg) {
+                return res.unchecked_into::<Symbol>();
             }
         }
     }
-    js_sys::Symbol::for_("__ks_unique_fallback")
+    Symbol::for_("__ks_unique_fallback")
 }
 
-fn boa_symbol_to_v8(s: &JsSymbol, ctx: &mut Context) -> js_sys::Symbol {
+fn boa_symbol_to_v8(s: &JsSymbol, ctx: &mut Context) -> Symbol {
     ensure_wk();
     let h = s.hash();
     if let Some(v8) = WK_PAIRS.with(|c| {
@@ -1583,7 +1571,7 @@ fn boa_symbol_to_v8(s: &JsSymbol, ctx: &mut Context) -> js_sys::Symbol {
         return v8;
     }
     if let Some(key) = boa_key_for(s, ctx) {
-        return js_sys::Symbol::for_(&key);
+        return Symbol::for_(&key);
     }
     if let Some(v8) = UNIQUE_SYMS.with(|c| {
         c.borrow()
@@ -1599,17 +1587,17 @@ fn boa_symbol_to_v8(s: &JsSymbol, ctx: &mut Context) -> js_sys::Symbol {
     v8
 }
 
-fn v8_symbol_to_boa(sym: js_sys::Symbol, ctx: &mut Context) -> JsSymbol {
+fn v8_symbol_to_boa(sym: Symbol, ctx: &mut Context) -> JsSymbol {
     ensure_wk();
     if let Some(b) = WK_PAIRS.with(|c| {
         c.borrow()
             .iter()
-            .find(|(_, v)| js_sys::Object::is(sym.as_ref(), v.as_ref()))
+            .find(|(_, v)| Object::is(sym.as_ref(), v.as_ref()))
             .map(|(b, _)| b.clone())
     }) {
         return b;
     }
-    let kf = js_sys::Symbol::key_for(&sym);
+    let kf = Symbol::key_for(&sym);
     if let Some(key) = kf.as_string() {
         if let Some(b) = boa_symbol_for(&key, ctx) {
             return b;
@@ -1618,7 +1606,7 @@ fn v8_symbol_to_boa(sym: js_sys::Symbol, ctx: &mut Context) -> JsSymbol {
     if let Some(b) = UNIQUE_SYMS.with(|c| {
         c.borrow()
             .iter()
-            .find(|(_, _, v)| js_sys::Object::is(sym.as_ref(), v.as_ref()))
+            .find(|(_, _, v)| Object::is(sym.as_ref(), v.as_ref()))
             .map(|(_, b, _)| b.clone())
     }) {
         return b;
@@ -1698,24 +1686,24 @@ pub(crate) fn v8_to_boa(v: wasm_bindgen::JsValue, ctx: &mut Context) -> BoaValue
         return BoaValue::from(JsString::from(s.as_str()));
     }
     if v.is_symbol() {
-        return BoaValue::from(v8_symbol_to_boa(v.unchecked_into::<js_sys::Symbol>(), ctx));
+        return BoaValue::from(v8_symbol_to_boa(v.unchecked_into::<Symbol>(), ctx));
     }
     // Bridge V8 promises through async jobs. Promise detection can itself trigger
     // proxy traps, so keep the `instanceof` probe inside `with_v8`.
-    if with_v8(ctx, || v.dyn_ref::<js_sys::Promise>().is_some()) {
-        return bridge_v8_promise(v.unchecked_into::<js_sys::Promise>(), ctx);
+    if with_v8(ctx, || v.dyn_ref::<Promise>().is_some()) {
+        return bridge_v8_promise(v.unchecked_into::<Promise>(), ctx);
     }
     v8_object_to_boa(v, ctx)
 }
 
 // For a DOM wrapper the fast path minted through the shim: never a Promise, so
 // skip the instanceof excursion, whose re-arm made every minted node revalidate.
-pub(crate) fn v8_node_to_boa(v: wasm_bindgen::JsValue, ctx: &mut Context) -> BoaValue {
+pub(crate) fn v8_node_to_boa(v: JsValue, ctx: &mut Context) -> BoaValue {
     drain_v8_releases();
     v8_object_to_boa(v, ctx)
 }
 
-fn v8_object_to_boa(v: wasm_bindgen::JsValue, ctx: &mut Context) -> BoaValue {
+fn v8_object_to_boa(v: JsValue, ctx: &mut Context) -> BoaValue {
     // I3: a value we previously handed to V8 (boa->V8 proxy/trampoline)
     // round-trips back to its ORIGINAL boa object, preserving identity.
     if let Some(h) = boa_unwrap_handle(&v) {
@@ -1733,7 +1721,7 @@ fn v8_object_to_boa(v: wasm_bindgen::JsValue, ctx: &mut Context) -> BoaValue {
     }
     if let Some(o) = v8_boa_cache_get(&v).and_then(weak_boa_get) {
         // Boa may keep this proxy, so its pin cannot stay weak.
-        if CC_ACTIVE.with(std::cell::Cell::get) {
+        if CC_ACTIVE.with(Cell::get) {
             if let Some(n) = bridged_v8_handle(&o, ctx) {
                 cc_touch_v8(n);
             }
@@ -1753,7 +1741,7 @@ fn v8_object_to_boa(v: wasm_bindgen::JsValue, ctx: &mut Context) -> BoaValue {
 // Wrap a V8 Promise as a boa promise. Enqueues a NativeAsyncJob that awaits
 // the V8 promise via JsFuture (polled by WasmJobQueue on V8's loop);
 // on settle it resolves/rejects the boa promise with the marshalled value.
-fn bridge_v8_promise(p: js_sys::Promise, ctx: &mut Context) -> BoaValue {
+fn bridge_v8_promise(p: Promise, ctx: &mut Context) -> BoaValue {
     let (promise, ResolvingFunctions { resolve, reject }) = JsPromise::new_pending(ctx);
     // The await is the async job; settling is a promise job, so the boa reaction
     // runs in a drain batch under the context lock like every other reaction.
@@ -1776,14 +1764,14 @@ fn bridge_v8_promise(p: js_sys::Promise, ctx: &mut Context) -> BoaValue {
     promise.into()
 }
 
-pub(crate) fn boa_to_v8(v: &BoaValue, ctx: &mut Context) -> wasm_bindgen::JsValue {
+pub(crate) fn boa_to_v8(v: &BoaValue, ctx: &mut Context) -> JsValue {
     drain_v8_releases();
     match v.variant() {
-        JsVariant::Null => wasm_bindgen::JsValue::NULL,
-        JsVariant::Undefined => wasm_bindgen::JsValue::UNDEFINED,
-        JsVariant::Boolean(b) => wasm_bindgen::JsValue::from_bool(b),
-        JsVariant::Integer32(i) => wasm_bindgen::JsValue::from_f64(f64::from(i)),
-        JsVariant::Float64(r) => wasm_bindgen::JsValue::from_f64(r),
+        JsVariant::Null => JsValue::NULL,
+        JsVariant::Undefined => JsValue::UNDEFINED,
+        JsVariant::Boolean(b) => JsValue::from_bool(b),
+        JsVariant::Integer32(i) => JsValue::from_f64(f64::from(i)),
+        JsVariant::Float64(r) => JsValue::from_f64(r),
         JsVariant::String(s) => boa_str_to_v8(&s),
         JsVariant::Object(o) => {
             let o = &o;
@@ -1814,11 +1802,11 @@ pub(crate) fn boa_to_v8(v: &BoaValue, ctx: &mut Context) -> wasm_bindgen::JsValu
         }
         // Convert Boa symbols so `Symbol.for('react.element')` remains shared.
         JsVariant::Symbol(s) => boa_symbol_to_v8(&s, ctx).into(),
-        _ => wasm_bindgen::JsValue::UNDEFINED,
+        _ => JsValue::UNDEFINED,
     }
 }
 
-fn getter_threw(e: wasm_bindgen::JsValue, ctx: &mut Context) -> JsResult<BoaValue> {
+fn getter_threw(e: JsValue, ctx: &mut Context) -> JsResult<BoaValue> {
     if boa_strict() {
         Err(boa_engine::JsError::from_opaque(v8_to_boa(e, ctx)))
     } else {
@@ -1827,7 +1815,7 @@ fn getter_threw(e: wasm_bindgen::JsValue, ctx: &mut Context) -> JsResult<BoaValu
 }
 
 fn v8_property_to_boa(
-    value: wasm_bindgen::JsValue,
+    value: JsValue,
     key: Option<&str>,
     receiver: (u64, &JsObject),
     ctx: &mut Context,
@@ -1845,7 +1833,7 @@ fn v8_property_to_boa(
         }
         let is_dom_exception_constructor = key
             .is_some_and(|key| matches!(key, "constructor" | "DOMException"))
-            && v8_intrinsic("DOMException").is_some_and(|ctor| js_sys::Object::is(&value, &ctor));
+            && v8_intrinsic("DOMException").is_some_and(|ctor| Object::is(&value, &ctor));
         let receiver = (!is_dom_exception_constructor).then_some(receiver);
         return v8_fn_to_boa_proxy(&value, receiver, ctx).into();
     }
@@ -1862,7 +1850,7 @@ fn trap_get(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<
     if let Some(sym) = args.get(1).and_then(|k| k.as_symbol()) {
         let v8sym = boa_symbol_to_v8(&sym, ctx);
         let v8 = get_v8(handle);
-        return match with_v8(ctx, || js_sys::Reflect::get(&v8, v8sym.as_ref())) {
+        return match with_v8(ctx, || Reflect::get(&v8, v8sym.as_ref())) {
             Ok(res) => Ok(v8_property_to_boa(res, None, (handle, &target), ctx)),
             Err(e) => getter_threw(e, ctx),
         };
@@ -1879,7 +1867,7 @@ fn trap_get(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<
         return Ok(fast);
     }
     let v8 = get_v8(handle);
-    match with_v8(ctx, || js_sys::Reflect::get(&v8, &v8_key(&key))) {
+    match with_v8(ctx, || Reflect::get(&v8, &v8_key(&key))) {
         Ok(res) => Ok(v8_property_to_boa(
             res,
             Some(key.as_str()),
@@ -1999,7 +1987,7 @@ fn trap_has(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<
     if let Some(sym) = args.get(1).and_then(|k| k.as_symbol()) {
         let v8sym = boa_symbol_to_v8(&sym, ctx);
         let v8 = get_v8(handle);
-        let has = with_v8(ctx, || js_sys::Reflect::has(&v8, v8sym.as_ref())).unwrap_or(false);
+        let has = with_v8(ctx, || Reflect::has(&v8, v8sym.as_ref())).unwrap_or(false);
         return Ok(BoaValue::from(has));
     }
     let key = args
@@ -2008,7 +1996,7 @@ fn trap_has(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<
         .map(|s| key_string(&s))
         .unwrap_or_default();
     let v8 = get_v8(handle);
-    let has = with_v8(ctx, || js_sys::Reflect::has(&v8, &v8_key(&key))).unwrap_or(false);
+    let has = with_v8(ctx, || Reflect::has(&v8, &v8_key(&key))).unwrap_or(false);
     Ok(BoaValue::from(has))
 }
 
@@ -2029,11 +2017,11 @@ fn trap_apply(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResul
                 js_sys::global().into()
             }
             Some(t) => boa_to_v8(t, ctx),
-            None => wasm_bindgen::JsValue::UNDEFINED,
+            None => JsValue::UNDEFINED,
         },
     };
-    let func: js_sys::Function = get_v8(fn_handle).unchecked_into();
-    let out = js_sys::Array::new();
+    let func: Function = get_v8(fn_handle).unchecked_into();
+    let out = Array::new();
     if let Some(list) = args.get(2).and_then(|v| v.as_object()) {
         let len = list
             .get(js_string!("length"), ctx)
@@ -2045,7 +2033,7 @@ fn trap_apply(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResul
             out.push(&boa_to_v8(&el, ctx));
         }
     }
-    match with_v8(ctx, || js_sys::Reflect::apply(&func, &this_v8, &out)) {
+    match with_v8(ctx, || Reflect::apply(&func, &this_v8, &out)) {
         Ok(res) => Ok(v8_to_boa(res, ctx)),
         Err(e) => Err(boa_engine::JsError::from_opaque(v8_to_boa(e, ctx))),
     }
@@ -2062,8 +2050,8 @@ fn trap_construct(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsR
             .with_message("construct: no handle")
             .into());
     };
-    let ctor: js_sys::Function = get_v8(handle).unchecked_into();
-    let out = js_sys::Array::new();
+    let ctor: Function = get_v8(handle).unchecked_into();
+    let out = Array::new();
     if let Some(list) = args.get(1).and_then(|v| v.as_object()) {
         let len = list
             .get(js_string!("length"), ctx)
@@ -2079,9 +2067,9 @@ fn trap_construct(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsR
         .get(2)
         .map(|nt| boa_to_v8(nt, ctx))
         .unwrap_or_else(|| ctor.clone().into());
-    let result = with_v8(ctx, || match new_target_v8.dyn_ref::<js_sys::Function>() {
-        Some(nt) => js_sys::Reflect::construct_with_new_target(&ctor, &out, nt),
-        None => js_sys::Reflect::construct(&ctor, &out),
+    let result = with_v8(ctx, || match new_target_v8.dyn_ref::<Function>() {
+        Some(nt) => Reflect::construct_with_new_target(&ctor, &out, nt),
+        None => Reflect::construct(&ctor, &out),
     });
     match result {
         Ok(inst) => Ok(v8_to_boa(inst, ctx)),
@@ -2113,7 +2101,7 @@ fn trap_set(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<
     // Marshal the key BEFORE the excursion: a V8 setter can re-enter boa,
     // so `ctx` must be free by the time we call into V8 (see `with_v8`).
     let v8key = trap_key_to_v8(args.get(1), ctx);
-    let res = with_v8(ctx, || js_sys::Reflect::set(&v8, &v8key, &v8val));
+    let res = with_v8(ctx, || Reflect::set(&v8, &v8key, &v8val));
     match res {
         Ok(ok) => Ok(BoaValue::from(ok)),
         Err(e) => Err(JsError::from_opaque(v8_to_boa(e, ctx))),
@@ -2141,27 +2129,25 @@ fn set_on_receiver(
 ) -> JsResult<BoaValue> {
     let v8key = trap_key_to_v8(key, ctx);
     let mut cur = get_v8(handle);
-    let mut desc: Option<js_sys::Object> = None;
+    let mut desc: Option<Object> = None;
     for _ in 0..32 {
-        let Some(obj) = with_v8(ctx, || cur.dyn_ref::<js_sys::Object>().cloned()) else {
+        let Some(obj) = with_v8(ctx, || cur.dyn_ref::<Object>().cloned()) else {
             break;
         };
-        if let Ok(d) = with_v8(ctx, || {
-            js_sys::Reflect::get_own_property_descriptor(&obj, &v8key)
-        }) {
+        if let Ok(d) = with_v8(ctx, || Reflect::get_own_property_descriptor(&obj, &v8key)) {
             let dv = d;
             if !dv.is_undefined() {
                 desc = Some(dv.unchecked_into());
                 break;
             }
         }
-        cur = match with_v8(ctx, || js_sys::Reflect::get_prototype_of(&obj)) {
+        cur = match with_v8(ctx, || Reflect::get_prototype_of(&obj)) {
             Ok(p) => p.into(),
-            Err(_) => wasm_bindgen::JsValue::NULL,
+            Err(_) => JsValue::NULL,
         };
     }
     if let Some(d) = desc {
-        let get = |k: &str| js_sys::Reflect::get(&d, &wasm_bindgen::JsValue::from_str(k)).ok();
+        let get = |k: &str| Reflect::get(&d, &JsValue::from_str(k)).ok();
         let setter = get("set").filter(|s| s.is_function());
         let is_accessor = setter.is_some() || get("get").is_some_and(|g| !g.is_undefined());
         if is_accessor {
@@ -2170,11 +2156,11 @@ fn set_on_receiver(
             };
             let recv_v8 = boa_to_v8(&recv.clone().into(), ctx);
             let v8val = boa_to_v8(&value, ctx);
-            let f: js_sys::Function = setter.unchecked_into();
+            let f: Function = setter.unchecked_into();
             return match with_v8(ctx, || f.call1(&recv_v8, &v8val)) {
                 Ok(_) => Ok(BoaValue::from(true)),
                 Err(e) => {
-                    let msg = js_sys::Reflect::get(&e, &wasm_bindgen::JsValue::from_str("message"))
+                    let msg = Reflect::get(&e, &JsValue::from_str("message"))
                         .ok()
                         .and_then(|m| m.as_string())
                         .unwrap_or_else(|| "V8 setter threw".to_string());
@@ -2208,12 +2194,12 @@ fn trap_own_keys(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsRe
         return Ok(out.into());
     };
     let v8 = get_v8(handle);
-    if let Ok(keys) = with_v8(ctx, || js_sys::Reflect::own_keys(&v8)) {
+    if let Ok(keys) = with_v8(ctx, || Reflect::own_keys(&v8)) {
         for k in keys.iter() {
             if let Some(s) = k.as_string() {
                 let _ = out.push(JsString::from(s.as_str()), ctx);
             } else if k.is_symbol() {
-                let sym = v8_symbol_to_boa(k.unchecked_into::<js_sys::Symbol>(), ctx);
+                let sym = v8_symbol_to_boa(k.unchecked_into::<Symbol>(), ctx);
                 let _ = out.push(BoaValue::from(sym), ctx);
             }
         }
@@ -2221,7 +2207,7 @@ fn trap_own_keys(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsRe
     Ok(out.into())
 }
 
-fn trap_key_to_v8(key: Option<&BoaValue>, ctx: &mut Context) -> wasm_bindgen::JsValue {
+fn trap_key_to_v8(key: Option<&BoaValue>, ctx: &mut Context) -> JsValue {
     if let Some(sym) = key.and_then(|k| k.as_symbol()) {
         return boa_symbol_to_v8(&sym, ctx).into();
     }
@@ -2229,7 +2215,7 @@ fn trap_key_to_v8(key: Option<&BoaValue>, ctx: &mut Context) -> wasm_bindgen::Js
         .and_then(|k| k.to_string(ctx).ok())
         .map(|s| key_string(&s))
         .unwrap_or_default();
-    wasm_bindgen::JsValue::from_str(&s)
+    JsValue::from_str(&s)
 }
 
 fn trap_define_property(
@@ -2250,38 +2236,30 @@ fn trap_define_property(
 
     let v8 = get_v8(handle);
     let v8key = trap_key_to_v8(args.get(1), ctx);
-    let out = js_sys::Object::new();
+    let out = Object::new();
     let set_flag = |name: &str, val: bool| {
-        let _ = js_sys::Reflect::set(
-            &out,
-            &wasm_bindgen::JsValue::from_str(name),
-            &wasm_bindgen::JsValue::from_bool(val),
-        );
+        let _ = Reflect::set(&out, &JsValue::from_str(name), &JsValue::from_bool(val));
     };
     if desc.is_accessor_descriptor() {
         if let Some(g) = desc.get() {
             let gv = boa_to_v8(&g.clone(), ctx);
-            let _ = js_sys::Reflect::set(&out, &wasm_bindgen::JsValue::from_str("get"), &gv);
+            let _ = Reflect::set(&out, &JsValue::from_str("get"), &gv);
         }
         if let Some(s) = desc.set() {
             let sv = boa_to_v8(&s.clone(), ctx);
-            let _ = js_sys::Reflect::set(&out, &wasm_bindgen::JsValue::from_str("set"), &sv);
+            let _ = Reflect::set(&out, &JsValue::from_str("set"), &sv);
         }
     } else {
         let value = desc.value().cloned().unwrap_or(BoaValue::undefined());
         let vv = boa_to_v8(&value, ctx);
-        let _ = js_sys::Reflect::set(&out, &wasm_bindgen::JsValue::from_str("value"), &vv);
+        let _ = Reflect::set(&out, &JsValue::from_str("value"), &vv);
         set_flag("writable", desc.writable().unwrap_or(false));
     }
     set_flag("enumerable", desc.enumerable().unwrap_or(false));
     set_flag("configurable", true);
 
-    let v8obj: js_sys::Object = v8.clone().unchecked_into();
-    if with_v8(ctx, || {
-        js_sys::Reflect::define_property(&v8obj, &v8key, &out)
-    })
-    .is_err()
-    {
+    let v8obj: Object = v8.clone().unchecked_into();
+    if with_v8(ctx, || Reflect::define_property(&v8obj, &v8key, &out)).is_err() {
         return Ok(BoaValue::from(false));
     }
 
@@ -2323,9 +2301,8 @@ fn trap_delete_property(
     let _ = target.delete_property_or_throw(key, ctx);
     let v8 = get_v8(handle);
     let v8key = trap_key_to_v8(args.get(1), ctx);
-    let v8obj: js_sys::Object = v8.clone().unchecked_into();
-    let deleted =
-        with_v8(ctx, || js_sys::Reflect::delete_property(&v8obj, &v8key)).unwrap_or(false);
+    let v8obj: Object = v8.clone().unchecked_into();
+    let deleted = with_v8(ctx, || Reflect::delete_property(&v8obj, &v8key)).unwrap_or(false);
     Ok(BoaValue::from(deleted))
 }
 
@@ -2381,35 +2358,31 @@ fn trap_gopd(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult
     }
     let v8 = get_v8(handle);
     let v8key = trap_key_to_v8(args.get(1), ctx);
-    let v8obj: js_sys::Object = v8.clone().unchecked_into();
-    let desc = match with_v8(ctx, || {
-        js_sys::Reflect::get_own_property_descriptor(&v8obj, &v8key)
-    }) {
+    let v8obj: Object = v8.clone().unchecked_into();
+    let desc = match with_v8(ctx, || Reflect::get_own_property_descriptor(&v8obj, &v8key)) {
         Ok(d) if !d.is_undefined() && !d.is_null() => d,
         _ => return Ok(BoaValue::undefined()),
     };
     // The descriptor object is ours (V8 just built it), so reading its fields
     // cannot re-enter page code.
-    let enumerable = js_sys::Reflect::get(&desc, &wasm_bindgen::JsValue::from_str("enumerable"))
+    let enumerable = Reflect::get(&desc, &JsValue::from_str("enumerable"))
         .ok()
         .and_then(|v| v.as_bool())
         .unwrap_or(true);
     let out = JsObject::with_object_proto(ctx.intrinsics());
-    let has_get =
-        js_sys::Reflect::has(&desc, &wasm_bindgen::JsValue::from_str("get")).unwrap_or(false);
-    let has_set =
-        js_sys::Reflect::has(&desc, &wasm_bindgen::JsValue::from_str("set")).unwrap_or(false);
+    let has_get = Reflect::has(&desc, &JsValue::from_str("get")).unwrap_or(false);
+    let has_set = Reflect::has(&desc, &JsValue::from_str("set")).unwrap_or(false);
     if has_get || has_set {
-        let get = js_sys::Reflect::get(&desc, &wasm_bindgen::JsValue::from_str("get"))
+        let get = Reflect::get(&desc, &JsValue::from_str("get"))
             .map(|value| v8_to_boa(value, ctx))
             .unwrap_or(BoaValue::undefined());
-        let set = js_sys::Reflect::get(&desc, &wasm_bindgen::JsValue::from_str("set"))
+        let set = Reflect::get(&desc, &JsValue::from_str("set"))
             .map(|value| v8_to_boa(value, ctx))
             .unwrap_or(BoaValue::undefined());
         let _ = out.set(js_string!("get"), get, false, ctx);
         let _ = out.set(js_string!("set"), set, false, ctx);
     } else {
-        let val = js_sys::Reflect::get(&desc, &wasm_bindgen::JsValue::from_str("value"))
+        let val = Reflect::get(&desc, &JsValue::from_str("value"))
             .map(|value| v8_to_boa(value, ctx))
             .unwrap_or(BoaValue::undefined());
         let _ = out.set(js_string!("value"), val, false, ctx);
@@ -2445,7 +2418,7 @@ fn make_v8_proxy(
         );
         hide_on_target(&t, js_string!("__ks_rel"), sentinel.into());
         t
-    } else if js_sys::Array::is_array(&get_v8(value_handle)) {
+    } else if Array::is_array(&get_v8(value_handle)) {
         // Array target so boa's IsArray (JSON.stringify / Array checks)
         // sees an array; the get trap still forwards indices to V8.
         let t = JsObject::from(JsArray::new(ctx).expect("an empty array always allocates"));
@@ -2574,9 +2547,9 @@ fn proxy_handler(callable: bool, ctx: &mut Context) -> JsObject {
 
 thread_local! {
     static TRAMP_SHIMS: RefCell<Option<(
-        wasm_bindgen::JsValue,
-        wasm_bindgen::JsValue,
-        wasm_bindgen::JsValue,
+        JsValue,
+        JsValue,
+        JsValue,
     )>> = const { RefCell::new(None) };
 }
 
@@ -2584,7 +2557,7 @@ thread_local! {
 // MessageChannel-driven pages may never reach idle recovery.
 fn heal_at_entry(ctx: &mut Context) {
     // Do not clear stack values held by an outer native call without a VM frame.
-    if REENTRY_DEPTH.with(std::cell::Cell::get) != 1 || !crate::js::boa_eval::boa_lock_idle() {
+    if REENTRY_DEPTH.with(Cell::get) != 1 || !crate::js::boa_eval::boa_lock_idle() {
         return;
     }
     let (frames, stack) = ctx.ks_vm_stats();
@@ -2595,22 +2568,18 @@ fn heal_at_entry(ctx: &mut Context) {
 }
 
 thread_local! {
-    static HEALED_AT_ENTRY: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    static HEALED_AT_ENTRY: Cell<u64> = const { Cell::new(0) };
 }
 
 pub(crate) fn healed_at_entry() -> u64 {
-    HEALED_AT_ENTRY.with(std::cell::Cell::get)
+    HEALED_AT_ENTRY.with(Cell::get)
 }
 
-fn tramp_call_body(
-    handle: f64,
-    this_v8: wasm_bindgen::JsValue,
-    args_v8: wasm_bindgen::JsValue,
-) -> Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue> {
+fn tramp_call_body(handle: f64, this_v8: JsValue, args_v8: JsValue) -> Result<JsValue, JsValue> {
     with_context(|ctx| {
         heal_at_entry(ctx);
         let Some(jsfn) = get_boa(handle as u64).and_then(JsFunction::from_object) else {
-            return Ok(wasm_bindgen::JsValue::UNDEFINED);
+            return Ok(JsValue::UNDEFINED);
         };
         let this_boa = v8_to_boa(this_v8.clone(), ctx);
         let args = unpack_args(&args_v8, ctx);
@@ -2620,22 +2589,19 @@ fn tramp_call_body(
                 if boa_strict() {
                     Err(error_to_v8(&e, ctx))
                 } else {
-                    Ok(wasm_bindgen::JsValue::UNDEFINED)
+                    Ok(JsValue::UNDEFINED)
                 }
             }
         }
     })
-    .unwrap_or(Ok(wasm_bindgen::JsValue::UNDEFINED))
+    .unwrap_or(Ok(JsValue::UNDEFINED))
 }
 
-fn tramp_construct_body(
-    handle: f64,
-    args_v8: wasm_bindgen::JsValue,
-) -> Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue> {
+fn tramp_construct_body(handle: f64, args_v8: JsValue) -> Result<JsValue, JsValue> {
     with_context(|ctx| {
         heal_at_entry(ctx);
         let Some(o) = get_boa(handle as u64) else {
-            return Ok(wasm_bindgen::JsValue::UNDEFINED);
+            return Ok(JsValue::UNDEFINED);
         };
         let args = unpack_args(&args_v8, ctx);
         match o.construct(&args, None, ctx) {
@@ -2647,22 +2613,22 @@ fn tramp_construct_body(
                 // Non-strict mode turns the throw into `undefined`; warn so
                 // the failure can be traced.
                 warn_swallowed_ctor_throw(&e);
-                Ok(wasm_bindgen::JsValue::UNDEFINED)
+                Ok(JsValue::UNDEFINED)
             }
         }
     })
-    .unwrap_or(Ok(wasm_bindgen::JsValue::UNDEFINED))
+    .unwrap_or(Ok(JsValue::UNDEFINED))
 }
 
 fn tramp_method_body(
     fn_handle: f64,
     recv_handle: f64,
-    args_v8: wasm_bindgen::JsValue,
-) -> Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue> {
+    args_v8: JsValue,
+) -> Result<JsValue, JsValue> {
     with_context(|ctx| {
         heal_at_entry(ctx);
         let Some(jsfn) = get_boa(fn_handle as u64).and_then(JsFunction::from_object) else {
-            return Ok(wasm_bindgen::JsValue::UNDEFINED);
+            return Ok(JsValue::UNDEFINED);
         };
         let this = get_boa(recv_handle as u64)
             .map(|o| o.into())
@@ -2674,26 +2640,22 @@ fn tramp_method_body(
                 if boa_strict() {
                     Err(error_to_v8(&e, ctx))
                 } else {
-                    Ok(wasm_bindgen::JsValue::UNDEFINED)
+                    Ok(JsValue::UNDEFINED)
                 }
             }
         }
     })
-    .unwrap_or(Ok(wasm_bindgen::JsValue::UNDEFINED))
+    .unwrap_or(Ok(JsValue::UNDEFINED))
 }
 
 // Build the three shims once; deliberately leaked for the isolate's
 // life (same bounded-singleton class as the proxy shims + FR callback).
-fn tramp_shims() -> (
-    wasm_bindgen::JsValue,
-    wasm_bindgen::JsValue,
-    wasm_bindgen::JsValue,
-) {
+fn tramp_shims() -> (JsValue, JsValue, JsValue) {
     if let Some(t) = TRAMP_SHIMS.with(|c| c.borrow().clone()) {
         return t;
     }
-    type J = wasm_bindgen::JsValue;
-    type R = Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>;
+    type J = JsValue;
+    type R = Result<JsValue, JsValue>;
     let call = Closure::<dyn Fn(f64, J, J) -> R>::new(tramp_call_body);
     let ctor = Closure::<dyn Fn(f64, J) -> R>::new(tramp_construct_body);
     let method = Closure::<dyn Fn(f64, f64, J) -> R>::new(tramp_method_body);
@@ -2711,19 +2673,14 @@ fn tramp_shims() -> (
 
 // PageScript helpers bind trampoline shims, read from the internals record at mint time so a test
 // stub (boa-ctx-reentry) remains observable.
-fn helper_wrap3(
-    name: &'static str,
-    a: &wasm_bindgen::JsValue,
-    b: &wasm_bindgen::JsValue,
-    c: &wasm_bindgen::JsValue,
-) -> wasm_bindgen::JsValue {
+fn helper_wrap3(name: &'static str, a: &JsValue, b: &JsValue, c: &JsValue) -> JsValue {
     if let Some(helper) = crate::js::internals::get(name) {
         // typeof, not `instanceof Function`: this runs with boa's borrow
         // live, and an instanceof on a bridged function would fire its
         // getPrototypeOf trap and re-enter boa (the ctx-reentry hijack).
         if helper.is_function() {
-            let func: &js_sys::Function = helper.unchecked_ref();
-            if let Ok(wrapped) = func.call3(&wasm_bindgen::JsValue::UNDEFINED, a, b, c) {
+            let func: &Function = helper.unchecked_ref();
+            if let Ok(wrapped) = func.call3(&JsValue::UNDEFINED, a, b, c) {
                 return wrapped;
             }
         }
@@ -2731,8 +2688,8 @@ fn helper_wrap3(
     a.clone()
 }
 
-fn unpack_args(args_v8: &wasm_bindgen::JsValue, ctx: &mut Context) -> Vec<BoaValue> {
-    if let Some(arr) = args_v8.dyn_ref::<js_sys::Array>() {
+fn unpack_args(args_v8: &JsValue, ctx: &mut Context) -> Vec<BoaValue> {
+    if let Some(arr) = args_v8.dyn_ref::<Array>() {
         arr.iter().map(|v| v8_to_boa(v, ctx)).collect()
     } else if args_v8.is_undefined() {
         Vec::new()
@@ -2741,7 +2698,7 @@ fn unpack_args(args_v8: &wasm_bindgen::JsValue, ctx: &mut Context) -> Vec<BoaVal
     }
 }
 
-fn stamp_fn_name(f: &wasm_bindgen::JsValue, boa_fn: &JsObject, ctx: &mut Context) {
+fn stamp_fn_name(f: &JsValue, boa_fn: &JsObject, ctx: &mut Context) {
     let Ok(n) = boa_fn.get(js_string!("name"), ctx) else {
         return;
     };
@@ -2751,24 +2708,19 @@ fn stamp_fn_name(f: &wasm_bindgen::JsValue, boa_fn: &JsObject, ctx: &mut Context
     if name.is_empty() {
         return;
     }
-    let desc = js_sys::Object::new();
-    let _ = js_sys::Reflect::set(
+    let desc = Object::new();
+    let _ = Reflect::set(
         &desc,
-        &wasm_bindgen::JsValue::from_str("value"),
-        &wasm_bindgen::JsValue::from_str(&name),
+        &JsValue::from_str("value"),
+        &JsValue::from_str(&name),
     );
-    let _ = js_sys::Reflect::set(
-        &desc,
-        &wasm_bindgen::JsValue::from_str("configurable"),
-        &wasm_bindgen::JsValue::TRUE,
-    );
-    if let Some(obj) = f.dyn_ref::<js_sys::Object>() {
-        let _ =
-            js_sys::Object::define_property(obj, &wasm_bindgen::JsValue::from_str("name"), &desc);
+    let _ = Reflect::set(&desc, &JsValue::from_str("configurable"), &JsValue::TRUE);
+    if let Some(obj) = f.dyn_ref::<Object>() {
+        let _ = Object::define_property(obj, &JsValue::from_str("name"), &desc);
     }
 }
 
-fn make_boa_fn_trampoline(boa_fn: JsObject, ctx: &mut Context) -> (wasm_bindgen::JsValue, u64) {
+fn make_boa_fn_trampoline(boa_fn: JsObject, ctx: &mut Context) -> (JsValue, u64) {
     let named = boa_fn.clone();
     let unwrap_handle = pin_boa(boa_fn);
     let (call, ctor, _) = tramp_shims();
@@ -2776,36 +2728,32 @@ fn make_boa_fn_trampoline(boa_fn: JsObject, ctx: &mut Context) -> (wasm_bindgen:
         "wrapBoaFunction",
         &call,
         &ctor,
-        &wasm_bindgen::JsValue::from_f64(unwrap_handle as f64),
+        &JsValue::from_f64(unwrap_handle as f64),
     );
-    let _ = js_sys::Reflect::set(
+    let _ = Reflect::set(
         &f,
-        &wasm_bindgen::JsValue::from_str(BOA_UNWRAP_KEY),
-        &wasm_bindgen::JsValue::from_f64(unwrap_handle as f64),
+        &JsValue::from_str(BOA_UNWRAP_KEY),
+        &JsValue::from_f64(unwrap_handle as f64),
     );
     stamp_fn_name(&f, &named, ctx);
     our_v8_register(&f, unwrap_handle);
     (f, unwrap_handle)
 }
 
-fn make_boa_method_trampoline(
-    boa_fn: JsObject,
-    recv_handle: u64,
-    ctx: &mut Context,
-) -> wasm_bindgen::JsValue {
+fn make_boa_method_trampoline(boa_fn: JsObject, recv_handle: u64, ctx: &mut Context) -> JsValue {
     let named = boa_fn.clone();
     let unwrap_handle = pin_boa(boa_fn);
     let (_, _, method) = tramp_shims();
     let f = helper_wrap3(
         "wrapBoaMethod",
         &method,
-        &wasm_bindgen::JsValue::from_f64(unwrap_handle as f64),
-        &wasm_bindgen::JsValue::from_f64(recv_handle as f64),
+        &JsValue::from_f64(unwrap_handle as f64),
+        &JsValue::from_f64(recv_handle as f64),
     );
-    let _ = js_sys::Reflect::set(
+    let _ = Reflect::set(
         &f,
-        &wasm_bindgen::JsValue::from_str(BOA_UNWRAP_KEY),
-        &wasm_bindgen::JsValue::from_f64(unwrap_handle as f64),
+        &JsValue::from_str(BOA_UNWRAP_KEY),
+        &JsValue::from_f64(unwrap_handle as f64),
     );
     stamp_fn_name(&f, &named, ctx);
     our_v8_register(&f, unwrap_handle);
@@ -2830,54 +2778,50 @@ fn boa_own_string_keys(obj: &JsObject, ctx: &mut Context) -> Vec<String> {
 }
 
 thread_local! {
-    static TARGET_HANDLES: RefCell<Option<js_sys::WeakMap>> = const { RefCell::new(None) };
-    static SHARED_HANDLER: RefCell<Option<js_sys::Object>> = const { RefCell::new(None) };
+    static TARGET_HANDLES: RefCell<Option<WeakMap>> = const { RefCell::new(None) };
+    static SHARED_HANDLER: RefCell<Option<Object>> = const { RefCell::new(None) };
 }
 
-fn target_handle_set(target: &js_sys::Object, handle: u64) {
+fn target_handle_set(target: &Object, handle: u64) {
     TARGET_HANDLES.with(|c| {
         let mut b = c.borrow_mut();
-        let m = b.get_or_insert_with(js_sys::WeakMap::new);
-        m.set(target, &wasm_bindgen::JsValue::from_f64(handle as f64));
+        let m = b.get_or_insert_with(WeakMap::new);
+        m.set(target, &JsValue::from_f64(handle as f64));
     });
 }
 
-fn target_handle_get(target: &wasm_bindgen::JsValue) -> Option<u64> {
+fn target_handle_get(target: &JsValue) -> Option<u64> {
     if !target.is_object() && !target.is_function() {
         return None;
     }
     TARGET_HANDLES.with(|c| {
         let b = c.borrow();
         let m = b.as_ref()?;
-        m.get(target.unchecked_ref::<js_sys::Object>())
+        m.get(target.unchecked_ref::<Object>())
             .as_f64()
             .map(|n| n as u64)
     })
 }
 
-fn shim_get(
-    target: wasm_bindgen::JsValue,
-    key: wasm_bindgen::JsValue,
-    recv: wasm_bindgen::JsValue,
-) -> wasm_bindgen::JsValue {
+fn shim_get(target: JsValue, key: JsValue, recv: JsValue) -> JsValue {
     let Some(handle) = target_handle_get(&target) else {
-        return wasm_bindgen::JsValue::UNDEFINED;
+        return JsValue::UNDEFINED;
     };
     // I3: answer the unwrap probe with our boa pin handle so a
     // round-trip back into boa recovers the original object.
     let key_str = key.as_string();
     if key_str.as_deref() == Some(BOA_UNWRAP_KEY) {
-        return wasm_bindgen::JsValue::from_f64(handle as f64);
+        return JsValue::from_f64(handle as f64);
     }
     let inherited = !recv.is_undefined() && our_v8_lookup(&recv) != Some(handle);
     with_context(|ctx| {
         let Some(o) = get_boa(handle) else {
-            return wasm_bindgen::JsValue::UNDEFINED;
+            return JsValue::UNDEFINED;
         };
         let pk: PropertyKey = match key_str.as_deref() {
             Some(k) => JsString::from(k).into(),
             None if key.is_symbol() => PropertyKey::Symbol(v8_symbol_to_boa(
-                key.clone().unchecked_into::<js_sys::Symbol>(),
+                key.clone().unchecked_into::<Symbol>(),
                 ctx,
             )),
             None => js_string!().into(),
@@ -2893,11 +2837,10 @@ fn shim_get(
             FnKeyOwner::Boa => {}
             FnKeyOwner::V8Super(sup) => {
                 return with_v8(ctx, || reflect_get_with_receiver(&sup, &key, &recv))
-                    .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+                    .unwrap_or(JsValue::UNDEFINED);
             }
             FnKeyOwner::FunctionProto if target.is_function() => {
-                return js_sys::Reflect::get(&target, &key)
-                    .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+                return Reflect::get(&target, &key).unwrap_or(JsValue::UNDEFINED);
             }
             FnKeyOwner::FunctionProto => {}
         }
@@ -2921,15 +2864,15 @@ fn shim_get(
                 }
                 _ => boa_to_v8(&bv, ctx),
             },
-            Err(_) => wasm_bindgen::JsValue::UNDEFINED,
+            Err(_) => JsValue::UNDEFINED,
         }
     })
-    .unwrap_or(wasm_bindgen::JsValue::UNDEFINED)
+    .unwrap_or(JsValue::UNDEFINED)
 }
 
 enum FnKeyOwner {
     Boa,
-    V8Super(wasm_bindgen::JsValue),
+    V8Super(JsValue),
     FunctionProto,
 }
 
@@ -2970,39 +2913,39 @@ fn boa_fn_carries(o: &JsObject, key: &PropertyKey, ctx: &mut Context) -> FnKeyOw
 extern "C" {
     #[wasm_bindgen(js_namespace = Reflect, js_name = get, catch)]
     fn reflect_get_with_receiver(
-        target: &wasm_bindgen::JsValue,
-        key: &wasm_bindgen::JsValue,
-        receiver: &wasm_bindgen::JsValue,
-    ) -> Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>;
+        target: &JsValue,
+        key: &JsValue,
+        receiver: &JsValue,
+    ) -> Result<JsValue, JsValue>;
 }
 
-fn shim_has(target: wasm_bindgen::JsValue, key: wasm_bindgen::JsValue) -> wasm_bindgen::JsValue {
+fn shim_has(target: JsValue, key: JsValue) -> JsValue {
     let Some(handle) = target_handle_get(&target) else {
-        return wasm_bindgen::JsValue::from_bool(false);
+        return JsValue::from_bool(false);
     };
     if target.is_function() && key.as_string().as_deref() == Some("prototype") {
-        return wasm_bindgen::JsValue::from_bool(true);
+        return JsValue::from_bool(true);
     }
     with_context(|ctx| {
         let Some(o) = get_boa(handle) else {
-            return wasm_bindgen::JsValue::from_bool(false);
+            return JsValue::from_bool(false);
         };
         let pk = v8_key_to_boa(&key, ctx);
         if matches!(o.get(pk.clone(), ctx), Ok(ref v) if !v.is_undefined()) {
-            return wasm_bindgen::JsValue::TRUE;
+            return JsValue::TRUE;
         }
-        let shell = target.unchecked_ref::<js_sys::Object>();
+        let shell = target.unchecked_ref::<Object>();
         let slot = shell_slot(shell, &key);
         if !slot.is_object() {
-            return wasm_bindgen::JsValue::FALSE;
+            return JsValue::FALSE;
         }
         if slot_is_fixed(&slot) || o.has_own_property(pk, ctx).unwrap_or(false) {
-            return wasm_bindgen::JsValue::TRUE;
+            return JsValue::TRUE;
         }
-        let _ = js_sys::Reflect::delete_property(shell, &key);
-        wasm_bindgen::JsValue::FALSE
+        let _ = Reflect::delete_property(shell, &key);
+        JsValue::FALSE
     })
-    .unwrap_or(wasm_bindgen::JsValue::from_bool(false))
+    .unwrap_or(JsValue::from_bool(false))
 }
 
 fn boa_chain_setter(
@@ -3044,16 +2987,16 @@ fn boa_chain_setter(
     None
 }
 
-fn v8_inherits_from_ours(recv: &wasm_bindgen::JsValue, handle: u64) -> bool {
-    let mut cur: wasm_bindgen::JsValue = recv.clone();
+fn v8_inherits_from_ours(recv: &JsValue, handle: u64) -> bool {
+    let mut cur: JsValue = recv.clone();
     for _ in 0..64 {
-        let Some(obj) = cur.dyn_ref::<js_sys::Object>().cloned() else {
+        let Some(obj) = cur.dyn_ref::<Object>().cloned() else {
             return false;
         };
-        let Ok(p) = js_sys::Reflect::get_prototype_of(&obj) else {
+        let Ok(p) = Reflect::get_prototype_of(&obj) else {
             return false;
         };
-        let pv: wasm_bindgen::JsValue = p.into();
+        let pv: JsValue = p.into();
         if pv.is_null() || pv.is_undefined() {
             return false;
         }
@@ -3065,29 +3008,24 @@ fn v8_inherits_from_ours(recv: &wasm_bindgen::JsValue, handle: u64) -> bool {
     false
 }
 
-fn shim_set(
-    target: wasm_bindgen::JsValue,
-    key: wasm_bindgen::JsValue,
-    val: wasm_bindgen::JsValue,
-    recv: wasm_bindgen::JsValue,
-) -> wasm_bindgen::JsValue {
+fn shim_set(target: JsValue, key: JsValue, val: JsValue, recv: JsValue) -> JsValue {
     let Some(handle) = target_handle_get(&target) else {
-        return wasm_bindgen::JsValue::from_bool(false);
+        return JsValue::from_bool(false);
     };
     if !recv.is_undefined()
         && our_v8_lookup(&recv) != Some(handle)
         && v8_inherits_from_ours(&recv, handle)
     {
-        if let Some(recv_obj) = recv.dyn_ref::<js_sys::Object>() {
+        if let Some(recv_obj) = recv.dyn_ref::<Object>() {
             enum Inherited {
-                V8(wasm_bindgen::JsValue),
+                V8(JsValue),
                 Setter(Option<Option<JsObject>>),
             }
             let inherited = with_context(|ctx| {
                 let o = get_boa(handle)?;
                 let pk: PropertyKey = if key.is_symbol() {
                     PropertyKey::Symbol(v8_symbol_to_boa(
-                        key.clone().unchecked_into::<js_sys::Symbol>(),
+                        key.clone().unchecked_into::<Symbol>(),
                         ctx,
                     ))
                 } else {
@@ -3102,13 +3040,11 @@ fn shim_set(
             let setter = match inherited {
                 Some(Inherited::V8(sup)) => {
                     let ok = with_context(|ctx| {
-                        with_v8(ctx, || {
-                            js_sys::Reflect::set_with_receiver(&sup, &key, &val, &recv)
-                        })
-                        .unwrap_or(false)
+                        with_v8(ctx, || Reflect::set_with_receiver(&sup, &key, &val, &recv))
+                            .unwrap_or(false)
                     })
                     .unwrap_or(false);
-                    return wasm_bindgen::JsValue::from_bool(ok);
+                    return JsValue::from_bool(ok);
                 }
                 Some(Inherited::Setter(s)) => s,
                 None => None,
@@ -3121,46 +3057,34 @@ fn shim_set(
                         setter_fn.call(&this_b, &[v_b], ctx).is_ok()
                     })
                     .unwrap_or(false);
-                    return wasm_bindgen::JsValue::from_bool(ok);
+                    return JsValue::from_bool(ok);
                 }
-                Some(None) => return wasm_bindgen::JsValue::from_bool(false),
+                Some(None) => return JsValue::from_bool(false),
                 None => {}
             }
-            let has_own = js_sys::Reflect::get_own_property_descriptor(recv_obj, &key)
+            let has_own = Reflect::get_own_property_descriptor(recv_obj, &key)
                 .map(|d| !d.is_undefined())
                 .unwrap_or(false);
-            let d = js_sys::Object::new();
-            let _ = js_sys::Reflect::set(&d, &wasm_bindgen::JsValue::from_str("value"), &val);
+            let d = Object::new();
+            let _ = Reflect::set(&d, &JsValue::from_str("value"), &val);
             if !has_own {
-                let _ = js_sys::Reflect::set(
-                    &d,
-                    &wasm_bindgen::JsValue::from_str("writable"),
-                    &wasm_bindgen::JsValue::TRUE,
-                );
-                let _ = js_sys::Reflect::set(
-                    &d,
-                    &wasm_bindgen::JsValue::from_str("enumerable"),
-                    &wasm_bindgen::JsValue::TRUE,
-                );
-                let _ = js_sys::Reflect::set(
-                    &d,
-                    &wasm_bindgen::JsValue::from_str("configurable"),
-                    &wasm_bindgen::JsValue::TRUE,
-                );
+                let _ = Reflect::set(&d, &JsValue::from_str("writable"), &JsValue::TRUE);
+                let _ = Reflect::set(&d, &JsValue::from_str("enumerable"), &JsValue::TRUE);
+                let _ = Reflect::set(&d, &JsValue::from_str("configurable"), &JsValue::TRUE);
             }
-            let ok = js_sys::Reflect::define_property(recv_obj, &key, &d).unwrap_or(false);
-            return wasm_bindgen::JsValue::from_bool(ok);
+            let ok = Reflect::define_property(recv_obj, &key, &d).unwrap_or(false);
+            return JsValue::from_bool(ok);
         }
     }
     with_context(|ctx| {
         let Some(o) = get_boa(handle) else {
-            return wasm_bindgen::JsValue::from_bool(false);
+            return JsValue::from_bool(false);
         };
         let bv = v8_to_boa(val, ctx);
         let ok = if key.is_symbol() {
             o.set(
                 PropertyKey::Symbol(v8_symbol_to_boa(
-                    key.clone().unchecked_into::<js_sys::Symbol>(),
+                    key.clone().unchecked_into::<Symbol>(),
                     ctx,
                 )),
                 bv,
@@ -3175,63 +3099,59 @@ fn shim_set(
                 ctx,
             )
         };
-        wasm_bindgen::JsValue::from_bool(ok.unwrap_or(false))
+        JsValue::from_bool(ok.unwrap_or(false))
     })
-    .unwrap_or(wasm_bindgen::JsValue::from_bool(false))
+    .unwrap_or(JsValue::from_bool(false))
 }
 
-fn shim_delete(target: wasm_bindgen::JsValue, key: wasm_bindgen::JsValue) -> wasm_bindgen::JsValue {
+fn shim_delete(target: JsValue, key: JsValue) -> JsValue {
     let Some(handle) = target_handle_get(&target) else {
-        return wasm_bindgen::JsValue::from_bool(false);
+        return JsValue::from_bool(false);
     };
     with_context(|ctx| {
         let Some(o) = get_boa(handle) else {
-            return wasm_bindgen::JsValue::from_bool(false);
+            return JsValue::from_bool(false);
         };
         let pk: PropertyKey = if key.is_symbol() {
             PropertyKey::Symbol(v8_symbol_to_boa(
-                key.clone().unchecked_into::<js_sys::Symbol>(),
+                key.clone().unchecked_into::<Symbol>(),
                 ctx,
             ))
         } else {
             PropertyKey::from(JsString::from(key.as_string().unwrap_or_default().as_str()))
         };
         let ok = o.delete_property_or_throw(pk, ctx).unwrap_or(false);
-        if let (true, Some(shell)) = (ok, target.dyn_ref::<js_sys::Object>()) {
-            let _ = js_sys::Reflect::delete_property(shell, &key);
+        if let (true, Some(shell)) = (ok, target.dyn_ref::<Object>()) {
+            let _ = Reflect::delete_property(shell, &key);
         }
-        wasm_bindgen::JsValue::from_bool(ok)
+        JsValue::from_bool(ok)
     })
-    .unwrap_or(wasm_bindgen::JsValue::from_bool(false))
+    .unwrap_or(JsValue::from_bool(false))
 }
 
-fn shim_define(
-    target: wasm_bindgen::JsValue,
-    key: wasm_bindgen::JsValue,
-    desc: wasm_bindgen::JsValue,
-) -> wasm_bindgen::JsValue {
+fn shim_define(target: JsValue, key: JsValue, desc: JsValue) -> JsValue {
     let Some(handle) = target_handle_get(&target) else {
-        return wasm_bindgen::JsValue::from_bool(false);
+        return JsValue::from_bool(false);
     };
-    let Some(shell) = target.dyn_ref::<js_sys::Object>() else {
-        return wasm_bindgen::JsValue::from_bool(false);
+    let Some(shell) = target.dyn_ref::<Object>() else {
+        return JsValue::from_bool(false);
     };
-    let field = |n: &str| -> Option<wasm_bindgen::JsValue> {
-        let k = wasm_bindgen::JsValue::from_str(n);
-        if js_sys::Reflect::has(&desc, &k).unwrap_or(false) {
-            js_sys::Reflect::get(&desc, &k).ok()
+    let field = |n: &str| -> Option<JsValue> {
+        let k = JsValue::from_str(n);
+        if Reflect::has(&desc, &k).unwrap_or(false) {
+            Reflect::get(&desc, &k).ok()
         } else {
             None
         }
     };
-    let slot: wasm_bindgen::JsValue = js_sys::Reflect::get_own_property_descriptor(shell, &key)
-        .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
+    let slot: JsValue =
+        Reflect::get_own_property_descriptor(shell, &key).unwrap_or(JsValue::UNDEFINED);
     let slot_fixed = slot.is_object() && !desc_field(&slot, "configurable").is_truthy();
-    if !slot.is_object() && !js_sys::Reflect::is_extensible(shell).unwrap_or(true) {
-        return wasm_bindgen::JsValue::from_bool(false);
+    if !slot.is_object() && !Reflect::is_extensible(shell).unwrap_or(true) {
+        return JsValue::from_bool(false);
     }
     if slot_fixed && !fixed_slot_accepts(&slot, &field) {
-        return wasm_bindgen::JsValue::from_bool(false);
+        return JsValue::from_bool(false);
     }
     let (value, writable) = (field("value"), field("writable"));
     let (getter, setter) = (field("get"), field("set"));
@@ -3240,7 +3160,7 @@ fn shim_define(
     enum Defined {
         Rejected,
         InBoa,
-        Mirror(Option<js_sys::Object>),
+        Mirror(Option<Object>),
     }
     let outcome = with_context(|ctx| {
         let Some(o) = get_boa(handle) else {
@@ -3248,7 +3168,7 @@ fn shim_define(
         };
         let pk: PropertyKey = if key.is_symbol() {
             PropertyKey::Symbol(v8_symbol_to_boa(
-                key.clone().unchecked_into::<js_sys::Symbol>(),
+                key.clone().unchecked_into::<Symbol>(),
                 ctx,
             ))
         } else {
@@ -3301,34 +3221,32 @@ fn shim_define(
             // or the caller, never a trampoline boa_to_v8 minted afresh (a partial re-define).
             if slot_fixed {
                 for name in ["get", "set"] {
-                    let k = wasm_bindgen::JsValue::from_str(name);
-                    if js_sys::Reflect::has(&slot, &k).unwrap_or(false) {
-                        let _ = js_sys::Reflect::set(&mirror, &k, &desc_field(&slot, name));
+                    let k = JsValue::from_str(name);
+                    if Reflect::has(&slot, &k).unwrap_or(false) {
+                        let _ = Reflect::set(&mirror, &k, &desc_field(&slot, name));
                     }
                 }
             }
             for name in ["get", "set", "value"] {
                 if let Some(v) = field(name) {
-                    let _ =
-                        js_sys::Reflect::set(&mirror, &wasm_bindgen::JsValue::from_str(name), &v);
+                    let _ = Reflect::set(&mirror, &JsValue::from_str(name), &v);
                 }
             }
             mark_slotted(handle);
-            js_sys::Reflect::define_property(shell, &key, &mirror).unwrap_or(false)
+            Reflect::define_property(shell, &key, &mirror).unwrap_or(false)
         }
     };
-    wasm_bindgen::JsValue::from_bool(ok)
+    JsValue::from_bool(ok)
 }
 
-fn desc_field(d: &wasm_bindgen::JsValue, name: &str) -> wasm_bindgen::JsValue {
-    js_sys::Reflect::get(d, &wasm_bindgen::JsValue::from_str(name))
-        .unwrap_or(wasm_bindgen::JsValue::UNDEFINED)
+fn desc_field(d: &JsValue, name: &str) -> JsValue {
+    Reflect::get(d, &JsValue::from_str(name)).unwrap_or(JsValue::UNDEFINED)
 }
 
-fn v8_key_to_boa(key: &wasm_bindgen::JsValue, ctx: &mut Context) -> PropertyKey {
+fn v8_key_to_boa(key: &JsValue, ctx: &mut Context) -> PropertyKey {
     if key.is_symbol() {
         PropertyKey::Symbol(v8_symbol_to_boa(
-            key.clone().unchecked_into::<js_sys::Symbol>(),
+            key.clone().unchecked_into::<Symbol>(),
             ctx,
         ))
     } else {
@@ -3336,10 +3254,10 @@ fn v8_key_to_boa(key: &wasm_bindgen::JsValue, ctx: &mut Context) -> PropertyKey 
     }
 }
 
-fn boa_key_to_v8(pk: &PropertyKey, ctx: &mut Context) -> wasm_bindgen::JsValue {
+fn boa_key_to_v8(pk: &PropertyKey, ctx: &mut Context) -> JsValue {
     match pk {
         PropertyKey::String(s) => boa_str_to_v8(s),
-        PropertyKey::Index(i) => wasm_bindgen::JsValue::from_str(&i.get().to_string()),
+        PropertyKey::Index(i) => JsValue::from_str(&i.get().to_string()),
         PropertyKey::Symbol(s) => boa_symbol_to_v8(s, ctx).into(),
     }
 }
@@ -3365,30 +3283,25 @@ fn is_slotted(handle: u64) -> bool {
     SLOTTED.with(|s| s.borrow().contains(&handle))
 }
 
-fn shell_slot(shell: &js_sys::Object, key: &wasm_bindgen::JsValue) -> wasm_bindgen::JsValue {
-    js_sys::Reflect::get_own_property_descriptor(shell, key)
-        .unwrap_or(wasm_bindgen::JsValue::UNDEFINED)
+fn shell_slot(shell: &Object, key: &JsValue) -> JsValue {
+    Reflect::get_own_property_descriptor(shell, key).unwrap_or(JsValue::UNDEFINED)
 }
 
-fn slot_is_fixed(slot: &wasm_bindgen::JsValue) -> bool {
+fn slot_is_fixed(slot: &JsValue) -> bool {
     slot.is_object() && !desc_field(slot, "configurable").is_truthy()
 }
 
-fn close_shell(shell: &js_sys::Object, o: &JsObject, ctx: &mut Context) {
-    if !js_sys::Reflect::is_extensible(shell).unwrap_or(false) {
+fn close_shell(shell: &Object, o: &JsObject, ctx: &mut Context) {
+    if !Reflect::is_extensible(shell).unwrap_or(false) {
         return;
     }
     if let Some(handle) = target_handle_get(shell) {
         mark_slotted(handle);
     }
-    let stand_in = js_sys::Object::new();
-    let _ = js_sys::Reflect::set(&stand_in, &"writable".into(), &wasm_bindgen::JsValue::TRUE);
-    let _ = js_sys::Reflect::set(
-        &stand_in,
-        &"configurable".into(),
-        &wasm_bindgen::JsValue::TRUE,
-    );
-    let listed = js_sys::Set::new(&wasm_bindgen::JsValue::UNDEFINED);
+    let stand_in = Object::new();
+    let _ = Reflect::set(&stand_in, &"writable".into(), &JsValue::TRUE);
+    let _ = Reflect::set(&stand_in, &"configurable".into(), &JsValue::TRUE);
+    let listed = js_sys::Set::new(&JsValue::UNDEFINED);
     let stamp = stamp_pk();
     for pk in o.own_property_keys(ctx).unwrap_or_default() {
         if pk == stamp {
@@ -3398,27 +3311,27 @@ fn close_shell(shell: &js_sys::Object, o: &JsObject, ctx: &mut Context) {
         listed.add(&key);
         match boa_own_desc(o, &pk) {
             Some(d) if d.configurable() == Some(false) => {
-                let _ = js_sys::Reflect::define_property(shell, &key, &boa_desc_to_v8(&d, ctx));
+                let _ = Reflect::define_property(shell, &key, &boa_desc_to_v8(&d, ctx));
             }
             _ if !shell_slot(shell, &key).is_object() => {
-                let _ = js_sys::Reflect::define_property(shell, &key, &stand_in);
+                let _ = Reflect::define_property(shell, &key, &stand_in);
             }
             _ => {}
         }
     }
-    for k in js_sys::Reflect::own_keys(shell)
+    for k in Reflect::own_keys(shell)
         .map(|a| a.to_vec())
         .unwrap_or_default()
     {
         if !listed.has(&k) {
-            let _ = js_sys::Reflect::delete_property(shell, &k);
+            let _ = Reflect::delete_property(shell, &k);
         }
     }
-    let _ = js_sys::Reflect::prevent_extensions(shell);
+    let _ = Reflect::prevent_extensions(shell);
 }
 
-fn prune_shell(shell: &js_sys::Object, o: &JsObject, ctx: &mut Context) {
-    for k in js_sys::Reflect::own_keys(shell)
+fn prune_shell(shell: &Object, o: &JsObject, ctx: &mut Context) {
+    for k in Reflect::own_keys(shell)
         .map(|a| a.to_vec())
         .unwrap_or_default()
     {
@@ -3427,16 +3340,16 @@ fn prune_shell(shell: &js_sys::Object, o: &JsObject, ctx: &mut Context) {
             && !slot_is_fixed(&slot)
             && boa_own_desc(o, &v8_key_to_boa(&k, ctx)).is_none()
         {
-            let _ = js_sys::Reflect::delete_property(shell, &k);
+            let _ = Reflect::delete_property(shell, &k);
         }
     }
 }
 
-fn shim_is_extensible(target: wasm_bindgen::JsValue) -> wasm_bindgen::JsValue {
-    let Some(shell) = target.dyn_ref::<js_sys::Object>() else {
-        return wasm_bindgen::JsValue::FALSE;
+fn shim_is_extensible(target: JsValue) -> JsValue {
+    let Some(shell) = target.dyn_ref::<Object>() else {
+        return JsValue::FALSE;
     };
-    if js_sys::Reflect::is_extensible(shell).unwrap_or(false) {
+    if Reflect::is_extensible(shell).unwrap_or(false) {
         if let Some(handle) = target_handle_get(&target) {
             with_context(|ctx| {
                 if let Some(o) = get_boa(handle).filter(|o| o.is_extensible(ctx).is_ok_and(|e| !e))
@@ -3446,15 +3359,13 @@ fn shim_is_extensible(target: wasm_bindgen::JsValue) -> wasm_bindgen::JsValue {
             });
         }
     }
-    wasm_bindgen::JsValue::from_bool(js_sys::Reflect::is_extensible(shell).unwrap_or(false))
+    JsValue::from_bool(Reflect::is_extensible(shell).unwrap_or(false))
 }
 
-fn shim_prevent_extensions(target: wasm_bindgen::JsValue) -> wasm_bindgen::JsValue {
-    let (Some(handle), Some(shell)) = (
-        target_handle_get(&target),
-        target.dyn_ref::<js_sys::Object>(),
-    ) else {
-        return wasm_bindgen::JsValue::FALSE;
+fn shim_prevent_extensions(target: JsValue) -> JsValue {
+    let (Some(handle), Some(shell)) = (target_handle_get(&target), target.dyn_ref::<Object>())
+    else {
+        return JsValue::FALSE;
     };
     let closed = with_context(|ctx| {
         let Some(o) = get_boa(handle) else {
@@ -3468,15 +3379,10 @@ fn shim_prevent_extensions(target: wasm_bindgen::JsValue) -> wasm_bindgen::JsVal
         true
     })
     .unwrap_or(false);
-    wasm_bindgen::JsValue::from_bool(
-        closed && !js_sys::Reflect::is_extensible(shell).unwrap_or(true),
-    )
+    JsValue::from_bool(closed && !Reflect::is_extensible(shell).unwrap_or(true))
 }
 
-fn fixed_slot_accepts(
-    slot: &wasm_bindgen::JsValue,
-    field: &dyn Fn(&str) -> Option<wasm_bindgen::JsValue>,
-) -> bool {
+fn fixed_slot_accepts(slot: &JsValue, field: &dyn Fn(&str) -> Option<JsValue>) -> bool {
     if field("configurable").is_some_and(|c| c.is_truthy()) {
         return false;
     }
@@ -3487,12 +3393,11 @@ fn fixed_slot_accepts(
     }
     let accessor = field("get").is_some() || field("set").is_some();
     let data = field("value").is_some() || field("writable").is_some();
-    let slot_accessor =
-        js_sys::Reflect::has(slot, &wasm_bindgen::JsValue::from_str("get")).unwrap_or(false);
+    let slot_accessor = Reflect::has(slot, &JsValue::from_str("get")).unwrap_or(false);
     if (accessor && !slot_accessor) || (data && slot_accessor) {
         return false;
     }
-    let same = |n: &str| field(n).is_none_or(|v| js_sys::Object::is(&v, &desc_field(slot, n)));
+    let same = |n: &str| field(n).is_none_or(|v| Object::is(&v, &desc_field(slot, n)));
     if slot_accessor {
         return same("get") && same("set");
     }
@@ -3503,14 +3408,14 @@ fn fixed_slot_accepts(
 // Descriptor field names, decoded once: building a descriptor re-decoded all four
 // per call, and React's for-in over a boa props object asks for two per key.
 thread_local! {
-    static DESC_KEYS: [wasm_bindgen::JsValue; 6] =
-        ["value", "writable", "enumerable", "configurable", "get", "set"].map(wasm_bindgen::JsValue::from_str);
-    static DESC_HELPERS: RefCell<Option<(js_sys::Function, js_sys::Function)>> = const { RefCell::new(None) };
+    static DESC_KEYS: [JsValue; 6] =
+        ["value", "writable", "enumerable", "configurable", "get", "set"].map(JsValue::from_str);
+    static DESC_HELPERS: RefCell<Option<(Function, Function)>> = const { RefCell::new(None) };
 }
 
 // page-script's one-call descriptor builders: an object literal in V8 instead of
 // an empty object plus four Reflect.set crossings. Absent, the slow path stands.
-pub(crate) fn install_desc_helpers(data: js_sys::Function, accessor: js_sys::Function) {
+pub(crate) fn install_desc_helpers(data: Function, accessor: Function) {
     DESC_HELPERS.with(|h| *h.borrow_mut() = Some((data, accessor)));
 }
 
@@ -3521,73 +3426,69 @@ const DESC_CONFIGURABLE: usize = 3;
 const DESC_GET: usize = 4;
 const DESC_SET: usize = 5;
 
-fn desc_flags(d: &PropertyDescriptor) -> wasm_bindgen::JsValue {
+fn desc_flags(d: &PropertyDescriptor) -> JsValue {
     let bit = |b: Option<bool>, v: u8| if b.unwrap_or(false) { v } else { 0 };
-    wasm_bindgen::JsValue::from_f64(f64::from(
+    JsValue::from_f64(f64::from(
         bit(d.writable(), 1) | bit(d.enumerable(), 2) | bit(d.configurable(), 4),
     ))
 }
 
-fn boa_desc_to_v8(d: &PropertyDescriptor, ctx: &mut Context) -> js_sys::Object {
+fn boa_desc_to_v8(d: &PropertyDescriptor, ctx: &mut Context) -> Object {
     let helpers = DESC_HELPERS.with(|h| h.borrow().clone());
     if let Some((data, accessor)) = helpers {
         let built = if d.is_accessor_descriptor() {
             let side = |f: Option<&BoaValue>, ctx: &mut Context| match f {
                 Some(f) if f.is_callable() => boa_to_v8(f, ctx),
-                _ => wasm_bindgen::JsValue::UNDEFINED,
+                _ => JsValue::UNDEFINED,
             };
             let (g, st) = (side(d.get(), ctx), side(d.set(), ctx));
-            accessor.call3(&wasm_bindgen::JsValue::UNDEFINED, &g, &st, &desc_flags(d))
+            accessor.call3(&JsValue::UNDEFINED, &g, &st, &desc_flags(d))
         } else {
-            let v = d
-                .value()
-                .map_or(wasm_bindgen::JsValue::UNDEFINED, |v| boa_to_v8(v, ctx));
-            data.call2(&wasm_bindgen::JsValue::UNDEFINED, &v, &desc_flags(d))
+            let v = d.value().map_or(JsValue::UNDEFINED, |v| boa_to_v8(v, ctx));
+            data.call2(&JsValue::UNDEFINED, &v, &desc_flags(d))
         };
         if let Ok(o) = built {
             return o.unchecked_into();
         }
     }
-    let out = js_sys::Object::new();
-    let put = |idx: usize, v: &wasm_bindgen::JsValue| {
+    let out = Object::new();
+    let put = |idx: usize, v: &JsValue| {
         DESC_KEYS.with(|keys| {
-            let _ = js_sys::Reflect::set(&out, &keys[idx], v);
+            let _ = Reflect::set(&out, &keys[idx], v);
         });
     };
     if d.is_accessor_descriptor() {
         for (idx, f) in [(DESC_GET, d.get()), (DESC_SET, d.set())] {
             let v = match f {
                 Some(f) if f.is_callable() => boa_to_v8(f, ctx),
-                _ => wasm_bindgen::JsValue::UNDEFINED,
+                _ => JsValue::UNDEFINED,
             };
             put(idx, &v);
         }
     } else {
-        let v = d
-            .value()
-            .map_or(wasm_bindgen::JsValue::UNDEFINED, |v| boa_to_v8(v, ctx));
+        let v = d.value().map_or(JsValue::UNDEFINED, |v| boa_to_v8(v, ctx));
         put(DESC_VALUE, &v);
         put(
             DESC_WRITABLE,
-            &wasm_bindgen::JsValue::from_bool(d.writable().unwrap_or(false)),
+            &JsValue::from_bool(d.writable().unwrap_or(false)),
         );
     }
     put(
         DESC_ENUMERABLE,
-        &wasm_bindgen::JsValue::from_bool(d.enumerable().unwrap_or(false)),
+        &JsValue::from_bool(d.enumerable().unwrap_or(false)),
     );
     put(
         DESC_CONFIGURABLE,
-        &wasm_bindgen::JsValue::from_bool(d.configurable().unwrap_or(false)),
+        &JsValue::from_bool(d.configurable().unwrap_or(false)),
     );
     out
 }
 
-fn shim_get_proto(target: wasm_bindgen::JsValue) -> wasm_bindgen::JsValue {
+fn shim_get_proto(target: JsValue) -> JsValue {
     // V8 owns function-prototype checks so `Function` tests cannot re-enter Boa.
     if target.is_function() {
-        if let Some(obj) = target.dyn_ref::<js_sys::Object>() {
-            if let Ok(p) = js_sys::Reflect::get_prototype_of(obj) {
+        if let Some(obj) = target.dyn_ref::<Object>() {
+            if let Ok(p) = Reflect::get_prototype_of(obj) {
                 return p.into();
             }
         }
@@ -3611,31 +3512,31 @@ fn shim_get_proto(target: wasm_bindgen::JsValue) -> wasm_bindgen::JsValue {
     if let Some(p) = named {
         return p;
     }
-    if let Some(obj) = target.dyn_ref::<js_sys::Object>() {
-        if let Ok(p) = js_sys::Reflect::get_prototype_of(obj) {
+    if let Some(obj) = target.dyn_ref::<Object>() {
+        if let Ok(p) = Reflect::get_prototype_of(obj) {
             return p.into();
         }
     }
-    wasm_bindgen::JsValue::NULL
+    JsValue::NULL
 }
 
-fn shim_own_keys(target: wasm_bindgen::JsValue) -> wasm_bindgen::JsValue {
-    if let Some(obj) = target.dyn_ref::<js_sys::Object>() {
-        if !js_sys::Reflect::is_extensible(obj).unwrap_or(true) {
+fn shim_own_keys(target: JsValue) -> JsValue {
+    if let Some(obj) = target.dyn_ref::<Object>() {
+        if !Reflect::is_extensible(obj).unwrap_or(true) {
             if let Some(handle) = target_handle_get(&target) {
                 with_context(|ctx| get_boa(handle).map(|o| prune_shell(obj, &o, ctx)));
             }
-            let all = js_sys::Array::new();
-            for k in js_sys::Object::get_own_property_names(obj).iter() {
+            let all = Array::new();
+            for k in Object::get_own_property_names(obj).iter() {
                 all.push(&k);
             }
-            for k in js_sys::Object::get_own_property_symbols(obj).iter() {
+            for k in Object::get_own_property_symbols(obj).iter() {
                 all.push(&k);
             }
             return all.into();
         }
     }
-    let arr = js_sys::Array::new();
+    let arr = Array::new();
     let Some(handle) = target_handle_get(&target) else {
         return arr.into();
     };
@@ -3654,18 +3555,18 @@ fn shim_own_keys(target: wasm_bindgen::JsValue) -> wasm_bindgen::JsValue {
             }
         }
     });
-    if js_sys::Array::is_array(&target) && !saw_length {
-        arr.push(&wasm_bindgen::JsValue::from_str("length"));
+    if Array::is_array(&target) && !saw_length {
+        arr.push(&JsValue::from_str("length"));
     }
     if target.is_function() && !saw_prototype {
-        arr.push(&wasm_bindgen::JsValue::from_str("prototype"));
+        arr.push(&JsValue::from_str("prototype"));
     }
-    if let Some(shell) = target.dyn_ref::<js_sys::Object>() {
-        for k in js_sys::Reflect::own_keys(shell)
+    if let Some(shell) = target.dyn_ref::<Object>() {
+        for k in Reflect::own_keys(shell)
             .map(|a| a.to_vec())
             .unwrap_or_default()
         {
-            let fixed = js_sys::Reflect::get_own_property_descriptor(shell, &k)
+            let fixed = Reflect::get_own_property_descriptor(shell, &k)
                 .is_ok_and(|d| d.is_object() && !desc_field(&d, "configurable").is_truthy());
             if fixed && !arr.includes(&k, 0) {
                 arr.push(&k);
@@ -3687,13 +3588,13 @@ fn boa_prototype_writable(o: &JsObject) -> bool {
         .unwrap_or(false)
 }
 
-fn shim_gopd(target: wasm_bindgen::JsValue, key: wasm_bindgen::JsValue) -> wasm_bindgen::JsValue {
+fn shim_gopd(target: JsValue, key: JsValue) -> JsValue {
     let Some(handle) = target_handle_get(&target) else {
-        return wasm_bindgen::JsValue::UNDEFINED;
+        return JsValue::UNDEFINED;
     };
     with_context(|ctx| {
         let Some(o) = get_boa(handle) else {
-            return wasm_bindgen::JsValue::UNDEFINED;
+            return JsValue::UNDEFINED;
         };
         let key_str = key.as_string();
         let k = key_str.as_deref().unwrap_or_default();
@@ -3703,87 +3604,65 @@ fn shim_gopd(target: wasm_bindgen::JsValue, key: wasm_bindgen::JsValue) -> wasm_
             let proto = o
                 .get(js_string!("prototype"), ctx)
                 .map(|v| boa_to_v8(&v, ctx))
-                .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
-            let d = js_sys::Object::new();
-            let _ = js_sys::Reflect::set(&d, &wasm_bindgen::JsValue::from_str("value"), &proto);
-            let _ = js_sys::Reflect::set(
+                .unwrap_or(JsValue::UNDEFINED);
+            let d = Object::new();
+            let _ = Reflect::set(&d, &JsValue::from_str("value"), &proto);
+            let _ = Reflect::set(
                 &d,
-                &wasm_bindgen::JsValue::from_str("writable"),
-                &wasm_bindgen::JsValue::from_bool(writable),
+                &JsValue::from_str("writable"),
+                &JsValue::from_bool(writable),
             );
-            let _ = js_sys::Reflect::set(
-                &d,
-                &wasm_bindgen::JsValue::from_str("enumerable"),
-                &wasm_bindgen::JsValue::FALSE,
-            );
-            let _ = js_sys::Reflect::set(
-                &d,
-                &wasm_bindgen::JsValue::from_str("configurable"),
-                &wasm_bindgen::JsValue::FALSE,
-            );
+            let _ = Reflect::set(&d, &JsValue::from_str("enumerable"), &JsValue::FALSE);
+            let _ = Reflect::set(&d, &JsValue::from_str("configurable"), &JsValue::FALSE);
             return d.into();
         }
         // Array targets require a non-configurable `length` descriptor.
-        if k == "length" && js_sys::Array::is_array(&target) {
+        if k == "length" && Array::is_array(&target) {
             let len = o
                 .get(js_string!("length"), ctx)
                 .ok()
                 .and_then(|v| v.as_number())
                 .unwrap_or(0.0);
-            let writable = js_sys::Reflect::get_own_property_descriptor(
-                target.unchecked_ref::<js_sys::Object>(),
-                &key,
-            )
-            .map_or(true, |d| desc_field(&d, "writable").is_truthy());
-            let d = js_sys::Object::new();
-            let _ = js_sys::Reflect::set(
+            let writable =
+                Reflect::get_own_property_descriptor(target.unchecked_ref::<Object>(), &key)
+                    .map_or(true, |d| desc_field(&d, "writable").is_truthy());
+            let d = Object::new();
+            let _ = Reflect::set(&d, &JsValue::from_str("value"), &JsValue::from_f64(len));
+            let _ = Reflect::set(
                 &d,
-                &wasm_bindgen::JsValue::from_str("value"),
-                &wasm_bindgen::JsValue::from_f64(len),
+                &JsValue::from_str("writable"),
+                &JsValue::from_bool(writable),
             );
-            let _ = js_sys::Reflect::set(
-                &d,
-                &wasm_bindgen::JsValue::from_str("writable"),
-                &wasm_bindgen::JsValue::from_bool(writable),
-            );
-            let _ = js_sys::Reflect::set(
-                &d,
-                &wasm_bindgen::JsValue::from_str("enumerable"),
-                &wasm_bindgen::JsValue::FALSE,
-            );
-            let _ = js_sys::Reflect::set(
-                &d,
-                &wasm_bindgen::JsValue::from_str("configurable"),
-                &wasm_bindgen::JsValue::FALSE,
-            );
+            let _ = Reflect::set(&d, &JsValue::from_str("enumerable"), &JsValue::FALSE);
+            let _ = Reflect::set(&d, &JsValue::from_str("configurable"), &JsValue::FALSE);
             return d.into();
         }
         let pk = match key_str.as_deref() {
             Some(k) => PropertyKey::from(JsString::from(k)),
             None if key.is_symbol() => PropertyKey::Symbol(v8_symbol_to_boa(
-                key.clone().unchecked_into::<js_sys::Symbol>(),
+                key.clone().unchecked_into::<Symbol>(),
                 ctx,
             )),
             None => PropertyKey::from(js_string!()),
         };
-        let shell = target.unchecked_ref::<js_sys::Object>();
+        let shell = target.unchecked_ref::<Object>();
         // A function target is a real V8 function with its own name/length
         // slots; any other shell is empty until mark_slotted says otherwise.
         let td = if is_slotted(handle) || target.is_function() {
             shell_slot(shell, &key)
         } else {
-            wasm_bindgen::JsValue::UNDEFINED
+            JsValue::UNDEFINED
         };
         let Some(own) = boa_own_desc(&o, &pk) else {
             if !slot_is_fixed(&td) {
                 if td.is_object() {
-                    let _ = js_sys::Reflect::delete_property(shell, &key);
+                    let _ = Reflect::delete_property(shell, &key);
                 }
-                return wasm_bindgen::JsValue::UNDEFINED;
+                return JsValue::UNDEFINED;
             }
             if desc_field(&td, "writable").is_truthy() {
                 let live = o.get(pk, ctx).unwrap_or(BoaValue::undefined());
-                let _ = js_sys::Reflect::set(&td, &"value".into(), &boa_to_v8(&live, ctx));
+                let _ = Reflect::set(&td, &"value".into(), &boa_to_v8(&live, ctx));
             }
             return td;
         };
@@ -3799,31 +3678,27 @@ fn shim_gopd(target: wasm_bindgen::JsValue, key: wasm_bindgen::JsValue) -> wasm_
             && desc_field(&td, "writable").is_truthy() == own.writable().unwrap_or(false);
         if own.configurable() == Some(false) && !mirrored {
             mark_slotted(handle);
-            let _ = js_sys::Reflect::define_property(shell, &key, &d);
+            let _ = Reflect::define_property(shell, &key, &d);
         }
         d.into()
     })
-    .unwrap_or(wasm_bindgen::JsValue::UNDEFINED)
+    .unwrap_or(JsValue::UNDEFINED)
 }
 
 // Ten shared trap closures live for the isolate lifetime.
-fn shared_handler() -> js_sys::Object {
+fn shared_handler() -> Object {
     if let Some(h) = SHARED_HANDLER.with(|c| c.borrow().clone()) {
         return h;
     }
-    let handler = js_sys::Object::new();
+    let handler = Object::new();
     macro_rules! install {
         ($name:literal, $closure:expr) => {{
             let c = $closure;
-            let _ = js_sys::Reflect::set(
-                &handler,
-                &wasm_bindgen::JsValue::from_str($name),
-                c.as_ref(),
-            );
+            let _ = Reflect::set(&handler, &JsValue::from_str($name), c.as_ref());
             c.forget();
         }};
     }
-    type J = wasm_bindgen::JsValue;
+    type J = JsValue;
     install!("get", Closure::<dyn Fn(J, J, J) -> J>::new(shim_get));
     install!("has", Closure::<dyn Fn(J, J) -> J>::new(shim_has));
     install!("set", Closure::<dyn Fn(J, J, J, J) -> J>::new(shim_set));
@@ -3857,60 +3732,47 @@ fn shared_handler() -> js_sys::Object {
 }
 
 thread_local! {
-    static SHARED_FN_HANDLER: RefCell<Option<js_sys::Object>> = const { RefCell::new(None) };
+    static SHARED_FN_HANDLER: RefCell<Option<Object>> = const { RefCell::new(None) };
 }
 
-fn shared_fn_handler() -> js_sys::Object {
+fn shared_fn_handler() -> Object {
     if let Some(h) = SHARED_FN_HANDLER.with(|c| c.borrow().clone()) {
         return h;
     }
-    type J = wasm_bindgen::JsValue;
-    let handler: js_sys::Object = js_sys::Object::assign(&js_sys::Object::new(), &shared_handler());
-    let reflect =
-        js_sys::Reflect::get(&js_sys::global(), &J::from_str("Reflect")).unwrap_or(J::UNDEFINED);
+    type J = JsValue;
+    let handler: Object = Object::assign(&Object::new(), &shared_handler());
+    let reflect = Reflect::get(&js_sys::global(), &J::from_str("Reflect")).unwrap_or(J::UNDEFINED);
     for name in ["apply", "construct"] {
-        if let Ok(f) = js_sys::Reflect::get(&reflect, &J::from_str(name)) {
-            let _ = js_sys::Reflect::set(&handler, &J::from_str(name), &f);
+        if let Ok(f) = Reflect::get(&reflect, &J::from_str(name)) {
+            let _ = Reflect::set(&handler, &J::from_str(name), &f);
         }
     }
     SHARED_FN_HANDLER.with(|c| *c.borrow_mut() = Some(handler.clone()));
     handler
 }
 
-fn boa_fn_to_v8_proxy(
-    tramp: wasm_bindgen::JsValue,
-    boa_pin: u64,
-    ctx: &mut Context,
-) -> wasm_bindgen::JsValue {
-    let target: js_sys::Object = tramp.unchecked_into();
+fn boa_fn_to_v8_proxy(tramp: JsValue, boa_pin: u64, ctx: &mut Context) -> JsValue {
+    let target: Object = tramp.unchecked_into();
     if let Some(o) = get_boa(boa_pin).filter(|o| !boa_prototype_writable(o)) {
         let proto = o
             .get(js_string!("prototype"), ctx)
             .map(|v| boa_to_v8(&v, ctx))
-            .unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
-        let desc = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&desc, &wasm_bindgen::JsValue::from_str("value"), &proto);
-        let _ = js_sys::Reflect::set(
-            &desc,
-            &wasm_bindgen::JsValue::from_str("writable"),
-            &wasm_bindgen::JsValue::FALSE,
-        );
-        let _ = js_sys::Reflect::define_property(
-            &target,
-            &wasm_bindgen::JsValue::from_str("prototype"),
-            &desc,
-        );
+            .unwrap_or(JsValue::UNDEFINED);
+        let desc = Object::new();
+        let _ = Reflect::set(&desc, &JsValue::from_str("value"), &proto);
+        let _ = Reflect::set(&desc, &JsValue::from_str("writable"), &JsValue::FALSE);
+        let _ = Reflect::define_property(&target, &JsValue::from_str("prototype"), &desc);
     }
     if let Some(sup) = get_boa(boa_pin).and_then(|o| boa_fn_v8_super(&o, ctx)) {
-        if let Some(sup) = sup.dyn_ref::<js_sys::Object>() {
-            let _ = js_sys::Reflect::set_prototype_of(&target, sup);
+        if let Some(sup) = sup.dyn_ref::<Object>() {
+            let _ = Reflect::set_prototype_of(&target, sup);
         }
     }
     target_handle_set(&target, boa_pin);
-    js_sys::Proxy::new(&target, &shared_fn_handler()).into()
+    Proxy::new(&target, &shared_fn_handler()).into()
 }
 
-fn boa_fn_v8_super(o: &JsObject, ctx: &mut Context) -> Option<wasm_bindgen::JsValue> {
+fn boa_fn_v8_super(o: &JsObject, ctx: &mut Context) -> Option<JsValue> {
     let fproto = ctx.intrinsics().constructors().function().prototype();
     let mut cur = o.prototype().clone();
     for _ in 0..64 {
@@ -3926,16 +3788,16 @@ fn boa_fn_v8_super(o: &JsObject, ctx: &mut Context) -> Option<wasm_bindgen::JsVa
     None
 }
 
-fn boa_object_to_v8_proxy(obj: JsObject) -> (wasm_bindgen::JsValue, u64) {
+fn boa_object_to_v8_proxy(obj: JsObject) -> (JsValue, u64) {
     let is_array = obj.is_array();
     let handle = pin_boa(obj);
-    let target: js_sys::Object = if is_array {
-        js_sys::Array::new().unchecked_into()
+    let target: Object = if is_array {
+        Array::new().unchecked_into()
     } else {
-        js_sys::Object::new()
+        Object::new()
     };
     target_handle_set(&target, handle);
-    let proxy: wasm_bindgen::JsValue = js_sys::Proxy::new(&target, &shared_handler()).into();
+    let proxy: JsValue = Proxy::new(&target, &shared_handler()).into();
     our_v8_register(&proxy, handle);
     (proxy, handle)
 }
@@ -3952,8 +3814,8 @@ fn live_export_resolve(
     let key = boa_str_to_v8(name);
     let has_cached_value = cached_value.is_some();
     let (value, unchanged) = with_v8(ctx, || {
-        let value = js_sys::Reflect::get(&ns, &key).unwrap_or(wasm_bindgen::JsValue::UNDEFINED);
-        let unchanged = has_cached_value && js_sys::Object::is(&value, &get_v8(raw_value_handle));
+        let value = Reflect::get(&ns, &key).unwrap_or(JsValue::UNDEFINED);
+        let unchanged = has_cached_value && Object::is(&value, &get_v8(raw_value_handle));
         (value, unchanged)
     });
     if unchanged {

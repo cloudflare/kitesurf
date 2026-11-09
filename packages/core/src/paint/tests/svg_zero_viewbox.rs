@@ -4,35 +4,37 @@
 
 #![cfg(test)]
 
-fn tree_of(src: &str) -> std::sync::Arc<usvg::Tree> {
+use usvg::{Node, Tree};
+
+fn tree_of(src: &str) -> std::sync::Arc<Tree> {
     blitz_dom::util::parse_svg_image(src.as_bytes())
         .expect("parse")
         .tree
 }
 
-fn painted_path_count(tree: &usvg::Tree) -> usize {
-    fn count(node: &usvg::Node) -> usize {
+fn painted_path_count(tree: &Tree) -> usize {
+    fn count(node: &Node) -> usize {
         match node {
-            usvg::Node::Group(g) => g.children().iter().map(count).sum(),
-            usvg::Node::Path(p) => usize::from(p.fill().is_some() || p.stroke().is_some()),
+            Node::Group(g) => g.children().iter().map(count).sum(),
+            Node::Path(p) => usize::from(p.fill().is_some() || p.stroke().is_some()),
             _ => 0,
         }
     }
-    count(&usvg::Node::Group(Box::new(tree.root().clone())))
+    count(&Node::Group(Box::new(tree.root().clone())))
 }
 
-fn paints_fill(tree: &usvg::Tree, want: (u8, u8, u8)) -> bool {
-    fn walk(node: &usvg::Node, want: (u8, u8, u8)) -> bool {
+fn paints_fill(tree: &Tree, want: (u8, u8, u8)) -> bool {
+    fn walk(node: &Node, want: (u8, u8, u8)) -> bool {
         match node {
-            usvg::Node::Group(g) => g.children().iter().any(|c| walk(c, want)),
-            usvg::Node::Path(p) => matches!(
+            Node::Group(g) => g.children().iter().any(|c| walk(c, want)),
+            Node::Path(p) => matches!(
                 p.fill().map(|f| f.paint()),
                 Some(usvg::Paint::Color(c)) if (c.red, c.green, c.blue) == want
             ),
             _ => false,
         }
     }
-    walk(&usvg::Node::Group(Box::new(tree.root().clone())), want)
+    walk(&Node::Group(Box::new(tree.root().clone())), want)
 }
 
 const GREEN: (u8, u8, u8) = (0, 128, 0);

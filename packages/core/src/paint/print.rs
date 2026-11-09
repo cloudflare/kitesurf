@@ -4,9 +4,12 @@
 
 //! Print output: PDF scenes, the page box, and the print media type.
 
+use std::panic::{catch_unwind, AssertUnwindSafe};
+
 use wasm_bindgen::prelude::*;
 
 use crate::{emulated_color_scheme, DomHandle, LayoutMode};
+use crate::paint::pdf_paint::content_box;
 
 #[wasm_bindgen]
 impl DomHandle {
@@ -29,7 +32,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return Vec::new(),
         };
-        let (_ml, _mt, content_w, content_h) = crate::paint::pdf_paint::content_box(
+        let (_ml, _mt, content_w, content_h) = content_box(
             width,
             height,
             margin_top,
@@ -106,8 +109,7 @@ impl DomHandle {
 
     #[wasm_bindgen(js_name = "pageBoxJson")]
     pub fn page_box_json(&self) -> String {
-        let computed =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.compute_page_box()));
+        let computed = catch_unwind(AssertUnwindSafe(|| self.compute_page_box()));
         match computed {
             Ok(Ok(pb)) => pb,
             Ok(Err(e)) => format!(
