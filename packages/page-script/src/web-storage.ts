@@ -51,17 +51,24 @@ export function sharedArea(
   const data = new Map(seed);
   let used = 0;
   for (const [k, v] of data) used += k.length + v.length;
-  let pending: WebStorageOp[] | null = null;
-  const queue = (op: WebStorageOp) => {
-    if (!pending) {
-      pending = [];
-      void NativePromise.resolve().then(() => {
-        const ops = pending ?? [];
-        pending = null;
-        send(ops);
-      });
-    }
-    pending.push(op);
+  // Only the last value (null: removal) per key, behind a clear, so a batch never holds more
+  // than the quota: one over the RPC size cap would be refused, losing every write in it.
+  let pending: Map<string, string | null> | null = null;
+  let cleared = false;
+  const batch = (): Map<string, string | null> => {
+    if (pending) return pending;
+    const next = new Map<string, string | null>();
+    pending = next;
+    void NativePromise.resolve().then(() => {
+      const ops: WebStorageOp[] = cleared ? [{ op: "clear" }] : [];
+      for (const [key, value] of next) {
+        ops.push(value === null ? { op: "remove", key } : { op: "set", key, value });
+      }
+      pending = null;
+      cleared = false;
+      send(ops);
+    });
+    return next;
   };
   return {
     get: (k) => data.get(k) ?? null,
@@ -71,7 +78,7 @@ export function sharedArea(
       if (next > QUOTA_UNITS) throw quotaExceeded(k);
       data.set(k, v);
       used = next;
-      queue({ op: "set", key: k, value: v });
+      batch().set(k, v);
     },
     // Sent even when this copy lacks the key: another page may have written it to the engine's
     // area after this copy was taken.
@@ -81,12 +88,13 @@ export function sharedArea(
         data.delete(k);
         used -= k.length + old.length;
       }
-      queue({ op: "remove", key: k });
+      batch().set(k, null);
     },
     clear() {
       data.clear();
       used = 0;
-      queue({ op: "clear" });
+      batch().clear();
+      cleared = true;
     },
     keys: () => Array.from(data.keys()),
   };

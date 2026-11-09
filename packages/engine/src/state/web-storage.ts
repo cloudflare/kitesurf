@@ -10,6 +10,10 @@ import { isStoredString, type SessionStore, type StoreTable } from "./session-st
 
 export type { WebStorageOp };
 
+// The page's quota (web-storage.ts), checked again on the merged area: each page saw only its own
+// copy, so two pages under quota can together go over, and every later page would start past it.
+export const WEB_STORAGE_QUOTA_UNITS = 5 * 1024 * 1024;
+
 const isIndexMark = (v: unknown): v is 1 => v === 1; // the index marks an origin present
 
 // Tables: `<prefix>` indexes the origins and `<prefix>|<origin>` holds one origin's keys, where
@@ -48,10 +52,33 @@ export class WebStorage {
   apply(origin: string, ops: readonly WebStorageOp[]): void {
     if (this.#disposed) return; // a page's last writes can outlive its browser context
     const area = this.#store.table(this.#areaName(origin), isStoredString);
+    let used = 0;
+    for (const [k, v] of area.entries()) used += k.length + v.length;
+    let refused = 0;
     for (const op of ops) {
-      if (op.op === "set") area.set(op.key, op.value);
-      else if (op.op === "remove") area.delete(op.key);
-      else area.clear();
+      if (op.op === "set") {
+        const old = area.get(op.key);
+        const freed = old === undefined ? 0 : op.key.length + old.length;
+        const next = used - freed + op.key.length + op.value.length;
+        // Keep the old value, as the page's copy would have refused the write had it seen the
+        // other pages' writes.
+        if (next > WEB_STORAGE_QUOTA_UNITS) {
+          refused++;
+          continue;
+        }
+        area.set(op.key, op.value);
+        used = next;
+      } else if (op.op === "remove") {
+        const old = area.get(op.key);
+        if (old !== undefined) used -= op.key.length + old.length;
+        area.delete(op.key);
+      } else {
+        area.clear();
+        used = 0;
+      }
+    }
+    if (refused > 0) {
+      console.warn(JSON.stringify({ event: "web_storage_quota_refused", origin, refused }));
     }
     if (area.size > 0) this.#index().set(origin, 1);
     else this.#drop(origin);
