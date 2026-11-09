@@ -360,8 +360,9 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
     compatibilityFlags: [...PAGE_SCRIPT_COMPAT_FLAGS],
     mainModule,
     modules,
+    // Page modules run in this worker and can import its env, so the tail
+    // token goes in the entrypoint props below instead.
     env: {
-      KS_TAIL_TOKEN: tailToken,
       ...(env.HOST_TRACER
         ? {
             KS_SPAN_SINK: cx.exports.SpanSink({
@@ -390,8 +391,12 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
     },
   });
 
-  const workerEntrypoint: PageScriptEntrypointStub =
-    stub.getEntrypoint<PageScriptEntrypoint>("PageScript");
+  const workerEntrypoint: PageScriptEntrypointStub = stub.getEntrypoint<PageScriptEntrypoint>(
+    "PageScript",
+    {
+      props: { KS_TAIL_TOKEN: tailToken },
+    },
+  );
   // The RPC adapter needs promises; the local entrypoint contract is synchronous.
 
   // SAFETY: WorkerLoader follows the PageScript JSRPC contract, but Rpc.Provider loses generic
