@@ -21,6 +21,7 @@ import { stubQueryDom } from "../cdp/page-session.ts";
 import { disposeStub } from "../cdp/page-script-generation.ts";
 import { walkRedirects } from "./redirect-walk.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
+import { siteKey } from "../public-suffix.ts";
 
 const OOPIF_DOC_WALK_BUDGET_MS = 15_000;
 
@@ -72,6 +73,21 @@ const OOPIF_LOAD_TIMEOUT_MS = 8_000;
 function originOfFrameUrl(url: string): string {
   try {
     return new URL(url).origin;
+  } catch {
+    return "";
+  }
+}
+
+// args.cookieSiteOrigin is the site for cookies of the request that loads the frame, so it checks
+// only the ancestors. The frame's own requests also need its document same-site with the top level.
+export function frameDocumentCookieSite(
+  requestSite: string | undefined,
+  documentUrl: string,
+): string | undefined {
+  if (!requestSite) return requestSite;
+  try {
+    const top = siteKey(new URL(requestSite).hostname);
+    return siteKey(new URL(documentUrl).hostname) === top ? requestSite : "";
   } catch {
     return "";
   }
@@ -175,7 +191,7 @@ export async function prespawnFrameIsolate(
       frameLoaderId: args.frameLoaderId,
       frameUrl: args.frameUrl,
       cookieKey: args.cookieKey,
-      cookieSiteOrigin: args.cookieSiteOrigin,
+      cookieSiteOrigin: frameDocumentCookieSite(args.cookieSiteOrigin, args.frameUrl),
       attributionHeaders: args.attributionHeaders,
       sandboxOutbound: args.sandboxOutbound,
     });
@@ -256,7 +272,7 @@ export async function prespawnFrameIsolate(
         frameLoaderId: args.frameLoaderId,
         frameUrl: finalUrl,
         cookieKey: args.cookieKey,
-        cookieSiteOrigin: args.cookieSiteOrigin,
+        cookieSiteOrigin: frameDocumentCookieSite(args.cookieSiteOrigin, finalUrl),
         attributionHeaders: args.attributionHeaders,
         sandboxOutbound: args.sandboxOutbound,
       });
