@@ -1064,7 +1064,8 @@ export async function walkModuleGraph({
         continue;
       }
       if (isAssetExtension(url)) {
-        modules.set(url, `/* kitesurf: asset-import side-effect stub for ${url} */\nexport {};\n`);
+        // Not the url: a "*/" in its query would end the comment.
+        modules.set(url, "/* kitesurf: asset-import side-effect stub */\nexport {};\n");
         continue;
       }
       keep.push(item);

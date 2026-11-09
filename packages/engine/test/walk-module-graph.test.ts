@@ -278,6 +278,20 @@ describe("page specifiers that name the loaded worker's own modules", () => {
   });
 });
 
+describe("walkModuleGraph asset-import stubs", () => {
+  it("keeps the imported url out of the stub body", async () => {
+    const url = "https://example.com/a.css?*/globalThis.ran=1;/*";
+    const { additionalModules } = await walkModuleGraph({
+      descriptors: [moduleInline(`import ${JSON.stringify(url)};`)],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound(),
+    });
+    const stub = Object.entries(additionalModules).find(([k]) => k.includes("a.css"))?.[1];
+    expect(stub).toBe("/* kitesurf: asset-import side-effect stub */\nexport {};\n");
+  });
+});
+
 describe("modulePreloadSeeds", () => {
   it("collects script-destination modulepreload links once, with their nonce", () => {
     const html =
