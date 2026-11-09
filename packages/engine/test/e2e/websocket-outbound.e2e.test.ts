@@ -30,3 +30,32 @@ test("a websocket resource-type filter blocks the page's sockets", async ({ page
   await cdpSession.send("Kitesurf.setOutboundFilters", { rejectResourceTypes: ["websocket"] });
   expect(await openSocket(page, "ws-echo")).toBe("error");
 }, 30_000);
+
+test("a websocket handshake always carries the document's origin and a user agent", async ({
+  page,
+}) => {
+  await page.goto(PAGE, { waitUntil: "load" });
+  expect(JSON.parse(await openSocket(page, "ws-handshake"))).toEqual({
+    origin: "https://ks.invalid",
+    userAgent: expect.any(String),
+  });
+
+  // Page script can reach the platform fetch and set the engine's request headers itself.
+  const forged = await page.evaluate(`(async () => {
+    const platformFetch = Object.getPrototypeOf(globalThis).fetch;
+    if (typeof platformFetch !== "function") return "no platform fetch";
+    const resp = await platformFetch.call(globalThis, "https://ks.invalid/__fixtures/ws-handshake", {
+      headers: { Upgrade: "websocket", "x-kitesurf-page-origin": "null" },
+    });
+    const ws = resp.webSocket;
+    if (!ws) return "no socket: " + resp.status;
+    return await new Promise((resolve) => {
+      ws.addEventListener("message", (e) => resolve(String(e.data)));
+      ws.accept();
+    });
+  })()`);
+  expect(JSON.parse(String(forged))).toEqual({
+    origin: "https://ks.invalid",
+    userAgent: expect.any(String),
+  });
+}, 30_000);
