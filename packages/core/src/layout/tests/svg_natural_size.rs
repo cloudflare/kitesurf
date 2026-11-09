@@ -4,10 +4,14 @@
 
 #![cfg(test)]
 
+use blitz_dom::util::parse_svg_image;
+
+use crate::layout::geometry::svg_natural_dimensions;
+
 fn dims(attrs: &str) -> (u32, u32) {
     let src = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" {attrs}></svg>"#);
-    let svg = blitz_dom::util::parse_svg_image(src.as_bytes()).expect("parse");
-    let (w, h) = crate::layout::geometry::svg_natural_dimensions(
+    let svg = parse_svg_image(src.as_bytes()).expect("parse");
+    let (w, h) = svg_natural_dimensions(
         svg.intrinsic_width(),
         svg.intrinsic_height(),
         svg.viewbox_aspect_ratio(),
@@ -70,8 +74,8 @@ fn degenerate_view_box_is_ignored() {
 #[test]
 fn tolerates_xml_whitespace_around_root_attributes() {
     let src = "<svg xmlns=\"http://www.w3.org/2000/svg\"\n\twidth = '0'\n\theight\t= \"60\"></svg>";
-    let svg = blitz_dom::util::parse_svg_image(src.as_bytes()).expect("parse");
-    let (w, h) = crate::layout::geometry::svg_natural_dimensions(
+    let svg = parse_svg_image(src.as_bytes()).expect("parse");
+    let (w, h) = svg_natural_dimensions(
         svg.intrinsic_width(),
         svg.intrinsic_height(),
         svg.viewbox_aspect_ratio(),
@@ -83,8 +87,8 @@ fn tolerates_xml_whitespace_around_root_attributes() {
 fn ignores_dimension_words_inside_other_attribute_values() {
     let src = "<svg xmlns=\"http://www.w3.org/2000/svg\" \
 data-note=\" width=999 height=999 \" width='0' height='60'></svg>";
-    let svg = blitz_dom::util::parse_svg_image(src.as_bytes()).expect("parse");
-    let (w, h) = crate::layout::geometry::svg_natural_dimensions(
+    let svg = parse_svg_image(src.as_bytes()).expect("parse");
+    let (w, h) = svg_natural_dimensions(
         svg.intrinsic_width(),
         svg.intrinsic_height(),
         svg.viewbox_aspect_ratio(),

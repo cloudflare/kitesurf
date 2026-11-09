@@ -6,7 +6,7 @@
 
 use ::style::properties::LonghandId;
 
-use crate::style::transitions::{AnimationEvent, TransitionEvent};
+use crate::style::transitions::{occurrence_ordinals, AnimationEvent, TransitionEvent};
 use crate::DomHandle;
 
 fn computed(dom: &DomHandle, node_id: u32, longhand: LonghandId) -> String {
@@ -649,22 +649,10 @@ fn occurrence_ordinals_count_from_the_right() {
     let a = Atom::from("a");
     let b = Atom::from("b");
 
-    assert_eq!(
-        crate::style::transitions::occurrence_ordinals([&a]),
-        vec![0]
-    );
-    assert_eq!(
-        crate::style::transitions::occurrence_ordinals([&a, &a]),
-        vec![1, 0]
-    );
-    assert_eq!(
-        crate::style::transitions::occurrence_ordinals([&a, &a, &a]),
-        vec![2, 1, 0]
-    );
-    assert_eq!(
-        crate::style::transitions::occurrence_ordinals([&a, &b]),
-        vec![0, 0]
-    );
+    assert_eq!(occurrence_ordinals([&a]), vec![0]);
+    assert_eq!(occurrence_ordinals([&a, &a]), vec![1, 0]);
+    assert_eq!(occurrence_ordinals([&a, &a, &a]), vec![2, 1, 0]);
+    assert_eq!(occurrence_ordinals([&a, &b]), vec![0, 0]);
 }
 
 #[test]
@@ -682,7 +670,7 @@ fn simultaneous_animation_events_follow_composite_order() {
 </style></head><body>
 <div id="one">x</div><div id="two">y</div>
 </body></html>"##;
-    let dom = crate::DomHandle::new(html, "https://test.example/");
+    let dom = DomHandle::new(html, "https://test.example/");
     dom.set_animation_events_requested(true);
     dom.resolve_layout();
     let one = dom.query_selector("#one").expect("query ok") as u32;
@@ -729,7 +717,7 @@ fn canceled_animation_sorts_before_live_start_on_the_same_owner() {
 #t { animation: 1s linear 0s 1 normal both fade, 1s linear 0s 1 normal both spin }
 #t.grow-fade { animation: 1s linear 0s 1 normal both grow, 1s linear 0s 1 normal both fade }
 </style></head><body><div id="t">x</div></body></html>"##;
-    let dom = crate::DomHandle::new(html, "https://test.example/");
+    let dom = DomHandle::new(html, "https://test.example/");
     dom.set_animation_events_requested(true);
     dom.resolve_layout();
     let id = dom.query_selector("#t").expect("query ok") as u32;
@@ -765,7 +753,7 @@ fn a_moved_owner_cancels_by_its_current_tree_order() {
 </style></head><body>
 <div id="one">x</div><div id="two">y</div>
 </body></html>"##;
-    let dom = crate::DomHandle::new(html, "https://test.example/");
+    let dom = DomHandle::new(html, "https://test.example/");
     dom.set_animation_events_requested(true);
     dom.resolve_layout();
     let one = dom.query_selector("#one").expect("query ok") as u32;
@@ -795,7 +783,7 @@ fn a_moved_owner_cancels_by_its_current_tree_order() {
 fn shadow_animation_events_follow_flat_tree_order() {
     let html = r##"<!DOCTYPE html>
 <html><body><div id="host"></div></body></html>"##;
-    let dom = crate::DomHandle::new(html, "https://test.example/");
+    let dom = DomHandle::new(html, "https://test.example/");
     dom.set_animation_events_requested(true);
     dom.resolve_layout();
     let host = dom.query_selector("#host").expect("query ok") as u32;

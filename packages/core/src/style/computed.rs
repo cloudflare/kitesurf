@@ -4,15 +4,19 @@
 
 //! Computed and resolved style values for `getComputedStyle` and CDP.
 
+use std::panic::{catch_unwind, AssertUnwindSafe};
+
+use blitz_dom::BaseDocument;
 use blitz_traits::NodeId;
 use serde::Serialize;
 use ::style::properties::{property_counts, LonghandId, NonCustomPropertyId, ShorthandId};
+use taffy::CoreStyle;
 use wasm_bindgen::prelude::*;
 
 use crate::{DomHandle, LayoutMode};
 
 fn grid_template_resolved(
-    doc: &blitz_dom::BaseDocument,
+    doc: &BaseDocument,
     node_id: NodeId,
     columns: bool,
 ) -> Option<String> {
@@ -224,7 +228,7 @@ impl DomHandle {
             Err(_) => return Ok(JsValue::NULL),
         };
         let normalized = pseudo.trim().trim_start_matches(':').to_ascii_lowercase();
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = catch_unwind(AssertUnwindSafe(|| {
             let Some(node) = internal_id.and_then(|id| doc.get_node(id)) else {
                 return Vec::new();
             };
@@ -368,7 +372,7 @@ impl DomHandle {
             let width_applies = {
                 use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
                 let display = styles.clone_display();
-                taffy::CoreStyle::is_replaced(&node.layout_style())
+                CoreStyle::is_replaced(&node.layout_style())
                     || display.outside() != DisplayOutside::Inline
                     || display.inside() != DisplayInside::Flow
             };
@@ -717,7 +721,7 @@ impl DomHandle {
         self.ensure_layout();
         let internal_id = self.resolve_node_id(node_id)?;
         let doc = self.doc.try_borrow().ok()?;
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        catch_unwind(AssertUnwindSafe(|| {
             use style_traits::ToCss as _;
             let styles = doc.get_node(internal_id)?.primary_styles()?;
             let atom = ::stylo_atoms::Atom::from(name);

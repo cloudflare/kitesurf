@@ -6,14 +6,17 @@
 
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use linebender_resource_handle::Blob;
 use parley::fontique::{
-    Collection, CollectionOptions, FontInfoOverride, GenericFamily, Script, SourceCache,
+    Collection, CollectionOptions, FamilyId, FontInfoOverride, GenericFamily, Script, SourceCache,
 };
 use parley::FontContext;
 use wasm_bindgen::prelude::wasm_bindgen;
+
+use crate::paint::scene_record::{font_data_key, fx_hash_u64};
 
 thread_local! {
     static SHARED_FONT_CONTEXT: RefCell<Option<FontContext>> = const { RefCell::new(None) };
@@ -29,17 +32,17 @@ thread_local! {
     static SCRIPT_FONTS_REGISTERED: RefCell<std::collections::HashSet<String>> =
         RefCell::new(std::collections::HashSet::new());
 
-    static BASE_COMMON_IDS: RefCell<Vec<parley::fontique::FamilyId>> =
+    static BASE_COMMON_IDS: RefCell<Vec<FamilyId>> =
         const { RefCell::new(Vec::new()) };
-    static SYMBOL_IDS: RefCell<Vec<parley::fontique::FamilyId>> =
+    static SYMBOL_IDS: RefCell<Vec<FamilyId>> =
         const { RefCell::new(Vec::new()) };
-    static EMOJI_IDS: RefCell<Vec<parley::fontique::FamilyId>> =
+    static EMOJI_IDS: RefCell<Vec<FamilyId>> =
         const { RefCell::new(Vec::new()) };
-    static CJK_IDS: RefCell<Vec<parley::fontique::FamilyId>> =
+    static CJK_IDS: RefCell<Vec<FamilyId>> =
         const { RefCell::new(Vec::new()) };
 
-    static FONT_ASSET_HASHES: RefCell<std::collections::HashMap<u64, &'static str>> =
-        RefCell::new(std::collections::HashMap::new());
+    static FONT_ASSET_HASHES: RefCell<HashMap<u64, &'static str>> =
+        RefCell::new(HashMap::new());
 }
 
 const SFNT_HEADER_BYTES: usize = 12;
@@ -289,16 +292,16 @@ pub(crate) fn strip_fetched_font_for_session(
 }
 
 thread_local! {
-    static FONT_URL_HASHES: RefCell<std::collections::HashMap<u64, String>> =
-        RefCell::new(std::collections::HashMap::new());
-    static FONT_ENGINE_KEY_HASHES: RefCell<std::collections::HashMap<u64, String>> =
-        RefCell::new(std::collections::HashMap::new());
-    static FONT_ENGINE_KEYS: RefCell<std::collections::HashMap<String, String>> =
-        RefCell::new(std::collections::HashMap::new());
+    static FONT_URL_HASHES: RefCell<HashMap<u64, String>> =
+        RefCell::new(HashMap::new());
+    static FONT_ENGINE_KEY_HASHES: RefCell<HashMap<u64, String>> =
+        RefCell::new(HashMap::new());
+    static FONT_ENGINE_KEYS: RefCell<HashMap<String, String>> =
+        RefCell::new(HashMap::new());
 }
 
 fn blob_key(bytes: &[u8]) -> u64 {
-    crate::paint::scene_record::font_data_key(crate::paint::scene_record::fx_hash_u64(bytes), 0)
+    font_data_key(fx_hash_u64(bytes), 0)
 }
 
 fn note_font_url(bytes: &[u8], url: &str) {
@@ -343,10 +346,7 @@ pub(crate) fn stash_author_upgrades(regs: Vec<blitz_dom::AuthorFontRegistration>
     AUTHOR_LAZY.with(|c| {
         let mut stash = c.borrow_mut();
         for reg in regs {
-            let h = crate::paint::scene_record::font_data_key(
-                crate::paint::scene_record::fx_hash_u64(reg.bytes.data()),
-                0,
-            );
+            let h = font_data_key(fx_hash_u64(reg.bytes.data()), 0);
             let Some(url) = font_url_for_hash(h) else {
                 continue;
             };
@@ -442,7 +442,7 @@ fn strip_fetched_font(bytes: Vec<u8>) -> Vec<u8> {
 }
 
 struct LazyFaceRecord {
-    family: parley::fontique::FamilyId,
+    family: FamilyId,
     width: parley::fontique::FontWidth,
     style: parley::fontique::FontStyle,
     weight: parley::fontique::FontWeight,
@@ -462,7 +462,7 @@ thread_local! {
 fn record_lazy_registration(
     path: &'static str,
     svg_slot: Option<blitz_dom::util::SvgGenericSlot>,
-    result: &[(parley::fontique::FamilyId, Vec<parley::fontique::FontInfo>)],
+    result: &[(FamilyId, Vec<parley::fontique::FontInfo>)],
 ) {
     if font_mode() != FontMode::Lazy || result.is_empty() {
         return;
@@ -512,7 +512,7 @@ pub(crate) fn upgrade_recorded_face(
     }
     note_font_asset(&full_bytes, record.path);
     let blob = Blob::from(full_bytes);
-    blitz_dom::util::register_svg_font(std::sync::Arc::new(blob.clone()), record.svg_slot);
+    blitz_dom::util::register_svg_font(Arc::new(blob.clone()), record.svg_slot);
     let registered = font_ctx.collection.register_fonts(blob, None);
     !registered.is_empty()
 }
@@ -569,10 +569,7 @@ pub fn finish_font_upgrade() -> bool {
 }
 
 fn note_font_asset(bytes: &[u8], path: &'static str) {
-    let h = crate::paint::scene_record::font_data_key(
-        crate::paint::scene_record::fx_hash_u64(bytes),
-        0,
-    );
+    let h = font_data_key(fx_hash_u64(bytes), 0);
     FONT_ASSET_HASHES.with(|c| {
         c.borrow_mut().insert(h, path);
     });
@@ -583,7 +580,7 @@ pub(crate) fn font_asset_name_for_hash(hash: u64) -> Option<&'static str> {
 }
 
 fn rebuild_common_fallbacks(font_ctx: &mut FontContext) {
-    let mut chain: Vec<parley::fontique::FamilyId> = Vec::new();
+    let mut chain: Vec<FamilyId> = Vec::new();
     BASE_COMMON_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
     EMOJI_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
     SYMBOL_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
@@ -591,7 +588,7 @@ fn rebuild_common_fallbacks(font_ctx: &mut FontContext) {
     font_ctx
         .collection
         .set_fallbacks(Script::COMMON, chain.iter().copied());
-    let latn = parley::fontique::Script::from_bytes(*b"Latn");
+    let latn = Script::from_bytes(*b"Latn");
     font_ctx
         .collection
         .set_fallbacks(latn, chain.iter().copied());
@@ -639,7 +636,7 @@ pub fn register_emoji_font(bytes: &[u8]) -> bool {
         let blob_bytes: Arc<dyn AsRef<[u8]> + Send + Sync> = Arc::new(opentype_bytes);
         let blob = Blob::new(blob_bytes);
 
-        let mut registered_family_ids: Vec<parley::fontique::FamilyId> = Vec::new();
+        let mut registered_family_ids: Vec<FamilyId> = Vec::new();
         for alias in aliases {
             let override_info = FontInfoOverride {
                 family_name: Some(alias),
@@ -723,7 +720,7 @@ pub fn register_cjk_font(bytes: &[u8]) -> bool {
         let blob_bytes: Arc<dyn AsRef<[u8]> + Send + Sync> = Arc::new(opentype);
         let blob = Blob::new(blob_bytes);
 
-        let mut ids: Vec<parley::fontique::FamilyId> = Vec::new();
+        let mut ids: Vec<FamilyId> = Vec::new();
         for alias in ALIASES {
             let override_info = FontInfoOverride {
                 family_name: Some(alias),
@@ -737,10 +734,10 @@ pub fn register_cjk_font(bytes: &[u8]) -> bool {
             }
         }
 
-        let han = parley::fontique::Script::from_bytes(*b"Hani");
-        let hira = parley::fontique::Script::from_bytes(*b"Hira");
-        let kana = parley::fontique::Script::from_bytes(*b"Kana");
-        let hang = parley::fontique::Script::from_bytes(*b"Hang");
+        let han = Script::from_bytes(*b"Hani");
+        let hira = Script::from_bytes(*b"Hira");
+        let kana = Script::from_bytes(*b"Kana");
+        let hang = Script::from_bytes(*b"Hang");
         font_ctx
             .collection
             .append_fallbacks(han, ids.iter().copied());
@@ -823,7 +820,7 @@ pub fn register_script_font(bytes: Vec<u8>, script_tag: String) -> bool {
         let blob = Blob::from(bytes);
         let result = font_ctx.collection.register_fonts(blob, None);
         record_lazy_registration(path, None, &result);
-        let ids: Vec<parley::fontique::FamilyId> = result.into_iter().map(|(id, _)| id).collect();
+        let ids: Vec<FamilyId> = result.into_iter().map(|(id, _)| id).collect();
         font_ctx
             .collection
             .append_fallbacks(script, ids.iter().copied());
@@ -930,7 +927,7 @@ fn populate_ua_fonts(
         let svg_usable = has_outline_tables(&bytes);
         let blob = Blob::from(bytes);
         if svg_usable {
-            blitz_dom::util::register_svg_font(std::sync::Arc::new(blob.clone()), slot);
+            blitz_dom::util::register_svg_font(Arc::new(blob.clone()), slot);
         }
         let result = c.register_fonts(blob, None);
         record_lazy_registration(path, slot, &result);
@@ -949,7 +946,7 @@ fn populate_ua_fonts(
         None,
         "/fonts/NotoSans-Italic.ttf",
     );
-    let serif: Vec<parley::fontique::FamilyId> = if serif_bytes.is_empty() {
+    let serif: Vec<FamilyId> = if serif_bytes.is_empty() {
         Vec::new()
     } else {
         register(
@@ -959,8 +956,8 @@ fn populate_ua_fonts(
             "/fonts/NotoSerif.ttf",
         )
     };
-    let serif_family: &[parley::fontique::FamilyId] = if serif.is_empty() { &sans } else { &serif };
-    let mono: Vec<parley::fontique::FamilyId> = if mono_bytes.is_empty() {
+    let serif_family: &[FamilyId] = if serif.is_empty() { &sans } else { &serif };
+    let mono: Vec<FamilyId> = if mono_bytes.is_empty() {
         Vec::new()
     } else {
         if let Some(r) = measure_mono_advance_per_em(&mono_bytes) {
@@ -973,13 +970,12 @@ fn populate_ua_fonts(
             "/fonts/NotoSansMono.ttf",
         )
     };
-    let mono_family: &[parley::fontique::FamilyId] = if mono.is_empty() { &sans } else { &mono };
+    let mono_family: &[FamilyId] = if mono.is_empty() { &sans } else { &mono };
 
-    let set =
-        |c: &mut Collection, generic: GenericFamily, ids: &[&[parley::fontique::FamilyId]]| {
-            let flat: Vec<_> = ids.iter().flat_map(|s| s.iter().copied()).collect();
-            c.set_generic_families(generic, flat.into_iter());
-        };
+    let set = |c: &mut Collection, generic: GenericFamily, ids: &[&[FamilyId]]| {
+        let flat: Vec<_> = ids.iter().flat_map(|s| s.iter().copied()).collect();
+        c.set_generic_families(generic, flat.into_iter());
+    };
 
     set(&mut font_ctx.collection, GenericFamily::SansSerif, &[&sans]);
     set(&mut font_ctx.collection, GenericFamily::SystemUi, &[&sans]);
@@ -1022,7 +1018,7 @@ fn populate_ua_fonts(
     set(&mut font_ctx.collection, GenericFamily::Math, &[&sans]);
     set(&mut font_ctx.collection, GenericFamily::Emoji, &[&sans]);
 
-    let mut base: Vec<parley::fontique::FamilyId> = Vec::new();
+    let mut base: Vec<FamilyId> = Vec::new();
     base.extend(sans.iter().copied());
     base.extend(serif.iter().copied());
     base.extend(mono.iter().copied());
@@ -1038,7 +1034,7 @@ fn add_symbol_fonts(font_ctx: &mut FontContext, symbols_bytes: Vec<u8>, symbols2
     if !symbols2_bytes.is_empty() {
         blobs.push((symbols2_bytes, "/fonts/NotoSansSymbols2.ttf"));
     }
-    let mut ids: Vec<parley::fontique::FamilyId> = Vec::new();
+    let mut ids: Vec<FamilyId> = Vec::new();
     for (bytes, path) in blobs {
         let result = font_ctx.collection.register_fonts(Blob::from(bytes), None);
         record_lazy_registration(path, None, &result);
@@ -1270,9 +1266,7 @@ mod tests {
         assert!(stripped.len() < src.len());
 
         let mut ctx = make_empty_font_context();
-        let blob = Blob::new(
-            std::sync::Arc::new(stripped) as std::sync::Arc<dyn AsRef<[u8]> + Send + Sync>
-        );
+        let blob = Blob::new(Arc::new(stripped) as Arc<dyn AsRef<[u8]> + Send + Sync>);
         let fams = ctx.collection.register_fonts(blob, None);
         assert!(!fams.is_empty(), "fontique rejects stripped sfnt");
     }
@@ -1308,9 +1302,7 @@ mod tests {
             stripped.len()
         );
         let mut ctx = make_empty_font_context();
-        let blob = Blob::new(
-            std::sync::Arc::new(stripped) as std::sync::Arc<dyn AsRef<[u8]> + Send + Sync>
-        );
+        let blob = Blob::new(Arc::new(stripped) as Arc<dyn AsRef<[u8]> + Send + Sync>);
         assert!(!ctx.collection.register_fonts(blob, None).is_empty());
     }
 
@@ -1338,9 +1330,7 @@ mod tests {
             stripped.len()
         );
         let mut ctx = make_empty_font_context();
-        let blob = Blob::new(
-            std::sync::Arc::new(stripped) as std::sync::Arc<dyn AsRef<[u8]> + Send + Sync>
-        );
+        let blob = Blob::new(Arc::new(stripped) as Arc<dyn AsRef<[u8]> + Send + Sync>);
         assert!(!ctx.collection.register_fonts(blob, None).is_empty());
     }
 
@@ -1443,9 +1433,7 @@ mod tests {
             stripped.len()
         );
         let mut ctx = make_empty_font_context();
-        let blob = Blob::new(
-            std::sync::Arc::new(stripped) as std::sync::Arc<dyn AsRef<[u8]> + Send + Sync>
-        );
+        let blob = Blob::new(Arc::new(stripped) as Arc<dyn AsRef<[u8]> + Send + Sync>);
         assert!(!ctx.collection.register_fonts(blob, None).is_empty());
     }
 
@@ -1742,16 +1730,10 @@ mod tests {
         let url = "https://fonts.test/author.woff2";
         let out = strip_fetched_font_for_session(woff2.clone(), url, 0);
         assert!(!has_outline_tables(&out));
-        let h = crate::paint::scene_record::font_data_key(
-            crate::paint::scene_record::fx_hash_u64(&out),
-            0,
-        );
+        let h = font_data_key(fx_hash_u64(&out), 0);
         assert_eq!(font_url_for_hash(h), Some(url.to_string()));
         let garbage = strip_fetched_font_for_session(b"garbage".to_vec(), "g", 0);
-        let gh = crate::paint::scene_record::font_data_key(
-            crate::paint::scene_record::fx_hash_u64(&garbage),
-            0,
-        );
+        let gh = font_data_key(fx_hash_u64(&garbage), 0);
         assert_eq!(font_url_for_hash(gh), None);
         set_font_mode(FontMode::Full);
     }

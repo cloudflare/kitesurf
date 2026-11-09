@@ -12,6 +12,7 @@ fn console_warn_str(_msg: &str) {}
 use paint::scene_replay::SceneRasterizer;
 use std::alloc::{alloc, dealloc, Layout};
 use std::cell::{Cell, RefCell};
+use std::str::from_utf8;
 
 thread_local! {
     static RASTER: RefCell<SceneRasterizer> = RefCell::new(SceneRasterizer::new());
@@ -122,7 +123,7 @@ pub extern "C" fn ks_call(op: u32, ptr: u32, len: u32) -> u64 {
                         .get(
                             FONT_PATH_LENGTH_BYTES..FONT_PATH_LENGTH_BYTES.saturating_add(path_len),
                         )
-                        .and_then(|p| std::str::from_utf8(p).ok())
+                        .and_then(|p| from_utf8(p).ok())
                     {
                         raster
                             .put_font_asset(path, &input[FONT_PATH_LENGTH_BYTES + path_len..])
@@ -140,7 +141,7 @@ pub extern "C" fn ks_call(op: u32, ptr: u32, len: u32) -> u64 {
                         .map_or_else(|| raster.pending_images(), |tty| tty.pending_images()),
                 )
                 .unwrap_or_default(),
-                OP_ABANDON_IMAGE => std::str::from_utf8(input)
+                OP_ABANDON_IMAGE => from_utf8(input)
                     .ok()
                     .map(|key| {
                         text.borrow_mut()

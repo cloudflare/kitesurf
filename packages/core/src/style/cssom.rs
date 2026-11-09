@@ -4,6 +4,8 @@
 
 //! Parses and serializes CSS for the page's JavaScript-facing style APIs.
 
+use std::panic::{catch_unwind, AssertUnwindSafe};
+
 use cssparser::{
     AtRuleParser, CowRcStr, DeclarationParser, Parser, ParserState, QualifiedRuleParser,
     RuleBodyItemParser, RuleBodyParser, Token,
@@ -451,7 +453,7 @@ fn counter_style_rule_to_dto(rule: &CounterStyleRule) -> Result<CounterStyleRule
 
 #[wasm_bindgen]
 pub fn ks_counter_style_rule(css: &str, field: &str, value: &str) -> Result<JsValue, JsError> {
-    let parsed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let parsed = catch_unwind(AssertUnwindSafe(|| {
         let mut rule = parse_counter_style_rule(css)?;
         if field.is_empty() {
             return counter_style_rule_to_dto(&rule);
@@ -625,7 +627,7 @@ pub fn ks_validate_selector(selector: &str) -> String {
 
 #[wasm_bindgen]
 pub fn ks_canonicalize_page_selectors(prelude: &str) -> Option<String> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    catch_unwind(AssertUnwindSafe(|| {
         let url_data = UrlExtraData::from(url::Url::parse("about:kitesurf-selector").ok()?);
         let context = parser_context(&url_data, CssRuleType::Page);
         let mut parser = Parser::new(prelude);
@@ -659,7 +661,7 @@ pub fn ks_parse_inline_style(css: &str) -> Result<JsValue, JsError> {
         }
     };
 
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let result = catch_unwind(AssertUnwindSafe(|| {
         let block = parse_style_attribute(
             css,
             &url_data,
@@ -917,7 +919,7 @@ impl RuleStyleDeclarationStore {
         css_text: &str,
         base_url: &str,
     ) -> Result<RuleStyleDeclarationStore, JsError> {
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        catch_unwind(AssertUnwindSafe(|| {
             Self::new_inner(context, css_text, base_url)
         }))
         .map_err(|_| Self::panic_error())?
@@ -964,22 +966,17 @@ impl RuleStyleDeclarationStore {
 
     #[wasm_bindgen(js_name = cssText)]
     pub fn css_text(&self) -> String {
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.canonical_text()))
-            .unwrap_or_default()
+        catch_unwind(AssertUnwindSafe(|| self.canonical_text())).unwrap_or_default()
     }
 
     #[wasm_bindgen(js_name = cascadeText)]
     pub fn cascade_text(&self) -> String {
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.cascade_text.clone()))
-            .unwrap_or_default()
+        catch_unwind(AssertUnwindSafe(|| self.cascade_text.clone())).unwrap_or_default()
     }
 
     #[wasm_bindgen(js_name = getPropertyValue)]
     pub fn get_property_value(&self, name: &str) -> String {
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            self.get_property_value_inner(name)
-        }))
-        .unwrap_or_default()
+        catch_unwind(AssertUnwindSafe(|| self.get_property_value_inner(name))).unwrap_or_default()
     }
 
     fn get_property_value_inner(&self, name: &str) -> String {
@@ -1003,10 +1000,8 @@ impl RuleStyleDeclarationStore {
 
     #[wasm_bindgen(js_name = getPropertyPriority)]
     pub fn get_property_priority(&self, name: &str) -> String {
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            self.get_property_priority_inner(name)
-        }))
-        .unwrap_or_default()
+        catch_unwind(AssertUnwindSafe(|| self.get_property_priority_inner(name)))
+            .unwrap_or_default()
     }
 
     fn get_property_priority_inner(&self, name: &str) -> String {
@@ -1026,7 +1021,7 @@ impl RuleStyleDeclarationStore {
     #[wasm_bindgen(js_name = setProperty)]
     pub fn set_property(&mut self, name: &str, value: &str, priority: &str) -> bool {
         let snapshot = self.clone();
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        match catch_unwind(AssertUnwindSafe(|| {
             self.set_property_inner(name, value, priority)
         })) {
             Ok(changed) => changed,
@@ -1111,10 +1106,7 @@ impl RuleStyleDeclarationStore {
 
     #[wasm_bindgen(js_name = hasProperty)]
     pub fn has_property(&self, name: &str) -> bool {
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            self.has_property_inner(name)
-        }))
-        .unwrap_or(false)
+        catch_unwind(AssertUnwindSafe(|| self.has_property_inner(name))).unwrap_or(false)
     }
 
     fn has_property_inner(&self, name: &str) -> bool {
@@ -1134,9 +1126,7 @@ impl RuleStyleDeclarationStore {
     #[wasm_bindgen(js_name = removeProperty)]
     pub fn remove_property(&mut self, name: &str) -> String {
         let snapshot = self.clone();
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            self.remove_property_inner(name)
-        })) {
+        match catch_unwind(AssertUnwindSafe(|| self.remove_property_inner(name))) {
             Ok(value) => value,
             Err(_) => {
                 *self = snapshot;
@@ -1175,12 +1165,11 @@ impl RuleStyleDeclarationStore {
     }
 
     pub fn length(&self) -> u32 {
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.names.len() as u32))
-            .unwrap_or(0)
+        catch_unwind(AssertUnwindSafe(|| self.names.len() as u32)).unwrap_or(0)
     }
 
     pub fn item(&self, index: u32) -> String {
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        catch_unwind(AssertUnwindSafe(|| {
             self.names.get(index as usize).cloned().unwrap_or_default()
         }))
         .unwrap_or_default()
@@ -1189,11 +1178,7 @@ impl RuleStyleDeclarationStore {
     #[wasm_bindgen(js_name = setCssText)]
     pub fn set_css_text(&mut self, css_text: &str) {
         let snapshot = self.clone();
-        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            self.set_css_text_inner(css_text)
-        }))
-        .is_err()
-        {
+        if catch_unwind(AssertUnwindSafe(|| self.set_css_text_inner(css_text))).is_err() {
             *self = snapshot;
         }
     }
@@ -1220,7 +1205,7 @@ impl RuleStyleDeclarationStore {
 
 #[wasm_bindgen]
 pub fn ks_parse_typed_style_value(property: &str, css_text: &str) -> Result<JsValue, JsError> {
-    let parsed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let parsed = catch_unwind(AssertUnwindSafe(|| {
         parse_typed_style_value(property, css_text)
     }))
     .map_err(|_| JsError::new("typed style value parsing panicked"))?
@@ -1230,11 +1215,9 @@ pub fn ks_parse_typed_style_value(property: &str, css_text: &str) -> Result<JsVa
 
 #[wasm_bindgen]
 pub fn ks_parse_typed_numeric_value(css_text: &str) -> Result<JsValue, JsError> {
-    let parsed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        parse_typed_numeric_value(css_text)
-    }))
-    .map_err(|_| JsError::new("typed numeric value parsing panicked"))?
-    .map_err(|error| JsError::new(&error))?;
+    let parsed = catch_unwind(AssertUnwindSafe(|| parse_typed_numeric_value(css_text)))
+        .map_err(|_| JsError::new("typed numeric value parsing panicked"))?
+        .map_err(|error| JsError::new(&error))?;
     serde_wasm_bindgen::to_value(&parsed).map_err(|error| JsError::new(&error.to_string()))
 }
 
@@ -1244,7 +1227,7 @@ pub fn ks_serialize_inline_style(css: &str) -> String {
         Ok(u) => UrlExtraData::from(u),
         Err(_) => return String::new(),
     };
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let result = catch_unwind(AssertUnwindSafe(|| {
         let block = parse_style_attribute(
             css,
             &url_data,
@@ -1267,7 +1250,7 @@ pub fn ks_get_property_value(css: &str, property: &str) -> String {
         Ok(u) => UrlExtraData::from(u),
         Err(_) => return String::new(),
     };
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let result = catch_unwind(AssertUnwindSafe(|| {
         let prop_id = match PropertyId::parse_enabled_for_all_content(property) {
             Ok(id) => id,
             Err(_) => return String::new(),
@@ -1304,7 +1287,7 @@ pub fn ks_parse_stylesheet_structured(css: &str) -> Result<JsValue, JsError> {
     let lock = SharedRwLock::new();
     let media = Arc::new(lock.wrap(MediaList::empty()));
 
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let result = catch_unwind(AssertUnwindSafe(|| {
         let stylesheet = Stylesheet::from_str(
             css,
             url_data,

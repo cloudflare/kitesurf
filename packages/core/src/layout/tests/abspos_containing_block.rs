@@ -98,7 +98,7 @@ fn fixed_hoist_still_works() {
 
 #[test]
 fn abspos_replaced_svg_derives_block_size_from_aspect_ratio() {
-    let dom = crate::DomHandle::new(
+    let dom = DomHandle::new(
         r##"<!DOCTYPE html><style>
           #container { width: 200px; height: 300px; position: relative; }
           #target { position: absolute; top: 0; left: 0; bottom: 0; right: 0; }
@@ -128,7 +128,7 @@ fn abspos_inside_an_unpositioned_inline_fills_the_positioned_ancestor() {
         <div style="height:50px"></div>
       </div>"#;
     for incremental in [false, true] {
-        let dom = crate::DomHandle::new(html, "https://example.com/");
+        let dom = DomHandle::new(html, "https://example.com/");
         dom.set_viewport(800, 600);
         dom.doc
             .borrow_mut()
@@ -160,7 +160,7 @@ fn an_unhoisted_abspos_in_a_span_keeps_its_static_position() {
             r#"<!DOCTYPE html><body style="margin:0"><div style="{root}font-size:20px;line-height:20px"><span id="text">xxxxx</span><span><b id="t" style="{target}">X</b></span></div>"#
         );
         for incremental in [false, true] {
-            let dom = crate::DomHandle::new(&html, "https://example.com/");
+            let dom = DomHandle::new(&html, "https://example.com/");
             dom.set_viewport(800, 600);
             dom.doc
                 .borrow_mut()

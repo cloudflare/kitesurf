@@ -11,6 +11,8 @@ use style::properties::generated::longhands::position::computed_value::T as Posi
 use style::values::computed::Inset;
 use style::values::computed::Margin;
 
+use crate::layout::geometry::doc_position;
+
 const MAX_STICKY_ANCESTOR_DEPTH: usize = 4096;
 
 #[derive(Clone, Copy, Default)]
@@ -109,7 +111,7 @@ fn laid_out_pos(doc: &BaseDocument, id: NodeId) -> Option<(f32, f32)> {
     let node = doc.get_node(id)?;
     // absolute_position subtracts every ancestor's scroll offset AND the
     // node's own, but a box doesn't move when it scrolls its own content.
-    let abs = crate::layout::geometry::doc_position(doc, node);
+    let abs = doc_position(doc, node);
     Some((
         abs.x + node.scroll_offset().x as f32,
         abs.y + node.scroll_offset().y as f32,
@@ -275,7 +277,7 @@ fn compute_shift(doc: &BaseDocument, id: NodeId, page_scroll: PageScroll) -> Opt
             match port_node {
                 Some(port) => {
                     let p = doc.get_node(port)?;
-                    let abs = crate::layout::geometry::doc_position(doc, p);
+                    let abs = doc_position(doc, p);
                     let border = p.final_layout().border;
                     let left = abs.x + p.scroll_offset().x as f32 + border.left;
                     let top = abs.y + p.scroll_offset().y as f32 + border.top;
@@ -314,7 +316,7 @@ fn compute_shift(doc: &BaseDocument, id: NodeId, page_scroll: PageScroll) -> Opt
             .map(|(pid, p)| {
                 // The children's coordinate frame is the SCROLLED content:
                 // absolute_position already subtracts p's own scroll, keep it.
-                let abs = crate::layout::geometry::doc_position(doc, p);
+                let abs = doc_position(doc, p);
                 let (px, py) = (abs.x, abs.y);
                 let l = p.final_layout().border;
                 let pad = p.final_layout().padding;

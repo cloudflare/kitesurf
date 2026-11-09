@@ -5,7 +5,10 @@
 //! Wasm-facing document core: owns page DOM state and exposes style, layout,
 //! paint, and resource APIs.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
+use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use blitz_dom::{
@@ -16,7 +19,9 @@ use blitz_traits::NodeId;
 use wasm_bindgen::prelude::*;
 
 use paint::render::{DamageFanout, RbiImageRecency};
-use style::transitions::{AnimationEvent, AnimationStates, TransitionEvent, TransitionStates};
+use style::transitions::{
+    collect_animation_events, AnimationEvent, AnimationStates, TransitionEvent, TransitionStates,
+};
 
 mod dom;
 mod js;
@@ -229,11 +234,11 @@ enum LayoutMode {
 #[cfg(test)]
 pub(crate) static STYLE_CASCADE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-static DIMS_ONLY_IMAGES: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static DIMS_ONLY_IMAGES: AtomicBool = AtomicBool::new(false);
 
 thread_local! {
-    static TTY_UA_SHEET: std::cell::RefCell<Option<UserAgentStylesheet>> =
-        const { std::cell::RefCell::new(None) };
+    static TTY_UA_SHEET: RefCell<Option<UserAgentStylesheet>> =
+        const { RefCell::new(None) };
 }
 
 #[wasm_bindgen(js_name = "setTtyUaCss")]
@@ -248,7 +253,7 @@ pub fn set_tty_ua_css(css: String) {
 }
 
 thread_local! {
-    static TTY_CELL: std::cell::Cell<Option<(f32, f32)>> = const { std::cell::Cell::new(None) };
+    static TTY_CELL: Cell<Option<(f32, f32)>> = const { Cell::new(None) };
 }
 
 #[wasm_bindgen(js_name = "setTtyCellGrid")]
@@ -261,15 +266,15 @@ fn tty_ua_sheet() -> Option<UserAgentStylesheet> {
     TTY_UA_SHEET.with(|c| c.borrow().clone())
 }
 
-static DARK_COLOR_SCHEME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static DARK_COLOR_SCHEME: AtomicBool = AtomicBool::new(false);
 
 #[wasm_bindgen(js_name = "setDarkColorScheme")]
 pub fn set_dark_color_scheme(dark: bool) {
-    DARK_COLOR_SCHEME.store(dark, std::sync::atomic::Ordering::Relaxed);
+    DARK_COLOR_SCHEME.store(dark, Ordering::Relaxed);
 }
 
 pub(crate) fn dark_color_scheme() -> bool {
-    DARK_COLOR_SCHEME.load(std::sync::atomic::Ordering::Relaxed)
+    DARK_COLOR_SCHEME.load(Ordering::Relaxed)
 }
 
 pub(crate) fn emulated_color_scheme() -> blitz_traits::shell::ColorScheme {
@@ -283,16 +288,16 @@ pub(crate) fn emulated_color_scheme() -> blitz_traits::shell::ColorScheme {
 
 #[wasm_bindgen(js_name = "setDimsOnlyImages")]
 pub fn set_dims_only_images(enabled: bool) {
-    DIMS_ONLY_IMAGES.store(enabled, std::sync::atomic::Ordering::Relaxed);
+    DIMS_ONLY_IMAGES.store(enabled, Ordering::Relaxed);
 }
 
 pub(crate) fn renderer_mode() -> bool {
-    DIMS_ONLY_IMAGES.load(std::sync::atomic::Ordering::Relaxed)
+    DIMS_ONLY_IMAGES.load(Ordering::Relaxed)
 }
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
-    static ANIMATION_CLOCK: std::cell::Cell<Option<f64>> = const { std::cell::Cell::new(None) };
+    static ANIMATION_CLOCK: Cell<Option<f64>> = const { Cell::new(None) };
 }
 
 fn now_for_animations() -> f64 {
@@ -334,27 +339,27 @@ fn now_for_animations() -> f64 {
 pub struct DomHandle {
     // Rc so the boa→blitz fast path (dom_fastpath.rs) can hold a Weak
     // and never dangle if JS frees the handle: upgrade fails → slow path.
-    doc: std::rc::Rc<RefCell<HtmlDocument>>,
+    doc: Rc<RefCell<HtmlDocument>>,
     /// Maps blitz node IDs to the stable IDs JavaScript and CDP see. Shared with the Boa fast
     /// path, which mints IDs for nodes it returns.
-    node_handles: std::rc::Rc<RefCell<NodeHandleMap>>,
+    node_handles: Rc<RefCell<NodeHandleMap>>,
     /// The document URL; relative URLs resolve against it.
     base_url: String,
     /// Set by DOM and viewport changes; the next geometry read runs a resolve.
-    layout_dirty: std::cell::Cell<bool>,
+    layout_dirty: Cell<bool>,
     /// A transition or animation was running at the last resolve, so later reads resolve again
     /// even when the DOM is unchanged.
-    animating: std::cell::Cell<bool>,
+    animating: Cell<bool>,
     /// Animation clock of the last resolve. An animating page skips a resolve when the clock has
     /// not advanced.
-    last_resolve_now: std::cell::Cell<f64>,
+    last_resolve_now: Cell<f64>,
     /// Bumped by every resolve that succeeded (a panicked one leaves it), so a size
     /// poll can tell "nothing relaid out since I looked" without re-reading geometry.
-    layout_epoch: std::cell::Cell<u32>,
+    layout_epoch: Cell<u32>,
     /// Resolves run so far: `[mutation-driven, animation-only]`. An animation-only resolve
     /// re-cascades every running animation with nothing else to show for it. Reported through
     /// Kitesurf.getMemoryStats.
-    resolve_counts: std::cell::Cell<[u32; 2]>,
+    resolve_counts: Cell<[u32; 2]>,
     /// Per-(node, property) transition state as of the last resolve.
     /// Diffed against the next one to synthesise the DOM events;
     /// stylo clears `is_new` before we ever see it.
@@ -367,21 +372,21 @@ pub struct DomHandle {
     animation_events: RefCell<Vec<AnimationEvent>>,
     /// True while the page has an `animation*` listener. Resolves always track animation
     /// phases, but rank and queue events only while this is set.
-    animation_events_requested: std::cell::Cell<bool>,
+    animation_events_requested: Cell<bool>,
     /// Element.animate effects. Each resolve samples them into stylo's script animations,
     /// and a running one keeps `animating` set the way a CSS animation does.
     waapi: RefCell<style::waapi::Waapi>,
     /// `Off` skips style and layout entirely, for callers that only need the DOM.
-    layout_mode: std::cell::Cell<LayoutMode>,
+    layout_mode: Cell<LayoutMode>,
     /// `position: sticky` nodes found by the last layout.
     sticky_nodes: RefCell<Vec<NodeId>>,
     /// Sticky nodes from the previous layout, so a node that stops being sticky has its pin
     /// offset cleared.
     pinned_nodes: RefCell<Vec<NodeId>>,
     /// Page scroll position that sticky offsets are computed against.
-    page_scroll: std::cell::Cell<layout::sticky::PageScroll>,
+    page_scroll: Cell<layout::sticky::PageScroll>,
     /// Resolved top, right, bottom, and left sticky insets per node, for computed style.
-    sticky_insets: RefCell<std::collections::HashMap<NodeId, [Option<f32>; 4]>>,
+    sticky_insets: RefCell<HashMap<NodeId, [Option<f32>; 4]>>,
     /// Queues the document's resource fetches for the host and receives their results.
     net_provider: Arc<crate::resources::net::KitesurfNetProvider>,
     /// Backing surfaces for the page's `<canvas>` 2D contexts.
@@ -389,15 +394,15 @@ pub struct DomHandle {
     // Resources referenced by recorded scenes, kept so the renderer can fetch the ones it lacks
     // (`getPaintResources`).
     /// Glyph outline paths by glyph hash.
-    rbi_glyph_cache: RefCell<std::collections::HashMap<u64, Vec<u8>>>,
+    rbi_glyph_cache: RefCell<HashMap<u64, Vec<u8>>>,
     /// Glyphs whose outlines were already extracted, per font.
     rbi_glyph_seen: RefCell<crate::paint::scene_record::GlyphSeen>,
     /// Reverse cmap and advance tables per font, reused across recordings.
     rbi_font_tables: RefCell<crate::paint::scene_record::FontTableCache>,
     /// Font data and face index by font hash.
-    rbi_font_bytes: RefCell<std::collections::HashMap<u64, (peniko::Blob<u8>, u32)>>,
+    rbi_font_bytes: RefCell<HashMap<u64, (peniko::Blob<u8>, u32)>>,
     /// Encoded images by image hash.
-    rbi_image_cache: RefCell<std::collections::HashMap<u64, crate::paint::scene_record::ImageInfo>>,
+    rbi_image_cache: RefCell<HashMap<u64, crate::paint::scene_record::ImageInfo>>,
     /// Last recording that used each image, for evicting stale entries.
     rbi_image_recency: RefCell<RbiImageRecency>,
     /// The last scene recorded for the host to copy out of linear memory (`stagedScenePtr`).
@@ -476,7 +481,7 @@ impl DomHandle {
             viewport: Some(Viewport::new(1280, 720, 1.0, emulated_color_scheme())),
             font_ctx: Some(crate::resources::fonts::get_or_init_font_context()),
             node_capacity_hint: Some(estimate_node_capacity(html)),
-            dims_only_images: DIMS_ONLY_IMAGES.load(std::sync::atomic::Ordering::Relaxed),
+            dims_only_images: DIMS_ONLY_IMAGES.load(Ordering::Relaxed),
             ..Default::default()
         };
         let mut doc = HtmlDocument::from_html(html, config);
@@ -489,32 +494,32 @@ impl DomHandle {
         }
         let node_handles = NodeHandleMap::seeded(&doc);
         DomHandle {
-            doc: std::rc::Rc::new(RefCell::new(doc)),
-            node_handles: std::rc::Rc::new(RefCell::new(node_handles)),
+            doc: Rc::new(RefCell::new(doc)),
+            node_handles: Rc::new(RefCell::new(node_handles)),
             base_url: resolved_base,
-            layout_dirty: std::cell::Cell::new(true),
-            animating: std::cell::Cell::new(false),
-            last_resolve_now: std::cell::Cell::new(f64::NEG_INFINITY),
-            layout_epoch: std::cell::Cell::new(0),
-            resolve_counts: std::cell::Cell::new([0, 0]),
+            layout_dirty: Cell::new(true),
+            animating: Cell::new(false),
+            last_resolve_now: Cell::new(f64::NEG_INFINITY),
+            layout_epoch: Cell::new(0),
+            resolve_counts: Cell::new([0, 0]),
             transition_states: RefCell::new(TransitionStates::default()),
             transition_events: RefCell::new(Vec::new()),
             animation_states: RefCell::new(AnimationStates::default()),
             animation_events: RefCell::new(Vec::new()),
-            animation_events_requested: std::cell::Cell::new(false),
+            animation_events_requested: Cell::new(false),
             waapi: RefCell::new(style::waapi::Waapi::default()),
             sticky_nodes: RefCell::new(Vec::new()),
             pinned_nodes: RefCell::new(Vec::new()),
-            page_scroll: std::cell::Cell::new(Default::default()),
-            sticky_insets: RefCell::new(std::collections::HashMap::new()),
-            layout_mode: std::cell::Cell::new(LayoutMode::Full),
+            page_scroll: Cell::new(Default::default()),
+            sticky_insets: RefCell::new(HashMap::new()),
+            layout_mode: Cell::new(LayoutMode::Full),
             net_provider,
             canvas2d: RefCell::new(paint::canvas2d::CanvasRegistry::default()),
-            rbi_glyph_cache: RefCell::new(std::collections::HashMap::new()),
+            rbi_glyph_cache: RefCell::new(HashMap::new()),
             rbi_glyph_seen: RefCell::new(Default::default()),
             rbi_font_tables: RefCell::new(Default::default()),
-            rbi_font_bytes: RefCell::new(std::collections::HashMap::new()),
-            rbi_image_cache: RefCell::new(std::collections::HashMap::new()),
+            rbi_font_bytes: RefCell::new(HashMap::new()),
+            rbi_image_cache: RefCell::new(HashMap::new()),
             rbi_image_recency: RefCell::new(RbiImageRecency::default()),
             staged_scene: RefCell::new(Vec::new()),
             damage_fanout: RefCell::new(DamageFanout::default()),
@@ -561,7 +566,7 @@ impl DomHandle {
             Err(_) => return 0,
         };
         let root_id = doc.root_node().id;
-        let count = std::cell::Cell::new(0u32);
+        let count = Cell::new(0u32);
         let count_ref = &count;
         doc.iter_subtree_mut(root_id, move |node_id, d| {
             if let Some(node) = d.get_node_mut(node_id) {
@@ -693,7 +698,7 @@ impl DomHandle {
             let mut animation_states = self.animation_states.borrow_mut();
             if self.animation_events_requested.get() {
                 let mut animation_events = self.animation_events.borrow_mut();
-                style::transitions::collect_animation_events(
+                collect_animation_events(
                     doc.as_ref(),
                     now,
                     &mut animation_states,
@@ -703,7 +708,7 @@ impl DomHandle {
                 );
             } else {
                 let mut discard = Vec::new();
-                style::transitions::collect_animation_events(
+                collect_animation_events(
                     doc.as_ref(),
                     now,
                     &mut animation_states,
@@ -779,14 +784,14 @@ impl DomHandle {
     }
 
     #[cfg(test)]
-    pub(crate) fn doc_for_test(&self) -> &std::cell::RefCell<HtmlDocument> {
+    pub(crate) fn doc_for_test(&self) -> &RefCell<HtmlDocument> {
         &self.doc
     }
 }
 
 fn clear_unstyled_cascade(doc: &mut BaseDocument) -> u32 {
     let root_id = doc.root_node().id;
-    let count = std::cell::Cell::new(0u32);
+    let count = Cell::new(0u32);
     let count_ref = &count;
     doc.iter_subtree_mut(root_id, move |node_id, d| {
         if node_id == root_id {

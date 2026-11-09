@@ -6,9 +6,12 @@
 
 use std::sync::Mutex;
 
+use blitz_dom::net::kitesurf_set_pending_image;
 use blitz_traits::net::{http, Bytes, NetHandler, NetProvider, Request};
 
 use wasm_bindgen::prelude::*;
+
+use crate::resources::fonts::strip_fetched_font_for_session;
 
 const MAX_RESOURCE_EXTENSION_BYTES: usize = 8;
 
@@ -58,7 +61,7 @@ impl NetProvider for KitesurfNetProvider {
         if url.starts_with("data:") {
             if let Ok(bytes) = decode_data_url(&url) {
                 let bytes = if infer_resource_kind(&request) == "Font" {
-                    crate::resources::fonts::strip_fetched_font_for_session(bytes, &url, 0)
+                    strip_fetched_font_for_session(bytes, &url, 0)
                 } else {
                     bytes
                 };
@@ -287,14 +290,14 @@ pub fn deliver_bytes(
         return false;
     };
     let bytes = if req.kind == "Font" {
-        crate::resources::fonts::strip_fetched_font_for_session(bytes, &req.url, resource_key)
+        strip_fetched_font_for_session(bytes, &req.url, resource_key)
     } else {
         bytes
     };
     let (w, h) = dims.unwrap_or((0, 0));
-    blitz_dom::net::kitesurf_set_pending_image(resource_key, w, h);
+    kitesurf_set_pending_image(resource_key, w, h);
     req.handler.bytes(req.url, Bytes::from(bytes));
-    blitz_dom::net::kitesurf_set_pending_image(0, 0, 0);
+    kitesurf_set_pending_image(0, 0, 0);
     true
 }
 
