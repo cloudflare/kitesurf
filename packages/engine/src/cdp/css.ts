@@ -17,6 +17,10 @@ import {
   type EnumeratedStyleSheet,
 } from "./page-session.ts";
 import { ensureTargetDom } from "./dom-release.ts";
+import { cookieKeyFor } from "./cookie-jar-registry.ts";
+import { originOf } from "./frames.ts";
+import { effectiveExtraHeaders } from "./network.ts";
+import { walkRedirects } from "../eval/redirect-walk.ts";
 
 import type { Protocol } from "devtools-protocol";
 
@@ -418,17 +422,12 @@ const OPAQUE_SHEET_TEXT_MAX = 32;
 const OPAQUE_SHEET_FETCH_CAP = 12;
 const OPAQUE_SHEET_FETCH_TIMEOUT_MS = 5_000;
 
-async function fetchOpaqueSheetText(
+// A walled session's host transport replays recorded traffic, so it keeps final().
+async function fetchWalledSheetText(
   sandboxOutbound: SandboxOutboundOverride,
   url: string,
 ): Promise<string> {
-  if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return "";
-  const hostEgress = sandboxOutbound.external;
-  if (!hostEgress) {
-    const hit = opaqueSheetText.get(url);
-    if (hit !== undefined) return hit;
-  }
-  let text = "";
+  if (!/^https?:\/\//i.test(url)) return "";
   try {
     const resp = await sandboxOutbound.final(
       new Request(url, {
@@ -439,14 +438,53 @@ async function fetchOpaqueSheetText(
         signal: AbortSignal.timeout(OPAQUE_SHEET_FETCH_TIMEOUT_MS),
       }),
     );
-    if (resp.ok) text = await resp.text();
+    return resp.ok ? await resp.text() : "";
+  } catch {
+    return "";
+  }
+}
+
+// The URL is page-chosen, so the fetch goes through the connection's gateway (filters,
+// interception, cookies) and each redirect hop goes back through it.
+async function fetchOpaqueSheetText(
+  ctx: DispatchCtx,
+  target: TargetState,
+  url: string,
+): Promise<string> {
+  if (!/^https?:\/\//i.test(url)) return "";
+  const sandboxOutbound = ctx.browser.sandboxOutbound;
+  if (sandboxOutbound.external) return fetchWalledSheetText(sandboxOutbound, url);
+  const cookieKey = cookieKeyFor(ctx.connectionId, target.browserContextId);
+  // The response depends on the jar's cookies, so a cached text never crosses jars.
+  const cacheKey = `${cookieKey}\n${url}`;
+  const hit = opaqueSheetText.get(cacheKey);
+  if (hit !== undefined) return hit;
+  const pageOrigin = originOf(target.url);
+  const outbound = sandboxOutbound.parent({
+    pageOrigin: pageOrigin === "://" ? "" : pageOrigin,
+    pageUrl: target.url,
+    mainFrameId: target.frameId,
+    mainLoaderId: target.loaderId,
+    extraHeaders: effectiveExtraHeaders(target),
+    connectionId: ctx.connectionId,
+    cookieKey,
+  });
+  let text = "";
+  try {
+    const walk = await walkRedirects({
+      url,
+      headers: { accept: "text/css,*/*;q=0.1", "x-kitesurf-resource-type": "Stylesheet" },
+      signal: AbortSignal.timeout(OPAQUE_SHEET_FETCH_TIMEOUT_MS),
+      fetchHop: (hopReq) => outbound.fetch(hopReq),
+    });
+    if (walk.ok && walk.response.ok) text = await walk.response.text();
+    else if (walk.ok) void walk.response.body?.cancel().catch(() => {});
   } catch {}
-  if (hostEgress) return text;
   if (opaqueSheetText.size >= OPAQUE_SHEET_TEXT_MAX) {
     const oldest = opaqueSheetText.keys().next().value;
     if (oldest !== undefined) opaqueSheetText.delete(oldest);
   }
-  opaqueSheetText.set(url, text);
+  opaqueSheetText.set(cacheKey, text);
   return text;
 }
 
@@ -469,7 +507,7 @@ export async function syncStyleSheetsFromEnumeration(
       needsFetch.slice(0, OPAQUE_SHEET_FETCH_CAP).map(async (s) => {
         const sourceURL = s.sourceURL;
         if (!sourceURL) return;
-        s.text = await fetchOpaqueSheetText(ctx.browser.sandboxOutbound, sourceURL);
+        s.text = await fetchOpaqueSheetText(ctx, target, sourceURL);
       }),
     );
   }
