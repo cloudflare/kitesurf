@@ -48,6 +48,7 @@ import {
 } from "@kitesurf/script-gate/gateway-headers";
 import { determineReferrer, parseReferrerPolicy } from "@kitesurf/script-gate/referrer-policy";
 import { isForbiddenRequestHeader } from "./forbidden-headers.ts";
+import { privateNetworkRefusal } from "./private-network.ts";
 
 const RESOURCE_KEY_HEADER = "x-kitesurf-resource-key";
 const IMAGE_WIDTH_HEADER = "x-kitesurf-image-width";
@@ -181,6 +182,8 @@ function noteForeignIsolate(connectionId: string): void {
 export type SandboxOutboundEnv = WbaEnv & {
   FONT_ASSETS: { fetch(req: Request): Promise<Response> };
   HOST_TRACER?: Tracer;
+  /** "1" lets page-chosen requests reach loopback and private addresses. */
+  KITESURF_ALLOW_PRIVATE_NETWORK?: string;
 };
 
 export type SandboxOutboundExports = {
@@ -402,6 +405,13 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       target = new URL(request.url);
     } catch {
       return blocked("kitesurf: invalid URL", "invalid-url");
+    }
+
+    // Every redirect hop and WebSocket upgrade comes back through here. The document the
+    // client asked to open is its own choice, so only page-chosen requests are checked.
+    if (env.KITESURF_ALLOW_PRIVATE_NETWORK !== "1" && props?.skipRequestBlocker !== true) {
+      const refusal = privateNetworkRefusal(target, pageOrigin);
+      if (refusal) return blocked(refusal, "private-network");
     }
 
     let allowed: URL;
