@@ -18,6 +18,53 @@ const MULTI_LABEL_SUFFIX_HEADS = new Set([
   "go",
 ]);
 
+// Multi-tenant hosts from the private section of the Public Suffix List, where each tenant is
+// its own site. Without them, a.github.io could set Domain=github.io cookies for b.github.io.
+// Only widely used entries are listed; other hosting platforms still merge tenants.
+const PRIVATE_SUFFIXES = new Set([
+  "amplifyapp.com",
+  "appspot.com",
+  "azurestaticapps.net",
+  "azurewebsites.net",
+  "bitbucket.io",
+  "blogspot.com",
+  "cloudfront.net",
+  "codeberg.page",
+  "deno.dev",
+  "firebaseapp.com",
+  "fly.dev",
+  "github.io",
+  "githubusercontent.com",
+  "gitlab.io",
+  "herokuapp.com",
+  "myshopify.com",
+  "netlify.app",
+  "ngrok-free.app",
+  "ngrok.app",
+  "ngrok.io",
+  "onrender.com",
+  "pages.dev",
+  "pythonanywhere.com",
+  "r2.dev",
+  "readthedocs.io",
+  "repl.co",
+  "s3.amazonaws.com",
+  "surge.sh",
+  "trycloudflare.com",
+  "vercel.app",
+  "web.app",
+  "wixsite.com",
+  "workers.dev",
+]);
+
+// The number of trailing labels that form a listed private suffix, or 0.
+function privateSuffixLength(labels: string[]): number {
+  for (let n = labels.length; n >= 2; n--) {
+    if (PRIVATE_SUFFIXES.has(labels.slice(-n).join("."))) return n;
+  }
+  return 0;
+}
+
 export function isIpHost(host: string): boolean {
   return /^[\d.]+$/.test(host) || host.includes(":");
 }
@@ -26,6 +73,8 @@ export function siteKey(host: string): string {
   const h = host.toLowerCase().replace(/\.$/, "");
   if (isIpHost(h)) return h;
   const labels = h.split(".");
+  const privateLength = privateSuffixLength(labels);
+  if (privateLength > 0) return labels.slice(-Math.min(labels.length, privateLength + 1)).join(".");
   if (labels.length <= 2) return h;
   const suffixHead = labels[labels.length - 2] ?? "";
   const take = MULTI_LABEL_SUFFIX_HEADS.has(suffixHead) ? 3 : 2;
@@ -38,6 +87,7 @@ export function isPublicSuffix(domain: string): boolean {
   if (isIpHost(h)) return false;
   const labels = h.split(".");
   if (labels.length === 1) return true;
+  if (privateSuffixLength(labels) === labels.length) return true;
   if (labels.length === 2 && MULTI_LABEL_SUFFIX_HEADS.has(labels[0] ?? "")) {
     return true;
   }

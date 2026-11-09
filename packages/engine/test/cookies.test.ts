@@ -469,3 +469,31 @@ describe("CDP cookie params", () => {
     expect(setCdpCookie(jar, "a=1")).toBeNull();
   });
 });
+
+describe("private public suffixes", () => {
+  it.each(["github.io", "pages.dev", "workers.dev", "s3.amazonaws.com"])(
+    "rejects Domain=%s from one tenant",
+    (suffix) => {
+      const jar = createCookieJar();
+      expect(jar.setFromHeader(`https://a.${suffix}/x`, `sid=1; Domain=${suffix}`)).toBeNull();
+      expect(jar.getForUrl(`https://b.${suffix}/`)).toEqual([]);
+    },
+  );
+
+  it("keeps a tenant's own parent domain", () => {
+    const jar = createCookieJar();
+    expect(
+      jar.setFromHeader("https://www.a.github.io/x", "sid=1; Domain=a.github.io"),
+    ).not.toBeNull();
+    expect(jar.getForUrl("https://a.github.io/").map((c) => c.name)).toEqual(["sid"]);
+  });
+
+  it("treats two tenants as different sites", () => {
+    const jar = createCookieJar();
+    jar.setFromHeader("https://b.github.io/x", "lax=1; SameSite=Lax");
+    expect(jar.getForUrl("https://b.github.io/", { initiatorHost: "a.github.io" })).toEqual([]);
+    expect(jar.getForUrl("https://b.github.io/", { initiatorHost: "www.b.github.io" }).length).toBe(
+      1,
+    );
+  });
+});
