@@ -47,6 +47,26 @@ describe("walkRedirects", () => {
     ]);
   });
 
+  test.each([
+    ["follows the hop", null],
+    ["stops at a blocked hop", () => null],
+  ])("cancels a redirect's body when it %s", async (_, checkRedirect) => {
+    const cancelled: string[] = [];
+    const fetchHop = async (req: Request): Promise<Response> => {
+      const body = new ReadableStream({ cancel: () => void cancelled.push(req.url) });
+      if (req.url !== "https://a.test/1") return new Response(body);
+      return new Response(body, { status: 302, headers: { location: "https://a.test/2" } });
+    };
+    await walkRedirects({
+      url: "https://a.test/1",
+      headers: {},
+      fetchHop,
+      ...(checkRedirect ? { checkRedirect } : {}),
+    });
+    await Promise.resolve();
+    expect(cancelled).toEqual(["https://a.test/1"]);
+  });
+
   test("Authorization is dropped on a cross-origin hop and stays dropped", async () => {
     const { seen, fetchHop } = stubHops({
       "https://a.test/1": { to: "https://b.test/2" },
