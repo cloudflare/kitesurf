@@ -26,6 +26,10 @@ export interface PageScriptState {
 
   pageUrl: string;
 
+  /** The current document's URL. Unlike pageUrl, a pending cross-document
+   *  location write does not change it, so it backs CSP 'self'. */
+  documentUrl: string;
+
   sourceDoctype: { markup: string; marker: string } | null;
 
   connectionId: string;
@@ -116,6 +120,7 @@ export const state: PageScriptState = {
   dom: null,
   blobUrls: new Map(),
   pageUrl: "",
+  documentUrl: "",
   sourceDoctype: null,
   connectionId: "",
   mainFrameId: "",
