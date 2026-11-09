@@ -20,6 +20,7 @@ import type { SandboxOutboundOverride } from "./outbound.ts";
 import { stubQueryDom } from "../cdp/page-session.ts";
 import { disposeStub } from "../cdp/page-script-generation.ts";
 import { walkRedirects } from "./redirect-walk.ts";
+import { MAX_DOCUMENT_BYTES, readCappedText } from "../read-capped.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
 import { siteKey } from "../public-suffix.ts";
 
@@ -253,7 +254,16 @@ export async function prespawnFrameIsolate(
   }
   let html: string;
   try {
-    html = await resp.text();
+    // The main-frame and same-origin child paths cap the document at
+    // MAX_DOCUMENT_BYTES; this sibling path must use the same control so a
+    // page-chosen iframe cannot buffer an unbounded body in the shared
+    // engine isolate.
+    const body = await readCappedText(resp, MAX_DOCUMENT_BYTES);
+    if (!body.ok) {
+      await discardFrameIsolate(stub, warmup, `oopif doc body ${body.failure}`);
+      return { ok: false, error: `frame body ${body.failure}` };
+    }
+    html = body.text;
   } catch (e) {
     await discardFrameIsolate(stub, warmup, "oopif doc body read failed");
     return {
