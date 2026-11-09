@@ -26312,7 +26312,7 @@
     "reason": null
   },
   "/css/css-grid/stretch-grid-item-text-input-overflow.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/table-grid-item-dynamic-001.html": {
