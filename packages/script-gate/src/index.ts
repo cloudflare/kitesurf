@@ -17,6 +17,7 @@ export {
   type ScriptResponseFacts,
 } from "./gate.ts";
 export {
+  cspAllowsInlineHandler,
   cspAllowsScript,
   inlineHashAlgorithms,
   parseCspPolicies,

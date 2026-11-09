@@ -8,6 +8,7 @@ import {
   buildScriptGateContext,
   checkScriptBeforeFetch,
   checkScriptResponse,
+  cspAllowsInlineHandler,
   cspAllowsScript,
   scriptGateIsNoop,
   inlineHashAlgorithms,
@@ -111,6 +112,22 @@ export async function insertedResponseAllowed(
     },
     response,
   );
+}
+
+/** Whether the document's CSP lets an inline on* attribute compile; logs a refusal. */
+export function inlineHandlerAllowed(attributeName: string): boolean {
+  const ctx = gateContext();
+  if (ctx.policies.length === 0) return true;
+  const verdict = cspAllowsInlineHandler(ctx.policies);
+  if (verdict.allowed) return true;
+  try {
+    console.error(
+      `Refused to execute inline event handler ${attributeName} because it violates the ` +
+        `following Content Security Policy directive: "${verdict.directive}". Either the ` +
+        `'unsafe-inline' keyword, or a hash with 'unsafe-hashes', is required.`,
+    );
+  } catch {}
+  return false;
 }
 
 export function reportBlocked(decision: ScriptGateDecision): void {

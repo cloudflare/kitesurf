@@ -266,6 +266,35 @@ export function cspAllowsScript(
   return { allowed: true };
 }
 
+function handlerSourceList(policy: CspPolicy): { name: string; list: string[] } | null {
+  for (const name of ["script-src-attr", "script-src", "default-src"]) {
+    const list = policy.directives.get(name);
+    if (list) return { name, list };
+  }
+  return null;
+}
+
+/** CSP3 inline check for an event handler attribute: a nonce never admits one. A hash needs
+ *  'unsafe-hashes' and an async digest, but handlers compile synchronously, so it refuses. */
+export function cspAllowsInlineHandler(policies: readonly CspPolicy[]): CspVerdict {
+  for (const policy of policies) {
+    const found = handlerSourceList(policy);
+    if (found === null) continue;
+    const sources = found.list.map((source) => source.toLowerCase());
+    const hasNonceOrHash = sources.some(
+      (source) => (source.startsWith(NONCE_PREFIX) && source.endsWith("'")) || HASH_RE.test(source),
+    );
+    if (!sources.includes("'unsafe-inline'") || hasNonceOrHash) {
+      return {
+        allowed: false,
+        policyText: policy.text,
+        directive: `${found.name} ${found.list.join(" ")}`.trim(),
+      };
+    }
+  }
+  return { allowed: true };
+}
+
 export function inlineHashAlgorithms(policies: readonly CspPolicy[]): SriAlgorithm[] {
   const algorithms = new Set<SriAlgorithm>();
   for (const policy of policies) {

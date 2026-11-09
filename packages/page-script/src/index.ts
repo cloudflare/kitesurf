@@ -108,6 +108,7 @@ import {
 } from "./inserted-scripts.ts";
 import { editContentEditable, editingHostOf } from "./contenteditable-input.ts";
 import {
+  inlineHandlerAllowed,
   inlineInsertDecisionSync,
   insertedScriptAllowed,
   reportBlocked,
@@ -342,6 +343,7 @@ import {
   decodeHtmlBytes,
   parseUrlForNode,
   detachedWrapperStats,
+  setInlineHandlerGate,
 } from "./dom-shim.js";
 import type { BuildDocumentResult } from "./dom-shim.js";
 import { ksInternals } from "./internals.ts";
@@ -1593,11 +1595,14 @@ function dispatchWindowUnload(): void {
   dispatchLifecycle(state.window, "unload", { bubbles: false });
 }
 
+setInlineHandlerGate(inlineHandlerAllowed);
+
 function compileEventAttribute(element: any, handlerName: string): void {
   try {
     if (typeof element?.[handlerName] === "function") return;
     const handlerSource = element?.getAttribute?.(handlerName);
     if (typeof handlerSource !== "string" || handlerSource.length === 0) return;
+    if (!inlineHandlerAllowed(handlerName)) return;
     let eventHandler: Function;
     try {
       eventHandler = new Function("event", handlerSource);

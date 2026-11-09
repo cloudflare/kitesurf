@@ -11,7 +11,7 @@ import {
   checkScriptBeforeFetch,
   checkScriptResponse,
 } from "../src/gate.ts";
-import { cspAllowsScript, parseCspPolicies } from "../src/csp.ts";
+import { cspAllowsInlineHandler, cspAllowsScript, parseCspPolicies } from "../src/csp.ts";
 import { blockedByNosniff, isJavaScriptMime, isModuleMime } from "../src/mime.ts";
 import { digestBase64, integrityMatches, parseIntegrity } from "../src/sri.ts";
 
@@ -511,4 +511,23 @@ test("a plain-http document is not held to mixed content", async () => {
     (await checkScriptBeforeFetch(gate, { url: "http://cdn.example.com/a.js" })).allowed,
     true,
   );
+});
+
+test("inline event handlers follow script-src-attr, then script-src, then default-src", () => {
+  const allowed = (...headers: string[]) =>
+    cspAllowsInlineHandler(parseCspPolicies(headers)).allowed;
+  assert.equal(allowed(), true);
+  assert.equal(allowed("img-src 'self'"), true);
+  assert.equal(allowed("script-src 'self' 'unsafe-inline'"), true);
+  assert.equal(allowed("default-src 'unsafe-inline'"), true);
+  assert.equal(allowed("script-src 'self'"), false);
+  assert.equal(allowed("default-src 'none'"), false);
+  // A nonce admits script elements, never handler attributes, and turns off 'unsafe-inline'.
+  assert.equal(allowed("script-src 'nonce-abc' 'unsafe-inline'"), false);
+  assert.equal(allowed(`script-src 'unsafe-inline' ${cspHash("sha256", "go()")}`), false);
+  // script-src-attr takes precedence over script-src for attributes.
+  assert.equal(allowed("script-src 'nonce-abc'; script-src-attr 'unsafe-inline'"), true);
+  assert.equal(allowed("script-src 'unsafe-inline'; script-src-attr 'none'"), false);
+  // Every enforced policy must allow it.
+  assert.equal(allowed("script-src 'unsafe-inline'", "script-src 'self'"), false);
 });
