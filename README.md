@@ -1,4 +1,4 @@
-![Kitesurf logo](kitesurf_logo.png)
+![Kitesurf logo](.github/assets/kitesurf_logo.png)
 
 # Kitesurf
 

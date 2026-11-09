@@ -45,7 +45,7 @@ jobs:
           cp packages/engine/public/fonts/OFL.txt packages/engine/public/fonts/Inter-OFL.txt "$PACKAGE/packages/engine/public/fonts/"
           cp scripts/lint/ANTI_SLOP_LICENSE.txt "$PACKAGE/scripts/lint/"
           cp vendor/wasm-memprof/LICENSE "$PACKAGE/vendor/wasm-memprof/"
-          cargo about generate --locked --fail --config about.toml --manifest-path packages/kitesurf-cli/Cargo.toml --target "${{ matrix.target }}" --output-file "$PACKAGE/THIRD_PARTY_NOTICES.md" scripts/rust-notices.hbs
+          cargo about generate --locked --fail --config .config/about.toml --manifest-path packages/kitesurf-cli/Cargo.toml --target "${{ matrix.target }}" --output-file "$PACKAGE/THIRD_PARTY_NOTICES.md" scripts/rust-notices.hbs
           tar -czf "dist/$NAME.tar.gz" -C "$PACKAGE" .
           (cd dist && shasum -a 256 "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
       - uses: actions/upload-artifact@v4
