@@ -48,11 +48,10 @@ export function pdfScenePages(
   };
   const writeError = (error: unknown) => {
     if (!controller) return;
-    const message = (error instanceof Error ? error.message : String(error)).slice(
-      0,
-      PDF_STREAM_ERROR_MAX_BYTES,
-    );
-    const text = new TextEncoder().encode(message);
+    // Clamp the encoded bytes, not the string: a non-ASCII message would otherwise exceed the
+    // renderer's byte cap and be replaced by a length error.
+    const message = error instanceof Error ? error.message : String(error);
+    const text = new TextEncoder().encode(message).slice(0, PDF_STREAM_ERROR_MAX_BYTES);
     const frame = new Uint8Array(8 + text.byteLength);
     const header = new DataView(frame.buffer);
     header.setUint32(0, 0, true);
