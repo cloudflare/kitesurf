@@ -72,7 +72,7 @@ describe("fallback HTML retention", () => {
       dom: null,
       html: "x".repeat(MAX_RETAINED_FALLBACK_HTML_CHARS + 1),
       fallbackHtmlReleased: false,
-    } as unknown as TargetState;
+    } as TargetState;
     releaseFallbackHtml(target);
     const ctx = { browser: { targets: new Map([["t1", target]]) } } as DispatchCtx;
 

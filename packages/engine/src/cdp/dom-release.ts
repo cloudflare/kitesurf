@@ -69,11 +69,9 @@ export function releaseAllDomHandles(target: TargetState): void {
   releaseTargetDom(target);
 }
 
-// The engine keeps the source only to rehydrate a fallback DOM when PageScript is absent. A
-// large document's source is a second full copy of the page, so keep the fallback for small
-// pages and let PageScript own the document once it is live. Releasing it means a target whose
-// PageScript later retires (a screencast render failure) reports that its source is gone instead
-// of answering DOM, CSS and accessibility reads from a blank document.
+// The engine keeps the source only to rehydrate a fallback DOM when PageScript is absent, and a
+// large document's source is a second copy of the page: keep it for small pages, let PageScript
+// own the document once live, and report a retired target's source as gone rather than blank.
 export const MAX_RETAINED_FALLBACK_HTML_CHARS = 1 << 20;
 
 export function releaseFallbackHtml(target: TargetState): void {

@@ -1054,7 +1054,7 @@ class Element extends NodeBase implements Idl.Element {
     const ns = namespace ? String(namespace) : null;
     const elNs = elemNs.get(this._id);
     const runsChangeSteps = ns === null && (!elNs || elNs.ns === HTML_NS);
-    // Same sidecar as `getAttributeNS`: refresh it before deciding a namespaced attribute is absent.
+    // Same sidecar as `getAttributeNS`: refresh it before deciding a namespaced one is absent.
     this._attrFlat();
     const customAttributeHook =
       ksInternals.customElementObservesAttribute?.(this, localName) &&
