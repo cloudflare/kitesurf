@@ -4,7 +4,11 @@
 
 import { describe, expect, it } from "vitest";
 import { makeChildFrameState, makeMainFrameState } from "../src/cdp/frames.ts";
-import { routePostMessageToChild, routePostMessageToParent } from "../src/cdp/page.ts";
+import {
+  routeChildFramePostMessage,
+  routePostMessageToChild,
+  routePostMessageToParent,
+} from "../src/cdp/page.ts";
 import type { FrameState, TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 
@@ -94,5 +98,51 @@ describe("postMessage source origins", () => {
     h.child.pageScript = null;
     routePostMessageToChild(h.target, h.main, forged({ toFrameOwnerId: 5 }));
     expect(h.child.pendingPostMessages?.map((m) => m.sourceOrigin)).toEqual(["https://main.test"]);
+  });
+});
+
+describe("postMessage routing", () => {
+  const addNested = (h: ReturnType<typeof setup>, log: Delivered[]) => {
+    const nested = makeChildFrameState({
+      frameId: "N",
+      parentFrameId: "C",
+      loaderId: "LN",
+      url: "https://nested.test/",
+      name: "",
+      ownerElementId: "",
+      ownerBackendNodeId: 5,
+      isCrossOrigin: true,
+      delaysLoadEvent: false,
+    });
+    nested.pageScript = recordingStub(log);
+    h.target.frames.set("N", nested);
+  };
+
+  it("delivers a child's message for its own iframe there, not to its parent", async () => {
+    const h = setup("https://main.test/page", "https://child.test/x");
+    const toNested: Delivered[] = [];
+    addNested(h, toNested);
+    routeChildFramePostMessage(h.target, h.child, forged({ toFrameOwnerId: 5 }));
+    await Promise.resolve();
+    expect(h.toMain).toEqual([]);
+    expect(h.toChild).toEqual([]);
+    expect(toNested.map((m) => m.origin)).toEqual(["https://child.test"]);
+  });
+
+  it("delivers a child's message for its parent to the parent", async () => {
+    const h = setup("https://main.test/page", "https://child.test/x");
+    routeChildFramePostMessage(h.target, h.child, forged({ toParent: true }));
+    await Promise.resolve();
+    expect(h.toMain.map((m) => m.origin)).toEqual(["https://child.test"]);
+  });
+
+  it("matches an owner id only among the sender's own children", async () => {
+    const h = setup("https://main.test/page", "https://child.test/x");
+    const toNested: Delivered[] = [];
+    addNested(h, toNested);
+    h.target.frames.delete("C");
+    routePostMessageToChild(h.target, h.main, forged({ toFrameOwnerId: 5 }));
+    await Promise.resolve();
+    expect(toNested).toEqual([]);
   });
 });
