@@ -251,11 +251,30 @@ rust_library(
     crate = "vello_cpu",
     repositories = ["crates"],
 )
+crate.annotation(
+    additive_build_file_content = """
+rust_library(
+    name = "slotmap_std",
+    crate_features = ["std"],
+    crate_name = "slotmap",
+    crate_root = "src/lib.rs",
+    deps = existing_rule("slotmap")["deps"],
+    edition = existing_rule("slotmap")["edition"],
+    rustc_env_files = [":cargo_toml_env_vars"],
+    srcs = glob(["src/**/*.rs"]),
+    tags = ["manual"],
+)
+""",
+    crate = "slotmap",
+    repositories = ["crates"],
+)
 use_repo(crate, "crates", "crates_cli", "crates_memprof", "crates_renderer", "crates_rust_check", "crates_scene_host")
 use_repo(
     crate,
     "crates__boa_gc-0.22.0",
     "crates__boa_interner-0.22.0",
+    "crates__slotmap-1.1.1",
+    "crates__taffy-0.15.0",
     "crates__vello_common-0.3.0",
     "crates__vello_cpu-0.3.0",
 )
