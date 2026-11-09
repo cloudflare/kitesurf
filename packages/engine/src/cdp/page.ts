@@ -4030,6 +4030,7 @@ export function installUpstreamEventHandler(
     url,
     target.loaderId,
   );
+  const loaderId = target.loaderId;
   stub.setUpstreamEventHandler((event, params) => {
     if (target.navigateGeneration !== generation) return;
     if (ctx.browser.wsClosing) return;
@@ -4067,6 +4068,10 @@ export function installUpstreamEventHandler(
       ctx.browser.dedicatedWorkers.handle(ctx, workerOwner, event, params);
       return;
     }
+    // Page.navigate mints the next loader id and resets target.frames before it bumps the
+    // generation, while this isolate still runs. Its frame events then describe a document that
+    // is being replaced and must not reach the next one's frames.
+    if (target.loaderId !== loaderId) return;
     handleUpstreamFrameEvent(ctx, target, undefined, event, params, url);
   });
 }
