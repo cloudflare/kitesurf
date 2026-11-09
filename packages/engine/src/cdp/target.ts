@@ -85,6 +85,13 @@ export function localStorageForTarget(
   return ctx.browser.localStorage;
 }
 
+// A tab's, as browsers keep it: what a flow writes there survives the tab's navigates, and a
+// tab opened over CDP starts empty.
+export function sessionStorageForTarget(ctx: DispatchCtx, target: TargetState): WebStorage {
+  target.sessionStorage ??= ctx.browser.localStorage.forTab(target.targetId);
+  return target.sessionStorage;
+}
+
 export function jarForContextId(ctx: DispatchCtx, browserContextId: string | undefined): CookieJar {
   if (browserContextId) {
     const entry = ctx.browser.contexts.get(browserContextId);
@@ -419,6 +426,7 @@ export async function closeTargetInternal(ctx: DispatchCtx, id: string): Promise
       );
     }
     releaseAllDomHandles(target);
+    target.sessionStorage?.dispose();
   }
   const existed = ctx.browser.targets.delete(id);
   stopSceneStreams(ctx.browser, id);

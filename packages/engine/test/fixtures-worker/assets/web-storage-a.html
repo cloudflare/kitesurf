@@ -1,0 +1,21 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><title>web-storage-a</title></head>
+<body>
+  <script>
+    // Writes, then leaves in the same task, as a checkout that saves the cart and moves on does:
+    // the writes reach the engine only after the navigation to web-storage-b.html has started.
+    addEventListener("load", () => {
+      localStorage.setItem("cart", "local");
+      sessionStorage.setItem("step", "session");
+      location.href = "web-storage-b.html";
+    });
+  </script>
+</body>
+</html>

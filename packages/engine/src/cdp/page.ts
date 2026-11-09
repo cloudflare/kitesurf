@@ -166,6 +166,7 @@ import {
   emitFrameTarget,
   jarForTarget,
   localStorageForTarget,
+  sessionStorageForTarget,
   announceOopifTarget,
   destroyOopifTarget,
 } from "./target.ts";
@@ -2134,19 +2135,16 @@ async function pushNavigateToPageScriptInner(
 
   const raBakeMs = ctx.analytics.now() - raBakeStart;
 
-  const lsOrigin = webStorageOrigin(url);
-  const sharedLocalStorage = lsOrigin
-    ? { storage: localStorageForTarget(ctx, target), origin: lsOrigin }
+  const storageOrigin = webStorageOrigin(url);
+  const sharedStorage = storageOrigin
+    ? {
+        origin: storageOrigin,
+        local: localStorageForTarget(ctx, target),
+        session: sessionStorageForTarget(ctx, target),
+      }
     : undefined;
   if (pendingPageScript) {
-    installUpstreamEventHandler(
-      ctx,
-      target,
-      pendingPageScript,
-      generation,
-      url,
-      sharedLocalStorage,
-    );
+    installUpstreamEventHandler(ctx, target, pendingPageScript, generation, url, sharedStorage);
     installIsolateLimitSurface(
       ctx,
       target,
@@ -2211,8 +2209,11 @@ async function pushNavigateToPageScriptInner(
           cspReportOnlyHeaders: target.docCspReportOnly ? [target.docCspReportOnly] : [],
           metaCsp: target.docScan?.metaCsp ?? [],
         },
-        ...(sharedLocalStorage
-          ? { localStorage: sharedLocalStorage.storage.entries(sharedLocalStorage.origin) }
+        ...(sharedStorage
+          ? {
+              localStorage: sharedStorage.local.entries(sharedStorage.origin),
+              sessionStorage: sharedStorage.session.entries(sharedStorage.origin),
+            }
           : {}),
         bindingNames:
           ctx.browser.pendingBindings.size > 0
@@ -4038,9 +4039,9 @@ export function installUpstreamEventHandler(
   stub: PageScriptStub,
   generation: number,
   url: string,
-  // Where this isolate's localStorage changes go; absent for an opaque origin, which keeps
-  // localStorage in the page.
-  sharedLocalStorage?: { storage: WebStorage; origin: string },
+  // Where this isolate's Web Storage changes go; absent for an opaque origin, which keeps both
+  // areas in the page.
+  sharedStorage?: { origin: string; local: WebStorage; session: WebStorage },
 ): void {
   if (target.navigateGeneration === generation) target.pageScriptUrl = url;
   if (typeof stub.setUpstreamEventHandler !== "function") return;
@@ -4057,9 +4058,11 @@ export function installUpstreamEventHandler(
     if (ctx.browser.wsClosing) return;
     // Before the generation check: a write the old document made just before a navigate still
     // happened, and this closure knows the origin it belongs to.
-    if (event === "kitesurf.localStorage") {
-      if (sharedLocalStorage) {
-        sharedLocalStorage.storage.apply(sharedLocalStorage.origin, readWebStorageOps(params));
+    if (event === "kitesurf.localStorage" || event === "kitesurf.sessionStorage") {
+      if (sharedStorage) {
+        const areas =
+          event === "kitesurf.localStorage" ? sharedStorage.local : sharedStorage.session;
+        areas.apply(sharedStorage.origin, readWebStorageOps(params));
       }
       return;
     }

@@ -233,6 +233,8 @@ import trackedCss from "../assets/tracked.css";
 import viewportDrainHtml from "../assets/viewport-drain.html";
 import wasmBootHtml from "../assets/wasm-boot.html";
 import wasmBootJs from "../assets/wasm-boot.js";
+import webStorageAHtml from "../assets/web-storage-a.html";
+import webStorageBHtml from "../assets/web-storage-b.html";
 import webfontFaceCss from "../assets/webfont-face.css";
 import webfontLinkHtml from "../assets/webfont-link.html";
 import webfontProbesHtml from "../assets/webfont-probes.html";
@@ -503,4 +505,6 @@ export const STATIC_FIXTURES: Record<string, string | ArrayBuffer> = {
   // after load, so a script navigation must land on the tab that ran it.
   "navigation-reloading.html": navigationReloadingHtml,
   "navigation-landing.html": navigationLandingHtml,
+  "web-storage-a.html": webStorageAHtml,
+  "web-storage-b.html": webStorageBHtml,
 };

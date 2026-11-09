@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-// localStorage outlives this isolate, which holds one document: the engine keeps each origin's
-// area (engine state/web-storage.ts), and the page works on a copy that sends its changes back.
+// Web Storage outlives this isolate, which holds one document: the engine keeps each origin's
+// areas (engine state/web-storage.ts), and the page works on copies that send their changes back.
 
 import type { WebStorageOp } from "@kitesurf/jsrpc-types/page-script";
 import { NativePromise } from "./native-scheduling.ts";
@@ -42,8 +42,8 @@ function quotaExceeded(key: string): DOMException {
   );
 }
 
-/** localStorage on an http(s) page: a copy of the origin's area (`seed`) that sends each change
- * to the engine, batched per microtask, so other pages see it from their next navigate on. */
+/** Storage on an http(s) page: a copy of the origin's area (`seed`) that sends each change to
+ * the engine, batched per microtask, so other documents see it from their next navigate on. */
 export function sharedArea(
   seed: Array<[string, string]>,
   send: (ops: WebStorageOp[]) => void,

@@ -3098,8 +3098,8 @@ export function installGlobals(
       };
     }
     installIdleCallbackGlobals();
-    // One isolate holds one document, so the origin is fixed by now: an http(s) page's
-    // localStorage is a copy of the browser context's area that sends its changes back.
+    // One isolate holds one document, so the origin is fixed by now: an http(s) page's storage is
+    // a copy of the browser context's or the tab's area that sends its changes back.
     if (Object.getOwnPropertyDescriptor(globalThis, "localStorage") === undefined) {
       const makeStorage = (area: StorageArea) => ({
         getItem(key) {
@@ -3122,17 +3122,17 @@ export function installGlobals(
           return area.keys().length;
         },
       });
-      const seed = state.localStorageSeed;
+      const area = (
+        seed: Array<[string, string]> | null,
+        event: "kitesurf.localStorage" | "kitesurf.sessionStorage",
+      ) =>
+        seed
+          ? sharedArea(seed, (ops) => sendUpstreamEvent({ event, params: { ops } }))
+          : memoryArea();
       // An opaque sandboxed origin has no storage bucket; the accessor throws, as in Chrome.
       const buckets = {
-        localStorage: makeStorage(
-          seed
-            ? sharedArea(seed, (ops) =>
-                sendUpstreamEvent({ event: "kitesurf.localStorage", params: { ops } }),
-              )
-            : memoryArea(),
-        ),
-        sessionStorage: makeStorage(memoryArea()),
+        localStorage: makeStorage(area(state.localStorageSeed, "kitesurf.localStorage")),
+        sessionStorage: makeStorage(area(state.sessionStorageSeed, "kitesurf.sessionStorage")),
       };
       const storageAccessor =
         (name: keyof typeof buckets): (() => unknown) =>

@@ -52,9 +52,10 @@ export interface PageScriptState {
 
   cookieKey: string;
 
-  // The browser context's localStorage area for this document's origin (web-storage.ts); null
-  // for an opaque origin, which keeps localStorage in memory for this document only.
+  // The browser context's localStorage and the tab's sessionStorage for this document's origin
+  // (web-storage.ts); null for an opaque origin, which keeps both for this document only.
   localStorageSeed: Array<[string, string]> | null;
+  sessionStorageSeed: Array<[string, string]> | null;
 
   document: ShimDocument | null;
   window: ShimWindow | null;
@@ -148,6 +149,7 @@ export const state: PageScriptState = {
   mainFrameId: "",
   cookieKey: "",
   localStorageSeed: null,
+  sessionStorageSeed: null,
   document: null,
   window: null,
   lastForceRestyleSeq: -1,

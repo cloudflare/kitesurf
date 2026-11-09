@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-// localStorage is shared by every page of a browser context, but each document has its own
-// isolate: the session keeps each origin's area here, and a page works on a copy (web-storage.ts).
+// localStorage is shared by the pages of a browser context and sessionStorage by the documents
+// of a tab, but each document has its own isolate: the session keeps each origin's area here.
 
 import type { WebStorageOp } from "@kitesurf/jsrpc-types/page-script";
 import { isStoredString, type SessionStore, type StoreTable } from "./session-store.ts";
@@ -16,20 +16,24 @@ export const WEB_STORAGE_QUOTA_UNITS = 5 * 1024 * 1024;
 
 const isIndexMark = (v: unknown): v is 1 => v === 1; // the index marks an origin present
 
-// Tables: `<prefix>` indexes the origins and `<prefix>|<origin>` holds one origin's keys, where
-// the prefix is `localStorage` for the default context and `localStorage:<id>` for another.
+// Tables: `<prefix>` indexes the origins and `<prefix>|<origin>` holds one origin's keys. The
+// prefix is `localStorage`, `localStorage:<context id>` or a tab's `sessionStorage:<target id>`.
 export class WebStorage {
   readonly #store: SessionStore;
   readonly #prefix: string;
   #disposed = false;
 
-  constructor(store: SessionStore, contextId?: string) {
+  constructor(store: SessionStore, prefix = "localStorage") {
     this.#store = store;
-    this.#prefix = contextId ? `localStorage:${contextId}` : "localStorage";
+    this.#prefix = prefix;
   }
 
   forContext(contextId: string): WebStorage {
-    return new WebStorage(this.#store, contextId);
+    return new WebStorage(this.#store, `localStorage:${contextId}`);
+  }
+
+  forTab(targetId: string): WebStorage {
+    return new WebStorage(this.#store, `sessionStorage:${targetId}`);
   }
 
   #index(): StoreTable<1> {
@@ -50,7 +54,7 @@ export class WebStorage {
   }
 
   apply(origin: string, ops: readonly WebStorageOp[]): void {
-    if (this.#disposed) return; // a page's last writes can outlive its browser context
+    if (this.#disposed) return; // a page's last writes can outlive its browser context or tab
     const area = this.#store.table(this.#areaName(origin), isStoredString);
     let used = 0;
     for (const [k, v] of area.entries()) used += k.length + v.length;
