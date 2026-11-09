@@ -185,3 +185,31 @@ fn appending_a_later_sibling_restyles_an_earlier_has_tilde_anchor() {
     assert!(dom.append_child_node(p, b));
     assert_eq!(color(&dom, a), GREEN);
 }
+
+#[test]
+fn inserting_before_the_next_sibling_restyles_an_earlier_has_anchor() {
+    let dom = styled(
+        ".a { color: red } .a:has(+ .b) { color: green }",
+        r#"<div id="p"><span class="a" id="a">a</span><i class="c" id="c">c</i></div>"#,
+    );
+    let (p, a, c) = (id(&dom, "#p"), id(&dom, "#a"), id(&dom, "#c"));
+    assert_eq!(color(&dom, a), RED);
+    let b = dom.create_element("i");
+    assert!(dom.set_attribute(b, "class", "b"));
+    assert!(dom.insert_before_node(p, b, c));
+    assert_eq!(color(&dom, a), GREEN);
+}
+
+#[test]
+fn appending_a_sibling_restyles_a_descendant_of_a_has_anchor() {
+    let dom = styled(
+        "b { color: red } .a:has(+ .b2) b { color: green }",
+        r#"<div id="p"><span class="a" id="a"><b id="b">b</b></span></div>"#,
+    );
+    let (p, b) = (id(&dom, "#p"), id(&dom, "#b"));
+    assert_eq!(color(&dom, b), RED);
+    let marker = dom.create_element("i");
+    assert!(dom.set_attribute(marker, "class", "b2"));
+    assert!(dom.append_child_node(p, marker));
+    assert_eq!(color(&dom, b), GREEN);
+}
