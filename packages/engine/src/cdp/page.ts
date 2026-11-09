@@ -99,7 +99,7 @@ import {
   type PageScriptInitTimings,
   type PageScriptStub,
 } from "../eval/page-script.ts";
-import { registerIsolateLimitListener } from "../eval/limit-registry.ts";
+import { registerIsolateLimitListener, type IsolateLimitNotice } from "../eval/limit-registry.ts";
 import {
   disposeStub,
   publishStub,
@@ -4136,7 +4136,11 @@ export function installIsolateLimitSurface(
   scriptName: string,
 ): void {
   const caps = pageIsolateCaps(ctx.env, ctx.browser.isolateCapOverrides);
-  registerIsolateLimitListener(scriptName, (notice) => {
+  const isLive = () =>
+    !ctx.browser.wsClosing &&
+    target.navigateGeneration === generation &&
+    ctx.browser.targets.get(target.targetId) === target;
+  const onLimit = (notice: IsolateLimitNotice) => {
     if (target.navigateGeneration !== generation) return;
     if (target.isolateLimitReportedGen === generation) return;
     target.isolateLimitReportedGen = generation;
@@ -4186,7 +4190,8 @@ export function installIsolateLimitSurface(
     }
     for (const ev of events) ctx.browser.networkEvents.queueRaw(ev);
     if (!notice.fromTail) ctx.browser.networkEvents.drain();
-  });
+  };
+  registerIsolateLimitListener(scriptName, onLimit, { owner: ctx.connectionId, isLive });
 }
 
 function postMessageOriginAllowed(

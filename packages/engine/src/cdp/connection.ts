@@ -33,6 +33,7 @@ import {
 import { registerCookieJar, unregisterConnectionCookieJars } from "./cookie-jar-registry.ts";
 import { disposeWebMcpConnection } from "./webmcp.ts";
 import { dropConnectionImages } from "../eval/resource-store.ts";
+import { unregisterIsolateLimitListenersFor } from "../eval/limit-registry.ts";
 import type { ExternalOutbound } from "../eval/external-outbound.ts";
 import { createSandboxOutboundOverride, type SandboxOutboundExports } from "../eval/outbound.ts";
 import { unregisterOutboundFilters } from "./outbound-filter-registry.ts";
@@ -461,6 +462,7 @@ export async function handleWebSocket(
     disposeWebMcpConnection(connectionId);
     unregisterConnectionCookieJars(connectionId, browser.contexts.keys());
     dropConnectionImages(connectionId);
+    unregisterIsolateLimitListenersFor(connectionId);
     browser.dedicatedWorkers.terminateAll("engine WS closed");
     for (const target of browser.targets.values()) {
       // An in-flight navigate would otherwise load and publish a PageScript after this loop has
