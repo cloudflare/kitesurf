@@ -39,6 +39,9 @@
     "KITESURF_INSPECTOR_BASE_URL": "",
     // Replaces a path base that the assets do not have (src/inspector.ts). Empty: no fallback.
     "KITESURF_INSPECTOR_FALLBACK_URL": "",
+    // "1" lets page-chosen requests reach loopback and private addresses (Private Network
+    // Access). Empty keeps the check; a page is untrusted even on a local engine.
+    "KITESURF_ALLOW_PRIVATE_NETWORK": "",
     // Web Bot Auth: origin of the key directory that publishes the public
     // half of the WEB_BOT_AUTH_JWK secret. Empty disables signing.
     "WEB_BOT_AUTH_SIGNATURE_AGENT": "",
@@ -70,6 +73,7 @@
         // allows only `ws://127.0.0.1:*`, and Chrome asks once to allow access to this device.
         "KITESURF_INSPECTOR_BASE_URL": "/inspector/inspector.html",
         "KITESURF_INSPECTOR_FALLBACK_URL": "https://chrome-devtools-frontend.appspot.com/serve_rev/@1d17a2e2ee147bb7d6ae2ab6abdb3a2510c17775/inspector.html",
+        "KITESURF_ALLOW_PRIVATE_NETWORK": "",
         "WEB_BOT_AUTH_SIGNATURE_AGENT": "",
         "KITESURF_OTLP_ENDPOINT": "http://localhost:4318/v1/traces",
       },

@@ -20,6 +20,7 @@ import { ensureTargetDom } from "./dom-release.ts";
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
 import { originOf } from "./frames.ts";
 import { effectiveExtraHeaders } from "./network.ts";
+import { privateNetworkRefusal } from "../eval/private-network.ts";
 import { walkRedirects } from "../eval/redirect-walk.ts";
 
 import type { Protocol } from "devtools-protocol";
@@ -453,7 +454,23 @@ async function fetchOpaqueSheetText(
 ): Promise<string> {
   if (!/^https?:\/\//i.test(url)) return "";
   const sandboxOutbound = ctx.browser.sandboxOutbound;
-  if (sandboxOutbound.external) return fetchWalledSheetText(sandboxOutbound, url);
+  if (sandboxOutbound.external) {
+    // final() skips the gateway, so the walled path applies its private-network check here.
+    let sheetUrl: URL;
+    try {
+      sheetUrl = new URL(url);
+    } catch {
+      return "";
+    }
+    const pageOrigin = originOf(target.url);
+    if (
+      ctx.env.KITESURF_ALLOW_PRIVATE_NETWORK !== "1" &&
+      privateNetworkRefusal(sheetUrl, pageOrigin === "://" ? "" : pageOrigin) !== null
+    ) {
+      return "";
+    }
+    return fetchWalledSheetText(sandboxOutbound, url);
+  }
   const cookieKey = cookieKeyFor(ctx.connectionId, target.browserContextId);
   // The response depends on the jar's cookies, so a cached text never crosses jars.
   const cacheKey = `${cookieKey}\n${url}`;

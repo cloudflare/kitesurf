@@ -61,6 +61,7 @@ export interface DispatchCtx {
     // wall-clock kill timer per generation. See eval/page-script.ts.
     KITESURF_PAGE_CPU_MS_CAP?: string;
     KITESURF_PAGE_WALL_MS_CAP?: string;
+    KITESURF_ALLOW_PRIVATE_NETWORK?: string;
     HOST_TRACER?: Tracer;
     HOST_CLOCK?: HostClock;
   };

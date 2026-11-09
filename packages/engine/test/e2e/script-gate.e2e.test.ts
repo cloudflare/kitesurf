@@ -68,7 +68,7 @@ test("SRI: a matching digest runs, a tampered body does not", async ({ browser }
 });
 
 test("SRI: integrity without crossorigin cannot be honoured", async ({ browser }) => {
-  const url = "http://127.0.0.1:8787/__fixtures/policy-script.js?tag=opaque";
+  const url = "https://ks-other.invalid/__fixtures/policy-script.js?tag=opaque";
   const digest = await sri(fixtureBody("opaque", false));
 
   const page = await browser.newPage();
