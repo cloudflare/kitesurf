@@ -324,7 +324,6 @@ export interface UpstreamEvents {
     toParent?: true;
     dataJson: string;
     targetOrigin: string;
-    sourceOrigin: string;
   };
   "kitesurf.workerCreate": {
     workerId: number;

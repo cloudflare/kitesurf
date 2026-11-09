@@ -1111,7 +1111,6 @@ function buildWindow(document: DocumentImpl) {
               toParent: true,
               dataJson,
               targetOrigin: target,
-              sourceOrigin: ownOrigin,
             },
           });
         },

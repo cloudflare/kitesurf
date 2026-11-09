@@ -839,17 +839,12 @@ function __wireContentWindowPostMessage(contentWindow: any, iframeElement: any) 
         transferable.transfer();
       }
     }
-    let sourceOrigin = "";
-    try {
-      sourceOrigin = new URL(state.pageUrl || "").origin;
-    } catch {}
     sendUpstreamEvent({
       event: "kitesurf.postMessage",
       params: {
         toFrameOwnerId: typeof iframeElement?._id === "number" ? iframeElement._id : -1,
         dataJson,
         targetOrigin: targetOriginValue,
-        sourceOrigin,
       },
     });
   };
