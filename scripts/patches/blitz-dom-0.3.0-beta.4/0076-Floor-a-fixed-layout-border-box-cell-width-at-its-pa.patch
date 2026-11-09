@@ -1,0 +1,43 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 9 Nov 2026 21:43:47 +0000
+Subject: [PATCH] Floor a fixed-layout border-box cell width at its padding and
+ border
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The fixed table layout took a first-row cell's border-box width as its
+column width even when the cell's horizontal padding and border were
+wider. The cell box cannot be narrower than its padding and border, so
+it overflowed its column and overlapped the next one: a 20px-wide
+border-box cell with 23px of padding started the next column 3px inside
+itself. A click at the centre of a control in that next cell then hit
+the following cell instead, and the cells' client rects overlapped.
+
+Browsers floor the column width at the cell's padding plus border, as
+they already do in effect for content-box cells, which add both to the
+width. Do the same for border-box cells.
+
+beep-boop-🤖
+---
+ src/layout/table.rs | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/layout/table.rs b/src/layout/table.rs
+index 892be74..225394d 100644
+--- a/src/layout/table.rs
++++ b/src/layout/table.rs
+@@ -788,7 +788,11 @@ fn collect_table_cells(
+                             taffy::BoxSizing::ContentBox => style_helpers::length(
+                                 len + padding.left + padding.right + border.left + border.right,
+                             ),
+-                            taffy::BoxSizing::BorderBox => style_helpers::length(len),
++                            // The cell box cannot shrink below its padding and border, so a
++                            // narrower column would let it overlap the next column's cells.
++                            taffy::BoxSizing::BorderBox => style_helpers::length(
++                                len.max(padding.left + padding.right + border.left + border.right),
++                            ),
+                         }
+                     }
+                     taffy::CompactLength::PERCENT_TAG => {
