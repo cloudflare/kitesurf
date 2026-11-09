@@ -125,6 +125,20 @@ describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
     expect(rewritten).toBe(`// Load the chunk.\nimport("https://example.com/js/x.js");`);
   });
 
+  it.each([
+    ["alone", `const a = { import: (x) => x };\nglobalThis.out = a.\nimport(1);`],
+    [
+      "next to a call the lexer skips",
+      `const a = { import: (x) => x };\nglobalThis.out = a?.\n  import(1);\nwith ({}) /a\\//.test(""); import("./x.js");`,
+    ],
+  ])("keeps a member call whose dot ends the previous line %s", (_, body) => {
+    const { rewritten } = extractClassicDynamicSeeds(body, BASE);
+    expect(rewritten).toMatch(/\.\n\s*import\(1\)/);
+    const out: { out?: unknown } = {};
+    new Function("globalThis", "__ks_import", rewritten)(out, () => {});
+    expect(out.out).toBe(1);
+  });
+
   it("does not rewrite member calls or names that end in import", () => {
     const body = `{}\n/}/.test(""); a.import(1); a?.import(2); reimport(3); import("./x.js");`;
     const { rewritten } = extractClassicDynamicSeeds(body, BASE);

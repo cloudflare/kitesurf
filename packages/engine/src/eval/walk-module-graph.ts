@@ -424,6 +424,20 @@ export function modulePreloadSeeds(html: string, baseUrl: string): ModulePreload
 const IMPORT_CALL =
   /(?<![\p{ID_Continue}$#\u200c\u200d]|(?<!\.\.)\.[^\S\n\r\u2028\u2029]*)import(?=(?:\s|\/\*(?:[^*]|\*(?!\/))*\*\/|(?:\/\/|<!--|-->)[^\n\r\u2028\u2029]*(?![^\n\r\u2028\u2029]))*\()/gu;
 
+// IMPORT_CALL skips a dot only on the same line. A dot that ends an earlier line is still a member
+// access, unless a line comment holds it: a block comment or string would also hold the import.
+// A number (`1.`) or a spread (`...`) before the newline does not make one.
+function afterMemberDot(body: string, at: number): boolean {
+  let i = at - 1;
+  while (i >= 0 && /\s/.test(body[i] ?? "")) i--;
+  if (body[i] !== "." || /[\d.]/.test(body[i - 1] ?? "")) return false;
+  const lineStart = Math.max(
+    ...["\n", "\r", "\u2028", "\u2029"].map((c) => body.lastIndexOf(c, i)),
+  );
+  const line = body.slice(lineStart + 1, i);
+  return !line.includes("//") && !line.includes("<!--");
+}
+
 function fnv1aHex(s: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
@@ -441,7 +455,9 @@ export function extractClassicDynamicSeeds(
     importer,
   ) => (isUrlLikeSpecifier(specifier) ? resolveAgainstImporter(specifier, importer) : null),
 ): { rewritten: string; seeds: string[] } {
-  const calls = [...body.matchAll(IMPORT_CALL)].map((m) => m.index);
+  const calls = [...body.matchAll(IMPORT_CALL)]
+    .map((m) => m.index)
+    .filter((at) => !afterMemberDot(body, at));
   if (calls.length === 0) return { rewritten: body, seeds: [] };
   // The lexer is not a parser: it can throw on valid code, or misread a regex and skip live code.
   // A native import() left in the bundle resolves next to the isolate's own modules, so a call
@@ -463,7 +479,9 @@ export function extractClassicDynamicSeeds(
     dynamics.some((imp) => imp.se <= imp.ss || (at > imp.ss && at < imp.se)),
   );
   if (!imports || nested) {
-    return { rewritten: body.replace(IMPORT_CALL, callee) + binding, seeds: [] };
+    const keep = new Set(calls);
+    const rewritten = body.replace(IMPORT_CALL, (m, at: number) => (keep.has(at) ? callee : m));
+    return { rewritten: rewritten + binding, seeds: [] };
   }
   const edits = [
     ...dynamics.map((imp) => ({ at: imp.ss, imp })),
