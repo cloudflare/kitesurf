@@ -89,6 +89,35 @@ test("a client-set Cookie is dropped when a navigate hop changes origin", async 
   expect(echoed.cookie, "a client-set Cookie survived a cross-origin redirect hop").toBeUndefined();
 });
 
+async function docHeadersAfterPageNavigatesTo(
+  page: Page,
+  landingOrigin: string,
+): Promise<Record<string, string>> {
+  await page.setExtraHTTPHeaders({ Authorization: "Bearer ks-hop-secret", Cookie: "sid=ks" });
+  await page.goto(`https://ks.invalid${ECHO}`, { waitUntil: "domcontentloaded" });
+  const to = `${landingOrigin}${ECHO}?landed=1`;
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+    page.evaluate(`location.href = ${JSON.stringify(to)}`).catch(() => {}),
+  ]);
+  expect(page.url()).toBe(to);
+  const raw = (await page.evaluate("JSON.stringify(globalThis.__ks_doc_headers)")) as string;
+  return JSON.parse(raw) as Record<string, string>;
+}
+
+test("a page-started navigation to another origin drops the caller's credentials", async ({
+  page,
+}) => {
+  const echoed = await docHeadersAfterPageNavigatesTo(page, "https://ks-other.invalid");
+  expect(echoed.authorization).toBeUndefined();
+  expect(echoed.cookie).toBeUndefined();
+});
+
+test("a page-started same-origin navigation keeps the caller's credentials", async ({ page }) => {
+  const echoed = await docHeadersAfterPageNavigatesTo(page, "https://ks.invalid");
+  expect(echoed.authorization).toBe("Bearer ks-hop-secret");
+});
+
 test("a cross-site navigate hop withholds Strict cookies but keeps Lax", async ({ page }) => {
   const session = await page.target().createCDPSession();
   await session.send("Network.enable");

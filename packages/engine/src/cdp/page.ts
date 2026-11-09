@@ -236,6 +236,34 @@ function hostOfUrl(url: string): string | null {
   }
 }
 
+/** The URL's tuple origin, or null when it has none (opaque or unparsable). */
+export function initiatorOriginOf(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    const origin = new URL(url).origin;
+    return origin === "null" ? null : origin;
+  } catch {
+    return null;
+  }
+}
+
+const CREDENTIAL_HEADERS = new Set(["authorization", "cookie", "proxy-authorization"]);
+
+/** Caller extra headers for a document fetch. Credentials the caller set for the page it
+ *  drives stay with that origin: a page-started navigation elsewhere does not carry them. */
+export function navigationExtraHeaders(
+  extra: Record<string, string>,
+  initiatorOrigin: string | null,
+  url: string,
+): Record<string, string> {
+  if (initiatorOrigin === null || initiatorOrigin === initiatorOriginOf(url)) return extra;
+  const kept: Record<string, string> = {};
+  for (const [k, v] of Object.entries(extra)) {
+    if (!CREDENTIAL_HEADERS.has(k.toLowerCase())) kept[k] = v;
+  }
+  return kept;
+}
+
 function getRendererManager(ctx: DispatchCtx, target?: TargetState): PageRendererManager {
   if (!ctx.browser.rendererManager) {
     ctx.browser.rendererManager = new PageRendererManager(
@@ -711,10 +739,16 @@ export async function handlePage(
         // so SameSite=Strict is withheld on a cross-site top-level navigation
         // just as it is in a browser. CDP-started navigations have no
         // initiator and keep the existing same-site behavior.
-        const ksInitiatorHost =
-          typeof ksParams?._kitesurfInitiatorHost === "string"
-            ? ksParams._kitesurfInitiatorHost
+        const ksInitiatorOrigin =
+          typeof ksParams?._kitesurfInitiatorOrigin === "string"
+            ? ksParams._kitesurfInitiatorOrigin
             : null;
+        const ksInitiatorHost = ksInitiatorOrigin ? hostOfUrl(ksInitiatorOrigin) : null;
+        const navExtraHeaders = navigationExtraHeaders(
+          effectiveExtraHeaders(target),
+          ksInitiatorOrigin,
+          url,
+        );
         const cookieHeader = jarForTarget(ctx, target).cookieHeaderForUrl(
           url,
           ksInitiatorHost ? { initiatorHost: ksInitiatorHost, topLevel: true } : undefined,
@@ -726,7 +760,7 @@ export async function handlePage(
           reqHeaders.referer = navReferrer;
         }
 
-        for (const [k, v] of Object.entries(effectiveExtraHeaders(target))) {
+        for (const [k, v] of Object.entries(navExtraHeaders)) {
           reqHeaders[k] = v;
         }
         target.docReferrer =
@@ -762,7 +796,7 @@ export async function handlePage(
           skipRequestBlocker: true,
           topLevelDocument: true,
           walksOwnRedirects: true,
-          extraHeaders: effectiveExtraHeaders(target),
+          extraHeaders: navExtraHeaders,
         };
         const docOutbound = ctx.browser.sandboxOutbound.parent(docProps);
         let resp: Response;
@@ -4354,7 +4388,7 @@ function handleUpstreamFrameEvent(
         const navParams: Protocol.Page.NavigateRequest = {
           url,
           _kitesurfInternal: true,
-          _kitesurfInitiatorHost: hostOfUrl(target.url) ?? undefined,
+          _kitesurfInitiatorOrigin: initiatorOriginOf(target.url) ?? undefined,
         };
         if (postData !== null) {
           navParams._kitesurfPostData = postData;
@@ -4435,7 +4469,7 @@ function handleUpstreamFrameEvent(
             params: {
               url,
               _kitesurfInternal: true,
-              _kitesurfInitiatorHost: hostOfUrl(target.url) ?? undefined,
+              _kitesurfInitiatorOrigin: initiatorOriginOf(target.url) ?? undefined,
             },
             sessionId: targetSessionsNetwork(target, sessionId)[0],
           });
