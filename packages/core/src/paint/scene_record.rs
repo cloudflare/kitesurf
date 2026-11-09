@@ -8,10 +8,11 @@
 //! KSC0 is co-versioned with its decoder, not a stable public format. Integers are LE.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
-use anyrender::{Glyph as AnyGlyph, NormalizedCoord, PaintRef, RenderContext};
+use anyrender::{Glyph as AnyGlyph, NormalizedCoord, Paint, PaintRef, RenderContext};
 use kurbo::{Affine, PathEl, Rect, Shape, Stroke};
-use peniko::{BlendMode, Color, Fill as PenikoFill, StyleRef};
+use peniko::{color::Rgba8, BlendMode, Blob, Color, Fill as PenikoFill, StyleRef};
 
 const OP_PUSH_LAYER: usize = 0;
 const OP_PUSH_CLIP_LAYER: usize = 1;
@@ -101,7 +102,7 @@ impl FontKey {
 pub(crate) struct ImageInfo {
     pub(crate) width: u32,
     pub(crate) height: u32,
-    pub(crate) wire_bytes: peniko::Blob<u8>,
+    pub(crate) wire_bytes: Blob<u8>,
     pub(crate) format: u8,
     pub(crate) needed_w: u32,
     pub(crate) needed_h: u32,
@@ -159,7 +160,7 @@ pub struct RecordingScene {
     image_rgba_bytes_total: usize,
     glyph_outlines: HashMap<(u32, u32), Vec<u8>>,
     glyph_seen: GlyphSeen,
-    font_bytes: HashMap<u64, (peniko::Blob<u8>, u32)>,
+    font_bytes: HashMap<u64, (Blob<u8>, u32)>,
     font_tables: FontTableCache,
     glyph_scratch: Vec<AnyGlyph>,
     text_scratch: String,
@@ -350,10 +351,7 @@ impl RecordingScene {
                 let taken = ImageInfo {
                     width: info.width,
                     height: info.height,
-                    wire_bytes: std::mem::replace(
-                        &mut info.wire_bytes,
-                        peniko::Blob::from(Vec::new()),
-                    ),
+                    wire_bytes: std::mem::replace(&mut info.wire_bytes, Blob::from(Vec::new())),
                     format: info.format,
                     needed_w: info.needed_w,
                     needed_h: info.needed_h,
@@ -391,7 +389,7 @@ impl RecordingScene {
         std::mem::take(&mut self.font_tables)
     }
 
-    pub fn drain_font_bytes(&mut self) -> Vec<(u64, peniko::Blob<u8>, u32)> {
+    pub fn drain_font_bytes(&mut self) -> Vec<(u64, Blob<u8>, u32)> {
         let taken = std::mem::take(&mut self.font_bytes);
         taken
             .into_iter()
@@ -591,7 +589,7 @@ impl RecordingScene {
         self.buf.extend_from_slice(&v.to_le_bytes());
     }
     #[inline]
-    fn w_rgba8(&mut self, c: peniko::color::Rgba8) {
+    fn w_rgba8(&mut self, c: Rgba8) {
         self.buf.extend_from_slice(&[c.r, c.g, c.b, c.a]);
     }
 
@@ -655,7 +653,7 @@ impl RecordingScene {
         font_size: f32,
         normalized_coords: &[NormalizedCoord],
         transform: Affine,
-        rgba: peniko::color::Rgba8,
+        rgba: Rgba8,
         glyphs: &[AnyGlyph],
         synthetic_italic: bool,
     ) -> bool {
@@ -909,15 +907,15 @@ impl RecordingScene {
 
     fn w_paint(&mut self, p: &PaintRef<'_>, scale: (f64, f64)) {
         match p {
-            anyrender::Paint::Solid(c) => {
+            Paint::Solid(c) => {
                 self.w_u8(PAINT_SOLID);
                 self.w_rgba8(c.to_rgba8());
             }
-            anyrender::Paint::Gradient(g) => {
+            Paint::Gradient(g) => {
                 self.w_u8(PAINT_GRADIENT);
                 self.w_gradient(g);
             }
-            anyrender::Paint::Image(img_ref) => {
+            Paint::Image(img_ref) => {
                 self.w_u8(PAINT_IMAGE);
                 let hash = self.record_image(img_ref, scale);
                 self.w_u64(hash);
@@ -1049,7 +1047,7 @@ impl RecordingScene {
                 && rgba.len() <= MAX_RAW_IMAGE_BYTES.saturating_sub(self.raw_image_bytes);
             let (wire_bytes, format_u8) = if !raw && rgba.len() >= MIN_WEBP_IMAGE_BYTES {
                 match encode_webp_lossless(rgba, img.width, img.height) {
-                    Some(webp) => (peniko::Blob::from(webp), 1u8),
+                    Some(webp) => (Blob::from(webp), 1u8),
                     None => (img.data.clone(), 0u8),
                 }
             } else {
@@ -1259,8 +1257,8 @@ impl anyrender::PaintScene for RecordingScene {
         alpha: f32,
         transform: Affine,
         clip: &impl Shape,
-        _filter: Option<std::sync::Arc<anyrender::Filter>>,
-        _backdrop_filter: Option<std::sync::Arc<anyrender::Filter>>,
+        _filter: Option<Arc<anyrender::Filter>>,
+        _backdrop_filter: Option<Arc<anyrender::Filter>>,
     ) {
         self.tag(TAG_PUSH_LAYER, OP_PUSH_LAYER);
         let bm: BlendMode = blend.into();
@@ -1410,7 +1408,7 @@ impl anyrender::PaintScene for RecordingScene {
         let synthetic_italic = glyph_transform.is_some_and(is_pure_skew);
         let text_run_emitted =
             if self.emit_text_runs && (glyph_transform.is_none() || synthetic_italic) {
-                if let anyrender::Paint::Solid(c) = &paint_ref {
+                if let Paint::Solid(c) = &paint_ref {
                     let mut rgba = c.to_rgba8();
                     rgba.a = ((rgba.a as f32) * brush_alpha.clamp(0.0, 1.0)).round() as u8;
                     self.try_emit_text_run(
@@ -1463,7 +1461,7 @@ impl anyrender::PaintScene for RecordingScene {
         self.w_transform(combined);
 
         match &paint_ref {
-            anyrender::Paint::Solid(c) => {
+            Paint::Solid(c) => {
                 let mut rgba = c.to_rgba8();
                 rgba.a = ((rgba.a as f32) * brush_alpha.clamp(0.0, 1.0)).round() as u8;
                 self.w_u8(PAINT_SOLID);
@@ -1824,7 +1822,7 @@ mod tests {
             for (i, side) in sides.iter().enumerate() {
                 let pixels = [i as u8, 80, 160, 255].repeat((*side * *side) as usize);
                 let image = peniko::ImageData {
-                    data: peniko::Blob::from(pixels),
+                    data: Blob::from(pixels),
                     format: peniko::ImageFormat::Rgba8,
                     alpha_type: peniko::ImageAlphaType::Alpha,
                     width: *side,

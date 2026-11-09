@@ -6,6 +6,10 @@
 //! The encoder and decoder share wire constants. Decode errors identify
 //! unsupported versions, unknown tags, and malformed or truncated input.
 
+use std::collections::{HashMap, HashSet};
+
+use kurbo::Point;
+
 use crate::paint::scene_record::{
     FONT_METADATA_BYTES, FONT_METADATA_HASH_BYTES, HEADER_MAGIC, HEADER_SIZE, PAINT_GRADIENT,
     PAINT_IMAGE, PAINT_SOLID, PATH_CLOSE, PATH_CURVE, PATH_END_TAG, PATH_LINE, PATH_MOVE,
@@ -133,9 +137,9 @@ pub struct DecodedFontMeta {
 
 #[derive(Debug, Default, Clone)]
 pub struct DecodedResources {
-    pub by_hash: std::collections::HashMap<u64, DecodedResource>,
-    pub glyph_outlines: std::collections::HashMap<u64, Vec<u8>>,
-    pub font_meta: std::collections::HashMap<u32, DecodedFontMeta>,
+    pub by_hash: HashMap<u64, DecodedResource>,
+    pub glyph_outlines: HashMap<u64, Vec<u8>>,
+    pub font_meta: HashMap<u32, DecodedFontMeta>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -191,8 +195,8 @@ impl DecodedGradient {
         let kind = match self.kind {
             DecodedGradientKind::Linear { start, end } => {
                 GradientKind::Linear(LinearGradientPosition {
-                    start: kurbo::Point::new(start.0 as f64, start.1 as f64),
-                    end: kurbo::Point::new(end.0 as f64, end.1 as f64),
+                    start: Point::new(start.0 as f64, start.1 as f64),
+                    end: Point::new(end.0 as f64, end.1 as f64),
                 })
             }
             DecodedGradientKind::Radial {
@@ -201,9 +205,9 @@ impl DecodedGradient {
                 end_center,
                 end_radius,
             } => GradientKind::Radial(RadialGradientPosition {
-                start_center: kurbo::Point::new(start_center.0 as f64, start_center.1 as f64),
+                start_center: Point::new(start_center.0 as f64, start_center.1 as f64),
                 start_radius,
-                end_center: kurbo::Point::new(end_center.0 as f64, end_center.1 as f64),
+                end_center: Point::new(end_center.0 as f64, end_center.1 as f64),
                 end_radius,
             }),
             DecodedGradientKind::Sweep {
@@ -211,7 +215,7 @@ impl DecodedGradient {
                 start_angle,
                 end_angle,
             } => GradientKind::Sweep(SweepGradientPosition {
-                center: kurbo::Point::new(center.0 as f64, center.1 as f64),
+                center: Point::new(center.0 as f64, center.1 as f64),
                 start_angle,
                 end_angle,
             }),
@@ -1154,8 +1158,8 @@ pub struct StatsVisitor {
     pub text_run: u32,
     pub text_char_total: u64,
     pub glyph_total: u64,
-    pub distinct_font_ids: std::collections::HashSet<u32>,
-    pub distinct_image_hashes: std::collections::HashSet<u64>,
+    pub distinct_font_ids: HashSet<u32>,
+    pub distinct_image_hashes: HashSet<u64>,
     pub solid_paints: u32,
     pub gradient_paints: u32,
     pub image_paints: u32,
@@ -1303,7 +1307,7 @@ impl SceneVisitor for StatsVisitor {
 mod tests {
     use super::*;
     use crate::paint::scene_record::RecordingScene;
-    use anyrender::PaintScene as _;
+    use anyrender::{PaintScene as _, ScenePart as AnyScenePart};
     use kurbo::{Affine, Rect};
     use peniko::{Color, Fill};
 
@@ -1533,10 +1537,10 @@ mod tests {
         let rect = Rect::new(0.0, 0.0, 10.0, 10.0);
         let node_id = (1u64 << 32) | 7;
         for part in [
-            anyrender::ScenePart::Background,
-            anyrender::ScenePart::TextDecoration,
-            anyrender::ScenePart::Checkbox { checked: true },
-            anyrender::ScenePart::Radio { checked: false },
+            AnyScenePart::Background,
+            AnyScenePart::TextDecoration,
+            AnyScenePart::Checkbox { checked: true },
+            AnyScenePart::Radio { checked: false },
         ] {
             scene.begin_part(node_id, part);
             scene.fill(
@@ -1570,7 +1574,7 @@ mod tests {
     #[test]
     fn replay_scenes_omit_part_markers() {
         let mut scene = RecordingScene::for_replay();
-        scene.begin_part(7, anyrender::ScenePart::Background);
+        scene.begin_part(7, AnyScenePart::Background);
         scene.end_part();
         assert_eq!(scene.finish_framed().len(), HEADER_SIZE);
     }
@@ -1578,7 +1582,7 @@ mod tests {
     #[test]
     fn decoder_rejects_unknown_part_marker() {
         let mut scene = RecordingScene::new();
-        scene.begin_part(7, anyrender::ScenePart::Background);
+        scene.begin_part(7, AnyScenePart::Background);
         let mut framed = scene.finish_framed();
         framed[HEADER_SIZE + 1] = 2;
 
@@ -1690,8 +1694,8 @@ mod tests {
         ]);
         let gradient = Gradient {
             kind: GradientKind::Linear(LinearGradientPosition {
-                start: kurbo::Point::new(10.0, 20.0),
-                end: kurbo::Point::new(110.0, 220.0),
+                start: Point::new(10.0, 20.0),
+                end: Point::new(110.0, 220.0),
             }),
             extend: Extend::Reflect,
             interpolation_cs: ColorSpaceTag::Oklab,
@@ -1845,7 +1849,7 @@ mod tests {
         ]);
         let gradient = Gradient {
             kind: GradientKind::Sweep(SweepGradientPosition {
-                center: kurbo::Point::new(0.0, 0.0),
+                center: Point::new(0.0, 0.0),
                 start_angle: 0.0,
                 end_angle: std::f32::consts::PI * 2.0,
             }),

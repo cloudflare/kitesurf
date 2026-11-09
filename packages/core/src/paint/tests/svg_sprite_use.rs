@@ -6,33 +6,34 @@
 
 use crate::DomHandle;
 use blitz_dom::node::{ImageData, SpecialElementData};
+use usvg::{Node, Tree};
 
-fn first_fill_rgb(tree: &usvg::Tree) -> Option<(u8, u8, u8)> {
-    fn walk(node: &usvg::Node) -> Option<(u8, u8, u8)> {
+fn first_fill_rgb(tree: &Tree) -> Option<(u8, u8, u8)> {
+    fn walk(node: &Node) -> Option<(u8, u8, u8)> {
         match node {
-            usvg::Node::Group(g) => g.children().iter().find_map(walk),
-            usvg::Node::Path(p) => match p.fill().map(|f| f.paint()) {
+            Node::Group(g) => g.children().iter().find_map(walk),
+            Node::Path(p) => match p.fill().map(|f| f.paint()) {
                 Some(usvg::Paint::Color(c)) => Some((c.red, c.green, c.blue)),
                 _ => None,
             },
             _ => None,
         }
     }
-    walk(&usvg::Node::Group(Box::new(tree.root().clone())))
+    walk(&Node::Group(Box::new(tree.root().clone())))
 }
 
-fn path_count(tree: &usvg::Tree) -> usize {
-    fn walk(node: &usvg::Node) -> usize {
+fn path_count(tree: &Tree) -> usize {
+    fn walk(node: &Node) -> usize {
         match node {
-            usvg::Node::Group(g) => g.children().iter().map(walk).sum(),
-            usvg::Node::Path(_) => 1,
+            Node::Group(g) => g.children().iter().map(walk).sum(),
+            Node::Path(_) => 1,
             _ => 0,
         }
     }
-    walk(&usvg::Node::Group(Box::new(tree.root().clone())))
+    walk(&Node::Group(Box::new(tree.root().clone())))
 }
 
-fn svg_tree_for(dom: &DomHandle, sel: &str) -> Option<std::sync::Arc<usvg::Tree>> {
+fn svg_tree_for(dom: &DomHandle, sel: &str) -> Option<std::sync::Arc<Tree>> {
     let id = dom.query_selector(sel).unwrap_or(-1);
     assert!(id > 0, "selector must match: {}", sel);
     let doc = dom.doc.borrow();
@@ -98,18 +99,18 @@ fn symbol_chaining_to_another_symbol_resolves() {
     assert!(path_count(&tree) > 0, "chained sprite <use> lost its path");
 }
 
-fn first_fill_is_gradient(tree: &usvg::Tree) -> bool {
-    fn walk(node: &usvg::Node) -> Option<bool> {
+fn first_fill_is_gradient(tree: &Tree) -> bool {
+    fn walk(node: &Node) -> Option<bool> {
         match node {
-            usvg::Node::Group(g) => g.children().iter().find_map(walk),
-            usvg::Node::Path(p) => Some(matches!(
+            Node::Group(g) => g.children().iter().find_map(walk),
+            Node::Path(p) => Some(matches!(
                 p.fill().map(|f| f.paint()),
                 Some(usvg::Paint::LinearGradient(_))
             )),
             _ => None,
         }
     }
-    walk(&usvg::Node::Group(Box::new(tree.root().clone()))).unwrap_or(false)
+    walk(&Node::Group(Box::new(tree.root().clone()))).unwrap_or(false)
 }
 
 fn gradient_hoisted_via(ref_tag: &str) -> bool {

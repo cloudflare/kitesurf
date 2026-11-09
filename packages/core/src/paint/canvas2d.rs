@@ -6,9 +6,10 @@
 
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::f64::consts::{FRAC_PI_2, TAU};
 use std::sync::{Arc, LazyLock};
 
-use kurbo::{Affine, Arc as KurboArc, BezPath, Cap, Join, Point, Rect, Shape, Stroke, Vec2};
+use kurbo::{Affine, Arc as KurboArc, BezPath, Cap, Join, PathEl, Point, Rect, Shape, Stroke, Vec2};
 use peniko::color::{parse_color, AlphaColor, PremulRgba8, Srgb};
 use peniko::Blob;
 use peniko::{
@@ -18,6 +19,8 @@ use peniko::{
 use peniko::{GradientKind, LinearGradientPosition, RadialGradientPosition, SweepGradientPosition};
 use serde::Deserialize;
 use vello_cpu::{ImageSource, PaintType, PixelMetadata, Pixmap, RenderContext, Resources};
+
+use crate::paint::screenshot::encode_png;
 
 pub const MAX_CANVAS_DIM: u32 = 4096;
 
@@ -633,24 +636,24 @@ impl CanvasSurface {
         parsed.apply_affine(self.ctm());
         for el in parsed.elements() {
             match *el {
-                kurbo::PathEl::MoveTo(p) => {
+                PathEl::MoveTo(p) => {
                     self.path.move_to(p);
                     self.cur = Some(p);
                     self.subpath_start = Some(p);
                 }
-                kurbo::PathEl::LineTo(p) => {
+                PathEl::LineTo(p) => {
                     self.path.line_to(p);
                     self.cur = Some(p);
                 }
-                kurbo::PathEl::QuadTo(c, p) => {
+                PathEl::QuadTo(c, p) => {
                     self.path.quad_to(c, p);
                     self.cur = Some(p);
                 }
-                kurbo::PathEl::CurveTo(c1, c2, p) => {
+                PathEl::CurveTo(c1, c2, p) => {
                     self.path.curve_to(c1, c2, p);
                     self.cur = Some(p);
                 }
-                kurbo::PathEl::ClosePath => {
+                PathEl::ClosePath => {
                     self.path.close_path();
                     self.cur = self.subpath_start;
                 }
@@ -706,32 +709,18 @@ impl CanvasSurface {
                 center: Point::new(cx, cy),
                 radii: Vec2::new(rx, ry),
                 start_angle: a0,
-                sweep_angle: std::f64::consts::FRAC_PI_2,
+                sweep_angle: FRAC_PI_2,
                 x_rotation: 0.0,
             };
             for el in arc.append_iter(0.1) {
                 p.push(el);
             }
         };
-        corner(
-            &mut p,
-            x + w - r[2],
-            y + r[3],
-            r[2],
-            r[3],
-            -std::f64::consts::FRAC_PI_2,
-        );
+        corner(&mut p, x + w - r[2], y + r[3], r[2], r[3], -FRAC_PI_2);
         p.line_to((x + w, y + h - r[5]));
         corner(&mut p, x + w - r[4], y + h - r[5], r[4], r[5], 0.0);
         p.line_to((x + r[6], y + h));
-        corner(
-            &mut p,
-            x + r[6],
-            y + h - r[7],
-            r[6],
-            r[7],
-            std::f64::consts::FRAC_PI_2,
-        );
+        corner(&mut p, x + r[6], y + h - r[7], r[6], r[7], FRAC_PI_2);
         p.line_to((x, y + r[1]));
         corner(&mut p, x + r[0], y + r[1], r[0], r[1], std::f64::consts::PI);
         p.close_path();
@@ -756,18 +745,18 @@ impl CanvasSurface {
         }
         let mut sweep = a1 - a0;
         if ccw {
-            if sweep <= -std::f64::consts::TAU {
-                sweep = -std::f64::consts::TAU;
+            if sweep <= -TAU {
+                sweep = -TAU;
             } else {
-                sweep = sweep.rem_euclid(std::f64::consts::TAU);
+                sweep = sweep.rem_euclid(TAU);
                 if sweep > 0.0 {
-                    sweep -= std::f64::consts::TAU;
+                    sweep -= TAU;
                 }
             }
-        } else if sweep >= std::f64::consts::TAU {
-            sweep = std::f64::consts::TAU;
+        } else if sweep >= TAU {
+            sweep = TAU;
         } else {
-            sweep = sweep.rem_euclid(std::f64::consts::TAU);
+            sweep = sweep.rem_euclid(TAU);
         }
         let arc = KurboArc {
             center,
@@ -797,10 +786,10 @@ impl CanvasSurface {
         for el in seg.elements().iter().skip(1) {
             self.path.push(*el);
             last = match el {
-                kurbo::PathEl::MoveTo(p) | kurbo::PathEl::LineTo(p) => *p,
-                kurbo::PathEl::QuadTo(_, p) => *p,
-                kurbo::PathEl::CurveTo(_, _, p) => *p,
-                kurbo::PathEl::ClosePath => last,
+                PathEl::MoveTo(p) | PathEl::LineTo(p) => *p,
+                PathEl::QuadTo(_, p) => *p,
+                PathEl::CurveTo(_, _, p) => *p,
+                PathEl::ClosePath => last,
             };
         }
         self.cur = Some(last);
@@ -839,9 +828,9 @@ impl CanvasSurface {
         let ccw = cross < 0.0;
         let mut sweep = a1 - a0;
         if ccw && sweep > 0.0 {
-            sweep -= std::f64::consts::TAU;
+            sweep -= TAU;
         } else if !ccw && sweep < 0.0 {
-            sweep += std::f64::consts::TAU;
+            sweep += TAU;
         }
         let arc = KurboArc {
             center,
@@ -860,10 +849,10 @@ impl CanvasSurface {
         for el in seg.elements().iter().skip(1) {
             self.path.push(*el);
             last = match el {
-                kurbo::PathEl::MoveTo(p) | kurbo::PathEl::LineTo(p) => *p,
-                kurbo::PathEl::QuadTo(_, p) => *p,
-                kurbo::PathEl::CurveTo(_, _, p) => *p,
-                kurbo::PathEl::ClosePath => last,
+                PathEl::MoveTo(p) | PathEl::LineTo(p) => *p,
+                PathEl::QuadTo(_, p) => *p,
+                PathEl::CurveTo(_, _, p) => *p,
+                PathEl::ClosePath => last,
             };
         }
         self.cur = Some(last);
@@ -1222,7 +1211,7 @@ impl CanvasRegistry {
                     _ => GradientKind::Sweep(SweepGradientPosition {
                         center: Point::new(v(1), v(2)),
                         start_angle: v(0) as f32,
-                        end_angle: (v(0) + std::f64::consts::TAU) as f32,
+                        end_angle: (v(0) + TAU) as f32,
                     }),
                 };
                 Some(StyleData::Gradient(Gradient {
@@ -1367,18 +1356,18 @@ impl CanvasRegistry {
         };
         let (w, h) = (surf.width, surf.height);
         if let Some(plane) = &surf.verbatim_plane {
-            return crate::paint::screenshot::encode_png(plane, w, h).unwrap_or_default();
+            return encode_png(plane, w, h).unwrap_or_default();
         }
         if surf.raster_cache.is_some() {
             let rgba = surf.render_rgba();
-            return crate::paint::screenshot::encode_png(&rgba, w, h).unwrap_or_default();
+            return encode_png(&rgba, w, h).unwrap_or_default();
         }
         let mut pixmap = surf.render_pixmap();
         for px in pixmap.data_mut() {
             let [r, g, b, a] = unpremultiply(*px);
             *px = PremulRgba8 { r, g, b, a };
         }
-        crate::paint::screenshot::encode_png(pixmap.data_as_u8_slice(), w, h).unwrap_or_default()
+        encode_png(pixmap.data_as_u8_slice(), w, h).unwrap_or_default()
     }
 
     pub fn is_point_in_path(&mut self, node_id: u32, x: f64, y: f64, even_odd: bool) -> bool {

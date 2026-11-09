@@ -4,6 +4,11 @@
 
 //! Splits document content into printable vertical bands and records paint scenes for each page.
 
+use std::collections::HashMap;
+
+use crate::layout::geometry::doc_position;
+use crate::paint::scene_record::ImageInfo;
+
 const MAX_PAGES: u32 = 200;
 
 pub(crate) fn compute_page_bands(doc: &blitz_dom::BaseDocument, height: u32) -> Vec<(f64, f64)> {
@@ -42,8 +47,8 @@ pub(crate) fn record_doc_pdf_scenes(
     doc: &mut blitz_dom::BaseDocument,
     content_w: u32,
     content_h: u32,
-    fonts_ref: &mut std::collections::HashMap<u64, (peniko::Blob<u8>, u32)>,
-    images_ref: &mut std::collections::HashMap<u64, crate::paint::scene_record::ImageInfo>,
+    fonts_ref: &mut HashMap<u64, (peniko::Blob<u8>, u32)>,
+    images_ref: &mut HashMap<u64, ImageInfo>,
     seen_images: &mut Vec<u64>,
 ) -> Vec<u8> {
     use blitz_paint::paint_scene;
@@ -114,7 +119,7 @@ fn collect_break_intents(doc: &blitz_dom::BaseDocument) -> (Vec<f32>, Vec<(f32, 
             continue;
         }
         let h = node.final_layout().size.height;
-        let pos = crate::layout::geometry::doc_position(doc, node);
+        let pos = doc_position(doc, node);
         let (top, bot) = (pos.y, pos.y + h);
         if !top.is_finite() || !bot.is_finite() {
             continue;
@@ -156,7 +161,7 @@ fn collect_node_y_ranges(doc: &blitz_dom::BaseDocument) -> Vec<(f32, f32)> {
         if h <= 0.5 {
             continue;
         }
-        let pos = crate::layout::geometry::doc_position(doc, node);
+        let pos = doc_position(doc, node);
         let top = pos.y;
         let bot = top + h;
         if !top.is_finite() || !bot.is_finite() {

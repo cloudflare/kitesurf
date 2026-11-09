@@ -4,38 +4,39 @@
 
 #![cfg(test)]
 
+use blitz_dom::util::parse_svg_image;
+use usvg::{Node, Tree};
+
 fn paints(inner: &str) -> bool {
     let src = format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">
              <g stroke="red" stroke-width="100">{inner}</g>
            </svg>"#
     );
-    let tree = blitz_dom::util::parse_svg_image(src.as_bytes())
-        .expect("parse")
-        .tree;
+    let tree = parse_svg_image(src.as_bytes()).expect("parse").tree;
     path_count(&tree) > 0
 }
 
-fn path_count(tree: &usvg::Tree) -> usize {
-    fn count(node: &usvg::Node) -> usize {
+fn path_count(tree: &Tree) -> usize {
+    fn count(node: &Node) -> usize {
         match node {
-            usvg::Node::Group(g) => g.children().iter().map(count).sum(),
-            usvg::Node::Path(_) => 1,
+            Node::Group(g) => g.children().iter().map(count).sum(),
+            Node::Path(_) => 1,
             _ => 0,
         }
     }
-    count(&usvg::Node::Group(Box::new(tree.root().clone())))
+    count(&Node::Group(Box::new(tree.root().clone())))
 }
 
-fn first_path_bbox(tree: &usvg::Tree) -> Option<(i32, i32, i32, i32)> {
-    fn walk(node: &usvg::Node) -> Option<usvg::Rect> {
+fn first_path_bbox(tree: &Tree) -> Option<(i32, i32, i32, i32)> {
+    fn walk(node: &Node) -> Option<usvg::Rect> {
         match node {
-            usvg::Node::Group(g) => g.children().iter().find_map(walk),
-            usvg::Node::Path(p) => Some(p.bounding_box()),
+            Node::Group(g) => g.children().iter().find_map(walk),
+            Node::Path(p) => Some(p.bounding_box()),
             _ => None,
         }
     }
-    walk(&usvg::Node::Group(Box::new(tree.root().clone()))).map(|r| {
+    walk(&Node::Group(Box::new(tree.root().clone()))).map(|r| {
         (
             r.x().round() as i32,
             r.y().round() as i32,
@@ -45,10 +46,8 @@ fn first_path_bbox(tree: &usvg::Tree) -> Option<(i32, i32, i32, i32)> {
     })
 }
 
-fn tree_of(src: &str) -> std::sync::Arc<usvg::Tree> {
-    blitz_dom::util::parse_svg_image(src.as_bytes())
-        .expect("parse")
-        .tree
+fn tree_of(src: &str) -> std::sync::Arc<Tree> {
+    parse_svg_image(src.as_bytes()).expect("parse").tree
 }
 
 #[test]
