@@ -21,8 +21,9 @@ use serde::Deserialize;
 use std::{
     collections::VecDeque,
     env::var_os,
+    fs::{DirBuilder, OpenOptions},
     io::{self, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use crate::{
@@ -338,6 +339,34 @@ struct KittyImages {
     last_bytes: u64,
 }
 
+fn create_private_dir(dir: &Path) -> io::Result<()> {
+    if !dir.is_absolute() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "temporary frame directory must be absolute",
+        ));
+    }
+    let mut builder = DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder.create(dir)
+}
+
+fn write_private_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(path)?;
+    file.write_all(bytes)
+}
+
 impl KittyImages {
     fn temp_file(&mut self, pixels: &[u8], rgba: bool) -> io::Result<PathBuf> {
         if self.temp_dir.is_none() {
@@ -349,7 +378,7 @@ impl KittyImages {
                 "tty-graphics-protocol-kitesurf-{}-{nonce}",
                 std::process::id()
             ));
-            std::fs::create_dir(&dir)?;
+            create_private_dir(&dir)?;
             self.temp_dir = Some(dir);
         }
         self.file_seq += 1;
@@ -362,7 +391,7 @@ impl KittyImages {
                 self.file_seq,
                 if rgba { "rgba" } else { "png" }
             ));
-        std::fs::write(&path, pixels)?;
+        write_private_file(&path, pixels)?;
         Ok(path)
     }
 }
@@ -1630,6 +1659,20 @@ mod tests {
     use super::*;
     use std::fs;
     use tokio_tungstenite::connect_async;
+
+    #[cfg(unix)]
+    #[test]
+    fn kitty_temp_files_are_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let mut images = KittyImages::default();
+        let path = images.temp_file(b"frame", false).unwrap();
+        let dir = images.temp_dir.clone().unwrap();
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&dir), 0o700);
+        assert_eq!(mode(&path), 0o600);
+        assert_eq!(std::fs::read(&path).unwrap(), b"frame");
+        assert!(write_private_file(&path, b"again").is_err());
+    }
 
     #[test]
     fn liveness_probe_only_accepts_its_own_successful_reply() {
