@@ -9,12 +9,18 @@ import { expect, test } from "./harness";
 // No crossorigin attribute, so the page sees an opaque sheet and the engine fetches its text.
 const PAGE = "https://ks.invalid/__fixtures/cors-sheet-no-attr.html";
 
+// The same, for a sheet whose server sends no Access-Control-Allow-Origin.
+const BARE_SHEET_PAGE = `https://ks.invalid/__fixtures/policy-doc.html?body=${encodeURIComponent(
+  '<link rel="stylesheet" href="https://ks-alt.invalid/__fixtures/cors-sheet-bare.css">',
+)}`;
+
 async function opaqueSheetText(
   page: Page,
   cdpSession: CDPSession,
   beforeEnable?: () => Promise<unknown>,
+  pageUrl: string = PAGE,
 ): Promise<string> {
-  await page.goto(PAGE, { waitUntil: "load" });
+  await page.goto(pageUrl, { waitUntil: "load" });
   // The page loads its own copy first; only the engine's later fetch should see a filter.
   await beforeEnable?.();
   const added: string[] = [];
@@ -34,6 +40,13 @@ test("the engine reads an opaque sheet's text through the connection's gateway",
   cdpSession,
 }) => {
   expect(await opaqueSheetText(page, cdpSession)).toContain("{");
+});
+
+test("the engine reads an opaque sheet's text when its server sends no ACAO", async ({
+  page,
+  cdpSession,
+}) => {
+  expect(await opaqueSheetText(page, cdpSession, undefined, BARE_SHEET_PAGE)).toContain("{");
 });
 
 test("an outbound filter also applies to the engine's opaque-sheet fetch", async ({
