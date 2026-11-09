@@ -4,7 +4,12 @@
 
 // Fetches external classic scripts before navigation and checks their script policy.
 
-import { checkScriptResponse } from "@kitesurf/script-gate";
+import {
+  checkScriptBeforeFetch,
+  checkScriptResponse,
+  scriptGateIsNoop,
+  type ScriptGateContext,
+} from "@kitesurf/script-gate";
 import {
   KITESURF_CORS_VERDICT_HEADER,
   KITESURF_NOSNIFF_HEADER,
@@ -85,6 +90,9 @@ interface PrefetchExternalScriptsOptions {
   baseUrl: string;
   sandboxOutbound: SandboxOutboundOverride;
   signal?: AbortSignal;
+  // The document's script gate. Each descriptor's own url was checked before; it also applies to
+  // every redirect target.
+  gate?: ScriptGateContext | null;
 }
 
 /** Prefetches classic scripts; per-script failures are stored on each descriptor. */
@@ -99,6 +107,7 @@ export async function prefetchExternalScripts({
   baseUrl,
   sandboxOutbound,
   signal,
+  gate = null,
 }: PrefetchExternalScriptsOptions): Promise<ParentScriptDescriptor[]> {
   const resolveBase = baseUrl || pageUrl;
 
@@ -160,13 +169,39 @@ export async function prefetchExternalScripts({
           if (originClass === "cross" && pageOrigin) {
             headers["origin"] = pageOrigin;
           }
+          let redirectBlocked: ParentScriptDescriptor["blocked"];
+          const checkRedirect =
+            gate && d.injected !== true && !scriptGateIsNoop(gate)
+              ? async (next: string): Promise<string | null> => {
+                  const pre = await checkScriptBeforeFetch(gate, {
+                    url: next,
+                    integrity: d.integrity ?? null,
+                    nonce: d.nonce ?? null,
+                  });
+                  if (pre.reportOnly) console.warn(`[kitesurf-csp] ${pre.reportOnly}`);
+                  if (pre.allowed) return pre.upgradeTo ?? next;
+                  redirectBlocked = {
+                    reason: pre.reason ?? "csp",
+                    message: pre.message ?? "blocked by policy",
+                  };
+                  return null;
+                }
+              : undefined;
           const walk = await walkRedirects({
             url: resolved,
             signal: ctrl.signal,
             headers,
             taintOriginFrom: pageOrigin || undefined,
             fetchHop: (hopReq) => outbound.fetch(hopReq),
+            checkRedirect,
           });
+          if (!walk.ok && walk.reason === "redirect-blocked") {
+            d.blocked = redirectBlocked ?? { reason: "csp", message: "blocked by policy" };
+            console.warn(
+              `[kitesurf-csp] blocked (${d.blocked.reason}) ${walk.url}: ` + d.blocked.message,
+            );
+            return;
+          }
           if (!walk.ok) {
             d.prefetchError = "<script src> too many redirects for " + resolved;
             return;
