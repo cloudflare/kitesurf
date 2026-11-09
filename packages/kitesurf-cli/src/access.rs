@@ -2,8 +2,11 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
+use crate::oauth::validate_account_id;
 use crate::Result;
 use std::time::Duration;
+use std::env::var;
+use std::future::Future;
 use reqwest::header::HeaderValue;
 use tokio_tungstenite::tungstenite::{self, client::IntoClientRequest, http::Request};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
@@ -29,22 +32,18 @@ impl Connection {
         match backend {
             crate::cli::Backend::Direct(server) => Self::direct(server, token()?),
             crate::cli::Backend::BrowserRun => {
-                Self::browser_run_from_env(
-                    |name| std::env::var(name).ok(),
-                    crate::oauth::credentials(),
-                )
-                .await
+                Self::browser_run_from_env(|name| var(name).ok(), crate::oauth::credentials()).await
             }
         }
     }
 
     async fn browser_run_from_env(
         env: impl Fn(&str) -> Option<String>,
-        saved: impl std::future::Future<Output = Result<(String, String)>>,
+        saved: impl Future<Output = Result<(String, String)>>,
     ) -> Result<Self> {
         let account = env("CLOUDFLARE_ACCOUNT_ID");
         if let Some(id) = &account {
-            crate::oauth::validate_account_id(id)?;
+            validate_account_id(id)?;
         }
         let api_token = env("KITESURF_API_TOKEN");
         let saved_oauth = api_token.is_none();
@@ -82,7 +81,7 @@ impl Connection {
     }
 
     fn browser_run(account: &str, token: &str) -> Result<Self> {
-        crate::oauth::validate_account_id(account)?;
+        validate_account_id(account)?;
         Ok(Self {
             websocket: reqwest::Url::parse(&format!("wss://api.cloudflare.com/client/v4/accounts/{account}/browser-run/devtools/browser?browser=kitesurf"))?,
             font_server: reqwest::Url::parse(crate::cli::PLAYGROUND)?,
@@ -94,7 +93,7 @@ impl Connection {
 
     pub async fn connect(&mut self) -> Result<CdpSocket> {
         self.connect_with_login(Self::browser_run_from_env(
-            |name| std::env::var(name).ok(),
+            |name| var(name).ok(),
             crate::oauth::login_credentials(),
         ))
         .await
@@ -102,7 +101,7 @@ impl Connection {
 
     async fn connect_with_login(
         &mut self,
-        login: impl std::future::Future<Output = Result<Self>>,
+        login: impl Future<Output = Result<Self>>,
     ) -> Result<CdpSocket> {
         match self.connect_once().await {
             Err(error)
@@ -158,7 +157,7 @@ pub fn bearer(token: &str) -> Result<HeaderValue> {
 }
 
 pub fn token() -> Result<Option<HeaderValue>> {
-    std::env::var("CF_ACCESS_TOKEN")
+    var("CF_ACCESS_TOKEN")
         .ok()
         .filter(|value| !value.is_empty())
         .map(|value| {
@@ -206,6 +205,7 @@ pub fn websocket_request(url: &str, token: Option<&HeaderValue>) -> Result<Reque
 #[allow(clippy::result_large_err)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[allow(
@@ -272,7 +272,7 @@ mod tests {
         let (url, server) = handshake_server(vec![401, 101]).await;
         let mut connection = oauth_connection("expired-token").await;
         connection.websocket = url.clone();
-        let login_count = std::cell::Cell::new(0);
+        let login_count = Cell::new(0);
         let socket = connection
             .connect_with_login(async {
                 login_count.set(login_count.get() + 1);
@@ -309,7 +309,7 @@ mod tests {
         let (url, server) = handshake_server(vec![401, 401]).await;
         let mut connection = oauth_connection("expired-token").await;
         connection.websocket = url.clone();
-        let login_count = std::cell::Cell::new(0);
+        let login_count = Cell::new(0);
         let error = connection
             .connect_with_login(async {
                 login_count.set(login_count.get() + 1);

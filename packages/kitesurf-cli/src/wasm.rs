@@ -5,6 +5,9 @@
 //! Calls the scene-host Wasm ABI through Wasmtime.
 //! Copies request and response bytes through guest memory.
 
+use std::error::Error;
+#[cfg(test)]
+use std::fs::read;
 use wasmtime::{Config, Engine, Instance, Memory, Module, OptLevel, Store, TypedFunc};
 
 /// Owns one scene-host Wasm instance and the guest-memory handles used to call it.
@@ -19,7 +22,7 @@ pub struct Raster {
 impl Raster {
     /// Compile and instantiate a scene-host module from its Wasm bytes.
     /// Returns an error if compilation, instantiation, or required-export lookup fails.
-    pub fn new(bytes: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(bytes: &[u8]) -> Result<Self, Box<dyn Error>> {
         let engine = Engine::new(Config::new().cranelift_opt_level(OptLevel::Speed))?;
         let module = Module::from_binary(&engine, bytes)?;
         let mut store = Store::new(&engine, ());
@@ -38,7 +41,7 @@ impl Raster {
     /// Run one scene-host operation; `input` must match the payload layout for `op`.
     /// Copies the result and frees guest buffers.
     /// Conversion, allocation, Wasmtime, and memory-access errors propagate.
-    pub fn run(&mut self, op: u32, input: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    pub fn run(&mut self, op: u32, input: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
         const PACKED_OUTPUT_LENGTH_SHIFT: u32 = 32;
 
         let input_len = u32::try_from(input.len())?;
@@ -74,7 +77,7 @@ impl Raster {
 #[cfg(test)]
 pub(crate) fn test_scene(w: u32, h: u32, color: [u8; 4]) -> Vec<u8> {
     let manifest: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(concat!(
+        &read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.json"
         ))
@@ -119,7 +122,7 @@ mod tests {
 
     #[test]
     fn retained_frame_replaces_pixels_and_clamps_patch_edges() {
-        let bytes = std::fs::read(concat!(
+        let bytes = read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         ))
@@ -143,7 +146,7 @@ mod tests {
 
     #[test]
     fn retained_frame_requires_its_exact_base_and_recovers_after_failure() {
-        let bytes = std::fs::read(concat!(
+        let bytes = read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         ))
@@ -165,7 +168,7 @@ mod tests {
 
     #[test]
     fn retained_frame_rejects_truncated_headers_without_losing_its_base() {
-        let bytes = std::fs::read(concat!(
+        let bytes = read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         ))
@@ -198,7 +201,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         );
-        let bytes = std::fs::read(path).expect("run pnpm run build first");
+        let bytes = read(path).expect("run pnpm run build first");
         let mut raster = Raster::new(&bytes).unwrap();
         assert_eq!(raster.run(2, &[]).unwrap(), [0, 0, 0, 0]);
 
@@ -219,10 +222,9 @@ mod tests {
     #[test]
     fn cropped_partial_returns_only_the_requested_png_rectangle() {
         let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../engine/public/rbi/");
-        let bytes = std::fs::read(format!("{dir}scene_host.wasm")).unwrap();
+        let bytes = read(format!("{dir}scene_host.wasm")).unwrap();
         let manifest: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(format!("{dir}scene_host.json")).unwrap())
-                .unwrap();
+            serde_json::from_slice(&read(format!("{dir}scene_host.json")).unwrap()).unwrap();
         let mut scene = b"KSC0".to_vec();
         scene.extend_from_slice(&(manifest["wireVersion"].as_u64().unwrap() as u32).to_le_bytes());
         for value in [4u32, 4, 0, 0, 0, 0, 0, 4] {
