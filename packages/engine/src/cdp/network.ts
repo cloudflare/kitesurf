@@ -126,14 +126,13 @@ export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<
 
     case "Network.getResponseBody": {
       const requestId = req.params!.requestId;
-      if (!requestId) {
-        return { body: "", base64Encoded: false };
+      const tracker = ctx.browser.networkEvents;
+      // Chrome rejects an id it never issued. Kitesurf keeps fewer bodies than Chrome, so a known
+      // request whose body it dropped answers empty rather than failing a read Chrome would serve.
+      if (!requestId || !tracker.knowsRequest(requestId)) {
+        throw new Error("No resource with given identifier found");
       }
-      const found = ctx.browser.networkEvents.getResponseBody(requestId);
-      if (!found) {
-        return { body: "", base64Encoded: false };
-      }
-      return found;
+      return tracker.getResponseBody(requestId) ?? { body: "", base64Encoded: false };
     }
 
     default:
