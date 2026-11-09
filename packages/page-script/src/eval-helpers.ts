@@ -23,7 +23,6 @@ export const SyncFunction = function () {}.constructor as new (
 
 const INPUT_ANCESTOR_DEPTH = 32;
 const ANCHOR_SEARCH_DEPTH = 8;
-const MAX_ANCHOR_WRAPPER_AREA_RATIO = 4;
 
 export function findAnchorAncestor(el: ShimElement | null): ShimElement | null {
   let currentElement: ShimElement | null = el;
@@ -71,10 +70,10 @@ export function anchorHrefAttribute(anchor: ShimElement): string | null {
 }
 
 /**
- * A link under (`x`, `y`) among the children of an ancestor of the hit target. Hit testing
- * returns the nearest painted box, so a link that wraps across lines can be missed when its
- * bounding rect's centre lands on the surrounding text; this keeps the click working until
- * `DOM.getContentQuads` reports one quad per line fragment.
+ * A link whose own box is under (`x`, `y`) among the children of an ancestor of the hit target.
+ * Hit testing returns the nearest painted box, so a link that wraps across lines can be missed
+ * when its bounding rect's centre lands on the surrounding text; its bounding rect is the union
+ * of its line boxes, so containment still finds it. A link merely near the click is not a hit.
  */
 export function findAnchorViaSingleChild(
   targetEl: ShimElement | null,
@@ -105,8 +104,6 @@ export function findAnchorViaSingleChild(
     px <= rect.right &&
     py >= rect.top &&
     py <= rect.bottom;
-  const rectArea = (rect: DomRect | null | undefined) =>
-    rect && rect.width > 0 && rect.height > 0 ? rect.width * rect.height : 0;
   let currentElement: ShimElement | null = targetEl;
   for (let i = 0; currentElement && i < ANCHOR_SEARCH_DEPTH; i++) {
     if (currentElement.querySelectorAll) {
@@ -124,19 +121,6 @@ export function findAnchorViaSingleChild(
         if (!anchor.getBoundingClientRect) continue;
         const rect = anchor.getBoundingClientRect();
         if (!rectContains(rect, x, y)) continue;
-        const href = anchorHrefAttribute(anchor);
-        if (href && href !== "" && !/^javascript:/i.test(href)) return anchor;
-      }
-      for (let k = 0; k < anchors.length; k++) {
-        const anchor = anchors[k];
-        const parent =
-          (anchor.parentElement as ShimElement | null) || (anchor.parentNode as ShimElement | null);
-        if (!parent?.getBoundingClientRect || !anchor.getBoundingClientRect) continue;
-        const parentRect = parent.getBoundingClientRect();
-        if (!rectContains(parentRect, x, y)) continue;
-        const anchorArea = rectArea(anchor.getBoundingClientRect());
-        const parentArea = rectArea(parentRect);
-        if (anchorArea <= 0 || parentArea > anchorArea * MAX_ANCHOR_WRAPPER_AREA_RATIO) continue;
         const href = anchorHrefAttribute(anchor);
         if (href && href !== "" && !/^javascript:/i.test(href)) return anchor;
       }
