@@ -254,12 +254,7 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
         if (!oopifStub) {
           replayReopenedLifecycle(ctx, target, result, req.sessionId);
         }
-        applyCookieWrites(
-          ctx,
-          target,
-          result.cookieWrites,
-          oopifFrame ? oopifFrame.url : undefined,
-        );
+        applyCookieWrites(ctx, target, result.cookieWrites, ps, oopifFrame);
         if (!oopifStub && target) {
           emitMutations(ctx, target, result.cdpMutations);
         }
@@ -319,12 +314,7 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
         if (!oopifStubCfn) {
           replayReopenedLifecycle(ctx, target, result, req.sessionId);
         }
-        applyCookieWrites(
-          ctx,
-          target,
-          result.cookieWrites,
-          oopifFrameCfn ? oopifFrameCfn.url : undefined,
-        );
+        applyCookieWrites(ctx, target, result.cookieWrites, ps, oopifFrameCfn);
         if (!oopifStubCfn && target) {
           emitMutations(ctx, target, result.cdpMutations);
         }
@@ -441,7 +431,7 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
         });
         emitCapturedConsole(ctx, result.console, req.sessionId);
         replayReopenedLifecycle(ctx, target, result, req.sessionId);
-        applyCookieWrites(ctx, target, result.cookieWrites);
+        applyCookieWrites(ctx, target, result.cookieWrites, ps, null);
         if (target) emitMutations(ctx, target, result.cdpMutations);
         return pageScriptResultToCdp(result, returnByValue);
       } catch (err) {
@@ -459,14 +449,19 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
   }
 }
 
+// Writes go under the url of the document that answered. target.url may already name the next
+// document while the old isolate still answers, so a main-frame reply uses the isolate's sealed
+// url, and a reply from an isolate that was replaced while it ran is dropped.
 function applyCookieWrites(
   ctx: DispatchCtx,
   target: TargetState | undefined,
   cookieWrites: string[] | undefined,
-  urlOverride?: string,
+  ps: PageScriptStub,
+  oopifFrame: FrameState | null,
 ): void {
   if (!target || !cookieWrites || cookieWrites.length === 0) return;
-  const url = urlOverride || target.url;
+  if ((oopifFrame ?? target).pageScript !== ps) return;
+  const url = oopifFrame ? oopifFrame.url : target.pageScriptUrl;
   if (!url) return;
   const jar = jarForTarget(ctx, target);
   for (const raw of cookieWrites) {
