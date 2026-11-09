@@ -422,7 +422,11 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
     let crossOriginNow = !sameOrigin;
 
     const allowCrossOrigin = request.headers.get("x-kitesurf-allow-cross-origin") === "1";
-    const resourceType = request.headers.get("x-kitesurf-resource-type") ?? "";
+    // The page's WebSocket opens through fetch() and can label its request with any type.
+    const webSocketUpgrade = (request.headers.get("Upgrade") ?? "").toLowerCase() === "websocket";
+    const resourceType = webSocketUpgrade
+      ? "WebSocket"
+      : (request.headers.get("x-kitesurf-resource-type") ?? "");
     const scriptCorsMode = request.headers.get("x-kitesurf-script-cors") ?? "";
     const safeCrossOriginType =
       resourceType === "Image" ||
@@ -529,7 +533,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       });
     }
 
-    if ((request.headers.get("Upgrade") ?? "").toLowerCase() === "websocket") {
+    if (webSocketUpgrade) {
       const wsHeaders = new Headers();
       wsHeaders.set("Upgrade", "websocket");
       const proto = request.headers.get("Sec-WebSocket-Protocol");
