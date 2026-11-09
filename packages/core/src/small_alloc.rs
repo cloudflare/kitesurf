@@ -49,7 +49,7 @@ const fn class_table(align: u16) -> [u8; MAX_SMALL / 4 + 1] {
     while size4 <= MAX_SMALL / 4 {
         let size = (size4 * 4) as u16;
         let mut class = 0;
-        while CLASSES[class] < size || CLASSES[class] % align != 0 {
+        while CLASSES[class] < size || !CLASSES[class].is_multiple_of(align) {
             class += 1;
         }
         table[size4] = class as u8;

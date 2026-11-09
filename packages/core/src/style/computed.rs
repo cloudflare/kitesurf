@@ -464,7 +464,7 @@ impl DomHandle {
             LonghandId::GridTemplateColumns | LonghandId::GridTemplateRows
         ) {
             if let Some(value) =
-                grid_template_resolved(&doc, node.id(), id == LonghandId::GridTemplateColumns)
+                grid_template_resolved(doc, node.id(), id == LonghandId::GridTemplateColumns)
             {
                 let name = NonCustomPropertyId::from(id).name();
                 return Some(CdpComputedProp {
@@ -536,7 +536,7 @@ impl DomHandle {
         let has_layout_box = has_box && rendered_layout_box && width_applies;
         let mut value = String::new();
         let mut resolved_ctx = ::style::values::resolved::Context {
-            style: &styles,
+            style: styles,
             for_property: ::style::properties::PropertyId::NonCustom(id.into()),
             current_longhand: None,
         };
@@ -731,7 +731,7 @@ impl DomHandle {
         let unresolved = if id == LonghandId::TextDecorationColor {
             let mut alt = String::new();
             let mut shorthand_ctx = ::style::values::resolved::Context {
-                style: &styles,
+                style: styles,
                 for_property: ::style::properties::PropertyId::NonCustom(
                     ShorthandId::TextDecoration.into(),
                 ),
