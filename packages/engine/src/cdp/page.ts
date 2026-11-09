@@ -77,6 +77,7 @@ import {
   type WasmBake,
 } from "../eval/prefetch-wasm.ts";
 import { makeTargetId } from "./types.ts";
+import type { StyleCache } from "./style-cache.ts";
 import {
   buildFrameResourceTree,
   buildFrameTree,
@@ -4909,7 +4910,7 @@ async function inlineStylesheets(
     loaderId,
     frameId,
   }: {
-    cache?: Map<string, { css: string; fetchedAt: number }>;
+    cache?: StyleCache;
     tracker?: NetworkEventTracker;
     loaderId?: string;
     frameId?: string;
