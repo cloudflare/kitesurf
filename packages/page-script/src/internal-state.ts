@@ -112,9 +112,11 @@ export function notePaintWake(): void {
   sendUpstreamEvent({ event: "kitesurf.paintDirty", params: {} });
 }
 
+// No prototype: page script can put a setter on Object.prototype, and a write to a field that
+// is not an own property yet would call it with this record as its receiver.
 export function createInternalState(): KitesurfInternalState {
   let mutationSeq = 0;
-  return {
+  const state: KitesurfInternalState = {
     attrSeq: 0,
     childSeq: 0,
     treeSeq: 0,
@@ -155,6 +157,7 @@ export function createInternalState(): KitesurfInternalState {
     pendingSubmitNav: null,
     frameContext: null,
   };
+  return Object.setPrototypeOf(state, null);
 }
 
 export function sendUpstreamEvent(message: UpstreamMessage): void {
