@@ -34,6 +34,7 @@ export interface RenderFrameArgs {
   frameUrl: string;
   viewport?: { width: number; height: number };
   parentOrigin?: string;
+  cookieSiteOrigin?: string;
   onUpstreamEvent?: UpstreamEventHandler;
   makeUpstreamHandler?: (isolate: { stub: PageScriptStub; url: string }) => UpstreamEventHandler;
   raster?: Partial<RasterizeOptions>;
@@ -156,6 +157,7 @@ export async function prespawnFrameIsolate(
   const docOutbound = args.sandboxOutbound.parent({
     ...localTraceParentProps(),
     pageOrigin,
+    cookieSiteOrigin: args.cookieSiteOrigin,
     mainFrameId: args.frameId,
     mainLoaderId: args.frameLoaderId,
     connectionId: args.connectionId,
@@ -172,6 +174,7 @@ export async function prespawnFrameIsolate(
       frameId: args.frameId,
       frameLoaderId: args.frameLoaderId,
       frameUrl: args.frameUrl,
+      cookieSiteOrigin: args.cookieSiteOrigin,
       attributionHeaders: args.attributionHeaders,
       sandboxOutbound: args.sandboxOutbound,
     });
@@ -251,6 +254,7 @@ export async function prespawnFrameIsolate(
         frameId: args.frameId,
         frameLoaderId: args.frameLoaderId,
         frameUrl: finalUrl,
+        cookieSiteOrigin: args.cookieSiteOrigin,
         attributionHeaders: args.attributionHeaders,
         sandboxOutbound: args.sandboxOutbound,
       });

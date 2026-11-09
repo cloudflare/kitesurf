@@ -3561,6 +3561,25 @@ function refuseBlockedFrame(ctx: DispatchCtx, target: TargetState, f: FrameState
   return true;
 }
 
+// HTML's site for cookies of a frame's requests: the top-level origin when every ancestor is
+// same-site with it, else none, which the cookie jar treats as cross-site with every host.
+export function frameCookieSiteOrigin(target: TargetState, frame: FrameState): string {
+  const siteOf = (url: string): string | null => {
+    try {
+      return siteKey(new URL(url).hostname);
+    } catch {
+      return null;
+    }
+  };
+  const topSite = siteOf(target.url);
+  for (let f = target.frames.get(frame.parentFrameId ?? ""); f;) {
+    if (f.parentFrameId === null) break;
+    if (!/^about:(blank|srcdoc)([?#]|$)/.test(f.url) && siteOf(f.url) !== topSite) return "";
+    f = target.frames.get(f.parentFrameId);
+  }
+  return topSite ? originOf(target.url) : "";
+}
+
 function oopifSpawnArgs(ctx: DispatchCtx, target: TargetState, f: FrameState): RenderFrameArgs {
   const embedder =
     f.parentFrameId && f.parentFrameId !== target.frameId
@@ -3580,6 +3599,7 @@ function oopifSpawnArgs(ctx: DispatchCtx, target: TargetState, f: FrameState): R
     frameLoaderId: f.loaderId,
     frameUrl: f.url,
     parentOrigin: originOf(embedder ? embedder.url : target.url),
+    cookieSiteOrigin: frameCookieSiteOrigin(target, f),
     attributionHeaders: ctx.browser.attributionHeaders,
     makeUpstreamHandler: ({ stub, url }) => {
       const workerOwner = ctx.browser.dedicatedWorkers.ownerFor(
@@ -4572,6 +4592,7 @@ async function loadChildFrame(
   // Child requests inherit the embedding document's URL and referrer policy.
   const childDocProps: CallerOutboundProps = {
     pageOrigin: docPageOrigin,
+    cookieSiteOrigin: frameCookieSiteOrigin(target, frame),
     // The embedder's URL and policy give the Referer a browser sends;
     // page-script reports the same value as the frame's document.referrer.
     pageUrl: embedder ? embedder.url : target.url,

@@ -69,6 +69,9 @@ function failTrackedRequest(
 
 export interface OutboundProps {
   pageOrigin: string;
+  // The SameSite site for cookies when it is not pageOrigin's, as for a frame's requests: the
+  // top-level origin, or "" when an ancestor is cross-site with it.
+  cookieSiteOrigin?: string;
   externalOutbound?: ExternalOutbound;
   // The host's egress transport; unlike externalOutbound, it keeps the engine's egress policy.
   egress?: ExternalOutbound;
@@ -377,7 +380,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
 
     // SameSite keeps the sealed document origin even when CORS marks the request opaque.
     const cookieOriginSource = sealed
-      ? (props.pageOrigin ?? "")
+      ? (props.cookieSiteOrigin ?? props.pageOrigin ?? "")
       : headerOrigin === "null"
         ? ""
         : headerOrigin;
