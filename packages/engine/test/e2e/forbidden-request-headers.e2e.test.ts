@@ -27,3 +27,13 @@ test("page fetch cannot set headers the browser owns", async ({ page }) => {
   expect(seen["sec-fetch-site"]).toBeUndefined();
   expect(seen["x-custom"]).toBe("kept");
 });
+
+test("a same-origin POST still carries the document's Origin", async ({ page }) => {
+  await page.goto(PAGE, { waitUntil: "domcontentloaded" });
+  const raw = (await page.evaluate(`
+    fetch(${JSON.stringify(ECHO)}, { method: "POST", body: new URLSearchParams({ a: "1" }) })
+      .then((r) => r.text())
+  `)) as string;
+  const seen = JSON.parse(raw) as Record<string, string>;
+  expect(seen.origin).toBe("https://ks.invalid");
+});

@@ -355,7 +355,8 @@ describe("headers page script may not set", () => {
 
   it("drops forbidden request headers that came from page script", () => {
     const req = forwardFromPage(true);
-    expect(req.headers.get("origin")).toBeNull();
+    // Origin stays where the shim set it, with the committed value.
+    expect(req.headers.get("origin")).toBe(PAGE_ORIGIN);
     expect(req.headers.get("referer")).not.toBe(PAGE_SET.Referer);
     expect(req.headers.get("cookie")).toBeNull();
     expect(req.headers.get("sec-fetch-site")).toBeNull();
