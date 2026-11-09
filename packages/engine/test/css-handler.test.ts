@@ -106,3 +106,79 @@ describe("CSS.getInlineStylesForNode", () => {
     expect(r).toEqual({});
   });
 });
+
+describe("CSS replies from the isolate", () => {
+  // A page can make a reply field a callable stub; the engine must never call into it.
+  const calls: string[] = [];
+  const callable = (name: string) => ({
+    map: () => calls.push(`${name}.map`),
+    [Symbol.iterator]: () => calls.push(`${name}[Symbol.iterator]`),
+    length: 1,
+    0: 0,
+  });
+
+  it("copies parsed rules and selector matches into plain data", async () => {
+    calls.length = 0;
+    const stub = makeStub({
+      parseStyleSheet: {
+        sheet: {
+          rules: [
+            {
+              selector_text: "p",
+              selector_specificities: callable("specificities"),
+              declarations: callable("declarations"),
+              source_line: 1,
+              source_column: 1,
+            },
+            {
+              selector_text: "div",
+              selector_specificities: [1],
+              declarations: [{ name: "color", value: "red" }, callable("declaration")],
+              source_line: 1,
+              source_column: 15,
+            },
+          ],
+        },
+      } as QueryDomResult<"parseStyleSheet">,
+      // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- the reply imitates a stub where an array belongs.
+      matchSelectorList: {
+        matches: callable("matches"),
+      } as unknown as QueryDomResult<"matchSelectorList">,
+      // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- the reply imitates a stub where an array belongs.
+      getAncestorElementIds: {
+        ancestorIds: callable("ancestors"),
+      } as unknown as QueryDomResult<"getAncestorElementIds">,
+      getComputedStyle: {
+        computedStyle: [{ name: "color", value: "red" }, callable("computed")],
+      } as QueryDomResult<"getComputedStyle">,
+    });
+    const target = makeTarget(stub);
+    target.styleSheets.set("s", {
+      ownerNodeId: 2,
+      rev: 1,
+      text: "p { color: red } div { color: red }",
+      isInline: true,
+      sourceURL: "",
+      origin: "regular",
+      parsed: null,
+    });
+    const ctx = makeCtx(target);
+    const matched = (await handleCss(ctx, {
+      id: 1,
+      method: "CSS.getMatchedStylesForNode",
+      params: { nodeId: 5 },
+      sessionId: "s1",
+    })) as { matchedCSSRules: unknown[]; inherited: unknown[] };
+    const computed = (await handleCss(ctx, req("CSS.getComputedStyleForNode", { nodeId: 5 }))) as {
+      computedStyle: unknown;
+    };
+
+    expect(calls).toEqual([]);
+    expect(matched).toEqual({ matchedCSSRules: [], pseudoElements: [], inherited: [] });
+    expect(target.styleSheets.get("s")?.parsed?.rules.map((r) => r.declarations)).toEqual([
+      [],
+      [{ name: "color", value: "red" }],
+    ]);
+    expect(computed.computedStyle).toEqual([{ name: "color", value: "red" }]);
+  });
+});

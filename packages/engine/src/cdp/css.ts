@@ -56,7 +56,7 @@ export async function handleCss(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       }
       const r = await session.tryCall.getComputedStyle({ nodeId });
       return {
-        computedStyle: r?.computedStyle ?? [],
+        computedStyle: copyNameValues(r?.computedStyle),
         extraFields: { isAppearanceBase: false },
       } satisfies Protocol.CSS.GetComputedStyleForNodeResponse;
     }
@@ -100,7 +100,7 @@ export async function handleCss(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
             nodeId,
             selectorListText: rule.selector_text,
           });
-          const matchingSelectors = matchResult?.matches ?? [];
+          const matchingSelectors = copyNumbers(matchResult?.matches);
           if (matchingSelectors.length === 0) continue;
           matched.push(
             buildRuleMatch(styleSheetId, rule, rangeInfo, matchingSelectors, entry.origin),
@@ -559,7 +559,7 @@ async function getOrParseSheet(
   let sheet: ParsedStyleSheet["rules"] | null = null;
   try {
     const r = await stubQueryDom(ps, "parseStyleSheet", { text: entry.text });
-    sheet = r?.sheet?.rules ?? null;
+    sheet = copyParsedRules(r?.sheet?.rules);
   } catch {
     sheet = null;
   }
@@ -568,6 +568,53 @@ async function getOrParseSheet(
   const parsed: ParsedStyleSheet = { rules: sheet, ranges };
   entry.parsed = parsed;
   return parsed;
+}
+
+// Replies come from the page isolate, whose realm page script shares. A field there can be a stub
+// that runs page code when the engine calls a method on it, so copy every reply the engine keeps
+// or walks into fresh engine values of the expected primitive types.
+function copyParsedRules(raw: unknown): ParsedStyleSheet["rules"] | null {
+  if (!Array.isArray(raw)) return null;
+  const rules: ParsedStyleSheet["rules"] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const r = item as Record<string, unknown>;
+    if (typeof r.selector_text !== "string") continue;
+    const declarations: ParsedStyleSheet["rules"][number]["declarations"] = [];
+    if (Array.isArray(r.declarations)) {
+      for (const d of r.declarations) {
+        if (!d || typeof d !== "object") continue;
+        const { name, value, important } = d as Record<string, unknown>;
+        if (typeof name !== "string" || typeof value !== "string") continue;
+        declarations.push(important === true ? { name, value, important } : { name, value });
+      }
+    }
+    rules.push({
+      selector_text: r.selector_text,
+      selector_specificities: copyNumbers(r.selector_specificities),
+      declarations,
+      source_line: typeof r.source_line === "number" ? r.source_line : 0,
+      source_column: typeof r.source_column === "number" ? r.source_column : 0,
+    });
+  }
+  return rules;
+}
+
+function copyNumbers(raw: unknown): number[] {
+  const out: number[] = [];
+  if (Array.isArray(raw)) for (const n of raw) if (typeof n === "number") out.push(n);
+  return out;
+}
+
+function copyNameValues(raw: unknown): Array<{ name: string; value: string }> {
+  const out: Array<{ name: string; value: string }> = [];
+  if (!Array.isArray(raw)) return out;
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const { name, value } = item as Record<string, unknown>;
+    if (typeof name === "string" && typeof value === "string") out.push({ name, value });
+  }
+  return out;
 }
 
 function buildSourceRanges(
@@ -1084,7 +1131,7 @@ async function buildInheritedChain(
     const r = await stubQueryDom(ps, "getAncestorElementIds", {
       nodeId: startNodeId,
     });
-    ancestorIds = Array.isArray(r?.ancestorIds) ? r.ancestorIds : [];
+    ancestorIds = copyNumbers(r?.ancestorIds);
   } catch {
     return [];
   }
@@ -1105,7 +1152,7 @@ async function buildInheritedChain(
           nodeId: ancestorId,
           selectorListText: rule.selector_text,
         });
-        const matchingSelectors = matchResult?.matches ?? [];
+        const matchingSelectors = copyNumbers(matchResult?.matches);
         if (matchingSelectors.length === 0) continue;
         matched.push(
           buildRuleMatch(styleSheetId, rule, rangeInfo, matchingSelectors, entry.origin),
