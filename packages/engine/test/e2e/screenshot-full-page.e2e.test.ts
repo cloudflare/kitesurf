@@ -106,6 +106,41 @@ test("captures full content and tall clips without changing the viewport", async
   ).rejects.toThrow("requested 5000x1000 px exceeds WebP limits of 4096 px per side");
 }, 120_000);
 
+test("accepts the clip scale Playwright sends for a css-scale screenshot", async ({
+  page,
+  cdpSession,
+}) => {
+  await page.setViewport({ width: 1280, height: 720 });
+  await setContent(
+    page,
+    '<body style="margin:0"><div style="width:1280px;height:3000px;background:linear-gradient(red,blue)"></div></body>',
+  );
+  await cdpSession.send("Emulation.setDeviceMetricsOverride", {
+    width: 1280,
+    height: 720,
+    deviceScaleFactor: 2,
+    mobile: false,
+  });
+  // Playwright divides the clip scale by deviceScaleFactor for scale: "css",
+  // so a 2x emulated device sends 0.5 and expects CSS-pixel output.
+  const cssScale = await cdpSession.send("Page.captureScreenshot", {
+    clip: { x: 0, y: 0, width: 200, height: 100, scale: 0.5 },
+  });
+  expect(pngDimensions(cssScale.data)).toEqual([200, 100]);
+  // A scale that does not cancel the emulated ratio stays unsupported.
+  await expect(
+    cdpSession.send("Page.captureScreenshot", {
+      clip: { x: 0, y: 0, width: 200, height: 100, scale: 0.25 },
+    }),
+  ).rejects.toThrow("clip.scale other than 1 is not supported");
+  await cdpSession.send("Emulation.setDeviceMetricsOverride", {
+    width: 1280,
+    height: 720,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+}, 120_000);
+
 test("rejects oversized encoded output and keeps the renderer usable", async ({
   page,
   cdpSession,
