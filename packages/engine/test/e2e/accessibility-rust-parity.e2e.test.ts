@@ -28,7 +28,8 @@ function readGoldens(value: unknown): Record<string, string> {
 function canonicalJson(value: unknown, frameId: string): string {
   const json = JSON.stringify(value);
   if (json === undefined) throw new Error("Accessibility value is not JSON serializable");
-  // The target frame ID is random per test run; canonicalize only its wire fields for stable hashes.
+  // The target frame ID is random per test run; canonicalize only its wire fields for stable
+  // hashes.
   return json
     .replaceAll(`"frameId":${JSON.stringify(frameId)}`, `"frameId":"<frame>"`)
     .replaceAll(JSON.stringify(`root-${frameId}`), JSON.stringify("root-<frame>"));
