@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { upgradedSocket } from "./connect";
 import { engine } from "./harness";
 
 async function upgradeStatus(origin?: string): Promise<number> {
@@ -12,8 +13,9 @@ async function upgradeStatus(origin?: string): Promise<number> {
   const res = await engine.fetch(
     new Request("http://engine.test/devtools/browser/kitesurf", { headers }),
   );
-  res.webSocket?.accept();
-  res.webSocket?.close();
+  const ws = upgradedSocket(res);
+  ws?.accept();
+  ws?.close();
   return res.status;
 }
 
