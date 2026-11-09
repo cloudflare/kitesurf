@@ -294,3 +294,48 @@ test("Enter submits as keypress's default action", async ({ page, cdpSession }) 
   expect(await pressEnter("keypress")).toEqual(["keypress Enter"]);
   expect(await pressEnter("beforeinput")).toEqual(["keypress Enter"]);
 });
+
+const FORMS = `<form id=contact><label>Name</label><input id=name><label>Email</label><input id=email type=email>
+  <textarea>msg</textarea><button type=button>Send</button><input type=checkbox checked></form>
+<form id=one><input id=q></form>
+<form id=withButton><input id=from><input id=to><button id=go>Go</button></form>
+<form id=disabledButton><input id=d1><input id=d2><button disabled>Off</button></form>
+<form id=cancelled><input id=c1><input id=c2><button id=stop>Stop</button></form>
+<form id=named><input id=e1 name=elements><input id=e2></form>
+<script>
+  globalThis.__seen = [];
+  for (const f of document.forms) {
+    f.addEventListener("submit", (e) => {
+      e.preventDefault();
+      __seen.push("submit " + f.id + " " + (e.submitter ? e.submitter.id : "null"));
+    });
+  }
+  for (const b of document.querySelectorAll("button")) {
+    b.addEventListener("click", (e) => __seen.push("click " + b.id + " " + e.isTrusted));
+  }
+  document.getElementById("stop").addEventListener("click", (e) => e.preventDefault());
+</script>`;
+
+test("Enter submits a form only with a submit button or a single text field", async ({
+  page,
+  cdpSession,
+}) => {
+  await setContent(page, FORMS);
+  const enterIn = async (id: string): Promise<string[]> => {
+    await page.evaluate((fieldId: string) => {
+      document.getElementById(fieldId)!.focus();
+      (globalThis as typeof globalThis & { __seen: string[] }).__seen = [];
+    }, id);
+    await key(cdpSession, "Enter", "Enter", 13, "\r");
+    return page.evaluate(() => (globalThis as typeof globalThis & { __seen: string[] }).__seen);
+  };
+  expect(await enterIn("name"), "several fields, no submit button").toEqual([]);
+  expect(await enterIn("e2"), "several fields, one named elements").toEqual([]);
+  expect(await enterIn("q"), "a single field").toEqual(["submit one null"]);
+  expect(await enterIn("from"), "a submit button").toEqual([
+    "click go true",
+    "submit withButton go",
+  ]);
+  expect(await enterIn("d1"), "a disabled default button").toEqual([]);
+  expect(await enterIn("c1"), "a cancelled default button click").toEqual(["click stop true"]);
+});

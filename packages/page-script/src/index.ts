@@ -3000,6 +3000,59 @@ function findDefaultSubmitButton(form: NonNullable<ShimElement["form"]>): ShimEl
   return defaultButton;
 }
 
+// HTML's "fields that block implicit submission": a form with no submit button and more than
+// one of them ignores Enter, so a half-filled form that script submits is not posted early.
+const IMPLICIT_SUBMISSION_BLOCKERS = new Set([
+  "date",
+  "datetime-local",
+  "email",
+  "month",
+  "number",
+  "password",
+  "search",
+  "tel",
+  "text",
+  "time",
+  "url",
+  "week",
+]);
+
+function countImplicitSubmissionBlockers(form: NonNullable<ShimElement["form"]>): number {
+  let count = 0;
+  const elements = (ksInternals.formBehindProxy?.(form) ?? form).elements;
+  for (let i = 0; i < elements.length; i++) {
+    const element = elements[i];
+    if (element.tagName !== "INPUT") continue;
+    if (IMPLICIT_SUBMISSION_BLOCKERS.has(String(element.type || "").toLowerCase())) count++;
+  }
+  return count;
+}
+
+function isDisabledControl(element: ShimElement): boolean {
+  if (element.hasAttribute?.("disabled")) return true;
+  try {
+    return element.closest?.(":disabled") === element;
+  } catch {
+    return false;
+  }
+}
+
+// Implicit submission fires a click at the default button, so the page's click handlers see it
+// and may cancel it, and only the button's activation submits, with it as the submitter.
+function clickDefaultButton(button: ShimElement): string | null {
+  if (isDisabledControl(button)) return null;
+  const click = new (shimEventCtor("PointerEvent"))("click", {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    detail: 0,
+    pointerId: -1,
+    pointerType: "",
+  });
+  if (!__ks_dispatchTrusted(button, click)) return null;
+  return buttonActivationNavigation(button);
+}
+
 function submitFormOnEnter(focused: ShimElement): string | null {
   try {
     const typeAttr = ((focused.getAttribute && focused.getAttribute("type")) || "").toLowerCase();
@@ -3014,7 +3067,10 @@ function submitFormOnEnter(focused: ShimElement): string | null {
     if (skipImplicit) return null;
     const form = focused.form;
     if (!form || typeof form.__ksRequestSubmit !== "function") return null;
-    const navUrl = form.__ksRequestSubmit(findDefaultSubmitButton(form));
+    const defaultButton = findDefaultSubmitButton(form);
+    if (defaultButton) return clickDefaultButton(defaultButton);
+    if (countImplicitSubmissionBlockers(form) > 1) return null;
+    const navUrl = form.__ksRequestSubmit(null);
     return typeof navUrl === "string" && navUrl.length > 0 ? navUrl : null;
   } catch (err) {
     console.error("[kitesurf] implicit submit failed", err);
