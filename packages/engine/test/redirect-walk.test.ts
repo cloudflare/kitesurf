@@ -49,7 +49,7 @@ describe("walkRedirects", () => {
 
   test.each([
     ["follows the hop", null],
-    ["stops at a blocked hop", () => null],
+    ["stops at a blocked hop", async () => null],
   ])("cancels a redirect's body when it %s", async (_, checkRedirect) => {
     const cancelled: string[] = [];
     const fetchHop = async (req: Request): Promise<Response> => {
