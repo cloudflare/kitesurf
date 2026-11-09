@@ -45,7 +45,10 @@ describe("DOM.getDocument before PageScript has a document", () => {
 
 describe("fallback HTML retention", () => {
   it("keeps the source for small documents", () => {
-    const target = { html: "x".repeat(MAX_RETAINED_FALLBACK_HTML_CHARS) } as TargetState;
+    const target = {
+      html: "x".repeat(MAX_RETAINED_FALLBACK_HTML_CHARS),
+      fallbackHtmlReleased: false,
+    } as TargetState;
     releaseFallbackHtml(target);
     expect(target.html).toHaveLength(MAX_RETAINED_FALLBACK_HTML_CHARS);
     expect(target.fallbackHtmlReleased).toBe(false);
