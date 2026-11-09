@@ -2785,15 +2785,16 @@ export function pumpBackgroundEvents(ctx: DispatchCtx, target: TargetState): voi
   if (!pageScript || typeof pageScript.drainConsole !== "function") return;
   if (backgroundDrainInFlight.has(target)) return;
   backgroundDrainInFlight.add(target);
-  const urlAtSchedule = target.url;
   const work = (async () => {
     try {
       const summary = await pageScript.drainConsole();
       if (ctx.browser.wsClosing) return;
       if (target.pageScript !== pageScript) return;
-      if (summary.cookieWrites && summary.cookieWrites.length > 0 && urlAtSchedule) {
+      // target.url already names the next document while a navigate fetches it.
+      const cookieUrl = target.pageScriptUrl;
+      if (summary.cookieWrites && summary.cookieWrites.length > 0 && cookieUrl) {
         for (const raw of summary.cookieWrites) {
-          jarForTarget(ctx, target).setFromDocumentCookie(urlAtSchedule, raw);
+          jarForTarget(ctx, target).setFromDocumentCookie(cookieUrl, raw);
         }
       }
       if (summary.console && summary.console.length > 0) {

@@ -17,6 +17,26 @@ async function waitForNext(page: Page) {
     .toBe("Slow document");
 }
 
+test("an outgoing document's background cookie writes stay off the next host", async ({
+  page,
+  cdpSession,
+}) => {
+  await setContent(
+    page,
+    `<!doctype html><title>outgoing</title><script>
+      setTimeout(() => {
+        location.href = ${JSON.stringify(NEXT)};
+        setInterval(() => { document.cookie = "ks_background=1; Path=/"; }, 20);
+      }, 500);
+    </script>`,
+  );
+  await cdpSession.send("DOM.enable");
+  await waitForNext(page);
+
+  const { cookies } = await cdpSession.send("Network.getAllCookies");
+  expect(cookies.filter((c) => c.name === "ks_background")).toEqual([]);
+}, 30_000);
+
 test("an evaluate reply held across a navigate keeps its cookie writes off the next host", async ({
   page,
   cdpSession,
