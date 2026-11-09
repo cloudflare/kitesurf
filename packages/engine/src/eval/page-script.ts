@@ -441,6 +441,7 @@ export function spawnFramePageScript(
     frameId: string;
     frameLoaderId: string;
     frameUrl: string;
+    cookieKey?: string;
     cookieSiteOrigin?: string;
     extraHeaders?: Record<string, string>;
     attributionHeaders?: Record<string, string>;
@@ -453,6 +454,7 @@ export function spawnFramePageScript(
     targetId: args.targetId,
     navigateGeneration: Date.now(),
     frameId: args.frameId,
+    cookieKey: args.cookieKey,
   };
   return getOrCreatePageScript({
     env,
