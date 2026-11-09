@@ -5,6 +5,7 @@
 //! Tests for the paint stage; they use crate internals.
 
 mod box_shadow_blur_accuracy;
+mod canvas_draw_sources;
 mod counter_damage_gate;
 mod damaged_subtree_skip;
 mod glyph_cache_panic;

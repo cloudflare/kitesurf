@@ -112,6 +112,11 @@ impl DomHandle {
         };
         let doc_cell = &self.doc;
         let node_handles = &self.node_handles;
+        // The ops come from the page realm, so a drawImage can name any node. Only an <img> is
+        // an image source: an <iframe> also holds a raster, its cross-origin child's frame.
+        let is_img = |el: &&blitz_dom::node::ElementData| {
+            el.name.local.eq_ignore_ascii_case(&local_name!("img"))
+        };
         let mut resolve = |id: u32| -> Option<crate::paint::canvas2d::ResolvedImage> {
             let internal_id = node_handles.borrow().resolve(id)?;
             {
@@ -119,6 +124,7 @@ impl DomHandle {
                     let doc = doc_cell.try_borrow().ok()?;
                     doc.get_node(internal_id)
                         .and_then(|n| n.element_data())
+                        .filter(is_img)
                         .and_then(|el| el.raster_image_data())
                         .is_some_and(|img| img.encoded)
                 };
@@ -132,7 +138,7 @@ impl DomHandle {
             }
             let doc = doc_cell.try_borrow().ok()?;
             let node = doc.get_node(internal_id)?;
-            let el = node.element_data()?;
+            let el = node.element_data().filter(is_img)?;
             let img = el.raster_image_data()?;
             if img.encoded {
                 return None;

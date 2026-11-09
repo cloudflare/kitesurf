@@ -52,7 +52,7 @@ async function load(page: Page) {
   await page.screenshot();
 }
 
-for (const route of ["json"]) {
+for (const route of ["json", "push"]) {
   test(`a canvas cannot read a cross-origin iframe's pixels (${route})`, async ({ page }) => {
     await load(page);
     const pixel = await page.evaluate((r) => Reflect.get(window, "readCanvas")(r), route);
