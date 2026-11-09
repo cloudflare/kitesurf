@@ -155,6 +155,151 @@ export async function handleAccessibility(ctx: DispatchCtx, req: CdpRequest): Pr
   }
 }
 
+async function accessibilityResult(
+  target: TargetState,
+  ps: ReturnType<typeof sessionOf> | null,
+  req: CdpRequest,
+  method: QueryDomArgs<"accessibilityTree">["method"],
+): Promise<RawJsonResult> {
+  const args = accessibilityArgs(target, req, method);
+  const result = ps
+    ? await accessibilityTreeResponse(
+        (buffered) => ps.call.accessibilityTree({ ...args, buffered }),
+        req.method,
+      )
+    : accessibilityTreeFallback(target, args, req.method);
+  if (!(result instanceof RawJsonResult))
+    throw accessibilityBudgetError(req.method, result.budgetError);
+  return result;
+}
+
+function accessibilityArgs(
+  target: TargetState,
+  req: CdpRequest,
+  method: QueryDomArgs<"accessibilityTree">["method"],
+): QueryDomArgs<"accessibilityTree"> {
+  const params: unknown = req.params;
+  const nodeId =
+    method === "partial" || method === "ancestors" || method === "query"
+      ? pickBackendId(params)
+      : null;
+  const safeNodeId =
+    nodeId === null || (Number.isInteger(nodeId) && nodeId <= 0xffff_ffff) ? nodeId : 0;
+  const depth: unknown = params == null ? undefined : Reflect.get(params, "depth");
+  const role: unknown = params == null ? undefined : Reflect.get(params, "role");
+  const accessibleName: unknown =
+    params == null ? undefined : Reflect.get(params, "accessibleName");
+  const id: unknown = params == null ? undefined : Reflect.get(params, "id");
+  const fetchRelatives: unknown =
+    params == null ? undefined : Reflect.get(params, "fetchRelatives");
+  return {
+    method,
+    nodeId: safeNodeId,
+    axId: method === "children" ? String(id ?? "") : null,
+    fetchRelatives: fetchRelatives !== false,
+    role: typeof role === "string" ? role : null,
+    accessibleName: typeof accessibleName === "string" ? accessibleName : null,
+    ...(method === "full" && typeof depth === "number" ? { depth } : {}),
+    frameId: target.frameId,
+    title: target.title || "",
+    url: target.url || "",
+  };
+}
+
+function accessibilityTreeFallback(
+  target: TargetState,
+  args: QueryDomArgs<"accessibilityTree">,
+  method: string,
+): { budgetError: { nodes: number; bytes: number; budget: number } } | RawJsonResult {
+  const dom = ensureTargetDom(target);
+  if (!dom) {
+    if (args.method === "root") throw new Error("No document loaded");
+    return new RawJsonResult(['{"nodes":[]}']);
+  }
+  const start = dom.accessibilityStream(
+    JSON.stringify({ ...args, buffered: true, visibility: true }),
+  );
+  try {
+    const budgetJson = start.budgetError();
+    if (budgetJson) return { budgetError: parseAccessibilityBudget(budgetJson) };
+    const bytes = start.takeBytes();
+    if (!bytes) throw new Error(`${method}: engine accessibility read returned no bytes`);
+    try {
+      const decoder = new TextDecoder("utf-8", { ignoreBOM: true, fatal: true });
+      const pieces: string[] = [];
+      let filled = 0;
+      for (;;) {
+        const chunk = bytes.nextChunk(256 * 1024);
+        if (chunk.byteLength === 0) break;
+        filled += chunk.byteLength;
+        const piece = decoder.decode(chunk, { stream: true });
+        if (piece) pieces.push(piece);
+      }
+      if (filled !== bytes.byteLength) {
+        throw new Error(
+          `${method}: engine accessibility read ended after ${filled} of ${bytes.byteLength} bytes`,
+        );
+      }
+      const tail = decoder.decode();
+      if (tail) pieces.push(tail);
+      return new RawJsonResult(pieces);
+    } finally {
+      bytes.free();
+    }
+  } finally {
+    start.free();
+  }
+}
+
+function parseAccessibilityBudget(json: string): { nodes: number; bytes: number; budget: number } {
+  const value: unknown = JSON.parse(json);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("accessibility stream returned an invalid budget error");
+  }
+  const nodes: unknown = Reflect.get(value, "nodes");
+  const bytes: unknown = Reflect.get(value, "bytes");
+  const budget: unknown = Reflect.get(value, "budget");
+  if (
+    typeof nodes !== "number" ||
+    !Number.isSafeInteger(nodes) ||
+    typeof bytes !== "number" ||
+    !Number.isSafeInteger(bytes) ||
+    typeof budget !== "number" ||
+    !Number.isSafeInteger(budget)
+  ) {
+    throw new Error("accessibility stream returned an invalid budget error");
+  }
+  return { nodes, bytes, budget };
+}
+
+function accessibilityBudgetError(
+  method: string,
+  budget: { nodes: number; bytes: number; budget: number },
+): Error {
+  return new Error(
+    `${method}: accessibility tree is ${budget.nodes} nodes and ${budget.bytes} bytes of JSON, ` +
+      `over the ${budget.budget}-byte reply budget; request a subtree with ` +
+      "Accessibility.getPartialAXTree, Accessibility.queryAXTree, or " +
+      "Accessibility.getFullAXTree with depth",
+  );
+}
+
+function rootFromResult(result: RawJsonResult): AxNode | undefined {
+  const parsed: unknown = JSON.parse(result.pieces.join(""));
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return undefined;
+  const node: unknown = Reflect.get(parsed, "node");
+  return isAxNode(node) ? node : undefined;
+}
+
+function isAxNode(value: unknown): value is AxNode {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  return (
+    typeof Reflect.get(value, "nodeId") === "string" &&
+    typeof Reflect.get(value, "ignored") === "boolean" &&
+    typeof Reflect.get(value, "backendDOMNodeId") === "number"
+  );
+}
+
 function emptyReply(method: string): Record<string, unknown> {
   if (method === "Accessibility.getRootAXNode") {
     return {
@@ -183,24 +328,7 @@ function pickTarget(ctx: DispatchCtx, sessionId: string | undefined): TargetStat
   return undefined;
 }
 
-function pickBackendId(params: unknown, tree: BuiltTree): number | null {
-  const p = (params ?? {}) as {
-    nodeId?: number;
-    backendNodeId?: number;
-    objectId?: string;
-  };
-  if (typeof p.backendNodeId === "number" && p.backendNodeId > 0) return p.backendNodeId;
-  if (typeof p.nodeId === "number" && p.nodeId > 0) return p.nodeId;
-  if (typeof p.objectId === "string") {
-    const m = /^node:(\d+)$/.exec(p.objectId);
-    if (m) return Number(m[1]);
-    const ps = /^ps:(?:[^:]+:)?(\d+)$/.exec(p.objectId);
-    if (ps) return Number(ps[1]);
-  }
-  return tree.nodes[0]?.backendDOMNodeId ?? null;
-}
-
-function pickExplicitBackendId(params: unknown): number | null {
+function pickBackendId(params: unknown): number | null {
   const p = (params ?? {}) as {
     nodeId?: number;
     backendNodeId?: number;

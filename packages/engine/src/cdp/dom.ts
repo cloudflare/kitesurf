@@ -127,12 +127,7 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       const nodes = childNodesForRebind(node) ?? [];
       // These nodes come straight from PageScript, which does not know frame ids.
       for (const child of nodes) annotateIframeFrameIds(child, target);
-      frontendNodes(target, sessionKeyOf(req.sessionId)).bindChildren(id, nodes);
-      ctx.emit({
-        method: "DOM.setChildNodes",
-        params: { parentId: id, nodes },
-        sessionId: req.sessionId,
-      });
+      sendChildNodes(ctx, target, sessionKeyOf(req.sessionId), id, nodes);
       return {};
     }
 
@@ -740,14 +735,16 @@ export function emitMutations(
   if (!mutations || mutations.length === 0) return;
   syncStyleSheetsFromMutations(ctx, target, mutations);
   if (target.domEnabledSessions.size === 0) return;
-  const staleParents = new Set<number>();
+  const staleParents = new Map<number, Set<string>>();
   for (const m of mutations) {
     if (!m || typeof m !== "object") continue;
     const kind = m.kind;
     if (typeof kind !== "string" || kind.length === 0) continue;
     if (kind === "stylesheetResourceLoaded") continue;
     if (m.kind === "childNodeCountUpdated" && typeof m.nodeId === "number" && m.nodeId > 0) {
-      staleParents.add(m.nodeId);
+      const holders = staleParents.get(m.nodeId) ?? new Set<string>();
+      for (const sessionId of target.domEnabledSessions) holders.add(sessionKeyOf(sessionId));
+      staleParents.set(m.nodeId, holders);
     }
     for (const sessionId of target.domEnabledSessions) {
       const nodes = frontendNodes(target, sessionKeyOf(sessionId));
@@ -856,14 +853,34 @@ function nodeEvent(mutation: CdpMutation, sessionId: string | undefined): CdpEve
         params: { hostId: mutation.hostId, root: mutation.root },
         sessionId,
       };
-    case "stylesheetResourceLoaded":
-      return null;
     default:
       return null;
   }
 }
 
-function scheduleChildRebinds(ctx: DispatchCtx, target: TargetState, parentIds: Set<number>): void {
+// Binds the children to one session's model before the event, so its later mutations resolve.
+function sendChildNodes(
+  ctx: DispatchCtx,
+  target: TargetState,
+  sessionKey: string,
+  parentId: number,
+  nodes: Protocol.DOM.Node[],
+): void {
+  frontendNodes(target, sessionKey).bindChildren(parentId, nodes);
+  ctx.emit({
+    method: "DOM.setChildNodes",
+    params: { parentId, nodes },
+    sessionId: sessionKey.length === 0 ? undefined : sessionKey,
+  });
+}
+
+// Resends the children, one level deep as `DOM.requestChildNodes` would, to the sessions that
+// held them.
+function scheduleChildRebinds(
+  ctx: DispatchCtx,
+  target: TargetState,
+  parents: Map<number, Set<string>>,
+): void {
   const pageScript = target.pageScript;
   if (!pageScript) return;
   const work = (async () => {
@@ -882,18 +899,14 @@ function scheduleChildRebinds(ctx: DispatchCtx, target: TargetState, parentIds: 
       }),
     );
     if (target.pageScript !== pageScript) return;
+    const byOwner = iframeFrameIdsByOwner(target);
     for (const { id, node } of reads) {
       const nodes = childNodesForRebind(node);
       if (!nodes) continue;
       for (const child of nodes) annotateIframeFrameIds(child, target);
       for (const sessionKey of parents.get(id) ?? []) {
         if (!target.domEnabledSessions.has(sessionKey)) continue;
-        frontendNodes(target, sessionKey).bindChildren(id, nodes);
-        ctx.emit({
-          method: "DOM.setChildNodes",
-          params: { parentId: id, nodes },
-          sessionId: sessionId.length === 0 ? undefined : sessionId,
-        });
+        sendChildNodes(ctx, target, sessionKey, id, nodes);
       }
     }
   })();
