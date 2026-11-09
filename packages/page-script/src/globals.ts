@@ -40,11 +40,13 @@ import { ksInternals } from "./internals.ts";
 
 const MAX_IMAGE_DATA_PIXELS = 4096 * 4096;
 
-// SVGAnimatedString is absent from the pinned IDL; page code constructs it.
+// SVGAnimatedString is absent from the pinned IDL. It is an interface, not a
+// constructor: new SVGAnimatedString() throws, as in Chrome.
+// https://svgwg.org/svg2-draft/types.html#InterfaceSVGAnimatedString
 const SVGAnimatedString = class SVGAnimatedString {
-  #value: string;
-  constructor(value: string = "") {
-    this.#value = value;
+  #value = "";
+  constructor() {
+    throw new TypeError("Illegal constructor");
   }
   get baseVal(): string {
     return this.#value;
