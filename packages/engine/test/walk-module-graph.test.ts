@@ -153,6 +153,25 @@ describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
     ]);
   });
 
+  it.each([
+    ["a comment", `// lazy: import("./a.js")\nimport("./b.js");`],
+    ["a string", `const s = "import('./a.js')"; import("./b.js");`],
+  ])("still seeds the lexed calls when %s mentions import(", (_, body) => {
+    const { rewritten, seeds } = extractClassicDynamicSeeds(body, BASE);
+    expect(seeds).toEqual(["https://example.com/js/b.js"]);
+    expect(rewritten).toContain(`import("https://example.com/js/b.js")`);
+  });
+
+  it("sends only the calls the lexer skipped to the runtime loader", () => {
+    const body = `import("./a.js");\nwith ({}) /a\\//.test(""); import("./b.js");`;
+    expect(() => new Function(body)).not.toThrow();
+    const { rewritten, seeds } = extractClassicDynamicSeeds(body, BASE);
+    expect(seeds).toEqual(["https://example.com/js/a.js"]);
+    expect(nativeCalls(rewritten)).toEqual([`import(`]);
+    expect(rewritten).toContain(`import("https://example.com/js/a.js")`);
+    expect(runClassic(rewritten.replace(/import\("[^"]*"\);/, ""))).toEqual([["./b.js", BASE]]);
+  });
+
   it("keeps a method named import valid", () => {
     const { rewritten } = extractClassicDynamicSeeds(
       `{}\n/}/.test(""); const o = { import(x) { return x; } }; import("./x.js");`,
