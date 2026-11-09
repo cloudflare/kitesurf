@@ -57,9 +57,14 @@ const PRIVATE_SUFFIXES = new Set([
   "workers.dev",
 ]);
 
-// The number of trailing labels that form a listed private suffix, or 0.
+const PRIVATE_SUFFIX_MAX_LABELS = Math.max(
+  ...Array.from(PRIVATE_SUFFIXES, (s) => s.split(".").length),
+);
+
+// The number of trailing labels that form a listed private suffix, or 0. A page picks its request
+// hosts, so check only tails as long as a listed suffix instead of every tail of the host.
 function privateSuffixLength(labels: string[]): number {
-  for (let n = labels.length; n >= 2; n--) {
+  for (let n = Math.min(labels.length, PRIVATE_SUFFIX_MAX_LABELS); n >= 2; n--) {
     if (PRIVATE_SUFFIXES.has(labels.slice(-n).join("."))) return n;
   }
   return 0;
