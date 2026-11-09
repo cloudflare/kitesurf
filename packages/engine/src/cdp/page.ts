@@ -3803,9 +3803,7 @@ async function spawnOopifPipeline(
     {
       const queued = f.pendingPostMessages;
       f.pendingPostMessages = undefined;
-      for (const p of queued ?? []) {
-        routePostMessageToChild(target, p);
-      }
+      for (const p of queued ?? []) deliverPostMessageToChild(f, p);
     }
     f.execContextId = ctx.browser.execContextSeq++;
     const { emitOopifExecutionContext } = await import("./runtime.ts");
@@ -4146,43 +4144,69 @@ function postMessageOriginAllowed(
   return originOf(targetOrigin) === recipientOrigin;
 }
 
-function routePostMessageToChild(target: TargetState, params: ReceivedUpstreamParams): void {
+// MessageEvent.origin comes from the url the engine committed for the sending frame, never from
+// the isolate's claim, which page script can change. An about:blank or about:srcdoc frame has
+// its embedder's origin; the main frame uses the url its isolate was sealed with.
+function frameMessageOrigin(target: TargetState, frame: FrameState): string {
+  let f: FrameState | undefined = frame;
+  while (f && f.parentFrameId !== null && /^about:(blank|srcdoc)([?#]|$)/.test(f.url)) {
+    f = target.frames.get(f.parentFrameId);
+  }
+  const url = !f ? "" : f.parentFrameId === null ? (target.pageScriptUrl ?? f.url) : f.url;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return "null";
+  }
+}
+
+export function routePostMessageToChild(
+  target: TargetState,
+  from: FrameState,
+  params: ReceivedUpstreamParams,
+): void {
   const ownerId = typeof params.toFrameOwnerId === "number" ? params.toFrameOwnerId : -1;
   if (ownerId <= 0) return;
   for (const f of target.frames.values()) {
     if (f.ownerBackendNodeId !== ownerId || f.parentFrameId === null) continue;
+    const message = { ...params, sourceOrigin: frameMessageOrigin(target, from) };
     if (!f.pageScript) {
       if (!f.detached) {
         const q = (f.pendingPostMessages ??= []);
-        if (q.length < MAX_PENDING_CHILD_POST_MESSAGES) q.push(params);
+        if (q.length < MAX_PENDING_CHILD_POST_MESSAGES) q.push(message);
       }
       return;
     }
-    const senderOrigin = String(params.sourceOrigin ?? "");
-    if (
-      !postMessageOriginAllowed(String(params.targetOrigin ?? "*"), senderOrigin, originOf(f.url))
-    ) {
-      return;
-    }
-    void f.pageScript
-      .deliverMessage({
-        dataJson: String(params.dataJson ?? "null"),
-        origin: senderOrigin,
-        fromParent: true,
-      })
-      .catch(() => {});
+    deliverPostMessageToChild(f, message);
     return;
   }
 }
 
-function routePostMessageToParent(
+function deliverPostMessageToChild(f: FrameState, message: ReceivedUpstreamParams): void {
+  if (!f.pageScript) return;
+  const senderOrigin = String(message.sourceOrigin ?? "");
+  if (
+    !postMessageOriginAllowed(String(message.targetOrigin ?? "*"), senderOrigin, originOf(f.url))
+  ) {
+    return;
+  }
+  void f.pageScript
+    .deliverMessage({
+      dataJson: String(message.dataJson ?? "null"),
+      origin: senderOrigin,
+      fromParent: true,
+    })
+    .catch(() => {});
+}
+
+export function routePostMessageToParent(
   target: TargetState,
   fromFrameId: string,
   params: ReceivedUpstreamParams,
 ): void {
   const f = target.frames.get(fromFrameId);
   if (!f || f.detached) return;
-  const senderOrigin = String(params.sourceOrigin ?? "");
+  const senderOrigin = frameMessageOrigin(target, f);
   let recipient: PageScriptStub | null = null;
   let recipientOrigin = "";
   if (!f.parentFrameId || f.parentFrameId === target.frameId) {
@@ -4236,7 +4260,7 @@ function handleUpstreamFrameEvent(
   }
 
   if (event === "kitesurf.postMessage") {
-    routePostMessageToChild(target, params);
+    routePostMessageToChild(target, mainFrame(target), params);
     return;
   }
   if (event === "kitesurf.formSubmitNavigate") {
