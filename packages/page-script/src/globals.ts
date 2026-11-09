@@ -40,6 +40,23 @@ import { ksInternals } from "./internals.ts";
 
 const MAX_IMAGE_DATA_PIXELS = 4096 * 4096;
 
+// SVGAnimatedString is absent from the pinned IDL; page code constructs it.
+const SVGAnimatedString = class SVGAnimatedString {
+  #value: string;
+  constructor(value: string = "") {
+    this.#value = value;
+  }
+  get baseVal(): string {
+    return this.#value;
+  }
+  set baseVal(value: string) {
+    this.#value = String(value);
+  }
+  get animVal(): string {
+    return this.#value;
+  }
+};
+
 type PageNavigator = ShimNavigator & {
   userAgentData?: unknown;
   webdriver?: unknown;
@@ -1282,6 +1299,9 @@ export function installGlobals(
               : Object) as any) {};
       copyHandlerAccessors(__svgBase.prototype, handlerNames("all"));
       Reflect.set(globalThis, "SVGElement", __svgBase);
+      if (typeof Reflect.get(globalThis, "SVGAnimatedString") !== "function") {
+        Reflect.set(globalThis, "SVGAnimatedString", SVGAnimatedString);
+      }
       for (const constructorName of [
         "SVGAElement",
         "SVGSVGElement",
