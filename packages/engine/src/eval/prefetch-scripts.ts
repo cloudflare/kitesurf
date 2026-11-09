@@ -14,6 +14,7 @@ import type { ParentScriptDescriptor } from "../wasm.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
 import { walkRedirects } from "./redirect-walk.ts";
+import { MAX_DOCUMENT_BYTES, readCappedBytes } from "../read-capped.ts";
 
 const PREFETCH_TIMEOUT_MS = 10_000;
 
@@ -181,7 +182,12 @@ export async function prefetchExternalScripts({
             d.prefetchError = "<script src> fetch returned HTTP " + res.status + " for " + resolved;
             return;
           }
-          const bytes = new Uint8Array(await res.arrayBuffer());
+          const capped = await readCappedBytes(res, MAX_DOCUMENT_BYTES);
+          if (!capped.ok) {
+            d.prefetchError = "<script src> body " + capped.failure + " for " + resolved;
+            return;
+          }
+          const bytes = capped.bytes;
           const opaque = responseIsOpaque(res.headers.get(KITESURF_CORS_VERDICT_HEADER));
           const verdict = await checkScriptResponse(
             {
