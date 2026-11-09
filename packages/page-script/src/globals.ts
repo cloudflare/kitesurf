@@ -35,7 +35,7 @@ import { ensurePaintDom, invalidatePaintDom } from "./paint.ts";
 import { fetchGatedModuleSource } from "./inserted-scripts.ts";
 import { startupJsonModuleUrls } from "./startup-probe.ts";
 import { sendUpstreamEvent } from "./internal-state.js";
-import { memoryArea, sharedArea, type StorageArea } from "./web-storage.ts";
+import { memoryArea, sharedArea, Storage, storageObject } from "./web-storage.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
 import { newHeaders } from "./native-http.ts";
 import { indexedDbGlobals } from "./indexeddb.ts";
@@ -3101,27 +3101,6 @@ export function installGlobals(
     // One isolate holds one document, so the origin is fixed by now: an http(s) page's storage is
     // a copy of the browser context's or the tab's area that sends its changes back.
     if (Object.getOwnPropertyDescriptor(globalThis, "localStorage") === undefined) {
-      const makeStorage = (area: StorageArea) => ({
-        getItem(key) {
-          return area.get(String(key));
-        },
-        setItem(key, value) {
-          area.set(String(key), String(value));
-        },
-        removeItem(key) {
-          area.remove(String(key));
-        },
-        clear() {
-          area.clear();
-        },
-        key(index) {
-          const keys = area.keys();
-          return index >= 0 && index < keys.length ? keys[index] : null;
-        },
-        get length() {
-          return area.keys().length;
-        },
-      });
       const area = (
         seed: Array<[string, string]> | null,
         event: "kitesurf.localStorage" | "kitesurf.sessionStorage",
@@ -3129,10 +3108,16 @@ export function installGlobals(
         seed
           ? sharedArea(seed, (ops) => sendUpstreamEvent({ event, params: { ops } }))
           : memoryArea();
+      Object.defineProperty(globalThis, "Storage", {
+        value: Storage,
+        writable: true,
+        configurable: true,
+        enumerable: false,
+      });
       // An opaque sandboxed origin has no storage bucket; the accessor throws, as in Chrome.
       const buckets = {
-        localStorage: makeStorage(area(state.localStorageSeed, "kitesurf.localStorage")),
-        sessionStorage: makeStorage(area(state.sessionStorageSeed, "kitesurf.sessionStorage")),
+        localStorage: storageObject(area(state.localStorageSeed, "kitesurf.localStorage")),
+        sessionStorage: storageObject(area(state.sessionStorageSeed, "kitesurf.sessionStorage")),
       };
       const storageAccessor =
         (name: keyof typeof buckets): (() => unknown) =>

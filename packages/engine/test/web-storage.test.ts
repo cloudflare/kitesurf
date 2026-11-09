@@ -7,7 +7,12 @@ import { describe, expect, it } from "vitest";
 import type { WebStorageOp } from "@kitesurf/jsrpc-types/page-script";
 import { WEB_STORAGE_QUOTA_UNITS, WebStorage } from "../src/state/web-storage.ts";
 import { MemorySessionStore } from "../src/state/session-store.ts";
-import { sharedArea } from "../../page-script/src/web-storage.ts";
+import {
+  memoryArea,
+  sharedArea,
+  Storage,
+  storageObject,
+} from "../../page-script/src/web-storage.ts";
 
 const ORIGIN = "https://example.com";
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -66,5 +71,94 @@ describe("the engine's merged localStorage area", () => {
     expect(ls.entries(ORIGIN).map(([k]) => k)).toEqual(["b"]);
     ls.apply(ORIGIN, [{ op: "clear" }, { op: "set", key: "c", value: big }]);
     expect(ls.entries(ORIGIN).map(([k]) => k)).toEqual(["c"]);
+  });
+});
+
+interface StorageShape {
+  [name: string]: unknown;
+  readonly length: number;
+  key(index: number): string | null;
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+  clear(): void;
+}
+
+const storage = (): StorageShape => storageObject(memoryArea()) as StorageShape;
+
+describe("a Storage object", () => {
+  it("lists its stored keys, and only them, as its own enumerable properties", () => {
+    const s = storage();
+    s.setItem("foo", "1");
+    s.setItem("bar", "2");
+    expect(Object.keys(s)).toEqual(["foo", "bar"]);
+    expect(Object.getOwnPropertyNames(s)).toEqual(["foo", "bar"]);
+    expect({ ...s }).toEqual({ foo: "1", bar: "2" });
+    expect(JSON.stringify(s)).toBe('{"foo":"1","bar":"2"}');
+    expect(Object.getOwnPropertyDescriptor(s, "foo")).toEqual({
+      value: "1",
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
+  });
+
+  it("maps a named get, set, `in` and delete to the area", () => {
+    const s = storage();
+    expect(s.missing).toBe(undefined);
+    s.name = 5;
+    s[9] = { toString: () => "nine" };
+    expect(s.getItem("name")).toBe("5");
+    expect(s.getItem("9")).toBe("nine");
+    expect(s.name).toBe("5");
+    expect("name" in s).toBe(true);
+    expect(delete s.name).toBe(true);
+    expect(s.getItem("name")).toBe(null);
+    expect("name" in s).toBe(false);
+    expect(Object.defineProperty(s, "d", { value: "v" })).toBe(s);
+    expect(s.getItem("d")).toBe("v");
+    expect(() => Object.defineProperty(s, "g", { get: () => "x" })).toThrow(TypeError);
+  });
+
+  it("stores names the prototype has without hiding the built-ins", () => {
+    const s = storage();
+    s.setItem("length", "be");
+    Reflect.set(s, "key", "too");
+    s.setItem("clear", "almost");
+    expect(s.length).toBe(3);
+    expect(typeof s.key).toBe("function");
+    expect(s.getItem("key")).toBe("too");
+    expect(Object.keys(s)).toEqual([]); // every one is shadowed by Storage.prototype
+    expect(Reflect.deleteProperty(s, "length")).toBe(true);
+    expect(s.getItem("length")).toBe("be");
+    s.clear();
+    expect(s.length).toBe(0);
+  });
+
+  it("keeps symbols as ordinary properties of the object", () => {
+    const s = storage() as StorageShape & Record<symbol, unknown>;
+    const sym = Symbol("s");
+    s[sym] = "x";
+    expect(s[sym]).toBe("x");
+    expect(s.length).toBe(0);
+    expect(Reflect.ownKeys(s)).toEqual([sym]);
+    expect(delete s[sym]).toBe(true);
+    expect(s[sym]).toBe(undefined);
+  });
+
+  it("is a Storage, brand-checked and not constructible", () => {
+    const s = storage();
+    expect(s instanceof Storage).toBe(true);
+    expect(Object.getPrototypeOf(s)).toBe(Storage.prototype);
+    expect(Object.prototype.toString.call(s)).toBe("[object Storage]");
+    const getItem: unknown = Reflect.get(Storage.prototype, "getItem");
+    expect(s.getItem).toBe(getItem);
+    expect(() => new Storage()).toThrow(TypeError);
+    expect(() => Reflect.apply(s.getItem, {}, ["k"])).toThrow(TypeError);
+    expect(() => Reflect.apply(s.getItem, s, [])).toThrow(TypeError);
+    expect(() => Object.preventExtensions(s)).toThrow(TypeError);
+    s.setItem("a", "1");
+    expect(s.key(2 ** 32)).toBe("a"); // unsigned long wraps modulo 2^32
+    expect(s.key(-1)).toBe(null);
   });
 });

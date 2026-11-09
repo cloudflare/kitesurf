@@ -13,7 +13,7 @@ export interface StorageArea {
   set(key: string, value: string): void;
   remove(key: string): void;
   clear(): void;
-  keys(): string[];
+  keys(): readonly string[]; // insertion order, which a later set of the same key keeps
 }
 
 // The spec leaves the per-origin quota to the implementation; browsers allow 5 MiB of UTF-16
@@ -22,16 +22,21 @@ const QUOTA_UNITS = 5 * 1024 * 1024;
 
 export function memoryArea(): StorageArea {
   const data = new Map<string, string>();
+  let keys: readonly string[] | null = null; // until a key comes or goes
   return {
     get: (k) => data.get(k) ?? null,
     set: (k, v) => {
+      if (!data.has(k)) keys = null;
       data.set(k, v);
     },
     remove: (k) => {
-      data.delete(k);
+      if (data.delete(k)) keys = null;
     },
-    clear: () => data.clear(),
-    keys: () => Array.from(data.keys()),
+    clear: () => {
+      data.clear();
+      keys = null;
+    },
+    keys: () => (keys ??= Array.from(data.keys())),
   };
 }
 
@@ -49,6 +54,7 @@ export function sharedArea(
   send: (ops: WebStorageOp[]) => void,
 ): StorageArea {
   const data = new Map(seed);
+  let keys: readonly string[] | null = null; // until a key comes or goes
   let used = 0;
   for (const [k, v] of data) used += k.length + v.length;
   // Only the last value (null: removal) per key, behind a clear, so a batch never holds more
@@ -76,6 +82,7 @@ export function sharedArea(
       const old = data.get(k);
       const next = used - (old === undefined ? 0 : k.length + old.length) + k.length + v.length;
       if (next > QUOTA_UNITS) throw quotaExceeded(k);
+      if (old === undefined) keys = null;
       data.set(k, v);
       used = next;
       batch().set(k, v);
@@ -86,16 +93,146 @@ export function sharedArea(
       const old = data.get(k);
       if (old !== undefined) {
         data.delete(k);
+        keys = null;
         used -= k.length + old.length;
       }
       batch().set(k, null);
     },
     clear() {
       data.clear();
+      keys = null;
       used = 0;
       batch().clear();
       cleared = true;
     },
-    keys: () => Array.from(data.keys()),
+    keys: () => (keys ??= Array.from(data.keys())),
   };
+}
+
+// Captured at load, before page code runs: a page that replaces Reflect, Proxy or WeakMap must
+// not change what its storage does.
+const { defineProperty, deleteProperty, get, getOwnPropertyDescriptor, getPrototypeOf } = Reflect;
+const { has, ownKeys, set } = Reflect;
+const hasOwn = Object.hasOwn;
+const NativeProxy = Proxy;
+const areas = new WeakMap<object, StorageArea>();
+
+function areaOf(self: unknown, member: string): StorageArea {
+  const area = typeof self === "object" && self !== null ? areas.get(self) : undefined;
+  if (area === undefined) {
+    throw new TypeError(`Failed to execute '${member}' on 'Storage': Illegal invocation`);
+  }
+  return area;
+}
+
+function needArgs(given: number, needed: number, member: string): void {
+  if (given >= needed) return;
+  const what = `${needed} argument${needed === 1 ? "" : "s"} required, but only ${given} present.`;
+  throw new TypeError(`Failed to execute '${member}' on 'Storage': ${what}`);
+}
+
+const domString = (value: string): string => `${value}`; // ToString: a Symbol throws
+
+/** The HTML Storage interface: not constructible, its members on the prototype as WebIDL lays
+ * them out, enumerable and brand-checked against the areas storageObject made. */
+export class Storage {
+  constructor() {
+    throw new TypeError("Illegal constructor");
+  }
+}
+const members = {
+  key(index: number): string | null {
+    const area = areaOf(this, "key");
+    needArgs(arguments.length, 1, "key");
+    const keys = area.keys();
+    const i = index >>> 0; // WebIDL unsigned long: modulo 2^32, so -1 is out of range
+    return i < keys.length ? (keys[i] ?? null) : null;
+  },
+  getItem(key: string): string | null {
+    const area = areaOf(this, "getItem");
+    needArgs(arguments.length, 1, "getItem");
+    return area.get(domString(key));
+  },
+  setItem(key: string, value: string): void {
+    const area = areaOf(this, "setItem");
+    needArgs(arguments.length, 2, "setItem");
+    area.set(domString(key), domString(value));
+  },
+  removeItem(key: string): void {
+    const area = areaOf(this, "removeItem");
+    needArgs(arguments.length, 1, "removeItem");
+    area.remove(domString(key));
+  },
+  clear(): void {
+    areaOf(this, "clear").clear();
+  },
+};
+const lengthAccessor = getOwnPropertyDescriptor(
+  {
+    get length(): number {
+      return areaOf(this, "length").keys().length;
+    },
+  },
+  "length",
+);
+defineProperty(Storage.prototype, "length", {
+  get: lengthAccessor?.get,
+  enumerable: true,
+  configurable: true,
+});
+for (const [name, value] of Object.entries(members)) {
+  defineProperty(Storage.prototype, name, {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+}
+defineProperty(Storage.prototype, Symbol.toStringTag, { value: "Storage", configurable: true });
+
+// WebIDL's named properties without [LegacyOverrideBuiltIns]: a stored key shows as a property
+// unless the prototype chain has that name (`length`, `key`), which still reads the built-in.
+function visible(target: object, area: StorageArea, name: string): boolean {
+  if (area.get(name) === null) return false;
+  for (let proto = getPrototypeOf(target); proto !== null; proto = getPrototypeOf(proto)) {
+    if (hasOwn(proto, name)) return false;
+  }
+  return true;
+}
+
+/** A Storage over `area`, behaving like a browser's: stored keys are its enumerable own
+ * properties, and a named get, set, `in` or delete reads or writes the area. */
+export function storageObject(area: StorageArea): object {
+  const target: object = Object.create(Storage.prototype);
+  const proxy = new NativeProxy(target, {
+    get: (t, p, receiver) =>
+      typeof p === "string" && visible(t, area, p) ? area.get(p) : get(t, p, receiver),
+    // The named setter takes every string, shadowed or not: `storage.key = v` stores "key", and
+    // `storage.key` still reads the method.
+    set: (t, p, v, receiver) => {
+      if (typeof p !== "string" || receiver !== proxy) return set(t, p, v, receiver);
+      area.set(p, domString(v));
+      return true;
+    },
+    has: (t, p) => (typeof p === "string" && visible(t, area, p)) || has(t, p),
+    deleteProperty: (t, p) => {
+      if (typeof p !== "string" || !visible(t, area, p)) return deleteProperty(t, p);
+      area.remove(p);
+      return true;
+    },
+    getOwnPropertyDescriptor: (t, p) => {
+      if (typeof p !== "string" || !visible(t, area, p)) return getOwnPropertyDescriptor(t, p);
+      return { value: area.get(p), writable: true, enumerable: true, configurable: true };
+    },
+    defineProperty: (t, p, desc) => {
+      if (typeof p !== "string") return defineProperty(t, p, desc);
+      if (!("value" in desc) && !("writable" in desc)) return false; // only data reaches the setter
+      area.set(p, domString(desc.value));
+      return true;
+    },
+    ownKeys: (t) => [...area.keys().filter((k) => visible(t, area, k)), ...ownKeys(t)],
+    preventExtensions: () => false,
+  });
+  areas.set(proxy, area);
+  return proxy;
 }

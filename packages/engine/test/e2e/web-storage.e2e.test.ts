@@ -50,11 +50,19 @@ test("writes made just before a page navigates itself reach the next document", 
   await page.goto(LEAVES, { waitUntil: "domcontentloaded" }).catch(() => {});
   await page.waitForFunction(() => document.title.startsWith("{"), { timeout: 15_000 });
   expect(page.url()).toBe(LANDS);
-  expect(JSON.parse(await page.title())).toEqual({ local: "local", session: "session" });
+  expect(JSON.parse(await page.title())).toEqual({
+    local: "local",
+    session: "session",
+    keys: ["cart"],
+  });
   const two = await browser.newPage();
   try {
     await two.goto(LANDS, { waitUntil: "load" });
-    expect(JSON.parse(await two.title())).toEqual({ local: "local", session: null });
+    expect(JSON.parse(await two.title())).toEqual({
+      local: "local",
+      session: null,
+      keys: ["cart"],
+    });
   } finally {
     await two.close();
   }
@@ -122,4 +130,33 @@ test("each browser context has its own localStorage", async ({ browser, page }) 
   } finally {
     await context.close();
   }
+}, 120_000);
+
+test("a Storage shows its keys as properties, and a named write is kept", async ({ page }) => {
+  await page.goto(A, { waitUntil: "load" });
+  const shape = await page.evaluate(() => {
+    localStorage.foo = "bar";
+    localStorage[9] = 1;
+    localStorage.setItem("length", "shadowed");
+    localStorage.gone = "x";
+    delete localStorage.gone;
+    return {
+      keys: Object.keys(localStorage),
+      length: localStorage.length,
+      shadowed: localStorage.getItem("length"),
+      has: ["foo" in localStorage, "gone" in localStorage],
+      tag: Object.prototype.toString.call(localStorage),
+      json: JSON.stringify(localStorage),
+    };
+  });
+  expect(shape).toEqual({
+    keys: ["foo", "9"],
+    length: 3,
+    shadowed: "shadowed",
+    has: [true, false],
+    tag: "[object Storage]",
+    json: '{"foo":"bar","9":"1"}',
+  });
+  await page.goto(A2, { waitUntil: "load" });
+  expect(await read(page)).toEqual({ foo: "bar", 9: "1", length: "shadowed" });
 }, 120_000);
