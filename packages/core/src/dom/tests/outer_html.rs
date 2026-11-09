@@ -192,6 +192,27 @@ fn drain_stream(
     (out, stream.byte_length())
 }
 
+fn check_chunk_sizes(
+    dom: &DomHandle,
+    node: u32,
+    marker: &str,
+    doctype: &str,
+    expected: &str,
+    source_len: usize,
+) {
+    for max in [1, 3, 7, 64, 256 * 1024] {
+        if max < 7 && source_len > 10_000 {
+            continue;
+        }
+        let stream = dom
+            .outer_html_stream(node, marker, doctype)
+            .expect("marker within the prefix");
+        let (out, len) = drain_stream(dom, stream, max, |_| {});
+        assert_eq!(len, expected.len());
+        assert_eq!(String::from_utf8(out).unwrap(), expected, "{node} {max}");
+    }
+}
+
 #[test]
 fn streamed_output_equals_the_one_pass_output() {
     let url = "https://example.test/";
@@ -213,17 +234,7 @@ fn streamed_output_equals_the_one_pass_output() {
         for node in nodes.into_iter().flatten() {
             for (marker, doctype) in cases {
                 let expected = drain(dom.outer_html_bytes(node, marker, doctype), 1 << 30);
-                for max in [1, 3, 7, 64, 256 * 1024] {
-                    if max < 7 && source.len() > 10_000 {
-                        continue;
-                    }
-                    let stream = dom
-                        .outer_html_stream(node, marker, doctype)
-                        .expect("marker within the prefix");
-                    let (out, len) = drain_stream(&dom, stream, max, |_| {});
-                    assert_eq!(len, expected.len());
-                    assert_eq!(String::from_utf8(out).unwrap(), expected, "{node} {max}");
-                }
+                check_chunk_sizes(&dom, node, marker, doctype, &expected, source.len());
             }
         }
     }
