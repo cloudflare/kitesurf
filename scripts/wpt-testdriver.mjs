@@ -158,7 +158,9 @@ export function resolveKey(value) {
   const pua = PUA_KEYS[value];
   if (pua) {
     const [key, code, keyCode, location] = pua;
-    const text = key === " " ? " " : "";
+    // chromedriver sends Enter with the text "\r": that text is what makes Chrome fire a keypress
+    // and run Enter's line break or implicit submission.
+    const text = key === " " ? " " : key === "Enter" ? "\r" : "";
     return { key, code, keyCode, location, text, shifted: false };
   }
   const ch = value;

@@ -84,10 +84,14 @@ test("Input.insertText is an insertion with no key events", async ({ page, cdpSe
   );
   await focusField(page, "ta");
   await cdpSession.send("Input.insertText", { text: "hi\nthere" });
-  const got = await read(page, "ta");
-  expect(got.value).toBe("hi\nthere");
-  expect(got.log.filter((entry) => /key/.test(entry))).toEqual([]);
-  expect(got.log).toContain("ta:input");
+  expect(await read(page, "ta")).toEqual({
+    value: "hi\nthere",
+    log: [
+      'ta:beforeinput insertText "hi\\nthere"',
+      'ta:textInput "hi\\nthere"',
+      'ta:input insertText "hi\\nthere"',
+    ],
+  });
 });
 
 test("Enter breaks a line in a textarea and leaves a single-line field alone", async ({
@@ -146,4 +150,147 @@ test("a readonly field and a checkbox take no typed text", async ({ page, cdpSes
       ["ro", "cb"].map((id) => (document.getElementById(id) as HTMLInputElement).value),
     ),
   ).toEqual(["keep", "on"]);
+});
+
+async function key(s: CDPSession, k: string, code: string, vk: number, text = ""): Promise<void> {
+  await s.send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: k,
+    code,
+    windowsVirtualKeyCode: vk,
+    text,
+  });
+  await s.send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: k,
+    code,
+    windowsVirtualKeyCode: vk,
+  });
+}
+
+test("typing fires Chrome's keypress, beforeinput, textInput and InputEvent", async ({
+  page,
+  cdpSession,
+}) => {
+  await setContent(page, FIELDS);
+  for (const id of ["inp", "ta"] as const) {
+    await focusField(page, id);
+    await key(cdpSession, "a", "KeyA", 65, "a");
+    expect((await read(page, id)).log, `${id} a`).toEqual([
+      `${id}:keydown`,
+      `${id}:keypress`,
+      `${id}:beforeinput insertText "a"`,
+      `${id}:textInput "a"`,
+      `${id}:input insertText "a"`,
+      `${id}:keyup`,
+    ]);
+    await key(cdpSession, "Backspace", "Backspace", 8);
+    expect((await read(page, id)).log, `${id} Backspace`).toEqual([
+      `${id}:keydown`,
+      `${id}:beforeinput deleteContentBackward null`,
+      `${id}:input deleteContentBackward null`,
+      `${id}:keyup`,
+    ]);
+  }
+
+  await key(cdpSession, "Enter", "Enter", 13, "\r");
+  expect(await read(page, "ta")).toEqual({
+    value: "\n",
+    log: [
+      "ta:keydown",
+      "ta:keypress",
+      "ta:beforeinput insertLineBreak null",
+      'ta:textInput "\\n"',
+      "ta:input insertLineBreak null",
+      "ta:keyup",
+    ],
+  });
+
+  await focusField(page, "inp");
+  await key(cdpSession, "Enter", "Enter", 13, "\r");
+  expect(await read(page, "inp")).toEqual({
+    value: "",
+    log: ["inp:keydown", "inp:keypress", "inp:beforeinput insertLineBreak null", "inp:keyup"],
+  });
+
+  await cdpSession.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "b", code: "KeyB" });
+  await cdpSession.send("Input.dispatchKeyEvent", { type: "char", key: "b", text: "b" });
+  await cdpSession.send("Input.dispatchKeyEvent", { type: "keyUp", key: "b", code: "KeyB" });
+  expect((await read(page, "inp")).log).toEqual([
+    "inp:keydown",
+    "inp:keypress",
+    'inp:beforeinput insertText "b"',
+    'inp:textInput "b"',
+    'inp:input insertText "b"',
+    "inp:keyup",
+  ]);
+
+  await page.evaluate(() => {
+    document.getElementById("inp")!.addEventListener("keypress", (e) => {
+      document.title = [e.keyCode, e.charCode, e.which].join(" ");
+    });
+  });
+  await key(cdpSession, "a", "KeyA", 65, "a");
+  expect(await page.title(), "a keypress's legacy codes are the character's").toBe("97 97 97");
+});
+
+test("cancelling keypress, beforeinput or textInput stops the entry", async ({
+  page,
+  cdpSession,
+}) => {
+  await setContent(page, FIELDS);
+  for (const id of ["inp", "ta"] as const) {
+    for (const type of ["keypress", "beforeinput", "textInput"]) {
+      await page.evaluate(
+        (fieldId: string, eventType: string) =>
+          document
+            .getElementById(fieldId)!
+            .addEventListener(eventType, (e) => e.preventDefault(), { once: true }),
+        id,
+        type,
+      );
+      await focusField(page, id);
+      await key(cdpSession, "q", "KeyQ", 81, "q");
+      const got = await read(page, id);
+      expect(got.value, `${id} ${type}`).toBe("");
+      expect(got.log, `${id} ${type}`).not.toContain(`${id}:input insertText "q"`);
+    }
+  }
+});
+
+// A search box whose keypress handler runs the search and cancels Enter: Chrome submits nothing,
+// while a submit on keydown reloaded the page before the handler could run.
+test("Enter submits as keypress's default action", async ({ page, cdpSession }) => {
+  await setContent(
+    page,
+    `<form id=f action="/search"><input id=q name=q></form>
+    <script>
+      globalThis.__seen = [];
+      const q = document.getElementById("q");
+      document.getElementById("f").addEventListener("submit", (e) => {
+        e.preventDefault();
+        __seen.push("submit");
+      });
+      q.addEventListener("keypress", (e) => {
+        __seen.push("keypress " + e.key);
+        if (e.key === "Enter" && q.dataset.cancel === "keypress") e.preventDefault();
+      });
+      q.addEventListener("beforeinput", (e) => {
+        if (e.inputType === "insertLineBreak" && q.dataset.cancel === "beforeinput") e.preventDefault();
+      });
+    </script>`,
+  );
+  const pressEnter = async (cancel: string): Promise<string[]> => {
+    await page.evaluate((how: string) => {
+      const q = document.getElementById("q") as HTMLInputElement;
+      q.dataset.cancel = how;
+      q.focus();
+      (globalThis as typeof globalThis & { __seen: string[] }).__seen = [];
+    }, cancel);
+    await key(cdpSession, "Enter", "Enter", 13, "\r");
+    return page.evaluate(() => (globalThis as typeof globalThis & { __seen: string[] }).__seen);
+  };
+  expect(await pressEnter("")).toEqual(["keypress Enter", "submit"]);
+  expect(await pressEnter("keypress")).toEqual(["keypress Enter"]);
+  expect(await pressEnter("beforeinput")).toEqual(["keypress Enter"]);
 });
