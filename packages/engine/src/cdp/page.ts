@@ -3991,7 +3991,7 @@ function isSameOriginPathChange(from: string, to: string): boolean {
 
 // HTML's "can have its URL rewritten". A document never moves to another origin, and a
 // non-HTTP(S) one such as data: or about: changes only its fragment (file: also its query).
-function canRewriteDocumentUrl(documentUrl: string, targetUrl: string): boolean {
+export function canRewriteDocumentUrl(documentUrl: string, targetUrl: string): boolean {
   let doc: URL;
   let next: URL;
   try {
