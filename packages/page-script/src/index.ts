@@ -3594,6 +3594,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
 
     state.setReadyState("interactive");
     dispatchLifecycle(state.document, "readystatechange", { bubbles: false });
+    // Scroll to the fragment identifier; HTML browsing-the-web section.
+    // https://html.spec.whatwg.org/multipage/browsing-the-web.html
+    scrollToFragment(state.pageUrl);
     dispatchLifecycle(state.document, "DOMContentLoaded", {
       bubbles: true,
       cancelable: false,
