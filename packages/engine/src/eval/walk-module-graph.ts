@@ -435,7 +435,8 @@ function afterMemberDot(body: string, at: number): boolean {
     ...["\n", "\r", "\u2028", "\u2029"].map((c) => body.lastIndexOf(c, i)),
   );
   const line = body.slice(lineStart + 1, i);
-  return !line.includes("//") && !line.includes("<!--");
+  // `-->` at the start of a line is a line comment too, and IMPORT_CALL already reads it as one.
+  return !/\/\/|<!--|-->/.test(line);
 }
 
 function fnv1aHex(s: string): string {

@@ -125,6 +125,17 @@ describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
     expect(rewritten).toBe(`// Load the chunk.\nimport("https://example.com/js/x.js");`);
   });
 
+  it("sends an import() after a --> comment that ends with a dot to the runtime loader", () => {
+    const body = `globalThis.x = 1;\n--> Load the chunk.\nimport("./x.js");`;
+    expect(() => new Function(body)).not.toThrow();
+    const { rewritten, seeds } = extractClassicDynamicSeeds(body, BASE);
+    // The lexer does not treat `-->` as a comment here, so the call is renamed, not absolutized.
+    expect(seeds).toEqual([]);
+    expect(nativeCalls(rewritten)).toBeNull();
+    expect(rewritten).toContain("__ks_import");
+    expect(rewritten).toContain(JSON.stringify(BASE));
+  });
+
   it.each([
     ["alone", `const a = { import: (x) => x };\nglobalThis.out = a.\nimport(1);`],
     [
