@@ -3591,7 +3591,7 @@ function oopifSpawnArgs(ctx: DispatchCtx, target: TargetState, f: FrameState): R
       );
       return (event, params) => {
         if (event === "kitesurf.postMessage") {
-          routePostMessageToParent(target, f.frameId, params);
+          routeChildFramePostMessage(target, f, params);
         } else if (isWorkerUpstreamEvent(event)) {
           ctx.browser.dedicatedWorkers.handle(ctx, workerOwner, event, params);
         }
@@ -4160,6 +4160,17 @@ function frameMessageOrigin(target: TargetState, frame: FrameState): string {
   }
 }
 
+// A child frame's message goes to its parent only when it says so, or else to its own child.
+export function routeChildFramePostMessage(
+  target: TargetState,
+  from: FrameState,
+  params: ReceivedUpstreamParams,
+): void {
+  if (params.toParent === true) routePostMessageToParent(target, from.frameId, params);
+  else routePostMessageToChild(target, from, params);
+}
+
+// Owner ids are node ids in the sender's document, so match them only among its own children.
 export function routePostMessageToChild(
   target: TargetState,
   from: FrameState,
@@ -4168,7 +4179,7 @@ export function routePostMessageToChild(
   const ownerId = typeof params.toFrameOwnerId === "number" ? params.toFrameOwnerId : -1;
   if (ownerId <= 0) return;
   for (const f of target.frames.values()) {
-    if (f.ownerBackendNodeId !== ownerId || f.parentFrameId === null) continue;
+    if (f.ownerBackendNodeId !== ownerId || f.parentFrameId !== from.frameId) continue;
     const message = { ...params, sourceOrigin: frameMessageOrigin(target, from) };
     if (!f.pageScript) {
       if (!f.detached) {
