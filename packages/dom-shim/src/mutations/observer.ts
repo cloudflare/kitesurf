@@ -6,7 +6,7 @@
 
 import type * as Idl from "../idl/types.generated.js";
 import { ksGlobal, dom, nodeFor } from "../state.js";
-import { moPendingObservers, linkLoadFired } from "../registries.js";
+import { hostIdToDoc, moPendingObservers, linkLoadFired } from "../registries.js";
 import { getInternalState } from "../internal-state.js";
 import { KsEvent } from "../events/event.js";
 import { DOCUMENT_FRAGMENT_NODE } from "../constants.js";
@@ -109,7 +109,7 @@ const RECORD_TOKEN = Symbol("kitesurfMutationRecord");
 // addedNodes and removedNodes are arrays (idl/type-gaps.json).
 export class MutationRecord implements Idl.MutationRecord {
   readonly #type: MutationKind;
-  readonly #target: NodeBase;
+  readonly #target: Idl.Node;
   readonly #addedNodes: NodeBase[];
   readonly #removedNodes: NodeBase[];
   readonly #previousSibling: NodeBase | null;
@@ -117,7 +117,7 @@ export class MutationRecord implements Idl.MutationRecord {
   readonly #attributeName: string | null;
   readonly #attributeNamespace: string | null;
   readonly #oldValue: string | null;
-  constructor(token: symbol, type: MutationKind, target: NodeBase, extras: MutationRecordExtras) {
+  constructor(token: symbol, type: MutationKind, target: Idl.Node, extras: MutationRecordExtras) {
     if (token !== RECORD_TOKEN) throw new TypeError("Illegal constructor");
     this.#type = type;
     this.#target = target;
@@ -160,7 +160,7 @@ export class MutationRecord implements Idl.MutationRecord {
 
 function makeRecord(
   type: MutationKind,
-  target: NodeBase,
+  target: Idl.Node,
   extras: MutationRecordExtras,
 ): MutationRecord {
   return new MutationRecord(RECORD_TOKEN, type, target, extras);
@@ -368,12 +368,15 @@ function queueMutationRecord(
     consider(entry, observerMatchesTarget(entry, targetId));
   }
   forEachMatchingTransientSource(targetId, (source) => consider(source, true));
+  // A created document's children live under its host element, so the tree reports the host as
+  // the mutation target; the record must name the document the page passed to observe().
+  const recordTarget: Idl.Node = hostIdToDoc.get(targetId) ?? target;
   for (const [observer, wantsOldValue] of interested) {
     const recExtras = { ...extras };
     if ((kind === "attributes" || kind === "characterData") && !wantsOldValue) {
       recExtras.oldValue = null;
     }
-    const rec = makeRecord(kind, target, recExtras);
+    const rec = makeRecord(kind, recordTarget, recExtras);
     queueObserverRecord(observer, rec);
     moPendingObservers.add(observer);
   }

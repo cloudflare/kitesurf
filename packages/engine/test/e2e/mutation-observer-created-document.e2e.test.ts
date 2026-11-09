@@ -37,3 +37,41 @@ test("MutationObserver accepts a created document", async ({ page, cdpSession })
     records: 1,
   });
 }, 60_000);
+
+// The document's own children live under its host element; the record must still name the
+// document, and the host must never reach page script.
+const documentChildren = `<script>
+  (function () {
+    var doc = document.implementation.createHTMLDocument("t");
+    var seen = [];
+    var mo = new MutationObserver(function (list) {
+      for (var i = 0; i < list.length; i++) {
+        seen.push({
+          isDoc: list[i].target === doc,
+          nodeName: String(list[i].target && list[i].target.nodeName),
+        });
+      }
+      globalThis.__moChildren = JSON.stringify({ records: seen });
+    });
+    mo.observe(doc, { childList: true });
+    doc.removeChild(doc.documentElement);
+    doc.appendChild(doc.createElement("html"));
+  })();
+</script>`;
+
+test("records for a created document's own children name the document", async ({
+  page,
+  cdpSession,
+}) => {
+  await setContent(page, documentChildren, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(
+    () => (globalThis as { __moChildren?: string }).__moChildren !== undefined,
+    { timeout: 20_000 },
+  );
+  expect(await readJsonReport(cdpSession, "globalThis.__moChildren")).toEqual({
+    records: [
+      { isDoc: true, nodeName: "#document" },
+      { isDoc: true, nodeName: "#document" },
+    ],
+  });
+}, 60_000);

@@ -1701,8 +1701,20 @@ function matrixValues(values: string | Iterable<number> | ArrayLike<number>): {
   values: number[];
   is2D: boolean;
 } {
-  const parsed = typeof values === "string" ? parseMatrixString(values) : null;
-  const input = parsed ?? Array.from(values as Iterable<number>, Number);
+  let input: number[];
+  if (typeof values === "string") {
+    const parsed = parseMatrixString(values);
+    if (!parsed) {
+      // A string is a transform string, never a sequence: iterating it would read characters.
+      throw new DOMException(
+        `Failed to construct 'DOMMatrix': The provided value '${values}' is not a valid matrix.`,
+        "SyntaxError",
+      );
+    }
+    input = parsed;
+  } else {
+    input = Array.from(values as Iterable<number>, Number);
+  }
   if (input.length === 6) {
     const [a, b, c, d, e, f] = input;
     return { values: [a, b, 0, 0, c, d, 0, 0, 0, 0, 1, 0, e, f, 0, 1], is2D: true };
