@@ -661,6 +661,8 @@ export async function fetchInsertedScript(
       "x-kitesurf-script-cors": corsMode,
       accept: "*/*",
     };
+    // The engine's opaque bypass requires this marker for no-cors scripts.
+    if (corsMode === "no-cors") headers["x-kitesurf-allow-cross-origin"] = "1";
     if (state.connectionId) {
       headers["x-kitesurf-connection-id"] = state.connectionId;
     }
