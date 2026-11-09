@@ -606,10 +606,10 @@ pub(crate) fn bounding_rect_for_node(doc: &HtmlDocument, node: &Node) -> Rect {
     };
     let size = node.final_layout().size;
     if size.width <= 0.0 || size.height <= 0.0 {
-        if let Some(rect) = svg_descendant_rect_for_node(doc.as_ref(), node.id()) {
+        if let Some(rect) = svg_descendant_rect_for_node(doc.as_ref(), node.id(), true) {
             return rect;
         }
-        if let Some(rect) = inline_aware_rect_for_node(doc, node.id()) {
+        if let Some(rect) = inline_aware_rect_for_node(doc, node.id(), true) {
             return rect;
         }
     }
@@ -617,6 +617,26 @@ pub(crate) fn bounding_rect_for_node(doc: &HtmlDocument, node: &Node) -> Rect {
         return rect;
     }
     Rect::resolved(pos.x, pos.y, size.width, size.height)
+}
+
+// offsetWidth and offsetHeight ignore the element's and its ancestors' transforms (CSSOM View),
+// so this is bounding_rect_for_node's size before any transform applies.
+fn untransformed_size_for_node(doc: &HtmlDocument, node: &Node) -> (f32, f32) {
+    // A cell with no box sits at the document origin and would stretch the union to it; the
+    // rect path leaves such a cell out too.
+    let cell_rect = |cell: &Node| generates_box(doc, cell).then(|| layout_box_rect(doc, cell));
+    if let Some(rect) = table_part_rect(doc, node, cell_rect) {
+        return (rect.width, rect.height);
+    }
+    let size = node.final_layout().size;
+    if size.width <= 0.0 || size.height <= 0.0 {
+        let fallback = svg_descendant_rect_for_node(doc.as_ref(), node.id(), false)
+            .or_else(|| inline_aware_rect_for_node(doc, node.id(), false));
+        if let Some(rect) = fallback {
+            return (rect.width, rect.height);
+        }
+    }
+    (size.width, size.height)
 }
 
 fn transformed_rect_for_node(doc: &BaseDocument, node_id: NodeId) -> Option<Rect> {
@@ -645,6 +665,8 @@ export interface KsOffsetMetrics {
     parent: number;
     top: number;
     left: number;
+    width: number;
+    height: number;
 }
 "#;
 
@@ -653,6 +675,8 @@ struct OffsetMetrics {
     parent: f64,
     top: f64,
     left: f64,
+    width: f64,
+    height: f64,
 }
 
 /// One line's contribution to an inline node's bounds: `(line index, (x0, y0, x1, y1))`.
@@ -674,7 +698,9 @@ struct InlineOrigin {
 }
 
 impl InlineOrigin {
-    fn new(doc: &HtmlDocument, inline_root: &Node) -> Self {
+    /// `transformed` false leaves the ancestors' transforms out, for sizes CSSOM View gives
+    /// before any transform applies.
+    fn new(doc: &HtmlDocument, inline_root: &Node, transformed: bool) -> Self {
         let root_abs = doc_position(doc, inline_root);
         let root_layout = inline_root.final_layout();
         let scroll = inline_root.scroll_offset();
@@ -685,7 +711,9 @@ impl InlineOrigin {
             content_y: root_layout.padding.top + root_layout.border.top,
             scroll_x: scroll.x as f32,
             scroll_y: scroll.y as f32,
-            composed: composed_transform_for_node(doc.as_ref(), inline_root.id()),
+            composed: transformed
+                .then(|| composed_transform_for_node(doc.as_ref(), inline_root.id()))
+                .flatten(),
         }
     }
 
@@ -773,7 +801,11 @@ fn has_padding_or_border(decorations: &parley::style::BoxDecorations<TextBrush>)
 /// Per-line viewport bounds of an inline node, from the inline fragments and the glyph runs and
 /// inline boxes each line holds. `DOM.getContentQuads` returns one quad per line, so Puppeteer's
 /// click point lands inside the first fragment of a link that wraps.
-fn inline_line_rects_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Vec<Rect>> {
+fn inline_line_rects_for_node(
+    doc: &HtmlDocument,
+    node_id: NodeId,
+    transformed: bool,
+) -> Option<Vec<Rect>> {
     let base: &BaseDocument = doc.as_ref();
     let node = base.get_node(node_id)?;
     let inline_root = node.inline_root_ancestor()?;
@@ -782,7 +814,7 @@ fn inline_line_rects_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Vec
     let layout = inline.layout(node.tree());
     let lines: Vec<parley::layout::Line<'_, TextBrush>> = layout.lines().collect();
 
-    let origin = InlineOrigin::new(doc, inline_root);
+    let origin = InlineOrigin::new(doc, inline_root, transformed);
     let accepted = |styled_id: NodeId| {
         contributes_to_inline_bounds(base, inline_root.id(), node_id, styled_id)
     };
@@ -909,8 +941,12 @@ fn merge_line_bounds(entries: Vec<LineBounds>) -> Option<Vec<Rect>> {
 }
 
 /// Union of the per-line inline bounds, for getBoundingClientRect.
-fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rect> {
-    let rects = inline_line_rects_for_node(doc, node_id)?;
+fn inline_aware_rect_for_node(
+    doc: &HtmlDocument,
+    node_id: NodeId,
+    transformed: bool,
+) -> Option<Rect> {
+    let rects = inline_line_rects_for_node(doc, node_id, transformed)?;
     let (min_x, min_y, max_x, max_y) =
         rects
             .iter()
@@ -1047,7 +1083,11 @@ fn svg_canvas_bbox(
     union
 }
 
-fn svg_descendant_rect_for_node(doc: &BaseDocument, node_id: NodeId) -> Option<Rect> {
+fn svg_descendant_rect_for_node(
+    doc: &BaseDocument,
+    node_id: NodeId,
+    transformed: bool,
+) -> Option<Rect> {
     let node = doc.get_node(node_id)?;
     let elem = node.element_data()?;
     if *elem.namespace() != ns!(svg) {
@@ -1111,7 +1151,10 @@ fn svg_descendant_rect_for_node(doc: &BaseDocument, node_id: NodeId) -> Option<R
     let x1 = x0 + bbox.width() * scale_x;
     let y1 = y0 + bbox.height() * scale_y;
 
-    let (x0, y0, x1, y1) = match composed_transform_for_node(doc, host.id()) {
+    let composed = transformed
+        .then(|| composed_transform_for_node(doc, host.id()))
+        .flatten();
+    let (x0, y0, x1, y1) = match composed {
         Some((composed, scale)) => {
             let local = kurbo::Rect::new(
                 (x0 - host_abs.x) as f64 * scale,
@@ -1217,7 +1260,7 @@ impl DomHandle {
                     return vec![bounding_rect_for_node(&doc, node)];
                 }
             }
-            inline_line_rects_for_node(&doc, node.id())
+            inline_line_rects_for_node(&doc, node.id(), true)
                 .unwrap_or_else(|| vec![bounding_rect_for_node(&doc, node)])
         }))
         .unwrap_or_default();
@@ -1436,24 +1479,32 @@ impl DomHandle {
                 .unwrap_or(Position::Static);
             let own_name = local_name(node).unwrap_or_default();
 
-            let self_boxless = node
-                .primary_styles()
-                .map(|s| {
-                    use ::style::values::specified::box_::DisplayOutside;
-                    s.clone_display().outside() == DisplayOutside::None
-                })
-                .unwrap_or(true);
+            let display_none = node.primary_styles().map(|s| {
+                use ::style::values::specified::box_::DisplayOutside;
+                s.clone_display().outside() == DisplayOutside::None
+            });
+            let self_boxless = display_none.unwrap_or(true);
 
-            if own_name == "body"
-                || node.id() == root_element_id
-                || !node.is_element()
-                || self_boxless
-                || !has_layout_box(node.id())
-            {
+            if !node.is_element() || display_none == Some(true) || !has_layout_box(node.id()) {
                 return Some(OffsetMetrics {
                     parent: -1.0,
                     top: 0.0,
                     left: 0.0,
+                    width: 0.0,
+                    height: 0.0,
+                });
+            }
+            let (width, height) = untransformed_size_for_node(&doc, node);
+            let (width, height) = (width as f64, height as f64);
+            // Styles cannot be read mid-measure, where the element still has the box it had:
+            // it keeps its size, as the rect path gives it, and only its offsets are unknown.
+            if self_boxless || own_name == "body" || node.id() == root_element_id {
+                return Some(OffsetMetrics {
+                    parent: -1.0,
+                    top: 0.0,
+                    left: 0.0,
+                    width,
+                    height,
                 });
             }
 
@@ -1496,7 +1547,7 @@ impl DomHandle {
                 }
                 let size = n.final_layout().size;
                 if (size.width <= 0.0 || size.height <= 0.0) && id != root_element_id {
-                    if let Some(r) = inline_aware_rect_for_node(&doc, id) {
+                    if let Some(r) = inline_aware_rect_for_node(&doc, id, false) {
                         return Some((r.x, r.y));
                     }
                 }
@@ -1513,6 +1564,8 @@ impl DomHandle {
                     parent: -1.0,
                     top: node_y as f64,
                     left: node_x as f64,
+                    width,
+                    height,
                 });
             };
             let (op_x, op_y) = viewport_pos(op_id)?;
@@ -1550,6 +1603,8 @@ impl DomHandle {
                     parent: f64::from(self.external_node_id(op_id)),
                     top: (node_y + scroll_y) as f64,
                     left: (node_x + scroll_x) as f64,
+                    width,
+                    height,
                 });
             }
             let border = op.final_layout().border;
@@ -1557,6 +1612,8 @@ impl DomHandle {
                 parent: f64::from(self.external_node_id(op_id)),
                 top: (node_y - op_y + scroll_y - border.top) as f64,
                 left: (node_x - op_x + scroll_x - border.left) as f64,
+                width,
+                height,
             })
         }));
         match result.unwrap_or(None) {
