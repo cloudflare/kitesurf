@@ -206,7 +206,9 @@ impl<'a> StepStack<'a> for Vec<StreamStep> {
 /// document-sized `String` by doubling raised the Wasm high-water mark by about twice its size.
 trait HtmlSink {
     fn push_str(&mut self, s: &str);
-    fn push(&mut self, ch: char);
+    fn push(&mut self, ch: char) {
+        self.push_str(ch.encode_utf8(&mut [0; 4]));
+    }
 }
 
 impl HtmlSink for String {
@@ -582,10 +584,6 @@ impl HtmlSink for Probe<'_> {
         }
         self.len += s.len();
     }
-
-    fn push(&mut self, ch: char) {
-        self.push_str(ch.encode_utf8(&mut [0; 4]));
-    }
 }
 
 /// Second pass: the output with `cut` bytes at raw offset `at` replaced by `insert`, queued in
@@ -626,10 +624,6 @@ impl HtmlSink for StreamSink {
             rest = &rest[n..];
             self.raw_pos += n;
         }
-    }
-
-    fn push(&mut self, ch: char) {
-        self.push_str(ch.encode_utf8(&mut [0; 4]));
     }
 }
 

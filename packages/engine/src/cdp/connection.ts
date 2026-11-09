@@ -82,10 +82,10 @@ function isRawJsonSuccess(payload: unknown): payload is CdpSuccess & { result: R
 
 export function registerDispatchConsumer(
   onDispatch: ((dispatch: (req: CdpRequest) => Promise<CdpResponse>) => void) | undefined,
-  dispatch: (req: CdpRequest) => Promise<CdpResponse>,
+  tracedDispatch: (req: CdpRequest) => Promise<CdpResponse>,
 ): void {
   onDispatch?.(async (req) => {
-    const response = await dispatch(req);
+    const response = await tracedDispatch(req);
     if (!isRawJsonSuccess(response)) return response;
     const result = response.result.parse();
     return { ...response, result };

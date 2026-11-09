@@ -14,7 +14,6 @@ export const EMOJI_BMP_SCAN =
   /[\u231A-\u231B\u23E9-\u23EC\u23F0\u23F3\u25FD-\u25FE\u2614-\u2615\u2648-\u2653\u267F\u2693\u26A1\u26AA-\u26AB\u26BD-\u26BE\u26C4-\u26C5\u26CE\u26D4\u26EA\u26F2-\u26F3\u26F5\u26FA\u26FD\u2705\u270A-\u270B\u2728\u274C\u274E\u2753-\u2755\u2757\u2795-\u2797\u27B0\u27BF\u2B1B-\u2B1C\u2B50\u2B55\uFE0F]/;
 
 function needsEmoji(text: string): boolean {
-  if (typeof text !== "string" || text.length === 0) return false;
   return /[\u{1F000}-\u{1FFFF}]/u.test(text) || EMOJI_BMP_SCAN.test(text);
 }
 
@@ -22,7 +21,6 @@ export const CJK_SCAN =
   /[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\uFF00-\uFFEF]/;
 
 function needsCjk(html: string): boolean {
-  if (typeof html !== "string" || html.length === 0) return false;
   return CJK_SCAN.test(html);
 }
 
@@ -31,7 +29,6 @@ function hasListMarkers(html: string): boolean {
 }
 
 function needsSymbols(html: string): boolean {
-  if (typeof html !== "string" || html.length === 0) return false;
   return /[\u{2100}-\u{2BFF}]/u.test(html) || hasListMarkers(html);
 }
 
@@ -92,7 +89,6 @@ function needsSymbols2(html: string): boolean {
 }
 
 function needsMono(html: string): boolean {
-  if (typeof html !== "string" || html.length === 0) return false;
   if (/<(pre|code|kbd|samp|tt|xmp|listing|plaintext)[\s/>]/i.test(html)) return true;
   const mono = /(?:monospace|font-mono|DM(?:%20|\+|\s)+Mono)/i;
   // Scanned with indexOf rather than a lazy regex: `<style` with no closing `>` or `</style>`
@@ -120,7 +116,6 @@ function needsMono(html: string): boolean {
 }
 
 function needsSerif(html: string): boolean {
-  if (typeof html !== "string" || html.length === 0) return false;
   if (hasSerifOutsideSansSerif(html)) return true;
   return /\b(?:times(?:\s+new\s+roman)?|georgia|cambria|garamond|palatino|baskerville|didot|merriweather|noto\s+serif|pt\s+serif|source\s+serif|dm\s+serif|playfair|slabo|roboto\s+slab|constantia|sabon|book\s+antiqua)\b/i.test(
     html,
@@ -163,29 +158,28 @@ function hasSerifOutsideSansSerif(html: string): boolean {
 }
 
 function needsOutlineConsumers(html: string): boolean {
-  if (typeof html !== "string" || html.length === 0) return false;
   if (/<canvas[\s/>]/i.test(html)) return true;
   return /<svg[\s/>]/i.test(html) && /<text[\s/>]/i.test(html);
 }
 
 /** The font faces `html` wants before its first layout. */
 export function scanSourceFonts(html: string): SourceFontScan {
-  const symbols = !!html && needsSymbols(html);
+  const symbols = needsSymbols(html);
   const scripts: string[] = [];
-  const perScriptScan = html ? scriptScanText(html) : "";
-  if (perScriptScan && ANY_SCRIPT_RANGE.test(perScriptScan)) {
+  const perScriptScan = scriptScanText(html);
+  if (ANY_SCRIPT_RANGE.test(perScriptScan)) {
     for (const { tag, range } of SCRIPT_RANGES) {
       if (range.test(perScriptScan)) scripts.push(tag);
     }
   }
   return {
-    outline: !!html && needsOutlineConsumers(html),
+    outline: needsOutlineConsumers(html),
     symbols,
     symbols2: symbols && needsSymbols2(html),
     emoji: needsEmoji(perScriptScan),
-    cjk: !!html && needsCjk(html),
-    mono: !!html && needsMono(html),
-    serif: !!html && needsSerif(html),
+    cjk: needsCjk(html),
+    mono: needsMono(html),
+    serif: needsSerif(html),
     scripts,
   };
 }
