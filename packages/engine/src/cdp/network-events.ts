@@ -570,6 +570,10 @@ export class NetworkEventTracker {
     );
   }
 
+  knowsRequest(requestId: Protocol.Network.RequestId): boolean {
+    return this.records.has(requestId);
+  }
+
   getResponseBody(
     requestId: Protocol.Network.RequestId,
   ): Protocol.Network.GetResponseBodyResponse | null {
