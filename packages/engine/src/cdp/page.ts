@@ -678,7 +678,11 @@ export async function handlePage(
           const msg = e instanceof Error ? e.message : String(e);
           console.warn("kitesurf: navigate(about:blank) createDom trap:", msg);
           target.dom = null;
-          return { error: `navigate: wasm trap during parse: ${msg}` };
+          return navigateReply(
+            target.frameId,
+            loaderId,
+            `navigate: wasm trap during parse: ${msg}`,
+          );
         }
         const {
           console: capturedConsole,
@@ -692,7 +696,7 @@ export async function handlePage(
         emitCapturedExceptions(ctx, target, exceptions, req.sessionId);
         emitMutations(ctx, target, cdpMutations);
         clearPendingNavAbort(target, navAbort);
-        return { frameId: target.frameId, loaderId };
+        return navigateReply(target.frameId, loaderId);
       }
 
       emitFrameStartedLoading(ctx, target, mainFrame(target), req.sessionId);
@@ -823,11 +827,7 @@ export async function handlePage(
           });
           if (!walk.ok) {
             ctx.browser.networkEvents.failRequest(requestId, "net::ERR_TOO_MANY_REDIRECTS");
-            return {
-              frameId: target.frameId,
-              loaderId,
-              errorText: "net::ERR_TOO_MANY_REDIRECTS",
-            };
+            return navigateReply(target.frameId, loaderId, "net::ERR_TOO_MANY_REDIRECTS");
           }
           resp = walk.response;
           currentUrl = walk.finalUrl;
@@ -841,7 +841,7 @@ export async function handlePage(
             errorText ?? (fetchErr instanceof Error ? fetchErr.message : String(fetchErr)),
           );
           if (errorText) {
-            return { frameId: target.frameId, loaderId, errorText };
+            return navigateReply(target.frameId, loaderId, errorText);
           }
           throw fetchErr;
         }
@@ -859,7 +859,7 @@ export async function handlePage(
           });
           ctx.browser.networkEvents.drain();
           clearPendingNavAbort(target, navAbort);
-          return { frameId: target.frameId, loaderId, errorText: "net::ERR_ABORTED" };
+          return navigateReply(target.frameId, loaderId, "net::ERR_ABORTED");
         }
         const finalUrl = currentUrl;
         target.url = finalUrl;
@@ -884,7 +884,7 @@ export async function handlePage(
             const errorText = cappedErrorText(read.failure);
             ctx.browser.networkEvents.failRequest(requestId, errorText);
             clearPendingNavAbort(target, navAbort);
-            return { frameId: target.frameId, loaderId, errorText };
+            return navigateReply(target.frameId, loaderId, errorText);
           }
           const buf = read.bytes;
           const decoded = decodeHtmlBytes(buf, ct);
@@ -910,7 +910,7 @@ export async function handlePage(
             const errorText = cappedErrorText(read.failure);
             ctx.browser.networkEvents.failRequest(requestId, errorText);
             clearPendingNavAbort(target, navAbort);
-            return { frameId: target.frameId, loaderId, errorText };
+            return navigateReply(target.frameId, loaderId, errorText);
           }
           let wrapper: string;
           if (docKind === "image") {
@@ -1000,14 +1000,10 @@ export async function handlePage(
         emitCapturedExceptions(ctx, target, exceptions, req.sessionId);
         emitMutations(ctx, target, cdpMutations);
         if (target.pendingNavAbort === navAbort) target.pendingNavAbort = null;
-        return { frameId: target.frameId, loaderId };
+        return navigateReply(target.frameId, loaderId);
       } catch (err) {
         const errorText = err instanceof Error ? err.message : String(err);
-        return {
-          frameId: target.frameId,
-          loaderId,
-          errorText,
-        };
+        return navigateReply(target.frameId, loaderId, errorText);
       }
     }
 
@@ -2428,6 +2424,18 @@ export function mainFrame(t: TargetState): FrameState {
   const main = t.frames.get(t.frameId);
   if (main) return main;
   return makeMainFrameState({ frameId: t.frameId, loaderId: t.loaderId, url: t.url });
+}
+
+// Chrome includes isDownload in every Page.navigate reply, and Playwright reads it. Kitesurf
+// aborts a response Chrome would download (net::ERR_ABORTED), so it never reports a download.
+function navigateReply(
+  frameId: string,
+  loaderId: string,
+  errorText?: string,
+): Protocol.Page.NavigateResponse {
+  return errorText === undefined
+    ? { frameId, loaderId, isDownload: false }
+    : { frameId, loaderId, errorText, isDownload: false };
 }
 
 function navErrorText(err: unknown, aborted: boolean): string | null {
