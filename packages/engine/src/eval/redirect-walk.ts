@@ -128,6 +128,9 @@ export async function walkRedirects(opts: RedirectWalkOptions): Promise<Redirect
       };
     }
 
+    // The walk never returns a redirect's body, whether it follows the hop or stops here.
+    void resp.body?.cancel().catch(() => {});
+
     let next: URL;
     try {
       next = new URL(location, currentUrl);
