@@ -5,7 +5,7 @@
 import { describe, it, expect } from "vitest";
 import { handleCss } from "../src/cdp/css.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
-import type { CdpParamsOf, TargetState } from "../src/cdp/types.ts";
+import type { CdpParamsOf, CdpRequest, TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
 
@@ -180,5 +180,50 @@ describe("CSS replies from the isolate", () => {
       [{ name: "color", value: "red" }],
     ]);
     expect(computed.computedStyle).toEqual([{ name: "color", value: "red" }]);
+  });
+});
+
+describe("CSS.enable opaque stylesheet fetches", () => {
+  async function enable(sourceURL: unknown) {
+    const fetched: Array<{ url: string; method: string }> = [];
+    const target = makeTarget(
+      makeStub({
+        enumerateStyleSheets: {
+          sheets: [{ ownerNodeId: 2, text: "", sourceURL, cors: "opaque" }],
+        } as QueryDomResult<"enumerateStyleSheets">,
+      }),
+    );
+    target.nextStyleSheetRev = new Map();
+    // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only the fields CSS.enable reads are set.
+    const ctx = {
+      browser: {
+        targets: new Map([["t1", target]]),
+        sandboxOutbound: {
+          external: true,
+          final: async (r: Request) => {
+            fetched.push({ url: r.url, method: r.method });
+            return new Response("p{}");
+          },
+        },
+      },
+      emit: () => {},
+    } as unknown as DispatchCtx;
+    await handleCss(ctx, { id: 1, method: "CSS.enable", sessionId: "s1" } as CdpRequest);
+    return { fetched, text: [...target.styleSheets.values()].map((e) => e.text) };
+  }
+
+  it("fetches a string http(s) url with GET", async () => {
+    expect(await enable("https://cdn.test/a.css")).toEqual({
+      fetched: [{ url: "https://cdn.test/a.css", method: "GET" }],
+      text: ["p{}"],
+    });
+  });
+
+  it.each([
+    ["a Request", new Request("https://cdn.test/a.css", { method: "POST", body: "x" })],
+    ["a URL object", new URL("https://cdn.test/a.css")],
+    ["a non-http url", "file:///etc/hosts"],
+  ])("does not fetch %s", async (_, sourceURL) => {
+    expect((await enable(sourceURL)).fetched).toEqual([]);
   });
 });
