@@ -1,0 +1,183 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 9 Nov 2026 22:26:58 +0000
+Subject: [PATCH] Size a text field from its size attribute
+
+A text input with no specified width measured 300px under a max-content
+constraint, and as much of a definite space as it got up to that: an
+auto-width field in an inline-block came out well over 100px wider than
+in Chrome. HTML renders a text-entry field wide enough for `size`
+characters, 20 by default, and Blink counts them as `size` average
+character widths (the font's OS/2 average, rounded) plus one widest
+character less the average (on Linux, the width of the font's `head`
+bounding box), so the field's width now follows the font and the
+attribute. A font without an OS/2 average counts in the advance of a
+zero, as in Blink.
+
+The field still shrinks into a narrower definite space, measured as the
+content box the field is given rather than the box around its padding
+and border, and its min-content width stays zero. Layout reads `size`
+outside the style diff, so setting the attribute damages the field's
+layout; a value past HTML's integer range falls back to the default.
+The font is consulted only when the width is not otherwise known. The UA sheet does not shrink a field's
+font to Chrome's 13.33px, so a field here is wider than Chrome's for the
+same page, and a hard minimum would overflow containers that fit it in
+Chrome. A number field's spin button is not counted.
+---
+ src/font_metrics.rs | 24 +++++++++++++++++++
+ src/layout/mod.rs   | 58 +++++++++++++++++++++++++++++++++++++++------
+ src/mutator.rs      | 12 +++++++++-
+ 3 files changed, 86 insertions(+), 8 deletions(-)
+
+diff --git a/src/font_metrics.rs b/src/font_metrics.rs
+index 2ac0cbe..6480abd 100644
+--- a/src/font_metrics.rs
++++ b/src/font_metrics.rs
+@@ -86,6 +86,30 @@ fn advance_of(
+     Some(advance * (font_size / upem as f32))
+ }
+
++/// The average and widest character widths a text field's `size` counts in, as Blink reads them
++/// on Linux: the OS/2 average and the width of the `head` bounding box, in whole pixels.
++pub(crate) fn text_field_char_widths(
++    font_ctx: &Mutex<FontContext>,
++    font_styles: &FontStyles,
++    font_size: f32,
++) -> Option<(f32, f32)> {
++    let mut font_ctx = font_ctx.lock().unwrap();
++    let font_ctx = &mut *font_ctx;
++    let mut query = query_for_font_styles(font_ctx, font_styles);
++    let font = find_font_for(&mut query, '0')?;
++    let font_ref = skrifa::FontRef::from_index(font.blob.as_ref(), font.index).ok()?;
++    let metrics = Metrics::new(&font_ref, Size::new(font_size), LocationRef::default());
++    if let (Some(average), Some(bounds)) = (metrics.average_width, metrics.bounds) {
++        if average > 0.0 {
++            return Some((average.round(), (bounds.x_max - bounds.x_min).round()));
++        }
++    }
++    // A font without an OS/2 average makes Blink count in the advance of a zero, with no widest
++    // character added.
++    let variations = stylo_to_parley::font_variations(&font_styles.font_variation_settings);
++    Some((advance_of(&mut query, '0', font_size, &variations)?, 0.0))
++}
++
+ #[derive(Clone)]
+ pub(crate) struct BlitzFontMetricsProvider {
+     pub(crate) font_ctx: Arc<Mutex<FontContext>>,
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 5d1598f..fe8d7f3 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -75,6 +75,30 @@ fn tag_intrinsic_sizes(
+     (IntrinsicSizes::default(), DEFAULT_OBJECT_SIZE)
+ }
+
++/// A text field's `size` attribute: a non-negative integer (HTML's parsing rules), counted only
++/// when it is above zero and within the range HTML gives such an integer.
++fn parse_text_field_size(value: &str) -> Option<u32> {
++    let value = value.trim_start_matches(|c: char| c.is_ascii_whitespace());
++    let value = value.strip_prefix('+').unwrap_or(value);
++    let digits = value.find(|c: char| !c.is_ascii_digit()).unwrap_or(value.len());
++    value[..digits].parse().ok().filter(|size| (1..=i32::MAX as u32).contains(size))
++}
++
++/// The content width of a text field with no specified width, as Blink sizes it: `size` average
++/// characters plus one widest-minus-average character.
++fn text_field_intrinsic_width(
++    font_ctx: &std::sync::Mutex<parley::FontContext>,
++    font_styles: Option<&style::properties::style_structs::Font>,
++    font_size: f32,
++    size: u32,
++) -> f32 {
++    let (average, widest) = font_styles
++        .and_then(|font| crate::font_metrics::text_field_char_widths(font_ctx, font, font_size))
++        .unwrap_or((font_size / 2.0, 0.0));
++    let width = (average * size as f32).ceil();
++    if widest > 0.0 { width + widest - average } else { width }
++}
++
+ pub(crate) fn resolve_calc_value(calc_ptr: *const (), parent_size: f32) -> f32 {
+     let calc = unsafe { &*(calc_ptr as *const CalcLengthPercentage) };
+     let result = calc.resolve(CSSPixelLength::new(parent_size));
+@@ -225,7 +249,7 @@ impl LayoutPassState<'_> {
+         block_ctx: Option<&mut BlockContext<'_>>,
+     ) -> taffy::tree::LayoutOutput {
+         let orthogonal_percent_basis = self.orthogonal_percent_basis_of(dom_node_id(node_id));
+-        let node = &mut self.nodes[dom_node_id(node_id)];
++        let node = &mut self.doc.nodes[dom_node_id(node_id)];
+
+         let font_styles = node.primary_styles().map(|style| {
+             use style::values::computed::font::LineHeight;
+@@ -370,16 +394,36 @@ impl LayoutPassState<'_> {
+                             | "week" | "time",
+                         ) => {}
+                         _ => {
++                            let size = element_data
++                                .attr(local_name!("size"))
++                                .and_then(parse_text_field_size)
++                                .unwrap_or(20);
++                            // Asked for only when the width is not known: the font lookup behind
++                            // it is wasted on a field with a definite width, the common case.
++                            let intrinsic_width = || {
++                                text_field_intrinsic_width(
++                                    &self.doc.font_ctx,
++                                    node.primary_styles().as_deref().map(|style| style.get_font()),
++                                    font_size.unwrap_or(16.0),
++                                    size,
++                                )
++                            };
++                            // The measure's own space is the content box's; the caller's is not,
++                            // and clamped to it a field overflowed by its padding and border.
+                             return compute_leaf_layout(
+                                 inputs,
+                                 &node.layout_style(),
+                                 resolve_calc_value,
+-                                |_known_size, _available_space| taffy::Size {
+-                                    width: match inputs.available_space.width {
+-                                        AvailableSpace::Definite(limit) => limit.min(300.0),
+-                                        AvailableSpace::MinContent => 0.0,
+-                                        AvailableSpace::MaxContent => 300.0,
+-                                    },
++                                |known_size, available_space| taffy::Size {
++                                    width: known_size.width.unwrap_or_else(|| {
++                                        match available_space.width {
++                                            AvailableSpace::Definite(limit) => {
++                                                limit.min(intrinsic_width())
++                                            }
++                                            AvailableSpace::MinContent => 0.0,
++                                            AvailableSpace::MaxContent => intrinsic_width(),
++                                        }
++                                    }),
+                                     height: resolved_line_height.unwrap_or(16.0),
+                                 },
+                             );
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 060bc50..0f15da7 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -3,7 +3,7 @@ use std::collections::HashSet;
+ use std::mem;
+ use std::ops::{Deref, DerefMut};
+
+-use crate::layout::damage::{ALL_DAMAGE, CONSTRUCT_BOX};
++use crate::layout::damage::{ALL_DAMAGE, CONSTRUCT_BOX, ONLY_RELAYOUT};
+ use crate::net::{ImageHandler, ResourceHandler, StylesheetHandler};
+ use crate::node::{CanvasData, NodeFlags, ShadowRootMode, SpecialElementData, TextInputData};
+ use crate::stylo_device::DeviceChanges;
+@@ -443,6 +443,16 @@ impl DocumentMutator<'_> {
+             // Counter resolution reads these attributes outside Stylo's style diff.
+             node.insert_damage(CONSTRUCT_BOX);
+         }
++        let text_field_size_changed = name.ns == ns!()
++            && name.local == local_name!("size")
++            && node
++                .element_data()
++                .is_some_and(|element| element.name.local == local_name!("input"));
++        if node_is_in_document && text_field_size_changed {
++            // Layout reads a text field's size outside Stylo's style diff, so the field would
++            // keep the width its cached layout has.
++            node.insert_damage(ONLY_RELAYOUT);
++        }
+
+         let NodeData::Element(ref mut element) = node.data else {
+             return;
