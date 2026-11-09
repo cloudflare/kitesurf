@@ -16,8 +16,6 @@
     "dev:simulate-prod": "pnpm run prebuild && wrangler dev --env local -c wrangler.jsonc -c test/fixtures-worker/wrangler.jsonc --port ${KITESURF_PORT:-8787} --inspector-port ${KITESURF_INSPECTOR_PORT:-9229} --var KITESURF_SIMULATE_PROD_EVAL:1",
     "dev:memprof": "pnpm --dir ../.. run build:wasm:memprof && wrangler dev --env local -c wrangler.jsonc -c test/fixtures-worker/wrangler.jsonc --port ${KITESURF_PORT:-8787} --inspector-port ${KITESURF_INSPECTOR_PORT:-9229}",
     "build": "pnpm run prebuild",
-    "deploy": "pnpm run prebuild && wrangler deploy -c wrangler.jsonc",
-    "deploy:preview": "pnpm run prebuild && wrangler versions upload -c wrangler.jsonc",
     "cf-typegen": "wrangler types -c wrangler.jsonc --include-runtime --no-strict-vars && wrangler types -c test/fixtures-worker/wrangler.jsonc --include-runtime --no-strict-vars test/fixtures-worker/worker-configuration.d.ts",
     "types": "pnpm run cf-typegen && tsc --noEmit && tsc --noEmit -p test/e2e/tsconfig.json && tsc --noEmit -p test/e2e/demos/tsconfig.json && tsc --noEmit -p test/fixtures-worker/tsconfig.json",
     "test": "vitest run",

@@ -139,8 +139,10 @@ pnpm run test:puppeteer --filter <substring>   # after pnpm run pptr:setup
 Use an explicit `KITESURF_PORT` or `--port` when other engines may be running, and stop only the
 `wrangler` and `workerd` processes you started.
 
-- **Deploying:** `packages/engine/wrangler.jsonc` is a template with no account or routes.
-  Self-hosting is not supported yet.
+- **Deploying:** `pnpm run deploy [wrangler deploy args]` builds with `--config=devtools` and
+  uploads `:dist` and the assets unbundled (`scripts/engine-deploy.mjs`) to wrangler's account.
+  `pnpm run deploy:preview` does the same with `wrangler versions upload`, which moves no traffic.
+  `packages/engine/wrangler.jsonc` stays a template with no account or routes. Agents never deploy.
 - **Tracing:** send a `traceparent` header (or a bare trace id in it) with `pnpm dev:tracing` running.
 - **WPT:** `test:wpt` starts, health-checks and stops its own engines every `--batch-size` tests.
   It refuses to start if a port in its range is taken. `-j N` runs N engines and uses ports

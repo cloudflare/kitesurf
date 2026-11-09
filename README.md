@@ -150,8 +150,30 @@ Kitesurf patches its Rust dependencies. The patch series are in
 
 ## Cloudflare deployment
 
-The repository supports local development with Wrangler. A complete self-hosting
-workflow is not available yet.
+To deploy the engine as a Worker on your Cloudflare account, run:
+
+```bash
+pnpm run deploy --name <worker-name>
+```
+
+The command builds the engine with Bazel and uploads it with Wrangler. Wrangler
+uses the account of `wrangler login`, or `CLOUDFLARE_ACCOUNT_ID` and
+`CLOUDFLARE_API_TOKEN`. The command sends other arguments to `wrangler deploy`.
+Without `--name`, the Worker name is `kitesurf`.
+
+To upload a version without sending traffic to it, run `pnpm run deploy:preview`.
+The command runs `wrangler versions upload`. If the Worker has preview URLs
+turned on, Wrangler prints the URL of the new version.
+
+The deploy includes the Chrome DevTools frontend. The first build downloads it
+(about 250 MB). Open `https://<worker-host>/?inspect=1` in Chrome to start
+DevTools on a blank page. Puppeteer and other CDP clients connect to `wss://<worker-host>/devtools/browser`.
+
+The engine has no authentication. Anyone who has its URL can use it and its
+outbound network access. Put the Worker behind
+[Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/applications/configure-apps/self-hosted-public-app/)
+before you share it. DevTools comes from the Worker's own origin, so its
+WebSocket keeps the Access cookie.
 
 The engine configuration includes a Worker Loader binding. Kitesurf uses this
 binding to start a separate worker for each page and renderer. Cloudflare
