@@ -9,7 +9,7 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Cursor;
-use std::panic::{catch_unwind, AssertUnwindSafe, RefUnwindSafe};
+use std::panic::{self, RefUnwindSafe};
 
 use anyrender::{Glyph as AnyGlyph, ImageRenderer as _, PaintScene};
 #[cfg(feature = "pdf")]
@@ -34,8 +34,7 @@ use crate::paint::scene_record::{
     RBI_RESOURCE_KIND_FONT_DATA, RBI_RESOURCE_KIND_IMAGE,
 };
 use crate::paint::screenshot::{
-    encode_jpeg, encode_jpeg_retained, encode_png, encode_webp, ImageFormat,
-    JpegRowCache,
+    encode_jpeg, encode_jpeg_retained, encode_png, encode_webp, ImageFormat, JpegRowCache,
 };
 
 pub(crate) const RESOURCE_COUNT_BYTES: usize = 4;
@@ -1306,11 +1305,7 @@ fn render_pdf_impl(
         let mut surface = page.surface();
         push_px_to_pt_scale(&mut surface);
         if !omit_background {
-            paint_white_background(
-                &mut surface,
-                paper_width,
-                paper_height,
-            )?;
+            paint_white_background(&mut surface, paper_width, paper_height)?;
         }
         if ml > 0 || mt > 0 {
             let t = Transform::from_row(1.0, 0.0, 0.0, 1.0, ml as f32, mt as f32);
@@ -1877,7 +1872,9 @@ impl SceneRasterizer {
     ) -> Option<T> {
         let mut retained = self.retained.borrow_mut();
         let result = match retained.as_mut() {
-            Some(frame) if frame.key == key => catch_unwind(AssertUnwindSafe(|| f(frame))),
+            Some(frame) if frame.key == key => {
+                panic::catch_unwind(panic::AssertUnwindSafe(|| f(frame)))
+            }
             _ => Ok(Err("no retained base frame for key".to_string())),
         };
         // A failed operation on a matching base clears its key so a later partial
@@ -2018,7 +2015,7 @@ impl SceneRasterizer {
         margin_left: u32,
     ) -> Vec<u8> {
         let store = self.store.borrow();
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             render_pdf_impl(
                 &store,
                 envelope,

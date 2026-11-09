@@ -4,7 +4,7 @@
 
 //! Computed and resolved style values for `getComputedStyle` and CDP.
 
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic;
 
 use blitz_dom::BaseDocument;
 use blitz_traits::NodeId;
@@ -15,11 +15,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::{DomHandle, LayoutMode};
 
-fn grid_template_resolved(
-    doc: &BaseDocument,
-    node_id: NodeId,
-    columns: bool,
-) -> Option<String> {
+fn grid_template_resolved(doc: &BaseDocument, node_id: NodeId, columns: bool) -> Option<String> {
     let info = doc.grid_track_info(node_id)?;
     let mut tracks = if columns {
         info.columns.clone()
@@ -228,7 +224,7 @@ impl DomHandle {
             Err(_) => return Ok(JsValue::NULL),
         };
         let normalized = pseudo.trim().trim_start_matches(':').to_ascii_lowercase();
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let Some(node) = internal_id.and_then(|id| doc.get_node(id)) else {
                 return Vec::new();
             };
@@ -331,7 +327,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return Ok(JsValue::NULL),
         };
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let Some(node) = internal_id.and_then(|id| doc.get_node(id)) else {
                 return Vec::new();
             };
@@ -721,7 +717,7 @@ impl DomHandle {
         self.ensure_layout();
         let internal_id = self.resolve_node_id(node_id)?;
         let doc = self.doc.try_borrow().ok()?;
-        catch_unwind(AssertUnwindSafe(|| {
+        panic::catch_unwind(panic::AssertUnwindSafe(|| {
             use style_traits::ToCss as _;
             let styles = doc.get_node(internal_id)?.primary_styles()?;
             let atom = ::stylo_atoms::Atom::from(name);
@@ -750,7 +746,7 @@ impl DomHandle {
         self.ensure_layout();
         let internal_id = self.resolve_node_id(node_id)?;
         let doc = self.doc.try_borrow().ok()?;
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let styles = doc.get_node(internal_id)?.primary_styles()?;
             let mut value = String::new();
             let mut ctx = ::style::values::resolved::Context {

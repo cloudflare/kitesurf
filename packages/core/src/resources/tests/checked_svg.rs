@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-use std::str::from_utf8;
+use std::str;
 
 use blitz_dom::util::parse_svg_image;
 
@@ -15,7 +15,7 @@ const CHECKED_URL: &str = "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2
 #[test]
 fn unchecked_svg_decodes_and_parses() {
     let bytes = decode_data_url(UNCHECKED_URL).expect("decode unchecked");
-    let s = from_utf8(&bytes).expect("utf8");
+    let s = str::from_utf8(&bytes).expect("utf8");
     println!("UNCHECKED decoded ({} bytes):\n{}", bytes.len(), s);
     let tree = parse_svg_image(&bytes).expect("usvg parse unchecked").tree;
     let size = tree.size();
@@ -26,7 +26,7 @@ fn unchecked_svg_decodes_and_parses() {
 #[test]
 fn checked_svg_decodes_and_parses() {
     let bytes = decode_data_url(CHECKED_URL).expect("decode checked");
-    let s = from_utf8(&bytes).expect("utf8");
+    let s = str::from_utf8(&bytes).expect("utf8");
     println!("CHECKED decoded ({} bytes):\n{}", bytes.len(), s);
     let tree = parse_svg_image(&bytes).expect("usvg parse checked").tree;
     let size = tree.size();

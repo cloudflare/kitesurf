@@ -4,7 +4,7 @@
 
 //! Hit testing: the element, caret, and pseudo-element at a point.
 
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic;
 
 use blitz_dom::node::SpecialElementData;
 use blitz_dom::{BaseDocument, NodeData};
@@ -63,7 +63,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return -1,
         };
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let Some(hit) = doc.hit(x, y) else {
                 return -1;
             };
@@ -96,7 +96,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return JsValue::NULL,
         };
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             input_caret_from_point(&mut doc, x, y).or_else(|| doc.dom_caret_from_point(x, y))
         }));
         match result {
@@ -120,7 +120,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return 0,
         };
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let Some(hit) = doc.hit(x, y) else {
                 return 0;
             };

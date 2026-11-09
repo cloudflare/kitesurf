@@ -186,10 +186,10 @@ fn shadow_content_lays_out_and_light_children_do_not() {
 
 #[test]
 fn scroll_queries_on_a_shadow_root_return_none_without_panicking() {
-    use std::panic::{set_hook, take_hook};
+    use std::panic;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
-    use std::thread::current;
+    use std::thread;
 
     let html = r##"<!DOCTYPE html>
 <html><body><div id="host" style="width:100px;height:100px;overflow:scroll"></div></body></html>"##;
@@ -203,16 +203,16 @@ fn scroll_queries_on_a_shadow_root_return_none_without_panicking() {
 
     let panicked = Arc::new(AtomicBool::new(false));
     let flag = Arc::clone(&panicked);
-    let this_thread = current().id();
-    let prev = take_hook();
-    set_hook(Box::new(move |_| {
-        if current().id() == this_thread {
+    let this_thread = thread::current().id();
+    let prev = panic::take_hook();
+    panic::set_hook(Box::new(move |_| {
+        if thread::current().id() == this_thread {
             flag.store(true, Ordering::SeqCst);
         }
     }));
     let root_info = dom.read_scroll_info(root);
     let root_write = dom.write_scroll_offset(root, 0.0, 40.0);
-    set_hook(prev);
+    panic::set_hook(prev);
 
     assert!(root_info.is_none(), "a shadow root has no scroll metrics");
     assert!(root_write.is_none(), "a shadow root has no scroll offset");

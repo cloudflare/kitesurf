@@ -4,7 +4,7 @@
 
 //! Print output: PDF scenes, the page box, and the print media type.
 
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic;
 
 use wasm_bindgen::prelude::*;
 
@@ -68,7 +68,7 @@ impl DomHandle {
             Err(_) => return Vec::new(),
         };
         let mut pdf_images = Vec::new();
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let base: &mut blitz_dom::BaseDocument = &mut doc;
             crate::paint::pdf::record_doc_pdf_scenes(
                 base,
@@ -109,7 +109,7 @@ impl DomHandle {
 
     #[wasm_bindgen(js_name = "pageBoxJson")]
     pub fn page_box_json(&self) -> String {
-        let computed = catch_unwind(AssertUnwindSafe(|| self.compute_page_box()));
+        let computed = panic::catch_unwind(panic::AssertUnwindSafe(|| self.compute_page_box()));
         match computed {
             Ok(Ok(pb)) => pb,
             Ok(Err(e)) => format!(
