@@ -61,3 +61,24 @@ test("destructuring, ASI and a class before an IIFE keep their meaning", async (
   });
   expect(await readJsonReport(cdpSession, "globalThis.__afterShapes")).toEqual({ ran: 1 });
 }, 60_000);
+
+// A destructured binding and a reassigned function both have to reach later scripts.
+const sharing = `<script>
+  const { a, b } = { a: 1, b: 2 };
+  function f() { return "first"; }
+  f = function () { return "second"; };
+</script>
+<script>
+  globalThis.__shared = JSON.stringify({ sum: a + b, f: f() });
+</script>`;
+
+test("destructured bindings and reassigned functions reach later scripts", async ({
+  page,
+  cdpSession,
+}) => {
+  await setContent(page, sharing, { waitUntil: "domcontentloaded" });
+  expect(await readJsonReport(cdpSession, "globalThis.__shared")).toEqual({
+    sum: 3,
+    f: "second",
+  });
+}, 60_000);

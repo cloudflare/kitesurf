@@ -163,30 +163,39 @@ function buildClassicSegment(
   let bodySource = source;
   // Top-level let/const/class share one global lexical scope across scripts.
   // https://html.spec.whatwg.org/multipage/webappapis.html#run-a-classic-script
-  const keywordSites: Array<{ start: number; length: number; guard: boolean }> = [
-    ...scan.varSites.map((start) => ({ start, length: 3, guard: false })),
-    ...scan.lexicalSites.map((start) => ({
-      start,
-      length: source.startsWith("const", start) ? 5 : 3,
-      guard: true,
-    })),
-  ].sort((a, b) => b.start - a.start);
-  for (const { start, length, guard } of keywordSites) {
-    // A leading `;` stops the previous line from continuing into this assignment.
-    const replacement = (guard ? ";" : " ") + " ".repeat(length - 1);
-    bodySource = bodySource.slice(0, start) + replacement + bodySource.slice(start + length);
+  type SourceEdit = { start: number; end: number; text: string };
+  const edits: SourceEdit[] = [];
+  for (const start of scan.varSites) edits.push({ start, end: start + 3, text: "   " });
+  // `var` is function-scoped, so a lexical declaration inside the segment's try block keeps
+  // the binding the wrapper shares with later scripts. A destructuring pattern stays valid.
+  for (const start of scan.lexicalSites) {
+    const length = source.startsWith("const", start) ? 5 : 3;
+    edits.push({ start, end: start + length, text: "var" + " ".repeat(length - 3) });
   }
   // `class Name {}` becomes `Name = class Name {};`. The trailing `;` stops a following
   // `(` or `[` from calling or indexing the class expression.
-  for (let i = scan.classSites.length - 1; i >= 0; i--) {
+  for (let i = 0; i < scan.classSites.length; i++) {
     const start = scan.classSites[i];
     const end = scan.classEnds[i];
-    bodySource =
-      bodySource.slice(0, start) +
-      `${scan.classNames[i]} = ` +
-      bodySource.slice(start, end) +
-      ";" +
-      bodySource.slice(end);
+    const name = scan.classNames[i];
+    if (start === undefined || end === undefined || name === undefined) continue;
+    edits.push({ start, end: start, text: `${name} = ` });
+    edits.push({ start: end, end, text: ";" });
+  }
+  // A function declaration in the segment's try block gets an Annex B binding, so a later
+  // `f = ...` would not reach other scripts. Assign the hoisted wrapper binding instead.
+  for (let i = 0; i < scan.functionSites.length; i++) {
+    const start = scan.functionSites[i];
+    const end = scan.functionEnds[i];
+    const name = scan.functionNames[i];
+    if (start === undefined || end === undefined || name === undefined) continue;
+    if (blockedNames.has(name)) continue;
+    edits.push({ start, end: start, text: `${name} = ` });
+    edits.push({ start: end, end, text: ";" });
+  }
+  edits.sort((a, b) => b.start - a.start || b.end - a.end);
+  for (const edit of edits) {
+    bodySource = bodySource.slice(0, edit.start) + edit.text + bodySource.slice(edit.end);
   }
   const liveVarNames = scan.varNames.filter((n) => !blockedNames.has(n));
   const predeclareHead =
@@ -233,7 +242,8 @@ ${clearCurrent}${lifecycleDynamic}}\n`;
   return {
     source: `${prefix}${segmentBody}`,
     sourceLineOffset: countLines(prefix) + 2,
-    lexicalNames: scan.lexicalNames,
+    // Function names join the hoisted bindings, since their declarations become assignments.
+    lexicalNames: [...scan.lexicalNames, ...scan.functionNames.filter((n) => !blockedNames.has(n))],
   };
 }
 

@@ -15,6 +15,10 @@ export interface TopLevelDeclScan {
   classNames: string[];
   // Index just past each class body's closing brace, parallel to classSites.
   classEnds: number[];
+  functionSites: number[];
+  functionNames: string[];
+  // Index just past each function body's closing brace, parallel to functionSites.
+  functionEnds: number[];
 }
 
 type TopLevelKeyword = "var" | "let" | "const" | "function" | "class";
@@ -32,6 +36,9 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
   const classSites: number[] = [];
   const classNames: string[] = [];
   const classEnds: number[] = [];
+  const functionSites: number[] = [];
+  const functionNames: string[] = [];
+  const functionEnds: number[] = [];
   const sourceLength = source.length;
   let sourceOffset = 0;
   let braceDepth = 0;
@@ -282,9 +289,9 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
     startIndex: number,
   ): number {
     const canStripVarDeclaration = keyword === "var" && readIdentifier(startIndex) !== null;
-    // A destructuring pattern cannot lose its keyword: `{ a } = x` opens a block and
-    // `[a] = x` joins the previous line, so only an identifier declaration is rewritten.
-    const isLexical = keyword !== "var" && readIdentifier(startIndex) !== null;
+    // A lexical declaration becomes `var`, which keeps a destructuring pattern valid and
+    // shares the binding with later scripts through the wrapper function.
+    const isLexical = keyword !== "var";
     const namesAtVarSite: string[] = [];
     if (canStripVarDeclaration) {
       varSites.push(keywordStart);
@@ -404,6 +411,14 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
       classEnds.push(bodyEnd);
       return bodyEnd;
     }
+    if (keyword === "function") {
+      // The body end lets the bundle close the rewritten assignment with `;`.
+      functionSites.push(keywordStart);
+      functionNames.push(identifier.name);
+      const bodyEnd = skipClassBody(identifier.end);
+      functionEnds.push(bodyEnd);
+      return bodyEnd;
+    }
     return identifier.end;
   }
 
@@ -506,6 +521,9 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
     classSites,
     classNames,
     classEnds,
+    functionSites,
+    functionNames,
+    functionEnds,
   };
 }
 
