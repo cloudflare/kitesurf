@@ -280,11 +280,17 @@ mod tests {
                 let class = class_of(layout(size, align)).unwrap();
                 let slot = CLASSES[class] as usize;
                 assert!(slot >= size, "{size}/{align} -> {slot}");
-                assert_eq!(slot % align.max(4).min(8), 0, "{size}/{align} -> {slot}");
+                assert!(
+                    slot.is_multiple_of(align.clamp(4, 8)),
+                    "{size}/{align} -> {slot}"
+                );
                 if class > 0 {
                     let smaller = CLASSES[class - 1] as usize;
                     let need = size.max(size_of::<FreeSlot>());
-                    assert!(smaller < need || smaller % align != 0, "{size}/{align}");
+                    assert!(
+                        smaller < need || !smaller.is_multiple_of(align),
+                        "{size}/{align}"
+                    );
                 }
             }
         }
@@ -305,7 +311,7 @@ mod tests {
         sorted.sort();
         sorted.dedup();
         assert_eq!(sorted.len(), slots.len());
-        assert!(slots.iter().all(|&s| s as usize % 8 == 0));
+        assert!(slots.iter().all(|&s| (s as usize).is_multiple_of(8)));
         assert_eq!(slabs.pages, 4);
         // Writing every slot must not clobber a page header or a neighbour.
         for (i, &s) in slots.iter().enumerate() {
