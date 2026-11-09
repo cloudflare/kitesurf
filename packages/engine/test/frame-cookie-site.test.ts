@@ -18,7 +18,7 @@ import { makeChildFrameState, makeMainFrameState } from "../src/cdp/frames.ts";
 import { frameCookieSiteOrigin } from "../src/cdp/page.ts";
 import type { FrameState, TargetState } from "../src/cdp/types.ts";
 import { createCookieJar } from "../src/cookies.ts";
-import { prespawnFrameIsolate } from "../src/eval/oopif-render.ts";
+import { frameDocumentCookieSite, prespawnFrameIsolate } from "../src/eval/oopif-render.ts";
 import {
   createSandboxOutboundOverride,
   type SandboxOutboundEnv,
@@ -84,17 +84,64 @@ describe("an out-of-process frame's SameSite context", () => {
   it("sends only SameSite=None cookies under a cross-site top level", async () => {
     expect(await frameDocumentCookies("https://top.test")).toEqual({
       names: ["none"],
-      spawnedSite: "https://top.test",
+      spawnedSite: "",
     });
   });
 
   it("sends every cookie under a same-site top level", async () => {
-    expect((await frameDocumentCookies("https://www.frame.test")).names).toEqual([
-      "dflt",
-      "lax",
-      "none",
-      "strict",
-    ]);
+    expect(await frameDocumentCookies("https://www.frame.test")).toEqual({
+      names: ["dflt", "lax", "none", "strict"],
+      spawnedSite: "https://www.frame.test",
+    });
+  });
+
+  it("keeps the top site's SameSite=Strict and Lax cookies off a cross-site frame's requests", async () => {
+    await frameDocumentCookies("https://top.test");
+    const jar = createCookieJar();
+    for (const [name, attrs] of [
+      ["strict", "; SameSite=Strict"],
+      ["lax", "; SameSite=Lax"],
+      ["none", "; SameSite=None"],
+    ]) {
+      jar.setFromHeader("https://top.test/login", `${name}=1; Secure; Path=/${attrs}`);
+    }
+    registerCookieJar(CONN, jar);
+    const seen: Request[] = [];
+    const frameOutbound = createSandboxOutboundOverride(
+      {} as SandboxOutboundExports,
+      {} as SandboxOutboundEnv,
+      {
+        fetch: async (req: Request) => {
+          seen.push(req);
+          return new Response("");
+        },
+      },
+    ).parent({
+      pageOrigin: FRAME,
+      cookieSiteOrigin: String(spawned[0]?.cookieSiteOrigin),
+      cookieKey: CONN,
+    });
+    await frameOutbound.fetch(
+      new Request("https://top.test/api", {
+        headers: { "x-kitesurf-allow-cross-origin": "1", "x-kitesurf-resource-type": "Image" },
+      }),
+    );
+    expect(seen[0]?.headers.get("cookie")).toBe("none=1");
+  });
+});
+
+describe("frameDocumentCookieSite", () => {
+  it.each([
+    ["https://top.test", "https://frame.test/", ""],
+    ["https://top.test", "https://a.top.test/x", "https://top.test"],
+    ["https://top.test", "about:srcdoc", ""],
+    ["", "https://top.test/", ""],
+  ])("under the request site %j, a document at %j has the site %j", (site, url, expected) => {
+    expect(frameDocumentCookieSite(site, url)).toBe(expected);
+  });
+
+  it("leaves an absent request site to the outbound's own default", () => {
+    expect(frameDocumentCookieSite(undefined, "https://frame.test/")).toBeUndefined();
   });
 });
 

@@ -3579,8 +3579,9 @@ function refuseBlockedFrame(ctx: DispatchCtx, target: TargetState, f: FrameState
   return true;
 }
 
-// HTML's site for cookies of a frame's requests: the top-level origin when every ancestor is
-// same-site with it, else none, which the cookie jar treats as cross-site with every host.
+// HTML's site for cookies of the request that loads a frame: the top-level origin when every
+// ancestor is same-site with it, else none, which the cookie jar treats as cross-site with every
+// host. The frame's own requests also check its document (frameDocumentCookieSite).
 export function frameCookieSiteOrigin(target: TargetState, frame: FrameState): string {
   const siteOf = (url: string): string | null => {
     try {
