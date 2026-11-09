@@ -123,6 +123,36 @@ pub(crate) fn split_js_ws(value: &str) -> impl Iterator<Item = &str> {
         .filter(move |part| !part.is_empty() || trimmed.is_empty())
 }
 
+/// The leading 53 bits of a radix-prefixed integer, plus what rounding needs from the rest.
+#[derive(Default)]
+struct FloatBits {
+    significant: bool,
+    bit_length: usize,
+    leading_bits: u64,
+    leading_bit_count: u32,
+    round_bit: bool,
+    sticky: bool,
+}
+
+impl FloatBits {
+    fn fold(&mut self, bit: bool) {
+        if !self.significant && !bit {
+            return;
+        }
+        self.significant = true;
+        self.bit_length += 1;
+        if self.leading_bit_count < 53 {
+            self.leading_bits = (self.leading_bits << 1) | u64::from(bit);
+            self.leading_bit_count += 1;
+        } else if self.leading_bit_count == 53 {
+            self.round_bit = bit;
+            self.leading_bit_count += 1;
+        } else {
+            self.sticky |= bit;
+        }
+    }
+}
+
 pub(crate) fn js_number(value: &str) -> f64 {
     let value = js_trim(value);
     if value.is_empty() {
@@ -146,12 +176,7 @@ pub(crate) fn js_number(value: &str) -> f64 {
                 _ => return f64::NAN,
             };
             let mut exact = Some(0_u128);
-            let mut significant = false;
-            let mut bit_length = 0_usize;
-            let mut leading_bits = 0_u64;
-            let mut leading_bit_count = 0_u32;
-            let mut round_bit = false;
-            let mut sticky = false;
+            let mut bits = FloatBits::default();
             for ch in digits.chars() {
                 let Some(digit) = ch.to_digit(radix) else {
                     return f64::NAN;
@@ -162,33 +187,19 @@ pub(crate) fn js_number(value: &str) -> f64 {
                         .and_then(|value| value.checked_add(u128::from(digit)))
                 });
                 for shift in (0..bits_per_digit).rev() {
-                    let bit = digit & (1 << shift) != 0;
-                    if !significant && !bit {
-                        continue;
-                    }
-                    significant = true;
-                    bit_length += 1;
-                    if leading_bit_count < 53 {
-                        leading_bits = (leading_bits << 1) | u64::from(bit);
-                        leading_bit_count += 1;
-                    } else if leading_bit_count == 53 {
-                        round_bit = bit;
-                        leading_bit_count += 1;
-                    } else {
-                        sticky |= bit;
-                    }
+                    bits.fold(digit & (1 << shift) != 0);
                 }
             }
             if let Some(exact) = exact {
                 return exact as f64;
             }
-            if bit_length > 1024 {
+            if bits.bit_length > 1024 {
                 return f64::INFINITY;
             }
-            if round_bit && (sticky || leading_bits & 1 == 1) {
-                leading_bits += 1;
+            if bits.round_bit && (bits.sticky || bits.leading_bits & 1 == 1) {
+                bits.leading_bits += 1;
             }
-            return (leading_bits as f64) * 2.0_f64.powi((bit_length - 53) as i32);
+            return (bits.leading_bits as f64) * 2.0_f64.powi((bits.bit_length - 53) as i32);
         }
     }
     match value {
@@ -547,24 +558,7 @@ impl AxIndex {
             if !frame.entered {
                 frame.entered = true;
                 let id = frame.id;
-                let name = tag(node);
-                if let Some(id_attr) = attr(node, "id").filter(|v| !v.is_empty()) {
-                    ctx.id_to_node.insert(id_attr.into(), id);
-                }
-                if name == "label" {
-                    if let Some(for_id) = attr(node, "for").filter(|v| !v.is_empty()) {
-                        ctx.label_for.entry(for_id.into()).or_insert(id);
-                    }
-                }
-                if name == "base" && !saw_base {
-                    if let Some(href) = attr(node, "href").filter(|v| !v.is_empty()) {
-                        saw_base = true;
-                        let resolved = abs_url(href, &ctx.base_url);
-                        if !resolved.is_empty() {
-                            ctx.base_url = resolved;
-                        }
-                    }
-                }
+                index_entered_node(&mut ctx, node, id, &mut saw_base);
                 continue;
             }
             if let Some(child) = node.children().get(frame.next_child_index) {
@@ -587,6 +581,28 @@ impl AxIndex {
             .iter()
             .find(|id| doc.get_node(*id).is_some_and(buildable));
         ctx
+    }
+}
+
+fn index_entered_node(ctx: &mut AxIndex, node: &Node, id: NodeId, saw_base: &mut bool) {
+    let name = tag(node);
+    if let Some(id_attr) = attr(node, "id").filter(|v| !v.is_empty()) {
+        ctx.id_to_node.insert(id_attr.into(), id);
+    }
+    if name == "label" {
+        if let Some(for_id) = attr(node, "for").filter(|v| !v.is_empty()) {
+            ctx.label_for.entry(for_id.into()).or_insert(id);
+        }
+    }
+    if name == "base" && !*saw_base {
+        let Some(href) = attr(node, "href").filter(|v| !v.is_empty()) else {
+            return;
+        };
+        *saw_base = true;
+        let resolved = abs_url(href, &ctx.base_url);
+        if !resolved.is_empty() {
+            ctx.base_url = resolved;
+        }
     }
 }
 
@@ -978,34 +994,27 @@ impl AxTraversal {
             if self.done || (sink.unread() >= target && (!finish || self.done)) {
                 return true;
             }
+            if self.current.is_none() && self.root_pending {
+                self.current = Some(AxCurrent::Root);
+            }
             if self.current.is_none() {
-                if self.root_pending {
-                    self.current = Some(AxCurrent::Root);
-                } else {
-                    let frame = match self.next_frame(context) {
-                        Ok(Some(frame)) => frame,
-                        Ok(None) => {
-                            sink.push_str("]}");
-                            self.done = true;
-                            continue;
-                        }
-                        Err(()) => return false,
-                    };
-                    if context.doc.get_node(frame.id).is_none() {
-                        return false;
-                    }
-                    if self.full || context.query_matches(frame) {
-                        self.current = Some(AxCurrent::Node(frame));
-                    } else {
-                        if let Some(inherited) = context.descendant_inherited(frame) {
-                            self.stack.push(ChildCursor {
-                                parent: frame.id,
-                                next_child_index: 0,
-                                inherited,
-                            });
-                        }
+                let frame = match self.next_frame(context) {
+                    Ok(Some(frame)) => frame,
+                    Ok(None) => {
+                        sink.push_str("]}");
+                        self.done = true;
                         continue;
                     }
+                    Err(()) => return false,
+                };
+                if context.doc.get_node(frame.id).is_none() {
+                    return false;
+                }
+                if self.full || context.query_matches(frame) {
+                    self.current = Some(AxCurrent::Node(frame));
+                } else {
+                    self.skip_unmatched(context, frame);
+                    continue;
                 }
             }
             let Some(current) = self.current.take() else {
@@ -1040,6 +1049,16 @@ impl AxTraversal {
                 return false;
             }
             self.first = false;
+        }
+    }
+
+    fn skip_unmatched(&mut self, context: &Context<'_>, frame: BuildFrame) {
+        if let Some(inherited) = context.descendant_inherited(frame) {
+            self.stack.push(ChildCursor {
+                parent: frame.id,
+                next_child_index: 0,
+                inherited,
+            });
         }
     }
 
@@ -2290,34 +2309,7 @@ impl Context<'_> {
                     }
                 }
             }
-            Method::Partial => {
-                if let Some(path) = frames {
-                    let mut seen = HashSet::new();
-                    if let Some(frame) = path.last().copied() {
-                        let mut stack = vec![frame];
-                        while let Some(frame) = stack.pop() {
-                            if !seen.insert(frame.id) {
-                                continue;
-                            }
-                            self.emit_frame(out, &mut first, frame);
-                            stack.extend(self.child_frames(frame));
-                        }
-                    }
-                    if self.req.fetch_relatives {
-                        for frame in path.iter().rev().skip(1) {
-                            if seen.insert(frame.id) {
-                                self.emit_frame(out, &mut first, *frame);
-                            }
-                        }
-                        let reaches_root = path
-                            .first()
-                            .is_some_and(|frame| self.index.root_ax == Some(frame.id));
-                        if reaches_root {
-                            self.emit_root(out, &mut first);
-                        }
-                    }
-                }
-            }
+            Method::Partial => self.emit_partial(out, &mut first, frames.as_deref()),
             Method::Query => {
                 if self.req.node_id.is_some() {
                     let mut stack = frames
@@ -2375,6 +2367,41 @@ impl Context<'_> {
             }
             self.write_node(out, node, frame.parent, frame.inherited);
             *first = false;
+        }
+    }
+
+    fn emit_partial<S: JsonSink>(
+        &self,
+        out: &mut S,
+        first: &mut bool,
+        frames: Option<&[BuildFrame]>,
+    ) {
+        let Some(path) = frames else {
+            return;
+        };
+        let mut seen = HashSet::new();
+        if let Some(frame) = path.last().copied() {
+            let mut stack = vec![frame];
+            while let Some(frame) = stack.pop() {
+                if !seen.insert(frame.id) {
+                    continue;
+                }
+                self.emit_frame(out, first, frame);
+                stack.extend(self.child_frames(frame));
+            }
+        }
+        if self.req.fetch_relatives {
+            for frame in path.iter().rev().skip(1) {
+                if seen.insert(frame.id) {
+                    self.emit_frame(out, first, *frame);
+                }
+            }
+            let reaches_root = path
+                .first()
+                .is_some_and(|frame| self.index.root_ax == Some(frame.id));
+            if reaches_root {
+                self.emit_root(out, first);
+            }
         }
     }
 
