@@ -96,3 +96,16 @@ test("each strippable var site lists its own names", () => {
   const scan = extractTopLevelDecls("var exports = {}, a = 1; var b; var { c } = d;");
   assert.deepEqual(scan.varSiteNames, [["exports", "a"], ["b"]]);
 });
+
+test("lexical and class declarations report their sites", () => {
+  const source = "let a = 1; const b = 2; class C {}";
+  const scan = extractTopLevelDecls(source);
+  assert.deepEqual(scan.lexicalNames, ["a", "b"]);
+  assert.deepEqual(scan.classNames, ["C"]);
+  assert.equal(scan.lexicalSites.length, 2);
+  assert.equal(scan.classSites.length, 1);
+  assert.deepEqual(
+    scan.lexicalSites.map((site) => source.slice(site, site + 5)),
+    ["let a", "const"],
+  );
+});

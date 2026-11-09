@@ -120,7 +120,7 @@ function buildClassicSegment(
   d: ParentScriptDescriptor,
   index: number,
   opts: { currentScript?: boolean } = {},
-): { source: string; sourceLineOffset: number } {
+): { source: string; sourceLineOffset: number; lexicalNames: string[] } {
   const label = commentSafe(d.src ? d.src : `inline#${index}`);
   const currentScriptUrl = d.resolvedSrc ?? d.src ?? "";
   const domIdx = typeof d.scriptDomIndex === "number" ? d.scriptDomIndex : -1;
@@ -136,16 +136,18 @@ function buildClassicSegment(
     return {
       source: `console.error(${JSON.stringify(d.blocked.message)});\n${lifecycle(false)}`,
       sourceLineOffset: 0,
+      lexicalNames: [],
     };
   }
   if (d.prefetchError) {
     return {
       source: `console.error(${JSON.stringify(`[${label}] prefetch failed: ${d.prefetchError}`)});\n${lifecycle(false)}`,
       sourceLineOffset: 0,
+      lexicalNames: [],
     };
   }
   const source = d.src ? (d.prefetchedSource ?? "") : (d.body ?? "");
-  if (!source.trim()) return { source: lifecycle(true), sourceLineOffset: 0 };
+  if (!source.trim()) return { source: lifecycle(true), sourceLineOffset: 0, lexicalNames: [] };
 
   const bodyKey = !d.src ? (d.body || "").trim().slice(0, INLINE_SCRIPT_BODY_KEY_PREFIX_CHARS) : "";
   const setCurrent = !bracket
@@ -159,15 +161,22 @@ function buildClassicSegment(
   const scan = extractTopLevelDecls(source);
   const blockedNames = new Set(["module", "exports", "require"]);
   let bodySource = source;
-  if (scan.varSites.length > 0) {
-    const parts: string[] = [];
-    let last = 0;
-    for (const kwStart of scan.varSites) {
-      parts.push(bodySource.slice(last, kwStart), "   ");
-      last = kwStart + 3;
-    }
-    parts.push(bodySource.slice(last));
-    bodySource = parts.join("");
+  // Top-level let/const/class share one global lexical scope across scripts.
+  // https://html.spec.whatwg.org/multipage/webappapis.html#run-a-classic-script
+  const keywordSites: Array<{ start: number; length: number }> = [
+    ...scan.varSites.map((start) => ({ start, length: 3 })),
+    ...scan.lexicalSites.map((start) => ({
+      start,
+      length: source.startsWith("const", start) ? 5 : 3,
+    })),
+  ].sort((a, b) => b.start - a.start);
+  for (const { start, length } of keywordSites) {
+    bodySource = bodySource.slice(0, start) + " ".repeat(length) + bodySource.slice(start + length);
+  }
+  // `class Name {}` becomes an assignment to the shared binding.
+  for (let i = scan.classSites.length - 1; i >= 0; i--) {
+    const start = scan.classSites[i];
+    bodySource = bodySource.slice(0, start) + `${scan.classNames[i]} = ` + bodySource.slice(start);
   }
   const liveVarNames = scan.varNames.filter((n) => !blockedNames.has(n));
   const predeclareHead =
@@ -175,6 +184,9 @@ function buildClassicSegment(
       ? ""
       : `// === ${label} (live-globalize top-level vars) ===\n${predeclareVarsHead(liveVarNames, "globalThis")}\n`;
   const liveVarSet = new Set(liveVarNames);
+  // Lexical names are hoisted for classic scripts and also copied to globalThis
+  // so module scripts can see them; the spec keeps them off the global object.
+  // https://html.spec.whatwg.org/multipage/webappapis.html#run-a-classic-script
   const topDecls = scan.names.filter((n) => !liveVarSet.has(n));
   let promoteTail = "";
   if (topDecls.length > 0) {
@@ -197,6 +209,7 @@ ${clearCurrent}}\n`;
   return {
     source: `${prefix}${segmentBody}`,
     sourceLineOffset: countLines(prefix) + 1,
+    lexicalNames: scan.lexicalNames,
   };
 }
 
@@ -233,6 +246,8 @@ export function buildScriptBundle(
 
   const regularAcc = { parts: [] as string[], lines: 0 };
   const asyncAcc = { parts: [] as string[], lines: 0 };
+  const regularLexical = new Set<string>();
+  const asyncLexical = new Set<string>();
   const moduleScriptUrls: string[] = [];
   const additionalModules: Record<string, BakedModule> = {
     ...(options.additionalModules ?? {}),
@@ -272,6 +287,7 @@ export function buildScriptBundle(
     d.prefetchError || d.blocked ? "" : d.src ? (d.prefetchedSource ?? "") : (d.body ?? "");
   for (const d of regularInline) {
     const segment = buildClassicSegment(d, regularIdx);
+    for (const name of segment.lexicalNames) regularLexical.add(name);
     pushSegment(
       regularAcc,
       segment.source,
@@ -290,6 +306,7 @@ export function buildScriptBundle(
   }
   for (const d of regularDeferred) {
     const segment = buildClassicSegment(d, regularIdx);
+    for (const name of segment.lexicalNames) regularLexical.add(name);
     pushSegment(
       regularAcc,
       segment.source,
@@ -309,6 +326,7 @@ export function buildScriptBundle(
   let asyncIdx = 0;
   for (const d of asyncBucket) {
     const segment = buildClassicSegment(d, asyncIdx);
+    for (const name of segment.lexicalNames) asyncLexical.add(name);
     pushSegment(
       asyncAcc,
       segment.source,
@@ -349,8 +367,11 @@ export function buildScriptBundle(
     moduleScriptUrls.push(url);
   }
 
-  const regularBody = regularAcc.parts.join("");
-  const asyncBody = asyncAcc.parts.join("");
+  const regularLexicalDecl =
+    regularLexical.size > 0 ? `var ${[...regularLexical].join(", ")};\n` : "";
+  const regularBody = regularLexicalDecl + regularAcc.parts.join("");
+  const asyncLexicalDecl = asyncLexical.size > 0 ? `var ${[...asyncLexical].join(", ")};\n` : "";
+  const asyncBody = asyncLexicalDecl + asyncAcc.parts.join("");
 
   const umdShadow = "var module=undefined,exports=undefined,require=undefined;\n";
   const stateLocalDecl =
@@ -420,11 +441,12 @@ __ks_diag.exited = true;
     body: string,
     bundleUrl: string,
     segments: ClassicSegment[],
+    bodyHeaderLines = 0,
   ): { source: string; sourceMapURL: string } => {
     const wrapped = wrap(body);
     const shifted = segments.map((s) => ({
       ...s,
-      generatedLine: s.generatedLine + wrapHeaderLines,
+      generatedLine: s.generatedLine + wrapHeaderLines + bodyHeaderLines,
     }));
     const totalLines = countLines(wrapped) + 1;
     const sourceMapURL = buildClassicSourceMap(shifted, totalLines);
@@ -437,14 +459,24 @@ __ks_diag.exited = true;
   let classicRegularSource: string | null = null;
   let classicRegularSourceMapURL = "";
   if (regularBody.length > 0) {
-    const r = finalize(regularBody, "/__ks_user_classic_regular.js", regularSegMeta);
+    const r = finalize(
+      regularBody,
+      "/__ks_user_classic_regular.js",
+      regularSegMeta,
+      countLines(regularLexicalDecl),
+    );
     classicRegularSource = r.source;
     classicRegularSourceMapURL = r.sourceMapURL;
   }
   let classicAsyncSource: string | null = null;
   let classicAsyncSourceMapURL = "";
   if (asyncBody.length > 0) {
-    const r = finalize(asyncBody, "/__ks_user_classic_async.js", asyncSegMeta);
+    const r = finalize(
+      asyncBody,
+      "/__ks_user_classic_async.js",
+      asyncSegMeta,
+      countLines(asyncLexicalDecl),
+    );
     classicAsyncSource = r.source;
     classicAsyncSourceMapURL = r.sourceMapURL;
   }
@@ -457,11 +489,14 @@ __ks_diag.exited = true;
     const digest = url ? options.insertedDigests?.get(url) : undefined;
     if (typeof source !== "string" || !source.trim() || !url || !digest) continue;
     const module = `__ks_inserted_${i}.js`;
+    const segment = buildClassicSegment(d, i, { currentScript: false });
+    const lexicalDecl =
+      segment.lexicalNames.length > 0
+        ? `var ${[...new Set(segment.lexicalNames)].join(", ")};\n`
+        : "";
     insertedModules[module] =
-      prodWrap(
-        buildClassicSegment(d, i, { currentScript: false }).source,
-        hasUseStrictDirective(source),
-      ) + `\n//# sourceURL=${commentSafe(url)}\n`;
+      prodWrap(lexicalDecl + segment.source, hasUseStrictDirective(source)) +
+      `\n//# sourceURL=${commentSafe(url)}\n`;
     insertedManifest.push({ url, module, digest });
   }
 

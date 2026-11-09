@@ -9,6 +9,10 @@ export interface TopLevelDeclScan {
   varSites: number[];
   varNames: string[];
   varSiteNames: string[][];
+  lexicalSites: number[];
+  lexicalNames: string[];
+  classSites: number[];
+  classNames: string[];
 }
 
 type TopLevelKeyword = "var" | "let" | "const" | "function" | "class";
@@ -21,6 +25,10 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
   const varNames: string[] = [];
   const varSeen = new Set<string>();
   const varSiteNames: string[][] = [];
+  const lexicalSites: number[] = [];
+  const lexicalNames: string[] = [];
+  const classSites: number[] = [];
+  const classNames: string[] = [];
   const sourceLength = source.length;
   let sourceOffset = 0;
   let braceDepth = 0;
@@ -271,17 +279,20 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
     startIndex: number,
   ): number {
     const canStripVarDeclaration = keyword === "var" && readIdentifier(startIndex) !== null;
+    const isLexical = keyword !== "var";
     const namesAtVarSite: string[] = [];
     if (canStripVarDeclaration) {
       varSites.push(keywordStart);
       varSiteNames.push(namesAtVarSite);
     }
+    if (isLexical) lexicalSites.push(keywordStart);
     let position = startIndex;
     while (position < sourceLength) {
       position = skipDeclarationTrivia(position);
       const identifier = readIdentifier(position);
       if (!identifier) break;
       addName(identifier.name);
+      if (isLexical) lexicalNames.push(identifier.name);
       if (canStripVarDeclaration) {
         namesAtVarSite.push(identifier.name);
         if (!varSeen.has(identifier.name)) {
@@ -317,6 +328,10 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
     const identifier = readIdentifier(position);
     if (!identifier) return null;
     addName(identifier.name);
+    if (keyword === "class") {
+      classSites.push(keywordStart);
+      classNames.push(identifier.name);
+    }
     return identifier.end;
   }
 
@@ -409,7 +424,16 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
     }
     sourceOffset++;
   }
-  return { names, varSites, varNames, varSiteNames };
+  return {
+    names,
+    varSites,
+    varNames,
+    varSiteNames,
+    lexicalSites,
+    lexicalNames,
+    classSites,
+    classNames,
+  };
 }
 
 export function predeclareVarsHead(names: readonly string[], global: string): string {
