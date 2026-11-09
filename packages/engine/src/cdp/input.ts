@@ -12,7 +12,11 @@ import type { MouseEventInit } from "@kitesurf/jsrpc-types/page-script";
 import type { ConsoleEntry } from "@kitesurf/jsrpc-types/shared";
 import { consoleEntryToCdpEvent } from "../eval/page-script.ts";
 import { emitMutations } from "./dom.ts";
-import { canRewriteDocumentUrl, emitInputNavigationStarted } from "./page.ts";
+import {
+  canRewriteDocumentUrl,
+  emitInputNavigationStarted,
+  initiatorOriginOf,
+} from "./page.ts";
 import { terminalSceneWheelQueue } from "./scene-stream.ts";
 import {
   fenceWheelQueues,
@@ -524,7 +528,13 @@ async function followNavigation(
 ): Promise<void> {
   if (!startsNavigation(result)) return;
   const loaderId = announceNavigation(ctx, target, result, sessionId);
-  const navigation = maybeFollowAnchor(ctx, result, sessionId, loaderId, hostOf(target.url));
+  const navigation = maybeFollowAnchor(
+    ctx,
+    result,
+    sessionId,
+    loaderId,
+    initiatorOriginOf(target.url),
+  );
   if (wait) return navigation;
   const pending: Promise<void> = navigation
     .catch((err: unknown) =>
@@ -557,15 +567,6 @@ function announceNavigation(
   return loaderId;
 }
 
-function hostOf(url: string | undefined): string | null {
-  if (!url) return null;
-  try {
-    return new URL(url).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
 async function maybeFollowAnchor(
   ctx: DispatchCtx,
   result:
@@ -582,7 +583,7 @@ async function maybeFollowAnchor(
     | undefined,
   sessionId: string | undefined,
   loaderId?: string,
-  initiatorHost?: string | null,
+  initiatorOrigin?: string | null,
 ): Promise<void> {
   const announced = loaderId ? { _kitesurfLoaderId: loaderId } : {};
   const navigateTo = result?.navigateTo;
@@ -600,7 +601,7 @@ async function maybeFollowAnchor(
           _kitesurfPostData: navigatePost.postData ?? "",
           _kitesurfPostContentType:
             navigatePost.postContentType ?? "application/x-www-form-urlencoded",
-          _kitesurfInitiatorHost: initiatorHost ?? undefined,
+          _kitesurfInitiatorOrigin: initiatorOrigin ?? undefined,
           ...announced,
         },
         sessionId,
@@ -622,7 +623,7 @@ async function maybeFollowAnchor(
         params: {
           url: navigateTo,
           _kitesurfInternal: true,
-          _kitesurfInitiatorHost: initiatorHost ?? undefined,
+          _kitesurfInitiatorOrigin: initiatorOrigin ?? undefined,
           ...announced,
         },
         sessionId,

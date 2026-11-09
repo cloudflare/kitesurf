@@ -38,8 +38,8 @@ declare module "devtools-protocol" {
         _kitesurfPostData?: string;
         _kitesurfPostContentType?: string;
         _kitesurfLoaderId?: string;
-        /** Host of the document that initiated a page-started navigation. */
-        _kitesurfInitiatorHost?: string;
+        /** Origin of the document that initiated a page-started navigation. */
+        _kitesurfInitiatorOrigin?: string;
       }
       interface StartScreencastRequest {
         minFrameIntervalMs?: integer;
