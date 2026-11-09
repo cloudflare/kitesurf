@@ -306,9 +306,17 @@ export async function handleWebSocket(
           connectionId,
         });
 
+  const sessionOpenedAt = Date.now();
+  let lastClientMessageAt = sessionOpenedAt;
+
   try {
     onCtx?.(dispatchCtx);
-    opts?.onDispatch?.(tracedDispatch);
+    // An in-process consumer's commands never cross `server`, so they must reset the idle clock
+    // here or its session closes idleMs after it opened, however busy it is.
+    opts?.onDispatch?.((req) => {
+      lastClientMessageAt = Date.now();
+      return tracedDispatch(req);
+    });
   } catch (err) {
     console.warn("[kitesurf-ws] in-process consumer threw:", err);
   }
@@ -320,8 +328,6 @@ export async function handleWebSocket(
     params: { targetInfo: { ...visibleInfo(initialPage, connectionMode) } },
   });
 
-  const sessionOpenedAt = Date.now();
-  let lastClientMessageAt = sessionOpenedAt;
   let deadlineFired = false;
 
   const closeIfExpired = (): boolean => {
