@@ -50,6 +50,7 @@ import { resolveConnectionOptions, type EngineHost } from "../host.ts";
 import type { PageIsolateCapOverrides } from "../eval/page-script.ts";
 import { buildDispatchEnv } from "./dispatch-env.ts";
 import { markArrival } from "./arrival.ts";
+import { StyleCache } from "./style-cache.ts";
 import { makeWallClock } from "../eval/host-clock.ts";
 // Wrangler generates the ambient `Env` declaration from wrangler.jsonc.
 
@@ -248,7 +249,7 @@ export async function handleWebSocket(
     flatten: false,
     cookies,
     screencasts: new Map(),
-    styleCache: new Map(),
+    styleCache: new StyleCache(),
     imageCache: new Map(),
     networkEvents,
     layoutMode: initialLayoutMode,

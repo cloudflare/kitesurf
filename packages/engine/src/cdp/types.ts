@@ -15,6 +15,7 @@ import type { LearnedScripts } from "../eval/learned-scripts.ts";
 import type { DiagSpanTracker } from "./diag-spans.ts";
 import type { SandboxOutboundOverride } from "../eval/outbound.ts";
 import type { WheelQueue } from "./wheel-queue.ts";
+import type { StyleCache } from "./style-cache.ts";
 
 export type CdpMethod = keyof ProtocolMapping.Commands;
 
@@ -112,7 +113,7 @@ export interface BrowserState {
   contexts: Map<string, { cookieJar: CookieJar }>;
   nextBrowserContextId: number;
   screencasts: Map<string, ScreencastState>;
-  styleCache: Map<string, { css: string; fetchedAt: number }>;
+  styleCache: StyleCache;
   imageCache: Map<string, { bytes: Uint8Array; contentType: string; fetchedAt: number }>;
   networkEvents: NetworkEventTracker;
   layoutMode: "full" | "off";
