@@ -3,40 +3,64 @@
 // https://opensource.org/licenses/Apache-2.0
 
 // <dialog> must expose show/showModal/close/requestClose and returnValue.
+// show() and showModal() are idempotent per modal state and throw only on the
+// mixed cases; the close event is queued as a task.
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
 import { readJsonReport } from "./eval-report";
 
 const html = `<script>
   (function () {
-    var d = document.createElement("dialog");
-    document.body.appendChild(d);
-    var out = {
-      methods: [typeof d.show, typeof d.showModal, typeof d.close, typeof d.requestClose],
-      before: d.open,
-      afterShow: null,
-      afterClose: null,
-      returnValue: null,
-      closeEvents: 0,
-    };
-    d.addEventListener("close", function () { out.closeEvents += 1; });
-    d.showModal();
-    out.afterShow = d.open;
-    d.close("done");
-    out.afterClose = d.open;
-    out.returnValue = d.returnValue;
-    globalThis.__dialogReport = JSON.stringify(out);
+    var out = { methods: [], cases: { closeEvents: 0 } };
+    function mk() {
+      var d = document.createElement("dialog");
+      document.body.appendChild(d);
+      return d;
+    }
+    var d1 = mk();
+    d1.show();
+    try { d1.show(); out.cases.showTwice = "ok"; } catch (e) { out.cases.showTwice = e.name; }
+    var d2 = mk();
+    d2.showModal();
+    try { d2.showModal(); out.cases.showModalTwice = "ok"; } catch (e) { out.cases.showModalTwice = e.name; }
+    var d3 = mk();
+    d3.showModal();
+    try { d3.show(); out.cases.showOnModal = "ok"; } catch (e) { out.cases.showOnModal = e.name; }
+    var d4 = mk();
+    d4.show();
+    try { d4.showModal(); out.cases.showModalOnNonModal = "ok"; } catch (e) { out.cases.showModalOnNonModal = e.name; }
+
+    var d5 = mk();
+    out.methods = [typeof d5.show, typeof d5.showModal, typeof d5.close, typeof d5.requestClose];
+    d5.show();
+    d5.addEventListener("close", function () {
+      out.cases.closeEvents += 1;
+      out.cases.afterClose = d5.open;
+      out.cases.returnValue = d5.returnValue;
+      globalThis.__dialogReport = JSON.stringify(out);
+    });
+    d5.close("done");
+    out.cases.closeSync = out.cases.closeEvents;
   })();
 </script>`;
 
-test("dialog methods open, close, and report returnValue", async ({ page, cdpSession }) => {
+test("dialog methods follow the show/showModal state machine", async ({ page, cdpSession }) => {
   await setContent(page, html, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(
+    () => (globalThis as { __dialogReport?: string }).__dialogReport !== undefined,
+    { timeout: 20_000 },
+  );
   expect(await readJsonReport(cdpSession, "globalThis.__dialogReport")).toEqual({
     methods: ["function", "function", "function", "function"],
-    before: false,
-    afterShow: true,
-    afterClose: false,
-    returnValue: "done",
-    closeEvents: 1,
+    cases: {
+      showTwice: "ok",
+      showModalTwice: "ok",
+      showOnModal: "InvalidStateError",
+      showModalOnNonModal: "InvalidStateError",
+      closeEvents: 1,
+      afterClose: false,
+      returnValue: "done",
+      closeSync: 0,
+    },
   });
 }, 60_000);
