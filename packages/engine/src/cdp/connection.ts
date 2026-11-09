@@ -20,7 +20,13 @@ import {
   type TargetState,
   RawJsonResult,
 } from "./types.ts";
-import { ensureBrowserTarget, createPageTarget, engineMemoryBreakdown } from "./target.ts";
+import {
+  childFrameTargets,
+  createPageTarget,
+  engineMemoryBreakdown,
+  ensureBrowserTarget,
+  frameTargetInfo,
+} from "./target.ts";
 import { pumpBackgroundEvents, teardownOopifStubs } from "./page.ts";
 import { retireStub } from "./page-script-generation.ts";
 import { releaseAllDomHandles } from "./dom-release.ts";
@@ -318,8 +324,6 @@ export class BrowserSession {
       // Deferred-fonts opt-in. See BrowserState.fontDefer.
       fontDefer: options.fontDefer,
       fontProfile: options.fontProfile,
-      rendererSessionId: null,
-      engineSessionId: null,
       wsClosing: false,
       attributionHeaders: pickHeaders(request, opts.host?.attributionHeaders),
     };
@@ -377,6 +381,10 @@ export class BrowserSession {
       connectionId: this.id,
       analytics: this.analytics,
       client,
+      emitToClient: (event) => {
+        if (!this.#disposed) this.#clients.get(client.id)?.deliver(event);
+      },
+      peers: () => Array.from(this.#clients.values(), (c) => c.ctx),
     };
   }
 
@@ -517,7 +525,14 @@ export class BrowserSession {
 }
 
 function newClientState(connectionMode: "page" | "browser", id: string): CdpClientState {
-  return { id, connectionMode, autoAttach: false, flatten: false, sessions: new Set() };
+  return {
+    id,
+    connectionMode,
+    autoAttach: false,
+    flatten: false,
+    sessions: new Set(),
+    memoryTargets: { renderer: null, engine: null },
+  };
 }
 
 // The session an event belongs to: its own, or the one an attach or detach notice names.
@@ -668,7 +683,8 @@ export class ClientConnection {
     }
 
     // After the hooks: a page a hook creates is announced once, by the command that created
-    // it. The first client opens the browser; a later one hears of the pages that exist.
+    // it. The first client opens the browser; a later one hears of the pages that exist, and in
+    // browser mode of their child frames, as emitFrameTarget told the clients before it.
     const initialPage = session.openInitialPage(this.ctx);
     const announced = initialPage
       ? [initialPage]
@@ -678,6 +694,13 @@ export class ClientConnection {
         method: "Target.targetCreated",
         params: { targetInfo: { ...visibleInfo(t, params.connectionMode) } },
       });
+      if (initialPage || params.connectionMode !== "browser") continue;
+      for (const frame of childFrameTargets(t)) {
+        this.deliver({
+          method: "Target.targetCreated",
+          params: { targetInfo: frameTargetInfo(frame) },
+        });
+      }
     }
 
     const initialUrl = params.initialUrl;
