@@ -16,6 +16,9 @@ use parley::fontique::{
 use parley::FontContext;
 use wasm_bindgen::prelude::wasm_bindgen;
 
+use crate::paint::font_container::{
+    inflate_font_container, FontContainer, MAX_DECOMPRESSED_FONT_BYTES,
+};
 use crate::paint::scene_record::{font_data_key, fx_hash_u64};
 
 thread_local! {
@@ -161,30 +164,12 @@ pub(crate) fn strip_outline_tables(bytes: &[u8]) -> Option<Vec<u8>> {
     }
 }
 
-const MAX_DECOMPRESSED_FONT_BYTES: u32 = 32 * 1024 * 1024;
-
-fn declared_sfnt_size(bytes: &[u8]) -> Option<u32> {
-    if bytes.len() < 20 {
-        return None;
-    }
-    Some(u32::from_be_bytes(bytes[16..20].try_into().ok()?))
-}
-
 #[wasm_bindgen(js_name = "stripFontForShaping")]
 pub fn strip_font_for_shaping(bytes: Vec<u8>) -> Option<Vec<u8>> {
-    let compressed = bytes.len() >= 4 && (&bytes[0..4] == b"wOF2" || &bytes[0..4] == b"wOFF");
-    if compressed {
-        match declared_sfnt_size(&bytes) {
-            Some(n) if n <= MAX_DECOMPRESSED_FONT_BYTES => {}
-            _ => return None,
-        }
-    }
-    let sfnt: Vec<u8> = if bytes.len() >= 4 && &bytes[0..4] == b"wOF2" {
-        wuff::decompress_woff2(&bytes).ok()?
-    } else if bytes.len() >= 4 && &bytes[0..4] == b"wOFF" {
-        wuff::decompress_woff1(&bytes).ok()?
-    } else {
-        bytes
+    let sfnt: Vec<u8> = match inflate_font_container(&bytes) {
+        FontContainer::Sfnt => bytes,
+        FontContainer::Inflated(sfnt) => sfnt,
+        FontContainer::Refused => return None,
     };
     if sfnt.len() > MAX_DECOMPRESSED_FONT_BYTES as usize {
         return None;
@@ -423,12 +408,9 @@ fn is_plain_sfnt(bytes: &[u8]) -> bool {
 }
 
 fn strip_woff_container(bytes: Vec<u8>) -> Vec<u8> {
-    if bytes.len() >= 4 && &bytes[0..4] == b"wOF2" {
-        wuff::decompress_woff2(&bytes).unwrap_or(bytes)
-    } else if bytes.len() >= 4 && &bytes[0..4] == b"wOFF" {
-        wuff::decompress_woff1(&bytes).unwrap_or(bytes)
-    } else {
-        bytes
+    match inflate_font_container(&bytes) {
+        FontContainer::Inflated(sfnt) => sfnt,
+        FontContainer::Sfnt | FontContainer::Refused => bytes,
     }
 }
 
@@ -1178,6 +1160,7 @@ pub fn make_font_context() -> FontContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::paint::font_container::declared_sfnt_size;
 
     // A cluster may need a family face other than the best/default match.
     // Verify that the query offers every registered subset face.

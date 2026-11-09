@@ -45,6 +45,7 @@ filegroup(
     name = "renderer_shared_srcs",
     srcs = [
         "src/ks_tracing.rs",
+        "src/paint/font_container.rs",
         "src/paint/pdf_paint.rs",
         "src/paint/scene_decode.rs",
         "src/paint/scene_record.rs",
@@ -118,6 +119,7 @@ test_suite(
 filegroup(
     name = "scene_host_srcs",
     srcs = [
+        "src/paint/font_container.rs",
         "src/paint/scene_decode.rs",
         "src/paint/scene_record.rs",
         "src/paint/scene_replay.rs",
