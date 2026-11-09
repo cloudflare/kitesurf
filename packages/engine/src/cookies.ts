@@ -312,6 +312,34 @@ export function createCookieJar(): CookieJar {
     return true;
   }
 
+  // A script write must not shadow an HttpOnly cookie on any host the new
+  // cookie reaches. `candidateEntries` misses a host-only HttpOnly cookie on a
+  // parent or sibling that a Domain write would also reach, so compare the
+  // send sets directly.
+  function shadowsHttpOnly(entry: CookieEntry): boolean {
+    for (const c of getAll()) {
+      if (c.name !== entry.name || !c.httpOnly) continue;
+      if (entry.hostOnly) {
+        // The new cookie goes to entry.host only.
+        if (c.hostOnly ? c.host === entry.host : domainMatches(c.host, entry.host)) {
+          return true;
+        }
+      } else {
+        // The new Domain cookie goes to entry.host and every subdomain. The
+        // existing cookie reaches a host in that set when either domain is a
+        // suffix of the other, or it is host-only under the new domain.
+        if (
+          c.hostOnly
+            ? domainMatches(entry.host, c.host)
+            : domainMatches(entry.host, c.host) || domainMatches(c.host, entry.host)
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   function existing(entry: CookieEntry): CookieEntry | undefined {
     return (byHost.get(entry.host) ?? []).find(
       (c) => c.name === entry.name && c.path === entry.path && c.hostOnly === entry.hostOnly,
@@ -348,12 +376,7 @@ export function createCookieJar(): CookieJar {
     const entry = buildEntry(parsed, host, hostOnly);
     if (fromScript) entry.httpOnly = false;
 
-    if (fromScript) {
-      const shadowed = candidateEntries(parts.host).some(
-        (c) => c.name === entry.name && c.httpOnly,
-      );
-      if (shadowed) return null;
-    }
+    if (fromScript && shadowsHttpOnly(entry)) return null;
 
     const prev = existing(entry);
     if (prev) {
