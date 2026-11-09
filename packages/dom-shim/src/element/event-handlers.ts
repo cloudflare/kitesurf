@@ -106,11 +106,20 @@ setContentAttrHydrator((rawTarget: unknown, type: string) => {
   }
 });
 
+// page-script owns the document's CSP; null admits every handler.
+let inlineHandlerGate: ((name: string) => boolean) | null = null;
+
+/** Installs the check an inline on* attribute must pass before it compiles. */
+export function setInlineHandlerGate(gate: ((name: string) => boolean) | null): void {
+  inlineHandlerGate = gate;
+}
+
 function installAttrEventHandler(
   element: { tagName?: unknown },
   name: string,
   source: string,
 ): void {
+  if (inlineHandlerGate && !inlineHandlerGate(name)) return;
   let tag = "";
   try {
     tag = String(element.tagName || "").toLowerCase();

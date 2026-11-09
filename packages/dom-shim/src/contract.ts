@@ -24,6 +24,7 @@ export {
   parseUrlForNode,
   setWrapperSweepScheduler,
   setAnimationTaskScheduler,
+  setInlineHandlerGate,
   detachedWrapperStats,
   armKsOtel,
   ksSpan,

@@ -276,3 +276,42 @@ test("<base href> is what relative script src resolves against", async ({ page }
   );
   expect(await ran(page)).toEqual(["based"]);
 });
+
+const HANDLER_BODY =
+  `<script nonce="n0nce">` +
+  `globalThis.__ksRan = [];` +
+  `const b = document.createElement("button");` +
+  `b.setAttribute("onclick", "__ksRan.push('setAttribute')");` +
+  `document.body.append(b);` +
+  `addEventListener("load", () => { document.getElementById("p").click(); b.click(); });` +
+  `</script>` +
+  `<button id="p" onclick="__ksRan.push('parsed')"></button>` +
+  `<img src="/__fixtures/missing.png" onerror="__ksRan.push('onerror')">`;
+
+test("CSP: a nonce does not admit inline event handler attributes", async ({ page }) => {
+  await page.goto(docUrl("script-src 'nonce-n0nce'", HANDLER_BODY), { waitUntil: "load" });
+  await new Promise((r) => setTimeout(r, 200));
+  expect(await ran(page)).toEqual([]);
+});
+
+test("CSP: 'unsafe-inline' still admits inline event handler attributes", async ({ page }) => {
+  await page.goto(
+    docUrl("script-src 'unsafe-inline'", HANDLER_BODY.replace(' nonce="n0nce"', "")),
+    {
+      waitUntil: "load",
+    },
+  );
+  await new Promise((r) => setTimeout(r, 200));
+  expect([...(await ran(page))].sort()).toEqual(["onerror", "parsed", "setAttribute"]);
+});
+
+test("CSP: script-src-attr governs handlers independently of script-src", async ({ page }) => {
+  await page.goto(
+    docUrl("script-src 'nonce-n0nce'; script-src-attr 'unsafe-inline'", HANDLER_BODY),
+    {
+      waitUntil: "load",
+    },
+  );
+  await new Promise((r) => setTimeout(r, 200));
+  expect([...(await ran(page))].sort()).toEqual(["onerror", "parsed", "setAttribute"]);
+});
