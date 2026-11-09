@@ -287,8 +287,14 @@ describe("walkModuleGraph asset-import stubs", () => {
       connectionId: "conn",
       sandboxOutbound: stubOutbound(),
     });
-    const stub = Object.entries(additionalModules).find(([k]) => k.includes("a.css"))?.[1];
-    expect(stub).toBe("/* kitesurf: asset-import side-effect stub */\nexport {};\n");
+    const stub = String(
+      Object.values(additionalModules).find(
+        (body) => typeof body === "string" && body.includes("asset-import"),
+      ),
+    );
+    // A registry-renamed module also gets a synthetic import.meta that holds the url as a string.
+    expect(stub.endsWith("/* kitesurf: asset-import side-effect stub */\nexport {};\n")).toBe(true);
+    expect(stub.split(JSON.stringify(url)).join("")).not.toContain("globalThis.ran");
   });
 });
 
@@ -879,6 +885,38 @@ describe("import maps", () => {
     ).toBe(
       `new URL("./x.js", __ks_import_meta.url) + (__ks_import_meta === __ks_import_meta) + __ks_import_meta.resolve("pkg")`,
     );
+  });
+
+  it("names a lone query variant apart from its bare url", () => {
+    const names = assignModuleRegistryNames([
+      "https://example.com/lib.js?preview=1",
+      "https://example.com/plain.js",
+    ]);
+    expect([...names]).toEqual([
+      ["https://example.com/lib.js?preview=1", "https://example.com/lib.__ks_query_0.js"],
+    ]);
+  });
+
+  it("does not bake a query variant under the name of a module its pin rejected", async () => {
+    const { descriptors, additionalModules } = await walkModuleGraph({
+      descriptors: [
+        moduleInline(`import "/lib.js"; if (false) import("/lib.js?preview=1");`),
+        {
+          src: "/lib.js",
+          kind: "module",
+          defer: false,
+          async: false,
+          body: "",
+          integrity: "sha384-" + "A".repeat(64),
+        },
+      ],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound(),
+    });
+    expect(descriptors[1]?.prefetchError).toBeTruthy();
+    const workerdNames = Object.keys(additionalModules).map((k) => k.replace(/[?#].*$/, ""));
+    expect(workerdNames).not.toContain("https://example.com/lib.js");
   });
 
   it("gives query-distinct modules unique workerd registry names", () => {
