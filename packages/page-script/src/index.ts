@@ -6573,7 +6573,9 @@ async function queryDomAccessibilityTree(
     if (stream) {
       return {
         byteLength: stream.byteLength,
-        json: byteStream(stream, () => stream.nextChunk(dom, OUTER_HTML_CHUNK_BYTES)),
+        json: byteStream(stream, () =>
+          pageState.dom === dom ? stream.nextChunk(dom, OUTER_HTML_CHUNK_BYTES) : new Uint8Array(0),
+        ),
       } satisfies QueryDomResult<"accessibilityTree">;
     }
     const bytes = start.takeBytes();
