@@ -1586,10 +1586,16 @@ export function installGlobals(
           return "PerformanceMeasure";
         }
       }
+      class PerformanceNavigationTiming extends PerformanceEntry {
+        get [Symbol.toStringTag]() {
+          return "PerformanceNavigationTiming";
+        }
+      }
       Object.defineProperty(PerformanceMark, "length", { value: 1, configurable: true });
       ksGlobal.PerformanceEntry = PerformanceEntry;
       ksGlobal.PerformanceMark = PerformanceMark;
       ksGlobal.PerformanceMeasure = PerformanceMeasure;
+      ksGlobal.PerformanceNavigationTiming = PerformanceNavigationTiming;
 
       type PerfEntryRecord = {
         name: string;
@@ -1603,7 +1609,7 @@ export function installGlobals(
       try {
         const __pageUrl =
           win && win.location && typeof win.location.href === "string" ? win.location.href : "";
-        __perfEntries.push({
+        const navigationEntry = {
           name: __pageUrl,
           entryType: "navigation",
           startTime: 0,
@@ -1638,7 +1644,9 @@ export function installGlobals(
           toJSON() {
             return { ...this };
           },
-        });
+        };
+        Object.setPrototypeOf(navigationEntry, PerformanceNavigationTiming.prototype);
+        __perfEntries.push(navigationEntry);
       } catch {}
 
       const __navigationTimingMarks = new Set([
