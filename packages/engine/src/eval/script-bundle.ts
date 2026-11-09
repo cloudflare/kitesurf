@@ -178,7 +178,7 @@ ${lines.join("\n")}
 `;
     }
   }
-  const prefix = `// === ${label} ===\n${predeclareHead}var require = globalThis.require;\n${setCurrent}`;
+  const prefix = `// === ${label} ===\n${predeclareHead}if (typeof globalThis.require !== "undefined") require = globalThis.require;\n${setCurrent}`;
   return {
     source: `${prefix}${bodySource}\n${promoteTail}${clearCurrent}\n`,
     sourceLineOffset: countLines(prefix),
