@@ -1,0 +1,313 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 9 Nov 2026 22:01:32 +0000
+Subject: [PATCH] Size a content-sized flex line to fit-content in definite
+ space
+
+A flex row whose width is content-based but whose available space is
+definite (an inline-flex, a float, a flex item that a column container
+does not stretch) took the sum of its items' flex base sizes, its
+max-content width, however little space it had. css-sizing-3 makes that
+auto width fit-content, min(max-content, max(min-content, available)):
+one line of text in an inline-flex inside a 157px box came out 412px
+wide where Chrome gives 157px and wraps the text. A form control built
+from an inline-flex holding a width:100% input overflowed its column the
+same way, so the centre of the input landed on the next field.
+
+The clamp only applies when a single line overflows the space, so a row
+that fits keeps its size, and only to rows: a column's main size is its
+height, whose auto size stays max-content. Its ceiling is the
+container's max-content size, not the sum of the flex base sizes that
+decides whether the line overflows: an item with a flex basis or a
+max-width beyond its content has a base size above what it contributes,
+and a row of such items would otherwise stretch to the available space.
+Its floor is measured afresh for an item that is a scroll container:
+that item's flex base size was resolved in definite space, where it is
+the max-content size, so reusing it left such a row unable to shrink. Its floor is the container's
+own min-content size, the one it reports to a min-content probe, rather
+than the sum of the items' automatic minimums: an item with a specified
+width keeps the row that wide, as in Chrome, and an empty line keeps its
+padding. Several lines already fill the available space.
+
+The regression tests build their cases in the gentest style, with an
+Ahem-like text measure.
+---
+ src/compute/flexbox.rs | 235 ++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 231 insertions(+), 4 deletions(-)
+
+diff --git a/src/compute/flexbox.rs b/src/compute/flexbox.rs
+index 60058c1..e9e5c24 100644
+--- a/src/compute/flexbox.rs
++++ b/src/compute/flexbox.rs
+@@ -1464,6 +1464,18 @@ fn determine_container_main_size(
+
+                 if lines.len() > 1 {
+                     f32_max(size, outer_main_axis_available_space)
++                } else if constants.is_row && size > outer_main_axis_available_space {
++                    // An auto inline size is fit-content (css-sizing-3); a block size stays
++                    // max-content. The ceiling is not `size`: a flex basis can lift that above it.
++                    let max_content_space = available_space.with_main(dir, AvailableSpace::MaxContent);
++                    let max_content_size =
++                        determine_intrinsic_main_size(tree, max_content_space, lines, constants, true);
++                    // The flex base sizes were resolved in definite space, so a scroll container's
++                    // is its max-content size and cannot stand in for its min-content one.
++                    let min_content_space = available_space.with_main(dir, AvailableSpace::MinContent);
++                    let min_content_size =
++                        determine_intrinsic_main_size(tree, min_content_space, lines, constants, false);
++                    f32_min(max_content_size, f32_max(min_content_size, outer_main_axis_available_space))
+                 } else {
+                     size
+                 }
+@@ -1490,7 +1502,7 @@ fn determine_container_main_size(
+                 longest_line_length + main_content_box_inset
+             }
+             AvailableSpace::MinContent | AvailableSpace::MaxContent => {
+-                determine_intrinsic_main_size(tree, available_space, lines, constants)
++                determine_intrinsic_main_size(tree, available_space, lines, constants, true)
+             }
+         }
+     });
+@@ -1506,13 +1518,14 @@ fn determine_container_main_size(
+     constants.node_inner_size.set_main(constants.dir, Some(inner_main_size));
+ }
+
+-/// The outer main size of a container sized under a min- or max-content constraint
+-/// (<https://www.w3.org/TR/css-flexbox-1/#intrinsic-main-sizes>)
++/// The outer main size of a container under a min- or max-content constraint (css-flexbox-1,
++/// intrinsic main sizes). `bases_match`: the flex base sizes were resolved under that one.
+ fn determine_intrinsic_main_size(
+     tree: &mut impl LayoutFlexboxContainer,
+     available_space: Size<AvailableSpace>,
+     lines: &mut [FlexLine<'_>],
+     constants: &AlgoConstants,
++    bases_match: bool,
+ ) -> f32 {
+     let dir = constants.dir;
+     let main_content_box_inset = constants.content_box_inset.main_axis_sum(constants.dir);
+@@ -1564,7 +1577,7 @@ fn determine_intrinsic_main_size(
+
+                 // Else compute the min- or -max content size and apply the full formula for computing the
+                 // min- or max- content contribution
+-                _ if item.is_scroll_container() => {
++                _ if item.is_scroll_container() && bases_match => {
+                     item.flex_basis + item.margin.main_axis_sum(constants.dir)
+                 }
+
+@@ -3503,3 +3516,217 @@ mod balance {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod kitesurf_regression_tests {
++    use crate::geometry::Point;
++    use crate::prelude::*;
++    use crate::style::Overflow;
++    use crate::{compute_leaf_layout, LayoutInput};
++
++    const WORD: f32 = 40.0;
++    const SPACE: f32 = 10.0;
++
++    /// A line of `words` Ahem-like words, as gentest text measures: each word 40px wide, a 10px
++    /// space between words, 10px line height, wrapping only between words.
++    fn measure_words(words: usize, known: Size<Option<f32>>, available: Size<AvailableSpace>) -> Size<f32> {
++        let line_width = |per_line: usize| per_line as f32 * (WORD + SPACE) - SPACE;
++        let per_line = |width: f32| (((width + SPACE) / (WORD + SPACE)).floor() as usize).clamp(1, words);
++        let width = known.width.unwrap_or_else(|| match available.width {
++            AvailableSpace::MinContent => WORD,
++            AvailableSpace::MaxContent => line_width(words),
++            AvailableSpace::Definite(width) => line_width(per_line(width)),
++        });
++        Size { width, height: known.height.unwrap_or(words.div_ceil(per_line(width)) as f32 * 10.0) }
++    }
++
++    fn compute(tree: &mut TaffyTree<usize>, root: NodeId) {
++        tree.compute_layout_with_measure(root, Size::MAX_CONTENT, |inputs: LayoutInput, _, context, style| {
++            let words = context.map(|words| *words);
++            compute_leaf_layout(inputs, style, |_, _| 0.0, |known, available| match words {
++                Some(words) => measure_words(words, known, available),
++                None => Size::ZERO,
++            })
++        })
++        .unwrap();
++    }
++
++    /// A column container whose `align-items: flex-start` sizes `child`'s width to fit-content
++    /// against `width`, which is how a non-stretched flex item, an inline-flex or a float is sized.
++    fn fit_content_probe(tree: &mut TaffyTree<usize>, width: f32, child: NodeId) -> NodeId {
++        let style = Style {
++            flex_direction: FlexDirection::Column,
++            align_items: AlignItems::FLEX_START,
++            size: Size { width: length(width), height: auto() },
++            ..Default::default()
++        };
++        flex_box(tree, style, &[child])
++    }
++
++    fn flex_box(tree: &mut TaffyTree<usize>, style: Style, children: &[NodeId]) -> NodeId {
++        tree.new_with_children(Style { display: Display::Flex, ..style }, children).unwrap()
++    }
++
++    fn text(tree: &mut TaffyTree<usize>, words: usize, width: Dimension) -> NodeId {
++        let style = Style { size: Size { width, height: auto() }, ..Default::default() };
++        tree.new_leaf_with_context(style, words).unwrap()
++    }
++
++    fn horizontal_padding(padding: f32) -> Rect<LengthPercentage> {
++        Rect { left: length(padding), right: length(padding), top: zero(), bottom: zero() }
++    }
++
++    #[test]
++    fn fit_content_row_shrinks_to_the_available_space() {
++        let mut tree = TaffyTree::new();
++        let text = text(&mut tree, 9, auto());
++        let row = flex_box(&mut tree, Style::default(), &[text]);
++        let root = fit_content_probe(&mut tree, 157.0, row);
++        compute(&mut tree, root);
++
++        assert_eq!(tree.layout(row).unwrap().size.width, 157.0);
++        // Nine words at three to a line make three lines: the text is laid out again at the
++        // narrower width, where a row that only shrank would leave it on one.
++        assert_eq!(tree.layout(text).unwrap().size, Size { width: 157.0, height: 30.0 });
++        assert_eq!(tree.layout(row).unwrap().size.height, 30.0);
++    }
++
++    #[test]
++    fn fit_content_row_shrinks_an_item_that_clips_its_overflow() {
++        let mut tree = TaffyTree::new();
++        let overflow = Point { x: Overflow::Hidden, y: Overflow::Hidden };
++        let clipped = tree.new_leaf_with_context(Style { overflow, ..Default::default() }, 9).unwrap();
++        let row = flex_box(&mut tree, Style::default(), &[clipped]);
++        let root = fit_content_probe(&mut tree, 157.0, row);
++        compute(&mut tree, root);
++
++        assert_eq!(tree.layout(row).unwrap().size.width, 157.0);
++        assert_eq!(tree.layout(clipped).unwrap().size.width, 157.0);
++    }
++
++    #[test]
++    fn fit_content_row_shrinks_a_percentage_width_item() {
++        let mut tree = TaffyTree::new();
++        let text = text(&mut tree, 9, percent(1.0));
++        let row = flex_box(&mut tree, Style::default(), &[text]);
++        let root = fit_content_probe(&mut tree, 157.0, row);
++        compute(&mut tree, root);
++
++        assert_eq!(tree.layout(row).unwrap().size.width, 157.0);
++    }
++
++    #[test]
++    fn fit_content_row_keeps_its_padding_inside_the_available_space() {
++        let mut tree = TaffyTree::new();
++        let text = text(&mut tree, 9, auto());
++        let row = flex_box(&mut tree, Style { padding: horizontal_padding(10.0), ..Default::default() }, &[text]);
++        let root = fit_content_probe(&mut tree, 157.0, row);
++        compute(&mut tree, root);
++
++        assert_eq!(tree.layout(row).unwrap().size.width, 157.0);
++        assert_eq!(tree.layout(text).unwrap().size.width, 137.0);
++    }
++
++    #[test]
++    fn fit_content_row_does_not_grow_into_the_available_space() {
++        let mut tree = TaffyTree::new();
++        let text = text(&mut tree, 2, auto());
++        let row = flex_box(&mut tree, Style::default(), &[text]);
++        let root = fit_content_probe(&mut tree, 157.0, row);
++        compute(&mut tree, root);
++
++        assert_eq!(tree.layout(row).unwrap().size.width, 90.0);
++    }
++
++    #[test]
++    fn fit_content_row_does_not_shrink_below_its_min_content_size() {
++        let mut tree = TaffyTree::new();
++        let text = text(&mut tree, 9, auto());
++        let row = flex_box(&mut tree, Style::default(), &[text]);
++        let root = fit_content_probe(&mut tree, 30.0, row);
++        compute(&mut tree, root);
++
++        assert_eq!(tree.layout(row).unwrap().size.width, WORD);
++    }
++
++    #[test]
++    fn fit_content_row_keeps_the_specified_width_of_an_item() {
++        let mut tree = TaffyTree::new();
++        let fixed = text(&mut tree, 1, length(300.0));
++        let row = flex_box(&mut tree, Style::default(), &[fixed]);
++        let root = fit_content_probe(&mut tree, 157.0, row);
++        compute(&mut tree, root);
++
++        assert_eq!(tree.layout(row).unwrap().size.width, 300.0);
++        assert_eq!(tree.layout(fixed).unwrap().size.width, 300.0);
++    }
++
++    #[test]
++    fn fit_content_row_stays_at_max_content_when_a_flex_basis_exceeds_it() {
++        let mut tree = TaffyTree::new();
++        let style = Style { flex_basis: length(300.0), flex_shrink: 1.0, ..Default::default() };
++        let short = tree.new_leaf_with_context(style, 1).unwrap();
++        let row = flex_box(&mut tree, Style::default(), &[short]);
++        let root = fit_content_probe(&mut tree, 157.0, row);
++        compute(&mut tree, root);
++
++        assert_eq!(tree.layout(row).unwrap().size.width, WORD);
++    }
++
++    #[test]
++    fn fit_content_row_stays_at_max_content_when_an_item_has_a_max_width() {
++        let mut tree = TaffyTree::new();
++        let style = Style { max_size: Size { width: length(WORD), height: auto() }, ..Default::default() };
++        let capped = tree.new_leaf_with_context(style, 9).unwrap();
++        let row = flex_box(&mut tree, Style::default(), &[capped]);
++        let root = fit_content_probe(&mut tree, 157.0, row);
++        compute(&mut tree, root);
++
++        assert_eq!(tree.layout(row).unwrap().size.width, WORD);
++    }
++
++    #[test]
++    fn fit_content_wrapping_row_shrinks_its_one_line() {
++        let mut tree = TaffyTree::new();
++        let text = text(&mut tree, 9, auto());
++        let row = flex_box(&mut tree, Style { flex_wrap: FlexWrap::Wrap, ..Default::default() }, &[text]);
++        let root = fit_content_probe(&mut tree, 157.0, row);
++        compute(&mut tree, root);
++
++        assert_eq!(tree.layout(row).unwrap().size.width, 157.0);
++    }
++
++    #[test]
++    fn fit_content_row_without_items_keeps_its_padding() {
++        let mut tree = TaffyTree::new();
++        let style = Style { flex_wrap: FlexWrap::Wrap, padding: horizontal_padding(100.0), ..Default::default() };
++        let row = flex_box(&mut tree, style, &[]);
++        let root = fit_content_probe(&mut tree, 157.0, row);
++        compute(&mut tree, root);
++
++        assert_eq!(tree.layout(row).unwrap().size.width, 200.0);
++    }
++
++    #[test]
++    fn content_sized_column_keeps_its_max_content_height() {
++        let mut tree = TaffyTree::new();
++        let shrinkable = Style {
++            flex_basis: length(200.0),
++            size: Size { width: length(10.0), height: auto() },
++            min_size: Size { width: auto(), height: length(0.0) },
++            ..Default::default()
++        };
++        let tall = tree.new_leaf(shrinkable).unwrap();
++        let column_style = Style { flex_direction: FlexDirection::Column, ..Default::default() };
++        let column = flex_box(&mut tree, column_style, &[tall]);
++        let short_row = Style {
++            align_items: AlignItems::FLEX_START,
++            size: Size { width: length(100.0), height: length(50.0) },
++            ..Default::default()
++        };
++        let root = flex_box(&mut tree, short_row, &[column]);
++        compute(&mut tree, root);
++
++        assert_eq!(tree.layout(column).unwrap().size.height, 200.0);
++    }
++}
