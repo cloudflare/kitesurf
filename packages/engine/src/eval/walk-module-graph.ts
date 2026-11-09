@@ -392,26 +392,27 @@ export function astroIslandModuleUrls(html: string, baseUrl: string): string[] {
 export interface ModulePreloadSeed {
   url: string;
   nonce: string | null;
+  integrity: string | null;
 }
 
 export function modulePreloadSeeds(html: string, baseUrl: string): ModulePreloadSeed[] {
-  const seeds = new Map<string, string | null>();
+  const seeds = new Map<string, Omit<ModulePreloadSeed, "url">>();
   for (const [tag] of html.matchAll(/<link\b[^>]*>/gi)) {
     const attr = (name: string): string | null => {
       const m = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i").exec(tag);
       return m ? (m[1] ?? m[2] ?? m[3] ?? "").replace(/&amp;/g, "&") : null;
     };
     const rel = attr("rel")?.toLowerCase().split(/\s+/) ?? [];
-    if (!rel.includes("modulepreload") || attr("integrity") !== null) continue;
+    if (!rel.includes("modulepreload")) continue;
     const as = attr("as")?.toLowerCase();
     if (as && as !== "script") continue;
     const href = attr("href");
     const url = href ? resolveAgainstImporter(href, baseUrl) : null;
     if (url && /^https?:\/\//.test(url) && !seeds.has(url)) {
-      seeds.set(url, attr("nonce"));
+      seeds.set(url, { nonce: attr("nonce"), integrity: attr("integrity") });
     }
   }
-  return [...seeds].map(([url, nonce]) => ({ url, nonce }));
+  return [...seeds].map(([url, seed]) => ({ url, ...seed }));
 }
 
 // Every `import` that can start a call: not part of a name or a member access (`...import(` is a
@@ -863,7 +864,9 @@ export async function walkModuleGraph({
     }
   }
 
-  for (const { url, nonce } of opts.preloadSeeds ?? []) {
+  for (const { url, nonce, integrity } of opts.preloadSeeds ?? []) {
+    // The pin binds every fetch of the url, including one an entry's import already queued.
+    if (integrity && !integrityByUrl.has(url)) integrityByUrl.set(url, integrity);
     if (modules.has(url) || failed.has(url) || depthOf.has(url)) continue;
     if (nonce && !nonceByUrl.has(url)) nonceByUrl.set(url, nonce);
     viaDyn.set(url, false);
