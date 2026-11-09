@@ -192,6 +192,8 @@ fn callback_rejects_wrong_state_path_and_ambiguous_parameters() {
         "/oauth/callback?code=secret&code=other&state=expected",
         "https://example.com/oauth/callback?code=secret&state=expected",
         "/\\example.com/oauth/callback?code=secret&state=expected",
+        "/\\",
+        "/\\[::/oauth/callback?code=secret&state=expected",
     ] {
         assert!(
             callback_code(target, "expected").unwrap().is_none(),
