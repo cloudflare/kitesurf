@@ -57,6 +57,11 @@ const SVGAnimatedString = class SVGAnimatedString {
   }
 };
 
+type KeyUsageInput = Iterable<string> | ArrayLike<string>;
+
+// workerd requires keyUsages to be a real Array; pages pass Sets and array-likes.
+const toKeyUsages = (value: KeyUsageInput): string[] => Array.from(value);
+
 type PageNavigator = ShimNavigator & {
   userAgentData?: unknown;
   webdriver?: unknown;
@@ -817,9 +822,10 @@ export function installGlobals(
           Object.defineProperty(subtle, "generateKey", {
             value: async function generateKey(
               algorithm: unknown,
-              ...rest: unknown[]
+              ...rest: [extractable?: boolean, keyUsages?: KeyUsageInput]
             ): Promise<unknown> {
               const name = algName(algorithm).toUpperCase();
+              if (rest.length >= 2 && rest[1] !== undefined) rest[1] = toKeyUsages(rest[1]);
               const entry = GEN_SUPPORTED_UC.get(name);
               if (!entry) {
                 if (GEN_PASSTHROUGH.has(name)) {
