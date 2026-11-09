@@ -7,6 +7,7 @@
 import { parse as lexerParse } from "es-module-lexer/js";
 import {
   checkScriptBeforeFetch,
+  checkScriptRedirect,
   checkScriptResponse,
   type ModuleType,
   type ScriptGateContext,
@@ -975,23 +976,22 @@ export async function walkModuleGraph({
         headers,
         taintOriginFrom: pageOrigin || undefined,
         fetchHop: (hopReq) => outbound.fetch(hopReq),
-        checkRedirect: gate
-          ? async (next) => {
-              const pre = await checkScriptBeforeFetch(gate, {
-                url: next,
-                integrity: integrityByUrl.get(url) ?? null,
-                nonce: nonceByUrl.get(url) ?? null,
-                runtimeInserted: viaTrustedImporter.has(url),
-                module: true,
-              });
-              if (pre.reportOnly) console.warn(`[kitesurf-csp] ${pre.reportOnly}`);
-              return pre.allowed ? (pre.upgradeTo ?? next) : null;
+        refuseHop: gate
+          ? (hopUrl) => {
+              const hop = checkScriptRedirect(
+                gate,
+                {
+                  url,
+                  nonce: nonceByUrl.get(url) ?? null,
+                  runtimeInserted: viaTrustedImporter.has(url),
+                },
+                hopUrl,
+              );
+              return hop.allowed ? null : (hop.message ?? `module blocked: ${hopUrl}`);
             }
           : undefined,
       });
-      if (!walk.ok && walk.reason === "redirect-blocked") {
-        return { ok: false, error: `module blocked: redirect to ${walk.url}` };
-      }
+      if (!walk.ok && walk.reason === "refused") return { ok: false, error: walk.message };
       if (!walk.ok) {
         return { ok: false, error: `module fetch too many redirects for ${url}` };
       }
