@@ -3630,7 +3630,7 @@ function oopifSpawnArgs(ctx: DispatchCtx, target: TargetState, f: FrameState): R
       );
       return (event, params) => {
         if (event === "kitesurf.postMessage") {
-          routeChildFramePostMessage(target, f, params);
+          routeChildFramePostMessage(target, f, params, url);
         } else if (isWorkerUpstreamEvent(event)) {
           ctx.browser.dedicatedWorkers.handle(ctx, workerOwner, event, params);
         }
@@ -4186,13 +4186,16 @@ function postMessageOriginAllowed(
 
 // MessageEvent.origin comes from the url the engine committed for the sending frame, never from
 // the isolate's claim, which page script can change. An about:blank or about:srcdoc frame has
-// its embedder's origin; the main frame uses the url its isolate was sealed with.
-function frameMessageOrigin(target: TargetState, frame: FrameState): string {
+// its embedder's origin. An isolate uses the url it was sealed with (sealedUrl for a child): a
+// frame's url moves to the next document before the old one has run its unload handlers.
+function frameMessageOrigin(target: TargetState, frame: FrameState, sealedUrl?: string): string {
+  const about = /^about:(blank|srcdoc)([?#]|$)/;
   let f: FrameState | undefined = frame;
-  while (f && f.parentFrameId !== null && /^about:(blank|srcdoc)([?#]|$)/.test(f.url)) {
+  let url = sealedUrl !== undefined && !about.test(sealedUrl) ? sealedUrl : null;
+  while (url === null && f && f.parentFrameId !== null && about.test(f.url)) {
     f = target.frames.get(f.parentFrameId);
   }
-  const url = !f ? "" : f.parentFrameId === null ? (target.pageScriptUrl ?? f.url) : f.url;
+  url ??= !f ? "" : f.parentFrameId === null ? (target.pageScriptUrl ?? f.url) : f.url;
   try {
     return new URL(url).origin;
   } catch {
@@ -4205,9 +4208,10 @@ export function routeChildFramePostMessage(
   target: TargetState,
   from: FrameState,
   params: ReceivedUpstreamParams,
+  sealedUrl?: string,
 ): void {
-  if (params.toParent === true) routePostMessageToParent(target, from.frameId, params);
-  else routePostMessageToChild(target, from, params);
+  if (params.toParent === true) routePostMessageToParent(target, from.frameId, params, sealedUrl);
+  else routePostMessageToChild(target, from, params, sealedUrl);
 }
 
 // Owner ids are node ids in the sender's document, so match them only among its own children.
@@ -4215,12 +4219,13 @@ export function routePostMessageToChild(
   target: TargetState,
   from: FrameState,
   params: ReceivedUpstreamParams,
+  sealedUrl?: string,
 ): void {
   const ownerId = typeof params.toFrameOwnerId === "number" ? params.toFrameOwnerId : -1;
   if (ownerId <= 0) return;
   for (const f of target.frames.values()) {
     if (f.ownerBackendNodeId !== ownerId || f.parentFrameId !== from.frameId) continue;
-    const message = { ...params, sourceOrigin: frameMessageOrigin(target, from) };
+    const message = { ...params, sourceOrigin: frameMessageOrigin(target, from, sealedUrl) };
     if (!f.pageScript) {
       if (!f.detached) {
         const q = (f.pendingPostMessages ??= []);
@@ -4254,10 +4259,11 @@ export function routePostMessageToParent(
   target: TargetState,
   fromFrameId: string,
   params: ReceivedUpstreamParams,
+  sealedUrl?: string,
 ): void {
   const f = target.frames.get(fromFrameId);
   if (!f || f.detached) return;
-  const senderOrigin = frameMessageOrigin(target, f);
+  const senderOrigin = frameMessageOrigin(target, f, sealedUrl);
   let recipient: PageScriptStub | null = null;
   let recipientOrigin = "";
   if (!f.parentFrameId || f.parentFrameId === target.frameId) {
