@@ -279,6 +279,12 @@ impl ResourceStore {
                 self.broken_fonts.insert(*key);
                 self.pending_assets.remove(key);
             }
+            if processed.is_empty() {
+                crate::console_warn_str(&format!(
+                    "[ks-replay] font asset delivered no bytes (marked broken): path={path}"
+                ));
+                return 0;
+            }
             let magic: Vec<u8> = processed.iter().take(4).copied().collect();
             crate::console_warn_str(&format!(
                 "[ks-replay] font asset is not a parseable face (marked broken): path={path} len={} magic={magic:02x?}",
@@ -3028,6 +3034,32 @@ mod tests {
         assert!(store.broken_fonts.contains(font_hash));
         assert!(!store.pending_assets.contains_key(font_hash));
         assert!(!store.fonts.contains_key(font_hash));
+        assert_eq!(u32_le(&missing_resources(&store, &framed)[0..4]), 0);
+    }
+
+    // The renderer reports a url-ref whose pull returned nothing as empty bytes; the next
+    // scan must not ask for it again, or every render re-fetches the page-chosen URL.
+    #[test]
+    fn font_url_ref_that_delivered_nothing_is_not_asked_for_again() {
+        let font = test_font();
+        let (framed, drains) = record_scene(Some(&font), None);
+        let mut store = ResourceStore::default();
+        let (font_hash, _, idx) = &drains.fonts[0];
+
+        let path = "https://fonts.example/gone.woff2";
+        let mut body = vec![FONT_DATA_REF_ASSET];
+        body.extend_from_slice(&idx.to_le_bytes());
+        body.extend_from_slice(path.as_bytes());
+        let mut batch = Vec::new();
+        batch.extend_from_slice(&1u32.to_le_bytes());
+        batch.push(RBI_RESOURCE_KIND_FONT_DATA);
+        batch.extend_from_slice(&font_hash.to_le_bytes());
+        batch.extend_from_slice(&(body.len() as u32).to_le_bytes());
+        batch.extend_from_slice(&body);
+        store.put_batch(&batch);
+
+        assert_eq!(store.put_font_asset(path, &[]), 0);
+        assert!(store.pending_assets.is_empty());
         assert_eq!(u32_le(&missing_resources(&store, &framed)[0..4]), 0);
     }
 

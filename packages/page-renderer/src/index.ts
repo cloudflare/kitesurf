@@ -160,6 +160,7 @@ const MAX_RESOURCE_PULL_ROUNDS = 2;
 const DEFAULT_RASTER_FORMAT = "png";
 const DEFAULT_RASTER_QUALITY = 80;
 const MAX_FONT_ASSET_LOG_PATH_CHARS = 48;
+const EMPTY_FONT_BYTES = new Uint8Array(0);
 const DEFAULT_PDF_PAPER_WIDTH_CSS_PX = 816;
 const DEFAULT_PDF_PAPER_HEIGHT_CSS_PX = 1056;
 const DEFAULT_PDF_MARGIN_CSS_PX = 0;
@@ -354,9 +355,9 @@ async function resolveResources(
     }
     for (const path of pendingFontAssetPaths()) {
       const bytes = await fetchFontAsset(path, port, fetchAsset, fetchFont, timed);
-      if (bytes && bytes.length > 0) {
-        rasterizer.putFontAsset(path, bytes);
-      }
+      // Empty bytes are not a face, so the store marks the path broken and later scans skip it,
+      // as a failed font load stays failed for the document.
+      rasterizer.putFontAsset(path, bytes && bytes.length > 0 ? bytes : EMPTY_FONT_BYTES);
     }
   }
   return null;
