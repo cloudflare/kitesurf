@@ -1160,13 +1160,11 @@ pub(crate) fn start_accessibility_with_budget(
     if streaming {
         let traversal = AxTraversal::new(&context);
         let (Some(stream_key), Some(expected_hash)) = (key, measure.finish_hash()) else {
-            drop(context);
             drop(handles);
             drop(doc);
             return Err(AxStartError::InternalState);
         };
         let byte_length = measure.bytes;
-        drop(context);
         drop(handles);
         drop(doc);
         return Ok(AxStart {
@@ -1197,7 +1195,6 @@ pub(crate) fn start_accessibility_with_budget(
     let mut output = Vec::with_capacity(measure.bytes);
     context.write_reply(&mut output);
     let byte_length = output.len();
-    drop(context);
     drop(handles);
     drop(doc);
     Ok(AxStart {
