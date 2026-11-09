@@ -424,6 +424,15 @@ export function modulePreloadSeeds(html: string, baseUrl: string): ModulePreload
 const IMPORT_CALL =
   /(?<![\p{ID_Continue}$#\u200c\u200d]|(?<!\.\.)\.[^\S\n\r\u2028\u2029]*)import(?=(?:\s|\/\*(?:[^*]|\*(?!\/))*\*\/|(?:\/\/|<!--|-->)[^\n\r\u2028\u2029]*(?![^\n\r\u2028\u2029]))*\()/gu;
 
+function fnv1aHex(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
 export function extractClassicDynamicSeeds(
   body: string,
   baseUrl: string,
@@ -443,12 +452,16 @@ export function extractClassicDynamicSeeds(
   } catch {}
   const dynamics = imports?.filter((imp) => imp.t === 2) ?? [];
   const lexedCalls = new Set(dynamics.map((imp) => imp.ss));
+  const ref = JSON.stringify(baseUrl);
   if (!imports || calls.some((at) => !lexedCalls.has(at))) {
-    return { rewritten: body.replace(IMPORT_CALL, "__ks_import"), seeds: [] };
+    // Only the keyword is replaced, so a hoisted function per script url passes it as the referrer.
+    // A name keeps a method called `import` valid; scripts in one bundle share a scope.
+    const callee = `__ks_import_${fnv1aHex(baseUrl)}`;
+    const binding = `\nfunction ${callee}(s) { return __ks_import(s, ${ref}); }`;
+    return { rewritten: body.replace(IMPORT_CALL, callee) + binding, seeds: [] };
   }
   const seeds: string[] = [];
   let b = body;
-  const ref = JSON.stringify(baseUrl);
   for (const imp of dynamics.sort((a, c) => c.ss - a.ss)) {
     const spec = imp.n ?? constSpecifier(body.slice(imp.s, imp.e));
     if (spec) {
