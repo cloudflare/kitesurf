@@ -665,6 +665,15 @@ function isObservable(value: unknown): value is { readonly _id: number } {
   );
 }
 
+type ObservableTarget = { readonly _id: number };
+
+// A created or imported document has no node id; its host element owns the tree.
+function observableTarget(target: Idl.Node): ObservableTarget | null {
+  if (isObservable(target)) return target;
+  const host: unknown = Reflect.get(target, "_host");
+  return isObservable(host) ? host : null;
+}
+
 type MutationCallback = (records: MutationRecord[], observer: MutationObserverImpl) => void;
 
 let queueObserverRecord!: (observer: MutationObserverImpl, record: MutationRecord) => void;
@@ -698,7 +707,8 @@ export class MutationObserverImpl implements Idl.MutationObserver {
    * Old-value and filter options infer the matching observation flag.
    */
   observe(target: Idl.Node, options?: Idl.MutationObserverInit) {
-    if (!isObservable(target)) {
+    const observed = observableTarget(target);
+    if (!observed) {
       throw new TypeError("MutationObserver.observe: invalid target");
     }
     const opts = options || {};
@@ -758,7 +768,7 @@ export class MutationObserverImpl implements Idl.MutationObserver {
     // An existing registration for this target only gets new options.
     for (let i = 0; i < mutationObservers.length; i++) {
       const e = mutationObservers[i];
-      if (e.observer === this && e.targetId === target._id) {
+      if (e.observer === this && e.targetId === observed._id) {
         clearTransientSource(e);
         e.options = normalized;
         return;
@@ -766,7 +776,7 @@ export class MutationObserverImpl implements Idl.MutationObserver {
     }
     mutationObservers.push({
       observer: this,
-      targetId: target._id,
+      targetId: observed._id,
       options: normalized,
     });
   }
