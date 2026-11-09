@@ -194,6 +194,20 @@ host_run(
     tool = ":dev_build_tool",
 )
 
+# `pnpm run deploy` (`bazel run --config=devtools //packages/engine:deploy -- <wrangler deploy args>`)
+# uploads :dist and :assets to the account wrangler is logged in to (scripts/engine-deploy.mjs).
+# `pnpm run deploy:preview` passes `--preview` first, which uploads a version and moves no traffic.
+js_binary(
+    name = "deploy",
+    data = [
+        ":assets",
+        ":config",
+        ":dist",
+        ":node_modules/wrangler",
+    ],
+    entry_point = "//scripts:engine_deploy",
+)
+
 # `bazel run //packages/engine:e2e -- <file-substring>` runs the matching e2e files against the
 # Bazel-built engine; with no filter it runs the whole suite (scripts/e2e-run.mjs).
 js_binary(
