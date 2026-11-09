@@ -9,9 +9,8 @@ const encoder = new TextEncoder();
 const isHighSurrogate = (unit: number) => unit >= 0xd800 && unit <= 0xdbff;
 
 /**
- * Calls `onChunk` with `text` as UTF-8, about `chunkUnits` UTF-16 units at a time, in one reused
- * buffer that is only valid during the call. The chunks join to `TextEncoder.encode(text)`, and
- * none splits a character.
+ * Calls `onChunk` with `text` as UTF-8, `chunkUnits` at a time, in one reused buffer that is valid
+ * only during the call; the chunks join to `TextEncoder.encode(text)` and never split a character.
  */
 export function forEachUtf8Chunk(
   text: string,

@@ -12,8 +12,7 @@ import {
   stubQueryDom,
 } from "../src/cdp/page-session.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
-import type { TargetState } from "../src/cdp/types.ts";
-import { RawJsonResult } from "../src/cdp/types.ts";
+import type { RawJsonResult, TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
 import type { Protocol } from "devtools-protocol";

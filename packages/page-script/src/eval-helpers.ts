@@ -38,9 +38,8 @@ export function findAnchorAncestor(el: ShimElement | null): ShimElement | null {
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
 /**
- * The link under (`x`, `y`) inside an inline `<svg>` target. Inline SVG paints from a snapshot,
- * so hit testing stops at the `<svg>` and never reaches the shape inside a link. Later links
- * paint on top, so they are checked first.
+ * The link under (`x`, `y`) inside an inline `<svg>` target: inline SVG paints from a snapshot, so
+ * hit testing stops at the `<svg>`. Later links paint on top, so they are checked first.
  */
 export function findSvgAnchorAtPoint(
   targetEl: ShimElement | null,
@@ -70,10 +69,8 @@ export function anchorHrefAttribute(anchor: ShimElement): string | null {
 }
 
 /**
- * A link whose own box is under (`x`, `y`) among the children of an ancestor of the hit target.
- * Hit testing returns the nearest painted box, so a link that wraps across lines can be missed
- * when its bounding rect's centre lands on the surrounding text; its bounding rect is the union
- * of its line boxes, so containment still finds it. A link merely near the click is not a hit.
+ * A link whose own box is under (`x`, `y`) among an ancestor's children. A wrapped link's rect is
+ * the union of its line boxes, so it is found; a link merely near the click is not a hit.
  */
 export function findAnchorViaSingleChild(
   targetEl: ShimElement | null,
