@@ -670,7 +670,7 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
         );
       } else {
         bytes =
-          format === "png" || format === "jpeg"
+          format === "png" || format === "jpeg" || opts.encodedLimit !== undefined
             ? rasterizer.rasterizeLimited(
                 scene,
                 format,
@@ -678,15 +678,7 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
                 opts.omitBackground === true,
                 opts.encodedLimit ?? 0xffffffff,
               )
-            : opts.encodedLimit !== undefined
-              ? rasterizer.rasterizeLimited(
-                  scene,
-                  format,
-                  quality,
-                  opts.omitBackground === true,
-                  opts.encodedLimit,
-                )
-              : rasterizer.rasterize(scene, format, quality, opts.omitBackground === true);
+            : rasterizer.rasterize(scene, format, quality, opts.omitBackground === true);
       }
     } catch {
       bytes = null;

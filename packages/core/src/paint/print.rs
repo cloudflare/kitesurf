@@ -29,9 +29,7 @@ impl PdfSceneStream {
     pub fn next_page(&mut self, dom: &DomHandle) -> Result<Vec<u8>, JsError> {
         let Some(&band) = self.bands.get(self.next) else {
             // A stream that records no page never reaches `record_stream_page`'s clear.
-            if let Ok(mut doc) = dom.doc.try_borrow_mut() {
-                doc.set_inline_keep_extent(None);
-            }
+            dom.release_inline_keep_extent();
             return Ok(Vec::new());
         };
         let page = record_stream_page(dom, self.content_width, band)?;
@@ -87,6 +85,7 @@ fn record_stream_page(
 // Keep cleanup separate for the same pinned-toolchain WebAssemblyCFGStackify SIGBUS workaround.
 fn cleanup_stream_page(doc: &mut blitz_dom::BaseDocument) -> std::thread::Result<()> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        // Consume read grace, then release text rebuilt only for printing.
         doc.evict_offscreen_inline_layouts();
         doc.evict_offscreen_inline_layouts();
     }))
@@ -189,17 +188,14 @@ impl DomHandle {
             _ => Vec::new(),
         }
     }
-    /// Consumes the read grace, then releases the text this print rebuilt. Returns false
-    /// when the eviction panicked or the document is already borrowed.
+
+    /// Releases the text this print rebuilt. Returns false when the eviction panicked
+    /// or the document is already borrowed.
     fn release_print_only_layouts(&self) -> bool {
         let Ok(mut doc) = self.doc.try_borrow_mut() else {
             return false;
         };
-        panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            doc.evict_offscreen_inline_layouts();
-            doc.evict_offscreen_inline_layouts();
-        }))
-        .is_ok()
+        cleanup_stream_page(&mut doc).is_ok()
     }
 
     /// Records the PDF scenes of the document laid out at the paper box.

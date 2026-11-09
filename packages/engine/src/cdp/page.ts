@@ -1266,8 +1266,7 @@ export async function handlePage(
             `Page.captureScreenshot failed: requested ${captureWidth}x${captureHeight} px exceeds the 65535 px per-side raster limit; capture a smaller clip`,
           );
         }
-        // The band rasterizer traverses the whole scene once per 128-row band, so a clip that is
-        // large in area but small per side would run for minutes. Bound the area for every format.
+        // Bounded for every format, not only WebP: the band walk is the cost, not the encoder.
         if (captureWidth * captureHeight > MAX_SCREENSHOT_PIXELS) {
           throw new Error(
             `Page.captureScreenshot failed: requested ${captureWidth}x${captureHeight} px exceeds the ${MAX_SCREENSHOT_PIXELS} px total raster limit; capture a smaller clip`,
@@ -1290,26 +1289,16 @@ export async function handlePage(
           const __drainStart = Date.now();
           let drainInfo: Record<string, unknown> | null = null;
           let __graceTimer: ReturnType<typeof setTimeout> | null = null;
-          const __clipRect = (() => {
-            if (!effectiveClip) return null;
-            const { x, y, width, height } = effectiveClip;
-            return typeof x === "number" &&
-              typeof y === "number" &&
-              typeof width === "number" &&
-              typeof height === "number"
-              ? { x, y, width, height }
-              : null;
-          })();
           try {
             const drain = stubQueryDom(ps, "awaitPendingResources", {
               timeoutMs: RENDER_DRAIN_TIMEOUT_MS,
-              scope: __clipRect
+              scope: effectiveClip
                 ? {
                     mode: "rect",
-                    x: __clipRect.x,
-                    y: __clipRect.y,
-                    w: __clipRect.width,
-                    h: __clipRect.height,
+                    x: effectiveClip.x,
+                    y: effectiveClip.y,
+                    w: effectiveClip.width,
+                    h: effectiveClip.height,
                   }
                 : { mode: "viewport" },
             }).catch(() => null);
