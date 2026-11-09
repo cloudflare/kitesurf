@@ -138,6 +138,41 @@ fn appending_a_sibling_restyles_an_earlier_has_anchor() {
 }
 
 #[test]
+fn appending_a_descendant_restyles_a_has_anchor_without_sibling_selectors() {
+    let dom = styled(
+        ".a { color: red } .a:has(.b) { color: green }",
+        r#"<div class="a" id="a"><span id="s">s</span></div>"#,
+    );
+    let (a, s) = (id(&dom, "#a"), id(&dom, "#s"));
+    assert_eq!(color(&dom, a), RED);
+    let b = dom.create_element("i");
+    assert!(dom.set_attribute(b, "class", "b"));
+    assert!(dom.append_child_node(s, b));
+    assert_eq!(color(&dom, a), GREEN);
+}
+
+#[test]
+fn appending_a_sibling_restyles_an_earlier_has_anchor_in_a_shadow_tree() {
+    let dom = styled("", r#"<div id="host"></div>"#);
+    let host = id(&dom, "#host");
+    let root = dom.attach_shadow(host, "open") as u32;
+    let style = dom.create_element("style");
+    let css = dom.create_text_node(".a { color: red } .a:has(+ .b) { color: green }");
+    assert!(dom.append_child_node(style, css));
+    assert!(dom.append_child_node(root, style));
+    let (p, a) = (dom.create_element("div"), dom.create_element("span"));
+    assert!(dom.set_attribute(a, "class", "a"));
+    assert!(dom.append_child_node(p, a));
+    assert!(dom.append_child_node(root, p));
+    dom.resolve_layout();
+    assert_eq!(color(&dom, a), RED);
+    let b = dom.create_element("i");
+    assert!(dom.set_attribute(b, "class", "b"));
+    assert!(dom.append_child_node(p, b));
+    assert_eq!(color(&dom, a), GREEN);
+}
+
+#[test]
 fn appending_a_later_sibling_restyles_an_earlier_has_tilde_anchor() {
     let dom = styled(
         ".a { color: red } .a:has(~ .b) { color: green }",

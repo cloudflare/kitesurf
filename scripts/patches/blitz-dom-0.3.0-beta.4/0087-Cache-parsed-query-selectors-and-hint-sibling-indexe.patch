@@ -9,10 +9,10 @@ Signed-off-by: Bernardo Pereira <bpereira@cloudflare.com>
 ---
  src/document.rs       |  3 +++
  src/node/node.rs      | 25 +++++++++++++++++----
- src/query_selector.rs | 51 ++++++++++++++++++++++++++++++++++++++++++-
- src/stylo.rs          | 38 +++++++++++++++-----------------
+ src/query_selector.rs | 52 ++++++++++++++++++++++++++++++++++++++++++-
+ src/stylo.rs          | 38 +++++++++++++++----------------
  src/url.rs            |  4 ++++
- 5 files changed, 96 insertions(+), 25 deletions(-)
+ 5 files changed, 97 insertions(+), 25 deletions(-)
 
 diff --git a/src/document.rs b/src/document.rs
 index 1ce0a0b..b5fbd06 100644
@@ -36,7 +36,7 @@ index 1ce0a0b..b5fbd06 100644
              author_sheet_cache: HashMap::new(),
              pending_style_nodes: HashSet::new(),
 diff --git a/src/node/node.rs b/src/node/node.rs
-index fd4891b..2f3cda0 100644
+index 27490a3..c48559d 100644
 --- a/src/node/node.rs
 +++ b/src/node/node.rs
 @@ -379,6 +379,15 @@ pub(crate) struct LayoutChildLists {
@@ -55,7 +55,7 @@ index fd4891b..2f3cda0 100644
  pub struct Node {
      // The actual tree we belong to. This is unsafe!!
      tree: *mut crate::NodeTree,
-@@ -1605,10 +1614,18 @@ impl Node {
+@@ -1597,10 +1606,18 @@ impl Node {
 
      // Get the index of the current node in the parents child list
      pub fn child_index(&self) -> Option<usize> {
@@ -79,17 +79,18 @@ index fd4891b..2f3cda0 100644
 
      // Get the nth node in the parents child list
 diff --git a/src/query_selector.rs b/src/query_selector.rs
-index a721eb4..aa38612 100644
+index e010772..2e23815 100644
 --- a/src/query_selector.rs
 +++ b/src/query_selector.rs
-@@ -1,5 +1,6 @@
+@@ -1,5 +1,7 @@
  use blitz_traits::node_id::NodeId;
  use selectors::SelectorList;
 +use std::collections::HashMap;
++use std::collections::hash_map::Entry;
  use smallvec::SmallVec;
  use style::dom::{TDocument, TNode};
  use style::dom_apis::{
-@@ -8,8 +9,51 @@ use style::dom_apis::{
+@@ -8,8 +10,51 @@ use style::dom_apis::{
  use style::selector_parser::{SelectorImpl, SelectorParser};
  use style_traits::ParseError;
 
@@ -141,7 +142,7 @@ index a721eb4..aa38612 100644
  impl BaseDocument {
      /// Find the node with the specified id attribute (if one exists).
      /// If multiple nodes have the same id, the first in tree order is returned.
-@@ -247,8 +291,13 @@ impl BaseDocument {
+@@ -247,8 +292,13 @@ impl BaseDocument {
          &self,
          input: &str,
      ) -> Result<SelectorList<SelectorImpl>, ParseError> {
@@ -157,10 +158,10 @@ index a721eb4..aa38612 100644
 
      // Namespace-aware variant for CSSOM selectorText writes: a rule in a
 diff --git a/src/stylo.rs b/src/stylo.rs
-index 54fe9b1..59a1efc 100644
+index ba78c26..f55ffd9 100644
 --- a/src/stylo.rs
 +++ b/src/stylo.rs
-@@ -650,30 +650,28 @@ impl selectors::Element for BlitzNode<'_> {
+@@ -670,30 +670,28 @@ impl selectors::Element for BlitzNode<'_> {
          matches!(self.data, NodeData::AnonymousBlock(_))
      }
 

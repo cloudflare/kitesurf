@@ -11,11 +11,12 @@ edge children or later siblings that structural selectors can match. :empty, fro
 selectors, sibling-index(), slots and shadow hosts keep the whole-parent restyle; :has()
 keeps its own invalidator.
 ---
- src/mutator.rs | 82 ++++++++++++++++++++++++++++++++++++++++++++++----
- 1 file changed, 76 insertions(+), 6 deletions(-)
+ src/mutator.rs | 102 ++++++++++++++++++++++++++++++++++++++++++++++---
+ src/stylo.rs   |  20 ++++++++++
+ 2 files changed, 116 insertions(+), 6 deletions(-)
 
 diff --git a/src/mutator.rs b/src/mutator.rs
-index a85e9ab..9819b58 100644
+index a85e9ab..0fb1359 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
 @@ -20,6 +20,23 @@ use thin_vec::ThinVec;
@@ -42,14 +43,18 @@ index a85e9ab..9819b58 100644
  macro_rules! tag_and_attr {
      ($tag:tt, $attr:tt) => {
          (&local_name!($tag), &local_name!($attr))
-@@ -984,13 +1001,17 @@ impl DocumentMutator<'_> {
-+        let has_relative_selectors = self.doc.has_relative_selectors();
+@@ -981,16 +998,21 @@ impl DocumentMutator<'_> {
+             self.maybe_record_node(old_parent_id);
+         }
+
++        let has_sibling_relative_selectors =
++            new_parent_is_in_document && self.doc.has_sibling_relative_selectors();
          let new_parent = &mut self.doc.nodes[parent_id];
          new_parent.insert_damage(ALL_DAMAGE);
 
 -        // TODO: make this fine grained / conditional based on ElementSelectorFlags
 +        let restyle_whole_parent = new_parent_is_in_document
-+            && (insertion_restyles_whole_parent(new_parent) || has_relative_selectors);
++            && (insertion_restyles_whole_parent(new_parent) || has_sibling_relative_selectors);
          if new_parent_is_in_document {
 -            if let Some(mut data) = new_parent
 -                .try_stylo_element_data_mut()
@@ -66,7 +71,7 @@ index a85e9ab..9819b58 100644
              }
              new_parent.set_dirty_descendants();
              // Mark ancestors dirty so the style traversal visits this subtree.
-@@ -1017,6 +1037,9 @@ impl DocumentMutator<'_> {
+@@ -1017,6 +1039,9 @@ impl DocumentMutator<'_> {
          // Insertions invalidate after linking, since the collector
          // reads the node's final parent and sibling positions.
          if new_parent_is_in_document {
@@ -76,7 +81,7 @@ index a85e9ab..9819b58 100644
              for &child_id in child_ids.iter() {
                  self.doc.invalidate_relative_selectors_for_insertion(child_id);
              }
-@@ -1025,6 +1048,53 @@ impl DocumentMutator<'_> {
+@@ -1025,6 +1050,71 @@ impl DocumentMutator<'_> {
          self.maybe_record_node(parent_id);
      }
 
@@ -92,7 +97,7 @@ index a85e9ab..9819b58 100644
 +        let flags = self.doc.nodes[parent_id].selector_flags().get();
 +        let later_siblings = flags.contains(ElementSelectorFlags::HAS_SLOW_SELECTOR_LATER_SIBLINGS);
 +        let edge_children = flags.contains(ElementSelectorFlags::HAS_EDGE_CHILD_SELECTOR);
-+        if !later_siblings && !edge_children {
++        if child_ids.is_empty() || (!later_siblings && !edge_children) {
 +            return;
 +        }
 +        let (Some(&first_id), Some(&last_id)) = (child_ids.first(), child_ids.last()) else {
@@ -127,6 +132,55 @@ index a85e9ab..9819b58 100644
 +        }
 +    }
 +
++    /// The `first..=last` range `child_ids` occupies in `parent_id`'s child list, or `None` when
++    /// they are not one contiguous run there. Callers splice them in as a run.
++    fn spliced_run(&self, parent_id: NodeId, child_ids: &[NodeId]) -> Option<(usize, usize)> {
++        let first_id = *child_ids.first()?;
++        let last_id = *child_ids.last()?;
++        let children = self.doc.nodes[parent_id].children();
++        let first = if children.last() == Some(last_id) {
++            children.len().checked_sub(child_ids.len())?
++        } else {
++            children.position(first_id)?
++        };
++        if children.get(first) != Some(first_id) {
++            return None;
++        }
++        let last = first + child_ids.len() - 1;
++        (children.get(last) == Some(last_id)).then_some((first, last))
++    }
++
      // Tree mutation methods (that defer to other methods)
      pub fn insert_nodes_after(&mut self, anchor_node_id: NodeId, new_node_ids: &[NodeId]) {
          match self.next_sibling_id(anchor_node_id) {
+diff --git a/src/stylo.rs b/src/stylo.rs
+index cdb49ac..ba78c26 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -390,6 +390,26 @@ impl crate::document::BaseDocument {
+                 .any(|(data, _)| data.relative_invalidation_map_attributes().used)
+     }
+
++    /// Whether some `:has()` starts with `+` or `~`, in the document or any shadow tree, so
++    /// an inserted element can change an earlier sibling's match. An inserted element only
++    /// inherits its parent's search direction, which never carries the sibling one, so the
++    /// invalidator misses those anchors and the insertion must restyle the whole parent.
++    pub(crate) fn has_sibling_relative_selectors(&self) -> bool {
++        let reaches_siblings = |data: &style::stylist::CascadeData| {
++            data.relative_invalidation_map_attributes()
++                .has_sibling_relative_selectors
++        };
++        self.stylist
++            .iter_origins()
++            .any(|(data, _)| reaches_siblings(data))
++            || self.shadow_roots.iter().any(|&id| {
++                self.nodes
++                    .get(id)
++                    .and_then(|node| node.shadow_root_data())
++                    .is_some_and(|data| reaches_siblings(&data.author_styles.data))
++            })
++    }
++
+     /// Structural sibling of the pass above, for tree mutations rather than
+     /// attribute and state ones. Snapshots only exist for the latter, so an
+     /// insert or remove has to invalidate at mutation time.

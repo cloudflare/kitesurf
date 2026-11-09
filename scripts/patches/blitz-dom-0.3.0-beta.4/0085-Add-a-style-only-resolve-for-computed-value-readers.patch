@@ -13,9 +13,9 @@ Whether a query container exists is a sticky flag that the style traversal and t
 full-resolve container snapshot set, so a style-only read does not scan every node for one.
 ---
  src/document.rs |  4 ++++
- src/resolve.rs  | 22 ++++++++++++++++++++++
- src/stylo.rs    | 21 ++++++++++++++++++++-
- 3 files changed, 46 insertions(+), 1 deletion(-)
+ src/resolve.rs  | 37 +++++++++++++++++++++++++++++++++++++
+ src/stylo.rs    | 23 ++++++++++++++++++++++-
+ 3 files changed, 63 insertions(+), 1 deletion(-)
 
 diff --git a/src/document.rs b/src/document.rs
 index 5f57b00..1ce0a0b 100644
@@ -40,10 +40,10 @@ index 5f57b00..1ce0a0b 100644
              pending_style_nodes: HashSet::new(),
              author_sheet_keys: HashMap::new(),
 diff --git a/src/resolve.rs b/src/resolve.rs
-index 1feec18..4eceb61 100644
+index a7c33ff..904b7ad 100644
 --- a/src/resolve.rs
 +++ b/src/resolve.rs
-@@ -129,6 +129,27 @@ impl BaseDocument {
+@@ -129,6 +129,42 @@ impl BaseDocument {
          }
      }
 
@@ -68,10 +68,25 @@ index 1feec18..4eceb61 100644
 +        !self.size_container_seen
 +    }
 +
++    /// Reshape the inline contexts that web-font faces registered since the last resolve can
++    /// change. Deferred to here because the damage is only read in a resolve, and a page
++    /// receiving N faces would otherwise walk every node N times.
++    fn apply_pending_font_damage(&mut self) {
++        if !std::mem::take(&mut self.inline_contexts_stale) {
++            return;
++        }
++        let families = std::mem::take(&mut self.stale_font_families);
++        if std::mem::take(&mut self.stale_font_family_unknown) {
++            self.invalidate_inline_contexts();
++        } else {
++            self.invalidate_inline_contexts_using(&families);
++        }
++    }
++
      /// Restyle the tree and then relayout it
      pub fn resolve(&mut self, current_time_for_animations: f64) {
          if TDocument::as_node(&self.root_node())
-@@ -202,6 +223,7 @@ impl BaseDocument {
+@@ -202,6 +238,7 @@ impl BaseDocument {
          // Snapshot the sizes it styles against, so the pass after layout can
          // spot the containers whose answer is now stale.
          let container_sizes_before = container_sizes(self);
@@ -80,7 +95,7 @@ index 1feec18..4eceb61 100644
          // CSS counters: list-item values + counter()/attr() pseudo content.
          // Needs computed styles; box construction consumes the side tables.
 diff --git a/src/stylo.rs b/src/stylo.rs
-index 58b53cd..54fe9b1 100644
+index 58b53cd..cdb49ac 100644
 --- a/src/stylo.rs
 +++ b/src/stylo.rs
 @@ -5,7 +5,7 @@ use blitz_traits::node_id::NodeId;
@@ -109,7 +124,7 @@ index 58b53cd..54fe9b1 100644
  }
 
  impl<'a> RecalcStyle<'a> {
-@@ -1726,10 +1729,15 @@ impl<'a> RecalcStyle<'a> {
+@@ -1726,10 +1729,22 @@ impl<'a> RecalcStyle<'a> {
          RecalcStyle {
              context,
              nodes_needing_style_image_flush: Mutex::new(Vec::new()),
@@ -122,22 +137,24 @@ index 58b53cd..54fe9b1 100644
 +    !style.get_box().clone_container_type().is_normal()
 +}
 +
++/// Whether this element or one of its eager pseudo-elements styles as a query container.
++fn styles_a_size_container(styles: &style::data::ElementStyles) -> bool {
++    let pseudos = styles.pseudos.as_optional_array();
++    styles.get_primary().is_some_and(|s| is_size_container_style(s))
++        || pseudos.is_some_and(|styles| styles.iter().flatten().any(|s| is_size_container_style(s)))
++}
++
  #[allow(unsafe_code)]
  impl<'dom> DomTraversal<BlitzNode<'dom>> for RecalcStyle<'_> {
      fn process_preorder<F: FnMut(BlitzNode<'dom>)>(
-@@ -1766,6 +1774,17 @@ impl<'dom> DomTraversal<BlitzNode<'dom>> for RecalcStyle<'_> {
+@@ -1766,6 +1781,12 @@ impl<'dom> DomTraversal<BlitzNode<'dom>> for RecalcStyle<'_> {
 
              sync_pseudo_element_styles(el, &data, &self.nodes_needing_style_image_flush);
 
-+            if !self.saw_size_container.load(Ordering::Relaxed) {
-+                let pseudos = data.styles.pseudos.as_optional_array();
-+                let container = data.styles.get_primary().is_some_and(|s| is_size_container_style(s))
-+                    || pseudos.is_some_and(|styles| {
-+                        styles.iter().flatten().any(|s| is_size_container_style(s))
-+                    });
-+                if container {
-+                    self.saw_size_container.store(true, Ordering::Relaxed);
-+                }
++            if !self.saw_size_container.load(Ordering::Relaxed)
++                && styles_a_size_container(&data.styles)
++            {
++                self.saw_size_container.store(true, Ordering::Relaxed);
 +            }
 +
              if !data.damage.is_empty() {

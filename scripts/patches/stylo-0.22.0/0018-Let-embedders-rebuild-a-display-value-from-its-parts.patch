@@ -5,20 +5,19 @@ Subject: [PATCH] Let embedders rebuild a display value from its parts
 
 Signed-off-by: bpereira <bpereira@cloudflare.com>
 ---
- values/specified/box.rs | 5 +++--
- 1 file changed, 3 insertions(+), 2 deletions(-)
+ values/specified/box.rs | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/values/specified/box.rs b/values/specified/box.rs
-index 7bee119..fdcaa3c 100644
+index 7bee119..aef3b14 100644
 --- a/values/specified/box.rs
 +++ b/values/specified/box.rs
-@@ -325,9 +325,10 @@ impl Display {
-         Self((outside as u16) << Self::OUTSIDE_SHIFT | inside as u16)
+@@ -326,8 +326,10 @@ impl Display {
      }
 
--    /// Make a display enum value from <display-outside> and <display-inside> values.
-+    /// Make a display enum value from <display-outside> and <display-inside> values. Every
-+    /// `Display` equals `from3` of its `outside()`, `inside()` and `is_list_item()`.
+     /// Make a display enum value from <display-outside> and <display-inside> values.
++    ///
++    /// Every `Display` round-trips: `from3(d.outside(), d.inside(), d.is_list_item()) == d`.
      #[inline]
 -    fn from3(outside: DisplayOutside, inside: DisplayInside, list_item: bool) -> Self {
 +    pub fn from3(outside: DisplayOutside, inside: DisplayInside, list_item: bool) -> Self {

@@ -13,13 +13,13 @@ reshapes everything.
 The damage is applied at the next resolve rather than on each delivery, so a page that
 receives N faces walks its nodes once instead of N times.
 ---
- src/document.rs      | 29 +++++++++++++++--
- src/layout/damage.rs | 77 ++++++++++++++++++++++++++++++++++++++++++++
- src/resolve.rs       |  8 +++++
- 3 files changed, 112 insertions(+), 2 deletions(-)
+ src/document.rs      |  28 +++++++++++-
+ src/layout/damage.rs | 102 +++++++++++++++++++++++++++++++++++++++++++
+ src/resolve.rs       |   1 +
+ 3 files changed, 129 insertions(+), 2 deletions(-)
 
 diff --git a/src/document.rs b/src/document.rs
-index b5fbd06..8d4090d 100644
+index b5fbd06..cba787d 100644
 --- a/src/document.rs
 +++ b/src/document.rs
 @@ -306,6 +306,12 @@ pub struct BaseDocument {
@@ -45,7 +45,7 @@ index b5fbd06..8d4090d 100644
              author_sheet_cache: HashMap::new(),
              pending_style_nodes: HashSet::new(),
              author_sheet_keys: HashMap::new(),
-@@ -2436,6 +2445,21 @@ impl BaseDocument {
+@@ -2436,6 +2445,20 @@ impl BaseDocument {
                          });
                      }
                  }
@@ -56,18 +56,17 @@ index b5fbd06..8d4090d 100644
 +                        names.push(name.to_lowercase());
 +                    }
 +                }
-+                let mut named = false;
++                // A face with no family name can change the shaping of any text.
++                self.stale_font_family_unknown |= names.is_empty();
 +                for name in names {
-+                    named = true;
 +                    if !self.stale_font_families.contains(&name) {
 +                        self.stale_font_families.push(name);
 +                    }
 +                }
-+                self.stale_font_family_unknown |= !named;
 
                  #[cfg(feature = "parallel-construct")]
                  {
-@@ -2451,8 +2475,9 @@ impl BaseDocument {
+@@ -2451,8 +2474,9 @@ impl BaseDocument {
                  }
                  drop(global_font_ctx);
 
@@ -80,10 +79,10 @@ index b5fbd06..8d4090d 100644
              Resource::None => {
                  // Do nothing
 diff --git a/src/layout/damage.rs b/src/layout/damage.rs
-index eb33360..98009f1 100644
+index eb33360..e477e2c 100644
 --- a/src/layout/damage.rs
 +++ b/src/layout/damage.rs
-@@ -604,6 +604,89 @@ pub(crate) fn sort_layout_children_by_order(
+@@ -604,6 +604,108 @@ pub(crate) fn sort_layout_children_by_order(
  }
 
  impl BaseDocument {
@@ -92,8 +91,19 @@ index eb33360..98009f1 100644
 +    /// damages the inline root holding its text and every inline root above it, since an
 +    /// inline-block that reshapes resizes the lines around it.
 +    pub(crate) fn invalidate_inline_contexts_using(&mut self, families: &[String]) {
-+        if families.is_empty() {
++        let matched = self.nodes_naming_font_family(families);
++        if matched.is_empty() {
 +            return;
++        }
++        let (roots, inputs) = self.inline_roots_above(&matched);
++        self.damage_inline_roots(&roots);
++        self.refresh_text_inputs(&inputs);
++    }
++
++    /// The connected nodes whose `font-family` names one of `families` (lowercased).
++    fn nodes_naming_font_family(&self, families: &[String]) -> Vec<NodeId> {
++        if families.is_empty() {
++            return Vec::new();
 +        }
 +        let names_family = |node: &Node| {
 +            let Some(styles) = node.primary_styles() else {
@@ -114,22 +124,21 @@ index eb33360..98009f1 100644
 +                style::values::computed::font::SingleFontFamily::Generic(_) => false,
 +            })
 +        };
-+        let matched: Vec<NodeId> = self
-+            .nodes
++        self.nodes
 +            .iter()
 +            .filter(|(_, node)| node.flags.contains(NodeFlags::IS_IN_DOCUMENT))
 +            .filter(|(_, node)| node.element_data().is_some() && names_family(node))
 +            .map(|(id, _)| id)
-+            .collect();
-+        if matched.is_empty() {
-+            return;
-+        }
++            .collect()
++    }
 +
-+        let scale = self.viewport.scale();
++    /// The inline roots holding text of each node in `starts` and those above them, plus the
++    /// text inputs among `starts`.
++    fn inline_roots_above(&self, starts: &[NodeId]) -> (Vec<NodeId>, Vec<NodeId>) {
 +        let mut visited = std::collections::HashSet::new();
 +        let mut roots = Vec::new();
 +        let mut inputs = Vec::new();
-+        for start in matched {
++        for &start in starts {
 +            if self.nodes[start].element_data().is_some_and(|e| e.text_input_data().is_some()) {
 +                inputs.push(start);
 +            }
@@ -145,8 +154,12 @@ index eb33360..98009f1 100644
 +                at = node.layout_parent.get().or(node.parent.get());
 +            }
 +        }
++        (roots, inputs)
++    }
 +
-+        for id in roots {
++    /// Damages each inline root, and the block that re-collects an anonymous one.
++    fn damage_inline_roots(&mut self, roots: &[NodeId]) {
++        for &id in roots {
 +            let node = &mut self.nodes[id];
 +            node.insert_damage(ALL_DAMAGE);
 +            if node.is_anonymous() {
@@ -155,9 +168,14 @@ index eb33360..98009f1 100644
 +                }
 +            }
 +        }
++    }
++
++    /// Reshapes the editor of each text input against the newly registered faces.
++    fn refresh_text_inputs(&mut self, inputs: &[NodeId]) {
++        let scale = self.viewport.scale();
 +        let font_ctx = &self.font_ctx;
 +        let layout_ctx = &mut self.layout_ctx;
-+        for id in inputs {
++        for &id in inputs {
 +            let node = &mut self.nodes[id];
 +            if let Some(input) =
 +                node.data.downcast_element_mut().and_then(|e| e.text_input_data_mut())
@@ -174,21 +192,14 @@ index eb33360..98009f1 100644
          let scale = self.viewport.scale();
 
 diff --git a/src/resolve.rs b/src/resolve.rs
-index 4eceb61..3366504 100644
+index 904b7ad..f36b249 100644
 --- a/src/resolve.rs
 +++ b/src/resolve.rs
-@@ -195,6 +195,14 @@ impl BaseDocument {
+@@ -210,6 +210,7 @@ impl BaseDocument {
          // Apply any device changes (viewport resize, zoom, color-scheme, etc)
          // accumulated since the last resolve as a single device rebuild.
          self.flush_pending_device_changes();
-+        if std::mem::take(&mut self.inline_contexts_stale) {
-+            let families = std::mem::take(&mut self.stale_font_families);
-+            if std::mem::take(&mut self.stale_font_family_unknown) {
-+                self.invalidate_inline_contexts();
-+            } else {
-+                self.invalidate_inline_contexts_using(&families);
-+            }
-+        }
++        self.apply_pending_font_damage();
          // Slot assignment shapes the flat tree that styling and box
          // construction both consume; recompute before either runs.
          self.flush_slot_assignments();
