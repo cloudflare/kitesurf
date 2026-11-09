@@ -157,6 +157,93 @@ describe("walkModuleGraph query-collision alias in classic bodies", () => {
   });
 });
 
+describe("page specifiers that name the loaded worker's own modules", () => {
+  const PAGE = "https://example.com/page.html";
+  const walk = (descriptors: ParentScriptDescriptor[], baseUrl?: string) =>
+    walkModuleGraph({
+      descriptors,
+      pageUrl: PAGE,
+      connectionId: "conn",
+      options: baseUrl ? { baseUrl } : {},
+      sandboxOutbound: stubOutbound(),
+    });
+
+  it.each(["file:///bundle/internal-state.js", "cloudflare:workers", "node:fs"])(
+    "fails an inline module that statically imports %s",
+    async (specifier) => {
+      const { descriptors, additionalModules } = await walk([
+        moduleInline(`import * as ns from ${JSON.stringify(specifier)}; globalThis.ns = ns;`),
+      ]);
+      expect(descriptors[0]?.prefetchError).toMatch(/is not an http\(s\) module URL/);
+      expect(Object.keys(additionalModules)).toEqual([]);
+    },
+  );
+
+  it("fails a fetched module that statically imports a private module", async () => {
+    const { descriptors, additionalModules } = await walk([moduleInline(`import "./dep.js";`)]);
+    expect(descriptors[0]?.prefetchError).toBeUndefined();
+    expect(Object.keys(additionalModules)).toContain("https://example.com/dep.js");
+    const hostile = await walkModuleGraph({
+      descriptors: [moduleInline(`import "./dep.js";`)],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({
+        "https://example.com/dep.js": `import "file:///bundle/internal-state.js";`,
+      }),
+    });
+    expect(Object.keys(hostile.additionalModules)).not.toContain("https://example.com/dep.js");
+  });
+
+  it("routes a dynamic import of a private module to the runtime loader", async () => {
+    const { descriptors, additionalModules } = await walk([
+      moduleInline(`import("file:///bundle/internal-state.js");`),
+      {
+        src: null,
+        kind: "classic",
+        defer: false,
+        async: false,
+        body: `import("file:///bundle/internal-state.js");`,
+      },
+    ]);
+    const [inline] = Object.values(additionalModules);
+    expect(inline).toContain(`__ks_import("file:///bundle/internal-state.js"`);
+    expect(descriptors[1]?.body).toBe(
+      `__ks_import("file:///bundle/internal-state.js", ${JSON.stringify(PAGE)});`,
+    );
+  });
+
+  it("keys inline modules under an http(s) url whatever the base url", async () => {
+    const { descriptors, additionalModules } = await walk(
+      [moduleInline(`import "./internal-state.js";`)],
+      "file:///bundle/",
+    );
+    expect(Object.keys(additionalModules).every((k) => k.startsWith("https://"))).toBe(true);
+    expect(descriptors[0]?.resolvedSrc).toMatch(/^https:\/\//);
+  });
+
+  it("does not resolve a registry name outside http(s) at run time", () => {
+    const source = importMapModuleSource(
+      { imports: new Map(), scopes: new Map() },
+      new Map([["https://example.com/evil.js", "file:///bundle/internal-state.js"]]),
+    );
+    const { resolveModuleRegistryUrl } = new Function(
+      `${source.replaceAll("export function", "function")}\nreturn { resolveModuleRegistryUrl };`,
+    )() as { resolveModuleRegistryUrl(url: string): string };
+    for (const url of [
+      "internal-state.js",
+      "./internal-state.js",
+      "file:///bundle/internal-state.js",
+      "cloudflare:workers",
+      "https://example.com/evil.js",
+    ]) {
+      expect(() => resolveModuleRegistryUrl(url), url).toThrow(TypeError);
+    }
+    expect(resolveModuleRegistryUrl("https://example.com/app.js")).toBe(
+      "https://example.com/app.js",
+    );
+  });
+});
+
 describe("modulePreloadSeeds", () => {
   it("collects script-destination modulepreload links once, with their nonce", () => {
     const html =
