@@ -136,6 +136,29 @@ describe("postMessage routing", () => {
     expect(h.toMain.map((m) => m.origin)).toEqual(["https://child.test"]);
   });
 
+  it("keeps the origin of a child document that posts while it is being replaced", async () => {
+    const h = setup("https://main.test/page", "https://child.test/x");
+    const toNested: Delivered[] = [];
+    addNested(h, toNested);
+    // kitesurf.frameNavigated commits the next url before the old isolate runs its unload handlers.
+    h.child.url = "https://next.test/y";
+    routeChildFramePostMessage(
+      h.target,
+      h.child,
+      forged({ toParent: true }),
+      "https://child.test/x",
+    );
+    routeChildFramePostMessage(
+      h.target,
+      h.child,
+      forged({ toFrameOwnerId: 5 }),
+      "https://child.test/x",
+    );
+    await Promise.resolve();
+    expect(h.toMain.map((m) => m.origin)).toEqual(["https://child.test"]);
+    expect(toNested.map((m) => m.origin)).toEqual(["https://child.test"]);
+  });
+
   it("matches an owner id only among the sender's own children", async () => {
     const h = setup("https://main.test/page", "https://child.test/x");
     const toNested: Delivered[] = [];
