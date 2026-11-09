@@ -6,6 +6,8 @@ import { describe, it, expect } from "vitest";
 
 import {
   MAX_CONCURRENT_READ_BYTES,
+  MAX_CONNECTION_READ_BYTES,
+  MAX_DOCUMENT_BYTES,
   cappedErrorText,
   declaredOverCap,
   inFlightReadBytes,
@@ -56,7 +58,7 @@ describe("declaredOverCap", () => {
 
 describe("readCappedBytes", () => {
   it("returns the whole body when it fits", async () => {
-    const got = await readCappedBytes(chunked(4, 256), 1024);
+    const got = await readCappedBytes(chunked(4, 256), 1024, "conn");
     expect(got.ok && got.bytes.byteLength).toBe(1024);
   });
 
@@ -71,7 +73,7 @@ describe("readCappedBytes", () => {
     const resp = new Response(body, {
       headers: { "content-length": "999999" },
     });
-    expect(await readCappedBytes(resp, 1024)).toStrictEqual({
+    expect(await readCappedBytes(resp, 1024, "conn")).toStrictEqual({
       ok: false,
       failure: "cap",
     });
@@ -79,7 +81,7 @@ describe("readCappedBytes", () => {
   });
 
   it("rejects mid-stream when Content-Length is absent", async () => {
-    const got = await readCappedBytes(chunked(10, 256), 1024);
+    const got = await readCappedBytes(chunked(10, 256), 1024, "conn");
     expect(got).toStrictEqual({ ok: false, failure: "cap" });
   });
 
@@ -87,21 +89,21 @@ describe("readCappedBytes", () => {
     const resp = new Response(chunked(10, 256).body, {
       headers: { "content-length": "10" },
     });
-    expect(await readCappedBytes(resp, 1024)).toStrictEqual({
+    expect(await readCappedBytes(resp, 1024, "conn")).toStrictEqual({
       ok: false,
       failure: "cap",
     });
   });
 
   it("aborts an endless body instead of hanging", async () => {
-    const got = await readCappedBytes(endless(4096), 64 * 1024);
+    const got = await readCappedBytes(endless(4096), 64 * 1024, "conn");
     expect(got).toStrictEqual({ ok: false, failure: "cap" });
   });
 
   it("decodes text through the same cap", async () => {
-    const ok = await readCappedText(new Response("hello"), 1024);
+    const ok = await readCappedText(new Response("hello"), 1024, "conn");
     expect(ok).toStrictEqual({ ok: true, text: "hello" });
-    const over = await readCappedText(chunked(10, 256), 1024);
+    const over = await readCappedText(chunked(10, 256), 1024, "conn");
     expect(over).toStrictEqual({ ok: false, failure: "cap" });
   });
 
@@ -114,7 +116,7 @@ describe("readCappedBytes", () => {
         },
       }),
     );
-    const got = await readCappedBytes(broken, 64 * 1024);
+    const got = await readCappedBytes(broken, 64 * 1024, "conn");
     expect(got).toStrictEqual({ ok: false, failure: "error" });
     expect(cappedErrorText("error")).toBe("net::ERR_CONNECTION_CLOSED");
     expect(cappedErrorText("cap")).toBe("net::ERR_FILE_TOO_BIG");
@@ -126,32 +128,57 @@ describe("readCappedBytes", () => {
 describe("shared concurrency budget", () => {
   it("releases its charge on both the fit and the over-cap path", async () => {
     expect(inFlightReadBytes()).toBe(0);
-    await readCappedBytes(chunked(2, 256), 1024);
+    await readCappedBytes(chunked(2, 256), 1024, "conn");
     expect(inFlightReadBytes()).toBe(0);
-    await readCappedBytes(chunked(10, 256), 1024);
+    await readCappedBytes(chunked(10, 256), 1024, "conn");
     expect(inFlightReadBytes()).toBe(0);
   });
 
-  it("refuses a read once concurrent buffering is at the ceiling", async () => {
+  // A read that buffers `bytes` and then waits for `release` before it ends.
+  function parkedRead(bytes: number, connectionId: string) {
     const gate: { release: (() => void) | null } = { release: null };
-    const parked = new Response(
+    const resp = new Response(
       new ReadableStream<Uint8Array>({
         async pull(c) {
-          c.enqueue(new Uint8Array(MAX_CONCURRENT_READ_BYTES));
+          c.enqueue(new Uint8Array(bytes));
           await new Promise<void>((r) => (gate.release = r));
           c.close();
         },
       }),
     );
-    const first = readCappedBytes(parked, MAX_CONCURRENT_READ_BYTES);
+    const done = readCappedBytes(resp, bytes, connectionId);
+    return { done, release: () => gate.release?.() };
+  }
+
+  const refused = { ok: false, failure: "budget" };
+
+  it("refuses a read once concurrent buffering is at the ceiling", async () => {
+    const a = parkedRead(MAX_CONNECTION_READ_BYTES, "a");
+    const b = parkedRead(MAX_CONNECTION_READ_BYTES, "b");
     await new Promise((r) => setTimeout(r, 0));
     expect(inFlightReadBytes()).toBe(MAX_CONCURRENT_READ_BYTES);
-    expect(await readCappedBytes(chunked(1, 16), 1024)).toStrictEqual({
-      ok: false,
-      failure: "budget",
-    });
-    gate.release?.();
-    await first;
+    expect(await readCappedBytes(chunked(1, 16), 1024, "c")).toStrictEqual(refused);
+    a.release();
+    b.release();
+    expect((await a.done).ok && (await b.done).ok).toBe(true);
+    expect(inFlightReadBytes()).toBe(0);
+  });
+
+  it("holds one connection to its share, leaving the rest to others", async () => {
+    const a = parkedRead(MAX_CONNECTION_READ_BYTES, "a");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(await readCappedBytes(chunked(1, 16), 1024, "a")).toStrictEqual(refused);
+    const other = await readCappedBytes(chunked(16, 1024 * 1024), MAX_DOCUMENT_BYTES, "b");
+    expect(other.ok).toBe(true);
+    // A single read past the share is stopped mid-stream.
+    const over = await readCappedBytes(
+      chunked(MAX_CONNECTION_READ_BYTES / (1024 * 1024) + 1, 1024 * 1024),
+      MAX_CONCURRENT_READ_BYTES,
+      "c",
+    );
+    expect(over).toStrictEqual(refused);
+    a.release();
+    await a.done;
     expect(inFlightReadBytes()).toBe(0);
   });
 
@@ -160,8 +187,8 @@ describe("shared concurrency budget", () => {
     const chunksEach = Math.ceil(MAX_CONCURRENT_READ_BYTES / CHUNK);
     resetPeakInFlightReadBytes();
     const results = await Promise.all(
-      Array.from({ length: 4 }, () =>
-        readCappedBytes(chunked(chunksEach, CHUNK), MAX_CONCURRENT_READ_BYTES),
+      Array.from({ length: 4 }, (_, i) =>
+        readCappedBytes(chunked(chunksEach, CHUNK), MAX_CONCURRENT_READ_BYTES, `conn-${i}`),
       ),
     );
     expect(peakInFlightReadBytes()).toBeLessThanOrEqual(MAX_CONCURRENT_READ_BYTES + 4 * CHUNK);
