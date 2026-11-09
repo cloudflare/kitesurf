@@ -20,6 +20,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
 use std::{
     collections::VecDeque,
+    env::var_os,
     io::{self, Write},
     path::PathBuf,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -44,9 +45,9 @@ const MEMORY_INTERVAL: Duration = Duration::from_secs(10);
 const SCENE_STALL_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub(crate) fn cache_directory() -> Result<PathBuf> {
-    Ok(std::env::var_os("XDG_CACHE_HOME")
+    Ok(var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
+        .or_else(|| var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
         .ok_or("no cache directory")?
         .join("kitesurf"))
 }
@@ -1256,11 +1257,10 @@ pub async fn play(
     let start = Instant::now();
     let local_files = std::env::var("TERM_PROGRAM")
         .is_ok_and(|name| name.eq_ignore_ascii_case("ghostty"))
-        && std::env::var_os("SSH_CONNECTION").is_none()
-        && std::env::var_os("TMUX").is_none();
-    let raw_files = local_files
-        && manifest.abi >= MIN_RAW_FILE_ABI
-        && std::env::var_os("KITESURF_KITTY_PNG").is_none();
+        && var_os("SSH_CONNECTION").is_none()
+        && var_os("TMUX").is_none();
+    let raw_files =
+        local_files && manifest.abi >= MIN_RAW_FILE_ABI && var_os("KITESURF_KITTY_PNG").is_none();
     let mut kitty_images = KittyImages::default();
     kitty_images.local_files = local_files;
     kitty_images.raw_files = raw_files;
@@ -1628,6 +1628,7 @@ fn render_ansi(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::read;
     use tokio_tungstenite::connect_async;
 
     #[test]
@@ -1736,7 +1737,7 @@ mod tests {
 
     #[test]
     fn retained_replay_reports_corrupt_full_scenes() {
-        let bytes = std::fs::read(concat!(
+        let bytes = read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         ))
@@ -1770,7 +1771,7 @@ mod tests {
 
     #[test]
     fn partial_replay_composites_without_a_display_and_recovers_a_lost_base() {
-        let bytes = std::fs::read(concat!(
+        let bytes = read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         ))
@@ -1873,7 +1874,7 @@ mod tests {
 
     #[test]
     fn partial_replay_preserves_full_rgba_dimensions_and_terminal_placement() {
-        let bytes = std::fs::read(concat!(
+        let bytes = read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         ))
@@ -2325,7 +2326,7 @@ mod tests {
         )
         .unwrap();
         assert!(path.contains("tty-graphics-protocol"));
-        assert_eq!(std::fs::read(&path).unwrap(), png);
+        assert_eq!(read(&path).unwrap(), png);
         assert_eq!(images.last_bytes, encoded.len() as u64);
         drop(images);
         assert!(!std::path::Path::new(&path).exists());
@@ -2347,7 +2348,7 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        assert_eq!(std::fs::read(path).unwrap(), rgba[8..]);
+        assert_eq!(read(path).unwrap(), rgba[8..]);
     }
 
     #[test]

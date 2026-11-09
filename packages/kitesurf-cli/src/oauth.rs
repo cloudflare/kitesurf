@@ -8,6 +8,8 @@ use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
+    env::var,
+    future::Future,
     io::{self, IsTerminal, Write},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -84,7 +86,7 @@ struct PageInfo {
 
 impl OAuth {
     fn new() -> Result<Self> {
-        let client_id = std::env::var("KITESURF_OAUTH_CLIENT_ID").ok();
+        let client_id = var("KITESURF_OAUTH_CLIENT_ID").ok();
         Self::with_client_id(client_id.as_deref())
     }
 
@@ -265,7 +267,7 @@ fn load(entry: &keyring::Entry) -> Result<Option<Credentials>> {
 
 async fn load_or_login(
     entry: &keyring::Entry,
-    login: impl std::future::Future<Output = Result<Credentials>>,
+    login: impl Future<Output = Result<Credentials>>,
 ) -> Result<Credentials> {
     match load(entry)? {
         Some(credentials) => Ok(credentials),
@@ -298,7 +300,7 @@ async fn refresh(
     entry: &keyring::Entry,
     credentials: &mut Credentials,
     now: u64,
-    login: impl std::future::Future<Output = Result<Credentials>>,
+    login: impl Future<Output = Result<Credentials>>,
 ) -> Result<()> {
     if credentials.expires_at > now.saturating_add(60) {
         return Ok(());
@@ -346,7 +348,7 @@ pub async fn login_credentials() -> Result<(String, String)> {
 }
 
 async fn login_with(oauth: &OAuth, entry: &keyring::Entry) -> Result<Credentials> {
-    let requested_account = std::env::var("CLOUDFLARE_ACCOUNT_ID").ok();
+    let requested_account = var("CLOUDFLARE_ACCOUNT_ID").ok();
     if let Some(account) = &requested_account {
         validate_account_id(account)?;
     }

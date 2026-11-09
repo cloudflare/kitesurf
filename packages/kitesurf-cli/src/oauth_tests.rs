@@ -3,7 +3,9 @@
 // https://opensource.org/licenses/Apache-2.0
 
 use super::*;
+use std::cell::Cell;
 use std::collections::HashMap;
+use crate::tls::client_builder;
 
 const ACCOUNT: &str = "0123456789abcdef0123456789abcdef";
 
@@ -227,7 +229,7 @@ async fn callback_listener_ignores_unrelated_requests_then_delivers_code() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let origin = format!("http://{}", listener.local_addr().unwrap());
     let browser = async {
-        let client = crate::tls::client_builder().build().unwrap();
+        let client = client_builder().build().unwrap();
         let invalid = client
             .get(format!("{origin}/oauth/callback?code=wrong&state=wrong"))
             .send()
@@ -257,7 +259,7 @@ async fn callback_accepts_ipv6_localhost_redirects() {
     );
     let browser = async {
         assert_eq!(
-            crate::tls::client_builder()
+            client_builder()
                 .build()
                 .unwrap()
                 .get(url)
@@ -388,7 +390,7 @@ async fn refresh_timeout_preserves_credentials_without_login() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let mut oauth = OAuth::with_client_id(None).unwrap();
     oauth.token = Url::parse(&format!("http://{}/token", listener.local_addr().unwrap())).unwrap();
-    oauth.client = crate::tls::client_builder()
+    oauth.client = client_builder()
         .timeout(Duration::from_millis(20))
         .build()
         .unwrap();
@@ -415,7 +417,7 @@ async fn failed_refresh_starts_login_and_replaces_saved_credentials() {
     let entry = mock_entry();
     let mut credentials = saved_credentials();
     save(&entry, &credentials).unwrap();
-    let login_count = std::cell::Cell::new(0);
+    let login_count = Cell::new(0);
     refresh(&oauth, &entry, &mut credentials, 100, async {
         login_count.set(login_count.get() + 1);
         let credentials = Credentials {
@@ -517,7 +519,7 @@ async fn refreshed_credentials_with_keyring_failure_do_not_restart_login() {
 #[tokio::test]
 async fn missing_credentials_start_login_and_saved_credentials_skip_it() {
     let entry = mock_entry();
-    let login_count = std::cell::Cell::new(0);
+    let login_count = Cell::new(0);
     let credentials = load_or_login(&entry, async {
         login_count.set(login_count.get() + 1);
         let credentials = saved_credentials();
