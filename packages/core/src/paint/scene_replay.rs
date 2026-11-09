@@ -309,10 +309,12 @@ impl ResourceStore {
     }
 }
 
+/// A refused container stays compressed, so `is_shapeable_face` marks it broken.
 fn normalize_font_container(bytes: &[u8]) -> Vec<u8> {
-    wuff::decompress_woff2(bytes)
-        .or_else(|_| wuff::decompress_woff1(bytes))
-        .unwrap_or_else(|_| bytes.to_vec())
+    match super::font_container::inflate_font_container(bytes) {
+        super::font_container::FontContainer::Inflated(sfnt) => sfnt,
+        _ => bytes.to_vec(),
+    }
 }
 
 fn is_shapeable_face(bytes: &[u8], index: u32) -> bool {
