@@ -58,3 +58,20 @@ test("a click on the link follows it", async ({ page }) => {
 
   expect(await page.evaluate(() => location.hash)).toBe("#target");
 });
+
+// A link that wraps spans the paragraph's full width, so the bounding rect's
+// centre lands on the paragraph's own text. One quad per line fragment puts the
+// click on the link's first line.
+test("ElementHandle.click follows a link that wraps across two lines", async ({ page }) => {
+  await setContent(
+    page,
+    '<p style="width:300px;font:16px monospace;margin:0">aaaaaaaaaaaaaaaaaaaa' +
+      '<a id="l" href="#t">link link link link link link</a> bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p>' +
+      '<p id="t">t</p>',
+  );
+  const handle = await page.$("#l");
+  if (!handle) throw new Error("#l not found");
+  await handle.click();
+  await page.waitForFunction(() => location.hash === "#t", { timeout: 5_000 });
+  expect(await page.evaluate(() => location.hash)).toBe("#t");
+});

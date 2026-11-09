@@ -256,9 +256,16 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
 
     case "DOM.getContentQuads": {
       const ref = rectNodeRef(req.params);
-      const rect = ref ? await pageScriptRect(session, ref) : null;
-      if (!rect) return { quads: [] };
-      return { quads: [rectToQuad(rect)] };
+      const read = ref ? await session.callIfLive.getRect(ref) : null;
+      if (!read) return { quads: [] };
+      // One quad per line box, so a link that wraps is clickable at the centre
+      // of its first line fragment.
+      const rects = read.rects && read.rects.length > 0 ? read.rects : read.rect ? [read.rect] : [];
+      return {
+        quads: rects
+          .filter((rect) => rect.width > 0 && rect.height > 0)
+          .map((rect) => rectToQuad(rect)),
+      };
     }
 
     case "DOM.getNodeForLocation": {

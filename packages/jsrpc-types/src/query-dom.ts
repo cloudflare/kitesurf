@@ -277,7 +277,11 @@ export interface QueryDomMethods {
     // `objectId` is a PageScript handle (`ps:<isolateStamp>:<seq>`) from Runtime, as
     // Playwright passes it.
     args: { nodeId: number } | { objectId: string };
-    result: { rect?: Protocol.DOM.Rect | null };
+    result: {
+      rect?: Protocol.DOM.Rect | null;
+      // One rect per line box for an inline node, for DOM.getContentQuads.
+      rects?: Protocol.DOM.Rect[] | null;
+    };
   };
   elementFromPoint: {
     args: { x: number; y: number };

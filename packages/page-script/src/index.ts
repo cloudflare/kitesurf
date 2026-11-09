@@ -2109,6 +2109,28 @@ function isWasmBoundingRect(
   );
 }
 
+// DOM.getContentQuads wants one rect per line box, so an inline element that
+// wraps yields a rect per line instead of one bounding rect.
+function contentRectsFor(
+  paint: { getContentRects?: (id: number) => unknown },
+  id: number,
+): Array<{ x: number; y: number; width: number; height: number }> | null {
+  if (typeof paint.getContentRects !== "function") return null;
+  try {
+    const raw = paint.getContentRects(id);
+    if (!Array.isArray(raw)) return null;
+    const rects = raw.filter(isWasmBoundingRect).map((rect) => ({
+      x: (Number(rect.x) || 0) - state.scrollX,
+      y: (Number(rect.y) || 0) - state.scrollY,
+      width: Number(rect.width) || 0,
+      height: Number(rect.height) || 0,
+    }));
+    return rects.length > 0 ? rects : null;
+  } catch {
+    return null;
+  }
+}
+
 function readPartialDamageRect(
   value: unknown,
 ): { x: number; y: number; width: number; height: number } | null {
@@ -6350,6 +6372,7 @@ function queryDomPaintGeometry(
             x: (Number(range.x) || 0) - state.scrollX,
             y: (Number(range.y) || 0) - state.scrollY,
           },
+          rects: contentRectsFor(paint, id),
         } satisfies QueryDomResult<"getRect">;
       } catch {
         invalidatePaintDom();

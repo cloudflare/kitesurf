@@ -482,9 +482,11 @@ struct OffsetMetrics {
     left: f64,
 }
 
-/// Compute viewport bounds from inline fragments when Taffy has no per-node box.
-/// Undecorated wrappers can use descendant in-flow content.
-fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rect> {
+/// Per-line viewport bounds of an inline node, from the inline fragments and
+/// the glyph runs and inline boxes each line holds. `DOM.getContentQuads`
+/// returns one quad per line, so Puppeteer's click point lands inside the
+/// first fragment of a link that wraps.
+fn inline_line_rects_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Vec<Rect>> {
     let base: &BaseDocument = doc.as_ref();
     let node = base.get_node(node_id)?;
     let inline_root = node.inline_root_ancestor()?;
@@ -560,9 +562,14 @@ fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rec
     // Fragments contribute only the queried inline's own padding and border. Its text and
     // atomic children come from the glyph runs and in-flow inline boxes below.
     let styles = layout.styles();
-    let fragment_bounds = layout.span_fragments().iter().filter_map(|fragment| {
-        let style = styles.get(fragment.style_index as usize)?;
-        let decorations = style.box_decorations.as_deref()?;
+    let mut entries: Vec<(usize, (f32, f32, f32, f32))> = Vec::new();
+    for fragment in layout.span_fragments() {
+        let Some(style) = styles.get(fragment.style_index as usize) else {
+            continue;
+        };
+        let Some(decorations) = style.box_decorations.as_deref() else {
+            continue;
+        };
         let has_padding_or_border = decorations.padding_inline_start > 0.0
             || decorations.padding_inline_end > 0.0
             || decorations.padding_block_start > 0.0
@@ -572,47 +579,92 @@ fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rec
             || decorations.border_block_start_width > 0.0
             || decorations.border_block_end_width > 0.0;
         if style.brush.id != node_id || !has_padding_or_border {
-            return None;
+            continue;
         }
-        let metrics = lines.get(fragment.line_index as usize)?.metrics();
+        let Some(metrics) = lines
+            .get(fragment.line_index as usize)
+            .map(|line| line.metrics())
+        else {
+            continue;
+        };
         let x_origin = metrics.inline_min_coord + metrics.offset;
         let x0 = root_abs.x + content_off_x + x_origin + fragment.x_start;
         let x1 = root_abs.x + content_off_x + x_origin + fragment.x_end;
         let y0 = root_abs.y + content_off_y + metrics.block_min_coord;
         let y1 = root_abs.y + content_off_y + metrics.block_max_coord;
-        Some(transform_bounds(x0, y0, x1, y1))
-    });
-    let item_bounds = lines
-        .iter()
-        .flat_map(|line| line.items())
-        .filter_map(|item| match item {
-            parley::layout::PositionedLayoutItem::GlyphRun(run)
-                if accepted(run.style().brush.id) =>
-            {
-                // Glyph-run coordinates include the line's alignment offset.
-                let metrics = run.run().font_metrics();
-                let baseline = run.baseline();
-                let x0 = root_abs.x + content_off_x + run.offset();
-                let x1 = x0 + run.advance();
-                let y0 = root_abs.y + content_off_y + baseline - metrics.ascent;
-                let y1 = root_abs.y + content_off_y + baseline + metrics.descent;
-                Some(transform_bounds(x0, y0, x1, y1))
+        entries.push((
+            fragment.line_index as usize,
+            transform_bounds(x0, y0, x1, y1),
+        ));
+    }
+    for (line_index, line) in lines.iter().enumerate() {
+        for item in line.items() {
+            let bounds = match item {
+                parley::layout::PositionedLayoutItem::GlyphRun(run)
+                    if accepted(run.style().brush.id) =>
+                {
+                    // Glyph-run coordinates include the line's alignment offset.
+                    let metrics = run.run().font_metrics();
+                    let baseline = run.baseline();
+                    let x0 = root_abs.x + content_off_x + run.offset();
+                    let x1 = x0 + run.advance();
+                    let y0 = root_abs.y + content_off_y + baseline - metrics.ascent;
+                    let y1 = root_abs.y + content_off_y + baseline + metrics.descent;
+                    Some(transform_bounds(x0, y0, x1, y1))
+                }
+                parley::layout::PositionedLayoutItem::InlineBox(ibox)
+                    if ibox.kind == parley::InlineBoxKind::InFlow
+                        && accepted(NodeId::from_u64(ibox.id)) =>
+                {
+                    let x0 = root_abs.x + content_off_x + ibox.x;
+                    let y0 = root_abs.y + content_off_y + ibox.y;
+                    Some(transform_bounds(x0, y0, x0 + ibox.width, y0 + ibox.height))
+                }
+                _ => None,
+            };
+            if let Some(bounds) = bounds {
+                entries.push((line_index, bounds));
             }
-            parley::layout::PositionedLayoutItem::InlineBox(ibox)
-                if ibox.kind == parley::InlineBoxKind::InFlow
-                    && accepted(NodeId::from_u64(ibox.id)) =>
-            {
-                let x0 = root_abs.x + content_off_x + ibox.x;
-                let y0 = root_abs.y + content_off_y + ibox.y;
-                Some(transform_bounds(x0, y0, x0 + ibox.width, y0 + ibox.height))
+        }
+    }
+    if entries.is_empty() {
+        return None;
+    }
+    let mut per_line: Vec<(usize, (f32, f32, f32, f32))> = Vec::new();
+    for (line_index, (x0, y0, x1, y1)) in entries {
+        match per_line.iter_mut().find(|(index, _)| *index == line_index) {
+            Some((_, (ax0, ay0, ax1, ay1))) => {
+                *ax0 = ax0.min(x0);
+                *ay0 = ay0.min(y0);
+                *ax1 = ax1.max(x1);
+                *ay1 = ay1.max(y1);
             }
-            _ => None,
-        });
-    let (min_x, min_y, max_x, max_y) = fragment_bounds.chain(item_bounds).reduce(
-        |(ax0, ay0, ax1, ay1), (bx0, by0, bx1, by1)| {
-            (ax0.min(bx0), ay0.min(by0), ax1.max(bx1), ay1.max(by1))
-        },
-    )?;
+            None => per_line.push((line_index, (x0, y0, x1, y1))),
+        }
+    }
+    per_line.sort_unstable_by_key(|(line_index, _)| *line_index);
+    Some(
+        per_line
+            .into_iter()
+            .map(|(_, (x0, y0, x1, y1))| Rect::resolved(x0, y0, x1 - x0, y1 - y0))
+            .collect(),
+    )
+}
+
+/// Union of the per-line inline bounds, for getBoundingClientRect.
+fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rect> {
+    let rects = inline_line_rects_for_node(doc, node_id)?;
+    let (min_x, min_y, max_x, max_y) =
+        rects
+            .iter()
+            .fold((f32::MAX, f32::MAX, f32::MIN, f32::MIN), |acc, rect| {
+                (
+                    acc.0.min(rect.x),
+                    acc.1.min(rect.y),
+                    acc.2.max(rect.x + rect.width),
+                    acc.3.max(rect.y + rect.height),
+                )
+            });
     Some(Rect::resolved(min_x, min_y, max_x - min_x, max_y - min_y))
 }
 
@@ -882,6 +934,37 @@ impl DomHandle {
         }));
         let rect = rect_result.unwrap_or(Rect::ZERO);
         serde_wasm_bindgen::to_value(&rect).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Per-line content rects for `DOM.getContentQuads`: one rect per line box
+    /// for an inline node, and the single border box otherwise.
+    #[wasm_bindgen(js_name = "getContentRects", unchecked_return_type = "KsLayoutRect[]")]
+    pub fn get_content_rects(&self, node_id: u32) -> Result<JsValue, JsError> {
+        if self.layout_mode.get() == LayoutMode::Off {
+            return serde_wasm_bindgen::to_value(&Vec::<Rect>::new())
+                .map_err(|e| JsError::new(&e.to_string()));
+        }
+        self.ensure_layout();
+        let internal_id = self.resolve_node_id(node_id);
+        let doc = match self.doc.try_borrow() {
+            Ok(d) => d,
+            Err(_) => return Ok(JsValue::NULL),
+        };
+        let rects = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let Some(node) = internal_id.and_then(|id| doc.get_node(id)) else {
+                return Vec::new();
+            };
+            if has_layout_data(node) {
+                let size = node.final_layout().size;
+                if size.width > 0.0 && size.height > 0.0 {
+                    return vec![bounding_rect_for_node(&doc, node)];
+                }
+            }
+            inline_line_rects_for_node(&doc, node.id())
+                .unwrap_or_else(|| vec![bounding_rect_for_node(&doc, node)])
+        }))
+        .unwrap_or_default();
+        serde_wasm_bindgen::to_value(&rects).map_err(|e| JsError::new(&e.to_string()))
     }
 
     /// ResizeObserver's two boxes in one call: `[contentWidth, contentHeight, borderWidth,
