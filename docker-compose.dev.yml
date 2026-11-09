@@ -4,5 +4,7 @@ services:
     environment:
       - COLLECTOR_OTLP_ENABLED=true
     ports:
-      - "4318:4318"
-      - "16686:16686"
+      # Loopback only: the collector is unauthenticated and stores page text
+      # and request URLs. Docker publishes 0.0.0.0 when the host IP is omitted.
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:16686:16686"
