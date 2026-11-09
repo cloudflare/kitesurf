@@ -85,6 +85,11 @@ export interface DispatchCtx {
   // The client this context acts for. Background work that captured the context keeps acting
   // for that client, even after it leaves.
   client: CdpClientState;
+  // Sends an event to this context's client alone, bypassing the session's routing.
+  emitToClient: EventEmitter;
+  // The contexts of every client connected to the session, this one included while connected.
+  // Announcements that Chrome makes to each client with a matching setting loop over these.
+  peers: () => readonly DispatchCtx[];
 }
 
 const STORAGE_CLEAR_METHODS = new Set([
@@ -112,12 +117,12 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         sessionId: req.sessionId,
       };
     }
-    if (req.sessionId && req.sessionId === ctx.browser.rendererSessionId) {
+    if (req.sessionId && req.sessionId === ctx.client.memoryTargets.renderer) {
       const result = await handleRendererSession(ctx, req);
       ctx.browser.networkEvents.drain();
       return { id: req.id, result: result ?? {}, sessionId: req.sessionId };
     }
-    if (req.sessionId && req.sessionId === ctx.browser.engineSessionId) {
+    if (req.sessionId && req.sessionId === ctx.client.memoryTargets.engine) {
       const result = await handleEngineSession(ctx, req);
       ctx.browser.networkEvents.drain();
       return { id: req.id, result: result ?? {}, sessionId: req.sessionId };

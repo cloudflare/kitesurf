@@ -318,8 +318,6 @@ export class BrowserSession {
       // Deferred-fonts opt-in. See BrowserState.fontDefer.
       fontDefer: options.fontDefer,
       fontProfile: options.fontProfile,
-      rendererSessionId: null,
-      engineSessionId: null,
       wsClosing: false,
       attributionHeaders: pickHeaders(request, opts.host?.attributionHeaders),
     };
@@ -377,6 +375,10 @@ export class BrowserSession {
       connectionId: this.id,
       analytics: this.analytics,
       client,
+      emitToClient: (event) => {
+        if (!this.#disposed) this.#clients.get(client.id)?.deliver(event);
+      },
+      peers: () => Array.from(this.#clients.values(), (c) => c.ctx),
     };
   }
 
@@ -517,7 +519,14 @@ export class BrowserSession {
 }
 
 function newClientState(connectionMode: "page" | "browser", id: string): CdpClientState {
-  return { id, connectionMode, autoAttach: false, flatten: false, sessions: new Set() };
+  return {
+    id,
+    connectionMode,
+    autoAttach: false,
+    flatten: false,
+    sessions: new Set(),
+    memoryTargets: { renderer: null, engine: null },
+  };
 }
 
 // The session an event belongs to: its own, or the one an attach or detach notice names.
