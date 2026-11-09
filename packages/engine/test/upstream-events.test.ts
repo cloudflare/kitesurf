@@ -45,6 +45,7 @@ function installFor(isolateUrl: string) {
     navigationHistory: [{ id: 1, url: isolateUrl, userTypedURL: isolateUrl, title: "" }],
     navigationHistoryIndex: 0,
     nextNavigationHistoryId: 2,
+    frames: new Map(),
   } as TargetState;
   installUpstreamEventHandler(ctx, target, stub, 1, isolateUrl);
   const send = (event: UpstreamEventName, params: ReceivedUpstreamParams) =>
@@ -110,5 +111,38 @@ describe("kitesurf.navigatedWithinDocument", () => {
   ])("keeps %s when the page reports %s", (from, to) => {
     expect(navigate(from, to)).toEqual({ url: from, history: [from], emitted: [] });
     expect(navigate(from, to, "replaceState")).toEqual({ url: from, history: [from], emitted: [] });
+  });
+});
+
+describe("frame events while a navigate replaces the document", () => {
+  const attach = (h: ReturnType<typeof installFor>, frameId: string) =>
+    h.send("kitesurf.frameAttached", {
+      frameId,
+      url: "https://child.test/",
+      ownerBackendNodeId: 7,
+    });
+
+  it("attaches a frame for the live document", () => {
+    const h = installFor("https://first.test/");
+    attach(h, "child");
+    expect([...h.target.frames.keys()]).toEqual(["child"]);
+  });
+
+  it("drops them once Page.navigate reset the frames for the next loader", () => {
+    const h = installFor("https://first.test/");
+    // Page.navigate does this before the generation bump, while the isolate still runs.
+    h.target.loaderId = "L2";
+    h.target.url = "https://next.test/";
+    h.target.frames = new Map();
+    attach(h, "child");
+    h.send("kitesurf.navigatedWithinDocument", {
+      url: "https://first.test/pushed",
+      kind: "pushState",
+      navigationType: "historyApi",
+      previousUrl: "https://first.test/",
+    });
+    expect([...h.target.frames.keys()]).toEqual([]);
+    expect(h.target.url).toBe("https://next.test/");
+    expect(h.emitted).toEqual([]);
   });
 });
