@@ -357,7 +357,9 @@ export function assignModuleRegistryNames(urls: Iterable<string>): Map<string, s
   const names = new Map<string, string>();
   const occupied = new Set(allUrls);
   for (const [identity, group] of groups) {
-    if (group.length < 2) continue;
+    // workerd drops the query from a module name, so even a lone ?query record would take the
+    // bare url's name, where an import of the bare url that was not baked would find it.
+    if (group.length < 2 && group[0] === identity) continue;
     const base = new URL(identity);
     const match = /^(.*?)(\.[^./]+)$/.exec(base.pathname);
     const stem = match?.[1] ?? base.pathname;
