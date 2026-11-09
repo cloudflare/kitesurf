@@ -2812,7 +2812,11 @@ async function pushNavigateToPageScriptInner(
         });
       } catch {}
     }
-    if (target.cssEnabledSessions.size > 0 || ctx.client.connectionMode === "page") {
+    // Page-mode DevTools reads the sheets without a CSS-enabled session, whoever navigated.
+    if (
+      target.cssEnabledSessions.size > 0 ||
+      ctx.peers().some((p) => p.client.connectionMode === "page")
+    ) {
       try {
         await syncStyleSheetsFromEnumeration(ctx, target, pendingPageScript);
       } catch {}
@@ -4398,7 +4402,7 @@ async function spawnOopifPipeline(
     }
     f.execContextId = ctx.browser.execContextSeq++;
     emitOopifExecutionContext(ctx, f, target.url);
-    announceOopifTarget(ctx, f);
+    for (const peer of ctx.peers()) announceOopifTarget(peer, f);
     if (ctx.browser.skipSpeculativeRaster) return;
     const manager = getRendererManager(ctx, target);
     const res = await recordAndRasterizeFrame(manager, spawn.stub, {
@@ -4481,7 +4485,8 @@ function teardownOopifStubForFrame(
     ctx.browser.dedicatedWorkers.terminateFrame(target.targetId, f.frameId, reason);
   }
   if (ctx && f.parentFrameId !== null) {
-    if (ctx.client.connectionMode === "browser" || f.sessions.size > 0) {
+    // emitFrameTarget announced the frame to every browser-mode client.
+    if (f.sessions.size > 0 || ctx.peers().some((p) => p.client.connectionMode === "browser")) {
       destroyOopifTarget(ctx, f);
     } else {
       ctx.browser.networkEvents.deleteTargetAttribution(f.frameId);

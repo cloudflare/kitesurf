@@ -139,6 +139,8 @@ export interface CdpClientState {
   // The CDP sessions this client attached. On a persistent session, events on one of them
   // reach this client only.
   readonly sessions: Set<string>;
+  // This client's sessions on the synthetic Memory-panel targets, null until announced to it.
+  readonly memoryTargets: { renderer: string | null; engine: string | null };
 }
 
 export interface BrowserState {
@@ -178,8 +180,6 @@ export interface BrowserState {
   skipPartialRaster: boolean;
   fontDefer: boolean;
   fontProfile: FontProfile;
-  rendererSessionId: string | null;
-  engineSessionId: string | null;
   wsClosing: boolean;
 
   attributionHeaders: Record<string, string>;
