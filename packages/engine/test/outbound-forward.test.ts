@@ -333,3 +333,40 @@ describe("Web Bot Auth header precedence", () => {
     expect(req.headers.get("signature")).toBe("app-level-hmac");
   });
 });
+
+describe("headers page script may not set", () => {
+  const PAGE_SET = {
+    Origin: "https://victim.example",
+    Referer: "https://victim.example/account",
+    Cookie: "sid=forged",
+    "Sec-Fetch-Site": "same-origin",
+    "Proxy-Authorization": "Basic Zm9yZ2Vk",
+    "X-HTTP-Method-Override": "TRACE",
+    "X-Requested-With": "XMLHttpRequest",
+  };
+  const forwardFromPage = (pageRealm: boolean) =>
+    buildForwardRequest({
+      original: new Request("https://api.example/data", { headers: PAGE_SET }),
+      resourceType: "Fetch",
+      pageOrigin: PAGE_ORIGIN,
+      extraHeaders: {},
+      pageRealm,
+    });
+
+  it("drops forbidden request headers that came from page script", () => {
+    const req = forwardFromPage(true);
+    expect(req.headers.get("origin")).toBeNull();
+    expect(req.headers.get("referer")).not.toBe(PAGE_SET.Referer);
+    expect(req.headers.get("cookie")).toBeNull();
+    expect(req.headers.get("sec-fetch-site")).toBeNull();
+    expect(req.headers.get("proxy-authorization")).toBeNull();
+    expect(req.headers.get("x-http-method-override")).toBeNull();
+    expect(req.headers.get("x-requested-with")).toBe("XMLHttpRequest");
+  });
+
+  it("keeps headers the engine set on its own requests", () => {
+    const req = forwardFromPage(false);
+    expect(req.headers.get("cookie")).toBe("sid=forged");
+    expect(req.headers.get("referer")).toBe(PAGE_SET.Referer);
+  });
+});

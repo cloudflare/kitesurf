@@ -47,6 +47,7 @@ import {
   KITESURF_NOSNIFF_HEADER,
 } from "@kitesurf/script-gate/gateway-headers";
 import { determineReferrer, parseReferrerPolicy } from "@kitesurf/script-gate/referrer-policy";
+import { isForbiddenRequestHeader } from "./forbidden-headers.ts";
 
 const RESOURCE_KEY_HEADER = "x-kitesurf-resource-key";
 const IMAGE_WIDTH_HEADER = "x-kitesurf-image-width";
@@ -93,6 +94,8 @@ export interface OutboundProps {
   walksOwnRedirects?: boolean;
   /** Sealed pixel-free mode substitutes shaping-only fonts. */
   pixelFree?: boolean;
+  /** Set on the page isolate's channels: page script chose the request headers. */
+  pageRealm?: boolean;
 }
 
 const ASSET_SENTINEL_HOST = "kitesurf-fonts";
@@ -236,10 +239,10 @@ export function createSandboxOutboundOverride(
       } as Fetcher;
     },
     loaded(props) {
-      return exports.SandboxOutbound({ props: seal(props) });
+      return exports.SandboxOutbound({ props: { ...seal(props), pageRealm: true } });
     },
     session(props) {
-      const sealed = seal(props);
+      const sealed = { ...seal(props), pageRealm: true };
       return async (req) =>
         rpcSafeResponse(await SandboxOutbound.handle(env, sealed, sessionRequest(req)));
     },
@@ -586,6 +589,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       referrerPolicy: props?.referrerPolicy,
       wbaHeaders,
       corsMode: needsCorsCheck || sheetWantsCors,
+      pageRealm: sealed && props.pageRealm === true,
     });
 
     // Sealed props or x-kitesurf-cookie-key select the jar; only a missing context key
@@ -1329,6 +1333,8 @@ interface BuildForwardRequestOptions {
   referrerPolicy?: string;
   wbaHeaders?: Record<string, string>;
   corsMode?: boolean;
+  /** The original headers came from page script; drop the ones it may not set. */
+  pageRealm?: boolean;
 }
 
 export function buildForwardRequest({
@@ -1340,11 +1346,13 @@ export function buildForwardRequest({
   referrerPolicy,
   wbaHeaders = {},
   corsMode = false,
+  pageRealm = false,
 }: BuildForwardRequestOptions): Request {
   const headers = new Headers();
   for (const [k, v] of original.headers.entries()) {
     const lower = k.toLowerCase();
     if (lower.startsWith("x-kitesurf-")) continue;
+    if (pageRealm && isForbiddenRequestHeader(lower, v)) continue;
     headers.set(k, v);
   }
   if (!headers.has("user-agent")) headers.set("user-agent", BROWSER_UA);
