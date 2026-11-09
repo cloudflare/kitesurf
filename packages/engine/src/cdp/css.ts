@@ -490,7 +490,12 @@ async function fetchOpaqueSheetText(
   try {
     const walk = await walkRedirects({
       url,
-      headers: { accept: "text/css,*/*;q=0.1", "x-kitesurf-resource-type": "Stylesheet" },
+      // The page loaded this sheet without CORS, so the engine's copy skips the check too.
+      headers: {
+        accept: "text/css,*/*;q=0.1",
+        "x-kitesurf-resource-type": "Stylesheet",
+        "x-kitesurf-allow-cross-origin": "1",
+      },
       signal: AbortSignal.timeout(OPAQUE_SHEET_FETCH_TIMEOUT_MS),
       fetchHop: (hopReq) => outbound.fetch(hopReq),
     });
