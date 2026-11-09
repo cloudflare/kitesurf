@@ -220,6 +220,42 @@ export async function checkScriptBeforeFetch(
   return upgradedTo === null ? ALLOWED : { allowed: true, upgradeTo: upgradedTo };
 }
 
+/** Rechecks an external script's source list for a redirect target before it is fetched.
+ *  Enforced policies only; report-only policies were already reported for the request. */
+export function checkScriptRedirect(
+  ctx: ScriptGateContext,
+  request: ScriptGateRequest,
+  redirectUrl: string,
+): ScriptGateDecision {
+  const documentUrl = parseOrNull(ctx.documentUrl);
+  const target = parseOrNull(redirectUrl);
+  if (documentUrl?.protocol === "https:" && target && !isPotentiallyTrustworthy(target)) {
+    return {
+      allowed: false,
+      reason: "mixed-content",
+      message:
+        `Mixed Content: the page at ${ctx.documentUrl} was loaded over HTTPS, but a ` +
+        `script redirected to the insecure ${redirectUrl}. This request has been blocked.`,
+    };
+  }
+  const verdict = cspAllowsScript(ctx.policies, {
+    url: redirectUrl,
+    documentUrl: ctx.documentUrl,
+    nonce: request.nonce ?? null,
+    runtimeInserted: request.runtimeInserted === true,
+    redirected: true,
+  });
+  if (verdict.allowed) return ALLOWED;
+  return {
+    allowed: false,
+    reason: "csp",
+    message:
+      `Refused to load the script '${redirectUrl}' (a redirect of '${request.url ?? ""}') ` +
+      `because it violates the following Content Security Policy directive: ` +
+      `"${verdict.directive}".`,
+  };
+}
+
 async function inlineBodyHashes(
   body: string,
   algorithms: readonly SriAlgorithm[],

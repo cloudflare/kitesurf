@@ -7,6 +7,7 @@
 export {
   buildScriptGateContext,
   checkScriptBeforeFetch,
+  checkScriptRedirect,
   checkScriptResponse,
   scriptGateIsNoop,
   type ScriptBlockReason,

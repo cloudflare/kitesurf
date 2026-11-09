@@ -646,6 +646,8 @@ export async function fetchInsertedScript(
   contentType: string | null;
   nosniff: string | null;
   opaque: boolean;
+  /** The URL after redirects, when the fetch succeeded. */
+  finalUrl?: string;
 }> {
   await acquireFetchSlot(url, "Script");
   let released = false;
@@ -692,6 +694,7 @@ export async function fetchInsertedScript(
       contentType: response.headers.get("content-type"),
       nosniff: response.headers.get(KITESURF_NOSNIFF_HEADER),
       opaque: responseIsOpaque(response.headers.get(KITESURF_CORS_VERDICT_HEADER)),
+      finalUrl: response.url || url,
     };
   } catch {
     return {

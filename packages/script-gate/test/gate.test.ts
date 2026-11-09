@@ -9,6 +9,7 @@ import { test } from "node:test";
 import {
   buildScriptGateContext,
   checkScriptBeforeFetch,
+  checkScriptRedirect,
   checkScriptResponse,
 } from "../src/gate.ts";
 import { cspAllowsInlineHandler, cspAllowsScript, parseCspPolicies } from "../src/csp.ts";
@@ -530,4 +531,22 @@ test("inline event handlers follow script-src-attr, then script-src, then defaul
   assert.equal(allowed("script-src 'unsafe-inline'; script-src-attr 'none'"), false);
   // Every enforced policy must allow it.
   assert.equal(allowed("script-src 'unsafe-inline'", "script-src 'self'"), false);
+});
+
+test("a redirect target is rechecked against the source list, ignoring paths", () => {
+  const ctx = buildScriptGateContext(DOC, {
+    cspHeaders: ["script-src https://cdn.example/lib/ 'nonce-abc'"],
+  });
+  const request = { url: "https://cdn.example/lib/a.js" };
+  assert.equal(checkScriptRedirect(ctx, request, "https://cdn.example/elsewhere.js").allowed, true);
+  assert.deepEqual(checkScriptRedirect(ctx, request, "https://evil.example/a.js").reason, "csp");
+  // A nonce admits the script wherever it redirects, as for the initial request.
+  assert.equal(
+    checkScriptRedirect(ctx, { ...request, nonce: "abc" }, "https://evil.example/a.js").allowed,
+    true,
+  );
+  assert.equal(
+    checkScriptRedirect(ctx, request, "http://cdn.example/lib/a.js").reason,
+    "mixed-content",
+  );
 });

@@ -7,6 +7,7 @@
 import {
   buildScriptGateContext,
   checkScriptBeforeFetch,
+  checkScriptRedirect,
   checkScriptResponse,
   cspAllowsInlineHandler,
   cspAllowsScript,
@@ -101,8 +102,14 @@ export async function insertedResponseAllowed(
     contentTypeOptions: string | null;
     bytes: Uint8Array | null;
     opaque: boolean;
+    finalUrl?: string;
   },
 ): Promise<ScriptGateDecision> {
+  const ctx = gateContext();
+  if (meta.url && response.finalUrl && response.finalUrl !== meta.url && !scriptGateIsNoop(ctx)) {
+    const redirect = checkScriptRedirect(ctx, meta, response.finalUrl);
+    if (!redirect.allowed) return redirect;
+  }
   return checkScriptResponse(
     {
       url: meta.url,
