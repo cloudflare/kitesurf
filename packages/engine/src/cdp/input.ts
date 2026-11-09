@@ -12,7 +12,7 @@ import type { MouseEventInit } from "@kitesurf/jsrpc-types/page-script";
 import type { ConsoleEntry } from "@kitesurf/jsrpc-types/shared";
 import { consoleEntryToCdpEvent } from "../eval/page-script.ts";
 import { emitMutations } from "./dom.ts";
-import { emitInputNavigationStarted } from "./page.ts";
+import { canRewriteDocumentUrl, emitInputNavigationStarted } from "./page.ts";
 import { terminalSceneWheelQueue } from "./scene-stream.ts";
 import {
   fenceWheelQueues,
@@ -621,7 +621,7 @@ async function maybeFollowAnchor(
   }
   if (typeof hashNavigateTo === "string" && hashNavigateTo.length > 0) {
     const target = pickTarget(ctx, sessionId);
-    if (!target) return;
+    if (!target || !isFragmentChange(target, hashNavigateTo)) return;
     target.url = hashNavigateTo;
     const main = target.frames.get(target.frameId);
     if (main) {
@@ -643,6 +643,22 @@ async function maybeFollowAnchor(
       },
       sessionId,
     });
+  }
+}
+
+// The reply comes from the page realm, so check the move here: only target.url's fragment may
+// change, and the url must stay one the isolate's sealed document can take without a navigation.
+function isFragmentChange(target: TargetState, url: string): boolean {
+  if (!url.includes("#")) return false;
+  if (!target.pageScriptUrl || !canRewriteDocumentUrl(target.pageScriptUrl, url)) return false;
+  try {
+    const current = new URL(target.url);
+    const next = new URL(url);
+    current.hash = "";
+    next.hash = "";
+    return current.href === next.href;
+  } catch {
+    return false;
   }
 }
 
