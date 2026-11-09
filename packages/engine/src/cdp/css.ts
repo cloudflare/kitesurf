@@ -422,6 +422,7 @@ async function fetchOpaqueSheetText(
   sandboxOutbound: SandboxOutboundOverride,
   url: string,
 ): Promise<string> {
+  if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return "";
   const hostEgress = sandboxOutbound.external;
   if (!hostEgress) {
     const hit = opaqueSheetText.get(url);
@@ -457,8 +458,7 @@ export async function syncStyleSheetsFromEnumeration(
   let sheets: EnumeratedStyleSheet[] = [];
   try {
     const r = await stubQueryDom(ps, "enumerateStyleSheets", {});
-    const enumerated = r?.sheets;
-    if (Array.isArray(enumerated)) sheets = enumerated;
+    sheets = copyEnumeratedSheets(r?.sheets);
   } catch {
     sheets = [];
   }
@@ -598,6 +598,33 @@ function copyParsedRules(raw: unknown): ParsedStyleSheet["rules"] | null {
     });
   }
   return rules;
+}
+
+const SHEET_ORIGINS = new Set(["regular", "user-agent", "injected", "inspector"]);
+const SHEET_CORS = new Set(["clean", "opaque", "pending"]);
+
+function copyEnumeratedSheets(raw: unknown): EnumeratedStyleSheet[] {
+  const out: EnumeratedStyleSheet[] = [];
+  if (!Array.isArray(raw)) return out;
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const s = item as Record<string, unknown>;
+    if (typeof s.ownerNodeId !== "number") continue;
+    const sheet: EnumeratedStyleSheet = {
+      ownerNodeId: s.ownerNodeId,
+      text: typeof s.text === "string" ? s.text : "",
+    };
+    if (typeof s.sourceURL === "string") sheet.sourceURL = s.sourceURL;
+    if (typeof s.isInline === "boolean") sheet.isInline = s.isInline;
+    if (typeof s.origin === "string" && SHEET_ORIGINS.has(s.origin)) {
+      sheet.origin = s.origin as EnumeratedStyleSheet["origin"];
+    }
+    if (typeof s.cors === "string" && SHEET_CORS.has(s.cors)) {
+      sheet.cors = s.cors as EnumeratedStyleSheet["cors"];
+    }
+    out.push(sheet);
+  }
+  return out;
 }
 
 function copyNumbers(raw: unknown): number[] {

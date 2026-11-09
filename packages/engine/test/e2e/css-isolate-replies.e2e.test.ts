@@ -34,3 +34,37 @@ test("matched styles never call into a parsed stylesheet reply", async ({ page, 
   await cdpSession.send("CSS.getMatchedStylesForNode", { nodeId }).catch(() => {});
   expect(await page.evaluate(() => document.title)).toBe("start");
 });
+
+test("CSS.enable fetches opaque stylesheet text only for string urls", async ({
+  page,
+  cdpSession,
+}) => {
+  const key = "css-request-" + Math.random().toString(36).slice(2);
+  const probe = `http://127.0.0.1:8787/__fixtures/inserted-probe/stable/${key}.js`;
+  await setContent(
+    page,
+    `<!doctype html><title>start</title><script>
+      Object.defineProperty(Object.prototype, "then", {
+        configurable: true,
+        get() {
+          if (this && Array.isArray(this.sheets) && !this.sheets.added) {
+            this.sheets.added = true;
+            this.sheets.push({
+              ownerNodeId: 99999,
+              text: "",
+              cors: "opaque",
+              sourceURL: new Request(${JSON.stringify(probe)}, { method: "POST", body: "x" }),
+            });
+          }
+          return undefined;
+        },
+      });
+    </script>`,
+  );
+  await cdpSession.send("CSS.enable").catch(() => {});
+  await page.goto("http://127.0.0.1:8787/__fixtures/lifecycle.html", { waitUntil: "load" });
+  const hits = await page.evaluate(
+    `fetch("/__fixtures/inserted-probe-hits/${key}").then((r) => r.json()).then((b) => b.hits)`,
+  );
+  expect(hits).toBe(0);
+});
