@@ -10,7 +10,11 @@ import { armLocalTracing } from "./tracing-local.ts";
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { Hono, type Context, type ErrorHandler } from "hono";
 import { z } from "zod";
-import { inspectorTargetUrl, resolveInspectorBaseUrl } from "./inspector.ts";
+import {
+  cdpUpgradeOriginAllowed,
+  inspectorTargetUrl,
+  resolveInspectorBaseUrl,
+} from "./inspector.ts";
 import { DEFAULT_ENGINE_HOST, type EngineHost } from "./host.ts";
 
 // Loopback service binding for PageScript subresource fetches.
@@ -81,11 +85,13 @@ upgrades.use("/__fixtures/*", async (c, next) => {
 });
 
 upgrades.all("*", (c) =>
-  traceSpan(c.env.env.HOST_TRACER, "ws.connect", () =>
-    handleWebSocket(c.req.raw, c.env.env, c.env.ctx, undefined, {
-      host: c.env.host,
-    }),
-  ),
+  !cdpUpgradeOriginAllowed(c.req.raw, c.env.env)
+    ? c.text("CDP connections from this origin are not allowed", 403)
+    : traceSpan(c.env.env.HOST_TRACER, "ws.connect", () =>
+        handleWebSocket(c.req.raw, c.env.env, c.env.ctx, undefined, {
+          host: c.env.host,
+        }),
+      ),
 );
 
 const app = new Hono<EngineApp>();

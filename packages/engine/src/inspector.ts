@@ -91,3 +91,23 @@ export function inspectorTargetUrl(
   const frontend = absoluteInspectorBaseUrl(base, `${url.protocol}//${host}`);
   return frontend.replace(/\/$/, "") + "?" + params.toString();
 }
+
+const BUNDLED_INSPECTOR_ORIGIN = "devtools://devtools";
+
+/** Like Chrome's --remote-allow-origins: a CDP upgrade carrying Origin is admitted only
+ *  from the engine itself or an inspector. Non-browser clients send no Origin. */
+export function cdpUpgradeOriginAllowed(
+  request: Request,
+  env: { KITESURF_INSPECTOR_BASE_URL?: unknown },
+): boolean {
+  const origin = request.headers.get("origin");
+  if (origin === null) return true;
+  if (origin === new URL(request.url).origin || origin === BUNDLED_INSPECTOR_ORIGIN) return true;
+  const inspector = inspectorBaseUrlOrNull(env);
+  if (inspector === null) return false;
+  try {
+    return origin === new URL(inspector).origin;
+  } catch {
+    return false;
+  }
+}
