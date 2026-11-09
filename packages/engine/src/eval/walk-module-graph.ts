@@ -17,13 +17,18 @@ import type { SandboxOutboundOverride } from "./outbound.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
 import { walkRedirects } from "./redirect-walk.ts";
 
+// Page modules are baked under http(s) urls. Any other scheme names the loaded worker's own
+// registry (file:///bundle/, cloudflare:, node:), which page code must never link to.
+function isPageModuleUrl(url: string): boolean {
+  return /^https?:\/\//.test(url);
+}
+
 function inlineModuleUrl(pageUrl: string, index: number): string {
-  if (!pageUrl) return `https://kitesurf-inline.invalid/${index}.js`;
   try {
-    return new URL(`__kitesurf_inline_${index}.js`, pageUrl).toString();
-  } catch {
-    return `https://kitesurf-inline.invalid/${index}.js`;
-  }
+    const url = new URL(`__kitesurf_inline_${index}.js`, pageUrl).toString();
+    if (isPageModuleUrl(url)) return url;
+  } catch {}
+  return `https://kitesurf-inline.invalid/${index}.js`;
 }
 
 function pageOriginFromUrl(pageUrl: string): string {
@@ -241,7 +246,7 @@ export function importMapModuleSource(
  function asUrl(s,base){try{return s.startsWith("/")||s.startsWith("./")||s.startsWith("../")?new URL(s,base):new URL(s)}catch{return null}}
  function inMap(normalized,url,mappings){if(mappings.has(normalized))return mappings.get(normalized);if(url!==null&&!special.has(url.protocol))return undefined;let best="",answer;for(const [key,address] of mappings){if(!key.endsWith("/")||!normalized.startsWith(key)||key.length<=best.length)continue;best=key;if(address===null){answer=null;continue}try{const resolved=new URL(normalized.slice(key.length),address).href;answer=resolved.startsWith(address)?resolved:null}catch{answer=null}}return answer}
  export function resolveImportMap(specifier,importer){specifier=String(specifier);const url=asUrl(specifier,importer);const normalized=url?url.href:specifier;for(const [scope,mappings] of scopes){if(scope!==importer&&(!scope.endsWith("/")||!importer.startsWith(scope)))continue;const resolved=inMap(normalized,url,mappings);if(resolved===undefined)continue;if(resolved===null)throw new TypeError("Import map blocked module specifier: "+specifier);return resolved}const mapped=inMap(normalized,url,imports);if(mapped!==undefined){if(mapped===null)throw new TypeError("Import map blocked module specifier: "+specifier);return mapped}if(url===null)throw new TypeError("Bare module specifier requires an import map: "+specifier);return normalized}
- export function resolveModuleRegistryUrl(url){url=String(url);return registryAliases.get(url)??url}
+ export function resolveModuleRegistryUrl(url){url=String(url);const name=registryAliases.get(url)??url;if(!/^https?:\\/\\//.test(name))throw new TypeError("Not a page module URL: "+url);return name}
  `;
 }
 
@@ -437,10 +442,11 @@ export function extractClassicDynamicSeeds(
         b = b.slice(0, imp.ss) + `__ks_import(${JSON.stringify(spec)}, ${ref})` + b.slice(imp.se);
         continue;
       }
-      if (!/^https?:\/\//.test(resolved) && !resolved.startsWith("data:")) {
+      if (!isPageModuleUrl(resolved) && !resolved.startsWith("data:")) {
+        b = b.slice(0, imp.ss) + `__ks_import(${JSON.stringify(spec)}, ${ref})` + b.slice(imp.se);
         continue;
       }
-      if (/^https?:\/\//.test(resolved)) seeds.push(resolved);
+      if (isPageModuleUrl(resolved)) seeds.push(resolved);
       b = b.slice(0, imp.s) + JSON.stringify(resolved) + b.slice(imp.e);
       continue;
     }
@@ -745,6 +751,17 @@ export async function walkModuleGraph({
         return;
       }
       if (resolved.startsWith("data:")) continue;
+      if (!isPageModuleUrl(resolved)) {
+        // A dynamic import is rewritten to the runtime loader below, which refuses it.
+        if (isDynamic) continue;
+        failed.set(
+          fromUrl,
+          `Failed to load module "${specifier}" (imported from ${fromUrl}): ` +
+            `${resolved} is not an http(s) module URL.`,
+        );
+        modules.delete(fromUrl);
+        return;
+      }
       if (modules.has(resolved) || failed.has(resolved)) continue;
       if (/\.wasm$/i.test(new URL(resolved).pathname)) {
         failed.set(
