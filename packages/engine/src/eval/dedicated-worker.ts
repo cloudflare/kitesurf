@@ -150,7 +150,6 @@ export function spawnDedicatedWorker(
       "worker.js": WORKER_SCRIPT_SOURCE,
       "__ks_worker_script.js": { cjs: buildWorkerScriptModule(opts.source) },
     },
-    env: { KS_TAIL_TOKEN: tailToken },
     globalOutbound: opts.sandboxOutbound.loaded(outboundProps),
     tails: [
       ctx.exports.PageScriptTail({
@@ -159,7 +158,10 @@ export function spawnDedicatedWorker(
     ],
     limits: { cpuMs: opts.cpuMs, subRequests: PAGE_SCRIPT_SUBREQUEST_CAP },
   });
-  const entrypoint = stub.getEntrypoint<DedicatedWorkerEntrypointStub>("DedicatedWorker");
+  // The worker script can import its env, so the tail token travels in props.
+  const entrypoint = stub.getEntrypoint<DedicatedWorkerEntrypointStub>("DedicatedWorker", {
+    props: { KS_TAIL_TOKEN: tailToken },
+  });
   const init: OpenWorkerSessionInit = {
     outbound: opts.sandboxOutbound.session(outboundProps),
     upstream: (message: unknown) => {

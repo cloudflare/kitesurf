@@ -3894,7 +3894,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
 
   openSession(init: ReceivedSessionInit | undefined): RetainedPageScriptSessionTarget {
     try {
-      setTailToken((this.env as any)?.KS_TAIL_TOKEN);
+      // Props, not env: page modules share this worker and can import its env.
+      setTailToken(Reflect.get(Object(this.ctx.props), "KS_TAIL_TOKEN"));
     } catch {}
     if (startupLagWatchdog) {
       try {

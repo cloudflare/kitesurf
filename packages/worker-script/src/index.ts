@@ -40,14 +40,15 @@ const ISOLATE_KILL_MARKER: IsolateKillMarker = "[ks-kill]";
 
 let started = false;
 
-interface DedicatedWorkerEnv {
+// Props, not env: the page's worker script runs here and can import env.
+interface DedicatedWorkerProps {
   KS_TAIL_TOKEN?: unknown;
 }
 
-export class DedicatedWorker extends WorkerEntrypoint<DedicatedWorkerEnv> {
+export class DedicatedWorker extends WorkerEntrypoint<unknown, DedicatedWorkerProps> {
   killIsolate(reason?: string): void {
     const why = reason || "worker terminated";
-    const token = this.env.KS_TAIL_TOKEN;
+    const token = this.ctx.props?.KS_TAIL_TOKEN;
     if (typeof token === "string" && token) console.log(`${ISOLATE_KILL_MARKER} ${token} ${why}`);
     abortIsolate(`kitesurf: ${why}`);
   }
