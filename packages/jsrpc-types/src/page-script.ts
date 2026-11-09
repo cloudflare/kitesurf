@@ -255,6 +255,7 @@ export interface PageScriptSession {
   queryDom<M extends QueryDomMethod>(method: M, args: QueryDomArgs<M>): Promise<QueryDomResult<M>>;
   dispatchMouseEvent(type: string, init: MouseEventInit): Promise<MouseDispatchReply>;
   dispatchKeyEvent(type: string, init: KeyEventInit): Promise<KeyDispatchReply>;
+  insertText(text: string): Promise<KeyDispatchReply>;
 }
 
 export type PageScriptMethod = keyof PageScriptSession;
@@ -289,6 +290,7 @@ export interface PageScriptWireParams {
   queryDom: { method: QueryDomMethod; args?: QueryDomArgs<QueryDomMethod> };
   dispatchMouseEvent: { type: string; init: MouseEventInit };
   dispatchKeyEvent: { type: string; init: KeyEventInit };
+  insertText: { text: string };
 }
 
 export type PageScriptArgBuilders = {

@@ -149,6 +149,7 @@ test("Input.insertText: inserts strings longer than a few chars", async ({ page 
   expect(await value()).toBe("hello@example.com/inbox");
 
   await session.send("Input.insertText", { text: "\r" });
-  await session.send("Input.insertText", { text: "\t" });
   expect(await value()).toBe("hello@example.com/inbox");
+  await session.send("Input.insertText", { text: "\t" });
+  expect(await value()).toBe("hello@example.com/inbox\t");
 });

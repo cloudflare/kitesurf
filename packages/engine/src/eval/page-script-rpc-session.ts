@@ -501,6 +501,10 @@ export class PageScriptRpcSession implements PageScriptStub {
   ): ReturnType<PageScriptStub["dispatchKeyEvent"]> {
     return this.call("dispatchKeyEvent", { type, init });
   }
+
+  insertText(text: string): ReturnType<PageScriptStub["insertText"]> {
+    return this.call("insertText", { text });
+  }
 }
 
 export function openPageScriptRpcSession(

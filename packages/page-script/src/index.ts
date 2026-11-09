@@ -2741,11 +2741,7 @@ function activateAnchorNavigation(
   }
 }
 
-function notifyControlValueMutation(
-  control: ShimElement,
-  cursor: number,
-  keyboardEventConstructor: BuildDocumentResult["Event"] | BuildDocumentResult["KeyboardEvent"],
-): void {
+function notifyControlValueMutation(control: ShimElement, cursor: number): void {
   try {
     if (typeof control.__ksMarkUserEdited === "function") control.__ksMarkUserEdited();
   } catch {}
@@ -2757,12 +2753,138 @@ function notifyControlValueMutation(
     }
   } catch {}
   try {
-    const inputEvent = new (ksEventCtors.Event || keyboardEventConstructor)("input", {
+    const inputEvent = new (shimEventCtor("Event"))("input", {
       bubbles: true,
       cancelable: false,
     });
     __ks_dispatchTrusted(control, inputEvent);
   } catch {}
+}
+
+const NON_TEXT_INPUT_TYPES = new Set([
+  "button",
+  "checkbox",
+  "color",
+  "file",
+  "hidden",
+  "image",
+  "radio",
+  "range",
+  "reset",
+  "submit",
+]);
+
+function isTextEntryControl(element: ShimElement | null | undefined): element is ShimElement {
+  if (!element || (element.tagName !== "INPUT" && element.tagName !== "TEXTAREA")) return false;
+  if (element.tagName === "INPUT" && NON_TEXT_INPUT_TYPES.has(String(element.type || ""))) {
+    return false;
+  }
+  return !element.hasAttribute?.("readonly") && !element.hasAttribute?.("disabled");
+}
+
+// Chrome enters line breaks and tabs as text, while other control characters a key may carry
+// (Backspace's "\b", Escape's "\x1b") insert nothing.
+function isEnterableText(text: string): boolean {
+  const TAB = 0x09;
+  const LINE_FEED = 0x0a;
+  const CARRIAGE_RETURN = 0x0d;
+  const SPACE = 0x20;
+  const DELETE = 0x7f;
+  for (let i = 0; i < text.length; i++) {
+    const unit = text.charCodeAt(i);
+    if (unit === TAB || unit === LINE_FEED || unit === CARRIAGE_RETURN) continue;
+    if (unit < SPACE || unit === DELETE) return false;
+  }
+  return text.length > 0;
+}
+
+function isLineBreakKeyText(text: string): boolean {
+  return text === "\r" || text === "\n";
+}
+
+function normalizeLineBreaks(text: string): string {
+  return text.replace(/\r\n?/g, "\n");
+}
+
+// A single-line field holds no line break: Chrome drops trailing ones and turns the others into
+// spaces, so multi-line text pasted into a search box keeps its words apart.
+function singleLineText(text: string): string {
+  let end = text.length;
+  while (end > 0 && (text[end - 1] === "\n" || text[end - 1] === "\r")) end--;
+  return text.slice(0, end).replace(/\r\n?|\n/g, " ");
+}
+
+function controlSelection(control: ShimElement, value: string): { start: number; end: number } {
+  const rawStart =
+    typeof control.selectionStart === "number" ? control.selectionStart : value.length;
+  const rawEnd = typeof control.selectionEnd === "number" ? control.selectionEnd : rawStart;
+  const start = Math.max(0, Math.min(rawStart, value.length));
+  return { start, end: Math.max(start, Math.min(rawEnd, value.length)) };
+}
+
+// Enter breaks a line only in a textarea: a single-line field keeps no line break, and Enter
+// there is the key for implicit submission instead.
+function insertIntoTextControl(control: ShimElement, rawText: string, lineBreak: boolean): void {
+  const multiline = control.tagName === "TEXTAREA";
+  if (lineBreak && !multiline) return;
+  const text = lineBreak
+    ? "\n"
+    : multiline
+      ? normalizeLineBreaks(rawText)
+      : singleLineText(rawText);
+  const oldValue = getValueRawOnControl(control);
+  const { start, end } = controlSelection(control, oldValue);
+  if (!text && start === end) return;
+  setValueRawOnControl(control, oldValue.slice(0, start) + text + oldValue.slice(end));
+  notifyControlValueMutation(control, start + text.length);
+}
+
+function deleteInTextControl(control: ShimElement, forward: boolean): void {
+  const oldValue = getValueRawOnControl(control);
+  const { start, end } = controlSelection(control, oldValue);
+  const HIGH_SURROGATE_START_CODE_UNIT = 0xd800;
+  const HIGH_SURROGATE_END_CODE_UNIT = 0xdbff;
+  const LOW_SURROGATE_START_CODE_UNIT = 0xdc00;
+  const LOW_SURROGATE_END_CODE_UNIT = 0xdfff;
+  const isHighSurrogate = (unit: number) =>
+    unit >= HIGH_SURROGATE_START_CODE_UNIT && unit <= HIGH_SURROGATE_END_CODE_UNIT;
+  const isLowSurrogate = (unit: number) =>
+    unit >= LOW_SURROGATE_START_CODE_UNIT && unit <= LOW_SURROGATE_END_CODE_UNIT;
+  let deleteStart = start;
+  let deleteEnd = end;
+  if (start === end && !forward && start > 0) {
+    const previous = start - 1;
+    deleteStart =
+      previous > 0 &&
+      isLowSurrogate(oldValue.charCodeAt(previous)) &&
+      isHighSurrogate(oldValue.charCodeAt(previous - 1))
+        ? previous - 1
+        : previous;
+  } else if (start === end && forward && start < oldValue.length) {
+    const next = start + 1;
+    deleteEnd =
+      isHighSurrogate(oldValue.charCodeAt(start)) &&
+      next < oldValue.length &&
+      isLowSurrogate(oldValue.charCodeAt(next))
+        ? next + 1
+        : next;
+  }
+  if (deleteStart === deleteEnd) return;
+  setValueRawOnControl(control, oldValue.slice(0, deleteStart) + oldValue.slice(deleteEnd));
+  notifyControlValueMutation(control, deleteStart);
+}
+
+// Input.insertText commits text as an IME does, with no key events, so a line break in it is
+// text and never an Enter that submits a form.
+function insertTextAtFocus(text: string): void {
+  if (!isEnterableText(text)) return;
+  const focused = state.getActiveElement();
+  const editHost = editingHostOf(focused);
+  if (editHost) {
+    editContentEditable(editHost, "insertText", normalizeLineBreaks(text), __ks_dispatchTrusted);
+  } else if (isTextEntryControl(focused)) {
+    insertIntoTextControl(focused, text, false);
+  }
 }
 
 function findDefaultSubmitButton(form: NonNullable<ShimElement["form"]>): ShimElement | null {
@@ -5112,6 +5234,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       defaultPrevented = !allowed;
       if (eventType === "keydown" && defaultPrevented) __ksSuppressChar = true;
 
+      // Chrome's Tab moves focus as keydown's default action and then drops the key's "\t", so
+      // neither the field it leaves nor the one it reaches takes a tab.
+      let tabNavigated = false;
       if (
         eventType === "keydown" &&
         init?.key === "Tab" &&
@@ -5121,6 +5246,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         !init.metaKey
       ) {
         moveTabFocus(!!init.shiftKey);
+        tabNavigated = true;
+        __ksSuppressChar = true;
       }
       if (eventType === "keydown" && !defaultPrevented) {
         scrollForKey(init?.key || "", init);
@@ -5146,7 +5273,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         }
       }
 
-      const isCharBearing = eventType === "keydown" || eventType === "keypress";
+      const isCharBearing = (eventType === "keydown" || eventType === "keypress") && !tabNavigated;
       const editHost = defaultPrevented ? null : editingHostOf(focused);
       if (editHost) {
         const text = typeof init?.text === "string" ? init.text : "";
@@ -5168,15 +5295,20 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           }
           if (!typed) {
             defaultPrevented = true;
-          } else if (text === "\r" || text === "\n") {
+          } else if (isLineBreakKeyText(text)) {
             editContentEditable(
               editHost,
               init.shiftKey ? "insertLineBreak" : "insertParagraph",
               null,
               __ks_dispatchTrusted,
             );
-          } else if (!hasControlChar(text)) {
-            editContentEditable(editHost, "insertText", text, __ks_dispatchTrusted);
+          } else if (isEnterableText(text)) {
+            editContentEditable(
+              editHost,
+              "insertText",
+              normalizeLineBreaks(text),
+              __ks_dispatchTrusted,
+            );
           }
         }
       }
@@ -5188,54 +5320,14 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       ) {
         const text = init && typeof init.text === "string" ? init.text : "";
         const key = init && typeof init.key === "string" ? init.key : "";
-        const oldValue = getValueRawOnControl(focused);
-        const oldLength = oldValue.length;
-        const rawStart =
-          typeof focused.selectionStart === "number" ? focused.selectionStart : oldLength;
-        const rawEnd = typeof focused.selectionEnd === "number" ? focused.selectionEnd : rawStart;
-        const selectionStart = Math.max(0, Math.min(rawStart, oldLength));
-        const selectionEnd = Math.max(selectionStart, Math.min(rawEnd, oldLength));
-        let newValue = oldValue;
-        let nextCursor = selectionStart;
-        const HIGH_SURROGATE_START_CODE_UNIT = 0xd800;
-        const HIGH_SURROGATE_END_CODE_UNIT = 0xdbff;
-        const LOW_SURROGATE_START_CODE_UNIT = 0xdc00;
-        const LOW_SURROGATE_END_CODE_UNIT = 0xdfff;
-        const isHighSurrogate = (unit: number) =>
-          unit >= HIGH_SURROGATE_START_CODE_UNIT && unit <= HIGH_SURROGATE_END_CODE_UNIT;
-        const isLowSurrogate = (unit: number) =>
-          unit >= LOW_SURROGATE_START_CODE_UNIT && unit <= LOW_SURROGATE_END_CODE_UNIT;
-        const isPrintable = text.length > 0 && !hasControlChar(text);
-        if (isPrintable) {
-          newValue = oldValue.slice(0, selectionStart) + text + oldValue.slice(selectionEnd);
-          nextCursor = selectionStart + text.length;
-        } else if (eventType === "keydown" && (key === "Backspace" || key === "Delete")) {
-          if (selectionStart !== selectionEnd) {
-            newValue = oldValue.slice(0, selectionStart) + oldValue.slice(selectionEnd);
-          } else if (key === "Backspace" && selectionStart > 0) {
-            const previous = selectionStart - 1;
-            const deleteStart =
-              previous > 0 &&
-              isLowSurrogate(oldValue.charCodeAt(previous)) &&
-              isHighSurrogate(oldValue.charCodeAt(previous - 1))
-                ? previous - 1
-                : previous;
-            newValue = oldValue.slice(0, deleteStart) + oldValue.slice(selectionEnd);
-            nextCursor = deleteStart;
-          } else if (key === "Delete" && selectionStart < oldLength) {
-            const next = selectionStart + 1;
-            const deleteEnd =
-              isHighSurrogate(oldValue.charCodeAt(selectionStart)) &&
-              next < oldLength &&
-              isLowSurrogate(oldValue.charCodeAt(next))
-                ? next + 1
-                : next;
-            newValue = oldValue.slice(0, selectionStart) + oldValue.slice(deleteEnd);
+        if (isTextEntryControl(focused)) {
+          if (isLineBreakKeyText(text)) {
+            insertIntoTextControl(focused, text, true);
+          } else if (isEnterableText(text)) {
+            insertIntoTextControl(focused, text, false);
+          } else if (eventType === "keydown" && (key === "Backspace" || key === "Delete")) {
+            deleteInTextControl(focused, key === "Delete");
           }
-        }
-        if (newValue !== oldValue) {
-          setValueRawOnControl(focused, newValue);
-          notifyControlValueMutation(focused, nextCursor, KeyboardEventConstructor);
         }
         if (eventType === "keydown" && key === "Enter" && focused.tagName === "INPUT") {
           dispatchEnterChange(focused, KeyboardEventConstructor);
@@ -5257,6 +5349,35 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       cookieWrites: state.drainCookieWrites(),
       cdpMutations: drainCdpMutations(),
       defaultPrevented,
+      navigateTo,
+      navigatePost,
+    };
+  }
+
+  async insertText(text: string): Promise<KeyDispatchReply> {
+    let navigateTo: string | null = null;
+    let navigatePost: ReturnType<typeof takePendingSubmitNav> = null;
+    if (state.document && typeof text === "string") {
+      const internalState = getInternalState();
+      internalState.dispatchingUserEvent = true;
+      internalState.pendingSubmitNav = null;
+      try {
+        insertTextAtFocus(text);
+      } catch (err) {
+        console.error("[kitesurf] Input.insertText failed", err);
+      } finally {
+        const nav = takePendingSubmitNav();
+        if (nav && typeof nav.url === "string") {
+          if (typeof nav.postData === "string") navigatePost = nav;
+          else navigateTo = nav.url;
+        }
+      }
+    }
+    return {
+      console: drainConsole(),
+      cookieWrites: state.drainCookieWrites(),
+      cdpMutations: drainCdpMutations(),
+      defaultPrevented: false,
       navigateTo,
       navigatePost,
     };
@@ -7248,17 +7369,6 @@ async function queryDomWebMcpCall(
     await yieldToPageTasks();
   }
   return result satisfies QueryDomResult<"webmcpCallTool">;
-}
-
-function hasControlChar(text: string): boolean {
-  const ASCII_CONTROL_RANGE_END_EXCLUSIVE = 0x20;
-  const ASCII_DELETE_CODE_POINT = 0x7f;
-  for (let i = 0; i < text.length; i++) {
-    const codeUnit = text.charCodeAt(i);
-    if (codeUnit < ASCII_CONTROL_RANGE_END_EXCLUSIVE || codeUnit === ASCII_DELETE_CODE_POINT)
-      return true;
-  }
-  return false;
 }
 
 function sourceDoctypeOf(html: string): { markup: string; end: number } | null {

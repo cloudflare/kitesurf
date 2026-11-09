@@ -81,6 +81,7 @@ export const PAGE_SCRIPT_METHODS: PageScriptArgBuilders = {
     params.type,
     params.init ?? {},
   ],
+  insertText: (params): MethodArguments<"insertText"> => [params.text],
 };
 
 export async function invokeSessionMethod<M extends PageScriptMethod>(
