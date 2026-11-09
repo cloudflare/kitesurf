@@ -293,7 +293,7 @@ describe("walkModuleGraph asset-import stubs", () => {
 });
 
 describe("modulePreloadSeeds", () => {
-  it("collects script-destination modulepreload links once, with their nonce", () => {
+  it("collects script-destination modulepreload links once, with their nonce and integrity", () => {
     const html =
       '<link rel="modulepreload" href="/a.js?x=1&amp;y=2" nonce="n1">' +
       "<link rel='preload modulepreload' href='b.js'>" +
@@ -304,9 +304,10 @@ describe("modulePreloadSeeds", () => {
       '<link rel="modulepreload" href="data:text/javascript,export{}">' +
       '<link rel="preload" as="script" href="/classic.js">';
     expect(modulePreloadSeeds(html, "https://site.example/dir/page")).toEqual([
-      { url: "https://site.example/a.js?x=1&y=2", nonce: "n1" },
-      { url: "https://site.example/dir/b.js", nonce: null },
-      { url: "https://cdn.example/c.js", nonce: null },
+      { url: "https://site.example/a.js?x=1&y=2", nonce: "n1", integrity: null },
+      { url: "https://site.example/dir/b.js", nonce: null, integrity: null },
+      { url: "https://cdn.example/c.js", nonce: null, integrity: null },
+      { url: "https://site.example/sri.js", nonce: null, integrity: "sha384-x" },
     ]);
   });
 });
@@ -314,6 +315,30 @@ describe("modulePreloadSeeds", () => {
 describe("walkModuleGraph modulepreload seeds", () => {
   const PAGE = "https://example.com/page.html";
   const DEP = "https://example.com/dep.js";
+
+  it("checks a module against its modulepreload integrity when another module imports it", async () => {
+    const pinned = "export const dep = 1;";
+    const digest = new Uint8Array(
+      await crypto.subtle.digest("SHA-384", new TextEncoder().encode(pinned)),
+    );
+    const integrity = "sha384-" + btoa(String.fromCharCode(...digest));
+    const walk = (served: string) =>
+      walkModuleGraph({
+        descriptors: [moduleInline(`import "/dep.js";`)],
+        pageUrl: PAGE,
+        connectionId: "conn",
+        options: {
+          preloadSeeds: modulePreloadSeeds(
+            `<link rel="modulepreload" href="/dep.js" integrity="${integrity}">`,
+            PAGE,
+          ),
+        },
+        sandboxOutbound: stubOutbound({ [DEP]: served }),
+      });
+    expect(Object.keys((await walk(pinned)).additionalModules)).toContain(DEP);
+    const tampered = await walk("globalThis.changed = 1; export const dep = 1;");
+    expect(Object.keys(tampered.additionalModules)).not.toContain(DEP);
+  });
 
   it("still bakes an imported module whose preload fetch failed", async () => {
     let depRequests = 0;
@@ -335,7 +360,7 @@ describe("walkModuleGraph modulepreload seeds", () => {
       mainLoaderId: "",
       extraHeaders: {},
       cookieKey: "",
-      options: { preloadSeeds: [{ url: DEP, nonce: null }] },
+      options: { preloadSeeds: [{ url: DEP, nonce: null, integrity: null }] },
       sandboxOutbound: {
         external: false,
         parent: () => fetcher,
