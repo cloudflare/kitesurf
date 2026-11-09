@@ -3152,11 +3152,10 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
             } catch {}
           }
           state.pageUrl = newUrl;
-          // A same-document change commits now; a cross-document one waits
-          // for the new document, so the current one keeps its URL until then.
-          if (kind === "hash" || kind === "pushState" || kind === "replaceState") {
-            state.documentUrl = newUrl;
-          }
+          // A same-document change, including a history traversal, commits now;
+          // a cross-document one waits for the new document, so the current one
+          // keeps its URL until then.
+          if (kind !== "navigate") state.documentUrl = newUrl;
           if (kind === "hash" && previous !== newUrl && state.window) {
             const stateForPopstate = state.window.history?.state ?? null;
             queuePageTask(() => {
