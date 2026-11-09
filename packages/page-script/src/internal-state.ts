@@ -62,6 +62,11 @@ export interface KitesurfInternalState {
   currentScriptBodyKey?: string | undefined;
 
   endClassicScript: (() => Promise<void>) | null;
+  // Reports a caught script error to the Runtime.exceptionThrown buffer. The classic bundle
+  // catches per script, so this is the only signal a pageerror listener gets.
+  pushException:
+    | ((err: unknown, opts: { scriptId: string; url: string; text?: string }) => void)
+    | null;
   // Fires load (ok) or error at a parser-inserted external classic script. domIndex is its
   // ordinal among the document's <script> elements; rawSrc and src check the match.
   parserScriptLifecycle:
@@ -148,6 +153,7 @@ export function createInternalState(): KitesurfInternalState {
     setCurrentScript: null,
     currentScriptSrc: undefined,
     endClassicScript: null,
+    pushException: null,
     parserScriptLifecycle: null,
     bundleDiag: null,
     afterIframeInsert: null,

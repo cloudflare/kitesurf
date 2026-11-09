@@ -19,9 +19,11 @@ const html = `<script>
 
 test("a throwing classic script does not stop later scripts", async ({ page, cdpSession }) => {
   const errors: string[] = [];
+  const pageErrors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
+  page.on("pageerror", (error) => pageErrors.push(error.message));
   await setContent(page, html, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(
     () => (globalThis as { __deferReport?: string }).__deferReport !== undefined,
@@ -35,5 +37,9 @@ test("a throwing classic script does not stop later scripts", async ({ page, cdp
   expect(
     errors.some((text) => text.includes("boom")),
     "captured: " + JSON.stringify(errors),
+  ).toBe(true);
+  expect(
+    pageErrors.some((text) => text.startsWith("boom")),
+    "captured page errors: " + JSON.stringify(pageErrors),
   ).toBe(true);
 }, 60_000);

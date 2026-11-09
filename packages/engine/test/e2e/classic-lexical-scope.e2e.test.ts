@@ -34,3 +34,30 @@ test("later scripts share top-level lexical bindings", async ({ page, cdpSession
     instance: "w",
   });
 }, 60_000);
+
+// Stripping a declaration keyword must not change how the program parses.
+const shapes = `<script>
+  const { a, b } = { a: 1, b: 2 };
+  const c = 1
+  const [d] = [2]
+  class A {}
+  (function () { globalThis.__iife = "ran"; })()
+  globalThis.__shapes = JSON.stringify({ sum: a + b, c: c, d: d, iife: globalThis.__iife });
+</script>
+<script>
+  globalThis.__afterShapes = JSON.stringify({ ran: 1 });
+</script>`;
+
+test("destructuring, ASI and a class before an IIFE keep their meaning", async ({
+  page,
+  cdpSession,
+}) => {
+  await setContent(page, shapes, { waitUntil: "domcontentloaded" });
+  expect(await readJsonReport(cdpSession, "globalThis.__shapes")).toEqual({
+    sum: 3,
+    c: 1,
+    d: 2,
+    iife: "ran",
+  });
+  expect(await readJsonReport(cdpSession, "globalThis.__afterShapes")).toEqual({ ran: 1 });
+}, 60_000);

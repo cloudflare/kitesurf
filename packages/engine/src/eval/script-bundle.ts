@@ -163,20 +163,30 @@ function buildClassicSegment(
   let bodySource = source;
   // Top-level let/const/class share one global lexical scope across scripts.
   // https://html.spec.whatwg.org/multipage/webappapis.html#run-a-classic-script
-  const keywordSites: Array<{ start: number; length: number }> = [
-    ...scan.varSites.map((start) => ({ start, length: 3 })),
+  const keywordSites: Array<{ start: number; length: number; guard: boolean }> = [
+    ...scan.varSites.map((start) => ({ start, length: 3, guard: false })),
     ...scan.lexicalSites.map((start) => ({
       start,
       length: source.startsWith("const", start) ? 5 : 3,
+      guard: true,
     })),
   ].sort((a, b) => b.start - a.start);
-  for (const { start, length } of keywordSites) {
-    bodySource = bodySource.slice(0, start) + " ".repeat(length) + bodySource.slice(start + length);
+  for (const { start, length, guard } of keywordSites) {
+    // A leading `;` stops the previous line from continuing into this assignment.
+    const replacement = (guard ? ";" : " ") + " ".repeat(length - 1);
+    bodySource = bodySource.slice(0, start) + replacement + bodySource.slice(start + length);
   }
-  // `class Name {}` becomes an assignment to the shared binding.
+  // `class Name {}` becomes `Name = class Name {};`. The trailing `;` stops a following
+  // `(` or `[` from calling or indexing the class expression.
   for (let i = scan.classSites.length - 1; i >= 0; i--) {
     const start = scan.classSites[i];
-    bodySource = bodySource.slice(0, start) + `${scan.classNames[i]} = ` + bodySource.slice(start);
+    const end = scan.classEnds[i];
+    bodySource =
+      bodySource.slice(0, start) +
+      `${scan.classNames[i]} = ` +
+      bodySource.slice(start, end) +
+      ";" +
+      bodySource.slice(end);
   }
   const liveVarNames = scan.varNames.filter((n) => !blockedNames.has(n));
   const predeclareHead =
@@ -202,13 +212,27 @@ ${lines.join("\n")}
     }
   }
   const prefix = `// === ${label} ===\n${predeclareHead}if (typeof globalThis.require !== "undefined") require = globalThis.require;\n${setCurrent}`;
-  const segmentBody = `try {\n${bodySource}\n${promoteTail}${lifecycle(true)}} catch (__ks_segment_error) {
-  ${lifecycle(false)}console.error("classic script threw: " + String(__ks_segment_error && __ks_segment_error.message || __ks_segment_error));
+  // The catch has to report the failure the way a rejected bucket did, or a pageerror
+  // listener sees nothing for a script that threw.
+  const reportException = `try { if (__ks_state_local.pushException) __ks_state_local.pushException(__ks_segment_error, { scriptId: "bundle:classic-regular", url: ${JSON.stringify(label)} }); } catch {}`;
+  // Load still fires after the currentScript reset, as it did when the segment body ran
+  // unwrapped; only the ok flag changes.
+  const lifecycleDynamic =
+    !bracket || !d.src
+      ? ""
+      : `if (__ks_state_local.parserScriptLifecycle) { if (__ks_segment_ok) { await __ks_state_local.parserScriptLifecycle(${domIdx}, ${JSON.stringify(rawSrc)}, ${JSON.stringify(currentScriptUrl)}, true); } else { await __ks_state_local.parserScriptLifecycle(${domIdx}, ${JSON.stringify(rawSrc)}, ${JSON.stringify(currentScriptUrl)}, false); } }\n`;
+  const segmentBody = `var __ks_segment_ok = false;
+try {
+${bodySource}
+${promoteTail}__ks_segment_ok = true;
+} catch (__ks_segment_error) {
+  ${reportException}
+  console.error("classic script threw: " + String(__ks_segment_error && __ks_segment_error.message || __ks_segment_error));
 } finally {
-${clearCurrent}}\n`;
+${clearCurrent}${lifecycleDynamic}}\n`;
   return {
     source: `${prefix}${segmentBody}`,
-    sourceLineOffset: countLines(prefix) + 1,
+    sourceLineOffset: countLines(prefix) + 2,
     lexicalNames: scan.lexicalNames,
   };
 }

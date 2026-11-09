@@ -13,6 +13,8 @@ export interface TopLevelDeclScan {
   lexicalNames: string[];
   classSites: number[];
   classNames: string[];
+  // Index just past each class body's closing brace, parallel to classSites.
+  classEnds: number[];
 }
 
 type TopLevelKeyword = "var" | "let" | "const" | "function" | "class";
@@ -29,6 +31,7 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
   const lexicalNames: string[] = [];
   const classSites: number[] = [];
   const classNames: string[] = [];
+  const classEnds: number[] = [];
   const sourceLength = source.length;
   let sourceOffset = 0;
   let braceDepth = 0;
@@ -279,7 +282,9 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
     startIndex: number,
   ): number {
     const canStripVarDeclaration = keyword === "var" && readIdentifier(startIndex) !== null;
-    const isLexical = keyword !== "var";
+    // A destructuring pattern cannot lose its keyword: `{ a } = x` opens a block and
+    // `[a] = x` joins the previous line, so only an identifier declaration is rewritten.
+    const isLexical = keyword !== "var" && readIdentifier(startIndex) !== null;
     const namesAtVarSite: string[] = [];
     if (canStripVarDeclaration) {
       varSites.push(keywordStart);
@@ -292,7 +297,7 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
       const identifier = readIdentifier(position);
       if (!identifier) break;
       addName(identifier.name);
-      if (isLexical) lexicalNames.push(identifier.name);
+      if (keyword !== "var") lexicalNames.push(identifier.name);
       if (canStripVarDeclaration) {
         namesAtVarSite.push(identifier.name);
         if (!varSeen.has(identifier.name)) {
@@ -305,6 +310,70 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
       position++;
     }
     return position;
+  }
+
+  // Index just past a class body's closing brace, so `class A {}` can become
+  // `A = class A {};`: the semicolon keeps a following `(` from calling the class.
+  function skipClassBody(startIndex: number): number {
+    let position = startIndex;
+    let parenDepth = 0;
+    let bracketDepth = 0;
+    let braceDepth = 0;
+    let delimiter: "" | '"' | "'" | "`" = "";
+    while (position < sourceLength) {
+      const character = source[position];
+      if (delimiter) {
+        if (character === "\\") {
+          position += 2;
+          continue;
+        }
+        if (character === delimiter) delimiter = "";
+        position++;
+        continue;
+      }
+      if (character === '"' || character === "'" || character === "`") {
+        delimiter = character;
+        position++;
+        continue;
+      }
+      if (character === "/" && source[position + 1] === "/") {
+        const newlineIndex = source.indexOf("\n", position);
+        position = newlineIndex < 0 ? sourceLength : newlineIndex + 1;
+        continue;
+      }
+      if (character === "/" && source[position + 1] === "*") {
+        const commentEnd = source.indexOf("*/", position + 2);
+        position = commentEnd < 0 ? sourceLength : commentEnd + 2;
+        continue;
+      }
+      if (character === "/") {
+        const regexEndPosition = regexEnd(position);
+        if (regexEndPosition > 0) {
+          position = regexEndPosition;
+          continue;
+        }
+      }
+      if (character === "(") parenDepth++;
+      else if (character === ")") {
+        if (parenDepth > 0) parenDepth--;
+      } else if (character === "[") bracketDepth++;
+      else if (character === "]") {
+        if (bracketDepth > 0) bracketDepth--;
+      } else if (character === "{") {
+        // Heritage can hold an object literal (`extends mixin({})`); the body brace is
+        // the first one outside any parentheses or brackets.
+        if (parenDepth === 0 && bracketDepth === 0) braceDepth++;
+      } else if (character === "}") {
+        if (braceDepth > 0) {
+          braceDepth--;
+          position++;
+          if (braceDepth === 0 && parenDepth === 0 && bracketDepth === 0) return position;
+          continue;
+        }
+      }
+      position++;
+    }
+    return sourceLength;
   }
 
   function declarationKeywordAt(sourceIndex: number): TopLevelKeyword | null {
@@ -331,6 +400,9 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
     if (keyword === "class") {
       classSites.push(keywordStart);
       classNames.push(identifier.name);
+      const bodyEnd = skipClassBody(identifier.end);
+      classEnds.push(bodyEnd);
+      return bodyEnd;
     }
     return identifier.end;
   }
@@ -433,6 +505,7 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
     lexicalNames,
     classSites,
     classNames,
+    classEnds,
   };
 }
 

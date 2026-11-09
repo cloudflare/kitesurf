@@ -3333,6 +3333,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         warnIframeFailure(err, { operation: "form target navigation", url });
       }
     };
+    // The classic bundle catches each script's throw, so it reports through here; the buffer
+    // lives in this module, not in the separately bundled internal state.
+    getInternalState().pushException = pushException;
     getInternalState().endClassicScript = async () => {
       try {
         await drainSettleMicrotasks();
