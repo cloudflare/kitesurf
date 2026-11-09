@@ -5,7 +5,7 @@
 //! Element geometry: viewport, bounding, inline-aware, and intersection rects, and offset
 //! metrics.
 
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic;
 
 use blitz_dom::{local_name, ns, util::Point, BaseDocument, Node, NodeData};
 use blitz_html::HtmlDocument;
@@ -872,7 +872,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return Ok(JsValue::NULL),
         };
-        let rect_result = catch_unwind(AssertUnwindSafe(|| {
+        let rect_result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let Some(node) = internal_id.and_then(|id| doc.get_node(id)) else {
                 return Rect::ZERO;
             };
@@ -900,7 +900,7 @@ impl DomHandle {
         let Ok(doc) = self.doc.try_borrow() else {
             return Vec::new();
         };
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let node = doc.get_node(internal_id)?;
             if !has_layout_data(node) {
                 return None;
@@ -958,7 +958,7 @@ impl DomHandle {
             .doc
             .try_borrow()
             .map_err(|e| JsError::new(&e.to_string()))?;
-        let geometry = catch_unwind(AssertUnwindSafe(|| {
+        let geometry = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let boxed = |id: Option<NodeId>| {
                 id.and_then(|id| doc.get_node(id))
                     .map(|node| (node, bounding_rect_for_node(&doc, node)))
@@ -1060,7 +1060,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return Ok(JsValue::NULL),
         };
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let node = doc.get_node(internal_id?)?;
             let root_element_id = doc.root_element().id;
 

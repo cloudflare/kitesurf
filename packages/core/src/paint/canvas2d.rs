@@ -6,7 +6,7 @@
 
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::f64::consts::{FRAC_PI_2, TAU};
+use std::f64::consts;
 use std::sync::{Arc, LazyLock};
 
 use kurbo::{Affine, Arc as KurboArc, BezPath, Cap, Join, PathEl, Point, Rect, Shape, Stroke, Vec2};
@@ -709,18 +709,32 @@ impl CanvasSurface {
                 center: Point::new(cx, cy),
                 radii: Vec2::new(rx, ry),
                 start_angle: a0,
-                sweep_angle: FRAC_PI_2,
+                sweep_angle: consts::FRAC_PI_2,
                 x_rotation: 0.0,
             };
             for el in arc.append_iter(0.1) {
                 p.push(el);
             }
         };
-        corner(&mut p, x + w - r[2], y + r[3], r[2], r[3], -FRAC_PI_2);
+        corner(
+            &mut p,
+            x + w - r[2],
+            y + r[3],
+            r[2],
+            r[3],
+            -consts::FRAC_PI_2,
+        );
         p.line_to((x + w, y + h - r[5]));
         corner(&mut p, x + w - r[4], y + h - r[5], r[4], r[5], 0.0);
         p.line_to((x + r[6], y + h));
-        corner(&mut p, x + r[6], y + h - r[7], r[6], r[7], FRAC_PI_2);
+        corner(
+            &mut p,
+            x + r[6],
+            y + h - r[7],
+            r[6],
+            r[7],
+            consts::FRAC_PI_2,
+        );
         p.line_to((x, y + r[1]));
         corner(&mut p, x + r[0], y + r[1], r[0], r[1], std::f64::consts::PI);
         p.close_path();
@@ -745,18 +759,18 @@ impl CanvasSurface {
         }
         let mut sweep = a1 - a0;
         if ccw {
-            if sweep <= -TAU {
-                sweep = -TAU;
+            if sweep <= -consts::TAU {
+                sweep = -consts::TAU;
             } else {
-                sweep = sweep.rem_euclid(TAU);
+                sweep = sweep.rem_euclid(consts::TAU);
                 if sweep > 0.0 {
-                    sweep -= TAU;
+                    sweep -= consts::TAU;
                 }
             }
-        } else if sweep >= TAU {
-            sweep = TAU;
+        } else if sweep >= consts::TAU {
+            sweep = consts::TAU;
         } else {
-            sweep = sweep.rem_euclid(TAU);
+            sweep = sweep.rem_euclid(consts::TAU);
         }
         let arc = KurboArc {
             center,
@@ -828,9 +842,9 @@ impl CanvasSurface {
         let ccw = cross < 0.0;
         let mut sweep = a1 - a0;
         if ccw && sweep > 0.0 {
-            sweep -= TAU;
+            sweep -= consts::TAU;
         } else if !ccw && sweep < 0.0 {
-            sweep += TAU;
+            sweep += consts::TAU;
         }
         let arc = KurboArc {
             center,
@@ -1211,7 +1225,7 @@ impl CanvasRegistry {
                     _ => GradientKind::Sweep(SweepGradientPosition {
                         center: Point::new(v(1), v(2)),
                         start_angle: v(0) as f32,
-                        end_angle: (v(0) + TAU) as f32,
+                        end_angle: (v(0) + consts::TAU) as f32,
                     }),
                 };
                 Some(StyleData::Gradient(Gradient {

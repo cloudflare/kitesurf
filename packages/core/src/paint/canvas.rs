@@ -4,7 +4,7 @@
 
 //! The `<canvas>` 2D API on `DomHandle`.
 
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic;
 use std::sync::Arc;
 
 use blitz_dom::local_name;
@@ -151,7 +151,7 @@ impl DomHandle {
                 rgba: img.data.clone(),
             })
         };
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             reg.apply_ops(node_id, ops_json, &mut resolve)
         }));
         match result {
@@ -172,7 +172,7 @@ impl DomHandle {
             Ok(r) => r,
             Err(_) => return -2,
         };
-        let rendered = catch_unwind(AssertUnwindSafe(|| reg.flush(node_id)));
+        let rendered = panic::catch_unwind(panic::AssertUnwindSafe(|| reg.flush(node_id)));
         let (w, h, rgba) = match rendered {
             Ok(Some(t)) => t,
             Ok(None) => return 2,
@@ -208,7 +208,7 @@ impl DomHandle {
             Ok(r) => r,
             Err(_) => return -2,
         };
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             reg.put_image_data(node_id, dx, dy, width, height, rgba);
         }));
         match result {
@@ -236,7 +236,7 @@ impl DomHandle {
             Ok(r) => r,
             Err(_) => return Vec::new(),
         };
-        catch_unwind(AssertUnwindSafe(|| {
+        panic::catch_unwind(panic::AssertUnwindSafe(|| {
             reg.get_image_data(node_id, sx as i64, sy as i64, sw, sh)
         }))
         .unwrap_or_default()
@@ -248,7 +248,7 @@ impl DomHandle {
             Ok(r) => r,
             Err(_) => return Vec::new(),
         };
-        catch_unwind(AssertUnwindSafe(|| reg.encode_png(node_id))).unwrap_or_default()
+        panic::catch_unwind(panic::AssertUnwindSafe(|| reg.encode_png(node_id))).unwrap_or_default()
     }
 
     #[wasm_bindgen(js_name = "canvasIsOriginClean")]
@@ -274,7 +274,7 @@ impl DomHandle {
 
     #[wasm_bindgen(js_name = "canvasMeasureText")]
     pub fn canvas_measure_text(&self, text: &str, font: &str) -> String {
-        catch_unwind(AssertUnwindSafe(|| {
+        panic::catch_unwind(panic::AssertUnwindSafe(|| {
             crate::paint::canvas2d::measure_text(text, font)
         }))
         .unwrap_or_else(|_| "{\"width\":0}".to_string())

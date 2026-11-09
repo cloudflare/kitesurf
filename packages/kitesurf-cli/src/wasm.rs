@@ -7,7 +7,7 @@
 
 use std::error::Error;
 #[cfg(test)]
-use std::fs::read;
+use std::fs;
 use wasmtime::{Config, Engine, Instance, Memory, Module, OptLevel, Store, TypedFunc};
 
 /// Owns one scene-host Wasm instance and the guest-memory handles used to call it.
@@ -77,7 +77,7 @@ impl Raster {
 #[cfg(test)]
 pub(crate) fn test_scene(w: u32, h: u32, color: [u8; 4]) -> Vec<u8> {
     let manifest: serde_json::Value = serde_json::from_slice(
-        &read(concat!(
+        &fs::read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.json"
         ))
@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     fn retained_frame_replaces_pixels_and_clamps_patch_edges() {
-        let bytes = read(concat!(
+        let bytes = fs::read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         ))
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn retained_frame_requires_its_exact_base_and_recovers_after_failure() {
-        let bytes = read(concat!(
+        let bytes = fs::read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         ))
@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn retained_frame_rejects_truncated_headers_without_losing_its_base() {
-        let bytes = read(concat!(
+        let bytes = fs::read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         ))
@@ -201,7 +201,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         );
-        let bytes = read(path).expect("run pnpm run build first");
+        let bytes = fs::read(path).expect("run pnpm run build first");
         let mut raster = Raster::new(&bytes).unwrap();
         assert_eq!(raster.run(2, &[]).unwrap(), [0, 0, 0, 0]);
 
@@ -222,9 +222,9 @@ mod tests {
     #[test]
     fn cropped_partial_returns_only_the_requested_png_rectangle() {
         let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../engine/public/rbi/");
-        let bytes = read(format!("{dir}scene_host.wasm")).unwrap();
+        let bytes = fs::read(format!("{dir}scene_host.wasm")).unwrap();
         let manifest: serde_json::Value =
-            serde_json::from_slice(&read(format!("{dir}scene_host.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(format!("{dir}scene_host.json")).unwrap()).unwrap();
         let mut scene = b"KSC0".to_vec();
         scene.extend_from_slice(&(manifest["wireVersion"].as_u64().unwrap() as u32).to_le_bytes());
         for value in [4u32, 4, 0, 0, 0, 0, 0, 4] {

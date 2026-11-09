@@ -5,7 +5,7 @@
 use crate::oauth::validate_account_id;
 use crate::Result;
 use std::time::Duration;
-use std::env::var;
+use std::env;
 use std::future::Future;
 use reqwest::header::HeaderValue;
 use tokio_tungstenite::tungstenite::{self, client::IntoClientRequest, http::Request};
@@ -32,7 +32,8 @@ impl Connection {
         match backend {
             crate::cli::Backend::Direct(server) => Self::direct(server, token()?),
             crate::cli::Backend::BrowserRun => {
-                Self::browser_run_from_env(|name| var(name).ok(), crate::oauth::credentials()).await
+                Self::browser_run_from_env(|name| env::var(name).ok(), crate::oauth::credentials())
+                    .await
             }
         }
     }
@@ -93,7 +94,7 @@ impl Connection {
 
     pub async fn connect(&mut self) -> Result<CdpSocket> {
         self.connect_with_login(Self::browser_run_from_env(
-            |name| var(name).ok(),
+            |name| env::var(name).ok(),
             crate::oauth::login_credentials(),
         ))
         .await
@@ -157,7 +158,7 @@ pub fn bearer(token: &str) -> Result<HeaderValue> {
 }
 
 pub fn token() -> Result<Option<HeaderValue>> {
-    var("CF_ACCESS_TOKEN")
+    env::var("CF_ACCESS_TOKEN")
         .ok()
         .filter(|value| !value.is_empty())
         .map(|value| {

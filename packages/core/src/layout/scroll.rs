@@ -4,7 +4,7 @@
 
 //! Scroll containers, scroll offsets, and sticky positioning.
 
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic;
 
 use blitz_dom::{local_name, Node};
 use blitz_traits::NodeId;
@@ -104,7 +104,7 @@ impl DomHandle {
             Ok(i) => i,
             Err(_) => return,
         };
-        let _ = catch_unwind(AssertUnwindSafe(|| {
+        let _ = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             if after_layout {
                 *nodes = crate::layout::sticky::collect_sticky_nodes(doc.as_ref());
                 if let Ok(mut previous) = self.pinned_nodes.try_borrow_mut() {
@@ -187,7 +187,7 @@ impl DomHandle {
         self.ensure_layout();
         let internal_id = self.resolve_node_id(node_id);
         let doc = self.doc.try_borrow().ok()?;
-        let info_result = catch_unwind(AssertUnwindSafe(|| {
+        let info_result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let node = internal_id.and_then(|id| doc.get_node(id))?;
             if !has_layout_data(node) {
                 return None;
@@ -328,7 +328,7 @@ impl DomHandle {
     pub(crate) fn write_scroll_offset(&self, node_id: u32, x: f64, y: f64) -> Option<ScrollOffset> {
         let node_id = self.resolve_node_id(node_id)?;
         let mut doc = self.doc.try_borrow_mut().ok()?;
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let node = doc.get_node_mut(node_id)?;
             if !has_layout_data(node) {
                 return None;
@@ -364,7 +364,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return false,
         };
-        let res = catch_unwind(AssertUnwindSafe(|| {
+        let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             doc.scroll_node_by_has_changed(node_id, -dx, -dy, |_event| {})
         }));
         drop(doc);

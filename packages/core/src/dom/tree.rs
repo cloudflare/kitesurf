@@ -4,6 +4,8 @@
 
 //! DOM reads: selectors, node info, serialization, and tree walks.
 
+use std::panic;
+
 use blitz_dom::{local_name, ns, BaseDocument, LocalName, Namespace, Node, NodeData};
 use blitz_traits::NodeId;
 use ::style::context::QuirksMode;
@@ -329,9 +331,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return Ok(-1),
         };
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            doc.query_selector(selector)
-        }));
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| doc.query_selector(selector)));
         match result {
             Ok(Ok(Some(id))) => Ok(self.external_node_id_i32(id)),
             Ok(Ok(None)) => Ok(-1),
@@ -357,7 +357,7 @@ impl DomHandle {
     #[wasm_bindgen(js_name = "canonicalizeSelector")]
     pub fn canonicalize_selector(&self, selector: &str) -> Option<String> {
         let doc = self.doc.try_borrow().ok()?;
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        panic::catch_unwind(panic::AssertUnwindSafe(|| {
             doc.try_parse_selector_list(selector).ok().map(|list| {
                 use cssparser::ToCss as _;
                 list.to_css_string()
@@ -379,7 +379,7 @@ impl DomHandle {
         let prefix_list: Vec<(String, String)> =
             map.into_iter().filter(|(k, _)| !k.is_empty()).collect();
         let doc = self.doc.try_borrow().ok()?;
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        panic::catch_unwind(panic::AssertUnwindSafe(|| {
             doc.try_parse_selector_list_with_namespaces(
                 selector,
                 default_ns.as_deref(),
@@ -402,9 +402,8 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return Ok(Vec::new()),
         };
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            doc.query_selector_all(selector)
-        }));
+        let result =
+            panic::catch_unwind(panic::AssertUnwindSafe(|| doc.query_selector_all(selector)));
         match result {
             Ok(Ok(ids)) => Ok(ids
                 .into_iter()
@@ -439,7 +438,7 @@ impl DomHandle {
         };
 
         let mut results: SmallVec<[&Node; 128]> = SmallVec::new();
-        let matched = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let matched = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             query_selector::<&Node, QueryAll>(
                 root,
                 &selector_list,
@@ -474,7 +473,7 @@ impl DomHandle {
         };
 
         let quirks = QuirksMode::NoQuirks;
-        let m = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let m = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             element_matches::<&Node>(&node, &selector_list, quirks)
         }));
         Ok(m.unwrap_or(false))
@@ -498,7 +497,7 @@ impl DomHandle {
         };
 
         let quirks = QuirksMode::NoQuirks;
-        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let r = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             element_closest::<&Node>(node, &selector_list, quirks)
         }));
         match r {
@@ -692,7 +691,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return JsValue::NULL,
         };
-        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             crate::dom::inner_text::inner_text(&doc, internal_id)
         }))
         .unwrap_or(None);

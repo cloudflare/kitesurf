@@ -1628,7 +1628,7 @@ fn render_ansi(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::read;
+    use std::fs;
     use tokio_tungstenite::connect_async;
 
     #[test]
@@ -1737,7 +1737,7 @@ mod tests {
 
     #[test]
     fn retained_replay_reports_corrupt_full_scenes() {
-        let bytes = read(concat!(
+        let bytes = fs::read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         ))
@@ -1771,7 +1771,7 @@ mod tests {
 
     #[test]
     fn partial_replay_composites_without_a_display_and_recovers_a_lost_base() {
-        let bytes = read(concat!(
+        let bytes = fs::read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         ))
@@ -1874,7 +1874,7 @@ mod tests {
 
     #[test]
     fn partial_replay_preserves_full_rgba_dimensions_and_terminal_placement() {
-        let bytes = read(concat!(
+        let bytes = fs::read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         ))
@@ -2326,7 +2326,7 @@ mod tests {
         )
         .unwrap();
         assert!(path.contains("tty-graphics-protocol"));
-        assert_eq!(read(&path).unwrap(), png);
+        assert_eq!(fs::read(&path).unwrap(), png);
         assert_eq!(images.last_bytes, encoded.len() as u64);
         drop(images);
         assert!(!std::path::Path::new(&path).exists());
@@ -2348,7 +2348,7 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        assert_eq!(read(path).unwrap(), rgba[8..]);
+        assert_eq!(fs::read(path).unwrap(), rgba[8..]);
     }
 
     #[test]

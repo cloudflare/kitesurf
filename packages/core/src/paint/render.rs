@@ -5,7 +5,7 @@
 //! Scene rendering, paint damage tracking, ink rects, and the RBI image cache.
 
 use std::collections::HashMap;
-use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
+use std::panic;
 use std::sync::Arc;
 
 use blitz_html::HtmlDocument;
@@ -390,7 +390,7 @@ impl DomHandle {
             },
             entry_scroll,
         );
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let base: &mut blitz_dom::BaseDocument = &mut doc;
             let mut scene = if client_wire {
                 RecordingScene::new()
@@ -571,10 +571,12 @@ impl DomHandle {
         self.ensure_layout();
         let internal_id = self.resolve_node_id(node_id)?;
         let doc = self.doc.try_borrow().ok()?;
-        catch_unwind(AssertUnwindSafe(|| ink_rect_for_node(&doc, internal_id)))
-            .ok()
-            .flatten()
-            .map(|r| vec![r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0])
+        panic::catch_unwind(panic::AssertUnwindSafe(|| {
+            ink_rect_for_node(&doc, internal_id)
+        }))
+        .ok()
+        .flatten()
+        .map(|r| vec![r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0])
     }
 
     #[wasm_bindgen(js_name = "pinnedRects")]
@@ -586,7 +588,7 @@ impl DomHandle {
         }
         self.ensure_layout();
         let doc = self.doc.try_borrow().ok()?;
-        catch_unwind(AssertUnwindSafe(|| {
+        panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let mut out = Vec::new();
             for (id, node) in doc.tree().iter() {
                 let Some(styles) = node.primary_styles() else {
@@ -641,7 +643,7 @@ impl DomHandle {
             y: scroll_y.max(0) as f64,
         });
 
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let base: &mut blitz_dom::BaseDocument = &mut doc;
             let mut scene = RecordingScene::new();
             {
@@ -793,7 +795,7 @@ impl DomHandle {
             Err(_) => return Vec::new(),
         };
 
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let _sp = tracing::info_span!("wasm.record_scene.paint").entered();
             let base: &mut blitz_dom::BaseDocument = &mut doc;
             let mut scene = if client_wire {
@@ -816,7 +818,7 @@ impl DomHandle {
                 *seen = scene.take_glyph_seen();
                 *tables = scene.take_font_tables();
             }
-            if let Err(panic) = catch_unwind(AssertUnwindSafe(|| {
+            if let Err(panic) = panic::catch_unwind(panic::AssertUnwindSafe(|| {
                 scene.set_glyph_seen(std::mem::take(&mut *seen_ref));
                 scene.set_font_tables(std::mem::take(&mut *tables_ref));
                 if !omit_background {
@@ -833,7 +835,7 @@ impl DomHandle {
                 blitz_paint::paint_scene(&mut scene, base, 1.0, w, render_h, 0, 0);
             })) {
                 harvest_glyphs(&mut scene, &mut cache_ref, &mut seen_ref, &mut tables_ref);
-                resume_unwind(panic);
+                panic::resume_unwind(panic);
             }
             harvest_glyphs(&mut scene, &mut cache_ref, &mut seen_ref, &mut tables_ref);
             cache_recorded_resources(&mut scene, &mut fonts_ref, &mut images_ref);
@@ -1096,7 +1098,7 @@ impl DomHandle {
             y: sy as f64,
         });
 
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let base: &mut blitz_dom::BaseDocument = &mut doc;
             let mut scene = RecordingScene::new();
             scene.set_viewport(w, h, sx, sy);
