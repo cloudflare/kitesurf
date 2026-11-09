@@ -72,29 +72,25 @@ pub(crate) fn strip_sfnt_tables(bytes: &[u8], drop: &[[u8; 4]]) -> Option<Vec<u8
         let checksum: [u8; 4] = bytes[e + 4..e + 8].try_into().ok()?;
         let off = u32::from_be_bytes(bytes[e + 8..e + 12].try_into().ok()?) as usize;
         let len = u32::from_be_bytes(bytes[e + 12..e + 16].try_into().ok()?) as usize;
-        if off + len > bytes.len() {
-            return None;
-        }
+        // usize is 32 bits on wasm32, so an unchecked sum can wrap past the bound.
+        let end = off.checked_add(len).filter(|&end| end <= bytes.len())?;
         if drop.contains(&tag) {
             continue;
         }
         kept.push(Entry {
             tag,
             checksum,
-            data: off..off + len,
+            data: off..end,
         });
     }
     if kept.is_empty() || kept.len() == num_tables {
         return None;
     }
     let n = kept.len();
-    let mut entry_selector = 0u16;
-    while (2usize << entry_selector) <= n {
-        entry_selector += 1;
-    }
-    entry_selector -= 1;
+    let n_records = u16::try_from(n * SFNT_TABLE_RECORD_BYTES).ok()?;
+    let entry_selector = n.ilog2().saturating_sub(1) as u16;
     let search_range = 16u16 << entry_selector;
-    let range_shift = (n as u16) * 16 - search_range;
+    let range_shift = n_records - search_range;
 
     let mut out = Vec::with_capacity(
         SFNT_HEADER_BYTES
@@ -1269,6 +1265,36 @@ mod tests {
         let blob = Blob::new(Arc::new(stripped) as Arc<dyn AsRef<[u8]> + Send + Sync>);
         let fams = ctx.collection.register_fonts(blob, None);
         assert!(!fams.is_empty(), "fontique rejects stripped sfnt");
+    }
+
+    fn synthetic_sfnt(tables: &[([u8; 4], u32, u32)], body: usize) -> Vec<u8> {
+        let mut out = vec![0x00, 0x01, 0x00, 0x00];
+        out.extend_from_slice(&(tables.len() as u16).to_be_bytes());
+        out.extend_from_slice(&[0; 6]);
+        for (tag, off, len) in tables {
+            out.extend_from_slice(tag);
+            out.extend_from_slice(&[0; 4]);
+            out.extend_from_slice(&off.to_be_bytes());
+            out.extend_from_slice(&len.to_be_bytes());
+        }
+        out.resize(out.len() + body, 0);
+        out
+    }
+
+    #[test]
+    fn strip_sfnt_tables_refuses_a_wrapping_table_range() {
+        let font = synthetic_sfnt(
+            &[(*b"cmap", 44, 4), (*b"post", 0x8000_0000, 0x8000_0010)],
+            8,
+        );
+        assert!(strip_sfnt_tables(&font, &[*b"post"]).is_none());
+    }
+
+    #[test]
+    fn strip_sfnt_tables_writes_search_fields_for_one_table() {
+        let font = synthetic_sfnt(&[(*b"cmap", 44, 4), (*b"post", 48, 4)], 8);
+        let out = strip_sfnt_tables(&font, &[*b"post"]).expect("strips");
+        assert_eq!(&out[4..12], &[0, 1, 0, 16, 0, 0, 0, 0]);
     }
 
     #[test]
