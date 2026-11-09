@@ -30,3 +30,27 @@ test("DOMMatrix parses matrix and matrix3d strings", async ({ page, cdpSession }
     noneIdentity: [1, 0, 0],
   });
 }, 60_000);
+
+// A string that is not a matrix is a parse error, not a sequence of characters.
+const invalid = `<script>
+  (function () {
+    var out = {};
+    for (var value of ["translateX(10px)", "foobar"]) {
+      try {
+        new DOMMatrix(value);
+        out[value] = "ok";
+      } catch (e) {
+        out[value] = e.name;
+      }
+    }
+    globalThis.__matrixInvalid = JSON.stringify(out);
+  })();
+</script>`;
+
+test("DOMMatrix throws for a string that is not a matrix", async ({ page, cdpSession }) => {
+  await setContent(page, invalid, { waitUntil: "domcontentloaded" });
+  expect(await readJsonReport(cdpSession, "globalThis.__matrixInvalid")).toEqual({
+    "translateX(10px)": "SyntaxError",
+    foobar: "SyntaxError",
+  });
+}, 60_000);
