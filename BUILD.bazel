@@ -18,6 +18,12 @@ copy_to_bin(
 )
 
 copy_to_bin(
+    name = "module_bazel",
+    srcs = ["MODULE.bazel"],
+    visibility = ["//scripts:__pkg__"],
+)
+
+copy_to_bin(
     name = "oxlintrc",
     srcs = [".oxlintrc.json"],
     visibility = ["//scripts:__pkg__"],
