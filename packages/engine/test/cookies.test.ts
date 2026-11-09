@@ -276,6 +276,27 @@ describe("shadowing", () => {
     expect(jar.cookieHeaderForUrl(HTTPS)).toBe("sid=server");
   });
 
+  it("blocks a Domain write from reaching a host-only HttpOnly cookie on the parent", () => {
+    const jar = createCookieJar();
+    jar.setFromHeader("https://example.com/", "sid=server; Path=/; HttpOnly; Secure");
+    expect(jar.setFromDocumentCookie(HTTPS, "sid=evil; Domain=example.com; Path=/")).toBeNull();
+    expect(jar.documentCookieString(HTTPS)).toBe("");
+  });
+
+  it("blocks a Domain write from reaching a host-only HttpOnly cookie on a sibling", () => {
+    const jar = createCookieJar();
+    jar.setFromHeader("https://api.example.com/", "sid=server; Path=/; HttpOnly; Secure");
+    expect(jar.setFromDocumentCookie(HTTPS, "sid=evil; Domain=example.com; Path=/")).toBeNull();
+  });
+
+  it("allows a host-only write on a child when the HttpOnly cookie is host-only on the parent", () => {
+    const jar = createCookieJar();
+    jar.setFromHeader("https://example.com/", "sid=server; Path=/; HttpOnly; Secure");
+    expect(jar.setFromDocumentCookie(HTTPS, "sid=evil; Path=/")).not.toBeNull();
+    expect(jar.documentCookieString(HTTPS)).toBe("sid=evil");
+    expect(jar.cookieHeaderForUrl("https://example.com/")).toBe("sid=server");
+  });
+
   it("a server may still shadow its own non-HttpOnly cookie, oldest first", () => {
     const jar = createCookieJar();
     const a = jar.setFromHeader(HTTPS, "dup=first; Path=/")!;

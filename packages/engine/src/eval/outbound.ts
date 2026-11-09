@@ -69,6 +69,10 @@ function failTrackedRequest(
 
 export interface OutboundProps {
   pageOrigin: string;
+  /** Origin of the document that initiated this request when it differs from
+   *  the request's own origin (an iframe document fetch). Used only for the
+   *  SameSite cookie decision; pageOrigin still drives SOP/CORS. */
+  cookieInitiator?: string;
   externalOutbound?: ExternalOutbound;
   // The host's egress transport; unlike externalOutbound, it keeps the engine's egress policy.
   egress?: ExternalOutbound;
@@ -376,8 +380,13 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       headerOrigin === "null" ? "" : sealed ? (props.pageOrigin ?? "") : headerOrigin;
 
     // SameSite keeps the sealed document origin even when CORS marks the request opaque.
+    // An iframe document fetch supplies the embedding document as the
+    // initiator, because the frame's own origin would make every request look
+    // same-site and attach Lax/Strict cookies to a cross-site frame.
     const cookieOriginSource = sealed
-      ? (props.pageOrigin ?? "")
+      ? props.cookieInitiator !== undefined
+        ? props.cookieInitiator
+        : (props.pageOrigin ?? "")
       : headerOrigin === "null"
         ? ""
         : headerOrigin;

@@ -524,7 +524,7 @@ async function followNavigation(
 ): Promise<void> {
   if (!startsNavigation(result)) return;
   const loaderId = announceNavigation(ctx, target, result, sessionId);
-  const navigation = maybeFollowAnchor(ctx, result, sessionId, loaderId);
+  const navigation = maybeFollowAnchor(ctx, result, sessionId, loaderId, hostOf(target.url));
   if (wait) return navigation;
   const pending: Promise<void> = navigation
     .catch((err: unknown) =>
@@ -557,6 +557,15 @@ function announceNavigation(
   return loaderId;
 }
 
+function hostOf(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 async function maybeFollowAnchor(
   ctx: DispatchCtx,
   result:
@@ -573,6 +582,7 @@ async function maybeFollowAnchor(
     | undefined,
   sessionId: string | undefined,
   loaderId?: string,
+  initiatorHost?: string | null,
 ): Promise<void> {
   const announced = loaderId ? { _kitesurfLoaderId: loaderId } : {};
   const navigateTo = result?.navigateTo;
@@ -590,6 +600,7 @@ async function maybeFollowAnchor(
           _kitesurfPostData: navigatePost.postData ?? "",
           _kitesurfPostContentType:
             navigatePost.postContentType ?? "application/x-www-form-urlencoded",
+          _kitesurfInitiatorHost: initiatorHost ?? undefined,
           ...announced,
         },
         sessionId,
@@ -608,7 +619,12 @@ async function maybeFollowAnchor(
       await dispatch(ctx, {
         id: -1,
         method: "Page.navigate",
-        params: { url: navigateTo, _kitesurfInternal: true, ...announced },
+        params: {
+          url: navigateTo,
+          _kitesurfInternal: true,
+          _kitesurfInitiatorHost: initiatorHost ?? undefined,
+          ...announced,
+        },
         sessionId,
       });
     } catch (err) {

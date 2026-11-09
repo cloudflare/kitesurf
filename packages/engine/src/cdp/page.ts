@@ -697,7 +697,18 @@ export async function handlePage(
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
           accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         };
-        const cookieHeader = jarForTarget(ctx, target).cookieHeaderForUrl(url);
+        // A page-started navigation carries the initiating document's host,
+        // so SameSite=Strict is withheld on a cross-site top-level navigation
+        // just as it is in a browser. CDP-started navigations have no
+        // initiator and keep the existing same-site behavior.
+        const ksInitiatorHost =
+          typeof ksParams?._kitesurfInitiatorHost === "string"
+            ? ksParams._kitesurfInitiatorHost
+            : null;
+        const cookieHeader = jarForTarget(ctx, target).cookieHeaderForUrl(
+          url,
+          ksInitiatorHost ? { initiatorHost: ksInitiatorHost, topLevel: true } : undefined,
+        );
         if (cookieHeader) reqHeaders.cookie = cookieHeader;
 
         const navReferrer: unknown = req.params?.referrer;
@@ -752,7 +763,11 @@ export async function handlePage(
         });
         abortP.catch(() => {});
         let currentUrl = url;
-        let chainLeftSite = false;
+        const initialHost = hostOfUrl(url);
+        let chainLeftSite =
+          ksInitiatorHost !== null &&
+          initialHost !== null &&
+          siteKey(ksInitiatorHost) !== siteKey(initialHost);
         let hopBody: Uint8Array | undefined;
         if (ksPostData !== null) {
           hopBody = new Uint8Array(ksPostData.length);
@@ -4216,7 +4231,11 @@ function handleUpstreamFrameEvent(
     (async () => {
       try {
         const { dispatch } = await import("./dispatch.ts");
-        const navParams: Protocol.Page.NavigateRequest = { url, _kitesurfInternal: true };
+        const navParams: Protocol.Page.NavigateRequest = {
+          url,
+          _kitesurfInternal: true,
+          _kitesurfInitiatorHost: hostOfUrl(target.url) ?? undefined,
+        };
         if (postData !== null) {
           navParams._kitesurfPostData = postData;
           navParams._kitesurfPostContentType = postContentType;
@@ -4293,7 +4312,11 @@ function handleUpstreamFrameEvent(
           await dispatch(ctx, {
             id: -1,
             method: "Page.navigate",
-            params: { url, _kitesurfInternal: true },
+            params: {
+              url,
+              _kitesurfInternal: true,
+              _kitesurfInitiatorHost: hostOfUrl(target.url) ?? undefined,
+            },
             sessionId: targetSessionsNetwork(target, sessionId)[0],
           });
         } catch (err) {

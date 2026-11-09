@@ -156,6 +156,9 @@ export async function prespawnFrameIsolate(
   const docOutbound = args.sandboxOutbound.parent({
     ...localTraceParentProps(),
     pageOrigin,
+    // The embedding document, not the frame's own origin, decides SameSite
+    // for the frame document request.
+    cookieInitiator: args.parentOrigin,
     mainFrameId: args.frameId,
     mainLoaderId: args.frameLoaderId,
     connectionId: args.connectionId,
