@@ -417,12 +417,12 @@ export function modulePreloadSeeds(html: string, baseUrl: string): ModulePreload
   return [...seeds].map(([url, seed]) => ({ url, ...seed }));
 }
 
-// Every `import` that can start a call: not part of a name or a member access (`...import(` is a
-// spread), with comments allowed before the `(`. It also matches text in strings and comments.
-// Each comment matches in exactly one way, to its first `*/` or its line end, so a run of them
-// that no `(` follows fails in linear time instead of backtracking through every split.
+// Every `import` that can start a call: not after a name or a dot on the same line (`...` spreads),
+// and comments may precede the `(`. Matches in strings and comments only cost a fallback; a miss
+// leaves a native import(), so a dot that ends an earlier line, as in a comment, does not count.
+// Each comment matches one way, to its first `*/` or line end, so failing scans stay linear.
 const IMPORT_CALL =
-  /(?<![\p{ID_Continue}$#\u200c\u200d]|(?<!\.\.)\.\s*)import(?=(?:\s|\/\*(?:[^*]|\*(?!\/))*\*\/|(?:\/\/|<!--|-->)[^\n\r\u2028\u2029]*(?![^\n\r\u2028\u2029]))*\()/gu;
+  /(?<![\p{ID_Continue}$#\u200c\u200d]|(?<!\.\.)\.[^\S\n\r\u2028\u2029]*)import(?=(?:\s|\/\*(?:[^*]|\*(?!\/))*\*\/|(?:\/\/|<!--|-->)[^\n\r\u2028\u2029]*(?![^\n\r\u2028\u2029]))*\()/gu;
 
 export function extractClassicDynamicSeeds(
   body: string,

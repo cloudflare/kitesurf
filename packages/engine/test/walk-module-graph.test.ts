@@ -101,6 +101,7 @@ describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
     ["the lexer throws", `{}\n/}/.test(""); import("./internal-state.js").then(go);`],
     ["the lexer skips code", `with ({}) /a\\//.test(""); import("./internal-state.js");`],
     ["a call is spread", `{}\n/}/.test(""); [...import("./x.js").then(go)];`],
+    ["a number ends the line before a call", `const n = 1.\nimport("./x.js");`],
   ])("sends every import() to the runtime loader when %s", (_, body) => {
     expect(() => new Function(body)).not.toThrow();
     const { rewritten, seeds } = extractClassicDynamicSeeds(body, BASE);
@@ -113,6 +114,15 @@ describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
     const { rewritten, seeds } = extractClassicDynamicSeeds(`import/**/("./x.js");`, BASE);
     expect(seeds).toEqual(["https://example.com/js/x.js"]);
     expect(rewritten).toBe(`import/**/("https://example.com/js/x.js");`);
+  });
+
+  it("rewrites an import() on the line after a comment that ends with a dot", () => {
+    const { rewritten, seeds } = extractClassicDynamicSeeds(
+      `// Load the chunk.\nimport("./x.js");`,
+      BASE,
+    );
+    expect(seeds).toEqual(["https://example.com/js/x.js"]);
+    expect(rewritten).toBe(`// Load the chunk.\nimport("https://example.com/js/x.js");`);
   });
 
   it("does not rewrite member calls or names that end in import", () => {
