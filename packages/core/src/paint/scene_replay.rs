@@ -1722,11 +1722,10 @@ impl SceneRasterizer {
             if i > 0 {
                 out.push(',');
             }
-            out.push_str(&format!(
-                "{{\"hash\":\"{}\",\"path\":\"{}\"}}",
-                hash,
-                path.replace('"', "")
-            ));
+            // Serializing a Rust string to an in-memory JSON string is infallible.
+            let json_path =
+                serde_json::to_string(path).expect("serializing a font asset path cannot fail");
+            out.push_str(&format!("{{\"hash\":\"{}\",\"path\":{}}}", hash, json_path));
         }
         out.push(']');
         out
@@ -3186,6 +3185,28 @@ mod tests {
         assert!(raster.store.borrow().images.contains_key(&9));
         raster.reset_resources();
         assert!(raster.store.borrow().images.is_empty());
+    }
+
+    // Paths reach JSON verbatim: quote stripping loses bytes, and raw control
+    // characters or backslashes break the parser.
+    #[test]
+    fn pending_font_assets_round_trips_every_path() {
+        for path in [
+            "/fonts/normal.ttf",
+            "/fonts/a\nb.ttf",
+            "/fonts/a\\xb.ttf",
+            "/fonts/a\"b.ttf",
+        ] {
+            let raster = SceneRasterizer::default();
+            raster
+                .store
+                .borrow_mut()
+                .pending_assets
+                .insert(42, path.to_owned());
+            let json: serde_json::Value =
+                serde_json::from_str(&raster.pending_font_assets()).expect("font assets JSON");
+            assert_eq!(json[0], serde_json::json!({"hash": "42", "path": path}));
+        }
     }
 
     fn png_bytes(rgba: &[u8], w: u32, h: u32) -> Vec<u8> {
