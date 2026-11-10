@@ -27,6 +27,7 @@ export interface CookieEntry {
 export interface RequestContext {
   initiatorOrigin: string | null;
   topLevel?: boolean;
+  method?: string;
 }
 
 export interface CookieJar {
@@ -192,10 +193,12 @@ export function createCookieJar(): CookieJar {
     const crossSite =
       ctx !== undefined &&
       (initiatorSite === null || targetSite === null || initiatorSite !== targetSite);
-    const strictOnly = crossSite && ctx?.topLevel === true;
+    const safeTopLevel =
+      ctx?.topLevel === true &&
+      ["GET", "HEAD", "OPTIONS", "TRACE"].includes((ctx.method ?? "GET").toUpperCase());
     const matched = candidateEntries(parts.host).filter((c) => {
-      if (strictOnly && c.sameSite === "Strict") return false;
-      if (crossSite && !strictOnly && c.sameSite !== "None") return false;
+      if (crossSite && c.sameSite === "Strict") return false;
+      if (crossSite && !safeTopLevel && c.sameSite !== "None") return false;
       if (c.secure && !parts.trustworthy) return false;
       if (!pathMatches(c.path, parts.path)) return false;
       return true;

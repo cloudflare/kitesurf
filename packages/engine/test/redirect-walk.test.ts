@@ -4,6 +4,7 @@
 
 import { describe, expect, test } from "vitest";
 
+import { createCookieJar } from "../src/cookies.ts";
 import {
   InvalidRedirectError,
   MAX_REDIRECT_HOPS,
@@ -278,6 +279,31 @@ describe("walkRedirects", () => {
     expect(asked).toEqual(["https://b.test/1", "https://c.test/2"]);
     expect(seen[0]?.headers["cookie"]).toBe("sid=1");
     expect(seen[1]?.headers["cookie"]).toBeUndefined();
+  });
+
+  test.each([307, 308])("selects cookies after a %i POST redirect", async (status) => {
+    const jar = createCookieJar();
+    const target = "https://victim.test/pay";
+    jar.setFromHeader(target, "lax=1; Secure; SameSite=Lax; Path=/");
+    const seen: Array<{ method: string; cookie: string | null }> = [];
+    await walkRedirects({
+      url: "https://attacker.test/start",
+      method: "POST",
+      headers: {},
+      cookieHeaderFor: (url, method) =>
+        jar.cookieHeaderForUrl(url, {
+          initiatorOrigin: "https://attacker.test",
+          topLevel: true,
+          method,
+        }),
+      fetchHop: async (req) => {
+        seen.push({ method: req.method, cookie: req.headers.get("cookie") });
+        return seen.length === 1
+          ? new Response(null, { status, headers: { location: target } })
+          : new Response(null, { status: 204 });
+      },
+    });
+    expect(seen[1]).toEqual({ method: "POST", cookie: null });
   });
 
   test("a caller's own Cookie does not survive a cross-origin hop", async () => {
