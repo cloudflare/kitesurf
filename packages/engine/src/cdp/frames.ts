@@ -274,6 +274,7 @@ export function makeMainFrameState(args: {
     delaysLoadEvent: true,
     readyState: "loading",
     pageScript: null,
+    pageScriptUrl: null,
     lastRenderSeq: -1,
     execContextId: 0,
   };
@@ -310,6 +311,7 @@ export function makeChildFrameState(args: {
     delaysLoadEvent: args.delaysLoadEvent,
     readyState: "loading",
     pageScript: null,
+    pageScriptUrl: null,
     lastRenderSeq: -1,
     execContextId: 0,
   };

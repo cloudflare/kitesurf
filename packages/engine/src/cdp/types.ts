@@ -201,6 +201,8 @@ export interface FrameState {
   delaysLoadEvent: boolean;
   readyState: "loading" | "interactive" | "complete";
   pageScript: PageScriptStub | null;
+  // The final document URL associated with the installed OOPIF isolate.
+  pageScriptUrl: string | null;
   pageScriptLease?: WorkerLease | null;
   oopifBlocked?: boolean;
   /** Sticky host-blocker refusal; never retried when worker budget frees. */
