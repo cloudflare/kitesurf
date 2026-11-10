@@ -88,6 +88,20 @@ discovery is available at `http://127.0.0.1:8787/json/version`.
 
 ## Use Chrome DevTools
 
+With `pnpm run dev`, open `http://127.0.0.1:8787/` in Chrome. Enter a URL to
+inspect, or select one of the example pages. DevTools opens in the tab on that
+page. To go to DevTools directly, open
+`http://127.0.0.1:8787/?url=https://example.com`, or
+`http://127.0.0.1:8787/?inspect=1` for a blank page.
+
+This DevTools frontend comes from `chrome-devtools-frontend.appspot.com`, the
+build that Google hosts for Chrome. The first time it connects, Chrome asks
+whether the site can access devices on your local network. Select **Allow**.
+The frontend can connect only to `127.0.0.1`, so the hosted frontend does not
+work with a deployed engine.
+
+You can also use `chrome://inspect`:
+
 1. Open `chrome://inspect/#devices` in Chrome. Type or paste it into the address
    bar because web pages cannot link to it.
 2. Select **Discover network targets**.

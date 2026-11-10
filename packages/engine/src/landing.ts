@@ -5,7 +5,7 @@
 // Serves the default root page: a URL form and examples that open the configured DevTools
 // frontend, the CDP endpoints for agents and other clients, and the chrome://inspect steps.
 
-import { inspectorTargetUrl } from "./inspector.ts";
+import { absoluteInspectorBaseUrl, inspectorTargetUrl } from "./inspector.ts";
 
 const README = "https://github.com/cloudflare/kitesurf#readme";
 
@@ -40,6 +40,12 @@ function inspectSection(url: URL, base: string): string {
     const href = escapeHtml(inspectorTargetUrl(base, { url, host: url.host, initialUrl: page }));
     return `<li><a href="${href}">${escapeHtml(title)}</a> <code>${escapeHtml(page)}</code></li>`;
   }).join("\n");
+  // Chrome asks for local network access only when the frontend is on another origin.
+  const frontendNote = base.startsWith("/")
+    ? ""
+    : `<p class="muted">DevTools loads from <code>${escapeHtml(new URL(absoluteInspectorBaseUrl(base, url.origin)).host)}</code>. ` +
+      "The first time it connects, Chrome can ask to access devices on your local network. " +
+      "Select <strong>Allow</strong>.</p>";
   return `<form class="omnibox" action="/" method="get" autocomplete="off">
 <label class="sr-only" for="inspect-url">Enter a URL to inspect</label>
 <input id="inspect-url" type="url" name="url" placeholder="Enter a URL to inspect" required spellcheck="false" autocapitalize="off">
@@ -48,7 +54,8 @@ function inspectSection(url: URL, base: string): string {
 <p>Or open an example page in DevTools:</p>
 <ul class="examples">
 ${examples}
-</ul>`;
+</ul>
+${frontendNote}`;
 }
 
 function cdpSection(url: URL): string {
@@ -111,6 +118,7 @@ dd { margin: 0.25rem 0 0; }
 .omnibox button { font: inherit; padding: 0.5rem 1rem; border: 0; border-radius: 6px; background: #f46021; color: #fff; cursor: pointer; }
 .examples { padding-left: 1.25rem; }
 .examples code { color: #555; font-size: 0.85em; }
+.muted { color: #555; font-size: 0.9em; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>
 </head>

@@ -74,6 +74,20 @@ describe("inspectorTargetUrl", () => {
     );
   });
 
+  it("points a hosted frontend at 127.0.0.1 for an engine opened as localhost", () => {
+    const appspot = "https://chrome-devtools-frontend.appspot.com/serve_rev/@abc/inspector.html";
+    const endpoint = (host: string) =>
+      new URL(
+        inspectorTargetUrl(appspot, { url: new URL(`http://${host}/`), host }),
+      ).searchParams.get("ws");
+    expect(endpoint("localhost:8787")).toBe("127.0.0.1:8787/devtools/page/kitesurf");
+    expect(endpoint("LocalHost:8787")).toBe("127.0.0.1:8787/devtools/page/kitesurf");
+    expect(endpoint("127.0.0.1:8787")).toBe("127.0.0.1:8787/devtools/page/kitesurf");
+    expect(endpoint("localhost.example:8787")).toBe(
+      "localhost.example:8787/devtools/page/kitesurf",
+    );
+  });
+
   it("carries initialUrl inside the WebSocket endpoint", () => {
     const target = new URL(
       inspectorTargetUrl("https://example.com/devtools/", {

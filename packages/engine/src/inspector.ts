@@ -22,6 +22,14 @@ export function absoluteInspectorBaseUrl(base: string, origin: string): string {
   return base.startsWith("/") ? new URL(base, origin).href : base;
 }
 
+// Chrome's hosted frontend (chrome-devtools-frontend.appspot.com) has a CSP that allows only
+// `ws://127.0.0.1:*`, so a hosted base gets the IPv4 loopback for an engine opened as localhost.
+// A same-origin copy reaches its own host through 'self'.
+function endpointHost(base: string, host: string): string {
+  if (base.startsWith("/")) return host;
+  return host.replace(/^localhost(?=:|$)/i, "127.0.0.1");
+}
+
 /** The frontend URL attached to this engine's page target, for the request that asked for it. */
 export function inspectorTargetUrl(
   base: string,
@@ -32,7 +40,7 @@ export function inspectorTargetUrl(
     initialUrl === undefined ? "" : "?initialUrl=" + encodeURIComponent(initialUrl);
   const params = new URLSearchParams();
   const wsScheme = url.protocol === "https:" ? "wss" : "ws";
-  params.set(wsScheme, `${host}/devtools/page/kitesurf${initialQuery}`);
+  params.set(wsScheme, `${endpointHost(base, host)}/devtools/page/kitesurf${initialQuery}`);
   // Response.redirect needs an absolute URL; a same-origin frontend shares the WebSocket's host.
   const frontend = absoluteInspectorBaseUrl(base, `${url.protocol}//${host}`);
   return frontend.replace(/\/$/, "") + "?" + params.toString();
