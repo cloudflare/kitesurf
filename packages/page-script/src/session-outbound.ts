@@ -6,10 +6,23 @@
 
 import type { SessionOutbound, SessionOutboundRequest } from "@kitesurf/jsrpc-types/page-script";
 import {
+  cancelResponseBody,
+  defineOwn,
   hdrEntries,
+  hdrGet,
   hdrHas,
   hdrSet,
   newHeaders,
+  newNativePromise,
+  newNativeRequest,
+  requestArrayBuffer,
+  requestBody,
+  requestCache,
+  requestHeaders,
+  requestMethod,
+  requestRedirect,
+  requestSignal,
+  requestUrl,
   responseHeaders,
   responseUrl,
 } from "./native-http.ts";
@@ -26,12 +39,14 @@ export function clearSessionOutbound(stub: OutboundStub): void {
   if (outbound === stub) outbound = null;
 }
 
+const FORBIDDEN_METHODS = new Set(["CONNECT", "TRACE", "TRACK"]);
+
 function isWebSocketUpgrade(request: Request): boolean {
-  return (request.headers.get("upgrade") ?? "").toLowerCase() === "websocket";
+  return (hdrGet(requestHeaders(request), "upgrade") ?? "").toLowerCase() === "websocket";
 }
 
 function isNetworkUrl(request: Request): boolean {
-  return /^https?:/i.test(request.url);
+  return /^https?:/i.test(requestUrl(request));
 }
 
 // A cache mode adds these headers as the browser's own; the mark names the ones it added, so
@@ -59,7 +74,7 @@ function withRequestUrl(response: Response, url: string): void {
   const hash = url.indexOf("#");
   const value = hash === -1 ? url : url.slice(0, hash);
   try {
-    Object.defineProperty(response, "url", { value, configurable: true, enumerable: true });
+    defineOwn(response, "url", { value, configurable: true, enumerable: true });
   } catch {}
 }
 
@@ -67,11 +82,13 @@ function immutableHeadersError(): never {
   throw new TypeError("Can't modify immutable headers.");
 }
 
+const IMMUTABLE_HEADER_METHODS = ["append", "set", "delete"];
+
 function freezeHeaders(response: Response): void {
   const headers = responseHeaders(response);
-  if (!headers) return;
-  for (const name of ["append", "set", "delete"]) {
-    Object.defineProperty(headers, name, {
+  if (!headers) throw new TypeError("kitesurf: response headers are unavailable");
+  for (let i = 0; i < IMMUTABLE_HEADER_METHODS.length; i++) {
+    defineOwn(headers, IMMUTABLE_HEADER_METHODS[i], {
       value: immutableHeadersError,
       configurable: true,
     });
@@ -89,43 +106,60 @@ export function routeViaSession(native: typeof globalThis.fetch): typeof globalT
   return async function fetch(input, init) {
     const stub = outbound;
     if (!stub) return native(input, init);
-    const request = new Request(input, init);
-    if (!isNetworkUrl(request) || isWebSocketUpgrade(request) || request.redirect === "follow") {
+    const request = newNativeRequest(input, init);
+    const method = requestMethod(request);
+    if (FORBIDDEN_METHODS.has(method.toUpperCase())) {
+      throw new TypeError(`Failed to construct 'Request': '${method}' HTTP method is unsupported.`);
+    }
+    if (
+      !isNetworkUrl(request) ||
+      isWebSocketUpgrade(request) ||
+      requestRedirect(request) === "follow"
+    ) {
       return native(input, init);
     }
-    const signal = init?.signal ?? request.signal;
+    const signal = init?.signal ?? requestSignal(request);
     if (signal?.aborted) throw abortError(signal);
-    const headers = newHeaders(request.headers);
-    applyCacheMode(headers, (request as { cache?: string }).cache ?? "");
+    const headers = newHeaders(requestHeaders(request));
+    applyCacheMode(headers, requestCache(request));
+    const bodyStream = requestBody(request);
     let body: SessionOutboundRequest["body"] = null;
-    if (request.body) {
-      body = init?.body instanceof ReadableStream ? request.body : await request.arrayBuffer();
+    if (bodyStream) {
+      body = init?.body instanceof ReadableStream ? bodyStream : await requestArrayBuffer(request);
     }
-    // Keep egress on the engine stub rather than opening sockets in the loaded worker.
-    const call = stub({
-      url: request.url,
-      method: request.method,
-      headers: hdrEntries(headers),
-      body,
-    }).then((response) => {
-      withRequestUrl(response, request.url);
+    const url = requestUrl(request);
+    // Keep egress on the engine stub rather than opening sockets in the loaded worker. The
+    // continuation is private: the page must not receive the promise or the response it holds.
+    const call = (async (): Promise<Response> => {
+      const response = await stub({
+        url,
+        method,
+        headers: hdrEntries(headers),
+        body,
+      });
+      withRequestUrl(response, url);
       freezeHeaders(response);
       return response;
-    });
+    })();
     if (!signal) return await call;
-    return await new Promise<Response>((resolve, reject) => {
-      const onAbort = () => reject(abortError(signal));
+    return await newNativePromise<Response>((resolve, reject) => {
+      const onAbort = (): void => reject(abortError(signal));
       signal.addEventListener("abort", onAbort, { once: true });
-      call.then(
-        (response) => {
+      void (async (): Promise<void> => {
+        try {
+          const response = await call;
           signal.removeEventListener("abort", onAbort);
+          if (signal.aborted) {
+            // The page-facing promise already rejected, so no reader is left for this body.
+            cancelResponseBody(response);
+            return;
+          }
           resolve(response);
-        },
-        (err) => {
+        } catch (error) {
           signal.removeEventListener("abort", onAbort);
-          reject(err);
-        },
-      );
+          reject(error);
+        }
+      })();
     });
   } as typeof globalThis.fetch;
 }
