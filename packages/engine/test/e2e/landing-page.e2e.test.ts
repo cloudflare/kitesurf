@@ -35,6 +35,7 @@ test("/ without inspector params, or with a non-http(s) url, serves the landing 
     const html = await res.text();
     expect(html, path).toContain('<form class="omnibox" action="/" method="get"');
     expect(html, path).toContain(exampleHref("https://example.com/devtools", "wss", "ks.invalid"));
+    expect(html, path).toContain("DevTools loads from <code>example.com</code>");
     expect(html, path).toContain("wss://ks.invalid/devtools/browser");
     expect(html, path).toContain("wss://ks.invalid/devtools/page/kitesurf");
     expect(html, path).toContain('<a href="/json/version">');
@@ -51,6 +52,11 @@ test("over HTTP, the landing page adds the chrome://inspect steps for this host:
   expect(html).toContain("ws://127.0.0.1:8787/devtools/browser");
 });
 
+test("opened as localhost, the hosted examples connect to 127.0.0.1", async () => {
+  const html = await (await env.ENGINE.fetch("http://localhost:8787/")).text();
+  expect(html).toContain(exampleHref("https://example.com/devtools", "ws", "127.0.0.1:8787"));
+});
+
 test("with a same-origin frontend, / serves the landing page with same-origin examples", async () => {
   const res = await env.ENGINE_SAME_ORIGIN_INSPECTOR.fetch("https://ks.invalid/", {
     redirect: "manual",
@@ -61,6 +67,7 @@ test("with a same-origin frontend, / serves the landing page with same-origin ex
   expect(html).toContain(
     exampleHref("https://ks.invalid/inspector/inspector.html", "wss", "ks.invalid"),
   );
+  expect(html).not.toContain("DevTools loads from");
 });
 
 test("without a frontend, / leaves only the CDP endpoints", async () => {

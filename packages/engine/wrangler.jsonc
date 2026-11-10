@@ -63,7 +63,10 @@
         "KITESURF_PAGE_CPU_MS_CAP": "",
         "KITESURF_PAGE_WALL_MS_CAP": "",
         "KITESURF_LAG_WATCHDOG": "1",
-        "KITESURF_INSPECTOR_BASE_URL": "",
+        // Chrome's hosted frontend at Chrome 156.0.8078.47 (chromiumdash `hashes.chromium`). Its
+        // CSP allows only `ws://127.0.0.1:*`, and Chrome asks once for local network access.
+        // With a --config=devtools build, pass the same-origin path with --var to override it.
+        "KITESURF_INSPECTOR_BASE_URL": "https://chrome-devtools-frontend.appspot.com/serve_rev/@1d17a2e2ee147bb7d6ae2ab6abdb3a2510c17775/inspector.html",
         "WEB_BOT_AUTH_SIGNATURE_AGENT": "",
         "KITESURF_OTLP_ENDPOINT": "http://localhost:4318/v1/traces",
       },
