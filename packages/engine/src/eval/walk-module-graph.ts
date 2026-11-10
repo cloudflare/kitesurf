@@ -1334,12 +1334,14 @@ export async function walkModuleGraph({
       const res = walk.response;
       const blocked = res.headers.get("x-kitesurf-blocked");
       if (res.status === 403 && blocked) {
+        await res.body?.cancel().catch(() => {});
         return {
           ok: false,
           error: `module fetch blocked (${blocked}) for ${url}`,
         };
       }
       if (!res.ok) {
+        await res.body?.cancel().catch(() => {});
         return {
           ok: false,
           error: `module fetch returned HTTP ${res.status} for ${url}`,

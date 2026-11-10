@@ -20,9 +20,11 @@ import type { SandboxOutboundOverride } from "./outbound.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
 import { scriptCredentialsMode } from "./cors.ts";
 import { walkRedirects } from "./redirect-walk.ts";
-import { MAX_DOCUMENT_BYTES, readCapped } from "../read-capped.ts";
+import { MAX_DOCUMENT_BYTES, readCapped, readCappedText } from "../read-capped.ts";
 
 const PREFETCH_TIMEOUT_MS = 10_000;
+
+const MAX_BLOCKED_MESSAGE_BYTES = 4 * 1024;
 
 function resolveScriptUrl(src: string, baseUrl: string): string | null {
   if (!src) return null;
@@ -221,16 +223,17 @@ export async function prefetchExternalScripts({
           const res = walk.response;
           const blockedReason = res.headers.get("x-kitesurf-blocked");
           if (res.status === 403 && blockedReason) {
-            d.prefetchError = await res.text();
+            const text = await readCappedText(res, MAX_BLOCKED_MESSAGE_BYTES, connectionId);
+            d.prefetchError = text.ok ? text.text : "<script src> blocked for " + resolved;
             return;
           }
           if (!res.ok) {
+            await res.body?.cancel().catch(() => {});
             d.prefetchError = "<script src> fetch returned HTTP " + res.status + " for " + resolved;
             return;
           }
-          // Capped per body, not charged to the shared read budget: a script's bytes stay
-          // with the page once read, so in-flight accounting bounds nothing, and a budget
-          // refusal would drop a script the page needs.
+          // Capped per body, not charged to the shared read budget: a budget refusal would
+          // drop a script the page needs. Concurrent reads are bounded only per body.
           const capped = await readCapped(res.body, MAX_DOCUMENT_BYTES);
           if (capped.bytes === null) {
             await capped.rest.cancel().catch(() => {});

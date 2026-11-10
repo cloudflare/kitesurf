@@ -8,17 +8,19 @@ import type { SandboxOutboundOverride } from "../src/eval/outbound.ts";
 import { prefetchExternalScripts } from "../src/eval/prefetch-scripts.ts";
 import { walkRedirects } from "../src/eval/redirect-walk.ts";
 import { walkModuleGraph } from "../src/eval/walk-module-graph.ts";
+import { inFlightReadBytes } from "../src/read-capped.ts";
 import type { ParentScriptDescriptor } from "../src/wasm.ts";
 
 const PAGE = "https://page.test/index.html";
 
-function outbound(redirects: Record<string, string>) {
+function outbound(redirects: Record<string, string>, respond?: () => Response) {
   const fetched: string[] = [];
   const fetcher = {
     fetch: async (req: Request) => {
       fetched.push(req.url);
       const to = redirects[req.url];
       if (to) return new Response(null, { status: 302, headers: { location: to } });
+      if (respond) return respond();
       return new Response("globalThis.ran = 1; export {};", {
         headers: { "content-type": "text/javascript" },
       });
@@ -114,5 +116,70 @@ describe("module graph redirects", () => {
     expect(descriptors[0]?.prefetchError).toMatch(/redirect to https:\/\/other\.test\/m\.js/);
     expect(Object.keys(additionalModules)).toEqual([]);
     expect(fetched).toEqual(["https://page.test/m.js"]);
+  });
+});
+
+describe("script body reads", () => {
+  const script = new TextEncoder().encode("globalThis.ran = 1;");
+  const releases: Array<() => void> = [];
+  const parked = () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(script);
+        releases.push(() => c.close());
+      },
+    });
+    return new Response(stream, { headers: { "content-type": "text/javascript" } });
+  };
+  const overCap = () => {
+    let sent = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (sent++ >= 17) return void c.close();
+        c.enqueue(new Uint8Array(1024 * 1024));
+      },
+    });
+    return new Response(stream, { headers: { "content-type": "text/javascript" } });
+  };
+  const page = { pageUrl: PAGE, connectionId: "conn" };
+  it("caps both script read paths per body, off the shared budget", async () => {
+    const classicRun = prefetchExternalScripts({
+      ...page,
+      baseUrl: PAGE,
+      gate,
+      descriptors: [classic("https://page.test/s.js")],
+      sandboxOutbound: outbound({}, parked).sandboxOutbound,
+    });
+    const moduleRun = walkModuleGraph({
+      ...page,
+      descriptors: [{ ...classic("https://page.test/m.js"), kind: "module" }],
+      options: { gate },
+      sandboxOutbound: outbound({}, parked).sandboxOutbound,
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    // Four 7 MiB bundles in one page exceed a connection's share; charging these reads
+    // refused one of them, so they stay off the shared budget.
+    expect(inFlightReadBytes()).toBe(0);
+    for (const release of releases) release();
+    const [classicOut, moduleOut] = await Promise.all([classicRun, moduleRun]);
+    expect(classicOut[0]?.prefetchedSource).toContain("globalThis.ran");
+    expect(moduleOut.descriptors[0]?.prefetchError).toBeUndefined();
+    const [bigClassic] = await prefetchExternalScripts({
+      ...page,
+      baseUrl: PAGE,
+      gate,
+      descriptors: [classic("https://page.test/big.js")],
+      sandboxOutbound: outbound({}, overCap).sandboxOutbound,
+    });
+    expect(bigClassic?.prefetchError).toBe("<script src> body cap for https://page.test/big.js");
+    const bigModule = await walkModuleGraph({
+      ...page,
+      descriptors: [{ ...classic("https://page.test/big.mjs"), kind: "module" }],
+      options: { gate },
+      sandboxOutbound: outbound({}, overCap).sandboxOutbound,
+    });
+    expect(bigModule.descriptors[0]?.prefetchError).toBe(
+      "module body cap for https://page.test/big.mjs",
+    );
   });
 });
