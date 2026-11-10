@@ -439,6 +439,19 @@ describe("size quotas", () => {
     expect(mine.some((c) => c.path === "/p199")).toBe(true);
   });
 
+  it.each(["Domain=victim.example; ", ""])(
+    "protects secure entries under quota pressure: %s",
+    (domain) => {
+      const jar = createCookieJar();
+      const victim = "https://victim.example/";
+      jar.setFromHeader(victim, `sid=good; ${domain}Secure; HttpOnly; Path=/`);
+      for (let i = 0; i < 180; i++) {
+        jar.setFromHeader("http://evil.victim.example/", `f${i}=1; Domain=victim.example; Path=/`);
+      }
+      expect(jar.cookieHeaderForUrl(victim)).toContain("sid=good");
+    },
+  );
+
   it("refuses a cookie over 4096 bytes", () => {
     const jar = createCookieJar();
     expect(jar.setFromHeader(HTTPS, `big=${"x".repeat(4096)}`)).toBeNull();

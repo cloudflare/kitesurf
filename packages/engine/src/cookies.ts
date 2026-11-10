@@ -79,7 +79,7 @@ export function createCookieJar(): CookieJar {
     return entry.name.length + entry.value.length + entry.path.length;
   }
 
-  function upsert(entry: CookieEntry): CookieEntry | null {
+  function upsert(entry: CookieEntry, trustworthy: boolean): CookieEntry | null {
     if (entryBytes(entry) > MAX_COOKIE_BYTES) {
       warnOnce(`cookie over ${MAX_COOKIE_BYTES} bytes refused (${entry.name})`);
       return null;
@@ -101,8 +101,11 @@ export function createCookieJar(): CookieJar {
         return null;
       }
       if (list.length >= MAX_COOKIES_PER_HOST) {
-        list.sort((a, b) => a.createdAt - b.createdAt);
-        list.splice(0, list.length - MAX_COOKIES_PER_HOST + 1);
+        const nonSecure = list.filter((c) => !c.secure);
+        if (nonSecure.length === 0 && !trustworthy) return null;
+        const candidates = nonSecure.length ? nonSecure : list;
+        const oldest = candidates.reduce((a, b) => (a.createdAt <= b.createdAt ? a : b));
+        list.splice(list.indexOf(oldest), 1);
       }
       list.push(entry);
     }
@@ -399,7 +402,7 @@ export function createCookieJar(): CookieJar {
     }
     const prev = existing(entry);
     if (prev && fromScript && prev.httpOnly) return null;
-    return upsert(entry);
+    return upsert(entry, parts.trustworthy);
   }
 
   function setFromHeader(urlStr: string, raw: string): CookieEntry | null {
