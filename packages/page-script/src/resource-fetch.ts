@@ -22,7 +22,12 @@ import { NativePromise } from "./native-scheduling.ts";
 import { getInternalState } from "./internal-state.js";
 import { cascadeSeq, invalidatePaintDom } from "./paint.ts";
 import { noteSyncOp } from "./lag-monitor.ts";
-import { responseHeaderGet } from "./native-http.ts";
+import {
+  responseHeaderGet,
+  responseArrayBuffer,
+  responseOk,
+  NativeUint8Array,
+} from "./native-http.ts";
 import { state } from "./state.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
 import {
@@ -599,7 +604,7 @@ async function doRealFetch(url: string, kind: string, corsMode: string = ""): Pr
     // Release at response headers so body reads do not hold admission capacity.
     release();
     const headersMs = Date.now() - slotStartedAt;
-    if (!response.ok) {
+    if (!responseOk(response)) {
       fetchPhaseStats.errors++;
       return { ok: false };
     }
@@ -607,7 +612,7 @@ async function doRealFetch(url: string, kind: string, corsMode: string = ""): Pr
       responseHeaderGet(response, "x-kitesurf-cors") === "clean"
         ? ("clean" as const)
         : ("opaque" as const);
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    const bytes = new NativeUint8Array(await responseArrayBuffer(response));
     const slotMs = slotStartedAt - queuedAt;
     const fetchMs = Date.now() - slotStartedAt;
     fetchPhaseStats.count++;

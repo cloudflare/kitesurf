@@ -7,6 +7,8 @@
 import { isDisallowedError } from "./defer-shim.ts";
 import {
   cancelResponseBody,
+  copyOwnEnumerable,
+  defineOwn,
   hdrAppend,
   hdrDelete,
   hdrEntries,
@@ -775,10 +777,14 @@ async function followRedirects(
       if ((method !== "GET" && method !== "HEAD") || init.body != null) {
         throw new TypeError("Failed to fetch");
       }
-      const handoff: KsRequestInit = { ...init, redirect: "follow" };
-      try {
-        await response.body?.cancel();
-      } catch {}
+      const handoff: KsRequestInit = copyOwnEnumerable<KsRequestInit>(init);
+      defineOwn(handoff, "redirect", {
+        value: "follow",
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+      cancelResponseBody(response);
       const followed = await realFetch(currentUrl, handoff);
       await throwIfBlocked(followed);
       return { response: followed, url: currentUrl, hops, tainting };
@@ -869,7 +875,9 @@ export function installFetchShim(): void {
     const initMaybeCoerced: KsRequestInit | undefined = serializeFormDataBodyInInit(
       validateAndStripCache(init, true),
     );
-    const mergedInit: KsRequestInit = { ...(initMaybeCoerced || {}) };
+    // Own-enumerable copy on a null prototype: the untrusted init's getters still run, but no
+    // later write of the stamped headers can reach a page-defined inherited setter.
+    const mergedInit: KsRequestInit = copyOwnEnumerable<KsRequestInit>(initMaybeCoerced);
     const requestHeaders = newHeaders(
       mergedInit.headers ?? (inputRequest ? inputRequest.headers : {}),
     );
@@ -972,7 +980,12 @@ export function installFetchShim(): void {
         hdrSet(requestHeaders, "Origin", origin);
       }
     }
-    mergedInit.headers = requestHeaders;
+    defineOwn(mergedInit, "headers", {
+      value: requestHeaders,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
     if (
       String(initMaybeCoerced?.mode ?? inputRequest?.mode ?? "cors") === "no-cors" &&
       !["GET", "HEAD", "POST"].includes(
