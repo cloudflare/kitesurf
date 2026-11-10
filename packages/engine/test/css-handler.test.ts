@@ -207,6 +207,7 @@ describe("CSS.enable opaque stylesheet fetches", () => {
         },
       },
       emit: () => {},
+      env: {},
     } as unknown as DispatchCtx;
     await handleCss(ctx, { id: 1, method: "CSS.enable", sessionId: "s1" } as CdpRequest);
     return { fetched, text: [...target.styleSheets.values()].map((e) => e.text) };

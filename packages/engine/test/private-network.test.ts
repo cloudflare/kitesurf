@@ -19,6 +19,10 @@ describe("addressSpaceOf", () => {
       "http://0.0.0.0/",
       "http://[::1]/",
       "http://[::ffff:127.0.0.1]/",
+      // A trailing dot still resolves to loopback; url.hostname keeps it.
+      "http://localhost./",
+      "http://app.localhost.:3000/",
+      "http://127.0.0.1./",
     ]) {
       expect(space(url), url).toBe("loopback");
     }

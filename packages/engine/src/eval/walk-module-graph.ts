@@ -976,8 +976,8 @@ export async function walkModuleGraph({
         headers,
         taintOriginFrom: pageOrigin || undefined,
         fetchHop: (hopReq) => outbound.fetch(hopReq),
-        refuseHop: gate
-          ? (hopUrl) => {
+        checkRedirect: gate
+          ? async (hopUrl) => {
               const hop = checkScriptRedirect(
                 gate,
                 {
@@ -987,11 +987,13 @@ export async function walkModuleGraph({
                 },
                 hopUrl,
               );
-              return hop.allowed ? null : (hop.message ?? `module blocked: ${hopUrl}`);
+              return hop.allowed ? (hop.upgradeTo ?? hopUrl) : null;
             }
           : undefined,
       });
-      if (!walk.ok && walk.reason === "refused") return { ok: false, error: walk.message };
+      if (!walk.ok && walk.reason === "redirect-blocked") {
+        return { ok: false, error: `module blocked: redirect to ${walk.url}` };
+      }
       if (!walk.ok) {
         return { ok: false, error: `module fetch too many redirects for ${url}` };
       }

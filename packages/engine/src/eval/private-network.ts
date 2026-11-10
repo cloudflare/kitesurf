@@ -41,7 +41,8 @@ function ipv6Space(host: string): AddressSpace {
 
 /** The address space a URL's host names, from the parsed (normalised) hostname. */
 export function addressSpaceOf(url: URL): AddressSpace {
-  const host = url.hostname.toLowerCase();
+  // `url.hostname` keeps a trailing dot, and `localhost.` still resolves to loopback.
+  const host = url.hostname.toLowerCase().replace(/\.$/, "");
   if (host.startsWith("[") && host.endsWith("]")) return ipv6Space(host.slice(1, -1));
   if (host === "localhost" || host.endsWith(".localhost")) return "loopback";
   return ipv4Space(host) ?? "public";

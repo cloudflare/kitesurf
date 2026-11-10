@@ -227,30 +227,39 @@ export function checkScriptRedirect(
   request: ScriptGateRequest,
   redirectUrl: string,
 ): ScriptGateDecision {
+  let url = redirectUrl;
+  let upgradedTo: string | null = null;
   const documentUrl = parseOrNull(ctx.documentUrl);
   const target = parseOrNull(redirectUrl);
   if (documentUrl?.protocol === "https:" && target && !isPotentiallyTrustworthy(target)) {
-    return {
-      allowed: false,
-      reason: "mixed-content",
-      message:
-        `Mixed Content: the page at ${ctx.documentUrl} was loaded over HTTPS, but a ` +
-        `script redirected to the insecure ${redirectUrl}. This request has been blocked.`,
-    };
+    if (ctx.upgradeInsecureRequests && target.protocol === "http:") {
+      target.protocol = "https:";
+      url = target.toString();
+      upgradedTo = url;
+    } else {
+      return {
+        allowed: false,
+        reason: "mixed-content",
+        message:
+          `Mixed Content: the page at ${ctx.documentUrl} was loaded over HTTPS, but a ` +
+          `script redirected to the insecure ${redirectUrl}. This request has been blocked.`,
+      };
+    }
   }
   const verdict = cspAllowsScript(ctx.policies, {
-    url: redirectUrl,
+    url,
     documentUrl: ctx.documentUrl,
     nonce: request.nonce ?? null,
     runtimeInserted: request.runtimeInserted === true,
     redirected: true,
   });
-  if (verdict.allowed) return ALLOWED;
+  if (verdict.allowed)
+    return upgradedTo === null ? ALLOWED : { allowed: true, upgradeTo: upgradedTo };
   return {
     allowed: false,
     reason: "csp",
     message:
-      `Refused to load the script '${redirectUrl}' (a redirect of '${request.url ?? ""}') ` +
+      `Refused to load the script '${url}' (a redirect of '${request.url ?? ""}') ` +
       `because it violates the following Content Security Policy directive: ` +
       `"${verdict.directive}".`,
   };

@@ -257,6 +257,7 @@ export async function prefetchWasmModules({
             res,
             Math.min(remaining, MAX_SINGLE_WASM_BYTES),
             connectionId,
+            MAX_SINGLE_WASM_BYTES,
           );
           if (!capped.ok) {
             bake.errors[wasmUrl] =

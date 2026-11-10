@@ -35,3 +35,16 @@ test("a loopback page still reaches its own loopback origin", async ({ page }) =
   await page.goto(LOOPBACK_PAGE, { waitUntil: "load" });
   expect(await status(page, LOOPBACK_JSON)).toBe(200);
 });
+
+test("a public page cannot navigate itself to a loopback address", async ({ page }) => {
+  await page.goto(PUBLIC_PAGE, { waitUntil: "load" });
+  const status = new Promise<number>((resolve) => {
+    page.on("response", (response) => {
+      if (response.url().includes("127.0.0.1:8787")) resolve(response.status());
+    });
+    setTimeout(() => resolve(0), 4000);
+  });
+  // The navigation destroys the evaluate context before it replies, so its failure is expected.
+  await page.evaluate(`location.href = ${JSON.stringify(LOOPBACK_PAGE)}`).catch(() => {});
+  expect(await status).toBe(403);
+});
