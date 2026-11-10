@@ -110,6 +110,7 @@ export interface BuildDocumentOpts {
   userAgent?: string | null;
   referrer?: string;
   getCurrentUrl?: () => string;
+  getDocumentUrl?: () => string;
   setCurrentUrl?: (
     newUrl: string,
     kind: "hash" | "navigate" | "pushState" | "replaceState" | "historyApi",
@@ -162,6 +163,7 @@ export let initialCookieString: string = "";
 export let opts: BuildDocumentOpts | undefined = undefined;
 
 export let getCurrentUrl: () => string = () => "";
+export let getDocumentUrl: () => string = () => "";
 export let setCurrentUrl:
   | ((url: string, kind: "hash" | "navigate" | "pushState" | "replaceState" | "historyApi") => void)
   | null = null;
@@ -573,6 +575,9 @@ export function initState(d: DomHandle, url: string, cookies: string, o?: BuildD
   opts = o;
 
   getCurrentUrl = o && typeof o.getCurrentUrl === "function" ? o.getCurrentUrl : () => url;
+  // The committed document URL; history and origin checks must not follow a
+  // page URL that a cross-document navigation advanced ahead of commit.
+  getDocumentUrl = o && typeof o.getDocumentUrl === "function" ? o.getDocumentUrl : getCurrentUrl;
   setCurrentUrl = o && typeof o.setCurrentUrl === "function" ? o.setCurrentUrl : null;
   getRectByAuthId = o && typeof o.getRectByAuthId === "function" ? o.getRectByAuthId : null;
   getScrollInfoByAuthId =
