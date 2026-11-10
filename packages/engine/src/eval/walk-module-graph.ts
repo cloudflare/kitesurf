@@ -17,6 +17,7 @@ import type { ParentScriptDescriptor, ScannedModulePreload } from "../wasm.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
 import { scriptCredentialsMode } from "./cors.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
+import { htmlTagSpans } from "./html-tag-spans.ts";
 import { walkRedirects } from "./redirect-walk.ts";
 import { MAX_DOCUMENT_BYTES, readCapped } from "../read-capped.ts";
 
@@ -401,11 +402,35 @@ export function assignModuleRegistryNames(urls: Iterable<string>): Map<string, s
 
 export function astroIslandModuleUrls(html: string, baseUrl: string): string[] {
   const urls = new Set<string>();
-  for (const [tag] of html.matchAll(/<astro-island\b[^>]*>/gi)) {
-    for (const [, raw] of tag.matchAll(/\s(?:component|renderer)-url="([^"]+)"/gi)) {
-      if (!raw) continue;
-      const url = resolveAgainstImporter(raw.replace(/&amp;/g, "&"), baseUrl);
-      if (url && /^https?:\/\//.test(url)) urls.add(url);
+  for (const [start, end] of htmlTagSpans(html, "astro-island", false)) {
+    let i = start;
+    while (i < end) {
+      if (!/\s/.test(html[i] ?? "")) {
+        i++;
+        continue;
+      }
+      const at = i + 1;
+      const component = 'component-url="';
+      const renderer = 'renderer-url="';
+      const rest = html.slice(at, Math.min(end, at + component.length)).toLowerCase();
+      const prefix = rest.startsWith(component)
+        ? component
+        : rest.startsWith(renderer)
+          ? renderer
+          : null;
+      if (!prefix) {
+        i++;
+        continue;
+      }
+      const valueStart = at + prefix.length;
+      const close = html.indexOf('"', valueStart);
+      if (close < 0 || close >= end) break;
+      const raw = html.slice(valueStart, close);
+      if (raw) {
+        const url = resolveAgainstImporter(raw.replace(/&amp;/g, "&"), baseUrl);
+        if (url && /^https?:\/\//.test(url)) urls.add(url);
+      }
+      i = close + 1;
     }
   }
   return [...urls];

@@ -38,6 +38,29 @@ describe("astroIslandModuleUrls", () => {
       "https://cdn.example/b.js",
     ]);
   });
+
+  it("matches the replaced attribute regexes without rescanning malformed markup", () => {
+    const cases: Array<[string, string[]]> = [
+      ['<astro-island component-url="/a.js>"/b.js">', []],
+      ['<astro-island component-url="">', []],
+      ["<astro-island component-url='/a.js'>", []],
+      ["<astro-island component-url=/a.js>", []],
+      [
+        '<astro-island component-url="/a.js" component-url="/b.js">' +
+          '<astro-island component-url="/a.js">',
+        ["https://example.com/a.js", "https://example.com/b.js"],
+      ],
+      ['<ASTRO-ISLAND RENDERER-URL="https://cdn.example/r.js">', ["https://cdn.example/r.js"]],
+    ];
+    for (const [html, urls] of cases) expect(astroIslandModuleUrls(html, BASE)).toEqual(urls);
+    const start = performance.now();
+    const openers = ('<astro-island component-url="' + "a".repeat(32)).repeat(8000);
+    expect(astroIslandModuleUrls(openers, BASE)).toEqual([]);
+    expect(astroIslandModuleUrls(`<astro-island${" component-url=".repeat(4000)}>`, BASE)).toEqual(
+      [],
+    );
+    expect(performance.now() - start).toBeLessThan(250);
+  });
 });
 
 describe("extractClassicDynamicSeeds", () => {

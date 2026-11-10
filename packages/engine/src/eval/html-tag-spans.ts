@@ -6,7 +6,7 @@
 // The result intentionally keeps the byte-level behavior of the regexes it replaces (literal ">"
 // inside quotes, removal inside comments, nonnested pairing) rather than HTML tree-building.
 
-type HtmlTagName = "script" | "noscript" | "meta";
+type HtmlTagName = "script" | "noscript" | "meta" | "astro-island";
 
 const WORD = /[A-Za-z0-9_]/;
 const SPACE = /\s/;
