@@ -182,17 +182,31 @@ function buildClassicSegment(
     edits.push({ start, end: start, text: `${name} = ` });
     edits.push({ start: end, end, text: ";" });
   }
-  // A function declaration in the segment's try block gets an Annex B binding, so a later
-  // `f = ...` would not reach other scripts. Assign the hoisted wrapper binding instead.
-  for (let i = 0; i < scan.functionSites.length; i++) {
-    const start = scan.functionSites[i];
-    const end = scan.functionEnds[i];
+  // `function f` in the try block binds `f` in the block, so the script's own `f = ...` would
+  // miss the wrapper binding other scripts read. See the web browser steps of
+  // https://tc39.es/ecma262/#sec-functiondeclarationinstantiation
+  // Renamed, each declaration is still hoisted to the block start, where `f` is pointed at it.
+  const hoistedFunctions = new Map<string, string>();
+  const renamedFunctions: { name: string; internal: string }[] = [];
+  for (let i = 0; i < scan.functionNameSites.length; i++) {
+    const start = scan.functionNameSites[i];
     const name = scan.functionNames[i];
-    if (start === undefined || end === undefined || name === undefined) continue;
-    if (blockedNames.has(name)) continue;
-    edits.push({ start, end: start, text: `${name} = ` });
-    edits.push({ start: end, end, text: ";" });
+    if (start === undefined || name === undefined || blockedNames.has(name)) continue;
+    // One name per declaration: a strict block refuses two declarations of the same name.
+    const internal = `__ks_fn${i}_${name}`;
+    edits.push({ start, end: start + name.length, text: internal });
+    // The last declaration of a name is the one the script sees, as at the top level.
+    hoistedFunctions.set(name, internal);
+    renamedFunctions.push({ name, internal });
   }
+  const hoistFunctions =
+    [...hoistedFunctions].map(([name, internal]) => `${name} = ${internal}; `).join("") +
+    renamedFunctions
+      .map(
+        ({ name, internal }) =>
+          `__ks_define_property(${internal}, "name", { value: ${JSON.stringify(name)} }); `,
+      )
+      .join("");
   edits.sort((a, b) => b.start - a.start || b.end - a.end);
   for (const edit of edits) {
     bodySource = bodySource.slice(0, edit.start) + edit.text + bodySource.slice(edit.end);
@@ -230,8 +244,9 @@ ${lines.join("\n")}
     !bracket || !d.src
       ? ""
       : `if (__ks_state_local.parserScriptLifecycle) { if (__ks_segment_ok) { await __ks_state_local.parserScriptLifecycle(${domIdx}, ${JSON.stringify(rawSrc)}, ${JSON.stringify(currentScriptUrl)}, true); } else { await __ks_state_local.parserScriptLifecycle(${domIdx}, ${JSON.stringify(rawSrc)}, ${JSON.stringify(currentScriptUrl)}, false); } }\n`;
+  // hoistFunctions stays on the `try {` line, so the body keeps its line numbers.
   const segmentBody = `var __ks_segment_ok = false;
-try {
+try { ${hoistFunctions}
 ${bodySource}
 ${promoteTail}__ks_segment_ok = true;
 } catch (__ks_segment_error) {
@@ -242,8 +257,8 @@ ${clearCurrent}${lifecycleDynamic}}\n`;
   return {
     source: `${prefix}${segmentBody}`,
     sourceLineOffset: countLines(prefix) + 2,
-    // Function names join the hoisted bindings, since their declarations become assignments.
-    lexicalNames: [...scan.lexicalNames, ...scan.functionNames.filter((n) => !blockedNames.has(n))],
+    // Function names join the hoisted bindings, since the block's first line assigns them.
+    lexicalNames: [...scan.lexicalNames, ...hoistedFunctions.keys()],
   };
 }
 
@@ -408,8 +423,11 @@ export function buildScriptBundle(
   const asyncBody = asyncLexicalDecl + asyncAcc.parts.join("");
 
   const umdShadow = "var module=undefined,exports=undefined,require=undefined;\n";
+  // Taken before the first segment runs, so a page that replaces Object.defineProperty
+  // does not see the calls that restore function names.
   const stateLocalDecl =
-    'var __ks_state_local = (await import("./internal-state.js")).getInternalState();\n';
+    "var __ks_define_property = Object.defineProperty, " +
+    '__ks_state_local = (await import("./internal-state.js")).getInternalState();\n';
   const prodWrap = (body: string, strict = false): string =>
     `module.exports.run = async function () {
 ${strict ? '"use strict"; ' : ""}${stateLocalDecl}${umdShadow}${body}

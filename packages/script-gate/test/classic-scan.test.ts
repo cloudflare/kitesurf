@@ -109,3 +109,42 @@ test("lexical and class declarations report their sites", () => {
     ["let a", "const"],
   );
 });
+
+test("only a function or class in statement position is a declaration", () => {
+  const declared = (source: string) => {
+    const scan = extractTopLevelDecls(source);
+    return [...scan.functionNames, ...scan.classNames];
+  };
+  for (const source of [
+    "function f(){}",
+    "a(); function f(){}",
+    "a()\nfunction f(){}",
+    "x = 1\nfunction f(){}",
+    "if (a) {} function f(){}",
+    "async function f(){}",
+    "a(); async function* f(){}",
+    "function* f(){}",
+    "class f {}",
+  ]) {
+    assert.deepEqual(declared(source), ["f"], source);
+  }
+  for (const source of [
+    "x = function f(){}",
+    "!function f(){}()",
+    "void function f(){}",
+    "new function f(){}",
+    "a ? b : function f(){}",
+    "x = async function f(){}",
+    "if (a) function f(){}",
+    "if (a)\nfunction f(){}",
+    "if (a) {} else function f(){}",
+    "x = class f {}",
+    "new class f {}()",
+  ]) {
+    assert.deepEqual(declared(source), [], source);
+  }
+  // A line break after `async` makes it an identifier: `async; function f(){}`.
+  assert.deepEqual(declared("async\nfunction f(){}"), ["f"]);
+  const scan = extractTopLevelDecls("x(); async function name(){}");
+  assert.deepEqual(scan.functionNameSites, ["x(); async function ".length]);
+});

@@ -82,3 +82,53 @@ test("destructured bindings and reassigned functions reach later scripts", async
     f: "second",
   });
 }, 60_000);
+
+// A top-level function declaration exists from the start of its script, and its name is
+// the binding later scripts share. https://tc39.es/ecma262/#sec-globaldeclarationinstantiation
+const hoisting = `<script>
+  init();
+  var early = typeof onReady;
+  function init() { globalThis.__initRan = true; }
+  function onReady() {}
+  function twice() { return "first"; }
+  function twice() { return "last"; }
+  function lazy() { lazy = function () { return "cached"; }; return "first"; }
+  async function later() { return "async"; }
+  function* gen() { yield "gen"; }
+  !function iife() {}();
+  var expr = function named() {};
+</script>
+<script>
+  lazy();
+  later().then(function (value) {
+    globalThis.__hoisting = JSON.stringify({
+      init: globalThis.__initRan === true,
+      early: early,
+      twice: twice(),
+      lazy: lazy(),
+      later: value,
+      gen: gen().next().value,
+      name: init.name,
+      iife: typeof iife,
+      named: typeof named,
+    });
+  });
+</script>`;
+
+test("a function can be used before its declaration, and keeps its name and form", async ({
+  page,
+  cdpSession,
+}) => {
+  await setContent(page, hoisting, { waitUntil: "domcontentloaded" });
+  expect(await readJsonReport(cdpSession, "globalThis.__hoisting")).toEqual({
+    init: true,
+    early: "function",
+    twice: "last",
+    lazy: "cached",
+    later: "async",
+    gen: "gen",
+    name: "init",
+    iife: "undefined",
+    named: "undefined",
+  });
+}, 60_000);
