@@ -151,12 +151,18 @@ export function createCookieJar(): CookieJar {
   }
 
   function resolveDomain(claimed: string, host: string): string | null {
-    const d = claimed.toLowerCase().replace(/^\./, "").replace(/\.$/, "");
-    if (!d) return null;
+    const raw = claimed.toLowerCase().replace(/^\./, "").replace(/\.$/, "");
+    if (!raw) return null;
+    if (raw === host) return raw;
+    if (isIpHost(host) || /[\\/\s:@?#%\[\]]/u.test(raw)) return null;
+    let d: string;
+    try {
+      d = new URL(`http://${raw}/`).hostname.replace(/\.$/, "");
+    } catch {
+      return null;
+    }
     if (d === host) return d;
-    if (isIpHost(host) || isIpHost(d)) return null;
-    if (!domainMatches(d, host)) return null;
-    if (isPublicSuffix(d)) return null;
+    if (isIpHost(d) || !domainMatches(d, host) || isPublicSuffix(d)) return null;
     return d;
   }
 

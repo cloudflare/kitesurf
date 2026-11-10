@@ -4,70 +4,62 @@
 
 // Applies host suffix rules used by cookie-domain and same-site checks.
 
-const MULTI_LABEL_SUFFIX_HEADS = new Set([
-  "co",
-  "com",
-  "net",
-  "org",
-  "gov",
-  "edu",
-  "ac",
-  "mil",
-  "or",
-  "ne",
-  "go",
-]);
+import PUBLIC_SUFFIX_LIST from "./public-suffix-list.dat";
 
-// Multi-tenant hosts from the private section of the Public Suffix List, where each tenant is
-// its own site. Without them, a.github.io could set Domain=github.io cookies for b.github.io.
-// Only widely used entries are listed; other hosting platforms still merge tenants.
-const PRIVATE_SUFFIXES = new Set([
-  "amplifyapp.com",
-  "appspot.com",
-  "azurestaticapps.net",
-  "azurewebsites.net",
-  "bitbucket.io",
-  "blogspot.com",
-  "cloudfront.net",
-  "codeberg.page",
-  "deno.dev",
-  "firebaseapp.com",
-  "fly.dev",
-  "github.io",
-  "githubusercontent.com",
-  "gitlab.io",
-  "herokuapp.com",
-  "myshopify.com",
-  "netlify.app",
-  "ngrok-free.app",
-  "ngrok.app",
-  "ngrok.io",
-  "onrender.com",
-  "pages.dev",
-  "pythonanywhere.com",
-  "r2.dev",
-  "readthedocs.io",
-  "repl.co",
-  "s3.amazonaws.com",
-  "surge.sh",
-  "trycloudflare.com",
-  "vercel.app",
-  "web.app",
-  "wixsite.com",
-  "workers.dev",
-]);
+interface PublicSuffixRules {
+  exact: Set<string>;
+  wildcard: Set<string>;
+  exception: Set<string>;
+  maxLabels: number;
+}
 
-const PRIVATE_SUFFIX_MAX_LABELS = Math.max(
-  ...Array.from(PRIVATE_SUFFIXES, (s) => s.split(".").length),
-);
+let cachedRules: PublicSuffixRules | undefined;
 
-// The number of trailing labels that form a listed private suffix, or 0. A page picks its request
-// hosts, so check only tails as long as a listed suffix instead of every tail of the host.
-function privateSuffixLength(labels: string[]): number {
-  for (let n = Math.min(labels.length, PRIVATE_SUFFIX_MAX_LABELS); n >= 2; n--) {
-    if (PRIVATE_SUFFIXES.has(labels.slice(-n).join("."))) return n;
+// The list ships unmodified (MPL-2.0) and is parsed once per isolate, so repeated host
+// checks reuse the same sets. Every rule is stored as ASCII lowercase, as the list mixes
+// punycode with Unicode IDN entries.
+function publicSuffixRules(): PublicSuffixRules {
+  if (cachedRules) return cachedRules;
+  const exact = new Set<string>();
+  const wildcard = new Set<string>();
+  const exception = new Set<string>();
+  let maxLabels = 0;
+  for (const raw of PUBLIC_SUFFIX_LIST.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("//")) continue;
+    const kind = line.startsWith("!") ? exception : line.startsWith("*.") ? wildcard : exact;
+    const body = kind === exception ? line.slice(1) : kind === wildcard ? line.slice(2) : line;
+    const rule = /[^\x00-\x7f]/u.test(body)
+      ? new URL(`https://${body}/`).hostname
+      : body.toLowerCase();
+    kind.add(rule);
+    maxLabels = Math.max(maxLabels, rule.split(".").length);
   }
-  return 0;
+  // A broken text module must fail loudly instead of treating every host as its own site.
+  if (!exact.size || !wildcard.size || !exception.size) {
+    throw new Error("public suffix list has no rules");
+  }
+  cachedRules = { exact, wildcard, exception, maxLabels };
+  return cachedRules;
+}
+
+// The number of trailing labels that form the public suffix, from the vendored Public Suffix
+// List. Every tail up to the longest stored rule is checked, so the cost is bounded by the list
+// rather than by a page-chosen host.
+function publicSuffixLength(labels: string[]): number {
+  const { exact, wildcard, exception, maxLabels } = publicSuffixRules();
+  let best = 1; // The PSL default rule is *.
+  let exceptionLength = 0;
+  const limit = Math.min(labels.length, maxLabels + 1);
+  for (let count = 1; count <= limit; count++) {
+    const suffix = labels.slice(-count).join(".");
+    if (exception.has(suffix)) exceptionLength = Math.max(exceptionLength, count);
+    if (exact.has(suffix)) best = Math.max(best, count);
+    if (count > 1 && wildcard.has(labels.slice(-(count - 1)).join("."))) {
+      best = Math.max(best, count);
+    }
+  }
+  return exceptionLength > 0 ? exceptionLength - 1 : best;
 }
 
 export function isIpHost(host: string): boolean {
@@ -76,14 +68,10 @@ export function isIpHost(host: string): boolean {
 
 export function siteKey(host: string): string {
   const h = host.toLowerCase().replace(/\.$/, "");
-  if (isIpHost(h)) return h;
+  if (!h || isIpHost(h)) return h;
   const labels = h.split(".");
-  const privateLength = privateSuffixLength(labels);
-  if (privateLength > 0) return labels.slice(-Math.min(labels.length, privateLength + 1)).join(".");
-  if (labels.length <= 2) return h;
-  const suffixHead = labels[labels.length - 2] ?? "";
-  const take = MULTI_LABEL_SUFFIX_HEADS.has(suffixHead) ? 3 : 2;
-  return labels.slice(-take).join(".");
+  const suffix = publicSuffixLength(labels);
+  return labels.slice(-Math.min(labels.length, suffix + 1)).join(".");
 }
 
 export function schemefulSite(raw: string | URL): string | null {
@@ -103,10 +91,5 @@ export function isPublicSuffix(domain: string): boolean {
   if (!h) return true;
   if (isIpHost(h)) return false;
   const labels = h.split(".");
-  if (labels.length === 1) return true;
-  if (privateSuffixLength(labels) === labels.length) return true;
-  if (labels.length === 2 && MULTI_LABEL_SUFFIX_HEADS.has(labels[0] ?? "")) {
-    return true;
-  }
-  return false;
+  return publicSuffixLength(labels) === labels.length;
 }

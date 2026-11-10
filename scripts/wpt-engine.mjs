@@ -22,7 +22,7 @@ const USAGE = `usage: node scripts/wpt-engine.mjs prepare [--dist <dir>] [--conf
 
 const ENGINE_RULES = [
   { type: "CompiledWasm", include: ["**/*.wasm"] },
-  { type: "Text", include: ["**/*.glue.js", "*.css", "**/*.css"] },
+  { type: "Text", include: ["**/*.glue.js", "*.css", "**/*.css", "**/*.dat"] },
   { type: "Data", include: ["**/*.woff2", "**/*.bin"] },
 ];
 
