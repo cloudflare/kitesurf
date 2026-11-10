@@ -680,12 +680,14 @@ export function documentTokens(html: string): Set<string> {
 
 export interface WalkResult {
   descriptors: ParentScriptDescriptor[];
+  insertedDescriptors: ParentScriptDescriptor[];
   additionalModules: Record<string, BakedModule>;
   importMapModuleSource: string;
 }
 
 interface WalkModuleGraphInput {
   descriptors: ParentScriptDescriptor[];
+  insertedDescriptors?: readonly ParentScriptDescriptor[];
   pageUrl: string;
   connectionId: string;
   mainFrameId?: string;
@@ -705,6 +707,7 @@ interface WalkModuleGraphInput {
 
 export async function walkModuleGraph({
   descriptors,
+  insertedDescriptors = [],
   pageUrl,
   connectionId,
   mainFrameId = "",
@@ -715,6 +718,7 @@ export async function walkModuleGraph({
   sandboxOutbound,
 }: WalkModuleGraphInput): Promise<WalkResult> {
   const out = descriptors.map((d) => ({ ...d }));
+  const insertedOut = insertedDescriptors.map((d) => ({ ...d }));
   const moduleEntries = out.filter((d) => d.kind === "module" && !d.blocked);
 
   const pageOrigin = pageOriginFromUrl(pageUrl);
@@ -746,9 +750,10 @@ export async function walkModuleGraph({
       : entryBaseUrl;
     if (!base) return;
     const { rewritten, seeds } = extractClassicDynamicSeeds(src, base, resolve);
-    if (rewritten === src) return;
-    if (isExternal) d.prefetchedSource = rewritten;
-    else d.body = rewritten;
+    if (rewritten !== src) {
+      if (isExternal) d.prefetchedSource = rewritten;
+      else d.body = rewritten;
+    }
     for (const s of seeds) {
       classicSeeds.add(s);
       if (d.nonce && !nonceByUrl.has(s)) nonceByUrl.set(s, d.nonce);
@@ -802,10 +807,14 @@ export async function walkModuleGraph({
     }
   }
   for (const d of lateClassics) seedClassic(d, resolveModule);
+  // Inserted scripts are not parser scripts: they resolve against the finalized map and must
+  // not run at navigation.
+  for (const d of insertedOut) seedClassic(d, resolveModule);
 
   if (moduleEntries.length === 0 && classicSeeds.size === 0) {
     return {
       descriptors: out,
+      insertedDescriptors: insertedOut,
       additionalModules: {},
       importMapModuleSource: importMapModuleSource(importMap),
     };
@@ -1517,7 +1526,7 @@ export async function walkModuleGraph({
   for (const u of [...sizeSkipped]) if (modules.has(u)) sizeSkipped.delete(u);
 
   if (registryNames.size > 0 || sizeSkipped.size > 0) {
-    for (const d of out) {
+    for (const d of [...out, ...insertedOut]) {
       if (d.kind === "module") continue;
       const field = d.src ? "prefetchedSource" : "body";
       const source = d[field];
@@ -1705,6 +1714,7 @@ export async function walkModuleGraph({
 
   return {
     descriptors: out,
+    insertedDescriptors: insertedOut,
     additionalModules,
     importMapModuleSource: importMapModuleSource(importMap, registryNames),
   };

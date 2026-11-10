@@ -115,21 +115,38 @@ scripts.all("/corp-script-page.html", (c) => {
 });
 
 const SLOW_PROBE_MS = 6000;
+// Learned on the first hit as a benign body, then served hostile on later hits so the
+// speculative bake and the runtime fetch see the same bytes.
+const HOSTILE_PROBE = `window.__insertedNative = typeof Error.captureStackTrace === "function";
+window.__insertedRuns = 1;
+window.__hostileResult = "pending";
+import("file:///bundle/internal-state.js").then(function (ns) {
+  window.__hostileResult = typeof ns.getInternalState;
+}, function () { window.__hostileResult = "refused"; });
+`;
 const insertedProbeHits = new Map<string, number>();
-scripts.all("/inserted-probe/:mode{stable|volatile|gone|slow}/:file{[\\w-]+\\.js}", async (c) => {
-  const mode = c.req.param("mode");
-  const key = c.req.param("file").slice(0, -".js".length);
-  const hit = (insertedProbeHits.get(key) ?? 0) + 1;
-  insertedProbeHits.set(key, hit);
-  if (hit > 1) {
-    if (mode === "gone") return c.text("gone", 404);
-    if (mode === "slow") await sleep(SLOW_PROBE_MS);
-  }
-  const headers: Record<string, string> = { "content-type": JS };
-  if (mode === "stable" && hit > 1) headers["set-cookie"] = `probe_${key}=${hit}; Path=/`;
-  const body = mode === "volatile" ? `${insertedBakeJs}\n// hit ${hit}\n` : insertedBakeJs;
-  return c.body(body, 200, headers);
-});
+scripts.all(
+  "/inserted-probe/:mode{stable|volatile|gone|slow|hostile}/:file{[\\w-]+\\.js}",
+  async (c) => {
+    const mode = c.req.param("mode");
+    const key = c.req.param("file").slice(0, -".js".length);
+    const hit = (insertedProbeHits.get(key) ?? 0) + 1;
+    insertedProbeHits.set(key, hit);
+    if (hit > 1) {
+      if (mode === "gone") return c.text("gone", 404);
+      if (mode === "slow") await sleep(SLOW_PROBE_MS);
+    }
+    const headers: Record<string, string> = { "content-type": JS };
+    if (mode === "stable" && hit > 1) headers["set-cookie"] = `probe_${key}=${hit}; Path=/`;
+    const body =
+      mode === "volatile"
+        ? `${insertedBakeJs}\n// hit ${hit}\n`
+        : mode === "hostile" && hit > 1
+          ? HOSTILE_PROBE
+          : insertedBakeJs;
+    return c.body(body, 200, headers);
+  },
+);
 scripts.all("/inserted-probe-hits/:key{[\\w-]+}", (c) =>
   c.json({ hits: insertedProbeHits.get(c.req.param("key")) ?? 0 }, 200, {
     "cache-control": "no-store",

@@ -706,6 +706,46 @@ describe("walkModuleGraph import maps in document order", () => {
   });
 });
 
+describe("walkModuleGraph speculative inserted scripts", () => {
+  const PAGE = "https://example.com/page.html";
+  const walk = (body: string) =>
+    walkModuleGraph({
+      descriptors: [{ ...moduleInline(`import "/x.js?v=1";`), scriptDomIndex: 0 }],
+      insertedDescriptors: [classicExternal("/learned.js", body)],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      options: {
+        importMaps: [
+          {
+            source: JSON.stringify({ imports: { "/x.js?v=1": "/x.js?v=2" } }),
+            baseUrl: PAGE,
+            scriptDomIndex: 1,
+          },
+        ],
+      },
+      sandboxOutbound: stubOutbound(),
+    });
+
+  it.each([
+    [`import("./dep.js").then(go);`, `import("https://example.com/dep.js").then(go);`],
+    [`import("/x.js?v=1");`, /import\("https:\/\/example\.com\/x\.__ks_query_\d+\.js"\);/],
+    [`import(spec);`, `__ks_import(spec, "https://example.com/learned.js");`],
+    [`{}\n/}/.test(""); import("./internal-state.js")`, /__ks_import_/],
+  ])("walks the inserted classic %# against the final map", async (body, expected) => {
+    const result = await walk(body);
+    expect(result.insertedDescriptors).toHaveLength(1);
+    expect(result.insertedDescriptors[0]!.prefetchedSource).toMatch(expected);
+    expect(result.descriptors.map((d) => d.src)).toEqual([null]);
+  });
+
+  it("keeps the seed of an already-absolute literal whose text is unchanged", async () => {
+    const body = `import("https://example.com/abs.js");`;
+    const result = await walk(body);
+    expect(result.insertedDescriptors[0]!.prefetchedSource).toBe(body);
+    expect(Object.keys(result.additionalModules)).toContain("https://example.com/abs.js");
+  });
+});
+
 describe("import maps", () => {
   const map = parseImportMaps(
     [
