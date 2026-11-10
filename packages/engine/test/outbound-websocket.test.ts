@@ -3,11 +3,13 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { afterEach, describe, expect, it } from "vitest";
+import { registerCookieJar, unregisterCookieJar } from "../src/cdp/cookie-jar-registry.ts";
 import {
   compileOutboundFilters,
   registerOutboundFilters,
   unregisterOutboundFilters,
 } from "../src/cdp/outbound-filter-registry.ts";
+import { createCookieJar } from "../src/cookies.ts";
 import {
   SandboxOutbound,
   type OutboundProps,
@@ -15,6 +17,10 @@ import {
 } from "../src/eval/outbound.ts";
 
 const CONN = "ws-conn";
+
+function upgrade(): Response {
+  return new Response(null, { status: 101, webSocket: new WebSocketPair()[1] });
+}
 
 async function handshake(headers: Record<string, string>, props: Partial<OutboundProps> = {}) {
   const seen: Request[] = [];
@@ -28,7 +34,7 @@ async function handshake(headers: Record<string, string>, props: Partial<Outboun
       externalOutbound: {
         fetch: async (req: Request) => {
           seen.push(req);
-          return new Response("reached");
+          return upgrade();
         },
       },
       ...props,
@@ -63,6 +69,38 @@ describe("WebSocket handshakes and outbound filters", () => {
     register({ allowResourceTypes: ["websocket"] });
     const { seen } = await handshake({ "x-kitesurf-resource-type": "Fetch" });
     expect(seen.map((r) => r.url)).toEqual(["https://socket.test/echo"]);
+  });
+
+  it.each([200, 302])("does not expose or follow a %i handshake response", async (status) => {
+    const jar = createCookieJar();
+    jar.setFromHeader("https://socket.test/", "sid=1; Secure; HttpOnly; SameSite=None; Path=/");
+    registerCookieJar(CONN, jar);
+    const sent: Request[] = [];
+    try {
+      await expect(
+        handshake(
+          {},
+          {
+            externalOutbound: {
+              fetch: async (req) => {
+                sent.push(req);
+                return new Response("private", {
+                  status,
+                  headers: {
+                    location: "https://attacker.test/",
+                    "set-cookie": "secret=1",
+                  },
+                });
+              },
+            },
+          },
+        ),
+      ).rejects.toThrow("WebSocket handshake failed");
+      expect(sent[0]!.headers.get("cookie")).toBe("sid=1");
+      expect(sent[0]!.redirect).toBe("manual");
+    } finally {
+      unregisterCookieJar(CONN);
+    }
   });
 });
 

@@ -570,10 +570,18 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         const cookieHeader = wsJar.cookieHeaderForUrl(request.url, cookieContext);
         if (cookieHeader) wsHeaders.set("cookie", cookieHeader);
       }
-      return directExternalFetch(
+      const response = await directExternalFetch(
         transport,
-        new Request(request.url, { method: "GET", headers: wsHeaders }),
+        new Request(request.url, {
+          method: "GET",
+          headers: wsHeaders,
+          redirect: "manual",
+          signal: request.signal,
+        }),
       );
+      if (response.status === 101 && response.webSocket) return response;
+      await response.body?.cancel().catch(() => {});
+      throw new TypeError("WebSocket handshake failed");
     }
 
     const extraHeaders = props?.extraHeaders ?? {};
