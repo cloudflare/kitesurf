@@ -2160,6 +2160,7 @@ async function pushNavigateToPageScriptInner(
         connectionId: ctx.connectionId,
         mainFrameId: target.frameId,
         cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
+        modulePreloadPins: preloadSeeds.map(({ url, integrity }) => ({ url, integrity })),
         // The legacy plan (no bundle: a failed bake) gates its parser scripts from these.
         scriptPolicy: {
           cspHeaders: target.docCsp ? [target.docCsp] : [],

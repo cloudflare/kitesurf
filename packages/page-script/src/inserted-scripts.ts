@@ -6,6 +6,7 @@
 // Every inline insert and external fetch passes the shared script gate before it runs.
 
 import { scriptSourceDigest } from "@kitesurf/script-gate";
+import type { ModulePreloadPin } from "@kitesurf/jsrpc-types/page-script";
 import { ks_eval_page, ks_import } from "./wasm-glue.js";
 import { globalizeForBoa } from "./boa-classic.ts";
 import { getInternalState, sendUpstreamEvent } from "./internal-state.js";
@@ -196,17 +197,25 @@ function importHitFailedFetch(reason: string): boolean {
 }
 
 // The nonce each module was fetched with. An import inherits its referrer's nonce, as HTML's
-// descendant script fetch options do, but not its integrity: an import has none of its own.
+// descendant script fetch options do, but not its integrity; a preload can supply its own pin.
 const moduleFetchNonces = new Map<string, string | null>();
+let modulePreloadIntegrity = new Map<string, string | null>();
+
+export function setModulePreloadPins(pins: readonly ModulePreloadPin[]): void {
+  modulePreloadIntegrity = new Map(pins.map(({ url, integrity }) => [url, integrity]));
+}
 
 function moduleGateAttributes(
   url: string,
   referrer: string | undefined,
 ): { nonce: string | null; integrity: string | null } {
   const entry = entryModuleGateAttributes(url);
-  if (entry) return entry;
-  const nonce = referrer === undefined ? null : (moduleFetchNonces.get(referrer) ?? null);
-  return { nonce, integrity: null };
+  const nonce = entry
+    ? entry.nonce
+    : referrer === undefined
+      ? null
+      : (moduleFetchNonces.get(referrer) ?? null);
+  return { nonce, integrity: entry?.integrity || modulePreloadIntegrity.get(url) || null };
 }
 
 export function fetchGatedModuleSource(url: string, referrer?: string): Promise<string> {

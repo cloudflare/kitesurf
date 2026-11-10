@@ -25,6 +25,8 @@ import { MAX_DOCUMENT_BYTES, readCappedText } from "../read-capped.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
 import { schemefulSite } from "../public-suffix.ts";
 import { scanDocument } from "../wasm.ts";
+import { documentBaseUrl } from "./script-gate.ts";
+import { modulePreloadSeeds } from "./walk-module-graph.ts";
 
 const OOPIF_DOC_WALK_BUDGET_MS = 15_000;
 
@@ -70,6 +72,7 @@ export interface PrespawnedFrame {
   finalUrl: string;
   // The terminal document's policy; the frame's isolate has no baked startup policy.
   scriptPolicy: NonNullable<NavigateOptions["scriptPolicy"]>;
+  modulePreloadPins: NonNullable<NavigateOptions["modulePreloadPins"]>;
   warmup: Promise<void>;
 }
 
@@ -277,8 +280,14 @@ export async function prespawnFrameIsolate(
   }
 
   let metaCsp: string[];
+  let modulePreloadPins: NonNullable<NavigateOptions["modulePreloadPins"]>;
   try {
-    metaCsp = scanDocument(html).metaCsp;
+    const scan = scanDocument(html);
+    metaCsp = scan.metaCsp;
+    modulePreloadPins = modulePreloadSeeds(
+      scan.modulePreloads,
+      documentBaseUrl(finalUrl, scan.baseHref),
+    ).map(({ url, integrity }) => ({ url, integrity }));
   } catch (e) {
     await discardFrameIsolate(stub, warmup, "oopif doc scan failed");
     return {
@@ -316,7 +325,7 @@ export async function prespawnFrameIsolate(
     warmup = prepareFrameIsolate(stub, args);
   }
 
-  return { ok: true, stub, html, finalUrl, scriptPolicy, warmup };
+  return { ok: true, stub, html, finalUrl, scriptPolicy, modulePreloadPins, warmup };
 }
 
 export async function navigatePrespawnedFrame(
@@ -332,6 +341,7 @@ export async function navigatePrespawnedFrame(
       mainFrameId: args.frameId,
       cookieKey: args.cookieKey ?? "",
       scriptPolicy,
+      modulePreloadPins: pre.modulePreloadPins,
       ...(viewport
         ? {
             viewportWidth: viewport.width,
