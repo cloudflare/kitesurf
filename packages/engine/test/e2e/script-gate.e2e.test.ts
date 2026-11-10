@@ -357,6 +357,23 @@ test("CSP: a parser script that redirects off the allowlist does not run", async
   expect(await ran(page2)).toEqual(["same-host"]);
 });
 
+test("CSP: a runtime-inserted script that redirects under 'strict-dynamic' runs", async ({
+  page,
+}) => {
+  const body =
+    `<script nonce="n0nce">` +
+    `for (const src of ${JSON.stringify([
+      viaRedirect(scriptUrl({ tag: "sd-redirect" })),
+      scriptUrl({ tag: "sd-fragment" }) + "#v1",
+    ])}) { const s = document.createElement("script"); s.src = src; document.head.append(s); }` +
+    `</script>`;
+  await page.goto(docUrl(`script-src 'nonce-n0nce' 'strict-dynamic'`, body), { waitUntil: "load" });
+  await settle(page);
+  // Chrome trusts a script a trusted script inserted at any URL, redirects and fragments
+  // included; a recheck that forgets the insert or compares the fragment refuses both.
+  expect((await ran(page)).sort()).toEqual(["sd-fragment", "sd-redirect"]);
+});
+
 test("CSP: a runtime-inserted script that redirects off the allowlist does not run", async ({
   page,
 }) => {

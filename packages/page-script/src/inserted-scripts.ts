@@ -242,13 +242,17 @@ async function fetchGatedModuleSourceOnce(
   const response = await fetchInsertedScript(pre.upgradeTo ?? url, "");
   if (response.status === 0) throw new Error(`fetch(${url}) failed`);
   if (response.status >= 400) throw new Error(`fetch(${url}) HTTP ${response.status}`);
-  const post = await insertedResponseAllowed(meta, {
-    contentType: response.contentType,
-    contentTypeOptions: response.nosniff,
-    bytes: response.bytes,
-    opaque: response.opaque,
-    ...(response.finalUrl ? { finalUrl: response.finalUrl } : {}),
-  });
+  const post = await insertedResponseAllowed(
+    meta,
+    {
+      contentType: response.contentType,
+      contentTypeOptions: response.nosniff,
+      bytes: response.bytes,
+      opaque: response.opaque,
+      ...(response.finalUrl ? { finalUrl: response.finalUrl } : {}),
+    },
+    pre.upgradeTo ?? url,
+  );
   if (!post.allowed) {
     reportBlocked(post);
     throw new Error(post.message ?? "module blocked by policy");
@@ -360,13 +364,17 @@ export function runInsertedExternalScript(info: InsertedScriptInfo): void {
         throw new Error("fetch failed (no response)");
       }
       if (response.status >= 400) throw new Error("HTTP " + response.status);
-      const post = await insertedResponseAllowed(meta, {
-        contentType: response.contentType,
-        contentTypeOptions: response.nosniff,
-        bytes: response.bytes,
-        opaque: response.opaque,
-        ...(response.finalUrl ? { finalUrl: response.finalUrl } : {}),
-      });
+      const post = await insertedResponseAllowed(
+        meta,
+        {
+          contentType: response.contentType,
+          contentTypeOptions: response.nosniff,
+          bytes: response.bytes,
+          opaque: response.opaque,
+          ...(response.finalUrl ? { finalUrl: response.finalUrl } : {}),
+        },
+        pre.upgradeTo ?? url,
+      );
       if (!post.allowed) {
         reportBlocked(post);
         throw new Error(post.reason ?? "blocked by policy");
