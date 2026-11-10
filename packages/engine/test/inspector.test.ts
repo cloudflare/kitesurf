@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import {
   absoluteInspectorBaseUrl,
+  cdpUpgradeOriginAllowed,
   inspectorBaseUrlOrNull,
   inspectorTargetUrl,
   resolveInspectorBaseUrl,
@@ -175,5 +176,40 @@ describe("resolveInspectorBaseUrl", () => {
     await resolveInspectorBaseUrl(env);
     await resolveInspectorBaseUrl(env);
     expect(store.requests).toHaveLength(1);
+  });
+});
+
+describe("cdpUpgradeOriginAllowed", () => {
+  const hosted = "https://chrome-devtools-frontend.appspot.com/serve_rev/@1d17a2e/inspector.html";
+
+  const upgrade = (origin?: string): Request => {
+    const headers: Record<string, string> = { upgrade: "websocket" };
+    if (origin !== undefined) headers.origin = origin;
+    return new Request("http://engine.test/devtools/browser/kitesurf", { headers });
+  };
+
+  it("admits no Origin, the engine's own origin and the bundled inspector", () => {
+    expect(cdpUpgradeOriginAllowed(upgrade(), {})).toBe(true);
+    expect(cdpUpgradeOriginAllowed(upgrade("http://engine.test"), {})).toBe(true);
+    expect(cdpUpgradeOriginAllowed(upgrade("devtools://devtools"), {})).toBe(true);
+  });
+
+  it("admits an absolute inspector base and refuses another origin", () => {
+    const env = { KITESURF_INSPECTOR_BASE_URL: "https://inspector.example/ui/inspector.html" };
+    expect(cdpUpgradeOriginAllowed(upgrade("https://inspector.example"), env)).toBe(true);
+    expect(cdpUpgradeOriginAllowed(upgrade("https://page.example"), env)).toBe(false);
+  });
+
+  it("admits the hosted frontend that replaces a path-only base", () => {
+    // env.local: `/inspector/inspector.html` when the devtools build staged it, else the
+    // hosted frontend, whose page opens the upgrade from its own origin.
+    const env = {
+      KITESURF_INSPECTOR_BASE_URL: "/inspector/inspector.html",
+      KITESURF_INSPECTOR_FALLBACK_URL: hosted,
+    };
+    expect(
+      cdpUpgradeOriginAllowed(upgrade("https://chrome-devtools-frontend.appspot.com"), env),
+    ).toBe(true);
+    expect(cdpUpgradeOriginAllowed(upgrade("https://page.example"), env)).toBe(false);
   });
 });

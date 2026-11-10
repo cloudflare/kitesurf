@@ -98,16 +98,21 @@ const BUNDLED_INSPECTOR_ORIGIN = "devtools://devtools";
  *  from the engine itself or an inspector. Non-browser clients send no Origin. */
 export function cdpUpgradeOriginAllowed(
   request: Request,
-  env: { KITESURF_INSPECTOR_BASE_URL?: unknown },
+  env: { KITESURF_INSPECTOR_BASE_URL?: unknown; KITESURF_INSPECTOR_FALLBACK_URL?: unknown },
 ): boolean {
   const origin = request.headers.get("origin");
   if (origin === null) return true;
   if (origin === new URL(request.url).origin || origin === BUNDLED_INSPECTOR_ORIGIN) return true;
-  const inspector = inspectorBaseUrlOrNull(env);
-  if (inspector === null) return false;
-  try {
-    return origin === new URL(inspector).origin;
-  } catch {
-    return false;
+  // A path-only base is either served same-origin or replaced by the fallback, so the
+  // fallback's origin is a frontend that can open this upgrade too.
+  for (const value of [env.KITESURF_INSPECTOR_BASE_URL, env.KITESURF_INSPECTOR_FALLBACK_URL]) {
+    const base = inspectorBaseUrlOrNull({ KITESURF_INSPECTOR_BASE_URL: value });
+    if (base === null || base.startsWith("/")) continue;
+    try {
+      if (origin === new URL(base).origin) return true;
+    } catch {
+      // An unparsable base names no origin to admit.
+    }
   }
+  return false;
 }
