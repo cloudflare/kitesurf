@@ -97,10 +97,10 @@ let resourceScope: string | null = null;
 function enterResourceScope(scope: string | undefined): void {
   if (scope !== undefined && scope === resourceScope) return;
   rasterizer.resetResources();
-  retainedKey = "";
-  retainedSeq = -1;
-  retainedScene = null;
-  retainedImage = null;
+  // The retained frame is keyed by its document, not by its scope, so it outlives the switch: a
+  // document cannot inherit another's base, and out-of-process frames render under their own
+  // scope between the top-level document's frames. Dropping it here would force every frame that
+  // follows a child render to record and raster the whole page again.
   resourceScope = scope ?? null;
 }
 
