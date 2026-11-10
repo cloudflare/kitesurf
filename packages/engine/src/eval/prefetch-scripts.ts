@@ -19,7 +19,7 @@ import type { ParentScriptDescriptor } from "../wasm.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
 import { walkRedirects } from "./redirect-walk.ts";
-import { MAX_DOCUMENT_BYTES, readCappedBytes } from "../read-capped.ts";
+import { MAX_DOCUMENT_BYTES, readCapped } from "../read-capped.ts";
 
 const PREFETCH_TIMEOUT_MS = 10_000;
 
@@ -218,8 +218,12 @@ export async function prefetchExternalScripts({
             d.prefetchError = "<script src> fetch returned HTTP " + res.status + " for " + resolved;
             return;
           }
-          const capped = await readCappedBytes(res, MAX_DOCUMENT_BYTES, connectionId);
-          if (!capped.ok) {
+          // Capped per body, not charged to the shared read budget: a script's bytes stay
+          // with the page once read, so in-flight accounting bounds nothing, and a budget
+          // refusal would drop a script the page needs.
+          const capped = await readCapped(res.body, MAX_DOCUMENT_BYTES);
+          if (capped.bytes === null) {
+            await capped.rest.cancel().catch(() => {});
             d.prefetchError = "<script src> body " + capped.failure + " for " + resolved;
             return;
           }

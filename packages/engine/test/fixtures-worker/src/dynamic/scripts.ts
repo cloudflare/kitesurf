@@ -15,13 +15,16 @@ const JS = "text/javascript; charset=utf-8";
 scripts.all("/policy-script.js", (c) => {
   const tag = (c.req.query("tag") ?? "script").replace(/[^a-zA-Z0-9_-]/g, "");
   const extra = c.req.query("extra") === "1" ? "/* tampered */\n" : "";
+  // A large bundle: `pad` bytes of comment after the statement.
+  const pad = Math.min(Number(c.req.query("pad") ?? 0) || 0, 32 * 1024 * 1024);
   const headers: Record<string, string> = {
     "content-type": c.req.query("ct") ?? JS,
     "access-control-allow-origin": "*",
   };
   if (c.req.query("nosniff") === "1") headers["x-content-type-options"] = "nosniff";
   return c.body(
-    `globalThis.__ksRan = (globalThis.__ksRan || []).concat([${JSON.stringify(tag)}]);\n${extra}`,
+    `globalThis.__ksRan = (globalThis.__ksRan || []).concat([${JSON.stringify(tag)}]);\n${extra}` +
+      (pad > 0 ? `//${"x".repeat(pad)}\n` : ""),
     200,
     headers,
   );
