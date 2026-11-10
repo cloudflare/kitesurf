@@ -4621,7 +4621,7 @@ function handleUpstreamFrameEvent(
     return;
   }
   const frame = target.frames.get(frameId);
-  if (!frame) return;
+  if (!frame || frame.parentFrameId === null) return;
   const revived = frame.detached;
   if (revived) {
     if (event !== "kitesurf.frameNavigated") return;

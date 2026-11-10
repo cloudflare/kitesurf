@@ -4,10 +4,12 @@
 
 import { describe, expect, it } from "vitest";
 import type { ReceivedUpstreamParams, UpstreamEventName } from "@kitesurf/jsrpc-types/page-script";
+import { makeMainFrameState } from "../src/cdp/frames.ts";
 import { installUpstreamEventHandler } from "../src/cdp/page.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { DedicatedWorkers, WorkerOwner } from "../src/cdp/dedicated-workers.ts";
 import type { CdpEvent, TargetState } from "../src/cdp/types.ts";
+import { NetworkEventTracker } from "../src/cdp/network-events.ts";
 import { learnedScriptsFor, type LearnedScripts } from "../src/eval/learned-scripts.ts";
 import type { PageScriptStub, UpstreamEventHandler } from "../src/eval/page-script.ts";
 
@@ -24,9 +26,15 @@ function installFor(isolateUrl: string) {
   const emitted: CdpEvent[] = [];
   const dedicatedWorkers = {
     ownerFor: (): WorkerOwner | null => null,
+    terminateFrame: () => {},
   } as Partial<DedicatedWorkers>;
   const ctx = {
-    browser: { wsClosing: false, learnedInsertedScripts: store, dedicatedWorkers },
+    browser: {
+      wsClosing: false,
+      learnedInsertedScripts: store,
+      dedicatedWorkers,
+      networkEvents: new NetworkEventTracker(() => {}, "test"),
+    },
     emit: (e: CdpEvent) => {
       emitted.push(e);
     },
@@ -145,4 +153,34 @@ describe("frame events while a navigate replaces the document", () => {
     expect(h.target.url).toBe("https://next.test/");
     expect(h.emitted).toEqual([]);
   });
+});
+
+it.each([
+  ["kitesurf.frameNavigated", { url: "https://attacker.test/" }],
+  ["kitesurf.frameLifecycle", { name: "load" }],
+  ["kitesurf.frameStoppedLoading", {}],
+  ["kitesurf.frameDetached", {}],
+] as const)("ignores %s naming the main frame", (event, params) => {
+  const url = "https://first.test/";
+  const h = installFor(url);
+  const frame = makeMainFrameState({ frameId: "F", loaderId: "L", url });
+  h.target.frames.set(frame.frameId, frame);
+  h.target.sessions.add("client");
+  // Avoid starting an OOPIF while exercising the unfixed cross-origin navigation.
+  frame.oopifSpawning = true;
+  h.send(event, { frameId: frame.frameId, ...params });
+  expect(frame).toMatchObject({
+    url,
+    securityOrigin: "https://first.test",
+    lifecycle: "init",
+    detached: false,
+  });
+  expect(h.emitted).toEqual([]);
+  h.send("kitesurf.frameAttached", { frameId: "child", url, ownerBackendNodeId: 7 });
+  h.emitted.length = 0;
+  h.send("kitesurf.frameNavigated", { frameId: "child", url: "https://first.test/next.html" });
+  expect(h.target.frames.get("child")?.url).toBe("https://first.test/next.html");
+  expect(
+    h.emitted.some((e) => e.method === "Page.frameNavigated" && e.params.frame.id === "child"),
+  ).toBe(true);
 });
