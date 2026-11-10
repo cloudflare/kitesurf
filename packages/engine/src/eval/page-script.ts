@@ -585,8 +585,8 @@ export function pageScriptResultToCdp(
 function consoleArgToRemote(arg: PackedResult): Protocol.Runtime.RemoteObject {
   const remote: Protocol.Runtime.RemoteObject = { type: arg.type };
   if (arg.subtype) remote.subtype = arg.subtype;
-  if (arg.className) remote.className = arg.className;
-  if (arg.description !== undefined) remote.description = arg.description;
+  if (typeof arg.className === "string" && arg.className) remote.className = arg.className;
+  if (typeof arg.description === "string") remote.description = arg.description;
   if (arg.valueJson !== undefined) {
     try {
       remote.value = JSON.parse(arg.valueJson);

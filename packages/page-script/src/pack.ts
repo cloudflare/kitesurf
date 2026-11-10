@@ -59,7 +59,8 @@ export function describe(value: unknown): string | undefined {
   if (sub === "function") {
     const MAX_FUNCTION_DESCRIPTION_CHARS = 200;
     try {
-      return (value as { toString(): string }).toString().slice(0, MAX_FUNCTION_DESCRIPTION_CHARS);
+      const text: unknown = (value as { toString(): unknown }).toString();
+      return typeof text === "string" ? text.slice(0, MAX_FUNCTION_DESCRIPTION_CHARS) : "function";
     } catch {
       return "function";
     }
@@ -69,12 +70,17 @@ export function describe(value: unknown): string | undefined {
     return "Array(" + len + ")";
   }
   if (sub === "object") {
-    if (value instanceof Error) {
-      return value.stack || value.name + ": " + value.message;
-    }
     try {
-      const ctor = (value as { constructor?: { name?: string } }).constructor;
-      return ctor?.name || "Object";
+      if (value instanceof Error) {
+        const stack = value.stack;
+        if (typeof stack === "string" && stack) return stack;
+        const name = value.name;
+        const message = value.message;
+        return `${typeof name === "string" ? name : "Error"}: ${typeof message === "string" ? message : ""}`;
+      }
+      const ctor = (value as { constructor?: { name?: unknown } }).constructor;
+      const name = ctor?.name;
+      return typeof name === "string" && name ? name : "Object";
     } catch {
       return "Object";
     }
@@ -94,7 +100,8 @@ export function packResult(
   if ((typeof value === "object" && value !== null) || typeof value === "function") {
     const fallback = sub === "array" ? "Array" : sub === "function" ? "Function" : "Object";
     try {
-      className = value.constructor?.name || fallback;
+      const name: unknown = value.constructor?.name;
+      className = typeof name === "string" && name ? name : fallback;
     } catch {
       className = fallback;
     }
@@ -158,7 +165,13 @@ export function packException(err: unknown): PackedException {
   } else {
     message = String(err);
   }
-  const className = err instanceof Error ? err.constructor?.name || "Error" : "Error";
+  let className = "Error";
+  if (err instanceof Error) {
+    try {
+      const name: unknown = err.constructor?.name;
+      if (typeof name === "string" && name) className = name;
+    } catch {}
+  }
   return {
     ok: false,
     exception: {
