@@ -11,7 +11,7 @@ import {
 } from "./observability.ts";
 import type { EngineCdpCommandExtension } from "./cdp/dispatch.ts";
 import type { ExternalOutbound } from "./eval/external-outbound.ts";
-import { inspectorBaseUrlOrNull } from "./inspector.ts";
+import { resolveInspectorBaseUrl } from "./inspector.ts";
 import { landingPage } from "./landing.ts";
 import type { RequestBlocker } from "./request-blocker.ts";
 import { MemorySessionStore, type SessionStore } from "./state/session-store.ts";
@@ -102,6 +102,6 @@ export function resolveConnectionOptions(
 export const DEFAULT_ENGINE_HOST: EngineHost = Object.freeze({
   serveFallback: async (url: URL, env: Env) => {
     if (url.pathname !== "/") return null;
-    return landingPage(url, inspectorBaseUrlOrNull(env));
+    return landingPage(url, await resolveInspectorBaseUrl(env));
   },
 });

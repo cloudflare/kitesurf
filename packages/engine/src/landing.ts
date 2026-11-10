@@ -40,12 +40,14 @@ function inspectSection(url: URL, base: string): string {
     const href = escapeHtml(inspectorTargetUrl(base, { url, host: url.host, initialUrl: page }));
     return `<li><a href="${href}">${escapeHtml(title)}</a> <code>${escapeHtml(page)}</code></li>`;
   }).join("\n");
-  // Chrome asks for local network access only when the frontend is on another origin.
+  // Chrome's Local Network Access gates only a frontend on another origin; since Chrome 145 a
+  // loopback engine needs that site's "apps on this device" permission.
   const frontendNote = base.startsWith("/")
     ? ""
     : `<p class="muted">DevTools loads from <code>${escapeHtml(new URL(absoluteInspectorBaseUrl(base, url.origin)).host)}</code>. ` +
-      "The first time it connects, Chrome can ask to access devices on your local network. " +
-      "Select <strong>Allow</strong>.</p>";
+      "The first time it connects, Chrome asks whether that site can access apps on this device. " +
+      "Select <strong>Allow</strong>. If DevTools says that the WebSocket disconnected, you blocked it: " +
+      "allow it again in the site settings of that page, then reconnect.</p>";
   return `<form class="omnibox" action="/" method="get" autocomplete="off">
 <label class="sr-only" for="inspect-url">Enter a URL to inspect</label>
 <input id="inspect-url" type="url" name="url" placeholder="Enter a URL to inspect" required spellcheck="false" autocapitalize="off">

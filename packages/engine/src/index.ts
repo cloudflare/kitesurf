@@ -10,7 +10,7 @@ import { armLocalTracing } from "./tracing-local.ts";
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { Hono, type Context, type ErrorHandler } from "hono";
 import { z } from "zod";
-import { inspectorBaseUrlOrNull, inspectorTargetUrl } from "./inspector.ts";
+import { inspectorTargetUrl, resolveInspectorBaseUrl } from "./inspector.ts";
 import { DEFAULT_ENGINE_HOST, type EngineHost } from "./host.ts";
 
 // Loopback service binding for PageScript subresource fetches.
@@ -146,7 +146,7 @@ app.get("/", async (c, next) => {
   const url = new URL(c.req.url);
   const query = inspectorQuery.parse(c.req.query());
   if (query.url === undefined && !query.inspect) return next();
-  const inspectorBase = inspectorBaseUrlOrNull(c.env.env);
+  const inspectorBase = await resolveInspectorBaseUrl(c.env.env);
   if (inspectorBase === null) {
     return new Response(
       "Inspector base URL not configured. Set the\n" +
@@ -186,12 +186,12 @@ function discoveryVersion(c: Context<EngineApp>): Response {
 app.get("/json/version", discoveryVersion);
 app.get("/json/version/", discoveryVersion);
 
-function discoveryList(c: Context<EngineApp>): Response {
+async function discoveryList(c: Context<EngineApp>): Promise<Response> {
   const url = new URL(c.req.url);
   const host = c.req.header("host") ?? url.host;
   const scheme = url.protocol === "https:" ? "wss" : "ws";
   const wsUrl = `${scheme}://${host}/devtools/page/kitesurf`;
-  const inspectorBase = inspectorBaseUrlOrNull(c.env.env);
+  const inspectorBase = await resolveInspectorBaseUrl(c.env.env);
   const entry: Record<string, unknown> = {
     id: "kitesurf",
     type: "page",

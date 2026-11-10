@@ -32,11 +32,13 @@
     "KITESURF_PAGE_CPU_MS_CAP": "",
     "KITESURF_PAGE_WALL_MS_CAP": "",
     "KITESURF_LAG_WATCHDOG": "",
-    // DevTools frontend for the `/?url=` shortcut and `/json/list`. It must accept
+    // DevTools frontend for the landing page, `/?url=` and `/json/list`. It must accept
     // `?wss=<endpoint>` or `?ws=<endpoint>`. Empty disables the web shortcut; Chrome
     // discovery falls back to its bundled frontend. A `--config=devtools` build serves
     // a same-origin copy: set the path `/inspector/inspector.html`.
     "KITESURF_INSPECTOR_BASE_URL": "",
+    // Replaces a path base that the assets do not have (src/inspector.ts). Empty: no fallback.
+    "KITESURF_INSPECTOR_FALLBACK_URL": "",
     // Web Bot Auth: origin of the key directory that publishes the public
     // half of the WEB_BOT_AUTH_JWK secret. Empty disables signing.
     "WEB_BOT_AUTH_SIGNATURE_AGENT": "",
@@ -63,10 +65,11 @@
         "KITESURF_PAGE_CPU_MS_CAP": "",
         "KITESURF_PAGE_WALL_MS_CAP": "",
         "KITESURF_LAG_WATCHDOG": "1",
-        // Chrome's hosted frontend at Chrome 156.0.8078.47 (chromiumdash `hashes.chromium`). Its
-        // CSP allows only `ws://127.0.0.1:*`, and Chrome asks once for local network access.
-        // With a --config=devtools build, pass the same-origin path with --var to override it.
-        "KITESURF_INSPECTOR_BASE_URL": "https://chrome-devtools-frontend.appspot.com/serve_rev/@1d17a2e2ee147bb7d6ae2ab6abdb3a2510c17775/inspector.html",
+        // The same-origin copy when a --config=devtools build staged it, else Chrome's hosted
+        // frontend at Chrome 156.0.8078.47 (chromiumdash `hashes.chromium`). The hosted CSP
+        // allows only `ws://127.0.0.1:*`, and Chrome asks once to allow access to this device.
+        "KITESURF_INSPECTOR_BASE_URL": "/inspector/inspector.html",
+        "KITESURF_INSPECTOR_FALLBACK_URL": "https://chrome-devtools-frontend.appspot.com/serve_rev/@1d17a2e2ee147bb7d6ae2ab6abdb3a2510c17775/inspector.html",
         "WEB_BOT_AUTH_SIGNATURE_AGENT": "",
         "KITESURF_OTLP_ENDPOINT": "http://localhost:4318/v1/traces",
       },

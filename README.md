@@ -95,11 +95,21 @@ page. To go to DevTools directly, open
 `http://127.0.0.1:8787/?url=https://example.com`, or
 `http://127.0.0.1:8787/?inspect=1` for a blank page.
 
-This DevTools frontend comes from `chrome-devtools-frontend.appspot.com`, the
-build that Google hosts for Chrome. The first time it connects, Chrome asks
-whether the site can access devices on your local network. Select **Allow**.
-The frontend can connect only to `127.0.0.1`, so the hosted frontend does not
-work with a deployed engine.
+If you built the bundled frontend, `pnpm run dev` serves it from the engine's
+own origin. See
+[Use the bundled DevTools frontend](#use-the-bundled-devtools-frontend).
+Otherwise, the DevTools frontend comes from
+`chrome-devtools-frontend.appspot.com`, the build that Google hosts for Chrome.
+The hosted frontend has these limits:
+
+- The first time it connects, Chrome asks whether
+  `chrome-devtools-frontend.appspot.com` can access apps on this device. Select
+  **Allow**.
+- If you block this access, DevTools says that the WebSocket disconnected. To
+  allow it again, click the site information icon to the left of the address.
+  Then allow the access and reconnect DevTools.
+- The frontend can connect only to `127.0.0.1`. Thus it does not work with a
+  deployed engine.
 
 You can also use `chrome://inspect`:
 
@@ -154,13 +164,8 @@ frontend off, remove the line from `.bazelrc.user`.
 #### Run the frontend locally
 
 1. Build the frontend as described above.
-2. Start the engine and point its inspector routes at the frontend. This
-   replaces the hosted frontend that `pnpm run dev` uses by default.
-
-   ```bash
-   pnpm run dev --var KITESURF_INSPECTOR_BASE_URL:/inspector/inspector.html
-   ```
-
+2. Start the engine with `pnpm run dev`. The engine serves the bundled frontend
+   when the build includes it, and the hosted frontend when it does not.
 3. Open `http://127.0.0.1:8787/` in Chrome. Enter a URL to inspect, or select
    one of the example pages. DevTools opens in the tab on that page.
 
@@ -198,7 +203,7 @@ Two pins select the frontend version:
 - `DEVTOOLS_FRONTEND_REV` and the values after it in `MODULE.bazel` select the
   bundled frontend. The comment above them tells you how to select a new
   snapshot.
-- `KITESURF_INSPECTOR_BASE_URL` in the `local` environment of
+- `KITESURF_INSPECTOR_FALLBACK_URL` in the `local` environment of
   `packages/engine/wrangler.jsonc` selects the hosted frontend. Use the
   Chrome commit that
   `https://chromiumdash.appspot.com/fetch_version?version=<chrome-version>`

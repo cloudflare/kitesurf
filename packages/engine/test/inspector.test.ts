@@ -7,6 +7,7 @@ import {
   absoluteInspectorBaseUrl,
   inspectorBaseUrlOrNull,
   inspectorTargetUrl,
+  resolveInspectorBaseUrl,
 } from "../src/inspector.ts";
 
 describe("inspectorBaseUrlOrNull", () => {
@@ -101,5 +102,78 @@ describe("inspectorTargetUrl", () => {
       "ks.invalid/devtools/page/kitesurf?initialUrl=" +
         encodeURIComponent("https://example.com/?a=1&b=2"),
     );
+  });
+});
+
+describe("resolveInspectorBaseUrl", () => {
+  const bundled = "/inspector/inspector.html";
+  const hosted = "https://chrome-devtools-frontend.appspot.com/serve_rev/@abc/inspector.html";
+
+  function assets(answer: number | Error) {
+    const requests: Request[] = [];
+    return {
+      requests,
+      fetch: async (request: Request) => {
+        requests.push(request);
+        if (answer instanceof Error) throw answer;
+        return new Response(null, { status: answer });
+      },
+    };
+  }
+
+  it("never reads the assets without a fallback, or for a hosted base", async () => {
+    const store = assets(404);
+    expect(
+      await resolveInspectorBaseUrl({ KITESURF_INSPECTOR_BASE_URL: bundled, FONT_ASSETS: store }),
+    ).toBe(bundled);
+    expect(
+      await resolveInspectorBaseUrl({
+        KITESURF_INSPECTOR_BASE_URL: hosted,
+        KITESURF_INSPECTOR_FALLBACK_URL: "https://example.com/devtools",
+        FONT_ASSETS: store,
+      }),
+    ).toBe(hosted);
+    expect(store.requests).toHaveLength(0);
+  });
+
+  it("keeps a path base that the assets serve, also behind the .html redirect", async () => {
+    for (const status of [200, 307]) {
+      const store = assets(status);
+      expect(
+        await resolveInspectorBaseUrl({
+          KITESURF_INSPECTOR_BASE_URL: bundled,
+          KITESURF_INSPECTOR_FALLBACK_URL: hosted,
+          FONT_ASSETS: store,
+        }),
+        String(status),
+      ).toBe(bundled);
+      expect(store.requests[0]?.method).toBe("HEAD");
+      expect(new URL(store.requests[0]?.url ?? "").pathname).toBe(bundled);
+    }
+  });
+
+  it("uses the fallback when the assets lack the base or cannot answer", async () => {
+    for (const store of [assets(404), assets(new Error("boom"))]) {
+      expect(
+        await resolveInspectorBaseUrl({
+          KITESURF_INSPECTOR_BASE_URL: bundled,
+          KITESURF_INSPECTOR_FALLBACK_URL: hosted,
+          FONT_ASSETS: store,
+        }),
+      ).toBe(hosted);
+    }
+    expect(await resolveInspectorBaseUrl({ KITESURF_INSPECTOR_FALLBACK_URL: hosted })).toBe(hosted);
+  });
+
+  it("reads the assets once per binding", async () => {
+    const store = assets(404);
+    const env = {
+      KITESURF_INSPECTOR_BASE_URL: bundled,
+      KITESURF_INSPECTOR_FALLBACK_URL: hosted,
+      FONT_ASSETS: store,
+    };
+    await resolveInspectorBaseUrl(env);
+    await resolveInspectorBaseUrl(env);
+    expect(store.requests).toHaveLength(1);
   });
 });
