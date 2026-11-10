@@ -750,6 +750,7 @@ export async function handlePage(
             ? {
                 initiatorOrigin: ksInitiatorOrigin === "null" ? null : ksInitiatorOrigin,
                 topLevel: true,
+                method: ksPostData !== null ? "POST" : "GET",
               }
             : undefined,
         );
@@ -842,10 +843,10 @@ export async function handlePage(
               "x-kitesurf-network-id": loaderId,
             },
             taintOriginFrom: ksPostData !== null ? (ksInitiatorOrigin ?? undefined) : undefined,
-            cookieHeaderFor: (hopUrl) =>
+            cookieHeaderFor: (hopUrl, method) =>
               jarForTarget(ctx, target).cookieHeaderForUrl(
                 hopUrl,
-                chainLeftSite ? { initiatorOrigin: null, topLevel: true } : undefined,
+                chainLeftSite ? { initiatorOrigin: null, topLevel: true, method } : undefined,
               ),
             onSetCookie: (hopUrl, hopResp) => {
               for (const sc of readSetCookieHeaders(hopResp)) {

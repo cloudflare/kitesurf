@@ -26,7 +26,7 @@ export interface RedirectWalkOptions {
   readonly fetchHop: (req: Request) => Promise<Response>;
   readonly signal?: AbortSignal | undefined;
   readonly maxHops?: number;
-  readonly cookieHeaderFor?: (url: string) => string | null | undefined;
+  readonly cookieHeaderFor?: (url: string, method: "GET" | "POST") => string | null | undefined;
   readonly onSetCookie?: (url: string, resp: Response) => void;
   readonly onRedirect?: (hop: RedirectHop) => void;
   // Vets each redirect target before it is fetched: the url to fetch (an upgraded one, say), or
@@ -100,7 +100,7 @@ export async function walkRedirects(opts: RedirectWalkOptions): Promise<Redirect
     opts.signal?.throwIfAborted?.();
 
     if (opts.cookieHeaderFor) {
-      const cookie = opts.cookieHeaderFor(currentUrl);
+      const cookie = opts.cookieHeaderFor(currentUrl, method);
       deleteHeader(headers, "cookie");
       if (cookie) headers.cookie = cookie;
       else if (callerCookie !== undefined) headers.cookie = callerCookie;
