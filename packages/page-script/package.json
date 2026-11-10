@@ -15,7 +15,8 @@
     "./message-channel": "./src/message-channel.ts",
     "./session-outbound": "./src/session-outbound.ts",
     "./shared-memory": "./src/shared-memory.ts",
-    "./state": "./src/state.ts"
+    "./state": "./src/state.ts",
+    "./tail-channel": "./src/tail-channel.ts"
   },
   "scripts": {
     "build": "node scripts/build.mjs",

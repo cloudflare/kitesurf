@@ -27,11 +27,14 @@ describe("page-script engine error channel", () => {
     const capture = (...args: unknown[]) => seenByPage.push(...args);
     console.error = capture;
     console.log = capture;
+    const realStringify = JSON.stringify;
+    JSON.stringify = (value: unknown) => (seenByPage.push(value), realStringify(value));
 
     writeEngineErrorLine({ origin: "shim", message: "boom" });
     writeIsolateKillLine("[ks-kill]", "generation retired");
     console.error = nativeError;
     console.log = nativeLog;
+    JSON.stringify = realStringify;
 
     expect(seenByPage).toEqual([]);
     expect(String(nativeError.mock.calls[0]?.[0])).toContain(`"token":"${TOKEN}"`);
