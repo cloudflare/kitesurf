@@ -111,7 +111,7 @@ import { emitSessionStart } from "../observability.ts";
 import type { CallerOutboundProps, SandboxOutboundOverride } from "../eval/outbound.ts";
 import { getOutboundInflight } from "../eval/outbound.ts";
 import { walkRedirects } from "../eval/redirect-walk.ts";
-import { siteKey } from "../public-suffix.ts";
+import { schemefulSite } from "../public-suffix.ts";
 import { PageRendererManager, withTimeout } from "../eval/page-renderer.ts";
 import { headersToRecord, type NetworkEventTracker } from "./network-events.ts";
 import { effectiveExtraHeaders } from "./network.ts";
@@ -226,15 +226,6 @@ function partialKeyFor(ctx: DispatchCtx, target: TargetState): string | undefine
   if (ctx.browser.skipPartialRaster) return undefined;
   // Scope retained pixels to this target and its current document generation.
   return `${target.targetId}:${target.navigateGeneration}`;
-}
-
-function hostOfUrl(url: string): string | null {
-  try {
-    const h = new URL(url).hostname;
-    return h === "" ? null : h.toLowerCase();
-  } catch {
-    return null;
-  }
 }
 
 /** The URL's tuple origin, or null when it has none (opaque or unparsable). */
@@ -736,7 +727,7 @@ export async function handlePage(
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
           accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         };
-        // A page-started navigation carries the initiating document's host,
+        // A page-started navigation carries the initiating document's origin,
         // so SameSite=Strict is withheld on a cross-site top-level navigation
         // just as it is in a browser. CDP-started navigations have no
         // initiator and keep the existing same-site behavior.
@@ -744,7 +735,6 @@ export async function handlePage(
           typeof ksParams?._kitesurfInitiatorOrigin === "string"
             ? ksParams._kitesurfInitiatorOrigin
             : null;
-        const ksInitiatorHost = ksInitiatorOrigin ? hostOfUrl(ksInitiatorOrigin) : null;
         const navExtraHeaders = navigationExtraHeaders(
           effectiveExtraHeaders(target),
           ksInitiatorOrigin,
@@ -752,7 +742,9 @@ export async function handlePage(
         );
         const cookieHeader = jarForTarget(ctx, target).cookieHeaderForUrl(
           url,
-          ksInitiatorHost ? { initiatorHost: ksInitiatorHost, topLevel: true } : undefined,
+          ksInitiatorOrigin !== null
+            ? { initiatorOrigin: ksInitiatorOrigin, topLevel: true }
+            : undefined,
         );
         if (cookieHeader) reqHeaders.cookie = cookieHeader;
 
@@ -811,11 +803,11 @@ export async function handlePage(
         });
         abortP.catch(() => {});
         let currentUrl = url;
-        const initialHost = hostOfUrl(url);
+        const initialSite = schemefulSite(url);
+        const initiatorSite = ksInitiatorOrigin === null ? null : schemefulSite(ksInitiatorOrigin);
         let chainLeftSite =
-          ksInitiatorHost !== null &&
-          initialHost !== null &&
-          siteKey(ksInitiatorHost) !== siteKey(initialHost);
+          ksInitiatorOrigin !== null &&
+          (initiatorSite === null || initialSite === null || initiatorSite !== initialSite);
         let hopBody: Uint8Array | undefined;
         if (ksPostData !== null) {
           hopBody = new Uint8Array(ksPostData.length);
@@ -840,7 +832,7 @@ export async function handlePage(
             cookieHeaderFor: (hopUrl) =>
               jarForTarget(ctx, target).cookieHeaderForUrl(
                 hopUrl,
-                chainLeftSite ? { initiatorHost: null, topLevel: true } : undefined,
+                chainLeftSite ? { initiatorOrigin: null, topLevel: true } : undefined,
               ),
             onSetCookie: (hopUrl, hopResp) => {
               for (const sc of readSetCookieHeaders(hopResp)) {
@@ -849,9 +841,9 @@ export async function handlePage(
             },
             onRedirect: (hop) => {
               if (!chainLeftSite) {
-                const from = hostOfUrl(hop.fromUrl);
-                const to = hostOfUrl(hop.newUrl);
-                if (from === null || to === null || siteKey(from) !== siteKey(to)) {
+                const from = schemefulSite(hop.fromUrl);
+                const to = schemefulSite(hop.newUrl);
+                if (from === null || to === null || from !== to) {
                   chainLeftSite = true;
                 }
               }
@@ -3640,13 +3632,7 @@ function refuseBlockedFrame(ctx: DispatchCtx, target: TargetState, f: FrameState
 // ancestor is same-site with it, else none, which the cookie jar treats as cross-site with every
 // host. The frame's own requests also check its document (frameDocumentCookieSite).
 export function frameCookieSiteOrigin(target: TargetState, frame: FrameState): string {
-  const siteOf = (url: string): string | null => {
-    try {
-      return siteKey(new URL(url).hostname);
-    } catch {
-      return null;
-    }
-  };
+  const siteOf = (url: string): string | null => schemefulSite(url);
   const topSite = siteOf(target.url);
   for (let f = target.frames.get(frame.parentFrameId ?? ""); f;) {
     if (f.parentFrameId === null) break;

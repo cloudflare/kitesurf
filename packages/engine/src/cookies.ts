@@ -4,7 +4,7 @@
 
 // Stores page cookies and selects entries for requests and document.cookie reads.
 
-import { isIpHost, isPublicSuffix, siteKey } from "./public-suffix.ts";
+import { isIpHost, isPublicSuffix, schemefulSite } from "./public-suffix.ts";
 
 const MAX_COOKIE_BYTES = 4096;
 const MAX_COOKIES_PER_HOST = 180;
@@ -25,7 +25,7 @@ export interface CookieEntry {
 }
 
 export interface RequestContext {
-  initiatorHost: string | null;
+  initiatorOrigin: string | null;
   topLevel?: boolean;
 }
 
@@ -178,10 +178,11 @@ export function createCookieJar(): CookieJar {
   function getForUrl(urlStr: string, ctx?: RequestContext): CookieEntry[] {
     const parts = urlParts(urlStr);
     if (!parts) return [];
+    const initiatorSite = ctx?.initiatorOrigin ? schemefulSite(ctx.initiatorOrigin) : null;
+    const targetSite = schemefulSite(urlStr);
     const crossSite =
       ctx !== undefined &&
-      (ctx.initiatorHost === null ||
-        siteKey(ctx.initiatorHost.toLowerCase()) !== siteKey(parts.host));
+      (initiatorSite === null || targetSite === null || initiatorSite !== targetSite);
     const strictOnly = crossSite && ctx?.topLevel === true;
     const matched = candidateEntries(parts.host).filter((c) => {
       if (strictOnly && c.sameSite === "Strict") return false;

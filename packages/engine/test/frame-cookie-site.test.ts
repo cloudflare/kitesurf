@@ -95,6 +95,13 @@ describe("an out-of-process frame's SameSite context", () => {
     });
   });
 
+  it("withholds same-site cookies across schemes on an iframe document", async () => {
+    expect(await frameDocumentCookies("http://www.frame.test")).toEqual({
+      names: ["none"],
+      spawnedSite: "",
+    });
+  });
+
   it("keeps the top site's SameSite=Strict and Lax cookies off a cross-site frame's requests", async () => {
     await frameDocumentCookies("https://top.test");
     const jar = createCookieJar();
@@ -134,6 +141,9 @@ describe("frameDocumentCookieSite", () => {
   it.each([
     ["https://top.test", "https://frame.test/", ""],
     ["https://top.test", "https://a.top.test/x", "https://top.test"],
+    ["https://top.test", "https://a.top.test:8443/x", "https://top.test"],
+    ["https://top.test", "http://www.top.test/x", ""],
+    ["data:text/html,top", "https://top.test/", ""],
     ["https://top.test", "about:srcdoc", ""],
     ["", "https://top.test/", ""],
   ])("under the request site %j, a document at %j has the site %j", (site, url, expected) => {
@@ -176,8 +186,11 @@ describe("frameCookieSiteOrigin", () => {
   it.each([
     ["https://top.test/", ["https://frame.test/"], "https://top.test"],
     ["https://top.test/", ["https://a.top.test/", "https://frame.test/"], "https://top.test"],
+    ["https://top.test/", ["https://a.top.test:8443/", "https://frame.test/"], "https://top.test"],
+    ["https://top.test/", ["http://www.top.test/", "https://frame.test/"], ""],
     ["https://top.test/", ["https://other.test/", "https://top.test/x"], ""],
     ["https://top.test/", ["about:srcdoc", "https://frame.test/"], "https://top.test"],
+    ["https://top.test/", ["about:blank", "https://frame.test/"], "https://top.test"],
     ["data:text/html,top", ["https://frame.test/"], ""],
   ])("under %s, a frame below %j has the site %j", (top, chain, site) => {
     expect(frames(top, chain)).toBe(site);

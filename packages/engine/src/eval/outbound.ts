@@ -394,13 +394,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       : headerOrigin === "null"
         ? ""
         : headerOrigin;
-    let cookieInitiatorHost: string | null = null;
-    if (cookieOriginSource) {
-      try {
-        cookieInitiatorHost = new URL(cookieOriginSource).hostname;
-      } catch {}
-    }
-    const cookieContext = { initiatorHost: cookieInitiatorHost };
+    const cookieContext = { initiatorOrigin: cookieOriginSource || null };
 
     const opaqueOrigin = !pageOrigin;
 
