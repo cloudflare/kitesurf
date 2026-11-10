@@ -20,6 +20,7 @@ import {
   takeInlineModuleSource,
 } from "./scripts.ts";
 import {
+  insertedRedirectGate,
   insertedResponseAllowed,
   insertedScriptAllowed,
   reportBlocked,
@@ -239,7 +240,12 @@ async function fetchGatedModuleSourceOnce(
     reportBlocked(pre);
     throw new Error(pre.message ?? "module blocked by policy");
   }
-  const response = await fetchInsertedScript(pre.upgradeTo ?? url, "");
+  const redirects = insertedRedirectGate(meta);
+  const response = await fetchInsertedScript(pre.upgradeTo ?? url, "", redirects.check);
+  if (redirects.refusal) {
+    reportBlocked(redirects.refusal);
+    throw new Error(redirects.refusal.message ?? "module blocked by policy");
+  }
   if (response.status === 0) throw new Error(`fetch(${url}) failed`);
   if (response.status >= 400) throw new Error(`fetch(${url}) HTTP ${response.status}`);
   const post = await insertedResponseAllowed(
@@ -355,7 +361,16 @@ export function runInsertedExternalScript(info: InsertedScriptInfo): void {
         reportBlocked(pre);
         throw new Error(pre.reason ?? "blocked by policy");
       }
-      const response = await fetchInsertedScript(pre.upgradeTo ?? url, info.crossOrigin ?? null);
+      const redirects = insertedRedirectGate(meta);
+      const response = await fetchInsertedScript(
+        pre.upgradeTo ?? url,
+        info.crossOrigin ?? null,
+        redirects.check,
+      );
+      if (redirects.refusal) {
+        reportBlocked(redirects.refusal);
+        throw new Error(redirects.refusal.reason ?? "blocked by policy");
+      }
       if (response.status === 0) {
         // Suppress the script error event for no-response fetches: Next's chunk loader
         // can turn it into a fatal ChunkLoadError and discard usable SSR markup.
