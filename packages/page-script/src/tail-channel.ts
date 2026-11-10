@@ -13,6 +13,8 @@ const nativeLog: (...a: unknown[]) => void =
   typeof console?.log === "function" ? console.log.bind(console) : () => {};
 const nativeError: (...a: unknown[]) => void =
   typeof console?.error === "function" ? console.error.bind(console) : nativeLog;
+// Page JS can replace JSON.stringify too, and would then see the token in its argument.
+const stringify = JSON.stringify;
 
 export function setTailToken(token: unknown): void {
   if (typeof token === "string" && token) tailToken = token;
@@ -25,5 +27,5 @@ export function writeIsolateKillLine(marker: string, reason: string): void {
 
 /** Writes a `[ks-err]` report carrying the token ahead of `fields`. */
 export function writeEngineErrorLine(fields: Record<string, unknown>): void {
-  nativeError("[ks-err] " + JSON.stringify({ token: tailToken, ...fields }));
+  nativeError("[ks-err] " + stringify({ token: tailToken, ...fields }));
 }

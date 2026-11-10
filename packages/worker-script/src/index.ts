@@ -22,6 +22,8 @@ import {
   type OutboundStub,
 } from "@kitesurf/page-script/session-outbound";
 import { state } from "@kitesurf/page-script/state";
+// Imported statically so it binds the native console before the page's worker script loads.
+import { setTailToken, writeIsolateKillLine } from "@kitesurf/page-script/tail-channel";
 import {
   deliverToScope,
   errorInfo,
@@ -48,8 +50,8 @@ interface DedicatedWorkerProps {
 export class DedicatedWorker extends WorkerEntrypoint<unknown, DedicatedWorkerProps> {
   killIsolate(reason?: string): void {
     const why = reason || "worker terminated";
-    const token = this.ctx.props?.KS_TAIL_TOKEN;
-    if (typeof token === "string" && token) console.log(`${ISOLATE_KILL_MARKER} ${token} ${why}`);
+    setTailToken(this.ctx.props?.KS_TAIL_TOKEN);
+    writeIsolateKillLine(ISOLATE_KILL_MARKER, why);
     abortIsolate(`kitesurf: ${why}`);
   }
 
