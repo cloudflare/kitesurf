@@ -6,12 +6,15 @@ import type { CDPSession } from "@cloudflare/puppeteer";
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
 
-const CHILD = "http://127.0.0.1:8787/__fixtures/oopif-child-postmessage.html";
+// A cross-site child on another public host: a public or opaque parent may not reach loopback
+// (Private Network Access), so the child cannot live on 127.0.0.1.
+const CHILD_ORIGIN = "https://oopif.invalid";
+const CHILD = `${CHILD_ORIGIN}/__fixtures/oopif-child-postmessage.html`;
 
 function childContexts(cdp: CDPSession): number[] {
   const ids: number[] = [];
   cdp.on("Runtime.executionContextCreated", (e) => {
-    if (e.context.origin === "http://127.0.0.1:8787") ids.push(e.context.id);
+    if (e.context.origin === CHILD_ORIGIN) ids.push(e.context.id);
   });
   return ids;
 }
