@@ -60,6 +60,7 @@ import {
 } from "../eval/walk-module-graph.ts";
 import { traceSpan, redactUrl } from "../tracing.ts";
 import { makeWallClock } from "../eval/host-clock.ts";
+import { htmlTagSpans, removeHtmlTagSpans } from "../eval/html-tag-spans.ts";
 import { DiagSpanTracker } from "./diag-spans.ts";
 import { registerTailTrace } from "../eval/tail-trace-registry.ts";
 import { buildScriptBundle, insertedSourceDigests } from "../eval/script-bundle.ts";
@@ -1018,7 +1019,7 @@ export async function handlePage(
 
         let inlinedPageHtml = pageHtml;
         if (target.docScan) {
-          inlinedPageHtml = pageHtml.replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript\s*>/gi, "");
+          inlinedPageHtml = removeHtmlTagSpans(pageHtml, htmlTagSpans(pageHtml, "noscript", true));
         }
 
         // One admission owner for every child frame and child DOM this navigation retains,
@@ -3092,7 +3093,6 @@ function escapeHtml(s: string): string {
   return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
-const SVG_BREAKOUT_META = /<meta\b[^>]*?\/?>/gi;
 function svgRootStart(source: string): number {
   let at = 0;
   while (at < source.length) {
@@ -3135,11 +3135,9 @@ function svgDocumentHtml(svgSource: string, viewport: { width: number; height: n
   const rootStart = svgRootStart(svgSource);
   let svg = rootStart >= 0 ? svgSource.slice(rootStart) : svgSource;
 
-  const lifted: string[] = [];
-  svg = svg.replace(SVG_BREAKOUT_META, (m) => {
-    lifted.push(m);
-    return "";
-  });
+  const spans = htmlTagSpans(svg, "meta", false);
+  const lifted = spans.map(([start, end]) => svg.slice(start, end));
+  svg = removeHtmlTagSpans(svg, spans);
 
   let rootTag = svg.slice(0, svg.indexOf(">") + 1 || undefined);
 
@@ -4943,11 +4941,9 @@ async function loadChildFrame(
 }
 
 function stripIframeScripts(html: string, url: string): { html: string; count: number } {
-  let count = 0;
-  const stripped = html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, () => {
-    count++;
-    return "";
-  });
+  const spans = htmlTagSpans(html, "script", true);
+  const count = spans.length;
+  const stripped = removeHtmlTagSpans(html, spans);
   if (count > 0) {
     console.warn(
       `[kitesurf-iframe] stripped ${count} <script> tag(s) from ${url} ` +
