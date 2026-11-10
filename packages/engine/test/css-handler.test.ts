@@ -3,7 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { handleCss } from "../src/cdp/css.ts";
+import { handleCss, syncStyleSheetsFromEnumeration } from "../src/cdp/css.ts";
 import { ensureInterception, unregisterInterception } from "../src/cdp/fetch-interception.ts";
 import { registerOutboundFilters } from "../src/cdp/outbound-filter-registry.ts";
 import {
@@ -12,7 +12,7 @@ import {
   type SandboxOutboundExports,
 } from "../src/eval/outbound.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
-import type { CdpParamsOf, CdpRequest, TargetState } from "../src/cdp/types.ts";
+import type { CdpParamsOf, CdpRequest, CdpResultOf, TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
 
@@ -187,6 +187,44 @@ describe("CSS replies from the isolate", () => {
       [{ name: "color", value: "red" }],
     ]);
     expect(computed.computedStyle).toEqual([{ name: "color", value: "red" }]);
+  });
+});
+
+describe("CSS.getMatchedStylesForNode source ranges", () => {
+  async function ranges(text: string, line: number, count: number) {
+    const rules = Array.from({ length: count }, (_, i) => ({
+      selector_text: "a",
+      declarations: [{ name: "--x", value: "1" }],
+      source_line: line + i,
+    }));
+    const stub = makeStub({
+      enumerateStyleSheets: { sheets: [{ ownerNodeId: 2, text }] },
+      parseStyleSheet: { sheet: { rules } } as QueryDomResult<"parseStyleSheet">,
+      matchSelectorList: { matches: [0] } as QueryDomResult<"matchSelectorList">,
+    });
+    const target = makeTarget(stub);
+    target.nextStyleSheetRev = new Map();
+    await syncStyleSheetsFromEnumeration(makeCtx(target), target, stub);
+    const m = (
+      (await handleCss(makeCtx(target), {
+        id: 1,
+        method: "CSS.getMatchedStylesForNode",
+        params: { nodeId: 5 },
+      } as CdpRequest)) as CdpResultOf<"CSS.getMatchedStylesForNode">
+    ).matchedCSSRules?.[0];
+    const s = m?.rule.style;
+    const sel = m?.rule.selectorList.selectors[0];
+    return [s?.range, sel?.range, s?.cssProperties[0]?.range].flatMap((x) =>
+      x ? [x.startLine, x.startColumn, x.endLine, x.endColumn] : [null],
+    );
+  }
+  it.each([
+    ["CR, FF, escapes", "\r\f\\(\\{\\,{x:a\\;b}", 2, 1, [2, 6, 2, 14, 2, 0, 2, 6, 2, 7, 2, 13]],
+    ["8000 escaped", ".a\\( {x:1}\n", 0, 8000, [0, 5, 0, 10, 0, 0, 0, 4, 0, 6, 0, 9]],
+  ])("maps %s to body, selector and declaration ranges", async (_, unit, line, count, expected) => {
+    const start = performance.now();
+    expect(await ranges(unit.repeat(count), line, count)).toEqual(expected);
+    if (count > 1) expect(performance.now() - start).toBeLessThan(250);
   });
 });
 

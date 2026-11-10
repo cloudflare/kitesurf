@@ -811,7 +811,13 @@ function emptyRangeInfo(): ParsedStyleSheet["ranges"][number] {
 function computeLineStarts(text: string): number[] {
   const starts = [0];
   for (let i = 0; i < text.length; i++) {
-    if (text.charCodeAt(i) === 10) starts.push(i + 1);
+    const c = text.charCodeAt(i);
+    if (c === 13) {
+      if (text.charCodeAt(i + 1) === 10) i++;
+      starts.push(i + 1);
+    } else if (c === 10 || c === 12) {
+      starts.push(i + 1);
+    }
   }
   return starts;
 }
@@ -853,6 +859,10 @@ function findCharAtDepth(text: string, from: number, target: string): number {
       quote = c;
       continue;
     }
+    if (c === "\\") {
+      i++;
+      continue;
+    }
     if (c === "/" && text[i + 1] === "*") {
       const end = text.indexOf("*/", i + 2);
       if (end < 0) return -1;
@@ -887,6 +897,10 @@ function findMatchingBrace(text: string, openIdx: number): number {
     }
     if (c === '"' || c === "'") {
       quote = c;
+      continue;
+    }
+    if (c === "\\") {
+      i++;
       continue;
     }
     if (c === "/" && text[i + 1] === "*") {
@@ -935,6 +949,10 @@ function splitSelectorRanges(
     }
     if (c === '"' || c === "'") {
       quote = c;
+      continue;
+    }
+    if (c === "\\") {
+      i++;
       continue;
     }
     if (c === "(" || c === "[") {
@@ -993,6 +1011,10 @@ function splitDeclarationRanges(
     }
     if (c === '"' || c === "'") {
       quote = c;
+      continue;
+    }
+    if (c === "\\") {
+      i++;
       continue;
     }
     if (c === "(" || c === "[" || c === "{") {
@@ -1105,6 +1127,10 @@ function splitTopLevelCommas(text: string): string[] {
     }
     if (c === '"' || c === "'") {
       quote = c;
+      continue;
+    }
+    if (c === "\\") {
+      i++;
       continue;
     }
     if (c === "(" || c === "[") {

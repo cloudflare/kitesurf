@@ -23,6 +23,10 @@ export function splitSelectorList(text: string): string[] {
       quote = character;
       continue;
     }
+    if (character === "\\") {
+      i++;
+      continue;
+    }
     if (character === "(" || character === "[") {
       depth++;
       continue;
