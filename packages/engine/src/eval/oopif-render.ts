@@ -22,7 +22,7 @@ import { disposeStub } from "../cdp/page-script-generation.ts";
 import { walkRedirects } from "./redirect-walk.ts";
 import { MAX_DOCUMENT_BYTES, readCappedText } from "../read-capped.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
-import { siteKey } from "../public-suffix.ts";
+import { schemefulSite } from "../public-suffix.ts";
 
 const OOPIF_DOC_WALK_BUDGET_MS = 15_000;
 
@@ -86,12 +86,8 @@ export function frameDocumentCookieSite(
   documentUrl: string,
 ): string | undefined {
   if (!requestSite) return requestSite;
-  try {
-    const top = siteKey(new URL(requestSite).hostname);
-    return siteKey(new URL(documentUrl).hostname) === top ? requestSite : "";
-  } catch {
-    return "";
-  }
+  const top = schemefulSite(requestSite);
+  return top !== null && top === schemefulSite(documentUrl) ? requestSite : "";
 }
 
 function prepareFrameIsolate(stub: PageScriptStub, args: RenderFrameArgs): Promise<void> {

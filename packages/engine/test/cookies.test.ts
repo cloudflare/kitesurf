@@ -5,6 +5,7 @@
 import { describe, it, expect } from "vitest";
 
 import { createCookieJar, entryToCdp, setCdpCookie } from "../src/cookies.ts";
+import { schemefulSite } from "../src/public-suffix.ts";
 
 const HTTPS = "https://app.example.com/x";
 
@@ -201,9 +202,19 @@ describe("Secure", () => {
 });
 
 describe("SameSite", () => {
-  const CROSS = { initiatorHost: "attacker.net" };
-  const SAME_SITE = { initiatorHost: "other.example.com" };
-  const OPAQUE = { initiatorHost: null };
+  const CROSS = { initiatorOrigin: "https://attacker.net" };
+  const SAME_SITE = { initiatorOrigin: "https://other.example.com" };
+  const OPAQUE = { initiatorOrigin: null };
+
+  it.each([
+    ["ws://other.example.com:8080/", "http://example.com"],
+    ["wss://other.example.com:8443/", "https://example.com"],
+    ["data:text/html,top", null],
+    ["file:///example.com", null],
+    ["not a url", null],
+  ])("maps %s to its schemeful site", (url, site) => {
+    expect(schemefulSite(url)).toBe(site);
+  });
 
   it("withholds Strict, Lax and unspecified from a cross-site subrequest", () => {
     const jar = createCookieJar();
@@ -223,6 +234,25 @@ describe("SameSite", () => {
     const jar = createCookieJar();
     jar.setFromHeader(HTTPS, "s=1; SameSite=Strict");
     expect(jar.cookieHeaderForUrl(HTTPS, SAME_SITE)).toBe("s=1");
+  });
+
+  it.each([
+    ["an HTTP sibling", { initiatorOrigin: "http://other.example.com" }, "n=1"],
+    [
+      "an HTTPS sibling on another port",
+      { initiatorOrigin: "https://other.example.com:8443" },
+      "s=1; l=1; d=1; n=1",
+    ],
+    ["an opaque initiator", { initiatorOrigin: null }, "n=1"],
+    ["an omitted context", undefined, "s=1; l=1; d=1; n=1"],
+  ])("compares schemeful sites for %s", (_label, ctx, expected) => {
+    const jar = createCookieJar();
+    const victim = "https://victim.example.com/";
+    jar.setFromHeader(victim, "s=1; SameSite=Strict");
+    jar.setFromHeader(victim, "l=1; SameSite=Lax");
+    jar.setFromHeader(victim, "d=1");
+    jar.setFromHeader(victim, "n=1; SameSite=None; Secure");
+    expect(jar.cookieHeaderForUrl(victim, ctx)).toBe(expected);
   });
 
   it("an opaque initiator is same-site with nothing", () => {
@@ -512,9 +542,11 @@ describe("private public suffixes", () => {
   it("treats two tenants as different sites", () => {
     const jar = createCookieJar();
     jar.setFromHeader("https://b.github.io/x", "lax=1; SameSite=Lax");
-    expect(jar.getForUrl("https://b.github.io/", { initiatorHost: "a.github.io" })).toEqual([]);
-    expect(jar.getForUrl("https://b.github.io/", { initiatorHost: "www.b.github.io" }).length).toBe(
-      1,
-    );
+    expect(
+      jar.getForUrl("https://b.github.io/", { initiatorOrigin: "https://a.github.io" }),
+    ).toEqual([]);
+    expect(
+      jar.getForUrl("https://b.github.io/", { initiatorOrigin: "https://www.b.github.io" }).length,
+    ).toBe(1);
   });
 });

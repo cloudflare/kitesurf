@@ -86,6 +86,18 @@ export function siteKey(host: string): string {
   return labels.slice(-take).join(".");
 }
 
+export function schemefulSite(raw: string | URL): string | null {
+  try {
+    const url = typeof raw === "string" ? new URL(raw) : raw;
+    const scheme =
+      url.protocol === "ws:" ? "http:" : url.protocol === "wss:" ? "https:" : url.protocol;
+    if ((scheme !== "http:" && scheme !== "https:") || !url.hostname) return null;
+    return `${scheme}//${siteKey(url.hostname)}`;
+  } catch {
+    return null;
+  }
+}
+
 export function isPublicSuffix(domain: string): boolean {
   const h = domain.toLowerCase().replace(/\.$/, "").replace(/^\./, "");
   if (!h) return true;
