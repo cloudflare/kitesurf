@@ -385,11 +385,20 @@ export function createCookieJar(): CookieJar {
 
     if (fromScript && shadowsHttpOnly(entry)) return null;
 
-    const prev = existing(entry);
-    if (prev) {
-      if (fromScript && prev.httpOnly) return null;
-      if (prev.secure && !parts.trustworthy) return null;
+    if (
+      !parts.trustworthy &&
+      getAll().some(
+        (c) =>
+          c.secure &&
+          c.name === entry.name &&
+          (domainMatches(c.host, entry.host) || domainMatches(entry.host, c.host)) &&
+          pathMatches(c.path, entry.path),
+      )
+    ) {
+      return null;
     }
+    const prev = existing(entry);
+    if (prev && fromScript && prev.httpOnly) return null;
     return upsert(entry);
   }
 

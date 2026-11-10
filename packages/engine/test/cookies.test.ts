@@ -193,6 +193,22 @@ describe("Secure", () => {
     expect(jar.cookieHeaderForUrl(HTTPS)).toBe("sid=secure");
   });
 
+  it.each([
+    ["setFromHeader", "http://victim.example/login", "sid=bad; Path=/login"],
+    [
+      "setFromHeader",
+      "http://evil.victim.example/login",
+      "sid=bad; Domain=victim.example; Path=/login",
+    ],
+    ["setFromDocumentCookie", "http://victim.example/login", "sid=bad; Path=/login"],
+  ] as const)("rejects insecure overlapping cookies via %s at %s", (method, url, cookie) => {
+    const jar = createCookieJar();
+    jar.setFromHeader("https://victim.example/", "sid=good; Secure; Path=/");
+    expect(jar[method](url, cookie)).toBeNull();
+    expect(jar.cookieHeaderForUrl("https://victim.example/login")).toBe("sid=good");
+    expect(jar[method](url, "other=ok; Path=/login")).not.toBeNull();
+  });
+
   it("can be overwritten from https", () => {
     const jar = createCookieJar();
     jar.setFromHeader(HTTPS, "sid=first; Secure");
