@@ -5,7 +5,7 @@
 import { Hono } from "hono";
 import iframeReferrerHostHtml from "../../assets/iframe-referrer-host.html";
 import iframeReferrerNestedHtml from "../../assets/iframe-referrer-nested.html";
-import { intQuery, jsonForScript } from "../util.ts";
+import { escapeHtmlText, intQuery, jsonForScript } from "../util.ts";
 
 export const frames = new Hono();
 
@@ -37,6 +37,42 @@ frames.all("/oopif-host-many.html", (c) => {
 ${iframes.join("\n")}
 </body>
 </html>`);
+});
+
+// A cross-origin frame document with its own CSP header. Its classic scripts run in the frame's
+// own isolate, so they exercise the policy the navigate RPC carries from the terminal response.
+const OOPIF_CSP_NONCE = "n0nce";
+const oopifCspHits = new Map<string, number>();
+
+frames.all("/oopif-csp-hop/:file{[\\w-]+\\.js}", (c) => {
+  const key = c.req.param("file").slice(0, -".js".length);
+  oopifCspHits.set(key, (oopifCspHits.get(key) ?? 0) + 1);
+  return c.body(`parent.postMessage("ran:${key}", "*");`, 200, {
+    "content-type": "text/javascript; charset=utf-8",
+    // A classic script redirect before the fix goes through the CORS path; echo the origin so
+    // only the policy, never an unrelated CORS denial, decides the outcome.
+    "access-control-allow-origin": c.req.header("origin") ?? "*",
+    "access-control-allow-credentials": "true",
+  });
+});
+
+frames.all("/oopif-csp-hits/:key{[\\w-]+}", (c) =>
+  c.json({ hits: oopifCspHits.get(c.req.param("key")) ?? 0 }, 200, { "cache-control": "no-store" }),
+);
+
+frames.all("/oopif-csp-frame.html", (c) => {
+  const src = c.req.query("src") ?? "";
+  const inline =
+    c.req.query("inline") === "1" ? `<script>parent.postMessage("inline", "*")</script>` : "";
+  return c.html(
+    `<!doctype html><title>oopif csp</title>` +
+      (src ? `<script src="${escapeHtmlText(src)}"></script>` : "") +
+      inline +
+      // The last parser script proves every earlier script finished, allowed or refused.
+      `<script nonce="${OOPIF_CSP_NONCE}">parent.postMessage("parsed", "*")</script>`,
+    200,
+    { "content-security-policy": c.req.query("csp") ?? "" },
+  );
 });
 
 const MAX_IFRAMES = 40;

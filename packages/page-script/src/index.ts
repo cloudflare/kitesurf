@@ -113,6 +113,7 @@ import {
   insertedScriptAllowed,
   reportBlocked,
   reportOnly,
+  setNavigationScriptPolicy,
 } from "./script-policy.ts";
 
 import {
@@ -2944,6 +2945,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     }
     state.pageUrl = safeUrl;
     state.documentUrl = safeUrl;
+    // Every navigation resets the gate's cache, including one to the same URL.
+    setNavigationScriptPolicy(navigateOptions?.scriptPolicy);
     state.lastForceRestyleSeq = -1;
     state.currentMediaType = "screen";
 

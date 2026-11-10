@@ -13,6 +13,16 @@ vi.mock("../src/eval/page-script.ts", async (importOriginal) => ({
   },
 }));
 
+// The frame's meta CSP comes from the document scan, which needs the core wasm instance the
+// unit-test embedder disallows. This test is about cookie attribution, so it scans nothing.
+vi.mock("../src/wasm.ts", () => ({
+  scanDocument: () => ({ baseHref: null, metaCsp: [], modulePreloads: [] }),
+  extractScriptDescriptorsFromDom: () => [],
+  createDom: () => {
+    throw new Error("test harness: createDom is unused");
+  },
+}));
+
 import { registerCookieJar, unregisterCookieJar } from "../src/cdp/cookie-jar-registry.ts";
 import { makeChildFrameState, makeMainFrameState } from "../src/cdp/frames.ts";
 import { frameCookieSiteOrigin } from "../src/cdp/page.ts";

@@ -753,6 +753,9 @@ async function followRedirects(
     signal?.throwIfAborted?.();
 
     if (location.includes("\uFFFD")) {
+      // A policy callback cannot vet an unparseable target, and the handoff below follows it
+      // natively; refuse instead of fetching an unchecked hop.
+      if (checkRedirect) throw new TypeError("Failed to fetch");
       if ((method !== "GET" && method !== "HEAD") || init.body != null) {
         throw new TypeError("Failed to fetch");
       }

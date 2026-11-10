@@ -4,6 +4,7 @@
 
 // Handles child-frame document loads and rasterization in separate PageScript isolates.
 
+import type { NavigateOptions } from "@kitesurf/jsrpc-types/page-script";
 import type { PageRendererManager } from "./page-renderer.ts";
 
 export interface RasterizeOptions {
@@ -23,6 +24,7 @@ import { walkRedirects } from "./redirect-walk.ts";
 import { MAX_DOCUMENT_BYTES, readCappedText } from "../read-capped.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
 import { schemefulSite } from "../public-suffix.ts";
+import { scanDocument } from "../wasm.ts";
 
 const OOPIF_DOC_WALK_BUDGET_MS = 15_000;
 
@@ -66,6 +68,8 @@ export interface PrespawnedFrame {
   stub: PageScriptStub;
   html: string;
   finalUrl: string;
+  // The terminal document's policy; the frame's isolate has no baked startup policy.
+  scriptPolicy: NonNullable<NavigateOptions["scriptPolicy"]>;
   warmup: Promise<void>;
 }
 
@@ -249,6 +253,9 @@ export async function prespawnFrameIsolate(
     await discardFrameIsolate(stub, warmup, "oopif doc fetch HTTP error");
     return { ok: false, error: `frame fetch HTTP ${resp.status}` };
   }
+  // Only the terminal response's headers apply; a redirect hop's policy is not this document's.
+  const csp = resp.headers.get("content-security-policy");
+  const cspReportOnly = resp.headers.get("content-security-policy-report-only");
   let html: string;
   try {
     // The main-frame and same-origin child paths cap the document at
@@ -268,6 +275,22 @@ export async function prespawnFrameIsolate(
       error: `frame body read failed: ${e instanceof Error ? e.message : String(e)}`,
     };
   }
+
+  let metaCsp: string[];
+  try {
+    metaCsp = scanDocument(html).metaCsp;
+  } catch (e) {
+    await discardFrameIsolate(stub, warmup, "oopif doc scan failed");
+    return {
+      ok: false,
+      error: `frame document scan failed: ${e instanceof Error ? e.message : String(e)}`,
+    };
+  }
+  const scriptPolicy = {
+    cspHeaders: csp ? [csp] : [],
+    cspReportOnlyHeaders: cspReportOnly ? [cspReportOnly] : [],
+    metaCsp,
+  };
 
   if (originOfFrameUrl(finalUrl) !== pageOrigin) {
     await discardFrameIsolate(stub, warmup, "oopif doc redirected cross-origin");
@@ -293,14 +316,14 @@ export async function prespawnFrameIsolate(
     warmup = prepareFrameIsolate(stub, args);
   }
 
-  return { ok: true, stub, html, finalUrl, warmup };
+  return { ok: true, stub, html, finalUrl, scriptPolicy, warmup };
 }
 
 export async function navigatePrespawnedFrame(
   pre: PrespawnedFrame,
   args: RenderFrameArgs,
 ): Promise<{ ok: true; stub: PageScriptStub; finalUrl: string } | RenderFrameError> {
-  const { stub, html, finalUrl } = pre;
+  const { stub, html, finalUrl, scriptPolicy } = pre;
   try {
     await pre.warmup;
     const viewport = frameViewport(args.viewport);
@@ -308,6 +331,7 @@ export async function navigatePrespawnedFrame(
       connectionId: args.connectionId,
       mainFrameId: args.frameId,
       cookieKey: args.cookieKey ?? "",
+      scriptPolicy,
       ...(viewport
         ? {
             viewportWidth: viewport.width,

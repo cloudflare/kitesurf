@@ -5,11 +5,18 @@
 // Runs the source-based legacy script plan and dispatches document lifecycle events.
 // The normal path bundles classic scripts into one sloppy CJS module; this plan runs only when the
 // parent supplied no bundle (an OOPIF child, or a navigate whose bake threw). Everything runs on
-// boa. Only external modules and their imports pass the script gate; classic and inline do not.
+// boa. Classic and inline parser scripts pass the gate as parser inserts, not runtime inserts.
 
 import { globalizeForBoa } from "./boa-classic.ts";
+import { fetchInsertedScript } from "./resource-fetch.ts";
+import {
+  parserRedirectGate,
+  parserResponseAllowed,
+  parserScriptAllowed,
+  reportBlocked,
+  reportOnly,
+} from "./script-policy.ts";
 import { ksEventCtors, state } from "./state.ts";
-import { trustedFetch } from "./trusted-fetch.ts";
 import type { ShimElement } from "./types.ts";
 import { ks_eval_page, ks_import } from "./wasm-glue.js";
 
@@ -22,6 +29,8 @@ export interface ScriptDescriptor {
   // Empty collapses to null, the rule scan.rs and the engine's DOM fallback use.
   nonce: string | null;
   integrity: string | null;
+  // Absent and present-empty are different CORS modes; keep the raw attribute.
+  crossOrigin: string | null;
   nodeId?: number;
   _resolvedUrl?: string;
 }
@@ -41,7 +50,8 @@ export interface ScriptPlan {
   deferred: ScriptDescriptor[];
   async_: ScriptDescriptor[];
   modules: ScriptDescriptor[];
-  sourceCache: Map<string, Promise<FetchResult>>;
+  // Keyed by descriptor: two elements with one URL may differ in nonce, integrity or CORS.
+  sourceCache: Map<ScriptDescriptor, Promise<FetchResult>>;
 }
 
 export function extractScripts(): ScriptDescriptor[] {
@@ -97,6 +107,7 @@ export function extractScripts(): ScriptDescriptor[] {
       body,
       nonce: attrs.nonce || null,
       integrity: attrs.integrity?.trim() || null,
+      crossOrigin: attrs.crossorigin ?? null,
       nodeId: id,
     });
   }
@@ -105,23 +116,49 @@ export function extractScripts(): ScriptDescriptor[] {
 
 function resolveScriptUrl(src: string | null | undefined): string | null {
   if (!src) return null;
+  // The document owns base resolution; pageUrl only stands in before it exists.
+  const base = state.document?.baseURI || state.pageUrl;
   try {
-    return state.pageUrl ? new URL(src, state.pageUrl).toString() : new URL(src).toString();
+    return base ? new URL(src, base).toString() : new URL(src).toString();
   } catch {
     return null;
   }
 }
 
-async function fetchScriptSource(url: string): Promise<string> {
-  const response = await trustedFetch(
-    url,
-    { headers: { accept: "*/*" } },
-    { resourceType: "Script", initiator: "parser" },
-  );
-  if (!response.ok) {
+async function fetchScriptSource(script: ScriptDescriptor, url: string): Promise<string> {
+  const meta = { url, nonce: script.nonce, integrity: script.integrity };
+  const pre = await parserScriptAllowed(meta);
+  reportOnly(pre);
+  if (!pre.allowed) {
+    reportBlocked(pre);
+    throw new Error(pre.message ?? "script blocked by policy");
+  }
+  const redirects = parserRedirectGate(meta);
+  const fetchedUrl = pre.upgradeTo ?? url;
+  const response = await fetchInsertedScript(fetchedUrl, script.crossOrigin, redirects.check);
+  if (redirects.refusal) {
+    reportBlocked(redirects.refusal);
+    throw new Error(redirects.refusal.message ?? "script redirect blocked by policy");
+  }
+  if (response.status < 200 || response.status >= 300) {
     throw new Error("<script src> fetch returned HTTP " + response.status + " for " + url);
   }
-  return await response.text();
+  const post = await parserResponseAllowed(
+    meta,
+    {
+      contentType: response.contentType,
+      contentTypeOptions: response.nosniff,
+      bytes: response.bytes,
+      opaque: response.opaque,
+      ...(response.finalUrl ? { finalUrl: response.finalUrl } : {}),
+    },
+    fetchedUrl,
+  );
+  if (!post.allowed) {
+    reportBlocked(post);
+    throw new Error(post.message ?? "script response blocked by policy");
+  }
+  return response.source;
 }
 
 // The loaded worker refuses native code generation after startup, so the body runs on boa,
@@ -154,13 +191,13 @@ export function planScripts(scripts: ScriptDescriptor[]): ScriptPlan {
     }
   }
 
-  const sourceCache = new Map<string, Promise<FetchResult>>();
-  const startFetch = (url: string) => {
-    const existing = sourceCache.get(url);
+  const sourceCache = new Map<ScriptDescriptor, Promise<FetchResult>>();
+  const startFetch = (script: ScriptDescriptor, url: string) => {
+    const existing = sourceCache.get(script);
     if (existing) return existing;
     const fetchPromise: Promise<FetchResult> = (async () => {
       try {
-        const source = await fetchScriptSource(url);
+        const source = await fetchScriptSource(script, url);
         return { ok: true, source };
       } catch (err) {
         return {
@@ -169,7 +206,7 @@ export function planScripts(scripts: ScriptDescriptor[]): ScriptPlan {
         };
       }
     })();
-    sourceCache.set(url, fetchPromise);
+    sourceCache.set(script, fetchPromise);
     return fetchPromise;
   };
 
@@ -182,7 +219,7 @@ export function planScripts(scripts: ScriptDescriptor[]): ScriptPlan {
       continue;
     }
     script._resolvedUrl = url;
-    if (script.kind !== "module") startFetch(url);
+    if (script.kind !== "module") startFetch(script, url);
   }
 
   return { regular, deferred, async_, modules, sourceCache };
@@ -206,7 +243,7 @@ export async function runRegularPhase(plan: ScriptPlan): Promise<void> {
         fireScriptLifecycle(script, false);
         continue;
       }
-      const fetchResult = await plan.sourceCache.get(url);
+      const fetchResult = await plan.sourceCache.get(script);
       if (!fetchResult || !fetchResult.ok) {
         console.error(
           "[kitesurf] <script src> fetch failed for " + url + ": " + fetchErrorDetail(fetchResult),
@@ -217,7 +254,14 @@ export async function runRegularPhase(plan: ScriptPlan): Promise<void> {
       await runOneClassic(fetchResult.source, url);
       fireScriptLifecycle(script, true);
     } else {
-      await runOneClassic(script.body, "<inline>");
+      const pre = await parserScriptAllowed({
+        url: null,
+        nonce: script.nonce,
+        body: script.body,
+      });
+      reportOnly(pre);
+      if (pre.allowed) await runOneClassic(script.body, "<inline>");
+      else reportBlocked(pre);
     }
   }
   for (const script of plan.deferred) {
@@ -226,7 +270,7 @@ export async function runRegularPhase(plan: ScriptPlan): Promise<void> {
       fireScriptLifecycle(script, false);
       continue;
     }
-    const fetchResult = await plan.sourceCache.get(url);
+    const fetchResult = await plan.sourceCache.get(script);
     if (!fetchResult || !fetchResult.ok) {
       console.error(
         "[kitesurf] deferred <script src> fetch failed for " +
@@ -256,7 +300,7 @@ export async function runAsyncPhase(plan: ScriptPlan): Promise<void> {
         fireScriptLifecycle(s, false);
         return;
       }
-      const fetchResult = await plan.sourceCache.get(url);
+      const fetchResult = await plan.sourceCache.get(s);
       if (!fetchResult || !fetchResult.ok) {
         console.error(
           "[kitesurf] async <script src> fetch failed for " +

@@ -20,6 +20,11 @@ export interface NavigateOptions {
   connectionId?: string;
   mainFrameId?: string;
   cookieKey?: string;
+  scriptPolicy?: {
+    cspHeaders: string[];
+    cspReportOnlyHeaders: string[];
+    metaCsp: string[];
+  };
   bindingNames?: string[];
   charset?: string;
   viewportWidth?: number;

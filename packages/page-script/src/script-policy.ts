@@ -16,20 +16,33 @@ import {
   type ScriptGateContext,
   type ScriptGateDecision,
 } from "@kitesurf/script-gate";
+import type { NavigateOptions } from "@kitesurf/jsrpc-types/page-script";
 import { startupCsp, startupMetaCsp } from "./startup-probe.ts";
 import { state } from "./state.ts";
 
 let cached: ScriptGateContext | null = null;
 let cachedUrl = "";
+// The navigating document's terminal policy, when the engine supplies one. Frame isolates and
+// failed bakes have no startup policy, so the legacy plan would otherwise gate on nothing.
+let navigationPolicy: NavigateOptions["scriptPolicy"] | undefined;
+
+export function setNavigationScriptPolicy(policy: NavigateOptions["scriptPolicy"]): void {
+  navigationPolicy = policy;
+  cached = null;
+  cachedUrl = "";
+}
 
 function gateContext(): ScriptGateContext {
   const documentUrl = state.documentUrl || state.pageUrl || "";
   if (cached && cachedUrl === documentUrl) return cached;
   cachedUrl = documentUrl;
-  cached = buildScriptGateContext(documentUrl, {
-    cspHeaders: Array.isArray(startupCsp) ? startupCsp : [],
-    metaCsp: Array.isArray(startupMetaCsp) ? startupMetaCsp : [],
-  });
+  cached = buildScriptGateContext(
+    documentUrl,
+    navigationPolicy ?? {
+      cspHeaders: Array.isArray(startupCsp) ? startupCsp : [],
+      metaCsp: Array.isArray(startupMetaCsp) ? startupMetaCsp : [],
+    },
+  );
   return cached;
 }
 
@@ -41,8 +54,9 @@ export interface InsertedScriptMetadata {
   module?: boolean;
 }
 
-export async function insertedScriptAllowed(
+async function scriptAllowed(
   meta: InsertedScriptMetadata,
+  runtimeInserted: boolean,
 ): Promise<ScriptGateDecision> {
   const ctx = gateContext();
   if (scriptGateIsNoop(ctx)) return { allowed: true };
@@ -50,9 +64,18 @@ export async function insertedScriptAllowed(
     url: meta.url,
     integrity: meta.integrity ?? null,
     nonce: meta.nonce ?? null,
-    runtimeInserted: true,
+    runtimeInserted,
     ...(meta.body === undefined ? {} : { body: meta.body }),
   });
+}
+
+export function insertedScriptAllowed(meta: InsertedScriptMetadata): Promise<ScriptGateDecision> {
+  return scriptAllowed(meta, true);
+}
+
+/** A parser-inserted script: 'strict-dynamic' does not admit it the way an insert does. */
+export function parserScriptAllowed(meta: InsertedScriptMetadata): Promise<ScriptGateDecision> {
+  return scriptAllowed(meta, false);
 }
 
 export function inlineInsertDecisionSync(meta: InsertedScriptMetadata): ScriptGateDecision | null {
@@ -108,7 +131,10 @@ export interface InsertedRedirectGate {
  *  path does. HTTP-redirect fetch reruns main fetch for the new URL, and main fetch asks CSP
  *  whether the request should be blocked: https://fetch.spec.whatwg.org/#http-redirect-fetch
  *  and https://w3c.github.io/webappsec-csp/#should-block-request */
-export function insertedRedirectGate(meta: InsertedScriptMetadata): InsertedRedirectGate {
+function redirectGate(
+  meta: InsertedScriptMetadata,
+  runtimeInserted: boolean,
+): InsertedRedirectGate {
   const ctx = gateContext();
   const gate: InsertedRedirectGate = { check: undefined, refusal: null };
   if (!meta.url || scriptGateIsNoop(ctx)) return gate;
@@ -118,7 +144,7 @@ export function insertedRedirectGate(meta: InsertedScriptMetadata): InsertedRedi
     url: meta.url,
     integrity: meta.integrity ?? null,
     nonce: meta.nonce ?? null,
-    runtimeInserted: true,
+    runtimeInserted,
     module: meta.module === true,
   };
   gate.check = (hopUrl) => {
@@ -130,12 +156,20 @@ export function insertedRedirectGate(meta: InsertedScriptMetadata): InsertedRedi
   return gate;
 }
 
+export function insertedRedirectGate(meta: InsertedScriptMetadata): InsertedRedirectGate {
+  return redirectGate(meta, true);
+}
+
+export function parserRedirectGate(meta: InsertedScriptMetadata): InsertedRedirectGate {
+  return redirectGate(meta, false);
+}
+
 function stripFragment(url: string): string {
   const hash = url.indexOf("#");
   return hash === -1 ? url : url.slice(0, hash);
 }
 
-export async function insertedResponseAllowed(
+async function responseAllowed(
   meta: InsertedScriptMetadata,
   response: {
     contentType: string | null;
@@ -144,10 +178,11 @@ export async function insertedResponseAllowed(
     opaque: boolean;
     finalUrl?: string;
   },
-  fetchedUrl?: string,
+  fetchedUrl: string | undefined,
+  runtimeInserted: boolean,
 ): Promise<ScriptGateDecision> {
   const ctx = gateContext();
-  // insertedRedirectGate checked each hop; this covers a redirect the fetch shim hands to
+  // The redirect gate checked each hop; this covers a redirect the fetch shim hands to
   // the native fetch (a Location it cannot parse), where only the final URL is known.
   const fetched = fetchedUrl ?? meta.url;
   if (
@@ -162,7 +197,7 @@ export async function insertedResponseAllowed(
         url: meta.url,
         integrity: meta.integrity ?? null,
         nonce: meta.nonce ?? null,
-        runtimeInserted: true,
+        runtimeInserted,
         module: meta.module === true,
       },
       response.finalUrl,
@@ -178,6 +213,34 @@ export async function insertedResponseAllowed(
     },
     response,
   );
+}
+
+export function insertedResponseAllowed(
+  meta: InsertedScriptMetadata,
+  response: {
+    contentType: string | null;
+    contentTypeOptions: string | null;
+    bytes: Uint8Array | null;
+    opaque: boolean;
+    finalUrl?: string;
+  },
+  fetchedUrl?: string,
+): Promise<ScriptGateDecision> {
+  return responseAllowed(meta, response, fetchedUrl, true);
+}
+
+export function parserResponseAllowed(
+  meta: InsertedScriptMetadata,
+  response: {
+    contentType: string | null;
+    contentTypeOptions: string | null;
+    bytes: Uint8Array | null;
+    opaque: boolean;
+    finalUrl?: string;
+  },
+  fetchedUrl?: string,
+): Promise<ScriptGateDecision> {
+  return responseAllowed(meta, response, fetchedUrl, false);
 }
 
 /** Whether the document's CSP lets an inline on* attribute compile; logs a refusal. */
