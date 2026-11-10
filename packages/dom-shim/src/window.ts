@@ -14,6 +14,7 @@ import {
   dom,
   documentImpl,
   getCurrentUrl,
+  getDocumentUrl,
   setCurrentUrl,
   getComputedStyleForAuthId,
   getComputedStyleValueForAuthId,
@@ -61,6 +62,19 @@ import {
 } from "./event-handler-names.js";
 
 const runtimeToString = Function.prototype.toString;
+
+// History validation must not read URL intrinsics after page code can replace them.
+const HistoryURL = URL;
+const historyString = String;
+const historyApply = Reflect.apply;
+function historyUrlGetter(name: "href" | "origin" | "protocol"): (this: URL) => string {
+  const getter = Object.getOwnPropertyDescriptor(HistoryURL.prototype, name)?.get;
+  if (typeof getter !== "function") throw new Error(`URL ${name} getter unavailable`);
+  return getter;
+}
+const historyHref = historyUrlGetter("href");
+const historyOrigin = historyUrlGetter("origin");
+const historyProtocol = historyUrlGetter("protocol");
 
 export function locUrl(): URL | null {
   try {
@@ -356,32 +370,49 @@ function buildWindow(document: DocumentImpl) {
     rawUrl: string | null | undefined,
     method: "pushState" | "replaceState",
   ): string => {
-    const cur = locUrl();
-    const curStr = cur?.toString() ?? "";
+    // Validate against the committed document URL: `location.href =` advances
+    // the page URL before the new document commits, so it must not authorize a
+    // history entry in the current document.
+    let cur: URL | null = null;
+    try {
+      cur = new HistoryURL(getDocumentUrl());
+    } catch {}
+    // A call with no URL argument copies the current entry, so it never needs to
+    // parse the document URL: an empty or invalid one must not throw here.
     if (rawUrl === undefined || rawUrl === null) {
-      return historyStack[historyIndex]?.url ?? curStr;
+      return historyStack[historyIndex]?.url ?? (cur ? historyApply(historyHref, cur, []) : "");
     }
+    if (!cur) {
+      throw new ksGlobal.DOMException(
+        `Failed to execute '${method}' on 'History': The current document URL is invalid.`,
+        "SecurityError",
+      );
+    }
+    const curStr = historyApply(historyHref, cur, []);
     let target: URL;
     try {
-      target = new URL(String(rawUrl), curStr || undefined);
+      target = new HistoryURL(historyString(rawUrl), curStr);
     } catch {
       throw new ksGlobal.DOMException(
         `Failed to execute '${method}' on 'History': '${rawUrl}' could not be parsed as a URL.`,
         "SecurityError",
       );
     }
-    if (cur) {
-      const sameOrigin = target.origin !== "null" && target.origin === cur.origin;
-      const bothOpaqueAndSameScheme =
-        target.origin === "null" && cur.origin === "null" && target.protocol === cur.protocol;
-      if (!sameOrigin && !bothOpaqueAndSameScheme) {
-        throw new ksGlobal.DOMException(
-          `Failed to execute '${method}' on 'History': A history state object with URL '${target.toString()}' cannot be created in a document with origin '${cur.origin}' and URL '${curStr}'.`,
-          "SecurityError",
-        );
-      }
+    const targetHref = historyApply(historyHref, target, []);
+    const targetOrigin = historyApply(historyOrigin, target, []);
+    const curOrigin = historyApply(historyOrigin, cur, []);
+    const sameOrigin = targetOrigin !== "null" && targetOrigin === curOrigin;
+    const bothOpaqueAndSameScheme =
+      targetOrigin === "null" &&
+      curOrigin === "null" &&
+      historyApply(historyProtocol, target, []) === historyApply(historyProtocol, cur, []);
+    if (!sameOrigin && !bothOpaqueAndSameScheme) {
+      throw new ksGlobal.DOMException(
+        `Failed to execute '${method}' on 'History': A history state object with URL '${targetHref}' cannot be created in a document with origin '${curOrigin}' and URL '${curStr}'.`,
+        "SecurityError",
+      );
     }
-    return target.toString();
+    return targetHref;
   };
 
   const history = {

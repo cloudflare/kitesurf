@@ -3142,6 +3142,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         percentEncodeAfterEncoding: ks_percent_encode_after_encoding,
         encodeHtml: ks_encode_html,
         getCurrentUrl: () => state.pageUrl,
+        // History and origin checks use the committed document URL, not the
+        // page URL a cross-document navigation may already have advanced.
+        getDocumentUrl: () => state.documentUrl || state.pageUrl,
         setCurrentUrl: (newUrl, kind) => {
           if (typeof newUrl !== "string" || newUrl.length === 0) return;
           const previous = state.pageUrl;
