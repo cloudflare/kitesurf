@@ -735,15 +735,22 @@ export async function handlePage(
           typeof ksParams?._kitesurfInitiatorOrigin === "string"
             ? ksParams._kitesurfInitiatorOrigin
             : null;
-        const navExtraHeaders = navigationExtraHeaders(
-          effectiveExtraHeaders(target),
-          ksInitiatorOrigin,
-          url,
-        );
+        const navExtraHeaders = {
+          ...navigationExtraHeaders(effectiveExtraHeaders(target), ksInitiatorOrigin, url),
+        };
+        if (ksInitiatorOrigin !== null) {
+          const originKeys = Object.keys(navExtraHeaders).filter(
+            (k) => k.toLowerCase() === "origin",
+          );
+          for (const key of originKeys) delete navExtraHeaders[key];
+        }
         const cookieHeader = jarForTarget(ctx, target).cookieHeaderForUrl(
           url,
           ksInitiatorOrigin !== null
-            ? { initiatorOrigin: ksInitiatorOrigin, topLevel: true }
+            ? {
+                initiatorOrigin: ksInitiatorOrigin === "null" ? null : ksInitiatorOrigin,
+                topLevel: true,
+              }
             : undefined,
         );
         if (cookieHeader) reqHeaders.cookie = cookieHeader;
@@ -761,6 +768,7 @@ export async function handlePage(
 
         if (ksPostData !== null) {
           reqHeaders["content-type"] = ksPostContentType;
+          if (ksInitiatorOrigin !== null) reqHeaders.origin = ksInitiatorOrigin;
         }
         const requestId = ctx.browser.networkEvents.beginRequest({
           url,
@@ -776,9 +784,13 @@ export async function handlePage(
         ctx.browser.networkEvents.drain();
 
         let docPageOrigin = "";
-        try {
-          docPageOrigin = new URL(url).origin;
-        } catch {}
+        if (ksInitiatorOrigin === null) {
+          try {
+            docPageOrigin = new URL(url).origin;
+          } catch {}
+        } else if (ksInitiatorOrigin !== "null") {
+          docPageOrigin = ksInitiatorOrigin;
+        }
         const docProps: CallerOutboundProps = {
           pageOrigin: docPageOrigin,
           // A navigation the page started names its initiating document; one the CDP client
@@ -829,6 +841,7 @@ export async function handlePage(
               "x-kitesurf-page-origin": docPageOrigin,
               "x-kitesurf-network-id": loaderId,
             },
+            taintOriginFrom: ksPostData !== null ? (ksInitiatorOrigin ?? undefined) : undefined,
             cookieHeaderFor: (hopUrl) =>
               jarForTarget(ctx, target).cookieHeaderForUrl(
                 hopUrl,
@@ -4384,7 +4397,7 @@ function handleUpstreamFrameEvent(
         const navParams: Protocol.Page.NavigateRequest = {
           url,
           _kitesurfInternal: true,
-          _kitesurfInitiatorOrigin: initiatorOriginOf(target.url) ?? undefined,
+          _kitesurfInitiatorOrigin: initiatorOriginOf(isolateUrl) ?? "null",
         };
         if (postData !== null) {
           navParams._kitesurfPostData = postData;
@@ -4465,7 +4478,7 @@ function handleUpstreamFrameEvent(
             params: {
               url,
               _kitesurfInternal: true,
-              _kitesurfInitiatorOrigin: initiatorOriginOf(target.url) ?? undefined,
+              _kitesurfInitiatorOrigin: initiatorOriginOf(isolateUrl) ?? "null",
             },
             sessionId: targetSessionsNetwork(target, sessionId)[0],
           });

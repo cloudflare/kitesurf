@@ -38,7 +38,10 @@ declare module "devtools-protocol" {
         _kitesurfPostData?: string;
         _kitesurfPostContentType?: string;
         _kitesurfLoaderId?: string;
-        /** Origin of the document that initiated a page-started navigation. */
+        /**
+         * Origin of the document that initiated a page-started navigation. Absent for a
+         * browser/CDP-started navigation; the literal "null" for an opaque page initiator.
+         */
         _kitesurfInitiatorOrigin?: string;
       }
       interface StartScreencastRequest {
