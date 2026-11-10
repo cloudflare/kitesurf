@@ -192,6 +192,69 @@ test("a nosniff JSON response is refused at the response gate", async () => {
   assert.equal(verdict.reason, "nosniff");
 });
 
+test("the effective MIME type decides, and non-script data never runs", async () => {
+  const cases: {
+    contentType: string;
+    contentTypeOptions?: string;
+    module?: boolean;
+    expected: [boolean, string | undefined];
+  }[] = [
+    // Fetch takes the last valid MIME type from a combined Content-Type header.
+    {
+      contentType: "text/javascript; charset=utf-8, text/plain",
+      contentTypeOptions: "nosniff",
+      expected: [false, "nosniff"],
+    },
+    {
+      contentType: "text/javascript; charset=utf-8, text/plain",
+      contentTypeOptions: "nosniff",
+      module: true,
+      expected: [false, "nosniff"],
+    },
+    {
+      contentType: "text/plain, text/javascript",
+      contentTypeOptions: "nosniff",
+      expected: [true, undefined],
+    },
+    // Non-script data types are refused whether or not nosniff is present.
+    { contentType: "image/png", expected: [false, "mime"] },
+    { contentType: "audio/ogg", expected: [false, "mime"] },
+    { contentType: "video/mp4", expected: [false, "mime"] },
+    { contentType: "text/csv", expected: [false, "mime"] },
+    // Malformed parameters never fail the parse; leading subtype whitespace does.
+    { contentType: "image/png;", expected: [false, "mime"] },
+    { contentType: 'text/csv; a="b"c; d; =e;;', expected: [false, "mime"] },
+    { contentType: "text/javascript; charset=", module: true, expected: [true, undefined] },
+    {
+      contentType: "text/\tjavascript",
+      contentTypeOptions: "nosniff",
+      expected: [false, "nosniff"],
+    },
+    // A classic script on a non-JS type still runs without nosniff.
+    { contentType: "text/javascript", expected: [true, undefined] },
+    { contentType: "text/plain", expected: [true, undefined] },
+    // A quoted MIME parameter may contain a comma.
+    {
+      contentType: 'text/javascript; charset="utf-8,utf-16"',
+      module: true,
+      expected: [true, undefined],
+    },
+  ];
+
+  for (const entry of cases) {
+    const verdict = await checkScriptResponse(
+      { url: "https://example.com/x.js", module: entry.module === true },
+      {
+        contentType: entry.contentType,
+        contentTypeOptions: entry.contentTypeOptions ?? null,
+        bytes: bytes("x"),
+        opaque: false,
+      },
+    );
+    assert.deepEqual([verdict.allowed, verdict.reason], entry.expected, entry.contentType);
+  }
+});
+
 const gateWith = (...csp: string[]) => buildScriptGateContext(DOC, { cspHeaders: csp });
 
 test("'self' admits same-origin and refuses a third-party host", async () => {
