@@ -29,6 +29,9 @@
     "KITESURF_RESOURCE_DRAIN_QUIET_TURNS": "",
     "KITESURF_SIMULATE_PROD_EVAL": "",
     "KITESURF_DISABLE_PARTIAL_RASTER": "",
+    // Codec for rarely read engine text: none, gzip[:1-9] or brotli[:0-11], with an optional
+    // -stream suffix on the name for background packing. Empty means brotli-stream:4.
+    "KITESURF_RETAINED_TEXT_CODEC": "",
     "KITESURF_PAGE_CPU_MS_CAP": "",
     "KITESURF_PAGE_WALL_MS_CAP": "",
     "KITESURF_LAG_WATCHDOG": "",
@@ -62,6 +65,7 @@
         "KITESURF_RESOURCE_DRAIN_QUIET_TURNS": "5",
         "KITESURF_SIMULATE_PROD_EVAL": "",
         "KITESURF_DISABLE_PARTIAL_RASTER": "",
+        "KITESURF_RETAINED_TEXT_CODEC": "",
         "KITESURF_PAGE_CPU_MS_CAP": "",
         "KITESURF_PAGE_WALL_MS_CAP": "",
         "KITESURF_LAG_WATCHDOG": "1",

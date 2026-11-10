@@ -50,6 +50,7 @@ import type { PageIsolateCapOverrides } from "../eval/page-script.ts";
 import { buildDispatchEnv } from "./dispatch-env.ts";
 import { markArrival } from "./arrival.ts";
 import { makeWallClock } from "../eval/host-clock.ts";
+import { parseRetainedTextCodec, setRetainedTextCodec } from "../retained-text.ts";
 // Wrangler generates the ambient `Env` declaration from wrangler.jsonc.
 
 const NOISY_CDP_METHODS = new Set<string>([
@@ -83,6 +84,7 @@ export async function handleWebSocket(
   // Also used as the analytics session ID and log correlation key.
   const connectionId = nanoid(CDP_CONNECTION_ID_LENGTH);
   const options = resolveConnectionOptions(request, connectionId, opts?.host);
+  setRetainedTextCodec(parseRetainedTextCodec(env.KITESURF_RETAINED_TEXT_CODEC));
 
   // External sessions provide their outbound policy before dispatch; regular
   // WebSocket upgrades use the default policy.
