@@ -774,7 +774,9 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       // they never enter the shared cache, and a host-egress session never trusts one from it.
       const cached =
         !hostEgress &&
+        cookieKey !== "" &&
         preflightCacheLookup(
+          cookieKey,
           pageOrigin || "null",
           forwardRequest.url,
           forwardRequest.method,
@@ -795,6 +797,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         try {
           verdict = await corsPreflight(
             {
+              partition: cookieKey,
               url: forwardRequest.url,
               method: forwardRequest.method,
               unsafeNames: authorUnsafeHeaders,
