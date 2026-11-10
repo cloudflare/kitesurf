@@ -6,7 +6,13 @@
 // inserted scripts and boa's module fallback all call it, so a refusal cannot be refetched.
 
 import { cspAllowsScript, inlineHashAlgorithms, parseCspPolicies, type CspPolicy } from "./csp.ts";
-import { blockedByNosniff, isModuleMime, mimeEssence, type ModuleType } from "./mime.ts";
+import {
+  blockedByNosniff,
+  blockedScriptMime,
+  isModuleMime,
+  mimeEssence,
+  type ModuleType,
+} from "./mime.ts";
 import { digestBase64, integrityMatches, parseIntegrity, type SriAlgorithm } from "./sri.ts";
 
 export type ScriptBlockReason =
@@ -293,6 +299,17 @@ export async function checkScriptResponse(
   const url = request.url ?? "";
   const moduleType: ModuleType =
     request.module === true && isModuleMime("json", response.contentType) ? "json" : "javascript";
+
+  // A script destination never executes image, audio, video or CSV data, nosniff or not.
+  if (blockedScriptMime(response.contentType)) {
+    return {
+      allowed: false,
+      reason: "mime",
+      message:
+        `Refused to execute script from '${url}' because its MIME type ` +
+        `('${mimeEssence(response.contentType)}') is not executable.`,
+    };
+  }
 
   if (
     moduleType === "javascript" &&
