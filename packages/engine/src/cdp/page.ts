@@ -1846,27 +1846,6 @@ async function pushNavigateToPageScriptInner(
             ),
           ).catch((): ParentScriptDescriptor[] => []);
     const importMaps = await applyImportMapGate(docScan.importMaps, scriptGate, url);
-    const walkResult = await traceSpan(ctx.env.HOST_TRACER, "navigate.walk_module_graph", () =>
-      walkModuleGraph({
-        descriptors: afterClassicPrefetch,
-        pageUrl: url,
-        connectionId: ctx.connectionId,
-        mainFrameId: target.frameId,
-        mainLoaderId: target.loaderId,
-        extraHeaders: effectiveExtraHeaders(target),
-        cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
-        options: {
-          baseUrl: scriptBaseUrl,
-          gate: scriptGate,
-          importMaps,
-          moduleSeeds: astroIslandModuleUrls(html, scriptBaseUrl),
-          preloadSeeds,
-          documentHtml: html,
-        },
-        sandboxOutbound: ctx.browser.sandboxOutbound,
-      }),
-    );
-    scriptDescriptors = walkResult.descriptors;
     const speculativeFetched = await speculativePrefetch;
     const learnedSet = new Set(learnedUrls);
     for (const d of speculativeFetched) {
@@ -1887,13 +1866,36 @@ async function pushNavigateToPageScriptInner(
         `[kitesurf-nav] speculative scripts baked ${insertedBake.length}/${speculativeUrls.length}`,
       );
     }
+    // Hash the bytes the page will fetch, before the walk rewrites them.
     const insertedDigests = await insertedSourceDigests(insertedBake);
+    const walkResult = await traceSpan(ctx.env.HOST_TRACER, "navigate.walk_module_graph", () =>
+      walkModuleGraph({
+        descriptors: afterClassicPrefetch,
+        insertedDescriptors: insertedBake,
+        pageUrl: url,
+        connectionId: ctx.connectionId,
+        mainFrameId: target.frameId,
+        mainLoaderId: target.loaderId,
+        extraHeaders: effectiveExtraHeaders(target),
+        cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
+        options: {
+          baseUrl: scriptBaseUrl,
+          gate: scriptGate,
+          importMaps,
+          moduleSeeds: astroIslandModuleUrls(html, scriptBaseUrl),
+          preloadSeeds,
+          documentHtml: html,
+        },
+        sandboxOutbound: ctx.browser.sandboxOutbound,
+      }),
+    );
+    scriptDescriptors = walkResult.descriptors;
     scriptBundle = traceSpan(ctx.env.HOST_TRACER, "navigate.build_bundle", () =>
       buildScriptBundle(scriptDescriptors, {
         cdpDebug: ctx.browser.cdpDebug,
         additionalModules: walkResult.additionalModules,
         importMapModuleSource: walkResult.importMapModuleSource,
-        insertedBake,
+        insertedBake: walkResult.insertedDescriptors,
         insertedDigests,
       }),
     );

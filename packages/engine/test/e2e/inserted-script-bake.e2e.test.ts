@@ -27,7 +27,10 @@ async function loadInserting(
   return title.slice("BAKE:".length);
 }
 
-function probe(mode: "stable" | "volatile" | "gone" | "slow"): { key: string; src: string } {
+function probe(mode: "stable" | "volatile" | "gone" | "slow" | "hostile"): {
+  key: string;
+  src: string;
+} {
   const key = mode + "-" + Math.random().toString(36).slice(2);
   return { key, src: `/__fixtures/inserted-probe/${mode}/${key}.js` };
 }
@@ -77,6 +80,17 @@ test("a learned script that no longer loads stops being prefetched", async ({ pa
   expect(await probeHits(page, key)).toBe(2);
   await loadInserting(page, "none");
   expect(await probeHits(page, key)).toBe(2);
+}, 90_000);
+
+test("a learned inserted script cannot import a private sibling", async ({ page }) => {
+  const { src } = probe("hostile");
+  await loadInserting(page, src);
+  const baked = JSON.parse(await loadInserting(page, src));
+  expect(baked.native).toBe(true);
+  expect(baked.runs).toBe(1);
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window, "__hostileResult")))
+    .toBe("refused");
 }, 90_000);
 
 test("a script learned in one browser context is not baked in another", async ({ browser }) => {
