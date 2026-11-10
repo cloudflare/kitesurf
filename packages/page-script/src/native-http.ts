@@ -109,6 +109,16 @@ const nativeStreamCancel = protoMethod(
   typeof ReadableStream === "function" ? ReadableStream.prototype : undefined,
   "cancel",
 );
+const nativeStreamGetReader = protoMethod(
+  typeof ReadableStream === "function" ? ReadableStream.prototype : undefined,
+  "getReader",
+);
+const nativeReaderRead = protoMethod(
+  typeof ReadableStreamDefaultReader === "function"
+    ? ReadableStreamDefaultReader.prototype
+    : undefined,
+  "read",
+);
 
 // A missing capture must fail closed: skipping a stamped header or a body read can change
 // authentication, policy, or which bytes the page observes.
@@ -117,6 +127,24 @@ function requireIntrinsic<T>(value: T | undefined, name: string): T {
     throw new TypeError(`kitesurf: native ${name} is unavailable`);
   }
   return value;
+}
+
+// The resource coalescer keeps privileged results in a Map; capture its operations so a page
+// hook cannot read, replace or detach an entry.
+const nativeMapGet = requireIntrinsic(Map.prototype.get, "Map.prototype.get");
+const nativeMapSet = requireIntrinsic(Map.prototype.set, "Map.prototype.set");
+const nativeMapDelete = requireIntrinsic(Map.prototype.delete, "Map.prototype.delete");
+
+export function mapGet<K, V>(map: Map<K, V>, key: K): V | undefined {
+  return nativeApply(nativeMapGet, map, [key]) as V | undefined;
+}
+
+export function mapSet<K, V>(map: Map<K, V>, key: K, value: V): void {
+  nativeApply(nativeMapSet, map, [key, value]);
+}
+
+export function mapDelete<K, V>(map: Map<K, V>, key: K): void {
+  nativeApply(nativeMapDelete, map, [key]);
 }
 
 type HeadersArg = ConstructorParameters<typeof Headers>[0];
@@ -281,6 +309,34 @@ export function responseStatus(response: Response): number {
 
 export function responseUrl(response: Response): string {
   return String(nativeResponseRead<string | null>(nativeResponseUrl, response) ?? "");
+}
+
+/**
+ * The URL after redirects. The page fetch shim records the followed URL as an own `url` property;
+ * the native accessor only reports a URL the runtime itself assigned to the response.
+ */
+export function responseFollowedUrl(response: Response): string {
+  const own = nativeGetOwnPropertyDescriptor(response, "url");
+  const value: unknown = own?.value;
+  if (typeof value === "string" && value !== "") return value;
+  return responseUrl(response);
+}
+
+export function responseBody(response: Response): ReadableStream<Uint8Array> | null {
+  const getter = requireIntrinsic(nativeResponseBody, "Response.prototype.body");
+  return nativeApply(getter, response, []) as ReadableStream<Uint8Array> | null;
+}
+
+export function streamGetReader<T>(stream: ReadableStream<T>): ReadableStreamDefaultReader<T> {
+  const method = requireIntrinsic(nativeStreamGetReader, "ReadableStream.prototype.getReader");
+  return nativeApply(method, stream, []) as ReadableStreamDefaultReader<T>;
+}
+
+export function readerRead<T>(
+  reader: ReadableStreamDefaultReader<T>,
+): Promise<ReadableStreamReadResult<T>> {
+  const method = requireIntrinsic(nativeReaderRead, "ReadableStreamDefaultReader.prototype.read");
+  return nativeApply(method, reader, []) as Promise<ReadableStreamReadResult<T>>;
 }
 
 export async function responseText(response: Response): Promise<string> {

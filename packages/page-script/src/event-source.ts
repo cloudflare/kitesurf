@@ -5,7 +5,15 @@
 // Installs the page EventSource over the gated fetch path, so `withCredentials` selects the
 // request's credentials mode exactly as fetch does.
 
-import { responseHeaderGet } from "./native-http.ts";
+import {
+  cancelResponseBody,
+  readerRead,
+  responseBody,
+  responseFollowedUrl,
+  responseHeaderGet,
+  responseStatus,
+  streamGetReader,
+} from "./native-http.ts";
 import { ksGlobal, ksGlobalByKey, shimEventCtor } from "./state.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
 
@@ -42,6 +50,15 @@ export class EventStreamParser {
   private id = "";
   private started = false;
   private skipLeadingLf = false;
+
+  /**
+   * A reconnection resumes from the saved id. Seeding the id buffer too keeps the first event
+   * without an `id:` field from clearing it.
+   */
+  constructor(lastEventId = "") {
+    this.lastEventId = lastEventId;
+    this.id = lastEventId;
+  }
 
   push(chunk: string): ParsedEvent[] {
     const events: ParsedEvent[] = [];
@@ -80,6 +97,8 @@ export class EventStreamParser {
 
   private readLine(line: string, events: ParsedEvent[]): void {
     if (line === "") {
+      // Dispatch step 1 runs before the empty-data check, so an id-only block still sticks.
+      this.lastEventId = this.id;
       if (this.data === "") {
         this.eventType = "";
         return;
@@ -89,7 +108,6 @@ export class EventStreamParser {
         data: this.data.slice(0, -1),
         lastEventId: this.id,
       });
-      this.lastEventId = this.id;
       this.data = "";
       this.eventType = "";
       return;
@@ -134,6 +152,17 @@ function mkMessageEvent(type: string, data: string, origin: string, lastEventId:
   }
 }
 
+// A MessageEvent reports the origin of the URL the stream ended at, not the one it started at.
+function responseOrigin(response: Response, fallback: string): string {
+  const url = responseFollowedUrl(response);
+  if (url === "") return fallback;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return fallback;
+  }
+}
+
 function mimeEssence(contentType: string | null): string {
   if (contentType === null) return "";
   const semicolon = contentType.indexOf(";");
@@ -142,7 +171,15 @@ function mimeEssence(contentType: string | null): string {
 }
 
 export function installEventSource(): void {
-  class KsEventSource {
+  // The realm's EventTarget: dispatching through it supplies target, currentTarget, eventPhase,
+  // composedPath, and the {once}/{handleEvent} listener forms.
+  const EventTargetBase = ksGlobal.EventTarget;
+  const nativeAddEventListener = EventTargetBase.prototype.addEventListener;
+  const nativeRemoveEventListener = EventTargetBase.prototype.removeEventListener;
+  // Captured so a page-installed EventTarget.prototype.dispatchEvent cannot intercept our events.
+  const nativeDispatchEvent = EventTargetBase.prototype.dispatchEvent;
+
+  class KsEventSource extends EventTargetBase {
     static CONNECTING = CONNECTING;
     static OPEN = OPEN;
     static CLOSED = CLOSED;
@@ -150,12 +187,10 @@ export function installEventSource(): void {
     #readyState: number = CONNECTING;
     #url: string;
     #withCredentials: boolean;
-    #onopen: AnyFn | null = null;
-    #onmessage: AnyFn | null = null;
-    #onerror: AnyFn | null = null;
 
     private origin: string;
-    private listeners = new Map<string, Set<AnyFn>>();
+    // Event handler attributes are listeners on this target, registered when the attribute is set.
+    private handlerAttributes = new Map<string, { handler: AnyFn; listener: AnyFn }>();
     private controller: AbortController | null = null;
     private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
     private timer: ReturnType<typeof setTimeout> | null = null;
@@ -178,30 +213,31 @@ export function installEventSource(): void {
     }
 
     get onopen(): AnyFn | null {
-      return this.#onopen;
+      return this.handlerAttribute("open");
     }
 
     set onopen(handler: unknown) {
-      this.#onopen = typeof handler === "function" ? (handler as AnyFn) : null;
+      this.setHandlerAttribute("open", handler);
     }
 
     get onmessage(): AnyFn | null {
-      return this.#onmessage;
+      return this.handlerAttribute("message");
     }
 
     set onmessage(handler: unknown) {
-      this.#onmessage = typeof handler === "function" ? (handler as AnyFn) : null;
+      this.setHandlerAttribute("message", handler);
     }
 
     get onerror(): AnyFn | null {
-      return this.#onerror;
+      return this.handlerAttribute("error");
     }
 
     set onerror(handler: unknown) {
-      this.#onerror = typeof handler === "function" ? (handler as AnyFn) : null;
+      this.setHandlerAttribute("error", handler);
     }
 
     constructor(url: unknown, init: unknown = undefined) {
+      super();
       const raw = String(url ?? "");
       let base: string | undefined;
       try {
@@ -233,6 +269,47 @@ export function installEventSource(): void {
       void this.run();
     }
 
+    /** The shim's EventTarget ignores `options.signal`, so removal is wired here. */
+    addEventListener(type: unknown, listener: unknown, options?: unknown): void {
+      // Forward the call as received: the base keeps its argument-count check.
+      const args = Array.from(arguments) as unknown[];
+      Reflect.apply(nativeAddEventListener, this, args);
+      const signal =
+        typeof options === "object" && options !== null
+          ? (options as { signal?: unknown }).signal
+          : undefined;
+      if (typeof signal !== "object" || signal === null) return;
+      const remove = (): void => {
+        try {
+          Reflect.apply(nativeRemoveEventListener, this, args);
+        } catch {}
+      };
+      try {
+        if ((signal as { aborted?: unknown }).aborted === true) {
+          remove();
+          return;
+        }
+        (signal as { addEventListener: AnyFn }).addEventListener("abort", remove, { once: true });
+      } catch {}
+    }
+
+    private setHandlerAttribute(type: string, value: unknown): void {
+      const current = this.handlerAttributes.get(type);
+      if (current) {
+        this.removeEventListener(type, current.listener);
+        this.handlerAttributes.delete(type);
+      }
+      if (typeof value !== "function") return;
+      const handler = value as AnyFn;
+      const listener = (event: unknown): unknown => Reflect.apply(handler, this, [event]);
+      this.handlerAttributes.set(type, { handler, listener });
+      this.addEventListener(type, listener);
+    }
+
+    private handlerAttribute(type: string): AnyFn | null {
+      return this.handlerAttributes.get(type)?.handler ?? null;
+    }
+
     private async run(): Promise<void> {
       while (!this.closed) {
         this.#readyState = CONNECTING;
@@ -252,26 +329,32 @@ export function installEventSource(): void {
             resourceType: "EventSource",
             initiator: "script",
           });
-          if (this.closed) return;
+          if (this.closed) {
+            // close() ran while the fetch was in flight; nobody is left to read this body.
+            cancelResponseBody(response);
+            return;
+          }
           const contentType = responseHeaderGet(response, "content-type");
-          if (response.status !== 200 || mimeEssence(contentType) !== EVENT_STREAM_MIME_TYPE) {
-            void response.body?.cancel().catch(() => {});
+          const status = responseStatus(response);
+          if (status !== 200 || mimeEssence(contentType) !== EVENT_STREAM_MIME_TYPE) {
+            cancelResponseBody(response);
             this.fail();
             return;
           }
-          const reader = response.body?.getReader();
+          const body = responseBody(response);
+          const reader = body === null ? null : streamGetReader(body);
           if (!reader) {
             this.fail();
             return;
           }
           this.reader = reader;
-          const parser = new EventStreamParser();
-          parser.lastEventId = this.lastEventId;
+          const origin = responseOrigin(response, this.origin);
+          const parser = new EventStreamParser(this.lastEventId);
           const decoder = new NativeTextDecoder();
           this.#readyState = OPEN;
-          this.emit("open", mkEvent("open", {}));
+          this.dispatchInternal(mkEvent("open", {}));
           for (;;) {
-            const step = await reader.read();
+            const step = await readerRead(reader);
             if (this.closed) return;
             if (step.done) break;
             const events = parser.push(decoder.decode(step.value, { stream: true }));
@@ -279,20 +362,34 @@ export function installEventSource(): void {
             if (parser.reconnectionTimeMs !== null) {
               this.reconnectionTimeMs = parser.reconnectionTimeMs;
             }
-            for (const event of events) {
-              this.emit(
-                event.type,
-                mkMessageEvent(event.type, event.data, this.origin, event.lastEventId),
-              );
-            }
+            this.dispatchEvents(events, origin);
           }
         } catch {
           if (this.closed) return;
         }
         // A dropped connection or a failed CORS check reconnects, as the HTML spec requires.
         this.#readyState = CONNECTING;
-        this.emit("error", mkEvent("error", {}));
+        this.dispatchInternal(mkEvent("error", {}));
         await this.waitReconnect();
+      }
+    }
+
+    /** Dispatches each parsed event in order, stopping as soon as a handler closes the source. */
+    private dispatchEvents(events: ParsedEvent[], origin: string): void {
+      for (const event of events) {
+        if (this.closed) break;
+        this.dispatchInternal(mkMessageEvent(event.type, event.data, origin, event.lastEventId));
+      }
+    }
+
+    private dispatchInternal(event: any): void {
+      try {
+        Reflect.apply(nativeDispatchEvent, this, [event]);
+      } catch (error) {
+        // A non-shim event cannot cross the shim's EventTarget; report instead of reconnecting.
+        try {
+          console.error("[kitesurf] EventSource dispatch threw:", error);
+        } catch {}
       }
     }
 
@@ -300,7 +397,7 @@ export function installEventSource(): void {
     private fail(): void {
       this.closed = true;
       this.#readyState = CLOSED;
-      this.emit("error", mkEvent("error", {}));
+      this.dispatchInternal(mkEvent("error", {}));
     }
 
     private waitReconnect(): Promise<void> {
@@ -312,53 +409,6 @@ export function installEventSource(): void {
           resolve();
         }, this.reconnectionTimeMs);
       });
-    }
-
-    private emit(type: string, event: any): void {
-      try {
-        event.target = event.currentTarget = this;
-      } catch {}
-      const handler = (this as any)["on" + type];
-      if (typeof handler === "function") {
-        try {
-          handler.call(this, event);
-        } catch (error) {
-          try {
-            console.error("[kitesurf] EventSource on" + type + " threw:", error);
-          } catch {}
-        }
-      }
-      const listeners = this.listeners.get(type);
-      if (listeners) {
-        for (const listener of Array.from(listeners)) {
-          try {
-            listener.call(this, event);
-          } catch (error) {
-            try {
-              console.error("[kitesurf] EventSource listener threw:", error);
-            } catch {}
-          }
-        }
-      }
-    }
-
-    addEventListener(type: string, listener: AnyFn): void {
-      if (typeof listener !== "function") return;
-      let listeners = this.listeners.get(String(type));
-      if (!listeners) {
-        listeners = new Set();
-        this.listeners.set(String(type), listeners);
-      }
-      listeners.add(listener);
-    }
-
-    removeEventListener(type: string, listener: AnyFn): void {
-      this.listeners.get(String(type))?.delete(listener);
-    }
-
-    dispatchEvent(event: any): boolean {
-      this.emit(String(event?.type ?? ""), event);
-      return true;
     }
 
     close(): void {
