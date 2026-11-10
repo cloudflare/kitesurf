@@ -240,6 +240,22 @@ describe("SameSite", () => {
     expect(jar.cookieHeaderForUrl(HTTPS, CROSS)).toBeNull();
   });
 
+  it.each(["Strict", "Lax", ""])(
+    "does not replace %s cookies from a cross-site response",
+    (site) => {
+      const jar = createCookieJar();
+      const url = "https://victim.test/login";
+      const attr = site ? `; SameSite=${site}` : "";
+      jar.setFromHeader(url, `sid=old; Secure; HttpOnly; Path=/${attr}`);
+      expect(
+        jar.setFromHeader(url, `sid=new; Secure; HttpOnly; Path=/${attr}`, {
+          initiatorOrigin: "https://attacker.test",
+        }),
+      ).toBeNull();
+      expect(jar.cookieHeaderForUrl(url)).toBe("sid=old");
+    },
+  );
+
   it("sends SameSite=None Secure cross-site", () => {
     const jar = createCookieJar();
     jar.setFromHeader(HTTPS, "n=1; SameSite=None; Secure");

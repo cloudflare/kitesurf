@@ -35,7 +35,7 @@ export interface CookieJar {
   getForUrl(urlStr: string, ctx?: RequestContext): CookieEntry[];
   cookieHeaderForUrl(urlStr: string, ctx?: RequestContext): string | null;
   /** Stores a valid Set-Cookie value; returns `null` when input or policy rejects it. */
-  setFromHeader(urlStr: string, setCookieHeader: string): CookieEntry | null;
+  setFromHeader(urlStr: string, setCookieHeader: string, ctx?: RequestContext): CookieEntry | null;
   /** Stores a script write; it cannot create or replace an HttpOnly cookie. */
   setFromDocumentCookie(urlStr: string, raw: string): CookieEntry | null;
   /** Returns the script-visible cookie string; HttpOnly cookies are omitted. */
@@ -359,7 +359,12 @@ export function createCookieJar(): CookieJar {
     );
   }
 
-  function store(urlStr: string, raw: string, fromScript: boolean): CookieEntry | null {
+  function store(
+    urlStr: string,
+    raw: string,
+    fromScript: boolean,
+    ctx?: RequestContext,
+  ): CookieEntry | null {
     const parts = urlParts(urlStr);
     if (!parts) return null;
     const parsed = parseSetCookie(raw);
@@ -387,6 +392,11 @@ export function createCookieJar(): CookieJar {
     }
 
     const entry = buildEntry(parsed, host, hostOnly);
+    if (ctx !== undefined && ctx.topLevel !== true && entry.sameSite !== "None") {
+      const sourceSite = ctx.initiatorOrigin ? schemefulSite(ctx.initiatorOrigin) : null;
+      const targetSite = schemefulSite(urlStr);
+      if (sourceSite === null || targetSite === null || sourceSite !== targetSite) return null;
+    }
     if (fromScript) entry.httpOnly = false;
 
     if (fromScript && shadowsHttpOnly(entry)) return null;
@@ -408,8 +418,8 @@ export function createCookieJar(): CookieJar {
     return upsert(entry, parts.trustworthy);
   }
 
-  function setFromHeader(urlStr: string, raw: string): CookieEntry | null {
-    return store(urlStr, raw, false);
+  function setFromHeader(urlStr: string, raw: string, ctx?: RequestContext): CookieEntry | null {
+    return store(urlStr, raw, false, ctx);
   }
 
   function setFromDocumentCookie(urlStr: string, raw: string): CookieEntry | null {
