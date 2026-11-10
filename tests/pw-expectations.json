@@ -555,10 +555,6 @@
     "expected": "FAIL",
     "reason": "Error: page.evaluate: Execution context was destroyed, most likely because of a navigation."
   },
-  "page-autowaiting-no-hang.spec.ts::assigning location to about:blank after non-about:blank": {
-    "expected": "FAIL",
-    "reason": "Error: page.evaluate: Execution context was destroyed, most likely because of a navigation."
-  },
   "page-autowaiting-no-hang.spec.ts::clicking a link intercepted by the Navigation API same-document": {
     "expected": "SKIP",
     "reason": "fails slowly (11s): Error: expect(locator).toHaveText(expected) failed"
