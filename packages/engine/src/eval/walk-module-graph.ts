@@ -13,7 +13,7 @@ import {
   type ScriptGateContext,
 } from "@kitesurf/script-gate";
 import { KITESURF_NOSNIFF_HEADER } from "@kitesurf/script-gate/gateway-headers";
-import type { ParentScriptDescriptor } from "../wasm.ts";
+import type { ParentScriptDescriptor, ScannedModulePreload } from "../wasm.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
 import { scriptCredentialsMode } from "./cors.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
@@ -401,26 +401,15 @@ export interface ModulePreloadSeed {
   crossOrigin?: string | null;
 }
 
-export function modulePreloadSeeds(html: string, baseUrl: string): ModulePreloadSeed[] {
+export function modulePreloadSeeds(
+  links: readonly ScannedModulePreload[],
+  baseUrl: string,
+): ModulePreloadSeed[] {
   const seeds = new Map<string, Omit<ModulePreloadSeed, "url">>();
-  for (const [tag] of html.matchAll(/<link\b[^>]*>/gi)) {
-    const attr = (name: string): string | null => {
-      const m = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i").exec(tag);
-      return m ? (m[1] ?? m[2] ?? m[3] ?? "").replace(/&amp;/g, "&") : null;
-    };
-    const rel = attr("rel")?.toLowerCase().split(/\s+/) ?? [];
-    if (!rel.includes("modulepreload")) continue;
-    const as = attr("as")?.toLowerCase();
-    if (as && as !== "script") continue;
-    const href = attr("href");
-    const url = href ? resolveAgainstImporter(href, baseUrl) : null;
+  for (const { href, nonce, integrity, crossOrigin } of links) {
+    const url = resolveAgainstImporter(href, baseUrl);
     if (url && /^https?:\/\//.test(url) && !seeds.has(url)) {
-      const crossOrigin = attr("crossorigin");
-      seeds.set(url, {
-        nonce: attr("nonce"),
-        integrity: attr("integrity"),
-        ...(crossOrigin === null ? {} : { crossOrigin }),
-      });
+      seeds.set(url, { nonce, integrity, ...(crossOrigin == null ? {} : { crossOrigin }) });
     }
   }
   return [...seeds].map(([url, seed]) => ({ url, ...seed }));
