@@ -116,6 +116,15 @@ Generated WebIDL metadata
     Full upstream texts: licenses/BSD-3-Clause-WPT.txt and
     licenses/MIT-Webref.txt.
 
+Public Suffix List
+  - packages/engine/src/public-suffix-list.dat is a byte-for-byte snapshot of
+    https://publicsuffix.org/list/public_suffix_list.dat, version
+    2026-11-09_13-00-17_UTC (commit
+    ab73a956765706dc3f42dbac5c7e48df2297e1ac). It contains the ICANN and
+    PRIVATE sections, is bundled unmodified as a text module, and is parsed at
+    runtime by packages/engine/src/public-suffix.ts. The list is licensed under
+    the Mozilla Public License 2.0; see licenses/MPL-2.0-PSL.txt.
+
 WPT-derived corner-shape contours
   - scripts/patches/blitz-paint-0.3.0-beta.4/0017-Paint-corner-shape-on-backgrounds-and-clips.patch
     adds src/kurbo_css/corner_shape.rs, a Rust adaptation of WPT's

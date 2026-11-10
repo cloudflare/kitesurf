@@ -549,4 +549,30 @@ describe("private public suffixes", () => {
       jar.getForUrl("https://b.github.io/", { initiatorOrigin: "https://www.b.github.io" }).length,
     ).toBe(1);
   });
+
+  it.each([
+    "duckdns.org",
+    "s3-website-us-east-1.amazonaws.com",
+    "a.ck", // *.ck: a.ck is the suffix.
+    "xn--55qx5d.cn", // IDN rule matched through its A-label.
+  ])("rejects domain cookies and Strict reads across %s tenants", (suffix) => {
+    const jar = createCookieJar();
+    const cookie = `sid=attacker; Domain=${suffix}; Path=/; Secure; SameSite=None`;
+    expect(jar.setFromHeader(`https://a.${suffix}/`, cookie)).toBeNull();
+    expect(jar.setFromDocumentCookie(`https://a.${suffix}/`, cookie)).toBeNull();
+    expect(jar.cookieHeaderForUrl(`https://b.${suffix}/`)).toBeNull();
+    expect(
+      jar.setFromHeader(`https://www.a.${suffix}/`, `ok=1; Domain=a.${suffix}; Path=/`),
+    ).not.toBeNull();
+    expect(jar.cookieHeaderForUrl(`https://a.${suffix}/`)).toBe("ok=1");
+    jar.setFromHeader(`https://b.${suffix}/`, "strict=1; SameSite=Strict");
+    expect(
+      jar.cookieHeaderForUrl(`https://b.${suffix}/`, { initiatorOrigin: `https://a.${suffix}` }),
+    ).toBeNull();
+    expect(
+      jar.cookieHeaderForUrl(`https://b.${suffix}/`, {
+        initiatorOrigin: `https://www.b.${suffix}`,
+      }),
+    ).toBe("strict=1");
+  });
 });

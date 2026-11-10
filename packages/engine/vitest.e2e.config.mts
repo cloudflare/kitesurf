@@ -155,7 +155,7 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
   wo.bindings = engineBindings;
   const ENGINE_RULES: ModuleRule[] = [
     { type: "CompiledWasm", include: ["**/*.wasm"] },
-    { type: "Text", include: ["**/*.glue.js", "*.css", "**/*.css"] },
+    { type: "Text", include: ["**/*.glue.js", "*.css", "**/*.css", "**/*.dat"] },
     // Wrangler bundles *.bin as Data by default; wrapping engines ship such modules.
     { type: "Data", include: ["**/*.woff2", "**/*.bin"] },
   ];

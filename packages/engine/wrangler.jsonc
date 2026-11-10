@@ -9,7 +9,7 @@
   "rules": [
     {
       "type": "Text",
-      "globs": ["**/*.glue.js", "**/*.css"],
+      "globs": ["**/*.glue.js", "**/*.css", "**/*.dat"],
       "fallthrough": true,
     },
   ],

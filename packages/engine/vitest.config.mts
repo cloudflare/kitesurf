@@ -26,7 +26,7 @@ export default defineConfig({
         if (id.endsWith(".wasm")) return "export default {};";
       },
       transform(code: string, id: string) {
-        if (id.endsWith(".glue.js")) {
+        if (id.endsWith(".glue.js") || id.endsWith(".dat")) {
           return { code: `export default ${JSON.stringify(code)};`, map: null };
         }
       },
@@ -34,7 +34,7 @@ export default defineConfig({
     cloudflareTest({
       miniflare: {
         compatibilityDate: "2026-09-11",
-        modulesRules: [{ type: "Text", include: ["*.css", "**/*.css"] }],
+        modulesRules: [{ type: "Text", include: ["*.css", "**/*.css", "**/*.dat"] }],
         workerLoaders: { LOADER: {} },
       },
     }),
