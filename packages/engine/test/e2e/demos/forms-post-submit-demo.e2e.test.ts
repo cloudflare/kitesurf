@@ -6,16 +6,17 @@ import { expect, test } from "../harness";
 
 const FIXTURE_HOST = "http://127.0.0.1:8787";
 
+// The form page is served from the fixture host: an opaque (data:) document is a public
+// initiator, so Private Network Access refuses its navigation to the loopback fixture host.
 function formPage(method: string, extra = "") {
   return (
-    "data:text/html," +
-    encodeURIComponent(`<!doctype html><html><body>
+    `${FIXTURE_HOST}/__fixtures/policy-doc.html?body=` +
+    encodeURIComponent(`
       <form id="f" method="${method}" action="${FIXTURE_HOST}/__fixtures/form-echo" ${extra}>
         <input name="user" value="rui">
         <input name="lang" value="pt">
         <input id="s" type="submit" name="go" value="Send">
-      </form>
-    </body></html>`)
+      </form>`)
   );
 }
 

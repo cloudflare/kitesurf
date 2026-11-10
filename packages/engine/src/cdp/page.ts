@@ -795,8 +795,9 @@ export async function handlePage(
         const docProps: CallerOutboundProps = {
           pageOrigin: docPageOrigin,
           // A navigation the page started names its initiating document; one the CDP client
-          // started has none, so Private Network Access leaves it alone.
-          privateNetworkInitiator: ksInitiatorOrigin ?? undefined,
+          // started has none, so Private Network Access leaves it alone. An opaque initiator
+          // ("null") still reaches privateNetworkRefusal, which treats it as public.
+          privateNetworkInitiator: ksInitiatorOrigin === null ? undefined : ksInitiatorOrigin,
           mainFrameId: target.frameId,
           mainLoaderId: target.loaderId,
           interceptConnectionId: ctx.connectionId,

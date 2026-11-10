@@ -112,6 +112,11 @@ const cases: Array<[string, NavigateOptions, Sent[]]> = [
     { url: VICTIM },
     [["GET", VICTIM, "", null, VICTIM, "session=1"]],
   ],
+  [
+    "an opaque initiator cannot reach a loopback address",
+    { url: "http://127.0.0.1:9222/json", initiatorOrigin: "null" },
+    [],
+  ],
 ];
 
 describe("a page-started document navigation", () => {
