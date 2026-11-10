@@ -133,7 +133,7 @@ export interface RenderPortSource {
   getRenderPort(): Promise<RenderPortStub>;
 }
 
-export type RenderFrameOptions = Omit<RenderFrameOpts, "tp">;
+export type RenderFrameOptions = Omit<RenderFrameOpts, "tp" | "scope">;
 
 export interface RenderFrameResult {
   ok: boolean;
@@ -147,7 +147,7 @@ export interface RenderFrameResult {
   scrollY: number;
 }
 
-export type RenderPdfOptions = Omit<RenderPdfOpts, "tp">;
+export type RenderPdfOptions = Omit<RenderPdfOpts, "tp" | "scope">;
 
 export interface RenderPdfResult {
   ok: boolean;
@@ -174,6 +174,18 @@ export class PageRendererManager {
   partialFramesRendered = 0;
   // Render RPCs mutate one retained partial-frame base, so keep them ordered.
   private queue: Promise<unknown> = Promise.resolve();
+  // The renderer cache serves resources that a page reports by hash, so only the isolate that
+  // supplied them may use them. One opaque scope per render port source.
+  private readonly resourceScopes = new WeakMap<RenderPortSource, string>();
+
+  private resourceScope(source: RenderPortSource): string {
+    let scope = this.resourceScopes.get(source);
+    if (!scope) {
+      scope = crypto.randomUUID();
+      this.resourceScopes.set(source, scope);
+    }
+    return scope;
+  }
 
   constructor(
     env: RendererEnv,
@@ -351,7 +363,7 @@ export class PageRendererManager {
             ? { partialKey: opts.partialKey }
             : {}),
           ...(opts.images ? { images: opts.images } : {}),
-          ...(opts.scope !== undefined ? { scope: opts.scope } : {}),
+          scope: this.resourceScope(source),
           ...(opts.traced ? { traced: true } : {}),
           ...(traceParentId ? { tp: traceParentId } : {}),
         },
@@ -449,7 +461,7 @@ export class PageRendererManager {
           marginRight: opts.marginRight,
           marginBottom: opts.marginBottom,
           marginLeft: opts.marginLeft,
-          ...(opts.scope !== undefined ? { scope: opts.scope } : {}),
+          scope: this.resourceScope(source),
           ...(opts.traced ? { traced: true } : {}),
           ...(traceParentId ? { tp: traceParentId } : {}),
         },

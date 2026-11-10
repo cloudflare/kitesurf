@@ -440,7 +440,6 @@ export async function recordAndRasterizeFrame(
   opts: {
     raster?: Partial<RasterizeOptions>;
     sinceSeq?: number;
-    scope?: string;
   } = {},
 ): Promise<RenderFrameResult | RenderFrameError> {
   const rasterOpts: RasterizeOptions = {
@@ -453,7 +452,6 @@ export async function recordAndRasterizeFrame(
     res = await renderer.renderFrame(stub, {
       ...rasterOpts,
       ...(typeof opts.sinceSeq === "number" ? { sinceSeq: opts.sinceSeq } : {}),
-      ...(opts.scope !== undefined ? { scope: opts.scope } : {}),
     });
   } catch (e) {
     return {

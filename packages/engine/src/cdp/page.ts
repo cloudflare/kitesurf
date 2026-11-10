@@ -229,12 +229,6 @@ function isNavigationTransitionType(
   return VALID_NAVIGATION_TRANSITION_SET.has(value);
 }
 
-// The renderer's resource cache is keyed by hashes that the page itself reports, so it serves
-// one top-level document, with its frames, and is dropped when the scope changes.
-function renderScope(target: TargetState): string {
-  return `${target.targetId}:${target.navigateGeneration}`;
-}
-
 function partialKeyFor(ctx: DispatchCtx, target: TargetState): string | undefined {
   if (ctx.browser.skipPartialRaster) return undefined;
   // Scope retained pixels to this target and its current document generation.
@@ -316,7 +310,7 @@ async function renderViaPageRenderer(
   const tracer = ctx.env.HOST_TRACER;
   const traced = !!tracer && tracer.getSpanContext() !== null;
   const res = await traceSpan(tracer, "render.frame", () =>
-    manager.renderFrame(ps, { ...opts, scope: renderScope(target), traced }),
+    manager.renderFrame(ps, { ...opts, traced }),
   );
   if (res.ok && res.unchanged === true) {
     return {
@@ -1437,7 +1431,6 @@ export async function handlePage(
               marginRight: pdfLayout.marginRightPx,
               marginBottom: pdfLayout.marginBottomPx,
               marginLeft: pdfLayout.marginLeftPx,
-              scope: renderScope(target),
             }),
           );
           if (viaRenderer.ok && viaRenderer.bytes && viaRenderer.bytes.length > 0) {
@@ -3336,7 +3329,6 @@ async function pollOopifFrame(
         recordAndRasterizeFrame(manager, child, {
           raster: { format: "rgba", omitBackground: false },
           sinceSeq: f.lastRenderSeq,
-          scope: renderScope(target),
         }),
         OOPIF_POLL_TIMEOUT_MS,
         "oopif recordAndRasterizeFrame",
@@ -3694,7 +3686,6 @@ async function spawnOopifPipeline(
     const manager = getRendererManager(ctx, target);
     const res = await recordAndRasterizeFrame(manager, spawn.stub, {
       raster: { format: "rgba", omitBackground: false },
-      scope: renderScope(target),
     });
     if (
       res.ok &&
