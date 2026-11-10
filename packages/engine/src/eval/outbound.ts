@@ -603,6 +603,8 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       wbaHeaders,
       corsMode: needsCorsCheck || sheetWantsCors,
       pageRealm: sealed && props.pageRealm === true,
+      suppressOpaqueDefaultOrigin:
+        resourceType === "Document" && props?.topLevelDocument === true && request.method === "GET",
     });
 
     // Sealed props or x-kitesurf-cookie-key select the jar; only a missing context key
@@ -611,7 +613,12 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       (sealed ? (props.cookieKey ?? "") : (request.headers.get("x-kitesurf-cookie-key") ?? "")) ||
       connectionId;
     const jar = cookieKey ? getCookieJar(cookieKey) : undefined;
-    if (jar && sendCredentials && !forwardRequest.headers.has("cookie")) {
+    if (
+      jar &&
+      sendCredentials &&
+      !forwardRequest.headers.has("cookie") &&
+      props?.topLevelDocument !== true
+    ) {
       const cookieHeader = jar.cookieHeaderForUrl(request.url, cookieContext);
       if (cookieHeader) {
         forwardRequest.headers.set("cookie", cookieHeader);
@@ -1348,6 +1355,8 @@ interface BuildForwardRequestOptions {
   corsMode?: boolean;
   /** The original headers came from page script; drop the ones it may not set. */
   pageRealm?: boolean;
+  /** A top-level document walk carries its own Origin; never synthesize "null" when opaque. */
+  suppressOpaqueDefaultOrigin?: boolean;
 }
 
 export function buildForwardRequest({
@@ -1360,6 +1369,7 @@ export function buildForwardRequest({
   wbaHeaders = {},
   corsMode = false,
   pageRealm = false,
+  suppressOpaqueDefaultOrigin = false,
 }: BuildForwardRequestOptions): Request {
   const headers = new Headers();
   for (const [k, v] of original.headers.entries()) {
@@ -1373,7 +1383,9 @@ export function buildForwardRequest({
   // The fetch shim adds Origin where Fetch requires it (non-GET, cross-origin); the
   // gateway keeps the header but supplies the committed value, not the page's.
   if (pageRealm && original.headers.has("origin")) headers.set("origin", pageOrigin || "null");
-  if (!headers.has("origin") && !pageOrigin) headers.set("origin", "null");
+  if (!headers.has("origin") && !pageOrigin && !suppressOpaqueDefaultOrigin) {
+    headers.set("origin", "null");
+  }
   if (corsMode) headers.set("origin", pageOrigin || "null");
   const policy = parseReferrerPolicy(referrerPolicy);
   const requestReferrer = (() => {

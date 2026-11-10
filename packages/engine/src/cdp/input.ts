@@ -234,16 +234,32 @@ export async function handleInput(
 
       try {
         assertExpected(target);
-        const result = await target.pageScript.dispatchMouseEvent(evType, init);
+        const inputPageScript = target.pageScript;
+        const inputPageScriptUrl = target.pageScriptUrl;
+        if (!inputPageScript) return {};
+        const result = await inputPageScript.dispatchMouseEvent(evType, init);
         emitConsole(ctx, result.console, req.sessionId);
         emitMutations(ctx, target, result.cdpMutations);
         if (p.type !== "mouseReleased") {
           releaseWheelFencesNow();
-          await followNavigation(ctx, target, result, req.sessionId, !replyOnDispatch);
+          if (
+            target.pageScript !== inputPageScript ||
+            target.pageScriptUrl !== inputPageScriptUrl
+          ) {
+            return {};
+          }
+          await followNavigation(
+            ctx,
+            target,
+            result,
+            req.sessionId,
+            !replyOnDispatch,
+            initiatorOriginOf(inputPageScriptUrl) ?? "null",
+          );
         }
         if (p.type === "mousePressed" && p.button === "right") {
           assertExpected(target);
-          const menuResult = await target.pageScript.dispatchMouseEvent("contextmenu", init);
+          const menuResult = await inputPageScript.dispatchMouseEvent("contextmenu", init);
           emitConsole(ctx, menuResult.console, req.sessionId);
           emitMutations(ctx, target, menuResult.cdpMutations);
         }
@@ -253,21 +269,34 @@ export async function handleInput(
           const primary = p.button === "left" || p.button === undefined;
           const evName = primary ? "click" : "auxclick";
           assertExpected(target);
-          const clickResult = await target.pageScript.dispatchMouseEvent(evName, clickInit);
+          const clickResult = await inputPageScript.dispatchMouseEvent(evName, clickInit);
           emitConsole(ctx, clickResult.console, req.sessionId);
           emitMutations(ctx, target, clickResult.cdpMutations);
           if (primary && clickCount === 2) {
             assertExpected(target);
-            const dblResult = await target.pageScript.dispatchMouseEvent("dblclick", clickInit);
+            const dblResult = await inputPageScript.dispatchMouseEvent("dblclick", clickInit);
             emitConsole(ctx, dblResult.console, req.sessionId);
             emitMutations(ctx, target, dblResult.cdpMutations);
           }
           releaseWheelFencesNow();
+          if (
+            target.pageScript !== inputPageScript ||
+            target.pageScriptUrl !== inputPageScriptUrl
+          ) {
+            return {};
+          }
           const navigationResult =
             clickResult.navigatePost || clickResult.navigateTo || clickResult.hashNavigateTo
               ? clickResult
               : result;
-          await followNavigation(ctx, target, navigationResult, req.sessionId, !replyOnDispatch);
+          await followNavigation(
+            ctx,
+            target,
+            navigationResult,
+            req.sessionId,
+            !replyOnDispatch,
+            initiatorOriginOf(inputPageScriptUrl) ?? "null",
+          );
         }
         return {};
       } catch (err) {
@@ -312,11 +341,24 @@ export async function handleInput(
       if (!releaseWheelFences) return {};
       try {
         assertExpected(target);
-        const result = await target.pageScript.dispatchKeyEvent(evType, init);
+        const inputPageScript = target.pageScript;
+        const inputPageScriptUrl = target.pageScriptUrl;
+        if (!inputPageScript) return {};
+        const result = await inputPageScript.dispatchKeyEvent(evType, init);
         emitConsole(ctx, result.console, req.sessionId);
         emitMutations(ctx, target, result.cdpMutations);
         for (const release of releaseWheelFences) release();
-        await followNavigation(ctx, target, result, req.sessionId, !replyOnDispatch);
+        if (target.pageScript !== inputPageScript || target.pageScriptUrl !== inputPageScriptUrl) {
+          return {};
+        }
+        await followNavigation(
+          ctx,
+          target,
+          result,
+          req.sessionId,
+          !replyOnDispatch,
+          initiatorOriginOf(inputPageScriptUrl) ?? "null",
+        );
         return {};
       } catch (err) {
         assertExpected(target);
@@ -521,16 +563,11 @@ async function followNavigation(
   result: NavigationResult,
   sessionId: string | undefined,
   wait: boolean,
+  initiatorOrigin: string,
 ): Promise<void> {
   if (!startsNavigation(result)) return;
   const loaderId = announceNavigation(ctx, target, result, sessionId);
-  const navigation = maybeFollowAnchor(
-    ctx,
-    result,
-    sessionId,
-    loaderId,
-    initiatorOriginOf(target.url),
-  );
+  const navigation = maybeFollowAnchor(ctx, result, sessionId, loaderId, initiatorOrigin);
   if (wait) return navigation;
   const pending: Promise<void> = navigation
     .catch((err: unknown) =>
@@ -578,8 +615,8 @@ async function maybeFollowAnchor(
     | null
     | undefined,
   sessionId: string | undefined,
-  loaderId?: string,
-  initiatorOrigin?: string | null,
+  loaderId: string | undefined,
+  initiatorOrigin: string,
 ): Promise<void> {
   const announced = loaderId ? { _kitesurfLoaderId: loaderId } : {};
   const navigateTo = result?.navigateTo;
@@ -597,7 +634,7 @@ async function maybeFollowAnchor(
           _kitesurfPostData: navigatePost.postData ?? "",
           _kitesurfPostContentType:
             navigatePost.postContentType ?? "application/x-www-form-urlencoded",
-          _kitesurfInitiatorOrigin: initiatorOrigin ?? undefined,
+          _kitesurfInitiatorOrigin: initiatorOrigin,
           ...announced,
         },
         sessionId,
@@ -619,7 +656,7 @@ async function maybeFollowAnchor(
         params: {
           url: navigateTo,
           _kitesurfInternal: true,
-          _kitesurfInitiatorOrigin: initiatorOrigin ?? undefined,
+          _kitesurfInitiatorOrigin: initiatorOrigin,
           ...announced,
         },
         sessionId,
