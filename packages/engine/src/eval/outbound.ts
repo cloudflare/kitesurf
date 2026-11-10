@@ -47,6 +47,7 @@ import {
   KITESURF_NOSNIFF_HEADER,
 } from "@kitesurf/script-gate/gateway-headers";
 import { determineReferrer, parseReferrerPolicy } from "@kitesurf/script-gate/referrer-policy";
+import { hasNosniff, mimeEssence } from "@kitesurf/script-gate/mime";
 import { isForbiddenRequestHeader } from "./forbidden-headers.ts";
 import { privateNetworkRefusal } from "./private-network.ts";
 
@@ -963,6 +964,26 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       REDIRECT_STATUSES.has(resp.status) && (resp.headers.get("location") ?? "") !== "";
     const emptyLocationRedirect =
       REDIRECT_STATUSES.has(resp.status) && resp.headers.get("location") === "";
+    const sheetMime =
+      resourceType === "Stylesheet" ? mimeEssence(resp.headers.get("content-type")) : "";
+    if (
+      resourceType === "Stylesheet" &&
+      // An error page is still a response: only a 2xx body that would apply as CSS is refused
+      // for its type, so a 404 keeps its status instead of becoming a network failure.
+      resp.ok &&
+      !isRedirect &&
+      !emptyLocationRedirect &&
+      sheetMime !== "text/css" &&
+      (hasNosniff(resp.headers.get("x-content-type-options")) ||
+        // Like Chromium, a cross-origin sheet without a usable type still applies as CSS.
+        (crossOriginNow && sheetMime !== "" && sheetMime !== "application/x-unknown-content-type"))
+    ) {
+      try {
+        await resp.body?.cancel();
+      } catch {}
+      failTrackedRequest(tracker, requestId, "stylesheet-mime");
+      return blocked("kitesurf: stylesheet response has an invalid MIME type", "stylesheet-mime");
+    }
     if (needsCorsCheck && isRedirect) {
       const location = resp.headers.get("location");
       if (location) {
