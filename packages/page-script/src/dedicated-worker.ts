@@ -10,6 +10,7 @@ import type { WorkerEventParams } from "@kitesurf/jsrpc-types/dedicated-worker";
 import { sendUpstreamEvent } from "./internal-state.js";
 import { fetchInsertedScript } from "./resource-fetch.ts";
 import {
+  insertedRedirectGate,
   insertedResponseAllowed,
   insertedScriptAllowed,
   reportBlocked,
@@ -150,7 +151,12 @@ async function loadSource(url: string): Promise<string> {
     if (!response.ok) throw new Error(`data: URL failed to load`);
     return await response.text();
   }
-  const response = await fetchInsertedScript(pre.upgradeTo ?? url, "");
+  const redirects = insertedRedirectGate(meta);
+  const response = await fetchInsertedScript(pre.upgradeTo ?? url, "", redirects.check);
+  if (redirects.refusal) {
+    reportBlocked(redirects.refusal);
+    throw new Error(redirects.refusal.reason ?? "blocked by policy");
+  }
   if (response.status === 0) throw new Error("fetch failed");
   if (response.status >= 400) throw new Error(`HTTP ${response.status}`);
   const post = await insertedResponseAllowed(

@@ -388,3 +388,27 @@ test("CSP: a runtime-inserted script that redirects off the allowlist does not r
   await settle(page);
   expect(await ran(page)).toEqual(["inserted-on"]);
 });
+
+test("CSP: an inserted script or module that bounces off the allowlist and back does not run", async ({
+  page,
+}) => {
+  // ks.invalid, then ks-other.invalid, then ks.invalid: only a per-hop check refuses it.
+  // The hops send CORS headers so the module, a CORS fetch, is refused by CSP alone.
+  const bounce = (tag: string) => {
+    const hop = (host: string, to: string) =>
+      `https://${host}/__fixtures/cors-redirect?to=${encodeURIComponent(to)}`;
+    return hop("ks.invalid", hop("ks-other.invalid", scriptUrl({ tag })));
+  };
+  const body =
+    `<script nonce="n0nce">` +
+    `const s = document.createElement("script"); s.src = ${JSON.stringify(bounce("bounced"))};` +
+    `document.head.append(s);` +
+    // A computed specifier keeps the engine's static module walk from fetching it first.
+    `const spec = [${JSON.stringify(bounce("bounced-module"))}][0]; import(spec).catch(() => {});` +
+    `const ok = document.createElement("script"); ok.src = ${JSON.stringify(scriptUrl({ tag: "direct" }))};` +
+    `document.head.append(ok);` +
+    `</script>`;
+  await page.goto(docUrl(`script-src ${ORIGIN} 'nonce-n0nce'`, body), { waitUntil: "load" });
+  await settle(page);
+  expect(await ran(page)).toEqual(["direct"]);
+});

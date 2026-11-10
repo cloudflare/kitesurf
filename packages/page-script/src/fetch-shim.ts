@@ -698,6 +698,7 @@ interface RedirectContext {
   redirectMode: string;
   mode: string;
   inputRequest: PageRequest | null;
+  checkRedirect: ((url: string) => string | null) | undefined;
 }
 
 function redirectDowngradesToGet(status: number, method: string): boolean {
@@ -721,7 +722,7 @@ async function followRedirects(
   realFetch: typeof globalThis.fetch,
   first: Response,
   firstUrl: string,
-  { pageOrigin, headers, init, redirectMode, mode, inputRequest }: RedirectContext,
+  { pageOrigin, headers, init, redirectMode, mode, inputRequest, checkRedirect }: RedirectContext,
 ): Promise<{ response: Response; url: string; hops: number; tainting: "basic" | "cors" }> {
   // The shim owns redirects so each hop receives updated origin and referrer carriers.
   let response = first;
@@ -774,6 +775,12 @@ async function followRedirects(
     }
     if (mode !== "no-cors" && (redirectTarget.username !== "" || redirectTarget.password !== "")) {
       throw new TypeError("Failed to fetch");
+    }
+    if (checkRedirect) {
+      // Before the hop is requested, so a refused target is never contacted.
+      const next = checkRedirect(redirectTarget.toString());
+      if (next === null) throw new TypeError("Failed to fetch");
+      if (next !== redirectTarget.toString()) redirectTarget = new URL(next);
     }
     let currentHopOrigin = "";
     try {
@@ -1038,6 +1045,7 @@ export function installFetchShim(): void {
       redirectMode,
       mode: String(mergedInit.mode ?? inputRequest?.mode ?? "cors"),
       inputRequest,
+      checkRedirect: trustedMeta?.checkRedirect,
     });
     response = followed.response;
     response = restoreCarriedStatus(response);

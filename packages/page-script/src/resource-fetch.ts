@@ -639,6 +639,7 @@ async function doRealFetch(url: string, kind: string, corsMode: string = ""): Pr
 export async function fetchInsertedScript(
   url: string,
   crossOrigin: string | null = null,
+  checkRedirect?: (url: string) => string | null,
 ): Promise<{
   status: number;
   source: string;
@@ -673,7 +674,11 @@ export async function fetchInsertedScript(
     const response = await trustedFetch(
       url,
       { headers },
-      { resourceType: "Script", initiator: "script" },
+      {
+        resourceType: "Script",
+        initiator: "script",
+        ...(checkRedirect ? { checkRedirect } : {}),
+      },
     );
     release();
     if (!response.ok) {
