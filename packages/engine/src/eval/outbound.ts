@@ -883,7 +883,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       } catch {}
     }
 
-    if (corpApplies && pageOrigin) {
+    if (corpApplies) {
       const corp = (resp.headers.get("cross-origin-resource-policy") ?? "").trim();
       if (corp === "same-origin" || corp === "same-site") {
         let corpBlocked = true;
