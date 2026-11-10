@@ -21,6 +21,7 @@ import {
 } from "../src/eval/cors.ts";
 
 const ORIGIN = "http://web-platform.test:8000";
+const PARTITION = "connection-a";
 
 describe("parseTokenList", () => {
   it("drops empty items and keeps tokens", () => {
@@ -283,11 +284,13 @@ describe("corsPreflight", () => {
       unsafe?: string[];
       credentials?: boolean;
       url?: string;
+      partition?: string;
     } = {},
   ) {
     const seen: Request[] = [];
     const promise = corsPreflight(
       {
+        partition: opts.partition ?? PARTITION,
         url: opts.url ?? "http://remote.test/x",
         method: opts.method ?? "PUT",
         unsafeNames: opts.unsafe ?? [],
@@ -401,9 +404,24 @@ describe("corsPreflight", () => {
     };
     const url = "http://remote.test/cached";
     expect((await run(() => reply(headers), { url }).promise).reason).toBeNull();
-    expect(preflightCacheLookup(ORIGIN, url, "PUT", [], false)).toBe(true);
-    expect(preflightCacheLookup(ORIGIN, url, "PUT", [], true)).toBe(false);
-    expect(preflightCacheLookup(ORIGIN, url, "PUT", ["x-test"], false)).toBe(false);
+    expect(preflightCacheLookup(PARTITION, ORIGIN, url, "PUT", [], false)).toBe(true);
+    expect(preflightCacheLookup(PARTITION, ORIGIN, url, "PUT", [], true)).toBe(false);
+    expect(preflightCacheLookup(PARTITION, ORIGIN, url, "PUT", ["x-test"], false)).toBe(false);
+  });
+
+  // The cache is shared by every session in the isolate, so a grant must not
+  // cross a browser context boundary.
+  const otherPartitions = ["connection-b", "connection-a::context-b"];
+  it.each(otherPartitions)("does not reuse a grant in %s", async (other) => {
+    const url = "https://target.test/partition";
+    const headers = {
+      "access-control-allow-origin": ORIGIN,
+      "access-control-allow-methods": "PUT",
+      "access-control-max-age": "600",
+    };
+    const { promise } = run(() => reply(headers), { url, partition: PARTITION });
+    expect((await promise).reason).toBeNull();
+    expect(preflightCacheLookup(other, ORIGIN, url, "PUT", [], false)).toBe(false);
   });
 
   // A host egress hook can answer for any server, and the cache is
@@ -412,6 +430,7 @@ describe("corsPreflight", () => {
     const url = "http://remote.test/host-egress";
     const verdict = await corsPreflight(
       {
+        partition: PARTITION,
         url,
         method: "PUT",
         unsafeNames: [],
@@ -430,7 +449,7 @@ describe("corsPreflight", () => {
         }),
     );
     expect(verdict.reason).toBeNull();
-    expect(preflightCacheLookup(ORIGIN, url, "PUT", [], false)).toBe(false);
+    expect(preflightCacheLookup(PARTITION, ORIGIN, url, "PUT", [], false)).toBe(false);
   });
 
   // Max-Age is delta-seconds; Number() would have accepted all of these
@@ -451,7 +470,7 @@ describe("corsPreflight", () => {
         { url },
       );
       expect((await promise).reason).toBeNull();
-      expect(preflightCacheLookup(ORIGIN, url, "PUT", [], false)).toBe(false);
+      expect(preflightCacheLookup(PARTITION, ORIGIN, url, "PUT", [], false)).toBe(false);
     }
   });
 
@@ -467,7 +486,7 @@ describe("corsPreflight", () => {
       { url },
     );
     expect((await promise).reason).toBeNull();
-    expect(preflightCacheLookup(ORIGIN, url, "PUT", [], false)).toBe(false);
+    expect(preflightCacheLookup(PARTITION, ORIGIN, url, "PUT", [], false)).toBe(false);
   });
 });
 

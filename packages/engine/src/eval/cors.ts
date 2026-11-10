@@ -251,8 +251,13 @@ const preflightCache = new Map<string, PreflightEntry>();
 
 const PREFLIGHT_CACHE_MAX = 512;
 
-function cacheKey(origin: string, url: string, credentialsInclude: boolean): string {
-  return `${origin}\u0000${url}\u0000${credentialsInclude ? "1" : "0"}`;
+function cacheKey(
+  partition: string,
+  origin: string,
+  url: string,
+  credentialsInclude: boolean,
+): string {
+  return JSON.stringify([partition, origin, url, credentialsInclude]);
 }
 
 function entrySatisfies(
@@ -278,18 +283,20 @@ function entrySatisfies(
 }
 
 export function preflightCacheLookup(
+  partition: string,
   origin: string,
   url: string,
   method: string,
   unsafeNames: string[],
   credentialsInclude: boolean,
 ): boolean {
-  const entry = preflightCache.get(cacheKey(origin, url, credentialsInclude));
+  const entry = preflightCache.get(cacheKey(partition, origin, url, credentialsInclude));
   if (!entry) return false;
   return entrySatisfies(entry, method, unsafeNames, credentialsInclude);
 }
 
 function storePreflight(
+  partition: string,
   origin: string,
   url: string,
   credentialsInclude: boolean,
@@ -300,7 +307,7 @@ function storePreflight(
     const oldest = preflightCache.keys().next();
     if (!oldest.done) preflightCache.delete(oldest.value);
   }
-  preflightCache.set(cacheKey(origin, url, credentialsInclude), entry);
+  preflightCache.set(cacheKey(partition, origin, url, credentialsInclude), entry);
 }
 
 export function clearPreflightCache(): void {
@@ -308,6 +315,9 @@ export function clearPreflightCache(): void {
 }
 
 export interface CorsPreflightRequest {
+  // Browser context the grant belongs to: the sealed cookie key. Grants never
+  // cross it, and an empty partition is never cached.
+  partition: string;
   url: string;
   method: string;
   unsafeNames: string[];
@@ -400,8 +410,8 @@ export async function corsPreflight(
   const rawMaxAge = resp.headers.get("access-control-max-age");
   const maxAge = rawMaxAge !== null && /^[0-9]+$/.test(rawMaxAge) ? Number(rawMaxAge) : 0;
   const seconds = maxAge > 0 ? Math.min(maxAge, MAX_PREFLIGHT_CACHE_AGE_SECONDS) : 0;
-  if (seconds > 0 && req.cacheable !== false) {
-    storePreflight(requestOrigin, url, credentialsInclude, {
+  if (seconds > 0 && req.cacheable !== false && req.partition !== "") {
+    storePreflight(req.partition, requestOrigin, url, credentialsInclude, {
       methods,
       methodWildcard,
       headerNames: allowed,
