@@ -271,12 +271,14 @@ describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
 function stubOutbound(
   bodies: Record<string, string> = {},
   delays: Record<string, number> = {},
+  statuses: Record<string, number> = {},
 ): SandboxOutboundOverride {
   const fetcher = {
     fetch: async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (delays[url]) await new Promise((r) => setTimeout(r, delays[url]));
       return new Response(bodies[url] ?? "export default 1;", {
+        status: statuses[url] ?? 200,
         headers: { "content-type": "text/javascript" },
       });
     },
@@ -1057,6 +1059,93 @@ describe("import maps", () => {
     expect(descriptors[1]?.prefetchError).toBeTruthy();
     const workerdNames = Object.keys(additionalModules).map((k) => k.replace(/[?#].*$/, ""));
     expect(workerdNames).not.toContain("https://example.com/lib.js");
+  });
+
+  it("fails a static importer when a rejected pin equals a query variant's alias", async () => {
+    const { descriptors, additionalModules } = await walkModuleGraph({
+      descriptors: [
+        moduleInline(`import "/lib.__ks_query_0.js"; if (false) import("/lib.js?preview=1");`),
+        {
+          src: "/lib.__ks_query_0.js",
+          kind: "module",
+          defer: false,
+          async: false,
+          body: "",
+          integrity: "sha384-" + "A".repeat(64),
+        },
+      ],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({
+        "https://example.com/lib.js?preview=1": "export const preview = 1;",
+      }),
+    });
+    expect(descriptors[1]?.prefetchError).toBeTruthy();
+    expect(additionalModules["https://example.com/lib.__ks_query_0.js"]).toContain(
+      "export const preview = 1;",
+    );
+    expect(descriptors[0]?.prefetchError).toMatch(
+      /Failed to load static module https:\/\/example\.com\/lib\.__ks_query_0\.js/,
+    );
+    expect(Object.keys(additionalModules)).not.toContain(
+      "https://example.com/__kitesurf_inline_0.js",
+    );
+  });
+
+  it("propagates a missing static dependency through importers but keeps a complete cycle", async () => {
+    const { descriptors, additionalModules } = await walkModuleGraph({
+      descriptors: [moduleInline(`import "/a.js";`), moduleInline(`import "/cycle1.js";`)],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound(
+        {
+          "https://example.com/a.js": `import "/missing.js"; export const a = 1;`,
+          "https://example.com/cycle1.js": `import "/cycle2.js"; export const one = 1;`,
+          "https://example.com/cycle2.js": `import "/cycle1.js"; export const two = 2;`,
+        },
+        {},
+        { "https://example.com/missing.js": 404 },
+      ),
+    });
+    expect(descriptors[0]?.prefetchError).toMatch(
+      /Failed to load static module https:\/\/example\.com\/a\.js imported from https:\/\/example\.com\/__kitesurf_inline_0\.js/,
+    );
+    expect(descriptors[1]?.prefetchError).toBeUndefined();
+    expect(descriptors[1]?.prefetchedSource).toContain(`import "/cycle1.js"`);
+    const keys = Object.keys(additionalModules);
+    expect(keys).not.toContain("https://example.com/a.js");
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        "https://example.com/__kitesurf_inline_1.js",
+        "https://example.com/cycle1.js",
+        "https://example.com/cycle2.js",
+      ]),
+    );
+  });
+
+  it("keeps a complete static graph with a failing unused dynamic import", async () => {
+    const { descriptors, additionalModules } = await walkModuleGraph({
+      descriptors: [
+        moduleInline(
+          `import "/a.js"; import "/lib.js?preview=1"; if (false) import("/broken.js");`,
+        ),
+      ],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound(
+        { "https://example.com/lib.js?preview=1": "export const preview = 1;" },
+        {},
+        { "https://example.com/broken.js": 404 },
+      ),
+    });
+    expect(descriptors[0]?.prefetchError).toBeUndefined();
+    expect(descriptors[0]?.prefetchedSource).toContain("lib.__ks_query_0.js");
+    expect(Object.keys(additionalModules)).toEqual(
+      expect.arrayContaining([
+        "https://example.com/a.js",
+        "https://example.com/lib.__ks_query_0.js",
+      ]),
+    );
   });
 
   it("gives query-distinct modules unique workerd registry names", () => {
