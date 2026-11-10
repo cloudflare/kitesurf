@@ -17,7 +17,7 @@ import type { ParentScriptDescriptor } from "../wasm.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
 import { walkRedirects } from "./redirect-walk.ts";
-import { MAX_DOCUMENT_BYTES, readCappedBytes } from "../read-capped.ts";
+import { MAX_DOCUMENT_BYTES, readCapped } from "../read-capped.ts";
 
 // Page modules are baked under http(s) urls. Any other scheme names the loaded worker's own
 // registry (file:///bundle/, cloudflare:, node:), which page code must never link to.
@@ -1012,8 +1012,11 @@ export async function walkModuleGraph({
         };
       }
       const integrity = integrityByUrl.get(url) ?? null;
-      const capped = await readCappedBytes(res, MAX_DOCUMENT_BYTES, connectionId);
-      if (!capped.ok) {
+      // Capped per body but not charged to the shared read budget, as for classic scripts
+      // in prefetch-scripts.ts.
+      const capped = await readCapped(res.body, MAX_DOCUMENT_BYTES);
+      if (capped.bytes === null) {
+        await capped.rest.cancel().catch(() => {});
         return {
           ok: false,
           error: `module body ${capped.failure} for ${url}`,
