@@ -874,7 +874,10 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
           typeof resp.headers.getSetCookie === "function" ? resp.headers.getSetCookie() : [];
         for (const sc of setCookies) {
           if (typeof sc === "string" && sc.length > 0) {
-            jar.setFromHeader(forwardRequest.url, sc);
+            jar.setFromHeader(forwardRequest.url, sc, {
+              ...cookieContext,
+              topLevel: props?.topLevelDocument === true,
+            });
           }
         }
       } catch {}

@@ -22,7 +22,7 @@ async function viaRedirect(page: Page, cdpSession: CDPSession, cookie: string): 
 
 test("a redirect hop's own cookie is stored under the hop's host", async ({ page, cdpSession }) => {
   await page.goto(PAGE, { waitUntil: "load" });
-  const jar = await viaRedirect(page, cdpSession, "own=1; Path=/");
+  const jar = await viaRedirect(page, cdpSession, "own=1; Path=/; SameSite=None; Secure");
   expect(jar).toContain("own@evil.invalid");
   expect(jar).not.toContain("own@ks.invalid");
 });
