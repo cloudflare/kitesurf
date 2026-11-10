@@ -3891,6 +3891,7 @@ async function spawnOopifPipeline(
       }
       return;
     }
+    f.pageScriptUrl = spawn.finalUrl || urlAtStart;
     f.pageScript = spawn.stub;
     if (spawn.finalUrl && spawn.finalUrl !== f.url) {
       f.url = spawn.finalUrl;
@@ -3990,6 +3991,7 @@ function teardownOopifStubForFrame(
     `oopif teardown: ${reason}`,
     atClose ?? { budget: ctx?.browser.workerBudget },
   );
+  f.pageScriptUrl = null;
   if (ctx && destroyedCtxId > 0) {
     (async () => {
       const { emitOopifExecutionContextDestroyed } = await import("./runtime.ts");

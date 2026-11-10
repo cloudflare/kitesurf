@@ -112,6 +112,24 @@ describe.each(requests)("$method reply cookie writes", (req) => {
   });
 });
 
+const CHILD = "https://child.test/";
+const OTHER = "https://other.test/";
+
+const oopifRequests = [
+  {
+    method: "Runtime.evaluate",
+    params: { expression: "location.href", contextId: 7, returnByValue: true },
+  },
+  {
+    method: "Runtime.callFunctionOn",
+    params: {
+      functionDeclaration: "function(){return 1}",
+      executionContextId: 7,
+      returnByValue: true,
+    },
+  },
+].map((r, i) => ({ id: i + 1, ...r }) as CdpRequest);
+
 describe("an out-of-process frame's reply cookie writes", () => {
   const setupFrame = () => {
     const h = setup();
@@ -120,7 +138,7 @@ describe("an out-of-process frame's reply cookie writes", () => {
       frameId: "C",
       parentFrameId: "F",
       loaderId: "LC",
-      url: "https://child.test/",
+      url: CHILD,
       name: "",
       ownerElementId: "",
       ownerBackendNodeId: 2,
@@ -128,13 +146,10 @@ describe("an out-of-process frame's reply cookie writes", () => {
       delaysLoadEvent: false,
     });
     frame.pageScript = child.stub;
+    frame.pageScriptUrl = CHILD;
     frame.execContextId = 7;
     h.target.frames.set("C", frame);
-    const req = {
-      id: 1,
-      method: "Runtime.evaluate",
-      params: { expression: "location.href", contextId: 7 },
-    } as CdpRequest;
+    const req = oopifRequests[0]!;
     return { ...h, frame, held: child.held, req };
   };
 
@@ -144,17 +159,54 @@ describe("an out-of-process frame's reply cookie writes", () => {
     await flush();
     held[0]!(["c=1"]);
     await pending;
-    expect(cookies.documentCookieString("https://child.test/")).toBe("c=1");
+    expect(cookies.documentCookieString(CHILD)).toBe("c=1");
   });
 
   it("are dropped when the frame navigated during the call", async () => {
     const { ctx, cookies, frame, held, req } = setupFrame();
     const pending = handleRuntime(ctx, req);
     await flush();
-    frame.url = "https://other.test/";
+    frame.url = OTHER;
     frame.pageScript = null;
     held[0]!(["c=1"]);
     await pending.catch(() => {});
     expect(cookies.getAll()).toEqual([]);
   });
+
+  it("are dropped when the frame has no sealed url", async () => {
+    const { ctx, cookies, frame, held, req } = setupFrame();
+    frame.pageScriptUrl = null;
+    const pending = handleRuntime(ctx, req);
+    await flush();
+    held[0]!(["c=1; Path=/"]);
+    await pending;
+    expect(cookies.getAll()).toEqual([]);
+  });
+
+  describe.each(oopifRequests)(
+    "$method reply writes stay with the installed frame document when frame metadata moves",
+    (req) => {
+      it("after the metadata moves during the call", async () => {
+        const { ctx, cookies, frame, held } = setupFrame();
+        const pending = handleRuntime(ctx, req);
+        await flush();
+        frame.url = OTHER;
+        held[0]!(["c=1; Path=/"]);
+        await pending;
+        expect(cookies.documentCookieString(CHILD)).toBe("c=1");
+        expect(cookies.documentCookieString(OTHER)).toBe("");
+      });
+
+      it("when the metadata already moved before dispatch", async () => {
+        const { ctx, cookies, frame, held } = setupFrame();
+        frame.url = OTHER;
+        const pending = handleRuntime(ctx, req);
+        await flush();
+        held[0]!(["c=1; Path=/"]);
+        await pending;
+        expect(cookies.documentCookieString(CHILD)).toBe("c=1");
+        expect(cookies.documentCookieString(OTHER)).toBe("");
+      });
+    },
+  );
 });

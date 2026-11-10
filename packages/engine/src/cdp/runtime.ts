@@ -451,7 +451,8 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
 
 // Writes go under the url of the document that answered. target.url may already name the next
 // document while the old isolate still answers, so a main-frame reply uses the isolate's sealed
-// url, and a reply from an isolate that was replaced while it ran is dropped.
+// url and a frame reply uses the url sealed with its installed stub, and a reply from an isolate
+// that was replaced while it ran is dropped.
 function applyCookieWrites(
   ctx: DispatchCtx,
   target: TargetState | undefined,
@@ -461,7 +462,7 @@ function applyCookieWrites(
 ): void {
   if (!target || !cookieWrites || cookieWrites.length === 0) return;
   if ((oopifFrame ?? target).pageScript !== ps) return;
-  const url = oopifFrame ? oopifFrame.url : target.pageScriptUrl;
+  const url = oopifFrame ? oopifFrame.pageScriptUrl : target.pageScriptUrl;
   if (!url) return;
   const jar = jarForTarget(ctx, target);
   for (const raw of cookieWrites) {
