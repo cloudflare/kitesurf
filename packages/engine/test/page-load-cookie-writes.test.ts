@@ -17,6 +17,7 @@ vi.mock("../src/wasm.ts", () => ({
     importMaps: [],
     scripts: [],
     iframes: [],
+    modulePreloads: [],
   }),
   extractScriptDescriptorsFromDom: () => [],
   createDom: () => {

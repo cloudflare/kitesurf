@@ -50,6 +50,15 @@ pub(crate) struct ScanImportMap {
 }
 
 #[derive(Serialize)]
+pub(crate) struct ScanModulePreload {
+    pub href: String,
+    pub nonce: Option<String>,
+    pub integrity: Option<String>,
+    #[serde(rename = "crossOrigin")]
+    pub cross_origin: Option<String>,
+}
+
+#[derive(Serialize)]
 pub(crate) struct ScanResult {
     pub title: String,
     #[serde(rename = "baseHref")]
@@ -60,6 +69,8 @@ pub(crate) struct ScanResult {
     pub import_maps: Vec<ScanImportMap>,
     pub scripts: Vec<ScanScript>,
     pub iframes: Vec<ScanIframe>,
+    #[serde(rename = "modulePreloads")]
+    pub module_preloads: Vec<ScanModulePreload>,
 }
 
 enum Capture {
@@ -149,6 +160,7 @@ struct ScanState {
     import_maps: Vec<ScanImportMap>,
     scripts: Vec<ScanScript>,
     iframes: Vec<ScanIframe>,
+    module_preloads: Vec<ScanModulePreload>,
     capture: Option<Capture>,
     template_depth: usize,
     foreign_depth: usize,
@@ -419,6 +431,29 @@ impl TokenSink for ScanSink {
                 }
                 TokenSinkResult::Continue
             }
+            "link" => {
+                if s.template_depth == 0 {
+                    let attrs = tag_attrs(tag);
+                    let is_modulepreload = attr(&attrs, "rel")
+                        .unwrap_or("")
+                        .split_ascii_whitespace()
+                        .any(|rel| rel.eq_ignore_ascii_case("modulepreload"));
+                    let script_destination = attr(&attrs, "as")
+                        .map(|value| value.is_empty() || value.eq_ignore_ascii_case("script"))
+                        .unwrap_or(true);
+                    if let Some(href) = attr(&attrs, "href").filter(|href| !href.is_empty()) {
+                        if is_modulepreload && script_destination {
+                            s.module_preloads.push(ScanModulePreload {
+                                href: href.to_string(),
+                                nonce: attr(&attrs, "nonce").map(str::to_string),
+                                integrity: attr(&attrs, "integrity").map(str::to_string),
+                                cross_origin: attr(&attrs, "crossorigin").map(str::to_string),
+                            });
+                        }
+                    }
+                }
+                TokenSinkResult::Continue
+            }
             "meta" => {
                 capture_meta_csp(&mut s, tag);
                 TokenSinkResult::Continue
@@ -480,13 +515,14 @@ pub(crate) fn scan_document(html: &str) -> ScanResult {
         import_maps: s.import_maps,
         scripts: s.scripts,
         iframes: s.iframes,
+        module_preloads: s.module_preloads,
     }
 }
 
 #[wasm_bindgen]
 pub fn ks_scan_document(html: &str) -> String {
     serde_json::to_string(&scan_document(html)).unwrap_or_else(|_| {
-        "{\"title\":\"\",\"baseHref\":null,\"metaCsp\":[],\"importMaps\":[],\"scripts\":[],\"iframes\":[]}"
+        "{\"title\":\"\",\"baseHref\":null,\"metaCsp\":[],\"importMaps\":[],\"scripts\":[],\"iframes\":[],\"modulePreloads\":[]}"
             .to_string()
     })
 }

@@ -99,6 +99,13 @@ export interface ScannedIframe {
   docOrderIndex: number;
 }
 
+export interface ScannedModulePreload {
+  href: string;
+  nonce: string | null;
+  integrity: string | null;
+  crossOrigin?: string | null;
+}
+
 export interface DocScan {
   title: string;
   baseHref: string | null;
@@ -111,6 +118,7 @@ export interface DocScan {
   }>;
   scripts: ScannedScript[];
   iframes: ScannedIframe[];
+  modulePreloads: ScannedModulePreload[];
 }
 
 export function scanDocument(html: string): DocScan {

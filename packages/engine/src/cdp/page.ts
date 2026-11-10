@@ -1707,6 +1707,9 @@ async function pushNavigateToPageScriptInner(
   url: string,
   owesIframeInstalls = false,
 ): Promise<NavigatePushResult> {
+  const docScan = target.docScan ?? scanDocument(html);
+  const scriptBaseUrl = documentBaseUrl(url, docScan.baseHref);
+  const preloadSeeds = modulePreloadSeeds(docScan.modulePreloads, scriptBaseUrl);
   target.wheelTeardownDepth += 1;
   const consoleAcc: ConsoleEntry[] = [];
   try {
@@ -1751,9 +1754,7 @@ async function pushNavigateToPageScriptInner(
   let scriptBundle: ScriptBundle | null = null;
   let wasmBake: WasmBake | null = null;
   try {
-    const raw = target.docScan
-      ? target.docScan.scripts
-      : extractScriptDescriptorsFromDom(target.dom);
+    const raw = target.docScan ? docScan.scripts : extractScriptDescriptorsFromDom(target.dom);
     const preNav: ParentScriptDescriptor[] = [];
     if (ctx.browser.preNavScripts.size > 0) {
       for (const source of ctx.browser.preNavScripts.values()) {
@@ -1771,9 +1772,8 @@ async function pushNavigateToPageScriptInner(
     const scriptGate = documentGateContext(url, {
       csp: target.docCsp,
       cspReportOnly: target.docCspReportOnly,
-      scan: target.docScan,
+      scan: docScan,
     });
-    const scriptBaseUrl = documentBaseUrl(url, target.docScan?.baseHref);
     const gatedDescriptors = await traceSpan(ctx.env.HOST_TRACER, "navigate.script_gate", () =>
       applyPreFetchScriptGate(rawWithPreNav, scriptGate, scriptBaseUrl),
     );
@@ -1845,7 +1845,7 @@ async function pushNavigateToPageScriptInner(
               ),
             ),
           ).catch((): ParentScriptDescriptor[] => []);
-    const importMaps = await applyImportMapGate(target.docScan?.importMaps ?? [], scriptGate, url);
+    const importMaps = await applyImportMapGate(docScan.importMaps, scriptGate, url);
     const walkResult = await traceSpan(ctx.env.HOST_TRACER, "navigate.walk_module_graph", () =>
       walkModuleGraph({
         descriptors: afterClassicPrefetch,
@@ -1860,7 +1860,7 @@ async function pushNavigateToPageScriptInner(
           gate: scriptGate,
           importMaps,
           moduleSeeds: astroIslandModuleUrls(html, scriptBaseUrl),
-          preloadSeeds: modulePreloadSeeds(html, scriptBaseUrl),
+          preloadSeeds,
           documentHtml: html,
         },
         sandboxOutbound: ctx.browser.sandboxOutbound,

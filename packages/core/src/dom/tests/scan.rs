@@ -80,6 +80,7 @@ fn ground_truth(html: &str) -> Value {
     };
     let script_ids = sel("script");
     let iframe_ids = sel("iframe");
+    let link_ids = sel("link");
     let title_ids = sel("title");
     let base_ids = sel("base");
     let meta_ids = sel("meta");
@@ -167,6 +168,31 @@ fn ground_truth(html: &str) -> Value {
         }));
     }
 
+    let mut module_preloads = Vec::new();
+    for &id in link_ids.iter() {
+        if !element_is_html_ns(doc, id) || has_ancestor_in(doc, id, &hidden) {
+            continue;
+        }
+        let attrs = attrs_of(doc, id);
+        let is_modulepreload = attr(&attrs, "rel")
+            .unwrap_or("")
+            .split_ascii_whitespace()
+            .any(|rel| rel.eq_ignore_ascii_case("modulepreload"));
+        let script_destination = attr(&attrs, "as")
+            .map(|value| value.is_empty() || value.eq_ignore_ascii_case("script"))
+            .unwrap_or(true);
+        if let Some(href) = attr(&attrs, "href").filter(|href| !href.is_empty()) {
+            if is_modulepreload && script_destination {
+                module_preloads.push(json!({
+                    "href": href,
+                    "nonce": attr(&attrs, "nonce"),
+                    "integrity": attr(&attrs, "integrity"),
+                    "crossOrigin": attr(&attrs, "crossorigin"),
+                }));
+            }
+        }
+    }
+
     let title = title_ids
         .iter()
         .copied()
@@ -212,6 +238,7 @@ fn ground_truth(html: &str) -> Value {
         "importMaps": import_maps,
         "scripts": scripts,
         "iframes": iframes,
+        "modulePreloads": module_preloads,
     })
 }
 
@@ -750,6 +777,39 @@ fn integrity_and_nonce_are_carried() {
     assert_eq!(v["scripts"][1]["integrity"], Value::Null);
     assert_eq!(v["scripts"][2]["nonce"], "r4nd0m");
     assert_eq!(v["scripts"][3]["integrity"], Value::Null);
+}
+
+#[test]
+fn modulepreload_links_follow_html_tokenization() {
+    let cases: &[(&str, Value)] = &[
+        (
+            r#"<link data-note=">" rel="modulepreload" href="/a.js?x=1&amp;y=2" integrity="sha384-test" crossorigin="use-credentials">"#,
+            json!([{"href": "/a.js?x=1&y=2", "nonce": null, "integrity": "sha384-test", "crossOrigin": "use-credentials"}]),
+        ),
+        (
+            r#"<link rel="ModulePreload" as="script" href="/case.js" nonce="n1">"#,
+            json!([{"href": "/case.js", "nonce": "n1", "integrity": null, "crossOrigin": null}]),
+        ),
+        (
+            concat!(
+                r#"<script>var s = '<link rel="modulepreload" href="/script.js">';</script>"#,
+                r#"<!-- <link rel="modulepreload" href="/comment.js"> -->"#,
+                r#"<template><link rel="modulepreload" href="/template.js"></template>"#,
+                r#"<svg><link rel="modulepreload" href="/svg.js"></svg>"#,
+                r#"<link rel="preload" as="script" href="/classic.js">"#,
+                r#"<link rel="modulepreload" as="style" href="/style.css">"#,
+            ),
+            json!([]),
+        ),
+    ];
+    for (html, expected) in cases {
+        check(html);
+        assert_eq!(
+            scan_value(html)["modulePreloads"],
+            *expected,
+            "modulePreloads for:\n{html}"
+        );
+    }
 }
 
 #[test]

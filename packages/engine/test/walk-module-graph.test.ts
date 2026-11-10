@@ -21,7 +21,7 @@ import {
   type ParsedImportMap,
 } from "../src/eval/walk-module-graph.ts";
 import type { SandboxOutboundOverride } from "../src/eval/outbound.ts";
-import type { ParentScriptDescriptor } from "../src/wasm.ts";
+import type { ParentScriptDescriptor, ScannedModulePreload } from "../src/wasm.ts";
 
 const BASE = "https://example.com/js/app.min.js";
 
@@ -441,17 +441,18 @@ describe("walkModuleGraph asset-import stubs", () => {
 });
 
 describe("modulePreloadSeeds", () => {
-  it("collects script-destination modulepreload links once, with their nonce and integrity", () => {
-    const html =
-      '<link rel="modulepreload" href="/a.js?x=1&amp;y=2" nonce="n1">' +
-      "<link rel='preload modulepreload' href='b.js'>" +
-      '<link rel=modulepreload href="/a.js?x=1&amp;y=2">' +
-      '<link rel="modulepreload" as="script" href="https://cdn.example/c.js">' +
-      '<link rel="modulepreload" as="style" href="/style.css">' +
-      '<link rel="modulepreload" href="/sri.js" integrity="sha384-x">' +
-      '<link rel="modulepreload" href="data:text/javascript,export{}">' +
-      '<link rel="preload" as="script" href="/classic.js">';
-    expect(modulePreloadSeeds(html, "https://site.example/dir/page")).toEqual([
+  it("collects script-destination modulepreload records once, with their nonce and integrity", () => {
+    // Hrefs arrive decoded from the document scanner; this helper only resolves and dedupes them.
+    const links: ScannedModulePreload[] = [
+      { href: "/a.js?x=1&y=2", nonce: "n1", integrity: null },
+      { href: "b.js", nonce: null, integrity: null },
+      { href: "/a.js?x=1&y=2", nonce: "later", integrity: "sha384-later" },
+      { href: "https://cdn.example/c.js", nonce: null, integrity: null },
+      { href: "data:text/javascript,export{}", nonce: null, integrity: null },
+      { href: "http://[", nonce: null, integrity: null },
+      { href: "/sri.js", nonce: null, integrity: "sha384-x" },
+    ];
+    expect(modulePreloadSeeds(links, "https://site.example/dir/page")).toEqual([
       { url: "https://site.example/a.js?x=1&y=2", nonce: "n1", integrity: null },
       { url: "https://site.example/dir/b.js", nonce: null, integrity: null },
       { url: "https://cdn.example/c.js", nonce: null, integrity: null },
@@ -476,10 +477,7 @@ describe("walkModuleGraph modulepreload seeds", () => {
         pageUrl: PAGE,
         connectionId: "conn",
         options: {
-          preloadSeeds: modulePreloadSeeds(
-            `<link rel="modulepreload" href="/dep.js" integrity="${integrity}">`,
-            PAGE,
-          ),
+          preloadSeeds: modulePreloadSeeds([{ href: "/dep.js", nonce: null, integrity }], PAGE),
         },
         sandboxOutbound: stubOutbound({ [DEP]: served }),
       });
