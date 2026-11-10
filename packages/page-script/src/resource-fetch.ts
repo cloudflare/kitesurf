@@ -10,7 +10,7 @@ import {
   KITESURF_NOSNIFF_HEADER,
   responseIsOpaque,
 } from "@kitesurf/script-gate/gateway-headers";
-import { __setBridgeFetchResource } from "./wasm-glue.js";
+import { __setBridgeFetchResource, DomHandle } from "./wasm-glue.js";
 import {
   CLASS_IMAGE_VIEWPORT,
   FetchSlots,
@@ -26,6 +26,10 @@ import {
   responseHeaderGet,
   responseArrayBuffer,
   responseOk,
+  mapDelete,
+  mapGet,
+  mapSet,
+  nativeApply,
   NativeUint8Array,
 } from "./native-http.ts";
 import { state } from "./state.ts";
@@ -568,7 +572,12 @@ function readOpaqueImage(response: Response): OpaqueImage | null {
   }
   return { key, w: width, h: height };
 }
-const inflightFetches = new Map<string, Promise<FetchResult>>();
+type SharedFetch = { done: Promise<void> | null; result: FetchResult | undefined };
+const inflightFetches = new Map<string, SharedFetch>();
+
+// Captured before page scripts: the wasm renderer methods receive the private resource bytes.
+const nativeDeliverResource = DomHandle.prototype.deliverResource;
+const nativeDeliverFontResource = DomHandle.prototype.deliverFontResource;
 
 async function doRealFetch(url: string, kind: string, corsMode: string = ""): Promise<FetchResult> {
   const queuedAt = Date.now();
@@ -815,15 +824,22 @@ export async function fetchResource(
   try {
     // CORS mode stays in the key so callers never share a differently entitled response.
     const coalesceKey = `${corsMode}\n${url}`;
-    let shared = inflightFetches.get(coalesceKey);
+    let shared = mapGet(inflightFetches, coalesceKey);
     if (!shared) {
-      shared = doRealFetch(url, kind, corsMode);
-      inflightFetches.set(coalesceKey, shared);
-      shared.finally(() => {
-        if (inflightFetches.get(coalesceKey) === shared) {
-          inflightFetches.delete(coalesceKey);
+      // The stored record exposes only a void completion promise; the result stays in this
+      // private closure until a waiter has awaited it.
+      const entry: SharedFetch = { done: null, result: undefined };
+      entry.done = (async () => {
+        try {
+          entry.result = await doRealFetch(url, kind, corsMode);
+        } finally {
+          if (mapGet(inflightFetches, coalesceKey) === entry) {
+            mapDelete(inflightFetches, coalesceKey);
+          }
         }
-      });
+      })();
+      mapSet(inflightFetches, coalesceKey, entry);
+      shared = entry;
     }
 
     if (kind === "Image") {
@@ -831,7 +847,10 @@ export async function fetchResource(
       reevaluateDeferred(url);
     }
 
-    const result = await shared;
+    if (!shared.done) throw new Error("missing resource completion");
+    await shared.done;
+    const result = shared.result;
+    if (!result) throw new Error("missing resource result");
     if (!result.ok) {
       if (kind === "Font") {
         try {
@@ -897,8 +916,12 @@ export async function fetchResource(
           opaque && dom.deliverResourceMeta
             ? dom.deliverResourceMeta(id, opaque.key, opaque.w, opaque.h)
             : result.fontKey && dom.deliverFontResource
-              ? dom.deliverFontResource(id, bytes, result.fontKey)
-              : dom.deliverResource(id, bytes);
+              ? (nativeApply(nativeDeliverFontResource, dom, [
+                  id,
+                  bytes,
+                  result.fontKey,
+                ]) as boolean)
+              : (nativeApply(nativeDeliverResource, dom, [id, bytes]) as boolean);
         recordDeliverMs(Date.now() - deliveryStartedAt);
         if (kind === "Font") warnFontDelivery(id, ok, url);
         if (ok) {
