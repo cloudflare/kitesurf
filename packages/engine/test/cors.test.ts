@@ -5,9 +5,13 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   CARRIED_STATUS_HEADER,
+  SandboxOutbound,
   corsFilteredResponse,
   rpcSafeResponse,
 } from "../src/eval/outbound.ts";
+import { walkRedirects } from "../src/eval/redirect-walk.ts";
+import { NetworkEventTracker } from "../src/cdp/network-events.ts";
+import { registerTracker, unregisterTracker } from "../src/cdp/network-events-registry.ts";
 import {
   clearPreflightCache,
   corsCheck,
@@ -22,6 +26,105 @@ import {
 
 const ORIGIN = "http://web-platform.test:8000";
 const PARTITION = "connection-a";
+
+describe("stylesheet response MIME", () => {
+  it.each([
+    ["cross-origin nosniff", "http://remote.test/sheet", "text/plain", "nosniff", 403, null],
+    ["cross-origin JSON", "http://remote.test/sheet", "application/json", "", 403, null],
+    ["opaque CSS", "http://remote.test/sheet", "text/css", "", 200, "opaque"],
+    ["CSS with params", "http://remote.test/sheet", "text/css; charset", "", 200, "opaque"],
+    ["cross-origin no MIME", "http://remote.test/sheet", "", "", 200, "opaque"],
+    ["cross-origin no MIME nosniff", "http://remote.test/sheet", "", "nosniff", 403, null],
+    ["same-origin nosniff", `${ORIGIN}/sheet`, "text/plain", "nosniff", 403, null],
+    ["redirect to cross-origin", `${ORIGIN}/redirect`, "text/plain", "", 403, null],
+  ])("%s", async (_name, url, type, nosniff, status, verdict) => {
+    const result = await walkRedirects({
+      url,
+      headers: { "x-kitesurf-resource-type": "Stylesheet", "x-kitesurf-allow-cross-origin": "1" },
+      fetchHop: (request) =>
+        SandboxOutbound.handle(
+          { FONT_ASSETS: { fetch: async () => new Response() } },
+          {
+            pageOrigin: ORIGIN,
+            externalOutbound: {
+              fetch: async (hop) =>
+                hop.url.endsWith("/redirect")
+                  ? new Response("redirect", {
+                      status: 302,
+                      headers: {
+                        location: "http://remote.test/sheet",
+                        "content-type": "text/plain",
+                      },
+                    })
+                  : new Response("secret{color:red}", {
+                      headers: { "content-type": type, "x-content-type-options": nosniff },
+                    }),
+            },
+          },
+          request,
+        ),
+    });
+    if (!result.ok) throw new Error(`redirect walk failed: ${result.reason}`);
+    expect(result.response.status).toBe(status);
+    expect(result.response.headers.get("x-kitesurf-cors")).toBe(verdict);
+    expect((await result.response.text()).includes("secret{color:red}")).toBe(status === 200);
+  });
+
+  // An error page is a response the page and DevTools must see, not a network failure: only a
+  // 2xx body that would apply as CSS is refused for its MIME type.
+  type SheetEvent = { method: string; status?: number; errorText?: string };
+  async function trackedSheet(status: number, type: string, nosniff: string) {
+    const events: SheetEvent[] = [];
+    const tracker = new NetworkEventTracker((ev) => {
+      if (ev.method === "Network.responseReceived") {
+        events.push({ method: ev.method, status: ev.params.response.status });
+      } else if (ev.method === "Network.loadingFailed") {
+        events.push({ method: ev.method, errorText: ev.params.errorText });
+      }
+    }, PARTITION);
+    tracker.setEnabled(undefined, true);
+    registerTracker(PARTITION, tracker);
+    try {
+      const response = await SandboxOutbound.handle(
+        { FONT_ASSETS: { fetch: async () => new Response() } },
+        {
+          pageOrigin: ORIGIN,
+          connectionId: PARTITION,
+          externalOutbound: {
+            fetch: async () =>
+              new Response("secret{color:red}", {
+                status,
+                headers: { "content-type": type, "x-content-type-options": nosniff },
+              }),
+          },
+        },
+        new Request("http://remote.test/sheet", {
+          headers: {
+            "x-kitesurf-resource-type": "Stylesheet",
+            "x-kitesurf-allow-cross-origin": "1",
+          },
+        }),
+      );
+      tracker.drain();
+      return { response, events };
+    } finally {
+      tracker.dispose();
+      unregisterTracker(PARTITION);
+    }
+  }
+
+  it("reports an error page's status instead of a network failure", async () => {
+    const { response, events } = await trackedSheet(404, "text/html", "nosniff");
+    expect(response.status).toBe(404);
+    expect(events).toEqual([{ method: "Network.responseReceived", status: 404 }]);
+  });
+
+  it("still refuses a 200 body that would not apply as CSS", async () => {
+    const { response, events } = await trackedSheet(200, "text/html", "nosniff");
+    expect(response.status).toBe(403);
+    expect(events).toEqual([{ method: "Network.loadingFailed", errorText: "stylesheet-mime" }]);
+  });
+});
 
 describe("parseTokenList", () => {
   it("drops empty items and keeps tokens", () => {
