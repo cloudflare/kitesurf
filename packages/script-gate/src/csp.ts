@@ -207,8 +207,10 @@ function sourceListAllows(
   if (nonce && nonces.includes(nonce)) return true;
 
   if (request.url === null) {
-    // CSP ignores unsafe-inline once a nonce or hash source is present.
+    // A nonce, a hash or 'strict-dynamic' turns 'unsafe-inline' off:
+    // https://w3c.github.io/webappsec-csp/#allow-all-inline
     if (nonces.length === 0 && hashes.length === 0) {
+      if (lowercaseSources.includes("'strict-dynamic'")) return false;
       return lowercaseSources.includes("'unsafe-inline'");
     }
     for (const inlineHash of inlineHashes) {
@@ -279,16 +281,21 @@ function handlerSourceList(policy: CspPolicy): { name: string; list: string[] } 
 }
 
 /** CSP3 inline check for an event handler attribute: a nonce never admits one. A hash needs
- *  'unsafe-hashes' and an async digest, but handlers compile synchronously, so it refuses. */
+ *  'unsafe-hashes' and an async digest, but handlers compile synchronously, so it refuses.
+ *  A nonce, a hash or 'strict-dynamic' turns 'unsafe-inline' off for the "script attribute"
+ *  type: https://w3c.github.io/webappsec-csp/#allow-all-inline */
 export function cspAllowsInlineHandler(policies: readonly CspPolicy[]): CspVerdict {
   for (const policy of policies) {
     const found = handlerSourceList(policy);
     if (found === null) continue;
     const sources = found.list.map((source) => source.toLowerCase());
-    const hasNonceOrHash = sources.some(
-      (source) => (source.startsWith(NONCE_PREFIX) && source.endsWith("'")) || HASH_RE.test(source),
+    const disablesUnsafeInline = sources.some(
+      (source) =>
+        (source.startsWith(NONCE_PREFIX) && source.endsWith("'")) ||
+        HASH_RE.test(source) ||
+        source === "'strict-dynamic'",
     );
-    if (!sources.includes("'unsafe-inline'") || hasNonceOrHash) {
+    if (!sources.includes("'unsafe-inline'") || disablesUnsafeInline) {
       return {
         allowed: false,
         policyText: policy.text,

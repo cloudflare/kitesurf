@@ -223,6 +223,19 @@ test("a nonce policy is not defeated by a legacy 'unsafe-inline'", async () => {
   assert.equal(injected.reason, "csp");
 });
 
+test("'strict-dynamic' turns off a legacy 'unsafe-inline' for inline scripts", async () => {
+  const gate = gateWith("script-src 'strict-dynamic' 'unsafe-inline'");
+  const inline = await checkScriptBeforeFetch(gate, { url: null, body: "steal()" });
+  assert.equal(inline.allowed, false);
+  assert.equal(inline.reason, "csp");
+  const inserted = await checkScriptBeforeFetch(gate, {
+    url: null,
+    body: "steal()",
+    runtimeInserted: true,
+  });
+  assert.equal(inserted.allowed, false);
+});
+
 test("a hash source admits exactly the inline body it names", async () => {
   const body = "alert(1)";
   const gate = gateWith(`script-src ${cspHash("sha256", body)}`);
@@ -526,6 +539,9 @@ test("inline event handlers follow script-src-attr, then script-src, then defaul
   // A nonce admits script elements, never handler attributes, and turns off 'unsafe-inline'.
   assert.equal(allowed("script-src 'nonce-abc' 'unsafe-inline'"), false);
   assert.equal(allowed(`script-src 'unsafe-inline' ${cspHash("sha256", "go()")}`), false);
+  // 'strict-dynamic' turns off 'unsafe-inline' for handler attributes as well.
+  assert.equal(allowed("script-src 'strict-dynamic' 'unsafe-inline'"), false);
+  assert.equal(allowed("script-src-attr 'strict-dynamic' 'unsafe-inline'"), false);
   // script-src-attr takes precedence over script-src for attributes.
   assert.equal(allowed("script-src 'nonce-abc'; script-src-attr 'unsafe-inline'"), true);
   assert.equal(allowed("script-src 'unsafe-inline'; script-src-attr 'none'"), false);
