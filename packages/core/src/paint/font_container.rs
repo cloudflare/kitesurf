@@ -72,11 +72,15 @@ fn inflate_woff1(bytes: &[u8], cap: usize) -> Option<Vec<u8>> {
 }
 
 /// Whether a woff2's declared output (header, directory and padded origLengths)
-/// fits `cap`. Collections are refused; the shaping path accepts single faces only.
+/// and its brotli block fit `cap`. Collections are refused; the shaping path
+/// accepts single faces only.
 fn woff2_fits(bytes: &[u8], cap: u64) -> bool {
     woff2_declared_size(bytes).is_some_and(|n| n <= cap)
 }
 
+/// The larger of the sfnt output and the brotli block wuff allocates before it
+/// decodes. Each table's length in that block is its transformLength when present,
+/// else its origLength (https://www.w3.org/TR/WOFF2/#table_dir_format).
 fn woff2_declared_size(bytes: &[u8]) -> Option<u64> {
     if bytes.len() < WOFF2_HEADER_BYTES || bytes[4..8] == *b"ttcf" {
         return None;
@@ -86,6 +90,7 @@ fn woff2_declared_size(bytes: &[u8]) -> Option<u64> {
     }
     let num_tables = u64::from(u16::from_be_bytes([bytes[12], bytes[13]]));
     let mut total = SFNT_HEADER_BYTES + num_tables * SFNT_TABLE_RECORD_BYTES;
+    let mut brotli: u64 = 0;
     let mut at = WOFF2_HEADER_BYTES;
     for _ in 0..num_tables {
         let flags = *bytes.get(at)?;
@@ -102,11 +107,13 @@ fn woff2_declared_size(bytes: &[u8]) -> Option<u64> {
         total += (orig_length + 3) & !3;
         // glyf and loca carry a transformLength for transform 0; other tables for nonzero.
         let nonzero_transform = flags >> 6 != 0;
-        if glyf_or_loca != nonzero_transform {
-            read_uint_base128(bytes, &mut at)?;
-        }
+        brotli += if glyf_or_loca != nonzero_transform {
+            u64::from(read_uint_base128(bytes, &mut at)?)
+        } else {
+            orig_length
+        };
     }
-    Some(total)
+    Some(total.max(brotli))
 }
 
 /// WOFF2 UIntBase128: at most five bytes, no leading zero byte, fits in u32.
@@ -234,5 +241,22 @@ mod tests {
             Some(12 + 16 + 56)
         );
         assert_eq!(woff2_declared_size(&woff2(b"ttcf", &[54])), None);
+    }
+
+    #[test]
+    fn inflate_font_container_refuses_a_woff2_transform_length_past_the_cap() {
+        // glyf with transform 0 carries a transformLength, which sizes wuff's brotli
+        // buffer; a small origLength must not hide a large one.
+        let mut b = vec![0u8; WOFF2_HEADER_BYTES];
+        b[0..4].copy_from_slice(b"wOF2");
+        b[4..8].copy_from_slice(&[0, 1, 0, 0]);
+        b[12..14].copy_from_slice(&1u16.to_be_bytes());
+        b[16..20].copy_from_slice(&64u32.to_be_bytes());
+        b.push(WOFF2_GLYF_INDEX);
+        b.push(54);
+        // transformLength 0x7fff_ffff as UIntBase128.
+        b.extend_from_slice(&[0x87, 0xff, 0xff, 0xff, 0x7f]);
+        assert_eq!(woff2_declared_size(&b), Some(0x7fff_ffff));
+        assert!(matches!(inflate_font_container(&b), FontContainer::Refused));
     }
 }
