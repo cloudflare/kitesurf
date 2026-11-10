@@ -1706,13 +1706,14 @@ async function pushNavigateToPageScriptInner(
     await cancelAndRemoveTargetWheelQueues(ctx.browser, target.targetId);
 
     if (target.pageScript) {
+      const retiringUrl = target.pageScriptUrl;
       const harvest = await retireStub(target, "navigate", "Page.navigate: generation bump", {
         budget: ctx.browser.workerBudget,
       });
       for (const e of harvest?.console ?? []) consoleAcc.push(e);
-      if (target.pageScriptUrl) {
+      if (retiringUrl) {
         for (const raw of harvest?.cookieWrites ?? []) {
-          jarForTarget(ctx, target).setFromDocumentCookie(target.pageScriptUrl, raw);
+          jarForTarget(ctx, target).setFromDocumentCookie(retiringUrl, raw);
         }
       }
     }
@@ -2702,7 +2703,7 @@ function scheduleLoadCompleteEmit(
     return;
   }
   const generationAtSchedule = target.navigateGeneration;
-  const urlAtSchedule = target.url;
+  const urlAtSchedule = target.pageScriptUrl;
   const browser = ctx.browser;
   const work = (async () => {
     const iframeWaits: Promise<void>[] = [];
@@ -2808,7 +2809,7 @@ function scheduleLoadCompleteEmit(
     drivePageTasks(ctx, target, summaryWait);
     await Promise.all([summaryWait, ...iframeWaits]);
     if (browser.wsClosing) return;
-    if (target.navigateGeneration !== generationAtSchedule) {
+    if (target.navigateGeneration !== generationAtSchedule || target.pageScript !== pageScript) {
       return;
     }
     if (target.diagSpans) {
