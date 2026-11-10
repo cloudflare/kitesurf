@@ -20,6 +20,19 @@ const nativeReflectGet = Reflect.get;
 const nativeObject = Object;
 const NativePromise: PromiseConstructor = ksGlobal.Promise;
 export const NativeUint8Array: Uint8ArrayConstructor = ksGlobal.Uint8Array;
+const typedArrayTagGetter = nativeGetOwnPropertyDescriptor(
+  nativeGetPrototypeOf(NativeUint8Array.prototype),
+  Symbol.toStringTag,
+)?.get;
+
+export function isNativeUint8Array(value: unknown): value is Uint8Array {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof typedArrayTagGetter === "function" &&
+    nativeApply(typedArrayTagGetter, value, []) === "Uint8Array"
+  );
+}
 
 const NativeHeaders: typeof Headers | undefined = ksGlobal.Headers;
 const headersProto: Headers | undefined = NativeHeaders?.prototype;
