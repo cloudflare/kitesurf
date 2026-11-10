@@ -16,9 +16,7 @@ use parley::fontique::{
 use parley::FontContext;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::paint::font_container::{
-    inflate_font_container, FontContainer, MAX_DECOMPRESSED_FONT_BYTES,
-};
+use crate::paint::font_container::{inflate_font_container, FontContainer, MAX_DECOMPRESSED_FONT_BYTES};
 use crate::paint::scene_record::{font_data_key, fx_hash_u64};
 
 thread_local! {

@@ -74,6 +74,10 @@ export interface OutboundProps {
   // The SameSite site for cookies when it is not pageOrigin's, as for a frame's requests: the
   // top-level origin, or "" when an ancestor is cross-site with it.
   cookieSiteOrigin?: string;
+  // The document that initiated the request, when it is not the request's own origin: an
+  // embedder for a frame document, or the page for a navigation it started. Used only for the
+  // Private Network Access check; pageOrigin still drives SOP/CORS.
+  privateNetworkInitiator?: string;
   externalOutbound?: ExternalOutbound;
   // The host's egress transport; unlike externalOutbound, it keeps the engine's egress policy.
   egress?: ExternalOutbound;
@@ -408,9 +412,14 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
     }
 
     // Every redirect hop and WebSocket upgrade comes back through here. The document the
-    // client asked to open is its own choice, so only page-chosen requests are checked.
-    if (env.KITESURF_ALLOW_PRIVATE_NETWORK !== "1" && props?.skipRequestBlocker !== true) {
-      const refusal = privateNetworkRefusal(target, pageOrigin);
+    // client asked to open is its own choice, so a navigation with no initiator is exempt;
+    // a page-started navigation or a frame document names its initiator instead.
+    const privateNetworkInitiator = props?.privateNetworkInitiator ?? pageOrigin;
+    if (
+      env.KITESURF_ALLOW_PRIVATE_NETWORK !== "1" &&
+      (props?.skipRequestBlocker !== true || props?.privateNetworkInitiator !== undefined)
+    ) {
+      const refusal = privateNetworkRefusal(target, privateNetworkInitiator);
       if (refusal) return blocked(refusal, "private-network");
     }
 

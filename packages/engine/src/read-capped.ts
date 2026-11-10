@@ -124,10 +124,12 @@ export async function readCappedBytes(
   resp: Response,
   cap: number,
   connectionId: string,
+  // A single large asset (a .wasm bake) may claim the whole shared budget.
+  connectionCap: number = MAX_CONNECTION_READ_BYTES,
 ): Promise<CappedBody> {
   if (
     inFlightBytes >= MAX_CONCURRENT_READ_BYTES ||
-    (inFlightByConnection.get(connectionId) ?? 0) >= MAX_CONNECTION_READ_BYTES
+    (inFlightByConnection.get(connectionId) ?? 0) >= connectionCap
   ) {
     await cancelBody(resp);
     return { ok: false, failure: "budget" };
@@ -145,7 +147,7 @@ export async function readCappedBytes(
       if (inFlightBytes > peakInFlightBytes) peakInFlightBytes = inFlightBytes;
       const own = (inFlightByConnection.get(connectionId) ?? 0) + delta;
       inFlightByConnection.set(connectionId, own);
-      return inFlightBytes <= MAX_CONCURRENT_READ_BYTES && own <= MAX_CONNECTION_READ_BYTES;
+      return inFlightBytes <= MAX_CONCURRENT_READ_BYTES && own <= connectionCap;
     });
     if (got.bytes === null) {
       await got.rest.cancel().catch(() => {});

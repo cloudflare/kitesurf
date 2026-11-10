@@ -32,9 +32,6 @@ export interface RedirectWalkOptions {
   // Vets each redirect target before it is fetched: the url to fetch (an upgraded one, say), or
   // null to stop the walk with "redirect-blocked".
   readonly checkRedirect?: (url: string) => Promise<string | null>;
-  // Rechecks a redirect target's source list; a returned message refuses the hop. Unlike
-  // checkRedirect, this cannot rewrite the url.
-  readonly refuseHop?: (url: string) => string | null;
   readonly taintOriginFrom?: string;
 }
 
@@ -51,8 +48,7 @@ export type RedirectWalkResult =
       readonly referrer: string;
     }
   | { readonly ok: false; readonly reason: "too-many-redirects" }
-  | { readonly ok: false; readonly reason: "redirect-blocked"; readonly url: string }
-  | { readonly ok: false; readonly reason: "refused"; readonly message: string };
+  | { readonly ok: false; readonly reason: "redirect-blocked"; readonly url: string };
 
 export class InvalidRedirectError extends Error {
   constructor(location: string, reason: string) {
@@ -206,11 +202,6 @@ export async function walkRedirects(opts: RedirectWalkOptions): Promise<Redirect
     }
 
     const nextUrl = next.toString();
-    const refusal = opts.refuseHop?.(nextUrl) ?? null;
-    if (refusal !== null) {
-      void resp.body?.cancel().catch(() => {});
-      return { ok: false, reason: "refused", message: refusal };
-    }
     opts.onRedirect?.({
       newUrl: nextUrl,
       method,

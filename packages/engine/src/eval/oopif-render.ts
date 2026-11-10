@@ -174,6 +174,7 @@ export async function prespawnFrameIsolate(
   const docOutbound = args.sandboxOutbound.parent({
     ...localTraceParentProps(),
     pageOrigin,
+    privateNetworkInitiator: args.parentOrigin,
     cookieSiteOrigin: args.cookieSiteOrigin,
     mainFrameId: args.frameId,
     mainLoaderId: args.frameLoaderId,

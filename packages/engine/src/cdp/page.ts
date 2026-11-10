@@ -789,6 +789,9 @@ export async function handlePage(
         } catch {}
         const docProps: CallerOutboundProps = {
           pageOrigin: docPageOrigin,
+          // A navigation the page started names its initiating document; one the CDP client
+          // started has none, so Private Network Access leaves it alone.
+          privateNetworkInitiator: ksInitiatorOrigin ?? undefined,
           mainFrameId: target.frameId,
           mainLoaderId: target.loaderId,
           interceptConnectionId: ctx.connectionId,
@@ -4684,6 +4687,7 @@ async function loadChildFrame(
   // Child requests inherit the embedding document's URL and referrer policy.
   const childDocProps: CallerOutboundProps = {
     pageOrigin: docPageOrigin,
+    // The embedder decides whether the frame may reach a private address.
     cookieSiteOrigin: frameCookieSiteOrigin(target, frame),
     // The embedder's URL and policy give the Referer a browser sends;
     // page-script reports the same value as the frame's document.referrer.

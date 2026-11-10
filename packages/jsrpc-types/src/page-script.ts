@@ -324,6 +324,9 @@ export interface UpstreamEvents {
     toParent?: true;
     dataJson: string;
     targetOrigin: string;
+    // Set by the engine when it queues the message for a child frame, from the sender's
+    // committed URL; page script never supplies it.
+    sourceOrigin?: string;
   };
   "kitesurf.workerCreate": {
     workerId: number;
