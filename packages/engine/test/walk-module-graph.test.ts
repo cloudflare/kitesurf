@@ -110,6 +110,46 @@ describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
     expect(rewritten).toContain("__ks_import");
   });
 
+  // Each input makes the lexer skip a live call while a quote that is not a string would open one,
+  // so a scan that guesses where strings end can leave the call native.
+  it.each([
+    ["a nested template", 'const a = `${`x`}`; with ({}) /a\\//.test(""); import("./x.js");'],
+    [
+      "a quote in a regex after a condition",
+      'var s = ""; if (s === ")") /\'/.test(s); with ({}) /a\\//.test(""); import("./x.js"); //\'',
+    ],
+    [
+      "await before a regex",
+      '(async () => { await /\'/; with ({}) /a\\//.test(""); import("./x.js"); //\'\n})();',
+    ],
+  ])("leaves no native import() when the script holds %s", (_, body) => {
+    expect(() => new Function(body)).not.toThrow();
+    const { rewritten } = extractClassicDynamicSeeds(body, BASE);
+    expect(nativeCalls(rewritten)).toBeNull();
+    expect(rewritten).toContain("__ks_import");
+  });
+
+  it("publishes the runtime helper so a script built from a string can call it", () => {
+    // The string keeps its call renamed, and an inserted script runs it in the page realm, where a
+    // bare name resolves through the global object, which is why the helper must be published.
+    const body = `const s = 'import("./a.js")'; globalThis.out = s;`;
+    const { rewritten } = extractClassicDynamicSeeds(body, BASE);
+    const page: { out?: string; [key: string]: unknown } = {};
+    new Function("globalThis", "__ks_import", rewritten)(page, () => {});
+    const helper = Object.keys(page).find((key) => key.startsWith("__ks_import_"));
+    expect(helper).toBeDefined();
+    expect(typeof page[helper as string]).toBe("function");
+    expect(page.out).toContain(`${helper}(`);
+    expect(nativeCalls(page.out ?? "")).toBeNull();
+  });
+
+  it("publishes the helper after a use strict prologue", () => {
+    const body = `"use strict";\nconst s = 'import("./a.js")';`;
+    const { rewritten } = extractClassicDynamicSeeds(body, BASE);
+    expect(rewritten.startsWith(`"use strict";\n`)).toBe(true);
+    expect(rewritten).toContain("globalThis.__ks_import_");
+  });
+
   it("absolutizes an import() with a comment before the paren", () => {
     const { rewritten, seeds } = extractClassicDynamicSeeds(`import/**/("./x.js");`, BASE);
     expect(seeds).toEqual(["https://example.com/js/x.js"]);
@@ -154,7 +194,7 @@ describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
     const body = `{}\n/}/.test(""); a.import(1); a?.import(2); reimport(3); import("./x.js");`;
     const { rewritten } = extractClassicDynamicSeeds(body, BASE);
     expect(rewritten).toMatch(
-      /^\{\}\n\/\}\/\.test\(""\); a\.import\(1\); a\?\.import\(2\); reimport\(3\); __ks_import_\w+\("\.\/x\.js"\);\n/,
+      /^globalThis\.__ks_import_\w+ \?\?= __ks_import_\w+;\n\{\}\n\/\}\/\.test\(""\); a\.import\(1\); a\?\.import\(2\); reimport\(3\); __ks_import_\w+\("\.\/x\.js"\);\n/,
     );
   });
 

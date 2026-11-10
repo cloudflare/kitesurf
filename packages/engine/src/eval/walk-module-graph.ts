@@ -450,6 +450,70 @@ function fnv1aHex(s: string): string {
   return (h >>> 0).toString(16).padStart(8, "0");
 }
 
+// Offset just past a leading directive prologue, so a statement can be inserted there without
+// turning `"use strict"` into a plain expression statement and dropping strict mode. Linear, and
+// it gives up at anything that is not a string-literal statement.
+function afterDirectivePrologue(body: string): number {
+  const n = body.length;
+  let i = 0;
+  let end = 0;
+  const skipTrivia = (): void => {
+    for (;;) {
+      const c = body[i];
+      if (c === " " || c === "\t" || c === "\n" || c === "\r") {
+        i += 1;
+        continue;
+      }
+      if (c === "/" && body[i + 1] === "/") {
+        while (i < n && body[i] !== "\n") i += 1;
+        continue;
+      }
+      if (c === "/" && body[i + 1] === "*") {
+        const close = body.indexOf("*/", i + 2);
+        i = close < 0 ? n : close + 2;
+        continue;
+      }
+      return;
+    }
+  };
+  for (;;) {
+    skipTrivia();
+    const quote = body[i];
+    if (quote !== '"' && quote !== "'") return end;
+    i += 1;
+    let closed = false;
+    while (i < n) {
+      const c = body[i];
+      if (c === "\\") {
+        i += 2;
+        continue;
+      }
+      if (c === "\n" || c === "\r") break;
+      if (c === quote) {
+        i += 1;
+        closed = true;
+        break;
+      }
+      i += 1;
+    }
+    // A string that runs to the line end is not a directive.
+    if (!closed) return end;
+    while (body[i] === " " || body[i] === "\t") i += 1;
+    if (body[i] === ";") {
+      i += 1;
+      end = i;
+      continue;
+    }
+    // No semicolon: only a line break ends the statement, otherwise the string continues an
+    // expression (`"use strict".length`) and no prologue is in play.
+    if (i >= n || body[i] === "\n" || body[i] === "\r") {
+      end = i;
+      continue;
+    }
+    return end;
+  }
+}
+
 export function extractClassicDynamicSeeds(
   body: string,
   baseUrl: string,
@@ -477,6 +541,18 @@ export function extractClassicDynamicSeeds(
   // A name keeps a method called `import` valid; scripts in one bundle share a scope.
   const callee = `__ks_import_${fnv1aHex(baseUrl)}`;
   const binding = `\nfunction ${callee}(s) { return __ks_import(s, ${ref}); }`;
+  // The helper is a bundle-scope function, so a script the page inserts later cannot see it, and
+  // renaming `import` inside a string the page builds a script from would leave that script calling
+  // a name it cannot reach. Publish the helper on globalThis, which boa shares with the page realm,
+  // so the inserted script calls it and reaches `__ks_import`, which refuses file:///bundle/.
+  const publish = `globalThis.${callee} ??= ${callee};\n`;
+  // The declaration is hoisted, so the publish can precede it. It goes after any directive
+  // prologue: a statement before one would turn `"use strict"` into a plain expression.
+  const withHelper = (text: string): string => {
+    const at = afterDirectivePrologue(text);
+    const lead = at > 0 ? "\n" : "";
+    return text.slice(0, at) + lead + publish + text.slice(at) + binding;
+  };
   // A lexed call is rewritten as a whole, so one that holds another call would drop its edit.
   const inner = [...unlexed, ...lexedCalls];
   const nested = dynamics.some(
@@ -485,7 +561,7 @@ export function extractClassicDynamicSeeds(
   if (!imports || nested) {
     const keep = new Set(calls);
     const rewritten = body.replace(IMPORT_CALL, (m, at: number) => (keep.has(at) ? callee : m));
-    return { rewritten: rewritten + binding, seeds: [] };
+    return { rewritten: withHelper(rewritten), seeds: [] };
   }
   const edits = [
     ...dynamics.map((imp) => ({ at: imp.ss, imp })),
@@ -518,7 +594,7 @@ export function extractClassicDynamicSeeds(
       b = b.slice(0, imp.ss) + `__ks_import(${expr}, ${ref})` + b.slice(imp.se);
     }
   }
-  return { rewritten: unlexed.length > 0 ? b + binding : b, seeds };
+  return { rewritten: unlexed.length > 0 ? withHelper(b) : b, seeds };
 }
 
 function maybeWrapInlineModule(body: string, url: string): string {
