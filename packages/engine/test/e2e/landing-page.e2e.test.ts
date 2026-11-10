@@ -15,25 +15,61 @@ function engine(path: string, init?: RequestInit): Promise<Response> {
   });
 }
 
-test("/ without inspector params, or with a non-http(s) url, serves the chrome://inspect page", async () => {
+function exampleHref(frontend: string, scheme: "ws" | "wss", host: string): string {
+  const endpoint =
+    `${host}/devtools/page/kitesurf?initialUrl=` +
+    encodeURIComponent("https://en.wikipedia.org/wiki/Kitesurfing");
+  const href = `${frontend}?${scheme}=${encodeURIComponent(endpoint)}`;
+  return `href="${href.replaceAll("&", "&amp;")}"`;
+}
+
+test("/ without inspector params, or with a non-http(s) url, serves the landing page", async () => {
   for (const path of ["/", "/?url=" + encodeURIComponent("ftp://example.com/"), "/?url=nope"]) {
     const res = await engine(path);
     expect(res.status, path).toBe(200);
     expect(res.headers.get("location"), path).toBeNull();
     expect(res.headers.get("content-type"), path).toBe("text/html; charset=utf-8");
-    expect(res.headers.get("content-security-policy"), path).toContain("default-src 'none'");
+    const csp = res.headers.get("content-security-policy");
+    expect(csp, path).toContain("default-src 'none'");
+    expect(csp, path).toContain("form-action 'self'");
     const html = await res.text();
-    expect(html, path).toContain("chrome://inspect/#devices");
-    expect(html, path).toContain("<code>ks.invalid:443</code>");
+    expect(html, path).toContain('<form class="omnibox" action="/" method="get"');
+    expect(html, path).toContain(exampleHref("https://example.com/devtools", "wss", "ks.invalid"));
     expect(html, path).toContain("wss://ks.invalid/devtools/browser");
-    expect(html, path).toContain("cannot reach this engine over HTTPS");
+    expect(html, path).toContain("wss://ks.invalid/devtools/page/kitesurf");
+    expect(html, path).toContain('<a href="/json/version">');
+    // chrome://inspect cannot discover an HTTPS engine.
+    expect(html, path).not.toContain("chrome://inspect/#devices");
   }
 });
 
-test("the chrome://inspect page names the local host:port to configure", async () => {
+test("over HTTP, the landing page adds the chrome://inspect steps for this host:port", async () => {
   const res = await env.ENGINE.fetch("http://127.0.0.1:8787/");
   const html = await res.text();
+  expect(html).toContain("chrome://inspect/#devices");
   expect(html).toContain("<code>127.0.0.1:8787</code>");
   expect(html).toContain("ws://127.0.0.1:8787/devtools/browser");
-  expect(html).not.toContain("over HTTPS");
+});
+
+test("with a same-origin frontend, / serves the landing page with same-origin examples", async () => {
+  const res = await env.ENGINE_SAME_ORIGIN_INSPECTOR.fetch("https://ks.invalid/", {
+    redirect: "manual",
+  });
+  expect(res.status).toBe(200);
+  const html = await res.text();
+  expect(html).toContain('<form class="omnibox" action="/" method="get"');
+  expect(html).toContain(
+    exampleHref("https://ks.invalid/inspector/inspector.html", "wss", "ks.invalid"),
+  );
+});
+
+test("without a frontend, / leaves only the CDP endpoints", async () => {
+  const res = await env.ENGINE_NO_INSPECTOR.fetch("https://ks.invalid/", { redirect: "manual" });
+  expect(res.status).toBe(200);
+  const html = await res.text();
+  expect(html).not.toContain("<form");
+  expect(html).toContain("serves no DevTools frontend");
+  expect(html).toContain("wss://ks.invalid/devtools/browser");
+  expect(html).toContain("wss://ks.invalid/devtools/page/kitesurf");
+  expect(html).toContain("browserWSEndpoint");
 });

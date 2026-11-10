@@ -10,7 +10,7 @@ import { armLocalTracing } from "./tracing-local.ts";
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { Hono, type Context, type ErrorHandler } from "hono";
 import { z } from "zod";
-import { absoluteInspectorBaseUrl, inspectorBaseUrlOrNull } from "./inspector.ts";
+import { inspectorBaseUrlOrNull, inspectorTargetUrl } from "./inspector.ts";
 import { DEFAULT_ENGINE_HOST, type EngineHost } from "./host.ts";
 
 // Loopback service binding for PageScript subresource fetches.
@@ -146,9 +146,6 @@ app.get("/", async (c, next) => {
   const url = new URL(c.req.url);
   const query = inspectorQuery.parse(c.req.query());
   if (query.url === undefined && !query.inspect) return next();
-  const initialQuery =
-    query.url === undefined ? "" : "?initialUrl=" + encodeURIComponent(query.url);
-
   const inspectorBase = inspectorBaseUrlOrNull(c.env.env);
   if (inspectorBase === null) {
     return new Response(
@@ -162,15 +159,11 @@ app.get("/", async (c, next) => {
       { status: 501, headers: { "content-type": "text/plain; charset=utf-8" } },
     );
   }
-  const requestHost = c.req.header("host") ?? url.host;
-  const wsScheme = url.protocol === "https:" ? "wss" : "ws";
-  const wsValue = `${requestHost}/devtools/page/kitesurf${initialQuery}`;
-  const params = new URLSearchParams();
-  params.set(wsScheme, wsValue);
-  // Response.redirect needs an absolute URL; a same-origin frontend shares the WebSocket's host.
-  const frontend = absoluteInspectorBaseUrl(inspectorBase, `${url.protocol}//${requestHost}`);
-  const target = frontend.replace(/\/$/, "") + "?" + params.toString();
-  return Response.redirect(target, 302);
+  const host = c.req.header("host") ?? url.host;
+  return Response.redirect(
+    inspectorTargetUrl(inspectorBase, { url, host, initialUrl: query.url }),
+    302,
+  );
 });
 
 app.get(
