@@ -2160,6 +2160,12 @@ async function pushNavigateToPageScriptInner(
         connectionId: ctx.connectionId,
         mainFrameId: target.frameId,
         cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
+        // The legacy plan (no bundle: a failed bake) gates its parser scripts from these.
+        scriptPolicy: {
+          cspHeaders: target.docCsp ? [target.docCsp] : [],
+          cspReportOnlyHeaders: target.docCspReportOnly ? [target.docCspReportOnly] : [],
+          metaCsp: target.docScan?.metaCsp ?? [],
+        },
         bindingNames:
           ctx.browser.pendingBindings.size > 0
             ? Array.from(ctx.browser.pendingBindings)
