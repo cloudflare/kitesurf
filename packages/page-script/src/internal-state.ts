@@ -81,9 +81,6 @@ export interface KitesurfInternalState {
 
   markNative: ((fn: unknown, name: string) => void) | null;
 
-  // A duplicated RPC callback owned and cleared by the retained session.
-  upstreamSender: UpstreamSender | null;
-
   viewportW: number;
   viewportH: number;
 
@@ -156,7 +153,6 @@ export function createInternalState(): KitesurfInternalState {
     afterIframeSrcChange: null,
     navigateIframe: null,
     markNative: null,
-    upstreamSender: null,
     viewportW: DEFAULT_VIEWPORT_WIDTH_PX,
     viewportH: DEFAULT_VIEWPORT_HEIGHT_PX,
     dispatchingUserEvent: false,
@@ -166,8 +162,12 @@ export function createInternalState(): KitesurfInternalState {
   return Object.setPrototypeOf(state, null);
 }
 
+// A duplicated RPC callback owned and cleared by the retained session. Module-private: the
+// shared state record is reachable from page source scope, so it must not hold the sender.
+let upstreamSender: UpstreamSender | null = null;
+
 export function sendUpstreamEvent(message: UpstreamMessage): void {
-  const sender = _state.upstreamSender;
+  const sender = upstreamSender;
   if (!sender) return;
   try {
     sender(message);
@@ -177,11 +177,11 @@ export function sendUpstreamEvent(message: UpstreamMessage): void {
 }
 
 export function registerUpstreamSender(sender: UpstreamSender): void {
-  _state.upstreamSender = sender;
+  upstreamSender = sender;
 }
 
 export function clearUpstreamSender(): void {
-  _state.upstreamSender = null;
+  upstreamSender = null;
 }
 
 const _state: KitesurfInternalState = createInternalState();

@@ -31,21 +31,13 @@ async function childMessages(cdp: CDPSession, contextId: number) {
 test("a message to a child carries the sending document's origin", async ({ page, cdpSession }) => {
   const contexts = childContexts(cdpSession);
   await cdpSession.send("Runtime.enable");
-  // Classic script code can reach the isolate's upstream sender and claim any source origin.
+  // Ordinary postMessage from the embedding document; the engine stamps the source origin.
   await setContent(
     page,
     `<!doctype html><iframe id="c" src="${CHILD}"></iframe><script>
       const frame = document.getElementById("c");
       setTimeout(() => {
-        __ks_state_local.upstreamSender({
-          event: "kitesurf.postMessage",
-          params: {
-            toFrameOwnerId: frame._id,
-            dataJson: JSON.stringify({ claimed: true }),
-            targetOrigin: "*",
-            sourceOrigin: "https://claimed.invalid",
-          },
-        });
+        frame.contentWindow.postMessage({ claimed: true }, "*");
       }, 500);
     </script>`,
   );

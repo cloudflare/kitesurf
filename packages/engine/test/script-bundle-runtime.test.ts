@@ -5,7 +5,7 @@
 import { describe, it, expect } from "vitest";
 import { env } from "cloudflare:test";
 import { INTERNAL_STATE_SOURCE } from "@kitesurf/page-script";
-import { buildScriptBundle } from "../src/eval/script-bundle.ts";
+import { buildScriptBundle, insertedSourceDigests } from "../src/eval/script-bundle.ts";
 import { PAGE_SCRIPT_COMPAT_DATE, PAGE_SCRIPT_COMPAT_FLAGS } from "../src/eval/page-script.ts";
 import type { ParentScriptDescriptor } from "../src/wasm.ts";
 
@@ -17,33 +17,69 @@ function module_(body: string, opts: Partial<ParentScriptDescriptor> = {}): Pare
   return { src: null, kind: "module", defer: false, async: false, body, ...opts };
 }
 
+interface BundleRunOptions {
+  cdpDebug?: boolean;
+  insertedBake?: ParentScriptDescriptor[];
+  lifecycleLog?: boolean;
+}
+
 async function bootBundleAndCollectGlobals(
   descriptors: ParentScriptDescriptor[],
   globalsToCollect: string[],
+  options: BundleRunOptions = {},
 ): Promise<Record<string, unknown>> {
-  const bundle = buildScriptBundle(descriptors);
+  const insertedBake = options.insertedBake;
+  const bundle = buildScriptBundle(descriptors, {
+    cdpDebug: options.cdpDebug === true,
+    insertedBake,
+    insertedDigests: insertedBake ? await insertedSourceDigests(insertedBake) : undefined,
+  });
+  const insertedModules = Object.keys(bundle.insertedModules);
   const moduleUrls = bundle.moduleScriptUrls;
   const hasRegular = !!bundle.classicRegularSource;
   const hasAsync = !!bundle.classicAsyncSource;
 
   const pageJsSource = `
 import { WorkerEntrypoint } from "cloudflare:workers";
-import { getInternalState } from "./internal-state.js";
+import {
+  getInternalState,
+  registerUpstreamSender,
+  sendUpstreamEvent,
+  clearUpstreamSender,
+} from "./internal-state.js";
+
+const __ks_events = [];
+registerUpstreamSender((message) => {
+  __ks_events.push(message);
+});
 
 // Production wires setCurrentScript onto the shared internal-state via
 // the dom-shim (current-script.ts) during navigate, before the classic
 // buckets call it per segment. This test bakes only the script bundle
 // (no dom-shim), so install a no-op stub to stand in for that wiring.
 const __ks_is = getInternalState();
+const lifecycleLog = ${JSON.stringify(options.lifecycleLog === true)};
+if (lifecycleLog) {
+  __ks_is.setCurrentScript = function (src) {
+    (globalThis.__hooks = globalThis.__hooks || []).push("current:" + src);
+  };
+  __ks_is.endClassicScript = async function () {
+    (globalThis.__hooks = globalThis.__hooks || []).push("end");
+  };
+}
 if (typeof __ks_is.setCurrentScript !== "function") {
   __ks_is.setCurrentScript = function () {};
 }
 __ks_is.parserScriptLifecycle = async function (domIndex, rawSrc, src, ok) {
-  (globalThis.__log = globalThis.__log || []).push((ok ? "load:" : "error:") + rawSrc);
+  const log = lifecycleLog
+    ? (globalThis.__hooks = globalThis.__hooks || [])
+    : (globalThis.__log = globalThis.__log || []);
+  log.push((ok ? "load:" : "error:") + rawSrc);
 };
 
 const globalsToCollect = ${JSON.stringify(globalsToCollect)};
 const moduleUrls = ${JSON.stringify(moduleUrls)};
+const insertedModules = ${JSON.stringify(insertedModules)};
 const hasRegular = ${JSON.stringify(hasRegular)};
 const hasAsync = ${JSON.stringify(hasAsync)};
 
@@ -60,6 +96,15 @@ const runPromise = (async () => {
     const run = (mod && mod.default && mod.default.run) || mod.run;
     if (typeof run !== "function") {
       throw new Error("classic-regular: no run() export");
+    }
+    await run();
+  }
+  // Run inserted-bake modules.
+  for (const name of insertedModules) {
+    const mod = await dynamicImport("./" + name);
+    const run = (mod && mod.default && mod.default.run) || mod.run;
+    if (typeof run !== "function") {
+      throw new Error(name + ": no run() export");
     }
     await run();
   }
@@ -89,7 +134,16 @@ export default class TestProbe extends WorkerEntrypoint {
         stack: err && err.stack ? String(err.stack) : null,
       });
     }
-    const out = { ok: true, globals: {} };
+    const diag = __ks_is.bundleDiag;
+    const out = {
+      ok: true,
+      globals: {},
+      events: __ks_events,
+      diag: diag ? { entered: !!diag.entered, exited: !!diag.exited } : null,
+    };
+    sendUpstreamEvent({ event: "kitesurf.paintDirty", params: {} });
+    clearUpstreamSender();
+    sendUpstreamEvent({ event: "kitesurf.paintDirty", params: { afterClear: true } });
     for (const name of globalsToCollect) {
       try {
         const v = globalThis[name];
@@ -119,6 +173,9 @@ export default class TestProbe extends WorkerEntrypoint {
   if (bundle.classicAsyncSource) {
     modules["__ks_user_classic_async.js"] = { cjs: bundle.classicAsyncSource };
   }
+  for (const [name, source] of Object.entries(bundle.insertedModules)) {
+    modules[name] = { cjs: source };
+  }
   for (const [url, body] of Object.entries(bundle.additionalModules)) {
     if (modules[url] !== undefined) continue;
     modules[url] = body;
@@ -139,12 +196,18 @@ export default class TestProbe extends WorkerEntrypoint {
     error?: string;
     stack?: string;
     globals?: Record<string, { kind: string; value?: unknown; result?: unknown; error?: string }>;
+    events?: unknown[];
+    diag?: { entered: boolean; exited: boolean } | null;
   };
 
   if (!body.ok) {
     throw new Error(`bundle runtime threw: ${body.error}\n${body.stack ?? ""}`);
   }
-  return body.globals!;
+  return {
+    ...body.globals!,
+    __events: { kind: "object", value: body.events },
+    __diag: { kind: "object", value: body.diag },
+  };
 }
 
 describe("legacy bucket runtime behaviour", () => {
@@ -387,5 +450,64 @@ describe("script URLs in generated comments", () => {
     );
     expect(globals.__injected).toEqual({ kind: "undefined" });
     expect(globals.__ran).toEqual({ kind: "number", value: 1 });
+  });
+});
+
+describe("classic script isolation from internal state", () => {
+  const probeBody = `
+    try {
+      __ks_state_local.upstreamSender({ event: "kitesurf.frameAttached", params: { frameId: "forged" } });
+    } catch (e) {}
+    globalThis.__senderType = typeof __ks_state_local.upstreamSender;
+    globalThis.__afterInsertType = typeof __ks_state_local.afterIframeInsert;
+    globalThis.__pageMarker = "ran";
+  `;
+  const collect = ["__senderType", "__afterInsertType", "__pageMarker"];
+
+  it.each<[string, BundleRunOptions, ParentScriptDescriptor[]]>([
+    ["regular", {}, [classic(probeBody)]],
+    [
+      "async external",
+      {},
+      [classic("", { src: "/a.js", async: true, prefetchedSource: probeBody })],
+    ],
+    ["debug", { cdpDebug: true }, [classic(probeBody)]],
+    [
+      "inserted bake",
+      { insertedBake: [classic("", { src: "/inserted.js", prefetchedSource: probeBody })] },
+      [],
+    ],
+  ])(
+    "classic bundles cannot reach internal state or forge upstream events (%s)",
+    async (_path, options, descriptors) => {
+      const globals = await bootBundleAndCollectGlobals(descriptors, collect, options);
+      expect(globals.__senderType).toEqual({ kind: "string", value: "undefined" });
+      expect(globals.__afterInsertType).toEqual({ kind: "string", value: "undefined" });
+      expect(globals.__pageMarker).toEqual({ kind: "string", value: "ran" });
+      // Only the trusted post-run event is delivered; the forged one and the
+      // post-clear event are not.
+      expect(globals.__events).toEqual({
+        kind: "object",
+        value: [{ event: "kitesurf.paintDirty", params: {} }],
+      });
+      if (options.cdpDebug) {
+        expect(globals.__diag).toEqual({
+          kind: "object",
+          value: { entered: true, exited: true },
+        });
+      }
+    },
+  );
+
+  it("external parser scripts bracket their body with the current-script hooks", async () => {
+    const globals = await bootBundleAndCollectGlobals(
+      [classic("", { src: "/ext.js", prefetchedSource: 'globalThis.__hooks.push("body");' })],
+      ["__hooks"],
+      { lifecycleLog: true },
+    );
+    expect(globals.__hooks).toEqual({
+      kind: "object",
+      value: ["current:/ext.js", "body", "end", "load:/ext.js"],
+    });
   });
 });

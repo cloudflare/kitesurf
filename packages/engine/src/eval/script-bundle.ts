@@ -353,8 +353,13 @@ export function buildScriptBundle(
   const asyncBody = asyncAcc.parts.join("");
 
   const umdShadow = "var module=undefined,exports=undefined,require=undefined;\n";
-  const stateLocalDecl =
-    'var __ks_state_local = (await import("./internal-state.js")).getInternalState();\n';
+  const stateLocalDecl = `var __ks_state_local = ((state) => Object.freeze({
+  setCurrentScript: (...args) => state.setCurrentScript(...args),
+  get endClassicScript() { return state.endClassicScript; },
+  get parserScriptLifecycle() { return state.parserScriptLifecycle; },
+  set bundleDiag(value) { state.bundleDiag = value; },
+}))((await import("./internal-state.js")).getInternalState());
+`;
   const prodWrap = (body: string, strict = false): string =>
     `module.exports.run = async function () {
 ${strict ? '"use strict"; ' : ""}${stateLocalDecl}${umdShadow}${body}
