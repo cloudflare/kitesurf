@@ -95,6 +95,13 @@ export function inlineInsertDecisionSync(meta: InsertedScriptMetadata): ScriptGa
   };
 }
 
+/** workerd reports a response URL without its fragment, and an upgrade-insecure-requests
+ *  fetch goes to the upgraded URL, so a redirect is only one when the targets differ. */
+function stripFragment(url: string): string {
+  const hash = url.indexOf("#");
+  return hash === -1 ? url : url.slice(0, hash);
+}
+
 export async function insertedResponseAllowed(
   meta: InsertedScriptMetadata,
   response: {
@@ -104,10 +111,29 @@ export async function insertedResponseAllowed(
     opaque: boolean;
     finalUrl?: string;
   },
+  fetchedUrl?: string,
 ): Promise<ScriptGateDecision> {
   const ctx = gateContext();
-  if (meta.url && response.finalUrl && response.finalUrl !== meta.url && !scriptGateIsNoop(ctx)) {
-    const redirect = checkScriptRedirect(ctx, meta, response.finalUrl);
+  // The insert was allowed before the fetch, so the redirect check must see it as
+  // runtime-inserted: under 'strict-dynamic' that is the only thing that admits it.
+  const fetched = fetchedUrl ?? meta.url;
+  if (
+    fetched &&
+    response.finalUrl &&
+    !scriptGateIsNoop(ctx) &&
+    stripFragment(response.finalUrl) !== stripFragment(fetched)
+  ) {
+    const redirect = checkScriptRedirect(
+      ctx,
+      {
+        url: meta.url,
+        integrity: meta.integrity ?? null,
+        nonce: meta.nonce ?? null,
+        runtimeInserted: true,
+        module: meta.module === true,
+      },
+      response.finalUrl,
+    );
     if (!redirect.allowed) return redirect;
   }
   return checkScriptResponse(
