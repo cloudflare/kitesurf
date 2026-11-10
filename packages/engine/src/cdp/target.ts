@@ -10,6 +10,7 @@ import type { Protocol } from "devtools-protocol";
 import type { DispatchCtx } from "./dispatch.ts";
 import { buildFrameResourceTree, buildFrameTree, makeMainFrameState } from "./frames.ts";
 import { retireStub } from "./page-script-generation.ts";
+import { RetainedText } from "../retained-text.ts";
 import { createCookieJar, type CookieJar } from "../cookies.ts";
 import { engineWasmBytes, engineWasmInitialBytes } from "../engine-wasm-probe.ts";
 import { isolateRetainedBodyBytesTotal } from "./network-events.ts";
@@ -296,7 +297,7 @@ export function ensureBrowserTarget(ctx: DispatchCtx): TargetState {
     sessions: new Set(),
     url: "",
     title: "",
-    html: "",
+    html: new RetainedText(""),
     dom: null,
     docScan: null,
     domEpoch: 0,
@@ -430,7 +431,7 @@ export function createPageTarget(
     sessions: new Set(),
     url,
     title: "",
-    html: "",
+    html: new RetainedText(""),
     dom: null,
     docScan: null,
     domEpoch: 0,

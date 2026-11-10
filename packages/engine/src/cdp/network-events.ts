@@ -6,6 +6,7 @@
 
 import type Protocol from "devtools-protocol";
 import type { CdpEvent, EventEmitter } from "./types.ts";
+import { RetainedText } from "../retained-text.ts";
 
 export type ResourceType = Protocol.Network.ResourceType;
 
@@ -42,7 +43,7 @@ interface RequestRecord {
   loaderId: Protocol.Network.LoaderId;
   frameId: Protocol.Page.FrameId;
   sessionIds: Array<string | undefined>;
-  body?: string;
+  body?: RetainedText;
   bodyBase64Encoded?: boolean;
   bodyBytes?: number;
   completed?: boolean;
@@ -580,7 +581,7 @@ export class NetworkEventTracker {
     const rec = this.records.get(requestId);
     if (!rec || rec.body === undefined) return null;
     return {
-      body: rec.body,
+      body: rec.body.text(),
       base64Encoded: rec.bodyBase64Encoded ?? false,
     };
   }
@@ -599,7 +600,7 @@ export class NetworkEventTracker {
     if (this.disposed) return;
     if (this.effectiveTotalBytes <= 0) return;
     this.dropBody(rec);
-    rec.body = body;
+    rec.body = new RetainedText(body, !base64Encoded);
     rec.bodyBase64Encoded = base64Encoded;
     rec.bodyBytes = body.length * 2;
     this.retainedBodyBytesTotal += rec.bodyBytes;

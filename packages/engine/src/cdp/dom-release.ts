@@ -80,10 +80,10 @@ export function stripNoscript(dom: DomHandle): void {
 
 export function ensureTargetDom(target: TargetState): DomHandle | null {
   if (target.dom) return target.dom;
-  if (!target.html || !domFactory) return null;
+  if (target.html.length === 0 || !domFactory) return null;
   try {
     const dom = domFactory(
-      target.html,
+      target.html.text(),
       target.url && /^https?:/.test(target.url) ? target.url : "https://kitesurf.local/",
     );
     stripNoscript(dom);

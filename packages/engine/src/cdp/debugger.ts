@@ -6,6 +6,7 @@
 
 import type { CdpRequest, CompiledScriptMeta, TargetState } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
+import { RetainedText } from "../retained-text.ts";
 
 const EXEC_CONTEXT_ID = 1;
 
@@ -65,7 +66,7 @@ export async function handleDebugger(ctx: DispatchCtx, req: CdpRequest): Promise
       for (const target of ctx.browser.targets.values()) {
         for (const meta of target.compiledScripts) {
           if (meta.scriptId === scriptId) {
-            return { scriptSource: meta.source ?? "" };
+            return { scriptSource: meta.source?.text() ?? "" };
           }
         }
       }
@@ -140,7 +141,7 @@ export function makeCompiledScriptMeta(
     hash: fnv1aHex(expression),
     sourceMapURL: opts.sourceMapURL ?? "",
     isModule: opts.isModule === true,
-    source: opts.source,
+    source: opts.source === undefined ? undefined : new RetainedText(opts.source),
   };
 }
 
