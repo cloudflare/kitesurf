@@ -170,7 +170,7 @@ import {
 } from "./handles.ts";
 import { drainInitShims, installInitShims } from "./init-shims.ts";
 import { deferShimStats, drainDeferParked, installDeferShim } from "./defer-shim.ts";
-import { responseHeaderGet } from "./native-http.ts";
+import { isNativeUint8Array, nativeApply, responseHeaderGet } from "./native-http.ts";
 import { captureTrustedFetch, trustedFetch } from "./trusted-fetch.ts";
 import {
   awaitDeferredFontBytes,
@@ -355,6 +355,7 @@ import { ksInternals } from "./internals.ts";
 import type { IsolateKillMarker } from "@kitesurf/jsrpc-types/shared";
 
 const ISOLATE_KILL_MARKER: IsolateKillMarker = "[ks-kill]";
+const nativeSetIframeImage = DomHandle.prototype.setIframeImage;
 
 // Bounds the pre-DCL wait for document.write'd scripts: long enough for a
 // loader's dependency chain, short enough that a dead origin can't hold DCL.
@@ -4044,15 +4045,20 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       typeof ownerBackendNodeId !== "number" ||
       typeof width !== "number" ||
       typeof height !== "number" ||
-      !(rgba instanceof Uint8Array)
+      !isNativeUint8Array(rgba)
     ) {
       return { ok: false, rc: -1, error: "bad args" };
     }
-    if (!state.dom || typeof state.dom.setIframeImage !== "function") {
+    if (!state.dom || typeof nativeSetIframeImage !== "function") {
       return { ok: false, rc: -1, error: "dom missing" };
     }
     try {
-      const resultCode = state.dom.setIframeImage(ownerBackendNodeId, width, height, rgba);
+      const resultCode = nativeApply(nativeSetIframeImage, state.dom, [
+        ownerBackendNodeId,
+        width,
+        height,
+        rgba,
+      ]);
       if (resultCode === 0) {
         try {
           getInternalState().damageNodes.add(ownerBackendNodeId | 0);

@@ -32,3 +32,27 @@ test("oopif-quads-paint", async ({ page }) => {
     ).toBe(true);
   }
 });
+
+test("foreign frame pixels bypass a shadowed DOM method", async ({ page }) => {
+  await page.evaluateOnNewDocument(`(() => {
+    const dom = globalThis[Symbol.for("kitesurf.internals")].domDebug;
+    const real = dom.setIframeImage;
+    globalThis.__bitmapCaptured = false;
+    dom.setIframeImage = function (...args) {
+      globalThis.__bitmapCaptured = true;
+      return Reflect.apply(real, dom, args);
+    };
+    globalThis.__restoreBitmap = () => { delete dom.setIframeImage; };
+  })()`);
+  try {
+    await page.goto("http://localhost:8787/__fixtures/oopif-host-quads.html", {
+      waitUntil: "load",
+      timeout: 60000,
+    });
+    const png = decodePng(new Uint8Array(await page.screenshot({ type: "png" })));
+    expect(near(sample(png, 120, 95), [255, 0, 0])).toBe(true);
+    expect(await page.evaluate("globalThis.__bitmapCaptured")).toBe(false);
+  } finally {
+    await page.evaluate("globalThis.__restoreBitmap()");
+  }
+}, 120_000);

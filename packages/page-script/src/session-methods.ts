@@ -17,6 +17,7 @@ import { state } from "./state.ts";
 import { noteSyncOp } from "./lag-monitor.ts";
 import { set_ks_trace_parent } from "./wasm-glue.js";
 import { ksInternals } from "./internals.ts";
+import { nativeApply } from "./native-http.ts";
 
 type ReceivedMeta = Partial<WireMeta>;
 type MethodArguments<M extends PageScriptMethod> = Parameters<PageScriptSession[M]>;
@@ -104,7 +105,7 @@ export async function invokeSessionMethod<M extends PageScriptMethod>(
     type Handler = (
       ...handlerArgs: Parameters<PageScriptSession[M]>
     ) => Promise<PageScriptReply<M>>;
-    return await (methodHandler as Handler).apply(self, args);
+    return await nativeApply(methodHandler as Handler, self, args);
   } finally {
     if (method === "navigate") state.settleLoadCompletionArmed();
   }
