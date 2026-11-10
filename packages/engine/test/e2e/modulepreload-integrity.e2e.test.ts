@@ -48,3 +48,30 @@ test("a module imported under a modulepreload integrity pin runs only if it matc
   expect(await page.evaluate(() => Reflect.get(window, "__insertedRan") ?? false)).toBe(true);
   expect(await page.evaluate(() => document.title)).toBe("imported");
 }, 60_000);
+
+test("runtime imports enforce modulepreload integrity", async ({ page }) => {
+  const dep = "/__fixtures/inserted-module/dep.js";
+  await page.goto("https://ks.invalid/__fixtures/lifecycle.html", { waitUntil: "load" });
+  const good = await sha384(page, `https://ks.invalid${dep}`);
+  for (const [kind, pin, expected] of [
+    ["computed", good, "from-dep"],
+    ["inserted", good, "load:tool"],
+    ["computed", "sha384-" + "A".repeat(64), "rejected"],
+    ["inserted", "sha384-" + "A".repeat(64), "error:"],
+  ]) {
+    const script =
+      kind === "computed"
+        ? `var u = ${JSON.stringify(dep)}; import(u).then(m => window.result = m.label, () => window.result = "rejected");`
+        : `var s = document.createElement("script"); s.type = "module";
+         s.src = "/__fixtures/inserted-module/tool.js";
+         s.onload = () => window.result = "load:" + (window.__insertedModule || []).join();
+         s.onerror = () => window.result = "error:" + (window.__insertedModule || []).join();
+         document.head.appendChild(s);`;
+    const body = `<link rel="modulepreload" href="${dep}" integrity="${pin}"><script>${script}</script>`;
+    const url = new URL("https://ks.invalid/__fixtures/policy-doc.html");
+    url.searchParams.set("body", body);
+    await page.goto(url.toString(), { waitUntil: "load" });
+    await page.waitForFunction(() => Reflect.get(window, "result") != null, { timeout: 20_000 });
+    expect(await page.evaluate(() => Reflect.get(window, "result"))).toBe(expected);
+  }
+}, 90_000);

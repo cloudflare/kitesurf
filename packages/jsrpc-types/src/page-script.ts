@@ -15,11 +15,17 @@ import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "./query-dom.t
 import type { RenderPort } from "./page-renderer.ts";
 import type { WorkerEventParams, WorkerNavigatorInfo } from "./dedicated-worker.ts";
 
+export interface ModulePreloadPin {
+  url: string;
+  integrity: string | null;
+}
+
 export interface NavigateOptions {
   cookies?: string;
   connectionId?: string;
   mainFrameId?: string;
   cookieKey?: string;
+  modulePreloadPins?: ModulePreloadPin[];
   scriptPolicy?: {
     cspHeaders: string[];
     cspReportOnlyHeaders: string[];

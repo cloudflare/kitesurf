@@ -105,6 +105,7 @@ import {
   evalInsertedOnBoa,
   queueWrittenScript,
   runInsertedExternalScript,
+  setModulePreloadPins,
 } from "./inserted-scripts.ts";
 import { editContentEditable, editingHostOf } from "./contenteditable-input.ts";
 import {
@@ -2937,6 +2938,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     emitNavigateDiagnostic("start", "teardown");
 
     dispatchWindowUnload();
+    setModulePreloadPins(navigateOptions?.modulePreloadPins ?? []);
 
     if (state.dom) {
       try {
