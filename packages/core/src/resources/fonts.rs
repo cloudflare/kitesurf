@@ -93,11 +93,16 @@ pub(crate) fn strip_sfnt_tables(bytes: &[u8], drop: &[[u8; 4]]) -> Option<Vec<u8
     let search_range = 16u16 << entry_selector;
     let range_shift = n_records - search_range;
 
-    let mut out = Vec::with_capacity(
-        SFNT_HEADER_BYTES
-            + n * SFNT_TABLE_RECORD_BYTES
-            + kept.iter().map(|e| (e.data.len() + 3) & !3).sum::<usize>(),
-    );
+    let max_output = bytes.len().checked_add(n.checked_mul(3)?)?;
+    let mut output_size = SFNT_HEADER_BYTES.checked_add(n.checked_mul(SFNT_TABLE_RECORD_BYTES)?)?;
+    for entry in &kept {
+        let padded = entry.data.len().checked_add(3)? & !3;
+        output_size = output_size.checked_add(padded)?;
+        if output_size > max_output {
+            return None;
+        }
+    }
+    let mut out = Vec::with_capacity(output_size);
     out.extend_from_slice(sfnt_version);
     out.extend_from_slice(&(n as u16).to_be_bytes());
     out.extend_from_slice(&search_range.to_be_bytes());
@@ -1267,6 +1272,31 @@ mod tests {
         let font = synthetic_sfnt(
             &[(*b"cmap", 44, 4), (*b"post", 0x8000_0000, 0x8000_0010)],
             8,
+        );
+        assert!(strip_sfnt_tables(&font, &[*b"post"]).is_none());
+    }
+
+    #[test]
+    fn strip_sfnt_tables_bounds_rebuild_of_overlapping_tables() {
+        let mut font = synthetic_sfnt(
+            &[(*b"cmap", 60, 8), (*b"post", 68, 4), (*b"name", 72, 0)],
+            12,
+        );
+        font[60..68].copy_from_slice(b"payload!");
+        let out = strip_sfnt_tables(&font, &[*b"post"]).expect("disjoint tables fit the bound");
+        assert_eq!(sfnt_tags(&out), vec![*b"cmap", *b"name"]);
+        assert_eq!(&out[44..], b"payload!");
+        assert_eq!(&out[36..44], &[0, 0, 0, 52, 0, 0, 0, 0]);
+
+        let font = synthetic_sfnt(
+            &[
+                (*b"cmap", 92, 60),
+                (*b"post", 92, 60),
+                (*b"name", 92, 60),
+                (*b"head", 92, 60),
+                (*b"hhea", 92, 60),
+            ],
+            60,
         );
         assert!(strip_sfnt_tables(&font, &[*b"post"]).is_none());
     }
