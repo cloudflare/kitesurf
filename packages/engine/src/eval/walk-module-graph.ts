@@ -1492,6 +1492,36 @@ export async function walkModuleGraph({
     }
   }
 
+  // A missing static dependency makes every importing module fail, even if a registry alias
+  // could otherwise satisfy its native import under a different URL.
+  const staticImporters = new Map<string, Set<string>>();
+  const missingStatic = new Map<string, string>();
+  for (const [fromUrl] of modules) {
+    for (const imp of lexCache.get(fromUrl) ?? []) {
+      if (imp.t !== 1 || !imp.n) continue;
+      const resolved = resolveModule(imp.n, fromUrl);
+      if (!resolved || !isPageModuleUrl(resolved)) continue;
+      const importers = staticImporters.get(resolved) ?? new Set<string>();
+      importers.add(fromUrl);
+      staticImporters.set(resolved, importers);
+      if (!modules.has(resolved) && !missingStatic.has(fromUrl)) {
+        missingStatic.set(fromUrl, resolved);
+      }
+    }
+  }
+  const incomplete = [...missingStatic.keys()];
+  for (const fromUrl of incomplete) {
+    const dependency = missingStatic.get(fromUrl);
+    if (!dependency) continue;
+    modules.delete(fromUrl);
+    failed.set(fromUrl, `Failed to load static module ${dependency} imported from ${fromUrl}`);
+    for (const importer of staticImporters.get(fromUrl) ?? []) {
+      if (missingStatic.has(importer)) continue;
+      missingStatic.set(importer, fromUrl);
+      incomplete.push(importer);
+    }
+  }
+
   const registryNames = assignModuleRegistryNames(modules.keys());
   const registryName = (url: string): string => registryNames.get(url) ?? url;
 
