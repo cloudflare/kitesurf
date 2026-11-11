@@ -184,6 +184,47 @@ test("a same-origin iframe that redirects off-origin adopts the new origin", asy
   expect(child?.securityOrigin).toBe("https://ks-other.invalid");
 });
 
+// A malformed Location (the replacement character a lossy decode yields) takes the native-follow
+// handoff; its terminal response must be screened like a hop the shim walks itself.
+const HANDOFF_PAGE = "http://127.0.0.1:8787/__fixtures/redirect-gate.html";
+const HANDOFF_SECRET = "kitesurf-native-handoff-secret";
+const DENIED_TARGET = `https://ks-other.invalid/__fixtures/no-acao-secret.json?secret=${HANDOFF_SECRET}`;
+
+async function fetchOutcome(page: Page, path: string): Promise<string> {
+  return (await page.evaluate(`
+    fetch(${JSON.stringify(path)})
+      .then(async (r) => "STATUS:" + r.status + ":" + (await r.text()))
+      .catch((e) => "THREW:" + String(e))
+  `)) as string;
+}
+
+const handoffCases = [
+  {
+    name: "a walked redirect to a CORS denial rejects with TypeError",
+    path: `/__fixtures/loud-redirect?to=${encodeURIComponent(DENIED_TARGET)}`,
+  },
+  {
+    name: "a native-followed malformed Location CORS denial rejects with TypeError",
+    path: `/__fixtures/invalid-location-redirect?to=${encodeURIComponent(DENIED_TARGET)}`,
+  },
+];
+
+for (const testCase of handoffCases) {
+  test(testCase.name, async ({ page }) => {
+    await page.goto(HANDOFF_PAGE, { waitUntil: "domcontentloaded" });
+    const outcome = await fetchOutcome(page, testCase.path);
+    expect(outcome).toBe("THREW:TypeError: Failed to fetch");
+    expect(outcome, "the denial diagnostic reached page code").not.toContain(HANDOFF_SECRET);
+  });
+}
+
+test("a malformed Location with an allowed target still follows natively", async ({ page }) => {
+  await page.goto(HANDOFF_PAGE, { waitUntil: "domcontentloaded" });
+  const target = encodeURIComponent("/__fixtures/echo-headers.json?x=");
+  const outcome = await fetchOutcome(page, `/__fixtures/invalid-location-redirect?to=${target}`);
+  expect(outcome).toMatch(/^STATUS:200:/);
+});
+
 test("a depth-2 frame that redirects off-origin still gets a realm", async ({ page }) => {
   const session = await page.target().createCDPSession();
   await session.send("Page.enable");
