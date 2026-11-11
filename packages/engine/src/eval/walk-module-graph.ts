@@ -1845,7 +1845,25 @@ export async function walkModuleGraph({
     const rewrites: { ss: number; se: number; text: string }[] = [];
     const dynamicRanges = imports
       .filter((imp) => imp.t === 2)
-      .map((imp) => ({ start: imp.ss, end: imp.se }));
+      .map((imp) => ({ start: imp.ss, end: imp.se }))
+      .sort((a, b) => a.start - b.start);
+    for (let i = 1; i < dynamicRanges.length; i++) {
+      const previous = dynamicRanges[i - 1];
+      const current = dynamicRanges[i];
+      if (previous && current) current.end = Math.max(current.end, previous.end);
+    }
+    const isInDynamicImport = (start: number, end: number): boolean => {
+      let lo = 0;
+      let hi = dynamicRanges.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        const range = dynamicRanges[mid];
+        if (range && range.start <= start) lo = mid + 1;
+        else hi = mid;
+      }
+      const range = dynamicRanges[lo - 1];
+      return range !== undefined && range.end >= end;
+    };
     for (const imp of imports) {
       if (imp.t === 2) {
         const spec = imp.n ?? constSpecifier(body.slice(imp.s, imp.e));
@@ -1883,7 +1901,7 @@ export async function walkModuleGraph({
       }
 
       if (imp.t === 3) {
-        if (dynamicRanges.some(({ start, end }) => imp.ss >= start && imp.se <= end)) {
+        if (isInDynamicImport(imp.ss, imp.se)) {
           continue;
         }
         if (syntheticImportMeta) {

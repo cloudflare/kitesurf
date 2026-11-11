@@ -1424,3 +1424,45 @@ describe("import map budgets", () => {
     expect(budget.work - start).toBeLessThan(10_000);
   });
 });
+
+describe("walkModuleGraph import.meta against dynamic import ranges", () => {
+  const SELF = JSON.stringify("https://example.com/__kitesurf_inline_0.js");
+  const RESOLVE = `((specifier) => globalThis.__ks_resolve_import_map(specifier, ${SELF}))`;
+  const walk = async (body: string) => {
+    const { additionalModules } = await walkModuleGraph({
+      descriptors: [moduleInline(body)],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ "https://example.com/dep.js": "export default 1;" }),
+    });
+    return additionalModules["https://example.com/__kitesurf_inline_0.js"];
+  };
+
+  it.each([
+    ["a standalone resolve", `import.meta.resolve("a");`, `${RESOLVE}("a");`],
+    [
+      "a resolve inside a computed import",
+      `import(import.meta.resolve("a"));`,
+      `__ks_import(${RESOLVE}("a"), ${SELF});`,
+    ],
+    [
+      "a resolve after a nested dynamic import",
+      `import(import("/dep.js") + import.meta.resolve("b"));`,
+      `__ks_import(import("/dep.js") + ${RESOLVE}("b"), ${SELF});`,
+    ],
+    [
+      "a resolve outside every dynamic import",
+      `import("a");import.meta.resolve("b");`,
+      `__ks_import("a", ${SELF});${RESOLVE}("b");`,
+    ],
+  ])("keeps the rewrite for %s", async (_, body, expected) => {
+    expect(await walk(body)).toBe(expected);
+  });
+
+  it("tests 20,000 meta records against 10,000 ranges", async () => {
+    const source = `import("/dep.js");import.meta.url;import.meta.url;`.repeat(10_000);
+    const start = performance.now();
+    expect(await walk(source)).toBe(source);
+    expect(performance.now() - start).toBeLessThan(600);
+  });
+});
