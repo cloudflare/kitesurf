@@ -447,11 +447,14 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       ? "WebSocket"
       : (request.headers.get("x-kitesurf-resource-type") ?? "");
     const scriptCorsMode = request.headers.get("x-kitesurf-script-cors") ?? "";
+    // A parser load is a read; a page can label any method with a parser resource type.
+    const parserRead = request.method === "GET" || request.method === "HEAD";
     const safeCrossOriginType =
-      resourceType === "Image" ||
-      resourceType === "Stylesheet" ||
-      (resourceType === "Document" && props?.allowDocumentBypass === true) ||
-      (resourceType === "Script" && scriptCorsMode === "no-cors");
+      (parserRead &&
+        (resourceType === "Image" ||
+          resourceType === "Stylesheet" ||
+          (resourceType === "Script" && scriptCorsMode === "no-cors"))) ||
+      (resourceType === "Document" && props?.allowDocumentBypass === true);
     const opaqueResourceBypass = allowCrossOrigin && safeCrossOriginType;
 
     const stylesheetCorsMode =
