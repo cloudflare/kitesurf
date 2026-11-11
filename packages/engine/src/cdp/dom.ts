@@ -406,44 +406,53 @@ function requireDom(target: TargetState): NonNullable<TargetState["dom"]> {
 
 // A DOM reply is page-shaped data the engine walks and then JSON-serializes to the CDP
 // client. Shared references make that walk exponential, so a reply must be a plain tree.
-// 2^20 entries: a CDP node has at least nine fields, so this reply is >64 MiB of JSON,
-// four times the 16 MiB document cap; only a document of empty tags could reach it.
-const MAX_DOM_REPLY_NODES = 1 << 20;
-// Deeper than any real document, and JSON.stringify recurses once per level.
-const MAX_DOM_REPLY_DEPTH = 512;
+// Each record and array counts once, so 2^20 containers is ~350k nodes: a CDP node costs
+// about three. That is tens of MiB of JSON, several times the 16 MiB document cap.
+const MAX_DOM_REPLY_CONTAINERS = 1 << 20;
+// The accessibility builder recurses once per element level and overflows the worker
+// stack at about 1535 levels, so half of that is the largest depth with a 2x margin.
+// JSON serialization handles far deeper replies; `BuildCtx.build` sets this bound.
+const MAX_DOM_REPLY_DEPTH = 767;
 
 function rejectDomReply(reason: string): Error {
   return new Error(`DOM reply from the page isolate ${reason}`);
 }
 
-function assertDomReplyGraph(root: unknown): void {
+export function assertDomReplyGraph(root: unknown): void {
   if (!isCdpRecord(root)) return;
   const seen = new WeakSet<object>();
   const stack: Array<{ node: object; depth: number }> = [{ node: root, depth: 0 }];
-  let entries = 0;
+  let containers = 0;
   while (stack.length > 0) {
     const frame = stack.pop();
     if (!frame) continue;
     const { node, depth } = frame;
     if (seen.has(node)) throw rejectDomReply("repeats an object reference");
     seen.add(node);
+    // Count each record and array once, not each of its properties or slots.
+    containers += 1;
+    if (containers > MAX_DOM_REPLY_CONTAINERS) throw rejectDomReply("is too large");
     if (depth > MAX_DOM_REPLY_DEPTH) throw rejectDomReply("nests too deeply");
     const isArray = Array.isArray(node);
-    if (isArray) {
-      entries += node.length;
-      if (entries > MAX_DOM_REPLY_NODES) throw rejectDomReply("is too large");
-    }
-    for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(node))) {
+    let slots = 0;
+    for (const key of Reflect.ownKeys(node)) {
+      // RPC results carry symbol keys such as Symbol.dispose; JSON drops them and the engine
+      // never reads them. Array `length` is checked against the index keys below.
+      if (typeof key === "symbol") continue;
       if (isArray && key === "length") continue;
+      if (isArray && isArrayIndexKey(key)) slots += 1;
+      const descriptor = Object.getOwnPropertyDescriptor(node, key);
+      if (!descriptor) continue;
       if (descriptor.get !== undefined || descriptor.set !== undefined) {
         throw rejectDomReply("has an accessor");
       }
-      entries += 1;
-      if (entries > MAX_DOM_REPLY_NODES) throw rejectDomReply("is too large");
       if (isCdpRecord(descriptor.value)) {
         stack.push({ node: descriptor.value, depth: isArray ? depth : depth + 1 });
       }
     }
+    // Consumers visit an array once per slot (`for..of`, `JSON.stringify`), so holes cost
+    // work the record budget does not see. Builders emit dense arrays; a reply never has one.
+    if (isArray && slots !== node.length) throw rejectDomReply("has a sparse array");
   }
 }
 
@@ -472,6 +481,11 @@ function annotateIframeFrameIds(root: unknown, target: TargetState): void {
 
 function isCdpRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isArrayIndexKey(key: string): boolean {
+  const index = Number(key);
+  return Number.isInteger(index) && index >= 0 && String(index) === key;
 }
 
 function stripAttributeNamespaceSidecars(node: unknown): void {

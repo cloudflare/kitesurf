@@ -11,6 +11,7 @@ import type { DispatchCtx } from "./dispatch.ts";
 import { sessionOf, type SessionSoftOps } from "./page-session.ts";
 import type { ReadStamp } from "@kitesurf/jsrpc-types/query-dom";
 import { ensureTargetDom } from "./dom-release.ts";
+import { assertDomReplyGraph } from "./dom.ts";
 
 export interface AxNode {
   nodeId: string;
@@ -292,6 +293,10 @@ export async function buildTree(
     }
   }
   if (!root) return null;
+
+  // The page isolate supplies this tree, and `indexIds`/`build` recurse through
+  // `contentDocument`, which the page-side sanitizer does not visit.
+  assertDomReplyGraph(root);
 
   const ctx = new BuildCtx(target.frameId, displayNone, invisible);
   ctx.root = root;
