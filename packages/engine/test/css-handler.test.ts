@@ -387,3 +387,62 @@ describe("CSS.enable opaque stylesheet fetches", () => {
     unregisterInterception(h.connectionId);
   });
 });
+
+describe("CSS opaque stylesheet read bounds", () => {
+  it("bounds a lengthless opaque sheet and the shared text cache", async () => {
+    const cancelled: string[] = [];
+    let fetched = 0;
+    const replies: StubReplies = {};
+    const stub = makeStub(replies);
+    const target = makeTarget(stub);
+    target.nextStyleSheetRev = new Map();
+    const body = (url: string, n: number) => {
+      let left = n;
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          pull(c) {
+            if (left <= 0) return c.close();
+            c.enqueue(new Uint8Array(Math.min(left, 65536)).fill(97));
+            left -= 65536;
+          },
+          cancel: () => void cancelled.push(url),
+        }),
+      );
+    };
+    // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only the fields the fetch path reads are set.
+    const ctx = {
+      browser: {
+        targets: new Map([["t1", target]]),
+        sandboxOutbound: {
+          external: false,
+          parent: () => ({
+            fetch: async (r: Request) => {
+              fetched += 1;
+              return body(r.url, r.url.includes("oversize") ? 8 * 1024 * 1024 + 1 : 1024 * 1024);
+            },
+          }),
+        },
+      },
+      connectionId: "c1",
+      emit: () => {},
+      env: {},
+    } as unknown as DispatchCtx;
+    const sync = async (ownerNodeId: number, sourceURL: string) => {
+      replies.enumerateStyleSheets = {
+        sheets: [{ ownerNodeId, text: "", sourceURL, cors: "opaque" }],
+      } as QueryDomResult<"enumerateStyleSheets">;
+      await syncStyleSheetsFromEnumeration(ctx, target, stub);
+      return [...target.styleSheets.values()][0]?.text ?? "";
+    };
+
+    expect((await sync(0, "https://cdn.test/oversize.css")).length).toBe(0);
+    expect(cancelled).toEqual(["https://cdn.test/oversize.css"]);
+    await sync(0, "https://cdn.test/oversize.css");
+    expect(fetched).toBe(1);
+    expect((await sync(1, "https://cdn.test/1.css")).length).toBe(1024 * 1024);
+    for (let i = 2; i <= 25; i++) await sync(i, `https://cdn.test/${i}.css`);
+    const before = fetched;
+    await sync(1, "https://cdn.test/1.css");
+    expect(fetched).toBe(before + 1);
+  });
+});
