@@ -17,6 +17,7 @@ import {
 } from "./wasm-glue.js";
 import { matchWasmByUrl, matchWasmByBytes, matchWasmByBytesSync } from "./wasm-baked.ts";
 import { installWebSocketFacade } from "./websocket.ts";
+import { installEventSource } from "./event-source.ts";
 import { installWorker } from "./dedicated-worker.ts";
 import { installMessageChannel } from "./message-channel.ts";
 import {
@@ -3860,6 +3861,9 @@ export function installGlobals(
     installBlobMimeTypeSerialization();
     try {
       installWebSocketFacade();
+    } catch {}
+    try {
+      installEventSource();
     } catch {}
     installWorker();
     if (typeof globalThis.XMLHttpRequest !== "function") {
