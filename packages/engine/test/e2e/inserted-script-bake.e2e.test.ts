@@ -43,6 +43,17 @@ async function probeHits(page: import("@cloudflare/puppeteer").Page, key: string
   return typeof hits === "number" ? hits : NaN;
 }
 
+async function probeHeaders(
+  page: import("@cloudflare/puppeteer").Page,
+  key: string,
+): Promise<Array<string | null>> {
+  const headers: unknown = await page.evaluate(
+    `fetch("/__fixtures/inserted-probe-headers/${key}").then((r) => r.json()).then((b) => b.headers)`,
+  );
+  expect(Array.isArray(headers)).toBe(true);
+  return headers as Array<string | null>;
+}
+
 test("a script the origin inserted before runs natively on the next navigate", async ({ page }) => {
   const first = await load(page);
   expect(first).toEqual({
@@ -140,3 +151,17 @@ test("a speculative prefetch does not go around Fetch interception", async ({ pa
   expect(paused).toEqual([]);
   expect(await probeHits(page, key)).toBe(1);
 }, 90_000);
+
+test("a speculative prefetch omits the session's extra headers", async ({ page }) => {
+  for (const origin of ["http://127.0.0.1:8787", "http://ks-other.invalid"]) {
+    const learned = probe("stable");
+    const fresh = probe("stable");
+    await page.setExtraHTTPHeaders({});
+    await loadInserting(page, origin + learned.src);
+    await page.setExtraHTTPHeaders({ "x-probe-secret": "session" });
+    const title = await loadInserting(page, origin + fresh.src);
+    expect(await probeHeaders(page, learned.key)).toEqual([null, null]);
+    expect(await probeHeaders(page, fresh.key)).toEqual(["session"]);
+    expect(JSON.parse(title)).toMatchObject({ runs: 1, hello: "hi" });
+  }
+}, 120_000);

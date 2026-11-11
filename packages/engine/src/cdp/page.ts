@@ -1847,7 +1847,7 @@ async function pushNavigateToPageScriptInner(
                     connectionId: "",
                     mainFrameId: target.frameId,
                     mainLoaderId: target.loaderId,
-                    extraHeaders: effectiveExtraHeaders(target),
+                    extraHeaders: {},
                     cookieKey: "",
                     baseUrl: scriptBaseUrl,
                     sandboxOutbound: ctx.browser.sandboxOutbound,
