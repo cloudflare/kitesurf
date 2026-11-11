@@ -177,6 +177,17 @@ import type { PageScriptStub, PageIsolateCapOverrides } from "../eval/page-scrip
 import type { PageSession } from "./page-session.ts";
 import type { CookieJar } from "../cookies.ts";
 
+// One navigation's child-frame admission, shared by every branch and depth: registered child
+// frames and the parse input their retained DOMs charged. A frame refunds its charge when its
+// DOM is released.
+export interface ChildFrameBudget {
+  frames: number;
+  // Bytes read for the retained child documents.
+  bytes: number;
+  framesWarned: boolean;
+  bytesWarned: boolean;
+}
+
 export interface FrameState {
   frameId: string;
   parentFrameId: string | null;
@@ -195,6 +206,9 @@ export interface FrameState {
   detached: boolean;
   sessions: Set<string>;
   dom: DomHandle | null;
+  /** Parse input this frame's `dom` charged to `domBudget`, refunded when the DOM is released. */
+  domBytes?: number;
+  domBudget?: ChildFrameBudget;
   isCrossOrigin: boolean;
   hasScript: boolean;
   pendingLoad: Promise<void> | null;
