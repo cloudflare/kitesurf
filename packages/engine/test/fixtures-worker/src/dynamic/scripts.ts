@@ -125,6 +125,7 @@ import("file:///bundle/internal-state.js").then(function (ns) {
 }, function () { window.__hostileResult = "refused"; });
 `;
 const insertedProbeHits = new Map<string, number>();
+const insertedProbeHeaders = new Map<string, Array<string | null>>();
 scripts.all(
   "/inserted-probe/:mode{stable|volatile|gone|slow|hostile}/:file{[\\w-]+\\.js}",
   async (c) => {
@@ -132,6 +133,9 @@ scripts.all(
     const key = c.req.param("file").slice(0, -".js".length);
     const hit = (insertedProbeHits.get(key) ?? 0) + 1;
     insertedProbeHits.set(key, hit);
+    const seen = insertedProbeHeaders.get(key) ?? [];
+    seen.push(c.req.header("x-probe-secret") ?? null);
+    insertedProbeHeaders.set(key, seen);
     if (hit > 1) {
       if (mode === "gone") return c.text("gone", 404);
       if (mode === "slow") await sleep(SLOW_PROBE_MS);
@@ -149,6 +153,11 @@ scripts.all(
 );
 scripts.all("/inserted-probe-hits/:key{[\\w-]+}", (c) =>
   c.json({ hits: insertedProbeHits.get(c.req.param("key")) ?? 0 }, 200, {
+    "cache-control": "no-store",
+  }),
+);
+scripts.all("/inserted-probe-headers/:key{[\\w-]+}", (c) =>
+  c.json({ headers: insertedProbeHeaders.get(c.req.param("key")) ?? [] }, 200, {
     "cache-control": "no-store",
   }),
 );
