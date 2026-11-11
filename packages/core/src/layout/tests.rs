@@ -38,3 +38,4 @@ mod tab_expansion;
 mod table_cell_style;
 mod text_node_rect;
 mod transform_2d_subset;
+mod word_shaping;
