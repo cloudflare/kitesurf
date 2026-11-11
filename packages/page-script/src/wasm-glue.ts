@@ -28,7 +28,11 @@ export declare function ks_run_page_jobs(): void;
 
 export declare function font_families_json(): string;
 
-export declare function ks_import(specifier: string, referrerUrl: string): Promise<unknown>;
+export declare function ks_import(
+  specifier: string,
+  referrerUrl: string,
+  moduleType?: string,
+): Promise<unknown>;
 export declare function ks_set_boa_strict(v: boolean): void;
 
 export declare function ks_bridge_pins(): string;

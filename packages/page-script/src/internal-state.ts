@@ -236,11 +236,12 @@ export interface KitesurfInternals {
   // function over a boa trampoline shim and its pin handle(s), so a crossing costs no closure.
   wrapBoaFunction?: (call: Function, construct: Function, handle: number) => Function;
   wrapBoaMethod?: (call: Function, fnHandle: number, receiverHandle: number) => Function;
-  // A baked module's V8 namespace, so boa reuses it instead of fetching.
-  nativeImport?: (url: unknown) => Promise<unknown>;
+  // A baked module's V8 namespace, so boa reuses it instead of fetching. A JSON request only
+  // resolves a record the navigate baked as JSON; anything else falls through to the gate.
+  nativeImport?: (url: unknown, type?: unknown) => Promise<unknown>;
   // A module body for boa's fetch-and-interpret path, through the script gate.
   // The referrer is the importing module's URL, or the page's for an entry import.
-  fetchModuleSource?: (url: unknown, referrer?: unknown) => Promise<string>;
+  fetchModuleSource?: (url: unknown, referrer?: unknown, type?: unknown) => Promise<string>;
   // Run due page timers while boa awaits; returns how many ran. Installed read-only.
   readonly pumpDueTimers?: (deadlineMs?: number) => number;
   // Ms until the next page timer is due, or Infinity.

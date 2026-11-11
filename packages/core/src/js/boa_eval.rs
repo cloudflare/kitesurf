@@ -36,9 +36,13 @@ use crate::js::boa_bridge::{context_ptr, with_context};
 use crate::js::dom_fastpath::arm_v8_ran;
 use crate::js::internals::get;
 
+// A module's requested type is part of its identity: a JSON request must never reuse a
+// JavaScript load of the same URL.
+type ModuleCache = Rc<RefCell<HashMap<(String, Option<String>), Module>>>;
+
 #[derive(Default)]
 struct KsModuleLoader {
-    cache: Rc<RefCell<HashMap<String, Module>>>,
+    cache: ModuleCache,
 }
 
 fn page_base_url() -> Option<String> {
@@ -96,12 +100,23 @@ fn resolve_specifier(specifier: &str, referrer: &Referrer) -> Result<String, Str
 }
 
 // The referrer's URL lets the gate give an import its referrer's nonce (HTML's descendant
-// script fetch options); an entry import's referrer is the page.
-async fn gated_module_source(url: &str, referrer: Option<&str>) -> Option<Result<String, String>> {
+// script fetch options); an entry import's referrer is the page. The requested module type
+// makes the gate check the response MIME before any body is used.
+async fn gated_module_source(
+    url: &str,
+    referrer: Option<&str>,
+    module_type: Option<&str>,
+) -> Option<Result<String, String>> {
     let hook: js_sys::Function = get("fetchModuleSource")?.dyn_into().ok()?;
     let referrer = referrer.map_or(JsValue::UNDEFINED, JsValue::from_str);
+    let module_type = module_type.map_or(JsValue::UNDEFINED, JsValue::from_str);
     let promise = hook
-        .call2(&JsValue::UNDEFINED, &JsValue::from_str(url), &referrer)
+        .call3(
+            &JsValue::UNDEFINED,
+            &JsValue::from_str(url),
+            &referrer,
+            &module_type,
+        )
         .map_err(|_| format!("fetchModuleSource({url}) threw"));
     let promise = match promise {
         Ok(p) => p,
@@ -116,8 +131,14 @@ async fn gated_module_source(url: &str, referrer: Option<&str>) -> Option<Result
     }
 }
 
-async fn fetch_module_source(url: String, referrer: Option<String>) -> Result<String, String> {
-    if let Some(gated) = gated_module_source(&url, referrer.as_deref()).await {
+async fn fetch_module_source(
+    url: String,
+    referrer: Option<String>,
+    module_type: Option<String>,
+) -> Result<String, String> {
+    if let Some(gated) =
+        gated_module_source(&url, referrer.as_deref(), module_type.as_deref()).await
+    {
         return gated;
     }
     let global = js_sys::global();
@@ -154,10 +175,16 @@ async fn fetch_module_source(url: String, referrer: Option<String>) -> Result<St
         .ok_or_else(|| "module body not a string".to_string())
 }
 
-async fn native_import_namespace(url: String) -> Option<wasm_bindgen::JsValue> {
+async fn native_import_namespace(
+    url: String,
+    module_type: Option<String>,
+) -> Option<wasm_bindgen::JsValue> {
     let f: js_sys::Function = get("nativeImport")?.dyn_into().ok()?;
+    let module_type = module_type
+        .as_deref()
+        .map_or(JsValue::UNDEFINED, JsValue::from_str);
     let promise = f
-        .call1(&JsValue::UNDEFINED, &JsValue::from_str(&url))
+        .call2(&JsValue::UNDEFINED, &JsValue::from_str(&url), &module_type)
         .ok()?;
     let ns = wasm_bindgen_futures::JsFuture::from(Promise::from(promise))
         .await
@@ -219,22 +246,27 @@ impl ModuleLoader for KsModuleLoader {
     ) -> JsResult<Module> {
         let url = resolve_specifier(&request.specifier().to_std_string_escaped(), &referrer)
             .map_err(|message| JsNativeError::typ().with_message(message))?;
+        let module_type = request
+            .get_attribute("type")
+            .map(|t| t.to_std_string_escaped());
         let referrer_url = referrer.path().and_then(|p| p.to_str()).map(String::from);
-        if let Some(m) = self.cache.borrow().get(&url).cloned() {
+        let key = (url.clone(), module_type.clone());
+        if let Some(m) = self.cache.borrow().get(&key).cloned() {
             return Ok(m);
         }
-        // Use the loaded Worker's module instance when one is available.
-        let loaded = if let Some(ns) = native_import_namespace(url.clone()).await {
-            LoadedModule::Native(ns)
-        } else {
-            match fetch_module_source(url.clone(), referrer_url).await {
+        // Use the loaded Worker's module instance when one is available. The page only answers
+        // a JSON request from a record it baked as JSON, so a typed request cannot reach
+        // JavaScript here.
+        let loaded = match native_import_namespace(url.clone(), module_type.clone()).await {
+            Some(ns) => LoadedModule::Native(ns),
+            None => match fetch_module_source(url.clone(), referrer_url, module_type).await {
                 Ok(src) => LoadedModule::Source(src),
                 Err(msg) => LoadedModule::Err(msg),
-            }
+            },
         };
         // Dedupe concurrent in-flight loads of the same URL: a sibling load may
         // have parsed and registered this module while we fetched.
-        if let Some(existing) = self.cache.borrow().get(&url).cloned() {
+        if let Some(existing) = self.cache.borrow().get(&key).cloned() {
             return Ok(existing);
         }
         let module = {
@@ -254,7 +286,7 @@ impl ModuleLoader for KsModuleLoader {
                 }
             }
         };
-        self.cache.borrow_mut().insert(url, module.clone());
+        self.cache.borrow_mut().insert(key, module.clone());
         Ok(module)
     }
 
@@ -550,12 +582,10 @@ thread_local! {
     static PERSIST_QUEUE: RefCell<Option<Rc<WasmJobQueue>>> = const { RefCell::new(None) };
     static PERSIST_CP: RefCell<Option<boa_engine::interner::InternerCheckpoint>> =
         const { RefCell::new(None) };
-    static PERSIST_MODULES: RefCell<Option<PersistentModuleCache>> = const { RefCell::new(None) };
+    static PERSIST_MODULES: RefCell<Option<ModuleCache>> = const { RefCell::new(None) };
     static INTERNER_RECLAIMS: Cell<u64> = const { Cell::new(0) };
     static PERSIST_CP_LEN: Cell<usize> = const { Cell::new(0) };
 }
-
-type PersistentModuleCache = Rc<RefCell<HashMap<String, Module>>>;
 
 fn maybe_truncate_interner(ctx: &mut Context) {
     if ctx.interner().dynamic_len() <= PERSIST_CP_LEN.with(Cell::get) {
@@ -1026,7 +1056,7 @@ fn describe_rejection(v: &BoaValue, ctx: &mut Context) -> String {
 }
 
 #[wasm_bindgen]
-pub fn ks_import(specifier: String, referrer_url: String) -> Promise {
+pub fn ks_import(specifier: String, referrer_url: String, module_type: Option<String>) -> Promise {
     arm_v8_ran();
     wasm_bindgen_futures::future_to_promise(panic::AssertUnwindSafe(async move {
         let promise = {
@@ -1040,10 +1070,15 @@ pub fn ks_import(specifier: String, referrer_url: String) -> Promise {
             }
             // SAFETY: single-threaded; the persistent context outlives this.
             let ctx: &mut Context = unsafe { &mut *ptr };
-            let src = format!(
-                "import({})",
-                serde_json::to_string(&specifier).unwrap_or_else(|_| "''".to_string())
-            );
+            let spec_json = serde_json::to_string(&specifier).unwrap_or_else(|_| "''".to_string());
+            // The requested type rides the module request, so the loader can key and check it.
+            let src = match &module_type {
+                Some(module_type) => format!(
+                    "import({spec_json}, {{ with: {{ type: {} }} }})",
+                    serde_json::to_string(module_type).unwrap_or_else(|_| "\"\"".to_string())
+                ),
+                None => format!("import({spec_json})"),
+            };
             let promise_val = match ctx.eval(
                 Source::from_bytes(src.as_bytes()).with_path(std::path::Path::new(&referrer_url)),
             ) {
