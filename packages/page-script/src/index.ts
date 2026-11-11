@@ -40,6 +40,7 @@ import type {
   RunScriptReply,
   WireMeta,
   UnloadReply,
+  UpstreamMessage,
   WebStorageParams,
   WebStorageReply,
 } from "@kitesurf/jsrpc-types/page-script";
@@ -237,6 +238,18 @@ const sessionClosingSignal = new NativePromise<void>((resolve) => {
 });
 
 const frameBitmapDeliveryGate = createFrameBitmapDeliveryGate(applyFrameBitmap);
+
+// A navigation's request must carry the cookies its document stored first, and a document still
+// being navigated to has no published stub for the engine to drain them from.
+function withNavigationCookies(message: UpstreamMessage): UpstreamMessage {
+  const navigates =
+    message.event === "kitesurf.formSubmitNavigate" ||
+    (message.event === "kitesurf.navigatedWithinDocument" && message.params.kind === "navigate");
+  if (!navigates) return message;
+  const cookieWrites = state.drainCookieWrites();
+  if (cookieWrites.length === 0) return message;
+  return { ...message, params: { ...message.params, cookieWrites } } as UpstreamMessage;
+}
 
 function applyFrameBitmap(params: FrameBitmapParams): FrameBitmapReply {
   if (!isObjectRecord(params)) return { ok: false, rc: -1, error: "bad args" };
@@ -4621,7 +4634,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     };
     if (upstream) {
       registerUpstreamSender((message) => {
-        const upstreamPromise = upstream(message);
+        const upstreamPromise = upstream(withNavigationCookies(message));
         if (upstreamPromise && upstreamPromise.catch) upstreamPromise.catch(() => {});
       });
     }

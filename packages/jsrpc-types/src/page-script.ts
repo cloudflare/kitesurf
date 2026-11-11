@@ -372,7 +372,9 @@ export interface UpstreamEvents {
   // The page buffered an exception that no command's reply may carry for a while: the engine
   // drains the document to report it.
   "kitesurf.exceptionsPending": Record<never, never>;
-  "kitesurf.formSubmitNavigate": NavigatePost;
+  // A navigation the page starts carries the cookies its document stored before it, which the
+  // engine stores before it builds the request (page-script withNavigationCookies).
+  "kitesurf.formSubmitNavigate": NavigatePost & { cookieWrites?: string[] };
   "kitesurf.frameAttached": {
     frameId: string;
     ownerBackendNodeId: number;
@@ -398,6 +400,7 @@ export interface UpstreamEvents {
     navigationType: "fragment" | "historyApi" | "other";
     kind: string;
     previousUrl: string;
+    cookieWrites?: string[]; // set for a cross-document navigation (kind "navigate")
   };
   "kitesurf.paintDirty": Record<never, never>;
   // The wasm module trapped and is poisoned; `message` is the trap's.

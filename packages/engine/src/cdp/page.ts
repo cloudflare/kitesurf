@@ -775,6 +775,9 @@ export async function handlePage(
           throw new Error("Cannot navigate to invalid URL");
         }
       }
+      // Before this navigation takes over the target: a reopened document's lifecycle it may
+      // replay belongs to the loader the old document still has.
+      if (/^https?:/i.test(url)) await drainBeforeNavigate(ctx, target);
       // Abort the previous signal so its redirect walk and egress request can stop.
       target.pendingNavAbort?.abort();
       const navAbort = new AbortController();
@@ -3088,29 +3091,7 @@ function drainInBackground(
   backgroundDrainInFlight.add(target);
   const work = (async () => {
     try {
-      const summary = await pageScript.drainConsole();
-      if (ctx.browser.wsClosing) return;
-      if (target.pageScript !== pageScript) return;
-      // target.url already names the next document while a navigate fetches it.
-      const cookieUrl = target.pageScriptUrl;
-      if (summary.cookieWrites && summary.cookieWrites.length > 0 && cookieUrl) {
-        for (const raw of summary.cookieWrites) {
-          jarForTarget(ctx, target).setFromDocumentCookie(cookieUrl, raw);
-        }
-      }
-      if (summary.console && summary.console.length > 0) {
-        emitCapturedConsole(ctx, target, summary.console, undefined);
-      }
-      if (summary.exceptions && summary.exceptions.length > 0) {
-        emitCapturedExceptions(ctx, target, summary.exceptions, undefined);
-      }
-      if (summary.cdpMutations && summary.cdpMutations.length > 0) {
-        emitMutations(ctx, target, summary.cdpMutations);
-      }
-      if (summary.documentReopened) {
-        const { replayReopenedLifecycle } = await import("./runtime.ts");
-        replayReopenedLifecycle(ctx, target, summary, undefined);
-      }
+      await drainLiveDocument(ctx, target, pageScript);
     } catch {
     } finally {
       backgroundDrainInFlight.delete(target);
@@ -3142,6 +3123,64 @@ function drainOnWake(ctx: DispatchCtx, target: TargetState, pageScript: PageScri
     },
     Math.max(wait, WAKE_DRAIN_INTERVAL_MS / 4),
   );
+}
+
+// What a live document queued since it was last asked: its cookie writes go to the jar, and its
+// console, exceptions and DOM changes to the CDP sessions. A replaced document's are dropped.
+async function drainLiveDocument(
+  ctx: DispatchCtx,
+  target: TargetState,
+  pageScript: PageScriptStub,
+): Promise<void> {
+  const summary = await pageScript.drainConsole();
+  if (ctx.browser.wsClosing) return;
+  if (target.pageScript !== pageScript) return;
+  // target.url already names the next document while a navigate fetches it.
+  const cookieUrl = target.pageScriptUrl;
+  if (summary.cookieWrites && summary.cookieWrites.length > 0 && cookieUrl) {
+    for (const raw of summary.cookieWrites) {
+      jarForTarget(ctx, target).setFromDocumentCookie(cookieUrl, raw);
+    }
+  }
+  if (summary.console && summary.console.length > 0) {
+    emitCapturedConsole(ctx, target, summary.console, undefined);
+  }
+  if (summary.exceptions && summary.exceptions.length > 0) {
+    emitCapturedExceptions(ctx, target, summary.exceptions, undefined);
+  }
+  if (summary.cdpMutations && summary.cdpMutations.length > 0) {
+    emitMutations(ctx, target, summary.cdpMutations);
+  }
+  if (summary.documentReopened) {
+    const { replayReopenedLifecycle } = await import("./runtime.ts");
+    replayReopenedLifecycle(ctx, target, summary, undefined);
+  }
+}
+
+const NAVIGATE_DRAIN_TIMEOUT_MS = 1_000;
+
+// A page-started navigation reports the cookies its document stored before it, which the drain
+// below cannot reach while that document's stub is still unpublished (page-script index.ts).
+function applyReportedCookieWrites(
+  ctx: DispatchCtx,
+  target: TargetState,
+  params: { readonly cookieWrites?: unknown },
+  documentUrl: string,
+): void {
+  if (!Array.isArray(params.cookieWrites) || !documentUrl.startsWith("http")) return;
+  for (const raw of params.cookieWrites as unknown[]) {
+    if (typeof raw === "string") jarForTarget(ctx, target).setFromDocumentCookie(documentUrl, raw);
+  }
+}
+
+// A page that stores a cookie and then navigates expects the request to carry it, as a challenge
+// page that sets its token and reloads does. A document too busy to answer keeps its writes.
+async function drainBeforeNavigate(ctx: DispatchCtx, target: TargetState): Promise<void> {
+  const pageScript = target.pageScript;
+  if (!pageScript || typeof pageScript.drainConsole !== "function") return;
+  if (!target.pageScriptUrl?.startsWith("http")) return;
+  const drained = drainLiveDocument(ctx, target, pageScript).catch(() => {});
+  await withTimeout(drained, NAVIGATE_DRAIN_TIMEOUT_MS, "drain before navigate").catch(() => {});
 }
 
 const PUMP_TASKS_TIMEOUT_MS = 5_000;
@@ -4583,6 +4622,7 @@ function handleUpstreamFrameEvent(
   if (event === "kitesurf.formSubmitNavigate") {
     const url = typeof params.url === "string" ? params.url : null;
     if (!url) return;
+    applyReportedCookieWrites(ctx, target, params, isolateUrl);
     const postData = typeof params.postData === "string" ? params.postData : null;
     const postContentType = formPostContentType(params.postContentType);
     if (postData !== null && postContentType === null) return;
@@ -4648,6 +4688,7 @@ function handleUpstreamFrameEvent(
     const crossDocument = kind === "navigate";
 
     if (crossDocument) {
+      applyReportedCookieWrites(ctx, target, params, isolateUrl);
       const settled =
         target.lastLoadAt > 0 && Date.now() - target.lastLoadAt > AUTO_RELOAD_SETTLED_MS;
       const consecutive = target.autoReloadUrl === url && !settled;
