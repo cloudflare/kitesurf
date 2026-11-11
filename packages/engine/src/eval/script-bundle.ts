@@ -91,6 +91,7 @@ function buildClassicSourceMap(segments: ClassicSegment[], totalLines: number): 
 export interface ScriptBundle {
   classicRegularSource: string | null;
   classicAsyncSource: string | null;
+  preNavSource: string | null;
   moduleScriptUrls: string[];
   additionalModules: Record<string, BakedModule>;
   importMapModuleSource: string;
@@ -213,11 +214,16 @@ export function buildScriptBundle(
   options: BuildScriptBundleOptions = {},
 ): ScriptBundle {
   const cdpDebug = options.cdpDebug === true;
+  const preNav: ParentScriptDescriptor[] = [];
   const regularInline: ParentScriptDescriptor[] = [];
   const regularDeferred: ParentScriptDescriptor[] = [];
   const asyncBucket: ParentScriptDescriptor[] = [];
   const moduleBucket: ParentScriptDescriptor[] = [];
   for (const d of descriptors) {
+    if (d.injected) {
+      preNav.push(d);
+      continue;
+    }
     if (d.kind === "module") {
       moduleBucket.push(d);
       continue;
@@ -319,6 +325,10 @@ export function buildScriptBundle(
     );
     asyncIdx++;
   }
+  // CDP addScriptToEvaluateOnNewDocument source is compiled into its own module so page
+  // classic code cannot read it through its enclosing function's source text.
+  let preNavBody = "";
+  for (const [i, d] of preNav.entries()) preNavBody += buildClassicSegment(d, i).source;
   for (const [mi, d] of moduleBucket.entries()) {
     if (d.blocked) {
       const errorUrl = `https://kitesurf-error.invalid/module-${mi}.js`;
@@ -351,6 +361,11 @@ export function buildScriptBundle(
 
   const regularBody = regularAcc.parts.join("");
   const asyncBody = asyncAcc.parts.join("");
+  // Runs the pre-navigation module before any page classic source in the same realm.
+  const preNavPrelude =
+    preNavBody.length > 0
+      ? 'await import("./__ks_user_pre_nav.js").then((m) => ((m.default && m.default.run) || m.run)());\n'
+      : "";
 
   const umdShadow = "var module=undefined,exports=undefined,require=undefined;\n";
   const stateLocalDecl = `var __ks_state_local = ((state) => Object.freeze({
@@ -425,11 +440,12 @@ __ks_diag.exited = true;
     body: string,
     bundleUrl: string,
     segments: ClassicSegment[],
+    bodyLineOffset = 0,
   ): { source: string; sourceMapURL: string } => {
     const wrapped = wrap(body);
     const shifted = segments.map((s) => ({
       ...s,
-      generatedLine: s.generatedLine + wrapHeaderLines,
+      generatedLine: s.generatedLine + wrapHeaderLines + bodyLineOffset,
     }));
     const totalLines = countLines(wrapped) + 1;
     const sourceMapURL =
@@ -440,10 +456,19 @@ __ks_diag.exited = true;
     return { source: wrapped + directives, sourceMapURL };
   };
 
+  let preNavSource: string | null = null;
+  if (preNavBody.length > 0) {
+    preNavSource = finalize(preNavBody, "/__ks_user_pre_nav.js", []).source;
+  }
   let classicRegularSource: string | null = null;
   let classicRegularSourceMapURL = "";
-  if (regularBody.length > 0) {
-    const r = finalize(regularBody, "/__ks_user_classic_regular.js", regularSegMeta);
+  if (regularBody.length > 0 || preNavBody.length > 0) {
+    const r = finalize(
+      preNavPrelude + regularBody,
+      "/__ks_user_classic_regular.js",
+      regularSegMeta,
+      countLines(preNavPrelude),
+    );
     classicRegularSource = r.source;
     classicRegularSourceMapURL = r.sourceMapURL;
   }
@@ -476,6 +501,7 @@ __ks_diag.exited = true;
     insertedManifest,
     classicRegularSource,
     classicAsyncSource,
+    preNavSource,
     moduleScriptUrls,
     additionalModules,
     importMapModuleSource: options.importMapModuleSource ?? FALLBACK_MODULE_RESOLVER_SOURCE,
