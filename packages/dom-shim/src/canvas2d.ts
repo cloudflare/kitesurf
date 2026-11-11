@@ -5,12 +5,46 @@
 // Queues Canvas 2D operations in JavaScript and flushes them to wasm-backed canvas surfaces.
 
 import type * as Idl from "./idl/types.generated.js";
-import { ksGlobal, dom } from "./state.js";
+import { ksGlobal, dom, getDocumentUrl } from "./state.js";
 import { getInternalState } from "./internal-state.js";
 import { canvas2dCache, postMutationHooks } from "./registries.js";
 import { markBrandWrapped } from "./webidl.js";
 import { ksInternals } from "./internals.js";
 import { errorMessage } from "./util/strings.js";
+
+// Origin checks must not read URL intrinsics after page code can replace them.
+const CanvasURL = URL;
+const canvasUrlGetter = (name: "href" | "origin" | "protocol"): ((this: URL) => string) => {
+  const getter = Object.getOwnPropertyDescriptor(CanvasURL.prototype, name)?.get;
+  if (typeof getter !== "function") throw new Error(`URL ${name} getter unavailable`);
+  return getter;
+};
+const canvasUrlHref = canvasUrlGetter("href");
+const canvasUrlOrigin = canvasUrlGetter("origin");
+const canvasUrlProtocol = canvasUrlGetter("protocol");
+
+// The taint decision parses page-written attribute text, so it must not call a
+// String member the page can replace: a replaced `String` or `toLowerCase` can
+// otherwise turn a cross-origin candidate into a same-origin one.
+const nativeApply = Reflect.apply;
+const nativeCall = Function.prototype.call;
+const nativeBind = Function.prototype.bind;
+// `bind.call(bind, call)` with all three intrinsics captured at module load: the
+// result invokes a method with its first argument as `this` and allocates no
+// argument list, so later page replacements cannot intercept the call.
+const uncurriedBinder = nativeApply(nativeBind, nativeBind, [nativeCall]) as (
+  fn: unknown,
+) => unknown;
+function bindMethod<T>(fn: unknown): T {
+  return uncurriedBinder(fn) as T;
+}
+const CanvasString = String;
+const stringToLowerCase = bindMethod<(s: string) => string>(String.prototype.toLowerCase);
+const stringCharCodeAt = bindMethod<(s: string, i: number) => number>(String.prototype.charCodeAt);
+const stringSlice = bindMethod<(s: string, a: number, b: number) => string>(String.prototype.slice);
+const urlHref = bindMethod<(url: URL) => string>(canvasUrlHref);
+const urlOrigin = bindMethod<(url: URL) => string>(canvasUrlOrigin);
+const urlProtocol = bindMethod<(url: URL) => string>(canvasUrlProtocol);
 
 class PinnedRef<T extends object> {
   private _v: T;
@@ -77,7 +111,8 @@ function noteOutlineDemand(): void {
 }
 
 function batchHasTextOp(ops: CanvasOp[]): boolean {
-  for (const op of ops) {
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i];
     if (op && (op.o === "fillText" || op.o === "strokeText")) return true;
   }
   return false;
@@ -170,16 +205,70 @@ type CanvasOp = {
 
 type CanvasImageSource = { id: number; kind: "canvas" } | { id: number; kind: "img"; oc: boolean };
 
-// Captured before page script runs, which can replace JSON.stringify or add toJSON to a prototype.
-// The replacer returns each holder's own value, which undoes any toJSON hook.
+// Captured before page script runs, which can replace JSON.stringify or add toJSON, push or
+// iterator methods to a prototype. Serialization walks these private copies, so a page hook
+// never receives a queued operation.
 const stringifyBatch = JSON.stringify;
-const ownValue = function (this: Record<string, unknown>, key: string): unknown {
-  return this[key];
-};
+const ownKeys = Object.keys;
+const ownDescriptor = Object.getOwnPropertyDescriptor;
+const createObject = Object.create;
+const setPrototype = Object.setPrototypeOf;
+const defineProperty = Object.defineProperty;
+const isArray = Array.isArray;
+const MAX_BATCH_DEPTH = 32;
+
+function snapshotBatchValue(value: unknown, depth = 0): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (depth > MAX_BATCH_DEPTH) throw new TypeError("canvas operation is too deep");
+  // Both copies have a null prototype, so plain assignment cannot reach a page
+  // setter on Object.prototype or Array.prototype.
+  const copy = (isArray(value) ? setPrototype([], null) : createObject(null)) as Record<
+    string,
+    unknown
+  >;
+  const keys = ownKeys(value);
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    const descriptor = ownDescriptor(value, key);
+    if (!descriptor || !("value" in descriptor)) {
+      throw new TypeError("canvas operation contains an accessor");
+    }
+    // A function value could only be a page-installed hook such as toJSON.
+    if (typeof descriptor.value === "function") continue;
+    copy[key] = snapshotBatchValue(descriptor.value, depth + 1);
+  }
+  return copy;
+}
+
+// Sets a flag as an own data property, so an Object.prototype setter for the
+// name cannot receive the operation or swallow the flag.
+function defineFlag<T extends object>(target: T, name: string, value: boolean): T {
+  defineProperty(target, name, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  });
+  return target;
+}
+
+// Appends without Array.prototype.push, which a page can replace and observe the private array.
+function appendPrivate<T>(array: T[], value: T): void {
+  defineProperty(array, array.length, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  });
+}
 
 // Keep operation metadata private so page properties cannot forge renderer input.
 const gradientSpecs = new WeakMap<object, CanvasGradientSpec>();
+const gradientGet = gradientSpecs.get.bind(gradientSpecs);
+const gradientSet = gradientSpecs.set.bind(gradientSpecs);
 const patternSpecs = new WeakMap<object, CanvasPatternSpec>();
+const patternGet = patternSpecs.get.bind(patternSpecs);
+const patternSet = patternSpecs.set.bind(patternSpecs);
 
 // Neither interface has a constructor; the context passes this.
 const CANVAS_STYLE_TOKEN = Symbol("kitesurfCanvasStyle");
@@ -187,7 +276,7 @@ const CANVAS_STYLE_TOKEN = Symbol("kitesurfCanvasStyle");
 export class CanvasGradientShim implements Idl.CanvasGradient {
   constructor(token: symbol, spec: CanvasGradientSpec) {
     if (token !== CANVAS_STYLE_TOKEN) throw new TypeError("Illegal constructor");
-    gradientSpecs.set(this, spec);
+    gradientSet(this, spec);
   }
   addColorStop(offset: number, color: string): void {
     const off = Number(offset);
@@ -196,16 +285,16 @@ export class CanvasGradientShim implements Idl.CanvasGradient {
     }
     const css = serializeColor(color);
     if (!css) throw domExc("invalid color", "SyntaxError");
-    const spec = gradientSpecs.get(this);
+    const spec = gradientGet(this);
     if (!spec) throw new TypeError("Illegal invocation");
-    spec.stops.push([off, css]);
+    appendPrivate(spec.stops, [off, css]);
   }
 }
 
 export class CanvasPatternShim implements Idl.CanvasPattern {
   constructor(token: symbol, spec: CanvasPatternSpec) {
     if (token !== CANVAS_STYLE_TOKEN) throw new TypeError("Illegal constructor");
-    patternSpecs.set(this, spec);
+    patternSet(this, spec);
   }
   setTransform(_transform?: Idl.DOMMatrix2DInit): void {
     /* accepted, not applied */
@@ -403,9 +492,11 @@ function pathBuilders(emit: (op: CanvasOp) => void) {
 }
 
 const path2dOps = new WeakMap<Path2D, CanvasOp[]>();
+const path2dGet = path2dOps.get.bind(path2dOps);
+const path2dSet = path2dOps.set.bind(path2dOps);
 
 function opsOf(path: Path2D, method: string): CanvasOp[] {
-  const ops = path2dOps.get(path);
+  const ops = path2dGet(path);
   if (!ops) throw new TypeError(`Path2D.${method}: illegal invocation`);
   return ops;
 }
@@ -432,9 +523,13 @@ export interface Path2D extends CanvasPathMethods {}
 export class Path2D implements Idl.Path2D {
   constructor(init?: Path2D | string) {
     const ops: CanvasOp[] = [];
-    path2dOps.set(this, ops);
-    if (init instanceof Path2D) ops.push(...opsOf(init, "constructor"));
-    else if (init !== undefined) ops.push({ o: "svgPath", s: String(init) });
+    path2dSet(this, ops);
+    if (init instanceof Path2D) {
+      const added = opsOf(init, "constructor");
+      for (let i = 0; i < added.length; i++) appendPrivate(ops, added[i]);
+    } else if (init !== undefined) {
+      appendPrivate(ops, { o: "svgPath", s: String(init) });
+    }
   }
 
   addPath(path: Idl.Path2D, transform?: Idl.DOMMatrix2DInit): void {
@@ -443,8 +538,11 @@ export class Path2D implements Idl.Path2D {
     const ops = opsOf(this, "addPath");
     const t = matrixOps(transform);
     if (t === null) return;
-    if (t.length) ops.push({ o: "save" }, ...t, ...added, { o: "restore" });
-    else ops.push(...added);
+    const addedLength = added.length;
+    if (t.length) appendPrivate(ops, { o: "save" });
+    for (let i = 0; i < t.length; i++) appendPrivate(ops, t[i]);
+    for (let i = 0; i < addedLength; i++) appendPrivate(ops, added[i]);
+    if (t.length) appendPrivate(ops, { o: "restore" });
   }
 }
 
@@ -457,7 +555,7 @@ for (const name of Object.keys(pathMethodNames)) {
   Object.defineProperty(Path2D.prototype, name, {
     value: function (this: Path2D, ...args: unknown[]) {
       const ops = opsOf(this, name);
-      const builders = pathBuilders((op) => ops.push(op));
+      const builders = pathBuilders((op) => appendPrivate(ops, op));
       return Reflect.apply(builders[name], builders, args);
     },
     writable: true,
@@ -598,7 +696,7 @@ function buildContextImpl(canvas: CanvasHost) {
     const batch = q;
     q = [];
     try {
-      const rc = dom.canvasApplyOps(canvas._id, stringifyBatch(batch, ownValue));
+      const rc = dom.canvasApplyOps(canvas._id, stringifyBatch(snapshotBatchValue(batch)));
       dbg.opsSent += batch.length;
       dbg.last = "ops rc=" + rc;
     } catch (e) {
@@ -609,7 +707,7 @@ function buildContextImpl(canvas: CanvasHost) {
   function ensureSize(): void {
     if (!sizeSent) {
       sizeSent = true;
-      q.push({ o: "resize", a: [curW(), curH()] });
+      appendPrivate(q, { o: "resize", a: [curW(), curH()] });
     }
   }
 
@@ -620,7 +718,7 @@ function buildContextImpl(canvas: CanvasHost) {
     }
     sendPendingPut();
     ensureSize();
-    q.push(op);
+    appendPrivate(q, op);
     if (q.length >= OP_QUEUE_HIGH_WATER) {
       flushOps();
     }
@@ -629,7 +727,8 @@ function buildContextImpl(canvas: CanvasHost) {
 
   function withPath2D(path: Path2D, op: CanvasOp): void {
     enqueue({ o: "pathPush" });
-    for (const pathOp of opsOf(path, op.o)) enqueue(pathOp);
+    const ops = opsOf(path, op.o);
+    for (let i = 0; i < ops.length; i++) enqueue(ops[i]);
     enqueue(op);
     enqueue({ o: "pathPop" });
   }
@@ -691,7 +790,7 @@ function buildContextImpl(canvas: CanvasHost) {
     st = defaultState();
     stack.length = 0;
     sizeSent = true;
-    q.push({ o: "resize", a: [curW(), curH()] });
+    appendPrivate(q, { o: "resize", a: [curW(), curH()] });
     schedulePush();
   }
   for (const prop of ["width", "height"]) {
@@ -738,11 +837,14 @@ function buildContextImpl(canvas: CanvasHost) {
   function styleSpec(v: unknown): CanvasStyleSpec | null {
     if (typeof v === "string") return { k: "color", c: v };
     if (v instanceof CanvasGradientShim) {
-      const g = gradientSpecs.get(v);
-      return g ? { ...g, stops: g.stops.slice() } : null;
+      const g = gradientGet(v);
+      if (!g) return null;
+      const stops: CanvasGradientSpec["stops"] = [];
+      for (let i = 0; i < g.stops.length; i++) appendPrivate(stops, g.stops[i]);
+      return { ...g, stops };
     }
     if (v instanceof CanvasPatternShim) {
-      const p = patternSpecs.get(v);
+      const p = patternGet(v);
       return p ? { ...p } : null;
     }
     return null;
@@ -791,37 +893,184 @@ function buildContextImpl(canvas: CanvasHost) {
     if (!info) return null;
     if (info.kind === "canvas") return { id, kind: "canvas" };
     if (info.kind === "img") {
-      return { id, kind: "img", oc: isImgOriginClean(info.src) };
+      return { id, kind: "img", oc: isImgOriginClean(id, info.src) };
     }
     return null;
   }
 
-  let imageOrigin: { src: string; baseHref: string; docOrigin: string; clean: boolean } | null =
-    null;
-  function isImgOriginClean(src: string): boolean {
+  let imageOrigin: {
+    seq: number;
+    id: number;
+    src: string;
+    baseHref: string;
+    loaderHref: string;
+    docOrigin: string;
+    clean: boolean;
+  } | null = null;
+  // The document base URL comes from the shim's own DOM and captured URL
+  // intrinsics: page code can replace globalThis.location, document and URL,
+  // and it can override element getters, so none of those answer here.
+  let documentBaseMemo: {
+    seq: number;
+    fallback: string;
+    href: string;
+    origin: string;
+  } | null = null;
+  function nodeAttributes(id: number): string[] {
     try {
-      if (!src) return true;
-      const g = ksGlobal;
-      const baseHref = (g.document && g.document.baseURI) || (g.location ? g.location.href : "");
-      const docOrigin = (g.location && g.location.origin) || "";
-      if (
-        imageOrigin?.src === src &&
-        imageOrigin.baseHref === baseHref &&
-        imageOrigin.docOrigin === docOrigin
-      ) {
-        return imageOrigin.clean;
+      const info = dom.nodeInfo(id);
+      return (info && info.attributes) || [];
+    } catch {
+      return [];
+    }
+  }
+  function nodeLocalName(id: number): string {
+    try {
+      const info = dom.nodeInfo(id);
+      return info && typeof info.localName === "string" ? stringToLowerCase(info.localName) : "";
+    } catch {
+      return "";
+    }
+  }
+  function nodeAttr(id: number, name: string): string | null {
+    const attrs = nodeAttributes(id);
+    for (let i = 0; i + 1 < attrs.length; i += 2) {
+      if (stringToLowerCase(CanvasString(attrs[i])) === name) return CanvasString(attrs[i + 1]);
+    }
+    return null;
+  }
+  function resolveDocumentBaseHref(fallback: string): string {
+    try {
+      const baseId = dom.querySelector("base[href]");
+      if (baseId <= 0) return fallback;
+      const attrs = nodeAttributes(baseId);
+      for (let i = 0; i + 1 < attrs.length; i += 2) {
+        if (stringToLowerCase(CanvasString(attrs[i])) !== "href") continue;
+        const href = CanvasString(attrs[i + 1]);
+        return href === "" ? fallback : urlHref(new CanvasURL(href, fallback));
       }
-      const abs = new URL(src, baseHref);
-      const clean =
-        abs.protocol === "data:" ||
-        abs.protocol === "blob:" ||
-        !docOrigin ||
-        abs.origin === docOrigin;
-      imageOrigin = { src, baseHref, docOrigin, clean };
-      return clean;
+    } catch {}
+    return fallback;
+  }
+  function documentBase(): { href: string; origin: string } {
+    // The committed document URL is not page-writable.
+    const fallback = getDocumentUrl();
+    const seq = getInternalState().mutationSeq | 0;
+    if (
+      documentBaseMemo &&
+      documentBaseMemo.seq === seq &&
+      documentBaseMemo.fallback === fallback
+    ) {
+      return documentBaseMemo;
+    }
+    let origin = "";
+    try {
+      const parsed = urlOrigin(new CanvasURL(fallback));
+      if (parsed !== "null") origin = parsed;
+    } catch {}
+    documentBaseMemo = {
+      seq,
+      fallback,
+      href: resolveDocumentBaseHref(fallback),
+      origin,
+    };
+    return documentBaseMemo;
+  }
+  // Mirrors the loader's whitespace-anchored srcset scan (blitz
+  // pick_srcset_candidate): skip separators, read a non-whitespace URL token,
+  // strip a trailing comma, then skip the descriptor up to the next comma.
+  function forEachSrcsetCandidate(srcset: string, visit: (url: string) => void): void {
+    const len = srcset.length;
+    let i = 0;
+    while (i < len) {
+      let c = 0;
+      while (i < len) {
+        c = stringCharCodeAt(srcset, i);
+        if (c === 44 || c === 9 || c === 10 || c === 12 || c === 13 || c === 32) i++;
+        else break;
+      }
+      if (i >= len) break;
+      const start = i;
+      while (i < len) {
+        c = stringCharCodeAt(srcset, i);
+        if (c === 9 || c === 10 || c === 12 || c === 13 || c === 32) break;
+        i++;
+      }
+      let end = i;
+      if (end > start && stringCharCodeAt(srcset, end - 1) === 44) end--;
+      if (end > start) visit(stringSlice(srcset, start, end));
+      while (i < len && stringCharCodeAt(srcset, i) !== 44) i++;
+    }
+  }
+  function isCandidateClean(url: string, baseHref: string, docOrigin: string): boolean {
+    try {
+      const abs = new CanvasURL(url, baseHref);
+      const protocol = urlProtocol(abs);
+      if (protocol === "data:" || protocol === "blob:") return true;
+      return docOrigin !== "" && urlOrigin(abs) === docOrigin;
     } catch {
       return false;
     }
+  }
+  function isImgOriginClean(id: number, src: string): boolean {
+    const seq = getInternalState().mutationSeq | 0;
+    const base = documentBase();
+    const loaderHref = getDocumentUrl();
+    if (
+      imageOrigin &&
+      imageOrigin.seq === seq &&
+      imageOrigin.id === id &&
+      imageOrigin.src === src &&
+      imageOrigin.baseHref === base.href &&
+      imageOrigin.loaderHref === loaderHref &&
+      imageOrigin.docOrigin === base.origin
+    ) {
+      return imageOrigin.clean;
+    }
+    // Every URL the loader can fetch for this <img>: its src, its srcset
+    // candidates, and the srcset candidates of the <picture> sources before it
+    // (blitz select_image_url). Deciding from the src attribute alone misses the
+    // URL the pixels came from.
+    let clean = true;
+    const visit = (url: string): void => {
+      if (!clean) return;
+      // The loader resolves against the document URL and ignores <base>, so that
+      // resolution decides; <base> stays a second, conservative input.
+      if (
+        !isCandidateClean(url, loaderHref, base.origin) ||
+        (base.href !== loaderHref && !isCandidateClean(url, base.href, base.origin))
+      ) {
+        clean = false;
+      }
+    };
+    if (src) visit(src);
+    forEachSrcsetCandidate(nodeAttr(id, "srcset") ?? "", visit);
+    let parent = -1;
+    try {
+      parent = dom.parentId(id);
+    } catch {}
+    if (parent > 0 && nodeLocalName(parent) === "picture") {
+      try {
+        const children = dom.childIds(parent);
+        for (let i = 0; i < children.length; i++) {
+          const child = children[i];
+          if (typeof child !== "number") continue;
+          if (child === id) break;
+          if (nodeLocalName(child) !== "source") continue;
+          forEachSrcsetCandidate(nodeAttr(child, "srcset") ?? "", visit);
+        }
+      } catch {}
+    }
+    imageOrigin = {
+      seq,
+      id,
+      src,
+      baseHref: base.href,
+      loaderHref,
+      docOrigin: base.origin,
+      clean,
+    };
+    return clean;
   }
 
   const ctx = {
@@ -1167,7 +1416,8 @@ function buildContextImpl(canvas: CanvasHost) {
       const [x, y, rule] = path ? [xOrY, yOrRule, maybeRule] : [pathOrX, xOrY, yOrRule];
       if (path) {
         enqueue({ o: "pathPush" });
-        for (const pathOp of opsOf(path, "isPointInPath")) enqueue(pathOp);
+        const pathOps = opsOf(path, "isPointInPath");
+        for (let i = 0; i < pathOps.length; i++) enqueue(pathOps[i]);
       }
       flushOps();
       try {
@@ -1263,7 +1513,7 @@ function buildContextImpl(canvas: CanvasHost) {
         }
       }
       const spec: CanvasPatternSpec = { k: "pattern", id: src.id, rep: src.kind + ":" + rep };
-      if (src.kind === "img" && !src.oc) spec.oc = false;
+      if (src.kind === "img" && !src.oc) defineFlag(spec, "oc", false);
       return new CanvasPatternShim(CANVAS_STYLE_TOKEN, spec);
     },
 
@@ -1285,7 +1535,7 @@ function buildContextImpl(canvas: CanvasHost) {
         } catch {}
       }
       const op: CanvasOp = { o: "drawImage", s: src.kind, id: src.id, a };
-      if (src.kind === "img" && !src.oc) op.oc = false;
+      if (src.kind === "img" && !src.oc) defineFlag(op, "oc", false);
       enqueue(op);
       flushOps();
     },
