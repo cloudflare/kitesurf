@@ -119,6 +119,8 @@ impl ResourceStore {
     fn evict_images_over(&mut self, budget: usize) {
         while self.image_bytes_total > budget && self.image_order.len() > 1 {
             let evict = self.image_order.remove(0);
+            // A cached key is broken only after a failed upgrade; let a later engine ref retry it.
+            self.broken_images.remove(&evict);
             self.solid_images.remove(&evict);
             if let Some(old) = self.images.remove(&evict) {
                 self.image_bytes_total =
@@ -3536,6 +3538,30 @@ mod tests {
         drop(store);
         raster.put_resources(&engine_ref_batch(hash, w, h, big_hint));
         assert!(raster.pending_images().is_empty());
+    }
+
+    #[test]
+    fn evicted_failed_upgrade_is_fetched_again() {
+        let (png, w, h) = odd_dims_png();
+        let enc = encoded_image(png, w, h);
+        let (hash, big_hint, big_scene) = odd_dims_scene(&enc, 0.5);
+
+        let mut store = ResourceStore::default();
+        store.insert_image(hash, blank_image(250, 251));
+        store.put_batch(&engine_ref_batch(hash, w, h, big_hint));
+        store.abandon_image_key(hash);
+        assert_eq!(u32_le(&missing_resources(&store, &big_scene)[0..4]), 0);
+
+        store.insert_image(hash ^ 1, blank_image(8, 8));
+        store.evict_images_over(0);
+        assert!(!store.images.contains_key(&hash));
+        assert_eq!(
+            u32_le(&missing_resources(&store, &big_scene)[0..4]),
+            1,
+            "an evicted copy must not leave the image as a silent hole"
+        );
+        store.put_batch(&engine_ref_batch(hash, w, h, big_hint));
+        assert_eq!(store.pending_image_keys(), vec![hash]);
     }
 
     #[test]
