@@ -35,7 +35,7 @@ test("a cross-site iframe's document request sends only SameSite=None cookies", 
     const f = document.createElement("iframe");
     f.src = src;
     document.body.appendChild(f);
-  }, `${FRAME_ORIGIN}/__fixtures/echo-headers.json`);
+  }, `${FRAME_ORIGIN}/__fixtures/echo-headers-frame.html`);
   await expect.poll(() => contexts.length, { timeout: 15_000 }).toBeGreaterThan(0);
   const readCookies = async () => {
     const r = await cdpSession.send("Runtime.evaluate", {

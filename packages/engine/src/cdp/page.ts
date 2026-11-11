@@ -128,7 +128,13 @@ import { classifyRequest } from "../request-blocker.ts";
 import { emitMutations } from "./dom.ts";
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
 import { dropTargetImages } from "../eval/resource-store.ts";
-import { documentKind, imageDocumentHtml } from "./document-kind.ts";
+import {
+  documentKind,
+  escapeHtml,
+  imageDocumentHtml,
+  jsonViewerHtml,
+  svgDocumentHtml,
+} from "./document-kind.ts";
 import {
   MAX_DOCUMENT_BYTES,
   MAX_STYLESHEET_BYTES,
@@ -3095,280 +3101,6 @@ function readSetCookieHeaders(resp: Response): string[] {
   return single ? [single] : [];
 }
 
-function escapeHtml(s: string): string {
-  return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-}
-
-function svgRootStart(source: string): number {
-  let at = 0;
-  while (at < source.length) {
-    const lt = source.indexOf("<", at);
-    if (lt < 0) return -1;
-    const rest = source.slice(lt);
-    if (rest.startsWith("<!--")) {
-      const close = source.indexOf("-->", lt + 4);
-      if (close < 0) return -1;
-      at = close + 3;
-    } else if (rest.startsWith("<?")) {
-      const close = source.indexOf("?>", lt + 2);
-      if (close < 0) return -1;
-      at = close + 2;
-    } else if (/^<!doctype/i.test(rest)) {
-      const bracket = source.indexOf("[", lt);
-      const gt = source.indexOf(">", lt);
-      if (gt < 0) return -1;
-      if (bracket >= 0 && bracket < gt) {
-        const closeBracket = source.indexOf("]", bracket);
-        if (closeBracket < 0) return -1;
-        const gtAfter = source.indexOf(">", closeBracket);
-        if (gtAfter < 0) return -1;
-        at = gtAfter + 1;
-      } else {
-        at = gt + 1;
-      }
-    } else if (/^<svg[\s>]/i.test(rest)) {
-      return lt;
-    } else if (rest.startsWith("<") && /^<[a-z!?/]/i.test(rest)) {
-      return -1;
-    } else {
-      at = lt + 1;
-    }
-  }
-  return -1;
-}
-
-function svgDocumentHtml(svgSource: string, viewport: { width: number; height: number }): string {
-  const rootStart = svgRootStart(svgSource);
-  let svg = rootStart >= 0 ? svgSource.slice(rootStart) : svgSource;
-
-  const spans = htmlTagSpans(svg, "meta", false);
-  const lifted = spans.map(([start, end]) => svg.slice(start, end));
-  svg = removeHtmlTagSpans(svg, spans);
-
-  let rootTag = svg.slice(0, svg.indexOf(">") + 1 || undefined);
-
-  const hasAbsoluteSize = (attr: string): boolean => {
-    const m = rootTag.match(new RegExp(`[\\s"']${attr}\\s*=\\s*["']?\\s*([^"'\\s>]+)`, "i"));
-    return !!m && !/%$/.test(m[1] ?? "");
-  };
-  if (
-    !/[\s"']viewBox\s*=/i.test(rootTag) &&
-    !(hasAbsoluteSize("width") && hasAbsoluteSize("height"))
-  ) {
-    const vb = `viewBox="0 0 ${viewport.width} ${viewport.height}"`;
-    svg = svg.replace("<svg", `<svg ${vb}`);
-    rootTag = svg.slice(0, svg.indexOf(">") + 1 || undefined);
-  }
-  const hasViewBox = /[\s"']viewBox\s*=/i.test(rootTag);
-
-  const axisRule = (attr: "width" | "height", unit: "vw" | "vh"): string => {
-    const m = rootTag.match(new RegExp(`[\\s"']${attr}\\s*=\\s*["']?\\s*([^"'\\s>]+)`, "i"));
-    if (!m) return hasViewBox ? `${attr}:100${unit};` : "";
-    const pct = (m[1] ?? "").match(/^([\d.]+)%$/);
-    if (!pct) return "";
-    return hasViewBox ? `${attr}:${pct[1]}${unit};` : "";
-  };
-
-  return (
-    "<!doctype html><html><head><style>" +
-    "html,body{margin:0;padding:0}" +
-    `body>svg{display:block;${axisRule("width", "vw")}${axisRule("height", "vh")}}` +
-    "</style>" +
-    lifted.join("") +
-    "</head><body>" +
-    svg +
-    "</body></html>"
-  );
-}
-
-function jsonViewerHtml(text: string, url: string): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return `<html><head><title>${escapeHtml(url)}</title></head><body><pre>${escapeHtml(text)}</pre></body></html>`;
-  }
-
-  return `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>${escapeHtml(url)}</title>
-<style>
-  :root { color-scheme: light; }
-  html, body {
-    margin: 0;
-    background: #fff;
-    color: #111;
-    font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  }
-  body { padding: 16px 24px 32px; }
-  .json-toolbar {
-    position: fixed;
-    top: 12px;
-    right: 20px;
-    display: inline-flex;
-    border: 1px solid #aaa;
-    border-radius: 3px;
-    overflow: hidden;
-    background: linear-gradient(#fdfdfd, #dadada);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
-    z-index: 1;
-  }
-  .json-toolbar button {
-    min-width: 70px;
-    padding: 6px 14px;
-    border: 0;
-    border-left: 1px solid #aaa;
-    background: transparent;
-    color: #333;
-    font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    cursor: pointer;
-  }
-  .json-toolbar button:first-child { border-left: 0; }
-  .json-toolbar button.active { background: linear-gradient(#d8d8d8, #f5f5f5); }
-  .json-panel { padding-right: 200px; }
-  pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-   /* Reserve a gutter on every row so leaf text aligns with disclosure controls. */
-  .json-row {
-    position: relative;
-    padding-left: 14px;
-    white-space: pre;
-    min-height: 1.4em;
-  }
-  .json-row > .json-toggle {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 12px;
-    color: #aaa;
-    cursor: pointer;
-    user-select: none;
-    font-size: 10px;
-    line-height: 1.4em;
-  }
-   /* Fixed indentation keeps child rows aligned regardless of key length. */
-  .json-children { margin-left: 14px; }
-  .json-collapsed > .json-children,
-  .json-collapsed > .json-close { display: none; }
-   /* Show the preview only while the row is collapsed. */
-  .json-preview { color: #888; }
-  .json-row:not(.json-collapsed) > .json-summary > .json-preview { display: none; }
-  .json-key { color: #881391; }
-  .json-string { color: #c41a16; }
-  .json-number { color: #1a01cc; }
-  .json-bool { color: #1a01cc; font-weight: 600; }
-  .json-null { color: #808080; font-weight: 600; }
-  .json-punct { color: #444; }
-</style>
-</head>
-<body>
-<div class="json-toolbar" role="tablist" aria-label="JSON view mode">
-  <button type="button" class="active" data-view="parsed" role="tab" aria-selected="true">Parsed</button>
-  <button type="button" data-view="raw" role="tab" aria-selected="false">Raw</button>
-</div>
-<main>
-  <section id="json-parsed" class="json-panel">${renderJsonRoot(parsed)}</section>
-  <section id="json-raw" class="json-panel" style="display:none"><pre>${escapeHtml(text)}</pre></section>
-</main>
-<script>
-  (function () {
-    var parsedPanel = document.getElementById("json-parsed");
-    var rawPanel = document.getElementById("json-raw");
-    var buttons = document.querySelectorAll(".json-toolbar button");
-    // The DOM shim does not reflect hidden into paint; use style.display.
-    function show(view) {
-      parsedPanel.style.display = view === "parsed" ? "" : "none";
-      rawPanel.style.display = view === "raw" ? "" : "none";
-      buttons.forEach(function (button) {
-        var active = button.getAttribute("data-view") === view;
-        button.classList.toggle("active", active);
-        button.setAttribute("aria-selected", active ? "true" : "false");
-      });
-    }
-    buttons.forEach(function (button) {
-      button.addEventListener("click", function () {
-        show(button.getAttribute("data-view"));
-      });
-    });
-    parsedPanel.addEventListener("click", function (ev) {
-      var summary = ev.target.closest && ev.target.closest(".json-summary");
-      if (!summary) return;
-      var row = summary.parentElement;
-      if (!row || !row.classList.contains("json-collapsible")) return;
-      row.classList.toggle("json-collapsed");
-    });
-  })();
-</script>
-</body>
-</html>`;
-}
-
-function renderJsonRoot(value: unknown): string {
-  return renderJsonRow(value, null, true);
-}
-
-function renderJsonRow(value: unknown, keyJson: string | null, last: boolean): string {
-  const keyHtml =
-    keyJson === null
-      ? ""
-      : `<span class="json-key">${escapeHtml(keyJson)}</span><span class="json-punct">: </span>`;
-  const trailing = last ? "" : `<span class="json-punct">,</span>`;
-
-  if (value === null || typeof value !== "object") {
-    return `<div class="json-row">${keyHtml}${renderJsonScalar(value)}${trailing}</div>`;
-  }
-
-  if (Array.isArray(value)) {
-    if (value.length === 0) {
-      return `<div class="json-row">${keyHtml}<span class="json-punct">[]</span>${trailing}</div>`;
-    }
-    const children = value
-      .map((item, index) => renderJsonRow(item, null, index === value.length - 1))
-      .join("");
-    return (
-      `<div class="json-row json-collapsible">` +
-      `<span class="json-toggle" aria-hidden="true">\u25bc</span>` +
-      `<span class="json-summary">${keyHtml}<span class="json-punct">[</span>` +
-      `<span class="json-preview">\u2026]${last ? "" : ","}</span></span>` +
-      `<div class="json-children">${children}</div>` +
-      `<div class="json-close"><span class="json-punct">]</span>${trailing}</div>` +
-      `</div>`
-    );
-  }
-
-  const entries = Object.entries(value as Record<string, unknown>);
-  if (entries.length === 0) {
-    return `<div class="json-row">${keyHtml}<span class="json-punct">{}</span>${trailing}</div>`;
-  }
-  const children = entries
-    .map(([k, v], index) => renderJsonRow(v, JSON.stringify(k), index === entries.length - 1))
-    .join("");
-  return (
-    `<div class="json-row json-collapsible">` +
-    `<span class="json-toggle" aria-hidden="true">\u25bc</span>` +
-    `<span class="json-summary">${keyHtml}<span class="json-punct">{</span>` +
-    `<span class="json-preview">\u2026}${last ? "" : ","}</span></span>` +
-    `<div class="json-children">${children}</div>` +
-    `<div class="json-close"><span class="json-punct">}</span>${trailing}</div>` +
-    `</div>`
-  );
-}
-
-function renderJsonScalar(value: unknown): string {
-  if (value === null) return `<span class="json-null">null</span>`;
-  switch (typeof value) {
-    case "string":
-      return `<span class="json-string">${escapeHtml(JSON.stringify(value))}</span>`;
-    case "number":
-      return `<span class="json-number">${escapeHtml(JSON.stringify(value))}</span>`;
-    case "boolean":
-      return `<span class="json-bool">${value ? "true" : "false"}</span>`;
-    default:
-      return `<span class="json-null">null</span>`;
-  }
-}
-
 const STYLE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function readAttr(attributes: string[] | undefined, name: string): string | null {
@@ -3771,6 +3503,7 @@ function prespawnOopifFrame(ctx: DispatchCtx, target: TargetState, f: FrameState
   const url = f.url;
   const args = oopifSpawnArgs(ctx, target, f);
   queue.started++;
+  const entry: NonNullable<FrameState["oopifPrespawn"]> = { url, promise: Promise.resolve(null) };
   const promise = queue.tail.then(async () => {
     if (f.detached || ctx.browser.wsClosing) return null;
     try {
@@ -3778,6 +3511,7 @@ function prespawnOopifFrame(ctx: DispatchCtx, target: TargetState, f: FrameState
       const pre = await prespawnFrameIsolate(ctx.env, ctx.ctx, args);
       if (!pre.ok) {
         console.warn(`[kitesurf-oopif] prespawn failed for ${url}: ${pre.error}`);
+        if (pre.refused) entry.refused = true;
         return null;
       }
       return pre;
@@ -3797,19 +3531,20 @@ function prespawnOopifFrame(ctx: DispatchCtx, target: TargetState, f: FrameState
     return pre;
   });
   queue.tail = settled.catch(() => null);
-  f.oopifPrespawn = { url, promise: settled };
+  entry.promise = settled;
+  f.oopifPrespawn = entry;
   ctx.ctx.waitUntil(promise.then(() => {}));
 }
 
 async function takeOopifPrespawn(
   f: FrameState,
   currentUrl: string,
-): Promise<PrespawnedFrame | null> {
+): Promise<PrespawnedFrame | "refused" | null> {
   const entry = f.oopifPrespawn;
   if (!entry) return null;
   f.oopifPrespawn = undefined;
   const pre = await entry.promise;
-  if (!pre) return null;
+  if (!pre) return entry.refused && entry.url === currentUrl ? "refused" : null;
   if (entry.url !== currentUrl) {
     await discardOopifPrespawnResult(pre, "oopif prespawn stale: src changed");
     return null;
@@ -3895,6 +3630,11 @@ async function spawnOopifPipeline(
     }
     const args = { ...oopifSpawnArgs(ctx, target, f), viewport };
     const pre = await takeOopifPrespawn(f, f.url);
+    if (pre === "refused") {
+      lease.release();
+      f.pageScriptLease = null;
+      return;
+    }
     const spawn = pre
       ? await navigatePrespawnedFrame(pre, args)
       : await spawnAndNavigateFrame(ctx.env, ctx.ctx, args);

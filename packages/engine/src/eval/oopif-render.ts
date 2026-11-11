@@ -21,7 +21,15 @@ import type { SandboxOutboundOverride } from "./outbound.ts";
 import { stubQueryDom } from "../cdp/page-session.ts";
 import { disposeStub } from "../cdp/page-script-generation.ts";
 import { walkRedirects } from "./redirect-walk.ts";
-import { MAX_DOCUMENT_BYTES, readCappedText } from "../read-capped.ts";
+import {
+  documentKind,
+  escapeHtml,
+  imageDocumentHtml,
+  jsonViewerHtml,
+  svgDocumentHtml,
+} from "../cdp/document-kind.ts";
+import { DEFAULT_VIEWPORT_HEIGHT, DEFAULT_VIEWPORT_WIDTH } from "../cdp/viewport.ts";
+import { MAX_DOCUMENT_BYTES, readCappedBytes, readCappedText } from "../read-capped.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
 import { schemefulSite } from "../public-suffix.ts";
 import { scanDocument } from "../wasm.ts";
@@ -57,7 +65,8 @@ export interface RenderFrameResult {
   sceneBytes: number;
 }
 
-export type RenderFrameError = { ok: false; error: string };
+// `refused` marks a document the frame must not render; a retry would only fetch it again.
+export type RenderFrameError = { ok: false; error: string; refused?: true };
 
 export interface FrameSpawnEnv {
   LOADER: WorkerLoader;
@@ -256,21 +265,56 @@ export async function prespawnFrameIsolate(
     await discardFrameIsolate(stub, warmup, "oopif doc fetch HTTP error");
     return { ok: false, error: `frame fetch HTTP ${resp.status}` };
   }
+  // A child document follows the top-level contract: only HTML and XHTML are parsed, and a
+  // response that a top-level navigation refuses cannot become a child document either.
+  const docKind = documentKind(resp.headers);
+  if (resp.status === 204 || resp.status === 205 || docKind === "blocked") {
+    void resp.body?.cancel().catch(() => {});
+    await discardFrameIsolate(stub, warmup, "oopif doc refused");
+    return {
+      ok: false,
+      error: `frame document refused (${docKind}): HTTP ${resp.status}`,
+      refused: true,
+    };
+  }
+  const contentType = resp.headers.get("content-type") ?? "";
   // Only the terminal response's headers apply; a redirect hop's policy is not this document's.
   const csp = resp.headers.get("content-security-policy");
   const cspReportOnly = resp.headers.get("content-security-policy-report-only");
   let html: string;
   try {
-    // The main-frame and same-origin child paths cap the document at
-    // MAX_DOCUMENT_BYTES; this sibling path must use the same control so a
-    // page-chosen iframe cannot buffer an unbounded body in the shared
-    // engine isolate.
-    const body = await readCappedText(resp, MAX_DOCUMENT_BYTES, args.connectionId);
-    if (!body.ok) {
-      await discardFrameIsolate(stub, warmup, `oopif doc body ${body.failure}`);
-      return { ok: false, error: `frame body ${body.failure}` };
+    if (docKind === "html") {
+      // The main-frame and same-origin child paths cap the document at
+      // MAX_DOCUMENT_BYTES; this sibling path must use the same control so a
+      // page-chosen iframe cannot buffer an unbounded body in the shared
+      // engine isolate.
+      const body = await readCappedText(resp, MAX_DOCUMENT_BYTES, args.connectionId);
+      if (!body.ok) {
+        await discardFrameIsolate(stub, warmup, `oopif doc body ${body.failure}`);
+        return { ok: false, error: `frame body ${body.failure}` };
+      }
+      html = body.text;
+    } else {
+      const body = await readCappedBytes(resp, MAX_DOCUMENT_BYTES, args.connectionId);
+      if (!body.ok) {
+        await discardFrameIsolate(stub, warmup, `oopif doc body ${body.failure}`);
+        return { ok: false, error: `frame body ${body.failure}` };
+      }
+      if (docKind === "image") {
+        html = imageDocumentHtml(body.bytes, body.bytes.toBase64(), contentType, finalUrl);
+      } else {
+        const text = new TextDecoder().decode(body.bytes);
+        html =
+          docKind === "json"
+            ? jsonViewerHtml(text, finalUrl)
+            : docKind === "svg"
+              ? svgDocumentHtml(text, {
+                  width: args.viewport?.width ?? DEFAULT_VIEWPORT_WIDTH,
+                  height: args.viewport?.height ?? DEFAULT_VIEWPORT_HEIGHT,
+                })
+              : `<html><head></head><body><pre>${escapeHtml(text)}</pre></body></html>`;
+      }
     }
-    html = body.text;
   } catch (e) {
     await discardFrameIsolate(stub, warmup, "oopif doc body read failed");
     return {
