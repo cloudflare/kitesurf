@@ -446,3 +446,43 @@ describe("CSS opaque stylesheet read bounds", () => {
     expect(fetched).toBe(before + 1);
   });
 });
+
+describe("CSS.getMatchedStylesForNode reply bounds", () => {
+  async function matched(selector: string, count: number, ancestors: number) {
+    const rule = { selector_text: selector, declarations: [{ name: "color", value: "red" }] };
+    const stub = makeStub({
+      parseStyleSheet: {
+        sheet: { rules: Array.from({ length: count }, () => rule) },
+      } as QueryDomResult<"parseStyleSheet">,
+      matchSelectorList: { matches: [0] },
+      getAncestorElementIds: { ancestorIds: Array.from({ length: ancestors }, (_, i) => i + 1) },
+    });
+    const target = makeTarget(stub);
+    target.styleSheets.set("s", {
+      ownerNodeId: 2,
+      rev: 1,
+      text: `${selector}{color:red}`,
+      isInline: true,
+      sourceURL: "",
+      origin: "regular",
+      parsed: null,
+    });
+    return (await handleCss(makeCtx(target), {
+      id: 1,
+      method: "CSS.getMatchedStylesForNode",
+      params: { nodeId: 5 },
+      sessionId: "s1",
+    } as CdpRequest)) as CdpResultOf<"CSS.getMatchedStylesForNode">;
+  }
+
+  it("bounds a large inherited reply", async () => {
+    const r = await matched(Array.from({ length: 2048 }, () => "*").join(","), 1, 128);
+    expect(r.matchedCSSRules?.length).toBe(1);
+    expect(r.inherited?.some((e) => e.matchedCSSRules.length > 0)).toBe(true);
+    expect(JSON.stringify(r).length).toBeLessThanOrEqual(8 * 1024 * 1024);
+  });
+
+  it("keeps every match of a large ordinary sheet", async () => {
+    expect((await matched(".row > .col, .card-body", 3000, 0)).matchedCSSRules?.length).toBe(3000);
+  });
+});
