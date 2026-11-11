@@ -13,6 +13,7 @@ js_library(
         ":node_modules/@kitesurf/jsrpc-types",
         ":node_modules/@kitesurf/page-script",
     ],
+    visibility = ["//packages/engine:__pkg__"],
 )
 
 js_binary(

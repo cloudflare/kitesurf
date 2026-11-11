@@ -11,12 +11,14 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./event-source": "./src/event-source.ts",
     "./fetch-shim": "./src/fetch-shim.ts",
     "./message-channel": "./src/message-channel.ts",
     "./session-outbound": "./src/session-outbound.ts",
     "./shared-memory": "./src/shared-memory.ts",
     "./state": "./src/state.ts",
-    "./tail-channel": "./src/tail-channel.ts"
+    "./tail-channel": "./src/tail-channel.ts",
+    "./trusted-fetch": "./src/trusted-fetch.ts"
   },
   "scripts": {
     "build": "node scripts/build.mjs",
