@@ -54,6 +54,17 @@ export interface ScriptPlan {
   sourceCache: Map<ScriptDescriptor, Promise<FetchResult>>;
 }
 
+// blitz-html keeps template contents under the <template> element, and a script there is inert:
+// the scan skips it, so the source plan must not run it either.
+function hasTemplateAncestor(dom: NonNullable<typeof state.dom>, id: number): boolean {
+  for (let parent = dom.parentId(id); parent >= 0; parent = dom.parentId(parent)) {
+    const info = dom.nodeInfo(parent);
+    if (!info) return false;
+    if ((info.localName || info.nodeName).toLowerCase() === "template") return true;
+  }
+  return false;
+}
+
 export function extractScripts(): ScriptDescriptor[] {
   const dom = state.dom;
   if (!dom) return [];
@@ -66,6 +77,7 @@ export function extractScripts(): ScriptDescriptor[] {
   const out: ScriptDescriptor[] = [];
   for (let i = 0; i < ids.length; i++) {
     const id = ids[i];
+    if (hasTemplateAncestor(dom, id)) continue;
     let info: ReturnType<typeof dom.nodeInfo> | null;
     try {
       info = dom.nodeInfo(id);

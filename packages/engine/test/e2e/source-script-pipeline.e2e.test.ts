@@ -59,6 +59,46 @@ test("an OOPIF child runs classic and module scripts on boa", async ({ page, cdp
   expect(JSON.parse(got ?? "null")).toEqual({ ...EXPECTED, liveBinding: 1 });
 });
 
+// blitz-html keeps template contents under the <template> element, so the source fallback must
+// test real ancestry: a cross-origin child has no bundle, and a template script is inert there.
+const LOADED = `<script>addEventListener("load", () => parent.postMessage("loaded", "*"))</script>`;
+const TEMPLATE_SCRIPT = `<template><script>parent.postMessage("template", "*")</script></template>`;
+const templateCases: Array<[string, string | ((key: string) => string)]> = [
+  ["an OOPIF child never runs a script inside a template", ""],
+  [
+    "a template does not stop a permitted external sibling script from running",
+    (key) => `<script src="https://ks-other.invalid/__fixtures/oopif-csp-hop/${key}.js"></script>`,
+  ],
+];
+
+for (const [name, sibling] of templateCases) {
+  test(
+    name,
+    async ({ page }) => {
+      const key = Math.random().toString(36).slice(2);
+      const extra = typeof sibling === "function" ? sibling(key) : sibling;
+      await page.goto("https://ks.invalid/__fixtures/lifecycle.html", { waitUntil: "load" });
+      await page.evaluate(
+        `window.__msgs = []; addEventListener("message", (e) => window.__msgs.push(String(e.data)));`,
+      );
+      await page.evaluate(
+        (url) => {
+          const frame = document.createElement("iframe");
+          frame.src = url;
+          document.body.appendChild(frame);
+        },
+        "https://ks-other.invalid/__fixtures/policy-doc.html?body=" +
+          encodeURIComponent(TEMPLATE_SCRIPT + extra + LOADED),
+      );
+      const messages = async (): Promise<string[]> =>
+        JSON.parse((await page.evaluate("JSON.stringify(window.__msgs)")) as string) as string[];
+      await expect.poll(messages, { timeout: 20_000 }).toContain("loaded");
+      expect(await messages()).toEqual(extra ? ["ran:" + key, "loaded"] : ["loaded"]);
+    },
+    60_000,
+  );
+}
+
 test("setDocumentContent on a synthetic origin runs the page's scripts", async ({ cdpSession }) => {
   // Puppeteer registers a script to evaluate on new documents. The bundle
   // then held only that script, and the page's own scripts never ran.
