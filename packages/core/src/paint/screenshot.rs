@@ -53,8 +53,8 @@ pub(crate) fn paint_document_to_image(
 
 /// Paint a viewport-sized slice of a resolved document.
 /// Scroll offsets are document-space CSS pixels; the painter translates the root
-/// by their negatives. Use `set_viewport_scroll` because `paint_scene` offsets
-/// move content in the opposite direction.
+/// by their negatives. Use `set_viewport_scroll` because `paint_scene_bounded`
+/// offsets move content the other way. Over-budget SVG layers are skipped, not errors.
 #[cfg(feature = "blitz")]
 pub(crate) fn paint_document_to_image_scrolled(
     document: &mut blitz_dom::BaseDocument,
@@ -68,7 +68,7 @@ pub(crate) fn paint_document_to_image_scrolled(
     use anyrender::{ImageRenderer as _, PaintScene as _};
     use anyrender_vello_cpu::VelloCpuImageRenderer;
     use blitz_dom::util::Color;
-    use blitz_paint::paint_scene;
+    use blitz_paint::paint_scene_bounded;
     use peniko::kurbo::Rect;
     use peniko::Fill;
 
@@ -99,7 +99,7 @@ pub(crate) fn paint_document_to_image_scrolled(
                     &Rect::new(0.0, 0.0, render_w as f64, render_h as f64),
                 );
             }
-            paint_scene(scene, document, scale, render_w, render_h, 0, 0);
+            paint_scene_bounded(scene, document, scale, render_w, render_h, 0, 0);
         },
         &mut buffer,
     );

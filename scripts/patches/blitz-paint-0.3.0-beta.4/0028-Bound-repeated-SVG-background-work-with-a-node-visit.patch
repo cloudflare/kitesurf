@@ -1,0 +1,354 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Wed, 11 Nov 2026 11:00:30 +0000
+Subject: [PATCH] Bound repeated SVG background work with a node-visit budget
+
+A repeated SVG background re-renders its whole vector tree for every
+tile, and the per-layer 4096-tile cap multiplies with the tree's node
+count, the layer count and the element count. The reported input (40
+elements, 1px tiles, 200 paths) is about 33M node visits, roughly half
+an hour of synchronous paint.
+
+`paint_scene_bounded` now meters that work: one unit per usvg node per
+tile, charged before a layer is drawn. A layer the remaining budget
+cannot afford is skipped whole, and the rest of the page still paints,
+so a screenshot always produces a frame. `paint_scene` stays unmetered,
+so recording, PDF and canvas output still paint everything.
+
+The budget is calibrated against the per-layer cap rather than the
+viewport: 4096 tiles * 128 nodes = 524,288 units, so any layer the cap
+admits with up to 128 usvg nodes always fits, and several ordinary
+patterns fit alongside it (two full-viewport 24px tiles of a 100-node
+tree at 465k, or ~68 496px 8px dot layers at 7.7k each). Measured
+end-to-end on the core test harness (debug host build, 1440x900 output):
+a page at the budget takes 5.1 s with 34-node tiles and 9.8 s with
+132-node tiles; one full-viewport 24px 100-node pattern (232,560 units)
+takes 6.9 s, and an 8px dot pattern takes 1.0 s for one 496px layer and
+1.4 s for eight. The 6.6M-unit pathological page takes 0.49 s because
+every layer is skipped, so the budget bounds it to 1/64 of its unbounded
+work. A smaller budget would skip full-viewport patterns of realistic
+node counts; a larger one only lengthens the worst case, since a single
+capped layer already costs seconds at these node counts.
+
+Measuring a layer is work too, so it is charged with the layer: the walk
+stops once it passes the nodes the remaining budget could still afford,
+and a layer that does not fit pays for the visits it made. Otherwise N
+elements sharing one unaffordable tree would walk it N times for free;
+this way measuring and drawing together stay inside the budget (800
+elements sharing one 6001-node tree over 10x10 tiles leave 120 units,
+which is why the dot pattern after them is skipped). The walk is
+iterative and keeps one frame per open group, so tree depth costs heap
+rather than stack. A subdocument is painted by a second painter, so it
+inherits the remaining budget and hands the rest back: an iframe would
+otherwise repaint the same unaffordable layer in full.
+
+A text node is one tree node but one outline per glyph, and usvg keeps
+it as a single `Text` node with a flattened glyph group in which
+consecutive glyphs share one path, so the count charges that group and
+one unit per character. 200 glyphs over 3969 tiles is 810k units and is
+skipped; charging the two tree nodes alone would paint it.
+
+Raster tile fills are not charged: their cost is dominated by covered
+area, which the viewport already bounds, so tile count is a poor proxy
+(20k 8px fills took 4.1 s against 1.5 s for 324k 2px fills).
+---
+ src/lib.rs               | 54 +++++++++++++++++++++++++++++++++-
+ src/render.rs            | 69 ++++++++++++++++++++++++++++++++++++++++++-
+ src/render/background.rs | 76 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 197 insertions(+), 2 deletions(-)
+
+diff --git a/src/lib.rs b/src/lib.rs
+index 456e528..2143923 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -18,7 +18,7 @@ use std::collections::HashMap;
+
+ use anyrender::{PaintScene, Scene};
+ use blitz_dom::{BaseDocument, NodeId, util::Color};
+-use render::BlitzDomPainter;
++use render::{BlitzDomPainter, PAINT_WORK_BUDGET};
+
+ const FONT_EMBOLDEN_ENABLED: bool = cfg!(any(
+     feature = "font-embolden",
+@@ -32,6 +32,41 @@ const SELECTION_COLOR: Color = Color::from_rgb8(180, 213, 255);
+ /// Pre-computed `Scene`s for each CustomWidget, keyed by `(document id, node id)`
+ type CustomWidgetSceneMap = HashMap<(usize, NodeId), Scene>;
+
++/// Paint a [`blitz_dom::BaseDocument`] by pushing drawing commands into
++/// an impl [`anyrender::PaintScene`].
++///
++/// This function assumes that the styles and layout in the [`BaseDocument`] are already
++/// resolved. Please ensure that this is the case before trying to paint.
++///
++/// The implementation of [`PaintScene`] is responsible for handling the commands that are pushed into it.
++/// Generally this will involve executing them to draw a rasterized image/texture. But in some cases it may choose to
++/// transform them to a vector format (e.g. SVG/PDF) or serialize them in raw form for later use.
++///
++/// Repeated SVG background work is metered here: a layer whose tiles would
++/// exceed the remaining budget is skipped, and the rest of the page still
++/// paints, so a screenshot always produces a frame. Use [`paint_scene`] to
++/// leave the work unmetered.
++pub fn paint_scene_bounded(
++    scene: &mut impl PaintScene,
++    doc: &mut BaseDocument,
++    scale: f64,
++    width: u32,
++    height: u32,
++    x_offset: u32,
++    y_offset: u32,
++) {
++    paint_document(
++        scene,
++        doc,
++        scale,
++        width,
++        height,
++        x_offset,
++        y_offset,
++        Some(PAINT_WORK_BUDGET),
++    );
++}
++
+ /// Paint a [`blitz_dom::BaseDocument`] by pushing drawing commands into
+ /// an impl [`anyrender::PaintScene`].
+ ///
+@@ -49,6 +84,19 @@ pub fn paint_scene(
+     height: u32,
+     x_offset: u32,
+     y_offset: u32,
++) {
++    paint_document(scene, doc, scale, width, height, x_offset, y_offset, None);
++}
++
++fn paint_document(
++    scene: &mut impl PaintScene,
++    doc: &mut BaseDocument,
++    scale: f64,
++    width: u32,
++    height: u32,
++    x_offset: u32,
++    y_offset: u32,
++    work_budget: Option<u64>,
+ ) {
+     // Run `.paint()` on every custom widget in the document (and all subdocuments) ahead of time.
+     // This helps us avoid borrow-checker issues as we recurse down the tree (`.paint()` require `&mut self`).
+@@ -68,6 +116,10 @@ pub fn paint_scene(
+         y_offset as f64,
+         &custom_widget_scenes,
+     );
++    let generator = match work_budget {
++        Some(budget) => generator.with_work_budget(budget),
++        None => generator,
++    };
+     generator.paint_scene(scene);
+
+     // println!(
+diff --git a/src/render.rs b/src/render.rs
+index 83348ff..3f1e7b1 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -5,7 +5,7 @@ mod clip_path;
+ mod form_controls;
+ mod mask;
+
+-use std::cell::RefCell;
++use std::cell::{Cell, RefCell};
+ use std::collections::HashMap;
+ use std::sync::Arc;
+
+@@ -101,6 +101,22 @@ impl<'a> PhysicalTracks<'a> {
+     }
+ }
+
++/// Paint-work units one metered scene may spend on repeated SVG background
++/// tiles: each tile costs the tree's node count.
++///
++/// A layer is capped at 4096 tiles before it is charged
++/// (`draw_svg_image_layer`), so 4096 * 128 units always affords one such layer
++/// with up to 128 usvg nodes, and still leaves room for several ordinary
++/// patterns: two full-viewport 24px tiles of a 100-node tree (465k), or ~68
++/// 496px 8px dot layers (7.7k each). The pathological input that motivated the
++/// meter is 33M units, so the budget bounds a screenshot to 1/64 of it:
++/// measured end-to-end on the debug host test harness, a page at the budget
++/// takes 5.1 s with 34-node tiles and 9.8 s with 132-node tiles, while the
++/// 6.6M-unit pathological page takes 0.49 s because every layer is skipped.
++/// Measuring a tree is charged too, so a page cannot repeat an unaffordable
++/// layer to make the count free.
++pub(crate) const PAINT_WORK_BUDGET: u64 = 4096 * 128;
++
+ /// A short-lived struct which holds a bunch of parameters for rendering a scene so
+ /// that we don't have to pass them down as parameters
+ pub struct BlitzDomPainter<'dom, 'a> {
+@@ -119,6 +135,9 @@ pub struct BlitzDomPainter<'dom, 'a> {
+     #[cfg(feature = "scrollbars")]
+     pub(crate) scrollbar_drag_target: Option<blitz_dom::node::ScrollbarRef>,
+     pub(crate) layer_manager: LayerManager,
++    /// Paint-work units this scene may still spend on repeated SVG background
++    /// tiles; `None` leaves the work unmetered.
++    pub(crate) work_budget: Cell<Option<u64>>,
+     /// Reusable scratch allocations shared by all text layouts painted for this document.
+     pub(crate) draw_text_context: RefCell<DrawTextContext>,
+     /// Cached selection ranges for O(1) lookup: node_id -> (start_offset, end_offset)
+@@ -161,12 +180,55 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+             #[cfg(feature = "scrollbars")]
+             scrollbar_drag_target: dom.scrollbar_drag_target(),
+             layer_manager,
++            work_budget: Cell::new(None),
+             draw_text_context: RefCell::new(DrawTextContext::default()),
+             selection_ranges,
+             custom_widget_scenes,
+         }
+     }
+
++    /// Meter this scene's paint work so `try_charge_work` can refuse work that
++    /// does not fit. Scenes are unmetered unless a caller asks, because
++    /// recording and PDF output must paint everything.
++    pub fn with_work_budget(self, work_budget: u64) -> Self {
++        self.work_budget.set(Some(work_budget));
++        self
++    }
++
++    /// Spend `amount` paint-work units. Returns false when fewer than `amount`
++    /// remain, leaving the budget untouched, so the caller can skip that piece
++    /// of work and keep painting the rest of the scene. Unmetered scenes always
++    /// pay.
++    pub(crate) fn try_charge_work(&self, amount: u64) -> bool {
++        let Some(left) = self.work_budget.get() else {
++            return true;
++        };
++        if amount <= left {
++            self.work_budget.set(Some(left - amount));
++            true
++        } else {
++            false
++        }
++    }
++
++    /// Paint-work units this scene may still spend, or `None` when unmetered.
++    /// A caller that must measure work before it can charge it uses this to
++    /// stop measuring once the measurement alone exceeds what could be paid.
++    pub(crate) fn remaining_work(&self) -> Option<u64> {
++        self.work_budget.get()
++    }
++
++    /// Spend up to `amount` paint-work units, leaving the budget at zero rather
++    /// than refusing: for work already done that cannot be skipped, like
++    /// measuring a tree for a layer that turned out not to afford it. Charging
++    /// it keeps a repeated measurement from being free.
++    pub(crate) fn spend_work(&self, amount: u64) {
++        let Some(left) = self.work_budget.get() else {
++            return;
++        };
++        self.work_budget.set(Some(left.saturating_sub(amount)));
++    }
++
+     /// Draw the current tree to current render surface
+     /// Eventually we'll want the surface itself to be passed into the render function, along with things like the viewport
+     ///
+@@ -1584,7 +1646,12 @@ impl ElementCx<'_, '_> {
+                 initial_y,
+                 self.custom_widget_scenes,
+             );
++            // A subdocument spends the same paint-work budget: a fresh painter
++            // with its own meter would let every iframe paint an unaffordable
++            // repeated SVG background again. Carry the remainder in and back out.
++            painter.work_budget.set(self.work_budget.get());
+             painter.paint_scene(scene);
++            self.work_budget.set(painter.work_budget.get());
+         }
+     }
+ 
+diff --git a/src/render/background.rs b/src/render/background.rs
+index 6f9ce97..a315c2c 100644
+--- a/src/render/background.rs
++++ b/src/render/background.rs
+@@ -477,6 +477,32 @@ impl ElementCx<'_, '_> {
+             return;
+         }
+ 
++        // The per-layer 4096-tile cap above bounds `tiles`, so the product below
++        // fits and PAINT_WORK_BUDGET's tile term matches it. Zero tiles draws
++        // nothing, and the per-tile division below needs a non-zero divisor.
++        let tiles = x.count as u64 * y.count as u64;
++        if tiles == 0 {
++            return;
++        }
++
++        // Every tile renders the whole vector tree, so the layer costs one visit
++        // per node per tile. Measuring the tree is work too: the count stops at
++        // the nodes the budget could still afford, and a layer that does not fit
++        // pays for the visits it made before it is skipped, so a page cannot
++        // repeat an unaffordable layer to make the measuring free.
++        let affordable = self
++            .context
++            .remaining_work()
++            .map_or(u64::MAX, |left| left / tiles);
++        let nodes = svg_node_count(&svg.tree, affordable);
++        if nodes > affordable {
++            self.context.spend_work(nodes);
++            return;
++        }
++        if !self.context.try_charge_work(tiles.saturating_mul(nodes)) {
++            return;
++        }
++
+         let transform = (base_transform * viewport).then_translate(Vec2 {
+             x: x.translate,
+             y: y.translate,
+@@ -934,6 +960,56 @@ fn raster_axis_tiling(
+ /// 52k ~6.5 s. A smaller tile across a bigger viewport is dropped instead.
+ const MAX_GRADIENT_TILES: u64 = 24_000;
+ 
++/// The nodes rendering one tile of a usvg tree walks, the root group included,
++/// counted only up to `limit + 1`: a tree past `limit` cannot be afforded, so
++/// it is never walked whole. The walk is iterative because the tree nests as
++/// deep as the page's markup allows, and it keeps one frame per open group
++/// rather than one per node, so its stack is bounded by the tree's depth.
++#[cfg(feature = "svg")]
++fn svg_node_count(tree: &usvg::Tree, limit: u64) -> u64 {
++    let mut count = 1;
++    let mut open: Vec<(&[usvg::Node], usize)> = vec![(tree.root().children(), 0)];
++    loop {
++        let Some(frame) = open.last_mut() else {
++            break;
++        };
++        let children: &[usvg::Node] = frame.0;
++        let index = frame.1;
++        frame.1 += 1;
++        let Some(node) = children.get(index) else {
++            open.pop();
++            continue;
++        };
++        let mut next: &[usvg::Node] = &[];
++        count += 1;
++        match node {
++            usvg::Node::Group(group) => next = group.children(),
++            // A text node renders its flattened glyph group, so charge that
++            // group and one unit per glyph: consecutive glyphs share a single
++            // path, so a path count would miss the outline work a long run
++            // still costs on every tile.
++            usvg::Node::Text(text) => {
++                count += 1 + text.chunks().iter().map(text_glyph_cost).sum::<u64>();
++                next = text.flattened().children();
++            }
++            _ => {}
++        }
++        if count > limit {
++            return count;
++        }
++        if !next.is_empty() {
++            open.push((next, 0));
++        }
++    }
++    count
++}
++
++/// The glyph outlines one text chunk costs to render, as its character count.
++#[cfg(feature = "svg")]
++fn text_glyph_cost(chunk: &usvg::TextChunk) -> u64 {
++    chunk.text().chars().count() as u64
++}
++
+ /// The tile indices along one axis whose box reaches the viewport span
+ /// `0..viewport_len`, given the screen extent of tile 0 before tiling moves it.
+ fn visible_tiles(
