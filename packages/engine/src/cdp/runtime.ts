@@ -580,7 +580,7 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
 // document while the old isolate still answers, so a main-frame reply uses the isolate's sealed
 // url and a frame reply uses the url sealed with its installed stub, and a reply from an isolate
 // that was replaced while it ran is dropped.
-function applyCookieWrites(
+export function applyCookieWrites(
   ctx: DispatchCtx,
   target: TargetState | undefined,
   cookieWrites: string[] | undefined,
