@@ -735,10 +735,6 @@
     "expected": "FAIL",
     "reason": "Error: page.evaluate: TypeError: kitesurf: not yet supported in this sandbox (Day 6) (tried to set/call 'prompt')"
   },
-  "page-dialog.spec.ts::should auto-dismiss the alert without listeners": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
   "page-dialog.spec.ts::should auto-dismiss the prompt without listeners": {
     "expected": "FAIL",
     "reason": "Error: page.evaluate: TypeError: kitesurf: not yet supported in this sandbox (Day 6) (tried to set/call 'prompt')"
@@ -754,10 +750,6 @@
   "page-dialog.spec.ts::should dismiss the prompt": {
     "expected": "FAIL",
     "reason": "Error: page.evaluate: TypeError: kitesurf: not yet supported in this sandbox (Day 6) (tried to set/call 'prompt')"
-  },
-  "page-dialog.spec.ts::should fire": {
-    "expected": "FAIL",
-    "reason": "Error: page.evaluate: TypeError: kitesurf: not yet supported in this sandbox (Day 6) (tried to set/call 'alert')"
   },
   "page-dispatchevent.spec.ts::should throw if argument is from different frame": {
     "expected": "SKIP",
