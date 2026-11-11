@@ -12,7 +12,12 @@ import type { MouseEventInit } from "@kitesurf/jsrpc-types/page-script";
 import type { ConsoleEntry } from "@kitesurf/jsrpc-types/shared";
 import { consoleEntryToCdpEvent } from "../eval/page-script.ts";
 import { emitMutations } from "./dom.ts";
-import { canRewriteDocumentUrl, emitInputNavigationStarted, initiatorOriginOf } from "./page.ts";
+import {
+  canRewriteDocumentUrl,
+  emitInputNavigationStarted,
+  formPostContentType,
+  initiatorOriginOf,
+} from "./page.ts";
 import { terminalSceneWheelQueue } from "./scene-stream.ts";
 import {
   fenceWheelQueues,
@@ -548,11 +553,28 @@ function emitConsole(
 
 type NavigationResult = Parameters<typeof maybeFollowAnchor>[1];
 
+interface FormPost {
+  url: string;
+  postData: string;
+  postContentType: string;
+}
+
+// The reply comes from the page realm, so only the enctypes a real form can produce may become a
+// document POST.
+function formPost(result: NavigationResult): FormPost | null {
+  const post = result?.navigatePost;
+  if (typeof post?.url !== "string") return null;
+  const postContentType = formPostContentType(post.postContentType);
+  if (postContentType === null) return null;
+  return {
+    url: post.url,
+    postData: typeof post.postData === "string" ? post.postData : "",
+    postContentType,
+  };
+}
+
 function startsNavigation(result: NavigationResult): boolean {
-  return (
-    !!result &&
-    (typeof result.navigatePost?.url === "string" || !!result.navigateTo || !!result.hashNavigateTo)
-  );
+  return !!result && (formPost(result) !== null || !!result.navigateTo || !!result.hashNavigateTo);
 }
 
 // Page.navigate replies once the new document has loaded, which held a link click's mouseup for
@@ -591,8 +613,8 @@ function announceNavigation(
   result: NavigationResult,
   sessionId: string | undefined,
 ): string | undefined {
-  const post = result?.navigatePost;
-  const url = typeof post?.url === "string" ? post.url : result?.navigateTo;
+  const post = formPost(result);
+  const url = post?.url ?? result?.navigateTo;
   if (!url) return undefined;
   const loaderId = makeTargetId();
   const reason = post ? "formSubmissionPost" : "other";
@@ -621,8 +643,8 @@ async function maybeFollowAnchor(
   const announced = loaderId ? { _kitesurfLoaderId: loaderId } : {};
   const navigateTo = result?.navigateTo;
   const hashNavigateTo = result?.hashNavigateTo;
-  const navigatePost = result?.navigatePost;
-  if (navigatePost && typeof navigatePost.url === "string") {
+  const navigatePost = formPost(result);
+  if (navigatePost) {
     const { dispatch } = await import("./dispatch.ts");
     try {
       await dispatch(ctx, {
@@ -631,9 +653,8 @@ async function maybeFollowAnchor(
         params: {
           url: navigatePost.url,
           _kitesurfInternal: true,
-          _kitesurfPostData: navigatePost.postData ?? "",
-          _kitesurfPostContentType:
-            navigatePost.postContentType ?? "application/x-www-form-urlencoded",
+          _kitesurfPostData: navigatePost.postData,
+          _kitesurfPostContentType: navigatePost.postContentType,
           _kitesurfInitiatorOrigin: initiatorOrigin,
           ...announced,
         },
