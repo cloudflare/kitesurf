@@ -4,6 +4,13 @@
 
 import { describe, it, expect } from "vitest";
 import { handleCss } from "../src/cdp/css.ts";
+import { ensureInterception, unregisterInterception } from "../src/cdp/fetch-interception.ts";
+import { registerOutboundFilters } from "../src/cdp/outbound-filter-registry.ts";
+import {
+  createSandboxOutboundOverride,
+  type SandboxOutboundEnv,
+  type SandboxOutboundExports,
+} from "../src/eval/outbound.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { CdpParamsOf, CdpRequest, TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
@@ -184,47 +191,127 @@ describe("CSS replies from the isolate", () => {
 });
 
 describe("CSS.enable opaque stylesheet fetches", () => {
-  async function enable(sourceURL: unknown) {
-    const fetched: Array<{ url: string; method: string }> = [];
+  const SHEET = "https://cdn.test/a.css";
+  const HOP = "https://blocked.test/b.css";
+  const env: SandboxOutboundEnv = {
+    FONT_ASSETS: { fetch: async () => new Response(null, { status: 404 }) },
+  };
+  const outboundExports: SandboxOutboundExports = {
+    SandboxOutbound: () => {
+      throw new Error("loaded outbound is not used here");
+    },
+  };
+  const css = (body: string) => new Response(body, { headers: { "content-type": "text/css" } });
+  let connectionSeq = 0;
+
+  function harness(
+    opts: { walled?: boolean; sourceURL?: unknown; respond?: (url: string) => Response } = {},
+  ) {
+    const respond = opts.respond ?? (() => css("p{}"));
+    const seen: string[] = [];
+    const transport = {
+      async fetch(request: Request) {
+        seen.push(request.url);
+        return respond(request.url);
+      },
+    };
+    const walled = opts.walled === true;
     const target = makeTarget(
       makeStub({
         enumerateStyleSheets: {
-          sheets: [{ ownerNodeId: 2, text: "", sourceURL, cors: "opaque" }],
+          sheets: [
+            { ownerNodeId: 2, text: "", sourceURL: opts.sourceURL ?? SHEET, cors: "opaque" },
+          ],
         } as QueryDomResult<"enumerateStyleSheets">,
       }),
     );
     target.nextStyleSheetRev = new Map();
+    const connectionId = `css-sheet-${++connectionSeq}`;
     // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only the fields CSS.enable reads are set.
     const ctx = {
       browser: {
         targets: new Map([["t1", target]]),
-        sandboxOutbound: {
-          external: true,
-          final: async (r: Request) => {
-            fetched.push({ url: r.url, method: r.method });
-            return new Response("p{}");
-          },
-        },
+        sandboxOutbound: createSandboxOutboundOverride(
+          outboundExports,
+          env,
+          walled ? transport : undefined,
+          walled ? undefined : transport,
+        ),
       },
+      connectionId,
       emit: () => {},
       env: {},
     } as unknown as DispatchCtx;
-    await handleCss(ctx, { id: 1, method: "CSS.enable", sessionId: "s1" } as CdpRequest);
-    return { fetched, text: [...target.styleSheets.values()].map((e) => e.text) };
+    return {
+      connectionId,
+      seen,
+      enable: () => handleCss(ctx, { id: 1, method: "CSS.enable", sessionId: "s1" } as CdpRequest),
+      texts: () => [...target.styleSheets.values()].map((e) => e.text),
+    };
   }
 
-  it("fetches a string http(s) url with GET", async () => {
-    expect(await enable("https://cdn.test/a.css")).toEqual({
-      fetched: [{ url: "https://cdn.test/a.css", method: "GET" }],
-      text: ["p{}"],
-    });
+  it.each([false, true])("fetches a string http(s) url with GET (walled=%s)", async (walled) => {
+    const h = harness({ walled });
+    await h.enable();
+    expect(h.seen).toEqual([SHEET]);
+    expect(h.texts()).toEqual(["p{}"]);
   });
 
   it.each([
-    ["a Request", new Request("https://cdn.test/a.css", { method: "POST", body: "x" })],
-    ["a URL object", new URL("https://cdn.test/a.css")],
+    ["a Request", new Request(SHEET, { method: "POST", body: "x" })],
+    ["a URL object", new URL(SHEET)],
     ["a non-http url", "file:///etc/hosts"],
   ])("does not fetch %s", async (_, sourceURL) => {
-    expect((await enable(sourceURL)).fetched).toEqual([]);
+    const h = harness({ sourceURL });
+    await h.enable();
+    expect(h.seen).toEqual([]);
+  });
+
+  it.each([false, true])(
+    "applies current policy to cached and walled sheet text (walled=%s)",
+    async (walled) => {
+      // A never-blocked sheet stays inspectable.
+      const control = harness({ walled });
+      await control.enable();
+      await control.enable();
+      expect(control.texts()).toEqual(["p{}"]);
+
+      // Denying the original URL after the warm fetch serves no text and no new request.
+      const denied = harness({ walled });
+      await denied.enable();
+      registerOutboundFilters(denied.connectionId, { rejectPatterns: [/a\.css$/] });
+      await denied.enable();
+      expect(denied.texts()).toEqual([""]);
+      expect(denied.seen).toEqual([SHEET]);
+
+      // Denying a redirect hop serves no text and never requests the denied host.
+      const redirected = harness({
+        walled,
+        respond: (url) =>
+          url === SHEET
+            ? new Response(null, { status: 302, headers: { location: HOP } })
+            : css("p{}"),
+      });
+      await redirected.enable();
+      expect(redirected.texts()).toEqual(["p{}"]);
+      registerOutboundFilters(redirected.connectionId, { rejectPatterns: [/blocked\.test/] });
+      await redirected.enable();
+      expect(redirected.texts()).toEqual([""]);
+      expect(redirected.seen).toEqual([SHEET, HOP, SHEET]);
+    },
+  );
+
+  it("caches failures and keeps the cache under a non-matching interception pattern", async () => {
+    const failed = harness({ respond: () => new Response(null, { status: 404 }) });
+    await failed.enable();
+    await failed.enable();
+    expect(failed.seen).toEqual([SHEET]);
+
+    const h = harness();
+    ensureInterception(h.connectionId).patterns = [{ re: /other\.test/ }];
+    await h.enable();
+    await h.enable();
+    expect(h.seen).toEqual([SHEET]);
+    unregisterInterception(h.connectionId);
   });
 });

@@ -243,6 +243,37 @@ function pageVisibleResponse(resp: Response): Response {
   return corsFilteredResponse(resp, resp.body, headers);
 }
 
+export type OutboundPolicyRefusal =
+  | { readonly kind: "filter"; readonly reason: string }
+  | { readonly kind: "blocker"; readonly reason: string; readonly matched: string };
+
+/**
+ * The connection's URL/resource filters and host blocklist for one URL, without egress, so a
+ * cache can apply the same admission a real hop would. `pageHost` is "" for an opaque document.
+ */
+export function outboundPolicyRefusal(
+  connectionId: string,
+  url: string,
+  resourceType: string,
+  pageHost: string,
+  skipRequestBlocker: boolean,
+): OutboundPolicyRefusal | null {
+  if (!connectionId) return null;
+  const filters = getOutboundFilters(connectionId);
+  if (filters) {
+    const decision = shouldBlock(filters, url, resourceType);
+    if (decision.blocked) return { kind: "filter", reason: decision.reason };
+  }
+  if (skipRequestBlocker) return null;
+  const verdict = classifyRequest(
+    getRequestBlocker(connectionId),
+    url,
+    pageHost,
+    parseResourceType(resourceType),
+  );
+  return verdict ? { kind: "blocker", reason: verdict.reason, matched: verdict.matched } : null;
+}
+
 export function createSandboxOutboundOverride(
   exports: SandboxOutboundExports,
   env: SandboxOutboundEnv,
@@ -520,31 +551,25 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
     const networkLoaderId = trackerAttribution?.loaderId ?? props?.mainLoaderId ?? "";
     const networkSessionIds = trackerAttribution?.sessionIds ?? [];
 
-    if (connectionId) {
-      const filters = getOutboundFilters(connectionId);
-      if (filters) {
-        const decision = shouldBlock(filters, request.url, resourceType);
-        if (decision.blocked) {
-          return new Response(`kitesurf: outbound blocked — ${decision.reason}\n`, {
-            status: 451,
-            statusText: "Blocked by kitesurf outbound filter",
-            headers: {
-              "content-type": "text/plain; charset=utf-8",
-              "x-kitesurf-blocked-reason": decision.reason,
-            },
-          });
-        }
-      }
-    }
-
-    const requestBlocker =
-      props?.skipRequestBlocker === true || !connectionId
-        ? undefined
-        : getRequestBlocker(connectionId);
     const pageHost = allowed.host === "opaque.invalid" ? "" : allowed.hostname;
-    const blockType = parseResourceType(resourceType);
-    const verdict = classifyRequest(requestBlocker, request.url, pageHost, blockType);
-    if (verdict) {
+    const refusal = outboundPolicyRefusal(
+      connectionId,
+      request.url,
+      resourceType,
+      pageHost,
+      props?.skipRequestBlocker === true,
+    );
+    if (refusal?.kind === "filter") {
+      return new Response(`kitesurf: outbound blocked — ${refusal.reason}\n`, {
+        status: 451,
+        statusText: "Blocked by kitesurf outbound filter",
+        headers: {
+          "content-type": "text/plain; charset=utf-8",
+          "x-kitesurf-blocked-reason": refusal.reason,
+        },
+      });
+    }
+    if (refusal) {
       if (tracker) {
         const headers = headersToRecord(request.headers);
         stripKitesurfHeaders(headers);
@@ -552,7 +577,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
           url: request.url,
           method: request.method,
           headers,
-          type: blockType,
+          type: parseResourceType(resourceType),
           initiator: {
             type: request.headers.get("x-kitesurf-initiator") === "parser" ? "parser" : "script",
             url: pageOrigin,
@@ -563,13 +588,13 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         });
         tracker.failRequest(requestId, "net::ERR_BLOCKED_BY_CLIENT", "subresource-filter");
       }
-      return new Response(`kitesurf: outbound blocked — ${verdict.reason}\n`, {
+      return new Response(`kitesurf: outbound blocked — ${refusal.reason}\n`, {
         status: 451,
         statusText: "Blocked by kitesurf request blocker",
         headers: {
           "content-type": "text/plain; charset=utf-8",
-          "x-kitesurf-blocked-reason": verdict.reason,
-          "x-kitesurf-blocked-match": verdict.matched,
+          "x-kitesurf-blocked-reason": refusal.reason,
+          "x-kitesurf-blocked-match": refusal.matched,
         },
       });
     }
