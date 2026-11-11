@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-// A cookie a click or key handler stored with document.cookie came back on the event's reply and
-// was dropped there, so neither the jar nor the navigation the event started ever had it.
+// A challenge page stores its token with document.cookie and reloads; the reload went out without
+// the token and was challenged again. A handler's cookie never reached the jar at all.
 import type { CDPSession, Page } from "@cloudflare/puppeteer";
 import { expect, test } from "./harness";
 
@@ -24,6 +24,35 @@ async function click(page: Page, cdp: CDPSession, selector: string): Promise<voi
   await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", ...at, clickCount: 1 });
   await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, clickCount: 1 });
 }
+
+test("a cookie a script stores right before it navigates is sent with that navigation", async ({
+  page,
+}) => {
+  await page.goto(FROM, { waitUntil: "load" });
+  await page.evaluate((to: string) => {
+    setTimeout(() => {
+      document.cookie = "ks_token=solved; Path=/";
+      location.href = to;
+    }, 50);
+  }, ECHO);
+  expect(await documentCookie(page)).toContain("ks_token=solved");
+}, 60_000);
+
+test("a cookie a script stores right before it submits a form is sent with the submission", async ({
+  page,
+}) => {
+  await page.goto(FROM, { waitUntil: "load" });
+  await page.evaluate((to: string) => {
+    const form = document.createElement("form");
+    form.action = to;
+    document.body.prepend(form);
+    setTimeout(() => {
+      document.cookie = "ks_form=sent; Path=/";
+      form.submit();
+    }, 50);
+  }, ECHO);
+  expect(await documentCookie(page)).toContain("ks_form=sent");
+}, 60_000);
 
 test("a cookie a click handler stores is sent with the navigation the click starts", async ({
   page,
