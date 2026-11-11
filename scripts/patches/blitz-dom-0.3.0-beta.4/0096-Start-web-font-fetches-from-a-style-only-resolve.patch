@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 11 Nov 2026 14:53:17 +0000
+Subject: [PATCH] Start web-font fetches from a style-only resolve
+
+Only the full resolve queued the fetches of @font-face faces that styles had
+just started using, so an embedder could not learn which fonts a page needs
+without laying it out first. That first layout shaped every paragraph in
+fallback fonts, and the faces then forced a second shaping pass.
+
+A style-only resolve now queues the same fetches, as browsers start font loads
+at style recalc, so the embedder can wait for the faces and lay out once.
+---
+ src/resolve.rs | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/resolve.rs b/src/resolve.rs
+index e9b2154..19874be 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -148,5 +148,8 @@ impl BaseDocument {
+         self.flush_pending_device_changes();
+         self.flush_slot_assignments();
+         self.resolve_stylist(current_time_for_animations);
++        // Start web-font fetches from styles alone, as browsers do, so a caller can wait for the
++        // faces before the first layout instead of shaping every paragraph twice.
++        self.flush_needed_font_faces();
+         !self.size_container_seen
+     }

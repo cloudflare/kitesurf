@@ -142,3 +142,15 @@ fn generated_content_triggers_a_subset_fetch() {
 
     assert_eq!(fetch_requests(&stylesheet, "<p>x</p>"), [FONT_URL]);
 }
+
+#[test]
+fn a_style_only_resolve_starts_the_font_fetch() {
+    let stylesheet = format!(r#"{} p {{ font-family: "Subset"; }}"#, face(None));
+    let (mut document, net_provider) = document_with_stylesheet(&stylesheet, "<p>x</p>");
+    for _ in 0..2 {
+        let doc: &mut BaseDocument = document.as_mut();
+        doc.resolve_style(0.0);
+    }
+
+    assert_eq!(net_provider.requests(), [FONT_URL]);
+}

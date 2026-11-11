@@ -157,7 +157,7 @@ import {
   documentScrollSize,
   ensurePaintDom,
   invalidatePaintDom,
-  kickLayoutForFontFaceDiscovery,
+  discoverFontFaces,
   takePaintPrep,
   paintPrepStats,
   layoutResolveStats,
@@ -2404,7 +2404,7 @@ installResourceFetchBridge();
 ksInternals.fontsReady = async () => {
   if (fontDeferActive()) {
     await awaitDeferredFonts();
-    kickLayoutForFontFaceDiscovery();
+    discoverFontFaces();
   }
   return fontsIdle();
 };
@@ -6851,6 +6851,12 @@ async function queryDomAwaitPendingResources(
     return null;
   })();
 
+  // The drain below waits for these faces anyway; loading them before its first layout keeps
+  // that layout from shaping the page in fallback fonts only to reshape it when they land.
+  discoverFontFaces();
+  if (fontsInflightCount() > 0) {
+    await NativePromise.race([fontsIdle(), nativeSleep(Math.max(0, deadline - Date.now()))]);
+  }
   const images = await drainPendingImages(pageState, captureRect, deadline, drainStartedAt);
   if (fontPromises.length > 0) {
     console.log(
