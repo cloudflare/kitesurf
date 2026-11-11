@@ -271,3 +271,22 @@ export function reportOnly(decision: ScriptGateDecision): void {
     console.warn(decision.reportOnly);
   } catch {}
 }
+
+// Module URLs whose gated fetch failed or was blocked. A rejected import whose graph hit one
+// names it in its reason (gated_module_source in core's boa_eval.rs: "module refused for <url>");
+// a module that threw while evaluating names none, whatever its message says. So the lifecycle
+// event follows this set, never the text alone.
+const failedModuleUrls = new Set<string>();
+const MODULE_REFUSED_PREFIX = "module refused for ";
+
+export function markModuleFetchFailed(url: string): void {
+  failedModuleUrls.add(url);
+}
+
+export function importHitFailedFetch(reason: string): boolean {
+  if (!reason.includes(MODULE_REFUSED_PREFIX)) return false;
+  for (const failed of failedModuleUrls) {
+    if (reason.includes(MODULE_REFUSED_PREFIX + failed)) return true;
+  }
+  return false;
+}

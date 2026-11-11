@@ -21,9 +21,14 @@ import {
   takeInlineModuleSource,
 } from "./scripts.ts";
 import {
+  importHitFailedFetch,
   insertedRedirectGate,
   insertedResponseAllowed,
   insertedScriptAllowed,
+  markModuleFetchFailed,
+  parserRedirectGate,
+  parserResponseAllowed,
+  parserScriptAllowed,
   reportBlocked,
   reportOnly,
 } from "./script-policy.ts";
@@ -182,20 +187,6 @@ export async function drainWrittenScripts(timeoutMs: number): Promise<boolean> {
   return true;
 }
 
-// Module URLs whose fetch failed or was blocked. A rejected import whose graph hit one names it
-// in its reason (gated_module_source in core's boa_eval.rs: "module refused for <url>"); a
-// module that threw while evaluating names none. So the event follows this element's own graph.
-const failedModuleUrls = new Set<string>();
-const MODULE_REFUSED_PREFIX = "module refused for ";
-
-function importHitFailedFetch(reason: string): boolean {
-  if (!reason.includes(MODULE_REFUSED_PREFIX)) return false;
-  for (const failed of failedModuleUrls) {
-    if (reason.includes(MODULE_REFUSED_PREFIX + failed)) return true;
-  }
-  return false;
-}
-
 // The nonce each module was fetched with. An import inherits its referrer's nonce, as HTML's
 // descendant script fetch options do, but not its integrity; a preload can supply its own pin.
 const moduleFetchNonces = new Map<string, string | null>();
@@ -208,14 +199,18 @@ export function setModulePreloadPins(pins: readonly ModulePreloadPin[]): void {
 function moduleGateAttributes(
   url: string,
   referrer: string | undefined,
-): { nonce: string | null; integrity: string | null } {
+): { nonce: string | null; integrity: string | null; parser: boolean } {
   const entry = entryModuleGateAttributes(url);
   const nonce = entry
     ? entry.nonce
     : referrer === undefined
       ? null
       : (moduleFetchNonces.get(referrer) ?? null);
-  return { nonce, integrity: entry?.integrity || modulePreloadIntegrity.get(url) || null };
+  return {
+    nonce,
+    integrity: entry?.integrity || modulePreloadIntegrity.get(url) || null,
+    parser: entry?.parser === true,
+  };
 }
 
 export function fetchGatedModuleSource(url: string, referrer?: string): Promise<string> {
@@ -223,15 +218,18 @@ export function fetchGatedModuleSource(url: string, referrer?: string): Promise<
   moduleFetchNonces.set(url, attributes.nonce);
   const inline = takeInlineModuleSource(url);
   if (inline !== undefined) return Promise.resolve(inline);
-  let pending = moduleSourceInflight.get(url);
+  // A parser entry and a runtime insert at one URL are authorized by different rules, so they
+  // never share an in-flight fetch: an insert must not lend 'strict-dynamic' to a parser entry.
+  const key = (attributes.parser ? "parser:" : "inserted:") + url;
+  let pending = moduleSourceInflight.get(key);
   if (!pending) {
     pending = fetchGatedModuleSourceOnce(url, attributes)
       .catch((err: unknown) => {
-        failedModuleUrls.add(url);
+        markModuleFetchFailed(url);
         throw err;
       })
-      .finally(() => moduleSourceInflight.delete(url));
-    moduleSourceInflight.set(url, pending);
+      .finally(() => moduleSourceInflight.delete(key));
+    moduleSourceInflight.set(key, pending);
   }
   return pending;
 }
@@ -240,24 +238,32 @@ const moduleSourceInflight = new Map<string, Promise<string>>();
 
 async function fetchGatedModuleSourceOnce(
   url: string,
-  attributes: { nonce: string | null; integrity: string | null },
+  attributes: { nonce: string | null; integrity: string | null; parser: boolean },
 ): Promise<string> {
-  const meta = { url, module: true, ...attributes };
-  const pre = await insertedScriptAllowed(meta);
-  reportOnly(pre);
+  const meta = { url, module: true, nonce: attributes.nonce, integrity: attributes.integrity };
+  const pre = await (attributes.parser ? parserScriptAllowed(meta) : insertedScriptAllowed(meta));
+  // A parser entry was already gated by runModulePhase; this fetch repeats the decision so the
+  // source cannot slip past the gate, but reporting it again would duplicate the violation.
+  if (!attributes.parser) reportOnly(pre);
   if (!pre.allowed) {
     reportBlocked(pre);
     throw new Error(pre.message ?? "module blocked by policy");
   }
-  const redirects = insertedRedirectGate(meta);
-  const response = await fetchInsertedScript(pre.upgradeTo ?? url, "", redirects.check);
+  const redirects = attributes.parser ? parserRedirectGate(meta) : insertedRedirectGate(meta);
+  const response = await fetchInsertedScript(
+    pre.upgradeTo ?? url,
+    "",
+    redirects.check,
+    attributes.parser ? "parser" : "script",
+  );
   if (redirects.refusal) {
     reportBlocked(redirects.refusal);
     throw new Error(redirects.refusal.message ?? "module blocked by policy");
   }
   if (response.status === 0) throw new Error(`fetch(${url}) failed`);
   if (response.status >= 400) throw new Error(`fetch(${url}) HTTP ${response.status}`);
-  const post = await insertedResponseAllowed(
+  const responseAllowed = attributes.parser ? parserResponseAllowed : insertedResponseAllowed;
+  const post = await responseAllowed(
     meta,
     {
       contentType: response.contentType,
@@ -310,6 +316,7 @@ function runInsertedModuleScript(info: InsertedScriptInfo): void {
       setEntryModuleGateAttributes(url, {
         nonce: info.nonce || null,
         integrity: info.integrity || null,
+        parser: false,
       });
       holdsAttributes = true;
       await ks_import(url, state.pageUrl || "about:blank");

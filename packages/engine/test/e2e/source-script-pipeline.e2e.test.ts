@@ -99,6 +99,53 @@ for (const [name, sibling] of templateCases) {
   );
 }
 
+// A parser module is a parser script, not a runtime insert: the child's own CSP decides it
+// before Boa registers, fetches or evaluates it, and 'strict-dynamic' does not admit it.
+const DONE = `<script type="module" nonce="ok">parent.postMessage("done", "*")</script>`;
+const inlineModule = (attrs: string, msg: string): string =>
+  `<script type="module"${attrs}>parent.postMessage("${msg}", "*")</script>`;
+const externalModule = (key: string, attrs = ""): string =>
+  `<script type="module"${attrs} src="https://ks.invalid/__fixtures/oopif-csp-hop/${key}.js"></script>`;
+const moduleCases: Array<[string, string, string, string[]]> = [
+  [
+    "an inline module without the nonce never runs",
+    "script-src 'nonce-ok'",
+    inlineModule("", "blocked-inline") + inlineModule(' nonce="ok"', "inline-ok"),
+    ["inline-ok", "done"],
+  ],
+  [
+    "a parser module entry is not admitted by 'strict-dynamic'",
+    "script-src 'nonce-ok' 'strict-dynamic'",
+    externalModule("blocked") + externalModule("allowed", ' nonce="ok"'),
+    ["ran:allowed", "done"],
+  ],
+];
+
+for (const [name, csp, body, expected] of moduleCases) {
+  test(
+    name,
+    async ({ page }) => {
+      await page.goto("https://ks.invalid/__fixtures/lifecycle.html", { waitUntil: "load" });
+      await page.evaluate(
+        `window.__msgs = []; addEventListener("message", (e) => window.__msgs.push(String(e.data)));`,
+      );
+      const child = new URL("https://ks-other.invalid/__fixtures/policy-doc.html");
+      child.searchParams.set("csp", csp);
+      child.searchParams.set("body", body + DONE);
+      await page.evaluate((url) => {
+        const frame = document.createElement("iframe");
+        frame.src = url;
+        document.body.appendChild(frame);
+      }, child.toString());
+      const messages = async (): Promise<string[]> =>
+        JSON.parse((await page.evaluate("JSON.stringify(window.__msgs)")) as string) as string[];
+      await expect.poll(messages, { timeout: 20_000 }).toContain("done");
+      expect(await messages()).toEqual(expected);
+    },
+    60_000,
+  );
+}
+
 test("setDocumentContent on a synthetic origin runs the page's scripts", async ({ cdpSession }) => {
   // Puppeteer registers a script to evaluate on new documents. The bundle
   // then held only that script, and the page's own scripts never ran.

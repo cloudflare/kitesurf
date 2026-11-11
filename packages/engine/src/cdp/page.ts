@@ -1803,6 +1803,7 @@ async function pushNavigateToPageScriptInner(
           baseUrl: scriptBaseUrl,
           sandboxOutbound: ctx.browser.sandboxOutbound,
           gate: scriptGate,
+          initiator: "parser",
         }),
     );
     const routeChunkUrls = nextRouteChunkUrls(afterClassicPrefetch, url).filter(
