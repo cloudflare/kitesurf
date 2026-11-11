@@ -1410,12 +1410,12 @@ export interface HTMLDetailsElement extends HTMLElement {
 }
 export interface HTMLDialogElement extends HTMLElement {
   open: boolean;
-  // returnValue: string;
+  returnValue: string;
   // closedBy: string;
-  // show(): void;
-  // showModal(): void;
-  // close(returnValue?: string): void;
-  // requestClose(returnValue?: string): void;
+  show(): void;
+  showModal(): void;
+  close(returnValue?: string): void;
+  requestClose(returnValue?: string): void;
 }
 export interface HTMLDirectoryElement extends HTMLElement {
   compact: boolean;
