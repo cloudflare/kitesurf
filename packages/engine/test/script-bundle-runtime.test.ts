@@ -41,6 +41,14 @@ if (typeof __ks_is.setCurrentScript !== "function") {
 __ks_is.parserScriptLifecycle = async function (domIndex, rawSrc, src, ok) {
   (globalThis.__log = globalThis.__log || []).push((ok ? "load:" : "error:") + rawSrc);
 };
+// The bundle reports a caught script failure through the internal state.
+__ks_is.pushException = function (err, opts) {
+  (globalThis.__pushedExceptions = globalThis.__pushedExceptions || []).push({
+    message: err && err.message ? String(err.message) : String(err),
+    scriptId: opts && opts.scriptId,
+    url: opts && opts.url,
+  });
+};
 
 const globalsToCollect = ${JSON.stringify(globalsToCollect)};
 const moduleUrls = ${JSON.stringify(moduleUrls)};
@@ -387,5 +395,25 @@ describe("script URLs in generated comments", () => {
     );
     expect(globals.__injected).toEqual({ kind: "undefined" });
     expect(globals.__ran).toEqual({ kind: "number", value: 1 });
+  });
+});
+
+describe("classic script failures", () => {
+  it("a throwing script reports the error and the later scripts still run", async () => {
+    const globals = await bootBundleAndCollectGlobals(
+      [classic(`throw new Error("boom");`), classic(`globalThis.afterThrow = 1;`)],
+      ["afterThrow", "__pushedExceptions"],
+    );
+    expect(globals.afterThrow).toEqual({ kind: "number", value: 1 });
+    expect(globals.__pushedExceptions).toEqual({
+      kind: "object",
+      value: [
+        {
+          message: "boom",
+          scriptId: "bundle:classic-regular",
+          url: "inline#0",
+        },
+      ],
+    });
   });
 });

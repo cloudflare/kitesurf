@@ -96,3 +96,55 @@ test("each strippable var site lists its own names", () => {
   const scan = extractTopLevelDecls("var exports = {}, a = 1; var b; var { c } = d;");
   assert.deepEqual(scan.varSiteNames, [["exports", "a"], ["b"]]);
 });
+
+test("lexical and class declarations report their sites", () => {
+  const source = "let a = 1; const b = 2; class C {}";
+  const scan = extractTopLevelDecls(source);
+  assert.deepEqual(scan.lexicalNames, ["a", "b"]);
+  assert.deepEqual(scan.classNames, ["C"]);
+  assert.equal(scan.lexicalSites.length, 2);
+  assert.equal(scan.classSites.length, 1);
+  assert.deepEqual(
+    scan.lexicalSites.map((site) => source.slice(site, site + 5)),
+    ["let a", "const"],
+  );
+});
+
+test("only a function or class in statement position is a declaration", () => {
+  const declared = (source: string) => {
+    const scan = extractTopLevelDecls(source);
+    return [...scan.functionNames, ...scan.classNames];
+  };
+  for (const source of [
+    "function f(){}",
+    "a(); function f(){}",
+    "a()\nfunction f(){}",
+    "x = 1\nfunction f(){}",
+    "if (a) {} function f(){}",
+    "async function f(){}",
+    "a(); async function* f(){}",
+    "function* f(){}",
+    "class f {}",
+  ]) {
+    assert.deepEqual(declared(source), ["f"], source);
+  }
+  for (const source of [
+    "x = function f(){}",
+    "!function f(){}()",
+    "void function f(){}",
+    "new function f(){}",
+    "a ? b : function f(){}",
+    "x = async function f(){}",
+    "if (a) function f(){}",
+    "if (a)\nfunction f(){}",
+    "if (a) {} else function f(){}",
+    "x = class f {}",
+    "new class f {}()",
+  ]) {
+    assert.deepEqual(declared(source), [], source);
+  }
+  // A line break after `async` makes it an identifier: `async; function f(){}`.
+  assert.deepEqual(declared("async\nfunction f(){}"), ["f"]);
+  const scan = extractTopLevelDecls("x(); async function name(){}");
+  assert.deepEqual(scan.functionNameSites, ["x(); async function ".length]);
+});

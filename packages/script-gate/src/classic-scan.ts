@@ -9,6 +9,16 @@ export interface TopLevelDeclScan {
   varSites: number[];
   varNames: string[];
   varSiteNames: string[][];
+  lexicalSites: number[];
+  lexicalNames: string[];
+  classSites: number[];
+  classNames: string[];
+  // Index just past each class body's closing brace, parallel to classSites.
+  classEnds: number[];
+  // Index of each function declaration's name, parallel to functionNames. Only a
+  // declaration in statement position is listed; a function expression is not.
+  functionNameSites: number[];
+  functionNames: string[];
 }
 
 type TopLevelKeyword = "var" | "let" | "const" | "function" | "class";
@@ -21,6 +31,13 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
   const varNames: string[] = [];
   const varSeen = new Set<string>();
   const varSiteNames: string[][] = [];
+  const lexicalSites: number[] = [];
+  const lexicalNames: string[] = [];
+  const classSites: number[] = [];
+  const classNames: string[] = [];
+  const classEnds: number[] = [];
+  const functionNameSites: number[] = [];
+  const functionNames: string[] = [];
   const sourceLength = source.length;
   let sourceOffset = 0;
   let braceDepth = 0;
@@ -271,17 +288,22 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
     startIndex: number,
   ): number {
     const canStripVarDeclaration = keyword === "var" && readIdentifier(startIndex) !== null;
+    // A lexical declaration becomes `var`, which keeps a destructuring pattern valid and
+    // shares the binding with later scripts through the wrapper function.
+    const isLexical = keyword !== "var";
     const namesAtVarSite: string[] = [];
     if (canStripVarDeclaration) {
       varSites.push(keywordStart);
       varSiteNames.push(namesAtVarSite);
     }
+    if (isLexical) lexicalSites.push(keywordStart);
     let position = startIndex;
     while (position < sourceLength) {
       position = skipDeclarationTrivia(position);
       const identifier = readIdentifier(position);
       if (!identifier) break;
       addName(identifier.name);
+      if (keyword !== "var") lexicalNames.push(identifier.name);
       if (canStripVarDeclaration) {
         namesAtVarSite.push(identifier.name);
         if (!varSeen.has(identifier.name)) {
@@ -296,12 +318,131 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
     return position;
   }
 
-  function declarationKeywordAt(sourceIndex: number): TopLevelKeyword | null {
-    if (consumeKeywordAt(sourceIndex, "var")) return "var";
-    if (consumeKeywordAt(sourceIndex, "let")) return "let";
-    if (consumeKeywordAt(sourceIndex, "const")) return "const";
-    if (consumeKeywordAt(sourceIndex, "function")) return "function";
-    if (consumeKeywordAt(sourceIndex, "class")) return "class";
+  // Index just past a class body's closing brace, so `class A {}` can become
+  // `A = class A {};`: the semicolon keeps a following `(` from calling the class.
+  function skipClassBody(startIndex: number): number {
+    let position = startIndex;
+    let parenDepth = 0;
+    let bracketDepth = 0;
+    let braceDepth = 0;
+    let delimiter: "" | '"' | "'" | "`" = "";
+    while (position < sourceLength) {
+      const character = source[position];
+      if (delimiter) {
+        if (character === "\\") {
+          position += 2;
+          continue;
+        }
+        if (character === delimiter) delimiter = "";
+        position++;
+        continue;
+      }
+      if (character === '"' || character === "'" || character === "`") {
+        delimiter = character;
+        position++;
+        continue;
+      }
+      if (character === "/" && source[position + 1] === "/") {
+        const newlineIndex = source.indexOf("\n", position);
+        position = newlineIndex < 0 ? sourceLength : newlineIndex + 1;
+        continue;
+      }
+      if (character === "/" && source[position + 1] === "*") {
+        const commentEnd = source.indexOf("*/", position + 2);
+        position = commentEnd < 0 ? sourceLength : commentEnd + 2;
+        continue;
+      }
+      if (character === "/") {
+        const regexEndPosition = regexEnd(position);
+        if (regexEndPosition > 0) {
+          position = regexEndPosition;
+          continue;
+        }
+      }
+      if (character === "(") parenDepth++;
+      else if (character === ")") {
+        if (parenDepth > 0) parenDepth--;
+      } else if (character === "[") bracketDepth++;
+      else if (character === "]") {
+        if (bracketDepth > 0) bracketDepth--;
+      } else if (character === "{") {
+        // Heritage can hold an object literal (`extends mixin({})`); the body brace is
+        // the first one outside any parentheses or brackets.
+        if (parenDepth === 0 && bracketDepth === 0) braceDepth++;
+      } else if (character === "}") {
+        if (braceDepth > 0) {
+          braceDepth--;
+          position++;
+          if (braceDepth === 0 && parenDepth === 0 && bracketDepth === 0) return position;
+          continue;
+        }
+      }
+      position++;
+    }
+    return sourceLength;
+  }
+
+  // The last token before the scan position, and whether a line break follows it. A
+  // `function` or `class` keyword starts a declaration only where a statement can start;
+  // elsewhere (`x = function f(){}`, `!function f(){}()`) it starts an expression.
+  // https://tc39.es/ecma262/#sec-expression-statement
+  let previousToken: { kind: "none" | "punct" | "word" | "value"; text: string } = {
+    kind: "none",
+    text: "",
+  };
+  let lineBreakAfterPreviousToken = false;
+  // The word before each open parenthesis, so `if (a) function f(){}` is told apart from
+  // `f()` followed by a line break.
+  const wordBeforeOpenParen: string[] = [];
+  let previousParenClosedControlHead = false;
+  function noteToken(kind: "punct" | "word" | "value", text: string): void {
+    previousToken = { kind, text };
+    lineBreakAfterPreviousToken = false;
+  }
+  // Words after which a `function` or `class` keyword is an operand, or the body of a
+  // braceless `do` or `else`, not a statement of its own.
+  const OPERAND_AFTER_WORD = new Set([...REGEX_AFTER_WORD, "await", "yield", "extends", "of"]);
+  function atStatementStart(): boolean {
+    const { kind, text } = previousToken;
+    if (kind === "none") return true;
+    if (kind === "punct") {
+      if (text === ";" || text === "}") return true;
+      // A line break after a complete expression ends that statement (automatic
+      // semicolon insertion); after `if (...)` the keyword is the if body instead.
+      if (text === ")") return lineBreakAfterPreviousToken && !previousParenClosedControlHead;
+      if (text === "]") return lineBreakAfterPreviousToken;
+      return false;
+    }
+    if (kind === "word" && OPERAND_AFTER_WORD.has(text)) return false;
+    return lineBreakAfterPreviousToken;
+  }
+  const CONTROL_HEAD_WORDS = new Set(["if", "while", "for", "with"]);
+
+  // `async function` on one line; a line break after `async` makes it an identifier.
+  function asyncFunctionKeywordAt(sourceIndex: number): number | null {
+    if (!consumeKeywordAt(sourceIndex, "async")) return null;
+    let position = sourceIndex + "async".length;
+    while (source[position] === " " || source[position] === "\t") position++;
+    return consumeKeywordAt(position, "function") ? position : null;
+  }
+
+  function declarationKeywordAt(
+    sourceIndex: number,
+  ): { keyword: TopLevelKeyword; keywordStart: number } | null {
+    if (consumeKeywordAt(sourceIndex, "var")) return { keyword: "var", keywordStart: sourceIndex };
+    if (consumeKeywordAt(sourceIndex, "let")) return { keyword: "let", keywordStart: sourceIndex };
+    if (consumeKeywordAt(sourceIndex, "const")) {
+      return { keyword: "const", keywordStart: sourceIndex };
+    }
+    if (!atStatementStart()) return null;
+    if (consumeKeywordAt(sourceIndex, "function")) {
+      return { keyword: "function", keywordStart: sourceIndex };
+    }
+    const asyncFunctionStart = asyncFunctionKeywordAt(sourceIndex);
+    if (asyncFunctionStart !== null)
+      return { keyword: "function", keywordStart: asyncFunctionStart };
+    if (consumeKeywordAt(sourceIndex, "class"))
+      return { keyword: "class", keywordStart: sourceIndex };
     return null;
   }
 
@@ -317,11 +458,31 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
     const identifier = readIdentifier(position);
     if (!identifier) return null;
     addName(identifier.name);
+    if (keyword === "class") {
+      classSites.push(keywordStart);
+      classNames.push(identifier.name);
+      const bodyEnd = skipClassBody(identifier.end);
+      classEnds.push(bodyEnd);
+      return bodyEnd;
+    }
+    if (keyword === "function") {
+      functionNameSites.push(position);
+      functionNames.push(identifier.name);
+      return skipClassBody(identifier.end);
+    }
     return identifier.end;
   }
 
   while (sourceOffset < sourceLength) {
     const currentChar = source[sourceOffset];
+    if (
+      currentChar === "\n" ||
+      currentChar === "\r" ||
+      currentChar === "\u2028" ||
+      currentChar === "\u2029"
+    ) {
+      if (!stringDelimiter) lineBreakAfterPreviousToken = true;
+    }
     if (inLineComment) {
       if (currentChar === "\n") inLineComment = false;
       sourceOffset++;
@@ -341,7 +502,19 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
         sourceOffset += 2;
         continue;
       }
-      if (currentChar === stringDelimiter) stringDelimiter = "";
+      if (currentChar === stringDelimiter) {
+        stringDelimiter = "";
+        noteToken("value", "");
+      }
+      sourceOffset++;
+      continue;
+    }
+    if (
+      currentChar === " " ||
+      currentChar === "\t" ||
+      currentChar === "\n" ||
+      currentChar === "\r"
+    ) {
       sourceOffset++;
       continue;
     }
@@ -364,52 +537,87 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
       const regexEndPosition = regexEnd(sourceOffset);
       if (regexEndPosition > 0) {
         sourceOffset = regexEndPosition;
+        noteToken("value", "");
         continue;
       }
     }
     if (currentChar === "{") {
       braceDepth++;
       sourceOffset++;
+      noteToken("punct", "{");
       continue;
     }
     if (currentChar === "}") {
       if (braceDepth > 0) braceDepth--;
       sourceOffset++;
+      noteToken("punct", "}");
       continue;
     }
     if (currentChar === "(") {
       parenDepth++;
+      wordBeforeOpenParen.push(previousToken.kind === "word" ? previousToken.text : "");
       sourceOffset++;
+      noteToken("punct", "(");
       continue;
     }
     if (currentChar === ")") {
       if (parenDepth > 0) parenDepth--;
+      previousParenClosedControlHead = CONTROL_HEAD_WORDS.has(wordBeforeOpenParen.pop() ?? "");
       sourceOffset++;
+      noteToken("punct", ")");
       continue;
     }
     if (currentChar === "[") {
       bracketDepth++;
       sourceOffset++;
+      noteToken("punct", "[");
       continue;
     }
     if (currentChar === "]") {
       if (bracketDepth > 0) bracketDepth--;
       sourceOffset++;
+      noteToken("punct", "]");
       continue;
     }
     if (isAtTopLevel()) {
-      const keyword = declarationKeywordAt(sourceOffset);
-      if (keyword !== null) {
-        const declarationEnd = consumeDeclaration(keyword, sourceOffset);
+      const declaration = declarationKeywordAt(sourceOffset);
+      if (declaration !== null) {
+        const declarationEnd = consumeDeclaration(declaration.keyword, declaration.keywordStart);
         if (declarationEnd !== null) {
           sourceOffset = declarationEnd;
+          // A declaration ends a statement; a variable declaration may continue with `,` or `;`.
+          const endsStatement =
+            declaration.keyword === "function" || declaration.keyword === "class";
+          noteToken(endsStatement ? "punct" : "value", endsStatement ? "}" : "");
           continue;
         }
       }
     }
+    if (isAtomStart(sourceOffset) && /[\w$]/.test(currentChar ?? "")) {
+      // A whole word or number at once, so a keyword inside an identifier is never seen.
+      let wordEnd = sourceOffset + 1;
+      while (wordEnd < sourceLength && /[\w$]/.test(source.charAt(wordEnd))) wordEnd++;
+      const word = source.slice(sourceOffset, wordEnd);
+      noteToken(/^\d/.test(word) ? "value" : "word", word);
+      sourceOffset = wordEnd;
+      continue;
+    }
+    noteToken("punct", currentChar ?? "");
     sourceOffset++;
   }
-  return { names, varSites, varNames, varSiteNames };
+  return {
+    names,
+    varSites,
+    varNames,
+    varSiteNames,
+    lexicalSites,
+    lexicalNames,
+    classSites,
+    classNames,
+    classEnds,
+    functionNameSites,
+    functionNames,
+  };
 }
 
 export function predeclareVarsHead(names: readonly string[], global: string): string {
