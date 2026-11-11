@@ -801,39 +801,26 @@ pub fn scene_to_ansi(scene: &[u8], cols: u32, rows: u32, cell_w: f32, cell_h: f3
 }
 
 pub fn inline_images(scene: &[u8]) -> HashMap<u64, Rc<GridImage>> {
-    use crate::paint::scene_decode::{ResourceKind, parse_header, parse_resources};
-    let mut out = HashMap::new();
+    use crate::paint::scene_decode::{parse_header, parse_resources};
     let Ok(header) = parse_header(scene) else {
-        return out;
+        return HashMap::new();
     };
-    let Ok(res) = parse_resources(scene, &header) else {
-        return out;
+    let Ok(mut res) = parse_resources(scene, &header) else {
+        return HashMap::new();
     };
-    for (hash, r) in res.by_hash {
-        if !matches!(r.kind, ResourceKind::Image) || r.data.is_empty() {
-            continue;
-        }
-        if !matches!(r.format, 0 | 1) {
-            continue;
-        }
-        if let Some(img) = crate::paint::scene_replay::decode_image_payload(
-            r.width,
-            r.height,
-            r.format,
-            (r.width, r.height),
-            r.data.as_slice().into(),
-        ) {
-            out.insert(
+    crate::paint::scene_replay::decode_inline_images(&mut res)
+        .into_iter()
+        .map(|(hash, img)| {
+            (
                 hash,
                 Rc::new(GridImage {
                     width: img.width,
                     height: img.height,
                     rgba: img.data.clone(),
                 }),
-            );
-        }
-    }
-    out
+            )
+        })
+        .collect()
 }
 
 #[derive(Default)]
