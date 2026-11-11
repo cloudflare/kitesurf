@@ -29,6 +29,7 @@ import { frameCookieSiteOrigin } from "../src/cdp/page.ts";
 import type { FrameState, TargetState } from "../src/cdp/types.ts";
 import { createCookieJar } from "../src/cookies.ts";
 import { frameDocumentCookieSite, prespawnFrameIsolate } from "../src/eval/oopif-render.ts";
+import { SANDBOX_ALLOW_ALL } from "@kitesurf/script-gate";
 import {
   createSandboxOutboundOverride,
   type SandboxOutboundEnv,
@@ -77,6 +78,7 @@ async function frameDocumentCookies(cookieSiteOrigin: string) {
       frameId: "C",
       frameLoaderId: "L",
       frameUrl: `${FRAME}/page`,
+      sandbox: SANDBOX_ALLOW_ALL,
       parentOrigin: "https://parent.test",
       cookieSiteOrigin,
     },

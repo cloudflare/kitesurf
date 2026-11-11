@@ -110,13 +110,14 @@ export class DedicatedWorkers {
     stub: PageScriptStub,
     url: string,
     loaderId: string,
+    origin: string,
   ): WorkerOwner {
     return {
       target,
       frameId,
       documentKey: String(nextDocumentSerial++),
       url,
-      origin: originOf(url),
+      origin,
       loaderId,
       stub,
       targetEpoch: this.targetEpochs.get(target.targetId) ?? 0,

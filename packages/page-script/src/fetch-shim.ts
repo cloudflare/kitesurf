@@ -377,10 +377,7 @@ function requestReferrerState(input: unknown, init: unknown): RequestReferrerSta
           `Failed to construct 'Request': Referrer '${value}' is not a valid URL.`,
         );
       }
-      let pageOrigin = "";
-      try {
-        pageOrigin = new URL(state.pageUrl).origin;
-      } catch {}
+      let pageOrigin = state.documentOrigin;
       // about:client, or a cross-origin URL, falls back to the client.
       next.referrer =
         parsed.href === "about:client" || parsed.origin !== pageOrigin ? "client" : parsed.href;
@@ -871,7 +868,7 @@ export function installFetchShim(): void {
     }
     const inputRequest =
       typeof Request === "function" && input instanceof Request ? (input as PageRequest) : null;
-    const origin = pageOriginFromUrl(state.pageUrl);
+    const origin = state.documentOrigin;
     const initMaybeCoerced: KsRequestInit | undefined = serializeFormDataBodyInInit(
       validateAndStripCache(init, true),
     );
@@ -1095,7 +1092,7 @@ export function installFetchShim(): void {
         computedType = requestMode === "no-cors" ? "opaque" : "cors";
       } else if (finalRequestUrl && state.pageUrl) {
         const requestOrigin = new URL(finalRequestUrl, state.pageUrl).origin;
-        const pageOrigin = new URL(state.pageUrl).origin;
+        const pageOrigin = state.documentOrigin;
         if (requestOrigin !== pageOrigin) computedType = "cors";
       }
       if (computedType === "opaque") {

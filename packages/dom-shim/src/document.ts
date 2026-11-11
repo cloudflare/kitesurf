@@ -22,6 +22,7 @@ import {
   readyState,
   cookieString,
   cookieWrites,
+  documentOpaqueOrigin,
   DOCUMENT_ID,
   scopedQuerySelector,
   scopedQuerySelectorAll,
@@ -422,13 +423,26 @@ class DocumentImpl extends NodeBase implements Idl.Document {
   // Reads return the local cookie string, seeded at navigate. Writes apply
   // locally so a read sees them at once, and queue the raw line for the
   // parent to replay into the jar.
+  // An opaque-origin document has no cookie store, as in Chrome.
   get cookie() {
+    if (documentOpaqueOrigin) {
+      throw new DOMException(
+        "Failed to read the 'cookie' property from 'Document': The document is sandboxed and lacks the 'allow-same-origin' flag.",
+        "SecurityError",
+      );
+    }
     return cookieString;
   }
   get referrer() {
     return typeof opts?.referrer === "string" ? opts.referrer : "";
   }
   set cookie(value) {
+    if (documentOpaqueOrigin) {
+      throw new DOMException(
+        "Failed to set the 'cookie' property on 'Document': The document is sandboxed and lacks the 'allow-same-origin' flag.",
+        "SecurityError",
+      );
+    }
     const raw = String(value ?? "");
     if (!raw) return;
     applyLocalCookieWrite(raw);

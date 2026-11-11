@@ -75,6 +75,81 @@ frames.all("/oopif-csp-frame.html", (c) => {
   );
 });
 
+// `?sandbox=` present is the empty attribute; omitting the query key omits the attribute.
+frames.all("/sandbox-host.html", (c) => {
+  const sandbox = c.req.query("sandbox");
+  const src = c.req.query("src") ?? "";
+  const attr = sandbox === undefined ? "" : ` sandbox="${escapeHtmlText(sandbox)}"`;
+  return c.html(`<!doctype html>
+<html><head><meta charset="utf-8"><title>sandbox host</title></head>
+<body>
+<iframe id="f" src="${escapeHtmlText(src)}"${attr}
+  style="border:0;display:block;width:120px;height:120px"></iframe>
+<script>
+window.__msgs = [];
+addEventListener("message", (e) => window.__msgs.push({ data: e.data, origin: e.origin }));
+</script>
+</body></html>`);
+});
+
+// Reports whether its parser script ran and what identity and storage the document has. The block
+// paints so a test can see the frame's bitmap without reading its document.
+frames.all("/sandbox-child.html", (c) => {
+  return c.html(`<!doctype html>
+<html><head><meta charset="utf-8"><title>sandbox child</title></head>
+<body style="margin:0">
+<p id="markup">sandbox child markup</p>
+<div style="width:120px;height:120px;background:rgb(0,0,255)">x</div>
+<script>
+let cookie = "ok";
+let storage = "ok";
+try { document.cookie; } catch (e) { cookie = e.name; }
+try { localStorage.getItem("k"); } catch (e) { storage = e.name; }
+parent.postMessage({ ran: true, cookie: cookie, storage: storage }, "*");
+</script>
+</body></html>`);
+});
+
+// A child that reports its own worker identity: `?mode=same-origin` tries a same-origin worker
+// script URL, `?mode=blob` reports the blob URL a document here mints.
+frames.all("/sandbox-worker-child.html", (c) => {
+  const script =
+    c.req.query("mode") === "blob"
+      ? `const url = URL.createObjectURL(new Blob([""]));
+URL.revokeObjectURL(url);
+parent.postMessage({ blobUrl: url, blobOrigin: new URL(url).origin }, "*");`
+      : `let sameOriginWorker = "constructed";
+try { new Worker("/__fixtures/worker-echo.js"); } catch (e) { sameOriginWorker = e.name; }
+parent.postMessage({ sameOriginWorker: sameOriginWorker }, "*");`;
+  return c.html(`<!doctype html>
+<html><head><meta charset="utf-8"><title>sandbox worker child</title></head>
+<body><script>${script}</script></body></html>`);
+});
+
+// Registers an unload handler from its parser script, so a test can see which document identity
+// the engine attributes to a message sent while that document is being replaced.
+frames.all("/sandbox-unload-child.html", (c) => {
+  return c.html(`<!doctype html>
+<html><head><meta charset="utf-8"><title>sandbox unload child</title></head>
+<body><p id="markup">sandbox child markup</p>
+<script>
+addEventListener("unload", () => parent.postMessage({ unload: 1, href: location.href }, "*"));
+</script>
+</body></html>`);
+});
+
+// Static srcdoc children: an unsandboxed and a same-origin one carry a script and a relative link,
+// and a script-disabled one carries an inline handler the parent-side facade must not keep.
+frames.all("/sandbox-facade-host.html", (c) =>
+  c.html(`<!doctype html>
+<html><head><meta charset="utf-8"><title>sandbox facade host</title></head>
+<body>
+<iframe id="plain" srcdoc='<script>window.__srcdoc_ran = 1</script><a id="a" href="sibling.html">rel</a>'></iframe>
+<iframe id="same" sandbox="allow-same-origin" srcdoc='<script>window.__srcdoc_ran = 2</script><a id="a" href="sibling.html">rel</a>'></iframe>
+<iframe id="handler" sandbox="allow-same-origin" srcdoc='<button id="b" onclick="window.__ran = 1">go</button>'></iframe>
+</body></html>`),
+);
+
 const MAX_IFRAMES = 40;
 const CHILD_SEED_STRIDE = 1000;
 frames.all("/iframe-many.html", (c) => {

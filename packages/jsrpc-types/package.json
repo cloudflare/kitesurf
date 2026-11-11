@@ -7,6 +7,7 @@
   "description": "Type-only JSRPC contracts between the engine and its loaded-worker isolates: PageScript session methods, queryDom and upstream events, the PageRenderer methods and the render port. Source-exported so both ends of each call check against one copy.",
   "exports": {
     "./shared": "./src/shared.ts",
+    "./sandbox": "./src/sandbox.ts",
     "./page-script": "./src/page-script.ts",
     "./query-dom": "./src/query-dom.ts",
     "./page-renderer": "./src/page-renderer.ts",

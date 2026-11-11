@@ -6,6 +6,12 @@
 
 import type Protocol from "devtools-protocol";
 import { decodeHtmlBytes } from "@kitesurf/dom-shim/html-encoding";
+import {
+  SANDBOX_ALLOW_ALL,
+  intersectSandbox,
+  parseSandboxAttribute,
+  type SandboxRestrictions,
+} from "@kitesurf/script-gate";
 import type {
   CdpParamsOf,
   CdpEvent,
@@ -1045,7 +1051,11 @@ export async function handlePage(
         for (const f of target.frames.values()) {
           if (f.parentFrameId === null) continue;
           if (f.lifecycle !== "init") continue;
-          if (f.isCrossOrigin || f.url === "about:blank" || f.url === "") {
+          // An opaque child is served by its isolate, whose fetch the prespawn overlaps. A srcdoc
+          // child has no isolate to prespawn.
+          const prespawnable =
+            (f.isCrossOrigin || childFrameIsOpaque(f)) && /^(https?|data):/i.test(f.url);
+          if (prespawnable || f.url === "about:blank" || f.url === "") {
             f.readyState = "complete";
             f.pendingLoad = Promise.resolve();
             prespawnOopifFrame(ctx, target, f);
@@ -2765,8 +2775,11 @@ function scheduleLoadCompleteEmit(
                 typeof (ps as { installIframeContent?: unknown }).installIframeContent ===
                   "function"
               ) {
+                const crossOrigin =
+                  !!f.url && f.url !== "about:blank" && frameFacadeIsCrossOrigin(f);
+                // A cross-origin facade has no document to install, so skip the serialization.
                 let html = "";
-                if (f.dom) {
+                if (f.dom && !crossOrigin) {
                   try {
                     html = f.dom.outerHTML(0);
                   } catch {}
@@ -2777,10 +2790,11 @@ function scheduleLoadCompleteEmit(
                     ownerBackendNodeId: f.ownerBackendNodeId,
                     html,
                     url: f.url,
+                    baseUrl: isSrcdocUrl(f.url) ? f.baseUrl : f.url,
                     failed: !f.dom,
                     mimeType: f.mimeType,
-                    crossOrigin:
-                      !!(f.url && f.url !== "about:blank") && (f.isCrossOrigin || f.hasScript),
+                    crossOrigin,
+                    sandbox: f.sandbox,
                   });
                 } catch (err) {
                   console.warn(
@@ -2793,7 +2807,7 @@ function scheduleLoadCompleteEmit(
             } finally {
               markInstalled();
             }
-            if (f.url && f.url !== "about:blank" && (f.isCrossOrigin || f.hasScript) && ps) {
+            if (f.url && f.url !== "about:blank" && frameNeedsIsolate(f) && ps) {
               await spawnOopifPipeline(ctx, target, f);
             }
             emitChildFrameDclLoad(ctx, target, f, sessionId);
@@ -3134,6 +3148,8 @@ function findStylesheetLinks(dom: DomHandle): Array<{ nodeId: number; href: stri
 function findIframes(dom: DomHandle): Array<{
   nodeId: number;
   src: string | null;
+  srcdoc: string | null;
+  sandbox: string | null;
   name: string | null;
   id: string | null;
   loading: string | null;
@@ -3147,6 +3163,8 @@ function findIframes(dom: DomHandle): Array<{
   const out: Array<{
     nodeId: number;
     src: string | null;
+    srcdoc: string | null;
+    sandbox: string | null;
     name: string | null;
     id: string | null;
     loading: string | null;
@@ -3156,12 +3174,16 @@ function findIframes(dom: DomHandle): Array<{
     const info = safeNodeInfo(dom, id);
     if (!info) continue;
     const src = readAttr(info.attributes, "src");
+    const srcdoc = readAttr(info.attributes, "srcdoc");
+    const sandbox = readAttr(info.attributes, "sandbox");
     const name = readAttr(info.attributes, "name");
     const idAttr = readAttr(info.attributes, "id");
     const loading = readAttr(info.attributes, "loading");
     out.push({
       nodeId: id,
       src: src ?? null,
+      srcdoc: srcdoc ?? null,
+      sandbox: sandbox ?? null,
       name: name ?? null,
       id: idAttr ?? null,
       loading: loading ?? null,
@@ -3174,36 +3196,80 @@ function iframeDelaysLoadEvent(loading: string | null | undefined): boolean {
   return (loading ?? "").trim().toLowerCase() !== "lazy";
 }
 
+// A frame's active restrictions are its owner's sandbox attribute intersected with the embedding
+// document's own active restrictions, so a nested frame can never regain a capability.
+function childSandboxRestrictions(
+  parent: SandboxRestrictions,
+  ownerAttribute: string | null,
+): SandboxRestrictions {
+  return intersectSandbox(parent, parseSandboxAttribute(ownerAttribute));
+}
+
+function childFrameIsOpaque(frame: FrameState): boolean {
+  return !frame.sandbox.sameOrigin;
+}
+
+// A child that needs its own execution context: cross-origin, script-bearing, or opaque. A
+// script-disabled same-origin child keeps the parent-side document, as an unsandboxed one does.
+function frameNeedsIsolate(frame: FrameState): boolean {
+  return childFrameIsOpaque(frame) || frame.isCrossOrigin || frame.hasScript;
+}
+
+// The parent facade must not expose a document an isolate owns, and an opaque child has no
+// same-origin document at all. srcdoc has no isolate, so its parent-side document stays visible.
+function frameFacadeIsCrossOrigin(frame: FrameState): boolean {
+  if (childFrameIsOpaque(frame) || frame.isCrossOrigin) return true;
+  return frame.hasScript && !isSrcdocUrl(frame.url);
+}
+
+function isSrcdocUrl(url: string): boolean {
+  return /^about:srcdoc([?#]|$)/.test(url);
+}
+
+function resolvesToEmbedderOrigin(url: string): boolean {
+  return matchesAboutBlank(url) || isSrcdocUrl(url);
+}
+
+function childFrameUrl(src: string | null, srcdoc: string | null, baseUrl: string): string {
+  if (srcdoc !== null) return "about:srcdoc";
+  if (!src) return "about:blank";
+  try {
+    return new URL(src, baseUrl || undefined).toString();
+  } catch {
+    return "about:blank";
+  }
+}
+
+// The base URL a frame's own document resolves relative URLs against. A srcdoc document inherits
+// its embedder's base, and Page.Frame.url stays about:srcdoc.
+function frameBaseUrl(frame: FrameState, fallback: string): string {
+  return frame.baseUrl ?? frame.url ?? fallback;
+}
+
 function discoverChildFramesFor(
   target: TargetState,
   parentFrame: FrameState,
   parentDom: DomHandle,
   budget: ChildFrameBudget,
 ): FrameState[] {
-  const baseUrl = parentFrame.url || target.url;
+  const baseUrl = frameBaseUrl(parentFrame, target.url);
   const iframes = findIframes(parentDom);
   const registered: FrameState[] = [];
   for (const ifr of iframes) {
     if (!admitChildFrame(budget, baseUrl)) break;
-    let resolvedUrl: string;
-    if (ifr.src) {
-      try {
-        resolvedUrl = new URL(ifr.src, baseUrl || undefined).toString();
-      } catch {
-        resolvedUrl = "about:blank";
-      }
-    } else {
-      resolvedUrl = "about:blank";
-    }
+    const resolvedUrl = childFrameUrl(ifr.src, ifr.srcdoc, baseUrl);
     const childFrameId = mintFrameId();
     const childLoaderId = mintLoaderId();
     const isCrossOrigin =
-      resolvedUrl !== "about:blank" && originOf(resolvedUrl) !== originOf(target.url);
+      !resolvesToEmbedderOrigin(resolvedUrl) && originOf(resolvedUrl) !== originOf(target.url);
     const childFrame = makeChildFrameState({
       frameId: childFrameId,
       parentFrameId: parentFrame.frameId,
       loaderId: childLoaderId,
       url: resolvedUrl,
+      sandbox: childSandboxRestrictions(parentFrame.sandbox, ifr.sandbox),
+      srcdoc: ifr.srcdoc,
+      baseUrl: ifr.srcdoc !== null ? baseUrl : resolvedUrl,
       name: ifr.name ?? "",
       ownerElementId: ifr.id ?? "",
       ownerBackendNodeId: ifr.nodeId,
@@ -3442,20 +3508,25 @@ function oopifSpawnArgs(ctx: DispatchCtx, target: TargetState, f: FrameState): R
     frameId: f.frameId,
     frameLoaderId: f.loaderId,
     frameUrl: f.url,
+    sandbox: f.sandbox,
     parentOrigin: originOf(embedder ? embedder.url : target.url),
     cookieSiteOrigin: frameCookieSiteOrigin(target, f),
     attributionHeaders: ctx.browser.attributionHeaders,
     makeUpstreamHandler: ({ stub, url }) => {
+      // The isolate is sealed with the restrictions active when it was spawned; a later navigation
+      // reassigns frame.sandbox before this document's unload handlers run.
+      const sealedSandbox = f.sandbox;
       const workerOwner = ctx.browser.dedicatedWorkers.ownerFor(
         target,
         f.frameId,
         stub,
         url,
         f.loaderId,
+        sealedSandbox.sameOrigin ? originOf(url) : "",
       );
       return (event, params) => {
         if (event === "kitesurf.postMessage") {
-          routeChildFramePostMessage(target, f, params, url);
+          routeChildFramePostMessage(target, f, params, url, sealedSandbox);
         } else if (isWorkerUpstreamEvent(event)) {
           ctx.browser.dedicatedWorkers.handle(ctx, workerOwner, event, params);
         }
@@ -3486,16 +3557,21 @@ function prespawnOopifFrame(ctx: DispatchCtx, target: TargetState, f: FrameState
   const queue = prespawnQueueFor(target);
   if (queue.started >= MAX_PRESPAWNS_PER_NAVIGATE) return;
   if (!f.url || f.url === "about:blank") return;
-  if (!f.isCrossOrigin) return;
+  if (!f.isCrossOrigin && !childFrameIsOpaque(f)) return;
   if (!/^(https?|data):/i.test(f.url)) return;
   if (refuseBlockedFrame(ctx, target, f)) return;
   const lease = ctx.browser.workerBudget.acquire("oopif");
   if (!lease) return;
   f.pageScriptLease = lease;
   const url = f.url;
+  const sandbox = f.sandbox;
   const args = oopifSpawnArgs(ctx, target, f);
   queue.started++;
-  const entry: NonNullable<FrameState["oopifPrespawn"]> = { url, promise: Promise.resolve(null) };
+  const entry: NonNullable<FrameState["oopifPrespawn"]> = {
+    url,
+    sandbox,
+    promise: Promise.resolve(null),
+  };
   const promise = queue.tail.then(async () => {
     if (f.detached || ctx.browser.wsClosing) return null;
     try {
@@ -3536,9 +3612,10 @@ async function takeOopifPrespawn(
   if (!entry) return null;
   f.oopifPrespawn = undefined;
   const pre = await entry.promise;
-  if (!pre) return entry.refused && entry.url === currentUrl ? "refused" : null;
-  if (entry.url !== currentUrl) {
-    await discardOopifPrespawnResult(pre, "oopif prespawn stale: src changed");
+  const current = entry.url === currentUrl && entry.sandbox === f.sandbox;
+  if (!pre) return entry.refused && current ? "refused" : null;
+  if (!current) {
+    await discardOopifPrespawnResult(pre, "oopif prespawn stale: src or sandbox changed");
     return null;
   }
   return pre;
@@ -3578,7 +3655,7 @@ async function spawnOopifPipeline(
   if (!ps) return;
   if (f.pageScript || f.oopifSpawning || f.detached) return;
   if (!f.url || f.url === "about:blank") return;
-  if (!f.isCrossOrigin && !f.hasScript) return;
+  if (!frameNeedsIsolate(f)) return;
   if (!/^(https?|data):/i.test(f.url)) return;
   if (refuseBlockedFrame(ctx, target, f)) return;
   const lease = f.pageScriptLease ?? ctx.browser.workerBudget.acquire("oopif");
@@ -3662,13 +3739,14 @@ async function spawnOopifPipeline(
       lease.release();
       f.pageScriptLease = null;
       f.oopifSpawning = false;
-      if (f.url && f.url !== "about:blank" && (f.isCrossOrigin || f.hasScript)) {
+      if (f.url && f.url !== "about:blank" && frameNeedsIsolate(f)) {
         await spawnOopifPipeline(ctx, target, f);
       }
       return;
     }
     f.pageScriptUrl = spawn.finalUrl || urlAtStart;
     f.pageScript = spawn.stub;
+    f.pageScriptSandbox = args.sandbox;
     if (spawn.finalUrl && spawn.finalUrl !== f.url) {
       f.url = spawn.finalUrl;
       f.securityOrigin = originOf(spawn.finalUrl);
@@ -3767,6 +3845,7 @@ function teardownOopifStubForFrame(
     atClose ?? { budget: ctx?.browser.workerBudget },
   );
   f.pageScriptUrl = null;
+  f.pageScriptSandbox = undefined;
   if (ctx && destroyedCtxId > 0) {
     (async () => {
       const { emitOopifExecutionContextDestroyed } = await import("./runtime.ts");
@@ -3790,29 +3869,24 @@ function discoverChildFramesFromScan(
   scan: DocScan,
   budget: ChildFrameBudget,
 ): FrameState[] {
-  const baseUrl = parentFrame.url || target.url;
+  const baseUrl = frameBaseUrl(parentFrame, target.url);
   const registered: FrameState[] = [];
   for (const ifr of scan.iframes) {
     if (!admitChildFrame(budget, baseUrl)) break;
-    let resolvedUrl: string;
-    if (ifr.src) {
-      try {
-        resolvedUrl = new URL(ifr.src, baseUrl || undefined).toString();
-      } catch {
-        resolvedUrl = "about:blank";
-      }
-    } else {
-      resolvedUrl = "about:blank";
-    }
+    const srcdoc = ifr.srcdoc ?? null;
+    const resolvedUrl = childFrameUrl(ifr.src, srcdoc, baseUrl);
     const childFrameId = mintFrameId();
     const childLoaderId = mintLoaderId();
     const isCrossOrigin =
-      resolvedUrl !== "about:blank" && originOf(resolvedUrl) !== originOf(target.url);
+      !resolvesToEmbedderOrigin(resolvedUrl) && originOf(resolvedUrl) !== originOf(target.url);
     const childFrame = makeChildFrameState({
       frameId: childFrameId,
       parentFrameId: parentFrame.frameId,
       loaderId: childLoaderId,
       url: resolvedUrl,
+      sandbox: childSandboxRestrictions(parentFrame.sandbox, ifr.sandbox ?? null),
+      srcdoc,
+      baseUrl: srcdoc !== null ? baseUrl : resolvedUrl,
       name: ifr.name ?? "",
       ownerElementId: ifr.id ?? "",
       ownerBackendNodeId: -1,
@@ -3908,6 +3982,7 @@ export function installUpstreamEventHandler(
     stub,
     url,
     target.loaderId,
+    originOf(url),
   );
   const loaderId = target.loaderId;
   stub.setUpstreamEventHandler((event, params) => {
@@ -4032,15 +4107,32 @@ function postMessageOriginAllowed(
   recipientOrigin: string,
 ): boolean {
   if (targetOrigin === "*") return true;
+  // An opaque recipient has no serializable identity to match, and unrelated opaque origins
+  // never compare equal, so only "*" can address it.
+  if (recipientOrigin === "") return false;
   if (targetOrigin === "/") return recipientOrigin === senderOrigin;
   return originOf(targetOrigin) === recipientOrigin;
 }
 
+// The committed origin of a frame's document: opaque when its sandbox omits allow-same-origin. An
+// installed isolate keeps the snapshot it was sealed with until teardown.
+function committedFrameOrigin(frame: FrameState): string {
+  const sandbox = frame.pageScriptSandbox ?? frame.sandbox;
+  return sandbox.sameOrigin ? originOf(frame.pageScriptUrl ?? frame.url) : "";
+}
+
 // MessageEvent.origin comes from the url the engine committed for the sending frame, never from
-// the isolate's claim, which page script can change. An about:blank or about:srcdoc frame has
-// its embedder's origin. An isolate uses the url it was sealed with (sealedUrl for a child): a
-// frame's url moves to the next document before the old one has run its unload handlers.
-function frameMessageOrigin(target: TargetState, frame: FrameState, sealedUrl?: string): string {
+// the isolate's claim. An about:blank or about:srcdoc frame has its embedder's origin. An isolate
+// uses the url and sandbox it was sealed with (sealedUrl/sealedSandbox): a frame's url and
+// restrictions move to the next document before the old one has run its unload handlers.
+function frameMessageOrigin(
+  target: TargetState,
+  frame: FrameState,
+  sealedUrl?: string,
+  sealedSandbox?: SandboxRestrictions,
+): string {
+  // A sandboxed document without allow-same-origin serializes its origin as "null".
+  if (!(sealedSandbox ?? frame.sandbox).sameOrigin) return "null";
   const about = /^about:(blank|srcdoc)([?#]|$)/;
   let f: FrameState | undefined = frame;
   let url = sealedUrl !== undefined && !about.test(sealedUrl) ? sealedUrl : null;
@@ -4061,9 +4153,13 @@ export function routeChildFramePostMessage(
   from: FrameState,
   params: ReceivedUpstreamParams,
   sealedUrl?: string,
+  sealedSandbox?: SandboxRestrictions,
 ): void {
-  if (params.toParent === true) routePostMessageToParent(target, from.frameId, params, sealedUrl);
-  else routePostMessageToChild(target, from, params, sealedUrl);
+  if (params.toParent === true) {
+    routePostMessageToParent(target, from.frameId, params, sealedUrl, sealedSandbox);
+  } else {
+    routePostMessageToChild(target, from, params, sealedUrl, sealedSandbox);
+  }
 }
 
 // Owner ids are node ids in the sender's document, so match them only among its own children.
@@ -4072,12 +4168,16 @@ export function routePostMessageToChild(
   from: FrameState,
   params: ReceivedUpstreamParams,
   sealedUrl?: string,
+  sealedSandbox?: SandboxRestrictions,
 ): void {
   const ownerId = typeof params.toFrameOwnerId === "number" ? params.toFrameOwnerId : -1;
   if (ownerId <= 0) return;
   for (const f of target.frames.values()) {
     if (f.ownerBackendNodeId !== ownerId || f.parentFrameId !== from.frameId) continue;
-    const message = { ...params, sourceOrigin: frameMessageOrigin(target, from, sealedUrl) };
+    const message = {
+      ...params,
+      sourceOrigin: frameMessageOrigin(target, from, sealedUrl, sealedSandbox),
+    };
     if (!f.pageScript) {
       if (!f.detached) {
         const q = (f.pendingPostMessages ??= []);
@@ -4094,7 +4194,11 @@ function deliverPostMessageToChild(f: FrameState, message: ReceivedUpstreamParam
   if (!f.pageScript) return;
   const senderOrigin = String(message.sourceOrigin ?? "");
   if (
-    !postMessageOriginAllowed(String(message.targetOrigin ?? "*"), senderOrigin, originOf(f.url))
+    !postMessageOriginAllowed(
+      String(message.targetOrigin ?? "*"),
+      senderOrigin,
+      committedFrameOrigin(f),
+    )
   ) {
     return;
   }
@@ -4112,19 +4216,20 @@ export function routePostMessageToParent(
   fromFrameId: string,
   params: ReceivedUpstreamParams,
   sealedUrl?: string,
+  sealedSandbox?: SandboxRestrictions,
 ): void {
   const f = target.frames.get(fromFrameId);
   if (!f || f.detached) return;
-  const senderOrigin = frameMessageOrigin(target, f, sealedUrl);
+  const senderOrigin = frameMessageOrigin(target, f, sealedUrl, sealedSandbox);
   let recipient: PageScriptStub | null = null;
   let recipientOrigin = "";
   if (!f.parentFrameId || f.parentFrameId === target.frameId) {
     recipient = target.pageScript;
-    recipientOrigin = originOf(target.url);
+    recipientOrigin = committedFrameOrigin(mainFrame(target));
   } else {
     const pf = target.frames.get(f.parentFrameId);
     recipient = pf?.pageScript ?? null;
-    recipientOrigin = pf ? originOf(pf.url) : "";
+    recipientOrigin = pf ? committedFrameOrigin(pf) : "";
   }
   if (!recipient) return;
   if (
@@ -4325,12 +4430,17 @@ function handleUpstreamFrameEvent(
     const url = typeof params.url === "string" && params.url ? params.url : "about:blank";
     const ownerBackendNodeId =
       typeof params.ownerBackendNodeId === "number" ? params.ownerBackendNodeId : -1;
-    const isCrossOrigin = url !== "about:blank" && originOf(url) !== originOf(target.url);
+    const isCrossOrigin = !resolvesToEmbedderOrigin(url) && originOf(url) !== originOf(target.url);
+    const parentFrame = target.frames.get(target.frameId);
     const frame = makeChildFrameState({
       frameId,
       parentFrameId: target.frameId,
       loaderId: mintLoaderId(),
       url,
+      sandbox: childSandboxRestrictions(
+        parentFrame?.sandbox ?? SANDBOX_ALLOW_ALL,
+        typeof params.sandbox === "string" ? params.sandbox : null,
+      ),
       name: typeof params.name === "string" ? params.name : "",
       ownerElementId: typeof params.id === "string" ? params.id : "",
       ownerBackendNodeId,
@@ -4372,10 +4482,20 @@ function handleUpstreamFrameEvent(
   if (event === "kitesurf.frameNavigated") {
     const url = typeof params.url === "string" && params.url ? params.url : frame.url;
     const urlChanged = url !== frame.url;
+    // page-script snapshots the owner attribute when the navigation starts; a later attribute
+    // change only affects the next navigation.
+    if (Object.prototype.hasOwnProperty.call(params, "sandbox")) {
+      const parentFrame = target.frames.get(frame.parentFrameId);
+      frame.sandbox = childSandboxRestrictions(
+        parentFrame?.sandbox ?? SANDBOX_ALLOW_ALL,
+        typeof params.sandbox === "string" ? params.sandbox : null,
+      );
+    }
     if (urlChanged) {
       frame.url = url;
       frame.securityOrigin = originOf(url);
-      frame.isCrossOrigin = !matchesAboutBlank(url) && originOf(url) !== originOf(target.url);
+      frame.isCrossOrigin =
+        !resolvesToEmbedderOrigin(url) && originOf(url) !== originOf(target.url);
     }
     emitFrameNavigated(ctx, target, frame, sessionId);
     if (urlChanged && !revived) {
@@ -4384,7 +4504,7 @@ function handleUpstreamFrameEvent(
     if (urlChanged || revived) {
       emitFrameTarget(ctx, frame);
     }
-    if (!frame.pageScript && !frame.oopifSpawning && (frame.isCrossOrigin || frame.hasScript)) {
+    if (!frame.pageScript && !frame.oopifSpawning && frameNeedsIsolate(frame)) {
       ctx.ctx.waitUntil(spawnOopifPipeline(ctx, target, frame).catch(() => {}));
     }
     return;
@@ -4504,96 +4624,111 @@ async function loadChildFrame(
     allowDocumentBypass: true,
     walksOwnRedirects: true,
   };
-  const docOutbound = ctx.browser.sandboxOutbound.parent(childDocProps);
-  let resp: Response;
-  let finalUrl: string;
-  const walkAbort = new AbortController();
-  const walkTimer = setTimeout(
-    () => walkAbort.abort(new Error("kitesurf: iframe document walk timeout")),
-    IFRAME_DOC_WALK_BUDGET_MS,
-  );
-  try {
-    const walk = await walkRedirects({
-      url: frame.url,
-      signal: walkAbort.signal,
-      fetchHop: (hopReq) => docOutbound.fetch(hopReq),
-      headers: {
-        "x-kitesurf-allow-cross-origin": "1",
-        "x-kitesurf-resource-type": "Document",
-        "x-kitesurf-frame-id": frame.frameId,
-        "x-kitesurf-initiator": "parser",
-        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "sec-fetch-dest": "iframe",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
-      },
-    });
-    if (!walk.ok) {
-      console.warn(`[kitesurf-iframe] too many redirects for ${frame.url}`);
-      frame.readyState = "complete";
-      return;
-    }
-    resp = walk.response;
-    finalUrl = walk.finalUrl;
-  } catch (err) {
-    console.warn(
-      `[kitesurf-iframe] fetch failed for ${frame.url}:`,
-      err instanceof Error ? err.message : String(err),
-    );
-    frame.readyState = "complete";
-    return;
-  } finally {
-    clearTimeout(walkTimer);
-  }
-  if (!resp.ok) {
-    console.warn(`[kitesurf-iframe] fetch ${resp.status} for ${frame.url}`);
-    frame.readyState = "complete";
-    return;
-  }
-  if (finalUrl !== frame.url) {
-    frame.url = finalUrl;
-    frame.securityOrigin = originOf(finalUrl);
-    frame.isCrossOrigin = originOf(finalUrl) !== originOf(target.url);
-    if (frame.isCrossOrigin) {
-      try {
-        await resp.body?.cancel();
-      } catch {}
-      frame.readyState = "complete";
-      emitFrameNavigated(ctx, target, frame, sessionId);
-      return;
-    }
-  }
-  const contentType = resp.headers.get("content-type") ?? "";
-  {
-    const ct = contentType.split(";")[0]?.trim();
-    if (ct) frame.mimeType = ct;
-  }
-  // Read before the grandchildren below are discovered and fetched.
-  frame.referrerPolicy = resp.headers.get("referrer-policy");
   let html: string;
   let docBytes: number;
-  try {
-    // Cap the read at what this navigation's child-document budget still admits.
-    const read = await readCappedBytes(
-      resp,
-      Math.max(0, MAX_DOCUMENT_BYTES - budget.bytes),
-      ctx.connectionId,
+  const srcdoc = frame.srcdoc;
+  if (srcdoc !== null) {
+    // srcdoc wins over src and has no network document; relative URLs use the embedder's base.
+    frame.url = "about:srcdoc";
+    frame.baseUrl ??= embedder ? frameBaseUrl(embedder, target.url) : target.url;
+    frame.mimeType = "text/html";
+    frame.isCrossOrigin = false;
+    frame.securityOrigin = frame.sandbox.sameOrigin ? originOf(frame.baseUrl) : "";
+    html = srcdoc;
+    // The parse input is page-controlled and can be large; it is consumed here.
+    frame.srcdoc = null;
+    docBytes = new TextEncoder().encode(html).byteLength;
+  } else {
+    const docOutbound = ctx.browser.sandboxOutbound.parent(childDocProps);
+    let resp: Response;
+    let finalUrl: string;
+    const walkAbort = new AbortController();
+    const walkTimer = setTimeout(
+      () => walkAbort.abort(new Error("kitesurf: iframe document walk timeout")),
+      IFRAME_DOC_WALK_BUDGET_MS,
     );
-    if (!read.ok) {
-      console.warn(`[kitesurf-iframe] body read refused (${read.failure}) for ${frame.url}`);
+    try {
+      const walk = await walkRedirects({
+        url: frame.url,
+        signal: walkAbort.signal,
+        fetchHop: (hopReq) => docOutbound.fetch(hopReq),
+        headers: {
+          "x-kitesurf-allow-cross-origin": "1",
+          "x-kitesurf-resource-type": "Document",
+          "x-kitesurf-frame-id": frame.frameId,
+          "x-kitesurf-initiator": "parser",
+          accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "sec-fetch-dest": "iframe",
+          "sec-fetch-mode": "navigate",
+          "sec-fetch-site": "same-origin",
+        },
+      });
+      if (!walk.ok) {
+        console.warn(`[kitesurf-iframe] too many redirects for ${frame.url}`);
+        frame.readyState = "complete";
+        return;
+      }
+      resp = walk.response;
+      finalUrl = walk.finalUrl;
+    } catch (err) {
+      console.warn(
+        `[kitesurf-iframe] fetch failed for ${frame.url}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+      frame.readyState = "complete";
+      return;
+    } finally {
+      clearTimeout(walkTimer);
+    }
+    if (!resp.ok) {
+      console.warn(`[kitesurf-iframe] fetch ${resp.status} for ${frame.url}`);
       frame.readyState = "complete";
       return;
     }
-    docBytes = read.bytes.byteLength;
-    html = decodeHtmlBytes(read.bytes, contentType).html;
-  } catch (err) {
-    console.warn(
-      `[kitesurf-iframe] body read failed for ${frame.url}:`,
-      err instanceof Error ? err.message : String(err),
-    );
-    frame.readyState = "complete";
-    return;
+    if (finalUrl !== frame.url) {
+      frame.url = finalUrl;
+      frame.securityOrigin = originOf(finalUrl);
+      frame.isCrossOrigin = originOf(finalUrl) !== originOf(target.url);
+      if (frame.isCrossOrigin) {
+        try {
+          await resp.body?.cancel();
+        } catch {}
+        frame.readyState = "complete";
+        emitFrameNavigated(ctx, target, frame, sessionId);
+        return;
+      }
+    }
+    const contentType = resp.headers.get("content-type") ?? "";
+    {
+      const ct = contentType.split(";")[0]?.trim();
+      if (ct) frame.mimeType = ct;
+    }
+    // Read before the grandchildren below are discovered and fetched.
+    frame.referrerPolicy = resp.headers.get("referrer-policy");
+    try {
+      // Cap the read at what this navigation's child-document budget still admits.
+      const read = await readCappedBytes(
+        resp,
+        Math.max(0, MAX_DOCUMENT_BYTES - budget.bytes),
+        ctx.connectionId,
+      );
+      if (!read.ok) {
+        console.warn(`[kitesurf-iframe] body read refused (${read.failure}) for ${frame.url}`);
+        frame.readyState = "complete";
+        return;
+      }
+      docBytes = read.bytes.byteLength;
+      html = decodeHtmlBytes(read.bytes, contentType).html;
+    } catch (err) {
+      console.warn(
+        `[kitesurf-iframe] body read failed for ${frame.url}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+      frame.readyState = "complete";
+      return;
+    }
   }
+  const docBaseUrl = srcdoc !== null ? (frame.baseUrl ?? target.url) : frame.url;
   const strip = stripIframeScripts(html, frame.url);
   html = strip.html;
   if (frame.mimeType) {
@@ -4625,7 +4760,7 @@ async function loadChildFrame(
     return;
   }
   try {
-    frame.dom = createDom(html, frame.url);
+    frame.dom = createDom(html, docBaseUrl);
     budget.bytes += docBytes;
     frame.domBytes = docBytes;
     frame.domBudget = budget;
@@ -4661,7 +4796,14 @@ async function loadChildFrame(
         if (cycled) {
           console.warn(`[kitesurf-iframe] cycle detected, skipping fetch for ${gc.url}`);
         }
-        if (gc.isCrossOrigin || gc.url === "about:blank" || gc.url === "" || cycled) {
+        // An opaque grandchild has no same-origin view for this document to install.
+        if (
+          gc.isCrossOrigin ||
+          gc.url === "about:blank" ||
+          gc.url === "" ||
+          !gc.sandbox.sameOrigin ||
+          cycled
+        ) {
           gc.readyState = "complete";
           gc.pendingLoad = Promise.resolve();
           continue;

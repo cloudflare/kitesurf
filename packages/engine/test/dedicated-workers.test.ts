@@ -36,6 +36,7 @@ import type { TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 
 const PAGE = "https://example.test/app.html";
+const PAGE_ORIGIN = "https://example.test";
 
 function fakeStub() {
   const delivered: unknown[] = [];
@@ -74,7 +75,7 @@ function setup(env: Record<string, string> = {}) {
     connectionId: "c1",
   } as DispatchCtx;
   const page = fakeStub();
-  const owner = workers.ownerFor(target, "t1", page.stub, PAGE, "l1");
+  const owner = workers.ownerFor(target, "t1", page.stub, PAGE, "l1", PAGE_ORIGIN);
   const create = (workerId: number, own = owner, url = "blob:https://example.test/1") =>
     workers.handle(ctx, own, "kitesurf.workerCreate", {
       workerId,
@@ -126,7 +127,7 @@ describe("DedicatedWorkers", () => {
     create(1);
     await settle();
     workers.terminateTarget("t1", "parent navigate");
-    const next = workers.ownerFor(target, "t1", fakeStub().stub, PAGE, "l2");
+    const next = workers.ownerFor(target, "t1", fakeStub().stub, PAGE, "l2", PAGE_ORIGIN);
     create(1, next);
     await settle();
     expect(spawned).toHaveLength(2);
@@ -148,7 +149,7 @@ describe("DedicatedWorkers", () => {
     create(1);
     await settle();
     const newer = fakeStub();
-    workers.ownerFor(target, "t1", newer.stub, PAGE, "l2");
+    workers.ownerFor(target, "t1", newer.stub, PAGE, "l2", PAGE_ORIGIN);
     workers.handle(ctx, owner, "kitesurf.workerPostMessage", { workerId: 1, data: "x" });
     expect(spawned[0]!.deliverMessage).toHaveBeenCalledWith("x");
     spawned[0]!.opts.onUpstream({ event: "worker.message", params: { data: "reply" } });

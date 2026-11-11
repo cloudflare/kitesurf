@@ -55,3 +55,9 @@ export {
   predeclareVarsHead,
   type TopLevelDeclScan,
 } from "./classic-scan.ts";
+export {
+  SANDBOX_ALLOW_ALL,
+  intersectSandbox,
+  parseSandboxAttribute,
+  type SandboxRestrictions,
+} from "./sandbox.ts";

@@ -6,6 +6,7 @@
 
 import type { RawCdpMutation } from "@kitesurf/jsrpc-types/shared";
 import type { LoadCompletion } from "@kitesurf/jsrpc-types/page-script";
+import { SANDBOX_ALLOW_ALL, type SandboxRestrictions } from "@kitesurf/script-gate";
 import type {
   BuildDocumentResult,
   DomHandle,
@@ -29,6 +30,12 @@ export interface PageScriptState {
   /** The current document's URL. Unlike pageUrl, a pending cross-document
    *  location write does not change it, so it backs CSP 'self'. */
   documentUrl: string;
+
+  /** The committed document origin serialized, or "" for an opaque sandboxed origin. */
+  documentOrigin: string;
+
+  /** The committed document's active iframe sandbox restrictions. */
+  sandbox: SandboxRestrictions;
 
   sourceDoctype: { markup: string; marker: string } | null;
 
@@ -121,6 +128,8 @@ export const state: PageScriptState = {
   blobUrls: new Map(),
   pageUrl: "",
   documentUrl: "",
+  documentOrigin: "",
+  sandbox: SANDBOX_ALLOW_ALL,
   sourceDoctype: null,
   connectionId: "",
   mainFrameId: "",

@@ -4,7 +4,7 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "description": "Shared script-execution gate: SRI, CSP script-src, JS MIME/nosniff and mixed-content checks, plus the Referrer Policy table. Source-exported so both the engine worker and the in-isolate PageScript bundle one copy of the policy.",
+  "description": "Shared script-execution gate: SRI, CSP script-src, JS MIME/nosniff and mixed-content checks, the Referrer Policy table and the iframe sandbox capability set. Source-exported so both the engine worker and the in-isolate PageScript bundle one copy of the policy.",
   "exports": {
     ".": "./src/index.ts",
     "./sri": "./src/sri.ts",
@@ -17,6 +17,9 @@
   "scripts": {
     "test": "node --test test/*.test.ts",
     "types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kitesurf/jsrpc-types": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.6.2",

@@ -10,6 +10,7 @@ import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import { DynamicWorkerBudget } from "../src/eval/worker-budget.ts";
 import { DedicatedWorkers } from "../src/cdp/dedicated-workers.ts";
+import { SANDBOX_ALLOW_ALL } from "@kitesurf/script-gate";
 import {
   notifyIsolateLimit,
   registerIsolateLimitListener,
@@ -57,6 +58,7 @@ describe("closeTargetInternal", () => {
     frame.pageScriptLease = budget.acquire("oopif");
     frame.oopifPrespawn = {
       url: frame.url,
+      sandbox: SANDBOX_ALLOW_ALL,
       promise: new Promise<never>(() => {}),
     };
     target.frames.set(frame.frameId, frame);

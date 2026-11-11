@@ -17,6 +17,7 @@ import { digestBase64, integrityMatches, parseIntegrity, type SriAlgorithm } fro
 
 export type ScriptBlockReason =
   | "csp"
+  | "sandbox"
   | "mime"
   | "mixed-content"
   | "nosniff"

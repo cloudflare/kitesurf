@@ -38,7 +38,8 @@ A pnpm monorepo. One line per package; read the code for details.
   render port and owns the wasm resource cache.
 - `packages/worker-script/`: the loaded worker that runs a page's `new Worker()`.
 - `packages/script-gate/`: the shared script-execution policy (SRI, CSP `script-src`, JS MIME and
-  `nosniff`, mixed content), so the engine and PageScript bundle one copy.
+  `nosniff`, mixed content, the iframe sandbox capability set), so the engine and PageScript bundle
+  one copy.
 - `packages/jsrpc-types/`: type-only JSRPC contracts between the engine and its loaded workers.
   Both ends of a call import from here; do not redeclare a wire shape on one side.
 - `packages/scene-host-wasm/`: the CLI's local scene rasterizer, staged into

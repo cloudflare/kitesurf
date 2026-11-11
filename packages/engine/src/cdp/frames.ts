@@ -5,8 +5,14 @@
 // Builds CDP frame metadata and computes frame origins and document domains.
 
 import type { Protocol } from "devtools-protocol";
+import { SANDBOX_ALLOW_ALL } from "@kitesurf/script-gate";
 import { isIpHost, isPublicSuffix, siteKey } from "../public-suffix.ts";
-import { makeTargetId, type FrameState, type TargetState } from "./types.ts";
+import {
+  makeTargetId,
+  type FrameState,
+  type SandboxRestrictions,
+  type TargetState,
+} from "./types.ts";
 
 export function mintFrameId(): string {
   return makeTargetId();
@@ -64,7 +70,10 @@ const OPAQUE_FRAME_ORIGIN: FrameOrigin = {
 
 // Page.Frame reports origins as Chrome serializes them, unlike originOf(): an opaque origin is
 // "://" and a blob: URL has its creator's origin. Only https, wss and localhost are trustworthy.
-function frameOriginOf(url: string): FrameOrigin {
+function frameOriginOf(frame: FrameState): FrameOrigin {
+  // A sandbox without allow-same-origin forces an opaque origin even for a same-origin URL.
+  if (!frame.sandbox.sameOrigin) return OPAQUE_FRAME_ORIGIN;
+  const url = frame.url || "about:blank";
   let serialized: string;
   let host: string;
   let protocol: string;
@@ -130,16 +139,17 @@ function frameContextOf(frame: FrameState, frames: ReadonlyMap<string, FrameStat
   chain.forEach((current, depth) => {
     const parentOrigin = origin;
     const parentSite = site;
-    const inherits = depth > 0 && inheritsCreatorOrigin(current.url);
-    if (!inherits) origin = frameOriginOf(current.url || "about:blank");
+    const opaque = !current.sandbox.sameOrigin;
+    const inherits = !opaque && depth > 0 && inheritsCreatorOrigin(current.url);
+    if (!inherits) origin = frameOriginOf(current);
     // An opaque child (data:) shares its parent's process; a frame with a tuple origin goes to the
     // process of its own site.
     if (origin.site !== null) site = origin.site;
     if (depth > 0) {
       const sameOrigin =
         inherits || (origin.site !== null && origin.serialized === parentOrigin.serialized);
-      isolationAllowed &&= sameOrigin;
-      context.sameSiteAsParent = site === parentSite;
+      isolationAllowed &&= sameOrigin && !opaque;
+      context.sameSiteAsParent = !opaque && site === parentSite;
     }
     let type: Protocol.Page.SecureContextType;
     if (!origin.trustworthy) type = "InsecureScheme";
@@ -161,7 +171,7 @@ export function makeFrameInfo(
   const href = frame.url || "about:blank";
   const hash = href.indexOf("#");
   const url = hash < 0 ? href : href.slice(0, hash);
-  const origin = frameOriginOf(url);
+  const origin = frameOriginOf(frame);
   const context = frameContextOf(frame, frames);
   const info: Protocol.Page.Frame = {
     id: frame.frameId,
@@ -261,6 +271,8 @@ export function makeMainFrameState(args: {
     parentFrameId: null,
     loaderId: args.loaderId,
     url: args.url,
+    sandbox: SANDBOX_ALLOW_ALL,
+    srcdoc: null,
     securityOrigin: originOf(args.url),
     mimeType: "text/html",
     ownerBackendNodeId: -1,
@@ -285,6 +297,9 @@ export function makeChildFrameState(args: {
   parentFrameId: string;
   loaderId: string;
   url: string;
+  sandbox?: SandboxRestrictions;
+  srcdoc?: string | null;
+  baseUrl?: string;
   name: string;
   ownerElementId: string;
   ownerBackendNodeId: number;
@@ -296,6 +311,9 @@ export function makeChildFrameState(args: {
     parentFrameId: args.parentFrameId,
     loaderId: args.loaderId,
     url: args.url,
+    sandbox: args.sandbox ?? SANDBOX_ALLOW_ALL,
+    srcdoc: args.srcdoc ?? null,
+    baseUrl: args.baseUrl,
     name: args.name,
     ownerElementId: args.ownerElementId,
     securityOrigin: originOf(args.url),

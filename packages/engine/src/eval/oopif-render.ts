@@ -5,6 +5,7 @@
 // Handles child-frame document loads and rasterization in separate PageScript isolates.
 
 import type { NavigateOptions } from "@kitesurf/jsrpc-types/page-script";
+import type { SandboxRestrictions } from "@kitesurf/script-gate";
 import type { PageRendererManager } from "./page-renderer.ts";
 
 export interface RasterizeOptions {
@@ -46,6 +47,8 @@ export interface RenderFrameArgs {
   frameId: string;
   frameLoaderId: string;
   frameUrl: string;
+  // The child document's active sandbox restrictions, intersected with its ancestors.
+  sandbox: SandboxRestrictions;
   viewport?: { width: number; height: number };
   parentOrigin?: string;
   cookieSiteOrigin?: string;
@@ -177,12 +180,15 @@ export async function prespawnFrameIsolate(
   ctx: ExecutionContext,
   args: RenderFrameArgs,
 ): Promise<PrespawnedFrame | RenderFrameError> {
+  const sandbox = args.sandbox;
   let pageOrigin = "";
   try {
     pageOrigin = new URL(args.frameUrl).origin;
   } catch {
     return { ok: false, error: `unparseable frame URL: ${args.frameUrl}` };
   }
+  // The embedder's document request keeps its URL origin; only the child isolate's identity is
+  // opaque when allow-same-origin is missing (spawnFramePageScript seals it).
   const docOutbound = args.sandboxOutbound.parent({
     ...localTraceParentProps(),
     pageOrigin,
@@ -204,6 +210,7 @@ export async function prespawnFrameIsolate(
       frameId: args.frameId,
       frameLoaderId: args.frameLoaderId,
       frameUrl: args.frameUrl,
+      sandbox,
       cookieKey: args.cookieKey,
       cookieSiteOrigin: frameDocumentCookieSite(args.cookieSiteOrigin, args.frameUrl),
       attributionHeaders: args.attributionHeaders,
@@ -354,6 +361,7 @@ export async function prespawnFrameIsolate(
         frameId: args.frameId,
         frameLoaderId: args.frameLoaderId,
         frameUrl: finalUrl,
+        sandbox,
         cookieKey: args.cookieKey,
         cookieSiteOrigin: frameDocumentCookieSite(args.cookieSiteOrigin, finalUrl),
         attributionHeaders: args.attributionHeaders,
@@ -384,6 +392,7 @@ export async function navigatePrespawnedFrame(
       connectionId: args.connectionId,
       mainFrameId: args.frameId,
       cookieKey: args.cookieKey ?? "",
+      sandbox: args.sandbox,
       scriptPolicy,
       modulePreloadPins: pre.modulePreloadPins,
       ...(viewport

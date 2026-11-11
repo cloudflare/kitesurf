@@ -3095,7 +3095,7 @@ export function installGlobals(
       };
     }
     installIdleCallbackGlobals();
-    if (typeof globalThis.localStorage !== "object") {
+    if (Object.getOwnPropertyDescriptor(globalThis, "localStorage") === undefined) {
       const makeStorage = () => {
         const data = Object.create(null);
         const api = {
@@ -3121,8 +3121,33 @@ export function installGlobals(
         };
         return api;
       };
-      globalThis.localStorage = makeStorage();
-      globalThis.sessionStorage = makeStorage();
+      // An opaque sandboxed origin has no storage bucket; the accessor throws, as in Chrome.
+      const buckets = { localStorage: makeStorage(), sessionStorage: makeStorage() };
+      const storageAccessor =
+        (name: keyof typeof buckets): (() => unknown) =>
+        () => {
+          if (!state.sandbox.sameOrigin) {
+            const DOMExceptionConstructor: any = ksGlobal.DOMException;
+            throw DOMExceptionConstructor
+              ? new DOMExceptionConstructor(
+                  "Storage is unavailable for an opaque origin.",
+                  "SecurityError",
+                )
+              : Object.assign(new Error("SecurityError"), { name: "SecurityError" });
+          }
+          return buckets[name];
+        };
+      for (const name of ["localStorage", "sessionStorage"] as const) {
+        try {
+          Object.defineProperty(globalThis, name, {
+            configurable: true,
+            enumerable: true,
+            get: storageAccessor(name),
+          });
+        } catch {
+          ksGlobalByKey[name] = buckets[name];
+        }
+      }
     }
 
     if (typeof globalThis.RTCPeerConnection !== "function") {
@@ -4497,18 +4522,9 @@ export function installGlobals(
     try {
       const URLConstructor: any = ksGlobal.URL;
       if (URLConstructor && typeof URLConstructor.createObjectURL === "function") {
-        const blobOrigin = (() => {
-          try {
-            const document = ksGlobal.document;
-            const documentUrl = document?.URL ? new URLConstructor(document.URL) : null;
-            if (!documentUrl || !documentUrl.origin || documentUrl.origin === "null") {
-              return "null";
-            }
-            return documentUrl.origin;
-          } catch {
-            return "null";
-          }
-        })();
+        // An opaque document's blobs carry its opaque origin, so their URLs serialize as
+        // blob:null/<uuid> and no other document can resolve them.
+        const blobOrigin = state.documentOrigin === "" ? "null" : state.documentOrigin;
         URLConstructor.createObjectURL = function (blob: any) {
           if (blob == null || typeof blob !== "object") {
             throw new TypeError("URL.createObjectURL: argument is not a Blob/MediaSource");
@@ -4532,7 +4548,7 @@ export function installGlobals(
               .join("");
             uuid = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
           }
-          const url = `blob:${blobOrigin === "null" ? "" : blobOrigin + "/"}${uuid}`;
+          const url = `blob:${blobOrigin}/${uuid}`;
           state.blobUrls.set(url, blob);
           return url;
         };
@@ -4662,29 +4678,6 @@ export function installGlobals(
     }
 
     const barPropStub = () => ({ visible: false });
-    const storageStub = (): any => {
-      const values = new Map<string, string>();
-      return {
-        get length() {
-          return values.size;
-        },
-        key(index: number) {
-          return [...values.keys()][index >>> 0] ?? null;
-        },
-        getItem(key: string) {
-          return values.has(String(key)) ? values.get(String(key))! : null;
-        },
-        setItem(key: string, value: string) {
-          values.set(String(key), String(value));
-        },
-        removeItem(key: string) {
-          values.delete(String(key));
-        },
-        clear() {
-          values.clear();
-        },
-      };
-    };
     const winMiscDefaults: Record<string, any> = {
       closed: false,
       crossOriginIsolated: false,
@@ -4705,8 +4698,6 @@ export function installGlobals(
         },
       },
       isSecureContext: false,
-      localStorage: storageStub(),
-      sessionStorage: storageStub(),
       locationbar: barPropStub(),
       menubar: barPropStub(),
       personalbar: barPropStub(),
@@ -5262,7 +5253,13 @@ export function installGlobals(
     ];
     const winOwnKeys = new Set(Reflect.ownKeys(win));
     for (const k of mirrorKeys) {
-      const globalValue = ksGlobalByKey[k];
+      // A sandboxed opaque origin installs throwing localStorage/sessionStorage accessors.
+      let globalValue: unknown;
+      try {
+        globalValue = ksGlobalByKey[k];
+      } catch {
+        continue;
+      }
       if (globalValue === undefined) continue;
       if (winOwnKeys.has(k)) continue;
       try {

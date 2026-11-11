@@ -13,6 +13,7 @@ import {
   ksGlobalByKey,
   dom,
   documentImpl,
+  documentOpaqueOrigin,
   getCurrentUrl,
   getDocumentUrl,
   setCurrentUrl,
@@ -156,7 +157,11 @@ Object.defineProperties(location, {
     enumerable: true,
     configurable: false,
   },
-  origin: { get: () => locUrl()?.origin ?? "", enumerable: true, configurable: false },
+  origin: {
+    get: () => (documentOpaqueOrigin ? "null" : (locUrl()?.origin ?? "")),
+    enumerable: true,
+    configurable: false,
+  },
   protocol: { get: () => locUrl()?.protocol ?? "", enumerable: true, configurable: false },
   host: { get: () => locUrl()?.host ?? "", enumerable: true, configurable: false },
   hostname: { get: () => locUrl()?.hostname ?? "", enumerable: true, configurable: false },
@@ -1004,7 +1009,10 @@ function buildWindow(document: DocumentImpl) {
     Reflect.set(windowObj, m, { [m]: function () {} }[m]);
   }
 
+  // The document's own origin: "null" when its sandbox made it opaque. A tuple targetOrigin never
+  // matches an opaque origin, and MessageEvent.origin serializes it as "null".
   const ownOrigin = (() => {
+    if (documentOpaqueOrigin) return "null";
     try {
       return new URL(getCurrentUrl() || pageUrl || "").origin;
     } catch {

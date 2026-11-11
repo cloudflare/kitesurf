@@ -193,6 +193,14 @@ export interface FrameState {
   parentFrameId: string | null;
   loaderId: string;
   url: string;
+  // The iframe's sandbox attribute content for a child frame, parsed and intersected with every
+  // ancestor's active restrictions. A main frame has no owner and no restrictions.
+  sandbox: SandboxRestrictions;
+  // Static srcdoc content wins over src; null when the iframe has no srcdoc attribute.
+  srcdoc: string | null;
+  // The document base URL for relative URLs. It differs from url for a srcdoc child, whose url is
+  // about:srcdoc but whose base is the embedder's document URL.
+  baseUrl?: string;
   // A child frame's iframe name and id attributes, from which Page.Frame derives its name. Main
   // frames leave both unset, because Chrome never reports a name for them.
   name?: string;
@@ -217,6 +225,9 @@ export interface FrameState {
   pageScript: PageScriptStub | null;
   // The final document URL associated with the installed OOPIF isolate.
   pageScriptUrl: string | null;
+  // The sandbox snapshot the installed isolate was sealed with, kept until teardown so an old
+  // document's messages and unload use the restrictions it actually ran under.
+  pageScriptSandbox?: SandboxRestrictions;
   pageScriptLease?: WorkerLease | null;
   oopifBlocked?: boolean;
   /** Sticky host-blocker refusal; never retried when worker budget frees. */
@@ -227,6 +238,7 @@ export interface FrameState {
   oopifSpawning?: boolean;
   oopifPrespawn?: {
     url: string;
+    sandbox: SandboxRestrictions;
     promise: Promise<PrespawnedFrame | null>;
     // Set when the prespawn refused the document, so the pipeline does not fetch it again.
     refused?: boolean;
@@ -250,7 +262,8 @@ export interface StyleSheetEntry {
 }
 
 import type { ParsedStyleSheet } from "@kitesurf/jsrpc-types/query-dom";
-export type { ParsedStyleSheet };
+import type { SandboxRestrictions } from "@kitesurf/script-gate";
+export type { ParsedStyleSheet, SandboxRestrictions };
 
 export interface NavigationHistoryEntry {
   id: number;
