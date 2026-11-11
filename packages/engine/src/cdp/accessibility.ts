@@ -193,7 +193,7 @@ function pickBackendId(params: unknown, tree: BuiltTree): number | null {
   if (typeof p.objectId === "string") {
     const m = /^node:(\d+)$/.exec(p.objectId);
     if (m) return Number(m[1]);
-    const ps = /^ps:(\d+)$/.exec(p.objectId);
+    const ps = /^ps:(?:[^:]+:)?(\d+)$/.exec(p.objectId);
     if (ps) return Number(ps[1]);
   }
   return tree.nodes[0]?.backendDOMNodeId ?? null;
@@ -208,7 +208,7 @@ function pickExplicitBackendId(params: unknown): number | null {
   if (typeof p.backendNodeId === "number" && p.backendNodeId > 0) return p.backendNodeId;
   if (typeof p.nodeId === "number" && p.nodeId > 0) return p.nodeId;
   if (typeof p.objectId === "string") {
-    const m = /^(?:node|ps):(\d+)$/.exec(p.objectId);
+    const m = /^(?:node|ps):(?:[^:]+:)?(\d+)$/.exec(p.objectId);
     if (m) return Number(m[1]);
   }
   return null;

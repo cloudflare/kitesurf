@@ -166,6 +166,7 @@ import {
   lookupHandle,
   mintHandle,
   releaseHandle,
+  setIsolateStamp,
 } from "./handles.ts";
 import { drainInitShims, installInitShims } from "./init-shims.ts";
 import { deferShimStats, drainDeferParked, installDeferShim } from "./defer-shim.ts";
@@ -3901,6 +3902,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     try {
       // Props, not env: page modules share this worker and can import its env.
       setTailToken(Reflect.get(Object(this.ctx.props), "KS_TAIL_TOKEN"));
+      setIsolateStamp(Reflect.get(Object(this.ctx.props), "KS_ISOLATE_STAMP"));
     } catch {}
     if (startupLagWatchdog) {
       try {

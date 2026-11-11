@@ -8,14 +8,14 @@ import type { PackedResult } from "@kitesurf/jsrpc-types/shared";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import { makeChildFrameState } from "../src/cdp/frames.ts";
 import { handleRuntime } from "../src/cdp/runtime.ts";
-import type { CdpRequest, TargetState } from "../src/cdp/types.ts";
+import type { CdpRequest, FrameState, TargetState } from "../src/cdp/types.ts";
 import { createCookieJar } from "../src/cookies.ts";
 import { consoleEntryToCdpEvent, type PageScriptStub } from "../src/eval/page-script.ts";
 
 const FIRST = "https://first.test/";
 const NEXT = "https://next.test/";
 
-function heldStub() {
+function heldStub(stamp?: string) {
   const held: Array<(cookieWrites: string[]) => void> = [];
   const call = () =>
     new Promise((resolve) =>
@@ -23,13 +23,13 @@ function heldStub() {
         resolve({ ok: true, type: "string", valueJson: '"x"', cookieWrites }),
       ),
     );
-  const stub = { evaluate: call, callFunctionOn: call, runScript: call };
+  const stub = { evaluate: call, callFunctionOn: call, runScript: call, isolateStamp: stamp };
   // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only the three eval methods are stubbed.
   return { stub: stub as unknown as PageScriptStub, held };
 }
 
-function setup() {
-  const { stub, held } = heldStub();
+function setup(stamp?: string) {
+  const { stub, held } = heldStub(stamp);
   const target = {
     type: "page",
     targetId: "T",
@@ -248,4 +248,108 @@ describe("runtime value json", () => {
     expect(event.params.args[0]!.type).toBe("object");
     expect(event.params.args[0]!.value).toBeUndefined();
   });
+});
+
+function owner(stamp: string) {
+  const calls: string[] = [];
+  const stub: Record<string, unknown> = { isolateStamp: stamp };
+  for (const m of ["callFunctionOn", "compileScript", "runScript"]) {
+    stub[m] = () => (calls.push(m), Promise.resolve({ ok: true, scriptId: null }));
+  }
+  // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only the routed methods are stubbed.
+  return { stub: stub as unknown as PageScriptStub, calls };
+}
+
+function setupOwners() {
+  const { ctx, target } = setup();
+  const parent = owner("p");
+  const child = owner("c");
+  const childUrl = "https://child.test/";
+  // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only the fields these handlers read are set.
+  const frame = { frameId: "C", url: childUrl, pageScript: child.stub } as unknown as FrameState;
+  target.pageScript = parent.stub;
+  target.frames.set("C", frame);
+  target.isolatedWorlds = [{ name: "child", frameId: "C", id: 9 }];
+  return { ctx, frame, parent, child };
+}
+
+it("routes remote ids to the isolate that minted them", async () => {
+  const { ctx, frame, parent, child } = setupOwners();
+  const run = (method: string, params: Record<string, unknown>) =>
+    handleRuntime(ctx, { id: 1, method, params } as CdpRequest);
+  await run("Runtime.callFunctionOn", { functionDeclaration: "()=>1", objectId: "ps:c:1" });
+  await run("Runtime.compileScript", { expression: "1", sourceURL: "", executionContextId: 9 });
+  await run("Runtime.runScript", { scriptId: "cs:c:1" });
+  expect(child.calls).toEqual(["callFunctionOn", "compileScript", "runScript"]);
+  expect(parent.calls).toEqual([]);
+  const cfn = { functionDeclaration: "()=>1", objectId: "ps:c:1" };
+  const mixed = { ...cfn, arguments: [{ objectId: "ps:p:1" }] };
+  expect(await run("Runtime.callFunctionOn", mixed)).toHaveProperty("exceptionDetails");
+  frame.pageScript = owner("n").stub;
+  expect(await run("Runtime.callFunctionOn", cfn)).toHaveProperty("exceptionDetails");
+  expect([child.calls.length, parent.calls.length]).toEqual([3, 0]);
+  Object.assign(frame, { pageScript: null, isCrossOrigin: true });
+  const compile = { expression: "1", sourceURL: "", executionContextId: 9 };
+  expect(await run("Runtime.compileScript", compile)).toHaveProperty("exceptionDetails");
+  expect(parent.calls).toEqual([]);
+});
+
+describe("a main-isolate call waits for the ready isolate", () => {
+  it("Runtime.callFunctionOn lands on the successor installed while about:blank was pending", async () => {
+    const { ctx, target, held } = setup();
+    const next = heldStub();
+    let releaseBlank!: () => void;
+    target.blankReady = new Promise<void>((resolve) => (releaseBlank = resolve));
+    const pending = handleRuntime(ctx, {
+      id: 1,
+      method: "Runtime.callFunctionOn",
+      params: { functionDeclaration: "function(){return 1}", returnByValue: true },
+    } as CdpRequest);
+    await flush();
+    target.pageScript = next.stub;
+    releaseBlank();
+    await flush();
+    held[0]?.([]);
+    next.held[0]?.([]);
+    await pending;
+    expect(held).toHaveLength(0);
+    expect(next.held).toHaveLength(1);
+  });
+
+  it("Runtime.runScript rejects a script minted by the outgoing isolate", async () => {
+    const { ctx, target, held } = setup("old");
+    const next = heldStub("next");
+    let releaseBlank!: () => void;
+    target.blankReady = new Promise<void>((resolve) => (releaseBlank = resolve));
+    const pending = handleRuntime(ctx, {
+      id: 1,
+      method: "Runtime.runScript",
+      params: { scriptId: "cs:old:1", returnByValue: true },
+    } as CdpRequest);
+    await flush();
+    target.pageScript = next.stub;
+    releaseBlank();
+    await flush();
+    held[0]?.([]);
+    next.held[0]?.([]);
+    const res = (await pending) as Protocol.Runtime.RunScriptResponse;
+    expect(res.exceptionDetails?.exception?.description).toMatch(/unknown or destroyed scriptId/);
+    expect(held).toHaveLength(0);
+    expect(next.held).toHaveLength(0);
+  });
+});
+
+it("rejects an isolated world whose frameId names no frame", async () => {
+  const { ctx, target, held } = setup();
+  target.isolatedWorlds = [{ name: "w", frameId: "gone", id: 9 }];
+  const pending = handleRuntime(ctx, {
+    id: 1,
+    method: "Runtime.evaluate",
+    params: { expression: "location.href", contextId: 9, returnByValue: true },
+  } as CdpRequest);
+  await flush();
+  held[0]?.([]);
+  const res = (await pending) as Protocol.Runtime.EvaluateResponse;
+  expect(res.exceptionDetails?.exception?.description).toMatch(/unknown or destroyed contextId 9/);
+  expect(held).toHaveLength(0);
 });
