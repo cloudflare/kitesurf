@@ -228,6 +228,40 @@ describe("CSS.getMatchedStylesForNode source ranges", () => {
   });
 });
 
+describe("CSS stylesheet owner reconciliation", () => {
+  // Enumerations are "ownerNodeId:text"; a non-null second round re-enumerates.
+  const owners = (count: number): string[] => Array.from({ length: count }, (_, i) => `${i}:x`);
+  const rows: Array<[string, string[], string[] | null, string[], number?]> = [
+    ["keeps finite owners", ["3:a", "-1:b"], null, ["3:a", "-1:b"]],
+    ["updates an owner in place", ["3:a"], ["3:c"], ["3:c"]],
+    ["collapses a duplicate owner", ["1:a", "1:b"], null, ["1:b"]],
+    ["drops repeated NaN", ["NaN:a", "NaN:b"], null, []],
+    ["drops infinities", ["Infinity:a", "-Infinity:b"], null, []],
+    ["indexes 8000 distinct owners", owners(8000), null, owners(8000), 250],
+  ];
+  it.each(rows)("%s", async (_, first, second, expected, maxMs) => {
+    const replies: StubReplies = {};
+    const stub = makeStub(replies);
+    const target = makeTarget(stub);
+    target.nextStyleSheetRev = new Map();
+    const start = performance.now();
+    for (const sheets of second ? [first, second] : [first]) {
+      replies.enumerateStyleSheets = {
+        sheets: sheets.map((s) => {
+          const at = s.indexOf(":");
+          return { ownerNodeId: Number(s.slice(0, at)), text: s.slice(at + 1) };
+        }),
+      } as QueryDomResult<"enumerateStyleSheets">;
+      await syncStyleSheetsFromEnumeration(makeCtx(target), target, stub);
+    }
+    const elapsed = performance.now() - start;
+    expect([...target.styleSheets.values()].map((e) => `${e.ownerNodeId}:${e.text}`)).toEqual(
+      expected,
+    );
+    if (maxMs !== undefined) expect(elapsed).toBeLessThan(maxMs);
+  });
+});
+
 describe("CSS.enable opaque stylesheet fetches", () => {
   const SHEET = "https://cdn.test/a.css";
   const HOP = "https://blocked.test/b.css";

@@ -409,16 +409,6 @@ function emitStyleSheetChanged(ctx: DispatchCtx, target: TargetState, styleSheet
   }
 }
 
-function findEntryByOwner(
-  target: TargetState,
-  ownerNodeId: number,
-): { id: string; entry: StyleSheetEntry } | null {
-  for (const [id, entry] of target.styleSheets) {
-    if (entry.ownerNodeId === ownerNodeId) return { id, entry };
-  }
-  return null;
-}
-
 // A failed fetch is cached until `failedUntil` so repeated enumerations do not refetch it.
 const opaqueSheetText = new Map<string, { text: string; hops: string[]; failedUntil?: number }>();
 const OPAQUE_SHEET_TEXT_MAX = 32;
@@ -569,10 +559,14 @@ export async function syncStyleSheetsFromEnumeration(
     );
   }
 
+  const byOwner = new Map<number, { id: string; entry: StyleSheetEntry }>();
+  for (const [id, entry] of target.styleSheets) {
+    if (!byOwner.has(entry.ownerNodeId)) byOwner.set(entry.ownerNodeId, { id, entry });
+  }
   const seenOwnerIds = new Set<number>();
   for (const s of sheets) {
     seenOwnerIds.add(s.ownerNodeId);
-    const existing = findEntryByOwner(target, s.ownerNodeId);
+    const existing = byOwner.get(s.ownerNodeId);
     if (existing) {
       if (existing.entry.text !== s.text) {
         existing.entry.text = s.text;
@@ -593,6 +587,7 @@ export async function syncStyleSheetsFromEnumeration(
         parsed: null,
       };
       target.styleSheets.set(id, entry);
+      byOwner.set(s.ownerNodeId, { id, entry });
       emitStyleSheetAdded(ctx, target, id, entry);
     }
   }
@@ -704,7 +699,7 @@ function copyEnumeratedSheets(raw: unknown): EnumeratedStyleSheet[] {
   for (const item of raw) {
     if (!item || typeof item !== "object") continue;
     const s = item as Record<string, unknown>;
-    if (typeof s.ownerNodeId !== "number") continue;
+    if (typeof s.ownerNodeId !== "number" || !Number.isFinite(s.ownerNodeId)) continue;
     const sheet: EnumeratedStyleSheet = {
       ownerNodeId: s.ownerNodeId,
       text: typeof s.text === "string" ? s.text : "",
