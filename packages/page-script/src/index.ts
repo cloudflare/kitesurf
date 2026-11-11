@@ -159,7 +159,7 @@ import {
   nativeSleep,
   yieldToPageTasks,
 } from "./native-scheduling.ts";
-import { splitSelectorList, trimSelector } from "./selectors.ts";
+import { encodeSelectorBytes, splitSelectorList, trimSelector } from "./selectors.ts";
 import {
   compileScriptEntry,
   getCompiledScript,
@@ -356,6 +356,9 @@ import type { IsolateKillMarker } from "@kitesurf/jsrpc-types/shared";
 
 const ISOLATE_KILL_MARKER: IsolateKillMarker = "[ks-kill]";
 const nativeSetIframeImage = DomHandle.prototype.setIframeImage;
+// Selector text can come from a sheet the page cannot read. Hold the prototype method so a page
+// that shadows the instance's copy (domDebug is reachable from page code) cannot answer for it.
+const nativeMatchesInSubtreeBytes = DomHandle.prototype.matchesInSubtreeBytes;
 
 // Bounds the pre-DCL wait for document.write'd scripts: long enough for a
 // loader's dependency chain, short enough that a dead origin can't hold DCL.
@@ -5288,7 +5291,8 @@ function queryDomSelectorRead(
         const sel = trimSelector(selectors[i]);
         if (!sel) continue;
         try {
-          if (pageState.dom.matchesInSubtree(nodeId, sel)) {
+          const selectorBytes = encodeSelectorBytes(sel);
+          if (nativeApply(nativeMatchesInSubtreeBytes, pageState.dom, [nodeId, selectorBytes])) {
             matches.push(i);
           }
         } catch {}

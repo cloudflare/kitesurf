@@ -10,6 +10,11 @@ const nativeApply = Reflect.apply;
 const nativePush = Array.prototype.push;
 const nativeSlice = String.prototype.slice;
 const nativeTrim = String.prototype.trim;
+// The selector path avoids wasm's string marshalling, which reads chars through
+// String.prototype.charCodeAt and TextEncoder.prototype.encodeInto. Encode here with captured
+// natives so a page hook cannot observe or rewrite the selector before it reaches wasm.
+const nativeEncode = TextEncoder.prototype.encode;
+const selectorEncoder = new TextEncoder();
 
 export function splitSelectorList(text: string): string[] {
   const out: string[] = [];
@@ -53,4 +58,9 @@ export function splitSelectorList(text: string): string[] {
 
 export function trimSelector(text: string): string {
   return nativeApply(nativeTrim, text, []);
+}
+
+/** UTF-8 bytes for selector text, encoded through captured natives only. */
+export function encodeSelectorBytes(text: string): Uint8Array {
+  return nativeApply(nativeEncode, selectorEncoder, [text]);
 }

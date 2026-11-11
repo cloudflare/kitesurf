@@ -342,6 +342,52 @@ console.log("[build-wasm] post-pass: terminated hook");
   }
 }
 
+// passArray8ToWasm0 copies caller bytes into wasm memory through the cached Uint8Array view's
+// `set` and constructs that view from the global constructor. Both are ordinary property
+// lookups, so a page that replaced them would receive the bytes — including selector text from
+// a sheet it cannot read. Capture the natives at module load and copy through them.
+console.log("[build-wasm] post-pass: capture typed-array copy intrinsics");
+{
+  const gluePath = resolve(PKG_DIR, "kitesurf_core.js");
+  const original = readFileSync(gluePath, "utf8");
+  if (original.includes("// TYPED-COPY-MARKER-v1")) {
+    console.log("[build-wasm]   marker present; skipping");
+  } else {
+    const preamble =
+      "// TYPED-COPY-MARKER-v1 — see scripts/build-wasm.mjs post-pass\n" +
+      "// Module-private captures: page JS must not be able to observe the bytes copied into\n" +
+      "// wasm memory, nor supply the view they are copied through.\n" +
+      "const __ksReflectApply = Reflect.apply;\n" +
+      "const __ksUint8Array = Uint8Array;\n" +
+      "const __ksUint8ArraySet = Uint8Array.prototype.set;\n";
+    const VIEW = "cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);";
+    const COPY = "getUint8ArrayMemory0().set(arg, ptr / 1);";
+    if (
+      !original.includes(VIEW) ||
+      original.indexOf(VIEW) !== original.lastIndexOf(VIEW) ||
+      !original.includes(COPY) ||
+      original.indexOf(COPY) !== original.lastIndexOf(COPY)
+    ) {
+      console.error(
+        "[build-wasm] FATAL: expected one " +
+          JSON.stringify(VIEW) +
+          " and one " +
+          JSON.stringify(COPY) +
+          "; wasm-bindgen's typed-array copy path changed, revisit the post-pass.",
+      );
+      process.exit(1);
+    }
+    const replaced = original
+      .replace(VIEW, "cachedUint8ArrayMemory0 = new __ksUint8Array(wasm.memory.buffer);")
+      .replace(
+        COPY,
+        "__ksReflectApply(__ksUint8ArraySet, getUint8ArrayMemory0(), [arg, ptr / 1]);",
+      );
+    writeFileSync(gluePath, preamble + replaced);
+    console.log("[build-wasm]   captured Uint8Array + set for passArray8ToWasm0");
+  }
+}
+
 console.log("[build-wasm] cp kitesurf_core.js → kitesurf_core.glue.js");
 copyFileSync(resolve(PKG_DIR, "kitesurf_core.js"), resolve(PKG_DIR, "kitesurf_core.glue.js"));
 

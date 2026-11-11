@@ -69,6 +69,23 @@ fn stale_handle_matches_and_closest_do_not_error() {
 }
 
 #[test]
+fn matches_in_subtree_bytes_decodes_utf8_and_rejects_invalid_bytes() {
+    let dom = DomHandle::new(
+        "<div id=host><a id=link title=\"caf\u{e9}\">x</a></div>",
+        "https://example.test/",
+    );
+    let link = dom.query_selector("#link").unwrap() as u32;
+
+    assert!(dom.matches_in_subtree_bytes(link, b"a").unwrap());
+    assert!(dom
+        .matches_in_subtree_bytes(link, "a[title=\"caf\u{e9}\"]".as_bytes())
+        .unwrap());
+    assert!(!dom.matches_in_subtree_bytes(link, b"div > span").unwrap());
+    // Invalid UTF-8 is not a selector, and must not match.
+    assert!(!dom.matches_in_subtree_bytes(link, &[0xff, 0xfe]).unwrap());
+}
+
+#[test]
 fn stale_checkbox_handle_returns_false_before_snapshot() {
     let dom = DomHandle::new("", "https://example.test/");
     let stale_handle = dom.create_element("input");

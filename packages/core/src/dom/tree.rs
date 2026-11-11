@@ -472,6 +472,22 @@ impl DomHandle {
 
     #[wasm_bindgen(js_name = "matchesInSubtree")]
     pub fn matches_in_subtree(&self, node_id: u32, selector: &str) -> Result<bool, JsError> {
+        self.matches_in_subtree_text(node_id, selector)
+    }
+
+    /// Byte-taking twin of `matchesInSubtree`. Selector text can come from a sheet the page
+    /// cannot read, and wasm-bindgen marshals `&str` through `charCodeAt`/`encodeInto`, which
+    /// page JS can replace. The caller encodes the text itself and passes the bytes instead.
+    /// Invalid UTF-8 matches nothing.
+    #[wasm_bindgen(js_name = "matchesInSubtreeBytes")]
+    pub fn matches_in_subtree_bytes(&self, node_id: u32, selector: &[u8]) -> Result<bool, JsError> {
+        match std::str::from_utf8(selector) {
+            Ok(text) => self.matches_in_subtree_text(node_id, text),
+            Err(_) => Ok(false),
+        }
+    }
+
+    fn matches_in_subtree_text(&self, node_id: u32, selector: &str) -> Result<bool, JsError> {
         self.flush_slot_assignments();
         let doc = match self.doc.try_borrow() {
             Ok(d) => d,
