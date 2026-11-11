@@ -27,6 +27,22 @@ import { MAX_CONCURRENT_READ_BYTES, MAX_STYLESHEET_BYTES, readCappedText } from 
 
 import type { Protocol } from "devtools-protocol";
 
+// CSS.getMatchedStylesForNode output is a DevTools diagnostic: one request may spend one
+// stylesheet-sized reply, and a match that would not fit is skipped instead of failing the
+// navigation.
+const MAX_ANCESTOR_STYLE_HOPS = 128; // page-script's getAncestorElementIds walk stops here.
+
+interface MatchBudget {
+  remaining: number;
+  warned: boolean;
+}
+
+function warnMatchBudget(budget: MatchBudget): void {
+  if (budget.warned) return;
+  budget.warned = true;
+  console.warn("kitesurf: CSS matched-style reply is over budget; skipping larger matches");
+}
+
 export async function handleCss(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
   const target = pickTarget(ctx, req.sessionId);
   const session = target ? sessionOf(ctx, target) : null;
@@ -96,6 +112,10 @@ export async function handleCss(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
         } satisfies Protocol.CSS.GetMatchedStylesForNodeResponse;
       }
       const matched: Protocol.CSS.RuleMatch[] = [];
+      const budget: MatchBudget = {
+        remaining: MAX_STYLESHEET_BYTES,
+        warned: false,
+      };
       for (const [styleSheetId, entry] of target.styleSheets) {
         const parsed = await getOrParseSheet(entry, ps);
         if (!parsed) continue;
@@ -107,14 +127,20 @@ export async function handleCss(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
             nodeId,
             selectorListText: rule.selector_text,
           });
+          const charge = matchCharge(styleSheetId, rule, matchResult?.matches);
+          if (charge > budget.remaining) {
+            warnMatchBudget(budget);
+            continue;
+          }
           const matchingSelectors = copyNumbers(matchResult?.matches);
           if (matchingSelectors.length === 0) continue;
+          budget.remaining -= charge;
           matched.push(
             buildRuleMatch(styleSheetId, rule, rangeInfo, matchingSelectors, entry.origin),
           );
         }
       }
-      const inherited = await buildInheritedChain(target, ps, nodeId);
+      const inherited = await buildInheritedChain(target, ps, nodeId, budget);
       return {
         matchedCSSRules: matched,
         pseudoElements: [],
@@ -1075,6 +1101,27 @@ function isWhitespace(code: number): boolean {
   return code === 9 || code === 10 || code === 13 || code === 32;
 }
 
+// A pessimistic bound on what buildRuleMatch serializes for one match, checked before the split.
+// Text counts twice (12 per character covers escapes); 256 per selector (commas plus one bound
+// them) or property covers keys, ranges, specificity and numbers, and 32 per matching index.
+function matchCharge(
+  styleSheetId: string,
+  rule: ParsedStyleSheet["rules"][number],
+  rawMatches: unknown,
+): number {
+  let charge = 1024 + 12 * styleSheetId.length + 12 * rule.selector_text.length;
+  let selectors = 1;
+  for (let i = 0; i < rule.selector_text.length; i++) {
+    if (rule.selector_text.charCodeAt(i) === 44) selectors++;
+  }
+  charge += 256 * selectors;
+  charge += 32 * (Array.isArray(rawMatches) ? rawMatches.length : 0);
+  for (const d of rule.declarations) {
+    charge += 256 + 12 * (d.name.length + d.value.length);
+  }
+  return charge;
+}
+
 function buildRuleMatch(
   styleSheetId: string,
   rule: ParsedStyleSheet["rules"][number],
@@ -1295,13 +1342,21 @@ async function buildInheritedChain(
   target: TargetState,
   ps: QueryDomCarrier,
   startNodeId: number,
+  budget: MatchBudget,
 ): Promise<Protocol.CSS.InheritedStyleEntry[]> {
-  let ancestorIds: number[] = [];
+  const ancestorIds: number[] = [];
   try {
     const r = await stubQueryDom(ps, "getAncestorElementIds", {
       nodeId: startNodeId,
     });
-    ancestorIds = copyNumbers(r?.ancestorIds);
+    // The reply is untrusted, so copy no more entries than the PageScript walk can produce.
+    const raw = r?.ancestorIds;
+    if (Array.isArray(raw)) {
+      for (let i = 0; i < raw.length && i < MAX_ANCESTOR_STYLE_HOPS; i++) {
+        const id = raw[i];
+        if (typeof id === "number") ancestorIds.push(id);
+      }
+    }
   } catch {
     return [];
   }
@@ -1322,8 +1377,14 @@ async function buildInheritedChain(
           nodeId: ancestorId,
           selectorListText: rule.selector_text,
         });
+        const charge = matchCharge(styleSheetId, rule, matchResult?.matches);
+        if (charge > budget.remaining) {
+          warnMatchBudget(budget);
+          continue;
+        }
         const matchingSelectors = copyNumbers(matchResult?.matches);
         if (matchingSelectors.length === 0) continue;
+        budget.remaining -= charge;
         matched.push(
           buildRuleMatch(styleSheetId, rule, rangeInfo, matchingSelectors, entry.origin),
         );
