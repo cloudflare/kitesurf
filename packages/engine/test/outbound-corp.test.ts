@@ -3,6 +3,8 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { expect, it } from "vitest";
+import { NetworkEventTracker } from "../src/cdp/network-events.ts";
+import { registerTracker } from "../src/cdp/network-events-registry.ts";
 import { SandboxOutbound, type SandboxOutboundEnv } from "../src/eval/outbound.ts";
 
 const WRITE_LABELS: [string, Record<string, string>][] = [
@@ -53,8 +55,56 @@ it("keeps an opaque cross-origin image read", async () => {
       },
     }),
   );
+  expect(response.status).toBe(200);
   expect(response.headers.get("x-kitesurf-image-width")).toBe("2");
 });
+
+// A page can label any cross-origin read as a parser image, so the shell status must not
+// carry the origin's status: every unusable body is one failure, every image one success.
+const WITHHELD_IMAGE_CASES: [string, number, boolean][] = [
+  ["a non-image 200", 200, false],
+  ["a non-image 404", 404, false],
+  ["an image-shaped 403", 403, false],
+  ["a captured non-image 200", 200, true],
+];
+
+const CAPTURE_CONNECTION = "withheld-image";
+
+it.each(WITHHELD_IMAGE_CASES)(
+  "withholds the origin status of %s",
+  async (_case, status, capture) => {
+    const tracker = new NetworkEventTracker(() => {}, CAPTURE_CONNECTION);
+    if (capture) {
+      tracker.setEnabled(undefined, true);
+      registerTracker(CAPTURE_CONNECTION, tracker);
+    }
+    const gif = new Uint8Array([71, 73, 70, 56, 57, 97, 2, 0, 3, 0, 247, 0, 0]);
+    const response = await SandboxOutbound.handle(
+      {} as SandboxOutboundEnv,
+      {
+        pageOrigin: "https://page.test",
+        connectionId: capture ? CAPTURE_CONNECTION : undefined,
+        externalOutbound: {
+          fetch: async () =>
+            new Response(status === 403 ? gif : "<html>not an image</html>", {
+              status,
+              headers: { "content-type": "text/html" },
+            }),
+        },
+      },
+      new Request("https://other.test/asset", {
+        headers: {
+          "x-kitesurf-resource-type": "Image",
+          "x-kitesurf-allow-cross-origin": "1",
+        },
+      }),
+    );
+    tracker.dispose();
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe("");
+    expect([...response.headers]).toEqual([]);
+  },
+);
 
 async function pageRealmResponse(response: Response, request?: Request): Promise<Response> {
   return SandboxOutbound.handle(
