@@ -683,7 +683,13 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       : (request.headers.get("x-kitesurf-intercept-connection") ?? connectionId);
     const interception = interceptConn ? getInterception(interceptConn) : undefined;
     if (interception && interceptionMatches(interception, forwardRequest.url, resourceType)) {
-      const networkId = request.headers.get("x-kitesurf-network-id") ?? requestId ?? "";
+      // Only the engine's own document walk carries an id header; a page's request is named by
+      // the Network request the tracker just started.
+      const networkId =
+        requestId ??
+        (sealed && props.pageRealm !== true && props.interceptConnectionId
+          ? (request.headers.get("x-kitesurf-network-id") ?? "")
+          : "");
       let postData: string | undefined;
       if (forwardRequest.method !== "GET" && forwardRequest.method !== "HEAD") {
         postData = await readBodyCapped(forwardRequest, POST_DATA_CAP_BYTES);
