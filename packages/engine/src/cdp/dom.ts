@@ -65,6 +65,7 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       if (ps) {
         try {
           const r = await session.call.getDocument({});
+          assertDomReplyGraph(r);
           annotateIframeFrameIds(r.root, target);
           return r;
         } catch (err) {
@@ -76,6 +77,7 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
         const dom = ensureTargetDom(target);
         if (!dom) return { root: syntheticBlankDocument() };
         const root = dom.getDocument();
+        assertDomReplyGraph(root);
         stripAttributeNamespaceSidecars(root);
         annotateIframeFrameIds(root, target);
         return { root };
@@ -87,6 +89,7 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       if (ps) {
         try {
           const r = await session.call.getDocument({});
+          assertDomReplyGraph(r);
           annotateIframeFrameIds(r.root, target);
           return { nodes: r.root ? [r.root] : [] };
         } catch (err) {
@@ -98,6 +101,7 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
         const dom = ensureTargetDom(target);
         if (!dom) return { nodes: [syntheticBlankDocument()] };
         const root = dom.getDocument();
+        assertDomReplyGraph(root);
         stripAttributeNamespaceSidecars(root);
         annotateIframeFrameIds(root, target);
         return { nodes: [root] };
@@ -114,6 +118,7 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
         node = r?.node ?? null;
       }
       if (!node) return {};
+      assertDomReplyGraph(node);
       const nodes = childNodesForRebind(node) ?? [];
       ctx.emit({
         method: "DOM.setChildNodes",
@@ -170,7 +175,9 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       if (ps) {
         const objectId = req.params?.objectId;
         const args = id != null ? { nodeId: id } : typeof objectId === "string" ? { objectId } : {};
-        return await session.call.describeNode(args);
+        const reply = await session.call.describeNode(args);
+        assertDomReplyGraph(reply);
+        return reply;
       }
       const dom = requireDom(target);
       if (id == null) {
@@ -178,15 +185,17 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
           node: { nodeId: 0, nodeType: 1, nodeName: "", localName: "", nodeValue: "" },
         };
       }
+      let node: unknown;
       try {
-        const node: unknown = dom.nodeInfo(id);
-        stripAttributeNamespaceSidecars(node);
-        return { node };
+        node = dom.nodeInfo(id);
       } catch {
         return {
           node: { nodeId: 0, nodeType: 1, nodeName: "", localName: "", nodeValue: "" },
         };
       }
+      assertDomReplyGraph(node);
+      stripAttributeNamespaceSidecars(node);
+      return { node };
     }
 
     case "DOM.resolveNode": {
@@ -395,6 +404,49 @@ function requireDom(target: TargetState): NonNullable<TargetState["dom"]> {
   return dom;
 }
 
+// A DOM reply is page-shaped data the engine walks and then JSON-serializes to the CDP
+// client. Shared references make that walk exponential, so a reply must be a plain tree.
+// 2^20 entries: a CDP node has at least nine fields, so this reply is >64 MiB of JSON,
+// four times the 16 MiB document cap; only a document of empty tags could reach it.
+const MAX_DOM_REPLY_NODES = 1 << 20;
+// Deeper than any real document, and JSON.stringify recurses once per level.
+const MAX_DOM_REPLY_DEPTH = 512;
+
+function rejectDomReply(reason: string): Error {
+  return new Error(`DOM reply from the page isolate ${reason}`);
+}
+
+function assertDomReplyGraph(root: unknown): void {
+  if (!isCdpRecord(root)) return;
+  const seen = new WeakSet<object>();
+  const stack: Array<{ node: object; depth: number }> = [{ node: root, depth: 0 }];
+  let entries = 0;
+  while (stack.length > 0) {
+    const frame = stack.pop();
+    if (!frame) continue;
+    const { node, depth } = frame;
+    if (seen.has(node)) throw rejectDomReply("repeats an object reference");
+    seen.add(node);
+    if (depth > MAX_DOM_REPLY_DEPTH) throw rejectDomReply("nests too deeply");
+    const isArray = Array.isArray(node);
+    if (isArray) {
+      entries += node.length;
+      if (entries > MAX_DOM_REPLY_NODES) throw rejectDomReply("is too large");
+    }
+    for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(node))) {
+      if (isArray && key === "length") continue;
+      if (descriptor.get !== undefined || descriptor.set !== undefined) {
+        throw rejectDomReply("has an accessor");
+      }
+      entries += 1;
+      if (entries > MAX_DOM_REPLY_NODES) throw rejectDomReply("is too large");
+      if (isCdpRecord(descriptor.value)) {
+        stack.push({ node: descriptor.value, depth: isArray ? depth : depth + 1 });
+      }
+    }
+  }
+}
+
 function annotateIframeFrameIds(root: unknown, target: TargetState): void {
   const byOwner = new Map<number, string>();
   for (const f of target.frames.values()) {
@@ -402,27 +454,20 @@ function annotateIframeFrameIds(root: unknown, target: TargetState): void {
       byOwner.set(f.ownerBackendNodeId, f.frameId);
     }
   }
-  if (byOwner.size === 0 || !root || typeof root !== "object") return;
-  const walk = (n: {
-    nodeName?: string;
-    backendNodeId?: number;
-    frameId?: string;
-    children?: unknown[];
-  }): void => {
-    if (
-      n.nodeName === "IFRAME" &&
-      typeof n.backendNodeId === "number" &&
-      byOwner.has(n.backendNodeId)
-    ) {
-      n.frameId = byOwner.get(n.backendNodeId);
+  if (byOwner.size === 0 || !isCdpRecord(root)) return;
+  const visited = new WeakSet<object>();
+  const stack: unknown[] = [root];
+  while (stack.length > 0) {
+    const n = stack.pop();
+    if (!isCdpRecord(n) || visited.has(n)) continue;
+    visited.add(n);
+    if (n.nodeName === "IFRAME" && typeof n.backendNodeId === "number") {
+      const frameId = byOwner.get(n.backendNodeId);
+      if (frameId !== undefined) n.frameId = frameId;
     }
-    if (Array.isArray(n.children)) {
-      for (const c of n.children) {
-        if (c && typeof c === "object") walk(c as typeof n);
-      }
-    }
-  };
-  walk(root as Parameters<typeof walk>[0]);
+    const children = n.children;
+    if (Array.isArray(children)) for (const child of children) stack.push(child);
+  }
 }
 
 function isCdpRecord(value: unknown): value is Record<string, unknown> {
@@ -430,17 +475,17 @@ function isCdpRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function stripAttributeNamespaceSidecars(node: unknown): void {
-  if (!isCdpRecord(node)) return;
-  delete node.attributeNamespaces;
-  const childNodes = node.children;
-  if (Array.isArray(childNodes)) {
-    const children: unknown[] = childNodes;
-    for (const child of children) stripAttributeNamespaceSidecars(child);
-  }
-  const shadowRoots = node.shadowRoots;
-  if (Array.isArray(shadowRoots)) {
-    const roots: unknown[] = shadowRoots;
-    for (const root of roots) stripAttributeNamespaceSidecars(root);
+  const visited = new WeakSet<object>();
+  const stack: unknown[] = [node];
+  while (stack.length > 0) {
+    const n = stack.pop();
+    if (!isCdpRecord(n) || visited.has(n)) continue;
+    visited.add(n);
+    delete n.attributeNamespaces;
+    const childNodes = n.children;
+    if (Array.isArray(childNodes)) for (const child of childNodes) stack.push(child);
+    const shadowRoots = n.shadowRoots;
+    if (Array.isArray(shadowRoots)) for (const root of shadowRoots) stack.push(root);
   }
 }
 
@@ -684,7 +729,9 @@ function scheduleChildRebinds(ctx: DispatchCtx, target: TargetState, parentIds: 
           const r = await stubQueryDom(pageScript, "nodeSubtree", {
             nodeId: id,
           });
-          return { id, node: r?.node ?? null };
+          const node = r?.node ?? null;
+          assertDomReplyGraph(node);
+          return { id, node };
         } catch {
           return { id, node: null };
         }
