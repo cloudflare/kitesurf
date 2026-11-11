@@ -1026,18 +1026,18 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       out: Response,
       buffered: ArrayBuffer | null,
     ): Promise<Response> => {
-      const shell = (extra?: Record<string, string>): Response =>
-        new Response(null, {
-          status: out.status,
-          statusText: out.statusText,
-          headers: extra ?? {},
-        });
+      const shell = (ok: boolean, extra?: Record<string, string>): Response =>
+        new Response(null, { status: ok ? 200 : 404, statusText: "", headers: extra ?? {} });
+      if (!out.ok) {
+        if (buffered === null) void out.body?.cancel().catch(() => {});
+        return shell(false);
+      }
       let body = buffered;
       if (body === null) {
         const capped = await readCapped(out.body, MAX_ENTRY_BYTES);
         if (!capped.bytes) {
           void capped.rest.cancel();
-          return shell();
+          return shell(false);
         }
         body = capped.bytes.buffer;
       }
@@ -1049,11 +1049,11 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
             `[ks-outbound] resource-type Image on a non-image body: ${forwardRequest.url}`,
           );
         }
-        return shell();
+        return shell(false);
       }
       const key = putOpaqueImage(bytes, connectionId, props?.mainFrameId ?? "");
-      if (!key) return shell();
-      return shell({
+      if (!key) return shell(false);
+      return shell(true, {
         [RESOURCE_KEY_HEADER]: key.toString(),
         [IMAGE_WIDTH_HEADER]: String(dims.width),
         [IMAGE_HEIGHT_HEADER]: String(dims.height),
