@@ -19,7 +19,7 @@ use crossterm::{
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
 use std::{
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
     env::var_os,
     fs::{DirBuilder, OpenOptions},
     io::{self, Write},
@@ -467,6 +467,20 @@ impl ReplayState {
             raster_time: Duration::ZERO,
             retained_frames: false,
         }
+    }
+
+    fn paint_pending(
+        &mut self,
+        raster: &mut Raster,
+        w: u16,
+        h: u16,
+        display: bool,
+        size: &DisplaySize,
+    ) -> Result<()> {
+        if let Some(frame) = self.pending.take() {
+            self.paint(raster, &frame, w, h, display, size)?;
+        }
+        Ok(())
     }
 
     fn paint(
@@ -1032,29 +1046,37 @@ impl Drop for Terminal {
     }
 }
 
-async fn fonts(
-    cache: &FontCache,
-    raster: &mut Raster,
-    diagnostics: &mut Diagnostics,
-) -> Result<()> {
+/// Validated font paths awaiting a fetch, deduplicated per path: one put resolves every hash
+/// aliased to a path, so the snapshot's duplicate hashes must not become repeated loads.
+pub(crate) fn queue_pending_fonts(raster: &mut Raster) -> Result<VecDeque<String>> {
     let pending = raster.run(OP_PENDING_FONTS, &[])?;
+    let mut seen = HashSet::new();
+    let mut queue = VecDeque::new();
     for asset in serde_json::from_slice::<Vec<FontAsset>>(&pending)? {
         if !asset.path.starts_with("/fonts/") || asset.path.contains("..") {
             continue;
         }
-        let bytes = cache.get(&asset.path, diagnostics).await?;
-        let path_len = u32::try_from(asset.path.len())?;
-        diagnostics.log(format!(
-            "loaded {} font bytes for {}",
-            bytes.len(),
-            asset.path
-        ));
-        let mut data = Vec::with_capacity(4 + asset.path.len() + bytes.len());
-        data.extend_from_slice(&path_len.to_le_bytes());
-        data.extend_from_slice(asset.path.as_bytes());
-        data.extend_from_slice(&bytes);
-        raster.run(OP_PUT_FONT, &data)?;
+        if seen.insert(asset.path.clone()) {
+            queue.push_back(asset.path);
+        }
     }
+    Ok(queue)
+}
+
+pub(crate) async fn load_font(
+    cache: &FontCache,
+    raster: &mut Raster,
+    diagnostics: &mut Diagnostics,
+    path: &str,
+) -> Result<()> {
+    let bytes = cache.get(path, diagnostics).await?;
+    let path_len = u32::try_from(path.len())?;
+    diagnostics.log(format!("loaded {} font bytes for {path}", bytes.len()));
+    let mut data = Vec::with_capacity(4 + path.len() + bytes.len());
+    data.extend_from_slice(&path_len.to_le_bytes());
+    data.extend_from_slice(path.as_bytes());
+    data.extend_from_slice(&bytes);
+    raster.run(OP_PUT_FONT, &data)?;
     Ok(())
 }
 
@@ -1308,6 +1330,7 @@ pub async fn play(
     memory_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut pending_memory: Option<(u64, Instant)> = None;
     let mut scenes = 0u64;
+    let mut font_queue: VecDeque<String> = VecDeque::new();
     let deadline = seconds.map(|duration| start + duration);
     loop {
         if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
@@ -1415,16 +1438,9 @@ pub async fn play(
                         let resources = base64::engine::general_purpose::STANDARD.decode(batch)?;
                         raster.run(OP_PUT_RESOURCES, &resources)?;
                         retire_unavailable_images(&mut raster)?;
-                        fonts(&font_cache, &mut raster, &mut diagnostics).await?;
-                        if let Some(frame) = replay.pending.take() {
-                            replay.paint(
-                                &mut raster,
-                                &frame,
-                                w,
-                                h,
-                                display,
-                                display_size.as_ref().unwrap_or(&fallback_size),
-                            )?;
+                        font_queue = queue_pending_fonts(&mut raster)?;
+                        if font_queue.is_empty() {
+                            replay.paint_pending(&mut raster, w, h, display, display_size.as_ref().unwrap_or(&fallback_size))?;
                         }
                     }
                     continue;
@@ -1460,16 +1476,9 @@ pub async fn play(
                     RESOURCE_MESSAGE => {
                         raster.run(OP_PUT_RESOURCES, &bytes[FRAME_HEADER_BYTES..])?;
                         retire_unavailable_images(&mut raster)?;
-                        fonts(&font_cache, &mut raster, &mut diagnostics).await?;
-                        if let Some(frame) = replay.pending.take() {
-                            replay.paint(
-                                &mut raster,
-                                &frame,
-                                w,
-                                h,
-                                display,
-                                display_size.as_ref().unwrap_or(&fallback_size),
-                            )?;
+                        font_queue = queue_pending_fonts(&mut raster)?;
+                        if font_queue.is_empty() {
+                            replay.paint_pending(&mut raster, w, h, display, display_size.as_ref().unwrap_or(&fallback_size))?;
                         }
                     }
                     SCENE_MESSAGE | PARTIAL_MESSAGE => {
@@ -1554,6 +1563,15 @@ pub async fn play(
                 }
             }, if scene_stall_at.is_some() => return Err(SCENE_STREAM_STALLED.into()),
             _ = tokio::time::sleep(DEADLINE_POLL_INTERVAL), if deadline.is_some() => {}
+            // One queued path per iteration: a fetch never delays input, Ctrl-C or the timers
+            // above by more than itself, and the pending frame paints once the queue drains.
+            _ = std::future::ready(()), if !font_queue.is_empty() => {
+                let path = font_queue.pop_front().expect("checked non-empty font queue");
+                load_font(&font_cache, &mut raster, &mut diagnostics, &path).await?;
+                if font_queue.is_empty() {
+                    replay.paint_pending(&mut raster, w, h, display, display_size.as_ref().unwrap_or(&fallback_size))?;
+                }
+            }
         }
     }
     drop(_terminal);
