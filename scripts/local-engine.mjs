@@ -21,6 +21,9 @@ const MINIFLARE_VARS = [
   "KITESURF_LAG_WATCHDOG:1",
   "KITESURF_OTLP_ENDPOINT:http://127.0.0.1:4318/v1/traces",
 ];
+// The upstream suites serve from loopback and load it from blank pages, which the engine counts
+// as public documents; Chrome leaves a blank page the client opened unrestricted.
+const SUITE_SERVER_VAR = "KITESURF_ALLOW_PRIVATE_NETWORK:1";
 
 const ALL_STOPS = new Set();
 function cleanupAll() {
@@ -131,6 +134,7 @@ export function localEngines({ tag, launcher, dist, outDir, firstPort, skipBuild
             "--inspector-port",
             String(iport),
           ];
+    cliArgs.push("--var", SUITE_SERVER_VAR);
     if (process.env.KITESURF_SIMULATE_PROD_EVAL)
       cliArgs.push("--var", "KITESURF_SIMULATE_PROD_EVAL:1");
     mkdirSync(outDir, { recursive: true });
