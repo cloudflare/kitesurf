@@ -23,6 +23,7 @@ import { effectiveExtraHeaders } from "./network.ts";
 import { privateNetworkRefusal } from "../eval/private-network.ts";
 import { getInterception, interceptionMatches } from "./fetch-interception.ts";
 import { walkRedirects } from "../eval/redirect-walk.ts";
+import { MAX_CONCURRENT_READ_BYTES, MAX_STYLESHEET_BYTES, readCappedText } from "../read-capped.ts";
 
 import type { Protocol } from "devtools-protocol";
 
@@ -411,6 +412,7 @@ function emitStyleSheetChanged(ctx: DispatchCtx, target: TargetState, styleSheet
 
 // A failed fetch is cached until `failedUntil` so repeated enumerations do not refetch it.
 const opaqueSheetText = new Map<string, { text: string; hops: string[]; failedUntil?: number }>();
+let opaqueSheetTextBytes = 0;
 const OPAQUE_SHEET_TEXT_MAX = 32;
 const OPAQUE_SHEET_FETCH_CAP = 12;
 const OPAQUE_SHEET_FETCH_TIMEOUT_MS = 5_000;
@@ -474,22 +476,46 @@ async function fetchOpaqueSheetText(
     if (cached !== undefined) {
       const fresh = cached.failedUntil === undefined || Date.now() < cached.failedUntil;
       if (fresh && cachedSheetAdmissible(ctx, target, cached.hops)) return cached.text;
-      opaqueSheetText.delete(cacheKey);
+      dropOpaqueSheetText(cacheKey);
     }
   }
   const result = await fetchSheetOnce(ctx, target, url, cookieKey);
   if (cacheable && !sheetIntercepted(ctx.connectionId, result.hops)) {
-    if (opaqueSheetText.size >= OPAQUE_SHEET_TEXT_MAX) {
-      const oldest = opaqueSheetText.keys().next().value;
-      if (oldest !== undefined) opaqueSheetText.delete(oldest);
-    }
-    opaqueSheetText.set(cacheKey, {
+    storeOpaqueSheetText(cacheKey, {
       text: result.text ?? "",
       hops: result.hops,
       ...(result.text === null ? { failedUntil: Date.now() + OPAQUE_SHEET_FAILURE_TTL_MS } : {}),
     });
   }
   return result.text ?? "";
+}
+
+function dropOpaqueSheetText(cacheKey: string): void {
+  const entry = opaqueSheetText.get(cacheKey);
+  if (entry === undefined) return;
+  opaqueSheetTextBytes -= 2 * entry.text.length;
+  opaqueSheetText.delete(cacheKey);
+}
+
+// Cached UTF-16 storage counts against the shared in-flight read ceiling; oldest entries go first.
+function storeOpaqueSheetText(
+  cacheKey: string,
+  entry: { text: string; hops: string[]; failedUntil?: number },
+): void {
+  dropOpaqueSheetText(cacheKey);
+  const textBytes = 2 * entry.text.length;
+  if (textBytes > MAX_CONCURRENT_READ_BYTES) return;
+  while (
+    opaqueSheetText.size > 0 &&
+    (opaqueSheetText.size >= OPAQUE_SHEET_TEXT_MAX ||
+      opaqueSheetTextBytes + textBytes > MAX_CONCURRENT_READ_BYTES)
+  ) {
+    const oldest = opaqueSheetText.keys().next().value;
+    if (oldest === undefined) break;
+    dropOpaqueSheetText(oldest);
+  }
+  opaqueSheetText.set(cacheKey, entry);
+  opaqueSheetTextBytes += textBytes;
 }
 
 // Fetches the sheet once; `text` is null when it failed. `hops` is the chain it walked.
@@ -529,7 +555,8 @@ async function fetchSheetOnce(
       void walk.response.body?.cancel().catch(() => {});
       return { text: null, hops };
     }
-    return { text: await walk.response.text(), hops };
+    const got = await readCappedText(walk.response, MAX_STYLESHEET_BYTES, ctx.connectionId);
+    return { text: got.ok ? got.text : null, hops };
   } catch {
     return { text: null, hops };
   }
