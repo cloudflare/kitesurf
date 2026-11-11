@@ -36,6 +36,7 @@ import {
 } from "./page-script-rpc-session.ts";
 import { traceSpan, type Tracer } from "../tracing.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
+import { MAX_DOCUMENT_BYTES } from "../read-capped.ts";
 import { attributionTails, type AttributionTailExports } from "./attribution-tail.ts";
 import { makeWallClock, type HostClock } from "./host-clock.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
@@ -504,6 +505,22 @@ export function originOf(url: string): string {
   }
 }
 
+const VALUE_SIZE_LIMIT_TEXT = "Runtime result exceeds the value size limit";
+
+// True when text is at most MAX_DOCUMENT_BYTES UTF-8 bytes. A UTF-16 unit encodes to at most
+// 3 bytes, so only long text needs its code points counted.
+export function valueJsonWithinLimit(text: string): boolean {
+  if (text.length > MAX_DOCUMENT_BYTES) return false;
+  if (text.length * 3 <= MAX_DOCUMENT_BYTES) return true;
+  let bytes = 0;
+  for (const ch of text) {
+    const cp = ch.codePointAt(0) ?? 0;
+    bytes += cp <= 0x7f ? 1 : cp <= 0x7ff ? 2 : cp <= 0xffff ? 3 : 4;
+    if (bytes > MAX_DOCUMENT_BYTES) return false;
+  }
+  return true;
+}
+
 export function pageScriptResultToCdp(
   res: PackedResult | PackedException,
   returnByValue: boolean,
@@ -543,7 +560,26 @@ export function pageScriptResultToCdp(
     res.type === "bigint" ||
     res.type === "undefined";
   const wantValue = isPrimitiveType || returnByValue;
-  if (wantValue && res.valueJson !== undefined) {
+  // The page realm can replace JSON.stringify, so the reply's value text may not be a string.
+  if (wantValue && typeof res.valueJson === "string") {
+    if (!valueJsonWithinLimit(res.valueJson)) {
+      const error: Protocol.Runtime.RemoteObject = {
+        type: "object",
+        subtype: "error",
+        className: "Error",
+        description: VALUE_SIZE_LIMIT_TEXT,
+      };
+      return {
+        result: error,
+        exceptionDetails: {
+          exceptionId: 1,
+          text: VALUE_SIZE_LIMIT_TEXT,
+          lineNumber: 0,
+          columnNumber: 0,
+          exception: error,
+        },
+      };
+    }
     try {
       remote.value = JSON.parse(res.valueJson);
     } catch {}
@@ -587,7 +623,7 @@ function consoleArgToRemote(arg: PackedResult): Protocol.Runtime.RemoteObject {
   if (arg.subtype) remote.subtype = arg.subtype;
   if (typeof arg.className === "string" && arg.className) remote.className = arg.className;
   if (typeof arg.description === "string") remote.description = arg.description;
-  if (arg.valueJson !== undefined) {
+  if (typeof arg.valueJson === "string" && valueJsonWithinLimit(arg.valueJson)) {
     try {
       remote.value = JSON.parse(arg.valueJson);
     } catch {}

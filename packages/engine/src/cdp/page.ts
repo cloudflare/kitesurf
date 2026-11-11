@@ -101,6 +101,7 @@ import {
   originOf as pageScriptOriginOf,
   type PageScriptInitTimings,
   type PageScriptStub,
+  valueJsonWithinLimit,
 } from "../eval/page-script.ts";
 import { registerIsolateLimitListener, type IsolateLimitNotice } from "../eval/limit-registry.ts";
 import {
@@ -454,6 +455,7 @@ function consoleArgumentText(value: unknown): string {
   if (typeof description === "string" && description) return description;
   const valueJson = "valueJson" in value ? value.valueJson : undefined;
   if (typeof valueJson === "string" && valueJson) {
+    if (!valueJsonWithinLimit(valueJson)) return "[value exceeds size limit]";
     try {
       const parsed: unknown = JSON.parse(valueJson);
       return typeof parsed === "string" ? parsed : (JSON.stringify(parsed) ?? "");
