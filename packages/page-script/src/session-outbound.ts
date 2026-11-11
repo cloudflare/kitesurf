@@ -5,7 +5,14 @@
 // Routes page and dedicated-worker fetches through the session-owned engine stub.
 
 import type { SessionOutbound, SessionOutboundRequest } from "@kitesurf/jsrpc-types/page-script";
-import { hdrEntries, hdrHas, hdrSet, newHeaders } from "./native-http.ts";
+import {
+  hdrEntries,
+  hdrHas,
+  hdrSet,
+  newHeaders,
+  responseHeaders,
+  responseUrl,
+} from "./native-http.ts";
 
 export type OutboundStub = Rpc.Stub<SessionOutbound>;
 
@@ -46,7 +53,9 @@ function applyCacheMode(headers: Headers, cache: string): void {
 }
 
 function withRequestUrl(response: Response, url: string): void {
-  if (response.url) return;
+  // Captured accessors only: a redirect shell still carries its Location and must never
+  // reach a page-installed getter.
+  if (responseUrl(response)) return;
   const hash = url.indexOf("#");
   const value = hash === -1 ? url : url.slice(0, hash);
   try {
@@ -59,7 +68,8 @@ function immutableHeadersError(): never {
 }
 
 function freezeHeaders(response: Response): void {
-  const headers = response.headers;
+  const headers = responseHeaders(response);
+  if (!headers) return;
   for (const name of ["append", "set", "delete"]) {
     Object.defineProperty(headers, name, {
       value: immutableHeadersError,

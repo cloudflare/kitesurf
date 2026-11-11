@@ -6,6 +6,7 @@
 
 import { isDisallowedError } from "./defer-shim.ts";
 import {
+  cancelResponseBody,
   hdrAppend,
   hdrDelete,
   hdrEntries,
@@ -15,6 +16,8 @@ import {
   newHeaders,
   responseHeaderGet,
   responseHeaders,
+  responseStatus,
+  responseText,
 } from "./native-http.ts";
 import { ksGlobal, ksGlobalByKey, state } from "./state.ts";
 import { takeTrustedRequestMeta } from "./trusted-fetch.ts";
@@ -574,7 +577,7 @@ const STATUS_CARRIER = 599;
 function restoreCarriedStatus(response: Response): Response {
   const carried = responseHeaderGet(response, CARRIED_STATUS_HEADER);
   if (carried === null) return response;
-  const authentic = response.status === STATUS_CARRIER;
+  const authentic = responseStatus(response) === STATUS_CARRIER;
   const actualStatus = authentic ? Number(carried) : NaN;
   const visibleHeaders = newHeaders();
   for (const [name, value] of hdrEntries(responseHeaders(response))) {
@@ -707,7 +710,7 @@ function redirectDowngradesToGet(status: number, method: string): boolean {
 }
 
 function opaqueRedirect(response: Response): Response {
-  const opaqueResponse = new Response(null, { status: response.status, statusText: "" });
+  const opaqueResponse = new Response(null, { status: responseStatus(response), statusText: "" });
   try {
     Object.defineProperty(opaqueResponse, "type", {
       value: "opaqueredirect",
@@ -720,13 +723,14 @@ function opaqueRedirect(response: Response): Response {
 
 async function throwIfBlocked(response: Response): Promise<void> {
   const blockedReason = responseHeaderGet(response, "x-kitesurf-blocked");
-  if (response.status === 403 && blockedReason) {
-    const detail = await response.text();
-    try {
-      console.error(detail);
-    } catch {}
-    if (blockedReason === "cors") throw new TypeError("Failed to fetch");
-    throw new TypeError(detail);
+  if (responseStatus(response) === 403 && blockedReason) {
+    // A CORS block rejects before any body read, and its diagnostic names the blocked
+    // target: never hand it to a page-visible console callback.
+    if (blockedReason === "cors") {
+      cancelResponseBody(response);
+      throw new TypeError("Failed to fetch");
+    }
+    throw new TypeError(await responseText(response));
   }
 }
 
@@ -752,7 +756,7 @@ async function followRedirects(
   let keepBody = true;
 
   for (;;) {
-    const isRedirect = REDIRECT_STATUSES.indexOf(response.status) !== -1;
+    const isRedirect = REDIRECT_STATUSES.indexOf(responseStatus(response)) !== -1;
     if (isRedirect && redirectMode === "manual") {
       return { response: opaqueRedirect(response), url: currentUrl, hops, tainting };
     }
@@ -804,7 +808,7 @@ async function followRedirects(
     if (tainting === "cors" && redirectTarget.origin !== currentHopOrigin) opaqueOrigin = true;
     if (redirectTarget.origin !== currentHopOrigin) hdrDelete(headers, "authorization");
 
-    if (redirectDowngradesToGet(response.status, method)) {
+    if (redirectDowngradesToGet(responseStatus(response), method)) {
       method = "GET";
       delete init.body;
       keepBody = false;
@@ -1034,15 +1038,14 @@ export function installFetchShim(): void {
       response = await realFetch(resolved, mergedInit);
     }
     const blockedReason = responseHeaderGet(response, "x-kitesurf-blocked");
-    if (response.status === 403 && blockedReason) {
-      const detail = await response.text();
-      try {
-        console.error(detail);
-      } catch {}
+    if (responseStatus(response) === 403 && blockedReason) {
+      // See followRedirects: CORS rejects before the body is read, and no page-visible
+      // console callback receives the diagnostic.
       if (blockedReason === "cors") {
+        cancelResponseBody(response);
         throw new TypeError("Failed to fetch");
       }
-      throw new TypeError(detail);
+      throw new TypeError(await responseText(response));
     }
     const hopStart = requestUrlString(resolved, inputRequest);
     const followed = await followRedirects(realFetch, response, hopStart, {

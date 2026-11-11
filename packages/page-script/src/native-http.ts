@@ -29,6 +29,58 @@ const nativeResponseHeaders = (() => {
   }
 })();
 
+const nativeResponseStatus = (() => {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      globalThis.Response?.prototype ?? {},
+      "status",
+    );
+    return typeof descriptor?.get === "function" ? descriptor.get : undefined;
+  } catch {
+    return undefined;
+  }
+})();
+
+const nativeResponseUrl = (() => {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis.Response?.prototype ?? {}, "url");
+    return typeof descriptor?.get === "function" ? descriptor.get : undefined;
+  } catch {
+    return undefined;
+  }
+})();
+
+const nativeResponseBody = (() => {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      globalThis.Response?.prototype ?? {},
+      "body",
+    );
+    return typeof descriptor?.get === "function" ? descriptor.get : undefined;
+  } catch {
+    return undefined;
+  }
+})();
+
+const nativeResponseText = (() => {
+  try {
+    const text = globalThis.Response?.prototype?.text;
+    return typeof text === "function" ? text : undefined;
+  } catch {
+    return undefined;
+  }
+})();
+
+const nativeStreamCancel = (() => {
+  try {
+    if (typeof ReadableStream !== "function") return undefined;
+    const cancel = ReadableStream.prototype.cancel;
+    return typeof cancel === "function" ? cancel : undefined;
+  } catch {
+    return undefined;
+  }
+})();
+
 type HeadersArg = ConstructorParameters<typeof Headers>[0];
 
 export function newHeaders(init?: HeadersArg): Headers {
@@ -100,4 +152,41 @@ export function responseHeaders(response: Response | null): Headers | null {
 
 export function responseHeaderGet(response: Response | null, name: string): string | null {
   return hdrGet(responseHeaders(response), name);
+}
+
+// Status, url and body reads never fall back to the page-replaceable property: an engine
+// response may still carry a cross-origin Location the page must not observe, and a
+// page-installed getter would run with that response as its receiver. A missing capture
+// fails the fetch closed instead.
+function nativeResponseRead<T>(getter: (() => unknown) | undefined, response: Response): T {
+  if (!getter) throw new TypeError("Failed to fetch");
+  try {
+    return nativeApply(getter, response, []) as T;
+  } catch {
+    throw new TypeError("Failed to fetch");
+  }
+}
+
+export function responseStatus(response: Response): number {
+  return nativeResponseRead<number>(nativeResponseStatus, response);
+}
+
+export function responseUrl(response: Response): string {
+  return String(nativeResponseRead<string | null>(nativeResponseUrl, response) ?? "");
+}
+
+export async function responseText(response: Response): Promise<string> {
+  if (!nativeResponseText) throw new TypeError("Failed to fetch");
+  return (await nativeApply(nativeResponseText, response, [])) as string;
+}
+
+/** Drop an engine response's body without handing it to a page callback. */
+export function cancelResponseBody(response: Response): void {
+  try {
+    if (!nativeResponseBody || !nativeStreamCancel) return;
+    const body: unknown = nativeApply(nativeResponseBody, response, []);
+    if (!body) return;
+    const cancelled = nativeApply(nativeStreamCancel, body, []) as Promise<void> | undefined;
+    if (cancelled && typeof cancelled.catch === "function") void cancelled.catch(() => {});
+  } catch {}
 }
