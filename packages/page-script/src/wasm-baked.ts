@@ -6,6 +6,7 @@
 
 import { bakedWasm, manifest, emptyModule } from "./__ks_wasm_registry.js";
 import type { BakedWasmModule } from "./__ks_wasm_registry.js";
+import { sha256HexSync } from "./sha256.ts";
 import { state } from "./state.ts";
 
 const EMPTY_WASM = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
@@ -87,8 +88,14 @@ export function matchWasmByBytesSync(src: unknown): BakedWasmModule | null {
   if (u8.length === EMPTY_WASM.length && bytesEqual(u8, Uint8Array.from(EMPTY_WASM))) {
     return emptyModule;
   }
-  for (const e of fingerprintCandidates(u8)) {
+  const candidates = fingerprintCandidates(u8);
+  if (candidates.length === 0) return null;
+  // The prefilter shares size and both edges; confirm the complete bytes by
+  // digest, which this synchronous path cannot compute with crypto.subtle.
+  const digest = sha256HexSync(u8);
+  for (const e of candidates) {
     if (e.bytes && !bytesEqual(e.bytes, u8)) continue;
+    if (e.sha256 !== digest) continue;
     return bakedWasm[e.url] ?? null;
   }
   return null;
