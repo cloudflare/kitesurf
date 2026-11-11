@@ -114,17 +114,32 @@ test("an http worker loads from the page origin and fetches through the gateway"
 // A worker runs with its creator's origin, so a cross-origin hop of its script fetch would supply
 // source the engine still treats as the creator's own.
 const WORKER_REDIRECT_PAGE = "http://127.0.0.1:8787/__fixtures/worker-host.html";
+const WORKER_ORIGIN = "http://127.0.0.1:8787";
 const FOREIGN_WORKER_ORIGIN = "https://ks-alt.invalid";
 
 const workerRedirectCases = [
   {
     name: "a same-origin worker script redirect still loads",
-    to: "http://127.0.0.1:8787",
+    to: WORKER_ORIGIN,
     allowed: true,
   },
   {
     name: "a cross-origin worker script redirect is refused before the hop",
     to: FOREIGN_WORKER_ORIGIN,
+    allowed: false,
+  },
+  {
+    name: "a redirect that leaves the creator origin is refused before the foreign hop",
+    to: WORKER_ORIGIN,
+    via: FOREIGN_WORKER_ORIGIN,
+    allowed: false,
+  },
+  {
+    // A page that replaces URL's origin getter gets past an in-page origin check, so the
+    // redirect check must not read the page's URL.
+    name: "a page-replaced URL origin cannot widen a worker script redirect",
+    to: FOREIGN_WORKER_ORIGIN,
+    poison: true,
     allowed: false,
   },
 ];
@@ -133,20 +148,40 @@ for (const testCase of workerRedirectCases) {
   test(testCase.name, async ({ page }) => {
     await page.goto(WORKER_REDIRECT_PAGE, { waitUntil: "domcontentloaded" });
     const key = Math.random().toString(36).slice(2);
-    const target = `${testCase.to}/__fixtures/worker-hop/${key}.js`;
+    const terminal = `${testCase.to}/__fixtures/worker-hop/${key}.js`;
+    const target = testCase.via
+      ? `${testCase.via}/__fixtures/worker-hop-back?key=${key}&to=${encodeURIComponent(terminal)}`
+      : terminal;
+    const start = "/__fixtures/cors-redirect?to=" + encodeURIComponent(target);
+    const poison = testCase.poison
+      ? `var pageOrigin = new NativeURL(location.href).origin;
+         var descriptor = Object.getOwnPropertyDescriptor(NativeURL.prototype, "origin");
+         Object.defineProperty(NativeURL.prototype, "origin", {
+           configurable: true,
+           get: function () { return pageOrigin; },
+         });
+         var restore = function () {
+           Object.defineProperty(NativeURL.prototype, "origin", descriptor);
+         };`
+      : "var restore = function () {};";
     const outcome = (await page.evaluate(`
       new Promise(function (resolve) {
-        var w = new Worker(
-          "/__fixtures/cors-redirect?to=" + encodeURIComponent(${JSON.stringify(target)})
-        );
-        w.onmessage = function (e) { resolve({ message: e.data }); };
-        w.onerror = function () { resolve({ error: true }); };
+        var NativeURL = URL;
+        ${poison}
+        var w = new Worker(${JSON.stringify(start)});
+        w.onmessage = function (e) { restore(); resolve({ message: e.data }); };
+        w.onerror = function () { restore(); resolve({ error: true }); };
       })
     `)) as { message?: string; error?: boolean };
     const hits = (await page.evaluate(
-      `fetch("/__fixtures/worker-hop-hits/${key}").then((r) => r.json()).then((b) => b.hits)`,
-    )) as number;
-    expect(hits, "requests the redirect hop received").toBe(testCase.allowed ? 1 : 0);
+      `Promise.all([${JSON.stringify(`/__fixtures/worker-hop-hits/${key}`)},
+        ${JSON.stringify(`/__fixtures/worker-hop-hits/back-${key}`)}]
+        .map((u) => fetch(u).then((r) => r.json()).then((b) => b.hits)))`,
+    )) as number[];
+    expect(hits, "requests the redirect target and the foreign hop received").toEqual([
+      testCase.allowed ? 1 : 0,
+      0,
+    ]);
     expect(outcome).toEqual(testCase.allowed ? { message: `hop:${key}` } : { error: true });
   });
 }
