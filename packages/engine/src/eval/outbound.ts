@@ -533,6 +533,12 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       ? credentialsMode !== "omit"
       : credentialsMode === "include";
     let sendCredentials = credentialsMode === null || credentialsInclude;
+    if (pageRealm && credentialsMode === null) {
+      // A page-realm sender that names no mode gets fetch's default ("same-origin"), so only a
+      // same-origin hop carries jar cookies. The engine realm's own egress sends them either way.
+      credentialsInclude = sameOrigin;
+      sendCredentials = sameOrigin;
+    }
 
     // Classify author headers before buildForwardRequest adds browser-owned headers.
     let authorUnsafeHeaders = needsCorsCheck ? corsUnsafeRequestHeaderNames(request.headers) : [];
@@ -820,6 +826,11 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
             ? credentialsMode !== "omit"
             : credentialsMode === "include";
           sendCredentials = credentialsMode === null || credentialsInclude;
+          if (pageRealm && credentialsMode === null) {
+            // Same default as the first hop: the page realm's uncarried mode is "same-origin".
+            credentialsInclude = stillSameOrigin;
+            sendCredentials = stillSameOrigin;
+          }
           if (!sendCredentials) forwardRequest.headers.delete("cookie");
         }
         // Recompute from author headers, not browser headers added to forwardRequest.
