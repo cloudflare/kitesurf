@@ -1188,7 +1188,7 @@ fn boa_intrinsic_ctor_name(o: &JsObject, ctx: &Context) -> Option<&'static str> 
 // Snapshot constructors mapped to Boa; read other globals, including DOMException, live.
 fn v8_intrinsic(name: &str) -> Option<JsValue> {
     if let Some(i) = INTRINSIC_CTOR_NAMES.iter().position(|n| *n == name) {
-        return v8_intrinsics().0[i].clone();
+        return v8_intrinsics().ctors[i].clone();
     }
     let v = Reflect::get(&js_sys::global(), &JsValue::from_str(name)).ok()?;
     v.is_function().then_some(v)
@@ -1199,7 +1199,7 @@ fn v8_intrinsic_ctor_name(v: &JsValue) -> Option<&'static str> {
     if !v.is_function() {
         return None;
     }
-    let i = v8_intrinsics().1.get(v).as_f64()?;
+    let i = v8_intrinsics().by_fn.get(v).as_f64()?;
     INTRINSIC_CTOR_NAMES.get(i as usize).copied()
 }
 
@@ -1255,12 +1255,35 @@ fn v8_key(key: &str) -> JsValue {
     v
 }
 
-type V8Intrinsics = (Vec<Option<JsValue>>, js_sys::Map);
+struct V8Intrinsics {
+    // Indexed like INTRINSIC_CTOR_NAMES.
+    ctors: Vec<Option<JsValue>>,
+    // Constructor identity -> index in INTRINSIC_CTOR_NAMES. globals.ts swaps
+    // globalThis.Function for a wrapper, so this also holds the realm's real Function, which
+    // page code reaches through the wrapper (`fn.constructor`).
+    by_fn: js_sys::Map,
+    // Intrinsic prototype identity -> index in INTRINSIC_CTOR_NAMES. Read once, before page
+    // code can install getters, so mapping a prototype is one Map.get: no V8 excursion (which
+    // re-arms the DOM fast path) and no page getter on the property path.
+    by_proto: js_sys::Map,
+}
 
 thread_local! {
     // Read once per isolate: every function crossing used to do 24 global reads
     // through the window proxy, ~45% of a bridged `document.getElementById`.
     static V8_INTRINSICS: RefCell<Option<Rc<V8Intrinsics>>> = const { RefCell::new(None) };
+}
+
+// Own data-property read. An accessor has no own `value`, so this never runs page code, which
+// the intrinsic snapshot cannot allow: a page getter would run before the realm is captured.
+fn own_data_value(o: &JsValue, key: &str) -> Option<JsValue> {
+    let desc: Object =
+        Reflect::get_own_property_descriptor(o.unchecked_ref::<Object>(), &JsValue::from_str(key))
+            .ok()?
+            .dyn_into()
+            .ok()?;
+    let value = Reflect::get(&desc, &JsValue::from_str("value")).ok()?;
+    (!value.is_undefined()).then_some(value)
 }
 
 // The first bridge use fixes the realm's intrinsics, so a global a page swaps
@@ -1271,7 +1294,7 @@ fn v8_intrinsics() -> Rc<V8Intrinsics> {
     }
     let global = js_sys::global();
     let by_fn = js_sys::Map::new();
-    let fns = INTRINSIC_CTOR_NAMES
+    let ctors: Vec<Option<JsValue>> = INTRINSIC_CTOR_NAMES
         .iter()
         .enumerate()
         .map(|(i, name)| {
@@ -1285,7 +1308,33 @@ fn v8_intrinsics() -> Rc<V8Intrinsics> {
             Some(v)
         })
         .collect();
-    let snapshot = Rc::new((fns, by_fn));
+    let by_proto = js_sys::Map::new();
+    for (i, ctor) in ctors.iter().enumerate() {
+        let Some(proto) = ctor.as_ref().and_then(|c| own_data_value(c, "prototype")) else {
+            continue;
+        };
+        if !by_proto.has(&proto) {
+            by_proto.set(&proto, &JsValue::from(i as u32));
+        }
+    }
+    // globals.ts sets the wrapper's `prototype` to the realm's real Function.prototype, whose
+    // `constructor` is the real Function. Register it too: page code writing through
+    // `document.createElement.constructor.prototype` must reach boa's Function, not V8's.
+    if let Some(i) = INTRINSIC_CTOR_NAMES.iter().position(|n| *n == "Function") {
+        let real = ctors[i]
+            .as_ref()
+            .and_then(|wrapper| own_data_value(wrapper, "prototype"))
+            .and_then(|proto| own_data_value(&proto, "constructor"))
+            .filter(|v| v.is_function());
+        if let Some(real) = real.filter(|v| !by_fn.has(v)) {
+            by_fn.set(&real, &JsValue::from(i as u32));
+        }
+    }
+    let snapshot = Rc::new(V8Intrinsics {
+        ctors,
+        by_fn,
+        by_proto,
+    });
     V8_INTRINSICS.with(|c| c.borrow_mut().get_or_insert(snapshot).clone())
 }
 
@@ -1316,6 +1365,39 @@ fn boa_intrinsic_ctor(name: &str, ctx: &Context) -> Option<JsObject> {
         "SyntaxError" => c.syntax_error().constructor(),
         "ReferenceError" => c.reference_error().constructor(),
         "URIError" => c.uri_error().constructor(),
+        _ => return None,
+    })
+}
+
+// boa's own intrinsic prototype. Read off the intrinsic constructor instead of its `prototype`
+// property so a page patch of that property cannot change the mapping.
+fn boa_intrinsic_prototype(name: &str, ctx: &Context) -> Option<JsObject> {
+    let c = ctx.intrinsics().constructors();
+    Some(match name {
+        "Object" => c.object().prototype(),
+        "Array" => c.array().prototype(),
+        "Function" => c.function().prototype(),
+        "String" => c.string().prototype(),
+        "Number" => c.number().prototype(),
+        "Boolean" => c.boolean().prototype(),
+        "Date" => c.date().prototype(),
+        "RegExp" => c.regexp().prototype(),
+        "Map" => c.map().prototype(),
+        "Set" => c.set().prototype(),
+        "WeakMap" => c.weak_map().prototype(),
+        "WeakSet" => c.weak_set().prototype(),
+        "WeakRef" => c.weak_ref().prototype(),
+        "Promise" => c.promise().prototype(),
+        "Symbol" => c.symbol().prototype(),
+        "BigInt" => c.bigint().prototype(),
+        "ArrayBuffer" => c.array_buffer().prototype(),
+        "DataView" => c.data_view().prototype(),
+        "Error" => c.error().prototype(),
+        "TypeError" => c.type_error().prototype(),
+        "RangeError" => c.range_error().prototype(),
+        "SyntaxError" => c.syntax_error().prototype(),
+        "ReferenceError" => c.reference_error().prototype(),
+        "URIError" => c.uri_error().prototype(),
         _ => return None,
     })
 }
@@ -1717,6 +1799,11 @@ fn v8_object_to_boa(v: JsValue, ctx: &mut Context) -> BoaValue {
         }
     }
     if v.is_function() {
+        // Function.prototype is callable, so the identity check has to precede the proxy: a
+        // proxied one hands page code a write path into the V8 realm's own intrinsics.
+        if let Some(proto) = boa_intrinsic_prototype_for(&v, ctx) {
+            return proto.into();
+        }
         return v8_fn_to_boa_proxy(&v, None, ctx).into();
     }
     if let Some(o) = v8_boa_cache_get(&v).and_then(weak_boa_get) {
@@ -1727,6 +1814,14 @@ fn v8_object_to_boa(v: JsValue, ctx: &mut Context) -> BoaValue {
             }
         }
         return o.into();
+    }
+    // A bridged object's `__proto__` answers with a V8 intrinsic prototype; map it to boa's own
+    // (the table getPrototypeOf uses) so a write through it stays in this realm. The proxy cache
+    // above never holds one, because this check runs before anything is cached.
+    if v.is_object() {
+        if let Some(proto) = boa_intrinsic_prototype_for(&v, ctx) {
+            return proto.into();
+        }
     }
     let handle = pin(v.clone());
     let proxy = make_v8_proxy(handle, None, false, ctx);
@@ -1831,6 +1926,13 @@ fn v8_property_to_boa(
                 return object.into();
             }
         }
+        // Intrinsic prototypes cross as plain property values too (`fn.prototype`, a descriptor
+        // value), and Function.prototype is callable, so the identity check must precede the
+        // proxy: otherwise a write through it lands on the V8 realm's own Function.prototype,
+        // which the shim's own `Function.prototype.apply` calls depend on.
+        if let Some(proto) = boa_intrinsic_prototype_for(&value, ctx) {
+            return proto.into();
+        }
         let is_dom_exception_constructor = key
             .is_some_and(|key| matches!(key, "constructor" | "DOMException"))
             && v8_intrinsic("DOMException").is_some_and(|ctor| Object::is(&value, &ctor));
@@ -1922,59 +2024,11 @@ fn trap_get_prototype_of(
     Ok(v8_node_to_boa(proto, ctx))
 }
 
-thread_local! {
-    // V8 prototype -> its index in INTRINSIC_CTOR_NAMES, or -1. Neither answer can change, so a
-    // prototype walk probes each prototype once; a WeakMap lookup runs no page code.
-    static PROTO_VERDICTS: RefCell<Option<js_sys::WeakMap>> = const { RefCell::new(None) };
-}
-
-fn boa_intrinsic_prototype_for(
-    proto: &wasm_bindgen::JsValue,
-    ctx: &mut Context,
-) -> Option<JsObject> {
-    let verdicts = PROTO_VERDICTS.with(|c| {
-        c.borrow_mut()
-            .get_or_insert_with(js_sys::WeakMap::new)
-            .clone()
-    });
-    let key: &js_sys::Object = proto.unchecked_ref();
-    let index = match verdicts.get(key).as_f64() {
-        Some(index) => index,
-        None => {
-            // A probe that threw is not cached, so a passing getter error cannot stick.
-            let index = probe_intrinsic_index(proto, ctx)
-                .ok()?
-                .map_or(-1.0, |i| i as f64);
-            verdicts.set(key, &wasm_bindgen::JsValue::from_f64(index));
-            index
-        }
-    };
-    if index < 0.0 {
-        return None;
-    }
-    let name = INTRINSIC_CTOR_NAMES.get(index as usize)?;
-    boa_intrinsic_ctor(name, ctx)?
-        .get(js_string!("prototype"), ctx)
-        .ok()?
-        .as_object()
-}
-
-// Some(index) when `proto` is the prototype of a V8 intrinsic constructor.
-fn probe_intrinsic_index(
-    proto: &wasm_bindgen::JsValue,
-    ctx: &mut Context,
-) -> Result<Option<usize>, ()> {
-    let ctor =
-        with_v8(ctx, || js_sys::Reflect::get(proto, &v8_key("constructor"))).map_err(|_| ())?;
-    let Some(name) = v8_intrinsic_ctor_name(&ctor) else {
-        return Ok(None);
-    };
-    let ctor_proto =
-        with_v8(ctx, || js_sys::Reflect::get(&ctor, &v8_key("prototype"))).map_err(|_| ())?;
-    if !js_sys::Object::is(&ctor_proto, proto) {
-        return Ok(None);
-    }
-    Ok(INTRINSIC_CTOR_NAMES.iter().position(|n| *n == name))
+// Identity lookup against the snapshot taken at v8_intrinsics(): no V8 excursion, so no
+// arm_v8_ran() revalidation of the DOM fast path, and no page getter on a property read.
+fn boa_intrinsic_prototype_for(proto: &wasm_bindgen::JsValue, ctx: &Context) -> Option<JsObject> {
+    let index = v8_intrinsics().by_proto.get(proto).as_f64()?;
+    boa_intrinsic_prototype(INTRINSIC_CTOR_NAMES.get(index as usize)?, ctx)
 }
 
 fn trap_has(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<BoaValue> {
