@@ -65,6 +65,8 @@ export function loadWasmBytesFromVfs(filename = "kitesurf_core_bg.wasm"): ArrayB
 }
 
 export interface PageScriptStub extends PageScriptSession {
+  /** Identity this isolate stamps into its Runtime handles and compiled-script ids. */
+  isolateStamp?: string;
   close?(reason?: string): void;
   killIsolate?(reason?: string, opts?: { atOnce?: boolean }): Promise<unknown> | void;
   setUpstreamEventHandler?(handler: UpstreamEventHandler | null): void;
@@ -227,6 +229,8 @@ export function getOrCreatePageScript({
   // Authenticates the child's [ks-err] engine error channel (see engine-errors.ts
   // parseKsErrLine): page JS can spoof console prefixes, not this.
   const tailToken = crypto.randomUUID();
+  // Routes Runtime handles and compiled-script ids back to the isolate that minted them.
+  const isolateStamp = crypto.randomUUID();
 
   const html = typeof startupInput.html === "string" ? startupInput.html : null;
   const url = typeof startupInput.url === "string" ? startupInput.url : null;
@@ -402,7 +406,7 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
   const workerEntrypoint: PageScriptEntrypointStub = stub.getEntrypoint<PageScriptEntrypoint>(
     "PageScript",
     {
-      props: { KS_TAIL_TOKEN: tailToken },
+      props: { KS_TAIL_TOKEN: tailToken, KS_ISOLATE_STAMP: isolateStamp },
     },
   );
   // The RPC adapter needs promises; the local entrypoint contract is synchronous.
@@ -427,7 +431,7 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
         }
       }
     : spanWrap;
-  return openPageScriptRpcSession(entrypoint, {
+  const session = openPageScriptRpcSession(entrypoint, {
     now: makeWallClock(env),
     outbound: sandboxOutbound.session(outboundProps),
     wallCapMs: caps.wallMs > 0 ? caps.wallMs : undefined,
@@ -435,6 +439,8 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
     getTraceParent: tracer ? () => tracer.getSpanContext()?.spanId ?? null : undefined,
     wrapOpen,
   });
+  session.isolateStamp = isolateStamp;
+  return session;
 }
 
 export interface PageScriptInitTimings {

@@ -7,8 +7,21 @@
 const __handles = new Map<string, unknown>();
 let __handleSeq = 0;
 
+// Stamped into every handle and compiled-script id so the engine can route an id back to the
+// isolate that minted it. Isolates start with independent sequences, so bare `ps:N` collides.
+// Global scope cannot generate random values, so the engine sets this when the session opens.
+let __isolateStamp = "";
+
+export function setIsolateStamp(stamp: unknown): void {
+  if (typeof stamp === "string" && stamp) __isolateStamp = stamp;
+}
+
+function stampedId(prefix: string, seq: number): string {
+  return __isolateStamp ? `${prefix}:${__isolateStamp}:${seq}` : `${prefix}:${seq}`;
+}
+
 export function mintHandle(value: unknown): string {
-  const id = "ps:" + ++__handleSeq;
+  const id = stampedId("ps", ++__handleSeq);
   __handles.set(id, value);
   return id;
 }
@@ -31,7 +44,7 @@ const __compiledScripts = new Map<string, CompiledScript>();
 let __compiledScriptSeq = 0;
 
 export function compileScriptEntry(source: string, sourceURL: string): string {
-  const scriptId = "cs:" + ++__compiledScriptSeq;
+  const scriptId = stampedId("cs", ++__compiledScriptSeq);
   __compiledScripts.set(scriptId, { source, sourceURL });
   return scriptId;
 }

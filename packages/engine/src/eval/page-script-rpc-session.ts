@@ -77,6 +77,7 @@ function settleTeardownWithin(promise: Promise<unknown>): Promise<void> {
 }
 
 export class PageScriptRpcSession implements PageScriptStub {
+  isolateStamp?: string;
   private entrypoint: RpcSessionEntrypoint;
   private sessionReady: Promise<RpcSessionCallable>;
   private session: RpcSessionCallable | null = null;
