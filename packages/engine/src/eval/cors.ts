@@ -6,6 +6,16 @@
 
 export type CredentialsMode = "omit" | "same-origin" | "include";
 
+// A script's crossorigin attribute is an HTML enumerated attribute: its keywords are ASCII
+// case-insensitive and values are not trimmed, so "USE-CREDENTIALS" asks for credentials too.
+export function scriptCredentialsMode(
+  crossOrigin: string | null | undefined,
+): "include" | "same-origin" {
+  return crossOrigin != null && crossOrigin.toLowerCase() === "use-credentials"
+    ? "include"
+    : "same-origin";
+}
+
 const SAFELISTED_RESPONSE_HEADERS = new Set([
   "cache-control",
   "content-language",

@@ -18,6 +18,7 @@ import {
 import type { ParentScriptDescriptor } from "../wasm.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
+import { scriptCredentialsMode } from "./cors.ts";
 import { walkRedirects } from "./redirect-walk.ts";
 import { MAX_DOCUMENT_BYTES, readCapped } from "../read-capped.ts";
 
@@ -162,6 +163,11 @@ export async function prefetchExternalScripts({
             "x-kitesurf-page-origin": pageOrigin,
             "x-kitesurf-allow-cross-origin": "1",
             "x-kitesurf-script-cors": scriptCorsMode,
+            // A crossorigin classic script fetches with credentials mode "same-origin" unless it
+            // asks for use-credentials; a plain no-CORS script keeps the browser's include.
+            ...(d.crossOrigin == null
+              ? {}
+              : { "x-kitesurf-credentials": scriptCredentialsMode(d.crossOrigin) }),
           };
           if (connectionId) {
             headers["x-kitesurf-connection-id"] = connectionId;
