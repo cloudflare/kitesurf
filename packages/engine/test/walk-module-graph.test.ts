@@ -22,6 +22,7 @@ import {
 } from "../src/eval/walk-module-graph.ts";
 import type { SandboxOutboundOverride } from "../src/eval/outbound.ts";
 import type { ParentScriptDescriptor, ScannedModulePreload } from "../src/wasm.ts";
+import { bakedJsonModuleName } from "../../page-script/src/baked-module.ts";
 
 const BASE = "https://example.com/js/app.min.js";
 
@@ -85,12 +86,16 @@ describe("extractClassicDynamicSeeds", () => {
     expect(rewritten).toBe(`import("https://example.com/js/cfg.json", { with: { type: "json" } })`);
   });
 
-  it("passes only the specifier expression of a computed import to __ks_import", () => {
+  it("forwards a computed import's options to __ks_import", () => {
     const { rewritten } = extractClassicDynamicSeeds(
       'import(`./${name}.json`, { with: { type: "json" } })',
       BASE,
     );
-    expect(rewritten).toBe("__ks_import(`./${name}.json`, " + JSON.stringify(BASE) + ")");
+    expect(rewritten).toBe(
+      "((s, o) => __ks_import(s, " +
+        JSON.stringify(BASE) +
+        ', o))(`./${name}.json`, { with: { type: "json" } })',
+    );
   });
 });
 
@@ -213,8 +218,8 @@ describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
     );
     const b = extractClassicDynamicSeeds(`{}\n/}/.test(""); import("./c.js");`, other);
     expect(runClassic(a.rewritten, b.rewritten)).toEqual([
-      ["./chunk.js", BASE],
-      ["./c.js", other],
+      ["./chunk.js", BASE, { with: { type: "json" } }],
+      ["./c.js", other, undefined],
     ]);
   });
 
@@ -234,7 +239,9 @@ describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
     expect(seeds).toEqual(["https://example.com/js/a.js"]);
     expect(nativeCalls(rewritten)).toEqual([`import(`]);
     expect(rewritten).toContain(`import("https://example.com/js/a.js")`);
-    expect(runClassic(rewritten.replace(/import\("[^"]*"\);/, ""))).toEqual([["./b.js", BASE]]);
+    expect(runClassic(rewritten.replace(/import\("[^"]*"\);/, ""))).toEqual([
+      ["./b.js", BASE, undefined],
+    ]);
   });
 
   it("sends a call nested in another call to the runtime loader", () => {
@@ -249,7 +256,7 @@ describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
       `{}\n/}/.test(""); const o = { import(x) { return x; } }; import("./x.js");`,
       BASE,
     );
-    expect(runClassic(rewritten)).toEqual([["./x.js", BASE]]);
+    expect(runClassic(rewritten)).toEqual([["./x.js", BASE, undefined]]);
   });
 
   it.each([
@@ -1141,6 +1148,20 @@ describe("import maps", () => {
       yield "https://example.com/log.js?second";
     }
     expect(assignModuleRegistryNames(urls()).size).toBe(2);
+  });
+
+  it("looks a baked JSON record up by its registry name", () => {
+    const requested = "https://example.com/config.json?preview=1";
+    const other = "https://example.com/other.json";
+    const registry = assignModuleRegistryNames([requested, other]);
+    const resolveRegistryUrl = (url: unknown) => registry.get(String(url)) ?? String(url);
+    const bakedJsonNames = new Set([registry.get(requested)!]);
+    // The bake key is the alias, so the requested URL alone never matches it.
+    expect(bakedJsonModuleName(requested, bakedJsonNames, resolveRegistryUrl)).toBe(
+      "https://example.com/config.__ks_query_0.json",
+    );
+    // A URL nothing baked as JSON stays unresolved, so the gate parses it as JSON.
+    expect(bakedJsonModuleName(other, bakedJsonNames, resolveRegistryUrl)).toBeUndefined();
   });
 });
 

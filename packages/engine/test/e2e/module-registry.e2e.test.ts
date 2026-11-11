@@ -44,6 +44,12 @@ test("module graph resolves through the new module registry", async ({ page }) =
       message: "Bare module specifier requires an import map: react",
     },
     fallbackJson: { loader: "boa-fallback" },
+    // A JSON-typed dynamic import of a JavaScript module is refused before it runs; the same
+    // attribute on a baked JSON record still yields its value.
+    jsonTypedJs: expect.stringMatching(
+      /module refused for \S+\/module-registry-live-reader\.js.*JSON/s,
+    ),
+    typedConfig: { greeting: "hello" },
     fallbackMalformed: expect.stringMatching(
       /module refused for \S+\/module-registry-malformed\.json.*SyntaxError/s,
     ),

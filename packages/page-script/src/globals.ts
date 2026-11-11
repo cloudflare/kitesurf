@@ -5,6 +5,7 @@
 // Installs browser-facing globals and adapters in the PageScript realm.
 
 import { resolveImportMap, resolveModuleRegistryUrl } from "./__ks_import_map.js";
+import { bakedJsonModuleName } from "./baked-module.ts";
 import type { BuildDocumentResult, ShimDocument, ShimNavigator, ShimWindow } from "./types.ts";
 import {
   ks_bridge_buffer_bytes,
@@ -32,6 +33,7 @@ import {
 } from "./state.ts";
 import { ensurePaintDom, invalidatePaintDom } from "./paint.ts";
 import { fetchGatedModuleSource } from "./inserted-scripts.ts";
+import { startupJsonModuleUrls } from "./startup-probe.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
 import { indexedDbGlobals } from "./indexeddb.ts";
 import { createScheduler } from "./scheduler.ts";
@@ -40,6 +42,29 @@ import { getBlobMimeType, normalizeBlobType, setBlobMimeType } from "./mime-type
 import { ksInternals } from "./internals.ts";
 
 const MAX_IMAGE_DATA_PIXELS = 4096 * 4096;
+
+// The module URLs this navigate baked as JSON records. Module-private: page code can read the
+// set only through the closures below, so it cannot widen the trusted types.
+const jsonModuleUrls = new Set(startupJsonModuleUrls);
+
+// The requested module type of a dynamic import's options (`{ with: { type } }`). JSON is the
+// only type this runtime supports, and the options are read exactly once.
+function importModuleType(options: unknown): string | undefined {
+  if (options === undefined) return undefined;
+  if (options === null || (typeof options !== "object" && typeof options !== "function")) {
+    throw new TypeError("import options must be an object or undefined");
+  }
+  const attributes = (options as { with?: unknown }).with;
+  if (attributes === undefined) return undefined;
+  if (attributes === null || (typeof attributes !== "object" && typeof attributes !== "function")) {
+    throw new TypeError("the 'with' option must be an object");
+  }
+  const type = (attributes as { type?: unknown }).type;
+  if (type === undefined) return undefined;
+  if (typeof type !== "string") throw new TypeError("import attribute value must be a string");
+  if (type !== "json") throw new TypeError(`Unsupported import attribute type: "${type}"`);
+  return type;
+}
 
 // SVGAnimatedString is absent from the pinned IDL. It is an interface, not a
 // constructor: new SVGAnimatedString() throws, as in Chrome.
@@ -427,20 +452,39 @@ export function installGlobals(
     };
   }
   if (!ksGlobal.__ks_import) {
-    ksGlobal.__ks_import = function (spec: unknown, referrerUrl?: string): unknown {
-      return ks_import(String(spec), referrerUrl || ksGlobal.location?.href || "about:blank");
+    ksGlobal.__ks_import = function (
+      spec: unknown,
+      referrerUrl?: string,
+      options?: unknown,
+    ): unknown {
+      let type: string | undefined;
+      try {
+        type = importModuleType(options);
+      } catch (err) {
+        // import() rejects on bad options; it never throws out of the call.
+        return Promise.reject(err);
+      }
+      return ks_import(String(spec), referrerUrl || ksGlobal.location?.href || "about:blank", type);
     };
   }
   if (!ksInternals.nativeImport) {
-    ksInternals.nativeImport = function (url) {
+    ksInternals.nativeImport = function (url, type) {
+      // A JSON request must not be answered with a baked JavaScript module, so only a record
+      // the navigate baked as JSON may resolve here; anything else goes through the gate, which
+      // parses it as JSON. The bake key is the resolver's registry name, not the requested URL.
+      if (type === "json") {
+        const name = bakedJsonModuleName(url, jsonModuleUrls, resolveModuleRegistryUrl);
+        return name === undefined ? Promise.resolve(undefined) : import(name);
+      }
       return import(resolveModuleRegistryUrl(url));
     };
   }
   if (!ksInternals.fetchModuleSource) {
-    ksInternals.fetchModuleSource = function (url, referrer) {
+    ksInternals.fetchModuleSource = function (url, referrer, type) {
       return fetchGatedModuleSource(
         String(url),
         typeof referrer === "string" ? referrer : undefined,
+        type === "json" ? "json" : undefined,
       );
     };
   }

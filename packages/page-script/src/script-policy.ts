@@ -52,6 +52,7 @@ export interface InsertedScriptMetadata {
   nonce?: string | null;
   body?: string;
   module?: boolean;
+  expectedModuleType?: "json";
 }
 
 async function scriptAllowed(
@@ -210,6 +211,9 @@ async function responseAllowed(
       integrity: meta.integrity ?? null,
       nonce: meta.nonce ?? null,
       module: meta.module === true,
+      ...(meta.expectedModuleType === undefined
+        ? {}
+        : { expectedModuleType: meta.expectedModuleType }),
     },
     response,
   );

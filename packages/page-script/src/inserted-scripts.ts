@@ -213,17 +213,25 @@ function moduleGateAttributes(
   };
 }
 
-export function fetchGatedModuleSource(url: string, referrer?: string): Promise<string> {
+export function fetchGatedModuleSource(
+  url: string,
+  referrer?: string,
+  expectedModuleType?: "json",
+): Promise<string> {
   const attributes = moduleGateAttributes(url, referrer);
   moduleFetchNonces.set(url, attributes.nonce);
   const inline = takeInlineModuleSource(url);
   if (inline !== undefined) return Promise.resolve(inline);
   // A parser entry and a runtime insert at one URL are authorized by different rules, so they
   // never share an in-flight fetch: an insert must not lend 'strict-dynamic' to a parser entry.
-  const key = (attributes.parser ? "parser:" : "inserted:") + url;
+  // A JSON request is a different load too: the gate checks the requested type.
+  const key =
+    (attributes.parser ? "parser:" : "inserted:") +
+    (expectedModuleType === undefined ? "" : `${expectedModuleType}:`) +
+    url;
   let pending = moduleSourceInflight.get(key);
   if (!pending) {
-    pending = fetchGatedModuleSourceOnce(url, attributes)
+    pending = fetchGatedModuleSourceOnce(url, attributes, expectedModuleType)
       .catch((err: unknown) => {
         markModuleFetchFailed(url);
         throw err;
@@ -239,8 +247,15 @@ const moduleSourceInflight = new Map<string, Promise<string>>();
 async function fetchGatedModuleSourceOnce(
   url: string,
   attributes: { nonce: string | null; integrity: string | null; parser: boolean },
+  expectedModuleType?: "json",
 ): Promise<string> {
-  const meta = { url, module: true, nonce: attributes.nonce, integrity: attributes.integrity };
+  const meta = {
+    url,
+    module: true,
+    nonce: attributes.nonce,
+    integrity: attributes.integrity,
+    ...(expectedModuleType === undefined ? {} : { expectedModuleType }),
+  };
   const pre = await (attributes.parser ? parserScriptAllowed(meta) : insertedScriptAllowed(meta));
   // A parser entry was already gated by runModulePhase; this fetch repeats the decision so the
   // source cannot slip past the gate, but reporting it again would duplicate the violation.

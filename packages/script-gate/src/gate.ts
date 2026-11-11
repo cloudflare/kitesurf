@@ -80,7 +80,8 @@ export function scriptGateIsNoop(ctx: ScriptGateContext): boolean {
 }
 
 /** Shared facts for both checks; null URLs mean inline code.
- * `runtimeInserted` selects the CSP strict-dynamic behavior.
+ * `runtimeInserted` selects the CSP strict-dynamic behavior. `expectedModuleType` is the type a
+ * dynamic import requested, which the response MIME must match.
  */
 export interface ScriptGateRequest {
   url: string | null;
@@ -89,6 +90,7 @@ export interface ScriptGateRequest {
   body?: string;
   runtimeInserted?: boolean;
   module?: boolean;
+  expectedModuleType?: ModuleType;
 }
 
 function isPotentiallyTrustworthy(url: URL): boolean {
@@ -299,6 +301,19 @@ export async function checkScriptResponse(
   const url = request.url ?? "";
   const moduleType: ModuleType =
     request.module === true && isModuleMime("json", response.contentType) ? "json" : "javascript";
+
+  // A dynamic import's requested type must match the response, before any body is used: a JSON
+  // request must never receive a JavaScript module.
+  if (request.expectedModuleType !== undefined && request.expectedModuleType !== moduleType) {
+    return {
+      allowed: false,
+      reason: "mime",
+      message:
+        `Failed to load module script: expected a ` +
+        `${request.expectedModuleType === "json" ? "JSON" : "JavaScript"} module script but the ` +
+        `server responded with a MIME type of "${mimeEssence(response.contentType)}" for '${url}'.`,
+    };
+  }
 
   // A script destination never executes image, audio, video or CSV data, nosniff or not.
   if (blockedScriptMime(response.contentType)) {

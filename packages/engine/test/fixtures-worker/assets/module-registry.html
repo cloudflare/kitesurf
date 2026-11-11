@@ -87,6 +87,20 @@ https://opensource.org/licenses/Apache-2.0
   // Boa links this module to the baked library above; its imports must see
   // later writes to the library's `let` exports.
   const liveReader = "live-reader";
+  // A JSON-typed import of a JavaScript module must reject before the module
+  // runs: the loader keys its cache by requested type, so this is not the
+  // plain load below. It rejects rather than throwing, as import() does.
+  result.jsonTypedJs = await import(`./module-registry-${liveReader}.js`, {
+    with: { type: "json" },
+  }).then(
+    (ns) => "loaded:" + typeof ns.read,
+    (e) => String(e),
+  );
+  // The same attribute on a real JSON record still yields its value.
+  const configName = "config";
+  result.typedConfig = (
+    await import(`./module-registry-${configName}.json`, { with: { type: "json" } })
+  ).default;
   const reader = await import(`./module-registry-${liveReader}.js`);
   result.boaLiveCount = [reader.read(), reader.bump(), reader.read()];
   result.done = true;

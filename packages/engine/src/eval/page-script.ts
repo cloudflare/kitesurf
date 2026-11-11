@@ -256,6 +256,12 @@ export function getOrCreatePageScript({
   const wasmBake = startupInput.wasmBake ?? null;
   const moduleScriptUrls = scriptBundle ? scriptBundle.moduleScriptUrls : [];
   const moduleScriptCount = moduleScriptUrls.length;
+  // A baked JSON record's namespace is only trustworthy for an import that asks for JSON.
+  const jsonModuleUrls = scriptBundle
+    ? Object.entries(scriptBundle.additionalModules)
+        .filter(([, baked]) => typeof baked !== "string")
+        .map(([url]) => url)
+    : [];
   const hasClassicRegular = !!(scriptBundle && scriptBundle.classicRegularSource);
   const hasClassicAsync = !!(scriptBundle && scriptBundle.classicAsyncSource);
   const csp = Array.isArray(startupInput.csp) ? startupInput.csp : [];
@@ -275,6 +281,7 @@ export const hasClassicRegular = ${JSON.stringify(hasClassicRegular)};
 export const hasClassicAsync = ${JSON.stringify(hasClassicAsync)};
 export const moduleScriptCount = ${JSON.stringify(moduleScriptCount)};
 export const moduleScriptUrls = ${JSON.stringify(moduleScriptUrls)};
+export const jsonModuleUrls = ${JSON.stringify(jsonModuleUrls)};
 export const cdpDebug = ${JSON.stringify(cdpDebug)};
 export const lagWatchdog = ${JSON.stringify(lagWatchdog)};
 export const pixelFree = ${JSON.stringify(pixelFree)};

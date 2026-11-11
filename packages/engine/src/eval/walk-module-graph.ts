@@ -277,10 +277,27 @@ export function resolveImportMapSpecifier(
 
 type LexedImport = ReturnType<typeof lexerParse>[0][number];
 
+// A dynamic import's whole argument list, verbatim. Its options carry the requested module
+// type, so the runtime loader has to receive them unchanged.
+function dynamicImportArguments(body: string, imp: LexedImport): string {
+  return body.slice(imp.d + 1, imp.se - 1);
+}
+
 function dynamicImportExpression(body: string, imp: LexedImport): string {
   if (imp.a < 0) return body.slice(imp.d + 1, imp.se - 1);
   const withSeparator = body.slice(imp.d + 1, imp.a);
   return withSeparator.slice(0, withSeparator.lastIndexOf(","));
+}
+
+// One dynamic import as a runtime-loader call. Without options only the specifier is passed,
+// as before; with options the whole argument list is forwarded, so nothing is evaluated twice
+// and the requested module type reaches the loader. `spec` is the extracted literal, when any.
+function runtimeImportCall(body: string, imp: LexedImport, ref: string, spec?: string): string {
+  if (imp.a >= 0) {
+    return `((s, o) => __ks_import(s, ${ref}, o))(${dynamicImportArguments(body, imp)})`;
+  }
+  const first = spec === undefined ? dynamicImportExpression(body, imp) : JSON.stringify(spec);
+  return `__ks_import(${first}, ${ref})`;
 }
 
 function nativelyResolvesTo(specifier: string, importer: string, target: string): boolean {
@@ -536,7 +553,7 @@ export function extractClassicDynamicSeeds(
   // Only the keyword is replaced, so a hoisted function per script url passes it as the referrer.
   // A name keeps a method called `import` valid; scripts in one bundle share a scope.
   const callee = `__ks_import_${fnv1aHex(baseUrl)}`;
-  const binding = `\nfunction ${callee}(s) { return __ks_import(s, ${ref}); }`;
+  const binding = `\nfunction ${callee}(s, o) { return __ks_import(s, ${ref}, o); }`;
   // The helper is a bundle-scope function, so a script the page inserts later cannot see it, and
   // renaming `import` inside a string the page builds a script from would leave that script calling
   // a name it cannot reach. Publish the helper on globalThis, which boa shares with the page realm,
@@ -573,22 +590,15 @@ export function extractClassicDynamicSeeds(
     const spec = imp.n ?? constSpecifier(body.slice(imp.s, imp.e));
     if (spec) {
       const resolved = resolveSpecifier(spec, baseUrl);
-      if (!resolved) {
-        b = b.slice(0, imp.ss) + `__ks_import(${JSON.stringify(spec)}, ${ref})` + b.slice(imp.se);
-        continue;
-      }
-      if (!isPageModuleUrl(resolved) && !resolved.startsWith("data:")) {
-        b = b.slice(0, imp.ss) + `__ks_import(${JSON.stringify(spec)}, ${ref})` + b.slice(imp.se);
+      if (!resolved || (!isPageModuleUrl(resolved) && !resolved.startsWith("data:"))) {
+        b = b.slice(0, imp.ss) + runtimeImportCall(body, imp, ref, spec) + b.slice(imp.se);
         continue;
       }
       if (isPageModuleUrl(resolved)) seeds.push(resolved);
       b = b.slice(0, imp.s) + JSON.stringify(resolved) + b.slice(imp.e);
       continue;
     }
-    if (imp.d > -1) {
-      const expr = dynamicImportExpression(body, imp);
-      b = b.slice(0, imp.ss) + `__ks_import(${expr}, ${ref})` + b.slice(imp.se);
-    }
+    if (imp.d > -1) b = b.slice(0, imp.ss) + runtimeImportCall(body, imp, ref) + b.slice(imp.se);
   }
   return { rewritten: unlexed.length > 0 ? withHelper(b) : b, seeds };
 }
@@ -1568,7 +1578,7 @@ export async function walkModuleGraph({
           rewrites.push({
             ss: imp.ss,
             se: imp.se,
-            text: `__ks_import(${JSON.stringify(absolute)}, ${JSON.stringify(base)})`,
+            text: runtimeImportCall(source, imp, JSON.stringify(base), absolute),
           });
           continue;
         }
@@ -1611,12 +1621,16 @@ export async function walkModuleGraph({
       if (imp.t === 2) {
         const spec = imp.n ?? constSpecifier(body.slice(imp.s, imp.e));
         if (!spec && imp.d > -1) {
-          const expr = rewriteImportMetaResolve(
-            dynamicImportExpression(body, imp),
+          const args = rewriteImportMetaResolve(
+            dynamicImportArguments(body, imp),
             responseUrl,
             syntheticImportMeta,
           );
-          rewrites.push({ ss: imp.ss, se: imp.se, text: `__ks_import(${expr}, ${ref})` });
+          const call =
+            imp.a < 0
+              ? `__ks_import(${args}, ${ref})`
+              : `((s, o) => __ks_import(s, ${ref}, o))(${args})`;
+          rewrites.push({ ss: imp.ss, se: imp.se, text: call });
         }
         if (!spec) continue;
 
@@ -1633,7 +1647,7 @@ export async function walkModuleGraph({
         rewrites.push({
           ss: imp.ss,
           se: imp.se,
-          text: `__ks_import(${JSON.stringify(spec)}, ${ref})`,
+          text: runtimeImportCall(body, imp, ref),
         });
         deferredCount++;
         continue;

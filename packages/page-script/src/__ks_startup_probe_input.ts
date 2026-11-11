@@ -30,6 +30,9 @@ export declare const resourceDrainQuietTurns: number;
 export declare const pixelFree: boolean;
 export declare const fontDefer: boolean;
 export declare const moduleScriptUrls: string[];
+// Module URLs the navigate baked as JSON records; the runtime loader may answer only these
+// from the module map when an import requests type "json".
+export declare const jsonModuleUrls: string[];
 export declare const cdpDebug: boolean;
 export declare const lagWatchdog: boolean;
 export declare const csp: string[];
