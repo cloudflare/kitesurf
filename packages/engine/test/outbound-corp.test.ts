@@ -119,6 +119,28 @@ it("hides forbidden headers on a page-realm upgrade and keeps the socket", async
   expect(response.headers.get("set-cookie")).toBeNull();
 });
 
+// Fetch checks CORP against the request's origin. A cross-origin redirect taints the hop's
+// origin header to "null", but a resource on the document's own origin is still same-origin.
+it.each(["same-origin", "same-site"])("admits %s CORP on a same-origin hop", async (policy) => {
+  const response = await gateway(
+    {},
+    new Request("https://page.test/asset", {
+      headers: {
+        "x-kitesurf-page-origin": "null",
+        "x-kitesurf-resource-type": "Script",
+        "x-kitesurf-script-cors": "no-cors",
+        "x-kitesurf-allow-cross-origin": "1",
+      },
+    }),
+    async () =>
+      new Response("page()", {
+        headers: { "cross-origin-resource-policy": policy },
+      }),
+  );
+  expect(response.status).toBe(200);
+  expect(await response.text()).toBe("page()");
+});
+
 it.each(["same-origin", "same-site"])("enforces %s CORP on a tainted script", async (policy) => {
   const response = await SandboxOutbound.handle(
     {} as SandboxOutboundEnv,

@@ -969,10 +969,17 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
     if (corpApplies) {
       const corp = (resp.headers.get("cross-origin-resource-policy") ?? "").trim();
       if (corp === "same-origin" || corp === "same-site") {
+        // CORP names the document's own origin. A tainted redirect hop's "null" origin header
+        // only makes the Origin header opaque; it must not move the resource-policy origin.
+        const corpPageOrigin = sealed
+          ? props.pageOrigin === "null"
+            ? ""
+            : (props.pageOrigin ?? "")
+          : pageOrigin;
         let corpBlocked = true;
         try {
           const corpTarget = new URL(forwardRequest.url);
-          const pageU = new URL(pageOrigin);
+          const pageU = new URL(corpPageOrigin);
           if (originKey(corpTarget) === originKey(pageU)) {
             corpBlocked = false;
           } else {
