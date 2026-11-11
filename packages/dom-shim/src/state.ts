@@ -106,6 +106,12 @@ export interface ListenerEntry {
 export interface BuildDocumentOpts {
   pageUrl: string;
   initialCookieString: string;
+  /** The document's origin is opaque, because its sandbox omits allow-same-origin. */
+  opaqueOrigin?: boolean;
+  /** A form submission may navigate, because the document's sandbox allows forms. */
+  formsAllowed?: boolean;
+  /** The document may navigate the top-level frame, because its sandbox allows it. */
+  topNavigationAllowed?: boolean;
   doctypeMarker?: string | null;
   userAgent?: string | null;
   referrer?: string;
@@ -161,6 +167,9 @@ export let dom!: DomHandle;
 export let pageUrl: string = "";
 export let initialCookieString: string = "";
 export let opts: BuildDocumentOpts | undefined = undefined;
+export let documentOpaqueOrigin: boolean = false;
+export let formsAllowed: boolean = true;
+export let topNavigationAllowed: boolean = true;
 
 export let getCurrentUrl: () => string = () => "";
 export let getDocumentUrl: () => string = () => "";
@@ -573,6 +582,9 @@ export function initState(d: DomHandle, url: string, cookies: string, o?: BuildD
   pageUrl = url;
   initialCookieString = cookies;
   opts = o;
+  documentOpaqueOrigin = o?.opaqueOrigin === true;
+  formsAllowed = o?.formsAllowed !== false;
+  topNavigationAllowed = o?.topNavigationAllowed !== false;
 
   getCurrentUrl = o && typeof o.getCurrentUrl === "function" ? o.getCurrentUrl : () => url;
   // The committed document URL; history and origin checks must not follow a

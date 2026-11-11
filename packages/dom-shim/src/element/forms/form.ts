@@ -14,6 +14,8 @@ import {
   ksGlobal,
   windowObj,
   dom,
+  formsAllowed,
+  topNavigationAllowed,
 } from "../../state.js";
 import { parseUrlForNode, urlencodedSerialize } from "../../text-encoding.js";
 import { dispatchTrustedEvent } from "../../events/dispatch.js";
@@ -318,7 +320,10 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
     return this.__ksPerformSubmission(submitter || null);
   }
   __ksPerformSubmission(submitter: SubmitterLike | null): string | null {
+    // The sandboxed forms flag aborts submission after the submit event has fired.
+    if (!formsAllowed) return null;
     let targetFrame: Element | null = null;
+    let targetsTop = false;
     try {
       const targetAttr =
         submitter && submitter.hasAttribute && submitter.hasAttribute("formtarget")
@@ -330,6 +335,7 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
         targetFrame = namedTargetIframe(this, targetAttr);
         if (!targetFrame) return null;
       }
+      targetsTop = keyword === "_top" || keyword === "_parent";
     } catch (error) {
       try {
         console.warn("[kitesurf-form] target resolution failed", {
@@ -337,6 +343,7 @@ class HTMLFormElement extends HTMLElement implements Idl.HTMLFormElement {
         });
       } catch {}
     }
+    if (targetsTop && !topNavigationAllowed) return null;
     try {
       const submitterHas = (attr: string) =>
         !!(submitter && submitter.hasAttribute && submitter.hasAttribute("form" + attr));

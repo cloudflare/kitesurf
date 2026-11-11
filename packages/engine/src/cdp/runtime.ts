@@ -131,7 +131,7 @@ export function emitOopifExecutionContext(ctx: DispatchCtx, frame: FrameState): 
       params: {
         context: {
           id: frame.execContextId,
-          origin: originOf(frame.url),
+          origin: frame.sandbox.sameOrigin ? originOf(frame.url) : "://",
           name: frame.url,
           uniqueId: `ctx-oopif-${frame.execContextId}`,
           auxData: {
@@ -210,7 +210,7 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
             params: {
               context: {
                 id: f.execContextId,
-                origin: originOf(f.url),
+                origin: f.sandbox.sameOrigin ? originOf(f.url) : "://",
                 name: f.url,
                 uniqueId: `ctx-oopif-${f.execContextId}`,
                 auxData: {

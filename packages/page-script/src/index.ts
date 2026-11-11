@@ -37,6 +37,12 @@ import type {
   WireMeta,
   UnloadReply,
 } from "@kitesurf/jsrpc-types/page-script";
+import {
+  SANDBOX_ALLOW_ALL,
+  intersectSandbox,
+  parseSandboxAttribute,
+  type SandboxRestrictions,
+} from "@kitesurf/script-gate";
 import type { RenderPort as RenderPortContract } from "@kitesurf/jsrpc-types/page-renderer";
 import type { WorkerEventParams } from "@kitesurf/jsrpc-types/dedicated-worker";
 import { deliverWorkerEvent } from "./dedicated-worker.ts";
@@ -126,7 +132,7 @@ import {
   packBoaResult,
   runExpression,
 } from "./eval-helpers.ts";
-import { installFetchShim } from "./fetch-shim.ts";
+import { installFetchShim, pageOriginFromUrl } from "./fetch-shim.ts";
 import { drainEvalResult, type EvalResultBody } from "./eval-results.ts";
 import {
   drainCdpMutations,
@@ -1133,6 +1139,10 @@ function preinstallStaticIframes() {
         resolvedUrl = "about:blank";
       }
     }
+    if (facadeMustBeCrossOrigin(childSandbox(readSandboxAttribute(iframeElement)), resolvedUrl)) {
+      installCrossOriginFacade(iframeElement, resolvedUrl);
+      continue;
+    }
     installPlaceholderContentDocument(iframeElement, resolvedUrl, win, DOMParserConstructor);
   }
 }
@@ -1167,18 +1177,103 @@ function readSrcdoc(iframeEl: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+// Snapshot of the owner's sandbox attribute at a navigation start. Null means no attribute.
+function readSandboxAttribute(iframeEl: unknown): string | null {
+  if (!isObjectRecord(iframeEl)) return null;
+  const getAttribute = iframeEl.getAttribute;
+  if (typeof getAttribute !== "function") return null;
+  const value: unknown = Reflect.apply(getAttribute, iframeEl, ["sandbox"]);
+  return typeof value === "string" ? value : null;
+}
+
+// The child's active restrictions: its own attribute intersected with this document's.
+function childSandbox(sandboxAttribute: string | null): SandboxRestrictions {
+  return intersectSandbox(state.sandbox, parseSandboxAttribute(sandboxAttribute));
+}
+
+function sandboxIsOpaque(sandbox: SandboxRestrictions): boolean {
+  return !sandbox.sameOrigin;
+}
+
+// A child whose origin is opaque, or whose URL is not this document's origin, has no same-origin
+// document to expose. srcdoc and about:blank inherit this document's origin.
+function facadeMustBeCrossOrigin(sandbox: SandboxRestrictions, url: string): boolean {
+  if (sandboxIsOpaque(sandbox)) return true;
+  if (isAboutBlankUrl(url) || url === SRCDOC_URL) return false;
+  let origin = "";
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    return false;
+  }
+  let page = "";
+  try {
+    page = new URL(state.pageUrl).origin;
+  } catch {}
+  return !!(page && origin && page !== origin);
+}
+
+// Installs the cross-origin facade on an iframe: no document, only postMessage forwarding.
+function installCrossOriginFacade(iframeEl: any, url: string): Record<string, unknown> {
+  const contentWindow =
+    iframeEl.__ks_iframeContentWindow ?? __makeCrossOriginContentWindow(iframeEl, url);
+  try {
+    contentWindow.document = null;
+  } catch {}
+  setIframeFacadeLocation(contentWindow, iframeEl, url);
+  iframeEl.__ks_iframeContentDocument = null;
+  iframeEl.__ks_iframeContentWindow = contentWindow;
+  return contentWindow;
+}
+
+// A facade document is parsed in this realm, so an inline handler attribute would compile against
+// the embedder's privileges. A child whose sandbox omits allow-scripts must not carry one.
+function stripInlineHandlers(doc: any): void {
+  let nodes: any[];
+  try {
+    nodes = Array.from(doc.querySelectorAll?.("*") ?? []);
+  } catch {
+    return;
+  }
+  for (const element of nodes) {
+    const names: string[] = [];
+    try {
+      for (const attr of element?.attributes ?? []) {
+        const name = String((attr as { name?: unknown })?.name ?? "");
+        if (/^on/i.test(name)) names.push(name);
+      }
+    } catch {
+      continue;
+    }
+    for (const name of names) {
+      try {
+        element.removeAttribute(name);
+      } catch {}
+    }
+  }
+}
+
 function queueSrcdocLoad(
   iframeEl: object,
   srcdoc: string,
   win: unknown,
   DOMParserConstructor: unknown,
+  sandbox: string | null,
 ): void {
   const pendingLoad = {};
   pendingDocumentLoads.set(iframeEl, pendingLoad);
   Promise.resolve().then(() => {
     if (pendingDocumentLoads.get(iframeEl) !== pendingLoad) return;
     pendingDocumentLoads.delete(iframeEl);
-    void loadDynamicIframe(iframeEl, SRCDOC_URL, win, DOMParserConstructor, srcdoc);
+    void loadDynamicIframe(
+      iframeEl,
+      SRCDOC_URL,
+      win,
+      DOMParserConstructor,
+      srcdoc,
+      undefined,
+      sandbox,
+    );
   });
 }
 
@@ -1192,6 +1287,11 @@ function handleDynamicIframeInsert(iframeEl: any) {
   const DOMParserConstructor = ksGlobal.DOMParser;
   if (!DOMParserConstructor) return;
   const srcdoc = readSrcdoc(iframeEl);
+  // Read the attribute once: the snapshot drives both the restrictions and the reported value.
+  const sandboxAttr = readSandboxAttribute(iframeEl);
+  const sandbox = childSandbox(sandboxAttr);
+  // The Rust DOM paints srcdoc natively; an opaque child must not expose the parsed facade.
+  const srcdocIsOpaque = srcdoc !== null && sandboxIsOpaque(sandbox);
   let src = "";
   try {
     src = String(iframeEl.getAttribute?.("src") ?? "");
@@ -1206,13 +1306,18 @@ function handleDynamicIframeInsert(iframeEl: any) {
       resolvedUrl = "about:blank";
     }
   }
-  installPlaceholderContentDocument(
-    iframeEl,
-    resolvedUrl,
-    win,
-    DOMParserConstructor,
-    "about:blank",
-  );
+  if (facadeMustBeCrossOrigin(sandbox, resolvedUrl)) {
+    // An opaque or cross-origin child has no same-origin facade for this document to expose.
+    installCrossOriginFacade(iframeEl, resolvedUrl);
+  } else {
+    installPlaceholderContentDocument(
+      iframeEl,
+      resolvedUrl,
+      win,
+      DOMParserConstructor,
+      "about:blank",
+    );
+  }
 
   const frameId = mintDynamicFrameId();
   (iframeEl as any).__ks_iframeFrameId = frameId;
@@ -1231,42 +1336,44 @@ function handleDynamicIframeInsert(iframeEl: any) {
       url: resolvedUrl,
       name,
       id,
+      sandbox: sandboxAttr,
     },
   });
 
   if (srcdoc !== null) {
-    queueSrcdocLoad(iframeEl, srcdoc, win, DOMParserConstructor);
+    if (srcdocIsOpaque) {
+      // No child execution context: keep the facade cross-origin and let the native iframe paint.
+      Promise.resolve().then(() => {
+        emitFrameLifecycle(frameId, SRCDOC_URL, sandboxAttr);
+        fireIframeLoad(iframeEl);
+      });
+      return;
+    }
+    queueSrcdocLoad(iframeEl, srcdoc, win, DOMParserConstructor, sandboxAttr);
     return;
   }
   if (isAboutBlankUrl(resolvedUrl) || !src) {
-    emitFrameLifecycle(frameId, "about:blank");
+    emitFrameLifecycle(frameId, "about:blank", sandboxAttr);
     fireIframeLoad(iframeEl);
     return;
   }
-  let pageOrigin = "";
-  try {
-    pageOrigin = new URL(state.pageUrl).origin;
-  } catch {}
-  let frameOrigin = "";
-  try {
-    frameOrigin = new URL(resolvedUrl).origin;
-  } catch {}
-  if (pageOrigin && frameOrigin && pageOrigin !== frameOrigin) {
+  if (facadeMustBeCrossOrigin(sandbox, resolvedUrl)) {
     Promise.resolve().then(() => {
-      const contentWindow =
-        iframeEl.__ks_iframeContentWindow ?? __makeCrossOriginContentWindow(iframeEl, resolvedUrl);
-      try {
-        contentWindow.document = null;
-      } catch {}
-      setIframeFacadeLocation(contentWindow, iframeEl, resolvedUrl);
-      iframeEl.__ks_iframeContentDocument = null;
-      iframeEl.__ks_iframeContentWindow = contentWindow;
-      emitFrameLifecycle(frameId, resolvedUrl);
+      installCrossOriginFacade(iframeEl, resolvedUrl);
+      emitFrameLifecycle(frameId, resolvedUrl, sandboxAttr);
       fireIframeLoad(iframeEl);
     });
     return;
   }
-  loadDynamicIframe(iframeEl, resolvedUrl, win, DOMParserConstructor);
+  loadDynamicIframe(
+    iframeEl,
+    resolvedUrl,
+    win,
+    DOMParserConstructor,
+    undefined,
+    undefined,
+    sandboxAttr,
+  );
 }
 
 function handleIframeSrcChange(iframeEl: any, urlOverride?: string, post?: IframePost) {
@@ -1278,8 +1385,22 @@ function handleIframeSrcChange(iframeEl: any, urlOverride?: string, post?: Ifram
   if (!DOMParserConstructor) return;
   const isLocationNavigation = typeof urlOverride === "string" && urlOverride.length > 0;
   const srcdoc = isLocationNavigation ? null : readSrcdoc(iframeEl);
+  // Snapshot the owner attribute now: a later attribute change applies only to the next
+  // navigation.
+  const sandboxAttr = readSandboxAttribute(iframeEl);
+  const sandbox = childSandbox(sandboxAttr);
   if (srcdoc !== null) {
-    queueSrcdocLoad(iframeEl, srcdoc, win, DOMParserConstructor);
+    if (sandboxIsOpaque(sandbox)) {
+      // No child execution context: keep the facade cross-origin and let the native iframe paint.
+      const frameId = (iframeEl as any).__ks_iframeFrameId;
+      installCrossOriginFacade(iframeEl, SRCDOC_URL);
+      Promise.resolve().then(() => {
+        emitFrameLifecycle(frameId, SRCDOC_URL, sandboxAttr);
+        fireIframeLoad(iframeEl);
+      });
+      return;
+    }
+    queueSrcdocLoad(iframeEl, srcdoc, win, DOMParserConstructor, sandboxAttr);
     return;
   }
   let src = "";
@@ -1300,29 +1421,12 @@ function handleIframeSrcChange(iframeEl: any, urlOverride?: string, post?: Ifram
     }
   }
   const frameId = (iframeEl as any).__ks_iframeFrameId;
-  let pageOrigin = "";
-  try {
-    pageOrigin = new URL(state.pageUrl).origin;
-  } catch {}
-  let frameOrigin = "";
-  try {
-    frameOrigin = new URL(resolvedUrl).origin;
-  } catch {}
   const isCrossOriginNav =
-    !!(pageOrigin && frameOrigin && pageOrigin !== frameOrigin) &&
-    !isAboutBlankUrl(resolvedUrl) &&
-    !!src;
+    facadeMustBeCrossOrigin(sandbox, resolvedUrl) && !isAboutBlankUrl(resolvedUrl) && !!src;
   if (isCrossOriginNav) {
-    const contentWindow =
-      iframeEl.__ks_iframeContentWindow ?? __makeCrossOriginContentWindow(iframeEl, resolvedUrl);
-    try {
-      contentWindow.document = null;
-    } catch {}
-    setIframeFacadeLocation(contentWindow, iframeEl, resolvedUrl);
-    iframeEl.__ks_iframeContentDocument = null;
-    iframeEl.__ks_iframeContentWindow = contentWindow;
+    installCrossOriginFacade(iframeEl, resolvedUrl);
     Promise.resolve().then(() => {
-      emitFrameLifecycle(frameId, resolvedUrl);
+      emitFrameLifecycle(frameId, resolvedUrl, sandboxAttr);
       fireIframeLoad(iframeEl);
     });
     return;
@@ -1341,12 +1445,12 @@ function handleIframeSrcChange(iframeEl: any, urlOverride?: string, post?: Ifram
     Promise.resolve().then(() => {
       if (pendingDocumentLoads.get(iframeEl) !== pendingLoad) return;
       pendingDocumentLoads.delete(iframeEl);
-      emitFrameLifecycle(frameId, resolvedUrl);
+      emitFrameLifecycle(frameId, resolvedUrl, sandboxAttr);
       fireIframeLoad(iframeEl);
     });
     return;
   }
-  loadDynamicIframe(iframeEl, resolvedUrl, win, DOMParserConstructor, undefined, post);
+  loadDynamicIframe(iframeEl, resolvedUrl, win, DOMParserConstructor, undefined, post, sandboxAttr);
 }
 
 // The referrer a frame navigation from this document to `url` carries,
@@ -1459,6 +1563,7 @@ async function loadDynamicIframe(
   DOMParserConstructor: any,
   srcdoc?: string,
   post?: IframePost,
+  sandboxAttr?: string | null,
 ) {
   let html = "";
   let characterSet = "UTF-8";
@@ -1523,6 +1628,8 @@ async function loadDynamicIframe(
     }
   }
   if (newDoc) {
+    // A facade parsed in this realm must not carry an inline handler from a script-disabled child.
+    if (!childSandbox(sandboxAttr ?? null).scripts) stripInlineHandlers(newDoc);
     try {
       Object.defineProperty(newDoc, "_baseUrl", {
         value:
@@ -1581,13 +1688,16 @@ async function loadDynamicIframe(
     }
   }
   const frameId = (iframeEl as any).__ks_iframeFrameId;
-  emitFrameLifecycle(frameId, finalUrl);
+  emitFrameLifecycle(frameId, finalUrl, sandboxAttr);
   fireIframeLoad(iframeEl);
 }
 
-function emitFrameLifecycle(frameId: unknown, url: string): void {
+function emitFrameLifecycle(frameId: unknown, url: string, sandbox?: string | null): void {
   if (typeof frameId !== "string") return;
-  sendUpstreamEvent({ event: "kitesurf.frameNavigated", params: { frameId, url } });
+  sendUpstreamEvent({
+    event: "kitesurf.frameNavigated",
+    params: { frameId, url, sandbox: sandbox ?? null },
+  });
   sendUpstreamEvent({
     event: "kitesurf.frameLifecycle",
     params: { frameId, name: "DOMContentLoaded" },
@@ -2952,6 +3062,10 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     }
     state.pageUrl = safeUrl;
     state.documentUrl = safeUrl;
+    // The engine carries the effective sandbox restrictions for this committed document. A
+    // missing set on a main frame grants every capability.
+    state.sandbox = navigateOptions?.sandbox ?? SANDBOX_ALLOW_ALL;
+    state.documentOrigin = state.sandbox.sameOrigin ? pageOriginFromUrl(safeUrl) : "";
     // Every navigation resets the gate's cache, including one to the same URL.
     setNavigationScriptPolicy(navigateOptions?.scriptPolicy);
     state.lastForceRestyleSeq = -1;
@@ -3079,7 +3193,10 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     const built = ksSpan("dom.build_document", null, () =>
       buildDocument(navigateDom, {
         pageUrl: safeUrl,
-        initialCookieString: initialCookies,
+        initialCookieString: state.sandbox.sameOrigin ? initialCookies : "",
+        opaqueOrigin: !state.sandbox.sameOrigin,
+        formsAllowed: state.sandbox.forms,
+        topNavigationAllowed: state.sandbox.topNavigation,
         doctypeMarker: marker,
         userAgent: startupUserAgent,
         referrer: startupReferrer,
@@ -3493,7 +3610,10 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     let scriptCount = 0;
     let legacyPlan: ReturnType<typeof planScripts> | null = null;
 
-    if (useBundle) {
+    if (!state.sandbox.scripts) {
+      // Without allow-scripts the document still parses, lays out and fires lifecycle events.
+      bundleExec.push("sandbox:scripts-disabled");
+    } else if (useBundle) {
       if (startupHasClassicRegular) {
         bundleExec.push("classic:start");
         const scriptStartedAt = nowMs();
@@ -3633,7 +3753,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       };
 
       emitNavigateDiagnostic("start", "async_scripts");
-      if (useBundle) {
+      if (useBundle && state.sandbox.scripts) {
         if (startupHasClassicAsync) {
           try {
             const mod = (await importModule("./__ks_user_classic_async.js")) as {
@@ -4122,21 +4242,23 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   }
 
   async installIframeContent(params: IframeContentParams): Promise<OkReply> {
-    const { ownerBackendNodeId, html, url, failed, frameId, mimeType, crossOrigin } = params ?? {};
+    const {
+      ownerBackendNodeId,
+      html,
+      url,
+      baseUrl,
+      failed,
+      frameId,
+      mimeType,
+      crossOrigin,
+      sandbox,
+    } = params ?? {};
     const iframeElement = state.resolveNodeId?.(ownerBackendNodeId);
     if (!iframeElement || String(iframeElement.tagName || "").toLowerCase() !== "iframe") {
       return { ok: true };
     }
     if (crossOrigin === true) {
-      const existingWindow = (iframeElement as any).__ks_iframeContentWindow;
-      const win =
-        existingWindow ??
-        __makeCrossOriginContentWindow(iframeElement, typeof url === "string" ? url : "");
-      try {
-        win.document = null;
-      } catch {}
-      (iframeElement as any).__ks_iframeContentDocument = null;
-      (iframeElement as any).__ks_iframeContentWindow = win;
+      installCrossOriginFacade(iframeElement, typeof url === "string" ? url : "");
       (iframeElement as any).__ks_iframeFrameId = frameId;
       fireIframeLoad(iframeElement);
       return { ok: true };
@@ -4170,6 +4292,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         const parserMime = pickDomParserMime(mimeType);
         contentDoc = parser.parseFromString(sourceHtml, parserMime);
         if (contentDoc) (contentDoc as any)._mutable = true;
+        // A facade parsed here must not keep an inline handler from a script-disabled child.
+        if (contentDoc && sandbox && !sandbox.scripts) stripInlineHandlers(contentDoc);
         // An initial about:blank child inherits its creator's referrer.
         setFrameReferrer(
           contentDoc,
@@ -4177,11 +4301,12 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
             ? frameNavigationReferrer(url)
             : state.pageUrl,
         );
-        // Keep the committed URL available as the document base.
-        if (contentDoc && typeof url === "string" && url.length > 0) {
+        // The document base is the embedder's URL for srcdoc; the frame URL stays about:srcdoc.
+        const documentUrl = typeof baseUrl === "string" && baseUrl ? baseUrl : url;
+        if (contentDoc && typeof documentUrl === "string" && documentUrl.length > 0) {
           try {
             Object.defineProperty(contentDoc, "_baseUrl", {
-              value: url,
+              value: documentUrl,
               configurable: true,
               writable: true,
             });

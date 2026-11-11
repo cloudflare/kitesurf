@@ -33,6 +33,8 @@ export function freeDetachedDom(
 }
 
 export function releaseFrameDom(frame: FrameState): void {
+  // The srcdoc parse input can be large and is never read again once the frame's DOM is released.
+  frame.srcdoc = null;
   const dom = frame.dom;
   if (!dom) return;
   frame.dom = null;

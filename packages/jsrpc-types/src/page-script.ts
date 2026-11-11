@@ -14,17 +14,23 @@ import type {
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "./query-dom.ts";
 import type { RenderPort } from "./page-renderer.ts";
 import type { WorkerEventParams, WorkerNavigatorInfo } from "./dedicated-worker.ts";
+import type { SandboxRestrictions } from "./sandbox.ts";
 
 export interface ModulePreloadPin {
   url: string;
   integrity: string | null;
 }
 
+export type { SandboxRestrictions } from "./sandbox.ts";
+
 export interface NavigateOptions {
   cookies?: string;
   connectionId?: string;
   mainFrameId?: string;
   cookieKey?: string;
+  // The effective iframe sandbox restrictions for this document, already intersected with its
+  // ancestors. Absent means no restrictions.
+  sandbox?: SandboxRestrictions;
   modulePreloadPins?: ModulePreloadPin[];
   scriptPolicy?: {
     cspHeaders: string[];
@@ -117,9 +123,14 @@ export interface IframeContentParams {
   ownerBackendNodeId: number;
   html: string;
   url: string;
+  // The document base URL, which differs from `url` for a srcdoc child.
+  baseUrl?: string;
   failed: boolean;
   mimeType?: string;
   crossOrigin?: boolean;
+  // The child document's active restrictions. A facade without allow-scripts keeps no inline
+  // handlers, because it is parsed in the embedder's realm.
+  sandbox: SandboxRestrictions;
 }
 
 export interface FrameBitmapParams {
@@ -313,10 +324,12 @@ export interface UpstreamEvents {
     name?: string;
     id?: string;
     loading?: string;
+    // The iframe's sandbox attribute at the navigation start; absent means no attribute.
+    sandbox?: string | null;
   };
   "kitesurf.frameDetached": { frameId: string };
   "kitesurf.frameLifecycle": { frameId: string; name: "DOMContentLoaded" | "load" };
-  "kitesurf.frameNavigated": { frameId: string; url: string };
+  "kitesurf.frameNavigated": { frameId: string; url: string; sandbox?: string | null };
   "kitesurf.frameStoppedLoading": { frameId: string };
   "kitesurf.insertedScriptRan": { url: string; bytes: number; run: "baked" | "stale" | "boa" };
   "kitesurf.modelContextToolsAdded": { tools: WebMcpTool[] };

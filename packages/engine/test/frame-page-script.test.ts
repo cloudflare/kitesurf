@@ -12,6 +12,7 @@ vi.mock("node:fs", () => ({
   },
 }));
 import type { CallerOutboundProps, SandboxOutboundOverride } from "../src/eval/outbound.ts";
+import { SANDBOX_ALLOW_ALL } from "@kitesurf/script-gate";
 import { spawnFramePageScript } from "../src/eval/page-script.ts";
 
 it("seals a frame isolate's outbound with its browser context's cookie jar", () => {
@@ -43,6 +44,7 @@ it("seals a frame isolate's outbound with its browser context's cookie jar", () 
       frameId: "F",
       frameLoaderId: "L",
       frameUrl: "https://frame.test/",
+      sandbox: SANDBOX_ALLOW_ALL,
       cookieKey: "conn:context-1",
       sandboxOutbound,
     },

@@ -161,6 +161,8 @@ fn ground_truth(html: &str) -> Value {
         let attrs = attrs_of(doc, id);
         iframes.push(json!({
             "src": attr(&attrs, "src"),
+            "srcdoc": attr(&attrs, "srcdoc"),
+            "sandbox": attr(&attrs, "sandbox"),
             "name": attr(&attrs, "name"),
             "id": attr(&attrs, "id"),
             "loading": attr(&attrs, "loading"),
@@ -348,6 +350,19 @@ fn title_with_entities_and_base_relative() {
 fn unclosed_script_swallows_rest_of_document() {
     check("<div>before</div><script>tail = '<div>not a div</div>'");
     check("<title>never closed");
+}
+
+#[test]
+fn iframe_sandbox_and_srcdoc_are_captured() {
+    check(concat!(
+        "<iframe src=a.html sandbox></iframe>",
+        r#"<iframe srcdoc="<p>x</p>" sandbox="allow-scripts"></iframe>"#,
+        "<iframe src=b.html sandbox=\"  ALLOW-FORMS  \"></iframe>",
+    ));
+    // An absent attribute and an empty one must stay distinguishable; the raw value is preserved.
+    let v = scan_value("<iframe src=a.html></iframe><iframe src=b.html sandbox></iframe>");
+    assert_eq!(v["iframes"][0]["sandbox"], Value::Null);
+    assert_eq!(v["iframes"][1]["sandbox"], "");
 }
 
 #[test]

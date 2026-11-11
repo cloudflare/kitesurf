@@ -32,6 +32,8 @@ pub(crate) struct ScanScript {
 #[derive(Serialize)]
 pub(crate) struct ScanIframe {
     pub src: Option<String>,
+    pub srcdoc: Option<String>,
+    pub sandbox: Option<String>,
     pub name: Option<String>,
     pub id: Option<String>,
     pub loading: Option<String>,
@@ -410,6 +412,8 @@ impl TokenSink for ScanSink {
                     let idx = s.iframes.len();
                     s.iframes.push(ScanIframe {
                         src: attr(&attrs, "src").map(|v| v.to_string()),
+                        srcdoc: attr(&attrs, "srcdoc").map(|v| v.to_string()),
+                        sandbox: attr(&attrs, "sandbox").map(|v| v.to_string()),
                         name: attr(&attrs, "name").map(|v| v.to_string()),
                         id: attr(&attrs, "id").map(|v| v.to_string()),
                         loading: attr(&attrs, "loading").map(|v| v.to_string()),

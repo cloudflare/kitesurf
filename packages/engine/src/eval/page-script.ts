@@ -10,6 +10,7 @@ import wasmGlueSource from "../../../core/pkg/kitesurf_core.glue.js";
 import { DOM_SHIM_SOURCE } from "@kitesurf/dom-shim";
 import { INTERNAL_STATE_SOURCE, PAGE_SCRIPT_SOURCE } from "@kitesurf/page-script";
 import type { RenderPortStub } from "@kitesurf/jsrpc-types/page-renderer";
+import type { SandboxRestrictions } from "@kitesurf/script-gate";
 import type {
   PageScriptEntrypoint,
   PageScriptEntrypointStub,
@@ -465,6 +466,8 @@ export function spawnFramePageScript(
     frameId: string;
     frameLoaderId: string;
     frameUrl: string;
+    // The child document's active sandbox restrictions; absent means no restrictions.
+    sandbox: SandboxRestrictions;
     cookieKey?: string;
     cookieSiteOrigin?: string;
     extraHeaders?: Record<string, string>;
@@ -472,7 +475,9 @@ export function spawnFramePageScript(
     sandboxOutbound: SandboxOutboundOverride;
   },
 ): PageScriptStub {
-  const pageOrigin = originOf(args.frameUrl);
+  const sandbox = args.sandbox;
+  // Without allow-same-origin the isolate's outbound identity is opaque, never the URL's origin.
+  const pageOrigin = sandbox.sameOrigin ? originOf(args.frameUrl) : "";
   const key: PageScriptKey = {
     connectionId: args.connectionId,
     targetId: args.targetId,

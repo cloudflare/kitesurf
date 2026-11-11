@@ -59,6 +59,13 @@ async function scriptAllowed(
   meta: InsertedScriptMetadata,
   runtimeInserted: boolean,
 ): Promise<ScriptGateDecision> {
+  if (!state.sandbox.scripts) {
+    return {
+      allowed: false,
+      reason: "sandbox",
+      message: "Refused to execute script because the iframe sandbox omits allow-scripts.",
+    };
+  }
   const ctx = gateContext();
   if (scriptGateIsNoop(ctx)) return { allowed: true };
   return checkScriptBeforeFetch(ctx, {
@@ -80,6 +87,13 @@ export function parserScriptAllowed(meta: InsertedScriptMetadata): Promise<Scrip
 }
 
 export function inlineInsertDecisionSync(meta: InsertedScriptMetadata): ScriptGateDecision | null {
+  if (!state.sandbox.scripts) {
+    return {
+      allowed: false,
+      reason: "sandbox",
+      message: "Refused to execute inline script because the iframe sandbox omits allow-scripts.",
+    };
+  }
   const ctx = gateContext();
   if (scriptGateIsNoop(ctx)) return { allowed: true };
   // Hash policies need async WebCrypto; null sends the caller to the deferred gate.
@@ -247,8 +261,17 @@ export function parserResponseAllowed(
   return responseAllowed(meta, response, fetchedUrl, false);
 }
 
-/** Whether the document's CSP lets an inline on* attribute compile; logs a refusal. */
+/** Whether the document's CSP and sandbox let an inline on* attribute compile; logs a refusal. */
 export function inlineHandlerAllowed(attributeName: string): boolean {
+  if (!state.sandbox.scripts) {
+    try {
+      console.error(
+        `Refused to execute inline event handler ${attributeName} because the document's ` +
+          `sandbox does not allow scripts.`,
+      );
+    } catch {}
+    return false;
+  }
   const ctx = gateContext();
   if (ctx.policies.length === 0) return true;
   const verdict = cspAllowsInlineHandler(ctx.policies);

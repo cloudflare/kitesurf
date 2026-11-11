@@ -94,8 +94,10 @@ function urlOrigin(href: string): string | null {
   }
 }
 
+// The committed document origin, or "null" for an opaque sandboxed origin. A worker script URL
+// from an opaque document never matches, so the constructor refuses it.
 function documentOrigin(): string {
-  return urlOrigin(state.pageUrl) ?? "null";
+  return state.documentOrigin === "" ? "null" : state.documentOrigin;
 }
 
 function documentBase(): string {
