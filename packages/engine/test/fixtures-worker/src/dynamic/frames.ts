@@ -258,3 +258,74 @@ frames.all("/referer-to-url.html", (c) => {
   next.searchParams.set("referer", c.req.header("referer") ?? "");
   return c.redirect(next.href, 302);
 });
+
+// One host for the embedding-policy regression. `child` is an absolute or same-origin URL, and
+// `mode=srcdoc` wraps it in a srcdoc intermediate frame so the child's ancestry includes a
+// local-scheme document. `dynamic=1` inserts the frame from script.
+frames.all("/frame-policy-host.html", (c) => {
+  const child = c.req.query("child") ?? "/__fixtures/frame-policy-child.html";
+  const dynamic = c.req.query("dynamic") === "1";
+  const frameMarkup = dynamic
+    ? ""
+    : `<iframe id="f" onload="window.__frameLoaded = true" src="${escapeHtmlText(child)}" style="border:0;width:200px;height:120px"></iframe>`;
+  const dynamicScript = dynamic
+    ? `<script>
+      const f = document.createElement("iframe");
+      f.id = "f";
+      f.src = ${jsonForScript(child)};
+      f.style.cssText = "border:0;width:200px;height:120px";
+      f.addEventListener("load", () => { window.__frameLoaded = true; });
+      document.body.appendChild(f);
+    </script>`
+    : "";
+  return c.html(`<!doctype html>
+<html><head><meta charset="utf-8"><title>frame policy host</title></head>
+<body style="margin:0">
+<script>
+window.__msgs = [];
+window.__frameLoaded = false;
+addEventListener("message", (e) => window.__msgs.push({ data: e.data, origin: e.origin }));
+</script>
+${frameMarkup}
+${dynamicScript}
+</body></html>`);
+});
+
+const framePolicyHits = new Map<string, number>();
+frames.all("/frame-policy-hits", (c) =>
+  c.json({ hits: framePolicyHits.get(c.req.query("marker") ?? "") ?? 0 }, 200, {
+    "cache-control": "no-store",
+  }),
+);
+
+// Reports through postMessage when it runs, and carries protected markup a blocked commit must
+// never expose. `redirect=1` makes the terminal response one redirect away.
+frames.all("/frame-policy-child.html", (c) => {
+  const marker = c.req.query("marker") ?? "child";
+  framePolicyHits.set(marker, (framePolicyHits.get(marker) ?? 0) + 1);
+  if (c.req.query("redirect") === "1") {
+    const target = new URL(c.req.url);
+    target.searchParams.delete("redirect");
+    return c.redirect(target.href, 302);
+  }
+  const headers: Record<string, string> = {};
+  const csp = c.req.query("csp");
+  const cspReportOnly = c.req.query("cspReportOnly");
+  const xfo = c.req.query("xfo");
+  if (csp !== undefined) headers["content-security-policy"] = csp;
+  if (cspReportOnly !== undefined) headers["content-security-policy-report-only"] = cspReportOnly;
+  if (xfo !== undefined) headers["x-frame-options"] = xfo;
+  const script =
+    c.req.query("script") === "0"
+      ? ""
+      : `<script>parent.postMessage(${jsonForScript(`ran:${marker}`)}, "*")</script>`;
+  return c.html(
+    `<!doctype html>
+<html><head><meta charset="utf-8"><title>frame policy child</title></head>
+<body><p id="secret">protected ${escapeHtmlText(marker)}</p>
+${script}
+</body></html>`,
+    200,
+    headers,
+  );
+});

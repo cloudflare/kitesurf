@@ -59,6 +59,7 @@ describe("closeTargetInternal", () => {
     frame.oopifPrespawn = {
       url: frame.url,
       sandbox: SANDBOX_ALLOW_ALL,
+      ancestorOrigins: [],
       promise: new Promise<never>(() => {}),
     };
     target.frames.set(frame.frameId, frame);

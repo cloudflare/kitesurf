@@ -28,6 +28,13 @@ export {
   type CspVerdict,
 } from "./csp.ts";
 export {
+  committedOriginOfUrl,
+  embeddingPolicyVerdict,
+  sameCommittedOrigin,
+  type EmbeddingPolicyInput,
+  type EmbeddingPolicyVerdict,
+} from "./frame-policy.ts";
+export {
   blockedByNosniff,
   hasNosniff,
   isJavaScriptMime,

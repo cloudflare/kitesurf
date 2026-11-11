@@ -50,7 +50,7 @@ function effectiveDirectiveName(policy: CspPolicy): string {
   return "default-src";
 }
 
-function defaultPortForScheme(scheme: string): string {
+export function defaultPortForScheme(scheme: string): string {
   switch (scheme) {
     case "http:":
       return "80";
@@ -71,7 +71,7 @@ function portOf(url: URL): string {
   return url.port || defaultPortForScheme(url.protocol);
 }
 
-function schemeMatches(sourceScheme: string, urlScheme: string): boolean {
+export function schemeMatches(sourceScheme: string, urlScheme: string): boolean {
   if (sourceScheme === urlScheme) return true;
   if (sourceScheme === "http:" && urlScheme === "https:") return true;
   if (sourceScheme === "ws:" && urlScheme === "wss:") return true;

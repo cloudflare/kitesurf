@@ -209,6 +209,9 @@ export interface FrameState {
   mimeType: string;
   // Nested frames apply their own response policy to descendant requests.
   referrerPolicy?: string | null;
+  // A terminal response refused embedding by frame-ancestors or X-Frame-Options. Sticky for this
+  // document, so a budget retry never fetches it again.
+  framePolicyBlocked?: boolean;
   ownerBackendNodeId: number;
   lifecycle: "init" | "dcl" | "load";
   detached: boolean;
@@ -239,6 +242,7 @@ export interface FrameState {
   oopifPrespawn?: {
     url: string;
     sandbox: SandboxRestrictions;
+    ancestorOrigins: CommittedOrigin[];
     promise: Promise<PrespawnedFrame | null>;
     // Set when the prespawn refused the document, so the pipeline does not fetch it again.
     refused?: boolean;
@@ -263,6 +267,7 @@ export interface StyleSheetEntry {
 
 import type { ParsedStyleSheet } from "@kitesurf/jsrpc-types/query-dom";
 import type { SandboxRestrictions } from "@kitesurf/script-gate";
+import type { CommittedOrigin } from "@kitesurf/jsrpc-types/frame-origin";
 export type { ParsedStyleSheet, SandboxRestrictions };
 
 export interface NavigationHistoryEntry {

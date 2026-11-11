@@ -421,6 +421,12 @@ export class PageScriptRpcSession implements PageScriptStub {
     return this.call("setFrameBitmap", params, 10_000);
   }
 
+  clearFrameBitmap(
+    params: Parameters<PageScriptStub["clearFrameBitmap"]>[0],
+  ): ReturnType<PageScriptStub["clearFrameBitmap"]> {
+    return this.call("clearFrameBitmap", params, 2_000);
+  }
+
   deliverMessage(
     params: Parameters<PageScriptStub["deliverMessage"]>[0],
   ): ReturnType<PageScriptStub["deliverMessage"]> {

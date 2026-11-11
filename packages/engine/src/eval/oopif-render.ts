@@ -5,6 +5,7 @@
 // Handles child-frame document loads and rasterization in separate PageScript isolates.
 
 import type { NavigateOptions } from "@kitesurf/jsrpc-types/page-script";
+import type { CommittedOrigin } from "@kitesurf/jsrpc-types/frame-origin";
 import type { SandboxRestrictions } from "@kitesurf/script-gate";
 import type { PageRendererManager } from "./page-renderer.ts";
 
@@ -35,6 +36,7 @@ import { localTraceParentProps } from "../tracing-local.ts";
 import { schemefulSite } from "../public-suffix.ts";
 import { scanDocument } from "../wasm.ts";
 import { documentBaseUrl } from "./script-gate.ts";
+import { committedOriginOfUrl, embeddingPolicyVerdict } from "@kitesurf/script-gate";
 import { modulePreloadSeeds } from "./walk-module-graph.ts";
 
 const OOPIF_DOC_WALK_BUDGET_MS = 15_000;
@@ -49,6 +51,8 @@ export interface RenderFrameArgs {
   frameUrl: string;
   // The child document's active sandbox restrictions, intersected with its ancestors.
   sandbox: SandboxRestrictions;
+  // The trusted committed origins of this frame's ancestors, nearest first.
+  ancestorOrigins: CommittedOrigin[];
   viewport?: { width: number; height: number };
   parentOrigin?: string;
   cookieSiteOrigin?: string;
@@ -284,6 +288,23 @@ export async function prespawnFrameIsolate(
       refused: true,
     };
   }
+  // Check the terminal response before decoding or parsing its body, so protected markup never
+  // reaches the parent-side DOM or the child isolate.
+  const policy = embeddingPolicyVerdict({
+    cspHeaders: [resp.headers.get("content-security-policy")],
+    xFrameOptions: [resp.headers.get("x-frame-options")],
+    destinationOrigin: committedOriginOfUrl(finalUrl, `${args.frameId}:${args.frameLoaderId}`),
+    ancestorOrigins: args.ancestorOrigins,
+  });
+  if (!policy.allowed) {
+    void resp.body?.cancel().catch(() => {});
+    await discardFrameIsolate(stub, warmup, "oopif doc refused by embedding policy");
+    return {
+      ok: false,
+      error: `frame document refused by ${policy.directive ?? policy.reason}`,
+      refused: true,
+    };
+  }
   const contentType = resp.headers.get("content-type") ?? "";
   // Only the terminal response's headers apply; a redirect hop's policy is not this document's.
   const csp = resp.headers.get("content-security-policy");
@@ -393,6 +414,7 @@ export async function navigatePrespawnedFrame(
       mainFrameId: args.frameId,
       cookieKey: args.cookieKey ?? "",
       sandbox: args.sandbox,
+      ancestorOrigins: args.ancestorOrigins,
       scriptPolicy,
       modulePreloadPins: pre.modulePreloadPins,
       ...(viewport

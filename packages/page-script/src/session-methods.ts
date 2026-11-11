@@ -55,6 +55,7 @@ export const PAGE_SCRIPT_METHODS: PageScriptArgBuilders = {
   installIframeContent: (params): MethodArguments<"installIframeContent"> => [params],
   iframeInstallsSettled: (): MethodArguments<"iframeInstallsSettled"> => [],
   setFrameBitmap: (params): MethodArguments<"setFrameBitmap"> => [params],
+  clearFrameBitmap: (params): MethodArguments<"clearFrameBitmap"> => [params],
   deliverMessage: (params): MethodArguments<"deliverMessage"> => [params],
   deliverWorkerEvent: (params): MethodArguments<"deliverWorkerEvent"> => [params],
   evaluate: (params): MethodArguments<"evaluate"> => [params.expression, params.opts ?? {}],

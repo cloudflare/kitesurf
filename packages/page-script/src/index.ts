@@ -10,6 +10,7 @@ import { WorkerEntrypoint, RpcTarget, abortIsolate } from "cloudflare:workers";
 import type {
   ArgSpec,
   CallFunctionOnOptions,
+  ClearFrameBitmapParams,
   CompileScriptReply,
   DeliverMessageParams,
   DrainConsoleReply,
@@ -39,10 +40,13 @@ import type {
 } from "@kitesurf/jsrpc-types/page-script";
 import {
   SANDBOX_ALLOW_ALL,
+  committedOriginOfUrl,
+  embeddingPolicyVerdict,
   intersectSandbox,
   parseSandboxAttribute,
   type SandboxRestrictions,
 } from "@kitesurf/script-gate";
+import type { CommittedOrigin } from "@kitesurf/jsrpc-types/frame-origin";
 import type { RenderPort as RenderPortContract } from "@kitesurf/jsrpc-types/page-renderer";
 import type { WorkerEventParams } from "@kitesurf/jsrpc-types/dedicated-worker";
 import { deliverWorkerEvent } from "./dedicated-worker.ts";
@@ -362,6 +366,7 @@ import type { IsolateKillMarker } from "@kitesurf/jsrpc-types/shared";
 
 const ISOLATE_KILL_MARKER: IsolateKillMarker = "[ks-kill]";
 const nativeSetIframeImage = DomHandle.prototype.setIframeImage;
+const nativeClearIframeImage = DomHandle.prototype.clearIframeImage;
 // Selector text can come from a sheet the page cannot read. Hold the prototype method so a page
 // that shadows the instance's copy (domDebug is reachable from page code) cannot answer for it.
 const nativeMatchesInSubtreeBytes = DomHandle.prototype.matchesInSubtreeBytes;
@@ -1195,6 +1200,23 @@ function sandboxIsOpaque(sandbox: SandboxRestrictions): boolean {
   return !sandbox.sameOrigin;
 }
 
+// The committed origin of this document. It is the self-origin of any policy this document
+// inherits and the nearest ancestor of a child it creates.
+function currentDocumentCommittedOrigin(): CommittedOrigin {
+  if (!state.sandbox.sameOrigin) return { kind: "opaque", id: state.opaqueOriginId };
+  try {
+    const origin = new URL(state.documentUrl || state.pageUrl).origin;
+    if (origin === "null" || origin === "") return { kind: "opaque", id: state.opaqueOriginId };
+    return { kind: "tuple", origin };
+  } catch {
+    return { kind: "opaque", id: state.opaqueOriginId };
+  }
+}
+
+function currentChildAncestorOrigins(): CommittedOrigin[] {
+  return [currentDocumentCommittedOrigin(), ...state.ancestorOrigins];
+}
+
 // A child whose origin is opaque, or whose URL is not this document's origin, has no same-origin
 // document to expose. srcdoc and about:blank inherit this document's origin.
 function facadeMustBeCrossOrigin(sandbox: SandboxRestrictions, url: string): boolean {
@@ -1556,6 +1578,54 @@ function warnDynamicIframeStatus(response: Response, url: string): void {
   } catch {}
 }
 
+interface DynamicIframeFetch {
+  finalUrl: string;
+  contentType: string | null;
+  bytes: Uint8Array | null;
+  refused: boolean;
+}
+
+async function fetchDynamicIframeBody(
+  url: string,
+  post: IframePost | undefined,
+): Promise<DynamicIframeFetch> {
+  const response = await fetchDynamicIframeDocument(url, post);
+  const finalUrl = response && response.url ? response.url : url;
+  // Check the terminal response before decoding its body. A refused document never reaches this
+  // realm as protected markup.
+  const policy = embeddingPolicyVerdict({
+    cspHeaders: [responseHeaderGet(response, "content-security-policy")],
+    xFrameOptions: [responseHeaderGet(response, "x-frame-options")],
+    destinationOrigin: committedOriginOfUrl(finalUrl, `${state.opaqueOriginId}:child`),
+    ancestorOrigins: currentChildAncestorOrigins(),
+  });
+  if (!policy.allowed) {
+    try {
+      await response.body?.cancel();
+    } catch {}
+    try {
+      console.warn(
+        "[kitesurf-iframe] dynamic iframe refused by " +
+          (policy.directive ?? policy.reason) +
+          " for " +
+          finalUrl,
+      );
+    } catch {}
+    return { finalUrl, contentType: "text/html", bytes: null, refused: true };
+  }
+  const contentType = responseHeaderGet(response, "content-type");
+  if (response && response.ok && response.status !== 204 && response.status !== 205) {
+    return {
+      finalUrl,
+      contentType,
+      bytes: new Uint8Array(await response.arrayBuffer()),
+      refused: false,
+    };
+  }
+  if (response && !response.ok) warnDynamicIframeStatus(response, url);
+  return { finalUrl, contentType, bytes: null, refused: false };
+}
+
 async function loadDynamicIframe(
   iframeEl: any,
   url: string,
@@ -1582,13 +1652,15 @@ async function loadDynamicIframe(
         contentType = blob.type || null;
         bytes = new Uint8Array(await blob.arrayBuffer());
       } else {
-        const response = await fetchDynamicIframeDocument(url, post);
-        finalUrl = response && response.url ? response.url : url;
-        contentType = responseHeaderGet(response, "content-type");
-        if (response && response.ok && response.status !== 204 && response.status !== 205) {
-          bytes = new Uint8Array(await response.arrayBuffer());
-        } else if (response && !response.ok) {
-          warnDynamicIframeStatus(response, url);
+        const fetched = await fetchDynamicIframeBody(url, post);
+        finalUrl = fetched.finalUrl;
+        contentType = fetched.contentType;
+        if (fetched.refused) {
+          // Replace any previously displayed child with a blank document.
+          html = "<!doctype html><html><head></head><body></body></html>";
+          decodedResponse = true;
+        } else {
+          bytes = fetched.bytes;
         }
       }
     }
@@ -3066,6 +3138,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     // missing set on a main frame grants every capability.
     state.sandbox = navigateOptions?.sandbox ?? SANDBOX_ALLOW_ALL;
     state.documentOrigin = state.sandbox.sameOrigin ? pageOriginFromUrl(safeUrl) : "";
+    state.ancestorOrigins = navigateOptions?.ancestorOrigins ?? [];
+    state.opaqueOriginId = crypto.randomUUID();
     // Every navigation resets the gate's cache, including one to the same URL.
     setNavigationScriptPolicy(navigateOptions?.scriptPolicy);
     state.lastForceRestyleSeq = -1;
@@ -4198,6 +4272,19 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         error: e instanceof Error ? e.message : String(e),
       };
     }
+  }
+
+  async clearFrameBitmap(params: ClearFrameBitmapParams): Promise<OkReply> {
+    const ownerBackendNodeId = params?.ownerBackendNodeId;
+    if (typeof ownerBackendNodeId !== "number" || !state.dom) return { ok: true };
+    if (typeof nativeClearIframeImage !== "function") return { ok: true };
+    try {
+      nativeApply(nativeClearIframeImage, state.dom, [ownerBackendNodeId]);
+      try {
+        getInternalState().damageNodes.add(ownerBackendNodeId | 0);
+      } catch {}
+    } catch {}
+    return { ok: true };
   }
 
   async deliverMessage(params: DeliverMessageParams): Promise<{ ok: boolean; error?: string }> {

@@ -6,6 +6,7 @@
 
 import type { RawCdpMutation } from "@kitesurf/jsrpc-types/shared";
 import type { LoadCompletion } from "@kitesurf/jsrpc-types/page-script";
+import type { CommittedOrigin } from "@kitesurf/jsrpc-types/frame-origin";
 import { SANDBOX_ALLOW_ALL, type SandboxRestrictions } from "@kitesurf/script-gate";
 import type {
   BuildDocumentResult,
@@ -36,6 +37,12 @@ export interface PageScriptState {
 
   /** The committed document's active iframe sandbox restrictions. */
   sandbox: SandboxRestrictions;
+
+  /** The committed origins of this document's ancestors, nearest first. */
+  ancestorOrigins: CommittedOrigin[];
+
+  /** One opaque identity per committed opaque document, so "null" origins never compare equal. */
+  opaqueOriginId: string;
 
   sourceDoctype: { markup: string; marker: string } | null;
 
@@ -130,6 +137,8 @@ export const state: PageScriptState = {
   documentUrl: "",
   documentOrigin: "",
   sandbox: SANDBOX_ALLOW_ALL,
+  ancestorOrigins: [],
+  opaqueOriginId: "",
   sourceDoctype: null,
   connectionId: "",
   mainFrameId: "",
