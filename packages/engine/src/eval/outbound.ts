@@ -41,7 +41,7 @@ import { looksLikeSvg, sniffImageDims } from "./image-dims.ts";
 import { MAX_ENTRY_BYTES, putAuthorFont, putOpaqueImage } from "./resource-store.ts";
 import { MAX_SHAPED_FONT_BYTES, shapeFontBytes } from "./font-shaping.ts";
 import { engineIsolateId, isForeignIsolate } from "./isolate-id.ts";
-import { readCapped, withDeadline } from "../read-capped.ts";
+import { readCapped, readCappedBudgeted, withDeadline } from "../read-capped.ts";
 import {
   KITESURF_CORS_VERDICT_HEADER,
   KITESURF_NOSNIFF_HEADER,
@@ -1047,7 +1047,8 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         });
       let body: ArrayBuffer | Uint8Array | null = buffered;
       if (body === null) {
-        const capped = await readCapped(out.body, MAX_SHAPED_FONT_BYTES);
+        // Preserve the untransformed fallback: a capped or budgeted read replays what it read.
+        const capped = await readCappedBudgeted(out.body, MAX_SHAPED_FONT_BYTES, connectionId);
         if (!capped.bytes) {
           return rebuild(capped.rest, exposeHeaders(out.headers));
         }
