@@ -449,10 +449,45 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
 
     const opaqueOrigin = !pageOrigin;
 
+    const connectionId = sealed
+      ? (props.connectionId ?? "")
+      : (request.headers.get(CONNECTION_ID_HEADER) ?? "");
+    const tracker = connectionId ? getTracker(connectionId) : undefined;
+    const requestFrameId = sealed
+      ? (props.mainFrameId ?? "")
+      : (request.headers.get(FRAME_ID_HEADER) ?? "");
+    const trackerAttribution = tracker?.attributionForTarget(requestFrameId);
+    const networkFrameId = trackerAttribution?.frameId ?? requestFrameId;
+    const networkLoaderId = trackerAttribution?.loaderId ?? props?.mainLoaderId ?? "";
+    const networkSessionIds = trackerAttribution?.sessionIds ?? [];
+    // Started once a hop is admitted; a block before that reports no network request.
+    let requestId: string | null = null;
+
+    // Chrome reports a blocked request as a DevTools Log entry. The page realm must never receive
+    // the diagnostic, so it goes only to Log-enabled sessions of this request's own target.
+    const logBlocked = (href: string, detail: string): void => {
+      tracker?.logEntry(networkSessionIds, {
+        source: "network",
+        level: "error",
+        text: detail.startsWith("kitesurf: ") ? detail.slice("kitesurf: ".length) : detail,
+        timestamp: Date.now(),
+        url: diagnosticUrl(href),
+        lineNumber: 0,
+        ...(requestId === null ? {} : { networkRequestId: requestId }),
+      });
+    };
+
+    // CORS-family rejections keep their page-invisible generic body.
+    const blockedForClient = (reason: string, href: string, detail: string): Response => {
+      logBlocked(href, detail);
+      return corsBlocked(reason, href, detail, pageRealm);
+    };
+
     let target: URL;
     try {
       target = new URL(request.url);
     } catch {
+      logBlocked(request.url, "kitesurf: invalid URL");
       return blocked("kitesurf: invalid URL", "invalid-url");
     }
 
@@ -465,7 +500,10 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       (props?.skipRequestBlocker !== true || props?.privateNetworkInitiator !== undefined)
     ) {
       const refusal = privateNetworkRefusal(target, privateNetworkInitiator);
-      if (refusal) return blocked(refusal, "private-network");
+      if (refusal) {
+        logBlocked(request.url, refusal);
+        return blocked(refusal, "private-network");
+      }
     }
 
     let allowed: URL;
@@ -475,15 +513,15 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       try {
         allowed = new URL(pageOrigin);
       } catch {
+        logBlocked(request.url, "kitesurf: invalid page origin");
         return blocked("kitesurf: invalid page origin", "invalid-page-origin");
       }
     }
 
     if (allowed.host === "kitesurf.local") {
-      return blocked(
-        "kitesurf: synthetic-origin fetch dropped (no network during bench)",
-        "synthetic-origin",
-      );
+      const detail = "kitesurf: synthetic-origin fetch dropped (no network during bench)";
+      logBlocked(request.url, detail);
+      return blocked(detail, "synthetic-origin");
     }
 
     const targetOriginKey = originKey(target);
@@ -544,19 +582,8 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
     let authorUnsafeHeaders = needsCorsCheck ? corsUnsafeRequestHeaderNames(request.headers) : [];
     let wantsPreflight = needsCorsCheck && needsPreflight(request.method, request.headers);
 
-    const connectionId = sealed
-      ? (props.connectionId ?? "")
-      : (request.headers.get(CONNECTION_ID_HEADER) ?? "");
     const foreignIsolate = isForeignIsolate(props?.engineIsolateId);
     if (foreignIsolate) noteForeignIsolate(connectionId);
-    const tracker = connectionId ? getTracker(connectionId) : undefined;
-    const requestFrameId = sealed
-      ? (props.mainFrameId ?? "")
-      : (request.headers.get(FRAME_ID_HEADER) ?? "");
-    const trackerAttribution = tracker?.attributionForTarget(requestFrameId);
-    const networkFrameId = trackerAttribution?.frameId ?? requestFrameId;
-    const networkLoaderId = trackerAttribution?.loaderId ?? props?.mainLoaderId ?? "";
-    const networkSessionIds = trackerAttribution?.sessionIds ?? [];
 
     const pageHost = allowed.host === "opaque.invalid" ? "" : allowed.hostname;
     const refusal = outboundPolicyRefusal(
@@ -643,10 +670,9 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
     let authorRequest = request;
     if (noCorsMode) {
       if (!isSafelistedMethod(request.method)) {
-        return blocked(
-          `kitesurf: mode 'no-cors' only permits GET, HEAD and POST, not ${request.method}`,
-          "no-cors-method",
-        );
+        const detail = `kitesurf: mode 'no-cors' only permits GET, HEAD and POST, not ${request.method}`;
+        logBlocked(request.url, detail);
+        return blocked(detail, "no-cors-method");
       }
       const unsafe = corsUnsafeRequestHeaderNames(request.headers);
       if (unsafe.length > 0) {
@@ -687,7 +713,6 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       }
     }
 
-    let requestId: string | null = null;
     if (tracker) {
       const typeHint = (request.headers.get("x-kitesurf-resource-type") ?? "Other") as
         | "Document"
@@ -772,12 +797,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
           const corsFailure = checkCorsResponse(fulfilled, pageOrigin, target, credentialsInclude);
           if (corsFailure) {
             failTrackedRequest(tracker, requestId, corsFailure.reason);
-            return corsBlocked(
-              corsFailure.reason,
-              forwardRequest.url,
-              corsFailure.message,
-              pageRealm,
-            );
+            return blockedForClient(corsFailure.reason, forwardRequest.url, corsFailure.message);
           }
         }
         return fulfilled;
@@ -899,13 +919,12 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         }
         if (verdict.reason) {
           if (requestId && tracker) tracker.failRequest(requestId, verdict.reason);
-          return corsBlocked(
+          return blockedForClient(
             verdict.reason,
             target.href,
-            `kitesurf: Access to fetch at '${diagnosticUrl(target.href)}' from origin '${pageOrigin}' has been blocked by CORS policy: ` +
+            `kitesurf: Access to fetch at '${diagnosticUrl(target.href)}' from origin '${pageOrigin || "null"}' has been blocked by CORS policy: ` +
               `Response to preflight request doesn't pass access control check` +
               (verdict.message ? ` (${verdict.message})` : "."),
-            pageRealm,
           );
         }
       }
@@ -946,7 +965,9 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         tracker.failRequest(requestId, err instanceof Error ? err.message : String(err));
       }
       if (egressAbortCtl.signal.aborted) {
-        return blocked(`kitesurf: egress timeout after ${headersCapMs}ms`, "egress-timeout");
+        const detail = `kitesurf: egress timeout after ${headersCapMs}ms`;
+        logBlocked(request.url, detail);
+        return blocked(detail, "egress-timeout");
       }
       throw err;
     }
@@ -993,11 +1014,10 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
           if (requestId && tracker) {
             tracker.failRequest(requestId, "corp-blocked");
           }
-          return corsBlocked(
+          return blockedForClient(
             "corp-blocked",
             forwardRequest.url,
-            `kitesurf: Access to fetch at '${diagnosticUrl(forwardRequest.url)}' from origin '${pageOrigin}' has been blocked by Cross-Origin-Resource-Policy: ${corp}.`,
-            pageRealm,
+            `kitesurf: Access to fetch at '${diagnosticUrl(forwardRequest.url)}' from origin '${pageOrigin || "null"}' has been blocked by Cross-Origin-Resource-Policy: ${corp}.`,
           );
         }
       }
@@ -1009,7 +1029,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         if (requestId && tracker) {
           tracker.failRequest(requestId, corsFailure.reason);
         }
-        return corsBlocked(corsFailure.reason, target.href, corsFailure.message, pageRealm);
+        return blockedForClient(corsFailure.reason, target.href, corsFailure.message);
       }
     }
 
@@ -1035,7 +1055,9 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         await resp.body?.cancel();
       } catch {}
       failTrackedRequest(tracker, requestId, "stylesheet-mime");
-      return blocked("kitesurf: stylesheet response has an invalid MIME type", "stylesheet-mime");
+      const detail = "kitesurf: stylesheet response has an invalid MIME type";
+      logBlocked(request.url, detail);
+      return blocked(detail, "stylesheet-mime");
     }
     if (needsCorsCheck && isRedirect) {
       const location = resp.headers.get("location");
@@ -1049,11 +1071,10 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
           if (requestId && tracker) {
             tracker.failRequest(requestId, "cors-redirect-userinfo");
           }
-          return corsBlocked(
+          return blockedForClient(
             "cors-redirect-userinfo",
             forwardRequest.url,
             `kitesurf: Redirect from '${diagnosticUrl(forwardRequest.url)}' to a URL containing credentials is not allowed for a CORS request.`,
-            pageRealm,
           );
         }
       }
@@ -1407,7 +1428,7 @@ function checkCorsResponse(
   const requestOrigin = pageOrigin || "null";
   const reason = corsCheck(resp.headers, requestOrigin, credentialsInclude);
   if (reason === null) return null;
-  const prefix = `kitesurf: Access to fetch at '${diagnosticUrl(target.href)}' from origin '${pageOrigin}' has been blocked by CORS policy: `;
+  const prefix = `kitesurf: Access to fetch at '${diagnosticUrl(target.href)}' from origin '${requestOrigin}' has been blocked by CORS policy: `;
   const aca = (resp.headers.get("access-control-allow-origin") ?? "").trim();
   switch (reason) {
     case "cors-missing-origin":

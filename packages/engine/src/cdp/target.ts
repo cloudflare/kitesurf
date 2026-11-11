@@ -775,6 +775,12 @@ export async function handleOopifSession(
     case "Network.disable":
       ctx.browser.networkEvents.setEnabled(req.sessionId, false);
       return {};
+    case "Log.enable":
+      ctx.browser.networkEvents.setLogEnabled(req.sessionId, true);
+      return {};
+    case "Log.disable":
+      ctx.browser.networkEvents.setLogEnabled(req.sessionId, false);
+      return {};
     case "Page.getFrameTree":
       return { frameTree: buildFrameTree(target, frame) };
     case "Page.getResourceTree":
