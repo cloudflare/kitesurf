@@ -4985,10 +4985,23 @@ async function inlineStylesheets(
 
   const now = Date.now();
   const fetchTasks: Task[] = [];
+  // Aggregate inlining budget for this capture, in UTF-16 bytes (two per code unit, a
+  // conservative DOM cost). Refused sheets are dropped like a failed load, never partially
+  // copied, so repeated links to one cached sheet cannot multiply it into shared engine memory.
+  let remaining = MAX_STYLESHEET_BYTES;
+  const admit = (css: string, url: string): boolean => {
+    const cost = 2 * css.length;
+    if (!Number.isSafeInteger(cost) || cost > remaining) {
+      console.warn(`[kitesurf-css] inline budget exhausted (${cost} bytes): ${url}`);
+      return false;
+    }
+    remaining -= cost;
+    return true;
+  };
   for (const t of tasks) {
     const hit = cache?.get(t.resolved);
     if (hit && now - hit.fetchedAt < STYLE_CACHE_TTL_MS) {
-      t.css = hit.css;
+      if (admit(hit.css, t.resolved)) t.css = hit.css;
       if (tracker && loaderId && frameId) {
         const reqId = tracker.beginRequest({
           url: t.resolved,
@@ -5061,7 +5074,7 @@ async function inlineStylesheets(
             return;
           }
           const css = read.text;
-          t.css = css;
+          if (admit(css, t.resolved)) t.css = css;
           if (cache) cache.set(t.resolved, { css, fetchedAt: now });
           if (reqId && tracker) {
             tracker.completeRequest(reqId, {
