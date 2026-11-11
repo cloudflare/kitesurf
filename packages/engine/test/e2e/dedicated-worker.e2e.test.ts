@@ -111,6 +111,46 @@ test("an http worker loads from the page origin and fetches through the gateway"
   });
 });
 
+// A worker runs with its creator's origin, so a cross-origin hop of its script fetch would supply
+// source the engine still treats as the creator's own.
+const WORKER_REDIRECT_PAGE = "http://127.0.0.1:8787/__fixtures/worker-host.html";
+const FOREIGN_WORKER_ORIGIN = "https://ks-alt.invalid";
+
+const workerRedirectCases = [
+  {
+    name: "a same-origin worker script redirect still loads",
+    to: "http://127.0.0.1:8787",
+    allowed: true,
+  },
+  {
+    name: "a cross-origin worker script redirect is refused before the hop",
+    to: FOREIGN_WORKER_ORIGIN,
+    allowed: false,
+  },
+];
+
+for (const testCase of workerRedirectCases) {
+  test(testCase.name, async ({ page }) => {
+    await page.goto(WORKER_REDIRECT_PAGE, { waitUntil: "domcontentloaded" });
+    const key = Math.random().toString(36).slice(2);
+    const target = `${testCase.to}/__fixtures/worker-hop/${key}.js`;
+    const outcome = (await page.evaluate(`
+      new Promise(function (resolve) {
+        var w = new Worker(
+          "/__fixtures/cors-redirect?to=" + encodeURIComponent(${JSON.stringify(target)})
+        );
+        w.onmessage = function (e) { resolve({ message: e.data }); };
+        w.onerror = function () { resolve({ error: true }); };
+      })
+    `)) as { message?: string; error?: boolean };
+    const hits = (await page.evaluate(
+      `fetch("/__fixtures/worker-hop-hits/${key}").then((r) => r.json()).then((b) => b.hits)`,
+    )) as number;
+    expect(hits, "requests the redirect hop received").toBe(testCase.allowed ? 1 : 0);
+    expect(outcome).toEqual(testCase.allowed ? { message: `hop:${key}` } : { error: true });
+  });
+}
+
 test("transferred buffers detach on the sender and arrive intact", async ({ page }) => {
   await setContent(
     page,
