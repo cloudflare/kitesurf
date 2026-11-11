@@ -17,13 +17,19 @@ import {
   type EnumeratedStyleSheet,
 } from "./page-session.ts";
 import { ensureTargetDom } from "./dom-release.ts";
+import { parseStyleSheetRules } from "../wasm.ts";
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
 import { originOf } from "./frames.ts";
 import { effectiveExtraHeaders } from "./network.ts";
 import { privateNetworkRefusal } from "../eval/private-network.ts";
 import { getInterception, interceptionMatches } from "./fetch-interception.ts";
 import { walkRedirects } from "../eval/redirect-walk.ts";
-import { MAX_CONCURRENT_READ_BYTES, MAX_STYLESHEET_BYTES, readCappedText } from "../read-capped.ts";
+import {
+  MAX_CONCURRENT_READ_BYTES,
+  MAX_STYLESHEET_BYTES,
+  readCappedText,
+  type CappedFailure,
+} from "../read-capped.ts";
 
 import type { Protocol } from "devtools-protocol";
 
@@ -123,21 +129,16 @@ export async function handleCss(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
           const rule = parsed.rules[ri];
           const rangeInfo = parsed.ranges[ri];
           if (!rule || !rangeInfo) continue;
+          // No match could fit, so stop asking the page to evaluate selectors.
+          if (budget.remaining < MIN_MATCH_CHARGE) {
+            warnMatchBudget(budget);
+            break;
+          }
           const matchResult = await session.call.matchSelectorList({
             nodeId,
             selectorListText: rule.selector_text,
           });
-          const charge = matchCharge(styleSheetId, rule, matchResult?.matches);
-          if (charge > budget.remaining) {
-            warnMatchBudget(budget);
-            continue;
-          }
-          const matchingSelectors = copyNumbers(matchResult?.matches);
-          if (matchingSelectors.length === 0) continue;
-          budget.remaining -= charge;
-          matched.push(
-            buildRuleMatch(styleSheetId, rule, rangeInfo, matchingSelectors, entry.origin),
-          );
+          addMatch(matched, budget, styleSheetId, entry, rule, rangeInfo, matchResult?.matches);
         }
       }
       const inherited = await buildInheritedChain(target, ps, nodeId, budget);
@@ -369,17 +370,23 @@ function makeStyleSheetHeader(
   return header;
 }
 
+// Only the last line start is needed, so this tracks it in one pass instead of allocating one
+// entry per line, and keeps computeLineStarts' CR, CRLF and FF semantics.
 function computeEndPosition(text: string): { endLine: number; endColumn: number } {
   let endLine = 0;
-  let lastNewlineIdx = -1;
+  let lineStart = 0;
   for (let i = 0; i < text.length; i++) {
-    if (text.charCodeAt(i) === 10) {
+    const c = text.charCodeAt(i);
+    if (c === 13) {
+      if (text.charCodeAt(i + 1) === 10) i++;
       endLine++;
-      lastNewlineIdx = i;
+      lineStart = i + 1;
+    } else if (c === 10 || c === 12) {
+      endLine++;
+      lineStart = i + 1;
     }
   }
-  const endColumn = text.length - lastNewlineIdx - 1;
-  return { endLine, endColumn };
+  return { endLine, endColumn: text.length - lineStart };
 }
 
 function emitStyleSheetAdded(
@@ -436,8 +443,17 @@ function emitStyleSheetChanged(ctx: DispatchCtx, target: TargetState, styleSheet
   }
 }
 
-// A failed fetch is cached until `failedUntil` so repeated enumerations do not refetch it.
-const opaqueSheetText = new Map<string, { text: string; hops: string[]; failedUntil?: number }>();
+interface OpaqueSheetTextEntry {
+  text: string;
+  hops: string[];
+  // A failed fetch is cached until `failedUntil` so repeated enumerations do not refetch it.
+  failedUntil?: number;
+  // A policy refusal is cached too, but the cache hit re-runs admission so a removed filter
+  // restores the sheet.
+  policyRefused?: boolean;
+}
+
+const opaqueSheetText = new Map<string, OpaqueSheetTextEntry>();
 let opaqueSheetTextBytes = 0;
 const OPAQUE_SHEET_TEXT_MAX = 32;
 const OPAQUE_SHEET_FETCH_CAP = 12;
@@ -485,12 +501,13 @@ function cachedSheetAdmissible(
 }
 
 // The URL is page-chosen, so the fetch goes through the connection's gateway (filters,
-// interception, cookies) and each redirect hop goes back through it.
+// interception, cookies) and each redirect hop goes back through it. Returns null when the fetch
+// failed, so a caller can keep text it already has.
 async function fetchOpaqueSheetText(
   ctx: DispatchCtx,
   target: TargetState,
   url: string,
-): Promise<string> {
+): Promise<string | null> {
   if (!/^https?:\/\//i.test(url)) return "";
   const sandboxOutbound = ctx.browser.sandboxOutbound;
   const cacheable = !sandboxOutbound.external;
@@ -501,19 +518,39 @@ async function fetchOpaqueSheetText(
     const cached = opaqueSheetText.get(cacheKey);
     if (cached !== undefined) {
       const fresh = cached.failedUntil === undefined || Date.now() < cached.failedUntil;
-      if (fresh && cachedSheetAdmissible(ctx, target, cached.hops)) return cached.text;
-      dropOpaqueSheetText(cacheKey);
+      if (fresh && cached.policyRefused === true) {
+        // A refusal is cached only while the connection still refuses the sheet, so removing the
+        // filter restores it without waiting out the failure ttl. A matching interception still
+        // sees the request.
+        if (
+          !sheetIntercepted(ctx.connectionId, cached.hops) &&
+          !cachedSheetAdmissible(ctx, target, cached.hops)
+        ) {
+          return "";
+        }
+        dropOpaqueSheetText(cacheKey);
+      } else if (fresh && cachedSheetAdmissible(ctx, target, cached.hops)) {
+        // A cached failure reports null, so the caller keeps text the entry already has.
+        return cached.failedUntil !== undefined ? null : cached.text;
+      } else {
+        dropOpaqueSheetText(cacheKey);
+      }
     }
   }
   const result = await fetchSheetOnce(ctx, target, url, cookieKey);
   if (cacheable && !sheetIntercepted(ctx.connectionId, result.hops)) {
-    storeOpaqueSheetText(cacheKey, {
-      text: result.text ?? "",
-      hops: result.hops,
-      ...(result.text === null ? { failedUntil: Date.now() + OPAQUE_SHEET_FAILURE_TTL_MS } : {}),
-    });
+    // A budget refusal is transient: caching it would hide the sheet for the whole failure TTL.
+    if (result.failure !== "budget") {
+      storeOpaqueSheetText(cacheKey, {
+        text: result.text ?? "",
+        hops: result.hops,
+        ...(result.text === null ? { failedUntil: Date.now() + OPAQUE_SHEET_FAILURE_TTL_MS } : {}),
+        ...(result.failure === "policy" ? { policyRefused: true } : {}),
+      });
+    }
   }
-  return result.text ?? "";
+  // A policy refusal is a decision about this sheet, not a failed refetch: report it as empty.
+  return result.failure === "policy" ? "" : result.text;
 }
 
 function dropOpaqueSheetText(cacheKey: string): void {
@@ -524,10 +561,7 @@ function dropOpaqueSheetText(cacheKey: string): void {
 }
 
 // Cached UTF-16 storage counts against the shared in-flight read ceiling; oldest entries go first.
-function storeOpaqueSheetText(
-  cacheKey: string,
-  entry: { text: string; hops: string[]; failedUntil?: number },
-): void {
+function storeOpaqueSheetText(cacheKey: string, entry: OpaqueSheetTextEntry): void {
   dropOpaqueSheetText(cacheKey);
   const textBytes = 2 * entry.text.length;
   if (textBytes > MAX_CONCURRENT_READ_BYTES) return;
@@ -544,13 +578,14 @@ function storeOpaqueSheetText(
   opaqueSheetTextBytes += textBytes;
 }
 
-// Fetches the sheet once; `text` is null when it failed. `hops` is the chain it walked.
+// Fetches the sheet once; `text` is null when it failed and `failure` says why. `hops` is the
+// chain it walked.
 async function fetchSheetOnce(
   ctx: DispatchCtx,
   target: TargetState,
   url: string,
   cookieKey: string,
-): Promise<{ text: string | null; hops: string[] }> {
+): Promise<{ text: string | null; hops: string[]; failure: CappedFailure | "policy" | null }> {
   const sandboxOutbound = ctx.browser.sandboxOutbound;
   const pageOrigin = originOf(target.url);
   const outbound = sandboxOutbound.parent({
@@ -576,15 +611,18 @@ async function fetchSheetOnce(
       fetchHop: (hopReq) => outbound.fetch(hopReq),
       onRedirect: (hop) => hops.push(hop.newUrl),
     });
-    if (!walk.ok) return { text: null, hops };
+    if (!walk.ok) return { text: null, hops, failure: null };
     if (!walk.response.ok) {
+      // The connection's gateway refuses a filtered or blocked hop with this status.
+      const policy =
+        walk.response.status === 451 && walk.response.headers.has("x-kitesurf-blocked-reason");
       void walk.response.body?.cancel().catch(() => {});
-      return { text: null, hops };
+      return { text: null, hops, failure: policy ? "policy" : null };
     }
     const got = await readCappedText(walk.response, MAX_STYLESHEET_BYTES, ctx.connectionId);
-    return { text: got.ok ? got.text : null, hops };
+    return { text: got.ok ? got.text : null, hops, failure: got.ok ? null : got.failure };
   } catch {
-    return { text: null, hops };
+    return { text: null, hops, failure: null };
   }
 }
 
@@ -605,12 +643,16 @@ export async function syncStyleSheetsFromEnumeration(
   if (!isCurrent()) return;
 
   const needsFetch = sheets.filter((s) => s.cors === "opaque" && !s.text && !!s.sourceURL);
+  // A failed refetch must not erase text the entry already has, so record which owners failed.
+  const failedFetch = new Set<number>();
   if (needsFetch.length > 0) {
     await Promise.all(
       needsFetch.slice(0, OPAQUE_SHEET_FETCH_CAP).map(async (s) => {
         const sourceURL = s.sourceURL;
         if (!sourceURL) return;
-        s.text = await fetchOpaqueSheetText(ctx, target, sourceURL);
+        const text = await fetchOpaqueSheetText(ctx, target, sourceURL);
+        if (text === null) failedFetch.add(s.ownerNodeId);
+        else s.text = text;
       }),
     );
   }
@@ -625,6 +667,12 @@ export async function syncStyleSheetsFromEnumeration(
     seenOwnerIds.add(s.ownerNodeId);
     const existing = byOwner.get(s.ownerNodeId);
     if (existing) {
+      const opaque = s.cors === "opaque";
+      if (existing.entry.opaqueText !== opaque) {
+        existing.entry.opaqueText = opaque;
+        existing.entry.parsed = null;
+      }
+      if (failedFetch.has(s.ownerNodeId)) continue;
       if (existing.entry.text !== s.text) {
         existing.entry.text = s.text;
         existing.entry.parsed = null;
@@ -641,6 +689,7 @@ export async function syncStyleSheetsFromEnumeration(
         isInline: s.isInline !== false,
         sourceURL: s.sourceURL ?? "",
         origin: s.origin ?? "regular",
+        opaqueText: s.cors === "opaque",
         parsed: null,
       };
       target.styleSheets.set(id, entry);
@@ -705,8 +754,12 @@ async function getOrParseSheet(
   if (entry.parsed) return entry.parsed;
   let sheet: ParsedStyleSheet["rules"] | null = null;
   try {
-    const r = await stubQueryDom(ps, "parseStyleSheet", { text: entry.text });
-    sheet = copyParsedRules(r?.sheet?.rules);
+    // The page shares its realm with every reply it returns, so it can hook the functions a
+    // parsed sheet passes through. Only sheets the page can already read are parsed there.
+    const rules = entry.opaqueText
+      ? parseStyleSheetRules(entry.text)
+      : (await stubQueryDom(ps, "parseStyleSheet", { text: entry.text }))?.sheet?.rules;
+    sheet = copyParsedRules(rules, entry);
   } catch {
     sheet = null;
   }
@@ -717,23 +770,46 @@ async function getOrParseSheet(
   return parsed;
 }
 
+// A sheet this large is a diagnostic hazard: the parsed rules are retained per sheet, so a page
+// could otherwise pin hundreds of megabytes with a few megabytes of `a{x:1}`.
+export const MAX_PARSED_RULES_PER_SHEET = 8192;
+// Declarations are retained per rule too, so the rule cap alone does not bound a sheet. 65,536 is
+// far above a real large sheet: Bootstrap's full build has a few thousand declarations and
+// Tailwind's utility output about ten thousand, so only an adversarial sheet reaches this.
+export const MAX_PARSED_DECLARATIONS_PER_SHEET = 65_536;
+
 // Replies come from the page isolate, whose realm page script shares. A field there can be a stub
 // that runs page code when the engine calls a method on it, so copy every reply the engine keeps
 // or walks into fresh engine values of the expected primitive types.
-function copyParsedRules(raw: unknown): ParsedStyleSheet["rules"] | null {
+function copyParsedRules(raw: unknown, entry: StyleSheetEntry): ParsedStyleSheet["rules"] | null {
   if (!Array.isArray(raw)) return null;
   const rules: ParsedStyleSheet["rules"] = [];
-  for (const item of raw) {
+  const limit = Math.min(raw.length, MAX_PARSED_RULES_PER_SHEET);
+  if (raw.length > limit && entry.warnedRulesCap !== true) {
+    entry.warnedRulesCap = true;
+    console.warn(
+      `kitesurf: stylesheet has more than ${MAX_PARSED_RULES_PER_SHEET} rules; keeping the first ${MAX_PARSED_RULES_PER_SHEET}`,
+    );
+  }
+  let keptDeclarations = 0;
+  for (let i = 0; i < limit; i++) {
+    const item = raw[i];
     if (!item || typeof item !== "object") continue;
     const r = item as Record<string, unknown>;
     if (typeof r.selector_text !== "string") continue;
     const declarations: ParsedStyleSheet["rules"][number]["declarations"] = [];
+    let capped = false;
     if (Array.isArray(r.declarations)) {
       for (const d of r.declarations) {
+        if (keptDeclarations >= MAX_PARSED_DECLARATIONS_PER_SHEET) {
+          capped = true;
+          break;
+        }
         if (!d || typeof d !== "object") continue;
         const { name, value, important } = d as Record<string, unknown>;
         if (typeof name !== "string" || typeof value !== "string") continue;
         declarations.push(important === true ? { name, value, important } : { name, value });
+        keptDeclarations++;
       }
     }
     rules.push({
@@ -743,6 +819,16 @@ function copyParsedRules(raw: unknown): ParsedStyleSheet["rules"] | null {
       source_line: typeof r.source_line === "number" ? r.source_line : 0,
       source_column: typeof r.source_column === "number" ? r.source_column : 0,
     });
+    // Declarations are retained for the document's life, so stop copying at the cap.
+    if (capped) {
+      if (entry.warnedDeclarationsCap !== true) {
+        entry.warnedDeclarationsCap = true;
+        console.warn(
+          `kitesurf: stylesheet has more than ${MAX_PARSED_DECLARATIONS_PER_SHEET} declarations; keeping the first ${MAX_PARSED_DECLARATIONS_PER_SHEET}`,
+        );
+      }
+      break;
+    }
   }
   return rules;
 }
@@ -1102,26 +1188,30 @@ function rangeBetween(
 }
 
 function isWhitespace(code: number): boolean {
-  return code === 9 || code === 10 || code === 13 || code === 32;
+  return code === 9 || code === 10 || code === 12 || code === 13 || code === 32;
 }
 
-// A pessimistic bound on what buildRuleMatch serializes for one match, checked before the split.
-// Text counts twice (12 per character covers escapes); 256 per selector (commas plus one bound
-// them) or property covers keys, ranges, specificity and numbers, and 32 per matching index.
+// A close upper bound on what buildRuleMatch serializes for one match, checked before the object
+// is built. Text counts twice (the selector list and each selector, the properties and cssText),
+// so 12 per character covers escaping; 160 per selector and 144 per declaration cover keys,
+// ranges, specificity and numbers, and 8 per matching index covers the index list.
+const SELECTOR_CHARGE = 160;
+const DECLARATION_CHARGE = 144;
+const MATCH_INDEX_CHARGE = 8;
+// matchCharge's floor: one selector, no text, one matching index.
+const MIN_MATCH_CHARGE = 256 + SELECTOR_CHARGE + MATCH_INDEX_CHARGE;
+
 function matchCharge(
   styleSheetId: string,
   rule: ParsedStyleSheet["rules"][number],
-  rawMatches: unknown,
+  selectorCount: number,
+  matchCount: number,
 ): number {
-  let charge = 1024 + 12 * styleSheetId.length + 12 * rule.selector_text.length;
-  let selectors = 1;
-  for (let i = 0; i < rule.selector_text.length; i++) {
-    if (rule.selector_text.charCodeAt(i) === 44) selectors++;
-  }
-  charge += 256 * selectors;
-  charge += 32 * (Array.isArray(rawMatches) ? rawMatches.length : 0);
+  let charge = 256 + 12 * (styleSheetId.length + rule.selector_text.length);
+  charge += SELECTOR_CHARGE * selectorCount;
+  charge += MATCH_INDEX_CHARGE * matchCount;
   for (const d of rule.declarations) {
-    charge += 256 + 12 * (d.name.length + d.value.length);
+    charge += DECLARATION_CHARGE + 12 * (d.name.length + d.value.length);
   }
   return charge;
 }
@@ -1130,10 +1220,10 @@ function buildRuleMatch(
   styleSheetId: string,
   rule: ParsedStyleSheet["rules"][number],
   rangeInfo: ParsedStyleSheet["ranges"][number],
+  selectorTexts: string[],
   matchingSelectors: number[],
   origin: Protocol.CSS.StyleSheetOrigin,
 ): Protocol.CSS.RuleMatch {
-  const selectorTexts = splitTopLevelCommas(rule.selector_text);
   const selectors: Protocol.CSS.Value[] = selectorTexts.map((t, i) => {
     const v: Protocol.CSS.Value = { text: t.trim() };
     if (rangeInfo.selectorRanges[i]) v.range = rangeInfo.selectorRanges[i];
@@ -1173,6 +1263,34 @@ function buildRuleMatch(
     },
     matchingSelectors,
   };
+}
+
+// A rule that matched nothing costs nothing, so a page-supplied selector list cannot exhaust the
+// budget. The charge is computed from the reply's length before its indices are copied: a sparse
+// array of length 8M iterates for ~100 ms per rule even though it holds one index.
+function addMatch(
+  matched: Protocol.CSS.RuleMatch[],
+  budget: MatchBudget,
+  styleSheetId: string,
+  entry: StyleSheetEntry,
+  rule: ParsedStyleSheet["rules"][number],
+  rangeInfo: ParsedStyleSheet["ranges"][number],
+  rawMatches: unknown,
+): void {
+  const matchCount = Array.isArray(rawMatches) ? rawMatches.length : 0;
+  if (matchCount === 0) return;
+  const selectorTexts = splitTopLevelCommas(rule.selector_text);
+  const charge = matchCharge(styleSheetId, rule, selectorTexts.length, matchCount);
+  if (charge > budget.remaining) {
+    warnMatchBudget(budget);
+    return;
+  }
+  const matchingSelectors = copyNumbers(rawMatches);
+  if (matchingSelectors.length === 0) return;
+  budget.remaining -= charge;
+  matched.push(
+    buildRuleMatch(styleSheetId, rule, rangeInfo, selectorTexts, matchingSelectors, entry.origin),
+  );
 }
 
 function unpackSpecificity(packed: number): Protocol.CSS.Specificity {
@@ -1377,21 +1495,16 @@ async function buildInheritedChain(
         const rangeInfo = parsed.ranges[ri];
         if (!rule || !rangeInfo) continue;
         if (!ruleHasInheritableDecl(rule)) continue;
+        // No match could fit, so stop asking the page to evaluate selectors.
+        if (budget.remaining < MIN_MATCH_CHARGE) {
+          warnMatchBudget(budget);
+          break;
+        }
         const matchResult = await stubQueryDom(ps, "matchSelectorList", {
           nodeId: ancestorId,
           selectorListText: rule.selector_text,
         });
-        const charge = matchCharge(styleSheetId, rule, matchResult?.matches);
-        if (charge > budget.remaining) {
-          warnMatchBudget(budget);
-          continue;
-        }
-        const matchingSelectors = copyNumbers(matchResult?.matches);
-        if (matchingSelectors.length === 0) continue;
-        budget.remaining -= charge;
-        matched.push(
-          buildRuleMatch(styleSheetId, rule, rangeInfo, matchingSelectors, entry.origin),
-        );
+        addMatch(matched, budget, styleSheetId, entry, rule, rangeInfo, matchResult?.matches);
       }
     }
     entries.push({ matchedCSSRules: matched });

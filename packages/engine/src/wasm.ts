@@ -5,11 +5,13 @@
 // Initializes core WebAssembly on demand and exposes document, render, and font helpers.
 
 import wasmModule from "../../core/pkg/kitesurf_core_bg.wasm";
+import type { ParsedStyleSheet } from "@kitesurf/jsrpc-types/query-dom";
 import { registerEngineWasmProbe } from "./engine-wasm-probe.ts";
 import { setDomFactory } from "./cdp/dom-release.ts";
 import {
   initSync,
   DomHandle,
+  ks_parse_stylesheet_structured,
   ks_render_html_to_image,
   ks_scan_document,
   stripFontForShaping as ks_strip_font_for_shaping,
@@ -124,6 +126,15 @@ export interface DocScan {
 export function scanDocument(html: string): DocScan {
   ensureInit();
   return JSON.parse(ks_scan_document(html)) as DocScan;
+}
+
+export type ParsedStyleSheetRules = ParsedStyleSheet["rules"];
+
+// Stylesheet text the page cannot read is parsed here, in the engine's own realm, so no page
+// hook can observe the argument or the rules the parser builds.
+export function parseStyleSheetRules(css: string): ParsedStyleSheetRules {
+  ensureInit();
+  return ks_parse_stylesheet_structured(css).rules;
 }
 
 export function renderHtmlToImage(

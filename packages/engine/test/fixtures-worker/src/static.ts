@@ -31,6 +31,7 @@ import corsSheetEchoOriginCss from "../assets/cors-sheet-echo-origin.css";
 import corsSheetEchoOriginHtml from "../assets/cors-sheet-echo-origin.html";
 import corsSheetNoAcaoHtml from "../assets/cors-sheet-no-acao.html";
 import corsSheetNoAttrHtml from "../assets/cors-sheet-no-attr.html";
+import corsSheetPrivateMarkerCss from "../assets/cors-sheet-private-marker.css";
 import corsSheetRedirectHtml from "../assets/cors-sheet-redirect.html";
 import corsSheetSameOriginHtml from "../assets/cors-sheet-same-origin.html";
 import crossOriginFontHtml from "../assets/cross-origin-font.html";
@@ -305,6 +306,7 @@ export const STATIC_FIXTURES: Record<string, string | ArrayBuffer> = {
   "iframe-euckr-host.html": iframeEuckrHostHtml,
   "cors-sheet-acao.css": corsSheetEchoOriginCss,
   "cors-sheet-bare.css": corsSheetEchoOriginCss,
+  "cors-sheet-private-marker.css": corsSheetPrivateMarkerCss,
   "cors-sheet-echo-origin.css": corsSheetEchoOriginCss,
   "cors-sheet-clean.html": corsSheetCleanHtml,
   "cors-sheet-no-acao.html": corsSheetNoAcaoHtml,
