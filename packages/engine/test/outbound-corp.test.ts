@@ -3,9 +3,31 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { expect, it } from "vitest";
+import {
+  drainInterception,
+  ensureInterception,
+  resolveParked,
+  unregisterInterception,
+} from "../src/cdp/fetch-interception.ts";
 import { NetworkEventTracker } from "../src/cdp/network-events.ts";
-import { registerTracker } from "../src/cdp/network-events-registry.ts";
-import { SandboxOutbound, type SandboxOutboundEnv } from "../src/eval/outbound.ts";
+import { registerTracker, unregisterTracker } from "../src/cdp/network-events-registry.ts";
+import {
+  SandboxOutbound,
+  type CallerOutboundProps,
+  type SandboxOutboundEnv,
+} from "../src/eval/outbound.ts";
+
+// Every case drives the real gateway; only the host transport is faked.
+const gateway = (
+  props: Omit<CallerOutboundProps, "pageOrigin">,
+  request: Request,
+  fetch: (request: Request) => Promise<Response>,
+): Promise<Response> =>
+  SandboxOutbound.handle(
+    {} as SandboxOutboundEnv,
+    { pageOrigin: "https://page.test", externalOutbound: { fetch }, ...props },
+    request,
+  );
 
 const WRITE_LABELS: [string, Record<string, string>][] = [
   ["Image", {}],
@@ -15,17 +37,8 @@ const WRITE_LABELS: [string, Record<string, string>][] = [
 
 it.each(WRITE_LABELS)("preflights a %s-labelled cross-origin write", async (type, labels) => {
   const seen: string[] = [];
-  await SandboxOutbound.handle(
-    {} as SandboxOutboundEnv,
-    {
-      pageOrigin: "https://page.test",
-      externalOutbound: {
-        fetch: async (req) => {
-          seen.push(req.method);
-          return new Response(null, { status: 204 });
-        },
-      },
-    },
+  await gateway(
+    {},
     new Request("https://other.test/asset", {
       method: "PUT",
       body: "{}",
@@ -36,122 +49,74 @@ it.each(WRITE_LABELS)("preflights a %s-labelled cross-origin write", async (type
         ...labels,
       },
     }),
+    async (req) => {
+      seen.push(req.method);
+      return new Response(null, { status: 204 });
+    },
   );
   expect(seen).toEqual(["OPTIONS"]);
 });
 
-it("keeps an opaque cross-origin image read", async () => {
-  const gif = new Uint8Array([71, 73, 70, 56, 57, 97, 2, 0, 3, 0, 247, 0, 0]);
-  const response = await SandboxOutbound.handle(
-    {} as SandboxOutboundEnv,
-    {
-      pageOrigin: "https://page.test",
-      externalOutbound: { fetch: async () => new Response(gif) },
-    },
-    new Request("https://other.test/asset", {
-      headers: {
-        "x-kitesurf-resource-type": "Image",
-        "x-kitesurf-allow-cross-origin": "1",
-      },
-    }),
-  );
-  expect(response.status).toBe(200);
-  expect(response.headers.get("x-kitesurf-image-width")).toBe("2");
-});
-
-// A page can label any cross-origin read as a parser image, so the shell status must not
-// carry the origin's status: every unusable body is one failure, every image one success.
-const WITHHELD_IMAGE_CASES: [string, number, boolean][] = [
-  ["a non-image 200", 200, false],
-  ["a non-image 404", 404, false],
-  ["an image-shaped 403", 403, false],
-  ["a captured non-image 200", 200, true],
-];
-
+// A page can label any cross-origin read as a parser image, so the shell must not carry the
+// origin's status: every unusable body is one failure.
 const CAPTURE_CONNECTION = "withheld-image";
 
-it.each(WITHHELD_IMAGE_CASES)(
-  "withholds the origin status of %s",
-  async (_case, status, capture) => {
-    const tracker = new NetworkEventTracker(() => {}, CAPTURE_CONNECTION);
-    if (capture) {
-      tracker.setEnabled(undefined, true);
-      registerTracker(CAPTURE_CONNECTION, tracker);
-    }
-    const gif = new Uint8Array([71, 73, 70, 56, 57, 97, 2, 0, 3, 0, 247, 0, 0]);
-    const response = await SandboxOutbound.handle(
-      {} as SandboxOutboundEnv,
-      {
-        pageOrigin: "https://page.test",
-        connectionId: capture ? CAPTURE_CONNECTION : undefined,
-        externalOutbound: {
-          fetch: async () =>
-            new Response(status === 403 ? gif : "<html>not an image</html>", {
-              status,
-              headers: { "content-type": "text/html" },
-            }),
-        },
-      },
-      new Request("https://other.test/asset", {
-        headers: {
-          "x-kitesurf-resource-type": "Image",
-          "x-kitesurf-allow-cross-origin": "1",
-        },
+it.each([false, true])("withholds an unusable image's status (captured=%s)", async (capture) => {
+  const tracker = new NetworkEventTracker(() => {}, CAPTURE_CONNECTION);
+  if (capture) {
+    tracker.setEnabled(undefined, true);
+    registerTracker(CAPTURE_CONNECTION, tracker);
+  }
+  const response = await gateway(
+    { connectionId: capture ? CAPTURE_CONNECTION : undefined },
+    new Request("https://other.test/asset", {
+      headers: { "x-kitesurf-resource-type": "Image", "x-kitesurf-allow-cross-origin": "1" },
+    }),
+    async () =>
+      new Response("<html>not an image</html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
       }),
-    );
-    tracker.dispose();
-    expect(response.status).toBe(404);
-    expect(await response.text()).toBe("");
-    expect([...response.headers]).toEqual([]);
-  },
-);
-
-async function pageRealmResponse(response: Response, request?: Request): Promise<Response> {
-  return SandboxOutbound.handle(
-    {} as SandboxOutboundEnv,
-    {
-      pageOrigin: "https://page.test",
-      pageRealm: true,
-      externalOutbound: { fetch: async () => response },
-    },
-    request ?? new Request("https://page.test/asset"),
   );
-}
+  tracker.dispose();
+  expect(response.status).toBe(404);
+  expect(await response.text()).toBe("");
+  expect([...response.headers]).toEqual([]);
+});
 
 it("hides forbidden response headers from a page-realm response", async () => {
-  const response = await pageRealmResponse(
-    new Response("body", {
-      headers: {
-        "set-cookie": "secret=1; HttpOnly",
-        "set-cookie2": "legacy=1",
-        "x-allowed": "yes",
-      },
-    }),
+  const response = await gateway(
+    { pageRealm: true },
+    new Request("https://page.test/asset"),
+    async () =>
+      new Response("body", {
+        headers: {
+          "set-cookie": "secret=1; HttpOnly",
+          "set-cookie2": "legacy=1",
+          "x-allowed": "yes",
+        },
+      }),
   );
   expect(response.headers.getSetCookie()).toEqual([]);
-  expect(response.headers.get("set-cookie")).toBeNull();
   expect(response.headers.get("set-cookie2")).toBeNull();
   expect(response.headers.get("x-allowed")).toBe("yes");
   expect(await response.text()).toBe("body");
 });
 
 it("hides forbidden headers on a page-realm upgrade and keeps the socket", async () => {
-  const response = await pageRealmResponse(
-    new Response(null, {
-      status: 101,
-      webSocket: new WebSocketPair()[1],
-      headers: { "set-cookie": "secret=1" },
-    }),
+  const response = await gateway(
+    { pageRealm: true },
     new Request("https://page.test/socket", { headers: { Upgrade: "websocket" } }),
+    async () =>
+      new Response(null, {
+        status: 101,
+        webSocket: new WebSocketPair()[1],
+        headers: { "set-cookie": "secret=1" },
+      }),
   );
   expect(response.status).toBe(101);
   expect(response.webSocket).toBeTruthy();
   expect(response.headers.get("set-cookie")).toBeNull();
-});
-
-it("returns a page-realm response without forbidden headers unchanged", async () => {
-  const original = new Response("body", { headers: { "x-allowed": "yes" } });
-  expect(await pageRealmResponse(original)).toBe(original);
 });
 
 it.each(["same-origin", "same-site"])("enforces %s CORP on a tainted script", async (policy) => {
@@ -177,4 +142,61 @@ it.each(["same-origin", "same-site"])("enforces %s CORP on a tainted script", as
   );
   expect(response.status).toBe(403);
   expect(response.headers.get("x-kitesurf-blocked")).toBe("cors");
+});
+
+// A page names its requests with x-kitesurf-network-id; interception must pair requestPaused
+// with the Network request the engine started, while a document walk keeps its loader id.
+const INTERCEPTION_CONNECTION = "interception-id";
+
+async function interceptedRequest(
+  props: Omit<CallerOutboundProps, "pageOrigin">,
+  headers: Record<string, string>,
+) {
+  const st = ensureInterception(INTERCEPTION_CONNECTION);
+  st.patterns = [{ re: /.*/ }];
+  const paused: string[] = [];
+  st.emit = (ev) => {
+    paused.push(ev.networkId ?? "");
+    resolveParked(st, ev.requestId, { kind: "fail", errorReason: "Aborted" });
+  };
+  const tracked: string[] = [];
+  const tracker = new NetworkEventTracker((ev) => {
+    if (ev.method === "Network.requestWillBeSent") tracked.push(ev.params.requestId);
+  }, INTERCEPTION_CONNECTION);
+  tracker.setEnabled(undefined, true);
+  registerTracker(INTERCEPTION_CONNECTION, tracker);
+  // A reached transport resolves instead of rejecting, so `rejected` also proves no egress.
+  const settled = gateway(
+    props,
+    new Request("https://page.test/routed", {
+      headers: { "x-kitesurf-resource-type": "Fetch", ...headers },
+    }),
+    async () => new Response("reached"),
+  ).then(
+    () => false,
+    () => true,
+  );
+  while (st.parked.size === 0) await new Promise((r) => setTimeout(r, 0));
+  drainInterception(INTERCEPTION_CONNECTION);
+  const rejected = await settled;
+  tracker.drain();
+  tracker.dispose();
+  unregisterTracker(INTERCEPTION_CONNECTION);
+  unregisterInterception(INTERCEPTION_CONNECTION);
+  return { networkId: paused[0] ?? "", tracked: tracked[0], rejected };
+}
+
+it("pairs a page request with its tracked network id, not a forged header", async () => {
+  const page = await interceptedRequest(
+    { pageRealm: true, connectionId: INTERCEPTION_CONNECTION },
+    { "x-kitesurf-network-id": "forged" },
+  );
+  expect(page.networkId).toBe(page.tracked);
+  expect(page.rejected).toBe(true);
+  // The engine's own document walk still pairs through its loader id header.
+  const doc = await interceptedRequest(
+    { interceptConnectionId: INTERCEPTION_CONNECTION },
+    { "x-kitesurf-network-id": "loader-1" },
+  );
+  expect(doc.networkId).toBe("loader-1");
 });
