@@ -1439,10 +1439,6 @@
     "expected": "SKIP",
     "reason": "times out"
   },
-  "page-network-idle.spec.ts::should not wait for an open EventSource connection in setContent": {
-    "expected": "FAIL",
-    "reason": "Error: page.evaluate: SyntaxError: Cannot open an EventSource to '/sse'. The URL is invalid."
-  },
   "page-network-idle.spec.ts::should wait for networkidle from the child frame": {
     "expected": "SKIP",
     "reason": "times out"
@@ -1506,10 +1502,6 @@
   "page-network-request.spec.ts::should report raw headers": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toEqual(expected) // deep equality"
-  },
-  "page-network-request.spec.ts::should return event source": {
-    "expected": "FAIL",
-    "reason": "Error: page.evaluate: SyntaxError: Cannot open an EventSource to '/sse'. The URL is invalid."
   },
   "page-network-request.spec.ts::should return multipart/form-data": {
     "expected": "FAIL",
