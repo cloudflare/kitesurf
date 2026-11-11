@@ -640,6 +640,7 @@ export async function fetchInsertedScript(
   url: string,
   crossOrigin: string | null = null,
   checkRedirect?: (url: string) => string | null,
+  initiator: "script" | "parser" = "script",
 ): Promise<{
   status: number;
   source: string;
@@ -685,7 +686,7 @@ export async function fetchInsertedScript(
       { headers },
       {
         resourceType: "Script",
-        initiator: "script",
+        initiator,
         ...(checkRedirect ? { checkRedirect } : {}),
       },
     );

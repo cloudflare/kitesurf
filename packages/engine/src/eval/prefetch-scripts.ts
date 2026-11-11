@@ -95,6 +95,9 @@ interface PrefetchExternalScriptsOptions {
   // The document's script gate. Each descriptor's own url was checked before; it also applies to
   // every redirect target.
   gate?: ScriptGateContext | null;
+  // A parser-inserted classic reports initiator type "parser"; a speculative insert reports
+  // "script". The engine's outbound maps only "parser" to the parser initiator.
+  initiator?: "parser" | "script";
 }
 
 /** Prefetches classic scripts; per-script failures are stored on each descriptor. */
@@ -110,6 +113,7 @@ export async function prefetchExternalScripts({
   sandboxOutbound,
   signal,
   gate = null,
+  initiator = "script",
 }: PrefetchExternalScriptsOptions): Promise<ParentScriptDescriptor[]> {
   const resolveBase = baseUrl || pageUrl;
 
@@ -159,7 +163,7 @@ export async function prefetchExternalScripts({
           const scriptCorsMode = d.crossOrigin == null ? "no-cors" : "cors";
           const headers: Record<string, string> = {
             "x-kitesurf-resource-type": "Script",
-            "x-kitesurf-initiator": "parser-prefetch",
+            "x-kitesurf-initiator": initiator,
             "x-kitesurf-page-origin": pageOrigin,
             "x-kitesurf-allow-cross-origin": "1",
             "x-kitesurf-script-cors": scriptCorsMode,

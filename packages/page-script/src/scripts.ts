@@ -10,6 +10,7 @@
 import { globalizeForBoa } from "./boa-classic.ts";
 import { fetchInsertedScript } from "./resource-fetch.ts";
 import {
+  importHitFailedFetch,
   parserRedirectGate,
   parserResponseAllowed,
   parserScriptAllowed,
@@ -57,10 +58,15 @@ export interface ScriptPlan {
 // blitz-html keeps template contents under the <template> element, and a script there is inert:
 // the scan skips it, so the source plan must not run it either.
 function hasTemplateAncestor(dom: NonNullable<typeof state.dom>, id: number): boolean {
-  for (let parent = dom.parentId(id); parent >= 0; parent = dom.parentId(parent)) {
-    const info = dom.nodeInfo(parent);
-    if (!info) return false;
-    if ((info.localName || info.nodeName).toLowerCase() === "template") return true;
+  try {
+    for (let parent = dom.parentId(id); parent >= 0; parent = dom.parentId(parent)) {
+      const info = dom.nodeInfo(parent);
+      if (!info) return false;
+      if ((info.localName || info.nodeName).toLowerCase() === "template") return true;
+    }
+  } catch {
+    // A stale id throws in the tree walk. An ancestor chain that cannot be read is not a
+    // template ancestor, and the caller reads its own node id inside its own guard.
   }
   return false;
 }
@@ -147,7 +153,12 @@ async function fetchScriptSource(script: ScriptDescriptor, url: string): Promise
   }
   const redirects = parserRedirectGate(meta);
   const fetchedUrl = pre.upgradeTo ?? url;
-  const response = await fetchInsertedScript(fetchedUrl, script.crossOrigin, redirects.check);
+  const response = await fetchInsertedScript(
+    fetchedUrl,
+    script.crossOrigin,
+    redirects.check,
+    "parser",
+  );
   if (redirects.refusal) {
     reportBlocked(redirects.refusal);
     throw new Error(redirects.refusal.message ?? "script redirect blocked by policy");
@@ -336,9 +347,14 @@ export async function runAsyncPhase(plan: ScriptPlan): Promise<void> {
 const inlineModuleSources = new Map<string, string>();
 let inlineModuleCounter = 0;
 // The gate needs an entry module's own nonce and integrity; its imports carry neither. Elements
-// that share a URL share its one fetch, which a browser makes with the first one's options, so
-// those stay until every holder releases them: a later element cannot replace them mid-fetch.
-type EntryModuleAttributes = { nonce: string | null; integrity: string | null };
+// sharing a URL share one fetch made with the first one's options, held until every holder
+// releases them so a later element cannot replace them mid-fetch. `parser` marks a parser module:
+// 'strict-dynamic' must not admit it, or a redirect hop of its fetch, as it would an insert.
+type EntryModuleAttributes = {
+  nonce: string | null;
+  integrity: string | null;
+  parser: boolean;
+};
 const entryModuleAttributes = new Map<
   string,
   { attributes: EntryModuleAttributes; holders: number }
@@ -375,18 +391,37 @@ function inlineModuleUrl(baseUrl: string): string {
 export async function runModulePhase(plan: ScriptPlan): Promise<void> {
   // HTML evaluates parser-inserted modules in document order.
   for (const script of plan.modules) {
+    const url = script.src ? (script._resolvedUrl ?? null) : null;
+    const source = script.src ? "" : script.body || "";
+    if (script.src && !url) {
+      console.error("[kitesurf] cannot resolve module <script src>: " + String(script.src));
+      continue;
+    }
+    if (!script.src && !source.trim()) continue;
+    // A parser module passes the parser gate, not the insert gate: 'strict-dynamic' does not
+    // admit it, and an inline body is checked before it is registered under an inline URL.
+    const pre = await parserScriptAllowed({
+      url,
+      nonce: script.nonce,
+      integrity: script.integrity,
+      module: true,
+      ...(url === null ? { body: source } : {}),
+    });
+    reportOnly(pre);
+    if (!pre.allowed) {
+      reportBlocked(pre);
+      fireScriptLifecycle(script, false);
+      continue;
+    }
     let moduleUrl: string;
-    if (script.src) {
-      const url = script._resolvedUrl;
-      if (!url) {
-        console.error("[kitesurf] cannot resolve module <script src>: " + String(script.src));
-        continue;
-      }
+    if (url) {
       moduleUrl = url;
-      setEntryModuleGateAttributes(url, { nonce: script.nonce, integrity: script.integrity });
+      setEntryModuleGateAttributes(url, {
+        nonce: script.nonce,
+        integrity: script.integrity,
+        parser: true,
+      });
     } else {
-      const source = script.body || "";
-      if (!source.trim()) continue;
       try {
         moduleUrl = inlineModuleUrl(state.pageUrl || "about:blank");
       } catch {
@@ -395,12 +430,21 @@ export async function runModulePhase(plan: ScriptPlan): Promise<void> {
       }
       inlineModuleSources.set(moduleUrl, source);
       // No integrity for inline source, but its imports inherit its nonce.
-      setEntryModuleGateAttributes(moduleUrl, { nonce: script.nonce, integrity: null });
+      setEntryModuleGateAttributes(moduleUrl, {
+        nonce: script.nonce,
+        integrity: null,
+        parser: true,
+      });
     }
     try {
       await ks_import(moduleUrl, state.pageUrl || "about:blank");
     } catch (err) {
       console.error("[" + (script.src ? moduleUrl : "<inline-module>") + "]", err);
+      // A refused fetch (CSP, integrity, MIME) fails the element, as runRegularPhase does for
+      // classics. A module that throws while evaluating still fires load in a browser, so the
+      // event follows the gate's failed URLs, not the rejection text the page can write.
+      const reason = err instanceof Error ? err.message : String(err);
+      if (importHitFailedFetch(reason)) fireScriptLifecycle(script, false);
     } finally {
       inlineModuleSources.delete(moduleUrl);
       clearEntryModuleGateAttributes(moduleUrl);
