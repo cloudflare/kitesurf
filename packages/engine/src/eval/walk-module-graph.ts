@@ -831,6 +831,7 @@ export async function walkModuleGraph({
   });
 
   const modules = new Map<string, string>();
+  const responseUrlByRequest = new Map<string, string>();
   const failed = new Map<string, string>();
   interface WalkQueueItem {
     url: string;
@@ -887,7 +888,7 @@ export async function walkModuleGraph({
       const isDynamic = imp.t === 2;
       const specifier = imp.n ?? (isDynamic ? constSpecifier(body.slice(imp.s, imp.e)) : undefined);
       if (!specifier) continue;
-      const resolved = resolveModule(specifier, fromUrl);
+      const resolved = resolveModule(specifier, responseUrlByRequest.get(fromUrl) ?? fromUrl);
       if (!resolved) {
         if (isDynamic) continue;
         failed.set(
@@ -1029,7 +1030,7 @@ export async function walkModuleGraph({
 
   const MODULE_FETCH_ATTEMPTS = 3;
   type ModuleFetchResult =
-    | { ok: true; body: string; moduleType: ModuleType }
+    | { ok: true; body: string; moduleType: ModuleType; responseUrl: string }
     | { ok: false; error: string };
 
   const isTransientFetchError = (error: string): boolean =>
@@ -1038,6 +1039,7 @@ export async function walkModuleGraph({
     );
 
   const attemptFetchModuleBody = async (url: string): Promise<ModuleFetchResult> => {
+    let fetchUrl = url;
     if (gate) {
       const pre = await checkScriptBeforeFetch(gate, {
         url,
@@ -1050,6 +1052,7 @@ export async function walkModuleGraph({
       if (!pre.allowed) {
         return { ok: false, error: pre.message ?? `module blocked: ${url}` };
       }
+      fetchUrl = pre.upgradeTo ?? url;
     }
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
@@ -1065,7 +1068,7 @@ export async function walkModuleGraph({
       if (mainFrameId) headers["x-kitesurf-frame-id"] = mainFrameId;
       if (pageOrigin) headers["origin"] = pageOrigin;
       const walk = await walkRedirects({
-        url,
+        url: fetchUrl,
         signal: ctrl.signal,
         headers,
         taintOriginFrom: pageOrigin || undefined,
@@ -1136,7 +1139,12 @@ export async function walkModuleGraph({
           error: verdict.message ?? `module blocked by policy: ${url}`,
         };
       }
-      return { ok: true, body, moduleType: verdict.moduleType ?? "javascript" };
+      return {
+        ok: true,
+        body,
+        moduleType: verdict.moduleType ?? "javascript",
+        responseUrl: walk.finalUrl,
+      };
     } catch (err) {
       return {
         ok: false,
@@ -1167,8 +1175,9 @@ export async function walkModuleGraph({
 
   const storeFetched = (
     url: string,
-    fetched: { body: string; moduleType: ModuleType },
+    fetched: { body: string; moduleType: ModuleType; responseUrl: string },
   ): boolean => {
+    responseUrlByRequest.set(url, fetched.responseUrl);
     if (fetched.moduleType === "json") {
       try {
         jsonModules.set(url, JSON.parse(fetched.body));
@@ -1390,7 +1399,10 @@ export async function walkModuleGraph({
             const hash = webpackHashMap[id];
             if (hash === undefined) return null;
             const name = nameMap?.[id] ?? id;
-            const resolved = resolveAgainstImporter(`./${name}.${hash}.js`, webpackBase);
+            const resolved = resolveAgainstImporter(
+              `./${name}.${hash}.js`,
+              responseUrlByRequest.get(webpackBase) ?? webpackBase,
+            );
             return resolved && !modules.has(resolved) && !failed.has(resolved)
               ? { id, url: resolved }
               : null;
@@ -1438,7 +1450,7 @@ export async function walkModuleGraph({
       completeness.set(url, true);
       for (const imp of lexCache.get(url) ?? []) {
         if (imp.t !== 1 || !imp.n) continue;
-        const resolved = resolveStatic(imp.n, url);
+        const resolved = resolveStatic(imp.n, responseUrlByRequest.get(url) ?? url);
         if (!resolved) continue;
         if (!modules.has(resolved) || !staticDepsComplete(resolved)) {
           completeness.set(url, false);
@@ -1478,7 +1490,7 @@ export async function walkModuleGraph({
           imp.n ??
           (imp.t === 2 ? constSpecifier(modules.get(url)!.slice(imp.s, imp.e)) : undefined);
         if (!spec) continue;
-        const resolved = resolveStatic(spec, url);
+        const resolved = resolveStatic(spec, responseUrlByRequest.get(url) ?? url);
         if (resolved) pushRoot(resolved);
       }
     }
@@ -1497,7 +1509,7 @@ export async function walkModuleGraph({
   for (const [fromUrl] of modules) {
     for (const imp of lexCache.get(fromUrl) ?? []) {
       if (imp.t !== 1 || !imp.n) continue;
-      const resolved = resolveModule(imp.n, fromUrl);
+      const resolved = resolveModule(imp.n, responseUrlByRequest.get(fromUrl) ?? fromUrl);
       if (!resolved || !isPageModuleUrl(resolved)) continue;
       const importers = staticImporters.get(resolved) ?? new Set<string>();
       importers.add(fromUrl);
@@ -1584,9 +1596,10 @@ export async function walkModuleGraph({
         continue;
       }
     }
-    const ref = JSON.stringify(fromUrl);
+    const responseUrl = responseUrlByRequest.get(fromUrl) ?? fromUrl;
+    const ref = JSON.stringify(responseUrl);
     let syntheticImportMeta: string | undefined;
-    if (registryName(fromUrl) !== fromUrl) {
+    if (registryName(fromUrl) !== responseUrl) {
       syntheticImportMeta = "__ks_import_meta";
       while (body.includes(syntheticImportMeta)) syntheticImportMeta += "_";
     }
@@ -1600,16 +1613,19 @@ export async function walkModuleGraph({
         if (!spec && imp.d > -1) {
           const expr = rewriteImportMetaResolve(
             dynamicImportExpression(body, imp),
-            fromUrl,
+            responseUrl,
             syntheticImportMeta,
           );
           rewrites.push({ ss: imp.ss, se: imp.se, text: `__ks_import(${expr}, ${ref})` });
         }
         if (!spec) continue;
 
-        const resolved = resolveModule(spec, fromUrl);
+        const resolved = resolveModule(spec, responseUrl);
         const registryResolved = resolved && modules.has(resolved) ? registryName(resolved) : null;
-        if (registryResolved !== null && !nativelyResolvesTo(spec, fromUrl, registryResolved)) {
+        if (
+          registryResolved !== null &&
+          !nativelyResolvesTo(spec, registryName(fromUrl), registryResolved)
+        ) {
           rewrites.push({ ...literalRange(imp), text: JSON.stringify(registryResolved) });
         }
         if (registryResolved !== null) continue;
@@ -1642,10 +1658,10 @@ export async function walkModuleGraph({
       }
 
       if (imp.t !== 1 || !imp.n) continue;
-      const resolved = resolveModule(imp.n, fromUrl);
+      const resolved = resolveModule(imp.n, responseUrl);
       if (!resolved) continue;
       const registryResolved = registryName(resolved);
-      if (!nativelyResolvesTo(imp.n, fromUrl, registryResolved)) {
+      if (!nativelyResolvesTo(imp.n, registryName(fromUrl), registryResolved)) {
         rewrites.push({ ...literalRange(imp), text: JSON.stringify(registryResolved) });
       }
     }
