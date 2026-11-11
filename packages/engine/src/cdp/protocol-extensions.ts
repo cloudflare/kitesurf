@@ -270,6 +270,10 @@ declare module "devtools-protocol" {
         };
       }
 
+      // Patterns are JS RegExp syntax, non-unicode and flagless. Lookaround, backreferences,
+      // octal escapes, repeats over 1000 and expansions past 8192 steps are refused, and at most
+      // 32 patterns of 500 chars each are accepted. One refused pattern rejects the call and
+      // keeps the previous filters. Cost is linear in URL x pattern size; URLs are unbounded.
       interface SetOutboundFiltersRequest {
         allowRequestPattern?: string[];
         rejectRequestPattern?: string[];
