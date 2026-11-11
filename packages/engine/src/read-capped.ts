@@ -118,6 +118,55 @@ export type CappedBody =
   | { ok: true; bytes: Uint8Array<ArrayBuffer> }
   | { ok: false; failure: CappedFailure };
 
+/** Charges bytes read into memory to the shared and per-connection budgets until released. */
+function readLease(connectionId: string, connectionCap = MAX_CONNECTION_READ_BYTES) {
+  let charged = 0;
+  let released = false;
+  return {
+    charge(delta: number): boolean {
+      charged += delta;
+      inFlightBytes += delta;
+      if (inFlightBytes > peakInFlightBytes) peakInFlightBytes = inFlightBytes;
+      const own = (inFlightByConnection.get(connectionId) ?? 0) + delta;
+      inFlightByConnection.set(connectionId, own);
+      return inFlightBytes <= MAX_CONCURRENT_READ_BYTES && own <= connectionCap;
+    },
+    release(): void {
+      if (released) return;
+      released = true;
+      inFlightBytes -= charged;
+      if (charged > 0) {
+        const own = (inFlightByConnection.get(connectionId) ?? 0) - charged;
+        if (own > 0) inFlightByConnection.set(connectionId, own);
+        else inFlightByConnection.delete(connectionId);
+      }
+    },
+  };
+}
+
+/** Reads a stream under `cap` and the shared budget, replaying already-read chunks on failure
+ *  instead of cancelling. The charge ends with the read: a returned `rest` belongs to its
+ *  consumer, which may never finish it, so it must not hold the shared budget. */
+export async function readCappedBudgeted(
+  body: ReadableStream<Uint8Array> | null,
+  cap: number,
+  connectionId: string,
+): Promise<CappedRead> {
+  if (!body) return { bytes: new Uint8Array(0), rest: null, failure: null };
+  if (
+    inFlightBytes >= MAX_CONCURRENT_READ_BYTES ||
+    (inFlightByConnection.get(connectionId) ?? 0) >= MAX_CONNECTION_READ_BYTES
+  ) {
+    return { bytes: null, rest: body, failure: "budget" };
+  }
+  const lease = readLease(connectionId);
+  try {
+    return await readCapped(body, cap, (delta) => lease.charge(delta));
+  } finally {
+    lease.release();
+  }
+}
+
 /** Reads a response under `cap`, the shared byte budget and `connectionId`'s share of it;
  *  it cancels the body on failure. */
 export async function readCappedBytes(
@@ -138,29 +187,17 @@ export async function readCappedBytes(
     await cancelBody(resp);
     return { ok: false, failure: "cap" };
   }
-  let charged = 0;
+  const lease = readLease(connectionId, connectionCap);
   try {
     // Charge each chunk; concurrent readers can all pass the early budget check.
-    const got = await readCapped(resp.body, cap, (delta) => {
-      charged += delta;
-      inFlightBytes += delta;
-      if (inFlightBytes > peakInFlightBytes) peakInFlightBytes = inFlightBytes;
-      const own = (inFlightByConnection.get(connectionId) ?? 0) + delta;
-      inFlightByConnection.set(connectionId, own);
-      return inFlightBytes <= MAX_CONCURRENT_READ_BYTES && own <= connectionCap;
-    });
+    const got = await readCapped(resp.body, cap, (delta) => lease.charge(delta));
     if (got.bytes === null) {
       await got.rest.cancel().catch(() => {});
       return { ok: false, failure: got.failure };
     }
     return { ok: true, bytes: got.bytes };
   } finally {
-    inFlightBytes -= charged;
-    if (charged > 0) {
-      const own = (inFlightByConnection.get(connectionId) ?? 0) - charged;
-      if (own > 0) inFlightByConnection.set(connectionId, own);
-      else inFlightByConnection.delete(connectionId);
-    }
+    lease.release();
   }
 }
 
