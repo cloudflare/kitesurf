@@ -35,10 +35,10 @@ const REPLACE_PIXELS = `<script>
   };
 </script>`;
 
-async function centerPixel(page: Page): Promise<number[]> {
+async function centerPixel(page: Page, x = 50, y = 50): Promise<number[]> {
   const png = await decodePng(new Uint8Array((await page.screenshot()) as Uint8Array));
   const i =
-    (Math.round((50 * png.height) / 200) * png.width + Math.round((50 * png.width) / 200)) * 4;
+    (Math.round((y * png.height) / 200) * png.width + Math.round((x * png.width) / 200)) * 4;
   return [png.data[i] ?? 0, png.data[i + 1] ?? 0, png.data[i + 2] ?? 0];
 }
 
@@ -52,4 +52,15 @@ test("a document's render resources do not reach the next document's screenshot"
   const [r, g] = await centerPixel(page);
   expect(r).toBeLessThan(80);
   expect(g).toBeGreaterThan(120);
+}, 60_000);
+
+// A response header cannot name a renderer resource: two images that claim the same font
+// key must still paint their own bytes.
+test("a font key on an image response does not re-key the image", async ({ page }) => {
+  await page.setViewport({ width: 200, height: 200 });
+  await page.goto("https://ks.invalid/__fixtures/font-key-images.html", { waitUntil: "load" });
+  const red = await centerPixel(page);
+  const orange = await centerPixel(page, 50, 150);
+  expect(red[1]).toBeLessThan(20);
+  expect(orange[1]).toBeGreaterThan(30);
 }, 60_000);
