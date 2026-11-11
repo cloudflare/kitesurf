@@ -139,7 +139,7 @@ const cases: Array<[string, NavigateOptions, Sent[]]> = [
   [
     "a CDP navigation with no initiator keeps Strict",
     { url: VICTIM },
-    [["GET", VICTIM, "", null, null, VICTIM, "session=1"]],
+    [["GET", VICTIM, "", null, null, null, "session=1"]],
   ],
   [
     "an opaque initiator cannot reach a loopback address",
