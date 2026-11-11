@@ -162,10 +162,28 @@ scripts.all("/:file{concimport-chunk-\\d+\\.js}", (c) => {
   );
 });
 
-const inlineWasmJs = inlineWasmTemplate.replace(
-  "__KS_ADD_WASM_B64__",
-  btoa(String.fromCharCode(...new Uint8Array(dataModule(addWasm)))),
-);
+// Two valid modules with identical size, head16 and tail16 that differ in the
+// first byte of a 64-byte data payload (the module's last 64 bytes), which the
+// exported `value` function loads.
+const COLLIDE_WASM = [
+  0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x05, 0x01, 0x60, 0x00, 0x01, 0x7f, 0x03,
+  0x02, 0x01, 0x00, 0x05, 0x03, 0x01, 0x00, 0x01, 0x07, 0x09, 0x01, 0x05, 0x76, 0x61, 0x6c, 0x75,
+  0x65, 0x00, 0x00, 0x0a, 0x09, 0x01, 0x07, 0x00, 0x41, 0x00, 0x28, 0x00, 0x00, 0x0b, 0x0b, 0x46,
+  0x01, 0x00, 0x41, 0x00, 0x0b, 0x40,
+];
+
+function collideWasmB64(value: number): string {
+  const bytes = new Uint8Array(COLLIDE_WASM.length + 64);
+  bytes.set(COLLIDE_WASM);
+  bytes[COLLIDE_WASM.length] = value;
+  return btoa(String.fromCharCode(...bytes));
+}
+
+const addWasmB64 = btoa(String.fromCharCode(...new Uint8Array(dataModule(addWasm))));
+const inlineWasmJs = inlineWasmTemplate
+  .replace("__KS_ADD_WASM_B64__", addWasmB64)
+  .replace("__KS_COLLIDE_A_B64__", collideWasmB64(1))
+  .replace("__KS_COLLIDE_B_B64__", collideWasmB64(2));
 scripts.all("/inline-wasm.js", (c) => c.body(inlineWasmJs, 200, { "content-type": JS }));
 
 // A script for document.write order tests: it waits `ms` and records `tag`.
