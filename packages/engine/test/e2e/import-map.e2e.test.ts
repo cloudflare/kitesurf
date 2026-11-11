@@ -38,3 +38,15 @@ test("a CSP-refused import map installs nothing", async ({ page }) => {
     error: expect.stringContaining("requires an import map"),
   });
 });
+
+test("an over-budget import map is ignored, not applied or fatal", async ({ page }) => {
+  await page.goto("https://ks.invalid/__fixtures/importmap-over-budget.html", {
+    waitUntil: "load",
+  });
+
+  const result = () =>
+    page.evaluate(() => (globalThis as { importMapBudget?: unknown }).importMapBudget);
+  // The dropped map would have mapped "pkg/a.js" to a url that never loads; the bare
+  // specifier error proves no substitute ran and the document itself still loaded.
+  await expect.poll(result).toEqual(expect.stringContaining("requires an import map"));
+}, 120_000);
