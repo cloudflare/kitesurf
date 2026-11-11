@@ -5,6 +5,9 @@
 // Follows HTTP redirects manually so each hop can apply cookie and request policy.
 
 import { determineReferrer, parseReferrerPolicy } from "@kitesurf/script-gate/referrer-policy";
+import { fetchSite } from "../fetch-metadata.ts";
+
+const FETCH_SITE_RANK = { "same-origin": 0, "same-site": 1, "cross-site": 2 } as const;
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
@@ -38,6 +41,9 @@ export interface RedirectWalkOptions {
   // The page a navigation came from and its policy: each hop then gets the Referer that policy
   // gives toward it, as Fetch computes it again on a redirect, instead of the origin cut below.
   readonly referrer?: { readonly source: string; readonly policy: string };
+  // The origin of the document that started a navigation ("null" for an opaque one): Fetch
+  // Metadata measures each hop's Sec-Fetch-Site against it over the whole chain.
+  readonly initiatorOrigin?: string;
 }
 
 export type RedirectWalkResult =
@@ -170,13 +176,32 @@ export async function walkRedirects(opts: RedirectWalkOptions): Promise<Redirect
       next = new URL(allowed);
     }
 
+    // A navigation nobody in a page started stays "none" through its redirects: there is no
+    // initiator for a later hop to be cross-site from.
+    const site = firstHeader(headers, "sec-fetch-site");
+    if (site !== undefined && site !== "none" && opts.initiatorOrigin !== undefined) {
+      const initiator = opts.initiatorOrigin === "null" ? null : opts.initiatorOrigin;
+      const hopSite = fetchSite(initiator, next.toString());
+      const before = FETCH_SITE_RANK[site as keyof typeof FETCH_SITE_RANK] ?? 2;
+      if (FETCH_SITE_RANK[hopSite] > before) {
+        deleteHeader(headers, "sec-fetch-site");
+        headers["sec-fetch-site"] = hopSite;
+      }
+    }
+
     const fromOrigin = originOfUrl(currentUrl);
     const crossOriginHop = fromOrigin === null || next.origin !== fromOrigin;
     if (crossOriginHop) {
       deleteHeader(headers, "authorization");
       // Do not reuse the entry URL's caller Cookie as fallback after this origin change.
       callerCookie = undefined;
-      if (hasHeader(headers, "sec-fetch-site")) {
+      // Without the initiator the walk cannot measure a hop against it, so a hop to another
+      // origin counts as cross-site.
+      if (
+        opts.initiatorOrigin === undefined &&
+        hasHeader(headers, "sec-fetch-site") &&
+        firstHeader(headers, "sec-fetch-site") !== "none"
+      ) {
         deleteHeader(headers, "sec-fetch-site");
         headers["sec-fetch-site"] = "cross-site";
       }

@@ -139,6 +139,24 @@ describe("walkRedirects", () => {
     });
   });
 
+  test("measures Sec-Fetch-Site against the initiator over the whole chain", async () => {
+    const { seen, fetchHop } = stubHops({
+      "https://example.com/go": { to: "https://www.example.com/" },
+      "https://www.example.com/": { to: "https://example.com/home" },
+    });
+    await walkRedirects({
+      url: "https://example.com/go",
+      headers: { "sec-fetch-site": "same-origin" },
+      initiatorOrigin: "https://example.com",
+      fetchHop,
+    });
+    expect(seen.map((s) => s.headers["sec-fetch-site"])).toEqual([
+      "same-origin",
+      "same-site",
+      "same-site",
+    ]);
+  });
+
   describe("origin taint", () => {
     test("a same-origin entry redirecting to a CDN keeps the real origin", async () => {
       const { seen, fetchHop } = stubHops({
@@ -196,6 +214,19 @@ describe("walkRedirects", () => {
     });
     expect(seen[1]?.headers["sec-fetch-site"]).toBe("cross-site");
     expect(seen[1]?.headers["referer"]).toBe("https://a.test/");
+  });
+
+  test("Sec-Fetch-Site none survives a cross-origin hop", async () => {
+    const { seen, fetchHop } = stubHops({
+      "http://a.test/1": { to: "https://www.a.test/2" },
+    });
+    await walkRedirects({
+      url: "http://a.test/1",
+      headers: { "sec-fetch-site": "none", "sec-fetch-user": "?1" },
+      fetchHop,
+    });
+    expect(seen[1]?.headers["sec-fetch-site"]).toBe("none");
+    expect(seen[1]?.headers["sec-fetch-user"]).toBe("?1");
   });
 
   test("a 303 rewrites POST to GET and strips the entity headers", async () => {
