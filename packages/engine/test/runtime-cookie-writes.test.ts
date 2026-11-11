@@ -3,12 +3,14 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { describe, expect, it } from "vitest";
+import type Protocol from "devtools-protocol";
+import type { PackedResult } from "@kitesurf/jsrpc-types/shared";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import { makeChildFrameState } from "../src/cdp/frames.ts";
 import { handleRuntime } from "../src/cdp/runtime.ts";
 import type { CdpRequest, TargetState } from "../src/cdp/types.ts";
 import { createCookieJar } from "../src/cookies.ts";
-import type { PageScriptStub } from "../src/eval/page-script.ts";
+import { consoleEntryToCdpEvent, type PageScriptStub } from "../src/eval/page-script.ts";
 
 const FIRST = "https://first.test/";
 const NEXT = "https://next.test/";
@@ -209,4 +211,41 @@ describe("an out-of-process frame's reply cookie writes", () => {
       });
     },
   );
+});
+
+describe("runtime value json", () => {
+  const MAX = 16 * 1024 * 1024;
+  const oversized = `{"k":"${"€".repeat(Math.floor(MAX / 3) + 1)}"}`;
+  const reply = (valueJson: string): PackedResult => ({
+    ok: true,
+    type: "object",
+    valueJson,
+    serializationError: null,
+  });
+
+  async function evaluate(valueJson: string) {
+    const { ctx, target } = setup();
+    // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only evaluate is stubbed.
+    target.pageScript = { evaluate: async () => reply(valueJson) } as unknown as PageScriptStub;
+    return (await handleRuntime(ctx, {
+      id: 1,
+      method: "Runtime.evaluate",
+      params: { expression: "value", returnByValue: true },
+    } as CdpRequest)) as Protocol.Runtime.EvaluateResponse;
+  }
+
+  it("parses within the limit and refuses a value over the utf8 byte limit", async () => {
+    const small = await evaluate('{"a":1}');
+    expect(small.exceptionDetails).toBeUndefined();
+    expect(small.result.value).toEqual({ a: 1 });
+    const big = await evaluate(oversized);
+    expect(big.exceptionDetails?.text).toBe("Runtime result exceeds the value size limit");
+    expect(big.result.className).toBe("Error");
+  });
+
+  it("skips an oversized console argument", () => {
+    const event = consoleEntryToCdpEvent({ level: "log", timestamp: 0, args: [reply(oversized)] });
+    expect(event.params.args[0]!.type).toBe("object");
+    expect(event.params.args[0]!.value).toBeUndefined();
+  });
 });

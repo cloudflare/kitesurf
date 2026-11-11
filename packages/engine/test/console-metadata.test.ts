@@ -39,6 +39,7 @@ it("console metadata is a primitive string", () => {
     type: "object",
     className: cycle,
     description: cycle,
+    valueJson: cycle,
   } as unknown as PackedResult;
   const event = consoleEntryToCdpEvent({ level: "log", timestamp: 0, args: [forged] });
   expect(event.params.args[0]?.className).toBeUndefined();
