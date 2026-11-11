@@ -129,12 +129,19 @@ export class EventStreamParser {
   }
 }
 
+// A realm that never ran installGlobals (the dedicated-worker scope) has no shim event
+// constructors, but its EventTarget is workerd's and only dispatches real Events, so the event
+// comes from the realm's own constructor there.
 function mkEvent(type: string, fields: Record<string, unknown>): any {
   let ev: any;
   try {
     ev = new (shimEventCtor("Event"))(type);
   } catch {
-    ev = { type };
+    try {
+      ev = new ksGlobal.Event(type);
+    } catch {
+      ev = { type };
+    }
   }
   for (const [k, v] of Object.entries(fields)) {
     try {
@@ -147,6 +154,9 @@ function mkEvent(type: string, fields: Record<string, unknown>): any {
 function mkMessageEvent(type: string, data: string, origin: string, lastEventId: string): any {
   try {
     return new (shimEventCtor("MessageEvent"))(type, { data, origin, lastEventId });
+  } catch {}
+  try {
+    return new ksGlobal.MessageEvent(type, { data, origin, lastEventId });
   } catch {
     return { type, data, origin, lastEventId };
   }
@@ -243,6 +253,12 @@ export function installEventSource(): void {
       try {
         base = ksGlobal.document?.baseURI;
       } catch {}
+      if (base === undefined) {
+        // A dedicated worker has no document; its location supplies the base URL.
+        try {
+          base = ksGlobal.location?.href;
+        } catch {}
+      }
       let parsed: URL;
       try {
         parsed = new URL(raw, base);
@@ -370,6 +386,8 @@ export function installEventSource(): void {
         // A dropped connection or a failed CORS check reconnects, as the HTML spec requires.
         this.#readyState = CONNECTING;
         this.dispatchInternal(mkEvent("error", {}));
+        // close() in the error handler ran before the timer existed, so it cannot have cleared it.
+        if (this.closed) return;
         await this.waitReconnect();
       }
     }

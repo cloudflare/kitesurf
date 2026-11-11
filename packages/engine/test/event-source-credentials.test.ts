@@ -25,8 +25,20 @@ const SECRET = "sid=SECRET";
 let EventStreamParser: any;
 let state: any;
 let gateway: ((request: Request) => Promise<Response>) | null = null;
+// The reconnect timer runs on the setTimeout captured at module load, so recording its delays
+// shows whether close() left one scheduled.
+const realSetTimeout = setTimeout;
+const scheduledDelays: number[] = [];
 
 beforeAll(async () => {
+  vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+    callback: (...args: unknown[]) => void,
+    ms?: number,
+    ...args: unknown[]
+  ) => {
+    scheduledDelays.push(Number(ms ?? 0));
+    return realSetTimeout(callback, ms, ...args);
+  }) as typeof setTimeout);
   const pageScriptState = (await vi.importActual("../../page-script/src/state.ts")) as any;
   const fetchShim = (await vi.importActual("../../page-script/src/fetch-shim.ts")) as any;
   const eventSource = (await vi.importActual("../../page-script/src/event-source.ts")) as any;
@@ -219,6 +231,21 @@ describe("EventSource event delivery", () => {
     };
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(seen).toEqual(["1"]);
+  });
+
+  it("schedules no reconnect when a handler closes the source on error", async () => {
+    scheduledDelays.length = 0;
+    // A stream that ends cleanly raises error and then waits; retry names the wait it would use.
+    const source = openSource(false, () => sse("retry: 1234\n\n"));
+    await new Promise<void>((resolve) => {
+      source.onerror = () => {
+        source.close();
+        resolve();
+      };
+    });
+    await new Promise((resolve) => realSetTimeout(resolve, 10));
+    expect(source.readyState).toBe(2);
+    expect(scheduledDelays).not.toContain(1234);
   });
 
   it("sets the event target to the source", async () => {

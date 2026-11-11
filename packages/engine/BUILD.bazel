@@ -313,6 +313,7 @@ js_test(
         "//packages/core/pkg:pkg",
         "//packages/page-script:srcs",
         "//packages/renderer-core:wasm_pkg",
+        "//packages/worker-script:srcs",
     ] + glob(["test/*.ts"]),
     entry_point = "//scripts:vitest_bazel",
     # rules_js keeps this process's realpath inside the runfiles tree, but the Workers pool resolves

@@ -15,6 +15,7 @@ import type {
   WorkerUpstreamMessage,
 } from "@kitesurf/jsrpc-types/dedicated-worker";
 import type { IsolateKillMarker } from "@kitesurf/jsrpc-types/shared";
+import { installEventSource } from "@kitesurf/page-script/event-source";
 import { installFetchShim } from "@kitesurf/page-script/fetch-shim";
 import {
   clearSessionOutbound,
@@ -24,6 +25,7 @@ import {
 import { state } from "@kitesurf/page-script/state";
 // Imported statically so it binds the native console before the page's worker script loads.
 import { setTailToken, writeIsolateKillLine } from "@kitesurf/page-script/tail-channel";
+import { captureTrustedFetch } from "@kitesurf/page-script/trusted-fetch";
 import {
   deliverToScope,
   errorInfo,
@@ -98,6 +100,12 @@ export class DedicatedWorker extends WorkerEntrypoint<unknown, DedicatedWorkerPr
         state.mainFrameId = params.frameId;
         state.cookieKey = params.cookieKey;
         installFetchShim();
+        // Capture the shim so trustedFetch can carry attribution (the EventSource resource type).
+        captureTrustedFetch();
+        // The native EventSource egresses without the page fetch shim's carriers, so a worker's
+        // stream would reach the gateway as an uncarried page-realm request. Install the page
+        // shim over the gated path so `withCredentials` selects the request's credentials mode.
+        installEventSource();
         installScope(params, send);
         let mod: typeof import("./__ks_worker_script.js");
         try {

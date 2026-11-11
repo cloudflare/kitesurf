@@ -200,11 +200,11 @@ export class MessageEventClass extends NativeEvent {
   lastEventId: string;
   source: null;
   ports: readonly unknown[];
-  constructor(type: string, init: { data?: unknown } = {}) {
+  constructor(type: string, init: { data?: unknown; origin?: string; lastEventId?: string } = {}) {
     super(type);
     this.data = init.data;
-    this.origin = "";
-    this.lastEventId = "";
+    this.origin = init.origin ?? "";
+    this.lastEventId = init.lastEventId ?? "";
     this.source = null;
     this.ports = Object.freeze([]);
   }
