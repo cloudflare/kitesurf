@@ -728,6 +728,8 @@ export function extractClassicDynamicSeeds(
     specifier,
     importer,
   ) => (isUrlLikeSpecifier(specifier) ? resolveAgainstImporter(specifier, importer) : null),
+  // The caller names the binding so that scripts sharing a bundle scope never collide.
+  callee: string = `__ks_import_${fnv1aHex(baseUrl)}`,
 ): { rewritten: string; seeds: string[] } {
   const calls = [...body.matchAll(IMPORT_CALL)]
     .map((m) => m.index)
@@ -746,7 +748,6 @@ export function extractClassicDynamicSeeds(
   const ref = JSON.stringify(baseUrl);
   // Only the keyword is replaced, so a hoisted function per script url passes it as the referrer.
   // A name keeps a method called `import` valid; scripts in one bundle share a scope.
-  const callee = `__ks_import_${fnv1aHex(baseUrl)}`;
   const binding = `\nfunction ${callee}(s, o) { return __ks_import(s, ${ref}, o); }`;
   // The helper is a bundle-scope function, so a script the page inserts later cannot see it, and
   // renaming `import` inside a string the page builds a script from would leave that script calling
@@ -775,26 +776,47 @@ export function extractClassicDynamicSeeds(
     ...unlexed.map((at) => ({ at, imp: null })),
   ].sort((a, c) => c.at - a.at);
   const seeds: string[] = [];
-  let b = body;
+  // One replacement per call site, joined once: repeating the base at every site grows with the
+  // page's import count, and splicing the body per edit copies the rest of it each time.
+  const replacements: Array<{ start: number; end: number; text: string }> = [];
+  let usesCallee = false;
   for (const { at, imp } of edits) {
     if (!imp) {
-      b = b.slice(0, at) + callee + b.slice(at + "import".length);
+      replacements.push({ start: at, end: at + "import".length, text: callee });
+      usesCallee = true;
       continue;
     }
     const spec = imp.n ?? constSpecifier(body.slice(imp.s, imp.e));
     if (spec) {
       const resolved = resolveSpecifier(spec, baseUrl);
       if (!resolved || (!isPageModuleUrl(resolved) && !resolved.startsWith("data:"))) {
-        b = b.slice(0, imp.ss) + runtimeImportCall(body, imp, ref, spec) + b.slice(imp.se);
+        // With options the whole argument list goes through, so the requested type reaches the
+        // loader and nothing is evaluated twice.
+        const args = imp.a < 0 ? JSON.stringify(spec) : dynamicImportArguments(body, imp);
+        replacements.push({ start: imp.ss, end: imp.se, text: `${callee}(${args})` });
+        usesCallee = true;
         continue;
       }
       if (isPageModuleUrl(resolved)) seeds.push(resolved);
-      b = b.slice(0, imp.s) + JSON.stringify(resolved) + b.slice(imp.e);
+      replacements.push({ start: imp.s, end: imp.e, text: JSON.stringify(resolved) });
       continue;
     }
-    if (imp.d > -1) b = b.slice(0, imp.ss) + runtimeImportCall(body, imp, ref) + b.slice(imp.se);
+    if (imp.d > -1) {
+      const args = dynamicImportArguments(body, imp);
+      replacements.push({ start: imp.ss, end: imp.se, text: `${callee}(${args})` });
+      usesCallee = true;
+    }
   }
-  return { rewritten: unlexed.length > 0 ? withHelper(b) : b, seeds };
+  const parts: string[] = [];
+  let cursor = 0;
+  for (const { start, end, text } of replacements.reverse()) {
+    parts.push(body.slice(cursor, start), text);
+    cursor = end;
+  }
+  parts.push(body.slice(cursor));
+  const rewritten = parts.join("");
+  if (!usesCallee) return { rewritten, seeds };
+  return { rewritten: unlexed.length > 0 ? withHelper(rewritten) : rewritten + binding, seeds };
 }
 
 function maybeWrapInlineModule(body: string, url: string): string {
@@ -943,6 +965,18 @@ export async function walkModuleGraph({
   const credentialsByUrl = new Map<string, "include" | "same-origin">();
 
   const classicSeeds = new Set<string>(opts.moduleSeeds);
+  // Classic scripts share one bundle scope, so each base needs a name of its own: a hash of the
+  // page-chosen base can collide and the later declaration would capture the earlier script's
+  // imports. Names are allocated in walk order, so no page value selects them.
+  const calleeNames = new Map<string, string>();
+  const calleeNameFor = (base: string): string => {
+    let name = calleeNames.get(base);
+    if (name === undefined) {
+      name = `__ks_import_${calleeNames.size}`;
+      calleeNames.set(base, name);
+    }
+    return name;
+  };
   const seedClassic = (
     d: ParentScriptDescriptor,
     resolve: (specifier: string, importer: string) => string | null,
@@ -955,7 +989,12 @@ export async function walkModuleGraph({
       ? d.resolvedSrc || (d.src ? resolveAgainstImporter(d.src, entryBaseUrl) : null)
       : entryBaseUrl;
     if (!base) return;
-    const { rewritten, seeds } = extractClassicDynamicSeeds(src, base, resolve);
+    const { rewritten, seeds } = extractClassicDynamicSeeds(
+      src,
+      base,
+      resolve,
+      calleeNameFor(base),
+    );
     if (rewritten !== src) {
       if (isExternal) d.prefetchedSource = rewritten;
       else d.body = rewritten;

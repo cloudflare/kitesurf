@@ -77,14 +77,14 @@ describe("extractClassicDynamicSeeds", () => {
       BASE,
     );
     expect(seeds).toEqual([]);
-    expect(rewritten).toContain(`__ks_import("@wordpress/vips/worker", ${JSON.stringify(BASE)})`);
+    expect(rewritten).toMatch(/__ks_import_\w+\("@wordpress\/vips\/worker"\)/);
     expect(rewritten).not.toMatch(/(?<!__ks_)import\("@wordpress/);
   });
 
   it("treats backtick bare specifiers the same", () => {
     const { rewritten, seeds } = extractClassicDynamicSeeds("import(`lodash-es`).then(go);", BASE);
     expect(seeds).toEqual([]);
-    expect(rewritten).toContain(`__ks_import("lodash-es"`);
+    expect(rewritten).toMatch(/__ks_import_\w+\("lodash-es"\)/);
   });
 
   it("seeds root-absolute and leaves data: untouched", () => {
@@ -98,7 +98,7 @@ describe("extractClassicDynamicSeeds", () => {
   it("routes computed import(expr) to __ks_import", () => {
     const { rewritten, seeds } = extractClassicDynamicSeeds(`import(name + ".js");`, BASE);
     expect(seeds).toEqual([]);
-    expect(rewritten).toContain(`__ks_import(name + ".js", ${JSON.stringify(BASE)})`);
+    expect(rewritten).toMatch(/__ks_import_\w+\(name \+ "\.js"\)/);
   });
 
   it("keeps the options argument when absolutizing a literal", () => {
@@ -115,11 +115,40 @@ describe("extractClassicDynamicSeeds", () => {
       'import(`./${name}.json`, { with: { type: "json" } })',
       BASE,
     );
-    expect(rewritten).toBe(
-      "((s, o) => __ks_import(s, " +
-        JSON.stringify(BASE) +
-        ', o))(`./${name}.json`, { with: { type: "json" } })',
+    expect(rewritten.split("\n")[0]).toMatch(
+      /^__ks_import_\w+\(`\.\/\$\{name\}\.json`, \{ with: \{ type: "json" \} \}\)$/,
     );
+  });
+
+  it("hoists one binding per base instead of repeating it at every call", () => {
+    const base = `https://example.com/${"a".repeat(4096)}/app.js`;
+    const many = `import(importPath);`.repeat(1500);
+    const bulk = extractClassicDynamicSeeds(`${many}import("./chunk.js");`, base);
+    expect(bulk.seeds).toEqual([`https://example.com/${"a".repeat(4096)}/chunk.js`]);
+    expect(bulk.rewritten.split(base)).toHaveLength(2);
+    expect(bulk.rewritten.length).toBeLessThan(many.length + base.length + 30_000);
+  });
+});
+
+describe("walkModuleGraph classic import referrers", () => {
+  it("keeps a referrer per colliding base in one bundle scope", async () => {
+    // Both bases hash to 76f2b8a5, so a hash-named binding would collide in one scope.
+    const bases = [
+      "https://example.com/static/a468471.js",
+      "https://example.com/static/a1063000.js",
+    ];
+    const { descriptors } = await walkModuleGraph({
+      descriptors: bases.map((url) => classicExternal(url, `import(importPath);`)),
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      options: {},
+      sandboxOutbound: stubOutbound(),
+    });
+    const calls: unknown[][] = [];
+    const bundle = descriptors.map((d) => d.prefetchedSource).join("\n");
+    const spy = (...args: unknown[]) => calls.push(args);
+    new Function("__ks_import", "importPath", bundle)(spy, "chunk.js");
+    expect(calls).toEqual(bases.map((url) => ["chunk.js", url, undefined]));
   });
 });
 
@@ -416,7 +445,8 @@ describe("page specifiers that name the loaded worker's own modules", () => {
     const [inline] = Object.values(additionalModules);
     expect(inline).toContain(`__ks_import("file:///bundle/internal-state.js"`);
     expect(descriptors[1]?.body).toBe(
-      `__ks_import("file:///bundle/internal-state.js", ${JSON.stringify(PAGE)});`,
+      `__ks_import_0("file:///bundle/internal-state.js");\n` +
+        `function __ks_import_0(s, o) { return __ks_import(s, ${JSON.stringify(PAGE)}, o); }`,
     );
   });
 
@@ -761,7 +791,10 @@ describe("walkModuleGraph speculative inserted scripts", () => {
   it.each([
     [`import("./dep.js").then(go);`, `import("https://example.com/dep.js").then(go);`],
     [`import("/x.js?v=1");`, /import\("https:\/\/example\.com\/x\.__ks_query_\d+\.js"\);/],
-    [`import(spec);`, `__ks_import(spec, "https://example.com/learned.js");`],
+    [
+      `import(spec);`,
+      /^__ks_import_\d+\(spec\);\nfunction __ks_import_\d+\(s, o\) \{ return __ks_import\(s, "https:\/\/example\.com\/learned\.js", o\); \}$/,
+    ],
     [`{}\n/}/.test(""); import("./internal-state.js")`, /__ks_import_/],
   ])("walks the inserted classic %# against the final map", async (body, expected) => {
     const result = await walk(body);
@@ -1369,8 +1402,9 @@ describe("import map budgets", () => {
         expect(result.error, label).toBeUndefined();
         const descriptors = result.result?.descriptors ?? [];
         const lastBody = descriptors[descriptors.length - 1]?.body ?? "";
-        expect(lastBody.match(/__ks_import\(/g) ?? [], label).toHaveLength(1);
-        expect(lastBody, label).toContain(`__ks_import(${JSON.stringify(unresolved ?? "")}`);
+        const calls = lastBody.match(/__ks_import_\d+\("[^"]*"\)/g) ?? [];
+        expect(calls, label).toHaveLength(1);
+        expect(calls[0], label).toContain(`(${JSON.stringify(unresolved ?? "")})`);
         if (resolvedBefore) {
           expect(descriptors.map((d) => d.body).join(""), label).toContain(resolvedBefore);
         }
