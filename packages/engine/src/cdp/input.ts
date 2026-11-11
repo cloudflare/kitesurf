@@ -9,7 +9,7 @@ import { makeTargetId, type CdpRequest, type TargetState } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
 import { makeFrameInfo, makeMainFrameState } from "./frames.ts";
 import type { MouseEventInit } from "@kitesurf/jsrpc-types/page-script";
-import type { ConsoleEntry } from "@kitesurf/jsrpc-types/shared";
+import type { ConsoleEntry, JsWindowDrain } from "@kitesurf/jsrpc-types/shared";
 import { consoleEntryToCdpEvent } from "../eval/page-script.ts";
 import { emitMutations } from "./dom.ts";
 import {
@@ -18,6 +18,7 @@ import {
   formPostContentType,
   initiatorOriginOf,
 } from "./page.ts";
+import { applyCookieWrites } from "./runtime.ts";
 import { terminalSceneWheelQueue } from "./scene-stream.ts";
 import {
   fenceWheelQueues,
@@ -76,8 +77,7 @@ function configureWheelDispatch(
       if (pageScript && currentWheelState(ctx, target, currentQueue, generation, pageScript)) {
         const result = await pageScript.dispatchMouseEvent("wheel", init);
         if (currentWheelState(ctx, target, currentQueue, generation, pageScript)) {
-          emitConsole(ctx, result.console, sessionId);
-          emitMutations(ctx, target, result.cdpMutations);
+          applyReply(ctx, target, pageScript, result, sessionId);
         }
       }
     } catch {
@@ -243,8 +243,7 @@ export async function handleInput(
         const inputPageScriptUrl = target.pageScriptUrl;
         if (!inputPageScript) return {};
         const result = await inputPageScript.dispatchMouseEvent(evType, init);
-        emitConsole(ctx, result.console, req.sessionId);
-        emitMutations(ctx, target, result.cdpMutations);
+        applyReply(ctx, target, inputPageScript, result, req.sessionId);
         if (p.type !== "mouseReleased") {
           releaseWheelFencesNow();
           if (
@@ -265,8 +264,7 @@ export async function handleInput(
         if (p.type === "mousePressed" && p.button === "right") {
           assertExpected(target);
           const menuResult = await inputPageScript.dispatchMouseEvent("contextmenu", init);
-          emitConsole(ctx, menuResult.console, req.sessionId);
-          emitMutations(ctx, target, menuResult.cdpMutations);
+          applyReply(ctx, target, inputPageScript, menuResult, req.sessionId);
         }
         if (p.type === "mouseReleased") {
           const clickCount = (p.clickCount ?? 0) > 0 ? p.clickCount! : 1;
@@ -275,13 +273,11 @@ export async function handleInput(
           const evName = primary ? "click" : "auxclick";
           assertExpected(target);
           const clickResult = await inputPageScript.dispatchMouseEvent(evName, clickInit);
-          emitConsole(ctx, clickResult.console, req.sessionId);
-          emitMutations(ctx, target, clickResult.cdpMutations);
+          applyReply(ctx, target, inputPageScript, clickResult, req.sessionId);
           if (primary && clickCount === 2) {
             assertExpected(target);
             const dblResult = await inputPageScript.dispatchMouseEvent("dblclick", clickInit);
-            emitConsole(ctx, dblResult.console, req.sessionId);
-            emitMutations(ctx, target, dblResult.cdpMutations);
+            applyReply(ctx, target, inputPageScript, dblResult, req.sessionId);
           }
           releaseWheelFencesNow();
           if (
@@ -350,8 +346,7 @@ export async function handleInput(
         const inputPageScriptUrl = target.pageScriptUrl;
         if (!inputPageScript) return {};
         const result = await inputPageScript.dispatchKeyEvent(evType, init);
-        emitConsole(ctx, result.console, req.sessionId);
-        emitMutations(ctx, target, result.cdpMutations);
+        applyReply(ctx, target, inputPageScript, result, req.sessionId);
         for (const release of releaseWheelFences) release();
         if (target.pageScript !== inputPageScript || target.pageScriptUrl !== inputPageScriptUrl) {
           return {};
@@ -397,8 +392,7 @@ export async function handleInput(
         const inputPageScriptUrl = target.pageScriptUrl;
         if (!inputPageScript) return {};
         const result = await inputPageScript.insertText(text);
-        emitConsole(ctx, result.console, req.sessionId);
-        emitMutations(ctx, target, result.cdpMutations);
+        applyReply(ctx, target, inputPageScript, result, req.sessionId);
         for (const release of releaseWheelFences) release();
         if (target.pageScript !== inputPageScript || target.pageScriptUrl !== inputPageScriptUrl) {
           return {};
@@ -494,9 +488,9 @@ async function dispatchMouseMove(
 ): Promise<void> {
   if (!target.pageScript) return;
   try {
-    const result = await target.pageScript.dispatchMouseEvent("mousemove", init);
-    emitConsole(ctx, result.console, sessionId);
-    emitMutations(ctx, target, result.cdpMutations);
+    const pageScript = target.pageScript;
+    const result = await pageScript.dispatchMouseEvent("mousemove", init);
+    applyReply(ctx, target, pageScript, result, sessionId);
   } catch {}
 }
 
@@ -546,6 +540,20 @@ function mapKeyType(cdp: string): string | null {
 
 function hasModifier(mods: number | undefined, bit: number): boolean {
   return typeof mods === "number" && (mods & bit) !== 0;
+}
+
+// A handler's document.cookie write comes back on its event's reply. Dropped here, it never
+// reached the jar: not the navigation the event started, nor any request after it.
+function applyReply(
+  ctx: DispatchCtx,
+  target: TargetState,
+  pageScript: NonNullable<TargetState["pageScript"]>,
+  result: JsWindowDrain,
+  sessionId: string | undefined,
+): void {
+  emitConsole(ctx, result.console, sessionId);
+  emitMutations(ctx, target, result.cdpMutations);
+  applyCookieWrites(ctx, target, result.cookieWrites, pageScript, null);
 }
 
 function emitConsole(
