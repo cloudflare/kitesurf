@@ -7,6 +7,7 @@
 // below reaches CDP clients base64-encoded in a `Kitesurf.sceneFrame` event (cdp/scene-stream.ts).
 
 import type { QueryDomResult } from "./cdp/page-session.ts";
+import { typedArrayLength } from "./rbi-protocol.ts";
 import { traceSpan, type Tracer } from "./tracing.ts";
 
 // Envelope byte 0. Info carries JSON: `sceneAlive` heartbeats and `sceneReset` on navigation.
@@ -218,12 +219,17 @@ export async function runSceneLoop(
       };
       flow.wake = wake;
     });
-  const sameBytes = (a: Uint8Array | undefined, b: Uint8Array | undefined) =>
-    a === b ||
-    (a !== undefined &&
-      b !== undefined &&
-      a.length === b.length &&
-      a.every((value, index) => value === b[index]));
+  // Both operands arrive from an RPC producer, so compare validated bytes in a loop rather than
+  // calling a method the value could own.
+  const sameBytes = (a: Uint8Array | undefined, b: Uint8Array | undefined) => {
+    if (a === undefined || b === undefined) return a === b;
+    if (!ArrayBuffer.isView(a) || !(a instanceof Uint8Array)) return false;
+    if (!ArrayBuffer.isView(b) || !(b instanceof Uint8Array)) return false;
+    const length = typedArrayLength(a);
+    if (length === null || length !== typedArrayLength(b)) return false;
+    for (let i = 0; i < length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  };
   interface PendingFrame {
     seq: number;
     bytes: Uint8Array;
