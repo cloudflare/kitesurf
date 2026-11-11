@@ -45,6 +45,7 @@ interface Stream {
   flow: SceneFlow;
   target: TargetState;
   resources: DeliveredKeys;
+  resourceGeneration: number;
   terminal: boolean;
   ownerSessionId: string | undefined;
   wheelQueue: WheelQueue | null;
@@ -252,12 +253,18 @@ export async function sceneStreamCommand(
         );
       }
     }
+    const generation = target.navigateGeneration;
+    const ps = target.pageScript;
     active.needInFlight++;
     try {
-      const reply = await stubQueryDom(target.pageScript, "getPaintResources", {
+      const reply = await stubQueryDom(ps, "getPaintResources", {
         imageHashes: new Uint8Array(images),
         fontDataHashes: new Uint8Array(fonts),
       });
+      // A reply from the retired document names resources the successor may not have.
+      if (target.navigateGeneration !== generation || target.pageScript !== ps) {
+        return { batchB64: "" } satisfies Protocol.Kitesurf.GetSceneResourcesResponse;
+      }
       const batch = reply.batch
         ? supplyEngineResources(
             reply.batch,
@@ -300,6 +307,7 @@ export async function sceneStreamCommand(
     flow,
     target,
     resources: new DeliveredKeys(),
+    resourceGeneration: target.navigateGeneration,
     needInFlight: 0,
     terminal: terminal === true,
     ownerSessionId: req.sessionId,
@@ -327,14 +335,30 @@ export async function sceneStreamCommand(
   };
   const loop = runSceneLoop(
     async (args) => {
-      if (!target.pageScript) throw new Error("page not ready");
-      const have = stream.resources.pack();
+      const generation = target.navigateGeneration;
+      const ps = target.pageScript;
+      if (!ps) throw new Error("page not ready");
+      // A delayed reply from the retired document must not seed the successor's ledger, and a
+      // reply that settles after navigation must not publish the old frame.
+      if (stream.resourceGeneration !== generation) {
+        stream.resourceGeneration = generation;
+        stream.resources = new DeliveredKeys();
+      }
+      const resources = stream.resources;
+      const have = resources.pack();
       const recordArgs = {
         ...args,
         haveImages: have.images,
         haveFonts: have.fonts,
       };
-      const reply = await stubQueryDom(target.pageScript, "recordScene", recordArgs);
+      const reply = await stubQueryDom(ps, "recordScene", recordArgs);
+      if (
+        target.navigateGeneration !== generation ||
+        target.pageScript !== ps ||
+        stream.resources !== resources
+      ) {
+        throw new Error("stale scene generation");
+      }
       // Both fields cross an untrusted RPC boundary: validate and copy before reading or
       // calling anything on them. No producer caps a scene or a getPaintResources batch.
       const scene = engineOwnedBytes(reply.scene, MAX_CONCURRENT_READ_BYTES);
@@ -345,14 +369,14 @@ export async function sceneStreamCommand(
       }
       const batch = engineOwnedBytes(reply.resourceBatch, MAX_CONCURRENT_READ_BYTES);
       if (!batch || batch.length === 0) return { ...reply, scene, resourceBatch: null };
-      const fresh = dropAlreadySent(batch, stream.resources);
+      const fresh = dropAlreadySent(batch, resources);
       if (fresh.length === 0) return { ...reply, scene, resourceBatch: null };
       const supplied = supplyEngineResources(
         fresh,
         (hash) => getImageBytes(hash, ctx.connectionId),
         (key) => getFontBytes(key, ctx.connectionId),
       );
-      noteDelivered(supplied, stream.resources);
+      noteDelivered(supplied, resources);
       return { ...reply, scene, resourceBatch: supplied };
     },
     { send },
