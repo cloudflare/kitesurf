@@ -4,6 +4,13 @@
 
 // Splits selector lists at top-level commas without breaking nested syntax.
 
+// A sheet's selector text can be secret (a sheet the page cannot read), so splitting it must not
+// call anything the page can replace. Capture the natives before page code runs.
+const nativeApply = Reflect.apply;
+const nativePush = Array.prototype.push;
+const nativeSlice = String.prototype.slice;
+const nativeTrim = String.prototype.trim;
+
 export function splitSelectorList(text: string): string[] {
   const out: string[] = [];
   let depth = 0;
@@ -36,10 +43,14 @@ export function splitSelectorList(text: string): string[] {
       continue;
     }
     if (character === "," && depth === 0) {
-      out.push(text.slice(segStart, i));
+      nativeApply(nativePush, out, [nativeApply(nativeSlice, text, [segStart, i])]);
       segStart = i + 1;
     }
   }
-  out.push(text.slice(segStart));
+  nativeApply(nativePush, out, [nativeApply(nativeSlice, text, [segStart])]);
   return out;
+}
+
+export function trimSelector(text: string): string {
+  return nativeApply(nativeTrim, text, []);
 }

@@ -159,7 +159,7 @@ import {
   nativeSleep,
   yieldToPageTasks,
 } from "./native-scheduling.ts";
-import { splitSelectorList } from "./selectors.ts";
+import { splitSelectorList, trimSelector } from "./selectors.ts";
 import {
   compileScriptEntry,
   getCompiledScript,
@@ -5265,11 +5265,16 @@ function queryDomSelectorRead(
     case "matchSelectorList": {
       const nodeId = numericNodeId(queryArgs);
       if (nodeId == null) return { matches: [] } satisfies QueryDomResult<"matchSelectorList">;
-      const selectorListText = String(queryArgs.selectorListText || "");
-      const selectors = splitSelectorList(selectorListText);
+      // The list can come from a sheet the page cannot read, so it is never coerced or split by
+      // a function the page can replace.
+      const listText = queryArgs.selectorListText;
+      if (typeof listText !== "string") {
+        return { matches: [] } satisfies QueryDomResult<"matchSelectorList">;
+      }
+      const selectors = splitSelectorList(listText);
       const matches: number[] = [];
       for (let i = 0; i < selectors.length; i++) {
-        const sel = selectors[i].trim();
+        const sel = trimSelector(selectors[i]);
         if (!sel) continue;
         try {
           if (pageState.dom.matchesInSubtree(nodeId, sel)) {

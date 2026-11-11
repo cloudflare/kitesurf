@@ -238,6 +238,12 @@ export interface StyleSheetEntry {
   isInline: boolean;
   sourceURL: string;
   origin: "regular" | "user-agent" | "injected" | "inspector";
+  // The page cannot read this sheet's rules, so its text came from the engine's own fetch and
+  // is parsed in the engine. Absent for text the page already owns.
+  opaqueText?: boolean;
+  // The parse caps warn once per sheet, not once per isolate, so nothing survives the connection.
+  warnedRulesCap?: boolean;
+  warnedDeclarationsCap?: boolean;
   parsed: ParsedStyleSheet | null;
 }
 

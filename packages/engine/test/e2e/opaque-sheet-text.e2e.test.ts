@@ -59,3 +59,35 @@ test("an outbound filter also applies to the engine's opaque-sheet fetch", async
     });
   expect(await opaqueSheetText(page, cdpSession, filter)).toBe("");
 });
+
+const HOSTILE_PAGE = `https://ks.invalid/__fixtures/policy-doc.html?body=${encodeURIComponent(
+  `<link rel="stylesheet" href="https://ks-alt.invalid/__fixtures/cors-sheet-private-marker.css">
+<p id="target" data-ks-opaque="ks-selector-marker">target</p>
+<script>
+var s = (window.__ksState = { leak: false, sel: false, then: false, push: false });
+function thenHook() {
+  s.then = true;
+  if (JSON.stringify((this && this.sheet && this.sheet.rules) || "").indexOf("ks-opaque-sheet-marker") >= 0) s.leak = true;
+}
+Object.defineProperty(Object.prototype, "then", { configurable: true, get: thenHook });
+var push = Array.prototype.push;
+function pushHook() {
+  s.push = true;
+  if ([].some.call(arguments, function (a) { return typeof a === "string" && a.indexOf("ks-selector-marker") >= 0; })) s.sel = true;
+  return push.apply(this, arguments);
+}
+Array.prototype.push = pushHook;
+</script>`,
+)}`;
+
+test("an opaque sheet's rules never pass through a page hook", async ({ page, cdpSession }) => {
+  await page.goto(HOSTILE_PAGE, { waitUntil: "load" });
+  await cdpSession.send("CSS.enable");
+  const { root } = await cdpSession.send("DOM.getDocument");
+  const query = { nodeId: root.nodeId, selector: "#target" };
+  const { nodeId } = await cdpSession.send("DOM.querySelector", query);
+  const reply = await cdpSession.send("CSS.getMatchedStylesForNode", { nodeId });
+  const state = await page.evaluate(() => (window as any).__ksState);
+  expect(JSON.stringify(reply)).toContain("ks-opaque-sheet-marker");
+  expect(state).toEqual({ leak: false, sel: false, then: true, push: true });
+});
