@@ -718,6 +718,18 @@ function opaqueRedirect(response: Response): Response {
   return opaqueResponse;
 }
 
+async function throwIfBlocked(response: Response): Promise<void> {
+  const blockedReason = responseHeaderGet(response, "x-kitesurf-blocked");
+  if (response.status === 403 && blockedReason) {
+    const detail = await response.text();
+    try {
+      console.error(detail);
+    } catch {}
+    if (blockedReason === "cors") throw new TypeError("Failed to fetch");
+    throw new TypeError(detail);
+  }
+}
+
 async function followRedirects(
   realFetch: typeof globalThis.fetch,
   first: Response,
@@ -760,12 +772,12 @@ async function followRedirects(
         throw new TypeError("Failed to fetch");
       }
       const handoff: KsRequestInit = { ...init, redirect: "follow" };
-      return {
-        response: await realFetch(currentUrl, handoff),
-        url: currentUrl,
-        hops,
-        tainting,
-      };
+      try {
+        await response.body?.cancel();
+      } catch {}
+      const followed = await realFetch(currentUrl, handoff);
+      await throwIfBlocked(followed);
+      return { response: followed, url: currentUrl, hops, tainting };
     }
     let redirectTarget: URL;
     try {
@@ -826,15 +838,7 @@ async function followRedirects(
     init.method = method;
     init.headers = headers;
     response = await realFetch(currentUrl, init);
-    const blockedReason = responseHeaderGet(response, "x-kitesurf-blocked");
-    if (response.status === 403 && blockedReason) {
-      const detail = await response.text();
-      try {
-        console.error(detail);
-      } catch {}
-      if (blockedReason === "cors") throw new TypeError("Failed to fetch");
-      throw new TypeError(detail);
-    }
+    await throwIfBlocked(response);
   }
 }
 

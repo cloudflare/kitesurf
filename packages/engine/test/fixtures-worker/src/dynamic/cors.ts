@@ -38,6 +38,14 @@ cors.all("/cors-redirect", (c) =>
   }),
 );
 
+// A Location the shim treats as unparseable (the replacement character a lossy decode yields), so
+// it hands the chain to native follow instead of walking the hop itself.
+cors.all("/invalid-location-redirect", (c) =>
+  c.body(null, 302, {
+    location: `${c.req.query("to") ?? "/__fixtures/echo-headers.json"}\uFFFD`,
+  }),
+);
+
 cors.all("/loud-redirect", (c) =>
   c.body(`${SECRET}-in-a-302-body`, 302, {
     location: c.req.query("to") ?? "/__fixtures/no-acao-secret.json",
