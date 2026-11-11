@@ -95,6 +95,50 @@ describe("walkRedirects", () => {
     expect(seen[1]?.headers["authorization"]).toBe("Bearer secret");
   });
 
+  describe("a page-started navigation's Referer", () => {
+    const source = "https://a.test/secret?q=1";
+
+    test("is computed again for each hop under the page's policy", async () => {
+      const { seen, fetchHop } = stubHops({
+        "https://a.test/go": { to: "https://b.test/x" },
+        "https://b.test/x": { to: "http://c.test/plain" },
+      });
+      const walk = await walkRedirects({
+        url: "https://a.test/go",
+        headers: { referer: source },
+        referrer: { source, policy: "" },
+        fetchHop,
+      });
+      expect(seen.map((s) => [s.headers["referer"], s.headers["x-kitesurf-referrer"]])).toEqual([
+        [source, undefined],
+        ["https://a.test/", undefined],
+        // A downgrade sends none, and the marker keeps the outbound from deriving one in its
+        // place.
+        [undefined, "no-referrer"],
+      ]);
+      expect(walk.ok && walk.referrer).toBe("");
+    });
+
+    test("follows a Referrer-Policy a redirect response sets", async () => {
+      const fetchHop = async (req: Request): Promise<Response> => {
+        if (req.url === "https://a.test/go") {
+          return new Response(null, {
+            status: 302,
+            headers: { location: "https://a.test/next", "referrer-policy": "no-referrer" },
+          });
+        }
+        return new Response(req.headers.get("referer") ?? "none");
+      };
+      const walk = await walkRedirects({
+        url: "https://a.test/go",
+        headers: { referer: source },
+        referrer: { source, policy: "unsafe-url" },
+        fetchHop,
+      });
+      expect(walk.ok && (await walk.response.text())).toBe("none");
+    });
+  });
+
   describe("origin taint", () => {
     test("a same-origin entry redirecting to a CDN keeps the real origin", async () => {
       const { seen, fetchHop } = stubHops({

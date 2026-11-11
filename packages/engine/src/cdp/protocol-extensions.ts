@@ -43,6 +43,8 @@ declare module "devtools-protocol" {
          * browser/CDP-started navigation; the literal "null" for an opaque page initiator.
          */
         _kitesurfInitiatorOrigin?: string;
+        /** A followed link's own referrer policy, which overrides its document's. */
+        _kitesurfReferrerPolicy?: string;
       }
       interface StartScreencastRequest {
         minFrameIntervalMs?: integer;

@@ -2886,7 +2886,16 @@ function toggleDetailsFromSummary(targetEl: MouseTarget): void {
   } catch {}
 }
 
-type AnchorNavigation = { kind: "hash" | "navigate"; url: string };
+type AnchorNavigation = { kind: "hash" | "navigate"; url: string; referrerPolicy?: string };
+
+// A link can ask that its navigation name nobody (rel=noreferrer) or follow a policy of its own
+// (referrerpolicy). The engine builds the Referer, so the click's reply carries what was asked.
+function linkReferrerPolicy(anchor: { getAttribute?: (name: string) => string | null }): string {
+  const attribute = (name: string): string => String(anchor.getAttribute?.(name) ?? "");
+  const rel = attribute("rel").toLowerCase().split(/\s+/);
+  if (rel.includes("noreferrer")) return "no-referrer";
+  return attribute("referrerpolicy").trim().toLowerCase();
+}
 
 // A click follows a link only when it lands on the link or inside it (HTML's activation behavior
 // runs on the event path), never on a nearby one.
@@ -2910,7 +2919,9 @@ function activateAnchorNavigation(
     ).toString();
     const isHashOnly =
       resolved.includes("#") && resolved.split("#")[0] === state.pageUrl.split("#")[0];
-    if (!isHashOnly) return { kind: "navigate", url: resolved };
+    if (!isHashOnly) {
+      return { kind: "navigate", url: resolved, referrerPolicy: linkReferrerPolicy(anchor) };
+    }
     const previous = state.pageUrl;
     state.pageUrl = resolved;
     state.documentUrl = resolved;
@@ -5170,6 +5181,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     }
     let defaultPrevented = false;
     let navigateTo: string | null = null;
+    let navigateReferrerPolicy = "";
     let hashNavigateTo: string | null = null;
     let navigatePost: ReturnType<typeof takePendingSubmitNav> = null;
     const internalState = getInternalState();
@@ -5522,6 +5534,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           hashNavigateTo = navigation.url;
         } else if (navigation?.kind === "navigate") {
           navigateTo = navigation.url;
+          navigateReferrerPolicy = navigation.referrerPolicy ?? "";
         }
       }
     } catch (err) {
@@ -5539,6 +5552,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       cdpMutations: drainCdpMutations(),
       defaultPrevented,
       navigateTo,
+      ...(navigateReferrerPolicy ? { navigateReferrerPolicy } : {}),
       navigatePost,
       hashNavigateTo,
     };

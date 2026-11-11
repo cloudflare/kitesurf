@@ -135,6 +135,7 @@ import type { CallerOutboundProps, SandboxOutboundOverride } from "../eval/outbo
 import { getOutboundInflight } from "../eval/outbound.ts";
 import { walkRedirects } from "../eval/redirect-walk.ts";
 import { schemefulSite } from "../public-suffix.ts";
+import { determineReferrer, parseReferrerPolicy } from "@kitesurf/script-gate/referrer-policy";
 import { PageRendererManager, withTimeout } from "../eval/page-renderer.ts";
 import { headersToRecord, type NetworkEventTracker } from "./network-events.ts";
 import { effectiveExtraHeaders } from "./network.ts";
@@ -292,6 +293,29 @@ export function navigationExtraHeaders(
     if (!CREDENTIAL_HEADERS.has(k.toLowerCase())) kept[k] = v;
   }
   return kept;
+}
+
+// A navigation a page starts names that page, cut down by the link's policy or the page's, and
+// one the client starts names nobody. Left unset, the outbound filled in the target's own origin.
+export function navigationReferrer(
+  leaving: { url: string; referrerPolicy: string },
+  initiatorOrigin: string | null,
+  url: string,
+): string {
+  const from = navigationReferrerSource(leaving, initiatorOrigin);
+  return from ? determineReferrer(from.source, url, from.policy) : "";
+}
+
+// The page a page-started navigation names and the policy that cuts it down, or null for one
+// the client started; the redirect walk computes each hop's Referer from them again.
+function navigationReferrerSource(
+  leaving: { url: string; referrerPolicy: string },
+  initiatorOrigin: string | null,
+): { source: string; policy: string } | null {
+  if (initiatorOrigin === null) return null;
+  const source =
+    initiatorOriginOf(leaving.url) === initiatorOrigin ? leaving.url : `${initiatorOrigin}/`;
+  return { source, policy: leaving.referrerPolicy };
 }
 
 function getRendererManager(ctx: DispatchCtx, target?: TargetState): PageRendererManager {
@@ -746,7 +770,12 @@ export async function handlePage(
       const reloadReq: CdpRequest = {
         ...req,
         method: "Page.navigate",
-        params: { url: reloadUrl, transitionType: "reload", _kitesurfInternal: true },
+        params: {
+          url: reloadUrl,
+          transitionType: "reload",
+          _kitesurfInternal: true,
+          ...(target.docReferrer ? { referrer: target.docReferrer } : {}),
+        },
       };
       return await handlePage(ctx, reloadReq);
     }
@@ -754,6 +783,18 @@ export async function handlePage(
     case "Page.navigate": {
       let url = req.params?.url ?? "about:blank";
       const ksParams = req.params;
+      // target.url and its policy already name an earlier navigation's URL while it runs, and
+      // still do after one that failed; the page that starts this one is the committed one.
+      const committed = target.committedDocument ?? {
+        url: target.url,
+        referrerPolicy: target.docReferrerPolicy ?? null,
+      };
+      const leaving = {
+        url: committed.url,
+        referrerPolicy:
+          parseReferrerPolicy(ksParams?._kitesurfReferrerPolicy) ||
+          parseReferrerPolicy(committed.referrerPolicy),
+      };
       const ksPostData =
         typeof ksParams?._kitesurfPostData === "string" ? ksParams._kitesurfPostData : null;
       const ksPostContentType =
@@ -900,15 +941,23 @@ export async function handlePage(
         if (cookieHeader) reqHeaders.cookie = cookieHeader;
 
         const navReferrer: unknown = req.params?.referrer;
+        const referrerSource =
+          typeof navReferrer === "string" && navReferrer
+            ? null
+            : navigationReferrerSource(leaving, ksInitiatorOrigin);
         if (typeof navReferrer === "string" && navReferrer) {
           reqHeaders.referer = navReferrer;
+        } else {
+          const referer = navigationReferrer(leaving, ksInitiatorOrigin, url);
+          if (referer) reqHeaders.referer = referer;
         }
 
         for (const [k, v] of Object.entries(navExtraHeaders)) {
           reqHeaders[k] = v;
         }
-        target.docReferrer =
+        const sentReferer =
           Object.entries(reqHeaders).find(([k]) => k.toLowerCase() === "referer")?.[1] ?? null;
+        target.docReferrer = sentReferer;
 
         if (ksPostData !== null) {
           reqHeaders["content-type"] = ksPostContentType;
@@ -985,8 +1034,10 @@ export async function handlePage(
               "x-kitesurf-allow-cross-origin": "1",
               "x-kitesurf-page-origin": docPageOrigin,
               "x-kitesurf-network-id": loaderId,
+              ...(sentReferer === null ? { "x-kitesurf-referrer": "no-referrer" } : {}),
             },
             taintOriginFrom: ksPostData !== null ? (ksInitiatorOrigin ?? undefined) : undefined,
+            ...(referrerSource ? { referrer: referrerSource } : {}),
             cookieHeaderFor: (hopUrl, method) =>
               jarForTarget(ctx, target).cookieHeaderForUrl(
                 hopUrl,
@@ -4283,7 +4334,10 @@ export function installUpstreamEventHandler(
   // localStorage stays in the page (state/local-storage.ts).
   sharedLocalStorage?: StorageCopy,
 ): void {
-  if (target.navigateGeneration === generation) target.pageScriptUrl = url;
+  if (target.navigateGeneration === generation) {
+    target.pageScriptUrl = url;
+    target.committedDocument = { url, referrerPolicy: target.docReferrerPolicy ?? null };
+  }
   if (typeof stub.setUpstreamEventHandler !== "function") return;
   const workerOwner = ctx.browser.dedicatedWorkers.ownerFor(
     target,
@@ -4731,6 +4785,7 @@ function handleUpstreamFrameEvent(
     // Checked against the isolate's url because target.url is what this event would overwrite.
     if (!canRewriteDocumentUrl(isolateUrl, url)) return;
     target.url = url;
+    if (target.committedDocument) target.committedDocument.url = url;
     if (kind === "replaceState") {
       const live = target.navigationHistory[target.navigationHistoryIndex];
       if (live) {

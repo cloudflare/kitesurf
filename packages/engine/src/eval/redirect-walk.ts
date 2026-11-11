@@ -4,6 +4,8 @@
 
 // Follows HTTP redirects manually so each hop can apply cookie and request policy.
 
+import { determineReferrer, parseReferrerPolicy } from "@kitesurf/script-gate/referrer-policy";
+
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 export const MAX_REDIRECT_HOPS = 20;
@@ -33,6 +35,9 @@ export interface RedirectWalkOptions {
   // null to stop the walk with "redirect-blocked".
   readonly checkRedirect?: (url: string) => Promise<string | null>;
   readonly taintOriginFrom?: string;
+  // The page a navigation came from and its policy: each hop then gets the Referer that policy
+  // gives toward it, as Fetch computes it again on a redirect, instead of the origin cut below.
+  readonly referrer?: { readonly source: string; readonly policy: string };
 }
 
 export type RedirectWalkResult =
@@ -95,6 +100,7 @@ export async function walkRedirects(opts: RedirectWalkOptions): Promise<Redirect
   let hops = 0;
   let originTainted = false;
   let callerCookie = firstHeader(headers, "cookie");
+  let referrerPolicy = opts.referrer?.policy ?? "";
 
   for (;;) {
     opts.signal?.throwIfAborted?.();
@@ -104,6 +110,16 @@ export async function walkRedirects(opts: RedirectWalkOptions): Promise<Redirect
       deleteHeader(headers, "cookie");
       if (cookie) headers.cookie = cookie;
       else if (callerCookie !== undefined) headers.cookie = callerCookie;
+    }
+
+    if (opts.referrer) {
+      const referer = determineReferrer(opts.referrer.source, currentUrl, referrerPolicy);
+      deleteHeader(headers, "referer");
+      deleteHeader(headers, "x-kitesurf-referrer");
+      // A hop left without a Referer would get one the outbound derives from the page origin, so
+      // the marker says the policy gave none.
+      if (referer) headers.referer = referer;
+      else headers["x-kitesurf-referrer"] = "no-referrer";
     }
 
     const sentHeaders = { ...headers };
@@ -146,6 +162,7 @@ export async function walkRedirects(opts: RedirectWalkOptions): Promise<Redirect
 
     // Store this hop's cookies before the next loop reads its jar header.
     opts.onSetCookie?.(currentUrl, resp);
+    referrerPolicy = parseReferrerPolicy(resp.headers.get("referrer-policy")) || referrerPolicy;
 
     if (opts.checkRedirect) {
       const allowed = await opts.checkRedirect(next.toString());
@@ -163,7 +180,7 @@ export async function walkRedirects(opts: RedirectWalkOptions): Promise<Redirect
         deleteHeader(headers, "sec-fetch-site");
         headers["sec-fetch-site"] = "cross-site";
       }
-      const referer = firstHeader(headers, "referer");
+      const referer = opts.referrer ? undefined : firstHeader(headers, "referer");
       if (referer !== undefined) {
         const refOrigin = originOfUrl(referer);
         deleteHeader(headers, "referer");

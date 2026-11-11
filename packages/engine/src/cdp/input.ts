@@ -646,6 +646,7 @@ async function maybeFollowAnchor(
   result:
     | {
         navigateTo?: string | null;
+        navigateReferrerPolicy?: string;
         hashNavigateTo?: string | null;
         navigatePost?: {
           url: string;
@@ -697,6 +698,7 @@ async function maybeFollowAnchor(
           url: navigateTo,
           _kitesurfInternal: true,
           _kitesurfInitiatorOrigin: initiatorOrigin,
+          _kitesurfReferrerPolicy: result?.navigateReferrerPolicy || undefined,
           ...announced,
         },
         sessionId,

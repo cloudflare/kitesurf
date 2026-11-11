@@ -321,6 +321,9 @@ export interface TargetState {
   pendingNavAbort?: AbortController | null;
   // Applied to subresource and child-frame requests for this document.
   docReferrerPolicy?: string | null;
+  // The live document's URL and Referrer-Policy. A navigation in flight or one that failed
+  // leaves them alone, where it has already overwritten url and docReferrerPolicy.
+  committedDocument?: { url: string; referrerPolicy: string | null };
   docReferrer?: string | null;
   docCsp?: string | null;
   docCspReportOnly?: string | null;
