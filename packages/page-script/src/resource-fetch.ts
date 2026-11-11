@@ -663,6 +663,15 @@ export async function fetchInsertedScript(
       "x-kitesurf-allow-cross-origin": "1",
       "x-kitesurf-script-cors": corsMode,
       accept: "*/*",
+      // A classic script without crossorigin sends cookies, as every browser fetch does; the page
+      // fetch shim would otherwise default the carrier to same-origin. A CORS script uses
+      // same-origin unless its crossorigin attribute asks for use-credentials (case-insensitive).
+      ...(crossOrigin == null
+        ? { "x-kitesurf-credentials": "include" }
+        : {
+            "x-kitesurf-credentials":
+              crossOrigin.toLowerCase() === "use-credentials" ? "include" : "same-origin",
+          }),
     };
     // The engine's opaque bypass requires this marker for no-cors scripts.
     if (corsMode === "no-cors") headers["x-kitesurf-allow-cross-origin"] = "1";

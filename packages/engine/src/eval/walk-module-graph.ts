@@ -15,6 +15,7 @@ import {
 import { KITESURF_NOSNIFF_HEADER } from "@kitesurf/script-gate/gateway-headers";
 import type { ParentScriptDescriptor } from "../wasm.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
+import { scriptCredentialsMode } from "./cors.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
 import { walkRedirects } from "./redirect-walk.ts";
 import { MAX_DOCUMENT_BYTES, readCapped } from "../read-capped.ts";
@@ -397,6 +398,7 @@ export interface ModulePreloadSeed {
   url: string;
   nonce: string | null;
   integrity: string | null;
+  crossOrigin?: string | null;
 }
 
 export function modulePreloadSeeds(html: string, baseUrl: string): ModulePreloadSeed[] {
@@ -413,7 +415,12 @@ export function modulePreloadSeeds(html: string, baseUrl: string): ModulePreload
     const href = attr("href");
     const url = href ? resolveAgainstImporter(href, baseUrl) : null;
     if (url && /^https?:\/\//.test(url) && !seeds.has(url)) {
-      seeds.set(url, { nonce: attr("nonce"), integrity: attr("integrity") });
+      const crossOrigin = attr("crossorigin");
+      seeds.set(url, {
+        nonce: attr("nonce"),
+        integrity: attr("integrity"),
+        ...(crossOrigin === null ? {} : { crossOrigin }),
+      });
     }
   }
   return [...seeds].map(([url, seed]) => ({ url, ...seed }));
@@ -730,6 +737,11 @@ export async function walkModuleGraph({
   const integrityByUrl = new Map<string, string>();
   const nonceByUrl = new Map<string, string>();
   const viaTrustedImporter = new Set<string>();
+  // A module fetch's credentials mode is its root script's crossorigin attribute, inherited by
+  // imports and modulepreloads. HTML defaults all of them to "same-origin"; only an explicit
+  // use-credentials asks for cookies. The first requester of a url fixes its mode, as the
+  // browser's url-keyed module map does.
+  const credentialsByUrl = new Map<string, "include" | "same-origin">();
 
   const classicSeeds = new Set<string>(opts.moduleSeeds);
   const seedClassic = (
@@ -920,6 +932,9 @@ export async function walkModuleGraph({
       const prevReg = viaReg.get(resolved);
       viaReg.set(resolved, prevReg === undefined ? childViaReg : prevReg && childViaReg);
       viaTrustedImporter.add(resolved);
+      if (!credentialsByUrl.has(resolved)) {
+        credentialsByUrl.set(resolved, credentialsByUrl.get(fromUrl) ?? "same-origin");
+      }
       const inheritedNonce = nonceByUrl.get(fromUrl);
       if (inheritedNonce && !nonceByUrl.has(resolved)) {
         nonceByUrl.set(resolved, inheritedNonce);
@@ -962,6 +977,9 @@ export async function walkModuleGraph({
       }
       entryUrl = resolved;
       d.resolvedSrc = entryUrl;
+      if (!credentialsByUrl.has(entryUrl)) {
+        credentialsByUrl.set(entryUrl, scriptCredentialsMode(d.crossOrigin));
+      }
       if (d.integrity) integrityByUrl.set(entryUrl, d.integrity);
       if (d.nonce) nonceByUrl.set(entryUrl, d.nonce);
       if (!modules.has(entryUrl) && !failed.has(entryUrl)) {
@@ -992,11 +1010,12 @@ export async function walkModuleGraph({
     }
   }
 
-  for (const { url, nonce, integrity } of opts.preloadSeeds ?? []) {
+  for (const { url, nonce, integrity, crossOrigin } of opts.preloadSeeds ?? []) {
     // The pin binds every fetch of the url, including one an entry's import already queued.
     if (integrity && !integrityByUrl.has(url)) integrityByUrl.set(url, integrity);
     if (modules.has(url) || failed.has(url) || depthOf.has(url)) continue;
     if (nonce && !nonceByUrl.has(url)) nonceByUrl.set(url, nonce);
+    if (!credentialsByUrl.has(url)) credentialsByUrl.set(url, scriptCredentialsMode(crossOrigin));
     viaDyn.set(url, false);
     depthOf.set(url, 0);
     queue.push({
@@ -1040,6 +1059,7 @@ export async function walkModuleGraph({
       const headers: Record<string, string> = {
         "x-kitesurf-resource-type": "Script",
         "x-kitesurf-script-cors": "cors",
+        "x-kitesurf-credentials": credentialsByUrl.get(url) ?? "same-origin",
         "x-kitesurf-initiator": "module-graph",
         "x-kitesurf-page-origin": pageOrigin,
       };
