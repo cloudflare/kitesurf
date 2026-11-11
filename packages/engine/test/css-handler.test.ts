@@ -47,6 +47,7 @@ function makeTarget(stub: PageScriptStub): TargetState {
 function makeCtx(target: TargetState): DispatchCtx {
   return {
     browser: { targets: new Map([["t1", target]]) },
+    env: {},
   } as DispatchCtx;
 }
 
@@ -259,6 +260,45 @@ describe("CSS stylesheet owner reconciliation", () => {
       expected,
     );
     if (maxMs !== undefined) expect(elapsed).toBeLessThan(maxMs);
+  });
+
+  it("drops a stale enumeration that lands after a navigation", async () => {
+    const replies: StubReplies = {
+      enumerateStyleSheets: { sheets: [{ ownerNodeId: 7, text: "p{--successor:1}" }] },
+    };
+    const stub = makeStub(replies);
+    const target = makeTarget(stub);
+    target.nextStyleSheetRev = new Map();
+    target.cssEnabledSessions.add("s1");
+    const events: string[] = [];
+    const ctx = makeCtx(target);
+    ctx.emit = (e) => void events.push(e.method);
+    // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only the walled fetch is read.
+    ctx.browser.sandboxOutbound = {
+      external: true,
+      parent: () => ({
+        fetch: async () => {
+          // The navigation lands while this old document's opaque read is in flight.
+          target.navigateGeneration = 1;
+          return new Response("p{}");
+        },
+      }),
+    } as unknown as DispatchCtx["browser"]["sandboxOutbound"];
+    await syncStyleSheetsFromEnumeration(ctx, target, stub);
+    events.length = 0;
+    replies.enumerateStyleSheets = {
+      sheets: [
+        { ownerNodeId: 2, text: "p{--secret:1}" },
+        { ownerNodeId: 4, text: "", sourceURL: "https://cdn.test/held.css", cors: "opaque" },
+      ],
+    };
+
+    await syncStyleSheetsFromEnumeration(ctx, target, stub);
+
+    expect([...target.styleSheets.values()].map((e) => `${e.ownerNodeId}:${e.text}`)).toEqual([
+      "7:p{--successor:1}",
+    ]);
+    expect(events).toEqual([]);
   });
 });
 
