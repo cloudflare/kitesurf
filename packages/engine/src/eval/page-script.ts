@@ -314,6 +314,11 @@ export const insertedBaked = ${JSON.stringify(scriptBundle?.insertedManifest ?? 
       cjs: scriptBundle.classicRegularSource,
     };
   }
+  if (scriptBundle && scriptBundle.preNavSource) {
+    modules["__ks_user_pre_nav.js"] = {
+      cjs: scriptBundle.preNavSource,
+    };
+  }
   if (scriptBundle && scriptBundle.classicAsyncSource) {
     modules["__ks_user_classic_async.js"] = {
       cjs: scriptBundle.classicAsyncSource,
