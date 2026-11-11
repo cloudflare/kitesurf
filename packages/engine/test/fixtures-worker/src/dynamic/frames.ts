@@ -124,6 +124,54 @@ frames.all("/iframe-referrer-nested.html", (c) => {
   return c.html(iframeReferrerNestedHtml, 200, policy ? { "referrer-policy": policy } : {});
 });
 
+// A cross-origin child marks its own document only if the engine parses the response as HTML.
+const KIND_EXECUTES = `<script>document.documentElement.setAttribute('data-executed','1')</script>`;
+const KIND_NAMES = ["html", "text", "json", "attachment", "204", "205"];
+function kindQuery(value: string | undefined): string {
+  return value && KIND_NAMES.includes(value) ? value : "html";
+}
+
+// One cross-origin frame of the requested response kind, so a test can see whether the engine
+// rendered the child's bytes as a document.
+frames.all("/oopif-kind-host.html", (c) => {
+  const kind = kindQuery(c.req.query("kind"));
+  const run = encodeURIComponent(c.req.query("run") ?? "");
+  return c.html(`<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>kind host</title></head>
+<body style="margin:0;background:#ffffff">
+<iframe src="${CROSS_ORIGIN_HOST}/__fixtures/oopif-kind-child.html?kind=${kind}&run=${run}" width="200" height="200" style="border:0;display:block;margin:0"></iframe>
+</body>
+</html>`);
+});
+
+// Child document requests per `kind` and `run`, so a test can see a refused document fetched once.
+const kindHits = new Map<string, number>();
+frames.all("/oopif-kind-hits", (c) =>
+  c.json({ hits: kindHits.get(`${c.req.query("kind")}:${c.req.query("run")}`) ?? 0 }),
+);
+
+frames.all("/oopif-kind-child.html", (c) => {
+  const hitKey = `${c.req.query("kind")}:${c.req.query("run")}`;
+  kindHits.set(hitKey, (kindHits.get(hitKey) ?? 0) + 1);
+  switch (kindQuery(c.req.query("kind"))) {
+    case "204":
+      return c.body(null, 204);
+    case "205":
+      return c.body(null, 205);
+    case "attachment":
+      return c.html(KIND_EXECUTES, 200, {
+        "content-disposition": "attachment; filename=child.html",
+      });
+    case "json":
+      return c.json({ body: KIND_EXECUTES });
+    case "text":
+      return c.text(KIND_EXECUTES);
+    default:
+      return c.html(KIND_EXECUTES);
+  }
+});
+
 // Redirects to itself with the Referer it got in `?referer=`, so the frame
 // tree shows what a frame's request sent even where no page script can
 // read the frame's document.

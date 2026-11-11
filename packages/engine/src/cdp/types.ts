@@ -228,6 +228,8 @@ export interface FrameState {
   oopifPrespawn?: {
     url: string;
     promise: Promise<PrespawnedFrame | null>;
+    // Set when the prespawn refused the document, so the pipeline does not fetch it again.
+    refused?: boolean;
   };
 }
 
