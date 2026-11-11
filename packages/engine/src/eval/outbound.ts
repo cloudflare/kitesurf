@@ -430,6 +430,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
     }
 
     const sealed = !!props;
+    const pageRealm = sealed && props.pageRealm === true;
     const externalOutbound = props?.externalOutbound;
     const hostEgress = externalOutbound !== undefined;
     const transport = externalOutbound ?? props?.egress;
@@ -657,7 +658,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       referrerPolicy: props?.referrerPolicy,
       wbaHeaders,
       corsMode: needsCorsCheck || sheetWantsCors,
-      pageRealm: sealed && props.pageRealm === true,
+      pageRealm,
       suppressOpaqueDefaultOrigin:
         resourceType === "Document" && props?.topLevelDocument === true && request.method === "GET",
     });
@@ -765,7 +766,12 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
           const corsFailure = checkCorsResponse(fulfilled, pageOrigin, target, credentialsInclude);
           if (corsFailure) {
             failTrackedRequest(tracker, requestId, corsFailure.reason);
-            return blocked(corsFailure.message, "cors");
+            return corsBlocked(
+              corsFailure.reason,
+              forwardRequest.url,
+              corsFailure.message,
+              pageRealm,
+            );
           }
         }
         return fulfilled;
@@ -882,11 +888,13 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         }
         if (verdict.reason) {
           if (requestId && tracker) tracker.failRequest(requestId, verdict.reason);
-          return blocked(
-            `kitesurf: Access to fetch at '${target.href}' from origin '${pageOrigin}' has been blocked by CORS policy: ` +
+          return corsBlocked(
+            verdict.reason,
+            target.href,
+            `kitesurf: Access to fetch at '${diagnosticUrl(target.href)}' from origin '${pageOrigin}' has been blocked by CORS policy: ` +
               `Response to preflight request doesn't pass access control check` +
               (verdict.message ? ` (${verdict.message})` : "."),
-            "cors",
+            pageRealm,
           );
         }
       }
@@ -967,9 +975,11 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
           if (requestId && tracker) {
             tracker.failRequest(requestId, "corp-blocked");
           }
-          return blocked(
-            `kitesurf: Access to fetch at '${forwardRequest.url}' from origin '${pageOrigin}' has been blocked by Cross-Origin-Resource-Policy: ${corp}.`,
-            "cors",
+          return corsBlocked(
+            "corp-blocked",
+            forwardRequest.url,
+            `kitesurf: Access to fetch at '${diagnosticUrl(forwardRequest.url)}' from origin '${pageOrigin}' has been blocked by Cross-Origin-Resource-Policy: ${corp}.`,
+            pageRealm,
           );
         }
       }
@@ -981,7 +991,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         if (requestId && tracker) {
           tracker.failRequest(requestId, corsFailure.reason);
         }
-        return blocked(corsFailure.message, "cors");
+        return corsBlocked(corsFailure.reason, target.href, corsFailure.message, pageRealm);
       }
     }
 
@@ -1021,9 +1031,11 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
           if (requestId && tracker) {
             tracker.failRequest(requestId, "cors-redirect-userinfo");
           }
-          return blocked(
-            `kitesurf: Redirect from '${forwardRequest.url}' to a URL containing credentials is not allowed for a CORS request.`,
-            "cors",
+          return corsBlocked(
+            "cors-redirect-userinfo",
+            forwardRequest.url,
+            `kitesurf: Redirect from '${diagnosticUrl(forwardRequest.url)}' to a URL containing credentials is not allowed for a CORS request.`,
+            pageRealm,
           );
         }
       }
@@ -1313,6 +1325,27 @@ function blocked(message: string, reason: string): Response {
   });
 }
 
+/** A URL safe for a diagnostic: no query, fragment or userinfo, so no capability token. */
+function diagnosticUrl(href: string): string {
+  try {
+    const url = new URL(href);
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    url.hash = "";
+    return url.href;
+  } catch {
+    return "";
+  }
+}
+
+/** A CORS rejection: the engine log keeps the reason and the stripped URL; a page-realm
+ *  caller gets a generic body, since the detailed one names the blocked target. */
+function corsBlocked(reason: string, href: string, detail: string, pageRealm: boolean): Response {
+  console.warn(`[ks-outbound] cors ${reason} ${diagnosticUrl(href)}`);
+  return blocked(pageRealm ? `kitesurf: blocked by CORS policy (${reason})` : detail, "cors");
+}
+
 function defaultPortForProtocol(protocol: string): string {
   switch (protocol) {
     case "http:":
@@ -1351,7 +1384,7 @@ function checkCorsResponse(
   const requestOrigin = pageOrigin || "null";
   const reason = corsCheck(resp.headers, requestOrigin, credentialsInclude);
   if (reason === null) return null;
-  const prefix = `kitesurf: Access to fetch at '${target.href}' from origin '${pageOrigin}' has been blocked by CORS policy: `;
+  const prefix = `kitesurf: Access to fetch at '${diagnosticUrl(target.href)}' from origin '${pageOrigin}' has been blocked by CORS policy: `;
   const aca = (resp.headers.get("access-control-allow-origin") ?? "").trim();
   switch (reason) {
     case "cors-missing-origin":
