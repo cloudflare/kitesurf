@@ -76,13 +76,26 @@ function domException(message: string, name: string): Error {
   }
 }
 
-function documentOrigin(): string {
+// Capture these before page code can replace URL or its prototype accessors: a worker's creator
+// origin and every redirect hop must be compared with an origin the page cannot forge.
+const NativeURL = URL;
+const nativeApply = Reflect.apply;
+const nativeOriginGetter = Object.getOwnPropertyDescriptor(NativeURL.prototype, "origin")?.get;
+
+function urlOrigin(href: string): string | null {
   try {
-    const origin = new URL(state.pageUrl).origin;
-    return origin === "null" ? "null" : origin;
+    const url = new NativeURL(href);
+    const origin: unknown = nativeOriginGetter
+      ? nativeApply(nativeOriginGetter, url, [])
+      : url.origin;
+    return typeof origin === "string" ? origin : null;
   } catch {
-    return "null";
+    return null;
   }
+}
+
+function documentOrigin(): string {
+  return urlOrigin(state.pageUrl) ?? "null";
 }
 
 function documentBase(): string {
@@ -133,7 +146,7 @@ function cloneForWorker(message: unknown, transferOrOptions: unknown): unknown {
   return data;
 }
 
-async function loadSource(url: string): Promise<string> {
+async function loadSource(url: string, creatorOrigin: string): Promise<string> {
   const meta = { url };
   const pre = await insertedScriptAllowed(meta);
   reportOnly(pre);
@@ -154,29 +167,26 @@ async function loadSource(url: string): Promise<string> {
   const redirects = insertedRedirectGate(meta);
   // A worker runs under its creator's origin, so every hop of its script fetch must stay
   // same-origin: a cross-origin redirect with CORS would otherwise supply source the engine
-  // still treats as the creator's own.
-  const creatorOrigin = documentOrigin();
+  // still treats as the creator's own. The origin is the one the constructor already checked.
   const checkWorkerRedirect = (next: string): string | null => {
     const checked = redirects.check ? redirects.check(next) : next;
     if (checked === null) return null;
-    try {
-      return new URL(checked).origin === creatorOrigin ? checked : null;
-    } catch {
-      return null;
-    }
+    return urlOrigin(checked) === creatorOrigin ? checked : null;
   };
   const fetchUrl = pre.upgradeTo ?? url;
-  if (new URL(fetchUrl).origin !== creatorOrigin) throw new Error("worker origin mismatch");
+  if (urlOrigin(fetchUrl) !== creatorOrigin) throw new Error("worker origin mismatch");
   const response = await fetchInsertedScript(fetchUrl, "", checkWorkerRedirect);
-  if (response.finalUrl && new URL(response.finalUrl).origin !== creatorOrigin) {
-    throw new Error("worker origin mismatch");
-  }
   if (redirects.refusal) {
     reportBlocked(redirects.refusal);
     throw new Error(redirects.refusal.reason ?? "blocked by policy");
   }
   if (response.status === 0) throw new Error("fetch failed");
   if (response.status >= 400) throw new Error(`HTTP ${response.status}`);
+  // Defense in depth: a successful response must still be the creator's own, and a successful
+  // fetch without a final URL fails closed.
+  if (!response.finalUrl || urlOrigin(response.finalUrl) !== creatorOrigin) {
+    throw new Error("worker origin mismatch");
+  }
   const post = await insertedResponseAllowed(
     meta,
     {
@@ -184,7 +194,7 @@ async function loadSource(url: string): Promise<string> {
       contentTypeOptions: response.nosniff,
       bytes: response.bytes,
       opaque: response.opaque,
-      ...(response.finalUrl ? { finalUrl: response.finalUrl } : {}),
+      finalUrl: response.finalUrl,
     },
     pre.upgradeTo ?? url,
   );
@@ -276,7 +286,7 @@ function buildWorkerClass(): unknown {
         languages: isIterable(nav.languages) ? Array.from(nav.languages, String) : ["en-US"],
         platform: String(nav.platform ?? ""),
       };
-      void loadSource(href).then(
+      void loadSource(href, origin).then(
         (source) => {
           if (ws.done) return;
           sendUpstreamEvent({

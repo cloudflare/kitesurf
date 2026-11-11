@@ -58,6 +58,14 @@ cors.all("/worker-hop-hits/:key{[\\w-]+}", (c) =>
   }),
 );
 
+// A foreign hop in a worker script redirect chain: it counts its own request and sends the chain
+// back to a same-origin terminal, so a check that only reads the final URL still contacts it.
+cors.all("/worker-hop-back", (c) => {
+  const key = c.req.query("key") ?? "";
+  workerHopHits.set(`back-${key}`, (workerHopHits.get(`back-${key}`) ?? 0) + 1);
+  return c.body(null, 302, { location: c.req.query("to") ?? "/" });
+});
+
 // A Location the shim treats as unparseable (the replacement character a lossy decode yields), so
 // it hands the chain to native follow instead of walking the hop itself.
 cors.all("/invalid-location-redirect", (c) =>
