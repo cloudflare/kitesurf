@@ -225,6 +225,23 @@ export function rpcSafeResponse(resp: Response): Response {
   return corsFilteredResponse(resp, body, new Headers(resp.headers));
 }
 
+// Fetch §2.2.2 forbids page script from reading these; the runtime's own headers expose them.
+function pageVisibleResponse(resp: Response): Response {
+  if (!resp.headers.has("set-cookie") && !resp.headers.has("set-cookie2")) return resp;
+  const headers = new Headers(resp.headers);
+  headers.delete("set-cookie");
+  headers.delete("set-cookie2");
+  if (resp.status === 101) {
+    return new Response(null, {
+      status: 101,
+      statusText: resp.statusText,
+      webSocket: resp.webSocket,
+      headers,
+    });
+  }
+  return corsFilteredResponse(resp, resp.body, headers);
+}
+
 export function createSandboxOutboundOverride(
   exports: SandboxOutboundExports,
   env: SandboxOutboundEnv,
@@ -276,7 +293,8 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       outboundInflight.set(conn, (outboundInflight.get(conn) ?? 0) + 1);
     }
     try {
-      return await SandboxOutbound.fetchTraced(env, props, request);
+      const response = await SandboxOutbound.fetchTraced(env, props, request);
+      return props?.pageRealm === true ? pageVisibleResponse(response) : response;
     } finally {
       if (conn) {
         const n = (outboundInflight.get(conn) ?? 1) - 1;
