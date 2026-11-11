@@ -2,8 +2,12 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-import { afterEach, describe, expect, it } from "vitest";
+import { createExecutionContext } from "cloudflare:test";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { handleWebSocket } from "../src/cdp/connection.ts";
+import { getTracker } from "../src/cdp/network-events-registry.ts";
+import { SESSION_ID_HEADER } from "../src/observability.ts";
 import {
   notifyIsolateLimit,
   registerIsolateLimitListener,
@@ -23,6 +27,7 @@ function register(name: string, cb: () => void, isLive?: () => boolean, owner?: 
 
 afterEach(() => {
   for (const name of registered.splice(0)) unregisterIsolateLimitListener(name);
+  vi.unstubAllGlobals();
 });
 
 describe("isolate limit registry", () => {
@@ -68,5 +73,20 @@ describe("isolate limit registry", () => {
     notifyIsolateLimit("a", NOTICE);
     notifyIsolateLimit("b", NOTICE);
     expect(fired).toEqual(["b"]);
+  });
+});
+
+describe("connection teardown", () => {
+  it("releases the tracker when the socket errors and never closes", async () => {
+    const server = Object.assign(new EventTarget(), { accept() {}, send() {} });
+    const RealPair = WebSocketPair;
+    vi.stubGlobal("WebSocketPair", function () {
+      return { 0: Object.values(new RealPair())[0], 1: server };
+    });
+    const r = await handleWebSocket(new Request("https://x"), {} as Env, createExecutionContext());
+    server.dispatchEvent(new Event("error"));
+    const id = r.headers.get(SESSION_ID_HEADER);
+    expect(id).toBeTruthy();
+    expect(getTracker(id ?? "")).toBeUndefined();
   });
 });

@@ -22,6 +22,7 @@ import { stubQueryDom } from "./page-session.ts";
 import { detachWebMcpSession } from "./webmcp.ts";
 import { stopSceneStreams } from "./scene-stream.ts";
 import { cancelAndRemoveTargetWheelQueues, stopAndRemoveWheelQueue } from "./wheel-queue.ts";
+import { unregisterIsolateLimitListenersForTarget } from "../eval/limit-registry.ts";
 import { registerCookieJar, unregisterCookieJar, cookieKeyFor } from "./cookie-jar-registry.ts";
 
 const BROWSER_TARGET_ID = "browser";
@@ -348,6 +349,7 @@ export async function closeTargetInternal(ctx: DispatchCtx, id: string): Promise
     } catch {}
     target.pendingNavAbort = null;
     target.navigateGeneration++;
+    unregisterIsolateLimitListenersForTarget(ctx.connectionId, target.targetId);
     target.blankReady = null;
     target.wheelTeardownDepth += 1;
     const stream = ctx.browser.screencasts.get(id);

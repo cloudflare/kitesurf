@@ -435,14 +435,12 @@ export async function handleWebSocket(
     });
   });
 
-  server.addEventListener("close", (ev) => {
-    const closeEv = ev as CloseEvent;
-    emitSessionEnd(analytics, {
-      endReason: "close",
-      closeCode: closeEv.code ?? 0,
-      wasClean: closeEv.wasClean ? 1 : 0,
-      workerLeases: workerBudget.snapshot(),
-    });
+  // A socket can terminate with an error, a close, or both. Release everything once, from
+  // whichever arrives first; the platform may never send the close.
+  let tornDown = false;
+  function teardownConnection(): void {
+    if (tornDown) return;
+    tornDown = true;
     wsClosing = true;
     browser.wsClosing = true;
     // Stop scene streams before retiring their targets and renderer.
@@ -485,6 +483,17 @@ export async function handleWebSocket(
       releaseAllDomHandles(target);
     }
     rejoinLocalTrace(() => endLocalTraceSession(env));
+  }
+
+  server.addEventListener("close", (ev) => {
+    const closeEv = ev as CloseEvent;
+    emitSessionEnd(analytics, {
+      endReason: "close",
+      closeCode: closeEv.code ?? 0,
+      wasClean: closeEv.wasClean ? 1 : 0,
+      workerLeases: workerBudget.snapshot(),
+    });
+    teardownConnection();
   });
 
   server.addEventListener("error", (ev) => {
@@ -523,6 +532,7 @@ export async function handleWebSocket(
     } else {
       console.error(`[kitesurf-ws] error: ${JSON.stringify(detail)}`);
     }
+    teardownConnection();
   });
 
   server.addEventListener("close", (ev) => {
