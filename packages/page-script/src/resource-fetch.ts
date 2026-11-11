@@ -915,7 +915,7 @@ export async function fetchResource(
         const ok =
           opaque && dom.deliverResourceMeta
             ? dom.deliverResourceMeta(id, opaque.key, opaque.w, opaque.h)
-            : result.fontKey && dom.deliverFontResource
+            : kind === "Font" && result.fontKey && dom.deliverFontResource
               ? (nativeApply(nativeDeliverFontResource, dom, [
                   id,
                   bytes,
