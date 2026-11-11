@@ -10,6 +10,7 @@ import {
   documentTokens,
   extractClassicDynamicSeeds,
   importMapModuleSource,
+  MAX_IMPORT_MAP_WORK,
   mergeImportMap,
   modulePreloadSeeds,
   parseImportMap,
@@ -814,6 +815,10 @@ describe("import maps", () => {
 
   it("leaves unmapped bare specifiers unresolved", () => {
     expect(resolveImportMapSpecifier("missing", "https://example.com/app/main.js", map)).toBeNull();
+    // The URL parser strips this leading tab, so the specifier is URL-like.
+    expect(resolveImportMapSpecifier("\thttps://cdn.test/x.js", "https://example.com/", map)).toBe(
+      "https://cdn.test/x.js",
+    );
   });
 
   it("blocks null mappings and prefix backtracking", () => {
@@ -1223,5 +1228,199 @@ describe("walkModuleGraph module response urls", () => {
       }),
     });
     expect(String(upgraded.additionalModules["http://cdn.example/plain.js"])).toContain("upgraded");
+  });
+});
+
+describe("import map budgets", () => {
+  const PAGE = "https://example.com/page.html";
+  const walk = (
+    bodies: string[],
+    importMaps: { source: string; baseUrl: string; scriptDomIndex: number }[] = [],
+  ) =>
+    walkModuleGraph({
+      descriptors: bodies.map((body, scriptDomIndex): ParentScriptDescriptor => ({
+        src: null,
+        kind: "classic",
+        defer: false,
+        async: false,
+        body,
+        scriptDomIndex,
+      })),
+      pageUrl: PAGE,
+      connectionId: "conn",
+      options: { importMaps },
+      sandboxOutbound: stubOutbound(),
+    });
+  const sourceMap = (source: string, scriptDomIndex = 1) => [
+    { source, baseUrl: PAGE, scriptDomIndex },
+  ];
+  const map = (value: unknown, scriptDomIndex = 1) =>
+    sourceMap(JSON.stringify(value), scriptDomIndex);
+  const keys = (count: number, prefix: string) =>
+    Object.fromEntries(Array.from({ length: count }, (_, i) => [`${prefix}${i}`, "/x.js"]));
+  const scopes = (count: number) =>
+    Object.fromEntries(Array.from({ length: count }, (_, i) => [`/${"s".repeat(i + 1)}/`, {}]));
+  // 100 literals per script keeps the pre-existing per-body rewrite linear.
+  const literalScripts = (count: number, prefix = "m") => {
+    const bodies: string[] = [];
+    for (let i = 0; i < count; i += 100) {
+      const chunk = Array.from({ length: Math.min(100, count - i) }, (_, j) => `${prefix}${i + j}`);
+      bodies.push(chunk.map((name) => `import("${name}");`).join(""));
+    }
+    return bodies;
+  };
+  // Keys and literals share a 2,000-character prefix and differ only at the end.
+  const long = "p".repeat(2_000);
+  const longKeys = (count: number) =>
+    Object.fromEntries(Array.from({ length: count }, (_, i) => [`${long}k${i}/`, "/x.js"]));
+  const outcome = async (run: () => Promise<unknown>) => {
+    try {
+      return {
+        result: (await run()) as {
+          importMapModuleSource: string;
+          descriptors: ParentScriptDescriptor[];
+          additionalModules: Record<string, unknown>;
+        },
+      };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  };
+  // Every map carries this rule, so "applied" means the map survived and "dropped" means it was
+  // ignored the way an invalid map is.
+  const MARK = `{"imports":{"mark":"/vendor/mark.js"}}`;
+  const markMap = (imports: Record<string, unknown> = {}) =>
+    map({ imports: { mark: "/vendor/mark.js", ...imports } });
+  const paddedMarkMap = (bytes: number) => " ".repeat(bytes - MARK.length) + MARK;
+
+  it("keeps a map one step under each limit and ignores one step over", async () => {
+    const one = [`import("m0");`];
+    const rows: Array<[string, () => Promise<unknown>, string, string?, string?]> = [
+      ["16384 entries", () => walk(one, markMap(keys(16_383, "k"))), "applied"],
+      ["16385 entries", () => walk(one, markMap(keys(16_384, "k"))), "dropped"],
+      [
+        "256 scopes",
+        () => walk(one, map({ imports: { mark: "/vendor/mark.js" }, scopes: scopes(256) })),
+        "applied",
+      ],
+      [
+        "257 scopes",
+        () => walk(one, map({ imports: { mark: "/vendor/mark.js" }, scopes: scopes(257) })),
+        "dropped",
+      ],
+      ["2048-unit key", () => walk(one, markMap({ ["a".repeat(2_048)]: "/x.js" })), "applied"],
+      ["2049-unit key", () => walk(one, markMap({ ["a".repeat(2_049)]: "/x.js" })), "dropped"],
+      ["2 MiB source", () => walk(one, sourceMap(paddedMarkMap(2 * 1024 * 1024))), "applied"],
+      [
+        "2 MiB + 1 source",
+        () => walk(one, sourceMap(paddedMarkMap(2 * 1024 * 1024 + 1))),
+        "dropped",
+      ],
+      [
+        "8192 recorded resolutions",
+        () => walk(literalScripts(8_192), markMap(keys(8_192, "m"))),
+        "ok",
+      ],
+      [
+        "8193 recorded resolutions",
+        () => walk(literalScripts(8_193), markMap(keys(8_193, "m"))),
+        "past-record-limit",
+        undefined,
+        'import("https://example.com/x.js")',
+      ],
+      [
+        "1 long record against 900 long keys",
+        () => walk([`import("${long}a0");`], markMap(longKeys(900))),
+        "applied",
+      ],
+      [
+        "300 long records against 900 long keys",
+        () =>
+          walk(
+            ["", `import("mark");`, ...literalScripts(300, long), `import("mark");`],
+            markMap(longKeys(900)),
+          ),
+        "degraded",
+        "mark",
+        'import("https://example.com/vendor/mark.js")',
+      ],
+    ];
+    for (const [label, run, expected, unresolved, resolvedBefore] of rows) {
+      const result = await outcome(run);
+      if (expected === "applied") {
+        expect(result.error, label).toBeUndefined();
+        expect(result.result?.importMapModuleSource, label).toContain("vendor/mark.js");
+      } else if (expected === "dropped") {
+        expect(result.error, label).toBeUndefined();
+        expect(result.result?.importMapModuleSource, label).not.toContain("vendor/mark.js");
+      } else if (expected === "ok") {
+        expect(result.error, label).toBeUndefined();
+      } else if (expected === "past-record-limit") {
+        // Recording stops at the limit; resolution keeps working through the maps already merged,
+        // so even the literal that crossed the limit resolves.
+        expect(result.error, label).toBeUndefined();
+        const descriptors = result.result?.descriptors ?? [];
+        const lastBody = descriptors[descriptors.length - 1]?.body ?? "";
+        expect(lastBody, label).not.toMatch(/__ks_import_/);
+        expect(lastBody, label).toContain(resolvedBefore ?? "");
+      } else {
+        // Degraded: the walk returns, and the import that crossed the limit stays unresolved
+        // while the imports under it resolved through the same map.
+        expect(result.error, label).toBeUndefined();
+        const descriptors = result.result?.descriptors ?? [];
+        const lastBody = descriptors[descriptors.length - 1]?.body ?? "";
+        expect(lastBody.match(/__ks_import\(/g) ?? [], label).toHaveLength(1);
+        expect(lastBody, label).toContain(`__ks_import(${JSON.stringify(unresolved ?? "")}`);
+        if (resolvedBefore) {
+          expect(descriptors.map((d) => d.body).join(""), label).toContain(resolvedBefore);
+        }
+      }
+    }
+  });
+
+  it("keeps resolving past the record limit without degrading the whole document", async () => {
+    // 8,192 literals fill the record list; the inline module's static import is the one that
+    // crosses it, and the walk must still resolve ./dep.js against the (empty) map.
+    const result = await outcome(() =>
+      walkModuleGraph({
+        descriptors: [
+          ...literalScripts(8_192).map((body, scriptDomIndex): ParentScriptDescriptor => ({
+            src: null,
+            kind: "classic",
+            defer: false,
+            async: false,
+            body,
+            scriptDomIndex,
+          })),
+          { ...moduleInline(`import "./dep.js";`), scriptDomIndex: 100 },
+        ],
+        pageUrl: PAGE,
+        connectionId: "conn",
+        sandboxOutbound: stubOutbound(),
+      }),
+    );
+    expect(result.error).toBeUndefined();
+    const entry = result.result?.descriptors.find((d) => d.kind === "module");
+    expect(entry?.prefetchError).toBeUndefined();
+    expect(result.result?.additionalModules["https://example.com/dep.js"]).toBeDefined();
+  });
+
+  it("stops charging merge work as soon as the budget is spent", () => {
+    const start = MAX_IMPORT_MAP_WORK - 1_000;
+    const budget = { entries: 0, scopes: 0, records: 0, work: start, degraded: false };
+    const referrer = "https://example.com/app/main.js";
+    const target: ParsedImportMap = { imports: new Map(), scopes: new Map() };
+    const prefixKeys = Object.fromEntries(
+      Array.from({ length: 4_096 }, (_, i) => [`p${i}/`, "/x.js"]),
+    );
+    const incoming = parseImportMap(
+      JSON.stringify({ imports: prefixKeys, scopes: { "/app/": prefixKeys } }),
+      "https://example.com/app/",
+    )!;
+    const resolved = Array.from({ length: 512 }, (_, i) =>
+      resolvedModuleRecord(`p${i}/x.js`, referrer),
+    );
+    mergeImportMap(target, incoming, resolved, budget);
+    expect(budget.work - start).toBeLessThan(10_000);
   });
 });

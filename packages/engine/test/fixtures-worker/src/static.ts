@@ -133,6 +133,7 @@ import imgLoadEventsHtml from "../assets/img-load-events.html";
 import importmapCspHtml from "../assets/importmap-csp.html";
 import importmapEarlyJs from "../assets/importmap-early.js";
 import importmapLazyJs from "../assets/importmap-lazy.js";
+import importmapOverBudgetHtml from "../assets/importmap-over-budget.html";
 import importmapHtml from "../assets/importmap.html";
 import importmetaChunkJs from "../assets/importmeta-chunk.js";
 import inlineBoxModelHtml from "../assets/inline-box-model.html";
@@ -279,6 +280,7 @@ export const STATIC_FIXTURES: Record<string, string | ArrayBuffer> = {
   "modules.html": modulesHtml,
   "importmap.html": importmapHtml,
   "importmap-csp.html": importmapCspHtml,
+  "importmap-over-budget.html": importmapOverBudgetHtml,
   "external-module.js": externalModuleJs,
   "importmap-lazy.js": importmapLazyJs,
   "importmap-early.js": importmapEarlyJs,
