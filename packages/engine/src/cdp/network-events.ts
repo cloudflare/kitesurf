@@ -138,6 +138,9 @@ export class NetworkEventTracker {
 
   private readonly enabledSessions = new Map<string, SessionBuffer>();
 
+  // Log shares the connection's event queue and drain, so its ledger lives here too.
+  private readonly logEnabledSessions = new Set<string>();
+
   private effectiveTotalBytes = 0;
   private effectivePerBodyBytes = 0;
 
@@ -165,6 +168,16 @@ export class NetworkEventTracker {
     return this.enabledSessions.has(sessionId ?? "");
   }
 
+  setLogEnabled(sessionId: string | undefined, on: boolean): void {
+    const key = sessionId ?? "";
+    if (on) this.logEnabledSessions.add(key);
+    else this.logEnabledSessions.delete(key);
+  }
+
+  isLogEnabled(sessionId: string | undefined): boolean {
+    return this.logEnabledSessions.has(sessionId ?? "");
+  }
+
   perBodyBudget(): number {
     return this.effectivePerBodyBytes;
   }
@@ -175,6 +188,7 @@ export class NetworkEventTracker {
 
   forgetSession(sessionId: string): void {
     this.enabledSessions.delete(sessionId);
+    this.logEnabledSessions.delete(sessionId);
     this.recomputeBufferLimits();
   }
 
@@ -205,17 +219,36 @@ export class NetworkEventTracker {
   }
 
   private enqueue(ev: CdpEvent, sessionIds: Array<string | undefined>): void {
+    this.enqueueTo((sessionId) => this.isEnabled(sessionId), ev, sessionIds);
+  }
+
+  // Recipients are the owning target's sessions, falling back to the connection's root session.
+  private enqueueTo(
+    enabled: (sessionId: string | undefined) => boolean,
+    ev: CdpEvent,
+    sessionIds: Array<string | undefined>,
+  ): void {
     if (sessionIds.length === 0) {
-      if (this.isEnabled(undefined)) this.pending.push(ev);
+      if (enabled(undefined)) this.pending.push(ev);
       return;
     }
     let delivered = false;
     for (const sid of sessionIds) {
-      if (!this.isEnabled(sid)) continue;
+      if (!enabled(sid)) continue;
       this.pending.push({ ...ev, sessionId: sid } as CdpEvent);
       delivered = true;
     }
-    if (!delivered && this.isEnabled(undefined)) this.pending.push(ev);
+    if (!delivered && enabled(undefined)) this.pending.push(ev);
+  }
+
+  /** Queues a Log entry for the owning target's sessions; the page never sees it. */
+  logEntry(sessionIds: Array<string | undefined>, entry: Protocol.Log.LogEntry): void {
+    if (this.disposed) return;
+    this.enqueueTo(
+      (sessionId) => this.isLogEnabled(sessionId),
+      { method: "Log.entryAdded", params: { entry }, sessionId: undefined },
+      sessionIds,
+    );
   }
 
   queueRaw(ev: CdpEvent): void {
@@ -634,6 +667,7 @@ export class NetworkEventTracker {
     this.records.clear();
     this.order.length = 0;
     this.targetAttributions.clear();
+    this.logEnabledSessions.clear();
   }
 
   retainedBodyBytes(): number {

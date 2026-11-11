@@ -18,6 +18,7 @@ import { handlePage } from "./page.ts";
 import { handleRuntime } from "./runtime.ts";
 import { handleDom } from "./dom.ts";
 import { handleNetwork } from "./network.ts";
+import { handleLog } from "./log.ts";
 import { handleFetch } from "./fetch.ts";
 import { handleInput } from "./input.ts";
 import { handleKitesurf } from "./kitesurf.ts";
@@ -126,6 +127,9 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
       case "Storage":
         result = await handleNetwork(ctx, req);
         break;
+      case "Log":
+        result = await handleLog(ctx, req);
+        break;
       case "Fetch":
         result = await handleFetch(ctx, req);
         break;
@@ -185,7 +189,6 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
       case "Inspector":
       case "IO":
       case "LayerTree":
-      case "Log":
       case "Media":
       case "Memory":
       case "Overlay":
