@@ -46,6 +46,10 @@ interface ClassicSegment {
   lineCount: number;
 }
 
+// A page-provided script with many newlines would otherwise allocate and encode a source map
+// line for each one before the page runs; above this many generated lines the map is omitted.
+const MAX_CLASSIC_SOURCE_MAP_LINES = 50_000;
+
 function buildClassicSourceMap(segments: ClassicSegment[], totalLines: number): string {
   if (segments.length === 0) return "";
   const sources = segments.map((s) => s.source);
@@ -423,7 +427,8 @@ __ks_diag.exited = true;
       generatedLine: s.generatedLine + wrapHeaderLines,
     }));
     const totalLines = countLines(wrapped) + 1;
-    const sourceMapURL = buildClassicSourceMap(shifted, totalLines);
+    const sourceMapURL =
+      totalLines <= MAX_CLASSIC_SOURCE_MAP_LINES ? buildClassicSourceMap(shifted, totalLines) : "";
     const directives =
       `\n//# sourceURL=${bundleUrl}\n` +
       (sourceMapURL ? `//# sourceMappingURL=${sourceMapURL}\n` : "");

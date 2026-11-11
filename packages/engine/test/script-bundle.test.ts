@@ -84,6 +84,36 @@ describe("buildScriptBundle.classicRegularSource", () => {
   });
 });
 
+describe("buildScriptBundle classic source map bound", () => {
+  const marker = "globalThis.__sourceMapMarker = sample;";
+  const asyncScript = (source: string): ParentScriptDescriptor =>
+    classic("", { src: "/a.js", async: true, prefetchedSource: source });
+
+  it("still maps a short async external script", () => {
+    const bundle = buildScriptBundle([asyncScript(`var sample = 1;\n${marker}`)]);
+    const source = bundle.classicAsyncSource!;
+    const sourceLine = source.slice(0, source.lastIndexOf(marker)).split("\n").length - 1;
+    const sourceMapURL = bundle.classicAsyncSourceMapURL!;
+    const encoded = sourceMapURL.slice(sourceMapURL.indexOf(",") + 1);
+    const { mappings } = JSON.parse(atob(encoded)) as { mappings: string };
+    expect(mappings.split(";")[sourceLine]).toBe("AACA");
+  });
+
+  it("omits an oversized source map but keeps the scripts and their sourceURLs", () => {
+    const body = `${"\n".repeat(1_000_000)}globalThis.__oversizedRan = true;`;
+    const bundle = buildScriptBundle([classic(body), asyncScript(body)]);
+    const check = (source: string | null, url: string): void => {
+      expect(source?.includes("globalThis.__oversizedRan = true;")).toBe(true);
+      expect(source?.slice(-120)).toContain(`//# sourceURL=${url}`);
+      expect(source?.includes("sourceMappingURL")).toBe(false);
+    };
+    check(bundle.classicRegularSource, "/__ks_user_classic_regular.js");
+    check(bundle.classicAsyncSource, "/__ks_user_classic_async.js");
+    expect(bundle.classicRegularSourceMapURL).toBe("");
+    expect(bundle.classicAsyncSourceMapURL).toBe("");
+  }, 30_000);
+});
+
 describe("buildScriptBundle parser-inserted script lifecycle", () => {
   const LIFECYCLE = "__ks_state_local.parserScriptLifecycle(";
 
