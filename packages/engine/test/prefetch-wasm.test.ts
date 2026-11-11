@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-import { it, expect } from "vitest";
+import { it, expect, vi } from "vitest";
 
-import { prefetchWasmModules } from "../src/eval/prefetch-wasm.ts";
+import { prefetchWasmModules, scanForWasmUrls } from "../src/eval/prefetch-wasm.ts";
 
 const MIB = 1024 * 1024;
 
@@ -51,4 +51,42 @@ it("bounds concurrent wasm prefetch memory", async () => {
   const retained = Object.values(bake.modules).reduce((n, m) => n + m.byteLength, 0);
   expect(retained).toBeLessThanOrEqual(48 * MIB);
   expect((bake.errors["https://site.test/c.wasm"] ?? "").length).toBeLessThanOrEqual(4 * 1024);
+});
+
+it("bounds wasm literal url resolution", () => {
+  const longBase = "https://site.test/" + "d/".repeat(30_000);
+  const repUrl = longBase + "m.wasm";
+  const lit = 'WebAssembly.instantiate("m.wasm");';
+  const unique = Array.from({ length: 300 }, (_, i) => `WebAssembly.instantiate("m${i}.wasm");`);
+  const rows = [
+    { name: "repeated", sources: [{ body: lit.repeat(300), baseUrl: longBase }], urls: [repUrl] },
+    {
+      name: "two bases",
+      sources: [
+        { body: lit, baseUrl: "https://site.test/x/" },
+        { body: lit, baseUrl: "https://site.test/y/" },
+      ],
+      urls: ["https://site.test/x/m.wasm", "https://site.test/y/m.wasm"],
+    },
+    { name: "unique", sources: [{ body: unique.join(""), baseUrl: "" }], urls: [] },
+  ];
+  let resolutions = 0;
+  vi.stubGlobal(
+    "URL",
+    new Proxy(URL, {
+      construct: (target, args) => {
+        resolutions++;
+        return Reflect.construct(target, args);
+      },
+    }),
+  );
+  try {
+    for (const row of rows) {
+      resolutions = 0;
+      expect(scanForWasmUrls(row.sources), row.name).toEqual(row.urls);
+      expect(resolutions, row.name).toBeLessThanOrEqual(256);
+    }
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

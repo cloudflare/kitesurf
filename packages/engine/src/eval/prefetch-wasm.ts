@@ -24,6 +24,7 @@ export interface WasmBake {
 }
 
 const MAX_WASM_URLS = 8;
+const MAX_WASM_LITERAL_RESOLUTIONS = 256;
 const MAX_TOTAL_WASM_BYTES = 48 * 1024 * 1024;
 const PREFETCH_WASM_DEADLINE_MS = 10_000;
 const MAX_SINGLE_WASM_BYTES = MAX_TOTAL_WASM_BYTES;
@@ -137,13 +138,24 @@ function sha256Hex(buf: ArrayBuffer): Promise<string> {
 export function scanForWasmUrls(sources: Array<{ body: string; baseUrl: string }>): string[] {
   const found: string[] = [];
   const seen = new Set<string>();
+  let resolutions = 0;
   for (const { body, baseUrl } of sources) {
     if (!body || body.indexOf("WebAssembly") === -1) continue;
+    const seenLiterals = new Set<string>();
     WASM_LITERAL_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = WASM_LITERAL_RE.exec(body)) !== null) {
       const literal = m[1];
-      if (!literal) continue;
+      if (!literal || seenLiterals.has(literal)) continue;
+      if (resolutions >= MAX_WASM_LITERAL_RESOLUTIONS) {
+        console.warn(
+          `[kitesurf-wasm] MAX_WASM_LITERAL_RESOLUTIONS=${MAX_WASM_LITERAL_RESOLUTIONS} reached; ` +
+            `later .wasm literals not prefetched`,
+        );
+        return found;
+      }
+      seenLiterals.add(literal);
+      resolutions++;
       let abs: string;
       try {
         abs = new URL(literal, baseUrl || undefined).toString();
