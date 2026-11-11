@@ -4354,6 +4354,22 @@ export function routePostMessageToParent(
     .catch(() => {});
 }
 
+// The page supplies the reply or event that carries a form POST, so only the enctypes a real
+// HTML form can produce may become a document navigation. Anything else would mint a
+// credentialed POST with a content type a browser forces through a CORS preflight.
+const FORM_POST_CONTENT_TYPES = new Set(["application/x-www-form-urlencoded", "text/plain"]);
+
+// An RFC 2046 boundary token of at most 70 characters cannot break out of the header.
+const MULTIPART_CONTENT_TYPE = /^multipart\/form-data; boundary=[0-9A-Za-z'()+_,\-./:=?]{1,70}$/;
+
+export function formPostContentType(raw: unknown): string | null {
+  if (raw === undefined) return "application/x-www-form-urlencoded";
+  if (typeof raw !== "string") return null;
+  const type = raw.trim();
+  if (FORM_POST_CONTENT_TYPES.has(type)) return type;
+  return MULTIPART_CONTENT_TYPE.test(type) ? type : null;
+}
+
 function handleUpstreamFrameEvent(
   ctx: DispatchCtx,
   target: TargetState,
@@ -4389,10 +4405,8 @@ function handleUpstreamFrameEvent(
     const url = typeof params.url === "string" ? params.url : null;
     if (!url) return;
     const postData = typeof params.postData === "string" ? params.postData : null;
-    const postContentType =
-      typeof params.postContentType === "string"
-        ? params.postContentType
-        : "application/x-www-form-urlencoded";
+    const postContentType = formPostContentType(params.postContentType);
+    if (postData !== null && postContentType === null) return;
     (async () => {
       try {
         const { dispatch } = await import("./dispatch.ts");
@@ -4401,7 +4415,7 @@ function handleUpstreamFrameEvent(
           _kitesurfInternal: true,
           _kitesurfInitiatorOrigin: initiatorOriginOf(isolateUrl) ?? "null",
         };
-        if (postData !== null) {
+        if (postData !== null && postContentType !== null) {
           navParams._kitesurfPostData = postData;
           navParams._kitesurfPostContentType = postContentType;
         }
