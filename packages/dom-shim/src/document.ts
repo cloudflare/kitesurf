@@ -46,6 +46,7 @@ import {
   stampedPiIds,
   commentData,
   formBehindProxy,
+  hasParsedHandle,
 } from "./registries.js";
 import { getInternalState } from "./internal-state.js";
 import {
@@ -71,7 +72,6 @@ import {
 import { createEditingEngine, type EditingEngine } from "./editing/implementation.js";
 import type { ParsedDocument } from "./parser.js";
 import type { Element } from "./element/element.js";
-import type { DomHandle } from "../../core/pkg/kitesurf_core";
 import type * as Idl from "./idl/types.generated.js";
 import { cssEscape } from "./util/strings.js";
 import { isHtmlTag } from "./element/html-tag.js";
@@ -293,14 +293,14 @@ type ForeignDocumentMethod =
   | "getElementById"
   | "getElementsByTagName";
 // DOMPurify calls document.getElementsByTagName on a parsed document, which
-// must not answer from the live DOM. Such a receiver (anything with its own
-// _dom) answers with its own method. It isn't a DocumentImpl, whatever the
+// must not answer from the live DOM. Such a receiver (a registered parsed
+// document) answers with its own method. It isn't a DocumentImpl, whatever the
 // method's `this` type says, so the cast below carries the same fiction.
 function foreignDocumentMethod<K extends ForeignDocumentMethod>(
   self: unknown,
   name: K,
 ): DocumentImpl[K] | null {
-  if (!self || typeof self !== "object" || !Reflect.get(self, "_dom")) return null;
+  if (!self || typeof self !== "object" || !hasParsedHandle(self)) return null;
   const method: unknown = Reflect.get(self, name);
   if (typeof method !== "function" || method === DocumentImpl.prototype[name]) return null;
   return method as DocumentImpl[K];
@@ -1564,9 +1564,6 @@ interface DetachedDocument
     SharedDocumentTypeGaps {}
 
 class DetachedDocument implements Idl.Document {
-  // Set by the constructor and the createDocument, createHTMLDocument and
-  // DOMParser paths.
-  declare _dom: DomHandle;
   // The constructor defines both as null own properties: a document has no
   // parent and no owner document.
   declare readonly parentNode: null;

@@ -55,6 +55,8 @@ import {
   stampedPiIds,
   commentData,
   nodeListCache,
+  parsedHandle,
+  registerParsedHandle,
 } from "./registries.js";
 import { getInternalState } from "./internal-state.js";
 import type { DocumentFragmentImpl, NodeListCls } from "./collections.js";
@@ -121,26 +123,22 @@ function ksState() {
 // _id is whatever the page left there; parentNode and ownerDocument are
 // written as plain assignments, which throw on a live wrapper's getters.
 export type AdoptableNode = {
-  _dom?: DomHandle;
   _id?: unknown;
   parentNode?: unknown;
   ownerDocument?: unknown;
 };
 
-// _id and _dom as the tree checks read them off any node argument: a
-// DetachedDocument has neither, a live wrapper has no _dom, and a DOMParser
-// node has both.
+// _id as the tree checks read it off any node argument: a DetachedDocument has
+// none, a live wrapper has its own, and a DOMParser node has both.
 function treeId(n: object): unknown {
   return Reflect.get(n, "_id");
-}
-function treeDom(n: object): unknown {
-  return Reflect.get(n, "_dom");
 }
 
 // The parent side of the tree checks: a node wrapper, or a DetachedDocument.
 type TreeParent = NodeBase | DetachedDocument;
 // A node argument the tree checks read. The IDL says Node; page code may
-// pass any object, and the checks read nodeType, _id and _dom themselves.
+// pass any object, and the checks read nodeType, _id and the private
+// parsed handle themselves.
 type TreeArg = TreeParent | ParsedElement;
 
 export function adoptIntoDom(
@@ -148,8 +146,10 @@ export function adoptIntoDom(
   wrapper: AdoptableNode | null | undefined,
   destOwnerDoc?: NodeOwnerDocument | null,
 ): void {
-  if (!wrapper || !wrapper._dom || wrapper._dom === destDom) return;
-  const sourceDom = wrapper._dom;
+  if (!wrapper) return;
+  // Only a wrapper this shim created and registered has a handle to move.
+  const sourceDom = parsedHandle(wrapper);
+  if (!sourceDom || sourceDom === destDom) return;
   // wasm-bindgen converts a node id argument to a number; do it here.
   const sourceId = Number(wrapper._id);
   let info: KsNodeInfo | null;
@@ -186,7 +186,7 @@ export function adoptIntoDom(
   } else {
     return;
   }
-  wrapper._dom = destDom;
+  registerParsedHandle(wrapper, destDom);
   wrapper._id = newId;
   if (destDom === dom) adoptedWrapperIds.add(newId);
   if (destOwnerDoc !== undefined) wrapper.ownerDocument = destOwnerDoc;
@@ -562,10 +562,10 @@ function assertNotAncestor(parent: TreeParent, node: TreeArg | null | undefined,
   if (!node) return;
   const rawNodeId = treeId(node);
   const nodeId = typeof rawNodeId === "number" ? rawNodeId : null;
-  const nodeDom = treeDom(node);
+  const nodeDom = parsedHandle(node);
   let cur: TreeParent | null = parent;
   while (cur) {
-    const curDom = treeDom(cur);
+    const curDom = parsedHandle(cur);
     const curId = treeId(cur);
     const sharesDom = !nodeDom || !curDom || nodeDom === curDom;
     const same =
@@ -1056,8 +1056,8 @@ class NodeBase extends KsEventTarget implements Idl.Node {
   appendChild<T extends NodeBase>(child: T): T {
     maybeScheduleSlotchange(this._id);
     if (!child) throw notSupported("appendChild: null/undefined child");
-    // A DOMParser node carries its own handle.
-    const childDom = treeDom(child);
+    // A DOMParser node carries its handle in the private registry.
+    const childDom = parsedHandle(child);
     if (childDom && childDom !== dom) {
       try {
         adoptIntoDom(dom, child, document);

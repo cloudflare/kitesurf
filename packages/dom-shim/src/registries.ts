@@ -4,6 +4,7 @@
 
 // Holds the shared node, form, collection, and mutation registries used by the shim.
 
+import type { DomHandle } from "../../core/pkg/kitesurf_core";
 import type { MutationHint } from "./mutations/seq.js";
 import type { MutationObserverImpl } from "./mutations/observer.js";
 import type { NodeBase } from "./node-base.js";
@@ -222,6 +223,80 @@ export function forgetIdGlobal(nodeId: number): void {
 export const moPendingObservers = new Set<MutationObserverImpl>();
 
 export const parsedHandleXml = new WeakSet<object>();
+
+// Registries keyed by a DomHandle keep the handle off the page-visible object, but
+// the collection prototypes are shared with the page: a replaced method must never
+// receive the handle. Every such call goes through a method bound here at module
+// load, so it allocates no argument list and ignores later page replacements.
+const nativeCall = Function.prototype.call;
+const nativeBind = Function.prototype.bind;
+
+// `bind.call(bind, call)` with all three intrinsics captured at module load: the
+// result invokes a method with its first argument as `this`, so later page
+// replacements of `call`, `bind` or a prototype method cannot intercept the call.
+const uncurriedBinder = Reflect.apply(nativeBind, nativeBind, [nativeCall]) as (
+  fn: unknown,
+) => unknown;
+function bindCall<T>(fn: unknown): T {
+  return uncurriedBinder(fn) as T;
+}
+
+const weakMapGet = bindCall<<K extends object, V>(map: WeakMap<K, V>, key: K) => V | undefined>(
+  WeakMap.prototype.get,
+);
+const weakMapSet = bindCall<<K extends object, V>(map: WeakMap<K, V>, key: K, value: V) => void>(
+  WeakMap.prototype.set,
+);
+const weakSetHas = bindCall<(set: WeakSet<object>, key: object) => boolean>(WeakSet.prototype.has);
+const weakSetAdd = bindCall<(set: WeakSet<object>, key: object) => void>(WeakSet.prototype.add);
+
+export function weakMapLookup<K extends object, V>(map: WeakMap<K, V>, key: K): V | undefined {
+  return weakMapGet(map, key);
+}
+
+export function weakMapStore<K extends object, V>(map: WeakMap<K, V>, key: K, value: V): void {
+  weakMapSet(map, key, value);
+}
+
+export function weakSetContains(set: WeakSet<object>, key: object): boolean {
+  return weakSetHas(set, key);
+}
+
+export function weakSetInsert(set: WeakSet<object>, key: object): void {
+  weakSetAdd(set, key);
+}
+
+const finalizationRegister =
+  typeof FinalizationRegistry !== "undefined"
+    ? bindCall<(registry: FinalizationRegistry<unknown>, target: object, held: unknown) => void>(
+        FinalizationRegistry.prototype.register,
+      )
+    : null;
+
+// Register a held value without resolving `register` off the prototype again.
+export function registerFinalizationHeld(
+  registry: FinalizationRegistry<unknown>,
+  target: object,
+  held: unknown,
+): void {
+  if (finalizationRegister) finalizationRegister(registry, target, held);
+}
+
+// A parser wrapper's wasm handle, kept off the page-visible object: page code can
+// read and replace any property it can see.
+const parsedHandles = new WeakMap<object, DomHandle>();
+
+export function parsedHandle(node: object): DomHandle | undefined {
+  return weakMapLookup(parsedHandles, node);
+}
+
+export function hasParsedHandle(node: object): boolean {
+  return parsedHandle(node) !== undefined;
+}
+
+export function registerParsedHandle(node: object, handle: DomHandle): void {
+  weakMapStore(parsedHandles, node, handle);
+}
 
 export const boundFromGlobal = new WeakMap<object, Function>();
 

@@ -22,7 +22,7 @@ import { dispatchTrustedEvent } from "./events/dispatch.js";
 import { bumpMutationSeq } from "./mutations/seq.js";
 import { getInternalState } from "./internal-state.js";
 import { markRuntimeCreatedScript } from "./mutations/observer.js";
-import { nodeListGetters, nodeOwnerDoc } from "./registries.js";
+import { hasParsedHandle, nodeListGetters, nodeOwnerDoc } from "./registries.js";
 import { makeDomRect, makeDomRectList } from "./element/rect.js";
 import { cloneWrapper, type NodeBase } from "./node-base.js";
 import {
@@ -646,11 +646,9 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
     const ns = element ? element.namespaceURI : HTML_NS;
     const localName = element ? element.localName : "body";
     const html = String(markup);
-    if ("_dom" in doc && doc._dom) {
-      // Only a DetachedDocument gets here. A boundary point sits in a node
-      // wrapper or a DetachedDocument, and the one wrapper a DOMParser
-      // document owns is a doctype its DOMImplementation made, which
-      // can't hold a boundary point.
+    if (hasParsedHandle(doc)) {
+      // A DOMParser document owns the private parsed handle; a DetachedDocument
+      // takes the live route below and keeps its own backing.
       const detached = doc as DetachedDocument;
       const context = detached.createElementNS(ns, localName);
       context.innerHTML = html;
