@@ -593,6 +593,8 @@ export async function syncStyleSheetsFromEnumeration(
   target: TargetState,
   ps: PageScriptStub,
 ): Promise<void> {
+  const generation = target.navigateGeneration;
+  const isCurrent = () => target.navigateGeneration === generation && target.pageScript === ps;
   let sheets: EnumeratedStyleSheet[] = [];
   try {
     const r = await stubQueryDom(ps, "enumerateStyleSheets", {});
@@ -600,6 +602,7 @@ export async function syncStyleSheetsFromEnumeration(
   } catch {
     sheets = [];
   }
+  if (!isCurrent()) return;
 
   const needsFetch = sheets.filter((s) => s.cors === "opaque" && !s.text && !!s.sourceURL);
   if (needsFetch.length > 0) {
@@ -611,6 +614,7 @@ export async function syncStyleSheetsFromEnumeration(
       }),
     );
   }
+  if (!isCurrent()) return;
 
   const byOwner = new Map<number, { id: string; entry: StyleSheetEntry }>();
   for (const [id, entry] of target.styleSheets) {
