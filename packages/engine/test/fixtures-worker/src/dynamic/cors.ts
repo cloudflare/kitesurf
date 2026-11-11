@@ -38,6 +38,26 @@ cors.all("/cors-redirect", (c) =>
   }),
 );
 
+// A worker script redirect target. Every fixture host serves it, so the same route is both the
+// allowed same-origin target and the refused cross-origin one; the counter proves which hops
+// were requested, and the marker proves which source ran.
+const workerHopHits = new Map<string, number>();
+
+cors.all("/worker-hop/:file{[\\w-]+\\.js}", (c) => {
+  const key = c.req.param("file").slice(0, -".js".length);
+  workerHopHits.set(key, (workerHopHits.get(key) ?? 0) + 1);
+  return c.body(`postMessage("hop:${key}")`, 200, {
+    "content-type": "text/javascript; charset=utf-8",
+    "access-control-allow-origin": c.req.header("origin") ?? "*",
+  });
+});
+
+cors.all("/worker-hop-hits/:key{[\\w-]+}", (c) =>
+  c.json({ hits: workerHopHits.get(c.req.param("key")) ?? 0 }, 200, {
+    "cache-control": "no-store",
+  }),
+);
+
 // A Location the shim treats as unparseable (the replacement character a lossy decode yields), so
 // it hands the chain to native follow instead of walking the hop itself.
 cors.all("/invalid-location-redirect", (c) =>

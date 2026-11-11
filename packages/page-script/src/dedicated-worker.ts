@@ -152,7 +152,25 @@ async function loadSource(url: string): Promise<string> {
     return await response.text();
   }
   const redirects = insertedRedirectGate(meta);
-  const response = await fetchInsertedScript(pre.upgradeTo ?? url, "", redirects.check);
+  // A worker runs under its creator's origin, so every hop of its script fetch must stay
+  // same-origin: a cross-origin redirect with CORS would otherwise supply source the engine
+  // still treats as the creator's own.
+  const creatorOrigin = documentOrigin();
+  const checkWorkerRedirect = (next: string): string | null => {
+    const checked = redirects.check ? redirects.check(next) : next;
+    if (checked === null) return null;
+    try {
+      return new URL(checked).origin === creatorOrigin ? checked : null;
+    } catch {
+      return null;
+    }
+  };
+  const fetchUrl = pre.upgradeTo ?? url;
+  if (new URL(fetchUrl).origin !== creatorOrigin) throw new Error("worker origin mismatch");
+  const response = await fetchInsertedScript(fetchUrl, "", checkWorkerRedirect);
+  if (response.finalUrl && new URL(response.finalUrl).origin !== creatorOrigin) {
+    throw new Error("worker origin mismatch");
+  }
   if (redirects.refusal) {
     reportBlocked(redirects.refusal);
     throw new Error(redirects.refusal.reason ?? "blocked by policy");
