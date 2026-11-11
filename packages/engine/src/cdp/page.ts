@@ -10,6 +10,7 @@ import type {
   CdpParamsOf,
   CdpEvent,
   CdpRequest,
+  ChildFrameBudget,
   FrameState,
   NavigationHistoryEntry,
   ScreencastState,
@@ -1020,7 +1021,10 @@ export async function handlePage(
           inlinedPageHtml = pageHtml.replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript\s*>/gi, "");
         }
 
-        rebuildFrameTreeChildren(target);
+        // One admission owner for every child frame and child DOM this navigation retains,
+        // shared by discovery and every load branch.
+        const childBudget = newChildFrameBudget();
+        rebuildFrameTreeChildren(target, childBudget);
         const childFrames = [...target.frames.values()].filter(
           (frame) => frame.parentFrameId !== null && frame.lifecycle === "init",
         );
@@ -1040,7 +1044,7 @@ export async function handlePage(
             prespawnOopifFrame(ctx, target, f);
             continue;
           }
-          f.pendingLoad = loadChildFrame(ctx, target, f, req.sessionId);
+          f.pendingLoad = loadChildFrame(ctx, target, f, req.sessionId, 1, new Set(), childBudget);
         }
 
         const armedIframeGate = navigateOwesIframeInstalls(target);
@@ -3035,7 +3039,8 @@ function emitNavigationLifecycle(
 ): void {
   emitFrameStartedLoading(ctx, target, mainFrame(target), sessionId);
   emitFrameNavigated(ctx, target, mainFrame(target), sessionId);
-  rebuildFrameTreeChildren(target);
+  // These documents register their frames but never load a child document.
+  rebuildFrameTreeChildren(target, newChildFrameBudget());
   const childFrames = [...target.frames.values()].filter(
     (frame) => frame.parentFrameId !== null && frame.lifecycle === "init",
   );
@@ -3444,11 +3449,13 @@ function discoverChildFramesFor(
   target: TargetState,
   parentFrame: FrameState,
   parentDom: DomHandle,
+  budget: ChildFrameBudget,
 ): FrameState[] {
   const baseUrl = parentFrame.url || target.url;
   const iframes = findIframes(parentDom);
   const registered: FrameState[] = [];
   for (const ifr of iframes) {
+    if (!admitChildFrame(budget, baseUrl)) break;
     let resolvedUrl: string;
     if (ifr.src) {
       try {
@@ -3475,9 +3482,31 @@ function discoverChildFramesFor(
       delaysLoadEvent: iframeDelaysLoadEvent(ifr.loading),
     });
     target.frames.set(childFrameId, childFrame);
+    childFrame.domBudget = budget;
     registered.push(childFrame);
   }
   return registered;
+}
+
+// Admits one child frame against the navigation's shared count before it is registered, so a
+// byte-only cap cannot leave thousands of empty iframe entries behind.
+function newChildFrameBudget(): ChildFrameBudget {
+  return { frames: 0, bytes: 0, framesWarned: false, bytesWarned: false };
+}
+
+function admitChildFrame(budget: ChildFrameBudget, at: string): boolean {
+  if (budget.frames < MAX_CHILD_FRAMES) {
+    budget.frames += 1;
+    return true;
+  }
+  if (!budget.framesWarned) {
+    budget.framesWarned = true;
+    console.warn(
+      `[kitesurf-iframe] MAX_CHILD_FRAMES=${MAX_CHILD_FRAMES} reached at ${at}; ` +
+        `further iframes not registered`,
+    );
+  }
+  return false;
 }
 
 const OOPIF_POLL_TIMEOUT_MS = 10_000;
@@ -4011,23 +4040,25 @@ function teardownOopifStubForFrame(
   }
 }
 
-function rebuildFrameTreeChildren(target: TargetState): void {
+function rebuildFrameTreeChildren(target: TargetState, budget: ChildFrameBudget): void {
   if (target.docScan) {
-    discoverChildFramesFromScan(target, mainFrame(target), target.docScan);
+    discoverChildFramesFromScan(target, mainFrame(target), target.docScan, budget);
     return;
   }
   if (!target.dom) return;
-  discoverChildFramesFor(target, mainFrame(target), target.dom);
+  discoverChildFramesFor(target, mainFrame(target), target.dom, budget);
 }
 
 function discoverChildFramesFromScan(
   target: TargetState,
   parentFrame: FrameState,
   scan: DocScan,
+  budget: ChildFrameBudget,
 ): FrameState[] {
   const baseUrl = parentFrame.url || target.url;
   const registered: FrameState[] = [];
   for (const ifr of scan.iframes) {
+    if (!admitChildFrame(budget, baseUrl)) break;
     let resolvedUrl: string;
     if (ifr.src) {
       try {
@@ -4054,6 +4085,7 @@ function discoverChildFramesFromScan(
       delaysLoadEvent: iframeDelaysLoadEvent(ifr.loading),
     });
     target.frames.set(childFrameId, childFrame);
+    childFrame.domBudget = budget;
     registered.push(childFrame);
   }
   return registered;
@@ -4080,6 +4112,10 @@ async function backfillIframeOwnerNodeIds(target: TargetState): Promise<void> {
 }
 
 const MAX_IFRAME_DEPTH = 8;
+
+// One navigation may register this many child frames, and retain at most MAX_DOCUMENT_BYTES of
+// their parse input, across every branch and depth.
+const MAX_CHILD_FRAMES = 256;
 
 const IFRAME_DOC_WALK_BUDGET_MS = 15_000;
 
@@ -4705,6 +4741,7 @@ async function loadChildFrame(
   sessionId: string | undefined,
   depth: number = 1,
   ancestorUrls: ReadonlySet<string> = new Set(),
+  budget: ChildFrameBudget,
 ): Promise<void> {
   const docPageOrigin = originOf(frame.url);
   const entryUrl = frame.url;
@@ -4793,13 +4830,20 @@ async function loadChildFrame(
   // Read before the grandchildren below are discovered and fetched.
   frame.referrerPolicy = resp.headers.get("referrer-policy");
   let html: string;
+  let docBytes: number;
   try {
-    const read = await readCappedBytes(resp, MAX_DOCUMENT_BYTES, ctx.connectionId);
+    // Cap the read at what this navigation's child-document budget still admits.
+    const read = await readCappedBytes(
+      resp,
+      Math.max(0, MAX_DOCUMENT_BYTES - budget.bytes),
+      ctx.connectionId,
+    );
     if (!read.ok) {
       console.warn(`[kitesurf-iframe] body read refused (${read.failure}) for ${frame.url}`);
       frame.readyState = "complete";
       return;
     }
+    docBytes = read.bytes.byteLength;
     html = decodeHtmlBytes(read.bytes, contentType).html;
   } catch (err) {
     console.warn(
@@ -4826,8 +4870,24 @@ async function loadChildFrame(
     frame.readyState = "complete";
     return;
   }
+  // Check and charge synchronously around the parse, so concurrent branches cannot both claim
+  // the same remaining bytes.
+  if (budget.bytes + docBytes > MAX_DOCUMENT_BYTES) {
+    if (!budget.bytesWarned) {
+      budget.bytesWarned = true;
+      console.warn(
+        `[kitesurf-iframe] child document budget spent at ${frame.url}; ` +
+          `further child documents not parsed`,
+      );
+    }
+    frame.readyState = "complete";
+    return;
+  }
   try {
     frame.dom = createDom(html, frame.url);
+    budget.bytes += docBytes;
+    frame.domBytes = docBytes;
+    frame.domBudget = budget;
     frame.readyState = "interactive";
     frame.hasScript = strip.count > 0;
   } catch (err) {
@@ -4843,7 +4903,7 @@ async function loadChildFrame(
     const nextAncestors = new Set(ancestorUrls);
     nextAncestors.add(frame.url);
     nextAncestors.add(entryUrl);
-    const grandchildren = discoverChildFramesFor(target, frame, frame.dom);
+    const grandchildren = discoverChildFramesFor(target, frame, frame.dom, budget);
     if (grandchildren.length > 0) {
       const attachableGrandchildren = grandchildren.filter(
         (frame) => frame.parentFrameId !== null && frame.lifecycle === "init",
@@ -4865,7 +4925,7 @@ async function loadChildFrame(
           gc.pendingLoad = Promise.resolve();
           continue;
         }
-        const p = loadChildFrame(ctx, target, gc, sessionId, depth + 1, nextAncestors);
+        const p = loadChildFrame(ctx, target, gc, sessionId, depth + 1, nextAncestors, budget);
         gc.pendingLoad = p;
         waits.push(p);
       }

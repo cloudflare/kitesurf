@@ -36,6 +36,11 @@ export function releaseFrameDom(frame: FrameState): void {
   const dom = frame.dom;
   if (!dom) return;
   frame.dom = null;
+  const charged = frame.domBytes;
+  if (charged && frame.domBudget) {
+    frame.domBudget.bytes -= charged;
+    frame.domBytes = undefined;
+  }
   freeDetachedDom(dom, "[kitesurf-iframe]", {
     event: "frame_dom_free_failed",
     frameId: frame.frameId,
