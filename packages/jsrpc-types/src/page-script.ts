@@ -15,6 +15,7 @@ import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "./query-dom.t
 import type { RenderPort } from "./page-renderer.ts";
 import type { WorkerEventParams, WorkerNavigatorInfo } from "./dedicated-worker.ts";
 import type { SandboxRestrictions } from "./sandbox.ts";
+import type { CommittedOrigin } from "./frame-origin.ts";
 
 export interface ModulePreloadPin {
   url: string;
@@ -22,6 +23,7 @@ export interface ModulePreloadPin {
 }
 
 export type { SandboxRestrictions } from "./sandbox.ts";
+export type { CommittedOrigin } from "./frame-origin.ts";
 
 export interface NavigateOptions {
   cookies?: string;
@@ -31,6 +33,9 @@ export interface NavigateOptions {
   // The effective iframe sandbox restrictions for this document, already intersected with its
   // ancestors. Absent means no restrictions.
   sandbox?: SandboxRestrictions;
+  // The committed origins of this document's ancestors, nearest first. The engine supplies this
+  // trusted snapshot for a child navigation; page script never derives it from the page.
+  ancestorOrigins?: CommittedOrigin[];
   modulePreloadPins?: ModulePreloadPin[];
   scriptPolicy?: {
     cspHeaders: string[];
@@ -140,6 +145,10 @@ export interface FrameBitmapParams {
   rgba: Uint8Array;
 }
 
+export interface ClearFrameBitmapParams {
+  ownerBackendNodeId: number;
+}
+
 export interface FrameBitmapReply {
   ok: boolean;
   rc: number;
@@ -217,6 +226,8 @@ export interface PageScriptSession {
   installIframeContent(params: IframeContentParams): Promise<OkReply>;
   iframeInstallsSettled(): Promise<OkReply>;
   setFrameBitmap(params: FrameBitmapParams): Promise<FrameBitmapReply>;
+  /** Clears a previously displayed child bitmap, e.g. when its next document is refused. */
+  clearFrameBitmap(params: ClearFrameBitmapParams): Promise<OkReply>;
   deliverMessage(params: DeliverMessageParams): Promise<{ ok: boolean; error?: string }>;
   deliverWorkerEvent(params: WorkerEventParams): Promise<OkReply>;
   evaluate(expression: string, opts: EvalOptions): Promise<EvalResult>;
@@ -258,6 +269,7 @@ export interface PageScriptWireParams {
   installIframeContent: IframeContentParams;
   iframeInstallsSettled: NoParams;
   setFrameBitmap: FrameBitmapParams;
+  clearFrameBitmap: ClearFrameBitmapParams;
   deliverMessage: DeliverMessageParams;
   deliverWorkerEvent: WorkerEventParams;
   evaluate: { expression: string; opts?: EvalOptions };

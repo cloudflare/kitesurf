@@ -79,6 +79,7 @@ async function frameDocumentCookies(cookieSiteOrigin: string) {
       frameLoaderId: "L",
       frameUrl: `${FRAME}/page`,
       sandbox: SANDBOX_ALLOW_ALL,
+      ancestorOrigins: [{ kind: "tuple", origin: "https://parent.test" }],
       parentOrigin: "https://parent.test",
       cookieSiteOrigin,
     },

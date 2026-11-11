@@ -6,6 +6,7 @@
 
 import type { Protocol } from "devtools-protocol";
 import { SANDBOX_ALLOW_ALL } from "@kitesurf/script-gate";
+import type { CommittedOrigin } from "@kitesurf/jsrpc-types/frame-origin";
 import { isIpHost, isPublicSuffix, siteKey } from "../public-suffix.ts";
 import {
   makeTargetId,
@@ -106,6 +107,65 @@ function inheritsCreatorOrigin(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+// The engine's maximum iframe nesting, shared by discovery and the trusted ancestry snapshot.
+export const MAX_IFRAME_DEPTH = 8;
+
+function opaqueCommittedOrigin(frame: FrameState): CommittedOrigin {
+  // One identity per committed document, so two opaque ancestors never compare equal.
+  return { kind: "opaque", id: `${frame.frameId}:${frame.loaderId}` };
+}
+
+// The origin a document committed under, resolving about:blank/srcdoc inheritance from the frame
+// tree rather than from a URL string. An opaque ancestor keeps its creator's identity.
+export function committedFrameOriginOf(
+  frame: FrameState,
+  frames: ReadonlyMap<string, FrameState>,
+  mainUrl: string,
+): CommittedOrigin {
+  const sandbox = frame.pageScriptSandbox ?? frame.sandbox;
+  if (!sandbox.sameOrigin) return opaqueCommittedOrigin(frame);
+  let current = frame;
+  const seen = new Set<string>();
+  while (inheritsCreatorOrigin(current.url) && current.parentFrameId !== null) {
+    if (seen.has(current.frameId)) break;
+    seen.add(current.frameId);
+    const parent = frames.get(current.parentFrameId);
+    if (!parent) break;
+    const parentSandbox = parent.pageScriptSandbox ?? parent.sandbox;
+    if (!parentSandbox.sameOrigin) return opaqueCommittedOrigin(parent);
+    current = parent;
+  }
+  const url =
+    current.parentFrameId === null
+      ? mainUrl || current.url
+      : (current.pageScriptUrl ?? current.url);
+  try {
+    const origin = new URL(url).origin;
+    if (origin === "null" || origin === "") return opaqueCommittedOrigin(current);
+    return { kind: "tuple", origin };
+  } catch {
+    return opaqueCommittedOrigin(current);
+  }
+}
+
+// The trusted ancestor chain of committed origins, nearest first. Built only from
+// FrameState.parentFrameId, never from page-provided ancestorOrigins or URL strings.
+export function frameAncestorOrigins(
+  frame: FrameState,
+  frames: ReadonlyMap<string, FrameState>,
+  mainUrl: string,
+): CommittedOrigin[] {
+  const origins: CommittedOrigin[] = [];
+  const seen = new Set<string>();
+  let current = frame.parentFrameId === null ? undefined : frames.get(frame.parentFrameId);
+  while (current && !seen.has(current.frameId) && origins.length < MAX_IFRAME_DEPTH) {
+    seen.add(current.frameId);
+    origins.push(committedFrameOriginOf(current, frames, mainUrl));
+    current = current.parentFrameId === null ? undefined : frames.get(current.parentFrameId);
+  }
+  return origins;
 }
 
 interface FrameContext {

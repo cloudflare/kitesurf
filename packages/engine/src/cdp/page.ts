@@ -8,10 +8,14 @@ import type Protocol from "devtools-protocol";
 import { decodeHtmlBytes } from "@kitesurf/dom-shim/html-encoding";
 import {
   SANDBOX_ALLOW_ALL,
+  committedOriginOfUrl,
+  embeddingPolicyVerdict,
   intersectSandbox,
   parseSandboxAttribute,
+  sameCommittedOrigin,
   type SandboxRestrictions,
 } from "@kitesurf/script-gate";
+import type { CommittedOrigin } from "@kitesurf/jsrpc-types/frame-origin";
 import type {
   CdpParamsOf,
   CdpEvent,
@@ -89,9 +93,11 @@ import type { StyleCache } from "./style-cache.ts";
 import {
   buildFrameResourceTree,
   buildFrameTree,
+  frameAncestorOrigins,
   makeChildFrameState,
   makeFrameInfo,
   makeMainFrameState,
+  MAX_IFRAME_DEPTH,
   mintFrameId,
   matchesAboutBlank,
   mintLoaderId,
@@ -3509,6 +3515,7 @@ function oopifSpawnArgs(ctx: DispatchCtx, target: TargetState, f: FrameState): R
     frameLoaderId: f.loaderId,
     frameUrl: f.url,
     sandbox: f.sandbox,
+    ancestorOrigins: frameAncestorOrigins(f, target.frames, target.url),
     parentOrigin: originOf(embedder ? embedder.url : target.url),
     cookieSiteOrigin: frameCookieSiteOrigin(target, f),
     attributionHeaders: ctx.browser.attributionHeaders,
@@ -3553,7 +3560,7 @@ function resetPrespawnBudget(target: TargetState): void {
 }
 
 function prespawnOopifFrame(ctx: DispatchCtx, target: TargetState, f: FrameState): void {
-  if (f.pageScript || f.oopifPrespawn || f.detached) return;
+  if (f.pageScript || f.oopifPrespawn || f.detached || f.framePolicyBlocked) return;
   const queue = prespawnQueueFor(target);
   if (queue.started >= MAX_PRESPAWNS_PER_NAVIGATE) return;
   if (!f.url || f.url === "about:blank") return;
@@ -3566,10 +3573,12 @@ function prespawnOopifFrame(ctx: DispatchCtx, target: TargetState, f: FrameState
   const url = f.url;
   const sandbox = f.sandbox;
   const args = oopifSpawnArgs(ctx, target, f);
+  const ancestorOrigins = args.ancestorOrigins;
   queue.started++;
   const entry: NonNullable<FrameState["oopifPrespawn"]> = {
     url,
     sandbox,
+    ancestorOrigins,
     promise: Promise.resolve(null),
   };
   const promise = queue.tail.then(async () => {
@@ -3607,18 +3616,31 @@ function prespawnOopifFrame(ctx: DispatchCtx, target: TargetState, f: FrameState
 async function takeOopifPrespawn(
   f: FrameState,
   currentUrl: string,
+  currentAncestorOrigins: readonly CommittedOrigin[],
 ): Promise<PrespawnedFrame | "refused" | null> {
   const entry = f.oopifPrespawn;
   if (!entry) return null;
   f.oopifPrespawn = undefined;
   const pre = await entry.promise;
-  const current = entry.url === currentUrl && entry.sandbox === f.sandbox;
+  const current =
+    entry.url === currentUrl &&
+    entry.sandbox === f.sandbox &&
+    sameAncestorOrigins(entry.ancestorOrigins, currentAncestorOrigins);
   if (!pre) return entry.refused && current ? "refused" : null;
   if (!current) {
-    await discardOopifPrespawnResult(pre, "oopif prespawn stale: src or sandbox changed");
+    await discardOopifPrespawnResult(pre, "oopif prespawn stale: src, sandbox or ancestry changed");
     return null;
   }
   return pre;
+}
+
+function sameAncestorOrigins(
+  a: readonly CommittedOrigin[],
+  b: readonly CommittedOrigin[],
+): boolean {
+  return (
+    a.length === b.length && a.every((origin, index) => sameCommittedOrigin(origin, b[index]!))
+  );
 }
 
 async function discardOopifPrespawnResult(
@@ -3646,6 +3668,12 @@ function discardOopifPrespawn(f: FrameState, reason: string, atClose?: Generatio
   if (atClose?.waitUntil) atClose.waitUntil(discarding);
 }
 
+function clearRefusedFrameBitmap(target: TargetState, f: FrameState): void {
+  const ps = target.pageScript;
+  if (!ps || f.ownerBackendNodeId < 0) return;
+  void ps.clearFrameBitmap({ ownerBackendNodeId: f.ownerBackendNodeId }).catch(() => {});
+}
+
 async function spawnOopifPipeline(
   ctx: DispatchCtx,
   target: TargetState,
@@ -3653,7 +3681,7 @@ async function spawnOopifPipeline(
 ): Promise<void> {
   const ps = target.pageScript;
   if (!ps) return;
-  if (f.pageScript || f.oopifSpawning || f.detached) return;
+  if (f.pageScript || f.oopifSpawning || f.detached || f.framePolicyBlocked) return;
   if (!f.url || f.url === "about:blank") return;
   if (!frameNeedsIsolate(f)) return;
   if (!/^(https?|data):/i.test(f.url)) return;
@@ -3698,8 +3726,10 @@ async function spawnOopifPipeline(
       return;
     }
     const args = { ...oopifSpawnArgs(ctx, target, f), viewport };
-    const pre = await takeOopifPrespawn(f, f.url);
+    const pre = await takeOopifPrespawn(f, f.url, args.ancestorOrigins);
     if (pre === "refused") {
+      f.framePolicyBlocked = true;
+      clearRefusedFrameBitmap(target, f);
       lease.release();
       f.pageScriptLease = null;
       return;
@@ -3708,6 +3738,10 @@ async function spawnOopifPipeline(
       ? await navigatePrespawnedFrame(pre, args)
       : await spawnAndNavigateFrame(ctx.env, ctx.ctx, args);
     if (!spawn.ok) {
+      if (spawn.refused) {
+        f.framePolicyBlocked = true;
+        clearRefusedFrameBitmap(target, f);
+      }
       console.warn(`[kitesurf-oopif] spawn failed for ${f.url}: ${spawn.error}`);
       lease.release();
       f.pageScriptLease = null;
@@ -3724,6 +3758,21 @@ async function spawnOopifPipeline(
       } catch {}
       try {
         spawn.stub.close?.("oopif spawn superseded");
+      } catch {}
+      lease.release();
+      f.pageScriptLease = null;
+      return;
+    }
+    // The response policy was checked against the ancestry at fetch time; a parent that committed
+    // a different document meanwhile must not authorize this one.
+    if (
+      !sameAncestorOrigins(args.ancestorOrigins, frameAncestorOrigins(f, target.frames, target.url))
+    ) {
+      try {
+        await spawn.stub.unload();
+      } catch {}
+      try {
+        spawn.stub.close?.("oopif spawn stale: ancestry changed");
       } catch {}
       lease.release();
       f.pageScriptLease = null;
@@ -3919,8 +3968,6 @@ async function backfillIframeOwnerNodeIds(target: TargetState): Promise<void> {
     }
   } catch {}
 }
-
-const MAX_IFRAME_DEPTH = 8;
 
 // One navigation may register this many child frames, and retain at most MAX_DOCUMENT_BYTES of
 // their parse input, across every branch and depth.
@@ -4482,6 +4529,9 @@ function handleUpstreamFrameEvent(
   if (event === "kitesurf.frameNavigated") {
     const url = typeof params.url === "string" && params.url ? params.url : frame.url;
     const urlChanged = url !== frame.url;
+    // A new document commits its own response policy; a refusal is never inherited by the next
+    // navigation of the same frame.
+    frame.framePolicyBlocked = false;
     // page-script snapshots the owner attribute when the navigation starts; a later attribute
     // change only affects the next navigation.
     if (Object.prototype.hasOwnProperty.call(params, "sandbox")) {
@@ -4606,6 +4656,7 @@ async function loadChildFrame(
 ): Promise<void> {
   const docPageOrigin = originOf(frame.url);
   const entryUrl = frame.url;
+  const ancestorOrigins = frameAncestorOrigins(frame, target.frames, target.url);
   const embedder =
     frame.parentFrameId && frame.parentFrameId !== target.frameId
       ? target.frames.get(frame.parentFrameId)
@@ -4699,6 +4750,26 @@ async function loadChildFrame(
       }
     }
     const contentType = resp.headers.get("content-type") ?? "";
+    // Check the terminal response's embedding policy before decoding or parsing its body. A
+    // refused document keeps the frame in the tree with a blank parent-side document.
+    const csp = resp.headers.get("content-security-policy");
+    const policy = embeddingPolicyVerdict({
+      cspHeaders: [csp],
+      xFrameOptions: [resp.headers.get("x-frame-options")],
+      destinationOrigin: committedOriginOfUrl(finalUrl, `${frame.frameId}:${frame.loaderId}`),
+      ancestorOrigins,
+    });
+    if (!policy.allowed) {
+      try {
+        await resp.body?.cancel();
+      } catch {}
+      console.warn(`[kitesurf-iframe] refused ${finalUrl} by ${policy.directive ?? policy.reason}`);
+      frame.framePolicyBlocked = true;
+      frame.dom = null;
+      frame.mimeType = "text/html";
+      frame.readyState = "complete";
+      return;
+    }
     {
       const ct = contentType.split(";")[0]?.trim();
       if (ct) frame.mimeType = ct;
@@ -4743,6 +4814,15 @@ async function loadChildFrame(
     }
   }
   if (frame.detached || target.frames.get(frame.frameId) !== frame) {
+    frame.readyState = "complete";
+    return;
+  }
+  // The response policy was checked against the ancestry when the fetch started. If a parent
+  // committed another document meanwhile, this response must not commit.
+  if (
+    !sameAncestorOrigins(ancestorOrigins, frameAncestorOrigins(frame, target.frames, target.url))
+  ) {
+    console.warn(`[kitesurf-iframe] ancestry changed before ${frame.url} committed`);
     frame.readyState = "complete";
     return;
   }

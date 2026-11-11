@@ -8,6 +8,7 @@
   "exports": {
     "./shared": "./src/shared.ts",
     "./sandbox": "./src/sandbox.ts",
+    "./frame-origin": "./src/frame-origin.ts",
     "./page-script": "./src/page-script.ts",
     "./query-dom": "./src/query-dom.ts",
     "./page-renderer": "./src/page-renderer.ts",
