@@ -27,7 +27,7 @@ use crate::paint::pdf_paint::{
 };
 use crate::paint::scene_decode::{
     self, DecodedCap, DecodedFillRule, DecodedJoin, DecodedPaint, DecodedPathEl, DecodedResources,
-    DecodedTransform, SceneVisitor,
+    DecodedTransform, ResourceKind, SceneVisitor,
 };
 use crate::paint::scene_record::{
     font_data_key, fx_hash_u64, FONT_DATA_REF_ASSET, FONT_DATA_REF_BLOB, IMAGE_REF_HINT_BYTES,
@@ -498,6 +498,66 @@ pub(crate) fn decode_image_payload(
     })
 }
 
+/// Retained RGBA bytes an inline image will need, without decoding its pixels.
+fn inline_rgba_len(w: u32, h: u32, format: u8, bytes: &[u8]) -> Option<usize> {
+    if !matches!(format, 0 | 1) {
+        return None;
+    }
+    if format == 1 {
+        let dims = image::ImageReader::with_format(Cursor::new(bytes), image::ImageFormat::WebP)
+            .into_dimensions()
+            .ok()?;
+        if dims != (w, h) {
+            return None;
+        }
+    }
+    let len = usize::try_from(w)
+        .ok()?
+        .checked_mul(usize::try_from(h).ok()?)?
+        .checked_mul(4)?;
+    if format == 0 && len != bytes.len() {
+        return None;
+    }
+    Some(len)
+}
+
+/// Decodes the scene's inline images within one shared retained-byte budget.
+/// Images over the remaining budget are skipped and render as missing.
+pub(crate) fn decode_inline_images(resources: &mut DecodedResources) -> HashMap<u64, ImageData> {
+    let mut keys: Vec<u64> = resources.by_hash.keys().copied().collect();
+    keys.sort_unstable();
+    let mut out = HashMap::new();
+    let mut remaining = IMAGE_BYTES_BUDGET;
+    for key in keys {
+        let Some(res) = resources.by_hash.get_mut(&key) else {
+            continue;
+        };
+        if res.kind != ResourceKind::Image || res.data.is_empty() {
+            continue;
+        }
+        let Some(len) = inline_rgba_len(res.width, res.height, res.format, &res.data) else {
+            continue;
+        };
+        if len > remaining {
+            continue;
+        }
+        remaining -= len;
+        match decode_image_payload(
+            res.width,
+            res.height,
+            res.format,
+            (0, 0),
+            std::mem::take(&mut res.data).into(),
+        ) {
+            Some(img) if img.data.data().len() == len => {
+                out.insert(key, img);
+            }
+            _ => remaining += len,
+        }
+    }
+    out
+}
+
 fn opaque_solid_color(img: &ImageData) -> Option<Color> {
     if img.format != peniko::ImageFormat::Rgba8 {
         return None;
@@ -520,24 +580,11 @@ struct ReplayContext<'a> {
 
 impl<'a> ReplayContext<'a> {
     fn new(store: &'a ResourceStore, resources: &mut DecodedResources) -> Self {
-        let mut inline_images = HashMap::new();
-        let mut inline_solid = HashMap::new();
-        for (hash, res) in &mut resources.by_hash {
-            if !res.data.is_empty() && res.format != 2 {
-                if let Some(img) = decode_image_payload(
-                    res.width,
-                    res.height,
-                    res.format,
-                    (0, 0),
-                    std::mem::take(&mut res.data).into(),
-                ) {
-                    if let Some(color) = opaque_solid_color(&img) {
-                        inline_solid.insert(*hash, color);
-                    }
-                    inline_images.insert(*hash, img);
-                }
-            }
-        }
+        let inline_images = decode_inline_images(resources);
+        let inline_solid = inline_images
+            .iter()
+            .filter_map(|(hash, img)| Some((*hash, opaque_solid_color(img)?)))
+            .collect();
         let mut fonts_by_id = HashMap::new();
         for (font_id, meta) in &resources.font_meta {
             fonts_by_id.insert(
@@ -3484,6 +3531,59 @@ mod tests {
         assert!(store.font_bytes_total <= font.data.data().len() * 2);
         assert!(!store.fonts.contains_key(&0));
         assert!(store.fonts.contains_key(&3));
+    }
+
+    fn inline_scene(entries: &[(u64, u32, u32, &[u8])]) -> Vec<u8> {
+        let (mut scene, _) = record_scene(None, None);
+        let offset = (scene.len() as u32).to_le_bytes();
+        scene[28..32].copy_from_slice(&offset);
+        scene.extend_from_slice(&(entries.len() as u32).to_le_bytes());
+        for (hash, w, h, bytes) in entries {
+            scene.extend_from_slice(&hash.to_le_bytes());
+            scene.extend_from_slice(&w.to_le_bytes());
+            scene.extend_from_slice(&h.to_le_bytes());
+            scene.extend_from_slice(&[0, 1, 0, 0]);
+            scene.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+            scene.extend_from_slice(bytes);
+        }
+        scene
+    }
+
+    fn inline_totals(scene: &[u8]) -> (Vec<u64>, usize) {
+        let header = crate::paint::scene_decode::parse_header(scene).unwrap();
+        let mut res = crate::paint::scene_decode::parse_resources(scene, &header).unwrap();
+        let store = ResourceStore::default();
+        let ctx = ReplayContext::new(&store, &mut res);
+        let mut keys: Vec<u64> = ctx.inline_images.keys().copied().collect();
+        let images = &ctx.inline_images;
+        let total: usize = images.values().map(|i| i.data.data().len()).sum();
+        drop(ctx);
+        keys.sort_unstable();
+        let tty = crate::tty::grid::inline_images(scene);
+        let mut tty_keys: Vec<u64> = tty.keys().copied().collect();
+        tty_keys.sort_unstable();
+        assert_eq!(keys, tty_keys);
+        let tty_total: usize = tty.values().map(|i| i.rgba.data().len()).sum();
+        assert_eq!(total, tty_total);
+        (keys, total)
+    }
+
+    #[test]
+    fn inline_images_share_one_bounded_decode() {
+        let mut webp = Vec::new();
+        let rgba = vec![255u8; 1024 * 1024 * 4];
+        image::codecs::webp::WebPEncoder::new_lossless(&mut webp)
+            .encode(&rgba, 1024, 1024, image::ExtendedColorType::Rgba8)
+            .unwrap();
+        let entries: Vec<(u64, u32, u32, &[u8])> =
+            (1..=13).map(|i| (i, 1024, 1024, webp.as_slice())).collect();
+        let one = inline_scene(&entries[..1]);
+        assert_eq!(inline_totals(&one), (vec![1], 1024 * 1024 * 4));
+        let many = inline_scene(&entries);
+        let expected = ((1..=12).collect(), 12 * 1024 * 1024 * 4);
+        assert_eq!(inline_totals(&many), expected);
+        let false_header = inline_scene(&[(1, 1024, 768, webp.as_slice())]);
+        assert_eq!(inline_totals(&false_header), (vec![], 0));
     }
 
     fn assert_buffers_close(a: &[u8], b: &[u8], max_diff_frac: f64) {
