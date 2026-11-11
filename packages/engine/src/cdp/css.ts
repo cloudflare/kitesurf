@@ -7,7 +7,7 @@
 import type { CdpRequest, ParsedStyleSheet, StyleSheetEntry, TargetState } from "./types.ts";
 import type { CdpMutation } from "@kitesurf/jsrpc-types/shared";
 import type { DispatchCtx } from "./dispatch.ts";
-import { decodableAcceptEncoding, type SandboxOutboundOverride } from "../eval/outbound.ts";
+import { outboundPolicyRefusal } from "../eval/outbound.ts";
 import type { PageScriptStub } from "../eval/page-script.ts";
 import {
   sessionOf,
@@ -21,6 +21,7 @@ import { cookieKeyFor } from "./cookie-jar-registry.ts";
 import { originOf } from "./frames.ts";
 import { effectiveExtraHeaders } from "./network.ts";
 import { privateNetworkRefusal } from "../eval/private-network.ts";
+import { getInterception, interceptionMatches } from "./fetch-interception.ts";
 import { walkRedirects } from "../eval/redirect-walk.ts";
 
 import type { Protocol } from "devtools-protocol";
@@ -418,31 +419,51 @@ function findEntryByOwner(
   return null;
 }
 
-const opaqueSheetText = new Map<string, string>();
+// A failed fetch is cached until `failedUntil` so repeated enumerations do not refetch it.
+const opaqueSheetText = new Map<string, { text: string; hops: string[]; failedUntil?: number }>();
 const OPAQUE_SHEET_TEXT_MAX = 32;
 const OPAQUE_SHEET_FETCH_CAP = 12;
 const OPAQUE_SHEET_FETCH_TIMEOUT_MS = 5_000;
+const OPAQUE_SHEET_FAILURE_TTL_MS = 30_000;
 
-// A walled session's host transport replays recorded traffic, so it keeps final().
-async function fetchWalledSheetText(
-  sandboxOutbound: SandboxOutboundOverride,
-  url: string,
-): Promise<string> {
-  if (!/^https?:\/\//i.test(url)) return "";
+// With interception matching any hop, only a real request can ask the client.
+function sheetIntercepted(connectionId: string, hops: readonly string[]): boolean {
+  const interception = connectionId ? getInterception(connectionId) : undefined;
+  return (
+    interception !== undefined &&
+    hops.some((hop) => interceptionMatches(interception, hop, "Stylesheet"))
+  );
+}
+
+// Cached text must still pass the connection's current filters, blocklist and private-network
+// check and interception on every hop.
+function cachedSheetAdmissible(
+  ctx: DispatchCtx,
+  target: TargetState,
+  hops: readonly string[],
+): boolean {
+  const connectionId = ctx.connectionId;
+  if (!connectionId) return true;
+  if (sheetIntercepted(connectionId, hops)) return false;
+  const pageOrigin = originOf(target.url);
+  const initiator = pageOrigin === "://" ? "" : pageOrigin;
+  let pageHost = "";
   try {
-    const resp = await sandboxOutbound.final(
-      new Request(url, {
-        headers: {
-          accept: "text/css,*/*;q=0.1",
-          "accept-encoding": decodableAcceptEncoding(null, false),
-        },
-        signal: AbortSignal.timeout(OPAQUE_SHEET_FETCH_TIMEOUT_MS),
-      }),
+    pageHost = new URL(initiator).hostname;
+  } catch {}
+  return hops.every((hop) => {
+    let hopUrl: URL;
+    try {
+      hopUrl = new URL(hop);
+    } catch {
+      return false;
+    }
+    return (
+      (ctx.env.KITESURF_ALLOW_PRIVATE_NETWORK === "1" ||
+        privateNetworkRefusal(hopUrl, initiator) === null) &&
+      outboundPolicyRefusal(connectionId, hop, "Stylesheet", pageHost, false) === null
     );
-    return resp.ok ? await resp.text() : "";
-  } catch {
-    return "";
-  }
+  });
 }
 
 // The URL is page-chosen, so the fetch goes through the connection's gateway (filters,
@@ -454,28 +475,41 @@ async function fetchOpaqueSheetText(
 ): Promise<string> {
   if (!/^https?:\/\//i.test(url)) return "";
   const sandboxOutbound = ctx.browser.sandboxOutbound;
-  if (sandboxOutbound.external) {
-    // final() skips the gateway, so the walled path applies its private-network check here.
-    let sheetUrl: URL;
-    try {
-      sheetUrl = new URL(url);
-    } catch {
-      return "";
-    }
-    const pageOrigin = originOf(target.url);
-    if (
-      ctx.env.KITESURF_ALLOW_PRIVATE_NETWORK !== "1" &&
-      privateNetworkRefusal(sheetUrl, pageOrigin === "://" ? "" : pageOrigin) !== null
-    ) {
-      return "";
-    }
-    return fetchWalledSheetText(sandboxOutbound, url);
-  }
+  const cacheable = !sandboxOutbound.external;
   const cookieKey = cookieKeyFor(ctx.connectionId, target.browserContextId);
   // The response depends on the jar's cookies, so a cached text never crosses jars.
   const cacheKey = `${cookieKey}\n${url}`;
-  const hit = opaqueSheetText.get(cacheKey);
-  if (hit !== undefined) return hit;
+  if (cacheable) {
+    const cached = opaqueSheetText.get(cacheKey);
+    if (cached !== undefined) {
+      const fresh = cached.failedUntil === undefined || Date.now() < cached.failedUntil;
+      if (fresh && cachedSheetAdmissible(ctx, target, cached.hops)) return cached.text;
+      opaqueSheetText.delete(cacheKey);
+    }
+  }
+  const result = await fetchSheetOnce(ctx, target, url, cookieKey);
+  if (cacheable && !sheetIntercepted(ctx.connectionId, result.hops)) {
+    if (opaqueSheetText.size >= OPAQUE_SHEET_TEXT_MAX) {
+      const oldest = opaqueSheetText.keys().next().value;
+      if (oldest !== undefined) opaqueSheetText.delete(oldest);
+    }
+    opaqueSheetText.set(cacheKey, {
+      text: result.text ?? "",
+      hops: result.hops,
+      ...(result.text === null ? { failedUntil: Date.now() + OPAQUE_SHEET_FAILURE_TTL_MS } : {}),
+    });
+  }
+  return result.text ?? "";
+}
+
+// Fetches the sheet once; `text` is null when it failed. `hops` is the chain it walked.
+async function fetchSheetOnce(
+  ctx: DispatchCtx,
+  target: TargetState,
+  url: string,
+  cookieKey: string,
+): Promise<{ text: string | null; hops: string[] }> {
+  const sandboxOutbound = ctx.browser.sandboxOutbound;
   const pageOrigin = originOf(target.url);
   const outbound = sandboxOutbound.parent({
     pageOrigin: pageOrigin === "://" ? "" : pageOrigin,
@@ -486,7 +520,7 @@ async function fetchOpaqueSheetText(
     connectionId: ctx.connectionId,
     cookieKey,
   });
-  let text = "";
+  const hops = [url];
   try {
     const walk = await walkRedirects({
       url,
@@ -498,16 +532,17 @@ async function fetchOpaqueSheetText(
       },
       signal: AbortSignal.timeout(OPAQUE_SHEET_FETCH_TIMEOUT_MS),
       fetchHop: (hopReq) => outbound.fetch(hopReq),
+      onRedirect: (hop) => hops.push(hop.newUrl),
     });
-    if (walk.ok && walk.response.ok) text = await walk.response.text();
-    else if (walk.ok) void walk.response.body?.cancel().catch(() => {});
-  } catch {}
-  if (opaqueSheetText.size >= OPAQUE_SHEET_TEXT_MAX) {
-    const oldest = opaqueSheetText.keys().next().value;
-    if (oldest !== undefined) opaqueSheetText.delete(oldest);
+    if (!walk.ok) return { text: null, hops };
+    if (!walk.response.ok) {
+      void walk.response.body?.cancel().catch(() => {});
+      return { text: null, hops };
+    }
+    return { text: await walk.response.text(), hops };
+  } catch {
+    return { text: null, hops };
   }
-  opaqueSheetText.set(cacheKey, text);
-  return text;
 }
 
 export async function syncStyleSheetsFromEnumeration(
