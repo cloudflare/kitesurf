@@ -28,6 +28,8 @@ type Listener = (notice: IsolateLimitNotice) => void;
 export interface IsolateLimitListenerOptions {
   /** Connection that owns the listener, swept when it closes. */
   owner?: string;
+  /** Page target that owns the listener, swept when the target retires. */
+  targetId?: string;
   /** False once the listener's generation has retired. */
   isLive?: () => boolean;
 }
@@ -74,6 +76,12 @@ export function unregisterIsolateLimitListener(scriptName: string): void {
 export function unregisterIsolateLimitListenersFor(owner: string): void {
   for (const [name, entry] of listeners) {
     if (entry.owner === owner) listeners.delete(name);
+  }
+}
+
+export function unregisterIsolateLimitListenersForTarget(owner: string, targetId: string): void {
+  for (const [name, entry] of listeners) {
+    if (entry.owner === owner && entry.targetId === targetId) listeners.delete(name);
   }
 }
 
