@@ -153,7 +153,7 @@ async function interceptedRequest(
   headers: Record<string, string>,
 ) {
   const st = ensureInterception(INTERCEPTION_CONNECTION);
-  st.patterns = [{ re: /.*/ }];
+  st.patterns = [{ pattern: "*" }];
   const paused: string[] = [];
   st.emit = (ev) => {
     paused.push(ev.networkId ?? "");

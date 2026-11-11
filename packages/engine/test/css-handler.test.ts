@@ -506,7 +506,7 @@ describe("CSS.enable opaque stylesheet fetches", () => {
     expect(failed.seen).toEqual([SHEET]);
 
     const h = harness();
-    ensureInterception(h.connectionId).patterns = [{ re: /other\.test/ }];
+    ensureInterception(h.connectionId).patterns = [{ pattern: "*other.test*" }];
     await h.enable();
     await h.enable();
     expect(h.seen).toEqual([SHEET]);
