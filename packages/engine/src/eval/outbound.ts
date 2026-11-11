@@ -1213,7 +1213,12 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       const mimeType = resp.headers.get("content-type") ?? "";
       const contentLength = Number(resp.headers.get("content-length") ?? "0") || 0;
       const trimmedMime = (mimeType.split(";")[0] ?? "").trim() || "application/octet-stream";
-      if (isTextLikeMime(mimeType) && resp.body && tracker.retainsBodies()) {
+      // An event stream ends when the page closes it, so capturing one would wait for an EOF
+      // that never comes and starve the page's EventSource. Chrome reports no body for it either;
+      // the response is completed at headers like any other unbuffered body.
+      const eventStream =
+        resourceType === "EventSource" || mimeEssence(mimeType) === "text/event-stream";
+      if (!eventStream && isTextLikeMime(mimeType) && resp.body && tracker.retainsBodies()) {
         try {
           const capped = await readCapped(resp.body, RESPONSE_BODY_BUFFER_CAP);
           if (capped.bytes) {
