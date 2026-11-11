@@ -272,7 +272,7 @@ console.log("[build-wasm] post-pass: hide fetchResource bridge");
     }
     const replaced = original.replace(
       LEGACY_CALL,
-      "(__bridgeFetchResource ? __bridgeFetchResource : (() => {})).call(null, ",
+      "(__bridgeFetchResource ? __bridgeFetchResource : (() => {}))( ",
     );
     if (replaced === original) {
       console.error(
