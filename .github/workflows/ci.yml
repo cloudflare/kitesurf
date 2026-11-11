@@ -13,8 +13,8 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# The e2e, Playwright and WPT suites need more memory than a standard hosted runner has, so CI runs
-# only the build and the lighter lanes. Run the others locally (AGENTS.md, "Running").
+# The e2e and WPT suites need more memory than a standard hosted runner has, so CI leaves them to
+# local runs (AGENTS.md, "Running"); the Playwright lane runs on bazelflare's executors instead.
 jobs:
   # One job, so the Rust crates compile once: the tests and the dev build share one Bazel output
   # tree, and the checks, the lint tests, the Rust host tests and the vitest suite one invocation.
@@ -40,6 +40,10 @@ jobs:
       - run: pnpm run format:check
       - run: pnpm run lint:js
       - run: bazel run //scripts:workspace_checks
+      # Each spec boots an engine on a bazelflare executor, whose image holds the pinned Playwright
+      # checkout. A fork's pull request has no bazelflare, so main runs the lane once it merges.
+      - if: steps.setup.outputs.bazelflare == 'true'
+        run: bazel test --keep_going --test_output=errors //tests/pw:specs //tests/pw:expectations_test
       - if: always()
         run: df -h /
       # Only main saves, so PR runs cannot evict main's entry from the 10 GB repository quota. Save
