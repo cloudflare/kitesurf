@@ -118,6 +118,7 @@ import {
 } from "./range.js";
 import { DocumentImpl, DOMImplementationCls, DetachedDocument, XMLDocument } from "./document.js";
 import { DOMParser, ParsedDocument } from "./parser.js";
+import { XMLSerializer } from "./xml-serializer.js";
 import { NodeFilter, TreeWalker, NodeIterator } from "./traversal.js";
 import { XPathEvaluator, XPathExpression, XPathResult } from "./xpath.js";
 import { FormData } from "./form-data.js";
@@ -716,6 +717,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
   finalizeInterface(MutationObserverImpl, idlInterfaceMeta("MutationObserver", { brandOps: true }));
   finalizeInterface(MutationRecord, idlInterfaceMeta("MutationRecord", { brandAttrs: true }));
   finalizeInterface(DOMParser, idlInterfaceMeta("DOMParser", { brandOps: true }));
+  finalizeInterface(XMLSerializer, idlInterfaceMeta("XMLSerializer", { brandOps: true }));
   finalizeInterface(ValidityStateImpl, idlInterfaceMeta("ValidityState", { brandAttrs: true }));
   finalizeInterface(
     DOMRectReadOnly,
@@ -832,6 +834,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     MutationObserver: MutationObserverImpl,
     MutationRecord,
     DOMParser,
+    XMLSerializer,
     CSSStyleSheet: CSSStyleSheetCtor,
     CSSRule: CSSRuleInterface,
     ...(CSSOM_GLOBALS as Omit<typeof CSSOM_GLOBALS, "CSSStyleSheet" | "CSSRule">),

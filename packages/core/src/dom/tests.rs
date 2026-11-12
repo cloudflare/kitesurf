@@ -13,3 +13,4 @@ mod scan;
 mod shadow_dom;
 mod template_resources;
 mod text_selection;
+mod xml;

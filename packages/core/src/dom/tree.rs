@@ -179,11 +179,11 @@ enum HtmlForm {
     Snapshot,
 }
 
-type TemplateContents = std::collections::HashMap<NodeId, NodeId>;
+pub(crate) type TemplateContents = std::collections::HashMap<NodeId, NodeId>;
 
 // A template's content sits in another node once the DOM shim has moved it there; before
 // that, and for every other element, the content is the node's own children.
-fn serialized_children<'a>(
+pub(crate) fn serialized_children<'a>(
     doc: &'a BaseDocument,
     node: &'a Node,
     templates: &TemplateContents,

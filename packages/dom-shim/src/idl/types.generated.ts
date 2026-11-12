@@ -3404,7 +3404,7 @@ export interface XMLHttpRequestEventTarget extends EventTarget {
 export interface XMLHttpRequestUpload extends XMLHttpRequestEventTarget {
 }
 export interface XMLSerializer {
-  // serializeToString(root: Node): string;
+  serializeToString(root: Node): string;
 }
 export interface XPathEvaluator {
   createExpression(expression: string, resolver?: XPathNSResolver | null): XPathExpression;
