@@ -127,6 +127,32 @@ test("an AX node stops being clickable when its last click listener goes", async
   await cdp.detach().catch(() => {});
 }, 60_000);
 
+// The page's listener list is read with each tree, so a listener that comes later counts; one
+// added with a signal goes when the signal aborts, and stops both firing and counting.
+test("a listener added after a tree was read counts, until its signal aborts", async ({ page }) => {
+  await setContent(page, PAGE);
+  const cdp = await page.createCDPSession();
+  const names = await domNames(cdp);
+  expect(await flagged(cdp, names)).not.toContain("plain");
+  await page.evaluate(`
+    window.controller = new AbortController();
+    window.fired = 0;
+    document.getElementById("plain").addEventListener("click", () => window.fired++, {
+      signal: window.controller.signal,
+    });
+  `);
+  expect(await flagged(cdp, names)).toContain("plain");
+  const fired = await page.evaluate(`
+    document.getElementById("plain").click();
+    window.controller.abort();
+    document.getElementById("plain").click();
+    window.fired
+  `);
+  expect(fired).toBe(1);
+  expect(await flagged(cdp, names)).not.toContain("plain");
+  await cdp.detach().catch(() => {});
+}, 60_000);
+
 test("a handler attribute the page's policy refuses makes no node clickable", async ({ page }) => {
   const body = '<div id="attribute" onclick="void 0">Attribute</div>';
   await page.goto(
