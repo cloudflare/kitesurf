@@ -19,6 +19,7 @@ import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPatchedVendorCrates } from "./get-patched-vendor-crates.mjs";
 import { WASM_BINDGEN_VERSION, getWasmBindgen } from "./get-wasm-bindgen.mjs";
+import { rewriteWasmMemoryViews } from "./wasm-memory-views.mjs";
 import { getWasmOpt } from "./wasm-opt.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -81,6 +82,7 @@ function shouldRebuild() {
     resolve(ROOT, "rust-toolchain.toml"),
     SELF,
     resolve(dirname(SELF), "get-patched-vendor-crates.mjs"),
+    resolve(dirname(SELF), "wasm-memory-views.mjs"),
   ];
   function walkPatches(dir) {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -391,6 +393,12 @@ console.log("[build-wasm] post-pass: capture typed-array copy intrinsics");
     writeFileSync(gluePath, preamble + replaced);
     console.log("[build-wasm]   captured Uint8Array + set for passArray8ToWasm0");
   }
+}
+
+console.log("[build-wasm] post-pass: direct Wasm memory views");
+{
+  const gluePath = resolve(PKG_DIR, "kitesurf_core.js");
+  writeFileSync(gluePath, rewriteWasmMemoryViews(readFileSync(gluePath, "utf8")));
 }
 
 console.log("[build-wasm] cp kitesurf_core.js → kitesurf_core.glue.js");
