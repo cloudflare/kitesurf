@@ -9,6 +9,7 @@ import {
   WEB_STORAGE_QUOTA_UNITS,
   WEB_STORAGE_TOTAL_UNITS,
   WebStorage,
+  webStorageOrigin,
 } from "../src/state/web-storage.ts";
 import { MemorySessionStore } from "../src/state/session-store.ts";
 import {
@@ -89,6 +90,12 @@ describe("the engine's merged localStorage area", () => {
     context.clear();
     ls.clear();
     expect(ls.totalUnits()).toBe(0);
+  });
+
+  it("gives the stand-in URL of about:blank and setContent documents no shared area", () => {
+    expect(webStorageOrigin("https://kitesurf.local/")).toBeNull();
+    expect(webStorageOrigin("about:blank")).toBeNull();
+    expect(webStorageOrigin("https://example.com/a?b")).toBe("https://example.com");
   });
 
   it("refuses a write that would take it over the quota, keeping the old value", () => {

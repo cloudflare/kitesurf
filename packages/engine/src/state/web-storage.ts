@@ -128,12 +128,17 @@ export class WebStorage<Scope extends WebStorageScope = "local"> {
   }
 }
 
+// about:blank and setContent documents all get this stand-in base URL. Taken as an origin, it
+// would hand each of them the area an unrelated one wrote.
+const STAND_IN_HOST = "kitesurf.local";
+
 /** The origin whose area a document at `url` uses, or null for an opaque origin (data:,
  * about:blank), which matches no other document and so keeps its storage in the page. */
 export function webStorageOrigin(url: string): string | null {
   try {
     const u = new URL(url);
     if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (u.hostname === STAND_IN_HOST) return null;
     return u.origin;
   } catch {
     return null;

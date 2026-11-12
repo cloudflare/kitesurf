@@ -6,6 +6,7 @@
 // the engine keeps each origin's areas and every navigate gets copies (state/web-storage.ts).
 import type { Page } from "@cloudflare/puppeteer";
 import { expect, test } from "./harness";
+import { setContent } from "./set-content";
 
 const A = "https://ks.invalid/__fixtures/lifecycle.html";
 const A2 = "https://ks.invalid/__fixtures/big-doc.html?rows=1&seed=1";
@@ -131,6 +132,23 @@ test("each browser context has its own localStorage", async ({ browser, page }) 
     await context.close();
   }
 }, 120_000);
+
+// about:blank and setContent documents get one stand-in base URL. It is not an origin: two
+// such documents are unrelated, and the second must not read what the first stored.
+test("documents with no URL of their own do not share storage", async ({ browser, page }) => {
+  await setContent(page, "<p>first</p>");
+  await page.evaluate(() => {
+    localStorage.setItem("cart", "customer-a");
+    sessionStorage.setItem("step", "2");
+  });
+  await setContent(page, "<p>second</p>");
+  expect(await read(page)).toEqual({});
+  expect(await read(page, "sessionStorage")).toEqual({});
+  const other = await browser.newPage();
+  await setContent(other, "<p>third</p>");
+  expect(await read(other)).toEqual({});
+  await other.close();
+});
 
 test("a Storage shows its keys as properties, and a named write is kept", async ({ page }) => {
   await page.goto(A, { waitUntil: "load" });
