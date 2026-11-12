@@ -345,7 +345,7 @@ export interface TargetState {
   screencastAckCount?: number;
   extraHttpHeaders: Record<string, string>;
   userAgentOverride: string;
-  sessionStorage?: WebStorage; // the tab's, per origin, made by the first http(s) navigate
+  sessionStorage?: WebStorage<"session">; // the tab's, per origin, made by its first navigate
 }
 
 export interface CompiledScriptMeta {

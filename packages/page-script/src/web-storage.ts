@@ -18,7 +18,7 @@ export interface StorageArea {
 
 // The spec leaves the per-origin quota to the implementation; browsers allow 5 MiB of UTF-16
 // code units, keys and values together, and so do we.
-const QUOTA_UNITS = 5 * 1024 * 1024;
+export const QUOTA_UNITS = 5 * 1024 * 1024;
 
 export function memoryArea(): StorageArea {
   const data = new Map<string, string>();

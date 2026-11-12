@@ -5,10 +5,15 @@
 import { describe, expect, it } from "vitest";
 
 import type { WebStorageOp } from "@kitesurf/jsrpc-types/page-script";
-import { WEB_STORAGE_QUOTA_UNITS, WebStorage } from "../src/state/web-storage.ts";
+import {
+  WEB_STORAGE_QUOTA_UNITS,
+  WEB_STORAGE_TOTAL_UNITS,
+  WebStorage,
+} from "../src/state/web-storage.ts";
 import { MemorySessionStore } from "../src/state/session-store.ts";
 import {
   memoryArea,
+  QUOTA_UNITS,
   sharedArea,
   Storage,
   storageObject,
@@ -51,6 +56,41 @@ describe("a page's localStorage batch", () => {
 });
 
 describe("the engine's merged localStorage area", () => {
+  it("has the quota the page enforces on its copy", () => {
+    expect(WEB_STORAGE_QUOTA_UNITS).toBe(QUOTA_UNITS);
+  });
+
+  // Each area is bounded, but a page can fill one per origin it visits: the areas of one
+  // connection, localStorage and sessionStorage alike, share a total.
+  it("refuses a write that would take a connection's areas over their total", () => {
+    const ls = new WebStorage(new MemorySessionStore());
+    const tab = ls.forTab("t1");
+    const context = ls.forContext("c1");
+    const full = "x".repeat(WEB_STORAGE_QUOTA_UNITS - 1);
+    const fills = WEB_STORAGE_TOTAL_UNITS / WEB_STORAGE_QUOTA_UNITS;
+    const areas = [ls, tab, context];
+    for (let i = 0; i < fills; i++) {
+      areas[i % areas.length]?.apply(`https://o${i}.example`, [
+        { op: "set", key: "k", value: full },
+      ]);
+    }
+    expect(ls.totalUnits()).toBe(fills * WEB_STORAGE_QUOTA_UNITS);
+
+    tab.apply("https://more.example", [{ op: "set", key: "k", value: "v" }]);
+    expect(tab.entries("https://more.example")).toEqual([]);
+    // A write that shrinks its area is never refused, or a page past the total could not
+    // make room; what it frees is there for the next write.
+    ls.apply("https://o0.example", [{ op: "set", key: "k", value: "" }]);
+    expect(ls.entries("https://o0.example")).toEqual([["k", ""]]);
+    tab.apply("https://more.example", [{ op: "set", key: "k", value: "v" }]);
+    expect(tab.entries("https://more.example")).toEqual([["k", "v"]]);
+
+    tab.dispose();
+    context.clear();
+    ls.clear();
+    expect(ls.totalUnits()).toBe(0);
+  });
+
   it("refuses a write that would take it over the quota, keeping the old value", () => {
     const ls = new WebStorage(new MemorySessionStore());
     const half = "x".repeat(WEB_STORAGE_QUOTA_UNITS / 2);

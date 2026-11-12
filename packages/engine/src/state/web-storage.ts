@@ -14,34 +14,50 @@ export type { WebStorageOp };
 // copy, so two pages under quota can together go over, and every later page would start past it.
 export const WEB_STORAGE_QUOTA_UNITS = 5 * 1024 * 1024;
 
-const isIndexMark = (v: unknown): v is 1 => v === 1; // the index marks an origin present
+// What a connection's areas may hold together. A page can walk as many origins as it likes, and
+// every area it fills stays on the engine's heap until the connection closes.
+export const WEB_STORAGE_TOTAL_UNITS = 2 * WEB_STORAGE_QUOTA_UNITS;
 
-// Tables: `<prefix>` indexes the origins and `<prefix>|<origin>` holds one origin's keys. The
-// prefix is `localStorage`, `localStorage:<context id>` or a tab's `sessionStorage:<target id>`.
-export class WebStorage {
+const isUnits = (v: unknown): v is number => typeof v === "number" && v >= 0;
+
+export type WebStorageScope = "local" | "session";
+
+// Tables: `<prefix>` holds each origin's used units and `<prefix>|<origin>` its keys. The prefix
+// is `localStorage`, `localStorage:<context id>` or a tab's `sessionStorage:<target id>`.
+export class WebStorage<Scope extends WebStorageScope = "local"> {
+  // Type-only. Both scopes are one class, so without it a tab's areas would typecheck in a
+  // browser context's place, and session data would be kept as localStorage.
+  declare readonly scope: Scope;
   readonly #store: SessionStore;
   readonly #prefix: string;
+  readonly #total: { units: number }; // shared by every area cut from one store
   #disposed = false;
 
-  constructor(store: SessionStore, prefix = "localStorage") {
+  constructor(store: SessionStore, prefix = "localStorage", total = { units: 0 }) {
     this.#store = store;
     this.#prefix = prefix;
+    this.#total = total;
   }
 
   forContext(contextId: string): WebStorage {
-    return new WebStorage(this.#store, `localStorage:${contextId}`);
+    return new WebStorage(this.#store, `localStorage:${contextId}`, this.#total);
   }
 
-  forTab(targetId: string): WebStorage {
-    return new WebStorage(this.#store, `sessionStorage:${targetId}`);
+  forTab(targetId: string): WebStorage<"session"> {
+    return new WebStorage<"session">(this.#store, `sessionStorage:${targetId}`, this.#total);
   }
 
-  #index(): StoreTable<1> {
-    return this.#store.table(this.#prefix, isIndexMark);
+  #index(): StoreTable<number> {
+    return this.#store.table(this.#prefix, isUnits);
   }
 
   #areaName(origin: string): string {
     return `${this.#prefix}|${origin}`;
+  }
+
+  /** UTF-16 units held by every area that shares this one's store. */
+  totalUnits(): number {
+    return this.#total.units;
   }
 
   origins(): string[] {
@@ -56,8 +72,9 @@ export class WebStorage {
   apply(origin: string, ops: readonly WebStorageOp[]): void {
     if (this.#disposed) return; // a page's last writes can outlive its browser context or tab
     const area = this.#store.table(this.#areaName(origin), isStoredString);
-    let used = 0;
-    for (const [k, v] of area.entries()) used += k.length + v.length;
+    const before = this.#index().get(origin) ?? 0;
+    const others = this.#total.units - before;
+    let used = before;
     let refused = 0;
     for (const op of ops) {
       if (op.op === "set") {
@@ -65,8 +82,9 @@ export class WebStorage {
         const freed = old === undefined ? 0 : op.key.length + old.length;
         const next = used - freed + op.key.length + op.value.length;
         // Keep the old value, as the page's copy would have refused the write had it seen the
-        // other pages' writes.
-        if (next > WEB_STORAGE_QUOTA_UNITS) {
+        // other pages' writes; past the connection's total, a growing write is refused too.
+        const overTotal = next > used && others + next > WEB_STORAGE_TOTAL_UNITS;
+        if (next > WEB_STORAGE_QUOTA_UNITS || overTotal) {
           refused++;
           continue;
         }
@@ -84,8 +102,13 @@ export class WebStorage {
     if (refused > 0) {
       console.warn(JSON.stringify({ event: "web_storage_quota_refused", origin, refused }));
     }
-    if (area.size > 0) this.#index().set(origin, 1);
-    else this.#drop(origin);
+    this.#total.units = others + used;
+    if (area.size > 0) {
+      this.#index().set(origin, used);
+    } else {
+      this.#store.drop(this.#areaName(origin));
+      this.#index().delete(origin);
+    }
   }
 
   clear(): void {
@@ -99,6 +122,7 @@ export class WebStorage {
   }
 
   #drop(origin: string): void {
+    this.#total.units -= this.#index().get(origin) ?? 0;
     this.#store.drop(this.#areaName(origin));
     this.#index().delete(origin);
   }

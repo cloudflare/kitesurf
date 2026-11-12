@@ -87,7 +87,10 @@ export function localStorageForTarget(
 
 // A tab's, as browsers keep it: what a flow writes there survives the tab's navigates, and a
 // tab opened over CDP starts empty.
-export function sessionStorageForTarget(ctx: DispatchCtx, target: TargetState): WebStorage {
+export function sessionStorageForTarget(
+  ctx: DispatchCtx,
+  target: TargetState,
+): WebStorage<"session"> {
   target.sessionStorage ??= ctx.browser.localStorage.forTab(target.targetId);
   return target.sessionStorage;
 }
@@ -646,6 +649,7 @@ export function engineMemoryBreakdown(browser: BrowserState): {
   retainedImageBytes: number;
   retainedImageCount: number;
   fontAssetCacheBytes: number;
+  webStorageBytes: number;
   accountedBytes: number;
 } {
   const wasmBytes = engineWasmBytes();
@@ -654,6 +658,7 @@ export function engineMemoryBreakdown(browser: BrowserState): {
   const retainedBodyBytesIsolate = isolateRetainedBodyBytesTotal();
   const fontAssetCacheBytes = assetCacheRetainedBytes();
   const images = imageStoreStats();
+  const webStorageBytes = browser.localStorage.totalUnits() * 2; // UTF-16 units
   return {
     wasmBytes,
     wasmInitialBytes,
@@ -664,7 +669,9 @@ export function engineMemoryBreakdown(browser: BrowserState): {
     retainedImageBytes: images.bytes,
     retainedImageCount: images.count,
     fontAssetCacheBytes,
-    accountedBytes: wasmBytes + retainedBodyBytesIsolate + images.bytes + fontAssetCacheBytes,
+    webStorageBytes,
+    accountedBytes:
+      wasmBytes + retainedBodyBytesIsolate + images.bytes + fontAssetCacheBytes + webStorageBytes,
   };
 }
 

@@ -4041,7 +4041,7 @@ export function installUpstreamEventHandler(
   url: string,
   // Where this isolate's Web Storage changes go; absent for an opaque origin, which keeps both
   // areas in the page.
-  sharedStorage?: { origin: string; local: WebStorage; session: WebStorage },
+  sharedStorage?: { origin: string; local: WebStorage; session: WebStorage<"session"> },
 ): void {
   if (target.navigateGeneration === generation) target.pageScriptUrl = url;
   if (typeof stub.setUpstreamEventHandler !== "function") return;
