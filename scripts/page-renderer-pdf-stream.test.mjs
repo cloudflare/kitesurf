@@ -62,6 +62,7 @@ function harness(failure) {
           },
         );
   class SceneRasterizer {
+    resetResources() {}
     beginPdf() {
       if (failure === "begin") throw new Error("begin failed");
       return { free: () => state.pdfFreed++ };
@@ -177,6 +178,7 @@ test("renderer cancellation releases the page gate and a subsequent PDF render s
     }),
   );
   const SceneRasterizer = class {
+    resetResources() {}
     beginPdf() {
       return { free: () => state.pdfFreed++ };
     }
