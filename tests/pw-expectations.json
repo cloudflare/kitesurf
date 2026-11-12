@@ -2331,10 +2331,6 @@
     "expected": "FAIL",
     "reason": "Error: expect(received).toEqual(expected) // deep equality"
   },
-  "selectors-role.spec.ts::should support checked": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toEqual(expected) // deep equality"
-  },
   "selectors-role.spec.ts::should support disabled": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toEqual(expected) // deep equality"
