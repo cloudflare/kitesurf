@@ -762,7 +762,19 @@ export function remoteObjectFromValue(
   value: unknown,
   returnByValue: boolean,
 ): Protocol.Runtime.EvaluateResponse {
+  // Chrome answers null with its subtype and a number with its description in either mode,
+  // and gives neither an object id; without these a literal's reply differs from Chrome's.
+  if (value === null) return { result: { type: "object", subtype: "null", value: null } };
   const type = typeOf(value);
+  if (typeof value === "number") {
+    // -0 and the infinities have no JSON form: Chrome sends them as unserializableValue, and
+    // its description keeps the sign that String(-0) drops.
+    if (Object.is(value, -0) || !Number.isFinite(value)) {
+      const text = Object.is(value, -0) ? "-0" : String(value);
+      return { result: { type, unserializableValue: text, description: text } };
+    }
+    return { result: { type, value, description: String(value) } };
+  }
   if (returnByValue) {
     return { result: { type, value } };
   }
