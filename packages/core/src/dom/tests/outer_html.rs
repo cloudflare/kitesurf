@@ -58,3 +58,18 @@ fn escapes_markup_characters_and_no_break_space_in_attribute_values() {
          <p title=\"a&lt;b&gt;c&amp;d&quot;e&nbsp;f\">x</p></body></html>"
     );
 }
+
+#[test]
+fn keeps_the_prefix_of_a_namespaced_attribute() {
+    let dom = DomHandle::new(
+        "<html><head></head><body><svg xmlns:xlink=\"http://www.w3.org/1999/xlink\">\
+         <use xlink:href=\"#a\" xml:lang=\"en\"></use></svg></body></html>",
+        "https://example.test/",
+    );
+
+    assert_eq!(
+        dom.outer_html(0),
+        "<html><head></head><body><svg xmlns:xlink=\"http://www.w3.org/1999/xlink\">\
+         <use xlink:href=\"#a\" xml:lang=\"en\"></use></svg></body></html>"
+    );
+}

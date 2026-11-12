@@ -231,6 +231,12 @@ fn write_node_open<'a>(
                     continue;
                 }
                 out.push(' ');
+                // A foreign attribute keeps its prefix: xlink:href is not href, and without
+                // one xmlns:xlink would come back as an attribute named xlink.
+                if let Some(prefix) = &name.prefix {
+                    out.push_str(prefix);
+                    out.push(':');
+                }
                 out.push_str(&name.local);
                 out.push_str("=\"");
                 escape_attr_value(value, out);
