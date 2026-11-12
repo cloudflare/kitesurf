@@ -56,6 +56,29 @@ describe("a page's localStorage batch", () => {
   });
 });
 
+describe("a page's localStorage batch, on a page that patched Promise", () => {
+  // The flush was a then() looked up when the batch opened: a replacement that never called
+  // back left the batch open for good, and every later write in the document was dropped.
+  it("still reaches the engine", async () => {
+    const sent: WebStorageOp[][] = [];
+    const area = sharedArea([], (ops) => sent.push(ops));
+    const { then } = Promise.prototype;
+    try {
+      Promise.prototype.then = () => new Promise(() => {});
+      area.set("k", "v");
+    } finally {
+      Promise.prototype.then = then;
+    }
+    await settle();
+    area.set("later", "w");
+    await settle();
+    expect(sent).toEqual([
+      [{ op: "set", key: "k", value: "v" }],
+      [{ op: "set", key: "later", value: "w" }],
+    ]);
+  });
+});
+
 describe("the engine's merged localStorage area", () => {
   it("has the quota the page enforces on its copy", () => {
     expect(WEB_STORAGE_QUOTA_UNITS).toBe(QUOTA_UNITS);

@@ -20,6 +20,12 @@ export interface StorageArea {
 // code units, keys and values together, and so do we.
 export const QUOTA_UNITS = 5 * 1024 * 1024;
 
+// A page may replace Promise.prototype.then or Promise.resolve. Looked up at flush time, a
+// replacement that never calls back would wedge the batch and drop every later write.
+const settled = NativePromise.resolve();
+const nativeThen = NativePromise.prototype.then;
+const { apply } = Reflect;
+
 export function memoryArea(): StorageArea {
   const data = new Map<string, string>();
   let keys: readonly string[] | null = null; // until a key comes or goes
@@ -65,15 +71,17 @@ export function sharedArea(
     if (pending) return pending;
     const next = new Map<string, string | null>();
     pending = next;
-    void NativePromise.resolve().then(() => {
-      const ops: WebStorageOp[] = cleared ? [{ op: "clear" }] : [];
-      for (const [key, value] of next) {
-        ops.push(value === null ? { op: "remove", key } : { op: "set", key, value });
-      }
-      pending = null;
-      cleared = false;
-      send(ops);
-    });
+    void apply(nativeThen, settled, [
+      () => {
+        const ops: WebStorageOp[] = cleared ? [{ op: "clear" }] : [];
+        for (const [key, value] of next) {
+          ops.push(value === null ? { op: "remove", key } : { op: "set", key, value });
+        }
+        pending = null;
+        cleared = false;
+        send(ops);
+      },
+    ]);
     return next;
   };
   return {
