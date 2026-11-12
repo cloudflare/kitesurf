@@ -117,7 +117,12 @@ import {
   runInsertedExternalScript,
   setModulePreloadPins,
 } from "./inserted-scripts.ts";
-import { editContentEditable, editingHostOf } from "./contenteditable-input.ts";
+import {
+  editContentEditable,
+  editingEvent,
+  editingHostOf,
+  type EditInputType,
+} from "./contenteditable-input.ts";
 import {
   inlineHandlerAllowed,
   inlineInsertDecisionSync,
@@ -2741,25 +2746,7 @@ function activateAnchorNavigation(
   }
 }
 
-type EditingEventCtor = new (type: string, init: Record<string, unknown>) => unknown;
-
-// Chrome gives InputEvent and TextEvent the window as their view; the shim's window is not a
-// DOM-typed Window, so these two constructors take a looser init here.
-function editingEvent(
-  name: "InputEvent" | "TextEvent",
-  type: string,
-  init: Record<string, unknown>,
-): unknown {
-  const EventCtor = ksEventCtors[name] as EditingEventCtor | undefined;
-  if (typeof EventCtor !== "function") throw new TypeError(`${name} is not installed yet`);
-  return new EventCtor(type, { bubbles: true, composed: true, view: state.window, ...init });
-}
-
-type ControlInputType =
-  | "insertText"
-  | "insertLineBreak"
-  | "deleteContentBackward"
-  | "deleteContentForward";
+type ControlInputType = Exclude<EditInputType, "insertParagraph">;
 
 function dispatchBeforeInput(
   control: ShimElement,
@@ -2882,9 +2869,8 @@ function hasSelectedText(control: ShimElement): boolean {
 function insertIntoTextControl(control: ShimElement, rawText: string, lineBreak: boolean): boolean {
   const multiline = control.tagName === "TEXTAREA";
   const inputType = lineBreak ? "insertLineBreak" : "insertText";
-  if (!dispatchBeforeInput(control, inputType, lineBreak ? null : rawText)) return false;
-  if (lineBreak && !multiline) return true;
-  if (!dispatchTextInput(control, lineBreak ? "\n" : rawText)) return false;
+  // The events name the text that lands, not the text that was sent: a page that mirrors
+  // textInput's data would otherwise drift from the field. Text that lands nowhere fires none.
   const text = lineBreak
     ? "\n"
     : multiline
@@ -3055,6 +3041,8 @@ function countImplicitSubmissionBlockers(form: NonNullable<ShimElement["form"]>)
   return count;
 }
 
+// blitz marks an element :disabled from its own attribute alone, so a control that a disabled
+// fieldset disables has to be found by asking for the fieldset.
 function isDisabledControl(element: ShimElement): boolean {
   if (element.hasAttribute?.("disabled")) return true;
   try {
