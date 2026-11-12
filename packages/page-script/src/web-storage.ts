@@ -235,6 +235,9 @@ export function storageObject(area: StorageArea): object {
     defineProperty: (t, p, desc) => {
       if (typeof p !== "string") return defineProperty(t, p, desc);
       if (!("value" in desc) && !("writable" in desc)) return false; // only data reaches the setter
+      // A Proxy may not report a property its target lacks as non-configurable, so the call
+      // throws whatever this returns: refuse before storing, not after.
+      if (desc.configurable === false) return false;
       area.set(p, domString(desc.value));
       return true;
     },

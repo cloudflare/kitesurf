@@ -205,6 +205,19 @@ describe("a Storage object", () => {
     expect(s.length).toBe(0);
   });
 
+  // A Proxy cannot report a non-configurable property its target lacks, so that call throws
+  // whatever the trap does. It used to store the value first.
+  it("stores nothing for a defineProperty it has to refuse", () => {
+    const area = memoryArea();
+    const storage = storageObject(area);
+    expect(() => Object.defineProperty(storage, "k", { value: "v", configurable: false })).toThrow(
+      TypeError,
+    );
+    expect(area.get("k")).toBeNull();
+    Object.defineProperty(storage, "k", { value: "v" });
+    expect(area.get("k")).toBe("v");
+  });
+
   it("keeps symbols as ordinary properties of the object", () => {
     const s = storage() as StorageShape & Record<symbol, unknown>;
     const sym = Symbol("s");
