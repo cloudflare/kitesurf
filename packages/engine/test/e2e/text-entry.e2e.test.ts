@@ -359,3 +359,62 @@ test("a field inside an editable region takes its own text", async ({ page, cdpS
   }));
   expect(seen).toEqual({ value: "abcd", region: "x", paragraphs: 0 });
 });
+
+test("text events name the text that lands, and text that lands nowhere fires none", async ({
+  page,
+  cdpSession,
+}) => {
+  await setContent(page, FIELDS);
+  await focusField(page, "ta");
+  await cdpSession.send("Input.insertText", { text: "a\r\nb" });
+  expect(await read(page, "ta")).toEqual({
+    value: "a\nb",
+    log: [
+      'ta:beforeinput insertText "a\\nb"',
+      'ta:textInput "a\\nb"',
+      'ta:input insertText "a\\nb"',
+    ],
+  });
+  await focusField(page, "inp");
+  await cdpSession.send("Input.insertText", { text: "\r" });
+  expect(await read(page, "inp")).toEqual({ value: "", log: [] });
+});
+
+test("Backspace and Delete remove a character, and fire nothing with none to remove", async ({
+  page,
+  cdpSession,
+}) => {
+  await setContent(page, FIELDS);
+  const caretAt = (offset: number, value: string) =>
+    page.evaluate(
+      (at: number, text: string) => {
+        const inp = document.getElementById("inp") as HTMLInputElement;
+        inp.value = text;
+        inp.focus();
+        inp.setSelectionRange(at, at);
+        (globalThis as typeof globalThis & { __take: () => string[] }).__take();
+      },
+      offset,
+      value,
+    );
+  const edits = (log: string[]) => log.filter((entry) => /beforeinput|:input/.test(entry));
+
+  await caretAt(0, "ab");
+  await key(cdpSession, "Backspace", "Backspace", 8);
+  let seen = await read(page, "inp");
+  expect([seen.value, edits(seen.log)]).toEqual(["ab", []]);
+  await caretAt(2, "ab");
+  await key(cdpSession, "Delete", "Delete", 46);
+  seen = await read(page, "inp");
+  expect([seen.value, edits(seen.log)]).toEqual(["ab", []]);
+
+  // An astral character is two code units, and forward Delete takes both: half of one left
+  // behind is a lone surrogate in the field's value.
+  await caretAt(1, "a\u{1F600}b");
+  await key(cdpSession, "Delete", "Delete", 46);
+  seen = await read(page, "inp");
+  expect([seen.value, edits(seen.log)]).toEqual([
+    "ab",
+    ["inp:beforeinput deleteContentForward null", "inp:input deleteContentForward null"],
+  ]);
+});

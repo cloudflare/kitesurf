@@ -2872,6 +2872,11 @@ function controlSelection(control: ShimElement, value: string): { start: number;
   return { start, end: Math.max(start, Math.min(rawEnd, value.length)) };
 }
 
+function hasSelectedText(control: ShimElement): boolean {
+  const { start, end } = controlSelection(control, getValueRawOnControl(control));
+  return start !== end;
+}
+
 // Chrome's order is a cancelable beforeinput and textInput, then the edit and its input event.
 // Enter in a single-line field fires beforeinput alone; it is implicit submission's key there.
 function insertIntoTextControl(control: ShimElement, rawText: string, lineBreak: boolean): boolean {
@@ -2885,6 +2890,10 @@ function insertIntoTextControl(control: ShimElement, rawText: string, lineBreak:
     : multiline
       ? normalizeLineBreaks(rawText)
       : singleLineText(rawText);
+  if (!text && !hasSelectedText(control)) return true;
+  if (!dispatchBeforeInput(control, inputType, lineBreak ? null : text)) return false;
+  if (lineBreak && !multiline) return true;
+  if (!dispatchTextInput(control, text)) return false;
   const oldValue = getValueRawOnControl(control);
   const { start, end } = controlSelection(control, oldValue);
   if (!text && start === end) return true;
@@ -2893,9 +2902,9 @@ function insertIntoTextControl(control: ShimElement, rawText: string, lineBreak:
   return true;
 }
 
-function deleteInTextControl(control: ShimElement, forward: boolean): void {
-  const inputType = forward ? "deleteContentForward" : "deleteContentBackward";
-  if (!dispatchBeforeInput(control, inputType, null)) return;
+// What a Backspace or Delete removes: the selection, else the character beside the caret, which
+// is two code units for a surrogate pair. Empty at the edge of the field.
+function deletionRange(control: ShimElement, forward: boolean): [string, number, number] {
   const oldValue = getValueRawOnControl(control);
   const { start, end } = controlSelection(control, oldValue);
   const HIGH_SURROGATE_START_CODE_UNIT = 0xd800;
@@ -2925,6 +2934,17 @@ function deleteInTextControl(control: ShimElement, forward: boolean): void {
         ? next + 1
         : next;
   }
+  return [oldValue, deleteStart, deleteEnd];
+}
+
+// A key with nothing to delete fires nothing, so beforeinput never goes without its input. The
+// range is read again after beforeinput, whose handlers may have moved the caret.
+function deleteInTextControl(control: ShimElement, forward: boolean): void {
+  const inputType = forward ? "deleteContentForward" : "deleteContentBackward";
+  const [, startBefore, endBefore] = deletionRange(control, forward);
+  if (startBefore === endBefore) return;
+  if (!dispatchBeforeInput(control, inputType, null)) return;
+  const [oldValue, deleteStart, deleteEnd] = deletionRange(control, forward);
   if (deleteStart === deleteEnd) return;
   setValueRawOnControl(control, oldValue.slice(0, deleteStart) + oldValue.slice(deleteEnd));
   notifyControlValueMutation(control, deleteStart, inputType, null);
