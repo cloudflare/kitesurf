@@ -3058,7 +3058,7 @@ function countImplicitSubmissionBlockers(form: NonNullable<ShimElement["form"]>)
 function isDisabledControl(element: ShimElement): boolean {
   if (element.hasAttribute?.("disabled")) return true;
   try {
-    return element.closest?.(":disabled") === element;
+    return element.closest?.(":disabled") === element || !!element.closest?.("fieldset[disabled]");
   } catch {
     return false;
   }
