@@ -1279,10 +1279,6 @@
     "expected": "SKIP",
     "reason": "times out"
   },
-  "page-history.spec.ts::page.reload should work with data url": {
-    "expected": "FAIL",
-    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
-  },
   "page-history.spec.ts::regression test for issue 20791": {
     "expected": "SKIP",
     "reason": "fails slowly (11s): Error: expect(received).toEqual(expected) // deep equality"
@@ -1727,10 +1723,6 @@
     "expected": "SKIP",
     "reason": "skipped upstream for chromium"
   },
-  "page-request-intercept.spec.ts::should not follow redirects when maxRedirects is set to 0 in route.fetch": {
-    "expected": "FAIL",
-    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
-  },
   "page-route.spec.ts::should be abortable": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
@@ -1750,10 +1742,6 @@
   "page-route.spec.ts::should not override cookie header": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
-  "page-route.spec.ts::should not support ? in glob pattern": {
-    "expected": "FAIL",
-    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
   },
   "page-route.spec.ts::should not throw \"Invalid Interception Id\" if the request was cancelled": {
     "expected": "SKIP",
@@ -2025,23 +2013,19 @@
   },
   "page-set-content.spec.ts::should work @smoke": {
     "expected": "FAIL",
-    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
   "page-set-content.spec.ts::should work with commit": {
     "expected": "FAIL",
-    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
-  },
-  "page-set-content.spec.ts::should work with doctype": {
-    "expected": "FAIL",
-    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
   "page-set-content.spec.ts::should work with domcontentloaded": {
     "expected": "FAIL",
-    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
   "page-set-content.spec.ts::should work with HTML 4 doctype": {
     "expected": "FAIL",
-    "reason": "Error: page.content: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
+    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
   "page-set-input-files.spec.ts::should detect mime type": {
     "expected": "FAIL",
