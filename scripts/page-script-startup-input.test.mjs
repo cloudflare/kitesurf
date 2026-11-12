@@ -54,6 +54,8 @@ const engine = execute(
     "./page-script-rpc-session.ts": dependency(),
     "../tracing.ts": dependency(),
     "../tracing-local.ts": dependency({ localTraceParentProps: () => ({}) }),
+    // The generator bounds runtime value JSON with the document cap main introduced.
+    "../read-capped.ts": dependency({ MAX_DOCUMENT_BYTES: 16 * 1024 * 1024 }),
     "./attribution-tail.ts": dependency({ attributionTails: () => [] }),
     "./host-clock.ts": dependency({ makeWallClock: () => () => 0 }),
     "./walk-module-graph.ts": dependency({ FALLBACK_MODULE_RESOLVER_SOURCE: "resolver" }),
