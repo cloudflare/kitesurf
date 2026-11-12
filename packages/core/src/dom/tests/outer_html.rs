@@ -43,3 +43,18 @@ fn serializes_siblings_void_raw_text_and_comments_in_document_order() {
          <body><p class=\"x\">a &amp; b</p><!--note--><br><span>c</span></body></html>"
     );
 }
+
+#[test]
+fn escapes_markup_characters_and_no_break_space_in_attribute_values() {
+    let dom = DomHandle::new(
+        "<html><head></head><body>\
+         <p title=\"a&lt;b&gt;c&amp;d&quot;e&nbsp;f\">x</p></body></html>",
+        "https://example.test/",
+    );
+
+    assert_eq!(
+        dom.outer_html(0),
+        "<html><head></head><body>\
+         <p title=\"a&lt;b&gt;c&amp;d&quot;e&nbsp;f\">x</p></body></html>"
+    );
+}

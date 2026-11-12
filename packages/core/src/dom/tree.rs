@@ -261,11 +261,16 @@ fn write_node_open<'a>(
     }
 }
 
+// The HTML serialization of an attribute value. `<` and `>` are escaped too, as browsers do,
+// so that a value is not mistaken for markup when the serialized text is parsed again.
 fn escape_attr_value(s: &str, out: &mut String) {
     for ch in s.chars() {
         match ch {
             '&' => out.push_str("&amp;"),
             '"' => out.push_str("&quot;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '\u{00a0}' => out.push_str("&nbsp;"),
             _ => out.push(ch),
         }
     }
