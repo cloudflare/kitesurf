@@ -455,3 +455,48 @@ test("Enter fires change before it submits, and a disabled fieldset holds its bu
     expect(await takeSeen(page), id).toEqual(expected);
   }
 });
+
+test("keypress follows the focus a keydown handler moved, and Enter on a button has none", async ({
+  page,
+  cdpSession,
+}) => {
+  await setContent(
+    page,
+    `<input id=from><input id=to><button id=go>Go</button><p id=plain tabindex=0>text</p>
+     <script>
+       globalThis.__seen = [];
+       const note = (e) => __seen.push(e.type + " " + e.target.id);
+       for (const id of ["from", "to", "go", "plain"]) {
+         document.getElementById(id).addEventListener("keypress", note);
+       }
+       document.getElementById("go").addEventListener("click", note);
+       document.getElementById("from").addEventListener("keydown", () => document.getElementById("to").focus());
+     </script>`,
+  );
+  const focus = (id: string) =>
+    page.evaluate((el: string) => document.getElementById(el)!.focus(), id);
+
+  await focus("from");
+  await key(cdpSession, "x", "KeyX", 88, "x");
+  expect(await takeSeen(page)).toEqual(["keypress to"]);
+  expect(
+    await page.evaluate(() =>
+      ["from", "to"].map((id) => (document.getElementById(id) as HTMLInputElement).value),
+    ),
+  ).toEqual(["", "x"]);
+
+  // Enter's keydown activates the button, so no keypress follows; a bare char after it is the
+  // next key's and is delivered.
+  await focus("go");
+  await key(cdpSession, "Enter", "Enter", 13, "\r");
+  expect(await takeSeen(page)).toEqual(["click go"]);
+  await cdpSession.send("Input.dispatchKeyEvent", { type: "char", text: "\r" });
+  await cdpSession.send("Input.dispatchKeyEvent", { type: "char", text: "y" });
+  expect(await takeSeen(page)).toEqual(["keypress go"]);
+
+  // A target that takes no text still gets the keypress Chrome sends it: pages listen for
+  // shortcuts there, on elements that are not fields.
+  await focus("plain");
+  await key(cdpSession, "z", "KeyZ", 90, "z");
+  expect(await takeSeen(page)).toEqual(["keypress plain"]);
+});

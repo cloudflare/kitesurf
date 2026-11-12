@@ -5383,6 +5383,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     }
     if (type === "keydown") __ksSuppressChar = false;
     if (type === "keypress" && __ksSuppressChar) {
+      __ksSuppressChar = false; // one keydown's: left set, every later bare char was dropped
       return {
         console: drainConsole(),
         cookieWrites: state.drainCookieWrites(),
