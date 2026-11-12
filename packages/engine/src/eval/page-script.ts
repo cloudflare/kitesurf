@@ -525,9 +525,6 @@ export function pageScriptResultToCdp(
   }
 
   const remote: Protocol.Runtime.RemoteObject = { type: res.type };
-  if (res.subtype) remote.subtype = res.subtype;
-  if (res.className) remote.className = res.className;
-  if (res.description) remote.description = res.description;
 
   const isPrimitiveType =
     res.type === "string" ||
@@ -543,11 +540,22 @@ export function pageScriptResultToCdp(
   }
   if (res.subtype === "null") remote.value = null;
 
+  // Chrome sends an object or a function by value as its type and value alone, and never
+  // describes undefined or null; a client comparing replies sees any extra field as a difference.
+  const isNullish = res.type === "undefined" || res.subtype === "null";
+  const isBareValue =
+    returnByValue && "value" in remote && (res.type === "object" || res.type === "function");
+  if (res.subtype && (isNullish || !isBareValue)) remote.subtype = res.subtype;
+  if (!isNullish && !isBareValue) {
+    if (res.className) remote.className = res.className;
+    if (res.description) remote.description = res.description;
+  }
+
   if (!("value" in remote) && (res.type === "object" || res.type === "function")) {
     remote.objectId = res.objectId ?? `eval:${crypto.randomUUID()}`;
   }
-  if (remote.type === "object" && !remote.subtype && typeof res.description === "string") {
-    const d = res.description;
+  if (remote.type === "object" && !remote.subtype && typeof remote.description === "string") {
+    const d = remote.description;
     if (
       d === "Element" ||
       d === "HTMLElement" ||
