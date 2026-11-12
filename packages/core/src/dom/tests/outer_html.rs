@@ -73,3 +73,36 @@ fn keeps_the_prefix_of_a_namespaced_attribute() {
          <use xlink:href=\"#a\" xml:lang=\"en\"></use></svg></body></html>"
     );
 }
+
+#[test]
+fn writes_the_checked_attribute_and_leaves_checkedness_to_the_snapshot() {
+    let dom = DomHandle::new(
+        "<html><head></head><body>\
+         <input type=\"checkbox\" id=\"a\"><input type=\"checkbox\" id=\"b\" checked=\"checked\">\
+         </body></html>",
+        "https://example.test/",
+    );
+    let handle = |id: &str| u32::try_from(dom.get_element_by_id(id)).expect("element");
+    // What a script or a click does: the first becomes checked and the second unchecked,
+    // and neither touches an attribute.
+    assert!(dom.set_checkbox_checked(handle("a"), true));
+    assert!(dom.set_checkbox_checked(handle("b"), false));
+
+    assert_eq!(
+        dom.outer_html(0),
+        "<html><head></head><body>\
+         <input type=\"checkbox\" id=\"a\"><input type=\"checkbox\" id=\"b\" checked=\"checked\">\
+         </body></html>"
+    );
+    assert_eq!(
+        dom.snapshot_html(0),
+        "<html><head></head><body>\
+         <input checked=\"\" type=\"checkbox\" id=\"a\"><input type=\"checkbox\" id=\"b\">\
+         </body></html>"
+    );
+    assert_eq!(
+        dom.inner_html(handle("a")),
+        "",
+        "an input has no content either way"
+    );
+}

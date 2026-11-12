@@ -1318,7 +1318,7 @@ export async function handlePage(
                 frameId: target.frameId,
               },
             );
-            html = leased.outerHTML(0);
+            html = leased.snapshotHTML(0);
           } finally {
             returnScreenshotDomLease(target, leased, epochAtLease);
           }
@@ -2787,7 +2787,7 @@ function scheduleLoadCompleteEmit(
                 let html = "";
                 if (f.dom && !crossOrigin) {
                   try {
-                    html = f.dom.outerHTML(0);
+                    html = f.dom.snapshotHTML(0);
                   } catch {}
                 }
                 try {

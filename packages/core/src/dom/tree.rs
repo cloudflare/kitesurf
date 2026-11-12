@@ -171,12 +171,20 @@ enum SerializeStep<'a> {
     Close(&'a str),
 }
 
+// `Markup` is what outerHTML returns: the attributes as they are. `Snapshot` also carries the
+// checkedness a script or a click set, for a reader that parses the text into a new document.
+#[derive(Clone, Copy, PartialEq)]
+enum HtmlForm {
+    Markup,
+    Snapshot,
+}
+
 // An explicit stack, not recursion: a deeply nested DOM overflowed the wasm call stack.
-fn write_outer_html(doc: &BaseDocument, node: &Node, out: &mut String) {
+fn write_outer_html(doc: &BaseDocument, node: &Node, form: HtmlForm, out: &mut String) {
     let mut stack = vec![SerializeStep::Open(node)];
     while let Some(step) = stack.pop() {
         match step {
-            SerializeStep::Open(node) => write_node_open(doc, node, out, &mut stack),
+            SerializeStep::Open(node) => write_node_open(doc, node, form, out, &mut stack),
             SerializeStep::Close(local) => {
                 out.push_str("</");
                 out.push_str(local);
@@ -197,6 +205,7 @@ fn push_children<'a>(doc: &'a BaseDocument, node: &'a Node, stack: &mut Vec<Seri
 fn write_node_open<'a>(
     doc: &'a BaseDocument,
     node: &'a Node,
+    form: HtmlForm,
     out: &mut String,
     stack: &mut Vec<SerializeStep<'a>>,
 ) {
@@ -215,19 +224,17 @@ fn write_node_open<'a>(
             let local: &str = &data.name.local;
             out.push('<');
             out.push_str(local);
-            let mut emit_synth_checked = false;
-            let mut suppress_attr_checked = false;
-            if let SpecialElementData::CheckboxInput(true) = data.special_data {
-                emit_synth_checked = true;
-                suppress_attr_checked = true;
-            } else if let SpecialElementData::CheckboxInput(false) = data.special_data {
-                suppress_attr_checked = true;
-            }
-            if emit_synth_checked {
+            // Checkedness lives outside the attributes, so a snapshot writes it as one and
+            // drops the attribute it replaces; outerHTML never reflects it, as in a browser.
+            let live_checked = match (form, &data.special_data) {
+                (HtmlForm::Snapshot, SpecialElementData::CheckboxInput(checked)) => Some(*checked),
+                _ => None,
+            };
+            if live_checked == Some(true) {
                 out.push_str(" checked=\"\"");
             }
             for Attribute { name, value } in data.attrs.iter() {
-                if suppress_attr_checked && &*name.local == "checked" {
+                if live_checked.is_some() && &*name.local == "checked" {
                     continue;
                 }
                 out.push(' ');
@@ -291,6 +298,32 @@ fn escape_text_content(s: &str, out: &mut String) {
             '\u{00a0}' => out.push_str("&nbsp;"),
             _ => out.push(ch),
         }
+    }
+}
+
+impl DomHandle {
+    fn serialize_html(&self, node_id: u32, form: HtmlForm) -> String {
+        let Some(internal_id) = self.resolve_node_id(node_id) else {
+            return String::new();
+        };
+        let doc = match self.doc.try_borrow() {
+            Ok(d) => d,
+            Err(_) => return String::new(),
+        };
+        let Some(n) = doc.get_node(internal_id) else {
+            return String::new();
+        };
+        let mut out = String::new();
+        if matches!(n.data, NodeData::Document(_)) {
+            for &cid in &n.children {
+                if let Some(c) = doc.get_node(cid) {
+                    write_outer_html(&doc, c, form, &mut out);
+                }
+            }
+        } else {
+            write_outer_html(&doc, n, form, &mut out);
+        }
+        out
     }
 }
 
@@ -550,27 +583,14 @@ impl DomHandle {
 
     #[wasm_bindgen(js_name = "outerHTML")]
     pub fn outer_html(&self, node_id: u32) -> String {
-        let Some(internal_id) = self.resolve_node_id(node_id) else {
-            return String::new();
-        };
-        let doc = match self.doc.try_borrow() {
-            Ok(d) => d,
-            Err(_) => return String::new(),
-        };
-        let Some(n) = doc.get_node(internal_id) else {
-            return String::new();
-        };
-        let mut out = String::new();
-        if matches!(n.data, NodeData::Document(_)) {
-            for &cid in &n.children {
-                if let Some(c) = doc.get_node(cid) {
-                    write_outer_html(&doc, c, &mut out);
-                }
-            }
-        } else {
-            write_outer_html(&doc, n, &mut out);
-        }
-        out
+        self.serialize_html(node_id, HtmlForm::Markup)
+    }
+
+    /// The node as markup that also carries live checkedness, for a caller that parses it
+    /// into a new document; outerHTML is what the page and a CDP client see.
+    #[wasm_bindgen(js_name = "snapshotHTML")]
+    pub fn snapshot_html(&self, node_id: u32) -> String {
+        self.serialize_html(node_id, HtmlForm::Snapshot)
     }
 
     #[wasm_bindgen(js_name = "innerHTML")]
@@ -597,7 +617,7 @@ impl DomHandle {
                         out.push_str(&t.content);
                     }
                 } else {
-                    write_outer_html(&doc, c, &mut out);
+                    write_outer_html(&doc, c, HtmlForm::Markup, &mut out);
                 }
             }
         }
