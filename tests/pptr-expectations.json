@@ -251,10 +251,6 @@
     "expected": "SKIP",
     "reason": "auto: TIMEOUT after 15.0s"
   },
-  "[navigation.test] navigation Page.goto should send referer policy": {
-    "expected": "FAIL",
-    "reason": "auto: expect(received).toBeUndefined() / Received: \"http://localhost:53378/\""
-  },
   "[navigation.test] navigation Page.waitForNavigation should work when subframe issues window.stop()": {
     "expected": "SKIP",
     "reason": "auto: TIMEOUT after 15.0s"
