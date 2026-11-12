@@ -573,7 +573,11 @@ export function remoteObjectFromValue(
   value: unknown,
   returnByValue: boolean,
 ): Protocol.Runtime.EvaluateResponse {
+  // Chrome answers null with its subtype and a number with its description in either mode,
+  // and gives neither an object id; without these a literal's reply differs from Chrome's.
+  if (value === null) return { result: { type: "object", subtype: "null", value: null } };
   const type = typeOf(value);
+  if (type === "number") return { result: { type, value, description: String(value) } };
   if (returnByValue) {
     return { result: { type, value } };
   }
