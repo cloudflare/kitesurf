@@ -12,8 +12,6 @@ use std::io::Cursor;
 use std::panic::{self, RefUnwindSafe};
 
 use anyrender::{Glyph as AnyGlyph, ImageRenderer as _, PaintScene};
-#[cfg(feature = "pdf")]
-use krilla::geom::Transform;
 use kurbo::{Affine, BezPath, Point, Shape, Vec2};
 use peniko::{
     BlendMode, Blob, Color, Fill, FontData, ImageAlphaType, ImageBrush, ImageData, ImageSampler,
@@ -21,10 +19,6 @@ use peniko::{
 #[cfg(not(feature = "native-host"))]
 use wasm_bindgen::prelude::*;
 
-#[cfg(feature = "pdf")]
-use crate::paint::pdf_paint::{
-    content_box, paint_white_background, push_page_clip, push_px_to_pt_scale, KrillaPaintScene,
-};
 use crate::paint::scene_decode::{
     self, DecodedCap, DecodedFillRule, DecodedJoin, DecodedPaint, DecodedPathEl, DecodedResources,
     DecodedTransform, ResourceKind, SceneVisitor,

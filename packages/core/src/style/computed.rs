@@ -97,7 +97,7 @@ impl LonghandContext {
         let width_applies = node.primary_styles().is_some() && {
             use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
             let display = styles.clone_display();
-            taffy::CoreStyle::is_replaced(&node.layout_style())
+            CoreStyle::is_replaced(&node.layout_style())
                 || display.outside() != DisplayOutside::Inline
                 || display.inside() != DisplayInside::Flow
         };
