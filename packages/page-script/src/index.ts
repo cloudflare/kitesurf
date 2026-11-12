@@ -2930,10 +2930,17 @@ function deleteInTextControl(control: ShimElement, forward: boolean): void {
   notifyControlValueMutation(control, deleteStart, inputType, null);
 }
 
+// A field inside an editable region inherits isContentEditable, but text typed into it is its
+// value: asked for a host first, the region took the text and Enter broke its paragraph.
+function typingHostOf(focused: ShimElement | null): ShimElement | null {
+  if (focused && (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA")) return null;
+  return editingHostOf(focused);
+}
+
 // Chrome enters a key's text, and runs Enter's implicit submission, as keypress's default action;
 // cancelling Enter's beforeinput in a text field stops the submission too.
 function enterKeyText(focused: ShimElement | null, text: string, shiftKey: boolean): string | null {
-  const editHost = editingHostOf(focused);
+  const editHost = typingHostOf(focused);
   if (editHost) {
     if (isLineBreakKeyText(text)) {
       editContentEditable(
@@ -2974,7 +2981,7 @@ function keypressInit(init: KeyEventInit): KeyEventInit & { charCode?: number; c
 function insertTextAtFocus(text: string): void {
   if (!isEnterableText(text)) return;
   const focused = state.getActiveElement();
-  const editHost = editingHostOf(focused);
+  const editHost = typingHostOf(focused);
   if (editHost) {
     editContentEditable(editHost, "insertText", normalizeLineBreaks(text), __ks_dispatchTrusted);
   } else if (isTextEntryControl(focused)) {
@@ -5437,7 +5444,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         !defaultPrevented &&
         (key === "Backspace" || key === "Delete")
       ) {
-        const editHost = editingHostOf(focused);
+        const editHost = typingHostOf(focused);
         if (editHost) {
           editContentEditable(
             editHost,

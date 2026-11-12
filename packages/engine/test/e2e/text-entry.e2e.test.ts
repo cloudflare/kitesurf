@@ -339,3 +339,23 @@ test("Enter submits a form only with a submit button or a single text field", as
   expect(await enterIn("d1"), "a disabled default button").toEqual([]);
   expect(await enterIn("c1"), "a cancelled default button click").toEqual(["click stop true"]);
 });
+// A field inherits isContentEditable from an editable ancestor, so the region was asked first
+// and took the text, the Backspace and the Enter that belonged to the field.
+test("a field inside an editable region takes its own text", async ({ page, cdpSession }) => {
+  await setContent(page, `<div id=region contenteditable>x<input id=inner value=ab></div>`);
+  await page.evaluate(() => {
+    const inner = document.getElementById("inner") as HTMLInputElement;
+    inner.focus();
+    inner.setSelectionRange(2, 2);
+  });
+  await key(cdpSession, "c", "KeyC", 67, "c");
+  await cdpSession.send("Input.insertText", { text: "de" });
+  await key(cdpSession, "Backspace", "Backspace", 8);
+  await key(cdpSession, "Enter", "Enter", 13, "\r");
+  const seen = await page.evaluate(() => ({
+    value: (document.getElementById("inner") as HTMLInputElement).value,
+    region: document.getElementById("region")!.textContent,
+    paragraphs: document.querySelectorAll("#region div, #region br").length,
+  }));
+  expect(seen).toEqual({ value: "abcd", region: "x", paragraphs: 0 });
+});
