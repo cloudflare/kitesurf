@@ -111,6 +111,27 @@ test("an http worker loads from the page origin and fetches through the gateway"
   });
 });
 
+test("a worker's same-origin fetch stays same-origin across a redirect", async ({ page }) => {
+  await page.goto("http://127.0.0.1:8787/__fixtures/worker-host.html", {
+    waitUntil: "domcontentloaded",
+  });
+  const reply = await page.evaluate(async () => {
+    // The redirect answers without CORS headers, so only a same-origin hop can follow it.
+    const urls = ["/__fixtures/response-shapes/page.html", "/__fixtures/response-shapes/redirect"];
+    const source =
+      "const go = (u) => fetch(u).then((r) => r.status + ' ' + r.type, () => 'rejected');" +
+      `Promise.all(${JSON.stringify(urls.map((u) => location.origin + u))}.map(go))` +
+      ".then((r) => postMessage(r));";
+    const worker = new Worker(URL.createObjectURL(new Blob([source])));
+    const data = await new Promise((resolve) => {
+      worker.onmessage = (e) => resolve(e.data);
+    });
+    worker.terminate();
+    return data;
+  });
+  expect(reply).toEqual(["200 basic", "200 basic"]);
+});
+
 // A worker runs with its creator's origin, so a cross-origin hop of its script fetch would supply
 // source the engine still treats as the creator's own.
 const WORKER_REDIRECT_PAGE = "http://127.0.0.1:8787/__fixtures/worker-host.html";

@@ -34,6 +34,7 @@ beforeAll(async () => {
   await session.start({
     url: "https://worker.test/worker.js",
     baseUrl: "https://page.test/",
+    origin: "https://page.test",
     name: "realm",
     navigator: {
       userAgent: "Mozilla/5.0",
