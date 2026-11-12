@@ -96,6 +96,10 @@ export class DedicatedWorker extends WorkerEntrypoint<unknown, DedicatedWorkerPr
         if (started) return { ok: false };
         started = true;
         state.pageUrl = params.baseUrl;
+        // The fetch shim takes request origins from documentOrigin, which only a page navigation
+        // sets. A worker uses the origin its outbound is sealed with, so a worker created by an
+        // opaque document stays opaque.
+        state.documentOrigin = params.origin;
         state.connectionId = params.connectionId;
         state.mainFrameId = params.frameId;
         state.cookieKey = params.cookieKey;

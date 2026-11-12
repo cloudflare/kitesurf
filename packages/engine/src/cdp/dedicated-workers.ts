@@ -293,6 +293,7 @@ export class DedicatedWorkers {
         const reply = await entry.handle.start({
           url,
           baseUrl,
+          origin,
           name,
           navigator,
           connectionId: ctx.connectionId,
