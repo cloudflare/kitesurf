@@ -26,6 +26,20 @@ const COMMANDS: Record<EditInputType, string> = {
 
 type EditSelection = NonNullable<ReturnType<NonNullable<ShimDocument["getSelection"]>>>;
 
+type EditingEventCtor = new (type: string, init: Record<string, unknown>) => unknown;
+
+// Chrome gives InputEvent and TextEvent the window as their view; the shim's window is not a
+// DOM-typed Window, so these two constructors take a looser init here.
+export function editingEvent(
+  name: "InputEvent" | "TextEvent",
+  type: string,
+  init: Record<string, unknown>,
+): unknown {
+  const EventCtor = ksEventCtors[name] as EditingEventCtor | undefined;
+  if (typeof EventCtor !== "function") throw new TypeError(`${name} is not installed yet`);
+  return new EventCtor(type, { bubbles: true, composed: true, view: state.window, ...init });
+}
+
 export function editingHostOf(el: ShimElement | null): ShimElement | null {
   if (!el || el.isContentEditable !== true) return null;
   let host = el;
@@ -78,52 +92,29 @@ export function editContentEditable(
   dispatch: Dispatch,
 ): boolean {
   const doc = state.document;
-  const InputEvent = ksEventCtors.InputEvent as
-    | (new (type: string, init: Record<string, unknown>) => unknown)
-    | undefined;
   const sel = doc?.getSelection?.();
-  if (!doc || !sel || typeof InputEvent !== "function") return true;
+  if (!doc || !sel || typeof ksEventCtors.InputEvent !== "function") return true;
   if (sel.rangeCount === 0 || !sel.anchorNode || !host.contains?.(sel.anchorNode)) {
     const [node, offset] = firstCaretPosition(host);
     sel.collapse(node, offset);
   }
-  const before = new InputEvent("beforeinput", {
-    bubbles: true,
+  const before = editingEvent("InputEvent", "beforeinput", {
     cancelable: true,
-    composed: true,
-    view: state.window,
     inputType,
     data,
     targetRanges: targetRanges(sel, inputType),
   });
   if (!dispatch(host, before)) return false;
-  if (inputType === "insertText" || inputType === "insertParagraph") {
-    const TextEvent = ksEventCtors.TextEvent as
-      | (new (type: string, init: Record<string, unknown>) => unknown)
-      | undefined;
-    if (typeof TextEvent === "function") {
-      const textInput = new TextEvent("textInput", {
-        bubbles: true,
-        cancelable: true,
-        composed: true,
-        view: state.window,
-        data: inputType === "insertText" ? data : "\n",
-      });
-      if (!dispatch(host, textInput)) return false;
-    }
+  const enteredText = inputType === "insertText" || inputType === "insertParagraph";
+  if (enteredText && typeof ksEventCtors.TextEvent === "function") {
+    const textInput = editingEvent("TextEvent", "textInput", {
+      cancelable: true,
+      data: inputType === "insertText" ? data : "\n",
+    });
+    if (!dispatch(host, textInput)) return false;
   }
   if (!sel.anchorNode || !host.contains?.(sel.anchorNode)) return true;
   if (!doc.execCommand?.(COMMANDS[inputType], false, data ?? "")) return true;
-  dispatch(
-    host,
-    new InputEvent("input", {
-      bubbles: true,
-      cancelable: false,
-      composed: true,
-      view: state.window,
-      inputType,
-      data,
-    }),
-  );
+  dispatch(host, editingEvent("InputEvent", "input", { cancelable: false, inputType, data }));
   return true;
 }
