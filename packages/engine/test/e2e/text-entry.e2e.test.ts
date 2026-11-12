@@ -339,6 +339,11 @@ test("Enter submits a form only with a submit button or a single text field", as
   expect(await enterIn("d1"), "a disabled default button").toEqual([]);
   expect(await enterIn("c1"), "a cancelled default button click").toEqual(["click stop true"]);
 });
+
+type Seen = typeof globalThis & { __seen: string[] };
+const takeSeen = (page: Page): Promise<string[]> =>
+  page.evaluate(() => (globalThis as Seen).__seen.splice(0));
+
 // A field inherits isContentEditable from an editable ancestor, so the region was asked first
 // and took the text, the Backspace and the Enter that belonged to the field.
 test("a field inside an editable region takes its own text", async ({ page, cdpSession }) => {
@@ -417,4 +422,36 @@ test("Backspace and Delete remove a character, and fire nothing with none to rem
     "ab",
     ["inp:beforeinput deleteContentForward null", "inp:input deleteContentForward null"],
   ]);
+});
+
+test("Enter fires change before it submits, and a disabled fieldset holds its button", async ({
+  page,
+  cdpSession,
+}) => {
+  await setContent(
+    page,
+    `<form id=plain><input id=q><button>Go</button></form>
+     <form id=held><input id=h><fieldset disabled><button>Go</button></fieldset></form>
+     <script>
+       globalThis.__seen = [];
+       for (const id of ["plain", "held"]) {
+         document.getElementById(id).addEventListener("submit", (e) => {
+           e.preventDefault();
+           __seen.push("submit " + id);
+         });
+       }
+       for (const id of ["q", "h"]) {
+         document.getElementById(id).addEventListener("change", () => __seen.push("change " + id));
+       }
+     </script>`,
+  );
+  for (const [id, expected] of [
+    ["q", ["change q", "submit plain"]],
+    ["h", ["change h"]],
+  ] as const) {
+    await page.evaluate((field: string) => document.getElementById(field)!.focus(), id);
+    await key(cdpSession, "a", "KeyA", 65, "a");
+    await key(cdpSession, "Enter", "Enter", 13, "\r");
+    expect(await takeSeen(page), id).toEqual(expected);
+  }
 });
