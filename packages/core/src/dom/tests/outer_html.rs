@@ -106,3 +106,49 @@ fn writes_the_checked_attribute_and_leaves_checkedness_to_the_snapshot() {
         "an input has no content either way"
     );
 }
+
+#[test]
+fn writes_a_templates_content_from_the_node_it_was_moved_to() {
+    let dom = DomHandle::new(
+        "<html><head></head><body>\
+         <template id=\"t\"><b>in</b><template><i>deep</i></template></template>\
+         </body></html>",
+        "https://example.test/",
+    );
+    let template = u32::try_from(dom.get_element_by_id("t")).expect("template");
+    // What the DOM shim does the first time a script reads template.content: the children
+    // move to a detached node, and the core is told which.
+    let contents = dom.create_element("#document-fragment");
+    for child in dom.child_ids(template) {
+        assert!(dom.remove_node(child));
+        assert!(dom.append_child_node(contents, child));
+    }
+    assert!(dom.set_template_contents(template, contents));
+
+    assert_eq!(
+        dom.outer_html(template),
+        "<template id=\"t\"><b>in</b><template><i>deep</i></template></template>"
+    );
+    assert_eq!(
+        dom.inner_html(template),
+        "<b>in</b><template><i>deep</i></template>"
+    );
+    assert_eq!(
+        dom.outer_html(0),
+        "<html><head></head><body>\
+         <template id=\"t\"><b>in</b><template><i>deep</i></template></template>\
+         </body></html>"
+    );
+
+    // A node appended to the template element itself is not its content, and a browser
+    // leaves it out of the serialization.
+    let stray = dom.create_element("u");
+    assert!(dom.append_child_node(template, stray));
+    assert_eq!(
+        dom.outer_html(template),
+        "<template id=\"t\"><b>in</b><template><i>deep</i></template></template>"
+    );
+
+    assert!(dom.drop_node(template));
+    assert_eq!(dom.outer_html(template), "");
+}

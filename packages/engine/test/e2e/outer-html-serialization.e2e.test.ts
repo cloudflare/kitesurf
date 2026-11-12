@@ -52,3 +52,49 @@ test("outerHTML writes a control's attributes, not the state a script or a click
     radios: ['<input type="radio" name="g" checked=""><input type="radio" name="g">', false, true],
   });
 });
+
+test("a template keeps its content in outerHTML after a script reads it", async ({ page }) => {
+  await setContent(page, "<!doctype html><body></body>");
+  const serialized = await page.evaluate(() => {
+    const template = (html: string) => {
+      const div = document.createElement("div");
+      div.innerHTML = html;
+      document.body.append(div);
+      const found = div.querySelector("template");
+      if (!found) throw new Error("no template");
+      return found;
+    };
+
+    const read = template("<template><b>in</b></template>");
+    const count = read.content.childNodes.length;
+    const appended = template("<template><b>in</b></template>");
+    appended.content.append(document.createElement("i"));
+    const nested = template("<template><p>a</p><template><i>deep</i></template></template>");
+    void nested.content.querySelector("template")?.content.firstChild;
+    const stray = template("<template><b>in</b></template>");
+    void stray.content.firstChild;
+    stray.append(document.createElement("u"));
+    const emptied = template("<template><b>in</b></template>");
+    emptied.content.replaceChildren();
+
+    return {
+      read: [count, read.outerHTML, read.innerHTML, read.parentElement?.innerHTML],
+      appended: appended.outerHTML,
+      nested: nested.outerHTML,
+      stray: stray.outerHTML,
+      emptied: emptied.outerHTML,
+      document: document.documentElement.outerHTML.includes("<template><b>in</b></template>"),
+    };
+  });
+
+  // Chrome's results: the content is serialized, and a node appended to the template
+  // element itself is not.
+  expect(serialized).toEqual({
+    read: [1, "<template><b>in</b></template>", "<b>in</b>", "<template><b>in</b></template>"],
+    appended: "<template><b>in</b><i></i></template>",
+    nested: "<template><p>a</p><template><i>deep</i></template></template>",
+    stray: "<template><b>in</b></template>",
+    emptied: "<template></template>",
+    document: true,
+  });
+});

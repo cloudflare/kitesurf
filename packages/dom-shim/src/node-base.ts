@@ -637,6 +637,9 @@ function ensureTemplateContent(templateId: number): DocumentFragmentImpl {
   // The backing tag lets Rust keep template contents inert, unlike other detached elements.
   const fragId = dom.createElement(TEMPLATE_CONTENT_FRAGMENT_TAG);
   fragmentIds.add(fragId);
+  // The content leaves the element's child list, so the core is told where it went;
+  // otherwise outerHTML of the template, or of any ancestor, would lose it.
+  dom.setTemplateContents(templateId, fragId);
   frag = nodeFor(fragId) as DocumentFragmentImpl;
   templateContentFragment.set(templateId, frag);
   let kids: number[];

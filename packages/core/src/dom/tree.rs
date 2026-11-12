@@ -179,12 +179,35 @@ enum HtmlForm {
     Snapshot,
 }
 
+type TemplateContents = std::collections::HashMap<NodeId, NodeId>;
+
+// A template's content sits in another node once the DOM shim has moved it there; before
+// that, and for every other element, the content is the node's own children.
+fn serialized_children<'a>(
+    doc: &'a BaseDocument,
+    node: &'a Node,
+    templates: &TemplateContents,
+) -> &'a [NodeId] {
+    templates
+        .get(&node.id)
+        .and_then(|&contents| doc.get_node(contents))
+        .map_or(&node.children, |contents| &contents.children)
+}
+
 // An explicit stack, not recursion: a deeply nested DOM overflowed the wasm call stack.
-fn write_outer_html(doc: &BaseDocument, node: &Node, form: HtmlForm, out: &mut String) {
+fn write_outer_html(
+    doc: &BaseDocument,
+    node: &Node,
+    form: HtmlForm,
+    templates: &TemplateContents,
+    out: &mut String,
+) {
     let mut stack = vec![SerializeStep::Open(node)];
     while let Some(step) = stack.pop() {
         match step {
-            SerializeStep::Open(node) => write_node_open(doc, node, form, out, &mut stack),
+            SerializeStep::Open(node) => {
+                write_node_open(doc, node, form, templates, out, &mut stack)
+            }
             SerializeStep::Close(local) => {
                 out.push_str("</");
                 out.push_str(local);
@@ -194,8 +217,12 @@ fn write_outer_html(doc: &BaseDocument, node: &Node, form: HtmlForm, out: &mut S
     }
 }
 
-fn push_children<'a>(doc: &'a BaseDocument, node: &'a Node, stack: &mut Vec<SerializeStep<'a>>) {
-    for &cid in node.children.iter().rev() {
+fn push_children<'a>(
+    doc: &'a BaseDocument,
+    children: &'a [NodeId],
+    stack: &mut Vec<SerializeStep<'a>>,
+) {
+    for &cid in children.iter().rev() {
         if let Some(c) = doc.get_node(cid) {
             stack.push(SerializeStep::Open(c));
         }
@@ -206,12 +233,15 @@ fn write_node_open<'a>(
     doc: &'a BaseDocument,
     node: &'a Node,
     form: HtmlForm,
+    templates: &TemplateContents,
     out: &mut String,
     stack: &mut Vec<SerializeStep<'a>>,
 ) {
     use blitz_dom::node::{Attribute, SpecialElementData};
     match &node.data {
-        NodeData::Document(_) | NodeData::ShadowRoot(_) => push_children(doc, node, stack),
+        NodeData::Document(_) | NodeData::ShadowRoot(_) => {
+            push_children(doc, &node.children, stack)
+        }
         NodeData::Comment { contents } => {
             out.push_str("<!--");
             out.push_str(contents);
@@ -268,7 +298,7 @@ fn write_node_open<'a>(
                     out.push_str(&text.content);
                 }
             } else {
-                push_children(doc, node, stack);
+                push_children(doc, serialized_children(doc, node, templates), stack);
             }
         }
     }
@@ -313,15 +343,16 @@ impl DomHandle {
         let Some(n) = doc.get_node(internal_id) else {
             return String::new();
         };
+        let templates = self.template_contents.borrow();
         let mut out = String::new();
         if matches!(n.data, NodeData::Document(_)) {
             for &cid in &n.children {
                 if let Some(c) = doc.get_node(cid) {
-                    write_outer_html(&doc, c, form, &mut out);
+                    write_outer_html(&doc, c, form, &templates, &mut out);
                 }
             }
         } else {
-            write_outer_html(&doc, n, form, &mut out);
+            write_outer_html(&doc, n, form, &templates, &mut out);
         }
         out
     }
@@ -610,14 +641,15 @@ impl DomHandle {
             NodeData::Element(data) => is_raw_text_element(&data.name.local),
             _ => false,
         };
-        for &cid in &node.children {
+        let templates = self.template_contents.borrow();
+        for &cid in serialized_children(&doc, node, &templates) {
             if let Some(c) = doc.get_node(cid) {
                 if raw_text {
                     if let NodeData::Text(t) = &c.data {
                         out.push_str(&t.content);
                     }
                 } else {
-                    write_outer_html(&doc, c, HtmlForm::Markup, &mut out);
+                    write_outer_html(&doc, c, HtmlForm::Markup, &templates, &mut out);
                 }
             }
         }
