@@ -455,3 +455,58 @@ test("Enter fires change before it submits, and a disabled fieldset holds its bu
     expect(await takeSeen(page), id).toEqual(expected);
   }
 });
+
+test("keypress follows the focus a keydown handler moved, and Enter on a button has none", async ({
+  page,
+  cdpSession,
+}) => {
+  await setContent(
+    page,
+    `<input id=from><input id=to><button id=go>Go</button><p id=plain tabindex=0>text</p>
+     <script>
+       globalThis.__seen = [];
+       const note = (e) => __seen.push(e.type + " " + e.target.id);
+       for (const id of ["from", "to", "go", "plain"]) {
+         document.getElementById(id).addEventListener("keypress", note);
+       }
+       document.getElementById("go").addEventListener("click", note);
+       document.getElementById("from").addEventListener("keydown", () => document.getElementById("to").focus());
+     </script>`,
+  );
+  const focus = (id: string) =>
+    page.evaluate((el: string) => document.getElementById(el)!.focus(), id);
+
+  await focus("from");
+  await key(cdpSession, "x", "KeyX", 88, "x");
+  expect(await takeSeen(page)).toEqual(["keypress to"]);
+  expect(
+    await page.evaluate(() =>
+      ["from", "to"].map((id) => (document.getElementById(id) as HTMLInputElement).value),
+    ),
+  ).toEqual(["", "x"]);
+
+  // Enter's keydown activates the button, so no keypress follows, and the char a rawKeyDown
+  // client sends for it is dropped. Only that one: the char after it is delivered.
+  await focus("go");
+  const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
+  await cdpSession.send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...enter });
+  await cdpSession.send("Input.dispatchKeyEvent", { type: "char", ...enter, text: "\r" });
+  await cdpSession.send("Input.dispatchKeyEvent", { type: "char", text: "y" });
+  await cdpSession.send("Input.dispatchKeyEvent", { type: "keyUp", ...enter });
+  expect(await takeSeen(page)).toEqual(["click go", "keypress go"]);
+
+  // The key's keyUp ends it, as in Blink: a char sent after a whole Tab key belongs to the
+  // element the Tab focused.
+  await focus("to");
+  const tab = { key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 };
+  await cdpSession.send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...tab });
+  await cdpSession.send("Input.dispatchKeyEvent", { type: "keyUp", ...tab });
+  await cdpSession.send("Input.dispatchKeyEvent", { type: "char", text: "s" });
+  expect(await takeSeen(page)).toEqual(["keypress go"]);
+
+  // A target that takes no text still gets the keypress Chrome sends it: pages listen for
+  // shortcuts there, on elements that are not fields.
+  await focus("plain");
+  await key(cdpSession, "z", "KeyZ", 90, "z");
+  expect(await takeSeen(page)).toEqual(["keypress plain"]);
+});
