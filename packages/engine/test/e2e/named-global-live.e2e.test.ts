@@ -130,6 +130,7 @@ test("cloned duplicate globals survive until the last owner is renamed", async (
     const read: unknown = Reflect.get(globalThis, "readClone");
     const first = document.getElementById("clonedBox");
     if (typeof read !== "function" || !first) throw new Error("missing named node");
+    // The same id written twice: the repeat write changes nothing.
     first.id = "clonedBox";
     first.id = "clonedBox";
     const clone = first.cloneNode(true);
