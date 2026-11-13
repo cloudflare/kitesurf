@@ -1762,18 +1762,28 @@ fn large_v8_string_to_boa(s: &js_sys::JsString) -> Option<JsString> {
     if len < CHUNKED_STRING_UNITS {
         return None;
     }
-    let wide = s.search(&js_sys::RegExp::new("[^\\x00-\\xff]", "")) >= 0;
-    let mut pos = 0;
-    if wide {
-        let mut out = boa_engine::string::Utf16JsStringBuilder::with_capacity(len as usize);
-        while pos < len {
-            let end = chunk_end(s, pos, len);
-            out.extend(s.substring(pos, end).as_string()?.encode_utf16());
-            pos = end;
-        }
-        return Some(out.build());
+    // One search decides the builder: with no code unit above U+00FF the string is Latin-1.
+    if s.search(&js_sys::RegExp::new("[^\\x00-\\xff]", "")) >= 0 {
+        wide_v8_string_to_boa(s, len)
+    } else {
+        latin1_v8_string_to_boa(s, len)
     }
+}
+
+fn wide_v8_string_to_boa(s: &js_sys::JsString, len: u32) -> Option<JsString> {
+    let mut out = boa_engine::string::Utf16JsStringBuilder::with_capacity(len as usize);
+    let mut pos = 0;
+    while pos < len {
+        let end = chunk_end(s, pos, len);
+        out.extend(s.substring(pos, end).as_string()?.encode_utf16());
+        pos = end;
+    }
+    Some(out.build())
+}
+
+fn latin1_v8_string_to_boa(s: &js_sys::JsString, len: u32) -> Option<JsString> {
     let mut out = boa_engine::string::Latin1JsStringBuilder::with_capacity(len as usize);
+    let mut pos = 0;
     while pos < len {
         let end = chunk_end(s, pos, len);
         // Every char is at most U+00FF: the search found no wider code unit.
