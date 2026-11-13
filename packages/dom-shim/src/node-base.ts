@@ -218,7 +218,6 @@ function adjacentSibling(node: NodeBase, next: boolean): NodeBase | null {
 // _id and _dom as the tree checks read them off any node argument: a
 // DetachedDocument has neither, a live wrapper has no _dom, and a DOMParser
 // node has both.
->>>>>>> d077dbb13 (dom-shim: read child-list ends and siblings without wrapping every child)
 function treeId(n: object): unknown {
   return Reflect.get(n, "_id");
 }
