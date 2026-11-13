@@ -35,6 +35,7 @@ interface UaFontProfile {
   name: string;
   faces: string[];
   serifOnDemand: boolean;
+  latinFallback: boolean;
 }
 
 const UA_FACE_COUNT = 9;
@@ -48,11 +49,16 @@ function readUaFontProfile(name: string): UaFontProfile | null {
   if (!json) return null;
   const raw: unknown = JSON.parse(json);
   if (typeof raw !== "object" || raw === null) return null;
-  if (!("faces" in raw && "serifOnDemand" in raw)) return null;
-  const { faces, serifOnDemand } = raw;
+  if (!("faces" in raw && "serifOnDemand" in raw && "latinFallback" in raw)) return null;
+  const { faces, serifOnDemand, latinFallback } = raw;
   if (!Array.isArray(faces) || faces.length !== UA_FACE_COUNT) return null;
   if (!faces.every((face): face is string => typeof face === "string")) return null;
-  return { name, faces, serifOnDemand: serifOnDemand === true };
+  return {
+    name,
+    faces,
+    serifOnDemand: serifOnDemand === true,
+    latinFallback: latinFallback === true,
+  };
 }
 
 function activeUaFontProfile(): UaFontProfile {
@@ -115,6 +121,8 @@ interface ScriptFont {
   range: RegExp;
 }
 const SCRIPT_FONT_FILES: Record<string, string> = {
+  // Noto Sans for the Latin codepoints a profile's UA faces lack; only when the profile asks.
+  Latn: "NotoSans.ttf",
   Arab: "NotoSansArabic.ttf",
   Hebr: "NotoSansHebrew.ttf",
   Deva: "NotoSansDevanagari.ttf",
@@ -141,6 +149,10 @@ const SCRIPT_FONTS: ScriptFont[] = SCRIPT_RANGES.map(({ tag, range }) => {
 });
 
 const scriptPending = new Map<string, Promise<void>>();
+
+function scriptFontActive(scriptFont: ScriptFont): boolean {
+  return scriptFont.tag !== "Latn" || activeUaFontProfile().latinFallback;
+}
 
 function registerScriptIfNeeded(scriptFont: ScriptFont): Promise<void> {
   const existing = scriptPending.get(scriptFont.tag);
@@ -382,7 +394,11 @@ export function demandFacesForScriptText(dom: ScriptTextProbe): void {
     tasks.push(registerEmojiIfNeeded());
   }
   for (const { scriptFont, ranges } of SCRIPT_FACE_RANGES) {
-    if (!scriptPending.has(scriptFont.tag) && dom.textUsesCodepoints(ranges)) {
+    if (
+      !scriptPending.has(scriptFont.tag) &&
+      scriptFontActive(scriptFont) &&
+      dom.textUsesCodepoints(ranges)
+    ) {
       tasks.push(registerScriptIfNeeded(scriptFont));
     }
   }
@@ -412,7 +428,9 @@ function computeFontWants(scan?: SourceFontScan): {
     cjk: !!scan?.cjk,
     mono: forceMono || !!scan?.mono,
     serif: !!scan?.serif,
-    scripts: scan ? SCRIPT_FONTS.filter(({ tag }) => scan.scripts.includes(tag)) : [],
+    scripts: scan
+      ? SCRIPT_FONTS.filter((font) => scan.scripts.includes(font.tag) && scriptFontActive(font))
+      : [],
   };
 }
 

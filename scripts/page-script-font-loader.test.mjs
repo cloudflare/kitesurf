@@ -70,6 +70,7 @@ const NOTO_PROFILE = {
     "",
   ],
   serifOnDemand: true,
+  latinFallback: false,
 };
 
 const uaCall = (serif = 0, mono = 0) => [
@@ -425,4 +426,11 @@ test("core fetch failure keeps reads degraded without registering", async () => 
   assert.equal(page.heldBytes(), size("sansItalic"));
   assert.equal(page.loader.deferredDegradedReads(), 2);
   assert.equal(page.loader.fontsDeferredUnregistered(), true);
+});
+
+test("the Latn script face stays off under a profile without a Latin fallback", () => {
+  const page = loadFontLoader();
+  page.loader.startFontPrefetch(scan("<p>\uFB00 \uA730</p>"));
+  const sans = page.requested.filter((url) => url === ASSET_ORIGIN + FACES.sans.url);
+  assert.equal(sans.length, 1);
 });

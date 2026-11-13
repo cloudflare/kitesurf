@@ -30,6 +30,13 @@ function needsSymbols(html: string): boolean {
 
 /** Script faces in registration order, each with the characters that want it. */
 export const SCRIPT_RANGES: readonly { tag: string; range: RegExp }[] = [
+  // The Latin codepoints a profile's UA faces lack (Latin Extended-D/E, tone letters, 2E43-2E5D
+  // punctuation, ff/st ligatures).
+  {
+    tag: "Latn",
+    range:
+      /[\u10FB\u1ABF-\u1AC0\u1AC5\u1AC7-\u1ACE\u1DF6-\u1DF9\u2E43-\u2E5D\uA700-\uA716\uA7AF\uA7B8-\uA7CA\uA7D0-\uA7D1\uA7D3\uA7D5-\uA7D9\uA7F2-\uA7F6\uAB66-\uAB6B\uFB00\uFB05-\uFB06]/,
+  },
   { tag: "Arab", range: /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/ },
   { tag: "Hebr", range: /[\u0590-\u05FF\uFB1D-\uFB4F]/ },
   { tag: "Deva", range: /[\u0900-\u097F\uA8E0-\uA8FF]/ },
