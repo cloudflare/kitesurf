@@ -104,6 +104,24 @@ describe("inspectorTargetUrl", () => {
         encodeURIComponent("https://example.com/?a=1&b=2"),
     );
   });
+
+  it("carries the font profile inside the WebSocket endpoint", () => {
+    const endpoint = (initialUrl?: string) =>
+      new URL(
+        inspectorTargetUrl("https://example.com/devtools/", {
+          url: new URL("https://ks.invalid/"),
+          host: "ks.invalid",
+          initialUrl,
+          fontProfile: "macos",
+        }),
+      ).searchParams.get("wss");
+    expect(endpoint()).toBe("ks.invalid/devtools/page/kitesurf?ks_font_profile=macos");
+    expect(endpoint("https://example.com/")).toBe(
+      "ks.invalid/devtools/page/kitesurf?initialUrl=" +
+        encodeURIComponent("https://example.com/") +
+        "&ks_font_profile=macos",
+    );
+  });
 });
 
 describe("resolveInspectorBaseUrl", () => {

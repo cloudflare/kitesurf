@@ -15,12 +15,19 @@ function engine(path: string, init?: RequestInit): Promise<Response> {
   });
 }
 
-function exampleHref(frontend: string, scheme: "ws" | "wss", host: string): string {
+function exampleHref(
+  frontend: string,
+  scheme: "ws" | "wss",
+  host: string,
+  attribute = "href",
+  fontProfile?: string,
+): string {
   const endpoint =
     `${host}/devtools/page/kitesurf?initialUrl=` +
-    encodeURIComponent("https://en.wikipedia.org/wiki/Kitesurfing");
+    encodeURIComponent("https://en.wikipedia.org/wiki/Kitesurfing") +
+    (fontProfile === undefined ? "" : `&ks_font_profile=${fontProfile}`);
   const href = `${frontend}?${scheme}=${encodeURIComponent(endpoint)}`;
-  return `href="${href.replaceAll("&", "&amp;")}"`;
+  return `${attribute}="${href.replaceAll("&", "&amp;")}"`;
 }
 
 test("/ without inspector params, or with a non-http(s) url, serves the landing page", async () => {
@@ -34,7 +41,22 @@ test("/ without inspector params, or with a non-http(s) url, serves the landing 
     expect(csp, path).toContain("form-action 'self'");
     const html = await res.text();
     expect(html, path).toContain('<form class="omnibox" action="/" method="get"');
+    expect(html, path).toContain('id="inspect-form"');
+    // The picker sits in the header and joins the URL form through its form attribute.
+    expect(html, path).toContain('<select name="ks_font_profile" form="inspect-form">');
+    expect(html, path).toContain('<option value="">Default</option>');
+    expect(html, path).toContain('<option value="macos">Chrome on macOS</option>');
     expect(html, path).toContain(exampleHref("https://example.com/devtools", "wss", "ks.invalid"));
+    // Each example carries a URL per profile, and the page script swaps in the picked one.
+    expect(html, path).toContain(
+      exampleHref("https://example.com/devtools", "wss", "ks.invalid", "data-href"),
+    );
+    expect(html, path).toContain(
+      exampleHref("https://example.com/devtools", "wss", "ks.invalid", "data-href-macos", "macos"),
+    );
+    const nonce = /script-src 'nonce-([^']+)'/.exec(csp ?? "")?.[1];
+    expect(nonce, path).toBeDefined();
+    expect(html, path).toContain(`<script nonce="${nonce}">`);
     expect(html, path).toContain("DevTools loads from <code>example.com</code>");
     expect(html, path).toContain("wss://ks.invalid/devtools/browser");
     expect(html, path).toContain("wss://ks.invalid/devtools/page/kitesurf");
@@ -75,6 +97,8 @@ test("without a frontend, / leaves only the CDP endpoints", async () => {
   expect(res.status).toBe(200);
   const html = await res.text();
   expect(html).not.toContain("<form");
+  expect(html).not.toContain("ks_font_profile");
+  expect(html).not.toContain("<script");
   expect(html).toContain("serves no DevTools frontend");
   expect(html).toContain("wss://ks.invalid/devtools/browser");
   expect(html).toContain("wss://ks.invalid/devtools/page/kitesurf");

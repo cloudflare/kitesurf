@@ -6,6 +6,7 @@
 // frontend, the CDP endpoints for agents and other clients, and the chrome://inspect steps.
 
 import { absoluteInspectorBaseUrl, inspectorTargetUrl } from "./inspector.ts";
+import { FONT_PROFILES, type FontProfile } from "./cdp/font-profile.ts";
 
 const README = "https://github.com/cloudflare/kitesurf#readme";
 
@@ -15,6 +16,11 @@ const EXAMPLES: ReadonlyArray<{ title: string; url: string }> = [
   { title: "The Cloudflare Blog", url: "https://blog.cloudflare.com/" },
   { title: "Browser Run docs", url: "https://developers.cloudflare.com/browser-run/" },
 ];
+
+const FONT_PROFILE_LABELS: Record<FontProfile, string> = {
+  noto: "Noto",
+  macos: "Chrome on macOS",
+};
 
 const HTML_ESCAPES: Record<string, string> = {
   "&": "&amp;",
@@ -34,11 +40,45 @@ function discoveryTarget(url: URL): string {
   return `${url.hostname}:${url.protocol === "https:" ? "443" : "80"}`;
 }
 
-// The form submits to `/?url=`, which redirects to the frontend; the examples link to it directly.
+// Sits in the page header, outside the URL form; the form attribute still submits it with the
+// form. An empty value leaves the profile to the engine's KITESURF_FONT_PROFILE.
+function fontProfilePicker(): string {
+  const options = FONT_PROFILES.map(
+    (profile) => `<option value="${profile}">${escapeHtml(FONT_PROFILE_LABELS[profile])}</option>`,
+  ).join("\n");
+  return `<label class="font-picker">Fonts
+<select name="ks_font_profile" form="inspect-form">
+<option value="">Default</option>
+${options}
+</select>
+</label>`;
+}
+
+// Points each example at the data-href-<profile> URL the picker selects, or the default data-href.
+// Without script the examples keep the default profile.
+const EXAMPLE_PROFILE_SCRIPT = `const picker = document.querySelector('select[name="ks_font_profile"]');
+const sync = function () {
+  for (const a of document.querySelectorAll(".examples a[data-href]")) {
+    a.href = (picker.value && a.getAttribute("data-href-" + picker.value)) || a.dataset.href;
+  }
+};
+picker.addEventListener("change", sync);
+addEventListener("pageshow", sync);
+sync();`;
+
+function exampleLink(url: URL, base: string, title: string, page: string): string {
+  const target = (fontProfile?: FontProfile) =>
+    escapeHtml(inspectorTargetUrl(base, { url, host: url.host, initialUrl: page, fontProfile }));
+  const profileHrefs = FONT_PROFILES.map((profile) => ` data-href-${profile}="${target(profile)}"`);
+  return `<a href="${target()}" data-href="${target()}"${profileHrefs.join("")}>${escapeHtml(title)}</a>`;
+}
+
+// The form submits to `/?url=`, which redirects to the frontend; the examples link to it directly
+// with the profile the picker selects.
 function inspectSection(url: URL, base: string): string {
   const examples = EXAMPLES.map(({ title, url: page }) => {
-    const href = escapeHtml(inspectorTargetUrl(base, { url, host: url.host, initialUrl: page }));
-    return `<li><a href="${href}">${escapeHtml(title)}</a> <code>${escapeHtml(page)}</code></li>`;
+    const link = exampleLink(url, base, title, page);
+    return `<li>${link} <code>${escapeHtml(page)}</code></li>`;
   }).join("\n");
   // Chrome's Local Network Access gates only a frontend on another origin; since Chrome 145 a
   // loopback engine needs that site's "apps on this device" permission.
@@ -48,7 +88,7 @@ function inspectSection(url: URL, base: string): string {
       "The first time it connects, Chrome asks whether that site can access apps on this device. " +
       "Select <strong>Allow</strong>. If DevTools says that the WebSocket disconnected, you blocked it: " +
       "allow it again in the site settings of that page, then reconnect.</p>";
-  return `<form class="omnibox" action="/" method="get" autocomplete="off">
+  return `<form class="omnibox" action="/" method="get" id="inspect-form" autocomplete="off">
 <label class="sr-only" for="inspect-url">Enter a URL to inspect</label>
 <input id="inspect-url" type="url" name="url" placeholder="Enter a URL to inspect" required spellcheck="false" autocapitalize="off">
 <button type="submit">Inspect</button>
@@ -100,6 +140,11 @@ export function landingPage(url: URL, inspectorBase: string | null = null): Resp
         "Connect your agent or DevTools client to the endpoints below.</p>"
       : "<p>This engine speaks the Chrome DevTools Protocol. Enter a URL to open it in Chrome DevTools.</p>" +
         inspectSection(url, inspectorBase);
+  const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+  const script =
+    inspectorBase === null
+      ? ""
+      : `<script nonce="${nonce}">\n${EXAMPLE_PROFILE_SCRIPT}\n</script>\n`;
   const body = `<!doctype html>
 <html lang="en">
 <head>
@@ -117,6 +162,9 @@ dt { font-weight: 600; margin-top: 0.75rem; }
 dd { margin: 0.25rem 0 0; }
 .omnibox { display: flex; gap: 0.5rem; margin: 1.5rem 0; }
 .omnibox input { flex: 1; font: inherit; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 6px; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.font-picker { display: flex; align-items: center; gap: 0.4rem; color: #555; font-size: 0.85em; }
+.font-picker select { font: inherit; color: #1a1a1a; padding: 0.2rem 0.4rem; border: 1px solid #ccc; border-radius: 6px; background: #fff; }
 .omnibox button { font: inherit; padding: 0.5rem 1rem; border: 0; border-radius: 6px; background: #f46021; color: #fff; cursor: pointer; }
 .examples { padding-left: 1.25rem; }
 .examples code { color: #555; font-size: 0.85em; }
@@ -125,20 +173,23 @@ dd { margin: 0.25rem 0 0; }
 </style>
 </head>
 <body>
+<header class="topbar">
 <h1>Kitesurf</h1>
+${inspectorBase === null ? "" : fontProfilePicker()}
+</header>
 ${intro}
 ${cdpSection(url)}
 ${chromeInspectSection(url)}
 <p>See the <a href="${README}">README</a>.</p>
-</body>
+${script}</body>
 </html>
 `;
   return new Response(body, {
     headers: {
       "content-type": "text/html; charset=utf-8",
       "content-security-policy":
-        "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; " +
-        "frame-ancestors 'none'",
+        `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; base-uri 'none'; ` +
+        "form-action 'self'; frame-ancestors 'none'",
       "x-content-type-options": "nosniff",
     },
   });

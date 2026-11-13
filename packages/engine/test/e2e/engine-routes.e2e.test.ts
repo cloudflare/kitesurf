@@ -150,6 +150,26 @@ test("/?url= redirects to the inspector with the page WS and initialUrl", async 
   );
 });
 
+test("/?ks_font_profile= carries a known profile to the page WS and drops an unknown one", async () => {
+  const url = "/?url=" + encodeURIComponent("https://example.com/");
+  const endpoint = async (path: string) => {
+    const res = await engine(path);
+    expect(res.status, path).toBe(302);
+    return new URL(res.headers.get("location") ?? "").searchParams.get("wss");
+  };
+  expect(await endpoint(url + "&ks_font_profile=macos")).toBe(
+    "ks.invalid/devtools/page/kitesurf?initialUrl=" +
+      encodeURIComponent("https://example.com/") +
+      "&ks_font_profile=macos",
+  );
+  // The landing form sends an empty value for its default option.
+  for (const value of ["", "comic-sans"]) {
+    expect(await endpoint(`${url}&ks_font_profile=${value}`), value).toBe(
+      "ks.invalid/devtools/page/kitesurf?initialUrl=" + encodeURIComponent("https://example.com/"),
+    );
+  }
+});
+
 test("/?inspect=1 redirects to the inspector without an initialUrl", async () => {
   const res = await engine("/?inspect=1");
   expect(res.status).toBe(302);

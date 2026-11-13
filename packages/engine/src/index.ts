@@ -16,6 +16,7 @@ import {
   resolveInspectorBaseUrl,
 } from "./inspector.ts";
 import { DEFAULT_ENGINE_HOST, type EngineHost } from "./host.ts";
+import { FONT_PROFILES } from "./cdp/font-profile.ts";
 
 // Loopback service binding for PageScript subresource fetches.
 export { SandboxOutbound } from "./eval/outbound.ts";
@@ -147,6 +148,7 @@ const inspectorQuery = z.object({
     .string()
     .optional()
     .transform((value) => value === "1"),
+  ks_font_profile: z.enum(FONT_PROFILES).optional().catch(undefined),
 });
 app.get("/", async (c, next) => {
   const url = new URL(c.req.url);
@@ -167,7 +169,12 @@ app.get("/", async (c, next) => {
   }
   const host = c.req.header("host") ?? url.host;
   return Response.redirect(
-    inspectorTargetUrl(inspectorBase, { url, host, initialUrl: query.url }),
+    inspectorTargetUrl(inspectorBase, {
+      url,
+      host,
+      initialUrl: query.url,
+      fontProfile: query.ks_font_profile,
+    }),
     302,
   );
 });
