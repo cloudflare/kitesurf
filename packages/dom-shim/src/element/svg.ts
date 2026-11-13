@@ -138,3 +138,34 @@ Object.defineProperty(Element.prototype, "viewBox", {
     return { baseVal: mkRect(), animVal: mkRect() };
   },
 });
+
+// TODO: animate SVG. The timing API exists so callers do not throw, but nothing
+// animates and the clock stays at zero.
+// https://www.w3.org/TR/SVG11/animation.html#InterfaceSVGSVGElement
+const assertSvgRoot = (receiver: unknown): void => {
+  const el = receiver as Element;
+  if (!isSvgNsElement(el) || String(el?.localName || "").toLowerCase() !== "svg") {
+    throw new TypeError("Illegal invocation");
+  }
+};
+for (const [name, body] of Object.entries({
+  pauseAnimations(this: unknown) {
+    assertSvgRoot(this);
+  },
+  unpauseAnimations(this: unknown) {
+    assertSvgRoot(this);
+  },
+  animationsPaused(this: unknown): boolean {
+    assertSvgRoot(this);
+    return false;
+  },
+  getCurrentTime(this: unknown): number {
+    assertSvgRoot(this);
+    return 0;
+  },
+  setCurrentTime(this: unknown, _seconds?: unknown): void {
+    assertSvgRoot(this);
+  },
+})) {
+  Reflect.set(Element.prototype, name, body);
+}

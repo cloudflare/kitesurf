@@ -1419,8 +1419,16 @@ export function installGlobals(
         "SVGGraphicsElement",
         "SVGGeometryElement",
       ]) {
-        if (typeof Reflect.get(globalThis, constructorName) !== "function") {
-          Reflect.set(globalThis, constructorName, class extends (__svgBase as any) {});
+        let svgInterface = Reflect.get(globalThis, constructorName);
+        if (typeof svgInterface !== "function") {
+          svgInterface = class extends (__svgBase as any) {};
+          Reflect.set(globalThis, constructorName, svgInterface);
+        }
+        // Every SVG element interface inherits from SVGElement, which inherits
+        // the Element members (style, SVG timing) that pages rely on.
+        // https://svgwg.org/svg2-draft/types.html#InterfaceSVGElement
+        if (Object.getPrototypeOf(svgInterface.prototype) !== (__svgBase as any).prototype) {
+          Reflect.setPrototypeOf(svgInterface.prototype, (__svgBase as any).prototype);
         }
       }
       const svgRoot = Reflect.get(globalThis, "SVGSVGElement");
