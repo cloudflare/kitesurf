@@ -55,6 +55,15 @@ Fonts
     including Adobe's Reserved Font Name notice, is in
     licenses/OFL-1.1-Noto-SC.txt; upstream license source:
     https://github.com/google/fonts/blob/main/ofl/notosanssc/OFL.txt
+  - Noto Sans CJK JP and TC
+    (packages/engine/public/fonts/NotoSansCJKjp-Regular.* and
+    packages/engine/public/fonts/NotoSansCJKtc-Regular.*)
+    The OpenType name records identify Noto Sans JP and Noto Sans TC version
+    2.004;GOOG;NotoSans<JP|TC>-Regular;ADOBE, copyright metadata
+    © 2014-2021 Adobe (http://www.adobe.com/), and OFL 1.1. They are the
+    Sans/SubsetOTF regional Regular faces of https://github.com/notofonts/noto-cjk
+    as WOFF2; the shaping OTFs are derived assets. The OFL text, including
+    Adobe's Reserved Font Name notice, is the same as licenses/OFL-1.1-Noto-SC.txt.
   - Noto Sans KR (packages/engine/public/fonts/NotoSansKR.ttf and
     NotoSansKR.shaping.otf)
     Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name

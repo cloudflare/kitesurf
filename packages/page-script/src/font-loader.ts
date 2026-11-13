@@ -11,6 +11,7 @@ import {
   register_emoji_font,
   register_symbol_fonts,
   register_cjk_font,
+  register_cjk_region_font,
   register_script_font,
   setFontShapingLazy,
   pendingLazyFontPaths,
@@ -125,6 +126,39 @@ let cjkPending: Promise<void> | null = null;
 function needsCjk(html: string): boolean {
   if (typeof html !== "string" || html.length === 0) return false;
   return CJK_SCAN.test(html);
+}
+
+// Han has regional glyph forms. SC is the default; Japanese and Traditional Chinese text gets its
+// own face, matched by the `lang` the page declares (core's rebuild_cjk_fallbacks). Kana alone
+// is enough for JP.
+interface CjkRegionFont {
+  region: "JP" | "TC";
+  path: string;
+  shapingPath: string;
+  lang: RegExp;
+  range?: RegExp;
+}
+const CJK_REGION_FONTS: CjkRegionFont[] = [
+  {
+    region: "JP",
+    path: "/fonts/NotoSansCJKjp-Regular.woff2",
+    shapingPath: "/fonts/NotoSansCJKjp-Regular.shaping.otf",
+    lang: /\blang\s*=\s*["']?ja\b/i,
+    range: /[\u3040-\u30FF\u31F0-\u31FF\uFF66-\uFF9F]/,
+  },
+  {
+    region: "TC",
+    path: "/fonts/NotoSansCJKtc-Regular.woff2",
+    shapingPath: "/fonts/NotoSansCJKtc-Regular.shaping.otf",
+    lang: /\blang\s*=\s*["']?zh[-_](?:TW|HK|MO|Hant)\b/i,
+  },
+];
+
+function cjkRegionsFor(html: string): CjkRegionFont[] {
+  if (typeof html !== "string" || html.length === 0) return [];
+  return CJK_REGION_FONTS.filter(
+    (font) => font.lang.test(html) || (font.range?.test(html) ?? false),
+  );
 }
 
 let symbolPending: Promise<void> | null = null;
@@ -433,6 +467,28 @@ function registerCjkIfNeeded(): Promise<void> {
   return cjkPending;
 }
 
+const cjkRegionPending = new Map<string, Promise<void>>();
+
+function registerCjkRegionIfNeeded(font: CjkRegionFont): Promise<void> {
+  const existing = cjkRegionPending.get(font.region);
+  if (existing) return existing;
+  const registrationPromise = (async () => {
+    try {
+      const bytes = await fetchBytes(font.shapingPath).catch(() => fetchBytes(font.path));
+      register_cjk_region_font(bytes, font.region);
+      console.log(
+        `[kitesurf-fonts] registered CJK ${font.region} font (${bytes.byteLength} bytes)`,
+      );
+    } catch (e) {
+      console.warn(`[kitesurf-fonts] CJK ${font.region} registration failed:`, String(e));
+      cjkRegionPending.delete(font.region);
+      throw e;
+    }
+  })();
+  cjkRegionPending.set(font.region, registrationPromise);
+  return registrationPromise;
+}
+
 function registerEmojiIfNeeded(): Promise<void> {
   if (emojiPending) return emojiPending;
   emojiPending = (async () => {
@@ -458,7 +514,7 @@ export function cjkPendingPromise(): Promise<void> | null {
 }
 
 export function scriptPendingPromises(): Promise<void>[] {
-  return [...scriptPending.values()];
+  return [...scriptPending.values(), ...cjkRegionPending.values()];
 }
 
 interface ScriptTextProbe {
@@ -477,6 +533,9 @@ function classRanges(unicodeRange: RegExp): Uint32Array {
   return Uint32Array.from(out);
 }
 const CJK_RANGES = classRanges(CJK_SCAN);
+const CJK_REGION_RANGES = CJK_REGION_FONTS.flatMap((font) =>
+  font.range ? [{ font, ranges: classRanges(font.range) }] : [],
+);
 const EMOJI_RANGES = Uint32Array.from([...classRanges(EMOJI_BMP_SCAN), 0x1f000, 0x1ffff]);
 const SCRIPT_FACE_RANGES = SCRIPT_FONTS.map((scriptFont) => ({
   scriptFont,
@@ -495,6 +554,11 @@ export function demandFacesForScriptText(dom: ScriptTextProbe): void {
   const tasks: Promise<void>[] = [];
   if (!cjkPending && dom.textUsesCodepoints(CJK_RANGES)) {
     tasks.push(registerCjkIfNeeded());
+  }
+  for (const { font, ranges } of CJK_REGION_RANGES) {
+    if (!cjkRegionPending.has(font.region) && dom.textUsesCodepoints(ranges)) {
+      tasks.push(registerCjkRegionIfNeeded(font));
+    }
   }
   if (!emojiPending && dom.textUsesCodepoints(EMOJI_RANGES)) {
     tasks.push(registerEmojiIfNeeded());
@@ -523,6 +587,7 @@ function computeFontWants(html?: string): {
   symbols2: boolean;
   emoji: boolean;
   cjk: boolean;
+  cjkRegions: CjkRegionFont[];
   mono: boolean;
   serif: boolean;
   scripts: ScriptFont[];
@@ -542,6 +607,7 @@ function computeFontWants(html?: string): {
     symbols2: symbols && needsSymbols2(html),
     emoji: needsEmoji(perScriptScan),
     cjk: !!html && needsCjk(html),
+    cjkRegions: html ? cjkRegionsFor(html) : [],
     mono: forceMono || (!!html && needsMono(html)),
     serif: !!html && needsSerif(html),
     scripts,
@@ -606,6 +672,9 @@ export async function ensureFontsRegistered(htmlForEmojiScan?: string): Promise<
   if (wantSymbols) tasks.push(registerSymbolsIfNeeded(wantSymbols2).catch(() => {}));
   if (wantEmoji) tasks.push(registerEmojiIfNeeded().catch(() => {}));
   if (wantCjk) tasks.push(registerCjkIfNeeded().catch(() => {}));
+  for (const font of wants.cjkRegions) {
+    tasks.push(registerCjkRegionIfNeeded(font).catch(() => {}));
+  }
   for (const scriptFont of wants.scripts) {
     tasks.push(registerScriptIfNeeded(scriptFont).catch(() => {}));
   }
@@ -628,6 +697,7 @@ const deferStash: {
   symbols2: Uint8Array | null;
   emoji: Uint8Array | null;
   cjk: Uint8Array | null;
+  cjkRegions: Map<CjkRegionFont["region"], Uint8Array>;
   scripts: Map<string, Uint8Array>;
 } = {
   core: [],
@@ -636,6 +706,7 @@ const deferStash: {
   symbols2: null,
   emoji: null,
   cjk: null,
+  cjkRegions: new Map(),
   scripts: new Map(),
 };
 
@@ -692,6 +763,9 @@ function tryRegisterDeferred(): boolean {
   }
   if (wants.emoji && emoji) group("emoji", () => register_emoji_font(emoji));
   if (wants.cjk && cjk) group("cjk", () => register_cjk_font(cjk));
+  for (const [region, bytes] of deferStash.cjkRegions) {
+    group(`cjk:${region}`, () => register_cjk_region_font(bytes, region));
+  }
   for (const [tag, bytes] of deferStash.scripts) {
     group(`script:${tag}`, () => register_script_font(bytes, tag));
   }
@@ -771,6 +845,14 @@ export function startFontPrefetch(html?: string): void {
       (bytes) => (deferStash.cjk = bytes),
       "extra",
       "cjk",
+    );
+  }
+  for (const font of wants.cjkRegions) {
+    kick(
+      fetchBytes(font.shapingPath).catch(() => fetchBytes(font.path)),
+      (bytes) => deferStash.cjkRegions.set(font.region, bytes),
+      "extra",
+      `cjk:${font.region}`,
     );
   }
   for (const scriptFont of wants.scripts) {

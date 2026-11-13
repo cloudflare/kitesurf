@@ -41,6 +41,10 @@ thread_local! {
         const { RefCell::new(Vec::new()) };
     static CJK_IDS: RefCell<Vec<FamilyId>> =
         const { RefCell::new(Vec::new()) };
+    static CJK_JP_IDS: RefCell<Vec<FamilyId>> =
+        const { RefCell::new(Vec::new()) };
+    static CJK_TC_IDS: RefCell<Vec<FamilyId>> =
+        const { RefCell::new(Vec::new()) };
     // Noto Sans as the `Latn` script face, in profiles whose UA faces lack some Latin codepoints.
     static LATIN_FALLBACK_IDS: RefCell<Vec<FamilyId>> =
         const { RefCell::new(Vec::new()) };
@@ -591,6 +595,10 @@ fn rebuild_common_fallbacks(font_ctx: &mut FontContext) {
     LATIN_FALLBACK_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
     EMOJI_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
     SYMBOL_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
+    // Fullwidth punctuation and ideographic spaces are Common. A regional face, loaded only for
+    // its language, wins over SC.
+    CJK_JP_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
+    CJK_TC_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
     CJK_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
     font_ctx
         .collection
@@ -668,67 +676,116 @@ pub fn register_emoji_font(bytes: &[u8]) -> bool {
     true
 }
 
-/// Register Noto Sans CJK SC for Han, Hiragana and Katakana fallbacks. It has no Hangul
-/// syllables, which come from the `Hang` script face; Korean text still needs it for Hanja.
-/// Add it after emoji in Common for ideographic spaces and fullwidth punctuation.
-/// Returns true only on the first registration.
-#[wasm_bindgen]
-pub fn register_cjk_font(bytes: &[u8]) -> bool {
-    let _ks_span =
-        tracing::info_span!("wasm.font_register", kind = "cjk", bytes = bytes.len()).entered();
-    if CJK_FONT_REGISTERED.with(|c| c.get()) {
-        return false;
+/// CJK faces by region. SC is the Han default; JP and TC take Han in `lang="ja"` and
+/// `lang="zh-TW"` (or HK, MO) text, where the same codepoints have regional glyph forms, and
+/// kana prefers JP. Each face carries the CSS family names of its region's platform fonts.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CjkRegion {
+    Sc,
+    Jp,
+    Tc,
+}
+
+impl CjkRegion {
+    fn path(self) -> &'static str {
+        match self {
+            Self::Sc => "/fonts/NotoSansCJKsc-Regular.woff2",
+            Self::Jp => "/fonts/NotoSansCJKjp-Regular.woff2",
+            Self::Tc => "/fonts/NotoSansCJKtc-Regular.woff2",
+        }
     }
 
-    let mut opentype: Vec<u8> = wuff::decompress_woff2(bytes).unwrap_or_else(|_| bytes.to_vec());
+    fn aliases(self) -> &'static [&'static str] {
+        match self {
+            // Korean has its Hangul script face; its Hanja come from SC.
+            Self::Sc => &[
+                "PingFang SC",
+                "Hiragino Sans GB",
+                "Microsoft YaHei",
+                "Microsoft YaHei UI",
+                "SimHei",
+                "SimSun",
+                "Source Han Sans SC",
+                "Noto Sans CJK SC",
+                "Noto Sans SC",
+                "Apple SD Gothic Neo",
+            ],
+            Self::Jp => &[
+                "Hiragino Sans",
+                "Hiragino Kaku Gothic Pro",
+                "Hiragino Kaku Gothic ProN",
+                "Yu Gothic",
+                "YuGothic",
+                "Meiryo",
+                "MS Gothic",
+                "MS PGothic",
+                "Source Han Sans JP",
+                "Noto Sans CJK JP",
+                "Noto Sans JP",
+            ],
+            Self::Tc => &[
+                "PingFang TC",
+                "PingFang HK",
+                "Microsoft JhengHei",
+                "PMingLiU",
+                "Source Han Sans TC",
+                "Noto Sans CJK TC",
+                "Noto Sans TC",
+            ],
+        }
+    }
 
+    fn ids(self) -> &'static std::thread::LocalKey<RefCell<Vec<FamilyId>>> {
+        match self {
+            Self::Sc => &CJK_IDS,
+            Self::Jp => &CJK_JP_IDS,
+            Self::Tc => &CJK_TC_IDS,
+        }
+    }
+}
+
+/// Rebuild the Han, kana and Common chains from whichever CJK faces are registered, so the
+/// order holds whatever order they arrive in. fontique appends the default Han list to every
+/// query, so a locale list needs only its own face.
+fn rebuild_cjk_fallbacks(font_ctx: &mut FontContext) {
+    let ids = |region: CjkRegion| region.ids().with(|c| c.borrow().clone());
+    let (sc, jp, tc) = (ids(CjkRegion::Sc), ids(CjkRegion::Jp), ids(CjkRegion::Tc));
+    let han = Script::from_bytes(*b"Hani");
+    let c = &mut font_ctx.collection;
+    c.set_fallbacks(han, sc.iter().copied());
+    c.set_fallbacks((han, "ja"), jp.iter().copied());
+    for locale in ["zh-TW", "zh-HK", "zh-MO"] {
+        c.set_fallbacks((han, locale), tc.iter().copied());
+    }
+    for kana in [*b"Hira", *b"Kana"] {
+        c.set_fallbacks(Script::from_bytes(kana), jp.iter().chain(&sc).copied());
+    }
+    rebuild_common_fallbacks(font_ctx);
+}
+
+/// Register a fetched CJK face (WOFF2 or raw OpenType) under its region's aliases. Returns
+/// false when the region is already registered or there is no shared context yet.
+fn register_cjk_region(bytes: &[u8], region: CjkRegion) -> bool {
+    if region.ids().with(|c| !c.borrow().is_empty()) {
+        return false;
+    }
+    let mut opentype: Vec<u8> = wuff::decompress_woff2(bytes).unwrap_or_else(|_| bytes.to_vec());
     if crate::renderer_mode() {
         if let Some(stripped) = strip_sfnt_tables(&opentype, &OUTLINE_STRIP_TABLES) {
             opentype = stripped;
         }
     }
-
-    note_font_asset(&opentype, "/fonts/NotoSansCJKsc-Regular.woff2");
-
-    const ALIASES: [&str; 24] = [
-        "PingFang SC",
-        "Hiragino Sans GB",
-        "Microsoft YaHei",
-        "Microsoft YaHei UI",
-        "SimHei",
-        "SimSun",
-        "Source Han Sans SC",
-        "Noto Sans CJK SC",
-        "Noto Sans SC",
-        "PingFang TC",
-        "Microsoft JhengHei",
-        "PMingLiU",
-        "Source Han Sans TC",
-        "Noto Sans CJK TC",
-        "Noto Sans TC",
-        "Hiragino Sans",
-        "Hiragino Kaku Gothic Pro",
-        "Yu Gothic",
-        "Meiryo",
-        "MS Gothic",
-        "Source Han Sans JP",
-        "Noto Sans CJK JP",
-        "Noto Sans JP",
-        "Apple SD Gothic Neo",
-    ];
-
     SHARED_FONT_CONTEXT.with(|cell| {
         let mut borrow = cell.borrow_mut();
-        if borrow.is_none() {
-            return;
-        }
-        let font_ctx = borrow.as_mut().unwrap();
-
+        // PageScript registers the UA faces, and with them the context, before any CJK face.
+        let Some(font_ctx) = borrow.as_mut() else {
+            return false;
+        };
+        note_font_asset(&opentype, region.path());
         let blob_bytes: Arc<dyn AsRef<[u8]> + Send + Sync> = Arc::new(opentype);
         let blob = Blob::new(blob_bytes);
-
         let mut ids: Vec<FamilyId> = Vec::new();
-        for alias in ALIASES {
+        for alias in region.aliases() {
             let override_info = FontInfoOverride {
                 family_name: Some(alias),
                 ..Default::default()
@@ -740,32 +797,52 @@ pub fn register_cjk_font(bytes: &[u8]) -> bool {
                 ids.push(id);
             }
         }
+        if region == CjkRegion::Sc {
+            // Hangul text still needs SC for Hanja and CJK punctuation.
+            font_ctx
+                .collection
+                .append_fallbacks(Script::from_bytes(*b"Hang"), ids.iter().copied());
+        }
+        region.ids().with(|c| *c.borrow_mut() = ids);
+        rebuild_cjk_fallbacks(font_ctx);
+        true
+    })
+}
 
-        let han = Script::from_bytes(*b"Hani");
-        let hira = Script::from_bytes(*b"Hira");
-        let kana = Script::from_bytes(*b"Kana");
-        let hang = Script::from_bytes(*b"Hang");
-        font_ctx
-            .collection
-            .append_fallbacks(han, ids.iter().copied());
-        font_ctx
-            .collection
-            .append_fallbacks(hira, ids.iter().copied());
-        font_ctx
-            .collection
-            .append_fallbacks(kana, ids.iter().copied());
-        font_ctx
-            .collection
-            .append_fallbacks(hang, ids.iter().copied());
-        CJK_IDS.with(|c| {
-            c.borrow_mut().clear();
-            c.borrow_mut().extend(ids.iter().copied());
-        });
-        rebuild_common_fallbacks(font_ctx);
-    });
+/// Register Noto Sans CJK SC, the Han default, when content needs CJK. It has no Hangul
+/// syllables, which come from the `Hang` script face; Korean text still needs it for Hanja.
+/// Returns true only on the first registration.
+#[wasm_bindgen]
+pub fn register_cjk_font(bytes: &[u8]) -> bool {
+    let _ks_span =
+        tracing::info_span!("wasm.font_register", kind = "cjk", bytes = bytes.len()).entered();
+    if CJK_FONT_REGISTERED.with(|c| c.get()) {
+        return false;
+    }
+    let ok = register_cjk_region(bytes, CjkRegion::Sc);
+    if ok {
+        CJK_FONT_REGISTERED.with(|c| c.set(true));
+    }
+    ok
+}
 
-    CJK_FONT_REGISTERED.with(|c| c.set(true));
-    true
+/// Register the Japanese (`"JP"`) or Traditional Chinese (`"TC"`) face. Han in text of that
+/// language, and kana for JP, prefer it over SC. Unknown regions and repeat calls return false.
+#[wasm_bindgen]
+pub fn register_cjk_region_font(bytes: &[u8], region: &str) -> bool {
+    let _ks_span = tracing::info_span!(
+        "wasm.font_register",
+        kind = "cjk",
+        region,
+        bytes = bytes.len()
+    )
+    .entered();
+    let region = match region {
+        "JP" => CjkRegion::Jp,
+        "TC" => CjkRegion::Tc,
+        _ => return false,
+    };
+    register_cjk_region(bytes, region)
 }
 
 const SCRIPT_FONT_ASSETS: &[(&str, &str)] = &[
@@ -1584,15 +1661,16 @@ mod tests {
     #[ignore]
     fn generate_shaping_assets() {
         let out_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../engine/public/fonts");
-        let cjk_woff2: &[u8] =
-            include_bytes!("../../../engine/public/fonts/NotoSansCJKsc-Regular.woff2");
-        let cjk = wuff::decompress_woff2(cjk_woff2).expect("woff2");
-        let cjk_stripped = strip_sfnt_tables(&cjk, &OUTLINE_STRIP_TABLES).expect("strips");
-        std::fs::write(
-            format!("{out_dir}/NotoSansCJKsc-Regular.shaping.otf"),
-            &cjk_stripped,
-        )
-        .unwrap();
+        let mut cjk_sizes = Vec::new();
+        for region in ["sc", "jp", "tc"] {
+            let name = format!("NotoSansCJK{region}-Regular");
+            let woff2 = std::fs::read(format!("{out_dir}/{name}.woff2"))
+                .unwrap_or_else(|e| panic!("read {name}.woff2: {e}"));
+            let cjk = wuff::decompress_woff2(&woff2).expect("woff2");
+            let stripped = strip_sfnt_tables(&cjk, &OUTLINE_STRIP_TABLES).expect("strips");
+            std::fs::write(format!("{out_dir}/{name}.shaping.otf"), &stripped).unwrap();
+            cjk_sizes.push((name, cjk.len(), stripped.len()));
+        }
         let emoji_woff2: &[u8] =
             include_bytes!("../../../engine/public/fonts/noto-color-emoji.woff2");
         let emoji = wuff::decompress_woff2(emoji_woff2).expect("woff2");
@@ -1603,9 +1681,7 @@ mod tests {
         )
         .unwrap();
         println!(
-            "cjk {} -> {} bytes, emoji {} -> {} bytes",
-            cjk.len(),
-            cjk_stripped.len(),
+            "cjk {cjk_sizes:?}, emoji {} -> {} bytes",
             emoji.len(),
             emoji_stripped.len()
         );
@@ -2269,6 +2345,53 @@ mod tests {
                     .collect();
                 assert_eq!(chain[base.len()], noto, "{script:?}");
             }
+        });
+    }
+
+    #[test]
+    fn regional_cjk_faces_take_han_for_their_language_and_kana_for_jp() {
+        let _ = get_or_init_font_context();
+        // JP lands before SC here; the chains must not depend on the order.
+        assert!(register_cjk_region_font(
+            &read_asset("NotoSansCJKjp-Regular.shaping.otf"),
+            "JP"
+        ));
+        assert!(register_cjk_font(&read_asset(
+            "NotoSansCJKsc-Regular.shaping.otf"
+        )));
+        assert!(register_cjk_region_font(
+            &read_asset("NotoSansCJKtc-Regular.shaping.otf"),
+            "TC"
+        ));
+        assert!(!register_cjk_region_font(&[], "KR"));
+        SHARED_FONT_CONTEXT.with(|cell| {
+            let mut borrow = cell.borrow_mut();
+            let ctx = borrow.as_mut().expect("shared context");
+            let mut id = |name: &str| ctx.collection.family_by_name(name).expect(name).id();
+            let [sc, jp, tc] =
+                [CjkRegion::Sc, CjkRegion::Jp, CjkRegion::Tc].map(|region| id(region.aliases()[0]));
+            let han = Script::from_bytes(*b"Hani");
+            let first = |ctx: &mut FontContext, key: parley::fontique::FallbackKey| {
+                ctx.collection.fallback_families(key).next()
+            };
+            let lang = |tag: &str| parley::fontique::Language::parse(tag).unwrap();
+            for (tag, want) in [
+                ("ja", jp),
+                ("zh-TW", tc),
+                ("zh-Hant", tc),
+                ("zh-HK", tc),
+                ("zh-CN", sc),
+                ("en", sc),
+            ] {
+                let key = parley::fontique::FallbackKey::new(han, Some(&lang(tag)));
+                assert_eq!(first(ctx, key), Some(want), "Hani {tag}");
+            }
+            assert_eq!(
+                first(ctx, parley::fontique::FallbackKey::new(han, None)),
+                Some(sc)
+            );
+            let hira = parley::fontique::FallbackKey::new(Script::from_bytes(*b"Hira"), None);
+            assert_eq!(first(ctx, hira), Some(jp));
         });
     }
 }
