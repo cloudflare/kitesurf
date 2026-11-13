@@ -4525,30 +4525,14 @@ export function installGlobals(
         // An opaque document's blobs carry its opaque origin, so their URLs serialize as
         // blob:null/<uuid> and no other document can resolve them.
         const blobOrigin = state.documentOrigin === "" ? "null" : state.documentOrigin;
+        // Bound now, so a page that replaces `crypto` cannot make blob URLs guessable.
+        const cryptoObj = ksGlobal.crypto;
+        const randomUUID = cryptoObj.randomUUID.bind(cryptoObj);
         URLConstructor.createObjectURL = function (blob: any) {
           if (blob == null || typeof blob !== "object") {
             throw new TypeError("URL.createObjectURL: argument is not a Blob/MediaSource");
           }
-          let uuid: string;
-          const cryptoObj = ksGlobal.crypto;
-          if (typeof cryptoObj?.randomUUID === "function") {
-            uuid = cryptoObj.randomUUID();
-          } else {
-            const randomBytes = new Uint8Array(16);
-            cryptoObj?.getRandomValues?.(randomBytes) ??
-              (() => {
-                for (let i = 0; i < 16; i++) {
-                  randomBytes[i] = Math.floor(Math.random() * 256);
-                }
-              })();
-            randomBytes[6] = ((randomBytes[6] as number) & 0x0f) | 0x40;
-            randomBytes[8] = ((randomBytes[8] as number) & 0x3f) | 0x80;
-            const hex = Array.from(randomBytes)
-              .map((byte) => (byte as number).toString(16).padStart(2, "0"))
-              .join("");
-            uuid = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
-          }
-          const url = `blob:${blobOrigin}/${uuid}`;
+          const url = `blob:${blobOrigin}/${randomUUID()}`;
           state.blobUrls.set(url, blob);
           return url;
         };
