@@ -267,9 +267,10 @@ test("terminate and self.close free the slot for the next worker", async ({ page
       });
     const a = new Worker(blob("postMessage('a')"));
     const aSaid = await firstReply(a);
+    a.terminate();
     const b = new Worker(blob("postMessage('b')"));
     const bSaid = await firstReply(b);
-    a.terminate();
+    b.terminate();
     const c = new Worker(
       blob(
         "postMessage('c'); close(); postMessage('same task'); setTimeout(function () { postMessage('later task'); }, 0)",
@@ -285,7 +286,7 @@ test("terminate and self.close free the slot for the next worker", async ({ page
     d.terminate();
     return { aSaid, bSaid, cSaid, dSaid };
   });
-  expect(out).toEqual({ aSaid: "a", bSaid: "error", cSaid: ["c", "same task"], dSaid: "d" });
+  expect(out).toEqual({ aSaid: "a", bSaid: "b", cSaid: ["c", "same task"], dSaid: "d" });
 });
 
 test("uncaught worker errors fire error on the Worker unless the worker handles them", async ({
@@ -537,3 +538,37 @@ test("a worker created in an OOPIF reports to that frame", async ({ page }) => {
     message: "Failed to start worker: no isolate slot is free for this worker",
   });
 });
+
+test("workers past the budget wait for a slot and then run", async ({ page }) => {
+  await setContent(page, "<p>x</p>");
+  const result = await page.evaluate(async () => {
+    const source = "postMessage('up')";
+    const url = "data:text/javascript," + encodeURIComponent(source);
+    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const workers: Worker[] = [];
+    const replied = new Set<number>();
+    for (let index = 0; index < 4; index++) {
+      const worker = new Worker(url);
+      worker.onmessage = () => replied.add(index);
+      worker.onerror = () => replied.add(-1 - index);
+      workers.push(worker);
+    }
+    await wait(2000);
+    const startedAtOnce = replied.size;
+    // Free a slot whenever a worker has answered, so the queued starts run.
+    for (let round = 0; round < 10 && replied.size < workers.length; round++) {
+      for (const [index, worker] of workers.entries()) {
+        if (replied.has(index)) worker.terminate();
+      }
+      await wait(1000);
+    }
+    const total = replied.size;
+    for (const worker of workers) worker.terminate();
+    return { startedAtOnce, total };
+  });
+  // The platform allows four dynamic workers, so the reserves leave fewer than
+  // four for the page: the extras wait instead of failing.
+  expect(result.startedAtOnce).toBeGreaterThan(0);
+  expect(result.startedAtOnce).toBeLessThan(4);
+  expect(result.total).toBe(4);
+}, 120_000);

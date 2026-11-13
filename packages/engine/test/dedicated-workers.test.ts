@@ -29,7 +29,7 @@ vi.mock("../src/eval/dedicated-worker.ts", () => ({
 }));
 
 import { DedicatedWorkers } from "../src/cdp/dedicated-workers.ts";
-import { DynamicWorkerBudget } from "../src/eval/worker-budget.ts";
+import { DynamicWorkerBudget, MAX_DYNAMIC_WORKERS } from "../src/eval/worker-budget.ts";
 import { notifyIsolateLimit } from "../src/eval/limit-registry.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { TargetState } from "../src/cdp/types.ts";
@@ -112,16 +112,26 @@ describe("DedicatedWorkers", () => {
     expect(spawned[0]!.terminate).toHaveBeenCalledOnce();
   });
 
-  it("fails a second worker with an error and close when the slot is taken", async () => {
-    const { create, delivered } = setup();
-    create(1);
-    create(2);
+  it("holds a worker past the budget and starts it when a slot frees", async () => {
+    const { budget, workers, create, ctx, owner, delivered } = setup();
+    // pageScript, renderer and one navigation slot are already taken.
+    const cap = MAX_DYNAMIC_WORKERS - 3;
+    for (let id = 1; id <= cap; id++) create(id);
     await settle();
-    expect(spawned).toHaveLength(1);
-    expect(delivered).toEqual([
-      expect.objectContaining({ workerId: 2, type: "error" }),
-      { workerId: 2, type: "closed" },
-    ]);
+    expect(spawned).toHaveLength(cap);
+    expect(budget.liveOf("worker")).toBe(cap);
+
+    // A worker beyond the cap waits instead of failing.
+    create(cap + 1);
+    await settle();
+    expect(spawned).toHaveLength(cap);
+    expect(delivered).toEqual([]);
+
+    workers.handle(ctx, owner, "kitesurf.workerTerminate", { workerId: 1 });
+    await settle();
+    expect(spawned).toHaveLength(cap + 1);
+    expect(budget.liveOf("worker")).toBe(cap);
+    expect(delivered).toEqual([]);
   });
 
   it("keeps workers of different documents apart even with equal ids", async () => {

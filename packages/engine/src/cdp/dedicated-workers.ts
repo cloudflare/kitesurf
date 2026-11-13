@@ -52,6 +52,17 @@ interface WorkerEntry {
   wallTimer: ReturnType<typeof setTimeout> | null;
 }
 
+/** What a worker needs once the budget grants it a lease. */
+interface WorkerStart {
+  url: string;
+  source: string;
+  name: string;
+  origin: string;
+  baseUrl: string;
+  navigator: unknown;
+  lease: WorkerLease;
+}
+
 let nextDocumentSerial = 1;
 
 export function isWorkerUpstreamEvent(event: UpstreamEventName): boolean {
@@ -219,16 +230,44 @@ export class DedicatedWorkers {
       this.fail(owner, workerId, url, "unsupported worker URL scheme");
       return;
     }
-    const lease = this.budget.acquire("worker");
-    if (!lease) {
+    const admission = this.budget.admitWorker((lease) => {
+      // The page may be gone, or the worker started by another path, by the
+      // time a slot frees.
+      if (!this.ownerAlive(ctx, owner) || this.workers.has(key)) {
+        lease.release();
+        if (!this.workers.has(key))
+          this.fail(owner, workerId, url, "the creating document is gone");
+        return;
+      }
+      this.startWorker(ctx, owner, key, workerId, {
+        url,
+        source,
+        name,
+        origin,
+        baseUrl,
+        navigator: params.navigator,
+        lease,
+      });
+    });
+    if (admission === "full") {
       console.warn(
         `[kitesurf-worker] connection ${ctx.connectionId}: budget full, ` +
           `new Worker(${url.slice(0, MAX_WORKER_URL_PREVIEW_CHARS)}) fails ` +
           `(${this.budget.describe()})`,
       );
       this.fail(owner, workerId, url, "no isolate slot is free for this worker");
-      return;
     }
+  }
+
+  /** Starts a worker that holds a lease, whether granted now or queued. */
+  private startWorker(
+    ctx: DispatchCtx,
+    owner: WorkerOwner,
+    key: string,
+    workerId: number,
+    start: WorkerStart,
+  ): void {
+    const { url, source, name, origin, baseUrl, navigator: navigatorInfo, lease } = start;
     const target = owner.target;
     const label = workerLabel(owner, workerId);
     const entry: WorkerEntry = {
@@ -270,7 +309,7 @@ export class DedicatedWorkers {
       this.kill(entry, url, `Kitesurf: worker exceeded its ${what} and was terminated.`, gone);
     });
     const cookieKey = cookieKeyFor(ctx.connectionId, target.browserContextId);
-    const navigator = readNavigator(params.navigator);
+    const navigator = readNavigator(navigatorInfo);
     const timeOrigin = Date.now();
     void (async () => {
       try {

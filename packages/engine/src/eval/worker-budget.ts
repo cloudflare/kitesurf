@@ -4,6 +4,8 @@
 
 // Counts dynamic-worker leases and reserves capacity for navigation and rendering.
 
+// The platform allows four dynamic workers per request, so this cannot grow:
+// page-script, the renderer and a navigation reserve share the same four.
 export const MAX_DYNAMIC_WORKERS = 4;
 
 export const RENDERER_RESERVED_SLOTS = 1;
@@ -11,6 +13,13 @@ export const RENDERER_RESERVED_SLOTS = 1;
 export const NAVIGATE_HEADROOM_SLOTS = 1;
 
 export const MAX_CONCURRENT_OOPIF = 1;
+
+// Starts waiting for a slot, in creation order. A page that creates workers in a
+// burst (a preview per keystroke) outlives the budget instead of losing them.
+export const MAX_QUEUED_WORKER_STARTS = 8;
+
+/** Whether a worker start ran now, waits for a released slot, or was refused. */
+export type WorkerAdmission = "granted" | "queued" | "full";
 
 export type DynamicWorkerKind = "pageScript" | "renderer" | "oopif" | "worker";
 
@@ -44,6 +53,7 @@ export class DynamicWorkerBudget {
     worker: 0,
   };
   private peak = 0;
+  private workerStarts: Array<(lease: WorkerLease) => void> = [];
   oopifDenied = 0;
   workerDenied = 0;
 
@@ -88,6 +98,28 @@ export class DynamicWorkerBudget {
       this.workerDenied += 1;
       return null;
     }
+    return this.takeLease(kind);
+  }
+
+  /** Runs a worker start now, or holds it until a lease is released. `"full"`
+   * means the queue is at its cap, so the caller reports the old failure. */
+  admitWorker(onGrant: (lease: WorkerLease) => void): WorkerAdmission {
+    const free = this.freeSlots();
+    if (free >= 1) {
+      onGrant(this.takeLease("worker"));
+      return "granted";
+    }
+    // Waiting only helps when workers fill the budget: if the renderer and
+    // navigation reserves alone do, no release can free a slot (an OOPIF, say).
+    if (free + this.counts.worker < 1 || this.workerStarts.length >= MAX_QUEUED_WORKER_STARTS) {
+      this.workerDenied += 1;
+      return "full";
+    }
+    this.workerStarts.push(onGrant);
+    return "queued";
+  }
+
+  private takeLease(kind: DynamicWorkerKind): WorkerLease {
     this.counts[kind] += 1;
     this.peaks[kind] = Math.max(this.peaks[kind], this.counts[kind]);
     this.peak = Math.max(this.peak, this.live);
@@ -98,9 +130,18 @@ export class DynamicWorkerBudget {
         if (lease.released) return;
         lease.released = true;
         if (this.counts[kind] > 0) this.counts[kind] -= 1;
+        this.grantQueuedWorker();
       },
     };
     return lease;
+  }
+
+  /** Starts the oldest queued worker when a release left a slot free. */
+  private grantQueuedWorker(): void {
+    while (this.workerStarts.length > 0 && this.freeSlots() >= 1) {
+      const next = this.workerStarts.shift();
+      if (next) next(this.takeLease("worker"));
+    }
   }
 
   describe(): string {
