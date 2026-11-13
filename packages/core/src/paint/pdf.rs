@@ -82,8 +82,8 @@ pub(crate) fn record_doc_pdf_page(
     doc: &mut blitz_dom::BaseDocument,
     content_w: u32,
     (y_top, y_bot): (f64, f64),
-    fonts_ref: &mut std::collections::HashMap<u64, (peniko::Blob<u8>, u32)>,
-    images_ref: &mut std::collections::HashMap<u64, crate::paint::scene_record::ImageInfo>,
+    fonts_ref: &mut HashMap<u64, (peniko::Blob<u8>, u32)>,
+    images_ref: &mut HashMap<u64, ImageInfo>,
     seen_images: &mut Vec<u64>,
 ) -> Vec<u8> {
     let stripe_h = (y_bot - y_top).ceil().max(1.0) as u32;
@@ -96,11 +96,17 @@ pub(crate) fn record_doc_pdf_page(
     seen_images.extend(scene.image_hashes());
     crate::paint::render::cache_recorded_resources(&mut scene, fonts_ref, images_ref);
     let framed = scene.finish_framed();
-    // Age read grace before evicting layouts from earlier pages.
-    doc.evict_offscreen_inline_layouts();
-    doc.evict_offscreen_inline_layouts();
+    evict_recorded_page_layouts(doc);
     framed
 }
+
+/// Release text shaped only for the pages already recorded. A read grants one scan of grace, so
+/// the second scan evicts what the page left behind.
+pub(crate) fn evict_recorded_page_layouts(doc: &mut blitz_dom::BaseDocument) {
+    doc.evict_offscreen_inline_layouts();
+    doc.evict_offscreen_inline_layouts();
+}
+
 fn select_band_end(
     y_cur: f64,
     total_height: f64,
@@ -185,6 +191,7 @@ fn collect_break_intents(doc: &blitz_dom::BaseDocument) -> (Vec<f32>, Vec<(f32, 
 /// it cannot hold a band end, and skipping it leaves evicted text unrebuilt.
 fn collect_node_y_ranges(doc: &mut blitz_dom::BaseDocument, limit: f32) -> Vec<(f32, f32)> {
     let mut out: Vec<(f32, f32)> = Vec::with_capacity(1024);
+    // Collect the ids first: the loop evicts layouts through `doc` while it iterates.
     let ids: Vec<_> = doc.tree().iter().map(|(id, _)| id).collect();
     for id in ids {
         let node = &doc.tree()[id];

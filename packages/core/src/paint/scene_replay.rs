@@ -1236,7 +1236,7 @@ impl SceneRasterBands {
         let mut pixels = vec![0; usize::from(self.width) * usize::from(rows) * 4];
         let target = vello_cpu::PixmapMut::new(self.width, rows, &mut pixels)
             .expect("band buffer matches its dimensions");
-        // Each band traverses the scene; 1280x40,000 measured 919 ms.
+        // Every band re-traverses the whole scene, so the row count bounds peak pixels, not work.
         self.render.render_with(
             target,
             vello_cpu::RasterizerSettings {
@@ -1263,24 +1263,32 @@ impl std::io::Write for PngOutput {
     }
 }
 
+/// PNG filter type 4 (Paeth), the filter the full-frame encoder emits.
+const PNG_FILTER_PAETH: u8 = 4;
+
 fn filter_png_row(previous: &[u8], row: &[u8], filtered: &mut [u8]) {
-    filtered[0] = 4;
+    filtered[0] = PNG_FILTER_PAETH;
     for i in 0..row.len() {
-        let a = if i >= 4 { i32::from(row[i - 4]) } else { 0 };
-        let b = i32::from(previous[i]);
-        let c = if i >= 4 {
+        // Paeth predicts from the pixel to the left, the one above, and the one above-left.
+        let left = if i >= 4 { i32::from(row[i - 4]) } else { 0 };
+        let above = i32::from(previous[i]);
+        let above_left = if i >= 4 {
             i32::from(previous[i - 4])
         } else {
             0
         };
-        let p = a + b - c;
-        let (pa, pb, pc) = ((p - a).abs(), (p - b).abs(), (p - c).abs());
-        let predictor = if pa <= pb && pa <= pc {
-            a
-        } else if pb <= pc {
-            b
+        let estimate = left + above - above_left;
+        let (to_left, to_above, to_above_left) = (
+            (estimate - left).abs(),
+            (estimate - above).abs(),
+            (estimate - above_left).abs(),
+        );
+        let predictor = if to_left <= to_above && to_left <= to_above_left {
+            left
+        } else if to_above <= to_above_left {
+            above
         } else {
-            c
+            above_left
         };
         filtered[i + 1] = row[i].wrapping_sub(predictor as u8);
     }
@@ -1319,6 +1327,9 @@ struct StoredPng {
     adler_b: u32,
 }
 
+/// Longest run between adler32 reductions (zlib's NMAX), so the running sums stay in `u32`.
+const ADLER_CHUNK: usize = 5552;
+
 impl StoredPng {
     fn write(&mut self, mut data: &[u8], out: &mut Vec<u8>) {
         while !data.is_empty() {
@@ -1329,7 +1340,7 @@ impl StoredPng {
                 out.extend_from_slice(&(!size).to_le_bytes());
                 self.block_remaining = usize::from(size);
             }
-            let n = data.len().min(self.block_remaining).min(5552);
+            let n = data.len().min(self.block_remaining).min(ADLER_CHUNK);
             let chunk = &data[..n];
             for byte in chunk {
                 self.adler_a += u32::from(*byte);
@@ -1379,13 +1390,21 @@ impl ScenePngStream {
         }
         result
     }
-}
 
-impl ScenePngStream {
     fn next_chunk_inner(&mut self) -> Result<Vec<u8>, String> {
         if self.done {
             return Ok(Vec::new());
         }
+        self.compress_band()?;
+        if self.bands.next_row == self.bands.height {
+            self.finish_compressor()?;
+            self.done = true;
+        }
+        Ok(self.take_output())
+    }
+
+    /// Filter and compress the rows of the next band into the IDAT stream.
+    fn compress_band(&mut self) -> Result<(), String> {
         let pixels = self.bands.next_band();
         let stride = usize::from(self.bands.width) * 4;
         for row in pixels.chunks_exact(stride) {
@@ -1407,25 +1426,32 @@ impl ScenePngStream {
                 }
             }
         }
-        if self.bands.next_row == self.bands.height {
-            match &mut self.compressor {
-                PngCompressor::Fast(compressor) => {
-                    compressor
-                        .take()
-                        .ok_or("PNG compressor already finished")?
-                        .finish()
-                        .map_err(|e| format!("png finish: {e}"))?;
-                }
-                PngCompressor::Stored(stored) => {
-                    let adler = (stored.adler_b << 16) | stored.adler_a;
-                    self.output
-                        .0
-                        .borrow_mut()
-                        .extend_from_slice(&adler.to_be_bytes());
-                }
+        Ok(())
+    }
+
+    /// End the deflate stream once the last band has been compressed.
+    fn finish_compressor(&mut self) -> Result<(), String> {
+        match &mut self.compressor {
+            PngCompressor::Fast(compressor) => {
+                compressor
+                    .take()
+                    .ok_or("PNG compressor already finished")?
+                    .finish()
+                    .map_err(|e| format!("png finish: {e}"))?;
             }
-            self.done = true;
+            PngCompressor::Stored(stored) => {
+                let adler = (stored.adler_b << 16) | stored.adler_a;
+                self.output
+                    .0
+                    .borrow_mut()
+                    .extend_from_slice(&adler.to_be_bytes());
+            }
         }
+        Ok(())
+    }
+
+    /// The bytes written since the last call, framed by the header and, once, the trailer.
+    fn take_output(&mut self) -> Vec<u8> {
         let mut output = std::mem::take(&mut *self.output.0.borrow_mut());
         self.crc.update(&output);
         if !self.prefix.is_empty() {
@@ -1437,7 +1463,7 @@ impl ScenePngStream {
             output.extend_from_slice(&self.crc.clone().finalize().to_be_bytes());
             append_png_chunk(&mut output, b"IEND", &[]);
         }
-        Ok(output)
+        output
     }
 }
 
@@ -1493,7 +1519,7 @@ impl SceneJpegStream {
         }
         for row in rows {
             if self.row_count > 0 {
-                output.extend_from_slice(&[0xff, 0xd0 + ((self.row_count - 1) % 8) as u8]);
+                output.extend_from_slice(&jpeg_restart_marker(self.row_count));
             }
             output.extend_from_slice(&jpeg[row]);
             self.row_count += 1;
@@ -1504,6 +1530,11 @@ impl SceneJpegStream {
         }
         Ok(output)
     }
+}
+
+/// JPEG restart markers cycle FF D0 to FF D7 between the rows of a streamed image.
+fn jpeg_restart_marker(row_count: usize) -> [u8; 2] {
+    [0xff, 0xd0 + ((row_count - 1) % 8) as u8]
 }
 
 fn set_jpeg_height(header: &mut [u8], height: u16) -> Result<(), String> {
@@ -1538,6 +1569,25 @@ pub(crate) struct CachedRenderer {
 /// The single-pass rasterizer's per-side cap. A frame above it must take the banded path, or the
 /// replay silently clamps it.
 const MAX_SINGLE_PASS_DIMENSION: u32 = 4096;
+
+/// A framed scene's rendered size in pixels.
+fn frame_dimensions(scene: &[u8]) -> Result<(u32, u32), String> {
+    let header = scene_decode::parse_header(scene).map_err(|e| e.to_string())?;
+    let height = if header.render_h > 0 {
+        header.render_h
+    } else {
+        header.viewport_h
+    };
+    Ok((header.viewport_w, height))
+}
+
+/// Whether a frame must be rasterized in bands: one side above the single-pass cap, or an area
+/// too large to retain whole.
+fn needs_banded_raster(width: u32, height: u32) -> bool {
+    width > MAX_SINGLE_PASS_DIMENSION
+        || height > MAX_SINGLE_PASS_DIMENSION
+        || (width as usize) * (height as usize) > MAX_RETAINED_PIXELS
+}
 
 fn raster_dimensions(header: &scene_decode::SceneHeader) -> (u32, u32) {
     const MAX_DIM: u32 = MAX_SINGLE_PASS_DIMENSION;
@@ -1662,6 +1712,9 @@ fn replay_pdf_page(
     scene_bytes: &[u8],
     options: PdfRenderOptions,
 ) -> Result<(), String> {
+    use crate::paint::pdf_paint::{
+        content_box, paint_white_background, push_page_clip, push_px_to_pt_scale, KrillaPaintScene,
+    };
     use krilla::page::PageSettings;
     let PdfRenderOptions {
         paper_width,
@@ -1672,7 +1725,7 @@ fn replay_pdf_page(
         margin_bottom,
         margin_left,
     } = options;
-    let (ml, mt, content_w, _content_h) = crate::paint::pdf_paint::content_box(
+    let (offset_x, offset_y, content_w, _content_h) = content_box(
         paper_width,
         paper_height,
         margin_top,
@@ -1693,21 +1746,23 @@ fn replay_pdf_page(
         .ok_or_else(|| format!("invalid page size {}x{}pt", page_w_pt, page_h_pt))?;
     let mut page = pdf_doc.start_page_with(settings);
     let mut surface = page.surface();
-    crate::paint::pdf_paint::push_px_to_pt_scale(&mut surface);
+    push_px_to_pt_scale(&mut surface);
     if !omit_background {
-        crate::paint::pdf_paint::paint_white_background(&mut surface, paper_width, paper_height)?;
+        paint_white_background(&mut surface, paper_width, paper_height)?;
     }
-    if ml > 0 || mt > 0 {
-        let t = krilla::geom::Transform::from_row(1.0, 0.0, 0.0, 1.0, ml as f32, mt as f32);
+    let has_offsets = offset_x > 0 || offset_y > 0;
+    if has_offsets {
+        let t =
+            krilla::geom::Transform::from_row(1.0, 0.0, 0.0, 1.0, offset_x as f32, offset_y as f32);
         surface.push_transform(&t);
     }
-    crate::paint::pdf_paint::push_page_clip(&mut surface, content_w as f32, stripe_h as f32);
+    push_page_clip(&mut surface, content_w as f32, stripe_h as f32);
     {
-        let mut kps = crate::paint::pdf_paint::KrillaPaintScene::new(&mut surface);
+        let mut kps = KrillaPaintScene::new(&mut surface);
         replay_into(scene_bytes, store, &mut kps)?;
     }
     surface.pop();
-    if ml > 0 || mt > 0 {
+    if has_offsets {
         surface.pop();
     }
     surface.pop();
@@ -1968,22 +2023,17 @@ impl RefUnwindSafe for SceneRasterizer {}
 impl SceneRasterizer {
     /// Record a scene once and retain its resources until its bands are dropped.
     fn start_bands(&self, scene: &[u8]) -> Result<SceneRasterBands, String> {
-        let header = scene_decode::parse_header(scene).map_err(|e| e.to_string())?;
-        let height = if header.render_h > 0 {
-            header.render_h
-        } else {
-            header.viewport_h
-        };
-        if header.viewport_w == 0 || height == 0 {
+        let (width, height) = frame_dimensions(scene)?;
+        if width == 0 || height == 0 {
             return Err("scene dimensions must be nonzero".to_string());
         }
-        if header.viewport_w > MAX_BANDED_SCENE_DIMENSION || height > MAX_BANDED_SCENE_DIMENSION {
+        if width > MAX_BANDED_SCENE_DIMENSION || height > MAX_BANDED_SCENE_DIMENSION {
             return Err(format!(
                 "scene dimensions {}x{} exceed band rasterizer limit of {} pixels per axis",
-                header.viewport_w, height, MAX_BANDED_SCENE_DIMENSION
+                width, height, MAX_BANDED_SCENE_DIMENSION
             ));
         }
-        let width = u16::try_from(header.viewport_w)
+        let width = u16::try_from(width)
             .map_err(|_| "scene width exceeds band rasterizer limit".to_string())?;
         let height = u16::try_from(height)
             .map_err(|_| "scene height exceeds band rasterizer limit".to_string())?;
@@ -2004,16 +2054,13 @@ impl SceneRasterizer {
     fn encode_banded(
         &self,
         scene: &[u8],
-        format: crate::paint::screenshot::ImageFormat,
+        format: ImageFormat,
         quality: u8,
         encoded_limit: Option<usize>,
     ) -> Result<Vec<u8>, String> {
-        use crate::paint::screenshot::ImageFormat;
-        if matches!(format, ImageFormat::Png) {
-            return self.encode_banded_png(scene, encoded_limit);
-        }
         let mut bytes = Vec::new();
         match format {
+            ImageFormat::Png => return self.encode_banded_png(scene, encoded_limit),
             ImageFormat::Jpeg => {
                 let mut stream = self.start_jpeg(scene, quality)?;
                 while !stream.done {
@@ -2026,7 +2073,6 @@ impl SceneRasterizer {
                 }
             }
             ImageFormat::Webp | ImageFormat::Rgba => unreachable!("not a banded format"),
-            ImageFormat::Png => unreachable!("PNG is encoded separately"),
         }
         Ok(bytes)
     }
@@ -2039,38 +2085,17 @@ impl SceneRasterizer {
         let fast_stream = self.start_png(scene)?;
         let width = fast_stream.bands.width;
         let height = fast_stream.bands.height;
-        let raw_len = (usize::from(width) * 4 + 1)
-            .checked_mul(usize::from(height))
-            .ok_or("PNG scanlines exceed addressable memory")?;
-        let stored_threshold =
-            fdeflate::StoredOnlyCompressor::<std::io::Cursor<Vec<u8>>>::compressed_size(raw_len);
-        let stored_data_len = raw_len
-            .checked_add(
-                raw_len
-                    .div_ceil(u16::MAX as usize)
-                    .checked_mul(5)
-                    .ok_or("PNG compressed data exceeds addressable memory")?,
-            )
-            .and_then(|size| size.checked_add(6))
-            .ok_or("PNG compressed data exceeds addressable memory")?;
-        let stored_png_len = PNG_FIXED_BYTES
-            .checked_add(stored_data_len)
-            .ok_or("PNG compressed data exceeds addressable memory")?;
+        let (stored_png_len, stored_threshold) = stored_png_sizes(width, height)?;
 
         let fast = collect_png_stream(fast_stream, encoded_limit);
-        let fallback = match &fast {
+        // A frame that compressed worse than its stored form, or that hit the encoded limit, is
+        // re-encoded uncompressed.
+        let use_stored = match &fast {
             Ok((_, compressed_len)) => *compressed_len > stored_threshold,
-            Err(error) if error.starts_with("encoded-limit:") => {
-                if let Some(limit) = encoded_limit {
-                    if stored_png_len > limit {
-                        return Err(encoded_limit_error(width, height, stored_png_len, limit));
-                    }
-                }
-                true
-            }
+            Err(error) if error.starts_with("encoded-limit:") => true,
             Err(error) => return Err(error.clone()),
         };
-        if !fallback {
+        if !use_stored {
             return fast.map(|(bytes, _)| bytes);
         }
         if let Some(limit) = encoded_limit {
@@ -2081,6 +2106,27 @@ impl SceneRasterizer {
         let stored_stream = self.start_png_with_storage(scene, true)?;
         collect_png_stream(stored_stream, encoded_limit).map(|(bytes, _)| bytes)
     }
+}
+
+/// The stored (uncompressed) PNG's encoded length, and the compressed length it must beat.
+fn stored_png_sizes(width: u16, height: u16) -> Result<(usize, usize), String> {
+    let raw_len = (usize::from(width) * 4 + 1)
+        .checked_mul(usize::from(height))
+        .ok_or("PNG scanlines exceed addressable memory")?;
+    let threshold =
+        fdeflate::StoredOnlyCompressor::<std::io::Cursor<Vec<u8>>>::compressed_size(raw_len);
+    let block_overhead = raw_len
+        .div_ceil(u16::MAX as usize)
+        .checked_mul(5)
+        .ok_or("PNG compressed data exceeds addressable memory")?;
+    let data_len = raw_len
+        .checked_add(block_overhead)
+        .and_then(|size| size.checked_add(6))
+        .ok_or("PNG compressed data exceeds addressable memory")?;
+    let png_len = PNG_FIXED_BYTES
+        .checked_add(data_len)
+        .ok_or("PNG compressed data exceeds addressable memory")?;
+    Ok((png_len, threshold))
 }
 
 fn collect_png_stream(
@@ -2366,27 +2412,13 @@ impl SceneRasterizer {
     ) -> Vec<u8> {
         let _ks_span =
             tracing::info_span!("wasm.rasterize", scene_bytes = scene.len(), format).entered();
-        let fmt = crate::paint::screenshot::ImageFormat::from_str(format);
+        let fmt = ImageFormat::from_str(format);
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            if retain_key.is_none()
-                && matches!(
-                    fmt,
-                    crate::paint::screenshot::ImageFormat::Png
-                        | crate::paint::screenshot::ImageFormat::Jpeg
-                )
-            {
+            if retain_key.is_none() && matches!(fmt, ImageFormat::Png | ImageFormat::Jpeg) {
                 // Banding re-walks the scene once per band, so it only pays off for a frame that
                 // cannot be retained whole. Smaller frames keep one replay and the retained slot.
-                let header = scene_decode::parse_header(scene).map_err(|e| e.to_string())?;
-                let height = if header.render_h > 0 {
-                    header.render_h
-                } else {
-                    header.viewport_h
-                };
-                if header.viewport_w > MAX_SINGLE_PASS_DIMENSION
-                    || height > MAX_SINGLE_PASS_DIMENSION
-                    || (header.viewport_w as usize) * (height as usize) > MAX_RETAINED_PIXELS
-                {
+                let (width, height) = frame_dimensions(scene)?;
+                if needs_banded_raster(width, height) {
                     return self.encode_banded(scene, fmt, quality, encoded_limit);
                 }
             }
@@ -2394,9 +2426,7 @@ impl SceneRasterizer {
                 && encoded_limit.is_some()
                 && !matches!(
                     fmt,
-                    crate::paint::screenshot::ImageFormat::Png
-                        | crate::paint::screenshot::ImageFormat::Jpeg
-                        | crate::paint::screenshot::ImageFormat::Webp
+                    ImageFormat::Png | ImageFormat::Jpeg | ImageFormat::Webp
                 )
             {
                 return Err("encoded size limit requires PNG or JPEG".to_string());
