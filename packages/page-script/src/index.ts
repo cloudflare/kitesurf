@@ -364,6 +364,7 @@ import {
   parseUrlForNode,
   detachedWrapperStats,
   setInlineHandlerGate,
+  activationListenerNodeIds,
 } from "./dom-shim.js";
 import type { BuildDocumentResult } from "./dom-shim.js";
 import { ksInternals } from "./internals.ts";
@@ -5579,6 +5580,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         return queryDomPaintGeometry(method, queryArgs);
       case "notRenderedNodeIds":
         return queryDomNotRenderedNodeIds(queryArgs);
+      case "activationListenerNodeIds":
+        return queryDomActivationListenerNodeIds(queryArgs);
       case "formStateSnapshot":
       case "setControlValueAsUser":
         return queryDomFormState(state, method, queryArgs);
@@ -6620,6 +6623,19 @@ async function queryDomNotRenderedNodeIds(
       focusPath,
     } satisfies QueryDomResult<"notRenderedNodeIds">;
   }
+}
+
+function queryDomActivationListenerNodeIds(
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"activationListenerNodeIds"> {
+  const before = getInternalState().mutationSeq | 0;
+  const ids = activationListenerNodeIds();
+  return {
+    ids,
+    ...(queryArgs.includeReadStamp === true
+      ? { readStamp: { before, after: getInternalState().mutationSeq | 0, complete: true } }
+      : {}),
+  } satisfies QueryDomResult<"activationListenerNodeIds">;
 }
 
 function queryDomSetViewport(

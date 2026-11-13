@@ -17,7 +17,7 @@ import {
 } from "../state.js";
 import type { ListenerEntry } from "../state.js";
 import type * as Idl from "../idl/types.generated.js";
-import { liveWrapper } from "../registries.js";
+import { activationListenerIds, liveWrapper } from "../registries.js";
 import { hostIdToDoc } from "../registries.js";
 import { ksSpan, safeEventType } from "../otel.js";
 import {
@@ -68,6 +68,35 @@ function isObjectKey(key: unknown): key is Idl.EventTarget {
 }
 
 const nodeListenerRegistry = new WeakMap<object, Map<string, ListenerEntry[]>>();
+
+// The events a mouse click fires at its target: a listener for one makes its element clickable
+// in the accessibility tree, as Chrome's automation tree marks it.
+export const ACTIVATION_EVENT_TYPES: ReadonlySet<string> = new Set([
+  "click",
+  "mousedown",
+  "mouseup",
+  "pointerdown",
+  "pointerup",
+  "auxclick",
+]);
+
+function hasActivationListener(byType: Map<string, ListenerEntry[]>): boolean {
+  for (const type of ACTIVATION_EVENT_TYPES) {
+    if ((byType.get(type)?.length ?? 0) > 0) return true;
+  }
+  return false;
+}
+
+export function activationListenerNodeIds(): number[] {
+  const ids: number[] = [];
+  for (const id of activationListenerIds) {
+    const wrapper = liveWrapper(id);
+    const byType = wrapper ? nodeListenerRegistry.get(wrapper) : undefined;
+    if (byType && hasActivationListener(byType)) ids.push(id);
+    else activationListenerIds.delete(id);
+  }
+  return ids;
+}
 
 export function listenersFor(
   key: EventTargetKey,
@@ -136,6 +165,23 @@ export function listenerOptionsHadPassive(options: unknown): boolean {
   );
 }
 
+// Told by shape: the page can replace the AbortSignal global, and an instanceof check would
+// then miss a signal made before it did.
+function isAbortSignal(value: unknown): value is AbortSignal {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof Reflect.get(value, "aborted") === "boolean" &&
+    typeof Reflect.get(value, "addEventListener") === "function"
+  );
+}
+
+function listenerSignal(options: unknown): AbortSignal | null {
+  if (options === null || typeof options !== "object") return null;
+  const signal: unknown = Reflect.get(options, "signal");
+  return isAbortSignal(signal) ? signal : null;
+}
+
 export function addListener(
   key: EventTargetKey,
   type: unknown,
@@ -150,11 +196,19 @@ export function addListener(
   if (!listenerOptionsHadPassive(options)) {
     passive = defaultPassiveFor(key, type);
   }
+  // DOM's "add an event listener": an aborted signal adds nothing, and a later abort removes
+  // the listener. Kept, it went on firing, and went on marking its element clickable.
+  const signal = listenerSignal(options);
+  if (signal?.aborted) return;
   const list = listenersFor(key, type, true)!;
   for (const entry of list) {
     if (entry.listener === listener && entry.capture === opts.capture) return;
   }
   list.push({ listener, capture: opts.capture, once: opts.once, passive });
+  signal?.addEventListener("abort", () => removeListener(key, type, listener, opts.capture), {
+    once: true,
+  });
+  if (typeof key === "number" && ACTIVATION_EVENT_TYPES.has(type)) activationListenerIds.add(key);
   noteListenerType(type);
 }
 

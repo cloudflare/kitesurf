@@ -18,6 +18,7 @@ export {
   setAnimationTaskScheduler,
   setInlineHandlerGate,
   detachedWrapperStats,
+  activationListenerNodeIds,
   armKsOtel,
   ksSpan,
 } from "@kitesurf/dom-shim/contract";

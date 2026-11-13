@@ -252,6 +252,10 @@ export interface QueryDomMethods {
     args: ReadStampArgs;
     result: FormStateSnapshot & { readStamp?: ReadStamp };
   };
+  activationListenerNodeIds: {
+    args: ReadStampArgs;
+    result: { ids?: number[]; readStamp?: ReadStamp };
+  };
   focus: { args: { nodeId: number }; result: EmptyArgs };
   // DOM.scrollIntoViewIfNeeded: `found` is false when the id names no node of this document.
   scrollIntoViewIfNeeded: {
