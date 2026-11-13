@@ -56,16 +56,15 @@ export async function outerHtmlResponse(request: OuterHtmlRequest): Promise<RawJ
 // the pieces join to what stringifying the whole string gives.
 function outerHtmlJson(escaped: readonly string[]): RawJsonResult {
   return new RawJsonResult(['{"outerHTML":"', ...escaped, '"}'], () => {
-    const outerHTML = escaped
-      .map((piece) => {
-        const text: unknown = JSON.parse(`"${piece}"`);
-        if (typeof text !== "string")
-          throw new TypeError("DOM.getOuterHTML: piece is not a string");
-        return text;
-      })
-      .join("");
+    const outerHTML = escaped.map(unescapeJsonPiece).join("");
     return { outerHTML } satisfies Protocol.DOM.GetOuterHTMLResponse;
   });
+}
+
+function unescapeJsonPiece(piece: string): string {
+  const text: unknown = JSON.parse(`"${piece}"`);
+  if (typeof text !== "string") throw new TypeError("DOM.getOuterHTML: piece is not a string");
+  return text;
 }
 
 // A short read keeps no text, so a retry does not hold the discarded pieces.
@@ -79,6 +78,17 @@ async function readOuterHtml(result: QueryDomResult<"getOuterHTML">): Promise<Ou
     await result.outerHTMLUtf8.cancel("invalid byteLength").catch(() => {});
     throw new Error(`DOM.getOuterHTML: PageScript sent an invalid byteLength ${byteLength}`);
   }
+
+  const { escaped, filled } = await readEscapedStream(result.outerHTMLUtf8, byteLength);
+  if (filled !== byteLength) return { complete: false, filled, byteLength };
+  return { complete: true, escaped };
+}
+
+/** Reads the whole stream as JSON-escaped pieces, or reports how many bytes arrived. */
+async function readEscapedStream(
+  stream: ReadableStream<Uint8Array>,
+  byteLength: number,
+): Promise<{ escaped: string[]; filled: number }> {
   // Same decoder options as the wasm-bindgen string return this replaced, so output is identical.
   const decoder = new TextDecoder("utf-8", { ignoreBOM: true, fatal: true });
   const escaped: string[] = [];
@@ -86,7 +96,7 @@ async function readOuterHtml(result: QueryDomResult<"getOuterHTML">): Promise<Ou
     if (text) escaped.push(JSON.stringify(text).slice(1, -1));
   };
   // The RPC deadline ends when the result arrives, so the stream needs its own.
-  const reader = withDeadline(result.outerHTMLUtf8, OUTER_HTML_READ_DEADLINE_MS).getReader();
+  const reader = withDeadline(stream, OUTER_HTML_READ_DEADLINE_MS).getReader();
   let filled = 0;
   try {
     for (;;) {
@@ -104,9 +114,9 @@ async function readOuterHtml(result: QueryDomResult<"getOuterHTML">): Promise<Ou
   } finally {
     reader.releaseLock();
   }
-  if (filled !== byteLength) return { complete: false, filled, byteLength };
-  escape(decoder.decode());
-  return { complete: true, escaped };
+  // Only a complete read flushes the decoder: a truncated stream may end mid-character.
+  if (filled === byteLength) escape(decoder.decode());
+  return { escaped, filled };
 }
 
 type EnsurePageScriptFn = (

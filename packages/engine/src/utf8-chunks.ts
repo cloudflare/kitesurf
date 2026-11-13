@@ -21,11 +21,16 @@ export function forEachUtf8Chunk(
   // Each UTF-16 unit encodes to at most three bytes.
   const buffer = new Uint8Array(units * 3);
   for (let start = 0; start < text.length;) {
-    let end = Math.min(start + units, text.length);
-    // A surrogate pair split across chunks would encode as two replacement characters.
-    if (end < text.length && isHighSurrogate(text.charCodeAt(end - 1))) end--;
+    const end = chunkEndAt(text, start, units);
     const { written } = encoder.encodeInto(text.slice(start, end), buffer);
     onChunk(buffer.subarray(0, written));
     start = end;
   }
+}
+
+/** The chunk end at `start`: `units` later, or one earlier to keep a surrogate pair whole. */
+function chunkEndAt(text: string, start: number, units: number): number {
+  const end = Math.min(start + units, text.length);
+  // A surrogate pair split across chunks would encode as two replacement characters.
+  return end < text.length && isHighSurrogate(text.charCodeAt(end - 1)) ? end - 1 : end;
 }

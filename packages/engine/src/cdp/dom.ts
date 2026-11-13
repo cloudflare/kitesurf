@@ -258,14 +258,7 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       const ref = rectNodeRef(req.params);
       const read = ref ? await session.callIfLive.getRect(ref) : null;
       if (!read) return { quads: [] };
-      // One quad per line box, so a link that wraps is clickable at the centre
-      // of its first line fragment.
-      const rects = read.rects && read.rects.length > 0 ? read.rects : read.rect ? [read.rect] : [];
-      return {
-        quads: rects
-          .filter((rect) => rect.width > 0 && rect.height > 0)
-          .map((rect) => rectToQuad(rect)),
-      };
+      return { quads: lineBoxRects(read).filter(hasArea).map(rectToQuad) };
     }
 
     case "DOM.getNodeForLocation": {
@@ -378,6 +371,20 @@ function realBoxFor(rect: { x: number; y: number; width: number; height: number 
     width: Math.round(rect.width),
     height: Math.round(rect.height),
   };
+}
+
+// DOM.getContentQuads wants one quad per line box, so a wrapped inline node reports a rect per
+// line instead of one bounding rect.
+function lineBoxRects(read: {
+  rect?: Protocol.DOM.Rect | null;
+  rects?: Protocol.DOM.Rect[] | null;
+}): Protocol.DOM.Rect[] {
+  if (read.rects && read.rects.length > 0) return read.rects;
+  return read.rect ? [read.rect] : [];
+}
+
+function hasArea(rect: { width: number; height: number }): boolean {
+  return rect.width > 0 && rect.height > 0;
 }
 
 function rectToQuad(rect: { x: number; y: number; width: number; height: number }): number[] {

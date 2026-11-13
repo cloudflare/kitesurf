@@ -93,19 +93,22 @@ export function registerDispatchConsumer(
 }
 
 export function serializeCdpPayload(payload: unknown): string {
-  if (isRawJsonSuccess(payload)) {
-    return [
-      '{"id":',
-      JSON.stringify(payload.id),
-      ',"result":',
-      ...payload.result.pieces,
-      payload.sessionId === undefined ? "" : ',"sessionId":' + JSON.stringify(payload.sessionId),
-      "}",
-    ].join("");
+  if (!isRawJsonSuccess(payload)) {
+    const serialized = JSON.stringify(payload);
+    if (serialized === undefined) throw new TypeError("CDP payload is not JSON serializable");
+    return serialized;
   }
-  const serialized = JSON.stringify(payload);
-  if (serialized === undefined) throw new TypeError("CDP payload is not JSON serializable");
-  return serialized;
+  // `result` may be a streamed page; join its JSON pieces instead of building the object first.
+  const sessionField =
+    payload.sessionId === undefined ? "" : ',"sessionId":' + JSON.stringify(payload.sessionId);
+  return [
+    '{"id":',
+    JSON.stringify(payload.id),
+    ',"result":',
+    ...payload.result.pieces,
+    sessionField,
+    "}",
+  ].join("");
 }
 
 /**
