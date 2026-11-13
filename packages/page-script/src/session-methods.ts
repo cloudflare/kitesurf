@@ -105,8 +105,8 @@ export async function invokeSessionMethod<M extends PageScriptMethod>(
     type Handler = (
       ...handlerArgs: Parameters<PageScriptSession[M]>
     ) => Promise<PageScriptReply<M>>;
-    // No local keeps the arguments: this frame lives as long as the call, and the navigate
-    // source must be collectable once the handler drops it.
+    // Pass the arguments straight through: a local would keep this frame's copy alive for the
+    // whole call, and the navigate source must be collectable once the handler drops it.
     const pending = nativeApply(methodHandler as Handler, self, argBuilder(params));
     if (method === "navigate") (params as PageScriptWireParams["navigate"]).html = "";
     return await pending;

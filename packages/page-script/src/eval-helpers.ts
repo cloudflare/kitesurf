@@ -72,7 +72,7 @@ export function anchorHrefAttribute(anchor: ShimElement): string | null {
  * A link whose own box is under (`x`, `y`) among an ancestor's children. A wrapped link's rect is
  * the union of its line boxes, so it is found; a link merely near the click is not a hit.
  */
-export function findAnchorViaSingleChild(
+export function findAnchorUnderPoint(
   targetEl: ShimElement | null,
   x: number,
   y: number,

@@ -134,7 +134,7 @@ import {
   SyncFunction,
   anchorHrefAttribute,
   findAnchorAncestor,
-  findAnchorViaSingleChild,
+  findAnchorUnderPoint,
   findFocusableAncestor,
   findSvgAnchorAtPoint,
   packBoaResult,
@@ -2109,26 +2109,36 @@ function isWasmBoundingRect(
   );
 }
 
-// DOM.getContentQuads wants one rect per line box, so an inline element that
-// wraps yields a rect per line instead of one bounding rect.
+// DOM.getContentQuads wants one rect per line box, so an inline element that wraps yields a rect
+// per line instead of one bounding rect.
 function contentRectsFor(
   paint: { getContentRects?: (id: number) => unknown },
   id: number,
 ): Array<{ x: number; y: number; width: number; height: number }> | null {
   if (typeof paint.getContentRects !== "function") return null;
   try {
-    const raw = paint.getContentRects(id);
-    if (!Array.isArray(raw)) return null;
-    const rects = raw.filter(isWasmBoundingRect).map((rect) => ({
-      x: (Number(rect.x) || 0) - state.scrollX,
-      y: (Number(rect.y) || 0) - state.scrollY,
-      width: Number(rect.width) || 0,
-      height: Number(rect.height) || 0,
-    }));
-    return rects.length > 0 ? rects : null;
+    const rects = paint.getContentRects(id);
+    if (!Array.isArray(rects)) return null;
+    const viewportRects = rects.filter(isWasmBoundingRect).map(toViewportRect);
+    return viewportRects.length > 0 ? viewportRects : null;
   } catch {
     return null;
   }
+}
+
+// Wasm reports layout rects in document coordinates; CDP wants viewport ones.
+function toViewportRect(rect: { x: number; y: number; width: number; height: number }): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  return {
+    x: (Number(rect.x) || 0) - state.scrollX,
+    y: (Number(rect.y) || 0) - state.scrollY,
+    width: Number(rect.width) || 0,
+    height: Number(rect.height) || 0,
+  };
 }
 
 function readPartialDamageRect(
@@ -2769,7 +2779,7 @@ function activateAnchorNavigation(
 ): AnchorNavigation | null {
   const anchor =
     findAnchorAncestor(targetEl) ||
-    findAnchorViaSingleChild(targetEl, clientX, clientY) ||
+    findAnchorUnderPoint(targetEl, clientX, clientY) ||
     findSvgAnchorAtPoint(targetEl, clientX, clientY);
   if (!anchor) return null;
   const rawHref = anchorHrefAttribute(anchor);
@@ -3096,6 +3106,32 @@ function cycleCollectStatsForLog(): unknown {
   }
 }
 
+const EMPTY_DOCUMENT = "<html><head></head><body></body></html>";
+
+/** The navigate source: the engine's, or one built from `html` when the caller sent a string. */
+function navigateSourceFor(html: string | NavigateSource): NavigateSource {
+  if (typeof html === "object" && html !== null) return html;
+  return navigateSourceOf(typeof html === "string" && html.length > 0 ? html : EMPTY_DOCUMENT);
+}
+
+/** Logs the shape of the navigate input, not the page, under startup CDP debug. */
+function logNavigateInput(source: NavigateSource, url: string): void {
+  const NAVIGATE_HTML_PREVIEW_BYTES = 200;
+  try {
+    console.log(
+      "[kitesurf-debug] PageScript.navigate() called",
+      JSON.stringify({
+        url,
+        htmlBytes: source.utf8.byteLength,
+        htmlPreview: new TextDecoder().decode(source.utf8.subarray(0, NAVIGATE_HTML_PREVIEW_BYTES)),
+        startupScriptCount: startupInputSnapshot?.scriptDescriptorCount,
+        startupSample: startupInputSnapshot?.scriptDescriptorSample,
+        startupHasClassicRegular: startupHasClassicRegular,
+      }),
+    );
+  } catch {}
+}
+
 export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   async fetch(_req: Request) {
     return new Response("PageScript", { status: 404 });
@@ -3109,32 +3145,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     state.navigateStarted = true;
     startCycleCollector();
     const safeUrl = typeof url === "string" ? url : "about:blank";
-    let source: NavigateSource | null =
-      typeof html === "object" && html !== null
-        ? html
-        : navigateSourceOf(
-            typeof html === "string" && html.length > 0
-              ? html
-              : "<html><head></head><body></body></html>",
-          );
-    if (startupCdpDebug) {
-      const NAVIGATE_HTML_PREVIEW_BYTES = 200;
-      try {
-        console.log(
-          "[kitesurf-debug] PageScript.navigate() called",
-          JSON.stringify({
-            url: safeUrl,
-            htmlBytes: source.utf8.byteLength,
-            htmlPreview: new TextDecoder().decode(
-              source.utf8.subarray(0, NAVIGATE_HTML_PREVIEW_BYTES),
-            ),
-            startupScriptCount: startupInputSnapshot?.scriptDescriptorCount,
-            startupSample: startupInputSnapshot?.scriptDescriptorSample,
-            startupHasClassicRegular: startupHasClassicRegular,
-          }),
-        );
-      } catch {}
-    }
+    let source: NavigateSource | null = navigateSourceFor(html);
+    if (startupCdpDebug) logNavigateInput(source, safeUrl);
     const initialCookies =
       navigateOptions && typeof navigateOptions.cookies === "string" ? navigateOptions.cookies : "";
     if (navigateOptions && typeof navigateOptions.connectionId === "string") {
@@ -5461,25 +5473,35 @@ function queryDomOuterHTML(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<"getOuterHTML"> {
   const id = numericNodeId(queryArgs) ?? 0;
+  const { marker, doctype } = outerHtmlMarkup(id, queryArgs);
+  // Let a serialization failure reach the CDP caller; empty output reads as an empty page.
+  const dom = pageState.dom;
+  // The live stream is the default; `snapshot` serializes one tree before streaming it.
+  const stream = queryArgs.snapshot === true ? undefined : dom.outerHTMLStream(id, marker, doctype);
+  if (stream) {
+    return outerHtmlResult(stream, () => {
+      // A navigate or unload frees `dom`, and this stream is pulled long after the read returns.
+      // End it instead of entering wasm through a freed handle, so the engine's snapshot retry
+      // takes over.
+      if (pageState.dom !== dom) return new Uint8Array(0);
+      return stream.nextChunk(dom, OUTER_HTML_CHUNK_BYTES);
+    });
+  }
+  const bytes = dom.outerHTMLBytes(id, marker, doctype);
+  return outerHtmlResult(bytes, () => bytes.nextChunk(OUTER_HTML_CHUNK_BYTES));
+}
+
+/** The synthetic doctype marker to strip, and the source doctype to restore, for this read. */
+function outerHtmlMarkup(
+  id: number,
+  queryArgs: Record<string, unknown>,
+): { marker: string; doctype: string } {
   const sourceDoctype =
     state.document?.doctype?.parentNode === state.document ? state.sourceDoctype : null;
   const marker = id === 0 && state.sourceDoctype ? `<!--${state.sourceDoctype.marker}-->` : "";
   const doctype =
     id === 0 && queryArgs.includeDoctype === true && sourceDoctype ? sourceDoctype.markup : "";
-  // Let a serialization failure reach the CDP caller; empty output reads as an empty page.
-  const dom = pageState.dom;
-  const live = queryArgs.snapshot === true ? undefined : dom.outerHTMLStream(id, marker, doctype);
-  if (live) {
-    return outerHtmlResult(live, () => {
-      // A navigate or unload frees `dom`, and this stream is pulled long after the read returns.
-      // End it instead of entering wasm through a freed handle, so the engine's snapshot retry
-      // takes over.
-      if (pageState.dom !== dom) return new Uint8Array(0);
-      return live.nextChunk(dom, OUTER_HTML_CHUNK_BYTES);
-    });
-  }
-  const bytes = dom.outerHTMLBytes(id, marker, doctype);
-  return outerHtmlResult(bytes, () => bytes.nextChunk(OUTER_HTML_CHUNK_BYTES));
+  return { marker, doctype };
 }
 
 function outerHtmlResult(
