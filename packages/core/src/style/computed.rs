@@ -51,6 +51,7 @@ fn grid_template_resolved(doc: &BaseDocument, node_id: NodeId, columns: bool) ->
 /// Per-element facts that decide whether a longhand reports a used value from layout.
 #[derive(Clone, Copy)]
 struct LonghandContext {
+    has_box: bool,
     rendered_layout_box: bool,
     width_applies: bool,
     layout_margin_available: bool,
@@ -62,59 +63,86 @@ impl LonghandContext {
         node: &blitz_dom::Node,
         styles: &::style::properties::ComputedValues,
     ) -> Self {
-        let no_box = |d: ::style::values::specified::box_::Display| {
-            use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
-            d.outside() == DisplayOutside::None && d.inside() == DisplayInside::None
-        };
-        let rendered_layout_box = {
-            use ::style::values::specified::box_::DisplayOutside;
-            let root_id = doc.root_node().id();
-            let mut connected = node.id() == root_id;
-            let mut has_box = if node.id() == root_id {
-                node.display_constructed_as().outside() != DisplayOutside::None
-            } else {
-                styles.clone_display().outside() != DisplayOutside::None
-            };
-            let mut cur = node.parent_id();
-            while has_box {
-                let Some(pid) = cur else { break };
-                let Some(parent) = doc.get_node(pid) else {
-                    break;
-                };
-                if parent.is_element() && no_box(parent.display_constructed_as()) {
-                    has_box = false;
-                    break;
-                }
-                if pid == root_id {
-                    connected = true;
-                    break;
-                }
-                cur = parent.parent_id();
-            }
-            has_box && connected
-        };
-        // An element styled on demand has no box, and layout_style() needs stored styles.
-        let width_applies = node.primary_styles().is_some() && {
-            use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
-            let display = styles.clone_display();
-            CoreStyle::is_replaced(&node.layout_style())
-                || display.outside() != DisplayOutside::Inline
-                || display.inside() != DisplayInside::Flow
-        };
-        let layout_margin_available = {
-            use ::style::values::specified::box_::DisplayOutside;
-            !styles.clone_float().is_floating()
-                && !matches!(
-                    styles.clone_display().outside(),
-                    DisplayOutside::Inline | DisplayOutside::InternalTable
-                )
-        };
         Self {
-            rendered_layout_box,
-            width_applies,
-            layout_margin_available,
+            has_box: has_own_box(styles),
+            rendered_layout_box: rendered_layout_box(doc, node, styles),
+            width_applies: width_applies(node, styles),
+            layout_margin_available: layout_margin_available(styles),
         }
     }
+
+    /// Whether the used size and box metrics come from this element's layout box.
+    fn has_layout_box(&self) -> bool {
+        self.has_box && self.rendered_layout_box && self.width_applies
+    }
+}
+
+/// Whether the element generates a box at all: `display: none` and `contents` do not.
+fn has_own_box(styles: &::style::properties::ComputedValues) -> bool {
+    use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
+    let display = styles.get_box().clone_display();
+    !(display.outside() == DisplayOutside::None && display.inside() == DisplayInside::None)
+        && display.inside() != DisplayInside::Contents
+}
+
+/// Whether the element has a layout box connected to the document, not only a computed display.
+fn rendered_layout_box(
+    doc: &blitz_dom::BaseDocument,
+    node: &blitz_dom::Node,
+    styles: &::style::properties::ComputedValues,
+) -> bool {
+    use ::style::values::specified::box_::DisplayOutside;
+    let no_box = |d: ::style::values::specified::box_::Display| {
+        use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
+        d.outside() == DisplayOutside::None && d.inside() == DisplayInside::None
+    };
+    let root_id = doc.root_node().id();
+    let mut connected = node.id() == root_id;
+    let mut has_box = if node.id() == root_id {
+        node.display_constructed_as().outside() != DisplayOutside::None
+    } else {
+        styles.clone_display().outside() != DisplayOutside::None
+    };
+    let mut cur = node.parent_id();
+    while has_box {
+        let Some(pid) = cur else { break };
+        let Some(parent) = doc.get_node(pid) else {
+            break;
+        };
+        if parent.is_element() && no_box(parent.display_constructed_as()) {
+            has_box = false;
+            break;
+        }
+        if pid == root_id {
+            connected = true;
+            break;
+        }
+        cur = parent.parent_id();
+    }
+    has_box && connected
+}
+
+/// Whether a width resolves here. An element styled on demand has no box, and `layout_style()`
+/// needs stored styles.
+fn width_applies(node: &blitz_dom::Node, styles: &::style::properties::ComputedValues) -> bool {
+    use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
+    if node.primary_styles().is_none() {
+        return false;
+    }
+    let display = styles.clone_display();
+    CoreStyle::is_replaced(&node.layout_style())
+        || display.outside() != DisplayOutside::Inline
+        || display.inside() != DisplayInside::Flow
+}
+
+/// Whether layout resolves this element's margins: a floating or inline box has none of its own.
+fn layout_margin_available(styles: &::style::properties::ComputedValues) -> bool {
+    use ::style::values::specified::box_::DisplayOutside;
+    !styles.clone_float().is_floating()
+        && !matches!(
+            styles.clone_display().outside(),
+            DisplayOutside::Inline | DisplayOutside::InternalTable
+        )
 }
 
 #[derive(Serialize)]
@@ -125,6 +153,23 @@ pub(crate) struct CdpComputedProp {
     computed: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     unresolved: Option<String>,
+}
+
+impl CdpComputedProp {
+    /// A resolved value, keeping the plain computed serialization only when it differs.
+    fn resolved(
+        name: &str,
+        value: String,
+        computed: Option<String>,
+        unresolved: Option<String>,
+    ) -> Self {
+        Self {
+            name: name.to_string(),
+            computed: computed.filter(|computed| computed != &value),
+            value,
+            unresolved,
+        }
+    }
 }
 
 /// Preserve CSSOM's `-webkit-line-clamp` name for Stylo's disabled longhand.
@@ -441,316 +486,78 @@ impl DomHandle {
         &self,
         doc: &blitz_dom::BaseDocument,
         node: &blitz_dom::Node,
-        styles: &::style::servo_arc::Arc<::style::properties::ComputedValues>,
+        styles: &::style::properties::ComputedValues,
         cx: &LonghandContext,
         id: LonghandId,
     ) -> Option<CdpComputedProp> {
-        let LonghandContext {
-            rendered_layout_box,
-            width_applies,
-            layout_margin_available,
-        } = *cx;
         let mut computed = needs_plain_computed_value(id).then(String::new);
-        if let Some(computed) = computed.as_mut() {
-            if styles
-                .computed_or_resolved_value(id, None, computed)
-                .is_err()
-            {
+        if let Some(plain) = computed.as_mut() {
+            if styles.computed_or_resolved_value(id, None, plain).is_err() {
                 return None;
             }
         }
-        if matches!(
-            id,
-            LonghandId::GridTemplateColumns | LonghandId::GridTemplateRows
-        ) {
-            if let Some(value) =
-                grid_template_resolved(doc, node.id(), id == LonghandId::GridTemplateColumns)
-            {
-                let name = NonCustomPropertyId::from(id).name();
-                return Some(CdpComputedProp {
-                    name: name.to_string(),
-                    computed: computed.filter(|computed| computed != &value),
-                    value,
-                    unresolved: None,
-                });
-            }
+        if let Some((name, value)) = own_value_longhand(doc, node, styles, id) {
+            return Some(CdpComputedProp::resolved(name, value, computed, None));
         }
-        if id == LonghandId::Transform {
-            use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
-            let display = styles.get_box().clone_display();
-            let boxless = (display.outside() == DisplayOutside::None
-                && display.inside() == DisplayInside::None)
-                || display.inside() == DisplayInside::Contents;
-            let size = node.final_layout().size;
-            let value = if boxless {
-                "none".to_string()
-            } else {
-                resolved_transform(&styles.get_box().clone_transform(), size.width, size.height)
-            };
-            return Some(CdpComputedProp {
-                name: "transform".to_string(),
-                computed: computed.filter(|computed| computed != &value),
-                value,
-                unresolved: None,
-            });
+
+        let mut value = resolved_value(styles, id)?;
+        if let Some(used) = used_box_metric(node, styles, id, &value, cx) {
+            value = used;
         }
-        if matches!(
-            id,
-            LonghandId::TransformOrigin | LonghandId::PerspectiveOrigin
-        ) {
-            use style_traits::ToCss as _;
-            type CLen = ::style::values::computed::Length;
-            let size = node.final_layout().size;
-            let box_style = styles.get_box();
-            let px = |l: CLen| l.to_css_string();
-            let value = if id == LonghandId::TransformOrigin {
-                let o = box_style.clone_transform_origin();
-                let x = o.horizontal.resolve(CLen::new(size.width));
-                let y = o.vertical.resolve(CLen::new(size.height));
-                if o.depth.px() == 0.0 {
-                    format!("{} {}", px(x), px(y))
-                } else {
-                    format!("{} {} {}", px(x), px(y), px(o.depth))
-                }
-            } else {
-                let o = box_style.clone_perspective_origin();
-                let x = o.horizontal.resolve(CLen::new(size.width));
-                let y = o.vertical.resolve(CLen::new(size.height));
-                format!("{} {}", px(x), px(y))
-            };
-            let name = NonCustomPropertyId::from(id).name();
-            return Some(CdpComputedProp {
-                name: name.to_string(),
-                computed: computed.filter(|computed| computed != &value),
-                value,
-                unresolved: None,
-            });
+        if let Some(used) = min_size_used_value(doc, node, id, &value, cx) {
+            value = used;
         }
-        let box_display = styles.get_box().clone_display();
-        let has_box = {
-            use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
-            !(box_display.outside() == DisplayOutside::None
-                && box_display.inside() == DisplayInside::None)
-                && box_display.inside() != DisplayInside::Contents
-        };
-        let has_layout_box = has_box && rendered_layout_box && width_applies;
-        let mut value = String::new();
-        let mut resolved_ctx = ::style::values::resolved::Context {
-            style: styles,
-            for_property: ::style::properties::PropertyId::NonCustom(id.into()),
-            current_longhand: None,
-        };
-        if styles
-            .computed_or_resolved_value(id, Some(&mut resolved_ctx), &mut value)
-            .is_err()
-        {
+        if let Some(used) = self.sticky_inset_used_value(node, styles, id, cx) {
+            value = used;
+        }
+
+        let unresolved = unresolved_alternative(styles, id, &value);
+        Some(CdpComputedProp::resolved(
+            computed_prop_name(id),
+            value,
+            computed,
+            unresolved,
+        ))
+    }
+
+    /// A sticky element's inset reports the offset layout actually applied to it.
+    fn sticky_inset_used_value(
+        &self,
+        node: &blitz_dom::Node,
+        styles: &::style::properties::ComputedValues,
+        id: LonghandId,
+        cx: &LonghandContext,
+    ) -> Option<String> {
+        if !cx.has_box || !is_inset_longhand(id) {
             return None;
         }
-        let is_size = matches!(
-            id,
-            LonghandId::Width | LonghandId::Height | LonghandId::InlineSize | LonghandId::BlockSize
-        );
-        let is_margin = matches!(
-            id,
-            LonghandId::MarginTop
-                | LonghandId::MarginRight
-                | LonghandId::MarginBottom
-                | LonghandId::MarginLeft
-                | LonghandId::MarginBlockStart
-                | LonghandId::MarginBlockEnd
-                | LonghandId::MarginInlineStart
-                | LonghandId::MarginInlineEnd
-        );
-        let needs_used_value = is_size || value.contains('%');
-        if has_layout_box
-            && needs_used_value
-            && (!is_margin || layout_margin_available)
-            && matches!(
-                id,
-                LonghandId::Width
-                    | LonghandId::Height
-                    | LonghandId::InlineSize
-                    | LonghandId::BlockSize
-                    | LonghandId::MarginTop
-                    | LonghandId::MarginRight
-                    | LonghandId::MarginBottom
-                    | LonghandId::MarginLeft
-                    | LonghandId::MarginBlockStart
-                    | LonghandId::MarginBlockEnd
-                    | LonghandId::MarginInlineStart
-                    | LonghandId::MarginInlineEnd
-                    | LonghandId::PaddingTop
-                    | LonghandId::PaddingRight
-                    | LonghandId::PaddingBottom
-                    | LonghandId::PaddingLeft
-                    | LonghandId::PaddingBlockStart
-                    | LonghandId::PaddingBlockEnd
-                    | LonghandId::PaddingInlineStart
-                    | LonghandId::PaddingInlineEnd
-            )
-        {
-            use ::style::logical_geometry::{LogicalSide, PhysicalSide, WritingMode};
-            use style_traits::ToCss as _;
-            type CLen = ::style::values::computed::Length;
-            let px = |v: f32| CLen::new(v).to_css_string();
-            let layout = node.unrounded_layout();
-            let wm = WritingMode::new(styles.get_inherited_box());
-            let margin = layout.margin;
-            let padding = layout.padding;
-            let border_box = styles.clone_box_sizing()
-                        == ::style::properties::generated::longhands::box_sizing::computed_value::T::BorderBox;
-            let used_width = if border_box {
-                layout.size.width
-            } else {
-                layout.content_box_width()
-            };
-            let used_height = if border_box {
-                layout.size.height
-            } else {
-                layout.content_box_height()
-            };
-            let margin_at = |side: LogicalSide| -> f32 {
-                match side.to_physical(wm) {
-                    PhysicalSide::Top => margin.top,
-                    PhysicalSide::Right => margin.right,
-                    PhysicalSide::Bottom => margin.bottom,
-                    PhysicalSide::Left => margin.left,
-                }
-            };
-            let padding_at = |side: LogicalSide| -> f32 {
-                match side.to_physical(wm) {
-                    PhysicalSide::Top => padding.top,
-                    PhysicalSide::Right => padding.right,
-                    PhysicalSide::Bottom => padding.bottom,
-                    PhysicalSide::Left => padding.left,
-                }
-            };
-            value = match id {
-                LonghandId::Width => px(used_width),
-                LonghandId::Height => px(used_height),
-                LonghandId::InlineSize => px(if wm.is_vertical() {
-                    used_height
-                } else {
-                    used_width
-                }),
-                LonghandId::BlockSize => px(if wm.is_vertical() {
-                    used_width
-                } else {
-                    used_height
-                }),
-                LonghandId::MarginTop => px(margin.top),
-                LonghandId::MarginRight => px(margin.right),
-                LonghandId::MarginBottom => px(margin.bottom),
-                LonghandId::MarginLeft => px(margin.left),
-                LonghandId::MarginBlockStart => px(margin_at(LogicalSide::BlockStart)),
-                LonghandId::MarginBlockEnd => px(margin_at(LogicalSide::BlockEnd)),
-                LonghandId::MarginInlineStart => px(margin_at(LogicalSide::InlineStart)),
-                LonghandId::MarginInlineEnd => px(margin_at(LogicalSide::InlineEnd)),
-                LonghandId::PaddingTop => px(padding.top),
-                LonghandId::PaddingRight => px(padding.right),
-                LonghandId::PaddingBottom => px(padding.bottom),
-                LonghandId::PaddingLeft => px(padding.left),
-                LonghandId::PaddingBlockStart => px(padding_at(LogicalSide::BlockStart)),
-                LonghandId::PaddingBlockEnd => px(padding_at(LogicalSide::BlockEnd)),
-                LonghandId::PaddingInlineStart => px(padding_at(LogicalSide::InlineStart)),
-                LonghandId::PaddingInlineEnd => px(padding_at(LogicalSide::InlineEnd)),
-                _ => unreachable!(),
-            };
+        use ::style::logical_geometry::{LogicalSide, PhysicalSide, WritingMode};
+        use ::style::properties::generated::longhands::position::computed_value::T as Position;
+        if styles.clone_position() != Position::Sticky {
+            return None;
         }
-        if has_box
-            && value == "auto"
-            && matches!(
-                id,
-                LonghandId::MinWidth
-                    | LonghandId::MinHeight
-                    | LonghandId::MinInlineSize
-                    | LonghandId::MinBlockSize
-            )
-        {
-            use ::style::values::specified::box_::DisplayInside;
-            let is_flex_or_grid_item = node
-                .layout_parent_id()
-                .and_then(|p| doc.get_node(p))
-                .and_then(|p| p.primary_styles())
-                .is_some_and(|s| {
-                    matches!(
-                        s.get_box().clone_display().inside(),
-                        DisplayInside::Flex | DisplayInside::Grid
-                    )
-                });
-            if !is_flex_or_grid_item {
-                value = "0px".to_string();
-            }
-        }
-        if has_box
-            && matches!(
-                id,
-                LonghandId::Top
-                    | LonghandId::Right
-                    | LonghandId::Bottom
-                    | LonghandId::Left
-                    | LonghandId::InsetBlockStart
-                    | LonghandId::InsetBlockEnd
-                    | LonghandId::InsetInlineStart
-                    | LonghandId::InsetInlineEnd
-            )
-        {
-            let sticky_used_value = || {
-                use ::style::logical_geometry::{LogicalSide, PhysicalSide, WritingMode};
-                use ::style::properties::generated::longhands::position::computed_value::T as Position;
-                if styles.clone_position() != Position::Sticky {
-                    return None;
-                }
-                let insets = self.sticky_resolved_insets(node.id())?;
-                let wm = WritingMode::new(styles.get_inherited_box());
-                let physical = match id {
-                    LonghandId::Top => PhysicalSide::Top,
-                    LonghandId::Right => PhysicalSide::Right,
-                    LonghandId::Bottom => PhysicalSide::Bottom,
-                    LonghandId::Left => PhysicalSide::Left,
-                    LonghandId::InsetBlockStart => LogicalSide::BlockStart.to_physical(wm),
-                    LonghandId::InsetBlockEnd => LogicalSide::BlockEnd.to_physical(wm),
-                    LonghandId::InsetInlineStart => LogicalSide::InlineStart.to_physical(wm),
-                    LonghandId::InsetInlineEnd => LogicalSide::InlineEnd.to_physical(wm),
-                    _ => unreachable!(),
-                };
-                let index = match physical {
-                    PhysicalSide::Top => 0,
-                    PhysicalSide::Right => 1,
-                    PhysicalSide::Bottom => 2,
-                    PhysicalSide::Left => 3,
-                };
-                use style_traits::ToCss as _;
-                type CLen = ::style::values::computed::Length;
-                Some(CLen::new(insets[index]?).to_css_string())
-            };
-            if let Some(used) = sticky_used_value() {
-                value = used;
-            }
-        }
-        let unresolved = if id == LonghandId::TextDecorationColor {
-            let mut alt = String::new();
-            let mut shorthand_ctx = ::style::values::resolved::Context {
-                style: styles,
-                for_property: ::style::properties::PropertyId::NonCustom(
-                    ShorthandId::TextDecoration.into(),
-                ),
-                current_longhand: None,
-            };
-            match styles.computed_or_resolved_value(id, Some(&mut shorthand_ctx), &mut alt) {
-                Ok(()) if alt != value => Some(alt),
-                _ => None,
-            }
-        } else {
-            None
+        let insets = self.sticky_resolved_insets(node.id())?;
+        let wm = WritingMode::new(styles.get_inherited_box());
+        let physical = match id {
+            LonghandId::Top => PhysicalSide::Top,
+            LonghandId::Right => PhysicalSide::Right,
+            LonghandId::Bottom => PhysicalSide::Bottom,
+            LonghandId::Left => PhysicalSide::Left,
+            LonghandId::InsetBlockStart => LogicalSide::BlockStart.to_physical(wm),
+            LonghandId::InsetBlockEnd => LogicalSide::BlockEnd.to_physical(wm),
+            LonghandId::InsetInlineStart => LogicalSide::InlineStart.to_physical(wm),
+            LonghandId::InsetInlineEnd => LogicalSide::InlineEnd.to_physical(wm),
+            _ => unreachable!(),
         };
-        let name = computed_prop_name(id);
-        Some(CdpComputedProp {
-            name: name.to_string(),
-            computed: computed.filter(|computed| computed != &value),
-            value,
-            unresolved,
-        })
+        let index = match physical {
+            PhysicalSide::Top => 0,
+            PhysicalSide::Right => 1,
+            PhysicalSide::Bottom => 2,
+            PhysicalSide::Left => 3,
+        };
+        use style_traits::ToCss as _;
+        type CLen = ::style::values::computed::Length;
+        Some(CLen::new(insets[index]?).to_css_string())
     }
 
     // `--name`'s computed value with var() substituted, "" when unset. Scripts parseInt() CSS
@@ -820,5 +627,283 @@ impl DomHandle {
         }))
         .ok()
         .flatten()
+    }
+}
+
+/// Longhands for the physical and logical inset offsets.
+fn is_inset_longhand(id: LonghandId) -> bool {
+    matches!(
+        id,
+        LonghandId::Top
+            | LonghandId::Right
+            | LonghandId::Bottom
+            | LonghandId::Left
+            | LonghandId::InsetBlockStart
+            | LonghandId::InsetBlockEnd
+            | LonghandId::InsetInlineStart
+            | LonghandId::InsetInlineEnd
+    )
+}
+
+/// A longhand whose value comes from the box or transform rather than Stylo's resolved value.
+fn own_value_longhand(
+    doc: &BaseDocument,
+    node: &blitz_dom::Node,
+    styles: &::style::properties::ComputedValues,
+    id: LonghandId,
+) -> Option<(&'static str, String)> {
+    match id {
+        LonghandId::GridTemplateColumns | LonghandId::GridTemplateRows => {
+            let columns = id == LonghandId::GridTemplateColumns;
+            let value = grid_template_resolved(doc, node.id(), columns)?;
+            Some((NonCustomPropertyId::from(id).name(), value))
+        }
+        LonghandId::Transform => Some(("transform", transform_value(node, styles))),
+        LonghandId::TransformOrigin | LonghandId::PerspectiveOrigin => {
+            let value = origin_value(node, styles, id);
+            Some((NonCustomPropertyId::from(id).name(), value))
+        }
+        _ => None,
+    }
+}
+
+/// Blink's resolved `transform`: `none` without a box, else the matrix of the used size.
+fn transform_value(node: &blitz_dom::Node, styles: &::style::properties::ComputedValues) -> String {
+    use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
+    let display = styles.get_box().clone_display();
+    let boxless = (display.outside() == DisplayOutside::None
+        && display.inside() == DisplayInside::None)
+        || display.inside() == DisplayInside::Contents;
+    if boxless {
+        return "none".to_string();
+    }
+    let size = node.final_layout().size;
+    resolved_transform(&styles.get_box().clone_transform(), size.width, size.height)
+}
+
+/// `transform-origin` or `perspective-origin` resolved against the used border box.
+fn origin_value(
+    node: &blitz_dom::Node,
+    styles: &::style::properties::ComputedValues,
+    id: LonghandId,
+) -> String {
+    use style_traits::ToCss as _;
+    type CLen = ::style::values::computed::Length;
+    let size = node.final_layout().size;
+    let box_style = styles.get_box();
+    let px = |l: CLen| l.to_css_string();
+    if id == LonghandId::TransformOrigin {
+        let origin = box_style.clone_transform_origin();
+        let x = origin.horizontal.resolve(CLen::new(size.width));
+        let y = origin.vertical.resolve(CLen::new(size.height));
+        return if origin.depth.px() == 0.0 {
+            format!("{} {}", px(x), px(y))
+        } else {
+            format!("{} {} {}", px(x), px(y), px(origin.depth))
+        };
+    }
+    let origin = box_style.clone_perspective_origin();
+    let x = origin.horizontal.resolve(CLen::new(size.width));
+    let y = origin.vertical.resolve(CLen::new(size.height));
+    format!("{} {}", px(x), px(y))
+}
+
+/// Stylo's CSSOM resolved value for one longhand.
+fn resolved_value(styles: &::style::properties::ComputedValues, id: LonghandId) -> Option<String> {
+    let mut value = String::new();
+    let mut ctx = ::style::values::resolved::Context {
+        style: styles,
+        for_property: ::style::properties::PropertyId::NonCustom(id.into()),
+        current_longhand: None,
+    };
+    styles
+        .computed_or_resolved_value(id, Some(&mut ctx), &mut value)
+        .ok()?;
+    Some(value)
+}
+
+/// Longhands whose used value is read from the laid-out box.
+fn is_used_box_metric(id: LonghandId) -> bool {
+    matches!(
+        id,
+        LonghandId::Width
+            | LonghandId::Height
+            | LonghandId::InlineSize
+            | LonghandId::BlockSize
+            | LonghandId::MarginTop
+            | LonghandId::MarginRight
+            | LonghandId::MarginBottom
+            | LonghandId::MarginLeft
+            | LonghandId::MarginBlockStart
+            | LonghandId::MarginBlockEnd
+            | LonghandId::MarginInlineStart
+            | LonghandId::MarginInlineEnd
+            | LonghandId::PaddingTop
+            | LonghandId::PaddingRight
+            | LonghandId::PaddingBottom
+            | LonghandId::PaddingLeft
+            | LonghandId::PaddingBlockStart
+            | LonghandId::PaddingBlockEnd
+            | LonghandId::PaddingInlineStart
+            | LonghandId::PaddingInlineEnd
+    )
+}
+
+/// The used size, margin, or padding this longhand reports from layout, when it has one.
+fn used_box_metric(
+    node: &blitz_dom::Node,
+    styles: &::style::properties::ComputedValues,
+    id: LonghandId,
+    value: &str,
+    cx: &LonghandContext,
+) -> Option<String> {
+    if !cx.has_layout_box() || !is_used_box_metric(id) {
+        return None;
+    }
+    let is_size = matches!(
+        id,
+        LonghandId::Width | LonghandId::Height | LonghandId::InlineSize | LonghandId::BlockSize
+    );
+    let is_margin = matches!(
+        id,
+        LonghandId::MarginTop
+            | LonghandId::MarginRight
+            | LonghandId::MarginBottom
+            | LonghandId::MarginLeft
+            | LonghandId::MarginBlockStart
+            | LonghandId::MarginBlockEnd
+            | LonghandId::MarginInlineStart
+            | LonghandId::MarginInlineEnd
+    );
+    if !(is_size || value.contains('%')) || (is_margin && !cx.layout_margin_available) {
+        return None;
+    }
+
+    use ::style::logical_geometry::{LogicalSide, PhysicalSide, WritingMode};
+    use style_traits::ToCss as _;
+    type CLen = ::style::values::computed::Length;
+    let px = |v: f32| CLen::new(v).to_css_string();
+    let layout = node.unrounded_layout();
+    let wm = WritingMode::new(styles.get_inherited_box());
+    let margin = layout.margin;
+    let padding = layout.padding;
+    let border_box = styles.clone_box_sizing()
+        == ::style::properties::generated::longhands::box_sizing::computed_value::T::BorderBox;
+    let used_width = if border_box {
+        layout.size.width
+    } else {
+        layout.content_box_width()
+    };
+    let used_height = if border_box {
+        layout.size.height
+    } else {
+        layout.content_box_height()
+    };
+    let margin_at = |side: LogicalSide| -> f32 {
+        match side.to_physical(wm) {
+            PhysicalSide::Top => margin.top,
+            PhysicalSide::Right => margin.right,
+            PhysicalSide::Bottom => margin.bottom,
+            PhysicalSide::Left => margin.left,
+        }
+    };
+    let padding_at = |side: LogicalSide| -> f32 {
+        match side.to_physical(wm) {
+            PhysicalSide::Top => padding.top,
+            PhysicalSide::Right => padding.right,
+            PhysicalSide::Bottom => padding.bottom,
+            PhysicalSide::Left => padding.left,
+        }
+    };
+    Some(match id {
+        LonghandId::Width => px(used_width),
+        LonghandId::Height => px(used_height),
+        LonghandId::InlineSize => px(if wm.is_vertical() {
+            used_height
+        } else {
+            used_width
+        }),
+        LonghandId::BlockSize => px(if wm.is_vertical() {
+            used_width
+        } else {
+            used_height
+        }),
+        LonghandId::MarginTop => px(margin.top),
+        LonghandId::MarginRight => px(margin.right),
+        LonghandId::MarginBottom => px(margin.bottom),
+        LonghandId::MarginLeft => px(margin.left),
+        LonghandId::MarginBlockStart => px(margin_at(LogicalSide::BlockStart)),
+        LonghandId::MarginBlockEnd => px(margin_at(LogicalSide::BlockEnd)),
+        LonghandId::MarginInlineStart => px(margin_at(LogicalSide::InlineStart)),
+        LonghandId::MarginInlineEnd => px(margin_at(LogicalSide::InlineEnd)),
+        LonghandId::PaddingTop => px(padding.top),
+        LonghandId::PaddingRight => px(padding.right),
+        LonghandId::PaddingBottom => px(padding.bottom),
+        LonghandId::PaddingLeft => px(padding.left),
+        LonghandId::PaddingBlockStart => px(padding_at(LogicalSide::BlockStart)),
+        LonghandId::PaddingBlockEnd => px(padding_at(LogicalSide::BlockEnd)),
+        LonghandId::PaddingInlineStart => px(padding_at(LogicalSide::InlineStart)),
+        LonghandId::PaddingInlineEnd => px(padding_at(LogicalSide::InlineEnd)),
+        _ => unreachable!(),
+    })
+}
+
+/// `min-*: auto` reads as `0px` outside a flex or grid item, where Stylo leaves it unresolved.
+fn min_size_used_value(
+    doc: &BaseDocument,
+    node: &blitz_dom::Node,
+    id: LonghandId,
+    value: &str,
+    cx: &LonghandContext,
+) -> Option<String> {
+    if !cx.has_box || value != "auto" {
+        return None;
+    }
+    if !matches!(
+        id,
+        LonghandId::MinWidth
+            | LonghandId::MinHeight
+            | LonghandId::MinInlineSize
+            | LonghandId::MinBlockSize
+    ) {
+        return None;
+    }
+    use ::style::values::specified::box_::DisplayInside;
+    let is_flex_or_grid_item = node
+        .layout_parent_id()
+        .and_then(|p| doc.get_node(p))
+        .and_then(|p| p.primary_styles())
+        .is_some_and(|s| {
+            matches!(
+                s.get_box().clone_display().inside(),
+                DisplayInside::Flex | DisplayInside::Grid
+            )
+        });
+    if is_flex_or_grid_item {
+        return None;
+    }
+    Some("0px".to_string())
+}
+
+/// Typed OM's `computed` alternative for `text-decoration-color`, when the shorthand differs.
+fn unresolved_alternative(
+    styles: &::style::properties::ComputedValues,
+    id: LonghandId,
+    value: &str,
+) -> Option<String> {
+    if id != LonghandId::TextDecorationColor {
+        return None;
+    }
+    let mut alternative = String::new();
+    let mut ctx = ::style::values::resolved::Context {
+        style: styles,
+        for_property: ::style::properties::PropertyId::NonCustom(
+            ShorthandId::TextDecoration.into(),
+        ),
+        current_longhand: None,
+    };
+    match styles.computed_or_resolved_value(id, Some(&mut ctx), &mut alternative) {
+        Ok(()) if alternative != value => Some(alternative),
+        _ => None,
     }
 }
