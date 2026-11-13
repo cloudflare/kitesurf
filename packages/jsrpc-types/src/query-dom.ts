@@ -434,6 +434,8 @@ export interface QueryDomMethods {
       marginBottom: number;
       marginLeft: number;
     };
+    // Each page is a little-endian byte length followed by its scene; a zero length starts an
+    // error frame carrying the message length and the message.
     result: { pages?: ReadableStream<Uint8Array>; pageCount?: number; error?: string };
   };
   getOuterHTMLAndSeq: {
@@ -441,6 +443,7 @@ export interface QueryDomMethods {
     result: { outerHTML: string; seq: number; scrollX: number; scrollY: number };
   };
   getMemoryStats: {
+    // resetPeak restarts the allocator's diagnostic peak window before the stats are read.
     args: { resetPeak?: boolean };
     result: {
       bytes?: number;

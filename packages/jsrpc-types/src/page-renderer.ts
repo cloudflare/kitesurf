@@ -21,6 +21,7 @@ export interface RenderFrameOpts {
   sinceSeq?: number;
   clip?: { x: number; y: number; width: number; height: number };
   partialKey?: string;
+  // Rejects a frame whose encoded image would exceed this many bytes.
   encodedLimit?: number;
   // "encoded" opts out of the renderer's default raw RGBA transport.
   images?: "raw" | "encoded";
