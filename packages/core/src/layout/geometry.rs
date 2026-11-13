@@ -7,12 +7,13 @@
 
 use std::panic;
 
+use blitz_dom::node::SpecialElementData;
 use blitz_dom::{local_name, ns, util::Point, BaseDocument, Node, NodeData};
 use blitz_html::HtmlDocument;
 use blitz_traits::NodeId;
 use parley::{Affinity, Cursor};
 use serde::Serialize;
-use taffy::Position;
+use taffy::{Position, ResolveOrZero};
 use wasm_bindgen::prelude::*;
 
 use crate::{emulated_color_scheme, DomHandle, LayoutMode};
@@ -283,6 +284,11 @@ fn clip_to_containing_blocks(
             continue;
         }
         let (clip_x, clip_y) = overflow_clips(node);
+        // Asked before the box is read: a table row's box is the union of its cells, too much
+        // to work out for every ancestor of every observed target when it clips nothing.
+        if !clip_x && !clip_y && !has_clip_path(node) {
+            continue;
+        }
         let border_box = rect_edges(&bounding_rect_for_node(doc, node));
         let shape_clip = clip_path_edges(node, border_box);
         if !clip_x && !clip_y && shape_clip.is_none() {
@@ -312,6 +318,12 @@ fn clip_to_containing_blocks(
         }
         rect = intersect_edges(rect, clip)?;
     }
+}
+
+fn has_clip_path(node: &Node) -> bool {
+    use ::style::values::computed::basic_shape::ClipPath;
+    node.primary_styles()
+        .is_some_and(|styles| !matches!(styles.clone_clip_path(), ClipPath::None))
 }
 
 fn clip_path_edges(node: &Node, [l, t, r, b]: [f32; 4]) -> Option<[f32; 4]> {
@@ -394,6 +406,163 @@ pub(crate) fn doc_position(doc: &BaseDocument, node: &Node) -> Point<f32> {
     }
 }
 
+fn union_edges(a: [f32; 4], b: [f32; 4]) -> [f32; 4] {
+    [
+        a[0].min(b[0]),
+        a[1].min(b[1]),
+        a[2].max(b[2]),
+        a[3].max(b[3]),
+    ]
+}
+
+fn is_table_root(node: &Node) -> bool {
+    node.flags.is_table_root()
+        && node
+            .element_data()
+            .is_some_and(|e| matches!(e.special_data, SpecialElementData::TableRoot(_)))
+}
+
+/// The table whose grid places a row's cells: the nearest table ancestor, or the anonymous
+/// table blitz wraps around misparented rows and row groups, which keep their DOM parent.
+fn table_root_of<'a>(doc: &'a BaseDocument, node: &Node) -> Option<&'a Node> {
+    use ::style::values::specified::box_::DisplayInside;
+    let mut child = node.id;
+    let mut parent = doc.get_node(node.parent?)?;
+    loop {
+        if is_table_root(parent) {
+            return Some(parent);
+        }
+        let wrapper = parent
+            .layout_children
+            .borrow()
+            .iter()
+            .flatten()
+            .find_map(|&id| {
+                doc.get_node(id)
+                    .filter(|n| n.is_anonymous() && is_table_root(n) && n.children.contains(&child))
+            });
+        if wrapper.is_some() {
+            return wrapper;
+        }
+        let inside = parent.primary_styles()?.clone_display().inside();
+        if !matches!(
+            inside,
+            DisplayInside::TableRowGroup
+                | DisplayInside::TableHeaderGroup
+                | DisplayInside::TableFooterGroup
+                | DisplayInside::Contents
+        ) {
+            return None;
+        }
+        child = parent.id;
+        parent = doc.get_node(parent.parent?)?;
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    static TABLE_PART_RECTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// How many row and row-group boxes were worked out since the last call: a test's proof that
+/// a walk with no use for them asked for none.
+#[cfg(test)]
+pub(crate) fn take_table_part_rects() -> usize {
+    TABLE_PART_RECTS.with(|count| count.replace(0))
+}
+
+/// Blitz lays a table out as a grid of its cells, so rows and row groups get no box of their
+/// own; theirs is the union of `cell_rect` over their cells, when they hold any.
+fn table_part_rect(
+    doc: &BaseDocument,
+    node: &Node,
+    cell_rect: impl Fn(&Node) -> Option<Rect>,
+) -> Option<Rect> {
+    use ::style::values::specified::box_::DisplayInside;
+    let inside = node.primary_styles()?.clone_display().inside();
+    if !matches!(
+        inside,
+        DisplayInside::TableRow
+            | DisplayInside::TableRowGroup
+            | DisplayInside::TableHeaderGroup
+            | DisplayInside::TableFooterGroup
+    ) {
+        return None;
+    }
+    let root = table_root_of(doc, node)?;
+    let SpecialElementData::TableRoot(table) = &root.element_data()?.special_data else {
+        return None;
+    };
+    #[cfg(test)]
+    TABLE_PART_RECTS.with(|count| count.set(count.get() + 1));
+    // A cell spanning rows runs past the bottom of its first row, and of its row group when the
+    // span crosses one. Blitz reads rowspan only on table-cell boxes.
+    let spans_rows = |cell: &Node| {
+        cell.attr(local_name!("rowspan"))
+            .and_then(|v| v.parse::<u16>().ok())
+            .is_some_and(|v| v > 1)
+            && cell
+                .primary_styles()
+                .is_some_and(|s| s.clone_display().inside() == DisplayInside::TableCell)
+    };
+    let in_part = |row: usize| {
+        table
+            .rows
+            .get(row)
+            .is_some_and(|row| row.node_id == node.id || row.group == Some(node.id))
+    };
+    let mut all: Option<[f32; 4]> = None;
+    let mut spanned = false;
+    for cell in &table.cells {
+        if !in_part(usize::from(cell.row)) {
+            continue;
+        }
+        let Some(cell_node) = doc.get_node(cell.node_id) else {
+            continue;
+        };
+        let Some(edges) = cell_rect(cell_node).map(|r| rect_edges(&r)) else {
+            continue;
+        };
+        all = Some(all.map_or(edges, |a| union_edges(a, edges)));
+        spanned |= spans_rows(cell_node);
+    }
+    let [left, top, right, mut bottom] = all?;
+    // The part ends where the next row with cells of its own starts, less the spacing between
+    // them: a spanning cell would otherwise carry it over that row.
+    let next_row = (0..table.rows.len())
+        .rev()
+        .find(|row| spanned && in_part(*row))
+        .and_then(|last| {
+            let rows = table.cells.iter().map(|cell| usize::from(cell.row));
+            rows.filter(|row| *row > last).min()
+        });
+    let next_top = next_row.and_then(|next| {
+        table
+            .cells
+            .iter()
+            .filter(|cell| usize::from(cell.row) == next)
+            .filter_map(|cell| cell_rect(doc.get_node(cell.node_id)?))
+            .map(|rect| rect_edges(&rect)[1])
+            .reduce(f32::min)
+    });
+    if let Some(next_top) = next_top {
+        let spacing = table.style.gap.height.resolve_or_zero(None, |_, _| 0.0);
+        bottom = bottom.min(next_top - spacing).max(top);
+    }
+    Some(Rect::resolved(left, top, right - left, bottom - top))
+}
+
+fn layout_box_rect(doc: &BaseDocument, node: &Node) -> Rect {
+    let pos = doc_position(doc, node);
+    let size = node.final_layout().size;
+    Rect::resolved(
+        pos.x + node.scroll_offset().x as f32,
+        pos.y + node.scroll_offset().y as f32,
+        size.width,
+        size.height,
+    )
+}
+
 pub(crate) fn bounding_rect_for_node(doc: &HtmlDocument, node: &Node) -> Rect {
     let mut ancestor = Some(node);
     while let Some(n) = ancestor {
@@ -423,6 +592,11 @@ pub(crate) fn bounding_rect_for_node(doc: &HtmlDocument, node: &Node) -> Rect {
             NodeData::Text(_) => text_node_rect(doc.as_ref(), node).unwrap_or(Rect::ZERO),
             _ => Rect::ZERO,
         };
+    }
+    let cell_rect =
+        |cell: &Node| Some(bounding_rect_for_node(doc, cell)).filter(|r| r.has_box == Some(true));
+    if let Some(rect) = table_part_rect(doc, node, cell_rect) {
+        return rect;
     }
     // `absolute_position` subtracts this node's scroll as well as its ancestors';
     // add it back because scrolling content does not move the border box.
@@ -908,6 +1082,10 @@ impl DomHandle {
             if !generates_box(&doc, node) {
                 return Some(vec![0.0; 4]);
             }
+            let cell_rect = |cell: &Node| Some(layout_box_rect(&doc, cell));
+            if let Some(Rect { width, height, .. }) = table_part_rect(&doc, node, cell_rect) {
+                return Some(vec![width, height, width, height]);
+            }
             let layout = node.final_layout();
             let content_width = (layout.size.width
                 - layout.border.left
@@ -1144,6 +1322,10 @@ impl DomHandle {
 
             let viewport_pos = |id: NodeId| -> Option<(f32, f32)> {
                 let n = doc.get_node(id)?;
+                let cell_rect = |cell: &Node| Some(layout_box_rect(&doc, cell));
+                if let Some(r) = table_part_rect(&doc, n, cell_rect) {
+                    return Some((r.x, r.y));
+                }
                 let size = n.final_layout().size;
                 if (size.width <= 0.0 || size.height <= 0.0) && id != root_element_id {
                     if let Some(r) = inline_aware_rect_for_node(&doc, id) {
