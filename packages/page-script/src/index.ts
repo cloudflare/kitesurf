@@ -219,25 +219,13 @@ const sessionClosingSignal = new NativePromise<void>((resolve) => {
 const frameBitmapDeliveryGate = createFrameBitmapDeliveryGate(applyFrameBitmap);
 
 function applyFrameBitmap(params: FrameBitmapParams): FrameBitmapReply {
-  const bitmap: {
-    ownerBackendNodeId: unknown;
-    width: unknown;
-    height: unknown;
-    rgba: unknown;
-  } = isObjectRecord(params)
-    ? {
-        ownerBackendNodeId: params.ownerBackendNodeId,
-        width: params.width,
-        height: params.height,
-        rgba: params.rgba,
-      }
-    : {
-        ownerBackendNodeId: undefined,
-        width: undefined,
-        height: undefined,
-        rgba: undefined,
-      };
-  const { ownerBackendNodeId, width, height, rgba } = bitmap;
+  if (!isObjectRecord(params)) return { ok: false, rc: -1, error: "bad args" };
+
+  // Wire params arrive untyped, so every field is re-checked before the wasm call.
+  const ownerBackendNodeId: unknown = params.ownerBackendNodeId;
+  const width: unknown = params.width;
+  const height: unknown = params.height;
+  const rgba: unknown = params.rgba;
   if (
     typeof ownerBackendNodeId !== "number" ||
     typeof width !== "number" ||
@@ -246,9 +234,11 @@ function applyFrameBitmap(params: FrameBitmapParams): FrameBitmapReply {
   ) {
     return { ok: false, rc: -1, error: "bad args" };
   }
+
   if (!state.dom || typeof nativeSetIframeImage !== "function") {
     return { ok: false, rc: -1, error: "dom missing" };
   }
+
   try {
     const resultCode = nativeApply(nativeSetIframeImage, state.dom, [
       ownerBackendNodeId,
@@ -363,7 +353,7 @@ import {
   pumpDuePageTasks,
   pumpPageTask,
   pausePageTaskPump,
-  deferPageTaskWhilePaused,
+  runPageTaskOrQueue,
   timerWheelStats,
   timersScheduledCount,
 } from "./page-tasks.ts";
@@ -4313,7 +4303,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         origin: String(origin ?? ""),
         source,
       });
-      if (!deferPageTaskWhilePaused(() => win.dispatchEvent(event))) win.dispatchEvent(event);
+      runPageTaskOrQueue(() => win.dispatchEvent(event));
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -4321,7 +4311,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   }
 
   async deliverWorkerEvent(params: WorkerEventParams): Promise<OkReply> {
-    if (!deferPageTaskWhilePaused(() => deliverWorkerEvent(params))) deliverWorkerEvent(params);
+    runPageTaskOrQueue(() => deliverWorkerEvent(params));
     return { ok: true };
   }
 
@@ -6151,27 +6141,20 @@ async function queryDomRecordPdfScenes(
 ): Promise<QueryDomResult<"recordPdfScenes">> {
   const DEFAULT_PDF_PAPER_WIDTH_CSS_PX = 816;
   const DEFAULT_PDF_PAPER_HEIGHT_CSS_PX = 1056;
-  const pdfW =
-    queryArgs && typeof queryArgs.width === "number" && queryArgs.width > 0
-      ? queryArgs.width | 0
-      : DEFAULT_PDF_PAPER_WIDTH_CSS_PX;
-  const pdfH =
-    queryArgs && typeof queryArgs.height === "number" && queryArgs.height > 0
-      ? queryArgs.height | 0
-      : DEFAULT_PDF_PAPER_HEIGHT_CSS_PX;
-  const readPx = (v: unknown) =>
-    typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
-  let releaseTasks: (() => void) | null = null;
-  let releaseFrameBitmaps: (() => void) | null = null;
+  const paperWidth = readPdfPaperSize(queryArgs.width, DEFAULT_PDF_PAPER_WIDTH_CSS_PX);
+  const paperHeight = readPdfPaperSize(queryArgs.height, DEFAULT_PDF_PAPER_HEIGHT_CSS_PX);
+
+  let releaseGates: (() => void) | null = null;
   let source: ReturnType<DomHandle["startPdfSceneStream"]> | null = null;
+  let handedToStream = false;
+
   try {
-    releaseTasks = await pausePageTaskPump();
-    releaseFrameBitmaps = frameBitmapDeliveryGate.hold();
+    const gates = await acquirePdfStreamGates();
+    releaseGates = gates;
+
     const { paint, fresh: isFreshPaint } = takePaintPrep();
     if (!paint) {
-      return {
-        error: "ensurePaintDom returned null",
-      } satisfies QueryDomResult<"recordPdfScenes">;
+      return { error: "ensurePaintDom returned null" } satisfies QueryDomResult<"recordPdfScenes">;
     }
     prepareCachedPaint(paint, isFreshPaint);
     if (typeof paint.startPdfSceneStream !== "function") {
@@ -6179,72 +6162,98 @@ async function queryDomRecordPdfScenes(
         error: "startPdfSceneStream not exported",
       } satisfies QueryDomResult<"recordPdfScenes">;
     }
+
     const sceneSource = paint.startPdfSceneStream(
-      pdfW,
-      pdfH,
-      readPx(queryArgs.marginTop),
-      readPx(queryArgs.marginRight),
-      readPx(queryArgs.marginBottom),
-      readPx(queryArgs.marginLeft),
+      paperWidth,
+      paperHeight,
+      readPdfMargin(queryArgs.marginTop),
+      readPdfMargin(queryArgs.marginRight),
+      readPdfMargin(queryArgs.marginBottom),
+      readPdfMargin(queryArgs.marginLeft),
     );
     source = sceneSource;
     if (!sceneSource || sceneSource.pageCount === 0) {
-      return {
-        error: "empty pdf scene stream",
-      } satisfies QueryDomResult<"recordPdfScenes">;
+      return { error: "empty pdf scene stream" } satisfies QueryDomResult<"recordPdfScenes">;
     }
-    const pageCount = sceneSource.pageCount;
-    // setInputText calls bumpMutationSeq(), so this covers form-control editor text too.
-    const paintRevision = cascadeSeq();
-    const viewportW = state.paintViewportW;
-    const viewportH = state.paintViewportH;
-    const media = state.currentMediaType;
-    const scrollX = state.scrollX;
-    const scrollY = state.scrollY;
-    const releasePageTaskPump = releaseTasks;
-    const releaseOopifBitmaps = releaseFrameBitmaps;
-    if (!releasePageTaskPump || !releaseOopifBitmaps) {
-      throw new Error("PDF task gate was not acquired");
-    }
+
+    const paintSnapshot = capturePdfPaintSnapshot(paint);
     const pages = pdfScenePages(
       sceneSource,
       () => sceneSource.nextPage(paint),
-      () => {
-        if (
-          state.dom !== paint ||
-          state.paintCacheHandle !== paint ||
-          cascadeSeq() !== paintRevision ||
-          state.paintViewportW !== viewportW ||
-          state.paintViewportH !== viewportH ||
-          state.currentMediaType !== media ||
-          state.scrollX !== scrollX ||
-          state.scrollY !== scrollY
-        ) {
-          throw new Error("PDF document changed during scene streaming");
-        }
-      },
+      () => assertPdfPaintUnchanged(paintSnapshot),
       invalidatePaintDom,
-      () => {
-        releaseOopifBitmaps();
-        releasePageTaskPump();
-      },
+      gates,
     );
-    source = null;
-    releaseFrameBitmaps = null;
-    releaseTasks = null;
-    return { pages, pageCount } satisfies QueryDomResult<"recordPdfScenes">;
+    handedToStream = true;
+    return { pages, pageCount: sceneSource.pageCount } satisfies QueryDomResult<"recordPdfScenes">;
   } catch (e) {
     invalidatePaintDom();
-    return {
-      error: errorMessage(e),
-    } satisfies QueryDomResult<"recordPdfScenes">;
+    return { error: errorMessage(e) } satisfies QueryDomResult<"recordPdfScenes">;
   } finally {
-    try {
-      source?.free();
-    } catch {}
-    releaseFrameBitmaps?.();
-    releaseTasks?.();
+    // The stream owns the source and the gates once it starts; otherwise they end here.
+    if (!handedToStream) {
+      try {
+        source?.free();
+      } catch {}
+      releaseGates?.();
+    }
   }
+}
+
+async function acquirePdfStreamGates(): Promise<() => void> {
+  const releasePageTasks = await pausePageTaskPump();
+  const releaseFrameBitmaps = frameBitmapDeliveryGate.hold();
+  return () => {
+    releaseFrameBitmaps();
+    releasePageTasks();
+  };
+}
+
+type PdfPaintSnapshot = {
+  paint: DomHandle;
+  revision: number;
+  viewportW: number;
+  viewportH: number;
+  media: typeof state.currentMediaType;
+  scrollX: number;
+  scrollY: number;
+};
+
+function capturePdfPaintSnapshot(paint: DomHandle): PdfPaintSnapshot {
+  return {
+    paint,
+    // setInputText calls bumpMutationSeq(), so this covers form-control editor text too.
+    revision: cascadeSeq(),
+    viewportW: state.paintViewportW,
+    viewportH: state.paintViewportH,
+    media: state.currentMediaType,
+    scrollX: state.scrollX,
+    scrollY: state.scrollY,
+  };
+}
+
+// The page stream renders page by page across turns, so the document must not move underneath it.
+function assertPdfPaintUnchanged(snapshot: PdfPaintSnapshot): void {
+  if (
+    state.dom !== snapshot.paint ||
+    state.paintCacheHandle !== snapshot.paint ||
+    cascadeSeq() !== snapshot.revision ||
+    state.paintViewportW !== snapshot.viewportW ||
+    state.paintViewportH !== snapshot.viewportH ||
+    state.currentMediaType !== snapshot.media ||
+    state.scrollX !== snapshot.scrollX ||
+    state.scrollY !== snapshot.scrollY
+  ) {
+    throw new Error("PDF document changed during scene streaming");
+  }
+}
+
+function readPdfPaperSize(value: unknown, fallbackPx: number): number {
+  return typeof value === "number" && value > 0 ? value | 0 : fallbackPx;
+}
+
+function readPdfMargin(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
 }
 
 type QueryDomPaintGeometryMethod = Extract<

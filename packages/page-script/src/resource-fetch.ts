@@ -911,28 +911,31 @@ export async function fetchResource(
     } | null;
     const deliverResource = dom?.deliverResource;
     if (dom && deliverResource) {
+      const deliverBytes = (): boolean => {
+        const opaque = result.opaqueImage;
+        if (opaque && dom.deliverResourceMeta) {
+          return dom.deliverResourceMeta(id, opaque.key, opaque.w, opaque.h);
+        }
+        if (kind === "Font" && result.fontKey && dom.deliverFontResource) {
+          return nativeApply(nativeDeliverFontResource, dom, [
+            id,
+            bytes,
+            result.fontKey,
+          ]) as boolean;
+        }
+        return nativeApply(nativeDeliverResource, dom, [id, bytes]) as boolean;
+      };
       const pending = runPageTaskWhenUnpaused(() => {
         const imageNodes = snapshotImageNodes();
         try {
           noteSyncOp(`deliver:${kind}`);
           const deliveryStartedAt = Date.now();
-          const opaque = result.opaqueImage;
-          const ok =
-            opaque && dom.deliverResourceMeta
-              ? dom.deliverResourceMeta(id, opaque.key, opaque.w, opaque.h)
-              : kind === "Font" && result.fontKey && dom.deliverFontResource
-                ? (nativeApply(nativeDeliverFontResource, dom, [
-                    id,
-                    bytes,
-                    result.fontKey,
-                  ]) as boolean)
-                : (nativeApply(nativeDeliverResource, dom, [id, bytes]) as boolean);
+          const ok = deliverBytes();
           recordDeliverMs(Date.now() - deliveryStartedAt);
           if (kind === "Font") warnFontDelivery(id, ok, url);
-          if (ok) {
-            notifyImages(imageNodes, true);
-            markResourceDelivered(getInternalState(), kind, url);
-          }
+          if (!ok) return;
+          notifyImages(imageNodes, true);
+          markResourceDelivered(getInternalState(), kind, url);
         } catch {
           reportError();
         }
