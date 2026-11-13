@@ -21,7 +21,17 @@ import { installIsolateLimitSurface, installUpstreamEventHandler } from "./page.
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
 import { publishStub } from "./page-script-generation.ts";
 import { ensureTargetDom } from "./dom-release.ts";
-import { frontendNodes, sessionKeyOf, type DomFrontendNodes } from "./dom-frontend.ts";
+import {
+  childNodesSubtree,
+  documentSubtree,
+  frontendNodes,
+  GET_DOCUMENT_DEPTH,
+  GET_FLATTENED_DOCUMENT_DEPTH,
+  sessionKeyOf,
+  subtreeBudgetError,
+  type DomFrontendNodes,
+  type SubtreeParams,
+} from "./dom-frontend.ts";
 import {
   outerHtmlResponse,
   registerEnsurePageScript,
@@ -67,65 +77,31 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
 
     case "DOM.getDocument": {
       registerDomObserver(target, req.sessionId);
-      if (ps) {
-        try {
-          const r = await session.call.getDocument({});
-          assertDomReplyGraph(r);
-          annotateIframeFrameIds(r.root, target);
-          return r;
-        } catch (err) {
-          const msg = (err as Error)?.message ?? String(err);
-          if (!/no document loaded/i.test(msg)) throw err;
-          // Engine-parsed node ids would not resolve in PageScript. DOM.documentUpdated follows
-          // once a document commits, and the client asks again.
-          return { root: syntheticBlankDocument() };
-        }
-      }
-      {
-        const dom = ensureTargetDom(target);
-        if (!dom) return { root: syntheticBlankDocument() };
-        const root = dom.getDocument(-1, false);
-        assertDomReplyGraph(root);
-        stripAttributeNamespaceSidecars(root);
-        annotateIframeFrameIds(root, target);
-        return { root };
-      }
+      const subtree = documentSubtree(req.params, GET_DOCUMENT_DEPTH);
+      const root = await documentRoot(session, target, ps, subtree, req.method);
+      rebindDocument(target, req.sessionId, root);
+      return { root };
     }
 
     case "DOM.getFlattenedDocument": {
       registerDomObserver(target, req.sessionId);
-      if (ps) {
-        try {
-          const r = await session.call.getDocument({});
-          assertDomReplyGraph(r);
-          annotateIframeFrameIds(r.root, target);
-          return { nodes: r.root ? [r.root] : [] };
-        } catch (err) {
-          const msg = (err as Error)?.message ?? String(err);
-          if (!/no document loaded/i.test(msg)) throw err;
-          // Engine-parsed node ids would not resolve in PageScript. DOM.documentUpdated follows
-          // once a document commits, and the client asks again.
-          return { nodes: [syntheticBlankDocument()] };
-        }
-      }
-      {
-        const dom = ensureTargetDom(target);
-        if (!dom) return { nodes: [syntheticBlankDocument()] };
-        const root = dom.getDocument(-1, false);
-        assertDomReplyGraph(root);
-        stripAttributeNamespaceSidecars(root);
-        annotateIframeFrameIds(root, target);
-        return { nodes: [root] };
-      }
+      const subtree = documentSubtree(req.params, GET_FLATTENED_DOCUMENT_DEPTH);
+      const root = await documentRoot(session, target, ps, subtree, req.method);
+      rebindDocument(target, req.sessionId, root);
+      return { nodes: [root] };
     }
 
     case "DOM.requestChildNodes": {
       registerDomObserver(target, req.sessionId);
+      const subtree = childNodesSubtree(req.params);
       const id = numericNodeId(req.params);
       if (id == null || id <= 0) return {};
       let node: unknown = null;
       if (ps) {
-        const r = await session.tryCall.nodeSubtree({ nodeId: id });
+        // The push is advisory, so a retired generation leaves the client to ask again, but a
+        // read the page refused is the client's answer.
+        const r = await session.tryCall.nodeSubtree({ nodeId: id, ...subtree });
+        if (r?.budgetError) throw subtreeBudgetError(req.method, r.budgetError);
         node = r?.node ?? null;
       }
       if (!node) return {};
@@ -140,7 +116,9 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
     case "DOM.querySelector": {
       const sel = req.params!.selector;
       if (ps) {
-        return await session.call.querySelector({ selector: sel });
+        const r = await session.call.querySelector({ selector: sel });
+        if (r.nodeId) await pushNodePaths(ctx, target, session, req.sessionId, [r.nodeId]);
+        return r;
       }
       const dom = requireDom(target);
       try {
@@ -154,7 +132,9 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
     case "DOM.querySelectorAll": {
       const sel = req.params!.selector;
       if (ps) {
-        return await session.call.querySelectorAll({ selector: sel });
+        const r = await session.call.querySelectorAll({ selector: sel });
+        if (r.nodeIds) await pushNodePaths(ctx, target, session, req.sessionId, r.nodeIds);
+        return r;
       }
       const dom = requireDom(target);
       try {
@@ -193,6 +173,7 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
         const objectId = req.params?.objectId;
         const args = id != null ? { nodeId: id } : typeof objectId === "string" ? { objectId } : {};
         const reply = await session.call.describeNode(args);
+        if (reply.budgetError) throw subtreeBudgetError(req.method, reply.budgetError);
         assertDomReplyGraph(reply);
         return reply;
       }
@@ -202,6 +183,8 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
           node: { nodeId: 0, nodeType: 1, nodeName: "", localName: "", nodeValue: "" },
         };
       }
+      const budgetError = dom.nodeDescriptionBudgetError(id);
+      if (budgetError) throw subtreeBudgetError(req.method, budgetError);
       let node: unknown;
       try {
         node = dom.nodeInfo(id);
@@ -234,10 +217,9 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
 
     case "DOM.requestNode": {
       const objectId = req.params!.objectId;
-      if (objectId.startsWith("node:")) {
-        return { nodeId: Number(objectId.slice(5)) || 0 };
-      }
-      return { nodeId: 0 };
+      const nodeId = objectId.startsWith("node:") ? Number(objectId.slice(5)) || 0 : 0;
+      if (ps && nodeId > 0) await pushNodePaths(ctx, target, session, req.sessionId, [nodeId]);
+      return { nodeId };
     }
 
     case "DOM.getAttributes": {
@@ -274,6 +256,7 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       const y = req.params!.y;
       const id = await pageScriptElementFromPoint(session, x, y);
       const nodeId = id >= 0 ? id : 0;
+      if (ps && nodeId > 0) await pushNodePaths(ctx, target, session, req.sessionId, [nodeId]);
       return { backendNodeId: nodeId, frameId: target.frameId, nodeId };
     }
 
@@ -309,6 +292,7 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
     case "DOM.pushNodesByBackendIdsToFrontend": {
       const ids = req.params!.backendNodeIds ?? [];
       const valid = ids.filter((n): n is number => typeof n === "number" && n >= 0);
+      if (ps) await pushNodePaths(ctx, target, session, req.sessionId, valid);
       return { nodeIds: valid };
     }
 
@@ -323,6 +307,52 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
     default:
       return {};
   }
+}
+
+// The client replaces its tree with the new root, so earlier bindings no longer hold.
+function rebindDocument(
+  target: TargetState,
+  sessionId: string | undefined,
+  root: Protocol.DOM.Node,
+): void {
+  const nodes = frontendNodes(target, sessionKeyOf(sessionId));
+  nodes.reset();
+  nodes.bindTree(root);
+}
+
+async function documentRoot(
+  session: PageSession,
+  target: TargetState,
+  ps: PageScriptStub | null,
+  subtree: SubtreeParams,
+  method: string,
+): Promise<Protocol.DOM.Node> {
+  if (ps) {
+    try {
+      const r = await session.call.getDocument(subtree);
+      assertDomReplyGraph(r);
+      if (r.budgetError) throw subtreeBudgetError(method, r.budgetError);
+      if (!r.root) return syntheticBlankDocument();
+      annotateIframeFrameIds(r.root, target);
+      return r.root;
+    } catch (err) {
+      const msg = (err as Error)?.message ?? String(err);
+      if (!/no document loaded/i.test(msg)) throw err;
+      // Engine-parsed node ids would not resolve in PageScript. DOM.documentUpdated follows
+      // once a document commits, and the client asks again.
+      return syntheticBlankDocument();
+    }
+  }
+  const dom = ensureTargetDom(target);
+  if (!dom) return syntheticBlankDocument();
+  const budgetError = dom.documentBudgetError(subtree.depth, subtree.pierce);
+  if (budgetError) throw subtreeBudgetError(method, budgetError);
+  const root = dom.getDocument(subtree.depth, subtree.pierce);
+  if (!root) return syntheticBlankDocument();
+  assertDomReplyGraph(root);
+  stripAttributeNamespaceSidecars(root);
+  annotateIframeFrameIds(root, target);
+  return root;
 }
 
 // PageScript owns `ps:` handles, so an objectId that is not `node:N` goes there unresolved.
@@ -534,7 +564,7 @@ function stripAttributeNamespaceSidecars(node: unknown): void {
   }
 }
 
-function syntheticBlankDocument(): Record<string, unknown> {
+function syntheticBlankDocument(): Protocol.DOM.Node {
   return {
     nodeId: 0,
     backendNodeId: 0,
