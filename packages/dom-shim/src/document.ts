@@ -74,7 +74,7 @@ import { createEditingEngine, type EditingEngine } from "./editing/implementatio
 import type { ParsedDocument } from "./parser.js";
 import type { Element } from "./element/element.js";
 import type * as Idl from "./idl/types.generated.js";
-import { cssEscape } from "./util/strings.js";
+import { cssEscape, cssString } from "./util/strings.js";
 import { isHtmlTag } from "./element/html-tag.js";
 import {
   validateAttrName,
@@ -887,7 +887,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     const t = String(name);
     if (t === "") return [];
     try {
-      return Array.from(dom.querySelectorAll('[name="' + t.replace(/"/g, '\\"') + '"]'))
+      return Array.from(dom.querySelectorAll(`[name=${cssString(t)}]`))
         .map((id) => elementFor(id))
         .filter((n): n is Element => n !== null);
     } catch {
@@ -2489,7 +2489,7 @@ class DetachedDocument implements Idl.Document {
     const t = String(name);
     if (this._host && typeof this._host.querySelectorAll === "function") {
       try {
-        return this._host.querySelectorAll('[name="' + t.replace(/"/g, '\\"') + '"]');
+        return this._host.querySelectorAll(`[name=${cssString(t)}]`);
       } catch {
         /* fall through */
       }

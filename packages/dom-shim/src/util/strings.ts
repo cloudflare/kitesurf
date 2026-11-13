@@ -83,6 +83,20 @@ export function cssEscape(s: unknown): string {
   return String(s).replace(/[^a-zA-Z0-9_-]/g, (ch) => "\\" + ch);
 }
 
+// CSSOM "serialize a string", quotes included. Escaping per code point keeps astral characters
+// whole, and hex escapes keep controls such as a newline from reading as a line continuation.
+export function cssString(s: unknown): string {
+  let out = '"';
+  for (const ch of String(s)) {
+    const cp = ch.codePointAt(0) ?? 0;
+    if (cp === 0) out += "\uFFFD";
+    else if (cp < 0x20 || cp === 0x7f) out += "\\" + cp.toString(16) + " ";
+    else if (ch === '"' || ch === "\\") out += "\\" + ch;
+    else out += ch;
+  }
+  return out + '"';
+}
+
 export function isReservedGlobalName(name: string): boolean {
   return Object.prototype.hasOwnProperty.call(globalThis, name);
 }
