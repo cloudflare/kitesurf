@@ -5,7 +5,7 @@
 import { Hono } from "hono";
 import iframeReferrerHostHtml from "../../assets/iframe-referrer-host.html";
 import iframeReferrerNestedHtml from "../../assets/iframe-referrer-nested.html";
-import { escapeHtmlText, intQuery, jsonForScript } from "../util.ts";
+import { escapeHtmlAttr, escapeHtmlText, intQuery, jsonForScript } from "../util.ts";
 
 export const frames = new Hono();
 
@@ -66,7 +66,7 @@ frames.all("/oopif-csp-frame.html", (c) => {
     c.req.query("inline") === "1" ? `<script>parent.postMessage("inline", "*")</script>` : "";
   return c.html(
     `<!doctype html><title>oopif csp</title>` +
-      (src ? `<script src="${escapeHtmlText(src)}"></script>` : "") +
+      (src ? `<script src="${escapeHtmlAttr(src)}"></script>` : "") +
       inline +
       // The last parser script proves every earlier script finished, allowed or refused.
       `<script nonce="${OOPIF_CSP_NONCE}">parent.postMessage("parsed", "*")</script>`,
@@ -79,11 +79,11 @@ frames.all("/oopif-csp-frame.html", (c) => {
 frames.all("/sandbox-host.html", (c) => {
   const sandbox = c.req.query("sandbox");
   const src = c.req.query("src") ?? "";
-  const attr = sandbox === undefined ? "" : ` sandbox="${escapeHtmlText(sandbox)}"`;
+  const attr = sandbox === undefined ? "" : ` sandbox="${escapeHtmlAttr(sandbox)}"`;
   return c.html(`<!doctype html>
 <html><head><meta charset="utf-8"><title>sandbox host</title></head>
 <body>
-<iframe id="f" src="${escapeHtmlText(src)}"${attr}
+<iframe id="f" src="${escapeHtmlAttr(src)}"${attr}
   style="border:0;display:block;width:120px;height:120px"></iframe>
 <script>
 window.__msgs = [];
@@ -267,7 +267,7 @@ frames.all("/frame-policy-host.html", (c) => {
   const dynamic = c.req.query("dynamic") === "1";
   const frameMarkup = dynamic
     ? ""
-    : `<iframe id="f" onload="window.__frameLoaded = true" src="${escapeHtmlText(child)}" style="border:0;width:200px;height:120px"></iframe>`;
+    : `<iframe id="f" onload="window.__frameLoaded = true" src="${escapeHtmlAttr(child)}" style="border:0;width:200px;height:120px"></iframe>`;
   const dynamicScript = dynamic
     ? `<script>
       const f = document.createElement("iframe");
