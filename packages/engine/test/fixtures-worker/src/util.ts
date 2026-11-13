@@ -52,3 +52,7 @@ export function dataModule(value: ArrayBuffer | WebAssembly.Module): ArrayBuffer
 export function escapeHtmlText(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
+
+export function escapeHtmlAttr(s: string): string {
+  return escapeHtmlText(s).replace(/"/g, "&quot;");
+}
