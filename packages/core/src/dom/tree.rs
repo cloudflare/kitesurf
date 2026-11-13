@@ -17,8 +17,40 @@ use wasm_bindgen::prelude::*;
 use crate::{DomHandle, LayoutMode, NodeHandleMap};
 use crate::dom::cdp::{
     check_node_budget, check_subtree_budget, describe_node, describe_node_identity, subtree_size,
-    Subtree, SUBTREE_BUDGET_BYTES,
+    Subtree, SubtreeBudgetError, SUBTREE_BUDGET_BYTES,
 };
+
+/// A budget error as JS, or null when the reply fits.
+fn budget_error_json(error: Option<SubtreeBudgetError>) -> Result<JsValue, JsError> {
+    let Some(error) = error else {
+        return Ok(JsValue::NULL);
+    };
+    serde_wasm_bindgen::to_value(&error).map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// The reply-budget error for `root`'s subtree, when the document and handle map can be borrowed.
+fn subtree_budget_error(
+    dom: &DomHandle,
+    root: NodeId,
+    subtree: Subtree,
+) -> Option<SubtreeBudgetError> {
+    let doc = dom.doc.try_borrow().ok()?;
+    let handles = dom.node_handles.borrow();
+    let error = check_subtree_budget(&doc, root, &dom.base_url, subtree, &handles);
+    drop(handles);
+    drop(doc);
+    error
+}
+
+/// The reply-budget error for `root`'s own description, without its children.
+fn node_budget_error(dom: &DomHandle, root: NodeId) -> Option<SubtreeBudgetError> {
+    let doc = dom.doc.try_borrow().ok()?;
+    let handles = dom.node_handles.borrow();
+    let error = check_node_budget(&doc, root, &dom.base_url, &handles);
+    drop(handles);
+    drop(doc);
+    error
+}
 
 fn find_html_title(doc: &BaseDocument) -> Option<&Node> {
     let mut stack = vec![doc.root_node().id()];
@@ -874,11 +906,11 @@ impl DomHandle {
             &self.base_url,
             Some(subtree),
             &mut node_handles,
-        )
-        .ok_or_else(|| JsError::new("document node missing"));
+        );
         drop(node_handles);
         drop(doc);
-        serde_wasm_bindgen::to_value(&cdp?).map_err(|e| JsError::new(&e.to_string()))
+        let node = cdp.ok_or_else(|| JsError::new("document node missing"))?;
+        serde_wasm_bindgen::to_value(&node).map_err(|e| JsError::new(&e.to_string()))
     }
 
     /// `node_id` with its children to `depth` (negative for all), as CDP describes a node.
@@ -923,22 +955,9 @@ impl DomHandle {
             Ok(doc) => doc,
             Err(_) => return Ok(JsValue::NULL),
         };
-        let handles = self.node_handles.borrow();
-        let error = check_subtree_budget(
-            &doc,
-            doc.root_node().id(),
-            &self.base_url,
-            Subtree { depth, pierce },
-            &handles,
-        );
-        drop(handles);
+        let root = doc.root_node().id();
         drop(doc);
-        match error {
-            Some(error) => {
-                serde_wasm_bindgen::to_value(&error).map_err(|e| JsError::new(&e.to_string()))
-            }
-            None => Ok(JsValue::NULL),
-        }
+        budget_error_json(subtree_budget_error(self, root, Subtree { depth, pierce }))
     }
 
     #[wasm_bindgen(
@@ -951,29 +970,10 @@ impl DomHandle {
         depth: i32,
         pierce: bool,
     ) -> Result<JsValue, JsError> {
-        let Some(id) = self.resolve_node_id(node_id) else {
+        let Some(root) = self.resolve_node_id(node_id) else {
             return Ok(JsValue::NULL);
         };
-        let doc = match self.doc.try_borrow() {
-            Ok(doc) => doc,
-            Err(_) => return Ok(JsValue::NULL),
-        };
-        let handles = self.node_handles.borrow();
-        let error = check_subtree_budget(
-            &doc,
-            id,
-            &self.base_url,
-            Subtree { depth, pierce },
-            &handles,
-        );
-        drop(handles);
-        drop(doc);
-        match error {
-            Some(error) => {
-                serde_wasm_bindgen::to_value(&error).map_err(|e| JsError::new(&e.to_string()))
-            }
-            None => Ok(JsValue::NULL),
-        }
+        budget_error_json(subtree_budget_error(self, root, Subtree { depth, pierce }))
     }
 
     /// The estimated serialized size past which one CDP reply is no longer safe to send.
@@ -986,17 +986,16 @@ impl DomHandle {
     /// single reply sums these, since the cap applies to the reply and not to each read.
     #[wasm_bindgen(js_name = "nodeSubtreeBytes")]
     pub fn node_subtree_bytes(&self, node_id: u32, depth: i32, pierce: bool) -> f64 {
-        let Some(id) = self.resolve_node_id(node_id) else {
+        let Some(root) = self.resolve_node_id(node_id) else {
             return 0.0;
         };
-        let doc = match self.doc.try_borrow() {
-            Ok(doc) => doc,
-            Err(_) => return 0.0,
+        let Ok(doc) = self.doc.try_borrow() else {
+            return 0.0;
         };
         let handles = self.node_handles.borrow();
         let size = subtree_size(
             &doc,
-            id,
+            root,
             &self.base_url,
             Subtree { depth, pierce },
             &handles,
@@ -1011,23 +1010,10 @@ impl DomHandle {
         unchecked_return_type = "KsSubtreeBudgetError | null"
     )]
     pub fn node_description_budget_error(&self, node_id: u32) -> Result<JsValue, JsError> {
-        let Some(id) = self.resolve_node_id(node_id) else {
+        let Some(root) = self.resolve_node_id(node_id) else {
             return Ok(JsValue::NULL);
         };
-        let doc = match self.doc.try_borrow() {
-            Ok(doc) => doc,
-            Err(_) => return Ok(JsValue::NULL),
-        };
-        let handles = self.node_handles.borrow();
-        let error = check_node_budget(&doc, id, &self.base_url, &handles);
-        drop(handles);
-        drop(doc);
-        match error {
-            Some(error) => {
-                serde_wasm_bindgen::to_value(&error).map_err(|e| JsError::new(&e.to_string()))
-            }
-            None => Ok(JsValue::NULL),
-        }
+        budget_error_json(node_budget_error(self, root))
     }
 
     #[wasm_bindgen(js_name = "querySelector")]
