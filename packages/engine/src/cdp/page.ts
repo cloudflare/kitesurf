@@ -132,6 +132,7 @@ import type { CallerOutboundProps, SandboxOutboundOverride } from "../eval/outbo
 import { getOutboundInflight } from "../eval/outbound.ts";
 import { walkRedirects } from "../eval/redirect-walk.ts";
 import { schemefulSite } from "../public-suffix.ts";
+import { determineReferrer, parseReferrerPolicy } from "@kitesurf/script-gate/referrer-policy";
 import { PageRendererManager, withTimeout } from "../eval/page-renderer.ts";
 import { headersToRecord, type NetworkEventTracker } from "./network-events.ts";
 import { effectiveExtraHeaders } from "./network.ts";
@@ -277,6 +278,19 @@ export function navigationExtraHeaders(
     if (!CREDENTIAL_HEADERS.has(k.toLowerCase())) kept[k] = v;
   }
   return kept;
+}
+
+// A navigation a page starts names that page, cut down by the link's policy or the page's, and
+// one the client starts names nobody. Left unset, the outbound filled in the target's own origin.
+export function navigationReferrer(
+  leaving: { url: string; referrerPolicy: string },
+  initiatorOrigin: string | null,
+  url: string,
+): string {
+  if (initiatorOrigin === null) return "";
+  const source =
+    initiatorOriginOf(leaving.url) === initiatorOrigin ? leaving.url : `${initiatorOrigin}/`;
+  return determineReferrer(source, url, leaving.referrerPolicy);
 }
 
 function getRendererManager(ctx: DispatchCtx, target?: TargetState): PageRendererManager {
@@ -632,7 +646,12 @@ export async function handlePage(
       const reloadReq: CdpRequest = {
         ...req,
         method: "Page.navigate",
-        params: { url: reloadUrl, transitionType: "reload", _kitesurfInternal: true },
+        params: {
+          url: reloadUrl,
+          transitionType: "reload",
+          _kitesurfInternal: true,
+          ...(target.docReferrer ? { referrer: target.docReferrer } : {}),
+        },
       };
       return await handlePage(ctx, reloadReq);
     }
@@ -640,6 +659,12 @@ export async function handlePage(
     case "Page.navigate": {
       let url = req.params?.url ?? "about:blank";
       const ksParams = req.params;
+      const leaving = {
+        url: target.url,
+        referrerPolicy:
+          parseReferrerPolicy(ksParams?._kitesurfReferrerPolicy) ||
+          parseReferrerPolicy(target.docReferrerPolicy),
+      };
       const ksPostData =
         typeof ksParams?._kitesurfPostData === "string" ? ksParams._kitesurfPostData : null;
       const ksPostContentType =
@@ -787,13 +812,17 @@ export async function handlePage(
         const navReferrer: unknown = req.params?.referrer;
         if (typeof navReferrer === "string" && navReferrer) {
           reqHeaders.referer = navReferrer;
+        } else {
+          const referer = navigationReferrer(leaving, ksInitiatorOrigin, url);
+          if (referer) reqHeaders.referer = referer;
         }
 
         for (const [k, v] of Object.entries(navExtraHeaders)) {
           reqHeaders[k] = v;
         }
-        target.docReferrer =
+        const sentReferer =
           Object.entries(reqHeaders).find(([k]) => k.toLowerCase() === "referer")?.[1] ?? null;
+        target.docReferrer = sentReferer;
 
         if (ksPostData !== null) {
           reqHeaders["content-type"] = ksPostContentType;
@@ -870,6 +899,7 @@ export async function handlePage(
               "x-kitesurf-allow-cross-origin": "1",
               "x-kitesurf-page-origin": docPageOrigin,
               "x-kitesurf-network-id": loaderId,
+              ...(sentReferer === null ? { "x-kitesurf-referrer": "no-referrer" } : {}),
             },
             taintOriginFrom: ksPostData !== null ? (ksInitiatorOrigin ?? undefined) : undefined,
             cookieHeaderFor: (hopUrl, method) =>

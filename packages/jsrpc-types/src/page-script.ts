@@ -213,6 +213,9 @@ export interface KeyDispatchReply extends JsWindowDrain {
 
 export interface MouseDispatchReply extends KeyDispatchReply {
   hashNavigateTo?: string | null;
+  // What the clicked link asks of its navigation's Referer: "no-referrer" for rel=noreferrer,
+  // else its referrerpolicy attribute. Absent when the link asks for nothing.
+  navigateReferrerPolicy?: string;
 }
 
 export interface PageScriptSession {
