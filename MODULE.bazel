@@ -253,6 +253,8 @@ use_repo(
     crate,
     "crates__boa_gc-0.22.0",
     "crates__boa_interner-0.22.0",
+    "crates__slotmap-1.1.1",
+    "crates__taffy-0.15.0",
     "crates__vello_common-0.3.0",
     "crates__vello_cpu-0.3.0",
 )
