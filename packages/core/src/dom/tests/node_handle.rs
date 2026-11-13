@@ -4,6 +4,16 @@
 
 use crate::{DomHandle, NodeHandleMap, NodeId};
 
+/// Frees a node and its slot, as a script dropping it does; returns whether it
+/// was there.
+fn remove_and_drop(dom: &DomHandle, id: NodeId) -> bool {
+    dom.doc
+        .borrow_mut()
+        .mutate()
+        .remove_and_drop_node(id)
+        .is_some()
+}
+
 #[test]
 fn external_handle_does_not_alias_a_reused_slot() {
     let dom = DomHandle::new("<p>seed</p>", "https://example.test/");
@@ -11,11 +21,7 @@ fn external_handle_does_not_alias_a_reused_slot() {
     let stale_handle = dom.create_element("div");
     let stale_id = dom.resolve_node_id(stale_handle).expect("mapped node");
 
-    {
-        let mut doc = dom.doc.borrow_mut();
-        let dropped = doc.mutate().remove_and_drop_node(stale_id);
-        assert!(dropped.is_some());
-    }
+    assert!(remove_and_drop(&dom, stale_id));
 
     let live_handle = dom.create_element("span");
     let live_id = dom
@@ -49,6 +55,7 @@ fn external_handle_does_not_alias_a_reused_slot() {
         handles.external_for_opaque(live_id.as_u64() as usize),
         Some(live_handle)
     );
+    // An opaque key carries the generation on 64-bit, and only the slot on wasm32.
     if usize::BITS == 64 {
         assert_eq!(
             handles.external_for_opaque(live_id.as_u64() as u32 as usize),
@@ -80,12 +87,7 @@ fn retiring_a_displaced_generation_keeps_the_latest_handle_registered() {
     let dom = DomHandle::new("", "https://example.test/");
     let old = dom.create_element("div");
     let old_id = dom.resolve_node_id(old).expect("mapped old node");
-    assert!(dom
-        .doc
-        .borrow_mut()
-        .mutate()
-        .remove_and_drop_node(old_id)
-        .is_some());
+    assert!(remove_and_drop(&dom, old_id));
 
     let live = dom.create_element("span");
     let live_id = dom.resolve_node_id(live).expect("mapped replacement");
@@ -156,12 +158,7 @@ fn a_reused_seeded_slot_keeps_both_generations_apart() {
     let dom = DomHandle::new("<p id=old></p><p>b</p>", "https://example.test/");
     let old = dom.query_selector("#old").expect("seeded node") as u32;
     let old_id = dom.resolve_node_id(old).expect("seeded id");
-    assert!(dom
-        .doc
-        .borrow_mut()
-        .mutate()
-        .remove_and_drop_node(old_id)
-        .is_some());
+    assert!(remove_and_drop(&dom, old_id));
     let live = dom.create_element("div");
     let live_id = dom.resolve_node_id(live).expect("mapped replacement");
     assert_eq!(
@@ -288,10 +285,7 @@ fn stale_handle_matches_and_closest_do_not_error() {
     let link_id = dom.resolve_node_id(link).expect("mapped link");
     assert!(dom.matches_in_subtree(link, "a").unwrap());
 
-    {
-        let mut doc = dom.doc.borrow_mut();
-        assert!(doc.mutate().remove_and_drop_node(link_id).is_some());
-    }
+    assert!(remove_and_drop(&dom, link_id));
 
     assert!(!dom
         .matches_in_subtree(link, "actions-caches-filter")
@@ -326,11 +320,7 @@ fn stale_checkbox_handle_returns_false_before_snapshot() {
     let stale_handle = dom.create_element("input");
     let stale_id = dom.resolve_node_id(stale_handle).expect("mapped input");
 
-    {
-        let mut doc = dom.doc.borrow_mut();
-        let dropped = doc.mutate().remove_and_drop_node(stale_id);
-        assert!(dropped.is_some());
-    }
+    assert!(remove_and_drop(&dom, stale_id));
 
     let replacement = dom.create_element("input");
     let replacement_id = dom

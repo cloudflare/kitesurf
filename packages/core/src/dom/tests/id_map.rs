@@ -6,17 +6,17 @@
 
 use crate::DomHandle;
 
-fn by_query(dom: &DomHandle, id: &str) -> i32 {
+fn query_id(dom: &DomHandle, id: &str) -> i32 {
     dom.query_selector(&format!("[id=\"{id}\"]"))
         .expect("query ok")
 }
 
-fn assert_same(dom: &DomHandle, ids: &[&str], step: &str) {
+fn assert_id_map_matches_query(dom: &DomHandle, ids: &[&str], mutation: &str) {
     for id in ids {
         assert_eq!(
             dom.get_element_by_id(id),
-            by_query(dom, id),
-            "{step}: #{id}"
+            query_id(dom, id),
+            "{mutation}: #{id}"
         );
     }
 }
@@ -30,34 +30,34 @@ fn id_map_matches_a_tree_query_across_mutations() {
         "https://test.example/",
     );
     let ids = ["a", "b", "c", "dup", "s"];
-    assert_same(&dom, &ids, "parsed");
+    assert_id_map_matches_query(&dom, &ids, "parsed");
     assert_eq!(
         dom.get_element_by_id("t"),
         -1,
         "template contents are not in the document"
     );
 
-    let a = by_query(&dom, "a") as u32;
-    let b = by_query(&dom, "b") as u32;
-    let host = by_query(&dom, "host") as u32;
+    let a = query_id(&dom, "a") as u32;
+    let b = query_id(&dom, "b") as u32;
+    let host = query_id(&dom, "host") as u32;
 
     assert!(dom.set_attribute(b, "id", "c"));
-    assert_same(&dom, &ids, "renamed b -> c");
+    assert_id_map_matches_query(&dom, &ids, "renamed b -> c");
 
     assert!(dom.remove_node(a));
-    assert_same(&dom, &ids, "removed a subtree");
+    assert_id_map_matches_query(&dom, &ids, "removed a subtree");
     assert!(dom.set_attribute(a, "id", "dup"));
-    assert_same(&dom, &ids, "renamed while detached");
+    assert_id_map_matches_query(&dom, &ids, "renamed while detached");
     assert!(dom.append_child_node(host, a));
-    assert_same(&dom, &ids, "reinserted");
+    assert_id_map_matches_query(&dom, &ids, "reinserted");
 
     // A later duplicate must not win over the earlier one in tree order.
     let early = dom.create_element("span");
     assert!(dom.set_attribute(early, "id", "dup"));
     assert!(dom.insert_before_node(host, early, a));
-    assert_same(&dom, &ids, "earlier duplicate inserted");
+    assert_id_map_matches_query(&dom, &ids, "earlier duplicate inserted");
     assert!(dom.remove_attribute(early, "id"));
-    assert_same(&dom, &ids, "earlier duplicate cleared");
+    assert_id_map_matches_query(&dom, &ids, "earlier duplicate cleared");
 
     // Shadow-tree ids stay invisible to document lookups, including one
     // set after the node is already inside a connected shadow tree.
@@ -65,7 +65,7 @@ fn id_map_matches_a_tree_query_across_mutations() {
     let inner = dom.create_element("span");
     assert!(dom.append_child_node(root, inner));
     assert!(dom.set_attribute(inner, "id", "s"));
-    assert_same(&dom, &ids, "id set inside a shadow tree");
+    assert_id_map_matches_query(&dom, &ids, "id set inside a shadow tree");
 }
 
 #[test]
@@ -77,16 +77,16 @@ fn id_map_keeps_the_remaining_duplicates_when_the_first_one_goes() {
         "https://test.example/",
     );
     let ids = ["x"];
-    assert_same(&dom, &ids, "parsed");
-    let by_class = |selector: &str| dom.query_selector(selector).expect("query ok") as u32;
-    let (one, three, body) = (by_class(".one"), by_class(".three"), by_class("body"));
+    assert_id_map_matches_query(&dom, &ids, "parsed");
+    let node_id = |selector: &str| dom.query_selector(selector).expect("query ok") as u32;
+    let (one, three, body) = (node_id(".one"), node_id(".three"), node_id("body"));
     // The first one added holds the main entry; removing it leaves two duplicates.
     assert!(dom.remove_node(one));
-    assert_same(&dom, &ids, "first removed");
+    assert_id_map_matches_query(&dom, &ids, "first removed");
     assert!(dom.set_attribute(three, "id", "y"));
-    assert_same(&dom, &["x", "y"], "last renamed");
+    assert_id_map_matches_query(&dom, &["x", "y"], "last renamed");
     assert!(dom.append_child_node(body, one));
-    assert_same(&dom, &ids, "first reinserted after the others");
+    assert_id_map_matches_query(&dom, &ids, "first reinserted after the others");
 }
 
 /// Connected-to-connected moves across a shadow boundary never flip
@@ -98,13 +98,15 @@ fn id_map_tracks_moves_across_a_shadow_boundary() {
         "https://test.example/",
     );
     let ids = ["inner", "mv", "out"];
-    let host = by_query(&dom, "host") as u32;
+    let host = query_id(&dom, "host") as u32;
     let body = dom.query_selector("body").expect("query ok") as u32;
     let root = dom.attach_shadow(host, "open") as u32;
 
-    let c = dom.create_element("div");
-    assert!(dom.append_child_node(root, c));
-    let ops = format!(r#"[{{"kind":"setInnerHtml","node":{c},"html":"<span id=inner></span>"}}]"#);
+    let container = dom.create_element("div");
+    assert!(dom.append_child_node(root, container));
+    let ops = format!(
+        r#"[{{"kind":"setInnerHtml","node":{container},"html":"<span id=inner></span>"}}]"#
+    );
     dom.apply_ops(&ops).expect("ops applied");
     assert_eq!(
         dom.get_element_by_id("inner"),
@@ -112,27 +114,27 @@ fn id_map_tracks_moves_across_a_shadow_boundary() {
         "innerHTML inside a shadow tree"
     );
 
-    let mv = dom.create_element("p");
-    assert!(dom.set_attribute(mv, "id", "mv"));
-    assert!(dom.append_child_node(body, mv));
-    assert_same(&dom, &ids, "light element inserted");
-    assert!(dom.append_child_node(root, mv));
+    let moved = dom.create_element("p");
+    assert!(dom.set_attribute(moved, "id", "mv"));
+    assert!(dom.append_child_node(body, moved));
+    assert_id_map_matches_query(&dom, &ids, "light element inserted");
+    assert!(dom.append_child_node(root, moved));
     assert_eq!(
         dom.get_element_by_id("mv"),
         -1,
         "light element moved into a shadow tree"
     );
 
-    let out = dom.create_element("p");
-    assert!(dom.set_attribute(out, "id", "out"));
-    assert!(dom.append_child_node(root, out));
-    assert!(dom.append_child_node(body, out));
+    let returned = dom.create_element("p");
+    assert!(dom.set_attribute(returned, "id", "out"));
+    assert!(dom.append_child_node(root, returned));
+    assert!(dom.append_child_node(body, returned));
     assert_ne!(
         dom.get_element_by_id("out"),
         -1,
         "shadow element moved to the light tree"
     );
-    assert_same(&dom, &ids, "after shadow boundary moves");
+    assert_id_map_matches_query(&dom, &ids, "after shadow boundary moves");
 }
 
 /// A moved subtree derives containment from its root: deep light descendants follow the move,
@@ -144,7 +146,7 @@ fn id_map_tracks_deep_subtrees_with_nested_hosts_across_a_shadow_boundary() {
         "https://test.example/",
     );
     let ids = ["outer", "deep", "nested", "after"];
-    let host = by_query(&dom, "host") as u32;
+    let host = query_id(&dom, "host") as u32;
     let body = dom.query_selector("body").expect("query ok") as u32;
     let root = dom.attach_shadow(host, "open") as u32;
 
@@ -164,7 +166,7 @@ fn id_map_tracks_deep_subtrees_with_nested_hosts_across_a_shadow_boundary() {
     assert!(dom.append_child_node(nested_root, nested));
 
     assert!(dom.append_child_node(body, outer));
-    assert_same(&dom, &ids, "light subtree inserted");
+    assert_id_map_matches_query(&dom, &ids, "light subtree inserted");
     assert_eq!(dom.get_element_by_id("nested"), -1, "nested shadow id");
 
     assert!(dom.append_child_node(root, outer));
@@ -177,7 +179,7 @@ fn id_map_tracks_deep_subtrees_with_nested_hosts_across_a_shadow_boundary() {
     }
 
     assert!(dom.append_child_node(body, outer));
-    assert_same(&dom, &ids, "moved back to the light tree");
+    assert_id_map_matches_query(&dom, &ids, "moved back to the light tree");
     for id in ["outer", "deep", "after"] {
         assert_ne!(dom.get_element_by_id(id), -1, "light id restored: #{id}");
     }
@@ -194,16 +196,16 @@ fn id_map_skips_template_contents_moved_out_of_a_shadow_tree() {
         r##"<!DOCTYPE html><html><body><div id="host"></div></body></html>"##,
         "https://test.example/",
     );
-    let host = by_query(&dom, "host") as u32;
+    let host = query_id(&dom, "host") as u32;
     let body = dom.query_selector("body").expect("query ok") as u32;
     let root = dom.attach_shadow(host, "open") as u32;
-    let wrap = dom.create_element("div");
-    assert!(dom.append_child_node(root, wrap));
+    let wrapper = dom.create_element("div");
+    assert!(dom.append_child_node(root, wrapper));
     let ops = format!(
-        r#"[{{"kind":"setInnerHtml","node":{wrap},"html":"<template><i id=tpl></i></template>"}}]"#
+        r#"[{{"kind":"setInnerHtml","node":{wrapper},"html":"<template><i id=tpl></i></template>"}}]"#
     );
     dom.apply_ops(&ops).expect("ops applied");
-    assert!(dom.append_child_node(body, wrap));
+    assert!(dom.append_child_node(body, wrapper));
     assert_eq!(
         dom.get_element_by_id("tpl"),
         -1,
