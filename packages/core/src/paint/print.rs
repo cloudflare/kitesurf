@@ -35,78 +35,93 @@ impl DomHandle {
             margin_bottom,
             margin_left,
         );
+
         // Set before the layout passes it protects: both the resolve below and the
-        // print-viewport `ensure_layout` end with an eviction scan.
-        match self.doc.try_borrow_mut() {
-            Ok(mut doc) => doc.set_inline_keep_extent(Some((
-                0.0,
-                crate::paint::pdf::max_printed_height(content_h),
-            ))),
-            Err(_) => return Vec::new(),
+        // print-viewport layout end with an eviction scan.
+        if !self.hold_inline_keep_extent(content_h) {
+            return Vec::new();
         }
-        self.resolve_until_images_settle();
-        let mut doc = match self.doc.try_borrow_mut() {
-            Ok(d) => d,
-            Err(_) => {
-                self.clear_inline_keep_extent();
-                return Vec::new();
-            }
-        };
-        {
-            use blitz_traits::shell::Viewport;
-            let cur = doc.viewport();
-            if cur.window_size.0 != content_w || cur.window_size.1 != content_h {
-                doc.set_viewport(Viewport::new(
-                    content_w,
-                    content_h,
-                    1.0,
-                    emulated_color_scheme(),
-                ));
-                drop(doc);
-                self.layout_dirty.set(true);
-                self.ensure_layout();
-                doc = match self.doc.try_borrow_mut() {
-                    Ok(d) => d,
-                    Err(_) => {
-                        self.clear_inline_keep_extent();
-                        return Vec::new();
-                    }
-                };
-            }
-        }
-        let result = match (
-            self.rbi_font_bytes.try_borrow_mut(),
-            self.rbi_image_cache.try_borrow_mut(),
-        ) {
-            (Ok(mut fonts_ref), Ok(mut images_ref)) => {
-                let mut pdf_images = Vec::new();
-                let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-                    let base: &mut blitz_dom::BaseDocument = &mut doc;
-                    crate::paint::pdf::record_doc_pdf_scenes(
-                        base,
-                        content_w,
-                        content_h,
-                        &mut fonts_ref,
-                        &mut images_ref,
-                        &mut pdf_images,
-                    )
-                }));
-                if let Ok(mut recency) = self.rbi_image_recency.try_borrow_mut() {
-                    recency.note(pdf_images);
-                }
-                result.ok()
-            }
-            _ => None,
-        };
-        drop(doc);
-        self.clear_inline_keep_extent();
-        match result {
+        let scenes = self.record_pdf_scenes_at(content_w, content_h);
+        self.release_inline_keep_extent();
+
+        match scenes {
             Some(env) if env.len() > crate::paint::scene_replay::PDF_ENVELOPE_U32_BYTES => env,
             _ => Vec::new(),
         }
     }
 
-    fn clear_inline_keep_extent(&self) {
+    /// Records the PDF scenes of the document laid out at the paper box.
+    fn record_pdf_scenes_at(&self, content_w: u32, content_h: u32) -> Option<Vec<u8>> {
+        self.resolve_until_images_settle();
+        if !self.fit_print_viewport(content_w, content_h) {
+            return None;
+        }
+
+        let mut doc = self.doc.try_borrow_mut().ok()?;
+        let (Ok(mut fonts), Ok(mut images)) = (
+            self.rbi_font_bytes.try_borrow_mut(),
+            self.rbi_image_cache.try_borrow_mut(),
+        ) else {
+            return None;
+        };
+
+        let mut pdf_images = Vec::new();
+        let scenes = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+            crate::paint::pdf::record_doc_pdf_scenes(
+                &mut doc,
+                content_w,
+                content_h,
+                &mut fonts,
+                &mut images,
+                &mut pdf_images,
+            )
+        }));
+
+        if let Ok(mut recency) = self.rbi_image_recency.try_borrow_mut() {
+            recency.note(pdf_images);
+        }
+        scenes.ok()
+    }
+
+    /// Lays the document out at the paper box. Returns false when the document is
+    /// already borrowed.
+    fn fit_print_viewport(&self, content_w: u32, content_h: u32) -> bool {
+        use blitz_traits::shell::Viewport;
+
+        let Ok(mut doc) = self.doc.try_borrow_mut() else {
+            return false;
+        };
+        if doc.viewport().window_size == (content_w, content_h) {
+            return true;
+        }
+
+        doc.set_viewport(Viewport::new(
+            content_w,
+            content_h,
+            1.0,
+            emulated_color_scheme(),
+        ));
+        drop(doc);
+        self.layout_dirty.set(true);
+        self.ensure_layout();
+        true
+    }
+
+    /// Keeps inline layouts shaped down to the last printed row, so this print's
+    /// layout passes do not evict the text they just shaped. Returns false when
+    /// the document is already borrowed.
+    fn hold_inline_keep_extent(&self, content_h: u32) -> bool {
+        let Ok(mut doc) = self.doc.try_borrow_mut() else {
+            return false;
+        };
+        doc.set_inline_keep_extent(Some((
+            0.0,
+            crate::paint::pdf::max_printed_height(content_h),
+        )));
+        true
+    }
+
+    fn release_inline_keep_extent(&self) {
         if let Ok(mut doc) = self.doc.try_borrow_mut() {
             doc.set_inline_keep_extent(None);
         }
