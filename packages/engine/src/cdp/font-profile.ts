@@ -4,6 +4,7 @@
 
 // Names the UA font profile a connection's page isolates register. Fonts register once per
 // isolate, so every isolate a connection spawns keeps the profile the connection resolved.
+// Core's fonts.rs owns each profile's faces (`UA_FONT_PROFILES`); keep the names in step.
 
 export const FONT_PROFILES = ["noto", "macos"] as const;
 export type FontProfile = (typeof FONT_PROFILES)[number];

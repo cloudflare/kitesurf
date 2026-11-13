@@ -56,12 +56,35 @@ const REGISTER_EXPORTS = [
   "register_script_font",
 ];
 
+// core's NOTO_PROFILE (packages/core/src/resources/fonts.rs), in register_ua_fonts face order.
+const NOTO_PROFILE = {
+  faces: [
+    "/fonts/NotoSans.ttf",
+    "/fonts/NotoSans-Italic.ttf",
+    "",
+    "",
+    "/fonts/NotoSerif.ttf",
+    "",
+    "",
+    "",
+    "",
+  ],
+  serifOnDemand: true,
+};
+
 const uaCall = (serif = 0, mono = 0) => [
   "register_ua_fonts",
   size("sans"),
   size("sansItalic"),
+  0,
+  0,
   serif,
+  0,
+  0,
+  0,
+  0,
   mono,
+  "noto",
 ];
 const symbolsCall = (symbols2 = 0) => ["register_symbol_fonts", size("symbols"), symbols2];
 const emojiCall = ["register_emoji_font", size("emoji")];
@@ -116,6 +139,7 @@ function registrationRecorder(outcomes) {
       return outcome;
     };
   const wasmGlue = Object.fromEntries(REGISTER_EXPORTS.map((name) => [name, register(name)]));
+  wasmGlue.uaFontProfile = (name) => (name === "noto" ? JSON.stringify(NOTO_PROFILE) : "");
   return { calls, wasmGlue };
 }
 
@@ -142,7 +166,11 @@ function loadFontLoader(outcomes = {}) {
   const modules = {
     "./wasm-glue.js": dependency(wasmGlue),
     "./native-scheduling.ts": dependency(),
-    "./startup-probe.ts": dependency({ startupFontDefer: true, startupPixelFree: true }),
+    "./startup-probe.ts": dependency({
+      startupFontDefer: true,
+      startupFontProfile: "noto",
+      startupPixelFree: true,
+    }),
     "./source-scan.ts": dependency({
       CJK_SCAN: sourceScan.CJK_SCAN,
       EMOJI_BMP_SCAN: sourceScan.EMOJI_BMP_SCAN,
