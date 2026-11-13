@@ -43,6 +43,7 @@ interface UaFontProfile {
   name: string;
   faces: string[];
   serifOnDemand: boolean;
+  latinFallback: boolean;
 }
 
 const UA_FACE_COUNT = 9;
@@ -56,11 +57,16 @@ function readUaFontProfile(name: string): UaFontProfile | null {
   if (!json) return null;
   const raw: unknown = JSON.parse(json);
   if (typeof raw !== "object" || raw === null) return null;
-  if (!("faces" in raw && "serifOnDemand" in raw)) return null;
-  const { faces, serifOnDemand } = raw;
+  if (!("faces" in raw && "serifOnDemand" in raw && "latinFallback" in raw)) return null;
+  const { faces, serifOnDemand, latinFallback } = raw;
   if (!Array.isArray(faces) || faces.length !== UA_FACE_COUNT) return null;
   if (!faces.every((face): face is string => typeof face === "string")) return null;
-  return { name, faces, serifOnDemand: serifOnDemand === true };
+  return {
+    name,
+    faces,
+    serifOnDemand: serifOnDemand === true,
+    latinFallback: latinFallback === true,
+  };
 }
 
 function activeUaFontProfile(): UaFontProfile {
@@ -138,6 +144,14 @@ interface ScriptFont {
   range: RegExp;
 }
 const SCRIPT_FONTS: ScriptFont[] = [
+  // Noto Sans for the Latin codepoints a profile's UA faces lack (Latin Extended-D/E, tone
+  // letters, 2E43-2E5D punctuation, ff/st ligatures); only when the profile asks for it.
+  {
+    tag: "Latn",
+    path: "/fonts/NotoSans.ttf",
+    range:
+      /[\u10FB\u1ABF-\u1AC0\u1AC5\u1AC7-\u1ACE\u1DF6-\u1DF9\u2E43-\u2E5D\uA700-\uA716\uA7AF\uA7B8-\uA7CA\uA7D0-\uA7D1\uA7D3\uA7D5-\uA7D9\uA7F2-\uA7F6\uAB66-\uAB6B\uFB00\uFB05-\uFB06]/,
+  },
   {
     tag: "Arab",
     path: "/fonts/NotoSansArabic.ttf",
@@ -202,6 +216,10 @@ function scriptScanText(html: string): string {
 }
 
 const scriptPending = new Map<string, Promise<void>>();
+
+function scriptFontActive(scriptFont: ScriptFont): boolean {
+  return scriptFont.tag !== "Latn" || activeUaFontProfile().latinFallback;
+}
 
 function registerScriptIfNeeded(scriptFont: ScriptFont): Promise<void> {
   const existing = scriptPending.get(scriptFont.tag);
@@ -476,7 +494,11 @@ export function demandFacesForScriptText(dom: ScriptTextProbe): void {
     tasks.push(registerEmojiIfNeeded());
   }
   for (const { scriptFont, ranges } of SCRIPT_FACE_RANGES) {
-    if (!scriptPending.has(scriptFont.tag) && dom.textUsesCodepoints(ranges)) {
+    if (
+      !scriptPending.has(scriptFont.tag) &&
+      scriptFontActive(scriptFont) &&
+      dom.textUsesCodepoints(ranges)
+    ) {
       tasks.push(registerScriptIfNeeded(scriptFont));
     }
   }
@@ -504,7 +526,9 @@ function computeFontWants(html?: string): {
   const perScriptScan = html ? scriptScanText(html) : "";
   if (perScriptScan && ANY_SCRIPT_RANGE.test(perScriptScan)) {
     for (const scriptFont of SCRIPT_FONTS) {
-      if (scriptFont.range.test(perScriptScan)) scripts.push(scriptFont);
+      if (scriptFont.range.test(perScriptScan) && scriptFontActive(scriptFont)) {
+        scripts.push(scriptFont);
+      }
     }
   }
   return {
