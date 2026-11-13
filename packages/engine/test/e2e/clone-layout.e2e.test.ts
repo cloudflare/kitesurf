@@ -20,23 +20,23 @@ test("a shaped subtree clone uses its new parent's layout without changing the s
     <div id="right"></div>`,
   );
 
-  const result = await page.evaluate(() => {
+  const observed = await page.evaluate(() => {
     const source = document.getElementById("source")!;
     const sourceHeight = source.getBoundingClientRect().height;
     const clone = source.cloneNode(true) as HTMLElement;
     clone.id = "cloned";
-    const detached = clone.getBoundingClientRect();
+    const detachedRect = clone.getBoundingClientRect();
     document.getElementById("right")!.appendChild(clone);
     return {
       sourceHeight,
-      detached: [detached.width, detached.height],
+      detached: [detachedRect.width, detachedRect.height],
       cloneHeight: clone.getBoundingClientRect().height,
       sourceAfter: source.getBoundingClientRect().height,
       text: clone.textContent,
     };
   });
 
-  expect(result).toEqual({
+  expect(observed).toEqual({
     sourceHeight: 20,
     detached: [0, 0],
     cloneHeight: 40,

@@ -9,34 +9,35 @@ import { test } from "./harness";
 import { setContent } from "./set-content";
 import { targetIdForSession } from "./connect";
 
-async function prepares(page: Page): Promise<number> {
+async function paintPrepares(page: Page): Promise<number> {
   const session = await page.createCDPSession();
   const targetId = await targetIdForSession(session);
-  const s = await session.send("Kitesurf.getMemoryStats", { targetId });
+  const stats = await session.send("Kitesurf.getMemoryStats", { targetId });
   await session.detach().catch(() => {});
-  if (typeof s?.paint?.prepares !== "number")
-    throw new Error(`no paint stats in ${JSON.stringify(s).slice(0, 200)}`);
-  return s.paint.prepares;
+  if (typeof stats?.paint?.prepares !== "number")
+    throw new Error(`no paint stats in ${JSON.stringify(stats).slice(0, 200)}`);
+  return stats.paint.prepares;
 }
 
 test("moving the selection does not re-run the cascade", async ({ page }) => {
   await setContent(page, `<div id=ed contenteditable><p id=p>abcdef</p></div>`);
+  // Warm the cascade, so the count below starts from a settled page.
   await page.evaluate(() => {
     getComputedStyle(document.getElementById("p")!).display;
   });
-  const before = await prepares(page);
+  const before = await paintPrepares(page);
   const display = await page.evaluate(() => {
     const p = document.getElementById("p")!;
     const text = p.firstChild!;
-    let out = "";
+    let lastDisplay = "";
     for (let i = 0; i < 20; i++) {
       getSelection()!.collapse(text, i % 6);
-      out = getComputedStyle(p).display;
+      lastDisplay = getComputedStyle(p).display;
     }
-    return out;
+    return lastDisplay;
   });
   expect(display).toBe("block");
-  expect(await prepares(page)).toBe(before);
+  expect(await paintPrepares(page)).toBe(before);
 });
 
 test("a single-property read matches the full declaration", async ({ page }) => {
@@ -57,13 +58,15 @@ test("a single-property read matches the full declaration", async ({ page }) => 
   const mismatches = await page.evaluate(() => {
     const out: string[] = [];
     for (const id of ["flex", "item", "sticky", "hidden", "inner", "grid", "para"]) {
-      const el = document.getElementById(id)!;
-      const full = getComputedStyle(el);
+      const element = document.getElementById(id)!;
+      const full = getComputedStyle(element);
       for (const name of Array.from(full)) {
         const want = full.getPropertyValue(name);
-        const kebab = getComputedStyle(el).getPropertyValue(name);
+        const kebabRead = getComputedStyle(element);
+        const camelRead = getComputedStyle(element);
+        const kebab = kebabRead.getPropertyValue(name);
         const camelName = name.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
-        const camel = Reflect.get(getComputedStyle(el), camelName);
+        const camel = Reflect.get(camelRead, camelName);
         if (kebab !== want)
           out.push(`${id} ${name}: ${JSON.stringify(kebab)} != ${JSON.stringify(want)}`);
         if (!name.startsWith("-") && camel !== want)
@@ -139,7 +142,7 @@ test("pseudo styles resolve under display:none", async ({ page }) => {
 });
 
 test("cousin styles stay distinct under cache pressure and ancestor mutation", async ({ page }) => {
-  const groups = 96;
+  const groupCount = 96;
   await setContent(
     page,
     `<style>
@@ -150,7 +153,7 @@ test("cousin styles stay distinct under cache pressure and ancestor mutation", a
       section[data-mode=on] .leaf { padding-left: 9px }
       .leaf::before { content: "x"; color: inherit }
     </style>${Array.from(
-      { length: groups },
+      { length: groupCount },
       (_, i) =>
         `<section class="${i % 2 ? "hot" : "cold"}" data-mode="${i % 3 ? "off" : "on"}">
         <div><span class=leaf>x</span><span class=leaf data-hit>x</span><span class=leaf>x</span></div>
@@ -170,25 +173,26 @@ test("cousin styles stay distinct under cache pressure and ancestor mutation", a
         ];
       }),
     );
-  const expected = (mutated: boolean) =>
-    Array.from({ length: groups * 3 }, (_, index) => {
+  const expectedStyles = (firstGroupMutated: boolean) =>
+    Array.from({ length: groupCount * 3 }, (_, index) => {
       const group = Math.floor(index / 3);
       const child = index % 3;
-      const color = group % 2 || (mutated && group === 0) ? "rgb(4, 5, 6)" : "rgb(1, 2, 3)";
+      const color =
+        group % 2 || (firstGroupMutated && group === 0) ? "rgb(4, 5, 6)" : "rgb(1, 2, 3)";
       return [
         color,
         child === 1 ? "rgb(7, 8, 9)" : "rgba(0, 0, 0, 0)",
         child === 1 ? "7px" : "0px",
-        group % 3 === 0 && !(mutated && group === 0) ? "9px" : "0px",
+        group % 3 === 0 && !(firstGroupMutated && group === 0) ? "9px" : "0px",
         color,
       ];
     });
-  expect(await read()).toEqual(expected(false));
+  expect(await read()).toEqual(expectedStyles(false));
   await page.evaluate(() => {
     const first = document.querySelector("section");
     if (!first) throw new Error("missing first cousin group");
     first.className = "hot";
     first.setAttribute("data-mode", "off");
   });
-  expect(await read()).toEqual(expected(true));
+  expect(await read()).toEqual(expectedStyles(true));
 });
