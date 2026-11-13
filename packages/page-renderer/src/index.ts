@@ -200,6 +200,21 @@ function splitMissing(missing: Uint8Array): {
   };
 }
 
+const RESOURCE_HASH_BYTES = MISSING_RESOURCE_ENTRY_BYTES - MISSING_RESOURCE_KIND_BYTES;
+
+function formatHashes(hashes: Uint8Array): string {
+  const view = new DataView(hashes.buffer, hashes.byteOffset, hashes.byteLength);
+  const out: string[] = [];
+  for (
+    let offset = 0;
+    offset + RESOURCE_HASH_BYTES <= hashes.byteLength;
+    offset += RESOURCE_HASH_BYTES
+  ) {
+    out.push(view.getBigUint64(offset, MISSING_RESOURCE_HEADER_LITTLE_ENDIAN).toString());
+  }
+  return out.join(",");
+}
+
 function concatMissing(lists: Uint8Array[]): Uint8Array {
   if (lists.length === 1) return lists[0];
   const listsWithHeaders = lists.filter(
@@ -309,7 +324,7 @@ async function resolveResources(
     if (count === 0) return null;
     if (round === MAX_RESOURCE_PULL_ROUNDS) {
       console.warn(
-        `[ks-rvr] unresolvable after ${MAX_RESOURCE_PULL_ROUNDS} rounds: images=[${imageHashes.join(",")}] fonts=[${fontDataHashes.join(",")}]`,
+        `[ks-rvr] unresolvable after ${MAX_RESOURCE_PULL_ROUNDS} rounds: images=[${formatHashes(imageHashes)}] fonts=[${formatHashes(fontDataHashes)}]`,
       );
       return {
         error: `unresolvable missing resources after ${MAX_RESOURCE_PULL_ROUNDS} rounds`,

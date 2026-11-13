@@ -119,6 +119,8 @@ impl ResourceStore {
     fn evict_images_over(&mut self, budget: usize) {
         while self.image_bytes_total > budget && self.image_order.len() > 1 {
             let evict = self.image_order.remove(0);
+            // A cached key is broken only after a failed upgrade; let a later engine ref retry it.
+            self.broken_images.remove(&evict);
             self.solid_images.remove(&evict);
             if let Some(old) = self.images.remove(&evict) {
                 self.image_bytes_total =
@@ -169,7 +171,14 @@ impl ResourceStore {
                     ((0, 0), &payload[IMAGE_RESOURCE_HEADER_BYTES..])
                 };
                 if format == crate::paint::scene_record::IMAGE_FORMAT_ENGINE_REF {
-                    if !self.images.contains_key(&hash) && !self.broken_images.contains(&hash) {
+                    // Re-pend a cached decode that this hint outgrows; the cached copy keeps
+                    // painting until put_image_bytes replaces it.
+                    if !self.broken_images.contains(&hash)
+                        && self
+                            .images
+                            .get(&hash)
+                            .is_none_or(|img| !decode_covers(img, w, h, hint))
+                    {
                         self.pending_images.insert(hash, (w, h, hint));
                     }
                     continue;
@@ -350,10 +359,14 @@ pub(crate) fn missing_resources(store: &ResourceStore, scene_bytes: &[u8]) -> Ve
         match store.images.get(hash) {
             None if store.broken_images.contains(hash) => {}
             None => missing.push((RBI_RESOURCE_KIND_IMAGE, *hash)),
+            // A broken key with a cached copy is a failed upgrade: paint the smaller decode
+            // instead of reporting it missing every frame.
             Some(img) if res.format == 2 => {
                 let (hw, hh) = decode_hint(res);
-                let (tw, th) = mip_dims(res.width, res.height, hw, hh, REPLAY_DECODE_CEILING);
-                if img.width < tw || img.height < th {
+                if !decode_covers(img, res.width, res.height, (hw, hh))
+                    && !store.broken_images.contains(hash)
+                {
+                    let (tw, th) = decode_target(res.width, res.height, (hw, hh));
                     crate::console_warn_str(&format!(
                         "[ks-replay] undersized decode: hash={hash} cached={}x{} target={tw}x{th} header={}x{} hint={hw}x{hh}",
                         img.width, img.height, res.width, res.height
@@ -391,6 +404,16 @@ fn encode_missing(missing: &[(u8, u64)]) -> Vec<u8> {
 }
 
 const REPLAY_DECODE_CEILING: u32 = 4096;
+
+fn decode_target(w: u32, h: u32, hint: (u32, u32)) -> (u32, u32) {
+    mip_dims(w, h, hint.0, hint.1, REPLAY_DECODE_CEILING)
+}
+
+// `w` and `h` are the image's header dims, which the scene entry and the engine ref both carry.
+fn decode_covers(img: &ImageData, w: u32, h: u32, hint: (u32, u32)) -> bool {
+    let (tw, th) = decode_target(w, h, hint);
+    img.width >= tw && img.height >= th
+}
 
 fn mip_dims(header_w: u32, header_h: u32, hint_w: u32, hint_h: u32, ceiling: u32) -> (u32, u32) {
     let (mut w, mut h) = (header_w.max(1), header_h.max(1));
@@ -3500,6 +3523,147 @@ mod tests {
             0,
             "cached decode satisfies the hint — loop terminates"
         );
+    }
+
+    fn blank_image(w: u32, h: u32) -> ImageData {
+        ImageData {
+            data: Blob::from(vec![0u8; (w * h * 4) as usize]),
+            format: peniko::ImageFormat::Rgba8,
+            alpha_type: ImageAlphaType::Alpha,
+            width: w,
+            height: h,
+        }
+    }
+
+    #[test]
+    fn engine_ref_re_pends_a_cached_decode_the_hint_outgrows() {
+        let mut store = ResourceStore::default();
+        store.insert_image(11, blank_image(250, 251));
+        store.put_batch(&engine_ref_batch(11, 500, 503, (250, 252)));
+        assert_eq!(store.pending_images.get(&11), Some(&(500, 503, (250, 252))));
+        assert_eq!(
+            store.images.get(&11).map(|img| (img.width, img.height)),
+            Some((250, 251)),
+            "the cached copy keeps painting until the larger decode lands"
+        );
+    }
+
+    #[test]
+    fn engine_ref_does_not_re_pend_a_covering_decode() {
+        let mut store = ResourceStore::default();
+        store.insert_image(11, blank_image(250, 251));
+        store.put_batch(&engine_ref_batch(11, 500, 503, (250, 251)));
+        store.put_batch(&engine_ref_batch(11, 500, 503, (120, 120)));
+        assert!(store.pending_images.is_empty());
+    }
+
+    fn odd_dims_scene(enc: &ImageData, scale: f64) -> (u64, (u32, u32), Vec<u8>) {
+        let mut rec = RecordingScene::for_replay();
+        rec.set_viewport(W, H, 0, 0);
+        let brush = ImageBrush {
+            image: enc.clone(),
+            sampler: image_sampler(),
+        };
+        rec.fill(
+            Fill::NonZero,
+            Affine::scale(scale),
+            brush.as_ref(),
+            None,
+            &Rect::new(0.0, 0.0, enc.width as f64, enc.height as f64),
+        );
+        let images = rec.drain_rbi_images();
+        let (hash, info) = &images[0];
+        (*hash, (info.needed_w, info.needed_h), rec.finish_framed())
+    }
+
+    fn odd_dims_png() -> (Vec<u8>, u32, u32) {
+        let (w, h) = (500u32, 503u32);
+        let mut rgba = Vec::with_capacity((w * h * 4) as usize);
+        for y in 0..h {
+            for x in 0..w {
+                rgba.extend_from_slice(&[(x % 256) as u8, (y % 256) as u8, 0, 255]);
+            }
+        }
+        (png_bytes(&rgba, w, h), w, h)
+    }
+
+    #[test]
+    fn engine_ref_upgrade_terminates_the_undersized_miss_loop() {
+        let (png, w, h) = odd_dims_png();
+        let enc = encoded_image(png.clone(), w, h);
+        let (hash, small_hint, small_scene) = odd_dims_scene(&enc, 0.499);
+        let (big_hash, big_hint, big_scene) = odd_dims_scene(&enc, 0.5);
+        assert_eq!(hash, big_hash);
+        assert_eq!((small_hint, big_hint), ((250, 251), (250, 252)));
+
+        let mut store = ResourceStore::default();
+        store.put_batch(&engine_ref_batch(hash, w, h, small_hint));
+        assert_eq!(store.put_image_bytes(hash, &png), 1);
+        let cached = store.images.get(&hash).unwrap();
+        assert_eq!((cached.width, cached.height), (250, 251));
+        assert_eq!(u32_le(&missing_resources(&store, &small_scene)[0..4]), 0);
+
+        assert_eq!(u32_le(&missing_resources(&store, &big_scene)[0..4]), 1);
+        store.put_batch(&engine_ref_batch(hash, w, h, big_hint));
+        assert_eq!(store.pending_image_keys(), vec![hash]);
+        assert_eq!(store.put_image_bytes(hash, &png), 1);
+        let cached = store.images.get(&hash).unwrap();
+        assert_eq!((cached.width, cached.height), (500, 503));
+        assert_eq!(store.image_bytes_total, 500 * 503 * 4);
+        assert_eq!(u32_le(&missing_resources(&store, &big_scene)[0..4]), 0);
+        assert_eq!(u32_le(&missing_resources(&store, &small_scene)[0..4]), 0);
+    }
+
+    #[test]
+    fn abandoned_upgrade_keeps_the_cached_decode_and_stops_the_miss_loop() {
+        let (png, w, h) = odd_dims_png();
+        let enc = encoded_image(png.clone(), w, h);
+        let (hash, small_hint, _) = odd_dims_scene(&enc, 0.499);
+        let (_, big_hint, big_scene) = odd_dims_scene(&enc, 0.5);
+
+        let raster = SceneRasterizer::default();
+        let key = hash.to_string();
+        raster.put_resources(&engine_ref_batch(hash, w, h, small_hint));
+        assert_eq!(raster.put_image_bytes(&key, &png), 1);
+        raster.put_resources(&engine_ref_batch(hash, w, h, big_hint));
+        assert_eq!(raster.pending_images(), vec![key.clone()]);
+
+        assert_eq!(raster.abandon_image(&key), 1);
+        let store = raster.store.borrow();
+        let cached = store.images.get(&hash).unwrap();
+        assert_eq!((cached.width, cached.height), (250, 251));
+        assert_eq!(
+            u32_le(&missing_resources(&store, &big_scene)[0..4]),
+            0,
+            "a failed upgrade must paint the smaller copy, not miss every frame"
+        );
+        drop(store);
+        raster.put_resources(&engine_ref_batch(hash, w, h, big_hint));
+        assert!(raster.pending_images().is_empty());
+    }
+
+    #[test]
+    fn evicted_failed_upgrade_is_fetched_again() {
+        let (png, w, h) = odd_dims_png();
+        let enc = encoded_image(png, w, h);
+        let (hash, big_hint, big_scene) = odd_dims_scene(&enc, 0.5);
+
+        let mut store = ResourceStore::default();
+        store.insert_image(hash, blank_image(250, 251));
+        store.put_batch(&engine_ref_batch(hash, w, h, big_hint));
+        store.abandon_image_key(hash);
+        assert_eq!(u32_le(&missing_resources(&store, &big_scene)[0..4]), 0);
+
+        store.insert_image(hash ^ 1, blank_image(8, 8));
+        store.evict_images_over(0);
+        assert!(!store.images.contains_key(&hash));
+        assert_eq!(
+            u32_le(&missing_resources(&store, &big_scene)[0..4]),
+            1,
+            "an evicted copy must not leave the image as a silent hole"
+        );
+        store.put_batch(&engine_ref_batch(hash, w, h, big_hint));
+        assert_eq!(store.pending_image_keys(), vec![hash]);
     }
 
     #[test]
