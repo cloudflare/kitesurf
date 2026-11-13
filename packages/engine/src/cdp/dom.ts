@@ -108,7 +108,8 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       assertDomReplyGraph(node);
       const nodes = childNodesForRebind(node) ?? [];
       // These nodes come straight from PageScript, which does not know frame ids.
-      for (const child of nodes) annotateIframeFrameIds(child, target);
+      const byOwner = iframeFrameIdsByOwner(target);
+      for (const child of nodes) annotateIframeFrameIds(child, byOwner);
       sendChildNodes(ctx, target, sessionKeyOf(req.sessionId), id, nodes);
       return {};
     }
@@ -333,7 +334,7 @@ async function documentRoot(
       assertDomReplyGraph(r);
       if (r.budgetError) throw subtreeBudgetError(method, r.budgetError);
       if (!r.root) return syntheticBlankDocument();
-      annotateIframeFrameIds(r.root, target);
+      annotateIframeFrameIds(r.root, iframeFrameIdsByOwner(target));
       return r.root;
     } catch (err) {
       const msg = (err as Error)?.message ?? String(err);
@@ -351,7 +352,7 @@ async function documentRoot(
   if (!root) return syntheticBlankDocument();
   assertDomReplyGraph(root);
   stripAttributeNamespaceSidecars(root);
-  annotateIframeFrameIds(root, target);
+  annotateIframeFrameIds(root, iframeFrameIdsByOwner(target));
   return root;
 }
 
@@ -465,6 +466,17 @@ function requireDom(target: TargetState): NonNullable<TargetState["dom"]> {
   return dom;
 }
 
+/** Cross-origin frame owners the client needs stamped on the iframe node it was sent. */
+function iframeFrameIdsByOwner(target: TargetState): Map<number, string> {
+  const byOwner = new Map<number, string>();
+  for (const f of target.frames.values()) {
+    if (f.parentFrameId !== null && f.isCrossOrigin && f.ownerBackendNodeId > 0) {
+      byOwner.set(f.ownerBackendNodeId, f.frameId);
+    }
+  }
+  return byOwner;
+}
+
 // A DOM reply is page-shaped data the engine walks and then JSON-serializes to the CDP
 // client. Shared references make that walk exponential, so a reply must be a plain tree.
 // Each record and array counts once, so 2^20 containers is ~350k nodes: a CDP node costs
@@ -517,13 +529,7 @@ export function assertDomReplyGraph(root: unknown): void {
   }
 }
 
-function annotateIframeFrameIds(root: unknown, target: TargetState): void {
-  const byOwner = new Map<number, string>();
-  for (const f of target.frames.values()) {
-    if (f.parentFrameId !== null && f.isCrossOrigin && f.ownerBackendNodeId > 0) {
-      byOwner.set(f.ownerBackendNodeId, f.frameId);
-    }
-  }
+function annotateIframeFrameIds(root: unknown, byOwner: Map<number, string>): void {
   if (byOwner.size === 0 || !isCdpRecord(root)) return;
   const visited = new WeakSet<object>();
   const stack: unknown[] = [root];
@@ -537,6 +543,8 @@ function annotateIframeFrameIds(root: unknown, target: TargetState): void {
     }
     const children = n.children;
     if (Array.isArray(children)) for (const child of children) stack.push(child);
+    const shadowRoots = n.shadowRoots;
+    if (Array.isArray(shadowRoots)) for (const shadow of shadowRoots) stack.push(shadow);
   }
 }
 
@@ -753,9 +761,10 @@ async function pushNodePaths(
     } catch {
       return;
     }
+    const byOwner = iframeFrameIdsByOwner(target);
     for (const { parentId, nodes: children } of lists) {
       // PageScript does not know frame ids; the client needs them to attach a child document.
-      for (const child of children) annotateIframeFrameIds(child, target);
+      for (const child of children) annotateIframeFrameIds(child, byOwner);
       nodes.bindChildren(parentId, children);
       ctx.emit({ method: "DOM.setChildNodes", params: { parentId, nodes: children }, sessionId });
     }
@@ -771,6 +780,7 @@ export function emitMutations(
   syncStyleSheetsFromMutations(ctx, target, mutations);
   if (target.domEnabledSessions.size === 0) return;
   const staleParents = new Map<number, Set<string>>();
+  const byOwner = iframeFrameIdsByOwner(target);
   for (const m of mutations) {
     if (!m || typeof m !== "object") continue;
     const kind = m.kind;
@@ -783,7 +793,12 @@ export function emitMutations(
     }
     for (const sessionId of target.domEnabledSessions) {
       const nodes = frontendNodes(target, sessionKeyOf(sessionId));
-      const event = mutationEvent(m, nodes, sessionId.length === 0 ? undefined : sessionId);
+      const event = mutationEvent(
+        m,
+        nodes,
+        sessionId.length === 0 ? undefined : sessionId,
+        byOwner,
+      );
       if (event) ctx.emit(event);
     }
   }
@@ -798,6 +813,7 @@ function mutationEvent(
   mutation: CdpMutation,
   nodes: DomFrontendNodes,
   sessionId: string | undefined,
+  byOwner: Map<number, string>,
 ): CdpEvent | null {
   switch (mutation.kind) {
     case "attributeModified":
@@ -819,6 +835,8 @@ function mutationEvent(
       if (mutation.kind === "childNodeInserted") {
         // An insert can be a move: the client drops the old subtree, and the node
         // arrives at depth 0, so clear what it was sent with before rebinding it.
+        // This is the only place an inserted iframe reaches the client, so stamp its frame.
+        annotateIframeFrameIds(mutation.node, byOwner);
         nodes.noteInserted(parentId, mutation.node);
       } else {
         nodes.noteRemoved(parentId, mutation.nodeId);
@@ -827,6 +845,7 @@ function mutationEvent(
     }
     case "shadowRootPushed":
       if (!nodes.isBound(mutation.hostId)) return null;
+      annotateIframeFrameIds(mutation.root, byOwner);
       nodes.noteShadowRoot(mutation.hostId, mutation.root);
       return nodeEvent(mutation, sessionId);
     case "stylesheetResourceLoaded":
@@ -934,10 +953,11 @@ function scheduleChildRebinds(
       }),
     );
     if (target.pageScript !== pageScript) return;
+    const byOwner = iframeFrameIdsByOwner(target);
     for (const { id, node } of reads) {
       const nodes = childNodesForRebind(node);
       if (!nodes) continue;
-      for (const child of nodes) annotateIframeFrameIds(child, target);
+      for (const child of nodes) annotateIframeFrameIds(child, byOwner);
       for (const sessionKey of parents.get(id) ?? []) {
         if (!target.domEnabledSessions.has(sessionKey)) continue;
         sendChildNodes(ctx, target, sessionKey, id, nodes);
