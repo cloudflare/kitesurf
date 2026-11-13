@@ -252,12 +252,26 @@ function readNodeList(target: NodeListCls): NodeBase[] {
   return getList();
 }
 
+// A property key naming an array index. Live collections report these as read-only elements.
+function isIndexKey(prop: PropertyKey): prop is string {
+  return typeof prop === "string" && /^\d+$/.test(prop);
+}
+
+// A live collection property: read-only and configurable, re-reported on every read.
+// Indexes enumerate; `length` and named properties do not.
+function indexDescriptor(value: unknown): PropertyDescriptor {
+  return { value, writable: false, enumerable: true, configurable: true };
+}
+function hiddenDescriptor(value: unknown): PropertyDescriptor {
+  return { value, writable: false, enumerable: false, configurable: true };
+}
+
 const nodeListHandler: ProxyHandler<NodeListCls> = {
   // The indexes and length are read-only; false makes a strict-mode write
   // throw. Any other write is an ordinary set, so RadioNodeList's value
   // setter runs and an expando lands on the target.
   set(t, prop, value, receiver) {
-    if (prop === "length" || (typeof prop === "string" && /^\d+$/.test(prop))) return false;
+    if (prop === "length" || isIndexKey(prop)) return false;
     return Reflect.set(t, prop, value, receiver);
   },
   // The target's own keys are the page's expandos. A Proxy must list them,
@@ -274,25 +288,11 @@ const nodeListHandler: ProxyHandler<NodeListCls> = {
     return keys;
   },
   getOwnPropertyDescriptor(t, prop) {
-    if (prop === "length") {
-      return {
-        value: readNodeList(t).length,
-        writable: false,
-        enumerable: false,
-        configurable: true,
-      };
-    }
-    if (typeof prop === "string" && /^\d+$/.test(prop)) {
-      const i = +prop;
+    if (prop === "length") return hiddenDescriptor(readNodeList(t).length);
+    if (isIndexKey(prop)) {
+      const index = Number(prop);
       const list = readNodeList(t);
-      if (i < list.length) {
-        return {
-          value: list[i],
-          writable: false,
-          enumerable: true,
-          configurable: true,
-        };
-      }
+      if (index < list.length) return indexDescriptor(list[index]);
     }
     return Reflect.getOwnPropertyDescriptor(t, prop);
   },
@@ -774,6 +774,7 @@ type HtmlCollectionProxyTarget = HtmlCollectionCls & {
 type HtmlCollectionConstructor =
   | typeof HTMLFormControlsCollectionCls
   | typeof HTMLOptionsCollectionCls;
+type HtmlCollectionProto = { prototype: HtmlCollectionProxyTarget } | HtmlCollectionConstructor;
 
 function exposedNames(list: Element[]): string[] {
   const names: string[] = [];
@@ -801,7 +802,7 @@ function namedValue(
   target: object,
   name: string,
   list: Element[],
-  protoCls: { prototype: HtmlCollectionProxyTarget } | HtmlCollectionConstructor | undefined,
+  protoCls: HtmlCollectionProto | undefined,
 ) {
   if (protoCls?.prototype === HTMLFormControlsCollectionCls.prototype)
     return formControlsNamedItem.call(target, name);
@@ -830,7 +831,7 @@ function makeHtmlCollection<T extends HtmlCollectionProxyTarget>(
 ): T;
 function makeHtmlCollection(
   getList: () => Element[],
-  protoCls?: { prototype: HtmlCollectionProxyTarget } | HtmlCollectionConstructor,
+  protoCls?: HtmlCollectionProto,
   extras?: Record<string | symbol, unknown>,
 ): HtmlCollectionProxyTarget {
   // The selected prototype preserves subclass `instanceof`. Keep the live
@@ -870,7 +871,7 @@ function makeHtmlCollection(
 // trap closures per collection cost about 400 bytes, and pages keep thousands of `children`.
 interface HtmlCollectionState {
   getList: () => Element[];
-  protoCls: { prototype: HtmlCollectionProxyTarget } | HtmlCollectionConstructor | undefined;
+  protoCls: HtmlCollectionProto | undefined;
   // Expandos live apart so a property can shadow a live name added later.
   shadow: Record<PropertyKey, unknown>;
   proxy: HtmlCollectionProxyTarget | null;
@@ -909,7 +910,7 @@ function memoExposedNames(s: HtmlCollectionState, list: Element[]): string[] {
 // https://webidl.spec.whatwg.org/#legacy-platform-object-named-property-visibility
 function isVisibleName(s: HtmlCollectionState, t: object, prop: PropertyKey): prop is string {
   if (typeof prop !== "string") return false;
-  if (/^\d+$/.test(prop) && Number(prop) < 4294967295) return false;
+  if (isIndexKey(prop) && Number(prop) < 4294967295) return false;
   if (Object.prototype.hasOwnProperty.call(s.shadow, prop) || prop in t) return false;
   return memoExposedNames(s, memoGetList(s)).includes(prop);
 }
@@ -923,11 +924,11 @@ const htmlCollectionHandler: ProxyHandler<HtmlCollectionProxyTarget> = {
     }
     if (isOwn) {
       if (prop === "length") return memoGetList(s).length;
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        const i = Number(prop);
-        if (i >= 0 && i < 4294967295) {
+      if (isIndexKey(prop)) {
+        const index = Number(prop);
+        if (index < 4294967295) {
           const list = memoGetList(s);
-          return i < list.length ? list[i] : undefined;
+          return index < list.length ? list[index] : undefined;
         }
       }
     }
@@ -942,8 +943,7 @@ const htmlCollectionHandler: ProxyHandler<HtmlCollectionProxyTarget> = {
       const found = namedValue(t, prop, memoGetList(s), s.protoCls);
       if (found) return found;
     }
-    const v: unknown = Reflect.get(t, prop, receiver);
-    return v;
+    return Reflect.get(t, prop, receiver);
   },
   set(t, prop, value, receiver) {
     const s = collectionState(t);
@@ -951,9 +951,9 @@ const htmlCollectionHandler: ProxyHandler<HtmlCollectionProxyTarget> = {
       return Reflect.set(t, prop, value, receiver);
     }
     const optionsOwner = t[OPTIONS_OWNER_SYM];
-    if (optionsOwner && (prop === "length" || (typeof prop === "string" && /^\d+$/.test(prop)))) {
+    if (optionsOwner && (prop === "length" || isIndexKey(prop))) {
       // Only makeHtmlCollection's extras put a <select> under this symbol.
-      return optionsCollectionSet(optionsOwner as HTMLSelectElement, prop, value, memoGetList(s));
+      return optionsCollectionSet(optionsOwner, prop, value, memoGetList(s));
     }
     // selectedIndex is the prototype's setter, not an expando.
     if (optionsOwner && prop === "selectedIndex") {
@@ -963,9 +963,7 @@ const htmlCollectionHandler: ProxyHandler<HtmlCollectionProxyTarget> = {
     // assignment to throw and sloppy-mode assignment to fail silently.
     // Other names may shadow unless they resolve to a named property,
     // whose WebIDL descriptor is non-configurable.
-    if (typeof prop === "string" && /^\d+$/.test(prop)) {
-      return false;
-    }
+    if (isIndexKey(prop)) return false;
     if (typeof prop === "string" && memoExposedNames(s, memoGetList(s)).includes(prop)) {
       return false;
     }
@@ -976,10 +974,8 @@ const htmlCollectionHandler: ProxyHandler<HtmlCollectionProxyTarget> = {
     const s = collectionState(t);
     if (Object.prototype.hasOwnProperty.call(s.shadow, prop)) return true;
     if (prop === "length") return true;
-    if (typeof prop === "string") {
-      if (/^\d+$/.test(prop)) return +prop < memoGetList(s).length;
-      if (memoExposedNames(s, memoGetList(s)).includes(prop)) return true;
-    }
+    if (isIndexKey(prop)) return Number(prop) < memoGetList(s).length;
+    if (typeof prop === "string" && memoExposedNames(s, memoGetList(s)).includes(prop)) return true;
     return prop in t;
   },
   deleteProperty(t, prop) {
@@ -988,19 +984,14 @@ const htmlCollectionHandler: ProxyHandler<HtmlCollectionProxyTarget> = {
       delete s.shadow[prop];
       return true;
     }
-    if (typeof prop === "string") {
-      if (/^\d+$/.test(prop)) {
-        const i = +prop;
-        if (i < memoGetList(s).length) return false;
-      }
-    }
+    if (isIndexKey(prop) && Number(prop) < memoGetList(s).length) return false;
     if (isVisibleName(s, t, prop)) return false;
     return Reflect.deleteProperty(t, prop);
   },
   defineProperty(t, prop, desc) {
     const s = collectionState(t);
     if (typeof prop === "string") {
-      if (/^\d+$/.test(prop) && Number(prop) < 4294967295) {
+      if (isIndexKey(prop) && Number(prop) < 4294967295) {
         return false;
       }
       if (memoExposedNames(s, memoGetList(s)).includes(prop)) return false;
@@ -1037,37 +1028,16 @@ const htmlCollectionHandler: ProxyHandler<HtmlCollectionProxyTarget> = {
         configurable: true,
       };
     }
-    if (prop === "length") {
-      return {
-        value: memoGetList(s).length,
-        writable: false,
-        enumerable: false,
-        configurable: true,
-      };
-    }
+    if (prop === "length") return hiddenDescriptor(memoGetList(s).length);
     if (typeof prop === "string") {
-      if (/^\d+$/.test(prop)) {
-        const i = +prop;
+      if (isIndexKey(prop)) {
+        const index = Number(prop);
         const list = memoGetList(s);
-        if (i < list.length) {
-          return {
-            value: list[i],
-            writable: false,
-            enumerable: true,
-            configurable: true,
-          };
-        }
+        if (index < list.length) return indexDescriptor(list[index]);
       }
       if (isVisibleName(s, t, prop)) {
         const named = namedValue(t, prop, memoGetList(s), s.protoCls);
-        if (named) {
-          return {
-            value: named,
-            writable: false,
-            enumerable: false,
-            configurable: true,
-          };
-        }
+        if (named) return hiddenDescriptor(named);
       }
     }
     return Reflect.getOwnPropertyDescriptor(t, prop);
@@ -3531,11 +3501,6 @@ function readTokenList(target: DOMTokenListCls): string[] {
 const tokenListHandler: ProxyHandler<DOMTokenListCls> = {
   get(t, prop, receiver) {
     if (prop === "length") return readTokenList(t).length;
-    if (typeof prop === "string" && /^\d+$/.test(prop)) {
-      const i = +prop;
-      const tokens = readTokenList(t);
-      return i < tokens.length ? tokens[i] : undefined;
-    }
     // WebIDL iterable<DOMString>: WPT DOMTokenList-iteration checks that
     // these are Array.prototype's own functions. finalizeInterface would
     // wrap them on the prototype, so the proxy serves them.
@@ -3543,20 +3508,23 @@ const tokenListHandler: ProxyHandler<DOMTokenListCls> = {
     if (prop === "keys") return Array.prototype.keys;
     if (prop === "entries") return Array.prototype.entries;
     if (prop === "forEach") return Array.prototype.forEach;
+    if (isIndexKey(prop)) {
+      const index = Number(prop);
+      const tokens = readTokenList(t);
+      return index < tokens.length ? tokens[index] : undefined;
+    }
     return Reflect.get(t, prop, receiver);
   },
   set(t, prop, value) {
     // Indexed writes are rejected.
-    if (typeof prop === "string" && /^\d+$/.test(prop)) return false;
+    if (isIndexKey(prop)) return false;
     return Reflect.set(t, prop, value);
   },
   has(t, prop) {
     if (prop === "length") return true;
-    if (typeof prop === "string" && /^\d+$/.test(prop)) {
-      return +prop < readTokenList(t).length;
-    }
     if (prop === "values" || prop === "keys" || prop === "entries" || prop === "forEach")
       return true;
+    if (isIndexKey(prop)) return Number(prop) < readTokenList(t).length;
     return prop in t;
   },
   ownKeys(t) {
@@ -3567,25 +3535,11 @@ const tokenListHandler: ProxyHandler<DOMTokenListCls> = {
     return keys;
   },
   getOwnPropertyDescriptor(t, prop) {
-    if (prop === "length") {
-      return {
-        value: readTokenList(t).length,
-        writable: false,
-        enumerable: false,
-        configurable: true,
-      };
-    }
-    if (typeof prop === "string" && /^\d+$/.test(prop)) {
-      const i = +prop;
+    if (prop === "length") return hiddenDescriptor(readTokenList(t).length);
+    if (isIndexKey(prop)) {
+      const index = Number(prop);
       const tokens = readTokenList(t);
-      if (i < tokens.length) {
-        return {
-          value: tokens[i],
-          writable: false,
-          enumerable: true,
-          configurable: true,
-        };
-      }
+      if (index < tokens.length) return indexDescriptor(tokens[index]);
     }
     return Reflect.getOwnPropertyDescriptor(t, prop);
   },
