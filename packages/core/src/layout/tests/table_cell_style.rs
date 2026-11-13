@@ -4,11 +4,9 @@
 
 //! Table cells rebuild their grid style on each read; these pin what that style sets.
 
-#![cfg(test)]
-
 use crate::DomHandle;
 
-fn layout(body: &str) -> DomHandle {
+fn layout_page(body: &str) -> DomHandle {
     let dom = DomHandle::new(
         &format!(
             "<!DOCTYPE html><html><head><style>body {{ margin: 0 }} td {{ padding: 0 }}\
@@ -21,15 +19,15 @@ fn layout(body: &str) -> DomHandle {
     dom
 }
 
-fn rect(dom: &DomHandle, sel: &str) -> (f32, f32, f32, f32) {
-    let id = dom.query_selector(sel).unwrap_or(-1);
-    assert!(id > 0, "selector must match: {sel}");
+fn rect(dom: &DomHandle, selector: &str) -> (f32, f32, f32, f32) {
+    let id = dom.query_selector(selector).expect("query parses");
+    assert!(id > 0, "selector must match: {selector}");
     dom.test_get_inline_aware_rect(id as u32)
 }
 
 #[test]
 fn spans_place_cells_around_earlier_rowspans() {
-    let dom = layout(
+    let dom = layout_page(
         "<table><tr><td id=a rowspan=2 style='width:50px;height:40px'></td>\
          <td id=b colspan=2 style='width:100px;height:20px'></td></tr>\
          <tr><td id=c style='width:50px;height:20px'></td><td id=d style='width:50px'></td></tr></table>",
@@ -48,7 +46,7 @@ fn spans_place_cells_around_earlier_rowspans() {
 
 #[test]
 fn cell_margins_and_widths_do_not_size_the_grid_area() {
-    let dom = layout(
+    let dom = layout_page(
         "<table><tr><td id=a style='margin:30px;width:40px;height:10px'></td>\
          <td id=b style='width:10px;height:10px'></td></tr>\
          <tr><td id=c style='width:90px'></td><td></td></tr></table>",
@@ -61,13 +59,13 @@ fn cell_margins_and_widths_do_not_size_the_grid_area() {
 
 #[test]
 fn collapsed_borders_are_gutters_not_cell_borders() {
-    let dom = layout(
+    let dom = layout_page(
         "<table style='border-collapse:collapse'><tr>\
          <td id=a style='border:6px solid;width:20px;height:20px'></td>\
          <td id=b style='border:6px solid;width:20px;height:20px'></td></tr></table>",
     );
     let (a, b) = (rect(&dom, "#a"), rect(&dom, "#b"));
-    let separate = layout(
+    let separate = layout_page(
         "<table><tr><td id=a style='border:6px solid;width:20px;height:20px'></td></tr></table>",
     );
     assert_eq!(
@@ -85,7 +83,7 @@ fn collapsed_borders_are_gutters_not_cell_borders() {
 
 #[test]
 fn fixed_layout_cells_do_not_widen_their_columns() {
-    let dom = layout(
+    let dom = layout_page(
         "<table style='table-layout:fixed;width:200px'><col style='width:44px'><col>\
          <tr><td id=a style='height:10px'></td><td></td></tr>\
          <tr><td id=b style='min-width:80px;height:10px'></td><td id=c></td></tr></table>",
@@ -101,7 +99,7 @@ fn fixed_layout_cells_do_not_widen_their_columns() {
 
 #[test]
 fn anonymous_cells_and_captions_take_their_grid_areas() {
-    let dom = layout(
+    let dom = layout_page(
         "<table style='width:300px'><caption id=cap style='height:10px'>c</caption>\
          <tr><td id=a style='height:20px'>a</td><td>b</td></tr></table>\
          <div style='display:table'><div style='display:table-row'>\

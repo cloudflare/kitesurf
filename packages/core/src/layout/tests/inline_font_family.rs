@@ -2,8 +2,6 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-#![cfg(test)]
-
 use crate::DomHandle;
 
 fn width(dom: &DomHandle, selector: &str) -> f32 {

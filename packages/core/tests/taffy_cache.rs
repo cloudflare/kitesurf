@@ -52,6 +52,7 @@ fn growing_measurements_keep_first_matching_slot_and_clock_order() {
     }
     assert_eq!(cache.get(&horizontal), Some(output(11.0)));
     assert_eq!(cache.get(&both), Some(output(12.0)));
+    // A tenth measurement overflows the nine slots.
     cache.store(&input(20.0), output(20.0));
     assert_eq!(cache.get(&horizontal), Some(output(12.0)));
     assert_eq!(cache.get(&both), Some(output(12.0)));

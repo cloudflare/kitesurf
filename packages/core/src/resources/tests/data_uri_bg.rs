@@ -123,7 +123,7 @@ fn data_uri_bg_step_by_step() {
 }
 
 #[test]
-fn url_free_backgrounds_keep_no_image_storage() {
+fn backgrounds_without_a_url_keep_no_image_storage() {
     let html = r##"<!DOCTYPE html>
 <html><head><style>
   .d { width: 60px; height: 60px;
@@ -140,9 +140,12 @@ fn url_free_backgrounds_keep_no_image_storage() {
     );
     assert!(report.contains("Some"), "{report}");
 
-    let d = dom.query_selector("#d").unwrap();
-    dom.set_attribute(d as u32, "class", "");
+    let holder = dom.query_selector("#d").unwrap();
+    dom.set_attribute(holder as u32, "class", "");
     dom.resolve_layout();
-    let report = dom.debug_dump_background_images();
-    assert!(report.is_empty(), "a removed image kept its slot: {report}");
+    let after_removal = dom.debug_dump_background_images();
+    assert!(
+        after_removal.is_empty(),
+        "a removed image kept its slot: {after_removal}"
+    );
 }

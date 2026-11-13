@@ -17,9 +17,9 @@ again <span id="tail">until the paragraph finally wraps</span> across
 a good number of separate lines.</p>
 </body></html>"##;
 
-fn height_of(dom: &DomHandle, sel: &str) -> f32 {
-    let id = dom.query_selector(sel).expect("query parses");
-    assert!(id > 0, "{sel} must exist");
+fn height_of(dom: &DomHandle, selector: &str) -> f32 {
+    let id = dom.query_selector(selector).expect("query parses");
+    assert!(id > 0, "{selector} must exist");
     dom.test_get_inline_aware_rect(id as u32).3
 }
 

@@ -5,6 +5,8 @@
 //! Outside list markers are shaped when painted rather than kept per item.
 
 use crate::DomHandle;
+use blitz_dom::node::ListItemLayout;
+use blitz_dom::{BaseDocument, NodeId};
 
 fn page(list_style: &str) -> DomHandle {
     let dom = DomHandle::new(
@@ -20,32 +22,43 @@ fn page(list_style: &str) -> DomHandle {
     dom
 }
 
+/// The list item data of the element `selector` matches, with its internal id.
+fn list_item<'a>(
+    dom: &DomHandle,
+    doc: &'a BaseDocument,
+    selector: &str,
+) -> (NodeId, &'a ListItemLayout) {
+    let external = dom.query_selector(selector).expect("query parses") as u32;
+    let id = dom.resolve_node_id(external).expect("mapped list item");
+    let item = doc
+        .get_node(id)
+        .expect("list item node")
+        .element_data()
+        .expect("element data")
+        .list_item_data()
+        .expect("list item data");
+    (id, item)
+}
+
+fn marker_width(dom: &DomHandle, doc: &BaseDocument, selector: &str) -> f32 {
+    let (id, item) = list_item(dom, doc, selector);
+    let layout = item
+        .outside_marker_layout(doc.tree(), id)
+        .expect("outside marker");
+    assert_eq!(layout.lines().count(), 1);
+    assert!(
+        layout.lines().flat_map(|line| line.items()).count() > 0,
+        "marker has glyphs"
+    );
+    layout.full_width()
+}
+
 #[test]
 fn an_outside_marker_is_shaped_from_its_items_style() {
     let dom = page("disc outside");
     let doc = dom.doc.borrow();
-    let width = |selector: &str| {
-        let id = dom
-            .resolve_node_id(dom.query_selector(selector).unwrap() as u32)
-            .unwrap();
-        let item = doc
-            .get_node(id)
-            .unwrap()
-            .element_data()
-            .unwrap()
-            .list_item_data()
-            .unwrap();
-        let layout = item
-            .outside_marker_layout(doc.tree(), id)
-            .expect("outside marker");
-        assert_eq!(layout.lines().count(), 1);
-        assert!(
-            layout.lines().flat_map(|line| line.items()).count() > 0,
-            "marker has glyphs"
-        );
-        layout.full_width()
-    };
-    let (disc, number) = (width("#a"), width("#b"));
+    let disc = marker_width(&dom, doc.as_ref(), "#a");
+    let number = marker_width(&dom, doc.as_ref(), "#b");
     assert!(disc > 0.0 && number > 0.0);
     assert_ne!(
         disc, number,
@@ -56,21 +69,13 @@ fn an_outside_marker_is_shaped_from_its_items_style() {
 #[test]
 fn outside_markers_are_painted() {
     let scene = |list_style| page(list_style).render_scene(0, 0, 0, 0, false, true);
-    let none = scene("none");
-    assert_ne!(scene("disc outside"), none);
-    assert_ne!(scene("square outside"), scene("disc outside"));
+    let disc = scene("disc outside");
+    assert_ne!(disc, scene("none"));
+    assert_ne!(scene("square outside"), disc);
+
     let dom = page("disc inside");
     let doc = dom.doc.borrow();
-    let id = dom
-        .resolve_node_id(dom.query_selector("#a").unwrap() as u32)
-        .unwrap();
-    let item = doc
-        .get_node(id)
-        .unwrap()
-        .element_data()
-        .unwrap()
-        .list_item_data()
-        .unwrap();
+    let (id, item) = list_item(&dom, doc.as_ref(), "#a");
     assert!(
         item.outside_marker_layout(doc.tree(), id).is_none(),
         "inside markers are inline text"

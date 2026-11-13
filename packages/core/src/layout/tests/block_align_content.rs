@@ -15,9 +15,9 @@ fn rects(body: &str, selectors: &[&str]) -> Vec<(f32, f32, f32, f32)> {
     dom.resolve_layout();
     selectors
         .iter()
-        .map(|sel| {
-            let id = dom.query_selector(sel).unwrap_or(-1);
-            assert!(id > 0, "selector must match: {sel}");
+        .map(|selector| {
+            let id = dom.query_selector(selector).expect("query parses");
+            assert!(id > 0, "selector must match: {selector}");
             dom.test_get_inline_aware_rect(id as u32)
         })
         .collect()
@@ -37,13 +37,16 @@ fn align_content_shifts_children_floats_and_static_positions() {
     let center = rects(&body("center"), &["#f", "#c", "#a"]);
     // Only the 40px child is in-flow content: the float and the empty wrapper add no height.
     let shift = (200.0 - 40.0) / 2.0;
-    for (i, name) in ["float", "child", "static position"].iter().enumerate() {
+    for (index, name) in ["float", "child", "static position"].iter().enumerate() {
         assert_eq!(
-            center[i].1 - start[i].1,
+            center[index].1 - start[index].1,
             shift,
             "{name} moves with the content"
         );
-        assert_eq!(center[i].0, start[i].0, "{name} keeps its inline position");
+        assert_eq!(
+            center[index].0, start[index].0,
+            "{name} keeps its inline position"
+        );
     }
 }
 

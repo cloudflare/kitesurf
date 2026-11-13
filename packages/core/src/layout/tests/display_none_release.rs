@@ -25,7 +25,21 @@ fn assert_released(dom: &DomHandle, id: u32) {
         None,
         "hidden descendant keeps a box parent"
     );
-    drop(doc);
+}
+
+/// Hides the subtree that `style_owner` heads, checks `released` gives up its
+/// layout, then shows the subtree again and checks the layout comes back.
+fn assert_hiding_releases_and_restores(dom: &DomHandle, style_owner: u32, released: u32) {
+    let before = dom.test_bounding_rect(released);
+    assert!(before.2 > 0.0 && before.3 > 0.0, "precondition: laid out");
+
+    assert!(dom.set_attribute(style_owner, "style", "display:none"));
+    dom.resolve_layout();
+    assert_released(dom, released);
+
+    assert!(dom.set_attribute(style_owner, "style", ""));
+    dom.resolve_layout();
+    assert_eq!(dom.test_bounding_rect(released), before);
 }
 
 #[test]
@@ -68,14 +82,8 @@ fn hiding_a_slot_container_releases_assigned_nodes_and_restores_layout() {
     .unwrap();
     let wrap = dom.query_selector_all_in_subtree(root, "#wrap").unwrap()[0] as u32;
     dom.resolve_layout();
-    let before = dom.test_bounding_rect(p);
-    assert!(before.2 > 0.0 && before.3 > 0.0);
-    assert!(dom.set_attribute(wrap, "style", "display:none"));
-    dom.resolve_layout();
-    assert_released(&dom, p);
-    assert!(dom.set_attribute(wrap, "style", ""));
-    dom.resolve_layout();
-    assert_eq!(dom.test_bounding_rect(p), before);
+
+    assert_hiding_releases_and_restores(&dom, wrap, p);
 }
 
 #[test]
@@ -93,16 +101,9 @@ fn hiding_a_flattened_inline_releases_its_atomic_descendant() {
         let doc = dom.doc.borrow();
         let node = doc.get_node(dom.resolve_node_id(outer).unwrap()).unwrap();
         assert!(node.layout_children().is_none(), "the inline is flattened");
-        drop(doc);
     }
-    let before = dom.test_bounding_rect(p);
-    assert!(before.2 > 0.0 && before.3 > 0.0);
-    assert!(dom.set_attribute(outer, "style", "display:none"));
-    dom.resolve_layout();
-    assert_released(&dom, p);
-    assert!(dom.set_attribute(outer, "style", ""));
-    dom.resolve_layout();
-    assert_eq!(dom.test_bounding_rect(p), before);
+
+    assert_hiding_releases_and_restores(&dom, outer, p);
 }
 
 #[test]
@@ -117,18 +118,18 @@ fn hiding_an_ancestor_keeps_an_inner_scroll_offset() {
     let tab = dom.query_selector("#tab").expect("tab") as u32;
     let scroller = dom.query_selector("#s").expect("scroller") as u32;
     assert!(dom.write_scroll_offset(scroller, 0.0, 500.0).is_some());
-    let read = |dom: &DomHandle| {
+    let scroll_offset = || {
         let doc = dom.doc.borrow();
         let id = dom.resolve_node_id(scroller).expect("scroller id");
         doc.as_ref().tree()[id].scroll_offset().y
     };
-    assert_eq!(read(&dom), 500.0);
+    assert_eq!(scroll_offset(), 500.0);
 
     assert!(dom.set_attribute(tab, "style", "display:none"));
     dom.resolve_layout();
-    assert_eq!(read(&dom), 500.0, "hiding dropped the scroll offset");
+    assert_eq!(scroll_offset(), 500.0, "hiding dropped the scroll offset");
 
     assert!(dom.set_attribute(tab, "style", ""));
     dom.resolve_layout();
-    assert_eq!(read(&dom), 500.0, "showing lost the scroll offset");
+    assert_eq!(scroll_offset(), 500.0, "showing lost the scroll offset");
 }
