@@ -45,6 +45,87 @@ test("offsetWidth/Height and ResizeObserver report the real box", async ({ page 
   ]);
 }, 120_000);
 
+const transformed = `<!doctype html><style>
+  body { margin: 0 }
+  .tall { position: absolute; width: 158px; height: 804px; transform: scale(0.75, 0.5625) }
+  #moving { left: 400px; transition: transform 3s linear }
+  #moving.go { transform: none }
+  #host { position: absolute; left: 200px; width: 100px; height: 60px;
+          transform: rotate(90deg) scale(2) }
+  #child { width: 40px; height: 20px; padding: 5px; border: 1px solid }
+  #word { padding: 0 3px }
+  #padded { position: absolute; top: 600px; width: 100px; height: 50px; padding: 10px;
+            border: 5px solid; overflow: hidden; transform: scale(0.5) }
+  #padded > div { height: 200px }
+</style>
+<div id="padded"><div></div></div>
+<div id="scaled" class="tall">a</div>
+<div id="host"><div id="child"></div><span id="word">word</span></div>
+<div id="moving" class="tall">b</div>`;
+
+// A popover that measures itself while its scale-in transition runs must read its full size,
+// or it skips the viewport clamp and hangs off-screen.
+test("offset and client sizes ignore CSS transforms", async ({ page }) => {
+  await page.setViewport({ width: 800, height: 900 });
+  await setContent(page, transformed);
+
+  const still = await page.evaluate(() => {
+    const $ = (id: string) => document.getElementById(id)!;
+    const scaled = $("scaled").getBoundingClientRect();
+    const word = $("word").getBoundingClientRect();
+    return {
+      scaled: [$("scaled").offsetWidth, $("scaled").offsetHeight],
+      scaledClient: [$("scaled").clientWidth, $("scaled").clientHeight],
+      scaledRect: [scaled.width, scaled.height],
+      host: [$("host").offsetWidth, $("host").offsetHeight, $("host").offsetLeft],
+      child: [$("child").offsetWidth, $("child").offsetHeight],
+      childOffset: [$("child").offsetTop, $("child").offsetLeft],
+      wordIsUnrotated: $("word").offsetWidth > $("word").offsetHeight,
+      wordRectIsRotated: word.height > word.width,
+      wordLeft: $("word").offsetLeft,
+      wordTop: $("word").offsetTop,
+      padded: [$("padded").offsetWidth, $("padded").offsetHeight],
+      paddedClient: [$("padded").clientWidth, $("padded").clientHeight],
+      paddedScroll: [$("padded").scrollWidth, $("padded").scrollHeight],
+      paddedRect: [$("padded").getBoundingClientRect().width],
+    };
+  });
+  expect(still).toMatchObject({
+    scaled: [158, 804],
+    scaledClient: [158, 804],
+    scaledRect: [118.5, 452.25],
+    host: [100, 60, 200],
+    child: [52, 32],
+    childOffset: [0, 0],
+    wordIsUnrotated: true,
+    wordRectIsRotated: true,
+    wordLeft: 0,
+    // The padding box and the scrollable overflow are in the element's own pixels too: only
+    // the client rect, 65px wide, shows the scale.
+    padded: [130, 80],
+    paddedClient: [120, 70],
+    paddedScroll: [120, 220],
+    paddedRect: [65],
+  });
+  expect(still.wordTop, "the span sits on the line below #child").toBeGreaterThanOrEqual(32);
+  expect(still.wordTop).toBeLessThan(40);
+
+  const mid = await page.evaluate(async () => {
+    const moving = document.getElementById("moving")!;
+    moving.classList.add("go");
+    moving.getBoundingClientRect(); // start the transition now, not at the next frame
+    await new Promise((r) => setTimeout(r, 300));
+    return {
+      offset: [moving.offsetWidth, moving.offsetHeight],
+      client: [moving.clientWidth, moving.clientHeight],
+      rectHeight: moving.getBoundingClientRect().height,
+    };
+  });
+  expect(mid.rectHeight, `still scaling: ${JSON.stringify(mid)}`).toBeGreaterThan(452.25);
+  expect(mid.rectHeight, `still scaling: ${JSON.stringify(mid)}`).toBeLessThan(804);
+  expect(mid).toMatchObject({ offset: [158, 804], client: [158, 804] });
+}, 120_000);
+
 // The poll skips while no resolve has run. A viewport change relays out with no DOM
 // mutation at all, so it reaches observers through the layout epoch alone.
 test("ResizeObserver reports a viewport-driven resize after idle polls", async ({ page }) => {

@@ -141,7 +141,13 @@ const inlineStyleProxies = new WeakMap<object, ReturnType<typeof makeStyleDeclar
 const longhandKeysCache = new Map<string, string[]>();
 const parsedAttributeNamespaceSync = new WeakMap<object, { info: unknown; attrSeq: number }>();
 type PseudoElementStub = { readonly type: string; readonly element: Element };
-type OffsetMetrics = { parent?: unknown; top: number; left?: unknown };
+type OffsetMetrics = {
+  parent?: unknown;
+  top: number;
+  left?: unknown;
+  width?: unknown;
+  height?: unknown;
+};
 
 function hasOffsetTop(value: unknown): value is OffsetMetrics {
   return (
@@ -1893,26 +1899,22 @@ class Element extends NodeBase implements Idl.Element {
   get scrollWidth() {
     const info = nodeScrollInfoSafe(this._id);
     if (info) return Math.round(info.clientWidth + info.scrollWidth);
-    const rect = getRect(this._id);
-    return Math.round(rect.width);
+    return Math.round(this._layoutSize("width"));
   }
   get scrollHeight() {
     const info = nodeScrollInfoSafe(this._id);
     if (info) return Math.round(info.clientHeight + info.scrollHeight);
-    const rect = getRect(this._id);
-    return Math.round(rect.height);
+    return Math.round(this._layoutSize("height"));
   }
   get clientWidth() {
     const info = nodeScrollInfoSafe(this._id);
     if (info) return Math.round(info.clientWidth);
-    const rect = getRect(this._id);
-    return Math.round(rect.width);
+    return Math.round(this._layoutSize("width"));
   }
   get clientHeight() {
     const info = nodeScrollInfoSafe(this._id);
     if (info) return Math.round(info.clientHeight);
-    const rect = getRect(this._id);
-    return Math.round(rect.height);
+    return Math.round(this._layoutSize("height"));
   }
   get clientTop() {
     const info = nodeScrollInfoSafe(this._id);
@@ -1923,10 +1925,16 @@ class Element extends NodeBase implements Idl.Element {
     return info ? Math.round(info.clientLeft) : 0;
   }
   get offsetWidth(): number {
-    return Math.round(getRect(this._id).width);
+    return Math.round(this._layoutSize("width"));
   }
   get offsetHeight(): number {
-    return Math.round(getRect(this._id).height);
+    return Math.round(this._layoutSize("height"));
+  }
+  // The border box before transforms: getBoundingClientRect is the transformed box, and a
+  // popover that measures itself mid scale-in would read the shrunken size as its own.
+  _layoutSize(axis: "width" | "height"): number {
+    const size = this._offsetMetrics()[axis];
+    return typeof size === "number" ? size : getRect(this._id)[axis];
   }
   _offsetMetrics(): OffsetMetrics {
     const read = (getMetrics: ((id: number) => unknown) | null) => {
@@ -1944,7 +1952,13 @@ class Element extends NodeBase implements Idl.Element {
     } catch {}
     const rect = getRect(this._id);
     const scroll = scrollOffset();
-    return { parent: -1, top: rect.y + scroll.y, left: rect.x + scroll.x };
+    return {
+      parent: -1,
+      top: rect.y + scroll.y,
+      left: rect.x + scroll.x,
+      width: rect.width,
+      height: rect.height,
+    };
   }
   get offsetParent(): Element | null {
     const metrics = this._offsetMetrics();
