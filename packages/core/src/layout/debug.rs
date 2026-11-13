@@ -488,8 +488,7 @@ impl DomHandle {
         let Some(node) = doc.get_node(node_id) else {
             return Vec::new();
         };
-        let kids: Vec<u32> = node
-            .rehomed_paint_children()
+        node.rehomed_paint_children()
             .map(|children| {
                 children
                     .iter()
@@ -497,8 +496,7 @@ impl DomHandle {
                     .map(|id| self.external_node_id(id))
                     .collect()
             })
-            .unwrap_or_default();
-        kids
+            .unwrap_or_default()
     }
 
     pub fn test_rehomed_reach(&self, node_id: u32) -> Option<(f32, f32, f32, f32)> {

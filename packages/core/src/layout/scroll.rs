@@ -259,13 +259,8 @@ impl DomHandle {
                 let hoisted_children = doc.root_element().hoisted_children();
                 let root_children = layout_children
                     .iter()
-                    .flat_map(|children| children.iter())
-                    .chain(
-                        hoisted_children
-                            .as_deref()
-                            .into_iter()
-                            .flat_map(|children| children.iter()),
-                    );
+                    .chain(hoisted_children.iter())
+                    .flat_map(|children| children.iter());
                 for child in root_children.filter_map(|id| doc.get_node(*id)) {
                     if child
                         .primary_styles()
