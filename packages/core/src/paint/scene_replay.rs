@@ -3058,6 +3058,18 @@ mod tests {
         .unwrap()
     }
 
+    /// Joins a JPEG stream's bands and checks the stream is drained.
+    fn collect_jpeg_stream(raster: &SceneRasterizer, scene: &[u8], quality: u8) -> Vec<u8> {
+        let mut stream = raster.start_jpeg(scene, quality).unwrap();
+        let mut chunks = Vec::new();
+        // The fixtures are 257px tall, so they stream three bands.
+        for _ in 0..3 {
+            chunks.extend(stream.next_chunk().unwrap());
+        }
+        assert!(stream.next_chunk().unwrap().is_empty());
+        chunks
+    }
+
     #[test]
     fn limited_band_encoding_rejects_excess_and_recovers() {
         let (scene, _) = record_scene(None, None);
@@ -3231,13 +3243,11 @@ mod tests {
         assert_ne!(&joined[..stride], &joined[128 * stride..129 * stride]);
         for quality in [80, 95] {
             let expected = whole_frame_encoded(&raster, &scene, "jpeg", quality);
-            let mut stream = raster.start_jpeg(&scene, quality).unwrap();
-            let mut actual = Vec::new();
-            for _ in 0..3 {
-                actual.extend(stream.next_chunk().unwrap());
-            }
-            assert!(stream.next_chunk().unwrap().is_empty());
-            assert_eq!(actual, expected, "quality {quality}");
+            assert_eq!(
+                collect_jpeg_stream(&raster, &scene, quality),
+                expected,
+                "quality {quality}"
+            );
         }
         let expected = whole_frame_encoded(&raster, &scene, "png", 80);
         let stream = raster.start_png(&scene).unwrap();
@@ -3308,13 +3318,11 @@ mod tests {
         assert_eq!(actual, expected);
         for quality in [80, 95] {
             let expected = whole_frame_encoded(&raster, &scene, "jpeg", quality);
-            let mut stream = raster.start_jpeg(&scene, quality).unwrap();
-            let mut actual = Vec::new();
-            for _ in 0..3 {
-                actual.extend(stream.next_chunk().unwrap());
-            }
-            assert!(stream.next_chunk().unwrap().is_empty());
-            assert_eq!(actual, expected, "quality {quality}");
+            assert_eq!(
+                collect_jpeg_stream(&raster, &scene, quality),
+                expected,
+                "quality {quality}"
+            );
         }
     }
 

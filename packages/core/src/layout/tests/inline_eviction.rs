@@ -440,21 +440,21 @@ fn width_changes_place_absolute_boxes_of_evicted_roots() {
     );
 }
 
-/// Roots holding absolutely positioned boxes at their static inline position
-/// evict with each box's offset along its line. A pass with the inputs those
-/// lines were aligned with places the boxes from it; any other rebuilds.
-#[test]
-fn evicted_roots_place_boxes_at_their_static_inline_position() {
+/// Roots with absolutely positioned boxes at their static inline position, at four
+/// alignment inputs: an IDL pre block, plain, RTL and centred text.
+fn static_offset_page() -> String {
     let words = "lorem ipsum dolor sit amet consectetur adipiscing elit ".repeat(4);
     let statics: String = (0..40)
         .map(|i| match i % 4 {
-            0 => format!("<pre id=st{i}><code class=idl>interface I{i} {{\n  attribute long a;\n}};</code></pre>"),
+            0 => format!(
+                "<pre id=st{i}><code class=idl>interface I{i} {{\n  attribute long a;\n}};</code></pre>"
+            ),
             1 => format!("<p id=st{i}>{words}<i class=static>s</i>{words}</p>"),
             2 => format!("<p id=st{i} dir=rtl>{words}<i class=static>s</i> {words}</p>"),
             _ => format!("<p id=st{i} class=center>{words}<i class=static>s</i>{words}</p>"),
         })
         .collect();
-    let html = page(120)
+    page(120)
         .replace("width: 600px;", "")
         .replace(
             "</style>",
@@ -464,21 +464,34 @@ fn evicted_roots_place_boxes_at_their_static_inline_position() {
              .static { position: absolute; }\n\
              .center { text-align: center; }\n</style>",
         )
-        .replace("</body>", &format!("{statics}</body>"));
-    let load = |eviction| {
-        let dom = DomHandle::new(&html, "https://test.example/");
-        dom.set_viewport(800, 600);
-        dom.doc
-            .borrow_mut()
-            .as_mut()
-            .set_inline_layout_eviction(eviction);
-        dom.resolve_layout();
-        dom
-    };
-    let keep = load(None);
-    let evict = load(Some(2.0));
-    let far = ["st36", "st37", "st38", "st39"];
-    for id in far {
+        .replace("</body>", &format!("{statics}</body>"))
+}
+
+/// The far roots of `static_offset_page` that the scan evicts at the top.
+const FAR_STATIC_ROOTS: [&str; 4] = ["st36", "st37", "st38", "st39"];
+
+/// The fixture laid out twice: once with eviction off, once evicting far roots.
+fn static_offset_pair() -> (DomHandle, DomHandle) {
+    let html = static_offset_page();
+    (setup_with(&html, None), setup_with(&html, Some(2.0)))
+}
+
+/// Dirties `roots` on both documents, so the next resolve re-collects them.
+fn dirty_roots(keep: &DomHandle, evict: &DomHandle, roots: &[&str]) {
+    for dom in [keep, evict] {
+        for id in roots {
+            let root = dom.query_selector(&format!("#{id}")).unwrap() as u32;
+            assert!(dom.set_attribute(root, "style", "padding-bottom: 1px"));
+        }
+    }
+}
+
+/// Roots holding absolutely positioned boxes at their static inline position
+/// evict with each box's offset along its line.
+#[test]
+fn evicted_roots_place_boxes_at_their_static_inline_position() {
+    let (keep, evict) = static_offset_pair();
+    for id in FAR_STATIC_ROOTS {
         assert!(
             is_evicted(&evict, id),
             "{id} evicts with its static offsets"
@@ -486,22 +499,25 @@ fn evicted_roots_place_boxes_at_their_static_inline_position() {
     }
     assert_eq!(
         boxes(keep.doc.borrow().as_ref()),
-        boxes(evict.doc.borrow().as_ref())
+        boxes(evict.doc.borrow().as_ref()),
+        "boxes differ before any relayout"
     );
+}
 
-    // Relayout at the same width: the boxes come from the recorded offsets.
-    for dom in [&keep, &evict] {
-        for id in far {
-            let root = dom.query_selector(&format!("#{id}")).unwrap() as u32;
-            assert!(dom.set_attribute(root, "style", "padding-bottom: 1px"));
-        }
-    }
+/// A pass with the inputs those lines were aligned with places the boxes from
+/// the recorded offsets instead of rebuilding them.
+#[test]
+fn same_width_relayout_places_static_boxes_from_recorded_offsets() {
+    let (keep, evict) = static_offset_pair();
+    dirty_roots(&keep, &evict, &FAR_STATIC_ROOTS);
+
     let stats = blitz_dom::node::inline_summary_stats();
     let rebuilds = blitz_dom::node::inline_layout_rebuild_count();
     evict.resolve_layout();
     keep.resolve_layout();
     assert!(
-        blitz_dom::node::inline_summary_stats().summarized - stats.summarized >= far.len() as _,
+        blitz_dom::node::inline_summary_stats().summarized - stats.summarized
+            >= FAR_STATIC_ROOTS.len() as _,
         "the dirtied roots break from their summaries"
     );
     assert_eq!(
@@ -509,7 +525,7 @@ fn evicted_roots_place_boxes_at_their_static_inline_position() {
         0,
         "unchanged alignment inputs reuse the recorded offsets"
     );
-    for id in far {
+    for id in FAR_STATIC_ROOTS {
         assert!(is_evicted(&evict, id), "{id} stays evicted");
     }
     assert_eq!(
@@ -517,7 +533,12 @@ fn evicted_roots_place_boxes_at_their_static_inline_position() {
         boxes(evict.doc.borrow().as_ref()),
         "boxes differ after a same-width relayout"
     );
+}
 
+/// New alignment inputs rebuild the roots that need their static offsets.
+#[test]
+fn new_alignment_inputs_rebuild_static_box_offsets() {
+    let (keep, evict) = static_offset_pair();
     for width in [530, 140, 700] {
         let rebuilds = blitz_dom::node::inline_layout_rebuild_count();
         evict.set_viewport(width, 600);
@@ -809,22 +830,21 @@ fn reads_during_a_follow_up_scan_are_eventually_evicted() {
     };
     scan();
     scan();
-    assert!(is_evicted(&dom, "p112") && is_evicted(&dom, "p119"));
-    read("p112");
+    assert!(
+        is_evicted(&dom, "p112") && is_evicted(&dom, "p119"),
+        "precondition: both paragraphs start evicted"
+    );
+    for id in ["p112", "p119"] {
+        read(id);
+        scan();
+        assert!(!is_evicted(&dom, id), "a fresh read gets one scan of grace");
+    }
+    scan();
     scan();
     assert!(
-        !is_evicted(&dom, "p112"),
-        "a fresh read gets one scan of grace"
+        is_evicted(&dom, "p119"),
+        "two scans after the read evict it"
     );
-    read("p119");
-    scan();
-    assert!(
-        !is_evicted(&dom, "p119"),
-        "a fresh read gets one scan of grace"
-    );
-    scan();
-    scan();
-    assert!(is_evicted(&dom, "p119"));
 }
 
 #[test]

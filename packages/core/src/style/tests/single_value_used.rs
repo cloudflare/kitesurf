@@ -75,18 +75,16 @@ fn single_value_matches_bulk_for_used_value_longhands() {
     dom.set_viewport(800, 600);
     dom.resolve_layout();
     for id in IDS {
-        let node = dom.query_selector(&format!("#{id}")).expect("query ok");
-        assert!(node > 0, "#{id} found");
-        let node = node as u32;
+        let node = crate::test_support::query_selector_id(&dom, &format!("#{id}"));
         let bulk = dom.computed_props(node).expect("document not borrowed");
         for name in USED_VALUE_LONGHANDS {
-            let expected = bulk
+            let bulk_value = bulk
                 .iter()
                 .find(|p| p.name == *name)
                 .map(|p| p.value.clone());
             assert_eq!(
                 dom.computed_style_value(node, name),
-                expected,
+                bulk_value,
                 "#{id} {name}"
             );
         }

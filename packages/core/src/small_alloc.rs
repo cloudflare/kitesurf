@@ -278,6 +278,19 @@ mod tests {
         Layout::from_size_align(size, align).unwrap()
     }
 
+    fn slots_per_page(class: usize) -> usize {
+        (PAGE - HEADER) / CLASSES[class] as usize
+    }
+
+    /// Three full pages plus part of a fourth, so page reuse has pages to reuse.
+    fn slots_spanning_four_pages(class: usize) -> usize {
+        slots_per_page(class) * 3 + 5
+    }
+
+    fn alloc_slots(slabs: &mut Slabs, class: usize, count: usize) -> Vec<*mut u8> {
+        (0..count).map(|_| unsafe { slabs.alloc(class) }).collect()
+    }
+
     #[test]
     fn classes_fit_and_keep_alignment() {
         for size in 1..=MAX_SMALL {
@@ -305,45 +318,65 @@ mod tests {
     }
 
     #[test]
-    fn slots_are_distinct_aligned_and_reused() {
+    fn slots_are_distinct_and_aligned() {
         let mut slabs = Slabs::new();
         let class = class_of(layout(24, 8)).unwrap();
-        let per_page = (PAGE - HEADER) / CLASSES[class] as usize;
-        let slots: Vec<*mut u8> = (0..per_page * 3 + 5)
-            .map(|_| unsafe { slabs.alloc(class) })
-            .collect();
-        let mut sorted = slots.clone();
-        sorted.sort();
-        sorted.dedup();
-        assert_eq!(sorted.len(), slots.len());
+        let slots = alloc_slots(&mut slabs, class, slots_spanning_four_pages(class));
+
+        let mut distinct = slots.clone();
+        distinct.sort();
+        distinct.dedup();
+        assert_eq!(distinct.len(), slots.len());
         assert!(slots.iter().all(|&s| (s as usize).is_multiple_of(8)));
         assert_eq!(slabs.pages, 4);
-        // Writing every slot must not clobber a page header or a neighbour.
+    }
+
+    #[test]
+    fn every_slot_holds_its_own_value() {
+        // A slot overlapping a page header or a neighbour would lose this write.
+        let mut slabs = Slabs::new();
+        let class = class_of(layout(24, 8)).unwrap();
+        let slots = alloc_slots(&mut slabs, class, slots_spanning_four_pages(class));
+
         for (i, &s) in slots.iter().enumerate() {
             unsafe { s.cast::<u64>().write(i as u64) };
         }
         for (i, &s) in slots.iter().enumerate() {
             assert_eq!(unsafe { s.cast::<u64>().read() }, i as u64);
         }
+    }
+
+    #[test]
+    fn a_freed_slot_is_reused_first() {
+        let mut slabs = Slabs::new();
+        let class = class_of(layout(24, 8)).unwrap();
+        let slots = alloc_slots(&mut slabs, class, slots_spanning_four_pages(class));
+
         let freed = slots[7];
         unsafe { slabs.dealloc(freed, class) };
         assert_eq!(unsafe { slabs.alloc(class) }, freed);
+    }
+
+    #[test]
+    fn empty_pages_return_to_the_chunk_and_another_class_reuses_them() {
+        let mut slabs = Slabs::new();
+        let class = class_of(layout(24, 8)).unwrap();
+        let slots = alloc_slots(&mut slabs, class, slots_spanning_four_pages(class));
         for &s in &slots {
             unsafe { slabs.dealloc(s, class) };
         }
+
         // Empty pages go back, except the class's last one.
         assert_eq!(slabs.pages, 1);
         let again = unsafe { slabs.alloc(class) };
         assert!(!again.is_null());
         unsafe { slabs.dealloc(again, class) };
         assert_eq!(slabs.pages, 1);
+
         // Another class takes the pages given back instead of a new chunk.
         let other = class_of(layout(100, 4)).unwrap();
-        let per_other = (PAGE - HEADER) / CLASSES[other] as usize;
         let bump = slabs.chunk_next;
-        let more: Vec<*mut u8> = (0..per_other * 3)
-            .map(|_| unsafe { slabs.alloc(other) })
-            .collect();
+        let more = alloc_slots(&mut slabs, other, slots_per_page(other) * 3);
         assert_eq!(slabs.pages, 4);
         assert_eq!(slabs.chunk_next, bump, "the three freed pages are reused");
         assert_eq!(slabs.page_bytes(), CHUNK);
@@ -356,10 +389,7 @@ mod tests {
     fn a_full_page_rejoins_its_list_when_a_slot_frees() {
         let mut slabs = Slabs::new();
         let class = class_of(layout(256, 8)).unwrap();
-        let per_page = (PAGE - HEADER) / 256;
-        let first: Vec<*mut u8> = (0..per_page)
-            .map(|_| unsafe { slabs.alloc(class) })
-            .collect();
+        let first = alloc_slots(&mut slabs, class, slots_per_page(class));
         assert!(
             slabs.partial[class].is_null(),
             "a full page leaves the list"

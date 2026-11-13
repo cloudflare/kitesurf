@@ -14,13 +14,11 @@ fn share_style(html: &str, selector: &str) -> bool {
     let ids = dom.query_selector_all(selector).unwrap_or_default();
     assert!(ids.len() >= 2, "{selector} must match twice");
     let doc = dom.doc.borrow();
-    let style = |id: i32| {
+    let computed_style = |id: i32| {
         let node = doc.get_node(crate::blitz_node_id(id as u32)).expect("node");
         node.primary_styles().map(|s| (*s).clone()).expect("styled")
     };
-    let shared = servo_arc::Arc::ptr_eq(&style(ids[0]), &style(ids[1]));
-    drop(doc);
-    shared
+    servo_arc::Arc::ptr_eq(&computed_style(ids[0]), &computed_style(ids[1]))
 }
 
 // The spans differ in class, so they share by rule node, which rules out cousin sharing for their
