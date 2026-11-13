@@ -35,10 +35,11 @@ fn find<'a>(node: &'a Value, name: &str) -> &'a Value {
         .unwrap_or_else(|| panic!("{name} under {}", node["nodeName"]))
 }
 
-fn host(dom: &DomHandle) -> u32 {
-    let id = dom.query_selector("#host").expect("query ok");
-    assert!(id >= 0);
-    id as u32
+fn node_id(dom: &DomHandle, selector: &str) -> u32 {
+    let id = dom
+        .query_selector(selector)
+        .expect("selector query succeeds");
+    u32::try_from(id).expect("node exists")
 }
 
 #[test]
@@ -61,7 +62,7 @@ fn depth_one_lists_children_without_their_children() {
 #[test]
 fn a_lone_text_child_is_included_at_the_depth_limit() {
     let dom = DomHandle::new(HTML, "https://test.example/");
-    let body = dom.query_selector("body").unwrap() as u32;
+    let body = node_id(&dom, "body");
     let body = describe(
         &dom,
         body,
@@ -81,7 +82,7 @@ fn a_lone_text_child_is_included_at_the_depth_limit() {
 #[test]
 fn an_element_without_a_shadow_root_lists_no_children_at_the_depth_limit() {
     let dom = DomHandle::new(HTML, "https://test.example/");
-    let host = host(&dom);
+    let host = node_id(&dom, "#host");
     let limit = describe(
         &dom,
         host,
@@ -114,13 +115,12 @@ fn negative_depth_describes_the_whole_tree() {
 #[test]
 fn shadow_roots_follow_pierce() {
     let dom = DomHandle::new(HTML, "https://test.example/");
-    let host = host(&dom);
-    let root = dom.attach_shadow(host, "open");
-    assert!(root >= 0);
+    let host = node_id(&dom, "#host");
+    let root = u32::try_from(dom.attach_shadow(host, "open")).expect("shadow root");
     let slot = dom.create_element("i");
-    assert!(dom.append_child_node(root as u32, slot));
+    assert!(dom.append_child_node(root, slot));
     let other = dom.create_element("b");
-    assert!(dom.append_child_node(root as u32, other));
+    assert!(dom.append_child_node(root, other));
 
     let shallow = describe(
         &dom,
@@ -209,11 +209,11 @@ fn subtree_estimate_matches_described_traversal() {
         }
     }
     let dom = DomHandle::new(HTML, "https://test.example/");
-    let host = host(&dom);
-    let shadow = dom.attach_shadow(host, "open") as u32;
+    let host = node_id(&dom, "#host");
+    let shadow = u32::try_from(dom.attach_shadow(host, "open")).expect("shadow root");
     let nested = dom.create_element("section");
     assert!(dom.append_child_node(shadow, nested));
-    let nested_shadow = dom.attach_shadow(nested, "closed") as u32;
+    let nested_shadow = u32::try_from(dom.attach_shadow(nested, "closed")).expect("nested shadow");
     let leaf = dom.create_element("i");
     assert!(dom.set_attribute(leaf, "title", "café 漢🪁"));
     assert!(dom.append_child_node(nested_shadow, leaf));
@@ -247,7 +247,7 @@ fn subtree_estimate_matches_described_traversal() {
 #[test]
 fn subtree_estimate_accounts_for_large_values() {
     let dom = DomHandle::new("<div></div>", "https://test.example/");
-    let node = dom.query_selector("div").unwrap() as u32;
+    let node = node_id(&dom, "div");
     assert!(dom.set_attribute(node, "title", &"\n".repeat(34_000_000)));
     let id = dom.resolve_node_id(node).unwrap();
     let doc = dom.doc.borrow();
@@ -283,7 +283,7 @@ fn single_node_budget_ignores_large_text_child() {
     use crate::dom::cdp::check_node_budget;
 
     let dom = DomHandle::new("<div></div>", "https://test.example/");
-    let node = dom.query_selector("div").unwrap() as u32;
+    let node = node_id(&dom, "div");
     let text = dom.create_text_node(&"漢".repeat(17_000_000));
     assert!(dom.append_child_node(node, text));
     let id = dom.resolve_node_id(node).unwrap();

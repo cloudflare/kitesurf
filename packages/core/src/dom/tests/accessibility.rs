@@ -16,10 +16,10 @@ fn node_id(dom: &DomHandle, selector: &str) -> u32 {
     u32::try_from(id).expect("node exists")
 }
 
-fn drain_bytes(mut bytes: OuterHtmlBytes, max: usize) -> Vec<u8> {
+fn drain_chunks(max: usize, mut next: impl FnMut() -> Vec<u8>) -> Vec<u8> {
     let mut output = Vec::new();
     loop {
-        let chunk = bytes.next_chunk(max);
+        let chunk = next();
         if chunk.is_empty() {
             break;
         }
@@ -29,18 +29,14 @@ fn drain_bytes(mut bytes: OuterHtmlBytes, max: usize) -> Vec<u8> {
     output
 }
 
+fn drain_bytes(mut bytes: OuterHtmlBytes, max: usize) -> Vec<u8> {
+    drain_chunks(max, || bytes.next_chunk(max))
+}
+
 fn drain_start(mut start: AxStart, dom: &DomHandle, max: usize) -> Vec<u8> {
     assert_eq!(start.budget_error(), None);
     if let Some(mut stream) = start.take_stream() {
-        let mut output = Vec::new();
-        loop {
-            let chunk = stream.next_chunk(dom, max);
-            if chunk.is_empty() {
-                break;
-            }
-            assert!(chunk.len() <= max.max(1));
-            output.extend_from_slice(&chunk);
-        }
+        let output = drain_chunks(max, || stream.next_chunk(dom, max));
         assert_eq!(output.len(), stream.byte_length());
         assert!(stream.next_chunk(dom, max).is_empty());
         output
@@ -111,7 +107,7 @@ fn accessibility_visibility_scan_is_empty_when_layout_is_off() {
 }
 
 #[test]
-fn accessibility_javascript_whitespace_and_numbers() {
+fn accessibility_javascript_whitespace_matches_javascript() {
     assert_eq!(js_trim("\u{feff}\u{a0} x \u{feff}"), "x");
     assert_eq!(collapse("\u{feff}a\t\u{a0}b\u{feff}"), "a b");
     assert_eq!(js_trim("\u{85}x\u{85}"), "\u{85}x\u{85}");
@@ -120,6 +116,10 @@ fn accessibility_javascript_whitespace_and_numbers() {
         ["a", "b"]
     );
     assert_eq!(split_js_ws(" ").collect::<Vec<_>>(), [""]);
+}
+
+#[test]
+fn accessibility_javascript_numbers_match_javascript() {
     for (text, value) in [
         ("", 0.0),
         (" 0x10 ", 16.0),
@@ -141,6 +141,10 @@ fn accessibility_javascript_whitespace_and_numbers() {
     }
     assert_eq!(js_parse_int("\u{feff}+12.7"), 12.0);
     assert!(js_parse_int("no digits").is_nan());
+}
+
+#[test]
+fn accessibility_abs_url_resolves_against_the_document_base() {
     assert_eq!(
         abs_url("../a", "https://example.test/x/y"),
         "https://example.test/a"
@@ -213,26 +217,24 @@ fn accessibility_json_encoding_matches_javascript() {
 #[test]
 fn accessibility_full_and_root_json_preserve_wire_order() {
     let dom = DomHandle::new("<p>Hello</p>", "https://example.test/");
-    let full = r#"{"method":"full","frameId":"F","title":"T","url":""}"#;
-    let output = build_json(&dom, full).unwrap();
-    let expected = concat!(
-        r#"{"nodes":[{"nodeId":"root-F","ignored":false,"role":{"type":"internalRole","value":"RootWebArea"},"chromeRole":{"type":"internalRole","value":144},"name":{"type":"computedString","value":"T"},"value":{"type":"string","value":""},"backendDOMNodeId":0,"frameId":"F","childIds":["1"],"properties":[{"name":"url","value":{"type":"string","value":""}},{"name":"focusable","value":{"type":"booleanOrUndefined","value":true}}]},"#,
+    let root_node = r#"{"nodeId":"root-F","ignored":false,"role":{"type":"internalRole","value":"RootWebArea"},"chromeRole":{"type":"internalRole","value":144},"name":{"type":"computedString","value":"T"},"value":{"type":"string","value":""},"backendDOMNodeId":0,"frameId":"F","childIds":["1"],"properties":[{"name":"url","value":{"type":"string","value":""}},{"name":"focusable","value":{"type":"booleanOrUndefined","value":true}}]}"#;
+    let descendant_nodes = concat!(
         r#"{"nodeId":"1","ignored":true,"backendDOMNodeId":1,"frameId":"F","ignoredReasons":[{"name":"uninteresting","value":{"type":"boolean","value":true}}],"role":{"type":"internalRole","value":"none"},"childIds":["3"],"parentId":"root-F"},"#,
         r#"{"nodeId":"3","ignored":false,"backendDOMNodeId":3,"frameId":"F","role":{"type":"internalRole","value":"generic"},"parentId":"1","childIds":["4"]},"#,
         r#"{"nodeId":"4","ignored":false,"backendDOMNodeId":4,"frameId":"F","role":{"type":"internalRole","value":"paragraph"},"parentId":"3","childIds":["5"]},"#,
-        r#"{"nodeId":"5","ignored":false,"backendDOMNodeId":5,"frameId":"F","role":{"type":"internalRole","value":"StaticText"},"name":{"type":"computedString","value":"Hello"},"parentId":"4"}]}"#
+        r#"{"nodeId":"5","ignored":false,"backendDOMNodeId":5,"frameId":"F","role":{"type":"internalRole","value":"StaticText"},"name":{"type":"computedString","value":"Hello"},"parentId":"4"}"#
     );
-    assert_eq!(output, expected);
-    let root = r#"{"method":"root","frameId":"F","title":"T","url":""}"#;
-    let root_json = build_json(&dom, root).unwrap();
+
+    let full = r#"{"method":"full","frameId":"F","title":"T","url":""}"#;
     assert_eq!(
-        format!("{{\"nodes\":[{}]}}", &root_json[8..root_json.len() - 1]),
-        expected
-            .split("},{\"nodeId\":\"1\"")
-            .next()
-            .unwrap()
-            .to_string()
-            + "}]}"
+        build_json(&dom, full).unwrap(),
+        format!(r#"{{"nodes":[{root_node},{descendant_nodes}]}}"#)
+    );
+
+    let root = r#"{"method":"root","frameId":"F","title":"T","url":""}"#;
+    assert_eq!(
+        build_json(&dom, root).unwrap(),
+        format!(r#"{{"node":{root_node}}}"#)
     );
 }
 
@@ -642,15 +644,7 @@ fn accessibility_stream_keeps_high_fanout_node_output_within_chunk_size() {
     let expected = build_json(&dom, &request).unwrap();
     let mut start = start_accessibility_with_budget(&dom, &request, usize::MAX).unwrap();
     let mut stream = start.take_stream().expect("full replies stream");
-    let mut output = Vec::new();
-    loop {
-        let chunk = stream.next_chunk(&dom, 7);
-        if chunk.is_empty() {
-            break;
-        }
-        assert!(chunk.len() <= 7);
-        output.extend_from_slice(&chunk);
-    }
+    let output = drain_chunks(7, || stream.next_chunk(&dom, 7));
     assert_eq!(stream.byte_length(), expected.len());
     assert_eq!(String::from_utf8(output).unwrap(), expected);
 }
@@ -666,15 +660,7 @@ fn accessibility_stream_serializes_large_name_once() {
     let expected_node_count = expected_nodes["nodes"].as_array().unwrap().len();
     let mut start = start_accessibility_with_budget(&dom, &request, usize::MAX).unwrap();
     let mut stream = start.take_stream().expect("full replies stream");
-    let mut output = Vec::new();
-    loop {
-        let chunk = stream.next_chunk(&dom, 4096);
-        if chunk.is_empty() {
-            break;
-        }
-        assert!(chunk.len() <= 4096);
-        output.extend_from_slice(&chunk);
-    }
+    let output = drain_chunks(4096, || stream.next_chunk(&dom, 4096));
     assert_eq!(output, expected.as_bytes());
     assert_eq!(stream.serialized_nodes(), expected_node_count);
 }
