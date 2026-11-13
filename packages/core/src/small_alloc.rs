@@ -22,15 +22,20 @@ const MAX_ALIGN: usize = 8;
 /// the next class wastes at most 7 bytes, and each class strands at most one partial page.
 const CLASSES: [u16; 38] = classes();
 
+/// The last class before the step doubles to 8.
+const ALIGN4_CLASS_MAX: u16 = 48;
+
 const fn classes() -> [u16; 38] {
     let mut classes = [0u16; 38];
     let mut i = 0;
-    while i < 12 {
-        classes[i] = 4 * (i as u16 + 1);
+    let mut size = 4;
+    while size <= ALIGN4_CLASS_MAX {
+        classes[i] = size;
+        size += 4;
         i += 1;
     }
-    while i < 38 {
-        classes[i] = 48 + 8 * (i as u16 - 11);
+    while i < classes.len() {
+        classes[i] = classes[i - 1] + 8;
         i += 1;
     }
     classes
@@ -134,30 +139,30 @@ impl Slabs {
     /// A slot of `class`, or null when no page can be had.
     pub(crate) unsafe fn alloc(&mut self, class: usize) -> *mut u8 {
         let size = CLASSES[class] as usize;
-        let mut page = self.partial[class];
-        if page.is_null() {
-            page = unsafe { self.new_page() };
-            if page.is_null() {
+        let mut page_ptr = self.partial[class];
+        if page_ptr.is_null() {
+            page_ptr = unsafe { self.new_page() };
+            if page_ptr.is_null() {
                 return null_mut();
             }
-            unsafe { self.push(class, page) };
+            unsafe { self.push(class, page_ptr) };
         }
-        // SAFETY: `page` is a live page of this class, listed, so it has a free or unused slot.
-        let p = unsafe { &mut *page };
-        let slot = if !p.free.is_null() {
-            let slot = p.free;
+        // SAFETY: `page_ptr` is a live page of this class, listed, so it has a free or unused slot.
+        let page = unsafe { &mut *page_ptr };
+        let slot = if !page.free.is_null() {
+            let entry = page.free;
             // SAFETY: free-list entries are slots of this page holding a `FreeSlot`, 4-aligned
             // only, which is a pointer's alignment on wasm32 but not on native test hosts.
-            p.free = unsafe { slot.read_unaligned().next };
-            slot.cast::<u8>()
+            page.free = unsafe { entry.read_unaligned().next };
+            entry.cast::<u8>()
         } else {
-            let slot = unsafe { page.cast::<u8>().add(p.bump as usize) };
-            p.bump += size as u32;
+            let slot = unsafe { page_ptr.cast::<u8>().add(page.bump as usize) };
+            page.bump += size as u32;
             slot
         };
-        p.used += 1;
-        if p.free.is_null() && p.bump as usize + size > PAGE {
-            unsafe { self.unlink(class, page) };
+        page.used += 1;
+        if page.free.is_null() && page.bump as usize + size > PAGE {
+            unsafe { self.unlink(class, page_ptr) };
         }
         slot
     }
@@ -168,25 +173,25 @@ impl Slabs {
     ///
     /// Returns `slot`, from `alloc(class)`, to its page.
     pub(crate) unsafe fn dealloc(&mut self, slot: *mut u8, class: usize) {
-        let page = (slot as usize & !(PAGE - 1)) as *mut Page;
+        let page_ptr = (slot as usize & !(PAGE - 1)) as *mut Page;
         // SAFETY: every slot lies in a page whose header is at its page-aligned base.
-        let p = unsafe { &mut *page };
+        let page = unsafe { &mut *page_ptr };
         let entry = slot.cast::<FreeSlot>();
         // SAFETY: `class_of` never picks a class smaller than a pointer.
-        unsafe { entry.write_unaligned(FreeSlot { next: p.free }) };
-        p.free = entry;
-        p.used -= 1;
-        if !p.listed {
-            unsafe { self.push(class, page) };
+        unsafe { entry.write_unaligned(FreeSlot { next: page.free }) };
+        page.free = entry;
+        page.used -= 1;
+        if !page.listed {
+            unsafe { self.push(class, page_ptr) };
         }
         // Keep a class's last page even when empty, so a class hovering at a page boundary
         // does not take and give back a page on every allocation.
-        if p.used == 0 && (!p.prev.is_null() || !p.next.is_null()) {
+        if page.used == 0 && (!page.prev.is_null() || !page.next.is_null()) {
             unsafe {
-                self.unlink(class, page);
-                (*page).next = self.free_pages;
+                self.unlink(class, page_ptr);
+                (*page_ptr).next = self.free_pages;
             }
-            self.free_pages = page;
+            self.free_pages = page_ptr;
             self.pages -= 1;
         }
     }

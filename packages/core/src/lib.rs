@@ -893,7 +893,7 @@ impl DomHandle {
         self.flush_resolve(true);
     }
 
-    fn flush_resolve(&self, style_only: bool) {
+    fn flush_resolve(&self, requested_style_only: bool) {
         if self.layout_mode.get() == LayoutMode::Off {
             return;
         }
@@ -901,7 +901,7 @@ impl DomHandle {
         if !dirty && !self.animating.get() {
             return;
         }
-        let styles_fresh = style_only && dirty && !self.layout_dirty.style.get();
+        let styles_fresh = requested_style_only && dirty && !self.layout_dirty.style.get();
         if styles_fresh && !self.animating.get() {
             return;
         }
@@ -911,19 +911,13 @@ impl DomHandle {
             return;
         }
         // An animation-only refresh keeps the full resolve it always ran.
-        let style_only = style_only && dirty;
+        let style_only = requested_style_only && dirty;
         let mut doc = match self.doc.try_borrow_mut() {
             Ok(d) => d,
             Err(_) => return,
         };
-        let count_resolve = |animation_only: bool| {
-            let mut counts = self.resolve_counts.get();
-            let slot = usize::from(animation_only);
-            counts[slot] = counts[slot].saturating_add(1);
-            self.resolve_counts.set(counts);
-        };
         if !style_only {
-            count_resolve(!dirty);
+            self.count_resolve(!dirty);
         }
         #[cfg(test)]
         let _cascade_guard = STYLE_CASCADE_TEST_LOCK
@@ -937,7 +931,7 @@ impl DomHandle {
             let laid_out = !style_only || !doc.as_mut().resolve_style(now);
             if laid_out {
                 if style_only {
-                    count_resolve(false);
+                    self.count_resolve(false);
                 }
                 doc.as_mut().resolve(now);
             }
@@ -984,6 +978,7 @@ impl DomHandle {
         }));
         drop(doc);
         match result {
+            // A style-only flush keeps layout dirty for the next geometry read or paint.
             Ok((animating, false)) => {
                 #[cfg(test)]
                 self.style_passes.set(self.style_passes.get() + 1);
@@ -991,6 +986,7 @@ impl DomHandle {
                 self.animating.set(animating);
                 self.last_resolve_now.set(now);
             }
+            // A full resolve clears both flags and advances the epoch geometry polls compare.
             Ok((animating, true)) => {
                 self.layout_dirty.set(false);
                 self.animating.set(animating);
@@ -1006,6 +1002,14 @@ impl DomHandle {
                 }
             }
         }
+    }
+
+    /// Count one resolve in the mutation-driven or animation-only slot.
+    fn count_resolve(&self, animation_only: bool) {
+        let mut counts = self.resolve_counts.get();
+        let slot = usize::from(animation_only);
+        counts[slot] = counts[slot].saturating_add(1);
+        self.resolve_counts.set(counts);
     }
 
     fn connected_node_id(&self, node_id: u32) -> Option<NodeId> {

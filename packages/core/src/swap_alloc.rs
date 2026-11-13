@@ -98,8 +98,7 @@ unsafe fn raw_realloc(ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 
 
 // Its methods and the raw_* paths stay out of line: inlined into every caller under LTO, the
 // slab branches made wasm32 LLVM's CFGStackify crash on an unrelated large function (krilla's
-// glyph drawing). nightly-2026-11-04 builds them inlined, but navigation measured ~1% slower and
-// the wasm 0.65 MB larger.
+// glyph drawing).
 pub struct SwapAlloc;
 
 // SAFETY: every method forwards to `raw_*` with the arguments it was given, which serve each
@@ -239,6 +238,8 @@ pub fn reset_peak_window() {
 pub fn stats_json() -> String {
     use core::fmt::Write as _;
     let budget = BUDGET.load(Relaxed);
+    // SAFETY: a read between allocator calls on the one thread.
+    let slab_page_bytes = unsafe { (*SLABS.0.get()).page_bytes() } as i64;
     // Written field by field rather than as one wide format!: that macro expands to enough IR
     // to overflow LLVM's function pass manager at codegen-units=1.
     let mut out = String::with_capacity(256);
@@ -260,9 +261,7 @@ pub fn stats_json() -> String {
         ("peakLiveBytes", PEAK_WINDOW.load(Relaxed) as i64),
         ("lifetimePeakLiveBytes", PEAK.load(Relaxed) as i64),
         ("wasmBytes", wasm_memory_bytes() as i64),
-        // SAFETY: a read between allocator calls on the one thread.
-        ("slabPageBytes", unsafe { (*SLABS.0.get()).page_bytes() }
-            as i64),
+        ("slabPageBytes", slab_page_bytes),
     ] {
         if out.len() > 1 {
             out.push(',');
