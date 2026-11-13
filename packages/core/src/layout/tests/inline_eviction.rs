@@ -3,9 +3,18 @@
 // https://opensource.org/licenses/Apache-2.0
 
 use crate::DomHandle;
+use blitz_dom::node::TextLayout;
 use blitz_dom::{BaseDocument, NodeId};
+use std::collections::HashSet;
 
 const PARAGRAPH_KINDS: usize = 8;
+
+/// A scan should keep the resident set to about a third of a long page's roots.
+const RESIDENT_BOUND_DIVISOR: usize = 3;
+
+/// The inner scroller cases scroll this far, in this many steps.
+const SCROLLER_CONTENT_PX: f64 = 17_000.0;
+const SCROLLER_STEPS: u32 = 8;
 
 /// A tall page whose paragraphs cover the inputs a rebuild has to replay: inline
 /// boxes, percentage indents, justification, line clamping, bidi, inside markers,
@@ -69,6 +78,11 @@ fn setup(eviction: Option<f32>, paragraphs: usize) -> DomHandle {
     setup_with(&page(paragraphs), eviction)
 }
 
+/// The same page loaded twice, first without eviction, then with it.
+fn with_and_without_eviction(html: &str) -> (DomHandle, DomHandle) {
+    (setup_with(html, None), setup_with(html, Some(2.0)))
+}
+
 fn inline_roots(base: &BaseDocument) -> Vec<NodeId> {
     base.tree()
         .iter()
@@ -82,40 +96,78 @@ fn inline_roots(base: &BaseDocument) -> Vec<NodeId> {
         .collect()
 }
 
+/// The shaped text of a node, if it has any.
+fn inline_layout(base: &BaseDocument, id: NodeId) -> Option<&TextLayout> {
+    base.tree()[id].element_data()?.inline_layout_data()
+}
+
+/// The shaped text of `id`, which the caller has filtered to inline roots.
+fn inline_layout_of_root(base: &BaseDocument, id: NodeId) -> &TextLayout {
+    inline_layout(base, id).expect("filtered to inline roots")
+}
+
+fn page_height(dom: &DomHandle) -> i32 {
+    dom.doc
+        .borrow()
+        .as_ref()
+        .root_element()
+        .final_layout()
+        .size
+        .height as i32
+}
+
 /// Lines, glyph runs, inline boxes and span fragments of every inline root.
 fn geometry(base: &BaseDocument) -> Vec<(NodeId, String)> {
-    use parley::PositionedLayoutItem;
-    use std::fmt::Write;
     inline_roots(base)
         .into_iter()
-        .map(|id| {
-            let inline = base.tree()[id]
-                .element_data()
-                .and_then(|el| el.inline_layout_data())
-                .expect("filtered to inline roots");
-            let layout = inline.layout(base.tree());
-            let mut out = format!(
-                "{} {} {} {:?}\n",
-                layout.width(),
-                layout.height(),
-                layout.full_width(),
-                layout.span_fragments()
-            );
-            for line in layout.lines() {
-                writeln!(out, "{:?} {:?}", line.metrics(), line.text_range()).unwrap();
-                for item in line.items() {
-                    match item {
-                        PositionedLayoutItem::GlyphRun(run) => {
-                            let glyphs: Vec<_> = run.positioned_glyphs().collect();
-                            writeln!(out, "  run {} {:?}", run.offset(), glyphs).unwrap();
-                        }
-                        PositionedLayoutItem::InlineBox(ibox) => {
-                            writeln!(out, "  box {ibox:?}").unwrap();
-                        }
-                    }
+        .map(|id| (id, geometry_of(base, id)))
+        .collect()
+}
+
+fn geometry_of(base: &BaseDocument, id: NodeId) -> String {
+    use parley::PositionedLayoutItem;
+    use std::fmt::Write;
+    let layout = inline_layout_of_root(base, id).layout(base.tree());
+    let mut out = format!(
+        "{} {} {} {:?}\n",
+        layout.width(),
+        layout.height(),
+        layout.full_width(),
+        layout.span_fragments()
+    );
+    for line in layout.lines() {
+        writeln!(out, "{:?} {:?}", line.metrics(), line.text_range()).unwrap();
+        for item in line.items() {
+            match item {
+                PositionedLayoutItem::GlyphRun(run) => {
+                    let glyphs: Vec<_> = run.positioned_glyphs().collect();
+                    writeln!(out, "  run {} {:?}", run.offset(), glyphs).unwrap();
+                }
+                PositionedLayoutItem::InlineBox(ibox) => {
+                    writeln!(out, "  box {ibox:?}").unwrap();
                 }
             }
-            (id, out)
+        }
+    }
+    out
+}
+
+/// The geometry dump without `inline_max_coord`, the one field two roots can
+/// differ in when their lines broke at widths that round apart.
+fn geometry_without_max_coord(geometry: Vec<(NodeId, String)>) -> Vec<(NodeId, Vec<String>)> {
+    geometry
+        .into_iter()
+        .map(|(id, dump)| {
+            let lines = dump
+                .lines()
+                .map(|line| match line.find("inline_max_coord") {
+                    Some(start) => {
+                        let end = start + line[start..].find(',').unwrap_or(0);
+                        format!("{}{}", &line[..start], &line[end..])
+                    }
+                    None => line.to_owned(),
+                });
+            (id, lines.collect::<Vec<_>>())
         })
         .collect()
 }
@@ -124,22 +176,17 @@ fn is_evicted(dom: &DomHandle, id: &str) -> bool {
     let doc = dom.doc.borrow();
     let base = doc.as_ref();
     let id = base.get_element_by_id(id).expect("element exists");
-    base.tree()[id]
-        .element_data()
-        .and_then(|el| el.inline_layout_data())
-        .is_some_and(|inline| inline.is_evicted())
+    inline_layout(base, id).is_some_and(|inline| inline.is_evicted())
 }
 
 /// The inline roots of a document without eviction that have a break summary.
-fn summarized_roots(dom: &DomHandle) -> std::collections::HashSet<NodeId> {
+fn summarized_roots(dom: &DomHandle) -> HashSet<NodeId> {
     let doc = dom.doc.borrow();
     let base = doc.as_ref();
     inline_roots(base)
         .into_iter()
         .filter(|&id| {
-            base.tree()[id]
-                .element_data()
-                .and_then(|el| el.inline_layout_data())
+            inline_layout(base, id)
                 .is_some_and(|inline| inline.layout(base.tree()).break_summary().is_some())
         })
         .collect()
@@ -148,13 +195,23 @@ fn summarized_roots(dom: &DomHandle) -> std::collections::HashSet<NodeId> {
 fn evicted_count(base: &BaseDocument) -> usize {
     inline_roots(base)
         .into_iter()
-        .filter(|&id| {
-            base.tree()[id]
-                .element_data()
-                .and_then(|el| el.inline_layout_data())
-                .is_some_and(|inline| inline.is_evicted())
-        })
+        .filter(|&id| inline_layout(base, id).is_some_and(|inline| inline.is_evicted()))
         .count()
+}
+
+fn evicted_root_count(dom: &DomHandle) -> usize {
+    evicted_count(dom.doc.borrow().as_ref())
+}
+
+/// The scan spares layouts laid out or read since the last one, so evicting a
+/// root that was just read takes two passes.
+fn evict_after_grace(dom: &DomHandle) {
+    for _ in 0..2 {
+        dom.doc
+            .borrow_mut()
+            .as_mut()
+            .evict_offscreen_inline_layouts();
+    }
 }
 
 #[test]
@@ -212,14 +269,7 @@ fn offscreen_layouts_are_evicted_without_changing_paint_or_geometry() {
     );
     assert_eq!(evicted_count(keep.doc.borrow().as_ref()), 0);
 
-    let height = keep
-        .doc
-        .borrow()
-        .as_ref()
-        .root_element()
-        .final_layout()
-        .size
-        .height as i32;
+    let height = page_height(&keep);
     assert!(
         is_evicted(&evict, "p119"),
         "precondition: the bottom starts evicted"
@@ -279,9 +329,7 @@ fn boxes(base: &BaseDocument) -> Vec<(NodeId, String)> {
 #[test]
 fn width_changes_lay_out_evicted_roots_without_reshaping() {
     let html = page(120).replace("width: 600px;", "");
-    let load = |eviction| setup_with(&html, eviction);
-    let keep = load(None);
-    let evict = load(Some(2.0));
+    let (keep, evict) = with_and_without_eviction(&html);
     let far = evicted_count(evict.doc.borrow().as_ref());
     assert!(
         far > 60,
@@ -314,14 +362,7 @@ fn width_changes_lay_out_evicted_roots_without_reshaping() {
             "boxes differ at {width}px"
         );
     }
-    let height = keep
-        .doc
-        .borrow()
-        .as_ref()
-        .root_element()
-        .final_layout()
-        .size
-        .height as i32;
+    let height = page_height(&keep);
     for scroll_y in [0, height / 2, height - 600] {
         assert_eq!(
             keep.render_scene(0, scroll_y, 0, 0, false, true),
@@ -336,11 +377,9 @@ fn width_changes_lay_out_evicted_roots_without_reshaping() {
     );
 }
 
-/// Roots holding absolutely positioned boxes whose static position needs
-/// only their line (block-level, or with a horizontal inset) are evicted and
-/// laid out from their summaries, placing the boxes as a live layout does.
-#[test]
-fn width_changes_place_absolute_boxes_of_evicted_roots() {
+/// The fidelity page plus paragraphs holding absolutely positioned boxes whose
+/// static position comes from their line.
+fn annotated_page() -> String {
     let words = "lorem ipsum dolor sit amet consectetur adipiscing elit ".repeat(4);
     let annotated: String = (0..40)
         .map(|i| {
@@ -350,7 +389,7 @@ fn width_changes_place_absolute_boxes_of_evicted_roots() {
             )
         })
         .collect();
-    let html = page(120)
+    page(120)
         .replace("width: 600px;", "")
         .replace(
             "</style>",
@@ -363,10 +402,15 @@ fn width_changes_place_absolute_boxes_of_evicted_roots() {
         .replace(
             "</body>",
             &format!("{annotated}<p id=static>{words}<i class=static>s</i>{words}</p></body>"),
-        );
-    let load = |eviction| setup_with(&html, eviction);
-    let keep = load(None);
-    let evict = load(Some(2.0));
+        )
+}
+
+/// Roots holding absolutely positioned boxes whose static position needs
+/// only their line (block-level, or with a horizontal inset) are evicted and
+/// laid out from their summaries, placing the boxes as a live layout does.
+#[test]
+fn width_changes_place_absolute_boxes_of_evicted_roots() {
+    let (keep, evict) = with_and_without_eviction(&annotated_page());
     assert!(
         is_evicted(&evict, "o39"),
         "a root with placeable boxes evicts"
@@ -393,14 +437,7 @@ fn width_changes_place_absolute_boxes_of_evicted_roots() {
             "boxes differ at {width}px"
         );
     }
-    let height = keep
-        .doc
-        .borrow()
-        .as_ref()
-        .root_element()
-        .final_layout()
-        .size
-        .height as i32;
+    let height = page_height(&keep);
     assert_eq!(
         keep.render_scene(0, height - 600, 0, 0, false, true),
         evict.render_scene(0, height - 600, 0, 0, false, true),
@@ -408,12 +445,8 @@ fn width_changes_place_absolute_boxes_of_evicted_roots() {
     );
 }
 
-/// Table cells with fractional widths have content slots that differ from
-/// their content width by rounding. That is no float, so the cells still
-/// break from their summaries, and their lines match a document that never
-/// evicted.
-#[test]
-fn rounded_content_slots_do_not_count_as_floats() {
+/// A page of fractional-width table cells, whose content slots round.
+fn rounded_cell_page() -> String {
     let mut body = String::new();
     for i in 0..160 {
         let pad = 3.37 + (i % 7) as f32 * 1.13;
@@ -425,14 +458,20 @@ fn rounded_content_slots_do_not_count_as_floats() {
             "more words ".repeat(2 + i % 3),
         ));
     }
-    let html = format!(
+    format!(
         "<!DOCTYPE html><html><head><style>body {{ margin: 7.7px; font: 16px/1.25 serif; }}\
          </style></head><body><div style=\"display: flow-root; padding: 0 1.9px\">{body}</div>\
          </body></html>"
-    );
-    let load = |eviction| setup_with(&html, eviction);
-    let keep = load(None);
-    let evict = load(Some(2.0));
+    )
+}
+
+/// Table cells with fractional widths have content slots that differ from
+/// their content width by rounding. That is no float, so the cells still
+/// break from their summaries, and their lines match a document that never
+/// evicted.
+#[test]
+fn rounded_content_slots_do_not_count_as_floats() {
+    let (keep, evict) = with_and_without_eviction(&rounded_cell_page());
     for width in [613, 800] {
         let stats = blitz_dom::node::inline_summary_stats();
         evict.set_viewport(width, 600);
@@ -456,33 +495,16 @@ fn rounded_content_slots_do_not_count_as_floats() {
     // layout from cache, so a live root keeps lines broken at that width while
     // a rebuilt one replays the committed width: their lines end at a
     // different line max advance, and nowhere else.
-    let without_max_coord = |geometry: Vec<(NodeId, String)>| {
-        geometry
-            .into_iter()
-            .map(|(id, dump)| {
-                let lines = dump
-                    .lines()
-                    .map(|line| match line.find("inline_max_coord") {
-                        Some(start) => {
-                            let end = start + line[start..].find(',').unwrap_or(0);
-                            format!("{}{}", &line[..start], &line[end..])
-                        }
-                        None => line.to_owned(),
-                    });
-                (id, lines.collect::<Vec<_>>())
-            })
-            .collect::<Vec<_>>()
-    };
     assert_eq!(
-        without_max_coord(geometry(keep.doc.borrow().as_ref())),
-        without_max_coord(geometry(evict.doc.borrow().as_ref()))
+        geometry_without_max_coord(geometry(keep.doc.borrow().as_ref())),
+        geometry_without_max_coord(geometry(evict.doc.borrow().as_ref()))
     );
 }
 
 fn summary_heap_size(base: &BaseDocument) -> usize {
     inline_roots(base)
         .into_iter()
-        .filter_map(|id| base.tree()[id].element_data()?.inline_layout_data())
+        .filter_map(|id| inline_layout(base, id))
         .map(|inline| inline.break_summary_heap_size())
         .sum()
 }
@@ -503,12 +525,7 @@ fn rebuilding_an_evicted_root_drops_its_summary() {
     );
 
     // The first scan spares layouts read since the last one; the next evicts them.
-    for _ in 0..2 {
-        dom.doc
-            .borrow_mut()
-            .as_mut()
-            .evict_offscreen_inline_layouts();
-    }
+    evict_after_grace(&dom);
     assert_eq!(summary_heap_size(dom.doc.borrow().as_ref()), evicted);
     assert_eq!(geometry(dom.doc.borrow().as_ref()), before);
 }
@@ -529,19 +546,17 @@ fn editing_an_evicted_paragraph_lays_out_the_new_text() {
         "precondition: the last paragraph is evicted"
     );
     assert_eq!(edit(&keep), edit(&evict));
-    let keep_geometry = geometry(keep.doc.borrow().as_ref());
-    let evict_geometry = geometry(evict.doc.borrow().as_ref());
-    assert_eq!(keep_geometry, evict_geometry);
+    assert_eq!(
+        geometry(keep.doc.borrow().as_ref()),
+        geometry(evict.doc.borrow().as_ref())
+    );
 }
 
 fn text_and_ranges(base: &BaseDocument) -> Vec<(NodeId, String, String)> {
     inline_roots(base)
         .into_iter()
         .map(|id| {
-            let inline = base.tree()[id]
-                .element_data()
-                .and_then(|el| el.inline_layout_data())
-                .expect("filtered to inline roots");
+            let inline = inline_layout_of_root(base, id);
             (
                 id,
                 inline.text(base.tree()).to_owned(),
@@ -554,13 +569,13 @@ fn text_and_ranges(base: &BaseDocument) -> Vec<(NodeId, String, String)> {
 /// The first pass shapes each root in its layout call, keeps the ones near the
 /// viewport for the first paint and evicts the rest, with or without the pass
 /// outgrowing its window of recently laid out roots.
-fn first_pass_case(paragraphs: usize) {
+fn assert_first_pass_keeps_roots_near_the_viewport(paragraphs: usize) {
     let keep = setup(None, paragraphs);
     let shaped_before = blitz_dom::node::inline_layout_rebuild_count();
     let evict = setup(Some(2.0), paragraphs);
     let shaped = blitz_dom::node::inline_layout_rebuild_count() - shaped_before;
     let total = inline_roots(evict.doc.borrow().as_ref()).len();
-    assert_eq!(evict_count_of(&keep), 0, "precondition: eager shaping");
+    assert_eq!(evicted_root_count(&keep), 0, "precondition: eager shaping");
     assert!(
         shaped as usize >= total,
         "construction leaves roots unshaped for layout to shape ({shaped} of {total})"
@@ -592,7 +607,7 @@ fn first_pass_case(paragraphs: usize) {
 
 #[test]
 fn the_first_pass_keeps_only_roots_near_the_viewport() {
-    first_pass_case(120);
+    assert_first_pass_keeps_roots_near_the_viewport(120);
     let keep = setup(None, 120);
     let evict = setup(Some(2.0), 120);
     assert_eq!(
@@ -603,14 +618,14 @@ fn the_first_pass_keeps_only_roots_near_the_viewport() {
 
 #[test]
 fn a_first_pass_longer_than_its_window_keeps_only_roots_near_the_viewport() {
-    first_pass_case(2600);
+    assert_first_pass_keeps_roots_near_the_viewport(2600);
 }
 
 /// A flex item is measured before it is laid out. Roots its measure broke
 /// leave the pass window as laid out ones do, so the final layout breaks the
 /// far ones from their summaries instead of the whole subtree staying shaped.
 #[test]
-fn a_flex_item_s_measure_evicts_roots_before_its_final_layout() {
+fn a_flex_measure_evicts_roots_before_the_final_layout() {
     let html = page(2600)
         .replacen(
             "<body>",
@@ -618,10 +633,9 @@ fn a_flex_item_s_measure_evicts_roots_before_its_final_layout() {
             1,
         )
         .replacen("</body>", "</div></div></body>", 1);
-    let build = |eviction: Option<f32>| setup_with(&html, eviction);
-    let keep = build(None);
+    let keep = setup_with(&html, None);
     let before = blitz_dom::node::inline_summary_stats().summarized;
-    let evict = build(Some(2.0));
+    let evict = setup_with(&html, Some(2.0));
     let summarized = blitz_dom::node::inline_summary_stats().summarized - before;
     assert!(
         summarized > 0,
@@ -643,14 +657,7 @@ fn the_eviction_scan_visits_only_resident_roots() {
     let summarized = summarized_roots(&setup(None, 240));
     let dom = setup(Some(2.0), 240);
     let total = inline_roots(dom.doc.borrow().as_ref()).len();
-    let height = dom
-        .doc
-        .borrow()
-        .as_ref()
-        .root_element()
-        .final_layout()
-        .size
-        .height as i32;
+    let height = page_height(&dom);
     for step in 0..=8 {
         dom.render_scene(0, (height - 600) * step / 8, 0, 0, false, true);
         let doc = dom.doc.borrow();
@@ -660,9 +667,7 @@ fn the_eviction_scan_visits_only_resident_roots() {
         let live = inline_roots(base)
             .into_iter()
             .filter(|&id| {
-                base.tree()[id]
-                    .element_data()
-                    .and_then(|el| el.inline_layout_data())
+                inline_layout(base, id)
                     .is_some_and(|inline| inline.replayable_break && !inline.is_evicted())
                     && summarized.contains(&id)
             })
@@ -673,7 +678,7 @@ fn the_eviction_scan_visits_only_resident_roots() {
             "every live root must be resident ({resident} < {live})"
         );
         assert!(
-            resident < total / 3,
+            resident < total / RESIDENT_BOUND_DIVISOR,
             "the resident set should stay near the viewport ({resident} of {total})"
         );
     }
@@ -683,27 +688,24 @@ fn the_eviction_scan_visits_only_resident_roots() {
 fn scrolling_through_clipped_strips_evicts_what_scrolled_away() {
     let dom = setup(Some(2.0), 240);
     let total = inline_roots(dom.doc.borrow().as_ref()).len();
-    let height = dom
-        .doc
-        .borrow()
-        .as_ref()
-        .root_element()
-        .final_layout()
-        .size
-        .height as i32;
-    assert!(!dom
-        .render_scene_clip(0, 0, 800, 600, false, true)
-        .is_empty());
+    let height = page_height(&dom);
+    assert!(
+        !dom.render_scene_clip(0, 0, 800, 600, false, true)
+            .is_empty(),
+        "precondition: the top strip renders"
+    );
     assert!(!is_evicted(&dom, "p0"), "precondition: the top is shaped");
     for step in 1..=8 {
         let y = (height - 600) * step / 8;
         dom.set_page_scroll(0.0, y as f64);
-        assert!(!dom
-            .render_scene_clip(0, y, 800, 600, false, true)
-            .is_empty());
+        assert!(
+            !dom.render_scene_clip(0, y, 800, 600, false, true)
+                .is_empty(),
+            "the strip at {y} renders"
+        );
         let resident = dom.doc.borrow().as_ref().inline_resident_count();
         assert!(
-            resident < total / 3,
+            resident < total / RESIDENT_BOUND_DIVISOR,
             "strips keep the resident set near the viewport ({resident} of {total})"
         );
     }
@@ -714,7 +716,7 @@ fn scrolling_through_clipped_strips_evicts_what_scrolled_away() {
 }
 
 /// Scrolls `#box` down by an eighth of its content per step, by either path.
-fn inner_scroller_case(scroll: impl Fn(&DomHandle, u32, f64)) {
+fn assert_inner_scroll_evicts_what_scrolled_away(scroll: impl Fn(&DomHandle, u32, f64)) {
     let paragraphs: String = (0..240)
         .map(|i| format!("<p id=q{i}>{}</p>", "words inside a scroller ".repeat(8)))
         .collect();
@@ -734,19 +736,23 @@ fn inner_scroller_case(scroll: impl Fn(&DomHandle, u32, f64)) {
     dom.render_scene(0, 0, 0, 0, false, true);
     assert!(!is_evicted(&dom, "q0"), "precondition: the top is shaped");
     let scroller = dom.query_selector("#box").expect("query parses") as u32;
-    for step in 1..=8 {
-        scroll(&dom, scroller, 17_000.0 * f64::from(step) / 8.0);
+    for step in 1..=SCROLLER_STEPS {
+        scroll(
+            &dom,
+            scroller,
+            SCROLLER_CONTENT_PX * f64::from(step) / f64::from(SCROLLER_STEPS),
+        );
         dom.render_scene(0, 0, 0, 0, false, true);
     }
-    let top = dom
-        .doc
-        .borrow()
-        .as_ref()
-        .get_element_by_id("box")
-        .map(|id| dom.doc.borrow().as_ref().tree()[id].scroll_offset().y);
+    let scrolled = {
+        let doc = dom.doc.borrow();
+        let base = doc.as_ref();
+        let box_id = base.get_element_by_id("box").expect("the scroller");
+        base.tree()[box_id].scroll_offset().y
+    };
     assert!(
-        top > Some(15_000.0),
-        "precondition: the box scrolled ({top:?})"
+        scrolled > 15_000.0,
+        "precondition: the box scrolled ({scrolled})"
     );
     assert!(
         is_evicted(&dom, "q0"),
@@ -756,20 +762,16 @@ fn inner_scroller_case(scroll: impl Fn(&DomHandle, u32, f64)) {
 
 #[test]
 fn setting_an_inner_scroll_offset_evicts_what_scrolled_away() {
-    inner_scroller_case(|dom, scroller, y| {
+    assert_inner_scroll_evicts_what_scrolled_away(|dom, scroller, y| {
         assert!(dom.write_scroll_offset(scroller, 0.0, y).is_some());
     });
 }
 
 #[test]
 fn scrolling_an_inner_scroller_by_a_delta_evicts_what_scrolled_away() {
-    inner_scroller_case(|dom, scroller, _| {
+    assert_inner_scroll_evicts_what_scrolled_away(|dom, scroller, _| {
         dom.scroll_node_by(scroller, 0.0, 2_200.0);
     });
-}
-
-fn evict_count_of(dom: &DomHandle) -> usize {
-    evicted_count(dom.doc.borrow().as_ref())
 }
 
 #[test]
@@ -808,9 +810,7 @@ fn evicted_shrink_to_fit_roots_are_measured_without_rebuilding() {
     let html = page(120)
         .replace("width: 600px;", "")
         .replace("</body>", &format!("{fitted}</body>"));
-    let load = |eviction| setup_with(&html, eviction);
-    let keep = load(None);
-    let evict = load(Some(2.0));
+    let (keep, evict) = with_and_without_eviction(&html);
     assert!(
         is_evicted(&evict, "c39"),
         "precondition: the boxes start evicted"
@@ -852,6 +852,7 @@ fn printing_evicted_roots_matches_printing_live_ones() {
 #[test]
 fn a_failed_print_does_not_keep_its_rows_shaped() {
     let dom = setup(Some(2.0), 120);
+    // Holding the font borrow makes the print fail part way through.
     let fonts = dom.rbi_font_bytes.borrow_mut();
     assert!(dom.record_pdf_scenes(400, 300, 10, 10, 10, 10).is_empty());
     drop(fonts);
@@ -860,20 +861,16 @@ fn a_failed_print_does_not_keep_its_rows_shaped() {
         !is_evicted(&dom, "p119"),
         "the geometry read rebuilt the bottom"
     );
-    for _ in 0..2 {
-        dom.doc
-            .borrow_mut()
-            .as_mut()
-            .evict_offscreen_inline_layouts();
-    }
+    evict_after_grace(&dom);
     assert!(
         is_evicted(&dom, "p119"),
         "the failed print released its keep extent"
     );
 }
 
-#[test]
-fn removing_an_absolute_inset_rebuilds_the_static_inline_position() {
+/// The fidelity page plus a paragraph whose absolutely positioned pin loses its
+/// horizontal inset.
+fn pinned_page() -> String {
     let annotated: String = (0..40)
         .map(|i| {
             format!(
@@ -882,12 +879,14 @@ fn removing_an_absolute_inset_rebuilds_the_static_inline_position() {
             )
         })
         .collect();
-    let html = page(120)
+    page(120)
         .replace("</style>", ".rel { position: relative; }</style>")
-        .replace("</body>", &format!("{annotated}</body>"));
-    let load = |eviction| setup_with(&html, eviction);
-    let keep = load(None);
-    let evict = load(Some(2.0));
+        .replace("</body>", &format!("{annotated}</body>"))
+}
+
+#[test]
+fn removing_an_absolute_inset_rebuilds_the_static_inline_position() {
+    let (keep, evict) = with_and_without_eviction(&pinned_page());
     assert!(is_evicted(&evict, "o39"), "the pin initially has an inset");
     for dom in [&keep, &evict] {
         let pin = dom.query_selector("#pin39").unwrap() as u32;
@@ -911,7 +910,11 @@ fn a_zero_height_viewport_keeps_roots_and_bounds_the_resident_queue() {
     dom.resolve_layout();
     let total = inline_roots(dom.doc.borrow().as_ref()).len();
     assert!(total > 256, "the layout pass must overflow its window");
-    assert_eq!(evict_count_of(&dom), 0, "no keep band means no eviction");
+    assert_eq!(
+        evicted_root_count(&dom),
+        0,
+        "no keep band means no eviction"
+    );
     for _ in 0..4 {
         geometry(dom.doc.borrow().as_ref());
         dom.doc
@@ -919,7 +922,7 @@ fn a_zero_height_viewport_keeps_roots_and_bounds_the_resident_queue() {
             .as_mut()
             .evict_offscreen_inline_layouts();
         assert!(dom.doc.borrow().as_ref().inline_resident_count() <= total);
-        assert_eq!(evict_count_of(&dom), 0);
+        assert_eq!(evicted_root_count(&dom), 0);
     }
 }
 
@@ -928,24 +931,24 @@ fn roots_in_the_keep_extent_stay_shaped_until_it_is_cleared() {
     // Longer than the pass's window, so roots leave it mid-pass.
     let dom = DomHandle::new(&page(2600), "https://test.example/");
     dom.set_viewport(800, 600);
-    let set_extent = |extent| dom.doc.borrow_mut().as_mut().set_inline_keep_extent(extent);
-    set_extent(Some((0.0, f64::MAX)));
+    let set_keep_extent = |extent| dom.doc.borrow_mut().as_mut().set_inline_keep_extent(extent);
+    set_keep_extent(Some((0.0, f64::MAX)));
     dom.resolve_layout();
     assert_eq!(
-        evict_count_of(&dom),
+        evicted_root_count(&dom),
         0,
         "the pass evicted a root in the extent"
     );
     dom.render_scene(0, 0, 0, 0, false, true);
     assert_eq!(
-        evict_count_of(&dom),
+        evicted_root_count(&dom),
         0,
         "a scan evicted a root in the extent"
     );
-    set_extent(None);
+    set_keep_extent(None);
     dom.render_scene(0, 0, 0, 0, false, true);
     assert!(
-        evict_count_of(&dom) > 0,
+        evicted_root_count(&dom) > 0,
         "clearing the extent evicts far roots"
     );
 }
