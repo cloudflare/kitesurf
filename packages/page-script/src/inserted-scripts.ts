@@ -213,15 +213,42 @@ function moduleGateAttributes(
   };
 }
 
-export function fetchGatedModuleSource(
+// A gate-approved module body, and whether the gate selected the JSON type from its MIME.
+interface GatedModuleBody {
+  source: string;
+  isJsonBody: boolean;
+}
+
+export function fetchGatedModuleSource(url: string, referrer?: string): Promise<string> {
+  return fetchGatedModuleBody(url, referrer, undefined).then(moduleSourceForBoa);
+}
+
+// The namespace of the JSON module at `url`, parsed in the page realm. Boa wraps the object as a
+// synthetic module, so the data never becomes an object graph in the wasm heap: 5 MB of JSON
+// held 29 MB parsed as a module. Boa's module map runs a URL once, as it does for source, so
+// every import of `url` shares one namespace.
+export function fetchGatedJsonModule(url: string, referrer?: string): Promise<object> {
+  return fetchGatedModuleBody(url, referrer, "json").then(({ source }) => ({
+    default: JSON.parse(source),
+  }));
+}
+
+// An untyped import of a JSON-MIME body still reaches boa as an `export default` literal; a
+// `with: { type: "json" }` request takes the namespace path instead.
+function moduleSourceForBoa({ source, isJsonBody }: GatedModuleBody): string {
+  if (!isJsonBody) return source;
+  return "export default " + JSON.stringify(JSON.parse(source)) + ";";
+}
+
+function fetchGatedModuleBody(
   url: string,
-  referrer?: string,
-  expectedModuleType?: "json",
-): Promise<string> {
+  referrer: string | undefined,
+  expectedModuleType: "json" | undefined,
+): Promise<GatedModuleBody> {
   const attributes = moduleGateAttributes(url, referrer);
   moduleFetchNonces.set(url, attributes.nonce);
   const inline = takeInlineModuleSource(url);
-  if (inline !== undefined) return Promise.resolve(inline);
+  if (inline !== undefined) return Promise.resolve({ source: inline, isJsonBody: false });
   // A parser entry and a runtime insert at one URL are authorized by different rules, so they
   // never share an in-flight fetch: an insert must not lend 'strict-dynamic' to a parser entry.
   // A JSON request is a different load too: the gate checks the requested type.
@@ -229,26 +256,26 @@ export function fetchGatedModuleSource(
     (attributes.parser ? "parser:" : "inserted:") +
     (expectedModuleType === undefined ? "" : `${expectedModuleType}:`) +
     url;
-  let pending = moduleSourceInflight.get(key);
+  let pending = moduleBodyInflight.get(key);
   if (!pending) {
-    pending = fetchGatedModuleSourceOnce(url, attributes, expectedModuleType)
+    pending = fetchGatedModuleBodyOnce(url, attributes, expectedModuleType)
       .catch((err: unknown) => {
         markModuleFetchFailed(url);
         throw err;
       })
-      .finally(() => moduleSourceInflight.delete(key));
-    moduleSourceInflight.set(key, pending);
+      .finally(() => moduleBodyInflight.delete(key));
+    moduleBodyInflight.set(key, pending);
   }
   return pending;
 }
 
-const moduleSourceInflight = new Map<string, Promise<string>>();
+const moduleBodyInflight = new Map<string, Promise<GatedModuleBody>>();
 
-async function fetchGatedModuleSourceOnce(
+async function fetchGatedModuleBodyOnce(
   url: string,
   attributes: { nonce: string | null; integrity: string | null; parser: boolean },
-  expectedModuleType?: "json",
-): Promise<string> {
+  expectedModuleType: "json" | undefined,
+): Promise<GatedModuleBody> {
   const meta = {
     url,
     module: true,
@@ -293,16 +320,13 @@ async function fetchGatedModuleSourceOnce(
     reportBlocked(post);
     throw new Error(post.message ?? "module blocked by policy");
   }
-  // Module source feeds the same boa parse as inserted classic source, so it shares the budget.
+  // A module body costs the isolate what inserted classic source does, so it shares the budget.
   // A refused fetch fails the graph, so the element gets error.
   if (insertedBytes + response.bytes.length > MAX_INSERTED_SCRIPT_BYTES) {
     throw new Error(`fetch(${url}) refused: byte budget exceeded (${response.bytes.length} bytes)`);
   }
   insertedBytes += response.bytes.length;
-  if (post.moduleType === "json") {
-    return "export default " + JSON.stringify(JSON.parse(response.source)) + ";";
-  }
-  return response.source;
+  return { source: response.source, isJsonBody: post.moduleType === "json" };
 }
 
 // An inserted module runs on boa through the parser modules' loader, which gates every fetch
