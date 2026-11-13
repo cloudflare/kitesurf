@@ -326,13 +326,13 @@ async function documentRoot(
   target: TargetState,
   ps: PageScriptStub | null,
   subtree: SubtreeParams,
-  method: string,
+  cdpMethod: string,
 ): Promise<Protocol.DOM.Node> {
   if (ps) {
     try {
       const r = await session.call.getDocument(subtree);
       assertDomReplyGraph(r);
-      if (r.budgetError) throw subtreeBudgetError(method, r.budgetError);
+      if (r.budgetError) throw subtreeBudgetError(cdpMethod, r.budgetError);
       if (!r.root) return syntheticBlankDocument();
       annotateIframeFrameIds(r.root, iframeFrameIdsByOwner(target));
       return r.root;
@@ -347,7 +347,7 @@ async function documentRoot(
   const dom = ensureTargetDom(target);
   if (!dom) return syntheticBlankDocument();
   const budgetError = dom.documentBudgetError(subtree.depth, subtree.pierce);
-  if (budgetError) throw subtreeBudgetError(method, budgetError);
+  if (budgetError) throw subtreeBudgetError(cdpMethod, budgetError);
   const root = dom.getDocument(subtree.depth, subtree.pierce);
   if (!root) return syntheticBlankDocument();
   assertDomReplyGraph(root);
@@ -739,35 +739,41 @@ async function pushNodePaths(
   if (!target.domEnabledSessions.has(sessionKey)) return;
   const nodes = frontendNodes(target, sessionKey);
   if (!nodes.hasDocument()) return;
-  const unknown = nodeIds.filter((id) => id > 0 && !nodes.isBound(id));
-  if (unknown.length === 0) return;
-  // The push is advisory: the client can request the children itself, so a generation that
-  // retired mid-push must not turn a computed result into a CDP error.
-  let ancestorIds: readonly number[];
-  try {
-    ({ ancestorIds } = await session.call.nodeAncestors({ nodeIds: unknown }));
-  } catch {
-    return;
-  }
+  const unboundIds = nodeIds.filter((id) => id > 0 && !nodes.isBound(id));
+  if (unboundIds.length === 0) return;
+
+  const ancestors = await bestEffort(() => session.call.nodeAncestors({ nodeIds: unboundIds }));
+  if (!ancestors) return;
   // Ancestors come outermost-first, so keep the head: its first entry hangs off a parent the
   // client already has, and each later one is a child of the entry before it. A tail would start
   // at a parent that was sliced away, so the client could not place any of it.
-  const parents = ancestorIds.filter((id) => !nodes.childrenSent(id)).slice(0, MAX_PUSHED_PARENTS);
+  const parents = ancestors.ancestorIds
+    .filter((id) => !nodes.childrenSent(id))
+    .slice(0, MAX_PUSHED_PARENTS);
+
   for (let at = 0; at < parents.length; at += PUSH_PARENTS_PER_READ) {
     const batch = parents.slice(at, at + PUSH_PARENTS_PER_READ);
-    let lists: readonly { parentId: number; nodes: Protocol.DOM.Node[] }[];
-    try {
-      ({ lists } = await session.call.childNodeLists({ nodeIds: batch, depth: 1, pierce: false }));
-    } catch {
-      return;
-    }
+    const reply = await bestEffort(() =>
+      session.call.childNodeLists({ nodeIds: batch, depth: 1, pierce: false }),
+    );
+    if (!reply) return;
     const byOwner = iframeFrameIdsByOwner(target);
-    for (const { parentId, nodes: children } of lists) {
+    for (const { parentId, nodes: children } of reply.lists) {
       // PageScript does not know frame ids; the client needs them to attach a child document.
       for (const child of children) annotateIframeFrameIds(child, byOwner);
       nodes.bindChildren(parentId, children);
       ctx.emit({ method: "DOM.setChildNodes", params: { parentId, nodes: children }, sessionId });
     }
+  }
+}
+
+// The push is advisory: the client can request the children itself, so a generation that retired
+// mid-push must not turn a computed result into a CDP error.
+async function bestEffort<T>(run: () => Promise<T>): Promise<T | null> {
+  try {
+    return await run();
+  } catch {
+    return null;
   }
 }
 
@@ -779,7 +785,10 @@ export function emitMutations(
   if (!mutations || mutations.length === 0) return;
   syncStyleSheetsFromMutations(ctx, target, mutations);
   if (target.domEnabledSessions.size === 0) return;
-  const staleParents = new Map<number, Set<string>>();
+  // A changed child count leaves the parent's list stale in the sessions that hold it. Every
+  // enabled session is a holder, so they share one set.
+  const parentsNeedingRebind = new Map<number, Set<string>>();
+  const rebindSessions = new Set(Array.from(target.domEnabledSessions, sessionKeyOf));
   const byOwner = iframeFrameIdsByOwner(target);
   for (const m of mutations) {
     if (!m || typeof m !== "object") continue;
@@ -787,9 +796,7 @@ export function emitMutations(
     if (typeof kind !== "string" || kind.length === 0) continue;
     if (kind === "stylesheetResourceLoaded") continue;
     if (m.kind === "childNodeCountUpdated" && typeof m.nodeId === "number" && m.nodeId > 0) {
-      const holders = staleParents.get(m.nodeId) ?? new Set<string>();
-      for (const sessionId of target.domEnabledSessions) holders.add(sessionKeyOf(sessionId));
-      staleParents.set(m.nodeId, holders);
+      parentsNeedingRebind.set(m.nodeId, rebindSessions);
     }
     for (const sessionId of target.domEnabledSessions) {
       const nodes = frontendNodes(target, sessionKeyOf(sessionId));
@@ -802,7 +809,7 @@ export function emitMutations(
       if (event) ctx.emit(event);
     }
   }
-  if (staleParents.size > 0) scheduleChildRebinds(ctx, target, staleParents);
+  if (parentsNeedingRebind.size > 0) scheduleChildRebinds(ctx, target, parentsNeedingRebind);
 }
 
 /**

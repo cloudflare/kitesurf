@@ -10,10 +10,10 @@ import type { SubtreeBudgetError } from "@kitesurf/jsrpc-types/query-dom";
 
 import type { TargetState } from "./types.ts";
 
-export function subtreeBudgetError(method: string, error: SubtreeBudgetError): Error {
+export function subtreeBudgetError(cdpMethod: string, error: SubtreeBudgetError): Error {
   const nodes = error.nodesAtLeast ? `at least ${error.nodes} nodes` : `${error.nodes} nodes`;
   return new Error(
-    `${method}: CDP subtree budget exceeded: ${nodes}, at least ${error.atLeastBytes} bytes, budget ${error.budget} bytes; use a smaller depth and DOM.requestChildNodes`,
+    `${cdpMethod}: CDP subtree budget exceeded: ${nodes}, at least ${error.atLeastBytes} bytes, budget ${error.budget} bytes; use a smaller depth and DOM.requestChildNodes`,
   );
 }
 
@@ -122,8 +122,7 @@ export class DomFrontendNodes {
   unbind(nodeId: number): void {
     const stack = [nodeId];
     const seen = new Set<number>();
-    while (stack.length > 0) {
-      const id = stack.pop() as number;
+    for (let id = stack.pop(); id !== undefined; id = stack.pop()) {
       if (seen.has(id)) continue;
       seen.add(id);
       const owner = this.#parentOf.get(id);
