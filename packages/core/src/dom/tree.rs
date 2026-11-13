@@ -530,22 +530,11 @@ struct Probe<'m> {
 impl<'m> Probe<'m> {
     fn new(marker: &'m str, key: (u64, u64)) -> Self {
         let marker = marker.as_bytes();
-        let mut failure = vec![0; marker.len()];
-        let mut k = 0;
-        for i in 1..marker.len() {
-            while k > 0 && marker[i] != marker[k] {
-                k = failure[k - 1];
-            }
-            if marker[i] == marker[k] {
-                k += 1;
-            }
-            failure[i] = k;
-        }
         Probe {
             len: 0,
             hasher: output_hasher(key),
             marker,
-            failure,
+            failure: failure_table(marker),
             matched: 0,
             marker_at: None,
             prefix: String::new(),
@@ -566,6 +555,22 @@ impl<'m> Probe<'m> {
             }
         }
     }
+}
+
+/// Knuth-Morris-Pratt failure table: the longest proper border of each prefix of `marker`.
+fn failure_table(marker: &[u8]) -> Vec<usize> {
+    let mut failure = vec![0; marker.len()];
+    let mut matched = 0;
+    for i in 1..marker.len() {
+        while matched > 0 && marker[i] != marker[matched] {
+            matched = failure[matched - 1];
+        }
+        if marker[i] == marker[matched] {
+            matched += 1;
+        }
+        failure[i] = matched;
+    }
+    failure
 }
 
 impl HtmlSink for Probe<'_> {
@@ -606,28 +611,34 @@ impl HtmlSink for StreamSink {
         std::hash::Hasher::write(&mut self.hasher, s.as_bytes());
         let mut rest = s.as_bytes();
         while !rest.is_empty() {
-            let pos = self.raw_pos;
-            if !self.inserted && pos >= self.at {
+            if !self.inserted && self.raw_pos >= self.at {
                 self.pending.extend_from_slice(&self.insert);
                 self.inserted = true;
             }
-            let n = if pos < self.at {
-                let n = rest.len().min(self.at - pos);
-                self.pending.extend_from_slice(&rest[..n]);
-                n
-            } else if pos < self.at + self.cut {
-                rest.len().min(self.at + self.cut - pos)
-            } else {
-                self.pending.extend_from_slice(rest);
-                rest.len()
-            };
-            rest = &rest[n..];
-            self.raw_pos += n;
+            let taken = self.copy_before_next_edit(rest);
+            rest = &rest[taken..];
+            self.raw_pos += taken;
         }
     }
 }
 
 impl StreamSink {
+    /// Copies what `rest` holds before the next edit point and returns how many bytes that took:
+    /// up to the cut, nothing inside it, then everything after it.
+    fn copy_before_next_edit(&mut self, rest: &[u8]) -> usize {
+        let pos = self.raw_pos;
+        if pos < self.at {
+            let taken = rest.len().min(self.at - pos);
+            self.pending.extend_from_slice(&rest[..taken]);
+            return taken;
+        }
+        if pos < self.at + self.cut {
+            return rest.len().min(self.at + self.cut - pos);
+        }
+        self.pending.extend_from_slice(rest);
+        rest.len()
+    }
+
     fn unread(&self) -> usize {
         self.pending.len() - self.taken
     }
@@ -766,28 +777,14 @@ impl DomHandle {
         let internal_id = self.resolve_node_id(node_id)?;
         let doc = self.doc.try_borrow().ok()?;
         let node = doc.get_node(internal_id)?;
+
+        // First pass: the output's length, keyed hash, first marker offset and its start.
         let key = output_hash_key().ok()?;
         let mut probe = Probe::new(marker, key);
         write_node_outer_html(&doc, node, &mut probe);
         drop(doc);
-        let (at, cut, insert) = match probe.marker_at {
-            None => (usize::MAX, 0, Vec::new()),
-            Some(at) => {
-                let prefix = &probe.prefix;
-                if at + marker.len() > prefix.len() {
-                    return None;
-                }
-                let stripped = [&prefix[..at], &prefix[at + marker.len()..]].concat();
-                let complete = prefix.len() == probe.len;
-                let keep = doctype.is_empty() || leading_doctype(&stripped, complete)?;
-                let insert = if keep {
-                    Vec::new()
-                } else {
-                    doctype.as_bytes().to_vec()
-                };
-                (at, marker.len(), insert)
-            }
-        };
+
+        let (at, cut, insert) = marker_edit(&probe, marker, doctype)?;
         let len = probe.len - cut + insert.len();
         Some(OuterHtmlStream {
             stack: vec![StreamStep::Open(internal_id)],
@@ -808,6 +805,29 @@ impl DomHandle {
             torn: false,
         })
     }
+}
+
+/// Where the streamed output removes `marker` and, unless the output already starts with a
+/// doctype after spaces and comments, inserts `doctype`: `(at, cut, insert)`. `None` when the
+/// marker or the leading-doctype answer lies past the prefix the probe kept.
+fn marker_edit(probe: &Probe<'_>, marker: &str, doctype: &str) -> Option<(usize, usize, Vec<u8>)> {
+    let Some(at) = probe.marker_at else {
+        return Some((usize::MAX, 0, Vec::new()));
+    };
+    let prefix = &probe.prefix;
+    if at + marker.len() > prefix.len() {
+        return None;
+    }
+
+    let stripped = [&prefix[..at], &prefix[at + marker.len()..]].concat();
+    let complete = prefix.len() == probe.len;
+    let keep = doctype.is_empty() || leading_doctype(&stripped, complete)?;
+    let insert = if keep {
+        Vec::new()
+    } else {
+        doctype.as_bytes().to_vec()
+    };
+    Some((at, marker.len(), insert))
 }
 
 #[wasm_bindgen]
