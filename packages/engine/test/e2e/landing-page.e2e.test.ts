@@ -31,7 +31,8 @@ test("/ without inspector params, or with a non-http(s) url, serves the landing 
     expect(res.headers.get("content-type"), path).toBe("text/html; charset=utf-8");
     const csp = res.headers.get("content-security-policy");
     expect(csp, path).toContain("default-src 'none'");
-    expect(csp, path).toContain("form-action 'self'");
+    // The form's /?url= submission redirects to the hosted frontend, which form-action covers.
+    expect(csp, path).toContain("form-action 'self' https://example.com;");
     const html = await res.text();
     expect(html, path).toContain('<form class="omnibox" action="/" method="get"');
     expect(html, path).toContain('id="inspect-form"');
@@ -73,6 +74,7 @@ test("with a same-origin frontend, / serves the landing page with same-origin ex
     exampleHref("https://ks.invalid/inspector/inspector.html", "wss", "ks.invalid"),
   );
   expect(html).not.toContain("DevTools loads from");
+  expect(res.headers.get("content-security-policy")).toContain("form-action 'self';");
 });
 
 test("without a frontend, / leaves only the CDP endpoints", async () => {

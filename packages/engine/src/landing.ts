@@ -113,6 +113,17 @@ function chromeInspectSection(url: URL): string {
 </ol>`;
 }
 
+// CSP form-action also covers the redirects of a submission, so the form needs the origin of a
+// hosted frontend that `/?url=` redirects to. A path-only base stays on this origin.
+function formActionSources(inspectorBase: string | null): string {
+  if (inspectorBase === null || inspectorBase.startsWith("/")) return "'self'";
+  try {
+    return `'self' ${new URL(inspectorBase).origin}`;
+  } catch {
+    return "'self'";
+  }
+}
+
 /** `inspectorBase` is the configured DevTools frontend; null leaves the CDP endpoints only. */
 export function landingPage(url: URL, inspectorBase: string | null = null): Response {
   const intro =
@@ -164,8 +175,8 @@ ${chromeInspectSection(url)}
     headers: {
       "content-type": "text/html; charset=utf-8",
       "content-security-policy":
-        "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; " +
-        "frame-ancestors 'none'",
+        "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; " +
+        `form-action ${formActionSources(inspectorBase)}; frame-ancestors 'none'`,
       "x-content-type-options": "nosniff",
     },
   });
