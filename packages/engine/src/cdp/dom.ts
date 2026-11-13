@@ -482,9 +482,9 @@ function iframeFrameIdsByOwner(target: TargetState): Map<number, string> {
 // Each record and array counts once, so 2^20 containers is ~350k nodes: a CDP node costs
 // about three. That is tens of MiB of JSON, several times the 16 MiB document cap.
 const MAX_DOM_REPLY_CONTAINERS = 1 << 20;
-// The accessibility builder recurses once per element level and overflows the worker
-// stack at about 1535 levels, so half of that is the largest depth with a 2x margin.
-// JSON serialization handles far deeper replies; `BuildCtx.build` sets this bound.
+// The accessibility builder recursed once per element level and overflowed the worker
+// stack at about 1535 levels, so half of that is the largest depth with a 2x margin. JSON
+// serialization and other recursive consumers handle far less than that in practice.
 const MAX_DOM_REPLY_DEPTH = 767;
 
 function rejectDomReply(reason: string): Error {
