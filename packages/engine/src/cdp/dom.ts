@@ -21,7 +21,7 @@ import { installIsolateLimitSurface, installUpstreamEventHandler } from "./page.
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
 import { publishStub } from "./page-script-generation.ts";
 import { ensureTargetDom } from "./dom-release.ts";
-import { frontendNodes, sessionKeyOf } from "./dom-frontend.ts";
+import { frontendNodes, sessionKeyOf, type DomFrontendNodes } from "./dom-frontend.ts";
 import {
   outerHtmlResponse,
   registerEnsurePageScript,
@@ -76,12 +76,15 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
         } catch (err) {
           const msg = (err as Error)?.message ?? String(err);
           if (!/no document loaded/i.test(msg)) throw err;
+          // Engine-parsed node ids would not resolve in PageScript. DOM.documentUpdated follows
+          // once a document commits, and the client asks again.
+          return { root: syntheticBlankDocument() };
         }
       }
       {
         const dom = ensureTargetDom(target);
         if (!dom) return { root: syntheticBlankDocument() };
-        const root = dom.getDocument();
+        const root = dom.getDocument(-1, false);
         assertDomReplyGraph(root);
         stripAttributeNamespaceSidecars(root);
         annotateIframeFrameIds(root, target);
@@ -100,12 +103,15 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
         } catch (err) {
           const msg = (err as Error)?.message ?? String(err);
           if (!/no document loaded/i.test(msg)) throw err;
+          // Engine-parsed node ids would not resolve in PageScript. DOM.documentUpdated follows
+          // once a document commits, and the client asks again.
+          return { nodes: [syntheticBlankDocument()] };
         }
       }
       {
         const dom = ensureTargetDom(target);
         if (!dom) return { nodes: [syntheticBlankDocument()] };
-        const root = dom.getDocument();
+        const root = dom.getDocument(-1, false);
         assertDomReplyGraph(root);
         stripAttributeNamespaceSidecars(root);
         annotateIframeFrameIds(root, target);
@@ -709,7 +715,6 @@ async function pushNodePaths(
   // client already has, and each later one is a child of the entry before it. A tail would start
   // at a parent that was sliced away, so the client could not place any of it.
   const parents = ancestorIds.filter((id) => !nodes.childrenSent(id)).slice(0, MAX_PUSHED_PARENTS);
-  const byOwner = iframeFrameIdsByOwner(target);
   for (let at = 0; at < parents.length; at += PUSH_PARENTS_PER_READ) {
     const batch = parents.slice(at, at + PUSH_PARENTS_PER_READ);
     let lists: readonly { parentId: number; nodes: Protocol.DOM.Node[] }[];
@@ -885,7 +890,7 @@ function scheduleChildRebinds(
   if (!pageScript) return;
   const work = (async () => {
     const reads = await Promise.all(
-      Array.from(parentIds, async (id) => {
+      Array.from(parents.keys(), async (id) => {
         try {
           const r = await stubQueryDom(pageScript, "nodeSubtree", {
             nodeId: id,
@@ -899,7 +904,6 @@ function scheduleChildRebinds(
       }),
     );
     if (target.pageScript !== pageScript) return;
-    const byOwner = iframeFrameIdsByOwner(target);
     for (const { id, node } of reads) {
       const nodes = childNodesForRebind(node);
       if (!nodes) continue;
