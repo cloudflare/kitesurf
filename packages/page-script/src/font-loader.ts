@@ -141,6 +141,7 @@ const SCRIPT_FONT_FILES: Record<string, string> = {
   Laoo: "NotoSansLao.ttf",
   Geor: "NotoSansGeorgian.ttf",
   Armn: "NotoSansArmenian.ttf",
+  Hang: "NotoSansKR.ttf",
 };
 const SCRIPT_FONTS: ScriptFont[] = SCRIPT_RANGES.map(({ tag, range }) => {
   const file = SCRIPT_FONT_FILES[tag];

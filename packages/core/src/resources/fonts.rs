@@ -783,8 +783,8 @@ pub fn register_emoji_font(bytes: &[u8]) -> bool {
     true
 }
 
-/// Register Noto Sans CJK SC for Han, Hiragana, Katakana, and Hangul fallbacks.
-/// Regional aliases, including Simplified Chinese variants, share one blob.
+/// Register Noto Sans CJK SC for Han, Hiragana and Katakana fallbacks. It has no Hangul
+/// syllables, which come from the `Hang` script face; Korean text still needs it for Hanja.
 /// Add it after emoji in Common for ideographic spaces and fullwidth punctuation.
 /// Returns true only on the first registration.
 #[wasm_bindgen]
@@ -904,6 +904,8 @@ const SCRIPT_FONT_ASSETS: &[(&str, &str)] = &[
     ("Laoo", "/fonts/NotoSansLao.ttf"),
     ("Geor", "/fonts/NotoSansGeorgian.ttf"),
     ("Armn", "/fonts/NotoSansArmenian.ttf"),
+    // The CJK asset is the Noto Sans SC subset, which has no Hangul syllables.
+    ("Hang", "/fonts/NotoSansKR.ttf"),
 ];
 
 /// Register a fetched Noto face in its script fallback chain. Idempotent per tag.
@@ -949,7 +951,12 @@ pub fn register_script_font(bytes: Vec<u8>, script_tag: String) -> bool {
     SHARED_FONT_CONTEXT.with(|cell| {
         let mut borrow = cell.borrow_mut();
         let font_ctx = borrow.get_or_insert_with(make_empty_font_context);
+        let svg_usable = has_outline_tables(&bytes);
         let blob = Blob::from(bytes);
+        if svg_usable {
+            // usvg shapes `<text>` through its own font database.
+            blitz_dom::util::register_svg_font(Arc::new(blob.clone()), None);
+        }
         let result = font_ctx.collection.register_fonts(blob, None);
         record_lazy_registration(path, None, None, &result);
         let ids: Vec<FamilyId> = result.into_iter().map(|(id, _)| id).collect();
@@ -1782,6 +1789,7 @@ mod tests {
         "NotoSansLao",
         "NotoSansGeorgian",
         "NotoSansArmenian",
+        "NotoSansKR",
     ];
 
     #[test]

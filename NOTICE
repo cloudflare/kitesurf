@@ -10,10 +10,10 @@ Rust notices list the dependencies resolved for each artifact's target.
 Fonts
   - Noto Sans, Noto Serif, Noto Sans Mono, and script-specific Noto faces in
     packages/engine/public/fonts/, including their shaping-only derivatives,
-    except for Noto Color Emoji and Noto Sans SC below. The OpenType name
-    records identify The Noto Project Authors: 2022 for most faces, 2024 for
-    Hebrew, and 2025 for Bengali. The family repositories recorded in those
-    name tables are:
+    except for Noto Color Emoji, Noto Sans SC, and Noto Sans KR below. The
+    OpenType name records identify The Noto Project Authors: 2022 for most
+    faces, 2024 for Hebrew, and 2025 for Bengali. The family repositories
+    recorded in those name tables are:
     https://github.com/notofonts/latin-greek-cyrillic,
     https://github.com/notofonts/arabic, https://github.com/notofonts/armenian,
     https://github.com/notofonts/bengali, https://github.com/notofonts/devanagari,
@@ -55,6 +55,12 @@ Fonts
     including Adobe's Reserved Font Name notice, is in
     licenses/OFL-1.1-Noto-SC.txt; upstream license source:
     https://github.com/google/fonts/blob/main/ofl/notosanssc/OFL.txt
+  - Noto Sans KR (packages/engine/public/fonts/NotoSansKR.ttf and
+    NotoSansKR.shaping.otf)
+    Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name
+    'Source'. Noto Sans KR from https://github.com/google/fonts (ofl/notosanskr),
+    subset to the Hangul blocks and instanced to wght 400-900.
+    SIL Open Font License 1.1, see packages/engine/public/fonts/NotoSansKR-OFL.txt
   - Inter (packages/engine/public/fonts/inter-latin-variable.woff2,
     InterVariable.ttf and InterVariable-Italic.ttf)
     Copyright (c) 2016 The Inter Project Authors
