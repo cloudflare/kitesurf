@@ -11,11 +11,33 @@ use std::sync::{Arc, Mutex};
 
 const MONO: &[u8] = include_bytes!("../../../../engine/public/fonts/NotoSansMono.ttf");
 
+/// Names two faces the fixture never serves until `deliver`, and applies them to `#s`.
+const STYLESHEET: &str = r#"@font-face { font-family: "Late"; src: url("/a"); }
+@font-face { font-family: "Later"; src: url("/b"); }
+#s { display: inline-block; font: 20px "Late", "Later", serif; }"#;
+
 /// Serves the stylesheet at once and holds every other request until `deliver`.
-#[derive(Default)]
 struct HeldFonts {
     stylesheet: String,
     held: Mutex<Vec<(String, Box<dyn NetHandler>)>>,
+}
+
+impl HeldFonts {
+    fn new(stylesheet: &str) -> Self {
+        Self {
+            stylesheet: stylesheet.to_string(),
+            held: Mutex::default(),
+        }
+    }
+
+    fn deliver(&self) -> usize {
+        let held = std::mem::take(&mut *self.held.lock().expect("held lock"));
+        let count = held.len();
+        for (url, handler) in held {
+            handler.bytes(url, Bytes::from_static(MONO));
+        }
+        count
+    }
 }
 
 impl NetProvider for HeldFonts {
@@ -29,39 +51,13 @@ impl NetProvider for HeldFonts {
     }
 }
 
-impl HeldFonts {
-    fn deliver(&self) -> usize {
-        let held = std::mem::take(&mut *self.held.lock().expect("held lock"));
-        let count = held.len();
-        for (url, handler) in held {
-            handler.bytes(url, Bytes::from_static(MONO));
-        }
-        count
-    }
-}
-
-fn width(document: &mut HtmlDocument) -> f32 {
-    let doc: &mut BaseDocument = document.as_mut();
-    doc.resolve(0.0);
-    let id = doc.query_selector("#s").expect("query ok").expect("#s");
-    doc.get_node(id).expect("node").final_layout().size.width
-}
-
-#[test]
-fn late_web_fonts_reshape_text_once_delivered() {
-    let net = Arc::new(HeldFonts {
-        stylesheet: r#"@font-face { font-family: "Late"; src: url("/a"); }
-@font-face { font-family: "Later"; src: url("/b"); }
-#s { display: inline-block; font: 20px "Late", "Later", serif; }"#
-            .to_string(),
-        ..Default::default()
-    });
-    let mut document = HtmlDocument::from_html(
+fn font_document(net: Arc<HeldFonts>) -> HtmlDocument {
+    HtmlDocument::from_html(
         r#"<link rel="stylesheet" href="/style.css"><span id="s">iiiiiiiiii</span>"#,
         DocumentConfig {
             base_url: Some("https://fonts.test/".to_string()),
             html_parser_provider: Some(Arc::new(HtmlProvider)),
-            net_provider: Some(net.clone()),
+            net_provider: Some(net),
             font_ctx: Some(crate::resources::fonts::get_or_init_font_context()),
             viewport: Some(blitz_traits::shell::Viewport::new(
                 800,
@@ -71,13 +67,30 @@ fn late_web_fonts_reshape_text_once_delivered() {
             )),
             ..Default::default()
         },
-    );
-    width(&mut document);
-    let fallback = width(&mut document);
+    )
+}
+
+/// Resolves the document and returns the laid out width of `#s`.
+fn resolved_span_width(document: &mut HtmlDocument) -> f32 {
+    let doc: &mut BaseDocument = document.as_mut();
+    doc.resolve(0.0);
+    let id = doc.query_selector("#s").expect("query ok").expect("#s");
+    doc.get_node(id).expect("node").final_layout().size.width
+}
+
+#[test]
+fn late_web_fonts_reshape_text_once_delivered() {
+    let net = Arc::new(HeldFonts::new(STYLESHEET));
+    let mut document = font_document(net.clone());
+
+    // The first resolve loads the stylesheet and requests both faces.
+    resolved_span_width(&mut document);
+    let fallback = resolved_span_width(&mut document);
     assert!(net.deliver() > 0, "the faces were requested");
-    let late = width(&mut document);
+
+    let after_delivery = resolved_span_width(&mut document);
     assert!(
-        late > fallback * 1.5,
-        "monospace i is wider: {fallback} -> {late}"
+        after_delivery > fallback * 1.5,
+        "monospace i is wider: {fallback} -> {after_delivery}"
     );
 }

@@ -47,6 +47,7 @@ fn resolved_page(row_count: usize) -> Page {
     let mut viewport = doc.get_viewport();
     viewport.window_size = (VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
     doc.set_viewport(viewport);
+
     let root = doc.root_node().id();
     let mut mutator = doc.mutate();
     let html = create_block(&mut mutator, local_name!("html"), ZERO_BOX);
@@ -54,17 +55,30 @@ fn resolved_page(row_count: usize) -> Page {
     let container_style = format!("{ZERO_BOX}; width: {ROW_WIDTH}px");
     let container = create_block(&mut mutator, local_name!("div"), &container_style);
     let rows: Vec<NodeId> = (0..row_count).map(|_| create_row(&mut mutator)).collect();
+
     mutator.append_children(root, &[html]);
     mutator.append_children(html, &[body]);
     mutator.append_children(body, &[container]);
     mutator.append_children(container, &rows);
     drop(mutator);
+
     doc.resolve(0.0);
     Page {
         doc,
         container,
         rows,
     }
+}
+
+fn append_row(page: &mut Page) -> NodeId {
+    let mut mutator = page.doc.mutate();
+    let row = create_row(&mut mutator);
+    mutator.append_children(page.container, &[row]);
+    drop(mutator);
+
+    page.rows.push(row);
+    page.doc.resolve(0.0);
+    row
 }
 
 fn paint_list(doc: &BaseDocument, id: NodeId) -> PaintList {
@@ -94,8 +108,23 @@ fn assert_row_at(doc: &BaseDocument, row: NodeId, index: usize) {
         (ROW_WIDTH, ROW_HEIGHT),
         "row {index} size"
     );
+
     let hit = doc.element_from_point(ROW_WIDTH / 2.0, top + ROW_HEIGHT / 2.0);
     assert_eq!(hit, Some(row), "row {index} hit target");
+}
+
+/// Reads the container's paint list and checks it against the page after one more append.
+fn checked_paint_list(page: &Page, appended: NodeId, len: usize) -> PaintList {
+    let list = paint_list(&page.doc, page.container);
+    assert_eq!(list.ids, page.rows, "paint order after {len} appends");
+    assert!(
+        list.capacity <= 2 * len.max(2),
+        "capacity {} over-allocates {len} children",
+        list.capacity
+    );
+    assert_row_at(&page.doc, page.rows[0], 0);
+    assert_row_at(&page.doc, appended, len - 1);
+    list
 }
 
 #[test]
@@ -119,9 +148,11 @@ fn empty_computed_child_lists_retain_no_allocation() {
     assert!(layout.is_empty());
     assert_eq!(layout.capacity(), 0);
     drop(layout);
+
     let list = paint_list(&page.doc, page.container);
     assert!(list.ids.is_empty());
     assert_eq!(list.capacity, 0);
+
     let container_layout = node.final_layout();
     assert_eq!(
         (container_layout.size.width, container_layout.size.height),
@@ -132,38 +163,22 @@ fn empty_computed_child_lists_retain_no_allocation() {
 #[test]
 fn dirty_appends_reuse_paint_buffers_and_grow_capacity_amortized() {
     let mut page = resolved_page(0);
-    let initial = paint_list(&page.doc, page.container);
-    let mut previous_capacity = initial.capacity;
-    let mut previous_data = initial.data;
+    let mut previous = paint_list(&page.doc, page.container);
     let mut capacity_changes = 0;
 
     for len in 1..=MAX_ROWS {
-        let mut mutator = page.doc.mutate();
-        let row = create_row(&mut mutator);
-        mutator.append_children(page.container, &[row]);
-        drop(mutator);
-        page.rows.push(row);
-        page.doc.resolve(0.0);
+        let row = append_row(&mut page);
+        let list = checked_paint_list(&page, row, len);
 
-        let list = paint_list(&page.doc, page.container);
-        assert_eq!(list.ids, page.rows, "paint order after {len} appends");
-        assert!(
-            list.capacity <= 2 * len.max(2),
-            "capacity {} over-allocates {len} children",
-            list.capacity
-        );
-        if list.capacity == previous_capacity {
+        if list.capacity == previous.capacity {
             assert_eq!(
-                list.data, previous_data,
+                list.data, previous.data,
                 "dirty rebuild {len} replaced its buffer"
             );
         } else {
             capacity_changes += 1;
-            previous_capacity = list.capacity;
         }
-        previous_data = list.data;
-        assert_row_at(&page.doc, page.rows[0], 0);
-        assert_row_at(&page.doc, row, len - 1);
+        previous = list;
     }
     assert!(
         capacity_changes <= MAX_CAPACITY_CHANGES,

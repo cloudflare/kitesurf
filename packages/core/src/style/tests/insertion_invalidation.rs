@@ -39,6 +39,17 @@ fn insert_li(dom: &DomHandle, parent: u32, before: Option<u32>) -> u32 {
     li
 }
 
+fn classed_element(dom: &DomHandle, tag: &str, class: &str) -> u32 {
+    let node = dom.create_element(tag);
+    assert!(dom.set_attribute(node, "class", class));
+    node
+}
+
+fn append_classed(dom: &DomHandle, parent: u32, tag: &str, class: &str) {
+    let node = classed_element(dom, tag, class);
+    assert!(dom.append_child_node(parent, node));
+}
+
 #[test]
 fn prepend_restyles_the_old_first_child() {
     let dom = styled(
@@ -47,6 +58,7 @@ fn prepend_restyles_the_old_first_child() {
     );
     let (u, a) = (id(&dom, "#u"), id(&dom, "#a"));
     assert_eq!(color(&dom, a), GREEN);
+
     let li = insert_li(&dom, u, Some(a));
     assert_eq!(color(&dom, li), GREEN);
     assert_eq!(color(&dom, a), RED);
@@ -60,6 +72,7 @@ fn append_restyles_the_old_last_child() {
     );
     let (u, b) = (id(&dom, "#u"), id(&dom, "#b"));
     assert_eq!(color(&dom, b), GREEN);
+
     let li = insert_li(&dom, u, None);
     assert_eq!(color(&dom, li), GREEN);
     assert_eq!(color(&dom, b), RED);
@@ -74,6 +87,7 @@ fn prepend_restyles_later_siblings_and_their_descendants() {
     let (u, a) = (id(&dom, "#u"), id(&dom, "#a"));
     let (sa, sb) = (id(&dom, "#sa"), id(&dom, "#sb"));
     assert_eq!(color(&dom, sa), RED);
+
     insert_li(&dom, u, Some(a));
     assert_eq!(
         color(&dom, sa),
@@ -95,6 +109,7 @@ fn append_restyles_every_child_for_from_end_selectors() {
     );
     let (u, a) = (id(&dom, "#u"), id(&dom, "#a"));
     assert_eq!(color(&dom, a), RED);
+
     insert_li(&dom, u, None);
     assert_eq!(color(&dom, a), GREEN);
 }
@@ -107,6 +122,7 @@ fn first_insertion_restyles_an_empty_parent() {
     );
     let u = id(&dom, "#u");
     assert_eq!(color(&dom, u), GREEN);
+
     insert_li(&dom, u, None);
     assert_eq!(color(&dom, u), RED);
 }
@@ -119,6 +135,7 @@ fn reinserted_element_inherits_from_its_new_parent() {
     );
     let (q, s) = (id(&dom, "#q"), id(&dom, "#s"));
     assert_eq!(color(&dom, s), RED);
+
     assert!(dom.append_child_node(q, s));
     assert_eq!(color(&dom, s), GREEN);
 }
@@ -131,9 +148,8 @@ fn appending_a_sibling_restyles_an_earlier_has_anchor() {
     );
     let (p, a) = (id(&dom, "#p"), id(&dom, "#a"));
     assert_eq!(color(&dom, a), RED);
-    let b = dom.create_element("i");
-    assert!(dom.set_attribute(b, "class", "b"));
-    assert!(dom.append_child_node(p, b));
+
+    append_classed(&dom, p, "i", "b");
     assert_eq!(color(&dom, a), GREEN);
 }
 
@@ -145,9 +161,8 @@ fn appending_a_descendant_restyles_a_has_anchor_without_sibling_selectors() {
     );
     let (a, s) = (id(&dom, "#a"), id(&dom, "#s"));
     assert_eq!(color(&dom, a), RED);
-    let b = dom.create_element("i");
-    assert!(dom.set_attribute(b, "class", "b"));
-    assert!(dom.append_child_node(s, b));
+
+    append_classed(&dom, s, "i", "b");
     assert_eq!(color(&dom, a), GREEN);
 }
 
@@ -156,19 +171,20 @@ fn appending_a_sibling_restyles_an_earlier_has_anchor_in_a_shadow_tree() {
     let dom = styled("", r#"<div id="host"></div>"#);
     let host = id(&dom, "#host");
     let root = dom.attach_shadow(host, "open") as u32;
+
     let style = dom.create_element("style");
     let css = dom.create_text_node(".a { color: red } .a:has(+ .b) { color: green }");
     assert!(dom.append_child_node(style, css));
     assert!(dom.append_child_node(root, style));
+
     let (p, a) = (dom.create_element("div"), dom.create_element("span"));
     assert!(dom.set_attribute(a, "class", "a"));
     assert!(dom.append_child_node(p, a));
     assert!(dom.append_child_node(root, p));
     dom.resolve_layout();
     assert_eq!(color(&dom, a), RED);
-    let b = dom.create_element("i");
-    assert!(dom.set_attribute(b, "class", "b"));
-    assert!(dom.append_child_node(p, b));
+
+    append_classed(&dom, p, "i", "b");
     assert_eq!(color(&dom, a), GREEN);
 }
 
@@ -180,9 +196,8 @@ fn appending_a_later_sibling_restyles_an_earlier_has_tilde_anchor() {
     );
     let (p, a) = (id(&dom, "#p"), id(&dom, "#a"));
     assert_eq!(color(&dom, a), RED);
-    let b = dom.create_element("i");
-    assert!(dom.set_attribute(b, "class", "b"));
-    assert!(dom.append_child_node(p, b));
+
+    append_classed(&dom, p, "i", "b");
     assert_eq!(color(&dom, a), GREEN);
 }
 
@@ -194,8 +209,8 @@ fn inserting_before_the_next_sibling_restyles_an_earlier_has_anchor() {
     );
     let (p, a, c) = (id(&dom, "#p"), id(&dom, "#a"), id(&dom, "#c"));
     assert_eq!(color(&dom, a), RED);
-    let b = dom.create_element("i");
-    assert!(dom.set_attribute(b, "class", "b"));
+
+    let b = classed_element(&dom, "i", "b");
     assert!(dom.insert_before_node(p, b, c));
     assert_eq!(color(&dom, a), GREEN);
 }
@@ -208,8 +223,7 @@ fn appending_a_sibling_restyles_a_descendant_of_a_has_anchor() {
     );
     let (p, b) = (id(&dom, "#p"), id(&dom, "#b"));
     assert_eq!(color(&dom, b), RED);
-    let marker = dom.create_element("i");
-    assert!(dom.set_attribute(marker, "class", "b2"));
-    assert!(dom.append_child_node(p, marker));
+
+    append_classed(&dom, p, "i", "b2");
     assert_eq!(color(&dom, b), GREEN);
 }

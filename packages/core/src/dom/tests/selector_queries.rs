@@ -27,6 +27,29 @@ fn ids(dom: &DomHandle, selector: &str) -> Vec<String> {
         .collect()
 }
 
+/// Long enough that moving the last child renumbers many siblings, not just the first few.
+const ROW_COUNT: usize = 70;
+
+fn row_markup(id_prefix: &str) -> String {
+    (0..ROW_COUNT)
+        .map(|i| format!("<i id=\"{id_prefix}{i}\"></i>"))
+        .collect()
+}
+
+/// The `child_index` of every child of `selector`, in document order.
+fn child_indexes(dom: &DomHandle, selector: &str) -> Vec<Option<usize>> {
+    let doc = dom.doc.borrow();
+    let parent = doc
+        .query_selector(selector)
+        .expect("query ok")
+        .expect("parent");
+    let children = doc.get_node(parent).expect("parent").children();
+    children
+        .iter()
+        .map(|id| doc.get_node(id).expect("child").child_index())
+        .collect()
+}
+
 #[test]
 fn repeated_query_sees_later_mutations() {
     let dom = page(r#"<ul id="u"><li id="a" class="x"></li><li id="b"></li></ul>"#);
@@ -55,37 +78,22 @@ fn base_url_change_keeps_queries_working() {
 
 #[test]
 fn child_indexes_stay_exact_after_reordering() {
-    let items = |prefix: &str| -> String {
-        (0..70)
-            .map(|i| format!("<i id=\"{prefix}{i}\"></i>"))
-            .collect()
-    };
-    let (a_items, b_items) = (items("i"), items("j"));
+    let (a_items, b_items) = (row_markup("i"), row_markup("j"));
     let dom = page(&format!(
         r#"<div id="a">{a_items}</div><div id="b">{b_items}</div>"#
     ));
-    let indexes = |dom: &DomHandle, parent: &str| -> Vec<Option<usize>> {
-        let doc = dom.doc.borrow();
-        let parent = doc
-            .query_selector(parent)
-            .expect("query ok")
-            .expect("parent");
-        let children = doc.get_node(parent).expect("parent").children();
-        children
-            .iter()
-            .map(|id| doc.get_node(id).expect("child").child_index())
-            .collect()
-    };
-    let expected: Vec<Option<usize>> = (0..70).map(Some).collect();
-    assert_eq!(indexes(&dom, "#a"), expected);
-    assert_eq!(indexes(&dom, "#b"), expected);
+    let expected: Vec<Option<usize>> = (0..ROW_COUNT).map(Some).collect();
+    assert_eq!(child_indexes(&dom, "#a"), expected);
+    assert_eq!(child_indexes(&dom, "#b"), expected);
+
     let a = dom.query_selector("#a").expect("query ok") as u32;
     for _ in 0..3 {
         let last = dom.query_selector("#a > i:last-child").expect("query ok") as u32;
         let first = dom.query_selector("#a > i").expect("query ok") as u32;
         assert!(dom.insert_before_node(a, last, first));
-        assert_eq!(indexes(&dom, "#a"), expected);
+        assert_eq!(child_indexes(&dom, "#a"), expected);
     }
+
     assert_eq!(ids(&dom, "#a > i:first-child"), ["i67"]);
     assert_eq!(ids(&dom, "#i67 + i"), ["i68"]);
     assert_eq!(ids(&dom, "#i66 + i"), Vec::<String>::new());
