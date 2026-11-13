@@ -130,6 +130,9 @@ impl DomHandle {
         use ::style::values::specified::length::{Length, LengthPercentage, NoCalcLength};
         use ::style::values::specified::page::PaperSize;
 
+        // @page descriptors live in the CascadeData, which only a resolve rebuilds, so a <style>
+        // edit or media change since the last one is not visible until layout is flushed.
+        self.ensure_layout();
         let doc = self
             .doc
             .try_borrow()

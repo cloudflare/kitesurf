@@ -1394,17 +1394,6 @@ export async function handlePage(
             target.emulatedMedia = "print";
           } catch {}
         }
-        try {
-          const pbResp = await stubQueryDom(pdfPs, "pageBoxJson", {});
-          if (pbResp?.ok && typeof pbResp.json === "string") {
-            applyPdfPageBoxJson(pbResp.json, preferCSSPageSize, pdfLayout);
-          }
-        } catch {}
-        if (landscape && !pdfLayout.cssPageSize) {
-          const tmp = pdfLayout.width;
-          pdfLayout.width = pdfLayout.height;
-          pdfLayout.height = tmp;
-        }
         {
           let pdfGraceTimer: ReturnType<typeof setTimeout> | null = null;
           try {
@@ -1426,6 +1415,18 @@ export async function handlePage(
           } finally {
             clearTimerIfSet(pdfGraceTimer);
           }
+        }
+        // pageBoxJson flushes layout, so read it after the drain's font upgrade dirties it.
+        try {
+          const pbResp = await stubQueryDom(pdfPs, "pageBoxJson", {});
+          if (pbResp?.ok && typeof pbResp.json === "string") {
+            applyPdfPageBoxJson(pbResp.json, preferCSSPageSize, pdfLayout);
+          }
+        } catch {}
+        if (landscape && !pdfLayout.cssPageSize) {
+          const tmp = pdfLayout.width;
+          pdfLayout.width = pdfLayout.height;
+          pdfLayout.height = tmp;
         }
         let bgSuppressed = false;
         if (!printBackground) {
