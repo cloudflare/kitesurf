@@ -2013,32 +2013,71 @@ function constructCounterStyleRule(
   ruleState.set(rule, st);
   return rule;
 }
+// Drops comments outside strings. `/*/` is still open, and an unclosed comment runs to the end.
+function stripCssComments(src: string): string {
+  let out = "";
+  let from = 0;
+  let inStr = "";
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === "\\") {
+      i += escapeLength(src, i) - 1;
+      continue;
+    }
+    if (inStr) {
+      if (ch === inStr || isStringBreak(ch)) inStr = "";
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inStr = ch;
+      continue;
+    }
+    if (ch === "/" && src[i + 1] === "*") {
+      out += src.slice(from, i);
+      const end = src.indexOf("*/", i + 2);
+      if (end < 0) return out;
+      i = end + 1;
+      from = end + 2;
+    }
+  }
+  return out + src.slice(from);
+}
+// An unescaped newline ends a string as a bad-string token.
+function isStringBreak(ch: string): boolean {
+  return ch === "\n" || ch === "\r" || ch === "\f";
+}
+// A backslash escapes the next character, or a whole CRLF line break.
+function escapeLength(text: string, i: number): number {
+  return text[i + 1] === "\r" && text[i + 2] === "\n" ? 3 : 2;
+}
 function splitStylesheetRules(src: unknown): ParsedRuleList {
   const out = Object.assign([] as ParsedRuleChunk[], {
     trailingGarbage: "",
     unbalanced: false,
   });
-  const text = String(src).replace(/\/\*[\s\S]*?\*\//g, "");
+  const text = stripCssComments(String(src));
   const n = text.length;
   let i = 0;
   let chunkStart = 0;
   let depth = 0;
   let parenDepth = 0;
+  // A `[` in a prelude opens a block that runs to its `]`, braces included.
+  let bracketDepth = 0;
   let braceOpenAt = -1;
   let inStr = "";
   while (i < n) {
     const ch = text[i];
     if (inStr) {
       if (ch === "\\") {
-        i += 2;
+        i += escapeLength(text, i);
         continue;
       }
-      if (ch === inStr) inStr = "";
+      if (ch === inStr || isStringBreak(ch)) inStr = "";
       i++;
       continue;
     }
     if (ch === "\\") {
-      i += 2;
+      i += escapeLength(text, i);
       continue;
     }
     if (ch === '"' || ch === "'") {
@@ -2053,6 +2092,16 @@ function splitStylesheetRules(src: unknown): ParsedRuleList {
     }
     if (ch === ")" && parenDepth > 0) {
       parenDepth--;
+      i++;
+      continue;
+    }
+    // Outside parens only: an unquoted url(a[.css) holds a plain `[`.
+    if (depth === 0 && parenDepth === 0 && (ch === "[" || (ch === "]" && bracketDepth > 0))) {
+      bracketDepth += ch === "[" ? 1 : -1;
+      i++;
+      continue;
+    }
+    if (depth === 0 && bracketDepth > 0) {
       i++;
       continue;
     }
@@ -2086,7 +2135,7 @@ function splitStylesheetRules(src: unknown): ParsedRuleList {
   }
   const tail = text.slice(chunkStart).trim();
   out.trailingGarbage = tail.length > 0 ? tail : "";
-  out.unbalanced = depth !== 0 || parenDepth !== 0 || inStr !== "";
+  out.unbalanced = depth !== 0 || parenDepth !== 0 || bracketDepth !== 0 || inStr !== "";
   return out;
 }
 
