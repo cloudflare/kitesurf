@@ -54,6 +54,33 @@ async function probeHeaders(
   return headers as Array<string | null>;
 }
 
+// A page whose policy admits scripts by nonce alone, as runtime-inserted chunk loaders use it;
+// the loader inserts `src` carrying `nonce`, or no nonce at all when it is empty.
+async function loadNonced(
+  page: import("@cloudflare/puppeteer").Page,
+  src: string,
+  nonce: string,
+  policy = "script-src 'nonce-n0nce'",
+): Promise<string> {
+  const insert =
+    `<script nonce="n0nce">var s = document.createElement("script");` +
+    (nonce ? ` s.nonce = ${JSON.stringify(nonce)};` : "") +
+    ` s.src = ${JSON.stringify(src)};` +
+    ` s.onload = function () { document.title = "BAKE:" + JSON.stringify(` +
+    `{ native: window.__insertedNative, runs: window.__insertedRuns }); };` +
+    ` s.onerror = function () { document.title = "BAKE:error:" + (window.__insertedRuns || 0); };` +
+    ` document.head.appendChild(s);</script>`;
+  const doc =
+    "https://ks.invalid/__fixtures/policy-doc.html?csp=" +
+    encodeURIComponent(policy) +
+    "&body=" +
+    encodeURIComponent(insert);
+  await page.goto(doc, { waitUntil: "domcontentloaded", timeout: 30000 });
+  const title = await waitForTitle(page, "BAKE:", { prefix: true, timeout: 30000 });
+  expect(title.startsWith("BAKE:"), "fixture never reported (title=" + title + ")").toBeTruthy();
+  return title.slice("BAKE:".length);
+}
+
 test("a script the origin inserted before runs natively on the next navigate", async ({ page }) => {
   const first = await load(page);
   expect(first).toEqual({
@@ -165,3 +192,45 @@ test("a speculative prefetch omits the session's extra headers", async ({ page }
     expect(JSON.parse(title)).toMatchObject({ runs: 1, hello: "hi" });
   }
 }, 120_000);
+
+test("a learned script carrying the page's nonce runs natively under a nonce policy", async ({
+  page,
+}) => {
+  const { src } = probe("stable");
+  expect(JSON.parse(await loadNonced(page, src, "n0nce"))).toEqual({ native: false, runs: 1 });
+  expect(JSON.parse(await loadNonced(page, src, "n0nce"))).toEqual({ native: true, runs: 1 });
+}, 90_000);
+
+test("a learned script behind a redirect runs natively under a nonce policy", async ({ page }) => {
+  const src = "/__fixtures/loud-redirect?to=" + encodeURIComponent(probe("stable").src);
+  expect(JSON.parse(await loadNonced(page, src, "n0nce"))).toEqual({ native: false, runs: 1 });
+  // A url with a query is learned on its second insertion. The prefetch's redirect hop carries
+  // no nonce, so it must answer to the learned gate for the third load to bake.
+  expect(JSON.parse(await loadNonced(page, src, "n0nce"))).toEqual({ native: false, runs: 1 });
+  expect(JSON.parse(await loadNonced(page, src, "n0nce"))).toEqual({ native: true, runs: 1 });
+}, 90_000);
+
+test("a prefetched learned script without the page's nonce is still refused", async ({ page }) => {
+  const { key, src } = probe("stable");
+  expect(JSON.parse(await loadNonced(page, src, "n0nce"))).toEqual({ native: false, runs: 1 });
+  expect(await loadNonced(page, src, "")).toBe("error:0");
+  expect(await loadNonced(page, src, "other")).toBe("error:0");
+  // The two refused navigates each prefetched and baked the script; only the first page fetched
+  // it, so the bake existed both times and the policy still kept it from running.
+  expect(await probeHits(page, key)).toBe(3);
+}, 90_000);
+
+// The learned store is per origin, and one origin's documents can carry different policies: a
+// script learned under one must not be fetched for a document whose policy forbids its host.
+test("a learned script is not prefetched for a document whose policy forbids its host", async ({
+  page,
+}) => {
+  const { key, src } = probe("stable");
+  const cross = "https://ks-other.invalid" + src;
+  expect(JSON.parse(await loadNonced(page, cross, "n0nce"))).toEqual({ native: false, runs: 1 });
+  expect(await probeHits(page, key)).toBe(1);
+  // A 'self' policy names no nonce for the prefetch to assume, so the host rule decides. The
+  // page's own insertion is refused before it fetches, and the probe is never asked again.
+  expect(await loadNonced(page, cross, "", "script-src 'self' 'unsafe-inline'")).toBe("error:0");
+  expect(await probeHits(page, key)).toBe(1);
+}, 90_000);

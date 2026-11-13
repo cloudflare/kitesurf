@@ -56,6 +56,7 @@ import {
   applyPreFetchScriptGate,
   documentBaseUrl,
   documentGateContext,
+  learnedScriptGate,
 } from "../eval/script-gate.ts";
 import {
   clampViewport,
@@ -1681,6 +1682,10 @@ function sanitizeBaseUrl(url: string): string {
   }
 }
 
+function speculativeDescriptors(urls: readonly string[]): ParentScriptDescriptor[] {
+  return urls.map((src) => ({ src, kind: "classic", defer: false, async: false, body: "" }));
+}
+
 function frameGatesLoadEvent(f: FrameState): boolean {
   if (f.parentFrameId === null) return false;
   if (!f.pendingLoad) return false;
@@ -1831,23 +1836,26 @@ async function pushNavigateToPageScriptInner(
       (u) => !learnedUrls.includes(u),
     );
     const speculativeUrls = [...learnedUrls, ...routeChunkUrls];
+    const learnedSet = new Set(learnedUrls);
+    const learnedGate = learnedScriptGate(scriptGate);
     const speculativePrefetch =
       speculativeUrls.length === 0
         ? Promise.resolve<ParentScriptDescriptor[]>([])
         : traceSpan(ctx.env.HOST_TRACER, "navigate.prefetch_speculative", () =>
-            applyPreFetchScriptGate(
-              speculativeUrls.map((src) => ({
-                src,
-                kind: "classic",
-                defer: false,
-                async: false,
-                body: "",
-              })),
-              scriptGate,
-              scriptBaseUrl,
-            ).then((gated) =>
+            Promise.all([
+              applyPreFetchScriptGate(
+                speculativeDescriptors(learnedUrls),
+                learnedGate,
+                scriptBaseUrl,
+              ),
+              applyPreFetchScriptGate(
+                speculativeDescriptors(routeChunkUrls),
+                scriptGate,
+                scriptBaseUrl,
+              ),
+            ]).then(([learned, routeChunks]) =>
               prefetchBestEffort(
-                gated.filter(
+                [...learned, ...routeChunks].filter(
                   (d) => !d.blocked && maySpeculate(ctx.connectionId, d.resolvedSrc ?? d.src ?? ""),
                 ),
                 (d, signal) =>
@@ -1862,14 +1870,13 @@ async function pushNavigateToPageScriptInner(
                     baseUrl: scriptBaseUrl,
                     sandboxOutbound: ctx.browser.sandboxOutbound,
                     signal,
-                    gate: scriptGate,
+                    gate: d.src && learnedSet.has(d.src) ? learnedGate : scriptGate,
                   }).then((fetched) => fetched[0] ?? d),
               ),
             ),
           ).catch((): ParentScriptDescriptor[] => []);
     const importMaps = await applyImportMapGate(docScan.importMaps, scriptGate, url);
     const speculativeFetched = await speculativePrefetch;
-    const learnedSet = new Set(learnedUrls);
     for (const d of speculativeFetched) {
       if (d.src && learnedSet.has(d.src) && (d.prefetchError || d.blocked)) {
         forgetLearnedScript(

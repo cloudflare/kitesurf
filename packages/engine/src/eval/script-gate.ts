@@ -90,6 +90,12 @@ export async function applyImportMapGate(
   return out;
 }
 
+// A learned script passes the gate again, with its element's nonce, when the page inserts it.
+// Its prefetch has no nonce to show, so one is taken as given; hosts and 'none' still bind it.
+export function learnedScriptGate(gate: ScriptGateContext): ScriptGateContext {
+  return { ...gate, aheadOfInsertion: true };
+}
+
 export async function applyPreFetchScriptGate(
   descriptors: readonly ParentScriptDescriptor[],
   gate: ScriptGateContext,
