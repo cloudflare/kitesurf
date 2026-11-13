@@ -1215,6 +1215,53 @@ function buildWindow(document: DocumentImpl) {
   });
 
   const pageDefinedGetters = new Set<string | symbol>();
+  // A transparent Proxy over the window is no heir: its writes still land on the window itself.
+  // The walk is bounded because a prototype chain through a Proxy can be cyclic.
+  const inheritsFromWindow = (receiver: unknown): receiver is object => {
+    if (receiver === null || (typeof receiver !== "object" && typeof receiver !== "function")) {
+      return false;
+    }
+    try {
+      let proto = Reflect.getPrototypeOf(receiver);
+      for (let depth = 0; proto !== null && depth < 64; depth++) {
+        if (proto === window) return true;
+        proto = Reflect.getPrototypeOf(proto);
+      }
+    } catch {}
+    return false;
+  };
+  // OrdinarySet for an object that inherits from the window: the write lands on that object, as
+  // it does for a real global's heirs, so a library's private scope cannot replace page globals.
+  const setOnHeir = (
+    guard: PropertyDescriptor | undefined,
+    prop: string | symbol,
+    value: unknown,
+    heir: object,
+  ): boolean => {
+    if (guard?.set) {
+      Reflect.apply(guard.set, heir, [value]);
+      return true;
+    }
+    if (guard?.get) {
+      // A configurable engine getter stands in for a writable member such as fetch, while an
+      // unforgeable or page-defined getter has no setter, so the write fails as on a real global.
+      if (guard.configurable === false || pageDefinedGetters.has(prop)) return false;
+    } else {
+      const data = guard ?? Reflect.getOwnPropertyDescriptor(ksGlobal, prop);
+      if (data && !data.get && !data.set && data.writable === false) return false;
+    }
+    const existing = Reflect.getOwnPropertyDescriptor(heir, prop);
+    if (existing) {
+      if (existing.get || existing.set || !existing.writable) return false;
+      return Reflect.defineProperty(heir, prop, { value });
+    }
+    return Reflect.defineProperty(heir, prop, {
+      value,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
+  };
   // Preserve target descriptors before global fallback to satisfy Window's Proxy invariants.
   const window: WindowObj = new Proxy(windowObj, {
     has(_t, prop) {
@@ -1268,8 +1315,11 @@ function buildWindow(document: DocumentImpl) {
       }
       return undefined;
     },
-    set(_t, prop, value) {
+    set(_t, prop, value, receiver) {
       const guard = Reflect.getOwnPropertyDescriptor(windowObj, prop);
+      if (receiver !== window && inheritsFromWindow(receiver)) {
+        return setOnHeir(guard, prop, value, receiver);
+      }
       if (guard) {
         const isAccessor = guard.get !== undefined || guard.set !== undefined;
         if (
