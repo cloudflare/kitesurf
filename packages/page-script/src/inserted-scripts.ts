@@ -36,7 +36,10 @@ import { state } from "./state.ts";
 
 // Bound Boa parse input by bytes, and fetches by a count far past any chunk graph (large
 // apps insert ~70): the byte budget only applies after a fetch, and unique URLs skip dedupe.
+// One script is capped at 8 MiB; the page's total is higher, so a page with several large
+// bundles (an embedded agent plus its chunks) is not cut off partway.
 const MAX_INSERTED_SCRIPT_BYTES = 8 * 1024 * 1024;
+const MAX_INSERTED_TOTAL_BYTES = 32 * 1024 * 1024;
 const MAX_INSERTED_SCRIPTS = 1024;
 let insertedBytes = 0;
 let insertedCount = 0;
@@ -323,7 +326,10 @@ async function fetchGatedModuleBodyOnce(
   }
   // A module body costs the isolate what inserted classic source does, so it shares the budget.
   // A refused fetch fails the graph, so the element gets error.
-  if (insertedBytes + response.bytes.length > MAX_INSERTED_SCRIPT_BYTES) {
+  if (
+    response.bytes.length > MAX_INSERTED_SCRIPT_BYTES ||
+    insertedBytes + response.bytes.length > MAX_INSERTED_TOTAL_BYTES
+  ) {
     throw new Error(`fetch(${url}) refused: byte budget exceeded (${response.bytes.length} bytes)`);
   }
   insertedBytes += response.bytes.length;
@@ -451,7 +457,10 @@ export function runInsertedExternalScript(info: InsertedScriptInfo): void {
         throw new Error(post.reason ?? "blocked by policy");
       }
       const source = response.source;
-      if (insertedBytes + source.length > MAX_INSERTED_SCRIPT_BYTES) {
+      if (
+        source.length > MAX_INSERTED_SCRIPT_BYTES ||
+        insertedBytes + source.length > MAX_INSERTED_TOTAL_BYTES
+      ) {
         outcome = "silent";
         throw new Error("byte budget exceeded (" + source.length + " bytes)");
       }

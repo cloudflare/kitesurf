@@ -2693,4 +2693,11 @@ const elementAttributes = {
   remove: Element.prototype.removeAttribute,
 };
 
-export { Element, elementAttributes, renderedTextFragmentNodes };
+// The inline style declaration only needs getAttribute and setAttribute, so a
+// node built outside Element (a DOMParser or frame document) can reuse it.
+// https://drafts.csswg.org/cssom/#dom-elementcssinlinestyle-style
+function inlineStyleOf(target: object): ReturnType<typeof makeStyleDeclaration> {
+  return Reflect.get(Element.prototype, "style", target) as ReturnType<typeof makeStyleDeclaration>;
+}
+
+export { Element, elementAttributes, inlineStyleOf, renderedTextFragmentNodes };
