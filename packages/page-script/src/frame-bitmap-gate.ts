@@ -12,14 +12,19 @@ interface PendingDelivery {
   reject: (error: unknown) => void;
 }
 
-export function createFrameBitmapDeliveryGate(apply: ApplyFrameBitmap): {
+export interface FrameBitmapDeliveryGate {
   deliver(params: FrameBitmapParams): Promise<FrameBitmapReply>;
+  // Holds deliveries until the returned release runs. A release is idempotent.
   hold(): () => void;
-} {
-  let holdDepth = 0;
+}
+
+// OOPIF bitmaps may only be applied while nothing else holds the paint dom, so a reader that
+// spans turns (the PDF stream) holds them and they replay in arrival order on release.
+export function createFrameBitmapDeliveryGate(apply: ApplyFrameBitmap): FrameBitmapDeliveryGate {
+  let holdCount = 0;
   let pending: PendingDelivery[] = [];
 
-  const flush = () => {
+  const flushPending = (): void => {
     const deliveries = pending;
     pending = [];
     for (const delivery of deliveries) {
@@ -33,17 +38,17 @@ export function createFrameBitmapDeliveryGate(apply: ApplyFrameBitmap): {
 
   return {
     deliver(params) {
-      if (holdDepth === 0) return Promise.resolve(apply(params));
+      if (holdCount === 0) return Promise.resolve(apply(params));
       return new Promise((resolve, reject) => pending.push({ params, resolve, reject }));
     },
     hold() {
-      holdDepth++;
+      holdCount++;
       let released = false;
       return () => {
         if (released) return;
         released = true;
-        holdDepth--;
-        if (holdDepth === 0) flush();
+        holdCount--;
+        if (holdCount === 0) flushPending();
       };
     },
   };
