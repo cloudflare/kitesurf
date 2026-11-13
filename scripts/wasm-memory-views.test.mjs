@@ -29,6 +29,7 @@ const BELOW_CAP = MODELED_EMBEDDER_CAP - 64;
 const ABOVE_CAP = MODELED_EMBEDDER_CAP + 64;
 
 const glue = readFileSync(resolve(PKG_DIR, "kitesurf_core.js"), "utf8");
+// Append test-only exports so the generated memory-view helpers are reachable.
 const privateExports = `
 export const __viewTestHooks = {
   getArrayF32FromWasm0, getArrayF64FromWasm0, getArrayI32FromWasm0, getArrayU32FromWasm0,
@@ -43,6 +44,7 @@ const core = await import(
 core.initSync({ module: readFileSync(resolve(PKG_DIR, "kitesurf_core_bg.wasm")) });
 const hooks = core.__viewTestHooks;
 const memory = hooks.memory();
+// Grow to the traced memory size so LIVE_PTR is a real address in this module's memory.
 const missingPages = (LIVE_MEMORY_BYTES - memory.buffer.byteLength) / WASM_PAGE_BYTES;
 if (missingPages > 0) memory.grow(Math.ceil(missingPages));
 
@@ -116,44 +118,56 @@ function readString(ptr, length) {
   return new TextDecoder().decode(new Uint8Array(memory.buffer, ptr, length).slice());
 }
 
+const VIEW_POINTERS = [BELOW_CAP, MODELED_EMBEDDER_CAP, ABOVE_CAP, LIVE_PTR];
+
+function assertViewsAboveCap() {
+  for (const helper of TYPED_HELPERS) {
+    for (const ptr of VIEW_POINTERS) assertAliasingView(helper, ptr);
+
+    const empty = helper.read(LIVE_PTR, 0);
+    assert.equal(empty.length, 0);
+    assert.equal(empty.byteOffset, LIVE_PTR);
+  }
+}
+
+function assertViewsSurviveGrowth() {
+  memory.grow(1);
+  for (const { read } of TYPED_HELPERS) {
+    assert.equal(read(LIVE_PTR, LIVE_LEN).buffer, memory.buffer);
+  }
+}
+
+function assertStringHelpersAboveCap() {
+  const text = "kitesurf ✓ 🌊";
+  const encoded = new TextEncoder().encode(text);
+
+  writeBytes(ABOVE_CAP, encoded);
+  assert.equal(hooks.getStringFromWasm0(ABOVE_CAP, encoded.length), text);
+
+  const mallocAboveCap = () => ABOVE_CAP;
+  assert.equal(hooks.passStringToWasm0(text, mallocAboveCap), ABOVE_CAP);
+  assert.equal(hooks.vectorLen(), encoded.length);
+  assert.equal(readString(ABOVE_CAP, encoded.length), text);
+
+  const reallocs = [];
+  const reallocGrowingToLivePtr = (ptr, oldLength) => {
+    reallocs.push(ptr);
+    if (ptr === LIVE_PTR) return LIVE_PTR;
+    memory.grow(1);
+    writeBytes(LIVE_PTR, new Uint8Array(memory.buffer, ptr, oldLength).slice());
+    return LIVE_PTR;
+  };
+  assert.equal(hooks.passStringToWasm0(text, mallocAboveCap, reallocGrowingToLivePtr), LIVE_PTR);
+  assert.equal(hooks.vectorLen(), encoded.length);
+  assert.equal(readString(LIVE_PTR, encoded.length), text);
+  assert.deepEqual(reallocs, [ABOVE_CAP, LIVE_PTR]);
+}
+
 test("glue memory views stay valid above the embedder cap and across growth", () => {
   withModeledEmbedderCap(() => {
-    for (const helper of TYPED_HELPERS) {
-      for (const ptr of [BELOW_CAP, MODELED_EMBEDDER_CAP, ABOVE_CAP, LIVE_PTR]) {
-        assertAliasingView(helper, ptr);
-      }
-      const empty = helper.read(LIVE_PTR, 0);
-      assert.equal(empty.length, 0);
-      assert.equal(empty.byteOffset, LIVE_PTR);
-    }
-
-    memory.grow(1);
-    for (const { read } of TYPED_HELPERS) {
-      assert.equal(read(LIVE_PTR, LIVE_LEN).buffer, memory.buffer);
-    }
-
-    const text = "kitesurf ✓ 🌊";
-    const encoded = new TextEncoder().encode(text);
-    writeBytes(ABOVE_CAP, encoded);
-    assert.equal(hooks.getStringFromWasm0(ABOVE_CAP, encoded.length), text);
-
-    const mallocAboveCap = () => ABOVE_CAP;
-    assert.equal(hooks.passStringToWasm0(text, mallocAboveCap), ABOVE_CAP);
-    assert.equal(hooks.vectorLen(), encoded.length);
-    assert.equal(readString(ABOVE_CAP, encoded.length), text);
-
-    const reallocs = [];
-    const reallocGrowingToLivePtr = (ptr, oldLength) => {
-      reallocs.push(ptr);
-      if (ptr === LIVE_PTR) return LIVE_PTR;
-      memory.grow(1);
-      writeBytes(LIVE_PTR, new Uint8Array(memory.buffer, ptr, oldLength).slice());
-      return LIVE_PTR;
-    };
-    assert.equal(hooks.passStringToWasm0(text, mallocAboveCap, reallocGrowingToLivePtr), LIVE_PTR);
-    assert.equal(hooks.vectorLen(), encoded.length);
-    assert.equal(readString(LIVE_PTR, encoded.length), text);
-    assert.deepEqual(reallocs, [ABOVE_CAP, LIVE_PTR]);
+    assertViewsAboveCap();
+    assertViewsSurviveGrowth();
+    assertStringHelpersAboveCap();
   });
 });
 

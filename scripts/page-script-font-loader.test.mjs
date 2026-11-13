@@ -102,13 +102,10 @@ function stagedBytes(value) {
   return typeof value === "object" ? stagedBytes(new Map(Object.entries(value))) : 0;
 }
 
-// Each fresh VM context is one page isolate with pixel-free deferred fonts. Registration results
-// are keyed by export name, or `register_script_font:<tag>`: true, false or "throw".
-function loadFontLoader(outcomes = {}) {
+// Records every registration call, keyed by export name or `register_script_font:<tag>`, and
+// answers each with the outcome from `outcomes`: true, false or "throw".
+function registrationRecorder(outcomes) {
   const calls = [];
-  const requested = [];
-  const pending = new Map();
-  const failing = new Set();
   const register =
     (name) =>
     (...args) => {
@@ -118,22 +115,17 @@ function loadFontLoader(outcomes = {}) {
       if (outcome === "throw") throw new Error(`${name} rejected the font`);
       return outcome;
     };
-  const modules = {
-    "./wasm-glue.js": dependency(
-      Object.fromEntries(REGISTER_EXPORTS.map((name) => [name, register(name)])),
-    ),
-    "./native-scheduling.ts": dependency(),
-    "./startup-probe.ts": dependency({ startupFontDefer: true, startupPixelFree: true }),
-    "./source-scan.ts": dependency({
-      CJK_SCAN: sourceScan.CJK_SCAN,
-      EMOJI_BMP_SCAN: sourceScan.EMOJI_BMP_SCAN,
-      SCRIPT_RANGES: sourceScan.SCRIPT_RANGES,
-    }),
-  };
-  const require = (name) => {
-    if (!Object.hasOwn(modules, name)) throw new Error(`Unexpected import: ${name}`);
-    return modules[name];
-  };
+  const wasmGlue = Object.fromEntries(REGISTER_EXPORTS.map((name) => [name, register(name)]));
+  return { calls, wasmGlue };
+}
+
+// Each fresh VM context is one page isolate with pixel-free deferred fonts.
+function loadFontLoader(outcomes = {}) {
+  const { calls, wasmGlue } = registrationRecorder(outcomes);
+  const requested = [];
+  const pending = new Map();
+  const failing = new Set();
+
   const fetch = (url) => {
     requested.push(url);
     if (failing.has(url)) return Promise.resolve(response(404));
@@ -146,9 +138,26 @@ function loadFontLoader(outcomes = {}) {
     pending.delete(url);
     resolve(result);
   };
+
+  const modules = {
+    "./wasm-glue.js": dependency(wasmGlue),
+    "./native-scheduling.ts": dependency(),
+    "./startup-probe.ts": dependency({ startupFontDefer: true, startupPixelFree: true }),
+    "./source-scan.ts": dependency({
+      CJK_SCAN: sourceScan.CJK_SCAN,
+      EMOJI_BMP_SCAN: sourceScan.EMOJI_BMP_SCAN,
+      SCRIPT_RANGES: sourceScan.SCRIPT_RANGES,
+    }),
+  };
+  const require = (name) => {
+    if (!Object.hasOwn(modules, name)) throw new Error(`Unexpected import: ${name}`);
+    return modules[name];
+  };
+
   const exports = {};
   const context = createContext({ exports, require, fetch, console: { log() {}, warn() {} } });
   runInContext(fontLoaderCode, context);
+
   return {
     loader: exports,
     calls,
@@ -180,6 +189,7 @@ test("bytes-only prefetch stages without registering; demand releases groups", a
   );
   page.arrive(...faces);
   await page.loader.awaitDeferredFontBytes();
+
   assert.equal(page.loader.fontDemandFired(), false);
   assert.deepEqual(page.calls, []);
   assert.equal(
@@ -202,21 +212,25 @@ test("bytes-only prefetch stages without registering; demand releases groups", a
 test("demand before arrival degrades, then core and groups register once on arrival", async () => {
   const page = loadFontLoader();
   page.loader.startFontPrefetch(scan("← 😀"));
+
   assert.equal(page.loader.demandDeferredFonts(), false);
   assert.equal(page.loader.deferredDegradedReads(), 1);
 
   page.arrive("emoji", "sans");
   await drainFetchCallbacks();
+
   assert.deepEqual(page.calls, []);
   assert.equal(page.loader.fontsDeferredUnregistered(), true);
 
   page.arrive("sansItalic");
   await drainFetchCallbacks();
+
   assert.deepEqual(page.calls, [uaCall(), emojiCall]);
   assert.equal(page.heldBytes(), 0);
 
   page.arrive("symbols");
   await drainFetchCallbacks();
+
   assert.deepEqual(page.calls, [uaCall(), emojiCall, symbolsCall()]);
   assert.equal(page.heldBytes(), 0);
   assert.equal(page.loader.demandDeferredFonts(), true);
@@ -321,16 +335,19 @@ test("awaitDeferredFonts arms demand before bytes arrive and never refetches", a
   const page = loadFontLoader();
   page.loader.startFontPrefetch(scan(""));
   const registered = page.loader.awaitDeferredFonts();
+
   assert.equal(page.loader.fontDemandFired(), true);
   assert.deepEqual(page.calls, []);
 
   page.arrive("sans", "sansItalic");
   await registered;
+
   assert.deepEqual(page.calls, [uaCall()]);
   assert.equal(page.heldBytes(), 0);
 
   const requests = page.requested.length;
   await page.loader.awaitDeferredFonts();
+
   assert.equal(page.requested.length, requests);
   assert.deepEqual(page.calls, [uaCall()]);
 });
