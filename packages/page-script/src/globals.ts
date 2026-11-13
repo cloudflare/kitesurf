@@ -1461,6 +1461,7 @@ export function installGlobals(
     if (built.ProcessingInstruction) globalThis.ProcessingInstruction = built.ProcessingInstruction;
     if (built.CDATASection) globalThis.CDATASection = built.CDATASection;
     if (built.DOMParser) globalThis.DOMParser = built.DOMParser;
+    if (built.XMLSerializer) globalThis.XMLSerializer = built.XMLSerializer;
     if (built.CSSStyleSheet) globalThis.CSSStyleSheet = built.CSSStyleSheet;
     if (built.CSSRule) globalThis.CSSRule = built.CSSRule;
     for (const constructorName of [
@@ -4965,7 +4966,6 @@ export function installGlobals(
       "WebGLRenderingContext",
       "WebGL2RenderingContext",
       "Worklet",
-      "XMLSerializer",
     ];
     const unconstructible = new Set(["SharedWorker"]);
     for (const name of idlStubs) {

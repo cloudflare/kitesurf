@@ -871,6 +871,5 @@
   "XMLHttpRequestUpload.prototype: does not inherit from XMLHttpRequestEventTarget.prototype",
   "XMLHttpRequestUpload: interface object does not inherit from XMLHttpRequestEventTarget",
   "XMLHttpRequestUpload: name is \"EventTarget\"",
-  "XMLSerializer.prototype.serializeToString(): missing operation",
   "XSLTProcessor: missing interface"
 ]

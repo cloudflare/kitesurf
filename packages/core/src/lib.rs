@@ -387,6 +387,9 @@ pub struct DomHandle {
     page_scroll: Cell<layout::sticky::PageScroll>,
     /// Resolved top, right, bottom, and left sticky insets per node, for computed style.
     sticky_insets: RefCell<HashMap<NodeId, [Option<f32>; 4]>>,
+    /// The node holding each template's content once the DOM shim has moved it out of the
+    /// element, keyed by the template. Serialization reads the content from there.
+    template_contents: RefCell<HashMap<NodeId, NodeId>>,
     /// Queues the document's resource fetches for the host and receives their results.
     net_provider: Arc<crate::resources::net::KitesurfNetProvider>,
     /// Backing surfaces for the page's `<canvas>` 2D contexts.
@@ -512,6 +515,7 @@ impl DomHandle {
             pinned_nodes: RefCell::new(Vec::new()),
             page_scroll: Cell::new(Default::default()),
             sticky_insets: RefCell::new(HashMap::new()),
+            template_contents: RefCell::new(HashMap::new()),
             layout_mode: Cell::new(LayoutMode::Full),
             net_provider,
             canvas2d: RefCell::new(paint::canvas2d::CanvasRegistry::default()),

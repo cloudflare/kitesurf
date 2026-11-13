@@ -5415,7 +5415,7 @@ function queryDomDocumentRead(
     case "getOuterHTMLAndSeq": {
       let outerHTML = "";
       try {
-        outerHTML = pageState.dom.outerHTML(0);
+        outerHTML = pageState.dom.snapshotHTML(0);
       } catch {}
       const seq = getInternalState().mutationSeq | 0;
       return {
@@ -5836,7 +5836,7 @@ function prepareQueryDomRecordScene(
   if (!paint) {
     let fallbackHtml = "";
     try {
-      fallbackHtml = pageState.dom.outerHTML(0) || "";
+      fallbackHtml = pageState.dom.snapshotHTML(0) || "";
     } catch {}
     return {
       kind: "response",
@@ -5981,7 +5981,7 @@ function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecor
     reportEngineError("wasm", e, "renderScene threw");
     let fallbackHtml = "";
     try {
-      fallbackHtml = pageState.dom.outerHTML(0) || "";
+      fallbackHtml = pageState.dom.snapshotHTML(0) || "";
     } catch {}
     return {
       kind: "response",
@@ -6000,7 +6000,7 @@ function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecor
     reportEngineError("wasm", new Error("renderScene returned empty"));
     let fallbackHtml = "";
     try {
-      fallbackHtml = pageState.dom.outerHTML(0) || "";
+      fallbackHtml = pageState.dom.snapshotHTML(0) || "";
     } catch {}
     return {
       kind: "response",
