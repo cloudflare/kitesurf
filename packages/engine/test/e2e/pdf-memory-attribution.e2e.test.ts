@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
+import { createHash } from "node:crypto";
+
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
 
@@ -22,11 +24,6 @@ function largeDocument(): string {
 
 const pdfBytes = (base64: string) => Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
-  return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 test("large document print memory attribution", async ({ page, cdpSession }) => {
   await setContent(page, largeDocument());
   const targetId: unknown = Reflect.get(page.target(), "_targetId");
@@ -38,7 +35,7 @@ test("large document print memory attribution", async ({ page, cdpSession }) => 
 
   expect(pdf.error).toBeUndefined();
   expect(pdf.data.length).toBeGreaterThan(1000);
-  expect(await sha256Hex(pdfBytes(pdf.data))).toBe(EXPECTED_PDF_SHA256);
+  expect(createHash("sha256").update(pdfBytes(pdf.data)).digest("hex")).toBe(EXPECTED_PDF_SHA256);
 
   const beforeBytes = before.bridge?.swapAlloc.wasmBytes;
   const afterBytes = after.bridge?.swapAlloc.wasmBytes;

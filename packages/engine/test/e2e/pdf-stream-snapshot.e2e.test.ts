@@ -3,9 +3,12 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import type { CDPSession, Page } from "@cloudflare/puppeteer";
+import { createHash } from "node:crypto";
 
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
+
+const sha256Hex = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
 async function printPdf(
   cdpSession: CDPSession,
@@ -13,11 +16,6 @@ async function printPdf(
   const result = await cdpSession.send("Page.printToPDF", {});
   if (result.error) return { bytes: null, error: result.error };
   return { bytes: Uint8Array.from(atob(result.data), (character) => character.charCodeAt(0)) };
-}
-
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
-  return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 async function printHash(cdpSession: CDPSession): Promise<string> {
@@ -31,7 +29,7 @@ async function printResult(cdpSession: CDPSession): Promise<{ hash: string } | {
   const { bytes, error } = await printPdf(cdpSession);
   if (error) return { error };
   if (!bytes) throw new Error("printToPDF returned no data");
-  return { hash: await sha256Hex(bytes) };
+  return { hash: sha256Hex(bytes) };
 }
 
 /** Starts a 1 ms timer that mutates colour, an attribute and the input every tick. */
