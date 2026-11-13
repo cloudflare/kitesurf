@@ -75,7 +75,7 @@ fn utf8_source_parses_like_the_string_source() {
         plain.outer_html(0)
     );
     // An offset inside "é" is not a char boundary, so nothing is spliced in.
-    let inside = source.find('é').unwrap_or(0) + 1;
+    let inside = source.find('é').expect("source has é") + 1;
     let unspliced = DomHandle::new_utf8(source.as_bytes(), inside, "<!--marker-->", url);
     assert_eq!(unspliced.outer_html(0), plain.outer_html(0));
 }
@@ -114,17 +114,18 @@ fn utf8_outer_html_strips_the_marker_and_restores_the_doctype() {
     let url = "https://example.test/";
     let dom = DomHandle::new("<!DOCTYPE html><!--m--><!--c--><p title=\"é\">𝔽</p>", url);
     let plain = dom.outer_html(0);
-    let utf8 = |marker: &str, doctype: &str| drain(dom.outer_html_bytes(0, marker, doctype), 3);
+    let serialize =
+        |marker: &str, doctype: &str| drain(dom.outer_html_bytes(0, marker, doctype), 3);
 
     assert!(plain.starts_with("<!--m--><!--c--><html>"));
-    assert_eq!(utf8("", ""), plain);
-    assert_eq!(utf8("", "<!DOCTYPE html>"), plain);
-    assert_eq!(utf8("<!--m-->", ""), plain.replacen("<!--m-->", "", 1));
+    assert_eq!(serialize("", ""), plain);
+    assert_eq!(serialize("", "<!DOCTYPE html>"), plain);
+    assert_eq!(serialize("<!--m-->", ""), plain.replacen("<!--m-->", "", 1));
     assert_eq!(
-        utf8("<!--m-->", "<!DOCTYPE html>"),
+        serialize("<!--m-->", "<!DOCTYPE html>"),
         format!("<!DOCTYPE html>{}", plain.replacen("<!--m-->", "", 1))
     );
-    assert_eq!(utf8("<!--absent-->", "<!DOCTYPE html>"), plain);
+    assert_eq!(serialize("<!--absent-->", "<!DOCTYPE html>"), plain);
 
     let prefixed = DomHandle::new("<!--m--><!--<!doctype x>--><p></p>", url);
     let kept = drain(
@@ -154,6 +155,7 @@ fn drain(mut bytes: OuterHtmlBytes, max: usize) -> String {
 fn outer_html_bytes_split_multibyte_text_across_chunks() {
     let dom = DomHandle::new("<p>é𝔽ü</p>", "https://example.test/");
     let whole = dom.outer_html(0);
+
     for max in [1, 2, 5, whole.len(), whole.len() + 1] {
         assert_eq!(
             drain(dom.outer_html_bytes(0, "", ""), max),
@@ -161,12 +163,20 @@ fn outer_html_bytes_split_multibyte_text_across_chunks() {
             "max {max}"
         );
     }
-    let mut zero = dom.outer_html_bytes(0, "", "");
-    assert_eq!(zero.next_chunk(0).len(), 1);
-    assert!(DomHandle::new("", "https://example.test/")
-        .outer_html_bytes(9_999, "", "")
-        .next_chunk(8)
-        .is_empty());
+}
+
+#[test]
+fn a_zero_chunk_size_still_emits_a_byte() {
+    let dom = DomHandle::new("<p>é𝔽ü</p>", "https://example.test/");
+
+    assert_eq!(dom.outer_html_bytes(0, "", "").next_chunk(0).len(), 1);
+}
+
+#[test]
+fn an_unknown_node_streams_no_bytes() {
+    let dom = DomHandle::new("", "https://example.test/");
+
+    assert!(dom.outer_html_bytes(9_999, "", "").next_chunk(8).is_empty());
 }
 
 /// Reads `stream` to the end, `max` bytes at a time, then calls `between` before each pull.
@@ -201,6 +211,7 @@ fn check_chunk_sizes(
     source_len: usize,
 ) {
     for max in [1, 3, 7, 64, 256 * 1024] {
+        // Byte-at-a-time drains of the long sources dominate the suite runtime.
         if max < 7 && source_len > 10_000 {
             continue;
         }
@@ -226,13 +237,13 @@ fn streamed_output_equals_the_one_pass_output() {
         format!("<!--m--><div id=\"long\"><p>{long}</p><textarea>{long}</textarea></div>"),
         String::new(),
     ];
-    let cases = [("<!--m-->", "<!DOCTYPE html>"), ("<!--m-->", ""), ("", "")];
+    let marker_and_doctype = [("<!--m-->", "<!DOCTYPE html>"), ("<!--m-->", ""), ("", "")];
     for source in &sources {
         let dom = DomHandle::new(source, url);
-        let p = dom.query_selector("p").ok().filter(|&id| id > 0);
-        let nodes = [Some(0), p.map(|id| id as u32)];
+        let paragraph = dom.query_selector("p").ok().filter(|&id| id > 0);
+        let nodes = [Some(0), paragraph.map(|id| id as u32)];
         for node in nodes.into_iter().flatten() {
-            for (marker, doctype) in cases {
+            for (marker, doctype) in marker_and_doctype {
                 let expected = drain(dom.outer_html_bytes(node, marker, doctype), 1 << 30);
                 check_chunk_sizes(&dom, node, marker, doctype, &expected, source.len());
             }
@@ -272,13 +283,38 @@ fn a_text_node_larger_than_a_chunk_streams_whole() {
     assert_eq!(String::from_utf8(out).unwrap(), expected);
 }
 
+/// Mutates the tree at `at_pull`, then checks the stream tore or matched the call-time snapshot.
+fn assert_stream_torn_by_mutation(source: &str, selector: &str, change: Change, at_pull: usize) {
+    let url = "https://example.test/";
+    let dom = DomHandle::new(source, url);
+    let full = dom.outer_html(0);
+    let id = dom.query_selector(selector).unwrap() as u32;
+    let stream = dom.outer_html_stream(0, "", "").unwrap();
+    let (out, len) = drain_stream(&dom, stream, 1, |pull| {
+        if pull == at_pull {
+            change(&dom, id);
+        }
+    });
+
+    assert_eq!(len, full.len());
+    // A change to bytes already read leaves the rest as the call-time snapshot.
+    let torn = out.len() < len;
+    assert!(
+        torn || out == full.as_bytes(),
+        "{selector} at pull {at_pull}"
+    );
+    if at_pull == 1 {
+        assert!(torn, "{selector} at pull {at_pull}");
+    }
+}
+
+type Change = fn(&DomHandle, u32);
+
 #[test]
 fn a_tree_changed_between_pulls_ends_the_stream_short() {
-    let url = "https://example.test/";
     let source =
         "<div id=\"a\" title=\"one\"><p id=\"b\">text</p><i id=\"c\">c</i></div><b>end</b>";
-    // (id, mutation): same-length attribute, longer and shorter text, removal, insertion.
-    type Change = fn(&DomHandle, u32);
+    // (selector, mutation): same-length attribute, longer and shorter text, removal, insertion.
     let changes: [(&str, Change); 5] = [
         ("#a", |d, id| assert!(d.set_attribute(id, "title", "two"))),
         ("#b", |d, id| assert!(d.set_node_text(id, "longer text"))),
@@ -289,28 +325,11 @@ fn a_tree_changed_between_pulls_ends_the_stream_short() {
             assert!(d.append_child_node(id, child));
         }),
     ];
+
     for (selector, change) in changes {
         // Early pulls change emitted output, late pulls output still to come.
         for at_pull in [1, 20, 60] {
-            let dom = DomHandle::new(source, url);
-            let full = dom.outer_html(0);
-            let id = dom.query_selector(selector).unwrap() as u32;
-            let stream = dom.outer_html_stream(0, "", "").unwrap();
-            let (out, len) = drain_stream(&dom, stream, 1, |pull| {
-                if pull == at_pull {
-                    change(&dom, id);
-                }
-            });
-            assert_eq!(len, full.len());
-            // A change to bytes already read leaves the rest as the call-time snapshot.
-            let torn = out.len() < len;
-            assert!(
-                torn || out == full.as_bytes(),
-                "{selector} at pull {at_pull}"
-            );
-            if at_pull == 1 {
-                assert!(torn, "{selector} at pull {at_pull}");
-            }
+            assert_stream_torn_by_mutation(source, selector, change, at_pull);
         }
     }
 }
