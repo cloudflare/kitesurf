@@ -177,7 +177,7 @@ pub(crate) fn composed_transform_for_node(
             .map(|parent| (parent.scroll_offset().x, parent.scroll_offset().y))
             .unwrap_or((0.0, 0.0));
         // A viewport-fixed box cancels the scroll (see fixed_scroll_anchor).
-        if node.taffy_position() == taffy::Position::Fixed
+        if node.taffy_position() == Position::Fixed
             && parent.is_some_and(|parent| parent.id() == doc.root_element().id())
         {
             let viewport_scroll = doc.tree().fixed_anchor_scroll();

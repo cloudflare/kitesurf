@@ -971,7 +971,7 @@ pub(crate) fn try_fast_get(
                         let found = with_doc(|doc| {
                             let parent = doc.get_node(pid)?;
                             let kids = parent.children();
-                            let i = kids.position(internal)?;
+                            let index = kids.position(internal)?;
                             let fwd = op == OP_NEXT_SIBLING || op == OP_NEXT_ELEM_SIBLING;
                             let elems_only =
                                 op == OP_NEXT_ELEM_SIBLING || op == OP_PREV_ELEM_SIBLING;
@@ -983,13 +983,13 @@ pub(crate) fn try_fast_get(
                                 }
                             };
                             if fwd {
-                                for cid in kids.iter().skip(i + 1) {
+                                for cid in kids.iter().skip(index + 1) {
                                     if let Some(hit) = step(cid) {
                                         return Some(Some(hit));
                                     }
                                 }
                             } else {
-                                for cid in kids.iter().take(i).rev() {
+                                for cid in kids.iter().take(index).rev() {
                                     if let Some(hit) = step(cid) {
                                         return Some(Some(hit));
                                     }

@@ -298,8 +298,8 @@ impl DomHandle {
         self.base_url.clone()
     }
 
-    /// Moves whenever the first connected `<base href>` can change (including any connected
-    /// move), so callers re-resolve `baseURI` only then. -1 while the document is borrowed.
+    /// Moves whenever the first connected `<base href>` can change, so callers re-resolve
+    /// `baseURI` only then. Any connected move counts; -1 means the document is borrowed.
     #[wasm_bindgen(js_name = "baseEpoch")]
     pub fn base_epoch(&self) -> f64 {
         self.doc
