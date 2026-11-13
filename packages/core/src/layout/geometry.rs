@@ -488,11 +488,13 @@ type LineBounds = (usize, (f32, f32, f32, f32));
 
 /// Where an inline root's layout coordinates start in the viewport, and how they reach it.
 struct InlineOrigin {
-    /// The root's content-box origin, in viewport coordinates.
+    /// The root's absolute position in the viewport.
     x: f32,
     y: f32,
+    /// The content-box offset inside the root.
     content_x: f32,
     content_y: f32,
+    /// The root's own scroll offset.
     scroll_x: f32,
     scroll_y: f32,
     /// The composed ancestor transform, with the viewport scale it was composed at.
