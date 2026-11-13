@@ -81,8 +81,10 @@ struct SeededVersions {
 impl SeededVersions {
     /// The version a node tree gives a slot's first node.
     const FIRST: u32 = 1;
+    /// The version of a handle that is no longer live.
+    const RETIRED: u32 = 0;
 
-    fn new(versions: impl IntoIterator<Item = (usize, u32)>, len: usize) -> Self {
+    fn new(len: usize, versions: impl IntoIterator<Item = (usize, u32)>) -> Self {
         let words = len.div_ceil(32);
         let mut seeded = Self {
             len,
@@ -91,10 +93,10 @@ impl SeededVersions {
             other: HandleMap::default(),
         };
         for (index, version) in versions {
-            debug_assert_ne!(version, 0, "a live node's version is never 0");
-            seeded.live[index / 32] |= 1 << (index % 32);
+            debug_assert_ne!(version, Self::RETIRED, "a live node's version is never 0");
+            Self::set(&mut seeded.live, index);
             if version != Self::FIRST {
-                seeded.has_other[index / 32] |= 1 << (index % 32);
+                Self::set(&mut seeded.has_other, index);
                 seeded.other.insert(index as u32, version);
             }
         }
@@ -106,19 +108,31 @@ impl SeededVersions {
         self.len
     }
 
+    /// Set bit `index` of `bits`, which packs 32 slots to a word.
+    #[inline]
+    fn set(bits: &mut [u32], index: usize) {
+        bits[index / 32] |= 1 << (index % 32);
+    }
+
+    /// Clear bit `index` of `bits`.
+    #[inline]
+    fn clear(bits: &mut [u32], index: usize) {
+        bits[index / 32] &= !(1 << (index % 32));
+    }
+
     #[inline]
     fn bit(bits: &[u32], index: usize) -> bool {
         bits[index / 32] & (1 << (index % 32)) != 0
     }
 
-    /// Handle `index`'s version, 0 once retired; `None` past the seeded range.
+    /// Handle `index`'s version, [`Self::RETIRED`] once retired; `None` past the seeded range.
     #[inline]
     fn get(&self, index: usize) -> Option<u32> {
         if index >= self.len {
             return None;
         }
         if !Self::bit(&self.live, index) {
-            return Some(0);
+            return Some(Self::RETIRED);
         }
         if !Self::bit(&self.has_other, index) {
             return Some(Self::FIRST);
@@ -131,9 +145,9 @@ impl SeededVersions {
         if index >= self.len {
             return false;
         }
-        self.live[index / 32] &= !(1 << (index % 32));
+        Self::clear(&mut self.live, index);
         if Self::bit(&self.has_other, index) {
-            self.has_other[index / 32] &= !(1 << (index % 32));
+            Self::clear(&mut self.has_other, index);
             self.other.remove(&(index as u32));
         }
         true
@@ -158,10 +172,10 @@ impl NodeHandleMap {
             .max()
             .unwrap_or(0);
         let seeded_versions = SeededVersions::new(
+            slots,
             doc.tree()
                 .iter()
                 .map(|(id, _)| (slot_of(id) - 1, (id.as_u64() >> 32) as u32)),
-            slots,
         );
         Self {
             next_external: u32::try_from(slots).expect("external node handle space exhausted"),
@@ -177,7 +191,7 @@ impl NodeHandleMap {
     #[inline]
     fn seeded_external(&self, slot: usize) -> Option<u32> {
         let index = slot.checked_sub(1)?;
-        (self.seeded_versions.get(index)? != 0).then_some(index as u32)
+        (self.seeded_versions.get(index)? != SeededVersions::RETIRED).then_some(index as u32)
     }
 
     #[inline]
@@ -193,12 +207,11 @@ impl NodeHandleMap {
 
     #[inline]
     pub(crate) fn resolve(&self, external: u32) -> Option<NodeId> {
-        if let Some(version) = self.seeded_versions.get(external as usize) {
-            (version != 0)
-                .then(|| NodeId::from_u64((u64::from(version) << 32) | u64::from(external + 1)))
-        } else {
-            self.dynamic_forward.get(&external).copied()
-        }
+        let Some(version) = self.seeded_versions.get(external as usize) else {
+            return self.dynamic_forward.get(&external).copied();
+        };
+        (version != SeededVersions::RETIRED)
+            .then(|| NodeId::from_u64((u64::from(version) << 32) | u64::from(external + 1)))
     }
 
     #[inline]
