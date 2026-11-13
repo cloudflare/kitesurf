@@ -2900,8 +2900,16 @@ function linkReferrerPolicy(anchor: { getAttribute?: (name: string) => string | 
   return attribute("referrerpolicy").trim().toLowerCase();
 }
 
-// A click follows a link only when it lands on the link or inside it (HTML's activation behavior
-// runs on the event path), never on a nearby one.
+// A link with a target of `_blank`, or of a name that is not a reserved
+// keyword, opens another browsing context and leaves this document in place.
+// https://html.spec.whatwg.org/multipage/links.html#attr-hyperlink-target
+function opensNewBrowsingContext(anchor: AttributeTarget): boolean {
+  const target = String(anchor.getAttribute?.("target") ?? "")
+    .trim()
+    .toLowerCase();
+  return target !== "" && target !== "_self" && target !== "_parent" && target !== "_top";
+}
+
 // HTML's "follow the hyperlink" downloads instead of navigating when the `download` attribute
 // targets a same-origin, `blob:`, or `data:` URL:
 // https://html.spec.whatwg.org/multipage/links.html#following-hyperlinks-2
@@ -2914,6 +2922,9 @@ function isDownloadAnchor(anchor: AttributeTarget, resolved: string): boolean {
     return false;
   }
 }
+
+// A click follows a link only when it lands on the link or inside it (HTML's activation behavior
+// runs on the event path), never on a nearby one.
 function activateAnchorNavigation(
   targetEl: MouseTarget,
   clientX: number,
@@ -2932,6 +2943,7 @@ function activateAnchorNavigation(
       rawHref,
       state.pageUrl || "https://kitesurf.local/",
     ).toString();
+    if (hasAttributeMethods(anchor) && opensNewBrowsingContext(anchor)) return null;
     const isHashOnly =
       resolved.includes("#") && resolved.split("#")[0] === state.pageUrl.split("#")[0];
     if (!isHashOnly) {
