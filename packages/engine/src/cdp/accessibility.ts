@@ -63,8 +63,8 @@ export async function handleAccessibility(ctx: DispatchCtx, req: CdpRequest): Pr
       if (root) {
         ctx.emit({
           method: "Accessibility.loadComplete",
-          // SAFETY: `buildTree` root is synthetic; `AxNode` also allows newer AX property names.
-          // The pinned protocol type omits those names. Related coverage is in
+          // SAFETY: the Rust tree's root is synthetic; `AxNode` also allows newer AX property
+          // names, which the pinned protocol type omits. Related coverage is in
           // `packages/engine/test/e2e/accessibility.e2e.test.ts`.
           params: { root } as Protocol.Accessibility.LoadCompleteEvent,
           sessionId: req.sessionId,
