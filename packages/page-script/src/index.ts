@@ -287,6 +287,7 @@ import {
   state,
 } from "./state.ts";
 import { sanitizeCdpNodeTree } from "./cdp-nodes.ts";
+import { leadsWithDoctype, sourceDoctypeOf } from "./source-doctype.ts";
 import type { ShimElement } from "./types.ts";
 import {
   intersectionObserverStats,
@@ -5447,7 +5448,7 @@ function queryDomOuterHTML(
     queryArgs.includeDoctype !== true ||
     !sourceDoctype ||
     markerIndex < 0 ||
-    /^(?:\s|<!--[\s\S]*?-->)*<!doctype\b/i.test(outerHTML)
+    leadsWithDoctype(outerHTML)
   ) {
     return { outerHTML } satisfies QueryDomResult<"getOuterHTML">;
   }
@@ -7251,40 +7252,6 @@ function hasControlChar(text: string): boolean {
       return true;
   }
   return false;
-}
-
-function sourceDoctypeOf(html: string): { markup: string; end: number } | null {
-  const match = html.match(/^((?:\s|<!--[\s\S]*?-->)*)(<!doctype\b[^>]*>)/i);
-  const raw = match?.[2];
-  if (!raw) return null;
-  const prefix = match?.[1] ?? "";
-  const end = prefix.length + raw.length;
-
-  const body = raw.slice("<!doctype".length, -1).trim();
-  const parsed = body.match(
-    /^([^\s>]+)(?:\s+(PUBLIC|SYSTEM)\s+(?:"([^"]*)"|'([^']*)')(?:\s+(?:"([^"]*)"|'([^']*)'))?)?$/i,
-  );
-  if (!parsed) return { markup: raw, end };
-
-  const name = parsed[1]?.toLowerCase() ?? "html";
-  const keyword = parsed[2]?.toUpperCase();
-  const firstId = parsed[3] ?? parsed[4];
-  const secondId = parsed[5] ?? parsed[6];
-  const quote = (value: string) => (value.includes('"') ? `'${value}'` : `"${value}"`);
-  if (keyword === "PUBLIC" && firstId !== undefined) {
-    const system = secondId === undefined ? "" : ` ${quote(secondId)}`;
-    return {
-      markup: `<!DOCTYPE ${name} PUBLIC ${quote(firstId)}${system}>`,
-      end,
-    };
-  }
-  if (keyword === "SYSTEM" && firstId !== undefined) {
-    return {
-      markup: `<!DOCTYPE ${name} SYSTEM ${quote(firstId)}>`,
-      end,
-    };
-  }
-  return { markup: `<!DOCTYPE ${name}>`, end };
 }
 
 function numericNodeId(params: Record<string, unknown>): number | null {
