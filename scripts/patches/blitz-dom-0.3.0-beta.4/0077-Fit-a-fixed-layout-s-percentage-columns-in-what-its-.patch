@@ -1,0 +1,254 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 13 Nov 2026 00:37:05 +0000
+Subject: [PATCH] Fit a fixed layout's percentage columns in what its length
+ columns leave
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The fixed table layout sized every percentage column from the table's
+width alone, whatever its length columns took: a 600px table with 59px
+of length columns and 93% of percentage columns laid its row out 617px
+wide, and the last cells hung out of the table's side. Browsers give
+the length columns their width first and the percentage columns the
+smaller of what they ask for and what is left, in proportion to each
+one's share, so the row ends where the table does.
+
+A percentage column is now a track the table resolves itself at layout
+time, when the table's width is known, instead of a stylo calc() value
+that knows only its own percentage. Percentages that fit resolve as they
+did.
+
+beep-boop-🤖
+---
+ src/layout/table.rs | 154 ++++++++++++++++++++++++++------------------
+ 1 file changed, 90 insertions(+), 64 deletions(-)
+
+diff --git a/src/layout/table.rs b/src/layout/table.rs
+index 225394d..3843902 100644
+--- a/src/layout/table.rs
++++ b/src/layout/table.rs
+@@ -7,19 +7,11 @@ use atomic_refcell::AtomicRefCell;
+ use markup5ever::local_name;
+ use style::properties::style_structs::Border;
+ use style::servo_arc::Arc as ServoArc;
+-use style::typed_om::NumericBaseType;
+-use style::values::computed::calc::CalcPercentageLeaf;
+-use style::values::computed::length_percentage::{
+-    CalcLengthPercentage, CalcNode, ComputedLeaf, Unpacked as UnpackedLengthPercentage,
+-};
+-use style::values::computed::{Length, LengthPercentage};
+-use style::values::generics::Optional;
+ use style::values::specified::box_::{DisplayInside, DisplayOutside};
+ use style::{
+     Atom, computed_values::border_collapse::T as BorderCollapse,
+     computed_values::table_layout::T as TableLayout, values::computed::BorderStyle,
+ };
+-use style_traits::values::specified::AllowedNumericType;
+ use taffy::{
+     DetailedGridInfo, LayoutPartialTree as _, ResolveOrZero, TrackSizingFunction, style_helpers,
+ };
+@@ -35,7 +27,7 @@ pub struct TableTreeWrapper<'a, 'doc> {
+     pub(crate) ctx: Arc<TableContext>,
+ }
+
+-// Deliberately not `Clone`: `style` may hold raw pointers into `calc_values`.
++// Deliberately not `Clone`: `style` may hold raw pointers into `percent_columns`.
+ #[derive(Debug)]
+ pub struct TableContext {
+     pub style: taffy::Style<Atom>,
+@@ -53,13 +45,62 @@ pub struct TableContext {
+     pub paint_grid_info: AtomicRefCell<Option<DetailedGridInfo<Atom>>>,
+     pub border_style: Option<ServoArc<Border>>,
+     pub border_collapse: BorderCollapse,
+-    /// Backing storage for `calc()` track sizes synthesised by the table layout code.
+-    /// Taffy stores calc values as raw pointers, so these must outlive the `style`.
+-    #[allow(dead_code)]
+-    calc_values: Vec<LengthPercentage>,
++    /// The fixed layout's percentage columns. Taffy holds a raw pointer to each as its
++    /// track's `calc()` value, so these must outlive the `style`.
++    percent_columns: PercentColumns,
+     caption_margin_adjustments: Vec<Arc<CaptionMarginAdjustment>>,
+ }
+
++/// One percentage column of a fixed layout: `percent` of the table's inner width plus a
++/// length. Aligned as Taffy needs a `calc()` pointer to be.
++#[derive(Debug)]
++#[repr(align(8))]
++struct PercentColumn {
++    percent: f32,
++    length: f32,
++}
++
++impl PercentColumn {
++    fn resolve(&self, inner_width: f32) -> f32 {
++        (self.percent * inner_width + self.length).max(0.0)
++    }
++}
++
++/// The percentage columns of a fixed layout, which share what its length columns leave: one
++/// column's width depends on what all of them ask for.
++#[derive(Debug, Default)]
++struct PercentColumns {
++    columns: Box<[PercentColumn]>,
++    /// The width the length columns and the spacing between columns take, which comes off the
++    /// table's width before the percentages are served.
++    taken: f32,
++}
++
++impl PercentColumns {
++    fn find(&self, calc_ptr: *const ()) -> Option<&PercentColumn> {
++        self.columns
++            .iter()
++            .find(|column| std::ptr::from_ref(*column).cast() == calc_ptr)
++    }
++
++    /// A column's width in a table `inner_width` wide. Length columns come first, as in
++    /// browsers: percentages asking for more than is left shrink in proportion, into the table.
++    fn resolve(&self, column: &PercentColumn, inner_width: f32) -> f32 {
++        let asked: f32 = self
++            .columns
++            .iter()
++            .map(|column| column.resolve(inner_width))
++            .sum();
++        let room = (inner_width - self.taken).max(0.0);
++        let own = column.resolve(inner_width);
++        if asked > room {
++            own * room / asked
++        } else {
++            own
++        }
++    }
++}
++
+ #[derive(Debug)]
+ struct CaptionMarginAdjustment {
+     value: taffy::LengthPercentageAuto,
+@@ -240,38 +281,6 @@ fn side_width(width: app_units::Au, style: BorderStyle) -> f32 {
+     }
+ }
+
+-/// Build a `calc(<percent> + <length>)` track sizing function. The calc value is
+-/// boxed and stored in `calc_values` so that the raw pointer Taffy holds stays valid.
+-fn percent_plus_length(
+-    calc_values: &mut Vec<LengthPercentage>,
+-    percent: f32,
+-    length: f32,
+-) -> TrackSizingFunction {
+-    let node = CalcNode::Sum(
+-        vec![
+-            CalcNode::Leaf(ComputedLeaf::Percentage(CalcPercentageLeaf::new(
+-                percent,
+-                Optional::Some(NumericBaseType::Length),
+-            ))),
+-            CalcNode::Leaf(ComputedLeaf::Length(Length::new(length))),
+-        ]
+-        .into(),
+-    );
+-    let value = LengthPercentage::new_calc(node, AllowedNumericType::NonNegative);
+-    let dim = match value.unpack() {
+-        UnpackedLengthPercentage::Calc(calc) => {
+-            let ptr = calc as *const CalcLengthPercentage as *const ();
+-            // SAFETY: the pointer targets the heap allocation owned by `value`, which
+-            // is kept alive by `calc_values` for as long as the TableContext exists.
+-            unsafe { taffy::Dimension::from_raw(taffy::CompactLength::calc(ptr)) }
+-        }
+-        UnpackedLengthPercentage::Length(len) => style_helpers::length(len.px()),
+-        UnpackedLengthPercentage::Percentage(p) => style_helpers::percent(p.0),
+-    };
+-    calc_values.push(value);
+-    dim.into()
+-}
+-
+ pub(crate) fn build_table_context(
+     doc: &mut BaseDocument,
+     table_root_node_id: NodeId,
+@@ -330,7 +339,7 @@ pub(crate) fn build_table_context(
+     let mut first_cell_border: Option<ServoArc<Border>> = None;
+     // Percentage widths set on first-row cells: (column index, percentage, padding + border)
+     let mut percent_columns: Vec<(u16, f32, f32)> = Vec::new();
+-    let mut calc_values: Vec<LengthPercentage> = Vec::new();
++    let mut percent_tracks = PercentColumns::default();
+     // Header row groups are laid out before other rows, and footer row groups after
+     let row_group_order = |doc: &BaseDocument, child_id: NodeId| -> u8 {
+         let display = doc.nodes[child_id]
+@@ -395,29 +404,43 @@ pub(crate) fn build_table_context(
+             BorderCollapse::Collapse => 0.0,
+         };
+         let inner_spacing = spacing_x * num_columns.saturating_sub(1) as f32;
+-        let mut percent_track = |percent: f32, extra: f32| -> TrackSizingFunction {
+-            let extra = extra - percent * inner_spacing;
+-            if extra == 0.0 {
+-                style_helpers::percent(percent)
+-            } else {
+-                percent_plus_length(&mut calc_values, percent, extra)
++        // Percentage widths on cells apply to the cell's content box, so the
++        // cell's horizontal padding and border must be added to the column width.
++        let mut extras = vec![0.0; column_sizes.len()];
++        for (col_idx, _, extra) in &percent_columns {
++            if let Some(slot) = extras.get_mut(*col_idx as usize) {
++                *slot = *extra;
+             }
+-        };
++        }
+
+-        for column in column_sizes.iter_mut() {
++        let mut percents: Vec<PercentColumn> = Vec::new();
++        let mut percent_indices: Vec<usize> = Vec::new();
++        let mut taken = inner_spacing;
++        for (index, column) in column_sizes.iter_mut().enumerate() {
++            let max = column.max.into_raw();
+             if column.max.is_auto() {
+                 *column = remaining_column;
+-            } else if column.max.into_raw().tag() == taffy::CompactLength::PERCENT_TAG {
+-                *column = percent_track(column.max.into_raw().value(), 0.0);
++            } else if max.tag() == taffy::CompactLength::PERCENT_TAG {
++                let percent = max.value();
++                percents.push(PercentColumn {
++                    percent,
++                    length: extras[index] - percent * inner_spacing,
++                });
++                percent_indices.push(index);
++            } else if max.tag() == taffy::CompactLength::LENGTH_TAG {
++                taken += max.value();
+             }
+         }
+-
+-        // Percentage widths on cells apply to the cell's content box, so the
+-        // cell's horizontal padding and border must be added to the column width.
+-        for (col_idx, percent, extra) in percent_columns {
+-            if let Some(column) = column_sizes.get_mut(col_idx as usize) {
+-                *column = percent_track(percent, extra);
+-            }
++        percent_tracks = PercentColumns {
++            columns: percents.into_boxed_slice(),
++            taken,
++        };
++        for (percent, index) in percent_tracks.columns.iter().zip(percent_indices) {
++            let pointer = std::ptr::from_ref(percent).cast();
++            // SAFETY: the pointer targets `percent_tracks`' heap allocation, kept by the
++            // TableContext as long as its style; only its `resolve_calc_value` reads it.
++            let track = unsafe { taffy::Dimension::from_raw(taffy::CompactLength::calc(pointer)) };
++            column_sizes[index] = track.into();
+         }
+     }
+     let column_count = num_columns.max(1);
+@@ -528,7 +551,7 @@ pub(crate) fn build_table_context(
+             paint_grid_info: AtomicRefCell::new(None),
+             border_collapse,
+             border_style: first_cell_border,
+-            calc_values,
++            percent_columns: percent_tracks,
+             caption_margin_adjustments,
+         },
+         layout_children,
+@@ -978,5 +1001,8 @@ impl taffy::LayoutPartialTree for TableTreeWrapper<'_, '_> {
+         {
+             return adjustment.resolve(parent_size);
+         }
++        if let Some(column) = self.ctx.percent_columns.find(calc_ptr) {
++            return self.ctx.percent_columns.resolve(column, parent_size);
++        }
+         resolve_calc_value(calc_ptr, parent_size)
+     }
