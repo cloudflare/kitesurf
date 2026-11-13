@@ -1931,15 +1931,21 @@ NodeBase.prototype.isDefaultNamespace = function (namespace: string | null): boo
   const def = this.lookupNamespaceURI(null);
   return def === ns;
 };
-// The document's base URL: the first connected <base href> resolved against `fallback`. The
-// document's base epoch moves whenever that can change, so the lookup reruns only then (-1, a
-// borrowed document, always reruns).
+// The document's base URL: the first connected <base href> resolved against `fallback`.
+// The base epoch moves whenever that can change, so the lookup reruns only then; a borrowed
+// document reports -1 and always reruns.
 let baseURIState: { dom: DomHandle; epoch: number; fallback: string; value: string } | null = null;
 export function documentBaseURI(fallback: string): string {
   const epoch = dom ? dom.baseEpoch() : -1;
-  const s = baseURIState;
-  if (s && epoch >= 0 && s.dom === dom && s.epoch === epoch && s.fallback === fallback) {
-    return s.value;
+  const cached = baseURIState;
+  if (
+    cached &&
+    epoch >= 0 &&
+    cached.dom === dom &&
+    cached.epoch === epoch &&
+    cached.fallback === fallback
+  ) {
+    return cached.value;
   }
   const value = resolveBaseURI(fallback);
   baseURIState = dom && epoch >= 0 ? { dom, epoch, fallback, value } : null;
