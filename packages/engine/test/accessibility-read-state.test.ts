@@ -22,6 +22,8 @@ const TREE = JSON.stringify({
   ],
 });
 
+const TREE_BYTE_LENGTH = new TextEncoder().encode(TREE).byteLength;
+
 const ROOT = {
   nodeId: 1,
   backendNodeId: 1,
@@ -45,41 +47,50 @@ function streamOf(text: string): ReadableStream<Uint8Array> {
   });
 }
 
+function pageTarget(): TargetState {
+  return { type: "page", frameId: "F", url: "", title: "" } as TargetState;
+}
+
+// Every reply carries a stamp; only the caller's option decides whether one is requested.
+function pageScriptStub() {
+  const requested: Array<QueryDomArgs<"accessibilityTree">> = [];
+  const ps = {
+    call: {
+      getDocument: async () => ({ root: ROOT, readStamp: stamp(1, 1) }),
+      accessibilityTree: async (args: QueryDomArgs<"accessibilityTree">) => {
+        requested.push(args);
+        return {
+          byteLength: TREE_BYTE_LENGTH,
+          json: streamOf(TREE),
+          readStamp: stamp(1, 2),
+        };
+      },
+    },
+    tryCall: {
+      getDocument: async () => ({ root: ROOT, readStamp: stamp(1, 1) }),
+      notRenderedNodeIds: async () => ({
+        displayNone: [],
+        invisible: [],
+        readStamp: stamp(1, 1),
+      }),
+      formStateSnapshot: async () => ({
+        values: [],
+        checked: [],
+        selected: [],
+        readStamp: stamp(1, 1),
+      }),
+    },
+  };
+  return { ps, requested };
+}
+
 describe("accessibility read state", () => {
   // The AX nodes and the DOM snapshot are separate reads, so the tree's own
   // stamp is what lets a consumer tell whether they describe the same DOM.
   it("records the accessibility read's stamp", async () => {
-    const requested: Array<QueryDomArgs<"accessibilityTree">> = [];
-    const ps = {
-      call: {
-        getDocument: async () => ({ root: ROOT, readStamp: stamp(1, 1) }),
-        accessibilityTree: async (args: QueryDomArgs<"accessibilityTree">) => {
-          requested.push(args);
-          return {
-            byteLength: new TextEncoder().encode(TREE).byteLength,
-            json: streamOf(TREE),
-            readStamp: stamp(1, 2),
-          };
-        },
-      },
-      tryCall: {
-        getDocument: async () => ({ root: ROOT, readStamp: stamp(1, 1) }),
-        notRenderedNodeIds: async () => ({
-          displayNone: [],
-          invisible: [],
-          readStamp: stamp(1, 1),
-        }),
-        formStateSnapshot: async () => ({
-          values: [],
-          checked: [],
-          selected: [],
-          readStamp: stamp(1, 1),
-        }),
-      },
-    };
-    const target = { type: "page", frameId: "F", url: "", title: "" } as TargetState;
+    const { ps, requested } = pageScriptStub();
 
-    const built = await buildTree(ps, target, { includeReadState: true });
+    const built = await buildTree(ps, pageTarget(), { includeReadState: true });
 
     expect(requested).toHaveLength(1);
     expect(requested[0]?.includeReadStamp).toBe(true);
@@ -87,27 +98,9 @@ describe("accessibility read state", () => {
   });
 
   it("does not request a stamp when the caller did not ask for read state", async () => {
-    const requested: Array<QueryDomArgs<"accessibilityTree">> = [];
-    const ps = {
-      call: {
-        getDocument: async () => ({ root: ROOT }),
-        accessibilityTree: async (args: QueryDomArgs<"accessibilityTree">) => {
-          requested.push(args);
-          return {
-            byteLength: new TextEncoder().encode(TREE).byteLength,
-            json: streamOf(TREE),
-          };
-        },
-      },
-      tryCall: {
-        getDocument: async () => ({ root: ROOT }),
-        notRenderedNodeIds: async () => ({ displayNone: [], invisible: [] }),
-        formStateSnapshot: async () => ({ values: [], checked: [], selected: [] }),
-      },
-    };
-    const target = { type: "page", frameId: "F", url: "", title: "" } as TargetState;
+    const { ps, requested } = pageScriptStub();
 
-    const built = await buildTree(ps, target);
+    const built = await buildTree(ps, pageTarget());
 
     expect(requested[0]?.includeReadStamp).toBeUndefined();
     expect(built?.readState).toBeUndefined();

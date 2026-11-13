@@ -5,6 +5,9 @@
 import { createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
 
+import type { CDPSession } from "@cloudflare/puppeteer";
+import type { Protocol } from "devtools-protocol";
+
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
 import initialGoldens from "./fixtures/accessibility-golden.json";
@@ -119,6 +122,12 @@ const ariaAttributes = [
 // depth that completed the isolated full-tree probe. The Rust-only test covers 5,000 levels.
 const DEEP_DOCUMENT_DEPTH = 321;
 
+const SELECT_FIXTURE_HTML = `<!doctype html><title>Sort</title><form id="f">
+      <select id="s"><option value="ann" selected>Announcement date</option><option value="sub">Submission date</option></select>
+      <select id="m" multiple><option>Red</option><option selected>Green</option><option>Blue</option></select>
+      <select id="d"><option value="x">First x</option><option value="x">Second x</option></select>
+      <select id="p"><option>Plain one</option><option>Plain two</option></select></form>`;
+
 const documents = [
   {
     name: "landmarks and form fixture defaults",
@@ -183,37 +192,21 @@ const documents = [
   },
   {
     name: "live select fixture",
-    html: `<!doctype html><title>Sort</title><form id="f">
-      <select id="s"><option value="ann" selected>Announcement date</option><option value="sub">Submission date</option></select>
-      <select id="m" multiple><option>Red</option><option selected>Green</option><option>Blue</option></select>
-      <select id="d"><option value="x">First x</option><option value="x">Second x</option></select>
-      <select id="p"><option>Plain one</option><option>Plain two</option></select></form>`,
+    html: SELECT_FIXTURE_HTML,
   },
   {
     name: "live select mutations",
-    html: `<!doctype html><title>Sort</title><form id="f">
-      <select id="s"><option value="ann" selected>Announcement date</option><option value="sub">Submission date</option></select>
-      <select id="m" multiple><option>Red</option><option selected>Green</option><option>Blue</option></select>
-      <select id="d"><option value="x">First x</option><option value="x">Second x</option></select>
-      <select id="p"><option>Plain one</option><option>Plain two</option></select></form>`,
+    html: SELECT_FIXTURE_HTML,
     setup: `document.getElementById('s').selectedIndex=-1; document.getElementById('m').options[0].selected=true; document.getElementById('d').selectedIndex=1`,
   },
   {
     name: "select value mutation",
-    html: `<!doctype html><title>Sort</title><form id="f">
-      <select id="s"><option value="ann" selected>Announcement date</option><option value="sub">Submission date</option></select>
-      <select id="m" multiple><option>Red</option><option selected>Green</option><option>Blue</option></select>
-      <select id="d"><option value="x">First x</option><option value="x">Second x</option></select>
-      <select id="p"><option>Plain one</option><option>Plain two</option></select></form>`,
+    html: SELECT_FIXTURE_HTML,
     setup: `document.getElementById('s').value='sub'`,
   },
   {
     name: "select reset after mutations",
-    html: `<!doctype html><title>Sort</title><form id="f">
-      <select id="s"><option value="ann" selected>Announcement date</option><option value="sub">Submission date</option></select>
-      <select id="m" multiple><option>Red</option><option selected>Green</option><option>Blue</option></select>
-      <select id="d"><option value="x">First x</option><option value="x">Second x</option></select>
-      <select id="p"><option>Plain one</option><option>Plain two</option></select></form>`,
+    html: SELECT_FIXTURE_HTML,
     setup: `document.getElementById('s').selectedIndex=-1; document.getElementById('m').options[0].selected=true; document.getElementById('d').selectedIndex=1; document.getElementById('f').reset()`,
   },
   {
@@ -308,6 +301,111 @@ type Method =
   | "Accessibility.getAXNodeAndAncestors"
   | "Accessibility.queryAXTree";
 
+type Compare = (method: Method, params: object, result: unknown) => void;
+
+async function compareWholeTreeReads(
+  cdpSession: CDPSession,
+  full: Protocol.Accessibility.GetFullAXTreeResponse,
+  compare: Compare,
+): Promise<void> {
+  compare("Accessibility.getFullAXTree", {}, full);
+  compare("Accessibility.getRootAXNode", {}, await cdpSession.send("Accessibility.getRootAXNode"));
+}
+
+// html, body and body's element children, which cover the scoped reads below.
+async function scopedElementIds(cdpSession: CDPSession, documentName: string): Promise<number[]> {
+  const { root: domRoot } = await cdpSession.send("DOM.getDocument", { depth: 0 });
+  const elementIds: number[] = [];
+  for (const selector of ["html", "body", "body *"]) {
+    const { nodeId } = await cdpSession.send("DOM.querySelector", {
+      nodeId: domRoot.nodeId,
+      selector,
+    });
+    expect(nodeId, `${documentName}: ${selector}`).toBeGreaterThan(0);
+    elementIds.push(nodeId);
+  }
+  return elementIds;
+}
+
+async function compareScopedReads(
+  cdpSession: CDPSession,
+  elementIds: number[],
+  compare: Compare,
+): Promise<void> {
+  for (const nodeId of elementIds) {
+    for (const fetchRelatives of [true, false]) {
+      const params = { nodeId, fetchRelatives };
+      compare(
+        "Accessibility.getPartialAXTree",
+        params,
+        await cdpSession.send("Accessibility.getPartialAXTree", params),
+      );
+    }
+    const params = { nodeId };
+    compare(
+      "Accessibility.getAXNodeAndAncestors",
+      params,
+      await cdpSession.send("Accessibility.getAXNodeAndAncestors", params),
+    );
+  }
+  compare(
+    "Accessibility.getPartialAXTree",
+    {},
+    await cdpSession.send("Accessibility.getPartialAXTree", {}),
+  );
+  compare(
+    "Accessibility.getAXNodeAndAncestors",
+    {},
+    await cdpSession.send("Accessibility.getAXNodeAndAncestors", {}),
+  );
+}
+
+async function compareChildNodeReads(
+  cdpSession: CDPSession,
+  full: Protocol.Accessibility.AXNode[],
+  elementIds: number[],
+  documentName: string,
+  compare: Compare,
+): Promise<void> {
+  // The child-node read takes a numeric AX id, so the text node must have one.
+  const nodes = full.filter((node) => /^\d+$/.test(node.nodeId));
+  const text = nodes.find((node) => node.role?.value === "StaticText");
+  const root = full[0];
+  if (!root || !text) throw new Error(`${documentName}: expected root and text nodes`);
+  for (const id of [root.nodeId, String(elementIds[1]), text.nodeId, "bogus", "05"]) {
+    const params = { id };
+    compare(
+      "Accessibility.getChildAXNodes",
+      params,
+      await cdpSession.send("Accessibility.getChildAXNodes", params),
+    );
+  }
+}
+
+async function compareQueryReads(
+  cdpSession: CDPSession,
+  backendNodeId: number | undefined,
+  documentName: string,
+  compare: Compare,
+): Promise<void> {
+  if (backendNodeId === undefined) throw new Error(`${documentName}: missing scoped query id`);
+  for (const params of [
+    {},
+    { backendNodeId },
+    { role: "button" },
+    { accessibleName: "" },
+    { role: "" },
+    { accessibleName: "Save" },
+    { backendNodeId, role: "button", accessibleName: "" },
+  ]) {
+    compare(
+      "Accessibility.queryAXTree",
+      params,
+      await cdpSession.send("Accessibility.queryAXTree", params),
+    );
+  }
+}
+
 // Regenerate with `KS_AX_GOLDEN_WRITE=1 pnpm run test:e2e accessibility-rust-parity`.
 // These goldens were captured from the deleted TypeScript accessibility builder.
 test("Rust accessibility JSON matches every accessibility method", async ({ page, cdpSession }) => {
@@ -326,7 +424,7 @@ test("Rust accessibility JSON matches every accessibility method", async ({ page
   let documentName = "";
   let frameId = "";
   let completedDocuments = 0;
-  const compare = (method: Method, params: object, result: unknown): void => {
+  const compare: Compare = (method, params, result) => {
     const goldenKey = `${documentName}|${method}|${canonicalJson(params, frameId)}`;
     const actualJson = JSON.stringify(result);
     if (actualJson === undefined) throw new Error("Accessibility result is not JSON serializable");
@@ -347,81 +445,17 @@ test("Rust accessibility JSON matches every accessibility method", async ({ page
       await setContent(page, doc.html);
       if ("setup" in doc && doc.setup) await page.evaluate(doc.setup);
       frameId = (await cdpSession.send("Page.getFrameTree")).frameTree.frame.id;
+
       const full = await cdpSession.send("Accessibility.getFullAXTree");
       if (doc.name === "deep document") {
         expect(full.nodes.length).toBeGreaterThanOrEqual(DEEP_DOCUMENT_DEPTH);
       }
-      compare("Accessibility.getFullAXTree", {}, full);
-      compare(
-        "Accessibility.getRootAXNode",
-        {},
-        await cdpSession.send("Accessibility.getRootAXNode"),
-      );
-      const nodes = full.nodes.filter((node) => /^\d+$/.test(node.nodeId));
-      const { root: domRoot } = await cdpSession.send("DOM.getDocument", { depth: 0 });
-      const elementIds: number[] = [];
-      for (const selector of ["html", "body", "body *"]) {
-        const { nodeId } = await cdpSession.send("DOM.querySelector", {
-          nodeId: domRoot.nodeId,
-          selector,
-        });
-        expect(nodeId, `${doc.name}: ${selector}`).toBeGreaterThan(0);
-        elementIds.push(nodeId);
-      }
-      for (const nodeId of elementIds) {
-        for (const fetchRelatives of [true, false]) {
-          const params = { nodeId, fetchRelatives };
-          compare(
-            "Accessibility.getPartialAXTree",
-            params,
-            await cdpSession.send("Accessibility.getPartialAXTree", params),
-          );
-        }
-        const params = { nodeId };
-        compare(
-          "Accessibility.getAXNodeAndAncestors",
-          params,
-          await cdpSession.send("Accessibility.getAXNodeAndAncestors", params),
-        );
-      }
-      compare(
-        "Accessibility.getPartialAXTree",
-        {},
-        await cdpSession.send("Accessibility.getPartialAXTree", {}),
-      );
-      compare(
-        "Accessibility.getAXNodeAndAncestors",
-        {},
-        await cdpSession.send("Accessibility.getAXNodeAndAncestors", {}),
-      );
-      const text = nodes.find((node) => node.role?.value === "StaticText");
-      const root = full.nodes[0];
-      if (!root || !text) throw new Error(`${doc.name}: expected root and text nodes`);
-      for (const id of [root.nodeId, String(elementIds[1]), text.nodeId, "bogus", "05"]) {
-        const params = { id };
-        compare(
-          "Accessibility.getChildAXNodes",
-          params,
-          await cdpSession.send("Accessibility.getChildAXNodes", params),
-        );
-      }
-      const backendNodeId = elementIds[1];
-      if (backendNodeId === undefined) throw new Error(`${doc.name}: missing scoped query id`);
-      for (const params of [
-        {},
-        { backendNodeId },
-        { role: "button" },
-        { accessibleName: "" },
-        { role: "" },
-        { accessibleName: "Save" },
-        { backendNodeId, role: "button", accessibleName: "" },
-      ]) {
-        compare(
-          "Accessibility.queryAXTree",
-          params,
-          await cdpSession.send("Accessibility.queryAXTree", params),
-        );
-      }
+      await compareWholeTreeReads(cdpSession, full, compare);
+
+      const elementIds = await scopedElementIds(cdpSession, documentName);
+      await compareScopedReads(cdpSession, elementIds, compare);
+      await compareChildNodeReads(cdpSession, full.nodes, elementIds, documentName, compare);
+      await compareQueryReads(cdpSession, elementIds[1], documentName, compare);
       completedDocuments++;
     }
     if (regenerate) {

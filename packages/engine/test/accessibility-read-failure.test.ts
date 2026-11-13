@@ -10,6 +10,19 @@ import type { TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
 
+function pageTarget(over: Partial<TargetState> = {}): TargetState {
+  return {
+    type: "page",
+    sessions: new Set<string>(),
+    pageScript: null,
+    blankReady: null,
+    frameId: "F",
+    url: "",
+    title: "",
+    ...over,
+  } as TargetState;
+}
+
 describe("document read failure", () => {
   it("rejects a full-tree request when PageScript cannot read the document", async () => {
     const stub = {
@@ -20,15 +33,7 @@ describe("document read failure", () => {
         throw new Error("Worker exceeded memory limit");
       },
     };
-    const target = {
-      type: "page",
-      sessions: new Set<string>(),
-      pageScript: stub as PageScriptStub,
-      blankReady: null,
-      frameId: "F",
-      url: "",
-      title: "",
-    } as TargetState;
+    const target = pageTarget({ pageScript: stub as PageScriptStub });
     const ctx = { browser: { targets: new Map([["t", target]]) } } as DispatchCtx;
     await expect(
       handleAccessibility(ctx, { id: 1, method: "Accessibility.getFullAXTree" }),
@@ -36,14 +41,7 @@ describe("document read failure", () => {
   });
 
   it("buildTree reports the engine DOM budget error instead of an empty tree", async () => {
-    const target = {
-      type: "page",
-      sessions: new Set<string>(),
-      pageScript: null,
-      blankReady: null,
-      frameId: "F",
-      url: "",
-    } as TargetState;
+    const target = pageTarget();
     const engineDom = {
       documentBudgetError: () => ({
         nodes: 12,
