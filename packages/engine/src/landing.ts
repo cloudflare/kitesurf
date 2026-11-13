@@ -132,6 +132,19 @@ function chromeInspectSection(url: URL): string {
 </ol>`;
 }
 
+// CSP form-action also covers the redirects of a submission, so the form needs the origin of a
+// hosted frontend that `/?url=` redirects to. The base resolves as the redirect resolves it, so
+// a protocol-relative `//host/...` base counts as hosted and a path-only one stays on this origin.
+function formActionSources(url: URL, inspectorBase: string | null): string {
+  if (inspectorBase === null) return "'self'";
+  try {
+    const origin = new URL(absoluteInspectorBaseUrl(inspectorBase, url.origin)).origin;
+    return origin === url.origin ? "'self'" : `'self' ${origin}`;
+  } catch {
+    return "'self'";
+  }
+}
+
 /** `inspectorBase` is the configured DevTools frontend; null leaves the CDP endpoints only. */
 export function landingPage(url: URL, inspectorBase: string | null = null): Response {
   const intro =
@@ -189,7 +202,7 @@ ${script}</body>
       "content-type": "text/html; charset=utf-8",
       "content-security-policy":
         `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; base-uri 'none'; ` +
-        "form-action 'self'; frame-ancestors 'none'",
+        `form-action ${formActionSources(url, inspectorBase)}; frame-ancestors 'none'`,
       "x-content-type-options": "nosniff",
     },
   });
