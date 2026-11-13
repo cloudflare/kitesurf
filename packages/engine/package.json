@@ -30,7 +30,7 @@
     "@kitesurf/page-script": "workspace:*",
     "@kitesurf/script-gate": "workspace:*",
     "es-module-lexer": "^2.1.0",
-    "hono": "^4.13.12",
+    "hono": "^4.13.16",
     "kitesurf-core": "workspace:*",
     "nanoid": "^6.0.1",
     "web-bot-auth": "^0.1.3",
