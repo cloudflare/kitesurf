@@ -18,6 +18,7 @@ export type {
   QueryDomResult,
 } from "@kitesurf/jsrpc-types/query-dom";
 import type {
+  AccessibilityBudgetError,
   QueryDomArgs,
   QueryDomMethod,
   QueryDomResult,
@@ -126,15 +127,18 @@ async function readEscapedStream(
   return { escaped, filled };
 }
 
-type AccessibilityTreeRequest = (buffered: boolean) => Promise<QueryDomResult<"accessibilityTree">>;
+export type AccessibilityTreeRequest = (
+  buffered: boolean,
+) => Promise<QueryDomResult<"accessibilityTree">>;
 
 export type AccessibilityTreeReply =
-  | { budgetError: { nodes: number; bytes: number; budget: number } }
+  | { budgetError: AccessibilityBudgetError }
   | { result: RawJsonResult; readStamp?: ReadStamp };
 
+// A short read keeps no text, so a retry does not hold the discarded pieces.
 type AccessibilityTreeRead =
-  | { complete: true; pieces: string[]; filled: number; byteLength: number }
-  | { complete: false; pieces: string[]; filled: number; byteLength: number };
+  | { complete: true; pieces: string[] }
+  | { complete: false; filled: number; byteLength: number };
 
 export async function accessibilityTreeResponse(
   request: AccessibilityTreeRequest,
@@ -145,6 +149,7 @@ export async function accessibilityTreeResponse(
   const first = await readAccessibilityTree(live);
   if (first.complete) return { result: new RawJsonResult(first.pieces), readStamp: live.readStamp };
 
+  // A stream built as the caller pulls can tear if the page mutates; a buffered read cannot.
   const buffered = await request(true);
   if ("budgetError" in buffered) return buffered;
   const retry = await readAccessibilityTree(buffered);
@@ -185,12 +190,10 @@ async function readAccessibilityTree(
   } finally {
     reader.releaseLock();
   }
-  if (filled !== byteLength) {
-    return { complete: false, pieces: [], filled, byteLength };
-  }
+  if (filled !== byteLength) return { complete: false, filled, byteLength };
   const tail = decoder.decode();
   if (tail) pieces.push(tail);
-  return { complete: true, pieces, filled, byteLength };
+  return { complete: true, pieces };
 }
 
 type EnsurePageScriptFn = (

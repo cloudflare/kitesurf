@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-// Builds partial accessibility trees and handles CDP Accessibility commands.
+// Reads the accessibility tree and handles CDP Accessibility commands.
 
 import type { Protocol } from "devtools-protocol";
 
@@ -12,13 +12,20 @@ import {
   accessibilityTreeResponse,
   sessionOf,
   type AccessibilityTreeReply,
+  type AccessibilityTreeRequest,
   type SessionOps,
   type SessionSoftOps,
 } from "./page-session.ts";
-import type { QueryDomArgs, QueryDomResult, ReadStamp } from "@kitesurf/jsrpc-types/query-dom";
+import type {
+  AccessibilityBudgetError,
+  QueryDomArgs,
+  ReadStamp,
+} from "@kitesurf/jsrpc-types/query-dom";
 import { ensureTargetDom } from "./dom-release.ts";
 import { subtreeBudgetError } from "./dom-frontend.ts";
 import { assertDomReplyGraph } from "./dom.ts";
+
+type AxMethod = QueryDomArgs<"accessibilityTree">["method"];
 
 export interface AxNode {
   nodeId: string;
@@ -58,8 +65,7 @@ export async function handleAccessibility(ctx: DispatchCtx, req: CdpRequest): Pr
 
   switch (req.method) {
     case "Accessibility.enable": {
-      const result = await accessibilityResult(target, ps, req, "root");
-      const root = result instanceof RawJsonResult ? rootFromResult(result) : undefined;
+      const root = rootFromResult(await accessibilityResult(target, ps, req, "root"));
       if (root) {
         ctx.emit({
           method: "Accessibility.loadComplete",
@@ -79,9 +85,7 @@ export async function handleAccessibility(ctx: DispatchCtx, req: CdpRequest): Pr
       return accessibilityResult(target, ps, req, "full");
     case "Accessibility.getRootAXNode": {
       const result = await accessibilityResult(target, ps, req, "root");
-      if (result instanceof RawJsonResult && !rootFromResult(result)) {
-        throw new Error("Empty accessibility tree");
-      }
+      if (!rootFromResult(result)) throw new Error("Empty accessibility tree");
       return result;
     }
     case "Accessibility.getPartialAXTree":
@@ -103,67 +107,64 @@ async function accessibilityResult(
   target: TargetState,
   ps: ReturnType<typeof sessionOf> | null,
   req: CdpRequest,
-  method: QueryDomArgs<"accessibilityTree">["method"],
+  axMethod: AxMethod,
 ): Promise<RawJsonResult> {
-  const args = accessibilityArgs(target, req, method);
+  const args = accessibilityArgs(target, req, axMethod);
   const reply = ps
     ? await accessibilityTreeResponse(
         (buffered) => ps.call.accessibilityTree({ ...args, buffered }),
         req.method,
       )
-    : fallbackReply(accessibilityTreeFallback(target, args, req.method));
+    : accessibilityTreeFallback(target, args, req.method);
   if ("budgetError" in reply) throw accessibilityBudgetError(req.method, reply.budgetError);
   return reply.result;
-}
-
-function fallbackReply(
-  fallback: { budgetError: { nodes: number; bytes: number; budget: number } } | RawJsonResult,
-): AccessibilityTreeReply {
-  return fallback instanceof RawJsonResult ? { result: fallback } : fallback;
 }
 
 function accessibilityArgs(
   target: TargetState,
   req: CdpRequest,
-  method: QueryDomArgs<"accessibilityTree">["method"],
+  axMethod: AxMethod,
 ): QueryDomArgs<"accessibilityTree"> {
   const params: unknown = req.params;
   const nodeId =
-    method === "partial" || method === "ancestors" || method === "query"
+    axMethod === "partial" || axMethod === "ancestors" || axMethod === "query"
       ? pickBackendId(params)
       : null;
   const safeNodeId =
     nodeId === null || (Number.isInteger(nodeId) && nodeId <= 0xffff_ffff) ? nodeId : 0;
-  const depth: unknown = params == null ? undefined : Reflect.get(params, "depth");
-  const role: unknown = params == null ? undefined : Reflect.get(params, "role");
-  const accessibleName: unknown =
-    params == null ? undefined : Reflect.get(params, "accessibleName");
-  const id: unknown = params == null ? undefined : Reflect.get(params, "id");
-  const fetchRelatives: unknown =
-    params == null ? undefined : Reflect.get(params, "fetchRelatives");
+  const depth = paramField(params, "depth");
+  const role = paramField(params, "role");
+  const accessibleName = paramField(params, "accessibleName");
+  const id = paramField(params, "id");
+  const fetchRelatives = paramField(params, "fetchRelatives");
   return {
-    method,
+    method: axMethod,
     nodeId: safeNodeId,
-    axId: method === "children" ? String(id ?? "") : null,
+    axId: axMethod === "children" ? String(id ?? "") : null,
     fetchRelatives: fetchRelatives !== false,
     role: typeof role === "string" ? role : null,
     accessibleName: typeof accessibleName === "string" ? accessibleName : null,
-    ...(method === "full" && typeof depth === "number" ? { depth } : {}),
+    ...(axMethod === "full" && typeof depth === "number" ? { depth } : {}),
     frameId: target.frameId,
     title: target.title || "",
     url: target.url || "",
   };
 }
 
+// CDP params arrive as wire JSON, so every field is read as untrusted.
+function paramField(params: unknown, key: string): unknown {
+  return params == null ? undefined : Reflect.get(params, key);
+}
+
 function accessibilityTreeFallback(
   target: TargetState,
   args: QueryDomArgs<"accessibilityTree">,
-  method: string,
-): { budgetError: { nodes: number; bytes: number; budget: number } } | RawJsonResult {
+  cdpMethod: string,
+): AccessibilityTreeReply {
   const dom = ensureTargetDom(target);
   if (!dom) {
     if (args.method === "root") throw new Error("No document loaded");
-    return new RawJsonResult(['{"nodes":[]}']);
+    return { result: new RawJsonResult(['{"nodes":[]}']) };
   }
   const start = dom.accessibilityStream(
     JSON.stringify({ ...args, buffered: true, visibility: true }),
@@ -172,26 +173,9 @@ function accessibilityTreeFallback(
     const budgetJson = start.budgetError();
     if (budgetJson) return { budgetError: parseAccessibilityBudget(budgetJson) };
     const bytes = start.takeBytes();
-    if (!bytes) throw new Error(`${method}: engine accessibility read returned no bytes`);
+    if (!bytes) throw new Error(`${cdpMethod}: engine accessibility read returned no bytes`);
     try {
-      const decoder = new TextDecoder("utf-8", { ignoreBOM: true, fatal: true });
-      const pieces: string[] = [];
-      let filled = 0;
-      for (;;) {
-        const chunk = bytes.nextChunk(256 * 1024);
-        if (chunk.byteLength === 0) break;
-        filled += chunk.byteLength;
-        const piece = decoder.decode(chunk, { stream: true });
-        if (piece) pieces.push(piece);
-      }
-      if (filled !== bytes.byteLength) {
-        throw new Error(
-          `${method}: engine accessibility read ended after ${filled} of ${bytes.byteLength} bytes`,
-        );
-      }
-      const tail = decoder.decode();
-      if (tail) pieces.push(tail);
-      return new RawJsonResult(pieces);
+      return { result: readEngineTreeBytes(bytes, cdpMethod) };
     } finally {
       bytes.free();
     }
@@ -200,33 +184,52 @@ function accessibilityTreeFallback(
   }
 }
 
-function parseAccessibilityBudget(json: string): { nodes: number; bytes: number; budget: number } {
+// The engine holds the whole tree in memory and hands it over in chunks; the pieces join as JSON.
+function readEngineTreeBytes(
+  bytes: { readonly byteLength: number; nextChunk(maxBytes: number): Uint8Array },
+  cdpMethod: string,
+): RawJsonResult {
+  const decoder = new TextDecoder("utf-8", { ignoreBOM: true, fatal: true });
+  const pieces: string[] = [];
+  let filled = 0;
+  for (;;) {
+    const chunk = bytes.nextChunk(256 * 1024);
+    if (chunk.byteLength === 0) break;
+    filled += chunk.byteLength;
+    const piece = decoder.decode(chunk, { stream: true });
+    if (piece) pieces.push(piece);
+  }
+  if (filled !== bytes.byteLength) {
+    throw new Error(
+      `${cdpMethod}: engine accessibility read ended after ${filled} of ${bytes.byteLength} bytes`,
+    );
+  }
+  const tail = decoder.decode();
+  if (tail) pieces.push(tail);
+  return new RawJsonResult(pieces);
+}
+
+function parseAccessibilityBudget(json: string): AccessibilityBudgetError {
   const value: unknown = JSON.parse(json);
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error("accessibility stream returned an invalid budget error");
   }
-  const nodes: unknown = Reflect.get(value, "nodes");
-  const bytes: unknown = Reflect.get(value, "bytes");
-  const budget: unknown = Reflect.get(value, "budget");
-  if (
-    typeof nodes !== "number" ||
-    !Number.isSafeInteger(nodes) ||
-    typeof bytes !== "number" ||
-    !Number.isSafeInteger(bytes) ||
-    typeof budget !== "number" ||
-    !Number.isSafeInteger(budget)
-  ) {
+  const nodes = Reflect.get(value, "nodes");
+  const bytes = Reflect.get(value, "bytes");
+  const budget = Reflect.get(value, "budget");
+  if (!isSafeInteger(nodes) || !isSafeInteger(bytes) || !isSafeInteger(budget)) {
     throw new Error("accessibility stream returned an invalid budget error");
   }
   return { nodes, bytes, budget };
 }
 
-function accessibilityBudgetError(
-  method: string,
-  budget: { nodes: number; bytes: number; budget: number },
-): Error {
+function isSafeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value);
+}
+
+function accessibilityBudgetError(cdpMethod: string, budget: AccessibilityBudgetError): Error {
   return new Error(
-    `${method}: accessibility tree is ${budget.nodes} nodes and ${budget.bytes} bytes of JSON, ` +
+    `${cdpMethod}: accessibility tree is ${budget.nodes} nodes and ${budget.bytes} bytes of JSON, ` +
       `over the ${budget.budget}-byte reply budget; request a subtree with ` +
       "Accessibility.getPartialAXTree, Accessibility.queryAXTree, or " +
       "Accessibility.getFullAXTree with depth",
@@ -320,24 +323,59 @@ export interface AccessibilityReadState {
 
 export type MeasurePageRead = <T>(phase: string, run: () => Promise<T>) => Promise<T>;
 
+type BuildTreeSession = {
+  call?: Pick<SessionOps, "getDocument" | "accessibilityTree">;
+  tryCall: Pick<SessionSoftOps, "getDocument" | "notRenderedNodeIds" | "formStateSnapshot">;
+};
+
+type BuildTreeOptions = {
+  includeReadState?: boolean;
+  fallback?: boolean;
+  measureRead?: MeasurePageRead;
+};
+
+interface DocumentSnapshot {
+  root: DomNode;
+  /** The engine's own DOM, when it had to serve the snapshot PageScript could not. */
+  fallbackDom: ReturnType<typeof ensureTargetDom>;
+  usedFallback: boolean;
+  stamps: AccessibilityReadState["stamps"];
+  forms: AccessibilityReadState["forms"];
+}
+
 export async function buildTree(
-  ps: {
-    call?: Pick<SessionOps, "getDocument" | "accessibilityTree">;
-    tryCall: Pick<SessionSoftOps, "getDocument" | "notRenderedNodeIds" | "formStateSnapshot">;
-  } | null,
+  ps: BuildTreeSession | null,
   target: TargetState,
-  options: {
-    includeReadState?: boolean;
-    fallback?: boolean;
-    measureRead?: MeasurePageRead;
-  } = {},
+  options: BuildTreeOptions = {},
 ): Promise<BuiltTree | null> {
-  let root: DomNode | null = null;
-  let fallbackDom: ReturnType<typeof ensureTargetDom> = null;
-  let liveValues = new Map<number, string>();
-  let liveChecked = new Map<number, boolean>();
-  let liveSelected = new Map<number, boolean>();
+  const snapshot = await readDocumentSnapshot(ps, target, options);
+  if (!snapshot) return null;
+
+  const tree = await readAccessibilityTree(ps, target, snapshot.fallbackDom, options);
+  if (!tree) return null;
+  if (tree.stamp) snapshot.stamps.accessibility = tree.stamp;
+
+  const readState = options.includeReadState
+    ? { stamps: snapshot.stamps, forms: snapshot.forms, fallback: snapshot.usedFallback }
+    : undefined;
+  return {
+    ...fullTreeFromResult(tree.result),
+    root: snapshot.root,
+    ...(readState ? { readState } : {}),
+  };
+}
+
+async function readDocumentSnapshot(
+  ps: BuildTreeSession | null,
+  target: TargetState,
+  options: BuildTreeOptions,
+): Promise<DocumentSnapshot | null> {
   const stamps: AccessibilityReadState["stamps"] = {};
+  let root: DomNode | null = null;
+  let values = new Map<number, string>();
+  let checked = new Map<number, boolean>();
+  let selected = new Map<number, boolean>();
+
   if (ps) {
     const read = <T>(phase: string, run: () => Promise<T>): Promise<T> =>
       options.measureRead ? options.measureRead(phase, run) : run();
@@ -356,11 +394,13 @@ export async function buildTree(
     stamps.visibility = hiddenRes?.readStamp;
     stamps.forms = formRes?.readStamp;
     root = (docRes?.root as DomNode | undefined) ?? null;
-    if (Array.isArray(formRes?.values)) liveValues = new Map(formRes.values);
-    if (Array.isArray(formRes?.checked)) liveChecked = new Map(formRes.checked);
-    if (Array.isArray(formRes?.selected)) liveSelected = new Map(formRes.selected);
+    if (Array.isArray(formRes?.values)) values = new Map(formRes.values);
+    if (Array.isArray(formRes?.checked)) checked = new Map(formRes.checked);
+    if (Array.isArray(formRes?.selected)) selected = new Map(formRes.selected);
   }
+
   const usedFallback = !root;
+  let fallbackDom: ReturnType<typeof ensureTargetDom> = null;
   if (!root && options.fallback !== false) {
     fallbackDom = ensureTargetDom(target);
     if (fallbackDom) {
@@ -371,46 +411,55 @@ export async function buildTree(
   }
   if (!root) return null;
   assertDomReplyGraph(root);
+  return { root, fallbackDom, usedFallback, stamps, forms: { values, checked, selected } };
+}
 
+async function readAccessibilityTree(
+  ps: BuildTreeSession | null,
+  target: TargetState,
+  fallbackDom: ReturnType<typeof ensureTargetDom>,
+  options: BuildTreeOptions,
+): Promise<{ result: RawJsonResult; stamp?: ReadStamp } | null> {
   const args = fullAccessibilityArgs(target);
+  if (!ps) {
+    // PageScript could not read the document, so the tree comes from the engine's copy.
+    if (!fallbackDom) return null;
+    const reply = accessibilityTreeFallback(target, args, "Accessibility.getFullAXTree");
+    if ("budgetError" in reply) {
+      throw accessibilityBudgetError("Accessibility.getFullAXTree", reply.budgetError);
+    }
+    return { result: reply.result };
+  }
+
   // A stamped read builds the whole tree in one call, so the mutation sequence
   // it reports covers every node it returns.
   const stampArgs = options.includeReadState ? { includeReadStamp: true } : {};
-  let result: { budgetError: { nodes: number; bytes: number; budget: number } } | RawJsonResult;
-  if (ps) {
-    let request: (buffered: boolean) => Promise<QueryDomResult<"accessibilityTree">>;
-    if (ps.call) {
-      const call = ps.call;
-      request = (buffered) => call.accessibilityTree({ ...args, ...stampArgs, buffered });
-    } else if (target.pageScript) {
-      const pageScript = target.pageScript;
-      request = (buffered) =>
-        pageScript.queryDom("accessibilityTree", { ...args, ...stampArgs, buffered });
-    } else {
-      throw new Error("buildTree: PageScript isolate is unavailable");
-    }
-    const read = () => accessibilityTreeResponse(request, "Accessibility.getFullAXTree");
-    const reply = options.measureRead
-      ? await options.measureRead("axtree.accessibility", read)
-      : await read();
-    if (!("budgetError" in reply)) stamps.accessibility = reply.readStamp;
-    result = "budgetError" in reply ? reply : reply.result;
-  } else {
-    if (!fallbackDom) return null;
-    result = accessibilityTreeFallback(target, args, "Accessibility.getFullAXTree");
+  const request = accessibilityRequest(ps, target, args, stampArgs);
+  const read = () => accessibilityTreeResponse(request, "Accessibility.getFullAXTree");
+  const reply = options.measureRead
+    ? await options.measureRead("axtree.accessibility", read)
+    : await read();
+  if ("budgetError" in reply) {
+    throw accessibilityBudgetError("Accessibility.getFullAXTree", reply.budgetError);
   }
-  if (!(result instanceof RawJsonResult)) {
-    throw accessibilityBudgetError("Accessibility.getFullAXTree", result.budgetError);
+  return { result: reply.result, stamp: reply.readStamp };
+}
+
+// The engine prefers the retained session; a target with only a PageScript stub still answers.
+function accessibilityRequest(
+  ps: BuildTreeSession,
+  target: TargetState,
+  args: QueryDomArgs<"accessibilityTree">,
+  stampArgs: { includeReadStamp?: boolean },
+): AccessibilityTreeRequest {
+  if (ps.call) {
+    const call = ps.call;
+    return (buffered) => call.accessibilityTree({ ...args, ...stampArgs, buffered });
   }
-  const { nodes, byId } = fullTreeFromResult(result);
-  const readState = options.includeReadState
-    ? {
-        stamps,
-        forms: { values: liveValues, checked: liveChecked, selected: liveSelected },
-        fallback: usedFallback,
-      }
-    : undefined;
-  return { nodes, byId, root, ...(readState ? { readState } : {}) };
+  if (!target.pageScript) throw new Error("buildTree: PageScript isolate is unavailable");
+  const pageScript = target.pageScript;
+  return (buffered) =>
+    pageScript.queryDom("accessibilityTree", { ...args, ...stampArgs, buffered });
 }
 
 function fullAccessibilityArgs(target: TargetState): QueryDomArgs<"accessibilityTree"> {

@@ -201,7 +201,15 @@ export interface SubtreeBudgetError {
   nodes: number;
   /** Lower bound that already exceeds budget. */
   atLeastBytes: number;
+  /** The walk stopped at the budget, so `nodes` is a lower bound too. */
   nodesAtLeast: boolean;
+  budget: number;
+}
+
+/** The accessibility tree exceeded the reply budget before it was serialized. */
+export interface AccessibilityBudgetError {
+  nodes: number;
+  bytes: number;
   budget: number;
 }
 
@@ -284,7 +292,7 @@ export interface QueryDomMethods {
       includeReadStamp?: boolean;
     };
     result:
-      | { budgetError: { nodes: number; bytes: number; budget: number } }
+      | { budgetError: AccessibilityBudgetError }
       | { byteLength: number; json: ReadableStream<Uint8Array>; readStamp?: ReadStamp };
   };
   formStateSnapshot: {
