@@ -133,6 +133,11 @@ export type AdoptableNode = {
 // Above this many children, sibling walks reuse one built child list instead of rescanning ids.
 const MAX_UNLISTED_CHILD_SCAN = 32;
 
+// Repeated reads under one parent reuse the ids until a child list changes anywhere.
+let cachedChildIds: Uint32Array = new Uint32Array(0);
+let cachedChildIdsParent = -1;
+let cachedChildIdsSeq = -1;
+
 // Child ids of `parent` when one neighbour can be read without building and wrapping the whole
 // child list (prepend and insertBefore read ends and siblings of nodes never listed). Documents
 // keep their own list because it repositions the synthetic doctype.
@@ -145,18 +150,14 @@ function unlistedChildIds(parent: NodeBase | DetachedDocument): Uint32Array | nu
   ) {
     return null;
   }
-  // Repeated reads under one parent reuse the ids until a child list changes anywhere.
   const seq = ksState().childSeq | 0;
-  if (lastChildIdsParent !== parent._id || lastChildIdsSeq !== seq) {
-    lastChildIds = dom.childIds(parent._id);
-    lastChildIdsParent = parent._id;
-    lastChildIdsSeq = seq;
+  if (cachedChildIdsParent !== parent._id || cachedChildIdsSeq !== seq) {
+    cachedChildIds = dom.childIds(parent._id);
+    cachedChildIdsParent = parent._id;
+    cachedChildIdsSeq = seq;
   }
-  return lastChildIds.length <= MAX_UNLISTED_CHILD_SCAN ? lastChildIds : null;
+  return cachedChildIds.length <= MAX_UNLISTED_CHILD_SCAN ? cachedChildIds : null;
 }
-let lastChildIds: Uint32Array = new Uint32Array(0);
-let lastChildIdsParent = -1;
-let lastChildIdsSeq = -1;
 
 // The first wrapper found walking `ids` from `start` by `step`, skipping ids that cannot wrap,
 // exactly as the built list filters them.
@@ -194,25 +195,31 @@ function ownChildArray(parent: NodeBase | DetachedDocument): ArrayLike<NodeBase>
   return get ? get() : list;
 }
 
-function edgeChild(node: NodeBase, first: boolean): NodeBase | null {
+function edgeChild(node: NodeBase, edge: "first" | "last"): NodeBase | null {
   const ids = unlistedChildIds(node);
-  if (ids) return wrapperFrom(ids, first ? 0 : ids.length - 1, first ? 1 : -1);
+  if (ids) {
+    return edge === "first" ? wrapperFrom(ids, 0, 1) : wrapperFrom(ids, ids.length - 1, -1);
+  }
   const kids = ownChildArray(node);
-  return kids.length > 0 ? kids[first ? 0 : kids.length - 1] : null;
+  if (kids.length === 0) return null;
+  return edge === "first" ? kids[0] : kids[kids.length - 1];
 }
 
-function adjacentSibling(node: NodeBase, next: boolean): NodeBase | null {
+function adjacentSibling(node: NodeBase, side: "next" | "previous"): NodeBase | null {
   const parent = node.parentNode;
   if (!parent) return null;
+
+  const step = side === "next" ? 1 : -1;
   const ids = node._id < 0 ? null : unlistedChildIds(parent);
   if (ids) {
-    const i = ids.indexOf(node._id);
-    return i < 0 ? null : wrapperFrom(ids, next ? i + 1 : i - 1, next ? 1 : -1);
+    const index = ids.indexOf(node._id);
+    return index < 0 ? null : wrapperFrom(ids, index + step, step);
   }
+
   const kids = ownChildArray(parent);
-  const i = indexById(kids, node._id);
-  if (next) return i >= 0 && i + 1 < kids.length ? kids[i + 1] : null;
-  return i > 0 ? kids[i - 1] : null;
+  const index = indexById(kids, node._id);
+  if (index < 0) return null;
+  return kids[index + step] ?? null;
 }
 
 // _id and _dom as the tree checks read them off any node argument: a
@@ -993,10 +1000,10 @@ class NodeBase extends KsEventTarget implements Idl.Node {
   }
   get firstChild(): NodeBase | null {
     if (this == null) return null;
-    return edgeChild(this, true);
+    return edgeChild(this, "first");
   }
   get lastChild(): NodeBase | null {
-    return edgeChild(this, false);
+    return edgeChild(this, "last");
   }
   hasChildNodes() {
     return this.childNodes.length > 0;
@@ -1089,10 +1096,10 @@ class NodeBase extends KsEventTarget implements Idl.Node {
   }
   get nextSibling(): NodeBase | null {
     if (this == null) return null;
-    return adjacentSibling(this, true);
+    return adjacentSibling(this, "next");
   }
   get previousSibling(): NodeBase | null {
-    return adjacentSibling(this, false);
+    return adjacentSibling(this, "previous");
   }
   // A child with nodeType ELEMENT_NODE is an Element wrapper.
   get nextElementSibling(): Element | null {
@@ -1375,11 +1382,10 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     // Only live ranges read these indexes, and computing one wraps every sibling.
     const tracksRanges = hasLiveRanges();
     const insertBeforeOldIndex = oldParent && tracksRanges ? nodeIndexOf(newChild) : -1;
-    const refIndex = !tracksRanges
-      ? -1
-      : refChild
-        ? nodeIndexOf(refChild)
-        : dom.childIds(this._id).length;
+    let refIndex = -1;
+    if (tracksRanges) {
+      refIndex = refChild ? nodeIndexOf(refChild) : dom.childIds(this._id).length;
+    }
     try {
       const curParent = dom.parentId(newId);
       if (curParent === this._id) {
