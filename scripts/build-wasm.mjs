@@ -3,7 +3,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import {
   writeFileSync,
   readFileSync,
@@ -12,6 +12,7 @@ import {
   readdirSync,
   existsSync,
   mkdirSync,
+  renameSync,
 } from "node:fs";
 import { copyFileSync } from "node:fs";
 import { dirname, resolve, join } from "node:path";
@@ -170,7 +171,7 @@ if (!postprocessWasm) {
   }
 }
 console.log("[build-wasm] wasm-bindgen --target web --typescript");
-execSync(`"${wasmBindgen}" "${cargoWasm}" --out-dir "${PKG_DIR}" --target web --typescript`, {
+execFileSync(wasmBindgen, [cargoWasm, "--out-dir", PKG_DIR, "--target", "web", "--typescript"], {
   cwd: CORE_DIR,
   stdio: "inherit",
 });
@@ -202,15 +203,23 @@ if (memprof) {
     console.log("[build-wasm] wasm-opt -O3 " + WASM_OPT);
     const beforeBytes = statSync(WASM_OUT).size;
     // Keep optimizer features aligned with Cargo's wasm target flags.
-    execSync(
-      `"${WASM_OPT}" -O3 -g ` +
-        "--enable-simd --enable-bulk-memory " +
-        "--enable-nontrapping-float-to-int --enable-sign-ext " +
-        "--enable-exception-handling " +
-        `"${WASM_OUT}" -o "${WASM_OUT}.opt"`,
+    execFileSync(
+      WASM_OPT,
+      [
+        "-O3",
+        "-g",
+        "--enable-simd",
+        "--enable-bulk-memory",
+        "--enable-nontrapping-float-to-int",
+        "--enable-sign-ext",
+        "--enable-exception-handling",
+        WASM_OUT,
+        "-o",
+        `${WASM_OUT}.opt`,
+      ],
       { cwd: CORE_DIR, stdio: "inherit" },
     );
-    execSync(`mv "${WASM_OUT}.opt" "${WASM_OUT}"`, { stdio: "inherit" });
+    renameSync(`${WASM_OUT}.opt`, WASM_OUT);
     const afterBytes = statSync(WASM_OUT).size;
     const pct = (((beforeBytes - afterBytes) / beforeBytes) * 100).toFixed(1);
     console.log(`[build-wasm] wasm-opt: ${beforeBytes} → ${afterBytes} bytes (-${pct}%)`);
@@ -226,13 +235,9 @@ if (memprof) {
   if (!existsSync(rewriter)) throw new Error(`memprof-rewriter not found at ${rewriter}`);
   console.log("[build-wasm] memprof: instrumenting wasm");
   const instrumented = `${WASM_OUT}.memprof`;
-  execSync(`"${rewriter}" "${WASM_OUT}" "${instrumented}"`, {
-    stdio: "inherit",
-  });
-  execSync(`mv "${instrumented}" "${WASM_OUT}"`, { stdio: "inherit" });
-  execSync(`mv "${instrumented}.memprof.json" "${WASM_OUT}.memprof.json"`, {
-    stdio: "inherit",
-  });
+  execFileSync(rewriter, [WASM_OUT, instrumented], { stdio: "inherit" });
+  renameSync(instrumented, WASM_OUT);
+  renameSync(`${instrumented}.memprof.json`, `${WASM_OUT}.memprof.json`);
   console.log("[build-wasm] memprof: wrote instrumented wasm + manifest");
 }
 

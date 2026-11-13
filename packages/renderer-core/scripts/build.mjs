@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import {
   accessSync,
   constants,
@@ -168,8 +168,9 @@ const wasmBindgenCommand = postprocessWasm
   ? resolve(process.env.WASM_BINDGEN_BIN)
   : getWasmBindgen();
 console.log("[renderer-core] wasm-bindgen --target web");
-execSync(
-  `"${wasmBindgenCommand}" "${cargoWasm}" --out-dir "${PKG_DIR}" --target web --typescript`,
+execFileSync(
+  wasmBindgenCommand,
+  [cargoWasm, "--out-dir", PKG_DIR, "--target", "web", "--typescript"],
   { cwd: PKG_ROOT, stdio: "inherit" },
 );
 
@@ -178,10 +179,20 @@ if (postprocessWasm && WASM_OPT && !existsSync(WASM_OPT)) {
 }
 if (WASM_OPT && existsSync(WASM_OPT)) {
   console.log("[renderer-core] wasm-opt -O3");
-  execSync(
-    `"${WASM_OPT}" -O3 -g --enable-simd --enable-bulk-memory ` +
-      "--enable-nontrapping-float-to-int --enable-sign-ext " +
-      `--enable-exception-handling "${OUT_WASM}" -o "${OUT_WASM}.opt"`,
+  execFileSync(
+    WASM_OPT,
+    [
+      "-O3",
+      "-g",
+      "--enable-simd",
+      "--enable-bulk-memory",
+      "--enable-nontrapping-float-to-int",
+      "--enable-sign-ext",
+      "--enable-exception-handling",
+      OUT_WASM,
+      "-o",
+      `${OUT_WASM}.opt`,
+    ],
     { stdio: "inherit" },
   );
   renameSync(`${OUT_WASM}.opt`, OUT_WASM);
