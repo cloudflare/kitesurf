@@ -8,21 +8,24 @@ import { registerDispatchConsumer, serializeCdpPayload } from "../src/cdp/connec
 import { RawJsonResult, type CdpRequest, type CdpResponse } from "../src/cdp/types.ts";
 
 describe("raw JSON CDP results", () => {
+  // Both sides of the comparison share this shape, so their key order matches.
+  const envelope = (id: number, sessionId: string | undefined, result: unknown) => ({
+    id,
+    result,
+    ...(sessionId === undefined ? {} : { sessionId }),
+  });
+
   it("matches JSON.stringify of the parsed envelope for tested IDs and sessions", () => {
     const pieces = ['{"nodes":[{"nodeId":"1","name":{"value":"café 😀"}}]}'];
-    const result: unknown = JSON.parse(pieces.join(""));
+    const parsed: unknown = JSON.parse(pieces.join(""));
+
     for (const [id, sessionId] of [
       [1, undefined],
       [-1, "session-raw-json"],
       [42, "session-test"],
     ] as const) {
-      const payload = {
-        id,
-        result: new RawJsonResult(pieces),
-        ...(sessionId === undefined ? {} : { sessionId }),
-      };
-      expect(serializeCdpPayload(payload)).toBe(
-        JSON.stringify({ id, result, ...(sessionId === undefined ? {} : { sessionId }) }),
+      expect(serializeCdpPayload(envelope(id, sessionId, new RawJsonResult(pieces)))).toBe(
+        JSON.stringify(envelope(id, sessionId, parsed)),
       );
     }
   });
@@ -33,19 +36,19 @@ describe("raw JSON CDP results", () => {
       method: "Accessibility.getFullAXTree",
     } satisfies CdpRequest;
     const pieces = ['{"nodes":[{"nodeId":"1"}]}'];
-    let consumerDispatch: ((request: CdpRequest) => Promise<CdpResponse>) | undefined;
+    let registeredDispatch: ((request: CdpRequest) => Promise<CdpResponse>) | undefined;
     registerDispatchConsumer(
       (dispatch) => {
-        consumerDispatch = dispatch;
+        registeredDispatch = dispatch;
       },
       async (dispatched) => {
         expect(dispatched.method).toBe("Accessibility.getFullAXTree");
         return { id: dispatched.id, result: new RawJsonResult(pieces) };
       },
     );
-    if (!consumerDispatch) throw new Error("onDispatch consumer was not registered");
+    if (!registeredDispatch) throw new Error("onDispatch consumer was not registered");
 
-    const response = await consumerDispatch(request);
+    const response = await registeredDispatch(request);
     if (!("result" in response)) throw new Error("Accessibility dispatch returned a CDP error");
     const result: unknown = response.result;
     expect(result).toEqual({ nodes: [{ nodeId: "1" }] });

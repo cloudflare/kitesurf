@@ -338,6 +338,10 @@ describe("PageSession.ready — the navigate window", () => {
 });
 
 describe("outerHtmlResponse", () => {
+  type OuterHtmlResult = QueryDomResult<"getOuterHTML">;
+
+  const utf8 = new TextEncoder().encode("<p>é𝔽</p>");
+
   const streamOf = (chunks: Uint8Array[], onCancel?: () => void) =>
     new ReadableStream<Uint8Array>({
       pull(controller) {
@@ -347,55 +351,67 @@ describe("outerHtmlResponse", () => {
       },
       cancel: onCancel,
     });
-  const utf8 = new TextEncoder().encode("<p>é𝔽</p>");
-  type Result = QueryDomResult<"getOuterHTML">;
-  const once = (result: Result) => () => Promise.resolve(result);
-  // Replies in turn, recording whether each request asked for a snapshot.
-  const replying = (...results: Result[]) => {
-    const modes: Array<boolean | undefined> = [];
+
+  const resultOf = (chunks: Uint8Array[], byteLength = utf8.byteLength): OuterHtmlResult => ({
+    byteLength,
+    outerHTMLUtf8: streamOf(chunks),
+  });
+
+  const alwaysReplies = (result: OuterHtmlResult) => () => Promise.resolve(result);
+
+  // Replies in turn and records whether each request asked for a snapshot.
+  const repliesInTurn = (...results: OuterHtmlResult[]) => {
+    const snapshotRequests: Array<boolean | undefined> = [];
     const request = (args: Pick<QueryDomArgs<"getOuterHTML">, "snapshot">) => {
-      modes.push(args.snapshot);
+      snapshotRequests.push(args.snapshot);
       const next = results.shift();
       return next ? Promise.resolve(next) : Promise.reject(new Error("no more replies"));
     };
-    return { modes, request };
+    return { snapshotRequests, request };
   };
-  const short = () => ({ byteLength: utf8.byteLength + 1, outerHTMLUtf8: streamOf([utf8]) });
-  // The wire text must match stringifying the whole response, and parse() must give the value.
-  const expectOuterHtml = (result: RawJsonResult, outerHTML: string) => {
+
+  // A live stream that ends one byte before the byteLength it declared.
+  const shortByOneByte = (): OuterHtmlResult => ({
+    byteLength: utf8.byteLength + 1,
+    outerHTMLUtf8: streamOf([utf8]),
+  });
+
+  // The wire text must stringify the whole response, and parse() must give it back.
+  const expectSerializedAs = (result: RawJsonResult, outerHTML: string) => {
     expect(result.pieces.join("")).toBe(JSON.stringify({ outerHTML }));
     expect(result.parse()).toEqual({ outerHTML });
   };
 
   it("joins chunks that split a multibyte character", async () => {
     const chunks = [utf8.slice(0, 5), utf8.slice(5, 7), utf8.slice(7)];
-    const result = { byteLength: utf8.byteLength, outerHTMLUtf8: streamOf(chunks) };
-    expectOuterHtml(await outerHtmlResponse(once(result)), "<p>é𝔽</p>");
+
+    expectSerializedAs(await outerHtmlResponse(alwaysReplies(resultOf(chunks))), "<p>é𝔽</p>");
   });
 
   it("escapes JSON specials in every chunk", async () => {
     const html = '<p title="a\\b">\n\t\u0001\u2028</p>';
     const bytes = new TextEncoder().encode(html);
-    const chunks = Array.from(bytes, (byte) => Uint8Array.of(byte));
-    const result = { byteLength: bytes.byteLength, outerHTMLUtf8: streamOf(chunks) };
-    expectOuterHtml(await outerHtmlResponse(once(result)), html);
+    const oneBytePerChunk = Array.from(bytes, (byte) => Uint8Array.of(byte));
+
+    const reply = alwaysReplies(resultOf(oneBytePerChunk, bytes.byteLength));
+
+    expectSerializedAs(await outerHtmlResponse(reply), html);
   });
 
   it("asks for a snapshot once when the live stream ends short", async () => {
-    const { modes, request } = replying(short(), {
-      byteLength: utf8.byteLength,
-      outerHTMLUtf8: streamOf([utf8.slice()]),
-    });
-    expectOuterHtml(await outerHtmlResponse(request), "<p>é𝔽</p>");
-    expect(modes).toEqual([undefined, true]);
+    const { snapshotRequests, request } = repliesInTurn(shortByOneByte(), resultOf([utf8.slice()]));
+
+    expectSerializedAs(await outerHtmlResponse(request), "<p>é𝔽</p>");
+    expect(snapshotRequests).toEqual([undefined, true]);
   });
 
   it("rejects a snapshot stream shorter than byteLength", async () => {
-    const { modes, request } = replying(short(), short());
+    const { snapshotRequests, request } = repliesInTurn(shortByOneByte(), shortByOneByte());
+
     await expect(outerHtmlResponse(request)).rejects.toThrow(
       `DOM.getOuterHTML: PageScript stream ended after ${utf8.byteLength} of ${utf8.byteLength + 1} bytes`,
     );
-    expect(modes).toEqual([undefined, true]);
+    expect(snapshotRequests).toEqual([undefined, true]);
   });
 
   it("cancels a stream longer than byteLength", async () => {
@@ -406,10 +422,10 @@ describe("outerHtmlResponse", () => {
         cancelled = true;
       },
     });
-    const result = { byteLength: utf8.byteLength, outerHTMLUtf8: endless };
-    await expect(outerHtmlResponse(once(result))).rejects.toThrow(
-      `DOM.getOuterHTML: PageScript sent more than ${utf8.byteLength} bytes`,
-    );
+
+    await expect(
+      outerHtmlResponse(alwaysReplies({ byteLength: utf8.byteLength, outerHTMLUtf8: endless })),
+    ).rejects.toThrow(`DOM.getOuterHTML: PageScript sent more than ${utf8.byteLength} bytes`);
     expect(cancelled).toBe(true);
   });
 
@@ -419,7 +435,10 @@ describe("outerHtmlResponse", () => {
       const stream = streamOf([utf8], () => {
         cancelled = true;
       });
-      await expect(outerHtmlResponse(once({ byteLength, outerHTMLUtf8: stream }))).rejects.toThrow(
+
+      const result = { byteLength, outerHTMLUtf8: stream };
+
+      await expect(outerHtmlResponse(alwaysReplies(result))).rejects.toThrow(
         "DOM.getOuterHTML: PageScript sent an invalid byteLength",
       );
       expect(cancelled).toBe(true);
