@@ -746,6 +746,10 @@ export async function handlePage(
       emitFrameStartedLoading(ctx, target, mainFrame(target), req.sessionId);
 
       try {
+        await drainBeforeNavigate(ctx, target);
+        if (navAbort.signal.aborted) {
+          return navigateReply(target.frameId, loaderId, "net::ERR_ABORTED");
+        }
         const reqHeaders: Record<string, string> = {
           "user-agent":
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
@@ -2927,35 +2931,57 @@ export function pumpBackgroundEvents(ctx: DispatchCtx, target: TargetState): voi
   backgroundDrainInFlight.add(target);
   const work = (async () => {
     try {
-      const summary = await pageScript.drainConsole();
-      if (ctx.browser.wsClosing) return;
-      if (target.pageScript !== pageScript) return;
-      // target.url already names the next document while a navigate fetches it.
-      const cookieUrl = target.pageScriptUrl;
-      if (summary.cookieWrites && summary.cookieWrites.length > 0 && cookieUrl) {
-        for (const raw of summary.cookieWrites) {
-          jarForTarget(ctx, target).setFromDocumentCookie(cookieUrl, raw);
-        }
-      }
-      if (summary.console && summary.console.length > 0) {
-        emitCapturedConsole(ctx, target, summary.console, undefined);
-      }
-      if (summary.exceptions && summary.exceptions.length > 0) {
-        emitCapturedExceptions(ctx, target, summary.exceptions, undefined);
-      }
-      if (summary.cdpMutations && summary.cdpMutations.length > 0) {
-        emitMutations(ctx, target, summary.cdpMutations);
-      }
-      if (summary.documentReopened) {
-        const { replayReopenedLifecycle } = await import("./runtime.ts");
-        replayReopenedLifecycle(ctx, target, summary, undefined);
-      }
+      await drainLiveDocument(ctx, target, pageScript);
     } catch {
     } finally {
       backgroundDrainInFlight.delete(target);
     }
   })();
   ctx.ctx.waitUntil(work);
+}
+
+// What a live document queued since it was last asked: its cookie writes go to the jar, and its
+// console, exceptions and DOM changes to the CDP sessions. A replaced document's are dropped.
+async function drainLiveDocument(
+  ctx: DispatchCtx,
+  target: TargetState,
+  pageScript: PageScriptStub,
+): Promise<void> {
+  const summary = await pageScript.drainConsole();
+  if (ctx.browser.wsClosing) return;
+  if (target.pageScript !== pageScript) return;
+  // target.url already names the next document while a navigate fetches it.
+  const cookieUrl = target.pageScriptUrl;
+  if (summary.cookieWrites && summary.cookieWrites.length > 0 && cookieUrl) {
+    for (const raw of summary.cookieWrites) {
+      jarForTarget(ctx, target).setFromDocumentCookie(cookieUrl, raw);
+    }
+  }
+  if (summary.console && summary.console.length > 0) {
+    emitCapturedConsole(ctx, target, summary.console, undefined);
+  }
+  if (summary.exceptions && summary.exceptions.length > 0) {
+    emitCapturedExceptions(ctx, target, summary.exceptions, undefined);
+  }
+  if (summary.cdpMutations && summary.cdpMutations.length > 0) {
+    emitMutations(ctx, target, summary.cdpMutations);
+  }
+  if (summary.documentReopened) {
+    const { replayReopenedLifecycle } = await import("./runtime.ts");
+    replayReopenedLifecycle(ctx, target, summary, undefined);
+  }
+}
+
+const NAVIGATE_DRAIN_TIMEOUT_MS = 1_000;
+
+// A page that stores a cookie and then navigates expects the request to carry it, as a challenge
+// page that sets its token and reloads does. A document too busy to answer keeps its writes.
+async function drainBeforeNavigate(ctx: DispatchCtx, target: TargetState): Promise<void> {
+  const pageScript = target.pageScript;
+  if (!pageScript || typeof pageScript.drainConsole !== "function") return;
+  if (!target.pageScriptUrl?.startsWith("http")) return;
+  const drained = drainLiveDocument(ctx, target, pageScript).catch(() => {});
+  await withTimeout(drained, NAVIGATE_DRAIN_TIMEOUT_MS, "drain before navigate").catch(() => {});
 }
 
 const PUMP_TASKS_TIMEOUT_MS = 5_000;
