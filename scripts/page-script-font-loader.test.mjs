@@ -42,6 +42,11 @@ const FACES = {
     fallback: "NotoSansCJKsc-Regular.woff2",
     size: 1700,
   },
+  JP: {
+    url: "NotoSansCJKjp-Regular.shaping.otf",
+    fallback: "NotoSansCJKjp-Regular.woff2",
+    size: 2100,
+  },
   Arab: { url: "NotoSansArabic.shaping.otf", fallback: "NotoSansArabic.ttf", size: 1800 },
   Hebr: { url: "NotoSansHebrew.shaping.otf", fallback: "NotoSansHebrew.ttf", size: 1900 },
   Deva: { url: "NotoSansDevanagari.shaping.otf", fallback: "NotoSansDevanagari.ttf", size: 2000 },
@@ -53,6 +58,7 @@ const REGISTER_EXPORTS = [
   "register_emoji_font",
   "register_symbol_fonts",
   "register_cjk_font",
+  "register_cjk_region_font",
   "register_script_font",
 ];
 
@@ -90,6 +96,7 @@ const uaCall = (serif = 0, mono = 0) => [
 const symbolsCall = (symbols2 = 0) => ["register_symbol_fonts", size("symbols"), symbols2];
 const emojiCall = ["register_emoji_font", size("emoji")];
 const cjkCall = ["register_cjk_font", size("cjk")];
+const cjkRegionCall = (region) => ["register_cjk_region_font", size(region), region];
 const scriptCall = (tag) => ["register_script_font", size(tag), tag];
 
 function dependency(values = {}) {
@@ -144,9 +151,18 @@ function registrationRecorder(outcomes) {
   return { calls, wasmGlue };
 }
 
-// Each fresh VM context is one page isolate with pixel-free deferred fonts.
-function loadFontLoader(outcomes = {}) {
+// Each fresh VM context is one page isolate with deferred fonts, pixel-free unless `lazy`, where
+// the full-font upgrade finds no recorded face and finishes at once.
+function loadFontLoader(outcomes = {}, { lazy = false } = {}) {
   const { calls, wasmGlue } = registrationRecorder(outcomes);
+  if (lazy) {
+    Object.assign(wasmGlue, {
+      setFontShapingLazy: () => {},
+      pendingLazyFontPaths: () => [],
+      upgradeFontFace: () => false,
+      finishFontUpgrade: () => true,
+    });
+  }
   const requested = [];
   const pending = new Map();
   const failing = new Set();
@@ -166,13 +182,14 @@ function loadFontLoader(outcomes = {}) {
 
   const modules = {
     "./wasm-glue.js": dependency(wasmGlue),
-    "./native-scheduling.ts": dependency(),
+    "./native-scheduling.ts": dependency({ NativePromise: Promise }),
     "./startup-probe.ts": dependency({
       startupFontDefer: true,
       startupFontProfile: "noto",
-      startupPixelFree: true,
+      startupPixelFree: !lazy,
     }),
     "./source-scan.ts": dependency({
+      CJK_REGION_SCANS: sourceScan.CJK_REGION_SCANS,
       CJK_SCAN: sourceScan.CJK_SCAN,
       EMOJI_BMP_SCAN: sourceScan.EMOJI_BMP_SCAN,
       SCRIPT_RANGES: sourceScan.SCRIPT_RANGES,
@@ -192,6 +209,13 @@ function loadFontLoader(outcomes = {}) {
     calls,
     requested,
     arrive: (...faces) => faces.forEach((face) => respond(face, response(200, size(face)))),
+    arriveFull: (face) => {
+      const url = ASSET_ORIGIN + FACES[face].fallback;
+      const resolve = pending.get(url);
+      assert.ok(resolve, `${url} was not requested`);
+      pending.delete(url);
+      resolve(response(200, size(face) + 1));
+    },
     fail: (face) => {
       failing.add(ASSET_ORIGIN + FACES[face].fallback);
       respond(face, response(404));
@@ -212,7 +236,7 @@ function assertRegistered(calls, core, groups) {
 
 test("bytes-only prefetch stages without registering; demand releases groups", async () => {
   const page = loadFontLoader();
-  const faces = Object.keys(FACES).filter((face) => face !== "Hebr" && face !== "Deva");
+  const faces = Object.keys(FACES).filter((face) => !["Hebr", "Deva", "JP"].includes(face));
   page.loader.startFontPrefetch(
     scan('<p style="font-family: serif">中 ع 😀</p><pre>x</pre><ul><li>a</li></ul>'),
   );
@@ -433,4 +457,78 @@ test("the Latn script face stays off under a profile without a Latin fallback", 
   page.loader.startFontPrefetch(scan("<p>\uFB00 \uA730</p>"));
   const sans = page.requested.filter((url) => url === ASSET_ORIGIN + FACES.sans.url);
   assert.equal(sans.length, 1);
+});
+
+test("a lang=ja page stages the JP Han face beside SC and releases it on demand", async () => {
+  const page = loadFontLoader();
+  page.loader.startFontPrefetch(scan('<html lang="ja"><p>日本</p></html>'));
+  page.arrive("sans", "sansItalic", "cjk", "JP");
+  await page.loader.awaitDeferredFontBytes();
+
+  assert.equal(page.loader.demandDeferredFonts(), true);
+  assertRegistered(page.calls, uaCall(), [cjkCall, cjkRegionCall("JP")]);
+  assert.equal(page.heldBytes(), 0);
+});
+
+test("a regional CJK face core declines before the UA faces register is retried", async () => {
+  const page = loadFontLoader({ "register_cjk_region_font:JP": false });
+  page.loader.startFontPrefetch(scan(""));
+  let writes = 0;
+  // Only the kana ranges match, so the demand asks for the JP face alone.
+  const dom = {
+    nonLatinTextWrites: () => ++writes,
+    textUsesCodepoints: (ranges) => ranges.length === 6 && ranges[4] === 0xff66,
+  };
+  const jpUrl = ASSET_ORIGIN + FACES.JP.url;
+  for (let demand = 1; demand <= 2; demand++) {
+    page.loader.demandFacesForScriptText(dom);
+    page.arrive("JP");
+    await drainFetchCallbacks();
+    assert.equal(page.requested.filter((url) => url === jpUrl).length, demand);
+    assert.equal(page.calls.filter(([name]) => name === "register_cjk_region_font").length, demand);
+  }
+});
+
+test("the source scan finds regional CJK from lang attributes and decoded kana", () => {
+  const regions = (html) => [...scan(html).cjkRegions];
+  assert.deepEqual(regions("<p>日本かな</p>"), ["JP"]);
+  assert.deepEqual(regions("<p>日本&#x304B;&#12394;</p>"), ["JP"]);
+  assert.equal(scan("<p>&#x4E2D;&#25991;</p>").cjk, true);
+  assert.deepEqual(regions('<html lang="ja"><p>日本</p>'), ["JP"]);
+  assert.deepEqual(regions("<p xml:lang=ja>日本</p>"), ["JP"]);
+  assert.deepEqual(regions('<a lang="zh-Hant">中文</a>'), ["TC"]);
+  assert.deepEqual(regions('<html lang="ja_JP"><p>日本</p>'), ["JP"]);
+  assert.deepEqual(regions("<p class=x lang=zh_TW>中文</p>"), ["TC"]);
+  for (const html of [
+    '<div data-lang="ja">Japanese</div>',
+    '<a href="/?lang=ja">Japanese</a>',
+    '<link rel=alternate hreflang="ja" href="/ja/">',
+    '<p lang="jam">Patwa</p>',
+    "<p>Set lang=ja on the root element.</p>",
+    '<pre>&lt;p lang="ja"&gt;</pre>',
+    '<a title="lang=ja">docs</a>',
+  ]) {
+    assert.deepEqual(regions(html), [], html);
+  }
+});
+
+test("a CJK face whose shaping file lands after the full-font upgrade registers its full file", async () => {
+  const page = loadFontLoader({}, { lazy: true });
+  page.loader.startFontPrefetch(scan(""));
+  assert.equal(page.loader.fontLoaderMode(), "lazy");
+  const dom = {
+    nonLatinTextWrites: () => 1,
+    textUsesCodepoints: (ranges) => ranges.length === 6 && ranges[4] === 0xff66,
+  };
+  page.loader.demandFacesForScriptText(dom);
+  await page.loader.upgradeToFullFonts();
+  assert.equal(page.loader.fontLoaderMode(), "full");
+  page.arrive("JP");
+  await drainFetchCallbacks();
+  page.arriveFull("JP");
+  await drainFetchCallbacks();
+  assert.deepEqual(
+    page.calls.filter(([name]) => name === "register_cjk_region_font"),
+    [["register_cjk_region_font", size("JP") + 1, "JP"]],
+  );
 });

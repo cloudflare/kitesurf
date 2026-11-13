@@ -129,6 +129,7 @@ export declare function register_symbol_fonts(
 export declare function register_emoji_font(bytes: Uint8Array): boolean;
 
 export declare function register_cjk_font(bytes: Uint8Array): boolean;
+export declare function register_cjk_region_font(bytes: Uint8Array, region: string): boolean;
 
 export declare function register_script_font(bytes: Uint8Array, script_tag: string): boolean;
 

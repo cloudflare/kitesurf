@@ -33,6 +33,8 @@ export interface SourceFontScan {
   symbols2: boolean;
   emoji: boolean;
   cjk: boolean;
+  /** Regional Han faces (`JP`, `TC`) the page's `lang` or kana asks for. */
+  cjkRegions: string[];
   mono: boolean;
   serif: boolean;
   /** Script face tags, in registration order. */

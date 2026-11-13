@@ -10,10 +10,10 @@ Rust notices list the dependencies resolved for each artifact's target.
 Fonts
   - Noto Sans, Noto Serif, Noto Sans Mono, and script-specific Noto faces in
     packages/engine/public/fonts/, including their shaping-only derivatives,
-    except for Noto Color Emoji, Noto Sans SC, and Noto Sans KR below. The
-    OpenType name records identify The Noto Project Authors: 2022 for most
-    faces, 2024 for Hebrew, and 2025 for Bengali. The family repositories
-    recorded in those name tables are:
+    except for Noto Color Emoji, Noto Sans SC, Noto Sans CJK JP and TC, and
+    Noto Sans KR below. The OpenType name records identify The Noto Project
+    Authors: 2022 for most faces, 2024 for Hebrew, and 2025 for Bengali. The
+    family repositories recorded in those name tables are:
     https://github.com/notofonts/latin-greek-cyrillic,
     https://github.com/notofonts/arabic, https://github.com/notofonts/armenian,
     https://github.com/notofonts/bengali, https://github.com/notofonts/devanagari,
@@ -55,6 +55,15 @@ Fonts
     including Adobe's Reserved Font Name notice, is in
     licenses/OFL-1.1-Noto-SC.txt; upstream license source:
     https://github.com/google/fonts/blob/main/ofl/notosanssc/OFL.txt
+  - Noto Sans CJK JP and TC
+    (packages/engine/public/fonts/NotoSansCJKjp-Regular.* and
+    packages/engine/public/fonts/NotoSansCJKtc-Regular.*)
+    The OpenType name records identify Noto Sans JP and Noto Sans TC version
+    2.004;GOOG;NotoSans<JP|TC>-Regular;ADOBE, copyright metadata
+    © 2014-2021 Adobe (http://www.adobe.com/), and OFL 1.1. They are the
+    Sans/SubsetOTF regional Regular faces of https://github.com/notofonts/noto-cjk
+    as WOFF2; the shaping OTFs are derived assets. The OFL text, including
+    Adobe's Reserved Font Name notice, is the same as licenses/OFL-1.1-Noto-SC.txt.
   - Noto Sans KR (packages/engine/public/fonts/NotoSansKR.ttf and
     NotoSansKR.shaping.otf)
     Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name

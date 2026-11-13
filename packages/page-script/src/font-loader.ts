@@ -11,6 +11,7 @@ import {
   register_emoji_font,
   register_symbol_fonts,
   register_cjk_font,
+  register_cjk_region_font,
   register_script_font,
   setFontShapingLazy,
   pendingLazyFontPaths,
@@ -20,7 +21,7 @@ import {
 } from "./wasm-glue.js";
 import { NativePromise } from "./native-scheduling.ts";
 import { startupFontDefer, startupFontProfile, startupPixelFree } from "./startup-probe.ts";
-import { CJK_SCAN, EMOJI_BMP_SCAN, SCRIPT_RANGES } from "./source-scan.ts";
+import { CJK_REGION_SCANS, CJK_SCAN, EMOJI_BMP_SCAN, SCRIPT_RANGES } from "./source-scan.ts";
 import type { SourceFontScan } from "@kitesurf/jsrpc-types/page-script";
 
 let pending: Promise<void> | null = null;
@@ -113,6 +114,22 @@ const CJK_SHAPING_PATH = "/fonts/NotoSansCJKsc-Regular.shaping.otf";
 
 let cjkPending: Promise<void> | null = null;
 
+interface CjkRegionFont {
+  region: string;
+  path: string;
+  shapingPath: string;
+  range?: RegExp;
+}
+const CJK_REGION_FILES: Record<string, string> = {
+  JP: "NotoSansCJKjp-Regular",
+  TC: "NotoSansCJKtc-Regular",
+};
+const CJK_REGION_FONTS: CjkRegionFont[] = CJK_REGION_SCANS.map(({ region, range }) => {
+  const file = CJK_REGION_FILES[region];
+  if (!file) throw new Error(`[kitesurf-fonts] no face file for CJK region ${region}`);
+  return { region, path: `/fonts/${file}.woff2`, shapingPath: `/fonts/${file}.shaping.otf`, range };
+});
+
 let symbolPending: Promise<void> | null = null;
 
 interface ScriptFont {
@@ -183,6 +200,21 @@ async function fetchBytes(path: string): Promise<Uint8Array> {
 
 function shapingVariant(path: string): string {
   return path.replace(/\.ttf$/, ".shaping.otf");
+}
+
+// The CJK faces ship as a WOFF2 full file and a separate outline-free shaping file. A full-mode
+// page (canvas or SVG text) needs outlines, so it skips the shaping file.
+function fetchCjkBytes(path: string, shapingPath: string): Promise<Uint8Array> {
+  if (fontLoaderMode() === "full") return fetchBytes(path);
+  return fetchBytes(shapingPath).catch(() => fetchBytes(path));
+}
+
+// An upgrade that finished while a lazy fetch was in flight never swaps that face, so a shaping
+// file that lands after the switch to full is replaced by the full file before it registers.
+async function fetchCjkFace(path: string, shapingPath: string): Promise<Uint8Array> {
+  const startedLazy = fontLoaderMode() === "lazy";
+  const bytes = await fetchCjkBytes(path, shapingPath);
+  return startedLazy && fontLoaderMode() === "full" ? fetchBytes(path) : bytes;
 }
 
 let fontMode: "full" | "pixelFree" | "lazy" | null = null;
@@ -312,8 +344,12 @@ function registerCjkIfNeeded(): Promise<void> {
     try {
       const startedAt =
         typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
-      const bytes = await fetchBytes(CJK_SHAPING_PATH).catch(() => fetchBytes(CJK_FONT_PATH));
-      register_cjk_font(bytes);
+      const bytes = await fetchCjkFace(CJK_FONT_PATH, CJK_SHAPING_PATH);
+      // Core declines while the UA faces, and with them the context, are still deferred.
+      if (!register_cjk_font(bytes) && fontsDeferredUnregistered()) {
+        cjkPending = null;
+        return;
+      }
       const finishedAt =
         typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
       console.log(
@@ -326,6 +362,31 @@ function registerCjkIfNeeded(): Promise<void> {
     }
   })();
   return cjkPending;
+}
+
+const cjkRegionPending = new Map<string, Promise<void>>();
+
+function registerCjkRegionIfNeeded(font: CjkRegionFont): Promise<void> {
+  const existing = cjkRegionPending.get(font.region);
+  if (existing) return existing;
+  const registrationPromise = (async () => {
+    try {
+      const bytes = await fetchCjkFace(font.path, font.shapingPath);
+      if (!register_cjk_region_font(bytes, font.region) && fontsDeferredUnregistered()) {
+        cjkRegionPending.delete(font.region);
+        return;
+      }
+      console.log(
+        `[kitesurf-fonts] registered CJK ${font.region} font (${bytes.byteLength} bytes)`,
+      );
+    } catch (e) {
+      console.warn(`[kitesurf-fonts] CJK ${font.region} registration failed:`, String(e));
+      cjkRegionPending.delete(font.region);
+      throw e;
+    }
+  })();
+  cjkRegionPending.set(font.region, registrationPromise);
+  return registrationPromise;
 }
 
 function registerEmojiIfNeeded(): Promise<void> {
@@ -353,7 +414,7 @@ export function cjkPendingPromise(): Promise<void> | null {
 }
 
 export function scriptPendingPromises(): Promise<void>[] {
-  return [...scriptPending.values()];
+  return [...scriptPending.values(), ...cjkRegionPending.values()];
 }
 
 interface ScriptTextProbe {
@@ -372,6 +433,9 @@ function classRanges(unicodeRange: RegExp): Uint32Array {
   return Uint32Array.from(out);
 }
 const CJK_RANGES = classRanges(CJK_SCAN);
+const CJK_REGION_RANGES = CJK_REGION_FONTS.flatMap((font) =>
+  font.range ? [{ font, ranges: classRanges(font.range) }] : [],
+);
 const EMOJI_RANGES = Uint32Array.from([...classRanges(EMOJI_BMP_SCAN), 0x1f000, 0x1ffff]);
 const SCRIPT_FACE_RANGES = SCRIPT_FONTS.map((scriptFont) => ({
   scriptFont,
@@ -390,6 +454,11 @@ export function demandFacesForScriptText(dom: ScriptTextProbe): void {
   const tasks: Promise<void>[] = [];
   if (!cjkPending && dom.textUsesCodepoints(CJK_RANGES)) {
     tasks.push(registerCjkIfNeeded());
+  }
+  for (const { font, ranges } of CJK_REGION_RANGES) {
+    if (!cjkRegionPending.has(font.region) && dom.textUsesCodepoints(ranges)) {
+      tasks.push(registerCjkRegionIfNeeded(font));
+    }
   }
   if (!emojiPending && dom.textUsesCodepoints(EMOJI_RANGES)) {
     tasks.push(registerEmojiIfNeeded());
@@ -418,6 +487,7 @@ function computeFontWants(scan?: SourceFontScan): {
   symbols2: boolean;
   emoji: boolean;
   cjk: boolean;
+  cjkRegions: CjkRegionFont[];
   mono: boolean;
   serif: boolean;
   scripts: ScriptFont[];
@@ -427,6 +497,9 @@ function computeFontWants(scan?: SourceFontScan): {
     symbols2: !!scan?.symbols2,
     emoji: !!scan?.emoji,
     cjk: !!scan?.cjk,
+    cjkRegions: scan
+      ? CJK_REGION_FONTS.filter(({ region }) => scan.cjkRegions.includes(region))
+      : [],
     mono: forceMono || !!scan?.mono,
     serif: !!scan?.serif,
     scripts: scan
@@ -493,6 +566,9 @@ export async function ensureFontsRegistered(scan?: SourceFontScan): Promise<void
   if (wantSymbols) tasks.push(registerSymbolsIfNeeded(wantSymbols2).catch(() => {}));
   if (wantEmoji) tasks.push(registerEmojiIfNeeded().catch(() => {}));
   if (wantCjk) tasks.push(registerCjkIfNeeded().catch(() => {}));
+  for (const font of wants.cjkRegions) {
+    tasks.push(registerCjkRegionIfNeeded(font).catch(() => {}));
+  }
   for (const scriptFont of wants.scripts) {
     tasks.push(registerScriptIfNeeded(scriptFont).catch(() => {}));
   }
@@ -515,6 +591,7 @@ const deferStash: {
   symbols2: Uint8Array | null;
   emoji: Uint8Array | null;
   cjk: Uint8Array | null;
+  cjkRegions: Map<CjkRegionFont["region"], Uint8Array>;
   scripts: Map<string, Uint8Array>;
 } = {
   core: [],
@@ -523,6 +600,7 @@ const deferStash: {
   symbols2: null,
   emoji: null,
   cjk: null,
+  cjkRegions: new Map(),
   scripts: new Map(),
 };
 
@@ -595,6 +673,11 @@ function tryRegisterDeferred(): boolean {
   if (wants.cjk && cjk) {
     group("cjk", () => {
       if (register_cjk_font(cjk)) deferStash.cjk = null;
+    });
+  }
+  for (const [region, bytes] of deferStash.cjkRegions) {
+    group(`cjk:${region}`, () => {
+      if (register_cjk_region_font(bytes, region)) deferStash.cjkRegions.delete(region);
     });
   }
   for (const [tag, bytes] of deferStash.scripts) {
@@ -674,10 +757,18 @@ export function startFontPrefetch(scan?: SourceFontScan): void {
   }
   if (wants.cjk) {
     kick(
-      fetchBytes(CJK_SHAPING_PATH).catch(() => fetchBytes(CJK_FONT_PATH)),
+      fetchCjkFace(CJK_FONT_PATH, CJK_SHAPING_PATH),
       (bytes) => (deferStash.cjk = bytes),
       "extra",
       "cjk",
+    );
+  }
+  for (const font of wants.cjkRegions) {
+    kick(
+      fetchCjkFace(font.path, font.shapingPath),
+      (bytes) => deferStash.cjkRegions.set(font.region, bytes),
+      "extra",
+      `cjk:${font.region}`,
     );
   }
   for (const scriptFont of wants.scripts) {

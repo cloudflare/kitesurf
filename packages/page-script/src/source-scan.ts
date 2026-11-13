@@ -20,6 +20,30 @@ function needsEmoji(text: string): boolean {
 export const CJK_SCAN =
   /[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\uFF00-\uFFEF]/;
 
+// Han has regional glyph forms. SC is the default; Japanese and Traditional Chinese text gets its
+// own face from a start tag's `lang` (core's rebuild_cjk_fallbacks), and kana alone selects JP.
+// Prose, `data-lang` and `?lang=` do not count, `ja_JP` does, and `[^<>]*` stops at the next tag
+// so the scan stays linear.
+export const CJK_REGION_SCANS: readonly { region: string; lang: RegExp; range?: RegExp }[] = [
+  {
+    region: "JP",
+    lang: /<[a-z][^<>]*\s(?:xml:)?lang\s*=\s*["']?ja(?![a-z0-9])/i,
+    range: /[\u3040-\u30FF\u31F0-\u31FF\uFF66-\uFF9F]/,
+  },
+  {
+    region: "TC",
+    lang: /<[a-z][^<>]*\s(?:xml:)?lang\s*=\s*["']?zh[-_](?:TW|HK|MO|Hant)(?![a-z0-9])/i,
+  },
+];
+
+// The `lang` match reads the markup; kana may be a numeric character reference, so the
+// codepoint match reads the decoded text.
+function cjkRegionsIn(html: string, text: string): string[] {
+  return CJK_REGION_SCANS.filter(
+    ({ lang, range }) => lang.test(html) || (range?.test(text) ?? false),
+  ).map(({ region }) => region);
+}
+
 function hasListMarkers(html: string): boolean {
   return /<(?:ul|ol|li)[\s/>]/i.test(html);
 }
@@ -198,7 +222,8 @@ export function scanSourceFonts(html: string): SourceFontScan {
     symbols,
     symbols2: symbols && needsSymbols2(html),
     emoji: needsEmoji(scriptText),
-    cjk: CJK_SCAN.test(html),
+    cjk: CJK_SCAN.test(scriptText),
+    cjkRegions: cjkRegionsIn(html, scriptText),
     mono: needsMono(html),
     serif: needsSerif(html),
     scripts: scriptTagsIn(scriptText),
