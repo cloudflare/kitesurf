@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 import { describe, expect, it } from "vitest";
+import type { Protocol } from "devtools-protocol";
 import { buildTree } from "../src/cdp/accessibility.ts";
 import { handleDom } from "../src/cdp/dom.ts";
 import { registerEnsurePageScript } from "../src/cdp/page-session.ts";
@@ -37,6 +38,8 @@ const TREE = JSON.stringify({
   ],
 });
 function treeBuilder(root: Node) {
+  // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- page-shaped graphs (loops, DAGs) the builder only walks.
+  const snapshot = () => Promise.resolve({ root: root as unknown as Protocol.DOM.Node });
   const treeStream = () =>
     Promise.resolve({
       byteLength: new TextEncoder().encode(TREE).byteLength,
@@ -48,9 +51,9 @@ function treeBuilder(root: Node) {
       }),
     });
   return {
-    call: { getDocument: async () => ({ root }), accessibilityTree: treeStream },
+    call: { getDocument: snapshot, accessibilityTree: treeStream },
     tryCall: {
-      getDocument: async () => ({ root }),
+      getDocument: snapshot,
       notRenderedNodeIds: async () => ({ displayNone: [], invisible: [] }),
       formStateSnapshot: async () => ({ values: [], checked: [], selected: [] }),
     },
