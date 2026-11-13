@@ -54,6 +54,7 @@ import type { RenderPort as RenderPortContract } from "@kitesurf/jsrpc-types/pag
 import type { WorkerEventParams } from "@kitesurf/jsrpc-types/dedicated-worker";
 import { deliverWorkerEvent } from "./dedicated-worker.ts";
 import type {
+  FormStateSnapshot,
   PendingImageDrain,
   QueryDomArgs,
   QueryDomMethod,
@@ -5427,23 +5428,33 @@ function queryDomNodeAncestors(
   for (const id of ids) {
     if (typeof id !== "number") continue;
     // Walk up to the first ancestor already listed, then list the new ones top-down.
-    const chain: number[] = [];
-    let current = id;
-    for (;;) {
-      let parent: number;
-      try {
-        parent = pageState.dom.parentId(current);
-      } catch {
-        break;
-      }
-      if (typeof parent !== "number" || parent < 0 || seen.has(parent)) break;
-      seen.add(parent);
-      chain.push(parent);
-      current = parent;
-    }
+    const chain = ancestorChain(pageState.dom, id, seen);
     for (let i = chain.length - 1; i >= 0; i--) ancestorIds.push(chain[i]);
   }
   return { ancestorIds } satisfies QueryDomResult<"nodeAncestors">;
+}
+
+// Collects the ancestors of `nodeId` that `seen` does not hold yet, nearest first.
+function ancestorChain(
+  dom: QueryDomActiveState["dom"],
+  nodeId: number,
+  seen: Set<number>,
+): number[] {
+  const chain: number[] = [];
+  let current = nodeId;
+  for (;;) {
+    let parent: number;
+    try {
+      parent = dom.parentId(current);
+    } catch {
+      break;
+    }
+    if (typeof parent !== "number" || parent < 0 || seen.has(parent)) break;
+    seen.add(parent);
+    chain.push(parent);
+    current = parent;
+  }
+  return chain;
 }
 
 function queryDomChildNodeLists(
@@ -5453,17 +5464,16 @@ function queryDomChildNodeLists(
   const ids = Array.isArray(queryArgs.nodeIds) ? queryArgs.nodeIds : [];
   const { depth, pierce } = subtreeArgs(queryArgs);
   const lists: QueryDomResult<"childNodeLists">["lists"] = [];
-  // One reply carries every parent's list, so the transport budget applies to their sum: a batch
-  // of individually acceptable lists could otherwise be many times the cap.
+  // One reply carries every parent's list, so the transport budget applies to their sum: a batch of
+  // individually acceptable lists could otherwise be many times the cap. Measure before
+  // serializing; an over-budget parent is left out and the client can request it on its own.
   const budget = pageState.dom.subtreeBudgetBytes();
   let total = 0;
   for (const id of ids) {
     if (typeof id !== "number") continue;
-    // Measure before serializing: a wide parent's child list can exceed the
-    // JSRPC reply cap. Skipping it degrades to the client requesting it itself.
     const bytes = pageState.dom.nodeSubtreeBytes(id, depth, pierce);
     if (bytes > budget) continue;
-    if (lists.length > 0 && total + bytes > budget) break;
+    if (total + bytes > budget) break;
     total += bytes;
     // The children at `depth` are the node's own subtree one level deeper.
     const node = sanitizeCdpNodeTree(pageState.dom.nodeSubtree(id, depth, pierce));
@@ -6544,15 +6554,7 @@ async function queryDomAccessibilityTree(
   const before = getInternalState().mutationSeq | 0;
   const visibility = accessibilityVisibility(dom);
   const formState = queryDomFormState(pageState, "formStateSnapshot", {});
-  const values =
-    "values" in formState
-      ? formState.values?.map(([id, value]): [number, string | number[]] => [
-          id,
-          isWellFormedUtf16(value)
-            ? value
-            : Array.from({ length: value.length }, (_, index) => value.charCodeAt(index)),
-        ])
-      : undefined;
+  const values = "values" in formState ? formValuesForWire(formState.values) : undefined;
   const serializedFormState = values === undefined ? formState : { ...formState, values };
   const start = dom.accessibilityStream(
     JSON.stringify({
@@ -6564,20 +6566,8 @@ async function queryDomAccessibilityTree(
   );
   try {
     const budgetJson = start.budgetError();
-    if (budgetJson) {
-      const value: unknown = JSON.parse(budgetJson);
-      if (
-        !isObjectRecord(value) ||
-        typeof value.nodes !== "number" ||
-        typeof value.bytes !== "number" ||
-        typeof value.budget !== "number"
-      ) {
-        throw new Error("accessibility stream returned an invalid budget error");
-      }
-      return {
-        budgetError: { nodes: value.nodes, bytes: value.bytes, budget: value.budget },
-      } satisfies QueryDomResult<"accessibilityTree">;
-    }
+    if (budgetJson) return accessibilityBudgetReply(budgetJson);
+
     const stream = start.takeStream();
     if (stream) {
       return {
@@ -6587,6 +6577,7 @@ async function queryDomAccessibilityTree(
         ),
       } satisfies QueryDomResult<"accessibilityTree">;
     }
+
     const bytes = start.takeBytes();
     if (bytes) {
       return {
@@ -6607,6 +6598,34 @@ async function queryDomAccessibilityTree(
   } finally {
     start.free();
   }
+}
+
+function accessibilityBudgetReply(json: string): QueryDomResult<"accessibilityTree"> {
+  const value: unknown = JSON.parse(json);
+  if (
+    !isObjectRecord(value) ||
+    typeof value.nodes !== "number" ||
+    typeof value.bytes !== "number" ||
+    typeof value.budget !== "number"
+  ) {
+    throw new Error("accessibility stream returned an invalid budget error");
+  }
+  return {
+    budgetError: { nodes: value.nodes, bytes: value.bytes, budget: value.budget },
+  } satisfies QueryDomResult<"accessibilityTree">;
+}
+
+// A lone surrogate cannot travel in JSON text, so such a value goes as its UTF-16 code units and
+// Rust re-encodes it.
+function formValuesForWire(
+  values: FormStateSnapshot["values"],
+): Array<[number, string | number[]]> | undefined {
+  return values?.map(([id, value]): [number, string | number[]] => [
+    id,
+    isWellFormedUtf16(value)
+      ? value
+      : Array.from({ length: value.length }, (_, index) => value.charCodeAt(index)),
+  ]);
 }
 
 function isWellFormedUtf16(value: string): boolean {

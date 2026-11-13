@@ -161,8 +161,8 @@ function isInsertedNode(value: unknown): value is InsertedNode {
 
 export function drainCdpMutations(): CdpMutation[] {
   const rawMutations = state.drainCdpMutationsRaw();
-  // One count per parent per batch: every event reports the state after the
-  // batch's last change, and a wide parent's childIds copy is not free.
+  // One count per parent per batch: every event reports the state after the batch's last change,
+  // and a wide parent's childIds copy is not free.
   const childCounts = new Map<number, number>();
   const styleSheetHints: CdpMutation[] = [];
   const internalState = getInternalState();
@@ -175,33 +175,21 @@ export function drainCdpMutations(): CdpMutation[] {
   for (const mutation of rawMutations) {
     if (!mutation || typeof mutation !== "object") continue;
     if (mutation.kind === "childNodeInserted") {
-      let nodeShape: InsertedNode | null = null;
-      try {
-        // Depth 0 keeps the event small whatever the subtree holds; clients request the rest.
-        // A shadow host or a lone text child still expands at depth 0, so fall back to the node's
-        // own description when that would exceed the reply budget.
-        const over = state.dom?.nodeSubtreeBudgetError(mutation.nodeId, 0, false);
-        const subtree = over
-          ? state.dom?.nodeInfo(mutation.nodeId)
-          : state.dom?.nodeSubtree(mutation.nodeId, 0, false);
-        nodeShape = isInsertedNode(subtree) ? sanitizeCdpNodeTree(subtree) : null;
-      } catch {
-        nodeShape = null;
-      }
-      if (!nodeShape) continue;
+      const node = insertedNodeShape(mutation.nodeId);
+      if (!node) continue;
       mutations.push({
         kind: "childNodeInserted",
         parentNodeId: mutation.parentNodeId,
         previousNodeId: mutation.previousNodeId,
-        node: nodeShape,
-        parentChildNodeCount: childNodeCount(mutation.parentNodeId, childCounts),
+        node,
+        parentChildNodeCount: countChildren(mutation.parentNodeId, childCounts),
       });
       continue;
     }
     if (mutation.kind === "childNodeRemoved") {
       mutations.push({
         ...mutation,
-        parentChildNodeCount: childNodeCount(mutation.parentNodeId, childCounts),
+        parentChildNodeCount: countChildren(mutation.parentNodeId, childCounts),
       });
       continue;
     }
@@ -210,8 +198,22 @@ export function drainCdpMutations(): CdpMutation[] {
   return mutations;
 }
 
-// At drain time, so a batch reports the count after its last change.
-function childNodeCount(parentId: number, counts: Map<number, number>): number {
+// Depth 0 keeps the event small whatever the subtree holds; clients request the rest. A shadow host
+// or a lone text child still expands at depth 0, so fall back to the node's own description when
+// that would exceed the reply budget.
+function insertedNodeShape(nodeId: number): InsertedNode | null {
+  try {
+    const overBudget = state.dom?.nodeSubtreeBudgetError(nodeId, 0, false);
+    const subtree = overBudget
+      ? state.dom?.nodeInfo(nodeId)
+      : state.dom?.nodeSubtree(nodeId, 0, false);
+    return isInsertedNode(subtree) ? sanitizeCdpNodeTree(subtree) : null;
+  } catch {
+    return null;
+  }
+}
+
+function countChildren(parentId: number, counts: Map<number, number>): number {
   const cached = counts.get(parentId);
   if (cached !== undefined) return cached;
   let count = 0;
