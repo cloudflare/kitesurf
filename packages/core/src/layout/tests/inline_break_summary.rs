@@ -9,7 +9,7 @@ use super::inline_eviction::{page, setup_with};
 use crate::DomHandle;
 use blitz_dom::BaseDocument;
 use blitz_dom::node::TextBrush;
-use parley::{BreakReason, IndentOptions, Layout, SummaryLines};
+use parley::{BreakReason, BreakSummary, IndentOptions, Layout, SummaryLines};
 
 const WIDTHS: [f32; 22] = [
     0.0, 0.5, 1.0, 3.0, 7.5, 12.0, 19.25, 31.0, 47.5, 64.0, 80.3, 100.0, 133.7, 171.0, 222.2,
@@ -221,7 +221,8 @@ fn layouts(base: &BaseDocument) -> Vec<(String, Layout<TextBrush>)> {
         .collect()
 }
 
-fn broken(
+/// The shaped layout broken again at `width`, as the breaker would break it.
+fn rebreak(
     layout: &Layout<TextBrush>,
     width: f32,
     (amount, options): (f32, IndentOptions),
@@ -236,60 +237,62 @@ fn close(a: f32, b: f32) -> bool {
     (a - b).abs() <= 1e-4 * a.abs().max(b.abs()).max(1.0)
 }
 
-/// Compare everything inline layout reads from broken lines: breaks, heights, baselines and the
-/// trailing empty line exactly; widths and advances up to the summary's rounding.
-fn compare(real: &Layout<TextBrush>, summary: &SummaryLines) -> Result<(), String> {
-    if real.len() != summary.lines().len() {
+/// Compare everything inline layout reads from broken lines: breaks, heights,
+/// baselines and the trailing empty line exactly; widths and advances up to the
+/// summary's rounding.
+fn compare_lines(shaped: &Layout<TextBrush>, replayed: &SummaryLines) -> Result<(), String> {
+    if shaped.len() != replayed.lines().len() {
         return Err(format!(
             "{} lines, summary has {}",
-            real.len(),
-            summary.lines().len()
+            shaped.len(),
+            replayed.lines().len()
         ));
     }
-    if real.height() != summary.height() {
+    if shaped.height() != replayed.height() {
         return Err(format!(
             "height {} vs summary {}",
-            real.height(),
-            summary.height()
+            shaped.height(),
+            replayed.height()
         ));
     }
-    if !close(real.width(), summary.width()) {
+    if !close(shaped.width(), replayed.width()) {
         return Err(format!(
             "width {} vs summary {}",
-            real.width(),
-            summary.width()
+            shaped.width(),
+            replayed.width()
         ));
     }
-    let mut prev_reason = None;
-    for (i, (line, s)) in real.lines().zip(summary.lines()).enumerate() {
-        let m = line.metrics();
-        let trailing_empty = prev_reason == Some(BreakReason::Explicit)
+    let mut previous_reason = None;
+    for (index, (line, summary_line)) in shaped.lines().zip(replayed.lines()).enumerate() {
+        let metrics = line.metrics();
+        let trailing_empty = previous_reason == Some(BreakReason::Explicit)
             && line.text_range().is_empty()
             && line.items().next().is_none();
-        prev_reason = Some(line.break_reason());
-        let same = line.break_reason() == s.break_reason
-            && m.line_height == s.line_height
-            && m.baseline == s.baseline
-            && m.block_min_coord == s.block_min_coord
-            && m.block_max_coord == s.block_max_coord
-            && trailing_empty == s.is_trailing_empty
-            && close(m.advance, s.advance);
+        previous_reason = Some(line.break_reason());
+        let same = line.break_reason() == summary_line.break_reason
+            && metrics.line_height == summary_line.line_height
+            && metrics.baseline == summary_line.baseline
+            && metrics.block_min_coord == summary_line.block_min_coord
+            && metrics.block_max_coord == summary_line.block_max_coord
+            && trailing_empty == summary_line.is_trailing_empty
+            && close(metrics.advance, summary_line.advance);
         if !same {
             return Err(format!(
-                "line {i}: {:?} h={} base={} max={} adv={} empty={trailing_empty} vs summary {s:?}",
+                "line {index}: {:?} h={} base={} max={} adv={} empty={trailing_empty} \
+                 vs summary {summary_line:?}",
                 line.break_reason(),
-                m.line_height,
-                m.baseline,
-                m.block_max_coord,
-                m.advance,
+                metrics.line_height,
+                metrics.baseline,
+                metrics.block_max_coord,
+                metrics.advance,
             ));
         }
     }
-    let box_lines = box_lines(real);
-    if box_lines != summary.box_lines() {
+    let box_lines = box_lines(shaped);
+    if box_lines != replayed.box_lines() {
         return Err(format!(
             "box lines {box_lines:?} vs summary {:?}",
-            summary.box_lines()
+            replayed.box_lines()
         ));
     }
     Ok(())
@@ -328,34 +331,53 @@ fn check_page(html: &str) -> Tally {
     let doc = dom.doc.borrow();
     let mut tally = Tally::default();
     for (name, layout) in layouts(doc.as_ref()) {
-        tally.roots += 1;
-        let Some(summary) = layout.break_summary() else {
-            continue;
-        };
-        tally.summarized += 1;
-        tally.with_boxes += usize::from(layout.inline_boxes().len() > 0);
-        for width in WIDTHS {
-            for indent in INDENTS {
-                tally.breaks += 1;
-                let Some(mut lines) = summary.break_lines(width, indent.0, indent.1) else {
-                    tally.ambiguous += 1;
-                    continue;
-                };
-                let mut real = broken(&layout, width, indent);
-                if let Err(err) = compare(&real, &lines) {
-                    panic!("{name} at width {width} indent {indent:?}: {err}");
-                }
-                real.truncate_lines(2);
-                lines.truncate_lines(2);
-                assert_eq!(
-                    real.height(),
-                    lines.height(),
-                    "{name} clamped at width {width} indent {indent:?}"
-                );
+        check_root(&name, &layout, &mut tally);
+    }
+    tally
+}
+
+/// Break one root at every width and indent, and its lines clamped to two.
+fn check_root(name: &str, layout: &Layout<TextBrush>, tally: &mut Tally) {
+    tally.roots += 1;
+    let Some(summary) = layout.break_summary() else {
+        return;
+    };
+    tally.summarized += 1;
+    tally.with_boxes += usize::from(layout.inline_boxes().len() > 0);
+    for width in WIDTHS {
+        for indent in INDENTS {
+            tally.breaks += 1;
+            if !check_break(name, layout, &summary, width, indent) {
+                tally.ambiguous += 1;
             }
         }
     }
-    tally
+}
+
+/// Whether the summary broke the lines at this width and indent; the lines it
+/// broke must match the shaped ones, clamped or not.
+fn check_break(
+    name: &str,
+    layout: &Layout<TextBrush>,
+    summary: &BreakSummary,
+    width: f32,
+    indent: (f32, IndentOptions),
+) -> bool {
+    let Some(mut replayed) = summary.break_lines(width, indent.0, indent.1) else {
+        return false;
+    };
+    let mut shaped = rebreak(layout, width, indent);
+    if let Err(err) = compare_lines(&shaped, &replayed) {
+        panic!("{name} at width {width} indent {indent:?}: {err}");
+    }
+    shaped.truncate_lines(2);
+    replayed.truncate_lines(2);
+    assert_eq!(
+        shaped.height(),
+        replayed.height(),
+        "{name} clamped at width {width} indent {indent:?}"
+    );
+    true
 }
 
 #[test]
@@ -421,24 +443,27 @@ fn a_summary_of_other_text_is_detected() {
     let dom = load(&fuzz_page(0));
     let doc = dom.doc.borrow();
     let all = layouts(doc.as_ref());
-    let get = |id: &str| {
+    let paragraph = |id: &str| {
         all.iter()
             .find(|(name, _)| name == id)
             .map(|(_, layout)| layout)
             .expect("control paragraph")
     };
-    let summary = get("neg-b")
+    let summary = paragraph("neg-b")
         .break_summary()
         .expect("plain text is summarized");
     let (amount, options) = NO_INDENT;
     for other in ["neg-c", "neg-a"] {
         let mismatches = WIDTHS
             .iter()
-            .filter_map(|&width| {
-                let lines = summary.break_lines(width, amount, options)?;
-                Some(compare(&broken(get(other), width, NO_INDENT), &lines).is_err())
+            .filter(|&&width| {
+                summary
+                    .break_lines(width, amount, options)
+                    .is_some_and(|replayed| {
+                        compare_lines(&rebreak(paragraph(other), width, NO_INDENT), &replayed)
+                            .is_err()
+                    })
             })
-            .filter(|&mismatch| mismatch)
             .count();
         assert!(
             mismatches > 0,
@@ -447,8 +472,8 @@ fn a_summary_of_other_text_is_detected() {
     }
     // And the summary matches its own paragraph.
     for width in WIDTHS {
-        if let Some(lines) = summary.break_lines(width, amount, options) {
-            compare(&broken(get("neg-b"), width, NO_INDENT), &lines)
+        if let Some(replayed) = summary.break_lines(width, amount, options) {
+            compare_lines(&rebreak(paragraph("neg-b"), width, NO_INDENT), &replayed)
                 .unwrap_or_else(|err| panic!("neg-b at {width}: {err}"));
         }
     }
