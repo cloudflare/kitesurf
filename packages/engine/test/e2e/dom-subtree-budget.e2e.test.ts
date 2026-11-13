@@ -2,9 +2,34 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
+import type { CDPSession } from "@cloudflare/puppeteer";
+import type { Protocol } from "devtools-protocol";
+
 import { targetIdForSession } from "./connect";
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
+
+function descend(root: Protocol.DOM.Node, ...names: string[]): Protocol.DOM.Node | undefined {
+  let node: Protocol.DOM.Node | undefined = root;
+  for (const name of names) {
+    node = node?.children?.find((child) => child.nodeName === name);
+  }
+  return node;
+}
+
+type MemoryStats = {
+  wasmBytes: number;
+  swapAlloc: { peakLiveBytes: number };
+};
+
+async function memoryStats(session: CDPSession, targetId: string): Promise<MemoryStats> {
+  const reply = await session.send("Kitesurf.getMemoryStats", { targetId });
+  const swapAlloc = reply.bridge?.swapAlloc;
+  if (!swapAlloc || typeof reply.wasmBytes !== "number") {
+    throw new Error("missing allocator statistics");
+  }
+  return { wasmBytes: reply.wasmBytes, swapAlloc };
+}
 
 test(
   "large subtree requests fail before allocating a snapshot",
@@ -26,14 +51,10 @@ test(
     try {
       const targetId = await targetIdForSession(session);
       const { root } = await session.send("DOM.getDocument", { depth: 3 });
-      const body = root.children?.[0]?.children?.find((node) => node.nodeName === "BODY");
-      const main = body?.children?.find((node) => node.nodeName === "MAIN");
-      const section = body?.children?.find((node) => node.nodeName === "SECTION");
+      const main = descend(root, "HTML", "BODY", "MAIN");
+      const section = descend(root, "HTML", "BODY", "SECTION");
       if (!main || !section) throw new Error("missing subtree nodes");
-      const before = await session.send("Kitesurf.getMemoryStats", { targetId });
-      if (!before.bridge?.swapAlloc || typeof before.wasmBytes !== "number") {
-        throw new Error("missing allocator statistics");
-      }
+      const before = await memoryStats(session, targetId);
 
       for (const method of ["DOM.getDocument", "DOM.getFlattenedDocument"] as const) {
         await expect(session.send(method, { depth: -1 })).rejects.toThrow(
@@ -47,18 +68,12 @@ test(
         session.send("DOM.requestChildNodes", { nodeId: main.nodeId, depth: 1 }),
       ).rejects.toThrow(/DOM\.requestChildNodes.*nodes.*bytes.*budget.*DOM\.requestChildNodes/);
 
-      const after = await session.send("Kitesurf.getMemoryStats", { targetId });
-      if (!after.bridge?.swapAlloc || typeof after.wasmBytes !== "number") {
-        throw new Error("missing allocator statistics");
-      }
+      const after = await memoryStats(session, targetId);
       expect(after.wasmBytes - before.wasmBytes).toBeLessThan(1024 * 1024);
       await session.send("DOM.requestChildNodes", { nodeId: section.nodeId, depth: -1 });
-      const positive = await session.send("Kitesurf.getMemoryStats", { targetId });
-      if (!positive.bridge?.swapAlloc) throw new Error("missing positive-control statistics");
-      const rejectedDelta =
-        after.bridge.swapAlloc.peakLiveBytes - before.bridge.swapAlloc.peakLiveBytes;
-      const positiveDelta =
-        positive.bridge.swapAlloc.peakLiveBytes - after.bridge.swapAlloc.peakLiveBytes;
+      const positive = await memoryStats(session, targetId);
+      const rejectedDelta = after.swapAlloc.peakLiveBytes - before.swapAlloc.peakLiveBytes;
+      const positiveDelta = positive.swapAlloc.peakLiveBytes - after.swapAlloc.peakLiveBytes;
       expect(positiveDelta).toBeGreaterThan(0);
       expect(rejectedDelta).toBeLessThan(positiveDelta * 0.05);
       // The accessibility tree no longer reads a DOM snapshot, and this page's large
@@ -82,9 +97,7 @@ test(
       main.innerHTML = "<i>x</i>".repeat(25_000);
     });
     const { root } = await cdpSession.send("DOM.getDocument", { depth: -1 });
-    const html = root.children?.find((node) => node.nodeName === "HTML");
-    const body = html?.children?.find((node) => node.nodeName === "BODY");
-    const main = body?.children?.find((node) => node.nodeName === "MAIN");
+    const main = descend(root, "HTML", "BODY", "MAIN");
     expect(main?.children).toHaveLength(25_000);
     expect(main?.children?.every((node) => node.children?.[0]?.nodeValue === "x")).toBe(true);
   },
@@ -93,9 +106,7 @@ test(
 test("a small whole-tree request still returns all nodes", async ({ page, cdpSession }) => {
   await setContent(page, `<main>${"<i>text</i>".repeat(100)}</main>`);
   const { root } = await cdpSession.send("DOM.getDocument", { depth: -1 });
-  const html = root.children?.find((node) => node.nodeName === "HTML");
-  const body = html?.children?.find((node) => node.nodeName === "BODY");
-  const main = body?.children?.find((node) => node.nodeName === "MAIN");
+  const main = descend(root, "HTML", "BODY", "MAIN");
   expect(main?.children).toHaveLength(100);
   expect(main?.children?.every((node) => node.children?.[0]?.nodeValue === "text")).toBe(true);
 });
@@ -114,16 +125,10 @@ test(
       section.innerHTML = "<i><b>fresh</b></i>";
     });
     const { root } = await cdpSession.send("DOM.getDocument", { depth: -1 });
-    const main = root.children
-      ?.find((n) => n.nodeName === "HTML")
-      ?.children?.find((n) => n.nodeName === "BODY")
-      ?.children?.find((n) => n.nodeName === "MAIN");
+    const main = descend(root, "HTML", "BODY", "MAIN");
     expect(main?.children?.[0]?.nodeValue.length).toBe(16_770_000);
     expect(main?.children?.[0]?.nodeValue.slice(0, 2)).toBe("漢漢");
-    const section = root.children
-      ?.find((n) => n.nodeName === "HTML")
-      ?.children?.find((n) => n.nodeName === "BODY")
-      ?.children?.find((n) => n.nodeName === "SECTION");
+    const section = descend(root, "HTML", "BODY", "SECTION");
     expect(section?.children?.[0]?.children?.[0]?.children?.[0]?.nodeValue).toBe("fresh");
   },
 );
@@ -153,10 +158,7 @@ test(
   async ({ page, cdpSession }) => {
     await setContent(page, "<main style='display:none'></main>");
     const { root } = await cdpSession.send("DOM.getDocument", { depth: 3 });
-    const main = root.children
-      ?.find((n) => n.nodeName === "HTML")
-      ?.children?.find((n) => n.nodeName === "BODY")
-      ?.children?.find((n) => n.nodeName === "MAIN");
+    const main = descend(root, "HTML", "BODY", "MAIN");
     if (!main) throw new Error("missing main");
     await page.evaluate(() => {
       const element = document.querySelector("main");
@@ -181,10 +183,7 @@ test(
     });
     await cdpSession.send("DOM.enable");
     const { root } = await cdpSession.send("DOM.getDocument", { depth: 3 });
-    const main = root.children
-      ?.find((n) => n.nodeName === "HTML")
-      ?.children?.find((n) => n.nodeName === "BODY")
-      ?.children?.find((n) => n.nodeName === "MAIN");
+    const main = descend(root, "HTML", "BODY", "MAIN");
     if (!main) throw new Error("missing main node");
     await cdpSession.send("DOM.requestChildNodes", { nodeId: main.nodeId, depth: 1 });
     const inserted: Array<{ id: number; length: number }> = [];
