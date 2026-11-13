@@ -8,6 +8,8 @@ import { createHash } from "node:crypto";
 import { expect, test } from "../harness";
 
 const FIXTURE = "https://ks.invalid/__fixtures/image-heavy.html?n=8&side=512";
+// The unbanded renderer's bytes, pinned so a streaming change shows up as a diff.
+const EXPECTED_PDF_SHA256 = "bff285e3a33451d4444e004b49373f7ad4b62bfa3c09be0b8add8b37aa917ea2";
 
 async function pdfFor(
   page: Page,
@@ -37,9 +39,7 @@ function pageCount(pdf: Uint8Array): number {
 
 test("printToPDF renders via the pageRenderer without inflating pageScript", async ({ page }) => {
   const renderer = await pdfFor(page, FIXTURE);
-  expect(createHash("sha256").update(renderer.bytes).digest("hex")).toBe(
-    "bff285e3a33451d4444e004b49373f7ad4b62bfa3c09be0b8add8b37aa917ea2",
-  );
+  expect(createHash("sha256").update(renderer.bytes).digest("hex")).toBe(EXPECTED_PDF_SHA256);
   expect(renderer.bytes.length).toBeGreaterThan(10_000);
   expect(new TextDecoder().decode(renderer.bytes.subarray(0, 5))).toBe("%PDF-");
   expect(pageCount(renderer.bytes)).toBeGreaterThanOrEqual(2);

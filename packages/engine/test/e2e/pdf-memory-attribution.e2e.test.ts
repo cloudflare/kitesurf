@@ -5,28 +5,41 @@
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
 
-test("large document print memory attribution", async ({ page, cdpSession }) => {
+const PARAGRAPH_COUNT = 1800;
+const INLINE_TEXT = "<span>Some sample inline text with words. </span>".repeat(8);
+// Twice the post-streaming 4.25 MiB growth, rounded up to the next MiB first.
+const MAX_WASM_GROWTH_BYTES = 10 * 1024 * 1024;
+const EXPECTED_PDF_SHA256 = "b4d4f27a37d16cbe5592c99b8f8fea6742ea052c828a5cca87056f9e3e80c1a5";
+
+/** A document long enough that printing it dominates the Wasm heap. */
+function largeDocument(): string {
   const rows = Array.from(
-    { length: 1800 },
-    (_, i) =>
-      `<p>Paragraph ${i}: ${"<span>Some sample inline text with words. </span>".repeat(8)}</p>`,
+    { length: PARAGRAPH_COUNT },
+    (_, i) => `<p>Paragraph ${i}: ${INLINE_TEXT}</p>`,
   ).join("");
-  await setContent(
-    page,
-    `<style>body { font: 16px/20px serif } p { margin: 12px 0 }</style>${rows}`,
-  );
+  return `<style>body { font: 16px/20px serif } p { margin: 12px 0 }</style>${rows}`;
+}
+
+const pdfBytes = (base64: string) => Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+test("large document print memory attribution", async ({ page, cdpSession }) => {
+  await setContent(page, largeDocument());
   const targetId: unknown = Reflect.get(page.target(), "_targetId");
   if (typeof targetId !== "string") throw new Error("missing target id");
+
   const before = await cdpSession.send("Kitesurf.getMemoryStats", { targetId });
   const pdf = await cdpSession.send("Page.printToPDF", {});
   const after = await cdpSession.send("Kitesurf.getMemoryStats", { targetId });
+
   expect(pdf.error).toBeUndefined();
   expect(pdf.data.length).toBeGreaterThan(1000);
-  const bytes = Uint8Array.from(atob(pdf.data), (c) => c.charCodeAt(0));
-  const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)))
-    .map((n) => n.toString(16).padStart(2, "0"))
-    .join("");
-  expect(hash).toBe("b4d4f27a37d16cbe5592c99b8f8fea6742ea052c828a5cca87056f9e3e80c1a5");
+  expect(await sha256Hex(pdfBytes(pdf.data))).toBe(EXPECTED_PDF_SHA256);
+
   const beforeBytes = before.bridge?.swapAlloc.wasmBytes;
   const afterBytes = after.bridge?.swapAlloc.wasmBytes;
   expect(beforeBytes).toBeTypeOf("number");
@@ -34,6 +47,5 @@ test("large document print memory attribution", async ({ page, cdpSession }) => 
   if (beforeBytes === undefined || afterBytes === undefined) {
     throw new Error("missing Wasm memory stats");
   }
-  // Twice the post-streaming 4.25 MiB growth, rounded up to the next MiB first.
-  expect(afterBytes - beforeBytes).toBeLessThan(10 * 1024 * 1024);
+  expect(afterBytes - beforeBytes).toBeLessThan(MAX_WASM_GROWTH_BYTES);
 }, 120_000);

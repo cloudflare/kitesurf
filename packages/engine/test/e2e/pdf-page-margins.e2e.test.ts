@@ -6,6 +6,8 @@ import { expect, test } from "./harness";
 import type { Browser } from "@cloudflare/puppeteer";
 import { createHash } from "node:crypto";
 
+const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+
 function doc(pageRule: string): string {
   const blocks = Array.from(
     { length: 40 },
@@ -26,7 +28,10 @@ function countPages(bytes: Buffer): number {
   return (s.match(/\/Type\s*\/Page(?![s\w])/g) ?? []).length;
 }
 
-async function pdfPageCount(browser: Browser, pageRule: string, hash: string): Promise<number> {
+async function printPdf(
+  browser: Browser,
+  pageRule: string,
+): Promise<{ pages: number; hash: string }> {
   const page = await browser.newPage();
   try {
     const session = await page.createCDPSession();
@@ -40,34 +45,34 @@ async function pdfPageCount(browser: Browser, pageRule: string, hash: string): P
     })) as { data?: string; error?: string };
     expect(reply.error, "printToPDF error").toBeUndefined();
     expect(typeof reply.data).toBe("string");
-    expect(
-      createHash("sha256")
-        .update(Buffer.from(reply.data as string, "base64"))
-        .digest("hex"),
-    ).toBe(hash);
-    const count = countPages(Buffer.from(reply.data as string, "base64"));
-    expect(count, "parsed a page count").toBeGreaterThan(0);
-    return count;
+    const bytes = Buffer.from(reply.data as string, "base64");
+    const pages = countPages(bytes);
+    expect(pages, "parsed a page count").toBeGreaterThan(0);
+    return { pages, hash: sha256(bytes) };
   } finally {
     await page.close();
   }
 }
 
+const PAGE_MARGIN_CASES = [
+  {
+    pageRule: "",
+    label: "no @page margin",
+    pages: 4,
+    hash: "fb315e1d98b0d4b4f21d3a279912e1f96b0d66b006aab0a7d2a9a7137c3e5dae",
+  },
+  {
+    pageRule: "@page { margin: 2in }",
+    label: "@page { margin: 2in }",
+    pages: 7,
+    hash: "0d41c8a06c56f4d0fcee80ac35c21556a272dc8ef51b65f1123a6df3d656fd95",
+  },
+];
+
 test("@page margins shrink the content box and add pages", async ({ browser }) => {
-  expect(
-    await pdfPageCount(
-      browser,
-      "",
-      "fb315e1d98b0d4b4f21d3a279912e1f96b0d66b006aab0a7d2a9a7137c3e5dae",
-    ),
-    "no @page margin",
-  ).toBe(4);
-  expect(
-    await pdfPageCount(
-      browser,
-      "@page { margin: 2in }",
-      "0d41c8a06c56f4d0fcee80ac35c21556a272dc8ef51b65f1123a6df3d656fd95",
-    ),
-    "@page { margin: 2in }",
-  ).toBe(7);
+  for (const { pageRule, label, pages, hash } of PAGE_MARGIN_CASES) {
+    const printed = await printPdf(browser, pageRule);
+    expect(printed.hash, `${label} document bytes`).toBe(hash);
+    expect(printed.pages, label).toBe(pages);
+  }
 });
