@@ -571,10 +571,6 @@
     "expected": "SKIP",
     "reason": "times out"
   },
-  "page-basic.spec.ts::page.press should work for Enter": {
-    "expected": "FAIL",
-    "reason": "TypeError: Cannot read properties of undefined (reading 'text')"
-  },
   "page-basic.spec.ts::should have sane user agent": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
@@ -1291,19 +1287,11 @@
     "expected": "SKIP",
     "reason": "times out"
   },
-  "page-keyboard.spec.ts::insertText should only emit input event": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toEqual(expected) // deep equality"
-  },
   "page-keyboard.spec.ts::should close dialog on Escape key press in contenteditable": {
     "expected": "FAIL",
     "reason": "Error: locator.evaluate: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
   },
   "page-keyboard.spec.ts::should dispatch key events in separate tasks": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toEqual(expected) // deep equality"
-  },
-  "page-keyboard.spec.ts::should emit keydown, keypress, textInput and input when typing a character": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toEqual(expected) // deep equality"
   },
@@ -1327,45 +1315,9 @@
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-keyboard.spec.ts::should press Enter": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
-  "page-keyboard.spec.ts::should press plus": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
-  "page-keyboard.spec.ts::should press shift plus": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
-  "page-keyboard.spec.ts::should report shiftKey": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
-  "page-keyboard.spec.ts::should send a character with insertText": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
-  "page-keyboard.spec.ts::should send proper codes while typing": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
-  "page-keyboard.spec.ts::should send proper codes while typing with shift": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
-  "page-keyboard.spec.ts::should shift raw codes": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
   "page-keyboard.spec.ts::should support MacOS shortcuts": {
     "expected": "SKIP",
     "reason": "skipped upstream for chromium"
-  },
-  "page-keyboard.spec.ts::should support plus-separated modifiers": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
   "page-keyboard.spec.ts::should support simple copy-pasting": {
     "expected": "FAIL",
@@ -1378,10 +1330,6 @@
   "page-keyboard.spec.ts::should support undo-redo": {
     "expected": "SKIP",
     "reason": "fails slowly (11s): Error: expect(locator).toHaveText(expected) failed"
-  },
-  "page-keyboard.spec.ts::should type all kinds of characters": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
   "page-keyboard.spec.ts::should type emoji into an iframe": {
     "expected": "SKIP",
