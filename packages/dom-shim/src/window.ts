@@ -1367,7 +1367,7 @@ function recordNamedGlobal(nodeId: number, name: string, connected: boolean): vo
     };
     stampedNames.set(name, entry);
   } else if (typeof entry.nodeIds === "number") {
-    // Most IDs are unique; allocate duplicate-owner storage only when needed.
+    // Most names have one owner; allocate the set only for a second node.
     if (entry.nodeIds !== nodeId) entry.nodeIds = new Set([entry.nodeIds, nodeId]);
   } else {
     entry.nodeIds.add(nodeId);

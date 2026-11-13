@@ -196,10 +196,11 @@ export const postMutationHooks: Array<(hint?: MutationHint) => void> = [];
 
 interface NamedGlobalEntry {
   getter: () => unknown;
+  // A bare owner ID until a second node introduces the same name.
   nodeIds: number | Set<number>;
 }
 
-// Scalar owner IDs bound accessor metadata to the nodes that introduced each name.
+// Owners are IDs, not wrappers, so an entry never keeps a wrapper alive.
 export const stampedNames = new Map<string, NamedGlobalEntry>();
 
 export const nodeIdName = new Map<number, string>();
