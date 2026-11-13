@@ -15,6 +15,7 @@ const source = readFileSync(
 const code = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
+
 function loadPdfScenePages(schedule = setTimeout, clear = clearTimeout) {
   const exports = {};
   runInContext(
@@ -33,8 +34,18 @@ function loadPdfScenePages(schedule = setTimeout, clear = clearTimeout) {
   );
   return exports.pdfScenePages;
 }
+
 const pdfScenePages = loadPdfScenePages();
 
+/** Names the five positional callbacks `pdfScenePages` takes. */
+function pageStream(
+  start,
+  { source, nextPage, validate = () => {}, invalidate = () => {}, releasePageTasks = () => {} },
+) {
+  return start(source, nextPage, validate, invalidate, releasePageTasks);
+}
+
+/** Decodes an error frame: [0 u32][length u32][message], little-endian. */
 function streamError(frame) {
   const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
   assert.equal(view.getUint32(0, true), 0);
@@ -46,18 +57,19 @@ test("cancelling a partially read PDF releases its page source without recording
   let pages = 0;
   let frees = 0;
   let resumes = 0;
-  const stream = pdfScenePages(
-    { pageCount: 3, free: () => frees++ },
-    () => Uint8Array.of(++pages, 9),
-    () => {},
-    () => assert.fail("unexpected invalidation"),
-    () => resumes++,
-  );
+  const stream = pageStream(pdfScenePages, {
+    source: { pageCount: 3, free: () => frees++ },
+    nextPage: () => Uint8Array.of(++pages, 9),
+    invalidate: () => assert.fail("unexpected invalidation"),
+    releasePageTasks: () => resumes++,
+  });
   const reader = stream.getReader();
+
   assert.equal(pages, 0);
   assert.deepEqual([...(await reader.read()).value], [2, 0, 0, 0]);
   assert.deepEqual([...(await reader.read()).value], [1, 9]);
   assert.equal(pages, 1);
+
   await reader.cancel("renderer stopped");
   assert.equal(frees, 1);
   assert.equal(resumes, 1);
@@ -68,16 +80,16 @@ test("a recording failure releases and invalidates the page source", async () =>
   let frees = 0;
   let invalidations = 0;
   let resumes = 0;
-  const stream = pdfScenePages(
-    { pageCount: 2, free: () => frees++ },
-    () => {
+  const stream = pageStream(pdfScenePages, {
+    source: { pageCount: 2, free: () => frees++ },
+    nextPage: () => {
       throw new Error("recording failed");
     },
-    () => {},
-    () => invalidations++,
-    () => resumes++,
-  );
+    invalidate: () => invalidations++,
+    releasePageTasks: () => resumes++,
+  });
   const reader = stream.getReader();
+
   const { value } = await reader.read();
   assert.equal(streamError(value), "recording failed");
   assert.equal(frees, 1);
@@ -90,16 +102,17 @@ test("a changed snapshot stops before recording another page and releases the so
   let frees = 0;
   let invalidations = 0;
   let resumes = 0;
-  const stream = pdfScenePages(
-    { pageCount: 2, free: () => frees++ },
-    () => Uint8Array.of(++pages),
-    () => {
+  const stream = pageStream(pdfScenePages, {
+    source: { pageCount: 2, free: () => frees++ },
+    nextPage: () => Uint8Array.of(++pages),
+    validate: () => {
       if (pages > 0) throw new Error("PDF document changed during scene streaming");
     },
-    () => invalidations++,
-    () => resumes++,
-  );
+    invalidate: () => invalidations++,
+    releasePageTasks: () => resumes++,
+  });
   const reader = stream.getReader();
+
   await reader.read();
   await reader.read();
   const { value } = await reader.read();
@@ -121,14 +134,13 @@ test("the stream deadline reports an error and releases the page task gate", asy
     },
     () => {},
   );
-  const stream = pdfScenePagesWithClock(
-    { pageCount: 2, free: () => frees++ },
-    () => Uint8Array.of(1),
-    () => {},
-    () => {},
-    () => resumes++,
-  );
+  const stream = pageStream(pdfScenePagesWithClock, {
+    source: { pageCount: 2, free: () => frees++ },
+    nextPage: () => Uint8Array.of(1),
+    releasePageTasks: () => resumes++,
+  });
   const reader = stream.getReader();
+
   expire();
   const { value } = await reader.read();
   assert.match(streamError(value), /PDF scene stream exceeded .* ms deadline/);

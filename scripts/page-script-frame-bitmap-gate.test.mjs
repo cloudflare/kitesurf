@@ -15,12 +15,12 @@ const source = readFileSync(
 const code = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-const exports = {};
-runInContext(code, createContext({ exports }));
+const gateModule = {};
+runInContext(code, createContext({ exports: gateModule }));
 
 test("held OOPIF bitmaps apply in arrival order after the final release", async () => {
   const applied = [];
-  const gate = exports.createFrameBitmapDeliveryGate((params) => {
+  const gate = gateModule.createFrameBitmapDeliveryGate((params) => {
     applied.push(params.ownerBackendNodeId);
     return { ok: true, rc: params.ownerBackendNodeId };
   });
