@@ -62,26 +62,29 @@ test("unchanged values under transition all do not start transitions", async ({ 
   </style><div id="target"></div><div id="control"></div>`,
   );
 
-  const result = await page.evaluate(async () => {
+  const observed = await page.evaluate(async () => {
     const target = document.getElementById("target");
     const control = document.getElementById("control");
     if (!target || !control) throw new Error("missing transition target");
+
     const events: string[] = [];
     target.addEventListener("transitionrun", (event) => events.push(event.type));
     const controlRun = new Promise<void>((resolve) => {
       control.addEventListener("transitionrun", () => resolve(), { once: true });
     });
-    const before = getComputedStyle(target).opacity;
+
+    const opacityBefore = getComputedStyle(target).opacity;
     getComputedStyle(control).width;
     target.classList.add("same");
-    const after = getComputedStyle(target).opacity;
+    const opacityAfter = getComputedStyle(target).opacity;
+
     control.style.width = "10px";
     getComputedStyle(control).width;
     await controlRun;
-    return { values: [before, after], events };
+    return { values: [opacityBefore, opacityAfter], events };
   });
 
-  expect(result).toEqual({ values: ["0.5", "0.5"], events: [] });
+  expect(observed).toEqual({ values: ["0.5", "0.5"], events: [] });
 });
 
 test.for(["normal", "allow-discrete"])(
@@ -99,10 +102,11 @@ test.for(["normal", "allow-discrete"])(
     </style><div id="target"></div><div id="control"></div>`,
     );
 
-    const result = await page.evaluate(async () => {
+    const observed = await page.evaluate(async () => {
       const target = document.getElementById("target");
       const control = document.getElementById("control");
       if (!target || !control) throw new Error("missing transition target");
+
       const events: string[] = [];
       const record = (event: TransitionEvent) => {
         events.push(`${event.type}:${event.propertyName}`);
@@ -114,17 +118,19 @@ test.for(["normal", "allow-discrete"])(
       const controlRun = new Promise<void>((resolve) => {
         control.addEventListener("transitionrun", () => resolve(), { once: true });
       });
-      const before = getComputedStyle(target).textTransform;
+
+      const transformBefore = getComputedStyle(target).textTransform;
       getComputedStyle(control).opacity;
       target.style.textTransform = "uppercase";
-      const after = getComputedStyle(target).textTransform;
+      const transformAfter = getComputedStyle(target).textTransform;
+
       control.style.opacity = "1";
       getComputedStyle(control).opacity;
       await controlRun;
-      return { values: [before, after], events };
+      return { values: [transformBefore, transformAfter], events };
     });
 
-    expect(result).toEqual(
+    expect(observed).toEqual(
       behavior === "normal"
         ? { values: ["none", "uppercase"], events: [] }
         : {
@@ -150,10 +156,11 @@ test("switching to normal cancels an active discrete transition without replacem
   </style><div id="target"></div><div id="control"></div>`,
   );
 
-  const result = await page.evaluate(async () => {
+  const observed = await page.evaluate(async () => {
     const target = document.getElementById("target");
     const control = document.getElementById("control");
     if (!target || !control) throw new Error("missing transition target");
+
     const events: string[] = [];
     for (const type of ["transitionrun", "transitionstart", "transitioncancel"]) {
       target.addEventListener(type, (event) => events.push(event.type));
@@ -164,23 +171,26 @@ test("switching to normal cancels an active discrete transition without replacem
     const controlRun = new Promise<void>((resolve) => {
       control.addEventListener("transitionrun", () => resolve(), { once: true });
     });
+
     getComputedStyle(target).textTransform;
     getComputedStyle(control).opacity;
     target.style.textTransform = "uppercase";
-    const transitioning = getComputedStyle(target).textTransform;
+    const duringTransition = getComputedStyle(target).textTransform;
+
     target.style.transitionBehavior = "normal";
     target.style.textTransform = "lowercase";
-    const retargeted = getComputedStyle(target).textTransform;
+    const afterRetarget = getComputedStyle(target).textTransform;
+
     control.style.opacity = "1";
     getComputedStyle(control).opacity;
     await canceled;
     await controlRun;
-    return { transitioning, retargeted, events };
+    return { duringTransition, afterRetarget, events };
   });
 
-  expect(result).toEqual({
-    transitioning: "none",
-    retargeted: "lowercase",
+  expect(observed).toEqual({
+    duringTransition: "none",
+    afterRetarget: "lowercase",
     events: ["transitionrun", "transitionstart", "transitioncancel"],
   });
 });
@@ -193,9 +203,10 @@ test("retargeting to the sampled current value cancels without replacement", asy
   </style><div id="target"></div>`,
   );
 
-  const result = await page.evaluate(async () => {
+  const observed = await page.evaluate(async () => {
     const target = document.getElementById("target");
     if (!target) throw new Error("missing transition target");
+
     const events: string[] = [];
     for (const type of ["transitionrun", "transitionstart", "transitioncancel"]) {
       target.addEventListener(type, (event) => events.push(event.type));
@@ -203,18 +214,21 @@ test("retargeting to the sampled current value cancels without replacement", asy
     const canceled = new Promise<void>((resolve) => {
       target.addEventListener("transitioncancel", () => resolve(), { once: true });
     });
+
     getComputedStyle(target).opacity;
     target.style.opacity = "1";
-    const sampled = getComputedStyle(target).opacity;
-    target.style.opacity = sampled;
-    const retargeted = getComputedStyle(target).opacity;
+    const currentValue = getComputedStyle(target).opacity;
+
+    target.style.opacity = currentValue;
+    const afterRetarget = getComputedStyle(target).opacity;
+
     await canceled;
-    return { sampled, retargeted, events };
+    return { currentValue, afterRetarget, events };
   });
 
-  expect(result).toEqual({
-    sampled: "0.5",
-    retargeted: "0.5",
+  expect(observed).toEqual({
+    currentValue: "0.5",
+    afterRetarget: "0.5",
     events: ["transitionrun", "transitionstart", "transitioncancel"],
   });
 });
