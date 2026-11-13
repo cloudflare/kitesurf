@@ -157,6 +157,13 @@ export interface RenderPdfResult {
   info?: string;
 }
 
+// An encoded-limit breach is deterministic: retrying the same frame cannot shrink it. Every other
+// raster failure may be a wedged renderer, which the caller retries against a fresh one.
+function isTerminalRenderFailure(result: RenderFrameResult): boolean {
+  if (result.ok || result.stage !== "raster") return true;
+  return result.error?.startsWith("encoded-limit:") === true;
+}
+
 export class PageRendererManager {
   private env: RendererEnv;
   private ctx: ExecutionContext;
@@ -306,12 +313,7 @@ export class PageRendererManager {
         for (let attempt = 0; attempt < MAX_RENDER_RASTER_ATTEMPTS; attempt++) {
           try {
             const result = await this.renderFrameOnce(source, opts);
-            if (
-              result.ok ||
-              result.stage !== "raster" ||
-              result.error?.startsWith("encoded-limit:")
-            )
-              return result;
+            if (isTerminalRenderFailure(result)) return result;
             throw new Error(result.error ?? "renderFrame raster failure");
           } catch (error) {
             lastError = error instanceof Error ? error.message : String(error);
