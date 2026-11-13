@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 import { describe, expect, it } from "vitest";
-import { handleAccessibility } from "../src/cdp/accessibility.ts";
+import { buildTree } from "../src/cdp/accessibility.ts";
 import { handleDom } from "../src/cdp/dom.ts";
 import { registerEnsurePageScript } from "../src/cdp/page-session.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
@@ -22,6 +22,43 @@ const dag = (): Node => ({ ...doc(), contentDocument: chain(17, 2) });
 const loop = doc();
 (loop.children as Node[]).push(loop);
 const ps = (root: Node) => ({ queryDom: async () => ({ root }) });
+// The accessibility tree is built in Rust from the document snapshot, so the snapshot is the
+// only page-shaped graph the builder walks.
+const TREE = JSON.stringify({
+  nodes: [
+    {
+      nodeId: "root-F",
+      ignored: false,
+      role: { type: "internalRole", value: "RootWebArea" },
+      name: { type: "computedString", value: "" },
+      backendDOMNodeId: 0,
+      childIds: [],
+    },
+  ],
+});
+function treeBuilder(root: Node) {
+  const treeStream = () =>
+    Promise.resolve({
+      byteLength: new TextEncoder().encode(TREE).byteLength,
+      json: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(TREE));
+          controller.close();
+        },
+      }),
+    });
+  return {
+    call: { getDocument: async () => ({ root }), accessibilityTree: treeStream },
+    tryCall: {
+      getDocument: async () => ({ root }),
+      notRenderedNodeIds: async () => ({ displayNone: [], invisible: [] }),
+      formStateSnapshot: async () => ({ values: [], checked: [], selected: [] }),
+    },
+  };
+}
+const treeTarget = (): TargetState =>
+  // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only the fields buildTree reads.
+  ({ type: "page", frameId: "F", url: "", title: "" }) as unknown as TargetState;
 // A wide reply: every element has one attribute and no children. Before the reply budget
 // counted each array element twice this exceeded the node budget at roughly this size.
 const wideDocument = (count: number): Node =>
@@ -74,9 +111,15 @@ describe("DOM replies from the page isolate", () => {
     ["a cycle", handleDom, "DOM.getDocument", loop],
     // 600 levels is a legitimate document, so this now exceeds the raised reply depth limit.
     ["a deep chain", handleDom, "DOM.getDocument", doc(chain(900, 1))],
-    ["an accessibility tree", handleAccessibility, "Accessibility.getFullAXTree", dag()],
   ])("rejects a reply graph with %s", async (_name, handler, method, root) => {
     const error = await call(handler, method, { pageScript: ps(root), frames: new Map() }).then(
+      () => null,
+      (err: Error) => err,
+    );
+    expect(error?.message).toMatch(/DOM reply/);
+  });
+  it("rejects an aliased document snapshot in the accessibility tree builder", async () => {
+    const error = await buildTree(treeBuilder(dag()), treeTarget()).then(
       () => null,
       (err: Error) => err,
     );
@@ -169,13 +212,9 @@ describe("DOM replies from the page isolate", () => {
     })) as { root: Node };
     expect(r.root).toBeTruthy();
   });
-  it("accepts an accessibility tree at nesting depth 600", async () => {
-    const root = doc(chain(600, 1));
-    const r = (await call(handleAccessibility, "Accessibility.getFullAXTree", {
-      pageScript: ps(root),
-      frames: new Map(),
-    })) as { nodes: unknown[] };
-    expect(r.nodes.length).toBeGreaterThan(600);
+  it("accepts a document snapshot at nesting depth 600 in the tree builder", async () => {
+    const built = await buildTree(treeBuilder(doc(chain(600, 1))), treeTarget());
+    expect(built?.nodes.length).toBe(1);
   });
   it("keeps frame ids and strips sidecars from a valid tree", async () => {
     registerEnsurePageScript(() => null);
@@ -183,7 +222,10 @@ describe("DOM replies from the page isolate", () => {
     const frames = new Map([["c", frame]]);
     const root = doc(node({ backendNodeId: 17, nodeName: "IFRAME", attributeNamespaces: [] }));
     // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only getDocument is stubbed.
-    const dom = { getDocument: () => root } as unknown as DomHandle;
+    const dom = {
+      documentBudgetError: () => null,
+      getDocument: () => root,
+    } as unknown as DomHandle;
     const r = (await call(handleDom, "DOM.getDocument", { dom, frames })) as { root: Node };
     expect((r.root.children as Node[])[0]?.frameId).toBe("child");
     expect(JSON.stringify(r.root)).not.toContain("attributeNamespaces");
