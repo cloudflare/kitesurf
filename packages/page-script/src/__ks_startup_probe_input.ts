@@ -29,7 +29,7 @@ export declare const moduleScriptCount: number;
 export declare const resourceDrainQuietTurns: number;
 export declare const pixelFree: boolean;
 export declare const fontDefer: boolean;
-// The connection's UA font profile, validated by the engine (cdp/font-profile.ts).
+// The connection's UA font profile, validated by the engine; core's UA_FONT_PROFILES names it.
 export declare const fontProfile: string;
 export declare const moduleScriptUrls: string[];
 // Module URLs the navigate baked as JSON records; the runtime loader may answer only these

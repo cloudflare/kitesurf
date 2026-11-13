@@ -106,12 +106,22 @@ export declare class RuleStyleDeclarationStore {
 
 export declare function ks_ua_stylesheet(): string;
 
+// `profile` names the faces the bytes came from; uaFontProfile gives their paths as JSON.
+// eslint-disable-next-line max-params -- Keep the generated wasm-bindgen ABI.
 export declare function register_ua_fonts(
   sans_bytes: Uint8Array,
   sans_italic_bytes: Uint8Array,
+  system_bytes: Uint8Array,
+  system_italic_bytes: Uint8Array,
   serif_bytes: Uint8Array,
+  serif_bold_bytes: Uint8Array,
+  serif_italic_bytes: Uint8Array,
+  georgia_bytes: Uint8Array,
+  georgia_italic_bytes: Uint8Array,
   mono_bytes: Uint8Array,
+  profile: string,
 ): boolean;
+export declare function uaFontProfile(profile: string): string;
 export declare function register_symbol_fonts(
   symbols_bytes: Uint8Array,
   symbols2_bytes: Uint8Array,

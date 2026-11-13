@@ -893,18 +893,106 @@ fn make_empty_font_context() -> FontContext {
     }
 }
 
-fn populate_ua_fonts(
-    font_ctx: &mut FontContext,
-    sans_bytes: Vec<u8>,
-    sans_italic_bytes: Vec<u8>,
-    serif_bytes: Vec<u8>,
-    mono_bytes: Vec<u8>,
-) {
-    let register = |c: &mut Collection,
-                    bytes: Vec<u8>,
-                    slot: Option<blitz_dom::util::SvgGenericSlot>,
-                    path: &'static str|
-     -> Vec<_> {
+/// The UA faces a font profile registers, as the asset paths page-script fetches and the renderer
+/// paints from, in `register_ua_fonts` argument order. An empty path leaves its slot out. The
+/// engine's `cdp/font-profile.ts` validates profile names against this table.
+pub(crate) struct UaFontProfile {
+    pub name: &'static str,
+    /// Upright, italic. Behind sans-serif; also behind system-ui when `system` is empty.
+    pub sans: [&'static str; 2],
+    /// Upright, italic. Behind system-ui, ui-sans-serif and ui-rounded.
+    pub system: [&'static str; 2],
+    /// Regular, bold, italic. Behind serif.
+    pub serif: [&'static str; 3],
+    /// Upright, italic. Behind no generic.
+    pub georgia: [&'static str; 2],
+    /// page-script fetches the serif faces only for pages that name a serif family.
+    pub serif_on_demand: bool,
+}
+
+impl UaFontProfile {
+    fn paths(&self) -> [&'static str; 9] {
+        let [sans, sans_italic] = self.sans;
+        let [system, system_italic] = self.system;
+        let [serif, serif_bold, serif_italic] = self.serif;
+        let [georgia, georgia_italic] = self.georgia;
+        [
+            sans,
+            sans_italic,
+            system,
+            system_italic,
+            serif,
+            serif_bold,
+            serif_italic,
+            georgia,
+            georgia_italic,
+        ]
+    }
+}
+
+const MONO_PATH: &str = "/fonts/NotoSansMono.ttf";
+
+/// `noto`, the default: Noto Sans behind every sans generic, Noto Serif for pages that name a
+/// serif family, and no platform family names.
+const NOTO_PROFILE: UaFontProfile = UaFontProfile {
+    name: "noto",
+    sans: ["/fonts/NotoSans.ttf", "/fonts/NotoSans-Italic.ttf"],
+    system: ["", ""],
+    serif: ["/fonts/NotoSerif.ttf", "", ""],
+    georgia: ["", ""],
+    serif_on_demand: true,
+};
+
+const UA_FONT_PROFILES: [&UaFontProfile; 1] = [&NOTO_PROFILE];
+
+fn ua_font_profile(name: &str) -> Option<&'static UaFontProfile> {
+    UA_FONT_PROFILES.into_iter().find(|p| p.name == name)
+}
+
+/// JS-callable: the profile's UA faces as JSON, `{faces, serifOnDemand}` with
+/// `faces` in `register_ua_fonts` order ("" = none), so page-script fetches exactly what
+/// registration records. Empty for an unknown profile.
+#[wasm_bindgen(js_name = "uaFontProfile")]
+pub fn ua_font_profile_json(profile: &str) -> String {
+    ua_font_profile(profile)
+        .map(|p| {
+            serde_json::json!({
+                "faces": p.paths(),
+                "serifOnDemand": p.serif_on_demand,
+            })
+            .to_string()
+        })
+        .unwrap_or_default()
+}
+
+/// UA face bytes in `UaFontProfile` slot order. Sans is required; an empty face is skipped and
+/// its generics fall back to sans.
+#[derive(Default)]
+pub(crate) struct UaFontBytes {
+    pub sans: [Vec<u8>; 2],
+    pub system: [Vec<u8>; 2],
+    pub serif: [Vec<u8>; 3],
+    pub georgia: [Vec<u8>; 2],
+    pub mono: Vec<u8>,
+}
+
+/// Register one family's faces. Italic and bold files carry their upright's family name, so they
+/// share its FamilyId and `font-style: italic` finds a real italic. Returns the family's ids.
+fn register_ua_family<const N: usize>(
+    c: &mut Collection,
+    faces: [Vec<u8>; N],
+    paths: [&'static str; N],
+    slot: Option<blitz_dom::util::SvgGenericSlot>,
+) -> Vec<FamilyId> {
+    let mut ids: Vec<FamilyId> = Vec::new();
+    for (i, (bytes, path)) in faces.into_iter().zip(paths).enumerate() {
+        if bytes.is_empty() || path.is_empty() {
+            continue;
+        }
+        // usvg's generic slot goes to the first face; it has no system fonts under wasm.
+        let slot = if i == 0 { slot } else { None };
+        // Outline-less faces stay out of usvg, which would drop their text instead of falling
+        // back to a face it can paint.
         let svg_usable = has_outline_tables(&bytes);
         let blob = Blob::from(bytes);
         if svg_usable {
@@ -912,97 +1000,69 @@ fn populate_ua_fonts(
         }
         let result = c.register_fonts(blob, None);
         record_lazy_registration(path, slot, &result);
-        result.into_iter().map(|(id, _)| id).collect()
-    };
+        for (id, _) in result {
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+    }
+    ids
+}
 
-    let sans = register(
-        &mut font_ctx.collection,
-        sans_bytes,
-        Some(blitz_dom::util::SvgGenericSlot::SansSerif),
-        "/fonts/NotoSans.ttf",
-    );
-    let _sans_italic = register(
-        &mut font_ctx.collection,
-        sans_italic_bytes,
-        None,
-        "/fonts/NotoSans-Italic.ttf",
-    );
-    let serif: Vec<FamilyId> = if serif_bytes.is_empty() {
-        Vec::new()
-    } else {
-        register(
-            &mut font_ctx.collection,
-            serif_bytes,
-            Some(blitz_dom::util::SvgGenericSlot::Serif),
-            "/fonts/NotoSerif.ttf",
-        )
-    };
-    let serif_family: &[FamilyId] = if serif.is_empty() { &sans } else { &serif };
-    let mono: Vec<FamilyId> = if mono_bytes.is_empty() {
-        Vec::new()
-    } else {
-        if let Some(r) = measure_mono_advance_per_em(&mono_bytes) {
+fn populate_ua_fonts(font_ctx: &mut FontContext, profile: &UaFontProfile, faces: UaFontBytes) {
+    use blitz_dom::util::SvgGenericSlot;
+    let c = &mut font_ctx.collection;
+    let sans = register_ua_family(c, faces.sans, profile.sans, Some(SvgGenericSlot::SansSerif));
+    let system = register_ua_family(c, faces.system, profile.system, None);
+    let serif = register_ua_family(c, faces.serif, profile.serif, Some(SvgGenericSlot::Serif));
+    register_ua_family(c, faces.georgia, profile.georgia, None);
+    if !faces.mono.is_empty() {
+        if let Some(r) = measure_mono_advance_per_em(&faces.mono) {
             MONO_ADVANCE_PER_EM.with(|c| c.set(r));
         }
-        register(
-            &mut font_ctx.collection,
-            mono_bytes,
-            Some(blitz_dom::util::SvgGenericSlot::Monospace),
-            "/fonts/NotoSansMono.ttf",
-        )
+    }
+    let mono = register_ua_family(
+        c,
+        [faces.mono],
+        [MONO_PATH],
+        Some(SvgGenericSlot::Monospace),
+    );
+    let or_sans = |ids: &[FamilyId]| {
+        if ids.is_empty() {
+            sans.clone()
+        } else {
+            ids.to_vec()
+        }
     };
-    let mono_family: &[FamilyId] = if mono.is_empty() { &sans } else { &mono };
+    let system_family = or_sans(&system);
+    let serif_family = or_sans(&serif);
+    let mono_family = or_sans(&mono);
 
-    let set = |c: &mut Collection, generic: GenericFamily, ids: &[&[FamilyId]]| {
-        let flat: Vec<_> = ids.iter().flat_map(|s| s.iter().copied()).collect();
-        c.set_generic_families(generic, flat.into_iter());
-    };
-
-    set(&mut font_ctx.collection, GenericFamily::SansSerif, &[&sans]);
-    set(&mut font_ctx.collection, GenericFamily::SystemUi, &[&sans]);
-    set(
-        &mut font_ctx.collection,
-        GenericFamily::UiSansSerif,
-        &[&sans],
-    );
-    set(&mut font_ctx.collection, GenericFamily::UiRounded, &[&sans]);
-
-    set(
-        &mut font_ctx.collection,
-        GenericFamily::Serif,
-        &[serif_family],
-    );
-    set(
-        &mut font_ctx.collection,
-        GenericFamily::UiSerif,
-        &[serif_family],
-    );
-    set(
-        &mut font_ctx.collection,
-        GenericFamily::FangSong,
-        &[serif_family],
-    );
-
-    set(
-        &mut font_ctx.collection,
-        GenericFamily::Monospace,
-        &[mono_family],
-    );
-    set(
-        &mut font_ctx.collection,
-        GenericFamily::UiMonospace,
-        &[mono_family],
-    );
-
-    set(&mut font_ctx.collection, GenericFamily::Cursive, &[&sans]);
-    set(&mut font_ctx.collection, GenericFamily::Fantasy, &[&sans]);
-    set(&mut font_ctx.collection, GenericFamily::Math, &[&sans]);
-    set(&mut font_ctx.collection, GenericFamily::Emoji, &[&sans]);
+    // ui-sans-serif and ui-rounded follow system-ui, which falls back to sans.
+    for (generic, ids) in [
+        (GenericFamily::SansSerif, &sans),
+        (GenericFamily::SystemUi, &system_family),
+        (GenericFamily::UiSansSerif, &system_family),
+        (GenericFamily::UiRounded, &system_family),
+        (GenericFamily::Serif, &serif_family),
+        (GenericFamily::UiSerif, &serif_family),
+        (GenericFamily::FangSong, &serif_family),
+        (GenericFamily::Monospace, &mono_family),
+        (GenericFamily::UiMonospace, &mono_family),
+        (GenericFamily::Cursive, &sans),
+        (GenericFamily::Fantasy, &sans),
+        (GenericFamily::Math, &sans),
+        (GenericFamily::Emoji, &sans),
+    ] {
+        c.set_generic_families(generic, ids.iter().copied());
+    }
 
     let mut base: Vec<FamilyId> = Vec::new();
-    base.extend(sans.iter().copied());
-    base.extend(serif.iter().copied());
-    base.extend(mono.iter().copied());
+    for id in [&sans, &system, &serif, &mono].into_iter().flatten() {
+        if !base.contains(id) {
+            base.push(*id);
+        }
+    }
     BASE_COMMON_IDS.with(|c| {
         c.borrow_mut().clear();
         c.borrow_mut().extend(base.iter().copied());
@@ -1091,51 +1151,67 @@ pub fn mono_advance_per_em() -> f32 {
     MONO_ADVANCE_PER_EM.with(|c| c.get())
 }
 
-/// Register UA fonts before constructing a DomHandle. Sans and italic are
-/// required; serif and mono are optional. Missing required bytes or duplicate
-/// calls return false. Empty mono leaves the generic on its sans fallback.
+/// Register the profile's UA fonts before constructing a DomHandle. Each argument is the face at
+/// the matching `uaFontProfile` path ("" paths take empty bytes). Sans and its italic are
+/// required; an empty optional face leaves its generics on sans. An unknown profile, missing
+/// required bytes or a repeat call returns false.
 #[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
 pub fn register_ua_fonts(
     sans_bytes: Vec<u8>,
     sans_italic_bytes: Vec<u8>,
+    system_bytes: Vec<u8>,
+    system_italic_bytes: Vec<u8>,
     serif_bytes: Vec<u8>,
+    serif_bold_bytes: Vec<u8>,
+    serif_italic_bytes: Vec<u8>,
+    georgia_bytes: Vec<u8>,
+    georgia_italic_bytes: Vec<u8>,
     mono_bytes: Vec<u8>,
+    profile: &str,
 ) -> bool {
-    let _ks_span = tracing::info_span!("wasm.font_register", kind = "ua").entered();
+    let _ks_span = tracing::info_span!("wasm.font_register", kind = "ua", profile).entered();
     if UA_FONTS_REGISTERED.with(|c| c.get()) {
         return false;
     }
+    let Some(profile) = ua_font_profile(profile) else {
+        return false;
+    };
     if sans_bytes.is_empty() || sans_italic_bytes.is_empty() {
         return false;
     }
 
-    let sans_bytes = maybe_strip_for_session(sans_bytes);
-    let sans_italic_bytes = maybe_strip_for_session(sans_italic_bytes);
-    let serif_bytes = maybe_strip_for_session(serif_bytes);
-    let mono_bytes = maybe_strip_for_session(mono_bytes);
+    let strip = maybe_strip_for_session;
+    let faces = UaFontBytes {
+        sans: [strip(sans_bytes), strip(sans_italic_bytes)],
+        system: [strip(system_bytes), strip(system_italic_bytes)],
+        serif: [
+            strip(serif_bytes),
+            strip(serif_bold_bytes),
+            strip(serif_italic_bytes),
+        ],
+        georgia: [strip(georgia_bytes), strip(georgia_italic_bytes)],
+        mono: strip(mono_bytes),
+    };
 
-    note_font_asset(&sans_bytes, "/fonts/NotoSans.ttf");
-    note_font_asset(&sans_italic_bytes, "/fonts/NotoSans-Italic.ttf");
-    if !serif_bytes.is_empty() {
-        note_font_asset(&serif_bytes, "/fonts/NotoSerif.ttf");
-    }
-    if !mono_bytes.is_empty() {
-        note_font_asset(&mono_bytes, "/fonts/NotoSansMono.ttf");
+    // The hash covers the exact bytes the Blob will carry.
+    let face_bytes = faces
+        .sans
+        .iter()
+        .chain(&faces.system)
+        .chain(&faces.serif)
+        .chain(&faces.georgia)
+        .chain(std::iter::once(&faces.mono));
+    for (bytes, path) in face_bytes.zip(profile.paths().into_iter().chain([MONO_PATH])) {
+        if !bytes.is_empty() && !path.is_empty() {
+            note_font_asset(bytes, path);
+        }
     }
 
     SHARED_FONT_CONTEXT.with(|cell| {
         let mut borrow = cell.borrow_mut();
-        if borrow.is_none() {
-            *borrow = Some(make_empty_font_context());
-        }
-        let font_ctx = borrow.as_mut().unwrap();
-        populate_ua_fonts(
-            font_ctx,
-            sans_bytes,
-            sans_italic_bytes,
-            serif_bytes,
-            mono_bytes,
-        );
+        let font_ctx = borrow.get_or_insert_with(make_empty_font_context);
+        populate_ua_fonts(font_ctx, profile, faces);
     });
 
     UA_FONTS_REGISTERED.with(|c| c.set(true));
@@ -1147,10 +1223,16 @@ pub fn make_font_context() -> FontContext {
     let mut font_ctx = make_empty_font_context();
     populate_ua_fonts(
         &mut font_ctx,
-        NOTO_SANS_TEST_BYTES.to_vec(),
-        NOTO_SANS_ITALIC_TEST_BYTES.to_vec(),
-        NOTO_SERIF_TEST_BYTES.to_vec(),
-        NOTO_SANS_MONO_TEST_BYTES.to_vec(),
+        &NOTO_PROFILE,
+        UaFontBytes {
+            sans: [
+                NOTO_SANS_TEST_BYTES.to_vec(),
+                NOTO_SANS_ITALIC_TEST_BYTES.to_vec(),
+            ],
+            serif: [NOTO_SERIF_TEST_BYTES.to_vec(), Vec::new(), Vec::new()],
+            mono: NOTO_SANS_MONO_TEST_BYTES.to_vec(),
+            ..Default::default()
+        },
     );
     add_symbol_fonts(
         &mut font_ctx,
@@ -1635,10 +1717,15 @@ mod tests {
         let mut ctx = make_empty_font_context();
         populate_ua_fonts(
             &mut ctx,
-            strip_outline_tables(&sans_full).expect("strip sans"),
-            strip_outline_tables(&italic_full).expect("strip italic"),
-            Vec::new(),
-            strip_outline_tables(&mono_full).expect("strip mono"),
+            &NOTO_PROFILE,
+            UaFontBytes {
+                sans: [
+                    strip_outline_tables(&sans_full).expect("strip sans"),
+                    strip_outline_tables(&italic_full).expect("strip italic"),
+                ],
+                mono: strip_outline_tables(&mono_full).expect("strip mono"),
+                ..Default::default()
+            },
         );
 
         let sans_id_before = ctx
@@ -1702,7 +1789,14 @@ mod tests {
         let sans_full = read_asset("NotoSans.ttf");
         let stripped = strip_outline_tables(&sans_full).expect("strip");
         let mut ctx = make_empty_font_context();
-        populate_ua_fonts(&mut ctx, stripped.clone(), stripped, Vec::new(), Vec::new());
+        populate_ua_fonts(
+            &mut ctx,
+            &NOTO_PROFILE,
+            UaFontBytes {
+                sans: [stripped.clone(), stripped],
+                ..Default::default()
+            },
+        );
         assert!(!upgrade_recorded_face(
             &mut ctx,
             "/fonts/NotoSans.ttf",
@@ -1837,10 +1931,14 @@ mod tests {
             let mut ctx = make_empty_font_context();
             populate_ua_fonts(
                 &mut ctx,
-                maybe_strip_for_session(sans.clone()),
-                maybe_strip_for_session(sans),
-                Vec::new(),
-                Vec::new(),
+                &NOTO_PROFILE,
+                UaFontBytes {
+                    sans: [
+                        maybe_strip_for_session(sans.clone()),
+                        maybe_strip_for_session(sans),
+                    ],
+                    ..Default::default()
+                },
             );
             assert!(!has_pending_lazy_faces(), "{mode:?} must not record");
             let outlined = family_blobs_have_outlines(&mut ctx, "Noto Sans");
@@ -1850,5 +1948,72 @@ mod tests {
             }
         }
         set_font_mode(FontMode::Full);
+    }
+
+    fn profile_bytes(profile: &UaFontProfile) -> UaFontBytes {
+        let read = |path: &str| {
+            if path.is_empty() {
+                Vec::new()
+            } else {
+                read_asset(path.trim_start_matches("/fonts/"))
+            }
+        };
+        UaFontBytes {
+            sans: profile.sans.map(read),
+            system: profile.system.map(read),
+            serif: profile.serif.map(read),
+            georgia: profile.georgia.map(read),
+            mono: read(MONO_PATH),
+        }
+    }
+
+    #[test]
+    fn profile_table_names_existing_assets() {
+        for profile in UA_FONT_PROFILES {
+            for path in profile.paths().into_iter().filter(|p| !p.is_empty()) {
+                let shaping = path.replace(".ttf", ".shaping.otf");
+                for asset in [path, shaping.as_str()] {
+                    read_asset(asset.trim_start_matches("/fonts/"));
+                }
+            }
+            let json: serde_json::Value =
+                serde_json::from_str(&ua_font_profile_json(profile.name)).expect("json");
+            assert_eq!(json["faces"], serde_json::json!(profile.paths()));
+        }
+        assert_eq!(ua_font_profile_json("Noto"), "");
+        assert!(!register_ua_fonts(
+            read_asset("NotoSans.ttf"),
+            read_asset("NotoSans-Italic.ttf"),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            "nope",
+        ));
+    }
+
+    #[test]
+    fn noto_profile_keeps_noto_sans_behind_every_sans_generic() {
+        let mut ctx = make_empty_font_context();
+        populate_ua_fonts(&mut ctx, &NOTO_PROFILE, profile_bytes(&NOTO_PROFILE));
+        let noto = ctx.collection.family_by_name("Noto Sans").expect("noto");
+        assert_eq!(noto.fonts().len(), 2);
+        let noto = noto.id();
+        for generic in [
+            GenericFamily::SansSerif,
+            GenericFamily::SystemUi,
+            GenericFamily::UiSansSerif,
+            GenericFamily::UiRounded,
+        ] {
+            let ids: Vec<_> = ctx.collection.generic_families(generic).collect();
+            assert_eq!(ids, vec![noto], "{generic:?}");
+        }
+        for name in ["Arial", "Arimo", "Tinos", "Georgia", "-apple-system"] {
+            assert!(ctx.collection.family_by_name(name).is_none(), "{name}");
+        }
     }
 }

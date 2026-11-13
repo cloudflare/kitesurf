@@ -16,9 +16,10 @@ import {
   pendingLazyFontPaths,
   upgradeFontFace,
   finishFontUpgrade,
+  uaFontProfile,
 } from "./wasm-glue.js";
 import { NativePromise } from "./native-scheduling.ts";
-import { startupFontDefer, startupPixelFree } from "./startup-probe.ts";
+import { startupFontDefer, startupFontProfile, startupPixelFree } from "./startup-probe.ts";
 
 let pending: Promise<void> | null = null;
 
@@ -36,11 +37,71 @@ function needsEmoji(text: string): boolean {
 
 const ASSET_HOST = "http://kitesurf-fonts";
 
-const UA_FONT_PATHS = ["/fonts/NotoSans.ttf", "/fonts/NotoSans-Italic.ttf", "/fonts/NotoSerif.ttf"];
+// The profile's UA faces, from core so the fetched files are the assets registration records.
+// `faces` follows register_ua_fonts order: sans pair, system pair, serif trio, Georgia pair.
+interface UaFontProfile {
+  name: string;
+  faces: string[];
+  serifOnDemand: boolean;
+}
+
+const UA_FACE_COUNT = 9;
+const REQUIRED_UA_FACES = 2;
+const SERIF_FACES = { start: 4, end: 7 };
+
+let uaProfile: UaFontProfile | null = null;
+
+function readUaFontProfile(name: string): UaFontProfile | null {
+  const json = uaFontProfile(name);
+  if (!json) return null;
+  const raw: unknown = JSON.parse(json);
+  if (typeof raw !== "object" || raw === null) return null;
+  if (!("faces" in raw && "serifOnDemand" in raw)) return null;
+  const { faces, serifOnDemand } = raw;
+  if (!Array.isArray(faces) || faces.length !== UA_FACE_COUNT) return null;
+  if (!faces.every((face): face is string => typeof face === "string")) return null;
+  return { name, faces, serifOnDemand: serifOnDemand === true };
+}
+
+function activeUaFontProfile(): UaFontProfile {
+  if (uaProfile) return uaProfile;
+  uaProfile = readUaFontProfile(startupFontProfile);
+  if (!uaProfile) {
+    console.warn(`[kitesurf-fonts] unknown font profile ${JSON.stringify(startupFontProfile)}`);
+    uaProfile = readUaFontProfile("noto");
+  }
+  if (!uaProfile) throw new Error("[kitesurf-fonts] core has no noto font profile");
+  return uaProfile;
+}
+
+// The profile's face paths for this page; "" skips a face, and serif may wait for a serif family.
+function uaFacePaths(wantSerif: boolean): string[] {
+  const { faces, serifOnDemand } = activeUaFontProfile();
+  return faces.map((path, i) =>
+    serifOnDemand && !wantSerif && i >= SERIF_FACES.start && i < SERIF_FACES.end ? "" : path,
+  );
+}
 
 const MONO_FONT_PATH = "/fonts/NotoSansMono.ttf";
 
 const EMPTY_FACE = new Uint8Array(0);
+
+function registerUaFaces(faces: Uint8Array[], mono: Uint8Array): void {
+  const face = (i: number): Uint8Array => faces[i] ?? EMPTY_FACE;
+  register_ua_fonts(
+    face(0),
+    face(1),
+    face(2),
+    face(3),
+    face(4),
+    face(5),
+    face(6),
+    face(7),
+    face(8),
+    mono,
+    activeUaFontProfile().name,
+  );
+}
 
 const SYMBOL_FONT_PATHS = ["/fonts/NotoSansSymbols.ttf", "/fonts/NotoSansSymbols2.ttf"];
 
@@ -478,21 +539,24 @@ export async function ensureFontsRegistered(htmlForEmojiScan?: string): Promise<
             console.warn(`[kitesurf-fonts] ${path} fetch failed:`, String(e));
             return EMPTY_FACE;
           });
-        const [sans, sansItalic, serif, mono] = await Promise.all([
-          fetchFaceBytes(UA_FONT_PATHS[0]),
-          fetchFaceBytes(UA_FONT_PATHS[1]),
-          wantSerif ? optional(UA_FONT_PATHS[2]) : EMPTY_FACE,
+        const [core, mono] = await Promise.all([
+          Promise.all(
+            uaFacePaths(wantSerif).map((path, i) => {
+              if (!path) return EMPTY_FACE;
+              return i < REQUIRED_UA_FACES ? fetchFaceBytes(path) : optional(path);
+            }),
+          ),
           wantMono ? optional(MONO_FONT_PATH) : EMPTY_FACE,
         ]);
 
-        register_ua_fonts(sans, sansItalic, serif, mono);
+        registerUaFaces(core, mono);
 
         const completedAt =
           typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
-        const totalBytes =
-          sans.byteLength + sansItalic.byteLength + serif.byteLength + mono.byteLength;
+        const faces = [...core, mono].filter((bytes) => bytes.byteLength > 0);
+        const totalBytes = faces.reduce((sum, bytes) => sum + bytes.byteLength, 0);
         console.log(
-          `[kitesurf-fonts] registered ${wantMono ? 4 : 3} Latin UA fonts (${totalBytes} bytes) in ${(completedAt - startedAt).toFixed(1)}ms`,
+          `[kitesurf-fonts] registered ${faces.length} Latin UA fonts (${activeUaFontProfile().name}, ${totalBytes} bytes) in ${(completedAt - startedAt).toFixed(1)}ms`,
         );
       } catch (e) {
         console.warn("[kitesurf-fonts] registration failed:", String(e));
@@ -526,10 +590,9 @@ let deferDegradedReads = 0;
 let deferFetchSettled: Promise<void> | null = null;
 let deferWants: ReturnType<typeof computeFontWants> | null = null;
 const deferRegistered = new Set<string>();
+let deferCorePaths: string[] = [];
 const deferStash: {
-  sans: Uint8Array | null;
-  sansItalic: Uint8Array | null;
-  serif: Uint8Array | null;
+  core: (Uint8Array | null)[];
   mono: Uint8Array | null;
   symbols: Uint8Array | null;
   symbols2: Uint8Array | null;
@@ -537,9 +600,7 @@ const deferStash: {
   cjk: Uint8Array | null;
   scripts: Map<string, Uint8Array>;
 } = {
-  sans: null,
-  sansItalic: null,
-  serif: null,
+  core: [],
   mono: null,
   symbols: null,
   symbols2: null,
@@ -560,8 +621,10 @@ const deferSettledEmpty = new Set<string>();
 
 function deferCoreBytesReady(): boolean {
   if (!deferWants) return false;
-  if (!deferStash.sans || !deferStash.sansItalic) return false;
-  if (deferWants.serif && !deferStash.serif && !deferSettledEmpty.has("serif")) return false;
+  const coreReady = deferCorePaths.every(
+    (path, i) => !path || deferStash.core[i] || deferSettledEmpty.has(path),
+  );
+  if (!coreReady) return false;
   if (deferWants.mono && !deferStash.mono && !deferSettledEmpty.has("mono")) return false;
   return true;
 }
@@ -570,14 +633,11 @@ function tryRegisterDeferred(): boolean {
   const wants = deferWants;
   if (!wants || deferCoreFailed) return false;
   if (!deferCoreRegistered) {
-    const { sans, sansItalic } = deferStash;
-    if (!sans || !sansItalic || !deferCoreBytesReady()) return false;
+    if (!deferCoreBytesReady()) return false;
     try {
-      register_ua_fonts(
-        sans,
-        sansItalic,
-        deferStash.serif ?? new Uint8Array(0),
-        deferStash.mono ?? new Uint8Array(0),
+      registerUaFaces(
+        deferStash.core.map((bytes) => bytes ?? EMPTY_FACE),
+        deferStash.mono ?? EMPTY_FACE,
       );
       deferCoreRegistered = true;
       console.log("[kitesurf-fonts] deferred: registered Latin UA core on demand");
@@ -637,21 +697,17 @@ export function startFontPrefetch(html?: string): void {
         }),
     );
   };
-  kick(fetchFaceBytes(UA_FONT_PATHS[0]), (bytes) => (deferStash.sans = bytes), "core", "sans");
-  kick(
-    fetchFaceBytes(UA_FONT_PATHS[1]),
-    (bytes) => (deferStash.sansItalic = bytes),
-    "core",
-    "sans-italic",
-  );
-  if (wants.serif) {
+  deferCorePaths = uaFacePaths(wants.serif);
+  deferStash.core = deferCorePaths.map(() => null);
+  deferCorePaths.forEach((path, i) => {
+    if (!path) return;
     kick(
-      fetchFaceBytes(UA_FONT_PATHS[2]),
-      (bytes) => (deferStash.serif = bytes),
-      "optional",
-      "serif",
+      fetchFaceBytes(path),
+      (bytes) => (deferStash.core[i] = bytes),
+      i < REQUIRED_UA_FACES ? "core" : "optional",
+      path,
     );
-  }
+  });
   if (wants.mono) {
     kick(fetchFaceBytes(MONO_FONT_PATH), (bytes) => (deferStash.mono = bytes), "optional", "mono");
   }
