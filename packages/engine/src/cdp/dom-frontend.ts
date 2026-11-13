@@ -88,9 +88,10 @@ export class DomFrontendNodes {
   }
 
   noteInserted(parentId: number, node: Protocol.DOM.Node): void {
-    // A move from another parent is preceded by its removal; a same-parent reorder is not, and the
-    // client keeps the node's subtree, so only the former needs the old bindings cleared.
-    if (this.#parentOf.get(node.nodeId) !== parentId) this.unbind(node.nodeId);
+    // A same-parent reorder sends no removal, and the client rebuilds the node from the event,
+    // so its previous subtree bindings no longer describe what the client holds. Unbind the
+    // subtree first, then bind what this event actually sent (depth 0).
+    this.unbind(node.nodeId);
     this.bindTree(node, parentId);
     this.#children.get(parentId)?.add(node.nodeId);
   }

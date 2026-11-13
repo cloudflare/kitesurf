@@ -473,9 +473,9 @@ describe("accessibilityTreeResponse", () => {
           : { byteLength: encoded.byteLength + 1, json: streamOf([encoded]) },
       );
     }, "Accessibility.getFullAXTree");
-    expect(result).toBeInstanceOf(RawJsonResult);
-    if (!(result instanceof RawJsonResult)) throw new Error("expected raw JSON result");
-    expect(result.pieces.join("")).toBe(text);
+    if ("budgetError" in result) throw new Error("expected a tree reply");
+    expect(result.result).toBeInstanceOf(RawJsonResult);
+    expect(result.result.pieces.join("")).toBe(text);
     expect(modes).toEqual([false, true]);
   });
 

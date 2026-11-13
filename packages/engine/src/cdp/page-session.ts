@@ -17,7 +17,12 @@ export type {
   QueryDomMethods,
   QueryDomResult,
 } from "@kitesurf/jsrpc-types/query-dom";
-import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
+import type {
+  QueryDomArgs,
+  QueryDomMethod,
+  QueryDomResult,
+  ReadStamp,
+} from "@kitesurf/jsrpc-types/query-dom";
 
 export type QueryDomCarrier = Pick<PageScriptSession, "queryDom">;
 
@@ -123,6 +128,10 @@ async function readEscapedStream(
 
 type AccessibilityTreeRequest = (buffered: boolean) => Promise<QueryDomResult<"accessibilityTree">>;
 
+export type AccessibilityTreeReply =
+  | { budgetError: { nodes: number; bytes: number; budget: number } }
+  | { result: RawJsonResult; readStamp?: ReadStamp };
+
 type AccessibilityTreeRead =
   | { complete: true; pieces: string[]; filled: number; byteLength: number }
   | { complete: false; pieces: string[]; filled: number; byteLength: number };
@@ -130,16 +139,18 @@ type AccessibilityTreeRead =
 export async function accessibilityTreeResponse(
   request: AccessibilityTreeRequest,
   method: string,
-): Promise<{ budgetError: { nodes: number; bytes: number; budget: number } } | RawJsonResult> {
+): Promise<AccessibilityTreeReply> {
   const live = await request(false);
   if ("budgetError" in live) return live;
   const first = await readAccessibilityTree(live);
-  if (first.complete) return new RawJsonResult(first.pieces);
+  if (first.complete) return { result: new RawJsonResult(first.pieces), readStamp: live.readStamp };
 
   const buffered = await request(true);
   if ("budgetError" in buffered) return buffered;
   const retry = await readAccessibilityTree(buffered);
-  if (retry.complete) return new RawJsonResult(retry.pieces);
+  if (retry.complete) {
+    return { result: new RawJsonResult(retry.pieces), readStamp: buffered.readStamp };
+  }
   throw new Error(
     `${method}: PageScript stream ended after ${retry.filled} of ${retry.byteLength} bytes`,
   );

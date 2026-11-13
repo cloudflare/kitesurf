@@ -6538,6 +6538,10 @@ async function queryDomAccessibilityTree(
   // type-level claim; re-read it and capture the handle for the stream's pulls.
   const dom = pageState.dom as QueryDomActiveState["dom"] | null;
   if (!dom) throw new Error("PageScript: no document loaded");
+  // A stamped read cannot stream: the mutation sequence must bracket the whole
+  // build, and a stream builds lazily as the caller pulls.
+  const includeStamp = queryArgs.includeReadStamp === true;
+  const before = getInternalState().mutationSeq | 0;
   const visibility = accessibilityVisibility(dom);
   const formState = queryDomFormState(pageState, "formStateSnapshot", {});
   const values =
@@ -6551,7 +6555,12 @@ async function queryDomAccessibilityTree(
       : undefined;
   const serializedFormState = values === undefined ? formState : { ...formState, values };
   const start = dom.accessibilityStream(
-    JSON.stringify({ ...queryArgs, visibility, ...serializedFormState }),
+    JSON.stringify({
+      ...queryArgs,
+      ...(includeStamp ? { buffered: true } : {}),
+      visibility,
+      ...serializedFormState,
+    }),
   );
   try {
     const budgetJson = start.budgetError();
@@ -6583,6 +6592,15 @@ async function queryDomAccessibilityTree(
       return {
         byteLength: bytes.byteLength,
         json: byteStream(bytes, () => bytes.nextChunk(OUTER_HTML_CHUNK_BYTES)),
+        ...(includeStamp
+          ? {
+              readStamp: {
+                before,
+                after: getInternalState().mutationSeq | 0,
+                complete: true,
+              },
+            }
+          : {}),
       } satisfies QueryDomResult<"accessibilityTree">;
     }
     throw new Error("accessibility stream returned no result");

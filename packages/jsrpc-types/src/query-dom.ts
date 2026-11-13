@@ -281,10 +281,11 @@ export interface QueryDomMethods {
       title: string;
       url: string;
       buffered?: boolean;
+      includeReadStamp?: boolean;
     };
     result:
       | { budgetError: { nodes: number; bytes: number; budget: number } }
-      | { byteLength: number; json: ReadableStream<Uint8Array> };
+      | { byteLength: number; json: ReadableStream<Uint8Array>; readStamp?: ReadStamp };
   };
   formStateSnapshot: {
     args: ReadStampArgs;

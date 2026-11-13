@@ -113,3 +113,61 @@ test("DOM.querySelector sends the path to the node it returns", async ({ page })
     await session.detach();
   }
 });
+
+// A moved node is re-sent at depth 0, so the client rebuilds it without children. The old
+// bindings must go, or a later query for a descendant returns an id the client cannot place.
+const MOVE_HTML =
+  "<div id=outer><section><p id=deep>deep</p><p>other</p></section><p id=sib>sib</p></div>";
+
+async function movedNodeReSendsItsSubtree(
+  page: Parameters<typeof setContent>[0],
+  session: CDPSession,
+  move: string,
+): Promise<void> {
+  await setContent(page, MOVE_HTML);
+  await session.send("DOM.enable");
+  const { root } = (await session.send("DOM.getDocument", { depth: -1 })) as { root: CdpNode };
+  const inserted = record(session, "DOM.childNodeInserted");
+  const setChildNodes = record(session, "DOM.setChildNodes") as Array<{
+    parentId: number;
+    nodes: CdpNode[];
+  }>;
+
+  await page.evaluate(move);
+  await expect.poll(() => inserted.length).toBe(1);
+  setChildNodes.length = 0;
+
+  const { nodeId } = (await session.send("DOM.querySelector", {
+    nodeId: root.nodeId,
+    selector: "#deep",
+  })) as { nodeId: number };
+  expect(nodeId).toBeGreaterThan(0);
+  const pushed = setChildNodes.flatMap((event) => event.nodes);
+  expect(pushed.some((node) => node.nodeId === nodeId)).toBe(true);
+}
+
+test("moving a node to another parent re-sends its descendants", async ({ page }) => {
+  const session = await page.createCDPSession();
+  try {
+    await movedNodeReSendsItsSubtree(
+      page,
+      session,
+      'document.body.append(document.querySelector("section"))',
+    );
+  } finally {
+    await session.detach();
+  }
+});
+
+test("reordering a node inside its own parent re-sends its descendants", async ({ page }) => {
+  const session = await page.createCDPSession();
+  try {
+    await movedNodeReSendsItsSubtree(
+      page,
+      session,
+      'document.getElementById("outer").appendChild(document.querySelector("section"))',
+    );
+  } finally {
+    await session.detach();
+  }
+});

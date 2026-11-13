@@ -51,13 +51,14 @@ it("keeps a shadow tree when the host's light children are replaced", () => {
   expect(nodes.isBound(3)).toBe(true);
 });
 
-it("keeps a same-parent reorder's subtree bound", () => {
+it("drops a reordered node's stale subtree bindings", () => {
   const nodes = new DomFrontendNodes();
   nodes.bindChildren(1, [element(2, "DIV", { children: [element(3, "SPAN")] })]);
-  // A same-parent reorder sends no childNodeRemoved, and the client keeps the subtree.
+  // A same-parent reorder sends only childNodeInserted, and the node arrives at depth 0, so the
+  // client rebuilds it without children and the old bindings must go.
   nodes.noteInserted(1, element(2, "DIV"));
   expect(nodes.isBound(2)).toBe(true);
-  expect(nodes.isBound(3)).toBe(true);
+  expect(nodes.isBound(3)).toBe(false);
 });
 
 it("keeps a pushed shadow tree and drops replaced light children", () => {

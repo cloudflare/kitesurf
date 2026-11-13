@@ -11,6 +11,7 @@ import type { DispatchCtx } from "./dispatch.ts";
 import {
   accessibilityTreeResponse,
   sessionOf,
+  type AccessibilityTreeReply,
   type SessionOps,
   type SessionSoftOps,
 } from "./page-session.ts";
@@ -105,15 +106,20 @@ async function accessibilityResult(
   method: QueryDomArgs<"accessibilityTree">["method"],
 ): Promise<RawJsonResult> {
   const args = accessibilityArgs(target, req, method);
-  const result = ps
+  const reply = ps
     ? await accessibilityTreeResponse(
         (buffered) => ps.call.accessibilityTree({ ...args, buffered }),
         req.method,
       )
-    : accessibilityTreeFallback(target, args, req.method);
-  if (!(result instanceof RawJsonResult))
-    throw accessibilityBudgetError(req.method, result.budgetError);
-  return result;
+    : fallbackReply(accessibilityTreeFallback(target, args, req.method));
+  if ("budgetError" in reply) throw accessibilityBudgetError(req.method, reply.budgetError);
+  return reply.result;
+}
+
+function fallbackReply(
+  fallback: { budgetError: { nodes: number; bytes: number; budget: number } } | RawJsonResult,
+): AccessibilityTreeReply {
+  return fallback instanceof RawJsonResult ? { result: fallback } : fallback;
 }
 
 function accessibilityArgs(
@@ -302,6 +308,7 @@ export interface AccessibilityReadState {
     document?: ReadStamp;
     visibility?: ReadStamp;
     forms?: ReadStamp;
+    accessibility?: ReadStamp;
   };
   forms: {
     values: Map<number, string>;
@@ -366,22 +373,28 @@ export async function buildTree(
   assertDomReplyGraph(root);
 
   const args = fullAccessibilityArgs(target);
+  // A stamped read builds the whole tree in one call, so the mutation sequence
+  // it reports covers every node it returns.
+  const stampArgs = options.includeReadState ? { includeReadStamp: true } : {};
   let result: { budgetError: { nodes: number; bytes: number; budget: number } } | RawJsonResult;
   if (ps) {
     let request: (buffered: boolean) => Promise<QueryDomResult<"accessibilityTree">>;
     if (ps.call) {
       const call = ps.call;
-      request = (buffered) => call.accessibilityTree({ ...args, buffered });
+      request = (buffered) => call.accessibilityTree({ ...args, ...stampArgs, buffered });
     } else if (target.pageScript) {
       const pageScript = target.pageScript;
-      request = (buffered) => pageScript.queryDom("accessibilityTree", { ...args, buffered });
+      request = (buffered) =>
+        pageScript.queryDom("accessibilityTree", { ...args, ...stampArgs, buffered });
     } else {
       throw new Error("buildTree: PageScript isolate is unavailable");
     }
     const read = () => accessibilityTreeResponse(request, "Accessibility.getFullAXTree");
-    result = options.measureRead
+    const reply = options.measureRead
       ? await options.measureRead("axtree.accessibility", read)
       : await read();
+    if (!("budgetError" in reply)) stamps.accessibility = reply.readStamp;
+    result = "budgetError" in reply ? reply : reply.result;
   } else {
     if (!fallbackDom) return null;
     result = accessibilityTreeFallback(target, args, "Accessibility.getFullAXTree");
