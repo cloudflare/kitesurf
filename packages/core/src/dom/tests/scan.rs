@@ -34,13 +34,14 @@ fn scan_in_chunks(html: &str, chunk_bytes: usize) -> Value {
 
 #[test]
 fn scan_is_the_same_whatever_the_input_chunking() {
-    let html = "<!DOCTYPE html>\r\n<html><head><title>T\u{e9}st &amp;\r\n caf\u{e9} \u{1f600}</title>\
+    let html = "<!DOCTYPE html>\r\n<html><head><title>Tést &amp;\r\n café 😀</title>\
         <base href=\"/b/\"><meta http-equiv=\"Content-Security-Policy\" content=\"script-src 'self'\">\
-        <script type=\"importmap\">{\"imports\":{\"a\":\"./\u{e9}.js\"}}</script></head><body>\
-        <!-- c --><script src=\"x.js\" nonce=\"n\"></script><script>let s = '</scr' + 'ipt>\u{e9}';\0\
+        <script type=\"importmap\">{\"imports\":{\"a\":\"./é.js\"}}</script></head><body>\
+        <!-- c --><script src=\"x.js\" nonce=\"n\"></script><script>let s = '</scr' + 'ipt>é';\0\
         </script><svg><script>1</script></svg><textarea><script>no</script></textarea>\
         <iframe src=\"f.html\" srcdoc=\"&lt;p&gt;\"></iframe><p>&notin;&#x1F600;&#128512;</p></body></html>";
     let whole = scan_in_chunks(html, html.len());
+
     assert_eq!(
         whole,
         scan_value(html),
@@ -50,6 +51,7 @@ fn scan_is_the_same_whatever_the_input_chunking() {
         whole["scripts"].as_array().is_some_and(|s| s.len() >= 2),
         "{whole}"
     );
+
     for chunk_bytes in [1, 2, 3, 5, 7, 64] {
         assert_eq!(
             scan_in_chunks(html, chunk_bytes),
@@ -63,14 +65,16 @@ fn scan_is_the_same_whatever_the_input_chunking() {
 // holds the input back, since XHTML closes `<script/>` where HTML would read on as script text.
 #[test]
 fn xhtml_scan_is_the_same_whatever_the_input_chunking() {
-    let html = "<!-- lead \u{e9} -->\n<html xmlns=\"http://www.w3.org/1999/xhtml\"><head>\
+    let html = "<!-- lead é -->\n<html xmlns=\"http://www.w3.org/1999/xhtml\"><head>\
         <title>X</title><script src=\"a.js\"/><script src=\"b.js\"></script></head><body/></html>";
     let whole = scan_value(html);
+
     assert_eq!(
         whole["scripts"].as_array().map(Vec::len),
         Some(2),
         "{whole}"
     );
+
     for chunk_bytes in [1, 2, 3, 5, 7, 64, html.len()] {
         assert_eq!(
             scan_in_chunks(html, chunk_bytes),
