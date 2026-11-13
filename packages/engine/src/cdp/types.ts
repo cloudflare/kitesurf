@@ -312,6 +312,9 @@ export interface TargetState {
   pageSession?: PageSession;
   pageScriptLease: WorkerLease | null;
   navigateGeneration: number;
+  // Elements whose aria-hidden was dropped because they held focus, for the document of
+  // `generation`: Chrome keeps such an element exposed after focus has moved on.
+  axDiscardedAriaHidden?: { generation: number; ids: Set<number> };
   wheelTeardownDepth: number;
   // A navigation an input started and replied before; the next input waits for it, so it never
   // lands in the document being retired.
