@@ -20,7 +20,7 @@ const HTML = `<!doctype html>
   #bordered { width: 200px }
   #bordered td { height: 20px }
 </style>
-<table>
+<table id="list">
   <tr id="row">
     <td id="c0" width="4px"></td>
     <td id="c1" class="a"><i id="checkbox"></i></td>
@@ -53,9 +53,12 @@ test("fixed-layout columns floor border-box cells at their padding and border", 
       if (!element) throw new Error(`missing test element: ${id}`);
       return element.getBoundingClientRect();
     };
+    // Edges are compared to a hundredth of a pixel: whole pixels would hide an overlap of
+    // under half a pixel between two cells.
+    const fine = (value: number): number => Math.round(value * 100) / 100;
     const span = (id: string): [number, number] => {
       const { x, width } = box(id);
-      return [Math.round(x), Math.round(width)];
+      return [fine(x), fine(width)];
     };
     const row = ["c0", "c1", "c2", "c3", "c4", "c5"].map(span);
     const ends = row.map(([x, width]) => x + width);
@@ -64,7 +67,10 @@ test("fixed-layout columns floor border-box cells at their padding and border", 
     return {
       layout: {
         narrow: row.slice(0, 3),
-        gaps: row.slice(1).map(([x], i) => x - (ends[i] ?? Number.NaN)),
+        gaps: row.slice(1).map(([x], i) => fine(x - (ends[i] ?? Number.NaN))),
+        // The width the floored columns gained comes out of the percentage columns, so the
+        // row ends at the table's edge and not past it.
+        overflow: fine((ends[5] ?? Number.NaN) - box("list").right),
         bordered: [span("b0"), span("b1")],
         hit: document.elementFromPoint(centre.x, centre.y)?.id,
       },
@@ -79,6 +85,7 @@ test("fixed-layout columns floor border-box cells at their padding and border", 
       [35, 32],
     ],
     gaps: [0, 0, 0, 0, 0],
+    overflow: 0,
     bordered: [
       [8, 18],
       [26, 182],
