@@ -154,6 +154,19 @@ describe("walkRedirects", () => {
     expect(seen[1]?.headers["referer"]).toBe("https://a.test/");
   });
 
+  test("Sec-Fetch-Site none survives a cross-origin hop", async () => {
+    const { seen, fetchHop } = stubHops({
+      "http://a.test/1": { to: "https://www.a.test/2" },
+    });
+    await walkRedirects({
+      url: "http://a.test/1",
+      headers: { "sec-fetch-site": "none", "sec-fetch-user": "?1" },
+      fetchHop,
+    });
+    expect(seen[1]?.headers["sec-fetch-site"]).toBe("none");
+    expect(seen[1]?.headers["sec-fetch-user"]).toBe("?1");
+  });
+
   test("a 303 rewrites POST to GET and strips the entity headers", async () => {
     const seen: Request[] = [];
     const walk = await walkRedirects({

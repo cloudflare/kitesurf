@@ -17,6 +17,38 @@ function forward(url: string, extraHeaders: Record<string, string>, pageOrigin =
   });
 }
 
+describe("Fetch Metadata", () => {
+  const NAVIGATION = {
+    "sec-fetch-dest": "document",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-site": "none",
+    "sec-fetch-user": "?1",
+    "upgrade-insecure-requests": "1",
+  };
+  const forwardDocument = (url: string) =>
+    buildForwardRequest({
+      original: new Request(url, { headers: NAVIGATION }),
+      resourceType: "Document",
+      pageOrigin: new URL(url).origin,
+      extraHeaders: {},
+    });
+
+  it("reaches a URL over TLS", () => {
+    const req = forwardDocument("https://shop.example/");
+    for (const [name, value] of Object.entries(NAVIGATION)) {
+      expect(req.headers.get(name), name).toBe(value);
+    }
+  });
+
+  it("is withheld from a plain-http URL, which keeps Upgrade-Insecure-Requests", () => {
+    const req = forwardDocument("http://shop.example/");
+    for (const name of Object.keys(NAVIGATION)) {
+      const kept = name === "upgrade-insecure-requests" ? "1" : null;
+      expect(req.headers.get(name), name).toBe(kept);
+    }
+  });
+});
+
 describe("Authorization same-origin gate", () => {
   it("sends Authorization on same-origin requests", () => {
     const req = forward(`${PAGE_ORIGIN}/api/data`, { Authorization: AUTH });

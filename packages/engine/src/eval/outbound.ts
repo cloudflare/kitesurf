@@ -48,6 +48,7 @@ import {
 } from "@kitesurf/script-gate/gateway-headers";
 import { determineReferrer, parseReferrerPolicy } from "@kitesurf/script-gate/referrer-policy";
 import { hasNosniff, mimeEssence } from "@kitesurf/script-gate/mime";
+import { takesFetchMetadata } from "../fetch-metadata.ts";
 import { isForbiddenRequestHeader } from "./forbidden-headers.ts";
 import { privateNetworkRefusal } from "./private-network.ts";
 
@@ -1524,6 +1525,13 @@ interface BuildForwardRequestOptions {
   suppressOpaqueDefaultOrigin?: boolean;
 }
 
+const FETCH_METADATA_HEADERS = [
+  "sec-fetch-dest",
+  "sec-fetch-mode",
+  "sec-fetch-site",
+  "sec-fetch-user",
+];
+
 export function buildForwardRequest({
   original,
   resourceType,
@@ -1542,6 +1550,11 @@ export function buildForwardRequest({
     if (lower.startsWith("x-kitesurf-")) continue;
     if (pageRealm && isForbiddenRequestHeader(lower, v)) continue;
     headers.set(k, v);
+  }
+  // Fetch Metadata is for potentially trustworthy URLs only, and a caller sets it once for a
+  // whole redirect chain, so a plain-http hop of that chain goes out without it.
+  if (!takesFetchMetadata(original.url)) {
+    for (const name of FETCH_METADATA_HEADERS) headers.delete(name);
   }
   if (!headers.has("user-agent")) headers.set("user-agent", BROWSER_UA);
   if (!headers.has("accept")) headers.set("accept", defaultAcceptFor(resourceType));

@@ -131,6 +131,7 @@ import { emitSessionStart } from "../observability.ts";
 import type { CallerOutboundProps, SandboxOutboundOverride } from "../eval/outbound.ts";
 import { getOutboundInflight } from "../eval/outbound.ts";
 import { walkRedirects } from "../eval/redirect-walk.ts";
+import { navigationFetchMetadata } from "../fetch-metadata.ts";
 import { schemefulSite } from "../public-suffix.ts";
 import { determineReferrer, parseReferrerPolicy } from "@kitesurf/script-gate/referrer-policy";
 import { PageRendererManager, withTimeout } from "../eval/page-renderer.ts";
@@ -809,6 +810,9 @@ export async function handlePage(
         );
         if (cookieHeader) reqHeaders.cookie = cookieHeader;
 
+        const startedBy =
+          ksParams?._kitesurfInternal === true ? ksParams._kitesurfStartedBy : undefined;
+        Object.assign(reqHeaders, navigationFetchMetadata(startedBy, ksInitiatorOrigin, url));
         const navReferrer: unknown = req.params?.referrer;
         if (typeof navReferrer === "string" && navReferrer) {
           reqHeaders.referer = navReferrer;
@@ -4455,6 +4459,7 @@ function handleUpstreamFrameEvent(
           url,
           _kitesurfInternal: true,
           _kitesurfInitiatorOrigin: initiatorOriginOf(isolateUrl) ?? "null",
+          _kitesurfStartedBy: "script",
         };
         if (postData !== null && postContentType !== null) {
           navParams._kitesurfPostData = postData;
@@ -4536,6 +4541,7 @@ function handleUpstreamFrameEvent(
               url,
               _kitesurfInternal: true,
               _kitesurfInitiatorOrigin: initiatorOriginOf(isolateUrl) ?? "null",
+              _kitesurfStartedBy: "script",
             },
             sessionId: targetSessionsNetwork(target, sessionId)[0],
           });

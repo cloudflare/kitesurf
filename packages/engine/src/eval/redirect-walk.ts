@@ -159,7 +159,12 @@ export async function walkRedirects(opts: RedirectWalkOptions): Promise<Redirect
       deleteHeader(headers, "authorization");
       // Do not reuse the entry URL's caller Cookie as fallback after this origin change.
       callerCookie = undefined;
-      if (hasHeader(headers, "sec-fetch-site")) {
+      // A navigation nobody in a page started stays "none" through its redirects: there is no
+      // initiator for a later hop to be cross-site from.
+      if (
+        hasHeader(headers, "sec-fetch-site") &&
+        firstHeader(headers, "sec-fetch-site") !== "none"
+      ) {
         deleteHeader(headers, "sec-fetch-site");
         headers["sec-fetch-site"] = "cross-site";
       }

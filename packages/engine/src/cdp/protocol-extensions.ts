@@ -45,6 +45,8 @@ declare module "devtools-protocol" {
         _kitesurfInitiatorOrigin?: string;
         /** A followed link's own referrer policy, which overrides its document's. */
         _kitesurfReferrerPolicy?: string;
+        /** What in the page started the navigation; absent when the client did. */
+        _kitesurfStartedBy?: "input" | "script";
       }
       interface StartScreencastRequest {
         minFrameIntervalMs?: integer;
