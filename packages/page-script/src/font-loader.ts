@@ -186,6 +186,12 @@ const SCRIPT_FONTS: ScriptFont[] = [
     range: /[\u10A0-\u10FF\u2D00-\u2D2F\u1C90-\u1CBF]/,
   },
   { tag: "Armn", path: "/fonts/NotoSansArmenian.ttf", range: /[\u0530-\u058F\uFB13-\uFB17]/ },
+  // Noto Sans KR cut to the Hangul blocks; the CJK face has no Hangul syllables.
+  {
+    tag: "Hang",
+    path: "/fonts/NotoSansKR.ttf",
+    range: /[\u1100-\u11FF\u3130-\u318F\uA960-\uA97F\uAC00-\uD7FF\uFFA0-\uFFDC]/,
+  },
 ];
 
 const ANY_SCRIPT_RANGE = new RegExp(

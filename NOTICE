@@ -55,6 +55,12 @@ Fonts
     including Adobe's Reserved Font Name notice, is in
     licenses/OFL-1.1-Noto-SC.txt; upstream license source:
     https://github.com/google/fonts/blob/main/ofl/notosanssc/OFL.txt
+  - Noto Sans KR (packages/engine/public/fonts/NotoSansKR.ttf and
+    NotoSansKR.shaping.otf)
+    Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name
+    'Source'. Noto Sans KR from https://github.com/google/fonts (ofl/notosanskr),
+    subset to the Hangul blocks and instanced to wght 400-900.
+    SIL Open Font License 1.1, see packages/engine/public/fonts/NotoSansKR-OFL.txt
   - Inter (packages/engine/public/fonts/inter-latin-variable.woff2,
     InterVariable.ttf and InterVariable-Italic.ttf)
     Copyright (c) 2016 The Inter Project Authors

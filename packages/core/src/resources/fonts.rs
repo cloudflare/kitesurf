@@ -668,8 +668,8 @@ pub fn register_emoji_font(bytes: &[u8]) -> bool {
     true
 }
 
-/// Register Noto Sans CJK SC for Han, Hiragana, Katakana, and Hangul fallbacks.
-/// Regional aliases, including Simplified Chinese variants, share one blob.
+/// Register Noto Sans CJK SC for Han, Hiragana and Katakana fallbacks. It has no Hangul
+/// syllables, which come from the `Hang` script face; Korean text still needs it for Hanja.
 /// Add it after emoji in Common for ideographic spaces and fullwidth punctuation.
 /// Returns true only on the first registration.
 #[wasm_bindgen]
@@ -789,6 +789,8 @@ const SCRIPT_FONT_ASSETS: &[(&str, &str)] = &[
     ("Laoo", "/fonts/NotoSansLao.ttf"),
     ("Geor", "/fonts/NotoSansGeorgian.ttf"),
     ("Armn", "/fonts/NotoSansArmenian.ttf"),
+    // The CJK asset is the Noto Sans SC subset, which has no Hangul syllables.
+    ("Hang", "/fonts/NotoSansKR.ttf"),
 ];
 
 /// Register a fetched Noto face in its script fallback chain. Idempotent per tag.
@@ -1659,6 +1661,7 @@ mod tests {
         "NotoSansLao",
         "NotoSansGeorgian",
         "NotoSansArmenian",
+        "NotoSansKR",
     ];
 
     #[test]
