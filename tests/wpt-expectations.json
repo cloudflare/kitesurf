@@ -11209,7 +11209,7 @@
     "reason": null
   },
   "/dom/nodes/getElementsByClassName-30.htm": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/dom/nodes/getElementsByClassName-31.htm": {

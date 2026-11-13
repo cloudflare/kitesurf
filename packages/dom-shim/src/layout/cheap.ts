@@ -166,7 +166,9 @@ function cheapLayoutOne(id: number, x: number, y: number, w: number): number {
     return 0;
   }
 
-  if (info.display === "none") {
+  // The page parses with scripting on, so a noscript holds its fallback as raw text that the
+  // full layout's UA rule hides; laying that text out here would give it a box.
+  if (info.display === "none" || info.tag === "noscript") {
     cheapRects.set(id, { x, y, w: 0, h: 0 });
     return 0;
   }

@@ -10098,6 +10098,7 @@
   "/html/semantics/permission-element/usermedia/idlharness.window.html",
   "/html/semantics/permission-element/usermedia/invalid-css-properties.html",
   "/html/semantics/popovers/popovertarget-reflection.html",
+  "/html/semantics/scripting-1/the-noscript-element/non-html-noscript.html",
   "/html/semantics/scripting-1/the-script-element/import-attributes/dynamic-import-with-attributes-argument.any.html",
   "/html/semantics/scripting-1/the-script-element/import-attributes/empty-attributes-clause.html",
   "/html/semantics/scripting-1/the-script-element/import-attributes/invalid-import-errors-order.html",
