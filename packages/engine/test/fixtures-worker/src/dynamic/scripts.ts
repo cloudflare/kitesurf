@@ -162,6 +162,21 @@ scripts.all("/inserted-probe-headers/:key{[\\w-]+}", (c) =>
   }),
 );
 
+// An inserted classic script one directory below its page, so a stack frame or a relative
+// import() shows whether boa named the script by its own URL.
+scripts.all("/boa-stack/inserted.js", (c) =>
+  c.body(
+    "window.__ksStackAtLoad = new Error('load').stack;\n" +
+      "window.__ksStackLater = function () { return new Error('later').stack; };\n" +
+      "window.__ksImportDep = function () { return import('./dep.js'); };\n",
+    200,
+    { "content-type": JS },
+  ),
+);
+scripts.all("/boa-stack/dep.js", (c) =>
+  c.body("export const where = 'beside the script';\n", 200, { "content-type": JS }),
+);
+
 scripts.all("/:file{concimport-chunk-\\d+\\.js}", (c) => {
   const chunk = c.req.param("file").replace(/\D/g, "");
   return c.body(

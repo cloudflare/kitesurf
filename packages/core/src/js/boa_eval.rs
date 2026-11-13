@@ -709,11 +709,27 @@ fn ensure_persistent() -> bool {
 
 #[wasm_bindgen]
 pub fn ks_eval_page(src: &str) -> Result<JsValue, JsValue> {
+    eval_page(src, None)
+}
+
+// The path names the script's frames in boa stack traces, and it is the base URL its dynamic
+// import() resolves against, as for an external classic script.
+#[wasm_bindgen]
+pub fn ks_eval_page_at(src: &str, url: &str) -> Result<JsValue, JsValue> {
+    eval_page(src, Some(url))
+}
+
+fn eval_page(src: &str, url: Option<&str>) -> Result<JsValue, JsValue> {
+    let source = Source::from_bytes(src.as_bytes());
+    let source = match url {
+        Some(url) => source.with_path(std::path::Path::new(url)),
+        None => source,
+    };
     arm_v8_ran();
     if !ensure_persistent() {
         return Err(JsValue::from_str("kitesurf boa: context init failed"));
     }
-    with_context(|ctx| match ctx.eval(Source::from_bytes(src.as_bytes())) {
+    with_context(|ctx| match ctx.eval(source) {
         Ok(v) => {
             let _ = ctx.run_jobs();
             let out = crate::js::boa_bridge::boa_to_v8(&v, ctx);

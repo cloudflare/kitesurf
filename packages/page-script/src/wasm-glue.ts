@@ -24,6 +24,7 @@ export declare function ks_call_cdp(
 ): Promise<unknown>;
 
 export declare function ks_eval_page(src: string): unknown;
+export declare function ks_eval_page_at(src: string, url: string): unknown;
 export declare function ks_run_page_jobs(): void;
 
 export declare function font_families_json(): string;
