@@ -40,6 +40,8 @@ const UA_FONT_PATHS = ["/fonts/NotoSans.ttf", "/fonts/NotoSans-Italic.ttf", "/fo
 
 const MONO_FONT_PATH = "/fonts/NotoSansMono.ttf";
 
+const EMPTY_FACE = new Uint8Array(0);
+
 const SYMBOL_FONT_PATHS = ["/fonts/NotoSansSymbols.ttf", "/fonts/NotoSansSymbols2.ttf"];
 
 const EMOJI_FONT_PATH = "/fonts/noto-color-emoji.woff2";
@@ -470,15 +472,18 @@ export async function ensureFontsRegistered(htmlForEmojiScan?: string): Promise<
       const startedAt =
         typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
       try {
-        const coreFetches = [fetchFaceBytes(UA_FONT_PATHS[0]), fetchFaceBytes(UA_FONT_PATHS[1])];
-        if (wantSerif) coreFetches.push(fetchFaceBytes(UA_FONT_PATHS[2]));
-        if (wantMono) coreFetches.push(fetchFaceBytes(MONO_FONT_PATH));
-        const faces = await Promise.all(coreFetches);
-        const sans = faces[0];
-        const sansItalic = faces[1];
-        let faceIndex = 2;
-        const serif = wantSerif ? faces[faceIndex++] : new Uint8Array(0);
-        const mono = wantMono ? faces[faceIndex++] : new Uint8Array(0);
+        // Only the sans pair is required; any other face settles empty and its generics use sans.
+        const optional = (path: string): Promise<Uint8Array> =>
+          fetchFaceBytes(path).catch((e) => {
+            console.warn(`[kitesurf-fonts] ${path} fetch failed:`, String(e));
+            return EMPTY_FACE;
+          });
+        const [sans, sansItalic, serif, mono] = await Promise.all([
+          fetchFaceBytes(UA_FONT_PATHS[0]),
+          fetchFaceBytes(UA_FONT_PATHS[1]),
+          wantSerif ? optional(UA_FONT_PATHS[2]) : EMPTY_FACE,
+          wantMono ? optional(MONO_FONT_PATH) : EMPTY_FACE,
+        ]);
 
         register_ua_fonts(sans, sansItalic, serif, mono);
 
