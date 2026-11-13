@@ -7,6 +7,7 @@
 
 use std::panic;
 
+use blitz_dom::node::TextBrush;
 use blitz_dom::{local_name, ns, util::Point, BaseDocument, Node, NodeData};
 use blitz_html::HtmlDocument;
 use blitz_traits::NodeId;
@@ -482,37 +483,48 @@ struct OffsetMetrics {
     left: f64,
 }
 
-/// Per-line viewport bounds of an inline node, from the inline fragments and
-/// the glyph runs and inline boxes each line holds. `DOM.getContentQuads`
-/// returns one quad per line, so Puppeteer's click point lands inside the
-/// first fragment of a link that wraps.
-fn inline_line_rects_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Vec<Rect>> {
-    let base: &BaseDocument = doc.as_ref();
-    let node = base.get_node(node_id)?;
-    let inline_root = node.inline_root_ancestor()?;
-    let elem = inline_root.element_data()?;
-    let inline = elem.inline_layout_data()?;
-    let layout = inline.layout(node.tree());
+/// One line's contribution to an inline node's bounds: `(line index, (x0, y0, x1, y1))`.
+type LineBounds = (usize, (f32, f32, f32, f32));
 
-    let lines: Vec<parley::layout::Line<'_, _>> = layout.lines().collect();
+/// Where an inline root's layout coordinates start in the viewport, and how they reach it.
+struct InlineOrigin {
+    /// The root's content-box origin, in viewport coordinates.
+    x: f32,
+    y: f32,
+    content_x: f32,
+    content_y: f32,
+    scroll_x: f32,
+    scroll_y: f32,
+    /// The composed ancestor transform, with the viewport scale it was composed at.
+    composed: Option<(kurbo::Affine, f64)>,
+}
 
-    // Inline root's content-box origin in viewport coords.
-    let root_abs = doc_position(doc, inline_root);
-    let content_off_x =
-        inline_root.final_layout().padding.left + inline_root.final_layout().border.left;
-    let content_off_y =
-        inline_root.final_layout().padding.top + inline_root.final_layout().border.top;
-    let composed = composed_transform_for_node(base, inline_root.id());
-    let root_scroll = inline_root.scroll_offset();
-    let transform_bounds = |x0: f32, y0: f32, x1: f32, y1: f32| {
-        let Some((composed, scale)) = composed.as_ref() else {
+impl InlineOrigin {
+    fn new(doc: &HtmlDocument, inline_root: &Node) -> Self {
+        let root_abs = doc_position(doc, inline_root);
+        let root_layout = inline_root.final_layout();
+        let scroll = inline_root.scroll_offset();
+        InlineOrigin {
+            x: root_abs.x,
+            y: root_abs.y,
+            content_x: root_layout.padding.left + root_layout.border.left,
+            content_y: root_layout.padding.top + root_layout.border.top,
+            scroll_x: scroll.x as f32,
+            scroll_y: scroll.y as f32,
+            composed: composed_transform_for_node(doc.as_ref(), inline_root.id()),
+        }
+    }
+
+    /// Viewport bounds of layout coordinates inside the inline root.
+    fn bounds(&self, x0: f32, y0: f32, x1: f32, y1: f32) -> (f32, f32, f32, f32) {
+        let Some((composed, scale)) = self.composed.as_ref() else {
             return (x0, y0, x1, y1);
         };
         let local = kurbo::Rect::new(
-            (x0 - root_abs.x - root_scroll.x as f32) as f64 * scale,
-            (y0 - root_abs.y - root_scroll.y as f32) as f64 * scale,
-            (x1 - root_abs.x - root_scroll.x as f32) as f64 * scale,
-            (y1 - root_abs.y - root_scroll.y as f32) as f64 * scale,
+            (x0 - self.x - self.scroll_x) as f64 * scale,
+            (y0 - self.y - self.scroll_y) as f64 * scale,
+            (x1 - self.x - self.scroll_x) as f64 * scale,
+            (y1 - self.y - self.scroll_y) as f64 * scale,
         );
         let transformed = composed.transform_rect_bbox(local);
         (
@@ -521,64 +533,117 @@ fn inline_line_rects_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Vec
             (transformed.x1 / scale) as f32,
             (transformed.y1 / scale) as f32,
         )
-    };
+    }
+}
 
+/// Ancestor steps allowed between a styled node and the queried inline node.
+const MAX_INLINE_ANCESTOR_STEPS: usize = 32;
+
+/// Whether `styled_id` is positioned out of flow (`position: absolute | fixed`).
+fn is_out_of_flow(base: &BaseDocument, styled_id: NodeId) -> bool {
     use ::style::properties::generated::longhands::position::computed_value::T as Position;
-    let out_of_flow = |id: NodeId| -> bool {
-        base.get_node(id)
-            .and_then(|n| n.primary_styles())
-            .is_some_and(|s| matches!(s.clone_position(), Position::Absolute | Position::Fixed))
-    };
+    base.get_node(styled_id)
+        .and_then(|n| n.primary_styles())
+        .is_some_and(|s| matches!(s.clone_position(), Position::Absolute | Position::Fixed))
+}
 
-    let accepted = |styled_id: NodeId| -> bool {
-        if styled_id == node_id {
+/// Whether a glyph run or inline box styled by `styled_id` belongs to `node_id`'s bounds:
+/// `node_id` itself, or an in-flow descendant of it inside `inline_root`.
+fn contributes_to_inline_bounds(
+    base: &BaseDocument,
+    inline_root: NodeId,
+    node_id: NodeId,
+    styled_id: NodeId,
+) -> bool {
+    if styled_id == node_id {
+        return true;
+    }
+    if is_out_of_flow(base, styled_id) {
+        return false;
+    }
+
+    let mut current = styled_id;
+    for _ in 0..MAX_INLINE_ANCESTOR_STEPS {
+        let Some(node) = base.get_node(current) else {
+            return false;
+        };
+        let Some(parent) = node.parent_id() else {
+            return false;
+        };
+        if parent == node_id {
             return true;
         }
-        if out_of_flow(styled_id) {
+        if parent == inline_root {
             return false;
         }
-        let mut cur = styled_id;
-        for _ in 0..32 {
-            let Some(n) = base.get_node(cur) else {
-                return false;
-            };
-            let Some(parent) = n.parent_id() else {
-                return false;
-            };
-            if parent == node_id {
-                return true;
-            }
-            if parent == inline_root.id() {
-                return false;
-            }
-            if out_of_flow(parent) {
-                return false;
-            }
-            cur = parent;
+        if is_out_of_flow(base, parent) {
+            return false;
         }
-        false
+        current = parent;
+    }
+    false
+}
+
+/// Whether a span's box decorations paint any padding or border.
+fn has_padding_or_border(decorations: &parley::style::BoxDecorations<TextBrush>) -> bool {
+    decorations.padding_inline_start > 0.0
+        || decorations.padding_inline_end > 0.0
+        || decorations.padding_block_start > 0.0
+        || decorations.padding_block_end > 0.0
+        || decorations.border_inline_start_width > 0.0
+        || decorations.border_inline_end_width > 0.0
+        || decorations.border_block_start_width > 0.0
+        || decorations.border_block_end_width > 0.0
+}
+
+/// Per-line viewport bounds of an inline node, from the inline fragments and the glyph runs and
+/// inline boxes each line holds. `DOM.getContentQuads` returns one quad per line, so Puppeteer's
+/// click point lands inside the first fragment of a link that wraps.
+fn inline_line_rects_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Vec<Rect>> {
+    let base: &BaseDocument = doc.as_ref();
+    let node = base.get_node(node_id)?;
+    let inline_root = node.inline_root_ancestor()?;
+    let elem = inline_root.element_data()?;
+    let inline = elem.inline_layout_data()?;
+    let layout = inline.layout(node.tree());
+    let lines: Vec<parley::layout::Line<'_, TextBrush>> = layout.lines().collect();
+
+    let origin = InlineOrigin::new(doc, inline_root);
+    let accepted = |styled_id: NodeId| {
+        contributes_to_inline_bounds(base, inline_root.id(), node_id, styled_id)
     };
 
-    // Fragments contribute only the queried inline's own padding and border. Its text and
-    // atomic children come from the glyph runs and in-flow inline boxes below.
-    let styles = layout.styles();
-    let mut entries: Vec<(usize, (f32, f32, f32, f32))> = Vec::new();
-    for fragment in layout.span_fragments() {
+    let mut entries = Vec::new();
+    collect_fragment_bounds(
+        &mut entries,
+        layout.styles(),
+        &lines,
+        layout.span_fragments(),
+        node_id,
+        &origin,
+    );
+    collect_item_bounds(&mut entries, &lines, &origin, &accepted);
+    merge_line_bounds(entries)
+}
+
+/// Fragments contribute only the queried inline's own padding and border. Its text and atomic
+/// children come from the glyph runs and in-flow inline boxes below.
+fn collect_fragment_bounds(
+    entries: &mut Vec<LineBounds>,
+    styles: &[parley::layout::Style<TextBrush>],
+    lines: &[parley::layout::Line<'_, TextBrush>],
+    fragments: &[parley::layout::SpanFragment],
+    node_id: NodeId,
+    origin: &InlineOrigin,
+) {
+    for fragment in fragments {
         let Some(style) = styles.get(fragment.style_index as usize) else {
             continue;
         };
         let Some(decorations) = style.box_decorations.as_deref() else {
             continue;
         };
-        let has_padding_or_border = decorations.padding_inline_start > 0.0
-            || decorations.padding_inline_end > 0.0
-            || decorations.padding_block_start > 0.0
-            || decorations.padding_block_end > 0.0
-            || decorations.border_inline_start_width > 0.0
-            || decorations.border_inline_end_width > 0.0
-            || decorations.border_block_start_width > 0.0
-            || decorations.border_block_end_width > 0.0;
-        if style.brush.id != node_id || !has_padding_or_border {
+        if style.brush.id != node_id || !has_padding_or_border(decorations) {
             continue;
         }
         let Some(metrics) = lines
@@ -587,50 +652,64 @@ fn inline_line_rects_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Vec
         else {
             continue;
         };
+
         let x_origin = metrics.inline_min_coord + metrics.offset;
-        let x0 = root_abs.x + content_off_x + x_origin + fragment.x_start;
-        let x1 = root_abs.x + content_off_x + x_origin + fragment.x_end;
-        let y0 = root_abs.y + content_off_y + metrics.block_min_coord;
-        let y1 = root_abs.y + content_off_y + metrics.block_max_coord;
-        entries.push((
-            fragment.line_index as usize,
-            transform_bounds(x0, y0, x1, y1),
-        ));
+        let x0 = origin.x + origin.content_x + x_origin + fragment.x_start;
+        let x1 = origin.x + origin.content_x + x_origin + fragment.x_end;
+        let y0 = origin.y + origin.content_y + metrics.block_min_coord;
+        let y1 = origin.y + origin.content_y + metrics.block_max_coord;
+        entries.push((fragment.line_index as usize, origin.bounds(x0, y0, x1, y1)));
     }
+}
+
+/// The glyph runs and in-flow inline boxes of every line that belong to the queried inline.
+fn collect_item_bounds(
+    entries: &mut Vec<LineBounds>,
+    lines: &[parley::layout::Line<'_, TextBrush>],
+    origin: &InlineOrigin,
+    accepted: &impl Fn(NodeId) -> bool,
+) {
     for (line_index, line) in lines.iter().enumerate() {
         for item in line.items() {
-            let bounds = match item {
-                parley::layout::PositionedLayoutItem::GlyphRun(run)
-                    if accepted(run.style().brush.id) =>
-                {
-                    // Glyph-run coordinates include the line's alignment offset.
-                    let metrics = run.run().font_metrics();
-                    let baseline = run.baseline();
-                    let x0 = root_abs.x + content_off_x + run.offset();
-                    let x1 = x0 + run.advance();
-                    let y0 = root_abs.y + content_off_y + baseline - metrics.ascent;
-                    let y1 = root_abs.y + content_off_y + baseline + metrics.descent;
-                    Some(transform_bounds(x0, y0, x1, y1))
-                }
-                parley::layout::PositionedLayoutItem::InlineBox(ibox)
-                    if ibox.kind == parley::InlineBoxKind::InFlow
-                        && accepted(NodeId::from_u64(ibox.id)) =>
-                {
-                    let x0 = root_abs.x + content_off_x + ibox.x;
-                    let y0 = root_abs.y + content_off_y + ibox.y;
-                    Some(transform_bounds(x0, y0, x0 + ibox.width, y0 + ibox.height))
-                }
-                _ => None,
+            let Some(bounds) = item_bounds(item, origin, accepted) else {
+                continue;
             };
-            if let Some(bounds) = bounds {
-                entries.push((line_index, bounds));
-            }
+            entries.push((line_index, bounds));
         }
     }
-    if entries.is_empty() {
-        return None;
+}
+
+fn item_bounds(
+    item: parley::layout::PositionedLayoutItem<'_, TextBrush>,
+    origin: &InlineOrigin,
+    accepted: &impl Fn(NodeId) -> bool,
+) -> Option<(f32, f32, f32, f32)> {
+    match item {
+        parley::layout::PositionedLayoutItem::GlyphRun(run) if accepted(run.style().brush.id) => {
+            // Glyph-run coordinates include the line's alignment offset.
+            let metrics = run.run().font_metrics();
+            let baseline = run.baseline();
+            let x0 = origin.x + origin.content_x + run.offset();
+            let x1 = x0 + run.advance();
+            let y0 = origin.y + origin.content_y + baseline - metrics.ascent;
+            let y1 = origin.y + origin.content_y + baseline + metrics.descent;
+            Some(origin.bounds(x0, y0, x1, y1))
+        }
+        parley::layout::PositionedLayoutItem::InlineBox(ibox)
+            if ibox.kind == parley::InlineBoxKind::InFlow
+                && accepted(NodeId::from_u64(ibox.id)) =>
+        {
+            let x0 = origin.x + origin.content_x + ibox.x;
+            let y0 = origin.y + origin.content_y + ibox.y;
+            Some(origin.bounds(x0, y0, x0 + ibox.width, y0 + ibox.height))
+        }
+        _ => None,
     }
-    let mut per_line: Vec<(usize, (f32, f32, f32, f32))> = Vec::new();
+}
+
+/// Unions the entries into one rect per line, in line order.
+fn merge_line_bounds(entries: Vec<LineBounds>) -> Option<Vec<Rect>> {
+    let mut per_line: Vec<LineBounds> = Vec::new();
     for (line_index, (x0, y0, x1, y1)) in entries {
         match per_line.iter_mut().find(|(index, _)| *index == line_index) {
             Some((_, (ax0, ay0, ax1, ay1))) => {
@@ -642,6 +721,10 @@ fn inline_line_rects_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Vec
             None => per_line.push((line_index, (x0, y0, x1, y1))),
         }
     }
+    if per_line.is_empty() {
+        return None;
+    }
+
     per_line.sort_unstable_by_key(|(line_index, _)| *line_index);
     Some(
         per_line
