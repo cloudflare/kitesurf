@@ -158,6 +158,7 @@ fn seeding_a_slot_past_its_first_version_names_that_version() {
     let dom = DomHandle::new(&html, "https://example.test/");
     let gap = dom.query_selector("#gap").expect("gap node") as u32;
     let gap_id = dom.resolve_node_id(gap).expect("seeded id");
+
     assert!(dom.drop_node(gap));
     let reused = dom.create_element("b");
     let reused_id = dom.resolve_node_id(reused).expect("mapped node");
@@ -180,6 +181,7 @@ fn seeding_a_slot_past_its_first_version_names_that_version() {
         1,
         "only the reused slot is stored apart"
     );
+
     handles.retire(reused_id);
     assert_eq!(handles.resolve(gap), None);
     assert!(handles.seeded_versions.other.is_empty());
@@ -449,47 +451,49 @@ fn dropping_a_host_retires_shadow_tree_handle_metadata() {
     assert_eq!(handles.existing_external(child_id), None);
 }
 
-#[test]
-fn dropping_a_parent_after_a_child_moved_out_keeps_no_link_to_its_slot() {
-    let dom = DomHandle::new(
-        "<!DOCTYPE html><body><div id=host><div id=p><span id=c>x</span></div></div>",
-        "https://test.example/",
-    );
+/// A document whose boxes are laid out, so node drop paths see live layout links.
+fn resolved_dom(html: &str) -> DomHandle {
+    let dom = DomHandle::new(html, "https://test.example/");
     dom.set_viewport(800, 600);
     dom.resolve_layout();
+    dom
+}
+
+#[test]
+fn dropping_a_parent_after_a_child_moved_out_keeps_no_link_to_its_slot() {
+    // Moving the child leaves its layout parent pointing at `#p`; dropping `#p` frees that
+    // slot, and dropping the child must not read it.
+    let dom =
+        resolved_dom("<!DOCTYPE html><body><div id=host><div id=p><span id=c>x</span></div></div>");
     let host = dom.query_selector("#host").expect("host") as u32;
     let parent = dom.query_selector("#p").expect("parent") as u32;
     let child = dom.query_selector("#c").expect("child") as u32;
 
-    // Moving the child leaves its layout parent pointing at `#p`; dropping `#p`
-    // frees that slot, and dropping the child must not read it.
     assert!(dom.insert_before_node(host, child, 0));
     assert!(dom.drop_node(parent));
     assert!(dom.drop_node(child));
+}
 
-    // `removeChild` from an inline parent is the same hazard, and the inline layout does not
-    // list the child in `layout_children`, so only the removal itself can clear the link.
-    let dom = DomHandle::new(
-        "<!DOCTYPE html><body><span id=p><b id=c>x</b></span>",
-        "https://test.example/",
-    );
-    dom.set_viewport(800, 600);
-    dom.resolve_layout();
+#[test]
+fn removing_a_child_from_an_inline_parent_keeps_no_link_to_its_slot() {
+    // The inline layout does not list the child in `layout_children`, so only the removal
+    // itself can clear the child's layout parent.
+    let dom = resolved_dom("<!DOCTYPE html><body><span id=p><b id=c>x</b></span>");
     let parent = dom.query_selector("#p").expect("parent") as u32;
     let child = dom.query_selector("#c").expect("child") as u32;
+
     assert!(dom.remove_node(child));
     assert!(dom.drop_node(parent));
     assert!(dom.drop_node(child));
+}
 
-    // Dropping a resolved subtree removes the parent before its children, so a child's parent
-    // link names a freed slot by then. The text sits in an anonymous block, so its layout parent
-    // differs from its DOM parent and the wrapper check reads both.
-    let dom = DomHandle::new(
-        "<!DOCTYPE html><body><div id=p><p style='height:10px'></p>hello</div>",
-        "https://test.example/",
-    );
-    dom.set_viewport(800, 600);
-    dom.resolve_layout();
+#[test]
+fn dropping_a_resolved_subtree_keeps_no_link_to_a_freed_slot() {
+    // The drop removes the parent before its children, so a child's parent link names a freed
+    // slot by then. The text sits in an anonymous block, so its layout parent differs from its
+    // DOM parent and the wrapper check reads both.
+    let dom = resolved_dom("<!DOCTYPE html><body><div id=p><p style='height:10px'></p>hello</div>");
     let parent = dom.query_selector("#p").expect("parent") as u32;
+
     assert!(dom.drop_node(parent));
 }
