@@ -13,10 +13,10 @@ test("a <use> inserted after load still resolves its external sprite", async ({ 
   await new Promise((resolve) => setTimeout(resolve, 2500));
   await page.evaluate(() => {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
-    use.id = "late";
-    use.setAttribute("href", "/__fixtures/icon-sprite.svg#dot");
-    svg.appendChild(use);
+    const useElement = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    useElement.id = "late";
+    useElement.setAttribute("href", "/__fixtures/icon-sprite.svg#dot");
+    svg.appendChild(useElement);
     document.body.appendChild(svg);
   });
   await expect

@@ -153,8 +153,8 @@ test("Input.insertText: inserts strings longer than a few chars", async ({ page 
   expect(await value()).toBe("hello@example.com/inbox");
 });
 
-// One quad per line box, and Puppeteer clicks the centre of the first one. A
-// single bounding quad would put the click on the paragraph text.
+// One quad per line box; Puppeteer clicks the centre of the first one, which a single bounding
+// quad would put on the paragraph text.
 test("DOM.getContentQuads returns one quad per line of a wrapped link", async ({
   page,
   cdpSession: session,
@@ -170,10 +170,13 @@ test("DOM.getContentQuads returns one quad per line of a wrapped link", async ({
     nodeId: root.nodeId,
     selector: "#l",
   });
+
   const { quads } = await session.send("DOM.getContentQuads", { nodeId });
   expect(quads.length).toBeGreaterThanOrEqual(2);
-  const tops = quads.map((quad: number[]) => quad[1]);
-  const heights = quads.map((quad: number[]) => (quad[5] ?? 0) - (quad[1] ?? 0));
-  for (const height of heights) expect(height).toBeGreaterThan(0);
-  expect(new Set(tops).size).toBe(quads.length);
+
+  // A quad lists four corners clockwise from the top-left, so index 1 is the top edge's y.
+  const topOf = (quad: number[]) => quad[1];
+  const heightOf = (quad: number[]) => (quad[5] ?? 0) - (quad[1] ?? 0);
+  for (const height of quads.map(heightOf)) expect(height).toBeGreaterThan(0);
+  expect(new Set(quads.map(topOf)).size).toBe(quads.length);
 });

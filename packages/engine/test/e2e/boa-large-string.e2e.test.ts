@@ -9,30 +9,42 @@ import { setContent } from "./set-content";
 
 const CHUNK_UNITS = 1 << 15;
 
-function digest(s: string): [number, number] {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
-  return [s.length, h];
+function digest(text: string): [number, number] {
+  let hash = 0;
+  for (let index = 0; index < text.length; index++) {
+    hash = (Math.imul(hash, 31) + text.charCodeAt(index)) | 0;
+  }
+  return [text.length, hash];
 }
 
 function filler(units: number, alphabet: string): string {
-  let out = "";
-  for (let i = 0; out.length < units; i++) out += alphabet[i % alphabet.length];
-  return out.slice(0, units);
+  let text = "";
+  for (let index = 0; text.length < units; index++) text += alphabet[index % alphabet.length];
+  return text.slice(0, units);
 }
 
 test("large strings cross into boa unchanged", async ({ page }) => {
-  const latin1 = filler(70_000, "abcé ÿxyz");
-  const wide = filler(CHUNK_UNITS - 1, "aΩb") + "\u{1F600}" + filler(40_000, "ž😀q");
+  const latin1Text = filler(70_000, "abcé ÿxyz");
+  const wideText = filler(CHUNK_UNITS - 1, "aΩb") + "\u{1F600}" + filler(40_000, "ž😀q");
   await setContent(
     page,
-    `<!doctype html><div id="latin1">${latin1}</div><div id="wide">${wide}</div>`,
+    `<!doctype html><div id="latin1">${latin1Text}</div><div id="wide">${wideText}</div>`,
   );
-  const result = await page.evaluate(
-    `(() => { const d = (s) => { let h = 0; for (let i = 0; i < s.length; i++) ` +
-      `h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0; return [s.length, h]; }; ` +
-      `return [d(document.getElementById("latin1").textContent), ` +
-      `d(document.getElementById("wide").textContent)]; })()`,
-  );
-  expect(result).toEqual([digest(latin1), digest(wide)]);
+
+  const pageDigests = await page.evaluate(`
+    (() => {
+      const digest = (text) => {
+        let hash = 0;
+        for (let index = 0; index < text.length; index++) {
+          hash = (Math.imul(hash, 31) + text.charCodeAt(index)) | 0;
+        }
+        return [text.length, hash];
+      };
+      return [
+        digest(document.getElementById("latin1").textContent),
+        digest(document.getElementById("wide").textContent),
+      ];
+    })()
+  `);
+  expect(pageDigests).toEqual([digest(latin1Text), digest(wideText)]);
 }, 60_000);
