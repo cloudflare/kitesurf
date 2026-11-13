@@ -51,6 +51,15 @@ export function characterSetOf(node: unknown): string {
   return typeof cs === "string" && cs ? cs : "UTF-8";
 }
 
+// A scan, not `/[\x00-\x20]+$/`, which backtracks quadratically on long interior runs.
+function trimC0ControlOrSpace(s: string): string {
+  let start = 0;
+  let end = s.length;
+  while (start < end && s.charCodeAt(start) <= 0x20) start++;
+  while (end > start && s.charCodeAt(end - 1) <= 0x20) end--;
+  return s.slice(start, end);
+}
+
 export function encodingParseUrl(
   input: string,
   base: string | URL | undefined,
@@ -61,7 +70,7 @@ export function encodingParseUrl(
   if (!ENCODED_QUERY_PROTOCOLS.has(url.protocol)) return url;
   const encode = opts?.percentEncodeAfterEncoding;
   if (!encode) return url;
-  const clean = input.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, "").replace(/[\t\n\r]/g, "");
+  const clean = trimC0ControlOrSpace(input).replace(/[\t\n\r]/g, "");
   const q = clean.indexOf("?");
   if (q < 0) return url;
   const hash = clean.indexOf("#");
