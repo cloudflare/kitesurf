@@ -1,0 +1,21 @@
+<!--
+Copyright (c) 2026 Cloudflare, Inc.
+Licensed under the Apache 2.0 license found in the LICENSE file or at:
+https://opensource.org/licenses/Apache-2.0
+-->
+
+<!doctype html>
+<html>
+<head><title>web-storage-b</title></head>
+<body>
+  <script>
+    // Read while parsing, as an app's first script does: the engine must have handed this
+    // document its copies of both areas before any of its scripts runs.
+    document.title = JSON.stringify({
+      local: localStorage.getItem("cart"),
+      session: sessionStorage.getItem("step"),
+      keys: Object.keys(localStorage),
+    });
+  </script>
+</body>
+</html>

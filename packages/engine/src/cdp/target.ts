@@ -11,6 +11,7 @@ import type { DispatchCtx } from "./dispatch.ts";
 import { buildFrameResourceTree, buildFrameTree, makeMainFrameState } from "./frames.ts";
 import { retireStub } from "./page-script-generation.ts";
 import { createCookieJar, type CookieJar } from "../cookies.ts";
+import type { WebStorage } from "../state/web-storage.ts";
 import { engineWasmBytes, engineWasmInitialBytes } from "../engine-wasm-probe.ts";
 import { isolateRetainedBodyBytesTotal } from "./network-events.ts";
 import { imageStoreStats } from "../eval/resource-store.ts";
@@ -70,6 +71,28 @@ export function jarForTarget(ctx: DispatchCtx, target: TargetState | null | unde
     if (entry) return entry.cookieJar;
   }
   return ctx.browser.cookies;
+}
+
+export function localStorageForTarget(
+  ctx: DispatchCtx,
+  target: TargetState | null | undefined,
+): WebStorage {
+  const cid = target?.browserContextId;
+  if (cid) {
+    const entry = ctx.browser.contexts.get(cid);
+    if (entry) return entry.localStorage;
+  }
+  return ctx.browser.localStorage;
+}
+
+// A tab's, as browsers keep it: what a flow writes there survives the tab's navigates, and a
+// tab opened over CDP starts empty.
+export function sessionStorageForTarget(
+  ctx: DispatchCtx,
+  target: TargetState,
+): WebStorage<"session"> {
+  target.sessionStorage ??= ctx.browser.localStorage.forTab(target.targetId);
+  return target.sessionStorage;
 }
 
 export function jarForContextId(ctx: DispatchCtx, browserContextId: string | undefined): CookieJar {
@@ -139,7 +162,10 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
     case "Target.createBrowserContext": {
       const id = `ctx-${ctx.browser.nextBrowserContextId++}`;
       const jar = createCookieJar();
-      ctx.browser.contexts.set(id, { cookieJar: jar });
+      ctx.browser.contexts.set(id, {
+        cookieJar: jar,
+        localStorage: ctx.browser.localStorage.forContext(id),
+      });
       registerCookieJar(cookieKeyFor(ctx.connectionId, id), jar);
       return { browserContextId: id };
     }
@@ -152,6 +178,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
           if (t.browserContextId === id) closes.push(closeTargetInternal(ctx, t.targetId));
         }
         await Promise.all(closes);
+        ctx.browser.contexts.get(id)?.localStorage.dispose();
         ctx.browser.contexts.delete(id);
         unregisterCookieJar(cookieKeyFor(ctx.connectionId, id));
         clearLearnedScripts(ctx.browser.learnedInsertedScripts, id);
@@ -402,6 +429,7 @@ export async function closeTargetInternal(ctx: DispatchCtx, id: string): Promise
       );
     }
     releaseAllDomHandles(target);
+    target.sessionStorage?.dispose();
   }
   const existed = ctx.browser.targets.delete(id);
   stopSceneStreams(ctx.browser, id);
@@ -621,6 +649,7 @@ export function engineMemoryBreakdown(browser: BrowserState): {
   retainedImageBytes: number;
   retainedImageCount: number;
   fontAssetCacheBytes: number;
+  webStorageBytes: number;
   accountedBytes: number;
 } {
   const wasmBytes = engineWasmBytes();
@@ -629,6 +658,7 @@ export function engineMemoryBreakdown(browser: BrowserState): {
   const retainedBodyBytesIsolate = isolateRetainedBodyBytesTotal();
   const fontAssetCacheBytes = assetCacheRetainedBytes();
   const images = imageStoreStats();
+  const webStorageBytes = browser.localStorage.totalUnits() * 2; // UTF-16 units
   return {
     wasmBytes,
     wasmInitialBytes,
@@ -639,7 +669,9 @@ export function engineMemoryBreakdown(browser: BrowserState): {
     retainedImageBytes: images.bytes,
     retainedImageCount: images.count,
     fontAssetCacheBytes,
-    accountedBytes: wasmBytes + retainedBodyBytesIsolate + images.bytes + fontAssetCacheBytes,
+    webStorageBytes,
+    accountedBytes:
+      wasmBytes + retainedBodyBytesIsolate + images.bytes + fontAssetCacheBytes + webStorageBytes,
   };
 }
 

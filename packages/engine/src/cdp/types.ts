@@ -110,7 +110,8 @@ export interface BrowserState {
   autoAttach: boolean;
   flatten: boolean;
   cookies: CookieJar;
-  contexts: Map<string, { cookieJar: CookieJar }>;
+  contexts: Map<string, { cookieJar: CookieJar; localStorage: WebStorage }>;
+  localStorage: WebStorage; // the default context's, shared by its pages across navigates
   nextBrowserContextId: number;
   screencasts: Map<string, ScreencastState>;
   styleCache: StyleCache;
@@ -176,6 +177,7 @@ import type { DomHandle, DocScan } from "../wasm.ts";
 import type { PageScriptStub, PageIsolateCapOverrides } from "../eval/page-script.ts";
 import type { PageSession } from "./page-session.ts";
 import type { CookieJar } from "../cookies.ts";
+import type { WebStorage } from "../state/web-storage.ts";
 
 // One navigation's child-frame admission, shared by every branch and depth: registered child
 // frames and the parse input their retained DOMs charged. A frame refunds its charge when its
@@ -343,6 +345,7 @@ export interface TargetState {
   screencastAckCount?: number;
   extraHttpHeaders: Record<string, string>;
   userAgentOverride: string;
+  sessionStorage?: WebStorage<"session">; // the tab's, per origin, made by its first navigate
 }
 
 export interface CompiledScriptMeta {
