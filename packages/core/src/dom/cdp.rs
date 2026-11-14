@@ -173,7 +173,7 @@ pub(crate) fn describe_node_ext(
                 3,
                 "#text".to_string(),
                 String::new(),
-                data.content.clone(),
+                data.content.to_string(),
                 None,
                 None,
                 false,
@@ -189,7 +189,7 @@ pub(crate) fn describe_node_ext(
                         .map(|prefix| format!("{prefix}:{local_name}"))
                         .unwrap_or_else(|| local_name.clone());
                     flat.push(qualified_name.clone());
-                    flat.push(attr.value.clone());
+                    flat.push(attr.value.to_string());
                     if !attr.namespace().is_empty() {
                         attribute_namespaces.push(CdpAttributeNamespace {
                             qualified_name,
@@ -226,11 +226,11 @@ pub(crate) fn describe_node_ext(
             }
         };
 
-    let child_node_count = n.children.len() as u32;
+    let child_node_count = n.children().len() as u32;
 
     let children = if include_children {
-        let mut out = Vec::with_capacity(n.children.len());
-        for &cid in &n.children {
+        let mut out = Vec::with_capacity(n.children().len());
+        for cid in n.children() {
             if let Some(c) =
                 describe_node_ext(doc, cid, base_url, true, include_shadow_roots, node_handles)
             {
@@ -299,7 +299,7 @@ impl DomHandle {
             use ::style::properties::generated::longhands::visibility::computed_value::T as StyloVisibility;
             use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
             let mut out = NotRenderedIds::default();
-            let mut stack: Vec<NodeId> = vec![doc.root_node().id];
+            let mut stack: Vec<NodeId> = vec![doc.root_node().id()];
             while let Some(id) = stack.pop() {
                 let Some(node) = doc.get_node(id) else { continue };
                 let mut descend = true;
@@ -324,7 +324,7 @@ impl DomHandle {
                 if let Some(sid) = node.attached_shadow_root_id() {
                     stack.push(sid);
                 }
-                for &cid in node.children.iter() {
+                for cid in node.children().iter() {
                     stack.push(cid);
                 }
             }

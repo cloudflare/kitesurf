@@ -183,9 +183,8 @@ fn paint_outset(doc: &HtmlDocument, node_id: NodeId) -> Option<f64> {
             continue;
         };
         stack.extend(
-            node.children
+            node.children()
                 .iter()
-                .copied()
                 .chain(node.before())
                 .chain(node.after()),
         );
@@ -539,7 +538,7 @@ impl DomHandle {
         };
         drop(fan);
         let target = self.resolve_node_id(exclude);
-        let parent = |id: NodeId| base.get_node(id).and_then(|n| n.parent.get());
+        let parent = |id: NodeId| base.get_node(id).and_then(|n| n.parent_id());
         let mut lineage = std::collections::HashSet::new();
         let mut cur = target;
         while let Some(id) = cur {

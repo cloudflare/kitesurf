@@ -202,7 +202,7 @@ fn tree_ranks(doc: &BaseDocument, needed: &HashSet<usize>) -> HashMap<usize, usi
     }
     let mut counter = 0usize;
     let mut found = 0usize;
-    let mut stack: Vec<NodeId> = vec![doc.root_node().id];
+    let mut stack: Vec<NodeId> = vec![doc.root_node().id()];
     while let Some(id) = stack.pop() {
         let opaque = id.as_u64() as usize;
         if needed.contains(&opaque) {
@@ -215,7 +215,7 @@ fn tree_ranks(doc: &BaseDocument, needed: &HashSet<usize>) -> HashMap<usize, usi
         counter += 1;
         let node = &doc.tree()[id];
         for child in node.flat_children().iter().rev() {
-            stack.push(*child);
+            stack.push(child);
         }
     }
     ranks

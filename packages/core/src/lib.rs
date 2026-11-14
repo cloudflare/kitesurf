@@ -57,7 +57,7 @@ pub(crate) struct NodeHandleMap {
     next_external: u32,
     /// The version seeded handle `e` was given for slot `e + 1`; 0 for a slot
     /// that was free when seeded, or once the handle is retired.
-    seeded_versions: Vec<u32>,
+    seeded_versions: SeededVersions,
     dynamic_forward: HandleMap<u32, NodeId>,
     /// Latest handle of each slot past the seeded range, from its first slot.
     latest_beyond: Vec<u32>,
@@ -65,6 +65,93 @@ pub(crate) struct NodeHandleMap {
     /// handle (`NO_EXTERNAL` once that one is retired), and of outlier slots.
     sparse_latest: HandleMap<u32, u32>,
     displaced: HandleMap<NodeId, u32>,
+}
+
+/// [`NodeHandleMap::seeded_versions`] in about two bits a slot: almost every
+/// slot of a parsed tree holds its first version, so only the others are kept.
+struct SeededVersions {
+    len: usize,
+    /// Bit `e`: handle `e` is live.
+    live: Box<[u32]>,
+    /// Bit `e`: handle `e`'s version is in `other`, not [`Self::FIRST`].
+    has_other: Box<[u32]>,
+    other: HandleMap<u32, u32>,
+}
+
+impl SeededVersions {
+    /// The version a node tree gives a slot's first node.
+    const FIRST: u32 = 1;
+    /// The version of a handle that is no longer live.
+    const RETIRED: u32 = 0;
+
+    fn new(len: usize, versions: impl IntoIterator<Item = (usize, u32)>) -> Self {
+        let words = len.div_ceil(32);
+        let mut seeded = Self {
+            len,
+            live: vec![0; words].into_boxed_slice(),
+            has_other: vec![0; words].into_boxed_slice(),
+            other: HandleMap::default(),
+        };
+        for (index, version) in versions {
+            debug_assert_ne!(version, Self::RETIRED, "a live node's version is never 0");
+            Self::set(&mut seeded.live, index);
+            if version != Self::FIRST {
+                Self::set(&mut seeded.has_other, index);
+                seeded.other.insert(index as u32, version);
+            }
+        }
+        seeded
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Set bit `index` of `bits`, which packs 32 slots to a word.
+    #[inline]
+    fn set(bits: &mut [u32], index: usize) {
+        bits[index / 32] |= 1 << (index % 32);
+    }
+
+    /// Clear bit `index` of `bits`.
+    #[inline]
+    fn clear(bits: &mut [u32], index: usize) {
+        bits[index / 32] &= !(1 << (index % 32));
+    }
+
+    #[inline]
+    fn bit(bits: &[u32], index: usize) -> bool {
+        bits[index / 32] & (1 << (index % 32)) != 0
+    }
+
+    /// Handle `index`'s version, [`Self::RETIRED`] once retired; `None` past the seeded range.
+    #[inline]
+    fn get(&self, index: usize) -> Option<u32> {
+        if index >= self.len {
+            return None;
+        }
+        if !Self::bit(&self.live, index) {
+            return Some(Self::RETIRED);
+        }
+        if !Self::bit(&self.has_other, index) {
+            return Some(Self::FIRST);
+        }
+        Some(self.other[&(index as u32)])
+    }
+
+    /// Retire handle `index`, returning whether it is in the seeded range.
+    fn retire(&mut self, index: usize) -> bool {
+        if index >= self.len {
+            return false;
+        }
+        Self::clear(&mut self.live, index);
+        if Self::bit(&self.has_other, index) {
+            Self::clear(&mut self.has_other, index);
+            self.other.remove(&(index as u32));
+        }
+        true
+    }
 }
 
 #[inline]
@@ -76,7 +163,7 @@ impl NodeHandleMap {
     const NO_EXTERNAL: u32 = u32::MAX;
 
     fn seeded(doc: &BaseDocument) -> Self {
-        let root = doc.root_node().id;
+        let root = doc.root_node().id();
         assert_eq!(slot_of(root), 1, "the document root must be handle 0");
         let slots = doc
             .tree()
@@ -84,10 +171,12 @@ impl NodeHandleMap {
             .map(|(id, _)| slot_of(id))
             .max()
             .unwrap_or(0);
-        let mut seeded_versions = vec![0; slots];
-        for (id, _) in doc.tree().iter() {
-            seeded_versions[slot_of(id) - 1] = (id.as_u64() >> 32) as u32;
-        }
+        let seeded_versions = SeededVersions::new(
+            slots,
+            doc.tree()
+                .iter()
+                .map(|(id, _)| (slot_of(id) - 1, (id.as_u64() >> 32) as u32)),
+        );
         Self {
             next_external: u32::try_from(slots).expect("external node handle space exhausted"),
             seeded_versions,
@@ -98,11 +187,11 @@ impl NodeHandleMap {
         }
     }
 
-    /// The live seeded handle for `slot`, if any (slot 0 is the slotmap's sentinel).
+    /// The live seeded handle for `slot`, if any (slot 0 is the node tree's sentinel).
     #[inline]
     fn seeded_external(&self, slot: usize) -> Option<u32> {
         let index = slot.checked_sub(1)?;
-        (*self.seeded_versions.get(index)? != 0).then_some(index as u32)
+        (self.seeded_versions.get(index)? != SeededVersions::RETIRED).then_some(index as u32)
     }
 
     #[inline]
@@ -118,12 +207,11 @@ impl NodeHandleMap {
 
     #[inline]
     pub(crate) fn resolve(&self, external: u32) -> Option<NodeId> {
-        if let Some(&version) = self.seeded_versions.get(external as usize) {
-            (version != 0)
-                .then(|| NodeId::from_u64((u64::from(version) << 32) | u64::from(external + 1)))
-        } else {
-            self.dynamic_forward.get(&external).copied()
-        }
+        let Some(version) = self.seeded_versions.get(external as usize) else {
+            return self.dynamic_forward.get(&external).copied();
+        };
+        (version != SeededVersions::RETIRED)
+            .then(|| NodeId::from_u64((u64::from(version) << 32) | u64::from(external + 1)))
     }
 
     #[inline]
@@ -237,11 +325,10 @@ impl NodeHandleMap {
 
     /// Drop `external` itself: a seeded version, or the dynamic forward entry.
     fn forget_handle(&mut self, slot: usize, external: u32) {
-        let Some(version) = self.seeded_versions.get_mut(external as usize) else {
+        if !self.seeded_versions.retire(external as usize) {
             self.dynamic_forward.remove(&external);
             return;
-        };
-        *version = 0;
+        }
         // The slot's tombstone only shadowed this handle.
         if self.sparse_latest.get(&(slot as u32)) == Some(&Self::NO_EXTERNAL) {
             self.sparse_latest.remove(&(slot as u32));
@@ -558,32 +645,6 @@ pub struct DomHandle {
 // style snapshots and rebuilds inline trees stranded by a panic.
 impl std::panic::RefUnwindSafe for DomHandle {}
 
-fn estimate_node_capacity(html: &str) -> usize {
-    let bytes = html.as_bytes();
-    let n = bytes.len();
-    let mut open_tags = 0usize;
-    let mut close_tags = 0usize;
-    let mut text_runs = 0usize;
-    let mut i = 0;
-    while i < n {
-        match bytes[i] {
-            b'<' => {
-                if i + 1 < n && bytes[i + 1] == b'/' {
-                    close_tags += 1;
-                } else {
-                    open_tags += 1;
-                }
-            }
-            b'>' if i + 1 < n && bytes[i + 1] != b'<' => text_runs += 1,
-            _ => {}
-        }
-        i += 1;
-    }
-    let parsed = open_tags + text_runs.max(close_tags);
-
-    (parsed + parsed / 6).min(262_144)
-}
-
 #[wasm_bindgen]
 impl DomHandle {
     #[inline]
@@ -622,7 +683,6 @@ impl DomHandle {
             net_provider: Some(net_provider.clone()),
             viewport: Some(Viewport::new(1280, 720, 1.0, emulated_color_scheme())),
             font_ctx: Some(crate::resources::fonts::get_or_init_font_context()),
-            node_capacity_hint: Some(estimate_node_capacity(html)),
             dims_only_images: DIMS_ONLY_IMAGES.load(Ordering::Relaxed),
             ..Default::default()
         };
@@ -708,7 +768,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return 0,
         };
-        let root_id = doc.root_node().id;
+        let root_id = doc.root_node().id();
         let count = Cell::new(0u32);
         let count_ref = &count;
         doc.iter_subtree_mut(root_id, move |node_id, d| {
@@ -886,13 +946,13 @@ impl DomHandle {
         let Ok(doc) = self.doc.try_borrow() else {
             return None;
         };
-        let root_id = doc.root_node().id;
+        let root_id = doc.root_node().id();
         let mut current = Some(internal_id);
         while let Some(id) = current {
             if id == root_id {
                 return Some(internal_id);
             }
-            current = doc.get_node(id).and_then(|node| node.parent.get());
+            current = doc.get_node(id).and_then(|node| node.parent_id());
         }
         None
     }
@@ -933,7 +993,7 @@ impl DomHandle {
 }
 
 fn clear_unstyled_cascade(doc: &mut BaseDocument) -> u32 {
-    let root_id = doc.root_node().id;
+    let root_id = doc.root_node().id();
     let count = Cell::new(0u32);
     let count_ref = &count;
     doc.iter_subtree_mut(root_id, move |node_id, d| {

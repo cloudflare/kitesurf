@@ -256,12 +256,12 @@ fn transition_events_mint_handle_for_internal_inner_html_descendant() {
         let host_internal = dom.resolve_node_id(host).expect("mapped host");
         doc.get_node(host_internal)
             .expect("live host")
-            .children
+            .children()
             .iter()
             .map(|id| {
                 (
-                    *id,
-                    handles.existing_external(*id).expect("seeded child mapped"),
+                    id,
+                    handles.existing_external(id).expect("seeded child mapped"),
                 )
             })
             .collect()
@@ -278,7 +278,11 @@ fn transition_events_mint_handle_for_internal_inner_html_descendant() {
     let new_internal = {
         let doc = dom.doc.borrow();
         let host_internal = dom.resolve_node_id(host).expect("mapped host");
-        doc.get_node(host_internal).expect("live host").children[0]
+        doc.get_node(host_internal)
+            .expect("live host")
+            .children()
+            .first()
+            .unwrap()
     };
     let (stale_internal, stale_child) = stale_children
         .into_iter()
@@ -321,7 +325,12 @@ fn opaque_node_of_a_reused_slot_resolves_to_its_current_id() {
 
     let doc = dom.doc.borrow();
     let host_internal = dom.resolve_node_id(host).expect("mapped host");
-    let span = doc.get_node(host_internal).expect("live host").children[0];
+    let span = doc
+        .get_node(host_internal)
+        .expect("live host")
+        .children()
+        .first()
+        .unwrap();
     assert_ne!(span.as_u64() >> 32, 1, "the span must sit in a reused slot");
     let wasm32_opaque = span.as_u64() as u32 as usize;
     assert_eq!(doc.tree().id_from_opaque(wasm32_opaque), Some(span));

@@ -326,7 +326,7 @@ fn attr_lookup(doc: &HtmlDocument, nid: NodeId, name: &str) -> Option<Option<Str
             None => *a.name.local == lookup,
         };
         if matches {
-            return Some(Some(a.value.clone()));
+            return Some(Some(a.value.to_string()));
         }
     }
     Some(None)
@@ -350,7 +350,7 @@ fn node_name(doc: &HtmlDocument, nid: NodeId) -> Option<String> {
 }
 
 fn parent_of(doc: &HtmlDocument, nid: NodeId) -> Option<Option<NodeId>> {
-    Some(doc.get_node(nid)?.parent.get())
+    Some(doc.get_node(nid)?.parent_id())
 }
 
 fn is_element(doc: &HtmlDocument, nid: NodeId) -> bool {
@@ -695,7 +695,7 @@ fn run_query(root: u32, sel: &str, q: Query) -> Option<QueryOut<u32>> {
     let internal = resolve_node_id(root)?;
     let raw = with_doc(|doc| {
         let node = doc.get_node(internal)?;
-        let is_root = internal == doc.root_node().id;
+        let is_root = internal == doc.root_node().id();
         let blitz_parses = is_root && matches!(q, Query::First | Query::All);
         let parsed = (!blitz_parses).then(|| doc.try_parse_selector_list(sel));
         let list = match parsed {
@@ -719,7 +719,7 @@ fn run_query(root: u32, sel: &str, q: Query) -> Option<QueryOut<u32>> {
                     &mut out,
                     MayUseInvalidation::Yes,
                 );
-                Some(QueryOut::Node(out.map(|n| n.id)))
+                Some(QueryOut::Node(out.map(|n| n.id())))
             }
             Query::All => {
                 let mut out: smallvec::SmallVec<[&Node; 128]> = smallvec::SmallVec::new();
@@ -729,7 +729,7 @@ fn run_query(root: u32, sel: &str, q: Query) -> Option<QueryOut<u32>> {
                     &mut out,
                     MayUseInvalidation::Yes,
                 );
-                Some(QueryOut::Nodes(out.into_iter().map(|n| n.id).collect()))
+                Some(QueryOut::Nodes(out.into_iter().map(|n| n.id()).collect()))
             }
             Query::Matches => Some(QueryOut::Bool(element_matches::<&Node>(
                 &node,
@@ -737,7 +737,8 @@ fn run_query(root: u32, sel: &str, q: Query) -> Option<QueryOut<u32>> {
                 QuirksMode::NoQuirks,
             ))),
             Query::Closest => Some(QueryOut::Node(
-                element_closest::<&Node>(node, list.as_ref()?, QuirksMode::NoQuirks).map(|n| n.id),
+                element_closest::<&Node>(node, list.as_ref()?, QuirksMode::NoQuirks)
+                    .map(|n| n.id()),
             )),
         }))
         .ok()
@@ -809,7 +810,7 @@ fn make_query_method(
                         let node = doc.get_node(doc.get_element_by_id(&arg)?)?;
                         Some(
                             (node.attr(blitz_dom::local_name!("id")) == Some(arg.as_str()))
-                                .then_some(node.id),
+                                .then_some(node.id()),
                         )
                     })
                     .flatten();
@@ -948,9 +949,9 @@ pub(crate) fn try_fast_get(
             let pick = with_node(nid, |doc, internal| {
                 let node = doc.get_node(internal)?;
                 Some(if op == OP_FIRST_CHILD {
-                    node.children.first().copied()
+                    node.children().first()
                 } else {
-                    node.children.last().copied()
+                    node.children().last()
                 })
             })?;
             match pick {
@@ -969,8 +970,8 @@ pub(crate) fn try_fast_get(
                     } else {
                         let found = with_doc(|doc| {
                             let parent = doc.get_node(pid)?;
-                            let kids = &parent.children;
-                            let i = kids.iter().position(|&c| c == internal)?;
+                            let kids = parent.children();
+                            let index = kids.position(internal)?;
                             let fwd = op == OP_NEXT_SIBLING || op == OP_NEXT_ELEM_SIBLING;
                             let elems_only =
                                 op == OP_NEXT_ELEM_SIBLING || op == OP_PREV_ELEM_SIBLING;
@@ -982,13 +983,13 @@ pub(crate) fn try_fast_get(
                                 }
                             };
                             if fwd {
-                                for &cid in &kids[i + 1..] {
+                                for cid in kids.iter().skip(index + 1) {
                                     if let Some(hit) = step(cid) {
                                         return Some(Some(hit));
                                     }
                                 }
                             } else {
-                                for &cid in kids[..i].iter().rev() {
+                                for cid in kids.iter().take(index).rev() {
                                     if let Some(hit) = step(cid) {
                                         return Some(Some(hit));
                                     }

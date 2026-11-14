@@ -140,7 +140,7 @@ fn a_z_indexed_fixed_box_paints_pinned_to_the_viewport() {
             sc.children
                 .iter()
                 .find(|child| child.node_id == f)
-                .map(|child| child.position(base.tree(), root.id))
+                .map(|child| child.position(base.tree(), root.id()))
         })
         .expect("the z-indexed fixed box is hoisted into the root's stacking context");
     assert_eq!(position.y, 700.0);

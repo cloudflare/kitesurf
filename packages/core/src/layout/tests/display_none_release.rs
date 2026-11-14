@@ -9,7 +9,7 @@ fn assert_released(dom: &DomHandle, id: u32) {
     let node = doc.get_node(dom.resolve_node_id(id).unwrap()).unwrap();
     let element = node.element_data().unwrap();
     assert!(
-        element.layout_data.is_none(),
+        element.layout_data.get().is_none(),
         "hidden descendant keeps box data"
     );
     assert!(
@@ -21,7 +21,7 @@ fn assert_released(dom: &DomHandle, id: u32) {
         "hidden descendant keeps its marker"
     );
     assert_eq!(
-        node.layout_parent.get(),
+        node.layout_parent_id(),
         None,
         "hidden descendant keeps a box parent"
     );

@@ -1,0 +1,162 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 2 Nov 2026 12:10:49 +0000
+Subject: [PATCH] Add a style-only resolve for computed-value readers
+
+getComputedStyle reads of a single longhand never look at a box, yet every read after a
+mutation paid for counters, box construction, layout and the paint tree. resolve_style runs
+the inputs the cascade needs and the stylist, and leaves restyle damage on the nodes for the
+next full resolve. It reports false when a query container exists, because @container rules
+cascade against laid-out sizes, so the caller lays out instead.
+
+Whether a query container exists is a sticky flag that the style traversal and the
+full-resolve container snapshot set, so a style-only read does not scan every node for one.
+---
+ src/document.rs |  4 ++++
+ src/resolve.rs  | 37 +++++++++++++++++++++++++++++++++++++
+ src/stylo.rs    | 23 ++++++++++++++++++++++-
+ 3 files changed, 63 insertions(+), 1 deletion(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 5f57b00..1ce0a0b 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -301,6 +301,9 @@ pub struct BaseDocument {
+     // Config
+     /// Base url for resolving linked resources (stylesheets, images, fonts, etc)
+     pub(crate) url: DocumentUrl,
++    /// Sticky: some element was ever styled as a query container, so a style-only resolve can
++    /// no longer skip layout. Saves `resolve_style` a scan of every node on each read.
++    pub(crate) size_container_seen: bool,
+     // Devtool settings. Currently used to render debug overlays
+     pub(crate) devtool_settings: DevtoolSettings,
+     // Viewport details such as the dimensions, HiDPI scale, and zoom factor,
+@@ -708,6 +711,7 @@ impl BaseDocument {
+             counters_seen: false,
+             counters_built_once: false,
+             url: base_url,
++            size_container_seen: false,
+             author_sheet_cache: HashMap::new(),
+             pending_style_nodes: HashSet::new(),
+             author_sheet_keys: HashMap::new(),
+diff --git a/src/resolve.rs b/src/resolve.rs
+index a7c33ff..904b7ad 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -129,6 +129,42 @@ impl BaseDocument {
+         }
+     }
+
++    /// Restyle the tree without box construction or layout, leaving damage for the next `resolve`.
++    /// False means the caller must still run `resolve`: no DOM, render-blocking resources are
++    /// pending, or a query container exists, since `@container` rules read laid-out sizes.
++    pub fn resolve_style(&mut self, current_time_for_animations: f64) -> bool {
++        if TDocument::as_node(&self.root_node())
++            .first_element_child()
++            .is_none()
++        {
++            return false;
++        }
++        self.process_pending_style_elements();
++        self.handle_messages();
++        if self.has_pending_critical_resources() {
++            return false;
++        }
++        self.flush_pending_device_changes();
++        self.flush_slot_assignments();
++        self.resolve_stylist(current_time_for_animations);
++        !self.size_container_seen
++    }
++
++    /// Reshape the inline contexts that web-font faces registered since the last resolve can
++    /// change. Deferred to here because the damage is only read in a resolve, and a page
++    /// receiving N faces would otherwise walk every node N times.
++    fn apply_pending_font_damage(&mut self) {
++        if !std::mem::take(&mut self.inline_contexts_stale) {
++            return;
++        }
++        let families = std::mem::take(&mut self.stale_font_families);
++        if std::mem::take(&mut self.stale_font_family_unknown) {
++            self.invalidate_inline_contexts();
++        } else {
++            self.invalidate_inline_contexts_using(&families);
++        }
++    }
++
+     /// Restyle the tree and then relayout it
+     pub fn resolve(&mut self, current_time_for_animations: f64) {
+         if TDocument::as_node(&self.root_node())
+@@ -202,6 +238,7 @@ impl BaseDocument {
+         // Snapshot the sizes it styles against, so the pass after layout can
+         // spot the containers whose answer is now stale.
+         let container_sizes_before = container_sizes(self);
++        self.size_container_seen |= !container_sizes_before.is_empty();
+
+         // CSS counters: list-item values + counter()/attr() pseudo content.
+         // Needs computed styles; box construction consumes the side tables.
+diff --git a/src/stylo.rs b/src/stylo.rs
+index 58b53cd..cdb49ac 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -5,7 +5,7 @@ use blitz_traits::node_id::NodeId;
+ use std::marker::PhantomData;
+ use std::ptr::NonNull;
+ use std::sync::Mutex;
+-use std::sync::atomic::Ordering;
++use std::sync::atomic::{AtomicBool, Ordering};
+
+ use crate::StyleThreading;
+ use crate::layout::damage::{CONSTRUCT_BOX, compute_layout_damage};
+@@ -189,6 +189,7 @@ impl crate::document::BaseDocument {
+             style::driver::traverse_dom(&traverser, token, rayon_pool);
+             nodes_needing_style_image_flush =
+                 std::mem::take(traverser.nodes_needing_style_image_flush.get_mut().unwrap());
++            self.size_container_seen |= *traverser.saw_size_container.get_mut();
+         }
+         self.pending_style_image_nodes
+             .extend(nodes_needing_style_image_flush);
+@@ -1719,6 +1720,8 @@ pub struct RecalcStyle<'a> {
+     /// dedicated storage on the node (see `flush_image_layers_from_style`)
+     /// because their style changed during this traversal.
+     nodes_needing_style_image_flush: Mutex<Vec<NodeId>>,
++    /// Whether this traversal styled any element or eager pseudo-element as a query container.
++    saw_size_container: AtomicBool,
+ }
+
+ impl<'a> RecalcStyle<'a> {
+@@ -1726,10 +1729,22 @@ impl<'a> RecalcStyle<'a> {
+         RecalcStyle {
+             context,
+             nodes_needing_style_image_flush: Mutex::new(Vec::new()),
++            saw_size_container: AtomicBool::new(false),
+         }
+     }
+ }
+
++fn is_size_container_style(style: &ComputedValues) -> bool {
++    !style.get_box().clone_container_type().is_normal()
++}
++
++/// Whether this element or one of its eager pseudo-elements styles as a query container.
++fn styles_a_size_container(styles: &style::data::ElementStyles) -> bool {
++    let pseudos = styles.pseudos.as_optional_array();
++    styles.get_primary().is_some_and(|s| is_size_container_style(s))
++        || pseudos.is_some_and(|styles| styles.iter().flatten().any(|s| is_size_container_style(s)))
++}
++
+ #[allow(unsafe_code)]
+ impl<'dom> DomTraversal<BlitzNode<'dom>> for RecalcStyle<'_> {
+     fn process_preorder<F: FnMut(BlitzNode<'dom>)>(
+@@ -1766,6 +1781,12 @@ impl<'dom> DomTraversal<BlitzNode<'dom>> for RecalcStyle<'_> {
+
+             sync_pseudo_element_styles(el, &data, &self.nodes_needing_style_image_flush);
+
++            if !self.saw_size_container.load(Ordering::Relaxed)
++                && styles_a_size_container(&data.styles)
++            {
++                self.saw_size_container.store(true, Ordering::Relaxed);
++            }
++
+             if !data.damage.is_empty() {
+                 // Mark the ancestor chain so that the damage propagation pass
+                 // visits this element.

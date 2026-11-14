@@ -11,6 +11,7 @@ mod cascade_panic_recovery;
 mod color_serialization;
 mod focus_pseudoclass;
 mod has_invalidation;
+mod insertion_invalidation;
 mod resolved_transform;
 mod stylesheet_anchor;
 mod svg_css_fill;

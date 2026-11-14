@@ -1,0 +1,186 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 2 Nov 2026 12:21:02 +0000
+Subject: [PATCH] Restyle only structurally affected siblings on child
+ insertion
+
+Every insertion stamped restyle_subtree() on the new parent, so prepending one marker
+span to each list item recascaded every list subtree. Like Gecko's RestyleForInsertOrChange,
+restyle the inserted children, and use the parent's selector flags to restyle only the
+edge children or later siblings that structural selectors can match. :empty, from-end
+selectors, sibling-index(), slots and shadow hosts keep the whole-parent restyle; :has()
+keeps its own invalidator.
+---
+ src/mutator.rs | 102 ++++++++++++++++++++++++++++++++++++++++++++++---
+ src/stylo.rs   |  20 ++++++++++
+ 2 files changed, 116 insertions(+), 6 deletions(-)
+
+diff --git a/src/mutator.rs b/src/mutator.rs
+index a85e9ab..0fb1359 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -20,6 +20,23 @@ use thin_vec::ThinVec;
+
+ const TEMPLATE_CONTENTS_FRAGMENT_NAME: &str = "#document-fragment";
+
++/// Whether inserting a child must recascade the parent's whole subtree: its own `:empty`, a
++/// `:last-child`-style or `sibling-index()` dependency on every child, or a flat tree that
++/// slotting reshapes. Anything else goes through `restyle_for_insertion`.
++fn insertion_restyles_whole_parent(parent: &Node) -> bool {
++    use selectors::matching::ElementSelectorFlags;
++
++    if !parent.is_element() || parent.is_slot_element() || parent.attached_shadow_root_id().is_some()
++    {
++        return true;
++    }
++    parent.selector_flags().get().intersects(
++        ElementSelectorFlags::HAS_EMPTY_SELECTOR
++            | ElementSelectorFlags::HAS_SLOW_SELECTOR
++            | ElementSelectorFlags::MAY_HAVE_TREE_COUNTING_FUNCTION,
++    )
++}
++
+ macro_rules! tag_and_attr {
+     ($tag:tt, $attr:tt) => {
+         (&local_name!($tag), &local_name!($attr))
+@@ -981,16 +998,21 @@ impl DocumentMutator<'_> {
+             self.maybe_record_node(old_parent_id);
+         }
+
++        let has_sibling_relative_selectors =
++            new_parent_is_in_document && self.doc.has_sibling_relative_selectors();
+         let new_parent = &mut self.doc.nodes[parent_id];
+         new_parent.insert_damage(ALL_DAMAGE);
+
+-        // TODO: make this fine grained / conditional based on ElementSelectorFlags
++        let restyle_whole_parent = new_parent_is_in_document
++            && (insertion_restyles_whole_parent(new_parent) || has_sibling_relative_selectors);
+         if new_parent_is_in_document {
+-            if let Some(mut data) = new_parent
+-                .try_stylo_element_data_mut()
+-                .and_then(|s| s.get_mut())
+-            {
+-                data.hint |= RestyleHint::restyle_subtree();
++            if restyle_whole_parent {
++                if let Some(mut data) = new_parent
++                    .try_stylo_element_data_mut()
++                    .and_then(|s| s.get_mut())
++                {
++                    data.hint |= RestyleHint::restyle_subtree();
++                }
+             }
+             new_parent.set_dirty_descendants();
+             // Mark ancestors dirty so the style traversal visits this subtree.
+@@ -1017,6 +1039,9 @@ impl DocumentMutator<'_> {
+         // Insertions invalidate after linking, since the collector
+         // reads the node's final parent and sibling positions.
+         if new_parent_is_in_document {
++            if !restyle_whole_parent {
++                self.restyle_for_insertion(parent_id, child_ids);
++            }
+             for &child_id in child_ids.iter() {
+                 self.doc.invalidate_relative_selectors_for_insertion(child_id);
+             }
+@@ -1025,6 +1050,71 @@ impl DocumentMutator<'_> {
+         self.maybe_record_node(parent_id);
+     }
+
++    /// Gecko's RestyleForInsertOrChange: restyle the inserted children, plus the siblings whose
++    /// structural selectors (`:first-child`, `+`, `~`, `:nth-child`) the parent's selector flags
++    /// say could change. Inherited styles cannot change, so the rest of the parent is untouched.
++    fn restyle_for_insertion(&mut self, parent_id: NodeId, child_ids: &[NodeId]) {
++        use selectors::matching::ElementSelectorFlags;
++
++        for &child_id in child_ids {
++            self.doc.nodes[child_id].set_restyle_hint(RestyleHint::restyle_subtree());
++        }
++        let flags = self.doc.nodes[parent_id].selector_flags().get();
++        let later_siblings = flags.contains(ElementSelectorFlags::HAS_SLOW_SELECTOR_LATER_SIBLINGS);
++        let edge_children = flags.contains(ElementSelectorFlags::HAS_EDGE_CHILD_SELECTOR);
++        if child_ids.is_empty() || (!later_siblings && !edge_children) {
++            return;
++        }
++        let (Some(&first_id), Some(&last_id)) = (child_ids.first(), child_ids.last()) else {
++            return;
++        };
++        let children = &self.doc.nodes[parent_id].children;
++        // Callers splice `child_ids` in as one contiguous run; anything else restyles it all.
++        let first = if children.last() == Some(&last_id) {
++            children.len().checked_sub(child_ids.len())
++        } else {
++            children.iter().position(|id| *id == first_id)
++        };
++        let first = first.filter(|&f| children.get(f) == Some(&first_id));
++        let last = first.map(|first| first + child_ids.len() - 1);
++        let (Some(first), Some(last)) = (first, last.filter(|&l| children.get(l) == Some(&last_id)))
++        else {
++            self.doc.nodes[parent_id].set_restyle_hint(RestyleHint::restyle_subtree());
++            return;
++        };
++        let is_element = |id: &&NodeId| self.doc.nodes[**id].is_element();
++        let mut targets: Vec<NodeId> = Vec::new();
++        if edge_children {
++            // The old first or last element child, or the old only child.
++            targets.extend(children[..first].iter().rev().find(is_element));
++            targets.extend(children[last + 1..].iter().find(is_element));
++        }
++        if later_siblings {
++            targets.extend(children[last + 1..].iter().filter(is_element));
++        }
++        for id in targets {
++            self.doc.nodes[id].set_restyle_hint(RestyleHint::restyle_subtree());
++        }
++    }
++
++    /// The `first..=last` range `child_ids` occupies in `parent_id`'s child list, or `None` when
++    /// they are not one contiguous run there. Callers splice them in as a run.
++    fn spliced_run(&self, parent_id: NodeId, child_ids: &[NodeId]) -> Option<(usize, usize)> {
++        let first_id = *child_ids.first()?;
++        let last_id = *child_ids.last()?;
++        let children = self.doc.nodes[parent_id].children();
++        let first = if children.last() == Some(last_id) {
++            children.len().checked_sub(child_ids.len())?
++        } else {
++            children.position(first_id)?
++        };
++        if children.get(first) != Some(first_id) {
++            return None;
++        }
++        let last = first + child_ids.len() - 1;
++        (children.get(last) == Some(last_id)).then_some((first, last))
++    }
++
+     // Tree mutation methods (that defer to other methods)
+     pub fn insert_nodes_after(&mut self, anchor_node_id: NodeId, new_node_ids: &[NodeId]) {
+         match self.next_sibling_id(anchor_node_id) {
+diff --git a/src/stylo.rs b/src/stylo.rs
+index cdb49ac..ba78c26 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -390,6 +390,26 @@ impl crate::document::BaseDocument {
+                 .any(|(data, _)| data.relative_invalidation_map_attributes().used)
+     }
+
++    /// Whether some `:has()` starts with `+` or `~`, in the document or any shadow tree, so
++    /// an inserted element can change an earlier sibling's match. An inserted element only
++    /// inherits its parent's search direction, which never carries the sibling one, so the
++    /// invalidator misses those anchors and the insertion must restyle the whole parent.
++    pub(crate) fn has_sibling_relative_selectors(&self) -> bool {
++        let reaches_siblings = |data: &style::stylist::CascadeData| {
++            data.relative_invalidation_map_attributes()
++                .has_sibling_relative_selectors
++        };
++        self.stylist
++            .iter_origins()
++            .any(|(data, _)| reaches_siblings(data))
++            || self.shadow_roots.iter().any(|&id| {
++                self.nodes
++                    .get(id)
++                    .and_then(|node| node.shadow_root_data())
++                    .is_some_and(|data| reaches_siblings(&data.author_styles.data))
++            })
++    }
++
+     /// Structural sibling of the pass above, for tree mutations rather than
+     /// attribute and state ones. Snapshots only exist for the latter, so an
+     /// insert or remove has to invalidate at mutation time.

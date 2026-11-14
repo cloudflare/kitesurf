@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 2 Nov 2026 09:37:22 +0000
+Subject: [PATCH] Reserve initial paint-child buffers to their contributor
+ bound
+
+Avoid minimum-four padding when a paint list first allocates. Keep amortized growth for buffers already allocated so repeated dirty appends do not require a reallocation on every rebuild.
+
+Signed-off-by: Bernardo Pereira <bpereira@cloudflare.com>
+---
+ src/layout/paint_tree.rs | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/src/layout/paint_tree.rs b/src/layout/paint_tree.rs
+index 22353e4..358c3f6 100644
+--- a/src/layout/paint_tree.rs
++++ b/src/layout/paint_tree.rs
+@@ -339,7 +339,12 @@ impl BaseDocument {
+                 .take_paint_children()
+                 .unwrap_or_default();
+             paint_children.clear();
+-            paint_children.reserve(children.len() + hoisted_past_parent.len());
++            let contributor_bound = children.len() + hoisted_past_parent.len();
++            if paint_children.capacity() == 0 {
++                paint_children.reserve_exact(contributor_bound);
++            } else {
++                paint_children.reserve(contributor_bound);
++            }
+
+             for (index, &child_id) in children.iter().enumerate() {
+                 if !owned_here(self, child_id) && self.paints_rehomed(child_id) {

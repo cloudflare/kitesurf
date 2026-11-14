@@ -1,0 +1,227 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 2 Nov 2026 12:49:07 +0000
+Subject: [PATCH] Cache parsed query selectors and hint sibling indexes
+
+Scripts repeat a few selectors in loops, and parsing dominated short queries. Sibling steps searched the parent's child list from the start, which made walks over long child lists quadratic. A small thread-local hint per parent slot, always checked against the list, makes in-order steps constant time without growing Node.
+
+Signed-off-by: Bernardo Pereira <bpereira@cloudflare.com>
+---
+ src/document.rs       |  3 +++
+ src/node/node.rs      | 25 +++++++++++++++++----
+ src/query_selector.rs | 52 ++++++++++++++++++++++++++++++++++++++++++-
+ src/stylo.rs          | 38 +++++++++++++++----------------
+ src/url.rs            |  4 ++++
+ 5 files changed, 97 insertions(+), 25 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 1ce0a0b..b5fbd06 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -301,6 +301,8 @@ pub struct BaseDocument {
+     // Config
+     /// Base url for resolving linked resources (stylesheets, images, fonts, etc)
+     pub(crate) url: DocumentUrl,
++    /// querySelector-family selectors already parsed against `url`.
++    pub(crate) selector_cache: crate::query_selector::SelectorCache,
+     /// Sticky: some element was ever styled as a query container, so a style-only resolve can
+     /// no longer skip layout. Saves `resolve_style` a scan of every node on each read.
+     pub(crate) size_container_seen: bool,
+@@ -711,6 +713,7 @@ impl BaseDocument {
+             counters_seen: false,
+             counters_built_once: false,
+             url: base_url,
++            selector_cache: Default::default(),
+             size_container_seen: false,
+             author_sheet_cache: HashMap::new(),
+             pending_style_nodes: HashSet::new(),
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 27490a3..c48559d 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -379,6 +379,15 @@ pub(crate) struct LayoutChildLists {
+     paint: RefCell<Option<ThinVec<NodeId>>>,
+ }
+
++/// Parents tracked at once by `child_index`; a tree walk keeps one slot per open ancestor.
++const CHILD_INDEX_HINTS: usize = 64;
++
++thread_local! {
++    /// Last child index found under each parent slot. Storing it in `Node` would grow every node.
++    static CHILD_INDEX_HINT: [Cell<usize>; CHILD_INDEX_HINTS] =
++        const { [const { Cell::new(0) }; CHILD_INDEX_HINTS] };
++}
++
+ pub struct Node {
+     // The actual tree we belong to. This is unsafe!!
+     tree: *mut crate::NodeTree,
+@@ -1597,10 +1606,18 @@ impl Node {
+
+     // Get the index of the current node in the parents child list
+     pub fn child_index(&self) -> Option<usize> {
+-        self.tree()[self.parent.get()?]
+-            .children
+-            .iter()
+-            .position(|id| *id == self.id)
++        let parent_id = self.parent.get()?;
++        let siblings = &self.tree()[parent_id].children;
++        let slot = parent_id.as_u64() as usize % CHILD_INDEX_HINTS;
++        let hint = CHILD_INDEX_HINT.with(|hints| hints[slot].get());
++        // Walks visit siblings in order, so the last index seen under this parent (or its
++        // neighbour) is usually ours. Any hint is checked against the list before use.
++        let found = [hint.wrapping_add(1), hint, hint.wrapping_sub(1)]
++            .into_iter()
++            .find(|&index| siblings.get(index) == Some(&self.id))
++            .or_else(|| siblings.iter().position(|id| *id == self.id))?;
++        CHILD_INDEX_HINT.with(|hints| hints[slot].set(found));
++        Some(found)
+     }
+
+     // Get the nth node in the parents child list
+diff --git a/src/query_selector.rs b/src/query_selector.rs
+index e010772..2e23815 100644
+--- a/src/query_selector.rs
++++ b/src/query_selector.rs
+@@ -1,5 +1,7 @@
+ use blitz_traits::node_id::NodeId;
+ use selectors::SelectorList;
++use std::collections::HashMap;
++use std::collections::hash_map::Entry;
+ use smallvec::SmallVec;
+ use style::dom::{TDocument, TNode};
+ use style::dom_apis::{
+@@ -8,8 +10,51 @@ use style::dom_apis::{
+ use style::selector_parser::{SelectorImpl, SelectorParser};
+ use style_traits::ParseError;
+
++use crate::url::DocumentUrl;
+ use crate::{Atom, BaseDocument, Node};
+
++/// Distinct selectors kept per document; a full cache starts over, so a page generating
++/// endless unique selectors costs one reparse each and stays bounded.
++const SELECTOR_CACHE_ENTRIES: usize = 128;
++/// Longer selectors are rare and not worth retaining.
++const SELECTOR_CACHE_MAX_LEN: usize = 256;
++
++/// Parsed querySelector selectors by source text. Scripts query the same few selectors in
++/// loops, and parsing dominated short queries. Errors are not cached, so they reparse.
++#[derive(Default)]
++pub(crate) struct SelectorCache {
++    entries: std::cell::RefCell<Option<(DocumentUrl, ParsedSelectors)>>,
++}
++
++type ParsedSelectors = HashMap<Box<str>, SelectorList<SelectorImpl>>;
++
++impl SelectorCache {
++    fn get(&self, url: &DocumentUrl, input: &str) -> Option<SelectorList<SelectorImpl>> {
++        let entries = self.entries.borrow();
++        let (cached_url, lists) = entries.as_ref()?;
++        if !cached_url.same_url(url) {
++            return None;
++        }
++        lists.get(input).cloned()
++    }
++
++    fn insert(&self, url: &DocumentUrl, input: &str, list: &SelectorList<SelectorImpl>) {
++        if input.len() > SELECTOR_CACHE_MAX_LEN {
++            return;
++        }
++        let mut entries = self.entries.borrow_mut();
++        let stale = entries.as_ref().is_none_or(|(cached_url, lists)| {
++            !cached_url.same_url(url) || lists.len() >= SELECTOR_CACHE_ENTRIES
++        });
++        if stale {
++            *entries = Some((url.clone(), HashMap::new()));
++        }
++        if let Some((_, lists)) = entries.as_mut() {
++            lists.insert(input.into(), list.clone());
++        }
++    }
++}
++
+ impl BaseDocument {
+     /// Find the node with the specified id attribute (if one exists).
+     /// If multiple nodes have the same id, the first in tree order is returned.
+@@ -247,8 +292,13 @@ impl BaseDocument {
+         &self,
+         input: &str,
+     ) -> Result<SelectorList<SelectorImpl>, ParseError> {
++        if let Some(list) = self.selector_cache.get(&self.url, input) {
++            return Ok(list);
++        }
+         let url_extra_data = self.url.url_extra_data();
+-        SelectorParser::parse_author_origin_no_namespace(input, &url_extra_data)
++        let list = SelectorParser::parse_author_origin_no_namespace(input, &url_extra_data)?;
++        self.selector_cache.insert(&self.url, input, &list);
++        Ok(list)
+     }
+
+     // Namespace-aware variant for CSSOM selectorText writes: a rule in a
+diff --git a/src/stylo.rs b/src/stylo.rs
+index ba78c26..f55ffd9 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -670,30 +670,28 @@ impl selectors::Element for BlitzNode<'_> {
+         matches!(self.data, NodeData::AnonymousBlock(_))
+     }
+
+-    // These methods are implemented naively since we only threaded real nodes and not fake nodes
+-    // we should try and use `find` instead of this foward/backward stuff since its ugly and slow
++    // Locate self in the parent's child list once, then scan from there: stepping with
++    // forward(n)/backward(n) repeated that lookup for every skipped text node.
+     fn prev_sibling_element(&self) -> Option<Self> {
+-        let mut n = 1;
+-        while let Some(node) = self.backward(n) {
+-            if node.is_element() {
+-                return Some(node);
+-            }
+-            n += 1;
+-        }
+-
+-        None
++        let parent = self.with(self.parent.get()?);
++        let index = self.child_index().unwrap_or(0);
++        parent.children[..index]
++            .iter()
++            .rev()
++            .map(|id| self.with(*id))
++            .find(|node| node.is_element())
+     }
+
+     fn next_sibling_element(&self) -> Option<Self> {
+-        let mut n = 1;
+-        while let Some(node) = self.forward(n) {
+-            if node.is_element() {
+-                return Some(node);
+-            }
+-            n += 1;
+-        }
+-
+-        None
++        let parent = self.with(self.parent.get()?);
++        let index = self.child_index().unwrap_or(0);
++        parent
++            .children
++            .get(index + 1..)
++            .unwrap_or_default()
++            .iter()
++            .map(|id| self.with(*id))
++            .find(|node| node.is_element())
+     }
+
+     fn first_element_child(&self) -> Option<Self> {
+diff --git a/src/url.rs b/src/url.rs
+index 4e0c4dd..11026f0 100644
+--- a/src/url.rs
++++ b/src/url.rs
+@@ -11,6 +11,10 @@ pub(crate) struct DocumentUrl {
+ }
+
+ impl DocumentUrl {
++    pub(crate) fn same_url(&self, other: &DocumentUrl) -> bool {
++        ServoArc::ptr_eq(&self.base_url, &other.base_url)
++    }
++
+     /// Create a stylo `UrlExtraData` from the URL
+     pub(crate) fn url_extra_data(&self) -> UrlExtraData {
+         UrlExtraData(ServoArc::clone(&self.base_url))

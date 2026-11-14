@@ -40,20 +40,21 @@ impl DomHandle {
             if elem.name.local != local_name!("input") {
                 return false;
             }
-            match elem.special_data {
-                SpecialElementData::CheckboxInput(ref mut slot) => {
+            match elem.special_data_mut() {
+                Some(SpecialElementData::CheckboxInput(slot)) => {
                     *slot = checked;
                 }
-                SpecialElementData::None => {
-                    elem.special_data = SpecialElementData::CheckboxInput(checked);
+                // `special_data_mut` yields `None` for `SpecialElementData::None`.
+                None => {
+                    elem.set_special_data(SpecialElementData::CheckboxInput(checked));
                 }
-                _ => return false,
+                Some(_) => return false,
             }
         }
 
         {
             use ::style::invalidation::element::restyle_hints::RestyleHint;
-            let parent_id = doc.get_node(nid).and_then(|n| n.parent.get());
+            let parent_id = doc.get_node(nid).and_then(|n| n.parent_id());
             if let Some(node) = doc.get_node_mut(nid) {
                 if let Some(mut data) = node.stylo_element_data_mut().get_mut() {
                     data.hint |= RestyleHint::restyle_subtree();
@@ -90,7 +91,7 @@ impl DomHandle {
             let is_range = doc
                 .get_node(nid)
                 .and_then(|n| n.element_data())
-                .map(|e| matches!(e.special_data, SpecialElementData::RangeInput(_)))
+                .map(|e| matches!(e.special_data(), SpecialElementData::RangeInput(_)))
                 .unwrap_or(false);
             if is_range {
                 let Ok(v) = value.parse::<f64>() else {
@@ -101,7 +102,7 @@ impl DomHandle {
                 }
                 doc.snapshot_node(nid);
                 if let Some(elem) = doc.get_node_mut(nid).and_then(|n| n.element_data_mut()) {
-                    elem.special_data = SpecialElementData::RangeInput(Box::new(v));
+                    elem.set_special_data(SpecialElementData::RangeInput(Box::new(v)));
                 }
                 if let Some(node) = doc.get_node(nid) {
                     node.mark_ancestors_dirty();

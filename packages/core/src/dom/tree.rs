@@ -18,7 +18,7 @@ use crate::{DomHandle, LayoutMode, NodeHandleMap};
 use crate::dom::cdp::{describe_node, describe_node_ext};
 
 fn find_html_title(doc: &BaseDocument) -> Option<&Node> {
-    let mut stack = vec![doc.root_node().id];
+    let mut stack = vec![doc.root_node().id()];
     while let Some(id) = stack.pop() {
         let Some(node) = doc.get_node(id) else {
             continue;
@@ -28,7 +28,7 @@ fn find_html_title(doc: &BaseDocument) -> Option<&Node> {
                 return Some(node);
             }
         }
-        stack.extend(node.children.iter().rev().copied());
+        stack.extend(node.children().iter().rev());
     }
     None
 }
@@ -39,9 +39,9 @@ fn find_title<'a>(doc: &'a BaseDocument) -> Option<&'a Node> {
             .is_some_and(|el| el.name.local == local && *el.namespace() == ns)
     };
     let elements = |n: &Node| -> Vec<&'a Node> {
-        n.children
+        n.children()
             .iter()
-            .filter_map(|&id| doc.get_node(id))
+            .filter_map(|id| doc.get_node(id))
             .filter(|c| c.element_data().is_some())
             .collect()
     };
@@ -90,7 +90,7 @@ fn collect_preorder(
             None
         };
         stack.extend(after);
-        stack.extend(node.children.iter().rev().copied());
+        stack.extend(node.children().into_iter().rev());
         stack.extend(before);
     };
     push_children(start, &mut stack);
@@ -145,23 +145,23 @@ pub(crate) fn generates_box(doc: &BaseDocument, node: &Node) -> bool {
         use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
         d.outside() == DisplayOutside::None && d.inside() == DisplayInside::None
     };
-    if no_box(*node.display_constructed_as()) {
+    if no_box(node.display_constructed_as()) {
         return false;
     }
-    let root_id = doc.root_node().id;
-    if node.id == root_id {
+    let root_id = doc.root_node().id();
+    if node.id() == root_id {
         return true;
     }
-    let mut cur = node.parent.get();
+    let mut cur = node.parent_id();
     while let Some(pid) = cur {
         let Some(p) = doc.get_node(pid) else { break };
-        if p.is_element() && no_box(*p.display_constructed_as()) {
+        if p.is_element() && no_box(p.display_constructed_as()) {
             return false;
         }
         if pid == root_id {
             return true;
         }
-        cur = p.parent.get();
+        cur = p.parent_id();
     }
     false
 }
@@ -187,7 +187,7 @@ fn write_outer_html(doc: &BaseDocument, node: &Node, out: &mut String) {
 }
 
 fn push_children<'a>(doc: &'a BaseDocument, node: &'a Node, stack: &mut Vec<SerializeStep<'a>>) {
-    for &cid in node.children.iter().rev() {
+    for cid in node.children().iter().rev() {
         if let Some(c) = doc.get_node(cid) {
             stack.push(SerializeStep::Open(c));
         }
@@ -217,10 +217,10 @@ fn write_node_open<'a>(
             out.push_str(local);
             let mut emit_synth_checked = false;
             let mut suppress_attr_checked = false;
-            if let SpecialElementData::CheckboxInput(true) = data.special_data {
+            if let SpecialElementData::CheckboxInput(true) = data.special_data() {
                 emit_synth_checked = true;
                 suppress_attr_checked = true;
-            } else if let SpecialElementData::CheckboxInput(false) = data.special_data {
+            } else if let SpecialElementData::CheckboxInput(false) = data.special_data() {
                 suppress_attr_checked = true;
             }
             if emit_synth_checked {
@@ -245,7 +245,7 @@ fn write_node_open<'a>(
 
             stack.push(SerializeStep::Close(local));
             if is_raw_text_element(local) {
-                for &cid in &node.children {
+                for cid in node.children() {
                     let Some(child) = doc.get_node(cid) else {
                         continue;
                     };
@@ -298,13 +298,22 @@ impl DomHandle {
         self.base_url.clone()
     }
 
+    /// Moves whenever the first connected `<base href>` can change, so callers re-resolve
+    /// `baseURI` only then. Any connected move counts; -1 means the document is borrowed.
+    #[wasm_bindgen(js_name = "baseEpoch")]
+    pub fn base_epoch(&self) -> f64 {
+        self.doc
+            .try_borrow()
+            .map_or(-1.0, |d| f64::from(d.base_epoch))
+    }
+
     #[wasm_bindgen(js_name = "getDocument", unchecked_return_type = "KsNodeInfo | null")]
     pub fn get_document(&self) -> Result<JsValue, JsError> {
         let doc = match self.doc.try_borrow() {
             Ok(d) => d,
             Err(_) => return Ok(JsValue::NULL),
         };
-        let doc_id = doc.root_node().id;
+        let doc_id = doc.root_node().id();
         let mut node_handles = self.node_handles.borrow_mut();
         let cdp = describe_node(&doc, doc_id, &self.base_url, true, &mut node_handles)
             .ok_or_else(|| JsError::new("document node missing"))?;
@@ -363,7 +372,7 @@ impl DomHandle {
         };
         match doc.get_element_by_id(id).and_then(|nid| doc.get_node(nid)) {
             Some(node) if node.attr(local_name!("id")) == Some(id) => {
-                self.external_node_id_i32(node.id)
+                self.external_node_id_i32(node.id())
             }
             _ => -1,
         }
@@ -466,7 +475,7 @@ impl DomHandle {
         }
         Ok(results
             .into_iter()
-            .map(|n| self.external_node_id_i32(n.id))
+            .map(|n| self.external_node_id_i32(n.id()))
             .collect())
     }
 
@@ -532,7 +541,7 @@ impl DomHandle {
             element_closest::<&Node>(node, &selector_list, quirks)
         }));
         match r {
-            Ok(Some(matched)) => Ok(self.external_node_id_i32(matched.id)),
+            Ok(Some(matched)) => Ok(self.external_node_id_i32(matched.id())),
             _ => Ok(-1),
         }
     }
@@ -551,7 +560,7 @@ impl DomHandle {
         };
         let mut out = String::new();
         if matches!(n.data, NodeData::Document(_)) {
-            for &cid in &n.children {
+            for cid in n.children() {
                 if let Some(c) = doc.get_node(cid) {
                     write_outer_html(&doc, c, &mut out);
                 }
@@ -579,7 +588,7 @@ impl DomHandle {
             NodeData::Element(data) => is_raw_text_element(&data.name.local),
             _ => false,
         };
-        for &cid in &node.children {
+        for cid in node.children() {
             if let Some(c) = doc.get_node(cid) {
                 if raw_text {
                     if let NodeData::Text(t) = &c.data {
@@ -639,9 +648,8 @@ impl DomHandle {
         };
         match doc.get_node(internal_id) {
             Some(n) => n
-                .children
+                .children()
                 .iter()
-                .copied()
                 .map(|id| self.external_node_id(id))
                 .collect(),
             None => Vec::new(),
@@ -657,7 +665,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return -1,
         };
-        match doc.get_node(internal_id).and_then(|n| n.parent.get()) {
+        match doc.get_node(internal_id).and_then(|n| n.parent_id()) {
             Some(p) => self.external_node_id_i32(p),
             None => -1,
         }
@@ -682,7 +690,7 @@ impl DomHandle {
             if cur == ancestor {
                 return true;
             }
-            match doc.get_node(cur).and_then(|n| n.parent.get()) {
+            match doc.get_node(cur).and_then(|n| n.parent_id()) {
                 Some(p) if p != cur => cur = p,
                 _ => return false,
             }

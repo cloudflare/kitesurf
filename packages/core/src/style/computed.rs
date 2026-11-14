@@ -23,7 +23,7 @@ fn element_styles(
 ) -> Option<::style::servo_arc::Arc<::style::properties::ComputedValues>> {
     match node.primary_styles() {
         Some(styles) => Some(::style::servo_arc::Arc::clone(&styles)),
-        None => doc.resolve_undisplayed_style(node.id),
+        None => doc.resolve_undisplayed_style(node.id()),
     }
 }
 
@@ -352,20 +352,20 @@ impl DomHandle {
             };
             let rendered_layout_box = {
                 use ::style::values::specified::box_::DisplayOutside;
-                let root_id = doc.root_node().id;
-                let mut connected = node.id == root_id;
-                let mut has_box = if node.id == root_id {
+                let root_id = doc.root_node().id();
+                let mut connected = node.id() == root_id;
+                let mut has_box = if node.id() == root_id {
                     node.display_constructed_as().outside() != DisplayOutside::None
                 } else {
                     styles.clone_display().outside() != DisplayOutside::None
                 };
-                let mut cur = node.parent.get();
+                let mut cur = node.parent_id();
                 while has_box {
                     let Some(pid) = cur else { break };
                     let Some(parent) = doc.get_node(pid) else {
                         break;
                     };
-                    if parent.is_element() && no_box(*parent.display_constructed_as()) {
+                    if parent.is_element() && no_box(parent.display_constructed_as()) {
                         has_box = false;
                         break;
                     }
@@ -373,7 +373,7 @@ impl DomHandle {
                         connected = true;
                         break;
                     }
-                    cur = parent.parent.get();
+                    cur = parent.parent_id();
                 }
                 has_box && connected
             };
@@ -412,9 +412,11 @@ impl DomHandle {
                     id,
                     LonghandId::GridTemplateColumns | LonghandId::GridTemplateRows
                 ) {
-                    if let Some(value) =
-                        grid_template_resolved(&doc, node.id, id == LonghandId::GridTemplateColumns)
-                    {
+                    if let Some(value) = grid_template_resolved(
+                        &doc,
+                        node.id(),
+                        id == LonghandId::GridTemplateColumns,
+                    ) {
                         let name = NonCustomPropertyId::from(id).name();
                         out.push(CdpComputedProp {
                             name: name.to_string(),
@@ -628,8 +630,7 @@ impl DomHandle {
                 {
                     use ::style::values::specified::box_::DisplayInside;
                     let is_flex_or_grid_item = node
-                        .layout_parent
-                        .get()
+                        .layout_parent_id()
                         .and_then(|p| doc.get_node(p))
                         .and_then(|p| p.primary_styles())
                         .is_some_and(|s| {
@@ -661,7 +662,7 @@ impl DomHandle {
                         if styles.clone_position() != Position::Sticky {
                             return None;
                         }
-                        let insets = self.sticky_resolved_insets(node.id)?;
+                        let insets = self.sticky_resolved_insets(node.id())?;
                         let wm = WritingMode::new(styles.get_inherited_box());
                         let physical = match id {
                             LonghandId::Top => PhysicalSide::Top,

@@ -1,0 +1,205 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 2 Nov 2026 14:43:46 +0000
+Subject: [PATCH] Reshape only text that names a newly registered web font
+ family
+
+A web font arriving after the first layout damaged every inline layout in the document,
+so a face used by one table on html.spec.whatwg.org cost a full 740k-node relayout.
+Only text whose font-family names the registered family can shape differently; reshape
+those inline roots and the inline roots above them. A face with no family name still
+reshapes everything.
+
+The damage is applied at the next resolve rather than on each delivery, so a page that
+receives N faces walks its nodes once instead of N times.
+---
+ src/document.rs      |  28 +++++++++++-
+ src/layout/damage.rs | 102 +++++++++++++++++++++++++++++++++++++++++++
+ src/resolve.rs       |   1 +
+ 3 files changed, 129 insertions(+), 2 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index b5fbd06..cba787d 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -306,6 +306,12 @@ pub struct BaseDocument {
+     /// Sticky: some element was ever styled as a query container, so a style-only resolve can
+     /// no longer skip layout. Saves `resolve_style` a scan of every node on each read.
+     pub(crate) size_container_seen: bool,
++    /// A web font arrived since the last resolve, so inline contexts must be reshaped.
++    pub(crate) inline_contexts_stale: bool,
++    /// Lowercased families of the faces registered since the last resolve. Only text whose
++    /// `font-family` names one of them can shape differently, unless a face had no name.
++    pub(crate) stale_font_families: Vec<String>,
++    pub(crate) stale_font_family_unknown: bool,
+     // Devtool settings. Currently used to render debug overlays
+     pub(crate) devtool_settings: DevtoolSettings,
+     // Viewport details such as the dimensions, HiDPI scale, and zoom factor,
+@@ -715,6 +721,9 @@ impl BaseDocument {
+             url: base_url,
+             selector_cache: Default::default(),
+             size_container_seen: false,
++            inline_contexts_stale: false,
++            stale_font_families: Vec::new(),
++            stale_font_family_unknown: false,
+             author_sheet_cache: HashMap::new(),
+             pending_style_nodes: HashSet::new(),
+             author_sheet_keys: HashMap::new(),
+@@ -2436,6 +2445,20 @@ impl BaseDocument {
+                         });
+                     }
+                 }
++                let mut names: Vec<String> =
++                    overrides.family_name.iter().map(|name| name.to_lowercase()).collect();
++                for (family, _) in &registered {
++                    if let Some(name) = global_font_ctx.collection.family_name(*family) {
++                        names.push(name.to_lowercase());
++                    }
++                }
++                // A face with no family name can change the shaping of any text.
++                self.stale_font_family_unknown |= names.is_empty();
++                for name in names {
++                    if !self.stale_font_families.contains(&name) {
++                        self.stale_font_families.push(name);
++                    }
++                }
+
+                 #[cfg(feature = "parallel-construct")]
+                 {
+@@ -2451,8 +2474,9 @@ impl BaseDocument {
+                 }
+                 drop(global_font_ctx);
+
+-                // TODO: see if we can only invalidate if resolved fonts may have changed
+-                self.invalidate_inline_contexts();
++                // Deferred to the next resolve: the damage is only read there, and a page
++                // receiving N faces would otherwise walk every node N times.
++                self.inline_contexts_stale = true;
+             }
+             Resource::None => {
+                 // Do nothing
+diff --git a/src/layout/damage.rs b/src/layout/damage.rs
+index eb33360..e477e2c 100644
+--- a/src/layout/damage.rs
++++ b/src/layout/damage.rs
+@@ -604,6 +604,108 @@ pub(crate) fn sort_layout_children_by_order(
+ }
+
+ impl BaseDocument {
++    /// `invalidate_inline_contexts` limited to text that can shape differently now that faces of
++    /// `families` (lowercased) exist: nodes whose `font-family` names one of them. Each match
++    /// damages the inline root holding its text and every inline root above it, since an
++    /// inline-block that reshapes resizes the lines around it.
++    pub(crate) fn invalidate_inline_contexts_using(&mut self, families: &[String]) {
++        let matched = self.nodes_naming_font_family(families);
++        if matched.is_empty() {
++            return;
++        }
++        let (roots, inputs) = self.inline_roots_above(&matched);
++        self.damage_inline_roots(&roots);
++        self.refresh_text_inputs(&inputs);
++    }
++
++    /// The connected nodes whose `font-family` names one of `families` (lowercased).
++    fn nodes_naming_font_family(&self, families: &[String]) -> Vec<NodeId> {
++        if families.is_empty() {
++            return Vec::new();
++        }
++        let names_family = |node: &Node| {
++            let Some(styles) = node.primary_styles() else {
++                // Unstyled boxes keep no record of their font; reshape them to be safe.
++                return node.element_data().is_some_and(|e| e.inline_layout_data().is_some());
++            };
++            styles.get_font().font_family.families.list.iter().any(|family| match family {
++                style::values::computed::font::SingleFontFamily::FamilyName(name) => {
++                    let name: &str = name.name.as_ref();
++                    families.iter().any(|f| {
++                        if name.is_ascii() {
++                            f.eq_ignore_ascii_case(name)
++                        } else {
++                            f.as_str() == name.to_lowercase().as_str()
++                        }
++                    })
++                }
++                style::values::computed::font::SingleFontFamily::Generic(_) => false,
++            })
++        };
++        self.nodes
++            .iter()
++            .filter(|(_, node)| node.flags.contains(NodeFlags::IS_IN_DOCUMENT))
++            .filter(|(_, node)| node.element_data().is_some() && names_family(node))
++            .map(|(id, _)| id)
++            .collect()
++    }
++
++    /// The inline roots holding text of each node in `starts` and those above them, plus the
++    /// text inputs among `starts`.
++    fn inline_roots_above(&self, starts: &[NodeId]) -> (Vec<NodeId>, Vec<NodeId>) {
++        let mut visited = std::collections::HashSet::new();
++        let mut roots = Vec::new();
++        let mut inputs = Vec::new();
++        for &start in starts {
++            if self.nodes[start].element_data().is_some_and(|e| e.text_input_data().is_some()) {
++                inputs.push(start);
++            }
++            let mut at = Some(start);
++            while let Some(id) = at {
++                if !visited.insert(id) {
++                    break;
++                }
++                let node = &self.nodes[id];
++                if node.element_data().is_some_and(|e| e.inline_layout_data().is_some()) {
++                    roots.push(id);
++                }
++                at = node.layout_parent.get().or(node.parent.get());
++            }
++        }
++        (roots, inputs)
++    }
++
++    /// Damages each inline root, and the block that re-collects an anonymous one.
++    fn damage_inline_roots(&mut self, roots: &[NodeId]) {
++        for &id in roots {
++            let node = &mut self.nodes[id];
++            node.insert_damage(ALL_DAMAGE);
++            if node.is_anonymous() {
++                if let Some(parent_id) = node.layout_parent.get() {
++                    self.nodes[parent_id].insert_damage(ALL_DAMAGE);
++                }
++            }
++        }
++    }
++
++    /// Reshapes the editor of each text input against the newly registered faces.
++    fn refresh_text_inputs(&mut self, inputs: &[NodeId]) {
++        let scale = self.viewport.scale();
++        let font_ctx = &self.font_ctx;
++        let layout_ctx = &mut self.layout_ctx;
++        for &id in inputs {
++            let node = &mut self.nodes[id];
++            if let Some(input) =
++                node.data.downcast_element_mut().and_then(|e| e.text_input_data_mut())
++            {
++                input.editor.set_scale(scale);
++                let mut font_ctx = font_ctx.lock().unwrap();
++                input.editor.refresh_layout(&mut font_ctx, layout_ctx);
++                node.insert_damage(ONLY_RELAYOUT);
++            }
++        }
++    }
++
+     pub(crate) fn invalidate_inline_contexts(&mut self) {
+         let scale = self.viewport.scale();
+
+diff --git a/src/resolve.rs b/src/resolve.rs
+index 904b7ad..f36b249 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -210,6 +210,7 @@ impl BaseDocument {
+         // Apply any device changes (viewport resize, zoom, color-scheme, etc)
+         // accumulated since the last resolve as a single device rebuild.
+         self.flush_pending_device_changes();
++        self.apply_pending_font_damage();
+         // Slot assignment shapes the flat tree that styling and box
+         // construction both consume; recompute before either runs.
+         self.flush_slot_assignments();

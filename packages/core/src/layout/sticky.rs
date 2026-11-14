@@ -48,7 +48,7 @@ fn overflow_propagates_to_viewport(doc: &BaseDocument, id: NodeId) -> bool {
     let Some(root) = doc.try_root_element() else {
         return false;
     };
-    if root.id == id {
+    if root.id() == id {
         return true;
     }
     let Some(node) = doc.get_node(id) else {
@@ -57,7 +57,7 @@ fn overflow_propagates_to_viewport(doc: &BaseDocument, id: NodeId) -> bool {
     let is_body = node
         .element_data()
         .is_some_and(|e| e.name.local == blitz_dom::local_name!("body"));
-    if !is_body || node.parent.get() != Some(root.id) {
+    if !is_body || node.parent_id() != Some(root.id()) {
         return false;
     }
     root.primary_styles().is_some_and(|s| {
@@ -248,8 +248,7 @@ fn compute_shift(doc: &BaseDocument, id: NodeId, page_scroll: PageScroll) -> Opt
         let node = doc.get_node(id)?;
         let styles = node.primary_styles()?;
         let rtl = node
-            .layout_parent
-            .get()
+            .layout_parent_id()
             .and_then(|p| doc.get_node(p))
             .and_then(|p| p.primary_styles())
             .map(|s| s.clone_direction())
@@ -307,8 +306,7 @@ fn compute_shift(doc: &BaseDocument, id: NodeId, page_scroll: PageScroll) -> Opt
         let right = inset_px(&pos.right, port_r - port_l);
 
         let cb = node
-            .layout_parent
-            .get()
+            .layout_parent_id()
             .and_then(|p| {
                 let pid = p;
                 doc.get_node(p).map(|p| (pid, p))

@@ -1,0 +1,50 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 9 Nov 2026 14:35:11 +0000
+Subject: [PATCH] Record whether any relative selector reaches a later sibling
+
+Embedders that cannot seed sibling search directions on a freshly inserted element need a whole-parent restyle only when some :has() starts with + or ~. The existing used flag is set for any :has(), so it cannot tell the two apart.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ invalidation/element/invalidation_map.rs | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/invalidation/element/invalidation_map.rs b/invalidation/element/invalidation_map.rs
+index 498fe8d..0e90c7f 100644
+--- a/invalidation/element/invalidation_map.rs
++++ b/invalidation/element/invalidation_map.rs
+@@ -399,6 +399,9 @@ pub struct AdditionalRelativeSelectorInvalidationMap {
+     pub used: bool,
+     /// Flag indicating if invalidating a relative selector requires ancestor traversal.
+     pub needs_ancestors_traversal: bool,
++    /// Flag indicating if any relative selector starts with a sibling combinator, so an
++    /// anchor can depend on an element inserted after it.
++    pub has_sibling_relative_selectors: bool,
+ }
+
+ impl Default for AdditionalRelativeSelectorInvalidationMap {
+@@ -416,6 +419,7 @@ impl AdditionalRelativeSelectorInvalidationMap {
+             any_to_selector: SmallVec::default(),
+             used: false,
+             needs_ancestors_traversal: false,
++            has_sibling_relative_selectors: false,
+         }
+     }
+
+@@ -1316,6 +1320,15 @@ impl<'a, 'b> RelativeSelectorDependencyCollector<'a, 'b> {
+             | RelativeSelectorMatchHint::InSubtree => true,
+             _ => false,
+         };
++
++        self.additional_relative_selector_invalidation_map
++            .has_sibling_relative_selectors |= matches!(
++            self.selector.match_hint,
++            RelativeSelectorMatchHint::InNextSibling
++                | RelativeSelectorMatchHint::InSibling
++                | RelativeSelectorMatchHint::InNextSiblingSubtree
++                | RelativeSelectorMatchHint::InSiblingSubtree
++        );
+         loop {
+             // Reset the compound state.
+             self.compound_state = PerCompoundState::new(index);

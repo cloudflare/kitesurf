@@ -439,9 +439,8 @@ fn named_and_default_slots_assign_and_render() {
     let fallback_p = doc
         .get_node(internal_id(&dom, default_slot))
         .unwrap()
-        .children
+        .children()
         .first()
-        .copied()
         .unwrap();
     assert_eq!(
         (doc.get_node(fallback_p).unwrap().final_layout().size.height),
@@ -474,7 +473,12 @@ fn empty_slots_render_fallback_until_content_arrives() {
     let slot = find_in_subtree(&dom, root, "slot");
     {
         let doc = dom.doc.borrow();
-        let fb = doc.get_node(internal_id(&dom, slot)).unwrap().children[0];
+        let fb = doc
+            .get_node(internal_id(&dom, slot))
+            .unwrap()
+            .children()
+            .first()
+            .unwrap();
         let size = doc.get_node(fb).unwrap().final_layout().size;
         assert_eq!((size.width, size.height), (80.0, 30.0), "fallback renders");
     }

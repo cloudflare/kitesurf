@@ -40,14 +40,14 @@ fn element_is_html_ns(doc: &BaseDocument, id: NodeId) -> bool {
 }
 
 fn has_ancestor_in(doc: &BaseDocument, id: NodeId, names: &[&str]) -> bool {
-    let mut cur = doc.get_node(id).and_then(|n| n.parent.get());
+    let mut cur = doc.get_node(id).and_then(|n| n.parent_id());
     while let Some(pid) = cur {
         if let Some(local) = element_local(doc, pid) {
             if names.contains(&local) {
                 return true;
             }
         }
-        cur = doc.get_node(pid).and_then(|n| n.parent.get());
+        cur = doc.get_node(pid).and_then(|n| n.parent_id());
     }
     false
 }
@@ -57,7 +57,7 @@ fn attrs_of(doc: &BaseDocument, id: NodeId) -> Vec<(String, String)> {
         Some(NodeData::Element(d)) => d
             .attrs
             .iter()
-            .map(|a| (str::to_ascii_lowercase(&a.name.local), a.value.clone()))
+            .map(|a| (str::to_ascii_lowercase(&a.name.local), a.value.to_string()))
             .collect(),
         _ => Vec::new(),
     }
@@ -519,7 +519,7 @@ fn html_doctype_with_xhtml_later_on_its_line_parses_as_html() {
     let document = parse_full(html);
     let doc: &BaseDocument = &document;
     let title = doc.query_selector_all("title").unwrap()[0];
-    let parent = doc.get_node(title).and_then(|n| n.parent.get()).unwrap();
+    let parent = doc.get_node(title).and_then(|n| n.parent_id()).unwrap();
     assert_eq!(
         element_local(doc, parent),
         Some("head"),

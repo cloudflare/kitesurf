@@ -200,7 +200,7 @@ impl DomHandle {
         let Some(elem) = node.element_data() else {
             return Vec::new();
         };
-        match &elem.special_data {
+        match elem.special_data() {
             SpecialElementData::Image(data) => match &**data {
                 ImageData::Raster(raster) => vec![raster.width, raster.height],
                 ImageData::Svg(svg) => {

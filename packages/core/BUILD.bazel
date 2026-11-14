@@ -104,7 +104,21 @@ rust_test(
     name = "blitz_dom_undisplayed_layout_test",
     crate = "@crates//:blitz-dom",
     crate_features = ["svg", "floats", "woff"],
-    args = ["nested_slot_edges_visit_each_reachable_node_once_and_release_layout"],
+    # Run the whole crate. These two upstream tests have failed since patch 0001 and are unrelated
+    # to this series, so they are skipped by name rather than by filtering everything else out.
+    args = [
+        "--skip",
+        "hover_styles_apply_and_clear",
+        "--skip",
+        "scroll_by_clamps_and_bubbles",
+    ],
+    exec_properties = RUST,
+)
+
+rust_test(
+    name = "blitz_traits_node_id_test",
+    crate = "@crates//:blitz-traits",
+    args = ["halves_round_trip_and_hash_order_like_the_raw_u64"],
     exec_properties = RUST,
 )
 
@@ -143,6 +157,7 @@ test_suite(
     tests = [
         ":blitz_dom_child_lists_test",
         ":blitz_dom_undisplayed_layout_test",
+        ":blitz_traits_node_id_test",
         ":boa_gc_test",
         ":boa_interner_test",
         ":core_test",

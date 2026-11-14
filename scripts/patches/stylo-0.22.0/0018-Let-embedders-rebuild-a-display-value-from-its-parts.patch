@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 4 Nov 2026 17:24:06 +0000
+Subject: [PATCH] Let embedders rebuild a display value from its parts
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ values/specified/box.rs | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/values/specified/box.rs b/values/specified/box.rs
+index 7bee119..aef3b14 100644
+--- a/values/specified/box.rs
++++ b/values/specified/box.rs
+@@ -326,8 +326,10 @@ impl Display {
+     }
+
+     /// Make a display enum value from <display-outside> and <display-inside> values.
++    ///
++    /// Every `Display` round-trips: `from3(d.outside(), d.inside(), d.is_list_item()) == d`.
+     #[inline]
+-    fn from3(outside: DisplayOutside, inside: DisplayInside, list_item: bool) -> Self {
++    pub fn from3(outside: DisplayOutside, inside: DisplayInside, list_item: bool) -> Self {
+         let v = Self::new(outside, inside);
+         if !list_item {
+             return v;
