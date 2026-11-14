@@ -4,6 +4,7 @@
 
 // Implements Element attributes, queries, geometry, style, scrolling, and focus behavior.
 
+import type { KsAttributeNamespace } from "../../../core/pkg/kitesurf_core";
 import type { WrapperInfo } from "../node-base.js";
 import type * as Idl from "../idl/types.generated.js";
 import { makeStyleDeclaration, type StyleDeclarationBackend } from "../style-declaration.js";
@@ -50,12 +51,13 @@ import {
 import { hasLayoutBox, getRect } from "../layout/cheap.js";
 import { isToolFormActive, isToolSubmitActive } from "../model-context.js";
 import { maybeScheduleSlotchange } from "../events/slotchange.js";
-import {
-  stampDetachedSubtreeNamedGlobals,
-  stampNamedGlobal,
-  stampSubtreeNamedGlobals,
-} from "../window.js";
 import { dispatchTrustedEvent } from "../events/dispatch.js";
+import {
+  installConnectedNamedGlobals,
+  namedGlobalIdOf,
+  syncNamedGlobals,
+  updateNamedGlobal,
+} from "../window.js";
 import {
   focusForwardedTextControl,
   forwardedClickFrom,
@@ -117,6 +119,7 @@ import {
   isTemplateElement,
   ensureTemplateContent,
   subtreeHasCachedWrapper,
+  dropUnwrappedSubtree,
   dropUnwrappedSubtrees,
 } from "../node-base.js";
 import type { DetachedDocument } from "../document.js";
@@ -138,7 +141,6 @@ const computedStyleMaps = new WeakMap<object, ReturnType<typeof makeComputedStyl
 const inlineStyleResync = new WeakMap<object, (text: string | null) => void>();
 const inlineStyleProxies = new WeakMap<object, ReturnType<typeof makeStyleDeclaration>>();
 const longhandKeysCache = new Map<string, string[]>();
-const parsedAttributeNamespaceSync = new WeakMap<object, { info: unknown; attrSeq: number }>();
 type PseudoElementStub = { readonly type: string; readonly element: Element };
 type OffsetMetrics = { parent?: unknown; top: number; left?: unknown };
 
@@ -154,20 +156,16 @@ function ksState() {
   return getInternalState();
 }
 
-function isAttributeNamespaceRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function syncParsedAttributeNamespaces(el: { _id: number; _info?: unknown }): void {
-  const info = el._info;
-  const parsed = isAttributeNamespaceRecord(info) ? info.attributeNamespaces : undefined;
+// Replaces el's parsed namespace entries with `parsed`, read from wasm with the attribute list
+// it describes. _attrFlat calls it on each refresh only, so a cached list's entries stay as
+// synced; entries set by setAttributeNS (not parsed) win over parsed ones.
+function syncParsedAttributeNamespaces(
+  el: { _id: number },
+  parsed: readonly KsAttributeNamespace[] | undefined,
+): void {
+  const entries = parsed?.length ? parsed : undefined;
   let nsMap = attrNs.get(el._id);
-  if (!nsMap && (!Array.isArray(parsed) || parsed.length === 0)) return;
-  const attrSeq = ksState().attrSeq | 0;
-  const previousSync = parsedAttributeNamespaceSync.get(el);
-  if (previousSync !== undefined && previousSync.info === info && previousSync.attrSeq === attrSeq)
-    return;
-
+  if (!nsMap && entries === undefined) return;
   if (nsMap) {
     for (const [name, info] of nsMap) {
       if (info.parsed) nsMap.delete(name);
@@ -177,38 +175,28 @@ function syncParsedAttributeNamespaces(el: { _id: number; _info?: unknown }): vo
       nsMap = undefined;
     }
   }
-  if (!Array.isArray(parsed) || parsed.length === 0) {
-    parsedAttributeNamespaceSync.set(el, { info, attrSeq });
-    return;
-  }
+  if (entries === undefined) return;
   if (!nsMap) {
     nsMap = new Map();
     attrNs.set(el._id, nsMap);
   }
-  const entries: unknown[] = parsed;
-  for (const rawInfo of entries) {
-    if (!isAttributeNamespaceRecord(rawInfo)) continue;
-    const info = rawInfo;
-    if (
-      typeof info?.qualifiedName !== "string" ||
-      typeof info.namespaceURI !== "string" ||
-      typeof info.localName !== "string"
-    ) {
-      continue;
-    }
+  for (const info of entries) {
     const existing = nsMap.get(info.qualifiedName);
     if (existing && !existing.parsed) continue;
     nsMap.set(info.qualifiedName, {
       ns: info.namespaceURI,
-      prefix: typeof info.prefix === "string" ? info.prefix : null,
+      prefix: info.prefix ?? null,
       localName: info.localName,
       qname: info.qualifiedName,
       parsed: true,
     });
   }
   fastpathMarkSpecial(el._id);
-  parsedAttributeNamespaceSync.set(el, { info, attrSeq });
 }
+
+// The attribute list of every attribute-less element; never mutated (frozen to keep it so).
+const NO_ATTRIBUTES: string[] = [];
+Object.freeze(NO_ATTRIBUTES);
 
 function getFormState(id: number) {
   let s = formState.get(id);
@@ -287,7 +275,6 @@ export function parseFragmentInContext(
   dom.dropNode(contextId);
   if (kids.length > 0) bumpMutationSeq();
   syncCheckedFromAttrs(fragment);
-  if (html.indexOf("id") !== -1) stampDetachedSubtreeNamedGlobals(fragment._id);
 }
 
 // Bind on first use. The `dom` binding is null until initState runs.
@@ -607,34 +594,20 @@ class Element extends NodeBase implements Idl.Element {
   _attrFlat(): string[] {
     const curSeqEarly = ksState().attrSeq | 0;
     if (this._attrFlatCache !== null && this._attrFlatCacheSeq === curSeqEarly) {
-      syncParsedAttributeNamespaces(this);
       return this._attrFlatCache;
     }
-    if (this._attrFlatCache !== null && this._attrFlatCacheSeq !== curSeqEarly) {
-      this._attrFlatCache = null;
-    }
-    if (this._attrFlatCache !== null) {
-      syncParsedAttributeNamespaces(this);
-      return this._attrFlatCache;
-    }
-    const curSeq = ksState().mutationSeq | 0;
-    if (this._typeCheckSeq === curSeq && this._info && this._info.attributes) {
-      const arr = this._info.attributes;
-      this._attrFlatCache = arr;
-      this._attrFlatCacheSeq = curSeqEarly;
-      syncParsedAttributeNamespaces(this);
-      return arr;
-    }
+    this._attrFlatCache = null;
+    // attributeList, not nodeInfo: _info stays the identity record nodeFor shares between
+    // elements of one name, rather than a full per-element record.
     try {
-      const fresh = dom.nodeInfo(this._id);
-      const arr = (fresh && fresh.attributes) || [];
+      const fresh = dom.attributeList(this._id);
+      const arr = fresh?.attributes ?? NO_ATTRIBUTES;
       this._attrFlatCache = arr;
       this._attrFlatCacheSeq = curSeqEarly;
-      if (fresh) this._info = fresh;
-      syncParsedAttributeNamespaces(this);
+      if (fresh) syncParsedAttributeNamespaces(this, fresh.attributeNamespaces);
       return arr;
     } catch {
-      return [];
+      return NO_ATTRIBUTES;
     }
   }
 
@@ -745,9 +718,11 @@ class Element extends NodeBase implements Idl.Element {
     const strValue = String(value);
     ensureDomAttrFns();
     if (domSetAttr) {
+      // The old name has to be read before the write; the deferred path updates it in recordOp.
+      const previousId = finalName === "id" ? namedGlobalIdOf(this._id) : null;
       if (domSetAttr(this._id, finalName, strValue)) {
         bumpMutationSeq({ attribute: finalName, node: this._id });
-        if (finalName === "id") stampNamedGlobal(this._id, strValue);
+        if (finalName === "id") updateNamedGlobal(previousId, strValue);
         if (ksInternals.cdpDomActive) {
           cdpMutations.push({
             kind: "attributeModified",
@@ -858,9 +833,10 @@ class Element extends NodeBase implements Idl.Element {
     this._attrFlatCache = null;
     ensureDomAttrFns();
     if (domRemoveAttr) {
+      const previousId = wasmKey === "id" ? namedGlobalIdOf(this._id) : null;
       if (domRemoveAttr(this._id, wasmKey)) {
         bumpMutationSeq({ attribute: wasmKey, node: this._id });
-        if (wasmKey === "id") stampNamedGlobal(this._id, "");
+        if (wasmKey === "id") updateNamedGlobal(previousId, null);
         if (ksInternals.cdpDomActive) {
           cdpMutations.push({
             kind: "attributeRemoved",
@@ -1046,6 +1022,9 @@ class Element extends NodeBase implements Idl.Element {
   getAttributeNS(namespace: string | null, localName: string) {
     if (typeof localName !== "string") return null;
     const ns = namespace ? String(namespace) : null;
+    // Parsed namespaces live in a sidecar that only `_attrFlat` fills, and this reads the
+    // sidecar before the flat list.
+    this._attrFlat();
     const nsMap = attrNs.get(this._id);
     if (nsMap) {
       for (const [qname, info] of nsMap) {
@@ -1075,6 +1054,8 @@ class Element extends NodeBase implements Idl.Element {
     const ns = namespace ? String(namespace) : null;
     const elNs = elemNs.get(this._id);
     const runsChangeSteps = ns === null && (!elNs || elNs.ns === HTML_NS);
+    // Same sidecar as `getAttributeNS`: refresh it before deciding a namespaced one is absent.
+    this._attrFlat();
     const customAttributeHook =
       ksInternals.customElementObservesAttribute?.(this, localName) &&
       typeof ksInternals.notifyCustomElementAttributeChanged === "function"
@@ -1335,7 +1316,6 @@ class Element extends NodeBase implements Idl.Element {
         }
       }
       syncCheckedFromAttrs(frag);
-      if (htmlText.indexOf("id") !== -1) stampSubtreeNamedGlobals(frag);
       return;
     }
     const observed = hasChildListObserver(this._id);
@@ -1350,7 +1330,15 @@ class Element extends NodeBase implements Idl.Element {
       }
     }
     recordOp({ kind: "setInnerHtml", node: this._id, html: htmlText });
-    if (!observed) dropUnwrappedSubtrees(oldChildIds);
+    // The replaced children are detached but still exist in wasm, so their ids are readable. A
+    // dropped subtree captured and forgot its names already, so only the kept ones are left.
+    for (const childId of oldChildIds) {
+      if (!observed && dropUnwrappedSubtree(childId)) continue;
+      syncNamedGlobals(childId);
+    }
+    // New markup brings its own ids; without one there is nothing to install. HTML lowercases
+    // attribute names, so the guard cannot be case-sensitive.
+    if (/id/i.test(htmlText)) installConnectedNamedGlobals(this._id);
     if (oldChildren) {
       const newChildren = Array.from<NodeBase>(this.childNodes);
       if (oldChildren.length > 0 || newChildren.length > 0) {
@@ -1358,7 +1346,6 @@ class Element extends NodeBase implements Idl.Element {
       }
     }
     syncCheckedFromAttrs(this);
-    if (htmlText.indexOf("id") !== -1) stampSubtreeNamedGlobals(this);
   }
   get content(): DocumentFragmentImpl | undefined {
     if (!isTemplateElement(this._id)) return undefined;
@@ -1400,12 +1387,14 @@ class Element extends NodeBase implements Idl.Element {
         dom.removeNode(k._id);
       } catch {}
       dom.insertBeforeNode(parent._id, k._id, refId);
+      installConnectedNamedGlobals(k._id);
     }
     const removedSelfId = this._id;
     runIteratorPreRemove(this);
     try {
       dom.removeNode(this._id);
     } catch {}
+    syncNamedGlobals(removedSelfId);
     bumpMutationSeq();
     let prevForCdp = prevSibling ? prevSibling._id : 0;
     for (const k of moved) {

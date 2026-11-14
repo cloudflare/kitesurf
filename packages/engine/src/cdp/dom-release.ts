@@ -69,6 +69,26 @@ export function releaseAllDomHandles(target: TargetState): void {
   releaseTargetDom(target);
 }
 
+// The engine keeps the source only to rehydrate a fallback DOM when PageScript is absent, and a
+// large document's source is a second copy of the page: keep it for small pages, let PageScript
+// own the document once live, and report a retired target's source as gone rather than blank.
+export const MAX_RETAINED_FALLBACK_HTML_CHARS = 1 << 20;
+
+export function releaseFallbackHtml(target: TargetState): void {
+  if (target.html.length > MAX_RETAINED_FALLBACK_HTML_CHARS) {
+    target.html = "";
+    target.fallbackHtmlReleased = true;
+  }
+}
+
+// The explanation every read gives once the source is gone, so a released document is never
+// reported as an empty one.
+export function releasedFallbackError(method: string): Error {
+  return new Error(
+    `${method} failed: this target's document source was released after a PageScript failure; navigate again`,
+  );
+}
+
 export function stripNoscript(dom: DomHandle): void {
   let ids: Int32Array;
   try {

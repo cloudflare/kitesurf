@@ -1103,14 +1103,14 @@
           "REPO_MAPPING:rules_rust+,bazel_tools bazel_tools",
           "REPO_MAPPING:rules_rust+,rules_cc rules_cc+",
           "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.lock d781f32b42006283ac40e6be9bf0a22cfca84521dd3753bac7b1ed260d558f12",
-          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.toml b946c89605670eaadbaf504aa3aaec1aa30b6b3e4998cce74e54a0f1e00f0ab5",
-          "FILE:@@+cargo_workspaces+cargo_ws_core//patched.json 1a8757f2610dac2ae08d6c163bbf52c63b2a42dafd42826c37711b6fc150bcd3",
+          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.toml 810c9fd8447bff7643f54ca5bd088ed1a3f0ed2230dcd13133818c1c43563bb5",
+          "FILE:@@+cargo_workspaces+cargo_ws_core//patched.json cda62d3446ebb9fcb9dcfe4e4f5739c73dbfef6cfea2f4d51c0839a24d2ef38b",
           "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.lock ed4c5b7e9ce7acb4f1f0fb3f1d4a4e3e22fa4395c0194e52de8d8069714e60c3",
-          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.toml ee414bf9c2159d8e2334ea93949f1fec0d2bd437a5d34bf5c19807bc4c234d14",
-          "FILE:@@+cargo_workspaces+cargo_ws_renderer//patched.json 1a8757f2610dac2ae08d6c163bbf52c63b2a42dafd42826c37711b6fc150bcd3",
+          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.toml abab3d634124d4a20750c2b7e3db7a878dd0d2d3e6a9989afa38b45f0922df24",
+          "FILE:@@+cargo_workspaces+cargo_ws_renderer//patched.json cda62d3446ebb9fcb9dcfe4e4f5739c73dbfef6cfea2f4d51c0839a24d2ef38b",
           "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.lock 8d2051d29f34375753714b6d29aaddac82d1032719751f4881f0a53aeadfd0be",
-          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.toml da775fcbf02a26cb6bd4a994f6ac11c1fa0eeadb97c8e0438763be5a6043b861",
-          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//patched.json 1a8757f2610dac2ae08d6c163bbf52c63b2a42dafd42826c37711b6fc150bcd3",
+          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.toml 30eddf1de9275a7e4a71568645a7c5314b8e89265bd3881cbfbfda699233920c",
+          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//patched.json cda62d3446ebb9fcb9dcfe4e4f5739c73dbfef6cfea2f4d51c0839a24d2ef38b",
           "FILE:@@+cargo_workspaces+cargo_ws_memprof//Cargo.lock 700ce60a085805e81be18248290fa55c12fd753835006ab68256b8f397261384",
           "FILE:@@+cargo_workspaces+cargo_ws_memprof//Cargo.toml 6982e34060f201166856e8294a4c4a42cd957eb79df82f72f536b5318e6244b8",
           "FILE:@@//packages/kitesurf-cli/Cargo.lock 152fed308b4920eadd2828ba02d0dda6109d0a733cba973a78a25394334fd143",
@@ -1598,7 +1598,9 @@
                 "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0091-Record-static-inline-offsets-of-absolutely-positione.patch",
                 "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0092-Cut-allocations-in-damage-font-face-and-inline-root-.patch",
                 "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0093-Collect-parsed-attributes-straight-into-the-element-.patch",
-                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0094-Align-caption-margin-adjustments-for-Taffy-s-tagged-.patch"
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0094-Align-caption-margin-adjustments-for-Taffy-s-tagged-.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0095-Restyle-only-what-a-loaded-import-s-rules-can-match.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0096-Start-web-font-fetches-from-a-style-only-resolve.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "a814bfd3ad19e6d8d26f99c75188062baca499564f9abe44250230962427d183",
@@ -4041,7 +4043,8 @@
                 "@@//scripts:patches/parley_engine-0.12.0/0001-Add-per-paragraph-auto-base-direction-and-first-stro.patch",
                 "@@//scripts:patches/parley_engine-0.12.0/0002-Expand-horizontal-tabs-to-CSS-tab-size-stops.patch",
                 "@@//scripts:patches/parley_engine-0.12.0/0003-Compact-retained-shaped-text.patch",
-                "@@//scripts:patches/parley_engine-0.12.0/0004-Reuse-the-line-boundary-buffer-across-analyses.patch"
+                "@@//scripts:patches/parley_engine-0.12.0/0004-Reuse-the-line-boundary-buffer-across-analyses.patch",
+                "@@//scripts:patches/parley_engine-0.12.0/0005-Reuse-the-glyphs-of-words-seen-before.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "b74c0d373e462e504ad4436710a39f099e18e848e1ee711f70cd2dcd5a69b290",
@@ -5414,7 +5417,8 @@
                 "@@//scripts:patches/taffy-0.15.0/0007-Report-a-block-container-s-last-baseline.patch",
                 "@@//scripts:patches/taffy-0.15.0/0008-Allocate-and-pack-measurement-cache-slots-only-when-.patch",
                 "@@//scripts:patches/taffy-0.15.0/0009-Commit-block-children-s-layouts-as-they-are-laid-out.patch",
-                "@@//scripts:patches/taffy-0.15.0/0010-Reserve-a-block-s-item-list-for-all-its-children.patch"
+                "@@//scripts:patches/taffy-0.15.0/0010-Reserve-a-block-s-item-list-for-all-its-children.patch",
+                "@@//scripts:patches/taffy-0.15.0/0011-Store-a-cached-layout-s-positioning-area-out-of-line.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "3c8480887e8803986d96a7173729565520d4bbb721ad6b7ad6941a22897207aa",

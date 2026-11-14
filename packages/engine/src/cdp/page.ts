@@ -171,8 +171,10 @@ import {
 import {
   ensureTargetDom,
   freeDetachedDom,
+  releaseFallbackHtml,
   releaseFrameDom,
   releaseTargetDom,
+  releasedFallbackError,
 } from "./dom-release.ts";
 import { clearStyleSheetsForNavigate, syncStyleSheetsFromEnumeration } from "./css.ts";
 import { emitScriptParsed, hasDebuggerListeners, makeCompiledScriptMeta } from "./debugger.ts";
@@ -780,6 +782,7 @@ export async function handlePage(
       target.url = url;
       target.title = "";
       target.html = "";
+      target.fallbackHtmlReleased = false;
       releaseTargetDom(target);
       target.docScan = null;
       target.docCsp = null;
@@ -805,6 +808,7 @@ export async function handlePage(
       if (url === "about:blank" || url === "") {
         const html = "<html><head></head><body></body></html>";
         target.html = html;
+        target.fallbackHtmlReleased = false;
         const blitzUrl = sanitizeBaseUrl(url);
         try {
           target.dom = createDom(html, blitzUrl);
@@ -1069,6 +1073,7 @@ export async function handlePage(
             html = '<?xml version="1.0" encoding="UTF-8"?>\n' + sniffHead;
           }
           target.html = html;
+          target.fallbackHtmlReleased = false;
           releaseTargetDom(target);
           target.docScan = traceSpan(
             ctx.env.HOST_TRACER,
@@ -1106,6 +1111,7 @@ export async function handlePage(
           releaseTargetDom(target);
           target.docScan = scanDocument(wrapper);
           target.html = wrapper;
+          target.fallbackHtmlReleased = false;
           pageHtml = wrapper;
         }
 
@@ -1170,7 +1176,10 @@ export async function handlePage(
           cdpMutations,
           exceptions,
         } = await pushNavigateToPageScript(ctx, target, inlinedPageHtml, finalUrl, armedIframeGate);
-        if (target.pageScript) releaseTargetDom(target);
+        if (target.pageScript) {
+          releaseTargetDom(target);
+          releaseFallbackHtml(target);
+        }
         await backfillIframeOwnerNodeIds(target);
         emitFrameDclComplete(ctx, target, mainFrame(target), req.sessionId);
         scheduleLoadCompleteEmit(ctx, target, req.sessionId, armedIframeGate);
@@ -1264,6 +1273,7 @@ export async function handlePage(
       const url = sanitizeBaseUrl(requestedUrl);
       target.url = url;
       target.html = html;
+      target.fallbackHtmlReleased = false;
       releaseTargetDom(target);
       target.docCsp = null;
       target.docCspReportOnly = null;
@@ -1293,7 +1303,10 @@ export async function handlePage(
       emitCapturedConsole(ctx, target, capturedConsole, req.sessionId);
       emitCapturedExceptions(ctx, target, exceptions, req.sessionId);
       emitMutations(ctx, target, cdpMutations);
-      if (target.pageScript) releaseTargetDom(target);
+      if (target.pageScript) {
+        releaseTargetDom(target);
+        releaseFallbackHtml(target);
+      }
       return {};
     }
 
@@ -1412,6 +1425,7 @@ export async function handlePage(
           }
         }
         if (!html) {
+          if (target.fallbackHtmlReleased) throw releasedFallbackError("Page.captureScreenshot");
           return { data: TINY_TRANSPARENT_PNG_B64 };
         }
         const width = target.viewportWidth ?? DEFAULT_VIEWPORT_WIDTH;

@@ -36,10 +36,8 @@ export function stubQueryDom<M extends QueryDomMethod>(
 }
 
 // Matches the PageScript RPC call budget; the cap is far above any page the isolate can hold.
-const OUTER_HTML_READ_DEADLINE_MS = 60_000;
-const MAX_OUTER_HTML_BYTES = 512 * 1024 * 1024;
-const ACCESSIBILITY_READ_DEADLINE_MS = 60_000;
-const MAX_ACCESSIBILITY_BYTES = 512 * 1024 * 1024;
+const JSON_READ_DEADLINE_MS = 60_000;
+const MAX_JSON_READ_BYTES = 512 * 1024 * 1024;
 
 type OuterHtmlRequest = (
   args: Pick<QueryDomArgs<"getOuterHTML">, "snapshot">,
@@ -82,39 +80,48 @@ type OuterHtmlRead =
 
 async function readOuterHtml(result: QueryDomResult<"getOuterHTML">): Promise<OuterHtmlRead> {
   const { byteLength } = result;
-  if (!Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > MAX_OUTER_HTML_BYTES) {
+  if (!Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > MAX_JSON_READ_BYTES) {
     await result.outerHTMLUtf8.cancel("invalid byteLength").catch(() => {});
     throw new Error(`DOM.getOuterHTML: PageScript sent an invalid byteLength ${byteLength}`);
   }
 
-  const { escaped, filled } = await readEscapedStream(result.outerHTMLUtf8, byteLength);
+  const escaped: string[] = [];
+  const filled = await readJsonChunks(
+    result.outerHTMLUtf8,
+    byteLength,
+    "DOM.getOuterHTML",
+    (text) => {
+      if (text) escaped.push(JSON.stringify(text).slice(1, -1));
+    },
+  );
   if (filled !== byteLength) return { complete: false, filled, byteLength };
   return { complete: true, escaped };
 }
 
-/** Reads the whole stream as JSON-escaped pieces, or reports how many bytes arrived. */
-async function readEscapedStream(
+/**
+ * Feeds `stream` to `onPiece` as UTF-8 and returns how many bytes it carried. Only a complete
+ * read flushes the decoder: a truncated stream may end mid-character.
+ */
+async function readJsonChunks(
   stream: ReadableStream<Uint8Array>,
   byteLength: number,
-): Promise<{ escaped: string[]; filled: number }> {
+  label: string,
+  onPiece: (piece: string) => void,
+): Promise<number> {
   // Same decoder options as the wasm-bindgen string return this replaced, so output is identical.
   const decoder = new TextDecoder("utf-8", { ignoreBOM: true, fatal: true });
-  const escaped: string[] = [];
-  const escape = (text: string) => {
-    if (text) escaped.push(JSON.stringify(text).slice(1, -1));
-  };
   // The RPC deadline ends when the result arrives, so the stream needs its own.
-  const reader = withDeadline(stream, OUTER_HTML_READ_DEADLINE_MS).getReader();
+  const reader = withDeadline(stream, JSON_READ_DEADLINE_MS).getReader();
   let filled = 0;
   try {
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       if (value.byteLength > byteLength - filled) {
-        throw new Error(`DOM.getOuterHTML: PageScript sent more than ${byteLength} bytes`);
+        throw new Error(`${label}: PageScript sent more than ${byteLength} bytes`);
       }
-      escape(decoder.decode(value, { stream: true }));
       filled += value.byteLength;
+      onPiece(decoder.decode(value, { stream: true }));
     }
   } catch (error) {
     await reader.cancel(error).catch(() => {});
@@ -122,9 +129,8 @@ async function readEscapedStream(
   } finally {
     reader.releaseLock();
   }
-  // Only a complete read flushes the decoder: a truncated stream may end mid-character.
-  if (filled === byteLength) escape(decoder.decode());
-  return { escaped, filled };
+  if (filled === byteLength) onPiece(decoder.decode());
+  return filled;
 }
 
 export type AccessibilityTreeRequest = (
@@ -165,34 +171,15 @@ async function readAccessibilityTree(
   result: Extract<QueryDomResult<"accessibilityTree">, { byteLength: number }>,
 ): Promise<AccessibilityTreeRead> {
   const { byteLength } = result;
-  if (!Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > MAX_ACCESSIBILITY_BYTES) {
+  if (!Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > MAX_JSON_READ_BYTES) {
     await result.json.cancel("invalid byteLength").catch(() => {});
     throw new Error(`Accessibility: PageScript sent an invalid byteLength ${byteLength}`);
   }
-  const decoder = new TextDecoder("utf-8", { ignoreBOM: true, fatal: true });
   const pieces: string[] = [];
-  const reader = withDeadline(result.json, ACCESSIBILITY_READ_DEADLINE_MS).getReader();
-  let filled = 0;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value.byteLength > byteLength - filled) {
-        throw new Error(`Accessibility: PageScript sent more than ${byteLength} bytes`);
-      }
-      filled += value.byteLength;
-      const piece = decoder.decode(value, { stream: true });
-      if (piece) pieces.push(piece);
-    }
-  } catch (error) {
-    await reader.cancel(error).catch(() => {});
-    throw error;
-  } finally {
-    reader.releaseLock();
-  }
+  const filled = await readJsonChunks(result.json, byteLength, "Accessibility", (piece) => {
+    if (piece) pieces.push(piece);
+  });
   if (filled !== byteLength) return { complete: false, filled, byteLength };
-  const tail = decoder.decode();
-  if (tail) pieces.push(tail);
   return { complete: true, pieces };
 }
 

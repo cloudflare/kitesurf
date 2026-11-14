@@ -1050,6 +1050,12 @@ impl DomHandle {
         None
     }
 
+    /// Restyles without layout, which also starts fetching the web fonts the styles use.
+    #[wasm_bindgen(js_name = "flushStyles")]
+    pub fn flush_styles(&self) {
+        self.ensure_style();
+    }
+
     /// `[mutationResolves, animationResolves]` since the document was built.
     #[wasm_bindgen(js_name = "resolveCounts")]
     pub fn resolve_counts(&self) -> Vec<u32> {

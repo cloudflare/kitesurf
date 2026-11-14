@@ -131,12 +131,10 @@ export function takePaintPrep(): { paint: DomHandle | null; fresh: boolean } {
   return { paint, fresh };
 }
 
-export function kickLayoutForFontFaceDiscovery(): void {
+/** Restyles, which starts fetching the web fonts the styles use, without laying out. */
+export function discoverFontFaces(): void {
   try {
-    const paint = ensurePaintDom();
-    if (!paint) return;
-    const id = paint.querySelector("html");
-    if (typeof id === "number" && id >= 0) paint.getBoundingClientRect(id);
+    ensurePaintDom()?.flushStyles();
   } catch {
     invalidatePaintDom();
   }

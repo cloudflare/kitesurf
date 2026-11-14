@@ -294,6 +294,9 @@ export interface TargetState {
   url: string;
   title: string;
   html: string;
+  // The source was dropped once PageScript owned a large document, so a later fallback read
+  // must fail rather than report an empty page.
+  fallbackHtmlReleased: boolean;
   dom: DomHandle | null;
   docScan: DocScan | null;
   domEpoch: number;

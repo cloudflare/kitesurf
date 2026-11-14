@@ -97,10 +97,6 @@ export function cssString(s: unknown): string {
   return out + '"';
 }
 
-export function isReservedGlobalName(name: string): boolean {
-  return Object.prototype.hasOwnProperty.call(globalThis, name);
-}
-
 // A thrown value's message, else the value as a string. Reads `message`
 // the way `(e as { message?: unknown })?.message` would, primitives
 // included.

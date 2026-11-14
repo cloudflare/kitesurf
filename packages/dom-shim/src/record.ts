@@ -7,10 +7,10 @@
 import type { RawCdpMutation } from "@kitesurf/jsrpc-types/shared";
 import type { DomHandle } from "../../core/pkg/kitesurf_core";
 import { dom, cdpMutations, type DomOperation } from "./state.js";
-import { stampNamedGlobal } from "./window.js";
 import { bumpMutationSeq } from "./mutations/seq.js";
 import { isAttachedToDocument, safeChildNodeCount } from "./mutations/attached.js";
 import { ksInternals } from "./internals.js";
+import { namedGlobalIdOf, updateNamedGlobal } from "./window.js";
 
 // Bound on first use because `dom` is still null at module load.
 let domSetAttr: DomHandle["setAttribute"] | null = null;
@@ -28,9 +28,11 @@ function recordOpImpl(op: DomOperation): void {
   bindAttrFns();
   if (op.kind === "setAttribute" && domSetAttr) {
     const value = op.value ?? "";
+    // The old name has to be read before the write.
+    const previousId = op.name === "id" ? namedGlobalIdOf(op.node) : null;
     if (!domSetAttr(op.node, op.name, value)) return;
     bumpMutationSeq({ attribute: op.name, node: op.node });
-    if (op.name === "id") stampNamedGlobal(op.node, String(value));
+    if (op.name === "id") updateNamedGlobal(previousId, value);
     if (ksInternals.cdpDomActive) {
       cdpMutations.push({
         kind: "attributeModified",
@@ -42,9 +44,10 @@ function recordOpImpl(op: DomOperation): void {
     return;
   }
   if (op.kind === "removeAttribute" && domRemoveAttr) {
+    const previousId = op.name === "id" ? namedGlobalIdOf(op.node) : null;
     if (!domRemoveAttr(op.node, op.name)) return;
     bumpMutationSeq({ attribute: op.name, node: op.node });
-    if (op.name === "id") stampNamedGlobal(op.node, "");
+    if (op.name === "id") updateNamedGlobal(previousId, null);
     if (ksInternals.cdpDomActive) {
       cdpMutations.push({
         kind: "attributeRemoved",

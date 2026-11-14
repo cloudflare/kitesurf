@@ -4,7 +4,7 @@
 
 // Builds one page generation's DOM shim and wires its document, Window, and PageScript hooks.
 
-import type { DomHandle } from "../../core/pkg/kitesurf_core";
+import type { DomHandle, KsNodeIdentity } from "../../core/pkg/kitesurf_core";
 import type { BuildDocumentOpts } from "./state.js";
 
 import { getInternalState } from "./internal-state.js";
@@ -32,7 +32,11 @@ import {
   fastpathMarkSpecial,
 } from "./state.js";
 import { elementAttributes } from "./element/element.js";
-import { installWindow, stampInitialNamedGlobals } from "./window.js";
+import {
+  installInitialNamedGlobals,
+  installNamedPropertiesObject,
+  installWindow,
+} from "./window.js";
 import {
   setDocumentImpl,
   setNodeFor,
@@ -399,6 +403,28 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     if (internedNames.size < MAX_INTERNED_NAMES) internedNames.set(name, name);
     return name;
   };
+  // Element wrappers of one name share one frozen identity record: a large spec page had 45,163
+  // element wrappers and 43 distinct records. Only character data records are ever written.
+  const sharedIdentities = new Map<string, KsNodeIdentity>();
+  const sharedElementIdentity = (info: KsNodeIdentity): KsNodeIdentity => {
+    const { nodeName, localName } = info;
+    const ns = info.namespaceURI ?? "";
+    if (
+      nodeName.length > MAX_INTERNED_NAME_LENGTH ||
+      localName.length > MAX_INTERNED_NAME_LENGTH ||
+      ns.length > MAX_INTERNED_NAME_LENGTH
+    ) {
+      return info;
+    }
+    // Length prefixes keep the key unambiguous whatever characters the names hold.
+    const key = `${localName.length}:${localName}${nodeName.length}:${nodeName}${ns}`;
+    const shared = sharedIdentities.get(key);
+    if (shared !== undefined) return shared;
+    if (sharedIdentities.size >= MAX_INTERNED_NAMES) return info;
+    Object.freeze(info);
+    sharedIdentities.set(key, info);
+    return info;
+  };
 
   function nodeFor(nodeId: number): NodeBase | null {
     if (nodeId == null || nodeId < 0) return null;
@@ -426,6 +452,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     }
     info.nodeName = internName(info.nodeName);
     info.localName = internName(info.localName);
+    if (info.nodeType === ELEMENT_NODE) info = sharedElementIdentity(info);
     if (cached) {
       const cachedType = cached._info && cached._info.nodeType;
       const tagStable =
@@ -606,6 +633,8 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
   setDocumentImpl(document);
 
   const { window, Window } = installWindow(document);
+  installNamedPropertiesObject();
+  installInitialNamedGlobals();
 
   createModelContext({
     getWindow: () => window,
@@ -898,7 +927,6 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     },
     __ks_dispatchTrustedEvent: dispatchTrustedEvent,
     __ks_activateLabel: activateLabel,
-    stampInitialNamedGlobals: stampInitialNamedGlobals,
     applyDeclarativeShadowRoots: () => applyDeclarativeShadowRoots(document),
   };
 

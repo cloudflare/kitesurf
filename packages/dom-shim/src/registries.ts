@@ -66,7 +66,6 @@ export function forgetNodeIds(ids: Iterable<number>): void {
     stampedPiIds.delete(id);
     commentData.delete(id);
     linkLoadFired.delete(id);
-    forgetIdGlobal(id);
     elementScrollendSeq.delete(id);
   }
 }
@@ -194,37 +193,6 @@ export const canvas2dCache = new Map<number, { deref(): object | undefined }>();
 
 export const postMutationHooks: Array<(hint?: MutationHint) => void> = [];
 
-interface NamedGlobalEntry {
-  getter: () => unknown;
-  // A bare owner ID until a second node introduces the same name.
-  nodeIds: number | Set<number>;
-}
-
-// Owners are IDs, not wrappers, so an entry never keeps a wrapper alive.
-export const stampedNames = new Map<string, NamedGlobalEntry>();
-
-export const nodeIdName = new Map<number, string>();
-const namedGlobalObject = globalThis;
-
-export function forgetIdGlobal(nodeId: number): void {
-  const name = nodeIdName.get(nodeId);
-  if (name === undefined) return;
-  nodeIdName.delete(nodeId);
-  const entry = stampedNames.get(name);
-  if (!entry) return;
-  if (typeof entry.nodeIds === "number") {
-    if (entry.nodeIds !== nodeId) return;
-  } else {
-    entry.nodeIds.delete(nodeId);
-    if (entry.nodeIds.size > 0) return;
-  }
-  stampedNames.delete(name);
-  // Do not delete a page-defined replacement or execute its getter during GC cleanup.
-  if (Object.getOwnPropertyDescriptor(namedGlobalObject, name)?.get === entry.getter) {
-    Reflect.deleteProperty(namedGlobalObject, name);
-  }
-}
-
 export const moPendingObservers = new Set<MutationObserverImpl>();
 
 export const parsedHandleXml = new WeakSet<object>();
@@ -339,8 +307,6 @@ export function resetRegistries(): void {
   templateContentFragment.clear();
   stampedPiIds.clear();
   commentData.clear();
-  stampedNames.clear();
-  nodeIdName.clear();
   moPendingObservers.clear();
   elementScrollendSeq.clear();
   scrollendSeq = 0;
