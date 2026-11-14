@@ -33,6 +33,9 @@ import { DEFAULT_DIST, prepare as prepareEngineDist } from "./wpt-engine.mjs";
 
 const ENGINE_CWD = resolve(ROOT, "packages/engine");
 const EXEC = resolve(ROOT, "scripts/wpt-exec.mjs");
+// --no-flush-liftoff-code keeps V8 from dropping the shared Liftoff code, which page isolates then
+// compile again; --expose-gc lets the engine collect retired page isolates (retired-worker-gc.ts).
+const MINIFLARE_V8_FLAGS = "--expose-gc --no-flush-liftoff-code";
 
 const HELP = `Usage: pnpm run test:wpt [options]   (node scripts/wpt-batched.mjs)
 
@@ -65,8 +68,9 @@ Execution
                             lane gets its own wrangler dev; the next batch's
                             engines boot while this one runs.
   --batch-size <n>          tests per batch, spread over the -j engines
-                            (default: derived from RAM at ~45 MB of engine
-                            memory growth per test)
+                            (default: derived from RAM at ~15 MB of engine
+                            memory growth per test with
+                            --no-flush-liftoff-code, ~45 MB without)
   --start <n>               resume from batch n (0-indexed)
   --timeout <ms>            per-test timeout (per-test expectations override)
   --max-total <ms>          hard ceiling on total wall clock (partial run = exit 1)
@@ -83,8 +87,8 @@ Execution
   --engine-launcher <name>  wrangler or miniflare (default: wrangler)
   --engine-dist <dir>       Miniflare dist (default: packages/engine/.wpt-dist)
   --v8-flags "<flags>"      V8 flags for the Miniflare engines' workerd, space
-                            separated (default: none; "" also overrides
-                            $MINIFLARE_WORKERD_V8_FLAGS)
+                            separated (default: "${MINIFLARE_V8_FLAGS}";
+                            "" runs workerd without flags)
 
 Output
   --update-expectations     rewrite tests/wpt-expectations.json from actuals
@@ -107,7 +111,10 @@ Profiling
 Exit: 0 all expected · 1 unexpected results · 2 infrastructure failure.
 `;
 
+// Engine RSS growth per test of a batch, summed over its engines. Liftoff code that page isolates
+// compile again after V8 flushes it makes up most of it; --no-flush-liftoff-code cuts it by 2/3.
 const RSS_GROWTH_MB_PER_TEST = 45;
+const RSS_GROWTH_MB_PER_TEST_NO_FLUSH = 15;
 
 const MAX_BATCH_PASSES = 3;
 const CPUS_PER_ENGINE_LANE = 4;
@@ -168,21 +175,28 @@ const MEMORY_BUDGET_FRACTION = 0.18;
 const MIN_BATCH_MEMORY_BUDGET_MB = 700;
 const MAX_BATCH_MEMORY_BUDGET_MB = 4000;
 const MIN_TESTS_PER_BATCH = 15;
-const MAX_TESTS_PER_BATCH = 100;
+const MAX_TESTS_PER_BATCH = 300;
 
-function defaultBatchSize() {
+function rssGrowthPerTest(o) {
+  const noFlush =
+    o.engineLauncher === "miniflare" &&
+    o.v8Flags.trim().split(/\s+/).includes("--no-flush-liftoff-code");
+  return noFlush ? RSS_GROWTH_MB_PER_TEST_NO_FLUSH : RSS_GROWTH_MB_PER_TEST;
+}
+
+function defaultBatchSize(growthMbPerTest) {
   const totalMb = memoryLimitMb();
   const budgetMb = Math.min(
     Math.max(totalMb * MEMORY_BUDGET_FRACTION, MIN_BATCH_MEMORY_BUDGET_MB),
     MAX_BATCH_MEMORY_BUDGET_MB,
   );
-  const n = Math.round(budgetMb / RSS_GROWTH_MB_PER_TEST);
+  const n = Math.round(budgetMb / growthMbPerTest);
   return Math.min(Math.max(n, MIN_TESTS_PER_BATCH), MAX_TESTS_PER_BATCH);
 }
 
 function parseArgs(arr) {
   const o = {
-    batchSize: defaultBatchSize(),
+    batchSize: null,
     concurrency: defaultConcurrency(),
     start: 0,
     port: parseInt(process.env.KITESURF_PORT ?? "8787", 10) || 8787,
@@ -253,6 +267,8 @@ function parseArgs(arr) {
     console.error(red(`[batched] --v8-flags needs --engine-launcher miniflare`));
     process.exit(2);
   }
+  if (o.engineLauncher === "miniflare") o.v8Flags ??= MINIFLARE_V8_FLAGS;
+  o.batchSize ??= defaultBatchSize(rssGrowthPerTest(o));
   return o;
 }
 const opts = parseArgs(process.argv.slice(2));
@@ -389,7 +405,8 @@ function spawnEngine(set, i, port) {
             inspector,
             "--dist",
             opts.engineDist,
-            ...(opts.v8Flags === undefined ? [] : ["--v8-flags", opts.v8Flags]),
+            "--v8-flags",
+            opts.v8Flags,
           ],
           { cwd: ROOT, stdio: ["ignore", logFd, logFd], detached: true, env: process.env },
         )
@@ -787,8 +804,9 @@ function runDiscover() {
   console.log(
     dim(
       `memory limit ${Math.round(memoryLimitMb() / 1024)} GB · ` +
-        `budgeting ~${RSS_GROWTH_MB_PER_TEST} MB/test of engine RSS growth → ` +
-        `~${Math.round(((opts.batchSize * RSS_GROWTH_MB_PER_TEST) / 1024) * 10) / 10} GB peak growth per batch`,
+        `budgeting ~${rssGrowthPerTest(opts)} MB/test of engine RSS growth → ` +
+        `~${Math.round(((opts.batchSize * rssGrowthPerTest(opts)) / 1024) * 10) / 10} GB peak growth per batch` +
+        (opts.engineLauncher === "miniflare" ? ` · V8 flags "${opts.v8Flags}"` : ""),
     ),
   );
 
