@@ -84,7 +84,7 @@ export async function handleWebSocket(
 ): Promise<Response> {
   // Also used as the analytics session ID and log correlation key.
   const connectionId = nanoid(CDP_CONNECTION_ID_LENGTH);
-  const options = resolveConnectionOptions(request, connectionId, opts?.host);
+  const options = resolveConnectionOptions(request, connectionId, opts?.host, env);
 
   // External sessions provide their outbound policy before dispatch; regular
   // WebSocket upgrades use the default policy.
@@ -269,6 +269,7 @@ export async function handleWebSocket(
     skipPartialRaster: env.KITESURF_DISABLE_PARTIAL_RASTER === "1",
     // Deferred-fonts opt-in. See BrowserState.fontDefer.
     fontDefer: options.fontDefer,
+    fontProfile: options.fontProfile,
     rendererSessionId: null,
     engineSessionId: null,
     wsClosing: false,

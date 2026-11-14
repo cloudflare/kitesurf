@@ -13,6 +13,7 @@ export {
 } from "./index.ts";
 export { DEFAULT_ENGINE_HOST } from "./host.ts";
 export type { EngineHost, ConnectionOptions } from "./host.ts";
+export type { FontProfile } from "./cdp/font-profile.ts";
 export { resolveSessionStore } from "./host.ts";
 export { MemorySessionStore, isStoredBytes, isStoredString } from "./state/session-store.ts";
 export type { SessionStore, StoreGuard, StoreStats, StoreTable } from "./state/session-store.ts";

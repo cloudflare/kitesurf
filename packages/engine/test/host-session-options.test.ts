@@ -13,13 +13,13 @@ describe("resolveConnectionOptions", () => {
         new Request("https://kitesurf.invalid/devtools/page/kitesurf"),
         "connection-1",
       ),
-    ).toEqual({ entrypoint: "devtools", fontDefer: false });
+    ).toEqual({ entrypoint: "devtools", fontDefer: false, fontProfile: "noto" });
     expect(
       resolveConnectionOptions(
         new Request("https://kitesurf.invalid/devtools/browser"),
         "connection-2",
       ),
-    ).toEqual({ entrypoint: "puppeteer", fontDefer: false });
+    ).toEqual({ entrypoint: "puppeteer", fontDefer: false, fontProfile: "noto" });
   });
 
   it("ignores internal session headers on the public default host", () => {
@@ -33,6 +33,7 @@ describe("resolveConnectionOptions", () => {
     expect(resolveConnectionOptions(request, "connection-3")).toEqual({
       entrypoint: "puppeteer",
       fontDefer: false,
+      fontProfile: "noto",
     });
   });
 
@@ -49,7 +50,7 @@ describe("resolveConnectionOptions", () => {
           return { entrypoint: "host-action", fontDefer: true };
         },
       }),
-    ).toEqual({ entrypoint: "host-action", fontDefer: true });
+    ).toEqual({ entrypoint: "host-action", fontDefer: true, fontProfile: "noto" });
     expect(receivedRequest).toBe(request);
     expect(receivedConnectionId).toBe("connection-4");
   });
@@ -61,6 +62,31 @@ describe("resolveConnectionOptions", () => {
       resolveConnectionOptions(request, "connection-5", {
         connectionOptions: () => ({ fontDefer: true }),
       }),
-    ).toEqual({ entrypoint: "devtools", fontDefer: true });
+    ).toEqual({ entrypoint: "devtools", fontDefer: true, fontProfile: "noto" });
+  });
+
+  it("resolves the font profile from the host, then the query, then the env var", () => {
+    const request = new Request("https://kitesurf.invalid/devtools/browser?ks_font_profile=macos");
+    const env = { KITESURF_FONT_PROFILE: "noto" };
+
+    expect(resolveConnectionOptions(request, "connection-6", undefined, env).fontProfile).toBe(
+      "macos",
+    );
+    expect(
+      resolveConnectionOptions(
+        new Request("https://kitesurf.invalid/devtools/browser"),
+        "connection-7",
+        undefined,
+        { KITESURF_FONT_PROFILE: "macos" },
+      ).fontProfile,
+    ).toBe("macos");
+    expect(
+      resolveConnectionOptions(
+        request,
+        "connection-8",
+        { connectionOptions: () => ({ fontProfile: "noto" }) },
+        env,
+      ).fontProfile,
+    ).toBe("noto");
   });
 });

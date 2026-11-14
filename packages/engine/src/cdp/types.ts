@@ -16,6 +16,7 @@ import type { DiagSpanTracker } from "./diag-spans.ts";
 import type { SandboxOutboundOverride } from "../eval/outbound.ts";
 import type { WheelQueue } from "./wheel-queue.ts";
 import type { StyleCache } from "./style-cache.ts";
+import type { FontProfile } from "./font-profile.ts";
 
 export type CdpMethod = keyof ProtocolMapping.Commands;
 
@@ -139,6 +140,7 @@ export interface BrowserState {
   skipSpeculativeRaster: boolean;
   skipPartialRaster: boolean;
   fontDefer: boolean;
+  fontProfile: FontProfile;
   rendererSessionId: string | null;
   engineSessionId: string | null;
   wsClosing: boolean;

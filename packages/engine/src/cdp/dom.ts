@@ -555,6 +555,7 @@ export function ensurePageScript(
           pageOrigin: pageScriptOriginOf(navUrl),
           startupInput: {
             pixelFree: dctx.browser.skipSpeculativeRaster,
+            fontProfile: dctx.browser.fontProfile,
           },
           attributionHeaders: dctx.browser.attributionHeaders,
           mainLoaderId: target.loaderId,

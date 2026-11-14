@@ -31,9 +31,15 @@ test("/ without inspector params, or with a non-http(s) url, serves the landing 
     expect(res.headers.get("content-type"), path).toBe("text/html; charset=utf-8");
     const csp = res.headers.get("content-security-policy");
     expect(csp, path).toContain("default-src 'none'");
-    expect(csp, path).toContain("form-action 'self'");
+    // The form's /?url= submission redirects to the hosted frontend, which form-action covers.
+    expect(csp, path).toContain("form-action 'self' https://example.com;");
     const html = await res.text();
     expect(html, path).toContain('<form class="omnibox" action="/" method="get"');
+    expect(html, path).toContain('id="inspect-form"');
+    // The picker sits in the header and joins the URL form through its form attribute.
+    expect(html, path).toContain('<select name="ks_font_profile" form="inspect-form">');
+    expect(html, path).toContain('<option value="">Default</option>');
+    expect(html, path).toContain('<option value="macos">Chrome on macOS</option>');
     expect(html, path).toContain(exampleHref("https://example.com/devtools", "wss", "ks.invalid"));
     expect(html, path).toContain("DevTools loads from <code>example.com</code>");
     expect(html, path).toContain("wss://ks.invalid/devtools/browser");
@@ -68,6 +74,7 @@ test("with a same-origin frontend, / serves the landing page with same-origin ex
     exampleHref("https://ks.invalid/inspector/inspector.html", "wss", "ks.invalid"),
   );
   expect(html).not.toContain("DevTools loads from");
+  expect(res.headers.get("content-security-policy")).toContain("form-action 'self';");
 });
 
 test("without a frontend, / leaves only the CDP endpoints", async () => {
@@ -75,6 +82,7 @@ test("without a frontend, / leaves only the CDP endpoints", async () => {
   expect(res.status).toBe(200);
   const html = await res.text();
   expect(html).not.toContain("<form");
+  expect(html).not.toContain("ks_font_profile");
   expect(html).toContain("serves no DevTools frontend");
   expect(html).toContain("wss://ks.invalid/devtools/browser");
   expect(html).toContain("wss://ks.invalid/devtools/page/kitesurf");
