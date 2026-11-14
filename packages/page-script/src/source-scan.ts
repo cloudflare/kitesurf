@@ -20,10 +20,6 @@ function needsEmoji(text: string): boolean {
 export const CJK_SCAN =
   /[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\uFF00-\uFFEF]/;
 
-function needsCjk(html: string): boolean {
-  return CJK_SCAN.test(html);
-}
-
 function hasListMarkers(html: string): boolean {
   return /<(?:ul|ol|li)[\s/>]/i.test(html);
 }
@@ -68,14 +64,15 @@ const ANY_SCRIPT_RANGE = new RegExp(
     "]",
 );
 
-function scriptScanText(html: string): string {
+/** `html` plus the characters its numeric character references name, for the script scans. */
+function htmlWithCharRefsDecoded(html: string): string {
   if (!html.includes("&#")) return html;
   let decoded = "";
   const refs = /&#(?:x([0-9a-f]+)|([0-9]+));?/gi;
   for (const match of html.matchAll(refs)) {
-    const cp = Number.parseInt(match[1] ?? match[2] ?? "", match[1] ? 16 : 10);
-    if (cp > 0 && cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff)) {
-      decoded += String.fromCodePoint(cp);
+    const codePoint = Number.parseInt(match[1] ?? match[2] ?? "", match[1] ? 16 : 10);
+    if (codePoint > 0 && codePoint <= 0x10ffff && !(codePoint >= 0xd800 && codePoint <= 0xdfff)) {
+      decoded += String.fromCodePoint(codePoint);
     }
   }
   return decoded ? html + decoded : html;
@@ -88,12 +85,17 @@ function needsSymbols2(html: string): boolean {
   return SYMBOLS2_EXCLUSIVE.test(html) || hasListMarkers(html);
 }
 
+const MONO_FACE = /(?:monospace|font-mono|DM(?:%20|\+|\s)+Mono)/i;
+
 function needsMono(html: string): boolean {
   if (/<(pre|code|kbd|samp|tt|xmp|listing|plaintext)[\s/>]/i.test(html)) return true;
-  const mono = /(?:monospace|font-mono|DM(?:%20|\+|\s)+Mono)/i;
-  // Scanned with indexOf rather than a lazy regex: `<style` with no closing `>` or `</style>`
-  // made every candidate rescan the rest of the page, and this runs in the engine isolate
-  // before the navigate RPC.
+  return hasMonoStyleBlock(html) || hasMonoAttribute(html);
+}
+
+// Scanned with indexOf rather than a lazy regex: `<style` with no closing `>` or `</style>`
+// made every candidate rescan the rest of the page, and this runs in the engine isolate
+// before the navigate RPC.
+function hasMonoStyleBlock(html: string): boolean {
   const opens = /<style/gi;
   let scannedTo = -1;
   for (let match = opens.exec(html); match !== null; match = opens.exec(html)) {
@@ -107,10 +109,14 @@ function needsMono(html: string): boolean {
     const close = closes.exec(html);
     if (!close) break;
     scannedTo = close.index + "</style>".length;
-    if (mono.test(html.slice(open + 1, close.index))) return true;
+    if (MONO_FACE.test(html.slice(open + 1, close.index))) return true;
   }
+  return false;
+}
+
+function hasMonoAttribute(html: string): boolean {
   for (const [context] of html.matchAll(/(?:class|style)\s*=\s*(?:"[^"]*"|'[^']*')/gi)) {
-    if (mono.test(context)) return true;
+    if (MONO_FACE.test(context)) return true;
   }
   return false;
 }
@@ -162,25 +168,31 @@ function needsOutlineConsumers(html: string): boolean {
   return /<svg[\s/>]/i.test(html) && /<text[\s/>]/i.test(html);
 }
 
+/** Script face tags present in `text`, in registration order. */
+function scriptTagsIn(text: string): string[] {
+  if (!ANY_SCRIPT_RANGE.test(text)) return [];
+  const tags: string[] = [];
+  for (const { tag, range } of SCRIPT_RANGES) {
+    if (range.test(text)) tags.push(tag);
+  }
+  return tags;
+}
+
 /** The font faces `html` wants before its first layout. */
 export function scanSourceFonts(html: string): SourceFontScan {
   const symbols = needsSymbols(html);
-  const scripts: string[] = [];
-  const perScriptScan = scriptScanText(html);
-  if (ANY_SCRIPT_RANGE.test(perScriptScan)) {
-    for (const { tag, range } of SCRIPT_RANGES) {
-      if (range.test(perScriptScan)) scripts.push(tag);
-    }
-  }
+  // A script face may be written as a numeric character reference, so scan the decoded text.
+  const scriptText = htmlWithCharRefsDecoded(html);
+
   return {
     outline: needsOutlineConsumers(html),
     symbols,
     symbols2: symbols && needsSymbols2(html),
-    emoji: needsEmoji(perScriptScan),
-    cjk: needsCjk(html),
+    emoji: needsEmoji(scriptText),
+    cjk: CJK_SCAN.test(html),
     mono: needsMono(html),
     serif: needsSerif(html),
-    scripts,
+    scripts: scriptTagsIn(scriptText),
   };
 }
 
@@ -195,13 +207,16 @@ export function sourceDoctypeOf(html: string): { markup: string; end: number } |
   const raw = match?.[2];
   if (!raw) return null;
   const prefix = match?.[1] ?? "";
-  const end = prefix.length + raw.length;
+  return { markup: normalizeDoctype(raw), end: prefix.length + raw.length };
+}
 
+/** The doctype markup normalised to `<!DOCTYPE name ...>`, or `raw` when it does not parse. */
+function normalizeDoctype(raw: string): string {
   const body = raw.slice("<!doctype".length, -1).trim();
   const parsed = body.match(
     /^([^\s>]+)(?:\s+(PUBLIC|SYSTEM)\s+(?:"([^"]*)"|'([^']*)')(?:\s+(?:"([^"]*)"|'([^']*)'))?)?$/i,
   );
-  if (!parsed) return { markup: raw, end };
+  if (!parsed) return raw;
 
   const name = parsed[1]?.toLowerCase() ?? "html";
   const keyword = parsed[2]?.toUpperCase();
@@ -210,18 +225,12 @@ export function sourceDoctypeOf(html: string): { markup: string; end: number } |
   const quote = (value: string) => (value.includes('"') ? `'${value}'` : `"${value}"`);
   if (keyword === "PUBLIC" && firstId !== undefined) {
     const system = secondId === undefined ? "" : ` ${quote(secondId)}`;
-    return {
-      markup: `<!DOCTYPE ${name} PUBLIC ${quote(firstId)}${system}>`,
-      end,
-    };
+    return `<!DOCTYPE ${name} PUBLIC ${quote(firstId)}${system}>`;
   }
   if (keyword === "SYSTEM" && firstId !== undefined) {
-    return {
-      markup: `<!DOCTYPE ${name} SYSTEM ${quote(firstId)}>`,
-      end,
-    };
+    return `<!DOCTYPE ${name} SYSTEM ${quote(firstId)}>`;
   }
-  return { markup: `<!DOCTYPE ${name}>`, end };
+  return `<!DOCTYPE ${name}>`;
 }
 
 /** Frees `source`'s bytes now rather than at the next GC. Its scans stay readable. */
@@ -236,9 +245,11 @@ export function releaseNavigateSource(source: NavigateSource): void {
 /** `html` as UTF-8 with the scans PageScript runs before the parse. */
 export function navigateSourceOf(html: string): NavigateSource {
   const encoder = new TextEncoder();
+  const utf8 = encoder.encode(html);
   const doctype = sourceDoctypeOf(html);
+
   return {
-    utf8: encoder.encode(html),
+    utf8,
     fonts: scanSourceFonts(html),
     eventHandlerAttributes: /\son\w+\s*=/i.test(html),
     doctype: doctype
