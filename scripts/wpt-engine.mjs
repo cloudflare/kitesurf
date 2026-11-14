@@ -18,7 +18,8 @@ const fromEngine = createRequire(resolve(ENGINE_DIR, "package.json"));
 const engineDep = (name) => import(pathToFileURL(fromEngine.resolve(name)).href);
 const USAGE = `usage: node scripts/wpt-engine.mjs prepare [--dist <dir>] [--config <file>]
        node scripts/wpt-engine.mjs serve --port <n> [--dist <dir>] [--assets <dir>]
-                                  [--inspector-port <n>] [--var KEY:VALUE]...`;
+                                  [--inspector-port <n>] [--var KEY:VALUE]...
+                                  [--v8-flags "<flags>"]`;
 
 const ENGINE_RULES = [
   { type: "CompiledWasm", include: ["**/*.wasm"] },
@@ -49,7 +50,11 @@ function parseArgs(argv) {
     else if (arg === "--assets") options.assets = resolve(next());
     else if (arg === "--port") options.port = Number(next());
     else if (arg === "--inspector-port") options.inspectorPort = Number(next());
-    else if (arg === "--var") {
+    else if (arg === "--v8-flags") {
+      // An empty value is allowed: it turns off flags the environment would pass.
+      if (i + 1 >= argv.length) throw new Error(`${arg} requires a value`);
+      options.v8Flags = argv[++i];
+    } else if (arg === "--var") {
       const value = next();
       const at = value.indexOf(":");
       if (at < 1) throw new Error(`--var wants KEY:VALUE, got ${value}`);
@@ -139,6 +144,9 @@ async function serve(options) {
     bindings: { ...workerOptions.bindings, ...options.vars },
     assets,
   };
+  // Miniflare reads workerd's V8 flags from this variable, split on single spaces.
+  if (options.v8Flags !== undefined)
+    process.env.MINIFLARE_WORKERD_V8_FLAGS = options.v8Flags.trim().split(/\s+/).join(" ");
   const miniflare = new Miniflare(
     convertV4MiniflareOptions({
       host: "127.0.0.1",
@@ -149,7 +157,10 @@ async function serve(options) {
     }),
   );
   const url = await miniflare.ready;
-  console.log(`[wpt-engine] ready on ${url.href} (dist ${options.dist})`);
+  const v8Flags = process.env.MINIFLARE_WORKERD_V8_FLAGS;
+  console.log(
+    `[wpt-engine] ready on ${url.href} (dist ${options.dist}${v8Flags ? `, V8 flags ${v8Flags}` : ""})`,
+  );
   const stop = async () => {
     await miniflare.dispose().catch(() => {});
     process.exit(0);

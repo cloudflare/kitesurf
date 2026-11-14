@@ -34,6 +34,7 @@ const OUT_DIR = resolve(optionValue("--out-dir") ?? join(PW_DIR, "test-results")
 const launcher = optionValue("--engine-launcher") ?? "wrangler";
 const engineDist = resolve(optionValue("--dist") ?? resolve(ENGINE_DIR, ".wpt-dist"));
 const resultsOut = optionValue("--results-out");
+const v8Flags = optionValue("--v8-flags");
 const noGate = args.includes("--no-gate");
 if (launcher !== "wrangler" && launcher !== "miniflare") {
   console.error(`[pw-run] --engine-launcher wants wrangler or miniflare, got ${launcher}`);
@@ -74,6 +75,7 @@ const { buildBundles, startEngine } = localEngines({
   outDir: OUT_DIR,
   firstPort: 9720,
   skipBuildEnv: "PW_SKIP_BUILD",
+  v8Flags,
 });
 
 function loadExpectations() {

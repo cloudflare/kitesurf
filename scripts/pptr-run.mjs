@@ -38,6 +38,7 @@ const engineDist = resolve(optionValue("--dist") ?? resolve(ROOT, "packages/engi
 const firstPort = parseInt(optionValue("--port") ?? "9780", 10);
 const maxFileMs = parseInt(optionValue("--max-file-ms") ?? "600000", 10);
 const resultsOut = optionValue("--results-out");
+const v8Flags = optionValue("--v8-flags");
 const filter = optionValue("--filter");
 const spec = optionValue("--spec");
 const userGrep = optionValue("--grep");
@@ -83,6 +84,7 @@ const { buildBundles, startEngine } = localEngines({
   outDir: OUT_DIR,
   firstPort,
   skipBuildEnv: "PPTR_SKIP_BUILD",
+  v8Flags,
 });
 
 // One mocha process per spec file. Upstream's custom interface reads the skip config; the

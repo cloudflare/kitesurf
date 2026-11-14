@@ -18,7 +18,7 @@ const SHUTDOWN_TIMEOUT_MS = 5_000;
 const REQUEST_TIMEOUT_MS = 5_000;
 
 test(
-  "engine preparation and serving retain the embedding host's config and binary imports",
+  "engine preparation and serving retain the embedding host's config, binary imports and V8 flags",
   { timeout: ENGINE_TEST_TIMEOUT_MS },
   async (t) => {
     const root = mkdtempSync(join(tmpdir(), "kitesurf-host-dist-"));
@@ -41,7 +41,7 @@ test(
     writeFileSync(join(root, "data.bin"), new Uint8Array([1, 2, 3]));
     writeFileSync(
       join(root, "index.js"),
-      'import data from "./data.bin"; export default { fetch(_request, env) { return new Response(`private host:${env.HOST_MARKER}:${new Uint8Array(data)}`); } };',
+      'import data from "./data.bin"; export default { fetch(_request, env) { return new Response(`private host:${env.HOST_MARKER}:${new Uint8Array(data)}:${typeof globalThis.gc}`); } };',
     );
     writeFileSync(
       config,
@@ -75,10 +75,12 @@ test(
         String(address.port),
         "--inspector-port",
         "0",
+        "--v8-flags",
+        " --expose-gc ",
       ],
       { stdio: ["ignore", "pipe", "pipe"] },
     );
-    const url = await new Promise((ready, reject) => {
+    const { url, line } = await new Promise((ready, reject) => {
       let output = "";
       child.once("error", reject);
       child.once("exit", (code) => reject(new Error(`engine exited ${code}: ${output}`)));
@@ -87,12 +89,13 @@ test(
       });
       child.stdout.on("data", (chunk) => {
         output += chunk;
-        const match = output.match(/\[wpt-engine\] ready on (http:\/\/[^\s]+)/);
-        if (match) ready(match[1]);
+        const match = output.match(/\[wpt-engine\] ready on (http:\/\/[^\s]+)(.*)\n/);
+        if (match) ready({ url: match[1], line: match[2] });
       });
     });
     const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     assert.equal(response.status, 200);
-    assert.equal(await response.text(), "private host:private:1,2,3");
+    assert.match(line, /V8 flags --expose-gc\)$/);
+    assert.equal(await response.text(), "private host:private:1,2,3:function");
   },
 );

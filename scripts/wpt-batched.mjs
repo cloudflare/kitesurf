@@ -82,6 +82,9 @@ Execution
   --no-build                skip the engine prebuild (wasm + in-isolate bundles)
   --engine-launcher <name>  wrangler or miniflare (default: wrangler)
   --engine-dist <dir>       Miniflare dist (default: packages/engine/.wpt-dist)
+  --v8-flags "<flags>"      V8 flags for the Miniflare engines' workerd, space
+                            separated (default: none; "" also overrides
+                            $MINIFLARE_WORKERD_V8_FLAGS)
 
 Output
   --update-expectations     rewrite tests/wpt-expectations.json from actuals
@@ -216,6 +219,7 @@ function parseArgs(arr) {
     else if (a === "--no-build") o.build = false;
     else if (a === "--engine-launcher") o.engineLauncher = arr[++i];
     else if (a === "--engine-dist") o.engineDist = resolve(arr[++i]);
+    else if (a === "--v8-flags") o.v8Flags = arr[++i];
     else if (a === "--max-total") o.maxTotal = parseInt(arr[++i], 10);
     else if (a === "--bail") {
       o.bail = true;
@@ -243,6 +247,10 @@ function parseArgs(arr) {
     console.error(
       red(`[batched] --engine-launcher must be wrangler or miniflare, got ${o.engineLauncher}`),
     );
+    process.exit(2);
+  }
+  if (o.v8Flags !== undefined && o.engineLauncher !== "miniflare") {
+    console.error(red(`[batched] --v8-flags needs --engine-launcher miniflare`));
     process.exit(2);
   }
   return o;
@@ -381,6 +389,7 @@ function spawnEngine(set, i, port) {
             inspector,
             "--dist",
             opts.engineDist,
+            ...(opts.v8Flags === undefined ? [] : ["--v8-flags", opts.v8Flags]),
           ],
           { cwd: ROOT, stdio: ["ignore", logFd, logFd], detached: true, env: process.env },
         )

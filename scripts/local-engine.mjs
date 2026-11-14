@@ -69,8 +69,10 @@ async function waitHealth(port, timeoutMs) {
 }
 
 /** @typedef {{wsEndpoint: string, port: number, stop: () => void}} LocalEngine */
-/** @param {{tag: string, launcher: "wrangler" | "miniflare", dist: string, outDir: string, firstPort: number, skipBuildEnv: string}} options @returns {{buildBundles: () => Promise<void>, startEngine: () => Promise<LocalEngine>}} */
-export function localEngines({ tag, launcher, dist, outDir, firstPort, skipBuildEnv }) {
+/** @param {{tag: string, launcher: "wrangler" | "miniflare", dist: string, outDir: string, firstPort: number, skipBuildEnv: string, v8Flags?: string | null}} options @returns {{buildBundles: () => Promise<void>, startEngine: () => Promise<LocalEngine>}} */
+export function localEngines({ tag, launcher, dist, outDir, firstPort, skipBuildEnv, v8Flags }) {
+  if (v8Flags != null && launcher !== "miniflare")
+    throw new Error(`[${tag}] --v8-flags needs --engine-launcher miniflare`);
   installCleanup();
   let nextPort = firstPort;
 
@@ -120,6 +122,7 @@ export function localEngines({ tag, launcher, dist, outDir, firstPort, skipBuild
             "--inspector-port",
             String(iport),
             ...MINIFLARE_VARS.flatMap((value) => ["--var", value]),
+            ...(v8Flags == null ? [] : ["--v8-flags", v8Flags]),
           ]
         : [
             "dev",
