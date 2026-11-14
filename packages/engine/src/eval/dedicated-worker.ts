@@ -21,7 +21,7 @@ import type {
 import type { SandboxOutboundOverride } from "./outbound.ts";
 import {
   PAGE_SCRIPT_COMPAT_DATE,
-  PAGE_SCRIPT_COMPAT_FLAGS,
+  pageScriptCompatOptions,
   PAGE_SCRIPT_SUBREQUEST_CAP,
 } from "./page-script.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
@@ -128,7 +128,7 @@ function disposeStub(stub: unknown): void {
 }
 
 export function spawnDedicatedWorker(
-  env: { LOADER: WorkerLoader },
+  env: { LOADER: WorkerLoader; KITESURF_NATIVE_EVAL?: string },
   ctx: ExecutionContext,
   opts: SpawnDedicatedWorkerOptions,
 ): DedicatedWorkerHandle {
@@ -145,7 +145,7 @@ export function spawnDedicatedWorker(
   const tailToken = crypto.randomUUID();
   const stub = env.LOADER.load({
     compatibilityDate: PAGE_SCRIPT_COMPAT_DATE,
-    compatibilityFlags: [...PAGE_SCRIPT_COMPAT_FLAGS],
+    ...pageScriptCompatOptions(env),
     mainModule: "worker.js",
     modules: {
       "worker.js": WORKER_SCRIPT_SOURCE,

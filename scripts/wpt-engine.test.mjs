@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 
+import { startEngine } from "../packages/engine-server/server.mjs";
 import { prepare } from "./wpt-engine.mjs";
 
 const ENGINE_TEST_TIMEOUT_MS = 60_000;
@@ -97,5 +98,43 @@ test(
     assert.equal(response.status, 200);
     assert.match(line, /V8 flags --expose-gc\)$/);
     assert.equal(await response.text(), "private host:private:1,2,3:function");
+  },
+);
+
+test(
+  "native eval adds the experimental flag once to a host that already sets it",
+  { timeout: ENGINE_TEST_TIMEOUT_MS },
+  async (t) => {
+    const root = mkdtempSync(join(tmpdir(), "kitesurf-native-eval-dist-"));
+    const config = join(root, "wrangler.jsonc");
+    const dist = join(root, "dist");
+    let miniflare;
+    t.after(async () => {
+      await miniflare?.dispose();
+      rmSync(root, { recursive: true, force: true });
+    });
+    writeFileSync(
+      join(root, "index.js"),
+      "export default { fetch(_request, env) { return new Response(env.KITESURF_NATIVE_EVAL); } };",
+    );
+    writeFileSync(
+      config,
+      JSON.stringify({
+        name: "kitesurf-test-host",
+        main: "index.js",
+        compatibility_date: "2026-09-11",
+        compatibility_flags: ["experimental"],
+      }),
+    );
+    await prepare(dist, config);
+    const server = createServer().listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const { port } = server.address();
+    server.close();
+    await once(server, "close");
+    const started = await startEngine({ dist, port, vars: { KITESURF_NATIVE_EVAL: "1" } });
+    miniflare = started.miniflare;
+    const response = await fetch(started.url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    assert.equal(await response.text(), "1");
   },
 );

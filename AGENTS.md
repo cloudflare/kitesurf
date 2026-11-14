@@ -61,7 +61,9 @@ Engine-wide invariants. The owning code carries the detail; keep these in sync w
 
 - Runtime code generation (`Runtime.evaluate`, `eval`, `new Function`, computed `import()`) runs on
   boa inside the per-target PageScript isolate, in dev and production, never in the parent Worker.
-  The loaded worker never gets a native-eval compatibility flag.
+  Only `KITESURF_NATIVE_EVAL=1` on a local workerd (`packages/engine-server`) changes this: the
+  loaded workers get workerd's experimental native-eval flag, so the paths that try V8 first (CDP
+  evaluation, page `eval` and `new Function`) stay on V8. Cloudflare rejects the flag.
 - The CDP WebSocket bounds the session. Per-connection state lives in `handleWebSocket`'s closure;
   no Durable Object holds it and nothing persists across connections.
 - Each `Page.navigate` loads a fresh anonymous PageScript worker with `env.LOADER.load` and kills

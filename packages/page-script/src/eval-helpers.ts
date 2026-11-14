@@ -10,7 +10,8 @@ import type { EvalResult } from "@kitesurf/jsrpc-types/page-script";
 import { drainEvalResult, type EvalResultBody } from "./eval-results.ts";
 import type { DomRect, ShimElement } from "./types.ts";
 
-// Native eval is only a probe; workerd's code-generation EvalError falls back to Boa.
+// Native eval runs where the engine grants it (KITESURF_NATIVE_EVAL); elsewhere workerd's
+// code-generation EvalError falls back to Boa.
 const NATIVE_INDIRECT_EVAL: (source: string) => unknown = globalThis.eval;
 
 export const AsyncFunction = (async () => {}).constructor as new (
@@ -261,6 +262,30 @@ export async function boaEvalFallback(
   }
 }
 
+const isCodeGenerationDisallowed = function (error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.name === "EvalError" &&
+    typeof error.message === "string" &&
+    error.message.includes("Code generation from strings disallowed")
+  );
+};
+
+// An expression with `await` runs as an async function's return value. When that does not parse,
+// as for statements around an `await` in a string, the expression runs as a script instead.
+// The box keeps the async function from adopting a promise that awaitPromise leaves unawaited.
+const asyncExpression = function (expr: string): (() => Promise<{ value: unknown }>) | null {
+  if (!/\bawait\b/.test(expr)) return null;
+  try {
+    return new AsyncFunction("return { value: (" + expr + ") };") as () => Promise<{
+      value: unknown;
+    }>;
+  } catch (error) {
+    if (error instanceof SyntaxError) return null;
+    throw error;
+  }
+};
+
 export async function runExpression(
   expression: string,
   options: RunExpressionOpts,
@@ -270,36 +295,18 @@ export async function runExpression(
   let result: EvalResultBody;
   try {
     const expr = typeof expression === "string" ? expression : "undefined";
-    const hasTopLevelAwait = /\bawait\b/.test(expr);
-    let value: unknown;
-    if (!hasTopLevelAwait) {
-      value = NATIVE_INDIRECT_EVAL(expr);
-      if (
-        awaitPromise &&
-        value !== null &&
-        typeof (value as { then?: unknown })?.then === "function"
-      ) {
-        value = await (value as Promise<unknown>);
-      }
-    } else {
-      const asyncFunction = new AsyncFunction("return (" + expr + ");");
-      value = await asyncFunction();
-      if (
-        awaitPromise &&
-        value !== null &&
-        typeof (value as { then?: unknown })?.then === "function"
-      ) {
-        value = await (value as Promise<unknown>);
-      }
+    const asyncFunction = asyncExpression(expr);
+    let value = asyncFunction ? (await asyncFunction()).value : NATIVE_INDIRECT_EVAL(expr);
+    if (
+      awaitPromise &&
+      value !== null &&
+      typeof (value as { then?: unknown })?.then === "function"
+    ) {
+      value = await (value as Promise<unknown>);
     }
     result = packResult(value, returnByValue);
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.name === "EvalError" &&
-      typeof error.message === "string" &&
-      error.message.includes("Code generation from strings disallowed")
-    ) {
+    if (isCodeGenerationDisallowed(error)) {
       result = await boaEvalFallback(
         typeof expression === "string" ? expression : "undefined",
         awaitPromise,

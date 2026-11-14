@@ -78,7 +78,7 @@ export type RenderFrameError = { ok: false; error: string; refused?: true };
 
 export interface FrameSpawnEnv {
   LOADER: WorkerLoader;
-  KITESURF_SIMULATE_PROD_EVAL?: string;
+  KITESURF_NATIVE_EVAL?: string;
   KITESURF_LAG_WATCHDOG?: string;
 }
 

@@ -52,12 +52,20 @@ export async function startEngine(options) {
     ...workerOptions.assets,
     directory: options.assets ?? resolve(options.dist, workerOptions.assets.directory),
   };
+  const bindings = { ...workerOptions.bindings, ...options.vars };
+  // Page isolates get native eval as an experimental flag, which only an engine with the
+  // `experimental` flag may grant (pageScriptCompatOptions in the engine).
+  const compatibilityFlags =
+    bindings.KITESURF_NATIVE_EVAL === "1"
+      ? [...new Set([...(workerOptions.compatibilityFlags ?? []), "experimental"])]
+      : workerOptions.compatibilityFlags;
   const engine = {
     ...workerOptions,
     name: "kitesurf-engine",
     modulesRoot: options.dist,
     modules: distModules(options.dist, "index.js", compileModuleRules(ENGINE_RULES)),
-    bindings: { ...workerOptions.bindings, ...options.vars },
+    compatibilityFlags,
+    bindings,
     assets,
   };
   const miniflare = new Miniflare(

@@ -8,7 +8,7 @@ import { buildDispatchEnv } from "../src/cdp/dispatch-env";
 import type { DispatchCtx } from "../src/cdp/dispatch";
 
 const STRING_ENV_KEYS = [
-  "KITESURF_SIMULATE_PROD_EVAL",
+  "KITESURF_NATIVE_EVAL",
   "KITESURF_RESOURCE_DRAIN_QUIET_TURNS",
   "KITESURF_PAGE_CPU_MS_CAP",
   "KITESURF_PAGE_WALL_MS_CAP",

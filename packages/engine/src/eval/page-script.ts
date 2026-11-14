@@ -79,6 +79,26 @@ export const PAGE_SCRIPT_COMPAT_FLAGS: readonly string[] = [
   "no_nodejs_compat_v2",
 ];
 
+// workerd's local-only, experimental flag that lets a Worker generate code from strings. The
+// isolate's eval paths try native code first and fall back to boa on the EvalError without it.
+const NATIVE_EVAL_COMPAT_FLAG = "allow_insecure_inefficient_logged_eval";
+
+/**
+ * The loaded workers' flags. With KITESURF_NATIVE_EVAL they add native eval, which as an
+ * experimental flag needs `allowExperimental`, so the engine needs the `experimental` flag.
+ */
+export function pageScriptCompatOptions(env: { KITESURF_NATIVE_EVAL?: string }): {
+  compatibilityFlags: string[];
+  allowExperimental?: boolean;
+} {
+  if (env.KITESURF_NATIVE_EVAL !== "1")
+    return { compatibilityFlags: [...PAGE_SCRIPT_COMPAT_FLAGS] };
+  return {
+    compatibilityFlags: [...PAGE_SCRIPT_COMPAT_FLAGS, NATIVE_EVAL_COMPAT_FLAG],
+    allowExperimental: true,
+  };
+}
+
 export const PAGE_SCRIPT_SUBREQUEST_CAP = 10_000;
 
 const PAGE_SCRIPT_CPU_TIME_MS_CAP = 300_000;
@@ -166,7 +186,7 @@ function emptyWasmBytes(): ArrayBuffer {
 interface GetOrCreatePageScriptOptions {
   env: {
     LOADER: WorkerLoader;
-    KITESURF_SIMULATE_PROD_EVAL?: string;
+    KITESURF_NATIVE_EVAL?: string;
     KITESURF_RESOURCE_DRAIN_QUIET_TURNS?: string;
     KITESURF_LAG_WATCHDOG?: string;
     KITESURF_PAGE_CPU_MS_CAP?: string;
@@ -367,7 +387,7 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
   const mainModule = pageIsolateEntry(modules, pageIsolate);
   const stub = env.LOADER.load({
     compatibilityDate: PAGE_SCRIPT_COMPAT_DATE,
-    compatibilityFlags: [...PAGE_SCRIPT_COMPAT_FLAGS],
+    ...pageScriptCompatOptions(env),
     mainModule,
     modules,
     // Page modules run in this worker and can import its env, so the tail
@@ -448,7 +468,7 @@ export interface PageScriptInitTimings {
 export function spawnFramePageScript(
   env: {
     LOADER: WorkerLoader;
-    KITESURF_SIMULATE_PROD_EVAL?: string;
+    KITESURF_NATIVE_EVAL?: string;
     KITESURF_LAG_WATCHDOG?: string;
   },
   ctx: ExecutionContext,

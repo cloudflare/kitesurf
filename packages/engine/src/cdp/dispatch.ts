@@ -55,7 +55,7 @@ export interface DispatchCtx {
   env: {
     LOADER: WorkerLoader;
     FONT_ASSETS: Fetcher;
-    KITESURF_SIMULATE_PROD_EVAL?: string;
+    KITESURF_NATIVE_EVAL?: string;
     KITESURF_RESOURCE_DRAIN_QUIET_TURNS?: string;
     KITESURF_LAG_WATCHDOG?: string;
     // Per-page-isolate deployment budgets: CPU cap on LOADER.load,

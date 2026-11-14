@@ -10,6 +10,7 @@ declare global {
       ENGINE: FetchBinding;
       ENGINE_NO_INSPECTOR: FetchBinding;
       ENGINE_SAME_ORIGIN_INSPECTOR: FetchBinding;
+      ENGINE_NATIVE_EVAL: FetchBinding;
       OTLP_CAPTURE: FetchBinding;
       CORE_WASM: FetchBinding;
       SCENE_HOST_WASM: FetchBinding;

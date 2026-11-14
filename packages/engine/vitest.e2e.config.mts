@@ -163,9 +163,15 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
     { type: "Data", include: ["**/*.woff2", "**/*.bin"] },
   ];
 
-  function engineWorkerOptions(name: string, outboundService: string, bindings = engineBindings) {
+  function engineWorkerOptions(
+    name: string,
+    outboundService: string,
+    bindings: Record<string, unknown> = engineBindings,
+    compatibilityFlags = wo.compatibilityFlags,
+  ) {
     return {
       ...wo,
+      compatibilityFlags,
       bindings,
       name,
       modulesRoot: opts.engineDist,
@@ -206,6 +212,14 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
     { ...engineBindings, KITESURF_INSPECTOR_BASE_URL: "/inspector/inspector.html" },
   );
 
+  // Page isolates with native eval, which the engine may grant only with the experimental flag.
+  const nativeEvalEngineWorker = engineWorkerOptions(
+    "kitesurf-engine-native-eval",
+    "kitesurf-engine-native-eval",
+    { ...engineBindings, KITESURF_NATIVE_EVAL: "1" },
+    [...new Set([...((wo.compatibilityFlags as string[] | undefined) ?? []), "experimental"])],
+  );
+
   const extraEngineWorkers = (opts.extraEngines ?? []).map((engine) =>
     engineWorkerOptions(engine.name, engine.outboundService, {
       ...engineBindings,
@@ -223,6 +237,7 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
             ENGINE: "kitesurf-engine",
             ENGINE_NO_INSPECTOR: "kitesurf-engine-no-inspector",
             ENGINE_SAME_ORIGIN_INSPECTOR: "kitesurf-engine-same-origin-inspector",
+            ENGINE_NATIVE_EVAL: "kitesurf-engine-native-eval",
             ...opts.serviceBindings,
             OTLP_CAPTURE: "kitesurf-otlp-capture",
             CORE_WASM: "kitesurf-core-wasm",
@@ -232,6 +247,7 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
             engineWorker as never,
             noInspectorEngineWorker as never,
             sameOriginInspectorEngineWorker as never,
+            nativeEvalEngineWorker as never,
             ...(extraEngineWorkers as never[]),
             fixturesWorker as never,
             ...((opts.workers ?? []).concat(fixtureWorkers) as never[]),
