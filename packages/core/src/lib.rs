@@ -27,6 +27,8 @@ mod dom;
 mod js;
 #[cfg(target_arch = "wasm32")]
 mod boa_code_store;
+#[cfg(any(target_arch = "wasm32", test))]
+mod small_alloc;
 #[cfg(target_arch = "wasm32")]
 mod swap_alloc;
 
@@ -562,6 +564,31 @@ fn now_for_animations() -> f64 {
     }
 }
 
+/// Resolve-pipeline dirtiness. Every change that dirties layout also dirties styles, so a
+/// style-only flush (`ensure_style`) stays valid until the next one.
+struct LayoutDirty {
+    layout: std::cell::Cell<bool>,
+    style: std::cell::Cell<bool>,
+}
+
+impl LayoutDirty {
+    fn new() -> Self {
+        Self {
+            layout: std::cell::Cell::new(true),
+            style: std::cell::Cell::new(true),
+        }
+    }
+
+    fn get(&self) -> bool {
+        self.layout.get()
+    }
+
+    fn set(&self, dirty: bool) {
+        self.layout.set(dirty);
+        self.style.set(dirty);
+    }
+}
+
 /// Holds one page's DOM and associated mutable state behind the Wasm handle.
 /// Dropping the handle releases that state; Boa fast-path references hold only weak links.
 #[wasm_bindgen]
@@ -575,7 +602,7 @@ pub struct DomHandle {
     /// The document URL; relative URLs resolve against it.
     base_url: String,
     /// Set by DOM and viewport changes; the next geometry read runs a resolve.
-    layout_dirty: Cell<bool>,
+    layout_dirty: LayoutDirty,
     /// A transition or animation was running at the last resolve, so later reads resolve again
     /// even when the DOM is unchanged.
     animating: Cell<bool>,
@@ -588,7 +615,9 @@ pub struct DomHandle {
     /// Resolves run so far: `[mutation-driven, animation-only]`. An animation-only resolve
     /// re-cascades every running animation with nothing else to show for it. Reported through
     /// Kitesurf.getMemoryStats.
-    resolve_counts: Cell<[u32; 2]>,
+    resolve_counts: std::cell::Cell<[u32; 2]>,
+    #[cfg(test)]
+    style_passes: std::cell::Cell<u32>,
     /// Per-(node, property) transition state as of the last resolve.
     /// Diffed against the next one to synthesise the DOM events;
     /// stylo clears `is_new` before we ever see it.
@@ -700,11 +729,13 @@ impl DomHandle {
             doc: Rc::new(RefCell::new(doc)),
             node_handles: Rc::new(RefCell::new(node_handles)),
             base_url: resolved_base,
-            layout_dirty: Cell::new(true),
+            layout_dirty: LayoutDirty::new(),
             animating: Cell::new(false),
             last_resolve_now: Cell::new(f64::NEG_INFINITY),
             layout_epoch: Cell::new(0),
             resolve_counts: Cell::new([0, 0]),
+            #[cfg(test)]
+            style_passes: std::cell::Cell::new(0),
             transition_states: RefCell::new(TransitionStates::default()),
             transition_events: RefCell::new(Vec::new()),
             animation_states: RefCell::new(AnimationStates::default()),
@@ -853,6 +884,16 @@ impl DomHandle {
     }
 
     fn ensure_layout(&self) {
+        self.flush_resolve(false);
+    }
+
+    /// For readers of computed values only: restyles without layout, which waits for the next
+    /// geometry read or paint.
+    fn ensure_style(&self) {
+        self.flush_resolve(true);
+    }
+
+    fn flush_resolve(&self, requested_style_only: bool) {
         if self.layout_mode.get() == LayoutMode::Off {
             return;
         }
@@ -860,17 +901,24 @@ impl DomHandle {
         if !dirty && !self.animating.get() {
             return;
         }
-        let now = now_for_animations();
-        if !dirty && now <= self.last_resolve_now.get() {
+        let styles_fresh = requested_style_only && dirty && !self.layout_dirty.style.get();
+        if styles_fresh && !self.animating.get() {
             return;
         }
+        let now = now_for_animations();
+        // Within one clock sample, a clean or already restyled document has nothing new to show.
+        if (!dirty || styles_fresh) && now <= self.last_resolve_now.get() {
+            return;
+        }
+        // An animation-only refresh keeps the full resolve it always ran.
+        let style_only = requested_style_only && dirty;
         let mut doc = match self.doc.try_borrow_mut() {
             Ok(d) => d,
             Err(_) => return,
         };
-        let mut counts = self.resolve_counts.get();
-        counts[usize::from(!dirty)] = counts[usize::from(!dirty)].saturating_add(1);
-        self.resolve_counts.set(counts);
+        if !style_only {
+            self.count_resolve(!dirty);
+        }
         #[cfg(test)]
         let _cascade_guard = STYLE_CASCADE_TEST_LOCK
             .lock()
@@ -880,7 +928,13 @@ impl DomHandle {
                 let mut waapi = self.waapi.borrow_mut();
                 !waapi.is_empty() && waapi.sample(doc.as_mut(), now * 1000.0)
             };
-            doc.as_mut().resolve(now);
+            let laid_out = !style_only || !doc.as_mut().resolve_style(now);
+            if laid_out {
+                if style_only {
+                    self.count_resolve(false);
+                }
+                doc.as_mut().resolve(now);
+            }
             // Inside the same borrow: stylo retires a finished
             // transition during resolve, so the diff has to run before
             // anything else can touch the document.
@@ -920,11 +974,20 @@ impl DomHandle {
                     |opaque| node_handles.external_for_live_opaque(doc.as_ref(), opaque),
                 );
             }
-            animating
+            (animating, laid_out)
         }));
         drop(doc);
         match result {
-            Ok(animating) => {
+            // A style-only flush keeps layout dirty for the next geometry read or paint.
+            Ok((animating, false)) => {
+                #[cfg(test)]
+                self.style_passes.set(self.style_passes.get() + 1);
+                self.layout_dirty.style.set(false);
+                self.animating.set(animating);
+                self.last_resolve_now.set(now);
+            }
+            // A full resolve clears both flags and advances the epoch geometry polls compare.
+            Ok((animating, true)) => {
                 self.layout_dirty.set(false);
                 self.animating.set(animating);
                 self.last_resolve_now.set(now);
@@ -939,6 +1002,14 @@ impl DomHandle {
                 }
             }
         }
+    }
+
+    /// Count one resolve in the mutation-driven or animation-only slot.
+    fn count_resolve(&self, animation_only: bool) {
+        let mut counts = self.resolve_counts.get();
+        let slot = usize::from(animation_only);
+        counts[slot] = counts[slot].saturating_add(1);
+        self.resolve_counts.set(counts);
     }
 
     fn connected_node_id(&self, node_id: u32) -> Option<NodeId> {

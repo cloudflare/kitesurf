@@ -268,6 +268,8 @@ async function handleEmulation(
     const vp = clampViewport(width, height);
     target.viewportWidth = vp.width;
     target.viewportHeight = vp.height;
+    const scale = req.params?.deviceScaleFactor;
+    target.deviceScaleFactor = typeof scale === "number" && scale > 0 ? scale : 1;
     await sessionOf(ctx, target).callIfLive.setViewport({
       width: target.viewportWidth,
       height: target.viewportHeight,

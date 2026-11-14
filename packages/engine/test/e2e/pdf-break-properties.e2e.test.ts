@@ -3,6 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import type { Page } from "@cloudflare/puppeteer";
+import { createHash } from "node:crypto";
 
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
@@ -22,15 +23,19 @@ function countPdfPages(buf: Uint8Array): number {
   return m ? m.length : 0;
 }
 
-async function pdfPageCount(page: Page, html: string): Promise<number> {
+async function printPdf(page: Page, html: string): Promise<{ pages: number; hash: string }> {
   await setContent(page, html);
   const cdp = await page.createCDPSession();
-  const r = (await cdp.send("Page.printToPDF", ZERO_MARGIN)) as { data: string };
-  return countPdfPages(new Uint8Array(Buffer.from(r.data, "base64")));
+  const reply = (await cdp.send("Page.printToPDF", ZERO_MARGIN)) as { data: string };
+  const bytes = Buffer.from(reply.data, "base64");
+  return {
+    pages: countPdfPages(new Uint8Array(bytes)),
+    hash: createHash("sha256").update(bytes).digest("hex"),
+  };
 }
 
 test("break-before:page forces one PDF page per section", async ({ page }) => {
-  const pages = await pdfPageCount(
+  const printed = await printPdf(
     page,
     `<style>
   body { margin: 0; font: 16px/1.5 sans-serif; }
@@ -43,11 +48,15 @@ test("break-before:page forces one PDF page per section", async ({ page }) => {
 <section>three</section>
 <div class="keep">keep-together</div>`,
   );
-  expect(pages).toBe(3);
+
+  expect(printed.hash, "printToPDF bytes").toBe(
+    "d921d2c9ec05a0d9b945a99a7780e0eadf84c172a731358beb5700734f0cea88",
+  );
+  expect(printed.pages).toBe(3);
 }, 120_000);
 
 test("break-inside:avoid moves blocks the heuristic would cut", async ({ page }) => {
-  const pages = await pdfPageCount(
+  const printed = await printPdf(
     page,
     `<style>
   body { margin: 0; }
@@ -59,5 +68,9 @@ test("break-inside:avoid moves blocks the heuristic would cut", async ({ page })
 <div class="keep"></div>
 <div class="keep"></div>`,
   );
-  expect(pages).toBe(3);
+
+  expect(printed.hash, "printToPDF bytes").toBe(
+    "d99517aa24982082ae7414450e4ccfed58fbcb65a1d64f5b6b5803fe04b8e557",
+  );
+  expect(printed.pages).toBe(3);
 }, 120_000);

@@ -408,7 +408,6 @@ export interface QueryDomMethods {
       scrollX?: number;
       scrollY?: number;
       error?: string;
-      fallbackHtml?: string;
       damageCount?: number;
       layoutDirty?: boolean;
       skipReason?: string;
@@ -435,14 +434,17 @@ export interface QueryDomMethods {
       marginBottom: number;
       marginLeft: number;
     };
-    result: { envelope?: Uint8Array; error?: string };
+    // Each page is a little-endian byte length followed by its scene; a zero length starts an
+    // error frame carrying the message length and the message.
+    result: { pages?: ReadableStream<Uint8Array>; pageCount?: number; error?: string };
   };
   getOuterHTMLAndSeq: {
     args: EmptyArgs;
     result: { outerHTML: string; seq: number; scrollX: number; scrollY: number };
   };
   getMemoryStats: {
-    args: EmptyArgs;
+    // resetPeak restarts the allocator's diagnostic peak window before the stats are read.
+    args: { resetPeak?: boolean };
     result: {
       bytes?: number;
       initialBytes?: number;

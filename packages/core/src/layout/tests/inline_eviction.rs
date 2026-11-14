@@ -396,8 +396,7 @@ fn annotated_page() -> String {
             ".rel { position: relative; }\n\
              .anno { position: absolute; display: block; right: 0.3em; }\n\
              .self { position: absolute; top: 0; left: -2.5em; }\n\
-             .pin { position: absolute; right: 4px; top: auto; width: 3px; height: 3px; }\n\
-             .static { position: absolute; }\n</style>",
+             .pin { position: absolute; right: 4px; top: auto; width: 3px; height: 3px; }\n</style>",
         )
         .replace(
             "</body>",
@@ -414,10 +413,6 @@ fn width_changes_place_absolute_boxes_of_evicted_roots() {
     assert!(
         is_evicted(&evict, "o39"),
         "a root with placeable boxes evicts"
-    );
-    assert!(
-        !is_evicted(&evict, "static"),
-        "a box at its static inline position needs the shaped line"
     );
     for width in [530, 140, 700] {
         let rebuilds = blitz_dom::node::inline_layout_rebuild_count();
@@ -438,6 +433,136 @@ fn width_changes_place_absolute_boxes_of_evicted_roots() {
         );
     }
     let height = page_height(&keep);
+    assert_eq!(
+        keep.render_scene(0, height - 600, 0, 0, false, true),
+        evict.render_scene(0, height - 600, 0, 0, false, true),
+        "scene differs at the bottom"
+    );
+}
+
+/// Roots with absolutely positioned boxes at their static inline position, at four
+/// alignment inputs: an IDL pre block, plain, RTL and centred text.
+fn static_offset_page() -> String {
+    let words = "lorem ipsum dolor sit amet consectetur adipiscing elit ".repeat(4);
+    let statics: String = (0..40)
+        .map(|i| match i % 4 {
+            0 => format!(
+                "<pre id=st{i}><code class=idl>interface I{i} {{\n  attribute long a;\n}};</code></pre>"
+            ),
+            1 => format!("<p id=st{i}>{words}<i class=static>s</i>{words}</p>"),
+            2 => format!("<p id=st{i} dir=rtl>{words}<i class=static>s</i> {words}</p>"),
+            _ => format!("<p id=st{i} class=center>{words}<i class=static>s</i>{words}</p>"),
+        })
+        .collect();
+    page(120)
+        .replace("width: 600px;", "")
+        .replace(
+            "</style>",
+            "pre, p { position: relative; }\n\
+             code.idl::before { content: 'IDL'; position: absolute; top: auto; \
+             margin: -0.7em 0 0 -3.75em; width: 1.5em; }\n\
+             .static { position: absolute; }\n\
+             .center { text-align: center; }\n</style>",
+        )
+        .replace("</body>", &format!("{statics}</body>"))
+}
+
+/// The far roots of `static_offset_page` that the scan evicts at the top.
+const FAR_STATIC_ROOTS: [&str; 4] = ["st36", "st37", "st38", "st39"];
+
+/// The fixture laid out twice: once with eviction off, once evicting far roots.
+fn static_offset_pair() -> (DomHandle, DomHandle) {
+    let html = static_offset_page();
+    (setup_with(&html, None), setup_with(&html, Some(2.0)))
+}
+
+/// Dirties `roots` on both documents, so the next resolve re-collects them.
+fn dirty_roots(keep: &DomHandle, evict: &DomHandle, roots: &[&str]) {
+    for dom in [keep, evict] {
+        for id in roots {
+            let root = dom.query_selector(&format!("#{id}")).unwrap() as u32;
+            assert!(dom.set_attribute(root, "style", "padding-bottom: 1px"));
+        }
+    }
+}
+
+/// Roots holding absolutely positioned boxes at their static inline position
+/// evict with each box's offset along its line.
+#[test]
+fn evicted_roots_place_boxes_at_their_static_inline_position() {
+    let (keep, evict) = static_offset_pair();
+    for id in FAR_STATIC_ROOTS {
+        assert!(
+            is_evicted(&evict, id),
+            "{id} evicts with its static offsets"
+        );
+    }
+    assert_eq!(
+        boxes(keep.doc.borrow().as_ref()),
+        boxes(evict.doc.borrow().as_ref()),
+        "boxes differ before any relayout"
+    );
+}
+
+/// A pass with the inputs those lines were aligned with places the boxes from
+/// the recorded offsets instead of rebuilding them.
+#[test]
+fn same_width_relayout_places_static_boxes_from_recorded_offsets() {
+    let (keep, evict) = static_offset_pair();
+    dirty_roots(&keep, &evict, &FAR_STATIC_ROOTS);
+
+    let stats = blitz_dom::node::inline_summary_stats();
+    let rebuilds = blitz_dom::node::inline_layout_rebuild_count();
+    evict.resolve_layout();
+    keep.resolve_layout();
+    assert!(
+        blitz_dom::node::inline_summary_stats().summarized - stats.summarized
+            >= FAR_STATIC_ROOTS.len() as _,
+        "the dirtied roots break from their summaries"
+    );
+    assert_eq!(
+        blitz_dom::node::inline_layout_rebuild_count() - rebuilds,
+        0,
+        "unchanged alignment inputs reuse the recorded offsets"
+    );
+    for id in FAR_STATIC_ROOTS {
+        assert!(is_evicted(&evict, id), "{id} stays evicted");
+    }
+    assert_eq!(
+        boxes(keep.doc.borrow().as_ref()),
+        boxes(evict.doc.borrow().as_ref()),
+        "boxes differ after a same-width relayout"
+    );
+}
+
+/// New alignment inputs rebuild the roots that need their static offsets.
+#[test]
+fn new_alignment_inputs_rebuild_static_box_offsets() {
+    let (keep, evict) = static_offset_pair();
+    for width in [530, 140, 700] {
+        let rebuilds = blitz_dom::node::inline_layout_rebuild_count();
+        evict.set_viewport(width, 600);
+        evict.resolve_layout();
+        assert!(
+            blitz_dom::node::inline_layout_rebuild_count() > rebuilds,
+            "new alignment inputs rebuild roots that need static offsets at {width}px"
+        );
+        keep.set_viewport(width, 600);
+        keep.resolve_layout();
+        assert_eq!(
+            boxes(keep.doc.borrow().as_ref()),
+            boxes(evict.doc.borrow().as_ref()),
+            "boxes differ at {width}px"
+        );
+    }
+    let height = keep
+        .doc
+        .borrow()
+        .as_ref()
+        .root_element()
+        .final_layout()
+        .size
+        .height as i32;
     assert_eq!(
         keep.render_scene(0, height - 600, 0, 0, false, true),
         evict.render_scene(0, height - 600, 0, 0, false, true),
@@ -685,6 +810,56 @@ fn the_eviction_scan_visits_only_resident_roots() {
 }
 
 #[test]
+fn reads_during_a_follow_up_scan_are_eventually_evicted() {
+    let dom = setup(Some(2.0), 120);
+    let scan = || {
+        dom.doc
+            .borrow_mut()
+            .as_mut()
+            .evict_offscreen_inline_layouts()
+    };
+    let read = |name: &str| {
+        let doc = dom.doc.borrow();
+        let base = doc.as_ref();
+        let id = base.get_element_by_id(name).expect("paragraph exists");
+        base.tree()[id]
+            .element_data()
+            .and_then(|element| element.inline_layout_data())
+            .expect("paragraph has inline layout")
+            .layout(base.tree());
+    };
+    scan();
+    scan();
+    assert!(
+        is_evicted(&dom, "p112") && is_evicted(&dom, "p119"),
+        "precondition: both paragraphs start evicted"
+    );
+    for id in ["p112", "p119"] {
+        read(id);
+        scan();
+        assert!(!is_evicted(&dom, id), "a fresh read gets one scan of grace");
+    }
+    scan();
+    scan();
+    assert!(
+        is_evicted(&dom, "p119"),
+        "two scans after the read evict it"
+    );
+}
+
+#[test]
+fn printing_releases_far_rebuilt_layouts_before_returning() {
+    let dom = setup(Some(2.0), 120);
+    assert!(is_evicted(&dom, "p112"));
+    let pdf = dom.record_pdf_scenes(400, 300, 10, 10, 10, 10);
+    assert!(!pdf.is_empty(), "the fixture must produce PDF scenes");
+    assert!(
+        is_evicted(&dom, "p112"),
+        "printing must not retain offscreen shaped text on an idle document"
+    );
+}
+
+#[test]
 fn scrolling_through_clipped_strips_evicts_what_scrolled_away() {
     let dom = setup(Some(2.0), 240);
     let total = inline_roots(dom.doc.borrow().as_ref()).len();
@@ -846,16 +1021,25 @@ fn printing_evicted_roots_matches_printing_live_ones() {
         dom.set_media_type("print");
     }
     let pdf = |dom: &DomHandle| dom.record_pdf_scenes(400, 300, 10, 10, 10, 10);
-    assert_eq!(pdf(&evict), pdf(&keep));
+    let expected = pdf(&keep);
+    assert!(!expected.is_empty(), "the fixture must produce PDF scenes");
+    assert_eq!(pdf(&evict), expected);
 }
 
 #[test]
 fn a_failed_print_does_not_keep_its_rows_shaped() {
     let dom = setup(Some(2.0), 120);
+    geometry(dom.doc.borrow().as_ref());
+    assert!(!is_evicted(&dom, "p119"), "geometry rebuilt the bottom");
+
     // Holding the font borrow makes the print fail part way through.
     let fonts = dom.rbi_font_bytes.borrow_mut();
     assert!(dom.record_pdf_scenes(400, 300, 10, 10, 10, 10).is_empty());
     drop(fonts);
+    assert!(
+        is_evicted(&dom, "p119"),
+        "failed printing releases shaped text"
+    );
     geometry(dom.doc.borrow().as_ref());
     assert!(
         !is_evicted(&dom, "p119"),

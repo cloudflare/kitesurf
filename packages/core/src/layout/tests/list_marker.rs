@@ -60,6 +60,10 @@ fn an_outside_marker_is_shaped_from_its_items_style() {
     let disc = marker_width(&dom, doc.as_ref(), "#a");
     let number = marker_width(&dom, doc.as_ref(), "#b");
     assert!(disc > 0.0 && number > 0.0);
+    assert!(
+        disc > marker_width(&dom, doc.as_ref(), "ul > li:nth-child(2)"),
+        "the 30px item's marker is wider than the default-size item's"
+    );
     assert_ne!(
         disc, number,
         "each item's marker text and font size are used"

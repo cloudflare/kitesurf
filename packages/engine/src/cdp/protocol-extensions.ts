@@ -58,6 +58,11 @@ declare module "devtools-protocol" {
         targetId?: Target.TargetID;
       }
 
+      interface GetMemoryStatsRequest extends TargetScopedRequest {
+        /** Reset only the PageScript allocator's diagnostic peak window before reading it. */
+        resetPeak?: boolean;
+      }
+
       /** Reply of the per-target methods that fan out without a `targetId`. */
       interface ByTargetResponse<T> {
         byTarget: Record<Target.TargetID, T | null>;
@@ -433,7 +438,7 @@ declare module "devtools-protocol/types/protocol-mapping" {
         returnType: Protocol.Kitesurf.GetPaintDamageSinceResponse;
       };
       "Kitesurf.getMemoryStats": {
-        paramsType: [Protocol.Kitesurf.TargetScopedRequest?];
+        paramsType: [Protocol.Kitesurf.GetMemoryStatsRequest?];
         returnType: Protocol.Kitesurf.GetMemoryStatsResponse;
       };
       "Kitesurf.setOutboundFilters": {

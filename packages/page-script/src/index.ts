@@ -7,6 +7,8 @@
 // returned function becomes a live capability that extends the session.
 
 import { WorkerEntrypoint, RpcTarget, abortIsolate } from "cloudflare:workers";
+import { pdfScenePages } from "./pdf-stream.ts";
+import { createFrameBitmapDeliveryGate } from "./frame-bitmap-gate.ts";
 import type {
   ArgSpec,
   CallFunctionOnOptions,
@@ -214,6 +216,51 @@ const sessionClosingSignal = new NativePromise<void>((resolve) => {
   resolveSessionClosing = resolve;
 });
 
+const frameBitmapDeliveryGate = createFrameBitmapDeliveryGate(applyFrameBitmap);
+
+function applyFrameBitmap(params: FrameBitmapParams): FrameBitmapReply {
+  if (!isObjectRecord(params)) return { ok: false, rc: -1, error: "bad args" };
+
+  // Wire params arrive untyped, so every field is re-checked before the wasm call.
+  const ownerBackendNodeId: unknown = params.ownerBackendNodeId;
+  const width: unknown = params.width;
+  const height: unknown = params.height;
+  const rgba: unknown = params.rgba;
+  if (
+    typeof ownerBackendNodeId !== "number" ||
+    typeof width !== "number" ||
+    typeof height !== "number" ||
+    !isNativeUint8Array(rgba)
+  ) {
+    return { ok: false, rc: -1, error: "bad args" };
+  }
+
+  if (!state.dom || typeof nativeSetIframeImage !== "function") {
+    return { ok: false, rc: -1, error: "dom missing" };
+  }
+
+  try {
+    const resultCode = nativeApply(nativeSetIframeImage, state.dom, [
+      ownerBackendNodeId,
+      width,
+      height,
+      rgba,
+    ]);
+    if (resultCode === 0) {
+      try {
+        getInternalState().damageNodes.add(ownerBackendNodeId | 0);
+      } catch {}
+    }
+    return { ok: resultCode >= 0, rc: resultCode };
+  } catch (e) {
+    return {
+      ok: false,
+      rc: -1,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
 function afterFontUpgrade(): void {
   try {
     state.dom?.fontsUpgraded?.();
@@ -305,6 +352,8 @@ import {
   pageTimerDueWithin,
   pumpDuePageTasks,
   pumpPageTask,
+  pausePageTaskPump,
+  runPageTaskOrQueue,
   timerWheelStats,
   timersScheduledCount,
 } from "./page-tasks.ts";
@@ -345,6 +394,7 @@ import {
   ks_call_cdp,
   ks_code_stats,
   ks_swap_alloc_stats,
+  ks_swap_alloc_reset_peak_window,
 } from "./wasm-glue.js";
 import {
   buildDocument,
@@ -2276,7 +2326,14 @@ function renderScrollScenePatches(
   const patches: ScenePatch[] = [];
   for (const [x, y, width, height] of scrollClips) {
     const clip = { x: x + scrollX, y: y + scrollY, w: width, h: height };
-    const patchScene = renderClip(clip.x, clip.y, width, height, false, clientWire);
+    const patchScene = renderClip(
+      clip.x,
+      clip.y,
+      Math.min(MAX_SCENE_CLIP_DIMENSION_PX, width),
+      Math.min(MAX_SCENE_CLIP_DIMENSION_PX, height),
+      false,
+      clientWire,
+    );
     if (!patchScene || patchScene.length === 0) {
       throw new Error("renderSceneClip returned empty");
     }
@@ -2443,16 +2500,9 @@ function mouseTargetAtPoint(
   try {
     const paint = ensurePaintDom();
     if (!paint) return null;
-    const seqNow = cascadeSeq();
     try {
       if (typeof paint.resolveLayout === "function") paint.resolveLayout();
     } catch {}
-    if (seqNow > state.lastForceRestyleSeq) {
-      try {
-        if (typeof paint.forceFullRestyle === "function") paint.forceFullRestyle();
-      } catch {}
-      state.lastForceRestyleSeq = seqNow;
-    }
     let paintHitId: unknown;
     try {
       paintHitId = paint.elementFromPoint(clientX + state.scrollX, clientY + state.scrollY);
@@ -2901,27 +2951,13 @@ function drainPageCustomElementUpgrades(upgrades: (() => void) | null): void {
   }
 }
 
-type PaintSequence = number | (() => number);
-
-function readPaintSequence(sequence: PaintSequence): number {
-  return typeof sequence === "function" ? sequence() : sequence;
-}
-
-function prepareCachedPaint(
-  paint: DomHandle,
-  fresh: boolean,
-  sequence: PaintSequence,
-  sequenceAfterRestyle: PaintSequence = sequence,
-): void {
+// Incremental invalidation keeps a cached handle current; a full restyle here would redo the
+// whole document's style and layout on every frame or hit test after any DOM change.
+function prepareCachedPaint(paint: DomHandle, fresh: boolean): void {
   if (fresh) return;
   try {
     if (typeof paint.resolveLayout === "function") paint.resolveLayout();
   } catch {}
-  if (readPaintSequence(sequence) <= state.lastForceRestyleSeq) return;
-  try {
-    if (typeof paint.forceFullRestyle === "function") paint.forceFullRestyle();
-  } catch {}
-  state.lastForceRestyleSeq = readPaintSequence(sequenceAfterRestyle);
 }
 
 async function runClassicRegularBucket(
@@ -3143,7 +3179,6 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     state.opaqueOriginId = crypto.randomUUID();
     // Every navigation resets the gate's cache, including one to the same URL.
     setNavigationScriptPolicy(navigateOptions?.scriptPolicy);
-    state.lastForceRestyleSeq = -1;
     state.currentMediaType = "screen";
 
     emitNavigateDiagnostic("end", "teardown");
@@ -4223,56 +4258,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   }
 
   async setFrameBitmap(params: FrameBitmapParams): Promise<FrameBitmapReply> {
-    const bitmap: {
-      ownerBackendNodeId: unknown;
-      width: unknown;
-      height: unknown;
-      rgba: unknown;
-    } = isObjectRecord(params)
-      ? {
-          ownerBackendNodeId: params.ownerBackendNodeId,
-          width: params.width,
-          height: params.height,
-          rgba: params.rgba,
-        }
-      : {
-          ownerBackendNodeId: undefined,
-          width: undefined,
-          height: undefined,
-          rgba: undefined,
-        };
-    const { ownerBackendNodeId, width, height, rgba } = bitmap;
-    if (
-      typeof ownerBackendNodeId !== "number" ||
-      typeof width !== "number" ||
-      typeof height !== "number" ||
-      !isNativeUint8Array(rgba)
-    ) {
-      return { ok: false, rc: -1, error: "bad args" };
-    }
-    if (!state.dom || typeof nativeSetIframeImage !== "function") {
-      return { ok: false, rc: -1, error: "dom missing" };
-    }
-    try {
-      const resultCode = nativeApply(nativeSetIframeImage, state.dom, [
-        ownerBackendNodeId,
-        width,
-        height,
-        rgba,
-      ]);
-      if (resultCode === 0) {
-        try {
-          getInternalState().damageNodes.add(ownerBackendNodeId | 0);
-        } catch {}
-      }
-      return { ok: resultCode >= 0, rc: resultCode };
-    } catch (e) {
-      return {
-        ok: false,
-        rc: -1,
-        error: e instanceof Error ? e.message : String(e),
-      };
-    }
+    return frameBitmapDeliveryGate.deliver(params);
   }
 
   async clearFrameBitmap(params: ClearFrameBitmapParams): Promise<OkReply> {
@@ -4317,7 +4303,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         origin: String(origin ?? ""),
         source,
       });
-      win.dispatchEvent(event);
+      runPageTaskOrQueue(() => win.dispatchEvent(event));
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -4325,7 +4311,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   }
 
   async deliverWorkerEvent(params: WorkerEventParams): Promise<OkReply> {
-    deliverWorkerEvent(params);
+    runPageTaskOrQueue(() => deliverWorkerEvent(params));
     return { ok: true };
   }
 
@@ -5341,7 +5327,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       case "hasPendingCriticalResources":
         return queryDomHasPendingCriticalResources(state);
       case "getMemoryStats":
-        return queryDomMemoryStats();
+        return queryDomMemoryStats(queryArgs);
       case "boaForceCollect":
       case "getFontFaces":
       case "getMemprofDump":
@@ -5642,7 +5628,6 @@ function appendLinkedStyleSheets(
 function queryDomSceneStats(): QueryDomResult<"getSceneStats"> {
   const recordStartedAt = Date.now();
   const seqNow = getInternalState().mutationSeq | 0;
-  const cascadeSeqNow = cascadeSeq();
   const { paint, fresh: isFreshPaint } = takePaintPrep();
   if (!paint) {
     return {
@@ -5650,7 +5635,7 @@ function queryDomSceneStats(): QueryDomResult<"getSceneStats"> {
       error: "ensurePaintDom returned null",
     } satisfies QueryDomResult<"getSceneStats">;
   }
-  prepareCachedPaint(paint, isFreshPaint, cascadeSeqNow);
+  prepareCachedPaint(paint, isFreshPaint);
   const prepFinishedAt = Date.now();
   let statsJson = "";
   try {
@@ -5820,7 +5805,6 @@ function prepareQueryDomRecordScene(
   queryArgs: Record<string, unknown>,
   wake: QueryDomRecordSceneWake,
 ): QueryDomRecordScenePreparation {
-  const cascadeSeqNow = cascadeSeq();
   const omitBg = queryArgs.omitBackground === true;
   const clientWire = queryArgs.producer === "client";
   const rawImages = queryArgs.images === "raw";
@@ -5834,23 +5818,18 @@ function prepareQueryDomRecordScene(
   const epochBase = internalState.lastRecordSeq | 0;
   const { paint, fresh: isFreshPaint } = takePaintPrep();
   if (!paint) {
-    let fallbackHtml = "";
-    try {
-      fallbackHtml = pageState.dom.outerHTML(0) || "";
-    } catch {}
     return {
       kind: "response",
       response: {
         scene: new Uint8Array(0),
         seq: wake.seqNow,
         error: "ensurePaintDom returned null (serialize/parse failed)",
-        fallbackHtml,
         scrollX: state.scrollX,
         scrollY: state.scrollY,
       } satisfies QueryDomResult<"recordScene">,
     };
   }
-  prepareCachedPaint(paint, isFreshPaint, cascadeSeqNow);
+  prepareCachedPaint(paint, isFreshPaint);
   const clip = readSceneClip(queryArgs.clip);
   const hasClip = clip !== null;
   const scrollDx = state.scrollX - state.lastRecordScrollX;
@@ -5930,7 +5909,7 @@ function queryDomRecordSceneSkipResult(
 }
 
 function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecordSceneRender {
-  const { pageState, paint, rawImages, clientWire, hasClip, clip, omitBg } = context;
+  const { paint, rawImages, clientWire, hasClip, clip, omitBg } = context;
   let scene: Uint8Array | null = null;
   let emittedPartial = false;
   let partialClip = context.partialPlan.partialClip;
@@ -5969,8 +5948,8 @@ function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecor
         ? renderClip(
             Math.floor(clip.x),
             Math.floor(clip.y),
-            Math.min(MAX_SCENE_CLIP_DIMENSION_PX, Math.ceil(clip.width)),
-            Math.min(MAX_SCENE_CLIP_DIMENSION_PX, Math.ceil(clip.height)),
+            Math.ceil(clip.width),
+            Math.ceil(clip.height),
             omitBg,
             clientWire,
           )
@@ -5979,17 +5958,12 @@ function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecor
   } catch (e) {
     invalidatePaintDom();
     reportEngineError("wasm", e, "renderScene threw");
-    let fallbackHtml = "";
-    try {
-      fallbackHtml = pageState.dom.outerHTML(0) || "";
-    } catch {}
     return {
       kind: "response",
       response: {
         scene: new Uint8Array(0),
         seq: getInternalState().mutationSeq | 0,
         error: errorMessage(e),
-        fallbackHtml,
         scrollX: state.scrollX,
         scrollY: state.scrollY,
       } satisfies QueryDomResult<"recordScene">,
@@ -5998,17 +5972,12 @@ function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecor
   if (!scene || scene.length === 0) {
     invalidatePaintDom();
     reportEngineError("wasm", new Error("renderScene returned empty"));
-    let fallbackHtml = "";
-    try {
-      fallbackHtml = pageState.dom.outerHTML(0) || "";
-    } catch {}
     return {
       kind: "response",
       response: {
         scene: new Uint8Array(0),
         seq: getInternalState().mutationSeq | 0,
         error: "renderScene returned empty",
-        fallbackHtml,
         scrollX: state.scrollX,
         scrollY: state.scrollY,
       } satisfies QueryDomResult<"recordScene">,
@@ -6167,58 +6136,124 @@ function queryDomHasPendingCriticalResources(
   }
 }
 
-function queryDomRecordPdfScenes(
+async function queryDomRecordPdfScenes(
   queryArgs: Record<string, unknown>,
-): QueryDomResult<"recordPdfScenes"> {
+): Promise<QueryDomResult<"recordPdfScenes">> {
   const DEFAULT_PDF_PAPER_WIDTH_CSS_PX = 816;
   const DEFAULT_PDF_PAPER_HEIGHT_CSS_PX = 1056;
-  const pdfW =
-    queryArgs && typeof queryArgs.width === "number" && queryArgs.width > 0
-      ? queryArgs.width | 0
-      : DEFAULT_PDF_PAPER_WIDTH_CSS_PX;
-  const pdfH =
-    queryArgs && typeof queryArgs.height === "number" && queryArgs.height > 0
-      ? queryArgs.height | 0
-      : DEFAULT_PDF_PAPER_HEIGHT_CSS_PX;
-  const readPx = (v: unknown) =>
-    typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
-  const { paint, fresh: isFreshPaint } = takePaintPrep();
-  if (!paint) {
-    return {
-      envelope: new Uint8Array(0),
-      error: "ensurePaintDom returned null",
-    } satisfies QueryDomResult<"recordPdfScenes">;
-  }
-  prepareCachedPaint(paint, isFreshPaint, cascadeSeq, cascadeSeq);
+  const paperWidth = readPdfPaperSize(queryArgs.width, DEFAULT_PDF_PAPER_WIDTH_CSS_PX);
+  const paperHeight = readPdfPaperSize(queryArgs.height, DEFAULT_PDF_PAPER_HEIGHT_CSS_PX);
+
+  let releaseGates: (() => void) | null = null;
+  let source: ReturnType<DomHandle["startPdfSceneStream"]> | null = null;
+  let handedToStream = false;
+
   try {
-    if (typeof paint.recordPdfScenes !== "function") {
+    const gates = await acquirePdfStreamGates();
+    releaseGates = gates;
+
+    const { paint, fresh: isFreshPaint } = takePaintPrep();
+    if (!paint) {
+      return { error: "ensurePaintDom returned null" } satisfies QueryDomResult<"recordPdfScenes">;
+    }
+    prepareCachedPaint(paint, isFreshPaint);
+    if (typeof paint.startPdfSceneStream !== "function") {
       return {
-        envelope: new Uint8Array(0),
-        error: "recordPdfScenes not exported",
+        error: "startPdfSceneStream not exported",
       } satisfies QueryDomResult<"recordPdfScenes">;
     }
-    const envelope = paint.recordPdfScenes(
-      pdfW,
-      pdfH,
-      readPx(queryArgs.marginTop),
-      readPx(queryArgs.marginRight),
-      readPx(queryArgs.marginBottom),
-      readPx(queryArgs.marginLeft),
+
+    const sceneSource = paint.startPdfSceneStream(
+      paperWidth,
+      paperHeight,
+      readPdfMargin(queryArgs.marginTop),
+      readPdfMargin(queryArgs.marginRight),
+      readPdfMargin(queryArgs.marginBottom),
+      readPdfMargin(queryArgs.marginLeft),
     );
-    if (!envelope || envelope.length === 0) {
-      return {
-        envelope: new Uint8Array(0),
-        error: "empty pdf scene envelope",
-      } satisfies QueryDomResult<"recordPdfScenes">;
+    source = sceneSource;
+    if (!sceneSource || sceneSource.pageCount === 0) {
+      return { error: "empty pdf scene stream" } satisfies QueryDomResult<"recordPdfScenes">;
     }
-    return { envelope } satisfies QueryDomResult<"recordPdfScenes">;
+
+    const paintSnapshot = capturePdfPaintSnapshot(paint);
+    const pages = pdfScenePages(
+      sceneSource,
+      () => sceneSource.nextPage(paint),
+      () => assertPdfPaintUnchanged(paintSnapshot),
+      invalidatePaintDom,
+      gates,
+    );
+    handedToStream = true;
+    return { pages, pageCount: sceneSource.pageCount } satisfies QueryDomResult<"recordPdfScenes">;
   } catch (e) {
     invalidatePaintDom();
-    return {
-      envelope: new Uint8Array(0),
-      error: errorMessage(e),
-    } satisfies QueryDomResult<"recordPdfScenes">;
+    return { error: errorMessage(e) } satisfies QueryDomResult<"recordPdfScenes">;
+  } finally {
+    // The stream owns the source and the gates once it starts; otherwise they end here.
+    if (!handedToStream) {
+      try {
+        source?.free();
+      } catch {}
+      releaseGates?.();
+    }
   }
+}
+
+async function acquirePdfStreamGates(): Promise<() => void> {
+  const releasePageTasks = await pausePageTaskPump();
+  const releaseFrameBitmaps = frameBitmapDeliveryGate.hold();
+  return () => {
+    releaseFrameBitmaps();
+    releasePageTasks();
+  };
+}
+
+type PdfPaintSnapshot = {
+  paint: DomHandle;
+  revision: number;
+  viewportW: number;
+  viewportH: number;
+  media: typeof state.currentMediaType;
+  scrollX: number;
+  scrollY: number;
+};
+
+function capturePdfPaintSnapshot(paint: DomHandle): PdfPaintSnapshot {
+  return {
+    paint,
+    // setInputText calls bumpMutationSeq(), so this covers form-control editor text too.
+    revision: cascadeSeq(),
+    viewportW: state.paintViewportW,
+    viewportH: state.paintViewportH,
+    media: state.currentMediaType,
+    scrollX: state.scrollX,
+    scrollY: state.scrollY,
+  };
+}
+
+// The page stream renders page by page across turns, so the document must not move underneath it.
+function assertPdfPaintUnchanged(snapshot: PdfPaintSnapshot): void {
+  if (
+    state.dom !== snapshot.paint ||
+    state.paintCacheHandle !== snapshot.paint ||
+    cascadeSeq() !== snapshot.revision ||
+    state.paintViewportW !== snapshot.viewportW ||
+    state.paintViewportH !== snapshot.viewportH ||
+    state.currentMediaType !== snapshot.media ||
+    state.scrollX !== snapshot.scrollX ||
+    state.scrollY !== snapshot.scrollY
+  ) {
+    throw new Error("PDF document changed during scene streaming");
+  }
+}
+
+function readPdfPaperSize(value: unknown, fallbackPx: number): number {
+  return typeof value === "number" && value > 0 ? value | 0 : fallbackPx;
+}
+
+function readPdfMargin(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
 }
 
 type QueryDomPaintGeometryMethod = Extract<
@@ -7091,7 +7126,8 @@ function queryDomPaintDamage(
   }
 }
 
-function queryDomMemoryStats(): QueryDomResult<"getMemoryStats"> {
+function queryDomMemoryStats(queryArgs: Record<string, unknown>): QueryDomResult<"getMemoryStats"> {
+  if (queryArgs.resetPeak === true) ks_swap_alloc_reset_peak_window();
   const bytes = getCoreWasmMemoryBytes();
   const initialBytes = getCoreWasmMemoryInitialBytes();
   let bridge = null;

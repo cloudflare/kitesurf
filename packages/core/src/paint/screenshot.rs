@@ -483,7 +483,7 @@ fn row_hashes(buffer: &[u8], width: u32, quality: u8) -> Vec<u64> {
         .collect()
 }
 
-fn split_jpeg_rows(bytes: &[u8]) -> Result<(usize, Vec<Range<usize>>), String> {
+pub(crate) fn split_jpeg_rows(bytes: &[u8]) -> Result<(usize, Vec<Range<usize>>), String> {
     let err = || "jpeg row split: malformed stream".to_string();
     let mut pos = 2;
     let header_end = loop {

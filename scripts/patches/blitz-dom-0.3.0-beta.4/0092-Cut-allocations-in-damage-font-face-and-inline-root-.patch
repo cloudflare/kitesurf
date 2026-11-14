@@ -1,0 +1,585 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 4 Nov 2026 19:46:05 +0000
+Subject: [PATCH] Cut allocations in damage, font-face and inline-root
+ bookkeeping
+
+Layout bookkeeping allocated on every pass:
+
+- The damage summary folds in one pass over the nodes instead of collecting a list that
+  doubled as it grew (6.3 MB of copies on html.spec.whatwg.org).
+- The font-face scan lowercases each family atom once, not per lookup (1.1M allocations).
+  Text spans borrow their family names, and the pending-face check allocates nothing.
+- Each inline root enters the inline-root index once while it holds its layout, tracked by
+  a bit on its TextLayout, rather than on every box construction. The index shrinks after
+  pruning when under half full; it held 262,144 slots for 56.7k roots.
+- The text-node range buffer is reused across inline layout builds.
+
+On html.spec.whatwg.org, allocations fall from 6.64M to 4.52M and realloc copies from
+75.9 to 45.8 MB, together with the attribute-collection and id-map patches that follow
+and the matching parley, parley_engine and taffy changes.
+Output is unchanged.
+---
+ src/document.rs         | 30 ++++++++++----
+ src/layout/construct.rs | 29 +++++++++-----
+ src/layout/evict.rs     |  8 ++--
+ src/layout/inline.rs    | 42 ++++++++++----------
+ src/net.rs              | 30 ++++++++++----
+ src/node/text.rs        | 28 +++++++++++--
+ src/resolve.rs          | 17 ++++++--
+ src/stylo_to_parley.rs  | 88 ++++++++++++++++++++++++++---------------
+ 8 files changed, 183 insertions(+), 89 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index fd53041..6a4040b 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -487,6 +487,10 @@ pub struct BaseDocument {
+     /// Length of `inline_roots` when it was last left sorted+deduped, so a
+     /// frame that pushed nothing new can skip re-sorting 80k+ entries.
+     pub(crate) inline_roots_settled: usize,
++    /// Some inline root got its layout back from construction or a layout pass since
++    /// restore_clobbered_inline_breaks last ran. A root already in `inline_roots` is not pushed
++    /// again, so the index length alone no longer tells.
++    pub(crate) inline_roots_put: bool,
+     /// Inline roots farther than this many viewport heights from the viewport
+     /// drop their shaped text after each resolve; `None` keeps every layout.
+     pub(crate) inline_layout_eviction_viewports: Option<f32>,
+@@ -757,6 +761,7 @@ impl BaseDocument {
+             any_node_created: false,
+             inline_roots: Vec::new(),
+             inline_roots_settled: 0,
++            inline_roots_put: false,
+             inline_layout_eviction_viewports: Some(2.0),
+             inline_keep_extent: None,
+             last_inline_eviction_scan: None,
+@@ -2155,6 +2160,10 @@ impl BaseDocument {
+             .retain(|f| !used.contains(&f.family_lc) || { ready.push(f.clone()); false });
+         if !self.pending_font_faces.is_empty() {
+             let mut used = std::mem::take(&mut self.used_font_families);
++            // Lowercase each distinct family atom once, not once per node: nodes share font
++            // structs, so most nodes repeat the previous node's list or a few known atoms.
++            let mut seen: std::collections::HashSet<style::Atom> = Default::default();
++            let mut previous: *const style::properties::style_structs::Font = std::ptr::null();
+             for (_, node) in self.nodes.iter() {
+                 if !node.flags.is_in_document() {
+                     continue;
+@@ -2162,9 +2171,16 @@ impl BaseDocument {
+                 let Some(styles) = node.primary_styles() else {
+                     continue;
+                 };
+-                for family in styles.get_font().font_family.families.iter() {
++                let font = styles.get_font();
++                if std::ptr::eq(font, previous) {
++                    continue;
++                }
++                previous = font;
++                for family in font.font_family.families.iter() {
+                     if let SingleFontFamily::FamilyName(name) = family {
+-                        used.insert(name.name.to_string().to_lowercase());
++                        if seen.insert(name.name.clone()) {
++                            used.insert(name.name.to_string().to_lowercase());
++                        }
+                     }
+                 }
+             }
+@@ -5200,8 +5216,10 @@ impl BaseDocument {
+         use style::selector_parser::RestyleDamage;
+         let repaint_bits = RestyleDamage::REPAINT.bits();
+         let overflow_bits = RestyleDamage::RECALCULATE_OVERFLOW.bits();
+-        let mut found: Vec<(NodeId, DamageClass)> = Vec::new();
+         let mut any_construct = false;
++        let s = &mut self.damage_summary;
++        // One pass, folding as it goes: the first resolve damages every node, and collecting
++        // them first held a document-sized list that grew by doubling.
+         for (id, node) in self.nodes.iter() {
+             if !node.flags.contains(NodeFlags::IS_IN_DOCUMENT) {
+                 continue;
+@@ -5220,11 +5238,6 @@ impl BaseDocument {
+             } else {
+                 DamageClass::Layout
+             };
+-            found.push((id, class));
+-        }
+-        self.any_construct_damage = any_construct;
+-        let s = &mut self.damage_summary;
+-        for (id, class) in found {
+             let (list, overflow) = match class {
+                 DamageClass::Layout => (&mut s.layout_nodes, &mut s.layout_overflow),
+                 DamageClass::Ink => (&mut s.ink_nodes, &mut s.ink_overflow),
+@@ -5239,6 +5252,7 @@ impl BaseDocument {
+                 list.push(id);
+             }
+         }
++        self.any_construct_damage = any_construct;
+     }
+
+     /// A box that moved with no damage of its own (a sticky pin written through
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index 57859fb..5b92f02 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -1820,6 +1820,13 @@ fn bidi_wrap_chars(
+     }
+ }
+
++std::thread_local! {
++    /// The text node ranges of the root being built, reused across builds. A nested build
++    /// finds it taken and starts its own.
++    static NODE_RANGES_SCRATCH: core::cell::RefCell<Vec<(NodeId, core::ops::Range<usize>)>> =
++        const { core::cell::RefCell::new(Vec::new()) };
++}
++
+ pub(crate) fn build_inline_layout_into(
+     nodes: &crate::NodeTree,
+     layout_ctx: &mut LayoutContext<TextBrush>,
+@@ -1895,7 +1902,8 @@ pub(crate) fn build_inline_layout_into(
+
+     // Per-text-node byte ranges for the DOM-selection
+     // paint bridge; measured around each push (see TextLayout).
+-    let node_ranges: &mut Vec<(NodeId, core::ops::Range<usize>)> = &mut Vec::new();
++    let mut node_ranges_buf = NODE_RANGES_SCRATCH.with(core::cell::RefCell::take);
++    let node_ranges = &mut node_ranges_buf;
+
+     if let Some(before_id) = root_node.before() {
+         build_inline_layout_recursive(
+@@ -1929,7 +1937,10 @@ pub(crate) fn build_inline_layout_into(
+     }
+
+     let text = builder.build_into(text_layout.layout_for_build());
+-    text_layout.set_content(text, core::mem::take(node_ranges));
++    // An exact copy, so the scratch keeps its capacity for the next root.
++    text_layout.set_content(text, node_ranges_buf.as_slice().to_vec());
++    node_ranges_buf.clear();
++    NODE_RANGES_SCRATCH.with(|scratch| scratch.replace(node_ranges_buf));
+     return;
+
+     fn build_inline_layout_recursive(
+@@ -2056,15 +2067,15 @@ pub(crate) fn build_inline_layout_into(
+                             });
+
+                             // node.remove_damage(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
+-                            let style = node
+-                                .primary_styles()
+-                                .map(|s| stylo_to_parley::style(node.id(), &s))
+-                                .unwrap_or_else(|| parley::TextStyle {
++                            match node.primary_styles() {
++                                Some(s) => builder.push_style_span(
++                                    stylo_to_parley::style_borrowed(node.id(), &s),
++                                ),
++                                None => builder.push_style_span(parley::TextStyle {
+                                     white_space_collapse: WhiteSpaceCollapse::Collapse,
+                                     ..Default::default()
+-                                });
+-
+-                            builder.push_style_span(style);
++                                }),
++                            }
+
+                             if let Some((open, _)) = bidi_wrap {
+                                 builder.push_text(open);
+diff --git a/src/layout/evict.rs b/src/layout/evict.rs
+index 28fcd04..126398f 100644
+--- a/src/layout/evict.rs
++++ b/src/layout/evict.rs
+@@ -241,12 +241,14 @@ impl BaseDocument {
+         if self.inline_layout_eviction_viewports.is_none() {
+             return;
+         }
+-        self.inline_pass_seq = self.inline_pass_seq.wrapping_add(1);
++        // The low bits of the seq word carry `ROOT_INDEXED`, so step the seq past it.
++        self.inline_pass_seq =
++            self.inline_pass_seq.wrapping_add(1) & !TextLayout::ROOT_INDEXED;
+         let seq = self.inline_pass_seq;
+         let Some(inline) = self.inline_layout_mut(node_id) else {
+             return;
+         };
+-        inline.in_pass_seq = seq;
++        inline.set_in_pass_seq(seq);
+         self.inline_pass_window.push_back((node_id, seq));
+         if self.inline_pass_window.len() > IN_PASS_WINDOW {
+             let (id, seq) = self.inline_pass_window.pop_front().expect("over capacity");
+@@ -269,7 +271,7 @@ impl BaseDocument {
+         // out from its break summary and never rebuilt.
+         if self
+             .inline_layout_mut(id)
+-            .is_none_or(|inline| inline.in_pass_seq != seq || inline.is_evicted())
++            .is_none_or(|inline| inline.in_pass_seq() != seq || inline.is_evicted())
+         {
+             return;
+         }
+diff --git a/src/layout/inline.rs b/src/layout/inline.rs
+index 81a0dba..f8e5372 100644
+--- a/src/layout/inline.rs
++++ b/src/layout/inline.rs
+@@ -22,7 +22,7 @@ use stylo_taffy::StyleFlags;
+
+ use super::resolve_calc_value;
+ use crate::layout::LayoutPassState;
+-use crate::node::{TextBrush, count_inline_summary};
++use crate::node::{TextBrush, TextLayout, count_inline_summary};
+ use crate::stylo_to_parley;
+
+ /// Subtract a child's margins from the definite axes of the available space it is laid out in.
+@@ -452,13 +452,7 @@ impl LayoutPassState<'_> {
+             }
+         {
+             inline_layout.replayable_break = false;
+-            // Put layout back
+-            self.nodes[node_id]
+-                .data
+-                .downcast_element_mut()
+-                .unwrap()
+-                .set_inline_layout_data(Some(inline_layout));
+-            self.inline_roots.push(node_id);
++            self.put_back_inline_layout(node_id, inline_layout);
+             return LayoutOutput::from_outer_size(
+                 Size::ZERO.maybe_max(container_pb.sum_axes().map(Some)),
+             );
+@@ -785,13 +779,7 @@ impl LayoutPassState<'_> {
+             if !inline_layout.is_evicted() {
+                 inline_layout.replayable_break = false;
+             }
+-            // Put layout back
+-            self.nodes[node_id]
+-                .data
+-                .downcast_element_mut()
+-                .unwrap()
+-                .set_inline_layout_data(Some(inline_layout));
+-            self.inline_roots.push(node_id);
++            self.put_back_inline_layout(node_id, inline_layout);
+
+             let measured_size = inputs.known_dimensions.unwrap_or(taffy::Size {
+                 width: width.ceil() / scale,
+@@ -1492,13 +1480,7 @@ impl LayoutPassState<'_> {
+             inline_layout.span_cb_flags = span_cb_flags;
+         }
+
+-        // Put layout back
+-        self.nodes[node_id]
+-            .data
+-            .downcast_element_mut()
+-            .unwrap()
+-            .set_inline_layout_data(Some(inline_layout));
+-        self.inline_roots.push(node_id);
++        self.put_back_inline_layout(node_id, inline_layout);
+         // A measure that broke lines shapes the root as a final layout does:
+         // a flex item measures its whole subtree before laying any of it out.
+         self.evict_inline_layout_after_break(node_id);
+@@ -1640,6 +1622,22 @@ fn f32_max(a: f32, b: f32) -> f32 {
+ }
+
+ impl crate::BaseDocument {
++    /// Puts an inline root's layout back after a layout pass and indexes the root once. Each
++    /// measure and layout of a root used to push it again, so the index of a large page grew to
++    /// several times its root count before resolve deduplicated it.
++    pub(crate) fn put_back_inline_layout(&mut self, node_id: NodeId, mut layout: Box<TextLayout>) {
++        let push = !layout.mark_root_indexed();
++        self.nodes[node_id]
++            .data
++            .downcast_element_mut()
++            .unwrap()
++            .set_inline_layout_data(Some(layout));
++        if push {
++            self.inline_roots.push(node_id);
++        }
++        self.inline_roots_put = true;
++    }
++
+     // Re-break a container's text to a width it already
+     // committed to, without re-running layout. Repairing at the parley
+     // level is deliberate: replaying `compute_inline_layout` would need
+diff --git a/src/net.rs b/src/net.rs
+index e07f073..8a17c65 100644
+--- a/src/net.rs
++++ b/src/net.rs
+@@ -573,18 +573,32 @@ pub fn clear_unloaded_face(
+     });
+ }
+
+-/// True when `family_lc` still has an undelivered face that would serve
+-/// `want`, so matching must not substitute a loaded sibling of another
++/// True when `family` (any case) still has an undelivered face that would
++/// serve `want`, so matching must not substitute a loaded sibling of another
+ /// style. A face with no `font-style` descriptor blocks any request: its
+ /// style is whatever its own metadata says, which needs the bytes.
+-pub fn face_pending_for_style(
+-    family_lc: &str,
+-    want: parley::fontique::FontStyle,
+-) -> bool {
++pub fn face_pending_for_style(family: &str, want: parley::fontique::FontStyle) -> bool {
+     UNLOADED_FACES.with(|c| {
+-        c.borrow()
++        let faces = c.borrow();
++        // Every text span asks, so an ASCII name (lowercased bytewise) is compared in place.
++        if faces.is_empty() {
++            return false;
++        }
++        let family_lc = if family.is_ascii() {
++            None
++        } else {
++            Some(family.to_lowercase())
++        };
++        let is_family = |f: &str| match &family_lc {
++            Some(lc) => f == lc,
++            None => {
++                f.len() == family.len()
++                    && f.bytes().zip(family.bytes()).all(|(a, b)| a == b.to_ascii_lowercase())
++            }
++        };
++        faces
+             .iter()
+-            .any(|(f, s)| f == family_lc && s.is_none_or(|s| s == want))
++            .any(|(f, s)| is_family(f) && s.is_none_or(|s| s == want))
+     })
+ }
+
+diff --git a/src/node/text.rs b/src/node/text.rs
+index 0b95ad9..ef8436e 100644
+--- a/src/node/text.rs
++++ b/src/node/text.rs
+@@ -45,9 +45,10 @@ pub struct TextLayout {
+     /// Set by every read; the eviction scan spares a far layout that was read
+     /// since its last visit once, so a layout queried every frame stays live.
+     recently_read: ReadFlag,
+-    /// Sequence number of this root's latest entry in the layout pass's
+-    /// eviction window, so older entries for it are skipped.
+-    pub(crate) in_pass_seq: u32,
++    /// The low 31 bits: sequence number of this root's latest entry in the layout pass's
++    /// eviction window, so older entries for it are skipped. The top bit: the document's
++    /// `inline_roots` index holds this root, which it does while the node holds this layout.
++    seq_and_indexed: u32,
+     /// Block-axis offset (in CSS px) of the line boxes from the top of the container's content
+     /// box, as applied by `align-content`.
+     pub block_offset: f32,
+@@ -143,6 +144,25 @@ impl Default for TextLayout {
+ }
+
+ impl TextLayout {
++    /// The top bit of `seq_and_indexed`; pass sequence numbers stay below it.
++    pub(crate) const ROOT_INDEXED: u32 = 1 << 31;
++
++    pub(crate) fn in_pass_seq(&self) -> u32 {
++        self.seq_and_indexed & !Self::ROOT_INDEXED
++    }
++
++    pub(crate) fn set_in_pass_seq(&mut self, seq: u32) {
++        debug_assert_eq!(seq & Self::ROOT_INDEXED, 0);
++        self.seq_and_indexed = (self.seq_and_indexed & Self::ROOT_INDEXED) | seq;
++    }
++
++    /// Marks the root as held by the `inline_roots` index; true if it already was.
++    pub(crate) fn mark_root_indexed(&mut self) -> bool {
++        let was = self.seq_and_indexed & Self::ROOT_INDEXED != 0;
++        self.seq_and_indexed |= Self::ROOT_INDEXED;
++        was
++    }
++
+     /// A layout holding neither text nor lines, for box construction to
+     /// build or leave unbuilt next: an empty box would be freed unread.
+     pub(crate) fn unfilled() -> Self {
+@@ -153,7 +173,7 @@ impl TextLayout {
+             evicted: None,
+             replayable_break: false,
+             recently_read: ReadFlag::default(),
+-            in_pass_seq: 0,
++            seq_and_indexed: 0,
+             block_offset: 0.0,
+             span_cb_flags: stylo_taffy::StyleFlags::empty(),
+             // NaN = no lines yet; the repair scan gives it some once
+diff --git a/src/resolve.rs b/src/resolve.rs
+index e2b7de5..e9b2154 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -835,12 +835,14 @@ impl BaseDocument {
+                     scale: self.viewport.scale(),
+                     breaking: None,
+                 });
++                layout.mark_root_indexed();
+                 self.nodes[task.node_id].clear_layout_cache();
+                 self.nodes[task.node_id]
+                     .element_data_mut()
+                     .unwrap()
+                     .set_inline_layout_data(Some(layout));
+                 self.inline_roots.push(task.node_id);
++                self.inline_roots_put = true;
+             }
+             return;
+         }
+@@ -907,13 +909,15 @@ impl BaseDocument {
+
+         for result in results {
+             match result.data {
+-                ConstructionTaskResultData::InlineLayout(layout) => {
++                ConstructionTaskResultData::InlineLayout(mut layout) => {
++                    layout.mark_root_indexed();
+                     self.nodes[result.node_id].clear_layout_cache();
+                     self.nodes[result.node_id]
+                         .element_data_mut()
+                         .unwrap()
+                         .set_inline_layout_data(Some(layout));
+                     self.inline_roots.push(result.node_id);
++                    self.inline_roots_put = true;
+                 }
+             }
+         }
+@@ -956,7 +960,7 @@ impl BaseDocument {
+         //
+         // Except a rebuilt inline tree has no lines, and the restore pass below
+         // re-breaks it against final_layout, which must not be a stale box.
+-        if state.layout_changed || state.inline_roots.len() != state.inline_roots_settled {
++        if state.layout_changed || state.inline_roots_put {
+             #[cfg(feature = "writing-mode")]
+             state.physicalise_and_round_layout(root_element_id);
+             #[cfg(not(feature = "writing-mode"))]
+@@ -1026,7 +1030,7 @@ impl BaseDocument {
+     fn restore_clobbered_inline_breaks(&mut self) {
+         // Debug builds run the walk anyway and assert it finds nothing, so
+         // every test exercises the skip predicate rather than trusting it.
+-        let skip = !self.layout_changed && self.inline_roots.len() == self.inline_roots_settled;
++        let skip = !self.layout_changed && !self.inline_roots_put;
+         if skip && !cfg!(debug_assertions) {
+             return;
+         }
+@@ -1074,8 +1078,15 @@ impl BaseDocument {
+             }
+             true
+         });
++        // Construction pushes every root again, so a rebuild of the whole
++        // page can leave the capacity several times the deduplicated length,
++        // and growth by doubling alone can leave up to twice it.
++        if roots.capacity() > roots.len() + roots.len() / 4 {
++            roots.shrink_to(roots.len() + roots.len() / 8);
++        }
+         self.inline_roots_settled = roots.len();
+         self.inline_roots = roots;
++        self.inline_roots_put = false;
+         debug_assert!(
+             !skip || stale.is_empty(),
+             "skipped a resolve with {} stale inline roots: {stale:?}",
+diff --git a/src/stylo_to_parley.rs b/src/stylo_to_parley.rs
+index 2387f62..ecf8b22 100644
+--- a/src/stylo_to_parley.rs
++++ b/src/stylo_to_parley.rs
+@@ -566,42 +566,30 @@ pub(crate) fn has_inline_background(style: &stylo::ComputedValues) -> bool {
+             > 0.0
+ }
+
++/// [`style_borrowed`] with owned family names, for styles kept past `style`'s lifetime.
+ pub(crate) fn style(
+     span_id: NodeId,
+     style: &stylo::ComputedValues,
+ ) -> parley::TextStyle<'static, 'static, TextBrush> {
+-    let font_styles = style.get_font();
+-    let itext_styles = style.get_inherited_text();
+-
+-    // Convert font size and line height
+-    let font_size = font_styles.font_size.used_size.0.px();
+-    let line_height = match font_styles.line_height {
+-        stylo::LineHeight::Normal => parley::LineHeight::NORMAL,
+-        stylo::LineHeight::Number(num) => parley::LineHeight::FontSizeRelative(num.0),
+-        stylo::LineHeight::Length(value) => parley::LineHeight::Absolute(value.0.px()),
+-    };
+-    let vertical_align = self::vertical_align(style);
+-
+-    let letter_spacing = itext_styles
+-        .letter_spacing
+-        .0
+-        .resolve(Length::new(font_size))
+-        .px();
++    let families = font_families(style.get_font())
++        .into_iter()
++        .map(parley::FontFamilyName::into_owned)
++        .collect();
++    style_with_families(span_id, style, families)
++}
+
+-    let word_spacing = itext_styles
+-        .word_spacing
+-        .resolve(Length::new(font_size))
+-        .px();
++/// The parley style of `span_id`, borrowing family names from `style`: a builder resolves a
++/// pushed style at once, so the names need not be copied for each text span.
++pub(crate) fn style_borrowed(
++    span_id: NodeId,
++    style: &stylo::ComputedValues,
++) -> parley::TextStyle<'_, 'static, TextBrush> {
++    style_with_families(span_id, style, font_families(style.get_font()))
++}
+
+-    // Convert Bold/Italic
+-    let font_weight = self::font_weight(font_styles.font_weight);
++fn font_families(font_styles: &stylo::Font) -> Vec<parley::FontFamilyName<'_>> {
+     let font_style = self::font_style(font_styles.font_style);
+-    let font_width = self::font_width(font_styles.font_width);
+-    let font_variations = self::font_variations(&font_styles.font_variation_settings);
+-    let font_features = self::font_features(font_styles);
+-
+-    // Convert font family
+-    let families: Vec<_> = font_styles
++    font_styles
+         .font_family
+         .families
+         .list
+@@ -615,7 +603,7 @@ pub(crate) fn style(
+                     // matching would otherwise substitute a loaded sibling
+                     // of the wrong style. Dropping it here falls through to
+                     // the next family, and registration re-shapes the text.
+-                    if crate::net::face_pending_for_style(&name.to_lowercase(), font_style) {
++                    if crate::net::face_pending_for_style(name, font_style) {
+                         return None;
+                     }
+
+@@ -633,14 +621,50 @@ pub(crate) fn style(
+                         );
+                     }
+
+-                    break 'ret parley::FontFamilyName::Named(Cow::Owned(name.to_string()));
++                    break 'ret parley::FontFamilyName::Named(Cow::Borrowed(name));
+                 }
+             }
+             stylo::SingleFontFamily::Generic(generic) => {
+                 parley::FontFamilyName::Generic(self::generic_font_family(*generic))
+             }
+         }))
+-        .collect();
++        .collect()
++}
++
++fn style_with_families<'f>(
++    span_id: NodeId,
++    style: &stylo::ComputedValues,
++    families: Vec<parley::FontFamilyName<'f>>,
++) -> parley::TextStyle<'f, 'static, TextBrush> {
++    let font_styles = style.get_font();
++    let itext_styles = style.get_inherited_text();
++
++    // Convert font size and line height
++    let font_size = font_styles.font_size.used_size.0.px();
++    let line_height = match font_styles.line_height {
++        stylo::LineHeight::Normal => parley::LineHeight::NORMAL,
++        stylo::LineHeight::Number(num) => parley::LineHeight::FontSizeRelative(num.0),
++        stylo::LineHeight::Length(value) => parley::LineHeight::Absolute(value.0.px()),
++    };
++    let vertical_align = self::vertical_align(style);
++
++    let letter_spacing = itext_styles
++        .letter_spacing
++        .0
++        .resolve(Length::new(font_size))
++        .px();
++
++    let word_spacing = itext_styles
++        .word_spacing
++        .resolve(Length::new(font_size))
++        .px();
++
++    // Convert Bold/Italic
++    let font_weight = self::font_weight(font_styles.font_weight);
++    let font_style = self::font_style(font_styles.font_style);
++    let font_width = self::font_width(font_styles.font_width);
++    let font_variations = self::font_variations(&font_styles.font_variation_settings);
++    let font_features = self::font_features(font_styles);
+
+     // Wrapping and breaking
+     // `word-break: break-word` is a legacy compat value (css-text-3):

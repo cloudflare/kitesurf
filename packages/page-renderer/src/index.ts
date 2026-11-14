@@ -14,6 +14,7 @@ import {
   set_ks_trace_parent,
   ks_set_emit_hook,
 } from "./wasm-glue.js";
+import type { StreamingPdf } from "./wasm-glue.js";
 import type {
   FetchAsset,
   FetchFont,
@@ -133,6 +134,14 @@ function errMsg(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+// The wasm side reports a limit breach as JSON in lastRasterizeInfo. The engine only needs the
+// `encoded-limit:` prefix, so the JSON is carried along rather than re-parsed here.
+function rasterizeErrorMessage(info: string): string {
+  return info.startsWith('{"error":"encoded-limit:')
+    ? `encoded-limit:${info}`
+    : `rasterize failed: ${info}`;
+}
+
 function pendingImageKeys(): string[] {
   try {
     return rasterizer.pendingImages();
@@ -164,6 +173,123 @@ const EMPTY_FONT_BYTES = new Uint8Array(0);
 const DEFAULT_PDF_PAPER_WIDTH_CSS_PX = 816;
 const DEFAULT_PDF_PAPER_HEIGHT_CSS_PX = 1056;
 const DEFAULT_PDF_MARGIN_CSS_PX = 0;
+const MAX_PDF_PAGES = 200;
+// Measured maxima: 84,268 B (TC39) and 650,114 B (dense SVG); 32 MiB leaves 51x headroom.
+const MAX_PDF_SCENE_BYTES = 32 * 1024 * 1024;
+const MAX_PDF_STREAM_ERROR_BYTES = 1_024;
+const PDF_PAGE_LENGTH_BYTES = 4;
+
+type PdfPageRead = { kind: "page"; bytes: Uint8Array } | { kind: "error"; message: string };
+
+function readUint32LE(bytes: Uint8Array): number {
+  return new DataView(bytes.buffer, bytes.byteOffset, PDF_PAGE_LENGTH_BYTES).getUint32(0, true);
+}
+
+// Reads the page stream page-script frames: a little-endian length header, then the scene bytes.
+// A zero length instead marks an error frame carrying its own length and message.
+class PdfSceneReader {
+  private chunk: Uint8Array = new Uint8Array(0);
+  private offset = 0;
+
+  constructor(private readonly reader: ReadableStreamDefaultReader<Uint8Array>) {}
+
+  async readPage(): Promise<PdfPageRead> {
+    const length = readUint32LE(await this.take(PDF_PAGE_LENGTH_BYTES));
+    if (length === 0) return { kind: "error", message: await this.readErrorMessage() };
+    if (length > MAX_PDF_SCENE_BYTES) {
+      throw new Error(`PDF scene exceeds 32 MiB limit (${length} bytes)`);
+    }
+    return { kind: "page", bytes: await this.take(length) };
+  }
+
+  private async take(length: number): Promise<Uint8Array> {
+    if (this.atChunkEnd()) await this.readChunk();
+    if (length <= this.chunk.byteLength - this.offset) return this.consume(length);
+
+    const result = new Uint8Array(length);
+    let filled = 0;
+    while (filled < length) {
+      if (this.atChunkEnd()) await this.readChunk();
+      const taken = this.consume(Math.min(length - filled, this.chunk.byteLength - this.offset));
+      result.set(taken, filled);
+      filled += taken.byteLength;
+    }
+    return result;
+  }
+
+  // Reads the end of the stream: null when the producer simply ran out of pages, otherwise the
+  // message it recorded before closing.
+  async readTrailer(): Promise<string | null> {
+    if (this.atChunkEnd()) {
+      const next = await this.reader.read();
+      if (next.done) return null;
+      this.chunk = next.value;
+      this.offset = 0;
+    }
+    if (readUint32LE(await this.take(PDF_PAGE_LENGTH_BYTES)) !== 0) {
+      throw new Error("PDF scene stream has trailing bytes");
+    }
+    return this.readErrorMessage();
+  }
+
+  private async readErrorMessage(): Promise<string> {
+    const errorLength = readUint32LE(await this.take(PDF_PAGE_LENGTH_BYTES));
+    if (errorLength === 0 || errorLength > MAX_PDF_STREAM_ERROR_BYTES) {
+      throw new Error(`invalid PDF scene stream error length ${errorLength}`);
+    }
+    const message = new TextDecoder().decode(await this.take(errorLength));
+    if (!this.atChunkEnd() || !(await this.reader.read()).done) {
+      throw new Error("PDF scene stream has trailing bytes");
+    }
+    return message;
+  }
+
+  private atChunkEnd(): boolean {
+    return this.offset === this.chunk.byteLength;
+  }
+
+  private consume(length: number): Uint8Array {
+    const taken = this.chunk.subarray(this.offset, this.offset + length);
+    this.offset += length;
+    if (this.atChunkEnd()) {
+      this.chunk = new Uint8Array(0);
+      this.offset = 0;
+    }
+    return taken;
+  }
+
+  private async readChunk(): Promise<void> {
+    const next = await this.reader.read();
+    if (next.done) throw new Error("PDF scene stream ended early");
+    this.chunk = next.value;
+    this.offset = 0;
+    if (this.chunk.byteLength === 0) throw new Error("empty PDF scene stream chunk");
+  }
+}
+
+interface PdfPageSetup {
+  paperWidth: number;
+  paperHeight: number;
+  marginTop: number;
+  marginRight: number;
+  marginBottom: number;
+  marginLeft: number;
+}
+
+function readPdfPx(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, value | 0) : fallback;
+}
+
+function readPdfSetup(opts: RenderPdfOpts): PdfPageSetup {
+  return {
+    paperWidth: readPdfPx(opts.paperWidth, DEFAULT_PDF_PAPER_WIDTH_CSS_PX),
+    paperHeight: readPdfPx(opts.paperHeight, DEFAULT_PDF_PAPER_HEIGHT_CSS_PX),
+    marginTop: readPdfPx(opts.marginTop, DEFAULT_PDF_MARGIN_CSS_PX),
+    marginRight: readPdfPx(opts.marginRight, DEFAULT_PDF_MARGIN_CSS_PX),
+    marginBottom: readPdfPx(opts.marginBottom, DEFAULT_PDF_MARGIN_CSS_PX),
+    marginLeft: readPdfPx(opts.marginLeft, DEFAULT_PDF_MARGIN_CSS_PX),
+  };
+}
 
 function splitMissing(missing: Uint8Array): {
   imageHashes: Uint8Array;
@@ -559,12 +685,16 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
     const isPartial = baseValid && recordReply?.partial === true && !!clip;
     let bytes: Uint8Array | null = null;
     const rasterStart = Date.now();
+    // Only a branch that writes the retained slot may advance its sequence; a
+    // limited full frame leaves the slot holding an older frame.
+    let retainsFrame = false;
     try {
       const toViewportPoint = (rect: { x: number; y: number }) => [
         Math.round((Number(rect.x) || 0) - scrollX),
         Math.round((Number(rect.y) || 0) - scrollY),
       ];
       if (isPartial && clip && recordReply?.shift) {
+        retainsFrame = true;
         const ok =
           rasterizer.shiftRetained(partialKey, recordReply.shift.x | 0, recordReply.shift.y | 0) &&
           [{ clip, scene }, ...patches].every((patch) => {
@@ -573,18 +703,30 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
           });
         bytes = ok ? rasterizer.encodeRetained(format, quality, partialKey) : null;
       } else if (isPartial && clip) {
+        retainsFrame = true;
         const [x, y] = toViewportPoint(clip);
         bytes = rasterizer.rasterizePartial(scene, x, y, format, quality, partialKey);
       } else if (partialKey !== "") {
+        retainsFrame = true;
         bytes = rasterizer.rasterizeAndRetain(
           scene,
           format,
           quality,
           opts.omitBackground === true,
           partialKey,
+          opts.encodedLimit ?? 0xffffffff,
         );
       } else {
-        bytes = rasterizer.rasterize(scene, format, quality, opts.omitBackground === true);
+        bytes =
+          format === "png" || format === "jpeg" || opts.encodedLimit !== undefined
+            ? rasterizer.rasterizeLimited(
+                scene,
+                format,
+                quality,
+                opts.omitBackground === true,
+                opts.encodedLimit ?? 0xffffffff,
+              )
+            : rasterizer.rasterize(scene, format, quality, opts.omitBackground === true);
       }
     } catch {
       bytes = null;
@@ -600,7 +742,7 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
         retainedImage = null;
       }
       return {
-        error: `rasterize failed: ${info}`,
+        error: rasterizeErrorMessage(info),
         stage: "raster",
         info,
         phases,
@@ -610,7 +752,7 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
       };
     }
     if (partialKey !== "") {
-      const held = rasterizer.retainedFrameKey() === partialKey;
+      const held = retainsFrame && rasterizer.retainedFrameKey() === partialKey;
       retainedKey = held ? partialKey : "";
       retainedSeq = held ? seq : -1;
       retainedScene = held && !isPartial ? scene : null;
@@ -657,80 +799,117 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
     const phases: string[] = [];
     const timed = makePhaseTimer(phases);
     enterResourceScope(opts.scope);
-    const pdfPx = (value: unknown, fallback: number) =>
-      typeof value === "number" && Number.isFinite(value) ? Math.max(0, value | 0) : fallback;
-    const paperWidth = pdfPx(opts.paperWidth, DEFAULT_PDF_PAPER_WIDTH_CSS_PX);
-    const paperHeight = pdfPx(opts.paperHeight, DEFAULT_PDF_PAPER_HEIGHT_CSS_PX);
-    const margins = {
-      marginTop: pdfPx(opts.marginTop, DEFAULT_PDF_MARGIN_CSS_PX),
-      marginRight: pdfPx(opts.marginRight, DEFAULT_PDF_MARGIN_CSS_PX),
-      marginBottom: pdfPx(opts.marginBottom, DEFAULT_PDF_MARGIN_CSS_PX),
-      marginLeft: pdfPx(opts.marginLeft, DEFAULT_PDF_MARGIN_CSS_PX),
-    };
+
+    const setup = readPdfSetup(opts);
+    const opened = await this.openPdfPageStream(port, setup, timed, phases);
+    if (!opened.ok) return opened.reply;
+    const { reader, pageCount } = opened;
+
+    let pdf: StreamingPdf | undefined;
+    let stage: RenderStage = "raster";
+    let complete = false;
+    const pdfStartedAt = Date.now();
+    try {
+      pdf = rasterizer.beginPdf(
+        setup.paperWidth,
+        setup.paperHeight,
+        opts.omitBackground === true,
+        setup.marginTop,
+        setup.marginRight,
+        setup.marginBottom,
+        setup.marginLeft,
+      );
+
+      const input = new PdfSceneReader(reader);
+      for (let page = 0; page < pageCount; page++) {
+        stage = "record";
+        const read = await input.readPage();
+        if (read.kind === "error") return { error: read.message, stage: "record", phases };
+
+        stage = "resources";
+        const unresolved = await resolveResources(
+          () => rasterizer.missingResources(read.bytes),
+          port,
+          fetchAsset,
+          fetchImage,
+          fetchFont,
+          timed,
+        );
+        if (unresolved) return { ...unresolved, phases };
+
+        stage = "raster";
+        if (!rasterizer.appendPdfPage(pdf, read.bytes)) {
+          const info = rasterizer.lastRasterizeInfo();
+          return { error: `renderPdf failed: ${info}`, stage, info, phases };
+        }
+      }
+
+      stage = "record";
+      const streamError = await input.readTrailer();
+      if (streamError) return { error: streamError, stage: "record", phases };
+
+      complete = true;
+      stage = "raster";
+      const bytes = rasterizer.finishPdf(pdf);
+      const info = rasterizer.lastRasterizeInfo();
+      if (bytes.length === 0) {
+        return { error: `renderPdf failed: ${info}`, stage, info, phases };
+      }
+      return { bytes, info, phases };
+    } catch (error) {
+      return { error: `renderPdf ${stage} failed: ${errMsg(error)}`, stage, phases };
+    } finally {
+      if (!complete) await reader.cancel("PDF rendering stopped").catch(() => {});
+      reader.releaseLock();
+      pdf?.free();
+      phases.push(`pdf=${Date.now() - pdfStartedAt}ms`);
+    }
+  }
+
+  // Records the scenes the caller will stream, or returns the reply that ends the render.
+  private async openPdfPageStream(
+    port: RenderPort,
+    setup: PdfPageSetup,
+    timed: Timed,
+    phases: string[],
+  ): Promise<
+    | { ok: true; reader: ReadableStreamDefaultReader<Uint8Array>; pageCount: number }
+    | { ok: false; reply: RenderPdfReply }
+  > {
     let recordReply: Awaited<ReturnType<RenderPort["recordPdfScenes"]>>;
     try {
       recordReply = await timed(
         "record",
         port.recordPdfScenes({
-          width: paperWidth,
-          height: paperHeight,
-          ...margins,
+          width: setup.paperWidth,
+          height: setup.paperHeight,
+          marginTop: setup.marginTop,
+          marginRight: setup.marginRight,
+          marginBottom: setup.marginBottom,
+          marginLeft: setup.marginLeft,
         }),
       );
     } catch (error) {
       return {
-        error: `recordPdfScenes rejected: ${errMsg(error)}`,
-        stage: "record",
-        phases,
+        ok: false,
+        reply: { error: `recordPdfScenes rejected: ${errMsg(error)}`, stage: "record", phases },
       };
     }
-    const envelope = asU8(recordReply?.envelope);
-    if (!envelope || envelope.length === 0) {
+
+    const pages = recordReply?.pages;
+    const pageCount = recordReply?.pageCount ?? 0;
+    if (!pages || !Number.isSafeInteger(pageCount) || !pageCount || pageCount > MAX_PDF_PAGES) {
+      if (pages) await pages.cancel("invalid PDF page count").catch(() => {});
       return {
-        error: recordReply?.error || "recordPdfScenes returned empty envelope",
-        stage: "record",
-        phases,
+        ok: false,
+        reply: {
+          error: recordReply?.error || "recordPdfScenes returned invalid stream",
+          stage: "record",
+          phases,
+        },
       };
     }
-    const unresolved = await resolveResources(
-      () => rasterizer.missingResourcesPdf(envelope),
-      port,
-      fetchAsset,
-      fetchImage,
-      fetchFont,
-      timed,
-    );
-    if (unresolved) {
-      return { ...unresolved, phases };
-    }
-    let bytes: Uint8Array | null = null;
-    const pdfStart = Date.now();
-    try {
-      bytes = rasterizer.renderPdf(
-        envelope,
-        paperWidth,
-        paperHeight,
-        opts.omitBackground === true,
-        margins.marginTop,
-        margins.marginRight,
-        margins.marginBottom,
-        margins.marginLeft,
-      );
-    } catch {
-      bytes = null;
-    } finally {
-      phases.push(`pdf=${Date.now() - pdfStart}ms`);
-    }
-    const info = rasterizer.lastRasterizeInfo();
-    if (!bytes || bytes.length === 0) {
-      return {
-        error: `renderPdf failed: ${info}`,
-        stage: "raster",
-        info,
-        phases,
-      };
-    }
-    return { bytes, info, phases };
+    return { ok: true, reader: pages.getReader(), pageCount };
   }
 
   killIsolate(reason?: string): void {

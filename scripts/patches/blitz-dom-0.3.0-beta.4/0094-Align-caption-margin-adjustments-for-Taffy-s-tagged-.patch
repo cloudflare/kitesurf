@@ -1,0 +1,199 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 5 Nov 2026 12:20:16 +0000
+Subject: [PATCH] Align caption margin adjustments for Taffy's tagged pointers
+
+A caption margin adjustment is handed to Taffy as a calc() pointer, and Taffy's CompactLength keeps its tag in the pointer's low three bits. On wasm32 the struct only asked for 4-byte alignment, which held only because dlmalloc rounds every chunk to 8; an allocator that honours the requested alignment failed Taffy's assertion and panicked during table layout.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/layout/evict.rs | 116 +++++++++++++++++++++++++++-----------------
+ src/layout/table.rs |   3 ++
+ 2 files changed, 75 insertions(+), 44 deletions(-)
+
+diff --git a/src/layout/evict.rs b/src/layout/evict.rs
+index 126398f..616991d 100644
+--- a/src/layout/evict.rs
++++ b/src/layout/evict.rs
+@@ -51,6 +51,17 @@ enum Eviction {
+     Unsummarized,
+ }
+
++/// What an eviction scan does with one resident inline root.
++#[derive(Clone, Copy)]
++enum RootScan {
++    /// Holds no shaped text to evict, or is not far enough away.
++    Keep,
++    /// Far, but read since the last scan: this scan spares it and the next one ages it.
++    Spare,
++    /// Far and unread: evict it.
++    Far,
++}
++
+ impl BaseDocument {
+     /// Evict inline roots farther than `viewports` viewport heights above or
+     /// below the viewport (`None` disables eviction).
+@@ -286,7 +297,7 @@ impl BaseDocument {
+         }
+     }
+
+-    fn inline_layout_mut(&mut self, id: NodeId) -> Option<&mut crate::node::TextLayout> {
++    fn inline_layout_mut(&mut self, id: NodeId) -> Option<&mut TextLayout> {
+         self.nodes
+             .get_mut(id)
+             .and_then(|node| node.data.downcast_element_mut())
+@@ -310,17 +321,7 @@ impl BaseDocument {
+         }
+
+         let Some(band) = self.inline_keep_band(viewports) else {
+-            self.inline_resident.append(&mut rebuilt);
+-            self.inline_resident.sort_unstable();
+-            self.inline_resident.dedup();
+-            self.inline_resident.retain(|&id| {
+-                self.nodes.get(id).is_some_and(|node| {
+-                    node.flags.is_in_document()
+-                        && node.element_data().and_then(|el| el.inline_layout_data())
+-                            .is_some_and(|inline| !inline.is_evicted())
+-                })
+-            });
+-            self.last_inline_eviction_scan = None;
++            self.keep_every_resident_root(&mut rebuilt);
+             return;
+         };
+
+@@ -333,54 +334,36 @@ impl BaseDocument {
+                     < band.viewport_height / 2.0
+         });
+         let has_new_rebuilt = !rebuilt.is_empty();
+-        let (mut visit, follow_up) = match unmoved {
++        let follow_up = unmoved.is_some_and(|last| last.spared_read_layouts);
++        let mut visit = match unmoved {
+             // Nothing moved: only fresh rebuilds need a look, and aging the
+             // others again would evict a layout read once per frame.
+             Some(last) if !last.spared_read_layouts => {
+                 if rebuilt.is_empty() {
+                     return;
+                 }
+-                (rebuilt, false)
+-            }
+-            Some(_) => {
+-                self.inline_resident.append(&mut rebuilt);
+-                (std::mem::take(&mut self.inline_resident), true)
++                rebuilt
+             }
+-            None => {
++            _ => {
+                 self.inline_resident.append(&mut rebuilt);
+-                (std::mem::take(&mut self.inline_resident), false)
++                std::mem::take(&mut self.inline_resident)
+             }
+         };
++
+         visit.sort_unstable();
+         visit.dedup();
+         let mut spared = false;
+         let mut far = Vec::new();
+-        visit.retain(|&id| {
+-            let Some(node) = self.nodes.get(id) else {
+-                return false;
+-            };
+-            if !node.flags.is_in_document() {
+-                return false;
+-            }
+-            // Evicted roots rejoin through the rebuild queue, and roots that
+-            // cannot replay rejoin when a layout pass leaves them live.
+-            let Some(inline) = node
+-                .element_data()
+-                .and_then(|el| el.inline_layout_data())
+-                .filter(|inline| inline.replayable_break && !inline.is_evicted())
+-            else {
+-                return false;
+-            };
+-            if !self.inline_root_is_far(id, band) || self.inline_root_in_keep_extent(id) {
+-                return true;
+-            }
+-            // Visible layouts are read every frame: only far ones age.
+-            if inline.take_recently_read() {
++        visit.retain(|&id| match self.scan_inline_root(id, band) {
++            RootScan::Keep => true,
++            RootScan::Spare => {
+                 spared = true;
+-                return true;
++                true
++            }
++            RootScan::Far => {
++                far.push(id);
++                false
+             }
+-            far.push(id);
+-            false
+         });
+         self.inline_resident.append(&mut visit);
+         // Stable reads do not chain follow-ups, but fresh rebuilds arriving
+@@ -403,6 +386,51 @@ impl BaseDocument {
+             }
+         }
+     }
++
++    /// Eviction with no keep band, as with a zero-height viewport: every root that still
++    /// holds shaped text stays resident, and the next scan visits all of them.
++    fn keep_every_resident_root(&mut self, rebuilt: &mut Vec<NodeId>) {
++        self.inline_resident.append(rebuilt);
++        self.inline_resident.sort_unstable();
++        self.inline_resident.dedup();
++        self.inline_resident.retain(|&id| {
++            self.nodes.get(id).is_some_and(|node| {
++                node.flags.is_in_document()
++                    && node
++                        .element_data()
++                        .and_then(|el| el.inline_layout_data())
++                        .is_some_and(|inline| !inline.is_evicted())
++            })
++        });
++        self.last_inline_eviction_scan = None;
++    }
++
++    /// What an eviction scan does with one resident root.
++    fn scan_inline_root(&self, id: NodeId, band: KeepBand) -> RootScan {
++        let Some(node) = self.nodes.get(id) else {
++            return RootScan::Keep;
++        };
++        if !node.flags.is_in_document() {
++            return RootScan::Keep;
++        }
++        // Evicted roots rejoin through the rebuild queue, and roots that
++        // cannot replay rejoin when a layout pass leaves them live.
++        let Some(inline) = node
++            .element_data()
++            .and_then(|el| el.inline_layout_data())
++            .filter(|inline| inline.replayable_break && !inline.is_evicted())
++        else {
++            return RootScan::Keep;
++        };
++        if !self.inline_root_is_far(id, band) || self.inline_root_in_keep_extent(id) {
++            return RootScan::Keep;
++        }
++        // Visible layouts are read every frame: only far ones age.
++        if inline.take_recently_read() {
++            return RootScan::Spare;
++        }
++        RootScan::Far
++    }
+ }
+
+ /// Each box's offset along its line in `layout`, in `ids` order, or `None`
+diff --git a/src/layout/table.rs b/src/layout/table.rs
+index ff40f7f..e032d1d 100644
+--- a/src/layout/table.rs
++++ b/src/layout/table.rs
+@@ -63,7 +63,10 @@ pub struct TableContext {
+     caption_margin_adjustments: Vec<Arc<CaptionMarginAdjustment>>,
+ }
+
++// Taffy's CompactLength keeps a tag in the low three bits of a calc pointer, and this is passed
++// as one, so it must be 8-aligned on 32-bit targets too rather than relying on the allocator.
+ #[derive(Debug)]
++#[repr(align(8))]
+ struct CaptionMarginAdjustment {
+     value: taffy::LengthPercentageAuto,
+     spacing: f32,

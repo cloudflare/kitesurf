@@ -100,6 +100,7 @@ function rafFrameDueAt(): number {
 }
 
 export function pumpAnimationFrames(deadlineMs?: number): number {
+  if (pageTasksPaused()) return 0;
   if (rafQueue.size === 0) return 0;
   if ((rafDriven() && !rafDriverTurn) || Date.now() < rafFrameDueAt()) {
     scheduleRafBackstop();
@@ -257,6 +258,7 @@ function compactTimerWheelHeap(): void {
 }
 
 function armTimerWheelWake(): void {
+  if (pageTasksPaused()) return;
   const capturedTimers = nativeTimerFunctions;
   if (!capturedTimers) return;
   const nextEntry = nextTimerWheelEntry();
@@ -472,6 +474,7 @@ export function pumpDueTimers(
   maxRunCount?: number,
   wakeDueMs = -Infinity,
 ): number {
+  if (pageTasksPaused()) return 0;
   if (timerWheel.size === 0 || !nativeTimerFunctions) return 0;
   if (maxRunCount !== undefined && maxRunCount <= 0) return 0;
   if (deadlineMs !== undefined && Date.now() >= deadlineMs) return 0;
@@ -535,13 +538,14 @@ export function queuePortTask(task: () => void): void {
 
 const PORT_WAKE_BUDGET_MS = 50;
 const PORT_WAKE_PENDING = {};
+let portTaskPumpInFlight: Promise<void> | null = null;
 
 function armPortTaskWake(): void {
-  if (portTaskWake !== null || portTasks.length === 0) return;
+  if (pageTasksPaused() || portTaskWake !== null || portTasks.length === 0) return;
   const st = nativeTimerFunctions ? nativeTimerFunctions.setTimeout : setTimeout;
   portTaskWake = st(() => {
     portTaskWake = PORT_WAKE_PENDING;
-    void (async () => {
+    const pump = (async () => {
       const deadline = Date.now() + PORT_WAKE_BUDGET_MS;
       try {
         while (portTasks.length > 0 && pumpPageTask(deadline) > 0) {
@@ -552,6 +556,16 @@ function armPortTaskWake(): void {
         armPortTaskWake();
       }
     })();
+    portTaskPumpInFlight = pump;
+    const settle = () => {
+      if (portTaskPumpInFlight === pump) portTaskPumpInFlight = null;
+    };
+    void pump.then(settle, (error: unknown) => {
+      settle();
+      try {
+        console.error("[kitesurf] port task pump failed:", error);
+      } catch {}
+    });
   }, 0);
 }
 
@@ -579,6 +593,7 @@ function runPortTask(): boolean {
 let portTaskTurn = false;
 
 export function pumpPageTask(deadlineMs?: number): number {
+  if (pageTasksPaused()) return 0;
   if (deadlineMs !== undefined && Date.now() >= deadlineMs) return 0;
   const portFirst = portTasks.length > 0 && portTaskTurn;
   portTaskTurn = !portTaskTurn;
@@ -687,8 +702,101 @@ const PUMP_BUDGET_MS = 50;
 const MAX_PUMP_TIMER_TURNS = 64;
 type PageTaskPumpResult = { pumped: number; pumpMs: number; nextRafDelayMs?: number };
 let pageTaskPumpInFlight: Promise<PageTaskPumpResult> | null = null;
+let pageTaskPauseDepth = 0;
+
+// Holds page tasks until the returned resume runs. A reader that spans turns while it works on
+// the live paint dom (the PDF scene stream) pauses the pump so no page task can mutate it.
+export async function pausePageTaskPump(): Promise<() => void> {
+  if (pageTaskPauseDepth++ === 0) disarmPageTaskWakes();
+
+  let resumed = false;
+  const resume = () => {
+    if (resumed) return;
+    resumed = true;
+    pageTaskPauseDepth--;
+    if (pageTaskPauseDepth === 0) rearmPageTaskWakes();
+  };
+
+  try {
+    const pendingPumps: Array<Promise<unknown>> = [];
+    if (pageTaskPumpInFlight) pendingPumps.push(pageTaskPumpInFlight);
+    if (portTaskPumpInFlight) pendingPumps.push(portTaskPumpInFlight);
+    if (pendingPumps.length > 0) {
+      await NativePromise.all(pendingPumps);
+      await drainSettleMicrotasks();
+    }
+  } catch (error) {
+    resume();
+    throw error;
+  }
+  return resume;
+}
+
+function disarmPageTaskWakes(): void {
+  if (timerWheelWake !== null && nativeTimerFunctions) {
+    try {
+      nativeTimerFunctions.clearTimeout(timerWheelWake);
+    } catch {}
+    timerWheelWake = null;
+    timerWheelWakeDue = Infinity;
+  }
+  if (rafTimer !== null) {
+    try {
+      (engineClearTimeout ?? clearTimeout)(rafTimer);
+    } catch {}
+    rafTimer = null;
+  }
+  if (typeof portTaskWake === "number" && nativeTimerFunctions) {
+    try {
+      nativeTimerFunctions.clearTimeout(portTaskWake);
+    } catch {}
+    portTaskWake = null;
+  }
+}
+
+const PAGE_TASK_WAKE_ARMS: ReadonlyArray<() => void> = [
+  armTimerWheelWake,
+  armPortTaskWake,
+  scheduleRafBackstop,
+];
+
+function rearmPageTaskWakes(): void {
+  for (const armWake of PAGE_TASK_WAKE_ARMS) {
+    try {
+      armWake();
+    } catch {}
+  }
+}
+
+export function deferPageTaskWhilePaused(task: () => void): boolean {
+  if (pageTaskPauseDepth === 0) return false;
+  queuePortTask(task);
+  return true;
+}
+
+// Runs the task now, or queues it as a port task while the pump is paused.
+export function runPageTaskOrQueue(task: () => void): void {
+  if (!deferPageTaskWhilePaused(task)) task();
+}
+
+// Runs the task now, or queues it and resolves once it has run. Returns null when the task
+// already ran, so a caller on the unpaused path can skip the await.
+export function runPageTaskWhenUnpaused(task: () => void): Promise<void> | null {
+  if (!deferPageTaskWhilePaused(task)) {
+    task();
+    return null;
+  }
+  return new NativePromise<void>((resolve) => {
+    queuePortTask(resolve);
+  });
+}
+
+function pageTasksPaused(): boolean {
+  return pageTaskPauseDepth > 0;
+}
 
 export async function pumpDuePageTasks(): Promise<PageTaskPumpResult> {
+  if (pageTasksPaused()) return { pumped: 0, pumpMs: 0 };
   if (pageTaskPumpInFlight) return pageTaskPumpInFlight;
 
   const pumpPromise = (async () => {
@@ -699,6 +807,7 @@ export async function pumpDuePageTasks(): Promise<PageTaskPumpResult> {
     try {
       let timerTurns = 0;
       for (;;) {
+        if (pageTasksPaused()) break;
         const pageTasksPumped = pumpPageTask(deadlineMs);
         if (pageTasksPumped === 0) break;
         tasksPumped += pageTasksPumped;
