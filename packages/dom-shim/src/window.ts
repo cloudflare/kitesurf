@@ -1359,10 +1359,19 @@ function recordNamedGlobal(nodeId: number, name: string, connected: boolean): vo
   nodeIdName.set(nodeId, name);
   let entry = stampedNames.get(name);
   if (!entry) {
-    entry = { getter: () => namedGlobalValue(name), nodeIds: new Set() };
+    entry = {
+      getter() {
+        return namedGlobalValue(name);
+      },
+      nodeIds: nodeId,
+    };
     stampedNames.set(name, entry);
+  } else if (typeof entry.nodeIds === "number") {
+    // Most names have one owner; allocate the set only for a second node.
+    if (entry.nodeIds !== nodeId) entry.nodeIds = new Set([entry.nodeIds, nodeId]);
+  } else {
+    entry.nodeIds.add(nodeId);
   }
-  entry.nodeIds.add(nodeId);
   // An own property here is a real global or the page's own; a named property never shadows it.
   if (!connected || isReservedGlobalName(name)) return;
   const getter = entry.getter;
@@ -1405,7 +1414,7 @@ export function stampConnectedNamedGlobals(rootId: number): void {
 
 function idAttributeOf(nodeId: number): string | null {
   try {
-    return idFromNodeInfo(dom.nodeInfo(nodeId));
+    return dom.idAttribute(nodeId) ?? null;
   } catch {
     return null;
   }
@@ -1539,18 +1548,6 @@ function assertWindowReceiver(self: unknown) {
   if (self === null || self === undefined) return;
   if (self === stateWindowObj || self === windowProxy || self === globalThis) return;
   throw new TypeError("Illegal invocation");
-}
-
-function idFromNodeInfo(info: unknown) {
-  // nodeInfo is wasm-owned; this scan only needs its dynamic attributes field.
-  const attributes: unknown = info && (info as { attributes?: unknown }).attributes;
-  if (!Array.isArray(attributes)) return null;
-  for (let i = 0; i < attributes.length - 1; i += 2) {
-    if (attributes[i] !== "id") continue;
-    const id = attributes[i + 1];
-    if (typeof id === "string" && id.length > 0) return id;
-  }
-  return null;
 }
 
 export function stampInitialNamedGlobals(): void {

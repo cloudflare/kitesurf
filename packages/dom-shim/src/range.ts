@@ -1910,6 +1910,10 @@ class StaticRangeImpl extends AbstractRangeImpl implements Idl.StaticRange {
   }
 }
 
+function hasLiveRanges(): boolean {
+  return liveRanges.size > 0;
+}
+
 function rangeAfterInsert(parent: BoundaryNode, refIndex: number, count: number): void {
   if (liveRanges.size === 0) return;
   for (const range of liveRanges) {
@@ -2006,6 +2010,7 @@ export {
   getSelection,
   nodeIndexOf,
   childArray,
+  hasLiveRanges,
   rangeAfterInsert,
   rangeBeforeRemove,
   rangeBeforeReplaceData,

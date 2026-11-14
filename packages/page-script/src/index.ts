@@ -54,6 +54,7 @@ import type { RenderPort as RenderPortContract } from "@kitesurf/jsrpc-types/pag
 import type { WorkerEventParams } from "@kitesurf/jsrpc-types/dedicated-worker";
 import { deliverWorkerEvent } from "./dedicated-worker.ts";
 import type {
+  FormStateSnapshot,
   PendingImageDrain,
   QueryDomArgs,
   QueryDomMethod,
@@ -3573,7 +3574,6 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     try {
       void resolveExternalSvgSprites();
     } catch {}
-    state.getOpLog = built.getOpLog || (() => []);
     state.setReadyState = built.setReadyState || (() => {});
     state.drainCookieWrites = built.drainCookieWrites || (() => []);
     state.setCookieString = built.setCookieString || (() => {});
@@ -4271,7 +4271,6 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     state.documentUrl = "";
     state.document = null;
     state.window = null;
-    state.getOpLog = () => [];
     state.setReadyState = () => {};
     const cookieWrites = state.drainCookieWrites();
     state.drainCookieWrites = () => [];
@@ -5320,6 +5319,10 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         return queryDomSelectorRead(state, method, queryArgs);
       case "getAncestorElementIds":
         return queryDomAncestorElementIds(state, queryArgs);
+      case "nodeAncestors":
+        return queryDomNodeAncestors(state, queryArgs);
+      case "childNodeLists":
+        return queryDomChildNodeLists(state, queryArgs);
       case "parseStyleSheet":
         return queryDomParseStylesheet(queryArgs);
       case "enumerateStyleSheets":
@@ -5342,6 +5345,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         return queryDomPaintGeometry(method, queryArgs);
       case "notRenderedNodeIds":
         return queryDomNotRenderedNodeIds(queryArgs);
+      case "accessibilityTree":
+        return queryDomAccessibilityTree(state, queryArgs);
       case "formStateSnapshot":
       case "setControlValueAsUser":
         return queryDomFormState(state, method, queryArgs);
@@ -5406,6 +5411,77 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
 
 type QueryDomActiveState = typeof state & { dom: DomHandle };
 
+// The whole tree, shadow roots included, unless the caller passes CDP's depth and pierce.
+function subtreeArgs(queryArgs: Record<string, unknown>): { depth: number; pierce: boolean } {
+  const depth = typeof queryArgs.depth === "number" ? queryArgs.depth : -1;
+  const pierce = typeof queryArgs.pierce === "boolean" ? queryArgs.pierce : depth < 0;
+  return { depth, pierce };
+}
+
+function queryDomNodeAncestors(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"nodeAncestors"> {
+  const ids = Array.isArray(queryArgs.nodeIds) ? queryArgs.nodeIds : [];
+  const seen = new Set<number>();
+  const ancestorIds: number[] = [];
+  for (const id of ids) {
+    if (typeof id !== "number") continue;
+    // Walk up to the first ancestor already listed, then list the new ones top-down.
+    const chain = ancestorChain(pageState.dom, id, seen);
+    for (let i = chain.length - 1; i >= 0; i--) ancestorIds.push(chain[i]);
+  }
+  return { ancestorIds } satisfies QueryDomResult<"nodeAncestors">;
+}
+
+// Collects the ancestors of `nodeId` that `seen` does not hold yet, nearest first.
+function ancestorChain(
+  dom: QueryDomActiveState["dom"],
+  nodeId: number,
+  seen: Set<number>,
+): number[] {
+  const chain: number[] = [];
+  let current = nodeId;
+  for (;;) {
+    let parent: number;
+    try {
+      parent = dom.parentId(current);
+    } catch {
+      break;
+    }
+    if (typeof parent !== "number" || parent < 0 || seen.has(parent)) break;
+    seen.add(parent);
+    chain.push(parent);
+    current = parent;
+  }
+  return chain;
+}
+
+function queryDomChildNodeLists(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"childNodeLists"> {
+  const ids = Array.isArray(queryArgs.nodeIds) ? queryArgs.nodeIds : [];
+  const { depth, pierce } = subtreeArgs(queryArgs);
+  const lists: QueryDomResult<"childNodeLists">["lists"] = [];
+  // One reply carries every parent's list, so the transport budget applies to their sum: a batch of
+  // individually acceptable lists could otherwise be many times the cap. Measure before
+  // serializing; an over-budget parent is left out and the client can request it on its own.
+  const budget = pageState.dom.subtreeBudgetBytes();
+  let total = 0;
+  for (const id of ids) {
+    if (typeof id !== "number") continue;
+    const bytes = pageState.dom.nodeSubtreeBytes(id, depth, pierce);
+    if (bytes > budget) continue;
+    if (total + bytes > budget) break;
+    total += bytes;
+    // The children at `depth` are the node's own subtree one level deeper.
+    const node = sanitizeCdpNodeTree(pageState.dom.nodeSubtree(id, depth, pierce));
+    if (node) lists.push({ parentId: id, nodes: node.children ?? [] });
+  }
+  return { lists } satisfies QueryDomResult<"childNodeLists">;
+}
+
 function requireQueryDomDocument(
   pageState: typeof state,
 ): asserts pageState is QueryDomActiveState {
@@ -5426,7 +5502,10 @@ function queryDomDocumentRead(
     case "getDocument": {
       // Read stamps bracket the synchronous DOM read with the mutation sequence.
       const before = getInternalState().mutationSeq | 0;
-      const root = sanitizeCdpNodeTree(pageState.dom.getDocument()) ?? undefined;
+      const { depth, pierce } = subtreeArgs(queryArgs);
+      const budgetError = pageState.dom.documentBudgetError(depth, pierce);
+      if (budgetError) return { budgetError } satisfies QueryDomResult<"getDocument">;
+      const root = sanitizeCdpNodeTree(pageState.dom.getDocument(depth, pierce)) ?? undefined;
       return {
         root,
         ...(queryArgs.includeReadStamp === true
@@ -5444,7 +5523,10 @@ function queryDomDocumentRead(
       const id = numericNodeId(queryArgs);
       if (id == null) return { node: null } satisfies QueryDomResult<"nodeSubtree">;
       try {
-        const subtree = pageState.dom.nodeSubtree ? pageState.dom.nodeSubtree(id) : null;
+        const { depth, pierce } = subtreeArgs(queryArgs);
+        const budgetError = pageState.dom.nodeSubtreeBudgetError(id, depth, pierce);
+        if (budgetError) return { budgetError } satisfies QueryDomResult<"nodeSubtree">;
+        const subtree = pageState.dom.nodeSubtree(id, depth, pierce);
         return {
           node: sanitizeCdpNodeTree(subtree) || null,
         } satisfies QueryDomResult<"nodeSubtree">;
@@ -6457,6 +6539,114 @@ async function queryDomNotRenderedNodeIds(
   }
 }
 
+async function queryDomAccessibilityTree(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): Promise<QueryDomResult<"accessibilityTree">> {
+  await awaitDeferredFonts();
+  // `unload()` nulls `state.dom` while this await is suspended, so the narrowing above is only a
+  // type-level claim; re-read it and capture the handle for the stream's pulls.
+  const dom = pageState.dom as QueryDomActiveState["dom"] | null;
+  if (!dom) throw new Error("PageScript: no document loaded");
+  // A stamped read cannot stream: the mutation sequence must bracket the whole
+  // build, and a stream builds lazily as the caller pulls.
+  const includeStamp = queryArgs.includeReadStamp === true;
+  const before = getInternalState().mutationSeq | 0;
+  const visibility = accessibilityVisibility(dom);
+  const formState = queryDomFormState(pageState, "formStateSnapshot", {});
+  const values = "values" in formState ? formValuesForWire(formState.values) : undefined;
+  const serializedFormState = values === undefined ? formState : { ...formState, values };
+  const start = dom.accessibilityStream(
+    JSON.stringify({
+      ...queryArgs,
+      ...(includeStamp ? { buffered: true } : {}),
+      visibility,
+      ...serializedFormState,
+    }),
+  );
+  try {
+    const budgetJson = start.budgetError();
+    if (budgetJson) return accessibilityBudgetReply(budgetJson);
+
+    const stream = start.takeStream();
+    if (stream) {
+      return {
+        byteLength: stream.byteLength,
+        json: byteStream(stream, () =>
+          pageState.dom === dom ? stream.nextChunk(dom, OUTER_HTML_CHUNK_BYTES) : new Uint8Array(0),
+        ),
+      } satisfies QueryDomResult<"accessibilityTree">;
+    }
+
+    const bytes = start.takeBytes();
+    if (bytes) {
+      return {
+        byteLength: bytes.byteLength,
+        json: byteStream(bytes, () => bytes.nextChunk(OUTER_HTML_CHUNK_BYTES)),
+        ...(includeStamp
+          ? {
+              readStamp: {
+                before,
+                after: getInternalState().mutationSeq | 0,
+                complete: true,
+              },
+            }
+          : {}),
+      } satisfies QueryDomResult<"accessibilityTree">;
+    }
+    throw new Error("accessibility stream returned no result");
+  } finally {
+    start.free();
+  }
+}
+
+function accessibilityBudgetReply(json: string): QueryDomResult<"accessibilityTree"> {
+  const value: unknown = JSON.parse(json);
+  if (
+    !isObjectRecord(value) ||
+    typeof value.nodes !== "number" ||
+    typeof value.bytes !== "number" ||
+    typeof value.budget !== "number"
+  ) {
+    throw new Error("accessibility stream returned an invalid budget error");
+  }
+  return {
+    budgetError: { nodes: value.nodes, bytes: value.bytes, budget: value.budget },
+  } satisfies QueryDomResult<"accessibilityTree">;
+}
+
+// A lone surrogate cannot travel in JSON text, so such a value goes as its UTF-16 code units and
+// Rust re-encodes it.
+function formValuesForWire(
+  values: FormStateSnapshot["values"],
+): Array<[number, string | number[]]> | undefined {
+  return values?.map(([id, value]): [number, string | number[]] => [
+    id,
+    isWellFormedUtf16(value)
+      ? value
+      : Array.from({ length: value.length }, (_, index) => value.charCodeAt(index)),
+  ]);
+}
+
+function isWellFormedUtf16(value: string): boolean {
+  for (let index = 0; index < value.length; index++) {
+    const unit = value.charCodeAt(index);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (index + 1 >= value.length || next < 0xdc00 || next > 0xdfff) return false;
+      index++;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function accessibilityVisibility(dom: QueryDomActiveState["dom"]): boolean {
+  if (dom.layoutMode?.() === "off") return false;
+  return ensurePaintDom() !== null;
+}
+
 function queryDomSetViewport(
   pageState: QueryDomActiveState,
   queryArgs: Record<string, unknown>,
@@ -6985,6 +7175,8 @@ function queryDomNodeHandle(
         } satisfies QueryDomResult<"describeNode">;
       }
       try {
+        const budgetError = pageState.dom.nodeDescriptionBudgetError(id);
+        if (budgetError) return { budgetError } satisfies QueryDomResult<"describeNode">;
         const info = pageState.dom.nodeInfo(id);
         if (info) {
           delete info.attributeNamespaces;

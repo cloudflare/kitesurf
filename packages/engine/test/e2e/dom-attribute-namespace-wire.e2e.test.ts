@@ -52,7 +52,7 @@ test("DOM.getDocument omits internal namespace metadata in shadow roots", async 
       children?: CdpNode[];
       shadowRoots?: CdpNode[];
     };
-    const { root } = (await session.send("DOM.getDocument", { depth: -1 })) as {
+    const { root } = (await session.send("DOM.getDocument", { depth: -1, pierce: true })) as {
       root: CdpNode;
     };
     const findPath = (node: CdpNode): CdpNode | null => {
@@ -72,40 +72,35 @@ test("DOM.getDocument omits internal namespace metadata in shadow roots", async 
 });
 
 test("DOM.childNodeInserted omits internal attribute namespace metadata", async ({ page }) => {
-  await setContent(page, "<body></body>");
+  await setContent(
+    page,
+    '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"></svg>',
+  );
   const session = await page.createCDPSession();
   try {
     await session.send("DOM.enable");
+    // Insert events reach only a client that holds the parent's children.
+    await session.send("DOM.getDocument", { depth: -1 });
     type CdpNode = {
       nodeName: string;
       attributes?: string[];
       attributeNamespaces?: unknown;
-      children?: CdpNode[];
-    };
-    const findPath = (node: CdpNode): CdpNode | null => {
-      if (node.nodeName === "path") return node;
-      for (const child of node.children ?? []) {
-        const match = findPath(child);
-        if (match) return match;
-      }
-      return null;
     };
     const insertedPath = new Promise<CdpNode>((resolve) => {
       const onInserted = ({ node }: { node: CdpNode }) => {
-        const path = findPath(node);
-        if (!path) return;
+        if (node.nodeName !== "path") return;
         session.off("DOM.childNodeInserted", onInserted);
-        resolve(path);
+        resolve(node);
       };
       session.on("DOM.childNodeInserted", onInserted);
     });
 
     await page.evaluate(() => {
-      const host = document.createElement("div");
-      host.innerHTML =
-        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">' +
-        '<path xlink:href="#source"></path></svg>';
-      document.body.appendChild(host);
+      const svg = document.querySelector("svg");
+      if (!svg) throw new Error("svg is missing");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", "#source");
+      svg.appendChild(path);
     });
 
     const path = await insertedPath;

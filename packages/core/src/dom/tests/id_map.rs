@@ -212,3 +212,28 @@ fn id_map_skips_template_contents_moved_out_of_a_shadow_tree() {
         "template contents are inert"
     );
 }
+
+#[test]
+fn id_attribute_reads_the_first_non_empty_unprefixed_id() {
+    let dom = DomHandle::new(
+        r##"<!DOCTYPE html><body><p id="a">x</p><p id="">y</p>
+<svg><g id="s"></g><g xml:id="x"></g></svg></body>"##,
+        "https://test.example/",
+    );
+    let first = |selector: &str| dom.query_selector(selector).expect("query ok") as u32;
+    assert_eq!(dom.id_attribute(first("p")).as_deref(), Some("a"));
+    assert_eq!(
+        dom.id_attribute(first("p:nth-of-type(2)")),
+        None,
+        "empty ids name nothing"
+    );
+    assert_eq!(dom.id_attribute(first("svg g")).as_deref(), Some("s"));
+    assert_eq!(
+        dom.id_attribute(first("svg g:nth-of-type(2)")),
+        None,
+        "xml:id is not id"
+    );
+    let text = dom.child_ids(first("p"))[0];
+    assert_eq!(dom.id_attribute(text), None);
+    assert_eq!(dom.id_attribute(u32::MAX), None);
+}

@@ -189,12 +189,14 @@ import oopifChildColorSwapHtml from "../assets/oopif-child-color-swap.html";
 import oopifChildPostmessageHtml from "../assets/oopif-child-postmessage.html";
 import oopifChildWorkerHtml from "../assets/oopif-child-worker.html";
 import oopifChildQuadsHtml from "../assets/oopif-child-quads.html";
+import oopifChildSubtreeBudgetHtml from "../assets/oopif-child-subtree-budget.html";
 import oopifChildRedHtml from "../assets/oopif-child-red.html";
 import oopifDynamicHostHtml from "../assets/oopif-dynamic-host.html";
 import oopifHostBudgetHtml from "../assets/oopif-host-budget.html";
 import oopifHostColorSwapHtml from "../assets/oopif-host-color-swap.html";
 import oopifHostPostmessageHtml from "../assets/oopif-host-postmessage.html";
 import oopifHostQuadsHtml from "../assets/oopif-host-quads.html";
+import oopifHostSubtreeBudgetHtml from "../assets/oopif-host-subtree-budget.html";
 import oopifHostWorkerHtml from "../assets/oopif-host-worker.html";
 import oopifHostHtml from "../assets/oopif-host.html";
 import pdfCssBgSmokeHtml from "../assets/pdf-css-bg-smoke.html";
@@ -426,7 +428,9 @@ export const STATIC_FIXTURES: Record<string, string | ArrayBuffer> = {
   "oopif-child-blue.html": oopifChildBlueHtml,
   "oopif-host-budget.html": oopifHostBudgetHtml,
   "oopif-child-quads.html": oopifChildQuadsHtml,
+  "oopif-child-subtree-budget.html": oopifChildSubtreeBudgetHtml,
   "oopif-host-quads.html": oopifHostQuadsHtml,
+  "oopif-host-subtree-budget.html": oopifHostSubtreeBudgetHtml,
   "oopif-dynamic-host.html": oopifDynamicHostHtml,
   "oopif-host-postmessage.html": oopifHostPostmessageHtml,
   "oopif-child-postmessage.html": oopifChildPostmessageHtml,

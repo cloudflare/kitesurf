@@ -52,7 +52,7 @@ test("css-ua-styles-demo", async ({ page }) => {
     "UA text contains the body { display: block } rule",
   ).toBeTruthy();
 
-  const doc = await session.send("DOM.getDocument");
+  const doc = await session.send("DOM.getDocument", { depth: -1 });
   function findByTag(root, tag) {
     const stack = [root];
     while (stack.length) {

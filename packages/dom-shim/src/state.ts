@@ -208,8 +208,6 @@ export let getScrollOffset: (() => { x: number; y: number } | null) | null = nul
 export let setScrollOffset: ((x: number, y: number) => { x: number; y: number } | null) | null =
   null;
 
-export const ops: DomOperation[] = [];
-
 export const cdpMutations: RawCdpMutation[] = [];
 
 export let readyState: "loading" | "interactive" | "complete" = "loading";
@@ -616,7 +614,6 @@ export function initState(d: DomHandle, url: string, cookies: string, o?: BuildD
   getScrollOffset = o && typeof o.getScrollOffset === "function" ? o.getScrollOffset : null;
   setScrollOffset = o && typeof o.setScrollOffset === "function" ? o.setScrollOffset : null;
 
-  ops.length = 0;
   cdpMutations.length = 0;
   cookieWrites.length = 0;
   readyState = "loading";

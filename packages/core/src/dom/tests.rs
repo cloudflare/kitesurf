@@ -4,6 +4,8 @@
 
 //! Tests for the dom stage; they use crate internals.
 
+mod accessibility;
+mod cdp_depth;
 mod descendants;
 mod inner_text;
 mod font_arrival_reshape;

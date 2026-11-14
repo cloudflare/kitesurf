@@ -24,7 +24,6 @@ import { installFastpath } from "./fastpath.js";
 import { fileInputFiles, fileInputLists } from "./file-input.js";
 
 import {
-  ops,
   cdpMutations,
   cookieWrites,
   activeElement,
@@ -387,6 +386,20 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     fileInputLists.delete(nodeId);
   }
 
+  // Every nodeIdentity reply decodes fresh name strings, and each wrapper keeps its reply, so
+  // a big page held one "#text" or "LI" copy per wrapper. Names repeat; share one copy each.
+  // Real tag names are short; a length cap keeps the table under 4096 x 64 characters.
+  const MAX_INTERNED_NAMES = 4096;
+  const MAX_INTERNED_NAME_LENGTH = 64;
+  const internedNames = new Map<string, string>();
+  const internName = (name: string): string => {
+    if (name.length > MAX_INTERNED_NAME_LENGTH) return name;
+    const shared = internedNames.get(name);
+    if (shared !== undefined) return shared;
+    if (internedNames.size < MAX_INTERNED_NAMES) internedNames.set(name, name);
+    return name;
+  };
+
   function nodeFor(nodeId: number): NodeBase | null {
     if (nodeId == null || nodeId < 0) return null;
     const cached = liveWrapper(nodeId);
@@ -402,7 +415,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     }
     let info;
     try {
-      info = dom.nodeInfo(nodeId);
+      info = dom.nodeIdentity(nodeId);
     } catch {
       evictCachedNode(nodeId);
       return null;
@@ -411,6 +424,8 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
       evictCachedNode(nodeId);
       return null;
     }
+    info.nodeName = internName(info.nodeName);
+    info.localName = internName(info.localName);
     if (cached) {
       const cachedType = cached._info && cached._info.nodeType;
       const tagStable =
@@ -875,7 +890,6 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
       notifyImageResults(nodeIds, ok),
     notifyStylesheetResults: (url: string, ok: boolean) => notifyStylesheetResults(url, ok),
     getActiveElement: () => activeElement,
-    getOpLog: () => ops,
     drainCdpMutations: () => {
       if (cdpMutations.length === 0) return [];
       const out = cdpMutations.slice();

@@ -140,18 +140,18 @@ test("a patched dependency deopts its composite dependents", async ({ page }) =>
   const out = (await page.evaluate(`(() => {
 		const tree = document.getElementById("tree");
 		const before = tree.firstChild ? tree.firstChild.nodeName : null;
-		// Patch childNodes (dep-only surface) from a V8 excursion — the
-		// shim's firstChild reads this.childNodes, so the fast path must
-		// hand firstChild back to the (patched) slow path.
+		// Patch childNodes (dep-only surface) from a V8 excursion. The fast
+		// path still hands firstChild back to the slow path, which (as in
+		// browsers) ignores the page's childNodes getter.
 		window.__patchChildNodes();
-		const after = tree.firstChild;
+		const after = tree.firstChild ? tree.firstChild.nodeName : null;
 		// And getAttribute → id: the composite id getter must reflect a
 		// getAttribute patch even though "id" itself was never touched.
 		window.__patchByAssignment();
 		const id = tree.id;
-		return JSON.stringify([before, after === null, id]);
+		return JSON.stringify([before, after, id]);
 	})()`)) as string;
-  expect(out).toBe(JSON.stringify(["#text", true, "patched:id"]));
+  expect(out).toBe(JSON.stringify(["#text", "#text", "patched:id"]));
   const stats = await fastpathStats(page);
   expect(stats.deoptMask & (1 << 10)).toBeTruthy();
   expect(stats.deoptMask & (1 << 5)).toBeTruthy();

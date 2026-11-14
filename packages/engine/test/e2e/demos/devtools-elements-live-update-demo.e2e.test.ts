@@ -46,7 +46,7 @@ test("devtools-elements-live-update-demo", async () => {
   await send("Page.enable");
   await send("Runtime.enable");
   await send("DOM.enable");
-  const bootDoc = await send("DOM.getDocument");
+  const bootDoc = await send("DOM.getDocument", { depth: -1 });
   expect(
     bootDoc.error,
     "pre-navigate DOM.getDocument must not error (DevTools caches the rejection): " +
@@ -64,7 +64,7 @@ test("devtools-elements-live-update-demo", async () => {
     })
     .toBe(true)
     .catch(() => {});
-  const doc = await send("DOM.getDocument");
+  const doc = await send("DOM.getDocument", { depth: -1 });
   expect(doc.result?.root?.nodeId).toBeTypeOf("number");
 
   await send("Runtime.evaluate", {
@@ -194,7 +194,7 @@ test("devtools page mode matches author rules after navigate", async () => {
     await send("Page.navigate", {
       url: `data:text/html,${encodeURIComponent("<style>p.x{color:red}</style><p class=x>hi</p>")}`,
     });
-    const doc = await send("DOM.getDocument");
+    const doc = await send("DOM.getDocument", { depth: -1 });
     const { result: q } = await send("DOM.querySelector", {
       nodeId: doc.result.root.nodeId,
       selector: "p.x",

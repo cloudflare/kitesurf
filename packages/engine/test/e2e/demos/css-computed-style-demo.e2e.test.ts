@@ -38,7 +38,7 @@ test("css-computed-style-demo", async ({ page }) => {
   await session.send("DOM.enable");
   await session.send("CSS.enable");
 
-  const doc = await session.send("DOM.getDocument");
+  const doc = await session.send("DOM.getDocument", { depth: -1 });
   function findById(root, wantId) {
     const stack = [root];
     while (stack.length) {

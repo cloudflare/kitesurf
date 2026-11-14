@@ -197,17 +197,48 @@ export interface FormStateSnapshot {
   selected?: Array<[number, boolean]>;
 }
 
+export interface SubtreeBudgetError {
+  nodes: number;
+  /** Lower bound that already exceeds budget. */
+  atLeastBytes: number;
+  /** The walk stopped at the budget, so `nodes` is a lower bound too. */
+  nodesAtLeast: boolean;
+  budget: number;
+}
+
+/** The accessibility tree exceeded the reply budget before it was serialized. */
+export interface AccessibilityBudgetError {
+  nodes: number;
+  bytes: number;
+  budget: number;
+}
+
 /** Typed wire operations multiplexed over the retained PageScript session.
  * Node IDs and object handles expire with that generation; read stamps expose snapshot mutations.
  */
 export interface QueryDomMethods {
+  // CDP `depth` (-1 for all) and `pierce`; without them the whole tree, shadow roots included.
   getDocument: {
-    args: ReadStampArgs;
-    result: Partial<Protocol.DOM.GetDocumentResponse> & { readStamp?: ReadStamp };
+    args: ReadStampArgs & SubtreeArgs;
+    result: Partial<Protocol.DOM.GetDocumentResponse> & {
+      readStamp?: ReadStamp;
+      budgetError?: SubtreeBudgetError;
+    };
   };
+  // The node with its children to `depth`, as CDP describes nodes; without it, the whole subtree.
   nodeSubtree: {
-    args: { nodeId: number };
-    result: { node?: Protocol.DOM.Node | null };
+    args: { nodeId: number } & SubtreeArgs;
+    result: { node?: Protocol.DOM.Node | null; budgetError?: SubtreeBudgetError };
+  };
+  // Every ancestor of `nodeIds`, the document included, each once and after its own ancestors.
+  nodeAncestors: {
+    args: { nodeIds: number[] };
+    result: { ancestorIds: number[] };
+  };
+  // The children of each of `nodeIds`, described to `depth`; a missing node is left out.
+  childNodeLists: {
+    args: { nodeIds: number[] } & SubtreeArgs;
+    result: { lists: Array<{ parentId: number; nodes: Protocol.DOM.Node[] }> };
   };
   querySelector: {
     args: { selector: string };
@@ -227,7 +258,7 @@ export interface QueryDomMethods {
   };
   describeNode: {
     args: { nodeId?: number; objectId?: string };
-    result: Partial<Protocol.DOM.DescribeNodeResponse>;
+    result: Partial<Protocol.DOM.DescribeNodeResponse> & { budgetError?: SubtreeBudgetError };
   };
   getAttributes: {
     args: { nodeId?: number };
@@ -244,6 +275,25 @@ export interface QueryDomMethods {
   notRenderedNodeIds: {
     args: ReadStampArgs;
     result: { displayNone?: number[]; invisible?: number[]; readStamp?: ReadStamp };
+  };
+  accessibilityTree: {
+    args: {
+      method: "full" | "root" | "partial" | "children" | "ancestors" | "query";
+      nodeId: number | null;
+      axId: string | null;
+      fetchRelatives: boolean;
+      role: string | null;
+      accessibleName: string | null;
+      depth?: number;
+      frameId: string;
+      title: string;
+      url: string;
+      buffered?: boolean;
+      includeReadStamp?: boolean;
+    };
+    result:
+      | { budgetError: AccessibilityBudgetError }
+      | { byteLength: number; json: ReadableStream<Uint8Array>; readStamp?: ReadStamp };
   };
   formStateSnapshot: {
     args: ReadStampArgs;
@@ -507,6 +557,7 @@ type EmptyArgs = Record<string, never>;
 
 // Read stamps bracket snapshots with mutationSeq to expose concurrent DOM changes.
 type ReadStampArgs = { includeReadStamp?: boolean };
+type SubtreeArgs = { depth?: number; pierce?: boolean };
 
 export interface PendingImageDrain {
   waited: boolean;

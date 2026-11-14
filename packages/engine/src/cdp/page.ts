@@ -139,6 +139,7 @@ import { isWorkerUpstreamEvent } from "./dedicated-workers.ts";
 import { isRecord } from "../guards.ts";
 import { classifyRequest } from "../request-blocker.ts";
 import { emitMutations } from "./dom.ts";
+import { frontendNodes, sessionKeyOf } from "./dom-frontend.ts";
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
 import { dropTargetImages } from "../eval/resource-store.ts";
 import {
@@ -3183,6 +3184,8 @@ function emitDocumentUpdated(
   sessionId: string | undefined,
 ): void {
   for (const s of targetSessions(target, sessionId)) {
+    // The client drops its nodes and asks for the document again.
+    frontendNodes(target, sessionKeyOf(s)).reset();
     ctx.emit({
       method: "DOM.documentUpdated",
       sessionId: s,

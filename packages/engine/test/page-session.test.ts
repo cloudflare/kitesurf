@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  accessibilityTreeResponse,
   outerHtmlResponse,
   PageSession,
   registerEnsurePageScript,
@@ -12,7 +13,8 @@ import {
   stubQueryDom,
 } from "../src/cdp/page-session.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
-import type { RawJsonResult, TargetState } from "../src/cdp/types.ts";
+import type { TargetState } from "../src/cdp/types.ts";
+import { RawJsonResult } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
 import type { Protocol } from "devtools-protocol";
@@ -443,5 +445,48 @@ describe("outerHtmlResponse", () => {
       );
       expect(cancelled).toBe(true);
     }
+  });
+});
+
+describe("accessibilityTreeResponse", () => {
+  const streamOf = (chunks: Uint8Array[]) =>
+    new ReadableStream<Uint8Array>({
+      pull(controller) {
+        const next = chunks.shift();
+        if (next) controller.enqueue(next);
+        else controller.close();
+      },
+    });
+
+  it("retries a short live stream and decodes split UTF-8 into string pieces", async () => {
+    const text = '{"name":"café 😀"}';
+    const encoded = new TextEncoder().encode(text);
+    const modes: boolean[] = [];
+    const result = await accessibilityTreeResponse((buffered) => {
+      modes.push(buffered);
+      return Promise.resolve(
+        buffered
+          ? {
+              byteLength: encoded.byteLength,
+              json: streamOf([encoded.slice(0, 11), encoded.slice(11, 14), encoded.slice(14)]),
+            }
+          : { byteLength: encoded.byteLength + 1, json: streamOf([encoded]) },
+      );
+    }, "Accessibility.getFullAXTree");
+    if ("budgetError" in result) throw new Error("expected a tree reply");
+    expect(result.result).toBeInstanceOf(RawJsonResult);
+    expect(result.result.pieces.join("")).toBe(text);
+    expect(modes).toEqual([false, true]);
+  });
+
+  it("returns a budget error without retrying", async () => {
+    const budgetError = { nodes: 120_000, bytes: 30_000_000, budget: 25_165_824 };
+    const modes: boolean[] = [];
+    const result = await accessibilityTreeResponse((buffered) => {
+      modes.push(buffered);
+      return Promise.resolve({ budgetError });
+    }, "Accessibility.getFullAXTree");
+    expect(result).toEqual({ budgetError });
+    expect(modes).toEqual([false]);
   });
 });

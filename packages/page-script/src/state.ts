@@ -72,7 +72,6 @@ export interface PageScriptState {
   scrollX: number;
   scrollY: number;
 
-  getOpLog: () => unknown[];
   setReadyState: (s: string) => void;
   drainCookieWrites: () => string[];
   setCookieString: (s: string) => void;
@@ -159,7 +158,6 @@ export const state: PageScriptState = {
   scrollX: 0,
   scrollY: 0,
 
-  getOpLog: () => [],
   setReadyState: () => {},
   drainCookieWrites: () => [],
   setCookieString: () => {},
