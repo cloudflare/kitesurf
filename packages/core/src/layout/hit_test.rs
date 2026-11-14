@@ -75,7 +75,7 @@ impl DomHandle {
                     return -1;
                 };
                 match &node.data {
-                    NodeData::AnonymousBlock(_) | NodeData::Text(_) => match node.parent {
+                    NodeData::AnonymousBlock(_) | NodeData::Text(_) => match node.parent.get() {
                         Some(parent) => id = parent,
                         None => return -1,
                     },
@@ -129,7 +129,7 @@ impl DomHandle {
                 let Some(node) = doc.get_node(id) else {
                     return 0;
                 };
-                if let Some(parent_id) = node.parent {
+                if let Some(parent_id) = node.parent.get() {
                     if let Some(parent) = doc.get_node(parent_id) {
                         if parent.before() == Some(id) {
                             return 1;
@@ -140,7 +140,7 @@ impl DomHandle {
                     }
                 }
                 match &node.data {
-                    NodeData::AnonymousBlock(_) | NodeData::Text(_) => match node.parent {
+                    NodeData::AnonymousBlock(_) | NodeData::Text(_) => match node.parent.get() {
                         Some(parent) => id = parent,
                         None => return 0,
                     },

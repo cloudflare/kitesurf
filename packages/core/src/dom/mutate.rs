@@ -4,7 +4,7 @@
 
 //! DOM writes: batched ops, node creation, and attribute and text edits.
 
-use blitz_dom::{local_name, ns, BaseDocument, LocalName, Namespace, NodeData, QualName};
+use blitz_dom::{local_name, ns, Attribute, BaseDocument, LocalName, Namespace, NodeData, QualName};
 use blitz_traits::NodeId;
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
@@ -129,25 +129,21 @@ fn attr_qname(name: &str) -> QualName {
 
 /// Match shim keys against stored qualified names (`prefix:local` or `local`).
 /// `crate::js::dom_fastpath::attr_lookup` uses the same prefix rule after HTML lowercasing.
-fn attr_matches_key(name: &QualName, key: &str) -> bool {
-    match &name.prefix {
-        None => &*name.local == key,
+fn attr_matches_key(attr: &Attribute, key: &str) -> bool {
+    match attr.prefix() {
+        None => &*attr.name.local == key,
         Some(prefix) => key
             .strip_prefix(&**prefix)
             .and_then(|rest| rest.strip_prefix(':'))
-            .is_some_and(|local| local == &*name.local),
+            .is_some_and(|local| local == &*attr.name.local),
     }
 }
 
 fn attr_name_for_key(doc: &BaseDocument, node_id: NodeId, key: &str) -> QualName {
     doc.get_node(node_id)
         .and_then(|node| node.element_data())
-        .and_then(|data| {
-            data.attrs
-                .iter()
-                .find(|attr| attr_matches_key(&attr.name, key))
-        })
-        .map(|attr| attr.name.clone())
+        .and_then(|data| data.attrs.iter().find(|attr| attr_matches_key(attr, key)))
+        .map(Attribute::qual_name)
         .unwrap_or_else(|| attr_qname(key))
 }
 
@@ -384,7 +380,7 @@ impl DomHandle {
             return String::new();
         };
         match doc.get_node(internal_id).map(|node| &node.data) {
-            Some(NodeData::Comment { contents }) => contents.clone(),
+            Some(NodeData::Comment { contents }) => String::clone(contents),
             _ => String::new(),
         }
     }

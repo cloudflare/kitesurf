@@ -189,7 +189,7 @@ pub(crate) fn composed_transform_for_node(
             (node.final_layout().location.y as f64 - parent_scroll_y) * scale,
         ));
         if let Some(transform) = node.transform() {
-            composed *= **transform;
+            composed *= transform;
         }
     }
 
@@ -238,7 +238,7 @@ fn containing_block_of(doc: &HtmlDocument, node: &Node) -> Option<NodeId> {
     let position = node
         .primary_styles()
         .map_or(Position::Static, |s| s.clone_position());
-    let mut current = node.parent;
+    let mut current = node.parent.get();
     while let Some(id) = current {
         let parent = doc.get_node(id)?;
         if let Some(styles) = parent.primary_styles().filter(|_| parent.is_element()) {
@@ -252,7 +252,7 @@ fn containing_block_of(doc: &HtmlDocument, node: &Node) -> Option<NodeId> {
                 return Some(id);
             }
         }
-        current = parent.parent;
+        current = parent.parent.get();
     }
     None
 }
@@ -275,7 +275,7 @@ fn clip_to_containing_blocks(
             return Some(rect);
         }
         node = doc.get_node(id)?;
-        let is_body = node.parent == Some(root_element.id)
+        let is_body = node.parent.get() == Some(root_element.id)
             && node
                 .element_data()
                 .is_some_and(|e| &*e.name.local == "body");
@@ -414,7 +414,7 @@ pub(crate) fn bounding_rect_for_node(doc: &HtmlDocument, node: &Node) -> Rect {
                 };
             }
         }
-        ancestor = n.parent.and_then(|p| doc.get_node(p));
+        ancestor = n.parent.get().and_then(|p| doc.get_node(p));
     }
     // Only box-bearing nodes have Blitz layout storage; text nodes use their
     // inline geometry, while comments and other non-box nodes have no rect.
@@ -489,8 +489,8 @@ fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rec
     let node = base.get_node(node_id)?;
     let inline_root = node.inline_root_ancestor()?;
     let elem = inline_root.element_data()?;
-    let inline = elem.inline_layout_data.as_ref()?;
-    let layout = &inline.layout;
+    let inline = elem.inline_layout_data()?;
+    let layout = inline.layout(node.tree());
 
     let lines: Vec<parley::layout::Line<'_, _>> = layout.lines().collect();
 
@@ -540,7 +540,9 @@ fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rec
             let Some(n) = base.get_node(cur) else {
                 return false;
             };
-            let Some(parent) = n.parent else { return false };
+            let Some(parent) = n.parent.get() else {
+                return false;
+            };
             if parent == node_id {
                 return true;
             }
@@ -560,7 +562,7 @@ fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rec
     let styles = layout.styles();
     let fragment_bounds = layout.span_fragments().iter().filter_map(|fragment| {
         let style = styles.get(fragment.style_index as usize)?;
-        let decorations = &style.box_decorations;
+        let decorations = style.box_decorations.as_deref()?;
         let has_padding_or_border = decorations.padding_inline_start > 0.0
             || decorations.padding_inline_end > 0.0
             || decorations.padding_block_start > 0.0
@@ -620,7 +622,7 @@ fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rec
 /// when the text was not laid out (whitespace-only, or collapsed away).
 fn text_node_rect(doc: &BaseDocument, node: &Node) -> Option<Rect> {
     // Anonymous blocks wrap loose text and are only on the layout chain.
-    let mut cur = node.layout_parent.get().or(node.parent);
+    let mut cur = node.layout_parent.get().or(node.parent.get());
     let mut inline_root = None;
     for _ in 0..512 {
         let n = doc.get_node(cur?)?;
@@ -628,17 +630,17 @@ fn text_node_rect(doc: &BaseDocument, node: &Node) -> Option<Rect> {
             inline_root = Some(n);
             break;
         }
-        cur = n.layout_parent.get().or(n.parent);
+        cur = n.layout_parent.get().or(n.parent.get());
     }
     let inline_root = inline_root?;
-    let inline = inline_root.element_data()?.inline_layout_data.as_ref()?;
+    let inline = inline_root.element_data()?.inline_layout_data()?;
     let range = inline
-        .node_ranges
+        .node_ranges(node.tree())
         .iter()
         .find(|(id, _)| *id == node.id)?
         .1
         .clone();
-    let layout = &inline.layout;
+    let layout = inline.layout(node.tree());
     let scale = layout.scale();
     if !scale.is_finite() || scale <= 0.0 {
         return None;
@@ -739,21 +741,21 @@ fn svg_canvas_bbox(
 fn svg_descendant_rect_for_node(doc: &BaseDocument, node_id: NodeId) -> Option<Rect> {
     let node = doc.get_node(node_id)?;
     let elem = node.element_data()?;
-    if elem.name.ns != ns!(svg) {
+    if *elem.namespace() != ns!(svg) {
         return None;
     }
     let mut host: Option<&Node> = None;
-    let mut cur = node.parent;
+    let mut cur = node.parent.get();
     while let Some(pid) = cur {
         let p = doc.get_node(pid)?;
         let Some(pel) = p.element_data() else { break };
-        if pel.name.ns != ns!(svg) {
+        if *pel.namespace() != ns!(svg) {
             break;
         }
         if pel.svg_image_data().is_some() {
             host = Some(p);
         }
-        cur = p.parent;
+        cur = p.parent.get();
     }
     let host = host?;
     let host_layout = host.final_layout();
@@ -1079,7 +1081,7 @@ impl DomHandle {
                     if n.is_element() && no_box(*n.display_constructed_as()) {
                         return false;
                     }
-                    cur = n.parent;
+                    cur = n.parent.get();
                 }
                 true
             };
@@ -1121,7 +1123,7 @@ impl DomHandle {
                 None
             } else {
                 let mut found = None;
-                let mut cur = node.parent;
+                let mut cur = node.parent.get();
                 while let Some(pid) = cur {
                     let Some(p) = doc.get_node(pid) else { break };
                     if p.is_element() && generates_box(p) {
@@ -1137,7 +1139,7 @@ impl DomHandle {
                             break;
                         }
                     }
-                    cur = p.parent;
+                    cur = p.parent.get();
                 }
                 found
             };

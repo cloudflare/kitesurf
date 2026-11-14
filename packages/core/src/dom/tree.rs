@@ -24,7 +24,7 @@ fn find_html_title(doc: &BaseDocument) -> Option<&Node> {
             continue;
         };
         if let Some(el) = node.element_data() {
-            if el.name.local == local_name!("title") && el.name.ns == ns!(html) {
+            if el.name.local == local_name!("title") && *el.namespace() == ns!(html) {
                 return Some(node);
             }
         }
@@ -36,7 +36,7 @@ fn find_html_title(doc: &BaseDocument) -> Option<&Node> {
 fn find_title<'a>(doc: &'a BaseDocument) -> Option<&'a Node> {
     let is = |n: &Node, local: LocalName, ns: Namespace| {
         n.element_data()
-            .is_some_and(|el| el.name.local == local && el.name.ns == ns)
+            .is_some_and(|el| el.name.local == local && *el.namespace() == ns)
     };
     let elements = |n: &Node| -> Vec<&'a Node> {
         n.children
@@ -152,7 +152,7 @@ pub(crate) fn generates_box(doc: &BaseDocument, node: &Node) -> bool {
     if node.id == root_id {
         return true;
     }
-    let mut cur = node.parent;
+    let mut cur = node.parent.get();
     while let Some(pid) = cur {
         let Some(p) = doc.get_node(pid) else { break };
         if p.is_element() && no_box(*p.display_constructed_as()) {
@@ -161,7 +161,7 @@ pub(crate) fn generates_box(doc: &BaseDocument, node: &Node) -> bool {
         if pid == root_id {
             return true;
         }
-        cur = p.parent;
+        cur = p.parent.get();
     }
     false
 }
@@ -226,7 +226,7 @@ fn write_node_open<'a>(
             if emit_synth_checked {
                 out.push_str(" checked=\"\"");
             }
-            for Attribute { name, value } in data.attrs.iter() {
+            for Attribute { name, value, .. } in data.attrs.iter() {
                 if suppress_attr_checked && &*name.local == "checked" {
                     continue;
                 }
@@ -657,7 +657,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return -1,
         };
-        match doc.get_node(internal_id).and_then(|n| n.parent) {
+        match doc.get_node(internal_id).and_then(|n| n.parent.get()) {
             Some(p) => self.external_node_id_i32(p),
             None => -1,
         }
@@ -682,7 +682,7 @@ impl DomHandle {
             if cur == ancestor {
                 return true;
             }
-            match doc.get_node(cur).and_then(|n| n.parent) {
+            match doc.get_node(cur).and_then(|n| n.parent.get()) {
                 Some(p) if p != cur => cur = p,
                 _ => return false,
             }

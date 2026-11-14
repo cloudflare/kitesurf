@@ -1,0 +1,179 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 28 Oct 2026 14:42:04 +0000
+Subject: [PATCH] Shape outside list markers when painted instead of keeping
+ them
+
+Every list item with an outside marker kept a shaped and broken layout
+of its bullet or number, though only paint reads it. Items now record
+the scale, and paint shapes the marker from the item's style with the
+contexts that rebuild evicted text. Paint output is unchanged.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/layout/list.rs  | 60 +++++++++++++++++++++++----------------------
+ src/node/element.rs |  7 ++++--
+ src/node/mod.rs     |  1 +
+ src/node/text.rs    | 18 +++++++++++---
+ 4 files changed, 51 insertions(+), 35 deletions(-)
+
+diff --git a/src/layout/list.rs b/src/layout/list.rs
+index 3d35dda..4ec047b 100644
+--- a/src/layout/list.rs
++++ b/src/layout/list.rs
+@@ -7,9 +7,9 @@ use style::{
+ };
+
+ use crate::{
+-    BaseDocument,
++    BaseDocument, NodeTree,
+     layout::counters::format_counter,
+-    node::{ListItemLayout, ListItemLayoutPosition, Marker},
++    node::{ListItemLayout, ListItemLayoutPosition, Marker, TextBrush, with_rebuild_contexts},
+     stylo_to_parley,
+ };
+
+@@ -80,45 +80,47 @@ fn node_list_item_child(
+     };
+
+     let styles = node.primary_styles().unwrap();
+-    let list_style_type = styles.clone_list_style_type();
+-    let list_style_position = styles.clone_list_style_position();
+-    let marker = marker_for_style(list_style_type.clone(), value)?;
+-
+-    let position = match list_style_position {
++    let marker = marker_for_style(styles.clone_list_style_type(), value)?;
++    let position = match styles.clone_list_style_position() {
+         ListStylePosition::Inside => ListItemLayoutPosition::Inside,
+-        ListStylePosition::Outside => {
+-            let mut parley_style = stylo_to_parley::style(child_id, &styles);
+-
+-            if let Some(font_family) = font_for_bullet_style(list_style_type) {
+-                parley_style.font_family = font_family;
+-            }
++        ListStylePosition::Outside => ListItemLayoutPosition::Outside {
++            scale: doc.viewport.scale(),
++        },
++    };
+
+-            // Create a parley tree builder
+-            let mut font_ctx = doc.font_ctx.lock().unwrap();
+-            let mut builder = doc.layout_ctx.tree_builder(
+-                &mut font_ctx,
+-                doc.viewport.scale(),
+-                true,
+-                &parley_style,
+-            );
++    Some(ListItemLayout { marker, position })
++}
+
+-            match &marker {
++impl ListItemLayout {
++    /// The marker of the outside list item `node_id`, shaped and broken from its style.
++    pub fn outside_marker_layout(
++        &self,
++        nodes: &NodeTree,
++        node_id: NodeId,
++    ) -> Option<parley::Layout<TextBrush>> {
++        let ListItemLayoutPosition::Outside { scale } = self.position else {
++            return None;
++        };
++        let styles = nodes[node_id].primary_styles()?;
++        let mut parley_style = stylo_to_parley::style(node_id, &styles);
++        if let Some(font_family) = font_for_bullet_style(styles.clone_list_style_type()) {
++            parley_style.font_family = font_family;
++        }
++        Some(with_rebuild_contexts(nodes, |layout_ctx, font_ctx| {
++            let mut builder = layout_ctx.tree_builder(font_ctx, scale, true, &parley_style);
++            match &self.marker {
+                 Marker::Char(char) => {
+                     let mut buf = [0u8; 4];
+                     builder.push_text(char.encode_utf8(&mut buf));
+                 }
+                 Marker::String(str) => builder.push_text(str),
+             };
+-
+             let mut layout = builder.build().0;
+             let width = layout.calculate_content_widths().max;
+             layout.break_all_lines(Some(width));
+-
+-            ListItemLayoutPosition::Outside(Box::new(layout))
+-        }
+-    };
+-
+-    Some(ListItemLayout { marker, position })
++            layout
++        }))
++    }
+ }
+
+ // Determine the marker to render for a given list style type and the
+diff --git a/src/node/element.rs b/src/node/element.rs
+index 1bdb177..a31c7ad 100644
+--- a/src/node/element.rs
++++ b/src/node/element.rs
+@@ -31,7 +31,7 @@ use super::{Attribute, Attributes, OptNodeId};
+ use blitz_traits::node_id::NodeId;
+ use crate::Document;
+ use crate::layout::table::TableContext;
+-use crate::node::{TextBrush, TextInputData, TextLayout};
++use crate::node::{TextInputData, TextLayout};
+
+ #[cfg(feature = "custom-widget")]
+ use super::custom_widget::CustomWidgetData;
+@@ -1414,7 +1414,10 @@ pub enum Marker {
+ #[derive(Clone)]
+ pub enum ListItemLayoutPosition {
+     Inside,
+-    Outside(Box<parley::Layout<TextBrush>>),
++    /// A separate box shaped at `scale` when painted, by
++    /// [`ListItemLayout::outside_marker_layout`]: a page holds many list items, and a
++    /// kept layout costs about a kilobyte each.
++    Outside { scale: f32 },
+ }
+
+ impl std::fmt::Debug for ListItemLayout {
+diff --git a/src/node/mod.rs b/src/node/mod.rs
+index 05146a7..5e81524 100644
+--- a/src/node/mod.rs
++++ b/src/node/mod.rs
+@@ -33,4 +33,5 @@ pub use text::{
+ };
+ pub(crate) use text::{
+     EvictedBreak, EvictedLayout, EvictedSummary, InlineRebuild, SummaryCell, count_inline_summary,
++    with_rebuild_contexts,
+ };
+diff --git a/src/node/text.rs b/src/node/text.rs
+index 83ce847..97167e8 100644
+--- a/src/node/text.rs
++++ b/src/node/text.rs
+@@ -512,15 +512,25 @@ impl TextLayout {
+     }
+ }
+
++/// Lends the contexts that rebuild text outside a layout pass, which has only the tree.
++pub(crate) fn with_rebuild_contexts<R>(
++    nodes: &crate::NodeTree,
++    f: impl FnOnce(&mut LayoutContext<TextBrush>, &mut FontContext) -> R,
++) -> R {
++    REBUILD_LAYOUT_CTX.with(|layout_ctx| {
++        let mut font_ctx = nodes.inline_rebuild.font_ctx.lock().unwrap();
++        f(&mut layout_ctx.borrow_mut(), &mut font_ctx)
++    })
++}
++
+ fn rebuild_evicted_layout(nodes: &crate::NodeTree, evicted: &EvictedLayout) -> Box<Built> {
+     REBUILD_COUNT.with(|count| count.set(count.get() + 1));
+     let mut scratch = TextLayout::unfilled();
+-    REBUILD_LAYOUT_CTX.with(|layout_ctx| {
+-        let mut font_ctx = nodes.inline_rebuild.font_ctx.lock().unwrap();
++    with_rebuild_contexts(nodes, |layout_ctx, font_ctx| {
+         crate::layout::construct::build_inline_layout_into(
+             nodes,
+-            &mut layout_ctx.borrow_mut(),
+-            &mut font_ctx,
++            layout_ctx,
++            font_ctx,
+             &mut scratch,
+             evicted.scale,
+             evicted.node_id,

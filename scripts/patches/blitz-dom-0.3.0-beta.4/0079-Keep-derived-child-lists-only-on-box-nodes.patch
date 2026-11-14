@@ -1,0 +1,565 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sun, 25 Oct 2026 09:57:41 +0000
+Subject: [PATCH] Keep derived child lists only on box nodes
+
+Text, comment and shadow-root nodes never own layout or paint child
+lists. Keep those independently borrowed lists in storage that only box
+nodes allocate, and read them through node accessors. On wasm32 this
+shrinks Node from 68 to 52 bytes and its slot from 72 to 56 bytes.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/debug.rs             |  4 +-
+ src/document.rs          | 12 +++---
+ src/layout/construct.rs  |  2 +-
+ src/layout/inline.rs     |  2 +-
+ src/layout/mod.rs        | 28 ++++---------
+ src/layout/paint_tree.rs | 12 +++---
+ src/node/element.rs      |  5 +++
+ src/node/node.rs         | 88 ++++++++++++++++++++++++++++++++++++----
+ src/resolve.rs           | 23 +++++------
+ src/traversal.rs         |  6 +--
+ 10 files changed, 123 insertions(+), 59 deletions(-)
+
+diff --git a/src/debug.rs b/src/debug.rs
+index d5b3e98..43a3d02 100644
+--- a/src/debug.rs
++++ b/src/debug.rs
+@@ -128,7 +128,7 @@ impl BaseDocument {
+
+         println!("Layout Parent: {:?}", node.layout_parent.get());
+
+-        let layout_children: Option<Vec<_>> = node.layout_children.borrow().as_ref().map(|lc| {
++        let layout_children: Option<Vec<_>> = node.layout_children().as_ref().map(|lc| {
+             lc.iter()
+                 .map(|id| &self.nodes[*id])
+                 .map(|node| (node.id, node.order(), node.node_debug_str()))
+@@ -138,7 +138,7 @@ impl BaseDocument {
+             println!("Layout Children: {layout_children:?}");
+         }
+
+-        let paint_children: Option<Vec<_>> = node.paint_children.borrow().as_ref().map(|lc| {
++        let paint_children: Option<Vec<_>> = node.paint_children().as_ref().map(|lc| {
+             lc.iter()
+                 .map(|id| &self.nodes[*id])
+                 .map(|node| (node.id, node.order(), node.node_debug_str()))
+diff --git a/src/document.rs b/src/document.rs
+index d8832f3..dab8668 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -1352,7 +1352,9 @@ impl BaseDocument {
+             .get(node_id)
+             .map(|node| {
+                 let mut ids = node.children.to_vec();
+-                ids.extend(node.layout_children.borrow().iter().flatten().copied());
++                if let Some(children) = node.layout_children() {
++                    ids.extend(children.iter().copied());
++                }
+                 ids
+             })
+             .unwrap_or_default();
+@@ -3932,7 +3934,7 @@ impl BaseDocument {
+             return (Some(parent_id), None);
+         };
+
+-        let layout_children = parent.layout_children.borrow();
++        let layout_children = parent.layout_children();
+         let Some(children) = layout_children.as_ref() else {
+             return (Some(parent_id), None);
+         };
+@@ -4126,7 +4128,7 @@ impl BaseDocument {
+         target_index: usize,
+     ) -> Option<NodeId> {
+         let parent = self.get_node(parent_id)?;
+-        let layout_children = parent.layout_children.borrow();
++        let layout_children = parent.layout_children();
+         let children = layout_children.as_ref()?;
+
+         children
+@@ -5306,7 +5308,7 @@ mod display_none_retention_tests {
+             let node = &mut doc.nodes[id];
+             assert!(node.primary_styles().is_none(), "{id} kept styles");
+             assert!(node.try_layout_data_mut().is_none(), "{id} kept layout data");
+-            assert!(node.layout_children.borrow().is_none(), "{id} has layout children");
++            assert!(node.layout_children().is_none(), "{id} has layout children");
+         }
+         assert!(doc.resolve_undisplayed_style(p).is_some());
+         assert!(doc.nodes[p].primary_styles().is_none(), "on-demand style was stored");
+@@ -5356,7 +5358,7 @@ mod display_none_retention_tests {
+         let state = |doc: &mut BaseDocument, id: NodeId| {
+             let node = &mut doc.nodes[id];
+             let styled = node.primary_styles().is_some();
+-            let children = node.layout_children.borrow().is_some();
++            let children = node.layout_children().is_some();
+             let inline = node.element_data().is_some_and(|e| e.inline_layout_data().is_some());
+             let layout = node.try_layout_data_mut().is_some();
+             (styled, children, inline, layout)
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index 77bf35e..0d07834 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -1795,7 +1795,7 @@ pub(crate) fn find_inline_layout_embedded_boxes(
+         for anon_id in anonymous_blocks {
+             doc.deallocate_anonymous_block(anon_id);
+         }
+-        doc.nodes[node_id].layout_children.get_mut().take();
++        doc.nodes[node_id].take_layout_children();
+     }
+ }
+
+diff --git a/src/layout/inline.rs b/src/layout/inline.rs
+index 684a9b2..95e7df8 100644
+--- a/src/layout/inline.rs
++++ b/src/layout/inline.rs
+@@ -1407,7 +1407,7 @@ impl LayoutPassState<'_> {
+         // did not get a candidate above is offered to the out-of-flow
+         // pass with its static position at the start of the content box.
+         let missing_oof: Vec<NodeId> = {
+-            let lc = self.nodes[node_id].layout_children.borrow();
++            let lc = self.nodes[node_id].layout_children();
+             lc.as_deref()
+                 .map(|children| {
+                     children
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 31ee407..d1b40fe 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -645,16 +645,12 @@ impl TraversePartialTree for LayoutPassState<'_> {
+         Self: 'a;
+
+     fn child_ids(&self, node_id: NodeId) -> Self::ChildIter<'_> {
+-        let layout_children = self.node_from_id(node_id).layout_children.borrow(); //.unwrap().as_ref();
+-        RefCellChildIter::new(Ref::map(layout_children, |children| {
+-            children.as_ref().map(|c| c.as_slice()).unwrap_or(&[])
+-        }))
++        RefCellChildIter::new(self.node_from_id(node_id).layout_children())
+     }
+
+     fn child_count(&self, node_id: NodeId) -> usize {
+         self.node_from_id(node_id)
+-            .layout_children
+-            .borrow()
++            .layout_children()
+             .as_ref()
+             .map(|c| c.len())
+             .unwrap_or(0)
+@@ -663,8 +659,7 @@ impl TraversePartialTree for LayoutPassState<'_> {
+     fn get_child_id(&self, node_id: NodeId, index: usize) -> NodeId {
+         taffy_node_id(
+             self.node_from_id(node_id)
+-                .layout_children
+-                .borrow()
++                .layout_children()
+                 .as_ref()
+                 .unwrap()[index],
+         )
+@@ -1013,16 +1008,12 @@ impl TraversePartialTree for TaffyDebugTree<'_> {
+         Self: 'a;
+
+     fn child_ids(&self, node_id: NodeId) -> Self::ChildIter<'_> {
+-        let layout_children = self.node_from_id(node_id).layout_children.borrow();
+-        RefCellChildIter::new(Ref::map(layout_children, |children| {
+-            children.as_ref().map(|c| c.as_slice()).unwrap_or(&[])
+-        }))
++        RefCellChildIter::new(self.node_from_id(node_id).layout_children())
+     }
+
+     fn child_count(&self, node_id: NodeId) -> usize {
+         self.node_from_id(node_id)
+-            .layout_children
+-            .borrow()
++            .layout_children()
+             .as_ref()
+             .map(|c| c.len())
+             .unwrap_or(0)
+@@ -1031,8 +1022,7 @@ impl TraversePartialTree for TaffyDebugTree<'_> {
+     fn get_child_id(&self, node_id: NodeId, index: usize) -> NodeId {
+         taffy_node_id(
+             self.node_from_id(node_id)
+-                .layout_children
+-                .borrow()
++                .layout_children()
+                 .as_ref()
+                 .unwrap()[index],
+         )
+@@ -1083,11 +1073,11 @@ impl PrintTree for TaffyDebugTree<'_> {
+ // }
+
+ pub struct RefCellChildIter<'a> {
+-    items: Ref<'a, [crate::NodeId]>,
++    items: Option<Ref<'a, thin_vec::ThinVec<crate::NodeId>>>,
+     idx: usize,
+ }
+ impl<'a> RefCellChildIter<'a> {
+-    fn new(items: Ref<'a, [crate::NodeId]>) -> RefCellChildIter<'a> {
++    fn new(items: Option<Ref<'a, thin_vec::ThinVec<crate::NodeId>>>) -> RefCellChildIter<'a> {
+         RefCellChildIter { items, idx: 0 }
+     }
+ }
+@@ -1095,7 +1085,7 @@ impl<'a> RefCellChildIter<'a> {
+ impl Iterator for RefCellChildIter<'_> {
+     type Item = NodeId;
+     fn next(&mut self) -> Option<Self::Item> {
+-        self.items.get(self.idx).map(|id| {
++        self.items.as_ref()?.get(self.idx).map(|id| {
+             self.idx += 1;
+             taffy_node_id(*id)
+         })
+diff --git a/src/layout/paint_tree.rs b/src/layout/paint_tree.rs
+index 81ed44a..22353e4 100644
+--- a/src/layout/paint_tree.rs
++++ b/src/layout/paint_tree.rs
+@@ -283,7 +283,7 @@ impl BaseDocument {
+         };
+
+         self.nodes[node_id].clear_rehomed_paint_children();
+-        let children = self.nodes[node_id].layout_children.borrow_mut().take();
++        let children = self.nodes[node_id].take_layout_children();
+         if let Some(mut children) = children {
+             // Anonymous blocks and pseudo-elements can be removed from the
+             // slab between resolve and this paint-tree pass; drop stale ids
+@@ -336,9 +336,7 @@ impl BaseDocument {
+             let mut next_hoisted = 0;
+
+             let mut paint_children = self.nodes[node_id]
+-                .paint_children
+-                .borrow_mut()
+-                .take()
++                .take_paint_children()
+                 .unwrap_or_default();
+             paint_children.clear();
+             paint_children.reserve(children.len() + hoisted_past_parent.len());
+@@ -400,8 +398,8 @@ impl BaseDocument {
+                 .sort_by_cached_key(|id| node_to_paint_order(&self.nodes[*id], is_flex_or_grid));
+
+             let node = &self.nodes[node_id];
+-            *node.paint_children.borrow_mut() = Some(paint_children);
+-            *node.layout_children.borrow_mut() = Some(children);
++            node.set_paint_children(Some(paint_children));
++            node.set_layout_children(Some(children));
+         }
+
+         let node = &mut self.nodes[node_id];
+@@ -611,7 +609,7 @@ fn is_positioned_only_wrapper(node: &Node, depth: u8) -> bool {
+     if paints_itself || border.left > 0.0 || border.right > 0.0 || border.top > 0.0 || border.bottom > 0.0 {
+         return false;
+     }
+-    let children = node.paint_children.borrow();
++    let children = node.paint_children();
+     let Some(children) = children.as_ref().filter(|c| !c.is_empty()) else {
+         return false;
+     };
+diff --git a/src/node/element.rs b/src/node/element.rs
+index 603d48c..1bdb177 100644
+--- a/src/node/element.rs
++++ b/src/node/element.rs
+@@ -91,6 +91,7 @@ pub struct ElementData {
+     pub display_constructed_as: StyloDisplay,
+     /// Layout output state (`None` until layout first writes to this node).
+     pub layout_data: Option<Box<LayoutData>>,
++    pub(crate) child_lists: super::node::LayoutChildLists,
+ }
+
+ /// Taffy layout output state (cache, layouts, scroll offset and overflow).
+@@ -606,6 +607,7 @@ impl DocumentData {
+ /// carries the same style/layout fields that were previously stored directly on
+ /// [`Node`](super::Node).
+ pub struct DocumentData {
++    pub(crate) child_lists: super::node::LayoutChildLists,
+     pub stylo_element_data: StyloData,
+     /// Selector flags deposited here by `apply_selector_flags` when a
+     /// `for_parent()` flag is applied while matching the root `<html>` element,
+@@ -643,6 +645,7 @@ impl std::fmt::Debug for DocumentData {
+ impl DocumentData {
+     pub fn new() -> Self {
+         Self {
++            child_lists: Default::default(),
+             stylo_element_data: Default::default(),
+             selector_flags: SelectorFlagsCell::default(),
+             dirty_descendants: AtomicBool::new(true),
+@@ -723,6 +726,7 @@ impl Clone for ElementData {
+             }),
+
+             // Runtime state: reset to defaults.
++            child_lists: Default::default(),
+             stylo_element_data: Default::default(),
+             selector_flags: SelectorFlagsCell::default(),
+             element_state: self.element_state,
+@@ -842,6 +846,7 @@ impl ElementData {
+             None => NameNs::Other,
+         };
+         let mut data = ElementData {
++            child_lists: Default::default(),
+             name: ElementName { local },
+             bits: ElementBits::new(name_ns),
+             id: id_attr_atom,
+diff --git a/src/node/node.rs b/src/node/node.rs
+index a2a8d75..c2c517e 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -174,6 +174,34 @@ impl NodeIdCell {
+ mod compact_node_tests {
+     use super::*;
+
++    #[test]
++    fn box_child_lists_preserve_empty_state_and_reset_on_clone() {
++        let mut doc = crate::BaseDocument::new(Default::default());
++        let element = doc.mutate().create_element(crate::qual_name!("div"), vec![]);
++        let text = doc.create_text_node("text");
++        let node = &doc.nodes[element];
++        assert!(node.layout_children().is_none());
++        node.set_layout_children(Some(ThinVec::new()));
++        node.set_paint_children(Some([text].into_iter().collect()));
++        let layout = node.layout_children().unwrap();
++        let paint = node.paint_children().unwrap();
++        assert_eq!(layout.len(), 0);
++        assert_eq!(&paint[..], &[text]);
++        drop(paint);
++        drop(layout);
++
++        let clone = doc.deep_clone_node(element);
++        assert!(doc.nodes[clone].layout_children().is_none());
++        assert!(doc.nodes[clone].paint_children().is_none());
++        assert_eq!(doc.nodes[element].take_layout_children(), Some(ThinVec::new()));
++        assert_eq!(doc.nodes[element].take_layout_children(), None);
++        assert!(doc.nodes[text].layout_children().is_none());
++        assert!(doc.nodes[text].paint_children().is_none());
++        doc.nodes[text].take_layout_children();
++        doc.nodes[text].take_paint_children();
++        assert!(doc.nodes[text].rare.get().is_none());
++    }
++
+     #[test]
+     fn laying_out_in_flow_boxes_keeps_rare_storage_cold() {
+         use crate::{Attribute, DocumentConfig, qual_name};
+@@ -345,6 +373,12 @@ struct NodeRare {
+     anonymous_blocks: ThinVec<NodeId>,
+ }
+
++#[derive(Default)]
++pub(crate) struct LayoutChildLists {
++    layout: RefCell<Option<ThinVec<NodeId>>>,
++    paint: RefCell<Option<ThinVec<NodeId>>>,
++}
++
+ pub struct Node {
+     // The actual tree we belong to. This is unsafe!!
+     tree: *mut crate::NodeTree,
+@@ -358,11 +392,6 @@ pub struct Node {
+
+     /// Our parent in the layout hierachy: a separate list that includes anonymous collections of inline elements
+     pub layout_parent: NodeIdCell,
+-    /// A separate child list that includes anonymous collections of inline elements
+-    pub layout_children: RefCell<Option<ThinVec<NodeId>>>,
+-    /// The same as layout_children, but sorted by z-index
+-    pub paint_children: RefCell<Option<ThinVec<NodeId>>>,
+-
+     /// Sparse shadow, out-of-flow, and paint bookkeeping.
+     rare: OnceCell<Box<NodeRare>>,
+
+@@ -425,6 +454,47 @@ universal_accessors! {
+ }
+
+ impl Node {
++    fn child_lists(&self) -> Option<&LayoutChildLists> {
++        match &self.data {
++            NodeData::Element(data) | NodeData::AnonymousBlock(data) => Some(&data.child_lists),
++            NodeData::Document(data) => Some(&data.child_lists),
++            _ => None,
++        }
++    }
++
++    /// Derived box children do not exist on text, comment or shadow-root nodes.
++    pub fn layout_children(&self) -> Option<Ref<'_, ThinVec<NodeId>>> {
++        Ref::filter_map(self.child_lists()?.layout.borrow(), |children| children.as_ref()).ok()
++    }
++
++    pub fn paint_children(&self) -> Option<Ref<'_, ThinVec<NodeId>>> {
++        Ref::filter_map(self.child_lists()?.paint.borrow(), |children| children.as_ref()).ok()
++    }
++
++    pub fn take_layout_children(&self) -> Option<ThinVec<NodeId>> {
++        self.child_lists()?.layout.borrow_mut().take()
++    }
++
++    pub fn take_paint_children(&self) -> Option<ThinVec<NodeId>> {
++        self.child_lists()?.paint.borrow_mut().take()
++    }
++
++    pub fn set_layout_children(&self, children: Option<ThinVec<NodeId>>) {
++        if let Some(lists) = self.child_lists() {
++            *lists.layout.borrow_mut() = children;
++        } else {
++            assert!(children.is_none(), "only box nodes have layout children");
++        }
++    }
++
++    pub fn set_paint_children(&self, children: Option<ThinVec<NodeId>>) {
++        if let Some(lists) = self.child_lists() {
++            *lists.paint.borrow_mut() = children;
++        } else {
++            assert!(children.is_none(), "only box nodes have paint children");
++        }
++    }
++
+     fn rare(&self) -> &NodeRare {
+         self.rare.get_or_init(|| Box::new(NodeRare::default()))
+     }
+@@ -879,8 +949,6 @@ impl Node {
+             parent: OptNodeId::default(),
+             children: ThinVec::new(),
+             layout_parent: NodeIdCell::new(None),
+-            layout_children: RefCell::new(None),
+-            paint_children: RefCell::new(None),
+             rare: OnceCell::new(),
+
+             flags: NodeFlags::empty(),
+@@ -2337,7 +2405,8 @@ impl Node {
+         }
+
+         // Call `.hit()` on each child in turn. If any return `Some` then return that value. Else return `Some(self.id).
+-        for child_id in self.paint_children.borrow().iter().flatten().rev() {
++        let paint_children = self.paint_children();
++        for child_id in paint_children.iter().flat_map(|children| children.iter()).rev() {
+             let child = self.with(*child_id);
+             let child_position = child.taffy_position();
+             let mut child_x = x;
+@@ -2374,6 +2443,7 @@ impl Node {
+                 return Some(hit);
+             }
+         }
++        drop(paint_children);
+
+         // Negative z_index hoisted children
+         if matches_hoisted_content {
+@@ -2831,7 +2901,7 @@ impl std::fmt::Debug for Node {
+             .field("id", &self.id)
+             .field("is_inline_root", &self.flags.is_inline_root())
+             .field("children", &self.children)
+-            .field("layout_children", &self.layout_children.borrow())
++            .field("layout_children", &self.layout_children())
+             // .field("style", &self.style)
+             .field("node", &self.data)
+             .field("stylo_element_data", &self.try_stylo_element_data())
+diff --git a/src/resolve.rs b/src/resolve.rs
+index d3c2102..a7c33ff 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -394,7 +394,7 @@ impl BaseDocument {
+         let h = self.nodes[node_id].final_layout().size.height as f64 * scale;
+         let mut overflow = Rect::new(0.0, 0.0, w, h);
+
+-        let layout_children = std::mem::take(self.nodes[node_id].layout_children.get_mut());
++        let layout_children = self.nodes[node_id].take_layout_children();
+
+         if let Some(ref children) = layout_children {
+             for &child_id in children {
+@@ -427,7 +427,7 @@ impl BaseDocument {
+         }
+
+         *self.nodes[node_id].scrollable_overflow_mut() = overflow;
+-        *self.nodes[node_id].layout_children.get_mut() = layout_children;
++        self.nodes[node_id].set_layout_children(layout_children);
+
+         let scaled_x = self.nodes[node_id].final_layout().location.x as f64 * scale;
+         let scaled_y = self.nodes[node_id].final_layout().location.y as f64 * scale;
+@@ -591,7 +591,7 @@ impl BaseDocument {
+                     && !node.has_damaged_descendants()
+                     && !node.is_anonymous()
+                     && node.attached_shadow_root_id().is_none()
+-                    && node.layout_children.borrow().is_some()
++                    && node.layout_children().is_some()
+                 {
+                     return;
+                 }
+@@ -607,7 +607,7 @@ impl BaseDocument {
+             // panics) leaves it None forever. Without this the
+             // whole page silently resolves to zero height on the next pass.
+             let ks_gate_open = damage.intersects(CONSTRUCT_FC | CONSTRUCT_BOX)
+-                || doc.nodes[node_id].layout_children.borrow().is_none();
++                || doc.nodes[node_id].layout_children().is_none();
+             if ks_gate_open {
+                 //} || flags.contains(NodeFlags::IS_INLINE_ROOT) {
+
+@@ -653,14 +653,13 @@ impl BaseDocument {
+                     }
+                 }
+
+-                *doc.nodes[node_id].layout_children.borrow_mut() = Some(layout_children.clone());
+-                // *doc.nodes[node_id].paint_children.borrow_mut() = Some(layout_children);
++                doc.nodes[node_id].set_layout_children(Some(layout_children.clone()));
+
+                 damage.remove(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
+                 // damage.insert(RestyleDamage::RELAYOUT | RestyleDamage::REPAINT);
+             } else {
+                 //if damage.contains(CONSTRUCT_DESCENDENT) {
+-                let layout_children = doc.nodes[node_id].layout_children.borrow_mut().take();
++                let layout_children = doc.nodes[node_id].take_layout_children();
+                 if let Some(layout_children) = layout_children {
+                     for child_id in layout_children.iter().copied() {
+                         // Anonymous blocks and pseudo-elements can be removed from the
+@@ -672,7 +671,7 @@ impl BaseDocument {
+                         doc.nodes[child_id].layout_parent.set(Some(node_id));
+                     }
+
+-                    *doc.nodes[node_id].layout_children.borrow_mut() = Some(layout_children);
++                    doc.nodes[node_id].set_layout_children(Some(layout_children));
+                 }
+
+                 // damage.remove(CONSTRUCT_DESCENDENT);
+@@ -695,8 +694,8 @@ impl BaseDocument {
+             };
+             let is_root = id == root_id;
+             let anonymous_blocks = node.take_anonymous_blocks();
+-            node.layout_children.get_mut().take();
+-            node.paint_children.get_mut().take();
++            node.take_layout_children();
++            node.take_paint_children();
+             if !is_root {
+                 // The root keeps its own box slot: its container may still list it.
+                 node.layout_parent.set(None);
+@@ -733,10 +732,10 @@ impl BaseDocument {
+             if !node.flags.contains(NodeFlags::IS_IN_DOCUMENT) {
+                 continue;
+             }
+-            let Some(children) = node.layout_children.borrow().clone() else {
++            let Some(children) = node.layout_children() else {
+                 continue;
+             };
+-            for child_id in children {
++            for &child_id in children.iter() {
+                 let Some(child) = self.nodes.get(child_id) else {
+                     panic!("layout child {child_id:?} of {parent_id:?} is not in the slab");
+                 };
+diff --git a/src/traversal.rs b/src/traversal.rs
+index 7dd6dce..5d81829 100644
+--- a/src/traversal.rs
++++ b/src/traversal.rs
+@@ -573,7 +573,7 @@ impl BaseDocument {
+         end: NodeId,
+     ) -> Vec<NodeId> {
+         let parent = &self.nodes[parent_id];
+-        let layout_children = parent.layout_children.borrow();
++        let layout_children = parent.layout_children();
+         let Some(children) = layout_children.as_ref() else {
+             return Vec::new();
+         };
+@@ -603,7 +603,7 @@ impl BaseDocument {
+     /// Recursively collect all inline roots from a node's layout_children subtree
+     fn collect_all_inline_roots_in_subtree(&self, node_id: NodeId, result: &mut Vec<NodeId>) {
+         let node = &self.nodes[node_id];
+-        let layout_children = node.layout_children.borrow();
++        let layout_children = node.layout_children();
+         let Some(children) = layout_children.as_ref() else {
+             return;
+         };
+@@ -630,7 +630,7 @@ impl BaseDocument {
+         result: &mut Vec<NodeId>,
+     ) {
+         let parent = &self.nodes[parent_id];
+-        let layout_children = parent.layout_children.borrow();
++        let layout_children = parent.layout_children();
+         let Some(children) = layout_children.as_ref() else {
+             return;
+         };

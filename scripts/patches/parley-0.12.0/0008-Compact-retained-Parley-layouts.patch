@@ -1,0 +1,554 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sat, 24 Oct 2026 20:57:06 +0100
+Subject: [PATCH] Compact retained Parley layouts
+
+A retained paragraph layout kept growth slack and data most layouts
+never use:
+
+- Style metrics, inline boxes and other buffers drop their growth slack
+  once a layout is built; mostly empty buffers are thin vectors.
+- Laid-out underline and strikethrough decorations are boxed, since few
+  runs have them.
+- Shaped clusters store only the start of their characters, and
+  cluster positions, styles, character ranges and grapheme starts are
+  read through the shaped text instead of being copied per cluster.
+- A build reuses the last resolved font family instead of resolving it
+  again for every run with the same family.
+
+Layout and paint output are unchanged.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ Cargo.toml               |  4 ++++
+ src/builder.rs           | 17 ++++++++++----
+ src/context.rs           |  5 ++--
+ src/layout/data.rs       | 51 +++++++++++++++++++---------------------
+ src/layout/layout.rs     | 33 ++++++++++++--------------
+ src/layout/line_break.rs | 28 ++++++++++------------
+ src/layout/mod.rs        | 15 ++++++------
+ src/layout/run.rs        |  2 +-
+ src/layout/whitespace.rs | 22 +++++++++--------
+ src/resolve/mod.rs       | 38 ++++++++++++++++++++++++++----
+ 10 files changed, 125 insertions(+), 90 deletions(-)
+
+diff --git a/Cargo.toml b/Cargo.toml
+index fc9c001..55e3712 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -104,6 +104,10 @@ default-features = false
+ [dependencies.smallvec]
+ version = "1.16.2"
+
++[dependencies.thin-vec]
++version = "0.2"
++default-features = false
++
+ [dev-dependencies.bytemuck]
+ version = "1.25.2"
+ default-features = false
+diff --git a/src/builder.rs b/src/builder.rs
+index 859673b..31ae435 100644
+--- a/src/builder.rs
++++ b/src/builder.rs
+@@ -454,6 +454,14 @@ fn build_into_layout<B: Brush>(
+     core::mem::swap(&mut layout.data.inline_boxes, &mut lcx.inline_boxes);
+
+     compute_span_edges(layout, lcx);
++
++    // These buffers live with every paragraph; shaping's growth slack does not.
++    layout.data.styles.shrink_to_fit();
++    layout.data.style_metrics.shrink_to_fit();
++    layout.data.inline_boxes.shrink_to_fit();
++    layout.data.runs.shrink_to_fit();
++    layout.data.items.shrink_to_fit();
++    layout.data.shaped_text.shrink_to_fit();
+ }
+
+ /// Computes per-cluster inline advances and span boundaries for
+@@ -516,7 +524,6 @@ fn compute_span_edges<B: Brush>(layout: &mut Layout<B>, lcx: &LayoutContext<B>)
+     }
+
+     let shaped_text = &data.shaped_text;
+-    let characters = shaped_text.characters();
+     let clusters = shaped_text.shaped_clusters();
+
+     // Shaped clusters are stored in logical order, so their
+@@ -527,10 +534,10 @@ fn compute_span_edges<B: Brush>(layout: &mut Layout<B>, lcx: &LayoutContext<B>)
+     let mut style_run_idx = 0;
+     let mut first_last: alloc::vec::Vec<Option<(usize, usize)>> =
+         alloc::vec![None; lcx.style_runs.len()];
+-    for (ci, cluster) in clusters.iter().enumerate() {
+-        let abs = characters[cluster.chars_range().start as usize].text_byte_start as usize;
+-        while style_run_idx < lcx.style_runs.len()
+-            && lcx.style_runs[style_run_idx].range.end <= abs
++    for ci in 0..clusters.len() {
++        let chars_start = shaped_text.cluster_chars_start(ci as u32);
++        let abs = shaped_text.char_byte_range(chars_start).start;
++        while style_run_idx < lcx.style_runs.len() && lcx.style_runs[style_run_idx].range.end <= abs
+         {
+             style_run_idx += 1;
+         }
+diff --git a/src/context.rs b/src/context.rs
+index 9aa2c89..a157311 100644
+--- a/src/context.rs
++++ b/src/context.rs
+@@ -25,7 +25,8 @@ pub struct LayoutContext<B: Brush = [u8; 4]> {
+     pub(crate) rcx: ResolveContext,
+     pub(crate) style_table: Vec<ResolvedStyle<B>>,
+     pub(crate) style_runs: Vec<StyleRun>,
+-    pub(crate) inline_boxes: Vec<LayoutInlineBox>,
++    /// Swapped into each built layout, so it shares the layout's thin vector type.
++    pub(crate) inline_boxes: thin_vec::ThinVec<LayoutInlineBox>,
+
+     // Reusable text analysis
+     pub(crate) analyzer: Analyzer,
+@@ -51,7 +52,7 @@ impl<B: Brush> LayoutContext<B> {
+             rcx: ResolveContext::default(),
+             style_table: vec![],
+             style_runs: vec![],
+-            inline_boxes: vec![],
++            inline_boxes: thin_vec::ThinVec::new(),
+             analyzer: Analyzer::new(),
+             analysis: Analysis::new(),
+             line_break: Vec::new(),
+diff --git a/src/layout/data.rs b/src/layout/data.rs
+index ca07bfd..1f61c55 100644
+--- a/src/layout/data.rs
++++ b/src/layout/data.rs
+@@ -15,6 +15,7 @@ use core::ops::Range;
+
+ use alloc::vec::Vec;
+ use parlance::BidiLevel;
++use thin_vec::ThinVec;
+ use parley_engine::shape::Whitespace;
+ use parley_engine::{Atom, ShapedRun, ShapedSlice, ShapedText};
+
+@@ -284,7 +285,9 @@ pub(crate) struct LayoutData<B: Brush> {
+     // Output of style resolution (input to line breaking)
+     pub(crate) styles: Vec<Style<B>>,
+     pub(crate) style_metrics: Vec<StyleMetrics>,
+-    pub(crate) inline_boxes: Vec<LayoutInlineBox>,
++    // Thin vectors for the buffers most paragraphs leave empty: 4 bytes each instead of 12
++    // on wasm32, retained once per paragraph.
++    pub(crate) inline_boxes: ThinVec<LayoutInlineBox>,
+
+     // Output of shaping (input to line breaking)
+     pub(crate) shaped_text: ShapedText,
+@@ -303,19 +306,19 @@ pub(crate) struct LayoutData<B: Brush> {
+     /// (see `EffectiveSpacing::gaps`), so line breaking, content
+     /// widths, glyph positions and hit-testing all include it
+     /// without the shaped advances changing.
+-    pub(crate) cluster_lead_advance: Vec<f32>,
++    pub(crate) cluster_lead_advance: ThinVec<f32>,
+     /// Per-cluster *trailing* advance contributed by an inline-
+     /// span box decoration that ends at this cluster: the
+     /// `padding_inline_end + border_inline_end_width` of any
+     /// span whose last cluster is this one. Charged as a gap
+     /// visually after the cluster's atom. See
+     /// `cluster_lead_advance`.
+-    pub(crate) cluster_trail_advance: Vec<f32>,
++    pub(crate) cluster_trail_advance: ThinVec<f32>,
+
+     /// Span boundaries for fragment generation, including boundaries whose
+     /// corresponding inline advance is zero.
+-    pub(crate) span_starts: Vec<SpanBoundary>,
+-    pub(crate) span_ends: Vec<SpanBoundary>,
++    pub(crate) span_starts: ThinVec<SpanBoundary>,
++    pub(crate) span_ends: ThinVec<SpanBoundary>,
+
+     /// Per-line inline-span fragment rectangles. Each entry
+     /// describes one rectangle the painter should fill (with
+@@ -339,7 +342,7 @@ pub(crate) struct LayoutData<B: Brush> {
+     ///
+     /// Sorted by `line_index` then `x_start` so the painter can
+     /// iterate per-line in spatial order without an extra sort.
+-    pub(crate) span_fragments: Vec<SpanFragment>,
++    pub(crate) span_fragments: ThinVec<SpanFragment>,
+
+     // Output of line breaking
+     /// The lines in the
+@@ -350,7 +353,7 @@ pub(crate) struct LayoutData<B: Brush> {
+     /// The root aligned subtree of each line doesn't have an entry as its offset is trivially zero.
+     ///
+     /// Each line owns a contiguous slice ([`LineData::aligned_subtree_offsets`]).
+-    pub(crate) aligned_subtree_offsets: Vec<AlignedSubtreeOffset>,
++    pub(crate) aligned_subtree_offsets: ThinVec<AlignedSubtreeOffset>,
+     /// The width constraint that was used to line break the layout
+     pub(crate) layout_max_advance: f32,
+     /// The computed width of the layout excluding hanging whitespace
+@@ -382,18 +385,18 @@ impl<B: Brush> Default for LayoutData<B> {
+             height: 0.,
+             styles: Vec::new(),
+             style_metrics: Vec::new(),
+-            inline_boxes: Vec::new(),
++            inline_boxes: ThinVec::new(),
+             shaped_text: ShapedText::new(),
+             runs: Vec::new(),
+             items: Vec::new(),
+-            cluster_lead_advance: Vec::new(),
+-            cluster_trail_advance: Vec::new(),
+-            span_starts: Vec::new(),
+-            span_ends: Vec::new(),
+-            span_fragments: Vec::new(),
++            cluster_lead_advance: ThinVec::new(),
++            cluster_trail_advance: ThinVec::new(),
++            span_starts: ThinVec::new(),
++            span_ends: ThinVec::new(),
++            span_fragments: ThinVec::new(),
+             lines: Vec::new(),
+             line_items: Vec::new(),
+-            aligned_subtree_offsets: Vec::new(),
++            aligned_subtree_offsets: ThinVec::new(),
+             alignment: None,
+             layout_max_advance: 0.0,
+             indent_amount: 0.0,
+@@ -590,7 +593,7 @@ impl<B: Brush> LayoutData<B> {
+         if !self.has_tabs || cluster.whitespace() != Whitespace::Tab {
+             return spacing.atom_advance(atom);
+         }
+-        let style = &self.styles[cluster.style_index as usize];
++        let style = &self.styles[atom.characters()[0].style_index as usize];
+         style
+             .tab_size
+             .stop_advance(pen, self.runs[run_idx].space_advance)
+@@ -845,9 +848,12 @@ impl ContentWidthsMeasurer {
+         // The spacing gap of the current atom.
+         let mut gap = 0.;
+         let mut skip_atom = false;
+-        for (i, cluster) in clusters.iter().enumerate() {
++        for (cluster_idx, (i, cluster)) in slice
++            .shaped_clusters_range()
++            .zip(clusters.iter().enumerate())
++        {
+             let whitespace = cluster.whitespace();
+-            let style = &styles[cluster.style_index as usize];
++            let style = &styles[slice.cluster_style_index(cluster_idx) as usize];
+             let is_atom_start = i == 0 || cluster.is_grapheme_start();
+             if is_atom_start {
+                 skip_atom = false;
+@@ -910,16 +916,7 @@ impl ContentWidthsMeasurer {
+             // cached flags so the common case never touches `characters`.
+             let hangs = can_hang
+                 && whitespace_hangs(whitespace, style)
+-                && (cluster.char_len() == 1
+-                    || slice
+-                        .characters_in(cluster.chars_range())
+-                        .iter()
+-                        .all(|character| {
+-                            whitespace_hangs(
+-                                character.whitespace,
+-                                &styles[character.style_index as usize],
+-                            )
+-                        }));
++                && cluster_hangs(slice, cluster_idx, styles);
+             if hangs {
+                 self.running_hanging_whitespace += min_advance;
+                 self.running_hanging_whitespace_max += max_advance;
+diff --git a/src/layout/layout.rs b/src/layout/layout.rs
+index 52f2966..9467a8c 100644
+--- a/src/layout/layout.rs
++++ b/src/layout/layout.rs
+@@ -213,30 +213,27 @@ impl<B: Brush> Layout<B> {
+     #[doc(hidden)]
+     pub fn debug_clusters(&self) -> alloc::vec::Vec<(f32, u16, u16, u8)> {
+         let shaped_text = &self.data.shaped_text;
+-        let characters = shaped_text.characters();
+         let clusters = shaped_text.shaped_clusters();
+         shaped_text
+             .runs()
+             .iter()
+             .flat_map(|run| {
+                 let run_start = run.range.byte_range.start;
+-                clusters[run.shaped_clusters_range.start as usize
+-                    ..run.shaped_clusters_range.end as usize]
+-                    .iter()
+-                    .map(move |c| {
+-                        let text_start =
+-                            characters[c.chars_range().start as usize].text_byte_start as usize;
+-                        (
+-                            c.advance,
+-                            (text_start - run_start) as u16,
+-                            c.style_index,
+-                            if c.has_inline_glyph() {
+-                                0xFF
+-                            } else {
+-                                c.glyph_len()
+-                            },
+-                        )
+-                    })
++                run.shaped_clusters_range.clone().map(move |ci| {
++                    let c = &clusters[ci as usize];
++                    let chars_start = shaped_text.cluster_chars_start(ci);
++                    let text_start = shaped_text.char_byte_range(chars_start).start;
++                    (
++                        c.advance,
++                        (text_start - run_start) as u16,
++                        shaped_text.cluster_style_index(ci),
++                        if c.has_inline_glyph() {
++                            0xFF
++                        } else {
++                            c.glyph_len()
++                        },
++                    )
++                })
+             })
+             .collect()
+     }
+diff --git a/src/layout/line_break.rs b/src/layout/line_break.rs
+index fed4347..33d83f2 100644
+--- a/src/layout/line_break.rs
++++ b/src/layout/line_break.rs
+@@ -46,7 +46,7 @@ struct TabAction {
+ struct LineLayout {
+     lines: Vec<LineData>,
+     line_items: Vec<LineItemData>,
+-    aligned_subtree_offsets: Vec<AlignedSubtreeOffset>,
++    aligned_subtree_offsets: thin_vec::ThinVec<AlignedSubtreeOffset>,
+ }
+
+ impl LineLayout {
+@@ -1551,9 +1551,11 @@ impl<'a, B: Brush> BreakLines<'a, B> {
+                 let text = run.range.byte_range.end;
+                 // The empty run carries the style of the newline that produced this line, so the
+                 // line is sized by that style's span box (and its ancestors), not just the strut.
+-                let style_index = self.layout.data.shaped_text.shaped_clusters()
+-                    [cluster as usize - 1]
+-                    .style_index;
++                let style_index = self
++                    .layout
++                    .data
++                    .shaped_text
++                    .cluster_style_index(cluster - 1);
+                 self.state.line.box_metrics.add_text(
+                     index,
+                     index,
+@@ -1848,6 +1850,8 @@ impl<B: Brush> Drop for BreakLines<'_, B> {
+
+         // Save the computed lines to the layout
+         self.lines.swap(&mut self.layout.data);
++        self.layout.data.lines.shrink_to_fit();
++        self.layout.data.line_items.shrink_to_fit();
+     }
+ }
+
+@@ -1924,18 +1928,12 @@ fn commit_line<B: Brush>(
+                 // aligned to `Atom`s, i.e., line bounds are always grapheme bounds.
+                 let slice = shaped_text.run_slice(item.index as u32);
+                 let item_text_range = if cluster_range.is_empty() {
+-                    let char_pos = shaped_clusters[cluster_range.start as usize]
+-                        .chars_range()
+-                        .start;
++                    let char_pos = slice.shaped_cluster_char_range(cluster_range.start).start;
+                     let text_pos = slice.text_byte_at(char_pos);
+                     text_pos..text_pos
+                 } else {
+-                    let char_range = shaped_clusters[cluster_range.start as usize]
+-                        .chars_range()
+-                        .start
+-                        ..shaped_clusters[cluster_range.end as usize - 1]
+-                            .chars_range()
+-                            .end;
++                    let char_range = slice.shaped_cluster_char_range(cluster_range.start).start
++                        ..slice.shaped_cluster_char_range(cluster_range.end - 1).end;
+                     slice.text_byte_range(char_range)
+                 };
+
+@@ -2236,8 +2234,8 @@ fn hanging_whitespace<B: Brush>(
+                     if in_conditional_suffix && whitespace != Whitespace::Newline {
+                         // The atom hangs from its logical end, so use the last cluster's style to
+                         // decide whether it hangs conditionally.
+-                        let last_cluster = atom.shaped_clusters().last().unwrap();
+-                        if layout.data.styles[last_cluster.style_index as usize]
++                        let last_cluster = atom.shaped_clusters_range().end - 1;
++                        if layout.data.styles[slice.cluster_style_index(last_cluster) as usize]
+                             .white_space_collapse
+                             == WhiteSpaceCollapse::Preserve
+                         {
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 1693a6f..4f99aee 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -45,6 +45,7 @@ pub use crate::editing::{Cursor, Selection};
+
+ use crate::style::{BoxDecorations, Brush, TabSize};
+ use crate::{LineHeight, OverflowWrap, TextWrapMode, VerticalAlign, WhiteSpaceCollapse};
++use alloc::boxed::Box;
+
+ /// Style properties.
+ #[derive(Clone, Debug, PartialEq)]
+@@ -54,20 +55,20 @@ pub struct Style<B: Brush> {
+     pub(crate) parent: u16,
+     /// Brush for drawing glyphs.
+     pub brush: B,
+-    /// Underline decoration.
+-    pub underline: Option<Decoration<B>>,
++    /// Underline decoration. Boxed, like strikethrough, because a laid-out paragraph keeps one
++    /// style per span and few spans carry a parley-drawn decoration.
++    pub underline: Option<Box<Decoration<B>>>,
+     /// Strikethrough decoration.
+-    pub strikethrough: Option<Decoration<B>>,
++    pub strikethrough: Option<Box<Decoration<B>>>,
+     /// CSS box decorations (padding, border, background,
+     /// border-radius) for inline-span fragments emitted by this
+     /// style. The line-breaker uses
+     /// `box_decorations.padding_inline_*` and
+     /// `border_inline_*_width` to charge horizontal advance at
+     /// span enter/leave; the painter reads every field to draw
+-    /// per-line fragments. Empty (`is_empty()`) on the default
+-    /// style, which keeps upstream parley behavior unless a span
+-    /// opts in.
+-    pub box_decorations: BoxDecorations<B>,
++    /// per-line fragments. `None` on the default style so plain
++    /// text does not retain the decoration payload.
++    pub box_decorations: Option<Box<BoxDecorations<B>>>,
+     /// Partially resolved line height, either in in layout units or dependent on metrics
+     pub(crate) line_height: LineHeight,
+     /// Vertical alignment of this style's span within the line
+diff --git a/src/layout/run.rs b/src/layout/run.rs
+index e992858..04f574e 100644
+--- a/src/layout/run.rs
++++ b/src/layout/run.rs
+@@ -450,6 +450,6 @@ fn count_graphemes(slice: ShapedSlice<'_>) -> usize {
+     slice
+         .characters()
+         .iter()
+-        .filter(|character| character.grapheme_start)
++        .filter(|character| character.is_grapheme_start())
+         .count()
+ }
+diff --git a/src/layout/whitespace.rs b/src/layout/whitespace.rs
+index 93144cd..af5270a 100644
+--- a/src/layout/whitespace.rs
++++ b/src/layout/whitespace.rs
+@@ -96,16 +96,18 @@ pub(crate) fn atom_hanging_advance<B: Brush>(
+     let mut last_cluster = true;
+     let mut all_hang = true;
+     let mut hanging = 0.;
+-    for cluster in atom.shaped_clusters().iter().rev() {
+-        let cluster_hangs = slice
+-            .characters_in(cluster.chars_range())
+-            .iter()
+-            .all(|character| {
+-                whitespace_hangs(
+-                    character.whitespace,
+-                    &styles[character.style_index as usize],
+-                )
+-            });
++    for (cluster_idx, cluster) in atom
++        .shaped_clusters_range()
++        .zip(atom.shaped_clusters().iter())
++        .rev()
++    {
++        let char_range = slice.shaped_cluster_char_range(cluster_idx);
++        let cluster_hangs = slice.characters_in(char_range).iter().all(|character| {
++            whitespace_hangs(
++                character.whitespace,
++                &styles[character.style_index as usize],
++            )
++        });
+         if !cluster_hangs {
+             all_hang = false;
+             break;
+diff --git a/src/resolve/mod.rs b/src/resolve/mod.rs
+index a8db851..c5fa6f6 100644
+--- a/src/resolve/mod.rs
++++ b/src/resolve/mod.rs
+@@ -8,7 +8,7 @@ pub(crate) mod tree;
+
+ pub(crate) use range::RangedStyleBuilder;
+
+-use alloc::{vec, vec::Vec};
++use alloc::{boxed::Box, vec, vec::Vec};
+
+ use super::style::{
+     BoxDecorations, Brush, FontFamily, FontFamilyName, FontFeature, FontFeatures, FontStyle,
+@@ -138,6 +138,18 @@ impl<T: Clone + PartialEq> Cache<T> {
+     }
+ }
+
++/// `==` across lifetimes, which the invariant derived impl cannot do.
++fn same_font_family(a: &FontFamily<'_>, b: &FontFamily<'_>) -> bool {
++    match (a, b) {
++        (FontFamily::Source(a), FontFamily::Source(b)) => a == b,
++        (FontFamily::Single(a), FontFamily::Single(b)) => a == b,
++        (FontFamily::List(a), FontFamily::List(b)) => {
++            a.len() == b.len() && a.iter().zip(b.iter()).all(|(a, b)| a == b)
++        }
++        _ => false,
++    }
++}
++
+ /// Context for managing dynamic properties during layout.
+ #[derive(Clone, Default)]
+ pub(crate) struct ResolveContext {
+@@ -147,6 +159,11 @@ pub(crate) struct ResolveContext {
+     tmp_families: Vec<FamilyId>,
+     tmp_variations: Vec<FontVariation>,
+     tmp_features: Vec<FontFeature>,
++    /// The last `font-family` value resolved since [`Self::clear`]. Spans
++    /// mostly inherit their parent's list, and resolving it again looks up
++    /// every name in the collection. The collection cannot change before the
++    /// next clear, which starts each build.
++    last_family: Option<(FontFamily<'static>, Resolved<FamilyId>)>,
+ }
+
+ impl ResolveContext {
+@@ -242,6 +259,11 @@ impl ResolveContext {
+         fcx: &mut FontContext,
+         value: &FontFamily<'_>,
+     ) -> Resolved<FamilyId> {
++        if let Some((family, resolved)) = &self.last_family
++            && same_font_family(family, value)
++        {
++            return *resolved;
++        }
+         self.tmp_families.clear();
+         match value {
+             FontFamily::Source(source) => {
+@@ -289,6 +311,7 @@ impl ResolveContext {
+         }
+         let resolved = self.families.insert(&self.tmp_families);
+         self.tmp_families.clear();
++        self.last_family = Some((value.clone().into_owned(), resolved));
+         resolved
+     }
+
+@@ -363,6 +386,7 @@ impl ResolveContext {
+     /// Clears the resources in the context.
+     pub(crate) fn clear(&mut self) {
+         self.families.clear();
++        self.last_family = None;
+         self.variations.clear();
+         self.features.clear();
+     }
+@@ -563,7 +587,8 @@ impl<B: Brush> ResolvedStyle<B> {
+             overflow_wrap: self.overflow_wrap,
+             text_wrap_mode: self.text_wrap_mode,
+             white_space_collapse: self.white_space_collapse,
+-            box_decorations: self.box_decorations.clone(),
++            box_decorations: (!self.box_decorations.is_empty())
++                .then(|| Box::new(self.box_decorations.clone())),
+             tab_size: self.tab_size,
+             locale: self.locale,
+         }
+@@ -585,13 +610,16 @@ pub(crate) struct ResolvedDecoration<B: Brush> {
+
+ impl<B: Brush> ResolvedDecoration<B> {
+     /// Convert into a layout Decoration (filtering out disabled decorations)
+-    pub(crate) fn as_layout_decoration(&self, default_brush: &B) -> Option<layout::Decoration<B>> {
++    pub(crate) fn as_layout_decoration(
++        &self,
++        default_brush: &B,
++    ) -> Option<Box<layout::Decoration<B>>> {
+         if self.enabled {
+-            Some(layout::Decoration {
++            Some(Box::new(layout::Decoration {
+                 brush: self.brush.clone().unwrap_or_else(|| default_brush.clone()),
+                 offset: self.offset,
+                 size: self.size,
+-            })
++            }))
+         } else {
+             None
+         }

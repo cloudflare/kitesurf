@@ -85,8 +85,7 @@ fn panic_recovery_rebuilds_a_stranded_inline_root() {
             node.data
                 .downcast_element_mut()
                 .unwrap()
-                .inline_layout_data
-                .take()
+                .take_inline_layout_data()
                 .is_some(),
             "precondition: inline layout exists before the simulated unwind"
         );

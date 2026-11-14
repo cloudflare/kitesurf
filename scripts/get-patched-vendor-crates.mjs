@@ -29,6 +29,7 @@ const CRATES = [
   { name: "blitz-dom", version: "0.3.0-beta.4" },
   { name: "blitz-paint", version: "0.3.0-beta.4" },
   { name: "blitz-html", version: "0.3.0-beta.4" },
+  { name: "blitz-traits", version: "0.3.0-beta.4" },
   { name: "anyrender", version: "0.14.0" },
   { name: "anyrender_vello_cpu", version: "0.18.0" },
   { name: "taffy", version: "0.15.0" },

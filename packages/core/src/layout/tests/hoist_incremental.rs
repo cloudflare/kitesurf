@@ -134,12 +134,16 @@ fn a_z_indexed_fixed_box_paints_pinned_to_the_viewport() {
     let doc = dom.doc.borrow();
     let base = doc.as_ref();
     let root = base.root_element();
-    let hoisted = root
-        .stacking_context
-        .as_ref()
-        .and_then(|sc| sc.children.iter().find(|c| c.node_id == f))
+    let position = root
+        .stacking_context()
+        .and_then(|sc| {
+            sc.children
+                .iter()
+                .find(|child| child.node_id == f)
+                .map(|child| child.position(base.tree(), root.id))
+        })
         .expect("the z-indexed fixed box is hoisted into the root's stacking context");
-    assert_eq!(hoisted.position(base.tree(), root.id).y, 700.0);
+    assert_eq!(position.y, 700.0);
 }
 
 const INSET_PAGE: &str = r#"<!doctype html><html><head><style>

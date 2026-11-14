@@ -330,6 +330,9 @@ function pseudoCachePut(key: string, value: PseudoElementStub): void {
 }
 
 function setElementScrollOffset(nodeId: number, left: number, top: number) {
+  // An element with no layout box has no scroll range, so a write would clamp
+  // the offset it keeps while hidden to zero.
+  if (nodeScrollInfoSafe(nodeId)?.hasBox === false) return false;
   let offset: unknown = null;
   try {
     offset = dom.setNodeScrollOffset(nodeId, left, top);
@@ -1785,6 +1788,9 @@ class Element extends NodeBase implements Idl.Element {
         return;
       }
       if (!info) return;
+      // Without a box there is no scroll range to clamp against; writing would
+      // reset the offset the element keeps while its ancestor is hidden.
+      if (info.hasBox === false) return;
       const nx = Math.max(0, Math.min(left, info.scrollWidth));
       const ny = Math.max(0, Math.min(top, info.scrollHeight));
       if (nx === info.scrollLeft && ny === info.scrollTop) return;
@@ -1842,6 +1848,7 @@ class Element extends NodeBase implements Idl.Element {
     }
     const info = nodeScrollInfoSafe(this._id);
     if (!info) return;
+    if (info.hasBox === false) return;
     if (!info.overflowsY) return;
     const next = Math.max(0, Math.min(Number(v) || 0, info.scrollHeight));
     if (next === info.scrollTop) return;
@@ -1871,6 +1878,7 @@ class Element extends NodeBase implements Idl.Element {
     }
     const info = nodeScrollInfoSafe(this._id);
     if (!info) return;
+    if (info.hasBox === false) return;
     if (!info.overflowsX) return;
     const next = Math.max(0, Math.min(Number(v) || 0, info.scrollWidth));
     if (next === info.scrollLeft) return;

@@ -77,6 +77,12 @@ Engine-wide invariants. The owning code carries the detail; keep these in sync w
 - A new target has a live `about:blank` document: `ensurePageScript` (`cdp/dom.ts`) starts a lazy
   isolate, because many clients evaluate without navigating.
 - Layout is incremental. Work done at box construction needs explicit `CONSTRUCT_BOX` damage.
+- Offscreen inline text is evicted by default: after a resolve, an inline root more than two
+  viewport heights from the viewport drops its shaped text and keeps a 48-byte break summary that
+  layout replays, so paint, geometry and print are unchanged. Print and PDF pin their extent
+  (`inline_keep_extent`) so their text stays shaped, and `BaseDocument::set_inline_layout_eviction`
+  turns it off (Rust only, no wasm export). The work is vendor patch `blitz-dom/0078`; the
+  differential tests are `packages/core/src/layout/tests/inline_eviction.rs`.
 - Partial frames are composited in the renderer isolate (`SceneRasterizer`), so CDP clients
   never see one. The terminal scene stream is the exception; see `packages/engine/src/rbi.ts`.
 - `history.pushState` stays in the document unless the navigate URL opts in with

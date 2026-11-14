@@ -312,13 +312,13 @@ fn attr_lookup(doc: &HtmlDocument, nid: NodeId, name: &str) -> Option<Option<Str
     let NodeData::Element(data) = &node.data else {
         return None;
     };
-    let lookup = if data.name.ns == ns!(html) {
+    let lookup = if *data.namespace() == ns!(html) {
         name.to_ascii_lowercase()
     } else {
         name.to_owned()
     };
     for a in data.attrs.iter() {
-        let matches = match &a.name.prefix {
+        let matches = match a.prefix() {
             Some(prefix) => lookup
                 .strip_prefix(&**prefix)
                 .and_then(|remaining| remaining.strip_prefix(':'))
@@ -338,11 +338,11 @@ fn node_name(doc: &HtmlDocument, nid: NodeId) -> Option<String> {
         return None;
     };
     let local = data.name.local.to_string();
-    let qname = match &data.name.prefix {
+    let qname = match data.prefix() {
         Some(p) => format!("{}:{}", p, local),
         None => local,
     };
-    Some(if data.name.ns == ns!(html) {
+    Some(if *data.namespace() == ns!(html) {
         qname.to_ascii_uppercase()
     } else {
         qname
@@ -350,7 +350,7 @@ fn node_name(doc: &HtmlDocument, nid: NodeId) -> Option<String> {
 }
 
 fn parent_of(doc: &HtmlDocument, nid: NodeId) -> Option<Option<NodeId>> {
-    Some(doc.get_node(nid)?.parent)
+    Some(doc.get_node(nid)?.parent.get())
 }
 
 fn is_element(doc: &HtmlDocument, nid: NodeId) -> bool {

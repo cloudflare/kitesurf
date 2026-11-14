@@ -49,38 +49,99 @@ mod tty;
 
 type HandleMap<K, V> = rustc_hash::FxHashMap<K, V>;
 
+/// Stable `u32` handles for nodes, as given out to JS. Seeded nodes take handle
+/// `slot - 1` (the root is handle 0), so only their versions are stored.
+/// `sparse_latest` and `latest_beyond` track later generations; older ones that
+/// still resolve stay in `displaced`.
 pub(crate) struct NodeHandleMap {
     next_external: u32,
-    internal_by_external: HandleMap<u32, NodeId>,
-    external_by_internal: HandleMap<NodeId, u32>,
-    external_by_opaque: HandleMap<usize, u32>,
+    /// The version seeded handle `e` was given for slot `e + 1`; 0 for a slot
+    /// that was free when seeded, or once the handle is retired.
+    seeded_versions: Vec<u32>,
+    dynamic_forward: HandleMap<u32, NodeId>,
+    /// Latest handle of each slot past the seeded range, from its first slot.
+    latest_beyond: Vec<u32>,
+    /// Latest handle of a seeded-range slot that has one besides its seeded
+    /// handle (`NO_EXTERNAL` once that one is retired), and of outlier slots.
+    sparse_latest: HandleMap<u32, u32>,
+    displaced: HandleMap<NodeId, u32>,
+}
+
+#[inline]
+fn slot_of(id: NodeId) -> usize {
+    id.as_u64() as u32 as usize
 }
 
 impl NodeHandleMap {
+    const NO_EXTERNAL: u32 = u32::MAX;
+
     fn seeded(doc: &BaseDocument) -> Self {
         let root = doc.root_node().id;
-        let mut map = Self {
-            next_external: 1,
-            internal_by_external: HandleMap::from_iter([(0, root)]),
-            external_by_internal: HandleMap::from_iter([(root, 0)]),
-            external_by_opaque: HandleMap::from_iter([(root.as_u64() as usize, 0)]),
-        };
+        assert_eq!(slot_of(root), 1, "the document root must be handle 0");
+        let slots = doc
+            .tree()
+            .iter()
+            .map(|(id, _)| slot_of(id))
+            .max()
+            .unwrap_or(0);
+        let mut seeded_versions = vec![0; slots];
         for (id, _) in doc.tree().iter() {
-            if id != root {
-                map.external_for(id);
-            }
+            seeded_versions[slot_of(id) - 1] = (id.as_u64() >> 32) as u32;
         }
-        map
+        Self {
+            next_external: u32::try_from(slots).expect("external node handle space exhausted"),
+            seeded_versions,
+            dynamic_forward: HandleMap::default(),
+            latest_beyond: Vec::new(),
+            sparse_latest: HandleMap::default(),
+            displaced: HandleMap::default(),
+        }
+    }
+
+    /// The live seeded handle for `slot`, if any (slot 0 is the slotmap's sentinel).
+    #[inline]
+    fn seeded_external(&self, slot: usize) -> Option<u32> {
+        let index = slot.checked_sub(1)?;
+        (*self.seeded_versions.get(index)? != 0).then_some(index as u32)
+    }
+
+    #[inline]
+    fn latest(&self, slot: usize) -> Option<u32> {
+        let seeded = self.seeded_versions.len();
+        let latest = match self.sparse_latest.get(&(slot as u32)) {
+            Some(&external) => external,
+            None if slot > seeded => *self.latest_beyond.get(slot - seeded - 1)?,
+            None => return self.seeded_external(slot),
+        };
+        (latest != Self::NO_EXTERNAL).then_some(latest)
     }
 
     #[inline]
     pub(crate) fn resolve(&self, external: u32) -> Option<NodeId> {
-        self.internal_by_external.get(&external).copied()
+        if let Some(&version) = self.seeded_versions.get(external as usize) {
+            (version != 0)
+                .then(|| NodeId::from_u64((u64::from(version) << 32) | u64::from(external + 1)))
+        } else {
+            self.dynamic_forward.get(&external).copied()
+        }
     }
 
     #[inline]
     pub(crate) fn external_for_opaque(&self, opaque: usize) -> Option<u32> {
-        self.external_by_opaque.get(&opaque).copied()
+        let id = NodeId::from_u64(opaque as u64);
+        // An opaque ID carries the generation on 64-bit, but not on wasm32, where
+        // the slot's latest handle is the only answer available.
+        if usize::BITS == 32 {
+            return self.latest(slot_of(id));
+        }
+        self.existing_external(id)
+    }
+
+    #[inline]
+    pub(crate) fn existing_external(&self, id: NodeId) -> Option<u32> {
+        self.latest(slot_of(id))
+            .filter(|&external| self.resolve(external) == Some(id))
+            .or_else(|| self.displaced.get(&id).copied())
     }
 
     fn external_for_live_opaque(&mut self, doc: &BaseDocument, opaque: usize) -> Option<u32> {
@@ -102,7 +163,7 @@ impl NodeHandleMap {
 
     #[inline]
     pub(crate) fn external_for(&mut self, internal: NodeId) -> u32 {
-        if let Some(&external) = self.external_by_internal.get(&internal) {
+        if let Some(external) = self.existing_external(internal) {
             return external;
         }
         let external = self.next_external;
@@ -110,21 +171,102 @@ impl NodeHandleMap {
             .next_external
             .checked_add(1)
             .expect("external node handle space exhausted");
-        self.internal_by_external.insert(external, internal);
-        self.external_by_internal.insert(internal, external);
-        self.external_by_opaque
-            .insert(internal.as_u64() as usize, external);
+        self.dynamic_forward.insert(external, internal);
+
+        if let Some(previous) = self.set_latest(slot_of(internal), external) {
+            // The older generation still resolves, so keep its handle reachable.
+            if let Some(previous_id) = self.resolve(previous) {
+                self.displaced.insert(previous_id, previous);
+            }
+        }
         external
     }
 
+    /// Make `external` the latest handle of `slot` and return the one it replaced.
+    fn set_latest(&mut self, slot: usize, external: u32) -> Option<u32> {
+        if slot <= self.seeded_versions.len() {
+            // Slots are reused rarely, so the seeded range keeps its other handles sparse.
+            self.sparse_latest
+                .insert(slot as u32, external)
+                .or_else(|| self.seeded_external(slot))
+        } else if slot > self.next_external as usize {
+            // A forged ID must not allocate a reverse vector up to its slot, so
+            // outliers take a sparse entry rather than grow the dense vector.
+            self.sparse_latest.insert(slot as u32, external)
+        } else {
+            self.set_latest_beyond(slot, external)
+        }
+    }
+
+    /// Store `external` in the dense reverse index, growing it to cover the slot.
+    fn set_latest_beyond(&mut self, slot: usize, external: u32) -> Option<u32> {
+        let index = slot - self.seeded_versions.len() - 1;
+        if index >= self.latest_beyond.len() {
+            self.grow_latest_beyond(index);
+        }
+
+        let previous = self
+            .sparse_latest
+            .remove(&(slot as u32))
+            .unwrap_or(self.latest_beyond[index]);
+        self.latest_beyond[index] = external;
+        Some(previous)
+    }
+
+    /// Grow the dense reverse index to cover `index`, by an eighth of its length
+    /// per step: doubling for one new slot would hold megabytes of headroom on a
+    /// large document.
+    fn grow_latest_beyond(&mut self, index: usize) {
+        let len = self.latest_beyond.len();
+        if index >= self.latest_beyond.capacity() {
+            self.latest_beyond
+                .reserve_exact((index + 1 - len).max(len / 8));
+        }
+        self.latest_beyond.resize(index + 1, Self::NO_EXTERNAL);
+    }
+
     fn retire(&mut self, internal: NodeId) {
-        let Some(external) = self.external_by_internal.remove(&internal) else {
+        let Some(external) = self.existing_external(internal) else {
             return;
         };
-        self.internal_by_external.remove(&external);
-        let opaque = internal.as_u64() as usize;
-        if self.external_by_opaque.get(&opaque) == Some(&external) {
-            self.external_by_opaque.remove(&opaque);
+        let slot = slot_of(internal);
+        self.forget_handle(slot, external);
+        self.displaced.remove(&internal);
+        self.forget_latest(slot, external);
+    }
+
+    /// Drop `external` itself: a seeded version, or the dynamic forward entry.
+    fn forget_handle(&mut self, slot: usize, external: u32) {
+        let Some(version) = self.seeded_versions.get_mut(external as usize) else {
+            self.dynamic_forward.remove(&external);
+            return;
+        };
+        *version = 0;
+        // The slot's tombstone only shadowed this handle.
+        if self.sparse_latest.get(&(slot as u32)) == Some(&Self::NO_EXTERNAL) {
+            self.sparse_latest.remove(&(slot as u32));
+        }
+    }
+
+    /// Leave the slot without a latest handle if `external` was it. A displaced
+    /// seeded handle must not become the slot's latest again.
+    fn forget_latest(&mut self, slot: usize, external: u32) {
+        if self.sparse_latest.get(&(slot as u32)) == Some(&external) {
+            if self.seeded_external(slot).is_some() {
+                self.sparse_latest.insert(slot as u32, Self::NO_EXTERNAL);
+            } else {
+                self.sparse_latest.remove(&(slot as u32));
+            }
+        }
+
+        let seeded = self.seeded_versions.len();
+        if let Some(current) = slot
+            .checked_sub(seeded + 1)
+            .and_then(|index| self.latest_beyond.get_mut(index))
+        {
+            if *current == external {
+                *current = Self::NO_EXTERNAL;
+            }
         }
     }
 }
@@ -485,6 +627,7 @@ impl DomHandle {
             ..Default::default()
         };
         let mut doc = HtmlDocument::from_html(html, config);
+        doc.shrink_node_storage();
         if let Some(sheet) = tty_ua_sheet() {
             doc.add_user_agent_stylesheet(sheet);
         }
@@ -749,7 +892,7 @@ impl DomHandle {
             if id == root_id {
                 return Some(internal_id);
             }
-            current = doc.get_node(id).and_then(|node| node.parent);
+            current = doc.get_node(id).and_then(|node| node.parent.get());
         }
         None
     }

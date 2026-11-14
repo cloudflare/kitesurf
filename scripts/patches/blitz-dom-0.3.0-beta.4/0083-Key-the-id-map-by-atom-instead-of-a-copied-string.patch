@@ -1,0 +1,179 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 28 Oct 2026 19:07:25 +0000
+Subject: [PATCH] Key the id map by atom instead of a copied string
+
+Elements already intern their id attribute, so the id map now shares
+that atom rather than keeping its own String copy of every id.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/accessibility.rs  |  2 +-
+ src/document.rs       | 13 +++++----
+ src/mutator.rs        |  4 +--
+ src/query_selector.rs | 68 ++++++++++++++++++++++++++++++++++---------
+ 4 files changed, 66 insertions(+), 21 deletions(-)
+
+diff --git a/src/accessibility.rs b/src/accessibility.rs
+index a182f3e..f62d7bf 100644
+--- a/src/accessibility.rs
++++ b/src/accessibility.rs
+@@ -103,7 +103,7 @@ impl BaseDocument {
+     ) -> impl Iterator<Item = BlitzDomNodeId> + 'a {
+         nodes_reference
+             .split_ascii_whitespace()
+-            .filter_map(|dom_id| self.nodes_to_id.get(dom_id)?.first().copied())
++            .filter_map(|dom_id| self.get_element_by_id(dom_id))
+     }
+
+     fn build_accessibility_node(
+diff --git a/src/document.rs b/src/document.rs
+index dab8668..5f57b00 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -33,7 +33,6 @@ use linebender_resource_handle::Blob;
+ use markup5ever::{LocalName, local_name};
+ use parley::{FontContext, PlainEditorDriver};
+ use selectors::{Element, matching::QuirksMode};
+-use smallvec::SmallVec;
+ use std::any::Any;
+ use std::cell::RefCell;
+ use std::collections::{BTreeMap, Bound, HashMap, HashSet};
+@@ -421,10 +420,13 @@ pub struct BaseDocument {
+     /// Whether there are subdocuments that are animating (so we should re-render every frame)
+     pub(crate) subdoc_is_animating: bool,
+
+-    /// Map of id attribute values to node IDs for fast lookups.
+-    /// May contain multiple nodes for the same id: `get_element_by_id`
+-    /// returns the first in tree order.
+-    pub(crate) nodes_to_id: HashMap<String, SmallVec<[NodeId; 1]>>,
++    /// Map of id attribute values to the first node added with that id. Keyed by atom:
++    /// elements already intern their id, so the map shares that string instead of copying it.
++    pub(crate) nodes_to_id: HashMap<Atom, NodeId>,
++    /// The later nodes sharing an id with a `nodes_to_id` entry, in the order they were added.
++    /// Duplicate ids are rare, so they stay out of the main map's buckets; with any present,
++    /// `get_element_by_id` returns the first of them all in tree order.
++    pub(crate) id_duplicates: HashMap<Atom, Vec<NodeId>>,
+     /// Map of `<style>` and `<link>` node IDs to their associated stylesheet
+     // Value carries the registration scope (None = document stylist,
+     // Some(id) = that shadow root) so removal targets the right set:
+@@ -691,6 +693,7 @@ impl BaseDocument {
+             animations: DocumentAnimationSet::default(),
+             snapshots,
+             nodes_to_id,
++            id_duplicates: HashMap::new(),
+             viewport,
+             media_type,
+             pending_device_changes: DeviceChanges::empty(),
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 2113374..a85e9ab 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1365,9 +1365,9 @@ impl<'doc> DocumentMutator<'doc> {
+             }
+
+             // If the node has an "id" attribute, store it in the ID map.
+-            if let Some(id_attr) = node.attr(local_name!("id")).map(ToString::to_string) {
++            if let Some(id_attr) = node.attr(local_name!("id")).map(Atom::from) {
+                 if node.containing_shadow_root_id().is_none() {
+-                    doc.add_to_id_map(&id_attr, node_id);
++                    doc.add_atom_to_id_map(id_attr, node_id);
+                 }
+             }
+
+diff --git a/src/query_selector.rs b/src/query_selector.rs
+index 02f2613..e010772 100644
+--- a/src/query_selector.rs
++++ b/src/query_selector.rs
+@@ -8,17 +8,21 @@ use style::dom_apis::{
+ use style::selector_parser::{SelectorImpl, SelectorParser};
+ use style_traits::ParseError;
+
+-use crate::{BaseDocument, Node};
++use crate::{Atom, BaseDocument, Node};
+
+ impl BaseDocument {
+     /// Find the node with the specified id attribute (if one exists).
+     /// If multiple nodes have the same id, the first in tree order is returned.
+     pub fn get_element_by_id(&self, id: &str) -> Option<NodeId> {
+-        match self.nodes_to_id.get(id)?.as_slice() {
+-            [] => None,
+-            [node_id] => Some(*node_id),
+-            candidates => self.first_in_tree_order(candidates),
+-        }
++        let id = Atom::from(id);
++        let first = *self.nodes_to_id.get(&id)?;
++        let Some(later) = self.id_duplicates.get(&id) else {
++            return Some(first);
++        };
++        let candidates: Vec<NodeId> = std::iter::once(first)
++            .chain(later.iter().copied())
++            .collect();
++        self.first_in_tree_order(&candidates)
+     }
+
+     /// Find the first of `candidates` in tree order
+@@ -38,18 +42,56 @@ impl BaseDocument {
+         if id.is_empty() {
+             return;
+         }
+-        let node_ids = self.nodes_to_id.entry(id.to_string()).or_default();
+-        if !node_ids.contains(&node_id) {
+-            node_ids.push(node_id);
++        self.add_atom_to_id_map(Atom::from(id), node_id);
++    }
++
++    /// [`Self::add_to_id_map`] for an id already interned.
++    pub(crate) fn add_atom_to_id_map(&mut self, id: Atom, node_id: NodeId) {
++        if id.is_empty() {
++            return;
++        }
++        match self.nodes_to_id.entry(id) {
++            std::collections::hash_map::Entry::Vacant(entry) => {
++                entry.insert(node_id);
++            }
++            std::collections::hash_map::Entry::Occupied(entry) => {
++                if *entry.get() != node_id {
++                    let later = self.id_duplicates.entry(entry.key().clone()).or_default();
++                    if !later.contains(&node_id) {
++                        later.push(node_id);
++                    }
++                }
++            }
+         }
+     }
+
+     /// Remove a node from the id-to-node map
+     pub(crate) fn remove_from_id_map(&mut self, id: &str, node_id: NodeId) {
+-        if let Some(node_ids) = self.nodes_to_id.get_mut(id) {
+-            node_ids.retain(|nid| *nid != node_id);
+-            if node_ids.is_empty() {
+-                self.nodes_to_id.remove(id);
++        let id = Atom::from(id);
++        let Some(&first) = self.nodes_to_id.get(&id) else {
++            return;
++        };
++        let later = self.id_duplicates.get_mut(&id);
++        if first != node_id {
++            if let Some(later) = later {
++                later.retain(|nid| *nid != node_id);
++                if later.is_empty() {
++                    self.id_duplicates.remove(&id);
++                }
++            }
++            return;
++        }
++        // The earliest remaining duplicate takes the main entry, keeping insertion order.
++        match later {
++            Some(later) => {
++                let next = later.remove(0);
++                if later.is_empty() {
++                    self.id_duplicates.remove(&id);
++                }
++                self.nodes_to_id.insert(id, next);
++            }
++            None => {
++                self.nodes_to_id.remove(&id);
+             }
+         }
+     }

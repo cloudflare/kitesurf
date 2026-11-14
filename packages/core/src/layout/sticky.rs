@@ -57,7 +57,7 @@ fn overflow_propagates_to_viewport(doc: &BaseDocument, id: NodeId) -> bool {
     let is_body = node
         .element_data()
         .is_some_and(|e| e.name.local == blitz_dom::local_name!("body"));
-    if !is_body || node.parent != Some(root.id) {
+    if !is_body || node.parent.get() != Some(root.id) {
         return false;
     }
     root.primary_styles().is_some_and(|s| {

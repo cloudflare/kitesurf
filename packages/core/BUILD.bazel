@@ -83,6 +83,39 @@ rust_test(
     deps = all_crate_deps(normal = True, normal_dev = True),
 )
 
+# A separate process keeps other core tests' font registrations from clearing the cache.
+rust_test(
+    name = "svg_cache_test",
+    srcs = ["tests/svg_cache.rs"],
+    edition = "2021",
+    exec_properties = RUST,
+    deps = ["@crates//:blitz-dom"],
+)
+
+rust_test(
+    name = "blitz_dom_child_lists_test",
+    srcs = ["tests/blitz_dom_child_lists.rs"],
+    edition = "2021",
+    exec_properties = RUST,
+    deps = ["@crates//:blitz-dom"],
+)
+
+rust_test(
+    name = "blitz_dom_undisplayed_layout_test",
+    crate = "@crates//:blitz-dom",
+    crate_features = ["svg", "floats", "woff"],
+    args = ["nested_slot_edges_visit_each_reachable_node_once_and_release_layout"],
+    exec_properties = RUST,
+)
+
+rust_test(
+    name = "taffy_cache_test",
+    srcs = ["tests/taffy_cache.rs"],
+    edition = "2021",
+    exec_properties = RUST,
+    deps = ["@crates//:taffy"],
+)
+
 rust_test(
     name = "boa_gc_test",
     crate = "@crates__boa_gc-0.22.0//:boa_gc",
@@ -108,9 +141,13 @@ build_test(
 test_suite(
     name = "host_tests",
     tests = [
+        ":blitz_dom_child_lists_test",
+        ":blitz_dom_undisplayed_layout_test",
         ":boa_gc_test",
         ":boa_interner_test",
         ":core_test",
+        ":svg_cache_test",
+        ":taffy_cache_test",
         ":vello_common_test",
         ":vello_cpu_fallback_test",
     ],
@@ -137,14 +174,21 @@ copy_to_bin(
 
 rust_nesting_test(
     name = "nesting_test",
-    srcs = glob(["src/**/*.rs"]),
+    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
 )
 
 rust_comments_test(
     name = "comments_test",
-    srcs = glob(["src/**/*.rs"]),
+    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
 )
 
 rust_lint_tests(
-    targets = ["core_test", "kitesurf_core", "kitesurf_core_memprof"],
+    targets = [
+        "blitz_dom_child_lists_test",
+        "core_test",
+        "kitesurf_core",
+        "kitesurf_core_memprof",
+        "svg_cache_test",
+        "taffy_cache_test",
+    ],
 )

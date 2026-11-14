@@ -258,7 +258,12 @@ fn transition_events_mint_handle_for_internal_inner_html_descendant() {
             .expect("live host")
             .children
             .iter()
-            .map(|id| (*id, handles.external_by_internal[id]))
+            .map(|id| {
+                (
+                    *id,
+                    handles.existing_external(*id).expect("seeded child mapped"),
+                )
+            })
             .collect()
     };
     for &(_, child) in &stale_children {
@@ -281,10 +286,10 @@ fn transition_events_mint_handle_for_internal_inner_html_descendant() {
         .expect("setInnerHtml should reuse an explicitly dropped child slot");
     assert_ne!(stale_internal, new_internal);
     assert!(
-        !dom.node_handles
+        dom.node_handles
             .borrow()
-            .external_by_internal
-            .contains_key(&new_internal),
+            .existing_external(new_internal)
+            .is_none(),
         "the internally parsed child must not already have an external handle"
     );
 

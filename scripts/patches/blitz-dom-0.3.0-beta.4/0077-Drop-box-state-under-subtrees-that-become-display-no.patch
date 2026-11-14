@@ -1,0 +1,491 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sat, 24 Oct 2026 14:22:31 +0100
+Subject: [PATCH] Drop box state under subtrees that become display:none
+
+Stylo clears the styles under an element that becomes display:none, but
+its descendants kept their inline layouts, layout output, child lists
+and anonymous blocks until the subtree was shown again. Release them
+when damage propagation sees the root restyled to display:none; showing
+it again rebuilds them.
+
+getComputedStyle still reports elements in such a subtree by resolving
+their style on demand (resolve_undisplayed_style). Run that inside the
+layout thread state, because dropping its thread-local style context
+runs queued sequential tasks.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/document.rs         | 112 +++++++++++++++++++++++++++++
+ src/layout/construct.rs |  48 ++++++++-----
+ src/layout/damage.rs    |  17 +++++
+ src/node/element.rs     |   4 ++
+ src/resolve.rs          | 154 ++++++++++++++++++++++++++++++++++++++++
+ src/stylo.rs            |   3 +
+ 6 files changed, 322 insertions(+), 16 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 415dbe9..c483593 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -5222,3 +5222,115 @@ pub(crate) fn set_codepoint_bits(bits: &mut [u64], text: &str) {
+         bits[cp >> 6] |= 1u64 << (cp & 63);
+     }
+ }
++
++#[cfg(test)]
++mod display_none_retention_tests {
++    use super::*;
++    use crate::{Attribute, qual_name};
++    use blitz_traits::shell::ColorScheme;
++
++    #[test]
++    fn display_none_descendants_keep_no_style_or_layout_state() {
++        let mut doc = BaseDocument::new(DocumentConfig {
++            viewport: Some(Viewport::new(400, 300, 1.0, ColorScheme::Light)),
++            ..Default::default()
++        });
++        let root_id = doc.root_node().id;
++        let style = |value: &str| Attribute::new(qual_name!("style"), value.to_string());
++        let mut mutator = doc.mutate();
++        let html = mutator.create_element(qual_name!("html"), vec![]);
++        let body = mutator.create_element(qual_name!("body"), vec![]);
++        let hidden = mutator.create_element(qual_name!("div"), vec![style("display:none")]);
++        let p = mutator.create_element(qual_name!("p"), vec![style("color:red")]);
++        let span = mutator.create_element(qual_name!("span"), vec![]);
++        let text = mutator.create_text_node("hidden text");
++        let shown = mutator.create_element(qual_name!("p"), vec![]);
++        let shown_text = mutator.create_text_node("shown");
++        mutator.append_children(span, &[text]);
++        mutator.append_children(p, &[span]);
++        mutator.append_children(hidden, &[p]);
++        mutator.append_children(shown, &[shown_text]);
++        mutator.append_children(body, &[hidden, shown]);
++        mutator.append_children(html, &[body]);
++        mutator.append_children(root_id, &[html]);
++        drop(mutator);
++        doc.resolve(0.0);
++
++        assert!(doc.nodes[hidden].primary_styles().is_some());
++        for id in [p, span] {
++            let node = &mut doc.nodes[id];
++            assert!(node.primary_styles().is_none(), "{id} kept styles");
++            assert!(node.try_layout_data_mut().is_none(), "{id} kept layout data");
++            assert!(node.layout_children.borrow().is_none(), "{id} has layout children");
++        }
++        assert!(doc.resolve_undisplayed_style(p).is_some());
++        assert!(doc.nodes[p].primary_styles().is_none(), "on-demand style was stored");
++        assert_eq!(doc.resolved_style_value(p, "color"), "rgb(255, 0, 0)");
++    }
++
++    #[test]
++    fn hiding_a_styled_subtree_drops_descendant_state() {
++        check_hiding_drops_descendant_state(false);
++    }
++
++    // Inline content beside the hidden root changes how its container builds
++    // boxes: the container no longer revisits the hidden child at all.
++    #[test]
++    fn hiding_a_subtree_beside_inline_content_drops_descendant_state() {
++        check_hiding_drops_descendant_state(true);
++    }
++
++    fn check_hiding_drops_descendant_state(inline_sibling: bool) {
++        let mut doc = BaseDocument::new(DocumentConfig {
++            viewport: Some(Viewport::new(400, 300, 1.0, ColorScheme::Light)),
++            ..Default::default()
++        });
++        let root_id = doc.root_node().id;
++        let style = |value: &str| Attribute::new(qual_name!("style"), value.to_string());
++        let mut mutator = doc.mutate();
++        let html = mutator.create_element(qual_name!("html"), vec![style("display:block")]);
++        let body = mutator.create_element(qual_name!("body"), vec![style("display:block")]);
++        let outer = mutator.create_element(qual_name!("div"), vec![style("display:block")]);
++        let block = mutator.create_element(qual_name!("div"), vec![style("display:block")]);
++        let inner = mutator.create_element(qual_name!("div"), vec![style("display:block")]);
++        let text = mutator.create_text_node("some text");
++        let bare = mutator.create_text_node("bare text");
++        let tail = mutator.create_element(qual_name!("div"), vec![style("display:block")]);
++        mutator.append_children(inner, &[text]);
++        mutator.append_children(block, &[bare, inner, tail]);
++        mutator.append_children(outer, &[block]);
++        if inline_sibling {
++            let sibling = mutator.create_text_node("sibling");
++            mutator.append_children(body, &[sibling]);
++        }
++        mutator.append_children(body, &[outer]);
++        mutator.append_children(html, &[body]);
++        mutator.append_children(root_id, &[html]);
++        drop(mutator);
++        doc.resolve(0.0);
++        let state = |doc: &mut BaseDocument, id: NodeId| {
++            let node = &mut doc.nodes[id];
++            let styled = node.primary_styles().is_some();
++            let children = node.layout_children.borrow().is_some();
++            let inline = node.element_data().is_some_and(|e| e.inline_layout_data().is_some());
++            let layout = node.try_layout_data_mut().is_some();
++            (styled, children, inline, layout)
++        };
++        assert_eq!(state(&mut doc, inner), (true, true, true, true));
++        let anonymous = doc.nodes[block].anonymous_blocks().to_vec();
++        assert!(!anonymous.is_empty(), "text beside a block needs an anonymous block");
++        let shown_height = doc.nodes[block].final_layout().size.height;
++
++        doc.mutate().set_attribute(outer, qual_name!("style"), "display:none");
++        doc.resolve(0.0);
++        for id in [block, inner] {
++            assert_eq!(state(&mut doc, id), (false, false, false, false), "{id}");
++        }
++        assert!(anonymous.iter().all(|id| doc.get_node(*id).is_none()));
++
++        doc.mutate().set_attribute(outer, qual_name!("style"), "display:block");
++        doc.resolve(0.0);
++        assert_eq!(state(&mut doc, inner), (true, true, true, true));
++        assert_eq!(doc.nodes[block].final_layout().size.height, shown_height);
++    }
++}
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index e8daff8..c495fde 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -1678,7 +1678,7 @@ pub(crate) fn find_inline_layout_embedded_boxes(
+
+     iter_flat_children_and_pseudos!(doc.nodes, inline_context_root_node_id, |child_id| {
+         find_inline_layout_embedded_boxes_recursive(
+-            &mut doc.nodes,
++            doc,
+             inline_context_root_node_id,
+             child_id,
+             layout_children,
+@@ -1711,12 +1711,12 @@ pub(crate) fn find_inline_layout_embedded_boxes(
+     }
+
+     fn find_inline_layout_embedded_boxes_recursive(
+-        nodes: &mut crate::NodeTree,
++        doc: &mut BaseDocument,
+         parent_id: NodeId,
+         node_id: NodeId,
+         layout_children: &mut ThinVec<NodeId>,
+     ) {
+-        let node = &mut nodes[node_id];
++        let node = &mut doc.nodes[node_id];
+
+         // Set layout_parent for node.
+         node.layout_parent.set(Some(parent_id));
+@@ -1735,12 +1735,14 @@ pub(crate) fn find_inline_layout_embedded_boxes(
+                 match (display.outside(), display.inside()) {
+                     (DisplayOutside::None, DisplayInside::None) => {
+                         node.remove_damage(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
++                        release_flattened_layout(doc, node_id);
+                     }
+                     (DisplayOutside::None, DisplayInside::Contents) => {
+                         node.remove_damage(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
+-                        iter_flat_children!(nodes, node_id, |child_id| {
++                        release_flattened_layout(doc, node_id);
++                        iter_flat_children!(doc.nodes, node_id, |child_id| {
+                             find_inline_layout_embedded_boxes_recursive(
+-                                nodes,
++                                doc,
+                                 parent_id,
+                                 child_id,
+                                 layout_children,
+@@ -1749,21 +1751,24 @@ pub(crate) fn find_inline_layout_embedded_boxes(
+                     }
+                     (DisplayOutside::Inline, DisplayInside::Flow) => {
+                         let tag_name = &element_data.name.local;
++                        let is_atomic = is_inline_box_element(tag_name);
++                        let is_br = *tag_name == local_name!("br");
+
+-                        if is_inline_box_element(tag_name) {
++                        if is_atomic {
+                             layout_children.push(node_id);
+-                        } else if *tag_name == local_name!("br") {
+-                            node.remove_damage(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
+                         } else {
+                             node.remove_damage(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
+-                            iter_flat_children_and_pseudos!(nodes, node_id, |child_id| {
+-                                find_inline_layout_embedded_boxes_recursive(
+-                                    nodes,
+-                                    node_id,
+-                                    child_id,
+-                                    layout_children,
+-                                );
+-                            });
++                            release_flattened_layout(doc, node_id);
++                            if !is_br {
++                                iter_flat_children_and_pseudos!(doc.nodes, node_id, |child_id| {
++                                    find_inline_layout_embedded_boxes_recursive(
++                                        doc,
++                                        node_id,
++                                        child_id,
++                                        layout_children,
++                                    );
++                                });
++                            }
+                         }
+                     }
+                     // Inline box
+@@ -1781,6 +1786,17 @@ pub(crate) fn find_inline_layout_embedded_boxes(
+             NodeData::Document(_) => unreachable!(),
+         }
+     }
++
++    /// A node flattened into an ancestor's inline formatting context owns no
++    /// box children. Drop the list and any anonymous blocks it built while it
++    /// was still a box container, before the walk assigns new layout parents.
++    fn release_flattened_layout(doc: &mut BaseDocument, node_id: NodeId) {
++        let anonymous_blocks = doc.nodes[node_id].take_anonymous_blocks();
++        for anon_id in anonymous_blocks {
++            doc.deallocate_anonymous_block(anon_id);
++        }
++        doc.nodes[node_id].layout_children.get_mut().take();
++    }
+ }
+
+ // UAX#9 control pair for a computed unicode-bidi value.
+diff --git a/src/layout/damage.rs b/src/layout/damage.rs
+index 06b712e..eb33360 100644
+--- a/src/layout/damage.rs
++++ b/src/layout/damage.rs
+@@ -43,6 +43,10 @@ pub(crate) const CONSTRUCT_DESCENDENT: RestyleDamage =
+ pub(crate) const ALL_DAMAGE: RestyleDamage =
+     RestyleDamage::from_bits_retain(0b_0000_0000_1110_1111);
+
++fn is_display_none(display: style::values::computed::Display) -> bool {
++    display.outside() == DisplayOutside::None && display.inside() == DisplayInside::None
++}
++
+ impl BaseDocument {
+     /// Union `RestyleDamage` up the tree and clear the layout caches of every
+     /// node whose subtree needs relayout.
+@@ -77,6 +81,19 @@ impl BaseDocument {
+         };
+         let mut damage = own_damage;
+
++        // Release here, not at box construction: a container's construction
++        // may skip a display:none child, and then nothing revisits its subtree.
++        if own_damage.contains(CONSTRUCT_BOX) {
++            let node = &self.nodes[node_id];
++            let was_displayed = !is_display_none(*node.display_constructed_as());
++            if let Some(display) = node.display_style().filter(|d| is_display_none(*d)) {
++                if was_displayed {
++                    self.release_undisplayed_layout(node_id);
++                    *self.nodes[node_id].display_constructed_as_mut() = display;
++                }
++            }
++        }
++
+         // Skip subtrees which contain no damage. Anonymous nodes are never
+         // skipped themselves because damage marking walks the DOM parent
+         // chain, which bypasses anonymous boxes: a damaged node's flagged
+diff --git a/src/node/element.rs b/src/node/element.rs
+index 7b8054c..245c26b 100644
+--- a/src/node/element.rs
++++ b/src/node/element.rs
+@@ -501,6 +501,10 @@ impl ElementData {
+         self.update_rare(|rare| rare.detailed_layout_info = Some(info));
+     }
+
++    pub(crate) fn clear_detailed_layout_info(&mut self) {
++        self.update_rare(|rare| rare.detailed_layout_info = None);
++    }
++
+     /// Data associated with display: list-item, if the element is a list item.
+     #[inline]
+     pub fn list_item_data(&self) -> Option<&ListItemLayout> {
+diff --git a/src/resolve.rs b/src/resolve.rs
+index 3ee3356..985efd2 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -2,6 +2,7 @@
+
+ use blitz_traits::node_id::NodeId;
+ use std::cell::RefCell;
++use std::collections::HashSet;
+
+ use debug_timer::debug_timer;
+ use kurbo::{Affine, Rect};
+@@ -34,6 +35,39 @@ use crate::{
+     node::{SpecialElementData, TextBrush},
+ };
+
++struct UndisplayedLayoutTraversal {
++    pending: Vec<NodeId>,
++    visited: HashSet<NodeId>,
++}
++
++impl UndisplayedLayoutTraversal {
++    fn new(root_id: NodeId) -> Self {
++        Self {
++            pending: vec![root_id],
++            visited: HashSet::new(),
++        }
++    }
++
++    fn next(&mut self, doc: &BaseDocument) -> Option<NodeId> {
++        while let Some(id) = self.pending.pop() {
++            if !self.visited.insert(id) {
++                continue;
++            }
++            let Some(node) = doc.nodes.get(id) else {
++                continue;
++            };
++            self.pending.extend(node.children.iter().copied());
++            self.pending
++                .extend(node.assigned_nodes().into_iter().flatten().copied());
++            self.pending.extend(node.before());
++            self.pending.extend(node.after());
++            self.pending.extend(node.attached_shadow_root_id());
++            return Some(id);
++        }
++        None
++    }
++}
++
+ fn snap_table_tracks(
+     tracks: &mut taffy::DetailedGridTracksInfo<style::Atom>,
+     raw_origin: f32,
+@@ -640,6 +674,45 @@ impl BaseDocument {
+         }
+     }
+
++    /// Drop the box state of a subtree whose root has just become `display: none`.
++    /// Stylo clears the descendants' styles; without this their inline layouts,
++    /// layout output and anonymous blocks stay allocated until the subtree is
++    /// shown again. Showing it rebuilds all of them from fresh styles.
++    pub(crate) fn release_undisplayed_layout(&mut self, root_id: NodeId) {
++        let mut traversal = UndisplayedLayoutTraversal::new(root_id);
++        while let Some(id) = traversal.next(self) {
++            let Some(node) = self.nodes.get_mut(id) else {
++                continue;
++            };
++            let is_root = id == root_id;
++            let anonymous_blocks = node.take_anonymous_blocks();
++            node.layout_children.get_mut().take();
++            node.paint_children.get_mut().take();
++            if !is_root {
++                // The root keeps its own box slot: its container may still list it.
++                node.layout_parent.set(None);
++            }
++            // A user or script set the scroll offset, and layout cannot rebuild
++            // it, so a scrolled box keeps its layout data while hidden. Text and
++            // comment nodes have no layout data, so ask only element kinds.
++            let scrolled = node.element_data().is_some_and(|_| {
++                let offset = node.scroll_offset();
++                offset.x != 0.0 || offset.y != 0.0
++            });
++            if let Some(element) = node.element_data_mut() {
++                element.set_inline_layout_data(None);
++                element.set_list_item_data(None);
++                element.clear_detailed_layout_info();
++                if !is_root && !scrolled {
++                    element.layout_data = None;
++                }
++            }
++            for anon_id in anonymous_blocks {
++                self.deallocate_anonymous_block(anon_id);
++            }
++        }
++    }
++
+     /// Every layout child must point back at its container via
+     /// `layout_parent`, which `propagate_damage_flags` relies on to reach
+     /// anonymous boxes.
+@@ -915,3 +988,84 @@ impl BaseDocument {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod undisplayed_layout_tests {
++    use super::*;
++    use crate::node::ShadowRootMode;
++    use crate::{Attribute, DocumentConfig, qual_name};
++    use blitz_traits::shell::{ColorScheme, Viewport};
++    use std::collections::HashSet;
++
++    #[test]
++    fn nested_slot_edges_visit_each_reachable_node_once_and_release_layout() {
++        const NESTED_HOSTS: usize = 4;
++
++        let mut doc = BaseDocument::new(DocumentConfig {
++            viewport: Some(Viewport::new(400, 300, 1.0, ColorScheme::Light)),
++            ..Default::default()
++        });
++        let document_root = doc.root_node().id;
++        let block_style = || Attribute::new(qual_name!("style"), "display:block".to_string());
++        let mut mutator = doc.mutate();
++        let html = mutator.create_element(qual_name!("html"), vec![block_style()]);
++        let body = mutator.create_element(qual_name!("body"), vec![block_style()]);
++        let outer = mutator.create_element(qual_name!("div"), vec![block_style()]);
++        mutator.append_children(body, &[outer]);
++        mutator.append_children(html, &[body]);
++        mutator.append_children(document_root, &[html]);
++
++        let mut expected_nodes = vec![outer];
++        let mut slot_assignments = Vec::new();
++        let mut host = outer;
++        for _ in 0..NESTED_HOSTS {
++            let shadow_root = mutator.attach_shadow(host, ShadowRootMode::Open);
++            let slot = mutator.create_element(qual_name!("slot"), vec![block_style()]);
++            mutator.append_children(shadow_root, &[slot]);
++            let child = mutator.create_element(qual_name!("div"), vec![block_style()]);
++            mutator.append_children(host, &[child]);
++            expected_nodes.extend([shadow_root, slot, child]);
++            slot_assignments.push((slot, child));
++            host = child;
++        }
++        drop(mutator);
++        doc.resolve(0.0);
++
++        for (slot, child) in &slot_assignments {
++            assert!(
++                doc.nodes[*slot]
++                    .assigned_nodes()
++                    .is_some_and(|assigned| assigned.contains(child)),
++                "slot must reach its host's light child"
++            );
++        }
++
++        let expected: HashSet<_> = expected_nodes.into_iter().collect();
++        let mut traversal = UndisplayedLayoutTraversal::new(outer);
++        let mut visited = Vec::new();
++        while let Some(id) = traversal.next(&doc) {
++            visited.push(id);
++        }
++        let unique: HashSet<_> = visited.iter().copied().collect();
++        assert_eq!(
++            visited.len(),
++            expected.len(),
++            "cleanup traversal must visit each reachable node once"
++        );
++        assert_eq!(unique, expected);
++
++        assert!(doc.nodes[host]
++            .element_data()
++            .unwrap()
++            .layout_data
++            .is_some());
++        doc.mutate()
++            .set_attribute(outer, qual_name!("style"), "display:none");
++        doc.resolve(0.0);
++        assert!(doc.nodes[host]
++            .element_data()
++            .unwrap()
++            .layout_data
++            .is_none());
++    }
++}
+diff --git a/src/stylo.rs b/src/stylo.rs
+index 126361c..58b53cd 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -257,5 +257,8 @@ impl crate::document::BaseDocument {
+             thread_local: &mut thread_local,
+         };
+         let styles = resolve_style(&mut context, node, RuleInclusion::All, None, None);
++        // Dropping the thread-local context runs its queued sequential tasks,
++        // which stylo requires to happen inside the layout thread state.
++        drop(thread_local);
+
+         style::thread_state::exit(ThreadState::LAYOUT);

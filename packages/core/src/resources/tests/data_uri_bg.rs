@@ -100,7 +100,7 @@ fn data_uri_bg_step_by_step() {
             let Some(el) = node.element_data() else {
                 continue;
             };
-            for d in el.background_images.iter().flatten() {
+            for d in el.background_images().iter().flatten() {
                 if matches!(d.image, blitz_dom::node::ImageData::None) {
                     n_none += 1
                 } else {
@@ -120,4 +120,32 @@ fn data_uri_bg_step_by_step() {
     document.as_mut().resolve(0.0);
     let n = dump(document.as_ref(), "after resolve 2");
     assert!(n > 0, "no background image slot filled");
+}
+
+#[test]
+fn backgrounds_without_a_url_keep_no_image_storage() {
+    let html = r##"<!DOCTYPE html>
+<html><head><style>
+  .d { width: 60px; height: 60px;
+       background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAFElEQVR4nGM8ISfHAANMDEgANwcANHYBDK9qubUAAAAASUVORK5CYII=); }
+  .g { background-image: linear-gradient(red, blue); }
+</style></head><body><p>a</p><p class="g">b</p><div id="d" class="d"></div></body></html>"##;
+    let dom = DomHandle::new(html, "https://test.example/");
+    dom.resolve_layout();
+    let report = dom.debug_dump_background_images();
+    assert_eq!(
+        report.lines().count(),
+        1,
+        "only the url layer needs storage: {report}"
+    );
+    assert!(report.contains("Some"), "{report}");
+
+    let holder = dom.query_selector("#d").unwrap();
+    dom.set_attribute(holder as u32, "class", "");
+    dom.resolve_layout();
+    let after_removal = dom.debug_dump_background_images();
+    assert!(
+        after_removal.is_empty(),
+        "a removed image kept its slot: {after_removal}"
+    );
 }

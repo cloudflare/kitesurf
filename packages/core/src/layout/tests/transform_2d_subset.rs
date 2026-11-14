@@ -25,8 +25,6 @@ fn icon_transform(css_transform: &str) -> Option<kurbo::Affine> {
     doc.get_node(crate::blitz_node_id(id as u32))
         .expect("node")
         .transform()
-        .as_deref()
-        .copied()
 }
 
 #[test]

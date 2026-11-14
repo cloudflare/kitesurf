@@ -68,7 +68,7 @@ pub(crate) fn inner_text(doc: &BaseDocument, node_id: NodeId) -> Option<String> 
         if id == root_id {
             connected = true;
         }
-        cur = n.parent;
+        cur = n.parent.get();
     }
     if !connected {
         return None;

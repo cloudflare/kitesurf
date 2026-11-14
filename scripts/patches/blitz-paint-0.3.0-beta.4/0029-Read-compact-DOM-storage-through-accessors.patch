@@ -1,0 +1,178 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sun, 25 Oct 2026 01:08:05 +0000
+Subject: [PATCH] Read compact DOM storage through accessors
+
+blitz-dom moved rarely used element data out of line. Read its sidecars,
+element image layers, list-item data and inline text layouts through the
+ElementData accessors. Paint output is unchanged.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/render.rs            | 22 ++++++++++------------
+ src/render/background.rs |  4 ++--
+ src/render/mask.rs       |  2 +-
+ src/text.rs              |  6 +++---
+ 4 files changed, 16 insertions(+), 18 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index d961a32..8dbcf72 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -466,14 +466,14 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+         let overflow = *node.scrollable_overflow();
+         let transform = parent_style_transform
+             * Affine::translate(box_position)
+-            * node.transform().as_deref().copied().unwrap_or_default();
++            * node.transform().unwrap_or_default();
+
+         let screen_transform = Affine::translate(Vec2 {
+             x: -self.initial_x,
+             y: -self.initial_y,
+         }) * transform;
+         let screen_bbox = screen_transform.transform_rect_bbox(overflow.union(border_box));
+-        let screen_bbox = match node.rehomed_reach.get() {
++        let screen_bbox = match node.rehomed_reach() {
+             Some((x0, y0, x1, y1)) => {
+                 let reach = Rect::new(
+                     x0 as f64 * self.scale,
+@@ -521,7 +521,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+         if should_clip
+             && clip_area < 0.01
+             && overflow_area < 0.01
+-            && node.rehomed_reach.get().is_none()
++            && node.rehomed_reach().is_none()
+         {
+             return;
+         }
+@@ -831,7 +831,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+                 _ => None,
+             },
+             text_input: element.text_input_data(),
+-            list_item: element.list_item_data.as_deref(),
++            list_item: element.list_item_data(),
+             devtools: self.dom.devtools(),
+             custom_widget_scene,
+         }
+@@ -1057,8 +1057,7 @@ impl ElementCx<'_, '_> {
+     fn draw_inline_layout(&self, scene: &mut impl PaintScene, pos: Point) {
+         if self.node.flags.is_inline_root() {
+             let text_layout = self.element
+-                .inline_layout_data
+-                .as_ref()
++                .inline_layout_data()
+                 .unwrap_or_else(|| {
+                     panic!("Tried to render node marked as inline root that does not have an inline layout: {:?}", self.node);
+                 });
+@@ -1204,8 +1203,7 @@ impl ElementCx<'_, '_> {
+             // Align the marker with the baseline of the first line of text in the list item
+             let y_offset = if let Some((text_layout, first_text_line)) = &self
+                 .element
+-                .inline_layout_data
+-                .as_ref()
++                .inline_layout_data()
+                 .and_then(|text_layout| Some((text_layout, text_layout.layout.lines().next()?)))
+             {
+                 (first_text_line.metrics().baseline
+@@ -1247,7 +1245,7 @@ impl ElementCx<'_, '_> {
+     ) {
+         // Negative z_index hoisted nodes
+
+-        if let Some(hoisted) = &self.node.stacking_context {
++        if let Some(hoisted) = self.node.stacking_context() {
+             for hoisted_child in hoisted.neg_z_hoisted_children() {
+                 let position = hoisted_child.position(self.node.tree(), self.node.id);
+                 self.render_hoisted_child(
+@@ -1264,7 +1262,7 @@ impl ElementCx<'_, '_> {
+         if let Some(children) = &*self.node.paint_children.borrow() {
+             for child_id in children {
+                 let child = &self.context.dom.as_ref().tree()[*child_id];
+-                let child_transform = match child.paint_parent_override.get() {
++                let child_transform = match child.paint_parent_override() {
+                     Some(parent) if parent == self.node.id => {
+                         if skip_rehomed {
+                             continue;
+@@ -1297,7 +1295,7 @@ impl ElementCx<'_, '_> {
+         }
+
+         // Positive z_index hoisted nodes
+-        if let Some(hoisted) = &self.node.stacking_context {
++        if let Some(hoisted) = self.node.stacking_context() {
+             for hoisted_child in hoisted.pos_z_hoisted_children() {
+                 let position = hoisted_child.position(self.node.tree(), self.node.id);
+                 self.render_hoisted_child(
+@@ -1427,7 +1425,7 @@ impl ElementCx<'_, '_> {
+         };
+         for child_id in children {
+             let child = &self.context.dom.as_ref().tree()[*child_id];
+-            if child.paint_parent_override.get() != Some(self.node.id) {
++            if child.paint_parent_override() != Some(self.node.id) {
+                 continue;
+             }
+             let translation = child.rehomed_paint_translate(self.node.id);
+diff --git a/src/render/background.rs b/src/render/background.rs
+index a315c2c..cf4fd25 100644
+--- a/src/render/background.rs
++++ b/src/render/background.rs
+@@ -138,7 +138,7 @@ impl<'a> ImageLayerStyles<'a> {
+ impl ElementCx<'_, '_> {
+     pub(super) fn draw_background(&self, scene: &mut impl PaintScene) {
+         let bg_styles = &self.style.get_background();
+-        let image_data = &self.element.background_images;
++        let image_data = self.element.background_images();
+         let layer_count = bg_styles.background_image.0.len();
+
+         // The background color is clipped by the clip of the last layer in the list
+@@ -382,7 +382,7 @@ impl ElementCx<'_, '_> {
+             if node.transform().is_some() {
+                 return true;
+             }
+-            current = node.parent;
++            current = node.parent.get();
+         }
+         false
+     }
+diff --git a/src/render/mask.rs b/src/render/mask.rs
+index 81f065f..7fdcd88 100644
+--- a/src/render/mask.rs
++++ b/src/render/mask.rs
+@@ -92,7 +92,7 @@ impl ElementCx<'_, '_> {
+     /// Draw the mask image layers (analogous to `draw_background` for `background-image`)
+     fn draw_css_mask(&self, scene: &mut impl PaintScene) {
+         let svg_styles = self.style.get_svg();
+-        let image_data = &self.element.mask_images;
++        let image_data = self.element.mask_images();
+         let layer_count = svg_styles.mask_image.0.len();
+
+         for idx in (0..layer_count).rev() {
+diff --git a/src/text.rs b/src/text.rs
+index c0762dd..5fe4157 100644
+--- a/src/text.rs
++++ b/src/text.rs
+@@ -581,7 +581,7 @@ pub(crate) fn inline_opacity(doc: &BaseDocument, node_id: NodeId, inline_root_id
+         if let Some(styles) = node.primary_styles() {
+             opacity *= styles.get_effects().opacity;
+         }
+-        walk_id = node.parent;
++        walk_id = node.parent.get();
+     }
+     opacity
+ }
+@@ -622,7 +622,7 @@ pub(crate) fn stroke_text<'a>(
+                 break;
+             }
+         }
+-        let Some(parent) = node.parent else { break };
++        let Some(parent) = node.parent.get() else { break };
+         ancestors.push(parent);
+         walk_id = parent;
+     }
+@@ -667,7 +667,7 @@ pub(crate) fn stroke_text<'a>(
+                     if node_id == inline_root_id {
+                         break;
+                     }
+-                    walk_id = doc.get_node(node_id).and_then(|node| node.parent);
++                    walk_id = doc.get_node(node_id).and_then(|node| node.parent.get());
+                 }
+                 path_scratch.extend(ancestors.iter().copied());
+                 path_scratch.reverse();

@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sat, 24 Oct 2026 00:52:55 +0100
+Subject: [PATCH] Paint optional text style decorations
+
+Parley now boxes laid-out underline and strikethrough decorations and
+leaves them out for runs that have none. Paint them only when present.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/text_box_decorations.rs | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/src/text_box_decorations.rs b/src/text_box_decorations.rs
+index ef02026..800fc93 100644
+--- a/src/text_box_decorations.rs
++++ b/src/text_box_decorations.rs
+@@ -64,7 +64,9 @@ pub(crate) fn paint_span_fragment_backgrounds(
+             Some(s) => s,
+             None => continue,
+         };
+-        let decos = &style.box_decorations;
++        let Some(decos) = style.box_decorations.as_deref() else {
++            continue;
++        };
+         if decos.is_empty() {
+             // Defensive: if a fragment was emitted with empty
+             // decorations, there's nothing to paint. The line
+@@ -138,7 +140,9 @@ pub(crate) fn paint_span_fragment_borders(
+             Some(s) => s,
+             None => continue,
+         };
+-        let decos = &style.box_decorations;
++        let Some(decos) = style.box_decorations.as_deref() else {
++            continue;
++        };
+         let top_w = decos.border_block_start_width as f64;
+         let right_w = decos.border_inline_end_width as f64;
+         let bottom_w = decos.border_block_end_width as f64;
