@@ -106,7 +106,7 @@ async fn gated_module_source(
     url: &str,
     referrer: Option<&str>,
     module_type: Option<&str>,
-) -> Option<Result<String, String>> {
+) -> Option<Result<LoadedModule, String>> {
     let hook: js_sys::Function = get("fetchModuleSource")?.dyn_into().ok()?;
     let referrer = referrer.map_or(JsValue::UNDEFINED, JsValue::from_str);
     let module_type = module_type.map_or(JsValue::UNDEFINED, JsValue::from_str);
@@ -122,20 +122,21 @@ async fn gated_module_source(
         Ok(p) => p,
         Err(e) => return Some(Err(e)),
     };
-    match wasm_bindgen_futures::JsFuture::from(Promise::from(promise)).await {
-        Ok(v) => Some(
-            v.as_string()
-                .ok_or_else(|| "module body not a string".to_string()),
-        ),
-        Err(e) => Some(Err(format!("module refused for {url}: {e:?}"))),
-    }
+    let value = match wasm_bindgen_futures::JsFuture::from(Promise::from(promise)).await {
+        Ok(v) => v,
+        Err(e) => return Some(Err(format!("module refused for {url}: {e:?}"))),
+    };
+    Some(
+        module_body(&value)
+            .ok_or_else(|| format!("module body for {url} is neither source nor a namespace")),
+    )
 }
 
 async fn fetch_module_source(
     url: String,
     referrer: Option<String>,
     module_type: Option<String>,
-) -> Result<String, String> {
+) -> Result<LoadedModule, String> {
     if let Some(gated) =
         gated_module_source(&url, referrer.as_deref(), module_type.as_deref()).await
     {
@@ -172,6 +173,7 @@ async fn fetch_module_source(
     .await
     .map_err(|_| "text() rejected".to_string())?;
     text.as_string()
+        .map(LoadedModule::Source)
         .ok_or_else(|| "module body not a string".to_string())
 }
 
@@ -231,10 +233,23 @@ fn v8_namespace_to_synthetic(url: &str, ns: &wasm_bindgen::JsValue, ctx: &mut Co
     Module::synthetic(&names, init, Some(std::path::PathBuf::from(url)), None, ctx)
 }
 
+// What a module load produced: text for boa to parse, or a namespace the page realm already
+// built. A JSON module takes the namespace path, so its data is never parsed here.
 enum LoadedModule {
     Native(wasm_bindgen::JsValue),
     Source(String),
-    Err(String),
+}
+
+// A module body the page's hook answered: source text for a JavaScript module, or the namespace
+// of a JSON module the page realm parsed.
+fn module_body(value: &JsValue) -> Option<LoadedModule> {
+    if let Some(source) = value.as_string() {
+        return Some(LoadedModule::Source(source));
+    }
+    if value.is_object() {
+        return Some(LoadedModule::Native(value.clone()));
+    }
+    None
 }
 
 impl ModuleLoader for KsModuleLoader {
@@ -258,11 +273,8 @@ impl ModuleLoader for KsModuleLoader {
         // a JSON request from a record it baked as JSON, so a typed request cannot reach
         // JavaScript here.
         let loaded = match native_import_namespace(url.clone(), module_type.clone()).await {
-            Some(ns) => LoadedModule::Native(ns),
-            None => match fetch_module_source(url.clone(), referrer_url, module_type).await {
-                Ok(src) => LoadedModule::Source(src),
-                Err(msg) => LoadedModule::Err(msg),
-            },
+            Some(ns) => Ok(LoadedModule::Native(ns)),
+            None => fetch_module_source(url.clone(), referrer_url, module_type).await,
         };
         // Dedupe concurrent in-flight loads of the same URL: a sibling load may
         // have parsed and registered this module while we fetched.
@@ -272,16 +284,16 @@ impl ModuleLoader for KsModuleLoader {
         let module = {
             let ctx = &mut *context.borrow_mut();
             match loaded {
-                LoadedModule::Native(ns) => v8_namespace_to_synthetic(&url, &ns, ctx),
-                // A JSON module arrives wrapped as `export default <literal>` by the
-                // gated source hook, which types it from the response MIME.
-                LoadedModule::Source(src) => Module::parse(
+                Ok(LoadedModule::Native(ns)) => v8_namespace_to_synthetic(&url, &ns, ctx),
+                // An untyped import of a JSON-MIME body arrives wrapped as
+                // `export default <literal>`; a JSON-typed one arrives as a namespace above.
+                Ok(LoadedModule::Source(src)) => Module::parse(
                     Source::from_bytes(src.as_bytes())
                         .with_path(std::path::Path::new(url.as_str())),
                     None,
                     ctx,
                 )?,
-                LoadedModule::Err(msg) => {
+                Err(msg) => {
                     return Err(JsNativeError::typ().with_message(msg).into());
                 }
             }

@@ -152,3 +152,31 @@ test("Input.insertText: inserts strings longer than a few chars", async ({ page 
   await session.send("Input.insertText", { text: "\t" });
   expect(await value()).toBe("hello@example.com/inbox");
 });
+
+// One quad per line box; Puppeteer clicks the centre of the first one, which a single bounding
+// quad would put on the paragraph text.
+test("DOM.getContentQuads returns one quad per line of a wrapped link", async ({
+  page,
+  cdpSession: session,
+}) => {
+  await setContent(
+    page,
+    '<p style="width:300px;font:16px monospace;margin:0">aaaaaaaaaaaaaaaaaaaa' +
+      '<a id="l" href="#t">link link link link link link</a> bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</p>',
+  );
+  await session.send("DOM.enable");
+  const { root } = await session.send("DOM.getDocument", { depth: -1 });
+  const { nodeId } = await session.send("DOM.querySelector", {
+    nodeId: root.nodeId,
+    selector: "#l",
+  });
+
+  const { quads } = await session.send("DOM.getContentQuads", { nodeId });
+  expect(quads.length).toBeGreaterThanOrEqual(2);
+
+  // A quad lists four corners clockwise from the top-left, so index 1 is the top edge's y.
+  const topOf = (quad: number[]) => quad[1];
+  const heightOf = (quad: number[]) => (quad[5] ?? 0) - (quad[1] ?? 0);
+  for (const height of quads.map(heightOf)) expect(height).toBeGreaterThan(0);
+  expect(new Set(quads.map(topOf)).size).toBe(quads.length);
+});

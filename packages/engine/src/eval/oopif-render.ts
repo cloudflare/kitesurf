@@ -22,6 +22,7 @@ import {
 import type { SandboxOutboundOverride } from "./outbound.ts";
 import { stubQueryDom } from "../cdp/page-session.ts";
 import { disposeStub } from "../cdp/page-script-generation.ts";
+import { navigateSourceOf } from "@kitesurf/page-script/source-scan";
 import { walkRedirects } from "./redirect-walk.ts";
 import {
   documentKind,
@@ -409,7 +410,7 @@ export async function navigatePrespawnedFrame(
   try {
     await pre.warmup;
     const viewport = frameViewport(args.viewport);
-    await stub.navigate(html, finalUrl, {
+    await stub.navigate(navigateSourceOf(html), finalUrl, {
       connectionId: args.connectionId,
       mainFrameId: args.frameId,
       cookieKey: args.cookieKey ?? "",

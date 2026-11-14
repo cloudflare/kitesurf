@@ -33,6 +33,7 @@ import {
   DEFAULT_TTY_CELL_HEIGHT_PX,
   DEFAULT_TTY_CELL_WIDTH_PX,
 } from "../tty/nav-params.ts";
+import { navigateSourceOf } from "@kitesurf/page-script/source-scan";
 import { ttyFocusStylesheet, ttyUaStylesheet } from "../tty/stylesheet.ts";
 import { wakeSceneStream } from "./scene-stream.ts";
 import {
@@ -2259,7 +2260,7 @@ async function pushNavigateToPageScriptInner(
           tracer.getSpanContext(),
         );
       }
-      const navPromise = ps.navigate(html, url, {
+      const navPromise = ps.navigate(navigateSourceOf(html), url, {
         cookies: initialCookies,
         ...(traced ? { traced: true } : {}),
         expectIframeInstalls: owesIframeInstalls,

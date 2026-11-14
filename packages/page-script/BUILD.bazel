@@ -7,6 +7,21 @@ load("//bazel:checks.bzl", "tsc_test", "workspace_configs")
 npm_link_all_packages(name = "node_modules")
 
 js_library(
+    name = "startup_probe_source",
+    srcs = ["src/startup-probe.ts"],
+    visibility = ["//scripts:__pkg__"],
+)
+
+js_library(
+    name = "font_loader_source",
+    srcs = [
+        "src/font-loader.ts",
+        "src/source-scan.ts",
+    ],
+    visibility = ["//scripts:__pkg__"],
+)
+
+js_library(
     name = "pdf_stream_source",
     srcs = ["src/pdf-stream.ts"],
     visibility = ["//scripts:__pkg__"],

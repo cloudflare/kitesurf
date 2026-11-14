@@ -13,7 +13,8 @@ import {
   hasClassicAsync as startupHasClassicAsync,
   insertedBaked as startupInsertedBaked,
   hasClassicRegular as startupHasClassicRegular,
-  html as startupHtml,
+  hasHtml as startupHasHtml,
+  htmlLength as startupHtmlLength,
   moduleScriptCount as startupModuleScriptCount,
   moduleScriptUrls as startupModuleScriptUrls,
   jsonModuleUrls as startupJsonModuleUrls,
@@ -113,7 +114,6 @@ export {
   startupHasClassicAsync,
   startupInsertedBaked,
   startupHasClassicRegular,
-  startupHtml,
   startupModuleScriptCount,
   startupModuleScriptUrls,
   startupJsonModuleUrls,
@@ -129,8 +129,8 @@ export {
 const STARTUP_SCRIPT_DESCRIPTOR_SAMPLE_SIZE = 5;
 
 export const startupInputSnapshot = {
-  hasHtml: typeof startupHtml === "string",
-  htmlLength: typeof startupHtml === "string" ? startupHtml.length : 0,
+  hasHtml: startupHasHtml,
+  htmlLength: startupHtmlLength,
   url: startupUrl,
   hasCookies: typeof startupCookies === "string" && startupCookies.length > 0,
   scriptDescriptorCount: Array.isArray(startupScriptDescriptors)

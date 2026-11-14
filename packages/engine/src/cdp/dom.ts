@@ -22,6 +22,7 @@ import { cookieKeyFor } from "./cookie-jar-registry.ts";
 import { publishStub } from "./page-script-generation.ts";
 import { ensureTargetDom } from "./dom-release.ts";
 import {
+  outerHtmlResponse,
   registerEnsurePageScript,
   resolveTarget,
   sessionOf,
@@ -160,10 +161,18 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       const id = numericNodeId(req.params);
       if (ps) {
         const includeDoctype = req.params?.includeDoctype === true;
-        return await session.call.getOuterHTML({
-          ...(id != null ? { nodeId: id } : {}),
-          ...(includeDoctype ? { includeDoctype: true } : {}),
-        });
+        // Both reads must describe one document: the snapshot retry happens after an await, so
+        // an unpinned call could apply this node id to the document a navigation just installed.
+        await session.ready();
+        const pinned = session.pin();
+        if (!pinned) throw new Error("No PageScript isolate for target");
+        return await outerHtmlResponse((mode) =>
+          pinned.call.getOuterHTML({
+            ...(id != null ? { nodeId: id } : {}),
+            ...(includeDoctype ? { includeDoctype: true } : {}),
+            ...mode,
+          }),
+        );
       }
       const dom = requireDom(target);
       if (id == null) return { outerHTML: "" };
@@ -247,9 +256,9 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
 
     case "DOM.getContentQuads": {
       const ref = rectNodeRef(req.params);
-      const rect = ref ? await pageScriptRect(session, ref) : null;
-      if (!rect) return { quads: [] };
-      return { quads: [rectToQuad(rect)] };
+      const read = ref ? await session.callIfLive.getRect(ref) : null;
+      if (!read) return { quads: [] };
+      return { quads: lineBoxRects(read).filter(hasArea).map(rectToQuad) };
     }
 
     case "DOM.getNodeForLocation": {
@@ -362,6 +371,20 @@ function realBoxFor(rect: { x: number; y: number; width: number; height: number 
     width: Math.round(rect.width),
     height: Math.round(rect.height),
   };
+}
+
+// DOM.getContentQuads wants one quad per line box, so a wrapped inline node reports a rect per
+// line instead of one bounding rect.
+function lineBoxRects(read: {
+  rect?: Protocol.DOM.Rect | null;
+  rects?: Protocol.DOM.Rect[] | null;
+}): Protocol.DOM.Rect[] {
+  if (read.rects && read.rects.length > 0) return read.rects;
+  return read.rect ? [read.rect] : [];
+}
+
+function hasArea(rect: { width: number; height: number }): boolean {
+  return rect.width > 0 && rect.height > 0;
 }
 
 function rectToQuad(rect: { x: number; y: number; width: number; height: number }): number[] {

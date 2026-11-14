@@ -13,6 +13,12 @@ load("//bazel:paths.bzl", "bin_relative")
 
 npm_link_all_packages(name = "node_modules")
 
+js_library(
+    name = "startup_input_generator_source",
+    srcs = ["src/eval/page-script.ts"],
+    visibility = ["//scripts:__pkg__"],
+)
+
 exports_files(
     [
         "package.json",

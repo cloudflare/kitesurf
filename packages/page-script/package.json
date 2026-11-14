@@ -16,6 +16,7 @@
     "./message-channel": "./src/message-channel.ts",
     "./session-outbound": "./src/session-outbound.ts",
     "./shared-memory": "./src/shared-memory.ts",
+    "./source-scan": "./src/source-scan.ts",
     "./state": "./src/state.ts",
     "./tail-channel": "./src/tail-channel.ts",
     "./trusted-fetch": "./src/trusted-fetch.ts"

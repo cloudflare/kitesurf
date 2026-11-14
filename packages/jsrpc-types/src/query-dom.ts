@@ -218,8 +218,12 @@ export interface QueryDomMethods {
     result: Partial<Protocol.DOM.QuerySelectorAllResponse> & { error?: string };
   };
   getOuterHTML: {
-    args: { nodeId?: number; includeDoctype?: boolean };
-    result: Partial<Protocol.DOM.GetOuterHTMLResponse>;
+    // `snapshot` serializes the whole output before streaming it, instead of as it is read.
+    args: { nodeId?: number; includeDoctype?: boolean; snapshot?: boolean };
+    // Streamed UTF-8 of `byteLength` bytes: a whole copy in PageScript, then another in the RPC
+    // serializer, pushed large pages over the isolate memory limit. Without `snapshot`, a DOM
+    // change while streaming ends the stream short; ask again with `snapshot` then.
+    result: { byteLength: number; outerHTMLUtf8: ReadableStream<Uint8Array> };
   };
   describeNode: {
     args: { nodeId?: number; objectId?: string };
@@ -273,7 +277,11 @@ export interface QueryDomMethods {
     // `objectId` is a PageScript handle (`ps:<isolateStamp>:<seq>`) from Runtime, as
     // Playwright passes it.
     args: { nodeId: number } | { objectId: string };
-    result: { rect?: Protocol.DOM.Rect | null };
+    result: {
+      rect?: Protocol.DOM.Rect | null;
+      // One rect per line box for an inline node, for DOM.getContentQuads.
+      rects?: Protocol.DOM.Rect[] | null;
+    };
   };
   elementFromPoint: {
     args: { x: number; y: number };

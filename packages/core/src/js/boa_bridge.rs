@@ -1750,6 +1750,61 @@ fn noop(_: &BoaValue, _: &[BoaValue], _: &mut Context) -> JsResult<BoaValue> {
     Ok(BoaValue::undefined())
 }
 
+/// Strings with at least this many UTF-16 code units cross in chunks.
+const CHUNKED_STRING_UNITS: u32 = 1 << 16;
+const STRING_CHUNK_UNITS: u32 = 1 << 15;
+
+// Whole, `as_string` stages UTF-8 at up to 3 bytes a unit and `JsString::from` re-encodes it
+// through a growing Vec<u16>: several times the string in wasm memory, which never shrinks.
+// Chunks fill a boa string allocated at its final size; each still decodes like `as_string`.
+fn large_v8_string_to_boa(s: &js_sys::JsString) -> Option<JsString> {
+    let len = s.length();
+    if len < CHUNKED_STRING_UNITS {
+        return None;
+    }
+    // One search decides the builder: with no code unit above U+00FF the string is Latin-1.
+    if s.search(&js_sys::RegExp::new("[^\\x00-\\xff]", "")) >= 0 {
+        wide_v8_string_to_boa(s, len)
+    } else {
+        latin1_v8_string_to_boa(s, len)
+    }
+}
+
+fn wide_v8_string_to_boa(s: &js_sys::JsString, len: u32) -> Option<JsString> {
+    let mut out = boa_engine::string::Utf16JsStringBuilder::with_capacity(len as usize);
+    let mut pos = 0;
+    while pos < len {
+        let end = chunk_end(s, pos, len);
+        out.extend(s.substring(pos, end).as_string()?.encode_utf16());
+        pos = end;
+    }
+    Some(out.build())
+}
+
+fn latin1_v8_string_to_boa(s: &js_sys::JsString, len: u32) -> Option<JsString> {
+    let mut out = boa_engine::string::Latin1JsStringBuilder::with_capacity(len as usize);
+    let mut pos = 0;
+    while pos < len {
+        let end = chunk_end(s, pos, len);
+        // Every char is at most U+00FF: the search found no wider code unit.
+        out.extend(s.substring(pos, end).as_string()?.chars().map(|c| c as u8));
+        pos = end;
+    }
+    // SAFETY: every byte is the Latin1 code of a char at most U+00FF.
+    Some(unsafe { out.build_as_latin1() })
+}
+
+/// End of the chunk starting at `pos`, kept off the middle of a surrogate pair.
+fn chunk_end(s: &js_sys::JsString, pos: u32, len: u32) -> u32 {
+    let end = len.min(pos + STRING_CHUNK_UNITS);
+    let last = s.char_code_at(end - 1) as u32;
+    if end < len && (0xD800..=0xDBFF).contains(&last) {
+        end - 1
+    } else {
+        end
+    }
+}
+
 pub(crate) fn v8_to_boa(v: wasm_bindgen::JsValue, ctx: &mut Context) -> BoaValue {
     drain_v8_releases();
     if v.is_null() {
@@ -1763,6 +1818,11 @@ pub(crate) fn v8_to_boa(v: wasm_bindgen::JsValue, ctx: &mut Context) -> BoaValue
     }
     if let Some(b) = v.as_bool() {
         return BoaValue::from(b);
+    }
+    if v.is_string() {
+        if let Some(s) = large_v8_string_to_boa(v.unchecked_ref()) {
+            return BoaValue::from(s);
+        }
     }
     if let Some(s) = v.as_string() {
         return BoaValue::from(JsString::from(s.as_str()));

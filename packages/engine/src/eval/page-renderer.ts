@@ -7,7 +7,6 @@
 import rendererGlueSource from "../../../renderer-core/pkg/renderer_core.glue.js";
 import rendererWasmModule from "../../../renderer-core/pkg/renderer_core_bg.wasm";
 import { PAGE_RENDERER_SOURCE } from "@kitesurf/page-renderer";
-import { loadWasmBytesFromVfs } from "./page-script.ts";
 import { traceSpan } from "../tracing.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
 import { attributionTails, type AttributionTailExports } from "./attribution-tail.ts";
@@ -25,8 +24,6 @@ import type {
 import type { DynamicWorkerBudget, WorkerLease } from "./worker-budget.ts";
 
 export type { RenderStage };
-
-void rendererWasmModule;
 
 const PAGE_RENDERER_COMPAT_DATE = "2026-09-11";
 
@@ -96,7 +93,8 @@ function loadRenderer(
     modules: {
       "renderer.js": PAGE_RENDERER_SOURCE,
       "wasm-glue.js": rendererGlueSource,
-      "core_bg.wasm": { wasm: loadWasmBytesFromVfs("renderer_core_bg.wasm") },
+      // The parent's compiled module, shared rather than recompiled per renderer isolate.
+      "core_bg.wasm": { wasm: rendererWasmModule },
     },
     env: {
       KS_TAIL_TOKEN: tailToken,

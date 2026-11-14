@@ -117,6 +117,7 @@ js_library(
     srcs = [
         "get-patched-vendor-crates.mjs",
         "get-wasm-bindgen.mjs",
+        "wasm-memory-views.mjs",
         "wasm-opt.mjs",
     ],
     visibility = [
@@ -419,9 +420,12 @@ node_test(
     args = glob(
         ["*.test.mjs"],
         exclude = [
+            "page-script-font-loader.test.mjs",
             "page-script-pdf-stream.test.mjs",
             "page-renderer-pdf-stream.test.mjs",
+            "page-script-startup-input.test.mjs",
             "page-script-frame-bitmap-gate.test.mjs",
+            "wasm-memory-views.test.mjs",
             "wpt-compare.test.mjs",
         ],
     ),
@@ -447,6 +451,39 @@ node_test(
         "page-script-pdf-stream.test.mjs",
         "//:node_modules/typescript",
         "//packages/page-script:pdf_stream_source",
+    ],
+)
+
+node_test(
+    name = "page_script_startup_input_test",
+    args = ["page-script-startup-input.test.mjs"],
+    data = [
+        "page-script-startup-input.test.mjs",
+        "//:node_modules/typescript",
+        "//packages/engine:startup_input_generator_source",
+        "//packages/page-script:startup_probe_source",
+    ],
+)
+
+node_test(
+    name = "page_script_font_loader_test",
+    args = ["page-script-font-loader.test.mjs"],
+    data = [
+        "page-script-font-loader.test.mjs",
+        "//:node_modules/typescript",
+        "//packages/page-script:font_loader_source",
+    ],
+)
+
+# Runs wasm-bindgen's built glue and wasm under a modeled V8 embedder subarray cap.
+node_test(
+    name = "wasm_memory_views_test",
+    size = "medium",
+    args = ["wasm-memory-views.test.mjs"],
+    data = [
+        "wasm-memory-views.mjs",
+        "wasm-memory-views.test.mjs",
+        "//packages/core/pkg",
     ],
 )
 

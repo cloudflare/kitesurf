@@ -8,12 +8,13 @@ import wasmModule from "../../core/pkg/kitesurf_core_bg.wasm";
 import type { ParsedStyleSheet } from "@kitesurf/jsrpc-types/query-dom";
 import { registerEngineWasmProbe } from "./engine-wasm-probe.ts";
 import { setDomFactory } from "./cdp/dom-release.ts";
+import { forEachUtf8Chunk } from "./utf8-chunks.ts";
 import {
   initSync,
   DomHandle,
+  DocScanner,
   ks_parse_stylesheet_structured,
   ks_render_html_to_image,
-  ks_scan_document,
   stripFontForShaping as ks_strip_font_for_shaping,
   __setBridgeFetchResource,
 } from "kitesurf-core";
@@ -125,9 +126,24 @@ export interface DocScan {
   modulePreloads: ScannedModulePreload[];
 }
 
+// UTF-16 units encoded per scan push.
+const SCAN_CHUNK_UNITS = 32 * 1024;
+
+/**
+ * Scans `html` a chunk at a time: wasm memory never shrinks, so passing the page whole kept its
+ * size in the engine for the session.
+ */
 export function scanDocument(html: string): DocScan {
   ensureInit();
-  return JSON.parse(ks_scan_document(html)) as DocScan;
+  const scanner = new DocScanner();
+  try {
+    forEachUtf8Chunk(html, SCAN_CHUNK_UNITS, (bytes) => scanner.push(bytes));
+  } catch (error) {
+    scanner.free();
+    throw error;
+  }
+  // `finish` consumes the scanner.
+  return JSON.parse(scanner.finish()) as DocScan;
 }
 
 export type ParsedStyleSheetRules = ParsedStyleSheet["rules"];

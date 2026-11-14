@@ -5,7 +5,8 @@
 // @ks-declaration-twin for the synthetic sibling generated per navigation.
 // External bodies ride the classic bundle; descriptors retain their byte length.
 
-export declare const html: string | null;
+export declare const hasHtml: boolean;
+export declare const htmlLength: number;
 export declare const url: string | null;
 export declare const cookies: string;
 export declare const scriptDescriptors: Array<{

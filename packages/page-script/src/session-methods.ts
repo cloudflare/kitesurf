@@ -98,7 +98,6 @@ export async function invokeSessionMethod<M extends PageScriptMethod>(
       : `rpc:${method}`,
   );
   try {
-    const args = argBuilder(params);
     const methodHandler = self[method];
     if (typeof methodHandler !== "function") {
       throw new Error("method not callable: " + method);
@@ -106,7 +105,11 @@ export async function invokeSessionMethod<M extends PageScriptMethod>(
     type Handler = (
       ...handlerArgs: Parameters<PageScriptSession[M]>
     ) => Promise<PageScriptReply<M>>;
-    return await nativeApply(methodHandler as Handler, self, args);
+    // Pass the arguments straight through: a local would keep this frame's copy alive for the
+    // whole call, and the navigate source must be collectable once the handler drops it.
+    const pending = nativeApply(methodHandler as Handler, self, argBuilder(params));
+    if (method === "navigate") (params as PageScriptWireParams["navigate"]).html = "";
+    return await pending;
   } finally {
     if (method === "navigate") state.settleLoadCompletionArmed();
   }

@@ -170,6 +170,7 @@ import moduleRegistryLibJs from "../assets/module-registry-lib.js";
 import moduleRegistryLiveReaderJs from "../assets/module-registry-live-reader.js";
 import moduleRegistryMalformedJsonTxt from "../assets/module-registry-malformed-json.txt";
 import moduleRegistryMetaJs from "../assets/module-registry-meta.js";
+import moduleRegistryProtoJsonTxt from "../assets/module-registry-proto-json.txt";
 import moduleRegistrySheetCss from "../assets/module-registry-sheet.css";
 import moduleRegistryTlaJs from "../assets/module-registry-tla.js";
 import moduleRegistryHtml from "../assets/module-registry.html";
@@ -293,6 +294,7 @@ export const STATIC_FIXTURES: Record<string, string | ArrayBuffer> = {
   "module-registry-config.json": jsonText(moduleRegistryConfigJson),
   "module-registry-fallback.json": jsonText(moduleRegistryFallbackJson),
   "module-registry-malformed.json": moduleRegistryMalformedJsonTxt,
+  "module-registry-proto.json": moduleRegistryProtoJsonTxt,
   "module-registry-sheet.css": moduleRegistrySheetCss,
   "keyboard.html": keyboardHtml,
   "external-sheet.html": externalSheetHtml,

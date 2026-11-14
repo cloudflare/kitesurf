@@ -29,6 +29,7 @@ import type {
   NavigateOptions,
   NavigateSummary,
   OkReply,
+  NavigateSource,
   PageScriptMethod,
   PageScriptReply,
   PageScriptSession,
@@ -133,8 +134,9 @@ import {
   SyncFunction,
   anchorHrefAttribute,
   findAnchorAncestor,
-  findAnchorViaSingleChild,
+  findAnchorUnderPoint,
   findFocusableAncestor,
+  findSvgAnchorAtPoint,
   packBoaResult,
   runExpression,
 } from "./eval-helpers.ts";
@@ -204,6 +206,7 @@ import {
   upgradePendingPromise,
   upgradeToFullFonts,
 } from "./font-loader.ts";
+import { navigateSourceOf, releaseNavigateSource } from "./source-scan.ts";
 
 // The UA stylesheet text, cached by the first enumerateStyleSheets query;
 // it never changes within an isolate.
@@ -334,7 +337,6 @@ import {
   state,
 } from "./state.ts";
 import { sanitizeCdpNodeTree } from "./cdp-nodes.ts";
-import { leadsWithDoctype, sourceDoctypeOf } from "./source-doctype.ts";
 import type { ShimElement } from "./types.ts";
 import {
   intersectionObserverStats,
@@ -2107,6 +2109,38 @@ function isWasmBoundingRect(
   );
 }
 
+// DOM.getContentQuads wants one rect per line box, so an inline element that wraps yields a rect
+// per line instead of one bounding rect.
+function contentRectsFor(
+  paint: { getContentRects?: (id: number) => unknown },
+  id: number,
+): Array<{ x: number; y: number; width: number; height: number }> | null {
+  if (typeof paint.getContentRects !== "function") return null;
+  try {
+    const rects = paint.getContentRects(id);
+    if (!Array.isArray(rects)) return null;
+    const viewportRects = rects.filter(isWasmBoundingRect).map(toViewportRect);
+    return viewportRects.length > 0 ? viewportRects : null;
+  } catch {
+    return null;
+  }
+}
+
+// Wasm reports layout rects in document coordinates; CDP wants viewport ones.
+function toViewportRect(rect: { x: number; y: number; width: number; height: number }): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  return {
+    x: (Number(rect.x) || 0) - state.scrollX,
+    y: (Number(rect.y) || 0) - state.scrollY,
+    width: Number(rect.width) || 0,
+    height: Number(rect.height) || 0,
+  };
+}
+
 function readPartialDamageRect(
   value: unknown,
 ): { x: number; y: number; width: number; height: number } | null {
@@ -2736,13 +2770,17 @@ function toggleDetailsFromSummary(targetEl: MouseTarget): void {
 
 type AnchorNavigation = { kind: "hash" | "navigate"; url: string };
 
+// A click follows a link only when it lands on the link or inside it (HTML's activation behavior
+// runs on the event path), never on a nearby one.
 function activateAnchorNavigation(
   targetEl: MouseTarget,
   clientX: number,
   clientY: number,
 ): AnchorNavigation | null {
   const anchor =
-    findAnchorAncestor(targetEl) || findAnchorViaSingleChild(targetEl, clientX, clientY);
+    findAnchorAncestor(targetEl) ||
+    findAnchorUnderPoint(targetEl, clientX, clientY) ||
+    findSvgAnchorAtPoint(targetEl, clientX, clientY);
   if (!anchor) return null;
   const rawHref = anchorHrefAttribute(anchor);
   if (typeof rawHref !== "string" || rawHref.length === 0) return null;
@@ -3068,39 +3106,47 @@ function cycleCollectStatsForLog(): unknown {
   }
 }
 
+const EMPTY_DOCUMENT = "<html><head></head><body></body></html>";
+
+/** The navigate source: the engine's, or one built from `html` when the caller sent a string. */
+function navigateSourceFor(html: string | NavigateSource): NavigateSource {
+  if (typeof html === "object" && html !== null) return html;
+  return navigateSourceOf(typeof html === "string" && html.length > 0 ? html : EMPTY_DOCUMENT);
+}
+
+/** Logs the shape of the navigate input, not the page, under startup CDP debug. */
+function logNavigateInput(source: NavigateSource, url: string): void {
+  const NAVIGATE_HTML_PREVIEW_BYTES = 200;
+  try {
+    console.log(
+      "[kitesurf-debug] PageScript.navigate() called",
+      JSON.stringify({
+        url,
+        htmlBytes: source.utf8.byteLength,
+        htmlPreview: new TextDecoder().decode(source.utf8.subarray(0, NAVIGATE_HTML_PREVIEW_BYTES)),
+        startupScriptCount: startupInputSnapshot?.scriptDescriptorCount,
+        startupSample: startupInputSnapshot?.scriptDescriptorSample,
+        startupHasClassicRegular: startupHasClassicRegular,
+      }),
+    );
+  } catch {}
+}
+
 export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   async fetch(_req: Request) {
     return new Response("PageScript", { status: 404 });
   }
 
   async navigate(
-    html: string,
+    html: string | NavigateSource,
     url: string,
     navigateOptions?: NavigateOptions,
   ): Promise<NavigateSummary> {
     state.navigateStarted = true;
     startCycleCollector();
     const safeUrl = typeof url === "string" ? url : "about:blank";
-    const safeHtml =
-      typeof html === "string" && html.length > 0
-        ? html
-        : "<html><head></head><body></body></html>";
-    if (startupCdpDebug) {
-      const NAVIGATE_HTML_PREVIEW_CHARS = 200;
-      try {
-        console.log(
-          "[kitesurf-debug] PageScript.navigate() called",
-          JSON.stringify({
-            url: safeUrl,
-            htmlLength: safeHtml.length,
-            htmlPreview: safeHtml.slice(0, NAVIGATE_HTML_PREVIEW_CHARS),
-            startupScriptCount: startupInputSnapshot?.scriptDescriptorCount,
-            startupSample: startupInputSnapshot?.scriptDescriptorSample,
-            startupHasClassicRegular: startupHasClassicRegular,
-          }),
-        );
-      } catch {}
-    }
+    let source: NavigateSource | null = navigateSourceFor(html);
+    if (startupCdpDebug) logNavigateInput(source, safeUrl);
     const initialCookies =
       navigateOptions && typeof navigateOptions.cookies === "string" ? navigateOptions.cookies : "";
     if (navigateOptions && typeof navigateOptions.connectionId === "string") {
@@ -3168,6 +3214,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       try {
         state.dom.free();
       } catch {}
+      // Null it now: the next document arrives after an await, and a reader in that window would
+      // otherwise see a freed handle that still compares equal to itself.
+      state.dom = null;
     }
     state.pageUrl = safeUrl;
     state.documentUrl = safeUrl;
@@ -3207,9 +3256,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     }
     emitNavigateDiagnostic("start", "fonts");
     if (fontDeferActive()) {
-      startFontPrefetch(safeHtml);
+      startFontPrefetch(source.fonts);
     } else {
-      await ensureFontsRegistered(safeHtml);
+      await ensureFontsRegistered(source.fonts);
     }
     emitNavigateDiagnostic("end", "fonts");
     markPhase("fontsMs");
@@ -3259,20 +3308,26 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     }
     emitNavigateDiagnostic("start", "parse");
 
-    const sourceDoctype = sourceDoctypeOf(safeHtml);
+    const sourceDoctype = source.doctype;
     const marker = sourceDoctype
       ? `__kitesurf_doctype_${Math.random().toString(36).slice(2)}__`
       : null;
-    const parsedHtml =
-      sourceDoctype && marker
-        ? safeHtml.slice(0, sourceDoctype.end) +
-          `<!--${marker}-->` +
-          safeHtml.slice(sourceDoctype.end)
-        : safeHtml;
-    const navigateDom = new DomHandle(parsedHtml, safeUrl);
+    const navigateDom = DomHandle.newUtf8(
+      source.utf8,
+      sourceDoctype?.utf8End ?? 0,
+      marker ? `<!--${marker}-->` : "",
+      safeUrl,
+    );
+    const hasScriptObservers = startupScriptDescriptors.length > 0 || source.eventHandlerAttributes;
+    // Free the source before scripts and first layout so it does not count against the isolate
+    // limit at the Wasm peak.
+    releaseNavigateSource(source);
+    html = "";
+    source = null;
     state.dom = navigateDom;
     noteNavigateText(navigateDom);
-    state.sourceDoctype = sourceDoctype && marker ? { markup: sourceDoctype.markup, marker } : null;
+    state.sourceDoctype =
+      sourceDoctype && marker ? { markup: unsharedString(sourceDoctype.markup), marker } : null;
     if (
       navigateOptions &&
       typeof navigateOptions.viewportWidth === "number" &&
@@ -3681,7 +3736,6 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     }
     emitNavigateDiagnostic("end", "shim");
     markPhase("shimMs");
-    const hasScriptObservers = startupScriptDescriptors.length > 0 || /\son\w+\s*=/i.test(safeHtml);
     if (fontDeferActive() && hasScriptObservers) {
       await awaitDeferredFontBytes();
     }
@@ -5419,30 +5473,80 @@ function queryDomOuterHTML(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<"getOuterHTML"> {
   const id = numericNodeId(queryArgs) ?? 0;
-  // Let a serialization failure reach the CDP caller; an empty string reads as an empty page.
-  const rawOuterHTML = pageState.dom.outerHTML(id);
+  const { marker, doctype } = outerHtmlMarkup(id, queryArgs);
+  // Let a serialization failure reach the CDP caller; empty output reads as an empty page.
+  const dom = pageState.dom;
+  // The live stream is the default; `snapshot` serializes one tree before streaming it.
+  const stream = queryArgs.snapshot === true ? undefined : dom.outerHTMLStream(id, marker, doctype);
+  if (stream) {
+    return outerHtmlResult(stream, () => {
+      // A navigate or unload frees `dom`, and this stream is pulled long after the read returns.
+      // End it instead of entering wasm through a freed handle, so the engine's snapshot retry
+      // takes over.
+      if (pageState.dom !== dom) return new Uint8Array(0);
+      return stream.nextChunk(dom, OUTER_HTML_CHUNK_BYTES);
+    });
+  }
+  const bytes = dom.outerHTMLBytes(id, marker, doctype);
+  return outerHtmlResult(bytes, () => bytes.nextChunk(OUTER_HTML_CHUNK_BYTES));
+}
+
+/** The synthetic doctype marker to strip, and the source doctype to restore, for this read. */
+function outerHtmlMarkup(
+  id: number,
+  queryArgs: Record<string, unknown>,
+): { marker: string; doctype: string } {
   const sourceDoctype =
     state.document?.doctype?.parentNode === state.document ? state.sourceDoctype : null;
-  const markerMarkup = state.sourceDoctype ? `<!--${state.sourceDoctype.marker}-->` : null;
-  const markerIndex = id === 0 && markerMarkup ? rawOuterHTML.indexOf(markerMarkup) : -1;
-  const outerHTML =
-    markerIndex >= 0 && markerMarkup
-      ? rawOuterHTML.slice(0, markerIndex) + rawOuterHTML.slice(markerIndex + markerMarkup.length)
-      : rawOuterHTML;
-  if (
-    id !== 0 ||
-    queryArgs.includeDoctype !== true ||
-    !sourceDoctype ||
-    markerIndex < 0 ||
-    leadsWithDoctype(outerHTML)
-  ) {
-    return { outerHTML } satisfies QueryDomResult<"getOuterHTML">;
-  }
+  const marker = id === 0 && state.sourceDoctype ? `<!--${state.sourceDoctype.marker}-->` : "";
+  const doctype =
+    id === 0 && queryArgs.includeDoctype === true && sourceDoctype ? sourceDoctype.markup : "";
+  return { marker, doctype };
+}
+
+function outerHtmlResult(
+  source: { readonly byteLength: number; free(): void },
+  nextChunk: () => Uint8Array,
+): QueryDomResult<"getOuterHTML"> {
   return {
-    outerHTML:
-      outerHTML.slice(0, markerIndex) + sourceDoctype.markup + outerHTML.slice(markerIndex),
+    byteLength: source.byteLength,
+    outerHTMLUtf8: byteStream(source, nextChunk),
   } satisfies QueryDomResult<"getOuterHTML">;
 }
+
+function byteStream(
+  source: { free(): void },
+  nextChunk: () => Uint8Array,
+): ReadableStream<Uint8Array> {
+  let freed = false;
+  const release = () => {
+    if (freed) return;
+    freed = true;
+    source.free();
+  };
+  return new ReadableStream({
+    type: "bytes",
+    pull(controller) {
+      let chunk: Uint8Array;
+      try {
+        chunk = nextChunk();
+      } catch (error) {
+        release();
+        throw error;
+      }
+      if (chunk.byteLength > 0) {
+        controller.enqueue(chunk);
+        return;
+      }
+      release();
+      controller.close();
+    },
+    cancel: release,
+  });
+}
+
+// Small next to the isolate limit, large enough that a long page needs few RPC stream writes.
+const OUTER_HTML_CHUNK_BYTES = 256 * 1024;
 
 type QueryDomSelectorReadMethod = Extract<
   QueryDomMethod,
@@ -6290,6 +6394,7 @@ function queryDomPaintGeometry(
             x: (Number(range.x) || 0) - state.scrollX,
             y: (Number(range.y) || 0) - state.scrollY,
           },
+          rects: contentRectsFor(paint, id),
         } satisfies QueryDomResult<"getRect">;
       } catch {
         invalidatePaintDom();
@@ -7288,6 +7393,12 @@ function hasControlChar(text: string): boolean {
       return true;
   }
   return false;
+}
+
+// V8 substrings of 13+ chars point into their parent, so a long doctype ID would keep the whole
+// page source reachable for the life of the page. join() builds a fresh string.
+function unsharedString(value: string): string {
+  return [...value].join("");
 }
 
 function numericNodeId(params: Record<string, unknown>): number | null {

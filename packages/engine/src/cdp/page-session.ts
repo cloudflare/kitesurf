@@ -4,8 +4,10 @@
 
 // Resolves CDP targets to PageScript generations and routes typed DOM queries.
 
+import type { Protocol } from "devtools-protocol";
 import type { DispatchCtx } from "./dispatch.ts";
-import type { TargetState } from "./types.ts";
+import { RawJsonResult, type TargetState } from "./types.ts";
+import { withDeadline } from "../read-capped.ts";
 import type { PageScriptStub } from "../eval/page-script.ts";
 import type { PageScriptSession } from "@kitesurf/jsrpc-types/page-script";
 export type {
@@ -25,6 +27,96 @@ export function stubQueryDom<M extends QueryDomMethod>(
   args: QueryDomArgs<M>,
 ): Promise<QueryDomResult<M>> {
   return stub.queryDom(method, args);
+}
+
+// Matches the PageScript RPC call budget; the cap is far above any page the isolate can hold.
+const OUTER_HTML_READ_DEADLINE_MS = 60_000;
+const MAX_OUTER_HTML_BYTES = 512 * 1024 * 1024;
+
+type OuterHtmlRequest = (
+  args: Pick<QueryDomArgs<"getOuterHTML">, "snapshot">,
+) => Promise<QueryDomResult<"getOuterHTML">>;
+
+/**
+ * A `Protocol.DOM.GetOuterHTMLResponse` as JSON text, escaped a chunk at a time, so a large page
+ * is never held as bytes, a decoded string and that string's JSON copy at once.
+ */
+export async function outerHtmlResponse(request: OuterHtmlRequest): Promise<RawJsonResult> {
+  const live = await readOuterHtml(await request({}));
+  if (live.complete) return outerHtmlJson(live.escaped);
+  // The DOM changed while the live stream was read; a snapshot cannot tear.
+  const snapshot = await readOuterHtml(await request({ snapshot: true }));
+  if (snapshot.complete) return outerHtmlJson(snapshot.escaped);
+  throw new Error(
+    `DOM.getOuterHTML: PageScript stream ended after ${snapshot.filled} of ${snapshot.byteLength} bytes`,
+  );
+}
+
+// `JSON.stringify` escapes each code point alone, and a streaming decode never splits one, so
+// the pieces join to what stringifying the whole string gives.
+function outerHtmlJson(escaped: readonly string[]): RawJsonResult {
+  return new RawJsonResult(['{"outerHTML":"', ...escaped, '"}'], () => {
+    const outerHTML = escaped.map(unescapeJsonPiece).join("");
+    return { outerHTML } satisfies Protocol.DOM.GetOuterHTMLResponse;
+  });
+}
+
+function unescapeJsonPiece(piece: string): string {
+  const text: unknown = JSON.parse(`"${piece}"`);
+  if (typeof text !== "string") throw new TypeError("DOM.getOuterHTML: piece is not a string");
+  return text;
+}
+
+// A short read keeps no text, so a retry does not hold the discarded pieces.
+type OuterHtmlRead =
+  | { complete: true; escaped: string[] }
+  | { complete: false; filled: number; byteLength: number };
+
+async function readOuterHtml(result: QueryDomResult<"getOuterHTML">): Promise<OuterHtmlRead> {
+  const { byteLength } = result;
+  if (!Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > MAX_OUTER_HTML_BYTES) {
+    await result.outerHTMLUtf8.cancel("invalid byteLength").catch(() => {});
+    throw new Error(`DOM.getOuterHTML: PageScript sent an invalid byteLength ${byteLength}`);
+  }
+
+  const { escaped, filled } = await readEscapedStream(result.outerHTMLUtf8, byteLength);
+  if (filled !== byteLength) return { complete: false, filled, byteLength };
+  return { complete: true, escaped };
+}
+
+/** Reads the whole stream as JSON-escaped pieces, or reports how many bytes arrived. */
+async function readEscapedStream(
+  stream: ReadableStream<Uint8Array>,
+  byteLength: number,
+): Promise<{ escaped: string[]; filled: number }> {
+  // Same decoder options as the wasm-bindgen string return this replaced, so output is identical.
+  const decoder = new TextDecoder("utf-8", { ignoreBOM: true, fatal: true });
+  const escaped: string[] = [];
+  const escape = (text: string) => {
+    if (text) escaped.push(JSON.stringify(text).slice(1, -1));
+  };
+  // The RPC deadline ends when the result arrives, so the stream needs its own.
+  const reader = withDeadline(stream, OUTER_HTML_READ_DEADLINE_MS).getReader();
+  let filled = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value.byteLength > byteLength - filled) {
+        throw new Error(`DOM.getOuterHTML: PageScript sent more than ${byteLength} bytes`);
+      }
+      escape(decoder.decode(value, { stream: true }));
+      filled += value.byteLength;
+    }
+  } catch (error) {
+    await reader.cancel(error).catch(() => {});
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+  // Only a complete read flushes the decoder: a truncated stream may end mid-character.
+  if (filled === byteLength) escape(decoder.decode());
+  return { escaped, filled };
 }
 
 type EnsurePageScriptFn = (

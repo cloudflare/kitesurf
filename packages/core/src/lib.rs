@@ -760,6 +760,28 @@ impl DomHandle {
         }
     }
 
+    /// Parse `head + insert + tail` like [`DomHandle::new`]. Joining here, not in JS, avoids
+    /// flattening a document-sized JS string that lives until the next major GC.
+    pub fn new_spliced(head: &str, insert: &str, tail: &str, base_url: &str) -> DomHandle {
+        let mut html = String::with_capacity(head.len() + insert.len() + tail.len());
+        html.push_str(head);
+        html.push_str(insert);
+        html.push_str(tail);
+        DomHandle::new(&html, base_url)
+    }
+
+    /// Parse a UTF-8 document like [`DomHandle::new_spliced`], with `insert` at byte `insert_at`.
+    /// Bytes let PageScript free the source right away; a JS string lives until a major GC.
+    #[wasm_bindgen(js_name = "newUtf8")]
+    pub fn new_utf8(source: &[u8], insert_at: usize, insert: &str, base_url: &str) -> DomHandle {
+        let source = String::from_utf8_lossy(source);
+        if insert.is_empty() || insert_at > source.len() || !source.is_char_boundary(insert_at) {
+            return DomHandle::new(&source, base_url);
+        }
+        let (head, tail) = source.split_at(insert_at);
+        DomHandle::new_spliced(head, insert, tail, base_url)
+    }
+
     #[wasm_bindgen(js_name = "nodeCount")]
     pub fn node_count(&self) -> usize {
         match self.doc.try_borrow() {
