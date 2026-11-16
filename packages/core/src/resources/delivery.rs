@@ -21,6 +21,27 @@ impl DomHandle {
         crate::resources::fonts::stash_author_upgrades(regs)
     }
 
+    /// Registers a face the page created with `new FontFace(...)` and relayouts.
+    /// https://drafts.csswg.org/css-font-loading/#fontface-interface
+    #[wasm_bindgen(js_name = "registerAuthorFontFace")]
+    pub fn register_author_font_face(
+        &self,
+        family: &str,
+        weight: f32,
+        style: &str,
+        bytes: Vec<u8>,
+    ) -> bool {
+        let registered =
+            crate::resources::fonts::register_author_face(family, weight, style, bytes);
+        if registered {
+            if let Ok(mut d) = self.doc.try_borrow_mut() {
+                d.as_mut().fonts_upgraded();
+            }
+            self.layout_dirty.set(true);
+        }
+        registered
+    }
+
     #[wasm_bindgen(js_name = "fontsUpgraded")]
     pub fn fonts_upgraded(&self) {
         if let Ok(mut d) = self.doc.try_borrow_mut() {

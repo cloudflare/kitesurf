@@ -420,6 +420,37 @@ pub fn upgrade_author_font_face(url: String, full_bytes: Vec<u8>) -> bool {
     })
 }
 
+/// JS-callable: register a face a page built with `new FontFace(...)`.
+/// Decompresses the container and registers the bytes under the CSS family
+/// name, so layout shapes with it on the next pass.
+/// https://drafts.csswg.org/css-font-loading/#fontface-interface
+pub(crate) fn register_author_face(family: &str, weight: f32, style: &str, bytes: Vec<u8>) -> bool {
+    let processed = strip_woff_container(bytes);
+    if processed.is_empty() || !has_outline_tables(&processed) {
+        return false;
+    }
+    let style = match style {
+        "italic" => parley::fontique::FontStyle::Italic,
+        "oblique" => parley::fontique::FontStyle::Oblique(None),
+        _ => parley::fontique::FontStyle::Normal,
+    };
+    SHARED_FONT_CONTEXT.with(|cell| {
+        let mut borrow = cell.borrow_mut();
+        let Some(font_ctx) = borrow.as_mut() else {
+            return false;
+        };
+        let blob = Blob::from(processed);
+        let info = parley::fontique::FontInfoOverride {
+            family_name: Some(family),
+            weight: Some(parley::fontique::FontWeight::new(weight)),
+            style: Some(style),
+            ..Default::default()
+        };
+        let registered = font_ctx.collection.register_fonts(blob, Some(info));
+        registered.iter().any(|(_, faces)| !faces.is_empty())
+    })
+}
+
 fn is_plain_sfnt(bytes: &[u8]) -> bool {
     bytes.len() >= SFNT_HEADER_BYTES
         && (bytes[0..4] == [0x00, 0x01, 0x00, 0x00] || &bytes[0..4] == b"OTTO")
@@ -2189,12 +2220,16 @@ mod tests {
         let fam = ctx.collection.family_by_name("Noto Sans").expect("sans");
         assert_eq!(fam.id(), sans_id_before);
         assert_eq!(fam.fonts().len(), 2);
-        assert!(family_blobs_have_outlines(&mut ctx, "Noto Sans")
-            .iter()
-            .all(|has| *has));
-        assert!(family_blobs_have_outlines(&mut ctx, "Noto Sans Mono")
-            .iter()
-            .all(|has| *has));
+        assert!(
+            family_blobs_have_outlines(&mut ctx, "Noto Sans")
+                .iter()
+                .all(|has| *has)
+        );
+        assert!(
+            family_blobs_have_outlines(&mut ctx, "Noto Sans Mono")
+                .iter()
+                .all(|has| *has)
+        );
         let generic_sans: Vec<_> = ctx
             .collection
             .generic_families(parley::fontique::GenericFamily::SansSerif)
