@@ -3,6 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 //! Tests for the layout stage; they use crate internals.
+mod clipped_scroll_width;
 mod abs_filters_width;
 mod abspos_containing_block;
 mod block_align_content;
