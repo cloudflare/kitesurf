@@ -26,6 +26,7 @@ import {
   createElementInternal,
   createElementNSInternal,
   createTextNodeInternal,
+  inScriptlessDocument,
 } from "./state.js";
 import { recordOp, recordCdpMutation } from "./record.js";
 import {
@@ -1702,7 +1703,10 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     const pos = typeof position === "string" ? position.toLowerCase() : "";
     if (pos === "afterbegin" || pos === "beforeend") {
       const tmp = createElementInternal("div");
-      tmp.innerHTML = String(html == null ? "" : html);
+      // The scratch element is the page's own, but the markup is this node's: in a document
+      // with no browsing context it keeps its noscript content as markup.
+      if (inScriptlessDocument(this)) tmp.__setInnerHTML(String(html == null ? "" : html), true);
+      else tmp.innerHTML = String(html == null ? "" : html);
       const newNodes = Array.from(tmp.childNodes);
       if (pos === "afterbegin") {
         const ref = this.firstChild;
@@ -1727,7 +1731,10 @@ class NodeBase extends KsEventTarget implements Idl.Node {
         );
       }
       const tmp = createElementInternal("div");
-      tmp.innerHTML = String(html == null ? "" : html);
+      // The scratch element is the page's own, but the markup is this node's: in a document
+      // with no browsing context it keeps its noscript content as markup.
+      if (inScriptlessDocument(this)) tmp.__setInnerHTML(String(html == null ? "" : html), true);
+      else tmp.innerHTML = String(html == null ? "" : html);
       const newNodes = Array.from(tmp.childNodes);
       if (pos === "beforebegin") {
         for (const n of newNodes) parent.insertBefore(n, this);

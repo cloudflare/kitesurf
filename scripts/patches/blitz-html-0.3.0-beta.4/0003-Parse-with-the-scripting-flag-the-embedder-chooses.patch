@@ -1,0 +1,145 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 2 Nov 2026 22:41:31 +0000
+Subject: [PATCH] Parse with the scripting flag the embedder chooses
+
+Blitz parses every document and fragment with the tree builder's
+scripting flag off. An embedder that runs page scripts then gets
+<noscript> fallback markup as live elements (images, iframes,
+stylesheets and scripts), and a <noscript> in <head> ends the head
+early, where a browser with scripting enabled keeps the content as
+one text node.
+
+Add parse_into_mutator_with_scripting,
+parse_inner_html_into_mutator_with_scripting and
+HtmlDocument::from_html_with_scripting, and a ScriptingHtmlProvider
+whose fragment parses set the flag. Its parse_document, used for
+iframe sub-documents, parses them with the plain HtmlProvider, since
+an embedder that runs no script there keeps their fallback content.
+The existing entry points still parse with scripting off.
+---
+ src/html_document.rs |  8 +++++++
+ src/html_sink.rs     | 52 ++++++++++++++++++++++++++++++++++++++++++--
+ src/lib.rs           |  1 +
+ 3 files changed, 59 insertions(+), 2 deletions(-)
+
+diff --git a/src/html_document.rs b/src/html_document.rs
+index 4dac8c6..97c11f7 100644
+--- a/src/html_document.rs
++++ b/src/html_document.rs
+@@ -46,6 +46,14 @@ impl HtmlDocument {
+         Self::parse_with(html, config, DocumentHtmlParser::parse_into_mutator)
+     }
+
++    /// Like [`from_html`](Self::from_html), with the HTML parser's scripting flag set to
++    /// `scripting`. Pair it with [`ScriptingHtmlProvider`](crate::ScriptingHtmlProvider).
++    pub fn from_html_with_scripting(html: &str, config: DocumentConfig, scripting: bool) -> Self {
++        Self::parse_with(html, config, |mutr, html| {
++            DocumentHtmlParser::parse_into_mutator_with_scripting(mutr, html, scripting)
++        })
++    }
++
+     /// Parse XML (XHTML) into an [`HtmlDocument`]
+     pub fn from_xml(xml: &str, config: DocumentConfig) -> Self {
+         Self::parse_with(xml, config, DocumentHtmlParser::parse_xml_into_mutator)
+diff --git a/src/html_sink.rs b/src/html_sink.rs
+index 4e5077a..3741603 100644
+--- a/src/html_sink.rs
++++ b/src/html_sink.rs
+@@ -45,6 +45,33 @@ impl HtmlParserProvider for HtmlProvider {
+     }
+ }
+
++/// An [`HtmlProvider`] for a document whose scripts run: its fragments parse with scripting
++/// enabled, so `<noscript>` content stays raw text. Sub-documents (iframes) parse without it.
++#[derive(Copy, Clone, Default, Debug)]
++pub struct ScriptingHtmlProvider;
++
++impl HtmlParserProvider for ScriptingHtmlProvider {
++    fn parse_inner_html<'m2, 'doc2>(
++        &self,
++        mutr: &'m2 mut DocumentMutator<'doc2>,
++        element_id: NodeId,
++        html: &str,
++    ) {
++        DocumentHtmlParser::parse_inner_html_into_mutator_with_scripting(
++            mutr, element_id, html, true,
++        );
++    }
++
++    fn parse_document(
++        &self,
++        html: &str,
++        mut config: blitz_dom::DocumentConfig,
++    ) -> Box<dyn blitz_dom::Document> {
++        config.html_parser_provider = Some(std::sync::Arc::new(HtmlProvider));
++        Box::new(crate::HtmlDocument::from_html(html, config))
++    }
++}
++
+ pub struct DocumentHtmlParser<'m, 'doc> {
+     document_mutator: RefCell<&'m mut DocumentMutator<'doc>>,
+
+@@ -283,6 +310,16 @@ impl<'m, 'doc> DocumentHtmlParser<'m, 'doc> {
+     }
+
+     pub fn parse_into_mutator<'a, 'd>(mutr: &'a mut DocumentMutator<'d>, html: &str) {
++        Self::parse_into_mutator_with_scripting(mutr, html, false);
++    }
++
++    /// Like [`parse_into_mutator`](Self::parse_into_mutator), with the tree builder's scripting
++    /// flag set to `scripting`: when it is on, `<noscript>` content is parsed as raw text.
++    pub fn parse_into_mutator_with_scripting<'a, 'd>(
++        mutr: &'a mut DocumentMutator<'d>,
++        html: &str,
++        scripting: bool,
++    ) {
+         if is_xhtml_document(html) {
+             Self::parse_xml_into_mutator(mutr, html);
+         } else {
+@@ -293,7 +330,7 @@ impl<'m, 'doc> DocumentHtmlParser<'m, 'doc> {
+                 tokenizer: TokenizerOpts::default(),
+                 tree_builder: TreeBuilderOpts {
+                     exact_errors: false,
+-                    scripting_enabled: false, // Enables parsing of <noscript> tags
++                    scripting_enabled: scripting,
+                     iframe_srcdoc: false,
+                     drop_doctype: true,
+                     quirks_mode: QuirksMode::NoQuirks,
+@@ -326,6 +363,17 @@ impl<'m, 'doc> DocumentHtmlParser<'m, 'doc> {
+         mutr: &'a mut DocumentMutator<'d>,
+         element_id: NodeId,
+         html: &str,
++    ) {
++        Self::parse_inner_html_into_mutator_with_scripting(mutr, element_id, html, false);
++    }
++
++    /// Like [`parse_inner_html_into_mutator`](Self::parse_inner_html_into_mutator), with the
++    /// tree builder's scripting flag set to `scripting`.
++    pub fn parse_inner_html_into_mutator_with_scripting<'a, 'd>(
++        mutr: &'a mut DocumentMutator<'d>,
++        element_id: NodeId,
++        html: &str,
++        scripting: bool,
+     ) {
+         let sink = DocumentHtmlParser::new(mutr);
+
+@@ -333,7 +381,7 @@ impl<'m, 'doc> DocumentHtmlParser<'m, 'doc> {
+             tokenizer: TokenizerOpts::default(),
+             tree_builder: TreeBuilderOpts {
+                 exact_errors: false,
+-                scripting_enabled: false, // Enables parsing of <noscript> tags
++                scripting_enabled: scripting,
+                 iframe_srcdoc: false,
+                 drop_doctype: true,
+                 quirks_mode: QuirksMode::NoQuirks,
+diff --git a/src/lib.rs b/src/lib.rs
+index c0e1bb8..77fda4a 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -6,4 +6,5 @@ mod html_sink;
+ pub use html_document::HtmlDocument;
+ pub use html_sink::DocumentHtmlParser;
+ pub use html_sink::HtmlProvider;
++pub use html_sink::ScriptingHtmlProvider;
+ pub use html_sink::is_xhtml_document;

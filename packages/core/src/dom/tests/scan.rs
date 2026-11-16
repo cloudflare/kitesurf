@@ -6,18 +6,19 @@
 
 use blitz_dom::node::NodeData;
 use blitz_dom::{BaseDocument, DocumentConfig, NodeId};
-use blitz_html::{HtmlDocument, HtmlProvider};
+use blitz_html::HtmlDocument;
 use serde_json::{json, Value};
-use std::sync::Arc;
 
+// The scan feeds the page document, which parses with scripting on; compare against that parse.
+// With scripting off, <noscript> content would come up as live elements the scan never reports.
 fn parse_full(html: &str) -> HtmlDocument {
-    HtmlDocument::from_html(
+    crate::parse_html_document(
         html,
         DocumentConfig {
             base_url: Some("https://example.com/".to_string()),
-            html_parser_provider: Some(Arc::new(HtmlProvider)),
             ..Default::default()
         },
+        true,
     )
 }
 
@@ -410,8 +411,8 @@ fn noscript_content_is_inert() {
     );
     check(html);
     let document = parse_full(html);
-    assert_eq!(document.query_selector_all("script").unwrap().len(), 2);
-    assert_eq!(document.query_selector_all("iframe").unwrap().len(), 1);
+    assert_eq!(document.query_selector_all("script").unwrap().len(), 1);
+    assert_eq!(document.query_selector_all("iframe").unwrap().len(), 0);
     let v = scan_value(html);
     assert_eq!(v["scripts"].as_array().unwrap().len(), 1);
     assert_eq!(v["scripts"][0]["body"], "runs()");
@@ -420,15 +421,15 @@ fn noscript_content_is_inert() {
 }
 
 #[test]
-fn noscript_in_head_ejects_children_in_blitz_only() {
+fn noscript_in_head_stays_raw_text() {
     let html = "<head><noscript><script>never()</script></noscript></head>";
+    check(html);
     let v = scan_value(html);
     assert_eq!(v["scripts"].as_array().unwrap().len(), 0);
     let document = parse_full(html);
-    let ids = document.query_selector_all("script").unwrap();
-    assert_eq!(ids.len(), 1);
-    let doc: &BaseDocument = &document;
-    assert!(!has_ancestor_in(doc, ids[0], &["noscript"]));
+    assert_eq!(document.query_selector_all("script").unwrap().len(), 0);
+    let in_head = document.query_selector_all("head > noscript").unwrap();
+    assert_eq!(in_head.len(), 1);
 }
 
 #[test]

@@ -9,12 +9,12 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use blitz_dom::{
     BaseDocument, DocumentConfig, NodeData, UserAgentStylesheet, DEFAULT_CSS as BLITZ_DEFAULT_CSS,
 };
-use blitz_html::{HtmlDocument, HtmlProvider};
+use blitz_html::{HtmlDocument, HtmlProvider, ScriptingHtmlProvider};
 use blitz_traits::NodeId;
 use wasm_bindgen::prelude::*;
 
@@ -266,6 +266,31 @@ fn tty_ua_sheet() -> Option<UserAgentStylesheet> {
     TTY_UA_SHEET.with(|c| c.borrow().clone())
 }
 
+// Blitz hides <noscript> only under `@media (scripting)`, a feature servo's stylo build lacks,
+// so a document whose scripts run needs its own rule or every fallback paints over the page.
+static SCRIPTING_UA_SHEET: LazyLock<UserAgentStylesheet> = LazyLock::new(|| {
+    UserAgentStylesheet::parse(
+        "@namespace url(http://www.w3.org/1999/xhtml);\n\
+         noscript { display: none !important; }\n",
+    )
+});
+
+/// Parses `html` with the parser's scripting flag set to `scripting`, for the whole document and
+/// every later fragment parse; with it on, `<noscript>` holds raw text and generates no box.
+pub(crate) fn parse_html_document(
+    html: &str,
+    mut config: DocumentConfig,
+    scripting: bool,
+) -> HtmlDocument {
+    if scripting {
+        config.html_parser_provider = Some(Arc::new(ScriptingHtmlProvider));
+        config.ua_stylesheets.push(SCRIPTING_UA_SHEET.clone());
+    } else {
+        config.html_parser_provider = Some(Arc::new(HtmlProvider));
+    }
+    HtmlDocument::from_html_with_scripting(html, config, scripting)
+}
+
 static DARK_COLOR_SCHEME: AtomicBool = AtomicBool::new(false);
 
 #[wasm_bindgen(js_name = "setDarkColorScheme")]
@@ -345,6 +370,9 @@ pub struct DomHandle {
     node_handles: Rc<RefCell<NodeHandleMap>>,
     /// The document URL; relative URLs resolve against it.
     base_url: String,
+    /// Whether the page's scripts run in this document, which decides how `<noscript>` parses,
+    /// serializes and renders.
+    scripting: bool,
     /// Set by DOM and viewport changes; the next geometry read runs a resolve.
     layout_dirty: Cell<bool>,
     /// A transition or animation was running at the last resolve, so later reads resolve again
@@ -463,6 +491,16 @@ impl DomHandle {
     /// Invalid URLs and URLs that cannot serve as a base use `https://kitesurf.local/`.
     #[wasm_bindgen(constructor)]
     pub fn new(html: &str, base_url: &str) -> DomHandle {
+        Self::build(html, base_url, false)
+    }
+
+    /// Like `new`, for a document whose scripts run: `<noscript>` content parses as text, in
+    /// fragments too, serializes unescaped and renders nothing.
+    pub fn scripted(html: &str, base_url: &str) -> DomHandle {
+        Self::build(html, base_url, true)
+    }
+
+    fn build(html: &str, base_url: &str, scripting: bool) -> DomHandle {
         use blitz_traits::shell::Viewport;
         let _ks_span =
             tracing::info_span!("wasm.parse_document", html_bytes = html.len()).entered();
@@ -476,7 +514,6 @@ impl DomHandle {
 
         let config = DocumentConfig {
             base_url: Some(resolved_base.clone()),
-            html_parser_provider: Some(Arc::new(HtmlProvider)),
             net_provider: Some(net_provider.clone()),
             viewport: Some(Viewport::new(1280, 720, 1.0, emulated_color_scheme())),
             font_ctx: Some(crate::resources::fonts::get_or_init_font_context()),
@@ -484,7 +521,7 @@ impl DomHandle {
             dims_only_images: DIMS_ONLY_IMAGES.load(Ordering::Relaxed),
             ..Default::default()
         };
-        let mut doc = HtmlDocument::from_html(html, config);
+        let mut doc = parse_html_document(html, config, scripting);
         if let Some(sheet) = tty_ua_sheet() {
             doc.add_user_agent_stylesheet(sheet);
         }
@@ -497,6 +534,7 @@ impl DomHandle {
             doc: Rc::new(RefCell::new(doc)),
             node_handles: Rc::new(RefCell::new(node_handles)),
             base_url: resolved_base,
+            scripting,
             layout_dirty: Cell::new(true),
             animating: Cell::new(false),
             last_resolve_now: Cell::new(f64::NEG_INFINITY),

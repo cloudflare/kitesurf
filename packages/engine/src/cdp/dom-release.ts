@@ -69,22 +69,6 @@ export function releaseAllDomHandles(target: TargetState): void {
   releaseTargetDom(target);
 }
 
-export function stripNoscript(dom: DomHandle): void {
-  let ids: Int32Array;
-  try {
-    ids = dom.querySelectorAll("noscript");
-  } catch {
-    return;
-  }
-  for (let i = ids.length - 1; i >= 0; i--) {
-    const id = ids[i];
-    if (id === undefined || id < 0) continue;
-    try {
-      dom.removeNode(id);
-    } catch {}
-  }
-}
-
 export function ensureTargetDom(target: TargetState): DomHandle | null {
   if (target.dom) return target.dom;
   if (!target.html || !domFactory) return null;
@@ -93,7 +77,6 @@ export function ensureTargetDom(target: TargetState): DomHandle | null {
       target.html,
       target.url && /^https?:/.test(target.url) ? target.url : "https://kitesurf.local/",
     );
-    stripNoscript(dom);
     target.dom = dom;
     return dom;
   } catch (err) {

@@ -121,7 +121,9 @@ One-line orientation (see each series' patches for the full why):
 - **blitz-html** — the XHTML sniff stops at the first non-root start
   tag outside comments and quoted literals, so text later on a minified
   one-line page cannot route it to the XML parser (`core/src/dom/scan.rs`
-  mirrors the rule).
+  mirrors the rule), and an opt-in parser scripting flag
+  (`ScriptingHtmlProvider`), so a document whose scripts run keeps
+  `<noscript>` content as text.
 - **blitz-paint** — paints the span-fragment decorations; canvas
   background propagation; SVG background-repeat tiling; and the
   `begin_part`/`end_part` markers a consumer needs to know what a rect

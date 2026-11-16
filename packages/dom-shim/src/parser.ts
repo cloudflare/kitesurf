@@ -57,7 +57,8 @@ type ParsedOwnerDocument = (DocumentImpl | DetachedDocument | ParsedDocument) & 
 type ParsedOwnerDocumentValue = ParsedOwnerDocument | null;
 
 function DomHandleCtor(html: string, baseUrl: string): DomHandle {
-  // The wasm instance constructor creates an independent parser handle.
+  // The wasm instance constructor creates an independent parser handle. Its scripting flag stays
+  // off: a parsed document has no browsing context, so its <noscript> content is live markup.
   return new (dom.constructor as typeof DomHandle)(html, baseUrl);
 }
 

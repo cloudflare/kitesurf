@@ -123,11 +123,13 @@ const VOID_ELEMENTS: &[&str] = &[
     "track", "wbr",
 ];
 
-fn is_raw_text_element(local: &str) -> bool {
+// With scripting on, the parser keeps <noscript> content as text, so it serializes unescaped
+// like the other raw-text elements; with it off, its children are real nodes.
+fn is_raw_text_element(local: &str, scripting: bool) -> bool {
     matches!(
         local,
         "script" | "style" | "xmp" | "iframe" | "noembed" | "noframes" | "plaintext"
-    )
+    ) || (scripting && local == "noscript")
 }
 
 pub(crate) fn has_layout_data(node: &Node) -> bool {
@@ -168,15 +170,17 @@ pub(crate) fn generates_box(doc: &BaseDocument, node: &Node) -> bool {
 
 enum SerializeStep<'a> {
     Open(&'a Node),
+    RawText(&'a str),
     Close(&'a str),
 }
 
 // An explicit stack, not recursion: a deeply nested DOM overflowed the wasm call stack.
-fn write_outer_html(doc: &BaseDocument, node: &Node, out: &mut String) {
+fn write_outer_html(doc: &BaseDocument, node: &Node, scripting: bool, out: &mut String) {
     let mut stack = vec![SerializeStep::Open(node)];
     while let Some(step) = stack.pop() {
         match step {
-            SerializeStep::Open(node) => write_node_open(doc, node, out, &mut stack),
+            SerializeStep::Open(node) => write_node_open(doc, node, scripting, out, &mut stack),
+            SerializeStep::RawText(text) => out.push_str(text),
             SerializeStep::Close(local) => {
                 out.push_str("</");
                 out.push_str(local);
@@ -186,10 +190,20 @@ fn write_outer_html(doc: &BaseDocument, node: &Node, out: &mut String) {
     }
 }
 
-fn push_children<'a>(doc: &'a BaseDocument, node: &'a Node, stack: &mut Vec<SerializeStep<'a>>) {
+fn push_children<'a>(
+    doc: &'a BaseDocument,
+    node: &'a Node,
+    raw_text: bool,
+    stack: &mut Vec<SerializeStep<'a>>,
+) {
     for &cid in node.children.iter().rev() {
         if let Some(c) = doc.get_node(cid) {
-            stack.push(SerializeStep::Open(c));
+            match &c.data {
+                NodeData::Text(text) if raw_text => {
+                    stack.push(SerializeStep::RawText(&text.content))
+                }
+                _ => stack.push(SerializeStep::Open(c)),
+            }
         }
     }
 }
@@ -197,12 +211,13 @@ fn push_children<'a>(doc: &'a BaseDocument, node: &'a Node, stack: &mut Vec<Seri
 fn write_node_open<'a>(
     doc: &'a BaseDocument,
     node: &'a Node,
+    scripting: bool,
     out: &mut String,
     stack: &mut Vec<SerializeStep<'a>>,
 ) {
     use blitz_dom::node::{Attribute, SpecialElementData};
     match &node.data {
-        NodeData::Document(_) | NodeData::ShadowRoot(_) => push_children(doc, node, stack),
+        NodeData::Document(_) | NodeData::ShadowRoot(_) => push_children(doc, node, false, stack),
         NodeData::Comment { contents } => {
             out.push_str("<!--");
             out.push_str(contents);
@@ -244,19 +259,7 @@ fn write_node_open<'a>(
             }
 
             stack.push(SerializeStep::Close(local));
-            if is_raw_text_element(local) {
-                for &cid in &node.children {
-                    let Some(child) = doc.get_node(cid) else {
-                        continue;
-                    };
-                    let NodeData::Text(text) = &child.data else {
-                        continue;
-                    };
-                    out.push_str(&text.content);
-                }
-            } else {
-                push_children(doc, node, stack);
-            }
+            push_children(doc, node, is_raw_text_element(local, scripting), stack);
         }
     }
 }
@@ -539,6 +542,17 @@ impl DomHandle {
 
     #[wasm_bindgen(js_name = "outerHTML")]
     pub fn outer_html(&self, node_id: u32) -> String {
+        self.outer_html_as(node_id, self.scripting)
+    }
+
+    // For a node of a document with no browsing context, whose <noscript> holds real nodes
+    // even in a scripted handle: its text is escaped like any other element's.
+    #[wasm_bindgen(js_name = "outerHTMLWithoutScripting")]
+    pub fn outer_html_without_scripting(&self, node_id: u32) -> String {
+        self.outer_html_as(node_id, false)
+    }
+
+    fn outer_html_as(&self, node_id: u32, scripting: bool) -> String {
         let Some(internal_id) = self.resolve_node_id(node_id) else {
             return String::new();
         };
@@ -553,17 +567,26 @@ impl DomHandle {
         if matches!(n.data, NodeData::Document(_)) {
             for &cid in &n.children {
                 if let Some(c) = doc.get_node(cid) {
-                    write_outer_html(&doc, c, &mut out);
+                    write_outer_html(&doc, c, scripting, &mut out);
                 }
             }
         } else {
-            write_outer_html(&doc, n, &mut out);
+            write_outer_html(&doc, n, scripting, &mut out);
         }
         out
     }
 
     #[wasm_bindgen(js_name = "innerHTML")]
     pub fn inner_html(&self, node_id: u32) -> String {
+        self.inner_html_as(node_id, self.scripting)
+    }
+
+    #[wasm_bindgen(js_name = "innerHTMLWithoutScripting")]
+    pub fn inner_html_without_scripting(&self, node_id: u32) -> String {
+        self.inner_html_as(node_id, false)
+    }
+
+    fn inner_html_as(&self, node_id: u32, scripting: bool) -> String {
         let Some(internal_id) = self.resolve_node_id(node_id) else {
             return String::new();
         };
@@ -576,17 +599,14 @@ impl DomHandle {
         };
         let mut out = String::new();
         let raw_text = match &node.data {
-            NodeData::Element(data) => is_raw_text_element(&data.name.local),
+            NodeData::Element(data) => is_raw_text_element(&data.name.local, scripting),
             _ => false,
         };
         for &cid in &node.children {
             if let Some(c) = doc.get_node(cid) {
-                if raw_text {
-                    if let NodeData::Text(t) = &c.data {
-                        out.push_str(&t.content);
-                    }
-                } else {
-                    write_outer_html(&doc, c, &mut out);
+                match &c.data {
+                    NodeData::Text(t) if raw_text => out.push_str(&t.content),
+                    _ => write_outer_html(&doc, c, scripting, &mut out),
                 }
             }
         }
