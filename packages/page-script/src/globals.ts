@@ -39,6 +39,7 @@ import { trustedFetch } from "./trusted-fetch.ts";
 import { newHeaders } from "./native-http.ts";
 import { storageBuckets } from "./storage-buckets.ts";
 import { StorageInterface } from "./web-storage.ts";
+import { getInternalState } from "./internal-state.js";
 import { indexedDbGlobals } from "./indexeddb.ts";
 import { createScheduler } from "./scheduler.ts";
 import { installIdleCallbackGlobals, installPageTaskGlobals, queuePortTask } from "./page-tasks.ts";
@@ -4913,19 +4914,82 @@ export function installGlobals(
       }
     }
     if (typeof ksGlobal.FontFace === "undefined") {
+      // A face the page creates and loads itself. The bytes register with the
+      // engine under the CSS family, so layout shapes with them once loaded.
+      // https://drafts.csswg.org/css-font-loading/#fontface-interface
+      const fontFaceSourceUrl = (source: unknown): string | null => {
+        if (typeof source !== "string") return null;
+        const text = source.trim();
+        const match = /^url\(\s*["']?([^"')]+)["']?\s*\)$/i.exec(text);
+        return match ? match[1] : text;
+      };
+      const fontFaceBytes = (source: unknown): Uint8Array | null => {
+        if (source instanceof ArrayBuffer) return new Uint8Array(source);
+        if (ArrayBuffer.isView(source)) {
+          const view = source as ArrayBufferView;
+          return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+        }
+        return null;
+      };
       class FontFace {
         family: string;
         status: string;
-        constructor(family: any, _src?: any, _desc?: any) {
+        weight: string;
+        style: string;
+        #source: unknown;
+        constructor(family: any, source?: any, descriptors?: any) {
           this.family = String(family);
           this.status = "unloaded";
+          this.weight = String(descriptors?.weight ?? "400");
+          this.style = String(descriptors?.style ?? "normal");
+          this.#source = source;
         }
-        load() {
-          this.status = "loaded";
-          return Promise.resolve(this);
+        async load(): Promise<FontFace> {
+          if (this.status === "loaded") return this;
+          this.status = "loading";
+          try {
+            const bytes =
+              fontFaceBytes(this.#source) ??
+              (await this.#fetchBytes(fontFaceSourceUrl(this.#source)));
+            const numericWeight = Number.parseInt(this.weight, 10);
+            const registered = (
+              state.dom as {
+                registerAuthorFontFace?: (
+                  family: string,
+                  weight: number,
+                  style: string,
+                  bytes: Uint8Array,
+                ) => boolean;
+              } | null
+            )?.registerAuthorFontFace?.(
+              this.family,
+              Number.isFinite(numericWeight) ? numericWeight : 400,
+              this.style,
+              bytes,
+            );
+            if (!registered) throw new TypeError(`FontFace ${this.family}: unusable font data`);
+            this.status = "loaded";
+            const internalState = getInternalState();
+            internalState.mutationSeq = (internalState.mutationSeq | 0) + 1;
+            internalState.lastMutationAt = Date.now();
+            return this;
+          } catch (error) {
+            this.status = "error";
+            throw error;
+          }
         }
-        get loaded() {
-          return Promise.resolve(this);
+        get loaded(): Promise<FontFace> {
+          return this.load();
+        }
+        async #fetchBytes(url: string | null): Promise<Uint8Array> {
+          if (!url) throw new TypeError(`FontFace ${this.family}: unsupported src`);
+          const response = await trustedFetch(
+            url,
+            { headers: { "x-kitesurf-allow-cross-origin": "1" } },
+            { resourceType: "Font" },
+          );
+          if (!response.ok) throw new TypeError(`FontFace ${this.family}: ${response.status}`);
+          return new Uint8Array(await response.arrayBuffer());
         }
       }
       Object.defineProperty(globalThis, "FontFace", {

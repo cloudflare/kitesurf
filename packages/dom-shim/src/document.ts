@@ -1195,7 +1195,16 @@ class DocumentImpl extends NodeBase implements Idl.Document {
             : null;
           return (p || Promise.resolve()).then(() => Array.from(faces));
         },
-        check(_font: string, _text?: string) {
+        check(font: string, _text?: string) {
+          // A family this set knows is only usable once its face has loaded;
+          // anything else is assumed available, as a system font is.
+          // https://drafts.csswg.org/css-font-loading/#dom-fontfaceset-check
+          const family = familyFromFontShorthand(String(font ?? ""));
+          if (!family) return true;
+          for (const face of faces as Set<{ family?: unknown; status?: unknown }>) {
+            if (String(face?.family ?? "").toLowerCase() === family)
+              return face.status === "loaded";
+          }
           return true;
         },
         addEventListener() {},
@@ -2884,6 +2893,14 @@ Object.assign(DetachedDocument.prototype, {
 
 // ---------------------------------------------------------------------
 // Exports.
+// The family a CSS font shorthand names, lowercased: the text after the size
+// token, up to a comma, without quotes.
+function familyFromFontShorthand(shorthand: string): string {
+  const afterSize = shorthand.replace(/^[^0-9]*[0-9.]+[a-z%]*\s*(\/\s*[^\s]+\s*)?/i, "");
+  const first = afterSize.split(",")[0]?.trim() ?? "";
+  return first.replace(/^["']|["']$/g, "").toLowerCase();
+}
+
 export {
   DocumentImpl,
   DOMImplementationCls,
