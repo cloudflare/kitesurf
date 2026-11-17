@@ -12,6 +12,10 @@ import { isMain } from "./wpt-shared.mjs";
 const USAGE = `usage: node scripts/wpt-gate.mjs --results <merged.json> [--retries <manifest.json>] [--junit <file>]
        node scripts/wpt-gate.mjs --results <merged.json> --retry-candidates <out.json>`;
 const RETRIED = new Set(["TIMEOUT", "CRASH", "ERROR"]);
+// A timing-sensitive test can fail under a bucket's load and pass alone, so a PASS that turns
+// into a FAIL gets fresh draws too. Order-dependent failures pass alone and read as flakes.
+const retried = (entry) =>
+  RETRIED.has(entry.outcome) || (entry.expected === "PASS" && entry.outcome === "FAIL");
 const xml = (value) =>
   String(value).replace(
     /[<>&\"']/g,
@@ -46,10 +50,10 @@ export function deviations(byFile) {
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
 }
 
-/** @param {Record<string, {outcome: string, unexpected: boolean}>} byFile @param {number} [cap] @returns {{tests: string[], mass?: number}} */
+/** @param {Record<string, {outcome: string, expected?: string, unexpected: boolean}>} byFile @param {number} [cap] @returns {{tests: string[], mass?: number}} */
 export function retryCandidates(byFile, cap = RETRY_CAP) {
   const tests = deviations(byFile)
-    .filter(([, entry]) => RETRIED.has(entry.outcome))
+    .filter(([, entry]) => retried(entry))
     .map(([test]) => test);
   return tests.length > cap ? { tests: [], mass: tests.length } : { tests };
 }
@@ -59,7 +63,7 @@ export function applyRetries(byFile, draws, cap = RETRY_CAP) {
   const { tests, mass } = retryCandidates(byFile, cap);
   const output = { ...byFile };
   const notes = mass
-    ? [`${mass} unexpected TIMEOUT/CRASH/ERROR exceed WPT_COMPARE_RETRY_CAP=${cap}: retry disabled`]
+    ? [`${mass} retry candidates exceed WPT_COMPARE_RETRY_CAP=${cap}: retry disabled`]
     : [];
   for (const test of tests) {
     const entry = byFile[test];

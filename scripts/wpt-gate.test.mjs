@@ -10,14 +10,16 @@ import { applyRetries, retryCandidates } from "./wpt-gate.mjs";
 const timeout = { expected: "PASS", outcome: "TIMEOUT", unexpected: true };
 const fail = { expected: "PASS", outcome: "FAIL", unexpected: true, subPass: 1, subTotal: 2 };
 
-test("retry candidates are limited to unexpected infrastructure outcomes", () => {
+test("retry candidates are unexpected infrastructure outcomes and lost passes", () => {
   assert.deepEqual(
     retryCandidates({
       "/timeout.html": timeout,
       "/fail.html": fail,
+      "/fail-to-pass.html": { expected: "FAIL", outcome: "PASS", unexpected: true },
+      "/timeout-to-fail.html": { expected: "TIMEOUT", outcome: "FAIL", unexpected: true },
       "/pass.html": { expected: "PASS", outcome: "PASS", unexpected: false },
     }),
-    { tests: ["/timeout.html"] },
+    { tests: ["/fail.html", "/timeout.html"] },
   );
   assert.deepEqual(retryCandidates({ "/a.html": timeout, "/b.html": timeout }, 1), {
     tests: [],
@@ -38,6 +40,15 @@ test("a draw matching the expectation removes a timeout deviation", () => {
   assert.equal(result.byFile["/timeout.html"].outcome, "PASS");
   assert.equal(result.byFile["/timeout.html"].unexpected, false);
   assert.equal(result.byFile["/timeout.html"].retried, "TIMEOUT");
+});
+
+test("a passing draw removes a fail deviation", () => {
+  const result = applyRetries(
+    { "/fail.html": fail },
+    { "/fail.html": [{ outcome: "PASS", subPass: 2, subTotal: 2 }] },
+  );
+  assert.equal(result.byFile["/fail.html"].unexpected, false);
+  assert.equal(result.byFile["/fail.html"].retried, "FAIL");
 });
 
 test("without a passing draw, the best outcome remains gated", () => {

@@ -3,8 +3,8 @@
 # Licensed under the Apache 2.0 license found in the LICENSE file or at:
 # https://opensource.org/licenses/Apache-2.0
 
-# CI's wpt job: build the merged WPT buckets, redraw each unexpected TIMEOUT, CRASH or ERROR in
-# fresh actions, then judge the lot against tests/wpt-expectations.json. Arguments go to every Bazel
+# CI's wpt job: build the merged WPT buckets, redraw each retry candidate of the gate in fresh
+# actions, then judge the lot against tests/wpt-expectations.json. Arguments go to every Bazel
 # command; run it locally as `scripts/wpt-ci.sh --config=bazelflare`.
 set -euo pipefail
 cd "$(dirname "$0")/.."
