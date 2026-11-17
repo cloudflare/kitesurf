@@ -32585,8 +32585,8 @@
     "reason": null
   },
   "/dom/events/EventListener-incumbent-global-1.sub.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "TIMEOUT",
+    "reason": "The www1 subframe sets document.domain and reads frames[0].document.body of its www2 child. Each cross-origin frame runs in its own PageScript isolate, so that synchronous DOM access gets null, the listener throws, and no result is posted. It times out at fb4dd599 too, so the earlier PASS did not come from the engine."
   },
   "/dom/events/keypress-dispatch-crash.html": {
     "expected": "PASS",
