@@ -18848,7 +18848,7 @@
     "reason": null
   },
   "/html/semantics/forms/the-input-element/range.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/semantics/forms/the-input-element/selection-weekmonth.html": {
