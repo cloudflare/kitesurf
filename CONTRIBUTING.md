@@ -92,6 +92,9 @@ Run the checks that cover what you changed rather than every lane in the repo.
 - Bazelisk, installed as `bazel`. Bazel builds and tests everything, and fetches
   its own Rust toolchains, wasm-bindgen, and binaryen.
 - On macOS, GNU tar (`brew install gnu-tar`).
+- On Linux, GCC with the libstdc++ development files (`sudo apt install g++`
+  on Debian and Ubuntu). rules_rust links its host tools with `-lstdc++`, so
+  without them the build stops at `cannot find -lstdc++`.
 - Rust through rustup, only for editing vendored crate patches.
   `rust-toolchain.toml` pins `nightly-2026-05-14` with the
   `wasm32-unknown-unknown` target, the same nightly Bazel uses.
@@ -104,6 +107,15 @@ pnpm run build
 `pnpm run build` builds the wasm modules and loaded-worker bundles with Bazel
 and copies them into the source tree. Run `pnpm run dev` to build and serve the
 engine locally and `pnpm run test:e2e <substring>` for a focused e2e subset.
+
+On a machine with little memory, cap Bazel in `.bazelrc.user`, which Git
+ignores. The pinned Bazel 9 rejects the older `--local_ram_resources` and
+`--local_cpu_resources` flags; use `--local_resources`:
+
+```text
+startup --host_jvm_args=-Xmx1g
+common --local_resources=cpu=2 --local_resources=memory=2800 --jobs=2
+```
 
 Maintainers with a Cloudflare Access login can add `--config=bazelflare` to any
 Bazel command on Linux x86-64. It runs every action on bazelflare, the remote
