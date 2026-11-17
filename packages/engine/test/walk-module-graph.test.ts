@@ -1676,6 +1676,7 @@ describe("walkModuleGraph import.meta against dynamic import ranges", () => {
 
 describe("walkModuleGraph data: module limits and heuristics", () => {
   const PAGE = "https://example.com/page.html";
+  const NAME = "https://kitesurf-data.invalid/module-0.js";
 
   it("does not parse a data: module's URL as the base of each relative import()", async () => {
     const source = `globalThis.f = () => { ${'import("./x.js");'.repeat(4000)} };/*${"x".repeat(600 * 1024)}*/`;
@@ -1688,5 +1689,18 @@ describe("walkModuleGraph data: module limits and heuristics", () => {
       sandboxOutbound: stubOutbound({ [src]: source }),
     });
     expect(performance.now() - start).toBeLessThan(1000);
+  });
+
+  it("does not stub a broken data: module script whose source ends in an asset extension", async () => {
+    const source = "globalThis.ran = (;//a.css";
+    const src = `data:text/javascript,${source}`;
+    const { descriptors, additionalModules } = await walkModuleGraph({
+      descriptors: [{ src, kind: "module", defer: false, async: false, body: "" }],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ [src]: source }),
+    });
+    expect(descriptors[0]?.prefetchError).toContain("lex failed");
+    expect(additionalModules[NAME]).toBeUndefined();
   });
 });

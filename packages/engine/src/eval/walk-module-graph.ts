@@ -895,6 +895,8 @@ const ASSET_IMPORT_STUB = "/* kitesurf: asset-import side-effect stub */\nexport
 // Asset urls are fetched because dev servers (Vite `?import`, CSS) serve them as JS; a response
 // the module gate rejects, or one the walker cannot use, falls back to the stub.
 function isAssetExtension(url: string): boolean {
+  // A data: URL has no path: the text after the comma is the module source.
+  if (url.startsWith("data:")) return false;
   let path = url;
   const q = path.indexOf("?");
   if (q >= 0) path = path.slice(0, q);
