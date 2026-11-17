@@ -470,6 +470,22 @@ function runtimeImportCall(body: string, imp: LexedImport, ref: string, spec?: s
   return `__ks_import(${first}, ${ref})`;
 }
 
+// `base`, or `base_` and a fixed-width number, absent from `body`. Every rewrite site repeats the
+// name, so its length must not come from the page. Each `base` in `body` rules out at most one
+// candidate of that width, so the scan over `occurrences + 1` candidates always finds one.
+export function unusedIdentifier(body: string, base: string): string {
+  if (!body.includes(base)) return base;
+  const width = String(body.length).length;
+  const taken = new Set<string>();
+  for (let at = body.indexOf(base); at !== -1; at = body.indexOf(base, at + 1)) {
+    taken.add(body.slice(at + base.length, at + base.length + 1 + width));
+  }
+  for (let n = 0; ; n++) {
+    const suffix = "_" + String(n).padStart(width, "0");
+    if (!taken.has(suffix)) return base + suffix;
+  }
+}
+
 function nativelyResolvesTo(specifier: string, importer: string, target: string): boolean {
   return resolveAgainstImporter(specifier, importer) === target;
 }
@@ -1899,8 +1915,7 @@ export async function walkModuleGraph({
     const ref = JSON.stringify(responseUrl);
     let syntheticImportMeta: string | undefined;
     if (registryName(fromUrl) !== responseUrl) {
-      syntheticImportMeta = "__ks_import_meta";
-      while (body.includes(syntheticImportMeta)) syntheticImportMeta += "_";
+      syntheticImportMeta = unusedIdentifier(body, "__ks_import_meta");
     }
     const rewrites: { ss: number; se: number; text: string }[] = [];
     const dynamicRanges = imports

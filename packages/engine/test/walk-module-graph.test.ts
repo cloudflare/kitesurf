@@ -18,6 +18,7 @@ import {
   resolvedModuleRecord,
   resolveImportMapSpecifier,
   rewriteImportMetaResolve,
+  unusedIdentifier,
   walkModuleGraph,
   type ParsedImportMap,
 } from "../src/eval/walk-module-graph.ts";
@@ -26,6 +27,34 @@ import type { ParentScriptDescriptor, ScannedModulePreload } from "../src/wasm.t
 import { bakedJsonModuleName } from "../../page-script/src/baked-module.ts";
 
 const BASE = "https://example.com/js/app.min.js";
+
+describe("unusedIdentifier", () => {
+  it.each([
+    ["", "__ks_x"],
+    ["__ks_y", "__ks_x"],
+    ["__ks_x", "__ks_x_0"],
+    ["__ks_x_0", "__ks_x_1"],
+    ["__ks_x__ __ks_x_", "__ks_x_00"],
+    ["__ks_x_00 __ks_x_01 __ks_x_02", "__ks_x_03"],
+  ])("%j -> %s", (body, expected) => {
+    expect(unusedIdentifier(body, "__ks_x")).toBe(expected);
+    expect(body.includes(expected)).toBe(false);
+  });
+
+  it("keeps the name short after a long run of underscores", () => {
+    const body = "__ks_x" + "_".repeat(300_000);
+    const start = performance.now();
+    expect(unusedIdentifier(body, "__ks_x")).toBe("__ks_x_000000");
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+
+  it("finds a free name when the body takes every short candidate", () => {
+    const names = Array.from({ length: 100 }, (_, n) => `__ks_x_${String(n).padStart(4, "0")}`);
+    const body = names.join(" ");
+    expect(unusedIdentifier(body, "__ks_x")).toBe("__ks_x_0100");
+    expect(body.includes("__ks_x_0100")).toBe(false);
+  });
+});
 
 describe("astroIslandModuleUrls", () => {
   it("collects component and renderer urls from every island once", () => {
