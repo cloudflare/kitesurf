@@ -18,7 +18,7 @@ import {
 import type { ParentScriptDescriptor } from "../wasm.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
-import { scriptCredentialsMode } from "./cors.ts";
+import { isCorsExemptUrl, scriptCredentialsMode } from "./cors.ts";
 import { walkRedirects } from "./redirect-walk.ts";
 import { MAX_DOCUMENT_BYTES, readCapped, readCappedText } from "../read-capped.ts";
 
@@ -179,7 +179,7 @@ export async function prefetchExternalScripts({
             headers["x-kitesurf-connection-id"] = connectionId;
           }
           if (mainFrameId) headers["x-kitesurf-frame-id"] = mainFrameId;
-          if (originClass === "cross" && pageOrigin) {
+          if (originClass === "cross" && pageOrigin && !isCorsExemptUrl(target)) {
             headers["origin"] = pageOrigin;
           }
           let redirectBlocked: ParentScriptDescriptor["blocked"];

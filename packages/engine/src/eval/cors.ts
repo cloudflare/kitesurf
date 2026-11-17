@@ -16,6 +16,16 @@ export function scriptCredentialsMode(
     : "same-origin";
 }
 
+// Fetch's main fetch gives a data: URL "basic" response tainting: no CORS check, preflight or
+// Origin header applies to it. Other non-HTTP(S) schemes fail a CORS-mode fetch instead.
+export function isCorsExemptUrl(url: URL | string): boolean {
+  try {
+    return (typeof url === "string" ? new URL(url) : url).protocol === "data:";
+  } catch {
+    return false;
+  }
+}
+
 const SAFELISTED_RESPONSE_HEADERS = new Set([
   "cache-control",
   "content-language",

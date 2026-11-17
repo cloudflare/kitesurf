@@ -18,6 +18,7 @@ import {
   corsPreflight,
   corsUnsafeRequestHeaderNames,
   filterCorsResponseHeaders,
+  isCorsExemptUrl,
   isSafelistedRequestHeader,
   needsPreflight,
   parseTokenList,
@@ -123,6 +124,20 @@ describe("stylesheet response MIME", () => {
     const { response, events } = await trackedSheet(200, "text/html", "nosniff");
     expect(response.status).toBe(403);
     expect(events).toEqual([{ method: "Network.loadingFailed", errorText: "stylesheet-mime" }]);
+  });
+});
+
+describe("isCorsExemptUrl", () => {
+  it.each([
+    ["data:text/javascript,1", true],
+    [" DATA:text/javascript,1", true],
+    [new URL("data:,"), true],
+    ["about:blank", false],
+    ["blob:https://page.test/0b7f", false],
+    ["https://other.test/data:", false],
+    ["not a url", false],
+  ])("%s → %s", (url, expected) => {
+    expect(isCorsExemptUrl(url)).toBe(expected);
   });
 });
 

@@ -1386,7 +1386,8 @@ export async function walkModuleGraph({
       };
       if (connectionId) headers["x-kitesurf-connection-id"] = connectionId;
       if (mainFrameId) headers["x-kitesurf-frame-id"] = mainFrameId;
-      if (pageOrigin) headers["origin"] = pageOrigin;
+      // Queue URLs are normalized, so the scheme test is exact and does not parse the payload.
+      if (pageOrigin && !fetchUrl.startsWith("data:")) headers["origin"] = pageOrigin;
       const walk = await walkRedirects({
         url: fetchUrl,
         signal: ctrl.signal,

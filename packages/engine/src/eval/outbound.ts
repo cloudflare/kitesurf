@@ -31,6 +31,7 @@ import {
   corsPreflight,
   corsUnsafeRequestHeaderNames,
   filterCorsResponseHeaders,
+  isCorsExemptUrl,
   isSafelistedMethod,
   needsPreflight,
   preflightCacheLookup,
@@ -550,11 +551,14 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       resourceType === "Stylesheet"
         ? (request.headers.get("x-kitesurf-stylesheet-cors") ?? "")
         : "";
-    const sheetWantsCors = stylesheetCorsMode === "cors" && !sameOrigin;
+    const sheetWantsCors = stylesheetCorsMode === "cors" && !sameOrigin && !isCorsExemptUrl(target);
 
     const noCorsMode = request.headers.get("x-kitesurf-mode") === "no-cors";
     let opaqueNoCors = noCorsMode && !sameOrigin;
-    let needsCorsCheck = !sameOrigin && !opaqueResourceBypass && !noCorsMode;
+    // The redirect walkers (redirect-walk.ts, the fetch shim) refuse a non-HTTP(S) Location, as
+    // Fetch does, so a CORS request cannot reach this data: exemption through a redirect.
+    let needsCorsCheck =
+      !sameOrigin && !opaqueResourceBypass && !noCorsMode && !isCorsExemptUrl(target);
 
     const corpApplies = noCorsMode || (resourceType === "Script" && scriptCorsMode === "no-cors");
 
@@ -841,7 +845,8 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
           const stillSameOrigin = !opaqueOrigin && originKey(target) === allowedOriginKey;
           crossOriginNow = !stillSameOrigin;
           opaqueNoCors = noCorsMode && !stillSameOrigin;
-          needsCorsCheck = !stillSameOrigin && !opaqueResourceBypass && !noCorsMode;
+          needsCorsCheck =
+            !stillSameOrigin && !opaqueResourceBypass && !noCorsMode && !isCorsExemptUrl(target);
           credentialsInclude = stillSameOrigin
             ? credentialsMode !== "omit"
             : credentialsMode === "include";
@@ -863,6 +868,9 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         }
         if (needsCorsCheck) {
           forwardRequest.headers.set("origin", pageOrigin || "null");
+        } else if (isCorsExemptUrl(target)) {
+          // The first hop's Origin was for the URL the override replaced.
+          forwardRequest.headers.delete("origin");
         }
       }
     }
@@ -1180,9 +1188,12 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       }
     }
 
+    // A data: stylesheet response is basic-tainted in either mode, so its rules are readable
+    // with or without crossorigin.
     const corsVerdict: "clean" | "opaque" | null =
       resourceType === "Stylesheet"
         ? !crossOriginNow ||
+          isCorsExemptUrl(target) ||
           (stylesheetCorsMode === "cors" &&
             corsCheck(resp.headers, pageOrigin || "null", credentialsInclude) === null)
           ? "clean"

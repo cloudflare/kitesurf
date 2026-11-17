@@ -123,6 +123,41 @@ describe("script fetches follow the browser credentials mode", () => {
   });
 });
 
+// Fetch sends no Origin to a data: URL; a cross-origin https: script carries the page's.
+describe("script prefetchers send Origin only where Fetch does", () => {
+  it.each([
+    ["classic", "data:text/javascript,1", null],
+    ["module", "data:text/javascript,1", null],
+    ["classic", TARGET, ORIGIN],
+    ["module", TARGET, ORIGIN],
+  ] as const)("%s %s", async (kind, src, origin) => {
+    const seen: Array<string | null> = [];
+    const sandboxOutbound = createSandboxOutboundOverride(
+      {} as SandboxOutboundExports,
+      {} as SandboxOutboundEnv,
+      {
+        fetch: async (req) => {
+          seen.push(req.headers.get("origin"));
+          return new Response("export default 1;", {
+            headers: { "content-type": "text/javascript", "access-control-allow-origin": "*" },
+          });
+        },
+      },
+    );
+    const args = {
+      descriptors: [{ src, kind, defer: false, async: false, body: "", crossOrigin: "anonymous" }],
+      pageUrl: PAGE,
+      connectionId: KEY,
+      sandboxOutbound,
+    };
+    const descriptors =
+      kind === "classic"
+        ? await prefetchExternalScripts({ ...args, baseUrl: PAGE })
+        : (await walkModuleGraph(args)).descriptors;
+    expect([seen, descriptors[0]?.prefetchError ?? null]).toEqual([[origin], null]);
+  });
+});
+
 // Drives the page-script path that fetches parser and inserted scripts, so the headers it
 // produces meet the real gateway.
 async function fetchInserted(crossOrigin: string | null, acac = true) {
