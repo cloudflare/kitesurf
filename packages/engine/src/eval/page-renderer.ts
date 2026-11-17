@@ -367,6 +367,7 @@ export class PageRendererManager {
           omitBackground: opts.omitBackground,
           ...(typeof opts.sinceSeq === "number" ? { sinceSeq: opts.sinceSeq } : {}),
           ...(opts.clip ? { clip: opts.clip } : {}),
+          ...(opts.clip && opts.documentCrop === true ? { documentCrop: true } : {}),
           ...(opts.encodedLimit !== undefined ? { encodedLimit: opts.encodedLimit } : {}),
           ...(typeof opts.partialKey === "string" && opts.partialKey
             ? { partialKey: opts.partialKey }

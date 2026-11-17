@@ -437,6 +437,8 @@ export interface QueryDomMethods {
       sinceSeq?: unknown;
       omitBackground?: unknown;
       clip?: unknown;
+      // The clip is a crop of the whole document, so fixed boxes anchor at its origin.
+      documentCrop?: unknown;
       allowPartial?: unknown;
       allowScrollShift?: unknown;
       baseSeq?: unknown;

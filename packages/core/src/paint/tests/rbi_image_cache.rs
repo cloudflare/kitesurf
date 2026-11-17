@@ -82,7 +82,7 @@ fn raw_renderer_records_preserve_pixels_and_compressed_rbi_images() {
         &pixels,
     );
 
-    let clip = image(dom.render_scene_clip_raw(0, 0, 32, 32, false, false));
+    let clip = image(dom.render_scene_clip_raw(0, 0, 32, 32, false, false, false));
     assert_eq!(clip.format, 0);
     assert_eq!(clip.data, pixels);
     assert_eq!(clip.content_hash, raw.content_hash);
@@ -92,7 +92,7 @@ fn raw_renderer_records_preserve_pixels_and_compressed_rbi_images() {
             .data(),
         encoded,
     );
-    let external_clip = image(dom.render_scene_clip(0, 0, 32, 32, false, true));
+    let external_clip = image(dom.render_scene_clip(0, 0, 32, 32, false, true, false));
     assert_eq!(external_clip.format, 1);
     assert_eq!(external_clip.content_hash, raw.content_hash);
 }
@@ -122,7 +122,9 @@ fn canvas_frames_do_not_accumulate_encoded_images() {
         largest = largest.max(cache[&current].wire_bytes.data().len());
         drop(cache);
         assert!(dom.set_canvas_pixels(canvas, SIDE, SIDE, &noise(f + FRAMES)) >= 0);
-        assert!(!dom.render_scene_clip(0, 0, 50, 50, false, false).is_empty());
+        assert!(!dom
+            .render_scene_clip(0, 0, 50, 50, false, false, false)
+            .is_empty());
         assert!(
             dom.rbi_image_cache.borrow().contains_key(&current),
             "frame {f}: an interleaved record evicted the image just recorded"
@@ -180,6 +182,8 @@ fn a_pdf_record_keeps_its_images_through_the_next_record() {
         "the PDF recorded the canvas as a new image"
     );
     draw(warm_up + 1);
-    assert!(!dom.render_scene_clip(0, 0, 50, 50, false, false).is_empty());
+    assert!(!dom
+        .render_scene_clip(0, 0, 50, 50, false, false, false)
+        .is_empty());
     assert!(dom.rbi_image_cache.borrow().contains_key(&pdf_images[0]));
 }

@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 
 import { expect, test } from "./harness";
+import { decodePng, type DecodedPng } from "./png";
 import { setContent } from "./set-content";
 
 // SHA-256 values captured from the unbanded renderer in the main tree.
@@ -192,3 +193,79 @@ test("rejects oversized encoded output and keeps the renderer usable", async ({
   });
   expect(recovery.data.length).toBeGreaterThan(0);
 }, 300_000);
+
+const TALL = `<!doctype html><style>html,body{margin:0}div{height:100px}</style>
+  <div style="background:#ff0000"></div><div style="background:#0000ff"></div>`;
+
+const pixel = (png: DecodedPng, x: number, y: number) => {
+  const i = (y * png.width + x) * 4;
+  return [...png.data.slice(i, i + 4)];
+};
+
+// Puppeteer's fullPage sends captureBeyondViewport with no clip and expects the
+// whole document, as Chrome captures it (cdp/page.ts, Page.captureScreenshot).
+test("captureBeyondViewport without a clip captures the whole document", async ({ page }) => {
+  await page.setViewport({ width: 64, height: 64 });
+  await setContent(page, TALL);
+  const full = await decodePng(new Uint8Array(await page.screenshot({ fullPage: true })));
+  expect([full.width, full.height]).toEqual([64, 200]);
+  expect(pixel(full, 32, 10)).toEqual([255, 0, 0, 255]);
+  expect(pixel(full, 32, 190)).toEqual([0, 0, 255, 255]);
+
+  await page.evaluate(() => window.scrollTo(0, 120));
+  const scrolled = await decodePng(new Uint8Array(await page.screenshot({ fullPage: true })));
+  expect([scrolled.width, scrolled.height]).toEqual([64, 200]);
+  expect(pixel(scrolled, 32, 10)).toEqual([255, 0, 0, 255]);
+
+  const viewport = await decodePng(new Uint8Array(await page.screenshot()));
+  expect([viewport.width, viewport.height]).toEqual([64, 64]);
+  expect(pixel(viewport, 32, 10)).toEqual([0, 0, 255, 255]);
+}, 120_000);
+
+// Chrome paints a beyond-viewport capture at scroll 0, so a fixed header sits at the top.
+test("a full-page capture of a scrolled page paints fixed boxes at the top", async ({ page }) => {
+  await page.setViewport({ width: 64, height: 64 });
+  await setContent(
+    page,
+    `<!doctype html><style>html,body{margin:0}div{height:100px}</style>
+    <header style="position:fixed;top:0;left:0;width:64px;height:20px;background:#00ff00"></header>
+    <div style="background:#ff0000"></div><div style="background:#0000ff"></div>`,
+  );
+  await page.evaluate(() => window.scrollTo(0, 120));
+  const full = await decodePng(new Uint8Array(await page.screenshot({ fullPage: true })));
+  expect([full.width, full.height]).toEqual([64, 200]);
+  expect(pixel(full, 32, 10)).toEqual([0, 255, 0, 255]);
+  expect(pixel(full, 32, 130)).toEqual([0, 0, 255, 255]);
+}, 120_000);
+
+// The pre-render drain lands the image, which grows the document from 64 to 104 px.
+test("a full-page capture measures the document after the resource drain", async ({ page }) => {
+  await page.setViewport({ width: 64, height: 64 });
+  await page.goto("http://127.0.0.1:8787/__fixtures/xhr-boot.html", {
+    waitUntil: "domcontentloaded",
+  });
+  await page.evaluate(() => {
+    document.body.innerHTML =
+      '<style>html,body{margin:0}</style><div style="height:40px;background:#0000ff"></div>' +
+      '<img style="display:block;width:64px" src="/__fixtures/slow-headers-red.png?ms=1500">';
+  });
+  const full = await decodePng(new Uint8Array(await page.screenshot({ fullPage: true })));
+  expect([full.width, full.height]).toEqual([64, 104]);
+  expect(pixel(full, 32, 100)).toEqual([255, 0, 0, 255]);
+}, 120_000);
+
+// The unloaded image has no height and starts at the measured document bottom.
+test("a full-page capture waits for an image at the document bottom", async ({ page }) => {
+  await page.setViewport({ width: 64, height: 64 });
+  await page.goto("http://127.0.0.1:8787/__fixtures/xhr-boot.html", {
+    waitUntil: "domcontentloaded",
+  });
+  await page.evaluate(() => {
+    document.body.innerHTML =
+      '<style>html,body{margin:0}</style><div style="height:100px;background:#0000ff"></div>' +
+      '<img style="display:block;width:64px" src="/__fixtures/slow-headers-red.png?ms=1500">';
+  });
+  const full = await decodePng(new Uint8Array(await page.screenshot({ fullPage: true })));
+  expect([full.width, full.height]).toEqual([64, 164]);
+  expect(pixel(full, 32, 150)).toEqual([255, 0, 0, 255]);
+}, 120_000);

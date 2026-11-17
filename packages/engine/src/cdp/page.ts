@@ -314,6 +314,7 @@ async function renderViaPageRenderer(
     omitBackground: boolean;
     sinceSeq?: number;
     clip?: { x: number; y: number; width: number; height: number };
+    documentCrop?: boolean;
     partialKey?: string;
     encodedLimit?: number;
     images?: "raw" | "encoded";
@@ -366,6 +367,7 @@ type ScreenshotFormat = "png" | "jpeg" | "webp";
 
 interface ScreenshotCapture {
   clip: { x: number; y: number; width: number; height: number } | null;
+  fullDocument: boolean;
   width: number;
   height: number;
 }
@@ -402,18 +404,32 @@ async function resolveScreenshotCapture(
   params: Protocol.Page.CaptureScreenshotRequest | undefined,
 ): Promise<ScreenshotCapture> {
   const requestedClip = readScreenshotClipRect(params?.clip);
-  const metrics =
-    !requestedClip && params?.captureBeyondViewport === true
-      ? await sessionOf(ctx, target).callIfLive.layoutMetrics({})
-      : null;
+  const fullDocument = !requestedClip && params?.captureBeyondViewport === true;
+  const metrics = fullDocument ? await sessionOf(ctx, target).callIfLive.layoutMetrics({}) : null;
   const clip =
     requestedClip ??
     (metrics ? { x: 0, y: 0, width: metrics.contentWidth, height: metrics.contentHeight } : null);
   return {
     clip,
+    fullDocument,
     width: Math.ceil(clip?.width ?? target.viewportWidth ?? DEFAULT_VIEWPORT_WIDTH),
     height: Math.ceil(clip?.height ?? target.viewportHeight ?? DEFAULT_VIEWPORT_HEIGHT),
   };
+}
+
+// The drain can land resources that grow the document, so a full-document capture measures again.
+async function remeasureAfterDrain(
+  ctx: DispatchCtx,
+  target: TargetState,
+  params: Protocol.Page.CaptureScreenshotRequest | undefined,
+  capture: ScreenshotCapture,
+  format: ScreenshotFormat,
+): Promise<ScreenshotCapture> {
+  if (!capture.fullDocument) return capture;
+  const remeasured = await resolveScreenshotCapture(ctx, target, params);
+  if (!remeasured.clip) return capture;
+  assertScreenshotRasterLimits(remeasured.width, remeasured.height, format);
+  return remeasured;
 }
 
 function assertScreenshotRasterLimits(
@@ -1322,8 +1338,8 @@ export async function handlePage(
             : DEFAULT_IMAGE_QUALITY;
         const omitBackground = req.params?.omitBackground === true;
         assertSupportedClipScale(req.params?.clip, target.deviceScaleFactor);
-        const capture = await resolveScreenshotCapture(ctx, target, req.params);
-        const clip = capture.clip;
+        let capture = await resolveScreenshotCapture(ctx, target, req.params);
+        let clip = capture.clip;
         assertScreenshotRasterLimits(capture.width, capture.height, format);
 
         const pageUrl = target.url || "https://kitesurf.local/";
@@ -1333,17 +1349,23 @@ export async function handlePage(
           let drainInfo: Record<string, unknown> | null = null;
           let __graceTimer: ReturnType<typeof setTimeout> | null = null;
           try {
+            // A full-document capture drains unscoped: an unloaded image at the document bottom
+            // starts at the measured height, outside any rect sized from it.
             const drain = stubQueryDom(ps, "awaitPendingResources", {
               timeoutMs: RENDER_DRAIN_TIMEOUT_MS,
-              scope: clip
-                ? {
-                    mode: "rect",
-                    x: clip.x,
-                    y: clip.y,
-                    w: clip.width,
-                    h: clip.height,
-                  }
-                : { mode: "viewport" },
+              ...(capture.fullDocument
+                ? {}
+                : {
+                    scope: clip
+                      ? {
+                          mode: "rect",
+                          x: clip.x,
+                          y: clip.y,
+                          w: clip.width,
+                          h: clip.height,
+                        }
+                      : { mode: "viewport" },
+                  }),
             }).catch(() => null);
             const drainResult = await traceSpan(
               ctx.env.HOST_TRACER,
@@ -1370,12 +1392,15 @@ export async function handlePage(
             target,
             __drainStart + RENDER_DRAIN_TIMEOUT_MS + RENDER_DRAIN_GRACE_MS - Date.now(),
           );
+          capture = await remeasureAfterDrain(ctx, target, req.params, capture, format);
+          clip = capture.clip;
           const __rpcStart = Date.now();
           const viaRenderer = await renderViaPageRenderer(ctx, target, {
             format,
             quality,
             omitBackground,
             ...(clip ? { clip } : {}),
+            ...(clip && capture.fullDocument ? { documentCrop: true } : {}),
             encodedLimit: MAX_SCREENSHOT_ENCODED_BYTES,
             ...(ctx.browser.screencasts.has(target.targetId)
               ? {}

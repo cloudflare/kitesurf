@@ -2368,6 +2368,7 @@ function renderScrollScenePatches(
       Math.min(MAX_SCENE_CLIP_DIMENSION_PX, height),
       false,
       clientWire,
+      false,
     );
     if (!patchScene || patchScene.length === 0) {
       throw new Error("renderSceneClip returned empty");
@@ -5904,6 +5905,7 @@ interface QueryDomRecordSceneContext {
   paint: DomHandle;
   clip: ReturnType<typeof readSceneClip>;
   hasClip: boolean;
+  documentCrop: boolean;
   scrollDx: number;
   scrollDy: number;
   scrolled: boolean;
@@ -6056,6 +6058,7 @@ function prepareQueryDomRecordScene(
     paint,
     clip,
     hasClip,
+    documentCrop: hasClip && queryArgs.documentCrop === true,
     scrollDx,
     scrollDy,
     scrolled,
@@ -6097,7 +6100,7 @@ function queryDomRecordSceneSkipResult(
 }
 
 function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecordSceneRender {
-  const { paint, rawImages, clientWire, hasClip, clip, omitBg } = context;
+  const { paint, rawImages, clientWire, hasClip, clip, documentCrop, omitBg } = context;
   let scene: Uint8Array | null = null;
   let emittedPartial = false;
   let partialClip = context.partialPlan.partialClip;
@@ -6129,6 +6132,7 @@ function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecor
         Math.min(MAX_SCENE_CLIP_DIMENSION_PX, partialClip.h),
         false,
         clientWire,
+        false,
       );
       emittedPartial = true;
     } else {
@@ -6140,6 +6144,7 @@ function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecor
             Math.ceil(clip.height),
             omitBg,
             clientWire,
+            documentCrop,
           )
         : renderScene(state.scrollX, state.scrollY, 0, 0, omitBg, clientWire);
     }

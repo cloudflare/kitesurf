@@ -289,6 +289,10 @@ fn ink_bounds(doc: &HtmlDocument, node_id: NodeId) -> Option<kurbo::Rect> {
 #[wasm_bindgen]
 impl DomHandle {
     #[wasm_bindgen(js_name = "renderSceneClip")]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "wasm-bindgen exports take the clip and its flags as flat scalars."
+    )]
     pub fn render_scene_clip(
         &self,
         clip_x: i32,
@@ -297,6 +301,7 @@ impl DomHandle {
         clip_h: u32,
         omit_background: bool,
         client_wire: bool,
+        document_crop: bool,
     ) -> Vec<u8> {
         self.render_scene_clip_inner(
             SceneClip {
@@ -308,10 +313,15 @@ impl DomHandle {
             omit_background,
             client_wire,
             false,
+            document_crop,
         )
     }
 
     #[wasm_bindgen(js_name = "renderSceneClipRaw")]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "wasm-bindgen exports take the clip and its flags as flat scalars."
+    )]
     pub fn render_scene_clip_raw(
         &self,
         clip_x: i32,
@@ -320,6 +330,7 @@ impl DomHandle {
         clip_h: u32,
         omit_background: bool,
         client_wire: bool,
+        document_crop: bool,
     ) -> Vec<u8> {
         self.render_scene_clip_inner(
             SceneClip {
@@ -331,6 +342,7 @@ impl DomHandle {
             omit_background,
             client_wire,
             true,
+            document_crop,
         )
     }
 
@@ -340,6 +352,7 @@ impl DomHandle {
         omit_background: bool,
         client_wire: bool,
         raw_images: bool,
+        document_crop: bool,
     ) -> Vec<u8> {
         use anyrender::PaintScene as _;
         let SceneClip {
@@ -383,13 +396,18 @@ impl DomHandle {
             Err(_) => return Vec::new(),
         };
         let entry_scroll = doc.viewport_scroll();
-        doc.set_viewport_scroll_with_fixed_anchor(
-            blitz_dom::Point {
-                x: sx as f64,
-                y: sy as f64,
-            },
-            entry_scroll,
-        );
+        let clip_origin = blitz_dom::Point {
+            x: sx as f64,
+            y: sy as f64,
+        };
+        // A document crop paints as if the page were scrolled to the clip, like Chrome's
+        // beyond-viewport capture; a viewport fragment keeps fixed boxes where the page shows them.
+        let fixed_anchor = if document_crop {
+            clip_origin
+        } else {
+            entry_scroll
+        };
+        doc.set_viewport_scroll_with_fixed_anchor(clip_origin, fixed_anchor);
         let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let base: &mut blitz_dom::BaseDocument = &mut doc;
             let mut scene = if client_wire {

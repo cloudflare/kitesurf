@@ -20,6 +20,8 @@ export interface RenderFrameOpts {
   omitBackground: boolean;
   sinceSeq?: number;
   clip?: { x: number; y: number; width: number; height: number };
+  // The clip is a crop of the whole document, so fixed boxes anchor at its origin.
+  documentCrop?: boolean;
   partialKey?: string;
   // Rejects a frame whose encoded image would exceed this many bytes.
   encodedLimit?: number;

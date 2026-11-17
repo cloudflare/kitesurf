@@ -636,6 +636,7 @@ export class PageRenderer extends WorkerEntrypoint<RendererEnv> implements PageR
           images: opts.images === "encoded" ? "encoded" : "raw",
           ...(typeof opts.sinceSeq === "number" ? { sinceSeq: opts.sinceSeq } : {}),
           ...(opts.clip ? { clip: opts.clip } : {}),
+          ...(opts.clip && opts.documentCrop === true ? { documentCrop: true } : {}),
           ...(baseValid
             ? { allowPartial: true, allowScrollShift: true, baseSeq: retainedSeq }
             : {}),

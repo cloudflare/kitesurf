@@ -791,7 +791,7 @@ fn scrolling_through_clipped_strips_evicts_what_scrolled_away() {
     let dom = setup(Some(2.0), 240);
     let height = page_height(&dom);
     assert!(
-        !dom.render_scene_clip(0, 0, 800, 600, false, true)
+        !dom.render_scene_clip(0, 0, 800, 600, false, true, false)
             .is_empty(),
         "precondition: the top strip renders"
     );
@@ -800,7 +800,7 @@ fn scrolling_through_clipped_strips_evicts_what_scrolled_away() {
         let y = (height - 600) * step / 8;
         dom.set_page_scroll(0.0, y as f64);
         assert!(
-            !dom.render_scene_clip(0, y, 800, 600, false, true)
+            !dom.render_scene_clip(0, y, 800, 600, false, true, false)
                 .is_empty(),
             "the strip at {y} renders"
         );
