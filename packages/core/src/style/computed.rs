@@ -23,8 +23,33 @@ fn element_styles(
 ) -> Option<::style::servo_arc::Arc<::style::properties::ComputedValues>> {
     match node.primary_styles() {
         Some(styles) => Some(::style::servo_arc::Arc::clone(&styles)),
-        None => doc.resolve_undisplayed_style(node.id()),
+        None if in_undisplayed_subtree(doc, node) => doc.resolve_undisplayed_style(node.id()),
+        None => None,
     }
+}
+
+/// Whether an unstyled element's nearest styled ancestor is `display: none`. Otherwise it is
+/// outside the flat tree (a slot's fallback beside assigned nodes, or an unassigned host child),
+/// which browsers give no computed style.
+fn in_undisplayed_subtree(doc: &BaseDocument, node: &blitz_dom::Node) -> bool {
+    let mut cur = flat_tree_parent(node);
+    while let Some(id) = cur {
+        let Some(ancestor) = doc.get_node(id) else {
+            return false;
+        };
+        if let Some(styles) = ancestor.primary_styles() {
+            return styles.get_box().clone_display().is_none();
+        }
+        cur = flat_tree_parent(ancestor);
+    }
+    false
+}
+
+/// The assigned slot of a slotted node, the host of a shadow root, else the DOM parent.
+fn flat_tree_parent(node: &blitz_dom::Node) -> Option<NodeId> {
+    node.assigned_slot()
+        .or_else(|| node.shadow_root_data().map(|root| root.host))
+        .or_else(|| node.parent_id())
 }
 
 fn grid_template_resolved(doc: &BaseDocument, node_id: NodeId, columns: bool) -> Option<String> {

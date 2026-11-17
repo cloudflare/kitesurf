@@ -9,6 +9,7 @@ mod animation_fill_mode;
 mod calc_resolution;
 mod cascade_panic_recovery;
 mod color_serialization;
+mod flat_tree_style;
 mod focus_pseudoclass;
 mod has_invalidation;
 mod insertion_invalidation;
