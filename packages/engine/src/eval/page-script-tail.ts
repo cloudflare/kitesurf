@@ -15,6 +15,11 @@ import type { IsolateKillMarker } from "@kitesurf/jsrpc-types/shared";
 const ISOLATE_KILL_MARKER: IsolateKillMarker = "[ks-kill]";
 /** workerd's message when an invocation can no longer produce a result. */
 const HUNG_INVOCATION_TEXT = "detected that your Worker's code had hung";
+// workerd's abortIsolate() terminates JS without recording an abort reason, so workerd logs
+// "script terminated for unknown reasons" with a native stack for every requested kill.
+const KILL_CONSOLE_NOTE =
+  '(engine closed the isolate on purpose; workerd\'s "script terminated for unknown reasons" ' +
+  "log for it is expected)";
 
 export interface PageScriptTailProps {
   scriptName: string;
@@ -146,7 +151,7 @@ export class PageScriptTail extends WorkerEntrypoint<
         killRequested = true;
         const note = `${ISOLATE_KILL_MARKER} ${line.slice(killPrefix.length)}`;
         buffer(log.level, note, log.timestamp);
-        console.log(tag, note);
+        console.log(tag, note, KILL_CONSOLE_NOTE);
         return;
       }
       if (line.startsWith("[ks-otel-span] ")) {
