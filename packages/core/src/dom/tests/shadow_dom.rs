@@ -813,3 +813,65 @@ fn freeing_a_slot_clears_its_slottables_assigned_slot() {
         None
     );
 }
+
+#[test]
+fn restyled_shadow_style_elements_cascade_in_tree_order() {
+    const STYLES: u8 = 12;
+    let dom = DomHandle::new(HTML, "https://test.example/");
+    let host = host_id(&dom);
+    let root = dom.attach_shadow(host, "open") as u32;
+    let texts: Vec<u32> = (0..STYLES)
+        .map(|_| {
+            let style = dom.create_element("style");
+            let text = dom.create_text_node("");
+            assert!(dom.append_child_node(style, text));
+            assert!(dom.append_child_node(root, style));
+            text
+        })
+        .collect();
+    let span = dom.create_element("span");
+    assert!(dom.append_child_node(root, span));
+    dom.resolve_layout();
+
+    // All sheets reparse in one resolve, so the last one in tree order must win.
+    for (i, text) in texts.iter().enumerate() {
+        assert!(dom.set_node_text(*text, &format!("span {{ color: rgb({i}, 0, 0); }}")));
+    }
+    dom.resolve_layout();
+    assert_eq!(
+        dom.computed_style_value(span, "color"),
+        Some(format!("rgb({}, 0, 0)", STYLES - 1))
+    );
+}
+
+#[test]
+fn restyled_nested_shadow_style_elements_cascade_in_tree_order() {
+    const STYLES: u8 = 12;
+    let dom = DomHandle::new(HTML, "https://test.example/");
+    let host = host_id(&dom);
+    let root = dom.attach_shadow(host, "open") as u32;
+    let texts: Vec<u32> = (0..STYLES)
+        .map(|_| {
+            let wrapper = dom.create_element("div");
+            let style = dom.create_element("style");
+            let text = dom.create_text_node("");
+            assert!(dom.append_child_node(style, text));
+            assert!(dom.append_child_node(wrapper, style));
+            assert!(dom.append_child_node(root, wrapper));
+            text
+        })
+        .collect();
+    let span = dom.create_element("span");
+    assert!(dom.append_child_node(root, span));
+    dom.resolve_layout();
+
+    // The next sheet sits under a later sibling of an ancestor, so the walk climbs to find it.
+    for (i, text) in texts.iter().enumerate() {
+        assert!(dom.set_node_text(*text, &format!("span {{ color: rgb({i}, 0, 0); }}")));
+    }
+    dom.resolve_layout();
+    assert_eq!(
+        dom.computed_style_value(span, "color"),
+        Some(format!("rgb({}, 0, 0)", STYLES - 1))
+    );
+}
