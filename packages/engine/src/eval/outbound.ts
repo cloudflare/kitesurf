@@ -1188,8 +1188,8 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       }
     }
 
-    // A data: stylesheet response is basic-tainted in either mode, so its rules are readable
-    // with or without crossorigin.
+    // A data: response is basic-tainted in either mode: SRI applies to a data: script, and a data:
+    // stylesheet's rules are readable, with or without crossorigin.
     const corsVerdict: "clean" | "opaque" | null =
       resourceType === "Stylesheet"
         ? !crossOriginNow ||
@@ -1199,7 +1199,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
           ? "clean"
           : "opaque"
         : resourceType === "Script"
-          ? !crossOriginNow || scriptCorsMode === "cors"
+          ? !crossOriginNow || scriptCorsMode === "cors" || isCorsExemptUrl(target)
             ? "clean"
             : "opaque"
           : null;

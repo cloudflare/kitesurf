@@ -113,6 +113,27 @@ it.each([
   else expect(response.headers.get("x-kitesurf-blocked")).toBe("cors");
 });
 
+// SRI needs a CORS-clean response. A data: script is clean without crossorigin; a cross-origin
+// https: one stays opaque.
+it.each([
+  ["data:text/javascript,run()", "clean"],
+  ["https://other.test/run.js", "opaque"],
+])("marks a no-cors script at %s %s", async (url, verdict) => {
+  const response = await gateway(
+    {},
+    new Request(url, {
+      headers: {
+        "x-kitesurf-resource-type": "Script",
+        "x-kitesurf-script-cors": "no-cors",
+        "x-kitesurf-allow-cross-origin": "1",
+      },
+    }),
+    async () => new Response("run()", { headers: { "content-type": "text/javascript" } }),
+  );
+  expect(response.status).toBe(200);
+  expect(response.headers.get("x-kitesurf-cors")).toBe(verdict);
+});
+
 // A data: stylesheet's rules are readable in either mode, and it gets no Origin; a crossorigin
 // https: sheet without Access-Control-Allow-Origin stays opaque.
 it.each([

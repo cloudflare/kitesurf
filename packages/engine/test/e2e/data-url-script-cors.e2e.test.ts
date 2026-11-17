@@ -59,6 +59,19 @@ test("crossorigin, module and import() data: scripts all run", async ({ page }) 
   });
 }, 60_000);
 
+test("SRI applies to a data: script without crossorigin", async ({ page }) => {
+  const digest = new Uint8Array(
+    await crypto.subtle.digest("SHA-384", new TextEncoder().encode("window.SRI_GOOD=1")),
+  );
+  const integrity = `sha384-${btoa(String.fromCharCode(...digest))}`;
+  const body = `
+    <script src="${data("SRI_GOOD")}" integrity="${integrity}"></script>
+    <script src="${data("SRI_BAD")}" integrity="${integrity}"></script>`;
+  await page.goto(docUrl(body), { waitUntil: "load" });
+  await settle(page);
+  expect(await markers(page, ["SRI_GOOD", "SRI_BAD"])).toEqual({ SRI_GOOD: 1, SRI_BAD: null });
+}, 60_000);
+
 test("an inserted crossorigin data: script runs", async ({ page }) => {
   const body = `<script>
     var s = document.createElement("script");
