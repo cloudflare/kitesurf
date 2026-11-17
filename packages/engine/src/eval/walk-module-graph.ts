@@ -89,6 +89,9 @@ function parseUrlLikeSpecifier(specifier: string, baseUrl: string): URL | null {
   // whitespace around a scheme, so no stricter shape test is safe), and a throwing `new URL`
   // costs ~2 us on the resolution hot path.
   if (!baseRelative && !specifier.includes(":")) return null;
+  // A data: URL has an opaque path, so it is never a base. Parsing a multi-megabyte one only to
+  // throw costs milliseconds per relative import site.
+  if (baseRelative && baseUrl.startsWith("data:")) return null;
   try {
     return baseRelative ? new URL(specifier, baseUrl) : new URL(specifier);
   } catch {

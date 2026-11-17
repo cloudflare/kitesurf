@@ -1673,3 +1673,20 @@ describe("walkModuleGraph import.meta against dynamic import ranges", () => {
     expect(performance.now() - start).toBeLessThan(600);
   });
 });
+
+describe("walkModuleGraph data: module limits and heuristics", () => {
+  const PAGE = "https://example.com/page.html";
+
+  it("does not parse a data: module's URL as the base of each relative import()", async () => {
+    const source = `globalThis.f = () => { ${'import("./x.js");'.repeat(4000)} };/*${"x".repeat(600 * 1024)}*/`;
+    const src = `data:text/javascript,${source}`;
+    const start = performance.now();
+    await walkModuleGraph({
+      descriptors: [{ src, kind: "module", defer: false, async: false, body: "" }],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ [src]: source }),
+    });
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+});
