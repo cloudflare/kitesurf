@@ -514,8 +514,9 @@ export function rewriteImportMetaResolve(
   expression: string,
   importer: string,
   syntheticImportMeta?: string,
+  importerRef: string = JSON.stringify(importer),
 ): string {
-  const replacement = `((specifier) => globalThis.__ks_resolve_import_map(specifier, ${JSON.stringify(importer)}))`;
+  const replacement = `((specifier) => globalThis.__ks_resolve_import_map(specifier, ${importerRef}))`;
   let imports: ReturnType<typeof lexerParse>[0];
   try {
     imports = lexerParse(expression)[0];
@@ -1930,6 +1931,10 @@ export async function walkModuleGraph({
     }
     const responseUrl = responseUrlByRequest.get(fromUrl) ?? fromUrl;
     const ref = JSON.stringify(responseUrl);
+    // Each rewritten site names the module's URL, and a data: URL is the whole module source. The
+    // sites call one appended, hoisted function, so the bake holds the URL once, not once per site.
+    const refFunction = unusedIdentifier(body, "__ks_module_url");
+    const siteRef = `${refFunction}()`;
     let syntheticImportMeta: string | undefined;
     if (registryName(fromUrl) !== responseUrl) {
       syntheticImportMeta = unusedIdentifier(body, "__ks_import_meta");
@@ -1964,11 +1969,12 @@ export async function walkModuleGraph({
             dynamicImportArguments(body, imp),
             responseUrl,
             syntheticImportMeta,
+            siteRef,
           );
           const call =
             imp.a < 0
-              ? `__ks_import(${args}, ${ref})`
-              : `((s, o) => __ks_import(s, ${ref}, o))(${args})`;
+              ? `__ks_import(${args}, ${siteRef})`
+              : `((s, o) => __ks_import(s, ${siteRef}, o))(${args})`;
           rewrites.push({ ss: imp.ss, se: imp.se, text: call });
         }
         if (!spec) continue;
@@ -1986,7 +1992,7 @@ export async function walkModuleGraph({
         rewrites.push({
           ss: imp.ss,
           se: imp.se,
-          text: runtimeImportCall(body, imp, ref),
+          text: runtimeImportCall(body, imp, siteRef),
         });
         deferredCount++;
         continue;
@@ -2005,7 +2011,7 @@ export async function walkModuleGraph({
         rewrites.push({
           ss: imp.ss,
           se: resolveEnd,
-          text: `((specifier) => globalThis.__ks_resolve_import_map(specifier, ${ref}))`,
+          text: `((specifier) => globalThis.__ks_resolve_import_map(specifier, ${siteRef}))`,
         });
         continue;
       }
@@ -2019,15 +2025,28 @@ export async function walkModuleGraph({
       }
     }
     if (rewrites.length > 0 || syntheticImportMeta) {
-      let b = body;
-      for (const rw of rewrites.sort((a, c) => c.ss - a.ss)) {
-        b = b.slice(0, rw.ss) + rw.text + b.slice(rw.se);
+      // Joined once: splicing the body per site copies the rest of it each time. A site inside
+      // one already rewritten is part of that rewrite's text.
+      const parts: string[] = [];
+      let cursor = 0;
+      let usesSiteRef = false;
+      for (const rw of rewrites.sort((a, c) => a.ss - c.ss)) {
+        if (rw.ss < cursor) continue;
+        parts.push(body.slice(cursor, rw.ss), rw.text);
+        cursor = rw.se;
+        if (rw.text.includes(siteRef)) usesSiteRef = true;
       }
+      parts.push(body.slice(cursor));
+      let b = parts.join("");
+      const refDeclaration = `function ${refFunction}() { return ${ref}; }`;
       if (syntheticImportMeta) {
+        // On the prelude's one line, so the module's own line numbers do not move.
         b =
-          `const ${syntheticImportMeta}=Object.assign(Object.create(null),` +
-          `{url:${ref},resolve:(specifier)=>globalThis.__ks_resolve_import_map(specifier,${ref})});\n` +
+          `${refDeclaration}const ${syntheticImportMeta}=Object.assign(Object.create(null),` +
+          `{url:${siteRef},resolve:(specifier)=>globalThis.__ks_resolve_import_map(specifier,${siteRef})});\n` +
           b;
+      } else if (usesSiteRef) {
+        b += `\n${refDeclaration}\n`;
       }
       modules.set(fromUrl, b);
     }

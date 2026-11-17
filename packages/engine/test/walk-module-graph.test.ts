@@ -1337,7 +1337,41 @@ describe("import maps", () => {
     const name = "https://kitesurf-data.invalid/module-0.js";
     expect(Object.keys(additionalModules)).toEqual([name]);
     expect(descriptors[0]?.resolvedSrc).toBe(name);
-    expect(String(additionalModules[name])).toContain(`url:${JSON.stringify(src)}`);
+    expect(String(additionalModules[name])).toContain(
+      `function __ks_module_url() { return ${JSON.stringify(src)}; }`,
+    );
+    expect(String(additionalModules[name])).toContain("{url:__ks_module_url(),");
+  });
+
+  it("holds a data: module's URL a fixed number of times, not once per import()", async () => {
+    const sites = 200;
+    const source = `globalThis.f = (a) => { ${"import(a);".repeat(sites)} };/*${"x".repeat(4096)}*/`;
+    const src = `data:text/javascript,${source}`;
+    const { additionalModules } = await walkModuleGraph({
+      descriptors: [{ src, kind: "module", defer: false, async: false, body: "" }],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ [src]: source }),
+    });
+    const baked = String(additionalModules["https://kitesurf-data.invalid/module-0.js"]);
+    // Only the function that the synthetic import.meta and every site call holds it.
+    expect(baked.split(JSON.stringify(src)).length - 1).toBe(1);
+    expect(baked.split("__ks_import(a, __ks_module_url())").length - 1).toBe(sites);
+  });
+
+  it("keeps each import() site short when the module names the URL helper", async () => {
+    const sites = 400;
+    const source = `/*__ks_module_url${"_".repeat(8192)}*/globalThis.f = (a) => { ${"import(a);".repeat(sites)} };`;
+    const src = `data:text/javascript,${source}`;
+    const { additionalModules } = await walkModuleGraph({
+      descriptors: [{ src, kind: "module", defer: false, async: false, body: "" }],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ [src]: source }),
+    });
+    const baked = String(additionalModules["https://kitesurf-data.invalid/module-0.js"]);
+    expect(baked.split("__ks_import(a, __ks_module_url_00000()").length - 1).toBe(sites);
+    expect(baked.length).toBeLessThan(3 * src.length + 64 * sites);
   });
 
   it("accepts a single-use iterable when assigning registry names", () => {
@@ -1380,7 +1414,8 @@ describe("walkModuleGraph module response urls", () => {
       ),
     });
     expect(String(additionalModules[PKG])).toContain(`import "${HELPER}"`);
-    expect(String(additionalModules[PKG])).toContain(`url:${JSON.stringify(MAIN)}`);
+    expect(String(additionalModules[PKG])).toContain(`return ${JSON.stringify(MAIN)};`);
+    expect(String(additionalModules[PKG])).toContain("{url:__ks_module_url(),");
     const upgraded = await walkModuleGraph({
       descriptors: [moduleInline(`import "http://cdn.example/plain.js";`)],
       pageUrl: "https://example.com/page.html",
@@ -1597,8 +1632,9 @@ describe("import map budgets", () => {
 });
 
 describe("walkModuleGraph import.meta against dynamic import ranges", () => {
-  const SELF = JSON.stringify("https://example.com/__kitesurf_inline_0.js");
+  const SELF = "__ks_module_url()";
   const RESOLVE = `((specifier) => globalThis.__ks_resolve_import_map(specifier, ${SELF}))`;
+  const URL_FUNCTION = `\nfunction __ks_module_url() { return "https://example.com/__kitesurf_inline_0.js"; }\n`;
   const walk = async (body: string) => {
     const { additionalModules } = await walkModuleGraph({
       descriptors: [moduleInline(body)],
@@ -1627,7 +1663,7 @@ describe("walkModuleGraph import.meta against dynamic import ranges", () => {
       `__ks_import("a", ${SELF});${RESOLVE}("b");`,
     ],
   ])("keeps the rewrite for %s", async (_, body, expected) => {
-    expect(await walk(body)).toBe(expected);
+    expect(await walk(body)).toBe(expected + URL_FUNCTION);
   });
 
   it("tests 20,000 meta records against 10,000 ranges", async () => {
