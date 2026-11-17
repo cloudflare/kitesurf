@@ -170,6 +170,7 @@ export interface PageScriptGlobals extends DomShimGlobals {
   CanvasGradient?: BuildDocumentResult["CanvasGradient"];
   CanvasPattern?: BuildDocumentResult["CanvasPattern"];
   DOMParser?: BuildDocumentResult["DOMParser"];
+  XMLSerializer?: BuildDocumentResult["XMLSerializer"];
   StaticRange?: BuildDocumentResult["StaticRange"];
   HTMLDocument?: BuildDocumentResult["Document"];
 

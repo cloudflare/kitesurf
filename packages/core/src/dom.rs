@@ -8,6 +8,7 @@
 pub(crate) mod inner_text;
 pub(crate) mod scan;
 pub(crate) mod tree;
+pub(crate) mod xml;
 pub(crate) mod mutate;
 pub(crate) mod shadow;
 pub(crate) mod input;
