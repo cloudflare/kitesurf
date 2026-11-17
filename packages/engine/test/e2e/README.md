@@ -69,6 +69,9 @@ pnpm --filter @kitesurf/engine exec vitest run --config vitest.e2e.config.mts \
   test/e2e/demos/<name>.e2e.test.ts         # one file
 ```
 
+`KS_E2E_SKIP_BUILD` refuses a dist older than any file under `packages/*/{src,pkg,dist,public}`:
+run once without it to rebuild, or set `KS_E2E_ALLOW_STALE_DIST=1` to test the old build anyway.
+
 CI does not run this suite; run the files you touch locally. Only the harness (top-level
 `*.ts`) is typechecked; the demo bodies under `demos/` are transpiled +
 run (the run is the gate).
