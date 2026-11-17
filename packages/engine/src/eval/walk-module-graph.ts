@@ -544,10 +544,15 @@ export function rewriteImportMetaResolve(
 export function assignModuleRegistryNames(urls: Iterable<string>): Map<string, string> {
   const allUrls = [...urls];
   const groups = new Map<string, string[]>();
+  const dataUrls: string[] = [];
   for (const url of allUrls) {
     let identity = url;
     try {
       const parsed = new URL(url);
+      if (parsed.protocol === "data:") {
+        dataUrls.push(url);
+        continue;
+      }
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") continue;
       parsed.search = "";
       parsed.hash = "";
@@ -581,6 +586,18 @@ export function assignModuleRegistryNames(urls: Iterable<string>): Map<string, s
       occupied.add(candidate);
       names.set(url, candidate);
     }
+  }
+  // workerd refuses a data: module name, so a data: module script is baked under a synthetic
+  // one. Its import.meta.url stays the data: URL, as for a renamed query variant.
+  let dataIndex = 0;
+  for (const url of dataUrls) {
+    let candidate: string;
+    do {
+      candidate = `https://kitesurf-data.invalid/module-${dataIndex}.js`;
+      dataIndex++;
+    } while (occupied.has(candidate));
+    occupied.add(candidate);
+    names.set(url, candidate);
   }
   return names;
 }

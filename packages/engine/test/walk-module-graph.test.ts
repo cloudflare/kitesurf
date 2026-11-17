@@ -1326,6 +1326,20 @@ describe("import maps", () => {
     expect(names.get(second)).toBe("https://example.com/log.__ks_query_1.js");
   });
 
+  it("bakes a data: module script under an http(s) name workerd accepts", async () => {
+    const src = "data:text/javascript,globalThis.u = import.meta.url;";
+    const { descriptors, additionalModules } = await walkModuleGraph({
+      descriptors: [{ src, kind: "module", defer: false, async: false, body: "" }],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ [src]: "globalThis.u = import.meta.url;" }),
+    });
+    const name = "https://kitesurf-data.invalid/module-0.js";
+    expect(Object.keys(additionalModules)).toEqual([name]);
+    expect(descriptors[0]?.resolvedSrc).toBe(name);
+    expect(String(additionalModules[name])).toContain(`url:${JSON.stringify(src)}`);
+  });
+
   it("accepts a single-use iterable when assigning registry names", () => {
     function* urls() {
       yield "https://example.com/log.js?first";
