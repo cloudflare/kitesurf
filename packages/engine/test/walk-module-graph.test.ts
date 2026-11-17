@@ -18,7 +18,6 @@ import {
   parseImportMaps,
   resolvedModuleRecord,
   resolveImportMapSpecifier,
-  rewriteImportMetaResolve,
   unusedIdentifier,
   walkModuleGraph,
   type ParsedImportMap,
@@ -476,7 +475,10 @@ describe("page specifiers that name the loaded worker's own modules", () => {
       },
     ]);
     const [inline] = Object.values(additionalModules);
-    expect(inline).toContain(`__ks_import("file:///bundle/internal-state.js"`);
+    expect(inline).toContain(`__ks_import_here("file:///bundle/internal-state.js");`);
+    expect(inline).toContain(
+      "function __ks_import_here(s, o) { return __ks_import(s, __ks_module_url(), o); }",
+    );
     expect(descriptors[1]?.body).toBe(
       `__ks_import_0("file:///bundle/internal-state.js");\n` +
         `function __ks_import_0(s, o) { return __ks_import(s, ${JSON.stringify(PAGE)}, o); }`,
@@ -1229,37 +1231,6 @@ describe("import maps", () => {
     expect(result.rewritten).toBe(`import("https://example.com/vendor/react.js?dev")`);
   });
 
-  it("routes import.meta.resolve through the document import map", () => {
-    expect(
-      rewriteImportMetaResolve(`import.meta.resolve("react")`, "https://example.com/app.js"),
-    ).toBe(
-      `((specifier) => globalThis.__ks_resolve_import_map(specifier, "https://example.com/app.js"))("react")`,
-    );
-  });
-
-  it("rewrites only import.meta.resolve syntax inside computed imports", () => {
-    expect(
-      rewriteImportMetaResolve(
-        `new URL("import.meta.resolve", import.meta.url) + import.meta ["resolve"]("react")`,
-        "https://example.com/app.js",
-      ),
-    ).toBe(
-      `new URL("import.meta.resolve", import.meta.url) + ((specifier) => globalThis.__ks_resolve_import_map(specifier, "https://example.com/app.js"))("react")`,
-    );
-  });
-
-  it("rewrites other import.meta uses to one synthetic binding", () => {
-    expect(
-      rewriteImportMetaResolve(
-        `new URL("./x.js", import.meta.url) + (import.meta === import.meta) + import.meta.resolve("pkg")`,
-        "https://example.com/app.js",
-        "__ks_import_meta",
-      ),
-    ).toBe(
-      `new URL("./x.js", __ks_import_meta.url) + (__ks_import_meta === __ks_import_meta) + __ks_import_meta.resolve("pkg")`,
-    );
-  });
-
   it("names a lone query variant apart from its bare url", () => {
     const names = assignModuleRegistryNames([
       "https://example.com/lib.js?preview=1",
@@ -1375,7 +1346,7 @@ describe("import maps", () => {
     const baked = String(additionalModules["https://kitesurf-data.invalid/module-0.js"]);
     // Only the function that the synthetic import.meta and every site call holds it.
     expect(baked.split(JSON.stringify(src)).length - 1).toBe(1);
-    expect(baked.split("__ks_import(a, __ks_module_url())").length - 1).toBe(sites);
+    expect(baked.split("__ks_import_here(a)").length - 1).toBe(sites);
   });
 
   it("keeps each import() site short when the module names the URL helper", async () => {
@@ -1389,7 +1360,8 @@ describe("import maps", () => {
       sandboxOutbound: stubOutbound({ [src]: source }),
     });
     const baked = String(additionalModules["https://kitesurf-data.invalid/module-0.js"]);
-    expect(baked.split("__ks_import(a, __ks_module_url_00000()").length - 1).toBe(sites);
+    expect(baked.split("__ks_import_here(a)").length - 1).toBe(sites);
+    expect(baked).toContain("return __ks_import(s, __ks_module_url_00000(), o);");
     expect(baked.length).toBeLessThan(3 * src.length + 64 * sites);
   });
 
@@ -1650,10 +1622,11 @@ describe("import map budgets", () => {
   });
 });
 
-describe("walkModuleGraph import.meta against dynamic import ranges", () => {
+describe("walkModuleGraph import.meta and nested dynamic imports", () => {
   const SELF = "__ks_module_url()";
   const RESOLVE = `((specifier) => globalThis.__ks_resolve_import_map(specifier, ${SELF}))`;
   const URL_FUNCTION = `\nfunction __ks_module_url() { return "https://example.com/__kitesurf_inline_0.js"; }\n`;
+  const HERE = `\nfunction __ks_import_here(s, o) { return __ks_import(s, ${SELF}, o); }`;
   const walk = async (body: string) => {
     const { additionalModules } = await walkModuleGraph({
       descriptors: [moduleInline(body)],
@@ -1667,25 +1640,45 @@ describe("walkModuleGraph import.meta against dynamic import ranges", () => {
   it.each([
     ["a standalone resolve", `import.meta.resolve("a");`, `${RESOLVE}("a");`],
     [
-      "a resolve inside a computed import",
-      `import(import.meta.resolve("a"));`,
-      `__ks_import(${RESOLVE}("a"), ${SELF});`,
-    ],
-    [
-      "a resolve after a nested dynamic import",
-      `import(import("/dep.js") + import.meta.resolve("b"));`,
-      `__ks_import(import("/dep.js") + ${RESOLVE}("b"), ${SELF});`,
-    ],
-    [
-      "a resolve outside every dynamic import",
-      `import("a");import.meta.resolve("b");`,
-      `__ks_import("a", ${SELF});${RESOLVE}("b");`,
+      "a bracketed resolve, not the words in a string",
+      `new URL("import.meta.resolve", import.meta.url) + import.meta ["resolve"]("a");`,
+      `new URL("import.meta.resolve", import.meta.url) + ${RESOLVE}("a");`,
     ],
   ])("keeps the rewrite for %s", async (_, body, expected) => {
     expect(await walk(body)).toBe(expected + URL_FUNCTION);
   });
 
-  it("tests 20,000 meta records against 10,000 ranges", async () => {
+  it.each([
+    [
+      "a resolve inside a computed import",
+      `import(import.meta.resolve("a"));`,
+      `__ks_import_here(${RESOLVE}("a"));`,
+    ],
+    [
+      "a resolve after a nested dynamic import",
+      `import(import("/dep.js") + import.meta.resolve("b"));`,
+      `__ks_import_here(import("/dep.js") + ${RESOLVE}("b"));`,
+    ],
+    [
+      "a resolve outside every dynamic import",
+      `import("a");import.meta.resolve("b");`,
+      `__ks_import_here("a");${RESOLVE}("b");`,
+    ],
+    [
+      "a renamed import in a computed import's options",
+      `import(a, { k: import("/v.js?q=1") });`,
+      `__ks_import_here(a, { k: import("https://example.com/v.__ks_query_0.js") });`,
+    ],
+    [
+      "a renamed import in a computed specifier",
+      `import(f(import("/v.js?q=1")));`,
+      `__ks_import_here(f(import("https://example.com/v.__ks_query_0.js")));`,
+    ],
+  ])("keeps the rewrite for %s in a runtime-loader call", async (_, body, expected) => {
+    expect(await walk(body)).toBe(expected + HERE + URL_FUNCTION);
+  });
+
+  it("walks 10,000 imports and 20,000 meta records quickly", async () => {
     const source = `import("/dep.js");import.meta.url;import.meta.url;`.repeat(10_000);
     const start = performance.now();
     expect(await walk(source)).toBe(source);
@@ -1790,6 +1783,27 @@ describe("walkModuleGraph data: module limits and heuristics", () => {
     expect(descriptors[0]?.prefetchError).toBeUndefined();
     expect(typeof additionalModules[NAME]).toBe("string");
     expect(String(additionalModules[NAME])).not.toContain("asset-import side-effect stub");
+  });
+
+  it("gives import.meta inside a data: module's import() options the data: URL", async () => {
+    const source =
+      `import "https://example.com/dep.js";` +
+      `globalThis.a = import("https://example.com/dep.js", { k: import.meta.url });` +
+      `globalThis.b = import("pkg", { k: import.meta.url });`;
+    const src = `data:text/javascript,${source}`;
+    const { additionalModules } = await walkModuleGraph({
+      descriptors: [{ src, kind: "module", defer: false, async: false, body: "" }],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ [src]: source }),
+    });
+    // The helper returns the data: URL, which is the original source; the rest is the bake.
+    const code = String(additionalModules[NAME]).replace(
+      `function __ks_module_url() { return ${JSON.stringify(src)}; }`,
+      "",
+    );
+    expect(code).not.toContain("import.meta");
+    expect(code.split("__ks_import_meta.url").length - 1).toBe(2);
   });
 
   // Chrome gives an import its importer's parser-inserted status, so 'strict-dynamic' trusts a

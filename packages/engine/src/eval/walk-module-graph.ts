@@ -456,21 +456,14 @@ function dynamicImportArguments(body: string, imp: LexedImport): string {
   return body.slice(imp.d + 1, imp.se - 1);
 }
 
-function dynamicImportExpression(body: string, imp: LexedImport): string {
-  if (imp.a < 0) return body.slice(imp.d + 1, imp.se - 1);
-  const withSeparator = body.slice(imp.d + 1, imp.a);
-  return withSeparator.slice(0, withSeparator.lastIndexOf(","));
-}
-
 // One dynamic import as a runtime-loader call. Without options only the specifier is passed,
 // as before; with options the whole argument list is forwarded, so nothing is evaluated twice
-// and the requested module type reaches the loader. `spec` is the extracted literal, when any.
-function runtimeImportCall(body: string, imp: LexedImport, ref: string, spec?: string): string {
+// and the requested module type reaches the loader. `spec` is the extracted literal.
+function runtimeImportCall(body: string, imp: LexedImport, ref: string, spec: string): string {
   if (imp.a >= 0) {
     return `((s, o) => __ks_import(s, ${ref}, o))(${dynamicImportArguments(body, imp)})`;
   }
-  const first = spec === undefined ? dynamicImportExpression(body, imp) : JSON.stringify(spec);
-  return `__ks_import(${first}, ${ref})`;
+  return `__ks_import(${JSON.stringify(spec)}, ${ref})`;
 }
 
 // `base`, or `base_` and a fixed-width number, absent from `body`. Every rewrite site repeats the
@@ -511,38 +504,6 @@ function importMetaResolveEnd(
 ): number | null {
   const match = /^(?:\s*\.\s*resolve\b|\s*\[\s*(["'])resolve\1\s*\])/.exec(source.slice(imp.se));
   return match ? imp.se + match[0].length : null;
-}
-
-export function rewriteImportMetaResolve(
-  expression: string,
-  importer: string,
-  syntheticImportMeta?: string,
-  importerRef: string = JSON.stringify(importer),
-): string {
-  const replacement = `((specifier) => globalThis.__ks_resolve_import_map(specifier, ${importerRef}))`;
-  let imports: ReturnType<typeof lexerParse>[0];
-  try {
-    imports = lexerParse(expression)[0];
-  } catch {
-    return expression;
-  }
-  const rewrites: Array<{ start: number; end: number; text: string }> = [];
-  for (const imp of imports) {
-    if (imp.t !== 3) continue;
-    if (syntheticImportMeta) {
-      rewrites.push({ start: imp.ss, end: imp.se, text: syntheticImportMeta });
-      continue;
-    }
-    const end = importMetaResolveEnd(expression, imp);
-    if (end !== null) {
-      rewrites.push({ start: imp.ss, end, text: replacement });
-    }
-  }
-  let rewritten = expression;
-  for (const rewrite of rewrites.reverse()) {
-    rewritten = rewritten.slice(0, rewrite.start) + rewrite.text + rewritten.slice(rewrite.end);
-  }
-  return rewritten;
 }
 
 export function assignModuleRegistryNames(urls: Iterable<string>): Map<string, string> {
@@ -1973,43 +1934,17 @@ export async function walkModuleGraph({
       syntheticImportMeta = unusedIdentifier(body, "__ks_import_meta");
     }
     const rewrites: { ss: number; se: number; text: string }[] = [];
-    const dynamicRanges = imports
-      .filter((imp) => imp.t === 2)
-      .map((imp) => ({ start: imp.ss, end: imp.se }))
-      .sort((a, b) => a.start - b.start);
-    for (let i = 1; i < dynamicRanges.length; i++) {
-      const previous = dynamicRanges[i - 1];
-      const current = dynamicRanges[i];
-      if (previous && current) current.end = Math.max(current.end, previous.end);
-    }
-    const isInDynamicImport = (start: number, end: number): boolean => {
-      let lo = 0;
-      let hi = dynamicRanges.length;
-      while (lo < hi) {
-        const mid = (lo + hi) >>> 1;
-        const range = dynamicRanges[mid];
-        if (range && range.start <= start) lo = mid + 1;
-        else hi = mid;
-      }
-      const range = dynamicRanges[lo - 1];
-      return range !== undefined && range.end >= end;
+    // A call that goes to the runtime loader has only its keyword replaced, so a site in its
+    // arguments (an import.meta, or another import()) keeps its own rewrite.
+    let importHere: string | null = null;
+    const toRuntimeLoader = (imp: LexedImport): void => {
+      importHere ??= unusedIdentifier(body, "__ks_import_here");
+      rewrites.push({ ss: imp.ss, se: imp.d, text: importHere });
     };
     for (const imp of imports) {
       if (imp.t === 2) {
         const spec = imp.n ?? constSpecifier(body.slice(imp.s, imp.e));
-        if (!spec && imp.d > -1) {
-          const args = rewriteImportMetaResolve(
-            dynamicImportArguments(body, imp),
-            responseUrl,
-            syntheticImportMeta,
-            siteRef,
-          );
-          const call =
-            imp.a < 0
-              ? `__ks_import(${args}, ${siteRef})`
-              : `((s, o) => __ks_import(s, ${siteRef}, o))(${args})`;
-          rewrites.push({ ss: imp.ss, se: imp.se, text: call });
-        }
+        if (!spec && imp.d > -1) toRuntimeLoader(imp);
         if (!spec) continue;
 
         const resolved = resolveModule(spec, responseUrl);
@@ -2022,19 +1957,12 @@ export async function walkModuleGraph({
         }
         if (registryResolved !== null) continue;
 
-        rewrites.push({
-          ss: imp.ss,
-          se: imp.se,
-          text: runtimeImportCall(body, imp, siteRef),
-        });
+        toRuntimeLoader(imp);
         deferredCount++;
         continue;
       }
 
       if (imp.t === 3) {
-        if (isInDynamicImport(imp.ss, imp.se)) {
-          continue;
-        }
         if (syntheticImportMeta) {
           rewrites.push({ ss: imp.ss, se: imp.se, text: syntheticImportMeta });
           continue;
@@ -2058,19 +1986,21 @@ export async function walkModuleGraph({
       }
     }
     if (rewrites.length > 0 || syntheticImportMeta) {
-      // Joined once: splicing the body per site copies the rest of it each time. A site inside
-      // one already rewritten is part of that rewrite's text.
+      // Joined once: splicing the body per site copies the rest of it each time. No two
+      // rewrites overlap: a runtime-loader call gives up only its keyword.
       const parts: string[] = [];
       let cursor = 0;
-      let usesSiteRef = false;
+      let usesSiteRef = importHere !== null;
       for (const rw of rewrites.sort((a, c) => a.ss - c.ss)) {
-        if (rw.ss < cursor) continue;
         parts.push(body.slice(cursor, rw.ss), rw.text);
         cursor = rw.se;
         if (rw.text.includes(siteRef)) usesSiteRef = true;
       }
       parts.push(body.slice(cursor));
       let b = parts.join("");
+      if (importHere !== null) {
+        b += `\nfunction ${importHere}(s, o) { return __ks_import(s, ${siteRef}, o); }`;
+      }
       const refDeclaration = `function ${refFunction}() { return ${ref}; }`;
       if (syntheticImportMeta) {
         // On the prelude's one line, so the module's own line numbers do not move.
