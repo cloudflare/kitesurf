@@ -72,6 +72,42 @@ test("SRI applies to a data: script without crossorigin", async ({ page }) => {
   expect(await markers(page, ["SRI_GOOD", "SRI_BAD"])).toEqual({ SRI_GOOD: 1, SRI_BAD: null });
 }, 60_000);
 
+test("a static import of a data: module runs", async ({ page }) => {
+  const inner = (marker: string): string => `data:text/javascript,window.${marker}=1`;
+  const outer = `data:text/javascript,import ${JSON.stringify(inner("INNER"))};window.OUTER=1`;
+  const body = `
+    <script type="module" src="${outer.replaceAll('"', "&quot;")}"></script>
+    <script type="module">import "${inner("FROM_INLINE")}"; window.INLINE=1;</script>`;
+  await page.goto(docUrl(body), { waitUntil: "load" });
+  await settle(page);
+  expect(await markers(page, ["INNER", "OUTER", "FROM_INLINE", "INLINE"])).toEqual({
+    INNER: 1,
+    OUTER: 1,
+    FROM_INLINE: 1,
+    INLINE: 1,
+  });
+}, 60_000);
+
+test("script-src governs a static data: import", async ({ page }) => {
+  const body = `<script type="module">import "${data("STATIC_IMPORT")}"; window.IMPORTER=1;</script>
+    <script>window.CLASSIC=1;</script>`;
+  const run = async (csp: string) => {
+    await page.goto(docUrl(body, csp), { waitUntil: "load" });
+    await settle(page);
+    return await markers(page, ["STATIC_IMPORT", "IMPORTER", "CLASSIC"]);
+  };
+  expect(await run("script-src 'self' 'unsafe-inline'")).toEqual({
+    STATIC_IMPORT: null,
+    IMPORTER: null,
+    CLASSIC: 1,
+  });
+  expect(await run("script-src 'self' 'unsafe-inline' data:")).toEqual({
+    STATIC_IMPORT: 1,
+    IMPORTER: 1,
+    CLASSIC: 1,
+  });
+}, 60_000);
+
 test("an inserted crossorigin data: script runs", async ({ page }) => {
   const body = `<script>
     var s = document.createElement("script");
