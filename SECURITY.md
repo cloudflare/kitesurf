@@ -29,7 +29,7 @@ The engine has no authentication or rate limit of its own. Anyone who can reach
 it can open sessions and make it fetch arbitrary URLs, so an embedder must
 supply admission through `EngineHost.admit` or put a gateway in front of it.
 
-Outside Cloudflare, kitesurf runs on `workerd` (`wrangler dev` or your own
-server), which is
+Outside Cloudflare, kitesurf runs on `workerd` (`wrangler dev`, the Docker
+image or your own server), which is
 [not a hardened sandbox](https://developers.cloudflare.com/workers/local-development/#security-considerations).
 Do not open untrusted sites with it. See the warning in [README.md](README.md).

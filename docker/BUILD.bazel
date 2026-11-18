@@ -1,0 +1,63 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library", "js_run_binary")
+load("//bazel:paths.bzl", "bin_relative", "exec_path")
+
+# scripts/workerd-config.test.mjs runs front.js on workerd.
+js_library(
+    name = "front_js",
+    srcs = ["front.js"],
+    visibility = ["//scripts:__pkg__"],
+)
+
+js_run_binary(
+    name = "container_vars",
+    srcs = ["//packages/engine:wrangler.jsonc"],
+    outs = ["container-vars.json"],
+    copy_srcs_to_bin = False,
+    args = [
+        exec_path("//packages/engine:wrangler.jsonc"),
+        bin_relative("docker/container-vars.json"),
+    ],
+    mnemonic = "ContainerVars",
+    progress_message = "Reading the Docker image's inspector vars",
+    tool = "//scripts:container_vars",
+)
+
+# The image's workerd config and the vars' defaults, for an image that keeps them in /opt/kitesurf.
+# workerd signals memory pressure for every new isolate, so V8 drops all Liftoff code process-wide
+# and recompiles the engine's wasm on each navigation: --no-flush-liftoff-code keeps it. --expose-gc
+# lets the engine collect the stubs that keep retired page isolates alive.
+js_run_binary(
+    name = "workerd_config",
+    srcs = [
+        ":container_vars",
+        "//packages/engine:assets",
+        "//packages/engine:dist",
+    ],
+    outs = [
+        "config.capnp",
+        "env.sh",
+    ],
+    args = [
+        bin_relative("packages/engine/dist"),
+        bin_relative("docker/container-vars.json"),
+        bin_relative("docker/config.capnp"),
+        bin_relative("docker/env.sh"),
+        "--root=/opt/kitesurf",
+        "--v8-flag=--no-flush-liftoff-code",
+        "--v8-flag=--expose-gc",
+    ],
+    mnemonic = "WorkerdConfig",
+    progress_message = "Writing the Docker image's workerd config",
+    tool = "//scripts:workerd_config",
+)
+
+# What docker/Dockerfile copies into the image's /opt/kitesurf, beside docker/front.js: the engine
+# bundle and assets, the workerd config and the vars' defaults.
+filegroup(
+    name = "engine",
+    srcs = [
+        ":workerd_config",
+        "//packages/engine:assets",
+        "//packages/engine:dist",
+    ],
+)

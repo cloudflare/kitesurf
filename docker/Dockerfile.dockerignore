@@ -1,0 +1,35 @@
+# The build context is the repository root: docker build -f docker/Dockerfile .
+# Keep local state out of it, so it cannot change the build or bloat the context.
+.git
+.bazelrc.user
+/bazel-*
+**/node_modules
+**/target
+**/.wrangler
+.cache
+.cargo
+.pnpm-store
+.secrets
+.env
+.env.*
+.wpt
+.wpt-reports
+.playwright
+.puppeteer
+output
+vendor/*
+!vendor/wasm-memprof
+packages/core/pkg/*
+!packages/core/pkg/package.json
+!packages/core/pkg/BUILD.bazel
+packages/renderer-core/pkg
+packages/engine/public/inspector
+packages/engine/public/rbi
+packages/engine/.wpt-dist
+packages/engine/test/e2e/.engine-dist
+packages/engine/test/e2e/.fixtures-dist
+**/.fixtures-dist
+**/PLAN*.md
+**/FINDINGS*.md
+**/TODO*.md
+**/.DS_Store

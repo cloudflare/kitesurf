@@ -48,6 +48,10 @@ A pnpm monorepo. One line per package; read the code for details.
   through public APIs, with its own Cargo workspace and lockfile.
 - `packages/engine-server/`: serves the built `:dist` on Miniflare without `wrangler dev`, for the
   WPT, Playwright and Puppeteer runners (`scripts/wpt-engine.mjs serve`).
+- `docker/`: the Docker image (`Dockerfile`, built from the repository root), which runs the
+  engine on workerd alone behind `front.js` with the config from `scripts/workerd-config.mjs`,
+  and the Jaeger compose file for `pnpm dev:tracing`. `.github/workflows/docker.yml` publishes
+  the image on tags.
 - `packages/engine/test/fixtures-worker/`: the fixtures Worker that serves `/__fixtures/*` in dev
   and tests only.
 - `scripts/`: development and CI tooling, including the WPT runners, the lint rules and the
@@ -61,9 +65,10 @@ Engine-wide invariants. The owning code carries the detail; keep these in sync w
 
 - Runtime code generation (`Runtime.evaluate`, `eval`, `new Function`, computed `import()`) runs on
   boa inside the per-target PageScript isolate, in dev and production, never in the parent Worker.
-  Only `KITESURF_NATIVE_EVAL=1` on a local workerd (`packages/engine-server`) changes this: the
-  loaded workers get workerd's experimental native-eval flag, so the paths that try V8 first (CDP
-  evaluation, page `eval` and `new Function`) stay on V8. Cloudflare rejects the flag.
+  Only `KITESURF_NATIVE_EVAL=1` on a local workerd (`packages/engine-server`, the Docker image)
+  changes this: the loaded workers get workerd's experimental native-eval flag, so the paths that
+  try V8 first (CDP evaluation, page `eval` and `new Function`) stay on V8. Cloudflare rejects the
+  flag.
 - The CDP WebSocket bounds the session. Per-connection state lives in `handleWebSocket`'s closure;
   no Durable Object holds it and nothing persists across connections.
 - Each `Page.navigate` loads a fresh anonymous PageScript worker with `env.LOADER.load` and kills

@@ -16,8 +16,9 @@ so you can use it with CDP clients such as Puppeteer.
 > required to run Kitesurf on Cloudflare.
 
 > [!WARNING]
-> Do not open untrusted sites with a local Kitesurf. Locally, Kitesurf runs
-> page JavaScript in `workerd`, which
+> Do not open untrusted sites with a local Kitesurf. This includes the
+> [Docker image](#run-with-docker). Locally, Kitesurf runs page JavaScript in
+> `workerd`, which
 > [is not a hardened sandbox](https://developers.cloudflare.com/workers/local-development/#security-considerations).
 
 ## Requirements
@@ -95,6 +96,85 @@ MINIFLARE_WORKERD_V8_FLAGS=--expose-gc wrangler dev --env local
 
 If you set `MINIFLARE_WORKERD_V8_FLAGS` for `pnpm run dev`, your value replaces
 the default. Include `--expose-gc` in it.
+
+## Run with Docker
+
+The Docker image runs the engine on workerd, the open-source Workers runtime,
+without Node.js. It needs no Cloudflare account. Use it, for example, to run
+end-to-end tests with Playwright or Puppeteer in CI. Tagged releases publish
+the image to `ghcr.io/cloudflare/kitesurf` for `linux/amd64` and `linux/arm64`.
+
+Start the engine:
+
+```bash
+docker run --rm -p 127.0.0.1:8787:8787 ghcr.io/cloudflare/kitesurf
+```
+
+The engine starts in under a second. On its first request, the image opens one
+page to warm up and logs `[kitesurf] warmed up`. Docker's health check sends
+that request within a second of start. Until the warm-up ends, `/health`
+answers `503`, so a CI service that waits for a healthy engine gets a fast
+first page.
+
+To build the image yourself, run this command from the repository root. You do
+not need Bazel, Node.js or Rust on the host:
+
+```bash
+docker build -f docker/Dockerfile -t kitesurf .
+```
+
+The first build compiles the Rust core, which takes a while. Docker keeps
+Bazel's cache in a build cache mount, so later builds are faster. Add
+`--build-arg DEVTOOLS=1` to bundle the Chrome DevTools frontend. It adds about
+130 MB to the image, or 25 MB compressed. Without it, the landing page uses Chrome's hosted frontend, which connects only
+to `127.0.0.1`. Behind a TLS-inspecting proxy, give the build the proxy's root
+certificate with `--secret id=ca_certificates,src=<root.pem>`.
+
+Connect Playwright to the browser endpoint:
+
+```js
+import { chromium } from "playwright";
+
+const browser = await chromium.connectOverCDP("ws://127.0.0.1:8787/devtools/browser");
+const page = await browser.contexts()[0].newPage();
+await page.goto("https://example.com/");
+await page.screenshot({ path: "page.png" });
+await browser.close();
+```
+
+Set these environment variables with `docker run -e`:
+
+- `KITESURF_PORT` selects the port inside the container. The default is
+  `8787`.
+- `KITESURF_NATIVE_EVAL` is `1` by default in the image. Then CDP evaluation,
+  such as Playwright's and Puppeteer's `evaluate` and their locators, and page
+  `eval` and `new Function` run on V8. On Cloudflare, they run on boa, a
+  JavaScript interpreter in the engine's WebAssembly, which is slower. The
+  variable also lets pages compile WebAssembly at run time, which Cloudflare
+  blocks, so a test that does so can pass in the image and fail on Cloudflare.
+  Set the variable to an empty value to use boa, as on Cloudflare.
+- `KITESURF_ALLOW_PRIVATE_NETWORK=1` lets public pages send requests to
+  loopback and private addresses. The engine blocks these requests by default.
+  A page that you open on a private address can load its own resources without
+  this variable. Only set it for pages that you trust.
+- `SSL_CERT_FILE` selects the CA bundle for HTTPS requests. Behind a
+  TLS-inspecting proxy, mount a bundle that includes the proxy's root
+  certificate and set this variable to its path.
+- Other `KITESURF_*` and `WEB_BOT_AUTH_*` variables override the engine
+  variables in `packages/engine/wrangler.jsonc`.
+
+Inside the container, `127.0.0.1` is the container itself. To reach an app on
+the host, use `host.docker.internal`. On Linux, add
+`--add-host=host.docker.internal:host-gateway`. In a Compose file or a CI
+service, put the engine and the app on the same network and use the service
+name.
+
+> [!WARNING]
+> Do not open untrusted sites with the image. The image runs page JavaScript
+> in `workerd`, which
+> [is not a hardened sandbox](https://developers.cloudflare.com/workers/local-development/#security-considerations),
+> and a container does not make it one. The engine also has no
+> authentication. Do not publish its port on a public network.
 
 ## Connect with Puppeteer
 
