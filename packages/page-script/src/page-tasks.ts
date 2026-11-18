@@ -26,6 +26,12 @@ const nativeTimerNow =
   typeof ksGlobal.performance?.now === "function"
     ? ksGlobal.performance.now.bind(ksGlobal.performance)
     : ksGlobal.Date.now.bind(ksGlobal.Date);
+// The origin nativeTimerNow counts from, in epoch ms; 0 when it falls back to Date.now.
+const nativeTimeOrigin =
+  typeof ksGlobal.performance?.now === "function" &&
+  typeof ksGlobal.performance.timeOrigin === "number"
+    ? ksGlobal.performance.timeOrigin
+    : 0;
 
 const rafQueue = new Map<number, (ts: number) => void>();
 let rafNextId = 1;
@@ -99,6 +105,21 @@ function rafFrameDueAt(): number {
   return rafDriverTurn ? rafBatchDueAt : rafNextFrameAt;
 }
 
+let frameTimeClearArmed = false;
+
+// Web Animations' "update animations and send events" gives the document timelines the frame's
+// timestamp, so they read what rAF callbacks get. A 0 ms timer clears it once the frame's task and
+// its microtasks end; outside frames the timelines follow the live clock.
+function publishAnimationFrameTime(frameTimestamp: number): void {
+  ksInternals.animationFrameTimeMs = nativeTimeOrigin + frameTimestamp;
+  if (frameTimeClearArmed) return;
+  frameTimeClearArmed = true;
+  (engineSetTimeout ?? setTimeout)(() => {
+    frameTimeClearArmed = false;
+    ksInternals.animationFrameTimeMs = undefined;
+  }, 0);
+}
+
 export function pumpAnimationFrames(deadlineMs?: number): number {
   if (pageTasksPaused()) return 0;
   if (rafQueue.size === 0) return 0;
@@ -120,7 +141,9 @@ export function pumpAnimationFrames(deadlineMs?: number): number {
   }
   const pumpStartedAt = Date.now();
   const deadline = deadlineMs ?? pumpStartedAt + RAF_PUMP_BUDGET_MS;
-  const frameTimestamp = performance.now();
+  // The clock captured at load: a page that replaces performance.now must not move frame time.
+  const frameTimestamp = nativeTimerNow();
+  publishAnimationFrameTime(frameTimestamp);
   let callbacksRun = 0;
   let stoppedByDeadline = false;
   for (let index = 0; index < frameCallbackIds.length; index++) {

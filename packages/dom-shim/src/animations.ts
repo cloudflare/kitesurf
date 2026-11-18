@@ -32,9 +32,12 @@ export function setAnimationTaskScheduler(scheduler: TaskScheduler): void {
 // Rust samples the same clock (now_for_animations), so the epoch start time JS hands
 // over and the time Rust measures from it agree. In production Date.now freezes within a
 // turn, so deltas around synchronous work read 0.
+// Captured at load: a page that moves Date.now must not latch the timeline's high-water mark.
+const nativeDateNow = Date.now.bind(Date);
+
 function clockMs(): number {
   // updateClockFloor only ever stores a finite number.
-  return Math.max(Date.now(), ksInternals.clockFloorMs ?? 0);
+  return Math.max(nativeDateNow(), ksInternals.clockFloorMs ?? 0);
 }
 
 function domException(message: string, name: string): Error {
@@ -352,14 +355,29 @@ export class KsDocumentTimeline extends KsAnimationTimeline implements Idl.Docum
     this.#origin = documentTimelineOrigin + originTime;
   }
   override get currentTime(): number | null {
-    return clockMs() - this.#origin;
+    return timelineNowMs() - this.#origin;
   }
   override get _originEpoch(): number {
     return this.#origin;
   }
 }
 
-const documentTimelineOrigin = clockMs();
+let timelineHighWaterMs = 0;
+
+// During an animation frame the timelines take the frame's timestamp; otherwise the live clock.
+// The high-water mark keeps time monotonic when the clock floor ran ahead of the frame sample.
+function timelineNowMs(): number {
+  const now = ksInternals.animationFrameTimeMs ?? clockMs();
+  if (now > timelineHighWaterMs) timelineHighWaterMs = now;
+  return timelineHighWaterMs;
+}
+
+// The time origin, as performance.now() and so rAF timestamps count from it; frames publish
+// their time on the same base.
+const documentTimelineOrigin =
+  typeof performance !== "undefined" && typeof performance.timeOrigin === "number"
+    ? performance.timeOrigin
+    : clockMs();
 let documentTimeline: KsDocumentTimeline | null = null;
 export function getDocumentTimeline(): KsDocumentTimeline {
   return (documentTimeline ??= new KsDocumentTimeline());

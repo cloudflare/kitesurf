@@ -202,6 +202,9 @@ export interface KitesurfInternals {
   // The highest parent clock sample, in epoch ms. Date.now() can freeze within a turn, so
   // animation time floors to this; the wasm core reads it too.
   clockFloorMs?: number;
+  // The running animation frame's timestamp, in epoch ms, until the frame's task ends.
+  // Document timelines read it so they agree with the rAF callbacks' timestamp.
+  animationFrameTimeMs?: number;
   jsSpanEnter?: (op: string, bytes: number, detail: string) => number;
   jsSpanExit?: (slot: number) => void;
   // In lazy font mode, upgrades to the full fonts so text shaped outside layout (canvas, SVG)
