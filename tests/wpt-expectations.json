@@ -13344,8 +13344,8 @@
     "reason": null
   },
   "/hr-time/raf-coarsened-time.https.html": {
-    "expected": "FAIL",
-    "reason": "document.timeline follows the animation clock, not frame times: kitesurf has no frame loop"
+    "expected": "PASS",
+    "reason": null
   },
   "/hr-time/test_cross_frame_start.html": {
     "expected": "FAIL",
