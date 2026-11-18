@@ -359,6 +359,7 @@ import {
   runPageTaskOrQueue,
   timerWheelStats,
   timersScheduledCount,
+  yieldToDuePageTasks,
 } from "./page-tasks.ts";
 import { installGlobals } from "./globals.ts";
 import { installNativeToString, markEngineFunctions } from "./native-functions.ts";
@@ -7578,9 +7579,7 @@ async function queryDomWebMcpCall(
     queryArgs.args,
     queryArgs.invocationId,
   );
-  for (let i = 0; i < 3; i++) {
-    await yieldToPageTasks();
-  }
+  await yieldToDuePageTasks(3);
   return result satisfies QueryDomResult<"webmcpCallTool">;
 }
 
