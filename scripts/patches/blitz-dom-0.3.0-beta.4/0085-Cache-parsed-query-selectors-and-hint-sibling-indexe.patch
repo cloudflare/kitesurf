@@ -15,7 +15,7 @@ Signed-off-by: Bernardo Pereira <bpereira@cloudflare.com>
  5 files changed, 97 insertions(+), 25 deletions(-)
 
 diff --git a/src/document.rs b/src/document.rs
-index 1ce0a0b..b5fbd06 100644
+index f848177..cba787d 100644
 --- a/src/document.rs
 +++ b/src/document.rs
 @@ -301,6 +301,8 @@ pub struct BaseDocument {
@@ -27,14 +27,14 @@ index 1ce0a0b..b5fbd06 100644
      /// Sticky: some element was ever styled as a query container, so a style-only resolve can
      /// no longer skip layout. Saves `resolve_style` a scan of every node on each read.
      pub(crate) size_container_seen: bool,
-@@ -711,6 +713,7 @@ impl BaseDocument {
+@@ -717,6 +719,7 @@ impl BaseDocument {
              counters_seen: false,
              counters_built_once: false,
              url: base_url,
 +            selector_cache: Default::default(),
              size_container_seen: false,
-             author_sheet_cache: HashMap::new(),
-             pending_style_nodes: HashSet::new(),
+             inline_contexts_stale: false,
+             stale_font_families: Vec::new(),
 diff --git a/src/node/node.rs b/src/node/node.rs
 index eeeec17..240693f 100644
 --- a/src/node/node.rs
@@ -158,10 +158,10 @@ index e010772..2e23815 100644
 
      // Namespace-aware variant for CSSOM selectorText writes: a rule in a
 diff --git a/src/stylo.rs b/src/stylo.rs
-index ba78c26..f55ffd9 100644
+index 832028b..4bc7dd1 100644
 --- a/src/stylo.rs
 +++ b/src/stylo.rs
-@@ -670,30 +670,28 @@ impl selectors::Element for BlitzNode<'_> {
+@@ -650,30 +650,28 @@ impl selectors::Element for BlitzNode<'_> {
          matches!(self.data, NodeData::AnonymousBlock(_))
      }
 

@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 17 Nov 2026 19:03:46 +0000
+Subject: [PATCH] Align caption margin adjustments for Taffy's tagged pointers
+
+A caption margin adjustment is handed to Taffy as a calc() pointer, and Taffy's CompactLength keeps its tag in the pointer's low three bits. On wasm32 the struct only asked for 4-byte alignment, which held only because dlmalloc rounds every chunk to 8; an allocator that honours the requested alignment failed Taffy's assertion and panicked during table layout.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/layout/table.rs | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/layout/table.rs b/src/layout/table.rs
+index ff40f7f..e032d1d 100644
+--- a/src/layout/table.rs
++++ b/src/layout/table.rs
+@@ -63,7 +63,10 @@ pub struct TableContext {
+     caption_margin_adjustments: Vec<Arc<CaptionMarginAdjustment>>,
+ }
+
++// Taffy's CompactLength keeps a tag in the low three bits of a calc pointer, and this is passed
++// as one, so it must be 8-aligned on 32-bit targets too rather than relying on the allocator.
+ #[derive(Debug)]
++#[repr(align(8))]
+ struct CaptionMarginAdjustment {
+     value: taffy::LengthPercentageAuto,
+     spacing: f32,

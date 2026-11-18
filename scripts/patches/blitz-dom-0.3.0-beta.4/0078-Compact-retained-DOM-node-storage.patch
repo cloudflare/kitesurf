@@ -55,7 +55,7 @@ Signed-off-by: bpereira <bpereira@cloudflare.com>
  24 files changed, 1675 insertions(+), 650 deletions(-)
 
 diff --git a/src/accessibility.rs b/src/accessibility.rs
-index 8ea6572..a182f3e 100644
+index d633d77..f62d7bf 100644
 --- a/src/accessibility.rs
 +++ b/src/accessibility.rs
 @@ -16,6 +16,7 @@ impl BaseDocument {
@@ -107,10 +107,10 @@ index b589b80..0b0be26 100644
          let children: Vec<_> = node
              .children
 diff --git a/src/document.rs b/src/document.rs
-index 8bebdae..415dbe9 100644
+index 6c4b5ae..a3bdf0c 100644
 --- a/src/document.rs
 +++ b/src/document.rs
-@@ -465,8 +465,8 @@ pub struct BaseDocument {
+@@ -467,8 +467,8 @@ pub struct BaseDocument {
      /// Load state (abort controller and in-flight request id) for each
      /// `<iframe>` element whose sub-document is loaded automatically
      pub(crate) iframe_loads: HashMap<NodeId, crate::iframe::IframeLoad>,
@@ -121,7 +121,7 @@ index 8bebdae..415dbe9 100644
      /// Nodes that have been given inline_layout_data. A superset, pruned
      /// where it is read: restore_clobbered_inline_breaks only cares about
      /// inline roots, and scanning the slab to find them dominated layout.
-@@ -620,10 +620,11 @@ impl BaseDocument {
+@@ -622,10 +622,11 @@ impl BaseDocument {
          // capacity hint (estimated from the source HTML), avoiding
          // the doubling overshoot on large documents. with_capacity(0)
          // is equivalent to Slab::new(), so the default path is unchanged.
@@ -134,7 +134,7 @@ index 8bebdae..415dbe9 100644
          let nodes_to_id = HashMap::new();
 
          let base_url = config
-@@ -704,7 +705,7 @@ impl BaseDocument {
+@@ -707,7 +708,7 @@ impl BaseDocument {
              #[cfg(feature = "custom-widget")]
              pending_resource_deallocations: Vec::new(),
 
@@ -143,7 +143,7 @@ index 8bebdae..415dbe9 100644
              inline_roots: Vec::new(),
              inline_roots_settled: 0,
              rehomed_hosts: Vec::new(),
-@@ -800,6 +801,26 @@ impl BaseDocument {
+@@ -803,6 +804,26 @@ impl BaseDocument {
          &self.nodes
      }
 
@@ -170,7 +170,7 @@ index 8bebdae..415dbe9 100644
      pub fn id(&self) -> usize {
          self.id
      }
-@@ -1092,7 +1113,7 @@ impl BaseDocument {
+@@ -1095,7 +1116,7 @@ impl BaseDocument {
          {
              return false;
          }
@@ -179,7 +179,7 @@ index 8bebdae..415dbe9 100644
              return false;
          };
          if !root
-@@ -1144,14 +1165,13 @@ impl BaseDocument {
+@@ -1147,14 +1168,13 @@ impl BaseDocument {
 
      pub fn create_node(&mut self, node_data: NodeData) -> NodeId {
          let tree_ptr = self.nodes.as_mut() as *mut NodeTree;
@@ -196,7 +196,7 @@ index 8bebdae..415dbe9 100644
          id
      }
 
-@@ -1163,11 +1183,11 @@ impl BaseDocument {
+@@ -1166,11 +1186,11 @@ impl BaseDocument {
          }
 
          let shadow_root_id =
@@ -210,7 +210,7 @@ index 8bebdae..415dbe9 100644
          if self.nodes[host_id].flags.is_in_document() {
              self.nodes[shadow_root_id]
                  .flags
-@@ -1177,7 +1197,7 @@ impl BaseDocument {
+@@ -1180,7 +1200,7 @@ impl BaseDocument {
          self.nodes[host_id]
              .element_data_mut()
              .expect("shadow host must be an element")
@@ -219,7 +219,7 @@ index 8bebdae..415dbe9 100644
 
          self.shadow_roots.insert(shadow_root_id);
          self.slot_assignments_dirty = true;
-@@ -1229,7 +1249,8 @@ impl BaseDocument {
+@@ -1232,7 +1252,8 @@ impl BaseDocument {
              let previous: Vec<(NodeId, Option<ThinVec<NodeId>>)> = slots
                  .iter()
                  .map(|&slot_id| {
@@ -229,7 +229,7 @@ index 8bebdae..415dbe9 100644
                      (slot_id, old)
                  })
                  .collect();
-@@ -1256,13 +1277,9 @@ impl BaseDocument {
+@@ -1259,13 +1280,9 @@ impl BaseDocument {
                      .as_ref()
                      .and_then(|name| by_name.get(name))
                      .copied();
@@ -245,7 +245,7 @@ index 8bebdae..415dbe9 100644
                  }
              }
 
-@@ -1270,7 +1287,9 @@ impl BaseDocument {
+@@ -1273,7 +1290,9 @@ impl BaseDocument {
              // the host's children, so its cached layout children go stale otherwise.
              for (slot_id, old) in previous {
                  let old = old.as_deref().unwrap_or(&[]);
@@ -256,7 +256,7 @@ index 8bebdae..415dbe9 100644
                  if old != new {
                      self.nodes[slot_id].insert_damage(CONSTRUCT_BOX);
                  }
-@@ -1338,13 +1357,13 @@ impl BaseDocument {
+@@ -1341,13 +1360,13 @@ impl BaseDocument {
      /// reference is removed. Tolerates already-removed ancestors (subtree
      /// teardown proceeds root-first) by giving up and returning `None`.
      fn nearest_surviving_element_ancestor(&self, node_id: NodeId) -> Option<NodeId> {
@@ -272,7 +272,7 @@ index 8bebdae..415dbe9 100644
          }
          None
      }
-@@ -1441,7 +1460,7 @@ impl BaseDocument {
+@@ -1444,7 +1463,7 @@ impl BaseDocument {
 
              // Anonymous blocks live only in the slab, so deallocate the ones this
              // node owns rather than leaking them.
@@ -281,7 +281,7 @@ index 8bebdae..415dbe9 100644
                  self.deallocate_anonymous_block(anon_id);
              }
 
-@@ -1468,7 +1487,7 @@ impl BaseDocument {
+@@ -1471,7 +1490,7 @@ impl BaseDocument {
          }
 
          // Free any anonymous blocks that this block owns before removing it.
@@ -290,7 +290,7 @@ index 8bebdae..415dbe9 100644
          for nested_id in nested {
              self.deallocate_anonymous_block(nested_id);
          }
-@@ -1478,7 +1497,7 @@ impl BaseDocument {
+@@ -1481,7 +1500,7 @@ impl BaseDocument {
 
      /// Whether the document has been mutated
      pub fn has_changes(&self) -> bool {
@@ -299,7 +299,7 @@ index 8bebdae..415dbe9 100644
      }
 
      pub fn create_text_node(&mut self, text: &str) -> NodeId {
-@@ -1497,9 +1516,9 @@ impl BaseDocument {
+@@ -1500,9 +1519,9 @@ impl BaseDocument {
              NodeData::Element(elem) | NodeData::AnonymousBlock(elem) => {
                  // Per spec, cloning never copies shadow roots, and a raw
                  // copy would alias the original's tree by node id.
@@ -311,7 +311,7 @@ index 8bebdae..415dbe9 100644
                      let read_guard = self.guard().read();
                      let block = arc.read_with(&read_guard);
                      *arc = ServoArc::new(self.guard().wrap(block.clone()));
-@@ -1519,7 +1538,7 @@ impl BaseDocument {
+@@ -1522,7 +1541,7 @@ impl BaseDocument {
              .map(|child_id| self.deep_clone_node(child_id))
              .collect();
          for &child_id in &new_children {
@@ -320,7 +320,7 @@ index 8bebdae..415dbe9 100644
          }
          self.nodes[new_node_id].children = new_children;
 
-@@ -1533,7 +1552,7 @@ impl BaseDocument {
+@@ -1536,7 +1555,7 @@ impl BaseDocument {
                  for &child in &node.children {
                      remove_pe_ignoring_parent(doc, child);
                  }
@@ -329,7 +329,7 @@ index 8bebdae..415dbe9 100644
                      doc.deallocate_anonymous_block(anon_id);
                  }
              }
-@@ -1543,7 +1562,7 @@ impl BaseDocument {
+@@ -1546,7 +1565,7 @@ impl BaseDocument {
          let node = remove_pe_ignoring_parent(self, node_id);
 
          // Update child_idx values
@@ -338,7 +338,7 @@ index 8bebdae..415dbe9 100644
              let parent = &mut self.nodes[parent_id];
              parent.children.retain(|id| *id != node_id);
          }
-@@ -2416,7 +2435,8 @@ impl BaseDocument {
+@@ -2419,7 +2438,8 @@ impl BaseDocument {
          if let SpecialElementData::Image(data) = &mut el.special_data {
              changed |= kitesurf_materialize_image_data(data, hint, ceiling);
          }
@@ -348,7 +348,7 @@ index 8bebdae..415dbe9 100644
              if let Some(res) = layer {
                  changed |= kitesurf_materialize_image_data(&mut res.image, hint, ceiling);
              }
-@@ -2462,7 +2482,7 @@ impl BaseDocument {
+@@ -2465,7 +2485,7 @@ impl BaseDocument {
              RasterImageData::new(width, height, data),
          )));
          if size_changed {
@@ -357,7 +357,7 @@ index 8bebdae..415dbe9 100644
              node.insert_damage(ALL_DAMAGE);
              1
          } else {
-@@ -2560,7 +2580,7 @@ impl BaseDocument {
+@@ -2563,7 +2583,7 @@ impl BaseDocument {
              return;
          }
          el.special_data = SpecialElementData::None;
@@ -366,7 +366,7 @@ index 8bebdae..415dbe9 100644
          node.insert_damage(ALL_DAMAGE);
      }
 
-@@ -2598,9 +2618,10 @@ impl BaseDocument {
+@@ -2601,9 +2621,10 @@ impl BaseDocument {
                  }
                  ImageType::Background(idx) | ImageType::Mask(idx) => {
                      let layer_image = node.element_data_mut().and_then(|el| {
@@ -379,7 +379,7 @@ index 8bebdae..415dbe9 100644
                              ImageType::Image => unreachable!(),
                          };
                          images.get_mut(idx)
-@@ -2677,7 +2698,7 @@ impl BaseDocument {
+@@ -2680,7 +2701,7 @@ impl BaseDocument {
                          let ident = AttrIdentifier {
                              local_name: GenericAtomIdent(attr.name.local.clone()),
                              name: GenericAtomIdent(attr.name.local.clone()),
@@ -388,7 +388,7 @@ index 8bebdae..415dbe9 100644
                              prefix: None,
                          };
 
-@@ -2726,7 +2747,7 @@ impl BaseDocument {
+@@ -2729,7 +2750,7 @@ impl BaseDocument {
              }
          } else {
              let mut snapshot = ServoElementSnapshot {
@@ -397,7 +397,7 @@ index 8bebdae..415dbe9 100644
                  attrs,
                  changed_attrs,
                  class_changed: needs_attrs,
-@@ -2799,7 +2820,7 @@ impl BaseDocument {
+@@ -2802,7 +2823,7 @@ impl BaseDocument {
              if node.is_element() {
                  return Some(node_id);
              }
@@ -406,7 +406,7 @@ index 8bebdae..415dbe9 100644
          }
      }
 
-@@ -2817,7 +2838,7 @@ impl BaseDocument {
+@@ -2820,7 +2841,7 @@ impl BaseDocument {
              element_ids.push(node_id);
              current = self
                  .get_node(node_id)
@@ -415,7 +415,7 @@ index 8bebdae..415dbe9 100644
                  .filter(|parent_id| {
                      self.get_node(*parent_id)
                          .is_some_and(|node| node.is_element())
-@@ -2844,7 +2865,7 @@ impl BaseDocument {
+@@ -2847,7 +2868,7 @@ impl BaseDocument {
          // exactly once.
          let mut node = self.get_node(node_id)?;
          loop {
@@ -424,7 +424,7 @@ index 8bebdae..415dbe9 100644
                  Some(parent_id) => self.get_node(parent_id)?,
                  None => return Some(node.id),
              };
-@@ -3231,10 +3252,7 @@ impl BaseDocument {
+@@ -3234,10 +3255,7 @@ impl BaseDocument {
      /// Used grid track sizes for a grid container laid out in the
      /// last resolve_layout pass; None for non-grid / stale ids.
      pub fn grid_track_info(&self, node_id: NodeId) -> Option<&taffy::DetailedGridInfo<Atom>> {
@@ -436,7 +436,7 @@ index 8bebdae..415dbe9 100644
      }
 
      pub fn viewport_mut(&mut self) -> ViewportMut<'_> {
-@@ -3808,7 +3826,7 @@ impl BaseDocument {
+@@ -3811,7 +3829,7 @@ impl BaseDocument {
          let inline_root = hit_node.inline_root_ancestor()?;
          let byte_offset = inline_root.text_offset_at_point(hit.x, hit.y)?;
          let el = inline_root.element_data()?;
@@ -445,7 +445,7 @@ index 8bebdae..415dbe9 100644
          let (node_id, range) = il
              .node_ranges
              .iter()
-@@ -3862,7 +3880,7 @@ impl BaseDocument {
+@@ -3865,7 +3883,7 @@ impl BaseDocument {
              return (None, None);
          }
 
@@ -454,7 +454,7 @@ index 8bebdae..415dbe9 100644
              return (None, None);
          };
 
-@@ -3991,13 +4009,13 @@ impl BaseDocument {
+@@ -3994,13 +4012,13 @@ impl BaseDocument {
              NodeData::Text(t) => &t.content,
              _ => return None,
          };
@@ -470,7 +470,7 @@ index 8bebdae..415dbe9 100644
                  let range = il
                      .node_ranges
                      .iter()
-@@ -4020,7 +4038,7 @@ impl BaseDocument {
+@@ -4023,7 +4041,7 @@ impl BaseDocument {
                  let end = range.end;
                  return Some((id, (range.start + byte).min(end)));
              }
@@ -479,7 +479,7 @@ index 8bebdae..415dbe9 100644
              hops += 1;
              if hops > 512 {
                  return None;
-@@ -4090,7 +4108,7 @@ impl BaseDocument {
+@@ -4093,7 +4111,7 @@ impl BaseDocument {
          for (node_id, start, end) in &ranges {
              let node = self.get_node(*node_id)?;
              let element_data = node.element_data()?;
@@ -488,7 +488,7 @@ index 8bebdae..415dbe9 100644
 
              if *end > inline_layout.text.len() {
                  continue;
-@@ -4191,7 +4209,7 @@ impl BaseDocument {
+@@ -4194,7 +4212,7 @@ impl BaseDocument {
              let Some(element_data) = node.element_data() else {
                  continue;
              };
@@ -497,7 +497,7 @@ index 8bebdae..415dbe9 100644
                  continue;
              };
 
-@@ -4448,10 +4466,7 @@ mod hover_state_tests {
+@@ -4451,10 +4469,7 @@ mod hover_state_tests {
              ..Default::default()
          });
          let root_id = doc.root_node().id;
@@ -509,7 +509,7 @@ index 8bebdae..415dbe9 100644
 
          let mut mutator = doc.mutate();
          let html = mutator.create_element(qual_name!("html"), vec![]);
-@@ -4539,10 +4554,7 @@ mod hover_invalidation_tests {
+@@ -4542,10 +4557,7 @@ mod hover_invalidation_tests {
          );
          doc.add_user_agent_stylesheet(sheet);
          let root_id = doc.root_node().id;
@@ -521,7 +521,7 @@ index 8bebdae..415dbe9 100644
 
          let mut mutator = doc.mutate();
          let html = mutator.create_element(qual_name!("html"), vec![]);
-@@ -4627,10 +4639,7 @@ mod hover_invalidation_tests {
+@@ -4630,10 +4642,7 @@ mod hover_invalidation_tests {
          );
          doc.add_user_agent_stylesheet(sheet);
          let root_id = doc.root_node().id;
@@ -533,7 +533,7 @@ index 8bebdae..415dbe9 100644
 
          let mut mutator = doc.mutate();
          let html = mutator.create_element(qual_name!("html"), vec![]);
-@@ -4697,10 +4706,7 @@ mod hover_invalidation_tests {
+@@ -4700,10 +4709,7 @@ mod hover_invalidation_tests {
          );
          doc.add_user_agent_stylesheet(sheet);
          let root_id = doc.root_node().id;
@@ -545,7 +545,7 @@ index 8bebdae..415dbe9 100644
 
          let mut mutator = doc.mutate();
          let html = mutator.create_element(qual_name!("html"), vec![]);
-@@ -4778,10 +4784,7 @@ mod hover_invalidation_tests {
+@@ -4781,10 +4787,7 @@ mod hover_invalidation_tests {
          );
          doc.add_user_agent_stylesheet(sheet);
          let root_id = doc.root_node().id;
@@ -557,7 +557,7 @@ index 8bebdae..415dbe9 100644
 
          let mut mutator = doc.mutate();
          let html = mutator.create_element(qual_name!("html"), vec![]);
-@@ -4835,10 +4838,7 @@ mod hover_invalidation_tests {
+@@ -4838,10 +4841,7 @@ mod hover_invalidation_tests {
          );
          doc.add_user_agent_stylesheet(sheet);
          let root_id = doc.root_node().id;
@@ -569,7 +569,7 @@ index 8bebdae..415dbe9 100644
 
          let mut mutator = doc.mutate();
          let html = mutator.create_element(qual_name!("html"), vec![]);
-@@ -4854,7 +4854,7 @@ mod hover_invalidation_tests {
+@@ -4857,7 +4857,7 @@ mod hover_invalidation_tests {
 
          let background_image_url = |doc: &BaseDocument, id: NodeId| -> Option<String> {
              let elem = doc.nodes[id].data.downcast_element().unwrap();
@@ -1257,7 +1257,7 @@ index 892be74..637d84e 100644
          .iter()
          .map(|cell| cell.node_id)
 diff --git a/src/mutator.rs b/src/mutator.rs
-index 537c406..2113374 100644
+index 73fa432..a85e9ab 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
 @@ -36,7 +36,7 @@ fn is_template_inert_context(doc: &BaseDocument, node_id: NodeId) -> bool {

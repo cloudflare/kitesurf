@@ -1,34 +1,37 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: bpereira <bpereira@cloudflare.com>
 Date: Sat, 24 Oct 2026 14:22:31 +0100
-Subject: [PATCH] Drop box state under subtrees that become display:none
+Subject: [PATCH] Drop box state under display:none subtrees and keep scroll
+ offsets only on boxes that have them
 
-Stylo clears the styles under an element that becomes display:none, but
-its descendants kept their inline layouts, layout output, child lists
-and anonymous blocks until the subtree was shown again. Release them
-when damage propagation sees the root restyled to display:none; showing
-it again rebuilds them.
+A subtree that becomes display:none keeps a box tree nothing reads, so release it at damage time
+rather than at box construction: a container's construction may skip a display:none child, and then
+nothing revisits its subtree. The release drops the layout data except an inner scroller's own
+offset, which the document keeps so hiding and showing an ancestor does not move the scroller.
 
-getComputedStyle still reports elements in such a subtree by resolving
-their style on demand (resolve_undisplayed_style). Run that inside the
-layout thread state, because dropping its thread-local style context
-runs queued sequential tasks.
+Showing it again needs the opposite care. Box construction records the display for the nodes it
+collects as layout children, but a table row, a row group, a flattened inline and a display:contents
+element are consumed elsewhere and would keep the `none` that the has-box walks stop at, so the same
+block records the current display.
 
-Signed-off-by: bpereira <bpereira@cloudflare.com>
+Scroll offsets follow the same rule: a scroll write is applied only to an element that has a layout
+box, so nothing clamps an offset against a zero range and writes it back.
 ---
  src/document.rs         | 112 +++++++++++++++++++++++++++++
  src/layout/construct.rs |  48 ++++++++-----
- src/layout/damage.rs    |  17 +++++
- src/node/element.rs     |   4 ++
+ src/layout/damage.rs    |  26 +++++++
+ src/layout/mod.rs       |   2 +-
+ src/node/element.rs     |  52 ++++++++++++--
+ src/node/node.rs        |  12 ++--
  src/resolve.rs          | 154 ++++++++++++++++++++++++++++++++++++++++
  src/stylo.rs            |   3 +
- 6 files changed, 322 insertions(+), 16 deletions(-)
+ 8 files changed, 381 insertions(+), 28 deletions(-)
 
 diff --git a/src/document.rs b/src/document.rs
-index 415dbe9..c483593 100644
+index a3bdf0c..cd32c64 100644
 --- a/src/document.rs
 +++ b/src/document.rs
-@@ -5222,3 +5222,115 @@ pub(crate) fn set_codepoint_bits(bits: &mut [u64], text: &str) {
+@@ -5225,3 +5225,115 @@ pub(crate) fn set_codepoint_bits(bits: &mut [u64], text: &str) {
          bits[cp >> 6] |= 1u64 << (cp & 63);
      }
  }
@@ -244,7 +247,7 @@ index e8daff8..c495fde 100644
 
  // UAX#9 control pair for a computed unicode-bidi value.
 diff --git a/src/layout/damage.rs b/src/layout/damage.rs
-index 06b712e..eb33360 100644
+index 06b712e..4193e6e 100644
 --- a/src/layout/damage.rs
 +++ b/src/layout/damage.rs
 @@ -43,6 +43,10 @@ pub(crate) const CONSTRUCT_DESCENDENT: RestyleDamage =
@@ -258,7 +261,7 @@ index 06b712e..eb33360 100644
  impl BaseDocument {
      /// Union `RestyleDamage` up the tree and clear the layout caches of every
      /// node whose subtree needs relayout.
-@@ -77,6 +81,19 @@ impl BaseDocument {
+@@ -77,6 +81,28 @@ impl BaseDocument {
          };
          let mut damage = own_damage;
 
@@ -267,9 +270,18 @@ index 06b712e..eb33360 100644
 +        if own_damage.contains(CONSTRUCT_BOX) {
 +            let node = &self.nodes[node_id];
 +            let was_displayed = !is_display_none(*node.display_constructed_as());
-+            if let Some(display) = node.display_style().filter(|d| is_display_none(*d)) {
++            let display = node.display_style();
++            if let Some(display) = display.filter(|d| is_display_none(*d)) {
 +                if was_displayed {
 +                    self.release_undisplayed_layout(node_id);
++                    *self.nodes[node_id].display_constructed_as_mut() = display;
++                }
++            } else if !was_displayed {
++                // Shown again. Box construction records the display for the nodes it collects as
++                // layout children, but a table row, a row group, a flattened inline and a
++                // display:contents element are consumed elsewhere and would keep the `none` that
++                // the has-box walks stop at, so record it here.
++                if let Some(display) = display {
 +                    *self.nodes[node_id].display_constructed_as_mut() = display;
 +                }
 +            }
@@ -278,11 +290,93 @@ index 06b712e..eb33360 100644
          // Skip subtrees which contain no damage. Anonymous nodes are never
          // skipped themselves because damage marking walks the DOM parent
          // chain, which bypasses anonymous boxes: a damaged node's flagged
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index fde258e..94794cd 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -998,7 +998,7 @@ impl RoundTree for LayoutPassState<'_> {
+         layout_data.final_layout = *layout;
+         // This is the only wholesale write of a location, so it is also the
+         // only place a baked sticky shift can silently disappear.
+-        layout_data.pin_offset = taffy::Point { x: 0.0, y: 0.0 };
++        layout_data.set_pin_offset(taffy::Point { x: 0.0, y: 0.0 });
+     }
+
+     fn is_out_of_flow(&self, node_id: NodeId) -> bool {
 diff --git a/src/node/element.rs b/src/node/element.rs
-index 7b8054c..245c26b 100644
+index 7b8054c..c844b2a 100644
 --- a/src/node/element.rs
 +++ b/src/node/element.rs
-@@ -501,6 +501,10 @@ impl ElementData {
+@@ -103,9 +103,8 @@ pub struct LayoutData {
+     pub cache: Cache,
+     pub unrounded_layout: Layout,
+     pub final_layout: Layout,
+-    /// Post-layout shift currently baked into `final_layout.location`.
+-    pub pin_offset: taffy::Point<f32>,
+-    pub scroll_offset: crate::Point<f64>,
++    /// Allocated by the first offset written: few boxes are scrolled or pinned.
++    offsets: Option<Box<BoxOffsets>>,
+     pub scrollable_overflow: KurboRect,
+     /// The writing mode this node's layout algorithm ran in (the root takes it from `<body>`),
+     /// recorded by the layout pass for CSSOM geometry lookups.
+@@ -122,8 +121,7 @@ impl LayoutData {
+             cache: Cache::new(),
+             unrounded_layout: Layout::new(),
+             final_layout: Layout::new(),
+-            pin_offset: taffy::Point { x: 0.0, y: 0.0 },
+-            scroll_offset: crate::Point::ZERO,
++            offsets: None,
+             scrollable_overflow: KurboRect::ZERO,
+             #[cfg(feature = "writing-mode")]
+             writing_mode: stylo_taffy::WritingMode::empty(),
+@@ -138,6 +136,46 @@ impl Default for LayoutData {
+     }
+ }
+
++#[derive(Debug, Clone, Copy)]
++struct BoxOffsets {
++    /// Post-layout shift currently baked into `final_layout.location`.
++    pin: taffy::Point<f32>,
++    scroll: crate::Point<f64>,
++}
++
++static NO_OFFSETS: BoxOffsets = BoxOffsets {
++    pin: taffy::Point { x: 0.0, y: 0.0 },
++    scroll: crate::Point::ZERO,
++};
++
++impl LayoutData {
++    fn offsets(&self) -> &BoxOffsets {
++        self.offsets.as_deref().unwrap_or(&NO_OFFSETS)
++    }
++
++    fn offsets_mut(&mut self) -> &mut BoxOffsets {
++        self.offsets.get_or_insert_with(|| Box::new(NO_OFFSETS))
++    }
++
++    pub fn pin_offset(&self) -> &taffy::Point<f32> {
++        &self.offsets().pin
++    }
++
++    pub fn set_pin_offset(&mut self, pin: taffy::Point<f32>) {
++        if self.offsets.is_some() || pin != NO_OFFSETS.pin {
++            self.offsets_mut().pin = pin;
++        }
++    }
++
++    pub fn scroll_offset(&self) -> &crate::Point<f64> {
++        &self.offsets().scroll
++    }
++
++    pub fn scroll_offset_mut(&mut self) -> &mut crate::Point<f64> {
++        &mut self.offsets_mut().scroll
++    }
++}
++
+ /// Shared read-only default returned by accessors for nodes whose
+ /// [`LayoutData`] has never been allocated.
+ pub(crate) static DEFAULT_LAYOUT_DATA: LayoutData = LayoutData::new();
+@@ -501,6 +539,10 @@ impl ElementData {
          self.update_rare(|rare| rare.detailed_layout_info = Some(info));
      }
 
@@ -293,6 +387,50 @@ index 7b8054c..245c26b 100644
      /// Data associated with display: list-item, if the element is a list item.
      #[inline]
      pub fn list_item_data(&self) -> Option<&ListItemLayout> {
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 00644f0..7c8b421 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -725,7 +725,7 @@ impl Node {
+     /// (see `set_pin_offset`).
+     #[inline]
+     pub fn pin_offset(&self) -> &taffy::Point<f32> {
+-        &self.layout_data().pin_offset
++        self.layout_data().pin_offset()
+     }
+
+     /// Reconcile the baked post-layout shift to `(x, y)`, moving the location
+@@ -737,25 +737,25 @@ impl Node {
+     /// Returns whether the box moved.
+     pub fn set_pin_offset(&mut self, x: f32, y: f32) -> bool {
+         let layout_data = self.layout_data_mut();
+-        let dx = x - layout_data.pin_offset.x;
+-        let dy = y - layout_data.pin_offset.y;
++        let dx = x - layout_data.pin_offset().x;
++        let dy = y - layout_data.pin_offset().y;
+         if dx == 0.0 && dy == 0.0 {
+             return false;
+         }
+         layout_data.final_layout.location.x += dx;
+         layout_data.final_layout.location.y += dy;
+-        layout_data.pin_offset = taffy::Point { x, y };
++        layout_data.set_pin_offset(taffy::Point { x, y });
+         true
+     }
+
+     #[inline]
+     pub fn scroll_offset(&self) -> &crate::Point<f64> {
+-        &self.layout_data().scroll_offset
++        self.layout_data().scroll_offset()
+     }
+
+     #[inline]
+     pub fn scroll_offset_mut(&mut self) -> &mut crate::Point<f64> {
+-        &mut self.layout_data_mut().scroll_offset
++        self.layout_data_mut().scroll_offset_mut()
+     }
+
+     pub fn set_scroll_offset(&mut self, offset: crate::Point<f64>) {
 diff --git a/src/resolve.rs b/src/resolve.rs
 index 3ee3356..985efd2 100644
 --- a/src/resolve.rs

@@ -20,7 +20,7 @@ Signed-off-by: bpereira <bpereira@cloudflare.com>
  4 files changed, 149 insertions(+), 18 deletions(-)
 
 diff --git a/src/layout/evict.rs b/src/layout/evict.rs
-index 45702d8..28fcd04 100644
+index 516357b..90294e7 100644
 --- a/src/layout/evict.rs
 +++ b/src/layout/evict.rs
 @@ -10,7 +10,10 @@
@@ -35,7 +35,7 @@ index 45702d8..28fcd04 100644
  use blitz_traits::node_id::NodeId;
  use style::values::specified::box_::DisplayOutside;
 
-@@ -113,20 +116,18 @@ impl BaseDocument {
+@@ -124,20 +127,18 @@ impl BaseDocument {
          let Some(lines) = layout.break_summary() else {
              return Eviction::Unsummarized;
          };
@@ -62,7 +62,7 @@ index 45702d8..28fcd04 100644
          let clamp_lines = self.inline_clamp_lines(node_id);
          let (_, last_line_alignment) = self.inline_alignment(node_id);
          let inline = self
-@@ -136,11 +137,28 @@ impl BaseDocument {
+@@ -147,11 +148,28 @@ impl BaseDocument {
          let max_advance = layout.layout_max_advance();
          let indent = layout.text_indent();
          let alignment = layout.alignment();
@@ -91,7 +91,7 @@ index 45702d8..28fcd04 100644
          let summary = Some(EvictedSummary { lines, out_of_flow });
          let breaking = EvictedBreak::new(
              max_advance,
-@@ -385,6 +403,29 @@ impl BaseDocument {
+@@ -413,6 +431,29 @@ impl BaseDocument {
      }
  }
 
