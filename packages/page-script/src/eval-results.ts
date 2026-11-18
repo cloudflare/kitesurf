@@ -8,7 +8,7 @@ import type { EvalResult } from "@kitesurf/jsrpc-types/page-script";
 import type { PackedException, PackedResult } from "@kitesurf/jsrpc-types/shared";
 import { drainCdpMutations, drainConsole } from "./console-buffer.ts";
 import { takeDocumentReopened } from "./internal-state.js";
-import { yieldToPageTasks } from "./native-scheduling.ts";
+import { yieldToDuePageTasks } from "./page-tasks.ts";
 import { state } from "./state.ts";
 
 const POST_EVAL_TASK_TURNS = 3;
@@ -16,9 +16,7 @@ const POST_EVAL_TASK_TURNS = 3;
 export type EvalResultBody = PackedResult | PackedException;
 
 export async function drainEvalResult(result: EvalResultBody): Promise<EvalResult> {
-  for (let i = 0; i < POST_EVAL_TASK_TURNS; i++) {
-    await yieldToPageTasks();
-  }
+  await yieldToDuePageTasks(POST_EVAL_TASK_TURNS);
   return Object.assign(result, {
     console: drainConsole(),
     cookieWrites: state.drainCookieWrites(),

@@ -17,7 +17,12 @@ import {
   recheckIntersectionObservers,
 } from "./intersection-observer.ts";
 import { ks_bridge_ever_minted, ks_run_page_jobs } from "./wasm-glue.js";
-import { drainSettleMicrotasks, isEngineScheduling, NativePromise } from "./native-scheduling.ts";
+import {
+  drainSettleMicrotasks,
+  isEngineScheduling,
+  NativePromise,
+  yieldToPageTasks,
+} from "./native-scheduling.ts";
 import { ksInternals } from "./internals.ts";
 import { ksGlobal } from "./state.ts";
 import type { ShimWindow } from "./types.ts";
@@ -492,6 +497,13 @@ export function nextTimerTask(): Promise<void> {
   });
 }
 
+function runBridgedPageJobs(): void {
+  if (!ks_bridge_ever_minted()) return;
+  try {
+    ks_run_page_jobs();
+  } catch {}
+}
+
 export function pumpDueTimers(
   deadlineMs?: number,
   maxRunCount?: number,
@@ -529,11 +541,7 @@ export function pumpDueTimers(
   } finally {
     activeTimerDeadline = previousTimerDeadline;
   }
-  if (ks_bridge_ever_minted()) {
-    try {
-      ks_run_page_jobs();
-    } catch {}
-  }
+  runBridgedPageJobs();
   runningTimerIds.delete(timerEntry.id);
   const wasCancelled = cancelledTimerIds.delete(timerEntry.id);
   if (timerEntry.repeats && !wasCancelled) {
@@ -631,6 +639,23 @@ export function pageTimerDueWithin(windowMs: number): boolean {
   if (!nativeTimerFunctions) return true;
   const nextEntry = nextTimerWheelEntry();
   return nextEntry ? nextEntry.due <= nativeTimerNow() + windowMs : false;
+}
+
+// Gives page tasks queued by an engine call up to `maxTurns` turns before its reply. A turn is a
+// host setTimeout(0), ~1.3 ms in workerd even when idle; with nothing else due it would only run
+// its own wheel entry and the boa job drain after it, so run that drain here and skip the turn.
+// A paused pump runs neither, so the drain waits for the pump too.
+export async function yieldToDuePageTasks(maxTurns: number): Promise<void> {
+  for (let turn = 0; turn < maxTurns; turn++) {
+    await drainSettleMicrotasks();
+    if (!pageTimerDueWithin(0)) {
+      if (pageTasksPaused()) return;
+      runBridgedPageJobs();
+      await drainSettleMicrotasks();
+      if (!pageTimerDueWithin(0)) return;
+    }
+    await yieldToPageTasks();
+  }
 }
 
 export function timersScheduledCount(): number {
