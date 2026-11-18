@@ -142,6 +142,10 @@ await page.screenshot({ path: "page.png" });
 await browser.close();
 ```
 
+[`docker/examples/`](docker/examples/) has complete Playwright and Puppeteer
+test suites, a Compose file and a GitHub Actions job that run them against the
+image.
+
 Set these environment variables with `docker run -e`:
 
 - `KITESURF_PORT` selects the port inside the container. The default is
