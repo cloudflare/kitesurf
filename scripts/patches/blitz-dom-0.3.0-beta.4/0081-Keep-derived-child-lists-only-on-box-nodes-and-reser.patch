@@ -1,26 +1,25 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: bpereira <bpereira@cloudflare.com>
 Date: Sun, 25 Oct 2026 09:57:41 +0000
-Subject: [PATCH] Keep derived child lists only on box nodes
+Subject: [PATCH] Keep derived child lists only on box nodes and reserve their
+ paint buffers
 
-Text, comment and shadow-root nodes never own layout or paint child
-lists. Keep those independently borrowed lists in storage that only box
-nodes allocate, and read them through node accessors. On wasm32 this
-shrinks Node from 68 to 52 bytes and its slot from 72 to 56 bytes.
-
-Signed-off-by: bpereira <bpereira@cloudflare.com>
+A node's computed child lists are derived state. Keep them only on nodes that build a box, where
+layout and paint read them, rather than on every node that once had a child list, and reserve a
+first paint-child buffer to the number of contributors it actually has instead of growing it as the
+children arrive.
 ---
  src/debug.rs             |  4 +-
  src/document.rs          | 12 +++---
  src/layout/construct.rs  |  2 +-
  src/layout/inline.rs     |  2 +-
  src/layout/mod.rs        | 28 ++++---------
- src/layout/paint_tree.rs | 12 +++---
+ src/layout/paint_tree.rs | 19 +++++----
  src/node/element.rs      |  5 +++
  src/node/node.rs         | 88 ++++++++++++++++++++++++++++++++++++----
  src/resolve.rs           | 23 +++++------
  src/traversal.rs         |  6 +--
- 10 files changed, 123 insertions(+), 59 deletions(-)
+ 10 files changed, 129 insertions(+), 60 deletions(-)
 
 diff --git a/src/debug.rs b/src/debug.rs
 index d5b3e98..43a3d02 100644
@@ -45,10 +44,10 @@ index d5b3e98..43a3d02 100644
                  .map(|id| &self.nodes[*id])
                  .map(|node| (node.id, node.order(), node.node_debug_str()))
 diff --git a/src/document.rs b/src/document.rs
-index d8832f3..dab8668 100644
+index f317a9b..5f57b00 100644
 --- a/src/document.rs
 +++ b/src/document.rs
-@@ -1352,7 +1352,9 @@ impl BaseDocument {
+@@ -1355,7 +1355,9 @@ impl BaseDocument {
              .get(node_id)
              .map(|node| {
                  let mut ids = node.children.to_vec();
@@ -59,7 +58,7 @@ index d8832f3..dab8668 100644
                  ids
              })
              .unwrap_or_default();
-@@ -3932,7 +3934,7 @@ impl BaseDocument {
+@@ -3935,7 +3937,7 @@ impl BaseDocument {
              return (Some(parent_id), None);
          };
 
@@ -68,7 +67,7 @@ index d8832f3..dab8668 100644
          let Some(children) = layout_children.as_ref() else {
              return (Some(parent_id), None);
          };
-@@ -4126,7 +4128,7 @@ impl BaseDocument {
+@@ -4129,7 +4131,7 @@ impl BaseDocument {
          target_index: usize,
      ) -> Option<NodeId> {
          let parent = self.get_node(parent_id)?;
@@ -77,7 +76,7 @@ index d8832f3..dab8668 100644
          let children = layout_children.as_ref()?;
 
          children
-@@ -5306,7 +5308,7 @@ mod display_none_retention_tests {
+@@ -5309,7 +5311,7 @@ mod display_none_retention_tests {
              let node = &mut doc.nodes[id];
              assert!(node.primary_styles().is_none(), "{id} kept styles");
              assert!(node.try_layout_data_mut().is_none(), "{id} kept layout data");
@@ -86,7 +85,7 @@ index d8832f3..dab8668 100644
          }
          assert!(doc.resolve_undisplayed_style(p).is_some());
          assert!(doc.nodes[p].primary_styles().is_none(), "on-demand style was stored");
-@@ -5356,7 +5358,7 @@ mod display_none_retention_tests {
+@@ -5359,7 +5361,7 @@ mod display_none_retention_tests {
          let state = |doc: &mut BaseDocument, id: NodeId| {
              let node = &mut doc.nodes[id];
              let styled = node.primary_styles().is_some();
@@ -122,7 +121,7 @@ index 684a9b2..95e7df8 100644
                  .map(|children| {
                      children
 diff --git a/src/layout/mod.rs b/src/layout/mod.rs
-index e9e1508..a784be3 100644
+index 1efa225..9f90ea5 100644
 --- a/src/layout/mod.rs
 +++ b/src/layout/mod.rs
 @@ -670,16 +670,12 @@ impl TraversePartialTree for LayoutPassState<'_> {
@@ -207,7 +206,7 @@ index e9e1508..a784be3 100644
              taffy_node_id(*id)
          })
 diff --git a/src/layout/paint_tree.rs b/src/layout/paint_tree.rs
-index 81ed44a..22353e4 100644
+index 81ed44a..358c3f6 100644
 --- a/src/layout/paint_tree.rs
 +++ b/src/layout/paint_tree.rs
 @@ -283,7 +283,7 @@ impl BaseDocument {
@@ -219,7 +218,7 @@ index 81ed44a..22353e4 100644
          if let Some(mut children) = children {
              // Anonymous blocks and pseudo-elements can be removed from the
              // slab between resolve and this paint-tree pass; drop stale ids
-@@ -336,9 +336,7 @@ impl BaseDocument {
+@@ -336,12 +336,15 @@ impl BaseDocument {
              let mut next_hoisted = 0;
 
              let mut paint_children = self.nodes[node_id]
@@ -229,8 +228,17 @@ index 81ed44a..22353e4 100644
 +                .take_paint_children()
                  .unwrap_or_default();
              paint_children.clear();
-             paint_children.reserve(children.len() + hoisted_past_parent.len());
-@@ -400,8 +398,8 @@ impl BaseDocument {
+-            paint_children.reserve(children.len() + hoisted_past_parent.len());
++            let contributor_bound = children.len() + hoisted_past_parent.len();
++            if paint_children.capacity() == 0 {
++                paint_children.reserve_exact(contributor_bound);
++            } else {
++                paint_children.reserve(contributor_bound);
++            }
+
+             for (index, &child_id) in children.iter().enumerate() {
+                 if !owned_here(self, child_id) && self.paints_rehomed(child_id) {
+@@ -400,8 +403,8 @@ impl BaseDocument {
                  .sort_by_cached_key(|id| node_to_paint_order(&self.nodes[*id], is_flex_or_grid));
 
              let node = &self.nodes[node_id];
@@ -241,7 +249,7 @@ index 81ed44a..22353e4 100644
          }
 
          let node = &mut self.nodes[node_id];
-@@ -611,7 +609,7 @@ fn is_positioned_only_wrapper(node: &Node, depth: u8) -> bool {
+@@ -611,7 +614,7 @@ fn is_positioned_only_wrapper(node: &Node, depth: u8) -> bool {
      if paints_itself || border.left > 0.0 || border.right > 0.0 || border.top > 0.0 || border.bottom > 0.0 {
          return false;
      }
@@ -251,7 +259,7 @@ index 81ed44a..22353e4 100644
          return false;
      };
 diff --git a/src/node/element.rs b/src/node/element.rs
-index 603d48c..1bdb177 100644
+index a4a0a84..6736e84 100644
 --- a/src/node/element.rs
 +++ b/src/node/element.rs
 @@ -91,6 +91,7 @@ pub struct ElementData {
@@ -262,7 +270,7 @@ index 603d48c..1bdb177 100644
  }
 
  /// Taffy layout output state (cache, layouts, scroll offset and overflow).
-@@ -606,6 +607,7 @@ impl DocumentData {
+@@ -644,6 +645,7 @@ impl DocumentData {
  /// carries the same style/layout fields that were previously stored directly on
  /// [`Node`](super::Node).
  pub struct DocumentData {
@@ -270,7 +278,7 @@ index 603d48c..1bdb177 100644
      pub stylo_element_data: StyloData,
      /// Selector flags deposited here by `apply_selector_flags` when a
      /// `for_parent()` flag is applied while matching the root `<html>` element,
-@@ -643,6 +645,7 @@ impl std::fmt::Debug for DocumentData {
+@@ -681,6 +683,7 @@ impl std::fmt::Debug for DocumentData {
  impl DocumentData {
      pub fn new() -> Self {
          Self {
@@ -278,7 +286,7 @@ index 603d48c..1bdb177 100644
              stylo_element_data: Default::default(),
              selector_flags: SelectorFlagsCell::default(),
              dirty_descendants: AtomicBool::new(true),
-@@ -723,6 +726,7 @@ impl Clone for ElementData {
+@@ -761,6 +764,7 @@ impl Clone for ElementData {
              }),
 
              // Runtime state: reset to defaults.
@@ -286,7 +294,7 @@ index 603d48c..1bdb177 100644
              stylo_element_data: Default::default(),
              selector_flags: SelectorFlagsCell::default(),
              element_state: self.element_state,
-@@ -842,6 +846,7 @@ impl ElementData {
+@@ -880,6 +884,7 @@ impl ElementData {
              None => NameNs::Other,
          };
          let mut data = ElementData {
@@ -295,7 +303,7 @@ index 603d48c..1bdb177 100644
              bits: ElementBits::new(name_ns),
              id: id_attr_atom,
 diff --git a/src/node/node.rs b/src/node/node.rs
-index d2e8e0b..2a3cc38 100644
+index f39900e..eeeec17 100644
 --- a/src/node/node.rs
 +++ b/src/node/node.rs
 @@ -174,6 +174,34 @@ impl NodeIdCell {

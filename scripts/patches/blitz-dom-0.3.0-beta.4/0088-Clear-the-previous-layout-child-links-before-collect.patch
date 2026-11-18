@@ -11,10 +11,10 @@ no inline root ancestor and every geometry read answered an empty rect.
  1 file changed, 11 insertions(+), 15 deletions(-)
 
 diff --git a/src/resolve.rs b/src/resolve.rs
-index e2b7de5..2b19048 100644
+index f75bcb9..68f8b42 100644
 --- a/src/resolve.rs
 +++ b/src/resolve.rs
-@@ -659,6 +659,13 @@ impl BaseDocument {
+@@ -662,6 +662,13 @@ impl BaseDocument {
                      doc.deallocate_anonymous_block(anon_id);
                  }
 
@@ -28,7 +28,7 @@ index e2b7de5..2b19048 100644
                  let mut collected = LayoutChildren::default();
                  collect_layout_children(doc, node_id, &mut collected);
                  let layout_children = collected.children;
-@@ -692,10 +699,6 @@ impl BaseDocument {
+@@ -695,10 +702,6 @@ impl BaseDocument {
                      }
                  }
 
@@ -39,7 +39,7 @@ index e2b7de5..2b19048 100644
                  doc.nodes[node_id].set_layout_children(Some(layout_children.clone()));
 
                  damage.remove(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
-@@ -725,19 +728,12 @@ impl BaseDocument {
+@@ -728,19 +731,12 @@ impl BaseDocument {
          }
      }
 

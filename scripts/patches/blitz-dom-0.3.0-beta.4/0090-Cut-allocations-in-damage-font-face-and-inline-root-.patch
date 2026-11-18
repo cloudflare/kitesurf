@@ -179,10 +179,10 @@ index 57859fb..5b92f02 100644
                              if let Some((open, _)) = bidi_wrap {
                                  builder.push_text(open);
 diff --git a/src/layout/evict.rs b/src/layout/evict.rs
-index 28fcd04..126398f 100644
+index 90294e7..616991d 100644
 --- a/src/layout/evict.rs
 +++ b/src/layout/evict.rs
-@@ -241,12 +241,14 @@ impl BaseDocument {
+@@ -252,12 +252,14 @@ impl BaseDocument {
          if self.inline_layout_eviction_viewports.is_none() {
              return;
          }
@@ -199,7 +199,7 @@ index 28fcd04..126398f 100644
          self.inline_pass_window.push_back((node_id, seq));
          if self.inline_pass_window.len() > IN_PASS_WINDOW {
              let (id, seq) = self.inline_pass_window.pop_front().expect("over capacity");
-@@ -269,7 +271,7 @@ impl BaseDocument {
+@@ -280,7 +282,7 @@ impl BaseDocument {
          // out from its break summary and never rebuilt.
          if self
              .inline_layout_mut(id)
@@ -388,10 +388,10 @@ index 0b95ad9..ef8436e 100644
              span_cb_flags: stylo_taffy::StyleFlags::empty(),
              // NaN = no lines yet; the repair scan gives it some once
 diff --git a/src/resolve.rs b/src/resolve.rs
-index 2b19048..0e2ed6e 100644
+index 68f8b42..f3ea86a 100644
 --- a/src/resolve.rs
 +++ b/src/resolve.rs
-@@ -831,12 +831,14 @@ impl BaseDocument {
+@@ -834,12 +834,14 @@ impl BaseDocument {
                      scale: self.viewport.scale(),
                      breaking: None,
                  });
@@ -406,7 +406,7 @@ index 2b19048..0e2ed6e 100644
              }
              return;
          }
-@@ -903,13 +905,15 @@ impl BaseDocument {
+@@ -906,13 +908,15 @@ impl BaseDocument {
 
          for result in results {
              match result.data {
@@ -423,7 +423,7 @@ index 2b19048..0e2ed6e 100644
                  }
              }
          }
-@@ -952,7 +956,7 @@ impl BaseDocument {
+@@ -955,7 +959,7 @@ impl BaseDocument {
          //
          // Except a rebuilt inline tree has no lines, and the restore pass below
          // re-breaks it against final_layout, which must not be a stale box.
@@ -432,7 +432,7 @@ index 2b19048..0e2ed6e 100644
              #[cfg(feature = "writing-mode")]
              state.physicalise_and_round_layout(root_element_id);
              #[cfg(not(feature = "writing-mode"))]
-@@ -1022,7 +1026,7 @@ impl BaseDocument {
+@@ -1025,7 +1029,7 @@ impl BaseDocument {
      fn restore_clobbered_inline_breaks(&mut self) {
          // Debug builds run the walk anyway and assert it finds nothing, so
          // every test exercises the skip predicate rather than trusting it.
@@ -441,7 +441,7 @@ index 2b19048..0e2ed6e 100644
          if skip && !cfg!(debug_assertions) {
              return;
          }
-@@ -1070,8 +1074,15 @@ impl BaseDocument {
+@@ -1073,8 +1077,15 @@ impl BaseDocument {
              }
              true
          });

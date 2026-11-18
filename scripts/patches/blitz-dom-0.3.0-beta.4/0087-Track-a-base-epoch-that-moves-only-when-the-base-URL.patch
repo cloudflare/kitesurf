@@ -35,10 +35,10 @@ index c2f5090..fd53041 100644
              pending_style_image_nodes: Vec::new(),
              pending_critical_resources: HashSet::new(),
 diff --git a/src/mutator.rs b/src/mutator.rs
-index 1c7cc6c..493ce5b 100644
+index 81b9a54..8f37fc8 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
-@@ -396,6 +396,7 @@ impl DocumentMutator<'_> {
+@@ -405,6 +405,7 @@ impl DocumentMutator<'_> {
 
      pub fn set_attribute(&mut self, node_id: NodeId, name: QualName, value: &str) {
          let node_is_in_document = self.doc.nodes[node_id].flags.is_in_document();
@@ -46,7 +46,7 @@ index 1c7cc6c..493ce5b 100644
          if node_is_in_document {
              self.doc.snapshot_node_for_attr(node_id, Some(&name.local));
 
-@@ -627,8 +628,19 @@ impl DocumentMutator<'_> {
+@@ -636,8 +637,19 @@ impl DocumentMutator<'_> {
          }
      }
 
@@ -66,7 +66,7 @@ index 1c7cc6c..493ce5b 100644
          if node_is_in_document {
              self.doc.snapshot_node_for_attr(node_id, Some(&name.local));
 
-@@ -975,6 +987,11 @@ impl DocumentMutator<'_> {
+@@ -984,6 +996,11 @@ impl DocumentMutator<'_> {
              let child = &mut self.doc.nodes[child_id];
              let child_was_in_doc = child.flags.is_in_document();
              self.mutations_occurred |= child_was_in_doc;
@@ -78,7 +78,7 @@ index 1c7cc6c..493ce5b 100644
              if new_parent_is_in_document
                  && child_was_in_doc
                  && child.containing_shadow_root_id().is_some() != new_in_shadow
-@@ -1407,10 +1424,10 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1416,10 +1433,10 @@ impl<'doc> DocumentMutator<'doc> {
          self.eager_op_queue = ops;
      }
 
@@ -93,7 +93,7 @@ index 1c7cc6c..493ce5b 100644
      fn reindex_subtree_ids(&mut self, node_id: NodeId, in_shadow: bool) {
          let node = &self.doc.nodes[node_id];
          if let Some(id_attr) = node.attr(local_name!("id")).map(ToString::to_string) {
-@@ -1420,6 +1437,19 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1429,6 +1446,19 @@ impl<'doc> DocumentMutator<'doc> {
                  self.doc.add_to_id_map(&id_attr, node_id);
              }
          }
@@ -113,7 +113,7 @@ index 1c7cc6c..493ce5b 100644
      }
 
      fn process_added_subtree(&mut self, node_id: NodeId) {
-@@ -1469,6 +1499,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1478,6 +1508,7 @@ impl<'doc> DocumentMutator<'doc> {
                  "style" => {
                      self.style_nodes.insert(node_id);
                  }
@@ -121,7 +121,7 @@ index 1c7cc6c..493ce5b 100644
                  _ if has_custom_widget => {}
                  "link" => self.eager_op_queue.push(SpecialOp::LoadStylesheet(node_id)),
                  "img" => self.eager_op_queue.push(SpecialOp::LoadImage(node_id)),
-@@ -1513,6 +1544,9 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1522,6 +1553,9 @@ impl<'doc> DocumentMutator<'doc> {
              // ancestor chain, IME disable on blur of a focused input).
              doc.clear_interaction_state_for_removed_node(node_id);
 
@@ -131,7 +131,7 @@ index 1c7cc6c..493ce5b 100644
              let is_style = doc.nodes[node_id]
                  .data
                  .is_element_with_tag_name(&local_name!("style"));
-@@ -2980,6 +3014,45 @@ mod test {
+@@ -2989,6 +3023,45 @@ mod test {
          );
      }
 
@@ -195,7 +195,7 @@ index d3e3df6..f20b4b0 100644
                      let later = self.id_duplicates.entry(entry.key().clone()).or_default();
                      if !later.contains(&node_id) {
 diff --git a/src/resolve.rs b/src/resolve.rs
-index c8ec044..e2b7de5 100644
+index 8018202..f75bcb9 100644
 --- a/src/resolve.rs
 +++ b/src/resolve.rs
 @@ -3,6 +3,7 @@
@@ -206,7 +206,7 @@ index c8ec044..e2b7de5 100644
 
  use debug_timer::debug_timer;
  use kurbo::{Affine, Rect};
-@@ -724,6 +725,27 @@ impl BaseDocument {
+@@ -727,6 +728,27 @@ impl BaseDocument {
          }
      }
 

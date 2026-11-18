@@ -1,43 +1,26 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: bpereira <bpereira@cloudflare.com>
 Date: Wed, 28 Oct 2026 15:10:34 +0000
-Subject: [PATCH] Evict the shaped text of inline roots far from the viewport
+Subject: [PATCH] Evict shaped text far from the viewport and rebuild a root
+ whose style changes it
 
-Shaped runs, glyphs and lines are the largest derived data of a long
-document, yet once a root's box is settled only paint and geometry
-queries read them. After each resolve, inline roots more than two
-viewport heights away drop their shaped layout. TextLayout::layout is
-the only way to read it and rebuilds it on demand from the DOM, the
-saved inline box sizes and indent, and the last line break.
+Inline roots far from the viewport keep their shaped text, which is most of a long document's
+retained layout. Keep a break summary for each root and release the shaped lines, replaying them
+from the summary when a root comes back into view. Each scan decides per resident root whether to
+keep it, spare it because it was read since the last scan, or evict it.
 
-- Inline roots are shaped inside their layout call, and their text is
-  filled there instead of during box construction, so an evicted root
-  keeps no placeholder text or lines.
-- An evicted root keeps a compact break summary (48 bytes) so layout can
-  rebreak and measure it, read its line extents, and lay out its
-  absolutely positioned boxes, pre-wrap text and top/bottom aligned
-  spans without reshaping; the summary is dropped once the root is
-  rebuilt. Roots without a summary, and lines shaped around floats, stay
-  shaped.
-- Recently laid out roots, roots near the viewport or inside a caller's
-  extent, the last 256 roots a pass broke, and roots read since the last
-  scan stay shaped, so per-frame readers do not reshape every frame.
-  Inner scrolling rescans, roots a measure broke are evicted as after a
-  full layout, a viewport with no height keeps everything resident, and
-  a content slot that differs only by rounding counts as unchanged.
-- A root's shaped layout and text share one allocation, its text
-  classification is one byte, and the rebuild context lives on the tree.
-- Element clones discard derived text layouts.
-
-Text eviction is on by default. Layout, geometry and paint output are
-unchanged.
-
-Signed-off-by: bpereira <bpereira@cloudflare.com>
+A root evicted that way keeps the summary it took under the style of the time, and only RELAYOUT
+damage reached it when the style changed how text breaks, so it laid out from the old summary while
+its rebuilt text took the new style. Compare the wrap mode and tab size too, and an inline span's
+padding, border and radius, which parley bakes into line breaking when the layout is built. Either
+sends the rebuild path ALL_DAMAGE. The background brush is left out of the decoration comparison
+because stylo.rs already handles a change in background presence.
 ---
  src/debug.rs            |  13 +-
  src/document.rs         |  61 ++++-
  src/layout/construct.rs |   9 +-
- src/layout/evict.rs     | 397 ++++++++++++++++++++++++++++
+ src/layout/damage.rs    |   6 +-
+ src/layout/evict.rs     | 425 ++++++++++++++++++++++++++++++
  src/layout/inline.rs    | 562 ++++++++++++++++++++++++++++++----------
  src/layout/mod.rs       |   1 +
  src/node/element.rs     |  20 ++
@@ -46,8 +29,9 @@ Signed-off-by: bpereira <bpereira@cloudflare.com>
  src/node/text.rs        | 517 ++++++++++++++++++++++++++++++++++--
  src/resolve.rs          |  31 +++
  src/scrolling.rs        |   1 +
+ src/stylo_to_parley.rs  |  13 +
  src/tree.rs             |  17 +-
- 13 files changed, 1459 insertions(+), 184 deletions(-)
+ 15 files changed, 1504 insertions(+), 186 deletions(-)
  create mode 100644 src/layout/evict.rs
 
 diff --git a/src/debug.rs b/src/debug.rs
@@ -81,10 +65,10 @@ index 0b0be26..d5b3e98 100644
                  let x = metrics.inline_min_coord;
                  let y = metrics.block_min_coord;
 diff --git a/src/document.rs b/src/document.rs
-index c483593..d8832f3 100644
+index cd32c64..f317a9b 100644
 --- a/src/document.rs
 +++ b/src/document.rs
-@@ -474,6 +474,33 @@ pub struct BaseDocument {
+@@ -476,6 +476,33 @@ pub struct BaseDocument {
      /// Length of `inline_roots` when it was last left sorted+deduped, so a
      /// frame that pushed nothing new can skip re-sorting 80k+ entries.
      pub(crate) inline_roots_settled: usize,
@@ -118,7 +102,7 @@ index c483593..d8832f3 100644
      /// Nodes holding rehomed paint children, and the ancestor chains whose
      /// rehomed_reach we set last resolve. Both replace a full-tree scan in
      /// compute_rehomed_reach; the host list is a self-pruning superset.
-@@ -621,9 +648,14 @@ impl BaseDocument {
+@@ -623,9 +650,14 @@ impl BaseDocument {
          // the doubling overshoot on large documents. with_capacity(0)
          // is equivalent to Slab::new(), so the default path is unchanged.
          let guard = SharedRwLock::new();
@@ -133,7 +117,7 @@ index c483593..d8832f3 100644
          ));
          let nodes_to_id = HashMap::new();
 
-@@ -708,6 +740,17 @@ impl BaseDocument {
+@@ -711,6 +743,17 @@ impl BaseDocument {
              any_node_created: false,
              inline_roots: Vec::new(),
              inline_roots_settled: 0,
@@ -151,7 +135,7 @@ index c483593..d8832f3 100644
              rehomed_hosts: Vec::new(),
              any_construct_damage: false,
              layout_changed: true,
-@@ -3828,7 +3871,7 @@ impl BaseDocument {
+@@ -3831,7 +3874,7 @@ impl BaseDocument {
          let el = inline_root.element_data()?;
          let il = el.inline_layout_data()?;
          let (node_id, range) = il
@@ -160,7 +144,7 @@ index c483593..d8832f3 100644
              .iter()
              .find(|(_, r)| byte_offset >= r.start && byte_offset <= r.end)
              .map(|(nid, r)| (*nid, r.clone()))?;
-@@ -3837,9 +3880,10 @@ impl BaseDocument {
+@@ -3840,9 +3883,10 @@ impl BaseDocument {
              NodeData::Text(t) => &t.content,
              _ => return None,
          };
@@ -174,7 +158,7 @@ index c483593..d8832f3 100644
          let node_u16_len = content.encode_utf16().count();
          let u16 = slice.encode_utf16().count().min(node_u16_len);
          Some((node_id, u16))
-@@ -4017,7 +4061,7 @@ impl BaseDocument {
+@@ -4020,7 +4064,7 @@ impl BaseDocument {
                  let el = n.element_data()?;
                  let il = el.inline_layout_data()?;
                  let range = il
@@ -183,7 +167,7 @@ index c483593..d8832f3 100644
                      .iter()
                      .find(|(nid, _)| *nid == text_id)?
                      .1
-@@ -4110,14 +4154,15 @@ impl BaseDocument {
+@@ -4113,14 +4157,15 @@ impl BaseDocument {
              let element_data = node.element_data()?;
              let inline_layout = element_data.inline_layout_data()?;
 
@@ -201,7 +185,7 @@ index c483593..d8832f3 100644
          }
 
          if result.is_empty() {
-@@ -4213,7 +4258,7 @@ impl BaseDocument {
+@@ -4216,7 +4261,7 @@ impl BaseDocument {
                  continue;
              };
 
@@ -237,12 +221,33 @@ index c495fde..77bf35e 100644
      return;
 
      fn build_inline_layout_recursive(
+diff --git a/src/layout/damage.rs b/src/layout/damage.rs
+index 4193e6e..dda2ad1 100644
+--- a/src/layout/damage.rs
++++ b/src/layout/damage.rs
+@@ -565,12 +565,14 @@ pub(crate) fn compute_layout_damage(old: &ComputedValues, new: &ComputedValues)
+                 || old_text.overflow_wrap != new_text.overflow_wrap
+                 || old_text.letter_spacing != new_text.letter_spacing
+                 || old_text.word_spacing != new_text.word_spacing
+-                || old_text.text_rendering != new_text.text_rendering)
++                || old_text.text_rendering != new_text.text_rendering
++                || old_text.text_wrap_mode != new_text.text_wrap_mode
++                || old_text.tab_size != new_text.tab_size)
+         {
+             return true;
+         }
+
+-        false
++        crate::stylo_to_parley::inline_box_decorations_differ(old, new)
+     };
+
+     #[allow(
 diff --git a/src/layout/evict.rs b/src/layout/evict.rs
 new file mode 100644
-index 0000000..45702d8
+index 0000000..516357b
 --- /dev/null
 +++ b/src/layout/evict.rs
-@@ -0,0 +1,397 @@
+@@ -0,0 +1,425 @@
 +//! Dropping the shaped text of inline roots far from the viewport.
 +//!
 +//! Shaped runs, glyphs and lines are the largest derived data of a long
@@ -291,6 +296,17 @@ index 0000000..45702d8
 +    /// Kept until a layout pass breaks the root again, as only that can
 +    /// give it a summary: the scan stops visiting it.
 +    Unsummarized,
++}
++
++/// What an eviction scan does with one resident inline root.
++#[derive(Clone, Copy)]
++enum RootScan {
++    /// Holds no shaped text to evict, or is not far enough away.
++    Keep,
++    /// Far, but read since the last scan: this scan spares it and the next one ages it.
++    Spare,
++    /// Far and unread: evict it.
++    Far,
 +}
 +
 +impl BaseDocument {
@@ -511,7 +527,7 @@ index 0000000..45702d8
 +        }
 +    }
 +
-+    fn inline_layout_mut(&mut self, id: NodeId) -> Option<&mut crate::node::TextLayout> {
++    fn inline_layout_mut(&mut self, id: NodeId) -> Option<&mut TextLayout> {
 +        self.nodes
 +            .get_mut(id)
 +            .and_then(|node| node.data.downcast_element_mut())
@@ -535,17 +551,7 @@ index 0000000..45702d8
 +        }
 +
 +        let Some(band) = self.inline_keep_band(viewports) else {
-+            self.inline_resident.append(&mut rebuilt);
-+            self.inline_resident.sort_unstable();
-+            self.inline_resident.dedup();
-+            self.inline_resident.retain(|&id| {
-+                self.nodes.get(id).is_some_and(|node| {
-+                    node.flags.is_in_document()
-+                        && node.element_data().and_then(|el| el.inline_layout_data())
-+                            .is_some_and(|inline| !inline.is_evicted())
-+                })
-+            });
-+            self.last_inline_eviction_scan = None;
++            self.keep_every_resident_root(&mut rebuilt);
 +            return;
 +        };
 +
@@ -558,54 +564,36 @@ index 0000000..45702d8
 +                    < band.viewport_height / 2.0
 +        });
 +        let has_new_rebuilt = !rebuilt.is_empty();
-+        let (mut visit, follow_up) = match unmoved {
++        let follow_up = unmoved.is_some_and(|last| last.spared_read_layouts);
++        let mut visit = match unmoved {
 +            // Nothing moved: only fresh rebuilds need a look, and aging the
 +            // others again would evict a layout read once per frame.
 +            Some(last) if !last.spared_read_layouts => {
 +                if rebuilt.is_empty() {
 +                    return;
 +                }
-+                (rebuilt, false)
++                rebuilt
 +            }
-+            Some(_) => {
++            _ => {
 +                self.inline_resident.append(&mut rebuilt);
-+                (std::mem::take(&mut self.inline_resident), true)
-+            }
-+            None => {
-+                self.inline_resident.append(&mut rebuilt);
-+                (std::mem::take(&mut self.inline_resident), false)
++                std::mem::take(&mut self.inline_resident)
 +            }
 +        };
++
 +        visit.sort_unstable();
 +        visit.dedup();
 +        let mut spared = false;
 +        let mut far = Vec::new();
-+        visit.retain(|&id| {
-+            let Some(node) = self.nodes.get(id) else {
-+                return false;
-+            };
-+            if !node.flags.is_in_document() {
-+                return false;
-+            }
-+            // Evicted roots rejoin through the rebuild queue, and roots that
-+            // cannot replay rejoin when a layout pass leaves them live.
-+            let Some(inline) = node
-+                .element_data()
-+                .and_then(|el| el.inline_layout_data())
-+                .filter(|inline| inline.replayable_break && !inline.is_evicted())
-+            else {
-+                return false;
-+            };
-+            if !self.inline_root_is_far(id, band) || self.inline_root_in_keep_extent(id) {
-+                return true;
-+            }
-+            // Visible layouts are read every frame: only far ones age.
-+            if inline.take_recently_read() {
++        visit.retain(|&id| match self.scan_inline_root(id, band) {
++            RootScan::Keep => true,
++            RootScan::Spare => {
 +                spared = true;
-+                return true;
++                true
 +            }
-+            far.push(id);
-+            false
++            RootScan::Far => {
++                far.push(id);
++                false
++            }
 +        });
 +        self.inline_resident.append(&mut visit);
 +        // Stable reads do not chain follow-ups, but fresh rebuilds arriving
@@ -627,6 +615,51 @@ index 0000000..45702d8
 +                self.inline_resident.push(id);
 +            }
 +        }
++    }
++
++    /// Eviction with no keep band, as with a zero-height viewport: every root that still
++    /// holds shaped text stays resident, and the next scan visits all of them.
++    fn keep_every_resident_root(&mut self, rebuilt: &mut Vec<NodeId>) {
++        self.inline_resident.append(rebuilt);
++        self.inline_resident.sort_unstable();
++        self.inline_resident.dedup();
++        self.inline_resident.retain(|&id| {
++            self.nodes.get(id).is_some_and(|node| {
++                node.flags.is_in_document()
++                    && node
++                        .element_data()
++                        .and_then(|el| el.inline_layout_data())
++                        .is_some_and(|inline| !inline.is_evicted())
++            })
++        });
++        self.last_inline_eviction_scan = None;
++    }
++
++    /// What an eviction scan does with one resident root.
++    fn scan_inline_root(&self, id: NodeId, band: KeepBand) -> RootScan {
++        let Some(node) = self.nodes.get(id) else {
++            return RootScan::Keep;
++        };
++        if !node.flags.is_in_document() {
++            return RootScan::Keep;
++        }
++        // Evicted roots rejoin through the rebuild queue, and roots that
++        // cannot replay rejoin when a layout pass leaves them live.
++        let Some(inline) = node
++            .element_data()
++            .and_then(|el| el.inline_layout_data())
++            .filter(|inline| inline.replayable_break && !inline.is_evicted())
++        else {
++            return RootScan::Keep;
++        };
++        if !self.inline_root_is_far(id, band) || self.inline_root_in_keep_extent(id) {
++            return RootScan::Keep;
++        }
++        // Visible layouts are read every frame: only far ones age.
++        if inline.take_recently_read() {
++            return RootScan::Spare;
++        }
++        RootScan::Far
 +    }
 +}
 +
@@ -1453,7 +1486,7 @@ index b8185a9..684a9b2 100644
          node_id: NodeId,
      ) -> (parley::layout::Alignment, Option<parley::layout::Alignment>) {
 diff --git a/src/layout/mod.rs b/src/layout/mod.rs
-index fde258e..e9e1508 100644
+index 94794cd..1efa225 100644
 --- a/src/layout/mod.rs
 +++ b/src/layout/mod.rs
 @@ -26,6 +26,7 @@ use taffy::{
@@ -1465,10 +1498,10 @@ index fde258e..e9e1508 100644
  pub(crate) mod list;
  pub(crate) mod paint_tree;
 diff --git a/src/node/element.rs b/src/node/element.rs
-index 245c26b..603d48c 100644
+index c844b2a..a4a0a84 100644
 --- a/src/node/element.rs
 +++ b/src/node/element.rs
-@@ -1451,6 +1451,26 @@ mod tests {
+@@ -1489,6 +1489,26 @@ mod tests {
      use super::TextInputData;
      use parley::{FontContext, LayoutContext};
 
@@ -1512,7 +1545,7 @@ index e6ea225..05146a7 100644
 +    EvictedBreak, EvictedLayout, EvictedSummary, InlineRebuild, SummaryCell, count_inline_summary,
 +};
 diff --git a/src/node/node.rs b/src/node/node.rs
-index 00644f0..d2e8e0b 100644
+index 7c8b421..f39900e 100644
 --- a/src/node/node.rs
 +++ b/src/node/node.rs
 @@ -2396,7 +2396,7 @@ impl Node {
@@ -2178,6 +2211,30 @@ index 659adbe..d5eea17 100644
                  let event = BlitzScrollEvent {
                      scroll_top: offset.y,
                      scroll_left: offset.x,
+diff --git a/src/stylo_to_parley.rs b/src/stylo_to_parley.rs
+index 2387f62..d404a3f 100644
+--- a/src/stylo_to_parley.rs
++++ b/src/stylo_to_parley.rs
+@@ -551,6 +551,19 @@ fn extract_box_decorations(
+     }
+ }
+
++/// Whether an inline span's parley decorations differ between the styles. Padding and border
++/// are baked into line breaking when the layout is built; background presence is handled apart.
++pub(crate) fn inline_box_decorations_differ(
++    old: &stylo::ComputedValues,
++    new: &stylo::ComputedValues,
++) -> bool {
++    let without_background = |style| parley::BoxDecorations {
++        background_brush: None,
++        ..extract_box_decorations(NodeId::default(), style)
++    };
++    without_background(old) != without_background(new)
++}
++
+ pub(crate) fn has_inline_background(style: &stylo::ComputedValues) -> bool {
+     use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
+
 diff --git a/src/tree.rs b/src/tree.rs
 index 5df11cf..cb675fb 100644
 --- a/src/tree.rs

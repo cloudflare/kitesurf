@@ -2022,10 +2022,10 @@ index 5bfa868..a0547b3 100644
  mod cssom;
  mod css_compat;
 diff --git a/src/mutator.rs b/src/mutator.rs
-index 0fb1359..1c7cc6c 100644
+index 14b0f01..81b9a54 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
-@@ -63,7 +63,7 @@ fn is_template_inert_context(doc: &BaseDocument, node_id: NodeId) -> bool {
+@@ -72,7 +72,7 @@ fn is_template_inert_context(doc: &BaseDocument, node_id: NodeId) -> bool {
          if node.flags.is_in_document() {
              return false;
          }
@@ -2034,7 +2034,7 @@ index 0fb1359..1c7cc6c 100644
      }
      false
  }
-@@ -138,27 +138,27 @@ impl DocumentMutator<'_> {
+@@ -147,27 +147,27 @@ impl DocumentMutator<'_> {
      // Query methods
 
      pub fn node_has_parent(&self, node_id: NodeId) -> bool {
@@ -2068,7 +2068,7 @@ index 0fb1359..1c7cc6c 100644
      }
 
      /// The element at `node_id`, whose name the parser reads through it.
-@@ -169,10 +169,13 @@ impl DocumentMutator<'_> {
+@@ -178,10 +178,13 @@ impl DocumentMutator<'_> {
      pub fn node_at_path(&self, start_node_id: NodeId, path: &[u8]) -> NodeId {
          let mut current = &self.doc.nodes[start_node_id];
          for i in path {
@@ -2084,7 +2084,7 @@ index 0fb1359..1c7cc6c 100644
      }
 
      // Node creation methods
-@@ -191,7 +194,7 @@ impl DocumentMutator<'_> {
+@@ -200,7 +203,7 @@ impl DocumentMutator<'_> {
          let mut data = ElementData::new(name, attrs);
          data.flush_style_attribute(self.doc.guard(), &self.doc.url.url_extra_data());
 
@@ -2093,7 +2093,7 @@ index 0fb1359..1c7cc6c 100644
          let node = self.doc.get_node_mut(id).unwrap();
 
          // Initialise style data
-@@ -281,7 +284,7 @@ impl DocumentMutator<'_> {
+@@ -290,7 +293,7 @@ impl DocumentMutator<'_> {
              // Mark ancestors dirty so the style traversal visits this subtree.
              // Without this, the traversal may skip nodes with pending damage.
              node.mark_ancestors_dirty();
@@ -2102,7 +2102,7 @@ index 0fb1359..1c7cc6c 100644
 
              // Also insert damage on the parent element, since text content changes
              // affect the parent's layout (text may wrap differently, change size, etc.)
-@@ -367,7 +370,7 @@ impl DocumentMutator<'_> {
+@@ -376,7 +379,7 @@ impl DocumentMutator<'_> {
              {
                  svg_root = Some(id);
              }
@@ -2111,7 +2111,7 @@ index 0fb1359..1c7cc6c 100644
          }
          if let Some(id) = svg_root {
              self.doc.nodes[id].insert_damage(CONSTRUCT_BOX);
-@@ -385,8 +388,7 @@ impl DocumentMutator<'_> {
+@@ -394,8 +397,7 @@ impl DocumentMutator<'_> {
          }
 
          let scope_id = self.doc.nodes[node_id]
@@ -2121,7 +2121,7 @@ index 0fb1359..1c7cc6c 100644
              .filter(|&parent_id| self.doc.nodes[parent_id].is_element())
              .unwrap_or(node_id);
          self.doc.nodes[scope_id].set_restyle_hint(RestyleHint::restyle_subtree());
-@@ -470,15 +472,19 @@ impl DocumentMutator<'_> {
+@@ -479,15 +481,19 @@ impl DocumentMutator<'_> {
          let NodeData::Element(ref mut element) = node.data else {
              return;
          };
@@ -2146,7 +2146,7 @@ index 0fb1359..1c7cc6c 100644
          }
 
          element.attrs.set(name.clone(), value);
-@@ -606,7 +612,7 @@ impl DocumentMutator<'_> {
+@@ -615,7 +621,7 @@ impl DocumentMutator<'_> {
              self.doc.slot_assignments_dirty = true;
          }
          if *attr == local_name!("slot") {
@@ -2155,7 +2155,7 @@ index 0fb1359..1c7cc6c 100644
                  if self.doc.nodes[parent_id].attached_shadow_root_id().is_some() {
                      self.doc.damage_host_subtree(parent_id);
                  }
-@@ -664,7 +670,7 @@ impl DocumentMutator<'_> {
+@@ -673,7 +679,7 @@ impl DocumentMutator<'_> {
 
          // If element is a CustomWidget, then call attribute_changed on it
          #[cfg(feature = "custom-widget")]
@@ -2164,7 +2164,7 @@ index 0fb1359..1c7cc6c 100644
              let old_value = removed_attr.as_ref().map(|attr| &*attr.value);
              widget_data
                  .widget
-@@ -788,7 +794,12 @@ impl DocumentMutator<'_> {
+@@ -797,7 +803,12 @@ impl DocumentMutator<'_> {
          let node = &mut self.doc.nodes[node_id];
 
          // Update child_idx values
@@ -2178,7 +2178,7 @@ index 0fb1359..1c7cc6c 100644
              self.mutations_occurred |= node_is_in_document;
              let parent = &mut self.doc.nodes[parent_id];
              parent.insert_damage(ALL_DAMAGE);
-@@ -805,7 +816,7 @@ impl DocumentMutator<'_> {
+@@ -814,7 +825,7 @@ impl DocumentMutator<'_> {
              }
              // Mark ancestors dirty so the style traversal visits this subtree.
              parent.mark_ancestors_dirty();
@@ -2187,7 +2187,7 @@ index 0fb1359..1c7cc6c 100644
              self.maybe_record_node(parent_id);
          }
      }
-@@ -834,7 +845,7 @@ impl DocumentMutator<'_> {
+@@ -843,7 +854,7 @@ impl DocumentMutator<'_> {
          self.mutations_occurred |= node_is_in_document;
 
          // Update child_idx values
@@ -2196,7 +2196,7 @@ index 0fb1359..1c7cc6c 100644
              let parent = &mut self.doc.nodes[parent_id];
              parent.insert_damage(ALL_DAMAGE);
              let parent_is_in_doc = parent.flags.is_in_document();
-@@ -851,7 +862,7 @@ impl DocumentMutator<'_> {
+@@ -860,7 +871,7 @@ impl DocumentMutator<'_> {
                  parent.mark_ancestors_dirty();
              }
 
@@ -2205,7 +2205,7 @@ index 0fb1359..1c7cc6c 100644
              self.maybe_record_node(parent_id);
          }
 
-@@ -863,7 +874,7 @@ impl DocumentMutator<'_> {
+@@ -872,7 +883,7 @@ impl DocumentMutator<'_> {
 
          // Same ordering constraint as remove_node, once per child
          // since each is a separate removal as far as `:has()` is concerned.
@@ -2214,7 +2214,7 @@ index 0fb1359..1c7cc6c 100644
              self.doc.invalidate_relative_selectors_for_removal(child_id);
          }
 
-@@ -882,7 +893,7 @@ impl DocumentMutator<'_> {
+@@ -891,7 +902,7 @@ impl DocumentMutator<'_> {
              parent.mark_ancestors_dirty();
          }
 
@@ -2223,7 +2223,7 @@ index 0fb1359..1c7cc6c 100644
          self.mutations_occurred |= parent_is_in_doc && !children.is_empty();
          for child_id in children {
              self.process_removed_subtree(child_id);
-@@ -904,7 +915,7 @@ impl DocumentMutator<'_> {
+@@ -913,7 +924,7 @@ impl DocumentMutator<'_> {
          on_drop: &mut dyn FnMut(NodeId),
      ) {
          if let Some(node) = self.doc.get_node(node_id) {
@@ -2232,7 +2232,7 @@ index 0fb1359..1c7cc6c 100644
                  self.remove_and_drop_node_with(node_id, on_drop);
              }
          }
-@@ -913,17 +924,15 @@ impl DocumentMutator<'_> {
+@@ -922,17 +933,15 @@ impl DocumentMutator<'_> {
      /// Remove all of the children from old_parent_id and append them to new_parent_id
      pub fn append_children(&mut self, parent_id: NodeId, child_ids: &[NodeId]) {
          self.add_children_to_parent(parent_id, child_ids, &|parent, child_ids| {
@@ -2253,7 +2253,7 @@ index 0fb1359..1c7cc6c 100644
          });
      }
 
-@@ -943,7 +952,7 @@ impl DocumentMutator<'_> {
+@@ -952,7 +961,7 @@ impl DocumentMutator<'_> {
          // A reparent is a removal from the old position, so it needs the same
          // pre-unlink invalidation as remove_node.
          for &child_id in child_ids {
@@ -2262,7 +2262,7 @@ index 0fb1359..1c7cc6c 100644
                  self.doc.invalidate_relative_selectors_for_removal(child_id);
              }
          }
-@@ -975,10 +984,16 @@ impl DocumentMutator<'_> {
+@@ -984,10 +993,16 @@ impl DocumentMutator<'_> {
              // Reparenting invalidates any slot assignment; the next
              // resolve's flush_slot_assignments re-establishes it.
              child.set_assigned_slot(None);
@@ -2280,7 +2280,7 @@ index 0fb1359..1c7cc6c 100644
              let old_parent = &mut self.doc.nodes[old_parent_id];
              old_parent.insert_damage(ALL_DAMAGE);
 
-@@ -994,7 +1009,7 @@ impl DocumentMutator<'_> {
+@@ -1003,7 +1018,7 @@ impl DocumentMutator<'_> {
                  old_parent.mark_ancestors_dirty();
              }
 
@@ -2289,7 +2289,7 @@ index 0fb1359..1c7cc6c 100644
              self.maybe_record_node(old_parent_id);
          }
 
-@@ -1024,7 +1039,7 @@ impl DocumentMutator<'_> {
+@@ -1033,7 +1048,7 @@ impl DocumentMutator<'_> {
          for child_id in child_ids.iter().copied() {
              let child = &mut self.doc.nodes[child_id];
              let child_was_in_doc = child.flags.is_in_document();
@@ -2298,7 +2298,7 @@ index 0fb1359..1c7cc6c 100644
 
              if new_parent_is_in_document && !child_was_in_doc {
                  self.process_added_subtree(child_id);
-@@ -1065,32 +1080,21 @@ impl DocumentMutator<'_> {
+@@ -1074,32 +1089,21 @@ impl DocumentMutator<'_> {
          if child_ids.is_empty() || (!later_siblings && !edge_children) {
              return;
          }
@@ -2338,7 +2338,7 @@ index 0fb1359..1c7cc6c 100644
          }
          for id in targets {
              self.doc.nodes[id].set_restyle_hint(RestyleHint::restyle_subtree());
-@@ -1127,7 +1131,7 @@ impl DocumentMutator<'_> {
+@@ -1136,7 +1140,7 @@ impl DocumentMutator<'_> {
      }
 
      pub fn reparent_children(&mut self, old_parent_id: NodeId, new_parent_id: NodeId) {
@@ -2347,7 +2347,7 @@ index 0fb1359..1c7cc6c 100644
          self.maybe_record_node(old_parent_id);
          self.append_children(new_parent_id, &child_ids);
      }
-@@ -1184,11 +1188,11 @@ impl DocumentMutator<'_> {
+@@ -1193,11 +1197,11 @@ impl DocumentMutator<'_> {
          excluded: &[NodeId],
      ) -> Option<NodeId> {
          let node = self.doc.get_node(anchor_id)?;
@@ -2361,7 +2361,7 @@ index 0fb1359..1c7cc6c 100644
              if !excluded.contains(&sibling_id) {
                  return Some(sibling_id);
              }
-@@ -1350,7 +1354,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1359,7 +1363,7 @@ impl<'doc> DocumentMutator<'doc> {
          // The embedder may still hold wrappers for replaced children. Detach
          // them here; the DOM shim drops only subtrees it can prove are
          // unwrapped after this operation returns.
@@ -2370,7 +2370,7 @@ index 0fb1359..1c7cc6c 100644
          for child_id in old_children {
              self.remove_node(child_id);
          }
-@@ -1408,25 +1412,12 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1417,25 +1421,12 @@ impl<'doc> DocumentMutator<'doc> {
      /// `in_shadow` is the root's containment; descendants derive theirs from the traversal
      /// parent, in iter_subtree_mut's order, so no id node walks its ancestors.
      fn reindex_subtree_ids(&mut self, node_id: NodeId, in_shadow: bool) {
@@ -2402,7 +2402,7 @@ index 0fb1359..1c7cc6c 100644
              }
          }
      }
-@@ -1434,8 +1425,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1443,8 +1434,7 @@ impl<'doc> DocumentMutator<'doc> {
      fn process_added_subtree(&mut self, node_id: NodeId) {
          self.doc.iter_subtree_mut(node_id, |node_id, doc| {
              let in_template_contents = doc.nodes[node_id]
@@ -2412,7 +2412,7 @@ index 0fb1359..1c7cc6c 100644
                  .is_some_and(|parent_id| is_template_inert_context(doc, parent_id));
              let in_document = !in_template_contents;
              if in_document {
-@@ -1574,7 +1564,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1583,7 +1573,7 @@ impl<'doc> DocumentMutator<'doc> {
                  return;
              };
 
@@ -2421,7 +2421,7 @@ index 0fb1359..1c7cc6c 100644
                  SpecialElementData::SubDocument(_) => {
                      self.eager_op_queue
                          .push(SpecialOp::UnloadSubDocument(node_id));
-@@ -1630,13 +1620,13 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1639,13 +1629,13 @@ impl<'doc> DocumentMutator<'doc> {
          let node = &self.doc.nodes[target_id];
 
          let mut is_in_head = false;
@@ -2437,7 +2437,7 @@ index 0fb1359..1c7cc6c 100644
          }
 
          let rel_attr = node.attr(local_name!("rel"));
-@@ -1666,7 +1656,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1675,7 +1665,7 @@ impl<'doc> DocumentMutator<'doc> {
          let handler = ResourceHandler::new(
              self.doc.tx.clone(),
              self.doc.id(),
@@ -2446,7 +2446,7 @@ index 0fb1359..1c7cc6c 100644
              self.doc.shell_provider.clone(),
              StylesheetHandler {
                  source_url: url.clone(),
-@@ -1738,7 +1728,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1747,7 +1737,7 @@ impl<'doc> DocumentMutator<'doc> {
          let Some(element) = node.element_data_mut() else {
              unreachable!();
          };
@@ -2455,7 +2455,7 @@ index 0fb1359..1c7cc6c 100644
              unreachable!();
          };
 
-@@ -1771,12 +1761,12 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1780,12 +1770,12 @@ impl<'doc> DocumentMutator<'doc> {
      /// re-fire `load_image` when a `<source>`'s srcset changes
      /// post-mount.
      fn find_picture_img_sibling(&self, source_id: NodeId) -> Option<NodeId> {
@@ -2470,7 +2470,7 @@ index 0fb1359..1c7cc6c 100644
              if self.doc.nodes[child_id]
                  .data
                  .is_element_with_tag_name(&local_name!("img"))
-@@ -1824,10 +1814,10 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1833,10 +1823,10 @@ impl<'doc> DocumentMutator<'doc> {
          let node = &self.doc.nodes[target_id];
 
          // Step 1: <picture><source> walk.
@@ -2483,7 +2483,7 @@ index 0fb1359..1c7cc6c 100644
                      if sibling_id == target_id {
                          // <source> elements only count if they
                          // precede the <img> in tree order.
-@@ -1899,8 +1889,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1908,8 +1898,7 @@ impl<'doc> DocumentMutator<'doc> {
              waiting.retain(|(id, ty)| !(*id == target_id && matches!(ty, ImageType::Image)));
          }
          if self.doc.nodes[target_id]
@@ -2493,7 +2493,7 @@ index 0fb1359..1c7cc6c 100644
              .is_some_and(|parent_id| is_template_inert_context(self.doc, parent_id))
          {
              return;
-@@ -1926,8 +1915,9 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1935,8 +1924,9 @@ impl<'doc> DocumentMutator<'doc> {
                      #[cfg(feature = "tracing")]
                      tracing::info!("Loading image {src_string} from cache");
                      let node = &mut self.doc.nodes[target_id];
@@ -2505,7 +2505,7 @@ index 0fb1359..1c7cc6c 100644
                      node.clear_layout_cache();
                      node.insert_damage(ALL_DAMAGE);
                      return;
-@@ -2026,7 +2016,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -2035,7 +2025,7 @@ impl<'doc> DocumentMutator<'doc> {
                  let canvas_data = SpecialElementData::Canvas(Box::new(CanvasData {
                      custom_paint_source_id,
                  }));
@@ -2514,7 +2514,7 @@ index 0fb1359..1c7cc6c 100644
              }
          }
      }
-@@ -2069,7 +2059,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -2078,7 +2068,7 @@ impl<'doc> DocumentMutator<'doc> {
          // option / optgroup / script / template only, so any
          // Text child can only be ours (or parser-emitted
          // whitespace, which is invisible either way).
@@ -2523,7 +2523,7 @@ index 0fb1359..1c7cc6c 100644
              if self.doc.nodes[id].is_text_node() {
                  Some(id)
              } else {
-@@ -2115,10 +2105,9 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -2124,10 +2114,9 @@ impl<'doc> DocumentMutator<'doc> {
          let mut first_option: Option<NodeId> = None;
          let mut first_enabled_option: Option<NodeId> = None;
          let mut pending = node
@@ -2535,7 +2535,7 @@ index 0fb1359..1c7cc6c 100644
              .map(|id| (id, false))
              .collect::<Vec<_>>();
          while let Some((child_id, disabled_by_group)) = pending.pop() {
-@@ -2149,10 +2138,9 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -2158,10 +2147,9 @@ impl<'doc> DocumentMutator<'doc> {
                      disabled_by_group || child_data.attr(local_name!("disabled")).is_some();
                  pending.extend(
                      child_node
@@ -2547,7 +2547,7 @@ index 0fb1359..1c7cc6c 100644
                          .map(|id| (id, group_disabled)),
                  );
              }
-@@ -2231,8 +2219,9 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -2240,8 +2228,9 @@ impl<'doc> DocumentMutator<'doc> {
              if !(is_multiline || is_text_input) {
                  return false;
              }
@@ -2559,7 +2559,7 @@ index 0fb1359..1c7cc6c 100644
          }
          let Some(input_data) = element.text_input_data_mut() else {
              return false;
-@@ -2357,7 +2346,7 @@ fn set_input_checked_state(element: &mut ElementData, value: String) {
+@@ -2366,7 +2355,7 @@ fn set_input_checked_state(element: &mut ElementData, value: String) {
      let Ok(checked) = value.parse() else {
          return;
      };
@@ -2568,7 +2568,7 @@ index 0fb1359..1c7cc6c 100644
          SpecialElementData::CheckboxInput(_) => element.set_checkbox_input_checked(checked),
          // If we have just constructed the element, set the node attribute,
          // and NodeSpecificData will be created from that later
-@@ -2759,7 +2748,7 @@ mod test {
+@@ -2768,7 +2757,7 @@ mod test {
 
      fn make_picture_doc(sources: &[(&str, &str)], img_src: &str) -> (BaseDocument, NodeId) {
          let mut document = BaseDocument::new(DocumentConfig::default());
@@ -2577,7 +2577,7 @@ index 0fb1359..1c7cc6c 100644
          let img_id = {
              let mut mutator = document.mutate();
              let picture = mutator.create_element(qual_name!("picture"), vec![]);
-@@ -2768,14 +2757,14 @@ mod test {
+@@ -2777,14 +2766,14 @@ mod test {
                  children.push(mutator.create_element(
                      qual_name!("source"),
                      vec![
@@ -2595,7 +2595,7 @@ index 0fb1359..1c7cc6c 100644
              );
              children.push(img);
              mutator.append_children(picture, &children);
-@@ -2830,14 +2819,14 @@ mod test {
+@@ -2839,14 +2828,14 @@ mod test {
      }
 
      fn select_label_text(document: &BaseDocument, select_id: NodeId) -> String {
@@ -2612,7 +2612,7 @@ index 0fb1359..1c7cc6c 100644
          let (select_id, selected_group_id, selected_later_id) = {
              let mut mutator = document.mutate();
              let select = mutator.create_element(qual_name!("select"), vec![]);
-@@ -2961,9 +2950,9 @@ mod test {
+@@ -2970,9 +2959,9 @@ mod test {
      #[test]
      fn mutator_remove_disabled() {
          let mut document = BaseDocument::new(DocumentConfig::default());
@@ -2624,7 +2624,7 @@ index 0fb1359..1c7cc6c 100644
          ))));
 
          let node = document.get_node(id).unwrap();
-@@ -2994,7 +2983,7 @@ mod test {
+@@ -3003,7 +2992,7 @@ mod test {
      #[test]
      fn mutator_set_disabled() {
          let mut document = BaseDocument::new(DocumentConfig::default());
@@ -2633,7 +2633,7 @@ index 0fb1359..1c7cc6c 100644
              qual_name!("button"),
              vec![],
          ))));
-@@ -3028,7 +3017,7 @@ mod test {
+@@ -3037,7 +3026,7 @@ mod test {
      #[test]
      fn mutator_set_disabled_invalid_node() {
          let mut document = BaseDocument::new(DocumentConfig::default());
@@ -2642,7 +2642,7 @@ index 0fb1359..1c7cc6c 100644
              qual_name!("a"),
              vec![],
          ))));
-@@ -3061,13 +3050,13 @@ mod test {
+@@ -3070,13 +3059,13 @@ mod test {
      #[test]
      fn mutator_id_attribute_updates_id_map() {
          let mut document = BaseDocument::new(DocumentConfig::default());
@@ -2658,7 +2658,7 @@ index 0fb1359..1c7cc6c 100644
              );
              mutator.append_children(root_id, &[node_id]);
              node_id
-@@ -3091,7 +3080,7 @@ mod test {
+@@ -3100,7 +3089,7 @@ mod test {
      #[test]
      fn get_element_by_id_duplicate_ids_first_in_tree_order_wins() {
          let mut document = BaseDocument::new(DocumentConfig::default());
@@ -2667,7 +2667,7 @@ index 0fb1359..1c7cc6c 100644
 
          let (first_id, second_id) = {
              let mut mutator = document.mutate();
-@@ -3131,7 +3120,7 @@ mod test {
+@@ -3140,7 +3129,7 @@ mod test {
              shell_provider: Some(shell.clone()),
              ..Default::default()
          });
@@ -2676,7 +2676,7 @@ index 0fb1359..1c7cc6c 100644
 
          {
              let mut mutator = document.mutate();
-@@ -3186,7 +3175,7 @@ mod test {
+@@ -3195,7 +3184,7 @@ mod test {
              shell_provider: Some(shell.clone()),
              ..Default::default()
          });
@@ -2685,7 +2685,7 @@ index 0fb1359..1c7cc6c 100644
          let (child_id, grandchild_id, detached_parent_id) = {
              let mut mutator = document.mutate();
              let in_document_parent_id = mutator.create_element(qual_name!("div"), vec![]);
-@@ -3249,7 +3238,7 @@ mod test {
+@@ -3258,7 +3247,7 @@ mod test {
              viewport: Some(Viewport::new(800, 600, 1.0, ColorScheme::Light)),
              ..Default::default()
          });
@@ -2694,7 +2694,7 @@ index 0fb1359..1c7cc6c 100644
 
          let mover_id = {
              let mut mutator = document.mutate();
-@@ -3300,13 +3289,13 @@ mod test {
+@@ -3309,13 +3298,13 @@ mod test {
              ua_stylesheets: vec![UserAgentStylesheet::parse(css)],
              ..Default::default()
          });
@@ -2710,7 +2710,7 @@ index 0fb1359..1c7cc6c 100644
              );
              let span = mutator.create_element(qual_name!("span"), vec![]);
              mutator.append_children(outer, &[x, span]);
-@@ -3372,7 +3361,7 @@ mod test {
+@@ -3381,7 +3370,7 @@ mod test {
              viewport: Some(Viewport::new(800, 600, 1.0, ColorScheme::Light)),
              ..Default::default()
          });
@@ -6627,7 +6627,7 @@ index 2e23815..d3e3df6 100644
      }
  }
 diff --git a/src/resolve.rs b/src/resolve.rs
-index f36b249..c8ec044 100644
+index 2b97ab1..8018202 100644
 --- a/src/resolve.rs
 +++ b/src/resolve.rs
 @@ -58,7 +58,7 @@ impl UndisplayedLayoutTraversal {
@@ -6639,7 +6639,7 @@ index f36b249..c8ec044 100644
              self.pending
                  .extend(node.assigned_nodes().into_iter().flatten().copied());
              self.pending.extend(node.before());
-@@ -204,7 +204,7 @@ impl BaseDocument {
+@@ -207,7 +207,7 @@ impl BaseDocument {
                  .retain(|_, last| last.elapsed() < FADE_DELAY + FADE_DURATION);
          }
 
@@ -6648,7 +6648,7 @@ index f36b249..c8ec044 100644
          debug_timer!(timer, feature = "log-phase-times");
 
          // Apply any device changes (viewport resize, zoom, color-scheme, etc)
-@@ -352,7 +352,7 @@ impl BaseDocument {
+@@ -355,7 +355,7 @@ impl BaseDocument {
 
          // Clear all damage and dirty flags, walking only subtrees which are
          // marked as (potentially) containing damage.
@@ -6657,7 +6657,7 @@ index f36b249..c8ec044 100644
          self.clear_damage_and_dirty_flags(doc_node_id);
          timer.record_time("c_damage");
 
-@@ -606,7 +606,7 @@ impl BaseDocument {
+@@ -609,7 +609,7 @@ impl BaseDocument {
      }
 
      pub fn resolve_layout_children(&mut self) {
@@ -6666,7 +6666,7 @@ index f36b249..c8ec044 100644
 
          fn resolve_layout_children_recursive(doc: &mut BaseDocument, node_id: NodeId) {
              // Anonymous blocks and pseudo-elements can be removed from the slab
-@@ -681,7 +681,7 @@ impl BaseDocument {
+@@ -684,7 +684,7 @@ impl BaseDocument {
                      if !doc.nodes.contains_key(child_id) {
                          continue;
                      }
@@ -6675,7 +6675,7 @@ index f36b249..c8ec044 100644
                      if let Some(mut data) = doc.nodes[child_id]
                          .try_stylo_element_data_mut()
                          .and_then(|s| s.get_mut())
-@@ -691,6 +691,10 @@ impl BaseDocument {
+@@ -694,6 +694,10 @@ impl BaseDocument {
                      }
                  }
 
@@ -6686,7 +6686,7 @@ index f36b249..c8ec044 100644
                  doc.nodes[node_id].set_layout_children(Some(layout_children.clone()));
 
                  damage.remove(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
-@@ -706,7 +710,7 @@ impl BaseDocument {
+@@ -709,7 +713,7 @@ impl BaseDocument {
                              continue;
                          }
                          resolve_layout_children_recursive(doc, child_id);
@@ -6695,7 +6695,7 @@ index f36b249..c8ec044 100644
                      }
 
                      doc.nodes[node_id].set_layout_children(Some(layout_children));
-@@ -734,9 +738,13 @@ impl BaseDocument {
+@@ -737,9 +741,13 @@ impl BaseDocument {
              let anonymous_blocks = node.take_anonymous_blocks();
              node.take_layout_children();
              node.take_paint_children();
@@ -6710,7 +6710,7 @@ index f36b249..c8ec044 100644
              }
              // A user or script set the scroll offset, and layout cannot rebuild
              // it, so a scrolled box keeps its layout data while hidden. Text and
-@@ -750,7 +758,7 @@ impl BaseDocument {
+@@ -753,7 +761,7 @@ impl BaseDocument {
                  element.set_list_item_data(None);
                  element.clear_detailed_layout_info();
                  if !is_root && !scrolled {
@@ -6719,7 +6719,7 @@ index f36b249..c8ec044 100644
                  }
              }
              for anon_id in anonymous_blocks {
-@@ -778,7 +786,7 @@ impl BaseDocument {
+@@ -781,7 +789,7 @@ impl BaseDocument {
                      panic!("layout child {child_id:?} of {parent_id:?} is not in the slab");
                  };
                  debug_assert_eq!(
@@ -6728,7 +6728,7 @@ index f36b249..c8ec044 100644
                      Some(parent_id),
                      "layout_parent of {child_id:?} does not point at its layout container {parent_id:?}"
                  );
-@@ -905,7 +913,7 @@ impl BaseDocument {
+@@ -908,7 +916,7 @@ impl BaseDocument {
              height: AvailableSpace::Definite(size.height.to_f32_px()),
          };
 
@@ -6737,7 +6737,7 @@ index f36b249..c8ec044 100644
 
          // println!("\n\nRESOLVE LAYOUT\n===========\n");
 
-@@ -940,7 +948,7 @@ impl BaseDocument {
+@@ -943,7 +951,7 @@ impl BaseDocument {
                  let Some(element) = node.element_data() else {
                      continue;
                  };
@@ -6746,7 +6746,7 @@ index f36b249..c8ec044 100644
                      continue;
                  };
                  let Some(mut grid_info) = table.computed_grid_info.borrow().clone() else {
-@@ -1073,7 +1081,7 @@ mod undisplayed_layout_tests {
+@@ -1076,7 +1084,7 @@ mod undisplayed_layout_tests {
              viewport: Some(Viewport::new(400, 300, 1.0, ColorScheme::Light)),
              ..Default::default()
          });
@@ -6755,7 +6755,7 @@ index f36b249..c8ec044 100644
          let block_style = || Attribute::new(qual_name!("style"), "display:block".to_string());
          let mut mutator = doc.mutate();
          let html = mutator.create_element(qual_name!("html"), vec![block_style()]);
-@@ -1126,6 +1134,7 @@ mod undisplayed_layout_tests {
+@@ -1129,6 +1137,7 @@ mod undisplayed_layout_tests {
              .element_data()
              .unwrap()
              .layout_data
@@ -6763,7 +6763,7 @@ index f36b249..c8ec044 100644
              .is_some());
          doc.mutate()
              .set_attribute(outer, qual_name!("style"), "display:none");
-@@ -1134,6 +1143,7 @@ mod undisplayed_layout_tests {
+@@ -1137,6 +1146,7 @@ mod undisplayed_layout_tests {
              .element_data()
              .unwrap()
              .layout_data
@@ -6862,10 +6862,10 @@ index d5eea17..ad4a5d9 100644
                  true
              }
 diff --git a/src/stylo.rs b/src/stylo.rs
-index f55ffd9..48f5b79 100644
+index 4bc7dd1..9a5d837 100644
 --- a/src/stylo.rs
 +++ b/src/stylo.rs
-@@ -553,15 +553,15 @@ impl<'a> TNode for BlitzNode<'a> {
+@@ -533,15 +533,15 @@ impl<'a> TNode for BlitzNode<'a> {
      type ConcreteShadowRoot = BlitzNode<'a>;
 
      fn parent_node(&self) -> Option<Self> {
@@ -6884,7 +6884,7 @@ index f55ffd9..48f5b79 100644
      }
 
      fn prev_sibling(&self) -> Option<Self> {
-@@ -575,7 +575,7 @@ impl<'a> TNode for BlitzNode<'a> {
+@@ -555,7 +555,7 @@ impl<'a> TNode for BlitzNode<'a> {
      fn owner_doc(&self) -> Self::ConcreteDocument {
          // Walk up the (layout-)parent chain to the root Document node.
          let mut node = *self;
@@ -6893,7 +6893,7 @@ index f55ffd9..48f5b79 100644
              node = node.with(parent_id);
          }
          node
-@@ -599,11 +599,11 @@ impl<'a> TNode for BlitzNode<'a> {
+@@ -579,11 +579,11 @@ impl<'a> TNode for BlitzNode<'a> {
      }
 
      fn opaque(&self) -> OpaqueNode {
@@ -6907,7 +6907,7 @@ index f55ffd9..48f5b79 100644
      }
 
      fn as_element(&self) -> Option<Self::ConcreteElement> {
-@@ -640,7 +640,7 @@ impl selectors::Element for BlitzNode<'_> {
+@@ -620,7 +620,7 @@ impl selectors::Element for BlitzNode<'_> {
          // find some other solution that will enable "rehydration". This is required to enable and use the
          // Shadow DOM functionality in Stylo.
          let non_null =
@@ -6916,7 +6916,7 @@ index f55ffd9..48f5b79 100644
          OpaqueElement::from_non_null_ptr(non_null)
      }
 
-@@ -651,8 +651,7 @@ impl selectors::Element for BlitzNode<'_> {
+@@ -631,8 +631,7 @@ impl selectors::Element for BlitzNode<'_> {
      }
 
      fn parent_node_is_shadow_root(&self) -> bool {
@@ -6926,7 +6926,7 @@ index f55ffd9..48f5b79 100644
              .is_some_and(|id| self.with(id).is_shadow_root())
      }
 
-@@ -673,24 +672,26 @@ impl selectors::Element for BlitzNode<'_> {
+@@ -653,24 +652,26 @@ impl selectors::Element for BlitzNode<'_> {
      // Locate self in the parent's child list once, then scan from there: stepping with
      // forward(n)/backward(n) repeated that lookup for every skipped text node.
      fn prev_sibling_element(&self) -> Option<Self> {
@@ -6961,7 +6961,7 @@ index f55ffd9..48f5b79 100644
              .find(|node| node.is_element())
      }
 
-@@ -1091,11 +1092,11 @@ impl<'a> TElement for BlitzNode<'a> {
+@@ -1071,11 +1072,11 @@ impl<'a> TElement for BlitzNode<'a> {
      }
 
      fn handled_snapshot(&self) -> bool {
@@ -6975,7 +6975,7 @@ index f55ffd9..48f5b79 100644
      }
 
      // Stylo calls this on elements it is already traversing (or has already
-@@ -1218,7 +1219,7 @@ impl<'a> TElement for BlitzNode<'a> {
+@@ -1198,7 +1199,7 @@ impl<'a> TElement for BlitzNode<'a> {
          self.attrs()?
              .iter()
              .find(|a| a.name.local == attr.0 && *a.namespace() == ns.0)
@@ -6984,7 +6984,7 @@ index f55ffd9..48f5b79 100644
      }
 
      fn lang_attr(&self) -> Option<style::selector_parser::AttrValue> {
-@@ -1247,7 +1248,7 @@ impl<'a> TElement for BlitzNode<'a> {
+@@ -1227,7 +1228,7 @@ impl<'a> TElement for BlitzNode<'a> {
          let root_element = TDocument::as_node(&root_node)
              .first_element_child()
              .unwrap();
@@ -6993,7 +6993,7 @@ index f55ffd9..48f5b79 100644
      }
 
      fn synthesize_presentational_hints_for_legacy_attributes<V>(
-@@ -1706,7 +1707,7 @@ impl<'a> Iterator for Traverser<'a> {
+@@ -1686,7 +1687,7 @@ impl<'a> Iterator for Traverser<'a> {
 
      fn next(&mut self) -> Option<Self::Item> {
          let node_id = self.parent.flat_children().get(self.child_index)?;
@@ -7002,7 +7002,7 @@ index f55ffd9..48f5b79 100644
 
          self.child_index += 1;
 
-@@ -1716,7 +1717,7 @@ impl<'a> Iterator for Traverser<'a> {
+@@ -1696,7 +1697,7 @@ impl<'a> Iterator for Traverser<'a> {
 
  impl std::hash::Hash for BlitzNode<'_> {
      fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -7011,7 +7011,7 @@ index f55ffd9..48f5b79 100644
      }
  }
 
-@@ -1818,7 +1819,7 @@ impl<'dom> DomTraversal<BlitzNode<'dom>> for RecalcStyle<'_> {
+@@ -1798,7 +1799,7 @@ impl<'dom> DomTraversal<BlitzNode<'dom>> for RecalcStyle<'_> {
                      self.nodes_needing_style_image_flush
                          .lock()
                          .unwrap()
