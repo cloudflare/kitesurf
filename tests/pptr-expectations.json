@@ -255,10 +255,6 @@
     "expected": "FAIL",
     "reason": "auto: expect(received).toBeUndefined() / Received: \"http://localhost:53378/\""
   },
-  "[navigation.test] navigation Page.goto should work when navigating to a URL with a client redirect": {
-    "expected": "FAIL",
-    "reason": "auto: expect(received).toBe(expected) // Object.is equality / Expected: \"http://localhost:53378/client-redirect.html\" / Received: \"http://localhost:53378/empty.html\""
-  },
   "[navigation.test] navigation Page.waitForNavigation should work when subframe issues window.stop()": {
     "expected": "SKIP",
     "reason": "auto: TIMEOUT after 15.0s"
