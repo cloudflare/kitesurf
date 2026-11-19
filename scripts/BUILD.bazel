@@ -4,12 +4,11 @@ load("@pptr_specs//:defs.bzl", PPTR_SPECS = "SPECS")
 load("@pw_specs//:defs.bzl", PW_SPECS = "SPECS")
 load("//bazel:checks.bzl", "node_test", "tsc_test", "workspace_configs")
 load("//bazel:executors.bzl", "PW", "WPT", "for_test")
-load("//tests/e2e:defs.bzl", "e2e_shard_name")
-load("//tests/e2e:shards.bzl", "E2E_SHARD_STARTS")
 
 js_library(
     name = "wpt_shared",
     srcs = ["wpt-shared.mjs"],
+    visibility = ["//packages/engine/test/e2e:__pkg__"],
 )
 
 js_library(
@@ -251,12 +250,19 @@ js_library(
 )
 
 js_binary(
-    name = "e2e_shard",
+    name = "e2e_file",
     data = [
         "//packages/engine:package_json",
         "//packages/engine:node_modules/vitest",
     ],
-    entry_point = "e2e-shard.mjs",
+    entry_point = "e2e-file.mjs",
+    visibility = ["//packages/engine/test/e2e:__pkg__"],
+)
+
+# The entry point of //packages/engine/test/e2e:gate, which lists the file actions' reports.
+js_library(
+    name = "e2e_gate",
+    srcs = ["e2e-gate.mjs"],
     visibility = ["//packages/engine/test/e2e:__pkg__"],
 )
 
@@ -609,24 +615,6 @@ js_binary(
     data = _PPTR_GATE_DATA,
     entry_point = "pptr-gate.mjs",
     visibility = ["//tests/pptr:__pkg__"],
-)
-
-_E2E_REPORTS = [
-    "//packages/engine/test/e2e:%s/report.json" % e2e_shard_name(index + 1)
-    for index in range(len(E2E_SHARD_STARTS))
-]
-
-js_test(
-    name = "e2e_gate_test",
-    size = "small",
-    args = [arg for report in _E2E_REPORTS for arg in ["--shard", "$(rootpath %s)" % report]],
-    data = (
-        [":wpt_shared"]
-        + _E2E_REPORTS
-        + [report.replace("/report.json", "/shard.json") for report in _E2E_REPORTS]
-    ),
-    entry_point = "e2e-gate.mjs",
-    visibility = ["//tests/e2e:__pkg__"],
 )
 
 workspace_configs()

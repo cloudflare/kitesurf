@@ -58,8 +58,8 @@ filegroup(
     visibility = ["//packages/core:__pkg__"],
 )
 
-# The e2e shards' copies, for tests that import an asset raw: copy_to_bin only copies files of its
-# own package, so the shards in test/e2e cannot copy these themselves.
+# The e2e file actions' copies, for tests that import an asset raw: copy_to_bin only copies files
+# of its own package, so the actions in test/e2e cannot copy these themselves.
 copy_to_bin(
     name = "e2e_fixture_assets",
     srcs = glob(["test/fixtures-worker/assets/**"]),
