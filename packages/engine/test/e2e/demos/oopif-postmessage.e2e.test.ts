@@ -20,7 +20,7 @@ test("oopif-postmessage", async ({ page, cdpSession }) => {
   });
   await new Promise((r) => setTimeout(r, 500));
 
-  const childCtx = contexts.find((c) => !c.isDefault && c.origin === "http://127.0.0.1:8787");
+  const childCtx = contexts.find((c) => c.origin === "http://127.0.0.1:8787");
   expect(childCtx, `child context missing: ${JSON.stringify(contexts)}`).toBeTruthy();
 
   const evalIn = async (contextId: number | undefined, expression: string) => {

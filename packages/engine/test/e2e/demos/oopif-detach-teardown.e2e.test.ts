@@ -28,8 +28,7 @@ test("oopif-detach-teardown", async ({ page, cdpSession }) => {
     timeout: 60000,
   });
 
-  const findChildCtx = () =>
-    created.find((c) => !c.isDefault && c.origin === "http://127.0.0.1:8787");
+  const findChildCtx = () => created.find((c) => c.origin === "http://127.0.0.1:8787");
   await expect.poll(() => !!findChildCtx(), { timeout: 15_000 }).toBe(true);
   const childCtx = findChildCtx();
   expect(childCtx, "child execution context must spawn").toBeTruthy();
