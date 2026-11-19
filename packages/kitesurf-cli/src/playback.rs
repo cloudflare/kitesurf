@@ -26,6 +26,7 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+use tokio_tungstenite::tungstenite::protocol::{frame::coding::CloseCode, CloseFrame};
 use crate::{
     CdpSocket, FontSource, Message, PlaybackMode as Mode, PlaybackOptions, PlaybackResult, Result,
 };
@@ -136,6 +137,7 @@ const INPUT_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const RESIZE_TICK_INTERVAL: Duration = Duration::from_millis(200);
 const RESIZE_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 const DEADLINE_POLL_INTERVAL: Duration = Duration::from_millis(100);
+const CLOSE_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 const FPS_WINDOW: Duration = Duration::from_secs(1);
 const SCENE_HEARTBEAT_MS: u64 = 1_000;
 
@@ -1581,7 +1583,28 @@ pub async fn play(
         replay.frames as f64 / start.elapsed().as_secs_f64(),
         replay.wire_bytes / 1024, replay.terminal_bytes / 1024,
         replay.raster_time.as_secs_f64() * 1000.0 / replay.frames.max(1) as f64);
+    close_socket(&mut ws).await;
     Ok(())
+}
+
+// RFC 6455 section 7.1.2: the ending side sends Close and waits for the peer's Close. Without
+// it the server logs 1006. Send and wait share one bound so a slow server cannot hold up exit.
+async fn close_socket(ws: &mut CdpSocket) {
+    let frame = CloseFrame {
+        code: CloseCode::Normal,
+        reason: "".into(),
+    };
+    let _ = tokio::time::timeout(CLOSE_HANDSHAKE_TIMEOUT, async {
+        if ws.close(Some(frame)).await.is_err() {
+            return;
+        }
+        while let Some(Ok(message)) = ws.next().await {
+            if matches!(message, Message::Close(_)) {
+                break;
+            }
+        }
+    })
+    .await;
 }
 
 fn render(
@@ -2480,5 +2503,86 @@ mod tests {
         frame.partial = false;
         sync.painted(&frame);
         assert!(!sync.retry_due());
+    }
+
+    async fn loopback_ws_pair() -> (
+        CdpSocket,
+        tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+    ) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let accept = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            tokio_tungstenite::accept_async(stream).await.unwrap()
+        });
+        let (client, _) = connect_async(format!("ws://{address}/devtools/browser"))
+            .await
+            .unwrap();
+        (client, accept.await.unwrap())
+    }
+
+    #[tokio::test]
+    async fn closing_sends_a_close_frame_with_code_1000() {
+        let (mut client, mut server) = loopback_ws_pair().await;
+        let receive = tokio::spawn(async move {
+            tokio::time::timeout(CDP_MESSAGE_TIMEOUT, server.next())
+                .await
+                .expect("close frame should arrive")
+                .unwrap()
+                .unwrap()
+        });
+
+        tokio::time::timeout(CDP_MESSAGE_TIMEOUT, close_socket(&mut client))
+            .await
+            .expect("close should finish");
+
+        match receive.await.unwrap() {
+            Message::Close(Some(frame)) => assert_eq!(frame.code, CloseCode::Normal),
+            message => panic!("expected a close frame, got {message:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_peer_that_answers_the_close_ends_the_wait_early() {
+        let (mut client, mut server) = loopback_ws_pair().await;
+        let peer = tokio::spawn(async move {
+            let received = tokio::time::timeout(CDP_MESSAGE_TIMEOUT, server.next())
+                .await
+                .expect("close frame should arrive")
+                .unwrap()
+                .unwrap();
+            assert!(matches!(received, Message::Close(_)));
+            // Flush tungstenite's auto-queued Close reply and keep TCP open to prove the client
+            // stops on the Close frame rather than waiting for EOF.
+            let _ = server.flush().await;
+            tokio::time::sleep(Duration::from_secs(10)).await;
+        });
+
+        let started = Instant::now();
+        close_socket(&mut client).await;
+
+        assert!(started.elapsed() < CLOSE_HANDSHAKE_TIMEOUT / 2);
+        peer.abort();
+    }
+
+    #[tokio::test]
+    async fn closing_does_not_wait_past_the_handshake_timeout_for_a_silent_peer() {
+        let (mut client, mut server) = loopback_ws_pair().await;
+        let peer = tokio::spawn(async move {
+            tokio::time::timeout(CDP_MESSAGE_TIMEOUT, server.next())
+                .await
+                .expect("close frame should arrive")
+                .unwrap()
+                .unwrap();
+            tokio::time::sleep(Duration::from_secs(10)).await;
+        });
+
+        let started = Instant::now();
+        close_socket(&mut client).await;
+        let elapsed = started.elapsed();
+
+        assert!(elapsed >= CLOSE_HANDSHAKE_TIMEOUT - Duration::from_millis(100));
+        assert!(elapsed < CLOSE_HANDSHAKE_TIMEOUT + Duration::from_secs(2));
+        peer.abort();
     }
 }
