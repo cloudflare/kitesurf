@@ -57,6 +57,10 @@ export interface NavigateOptions {
   connectionId?: string;
   mainFrameId?: string;
   cookieKey?: string;
+  // The browser context's localStorage area for the document's origin (engine
+  // state/local-storage.ts). Absent for an opaque origin or a child frame, whose localStorage
+  // stays in the isolate for this document only.
+  localStorage?: Array<[string, string]>;
   // The effective iframe sandbox restrictions for this document, already intersected with its
   // ancestors. Absent means no restrictions.
   sandbox?: SandboxRestrictions;
@@ -377,6 +381,9 @@ export interface UpstreamEvents {
   "kitesurf.frameNavigated": { frameId: string; url: string; sandbox?: string | null };
   "kitesurf.frameStoppedLoading": { frameId: string };
   "kitesurf.insertedScriptRan": { url: string; bytes: number; run: "baked" | "stale" | "boa" };
+  // localStorage changes on a page with a seeded area, batched per microtask. The engine applies
+  // them to the browser context's area for the origin.
+  "kitesurf.localStorage": { ops: LocalStorageOp[] };
   "kitesurf.modelContextToolsAdded": { tools: WebMcpTool[] };
   "kitesurf.modelContextToolsRemoved": { names: string[] };
   "kitesurf.navigatedWithinDocument": {
@@ -409,6 +416,12 @@ export interface UpstreamEvents {
 }
 
 export type UpstreamEventName = keyof UpstreamEvents;
+
+/** A change to a shared localStorage area, as the engine applies it. */
+export type LocalStorageOp =
+  | { op: "set"; key: string; value: string }
+  | { op: "remove"; key: string }
+  | { op: "clear" };
 
 export interface WebMcpTool {
   name: string;

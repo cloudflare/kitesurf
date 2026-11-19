@@ -44,6 +44,8 @@ import { createCookieJar } from "../src/cookies.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import type { SandboxOutboundOverride } from "../src/eval/outbound.ts";
 import { DynamicWorkerBudget } from "../src/eval/worker-budget.ts";
+import { LocalStorage } from "../src/state/local-storage.ts";
+import { MemorySessionStore } from "../src/state/session-store.ts";
 
 const FIRST = "https://first.test/";
 const NEXT = "https://next.test/";
@@ -112,6 +114,7 @@ function setup() {
     sandboxOutbound,
     cookies,
     contexts: new Map(),
+    localStorage: new LocalStorage(new MemorySessionStore()),
     screencasts: new Map(),
     networkEvents: new NetworkEventTracker(emit, CONN),
     layoutMode: "full",

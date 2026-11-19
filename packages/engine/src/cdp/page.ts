@@ -142,6 +142,11 @@ import { classifyRequest } from "../request-blocker.ts";
 import { emitMutations } from "./dom.ts";
 import { frontendNodes, sessionKeyOf } from "./dom-frontend.ts";
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
+import {
+  localStorageOrigin,
+  readLocalStorageOps,
+  type LocalStorage,
+} from "../state/local-storage.ts";
 import { dropTargetImages } from "../eval/resource-store.ts";
 import {
   documentKind,
@@ -166,6 +171,7 @@ import {
 import {
   emitFrameTarget,
   jarForTarget,
+  localStorageForTarget,
   announceOopifTarget,
   destroyOopifTarget,
 } from "./target.ts";
@@ -2268,8 +2274,21 @@ async function pushNavigateToPageScriptInner(
 
   const raBakeMs = ctx.analytics.now() - raBakeStart;
 
+  // The browser context's localStorage for the document's origin: the page gets a copy and sends
+  // its changes back as upstream events.
+  const lsOrigin = localStorageOrigin(url);
+  const sharedLocalStorage = lsOrigin
+    ? { storage: localStorageForTarget(ctx, target), origin: lsOrigin }
+    : undefined;
   if (pendingPageScript) {
-    installUpstreamEventHandler(ctx, target, pendingPageScript, generation, url);
+    installUpstreamEventHandler(
+      ctx,
+      target,
+      pendingPageScript,
+      generation,
+      url,
+      sharedLocalStorage,
+    );
     installIsolateLimitSurface(
       ctx,
       target,
@@ -2327,6 +2346,10 @@ async function pushNavigateToPageScriptInner(
         connectionId: ctx.connectionId,
         mainFrameId: target.frameId,
         cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
+        // Read after retireStub, so the old document's last writes are in.
+        ...(sharedLocalStorage
+          ? { localStorage: sharedLocalStorage.storage.entries(sharedLocalStorage.origin) }
+          : {}),
         modulePreloadPins: preloadSeeds.map(({ url, integrity }) => ({ url, integrity })),
         // The legacy plan (no bundle: a failed bake) gates its parser scripts from these.
         scriptPolicy: {
@@ -4183,6 +4206,9 @@ export function installUpstreamEventHandler(
   stub: PageScriptStub,
   generation: number,
   url: string,
+  // Where this document's localStorage changes go: absent for an opaque origin, whose
+  // localStorage stays in the page (state/local-storage.ts).
+  sharedLocalStorage?: { storage: LocalStorage; origin: string },
 ): void {
   if (target.navigateGeneration === generation) target.pageScriptUrl = url;
   if (typeof stub.setUpstreamEventHandler !== "function") return;
@@ -4196,8 +4222,16 @@ export function installUpstreamEventHandler(
   );
   const loaderId = target.loaderId;
   stub.setUpstreamEventHandler((event, params) => {
-    if (target.navigateGeneration !== generation) return;
     if (ctx.browser.wsClosing) return;
+    // Before the generation check: a write the old document made just before a navigation still
+    // happened, and this closure knows its origin.
+    if (event === "kitesurf.localStorage") {
+      if (sharedLocalStorage) {
+        sharedLocalStorage.storage.apply(sharedLocalStorage.origin, readLocalStorageOps(params));
+      }
+      return;
+    }
+    if (target.navigateGeneration !== generation) return;
     if (event === "kitesurf.diag") {
       target.diagSpans?.handle(params);
       return;

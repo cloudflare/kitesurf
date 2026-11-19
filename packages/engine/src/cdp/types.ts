@@ -119,7 +119,9 @@ export interface BrowserState {
   autoAttach: boolean;
   flatten: boolean;
   cookies: CookieJar;
-  contexts: Map<string, { cookieJar: CookieJar }>;
+  contexts: Map<string, { cookieJar: CookieJar; localStorage: LocalStorage }>;
+  // The default context's localStorage, shared by its pages across navigations.
+  localStorage: LocalStorage;
   nextBrowserContextId: number;
   screencasts: Map<string, ScreencastState>;
   styleCache: StyleCache;
@@ -186,6 +188,7 @@ import type { DomHandle, DocScan } from "../wasm.ts";
 import type { PageScriptStub, PageIsolateCapOverrides } from "../eval/page-script.ts";
 import type { PageSession } from "./page-session.ts";
 import type { CookieJar } from "../cookies.ts";
+import type { LocalStorage } from "../state/local-storage.ts";
 
 // One navigation's child-frame admission, shared by every branch and depth: registered child
 // frames and the parse input their retained DOMs charged. A frame refunds its charge when its

@@ -11,6 +11,7 @@ import type { DispatchCtx } from "./dispatch.ts";
 import { buildFrameResourceTree, buildFrameTree, makeMainFrameState } from "./frames.ts";
 import { retireStub } from "./page-script-generation.ts";
 import { createCookieJar, type CookieJar } from "../cookies.ts";
+import type { LocalStorage } from "../state/local-storage.ts";
 import { engineWasmBytes, engineWasmInitialBytes } from "../engine-wasm-probe.ts";
 import { isolateRetainedBodyBytesTotal } from "./network-events.ts";
 import { imageStoreStats } from "../eval/resource-store.ts";
@@ -80,6 +81,19 @@ export function jarForTarget(ctx: DispatchCtx, target: TargetState | null | unde
   return ctx.browser.cookies;
 }
 
+// The localStorage of a target's browser context, picked as jarForTarget picks the jar.
+export function localStorageForTarget(
+  ctx: DispatchCtx,
+  target: TargetState | null | undefined,
+): LocalStorage {
+  const cid = target?.browserContextId;
+  if (cid) {
+    const entry = ctx.browser.contexts.get(cid);
+    if (entry) return entry.localStorage;
+  }
+  return ctx.browser.localStorage;
+}
+
 export function jarForContextId(ctx: DispatchCtx, browserContextId: string | undefined): CookieJar {
   if (browserContextId) {
     const entry = ctx.browser.contexts.get(browserContextId);
@@ -147,7 +161,10 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
     case "Target.createBrowserContext": {
       const id = `ctx-${ctx.browser.nextBrowserContextId++}`;
       const jar = createCookieJar();
-      ctx.browser.contexts.set(id, { cookieJar: jar });
+      ctx.browser.contexts.set(id, {
+        cookieJar: jar,
+        localStorage: ctx.browser.localStorage.forContext(id),
+      });
       registerCookieJar(cookieKeyFor(ctx.connectionId, id), jar);
       return { browserContextId: id };
     }
@@ -160,6 +177,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
           if (t.browserContextId === id) closes.push(closeTargetInternal(ctx, t.targetId));
         }
         await Promise.all(closes);
+        ctx.browser.contexts.get(id)?.localStorage.dispose();
         ctx.browser.contexts.delete(id);
         unregisterCookieJar(cookieKeyFor(ctx.connectionId, id));
         clearLearnedScripts(ctx.browser.learnedInsertedScripts, id);

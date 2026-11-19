@@ -54,6 +54,8 @@ import { buildDispatchEnv } from "./dispatch-env.ts";
 import { markArrival } from "./arrival.ts";
 import { StyleCache } from "./style-cache.ts";
 import { makeWallClock } from "../eval/host-clock.ts";
+import { LocalStorage } from "../state/local-storage.ts";
+import { MemorySessionStore } from "../state/session-store.ts";
 // Wrangler generates the ambient `Env` declaration from wrangler.jsonc.
 
 const NOISY_CDP_METHODS = new Set<string>([
@@ -289,6 +291,7 @@ export async function handleWebSocket(
       opts?.externalOutbound ? undefined : opts?.host?.egress?.(env, ctx),
     ),
     contexts: new Map(),
+    localStorage: new LocalStorage(new MemorySessionStore()),
     nextBrowserContextId: 1,
     autoAttach: false,
     flatten: false,
