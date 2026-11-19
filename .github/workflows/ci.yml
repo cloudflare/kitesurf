@@ -40,10 +40,6 @@ jobs:
       - run: pnpm run format:check
       - run: pnpm run lint:js
       - run: bazel run //scripts:workspace_checks
-      # Each spec boots an engine on a bazelflare executor, whose image holds the pinned Playwright
-      # checkout. A fork's pull request has no bazelflare, so main runs the lane once it merges.
-      - if: steps.setup.outputs.bazelflare == 'true'
-        run: bazel test --keep_going --test_output=errors //tests/pw:specs //tests/pw:expectations_test
       - if: always()
         run: df -h /
       # Only main saves, so PR runs cannot evict main's entry from the 10 GB repository quota. Save
@@ -56,8 +52,35 @@ jobs:
           path: ${{ steps.setup.outputs.bazel-cache-paths }}
           key: ${{ steps.setup.outputs.bazel-cache-key }}
 
-  # A separate check, rerun on its own when it flakes; on bazelflare it shares the ci job's actions,
-  # so the engine compiles once. It saves no cache: the ci job saves the same key on main.
+  # The wpt and playwright jobs are separate checks, rerun on their own when they flake; on
+  # bazelflare they share the ci job's actions, so the engine compiles once. They save no cache:
+  # the ci job saves the same key on main.
+  playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      # Authenticates the job to bazelflare (bazel/bazelflare/credential-helper).
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - id: setup
+        uses: ./.github/actions/setup
+        with:
+          bazel-cache: "true"
+          bazelflare: "true"
+          pnpm-cache: "false"
+      # Each spec boots an engine on a bazelflare executor, whose image holds the pinned Playwright
+      # checkout. A fork's pull request has no bazelflare, so main runs the lane once it merges.
+      - if: steps.setup.outputs.bazelflare == 'true'
+        run: bazel test --keep_going --test_output=errors //tests/pw:specs //tests/pw:expectations_test
+      - if: always() && steps.setup.outputs.bazelflare == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-junit
+          path: bazel-testlogs/scripts/pw_expectations_test/test.xml
+          if-no-files-found: ignore
+
   wpt:
     runs-on: ubuntu-latest
     timeout-minutes: 60
