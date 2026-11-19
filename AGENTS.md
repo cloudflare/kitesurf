@@ -209,10 +209,10 @@ Use an explicit `KITESURF_PORT` or `--port` when other engines may be running, a
 ### Tests
 
 - Never run a full suite unless asked; the runners are slow and memory-hungry. CI runs the
-  Playwright lane and the WPT gate (`scripts/wpt-ci.sh`), but not the e2e lane; a fork's pull
-  request skips both, and main runs them once it merges. Before reporting work complete, run
-  `pnpm run check` and the smallest relevant e2e subset. Uncaught workerd errors fail a run even
-  if assertions pass.
+  e2e suite (`//tests/e2e:gate`, one bazelflare action per file), the Playwright lane and the WPT
+  gate (`scripts/wpt-ci.sh`); a fork's pull request skips all three, and main runs them once it
+  merges. Before reporting work complete, run `pnpm run check` and the smallest relevant e2e
+  subset. Uncaught workerd errors fail a run even if assertions pass.
 - Do not put `--` before test arguments; pnpm forwards it and the runners misread it.
 - Prefer a hermetic e2e test (`packages/engine/test/e2e/**.e2e.test.ts`) over a script or demo.
   They boot the engine in-process with `@cloudflare/vitest-plugin` and drive it over CDP. Give each
