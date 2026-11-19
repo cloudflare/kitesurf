@@ -18494,11 +18494,11 @@
     "reason": null
   },
   "/html/semantics/embedded-content/the-iframe-element/srcdoc-anchor.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/semantics/embedded-content/the-iframe-element/srcdoc-attribute-reset.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/semantics/embedded-content/the-iframe-element/srcdoc-lifecycle-crash-crbug-1472607.https.html": {
@@ -18510,8 +18510,8 @@
     "reason": "crashtest: the runner now scores *-crash.html by survival instead of waiting for testharness results that never come"
   },
   "/html/semantics/embedded-content/the-iframe-element/srcdoc_change_hash.html": {
-    "expected": "FAIL",
-    "reason": null
+    "expected": "TIMEOUT",
+    "reason": "contentDocument.body.innerText now passes, so the test reaches await hash_changed and times out because iframe.contentWindow.location.hash does not fire onhashchange yet."
   },
   "/html/semantics/embedded-content/the-iframe-element/srcdoc_process_attributes.html": {
     "expected": "FAIL",
