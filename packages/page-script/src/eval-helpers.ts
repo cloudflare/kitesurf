@@ -5,7 +5,7 @@
 // Runs CDP expressions through the native probe or Boa fallback and packs the result.
 
 import { packException, packResult } from "./pack.ts";
-import { ks_eval_cdp } from "./wasm-glue.js";
+import { ks_eval_cdp, ks_eval_cdp_in_frame } from "./wasm-glue.js";
 import type { EvalResult } from "@kitesurf/jsrpc-types/page-script";
 import { drainEvalResult, type EvalResultBody } from "./eval-results.ts";
 import type { DomRect, ShimElement } from "./types.ts";
@@ -191,15 +191,25 @@ export function findFocusableAncestor(el: ShimElement | null): ShimElement | nul
   return null;
 }
 
+export interface FrameEvalTarget {
+  frameId: string;
+  window: unknown;
+}
+
 export interface RunExpressionOpts {
   returnByValue?: boolean;
   awaitPromise?: boolean;
+  frame?: FrameEvalTarget;
 }
 
 export type RunExpressionResult = EvalResult;
 
-export function packBoaResult(raw: unknown, returnByValue: boolean): EvalResultBody {
-  if (!returnByValue) return packResult(raw, false);
+export function packBoaResult(
+  raw: unknown,
+  returnByValue: boolean,
+  frameId?: string,
+): EvalResultBody {
+  if (!returnByValue) return packResult(raw, false, undefined, frameId);
   let envelope: {
     k: string;
     j?: string;
@@ -252,10 +262,19 @@ export async function boaEvalFallback(
   expression: string,
   awaitPromise: boolean | undefined,
   returnByValue: boolean,
+  frame?: FrameEvalTarget,
 ): Promise<EvalResultBody> {
   try {
-    const boaResult = await ks_eval_cdp(expression, awaitPromise !== false, returnByValue);
-    return packBoaResult(boaResult, returnByValue);
+    const boaResult = frame
+      ? await ks_eval_cdp_in_frame(
+          expression,
+          frame.frameId,
+          frame.window,
+          awaitPromise !== false,
+          returnByValue,
+        )
+      : await ks_eval_cdp(expression, awaitPromise !== false, returnByValue);
+    return packBoaResult(boaResult, returnByValue, frame?.frameId);
   } catch (error) {
     return packException(error instanceof Error ? error : new Error(String(error)));
   }
@@ -267,6 +286,10 @@ export async function runExpression(
 ): Promise<RunExpressionResult> {
   const returnByValue = !!options?.returnByValue;
   const awaitPromise = options === undefined ? true : options.awaitPromise !== false;
+  if (options?.frame) {
+    const expr = typeof expression === "string" ? expression : "undefined";
+    return drainEvalResult(await boaEvalFallback(expr, awaitPromise, returnByValue, options.frame));
+  }
   let result: EvalResultBody;
   try {
     const expr = typeof expression === "string" ? expression : "undefined";

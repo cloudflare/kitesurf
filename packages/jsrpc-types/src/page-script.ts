@@ -119,6 +119,8 @@ export interface DrainConsoleReply extends JsWindowDrain {
 export interface EvalOptions {
   returnByValue?: boolean;
   awaitPromise?: boolean;
+  // Targets a parent-hosted same-origin child frame's contentWindow realm in this isolate.
+  frameId?: string;
 }
 
 export interface CallFunctionOnOptions extends EvalOptions {

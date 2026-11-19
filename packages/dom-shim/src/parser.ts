@@ -23,6 +23,8 @@ import {
   DOCUMENT_NODE,
   DOCUMENT_FRAGMENT_NODE,
   HTML_NS,
+  MATHML_NS,
+  SVG_NS,
   notSupported,
 } from "./constants.js";
 import type * as Idl from "./idl/types.generated.js";
@@ -264,6 +266,16 @@ class ParsedElement {
     } catch {
       return "";
     }
+  }
+  get innerText(): string | undefined {
+    if (this.namespaceURI === SVG_NS || this.namespaceURI === MATHML_NS) {
+      return undefined;
+    }
+    try {
+      const rendered: unknown = requireParsedHandle(this).innerTextRendered(this._id);
+      if (typeof rendered === "string") return rendered;
+    } catch {}
+    return this.textContent;
   }
   get innerHTML(): string {
     try {

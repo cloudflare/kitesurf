@@ -1049,6 +1049,12 @@ pub(crate) fn replace_v8_value(handle: u64, value: JsValue) -> bool {
     V8.with(|t| t.borrow_mut().replace(handle, value)).is_some()
 }
 
+pub(crate) fn release_v8_value(handle: u64) {
+    V8.with(|t| {
+        t.borrow_mut().release(handle);
+    });
+}
+
 thread_local! {
     static BOA: RefCell<PinSlab<JsObject>> = const { RefCell::new(PinSlab::new()) };
 }
@@ -4126,4 +4132,14 @@ pub(crate) fn install_global_bridge(ctx: &mut Context) {
     let handle = pin(js_sys::global().into());
     let proxy = make_v8_proxy(handle, None, false, ctx);
     ctx.global_object().set_prototype(Some(proxy));
+}
+
+pub(crate) fn install_realm_bridge(v8_global: JsValue, ctx: &mut Context) -> u64 {
+    let handle = pin(v8_global);
+    let proxy = make_v8_proxy(handle, None, false, ctx);
+    let global = ctx.global_object();
+    global.set_prototype(Some(proxy));
+    let _ = global.create_data_property_or_throw(js_string!("window"), global.clone(), ctx);
+    let _ = global.create_data_property_or_throw(js_string!("self"), global.clone(), ctx);
+    handle
 }

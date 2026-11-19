@@ -94,6 +94,7 @@ export function packResult(
   value: unknown,
   returnByValue: boolean,
   nodeBudget?: number,
+  frameId?: string,
 ): PackedResult {
   const sub = classify(value);
   let className: string | undefined;
@@ -137,7 +138,7 @@ export function packResult(
   }
   let objectId: string | undefined;
   if (!returnByValue && (sub === "object" || sub === "function" || sub === "array")) {
-    objectId = mintHandle(value);
+    objectId = mintHandle(value, frameId);
   }
   const type: PackedResultType = sub === "null" || sub === "array" ? "object" : sub;
   let subtype: "null" | "array" | "error" | undefined;

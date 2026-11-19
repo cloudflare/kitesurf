@@ -179,6 +179,7 @@ import {
   compileScriptEntry,
   getCompiledScript,
   lookupHandle,
+  lookupHandleFrame,
   mintHandle,
   releaseHandle,
   setIsolateStamp,
@@ -395,6 +396,8 @@ import {
   ks_js_span_enter,
   ks_js_span_exit,
   ks_call_cdp,
+  ks_call_cdp_in_frame,
+  ks_release_frame_realm,
   ks_code_stats,
   ks_swap_alloc_stats,
   ks_swap_alloc_reset_peak_window,
@@ -1143,8 +1146,21 @@ function __decorateContentWindow(contentWindow: any) {
     "Math",
     "Node",
     "Element",
+    "HTMLElement",
+    "SVGElement",
+    "Text",
+    "Comment",
+    "CharacterData",
+    "ShadowRoot",
     "Document",
     "DocumentFragment",
+    "DocumentType",
+    "Attr",
+    "NamedNodeMap",
+    "DOMTokenList",
+    "CSSStyleDeclaration",
+    "NodeFilter",
+    "TreeWalker",
     "Event",
     "MessageEvent",
     "CustomEvent",
@@ -1154,6 +1170,30 @@ function __decorateContentWindow(contentWindow: any) {
     "DOMParser",
     "Range",
     "StaticRange",
+    "MutationObserver",
+    "ResizeObserver",
+    "IntersectionObserver",
+    "XPathResult",
+    "CSS",
+    "getComputedStyle",
+    "matchMedia",
+    "requestAnimationFrame",
+    "cancelAnimationFrame",
+    "setTimeout",
+    "clearTimeout",
+    "setInterval",
+    "clearInterval",
+    "queueMicrotask",
+    "console",
+    "performance",
+    "navigator",
+    "fetch",
+    "atob",
+    "btoa",
+    "crypto",
+    "structuredClone",
+    "TextEncoder",
+    "TextDecoder",
     "URL",
     "URLSearchParams",
     "Blob",
@@ -1169,6 +1209,35 @@ function __decorateContentWindow(contentWindow: any) {
       contentWindow[globalName] = pageGlobal[globalName];
     }
   }
+}
+
+const iframeElementsByFrameId = new Map<string, unknown>();
+
+function registerSameOriginIframe(frameId: unknown, iframeElement: unknown): void {
+  if (typeof frameId !== "string" || frameId.length === 0) return;
+  iframeElementsByFrameId.set(frameId, iframeElement);
+  try {
+    ks_release_frame_realm(frameId);
+  } catch {}
+}
+
+function unregisterIframe(frameId: unknown): void {
+  if (typeof frameId !== "string" || frameId.length === 0) return;
+  iframeElementsByFrameId.delete(frameId);
+  try {
+    ks_release_frame_realm(frameId);
+  } catch {}
+}
+
+function lookupFrameWindow(frameId: string): unknown {
+  const iframeElement = iframeElementsByFrameId.get(frameId) as {
+    __ks_iframeContentDocument?: unknown;
+    __ks_iframeContentWindow?: unknown;
+  } | null;
+  if (!iframeElement?.__ks_iframeContentDocument || !iframeElement.__ks_iframeContentWindow) {
+    return null;
+  }
+  return iframeElement.__ks_iframeContentWindow;
 }
 
 function preinstallStaticIframes() {
@@ -1291,6 +1360,7 @@ function facadeMustBeCrossOrigin(sandbox: SandboxRestrictions, url: string): boo
 
 // Installs the cross-origin facade on an iframe: no document, only postMessage forwarding.
 function installCrossOriginFacade(iframeEl: any, url: string): Record<string, unknown> {
+  unregisterIframe(iframeEl?.__ks_iframeFrameId);
   const contentWindow =
     iframeEl.__ks_iframeContentWindow ?? __makeCrossOriginContentWindow(iframeEl, url);
   try {
@@ -1397,6 +1467,9 @@ function handleDynamicIframeInsert(iframeEl: any) {
 
   const frameId = mintDynamicFrameId();
   (iframeEl as any).__ks_iframeFrameId = frameId;
+  if (!facadeMustBeCrossOrigin(sandbox, resolvedUrl)) {
+    registerSameOriginIframe(frameId, iframeEl);
+  }
   const ownerBackendNodeId = (iframeEl as any)._id ?? -1;
   let name = "";
   let id = "";
@@ -1814,6 +1887,7 @@ async function loadDynamicIframe(
     }
   }
   const frameId = (iframeEl as any).__ks_iframeFrameId;
+  registerSameOriginIframe(frameId, iframeEl);
   emitFrameLifecycle(frameId, finalUrl, sandboxAttr);
   fireIframeLoad(iframeEl);
 }
@@ -3614,6 +3688,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       try {
         const frameId = (iframeEl as { __ks_iframeFrameId?: unknown } | null)?.__ks_iframeFrameId;
         if (typeof frameId !== "string" || frameId.length === 0) return;
+        unregisterIframe(frameId);
         sendUpstreamEvent({ event: "kitesurf.frameDetached", params: { frameId } });
       } catch {}
     };
@@ -4393,6 +4468,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     if (crossOrigin === true) {
       installCrossOriginFacade(iframeElement, typeof url === "string" ? url : "");
       (iframeElement as any).__ks_iframeFrameId = frameId;
+      unregisterIframe(frameId);
       fireIframeLoad(iframeElement);
       return { ok: true };
     }
@@ -4408,6 +4484,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       (iframeElement as any).__ks_iframeContentDocument
     ) {
       (iframeElement as any).__ks_iframeFrameId = frameId;
+      registerSameOriginIframe(frameId, iframeElement);
       return { ok: true };
     }
     let contentDoc: FrameDocument | null = null;
@@ -4493,6 +4570,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     (iframeElement as any).__ks_iframeContentDocument = contentDoc;
     (iframeElement as any).__ks_iframeContentWindow = contentWindow;
     (iframeElement as any).__ks_iframeFrameId = frameId;
+    registerSameOriginIframe(frameId, iframeElement);
     fireIframeLoad(iframeElement);
     return { ok: true };
   }
@@ -4506,6 +4584,18 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     const returnByValue = !!(options && options.returnByValue);
     const awaitPromise = options === undefined ? true : options.awaitPromise !== false;
     const expr = typeof expression === "string" ? expression : "undefined";
+    const frameId = options?.frameId;
+    if (frameId) {
+      const frameWindow = lookupFrameWindow(frameId);
+      if (!frameWindow) {
+        return drainEvalResult(packException(new Error("Execution context was destroyed.")));
+      }
+      return await runExpression(expr, {
+        returnByValue,
+        awaitPromise,
+        frame: { frameId, window: frameWindow },
+      });
+    }
     return await runExpression(expr, { returnByValue, awaitPromise });
   }
 
@@ -4540,6 +4630,18 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     if (entry.sourceURL) {
       expr = expr + "\n//# sourceURL=" + entry.sourceURL;
     }
+    const frameId = options?.frameId;
+    if (frameId) {
+      const frameWindow = lookupFrameWindow(frameId);
+      if (!frameWindow) {
+        return drainEvalResult(packException(new Error("Execution context was destroyed.")));
+      }
+      return await runExpression(expr, {
+        returnByValue,
+        awaitPromise,
+        frame: { frameId, window: frameWindow },
+      });
+    }
     return await runExpression(expr, { returnByValue, awaitPromise });
   }
 
@@ -4552,16 +4654,10 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     const awaitPromise = options === undefined ? true : options.awaitPromise !== false;
     const thisObjectId =
       options && typeof options.thisObjectId === "string" ? options.thisObjectId : null;
-    let result: EvalResultBody;
-    try {
-      const functionSource =
-        typeof functionDeclaration === "string" ? functionDeclaration : "undefined";
-      const factory = new SyncFunction("return (" + functionSource + ");");
-      const pageFunction = factory();
-      if (typeof pageFunction !== "function") {
-        throw new TypeError("functionDeclaration did not evaluate to a function");
-      }
-      const argumentValues = (Array.isArray(argumentSpecs) ? argumentSpecs : []).map((spec) => {
+    const functionSource =
+      typeof functionDeclaration === "string" ? functionDeclaration : "undefined";
+    const decodeArgSpecs = (): unknown[] =>
+      (Array.isArray(argumentSpecs) ? argumentSpecs : []).map((spec) => {
         if (typeof spec === "string") {
           try {
             return JSON.parse(spec);
@@ -4570,9 +4666,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           }
         }
         if (spec && typeof spec === "object") {
-          if (typeof spec.objectId === "string") {
-            return lookupHandle(spec.objectId);
-          }
+          if (typeof spec.objectId === "string") return lookupHandle(spec.objectId);
           if (typeof spec.json === "string") {
             try {
               return JSON.parse(spec.json);
@@ -4583,9 +4677,43 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         }
         return undefined;
       });
+    const frameId =
+      options?.frameId ?? (thisObjectId ? lookupHandleFrame(thisObjectId) : undefined);
+    if (frameId) {
+      const frameWindow = lookupFrameWindow(frameId);
+      if (!frameWindow) {
+        return drainEvalResult(packException(new Error("Execution context was destroyed.")));
+      }
+      const thisValue = thisObjectId !== null ? lookupHandle(thisObjectId) : undefined;
+      let frameResult: EvalResultBody;
+      try {
+        const boaResult = await ks_call_cdp_in_frame(
+          functionSource,
+          thisValue,
+          decodeArgSpecs(),
+          frameId,
+          frameWindow,
+          awaitPromise,
+          returnByValue,
+        );
+        frameResult = packBoaResult(boaResult, returnByValue, frameId);
+      } catch (boaError) {
+        frameResult = packException(
+          boaError instanceof Error ? boaError : new Error(String(boaError)),
+        );
+      }
+      return drainEvalResult(frameResult);
+    }
+    let result: EvalResultBody;
+    try {
+      const factory = new SyncFunction("return (" + functionSource + ");");
+      const pageFunction = factory();
+      if (typeof pageFunction !== "function") {
+        throw new TypeError("functionDeclaration did not evaluate to a function");
+      }
       const thisValue =
         thisObjectId !== null ? (lookupHandle(thisObjectId) ?? globalThis) : globalThis;
-      let value = pageFunction.apply(thisValue, argumentValues);
+      let value = pageFunction.apply(thisValue, decodeArgSpecs());
       if (awaitPromise && value && typeof value.then === "function") {
         value = await value;
       }
@@ -4597,35 +4725,13 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         typeof error.message === "string" &&
         error.message.includes("Code generation from strings disallowed")
       ) {
-        const functionSource =
-          typeof functionDeclaration === "string" ? functionDeclaration : "undefined";
-        const liveArguments = (Array.isArray(argumentSpecs) ? argumentSpecs : []).map((spec) => {
-          if (typeof spec === "string") {
-            try {
-              return JSON.parse(spec);
-            } catch {
-              return undefined;
-            }
-          }
-          if (spec && typeof spec === "object") {
-            if (typeof spec.objectId === "string") return lookupHandle(spec.objectId);
-            if (typeof spec.json === "string") {
-              try {
-                return JSON.parse(spec.json);
-              } catch {
-                return undefined;
-              }
-            }
-          }
-          return undefined;
-        });
         const thisValue =
           thisObjectId !== null ? (lookupHandle(thisObjectId) ?? globalThis) : globalThis;
         try {
           const boaResult = await ks_call_cdp(
             functionSource,
             thisValue,
-            liveArguments,
+            decodeArgSpecs(),
             awaitPromise,
             returnByValue,
           );

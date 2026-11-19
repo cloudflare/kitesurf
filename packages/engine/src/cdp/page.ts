@@ -28,6 +28,7 @@ import type {
 } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
 import { resolveTarget, sessionOf, stubQueryDom, type QueryDomResult } from "./page-session.ts";
+import { emitOopifExecutionContext, emitOopifExecutionContextDestroyed } from "./runtime.ts";
 import {
   applyTtyNavParams,
   DEFAULT_TTY_CELL_HEIGHT_PX,
@@ -2952,6 +2953,8 @@ function scheduleLoadCompleteEmit(
             }
             if (f.url && f.url !== "about:blank" && frameNeedsIsolate(f) && ps) {
               await spawnOopifPipeline(ctx, target, f);
+            } else if (ps) {
+              announceParentHostedFrameContext(ctx, target, f);
             }
             emitChildFrameDclLoad(ctx, target, f, sessionId);
           }),
@@ -3814,6 +3817,30 @@ function clearRefusedFrameBitmap(target: TargetState, f: FrameState): void {
   void ps.clearFrameBitmap({ ownerBackendNodeId: f.ownerBackendNodeId }).catch(() => {});
 }
 
+// A script-free same-origin child keeps its document in the parent isolate. Announcing its context
+// lets CDP evaluate against that same contentWindow/contentDocument without spawning an isolate.
+function isParentHostedFrame(frame: FrameState): boolean {
+  return (
+    frame.parentFrameId !== null &&
+    !frame.detached &&
+    !frame.framePolicyBlocked &&
+    !frame.requestBlocked &&
+    !frameNeedsIsolate(frame)
+  );
+}
+
+function announceParentHostedFrameContext(
+  ctx: DispatchCtx,
+  target: TargetState,
+  frame: FrameState,
+): void {
+  if (frame.execContextId > 0 || !isParentHostedFrame(frame)) return;
+  const nextId = ctx.browser.execContextSeq ?? 2;
+  ctx.browser.execContextSeq = nextId + 1;
+  frame.execContextId = nextId;
+  emitOopifExecutionContext(ctx, frame, target.url);
+}
+
 async function spawnOopifPipeline(
   ctx: DispatchCtx,
   target: TargetState,
@@ -3946,8 +3973,7 @@ async function spawnOopifPipeline(
       for (const p of queued ?? []) deliverPostMessageToChild(f, p);
     }
     f.execContextId = ctx.browser.execContextSeq++;
-    const { emitOopifExecutionContext } = await import("./runtime.ts");
-    emitOopifExecutionContext(ctx, f);
+    emitOopifExecutionContext(ctx, f, target.url);
     announceOopifTarget(ctx, f);
     if (ctx.browser.skipSpeculativeRaster) return;
     const manager = getRendererManager(ctx, target);
@@ -4023,10 +4049,13 @@ function teardownOopifStubForFrame(
       ctx.browser.networkEvents.deleteTargetAttribution(f.frameId);
     }
   }
-  if (!f.pageScript) return;
   const destroyedCtxId = f.execContextId;
-  f.lastRenderSeq = -1;
   f.execContextId = 0;
+  if (ctx && destroyedCtxId > 0) {
+    emitOopifExecutionContextDestroyed(ctx, destroyedCtxId);
+  }
+  if (!f.pageScript) return;
+  f.lastRenderSeq = -1;
   void retireStub(
     f,
     atClose ? "wsClosed" : "frameTeardown",
@@ -4035,12 +4064,6 @@ function teardownOopifStubForFrame(
   );
   f.pageScriptUrl = null;
   f.pageScriptSandbox = undefined;
-  if (ctx && destroyedCtxId > 0) {
-    (async () => {
-      const { emitOopifExecutionContextDestroyed } = await import("./runtime.ts");
-      emitOopifExecutionContextDestroyed(ctx, destroyedCtxId);
-    })();
-  }
 }
 
 function rebuildFrameTreeChildren(target: TargetState, budget: ChildFrameBudget): void {
@@ -4694,8 +4717,12 @@ function handleUpstreamFrameEvent(
     if (urlChanged || revived) {
       emitFrameTarget(ctx, frame);
     }
-    if (!frame.pageScript && !frame.oopifSpawning && frameNeedsIsolate(frame)) {
-      ctx.ctx.waitUntil(spawnOopifPipeline(ctx, target, frame).catch(() => {}));
+    if (!frame.pageScript && !frame.oopifSpawning) {
+      if (frameNeedsIsolate(frame)) {
+        ctx.ctx.waitUntil(spawnOopifPipeline(ctx, target, frame).catch(() => {}));
+      } else {
+        announceParentHostedFrameContext(ctx, target, frame);
+      }
     }
     return;
   }

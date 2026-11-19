@@ -5,6 +5,7 @@
 // Stores generation-local CDP object handles and compiled-script entries.
 
 const __handles = new Map<string, unknown>();
+const __handleFrames = new Map<string, string>();
 let __handleSeq = 0;
 
 // Stamped into every handle and compiled-script id so the engine can route an id back to the
@@ -20,9 +21,10 @@ function stampedId(prefix: string, seq: number): string {
   return __isolateStamp ? `${prefix}:${__isolateStamp}:${seq}` : `${prefix}:${seq}`;
 }
 
-export function mintHandle(value: unknown): string {
+export function mintHandle(value: unknown, frameId?: string): string {
   const id = stampedId("ps", ++__handleSeq);
   __handles.set(id, value);
+  if (frameId) __handleFrames.set(id, frameId);
   return id;
 }
 
@@ -31,8 +33,15 @@ export function lookupHandle(id: unknown): unknown {
   return __handles.get(id);
 }
 
+export function lookupHandleFrame(id: unknown): string | undefined {
+  if (typeof id !== "string") return undefined;
+  return __handleFrames.get(id);
+}
+
 export function releaseHandle(id: unknown): void {
-  if (typeof id === "string") __handles.delete(id);
+  if (typeof id !== "string") return;
+  __handles.delete(id);
+  __handleFrames.delete(id);
 }
 
 export interface CompiledScript {

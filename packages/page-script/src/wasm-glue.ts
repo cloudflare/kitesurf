@@ -15,6 +15,13 @@ export declare function ks_eval_cdp(
   awaitPromise: boolean,
   returnByValue: boolean,
 ): Promise<unknown>;
+export declare function ks_eval_cdp_in_frame(
+  src: string,
+  frameId: string,
+  frameWindow: unknown,
+  awaitPromise: boolean,
+  returnByValue: boolean,
+): Promise<unknown>;
 export declare function ks_call_cdp(
   fnSrc: string,
   thisV8: unknown,
@@ -22,6 +29,16 @@ export declare function ks_call_cdp(
   awaitPromise: boolean,
   returnByValue: boolean,
 ): Promise<unknown>;
+export declare function ks_call_cdp_in_frame(
+  fnSrc: string,
+  thisV8: unknown,
+  argsV8: unknown[],
+  frameId: string,
+  frameWindow: unknown,
+  awaitPromise: boolean,
+  returnByValue: boolean,
+): Promise<unknown>;
+export declare function ks_release_frame_realm(frameId: string): void;
 
 export declare function ks_eval_page(src: string): unknown;
 export declare function ks_run_page_jobs(): void;
