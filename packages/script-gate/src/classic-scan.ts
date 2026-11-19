@@ -371,9 +371,9 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
       else if (character === "]") {
         if (bracketDepth > 0) bracketDepth--;
       } else if (character === "{") {
-        // Heritage can hold an object literal (`extends mixin({})`); the body brace is
-        // the first one outside any parentheses or brackets.
-        if (parenDepth === 0 && bracketDepth === 0) braceDepth++;
+        // Heritage or parameters can hold `{}` (`extends mixin({})`, `function f(a = {})`);
+        // the body starts at the first `{` outside `()` / `[]`, and every `{` inside it counts.
+        if (braceDepth > 0 || (parenDepth === 0 && bracketDepth === 0)) braceDepth++;
       } else if (character === "}") {
         if (braceDepth > 0) {
           braceDepth--;
@@ -384,6 +384,7 @@ export function extractTopLevelDecls(source: string): TopLevelDeclScan {
       }
       position++;
     }
+    unreliable = true;
     return sourceLength;
   }
 

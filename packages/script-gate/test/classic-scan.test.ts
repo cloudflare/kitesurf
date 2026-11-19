@@ -161,3 +161,45 @@ test("a closer at depth 0 marks the scan unreliable", () => {
   );
   assert.equal(extractTopLevelDecls("var s = `a${b}c`; var after = 1;").unreliable, false);
 });
+
+test("braces inside parens or brackets in a function or class body stay balanced", () => {
+  // Braces inside a call's arguments must not close the enclosing function early or
+  // swallow declarations that follow it.
+  const nested = extractTopLevelDecls(`
+    function outer() {
+      function first() {
+        run(function () { return 1; });
+      }
+      function second() {
+        return [{ b: 2 }];
+      }
+    }
+    const afterConst = 1;
+    function afterFn() {}
+  `);
+  assert.equal(nested.unreliable, false);
+  assert.deepEqual(nested.functionNames, ["outer", "afterFn"]);
+  assert.deepEqual(nested.lexicalNames, ["afterConst"]);
+
+  const single = extractTopLevelDecls(`
+    function wrap(a = { init: 1 }) {
+      return new Promise((resolve) => { resolve([() => ({ ok: true })]); });
+    }
+    const green = "rgb(0, 128, 0)";
+    async function runTest() {}
+  `);
+  assert.equal(single.unreliable, false);
+  assert.deepEqual(single.functionNames, ["wrap", "runTest"]);
+  assert.deepEqual(single.lexicalNames, ["green"]);
+
+  const clsSource = `class Widget extends mixin({ x: 1 }) {
+    m() { run(function () { return { ok: true }; }); }
+  }
+  const afterClass = 1;`;
+  const cls = extractTopLevelDecls(clsSource);
+  assert.equal(cls.unreliable, false);
+  assert.deepEqual(cls.classNames, ["Widget"]);
+  assert.equal(clsSource.slice(cls.classSites[0], cls.classEnds[0]).endsWith("}"), true);
+  assert.equal(clsSource.slice(cls.classEnds[0]).trim(), "const afterClass = 1;");
+  assert.deepEqual(cls.lexicalNames, ["Widget", "afterClass"]);
+});

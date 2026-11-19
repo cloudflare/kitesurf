@@ -155,3 +155,42 @@ test("a script whose scan desyncs on a nested template still runs", async ({
   await setContent(page, desynced, { waitUntil: "domcontentloaded" });
   expect(await readJsonReport(cdpSession, "globalThis.__afterDesync")).toEqual({ helper: 1 });
 }, 60_000);
+
+// Callbacks inside a top-level function's call arguments must not unbalance the body scan:
+// a premature close hoists nested functions out of scope, and a swallowed close hides later
+// top-level declarations from the next script.
+const nestedCallbacks = `<script>
+  function runWithNested() {
+    var out = [];
+    function first() {
+      [1].forEach(function (v) { out.push(v); });
+    }
+    function second() {
+      out.push(2);
+    }
+    first();
+    second();
+    return out;
+  }
+  const sharedColor = "green";
+  function afterCallback() {
+    return sharedColor;
+  }
+</script>
+<script>
+  globalThis.__nestedCallbacks = JSON.stringify({
+    nested: runWithNested(),
+    after: afterCallback(),
+  });
+</script>`;
+
+test("a top-level function with callbacks inside parens keeps nested and later decls intact", async ({
+  page,
+  cdpSession,
+}) => {
+  await setContent(page, nestedCallbacks, { waitUntil: "domcontentloaded" });
+  expect(await readJsonReport(cdpSession, "globalThis.__nestedCallbacks")).toEqual({
+    nested: [1, 2],
+    after: "green",
+  });
+}, 60_000);
