@@ -35,7 +35,7 @@ import { ensurePaintDom, invalidatePaintDom } from "./paint.ts";
 import { fetchGatedJsonModule, fetchGatedModuleSource } from "./inserted-scripts.ts";
 import { startupJsonModuleUrls } from "./startup-probe.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
-import { memoryArea, sharedArea, type StorageArea } from "./web-storage.ts";
+import { memoryArea, sharedArea, StorageInterface, storageObject } from "./web-storage.ts";
 import { indexedDbGlobals } from "./indexeddb.ts";
 import { createScheduler } from "./scheduler.ts";
 import { installIdleCallbackGlobals, installPageTaskGlobals, queuePortTask } from "./page-tasks.ts";
@@ -3099,37 +3099,21 @@ export function installGlobals(
     }
     installIdleCallbackGlobals();
     if (Object.getOwnPropertyDescriptor(globalThis, "localStorage") === undefined) {
-      const makeStorage = (area: StorageArea) => {
-        const api = {
-          getItem(key) {
-            return area.get(String(key));
-          },
-          setItem(key, value) {
-            area.set(String(key), String(value));
-          },
-          removeItem(key) {
-            area.remove(String(key));
-          },
-          clear() {
-            area.clear();
-          },
-          key(index) {
-            const keys = area.keys();
-            return index >= 0 && index < keys.length ? keys[index] : null;
-          },
-          get length() {
-            return area.keys().length;
-          },
-        };
-        return api;
-      };
+      try {
+        Object.defineProperty(globalThis, "Storage", {
+          value: StorageInterface,
+          writable: true,
+          configurable: true,
+          enumerable: false,
+        });
+      } catch {}
       // localStorage is a copy of the browser context's area when the engine seeded one
       // (web-storage.ts). One isolate is one document, so the origin is fixed here.
       const seed = state.sandbox.sameOrigin ? state.localStorageSeed : null;
       // An opaque sandboxed origin has no storage bucket; the accessor throws, as in Chrome.
       const buckets = {
-        localStorage: makeStorage(seed ? sharedArea(seed) : memoryArea()),
-        sessionStorage: makeStorage(memoryArea()),
+        localStorage: storageObject(seed ? sharedArea(seed) : memoryArea()),
+        sessionStorage: storageObject(memoryArea()),
       };
       const storageAccessor =
         (name: keyof typeof buckets): (() => unknown) =>

@@ -39,6 +39,104 @@ export function memoryArea(): StorageArea {
   };
 }
 
+const areas = new WeakMap<object, StorageArea>();
+
+function areaOf(self: unknown): StorageArea {
+  const area = typeof self === "object" && self !== null ? areas.get(self) : undefined;
+  if (!area) throw new TypeError("Illegal invocation");
+  return area;
+}
+
+function requireArgs(method: string, needed: number, present: number): void {
+  if (present >= needed) return;
+  throw new TypeError(
+    `Failed to execute '${method}' on 'Storage': ${needed} argument${needed > 1 ? "s" : ""} ` +
+      `required, but only ${present} present.`,
+  );
+}
+
+/** The Storage interface. Only storageObject makes instances. */
+export const StorageInterface = class Storage {
+  constructor() {
+    throw new TypeError("Illegal constructor");
+  }
+  get length(): number {
+    return areaOf(this).keys().length;
+  }
+  key(index: unknown): string | null {
+    requireArgs("key", 1, arguments.length);
+    // WebIDL unsigned long: NaN and the infinities become 0, the rest wraps modulo 2^32.
+    const keys = areaOf(this).keys();
+    return keys[Number(index) >>> 0] ?? null;
+  }
+  getItem(key: unknown): string | null {
+    requireArgs("getItem", 1, arguments.length);
+    return areaOf(this).get(String(key));
+  }
+  setItem(key: unknown, value: unknown): void {
+    requireArgs("setItem", 2, arguments.length);
+    const area = areaOf(this);
+    area.set(String(key), String(value));
+  }
+  removeItem(key: unknown): void {
+    requireArgs("removeItem", 1, arguments.length);
+    areaOf(this).remove(String(key));
+  }
+  clear(): void {
+    areaOf(this).clear();
+  }
+};
+// WebIDL members are enumerable, so a for-in over a Storage lists them after the stored keys.
+for (const name of ["length", "key", "getItem", "setItem", "removeItem", "clear"]) {
+  const desc = Object.getOwnPropertyDescriptor(StorageInterface.prototype, name);
+  if (desc) Object.defineProperty(StorageInterface.prototype, name, { ...desc, enumerable: true });
+}
+Object.defineProperty(StorageInterface.prototype, Symbol.toStringTag, {
+  value: "Storage",
+  configurable: true,
+});
+
+/**
+ * A Storage over `area`. It is a legacy platform object with named properties (WebIDL): stored
+ * keys read, write and enumerate as own properties unless the prototype chain has the name.
+ */
+export function storageObject(area: StorageArea): object {
+  const target: object = Object.create(StorageInterface.prototype);
+  const visible = (p: string | symbol): p is string =>
+    typeof p === "string" && !(p in target) && area.get(p) !== null;
+  const storage: object = new Proxy(target, {
+    get: (t, p, receiver) => (visible(p) ? area.get(p) : Reflect.get(t, p, receiver)),
+    // The named setter runs for any string, even one the prototype has, as in browsers.
+    set: (t, p, value, receiver) => {
+      if (typeof p !== "string" || receiver !== storage) return Reflect.set(t, p, value, receiver);
+      area.set(p, String(value));
+      return true;
+    },
+    has: (t, p) => visible(p) || Reflect.has(t, p),
+    deleteProperty: (t, p) => {
+      if (!visible(p)) return Reflect.deleteProperty(t, p);
+      area.remove(p);
+      return true;
+    },
+    ownKeys: (t) => [...area.keys().filter((k) => !(k in t)), ...Reflect.ownKeys(t)],
+    getOwnPropertyDescriptor: (t, p) =>
+      visible(p)
+        ? { value: area.get(p), writable: true, enumerable: true, configurable: true }
+        : Reflect.getOwnPropertyDescriptor(t, p),
+    defineProperty: (t, p, desc) => {
+      if (typeof p !== "string" || Object.prototype.hasOwnProperty.call(t, p)) {
+        return Reflect.defineProperty(t, p, desc);
+      }
+      if (!("value" in desc) && !("writable" in desc)) return false;
+      area.set(p, String(desc.value));
+      return true;
+    },
+    preventExtensions: () => false,
+  });
+  areas.set(storage, area);
+  return storage;
+}
+
 function quotaExceeded(key: string): DOMException {
   return new DOMException(
     `Setting the value of '${key}' exceeded the quota.`,

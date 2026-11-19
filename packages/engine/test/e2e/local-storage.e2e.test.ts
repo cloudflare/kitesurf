@@ -6,6 +6,7 @@
 // area and every navigation gets a copy (state/local-storage.ts, page-script web-storage.ts).
 import type { Page } from "@cloudflare/puppeteer";
 import { expect, test } from "./harness";
+import { setContent } from "./set-content";
 
 const A = "https://ks.invalid/__fixtures/lifecycle.html";
 const A2 = "https://ks.invalid/__fixtures/big-doc.html?rows=1&seed=1";
@@ -95,3 +96,70 @@ test("each browser context has its own localStorage", async ({ browser, page }) 
     await context.close();
   }
 }, 120_000);
+
+// Storage is a legacy platform object with named properties: stored keys are its own properties,
+// and the methods stay on Storage.prototype.
+const NAMED_PROPERTIES_PROBE = `(() => {
+  const s = localStorage;
+  s.clear();
+  s.setItem("k", "v");
+  s.b = "2";
+  s.setItem("getItem", "hidden");
+  const forIn = [];
+  for (const key in s) forIn.push(key);
+  const r = {
+    keys: Object.keys(s),
+    spread: { ...s },
+    json: JSON.stringify(s),
+    forIn,
+    named: s.k,
+    has: ["k" in s, "missing" in s],
+    getItem: typeof s.getItem,
+    hidden: s.getItem("getItem"),
+    length: s.length,
+    proto: Object.getPrototypeOf(s) === Storage.prototype,
+    tag: Object.prototype.toString.call(s),
+  };
+  delete s.k;
+  r.deleted = [s.getItem("k"), s.length];
+  Object.defineProperty(s, "d", { value: 3 });
+  r.defined = s.getItem("d");
+  try { new Storage(); r.ctor = "constructed"; } catch (e) { r.ctor = e.name; }
+  try { Storage.prototype.getItem.call({}, "k"); r.illegal = "ok"; } catch (e) { r.illegal = e.name; }
+  try { s.getItem(); r.noArgs = "ok"; } catch (e) { r.noArgs = e.name; }
+  s.clear();
+  return JSON.stringify(r);
+})()`;
+
+const NAMED_PROPERTIES_EXPECTED = {
+  keys: ["k", "b"],
+  spread: { k: "v", b: "2" },
+  json: '{"k":"v","b":"2"}',
+  forIn: ["k", "b", "length", "key", "getItem", "setItem", "removeItem", "clear"],
+  named: "v",
+  has: [true, false],
+  getItem: "function",
+  hidden: "hidden",
+  length: 3,
+  proto: true,
+  tag: "[object Storage]",
+  deleted: [null, 2],
+  defined: "3",
+  ctor: "TypeError",
+  illegal: "TypeError",
+  noArgs: "TypeError",
+};
+
+test("stored keys are Storage's own properties, in page scripts and CDP evaluation", async ({
+  page,
+}) => {
+  await setContent(
+    page,
+    `<script>window.__probe = ${NAMED_PROPERTIES_PROBE};</script><p>storage</p>`,
+  );
+  const fromScript = await page.evaluate(() => Reflect.get(window, "__probe") as string);
+  expect(JSON.parse(fromScript)).toEqual(NAMED_PROPERTIES_EXPECTED);
+  const fromEvaluate = (await page.evaluate(NAMED_PROPERTIES_PROBE)) as string;
+  // On boa, a for-in over this bridged object visits only its own keys, not Storage.prototype's.
+  expect(JSON.parse(fromEvaluate)).toEqual({ ...NAMED_PROPERTIES_EXPECTED, forIn: ["k", "b"] });
+}, 60_000);
