@@ -214,7 +214,8 @@ function buildClassicSegment(
     renamedFunctions
       .map(
         ({ name, internal }) =>
-          `__ks_define_property(${internal}, "name", { value: ${JSON.stringify(name)} }); `,
+          `__ks_define_property(${internal}, "name", { value: ${JSON.stringify(name)} }); ` +
+          `__ks_state_local.markRenamed(${internal}, ${JSON.stringify(internal)}, ${JSON.stringify(name)}); `,
       )
       .join("");
   edits.sort((a, b) => b.start - a.start || b.end - a.end);
@@ -454,6 +455,7 @@ var __ks_state_local = ((state) => Object.freeze({
   get endClassicScript() { return state.endClassicScript; },
   get parserScriptLifecycle() { return state.parserScriptLifecycle; },
   get pushException() { return state.pushException; },
+  markRenamed: (...args) => { if (state.markRenamed) state.markRenamed(...args); },
   set bundleDiag(value) { state.bundleDiag = value; },
 }))((await import("./internal-state.js")).getInternalState());
 `;

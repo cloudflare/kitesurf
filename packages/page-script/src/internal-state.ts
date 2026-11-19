@@ -86,6 +86,8 @@ export interface KitesurfInternalState {
 
   markNative: ((fn: unknown, name: string) => void) | null;
 
+  markRenamed: ((fn: unknown, internal: string, name: string) => void) | null;
+
   viewportW: number;
   viewportH: number;
 
@@ -159,6 +161,7 @@ export function createInternalState(): KitesurfInternalState {
     afterIframeSrcChange: null,
     navigateIframe: null,
     markNative: null,
+    markRenamed: null,
     viewportW: DEFAULT_VIEWPORT_WIDTH_PX,
     viewportH: DEFAULT_VIEWPORT_HEIGHT_PX,
     dispatchingUserEvent: false,

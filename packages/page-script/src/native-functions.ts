@@ -43,6 +43,14 @@ export function markNative(fn: unknown, name: string, accessor = false): void {
   }
 }
 
+// The classic script bundle renames each top-level function declaration to keep it hoisted
+// (engine/src/eval/script-bundle.ts); toString shows the name the page wrote.
+const renamedFunctions = new WeakMap<object, { internal: string; name: string }>();
+
+export function markRenamed(fn: unknown, internal: string, name: string): void {
+  if (typeof fn === "function") renamedFunctions.set(fn, { internal, name });
+}
+
 let toStringInstalled = false;
 export function installNativeToString(): void {
   if (toStringInstalled) return;
@@ -52,6 +60,13 @@ export function installNativeToString(): void {
       if ((typeof this === "function" || typeof this === "object") && this !== null) {
         const name = nativeNames.get(this);
         if (name !== undefined) return `function ${name}() { [native code] }`;
+        const renamed = renamedFunctions.get(this);
+        if (renamed !== undefined) {
+          const src = realToString.call(this as () => void);
+          const at = src.indexOf(renamed.internal);
+          if (at !== -1)
+            return src.slice(0, at) + renamed.name + src.slice(at + renamed.internal.length);
+        }
       }
       return realToString.call(this as () => void);
     },
@@ -64,6 +79,7 @@ export function installNativeToString(): void {
     configurable: true,
   });
   getInternalState().markNative = markNative;
+  getInternalState().markRenamed = markRenamed;
 }
 
 export function markEngineFunctions(roots: readonly unknown[]): void {
