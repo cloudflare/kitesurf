@@ -1375,7 +1375,7 @@ class MediaListCls implements Idl.MediaList {
     const old = this.#media.length;
     this.#media = String(text == null ? "" : text)
       .split(",")
-      .map((m) => m.trim())
+      .map(trimCss)
       .filter(Boolean);
     this.#sync(old);
   }
@@ -1401,7 +1401,7 @@ class MediaListCls implements Idl.MediaList {
     return m != null ? m : null;
   }
   appendMedium(medium: string) {
-    const m = String(medium).trim();
+    const m = trimCss(String(medium));
     if (m && !this.#media.includes(m)) {
       this.#media.push(m);
       this.#sync(this.#media.length - 1);
@@ -1409,7 +1409,7 @@ class MediaListCls implements Idl.MediaList {
     }
   }
   deleteMedium(medium: string) {
-    const i = this.#media.indexOf(String(medium).trim());
+    const i = this.#media.indexOf(trimCss(String(medium)));
     if (i >= 0) {
       const old = this.#media.length;
       this.#media.splice(i, 1);
@@ -2016,12 +2016,79 @@ function stripCssComments(src: string): string {
   return out + src.slice(from);
 }
 // An unescaped newline ends a string as a bad-string token.
-function isStringBreak(ch: string): boolean {
+function isStringBreak(ch: string | undefined): boolean {
   return ch === "\n" || ch === "\r" || ch === "\f";
 }
-// A backslash escapes the next character, or a whole CRLF line break.
+// Rules are rebuilt as `prelude { body }`. A trimmed piece that ends in a string broken by a
+// newline must keep that newline, or the rebuilt text puts the next brace inside the string.
+// A trailing escape lost what trim cut: the space after a lone `\`, or the terminator of a hex
+// escape in a string (the added newline would become that terminator).
+function keepStringBreak(t: string): string {
+  let q = "";
+  let pad = "";
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (ch === "\\") {
+      const len = escapeLength(t, i);
+      const atEnd = i + len >= t.length;
+      pad = atEnd && (i + 1 === t.length || (q && isHexDigit(t[i + 1]))) ? " " : "";
+      i += len - 1;
+    } else if (q) {
+      if (ch === q || isStringBreak(ch)) q = "";
+    } else if (ch === '"' || ch === "'") {
+      q = ch;
+    }
+  }
+  return t + pad + (q ? "\n" : "");
+}
+function trimCss(s: string): string {
+  return keepStringBreak(s.trim());
+}
+// Collapses whitespace runs to one space, but keeps a newline that ends a string.
+function collapseCssSpace(s: string): string {
+  let out = "";
+  let q = "";
+  let gap = "";
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (q && isStringBreak(ch)) {
+      q = "";
+      gap = "\n";
+      continue;
+    }
+    if (!q && /\s/.test(ch)) {
+      if (!gap) gap = " ";
+      continue;
+    }
+    if (gap) {
+      if (out) out += gap;
+      gap = "";
+    }
+    if (ch === "\\") {
+      const esc = s.slice(i, i + escapeLength(s, i));
+      i += esc.length - 1;
+      // A hex escape's whitespace terminator is part of the escape: keep it as one space, and
+      // let whitespace after it collapse to a separator of its own.
+      out += !q && isHexDigit(esc[1]) && /\s$/.test(esc) ? esc.trimEnd() + " " : esc;
+      continue;
+    }
+    if (q ? ch === q : ch === '"' || ch === "'") q = q ? "" : ch;
+    out += ch;
+  }
+  return gap === "\n" ? out + gap : out;
+}
+function isHexDigit(ch: string | undefined): boolean {
+  return ch !== undefined && /^[0-9a-fA-F]$/.test(ch);
+}
+// A backslash escapes the next character, or a whole CRLF line break. A hex escape takes up
+// to six hex digits and one whitespace terminator, so a newline after it does not end a string.
 function escapeLength(text: string, i: number): number {
-  return text[i + 1] === "\r" && text[i + 2] === "\n" ? 3 : 2;
+  let j = i + 1;
+  while (j < i + 7 && isHexDigit(text[j])) j++;
+  if (j === i + 1) return text[j] === "\r" && text[j + 1] === "\n" ? 3 : 2;
+  if (text[j] === "\r" && text[j + 1] === "\n") return j + 2 - i;
+  const ws = text[j] === " " || text[j] === "\t" || isStringBreak(text[j]);
+  return ws ? j + 1 - i : j - i;
 }
 function splitStylesheetRules(src: unknown): ParsedRuleList {
   const out = Object.assign([] as ParsedRuleChunk[], {
@@ -2087,8 +2154,8 @@ function splitStylesheetRules(src: unknown): ParsedRuleList {
     if (ch === "}") {
       depth--;
       if (depth === 0 && braceOpenAt >= 0) {
-        const selectorText = text.slice(chunkStart, braceOpenAt).trim();
-        const declText = text.slice(braceOpenAt + 1, i).trim();
+        const selectorText = trimCss(text.slice(chunkStart, braceOpenAt));
+        const declText = trimCss(text.slice(braceOpenAt + 1, i));
         const cssText = selectorText
           ? selectorText + " { " + declText + " }"
           : text.slice(chunkStart, i + 1).trim();
@@ -2106,7 +2173,7 @@ function splitStylesheetRules(src: unknown): ParsedRuleList {
     }
     i++;
   }
-  const tail = text.slice(chunkStart).trim();
+  const tail = trimCss(text.slice(chunkStart));
   out.trailingGarbage = tail.length > 0 ? tail : "";
   out.unbalanced = depth !== 0 || parenDepth !== 0 || bracketDepth !== 0 || inStr !== "";
   return out;
@@ -2744,7 +2811,7 @@ function constructRule(
       serialize() {
         const parts: string[] = [];
         for (const k of Object.keys(declBag)) {
-          parts.push(cssPropCamelToKebab(k) + ": " + declBag[k] + ";");
+          parts.push(cssPropCamelToKebab(k) + ": " + keepStringBreak(declBag[k]) + ";");
         }
         return (
           "@font-palette-values " +
@@ -2892,12 +2959,10 @@ function constructRule(
     typeNum: 0,
     serialize() {
       if (sel) {
-        const d = String(parsed.declText || "")
-          .replace(/\s+/g, " ")
-          .trim();
+        const d = collapseCssSpace(String(parsed.declText || ""));
         return sel + (d ? " { " + d + " }" : " { }");
       }
-      return raw.replace(/\s+/g, " ").trim();
+      return collapseCssSpace(raw);
     },
   };
   ruleState.set(rule, st);

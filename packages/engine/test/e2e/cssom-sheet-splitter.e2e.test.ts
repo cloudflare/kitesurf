@@ -21,14 +21,22 @@ test("the sheet splitter keeps rules after an unquoted url holding [ and a newli
       'y{content:"a' + escapedCrlf + 'b"} #t{padding-left:2px}';
     const sel = (id) => Array.from(document.getElementById(id).sheet.cssRules,
       (r) => r.selectorText || r.constructor.name);
+    const a = sel("a");
+    const b = sel("b");
+    const c = sel("c");
+    // The rebuilt text must keep the newline that ends the bad string, or the string takes
+    // the closing brace and every rule after it.
+    const sheetB = document.getElementById("b").sheet;
+    sheetB.insertRule("#t{padding-right:4px}", sheetB.cssRules.length);
     const t = getComputedStyle(document.getElementById("t"));
     return {
-      a: sel("a"),
-      b: sel("b"),
-      c: sel("c"),
+      a,
+      b,
+      c,
       color: t.color,
       margin: t.marginLeft,
       padding: t.paddingLeft,
+      paddingRight: t.paddingRight,
     };
   })()`);
   expect(r).toEqual({
@@ -38,6 +46,7 @@ test("the sheet splitter keeps rules after an unquoted url holding [ and a newli
     color: "rgb(255, 0, 0)",
     margin: "3px",
     padding: "2px",
+    paddingRight: "4px",
   });
 }, 60_000);
 
@@ -60,4 +69,64 @@ test("a rule inserted after an open comment or [ block applies", async ({ browse
       await page.close();
     }
   }
+}, 60_000);
+
+// Every place that trims or collapses rule text must keep the newline that ends a bad string.
+test("a rule inserted after a newline-ended string in a prelude or at-rule applies", async ({
+  browser,
+}) => {
+  for (const css of [
+    'x"a\n{color:red}',
+    '@media "a\n{x{color:red}}',
+    '@page{content:"oops\n}',
+    '@container{#q{content:"oops\n} }',
+    '@font-palette-values --p{font-family:"oops\n}',
+    'x{content:"oops\r\n}',
+    'x"a\\ \n{color:red}',
+    'x"a\\20 \n{color:red}',
+    '@font-palette-values --p{font-family:"oops\\ \n}',
+  ]) {
+    const page = await browser.newPage();
+    try {
+      await setContent(page, `<style id=s></style><p id=t>x</p>`);
+      const result = await page.evaluate(`(() => {
+        const s = document.getElementById("s");
+        s.textContent = ${JSON.stringify(css + " #t{margin-left:3px}")};
+        s.sheet.insertRule("#t{padding-right:4px}", s.sheet.cssRules.length);
+        const t = getComputedStyle(document.getElementById("t"));
+        return { margin: t.marginLeft, padding: t.paddingRight };
+      })()`);
+      expect(result, css).toEqual({ margin: "3px", padding: "4px" });
+    } finally {
+      await page.close();
+    }
+  }
+}, 60_000);
+
+test("a medium appended with a newline-ended string keeps the rules after it", async ({ page }) => {
+  await setContent(
+    page,
+    `<style id=s>@media all{x{color:red}} #t{margin-left:3px}</style><p id=t>x</p>`,
+  );
+  const result = await page.evaluate(`(() => {
+    const sheet = document.getElementById("s").sheet;
+    const media = sheet.cssRules[0].media;
+    media.appendMedium('"a\\n');
+    sheet.insertRule("#t{padding-right:4px}", sheet.cssRules.length);
+    const t = getComputedStyle(document.getElementById("t"));
+    const styles = { margin: t.marginLeft, padding: t.paddingRight };
+    media.deleteMedium('"a\\n');
+    return { ...styles, media: media.length };
+  })()`);
+  expect(result).toEqual({ margin: "3px", padding: "4px", media: 1 });
+}, 60_000);
+
+test("hex escapes keep their text when rule pieces are trimmed or collapsed", async ({ page }) => {
+  await setContent(page, `<style id=s></style>`);
+  const result = await page.evaluate(`(() => {
+    const s = document.getElementById("s");
+    s.textContent = "@media x\\\\31{} @container{a:\\\\31   b\\\\31\\n  c}";
+    return Array.from(s.sheet.cssRules, (r) => r.media ? r.media.mediaText : r.cssText);
+  })()`);
+  expect(result).toEqual(["x\\31", "@container { a:\\31  b\\31  c }"]);
 }, 60_000);
