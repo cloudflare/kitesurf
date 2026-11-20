@@ -23,7 +23,7 @@ rust_shared_library(
     ],
     aliases = aliases(),
     compile_data = ["//packages/core:renderer_shared_srcs"],
-    crate_features = ["console_error_panic_hook", "default", "pdf"],
+    crate_features = ["console_error_panic_hook", "default", "pdf", "scene-rasterizer-wasm"],
     edition = "2021",
     platform = "//bazel/rust:wasm32_unwind",
     proc_macro_deps = all_crate_deps(proc_macro = True),

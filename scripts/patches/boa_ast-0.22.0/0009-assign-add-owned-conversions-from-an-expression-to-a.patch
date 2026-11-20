@@ -1,0 +1,62 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Wed, 18 Nov 2026 16:31:06 +0000
+Subject: [PATCH] assign: add owned conversions from an expression to a target
+
+AssignTarget::from_expression and from_expression_simple borrow the
+expression, so a property access target is cloned out of it: the parser
+then drops the original. For `a.b.c = ...` or `x[f(y)] = ...` that copies
+and frees the whole access chain on every assignment.
+
+from_expression_owned and from_expression_simple_owned take the
+expression by value and move the access into the target. They mirror the
+borrowing versions arm for arm, so the target is the same value.
+---
+ src/expression/operator/assign/mod.rs | 34 +++++++++++++++++++++++++++
+ 1 file changed, 34 insertions(+)
+
+diff --git a/src/expression/operator/assign/mod.rs b/src/expression/operator/assign/mod.rs
+index 17dd47f..a46a02a 100644
+--- a/src/expression/operator/assign/mod.rs
++++ b/src/expression/operator/assign/mod.rs
+@@ -168,6 +168,40 @@ impl AssignTarget {
+             _ => None,
+         }
+     }
++
++    /// Like [`Self::from_expression`], but consumes the expression, so a property access moves
++    /// into the target instead of being cloned.
++    #[must_use]
++    pub fn from_expression_owned(expression: Expression, strict: bool) -> Option<Self> {
++        match expression {
++            Expression::ObjectLiteral(object) => {
++                let pattern = object.to_pattern(strict)?;
++                Some(Self::Pattern(pattern.into()))
++            }
++            Expression::ArrayLiteral(array) => {
++                let pattern = array.to_pattern(strict)?;
++                Some(Self::Pattern(pattern.into()))
++            }
++            e => Self::from_expression_simple_owned(e, strict),
++        }
++    }
++
++    /// Like [`Self::from_expression_simple`], but consumes the expression, so a property access
++    /// moves into the target instead of being cloned.
++    #[must_use]
++    pub fn from_expression_simple_owned(expression: Expression, strict: bool) -> Option<Self> {
++        match expression {
++            Expression::Identifier(id)
++                if strict && (id.sym() == Sym::EVAL || id.sym() == Sym::ARGUMENTS) =>
++            {
++                None
++            }
++            Expression::Identifier(id) => Some(Self::Identifier(id)),
++            Expression::PropertyAccess(access) => Some(Self::Access(access)),
++            Expression::Parenthesized(p) => Self::from_expression_simple_owned(*p.expression, strict),
++            _ => None,
++        }
++    }
+ }
+
+ impl Spanned for AssignTarget {

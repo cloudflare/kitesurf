@@ -42,6 +42,7 @@ const CRATES = [
   { name: "boa_gc", version: "0.22.0" },
   { name: "boa_engine", version: "0.22.0" },
   { name: "boa_parser", version: "0.22.0" },
+  { name: "boa_string", version: "0.22.0" },
   { name: "usvg", version: "0.48.1" },
   { name: "vello_common", version: "0.3.0" },
   { name: "vello_cpu", version: "0.3.0" },

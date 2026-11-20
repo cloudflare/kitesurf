@@ -1,0 +1,188 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 20 Nov 2026 13:22:43 +0000
+Subject: [PATCH] vm: use fn_addr_eq for vtable checks, mark by-value cache
+ slots FOUND, and outline try_ordinary_set_direct
+
+---
+ src/object/internal_methods/mod.rs |  1 +
+ src/vm/opcode/get/property.rs      | 34 ++++++++++++++++++------------
+ src/vm/opcode/set/property.rs      | 32 ++++++++++++++++++++++------
+ 3 files changed, 47 insertions(+), 20 deletions(-)
+
+diff --git a/src/object/internal_methods/mod.rs b/src/object/internal_methods/mod.rs
+index 34eb7df..023cd6a 100644
+--- a/src/object/internal_methods/mod.rs
++++ b/src/object/internal_methods/mod.rs
+@@ -830,6 +830,7 @@ pub(crate) fn ordinary_try_get(
+
+ /// Direct own-property overwrite or creation for ordinary objects when `receiver === obj`,
+ /// skipping temporary `PropertyDescriptor` construction and redundant `[[GetOwnProperty]]` calls.
++#[inline(never)]
+ fn try_ordinary_set_direct(
+     obj: &JsObject,
+     key: &PropertyKey,
+diff --git a/src/vm/opcode/get/property.rs b/src/vm/opcode/get/property.rs
+index 7f6ad35..f1833ad 100644
+--- a/src/vm/opcode/get/property.rs
++++ b/src/vm/opcode/get/property.rs
+@@ -4,13 +4,12 @@ use boa_string::{JsString, StaticJsStrings};
+
+ use crate::{
+     Context, JsResult, JsValue,
+-    builtins::{
+-        array::ARRAY_EXOTIC_INTERNAL_METHODS,
+-        typed_array::{TypedArray, typed_array_get_element_u32},
+-    },
++    builtins::typed_array::{TypedArray, typed_array_get_element_u32},
+     js_string,
+     object::{
+-        internal_methods::{InternalMethodPropertyContext, ORDINARY_INTERNAL_METHODS},
++        internal_methods::{
++            InternalMethodPropertyContext, InternalObjectMethods, ORDINARY_INTERNAL_METHODS,
++        },
+         shape::slot::SlotAttributes,
+     },
+     property::PropertyKey,
+@@ -20,6 +19,15 @@ use crate::{
+     },
+ };
+
++#[inline]
++fn has_ordinary_get(vtable: &InternalObjectMethods) -> bool {
++    ptr::fn_addr_eq(vtable.__get__, ORDINARY_INTERNAL_METHODS.__get__)
++        && ptr::fn_addr_eq(
++            vtable.__get_own_property__,
++            ORDINARY_INTERNAL_METHODS.__get_own_property__,
++        )
++}
++
+ #[inline]
+ fn starts_with_ascii_digit(s: &JsString) -> bool {
+     s.code_unit_at(0)
+@@ -62,7 +70,7 @@ fn get_by_name<const LENGTH: bool>(
+     let object_borrowed = object.borrow();
+     let shape = object_borrowed.shape();
+     let slot = ic.get_slot(shape).or_else(|| {
+-        if ic.megamorphic.get() && ptr::eq(object.vtable(), &ORDINARY_INTERNAL_METHODS) {
++        if ic.megamorphic.get() && has_ordinary_get(object.vtable()) {
+             context.vm.megamorphic_cache.get(shape, &ic.name)
+         } else {
+             None
+@@ -103,7 +111,7 @@ fn get_by_name<const LENGTH: bool>(
+         let object_borrowed = object.borrow();
+         let shape = object_borrowed.shape();
+         if ic.megamorphic.get() {
+-            if ptr::eq(object.vtable(), &ORDINARY_INTERNAL_METHODS) {
++            if has_ordinary_get(object.vtable()) {
+                 let name = ic.name.clone();
+                 let shape_clone = shape.clone();
+                 drop(object_borrowed);
+@@ -160,12 +168,10 @@ fn get_by_value<const PUSH_KEY: bool>(
+             && let Some(obj) = context.vm.get_register(object.into()).as_object()
+         {
+             let vtable = obj.vtable();
+-            let is_ordinary = ptr::eq(vtable, &ORDINARY_INTERNAL_METHODS);
+-            if is_ordinary || ptr::eq(vtable, &ARRAY_EXOTIC_INTERNAL_METHODS) {
++            if has_ordinary_get(vtable) {
+                 let obj_borrowed = obj.borrow();
+                 let shape = obj_borrowed.shape();
+-                if is_ordinary
+-                    && let Some(slot) = context.vm.megamorphic_cache.get(shape, &key_str)
++                if let Some(slot) = context.vm.megamorphic_cache.get(shape, &key_str)
+                     && !slot.attributes.is_accessor_descriptor()
+                 {
+                     let val = obj_borrowed.properties().storage[slot.index as usize].clone();
+@@ -180,11 +186,13 @@ fn get_by_value<const PUSH_KEY: bool>(
+                     let val = obj_borrowed.properties().storage[slot.index as usize].clone();
+                     let shape_clone = shape.clone();
+                     drop(obj_borrowed);
+-                    if is_ordinary {
++                    if shape_clone.is_shared() {
++                        let mut cached_slot = slot;
++                        cached_slot.attributes.insert(SlotAttributes::FOUND);
+                         context
+                             .vm
+                             .megamorphic_cache
+-                            .set(&shape_clone, &key_str, slot);
++                            .set(&shape_clone, &key_str, cached_slot);
+                     }
+                     context.vm.set_register(dst.into(), val);
+                     return Ok(());
+diff --git a/src/vm/opcode/set/property.rs b/src/vm/opcode/set/property.rs
+index ca4a24f..115949b 100644
+--- a/src/vm/opcode/set/property.rs
++++ b/src/vm/opcode/set/property.rs
+@@ -2,10 +2,9 @@ use std::ptr;
+
+ use crate::JsExpect;
+ use crate::JsValue;
+-use crate::builtins::array::ARRAY_EXOTIC_INTERNAL_METHODS;
+ use crate::builtins::typed_array::{TypedArray, typed_array_set_element_u32};
+ use crate::object::JsObject;
+-use crate::object::internal_methods::ORDINARY_INTERNAL_METHODS;
++use crate::object::internal_methods::{InternalObjectMethods, ORDINARY_INTERNAL_METHODS};
+ use crate::value::JsVariant;
+ use crate::vm::opcode::{
+     Access, IndexOperand, RegisterOperand, describe_key, null_base_error, null_base_error_by_name,
+@@ -38,7 +37,7 @@ fn set_by_name(
+     let shape = object_borrowed.shape();
+     let slot = ic.get_slot(shape).or_else(|| {
+         if ic.megamorphic.get()
+-            && ptr::eq(object.vtable(), &ORDINARY_INTERNAL_METHODS)
++            && has_ordinary_set(object.vtable())
+             && receiver
+                 .as_object()
+                 .is_some_and(|r| JsObject::equals(&r, &object))
+@@ -105,7 +104,7 @@ fn set_by_name(
+         let object_borrowed = object.borrow();
+         let shape = object_borrowed.shape();
+         if ic.megamorphic.get() {
+-            if ptr::eq(object.vtable(), &ORDINARY_INTERNAL_METHODS) {
++            if has_ordinary_set(object.vtable()) {
+                 let name = ic.name.clone();
+                 let shape_clone = shape.clone();
+                 drop(object_borrowed);
+@@ -196,12 +195,31 @@ impl Operation for SetPropertyByName {
+ #[derive(Debug, Clone, Copy)]
+ pub(crate) struct SetPropertyByValue;
+
++#[inline]
++fn has_ordinary_set(vtable: &InternalObjectMethods) -> bool {
++    ptr::fn_addr_eq(vtable.__set__, ORDINARY_INTERNAL_METHODS.__set__)
++        && ptr::fn_addr_eq(
++            vtable.__get_own_property__,
++            ORDINARY_INTERNAL_METHODS.__get_own_property__,
++        )
++        && ptr::fn_addr_eq(
++            vtable.__define_own_property__,
++            ORDINARY_INTERNAL_METHODS.__define_own_property__,
++        )
++}
++
+ fn prototype_chain_has_no_indexed_properties(obj: &JsObject) -> bool {
+     let mut cur = obj.prototype();
+     while let Some(proto) = cur {
+         let vtable = proto.vtable();
+-        if !ptr::eq(vtable, &ORDINARY_INTERNAL_METHODS)
+-            && !ptr::eq(vtable, &ARRAY_EXOTIC_INTERNAL_METHODS)
++        if !ptr::fn_addr_eq(
++            vtable.__get_own_property__,
++            ORDINARY_INTERNAL_METHODS.__get_own_property__,
++        ) || !ptr::fn_addr_eq(vtable.__set__, ORDINARY_INTERNAL_METHODS.__set__)
++            || !ptr::fn_addr_eq(
++                vtable.__get_prototype_of__,
++                ORDINARY_INTERNAL_METHODS.__get_prototype_of__,
++            )
+         {
+             return false;
+         }
+@@ -321,7 +339,7 @@ impl SetPropertyByValue {
+                 .code_unit_at(0)
+                 .is_some_and(|cu| (b'0' as u16..=b'9' as u16).contains(&cu))
+             && let Some(obj) = context.vm.get_register(object.into()).as_object()
+-            && ptr::eq(obj.vtable(), &ORDINARY_INTERNAL_METHODS)
++            && has_ordinary_set(obj.vtable())
+             && context
+                 .vm
+                 .get_register(receiver.into())

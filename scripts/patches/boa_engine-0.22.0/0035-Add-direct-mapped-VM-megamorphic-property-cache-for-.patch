@@ -1,0 +1,248 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 20 Nov 2026 09:36:29 +0000
+Subject: [PATCH] Add direct-mapped VM megamorphic property cache for
+ SharedShape own slots
+
+Cache own SharedShape property slots on ordinary objects in a 256-entry direct-mapped WeakShape cache on Vm for megamorphic Get/SetPropertyByName sites and string-keyed GetPropertyByValue.
+---
+ src/vm/inline_cache/mod.rs    | 71 ++++++++++++++++++++++++++++++++++-
+ src/vm/mod.rs                 |  2 +
+ src/vm/opcode/get/property.rs | 46 +++++++++++++++++++----
+ src/vm/opcode/set/property.rs | 29 +++++++++++++-
+ 4 files changed, 138 insertions(+), 10 deletions(-)
+
+diff --git a/src/vm/inline_cache/mod.rs b/src/vm/inline_cache/mod.rs
+index c3b3601..449de0b 100644
+--- a/src/vm/inline_cache/mod.rs
++++ b/src/vm/inline_cache/mod.rs
+@@ -7,13 +7,82 @@ use boa_macros::{Finalize, Trace};
+
+ use crate::{
+     JsString,
+-    object::shape::{Shape, WeakShape, slot::Slot},
++    object::shape::{
++        Shape, WeakShape,
++        slot::{Slot, SlotAttributes},
++    },
+ };
+
+ #[cfg(test)]
+ mod tests;
+
+ pub(crate) const PIC_CAPACITY: usize = 4;
++const MEGAMORPHIC_CACHE_SIZE: usize = 256;
++
++#[derive(Clone, Debug)]
++struct MegamorphicEntry {
++    shape: WeakShape,
++    shape_addr: usize,
++    name: JsString,
++    slot: Slot,
++}
++
++/// Direct-mapped VM-wide cache for own properties on immutable [`SharedShape`]s
++/// accessed from megamorphic sites or string-keyed `GetPropertyByValue`.
++#[derive(Debug)]
++pub(crate) struct MegamorphicCache {
++    entries: Box<[Option<MegamorphicEntry>; MEGAMORPHIC_CACHE_SIZE]>,
++}
++
++impl Default for MegamorphicCache {
++    fn default() -> Self {
++        Self {
++            entries: Box::new([const { None }; MEGAMORPHIC_CACHE_SIZE]),
++        }
++    }
++}
++
++impl MegamorphicCache {
++    #[inline(always)]
++    fn slot_index(shape_addr: usize, name: &JsString) -> usize {
++        let len = name.len();
++        let first = name.code_unit_at(0).unwrap_or(0) as usize;
++        let last = if len > 1 {
++            name.code_unit_at(len - 1).unwrap_or(0) as usize
++        } else {
++            0
++        };
++        let name_hash = len ^ (first << 5) ^ (last << 11);
++        ((shape_addr >> 4).wrapping_mul(0x9E37_79B9) ^ name_hash) & (MEGAMORPHIC_CACHE_SIZE - 1)
++    }
++
++    #[inline]
++    pub(crate) fn get(&self, shape: &Shape, name: &JsString) -> Option<Slot> {
++        let shape_addr = shape.to_addr_usize();
++        let entry = self.entries[Self::slot_index(shape_addr, name)].as_ref()?;
++        if entry.shape_addr == shape_addr && entry.shape.is_upgradable() && entry.name == *name {
++            return Some(entry.slot);
++        }
++        None
++    }
++
++    pub(crate) fn set(&mut self, shape: &Shape, name: &JsString, slot: Slot) {
++        if !shape.is_shared()
++            || !slot.is_cacheable()
++            || slot.attributes.contains(SlotAttributes::PROTOTYPE)
++        {
++            return;
++        }
++        let shape_addr = shape.to_addr_usize();
++        let idx = Self::slot_index(shape_addr, name);
++        self.entries[idx] = Some(MegamorphicEntry {
++            shape: shape.into(),
++            shape_addr,
++            name: name.clone(),
++            slot,
++        });
++    }
++}
+
+ /// A cached shape-to-slot mapping for a polymorphic inline cache.
+ #[derive(Clone, Debug, Trace, Finalize)]
+diff --git a/src/vm/mod.rs b/src/vm/mod.rs
+index a05fb3c..d6bf742 100644
+--- a/src/vm/mod.rs
++++ b/src/vm/mod.rs
+@@ -104,6 +104,7 @@ pub struct Vm {
+     pub(crate) host_call_depth: usize,
+
+     pub(crate) shadow_stack: ShadowStack,
++    pub(crate) megamorphic_cache: inline_cache::MegamorphicCache,
+
+     #[cfg(feature = "trace")]
+     pub(crate) trace: bool,
+@@ -489,6 +490,7 @@ impl Vm {
+             native_active_function: None,
+             host_call_depth: 0,
+             shadow_stack: ShadowStack::default(),
++            megamorphic_cache: inline_cache::MegamorphicCache::default(),
+             #[cfg(feature = "trace")]
+             trace: false,
+             #[cfg(feature = "trace")]
+diff --git a/src/vm/opcode/get/property.rs b/src/vm/opcode/get/property.rs
+index 1ee6783..7f6ad35 100644
+--- a/src/vm/opcode/get/property.rs
++++ b/src/vm/opcode/get/property.rs
+@@ -61,7 +61,14 @@ fn get_by_name<const LENGTH: bool>(
+     let ic = &context.vm.frame().code_block().ic()[usize::from(index)];
+     let object_borrowed = object.borrow();
+     let shape = object_borrowed.shape();
+-    if let Some(slot) = ic.get_slot(shape) {
++    let slot = ic.get_slot(shape).or_else(|| {
++        if ic.megamorphic.get() && ptr::eq(object.vtable(), &ORDINARY_INTERNAL_METHODS) {
++            context.vm.megamorphic_cache.get(shape, &ic.name)
++        } else {
++            None
++        }
++    });
++    if let Some(slot) = slot {
+         let mut result = if slot.attributes.contains(SlotAttributes::PROTOTYPE) {
+             let prototype = shape.prototype().expect("prototype should have value");
+             let prototype = prototype.borrow();
+@@ -95,7 +102,16 @@ fn get_by_name<const LENGTH: bool>(
+         let ic = &context.vm.frame().code_block.ic()[usize::from(index)];
+         let object_borrowed = object.borrow();
+         let shape = object_borrowed.shape();
+-        ic.set(shape, slot);
++        if ic.megamorphic.get() {
++            if ptr::eq(object.vtable(), &ORDINARY_INTERNAL_METHODS) {
++                let name = ic.name.clone();
++                let shape_clone = shape.clone();
++                drop(object_borrowed);
++                context.vm.megamorphic_cache.set(&shape_clone, &name, slot);
++            }
++        } else {
++            ic.set(shape, slot);
++        }
+     }
+
+     context.vm.set_register(dst.into(), result);
+@@ -144,12 +160,12 @@ fn get_by_value<const PUSH_KEY: bool>(
+             && let Some(obj) = context.vm.get_register(object.into()).as_object()
+         {
+             let vtable = obj.vtable();
+-            if ptr::eq(vtable, &ORDINARY_INTERNAL_METHODS)
+-                || ptr::eq(vtable, &ARRAY_EXOTIC_INTERNAL_METHODS)
+-            {
++            let is_ordinary = ptr::eq(vtable, &ORDINARY_INTERNAL_METHODS);
++            if is_ordinary || ptr::eq(vtable, &ARRAY_EXOTIC_INTERNAL_METHODS) {
+                 let obj_borrowed = obj.borrow();
+-                let prop_key = PropertyKey::String(key_str);
+-                if let Some(slot) = obj_borrowed.shape().lookup(&prop_key)
++                let shape = obj_borrowed.shape();
++                if is_ordinary
++                    && let Some(slot) = context.vm.megamorphic_cache.get(shape, &key_str)
+                     && !slot.attributes.is_accessor_descriptor()
+                 {
+                     let val = obj_borrowed.properties().storage[slot.index as usize].clone();
+@@ -157,6 +173,22 @@ fn get_by_value<const PUSH_KEY: bool>(
+                     context.vm.set_register(dst.into(), val);
+                     return Ok(());
+                 }
++                let prop_key = PropertyKey::String(key_str.clone());
++                if let Some(slot) = shape.lookup(&prop_key)
++                    && !slot.attributes.is_accessor_descriptor()
++                {
++                    let val = obj_borrowed.properties().storage[slot.index as usize].clone();
++                    let shape_clone = shape.clone();
++                    drop(obj_borrowed);
++                    if is_ordinary {
++                        context
++                            .vm
++                            .megamorphic_cache
++                            .set(&shape_clone, &key_str, slot);
++                    }
++                    context.vm.set_register(dst.into(), val);
++                    return Ok(());
++                }
+             }
+         }
+     }
+diff --git a/src/vm/opcode/set/property.rs b/src/vm/opcode/set/property.rs
+index b97778a..ca4a24f 100644
+--- a/src/vm/opcode/set/property.rs
++++ b/src/vm/opcode/set/property.rs
+@@ -36,7 +36,23 @@ fn set_by_name(
+
+     let object_borrowed = object.borrow();
+     let shape = object_borrowed.shape();
+-    if let Some(slot) = ic.get_slot(shape) {
++    let slot = ic.get_slot(shape).or_else(|| {
++        if ic.megamorphic.get()
++            && ptr::eq(object.vtable(), &ORDINARY_INTERNAL_METHODS)
++            && receiver
++                .as_object()
++                .is_some_and(|r| JsObject::equals(&r, &object))
++        {
++            context.vm.megamorphic_cache.get(shape, &ic.name).filter(|s| {
++                !s.attributes.is_accessor_descriptor()
++                    && !s.attributes.contains(SlotAttributes::PROTOTYPE)
++                    && s.attributes.contains(SlotAttributes::WRITABLE)
++            })
++        } else {
++            None
++        }
++    });
++    if let Some(slot) = slot {
+         let slot_index = slot.index as usize;
+
+         if slot.attributes.is_accessor_descriptor() {
+@@ -88,7 +104,16 @@ fn set_by_name(
+         let ic = &context.vm.frame().code_block.ic()[usize::from(index)];
+         let object_borrowed = object.borrow();
+         let shape = object_borrowed.shape();
+-        ic.set(shape, slot);
++        if ic.megamorphic.get() {
++            if ptr::eq(object.vtable(), &ORDINARY_INTERNAL_METHODS) {
++                let name = ic.name.clone();
++                let shape_clone = shape.clone();
++                drop(object_borrowed);
++                context.vm.megamorphic_cache.set(&shape_clone, &name, slot);
++            }
++        } else {
++            ic.set(shape, slot);
++        }
+     }
+
+     Ok(())

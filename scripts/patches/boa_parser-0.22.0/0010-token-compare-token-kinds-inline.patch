@@ -1,0 +1,166 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Wed, 18 Nov 2026 17:32:14 +0000
+Subject: [PATCH] token: compare token kinds inline
+
+The parser compares the current token kind against punctuator and
+keyword constants at almost every step, about 70 call sites. The derived
+PartialEq was too large to inline, so each comparison was a call; it was
+4% of the parse samples as wasm.
+
+The hand-written PartialEq checks the variant first, then compares a
+punctuator, a keyword or a unit variant inline, which against a constant
+reduces to a tag and byte test. Other variants go to eq_by_variant, an
+exhaustive match that compares the same fields the derive did. A test
+checks every pair from a set of kinds covering each variant and field.
+
+Parse time for eight third-party scripts (3.0 MiB): 294 -> 276 ms as
+wasm under V8, for 1.4 KiB more wasm. ASTs, collected source text,
+errors and top-level bytecode for 6009 npm files are unchanged.
+---
+ src/lexer/tests.rs | 54 ++++++++++++++++++++++++++++++++++++++++
+ src/lexer/token.rs | 62 +++++++++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 115 insertions(+), 1 deletion(-)
+
+diff --git a/src/lexer/tests.rs b/src/lexer/tests.rs
+index b7224d1..1626bdb 100644
+--- a/src/lexer/tests.rs
++++ b/src/lexer/tests.rs
+@@ -1178,3 +1178,57 @@ mod carriage_return {
+         expect_tokens_with_lines(3, "-\r\n\n\r3");
+     }
+ }
++
++/// Token kinds are equal exactly when they are the same variant with equal fields.
++#[test]
++fn token_kind_equality_is_by_variant_and_fields() {
++    let interner = &mut Interner::default();
++    let a = interner.get_or_intern("a");
++    let b = interner.get_or_intern("b");
++    let escaped = ContainsEscapeSequence(true);
++    let plain = ContainsEscapeSequence(false);
++    let kinds = [
++        TokenKind::BooleanLiteral((true, plain)),
++        TokenKind::BooleanLiteral((true, escaped)),
++        TokenKind::BooleanLiteral((false, plain)),
++        TokenKind::EOF,
++        TokenKind::IdentifierName((a, plain)),
++        TokenKind::IdentifierName((a, escaped)),
++        TokenKind::IdentifierName((b, plain)),
++        TokenKind::PrivateIdentifier(a),
++        TokenKind::PrivateIdentifier(b),
++        TokenKind::Keyword((Keyword::If, false)),
++        TokenKind::Keyword((Keyword::If, true)),
++        TokenKind::Keyword((Keyword::Else, false)),
++        TokenKind::NullLiteral(plain),
++        TokenKind::NullLiteral(escaped),
++        TokenKind::NumericLiteral(Numeric::Rational(1.5)),
++        TokenKind::NumericLiteral(Numeric::Rational(2.5)),
++        TokenKind::NumericLiteral(Numeric::Integer(1)),
++        TokenKind::NumericLiteral(Numeric::Integer(2)),
++        TokenKind::NumericLiteral(Numeric::BigInt(Box::new(1.into()))),
++        TokenKind::NumericLiteral(Numeric::BigInt(Box::new(2.into()))),
++        TokenKind::Punctuator(Punctuator::OpenParen),
++        TokenKind::Punctuator(Punctuator::CloseParen),
++        TokenKind::StringLiteral((a, EscapeSequence::empty())),
++        TokenKind::StringLiteral((a, EscapeSequence::OTHER)),
++        TokenKind::StringLiteral((b, EscapeSequence::empty())),
++        TokenKind::TemplateNoSubstitution(TemplateString::new(a, interner)),
++        TokenKind::TemplateNoSubstitution(TemplateString::new(b, interner)),
++        TokenKind::TemplateMiddle(TemplateString::new(a, interner)),
++        TokenKind::TemplateMiddle(TemplateString::new(b, interner)),
++        TokenKind::RegularExpressionLiteral(a, b),
++        TokenKind::RegularExpressionLiteral(a, a),
++        TokenKind::RegularExpressionLiteral(b, b),
++        TokenKind::LineTerminator,
++        TokenKind::Comment,
++    ];
++    for (i, x) in kinds.iter().enumerate() {
++        for (j, y) in kinds.iter().enumerate() {
++            assert_eq!(x == y, i == j, "{x:?} == {y:?}");
++            assert_eq!(x == &y.clone(), i == j, "{x:?} == clone of {y:?}");
++        }
++    }
++    let nan = TokenKind::NumericLiteral(Numeric::Rational(f64::NAN));
++    assert_ne!(nan, nan.clone());
++}
+diff --git a/src/lexer/token.rs b/src/lexer/token.rs
+index 5f52f11..83ca5cf 100644
+--- a/src/lexer/token.rs
++++ b/src/lexer/token.rs
+@@ -124,7 +124,7 @@ impl From<BigInt> for Numeric {
+ }
+
+ /// Represents the type of Token and the data it has inside.
+-#[derive(Clone, PartialEq, Debug)]
++#[derive(Clone, Debug)]
+ pub enum TokenKind {
+     /// A boolean literal, which is either `true` or `false`.
+     BooleanLiteral((bool, ContainsEscapeSequence)),
+@@ -181,6 +181,66 @@ pub enum TokenKind {
+     Comment,
+ }
+
++// The parser compares token kinds against punctuator and keyword constants everywhere; the derived
++// comparison was not inlined, so each was a call. Inlined, these reduce to a tag and byte test.
++impl PartialEq for TokenKind {
++    #[inline]
++    fn eq(&self, other: &Self) -> bool {
++        if std::mem::discriminant(self) != std::mem::discriminant(other) {
++            return false;
++        }
++        match (self, other) {
++            (Self::Punctuator(a), Self::Punctuator(b)) => a == b,
++            (Self::Keyword(a), Self::Keyword(b)) => a == b,
++            (Self::EOF | Self::LineTerminator | Self::Comment, _) => true,
++            _ => self.eq_by_variant(other),
++        }
++    }
++}
++
++impl TokenKind {
++    /// What `#[derive(PartialEq)]` compares: the same variant and equal fields.
++    #[inline(never)]
++    fn eq_by_variant(&self, other: &Self) -> bool {
++        match (self, other) {
++            (Self::BooleanLiteral(a), Self::BooleanLiteral(b)) => a == b,
++            (Self::EOF, Self::EOF) => true,
++            (Self::IdentifierName(a), Self::IdentifierName(b)) => a == b,
++            (Self::PrivateIdentifier(a), Self::PrivateIdentifier(b)) => a == b,
++            (Self::Keyword(a), Self::Keyword(b)) => a == b,
++            (Self::NullLiteral(a), Self::NullLiteral(b)) => a == b,
++            (Self::NumericLiteral(a), Self::NumericLiteral(b)) => a == b,
++            (Self::Punctuator(a), Self::Punctuator(b)) => a == b,
++            (Self::StringLiteral(a), Self::StringLiteral(b)) => a == b,
++            (Self::TemplateNoSubstitution(a), Self::TemplateNoSubstitution(b)) => a == b,
++            (Self::TemplateMiddle(a), Self::TemplateMiddle(b)) => a == b,
++            (
++                Self::RegularExpressionLiteral(a_body, a_flags),
++                Self::RegularExpressionLiteral(b_body, b_flags),
++            ) => a_body == b_body && a_flags == b_flags,
++            (Self::LineTerminator, Self::LineTerminator) => true,
++            (Self::Comment, Self::Comment) => true,
++            (
++                Self::BooleanLiteral(_)
++                | Self::EOF
++                | Self::IdentifierName(_)
++                | Self::PrivateIdentifier(_)
++                | Self::Keyword(_)
++                | Self::NullLiteral(_)
++                | Self::NumericLiteral(_)
++                | Self::Punctuator(_)
++                | Self::StringLiteral(_)
++                | Self::TemplateNoSubstitution(_)
++                | Self::TemplateMiddle(_)
++                | Self::RegularExpressionLiteral(..)
++                | Self::LineTerminator
++                | Self::Comment,
++                _,
++            ) => false,
++        }
++    }
++}
++
+ impl From<bool> for TokenKind {
+     #[inline]
+     fn from(oth: bool) -> Self {

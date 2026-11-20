@@ -1,0 +1,177 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 19 Nov 2026 19:02:30 +0000
+Subject: [PATCH] vm: stack-allocate up to 4 native call arguments and skip
+ no-op realm swap
+
+Every built-in and host-proxy call previously called Vec::split_off to
+heap-allocate an argument Vec even for 0-4 arguments, and native_function_call
+cloned and swapped the active Realm even when the function had no custom realm.
+Use a 4-element inline CallArgs buffer and skip swap_realm when realm is None.
+---
+ src/builtins/proxy/mod.rs  |  2 +-
+ src/native_function/mod.rs | 34 ++++++++++++-----------
+ src/vm/mod.rs              | 55 +++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 74 insertions(+), 17 deletions(-)
+
+diff --git a/src/builtins/proxy/mod.rs b/src/builtins/proxy/mod.rs
+index a9519c1..f16fb47 100644
+--- a/src/builtins/proxy/mod.rs
++++ b/src/builtins/proxy/mod.rs
+@@ -1255,7 +1255,7 @@ fn proxy_exotic_call(
+         let args = context
+             .vm
+             .stack
+-            .calling_convention_pop_arguments(argument_count);
++            .calling_convention_pop_call_args(argument_count);
+         let _func = context.vm.stack.pop();
+         let this = context.vm.stack.pop();
+         context.check_runtime_limits()?;
+diff --git a/src/native_function/mod.rs b/src/native_function/mod.rs
+index da480f9..deacf7c 100644
+--- a/src/native_function/mod.rs
++++ b/src/native_function/mod.rs
+@@ -328,7 +328,7 @@ pub(crate) fn native_function_call(
+     let args = context
+         .vm
+         .stack
+-        .calling_convention_pop_arguments(argument_count);
++        .calling_convention_pop_call_args(argument_count);
+     let _func = context.vm.stack.pop();
+     let this = context.vm.stack.pop();
+
+@@ -337,15 +337,17 @@ pub(crate) fn native_function_call(
+     context.check_runtime_limits()?;
+     let this_function_object = obj.clone();
+
+-    let NativeFunctionObject {
+-        f: function,
+-        name,
+-        constructor,
+-        realm,
+-    } = obj
+-        .downcast_ref::<NativeFunctionObject>()
+-        .expect("the object should be a native function object")
+-        .clone();
++    let (function, name, is_constructor, mut realm) = {
++        let nfo = obj
++            .downcast_ref::<NativeFunctionObject>()
++            .expect("the object should be a native function object");
++        (
++            nfo.f.clone(),
++            nfo.name.clone(),
++            nfo.constructor.is_some(),
++            nfo.realm.clone(),
++        )
++    };
+
+     let pc = context.vm.frame().pc;
+     let native_source_info = context.native_source_info();
+@@ -354,12 +356,12 @@ pub(crate) fn native_function_call(
+         .shadow_stack
+         .push_native(pc, name, native_source_info);
+
+-    let mut realm = realm.unwrap_or_else(|| context.realm().clone());
+-
+-    context.swap_realm(&mut realm);
++    if let Some(ref mut r) = realm {
++        context.swap_realm(r);
++    }
+     context.vm.native_active_function = Some(this_function_object);
+
+-    let result = if constructor.is_some() {
++    let result = if is_constructor {
+         function.call(&JsValue::undefined(), &args, context)
+     } else {
+         function.call(&this, &args, context)
+@@ -367,7 +369,9 @@ pub(crate) fn native_function_call(
+     .map_err(|err| err.inject_realm(context.realm().clone()));
+
+     context.vm.native_active_function = None;
+-    context.swap_realm(&mut realm);
++    if let Some(ref mut r) = realm {
++        context.swap_realm(r);
++    }
+
+     context.vm.shadow_stack.pop();
+
+diff --git a/src/vm/mod.rs b/src/vm/mod.rs
+index 6c1729a..a1961a3 100644
+--- a/src/vm/mod.rs
++++ b/src/vm/mod.rs
+@@ -17,7 +17,13 @@ use crate::{
+ };
+ use boa_gc::{Finalize, Gc, Trace, custom_trace};
+ use shadow_stack::ShadowStack;
+-use std::{future::Future, ops::ControlFlow, path::Path, pin::Pin, task};
++use std::{
++    future::Future,
++    ops::{ControlFlow, Deref},
++    path::Path,
++    pin::Pin,
++    task,
++};
+
+ #[cfg(feature = "trace")]
+ use crate::sys::time::Instant;
+@@ -126,6 +132,25 @@ pub(crate) struct Stack {
+     stack: Vec<JsValue>,
+ }
+
++/// Stack-allocated argument buffer for up to 4 call arguments, avoiding a heap
++/// `Vec` allocation on every built-in or host proxy call.
++pub(crate) enum CallArgs {
++    Inline { len: u8, data: [JsValue; 4] },
++    Heap(Vec<JsValue>),
++}
++
++impl Deref for CallArgs {
++    type Target = [JsValue];
++
++    #[inline]
++    fn deref(&self) -> &[JsValue] {
++        match self {
++            Self::Inline { len, data } => &data[..usize::from(*len)],
++            Self::Heap(vec) => vec.as_slice(),
++        }
++    }
++}
++
+ impl Stack {
+     /// Creates a new stack with the given capacity.
+     fn new(capacity: usize) -> Self {
+@@ -233,6 +258,34 @@ impl Stack {
+         self.stack.pop().expect("stack was empty")
+     }
+
++    /// Pop the function arguments according to the calling convention into a stack-allocated
++    /// buffer when there are at most 4 arguments, falling back to a heap `Vec` otherwise.
++    #[inline]
++    pub(crate) fn calling_convention_pop_call_args(&mut self, argument_count: usize) -> CallArgs {
++        if argument_count == 0 {
++            return CallArgs::Inline {
++                len: 0,
++                data: [const { JsValue::undefined() }; 4],
++            };
++        }
++        if argument_count <= 4 {
++            let mut data = [const { JsValue::undefined() }; 4];
++            let base = self.stack.len() - argument_count;
++            for (dst, src) in data[..argument_count]
++                .iter_mut()
++                .zip(self.stack.drain(base..))
++            {
++                *dst = src;
++            }
++            return CallArgs::Inline {
++                len: argument_count as u8,
++                data,
++            };
++        }
++        let index = self.stack.len() - argument_count;
++        CallArgs::Heap(self.stack.split_off(index))
++    }
++
+     /// Pop the function arguments according to the calling convention.
+     /// This will pop the last `argument_count` values from the stack.
+     pub(crate) fn calling_convention_pop_arguments(

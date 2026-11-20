@@ -1,0 +1,80 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Wed, 18 Nov 2026 16:37:03 +0000
+Subject: [PATCH] identifier: classify ASCII characters without the Unicode
+ sets
+
+Every character of every identifier went through an ICU code point set
+lookup for ID_Start or ID_Continue, which was about 4% of the parse
+samples and more of the time than that suggests.
+
+ASCII characters are now classified with a match: ID_Start is A-Z and
+a-z, ID_Continue adds 0-9 and _, and $ and _ are allowed explicitly as
+before. Other characters still use the sets. A test checks the fast path
+against the sets for all 128 ASCII code points.
+
+Parse time for nine third-party scripts (3.0 MiB): 280 -> 245 ms
+natively. ASTs, collected source text, errors and top-level bytecode for
+6009 npm files are unchanged.
+---
+ src/lexer/identifier.rs | 38 +++++++++++++++++++++++++++++++++-----
+ 1 file changed, 33 insertions(+), 5 deletions(-)
+
+diff --git a/src/lexer/identifier.rs b/src/lexer/identifier.rs
+index 114fac5..dbafeb5 100644
+--- a/src/lexer/identifier.rs
++++ b/src/lexer/identifier.rs
+@@ -34,8 +34,12 @@ impl Identifier {
+     ///
+     /// [spec]: https://tc39.es/ecma262/#sec-names-and-keywords
+     pub(super) fn is_identifier_start(ch: u32) -> bool {
++        // ASCII is most of real source; the ICU set lookup is the slow path.
++        if ch < 0x80 {
++            return matches!(ch as u8, b'a'..=b'z' | b'A'..=b'Z' | b'$' | b'_');
++        }
+         const ID_START: CodePointSetDataBorrowed<'static> = CodePointSetData::new::<IdStart>();
+-        matches!(ch, 0x0024 /* $ */ | 0x005F /* _ */) || ID_START.contains32(ch)
++        ID_START.contains32(ch)
+     }
+
+     /// Checks if a character is `IdentifierPart` as per ECMAScript standards.
+@@ -45,11 +49,35 @@ impl Identifier {
+     ///
+     /// [spec]: https://tc39.es/ecma262/#sec-names-and-keywords
+     fn is_identifier_part(ch: u32) -> bool {
++        if ch < 0x80 {
++            return matches!(ch as u8, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'$' | b'_');
++        }
+         const ID_CONTINUE: CodePointSetDataBorrowed<'static> =
+             CodePointSetData::new::<IdContinue>();
+-        matches!(
+-            ch,
+-            0x0024 /* $ */ | 0x005F /* _ */ | 0x200C /* <ZWNJ> */ | 0x200D /* <ZWJ> */
+-        ) || ID_CONTINUE.contains32(ch)
++        matches!(ch, 0x200C /* <ZWNJ> */ | 0x200D /* <ZWJ> */) || ID_CONTINUE.contains32(ch)
++    }
++}
++
++#[cfg(test)]
++mod ascii_tests {
++    use super::*;
++
++    #[test]
++    fn ascii_fast_path_matches_the_unicode_sets() {
++        let start: CodePointSetDataBorrowed<'static> = CodePointSetData::new::<IdStart>();
++        let cont: CodePointSetDataBorrowed<'static> = CodePointSetData::new::<IdContinue>();
++        for ch in 0..0x80u32 {
++            let dollar_or_underscore = matches!(ch, 0x24 | 0x5F);
++            assert_eq!(
++                Identifier::is_identifier_start(ch),
++                dollar_or_underscore || start.contains32(ch),
++                "IdentifierStart {ch:#x}"
++            );
++            assert_eq!(
++                Identifier::is_identifier_part(ch),
++                dollar_or_underscore || cont.contains32(ch),
++                "IdentifierPart {ch:#x}"
++            );
++        }
+     }
+ }

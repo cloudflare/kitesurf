@@ -23,7 +23,8 @@ cargo_toml_env_vars(
         name = name,
         srcs = glob(["src/**/*.rs"]),
         aliases = aliases(),
-        crate_features = ["blitz", "console_error_panic_hook", "default", "pdf"],
+        # Omit `pdf` here: PDF rasterization lives in `renderer-core` (and `core_test` enables `pdf`).
+        crate_features = ["blitz", "console_error_panic_hook"],
         crate_name = "kitesurf_core",
         crate_root = "src/lib.rs",
         edition = "2021",

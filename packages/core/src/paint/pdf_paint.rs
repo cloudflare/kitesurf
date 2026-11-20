@@ -561,23 +561,6 @@ pub(crate) fn push_page_clip(surface: &mut Surface<'_>, width: f32, stripe_heigh
     }
 }
 
-pub(crate) fn content_box(
-    paper_width: u32,
-    paper_height: u32,
-    margin_top: u32,
-    margin_right: u32,
-    margin_bottom: u32,
-    margin_left: u32,
-) -> (u32, u32, u32, u32) {
-    let ml = margin_left.min(paper_width.saturating_sub(1));
-    let mr = margin_right.min(paper_width.saturating_sub(ml).saturating_sub(1));
-    let mt = margin_top.min(paper_height.saturating_sub(1));
-    let mb = margin_bottom.min(paper_height.saturating_sub(mt).saturating_sub(1));
-    let width = paper_width.saturating_sub(ml).saturating_sub(mr).max(1);
-    let height = paper_height.saturating_sub(mt).saturating_sub(mb).max(1);
-    (ml, mt, width, height)
-}
-
 pub(crate) fn paint_white_background(
     surface: &mut krilla::surface::Surface<'_>,
     width: u32,
