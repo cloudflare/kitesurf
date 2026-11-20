@@ -185,6 +185,11 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         break;
       }
       case "DOMStorage":
+        // Chrome has DOMStorage on page and frame sessions only. A page-mode client has no ids.
+        if (!req.sessionId && ctx.client.connectionMode !== "page") {
+          ctx.browser.networkEvents.drain();
+          return methodNotFound(req);
+        }
         result = await handleDomStorage(ctx, req);
         break;
       case "WebMCP":

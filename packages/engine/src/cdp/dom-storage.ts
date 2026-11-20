@@ -75,8 +75,8 @@ async function changeStorage(
   return {};
 }
 
-// A frame session acts for its page's browser context. With no session (page mode) the page
-// target answers; an unknown session fails rather than act on some other page.
+// A frame session acts for its page's browser context. With no session the page target answers,
+// which dispatch allows in page mode only; an unknown session fails rather than act elsewhere.
 function sessionOwner(
   ctx: DispatchCtx,
   sessionId: string | undefined,

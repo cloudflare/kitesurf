@@ -50,7 +50,7 @@ describe("DOMStorage sessions", () => {
   const B = "https://b.test";
 
   // A page in a second browser context comes first, where a wrong fallback would land.
-  function setup() {
+  function setup(connectionMode: "page" | "browser" = "browser") {
     const storage = new LocalStorage(new MemorySessionStore());
     const other = new LocalStorage(new MemorySessionStore());
     const emitted: CdpEvent[] = [];
@@ -109,6 +109,7 @@ describe("DOMStorage sessions", () => {
         engineSessionId: null,
       },
       emit: (e: CdpEvent) => emitted.push(e),
+      client: { connectionMode },
     } as unknown as DispatchCtx;
     const send = (
       sessionId: string | undefined,
@@ -196,7 +197,7 @@ describe("DOMStorage sessions", () => {
   });
 
   it("sends a page-mode client its events without a session id", async () => {
-    const { send, emitted } = setup();
+    const { send, emitted } = setup("page");
     // With no session the first page answers, here the one in the second browser context.
     await send(undefined, "DOMStorage.enable");
     const set = (value: string) =>
@@ -210,6 +211,15 @@ describe("DOMStorage sessions", () => {
     await send(undefined, "DOMStorage.disable");
     await set("w");
     expect(emitted).toHaveLength(1);
+  });
+
+  it("refuses DOMStorage without a session in browser mode, as Chrome does", async () => {
+    const { send, emitted } = setup();
+    expect(await send(undefined, "DOMStorage.enable")).toMatchObject({
+      error: { code: -32601, message: "'DOMStorage.enable' wasn't found" },
+    });
+    await send("p2", "DOMStorage.setDOMStorageItem", { storageId: local(A), key: "k", value: "v" });
+    expect(emitted).toEqual([]);
   });
 
   it("reads a frame's opacity from the sandbox its isolate was sealed with", async () => {
