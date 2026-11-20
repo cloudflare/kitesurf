@@ -26,6 +26,7 @@ function installFor(isolateUrl: string, localStorage?: LocalStorage) {
       handler = h;
     },
   } as PageScriptStub;
+  const targets = new Map<string, TargetState>();
   const store: LearnedScripts = new Map();
   const emitted: CdpEvent[] = [];
   const dedicatedWorkers = {
@@ -38,6 +39,9 @@ function installFor(isolateUrl: string, localStorage?: LocalStorage) {
       learnedInsertedScripts: store,
       dedicatedWorkers,
       networkEvents: new NetworkEventTracker(() => {}, "test"),
+      targets,
+      contexts: new Map(),
+      localStorage,
     },
     emit: (e: CdpEvent) => {
       emitted.push(e);
@@ -59,11 +63,14 @@ function installFor(isolateUrl: string, localStorage?: LocalStorage) {
     navigationHistoryIndex: 0,
     nextNavigationHistoryId: 2,
     frames: new Map(),
+    domStorageSessions: new Set<string>(),
   } as TargetState;
+  targets.set(target.targetId, target);
   const origin = localStorage ? new URL(isolateUrl).origin : "";
   const copy = localStorage
-    ? new StorageCopy(new Map(), target, 1, stub, localStorage, origin, isolateUrl)
+    ? new StorageCopy(targets, target, 1, stub, localStorage, origin, isolateUrl)
     : undefined;
+  copy?.seed();
   installUpstreamEventHandler(ctx, target, stub, 1, isolateUrl, copy);
   const send = (event: UpstreamEventName, params: ReceivedUpstreamParams) =>
     handler!(event, params);
@@ -89,6 +96,22 @@ describe("kitesurf.localStorage", () => {
     target.navigateGeneration = 2;
     send("kitesurf.localStorage", { ops: [{ op: "set", key: "k", value: "v" }, { op: "bad" }] });
     expect(storage.entries(A)).toEqual([["k", "v"]]);
+  });
+
+  it("reports the batch to the page's DOMStorage sessions", () => {
+    const storage = new LocalStorage(new MemorySessionStore());
+    const { send, target, emitted } = installFor(`${A}/x`, storage);
+    target.domStorageSessions.add("s1");
+    send("kitesurf.localStorage", { ops: [{ op: "set", key: "k", value: "v" }], seq: 4 });
+    expect(storage.entries(A)).toEqual([["k", "v"]]);
+    const storageId = { securityOrigin: A, storageKey: `${A}/`, isLocalStorage: true };
+    expect(emitted).toEqual([
+      {
+        method: "DOMStorage.domStorageItemAdded",
+        params: { storageId, key: "k", newValue: "v" },
+        sessionId: "s1",
+      },
+    ]);
   });
 
   it("drops writes once the connection is closing", () => {
