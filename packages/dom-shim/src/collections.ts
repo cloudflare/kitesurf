@@ -1363,7 +1363,7 @@ for (const [k, v] of Object.entries(RULE_CONSTANTS)) {
 // remirror a sheet that is mid-reparse.
 const MEDIA_LIST_TOKEN = Symbol("kitesurfMediaList");
 // One media query as MediaList stores it: comments become spaces, like CSS token separators,
-// and whitespace runs collapse so equal queries compare equal.
+// and CSS whitespace runs collapse so equal queries compare equal.
 function normalizeMedium(text: string): string {
   return trimCss(collapseCssSpace(stripCssComments(text, " ")));
 }
@@ -2134,10 +2134,19 @@ function keepStringBreak(t: string): string {
   }
   return t + pad + (q ? "\n" : "");
 }
-function trimCss(s: string): string {
-  return keepStringBreak(s.trim());
+// CSS whitespace is space, tab, LF, CR and FF. NBSP and other JS whitespace are name characters.
+function isCssSpace(ch: string | undefined): boolean {
+  return ch === " " || ch === "\t" || isStringBreak(ch);
 }
-// Collapses whitespace runs to one space, but keeps a newline that ends a string.
+function trimCss(s: string): string {
+  let a = 0;
+  let b = s.length;
+  while (a < b && isCssSpace(s[a])) a++;
+  while (b > a && isCssSpace(s[b - 1])) b--;
+  return keepStringBreak(s.slice(a, b));
+}
+// Collapses CSS whitespace runs (space, tab, newline, CR, FF; not NBSP) to one space, but keeps a
+// newline that ends a string and the terminator of a hex escape.
 function collapseCssSpace(s: string): string {
   let out = "";
   let q = "";
@@ -2149,7 +2158,7 @@ function collapseCssSpace(s: string): string {
       gap = "\n";
       continue;
     }
-    if (!q && /\s/.test(ch)) {
+    if (!q && isCssSpace(ch)) {
       if (!gap) gap = " ";
       continue;
     }
@@ -2162,7 +2171,7 @@ function collapseCssSpace(s: string): string {
       i += esc.length - 1;
       // A hex escape's whitespace terminator is part of the escape: keep it as one space, and
       // let whitespace after it collapse to a separator of its own.
-      out += !q && isHexDigit(esc[1]) && /\s$/.test(esc) ? esc.trimEnd() + " " : esc;
+      out += !q && isHexDigit(esc[1]) && /[ \t\n\r\f]$/.test(esc) ? esc.trimEnd() + " " : esc;
       continue;
     }
     if (q ? ch === q : ch === '"' || ch === "'") q = q ? "" : ch;
@@ -2291,7 +2300,7 @@ function splitStylesheetRules(src: unknown, declarations = false): ParsedRuleLis
         const declText = trimCss(text.slice(braceOpenAt + 1, i));
         const cssText = selectorText
           ? selectorText + " { " + declText + " }"
-          : text.slice(chunkStart, i + 1).trim();
+          : trimCss(text.slice(chunkStart, i + 1));
         out.push({ cssText, selectorText, declText });
         chunkStart = i + 1;
         braceOpenAt = -1;
@@ -2302,12 +2311,12 @@ function splitStylesheetRules(src: unknown, declarations = false): ParsedRuleLis
     if (stack.length === 0 && ch === ";") {
       if (leadFor !== chunkStart) {
         let j = chunkStart;
-        while (j < i && /\s/.test(text[j])) j++;
+        while (j < i && isCssSpace(text[j])) j++;
         leadFor = chunkStart;
         lead = text[j];
       }
       if (declarations || lead === "@") {
-        const raw = text.slice(chunkStart, i + 1).trim();
+        const raw = trimCss(text.slice(chunkStart, i + 1));
         if (raw) out.push({ cssText: raw, selectorText: "", declText: "" });
         chunkStart = i + 1;
       }
@@ -2325,7 +2334,7 @@ function splitStylesheetRules(src: unknown, declarations = false): ParsedRuleLis
     const declText = trimCss(body);
     const cssText = selectorText
       ? selectorText + " { " + declText + " }"
-      : text.slice(chunkStart, braceOpenAt + 1).trim() + " " + declText + " }";
+      : trimCss(text.slice(chunkStart, braceOpenAt + 1)) + " " + declText + " }";
     out.push({ cssText, selectorText, declText });
     chunkStart = n;
     stack.length = 0;
@@ -2846,7 +2855,7 @@ function constructRule(
 
   if (kind === "layer-statement") {
     const rule = mk(CSSLayerStatementRuleCls);
-    const names = trimCss(raw.replace(/^@layer/i, "").replace(/;\s*$/, ""));
+    const names = trimCss(raw.replace(/^@layer/i, "").replace(/;[ \t\n\r\f]*$/, ""));
     const list = names ? splitCssList(names).map(trimCss).filter(Boolean) : [];
     const st: RuleState = {
       ...base,

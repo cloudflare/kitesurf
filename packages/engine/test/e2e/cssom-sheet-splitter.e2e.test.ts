@@ -314,8 +314,68 @@ test("a comment in media text does not stop the list from splitting", async ({ p
   });
 }, 60_000);
 
+// Only CSS whitespace (space, tab, LF, CR, FF) collapses or trims in media text, as in Chrome.
+// NBSP is a name character, so a query holding one stays invalid and its rule never applies.
+// Kitesurf keeps the text as written where Chrome serializes an invalid query as "not all".
+test("CSS whitespace collapses in media text; NBSP is kept", async ({ browser }) => {
+  const page = await browser.newPage();
+  try {
+    await setContent(page, `<style id=s>@media all{#t{margin-left:3px}}</style><p id=t>x</p>`);
+    const result = await page.evaluate(`(() => {
+      const media = document.getElementById("s").sheet.cssRules[0].media;
+      media.mediaText = "print\\n\\n  and\\t(color)";
+      const runs = media.mediaText;
+      media.mediaText = "print\\u00a0and (color)";
+      const inner = media.mediaText;
+      media.mediaText = "\\u00a0all";
+      const lead = media.length;
+      return { runs, inner, lead, margin: getComputedStyle(document.getElementById("t")).marginLeft };
+    })()`);
+    expect(result).toEqual({
+      runs: "print and (color)",
+      inner: "print\u00a0and (color)",
+      lead: 1,
+      margin: "0px",
+    });
+  } finally {
+    await page.close();
+  }
+  for (const css of [
+    "@media \u00a0all{#t{margin-left:3px}}",
+    "@media all\u00a0{#t{margin-left:3px}}",
+    "\u00a0@media all{#t{margin-left:3px}}",
+  ]) {
+    const p = await browser.newPage();
+    try {
+      await setContent(p, `<style id=s></style><p id=t>x</p>`);
+      const margin = await p.evaluate(`(() => {
+        const s = document.getElementById("s");
+        s.textContent = ${JSON.stringify(css)};
+        s.sheet.insertRule("#t{padding-right:4px}", s.sheet.cssRules.length);
+        return getComputedStyle(document.getElementById("t")).marginLeft;
+      })()`);
+      expect(margin, css).toBe("0px");
+    } finally {
+      await p.close();
+    }
+  }
+}, 60_000);
+
+// NBSP is a name character, so it stays in an @layer name before the `;`. Matches Chrome.
+test("an NBSP before the ; stays in an @layer name", async ({ page }) => {
+  await setContent(page, `<style id=s></style><p id=t>x</p>`);
+  const names = await page.evaluate(`(() => {
+    const s = document.getElementById("s");
+    s.textContent = "@layer a\\u00a0;";
+    return Array.from(s.sheet.cssRules[0].nameList);
+  })()`);
+  expect(names).toEqual(["a\u00a0"]);
+}, 60_000);
+
 // An @font-palette-values declaration needs an identifier name (escapes allowed): an open
 // string or a lone hyphen is dropped, as in Chrome, so it cannot swallow the rules after it.
+// NBSP is a name character, so `font-family\u00a0` is an unknown descriptor, never font-family.
+// Kitesurf keeps unknown descriptors where Chrome drops them (that predates this test).
 test("a non-identifier @font-palette-values descriptor name is dropped", async ({ browser }) => {
   for (const [css, body] of [
     ['@font-palette-values --p{"bad\n:x}', ""],
@@ -323,6 +383,7 @@ test("a non-identifier @font-palette-values descriptor name is dropped", async (
     ["@font-palette-values --p{-:x}", ""],
     ["@font-palette-values --p{font-fam\\69 ly:x}", "font-fam\\69 ly: x; "],
     ["@font-palette-values --p{font-fam\\69\vly:x}", ""],
+    ["@font-palette-values --p{font-family\u00a0:x}", "font-family\u00a0: x; "],
   ]) {
     const page = await browser.newPage();
     try {
