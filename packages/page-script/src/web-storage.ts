@@ -144,6 +144,12 @@ function quotaExceeded(key: string): DOMException {
   );
 }
 
+// One upstream event must stay under JSRPC's 32 MiB message limit (core dom/cdp.rs), and a string
+// serializes to at most two bytes per code unit. A batch flushes early before it passes this
+// budget; one op fits in it, since a set over the quota throws and a longer key is never stored.
+const BATCH_UNITS = 2 * QUOTA_UNITS;
+const OP_UNITS = 16;
+
 // localStorage on a page the engine seeded: a copy of the browser context's area for this origin,
 // with every change also sent to the engine, batched per microtask. remove and clear are sent even
 // when this copy has nothing to drop: the engine's area can hold keys another page wrote since.
@@ -159,17 +165,34 @@ export function sharedArea(
     data.set(k, v);
   }
   for (const [k, v] of data) used += k.length + v.length;
-  let pending: LocalStorageOp[] | null = null;
+  let pending: LocalStorageOp[] = [];
+  let pendingUnits = 0;
+  let scheduled = false;
+  const flush = () => {
+    if (pending.length === 0) return;
+    const ops = pending;
+    pending = [];
+    pendingUnits = 0;
+    send(ops);
+  };
   const queue = (op: LocalStorageOp) => {
-    if (!pending) {
+    const units =
+      OP_UNITS + (op.op === "clear" ? 0 : op.key.length) + (op.op === "set" ? op.value.length : 0);
+    if (op.op === "clear") {
+      // A clear makes every earlier op of the batch moot.
       pending = [];
-      void NativePromise.resolve().then(() => {
-        const ops = pending ?? [];
-        pending = null;
-        if (ops.length > 0) send(ops);
-      });
+      pendingUnits = 0;
+    } else if (pendingUnits + units > BATCH_UNITS) {
+      flush();
     }
     pending.push(op);
+    pendingUnits += units;
+    if (scheduled) return;
+    scheduled = true;
+    void NativePromise.resolve().then(() => {
+      scheduled = false;
+      flush();
+    });
   };
   return {
     get: (k) => data.get(k) ?? null,
@@ -187,7 +210,7 @@ export function sharedArea(
         data.delete(k);
         used -= k.length + old.length;
       }
-      queue({ op: "remove", key: k });
+      if (k.length <= QUOTA_UNITS) queue({ op: "remove", key: k });
     },
     clear() {
       data.clear();
