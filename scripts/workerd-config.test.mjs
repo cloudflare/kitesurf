@@ -112,7 +112,7 @@ const serve = async function (t, root) {
     if (child.exitCode !== null) throw new Error(`workerd exited ${child.exitCode}: ${output}`);
     try {
       await (await fetch(`${base}/health`)).text();
-      return base;
+      return { base, output: () => output };
     } catch (error) {
       if (Date.now() > deadline) throw error;
       await new Promise((r) => setTimeout(r, 50));
@@ -174,9 +174,15 @@ test(
   async (t) => {
     const root = makeImage(t);
     assert.equal(generate(root).status, 0);
-    const base = await serve(t, root);
+    const { base, output } = await serve(t, root);
 
     assert.equal(await (await fetch(`${base}/health`)).text(), "engine /health");
+    // serve() already sent the first request; its log line may still be in the pipe.
+    const deadline = Date.now() + DEADLINE_MS;
+    while (!output().includes("[kitesurf] ready: ") && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    assert.equal(output().match(/\[kitesurf\] ready: /g)?.length, 1);
     assert.equal(await (await fetch(`${base}/`)).text(), "engine /");
     assert.equal(await (await fetch(`${base}/a.txt`)).text(), "root a");
     assert.equal(await (await fetch(`${base}/missing.txt`)).text(), "engine /missing.txt");

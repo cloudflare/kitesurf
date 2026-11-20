@@ -85,11 +85,18 @@ export class Assets extends WorkerEntrypoint {
   }
 }
 
+let announced = false;
+
 export default {
   /** @param {Request} request @param {{ENGINE: Fetcher, PUBLIC: Fetcher, HEADERS: unknown[]}} env
    * @returns {Promise<Response>} */
   async fetch(request, env) {
     const { pathname } = new URL(request.url);
+    // Docker's health check sends the first request about a second after start.
+    if (!announced) {
+      announced = true;
+      console.log("[kitesurf] ready: CDP at /devtools/browser, discovery at /json/version");
+    }
     if (!workerFirst(pathname) && !request.headers.has("upgrade")) {
       const file = await serveFile(env, request);
       if (file.status !== 404) return file;
