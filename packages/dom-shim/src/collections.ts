@@ -2193,7 +2193,10 @@ function eofClosers(body: string): string {
   }
   return q + stack.reverse().join("");
 }
-function splitStylesheetRules(src: unknown): ParsedRuleList {
+// Splits a rule list into rule chunks. A top-level `;` ends only an at-rule statement: before
+// any other rule it is prelude text, so that rule runs to its `{` and is invalid. Declaration
+// lists (an @page body) pass `declarations` so each `;` ends a declaration chunk.
+function splitStylesheetRules(src: unknown, declarations = false): ParsedRuleList {
   const out = Object.assign([] as ParsedRuleChunk[], {
     trailingGarbage: "",
     unbalanced: false,
@@ -2209,6 +2212,9 @@ function splitStylesheetRules(src: unknown): ParsedRuleList {
   let braceOpenAt = -1;
   let inStr = "";
   let escapeEnd = -1;
+  // First non-space character of the chunk at leadFor, found when a `;` needs it.
+  let leadFor = -1;
+  let lead = "";
   while (i < n) {
     const ch = text[i];
     if (inStr) {
@@ -2267,9 +2273,17 @@ function splitStylesheetRules(src: unknown): ParsedRuleList {
       continue;
     }
     if (stack.length === 0 && ch === ";") {
-      const raw = text.slice(chunkStart, i + 1).trim();
-      if (raw) out.push({ cssText: raw, selectorText: "", declText: "" });
-      chunkStart = i + 1;
+      if (leadFor !== chunkStart) {
+        let j = chunkStart;
+        while (j < i && /\s/.test(text[j])) j++;
+        leadFor = chunkStart;
+        lead = text[j];
+      }
+      if (declarations || lead === "@") {
+        const raw = text.slice(chunkStart, i + 1).trim();
+        if (raw) out.push({ cssText: raw, selectorText: "", declText: "" });
+        chunkStart = i + 1;
+      }
     }
     i++;
   }
@@ -3009,7 +3023,7 @@ function constructRule(
     const rule = mk(CSSPageRuleCls);
     const declParts: string[] = [];
     const childRules = makeRuleList([]);
-    const pageBody = splitStylesheetRules(parsed.declText || "");
+    const pageBody = splitStylesheetRules(parsed.declText || "", true);
     for (const part of pageBody) {
       const marginName = marginRuleNameOf(part.selectorText);
       if (marginName) {

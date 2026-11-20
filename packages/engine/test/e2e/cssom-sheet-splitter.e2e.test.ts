@@ -256,6 +256,44 @@ test("a stray closing brace drops only the rule after it", async ({ page }) => {
   expect(result).toEqual({ color: "rgb(1, 2, 3)", margin: "0px", padding: "4px" });
 }, 60_000);
 
+// A top-level ; ends only an at-rule statement. Before any other rule it is prelude text, so
+// that rule is invalid, as in Chrome. An @page body is a declaration list and still splits.
+test("a top-level ; ends only an at-rule statement", async ({ browser }) => {
+  for (const [css, margin] of [
+    ["#a{color:red}}; #t{margin-left:7px}", "0px"],
+    [";@media all{#t{margin-left:7px}}", "0px"],
+    ["#t{margin-left:7px} x; @import url(a.css);", "7px"],
+    ["@page{margin:1px; color:red} #t{margin-left:7px}", "7px"],
+  ]) {
+    const page = await browser.newPage();
+    try {
+      await setContent(page, `<style id=s></style><p id=t>x</p>`);
+      const result = await page.evaluate(`(() => {
+        const s = document.getElementById("s");
+        s.textContent = ${JSON.stringify(css)};
+        s.sheet.insertRule("#t{padding-right:4px}", s.sheet.cssRules.length);
+        const t = getComputedStyle(document.getElementById("t"));
+        return { margin: t.marginLeft, padding: t.paddingRight };
+      })()`);
+      expect(result, css).toEqual({ margin, padding: "4px" });
+    } finally {
+      await page.close();
+    }
+  }
+}, 60_000);
+
+// The same rule holds for replaceSync: the rule after a stray `};` never applies, as in Chrome.
+test("a ; before a rule drops it in replaceSync", async ({ page }) => {
+  await setContent(page, `<p id=t>x</p>`);
+  const margin = await page.evaluate(`(() => {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync("#a{color:red}}; #t{margin-left:7px}");
+    document.adoptedStyleSheets = [sheet];
+    return getComputedStyle(document.getElementById("t")).marginLeft;
+  })()`);
+  expect(margin).toBe("0px");
+}, 60_000);
+
 // A brace inside an unquoted url does not end the rule; after # or @, url( is not a url.
 test("url token boundaries in the rule splitter", async ({ browser }) => {
   for (const css of [
