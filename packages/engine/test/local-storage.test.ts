@@ -98,6 +98,8 @@ describe("localStorageOrigin", () => {
     ["https://a.test/x?q#f", "https://a.test"],
     ["http://a.test:8080/", "http://a.test:8080"],
     ["about:blank", null],
+    // The stand-in URL about:blank and a blank setDocumentContent page render under.
+    ["https://kitesurf.local/", null],
     ["data:text/html,x", null],
     ["blob:https://a.test/uuid", null],
     ["not a url", null],

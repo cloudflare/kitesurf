@@ -97,6 +97,19 @@ test("each browser context has its own localStorage", async ({ browser, page }) 
   }
 }, 120_000);
 
+test("blank documents keep localStorage to themselves", async ({ page, cdpSession }) => {
+  // about:blank and a blank page's setDocumentContent render under a stand-in https URL, but
+  // their origins are opaque.
+  await page.goto("about:blank");
+  await page.evaluate(() => localStorage.setItem("k", "blank"));
+  const { frameTree } = await cdpSession.send("Page.getFrameTree");
+  await cdpSession.send("Page.setDocumentContent", { frameId: frameTree.frame.id, html: "<p>" });
+  expect(await read(page)).toEqual({});
+  await page.evaluate(() => localStorage.setItem("k", "content"));
+  await page.goto("about:blank");
+  expect(await read(page)).toEqual({});
+}, 120_000);
+
 // Storage is a legacy platform object with named properties: stored keys are its own properties,
 // and the methods stay on Storage.prototype.
 const NAMED_PROPERTIES_PROBE = `(() => {

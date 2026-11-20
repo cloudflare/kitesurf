@@ -21,6 +21,10 @@ export type { LocalStorageOp };
 // two pages of one origin could otherwise fill the area twice.
 export const LOCAL_STORAGE_QUOTA_UNITS = 5 * 1024 * 1024;
 
+// The rendering stand-in URL page.ts sanitizeBaseUrl gives about:blank and setDocumentContent's
+// blank page. Those documents have opaque origins, so they must not share an area under it.
+const SYNTHETIC_ORIGIN = "https://kitesurf.local";
+
 const isIndexed: StoreGuard<true> = (v): v is true => v === true;
 
 export class LocalStorage {
@@ -118,12 +122,13 @@ export class LocalStorage {
 
 /**
  * The origin whose area a document at `url` uses, or null when the engine keeps none: an opaque
- * origin (data:, about:blank) matches nothing else, so its storage stays in the page.
+ * origin (data:, about:blank or its stand-in URL) matches no other, so its storage stays in page.
  */
 export function localStorageOrigin(url: string): string | null {
   try {
     const u = new URL(url);
     if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (u.origin === SYNTHETIC_ORIGIN) return null;
     return u.origin;
   } catch {
     return null;
