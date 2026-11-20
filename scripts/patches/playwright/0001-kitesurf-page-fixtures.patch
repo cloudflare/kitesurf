@@ -1,9 +1,9 @@
 diff --git a/tests/kitesurf/kitesurfTest.ts b/tests/kitesurf/kitesurfTest.ts
 new file mode 100644
-index 0000000..6ec5406
+index 0000000..bbfd84f
 --- /dev/null
 +++ b/tests/kitesurf/kitesurfTest.ts
-@@ -0,0 +1,56 @@
+@@ -0,0 +1,64 @@
 +// Kitesurf impl of the shared tests/page fixture surface (PWPAGE_IMPL=kitesurf).
 +// Drives a running kitesurf engine over CDP; KITESURF_WS points at it.
 +
@@ -53,11 +53,19 @@ index 0000000..6ec5406
 +  // Fresh page per test, closed after; cookies cleared between tests
 +  // (Storage.clearCookies) since the single context persists until
 +  // kitesurf grows real browser contexts (TODO-playwright.md 3.7).
-+  page: async ({ kitesurfContext }, use) => {
++  // localStorage lasts for the context too, so clear the test server's
++  // origins (Storage.clearDataForOrigin).
++  page: async ({ kitesurfBrowser, kitesurfContext, server }, use) => {
 +    const page = await kitesurfContext.newPage();
 +    await use(page);
 +    await page.close().catch(() => {});
 +    await kitesurfContext.clearCookies().catch(() => {});
++    const cdp = await kitesurfBrowser.newBrowserCDPSession().catch(() => null);
++    for (const prefix of [server.PREFIX, server.CROSS_PROCESS_PREFIX]) {
++      const origin = new URL(prefix).origin;
++      await cdp?.send('Storage.clearDataForOrigin', { origin, storageTypes: 'local_storage' }).catch(() => {});
++    }
++    await cdp?.detach().catch(() => {});
 +  },
 +});
 diff --git a/tests/kitesurf/playwright.config.ts b/tests/kitesurf/playwright.config.ts
