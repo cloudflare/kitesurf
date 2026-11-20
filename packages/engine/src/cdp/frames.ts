@@ -32,6 +32,15 @@ export function matchesAboutBlank(url: string): boolean {
   }
 }
 
+export function isSrcdocUrl(url: string): boolean {
+  return /^about:srcdoc([?#]|$)/.test(url);
+}
+
+/** about:blank and about:srcdoc documents take their embedder's origin. */
+export function resolvesToEmbedderOrigin(url: string): boolean {
+  return matchesAboutBlank(url) || isSrcdocUrl(url);
+}
+
 export function originOf(url: string): string {
   try {
     const u = new URL(url);

@@ -100,10 +100,11 @@ import {
   makeFrameInfo,
   makeMainFrameState,
   MAX_IFRAME_DEPTH,
+  isSrcdocUrl,
   mintFrameId,
-  matchesAboutBlank,
   mintLoaderId,
   originOf,
+  resolvesToEmbedderOrigin,
 } from "./frames.ts";
 import { emitChildFrameAttachAndStart } from "./iframe-events.ts";
 import {
@@ -3396,14 +3397,6 @@ function frameNeedsIsolate(frame: FrameState): boolean {
 function frameFacadeIsCrossOrigin(frame: FrameState): boolean {
   if (childFrameIsOpaque(frame) || frame.isCrossOrigin) return true;
   return frame.hasScript && !isSrcdocUrl(frame.url);
-}
-
-function isSrcdocUrl(url: string): boolean {
-  return /^about:srcdoc([?#]|$)/.test(url);
-}
-
-function resolvesToEmbedderOrigin(url: string): boolean {
-  return matchesAboutBlank(url) || isSrcdocUrl(url);
 }
 
 function childFrameUrl(src: string | null, srcdoc: string | null, baseUrl: string): string {

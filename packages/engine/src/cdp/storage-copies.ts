@@ -19,6 +19,7 @@ import {
   type LocalStorageApplied,
   type LocalStorageChange,
 } from "../state/local-storage.ts";
+import { MAX_IFRAME_DEPTH, resolvesToEmbedderOrigin } from "./frames.ts";
 import { localStorageForTarget } from "./target.ts";
 
 /** One document's copy of an origin's area. */
@@ -192,10 +193,21 @@ export function documentOrigin(target: TargetState): string | null {
   return localStorageOrigin(target.pageScriptUrl ?? target.url);
 }
 
+// The origin a frame session shows: its document's, or its embedder's for about:blank and
+// about:srcdoc. A data: document and a frame sandboxed without allow-same-origin are opaque.
 function sessionOrigin(target: TargetState, frame: FrameState | null): string | null {
   if (!frame) return documentOrigin(target);
-  if (frame.detached || target.frames.get(frame.frameId) !== frame) return null;
-  return localStorageOrigin(frame.pageScriptUrl ?? frame.url);
+  for (let depth = 0; frame && depth <= MAX_IFRAME_DEPTH; depth++) {
+    if (frame.frameId === target.frameId) return documentOrigin(target);
+    if (frame.detached || target.frames.get(frame.frameId) !== frame) return null;
+    if (!frame.sandbox.sameOrigin) return null;
+    if (!resolvesToEmbedderOrigin(frame.url)) {
+      return localStorageOrigin(frame.pageScriptUrl ?? frame.url);
+    }
+    if (frame.parentFrameId === null) return documentOrigin(target);
+    frame = target.frames.get(frame.parentFrameId) ?? null;
+  }
+  return null;
 }
 
 // DOMStorage events go to the sessions that enabled the domain on a page or frame of the origin,
