@@ -76,3 +76,24 @@ slow.all("/slow-script", async (c) => {
     "content-type": "text/javascript; charset=utf-8",
   });
 });
+
+const STREAM_TICK_MS = 25;
+
+// A text body that never ends, for a page fetch that must resolve on headers.
+slow.all("/endless-text-stream", (c) => {
+  const encoder = new TextEncoder();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const tick = () => {
+        controller.enqueue(encoder.encode("tick\n"));
+        timer = setTimeout(tick, STREAM_TICK_MS);
+      };
+      tick();
+    },
+    cancel() {
+      clearTimeout(timer);
+    },
+  });
+  return c.body(body, 200, { "content-type": "text/plain; charset=utf-8" });
+});

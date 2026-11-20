@@ -20,7 +20,7 @@ const miss = async () => new Response(null, { status: 404 });
 function stubOutbound(routes: Record<string, () => Response>) {
   const fetcher = { fetch: async (req: Request) => routes[req.url]?.() ?? miss() } as Fetcher;
   const base = { external: false, parent: () => fetcher, loaded: () => fetcher };
-  return { ...base, session: () => miss, final: miss };
+  return { ...base, session: () => ({ outbound: miss, cancelBodies: () => {} }), final: miss };
 }
 
 it("bounds concurrent wasm prefetch memory", async () => {

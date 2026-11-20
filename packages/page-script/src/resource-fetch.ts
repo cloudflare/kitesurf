@@ -390,12 +390,32 @@ function collectImageHints(url: string): Array<{ priority: string; lazy: boolean
 function reevaluateDeferred(url: string): void {
   if (!deferredUrls.has(url)) return;
   const hints = collectImageHints(url);
-  if (hints !== null && !allHintsLazy(hints)) {
+  // Only promote back to load-blocking when a live non-lazy <img> references the URL;
+  // an empty list means the pending nodes already detached or settled.
+  if (hints !== null && hints.length > 0 && !allHintsLazy(hints)) {
     deferredUrls.delete(url);
   }
 }
 
+// Re-reading deferred URLs' DOM attributes helps only after a mutation. The load drain calls
+// this on every poll (up to 400), which cost 15-20 s of drain on image-heavy pages. Those
+// pages mutate on almost every poll, so the mutation sequence is not enough and the pass also
+// has a time floor.
+const DEFERRED_REEVALUATE_MIN_INTERVAL_MS = 250;
+let reevaluateDeferredSeq = -1;
+let reevaluateDeferredAt = -Infinity;
+
+export function invalidateDeferredReevaluation(): void {
+  reevaluateDeferredSeq = -1;
+}
+
 export function reevaluateDeferredUrls(): void {
+  const seq = getInternalState().mutationSeq | 0;
+  if (seq === reevaluateDeferredSeq) return;
+  const now = Date.now();
+  if (now - reevaluateDeferredAt < DEFERRED_REEVALUATE_MIN_INTERVAL_MS) return;
+  reevaluateDeferredSeq = seq;
+  reevaluateDeferredAt = now;
   for (const url of Array.from(deferredUrls)) {
     reevaluateDeferred(url);
   }
@@ -469,6 +489,9 @@ async function acquireFetchSlot(url: string, kind: string): Promise<void> {
       resourceClass = classForImageHints(hints);
       if (allHintsLazy(hints)) {
         deferredUrls.add(url);
+        // A URL can join the deferred set without a mutation, so make the next
+        // drain pass re-read the hints instead of trusting the cached seq.
+        invalidateDeferredReevaluation();
         if (blockingInflightCount() === 0) notifyInflightZero();
       }
     }
@@ -755,6 +778,31 @@ function releaseParkedFontFetches(): void {
 }
 setParkedFontReleaseHook(releaseParkedFontFetches);
 
+// Match HTML §4.8.4.3.5 ("await a stable state"): wait one microtask so synchronous
+// mutations (loading="lazy", appending <img> into <picture>, or updating src) settle before
+// opening a socket. Returns false when every waiting node moved on and the fetch is dropped.
+async function settleImageFetchBeforeOpen(id: number, url: string): Promise<boolean> {
+  await NativePromise.resolve();
+  const dom = state.dom as {
+    hasPendingImageWaiter?: (url: string) => boolean;
+    deliverResourceError?: (id: number) => void;
+  } | null;
+  if (dom?.hasPendingImageWaiter && !dom.hasPendingImageWaiter(url)) {
+    try {
+      const pending = runPageTaskWhenUnpaused(() => dom.deliverResourceError?.(id));
+      if (pending) await pending;
+    } catch {}
+    return false;
+  }
+  const hints = collectImageHints(url);
+  if (hints !== null && allHintsLazy(hints)) {
+    deferredUrls.add(url);
+    invalidateDeferredReevaluation();
+    if (blockingInflightCount() === 0) notifyInflightZero();
+  }
+  return true;
+}
+
 export async function fetchResource(
   id: number,
   url: string,
@@ -782,6 +830,10 @@ export async function fetchResource(
     }
     blocksLoad = !hint.lazy;
   }
+  // A webfont never delays the `load` event in a browser: it blocks text
+  // rendering, not the document's load state. Waiting on one cost
+  // 15 s per page when the font CDN stalled.
+  if (kind === "Font") blocksLoad = false;
   if (blocksLoad) addInflight(url);
   if (kind === "Image") addImageInflight(url);
   if (kind === "Font") {
@@ -824,6 +876,9 @@ export async function fetchResource(
   };
 
   try {
+    if (kind === "Image" && !(await settleImageFetchBeforeOpen(id, url))) {
+      return;
+    }
     // CORS mode stays in the key so callers never share a differently entitled response.
     const coalesceKey = `${corsMode}\n${url}`;
     let shared = mapGet(inflightFetches, coalesceKey);
