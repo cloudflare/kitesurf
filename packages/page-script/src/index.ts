@@ -41,6 +41,7 @@ import type {
   WireMeta,
   UnloadReply,
   WebStorageParams,
+  WebStorageReply,
 } from "@kitesurf/jsrpc-types/page-script";
 import {
   SANDBOX_ALLOW_ALL,
@@ -4380,7 +4381,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     return { ok: true };
   }
 
-  async webStorage(params: WebStorageParams): Promise<OkReply> {
+  async webStorage(params: WebStorageParams): Promise<WebStorageReply> {
     return webStorage(params);
   }
 

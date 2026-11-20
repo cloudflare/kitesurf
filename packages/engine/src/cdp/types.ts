@@ -358,6 +358,7 @@ export interface TargetState {
   compiledScripts: CompiledScriptMeta[];
   debuggerEnabledSessions: Set<string>;
   domEnabledSessions: Set<string>;
+  domStorageSessions: Set<string>;
   cssEnabledSessions: Set<string>;
   webmcpSessions: Set<string>;
   webmcpEnableRevisions: Map<string, number>;

@@ -7,7 +7,11 @@
 // state/local-storage.ts), hands the page a copy at navigation, and sends other sources' changes.
 // sessionStorage and an unseeded localStorage stay in memory for the isolate's one document.
 
-import type { LocalStorageOp, OkReply, WebStorageParams } from "@kitesurf/jsrpc-types/page-script";
+import type {
+  LocalStorageOp,
+  WebStorageParams,
+  WebStorageReply,
+} from "@kitesurf/jsrpc-types/page-script";
 import { sendUpstreamEvent } from "./internal-state.js";
 import { NativePromise } from "./native-scheduling.ts";
 import { runPageTaskOrQueue } from "./page-tasks.ts";
@@ -173,6 +177,11 @@ export interface RemoteArea extends StorageArea {
   applyRemote(ops: readonly LocalStorageOp[]): StorageChange[];
 }
 
+export function sessionArea(): RemoteArea {
+  const data = new Map<string, string>();
+  return { ...mapArea(data), applyRemote: (ops) => applyOps(data, ops) };
+}
+
 function mapArea(data: Map<string, string>): StorageArea {
   return {
     get: (k) => data.get(k) ?? null,
@@ -187,14 +196,19 @@ function mapArea(data: Map<string, string>): StorageArea {
   };
 }
 
+export interface SharedArea extends RemoteArea {
+  /** Send the unsent changes now. Returns the number of the last batch sent. */
+  flush(): number;
+}
+
 // localStorage on a page the engine seeded: a copy of the browser context's area for this origin,
 // with every change also sent to the engine, batched per microtask. remove and clear are sent even
 // when this copy has nothing to drop: the engine's area can hold keys another page wrote since.
 export function sharedArea(
   seed: ReadonlyArray<readonly [string, string]>,
-  send: (ops: LocalStorageOp[]) => void = (ops) =>
-    sendUpstreamEvent({ event: "kitesurf.localStorage", params: { ops } }),
-): RemoteArea {
+  send: (ops: LocalStorageOp[], seq: number) => void = (ops, seq) =>
+    sendUpstreamEvent({ event: "kitesurf.localStorage", params: { ops, seq } }),
+): SharedArea {
   const data = new Map<string, string>();
   let used = 0;
   for (const [k, v] of seed) {
@@ -209,12 +223,14 @@ export function sharedArea(
   let pending: LocalStorageOp[] = [];
   let pendingUnits = 0;
   let scheduled = false;
-  const flush = () => {
-    if (pending.length === 0) return;
+  let seq = 0;
+  const flush = (): number => {
+    if (pending.length === 0) return seq;
     const ops = pending;
     pending = [];
     pendingUnits = 0;
-    send(ops);
+    send(ops, ++seq);
+    return seq;
   };
   const queue = (op: LocalStorageOp) => {
     const units =
@@ -236,6 +252,7 @@ export function sharedArea(
     });
   };
   return {
+    flush,
     // The engine applied `ops` before it sees this copy's unsent changes, so those replay on top.
     applyRemote(ops) {
       const changes = applyOps(data, ops);
@@ -273,8 +290,13 @@ export function sharedArea(
   };
 }
 
-// The document's shared localStorage and its area, for the engine's webStorage calls.
-let localBucket: { storage: object; area: RemoteArea } | null = null;
+// The document's two Storage objects and their areas, for the engine's webStorage calls.
+interface Bucket {
+  storage: object;
+  area: RemoteArea;
+}
+let localBucket: (Bucket & { area: SharedArea }) | null = null;
+let sessionBucket: Bucket | null = null;
 // Engine changes that arrived before navigate() built localStorage; they land on the seed.
 let earlyLocalOps: LocalStorageOp[] = [];
 
@@ -286,6 +308,8 @@ export function storageBuckets(seed: ReadonlyArray<readonly [string, string]> | 
   localStorage: object;
   sessionStorage: object;
 } {
+  const session = sessionArea();
+  sessionBucket = { storage: storageObject(session), area: session };
   let localStorage: object;
   if (seed) {
     const area = sharedArea(seed);
@@ -296,7 +320,7 @@ export function storageBuckets(seed: ReadonlyArray<readonly [string, string]> | 
   } else {
     localStorage = storageObject(memoryArea());
   }
-  return { localStorage, sessionStorage: storageObject(memoryArea()) };
+  return { localStorage, sessionStorage: sessionBucket.storage };
 }
 
 function fireStorageEvents(
@@ -319,8 +343,19 @@ function fireStorageEvents(
 }
 
 /** The engine's webStorage call. */
-export function webStorage(params: WebStorageParams): OkReply {
-  if (!localBucket) earlyLocalOps.push(...params.ops);
-  else fireStorageEvents(localBucket.area.applyRemote(params.ops), localBucket.storage, params.url);
-  return { ok: true };
+export function webStorage(params: WebStorageParams): WebStorageReply {
+  if (params.op === "flush") return { seq: localBucket ? localBucket.area.flush() : 0 };
+  if (params.op === "entries") {
+    const area = sessionBucket?.area;
+    const entries: Array<[string, string]> = [];
+    for (const key of area?.keys() ?? []) entries.push([key, area?.get(key) ?? ""]);
+    return { seq: 0, entries };
+  }
+  const bucket = params.area === "local" ? localBucket : sessionBucket;
+  if (!bucket) {
+    if (params.area === "local") earlyLocalOps.push(...params.ops);
+    return { seq: 0 };
+  }
+  fireStorageEvents(bucket.area.applyRemote(params.ops), bucket.storage, params.url);
+  return { seq: 0 };
 }

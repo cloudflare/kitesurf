@@ -259,7 +259,7 @@ export interface PageScriptSession {
   unload(): Promise<UnloadReply>;
   drainConsole(): Promise<DrainConsoleReply>;
   syncCookies(cookies: string): Promise<OkReply>;
-  webStorage(params: WebStorageParams): Promise<OkReply>;
+  webStorage(params: WebStorageParams): Promise<WebStorageReply>;
   installBindings(names: string[]): Promise<OkReply>;
   installIframeContent(params: IframeContentParams): Promise<OkReply>;
   iframeInstallsSettled(): Promise<OkReply>;
@@ -384,8 +384,8 @@ export interface UpstreamEvents {
   "kitesurf.frameStoppedLoading": { frameId: string };
   "kitesurf.insertedScriptRan": { url: string; bytes: number; run: "baked" | "stale" | "boa" };
   // localStorage changes on a page with a seeded area, batched per microtask. The engine applies
-  // them to the browser context's area for the origin.
-  "kitesurf.localStorage": { ops: LocalStorageOp[] };
+  // them to the browser context's area for the origin. `seq` counts this document's batches.
+  "kitesurf.localStorage": { ops: LocalStorageOp[]; seq: number };
   "kitesurf.modelContextToolsAdded": { tools: WebMcpTool[] };
   "kitesurf.modelContextToolsRemoved": { names: string[] };
   "kitesurf.navigatedWithinDocument": {
@@ -425,14 +425,19 @@ export type LocalStorageOp =
   | { op: "remove"; key: string }
   | { op: "clear" };
 
-// The engine's calls on a page's Web Storage. `apply` makes changes from another source (another
-// page, a CDP client) and fires `storage` events with `url` (none when null).
-export type WebStorageParams = {
-  op: "apply";
-  area: "local";
-  ops: LocalStorageOp[];
-  url: string | null;
-};
+// The engine's calls on a page's Web Storage. `flush` sends the unsent localStorage changes now.
+// `apply` makes changes from another source (another page, a CDP client) and fires `storage`
+// events with `url` (none when null). `entries` reads sessionStorage, which only the page holds.
+export type WebStorageParams =
+  | { op: "flush" }
+  | { op: "apply"; area: "local" | "session"; ops: LocalStorageOp[]; url: string | null }
+  | { op: "entries"; area: "session" };
+
+export interface WebStorageReply {
+  // The last localStorage batch this document sent, after a flush.
+  seq: number;
+  entries?: Array<[string, string]>;
+}
 
 export interface WebMcpTool {
   name: string;

@@ -4235,6 +4235,7 @@ export function installUpstreamEventHandler(
       const ops = readLocalStorageOps(params);
       const from = { source: copy, url: copy.url };
       void changeLocalStorage(ctx, copy.storage, copy.origin, ops, from).catch(() => {});
+      copy.received(typeof params.seq === "number" ? params.seq : 0);
       return;
     }
     if (target.navigateGeneration !== generation) return;

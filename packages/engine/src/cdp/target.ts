@@ -284,6 +284,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
           }
           detachWebMcpSession(t, sessionId);
           forgetFrontendNodes(t, sessionId);
+          t.domStorageSessions.delete(sessionId);
           const stream = ctx.browser.screencasts.get(t.targetId);
           if (stream?.ownerSessionId === sessionId) {
             stream.stopped = true;
@@ -354,6 +355,7 @@ export function ensureBrowserTarget(ctx: DispatchCtx): TargetState {
     compiledScripts: [],
     debuggerEnabledSessions: new Set(),
     domEnabledSessions: new Set(),
+    domStorageSessions: new Set(),
     cssEnabledSessions: new Set(),
     webmcpSessions: new Set(),
     webmcpEnableRevisions: new Map(),
@@ -499,6 +501,7 @@ export function createPageTarget(
     compiledScripts: [],
     debuggerEnabledSessions: new Set(),
     domEnabledSessions: new Set(),
+    domStorageSessions: new Set(),
     cssEnabledSessions: new Set(),
     webmcpSessions: new Set(),
     webmcpEnableRevisions: new Map(),

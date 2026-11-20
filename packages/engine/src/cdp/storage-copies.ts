@@ -4,16 +4,26 @@
 
 // The localStorage copies open pages hold. The engine's area (state/local-storage.ts) is the
 // record: every change lands there first and then goes to each other open copy of the origin, so
-// the copies stay in step and fire `storage`.
+// the copies stay in step and fire `storage`. DOMStorage reads and writes through here too.
 
+import type { Protocol } from "devtools-protocol";
 import type { LocalStorageOp } from "@kitesurf/jsrpc-types/page-script";
 import type { DispatchCtx } from "./dispatch.ts";
 import type { TargetState } from "./types.ts";
 import type { PageScriptStub } from "../eval/page-script.ts";
-import type { LocalStorage, LocalStorageApplied } from "../state/local-storage.ts";
+import {
+  localStorageOrigin,
+  type LocalStorage,
+  type LocalStorageApplied,
+  type LocalStorageChange,
+} from "../state/local-storage.ts";
+import { localStorageForTarget } from "./target.ts";
 
 /** One document's copy of an origin's area. */
 export class StorageCopy {
+  #applied = 0;
+  #waiters: Array<{ seq: number; resolve: () => void }> = [];
+
   constructor(
     readonly targets: ReadonlyMap<string, TargetState>,
     readonly target: TargetState,
@@ -36,6 +46,29 @@ export class StorageCopy {
       this.target.navigateGeneration === this.generation
     );
   }
+
+  /** The page's batch `seq` was applied. */
+  received(seq: number): void {
+    if (seq > this.#applied) this.#applied = seq;
+    this.#waiters = this.#waiters.filter((w) => {
+      if (w.seq > this.#applied) return true;
+      w.resolve();
+      return false;
+    });
+  }
+
+  /** Resolves once batch `seq` was applied, or after `ms`. */
+  settled(seq: number, ms: number): Promise<void> {
+    if (seq <= this.#applied) return Promise.resolve();
+    return new Promise((resolve) => {
+      const waiter = { seq, resolve };
+      this.#waiters.push(waiter);
+      setTimeout(() => {
+        this.#waiters = this.#waiters.filter((w) => w !== waiter);
+        resolve();
+      }, ms);
+    });
+  }
 }
 
 const copies = new WeakMap<LocalStorage, Set<StorageCopy>>();
@@ -47,7 +80,7 @@ function registerCopy(copy: StorageCopy): void {
   set.add(copy);
 }
 
-function liveCopies(storage: LocalStorage, origin: string): StorageCopy[] {
+export function liveCopies(storage: LocalStorage, origin: string): StorageCopy[] {
   const out: StorageCopy[] = [];
   const set = copies.get(storage);
   for (const c of set ?? []) {
@@ -69,6 +102,7 @@ export async function changeLocalStorage(
   from: { source?: StorageCopy; url: string | null },
 ): Promise<LocalStorageApplied> {
   const result = storage.apply(origin, ops);
+  emitChanges(ctx, storage, origin, result.changes);
   if (result.applied.length === 0) return result;
   const pushes: Promise<unknown>[] = [];
   for (const copy of liveCopies(storage, origin)) {
@@ -78,4 +112,58 @@ export async function changeLocalStorage(
   }
   await Promise.all(pushes);
   return result;
+}
+
+export function storageIdFor(
+  origin: string,
+  isLocalStorage: boolean,
+): Protocol.DOMStorage.StorageId {
+  return { securityOrigin: origin, storageKey: `${origin}/`, isLocalStorage };
+}
+
+export function documentOrigin(target: TargetState): string | null {
+  return localStorageOrigin(target.pageScriptUrl ?? target.url);
+}
+
+// DOMStorage events go to the sessions that enabled the domain on a page of the origin, as in
+// Chrome, which reports the areas of the documents a page shows.
+function emitChanges(
+  ctx: DispatchCtx,
+  storage: LocalStorage,
+  origin: string,
+  changes: readonly LocalStorageChange[],
+): void {
+  if (changes.length === 0) return;
+  const storageId = storageIdFor(origin, true);
+  for (const target of ctx.browser.targets.values()) {
+    if (target.domStorageSessions.size === 0) continue;
+    if (localStorageForTarget(ctx, target) !== storage || documentOrigin(target) !== origin) {
+      continue;
+    }
+    for (const sessionId of target.domStorageSessions) {
+      for (const change of changes) {
+        if (change.op === "clear") {
+          ctx.emit({
+            method: "DOMStorage.domStorageItemsCleared",
+            params: { storageId },
+            sessionId,
+          });
+        } else if (change.op === "remove") {
+          const params = { storageId, key: change.key };
+          ctx.emit({ method: "DOMStorage.domStorageItemRemoved", params, sessionId });
+        } else if (change.oldValue === null) {
+          const params = { storageId, key: change.key, newValue: change.value };
+          ctx.emit({ method: "DOMStorage.domStorageItemAdded", params, sessionId });
+        } else {
+          const params = {
+            storageId,
+            key: change.key,
+            oldValue: change.oldValue,
+            newValue: change.value,
+          };
+          ctx.emit({ method: "DOMStorage.domStorageItemUpdated", params, sessionId });
+        }
+      }
+    }
+  }
 }

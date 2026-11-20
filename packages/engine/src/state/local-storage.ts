@@ -30,8 +30,15 @@ export const LOCAL_STORAGE_AREA_LIMIT_UNITS = 2 * LOCAL_STORAGE_QUOTA_UNITS;
 // blank page. Those documents have opaque origins, so they must not share an area under it.
 const SYNTHETIC_ORIGIN = "https://kitesurf.local";
 
+/** A change to an area, with the value it replaced, as DOMStorage events report it. */
+export type LocalStorageChange =
+  | { op: "set"; key: string; value: string; oldValue: string | null }
+  | { op: "remove"; key: string; oldValue: string }
+  | { op: "clear" };
+
 export interface LocalStorageApplied {
   applied: LocalStorageOp[];
+  changes: LocalStorageChange[];
 }
 
 const isIndexed: StoreGuard<true> = (v): v is true => v === true;
@@ -74,17 +81,18 @@ export class LocalStorage {
   }
 
   /**
-   * Apply changes. A set that would pass LOCAL_STORAGE_AREA_LIMIT_UNITS is dropped. Returns the
-   * ops it applied.
+   * Apply changes; a set past LOCAL_STORAGE_AREA_LIMIT_UNITS is dropped. Returns the ops applied
+   * and what changed: a set to the same value or a remove of a missing key changes nothing.
    */
   apply(origin: string, ops: readonly LocalStorageOp[]): LocalStorageApplied {
-    const out: LocalStorageApplied = { applied: [] };
+    const out: LocalStorageApplied = { applied: [], changes: [] };
     // A page's last writes can land after its browser context is gone.
     if (this.#disposed || ops.length === 0) return out;
     const area = this.#area(origin);
     let units = this.#units.get(origin) ?? this.#count(origin);
     for (const op of ops) {
       if (op.op === "clear") {
+        if (area.size > 0) out.changes.push({ op: "clear" });
         area.clear();
         units = 0;
         out.applied.push(op);
@@ -100,9 +108,11 @@ export class LocalStorage {
         }
         area.set(op.key, op.value);
         units = next;
+        if (old !== op.value) out.changes.push({ ...op, oldValue: old ?? null });
       } else {
         units -= freed;
         area.delete(op.key);
+        if (old !== undefined) out.changes.push({ ...op, oldValue: old });
       }
       out.applied.push(op);
     }
