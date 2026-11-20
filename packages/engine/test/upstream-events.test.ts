@@ -34,7 +34,8 @@ function installFor(
     ownerFor: (): WorkerOwner | null => null,
     terminateFrame: () => {},
   } as Partial<DedicatedWorkers>;
-  const ctx = {
+  // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only fields the handler reads.
+  const ctx: DispatchCtx = {
     browser: {
       wsClosing: false,
       learnedInsertedScripts: store,
@@ -44,8 +45,12 @@ function installFor(
     emit: (e: CdpEvent) => {
       emitted.push(e);
     },
+    emitToClient: (e: CdpEvent) => {
+      emitted.push(e);
+    },
+    peers: () => [ctx],
     client: testClient(),
-  } as DispatchCtx;
+  } as unknown as DispatchCtx;
   const target = {
     type: "page",
     targetId: "T",

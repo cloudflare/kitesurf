@@ -35,6 +35,8 @@ export interface ParkedRequest {
 export interface FetchInterceptionState {
   patterns: CompiledPattern[];
   emit: (params: Protocol.Fetch.RequestPausedEvent) => void;
+  // The client whose Fetch.enable installed `emit`; nobody answers its pauses once it leaves.
+  ownerClientId: string | null;
   parked: Map<string, ParkedRequest>;
   nextId: number;
   pendingEmits: Protocol.Fetch.RequestPausedEvent[];
@@ -55,6 +57,7 @@ export function ensureInterception(connectionId: string): FetchInterceptionState
     st = {
       patterns: [],
       emit: () => {},
+      ownerClientId: null,
       parked: new Map(),
       nextId: 1,
       pendingEmits: [],
@@ -78,6 +81,17 @@ export function releaseAllParked(st: FetchInterceptionState): void {
 export function releaseParkedForConnection(connectionId: string): void {
   const st = registry.get(connectionId);
   if (st) releaseAllParked(st);
+}
+
+/** Stops interception as Fetch.disable would, if `clientId` enabled it. */
+export function disableInterceptionForClient(connectionId: string, clientId: string): void {
+  const st = registry.get(connectionId);
+  if (!st || st.ownerClientId !== clientId) return;
+  releaseAllParked(st);
+  st.patterns = [];
+  st.pendingEmits = [];
+  st.emit = () => {};
+  st.ownerClientId = null;
 }
 
 export function unregisterInterception(connectionId: string): void {

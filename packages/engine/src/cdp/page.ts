@@ -1225,13 +1225,17 @@ export async function handlePage(
       const source = typeof req.params?.source === "string" ? req.params.source : "";
       if (source) {
         ctx.browser.preNavScripts.set(id, source);
+        ctx.client.preNavScriptIds.add(id);
       }
       return { identifier: id };
     }
 
     case "Page.removeScriptToEvaluateOnNewDocument": {
       const id = typeof req.params?.identifier === "string" ? req.params.identifier : null;
-      if (id) ctx.browser.preNavScripts.delete(id);
+      if (id) {
+        ctx.browser.preNavScripts.delete(id);
+        ctx.client.preNavScriptIds.delete(id);
+      }
       return {};
     }
 
@@ -1651,6 +1655,7 @@ export async function handlePage(
         maxInFlight,
         wheelQueue: getWheelQueue(ctx.browser, target.targetId, nextOwner),
         ownerSessionId: nextOwner,
+        ownerClientId: ctx.client.id,
         configurationVersion,
         appliedConfigurationVersion: configurationVersion - 1,
         lastAckedSeq: 0,
@@ -1664,6 +1669,7 @@ export async function handlePage(
         framesDropped: 0,
       };
       state.configurationVersion = configurationVersion;
+      state.ownerClientId = ctx.client.id;
       if (!existing) {
         ctx.browser.screencasts.set(target.targetId, state);
         ctx.ctx.waitUntil(screencastLoop(ctx, target, state));
@@ -2501,7 +2507,11 @@ async function pushNavigateToPageScriptInner(
         });
       } catch {}
     }
-    if (target.cssEnabledSessions.size > 0 || ctx.client.connectionMode === "page") {
+    // Page-mode DevTools reads the sheets without a CSS-enabled session, whoever navigated.
+    if (
+      target.cssEnabledSessions.size > 0 ||
+      ctx.peers().some((p) => p.client.connectionMode === "page")
+    ) {
       try {
         await syncStyleSheetsFromEnumeration(ctx, target, pendingPageScript);
       } catch {}
@@ -3997,7 +4007,7 @@ async function spawnOopifPipeline(
     }
     f.execContextId = ctx.browser.execContextSeq++;
     emitOopifExecutionContext(ctx, f, target.url);
-    announceOopifTarget(ctx, f);
+    for (const peer of ctx.peers()) announceOopifTarget(peer, f);
     if (ctx.browser.skipSpeculativeRaster) return;
     const manager = getRendererManager(ctx, target);
     const res = await recordAndRasterizeFrame(manager, spawn.stub, {
@@ -4066,7 +4076,8 @@ function teardownOopifStubForFrame(
     ctx.browser.dedicatedWorkers.terminateFrame(target.targetId, f.frameId, reason);
   }
   if (ctx && f.parentFrameId !== null) {
-    if (ctx.client.connectionMode === "browser" || f.sessions.size > 0) {
+    // emitFrameTarget announced the frame to every browser-mode client.
+    if (f.sessions.size > 0 || ctx.peers().some((p) => p.client.connectionMode === "browser")) {
       destroyOopifTarget(ctx, f);
     } else {
       ctx.browser.networkEvents.deleteTargetAttribution(f.frameId);

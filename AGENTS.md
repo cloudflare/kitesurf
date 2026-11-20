@@ -70,8 +70,9 @@ Engine-wide invariants. The owning code carries the detail; keep these in sync w
   try V8 first (CDP evaluation, page `eval` and `new Function`) stay on V8. Cloudflare rejects the
   flag.
 - The CDP WebSocket bounds the session. `BrowserSession` (`cdp/connection.ts`) holds the browser
-  state and `ClientConnection` its one socket, and the session ends when that socket closes. No
-  Durable Object holds it and nothing persists across connections.
+  state and each `ClientConnection` one socket, and the session ends when its socket closes. No
+  Durable Object holds it and nothing persists across connections. The `persistent` option, which
+  no host turns on yet, lets a session outlive its clients and serve several.
 - Each `Page.navigate` loads a fresh anonymous PageScript worker with `env.LOADER.load` and kills
   the previous one. Use `load()`, never a named `LOADER.get`.
 - Wasm panics unwind (`packages/core/.cargo/config.toml`, symlinked into `renderer-core`), so the
