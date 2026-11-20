@@ -92,7 +92,8 @@ const SEED_INLINE_BYTES = 1024 * 1024;
 const SEED_CHUNK_BYTES = 8 * 1024 * 1024;
 const SEED_ENTRY_BYTES = 32;
 
-// The entries in chunks under SEED_CHUNK_BYTES; the last one, sent inline, under SEED_INLINE_BYTES.
+// The entries in chunks; the last one, sent inline, under SEED_INLINE_BYTES and maybe empty. An
+// earlier chunk stays under SEED_CHUNK_BYTES unless one entry alone passes it.
 function seedChunks(entries: Array<[string, string]>): Array<Array<[string, string]>> {
   const chunks: Array<Array<[string, string]>> = [];
   let chunk: Array<[string, string]> = [];
@@ -100,8 +101,11 @@ function seedChunks(entries: Array<[string, string]>): Array<Array<[string, stri
   for (let i = entries.length - 1; i >= 0; i--) {
     const entry = entries[i]!;
     const size = SEED_ENTRY_BYTES + 2 * (entry[0].length + entry[1].length);
-    const budget = chunks.length === 0 ? SEED_INLINE_BYTES : SEED_CHUNK_BYTES;
-    if (chunk.length > 0 && bytes + size > budget) {
+    const inline = chunks.length === 0;
+    if (
+      (inline || chunk.length > 0) &&
+      bytes + size > (inline ? SEED_INLINE_BYTES : SEED_CHUNK_BYTES)
+    ) {
       chunks.push(chunk.reverse());
       chunk = [];
       bytes = 0;

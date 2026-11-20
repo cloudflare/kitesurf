@@ -185,6 +185,15 @@ describe("StorageCopy.seed", () => {
     expect([...ahead.flat(), ...inline]).toEqual(storage.entries(A));
   });
 
+  it("sends an entry too large to go inline ahead of navigate", async () => {
+    const { storage, page } = setup();
+    const big = "x".repeat(1024 * 1024);
+    storage.apply(A, [{ op: "set", key: "big", value: big }]);
+    const { copy, calls } = page("next", `${A}/`, false);
+    expect(await copy.seed()).toEqual([]);
+    expect(calls).toEqual([{ op: "seed", entries: [["big", big]] }]);
+  });
+
   it("sends a small area inline only", async () => {
     const { storage, page } = setup();
     storage.apply(A, [{ op: "set", key: "k", value: "v" }]);
