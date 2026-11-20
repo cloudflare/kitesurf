@@ -59,3 +59,37 @@ test("Runtime.callFunctionOn reports Chrome-compatible class names", async ({ pa
     "Function",
   ]);
 });
+
+test("a result returned by value is its type and value alone, as in Chrome", async ({ page }) => {
+  await setContent(page, "<!doctype html><main>by value</main>");
+  const session = await page.target().createCDPSession();
+  const global = await session.send("Runtime.evaluate", {
+    expression: "globalThis",
+    returnByValue: false,
+  });
+
+  const cases = [
+    ["({ answer: 42 })", { type: "object", value: { answer: 42 } }],
+    ["[1, 2, 3]", { type: "object", value: [1, 2, 3] }],
+    ["new Map([[1, 2]])", { type: "object", value: {} }],
+    ["undefined", { type: "undefined" }],
+    ["null", { type: "object", subtype: "null", value: null }],
+    ["42", { type: "number", value: 42, description: "42" }],
+    ["'text'", { type: "string", value: "text" }],
+  ] as const;
+  for (const [expression, expected] of cases) {
+    const evaluated = await session.send("Runtime.evaluate", { expression, returnByValue: true });
+    expect(evaluated.result, `Runtime.evaluate ${expression}`).toEqual(expected);
+    const called = await session.send("Runtime.callFunctionOn", {
+      objectId: global.result.objectId,
+      functionDeclaration: `function () { return ${expression}; }`,
+      returnByValue: true,
+    });
+    expect(called.result, `Runtime.callFunctionOn ${expression}`).toEqual(expected);
+  }
+
+  for (const expression of ["undefined", "null"]) {
+    const handle = await session.send("Runtime.evaluate", { expression, returnByValue: false });
+    expect(handle.result, `${expression} as a handle`).not.toHaveProperty("description");
+  }
+});
