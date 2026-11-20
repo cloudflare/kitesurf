@@ -431,6 +431,8 @@ export type LocalStorageOp =
 // `entries` reads sessionStorage, which only the page holds.
 export type WebStorageParams =
   | { op: "flush" }
+  // Part of the next document's localStorage seed, ahead of navigate, which carries the rest.
+  | { op: "seed"; entries: Array<[string, string]> }
   | { op: "apply"; area: "local"; ops: LocalStorageOp[]; url: string | null; seq: number }
   | { op: "apply"; area: "session"; ops: LocalStorageOp[]; url: string | null }
   | { op: "entries"; area: "session" };

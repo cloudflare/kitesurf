@@ -36,10 +36,16 @@ export class StorageCopy {
     readonly url: string,
   ) {}
 
-  /** The seed for this document. Later changes reach the copy from the moment of this call. */
-  seed(): Array<[string, string]> {
+  /**
+   * Register the copy and send the page its seed. Later changes reach the copy from this call
+   * on. What fits SEED_INLINE_BYTES returns for the navigate call; the rest goes ahead in chunks.
+   */
+  async seed(): Promise<Array<[string, string]>> {
     registerCopy(this);
-    return this.storage.entries(this.origin);
+    const chunks = seedChunks(this.storage.entries(this.origin));
+    const inline = chunks.pop() ?? [];
+    for (const entries of chunks) await this.stub.webStorage({ op: "seed", entries });
+    return inline;
   }
 
   get live(): boolean {
@@ -76,6 +82,34 @@ export class StorageCopy {
       }, ms);
     });
   }
+}
+
+// JSRPC rejects a message past 32 MiB (core dom/cdp.rs), and per-entry framing, not the text,
+// dominates an area of many short keys. The navigate call carries the document too, so its seed
+// stays small. A string serializes to at most two bytes per code unit.
+const SEED_INLINE_BYTES = 1024 * 1024;
+const SEED_CHUNK_BYTES = 8 * 1024 * 1024;
+const SEED_ENTRY_BYTES = 32;
+
+// The entries in chunks under SEED_CHUNK_BYTES; the last one, sent inline, under SEED_INLINE_BYTES.
+function seedChunks(entries: Array<[string, string]>): Array<Array<[string, string]>> {
+  const chunks: Array<Array<[string, string]>> = [];
+  let chunk: Array<[string, string]> = [];
+  let bytes = 0;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i]!;
+    const size = SEED_ENTRY_BYTES + 2 * (entry[0].length + entry[1].length);
+    const budget = chunks.length === 0 ? SEED_INLINE_BYTES : SEED_CHUNK_BYTES;
+    if (chunk.length > 0 && bytes + size > budget) {
+      chunks.push(chunk.reverse());
+      chunk = [];
+      bytes = 0;
+    }
+    chunk.push(entry);
+    bytes += size;
+  }
+  if (chunk.length > 0 || chunks.length === 0) chunks.push(chunk.reverse());
+  return chunks.reverse();
 }
 
 const copies = new WeakMap<LocalStorage, Set<StorageCopy>>();

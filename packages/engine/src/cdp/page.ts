@@ -2308,6 +2308,8 @@ async function pushNavigateToPageScriptInner(
   }
 
   try {
+    // Read after retireStub, so the old document's last writes are in.
+    const localStorageSeed = await sharedLocalStorage?.seed();
     const initialCookies = jarForTarget(ctx, target).documentCookieString(url);
     const ps = pendingPageScript;
     const raNavStart = ctx.analytics.now();
@@ -2352,8 +2354,7 @@ async function pushNavigateToPageScriptInner(
         connectionId: ctx.connectionId,
         mainFrameId: target.frameId,
         cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
-        // Read after retireStub, so the old document's last writes are in.
-        ...(sharedLocalStorage ? { localStorage: sharedLocalStorage.seed() } : {}),
+        ...(localStorageSeed ? { localStorage: localStorageSeed } : {}),
         modulePreloadPins: preloadSeeds.map(({ url, integrity }) => ({ url, integrity })),
         // The legacy plan (no bundle: a failed bake) gates its parser scripts from these.
         scriptPolicy: {

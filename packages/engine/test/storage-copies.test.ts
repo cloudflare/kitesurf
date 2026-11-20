@@ -38,7 +38,7 @@ function setup() {
     browser: { targets, localStorage: storage, contexts: new Map() },
     emit: (e: CdpEvent) => emitted.push(e),
   } as unknown as DispatchCtx;
-  const page = (id: string, url = `${A}/`) => {
+  const page = (id: string, url = `${A}/`, seeded = true) => {
     const target = {
       targetId: id,
       type: "page",
@@ -50,7 +50,7 @@ function setup() {
     targets.set(id, target);
     const { stub, calls } = fakeStub();
     const copy = new StorageCopy(targets, target, 1, stub, storage, new URL(url).origin, url);
-    copy.seed();
+    if (seeded) void copy.seed();
     return { target, copy, calls };
   };
   return { ctx, storage, emitted, page };
@@ -159,6 +159,38 @@ describe("changeLocalStorage", () => {
       },
       { method: "DOMStorage.domStorageItemsCleared", params: { storageId }, sessionId: "s1" },
     ]);
+  });
+});
+
+describe("StorageCopy.seed", () => {
+  // The estimate the engine budgets with: framing per entry, two bytes per code unit.
+  const bytes = (entries: Array<[string, string]>) =>
+    entries.reduce((n, [k, v]) => n + 32 + 2 * (k.length + v.length), 0);
+
+  it("sends a large area ahead of navigate in chunks, in order, each under its budget", async () => {
+    const { storage, page } = setup();
+    const ops = Array.from({ length: 300_000 }, (_, i) => ({
+      op: "set" as const,
+      key: `k${i}`,
+      value: "\u00e9",
+    }));
+    storage.apply(A, ops);
+    const { copy, calls } = page("next", `${A}/`, false);
+    const inline = await copy.seed();
+    const ahead = calls.flatMap((c) => (c.op === "seed" ? [c.entries] : []));
+    expect(calls).toHaveLength(ahead.length);
+    expect(ahead.length).toBeGreaterThan(1);
+    for (const chunk of ahead) expect(bytes(chunk)).toBeLessThanOrEqual(8 * 1024 * 1024);
+    expect(bytes(inline)).toBeLessThanOrEqual(1024 * 1024);
+    expect([...ahead.flat(), ...inline]).toEqual(storage.entries(A));
+  });
+
+  it("sends a small area inline only", async () => {
+    const { storage, page } = setup();
+    storage.apply(A, [{ op: "set", key: "k", value: "v" }]);
+    const { copy, calls } = page("next", `${A}/`, false);
+    expect(await copy.seed()).toEqual([["k", "v"]]);
+    expect(calls).toEqual([]);
   });
 });
 

@@ -122,6 +122,20 @@ test("storage events do not depend on the page's StorageEvent or dispatchEvent",
   }
 }, 120_000);
 
+test("an area too large for the navigate call reaches the next document whole", async ({
+  page,
+}) => {
+  await page.goto(A, { waitUntil: "load" });
+  // Past the inline seed budget (storage-copies.ts SEED_INLINE_BYTES), so most goes ahead.
+  await page.evaluate(() => {
+    for (let i = 0; i < 40_000; i++) localStorage.setItem(`k${i}`, String(i));
+  });
+  await page.goto(A2, { waitUntil: "load" });
+  const summary = () =>
+    page.evaluate(() => [localStorage.length, localStorage.getItem("k0"), localStorage.k39999]);
+  expect(await summary()).toEqual([40_000, "0", "39999"]);
+}, 120_000);
+
 test("each browser context has its own localStorage", async ({ browser, page }) => {
   const context = await browser.createBrowserContext();
   try {

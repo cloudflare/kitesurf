@@ -76,7 +76,7 @@ function installFor(isolateUrl: string, localStorage?: LocalStorage) {
   const copy = localStorage
     ? new StorageCopy(targets, target, 1, stub, localStorage, origin, isolateUrl)
     : undefined;
-  copy?.seed();
+  void copy?.seed();
   installUpstreamEventHandler(ctx, target, stub, 1, isolateUrl, copy);
   const send = (event: UpstreamEventName, params: ReceivedUpstreamParams) =>
     handler!(event, params);

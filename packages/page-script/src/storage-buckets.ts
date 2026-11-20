@@ -31,6 +31,8 @@ let localBucket: (Bucket & { area: SharedArea }) | null = null;
 let sessionBucket: Bucket | null = null;
 // Engine changes that arrived before navigate() built localStorage; they land on the seed.
 let earlyLocalOps: LocalStorageOp[] = [];
+// The part of the seed the engine sent ahead of navigate, for an area too large for one call.
+let seedAhead: Array<[string, string]> = [];
 
 /**
  * The document's localStorage and sessionStorage. localStorage is shared when the engine seeded
@@ -43,8 +45,10 @@ export function storageBuckets(seed: ReadonlyArray<readonly [string, string]> | 
   const session = sessionArea();
   sessionBucket = { storage: storageObject(session), area: session };
   let localStorage: object;
+  const ahead = seedAhead;
+  seedAhead = [];
   if (seed) {
-    const area = sharedArea(seed);
+    const area = sharedArea(ahead.length > 0 ? [...ahead, ...seed] : seed);
     area.applyRemote(earlyLocalOps, 0);
     earlyLocalOps = [];
     localStorage = storageObject(area);
@@ -78,6 +82,10 @@ function fireStorageEvents(
 /** The engine's webStorage call. */
 export function webStorage(params: WebStorageParams): WebStorageReply {
   if (params.op === "flush") return { seq: localBucket ? localBucket.area.flush() : 0 };
+  if (params.op === "seed") {
+    for (const entry of params.entries) seedAhead.push(entry);
+    return { seq: 0 };
+  }
   if (params.op === "entries") {
     const area = sessionBucket?.area;
     const entries: Array<[string, string]> = [];

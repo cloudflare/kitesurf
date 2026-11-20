@@ -3113,6 +3113,8 @@ export function installGlobals(
       const seed = state.sandbox.sameOrigin ? state.localStorageSeed : null;
       // An opaque sandboxed origin has no storage bucket; the accessor throws, as in Chrome.
       const buckets = storageBuckets(seed);
+      // The area holds the entries now; the seed would keep a second copy for the document's life.
+      state.localStorageSeed = null;
       const storageAccessor =
         (name: keyof typeof buckets): (() => unknown) =>
         () => {
