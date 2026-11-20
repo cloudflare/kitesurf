@@ -3,7 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 // scripts/workerd-config.mjs and docker/front.js, run on the pinned workerd in front of a fake
-// engine that echoes the path it receives.
+// engine that echoes the path it receives and throws on /fail.
 
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
@@ -25,7 +25,9 @@ const DEADLINE_MS = 20_000;
 const FAKE_ENGINE = `
 export default {
   fetch(request) {
-    return new Response("engine " + new URL(request.url).pathname);
+    const { pathname } = new URL(request.url);
+    if (pathname === "/fail") throw new Error("engine down");
+    return new Response("engine " + pathname);
   },
 };
 `;
@@ -89,8 +91,8 @@ const freePort = async function () {
   return port;
 };
 
-/** Starts workerd on the image's config; returns its base URL. */
-const serve = async function (t, root) {
+/** Starts workerd on the image's config and waits until `probe` gets a response. */
+const serve = async function (t, root, probe = "/health") {
   const port = await freePort();
   const child = spawn(
     WORKERD,
@@ -111,12 +113,23 @@ const serve = async function (t, root) {
   for (;;) {
     if (child.exitCode !== null) throw new Error(`workerd exited ${child.exitCode}: ${output}`);
     try {
-      await (await fetch(`${base}/health`)).text();
-      return { base, output: () => output };
+      const response = await fetch(`${base}${probe}`);
+      await response.body?.cancel();
+      return { base, output: () => output, probeStatus: response.status };
     } catch (error) {
       if (Date.now() > deadline) throw error;
       await new Promise((r) => setTimeout(r, 50));
     }
+  }
+};
+
+const readyLines = (output) => output().match(/\[kitesurf\] ready: /g)?.length ?? 0;
+
+/** Waits for front.js's `ready` line, which can still be in the pipe after its response. */
+const waitForReady = async function (output) {
+  const deadline = Date.now() + DEADLINE_MS;
+  while (readyLines(output) === 0 && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 50));
   }
 };
 
@@ -177,12 +190,6 @@ test(
     const { base, output } = await serve(t, root);
 
     assert.equal(await (await fetch(`${base}/health`)).text(), "engine /health");
-    // serve() already sent the first request; its log line may still be in the pipe.
-    const deadline = Date.now() + DEADLINE_MS;
-    while (!output().includes("[kitesurf] ready: ") && Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 50));
-    }
-    assert.equal(output().match(/\[kitesurf\] ready: /g)?.length, 1);
     assert.equal(await (await fetch(`${base}/`)).text(), "engine /");
     assert.equal(await (await fetch(`${base}/a.txt`)).text(), "root a");
     assert.equal(await (await fetch(`${base}/missing.txt`)).text(), "engine /missing.txt");
@@ -205,5 +212,26 @@ test(
     const text = await fetch(`${base}/a.txt`);
     assert.equal(text.headers.get("cache-control"), null);
     await text.body?.cancel();
+
+    await waitForReady(output);
+    assert.equal(readyLines(output), 1);
+  },
+);
+
+test(
+  "front.js logs ready only after the engine answers",
+  { timeout: TEST_TIMEOUT_MS },
+  async (t) => {
+    const root = makeImage(t);
+    assert.equal(generate(root).status, 0);
+    const { base, output, probeStatus } = await serve(t, root, "/fail");
+    assert.equal(probeStatus, 500);
+    // A line from the failed request reaches the pipe within milliseconds.
+    await new Promise((r) => setTimeout(r, 500));
+    assert.equal(readyLines(output), 0);
+
+    assert.equal(await (await fetch(`${base}/health`)).text(), "engine /health");
+    await waitForReady(output);
+    assert.equal(readyLines(output), 1);
   },
 );

@@ -92,15 +92,17 @@ export default {
    * @returns {Promise<Response>} */
   async fetch(request, env) {
     const { pathname } = new URL(request.url);
-    // Docker's health check sends the first request about a second after start.
-    if (!announced) {
-      announced = true;
-      console.log("[kitesurf] ready: CDP at /devtools/browser, discovery at /json/version");
-    }
     if (!workerFirst(pathname) && !request.headers.has("upgrade")) {
       const file = await serveFile(env, request);
       if (file.status !== 404) return file;
     }
-    return env.ENGINE.fetch(request);
+    const response = await env.ENGINE.fetch(request);
+    // Logged once the engine first answers, normally Docker's health check about a second after
+    // start. A request that the engine fails leaves the next one to try again.
+    if (!announced && response.status < 500) {
+      announced = true;
+      console.log("[kitesurf] ready: CDP at /devtools/browser, discovery at /json/version");
+    }
+    return response;
   },
 };
