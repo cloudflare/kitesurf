@@ -1764,12 +1764,32 @@ class CSSFontPaletteValuesRuleCls extends CSSRuleInterface {
     return rs<"declBag">(this).declBag.overrideColors || "";
   }
 }
+// Names Chrome will not leave bare as a family: CSS-wide keywords, `default` and the generic
+// families it reserves (`emoji`, `fangsong` and the `ui-*` names stay bare in Chrome).
+const RESERVED_FAMILY = new Set([
+  ...["inherit", "initial", "unset", "revert", "revert-layer", "default"],
+  ...["serif", "sans-serif", "cursive", "fantasy", "monospace", "system-ui", "math"],
+]);
 class CSSFontFeatureValuesRuleCls extends CSSRuleInterface {
   get fontFamily(): string {
     return rs(this).name || "";
   }
   set fontFamily(v: unknown) {
-    rs(this).name = String(v == null ? "" : v);
+    const s = rs(this);
+    // Like Chrome, the value is a plain comma list and empty items are dropped. A family that is
+    // one plain identifier stays bare; any other text, a CSS-wide keyword or a generic family
+    // becomes a string, so nothing reaches the mirror unescaped.
+    s.name = String(v == null ? "" : v)
+      .split(",")
+      .map(trimCssSpace)
+      .filter(Boolean)
+      .map((f) =>
+        isCssIdent(f) && !f.includes("\\") && !RESERVED_FAMILY.has(f.toLowerCase())
+          ? f
+          : serializeCssString(f),
+      )
+      .join(", ");
+    if (s.onMutate) s.onMutate();
   }
   get annotation(): FeatureValuesMap {
     return rs<"features">(this).features.annotation;
@@ -2066,6 +2086,51 @@ function unquotedUrlEnd(src: string, i: number): number {
   while (j < src.length && src[j] !== ")") j += src[j] === "\\" ? escapeLength(src, j) : 1;
   return j < src.length ? j + 1 : src.length + 1;
 }
+// CSSOM "serialize an identifier" and "serialize a string".
+function serializeCssIdent(s: string): string {
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    const c = ch.charCodeAt(0);
+    const digit = c >= 0x30 && c <= 0x39;
+    if (c === 0) out += "\ufffd";
+    else if (c < 0x20 || c === 0x7f || (digit && (i === 0 || (i === 1 && s[0] === "-"))))
+      out += "\\" + c.toString(16) + " ";
+    else if (i === 0 && ch === "-" && s.length === 1) out += "\\-";
+    else if (c >= 0x80 || ch === "-" || ch === "_" || digit || /[A-Za-z]/.test(ch)) out += ch;
+    else out += "\\" + ch;
+  }
+  return out;
+}
+// The code points of an identifier that isCssIdent accepted, with each escape decoded.
+function decodeCssIdent(s: string): string {
+  let out = "";
+  for (let i = 0; i < s.length;) {
+    if (s[i] !== "\\") {
+      out += s[i++];
+      continue;
+    }
+    const len = escapeLength(s, i);
+    if (isHexDigit(s[i + 1])) {
+      const cp = parseInt(s.slice(i + 1, i + len).trim(), 16);
+      const bad = cp === 0 || (cp >= 0xd800 && cp <= 0xdfff) || cp > 0x10ffff;
+      out += bad ? "\ufffd" : String.fromCodePoint(cp);
+    } else out += s[i + 1];
+    i += len;
+  }
+  return out;
+}
+function serializeCssString(s: string): string {
+  let out = '"';
+  for (const ch of s) {
+    const c = ch.charCodeAt(0);
+    if (c === 0) out += "\ufffd";
+    else if (c < 0x20 || c === 0x7f) out += "\\" + c.toString(16) + " ";
+    else if (ch === '"' || ch === "\\") out += "\\" + ch;
+    else out += ch;
+  }
+  return out + '"';
+}
 // An identifier, with CSS escapes: `--` or an optional `-` and a name start, then name chars.
 // A forward scan that reads each escape once, so a crafted name cannot make it backtrack.
 function isCssIdent(s: string): boolean {
@@ -2080,6 +2145,23 @@ function isCssIdent(s: string): boolean {
     if (isNameStart(ch) || ch === "-" || (ch >= "0" && ch <= "9")) i++;
     else if (isIdentEscape(s, i)) i += escapeLength(s, i);
     else return false;
+  }
+  return true;
+}
+// A dashed identifier (`--x`): its first two code points, after escapes, are both `-`.
+function isDashedIdent(s: string): boolean {
+  if (!isCssIdent(s)) return false;
+  let i = 0;
+  for (let n = 0; n < 2; n++) {
+    if (s[i] === "-") {
+      i++;
+      continue;
+    }
+    if (s[i] !== "\\") return false;
+    const len = escapeLength(s, i);
+    const hex = s.slice(i + 1, i + len).trim();
+    if (!(isHexDigit(s[i + 1]) ? parseInt(hex, 16) === 0x2d : s[i + 1] === "-")) return false;
+    i += len;
   }
   return true;
 }
@@ -2162,11 +2244,15 @@ function isCssSpace(ch: string | undefined): boolean {
   return ch === " " || ch === "\t" || isStringBreak(ch);
 }
 function trimCss(s: string): string {
+  return keepStringBreak(trimCssSpace(s));
+}
+// Trims CSS whitespace only, for plain text that is not parsed as CSS.
+function trimCssSpace(s: string): string {
   let a = 0;
   let b = s.length;
   while (a < b && isCssSpace(s[a])) a++;
   while (b > a && isCssSpace(s[b - 1])) b--;
-  return keepStringBreak(s.slice(a, b));
+  return s.slice(a, b);
 }
 // Collapses CSS whitespace runs (space, tab, newline, CR, FF; not NBSP) to one space, but keeps a
 // newline that ends a string and the terminator of a hex escape.
@@ -2214,6 +2300,45 @@ function escapeLength(text: string, i: number): number {
   if (text[j] === "\r" && text[j + 1] === "\n") return j + 2 - i;
   const ws = text[j] === " " || text[j] === "\t" || isStringBreak(text[j]);
   return ws ? j + 1 - i : j - i;
+}
+// A prelude that is safe to paste into the mirror: no `{` or `}` outside strings and urls, and
+// no string, url, `(` or `[` left open. A stray `)` or `]` is allowed, as eofClosers allows it.
+function isClosedPrelude(text: string): boolean {
+  const stack: string[] = [];
+  let q = "";
+  let escapeEnd = -1;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "\\") {
+      if (!q && isStringBreak(text[i + 1])) {
+        escapeEnd = -1;
+        continue;
+      }
+      i += escapeLength(text, i) - 1;
+      escapeEnd = i + 1;
+      continue;
+    }
+    if (q) {
+      if (ch === q || isStringBreak(ch)) q = "";
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      q = ch;
+      continue;
+    }
+    const urlEnd = urlTokenEnd(text, i, escapeEnd);
+    if (urlEnd > text.length) return false;
+    if (urlEnd >= 0) {
+      i = urlEnd - 1;
+    } else if (ch === "{" || ch === "}") {
+      return false;
+    } else if (ch === "(" || ch === "[") {
+      stack.push(ch === "(" ? ")" : "]");
+    } else if (ch === stack[stack.length - 1]) {
+      stack.pop();
+    }
+  }
+  return !q && stack.length === 0;
 }
 // What EOF closes in an unclosed rule body: the open string or url, then each open (, [ and {
 // block, innermost first.
@@ -2893,6 +3018,9 @@ function constructRule(
   }
 
   if (kind === "import") {
+    // An @import has no block, so a `{` or `}` in its text makes it invalid (Chrome drops it).
+    // Kept, the brace would be pasted into the mirror and unbalance the sheet.
+    if (!isClosedPrelude(raw)) return null;
     const sup = extractImportSupports(raw);
     const m = sup.rest.match(
       /^@import\s+(?:url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"']*))\s*\)|"([^"]*)"|'([^']*)')\s*(layer(?:\(([^)]*)\))?)?\s*(?:supports\(([\s\S]*?)\))?\s*([^;]*);?\s*$/i,
@@ -2982,6 +3110,10 @@ function constructRule(
   }
 
   if (kind === "font-palette-values") {
+    // The name is a dashed identifier, as Chrome requires; anything else (a brace, say) would
+    // be pasted into the mirror raw.
+    const paletteName = trimCss(sel.replace(/^@font-palette-values/i, ""));
+    if (!isDashedIdent(paletteName)) return null;
     const rule = mk(CSSFontPaletteValuesRuleCls);
     const declBag: Record<string, string> = Object.create(null);
     // A `;` inside a block or url is part of the value: splitting there would leave the
@@ -2997,7 +3129,7 @@ function constructRule(
     const st: RuleState = {
       ...base,
       typeNum: 0,
-      name: trimCss(sel.replace(/^@font-palette-values/i, "")),
+      name: paletteName,
       declBag,
       serialize() {
         const parts: string[] = [];
@@ -3016,6 +3148,10 @@ function constructRule(
   }
 
   if (kind === "font-feature-values") {
+    // The family names are pasted into the mirror as written, so a brace in them would
+    // unbalance the sheet. Chrome drops such a rule too.
+    const family = trimCss(sel.replace(/^@font-feature-values/i, ""));
+    if (!isClosedPrelude(family)) return null;
     const rule = mk(CSSFontFeatureValuesRuleCls);
     const onMutateRef: { fn: (() => void) | null } = { fn: null };
     const features: Record<string, FeatureValuesMap> = {};
@@ -3027,7 +3163,11 @@ function constructRule(
       for (const decl of String(p.declText || "").split(";")) {
         const colon = decl.indexOf(":");
         if (colon <= 0) continue;
-        const name = decl.slice(0, colon).trim();
+        // A feature name is an identifier; anything else would be pasted into the mirror raw.
+        const raw = trimCss(decl.slice(0, colon));
+        if (!isCssIdent(raw)) continue;
+        // Store the name decoded, as Chrome does (`fam\69 ly` is `family`).
+        const name = decodeCssIdent(raw);
         const nums = decl
           .slice(colon + 1)
           .trim()
@@ -3041,7 +3181,7 @@ function constructRule(
     const st: RuleState = {
       ...base,
       typeNum: 14,
-      name: trimCss(sel.replace(/^@font-feature-values/i, "")),
+      name: family,
       features,
       serialize() {
         const blocks: string[] = [];
@@ -3049,7 +3189,11 @@ function constructRule(
           const map = features[t];
           if (!map.size) continue;
           const entries: string[] = [];
-          map.forEach((v: number[], k: string) => entries.push(k + ": " + v.join(" ") + ";"));
+          map.forEach((v: number[], k: string) => {
+            // Parsed keys are stored decoded and script keys may be any text, so every key is
+            // escaped on the way out, as in Chrome. An empty key has no name to write.
+            if (k) entries.push(serializeCssIdent(k) + ": " + v.join(" ") + ";");
+          });
           blocks.push("@" + t + " { " + entries.join(" ") + " }");
         }
         return (

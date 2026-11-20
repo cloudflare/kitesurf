@@ -446,6 +446,105 @@ test("a non-identifier @font-palette-values descriptor name is dropped", async (
   }
 }, 60_000);
 
+// A brace in an @import or in @font-feature-values names would be pasted into the mirror and
+// swallow the rules after it. Chrome drops the @import or the rule, or skips the feature name.
+test("a brace in at-rule names does not unbalance the mirror", async ({ browser }) => {
+  for (const [css, rules, margin] of [
+    ["@font-feature-values f{@swash{a{:1 2}}", ["@font-feature-values f { }"], "0px"],
+    ["@import url(f)} #t{margin-left:3px}", [], "0px"],
+    [
+      "@font-feature-values f}{@swash{a:1}} #t{margin-left:3px}",
+      ["#t { margin-left: 3px; }"],
+      "3px",
+    ],
+    ["@font-palette-values --p} #t{margin-left:3px}", [], "0px"],
+    ["@font-palette-values p{} #t{margin-left:3px}", ["#t { margin-left: 3px; }"], "3px"],
+    // Escaped dashes still make a dashed name, so Chrome keeps both rules.
+    [
+      "@font-palette-values \\--x{} @font-palette-values -\\-y{}",
+      ["@font-palette-values \\--x { }", "@font-palette-values -\\-y { }"],
+      "0px",
+    ],
+  ] as [string, string[], string][]) {
+    const page = await browser.newPage();
+    try {
+      await setContent(page, `<style id=s></style><p id=t>x</p>`);
+      const result = await page.evaluate(`(() => {
+        const s = document.getElementById("s");
+        s.textContent = ${JSON.stringify(css)};
+        const rules = Array.from(s.sheet.cssRules, (r) => r.cssText);
+        s.sheet.insertRule("#t{padding-right:4px}", s.sheet.cssRules.length);
+        const t = getComputedStyle(document.getElementById("t"));
+        return { rules, margin: t.marginLeft, padding: t.paddingRight };
+      })()`);
+      expect(result, css).toEqual({ rules, margin, padding: "4px" });
+    } finally {
+      await page.close();
+    }
+  }
+}, 60_000);
+
+// A feature name parsed from CSS is stored decoded: `fam\69 ly` is the key `family`, as in
+// Chrome, and it serializes as a plain name.
+test("a parsed font-feature-values name is stored decoded", async ({ page }) => {
+  await setContent(page, `<style id=s>@font-feature-values f{@swash{fam\\69 ly:1}}</style>`);
+  const result = await page.evaluate(`(() => {
+    const r = document.getElementById("s").sheet.cssRules[0];
+    return { keys: Array.from(r.swash.keys()), text: r.cssText };
+  })()`);
+  expect(result).toEqual({
+    keys: ["family"],
+    text: "@font-feature-values f { @swash { family: 1; } }",
+  });
+}, 60_000);
+
+// Script can set any text as a font-feature-values family or feature name. Text that would
+// unbalance the mirror is serialized as a string or an escaped name, as in Chrome.
+test("font-feature-values setters escape text that would unbalance the mirror", async ({
+  page,
+}) => {
+  await setContent(page, `<style id=s>@font-feature-values f{@swash{a:1}}</style><p id=t>x</p>`);
+  const result = await page.evaluate(`(() => {
+    const s = document.getElementById("s").sheet;
+    const r = s.cssRules[0];
+    const families = {};
+    const list = ["a;b", "1x", "a b, c", "-", "", "a,,b", "inherit", "Serif", '"a,b"', " a , b "];
+    for (const v of [...list, "\\t", "emoji", "ui-serif"]) {
+      r.fontFamily = v;
+      families[v] = r.fontFamily;
+    }
+    r.fontFamily = "g{";
+    r.swash.set("b{", [2]);
+    r.swash.set("1a", [3]);
+    r.swash.set("-", [4]);
+    r.swash.set("a\\u0001", [5]);
+    r.swash.set("a\\\\62 c", [6]);
+    r.swash.set("", [7]);
+    s.insertRule("#t{padding-right:4px}", 1);
+    const padding = getComputedStyle(document.getElementById("t")).paddingRight;
+    return { families, text: r.cssText, padding };
+  })()`);
+  expect(result).toEqual({
+    families: {
+      "a;b": '"a;b"',
+      "1x": '"1x"',
+      "a b, c": '"a b", c',
+      "-": '"-"',
+      "": "",
+      "a,,b": "a, b",
+      inherit: '"inherit"',
+      Serif: '"Serif"',
+      '"a,b"': '"\\"a", "b\\""',
+      " a , b ": "a, b",
+      "\t": "",
+      emoji: "emoji",
+      "ui-serif": "ui-serif",
+    },
+    text: '@font-feature-values "g{" { @swash { a: 1; b\\{: 2; \\31 a: 3; \\-: 4; a\\1 : 5; a\\\\62\\ c: 6; } }',
+    padding: "4px",
+  });
+}, 60_000);
+
 // The same rule holds for replaceSync: the rule after a stray `};` never applies, as in Chrome.
 test("a ; before a rule drops it in replaceSync", async ({ page }) => {
   await setContent(page, `<p id=t>x</p>`);
