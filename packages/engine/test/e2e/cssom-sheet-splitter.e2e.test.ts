@@ -381,6 +381,8 @@ test("a non-identifier @font-palette-values descriptor name is dropped", async (
     ['@font-palette-values --p{"bad\n:x}', ""],
     ["@font-palette-values --p{-1foo:x}", ""],
     ["@font-palette-values --p{-:x}", ""],
+    // A long run of hex escapes must not make the name check backtrack.
+    ["@font-palette-values --p{a" + "\\111111".repeat(40) + "!:x}", ""],
     ["@font-palette-values --p{font-fam\\69 ly:x}", "font-fam\\69 ly: x; "],
     ["@font-palette-values --p{font-fam\\69\vly:x}", ""],
     ["@font-palette-values --p{font-family\u00a0:x}", "font-family\u00a0: x; "],

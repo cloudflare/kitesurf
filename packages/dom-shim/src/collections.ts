@@ -2062,12 +2062,30 @@ function unquotedUrlEnd(src: string, i: number): number {
   return j < src.length ? j + 1 : src.length + 1;
 }
 // An identifier, with CSS escapes: `--` or an optional `-` and a name start, then name chars.
-const CSS_IDENT = (() => {
-  const esc = String.raw`\\(?:[0-9a-fA-F]{1,6}(?:\r\n|[ \t\n\r\f])?|[^\n\r\f0-9a-fA-F])`;
-  const start = String.raw`(?:[A-Za-z_\u0080-\uffff]|${esc})`;
-  const char = String.raw`(?:[\w\u0080-\uffff-]|${esc})`;
-  return new RegExp(String.raw`^(?:--|-?${start})${char}*$`);
-})();
+// A forward scan that reads each escape once, so a crafted name cannot make it backtrack.
+function isCssIdent(s: string): boolean {
+  let i = 0;
+  if (s[0] === "-" && s[1] === "-") i = 2;
+  else {
+    if (s[0] === "-") i = 1;
+    if (!isNameStart(s[i]) && !isIdentEscape(s, i)) return false;
+  }
+  while (i < s.length) {
+    const ch = s[i];
+    if (isNameStart(ch) || ch === "-" || (ch >= "0" && ch <= "9")) i++;
+    else if (isIdentEscape(s, i)) i += escapeLength(s, i);
+    else return false;
+  }
+  return true;
+}
+function isNameStart(ch: string | undefined): boolean {
+  if (ch === undefined) return false;
+  return ch === "_" || (ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || ch >= "\u0080";
+}
+// A `\` that starts a valid escape: not at the end and not before a line break.
+function isIdentEscape(s: string, i: number): boolean {
+  return s[i] === "\\" && i + 1 < s.length && !isStringBreak(s[i + 1]);
+}
 // Splits a list on `sep` outside strings, comments, url tokens and (, [ and { blocks.
 function splitCssList(text: string, sep = ","): string[] {
   const parts: string[] = [];
@@ -2967,7 +2985,7 @@ function constructRule(
       const colon = decl.indexOf(":");
       const name = colon > 0 ? trimCss(decl.slice(0, colon)) : "";
       // A descriptor name is an identifier; anything else (an open string, say) is dropped.
-      if (CSS_IDENT.test(name)) {
+      if (isCssIdent(name)) {
         declBag[cssPropToCamel(name)] = decl.slice(colon + 1).trim();
       }
     }
