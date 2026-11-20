@@ -36,6 +36,13 @@ import { registerCookieJar, unregisterCookieJar, cookieKeyFor } from "./cookie-j
 
 const BROWSER_TARGET_ID = "browser";
 
+// Every CDP session belongs to the client that attached it; see CdpClientState.sessions.
+function newClientSession(ctx: DispatchCtx): string {
+  const sessionId = makeSessionId();
+  ctx.client.sessions.add(sessionId);
+  return sessionId;
+}
+
 function announceExistingOopifTargets(ctx: DispatchCtx): void {
   for (const target of ctx.browser.targets.values()) {
     for (const frame of target.frames.values()) {
@@ -224,7 +231,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
       }
       const target = ctx.browser.targets.get(id);
       if (target) {
-        const sessionId = makeSessionId();
+        const sessionId = newClientSession(ctx);
         target.sessions.add(sessionId);
         ctx.browser.networkEvents.setTargetAttribution(
           target.frameId,
@@ -245,7 +252,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
         for (const parent of ctx.browser.targets.values()) {
           const frame = parent.frames.get(id);
           if (!frame || frame.parentFrameId === null || frame.detached) continue;
-          const sessionId = makeSessionId();
+          const sessionId = newClientSession(ctx);
           frame.sessions.add(sessionId);
           ctx.browser.networkEvents.setTargetAttribution(
             frame.frameId,
@@ -267,7 +274,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
     }
 
     case "Target.attachToBrowserTarget": {
-      const sessionId = makeSessionId();
+      const sessionId = newClientSession(ctx);
       const browser = ctx.browser.targets.get(BROWSER_TARGET_ID);
       if (browser) browser.sessions.add(sessionId);
       return { sessionId };
@@ -276,6 +283,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
     case "Target.detachFromTarget": {
       const sessionId = req.params?.sessionId;
       if (sessionId) {
+        ctx.client.sessions.delete(sessionId);
         for (const t of ctx.browser.targets.values()) {
           if (t.sessions.delete(sessionId)) {
             ctx.browser.networkEvents.setTargetAttribution(
@@ -407,6 +415,7 @@ export async function closeTargetInternal(ctx: DispatchCtx, id: string): Promise
       }
       for (const sessionId of frame.sessions) {
         ctx.browser.networkEvents.forgetSession(sessionId);
+        ctx.client.sessions.delete(sessionId);
       }
       frame.sessions.clear();
       frame.detached = true;
@@ -520,7 +529,7 @@ export function createPageTarget(
 }
 
 export function autoAttachTarget(ctx: DispatchCtx, target: TargetState): string {
-  const sessionId = makeSessionId();
+  const sessionId = newClientSession(ctx);
   target.sessions.add(sessionId);
   ctx.browser.networkEvents.setTargetAttribution(
     target.frameId,
@@ -571,7 +580,7 @@ export function emitFrameTarget(ctx: DispatchCtx, frame: FrameState): string | n
     params: { targetInfo: info },
   });
   if (!ctx.client.autoAttach) return null;
-  const sessionId = makeSessionId();
+  const sessionId = newClientSession(ctx);
   frame.sessions.add(sessionId);
   ctx.browser.networkEvents.setTargetAttribution(
     frame.frameId,
@@ -605,7 +614,7 @@ function rendererTargetInfo(ctx: DispatchCtx) {
 
 export function announceRendererTarget(ctx: DispatchCtx): string | null {
   if (ctx.browser.rendererSessionId) return ctx.browser.rendererSessionId;
-  const sessionId = makeSessionId();
+  const sessionId = newClientSession(ctx);
   ctx.browser.rendererSessionId = sessionId;
   ctx.emit({
     method: "Target.attachedToTarget",
@@ -634,7 +643,7 @@ function engineTargetInfo(ctx: DispatchCtx) {
 
 export function announceEngineTarget(ctx: DispatchCtx): string {
   if (ctx.browser.engineSessionId) return ctx.browser.engineSessionId;
-  const sessionId = makeSessionId();
+  const sessionId = newClientSession(ctx);
   ctx.browser.engineSessionId = sessionId;
   ctx.emit({
     method: "Target.attachedToTarget",
@@ -772,7 +781,7 @@ export function announceOopifTarget(ctx: DispatchCtx, frame: FrameState): string
     );
     return existing.value;
   }
-  const sessionId = makeSessionId();
+  const sessionId = newClientSession(ctx);
   frame.sessions.add(sessionId);
   ctx.browser.networkEvents.setTargetAttribution(
     frame.frameId,
