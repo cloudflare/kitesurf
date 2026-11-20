@@ -110,9 +110,13 @@ Start the engine:
 docker run --rm -p 127.0.0.1:8787:8787 ghcr.io/cloudflare/kitesurf
 ```
 
-The engine starts in under a second and answers `/health` when it is ready.
-It compiles its WebAssembly at start, so the first page is as fast as later
-ones.
+The engine starts in under a second. `/health` answers when the engine
+answers requests. It does not open a page.
+
+The engine compiles its WebAssembly at start, so the first page is as fast as
+later ones. This uses memory: the engine holds about 350 MiB at idle, and about
+550 MiB after it runs pages. Pages that load their own WebAssembly also compile
+all of it when they load it.
 
 To build the image yourself, run this command from the repository root. You do
 not need Bazel, Node.js or Rust on the host:
