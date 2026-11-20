@@ -296,9 +296,11 @@ describe("FetchSlots", () => {
     expect(allHintsLazy([])).toBe(false);
   });
 
-  it("keeps the defaults a browser-shaped six under a bounded ceiling", () => {
-    expect(FETCH_CONCURRENCY_PER_HOST).toBe(6);
+  it("keeps the defaults browser-shaped but not socket-bound", () => {
+    // HTTP/2 multiplexes over one connection, so the cap sits above the HTTP/1.1 six;
+    // pin both constants so concurrency changes are deliberate.
+    expect(FETCH_CONCURRENCY_PER_HOST).toBe(32);
+    expect(FETCH_CONCURRENCY_GLOBAL).toBe(128);
     expect(FETCH_CONCURRENCY_GLOBAL).toBeGreaterThan(FETCH_CONCURRENCY_PER_HOST);
-    expect(FETCH_CONCURRENCY_GLOBAL).toBeLessThanOrEqual(32);
   });
 });

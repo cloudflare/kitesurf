@@ -3,7 +3,11 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { buildScriptBundle, insertedSourceDigests } from "../src/eval/script-bundle.ts";
+import {
+  analyzeClassicSource,
+  buildScriptBundle,
+  insertedSourceDigests,
+} from "../src/eval/script-bundle.ts";
 import type { ParentScriptDescriptor } from "../src/wasm.ts";
 
 function classic(body: string, opts: Partial<ParentScriptDescriptor> = {}): ParentScriptDescriptor {
@@ -270,5 +274,185 @@ describe("script URLs in generated comments", () => {
     expect(source).toContain("globalThis.ran = a + b;");
     expect(source).toContain("//# sourceURL=https://cdn.test/a.js");
     expect(linesStartingWithPayload(source, src)).toEqual([]);
+  });
+});
+
+describe("buildScriptBundle analysis cache", () => {
+  const SOURCES = [
+    'globalThis.__log.push("inline");',
+    "var topLevel = 1;\nfunction helper() { return topLevel; }\nclass Thing {}",
+    '"use strict";\nvar a = 1;',
+    "var module = 1;\nvar exports = 2;\nvar require = 3;",
+    "const noTrailingNewline = 1;",
+    "const crlf = 1;\r\nconst crlf2 = 2;\r\n",
+    "const sep = 1;\u2028const sep2 = 2;",
+    "let x = 1;\nvar y = 2;\nfunction z() {}\nclass C {}",
+    "\n\n  ",
+    "",
+  ];
+
+  function fixture(): {
+    descriptors: ParentScriptDescriptor[];
+    insertedBake: ParentScriptDescriptor[];
+  } {
+    const descriptors: ParentScriptDescriptor[] = [
+      classic(SOURCES[0]!),
+      classic(SOURCES[1]!),
+      classic(SOURCES[2]!),
+      classic(SOURCES[3]!),
+      classic("", { src: "https://cdn.test/a.js", prefetchedSource: SOURCES[4]! }),
+      classic("", { src: "https://cdn.test/b.js", prefetchedSource: SOURCES[5]!, defer: true }),
+      classic("", { src: "https://cdn.test/c.js", prefetchedSource: SOURCES[6]!, async: true }),
+      classic("", { src: "https://cdn.test/empty.js", prefetchedSource: SOURCES[9]! }),
+      classic("", { src: "https://cdn.test/ws.js", prefetchedSource: SOURCES[8]! }),
+      classic("", {
+        src: "https://cdn.test/blocked.js",
+        prefetchedSource: SOURCES[0]!,
+        blocked: { reason: "csp", message: "blocked" },
+      }),
+      classic("", { src: "https://cdn.test/err.js", prefetchError: "HTTP 500" }),
+      module_("export const m = 1;"),
+    ];
+    const insertedBake = [
+      classic("", {
+        src: "https://cdn.test/inserted.js",
+        resolvedSrc: "https://cdn.test/inserted.js",
+        prefetchedSource: SOURCES[7]!,
+      }),
+    ];
+    return { descriptors, insertedBake };
+  }
+
+  async function buildWithCache(cdpDebug: boolean) {
+    const { descriptors, insertedBake } = fixture();
+    const insertedDigests = await insertedSourceDigests(insertedBake);
+    const cache = new Map();
+    for (const d of [...descriptors, ...insertedBake]) {
+      const source = d.src ? d.prefetchedSource : d.body;
+      if (typeof source === "string" && source.length > 0) analyzeClassicSource(cache, source);
+    }
+    return {
+      primed: buildScriptBundle(descriptors, {
+        cdpDebug,
+        insertedBake,
+        insertedDigests,
+        analysisCache: cache,
+      }),
+      unprimed: buildScriptBundle(descriptors, { cdpDebug, insertedBake, insertedDigests }),
+    };
+  }
+
+  it.each([false, true])(
+    "a primed analysis cache yields an identical bundle (cdpDebug=%s)",
+    async (cdpDebug) => {
+      const { primed, unprimed } = await buildWithCache(cdpDebug);
+      expect(primed).toEqual(unprimed);
+      expect(primed.classicRegularSourceMapURL).toBe(unprimed.classicRegularSourceMapURL);
+      expect(primed.classicAsyncSourceMapURL).toBe(unprimed.classicAsyncSourceMapURL);
+    },
+  );
+
+  it("a cache primed with a pre-rewrite source is not used for the rewritten source", () => {
+    const original = 'const a = 1;\nimport("./chunk.js");\n';
+    const rewritten = 'const a = 1;\nimport("/__ks_module_1.js");\n';
+    const cache = new Map();
+    analyzeClassicSource(cache, original);
+    const primed = buildScriptBundle(
+      [classic("", { src: "https://cdn.test/r.js", prefetchedSource: rewritten })],
+      {
+        analysisCache: cache,
+      },
+    );
+    const unprimed = buildScriptBundle([
+      classic("", { src: "https://cdn.test/r.js", prefetchedSource: rewritten }),
+    ]);
+    expect(primed).toEqual(unprimed);
+  });
+
+  it("keeps source maps identical for a bundle with a whitespace-only script", () => {
+    const descriptors = [
+      classic("var a = 1;\nvar b = 2;\n"),
+      classic("", { src: "https://cdn.test/ws.js", prefetchedSource: "\n\n  " }),
+      classic("function c() {}\n"),
+    ];
+    const cache = new Map();
+    for (const d of descriptors) {
+      const source = d.src ? d.prefetchedSource : d.body;
+      if (typeof source === "string") analyzeClassicSource(cache, source);
+    }
+    const primed = buildScriptBundle(descriptors, { analysisCache: cache });
+    const unprimed = buildScriptBundle(descriptors);
+    expect(primed.classicRegularSource).toBe(unprimed.classicRegularSource);
+    expect(primed.classicRegularSourceMapURL).toBe(unprimed.classicRegularSourceMapURL);
+  });
+});
+
+describe("buildScriptBundle source-map line positions", () => {
+  function decodeMap(url: string): { mappings: string[]; sources: string[] } {
+    const b64 = url.slice(url.indexOf(",") + 1);
+    const map = JSON.parse(Buffer.from(b64, "base64").toString("utf8")) as {
+      mappings: string;
+      sources: string[];
+    };
+    return { mappings: map.mappings.split(";"), sources: map.sources };
+  }
+
+  // VLQ: each field is a base64 VLQ; source index is the second field of a
+  // 4-field segment.
+  const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  // Fields are self-delimiting VLQs, concatenated within a comma-separated group.
+  function decodeFields(text: string): number[] {
+    const out: number[] = [];
+    let value = 0;
+    let shift = 0;
+    for (const ch of text) {
+      if (ch === ",") continue;
+      const digit = B64.indexOf(ch);
+      const cont = (digit & 32) !== 0;
+      value += (digit & 31) << shift;
+      if (cont) {
+        shift += 5;
+      } else {
+        out.push(value & 1 ? -(value >>> 1) : value >>> 1);
+        value = 0;
+        shift = 0;
+      }
+    }
+    return out;
+  }
+
+  it("maps each script's first body line to that script", () => {
+    const bodies = [
+      "globalThis.__m0();\nvar a = 1;\n",
+      "globalThis.__m1();\nvar b = 2;\n",
+      "globalThis.__m2();\n",
+    ];
+    const descriptors = [
+      classic(bodies[0]!),
+      classic("", { src: "https://cdn.test/second.js", prefetchedSource: bodies[1]! }),
+      classic(bodies[2]!),
+    ];
+    const cache = new Map();
+    for (const d of descriptors) {
+      const source = d.src ? d.prefetchedSource : d.body;
+      if (typeof source === "string") analyzeClassicSource(cache, source);
+    }
+    const bundle = buildScriptBundle(descriptors, { analysisCache: cache });
+    const lines = bundle.classicRegularSource!.split("\n");
+    const { mappings, sources } = decodeMap(bundle.classicRegularSourceMapURL!);
+
+    expect(sources).toEqual(["inline#0", "https://cdn.test/second.js", "inline#2"]);
+    let previousSource = 0;
+    bodies.forEach((body, index) => {
+      const marker = body.split("\n")[0]!;
+      const generated = lines.findIndex((line) => line === marker);
+      expect(generated, marker).toBeGreaterThanOrEqual(0);
+      const entry = mappings[generated] ?? "";
+      expect(entry.length, marker).toBeGreaterThan(0);
+      const delta = decodeFields(entry)[1] ?? 0;
+      previousSource += delta;
+      // A shifted line count lands this body on the previous segment's mapping.
+      expect(previousSource, marker).toBe(index);
+    });
   });
 });

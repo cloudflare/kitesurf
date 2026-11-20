@@ -4,9 +4,12 @@
 
 // Schedules subresource requests under per-host and global concurrency limits.
 
-export const FETCH_CONCURRENCY_PER_HOST = 6;
+// Chrome's six-per-host rule is an HTTP/1.1 socket limit. HTTP/2 origins multiplex many more
+// requests per connection and workerd's pool enforces the real socket limits, so this cap must
+// not be the bottleneck: 420 images at six per host took 30 s where Chrome took 2.5 s.
+export const FETCH_CONCURRENCY_PER_HOST = 32;
 
-export const FETCH_CONCURRENCY_GLOBAL = 24;
+export const FETCH_CONCURRENCY_GLOBAL = 128;
 const MISORDER_WINDOW_MS = 30;
 
 export const CLASS_STYLESHEET = 0;
