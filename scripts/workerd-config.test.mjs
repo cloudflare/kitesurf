@@ -3,7 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 // scripts/workerd-config.mjs and docker/front.js, run on the pinned workerd in front of a fake
-// engine that answers the warm-up's CDP commands.
+// engine that echoes the path it receives.
 
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
@@ -22,39 +22,10 @@ const WORKERD = createRequire(requireFromServer.resolve("miniflare"))("workerd")
 const TEST_TIMEOUT_MS = 60_000;
 const DEADLINE_MS = 20_000;
 
-// FAKE_WARM_UP=fail makes Page.navigate report an error, and =hold holds the warm-up until a
-// request to /release. /attempts counts warm-up targets.
 const FAKE_ENGINE = `
-let attempts = 0;
-let released = false;
 export default {
-  fetch(request, env) {
-    const { pathname } = new URL(request.url);
-    if (pathname === "/attempts") return new Response(String(attempts));
-    if (pathname === "/release") {
-      released = true;
-      return new Response("released");
-    }
-    if (request.headers.get("upgrade") !== "websocket") return new Response("engine " + pathname);
-    const [client, server] = Object.values(new WebSocketPair());
-    server.accept();
-    server.addEventListener("message", async (event) => {
-      const { id, method } = JSON.parse(event.data);
-      // Polled: a promise resolved by another request cannot send on this request's socket.
-      while (method === "Runtime.evaluate" && env.FAKE_WARM_UP === "hold" && !released) {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-      let result = {};
-      if (method === "Target.createTarget") {
-        attempts++;
-        result = { targetId: "t" };
-      } else if (method === "Target.attachToTarget") result = { sessionId: "s" };
-      else if (method === "Page.navigate" && env.FAKE_WARM_UP === "fail") {
-        result = { frameId: "f", errorText: "net::ERR_FAILED" };
-      } else if (method === "Runtime.evaluate") result = { result: { type: "string", value: "1,2" } };
-      server.send(JSON.stringify({ id, result }));
-    });
-    return new Response(null, { status: 101, webSocket: client });
+  fetch(request) {
+    return new Response("engine " + new URL(request.url).pathname);
   },
 };
 `;
@@ -62,7 +33,7 @@ export default {
 const BASE_OPTIONS = {
   compatibilityDate: "2026-09-11",
   compatibilityFlags: ["global_fetch_strictly_public"],
-  bindings: { FAKE_WARM_UP: "ok" },
+  bindings: {},
   workerLoaders: {},
   email: {},
   assets: {
@@ -119,12 +90,12 @@ const freePort = async function () {
 };
 
 /** Starts workerd on the image's config; returns its base URL. */
-const serve = async function (t, root, env = {}) {
+const serve = async function (t, root) {
   const port = await freePort();
   const child = spawn(
     WORKERD,
     ["serve", "--experimental", "--socket-addr", `http=127.0.0.1:${port}`, "config.capnp"],
-    { cwd: root, env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] },
+    { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
   );
   let output = "";
   child.stdout.on("data", (chunk) => (output += chunk));
@@ -140,20 +111,12 @@ const serve = async function (t, root, env = {}) {
   for (;;) {
     if (child.exitCode !== null) throw new Error(`workerd exited ${child.exitCode}: ${output}`);
     try {
-      await (await fetch(`${base}/attempts`)).text();
-      return { base, output: () => output };
+      await (await fetch(`${base}/health`)).text();
+      return base;
     } catch (error) {
       if (Date.now() > deadline) throw error;
       await new Promise((r) => setTimeout(r, 50));
     }
-  }
-};
-
-const waitFor = async function (check) {
-  const deadline = Date.now() + DEADLINE_MS;
-  while (!(await check())) {
-    if (Date.now() > deadline) throw new Error("timed out");
-    await new Promise((r) => setTimeout(r, 50));
   }
 };
 
@@ -206,26 +169,14 @@ test("the generator lists the experimental flag once", (t) => {
 });
 
 test(
-  "front.js serves public/ with _headers and gates /health on the warm-up",
+  "front.js serves public/ with _headers and sends the rest to the engine",
   { timeout: TEST_TIMEOUT_MS },
   async (t) => {
     const root = makeImage(t);
     assert.equal(generate(root).status, 0);
-    const { base, output } = await serve(t, root, { FAKE_WARM_UP: "hold" });
+    const base = await serve(t, root);
 
-    const held = await fetch(`${base}/health`);
-    assert.equal(held.status, 503);
-    await held.body?.cancel();
-    await (await fetch(`${base}/release`)).text();
-    await waitFor(async () => {
-      const health = await fetch(`${base}/health`);
-      await health.body?.cancel();
-      return health.status !== 503;
-    });
-    assert.match(output(), /\[kitesurf\] warmed up in \d+ ms/);
     assert.equal(await (await fetch(`${base}/health`)).text(), "engine /health");
-    assert.equal(await (await fetch(`${base}/attempts`)).text(), "1");
-
     assert.equal(await (await fetch(`${base}/`)).text(), "engine /");
     assert.equal(await (await fetch(`${base}/a.txt`)).text(), "root a");
     assert.equal(await (await fetch(`${base}/missing.txt`)).text(), "engine /missing.txt");
@@ -248,23 +199,5 @@ test(
     const text = await fetch(`${base}/a.txt`);
     assert.equal(text.headers.get("cache-control"), null);
     await text.body?.cancel();
-  },
-);
-
-test(
-  "front.js keeps /health failing after a failed warm-up and tries again",
-  { timeout: TEST_TIMEOUT_MS },
-  async (t) => {
-    const root = makeImage(t);
-    assert.equal(generate(root).status, 0);
-    const { base, output } = await serve(t, root, { FAKE_WARM_UP: "fail" });
-
-    await waitFor(async () => {
-      const health = await fetch(`${base}/health`);
-      assert.equal(health.status, 503);
-      await health.body?.cancel();
-      return Number(await (await fetch(`${base}/attempts`)).text()) >= 2;
-    });
-    assert.match(output(), /\[kitesurf\] warm-up failed: Page\.navigate: net::ERR_FAILED/);
   },
 );

@@ -46,6 +46,10 @@ js_run_binary(
         "--root=/opt/kitesurf",
         "--v8-flag=--no-flush-liftoff-code",
         "--v8-flag=--expose-gc",
+        # Compiles the engine's wasm at start, not function by function in the first page, which
+        # took 270 ms instead of 120 ms. It holds about 200 MiB more at idle and 70 MiB more once
+        # pages have run. Pages' own wasm compiles eagerly too.
+        "--v8-flag=--no-wasm-lazy-compilation",
     ],
     mnemonic = "WorkerdConfig",
     progress_message = "Writing the Docker image's workerd config",
