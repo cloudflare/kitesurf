@@ -45,7 +45,7 @@ function setup() {
       navigateGeneration: 1,
       url,
       pageScriptUrl: url,
-      domStorageSessions: new Set<string>(),
+      domStorageSessions: new Map(),
     } as TargetState;
     targets.set(id, target);
     const { stub, calls } = fakeStub();
@@ -122,8 +122,8 @@ describe("changeLocalStorage", () => {
   it("emits DOMStorage events to sessions on a page of the origin", async () => {
     const { ctx, storage, emitted, page } = setup();
     const watcher = page("watcher");
-    watcher.target.domStorageSessions.add("s1");
-    page("elsewhere", "https://b.test/").target.domStorageSessions.add("s2");
+    watcher.target.domStorageSessions.set("s1", null);
+    page("elsewhere", "https://b.test/").target.domStorageSessions.set("s2", null);
     const ops = [
       { op: "set", key: "k", value: "1" },
       { op: "set", key: "k", value: "1" },

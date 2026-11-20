@@ -8,10 +8,10 @@
 
 import type { LocalStorageOp } from "@kitesurf/jsrpc-types/page-script";
 import type { DispatchCtx } from "./dispatch.ts";
-import type { CdpRequest, TargetState } from "./types.ts";
+import type { CdpRequest, FrameState, TargetState } from "./types.ts";
 import type { PageScriptStub } from "../eval/page-script.ts";
 import { localStorageOrigin, type LocalStorage } from "../state/local-storage.ts";
-import { localStorageForTarget } from "./target.ts";
+import { findSessionOwner, localStorageForTarget } from "./target.ts";
 import { resolveTarget } from "./page-session.ts";
 import { changeLocalStorage, documentOrigin, liveCopies } from "./storage-copies.ts";
 
@@ -75,11 +75,23 @@ async function changeStorage(
   return {};
 }
 
+// A frame session acts for its page's browser context. With no session (page mode) the page
+// target answers; an unknown session fails rather than act on some other page.
+function sessionOwner(
+  ctx: DispatchCtx,
+  sessionId: string | undefined,
+): { target: TargetState; frame: FrameState | null } {
+  if (!sessionId) return { target: resolveTarget(ctx, undefined), frame: null };
+  const owner = findSessionOwner(ctx, sessionId);
+  if (!owner) throw new Error("Session with given id not found.");
+  return owner;
+}
+
 export async function handleDomStorage(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
-  const target = resolveTarget(ctx, req.sessionId);
+  const { target, frame } = sessionOwner(ctx, req.sessionId);
   switch (req.method) {
     case "DOMStorage.enable":
-      if (req.sessionId) target.domStorageSessions.add(req.sessionId);
+      if (req.sessionId) target.domStorageSessions.set(req.sessionId, frame);
       return {};
     case "DOMStorage.disable":
       if (req.sessionId) target.domStorageSessions.delete(req.sessionId);

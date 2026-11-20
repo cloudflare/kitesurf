@@ -9,7 +9,7 @@
 import type { Protocol } from "devtools-protocol";
 import type { LocalStorageOp } from "@kitesurf/jsrpc-types/page-script";
 import type { DispatchCtx } from "./dispatch.ts";
-import type { TargetState } from "./types.ts";
+import type { FrameState, TargetState } from "./types.ts";
 import type { PageScriptStub } from "../eval/page-script.ts";
 import {
   LOCAL_STORAGE_AREA_LIMIT_UNITS,
@@ -158,8 +158,14 @@ export function documentOrigin(target: TargetState): string | null {
   return localStorageOrigin(target.pageScriptUrl ?? target.url);
 }
 
-// DOMStorage events go to the sessions that enabled the domain on a page of the origin, as in
-// Chrome, which reports the areas of the documents a page shows.
+function sessionOrigin(target: TargetState, frame: FrameState | null): string | null {
+  if (!frame) return documentOrigin(target);
+  if (frame.detached || target.frames.get(frame.frameId) !== frame) return null;
+  return localStorageOrigin(frame.pageScriptUrl ?? frame.url);
+}
+
+// DOMStorage events go to the sessions that enabled the domain on a page or frame of the origin,
+// as in Chrome, which reports the areas of the documents a session shows.
 function emitChanges(
   ctx: DispatchCtx,
   storage: LocalStorage,
@@ -170,10 +176,9 @@ function emitChanges(
   const storageId = storageIdFor(origin, true);
   for (const target of ctx.browser.targets.values()) {
     if (target.domStorageSessions.size === 0) continue;
-    if (localStorageForTarget(ctx, target) !== storage || documentOrigin(target) !== origin) {
-      continue;
-    }
-    for (const sessionId of target.domStorageSessions) {
+    if (localStorageForTarget(ctx, target) !== storage) continue;
+    for (const [sessionId, frame] of target.domStorageSessions) {
+      if (sessionOrigin(target, frame) !== origin) continue;
       for (const change of changes) {
         if (change.op === "clear") {
           ctx.emit({

@@ -355,7 +355,7 @@ export function ensureBrowserTarget(ctx: DispatchCtx): TargetState {
     compiledScripts: [],
     debuggerEnabledSessions: new Set(),
     domEnabledSessions: new Set(),
-    domStorageSessions: new Set(),
+    domStorageSessions: new Map(),
     cssEnabledSessions: new Set(),
     webmcpSessions: new Set(),
     webmcpEnableRevisions: new Map(),
@@ -501,7 +501,7 @@ export function createPageTarget(
     compiledScripts: [],
     debuggerEnabledSessions: new Set(),
     domEnabledSessions: new Set(),
-    domStorageSessions: new Set(),
+    domStorageSessions: new Map(),
     cssEnabledSessions: new Set(),
     webmcpSessions: new Set(),
     webmcpEnableRevisions: new Map(),
@@ -728,6 +728,19 @@ export async function handleRendererSession(ctx: DispatchCtx, req: CdpRequest): 
     default:
       return {};
   }
+}
+
+/** The target a session belongs to, and the frame for a frame session. */
+export function findSessionOwner(
+  ctx: DispatchCtx,
+  sessionId: string,
+): { target: TargetState; frame: FrameState | null } | null {
+  for (const t of ctx.browser.targets.values()) {
+    if (t.sessions.has(sessionId)) return { target: t, frame: null };
+    for (const f of t.frames.values())
+      if (f.sessions.has(sessionId)) return { target: t, frame: f };
+  }
+  return null;
 }
 
 export function findOopifFrameBySession(

@@ -88,9 +88,17 @@ export interface DispatchCtx {
   client: CdpClientState;
 }
 
-const STORAGE_CLEAR_METHODS = new Set([
+// These act on the browser context of a frame session's page, so they skip the OOPIF split
+// (network.ts storageSessionTarget, dom-storage.ts).
+const CONTEXT_STORAGE_METHODS = new Set([
   "Storage.clearDataForOrigin",
   "Storage.clearDataForStorageKey",
+  "DOMStorage.enable",
+  "DOMStorage.disable",
+  "DOMStorage.getDOMStorageItems",
+  "DOMStorage.setDOMStorageItem",
+  "DOMStorage.removeDOMStorageItem",
+  "DOMStorage.clear",
 ]);
 
 export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpResponse> {
@@ -123,8 +131,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
       ctx.browser.networkEvents.drain();
       return { id: req.id, result: result ?? {}, sessionId: req.sessionId };
     }
-    // A frame session clears its page's browser context (network.ts storageSessionTarget).
-    if (req.sessionId && !STORAGE_CLEAR_METHODS.has(req.method)) {
+    if (req.sessionId && !CONTEXT_STORAGE_METHODS.has(req.method)) {
       const oopif = findOopifFrameBySession(ctx, req.sessionId);
       if (oopif) {
         const result = await handleOopifSession(ctx, req, oopif.target, oopif.frame);

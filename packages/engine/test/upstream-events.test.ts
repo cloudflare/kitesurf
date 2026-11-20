@@ -69,7 +69,7 @@ function installFor(isolateUrl: string, localStorage?: LocalStorage) {
     navigationHistoryIndex: 0,
     nextNavigationHistoryId: 2,
     frames: new Map(),
-    domStorageSessions: new Set<string>(),
+    domStorageSessions: new Map(),
   } as TargetState;
   targets.set(target.targetId, target);
   const origin = localStorage ? new URL(isolateUrl).origin : "";
@@ -107,7 +107,7 @@ describe("kitesurf.localStorage", () => {
   it("acks the batch and reports it to the page's DOMStorage sessions", () => {
     const storage = new LocalStorage(new MemorySessionStore());
     const { send, target, emitted, webStorageCalls } = installFor(`${A}/x`, storage);
-    target.domStorageSessions.add("s1");
+    target.domStorageSessions.set("s1", null);
     send("kitesurf.localStorage", { ops: [{ op: "set", key: "k", value: "v" }], seq: 4 });
     expect(storage.entries(A)).toEqual([["k", "v"]]);
     expect(webStorageCalls).toEqual([{ op: "apply", area: "local", ops: [], url: null, seq: 4 }]);

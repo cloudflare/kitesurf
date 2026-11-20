@@ -7,7 +7,12 @@
 import type { CdpRequest, TargetState } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
 import { entryToCdp, setCdpCookie, type CookieJar } from "../cookies.ts";
-import { jarForContextId, jarForTarget, localStorageForTarget } from "./target.ts";
+import {
+  findSessionOwner,
+  jarForContextId,
+  jarForTarget,
+  localStorageForTarget,
+} from "./target.ts";
 import { localStorageOrigin } from "../state/local-storage.ts";
 import { changeLocalStorage } from "./storage-copies.ts";
 
@@ -225,11 +230,9 @@ function storageSessionTarget(
   sessionId: string | undefined,
 ): TargetState | undefined {
   if (!sessionId) return undefined;
-  for (const t of ctx.browser.targets.values()) {
-    if (t.sessions.has(sessionId)) return t;
-    for (const f of t.frames.values()) if (f.sessions.has(sessionId)) return t;
-  }
-  throw new Error("Session with given id not found.");
+  const owner = findSessionOwner(ctx, sessionId);
+  if (!owner) throw new Error("Session with given id not found.");
+  return owner.target;
 }
 
 // Every cookie a request to `host` would carry: host-only cookies of the host and domain cookies
