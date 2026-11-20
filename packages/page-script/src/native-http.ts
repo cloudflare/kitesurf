@@ -119,6 +119,23 @@ const nativeReaderRead = protoMethod(
     : undefined,
   "read",
 );
+const nativeReaderCancel = protoMethod(
+  typeof ReadableStreamDefaultReader === "function"
+    ? ReadableStreamDefaultReader.prototype
+    : undefined,
+  "cancel",
+);
+const NativeResponse: typeof Response | undefined = ksGlobal.Response;
+const NativeReadableStream: typeof ReadableStream | undefined =
+  typeof ReadableStream === "function" ? ReadableStream : undefined;
+const nativeResponseStatusText = protoGetter(responseProto, "statusText");
+const controllerProto: ReadableStreamDefaultController | undefined =
+  typeof ReadableStreamDefaultController === "function"
+    ? ReadableStreamDefaultController.prototype
+    : undefined;
+const nativeControllerEnqueue = protoMethod(controllerProto, "enqueue");
+const nativeControllerClose = protoMethod(controllerProto, "close");
+const nativeControllerError = protoMethod(controllerProto, "error");
 
 // A missing capture must fail closed: skipping a stamped header or a body read can change
 // authentication, policy, or which bytes the page observes.
@@ -337,6 +354,67 @@ export function readerRead<T>(
 ): Promise<ReadableStreamReadResult<T>> {
   const method = requireIntrinsic(nativeReaderRead, "ReadableStreamDefaultReader.prototype.read");
   return nativeApply(method, reader, []) as Promise<ReadableStreamReadResult<T>>;
+}
+
+export function readerCancel<T>(reader: ReadableStreamDefaultReader<T>, reason: unknown): void {
+  const method = requireIntrinsic(
+    nativeReaderCancel,
+    "ReadableStreamDefaultReader.prototype.cancel",
+  );
+  const cancelled = nativeApply(method, reader, [reason]) as Promise<void>;
+  void cancelled.catch(() => {});
+}
+
+export function controllerEnqueue<T>(
+  controller: ReadableStreamDefaultController<T>,
+  chunk: T,
+): void {
+  const method = requireIntrinsic(
+    nativeControllerEnqueue,
+    "ReadableStreamDefaultController.prototype.enqueue",
+  );
+  nativeApply(method, controller, [chunk]);
+}
+
+export function controllerClose<T>(controller: ReadableStreamDefaultController<T>): void {
+  const method = requireIntrinsic(
+    nativeControllerClose,
+    "ReadableStreamDefaultController.prototype.close",
+  );
+  nativeApply(method, controller, []);
+}
+
+export function controllerError<T>(
+  controller: ReadableStreamDefaultController<T>,
+  reason: unknown,
+): void {
+  const method = requireIntrinsic(
+    nativeControllerError,
+    "ReadableStreamDefaultController.prototype.error",
+  );
+  nativeApply(method, controller, [reason]);
+}
+
+export function newNativeReadableStream<T>(source: UnderlyingSource<T>): ReadableStream<T> {
+  const ctor = requireIntrinsic(NativeReadableStream, "ReadableStream");
+  return nativeConstruct(ctor, [source]) as ReadableStream<T>;
+}
+
+/** A response with `body` and the status, status text and headers of `source`. */
+export function newNativeResponseLike(
+  body: ReadableStream<Uint8Array>,
+  source: Response,
+): Response {
+  const ctor = requireIntrinsic(NativeResponse, "Response");
+  const statusText = requireIntrinsic(nativeResponseStatusText, "Response.prototype.statusText");
+  return nativeConstruct(ctor, [
+    body,
+    {
+      status: responseStatus(source),
+      statusText: nativeApply(statusText, source, []) as string,
+      headers: responseHeaders(source),
+    },
+  ]) as Response;
 }
 
 export async function responseText(response: Response): Promise<string> {

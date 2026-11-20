@@ -13,10 +13,10 @@ import { retireStub } from "./page-script-generation.ts";
 import { createCookieJar, type CookieJar } from "../cookies.ts";
 import { engineWasmBytes, engineWasmInitialBytes } from "../engine-wasm-probe.ts";
 import { isolateRetainedBodyBytesTotal } from "./network-events.ts";
-import { imageStoreStats } from "../eval/resource-store.ts";
+import { dropTargetImages, imageStoreStats } from "../eval/resource-store.ts";
 import { assetCacheRetainedBytes } from "../eval/outbound.ts";
 import { clearLearnedScripts } from "../eval/learned-scripts.ts";
-import { releaseParkedForConnection } from "./fetch-interception.ts";
+import { endSessionInterception, releaseParkedForConnection } from "./fetch-interception.ts";
 import { releaseAllDomHandles } from "./dom-release.ts";
 import { outerHtmlResponse, stubQueryDom } from "./page-session.ts";
 import {
@@ -67,6 +67,7 @@ export function detachSessions(ctx: DispatchCtx, sessions: Set<string>, targetId
       params: { sessionId, targetId },
     });
     ctx.browser.networkEvents.forgetSession(sessionId);
+    endSessionInterception(ctx.connectionId, sessionId);
   }
   sessions.clear();
 }
@@ -282,6 +283,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
           }
         }
         ctx.browser.networkEvents.forgetSession(sessionId);
+        endSessionInterception(ctx.connectionId, sessionId);
         if (sessionId === ctx.browser.rendererSessionId) {
           ctx.browser.rendererSessionId = null;
         }
@@ -334,6 +336,7 @@ export function ensureBrowserTarget(ctx: DispatchCtx): TargetState {
     lastLoadAt: 0,
     layoutMode: ctx.browser.layoutMode,
     compiledScripts: [],
+    preNavScripts: new Map(),
     debuggerEnabledSessions: new Set(),
     domEnabledSessions: new Set(),
     cssEnabledSessions: new Set(),
@@ -368,6 +371,16 @@ export async function closeTargetInternal(ctx: DispatchCtx, id: string): Promise
     ctx.browser.screencasts.delete(id);
     void cancelAndRemoveTargetWheelQueues(ctx.browser, id);
     ctx.browser.dedicatedWorkers.terminateTarget(id, "Target.closeTarget");
+    if (target.retiringPageScript) {
+      const retiring = target.retiringPageScript;
+      target.retiringPageScript = null;
+      retirements.push(
+        retireStub(retiring, "closeTarget", "Target.closeTarget", {
+          budget: ctx.browser.workerBudget,
+          awaitTeardown: true,
+        }),
+      );
+    }
     retirements.push(
       retireStub(target, "closeTarget", "Target.closeTarget", {
         budget: ctx.browser.workerBudget,
@@ -385,6 +398,7 @@ export async function closeTargetInternal(ctx: DispatchCtx, id: string): Promise
       }
       for (const sessionId of frame.sessions) {
         ctx.browser.networkEvents.forgetSession(sessionId);
+        endSessionInterception(ctx.connectionId, sessionId);
       }
       frame.sessions.clear();
       frame.detached = true;
@@ -398,7 +412,7 @@ export async function closeTargetInternal(ctx: DispatchCtx, id: string): Promise
             if (!pre) return;
             try {
               const { discardPrespawnedFrame } = await import("../eval/oopif-render.ts");
-              await discardPrespawnedFrame(pre, "Target.closeTarget");
+              await discardPrespawnedFrame(pre, "Target.closeTarget", true);
             } catch {}
           }),
         );
@@ -413,9 +427,28 @@ export async function closeTargetInternal(ctx: DispatchCtx, id: string): Promise
       );
     }
     releaseAllDomHandles(target);
+    // A closed page cannot paint again; free its images and fonts now instead of at disconnect.
+    dropTargetImages(ctx.connectionId, id);
   }
   const existed = ctx.browser.targets.delete(id);
   stopSceneStreams(ctx.browser, id);
+  if (ctx.browser.screencasts.size === 0 && ctx.browser.rendererManager) {
+    // Each page uses a unique resource scope, so closed targets leave unreuseable images/fonts
+    // in the renderer's wasm heap. Recycle it once idle and above the wasm high-water threshold.
+    const RENDERER_IDLE_RECYCLE_WASM_BYTES = 36 * 1024 * 1024;
+    const RENDERER_BUSY_RECYCLE_WASM_BYTES = 48 * 1024 * 1024;
+    let hasLivePage = false;
+    for (const remaining of ctx.browser.targets.values()) {
+      if (remaining.pageScript) {
+        hasLivePage = true;
+        break;
+      }
+    }
+    ctx.browser.rendererManager.recycleIfIdle(
+      hasLivePage ? "wasm high-water recycle" : "idle wasm high-water recycle",
+      hasLivePage ? RENDERER_BUSY_RECYCLE_WASM_BYTES : RENDERER_IDLE_RECYCLE_WASM_BYTES,
+    );
+  }
   if (existed) {
     ctx.emit({
       method: "Target.targetDestroyed",
@@ -479,6 +512,7 @@ export function createPageTarget(
     lastLoadAt: 0,
     layoutMode: ctx.browser.layoutMode,
     compiledScripts: [],
+    preNavScripts: new Map(),
     debuggerEnabledSessions: new Set(),
     domEnabledSessions: new Set(),
     cssEnabledSessions: new Set(),
