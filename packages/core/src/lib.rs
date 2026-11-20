@@ -531,6 +531,9 @@ thread_local! {
     static ANIMATION_CLOCK: Cell<Option<f64>> = const { Cell::new(None) };
 }
 
+/// One 60 Hz rendering frame, the cadence at which running animations are resampled.
+const ANIMATION_FRAME_SECONDS: f64 = 1.0 / 60.0;
+
 fn now_for_animations() -> f64 {
     #[cfg(target_arch = "wasm32")]
     {
@@ -895,7 +898,7 @@ impl DomHandle {
         const MAX_RESOURCE_SETTLE_PASSES: usize = 3;
         let mut prev_pending = count_pending();
         for _ in 0..MAX_RESOURCE_SETTLE_PASSES {
-            self.ensure_layout();
+            self.ensure_frame();
             let pending = count_pending();
             if pending == 0 || pending == prev_pending {
                 break;
@@ -905,17 +908,24 @@ impl DomHandle {
         }
     }
 
+    /// For geometry and other layout readers between frames.
     fn ensure_layout(&self) {
-        self.flush_resolve(false);
+        self.flush_resolve(false, false);
     }
 
     /// For readers of computed values only: restyles without layout, which waits for the next
     /// geometry read or paint.
     fn ensure_style(&self) {
-        self.flush_resolve(true);
+        self.flush_resolve(true, false);
     }
 
-    fn flush_resolve(&self, requested_style_only: bool) {
+    /// For a rendering step (a paint, a print or an explicit resolve): samples running
+    /// animations at the current clock.
+    fn ensure_frame(&self) {
+        self.flush_resolve(false, true);
+    }
+
+    fn flush_resolve(&self, requested_style_only: bool, frame: bool) {
         if self.layout_mode.get() == LayoutMode::Off {
             return;
         }
@@ -929,7 +939,11 @@ impl DomHandle {
         }
         let now = now_for_animations();
         // Within one clock sample, a clean or already restyled document has nothing new to show.
-        if (!dirty || styles_fresh) && now <= self.last_resolve_now.get() {
+        // A read between frames also keeps the last frame's animated values, as in a browser,
+        // so script reading styles in a loop does not resample animations on every read.
+        let min_step = if frame { 0.0 } else { ANIMATION_FRAME_SECONDS };
+        let last = self.last_resolve_now.get();
+        if (!dirty || styles_fresh) && (now <= last || now < last + min_step) {
             return;
         }
         // An animation-only refresh keeps the full resolve it always ran.
@@ -1064,7 +1078,7 @@ impl DomHandle {
 
     #[wasm_bindgen(js_name = "resolveLayout")]
     pub fn resolve_layout(&self) {
-        self.ensure_layout();
+        self.ensure_frame();
     }
 
     #[wasm_bindgen(js_name = "isAnimating")]

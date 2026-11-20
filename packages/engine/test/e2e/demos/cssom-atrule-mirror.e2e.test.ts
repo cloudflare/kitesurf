@@ -68,3 +68,81 @@ test("cssom-atrule-mirror", async ({ page }) => {
   expect(res.qMarginTop, "true @media inner rule applies").toBe("7px");
   expect(res.qHeight, "false @media inner rule dormant").not.toBe("26px");
 });
+
+test("cssom append fast-path resyncs after external text edit and rule mutation", async ({
+  page,
+}) => {
+  await page.goto(
+    `data:text/html,${encodeURIComponent(
+      "<!doctype html><html><head><style id='s'></style></head><body><div id='a'>a</div><div id='b'>b</div></body></html>",
+    )}`,
+    { timeout: 20_000 },
+  );
+
+  const res = await page.evaluate(() => {
+    const tag = document.getElementById("s") as HTMLStyleElement;
+    const sheet = tag.sheet!;
+    const bInitial = getComputedStyle(document.getElementById("b")!).color;
+    sheet.insertRule("#a { color: rgb(10, 20, 30); }", sheet.cssRules.length);
+    sheet.insertRule("#b { color: rgb(40, 50, 60); }", sheet.cssRules.length);
+    const aAfterAppend = getComputedStyle(document.getElementById("a")!).color;
+    const bAfterAppend = getComputedStyle(document.getElementById("b")!).color;
+
+    (sheet.cssRules[1] as CSSStyleRule).style.color = "rgb(70, 80, 90)";
+    const bAfterMutate = getComputedStyle(document.getElementById("b")!).color;
+
+    tag.textContent = "#a { color: rgb(1, 2, 3); }";
+    sheet.insertRule("#b { color: rgb(4, 5, 6); }", sheet.cssRules.length);
+    const aAfterExternal = getComputedStyle(document.getElementById("a")!).color;
+    const bAfterExternal = getComputedStyle(document.getElementById("b")!).color;
+    const ruleCount = sheet.cssRules.length;
+
+    sheet.deleteRule(1);
+    const bAfterDelete = getComputedStyle(document.getElementById("b")!).color;
+    return {
+      bInitial,
+      aAfterAppend,
+      bAfterAppend,
+      bAfterMutate,
+      aAfterExternal,
+      bAfterExternal,
+      ruleCount,
+      bAfterDelete,
+    };
+  });
+
+  expect(res.aAfterAppend).toBe("rgb(10, 20, 30)");
+  expect(res.bAfterAppend).toBe("rgb(40, 50, 60)");
+  expect(res.bAfterMutate).toBe("rgb(70, 80, 90)");
+  expect(res.aAfterExternal).toBe("rgb(1, 2, 3)");
+  expect(res.bAfterExternal).toBe("rgb(4, 5, 6)");
+  expect(res.ruleCount).toBe(2);
+  expect(res.bAfterDelete).toBe(res.bInitial);
+});
+
+test("a rule object survives an unrelated style edit after the append fast path", async ({
+  page,
+}) => {
+  await page.goto(
+    `data:text/html,${encodeURIComponent(
+      "<!doctype html><html><head><style id='s'></style></head><body><div id='a'>a</div></body></html>",
+    )}`,
+    { timeout: 20_000 },
+  );
+
+  const res = await page.evaluate(() => {
+    const tag = document.getElementById("s") as HTMLStyleElement;
+    const sheet = tag.sheet!;
+    sheet.insertRule("#a { color: rgb(1, 1, 1); }", 0);
+    sheet.insertRule("#b { color: rgb(2, 2, 2); }", 1);
+    const rule = sheet.cssRules[0] as CSSStyleRule;
+    const other = document.createElement("style");
+    other.textContent = ".c { color: red; }";
+    document.head.appendChild(other);
+    const same = sheet.cssRules[0] === rule;
+    rule.style.color = "rgb(9, 9, 9)";
+    return { same, color: getComputedStyle(document.getElementById("a")!).color };
+  });
+
+  expect(res).toEqual({ same: true, color: "rgb(9, 9, 9)" });
+});

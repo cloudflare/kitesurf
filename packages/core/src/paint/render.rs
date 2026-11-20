@@ -525,7 +525,7 @@ impl DomHandle {
     /// already pending goes to the screencast, so it is never read as the input's.
     #[wasm_bindgen(js_name = "paintDamageMark")]
     pub fn paint_damage_mark(&self) {
-        self.ensure_layout();
+        self.ensure_frame();
         let mut doc = match self.doc.try_borrow_mut() {
             Ok(d) => d,
             Err(_) => return,
@@ -542,7 +542,7 @@ impl DomHandle {
     /// `exclude`, its subtree and its ancestors: a control's own hover and focus restyle.
     #[wasm_bindgen(js_name = "paintDamageSince")]
     pub fn paint_damage_since(&self, exclude: u32) -> String {
-        self.ensure_layout();
+        self.ensure_frame();
         let mut doc = match self.doc.try_borrow_mut() {
             Ok(d) => d,
             Err(_) => return String::new(),

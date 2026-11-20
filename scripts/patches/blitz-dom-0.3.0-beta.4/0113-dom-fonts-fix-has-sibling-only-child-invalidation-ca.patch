@@ -1,0 +1,878 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 20 Nov 2026 13:22:43 +0000
+Subject: [PATCH] dom,fonts: fix :has() sibling/only-child invalidation, cached
+ FontPlan font flush with pseudo content, disabled link unload, and text
+ codepoints
+
+---
+ src/document.rs | 608 ++++++++++++++++++++++++++++++++++++------------
+ src/mutator.rs  |  46 +++-
+ src/stylo.rs    |  24 +-
+ 3 files changed, 516 insertions(+), 162 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 82bc5fe..422b94b 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -65,7 +65,7 @@ use style::selector_parser::ServoElementSnapshot;
+ use style::servo_arc::Arc as ServoArc;
+ use style::values::GenericAtomIdent;
+ use style::values::computed::font::SingleFontFamily;
+-use style::values::computed::UserSelect;
++use style::values::computed::{Content, ContentItem, UserSelect};
+ use style::values::computed::ui::CursorKind;
+ use style::{
+     device::Device,
+@@ -416,11 +416,173 @@ fn filter_uncovered_chars(remaining: &mut Vec<char>, blob: &Blob<u8>, index: u32
+     remaining.retain(|&ch| charmap.map(ch).is_none());
+ }
+
+-fn push_non_ws_chars(out: &mut Vec<char>, seen: &mut HashSet<char>, text: &str) {
++fn pe_content_string(computed: &ComputedValues) -> Option<String> {
++    let Content::Items(item_data) = &computed.get_counters().content else {
++        return None;
++    };
++    let items = &item_data.items[0..item_data.alt_start];
++    let mut text = String::new();
++    for item in items {
++        if let ContentItem::String(owned_str) = item {
++            text.push_str(owned_str);
++        }
++    }
++    (!text.is_empty()).then_some(text)
++}
++
++fn has_non_ws_char(text: &str) -> bool {
++    text.chars().any(|ch| !ch.is_ascii_whitespace())
++}
++
++fn push_non_ws_set(out: &mut HashSet<char>, text: &str) {
+     for ch in text.chars() {
+-        if !ch.is_ascii_whitespace() && seen.insert(ch) {
+-            out.push(ch);
++        if !ch.is_ascii_whitespace() {
++            out.insert(ch);
++        }
++    }
++}
++
++enum FontPlanStep {
++    MarkUsedAndContinue(String),
++    MarkUsedAndStop(String),
++    MarkUsedAndCheckLoaded(String),
++    CheckLoaded(String),
++}
++
++struct FontPlan {
++    req_italic: bool,
++    req_weight: u16,
++    steps: Vec<FontPlanStep>,
++    needs_glyph_check: bool,
++    saw_text: bool,
++    chars: HashSet<char>,
++}
++
++fn build_font_plan(
++    font: &Font,
++    pending_by_family: &HashMap<&str, Vec<(bool, (u16, u16), bool)>>,
++    declared_font_faces: &HashMap<String, Vec<DeclaredFontFace>>,
++    atom_lc: &mut HashMap<Atom, String>,
++) -> Option<FontPlan> {
++    let touches_pending = font.font_family.families.iter().any(|family| {
++        if let SingleFontFamily::FamilyName(name) = family {
++            let lc = atom_lc
++                .entry(name.name.clone())
++                .or_insert_with(|| name.name.to_string().to_lowercase());
++            pending_by_family.contains_key(lc.as_str())
++        } else {
++            false
++        }
++    });
++    if !touches_pending {
++        return None;
++    }
++
++    let req_weight = font.font_weight.value().round().clamp(1.0, 1000.0) as u16;
++    let req_italic = !matches!(
++        stylo_to_parley::font_style(font.font_style),
++        ParleyFontStyle::Normal
++    );
++    let want_fq_style = if req_italic {
++        FontiqueStyle::Italic
++    } else {
++        FontiqueStyle::Normal
++    };
++
++    let mut steps: Vec<FontPlanStep> = Vec::new();
++    for family in font.font_family.families.iter() {
++        let SingleFontFamily::FamilyName(name) = family else {
++            continue;
++        };
++        let fam_lc = atom_lc
++            .entry(name.name.clone())
++            .or_insert_with(|| name.name.to_string().to_lowercase())
++            .as_str();
++        if let Some(declared) = declared_font_faces.get(fam_lc) {
++            let has_selected_plain = declared.iter().any(|d| {
++                !d.has_unicode_range
++                    && face_matches_css_selection(
++                        declared,
++                        req_italic,
++                        req_weight,
++                        d.italic,
++                        d.weight_range,
++                    )
++            });
++            let has_selected_range = declared.iter().any(|d| {
++                d.has_unicode_range
++                    && face_matches_css_selection(
++                        declared,
++                        req_italic,
++                        req_weight,
++                        d.italic,
++                        d.weight_range,
++                    )
++            });
++            if !has_selected_plain && has_selected_range {
++                steps.push(FontPlanStep::MarkUsedAndContinue(fam_lc.to_string()));
++                continue;
++            }
++            let has_pending_plain = pending_by_family.get(fam_lc).is_some_and(|faces| {
++                faces.iter().any(|&(face_italic, weight_range, has_range)| {
++                    !has_range
++                        && face_matches_css_selection(
++                            declared,
++                            req_italic,
++                            req_weight,
++                            face_italic,
++                            weight_range,
++                        )
++                })
++            });
++            if has_pending_plain || face_pending_for_style(fam_lc, want_fq_style) {
++                steps.push(FontPlanStep::MarkUsedAndStop(fam_lc.to_string()));
++                break;
++            }
++            steps.push(FontPlanStep::MarkUsedAndCheckLoaded(fam_lc.to_string()));
++        } else {
++            steps.push(FontPlanStep::CheckLoaded(fam_lc.to_string()));
++        }
++    }
++
++    while matches!(steps.last(), Some(FontPlanStep::CheckLoaded(_))) {
++        steps.pop();
++    }
++    if steps.is_empty() {
++        return None;
++    }
++
++    let last_idx = steps.len() - 1;
++    let needs_glyph_check = steps[..last_idx].iter().any(|step| {
++        matches!(
++            step,
++            FontPlanStep::MarkUsedAndCheckLoaded(_) | FontPlanStep::CheckLoaded(_)
++        )
++    });
++
++    Some(FontPlan {
++        req_italic,
++        req_weight,
++        steps,
++        needs_glyph_check,
++        saw_text: false,
++        chars: HashSet::new(),
++    })
++}
++
++fn record_used_request(
++    used: &mut HashMap<String, Vec<(bool, u16)>>,
++    fam_lc: &str,
++    req_italic: bool,
++    req_weight: u16,
++) {
++    let pair = (req_italic, req_weight);
++    if let Some(list) = used.get_mut(fam_lc) {
++        if !list.contains(&pair) {
++            list.push(pair);
+         }
++    } else {
++        used.insert(fam_lc.to_string(), vec![pair]);
+     }
+ }
+
+@@ -682,6 +844,14 @@ pub struct BaseDocument {
+     /// Declared `@font-face` descriptors per lowercased family (including already fetched faces)
+     /// so CSS Fonts 4 weight, style, and fallback-chain gating stays consistent across flushes.
+     pub(crate) declared_font_faces: HashMap<String, Vec<DeclaredFontFace>>,
++    /// Sticky `(italic, weight)` requests already observed per lowercased family so flushes skip
++    /// the DOM walk when every remaining pending face is already known to be requested.
++    pub(crate) used_font_requests: HashMap<String, Vec<(bool, u16)>>,
++    /// Bumped each time `resolve_stylist` actually traverses dirty elements.
++    pub(crate) style_traversal_epoch: u32,
++    /// Last `style_traversal_epoch` at which unmaterialized pseudo-element content was folded into
++    /// `used_codepoints`.
++    pub(crate) last_pseudo_scan_epoch: u32,
+     /// Every codepoint that appears in an in-document text node, as a
+     /// bitset over U+0000..=U+10FFFF (136 KiB, allocated on first use).
+     /// A `unicode-range`-subsetted face fetches only once the document
+@@ -913,6 +1083,9 @@ impl BaseDocument {
+             dims_only_images: config.dims_only_images,
+             pending_font_faces: Vec::new(),
+             declared_font_faces: HashMap::new(),
++            used_font_requests: HashMap::new(),
++            style_traversal_epoch: 0,
++            last_pseudo_scan_epoch: 0,
+             used_codepoints: Vec::new(),
+             non_latin_text_writes: 0,
+             base_epoch: 0,
+@@ -1714,7 +1887,6 @@ impl BaseDocument {
+     }
+
+     pub fn create_text_node(&mut self, text: &str) -> NodeId {
+-        self.note_text_codepoints(text, false);
+         let data = NodeData::Text(TextNodeData::new(text));
+         self.create_node(data)
+     }
+@@ -2296,9 +2468,29 @@ impl BaseDocument {
+             }
+             if let Some(text) = node.text_data() {
+                 set_codepoint_bits(&mut bits, &text.content);
++            } else if node.before().is_none() || node.after().is_none() {
++                if let Some(style_data) = node.try_stylo_element_data().and_then(|s| s.get()) {
++                    let pseudos = style_data.styles.pseudos.as_array();
++                    for (unmat, pseudo_style) in [
++                        (node.before().is_none(), &pseudos[1]),
++                        (node.after().is_none(), &pseudos[0]),
++                    ] {
++                        if !unmat {
++                            continue;
++                        }
++                        if let Some(ps) = pseudo_style.as_ref() {
++                            if !ps.get_box().display.is_none() {
++                                if let Some(content) = pe_content_string(ps) {
++                                    set_codepoint_bits(&mut bits, &content);
++                                }
++                            }
++                        }
++                    }
++                }
+             }
+         }
+         self.used_codepoints = bits;
++        self.last_pseudo_scan_epoch = self.style_traversal_epoch;
+     }
+
+     /// Record text creation or a text write, indexing connected text.
+@@ -2384,160 +2576,245 @@ impl BaseDocument {
+             }
+         }
+
+-        let pending_families: HashSet<&str> = self
+-            .pending_font_faces
+-            .iter()
+-            .map(|f| f.family_lc.as_str())
+-            .collect();
+-        let mut atom_lc: HashMap<Atom, String> = HashMap::new();
+-        let mut font_has_pending: HashMap<*const Font, bool> = HashMap::new();
+-        let mut loaded_faces: HashMap<(String, bool, u16), Option<(Blob<u8>, u32)>> =
+-            HashMap::new();
+-        let mut used: HashMap<String, Vec<(bool, u16)>> = HashMap::new();
+-        let mut node_chars: Vec<char> = Vec::new();
+-        let mut node_chars_seen: HashSet<char> = HashSet::new();
+-        let mut stack: Vec<NodeId> = vec![self.root_node_id];
+-
+-        while let Some(node_id) = stack.pop() {
+-            let Some(node) = self.nodes.get(node_id) else {
+-                continue;
++        // Skip the full DOM walk when every pending face is already matched by a recorded request
++        // (e.g. deferred unicode-range subsets waiting only on new document codepoints).
++        let all_pending_used = self.pending_font_faces.iter().all(|f| {
++            let Some(requests) = self.used_font_requests.get(&f.family_lc) else {
++                return false;
+             };
+-            if !node.flags.is_in_document() {
+-                continue;
++            let declared = self
++                .declared_font_faces
++                .get(&f.family_lc)
++                .map(Vec::as_slice)
++                .unwrap_or(&[]);
++            let face_italic = font_face_is_italic(f.overrides.style);
++            requests.iter().any(|&(req_italic, req_weight)| {
++                face_matches_css_selection(
++                    declared,
++                    req_italic,
++                    req_weight,
++                    face_italic,
++                    f.weight_range,
++                )
++            })
++        });
++
++        let mut pseudo_texts: Vec<String> = Vec::new();
++        if !all_pending_used {
++            let mut pending_by_family: HashMap<&str, Vec<(bool, (u16, u16), bool)>> =
++                HashMap::new();
++            for face in &self.pending_font_faces {
++                pending_by_family
++                    .entry(face.family_lc.as_str())
++                    .or_default()
++                    .push((
++                        font_face_is_italic(face.overrides.style),
++                        face.weight_range,
++                        face.unicode_range.is_some(),
++                    ));
+             }
+-            let styles = node.primary_styles();
+-            if let Some(s) = styles.as_ref() {
+-                if s.get_box().display.is_none() {
++            let mut atom_lc: HashMap<Atom, String> = HashMap::new();
++            let mut font_plans: HashMap<*const Font, Option<FontPlan>> = HashMap::new();
++            let mut stack: Vec<NodeId> = vec![self.root_node_id];
++
++            while let Some(node_id) = stack.pop() {
++                let Some(node) = self.nodes.get(node_id) else {
++                    continue;
++                };
++                if !node.flags.is_in_document() {
+                     continue;
+                 }
+-            }
+-            if let Some(after) = node.after() {
+-                stack.push(after);
+-            }
+-            if let Some(before) = node.before() {
+-                stack.push(before);
+-            }
+-            let children = node.flat_children();
+-            for child_id in children.iter() {
+-                stack.push(child_id);
+-            }
+-            let Some(styles) = styles else {
+-                continue;
+-            };
+-            let font = styles.get_font();
+-            let font_ptr = font as *const Font;
+-            let touches_pending = *font_has_pending.entry(font_ptr).or_insert_with(|| {
+-                font.font_family.families.iter().any(|family| {
+-                    if let SingleFontFamily::FamilyName(name) = family {
+-                        let lc = atom_lc
+-                            .entry(name.name.clone())
+-                            .or_insert_with(|| name.name.to_string().to_lowercase());
+-                        pending_families.contains(lc.as_str())
+-                    } else {
+-                        false
++                let styles = node.primary_styles();
++                if let Some(s) = styles.as_ref() {
++                    if s.get_box().display.is_none() {
++                        continue;
+                     }
+-                })
+-            });
+-            if !touches_pending {
+-                continue;
+-            }
+-
+-            node_chars.clear();
+-            node_chars_seen.clear();
+-            for child_id in children.iter() {
+-                if let Some(text) = self.nodes.get(child_id).and_then(Node::text_data) {
+-                    push_non_ws_chars(&mut node_chars, &mut node_chars_seen, &text.content);
+                 }
+-            }
+-            if let Some(elem) = node.element_data() {
+-                if let SpecialElementData::TextInput(input) = elem.special_data() {
+-                    push_non_ws_chars(
+-                        &mut node_chars,
+-                        &mut node_chars_seen,
+-                        input.editor.raw_text(),
+-                    );
+-                    if let Some(placeholder) = elem.attr(local_name!("placeholder")) {
+-                        push_non_ws_chars(&mut node_chars, &mut node_chars_seen, placeholder);
+-                    }
++                if let Some(after) = node.after() {
++                    stack.push(after);
++                }
++                if let Some(before) = node.before() {
++                    stack.push(before);
++                }
++                let children = node.flat_children();
++                for child_id in children.iter() {
++                    stack.push(child_id);
+                 }
+-            }
+-            if node_chars.is_empty() {
+-                continue;
+-            }
+
+-            let req_weight = font.font_weight.value().round().clamp(1.0, 1000.0) as u16;
+-            let req_italic = !matches!(
+-                stylo_to_parley::font_style(font.font_style),
+-                ParleyFontStyle::Normal
+-            );
+-            let want_fq_style = if req_italic {
+-                FontiqueStyle::Italic
+-            } else {
+-                FontiqueStyle::Normal
+-            };
++                // During style-only resolves (before box construction), ::before/::after nodes do
++                // not exist yet; inspect their computed styles directly so icon fonts still fetch.
++                if node.before().is_none() || node.after().is_none() {
++                    if let Some(style_data) = node.try_stylo_element_data().and_then(|s| s.get()) {
++                        let pseudos = style_data.styles.pseudos.as_array();
++                        let candidates = [
++                            (node.before().is_none(), &pseudos[1]),
++                            (node.after().is_none(), &pseudos[0]),
++                        ];
++                        for (unmaterialized, pseudo_style) in candidates {
++                            if !unmaterialized {
++                                continue;
++                            }
++                            let Some(pseudo_style) = pseudo_style.as_ref() else {
++                                continue;
++                            };
++                            if pseudo_style.get_box().display.is_none() {
++                                continue;
++                            }
++                            let Some(content) = pe_content_string(pseudo_style) else {
++                                continue;
++                            };
++                            if !has_non_ws_char(&content) {
++                                continue;
++                            }
++                            let pfont = pseudo_style.get_font();
++                            let pfont_ptr = pfont as *const Font;
++                            let plan = font_plans.entry(pfont_ptr).or_insert_with(|| {
++                                build_font_plan(
++                                    pfont,
++                                    &pending_by_family,
++                                    &self.declared_font_faces,
++                                    &mut atom_lc,
++                                )
++                            });
++                            if let Some(plan) = plan.as_mut() {
++                                plan.saw_text = true;
++                                if plan.needs_glyph_check {
++                                    push_non_ws_set(&mut plan.chars, &content);
++                                }
++                                pseudo_texts.push(content);
++                            }
++                        }
++                    }
++                }
+
+-            for family in font.font_family.families.iter() {
+-                let SingleFontFamily::FamilyName(name) = family else {
++                let Some(styles) = styles else {
+                     continue;
+                 };
+-                let fam_lc = atom_lc
+-                    .entry(name.name.clone())
+-                    .or_insert_with(|| name.name.to_string().to_lowercase())
+-                    .as_str();
+-                if let Some(declared) = self.declared_font_faces.get(fam_lc) {
+-                    let list = used.entry(fam_lc.to_string()).or_default();
+-                    let pair = (req_italic, req_weight);
+-                    if !list.contains(&pair) {
+-                        list.push(pair);
+-                    }
+-                    let selected_has_range = declared.iter().any(|d| {
+-                        d.has_unicode_range
+-                            && face_matches_css_selection(
+-                                declared,
+-                                req_italic,
+-                                req_weight,
+-                                d.italic,
+-                                d.weight_range,
+-                            )
+-                    });
+-                    if selected_has_range {
+-                        continue;
++                let font = styles.get_font();
++                let font_ptr = font as *const Font;
++                let plan = font_plans.entry(font_ptr).or_insert_with(|| {
++                    build_font_plan(
++                        font,
++                        &pending_by_family,
++                        &self.declared_font_faces,
++                        &mut atom_lc,
++                    )
++                });
++                let Some(plan) = plan.as_mut() else {
++                    continue;
++                };
++                if plan.saw_text && !plan.needs_glyph_check {
++                    continue;
++                }
++
++                let mut node_has_text = false;
++                for child_id in children.iter() {
++                    if let Some(text) = self.nodes.get(child_id).and_then(Node::text_data) {
++                        if plan.needs_glyph_check {
++                            let before_len = plan.chars.len();
++                            push_non_ws_set(&mut plan.chars, &text.content);
++                            if plan.chars.len() > before_len || has_non_ws_char(&text.content) {
++                                node_has_text = true;
++                            }
++                        } else if has_non_ws_char(&text.content) {
++                            node_has_text = true;
++                            break;
++                        }
+                     }
+-                    let has_pending = self.pending_font_faces.iter().any(|f| {
+-                        f.family_lc == fam_lc
+-                            && face_matches_css_selection(
+-                                declared,
+-                                req_italic,
+-                                req_weight,
+-                                font_face_is_italic(f.overrides.style),
+-                                f.weight_range,
+-                            )
+-                    });
+-                    if has_pending || face_pending_for_style(fam_lc, want_fq_style) {
+-                        break;
++                }
++                if !node_has_text || plan.needs_glyph_check {
++                    if let Some(elem) = node.element_data() {
++                        if let SpecialElementData::TextInput(input) = elem.special_data() {
++                            let raw = input.editor.raw_text();
++                            if plan.needs_glyph_check {
++                                push_non_ws_set(&mut plan.chars, raw);
++                            }
++                            if has_non_ws_char(raw) {
++                                node_has_text = true;
++                            }
++                            if let Some(placeholder) = elem.attr(local_name!("placeholder")) {
++                                if plan.needs_glyph_check {
++                                    push_non_ws_set(&mut plan.chars, placeholder);
++                                }
++                                if has_non_ws_char(placeholder) {
++                                    node_has_text = true;
++                                }
++                            }
++                        }
+                     }
+-                    if let Some((blob, idx)) = lookup_loaded_face(
+-                        &self.font_ctx,
+-                        &mut loaded_faces,
+-                        fam_lc,
+-                        req_italic,
+-                        req_weight,
+-                    ) {
+-                        filter_uncovered_chars(&mut node_chars, &blob, idx);
+-                        if node_chars.is_empty() {
++                }
++                if node_has_text {
++                    plan.saw_text = true;
++                }
++            }
++
++            let mut loaded_faces: HashMap<(String, bool, u16), Option<(Blob<u8>, u32)>> =
++                HashMap::new();
++            for plan in font_plans.into_values().flatten() {
++                if !plan.saw_text {
++                    continue;
++                }
++                let mut remaining: Vec<char> = if plan.needs_glyph_check {
++                    plan.chars.into_iter().collect()
++                } else {
++                    Vec::new()
++                };
++                let last_idx = plan.steps.len() - 1;
++                for (step_idx, step) in plan.steps.into_iter().enumerate() {
++                    match step {
++                        FontPlanStep::MarkUsedAndContinue(fam_lc) => {
++                            record_used_request(
++                                &mut self.used_font_requests,
++                                &fam_lc,
++                                plan.req_italic,
++                                plan.req_weight,
++                            );
++                        }
++                        FontPlanStep::MarkUsedAndStop(fam_lc) => {
++                            record_used_request(
++                                &mut self.used_font_requests,
++                                &fam_lc,
++                                plan.req_italic,
++                                plan.req_weight,
++                            );
+                             break;
+                         }
+-                    }
+-                } else if let Some((blob, idx)) = lookup_loaded_face(
+-                    &self.font_ctx,
+-                    &mut loaded_faces,
+-                    fam_lc,
+-                    req_italic,
+-                    req_weight,
+-                ) {
+-                    filter_uncovered_chars(&mut node_chars, &blob, idx);
+-                    if node_chars.is_empty() {
+-                        break;
++                        FontPlanStep::MarkUsedAndCheckLoaded(fam_lc) => {
++                            record_used_request(
++                                &mut self.used_font_requests,
++                                &fam_lc,
++                                plan.req_italic,
++                                plan.req_weight,
++                            );
++                            if step_idx < last_idx {
++                                if let Some((blob, idx)) = lookup_loaded_face(
++                                    &self.font_ctx,
++                                    &mut loaded_faces,
++                                    &fam_lc,
++                                    plan.req_italic,
++                                    plan.req_weight,
++                                ) {
++                                    filter_uncovered_chars(&mut remaining, &blob, idx);
++                                    if remaining.is_empty() {
++                                        break;
++                                    }
++                                }
++                            }
++                        }
++                        FontPlanStep::CheckLoaded(fam_lc) => {
++                            if let Some((blob, idx)) = lookup_loaded_face(
++                                &self.font_ctx,
++                                &mut loaded_faces,
++                                &fam_lc,
++                                plan.req_italic,
++                                plan.req_weight,
++                            ) {
++                                filter_uncovered_chars(&mut remaining, &blob, idx);
++                                if remaining.is_empty() {
++                                    break;
++                                }
++                            }
++                        }
+                     }
+                 }
+             }
+@@ -2545,8 +2822,9 @@ impl BaseDocument {
+
+         let mut ready: Vec<PendingFontFace> = Vec::new();
+         let declared_map = &self.declared_font_faces;
++        let used_map = &self.used_font_requests;
+         self.pending_font_faces.retain(|f| {
+-            let Some(requests) = used.get(&f.family_lc) else {
++            let Some(requests) = used_map.get(&f.family_lc) else {
+                 return true;
+             };
+             let declared = declared_map
+@@ -2575,6 +2853,37 @@ impl BaseDocument {
+         let needs_range_check = ready.iter().any(|f| f.unicode_range.is_some());
+         if needs_range_check {
+             self.ensure_used_codepoints();
++            if all_pending_used && self.last_pseudo_scan_epoch != self.style_traversal_epoch {
++                for (_, node) in self.nodes.iter() {
++                    if !node.flags.is_in_document()
++                        || (node.before().is_some() && node.after().is_some())
++                    {
++                        continue;
++                    }
++                    if let Some(style_data) = node.try_stylo_element_data().and_then(|s| s.get()) {
++                        let pseudos = style_data.styles.pseudos.as_array();
++                        for (unmat, pseudo_style) in [
++                            (node.before().is_none(), &pseudos[1]),
++                            (node.after().is_none(), &pseudos[0]),
++                        ] {
++                            if !unmat {
++                                continue;
++                            }
++                            if let Some(ps) = pseudo_style.as_ref() {
++                                if !ps.get_box().display.is_none() {
++                                    if let Some(content) = pe_content_string(ps) {
++                                        set_codepoint_bits(&mut self.used_codepoints, &content);
++                                    }
++                                }
++                            }
++                        }
++                    }
++                }
++                self.last_pseudo_scan_epoch = self.style_traversal_epoch;
++            }
++            for text in &pseudo_texts {
++                set_codepoint_bits(&mut self.used_codepoints, text);
++            }
+         }
+         let mut deferred: Vec<PendingFontFace> = Vec::new();
+         for face in ready {
+@@ -2751,10 +3060,11 @@ impl BaseDocument {
+                 let Some(node_id) = res.node_id else {
+                     return;
+                 };
+-                let connected = self
+-                    .nodes
+-                    .get(node_id)
+-                    .is_some_and(|node| node.is_element() && node.flags.is_in_document());
++                let connected = self.nodes.get(node_id).is_some_and(|node| {
++                    node.is_element()
++                        && node.flags.is_in_document()
++                        && node.attr(local_name!("disabled")).is_none()
++                });
+                 if !connected {
+                     return;
+                 }
+diff --git a/src/mutator.rs b/src/mutator.rs
+index b47b419..f4740a2 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -634,6 +634,15 @@ impl DocumentMutator<'_> {
+             self.load_iframe(node_id);
+         } else if (tag, attr) == tag_and_attr!("link", "media") {
+             self.update_link_stylesheet_media(node_id);
++        } else if (tag, attr) == tag_and_attr!("link", "disabled") {
++            if matches!(
++                self.doc.nodes[node_id]
++                    .element_data()
++                    .map(ElementData::special_data),
++                Some(SpecialElementData::Stylesheet(_))
++            ) {
++                self.unload_stylesheet(node_id);
++            }
+         }
+
+         self.note_possible_slot_reassignment(node_id, &name.local);
+@@ -1133,10 +1142,20 @@ impl DocumentMutator<'_> {
+             targets.extend(before);
+             targets.extend(after);
+             if before.is_none() {
+-                ts_targets.extend(after.map(|id| (id, TSStateForInvalidation::NTH_EDGE_FIRST)));
++                ts_targets.extend(after.map(|id| {
++                    (
++                        id,
++                        TSStateForInvalidation::NTH | TSStateForInvalidation::NTH_EDGE_FIRST,
++                    )
++                }));
+             }
+             if after.is_none() {
+-                ts_targets.extend(before.map(|id| (id, TSStateForInvalidation::NTH_EDGE_LAST)));
++                ts_targets.extend(before.map(|id| {
++                    (
++                        id,
++                        TSStateForInvalidation::NTH | TSStateForInvalidation::NTH_EDGE_LAST,
++                    )
++                }));
+             }
+         }
+         if later_siblings {
+@@ -1169,9 +1188,13 @@ impl DocumentMutator<'_> {
+         } else {
+             parent.selector_flags().get()
+         };
++        let later_siblings = flags.contains(ElementSelectorFlags::HAS_SLOW_SELECTOR_LATER_SIBLINGS);
++        let edge_children = flags.contains(ElementSelectorFlags::HAS_EDGE_CHILD_SELECTOR);
++        if !whole_parent && !later_siblings && !edge_children {
++            return;
++        }
+         let children = parent.children();
+         let index = children.position(child_id);
+-        let later_siblings = flags.contains(ElementSelectorFlags::HAS_SLOW_SELECTOR_LATER_SIBLINGS);
+         // Removing the first child restyles every later sibling anyway, and Gecko takes the whole
+         // parent there to keep emptying a parent from the front linear.
+         if whole_parent || index.is_none_or(|i| later_siblings && i == 0) {
+@@ -1179,7 +1202,6 @@ impl DocumentMutator<'_> {
+             self.invalidate_structural_has_for_whole_parent(parent_id);
+             return;
+         }
+-        let edge_children = flags.contains(ElementSelectorFlags::HAS_EDGE_CHILD_SELECTOR);
+         let Some(index) = index.filter(|_| self.doc.nodes[child_id].is_element()) else {
+             // Structural selectors count element siblings only.
+             return;
+@@ -1197,14 +1219,20 @@ impl DocumentMutator<'_> {
+         if edge_children {
+             let before = children.iter().take(index).rev().find(is_element);
+             let after = children.iter().skip(index + 1).find(is_element);
+-            // The element that becomes the first or the last child.
++            // The element that becomes the first or the last child (or :only-child).
+             if let (None, Some(id)) = (before, after) {
+                 targets.push(id);
+-                ts_targets.push((id, TSStateForInvalidation::NTH_EDGE_FIRST));
++                ts_targets.push((
++                    id,
++                    TSStateForInvalidation::NTH | TSStateForInvalidation::NTH_EDGE_FIRST,
++                ));
+             }
+             if let (Some(id), None) = (before, after) {
+                 targets.push(id);
+-                ts_targets.push((id, TSStateForInvalidation::NTH_EDGE_LAST));
++                ts_targets.push((
++                    id,
++                    TSStateForInvalidation::NTH | TSStateForInvalidation::NTH_EDGE_LAST,
++                ));
+             }
+         }
+         for id in targets {
+@@ -1916,10 +1944,10 @@ impl<'doc> DocumentMutator<'doc> {
+     fn unload_stylesheet(&mut self, node_id: NodeId) {
+         let node = &mut self.doc.nodes[node_id];
+         let Some(element) = node.element_data_mut() else {
+-            unreachable!();
++            return;
+         };
+         let SpecialElementData::Stylesheet(stylesheet) = element.take_special_data() else {
+-            unreachable!();
++            return;
+         };
+
+         // Unregister from wherever the sheet was recorded as living
+diff --git a/src/stylo.rs b/src/stylo.rs
+index 34e89a1..0937366 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -179,8 +179,9 @@ impl crate::document::BaseDocument {
+         // dbg!(root);
+         let token = RecalcStyle::pre_traverse(root, &context);
+
++        let traversed = token.should_traverse();
+         let mut nodes_needing_style_image_flush = Vec::new();
+-        if token.should_traverse() {
++        if traversed {
+             // Style the elements, resolving their data
+             let mut traverser = RecalcStyle::new(context);
+             // `Sequential` bypasses Stylo's global pool. See `StyleThreading`.
+@@ -192,6 +193,9 @@ impl crate::document::BaseDocument {
+                 std::mem::take(traverser.nodes_needing_style_image_flush.get_mut().unwrap());
+             self.size_container_seen |= *traverser.saw_size_container.get_mut();
+         }
++        if traversed {
++            self.style_traversal_epoch = self.style_traversal_epoch.wrapping_add(1);
++        }
+         self.pending_style_image_nodes
+             .extend(nodes_needing_style_image_flush);
+
+@@ -503,9 +507,6 @@ impl crate::document::BaseDocument {
+             return;
+         };
+         let inherited = inherited_search_direction(element);
+-        if inherited.is_empty() {
+-            return;
+-        }
+         let siblings = (element.prev_sibling_element(), element.next_sibling_element());
+         if let (Some(prev), Some(next)) = siblings {
+             if prev
+@@ -516,8 +517,23 @@ impl crate::document::BaseDocument {
+                     ElementSelectorFlags::RELATIVE_SELECTOR_SEARCH_DIRECTION_SIBLING,
+                 );
+                 self.invalidate_relative_selectors_for_sibling_side_effects(prev, next);
++            } else if let Some(parent) = selectors::Element::parent_element(&element) {
++                // Inserting between two siblings under a `:has(> .a + .b)` anchor can break a
++                // child-level sibling combinator without changing the inserted node's own match;
++                // restyle only the anchor itself (never its whole subtree).
++                if parent.selector_flags().get().intersects(
++                    ElementSelectorFlags::ANCHORS_RELATIVE_SELECTOR
++                        | ElementSelectorFlags::ANCHORS_RELATIVE_SELECTOR_NON_SUBJECT,
++                ) {
++                    if let Some(mut data) = parent.mutate_data() {
++                        data.hint |= RestyleHint::RESTYLE_SELF;
++                    }
++                }
+             }
+         }
++        if inherited.is_empty() {
++            return;
++        }
+         // `Append` only unlocks an optimization that assumes a later sibling
+         // can take over the match, so `Insert` is the conservative choice.
+         self.mutation_invalidator(element, SiblingTraversalMap::default())

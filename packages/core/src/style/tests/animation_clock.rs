@@ -912,3 +912,42 @@ fn listener_registration_refreshes_cancellation_tree_order() {
         "cancels follow CSS tree order (B before A), not creation order"
     );
 }
+
+/// Script that reads styles in a loop while an animation runs must see one frame's values, not
+/// pay an animation resample per read; the next frame's read samples again.
+#[test]
+fn style_reads_between_frames_do_not_resample_running_animations() {
+    let html = r##"<!DOCTYPE html>
+<html><head><style>
+@keyframes fade { from { opacity: 0 } to { opacity: 1 } }
+#t { animation: 10s linear 0s infinite normal both fade }
+</style></head><body><div id="t">x</div></body></html>"##;
+    let dom = DomHandle::new(html, "https://test.example/");
+    dom.resolve_layout();
+    let t = dom.query_selector("#t").expect("query ok") as u32;
+    let animation_resolves = |dom: &DomHandle| dom.resolve_counts()[1];
+
+    let before = animation_resolves(&dom);
+    let first = dom.computed_style_value(t, "opacity");
+    for _ in 0..50 {
+        assert_eq!(
+            dom.computed_style_value(t, "opacity"),
+            first,
+            "a read within the frame"
+        );
+    }
+    assert!(
+        animation_resolves(&dom) - before <= 1,
+        "reads within one frame resampled {} times",
+        animation_resolves(&dom) - before
+    );
+
+    sleep_ms(40);
+    let before = animation_resolves(&dom);
+    let _ = dom.computed_style_value(t, "opacity");
+    assert_eq!(
+        animation_resolves(&dom) - before,
+        1,
+        "a read in a later frame samples again"
+    );
+}

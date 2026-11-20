@@ -1,0 +1,143 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 20 Nov 2026 03:02:44 +0000
+Subject: [PATCH] fonts,dom: preserve variable weight ranges in FontFaceKey,
+ O(n) char dedup, and screen media blocking
+
+Include weight_range in FontFaceKey so distinct variable weight ranges sharing
+a URL are both recorded in declared_font_faces, deduplicate node characters
+with a reusable HashSet instead of Vec::contains, and treat only explicitly
+non-screen media queries (print/speech/max-width:0) as non-critical.
+---
+ src/document.rs | 25 ++++++++++++++-----------
+ src/mutator.rs  | 16 ++++++++++++----
+ src/net.rs      |  3 +++
+ 3 files changed, 29 insertions(+), 15 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 8401cce..0844871 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -416,9 +416,9 @@ fn filter_uncovered_chars(remaining: &mut Vec<char>, blob: &Blob<u8>, index: u32
+     remaining.retain(|&ch| charmap.map(ch).is_none());
+ }
+
+-fn push_non_ws_chars(out: &mut Vec<char>, text: &str) {
++fn push_non_ws_chars(out: &mut Vec<char>, seen: &mut HashSet<char>, text: &str) {
+     for ch in text.chars() {
+-        if !ch.is_ascii_whitespace() && !out.contains(&ch) {
++        if !ch.is_ascii_whitespace() && seen.insert(ch) {
+             out.push(ch);
+         }
+     }
+@@ -2230,7 +2230,7 @@ impl BaseDocument {
+                 unicode_range,
+             } = face;
+             // Most faces repeat on re-registration, so clone only new keys.
+-            let key = FontFaceKey::new(family_lc, url, &overrides, unicode_range);
++            let key = FontFaceKey::new(family_lc, url, &overrides, weight_range, unicode_range);
+             if self.seen_font_faces.contains(&key) {
+                 continue;
+             }
+@@ -2373,6 +2373,7 @@ impl BaseDocument {
+             HashMap::new();
+         let mut used: HashMap<String, Vec<(bool, u16)>> = HashMap::new();
+         let mut node_chars: Vec<char> = Vec::new();
++        let mut node_chars_seen: HashSet<char> = HashSet::new();
+         let mut stack: Vec<NodeId> = vec![self.root_node_id];
+
+         while let Some(node_id) = stack.pop() {
+@@ -2420,16 +2421,21 @@ impl BaseDocument {
+             }
+
+             node_chars.clear();
++            node_chars_seen.clear();
+             for child_id in children.iter() {
+                 if let Some(text) = self.nodes.get(child_id).and_then(Node::text_data) {
+-                    push_non_ws_chars(&mut node_chars, &text.content);
++                    push_non_ws_chars(&mut node_chars, &mut node_chars_seen, &text.content);
+                 }
+             }
+             if let Some(elem) = node.element_data() {
+                 if let SpecialElementData::TextInput(input) = elem.special_data() {
+-                    push_non_ws_chars(&mut node_chars, input.editor.raw_text());
++                    push_non_ws_chars(
++                        &mut node_chars,
++                        &mut node_chars_seen,
++                        input.editor.raw_text(),
++                    );
+                     if let Some(placeholder) = elem.attr(local_name!("placeholder")) {
+-                        push_non_ws_chars(&mut node_chars, placeholder);
++                        push_non_ws_chars(&mut node_chars, &mut node_chars_seen, placeholder);
+                     }
+                 }
+             }
+@@ -2542,11 +2548,8 @@ impl BaseDocument {
+                 true
+             }
+         });
+-        // unicode-range gate. A face whose ranges cover none of the
+-        // document's text goes back on the queue and is re-tested on the
+-        // next flush: a bitset probe per range, no text walk, since
+-        // connected text writes and inserted subtrees keep used_codepoints
+-        // current (a later script-inserted string fetches its subset then).
++        // unicode-range gate: faces covering no document text stay queued and re-test
++        // via a bitset probe on the next flush as connected text updates used_codepoints.
+         let needs_range_check = ready.iter().any(|f| f.unicode_range.is_some());
+         if needs_range_check {
+             self.ensure_used_codepoints();
+diff --git a/src/mutator.rs b/src/mutator.rs
+index df7ce88..cf7a3f6 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1809,10 +1809,18 @@ impl<'doc> DocumentMutator<'doc> {
+         // Carry the media attribute to the parse so the built
+         // sheet is scoped to it (print sheets must not apply on screen).
+         let media_attr = node.attr(local_name!("media")).map(ToString::to_string);
+-        let render_blocking_media = match media_attr.as_deref().map(str::trim) {
+-            None | Some("") => true,
+-            Some(m) => m.eq_ignore_ascii_case("all") || m.eq_ignore_ascii_case("screen"),
+-        };
++        let non_screen_media = media_attr.as_deref().is_some_and(|raw| {
++            let trimmed = raw.trim();
++            !trimmed.is_empty()
++                && trimmed.split(',').all(|part| {
++                    let p = part.trim();
++                    p.eq_ignore_ascii_case("print")
++                        || p.eq_ignore_ascii_case("speech")
++                        || p.eq_ignore_ascii_case("(max-width: 0)")
++                        || p.eq_ignore_ascii_case("(max-width: 0px)")
++                })
++        });
++        let render_blocking_media = !non_screen_media;
+
+         let url = self.doc.resolve_url(href);
+         let handler = ResourceHandler::new(
+diff --git a/src/net.rs b/src/net.rs
+index 3a6da0c..ad5bf22 100644
+--- a/src/net.rs
++++ b/src/net.rs
+@@ -509,6 +509,7 @@ pub(crate) struct FontFaceKey {
+     pub(crate) family_lc: String,
+     pub(crate) url: Url,
+     weight: Option<u32>,
++    weight_range: (u16, u16),
+     style: (u8, Option<u32>),
+     pub(crate) unicode_range: Option<Vec<(u32, u32)>>,
+ }
+@@ -518,6 +519,7 @@ impl FontFaceKey {
+         family_lc: String,
+         url: Url,
+         overrides: &FontFaceOverrides,
++        weight_range: (u16, u16),
+         unicode_range: Option<Vec<(u32, u32)>>,
+     ) -> Self {
+         use parley::fontique::FontStyle;
+@@ -531,6 +533,7 @@ impl FontFaceKey {
+             family_lc,
+             url,
+             weight: overrides.weight.map(f32::to_bits),
++            weight_range,
+             style,
+             unicode_range,
+         }
