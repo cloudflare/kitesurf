@@ -4,12 +4,14 @@
 
 // Where localStorage and sessionStorage keep their data. localStorage is shared by every page of
 // the browser context, so no one isolate can hold it: the engine keeps each origin's area (engine
-// state/local-storage.ts), hands the page a copy at navigation, and takes the changes back.
+// state/local-storage.ts), hands the page a copy at navigation, and sends other sources' changes.
 // sessionStorage and an unseeded localStorage stay in memory for the isolate's one document.
 
-import type { LocalStorageOp } from "@kitesurf/jsrpc-types/page-script";
+import type { LocalStorageOp, OkReply, WebStorageParams } from "@kitesurf/jsrpc-types/page-script";
 import { sendUpstreamEvent } from "./internal-state.js";
 import { NativePromise } from "./native-scheduling.ts";
+import { runPageTaskOrQueue } from "./page-tasks.ts";
+import { ksGlobalByKey } from "./state.ts";
 
 /** One origin's storage area, synchronous like the Web Storage API. */
 export interface StorageArea {
@@ -25,18 +27,7 @@ export interface StorageArea {
 const QUOTA_UNITS = 5 * 1024 * 1024;
 
 export function memoryArea(): StorageArea {
-  const data = new Map<string, string>();
-  return {
-    get: (k) => data.get(k) ?? null,
-    set: (k, v) => {
-      data.set(k, v);
-    },
-    remove: (k) => {
-      data.delete(k);
-    },
-    clear: () => data.clear(),
-    keys: () => Array.from(data.keys()),
-  };
+  return mapArea(new Map());
 }
 
 const areas = new WeakMap<object, StorageArea>();
@@ -150,6 +141,52 @@ function quotaExceeded(key: string): DOMException {
 const BATCH_UNITS = 2 * QUOTA_UNITS;
 const OP_UNITS = 16;
 
+/** A change as a `storage` event reports it. A null key is a clear. */
+export interface StorageChange {
+  key: string | null;
+  oldValue: string | null;
+  newValue: string | null;
+}
+
+// Applies `ops` to `data` and returns what changed: a set to the same value, a remove of a missing
+// key and a clear of an empty area change nothing, as for the Web Storage methods.
+function applyOps(data: Map<string, string>, ops: readonly LocalStorageOp[]): StorageChange[] {
+  const changes: StorageChange[] = [];
+  for (const op of ops) {
+    if (op.op === "clear") {
+      if (data.size > 0) changes.push({ key: null, oldValue: null, newValue: null });
+      data.clear();
+      continue;
+    }
+    const oldValue = data.get(op.key) ?? null;
+    const newValue = op.op === "set" ? op.value : null;
+    if (oldValue === newValue) continue;
+    if (newValue === null) data.delete(op.key);
+    else data.set(op.key, newValue);
+    changes.push({ key: op.key, oldValue, newValue });
+  }
+  return changes;
+}
+
+/** An area the engine can also change: another page's or a CDP client's writes. */
+export interface RemoteArea extends StorageArea {
+  applyRemote(ops: readonly LocalStorageOp[]): StorageChange[];
+}
+
+function mapArea(data: Map<string, string>): StorageArea {
+  return {
+    get: (k) => data.get(k) ?? null,
+    set: (k, v) => {
+      data.set(k, v);
+    },
+    remove: (k) => {
+      data.delete(k);
+    },
+    clear: () => data.clear(),
+    keys: () => Array.from(data.keys()),
+  };
+}
+
 // localStorage on a page the engine seeded: a copy of the browser context's area for this origin,
 // with every change also sent to the engine, batched per microtask. remove and clear are sent even
 // when this copy has nothing to drop: the engine's area can hold keys another page wrote since.
@@ -157,14 +194,18 @@ export function sharedArea(
   seed: ReadonlyArray<readonly [string, string]>,
   send: (ops: LocalStorageOp[]) => void = (ops) =>
     sendUpstreamEvent({ event: "kitesurf.localStorage", params: { ops } }),
-): StorageArea {
+): RemoteArea {
   const data = new Map<string, string>();
   let used = 0;
   for (const [k, v] of seed) {
     if (typeof k !== "string" || typeof v !== "string") continue;
     data.set(k, v);
   }
-  for (const [k, v] of data) used += k.length + v.length;
+  const recount = () => {
+    used = 0;
+    for (const [k, v] of data) used += k.length + v.length;
+  };
+  recount();
   let pending: LocalStorageOp[] = [];
   let pendingUnits = 0;
   let scheduled = false;
@@ -195,6 +236,17 @@ export function sharedArea(
     });
   };
   return {
+    // The engine applied `ops` before it sees this copy's unsent changes, so those replay on top.
+    applyRemote(ops) {
+      const changes = applyOps(data, ops);
+      const unsent = pending;
+      applyOps(data, unsent);
+      recount();
+      // A change this copy's unsent ones replace never shows, so it fires no event.
+      if (unsent.some((op) => op.op === "clear")) return [];
+      const replaced = new Set(unsent.flatMap((op) => (op.op === "clear" ? [] : [op.key])));
+      return changes.filter((c) => c.key === null || !replaced.has(c.key));
+    },
     get: (k) => data.get(k) ?? null,
     set(k, v) {
       const old = data.get(k);
@@ -219,4 +271,56 @@ export function sharedArea(
     },
     keys: () => Array.from(data.keys()),
   };
+}
+
+// The document's shared localStorage and its area, for the engine's webStorage calls.
+let localBucket: { storage: object; area: RemoteArea } | null = null;
+// Engine changes that arrived before navigate() built localStorage; they land on the seed.
+let earlyLocalOps: LocalStorageOp[] = [];
+
+/**
+ * The document's localStorage and sessionStorage. localStorage is shared when the engine seeded
+ * it, and in memory for this document otherwise.
+ */
+export function storageBuckets(seed: ReadonlyArray<readonly [string, string]> | null): {
+  localStorage: object;
+  sessionStorage: object;
+} {
+  let localStorage: object;
+  if (seed) {
+    const area = sharedArea(seed);
+    area.applyRemote(earlyLocalOps);
+    earlyLocalOps = [];
+    localStorage = storageObject(area);
+    localBucket = { storage: localStorage, area };
+  } else {
+    localStorage = storageObject(memoryArea());
+  }
+  return { localStorage, sessionStorage: storageObject(memoryArea()) };
+}
+
+function fireStorageEvents(
+  changes: StorageChange[],
+  storageArea: object,
+  url: string | null,
+): void {
+  if (changes.length === 0 || url === null) return;
+  const win = ksGlobalByKey.window ?? globalThis;
+  const StorageEventConstructor = ksGlobalByKey.StorageEvent;
+  if (typeof StorageEventConstructor !== "function") return;
+  const dispatch: unknown = Reflect.get(win as object, "dispatchEvent");
+  if (typeof dispatch !== "function") return;
+  runPageTaskOrQueue(() => {
+    for (const change of changes) {
+      const init = { ...change, url, storageArea };
+      Reflect.apply(dispatch, win, [Reflect.construct(StorageEventConstructor, ["storage", init])]);
+    }
+  });
+}
+
+/** The engine's webStorage call. */
+export function webStorage(params: WebStorageParams): OkReply {
+  if (!localBucket) earlyLocalOps.push(...params.ops);
+  else fireStorageEvents(localBucket.area.applyRemote(params.ops), localBucket.storage, params.url);
+  return { ok: true };
 }

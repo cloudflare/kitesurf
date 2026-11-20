@@ -259,6 +259,7 @@ export interface PageScriptSession {
   unload(): Promise<UnloadReply>;
   drainConsole(): Promise<DrainConsoleReply>;
   syncCookies(cookies: string): Promise<OkReply>;
+  webStorage(params: WebStorageParams): Promise<OkReply>;
   installBindings(names: string[]): Promise<OkReply>;
   installIframeContent(params: IframeContentParams): Promise<OkReply>;
   iframeInstallsSettled(): Promise<OkReply>;
@@ -302,6 +303,7 @@ export interface PageScriptWireParams {
   unload: NoParams;
   drainConsole: NoParams;
   syncCookies: { cookies: string };
+  webStorage: WebStorageParams;
   installBindings: { names: string[] };
   installIframeContent: IframeContentParams;
   iframeInstallsSettled: NoParams;
@@ -422,6 +424,15 @@ export type LocalStorageOp =
   | { op: "set"; key: string; value: string }
   | { op: "remove"; key: string }
   | { op: "clear" };
+
+// The engine's calls on a page's Web Storage. `apply` makes changes from another source (another
+// page, a CDP client) and fires `storage` events with `url` (none when null).
+export type WebStorageParams = {
+  op: "apply";
+  area: "local";
+  ops: LocalStorageOp[];
+  url: string | null;
+};
 
 export interface WebMcpTool {
   name: string;

@@ -4,8 +4,8 @@
 
 // A browser context's localStorage. It is per origin and shared by every page of the context,
 // but each document runs in its own isolate, so the engine keeps each origin's area here. A
-// navigation hands the page a copy, and the page sends each change back (page-script
-// web-storage.ts). Pages of one origin see each other's writes from their next navigation on.
+// navigation hands the page a copy, the page sends each change back (page-script web-storage.ts),
+// and the engine sends it on to the other open copies (cdp/storage-copies.ts).
 
 // Tables: `localStorage` indexes the default context's origins, and `localStorage|<origin>`
 // holds one origin's keys. A browser context's tables carry its id: `localStorage:<id>` and
@@ -29,6 +29,10 @@ export const LOCAL_STORAGE_AREA_LIMIT_UNITS = 2 * LOCAL_STORAGE_QUOTA_UNITS;
 // The rendering stand-in URL page.ts sanitizeBaseUrl gives about:blank and setDocumentContent's
 // blank page. Those documents have opaque origins, so they must not share an area under it.
 const SYNTHETIC_ORIGIN = "https://kitesurf.local";
+
+export interface LocalStorageApplied {
+  applied: LocalStorageOp[];
+}
 
 const isIndexed: StoreGuard<true> = (v): v is true => v === true;
 
@@ -69,16 +73,26 @@ export class LocalStorage {
     return Array.from(this.#area(origin).entries());
   }
 
-  /** Apply a page's changes. A set that would pass LOCAL_STORAGE_AREA_LIMIT_UNITS is dropped. */
-  apply(origin: string, ops: readonly LocalStorageOp[]): void {
+  /**
+   * Apply changes. A set that would pass LOCAL_STORAGE_AREA_LIMIT_UNITS is dropped. Returns the
+   * ops it applied.
+   */
+  apply(origin: string, ops: readonly LocalStorageOp[]): LocalStorageApplied {
+    const out: LocalStorageApplied = { applied: [] };
     // A page's last writes can land after its browser context is gone.
-    if (this.#disposed || ops.length === 0) return;
+    if (this.#disposed || ops.length === 0) return out;
     const area = this.#area(origin);
     let units = this.#units.get(origin) ?? this.#count(origin);
     for (const op of ops) {
+      if (op.op === "clear") {
+        area.clear();
+        units = 0;
+        out.applied.push(op);
+        continue;
+      }
+      const old = area.get(op.key);
+      const freed = old === undefined ? 0 : op.key.length + old.length;
       if (op.op === "set") {
-        const old = area.get(op.key);
-        const freed = old === undefined ? 0 : op.key.length + old.length;
         const next = units - freed + op.key.length + op.value.length;
         if (next > LOCAL_STORAGE_AREA_LIMIT_UNITS) {
           console.warn(`[kitesurf-local-storage] ${origin}: dropped a set past the area limit`);
@@ -86,14 +100,11 @@ export class LocalStorage {
         }
         area.set(op.key, op.value);
         units = next;
-      } else if (op.op === "remove") {
-        const old = area.get(op.key);
-        if (old !== undefined) units -= op.key.length + old.length;
-        area.delete(op.key);
       } else {
-        area.clear();
-        units = 0;
+        units -= freed;
+        area.delete(op.key);
       }
+      out.applied.push(op);
     }
     if (area.size > 0) {
       this.#index().set(origin, true);
@@ -101,6 +112,7 @@ export class LocalStorage {
     } else {
       this.#drop(origin);
     }
+    return out;
   }
 
   /** Drop every origin's area. */

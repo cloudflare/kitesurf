@@ -13,15 +13,13 @@ import { testClient } from "./client-state.ts";
 import { NetworkEventTracker } from "../src/cdp/network-events.ts";
 import { learnedScriptsFor, type LearnedScripts } from "../src/eval/learned-scripts.ts";
 import type { PageScriptStub, UpstreamEventHandler } from "../src/eval/page-script.ts";
+import { StorageCopy } from "../src/cdp/storage-copies.ts";
 import { LocalStorage } from "../src/state/local-storage.ts";
 import { MemorySessionStore } from "../src/state/session-store.ts";
 
 const BIG = 64 * 1024;
 
-function installFor(
-  isolateUrl: string,
-  sharedLocalStorage?: Parameters<typeof installUpstreamEventHandler>[5],
-) {
+function installFor(isolateUrl: string, localStorage?: LocalStorage) {
   let handler: UpstreamEventHandler | null = null;
   const stub = {
     setUpstreamEventHandler(h: UpstreamEventHandler | null) {
@@ -62,7 +60,11 @@ function installFor(
     nextNavigationHistoryId: 2,
     frames: new Map(),
   } as TargetState;
-  installUpstreamEventHandler(ctx, target, stub, 1, isolateUrl, sharedLocalStorage);
+  const origin = localStorage ? new URL(isolateUrl).origin : "";
+  const copy = localStorage
+    ? new StorageCopy(new Map(), target, 1, stub, localStorage, origin, isolateUrl)
+    : undefined;
+  installUpstreamEventHandler(ctx, target, stub, 1, isolateUrl, copy);
   const send = (event: UpstreamEventName, params: ReceivedUpstreamParams) =>
     handler!(event, params);
   return { store, emitted, target, send, ctx, stub };
@@ -83,7 +85,7 @@ describe("kitesurf.localStorage", () => {
 
   it("applies an old document's writes after a navigation bumped the generation", () => {
     const storage = new LocalStorage(new MemorySessionStore());
-    const { send, target } = installFor(`${A}/x`, { storage, origin: A });
+    const { send, target } = installFor(`${A}/x`, storage);
     target.navigateGeneration = 2;
     send("kitesurf.localStorage", { ops: [{ op: "set", key: "k", value: "v" }, { op: "bad" }] });
     expect(storage.entries(A)).toEqual([["k", "v"]]);
@@ -91,7 +93,7 @@ describe("kitesurf.localStorage", () => {
 
   it("drops writes once the connection is closing", () => {
     const storage = new LocalStorage(new MemorySessionStore());
-    const { send, ctx } = installFor(`${A}/x`, { storage, origin: A });
+    const { send, ctx } = installFor(`${A}/x`, storage);
     ctx.browser.wsClosing = true;
     send("kitesurf.localStorage", { ops: [{ op: "set", key: "k", value: "v" }] });
     expect(storage.entries(A)).toEqual([]);

@@ -51,6 +51,7 @@ export const PAGE_SCRIPT_METHODS: PageScriptArgBuilders = {
   unload: (): MethodArguments<"unload"> => [],
   drainConsole: (): MethodArguments<"drainConsole"> => [],
   syncCookies: (params): MethodArguments<"syncCookies"> => [params.cookies],
+  webStorage: (params): MethodArguments<"webStorage"> => [params],
   installBindings: (params): MethodArguments<"installBindings"> => [params.names],
   installIframeContent: (params): MethodArguments<"installIframeContent"> => [params],
   iframeInstallsSettled: (): MethodArguments<"iframeInstallsSettled"> => [],

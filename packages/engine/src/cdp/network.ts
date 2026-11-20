@@ -9,6 +9,7 @@ import type { DispatchCtx } from "./dispatch.ts";
 import { entryToCdp, setCdpCookie, type CookieJar } from "../cookies.ts";
 import { jarForContextId, jarForTarget, localStorageForTarget } from "./target.ts";
 import { localStorageOrigin } from "../state/local-storage.ts";
+import { changeLocalStorage } from "./storage-copies.ts";
 
 export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
   switch (req.method) {
@@ -123,7 +124,7 @@ export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<
       const origin = req.params?.origin;
       const url = typeof origin === "string" ? parseUrl(origin) : null;
       if (!url) throw new Error(`${String(origin)} is not a valid URL`);
-      clearOriginData(ctx, req.sessionId, url, req.params?.storageTypes);
+      await clearOriginData(ctx, req.sessionId, url, req.params?.storageTypes);
       return {};
     }
 
@@ -133,7 +134,7 @@ export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<
       const partitioned = typeof key === "string" && key.includes("^");
       const url = typeof key === "string" ? parseUrl(key.split("^", 1)[0] ?? "") : null;
       if (!url) throw new Error("Invalid Storage Key given.");
-      clearOriginData(ctx, req.sessionId, partitioned ? null : url, req.params?.storageTypes);
+      await clearOriginData(ctx, req.sessionId, partitioned ? null : url, req.params?.storageTypes);
       return {};
     }
 
@@ -189,14 +190,14 @@ const STORAGE_TYPES = new Set([
 ]);
 
 // Storage.clearDataFor*: the browser session clears the default context, a page or frame session
-// its own context. A null `url` validates the request and clears nothing. Open pages see a
-// localStorage clear from their next navigation on.
-function clearOriginData(
+// its own context. A null `url` validates the request and clears nothing. A localStorage clear
+// reaches the open pages too, without `storage` events, as clearing site data fires none.
+async function clearOriginData(
   ctx: DispatchCtx,
   sessionId: string | undefined,
   url: URL | null,
   storageTypes: unknown,
-): void {
+): Promise<void> {
   const target = storageSessionTarget(ctx, sessionId);
   const types = new Set(
     typeof storageTypes === "string"
@@ -212,7 +213,8 @@ function clearOriginData(
   if (all || types.has("cookies")) clearCookiesForHost(jarForTarget(ctx, target), url.hostname);
   const origin = localStorageOrigin(url.href);
   if (origin && (all || types.has("local_storage"))) {
-    localStorageForTarget(ctx, target).apply(origin, [{ op: "clear" }]);
+    const storage = localStorageForTarget(ctx, target);
+    await changeLocalStorage(ctx, storage, origin, [{ op: "clear" }], { url: null });
   }
 }
 

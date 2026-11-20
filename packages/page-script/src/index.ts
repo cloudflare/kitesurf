@@ -40,6 +40,7 @@ import type {
   RunScriptReply,
   WireMeta,
   UnloadReply,
+  WebStorageParams,
 } from "@kitesurf/jsrpc-types/page-script";
 import {
   SANDBOX_ALLOW_ALL,
@@ -92,6 +93,7 @@ import {
 } from "./internal-state.js";
 import { determineReferrer, parseReferrerPolicy } from "@kitesurf/script-gate/referrer-policy";
 import { invokeSessionMethod } from "./session-methods.ts";
+import { webStorage } from "./web-storage.ts";
 import { clearSessionOutbound, setSessionOutbound } from "./session-outbound.ts";
 import {
   installResourceFetchBridge,
@@ -4376,6 +4378,10 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   async syncCookies(cookieString: string): Promise<OkReply> {
     state.setCookieString(typeof cookieString === "string" ? cookieString : "");
     return { ok: true };
+  }
+
+  async webStorage(params: WebStorageParams): Promise<OkReply> {
+    return webStorage(params);
   }
 
   async installBindings(names: string[]): Promise<OkReply> {

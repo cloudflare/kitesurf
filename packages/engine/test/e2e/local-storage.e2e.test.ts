@@ -57,24 +57,42 @@ test("a write just before a page-started navigation reaches the next document", 
   expect(await read(page)).toEqual({ late: "1" });
 }, 120_000);
 
-test("pages share localStorage from their next navigation on", async ({ browser, page }) => {
-  // Each page works on a copy of the area taken at navigation.
+test("open pages of one origin share localStorage live, with storage events", async ({
+  browser,
+  page,
+}) => {
   const two = await browser.newPage();
   try {
     await page.goto(A, { waitUntil: "load" });
     await two.goto(A, { waitUntil: "load" });
+    await two.evaluate(() => {
+      const events: unknown[] = [];
+      Reflect.set(window, "__events", events);
+      addEventListener("storage", (e) => {
+        events.push([e.key, e.oldValue, e.newValue, e.url, e.storageArea === localStorage]);
+      });
+    });
     await page.evaluate(() => {
       localStorage.setItem("a", "1");
       localStorage.setItem("b", "2");
+      localStorage.setItem("a", "3");
     });
-    expect(await read(two)).toEqual({});
-    // remove and clear reach keys this page's copy never had.
+    await expect.poll(() => read(two)).toEqual({ a: "3", b: "2" });
+    await expect
+      .poll(() => two.evaluate(() => JSON.stringify(Reflect.get(window, "__events"))))
+      .toBe(
+        JSON.stringify([
+          ["a", null, "1", A, true],
+          ["b", null, "2", A, true],
+          ["a", "1", "3", A, true],
+        ]),
+      );
     await two.evaluate(() => localStorage.removeItem("a"));
-    await page.reload({ waitUntil: "load" });
-    expect(await read(page)).toEqual({ b: "2" });
+    await expect.poll(() => read(page)).toEqual({ b: "2" });
     await two.evaluate(() => localStorage.clear());
-    await page.reload({ waitUntil: "load" });
-    expect(await read(page)).toEqual({});
+    await expect.poll(() => read(page)).toEqual({});
+    // The writer gets no event for its own changes.
+    expect(await page.evaluate(() => Reflect.get(window, "__events") ?? null)).toBe(null);
   } finally {
     await two.close();
   }
@@ -188,16 +206,23 @@ test("Storage.clearDataForOrigin clears an origin's localStorage", async ({ page
   await cdpSession.send("Storage.clearDataForOrigin", { origin, storageTypes: "cookies" });
   await page.goto(A, { waitUntil: "load" });
   expect(await read(page)).toEqual({ k: "v" });
+  await page.evaluate(() => {
+    const events: unknown[] = [];
+    Reflect.set(window, "__events", events);
+    addEventListener("storage", (e) => events.push(e.key));
+  });
+  // The open page's copy clears too, and clearing site data fires no storage event.
   await cdpSession.send("Storage.clearDataForOrigin", {
     origin,
     storageTypes: "cookies,local_storage",
   });
-  await page.reload({ waitUntil: "load" });
   expect(await read(page)).toEqual({});
+  expect(await page.evaluate(() => Reflect.get(window, "__events"))).toEqual([]);
   await page.goto(OTHER, { waitUntil: "load" });
   expect(await read(page)).toEqual({ k: "other" });
   const storageKey = `${new URL(OTHER).origin}/`;
   await cdpSession.send("Storage.clearDataForStorageKey", { storageKey, storageTypes: "all" });
+  expect(await read(page)).toEqual({});
   await page.reload({ waitUntil: "load" });
   expect(await read(page)).toEqual({});
 }, 120_000);

@@ -142,11 +142,8 @@ import { classifyRequest } from "../request-blocker.ts";
 import { emitMutations } from "./dom.ts";
 import { frontendNodes, sessionKeyOf } from "./dom-frontend.ts";
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
-import {
-  localStorageOrigin,
-  readLocalStorageOps,
-  type LocalStorage,
-} from "../state/local-storage.ts";
+import { localStorageOrigin, readLocalStorageOps } from "../state/local-storage.ts";
+import { changeLocalStorage, StorageCopy } from "./storage-copies.ts";
 import { dropTargetImages } from "../eval/resource-store.ts";
 import {
   documentKind,
@@ -2275,11 +2272,20 @@ async function pushNavigateToPageScriptInner(
   const raBakeMs = ctx.analytics.now() - raBakeStart;
 
   // The browser context's localStorage for the document's origin: the page gets a copy and sends
-  // its changes back as upstream events.
+  // its changes back as upstream events (cdp/storage-copies.ts).
   const lsOrigin = localStorageOrigin(url);
-  const sharedLocalStorage = lsOrigin
-    ? { storage: localStorageForTarget(ctx, target), origin: lsOrigin }
-    : undefined;
+  const sharedLocalStorage =
+    lsOrigin && pendingPageScript
+      ? new StorageCopy(
+          ctx.browser.targets,
+          target,
+          generation,
+          pendingPageScript,
+          localStorageForTarget(ctx, target),
+          lsOrigin,
+          url,
+        )
+      : undefined;
   if (pendingPageScript) {
     installUpstreamEventHandler(
       ctx,
@@ -2347,9 +2353,7 @@ async function pushNavigateToPageScriptInner(
         mainFrameId: target.frameId,
         cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
         // Read after retireStub, so the old document's last writes are in.
-        ...(sharedLocalStorage
-          ? { localStorage: sharedLocalStorage.storage.entries(sharedLocalStorage.origin) }
-          : {}),
+        ...(sharedLocalStorage ? { localStorage: sharedLocalStorage.seed() } : {}),
         modulePreloadPins: preloadSeeds.map(({ url, integrity }) => ({ url, integrity })),
         // The legacy plan (no bundle: a failed bake) gates its parser scripts from these.
         scriptPolicy: {
@@ -4206,9 +4210,9 @@ export function installUpstreamEventHandler(
   stub: PageScriptStub,
   generation: number,
   url: string,
-  // Where this document's localStorage changes go: absent for an opaque origin, whose
+  // This document's copy of its origin's localStorage: absent for an opaque origin, whose
   // localStorage stays in the page (state/local-storage.ts).
-  sharedLocalStorage?: { storage: LocalStorage; origin: string },
+  sharedLocalStorage?: StorageCopy,
 ): void {
   if (target.navigateGeneration === generation) target.pageScriptUrl = url;
   if (typeof stub.setUpstreamEventHandler !== "function") return;
@@ -4226,9 +4230,11 @@ export function installUpstreamEventHandler(
     // Before the generation check: a write the old document made just before a navigation still
     // happened, and this closure knows its origin.
     if (event === "kitesurf.localStorage") {
-      if (sharedLocalStorage) {
-        sharedLocalStorage.storage.apply(sharedLocalStorage.origin, readLocalStorageOps(params));
-      }
+      const copy = sharedLocalStorage;
+      if (!copy) return;
+      const ops = readLocalStorageOps(params);
+      const from = { source: copy, url: copy.url };
+      void changeLocalStorage(ctx, copy.storage, copy.origin, ops, from).catch(() => {});
       return;
     }
     if (target.navigateGeneration !== generation) return;

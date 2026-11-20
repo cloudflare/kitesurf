@@ -16,6 +16,7 @@ import type {
   RetainedPageScriptSession,
   RetainedPageScriptSessionStub,
   SessionOutbound,
+  WebStorageParams,
   WireMeta,
 } from "@kitesurf/jsrpc-types/page-script";
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
@@ -409,6 +410,10 @@ export class PageScriptRpcSession implements PageScriptStub {
 
   syncCookies(cookies: string): Promise<{ ok: true }> {
     return this.call("syncCookies", { cookies });
+  }
+
+  webStorage(params: WebStorageParams): Promise<{ ok: true }> {
+    return this.call("webStorage", params, 5_000);
   }
 
   installBindings(names: string[]): Promise<{ ok: true }> {

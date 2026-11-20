@@ -35,7 +35,7 @@ import { ensurePaintDom, invalidatePaintDom } from "./paint.ts";
 import { fetchGatedJsonModule, fetchGatedModuleSource } from "./inserted-scripts.ts";
 import { startupJsonModuleUrls } from "./startup-probe.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
-import { memoryArea, sharedArea, StorageInterface, storageObject } from "./web-storage.ts";
+import { StorageInterface, storageBuckets } from "./web-storage.ts";
 import { indexedDbGlobals } from "./indexeddb.ts";
 import { createScheduler } from "./scheduler.ts";
 import { installIdleCallbackGlobals, installPageTaskGlobals, queuePortTask } from "./page-tasks.ts";
@@ -3111,10 +3111,7 @@ export function installGlobals(
       // (web-storage.ts). One isolate is one document, so the origin is fixed here.
       const seed = state.sandbox.sameOrigin ? state.localStorageSeed : null;
       // An opaque sandboxed origin has no storage bucket; the accessor throws, as in Chrome.
-      const buckets = {
-        localStorage: storageObject(seed ? sharedArea(seed) : memoryArea()),
-        sessionStorage: storageObject(memoryArea()),
-      };
+      const buckets = storageBuckets(seed);
       const storageAccessor =
         (name: keyof typeof buckets): (() => unknown) =>
         () => {
