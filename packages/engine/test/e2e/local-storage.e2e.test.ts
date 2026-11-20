@@ -163,3 +163,27 @@ test("stored keys are Storage's own properties, in page scripts and CDP evaluati
   // On boa, a for-in over this bridged object visits only its own keys, not Storage.prototype's.
   expect(JSON.parse(fromEvaluate)).toEqual({ ...NAMED_PROPERTIES_EXPECTED, forIn: ["k", "b"] });
 }, 60_000);
+
+test("Storage.clearDataForOrigin clears an origin's localStorage", async ({ page, cdpSession }) => {
+  await page.goto(A, { waitUntil: "load" });
+  await page.evaluate(() => localStorage.setItem("k", "v"));
+  await page.goto(OTHER, { waitUntil: "load" });
+  await page.evaluate(() => localStorage.setItem("k", "other"));
+  const origin = new URL(A).origin;
+  // Another storage type leaves localStorage alone.
+  await cdpSession.send("Storage.clearDataForOrigin", { origin, storageTypes: "cookies" });
+  await page.goto(A, { waitUntil: "load" });
+  expect(await read(page)).toEqual({ k: "v" });
+  await cdpSession.send("Storage.clearDataForOrigin", {
+    origin,
+    storageTypes: "cookies,local_storage",
+  });
+  await page.reload({ waitUntil: "load" });
+  expect(await read(page)).toEqual({});
+  await page.goto(OTHER, { waitUntil: "load" });
+  expect(await read(page)).toEqual({ k: "other" });
+  const storageKey = `${new URL(OTHER).origin}/`;
+  await cdpSession.send("Storage.clearDataForStorageKey", { storageKey, storageTypes: "all" });
+  await page.reload({ waitUntil: "load" });
+  expect(await read(page)).toEqual({});
+}, 120_000);

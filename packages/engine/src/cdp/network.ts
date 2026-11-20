@@ -7,7 +7,8 @@
 import type { CdpRequest, TargetState } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
 import { entryToCdp, setCdpCookie } from "../cookies.ts";
-import { jarForContextId, jarForTarget } from "./target.ts";
+import { jarForContextId, jarForTarget, localStorageForTarget } from "./target.ts";
+import { localStorageOrigin } from "../state/local-storage.ts";
 
 export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
   switch (req.method) {
@@ -118,6 +119,14 @@ export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<
       return {};
     }
 
+    case "Storage.clearDataForOrigin":
+      clearLocalStorageData(ctx, req.sessionId, req.params?.origin, req.params?.storageTypes);
+      return {};
+
+    case "Storage.clearDataForStorageKey":
+      clearLocalStorageData(ctx, req.sessionId, req.params?.storageKey, req.params?.storageTypes);
+      return {};
+
     case "Network.clearBrowserCache":
       return {};
 
@@ -149,6 +158,27 @@ export function effectiveExtraHeaders(t: TargetState): Record<string, string> {
   }
   merged["user-agent"] = t.userAgentOverride;
   return merged;
+}
+
+// Only `local_storage` (or `all`) clears anything; the other storage types stay no-ops. The browser
+// session clears the default context. Open pages see the clear from their next navigation on.
+function clearLocalStorageData(
+  ctx: DispatchCtx,
+  sessionId: string | undefined,
+  originOrKey: unknown,
+  storageTypes: unknown,
+): void {
+  // A partitioned storage key ("https://a.test/^0https://b.test") names an area Kitesurf lacks.
+  if (typeof originOrKey !== "string" || originOrKey.includes("^")) return;
+  const types =
+    typeof storageTypes === "string" ? storageTypes.split(",").map((t) => t.trim()) : [];
+  if (!types.includes("local_storage") && !types.includes("all")) return;
+  const origin = localStorageOrigin(originOrKey);
+  if (!origin) return;
+  let target: TargetState | undefined;
+  for (const t of ctx.browser.targets.values())
+    if (sessionId && t.sessions.has(sessionId)) target = t;
+  localStorageForTarget(ctx, target).apply(origin, [{ op: "clear" }]);
 }
 
 function resolveNetworkTarget(
