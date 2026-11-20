@@ -1451,8 +1451,8 @@ const MEDIA_LIST_TOKEN = Symbol("kitesurfMediaList");
 // One media query as MediaList stores it: comments become spaces and CSS whitespace collapses,
 // so equal queries compare equal. EOF closes an open `(`, as in Chrome.
 
-// A query unsafe for the mirror (a brace, a bad or open string, an open url or `[`, a top-level
-// `;`) is `not all`, as in Chrome: kept, `x{"a` would swallow the rules after it.
+// A query unsafe for the mirror (see preludeClosers: an unbalanced or top-level brace, a bad or
+// open string, an open url or `[`, a top-level `;`) is `not all`, as in Chrome.
 function normalizeMedium(text: string): string {
   const m = trimCss(collapseCssSpace(stripCssComments(text, " ")));
   if (!m) return m;
@@ -2393,15 +2393,16 @@ function escapeLength(text: string, i: number): number {
   const ws = text[j] === " " || text[j] === "\t" || isStringBreak(text[j]);
   return ws ? j + 1 - i : j - i;
 }
-// A prelude that is safe to paste into the mirror: no `{` or `}` outside strings and urls, no
-// bad string (one a line break ends), and no string, url, `(` or `[` left open. A stray `)` or
-// `]` is allowed, as eofClosers allows it.
+// A prelude that is safe to paste into the mirror: no brace outside a balanced function, no bad
+// string (one a line break ends), and no string, url, `(` or `[` left open. A stray `)` or `]`
+// is allowed, as eofClosers allows it.
 function isClosedPrelude(text: string): boolean {
   return preludeClosers(text, true) === "";
 }
 // What closes a prelude's open `(` and `[` blocks at EOF, innermost first, or null when the
-// prelude is unsafe for the mirror: a `{` or `}` outside strings and urls, a bad string, a
-// string or url left open, or (when `semicolon` is false) a `;` outside every block.
+// prelude is unsafe for the mirror: a `{` outside `(`/`[`, an unmatched or unclosed brace, a bad
+// string, a string or url left open, or (when `semicolon` is false) a `;`
+// outside every block. Braces balanced inside a function (`future({})`) are safe, as in Chrome.
 function preludeClosers(text: string, semicolon: boolean): string | null {
   const stack: string[] = [];
   let q = "";
@@ -2430,17 +2431,20 @@ function preludeClosers(text: string, semicolon: boolean): string | null {
     if (urlEnd > text.length) return null;
     if (urlEnd >= 0) {
       i = urlEnd - 1;
-    } else if (ch === "{" || ch === "}") {
-      return null;
+    } else if (ch === "{") {
+      if (stack.length === 0) return null;
+      stack.push("}");
     } else if (ch === ";" && !semicolon && stack.length === 0) {
       return null;
     } else if (ch === "(" || ch === "[") {
       stack.push(ch === "(" ? ")" : "]");
     } else if (ch === stack[stack.length - 1]) {
       stack.pop();
+    } else if (ch === "}") {
+      return null;
     }
   }
-  return q ? null : stack.reverse().join("");
+  return q || stack.includes("}") ? null : stack.reverse().join("");
 }
 // What EOF closes in an unclosed rule body: the open string or url, then each open (, [ and {
 // block, innermost first.
@@ -3120,8 +3124,8 @@ function constructRule(
   }
 
   if (kind === "import") {
-    // An @import has no block, so a `{` or `}` in its text makes it invalid (Chrome drops it).
-    // Kept, the brace would be pasted into the mirror and unbalance the sheet.
+    // An @import has no block, so a brace in its text makes it invalid (Chrome drops it). Kept,
+    // the brace would be pasted into the mirror.
     if (!isClosedPrelude(raw)) return null;
     const sup = extractImportSupports(raw);
     const m = sup.rest.match(

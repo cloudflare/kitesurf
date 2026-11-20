@@ -322,7 +322,8 @@ test("unsafe media text becomes not all; an open paren is closed at EOF", async 
     const s = document.getElementById("s").sheet;
     const media = s.cssRules[0].media;
     const texts = {};
-    for (const v of ['x{"a', "x{", '"a', "x}", "all;", '"a\\nb"', "[a", "all, (min-width:1px"]) {
+    const unsafe = ['x{"a', "x{", '"a', "x}", "all;", '"a\\nb"', "[a", "a({)", "a(})"];
+    for (const v of [...unsafe, "all, (min-width:1px", "(min-width:1px) or future({})"]) {
       media.mediaText = v;
       texts[v] = media.mediaText;
     }
@@ -350,11 +351,35 @@ test("unsafe media text becomes not all; an open paren is closed at EOF", async 
       '"a\nb"': "not all",
       "[a": "not all",
       "all, (min-width:1px": "all, (min-width:1px)",
+      // Braces balanced inside a function cannot reach the mirror, so the query is kept.
+      "(min-width:1px) or future({})": "(min-width:1px) or future({})",
+      "a({)": "not all",
+      "a(})": "not all",
     },
     open: "(min-width:1px)",
     margin: "3px",
     deleted: 0,
     deletedClosed: 0,
+    padding: "4px",
+  });
+}, 60_000);
+
+// A balanced brace inside a function keeps a media query in a <style> sheet; it matches
+// through its first query, as in Chrome.
+test("a balanced brace inside a media function keeps the query", async ({ page }) => {
+  await setContent(
+    page,
+    `<style id=s>@media (min-width: 1px) or future({}) {#t{margin-left:3px}}</style><p id=t>x</p>`,
+  );
+  const result = await page.evaluate(`(() => {
+    const s = document.getElementById("s").sheet;
+    s.insertRule("#t{padding-right:4px}", 1);
+    const t = getComputedStyle(document.getElementById("t"));
+    return { text: s.cssRules[0].media.mediaText, margin: t.marginLeft, padding: t.paddingRight };
+  })()`);
+  expect(result).toEqual({
+    text: "(min-width: 1px) or future({})",
+    margin: "3px",
     padding: "4px",
   });
 }, 60_000);
