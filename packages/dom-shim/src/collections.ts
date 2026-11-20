@@ -2061,6 +2061,13 @@ function unquotedUrlEnd(src: string, i: number): number {
   while (j < src.length && src[j] !== ")") j += src[j] === "\\" ? escapeLength(src, j) : 1;
   return j < src.length ? j + 1 : src.length + 1;
 }
+// An identifier, with CSS escapes: `--` or an optional `-` and a name start, then name chars.
+const CSS_IDENT = (() => {
+  const esc = String.raw`\\(?:[0-9a-fA-F]{1,6}(?:\r\n|[ \t\n\r\f])?|[^\n\r\f0-9a-fA-F])`;
+  const start = String.raw`(?:[A-Za-z_\u0080-\uffff]|${esc})`;
+  const char = String.raw`(?:[\w\u0080-\uffff-]|${esc})`;
+  return new RegExp(String.raw`^(?:--|-?${start})${char}*$`);
+})();
 // Splits a list on `sep` outside strings, comments, url tokens and (, [ and { blocks.
 function splitCssList(text: string, sep = ","): string[] {
   const parts: string[] = [];
@@ -2949,8 +2956,11 @@ function constructRule(
     // serialized value with an open block that swallows the rules after it.
     for (const decl of splitCssList(String(parsed.declText || ""), ";")) {
       const colon = decl.indexOf(":");
-      const name = colon > 0 ? decl.slice(0, colon).trim() : "";
-      if (name) declBag[cssPropToCamel(name)] = decl.slice(colon + 1).trim();
+      const name = colon > 0 ? trimCss(decl.slice(0, colon)) : "";
+      // A descriptor name is an identifier; anything else (an open string, say) is dropped.
+      if (CSS_IDENT.test(name)) {
+        declBag[cssPropToCamel(name)] = decl.slice(colon + 1).trim();
+      }
     }
     const st: RuleState = {
       ...base,

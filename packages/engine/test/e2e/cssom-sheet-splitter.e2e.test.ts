@@ -314,6 +314,34 @@ test("a comment in media text does not stop the list from splitting", async ({ p
   });
 }, 60_000);
 
+// An @font-palette-values declaration needs an identifier name (escapes allowed): an open
+// string or a lone hyphen is dropped, as in Chrome, so it cannot swallow the rules after it.
+test("a non-identifier @font-palette-values descriptor name is dropped", async ({ browser }) => {
+  for (const [css, body] of [
+    ['@font-palette-values --p{"bad\n:x}', ""],
+    ["@font-palette-values --p{-1foo:x}", ""],
+    ["@font-palette-values --p{-:x}", ""],
+    ["@font-palette-values --p{font-fam\\69 ly:x}", "font-fam\\69 ly: x; "],
+    ["@font-palette-values --p{font-fam\\69\vly:x}", ""],
+  ]) {
+    const page = await browser.newPage();
+    try {
+      await setContent(page, `<style id=s></style><p id=t>x</p>`);
+      const result = await page.evaluate(`(() => {
+        const s = document.getElementById("s");
+        s.textContent = ${JSON.stringify(css + " #t{margin-left:3px}")};
+        s.sheet.insertRule("#t{padding-right:4px}", s.sheet.cssRules.length);
+        const t = getComputedStyle(document.getElementById("t"));
+        return { text: s.sheet.cssRules[0].cssText, margin: t.marginLeft, padding: t.paddingRight };
+      })()`);
+      const text = "@font-palette-values --p { " + body + "}";
+      expect(result, css).toEqual({ text, margin: "3px", padding: "4px" });
+    } finally {
+      await page.close();
+    }
+  }
+}, 60_000);
+
 // The same rule holds for replaceSync: the rule after a stray `};` never applies, as in Chrome.
 test("a ; before a rule drops it in replaceSync", async ({ page }) => {
   await setContent(page, `<p id=t>x</p>`);
