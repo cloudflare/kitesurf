@@ -68,6 +68,8 @@ export function detachSessions(ctx: DispatchCtx, sessions: Set<string>, targetId
       params: { sessionId, targetId },
     });
     ctx.browser.networkEvents.forgetSession(sessionId);
+    // A revived frame reuses its state, so a detached session must not keep its DOMStorage events.
+    for (const t of ctx.browser.targets.values()) t.domStorageSessions.delete(sessionId);
   }
   sessions.clear();
 }

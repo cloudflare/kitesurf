@@ -347,7 +347,7 @@ describe("destroyOopifTarget drops Network state", () => {
     // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- partial DispatchCtx fixture.
     const ctx = {
       emit: (ev: { method: string; sessionId?: string }) => seen.push(ev),
-      browser: { networkEvents: tracker },
+      browser: { networkEvents: tracker, targets: new Map() },
       client: testClient(),
     } as unknown as Parameters<typeof destroyOopifTarget>[0];
     destroyOopifTarget(ctx, { frameId: "frame-1", sessions });

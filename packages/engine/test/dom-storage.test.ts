@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { dispatch, type DispatchCtx } from "../src/cdp/dispatch.ts";
 import { storageIdOrigin } from "../src/cdp/dom-storage.ts";
 import { SANDBOX_ALLOW_ALL } from "@kitesurf/script-gate";
+import { detachSessions } from "../src/cdp/target.ts";
 import type { CdpEvent, CdpRequest, FrameState, TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import { LOCAL_STORAGE_QUOTA_UNITS, LocalStorage } from "../src/state/local-storage.ts";
@@ -183,6 +184,15 @@ describe("DOMStorage sessions", () => {
       ["s-srcdoc", A],
       ["s-nested", B],
     ]);
+  });
+
+  it("stops a session's events once the session detaches", async () => {
+    const { ctx, send, seen, target, child } = setup();
+    await send("f1", "DOMStorage.enable");
+    detachSessions(ctx, child.sessions, target.targetId);
+    // A navigation revives the frame in place.
+    child.sessions.add("f2");
+    expect(await seen()).toEqual([]);
   });
 
   it("refuses a set past the quota", async () => {
