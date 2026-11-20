@@ -2013,8 +2013,9 @@ function stripCssComments(src: string): string {
       continue;
     }
     // An unquoted url(...) is one token: a `/*` inside it is not a comment.
-    if (escapeEnd !== i && isUnquotedUrlAt(src, i)) {
-      i = unquotedUrlEnd(src, i) - 1;
+    const urlEnd = urlTokenEnd(src, i, escapeEnd);
+    if (urlEnd >= 0) {
+      i = urlEnd - 1;
       continue;
     }
     if (ch === "/" && src[i + 1] === "*") {
@@ -2031,16 +2032,21 @@ function isUnquotedUrlAt(src: string, i: number): boolean {
   // Runs on every character outside strings: rule most out before slicing.
   if (src[i] !== "u" && src[i] !== "U") return false;
   // `url` must start the identifier: a name character, `\`, non-ASCII or NUL (read as U+FFFD)
-  // before it extends it.
+  // before it extends it, and after `#` or `@` it is a hash or at-keyword.
   if (
     !/^url\($/i.test(src.slice(i, i + 4)) ||
-    /[\w\\\-\u0000\u0080-\uffff]/.test(src[i - 1] ?? "")
+    /[\w\\\-#@\u0000\u0080-\uffff]/.test(src[i - 1] ?? "")
   ) {
     return false;
   }
   let j = i + 4;
   while (src[j] === " " || src[j] === "\t" || isStringBreak(src[j])) j++;
   return src[j] !== '"' && src[j] !== "'";
+}
+// If an unquoted url token starts at i, the index after it; otherwise -1. escapeEnd is where
+// the last escape ended: an escaped code point right before `url(` is part of the same name.
+function urlTokenEnd(src: string, i: number, escapeEnd: number): number {
+  return escapeEnd !== i && isUnquotedUrlAt(src, i) ? unquotedUrlEnd(src, i) : -1;
 }
 // Index after the `)` that closes the url, or the end of the text. A bad url runs to `)` too.
 function unquotedUrlEnd(src: string, i: number): number {
@@ -2164,6 +2170,7 @@ function splitStylesheetRules(src: unknown): ParsedRuleList {
   let bracketDepth = 0;
   let braceOpenAt = -1;
   let inStr = "";
+  let escapeEnd = -1;
   while (i < n) {
     const ch = text[i];
     if (inStr) {
@@ -2176,12 +2183,25 @@ function splitStylesheetRules(src: unknown): ParsedRuleList {
       continue;
     }
     if (ch === "\\") {
+      // Outside a string, `\` before a newline is not an escape.
+      if (isStringBreak(text[i + 1])) {
+        escapeEnd = -1;
+        i++;
+        continue;
+      }
       i += escapeLength(text, i);
+      escapeEnd = i;
       continue;
     }
     if (ch === '"' || ch === "'") {
       inStr = ch;
       i++;
+      continue;
+    }
+    // An unquoted url(...) is one token: a brace or `;` inside it does not end the rule.
+    const urlEnd = urlTokenEnd(text, i, escapeEnd);
+    if (urlEnd >= 0) {
+      i = urlEnd;
       continue;
     }
     if (ch === "(") {

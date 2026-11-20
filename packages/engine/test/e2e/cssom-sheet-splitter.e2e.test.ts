@@ -172,6 +172,32 @@ test("a url after a backslash and newline keeps its /*", async ({ browser }) => 
   }
 }, 60_000);
 
+// A brace inside an unquoted url does not end the rule; after # or @, url( is not a url.
+test("url token boundaries in the rule splitter", async ({ browser }) => {
+  for (const css of [
+    "#t{background-image:url(data:,a/*}*/b)}",
+    "#t{background-image:url(data:,a}b)}",
+    "#t{--x:#url(/* ) } */ )}",
+    "#t{--x:@url(/* ) } */ )}",
+  ]) {
+    const page = await browser.newPage();
+    try {
+      await setContent(page, `<style id=s></style><p id=t>x</p>`);
+      const result = await page.evaluate(`(() => {
+        const s = document.getElementById("s");
+        s.textContent = ${JSON.stringify(css + " #t{margin-left:3px}")};
+        const rules = s.sheet.cssRules.length;
+        s.sheet.insertRule("#t{padding-right:4px}", s.sheet.cssRules.length);
+        const t = getComputedStyle(document.getElementById("t"));
+        return { rules, margin: t.marginLeft, padding: t.paddingRight };
+      })()`);
+      expect(result, css).toEqual({ rules: 2, margin: "3px", padding: "4px" });
+    } finally {
+      await page.close();
+    }
+  }
+}, 60_000);
+
 // A name that only ends in "url" is a plain function, so a /* inside it opens a comment.
 test("a /* inside a function ending in url still opens a comment", async ({ browser }) => {
   for (const prefix of ["é", "😀", "\\u0000", "\\\\]", "\\\\0 "]) {
