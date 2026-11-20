@@ -282,6 +282,38 @@ test("a top-level ; ends only an at-rule statement", async ({ browser }) => {
   }
 }, 60_000);
 
+// Punctuation inside a comment does not open a block in a media list, and the comment is not
+// part of the entry. Matches Chrome.
+test("a comment in media text does not stop the list from splitting", async ({ page }) => {
+  await setContent(page, `<style id=s>@media all{#t{margin-left:3px}}</style><p id=t>x</p>`);
+  const result = await page.evaluate(`(() => {
+    const media = document.getElementById("s").sheet.cssRules[0].media;
+    media.mediaText = "not all /* ( */, all";
+    const items = Array.from(media);
+    media.deleteMedium("all /* x */");
+    const after = media.mediaText;
+    media.mediaText = "not all /* , */ screen";
+    const comma = media.length;
+    media.mediaText = "screen /*x*/and (color)";
+    const spaced = media.mediaText;
+    media.deleteMedium("screen and (color)");
+    const deleted = media.length;
+    media.mediaText = "screen/**/and/**/(min-width:1px)";
+    media.appendMedium("print /*");
+    const margin = getComputedStyle(document.getElementById("t")).marginLeft;
+    return { items, after, comma, spaced, deleted, text: media.mediaText, margin };
+  })()`);
+  expect(result).toEqual({
+    items: ["not all", "all"],
+    after: "not all",
+    comma: 1,
+    spaced: "screen and (color)",
+    deleted: 0,
+    text: "screen and (min-width:1px), print",
+    margin: "3px",
+  });
+}, 60_000);
+
 // The same rule holds for replaceSync: the rule after a stray `};` never applies, as in Chrome.
 test("a ; before a rule drops it in replaceSync", async ({ page }) => {
   await setContent(page, `<p id=t>x</p>`);

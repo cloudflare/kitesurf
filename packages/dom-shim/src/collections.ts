@@ -1362,6 +1362,11 @@ for (const [k, v] of Object.entries(RULE_CONSTANTS)) {
 // public mutators call onMutate: the construction-time parse must never
 // remirror a sheet that is mid-reparse.
 const MEDIA_LIST_TOKEN = Symbol("kitesurfMediaList");
+// One media query as MediaList stores it: comments become spaces, like CSS token separators,
+// and whitespace runs collapse so equal queries compare equal.
+function normalizeMedium(text: string): string {
+  return trimCss(collapseCssSpace(stripCssComments(text, " ")));
+}
 class MediaListCls implements Idl.MediaList {
   readonly [index: number]: string;
   #media: string[] = [];
@@ -1374,7 +1379,7 @@ class MediaListCls implements Idl.MediaList {
   #setText(text: unknown) {
     const old = this.#media.length;
     this.#media = splitCssList(String(text == null ? "" : text))
-      .map(trimCss)
+      .map(normalizeMedium)
       .filter(Boolean);
     this.#sync(old);
   }
@@ -1400,7 +1405,7 @@ class MediaListCls implements Idl.MediaList {
     return m != null ? m : null;
   }
   appendMedium(medium: string) {
-    const m = trimCss(String(medium));
+    const m = normalizeMedium(String(medium));
     if (m && !this.#media.includes(m)) {
       this.#media.push(m);
       this.#sync(this.#media.length - 1);
@@ -1408,7 +1413,7 @@ class MediaListCls implements Idl.MediaList {
     }
   }
   deleteMedium(medium: string) {
-    const i = this.#media.indexOf(trimCss(String(medium)));
+    const i = this.#media.indexOf(normalizeMedium(String(medium)));
     if (i >= 0) {
       const old = this.#media.length;
       this.#media.splice(i, 1);
@@ -1986,7 +1991,8 @@ function constructCounterStyleRule(
   return rule;
 }
 // Drops comments outside strings. `/*/` is still open, and an unclosed comment runs to the end.
-function stripCssComments(src: string): string {
+// `gap` replaces each comment: a space where the comment separates tokens (media queries).
+function stripCssComments(src: string, gap = ""): string {
   let out = "";
   let from = 0;
   let inStr = "";
@@ -2019,7 +2025,7 @@ function stripCssComments(src: string): string {
       continue;
     }
     if (ch === "/" && src[i + 1] === "*") {
-      out += src.slice(from, i);
+      out += src.slice(from, i) + gap;
       const end = src.indexOf("*/", i + 2);
       if (end < 0) return out;
       i = end + 1;
@@ -2055,7 +2061,7 @@ function unquotedUrlEnd(src: string, i: number): number {
   while (j < src.length && src[j] !== ")") j += src[j] === "\\" ? escapeLength(src, j) : 1;
   return j < src.length ? j + 1 : src.length + 1;
 }
-// Splits a list on `sep` outside strings, url tokens and (, [ and { blocks.
+// Splits a list on `sep` outside strings, comments, url tokens and (, [ and { blocks.
 function splitCssList(text: string, sep = ","): string[] {
   const parts: string[] = [];
   const stack: string[] = [];
@@ -2078,6 +2084,9 @@ function splitCssList(text: string, sep = ","): string[] {
     const urlEnd = urlTokenEnd(text, i, escapeEnd);
     if (urlEnd >= 0) {
       i = urlEnd - 1;
+    } else if (ch === "/" && text[i + 1] === "*") {
+      const end = text.indexOf("*/", i + 2);
+      i = end < 0 ? text.length : end + 1;
     } else if (ch === '"' || ch === "'") {
       q = ch;
     } else if (ch === "(" || ch === "[" || ch === "{") {
