@@ -2028,6 +2028,8 @@ function stripCssComments(src: string): string {
   return out + src.slice(from);
 }
 function isUnquotedUrlAt(src: string, i: number): boolean {
+  // Runs on every character outside strings: rule most out before slicing.
+  if (src[i] !== "u" && src[i] !== "U") return false;
   // `url` must start the identifier: a name character, `\`, non-ASCII or NUL (read as U+FFFD)
   // before it extends it.
   if (
