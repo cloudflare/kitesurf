@@ -94,7 +94,7 @@ import {
 } from "./internal-state.js";
 import { determineReferrer, parseReferrerPolicy } from "@kitesurf/script-gate/referrer-policy";
 import { invokeSessionMethod } from "./session-methods.ts";
-import { webStorage } from "./web-storage.ts";
+import { webStorage } from "./storage-buckets.ts";
 import { clearSessionOutbound, setSessionOutbound } from "./session-outbound.ts";
 import {
   installResourceFetchBridge,
