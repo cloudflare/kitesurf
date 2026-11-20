@@ -2,9 +2,10 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
+  LOCAL_STORAGE_AREA_LIMIT_UNITS,
   LOCAL_STORAGE_QUOTA_UNITS,
   LocalStorage,
   localStorageOrigin,
@@ -75,21 +76,29 @@ describe("LocalStorage", () => {
     expect(Object.keys(store.stats().tables).some((t) => t.includes("ctx-1"))).toBe(false);
   });
 
-  it("drops a set that would pass the per-origin quota", () => {
+  it("keeps a set the page accepted past the quota, up to the area limit", () => {
     const ls = new LocalStorage(new MemorySessionStore());
     const half = "x".repeat(LOCAL_STORAGE_QUOTA_UNITS / 2);
     // Two copies of one area, each under the quota alone, together over it.
     ls.apply(A, [{ op: "set", key: "a", value: half }]);
     ls.apply(A, [{ op: "set", key: "b", value: half }]);
-    expect(ls.entries(A).map(([k]) => k)).toEqual(["a"]);
-    // Replacing a value frees the old one first.
-    ls.apply(A, [{ op: "set", key: "a", value: half.slice(1) }]);
-    expect(ls.entries(A).map(([k, v]) => [k, v.length])).toEqual([["a", half.length - 1]]);
-    ls.apply(A, [
-      { op: "remove", key: "a" },
-      { op: "set", key: "b", value: half },
+    expect(ls.entries(A).map(([k]) => k)).toEqual(["a", "b"]);
+    ls.apply(A, [{ op: "set", key: "c", value: half }]);
+    expect(ls.entries(A).map(([k]) => k)).toEqual(["a", "b", "c"]);
+    // A fourth half passes the area limit and is dropped.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    ls.apply(A, [{ op: "set", key: "d", value: half }]);
+    expect(ls.entries(A).map(([k]) => k)).toEqual(["a", "b", "c"]);
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+    // Replacing a value frees the old one first: this set fits only after "c" is freed.
+    ls.apply(A, [{ op: "set", key: "c", value: half + "x" }]);
+    expect(ls.entries(A).map(([k, v]) => [k, v.length])).toEqual([
+      ["a", half.length],
+      ["b", half.length],
+      ["c", half.length + 1],
     ]);
-    expect(ls.entries(A).map(([k]) => k)).toEqual(["b"]);
+    expect(LOCAL_STORAGE_AREA_LIMIT_UNITS).toBe(2 * LOCAL_STORAGE_QUOTA_UNITS);
   });
 });
 

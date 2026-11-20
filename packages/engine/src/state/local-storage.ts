@@ -16,10 +16,15 @@ import { isStoredString, type SessionStore, type StoreGuard } from "./session-st
 
 export type { LocalStorageOp };
 
-// The per-origin quota the page also enforces on its copy: 5 MiB of UTF-16 code units, keys and
-// values together. The engine checks it again because every copy starts from its own seed, so
-// two pages of one origin could otherwise fill the area twice.
+// The per-origin quota the page enforces on its copy: 5 MiB of UTF-16 code units, keys and values
+// together. The page's check is the one script sees, so the engine applies whatever the page
+// accepted: an area passes the quota only when pages of one origin write at once, and the next
+// copy seeded from it refuses to grow.
 export const LOCAL_STORAGE_QUOTA_UNITS = 5 * 1024 * 1024;
+
+// A memory bound, not a quota: only many pages of one origin filling their copies at once reach
+// it. A set past it is dropped with a warning, since the page that made it already returned.
+export const LOCAL_STORAGE_AREA_LIMIT_UNITS = 2 * LOCAL_STORAGE_QUOTA_UNITS;
 
 // The rendering stand-in URL page.ts sanitizeBaseUrl gives about:blank and setDocumentContent's
 // blank page. Those documents have opaque origins, so they must not share an area under it.
@@ -64,7 +69,7 @@ export class LocalStorage {
     return Array.from(this.#area(origin).entries());
   }
 
-  /** Apply a page's changes. A set that would pass the quota is dropped. */
+  /** Apply a page's changes. A set that would pass LOCAL_STORAGE_AREA_LIMIT_UNITS is dropped. */
   apply(origin: string, ops: readonly LocalStorageOp[]): void {
     // A page's last writes can land after its browser context is gone.
     if (this.#disposed || ops.length === 0) return;
@@ -75,7 +80,10 @@ export class LocalStorage {
         const old = area.get(op.key);
         const freed = old === undefined ? 0 : op.key.length + old.length;
         const next = units - freed + op.key.length + op.value.length;
-        if (next > LOCAL_STORAGE_QUOTA_UNITS) continue;
+        if (next > LOCAL_STORAGE_AREA_LIMIT_UNITS) {
+          console.warn(`[kitesurf-local-storage] ${origin}: dropped a set past the area limit`);
+          continue;
+        }
         area.set(op.key, op.value);
         units = next;
       } else if (op.op === "remove") {
