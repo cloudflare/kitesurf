@@ -57,6 +57,9 @@ export interface KitesurfInternalState {
       ) => void)
     | null;
   currentScriptSrc: string | undefined;
+  /// Set when a running classic script reads document.currentScript; only then
+  /// must its microtasks settle before the value clears.
+  currentScriptRead?: boolean;
   currentScriptRawSrc?: string | undefined;
   currentScriptDomIndex?: number | undefined;
   currentScriptBodyKey?: string | undefined;

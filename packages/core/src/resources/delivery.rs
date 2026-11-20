@@ -134,6 +134,14 @@ impl DomHandle {
         }
     }
 
+    #[wasm_bindgen(js_name = "hasPendingImageWaiter")]
+    pub fn has_pending_image_waiter(&self, url: &str) -> bool {
+        match self.doc.try_borrow() {
+            Ok(d) => d.has_pending_image_waiter(url),
+            Err(_) => true,
+        }
+    }
+
     #[wasm_bindgen(js_name = "discoverPendingImages")]
     pub fn discover_pending_images(&self) -> u32 {
         const MAX_IMAGE_DISCOVERY_PASSES: usize = 3;

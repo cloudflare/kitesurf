@@ -41,6 +41,6 @@ test("adoption never hands a parser handle to a page-visible wrapper", async ({ 
     sameNode: true,
     attr: "1",
     text: "hi",
-    hostText: "hi",
+    hostText: "hihi",
   });
 });

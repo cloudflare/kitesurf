@@ -45,8 +45,7 @@ export function isAttachedToDocument(nodeId: number): boolean {
 export function safeChildNodeCount(parentId: number): number {
   if (typeof parentId !== "number" || parentId < 0) return 0;
   try {
-    const ids = dom.childIds(parentId);
-    return ids ? ids.length : 0;
+    return dom.childCount(parentId);
   } catch {
     return 0;
   }

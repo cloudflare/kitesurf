@@ -249,6 +249,109 @@ fn inserting_a_child_restyles_a_parent_matching_a_structural_has() {
     );
 }
 
+#[test]
+fn inserting_between_an_anchor_and_its_subject_unmatches_a_next_sibling_has() {
+    let dom = styled(
+        ".a { color: green } .a:has(+ .b) { color: red }",
+        r#"<div id="p"><span class="a" id="a">a</span><i class="b" id="b">b</i></div>"#,
+    );
+    let (p, a, b) = (id(&dom, "#p"), id(&dom, "#a"), id(&dom, "#b"));
+    assert_eq!(color(&dom, a), RED);
+
+    let plain = dom.create_element("em");
+    assert!(dom.insert_before_node(p, plain, b));
+    assert_eq!(color(&dom, a), GREEN);
+}
+
+#[test]
+fn removing_between_an_anchor_and_its_subject_matches_a_next_sibling_has() {
+    let dom = styled(
+        ".a { color: red } .a:has(+ .b) { color: green }",
+        r#"<div><span class="a" id="a">a</span><em id="e">e</em><i class="b">b</i></div>"#,
+    );
+    let (a, e) = (id(&dom, "#a"), id(&dom, "#e"));
+    assert_eq!(color(&dom, a), RED);
+
+    assert!(dom.remove_node(e));
+    assert_eq!(color(&dom, a), GREEN);
+}
+
+#[test]
+fn removing_the_subject_unmatches_sibling_has_anchors() {
+    let dom = styled(
+        "span { color: green } .a:has(+ .b), .c:has(~ .b) { color: red }",
+        r#"<div><span class="c" id="c">c</span><span class="a" id="a">a</span><i class="b" id="b">b</i></div>"#,
+    );
+    let (a, b, c) = (id(&dom, "#a"), id(&dom, "#b"), id(&dom, "#c"));
+    assert_eq!(color(&dom, a), RED);
+    assert_eq!(color(&dom, c), RED);
+
+    assert!(dom.remove_node(b));
+    assert_eq!(color(&dom, a), GREEN);
+    assert_eq!(color(&dom, c), GREEN);
+}
+
+#[test]
+fn removing_a_child_restyles_a_parent_matching_a_structural_has() {
+    let css = format!("#p{{color:{RED}}} #p:has(> .a:first-child){{color:{GREEN}}}");
+    let dom = styled(&css, "<div id=p><b id=x>x</b><i class=a></i></div>");
+    let (p, x) = (id(&dom, "#p"), id(&dom, "#x"));
+    assert_eq!(color(&dom, p), RED);
+
+    assert!(dom.remove_node(x));
+    assert_eq!(color(&dom, p), GREEN);
+}
+
+#[test]
+fn appending_restyles_a_parent_matching_a_last_child_has() {
+    let css = format!("#p{{color:{RED}}} #p:has(> .a:last-child){{color:{GREEN}}}");
+    let dom = styled(&css, "<div id=p><b>x</b><i class=a></i></div>");
+    let p = id(&dom, "#p");
+    assert_eq!(color(&dom, p), GREEN);
+
+    insert_li(&dom, p, None);
+    assert_eq!(color(&dom, p), RED);
+}
+
+#[test]
+fn prepending_restyles_a_parent_matching_an_nth_child_has() {
+    let css = format!("#p{{color:{RED}}} #p:has(> .a:nth-child(3)){{color:{GREEN}}}");
+    let dom = styled(&css, "<div id=p><b id=x>x</b><i class=a></i></div>");
+    let (p, x) = (id(&dom, "#p"), id(&dom, "#x"));
+    assert_eq!(color(&dom, p), RED);
+
+    insert_li(&dom, p, Some(x));
+    assert_eq!(color(&dom, p), GREEN);
+    assert!(dom.remove_node(x));
+    assert_eq!(color(&dom, p), RED);
+}
+
+#[test]
+fn child_list_changes_restyle_a_grandparent_matching_an_empty_has() {
+    let css = format!("#g{{color:{RED}}} #g:has(> .p:empty){{color:{GREEN}}}");
+    let dom = styled(&css, "<div id=g><div class=p id=p></div></div>");
+    let (g, p) = (id(&dom, "#g"), id(&dom, "#p"));
+    assert_eq!(color(&dom, g), GREEN);
+
+    let li = insert_li(&dom, p, None);
+    assert_eq!(color(&dom, g), RED);
+    assert!(dom.remove_node(li));
+    assert_eq!(color(&dom, g), GREEN);
+}
+
+#[test]
+fn moving_the_subject_away_unmatches_a_next_sibling_has() {
+    let dom = styled(
+        ".a { color: green } .a:has(+ .b) { color: red }",
+        r#"<div><span class="a" id="a">a</span><i class="b" id="b">b</i></div><div id="q"></div>"#,
+    );
+    let (a, b, q) = (id(&dom, "#a"), id(&dom, "#b"), id(&dom, "#q"));
+    assert_eq!(color(&dom, a), RED);
+
+    assert!(dom.append_child_node(q, b));
+    assert_eq!(color(&dom, a), GREEN);
+}
+
 /// `dir=auto` takes its direction from the descendants' text, which no selector flag covers.
 #[test]
 fn appending_right_to_left_text_flips_a_dir_auto_element() {

@@ -1,0 +1,578 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 19 Nov 2026 21:41:20 +0000
+Subject: [PATCH] fonts: gate lazy @font-face fetches by weight, style,
+ visibility, and fallback coverage
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+flush_needed_font_faces previously fetched every weight, slant, and fallback
+family declared in any computed font-family list, including faces inside
+display:none subtrees. Pages with multi-weight families or CJK fallback
+chains downloaded tens of megabytes of unused fonts and stalled rendering.
+
+Walk the visible flat tree, match each pending face against visible text's
+computed (style, weight) using CSS Fonts 4 §5.2 selection with exact weight
+ranges, and defer fallback web-font families until earlier families in the
+stack either fail or lack a glyph in the element's text.
+---
+ src/document.rs | 389 ++++++++++++++++++++++++++++++++++++++++++------
+ src/net.rs      |  19 ++-
+ 2 files changed, 358 insertions(+), 50 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index f1f3aa2..ffcbf0c 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -4,7 +4,9 @@ use crate::layout::construct::ConstructionTask;
+ use crate::layout::damage::{ALL_DAMAGE, CONSTRUCT_BOX, CONSTRUCT_DESCENDENT, CONSTRUCT_FC};
+ use crate::mutator::ViewportMut;
+ use crate::net::{
+-    Resource, ResourceHandler, ResourceLoadResponse, StylesheetHandler, StylesheetLoader,
++    FontFaceKey, PendingFontFace, Resource, ResourceHandler, ResourceLoadResponse,
++    StylesheetHandler, StylesheetLoader, face_pending_for_style, fetch_pending_font_face,
++    note_unloaded_faces,
+ };
+ use crate::node::{
+     ImageData, NodeFlags, RasterImageData, ShadowRootData, ShadowRootMode, SpecialElementData,
+@@ -14,6 +16,7 @@ use crate::scrolling::ScrollAnimationState;
+ use crate::selection::TextSelection;
+ use crate::stylo_device::{DeviceChanges, make_device};
+ use crate::stylo_to_cursor_icon::stylo_to_cursor_icon;
++use crate::stylo_to_parley;
+ use crate::traversal::TreeTraverser;
+ use crate::url::DocumentUrl;
+ use crate::util::ImageType;
+@@ -31,8 +34,14 @@ use blitz_traits::shell::{DummyShellProvider, ShellProvider, Viewport};
+ use cursor_icon::CursorIcon;
+ use linebender_resource_handle::Blob;
+ use markup5ever::{LocalName, local_name};
++use parley::fontique::{
++    Attributes as FontiqueAttributes, FontStyle as FontiqueStyle, FontWeight as FontiqueWeight,
++    QueryFamily, QueryFont, QueryStatus,
++};
++use parley::style::FontStyle as ParleyFontStyle;
+ use parley::{FontContext, PlainEditorDriver};
+ use selectors::{Element, matching::QuirksMode};
++use skrifa::{FontRef, MetadataProvider};
+ use std::any::Any;
+ use std::cell::RefCell;
+ use std::collections::{BTreeMap, Bound, HashMap, HashSet};
+@@ -55,6 +64,7 @@ use style::properties::style_structs::Font;
+ use style::selector_parser::ServoElementSnapshot;
+ use style::servo_arc::Arc as ServoArc;
+ use style::values::GenericAtomIdent;
++use style::values::computed::font::SingleFontFamily;
+ use style::values::computed::UserSelect;
+ use style::values::computed::ui::CursorKind;
+ use style::{
+@@ -298,6 +308,122 @@ fn find_author_sheet_cache_entry<'a, S: std::hash::BuildHasher>(
+     Some((css_key, media_key, sheet))
+ }
+
++#[derive(Clone, Copy, PartialEq, Eq)]
++pub(crate) struct DeclaredFontFace {
++    italic: bool,
++    weight_range: (u16, u16),
++    has_unicode_range: bool,
++}
++
++fn font_face_is_italic(style: Option<FontiqueStyle>) -> bool {
++    matches!(
++        style,
++        Some(FontiqueStyle::Italic | FontiqueStyle::Oblique(_))
++    )
++}
++
++/// CSS Fonts 4 §5.2 weight-distance rank for a face weight range against `req`.
++fn weight_range_rank(req: u16, range: (u16, u16)) -> (u8, u16) {
++    if range.0 <= req && req <= range.1 {
++        return (0, 0);
++    }
++    let w = if req < range.0 { range.0 } else { range.1 };
++    if (400..=500).contains(&req) {
++        if w > req && w <= 500 {
++            (1, w - req)
++        } else if w < req {
++            (2, req - w)
++        } else {
++            (3, w - 500)
++        }
++    } else if req < 400 {
++        if w < req {
++            (1, req - w)
++        } else {
++            (2, w - req)
++        }
++    } else if w > req {
++        (1, w - req)
++    } else {
++        (2, req - w)
++    }
++}
++
++/// CSS Fonts 4 §5.2 style + weight selection: returns whether `(face_italic, face_weight_range)`
++/// is selected among the family's declared faces for `(req_italic, req_weight)`.
++fn face_matches_css_selection(
++    declared: &[DeclaredFontFace],
++    req_italic: bool,
++    req_weight: u16,
++    face_italic: bool,
++    face_weight_range: (u16, u16),
++) -> bool {
++    let has_exact_style = declared.iter().any(|d| d.italic == req_italic);
++    let best_italic = if has_exact_style { req_italic } else { !req_italic };
++    if face_italic != best_italic {
++        return false;
++    }
++    let best_rank = declared
++        .iter()
++        .filter(|d| d.italic == best_italic)
++        .map(|d| weight_range_rank(req_weight, d.weight_range))
++        .min();
++    best_rank == Some(weight_range_rank(req_weight, face_weight_range))
++}
++
++fn lookup_loaded_face(
++    font_ctx: &Arc<Mutex<FontContext>>,
++    cache: &mut HashMap<(String, bool, u16), Option<(Blob<u8>, u32)>>,
++    fam_lc: &str,
++    req_italic: bool,
++    req_weight: u16,
++) -> Option<(Blob<u8>, u32)> {
++    let key = (fam_lc.to_string(), req_italic, req_weight);
++    if let Some(cached) = cache.get(&key) {
++        return cached.clone();
++    }
++    let mut ctx = font_ctx.lock().unwrap();
++    let ctx_ref = &mut *ctx;
++    let found = ctx_ref.collection.family_id(fam_lc).and_then(|fid| {
++        let mut query = ctx_ref.collection.query(&mut ctx_ref.source_cache);
++        query.set_families(std::iter::once(QueryFamily::from(fid)));
++        query.set_attributes(FontiqueAttributes {
++            weight: FontiqueWeight::new(req_weight as f32),
++            style: if req_italic {
++                FontiqueStyle::Italic
++            } else {
++                FontiqueStyle::Normal
++            },
++            ..Default::default()
++        });
++        let mut matched: Option<(Blob<u8>, u32)> = None;
++        query.matches_with(|q_font: &QueryFont| {
++            matched = Some((q_font.blob.clone(), q_font.index));
++            QueryStatus::Stop
++        });
++        matched
++    });
++    drop(ctx);
++    cache.insert(key, found.clone());
++    found
++}
++
++fn filter_uncovered_chars(remaining: &mut Vec<char>, blob: &Blob<u8>, index: u32) {
++    let Ok(font_ref) = FontRef::from_index(blob.as_ref(), index) else {
++        return;
++    };
++    let charmap = font_ref.charmap();
++    remaining.retain(|&ch| charmap.map(ch).is_none());
++}
++
++fn push_non_ws_chars(out: &mut Vec<char>, text: &str) {
++    for ch in text.chars() {
++        if !ch.is_ascii_whitespace() && !out.contains(&ch) {
++            out.push(ch);
++        }
++    }
++}
++
+ pub struct BaseDocument {
+     /// ID of the document
+     id: usize,
+@@ -552,11 +678,10 @@ pub struct BaseDocument {
+     pub dims_only_images: bool,
+     /// @font-face sources declared but not yet fetched.
+     /// Lazy web-font loading; see net::PendingFontFace.
+-    pub(crate) pending_font_faces: Vec<crate::net::PendingFontFace>,
+-    /// Lowercased families ever seen in computed styles.
+-    /// Sticky, so newly-declared faces for known-used families
+-    /// fetch on the next flush without a rescan hit.
+-    pub(crate) used_font_families: std::collections::HashSet<String>,
++    pub(crate) pending_font_faces: Vec<PendingFontFace>,
++    /// Declared `@font-face` descriptors per lowercased family (including already fetched faces)
++    /// so CSS Fonts 4 weight, style, and fallback-chain gating stays consistent across flushes.
++    pub(crate) declared_font_faces: HashMap<String, Vec<DeclaredFontFace>>,
+     /// Every codepoint that appears in an in-document text node, as a
+     /// bitset over U+0000..=U+10FFFF (136 KiB, allocated on first use).
+     /// A `unicode-range`-subsetted face fetches only once the document
+@@ -785,7 +910,7 @@ impl BaseDocument {
+             image_cache: HashMap::new(),
+             dims_only_images: config.dims_only_images,
+             pending_font_faces: Vec::new(),
+-            used_font_families: std::collections::HashSet::new(),
++            declared_font_faces: HashMap::new(),
+             used_codepoints: Vec::new(),
+             non_latin_text_writes: 0,
+             base_epoch: 0,
+@@ -2093,27 +2218,41 @@ impl BaseDocument {
+     /// blobs in the fontique collection, and N UNLOADED entries of which
+     /// only one ever cleared, so the family stayed blocked. Chrome's
+     /// font cache fetches a source once per document.
+-    pub(crate) fn queue_font_faces(&mut self, faces: Vec<crate::net::PendingFontFace>) {
++    pub(crate) fn queue_font_faces(&mut self, faces: Vec<PendingFontFace>) {
+         for face in faces {
+-            let crate::net::PendingFontFace {
++            let PendingFontFace {
+                 family_lc,
+                 url,
+                 format,
+                 overrides,
+                 node_id,
++                weight_range,
+                 unicode_range,
+             } = face;
+             // Most faces repeat on re-registration, so clone only new keys.
+-            let key = crate::net::FontFaceKey::new(family_lc, url, &overrides, unicode_range);
++            let key = FontFaceKey::new(family_lc, url, &overrides, unicode_range);
+             if self.seen_font_faces.contains(&key) {
+                 continue;
+             }
+-            self.pending_font_faces.push(crate::net::PendingFontFace {
++            let face_entry = DeclaredFontFace {
++                italic: font_face_is_italic(overrides.style),
++                weight_range,
++                has_unicode_range: key.unicode_range.is_some(),
++            };
++            let declared = self
++                .declared_font_faces
++                .entry(key.family_lc.clone())
++                .or_default();
++            if !declared.contains(&face_entry) {
++                declared.push(face_entry);
++            }
++            self.pending_font_faces.push(PendingFontFace {
+                 family_lc: key.family_lc.clone(),
+                 url: key.url.clone(),
+                 format,
+                 overrides,
+                 node_id,
++                weight_range,
+                 unicode_range: key.unicode_range.clone(),
+             });
+             self.seen_font_faces.insert(key);
+@@ -2204,71 +2343,225 @@ impl BaseDocument {
+     /// stabilizes to never-used leftovers: those short-circuit
+     /// via the sticky used-set check first).
+     pub(crate) fn flush_needed_font_faces(&mut self) {
+-        use style::values::computed::font::SingleFontFamily;
+         if self.pending_font_faces.is_empty() {
+             return;
+         }
+-        // Fast path: known-used families (sticky set) need no scan.
+-        let mut ready: Vec<crate::net::PendingFontFace> = Vec::new();
+-        let used = &self.used_font_families;
+-        self.pending_font_faces
+-            .retain(|f| !used.contains(&f.family_lc) || { ready.push(f.clone()); false });
+-        if !self.pending_font_faces.is_empty() {
+-            let mut used = std::mem::take(&mut self.used_font_families);
+-            // Lowercase each distinct family atom once, not once per node: nodes share font
+-            // structs, so most nodes repeat the previous node's list or a few known atoms.
+-            let mut seen: std::collections::HashSet<style::Atom> = Default::default();
+-            let mut previous: *const style::properties::style_structs::Font = std::ptr::null();
+-            for (_, node) in self.nodes.iter() {
+-                if !node.flags.is_in_document() {
++        // Register faces inserted via CSSOM directly into pending_font_faces.
++        for face in &self.pending_font_faces {
++            let entry = DeclaredFontFace {
++                italic: font_face_is_italic(face.overrides.style),
++                weight_range: face.weight_range,
++                has_unicode_range: face.unicode_range.is_some(),
++            };
++            let declared = self
++                .declared_font_faces
++                .entry(face.family_lc.clone())
++                .or_default();
++            if !declared.contains(&entry) {
++                declared.push(entry);
++            }
++        }
++
++        let pending_families: HashSet<&str> = self
++            .pending_font_faces
++            .iter()
++            .map(|f| f.family_lc.as_str())
++            .collect();
++        let mut atom_lc: HashMap<Atom, String> = HashMap::new();
++        let mut font_has_pending: HashMap<*const Font, bool> = HashMap::new();
++        let mut loaded_faces: HashMap<(String, bool, u16), Option<(Blob<u8>, u32)>> =
++            HashMap::new();
++        let mut used: HashMap<String, Vec<(bool, u16)>> = HashMap::new();
++        let mut node_chars: Vec<char> = Vec::new();
++        let mut stack: Vec<NodeId> = vec![self.root_node_id];
++
++        while let Some(node_id) = stack.pop() {
++            let Some(node) = self.nodes.get(node_id) else {
++                continue;
++            };
++            if !node.flags.is_in_document() {
++                continue;
++            }
++            let styles = node.primary_styles();
++            if let Some(s) = styles.as_ref() {
++                if s.get_box().display.is_none() {
+                     continue;
+                 }
+-                let Some(styles) = node.primary_styles() else {
++            }
++            if let Some(after) = node.after() {
++                stack.push(after);
++            }
++            if let Some(before) = node.before() {
++                stack.push(before);
++            }
++            let children = node.flat_children();
++            for child_id in children.iter() {
++                stack.push(child_id);
++            }
++            let Some(styles) = styles else {
++                continue;
++            };
++            let font = styles.get_font();
++            let font_ptr = font as *const Font;
++            let touches_pending = *font_has_pending.entry(font_ptr).or_insert_with(|| {
++                font.font_family.families.iter().any(|family| {
++                    if let SingleFontFamily::FamilyName(name) = family {
++                        let lc = atom_lc
++                            .entry(name.name.clone())
++                            .or_insert_with(|| name.name.to_string().to_lowercase());
++                        pending_families.contains(lc.as_str())
++                    } else {
++                        false
++                    }
++                })
++            });
++            if !touches_pending {
++                continue;
++            }
++
++            node_chars.clear();
++            for child_id in children.iter() {
++                if let Some(text) = self.nodes.get(child_id).and_then(Node::text_data) {
++                    push_non_ws_chars(&mut node_chars, &text.content);
++                }
++            }
++            if let Some(elem) = node.element_data() {
++                if let SpecialElementData::TextInput(input) = elem.special_data() {
++                    push_non_ws_chars(&mut node_chars, input.editor.raw_text());
++                    if let Some(placeholder) = elem.attr(local_name!("placeholder")) {
++                        push_non_ws_chars(&mut node_chars, placeholder);
++                    }
++                }
++            }
++            if node_chars.is_empty() {
++                continue;
++            }
++
++            let req_weight = font.font_weight.value().round().clamp(1.0, 1000.0) as u16;
++            let req_italic = !matches!(
++                stylo_to_parley::font_style(font.font_style),
++                ParleyFontStyle::Normal
++            );
++            let want_fq_style = if req_italic {
++                FontiqueStyle::Italic
++            } else {
++                FontiqueStyle::Normal
++            };
++
++            for family in font.font_family.families.iter() {
++                let SingleFontFamily::FamilyName(name) = family else {
+                     continue;
+                 };
+-                let font = styles.get_font();
+-                if std::ptr::eq(font, previous) {
+-                    continue;
+-                }
+-                previous = font;
+-                for family in font.font_family.families.iter() {
+-                    if let SingleFontFamily::FamilyName(name) = family {
+-                        if seen.insert(name.name.clone()) {
+-                            used.insert(name.name.to_string().to_lowercase());
++                let fam_lc = atom_lc
++                    .entry(name.name.clone())
++                    .or_insert_with(|| name.name.to_string().to_lowercase())
++                    .as_str();
++                if let Some(declared) = self.declared_font_faces.get(fam_lc) {
++                    let list = used.entry(fam_lc.to_string()).or_default();
++                    let pair = (req_italic, req_weight);
++                    if !list.contains(&pair) {
++                        list.push(pair);
++                    }
++                    let selected_has_range = declared.iter().any(|d| {
++                        d.has_unicode_range
++                            && face_matches_css_selection(
++                                declared,
++                                req_italic,
++                                req_weight,
++                                d.italic,
++                                d.weight_range,
++                            )
++                    });
++                    if selected_has_range {
++                        continue;
++                    }
++                    let has_pending = self.pending_font_faces.iter().any(|f| {
++                        f.family_lc == fam_lc
++                            && face_matches_css_selection(
++                                declared,
++                                req_italic,
++                                req_weight,
++                                font_face_is_italic(f.overrides.style),
++                                f.weight_range,
++                            )
++                    });
++                    if has_pending || face_pending_for_style(fam_lc, want_fq_style) {
++                        break;
++                    }
++                    if let Some((blob, idx)) = lookup_loaded_face(
++                        &self.font_ctx,
++                        &mut loaded_faces,
++                        fam_lc,
++                        req_italic,
++                        req_weight,
++                    ) {
++                        filter_uncovered_chars(&mut node_chars, &blob, idx);
++                        if node_chars.is_empty() {
++                            break;
+                         }
+                     }
++                } else if let Some((blob, idx)) = lookup_loaded_face(
++                    &self.font_ctx,
++                    &mut loaded_faces,
++                    fam_lc,
++                    req_italic,
++                    req_weight,
++                ) {
++                    filter_uncovered_chars(&mut node_chars, &blob, idx);
++                    if node_chars.is_empty() {
++                        break;
++                    }
+                 }
+             }
+-            self.pending_font_faces
+-                .retain(|f| !used.contains(&f.family_lc) || { ready.push(f.clone()); false });
+-            self.used_font_families = used;
+         }
++
++        let mut ready: Vec<PendingFontFace> = Vec::new();
++        let declared_map = &self.declared_font_faces;
++        self.pending_font_faces.retain(|f| {
++            let Some(requests) = used.get(&f.family_lc) else {
++                return true;
++            };
++            let declared = declared_map
++                .get(&f.family_lc)
++                .map(Vec::as_slice)
++                .unwrap_or(&[]);
++            let face_italic = font_face_is_italic(f.overrides.style);
++            let needed = requests.iter().any(|&(req_italic, req_weight)| {
++                face_matches_css_selection(
++                    declared,
++                    req_italic,
++                    req_weight,
++                    face_italic,
++                    f.weight_range,
++                )
++            });
++            if needed {
++                ready.push(f.clone());
++                false
++            } else {
++                true
++            }
++        });
+         // unicode-range gate. A face whose ranges cover none of the
+         // document's text goes back on the queue and is re-tested on the
+         // next flush: a bitset probe per range, no text walk, since
+         // connected text writes and inserted subtrees keep used_codepoints
+-        // current (a later
+-        // script-inserted Cyrillic string fetches the cyrillic subset
+-        // then, as in Chrome). Its family is in the sticky used set, so
+-        // it rides the fast path above, not the O(nodes) scan. Faces are
+-        // marked UNLOADED here, at fetch time, not at declaration: a face
+-        // this gate never releases must not block its family's style
+-        // forever in face_pending_for_style.
++        // current (a later script-inserted string fetches its subset then).
+         let needs_range_check = ready.iter().any(|f| f.unicode_range.is_some());
+         if needs_range_check {
+             self.ensure_used_codepoints();
+         }
+-        let mut deferred: Vec<crate::net::PendingFontFace> = Vec::new();
++        let mut deferred: Vec<PendingFontFace> = Vec::new();
+         for face in ready {
+             if !self.face_covers_used_text(face.unicode_range.as_deref()) {
+                 deferred.push(face);
+                 continue;
+             }
+-            crate::net::note_unloaded_faces(std::iter::once((
++            note_unloaded_faces(std::iter::once((
+                 face.family_lc.clone(),
+                 face.overrides.style,
+             )));
+-            crate::net::fetch_pending_font_face(
++            fetch_pending_font_face(
+                 self.tx.clone(),
+                 self.id,
+                 &self.net_provider,
+diff --git a/src/net.rs b/src/net.rs
+index 8a17c65..3a6da0c 100644
+--- a/src/net.rs
++++ b/src/net.rs
+@@ -493,6 +493,9 @@ pub struct PendingFontFace {
+     pub format: FontFaceSourceFormatKeyword,
+     pub overrides: FontFaceOverrides,
+     pub node_id: Option<NodeId>,
++    /// `font-weight` descriptor range as inclusive `(min, max)` in `1..=1000`.
++    /// Omitted descriptors default to `(400, 400)` per CSS Fonts 4.
++    pub weight_range: (u16, u16),
+     /// `unicode-range` descriptor as inclusive (start, end) pairs;
+     /// `None` = the whole codepoint space (the descriptor's default).
+     /// Gates the fetch on the document's text: see
+@@ -649,16 +652,27 @@ pub(crate) fn collect_font_face_rules<'a>(
+                     }),
+                     style: descriptor.font_style.as_ref().map(stylo_to_fontique_style),
+                 };
++                let weight_range = match descriptor.font_weight.as_ref() {
++                    None => (400, 400),
++                    Some(range) => match (range.0.compute(), range.1.compute()) {
++                        (Some(min), Some(max)) => {
++                            let lo = min.value().round().clamp(1.0, 1000.0) as u16;
++                            let hi = max.value().round().clamp(1.0, 1000.0) as u16;
++                            (lo.min(hi), lo.max(hi))
++                        }
++                        _ => (1, 1000),
++                    },
++                };
+                 let family_lc = family.name.to_string().to_lowercase();
+                 let unicode_range = descriptor
+                     .unicode_range
+                     .as_ref()
+                     .map(|ranges| ranges.iter().map(|r| (r.start, r.end)).collect());
+-                Some((family_lc, src, overrides, unicode_range))
++                Some((family_lc, src, overrides, weight_range, unicode_range))
+             }
+             _ => None,
+         })
+-        .filter_map(|(family_lc, source_list, overrides, unicode_range)| {
++        .filter_map(|(family_lc, source_list, overrides, weight_range, unicode_range)| {
+             // Find the first font source in the source list that specifies a font of a type
+             // that we support.
+             let preferred_source = source_list
+@@ -741,6 +755,7 @@ pub(crate) fn collect_font_face_rules<'a>(
+                 format,
+                 overrides,
+                 node_id,
++                weight_range,
+                 unicode_range,
+             })
+         })
