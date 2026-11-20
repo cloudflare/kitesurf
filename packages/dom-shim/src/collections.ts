@@ -1991,10 +1991,18 @@ function stripCssComments(src: string): string {
   let out = "";
   let from = 0;
   let inStr = "";
+  // An escaped code point right before `url(` is part of the same name.
+  let escapeEnd = -1;
   for (let i = 0; i < src.length; i++) {
     const ch = src[i];
     if (ch === "\\") {
+      // Outside a string, `\` before a newline is not an escape.
+      if (!inStr && isStringBreak(src[i + 1])) {
+        escapeEnd = -1;
+        continue;
+      }
       i += escapeLength(src, i) - 1;
+      escapeEnd = i + 1;
       continue;
     }
     if (inStr) {
@@ -2003,6 +2011,11 @@ function stripCssComments(src: string): string {
     }
     if (ch === '"' || ch === "'") {
       inStr = ch;
+      continue;
+    }
+    // An unquoted url(...) is one token: a `/*` inside it is not a comment.
+    if (escapeEnd !== i && isUnquotedUrlAt(src, i)) {
+      i = unquotedUrlEnd(src, i) - 1;
       continue;
     }
     if (ch === "/" && src[i + 1] === "*") {
@@ -2014,6 +2027,25 @@ function stripCssComments(src: string): string {
     }
   }
   return out + src.slice(from);
+}
+function isUnquotedUrlAt(src: string, i: number): boolean {
+  // `url` must start the identifier: a name character, `\`, non-ASCII or NUL (read as U+FFFD)
+  // before it extends it.
+  if (
+    !/^url\($/i.test(src.slice(i, i + 4)) ||
+    /[\w\\\-\u0000\u0080-\uffff]/.test(src[i - 1] ?? "")
+  ) {
+    return false;
+  }
+  let j = i + 4;
+  while (src[j] === " " || src[j] === "\t" || isStringBreak(src[j])) j++;
+  return src[j] !== '"' && src[j] !== "'";
+}
+// Index after the `)` that closes the url, or the end of the text. A bad url runs to `)` too.
+function unquotedUrlEnd(src: string, i: number): number {
+  let j = i + 4;
+  while (j < src.length && src[j] !== ")") j += src[j] === "\\" ? escapeLength(src, j) : 1;
+  return Math.min(j + 1, src.length);
 }
 // An unescaped newline ends a string as a bad-string token.
 function isStringBreak(ch: string | undefined): boolean {

@@ -130,3 +130,59 @@ test("hex escapes keep their text when rule pieces are trimmed or collapsed", as
   })()`);
   expect(result).toEqual(["x\\31", "@container { a:\\31  b\\31  c }"]);
 }, 60_000);
+
+test("a /* inside an unquoted url is not a comment", async ({ page }) => {
+  await setContent(
+    page,
+    `<style id=s>#t{background:url(a/*b)} #t{margin-left:3px}</style><p id=t>x</p>`,
+  );
+  const result = await page.evaluate(`(() => {
+    const sheet = document.getElementById("s").sheet;
+    const rules = sheet.cssRules.length;
+    sheet.insertRule("#t{background:url(c/*d)}", sheet.cssRules.length);
+    sheet.insertRule("#t{padding-right:4px}", sheet.cssRules.length);
+    const t = getComputedStyle(document.getElementById("t"));
+    return { rules, margin: t.marginLeft, padding: t.paddingRight };
+  })()`);
+  expect(result).toEqual({ rules: 2, margin: "3px", padding: "4px" });
+}, 60_000);
+
+// Outside a string a backslash before a newline is not an escape, so url( after it is a url.
+test("a url after a backslash and newline keeps its /*", async ({ browser }) => {
+  for (const brk of ["\\n", "\\r\\n", "\\r", "\\f"]) {
+    const page = await browser.newPage();
+    try {
+      await setContent(page, `<style id=s></style><p id=t>x</p>`);
+      const result = await page.evaluate(`(() => {
+        const s = document.getElementById("s");
+        s.textContent = "#t{--x:\\\\${brk}url(/*)} #t{margin-left:3px}";
+        s.sheet.insertRule("#t{padding-right:4px}", s.sheet.cssRules.length);
+        const t = getComputedStyle(document.getElementById("t"));
+        return { margin: t.marginLeft, padding: t.paddingRight };
+      })()`);
+      expect(result, brk).toEqual({ margin: "3px", padding: "4px" });
+    } finally {
+      await page.close();
+    }
+  }
+}, 60_000);
+
+// A name that only ends in "url" is a plain function, so a /* inside it opens a comment.
+test("a /* inside a function ending in url still opens a comment", async ({ browser }) => {
+  for (const prefix of ["é", "😀", "\\u0000", "\\\\]", "\\\\0 "]) {
+    const page = await browser.newPage();
+    try {
+      await setContent(page, `<style id=s></style><p id=t>x</p>`);
+      const result = await page.evaluate(`(() => {
+        const s = document.getElementById("s");
+        s.textContent = "#t{--x:${prefix}url(/*} #t{margin-left:3px}";
+        s.sheet.insertRule("#t{padding-right:4px}", s.sheet.cssRules.length);
+        const t = getComputedStyle(document.getElementById("t"));
+        return { margin: t.marginLeft, padding: t.paddingRight };
+      })()`);
+      expect(result, prefix).toEqual({ margin: "0px", padding: "4px" });
+    } finally {
+      await page.close();
+    }
+  }
+}, 60_000);
