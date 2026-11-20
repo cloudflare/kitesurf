@@ -78,6 +78,11 @@ test("a rule inserted after a newline-ended string in a prelude or at-rule appli
   for (const css of [
     'x"a\n{color:red}',
     '@media "a\n{x{color:red}}',
+    '@supports "a\n{x{color:red}}',
+    '@layer "a\n{x{color:red}}',
+    '@layer "a\n;',
+    '@keyframes "a\n{}',
+    '@font-feature-values "a\n{}',
     '@page{content:"oops\n}',
     '@container{#q{content:"oops\n} }',
     '@font-palette-values --p{font-family:"oops\n}',

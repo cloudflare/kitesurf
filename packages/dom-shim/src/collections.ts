@@ -2703,7 +2703,7 @@ function constructRule(
 
   if (kind === "media" || kind === "supports") {
     const rule = mk(kind === "media" ? CSSMediaRuleCls : CSSSupportsRuleCls);
-    const cond = sel.replace(/^@(media|supports)/i, "").trim();
+    const cond = trimCss(sel.replace(/^@(media|supports)/i, ""));
     const st: RuleState = {
       ...base,
       typeNum: kind === "media" ? 4 : 12,
@@ -2729,7 +2729,7 @@ function constructRule(
     const st: RuleState = {
       ...base,
       typeNum: 0,
-      name: sel.replace(/^@layer/i, "").trim(),
+      name: trimCss(sel.replace(/^@layer/i, "")),
       childRules: undefined,
       serialize() {
         return "@layer" + (st.name ? " " + st.name : "") + serializeChildBlock(st.childRules);
@@ -2745,16 +2745,8 @@ function constructRule(
 
   if (kind === "layer-statement") {
     const rule = mk(CSSLayerStatementRuleCls);
-    const names = raw
-      .replace(/^@layer/i, "")
-      .replace(/;\s*$/, "")
-      .trim();
-    const list = names
-      ? names
-          .split(",")
-          .map((s: string) => s.trim())
-          .filter(Boolean)
-      : [];
+    const names = trimCss(raw.replace(/^@layer/i, "").replace(/;\s*$/, ""));
+    const list = names ? splitCssList(names).map(trimCss).filter(Boolean) : [];
     const st: RuleState = {
       ...base,
       typeNum: 0,
@@ -2863,7 +2855,7 @@ function constructRule(
     const st: RuleState = {
       ...base,
       typeNum: 0,
-      name: sel.replace(/^@font-palette-values/i, "").trim(),
+      name: trimCss(sel.replace(/^@font-palette-values/i, "")),
       declBag,
       serialize() {
         const parts: string[] = [];
@@ -2907,7 +2899,7 @@ function constructRule(
     const st: RuleState = {
       ...base,
       typeNum: 14,
-      name: sel.replace(/^@font-feature-values/i, "").trim(),
+      name: trimCss(sel.replace(/^@font-feature-values/i, "")),
       features,
       serialize() {
         const blocks: string[] = [];
@@ -2934,7 +2926,7 @@ function constructRule(
     const st: RuleStateWith<"childRules"> = {
       ...base,
       typeNum: 7,
-      name: sel.replace(/^@(-webkit-)?keyframes/i, "").trim(),
+      name: trimCss(sel.replace(/^@(-webkit-)?keyframes/i, "")),
       childRules: makeRuleList([]),
       serialize() {
         return "@keyframes " + st.name + serializeChildBlock(st.childRules);
