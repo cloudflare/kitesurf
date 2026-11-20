@@ -131,10 +131,14 @@ export type EventEmitter = (event: CdpEvent) => void;
  * client, not per browser. Everything the clients share stays on BrowserState.
  */
 export interface CdpClientState {
+  readonly id: string;
   // Page mode treats the socket as the page's own session; browser mode exposes page targets.
   readonly connectionMode: "page" | "browser";
   autoAttach: boolean;
   flatten: boolean;
+  // The CDP sessions this client attached. On a persistent session, events on one of them
+  // reach this client only.
+  readonly sessions: Set<string>;
 }
 
 export interface BrowserState {
