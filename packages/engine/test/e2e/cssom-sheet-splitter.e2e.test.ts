@@ -314,6 +314,47 @@ test("a comment in media text does not stop the list from splitting", async ({ p
   });
 }, 60_000);
 
+// A comment right after a hex escape still separates two tokens: the escape's terminator is
+// not the separator. `onl\79/**/all` is `only all`, and the rule applies, as in Chrome.
+test("a comment after a hex escape in media text keeps the tokens apart", async ({
+  browser,
+  page,
+}) => {
+  for (const mt of ["onl\\79/**/all", "onl\\79 /**/all", "not all, onl\\79/**/all"]) {
+    const p = await browser.newPage();
+    try {
+      await setContent(p, `<style id=s>@media print{#t{margin-left:3px}}</style><p id=t>x</p>`);
+      const margin = await p.evaluate(`(() => {
+        document.getElementById("s").sheet.cssRules[0].media.mediaText = ${JSON.stringify(mt)};
+        return getComputedStyle(document.getElementById("t")).marginLeft;
+      })()`);
+      expect(margin, mt).toBe("3px");
+    } finally {
+      await p.close();
+    }
+  }
+  // The same holds in a <style> sheet, and the comment adds no descendant combinator:
+  // `#u\31/**/.b` is `#u1.b`, and `#u\31/**/span` stays invalid, as in Chrome.
+  await setContent(
+    page,
+    `<style id=s>@media onl\\79/**/all{#t{margin-left:3px}} #u\\31/**/.b{margin-left:5px}` +
+      ` #u\\31/**/span{margin-left:6px}</style>` +
+      `<p id=t>x</p><p id=u1 class=b><span id=v>y</span></p>`,
+  );
+  const sheet = await page.evaluate(`(() => {
+    const s = document.getElementById("s").sheet;
+    s.insertRule("#t{padding-right:4px}", s.cssRules.length);
+    const style = (id) => getComputedStyle(document.getElementById(id));
+    return {
+      t: style("t").marginLeft,
+      u: style("u1").marginLeft,
+      v: style("v").marginLeft,
+      tokens: s.cssRules[0].media.mediaText.split(/\\s+/).length,
+    };
+  })()`);
+  expect(sheet).toEqual({ t: "3px", u: "5px", v: "0px", tokens: 2 });
+}, 60_000);
+
 // Only CSS whitespace (space, tab, LF, CR, FF) collapses or trims in media text, as in Chrome.
 // NBSP is a name character, so a query holding one stays invalid and its rule never applies.
 // Kitesurf keeps the text as written where Chrome serializes an invalid query as "not all".

@@ -2025,8 +2025,13 @@ function stripCssComments(src: string, gap = ""): string {
       continue;
     }
     if (ch === "/" && src[i + 1] === "*") {
-      out += src.slice(from, i) + gap;
       const end = src.indexOf("*/", i + 2);
+      // After a hex escape the comment still ends the escape and the token: `onl\79/**/all`
+      // is `only all`, not `\79a`. With a gap, one space terminates the escape and the gap
+      // separates. Without one, an empty comment keeps the boundary exactly: a space would
+      // turn `#u\31/**/span` (invalid) into the descendant selector `#u1 span`.
+      const afterEscape = escapeEnd === i && isHexDigit(src[i - 1]);
+      out += src.slice(from, i) + (afterEscape ? (gap ? " " + gap : "/**/") : gap);
       if (end < 0) return out;
       i = end + 1;
       from = end + 2;
