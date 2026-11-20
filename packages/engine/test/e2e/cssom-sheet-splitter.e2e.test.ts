@@ -384,6 +384,34 @@ test("a balanced brace inside a media function keeps the query", async ({ page }
   });
 }, 60_000);
 
+// A bad string in one @import media query turns only that query into `not all`, as in Chrome:
+// the @import and its other queries stay. A bad string in the url still drops the rule.
+test("a bad string in an @import media query keeps the @import", async ({ page }) => {
+  await setContent(page, `<style id=s></style><p id=t>x</p>`);
+  const result = await page.evaluate(`(() => {
+    const s = document.getElementById("s");
+    s.textContent = '@import "data:text/css,x{}" all, "bad\\n; #t{margin-left:3px}';
+    s.sheet.insertRule("#t{padding-right:4px}", s.sheet.cssRules.length);
+    const t = getComputedStyle(document.getElementById("t"));
+    const r = s.sheet.cssRules[0];
+    return { type: r.type, media: r.media.mediaText, margin: t.marginLeft, padding: t.paddingRight };
+  })()`);
+  expect(result).toEqual({ type: 3, media: "all, not all", margin: "3px", padding: "4px" });
+}, 60_000);
+
+// A brace balanced inside supports() keeps the @import, as in Chrome.
+test("a balanced brace inside @import supports() keeps the rule", async ({ page }) => {
+  await setContent(page, `<style id=s></style><p id=t>x</p>`);
+  const types = await page.evaluate(`(() => {
+    const s = document.getElementById("s");
+    s.textContent = '@import "x.css" supports(--foo: {a}) all; #t{margin-left:3px}';
+    s.sheet.insertRule("#t{padding-right:4px}", s.sheet.cssRules.length);
+    const t = getComputedStyle(document.getElementById("t"));
+    return [Array.from(s.sheet.cssRules, (r) => r.type), t.marginLeft, t.paddingRight];
+  })()`);
+  expect(types).toEqual([[3, 1, 1], "3px", "4px"]);
+}, 60_000);
+
 // A comment right after a hex escape still separates two tokens: the escape's terminator is
 // not the separator. `onl\79/**/all` is `only all`, and the rule applies, as in Chrome.
 test("a comment after a hex escape in media text keeps the tokens apart", async ({
@@ -528,6 +556,21 @@ test("a brace in at-rule names does not unbalance the mirror", async ({ browser 
       "3px",
     ],
     ["@font-palette-values --p} #t{margin-left:3px}", [], "0px"],
+    // A bad string inside supports() drops the @import (checked in Chrome): one that runs to
+    // the end of the text, and two that line breaks end before the clause's `)`. So do an
+    // escaped `)` that leaves the clause open, and an empty clause.
+    [
+      '@import "x.css" supports(display:"a\n) all; #t{margin-left:3px}',
+      ["#t { margin-left: 3px; }"],
+      "3px",
+    ],
+    [
+      '@import "x.css" supports("a\nb"\n) all; #t{margin-left:3px}',
+      ["#t { margin-left: 3px; }"],
+      "3px",
+    ],
+    ['@import "x.css" supports(a\\)); #t{margin-left:3px}', ["#t { margin-left: 3px; }"], "3px"],
+    ['@import "x.css" supports(); #t{margin-left:3px}', ["#t { margin-left: 3px; }"], "3px"],
     // A bad string ends the prelude's string at the line break, so Chrome drops the rule.
     ['@import "a\n; #t{margin-left:3px}', ["#t { margin-left: 3px; }"], "3px"],
     [

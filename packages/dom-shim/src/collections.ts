@@ -2401,9 +2401,9 @@ function isClosedPrelude(text: string): boolean {
 }
 // What closes a prelude's open `(` and `[` blocks at EOF, innermost first, or null when the
 // prelude is unsafe for the mirror: a `{` outside `(`/`[`, an unmatched or unclosed brace, a bad
-// string, a string or url left open, or (when `semicolon` is false) a `;`
+// string (unless `badStrings`), a string or url left open, or (when `semicolon` is false) a `;`
 // outside every block. Braces balanced inside a function (`future({})`) are safe, as in Chrome.
-function preludeClosers(text: string, semicolon: boolean): string | null {
+function preludeClosers(text: string, semicolon: boolean, badStrings = false): string | null {
   const stack: string[] = [];
   let q = "";
   let escapeEnd = -1;
@@ -2419,8 +2419,10 @@ function preludeClosers(text: string, semicolon: boolean): string | null {
       continue;
     }
     if (q) {
-      if (isStringBreak(ch)) return null;
-      if (ch === q) q = "";
+      if (isStringBreak(ch)) {
+        if (!badStrings) return null;
+        q = "";
+      } else if (ch === q) q = "";
       continue;
     }
     if (ch === '"' || ch === "'") {
@@ -3125,12 +3127,20 @@ function constructRule(
 
   if (kind === "import") {
     // An @import has no block, so a brace in its text makes it invalid (Chrome drops it). Kept,
-    // the brace would be pasted into the mirror.
-    if (!isClosedPrelude(raw)) return null;
+    // the brace would be pasted into the mirror. A bad string is fine in the media list, where
+    // MediaList turns its query into `not all`, but not in the url or the clauses before it.
+    if (preludeClosers(raw, true, true) !== "") return null;
     const sup = extractImportSupports(raw);
     const m = sup.rest.match(
       /^@import\s+(?:url\(\s*(?:"([^"]*)"|'([^']*)'|([^)"']*))\s*\)|"([^"]*)"|'([^']*)')\s*(layer(?:\(([^)]*)\))?)?\s*(?:supports\(([\s\S]*?)\))?\s*([^;]*);?\s*$/i,
     );
+    const mediaAt = m && m[9] ? sup.rest.lastIndexOf(m[9]) : sup.rest.length;
+    if (!isClosedPrelude(sup.rest.slice(0, mediaAt))) return null;
+    // extractImportSupports took the supports() clause out of `rest`: check it inside its parens,
+    // so a brace balanced in it stays allowed (`supports(--foo: {a})`). An empty clause is
+    // invalid. Both as in Chrome.
+    const st = sup.supportsText;
+    if (st != null && (st === "" || !isClosedPrelude("(" + st + ")"))) return null;
     if (m) {
       const rule = mk(CSSImportRuleCls);
       const href =
