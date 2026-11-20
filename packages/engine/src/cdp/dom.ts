@@ -690,7 +690,10 @@ export function ensurePageScript(
         spawnKind: "blank",
         host: "",
       });
-      for (const source of dctx.browser.preNavScripts.values()) {
+      for (const source of [
+        ...dctx.browser.preNavScripts.values(),
+        ...target.preNavScripts.values(),
+      ]) {
         try {
           await stub.evaluate(source, {});
         } catch (err) {

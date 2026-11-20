@@ -8,6 +8,9 @@ export {
   KitesurfEngine,
   SandboxOutbound,
   PageScriptTail,
+  // Wrapping Workers must re-export `PageIsolateHost` under this name so
+  // `ctx.exports.PageIsolateHost` hosts dynamic isolates in their own loopback IoContext.
+  PageIsolateHost,
   DeniedOutbound,
   SpanSink,
 } from "./index.ts";

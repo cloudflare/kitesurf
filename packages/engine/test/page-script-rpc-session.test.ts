@@ -24,6 +24,7 @@ function makeFake(
 ) {
   const calls: Array<{ method: PageScriptMethod; params: object; meta: WireMeta }> = [];
   let disposed = 0;
+  let entrypointDisposed = 0;
   let opened = 0;
   let portsDisposed = 0;
   let portsMinted = 0;
@@ -56,6 +57,9 @@ function makeFake(
       upstream = init.upstream as (e: { event: string; params: Record<string, unknown> }) => void;
       return session as RpcSessionCallable;
     },
+    [Symbol.dispose]() {
+      entrypointDisposed += 1;
+    },
   };
   return {
     entrypoint,
@@ -63,6 +67,9 @@ function makeFake(
     makePort,
     get disposed() {
       return disposed;
+    },
+    get entrypointDisposed() {
+      return entrypointDisposed;
     },
     get opened() {
       return opened;
@@ -470,6 +477,75 @@ describe("PageScriptRpcSession", () => {
     s.close("retired");
     await s.killIsolate("retired");
     expect(kills).toBe(1);
+  });
+
+  it("releases the entrypoint only once the kill settles", async () => {
+    let settleKill: (() => void) | null = null;
+    const fake = makeFake();
+    fake.entrypoint.killIsolate = () =>
+      new Promise<void>((resolve) => {
+        settleKill = resolve;
+      });
+    const s = openPageScriptRpcSession(fake.entrypoint);
+    await s.syncCookies("warm=up");
+
+    s.close("generation bump");
+    const killing = s.killIsolate("generation bump");
+    await vi.waitFor(() => expect(settleKill).not.toBeNull());
+    expect(fake.entrypointDisposed, "the killed isolate is still alive").toBe(0);
+
+    settleKill!();
+    await killing;
+    expect(fake.entrypointDisposed).toBe(1);
+  });
+
+  it("releases the entrypoint once the close ends teardown with no kill", async () => {
+    const fake = makeFake({ onClose: () => Promise.resolve() });
+    const s = openPageScriptRpcSession(fake.entrypoint);
+    await s.syncCookies("warm=up");
+
+    s.close("target closed");
+    await vi.waitFor(() => expect(fake.entrypointDisposed).toBe(1));
+  });
+
+  it("releases the entrypoint once however many kills retire the generation", async () => {
+    const fake = makeFake();
+    fake.entrypoint.killIsolate = async () => {};
+    const s = openPageScriptRpcSession(fake.entrypoint);
+    await s.syncCookies("warm=up");
+
+    await s.killIsolate("wall cap");
+    await s.killIsolate("retired");
+    expect(fake.entrypointDisposed).toBe(1);
+  });
+
+  it("ends the session's outbound bodies once, before releasing the entrypoint", async () => {
+    const fake = makeFake();
+    fake.entrypoint.killIsolate = async () => {};
+    const cancelled: Array<{ reason: string; entrypointDisposed: number }> = [];
+    const s = openPageScriptRpcSession(fake.entrypoint, {
+      cancelOutboundBodies: (reason) =>
+        cancelled.push({ reason: reason ?? "", entrypointDisposed: fake.entrypointDisposed }),
+    });
+    await s.syncCookies("warm=up");
+
+    s.close("generation bump");
+    await s.killIsolate("generation bump");
+    expect(cancelled).toEqual([{ reason: "generation bump", entrypointDisposed: 0 }]);
+    expect(fake.entrypointDisposed).toBe(1);
+  });
+
+  it("ends the session's outbound bodies when only the kill retires the generation", async () => {
+    const fake = makeFake();
+    fake.entrypoint.killIsolate = async () => {};
+    const cancelled: string[] = [];
+    const s = openPageScriptRpcSession(fake.entrypoint, {
+      cancelOutboundBodies: (reason) => cancelled.push(reason ?? ""),
+    });
+    await s.syncCookies("warm=up");
+
+    await s.killIsolate("wall cap");
+    expect(cancelled).toEqual(["wall cap"]);
   });
 
   it("an ordinary page error does not end the session", async () => {
