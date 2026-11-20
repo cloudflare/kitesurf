@@ -314,6 +314,51 @@ test("a comment in media text does not stop the list from splitting", async ({ p
   });
 }, 60_000);
 
+// A media query that would leave a block or string open becomes `not all`, as in Chrome, so
+// the mirror stays balanced and a rule inserted after it still applies.
+test("unsafe media text becomes not all; an open paren is closed at EOF", async ({ page }) => {
+  await setContent(page, `<style id=s>@media all{#t{margin-left:3px}}</style><p id=t>x</p>`);
+  const result = await page.evaluate(`(() => {
+    const s = document.getElementById("s").sheet;
+    const media = s.cssRules[0].media;
+    const texts = {};
+    for (const v of ['x{"a', "x{", '"a', "x}", "all;", '"a\\nb"', "[a", "all, (min-width:1px"]) {
+      media.mediaText = v;
+      texts[v] = media.mediaText;
+    }
+    // EOF closes an open paren, so the query still matches and can be deleted by either form.
+    media.mediaText = "(min-width:1px";
+    const open = media.mediaText;
+    const margin = getComputedStyle(document.getElementById("t")).marginLeft;
+    media.deleteMedium("(min-width:1px");
+    const deleted = media.length;
+    media.mediaText = "(min-width:1px";
+    media.deleteMedium("(min-width:1px)");
+    const deletedClosed = media.length;
+    media.mediaText = 'x{"a';
+    s.insertRule("#t{padding-right:4px}", 1);
+    const padding = getComputedStyle(document.getElementById("t")).paddingRight;
+    return { texts, open, margin, deleted, deletedClosed, padding };
+  })()`);
+  expect(result).toEqual({
+    texts: {
+      'x{"a': "not all",
+      "x{": "not all",
+      '"a': "not all",
+      "x}": "not all",
+      "all;": "not all",
+      '"a\nb"': "not all",
+      "[a": "not all",
+      "all, (min-width:1px": "all, (min-width:1px)",
+    },
+    open: "(min-width:1px)",
+    margin: "3px",
+    deleted: 0,
+    deletedClosed: 0,
+    padding: "4px",
+  });
+}, 60_000);
+
 // A comment right after a hex escape still separates two tokens: the escape's terminator is
 // not the separator. `onl\79/**/all` is `only all`, and the rule applies, as in Chrome.
 test("a comment after a hex escape in media text keeps the tokens apart", async ({
@@ -357,7 +402,7 @@ test("a comment after a hex escape in media text keeps the tokens apart", async 
 
 // Only CSS whitespace (space, tab, LF, CR, FF) collapses or trims in media text, as in Chrome.
 // NBSP is a name character, so a query holding one stays invalid and its rule never applies.
-// Kitesurf keeps the text as written where Chrome serializes an invalid query as "not all".
+// Kitesurf keeps an NBSP query as written where Chrome serializes it as "not all".
 test("CSS whitespace collapses in media text; NBSP is kept", async ({ browser }) => {
   const page = await browser.newPage();
   try {
@@ -458,6 +503,13 @@ test("a brace in at-rule names does not unbalance the mirror", async ({ browser 
       "3px",
     ],
     ["@font-palette-values --p} #t{margin-left:3px}", [], "0px"],
+    // A bad string ends the prelude's string at the line break, so Chrome drops the rule.
+    ['@import "a\n; #t{margin-left:3px}', ["#t { margin-left: 3px; }"], "3px"],
+    [
+      '@font-feature-values "a\n{@swash{x:1}} #t{margin-left:3px}',
+      ["#t { margin-left: 3px; }"],
+      "3px",
+    ],
     ["@font-palette-values p{} #t{margin-left:3px}", ["#t { margin-left: 3px; }"], "3px"],
     // Escaped dashes still make a dashed name, so Chrome keeps both rules.
     [

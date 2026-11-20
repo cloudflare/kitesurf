@@ -1448,10 +1448,16 @@ for (const [k, v] of Object.entries(RULE_CONSTANTS)) {
 // public mutators call onMutate: the construction-time parse must never
 // remirror a sheet that is mid-reparse.
 const MEDIA_LIST_TOKEN = Symbol("kitesurfMediaList");
-// One media query as MediaList stores it: comments become spaces, like CSS token separators,
-// and CSS whitespace runs collapse so equal queries compare equal.
+// One media query as MediaList stores it: comments become spaces and CSS whitespace collapses,
+// so equal queries compare equal. EOF closes an open `(`, as in Chrome.
+
+// A query unsafe for the mirror (a brace, a bad or open string, an open url or `[`, a top-level
+// `;`) is `not all`, as in Chrome: kept, `x{"a` would swallow the rules after it.
 function normalizeMedium(text: string): string {
-  return trimCss(collapseCssSpace(stripCssComments(text, " ")));
+  const m = trimCss(collapseCssSpace(stripCssComments(text, " ")));
+  if (!m) return m;
+  const closers = preludeClosers(m, false);
+  return closers === null || closers.includes("]") ? "not all" : m + closers;
 }
 class MediaListCls implements Idl.MediaList {
   readonly [index: number]: string;
@@ -2387,9 +2393,16 @@ function escapeLength(text: string, i: number): number {
   const ws = text[j] === " " || text[j] === "\t" || isStringBreak(text[j]);
   return ws ? j + 1 - i : j - i;
 }
-// A prelude that is safe to paste into the mirror: no `{` or `}` outside strings and urls, and
-// no string, url, `(` or `[` left open. A stray `)` or `]` is allowed, as eofClosers allows it.
+// A prelude that is safe to paste into the mirror: no `{` or `}` outside strings and urls, no
+// bad string (one a line break ends), and no string, url, `(` or `[` left open. A stray `)` or
+// `]` is allowed, as eofClosers allows it.
 function isClosedPrelude(text: string): boolean {
+  return preludeClosers(text, true) === "";
+}
+// What closes a prelude's open `(` and `[` blocks at EOF, innermost first, or null when the
+// prelude is unsafe for the mirror: a `{` or `}` outside strings and urls, a bad string, a
+// string or url left open, or (when `semicolon` is false) a `;` outside every block.
+function preludeClosers(text: string, semicolon: boolean): string | null {
   const stack: string[] = [];
   let q = "";
   let escapeEnd = -1;
@@ -2405,7 +2418,8 @@ function isClosedPrelude(text: string): boolean {
       continue;
     }
     if (q) {
-      if (ch === q || isStringBreak(ch)) q = "";
+      if (isStringBreak(ch)) return null;
+      if (ch === q) q = "";
       continue;
     }
     if (ch === '"' || ch === "'") {
@@ -2413,18 +2427,20 @@ function isClosedPrelude(text: string): boolean {
       continue;
     }
     const urlEnd = urlTokenEnd(text, i, escapeEnd);
-    if (urlEnd > text.length) return false;
+    if (urlEnd > text.length) return null;
     if (urlEnd >= 0) {
       i = urlEnd - 1;
     } else if (ch === "{" || ch === "}") {
-      return false;
+      return null;
+    } else if (ch === ";" && !semicolon && stack.length === 0) {
+      return null;
     } else if (ch === "(" || ch === "[") {
       stack.push(ch === "(" ? ")" : "]");
     } else if (ch === stack[stack.length - 1]) {
       stack.pop();
     }
   }
-  return !q && stack.length === 0;
+  return q ? null : stack.reverse().join("");
 }
 // What EOF closes in an unclosed rule body: the open string or url, then each open (, [ and {
 // block, innermost first.
