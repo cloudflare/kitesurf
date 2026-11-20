@@ -294,6 +294,33 @@ test("a ; before a rule drops it in replaceSync", async ({ page }) => {
   expect(margin).toBe("0px");
 }, 60_000);
 
+// A ; inside a block or url is part of an @font-palette-values value, so the serialized
+// value never leaves a block open. Results match Chrome.
+test("an @font-palette-values value keeps a ; inside a block", async ({ browser }) => {
+  for (const [css, margin] of [
+    ["@font-palette-values --p{font-family:(a;b", "0px"],
+    ["@font-palette-values --p{font-family:(a;b)} #t{margin-left:3px}", "3px"],
+    ["@font-palette-values --p{font-family:[a;b]} #t{margin-left:3px}", "3px"],
+    ["@font-palette-values --p{font-family:url(a;b)} #t{margin-left:3px}", "3px"],
+    ['@font-palette-values --p{font-family:"a;b"} #t{margin-left:3px}', "3px"],
+  ]) {
+    const page = await browser.newPage();
+    try {
+      await setContent(page, `<style id=s></style><p id=t>x</p>`);
+      const result = await page.evaluate(`(() => {
+        const s = document.getElementById("s");
+        s.textContent = ${JSON.stringify(css)};
+        s.sheet.insertRule("#t{padding-right:4px}", s.sheet.cssRules.length);
+        const t = getComputedStyle(document.getElementById("t"));
+        return { margin: t.marginLeft, padding: t.paddingRight };
+      })()`);
+      expect(result, css).toEqual({ margin, padding: "4px" });
+    } finally {
+      await page.close();
+    }
+  }
+}, 60_000);
+
 // A brace inside an unquoted url does not end the rule; after # or @, url( is not a url.
 test("url token boundaries in the rule splitter", async ({ browser }) => {
   for (const css of [

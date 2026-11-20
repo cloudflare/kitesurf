@@ -2055,25 +2055,36 @@ function unquotedUrlEnd(src: string, i: number): number {
   while (j < src.length && src[j] !== ")") j += src[j] === "\\" ? escapeLength(src, j) : 1;
   return j < src.length ? j + 1 : src.length + 1;
 }
-// Splits a comma list on commas outside strings and parentheses.
-function splitCssList(text: string): string[] {
+// Splits a list on `sep` outside strings, url tokens and (, [ and { blocks.
+function splitCssList(text: string, sep = ","): string[] {
   const parts: string[] = [];
+  const stack: string[] = [];
   let from = 0;
-  let depth = 0;
   let q = "";
+  let escapeEnd = -1;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (ch === "\\") {
-      i += escapeLength(text, i) - 1;
-    } else if (q) {
+      if (q || !isStringBreak(text[i + 1])) {
+        i += escapeLength(text, i) - 1;
+        escapeEnd = i + 1;
+      }
+      continue;
+    }
+    if (q) {
       if (ch === q || isStringBreak(ch)) q = "";
+      continue;
+    }
+    const urlEnd = urlTokenEnd(text, i, escapeEnd);
+    if (urlEnd >= 0) {
+      i = urlEnd - 1;
     } else if (ch === '"' || ch === "'") {
       q = ch;
-    } else if (ch === "(") {
-      depth++;
-    } else if (ch === ")" && depth > 0) {
-      depth--;
-    } else if (ch === "," && depth === 0) {
+    } else if (ch === "(" || ch === "[" || ch === "{") {
+      stack.push(ch === "(" ? ")" : ch === "[" ? "]" : "}");
+    } else if (ch === stack[stack.length - 1]) {
+      stack.pop();
+    } else if (ch === sep && stack.length === 0) {
       parts.push(text.slice(from, i));
       from = i + 1;
     }
@@ -2925,7 +2936,13 @@ function constructRule(
   if (kind === "font-palette-values") {
     const rule = mk(CSSFontPaletteValuesRuleCls);
     const declBag: Record<string, string> = Object.create(null);
-    parseCssTextInto(parsed.declText || "", declBag);
+    // A `;` inside a block or url is part of the value: splitting there would leave the
+    // serialized value with an open block that swallows the rules after it.
+    for (const decl of splitCssList(String(parsed.declText || ""), ";")) {
+      const colon = decl.indexOf(":");
+      const name = colon > 0 ? decl.slice(0, colon).trim() : "";
+      if (name) declBag[cssPropToCamel(name)] = decl.slice(colon + 1).trim();
+    }
     const st: RuleState = {
       ...base,
       typeNum: 0,
