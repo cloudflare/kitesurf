@@ -172,6 +172,90 @@ test("a url after a backslash and newline keeps its /*", async ({ browser }) => 
   }
 }, 60_000);
 
+// The end of the sheet closes an open string, url, function and block, as in Chrome: the
+// rule keeps its earlier declarations, and a later quote after a bad string still swallows
+// the rest of the text.
+test("an unclosed last rule is closed at the end of the sheet", async ({ browser }) => {
+  for (const css of [
+    '#t{margin-left:3px; content:"line one\nline two"; color:red}\n#t{color:blue}',
+    '#t{margin-left:3px; content:"oops',
+    "#t{margin-left:3px; background:url(a",
+    "#t{margin-left:3px; --x:f(1",
+    "@media all{#t{margin-left:3px",
+    '#t{margin-left:3px; content:"a\\',
+    "#t{margin-left:3px; background:x\\",
+    "#t{margin-left:3px; --x:[",
+    "#t{margin-left:3px; --x:f({",
+    "#t{margin-left:3px; --x:a\\\nb",
+    "#t{margin-left:3px; --x:f([{",
+  ]) {
+    const page = await browser.newPage();
+    try {
+      await setContent(page, `<style id=s></style><p id=t>x</p>`);
+      const result = await page.evaluate(`(() => {
+        const s = document.getElementById("s");
+        s.textContent = ${JSON.stringify(css)};
+        const rules = s.sheet.cssRules.length;
+        s.sheet.insertRule("#t{padding-right:4px}", s.sheet.cssRules.length);
+        // insertRule takes the same unclosed text as a rule of its own.
+        const sheet = new CSSStyleSheet();
+        sheet.insertRule(${JSON.stringify(css)});
+        const inserted = sheet.cssRules[0].cssText.includes("margin-left: 3px");
+        const t = getComputedStyle(document.getElementById("t"));
+        return { rules, inserted, color: t.color, margin: t.marginLeft, padding: t.paddingRight };
+      })()`);
+      expect(result, css).toEqual({
+        rules: 1,
+        inserted: true,
+        color: "rgb(0, 0, 0)",
+        margin: "3px",
+        padding: "4px",
+      });
+    } finally {
+      await page.close();
+    }
+  }
+}, 60_000);
+
+// Inside an open ( or [ a } is plain text, so the rule stays open and swallows the rest; a {
+// inside a prelude's ( is not a rule block. Results match Chrome.
+test("a brace inside an open block does not end the rule", async ({ browser }) => {
+  for (const [css, margin] of [
+    ["#t{margin-left:3px; --x:f(} #t{color:red}", "3px"],
+    ["#t{margin-left:3px; --x:[} #t{color:red}", "3px"],
+    ["#t(a{color:red}) #t{margin-left:3px}", "0px"],
+    ["#t{--x:f([) ; margin-left:3px} #t{color:red}", "0px"],
+  ]) {
+    const page = await browser.newPage();
+    try {
+      await setContent(page, `<style id=s></style><p id=t>x</p>`);
+      const result = await page.evaluate(`(() => {
+        const s = document.getElementById("s");
+        s.textContent = ${JSON.stringify(css)};
+        s.sheet.insertRule("#t{padding-right:4px}", s.sheet.cssRules.length);
+        const t = getComputedStyle(document.getElementById("t"));
+        return { color: t.color, margin: t.marginLeft, padding: t.paddingRight };
+      })()`);
+      expect(result, css).toEqual({ color: "rgb(0, 0, 0)", margin, padding: "4px" });
+    } finally {
+      await page.close();
+    }
+  }
+}, 60_000);
+
+// A stray } at the top level starts an invalid rule, as in Chrome; the rules around it stay.
+test("a stray closing brace drops only the rule after it", async ({ page }) => {
+  await setContent(page, `<style id=s></style><p id=t>x</p>`);
+  const result = await page.evaluate(`(() => {
+    const s = document.getElementById("s");
+    s.textContent = "#a{color:red}}#t{margin-left:3px} #t{color:rgb(1, 2, 3)}";
+    s.sheet.insertRule("#t{padding-right:4px}", s.sheet.cssRules.length);
+    const t = getComputedStyle(document.getElementById("t"));
+    return { color: t.color, margin: t.marginLeft, padding: t.paddingRight };
+  })()`);
+  expect(result).toEqual({ color: "rgb(1, 2, 3)", margin: "0px", padding: "4px" });
+}, 60_000);
+
 // A brace inside an unquoted url does not end the rule; after # or @, url( is not a url.
 test("url token boundaries in the rule splitter", async ({ browser }) => {
   for (const css of [

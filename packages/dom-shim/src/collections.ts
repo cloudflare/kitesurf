@@ -2048,11 +2048,12 @@ function isUnquotedUrlAt(src: string, i: number): boolean {
 function urlTokenEnd(src: string, i: number, escapeEnd: number): number {
   return escapeEnd !== i && isUnquotedUrlAt(src, i) ? unquotedUrlEnd(src, i) : -1;
 }
-// Index after the `)` that closes the url, or the end of the text. A bad url runs to `)` too.
+// Index after the `)` that closes the url (a bad url runs to `)` too), or one past the end of
+// the text when the url is still open there.
 function unquotedUrlEnd(src: string, i: number): number {
   let j = i + 4;
   while (j < src.length && src[j] !== ")") j += src[j] === "\\" ? escapeLength(src, j) : 1;
-  return Math.min(j + 1, src.length);
+  return j < src.length ? j + 1 : src.length + 1;
 }
 // Splits a comma list on commas outside strings and parentheses.
 function splitCssList(text: string): string[] {
@@ -2155,6 +2156,43 @@ function escapeLength(text: string, i: number): number {
   const ws = text[j] === " " || text[j] === "\t" || isStringBreak(text[j]);
   return ws ? j + 1 - i : j - i;
 }
+// What EOF closes in an unclosed rule body: the open string or url, then each open (, [ and {
+// block, innermost first.
+function eofClosers(body: string): string {
+  const stack: string[] = [];
+  let q = "";
+  let escapeEnd = -1;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch === "\\") {
+      if (!q && isStringBreak(body[i + 1])) {
+        escapeEnd = -1;
+        continue;
+      }
+      i += escapeLength(body, i) - 1;
+      escapeEnd = i + 1;
+      continue;
+    }
+    if (q) {
+      if (ch === q || isStringBreak(ch)) q = "";
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      q = ch;
+      continue;
+    }
+    const urlEnd = urlTokenEnd(body, i, escapeEnd);
+    if (urlEnd > body.length) return ")" + stack.reverse().join("");
+    if (urlEnd >= 0) {
+      i = urlEnd - 1;
+    } else if (ch === "(" || ch === "[" || ch === "{") {
+      stack.push(ch === "(" ? ")" : ch === "[" ? "]" : "}");
+    } else if (ch === stack[stack.length - 1]) {
+      stack.pop();
+    }
+  }
+  return q + stack.reverse().join("");
+}
 function splitStylesheetRules(src: unknown): ParsedRuleList {
   const out = Object.assign([] as ParsedRuleChunk[], {
     trailingGarbage: "",
@@ -2164,10 +2202,10 @@ function splitStylesheetRules(src: unknown): ParsedRuleList {
   const n = text.length;
   let i = 0;
   let chunkStart = 0;
-  let depth = 0;
-  let parenDepth = 0;
-  // A `[` in a prelude opens a block that runs to its `]`, braces included.
-  let bracketDepth = 0;
+  // Closers of the open (, [ and { blocks. Inside a block only its own closer ends it, so a `}`
+  // inside an open `(` or `[` is plain text, as in CSS Syntax.
+  const stack: string[] = [];
+  // The `{` that opened the current rule's block, at the top level only.
   let braceOpenAt = -1;
   let inStr = "";
   let escapeEnd = -1;
@@ -2204,35 +2242,18 @@ function splitStylesheetRules(src: unknown): ParsedRuleList {
       i = urlEnd;
       continue;
     }
-    if (ch === "(") {
-      parenDepth++;
+    if (ch === "(" || ch === "[" || ch === "{") {
+      // A `{` inside a prelude's `(` or `[` is part of that block, not a rule block.
+      if (ch === "{" && stack.length === 0) braceOpenAt = i;
+      stack.push(ch === "(" ? ")" : ch === "[" ? "]" : "}");
       i++;
       continue;
     }
-    if (ch === ")" && parenDepth > 0) {
-      parenDepth--;
-      i++;
-      continue;
-    }
-    // Outside parens only: an unquoted url(a[.css) holds a plain `[`.
-    if (depth === 0 && parenDepth === 0 && (ch === "[" || (ch === "]" && bracketDepth > 0))) {
-      bracketDepth += ch === "[" ? 1 : -1;
-      i++;
-      continue;
-    }
-    if (depth === 0 && bracketDepth > 0) {
-      i++;
-      continue;
-    }
-    if (ch === "{") {
-      if (depth === 0) braceOpenAt = i;
-      depth++;
-      i++;
-      continue;
-    }
-    if (ch === "}") {
-      depth--;
-      if (depth === 0 && braceOpenAt >= 0) {
+    // Only the innermost block's closer ends it. A stray `}` at the top level is prelude text:
+    // the rule it starts is invalid.
+    if (ch === stack[stack.length - 1]) {
+      stack.pop();
+      if (stack.length === 0 && ch === "}") {
         const selectorText = trimCss(text.slice(chunkStart, braceOpenAt));
         const declText = trimCss(text.slice(braceOpenAt + 1, i));
         const cssText = selectorText
@@ -2245,16 +2266,33 @@ function splitStylesheetRules(src: unknown): ParsedRuleList {
       i++;
       continue;
     }
-    if (depth === 0 && parenDepth === 0 && ch === ";") {
+    if (stack.length === 0 && ch === ";") {
       const raw = text.slice(chunkStart, i + 1).trim();
       if (raw) out.push({ cssText: raw, selectorText: "", declText: "" });
       chunkStart = i + 1;
     }
     i++;
   }
+  // EOF closes an open string, url, function and block (CSS Syntax), so an unclosed last rule
+  // still counts. Emit it closed, or a rule appended after it would land inside it.
+  if (stack[0] === "}" && braceOpenAt >= 0) {
+    let body = text.slice(braceOpenAt + 1);
+    // A lone trailing `\` would escape the closer.
+    if (/(^|[^\\])(\\\\)*\\$/.test(body)) body += " ";
+    body += eofClosers(body);
+    const selectorText = trimCss(text.slice(chunkStart, braceOpenAt));
+    const declText = trimCss(body);
+    const cssText = selectorText
+      ? selectorText + " { " + declText + " }"
+      : text.slice(chunkStart, braceOpenAt + 1).trim() + " " + declText + " }";
+    out.push({ cssText, selectorText, declText });
+    chunkStart = n;
+    stack.length = 0;
+    inStr = "";
+  }
   const tail = trimCss(text.slice(chunkStart));
   out.trailingGarbage = tail.length > 0 ? tail : "";
-  out.unbalanced = depth !== 0 || parenDepth !== 0 || bracketDepth !== 0 || inStr !== "";
+  out.unbalanced = stack.length !== 0 || inStr !== "";
   return out;
 }
 
