@@ -53,17 +53,22 @@ function setup() {
 }
 
 describe("changeLocalStorage", () => {
-  it("sends a page's changes to the other live copies of the origin, not back to it", async () => {
+  it("sends a page's changes to the other live copies of the origin and acks the page", async () => {
     const { ctx, storage, page } = setup();
     const one = page("one");
     const two = page("two");
     const other = page("other", "https://b.test/");
     const ops = [{ op: "set", key: "k", value: "v" }] as const;
-    await changeLocalStorage(ctx, storage, A, ops, { source: one.copy, url: one.copy.url });
-    expect(one.calls).toEqual([]);
-    expect(two.calls).toEqual([{ op: "apply", area: "local", ops, url: `${A}/` }]);
+    const from = { source: one.copy, seq: 3, url: one.copy.url };
+    await changeLocalStorage(ctx, storage, A, ops, from);
+    expect(one.calls).toEqual([{ op: "apply", area: "local", ops: [], url: null, seq: 3 }]);
+    expect(two.calls).toEqual([{ op: "apply", area: "local", ops, url: `${A}/`, seq: 0 }]);
     expect(other.calls).toEqual([]);
     expect(storage.entries(A)).toEqual([["k", "v"]]);
+    // A later change from elsewhere tells each copy which of its own batches the area holds.
+    await changeLocalStorage(ctx, storage, A, [{ op: "clear" }], { url: null });
+    expect(one.calls.at(-1)).toMatchObject({ ops: [{ op: "clear" }], seq: 3 });
+    expect(two.calls.at(-1)).toMatchObject({ ops: [{ op: "clear" }], seq: 0 });
   });
 
   it("skips a copy whose document was replaced or whose target closed", async () => {
@@ -77,21 +82,25 @@ describe("changeLocalStorage", () => {
     expect(closed.calls).toEqual([]);
   });
 
-  it("does not send a set the area limit dropped", async () => {
+  it("sends a set the area limit dropped to no copy, and the area's value to its source", async () => {
     const { ctx, storage, page } = setup();
+    const one = page("one");
     const two = page("two");
+    storage.apply(A, [{ op: "set", key: "k", value: "old" }]);
     const huge = "x".repeat(LOCAL_STORAGE_AREA_LIMIT_UNITS);
-    const result = await changeLocalStorage(
-      ctx,
-      storage,
-      A,
-      [{ op: "set", key: "k", value: huge }],
-      {
-        url: null,
-      },
-    );
+    const ops = [
+      { op: "set", key: "k", value: huge },
+      { op: "set", key: "new", value: huge },
+    ] as const;
+    const from = { source: one.copy, seq: 1, url: one.copy.url };
+    const result = await changeLocalStorage(ctx, storage, A, ops, from);
     expect(result.applied).toEqual([]);
     expect(two.calls).toEqual([]);
+    const fixes = [
+      { op: "set", key: "k", value: "old" },
+      { op: "remove", key: "new" },
+    ];
+    expect(one.calls).toEqual([{ op: "apply", area: "local", ops: fixes, url: null, seq: 1 }]);
   });
 
   it("emits DOMStorage events to sessions on a page of the origin", async () => {

@@ -13,6 +13,7 @@ import { testClient } from "./client-state.ts";
 import { NetworkEventTracker } from "../src/cdp/network-events.ts";
 import { learnedScriptsFor, type LearnedScripts } from "../src/eval/learned-scripts.ts";
 import type { PageScriptStub, UpstreamEventHandler } from "../src/eval/page-script.ts";
+import type { WebStorageParams } from "@kitesurf/jsrpc-types/page-script";
 import { StorageCopy } from "../src/cdp/storage-copies.ts";
 import { LocalStorage } from "../src/state/local-storage.ts";
 import { MemorySessionStore } from "../src/state/session-store.ts";
@@ -21,9 +22,14 @@ const BIG = 64 * 1024;
 
 function installFor(isolateUrl: string, localStorage?: LocalStorage) {
   let handler: UpstreamEventHandler | null = null;
+  const webStorageCalls: WebStorageParams[] = [];
   const stub = {
     setUpstreamEventHandler(h: UpstreamEventHandler | null) {
       handler = h;
+    },
+    webStorage: async (params: WebStorageParams) => {
+      webStorageCalls.push(params);
+      return { seq: 0 };
     },
   } as PageScriptStub;
   const targets = new Map<string, TargetState>();
@@ -74,7 +80,7 @@ function installFor(isolateUrl: string, localStorage?: LocalStorage) {
   installUpstreamEventHandler(ctx, target, stub, 1, isolateUrl, copy);
   const send = (event: UpstreamEventName, params: ReceivedUpstreamParams) =>
     handler!(event, params);
-  return { store, emitted, target, send, ctx, stub };
+  return { store, emitted, target, send, ctx, stub, webStorageCalls };
 }
 
 describe("kitesurf.insertedScriptRan", () => {
@@ -98,12 +104,13 @@ describe("kitesurf.localStorage", () => {
     expect(storage.entries(A)).toEqual([["k", "v"]]);
   });
 
-  it("reports the batch to the page's DOMStorage sessions", () => {
+  it("acks the batch and reports it to the page's DOMStorage sessions", () => {
     const storage = new LocalStorage(new MemorySessionStore());
-    const { send, target, emitted } = installFor(`${A}/x`, storage);
+    const { send, target, emitted, webStorageCalls } = installFor(`${A}/x`, storage);
     target.domStorageSessions.add("s1");
     send("kitesurf.localStorage", { ops: [{ op: "set", key: "k", value: "v" }], seq: 4 });
     expect(storage.entries(A)).toEqual([["k", "v"]]);
+    expect(webStorageCalls).toEqual([{ op: "apply", area: "local", ops: [], url: null, seq: 4 }]);
     const storageId = { securityOrigin: A, storageKey: `${A}/`, isLocalStorage: true };
     expect(emitted).toEqual([
       {

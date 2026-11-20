@@ -427,10 +427,12 @@ export type LocalStorageOp =
 
 // The engine's calls on a page's Web Storage. `flush` sends the unsent localStorage changes now.
 // `apply` makes changes from another source (another page, a CDP client) and fires `storage`
-// events with `url` (none when null). `entries` reads sessionStorage, which only the page holds.
+// events with `url` (none when null); `seq` is the page's last batch the area held before them.
+// `entries` reads sessionStorage, which only the page holds.
 export type WebStorageParams =
   | { op: "flush" }
-  | { op: "apply"; area: "local" | "session"; ops: LocalStorageOp[]; url: string | null }
+  | { op: "apply"; area: "local"; ops: LocalStorageOp[]; url: string | null; seq: number }
+  | { op: "apply"; area: "session"; ops: LocalStorageOp[]; url: string | null }
   | { op: "entries"; area: "session" };
 
 export interface WebStorageReply {

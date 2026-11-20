@@ -65,4 +65,35 @@ describe("sharedArea", () => {
     await Promise.resolve();
     expect(sent).toEqual([[{ op: "remove", key: "k" }]]);
   });
+
+  it("replays a sent batch over a change the engine applied before it", async () => {
+    const area = sharedArea([], () => {});
+    area.set("k", "mine");
+    await Promise.resolve();
+    // Another page's write landed before batch 1: the area ends with this copy's value.
+    expect(area.applyRemote([{ op: "set", key: "k", value: "theirs" }], 0)).toEqual([]);
+    expect(area.get("k")).toBe("mine");
+    // After batch 1 the other write wins and shows.
+    const later = area.applyRemote([{ op: "set", key: "k", value: "later" }], 1);
+    expect(later).toEqual([{ key: "k", oldValue: "mine", newValue: "later" }]);
+    expect(area.get("k")).toBe("later");
+  });
+
+  it("takes the area's value for a set the engine dropped, under later writes", async () => {
+    const area = sharedArea([], () => {});
+    area.set("k", "dropped");
+    area.set("j", "dropped");
+    await Promise.resolve();
+    area.set("j", "kept");
+    await Promise.resolve();
+    const fixes: LocalStorageOp[] = [
+      { op: "remove", key: "k" },
+      { op: "set", key: "j", value: "old" },
+    ];
+    area.applyRemote(fixes, 1);
+    expect([area.get("k"), area.get("j")]).toEqual([null, "kept"]);
+    // The ack of batch 2 leaves nothing to replay.
+    area.applyRemote([{ op: "set", key: "j", value: "theirs" }], 2);
+    expect(area.get("j")).toBe("theirs");
+  });
 });

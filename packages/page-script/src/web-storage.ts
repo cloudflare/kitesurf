@@ -168,7 +168,8 @@ function applyOps(data: Map<string, string>, ops: readonly LocalStorageOp[]): St
 
 /** An area the engine can also change: another page's or a CDP client's writes. */
 export interface RemoteArea extends StorageArea {
-  applyRemote(ops: readonly LocalStorageOp[]): StorageChange[];
+  /** `seq` is this copy's last batch the engine applied before `ops`. */
+  applyRemote(ops: readonly LocalStorageOp[], seq: number): StorageChange[];
 }
 
 export function sessionArea(): RemoteArea {
@@ -218,12 +219,15 @@ export function sharedArea(
   let pendingUnits = 0;
   let scheduled = false;
   let seq = 0;
+  // Sent batches until the engine acks them: a change it applied before one replays it on top.
+  let unacked: Array<{ seq: number; ops: LocalStorageOp[] }> = [];
   const flush = (): number => {
     if (pending.length === 0) return seq;
     const ops = pending;
     pending = [];
     pendingUnits = 0;
-    send(ops, ++seq);
+    unacked.push({ seq: ++seq, ops });
+    send(ops, seq);
     return seq;
   };
   const queue = (op: LocalStorageOp) => {
@@ -247,10 +251,11 @@ export function sharedArea(
   };
   return {
     flush,
-    // The engine applied `ops` before it sees this copy's unsent changes, so those replay on top.
-    applyRemote(ops) {
+    // The engine applied `ops` before this copy's unacked and unsent changes, which replay on top.
+    applyRemote(ops, acked) {
+      unacked = unacked.filter((batch) => batch.seq > acked);
       const changes = applyOps(data, ops);
-      const unsent = pending;
+      const unsent = [...unacked.flatMap((batch) => batch.ops), ...pending];
       applyOps(data, unsent);
       recount();
       // A change this copy's unsent ones replace never shows, so it fires no event.

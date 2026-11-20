@@ -47,6 +47,11 @@ export class StorageCopy {
     );
   }
 
+  /** The last batch of this page the engine applied. */
+  get applied(): number {
+    return this.#applied;
+  }
+
   /** The page's batch `seq` was applied. */
   received(seq: number): void {
     if (seq > this.#applied) this.#applied = seq;
@@ -90,28 +95,52 @@ export function liveCopies(storage: LocalStorage, origin: string): StorageCopy[]
   return out;
 }
 
-/**
- * Change an origin's area and send the change to every open copy but `source`'s, which already
- * made it. A null `url` fires no `storage` events. Resolves once every copy has the change.
- */
+// Change an origin's area and send the change to every other open copy, with `storage` events
+// unless `url` is null. `source`, whose batch `seq` it is, gets an ack with the area's value for
+// each set the area dropped. Resolves once every copy has the change.
 export async function changeLocalStorage(
   ctx: DispatchCtx,
   storage: LocalStorage,
   origin: string,
   ops: readonly LocalStorageOp[],
-  from: { source?: StorageCopy; url: string | null },
+  from: { source?: StorageCopy; seq?: number; url: string | null },
 ): Promise<LocalStorageApplied> {
   const result = storage.apply(origin, ops);
+  const source = from.source;
+  source?.received(from.seq ?? 0);
   emitChanges(ctx, storage, origin, result.changes);
-  if (result.applied.length === 0) return result;
   const pushes: Promise<unknown>[] = [];
   for (const copy of liveCopies(storage, origin)) {
-    if (copy === from.source) continue;
-    const params = { op: "apply", area: "local", ops: result.applied, url: from.url } as const;
-    pushes.push(copy.stub.webStorage(params).catch(() => {}));
+    if (copy === source) pushes.push(pushTo(copy, dropped(storage, origin, ops, result), null));
+    else if (result.applied.length > 0) pushes.push(pushTo(copy, result.applied, from.url));
   }
   await Promise.all(pushes);
   return result;
+}
+
+// `seq` tells the page which of its own batches the area held before these ops, so it replays
+// the rest on top (page-script web-storage.ts).
+function pushTo(copy: StorageCopy, ops: LocalStorageOp[], url: string | null): Promise<unknown> {
+  const params = { op: "apply", area: "local", ops, url, seq: copy.applied } as const;
+  return copy.stub.webStorage(params).catch(() => {});
+}
+
+// The area's value for each key whose set it dropped, which the source's copy already holds.
+function dropped(
+  storage: LocalStorage,
+  origin: string,
+  ops: readonly LocalStorageOp[],
+  result: LocalStorageApplied,
+): LocalStorageOp[] {
+  const applied = new Set(result.applied);
+  const keys = new Set<string>();
+  for (const op of ops) if (op.op === "set" && !applied.has(op)) keys.add(op.key);
+  if (keys.size === 0) return [];
+  const area = new Map(storage.entries(origin));
+  return Array.from(keys, (key): LocalStorageOp => {
+    const value = area.get(key);
+    return value === undefined ? { op: "remove", key } : { op: "set", key, value };
+  });
 }
 
 export function storageIdFor(

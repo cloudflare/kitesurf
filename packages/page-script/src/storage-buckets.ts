@@ -45,7 +45,7 @@ export function storageBuckets(seed: ReadonlyArray<readonly [string, string]> | 
   let localStorage: object;
   if (seed) {
     const area = sharedArea(seed);
-    area.applyRemote(earlyLocalOps);
+    area.applyRemote(earlyLocalOps, 0);
     earlyLocalOps = [];
     localStorage = storageObject(area);
     localBucket = { storage: localStorage, area };
@@ -88,6 +88,7 @@ export function webStorage(params: WebStorageParams): WebStorageReply {
     if (params.area === "local") earlyLocalOps.push(...params.ops);
     return { seq: 0 };
   }
-  fireStorageEvents(bucket.area.applyRemote(params.ops), bucket.storage, params.url);
+  const acked = params.area === "local" ? params.seq : 0;
+  fireStorageEvents(bucket.area.applyRemote(params.ops, acked), bucket.storage, params.url);
   return { seq: 0 };
 }
