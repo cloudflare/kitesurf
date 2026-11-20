@@ -207,7 +207,8 @@ function sessionOrigin(target: TargetState, frame: FrameState | null): string | 
   for (let depth = 0; frame && depth <= MAX_IFRAME_DEPTH; depth++) {
     if (frame.frameId === target.frameId) return documentOrigin(target);
     if (frame.detached || target.frames.get(frame.frameId) !== frame) return null;
-    if (!frame.sandbox.sameOrigin) return null;
+    // The sandbox the frame's isolate was sealed with, as committedFrameOriginOf reads it.
+    if (!(frame.pageScriptSandbox ?? frame.sandbox).sameOrigin) return null;
     if (!resolvesToEmbedderOrigin(frame.url)) {
       return localStorageOrigin(frame.pageScriptUrl ?? frame.url);
     }

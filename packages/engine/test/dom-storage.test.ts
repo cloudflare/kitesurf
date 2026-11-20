@@ -212,6 +212,18 @@ describe("DOMStorage sessions", () => {
     expect(emitted).toHaveLength(1);
   });
 
+  it("reads a frame's opacity from the sandbox its isolate was sealed with", async () => {
+    const { send, seen, target, frame } = setup();
+    const opaque = { ...SANDBOX_ALLOW_ALL, sameOrigin: false };
+    // The attribute changed since each isolate spawned, and no navigation applied it yet.
+    frame("sealed-open", "about:srcdoc", target.frameId, "s-open", opaque).pageScriptSandbox =
+      SANDBOX_ALLOW_ALL;
+    frame("sealed-opaque", "about:srcdoc", target.frameId, "s-opaque").pageScriptSandbox = opaque;
+    await send("s-open", "DOMStorage.enable");
+    await send("s-opaque", "DOMStorage.enable");
+    expect(await seen()).toEqual([["s-open", A]]);
+  });
+
   it("refuses a set past the quota", async () => {
     const { storage, send } = setup();
     const value = "x".repeat(LOCAL_STORAGE_QUOTA_UNITS);
