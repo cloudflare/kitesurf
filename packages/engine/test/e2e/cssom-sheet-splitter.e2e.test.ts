@@ -186,3 +186,20 @@ test("a /* inside a function ending in url still opens a comment", async ({ brow
     }
   }
 }, 60_000);
+
+test("a quoted comma does not split a media query", async ({ page }) => {
+  await setContent(
+    page,
+    `<style id=s>@media all, (x: "a,b"){#t{margin-left:3px}}</style><p id=t>x</p>`,
+  );
+  const result = await page.evaluate(`(() => {
+    const sheet = document.getElementById("s").sheet;
+    const list = sheet.cssRules[0].media;
+    const media = list.length;
+    sheet.insertRule("#t{padding-right:4px}", sheet.cssRules.length);
+    const t = getComputedStyle(document.getElementById("t"));
+    list.mediaText = 'screen, (y: "c,d")';
+    return { media, set: list.mediaText, margin: t.marginLeft, padding: t.paddingRight };
+  })()`);
+  expect(result).toEqual({ media: 2, set: 'screen, (y: "c,d")', margin: "3px", padding: "4px" });
+}, 60_000);

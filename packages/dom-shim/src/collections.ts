@@ -1373,8 +1373,7 @@ class MediaListCls implements Idl.MediaList {
   }
   #setText(text: unknown) {
     const old = this.#media.length;
-    this.#media = String(text == null ? "" : text)
-      .split(",")
+    this.#media = splitCssList(String(text == null ? "" : text))
       .map(trimCss)
       .filter(Boolean);
     this.#sync(old);
@@ -2046,6 +2045,32 @@ function unquotedUrlEnd(src: string, i: number): number {
   let j = i + 4;
   while (j < src.length && src[j] !== ")") j += src[j] === "\\" ? escapeLength(src, j) : 1;
   return Math.min(j + 1, src.length);
+}
+// Splits a comma list on commas outside strings and parentheses.
+function splitCssList(text: string): string[] {
+  const parts: string[] = [];
+  let from = 0;
+  let depth = 0;
+  let q = "";
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "\\") {
+      i += escapeLength(text, i) - 1;
+    } else if (q) {
+      if (ch === q || isStringBreak(ch)) q = "";
+    } else if (ch === '"' || ch === "'") {
+      q = ch;
+    } else if (ch === "(") {
+      depth++;
+    } else if (ch === ")" && depth > 0) {
+      depth--;
+    } else if (ch === "," && depth === 0) {
+      parts.push(text.slice(from, i));
+      from = i + 1;
+    }
+  }
+  parts.push(text.slice(from));
+  return parts;
 }
 // An unescaped newline ends a string as a bad-string token.
 function isStringBreak(ch: string | undefined): boolean {
