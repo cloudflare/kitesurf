@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Wed, 18 Nov 2026 16:31:06 +0000
+Subject: [PATCH] assignment: move the left-hand side into the target instead
+ of cloning
+
+The assignment parser converted its left-hand side with the borrowing
+AssignTarget conversions, which clone a property access, then dropped the
+original. Cloning and dropping those chains was about 13% of the parse
+samples for reCAPTCHA's recaptcha__en.js, redis.io's securemetrics script
+and qualified.js.
+
+The owned conversions move it instead. Parse time for nine third-party
+scripts (3.0 MiB): 296 -> 278 ms natively. ASTs, collected source text,
+errors and top-level bytecode for 6009 npm files are unchanged.
+---
+ src/parser/expression/assignment/mod.rs | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/parser/expression/assignment/mod.rs b/src/parser/expression/assignment/mod.rs
+index 31260fd..aae98ed 100644
+--- a/src/parser/expression/assignment/mod.rs
++++ b/src/parser/expression/assignment/mod.rs
+@@ -291,7 +291,8 @@ impl AssignmentExpression {
+                         None
+                     };
+
+-                    if let Some(target) = AssignTarget::from_expression(&lhs, cursor.strict()) {
++                    if let Some(target) = AssignTarget::from_expression_owned(lhs, cursor.strict())
++                    {
+                         return Ok(AssignmentStep::Target((target, AssignOp::Assign, lhs_name)));
+                     }
+                     return Err(Error::lex(LexError::Syntax(
+@@ -302,7 +303,7 @@ impl AssignmentExpression {
+                 TokenKind::Punctuator(p) if p.as_assign_op().is_some() => {
+                     cursor.advance(interner);
+                     if let Some(target) =
+-                        AssignTarget::from_expression_simple(&lhs, cursor.strict())
++                        AssignTarget::from_expression_simple_owned(lhs, cursor.strict())
+                     {
+                         let assignop = p.as_assign_op().expect("assignop disappeared");
+                         let name = if (assignop == AssignOp::BoolAnd

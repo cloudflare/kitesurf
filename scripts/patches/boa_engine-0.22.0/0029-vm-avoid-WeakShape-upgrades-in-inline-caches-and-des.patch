@@ -1,0 +1,510 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 19 Nov 2026 17:59:29 +0000
+Subject: [PATCH] vm: avoid WeakShape upgrades in inline caches and descriptor
+ builds in ordinary_get
+
+Store the cached shape address alongside its WeakShape in CacheEntry so
+InlineCache::get_slot can use a shared borrow and check address equality
+plus weak liveness without upgrading a Gc handle or cloning a Shape on
+every property read or write.
+
+Also fast-path GetPropertyByName and SetPropertyByName for object
+receivers without extra register clones, and walk ordinary prototype
+chains iteratively in ordinary_get using direct slot reads instead of
+constructing temporary PropertyDescriptor values.
+---
+ src/object/internal_methods/mod.rs   | 85 ++++++++++++++++++----------
+ src/object/property_map.rs           | 70 ++++++++++++++++++++++-
+ src/object/shape/mod.rs              | 10 ++++
+ src/object/shape/shared_shape/mod.rs |  7 +++
+ src/object/shape/unique_shape.rs     |  7 +++
+ src/vm/inline_cache/mod.rs           | 69 +++++++++++++++-------
+ src/vm/opcode/get/name.rs            |  3 +-
+ src/vm/opcode/get/property.rs        | 28 ++++++++-
+ src/vm/opcode/set/property.rs        | 24 +++++++-
+ 9 files changed, 247 insertions(+), 56 deletions(-)
+
+diff --git a/src/object/internal_methods/mod.rs b/src/object/internal_methods/mod.rs
+index 8e474b5..384a245 100644
+--- a/src/object/internal_methods/mod.rs
++++ b/src/object/internal_methods/mod.rs
+@@ -6,9 +6,11 @@
+ //! [spec]: https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots
+
+ use std::ops::{Deref, DerefMut};
++use std::ptr;
+
+ use super::{
+     JsPrototype, PROTOTYPE,
++    property_map::PropertyValue,
+     shape::slot::{Slot, SlotAttributes},
+ };
+ use crate::{
+@@ -709,38 +711,63 @@ pub(crate) fn ordinary_get(
+     receiver: JsValue,
+     context: &mut InternalMethodPropertyContext<'_>,
+ ) -> JsResult<JsValue> {
+-    // 1. Assert: IsPropertyKey(P) is true.
+-    // 2. Let desc be ? O.[[GetOwnProperty]](P).
+-    match obj.__get_own_property__(key, context)? {
+-        // If desc is undefined, then
+-        None => {
+-            // a. Let parent be ? O.[[GetPrototypeOf]]().
+-            if let Some(parent) = obj.__get_prototype_of__(context)? {
+-                context.slot().set_not_cacheable_if_already_prototype();
+-                context.slot().attributes |= SlotAttributes::PROTOTYPE;
+-
+-                // c. Return ? parent.[[Get]](P, Receiver).
+-                parent.__get__(key, receiver, context)
+-            }
+-            // b. If parent is null, return undefined.
+-            else {
+-                Ok(JsValue::undefined())
++    let mut current = obj.clone();
++    loop {
++        let vtable = current.vtable();
++        let uses_ordinary_own_and_proto = ptr::fn_addr_eq(
++            vtable.__get_own_property__,
++            ORDINARY_INTERNAL_METHODS.__get_own_property__,
++        ) && ptr::fn_addr_eq(
++            vtable.__get_prototype_of__,
++            ORDINARY_INTERNAL_METHODS.__get_prototype_of__,
++        );
++        if uses_ordinary_own_and_proto {
++            let found = current
++                .borrow()
++                .properties
++                .get_value_with_slot(key, context.slot());
++            match found {
++                Some(PropertyValue::Data(value)) => return Ok(value),
++                Some(PropertyValue::Getter(getter)) => {
++                    return getter.call(&receiver, &[], context);
++                }
++                Some(PropertyValue::UndefinedGetter) => return Ok(JsValue::undefined()),
++                None => {
++                    let Some(parent) = current.prototype() else {
++                        return Ok(JsValue::undefined());
++                    };
++                    context.slot().set_not_cacheable_if_already_prototype();
++                    context.slot().attributes |= SlotAttributes::PROTOTYPE;
++                    if ptr::fn_addr_eq(parent.vtable().__get__, ORDINARY_INTERNAL_METHODS.__get__)
++                    {
++                        current = parent;
++                        continue;
++                    }
++                    return parent.__get__(key, receiver, context);
++                }
+             }
+         }
+-        Some(ref desc) => {
+-            match desc.kind() {
+-                // 4. If IsDataDescriptor(desc) is true, return desc.[[Value]].
+-                DescriptorKind::Data {
+-                    value: Some(value), ..
+-                } => Ok(value.clone()),
+-                // 5. Assert: IsAccessorDescriptor(desc) is true.
+-                // 6. Let getter be desc.[[Get]].
+-                DescriptorKind::Accessor { get: Some(get), .. } if !get.is_undefined() => {
+-                    // 8. Return ? Call(getter, Receiver).
+-                    get.call(&receiver, &[], context)
++
++        // Fallback for objects whose [[GetOwnProperty]] or [[GetPrototypeOf]] is exotic.
++        match current.__get_own_property__(key, context)? {
++            None => {
++                if let Some(parent) = current.__get_prototype_of__(context)? {
++                    context.slot().set_not_cacheable_if_already_prototype();
++                    context.slot().attributes |= SlotAttributes::PROTOTYPE;
++                    return parent.__get__(key, receiver, context);
+                 }
+-                // 7. If getter is undefined, return undefined.
+-                _ => Ok(JsValue::undefined()),
++                return Ok(JsValue::undefined());
++            }
++            Some(ref desc) => {
++                return match desc.kind() {
++                    DescriptorKind::Data {
++                        value: Some(value), ..
++                    } => Ok(value.clone()),
++                    DescriptorKind::Accessor { get: Some(get), .. } if !get.is_undefined() => {
++                        get.call(&receiver, &[], context)
++                    }
++                    _ => Ok(JsValue::undefined()),
++                };
+             }
+         }
+     }
+diff --git a/src/object/property_map.rs b/src/object/property_map.rs
+index 9f7e1bf..1b105b3 100644
+--- a/src/object/property_map.rs
++++ b/src/object/property_map.rs
+@@ -8,7 +8,10 @@ use super::{
+     },
+ };
+ use crate::value::JsVariant;
+-use crate::{JsValue, property::PropertyDescriptorBuilder};
++use crate::{
++    JsValue,
++    property::{DescriptorKind, PropertyDescriptorBuilder},
++};
+ use boa_gc::{Finalize, Trace};
+ use rustc_hash::FxHashMap;
+ use std::{collections::hash_map, iter::FusedIterator};
+@@ -503,6 +506,13 @@ pub struct PropertyMap {
+     pub(crate) storage: ObjectStorage,
+ }
+
++/// Result of reading an own property directly without allocating a [`PropertyDescriptor`].
++pub(crate) enum PropertyValue {
++    Data(JsValue),
++    Getter(JsValue),
++    UndefinedGetter,
++}
++
+ impl PropertyMap {
+     /// Create a new [`PropertyMap`].
+     #[must_use]
+@@ -554,6 +564,64 @@ impl PropertyMap {
+         None
+     }
+
++    /// Direct read of an own property's value or getter without building a [`PropertyDescriptor`].
++    #[must_use]
++    pub(crate) fn get_value_with_slot(
++        &self,
++        key: &PropertyKey,
++        out_slot: &mut Slot,
++    ) -> Option<PropertyValue> {
++        if let PropertyKey::Index(index) = key {
++            let idx = index.get();
++            return match &self.indexed_properties {
++                IndexedProperties::DenseI32(vec) => vec
++                    .get(idx as usize)
++                    .copied()
++                    .map(|v| PropertyValue::Data(v.into())),
++                IndexedProperties::DenseF64(vec) => vec
++                    .get(idx as usize)
++                    .copied()
++                    .map(|v| PropertyValue::Data(v.into())),
++                IndexedProperties::DenseElement(vec) => {
++                    vec.get(idx as usize).cloned().map(PropertyValue::Data)
++                }
++                IndexedProperties::SparseElement(map) => {
++                    map.get(&idx).cloned().map(PropertyValue::Data)
++                }
++                IndexedProperties::SparseProperty(map) => {
++                    let desc = map.get(&idx)?;
++                    Some(match desc.kind() {
++                        DescriptorKind::Data {
++                            value: Some(value), ..
++                        } => PropertyValue::Data(value.clone()),
++                        DescriptorKind::Accessor { get: Some(get), .. } if !get.is_undefined() => {
++                            PropertyValue::Getter(get.clone())
++                        }
++                        _ => PropertyValue::UndefinedGetter,
++                    })
++                }
++            };
++        }
++        if let Some(slot) = self.shape.lookup(key) {
++            out_slot.index = slot.index;
++            out_slot.attributes = (out_slot.attributes & SlotAttributes::INLINE_CACHE_BITS)
++                | slot.attributes
++                | SlotAttributes::FOUND;
++            let idx = slot.index as usize;
++            if slot.attributes.is_accessor_descriptor() {
++                if slot.attributes.has_get() {
++                    let getter = &self.storage[idx];
++                    if !getter.is_undefined() {
++                        return Some(PropertyValue::Getter(getter.clone()));
++                    }
++                }
++                return Some(PropertyValue::UndefinedGetter);
++            }
++            return Some(PropertyValue::Data(self.storage[idx].clone()));
++        }
++        None
++    }
++
+     /// Get the property with the given key from the [`PropertyMap`].
+     #[must_use]
+     pub(crate) fn get_with_slot(
+diff --git a/src/object/shape/mod.rs b/src/object/shape/mod.rs
+index bfb7b51..fefb34b 100644
+--- a/src/object/shape/mod.rs
++++ b/src/object/shape/mod.rs
+@@ -238,6 +238,16 @@ pub(crate) enum WeakShape {
+ }
+
+ impl WeakShape {
++    /// Returns `true` if the underlying [`Shape`] has not been garbage collected.
++    #[inline]
++    #[must_use]
++    pub(crate) fn is_upgradable(&self) -> bool {
++        match self {
++            WeakShape::Shared(shape) => shape.is_upgradable(),
++            WeakShape::Unique(shape) => shape.is_upgradable(),
++        }
++    }
++
+     /// Return location in memory of the [`Shape`].
+     ///
+     /// Returns `0` if the shape has been freed.
+diff --git a/src/object/shape/shared_shape/mod.rs b/src/object/shape/shared_shape/mod.rs
+index 13ed5de..2a24490 100644
+--- a/src/object/shape/shared_shape/mod.rs
++++ b/src/object/shape/shared_shape/mod.rs
+@@ -480,6 +480,13 @@ pub(crate) struct WeakSharedShape {
+ }
+
+ impl WeakSharedShape {
++    /// Returns `true` if the underlying [`SharedShape`] has not been garbage collected.
++    #[inline]
++    #[must_use]
++    pub(crate) fn is_upgradable(&self) -> bool {
++        self.inner.is_upgradable()
++    }
++
+     /// Upgrade returns a [`SharedShape`] pointer for the internal value if the pointer is still live,
+     /// or [`None`] if the value was already garbage collected.
+     #[inline]
+diff --git a/src/object/shape/unique_shape.rs b/src/object/shape/unique_shape.rs
+index 915f278..def2264 100644
+--- a/src/object/shape/unique_shape.rs
++++ b/src/object/shape/unique_shape.rs
+@@ -247,6 +247,13 @@ pub(crate) struct WeakUniqueShape {
+ }
+
+ impl WeakUniqueShape {
++    /// Returns `true` if the underlying [`UniqueShape`] has not been garbage collected.
++    #[inline]
++    #[must_use]
++    pub(crate) fn is_upgradable(&self) -> bool {
++        self.inner.is_upgradable()
++    }
++
+     /// Upgrade returns a [`UniqueShape`] pointer for the internal value if the pointer is still live,
+     /// or [`None`] if the value was already garbage collected.
+     #[inline]
+diff --git a/src/vm/inline_cache/mod.rs b/src/vm/inline_cache/mod.rs
+index 14dc45c..7d8cffc 100644
+--- a/src/vm/inline_cache/mod.rs
++++ b/src/vm/inline_cache/mod.rs
+@@ -20,6 +20,9 @@ pub(crate) const PIC_CAPACITY: usize = 4;
+ pub(crate) struct CacheEntry {
+     /// A weak reference is kept to the shape to avoid the shape preventing deallocation.
+     pub(crate) shape: WeakShape,
++    /// Address of `shape` when cached, checked before touching the weak reference.
++    #[unsafe_ignore_trace]
++    pub(crate) shape_addr: usize,
+     #[unsafe_ignore_trace]
+     pub(crate) slot: Slot,
+ }
+@@ -74,6 +77,7 @@ impl InlineCache {
+         }
+         let entry = CacheEntry {
+             shape: shape.into(),
++            shape_addr: shape.to_addr_usize(),
+             slot,
+         };
+
+@@ -107,41 +111,64 @@ impl InlineCache {
+             .collect()
+     }
+
+-    /// Returns the cached `(Shape, Slot)` if a matching shape exists in the inline cache.
++    /// Returns the cached [`Slot`] if a matching live shape exists in the inline cache.
+     ///
+-    /// Opportunistically cleans up stale weak shape references during lookup.
+-    pub(crate) fn get(&self, shape: &Shape) -> Option<(Shape, Slot)> {
++    /// Uses a shared borrow on the fast path and avoids upgrading the weak shape into a
++    /// strong `Gc` handle; stale weak references are pruned only when encountered.
++    #[inline]
++    pub(crate) fn get_slot(&self, shape: &Shape) -> Option<Slot> {
+         if self.megamorphic.get() {
+             return None;
+         }
+         let shape_addr = shape.to_addr_usize();
+
++        let mut first_stale = false;
+         {
+-            let mut first = self.first.borrow_mut();
++            let first = self.first.borrow();
+             if let Some(entry) = first.as_ref() {
+-                match entry.shape.upgrade() {
+-                    Some(upgraded) if upgraded.to_addr_usize() == shape_addr => {
+-                        return Some((upgraded, entry.slot));
++                if entry.shape_addr == shape_addr {
++                    if entry.shape.is_upgradable() {
++                        return Some(entry.slot);
+                     }
+-                    Some(_) => {}
+-                    // Opportunistically clean up a stale weak shape.
+-                    None => *first = None,
++                    first_stale = true;
++                } else if !entry.shape.is_upgradable() {
++                    first_stale = true;
+                 }
+             }
+         }
++        if first_stale {
++            let mut first = self.first.borrow_mut();
++            if first.as_ref().is_some_and(|e| !e.shape.is_upgradable()) {
++                *first = None;
++            }
++        }
+
+-        let mut rest = self.rest.borrow_mut();
+-        let entries = rest.as_mut()?;
+-        let mut i = 0;
+-        while i < entries.len() {
+-            if let Some(upgraded) = entries[i].shape.upgrade() {
+-                if upgraded.to_addr_usize() == shape_addr {
+-                    return Some((upgraded, entries[i].slot));
++        let mut rest_stale = false;
++        {
++            let rest = self.rest.borrow();
++            let entries = rest.as_ref()?;
++            for entry in entries.iter() {
++                if entry.shape_addr == shape_addr {
++                    if entry.shape.is_upgradable() {
++                        return Some(entry.slot);
++                    }
++                    rest_stale = true;
++                } else if !entry.shape.is_upgradable() {
++                    rest_stale = true;
++                }
++            }
++        }
++        if rest_stale {
++            let mut rest = self.rest.borrow_mut();
++            if let Some(entries) = rest.as_mut() {
++                let mut i = 0;
++                while i < entries.len() {
++                    if entries[i].shape.is_upgradable() {
++                        i += 1;
++                    } else {
++                        entries.swap_remove(i);
++                    }
+                 }
+-                i += 1;
+-            } else {
+-                // Opportunistically clean up stale weak shapes.
+-                entries.swap_remove(i);
+             }
+         }
+         None
+diff --git a/src/vm/opcode/get/name.rs b/src/vm/opcode/get/name.rs
+index 5338428..ea8a8af 100644
+--- a/src/vm/opcode/get/name.rs
++++ b/src/vm/opcode/get/name.rs
+@@ -60,7 +60,8 @@ impl GetNameGlobal {
+             let ic = &context.vm.frame().code_block().ic()[usize::from(ic_index)];
+
+             let object_borrowed = object.borrow();
+-            if let Some((shape, slot)) = ic.get(object_borrowed.shape()) {
++            let shape = object_borrowed.shape();
++            if let Some(slot) = ic.get_slot(shape) {
+                 let mut result = if slot.attributes.contains(SlotAttributes::PROTOTYPE) {
+                     let prototype = shape.prototype().expect("prototype should have value");
+                     let prototype = prototype.borrow();
+diff --git a/src/vm/opcode/get/property.rs b/src/vm/opcode/get/property.rs
+index b92de72..6aa8d2b 100644
+--- a/src/vm/opcode/get/property.rs
++++ b/src/vm/opcode/get/property.rs
+@@ -46,7 +46,8 @@ fn get_by_name<const LENGTH: bool>(
+
+     let ic = &context.vm.frame().code_block().ic()[usize::from(index)];
+     let object_borrowed = object.borrow();
+-    if let Some((shape, slot)) = ic.get(object_borrowed.shape()) {
++    let shape = object_borrowed.shape();
++    if let Some(slot) = ic.get_slot(shape) {
+         let mut result = if slot.attributes.contains(SlotAttributes::PROTOTYPE) {
+             let prototype = shape.prototype().expect("prototype should have value");
+             let prototype = prototype.borrow();
+@@ -232,6 +233,31 @@ impl GetPropertyByName {
+         (dst, object, index): (RegisterOperand, RegisterOperand, IndexOperand),
+         context: &mut Context,
+     ) -> JsResult<()> {
++        // Fast path for object receivers: avoid cloning the register and calling base_class.
++        if let Some(obj) = context.vm.get_register(object.into()).as_object() {
++            let ic = &context.vm.frame().code_block().ic()[usize::from(index)];
++            let object_borrowed = obj.borrow();
++            let shape = object_borrowed.shape();
++            if let Some(slot) = ic.get_slot(shape) {
++                let mut result = if slot.attributes.contains(SlotAttributes::PROTOTYPE) {
++                    let prototype = shape.prototype().expect("prototype should have value");
++                    let prototype = prototype.borrow();
++                    prototype.properties().storage[slot.index as usize].clone()
++                } else {
++                    object_borrowed.properties().storage[slot.index as usize].clone()
++                };
++                drop(object_borrowed);
++                if slot.attributes.has_get() && result.is_object() {
++                    let receiver = JsValue::from(obj);
++                    result = result
++                        .as_object()
++                        .expect("should contain getter")
++                        .call(&receiver, &[], context)?;
++                }
++                context.vm.set_register(dst.into(), result);
++                return Ok(());
++            }
++        }
+         let object = context.vm.get_register(object.into()).clone();
+         get_by_name::<false>((dst, &object, &object, index), context)
+     }
+diff --git a/src/vm/opcode/set/property.rs b/src/vm/opcode/set/property.rs
+index 2b3043f..cf248b5 100644
+--- a/src/vm/opcode/set/property.rs
++++ b/src/vm/opcode/set/property.rs
+@@ -35,7 +35,8 @@ fn set_by_name(
+     let ic = &context.vm.frame().code_block().ic()[usize::from(index)];
+
+     let object_borrowed = object.borrow();
+-    if let Some((shape, slot)) = ic.get(object_borrowed.shape()) {
++    let shape = object_borrowed.shape();
++    if let Some(slot) = ic.get_slot(shape) {
+         let slot_index = slot.index as usize;
+
+         if slot.attributes.is_accessor_descriptor() {
+@@ -58,13 +59,14 @@ fn set_by_name(
+             }
+         } else if slot.attributes.contains(SlotAttributes::PROTOTYPE) {
+             let prototype = shape.prototype().expect("prototype should have value");
++            drop(object_borrowed);
+             let mut prototype = prototype.borrow_mut();
+
+-            prototype.properties_mut().storage[slot_index] = value.clone();
++            prototype.properties_mut().storage[slot_index] = value;
+         } else {
+             drop(object_borrowed);
+             let mut object_borrowed = object.borrow_mut();
+-            object_borrowed.properties_mut().storage[slot_index] = value.clone();
++            object_borrowed.properties_mut().storage[slot_index] = value;
+         }
+         return Ok(());
+     }
+@@ -105,6 +107,22 @@ impl SetPropertyByName {
+         (value, object, index): (RegisterOperand, RegisterOperand, IndexOperand),
+         context: &mut Context,
+     ) -> JsResult<()> {
++        // Fast path for own data property writes on object receivers.
++        if let Some(obj) = context.vm.get_register(object.into()).as_object() {
++            let ic = &context.vm.frame().code_block().ic()[usize::from(index)];
++            let slot = {
++                let object_borrowed = obj.borrow();
++                ic.get_slot(object_borrowed.shape())
++            };
++            if let Some(slot) = slot
++                && !slot.attributes.is_accessor_descriptor()
++                && !slot.attributes.contains(SlotAttributes::PROTOTYPE)
++            {
++                let val = context.vm.get_register(value.into()).clone();
++                obj.borrow_mut().properties_mut().storage[slot.index as usize] = val;
++                return Ok(());
++            }
++        }
+         let object = context.vm.get_register(object.into()).clone();
+         set_by_name(value, &object, &object, index, context)
+     }

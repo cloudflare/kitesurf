@@ -1,0 +1,499 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 19 Nov 2026 18:28:13 +0000
+Subject: [PATCH] string: add lazy ConsString rope for concat_owned and pointer
+ fast path in PartialEq
+
+Repeated string concatenation (s += chunk) previously copied the entire
+accumulated string on every step (O(N^2)). Add a self-flattening binary
+ConsString vtable variant for JsString::concat_owned above 64 code units,
+with iterative flattening and iterative drop to avoid stack overflow on
+deep chains.
+
+Also fast-path JsString::eq with pointer equality and vtable length checks
+before vtable dispatch or flattening.
+---
+ src/display.rs      |   2 +-
+ src/lib.rs          |  83 ++++++++++++++-
+ src/tests.rs        |  52 ++++++++++
+ src/vtable/cons.rs  | 241 ++++++++++++++++++++++++++++++++++++++++++++
+ src/vtable/mod.rs   |   3 +
+ src/vtable/slice.rs |   6 ++
+ 6 files changed, 385 insertions(+), 2 deletions(-)
+ create mode 100644 src/vtable/cons.rs
+
+diff --git a/src/display.rs b/src/display.rs
+index 17e585d..6bf4c6f 100644
+--- a/src/display.rs
++++ b/src/display.rs
+@@ -92,7 +92,7 @@ impl fmt::Debug for JsStringDebugInfo<'_> {
+
+         // Show kind specific fields from string.
+         match self.inner.kind() {
+-            JsStringKind::Latin1Sequence | JsStringKind::Utf16Sequence => {
++            JsStringKind::Latin1Sequence | JsStringKind::Utf16Sequence | JsStringKind::Cons => {
+                 if let Some(rc) = self.inner.refcount() {
+                     dbg.borrow_mut().field("refcount", &rc);
+                 }
+diff --git a/src/lib.rs b/src/lib.rs
+index 633cbcc..a0c09d8 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -29,7 +29,7 @@ use crate::display::{JsStrDisplayEscaped, JsStrDisplayLossy, JsStringDebugInfo};
+ use crate::iter::CodePointsIter;
+ use crate::r#type::{Latin1, Utf16};
+ pub use crate::vtable::StaticString;
+-use crate::vtable::{SequenceString, SliceString};
++use crate::vtable::{ConsString, SequenceString, SliceString};
+ #[doc(inline)]
+ pub use crate::{
+     builder::{CommonJsStringBuilder, Latin1JsStringBuilder, Utf16JsStringBuilder},
+@@ -114,6 +114,9 @@ pub(crate) enum JsStringKind {
+
+     /// A static string that is valid for `'static` lifetime.
+     Static = 3,
++
++    /// A lazy concatenation rope that flattens on first slice access.
++    Cons = 4,
+ }
+
+ /// A Latin1 or UTF-16–encoded, reference counted, immutable string.
+@@ -612,8 +615,51 @@ impl JsString {
+         // SAFETY: Caller must ensure the type matches.
+         unsafe { self.ptr.cast::<T>().as_ref() }
+     }
++
++    #[inline]
++    pub(crate) const fn raw_vtable_ptr(&self) -> NonNull<JsStringVTable> {
++        self.ptr
++    }
++
++    /// Returns `true` if the string is guaranteed Latin1, without flattening ropes.
++    #[inline]
++    pub(crate) fn is_latin1_fast(&self) -> bool {
++        match self.kind() {
++            JsStringKind::Latin1Sequence => true,
++            JsStringKind::Utf16Sequence => false,
++            JsStringKind::Static => {
++                // SAFETY: verified `JsStringKind::Static`.
++                unsafe { self.as_inner::<StaticString>().str.is_latin1() }
++            }
++            JsStringKind::Slice => {
++                // SAFETY: verified `JsStringKind::Slice`.
++                unsafe { self.as_inner::<SliceString>().is_latin1() }
++            }
++            JsStringKind::Cons => {
++                // SAFETY: verified `JsStringKind::Cons`.
++                unsafe { self.as_inner::<ConsString>().is_latin1() }
++            }
++        }
++    }
++    #[inline]
++    pub(crate) fn cons_node_count(&self) -> u32 {
++        if self.kind() == JsStringKind::Cons {
++            // SAFETY: verified `JsStringKind::Cons`.
++            unsafe { self.as_inner::<ConsString>().node_count() }
++        } else {
++            0
++        }
++    }
+ }
+
++/// Minimum combined length at which `concat_owned` builds a lazy rope instead of copying.
++const CONS_MIN_LEN: usize = 64;
++
++/// Geometric compaction bounds so tiny-chunk `+=` loops stay O(N) in both time and memory
++/// instead of retaining one 88-byte rope node per character.
++const CONS_COMPACT_MIN_NODES: u32 = 64;
++const CONS_COMPACT_BYTES_PER_NODE: usize = 64;
++
+ impl JsString {
+     /// Obtains the underlying [`&[u16]`][slice] slice of a [`JsString`]
+     #[inline]
+@@ -622,6 +668,35 @@ impl JsString {
+         (self.vtable().as_str)(self.ptr)
+     }
+
++    /// Concatenates two owned strings, returning a lazy rope for longer results so repeated
++    /// `s += chunk` loops stay O(N) instead of O(N^2).
++    #[inline]
++    #[must_use]
++    pub fn concat_owned(x: Self, y: Self) -> Self {
++        if x.is_empty() {
++            return y;
++        }
++        if y.is_empty() {
++            return x;
++        }
++        let Some(total_len) = x.len().checked_add(y.len()) else {
++            alloc_overflow()
++        };
++        if total_len < CONS_MIN_LEN {
++            return Self::concat_array(&[x.as_str(), y.as_str()]);
++        }
++        let nodes = x
++            .cons_node_count()
++            .saturating_add(y.cons_node_count())
++            .saturating_add(1);
++        if nodes >= CONS_COMPACT_MIN_NODES
++            && (nodes as usize).saturating_mul(CONS_COMPACT_BYTES_PER_NODE) > total_len
++        {
++            return Self::concat_array(&[x.as_str(), y.as_str()]);
++        }
++        ConsString::alloc(x, y, total_len, nodes)
++    }
++
+     /// Creates a new [`JsString`] from the concatenation of `x` and `y`.
+     #[inline]
+     #[must_use]
+@@ -906,6 +981,12 @@ impl Ord for JsString {
+ impl PartialEq for JsString {
+     #[inline]
+     fn eq(&self, other: &Self) -> bool {
++        if self.ptr == other.ptr {
++            return true;
++        }
++        if self.len() != other.len() {
++            return false;
++        }
+         self.as_str() == other.as_str()
+     }
+ }
+diff --git a/src/tests.rs b/src/tests.rs
+index 0a4f80a..d55b527 100644
+--- a/src/tests.rs
++++ b/src/tests.rs
+@@ -565,3 +565,55 @@ fn starts_with_and_ends_with_basic() {
+     assert!(!basic.starts_with(end_needle));
+     assert!(basic.ends_with(end_needle));
+ }
++
++#[test]
++fn cons_rope_latin1_utf16_slice_and_deep_drop() {
++    use std::collections::hash_map::DefaultHasher;
++    use std::hash::{Hash, Hasher};
++
++    let hash_of = |s: &JsString| {
++        let mut h = DefaultHasher::new();
++        s.hash(&mut h);
++        h.finish()
++    };
++
++    // Deep left-skewed Latin1 rope (simulates `s += chunk` loop).
++    let mut s = JsString::from("");
++    let mut expected = String::new();
++    for i in 0..20_000 {
++        let chunk = if i % 2 == 0 { "abcd" } else { "1234" };
++        s = JsString::concat_owned(s, JsString::from(chunk));
++        expected.push_str(chunk);
++    }
++    assert_eq!(s.kind(), JsStringKind::Cons);
++    assert_eq!(s.len(), expected.len());
++
++    // Clone before flattening, then flatten through one handle and read through both.
++    let clone = s.clone();
++    let flat_expected = JsString::from(expected.as_str());
++    assert_eq!(s, flat_expected);
++    assert_eq!(clone, flat_expected);
++    assert_eq!(hash_of(&s), hash_of(&flat_expected));
++    assert_eq!(s.slice(4, 12), JsString::from("1234abcd"));
++
++    // Mixed Latin1 + UTF-16 rope promotes cleanly to UTF-16 on flatten.
++    let mut mixed = JsString::from("a".repeat(80).as_str());
++    mixed = JsString::concat_owned(mixed, JsString::from("🚀日本語"));
++    mixed = JsString::concat_owned(mixed, JsString::from("z".repeat(40).as_str()));
++    assert_eq!(mixed.kind(), JsStringKind::Cons);
++    let expected_mixed = format!("{}🚀日本語{}", "a".repeat(80), "z".repeat(40));
++    assert_eq!(mixed, JsString::from(expected_mixed.as_str()));
++
++    // Deep unflattened ropes (left-skewed and right-skewed) drop iteratively without overflowing.
++    let mut left_deep = JsString::from("x".repeat(64).as_str());
++    for _ in 0..50_000 {
++        left_deep = JsString::concat_owned(left_deep, JsString::from("y"));
++    }
++    drop(left_deep);
++
++    let mut right_deep = JsString::from("x".repeat(64).as_str());
++    for _ in 0..50_000 {
++        right_deep = JsString::concat_owned(JsString::from("y"), right_deep);
++    }
++    drop(right_deep);
++}
+diff --git a/src/vtable/cons.rs b/src/vtable/cons.rs
+new file mode 100644
+index 0000000..97973b9
+--- /dev/null
++++ b/src/vtable/cons.rs
+@@ -0,0 +1,241 @@
++//! `VTable` implementation for [`ConsString`], a self-flattening binary rope.
++
++use crate::iter::CodePointsIter;
++use crate::r#type::{Latin1, Utf16};
++use crate::vtable::{JsStringVTable, SequenceString};
++use crate::{JsStr, JsStrVariant, JsString, JsStringKind};
++use std::cell::{Cell, UnsafeCell};
++use std::mem;
++use std::process::abort;
++use std::ptr::{self, NonNull};
++
++enum ConsState {
++    Pair(JsString, JsString),
++    Flat(JsString),
++}
++
++/// Binary concatenation rope that flattens lazily into a contiguous `SequenceString`
++/// on first character-slice access.
++#[repr(C)]
++pub(crate) struct ConsString {
++    /// Embedded `VTable` - must be the first field for vtable dispatch.
++    vtable: JsStringVTable,
++    refcount: Cell<usize>,
++    is_latin1: bool,
++    /// Number of internal `ConsString` nodes in this rope (fits inside existing alignment padding).
++    node_count: u32,
++    state: UnsafeCell<ConsState>,
++}
++
++impl ConsString {
++    #[inline]
++    #[must_use]
++    pub(crate) fn alloc(left: JsString, right: JsString, len: usize, node_count: u32) -> JsString {
++        let is_latin1 = left.is_latin1_fast() && right.is_latin1_fast();
++        let node = Box::new(Self {
++            vtable: JsStringVTable {
++                clone: cons_clone,
++                drop: cons_drop,
++                as_str: cons_as_str,
++                code_points: cons_code_points,
++                refcount: cons_refcount,
++                len,
++                kind: JsStringKind::Cons,
++            },
++            refcount: Cell::new(1),
++            is_latin1,
++            node_count,
++            state: UnsafeCell::new(ConsState::Pair(left, right)),
++        });
++        // SAFETY: `ConsString` starts with `JsStringVTable` (`#[repr(C)]`).
++        unsafe { JsString::from_ptr(NonNull::from(Box::leak(node)).cast()) }
++    }
++
++    #[inline]
++    #[must_use]
++    pub(crate) const fn is_latin1(&self) -> bool {
++        self.is_latin1
++    }
++
++    #[inline]
++    #[must_use]
++    pub(crate) const fn node_count(&self) -> u32 {
++        self.node_count
++    }
++}
++
++#[inline]
++fn cons_clone(vtable: NonNull<JsStringVTable>) -> JsString {
++    // SAFETY: `vtable` is the first field of a live `ConsString`.
++    let this: &ConsString = unsafe { vtable.cast().as_ref() };
++    let Some(strong) = this.refcount.get().checked_add(1) else {
++        abort();
++    };
++    this.refcount.set(strong);
++    // SAFETY: `vtable` is a valid `JsString` pointer with incremented refcount.
++    unsafe { JsString::from_ptr(vtable) }
++}
++
++/// Decrements a `ConsString` child's refcount without recursing; returns its pointer if it hit 0.
++#[inline]
++fn take_dead_cons(child: JsString) -> Option<NonNull<JsStringVTable>> {
++    if child.kind() != JsStringKind::Cons {
++        drop(child);
++        return None;
++    }
++    let ptr = child.raw_vtable_ptr();
++    // SAFETY: verified `JsStringKind::Cons`.
++    let cons: &ConsString = unsafe { ptr.cast().as_ref() };
++    let Some(new_rc) = cons.refcount.get().checked_sub(1) else {
++        abort();
++    };
++    cons.refcount.set(new_rc);
++    mem::forget(child);
++    (new_rc == 0).then_some(ptr)
++}
++
++fn cons_drop(vtable: NonNull<JsStringVTable>) {
++    // SAFETY: `vtable` is the first field of a live `ConsString`.
++    let this: &ConsString = unsafe { vtable.cast().as_ref() };
++    let Some(new) = this.refcount.get().checked_sub(1) else {
++        abort();
++    };
++    this.refcount.set(new);
++    if new != 0 {
++        return;
++    }
++
++    // Iterative drop avoids stack overflow on deep unflattened ropes.
++    let mut stack: Vec<NonNull<JsStringVTable>> = Vec::new();
++    let mut cur = vtable;
++    loop {
++        // SAFETY: `cur` points to a `ConsString` whose refcount just reached 0.
++        let boxed = unsafe { Box::from_raw(cur.cast::<ConsString>().as_ptr()) };
++        match boxed.state.into_inner() {
++            ConsState::Flat(flat) => drop(flat),
++            ConsState::Pair(left, right) => {
++                if let Some(right_dead) = take_dead_cons(right) {
++                    stack.push(right_dead);
++                }
++                if let Some(left_dead) = take_dead_cons(left) {
++                    cur = left_dead;
++                    continue;
++                }
++            }
++        }
++        let Some(next) = stack.pop() else {
++            break;
++        };
++        cur = next;
++    }
++}
++
++fn flatten_rope(left: JsString, right: JsString, total_len: usize, latin1: bool) -> JsString {
++    let (seq_ptr, data_offset) = if latin1 {
++        let p = SequenceString::<Latin1>::allocate(total_len);
++        (p.cast::<u8>(), size_of::<SequenceString<Latin1>>())
++    } else {
++        let p = SequenceString::<Utf16>::allocate(total_len);
++        (p.cast::<u8>(), size_of::<SequenceString<Utf16>>())
++    };
++
++    // SAFETY: `SequenceString::allocate` allocates `total_len` elements at `data_offset`.
++    let mut data = unsafe { seq_ptr.as_ptr().add(data_offset) };
++    let mut stack = vec![right, left];
++
++    while let Some(node) = stack.pop() {
++        if node.kind() == JsStringKind::Cons {
++            // SAFETY: verified `JsStringKind::Cons`.
++            let cons: &ConsString = unsafe { node.as_inner() };
++            let next = match unsafe { &*cons.state.get() } {
++                ConsState::Pair(l, r) => Some((l.clone(), r.clone())),
++                ConsState::Flat(f) => {
++                    stack.push(f.clone());
++                    None
++                }
++            };
++            if let Some((l, r)) = next {
++                stack.push(r);
++                stack.push(l);
++            }
++            continue;
++        }
++
++        let slice = node.as_str();
++        // SAFETY: The sum of all leaf lengths equals `total_len`, and `latin1` is only true
++        // when every leaf is Latin1. `seq_ptr` is freshly allocated and non-overlapping.
++        unsafe {
++            #[allow(clippy::cast_ptr_alignment)]
++            match (latin1, slice.variant()) {
++                (true, JsStrVariant::Latin1(s)) => {
++                    let count = s.len();
++                    ptr::copy_nonoverlapping(s.as_ptr(), data, count);
++                    data = data.add(count);
++                }
++                (false, JsStrVariant::Latin1(s)) => {
++                    let count = s.len();
++                    let dst = data.cast::<u16>();
++                    for (i, &byte) in s.iter().enumerate() {
++                        *dst.add(i) = u16::from(byte);
++                    }
++                    data = dst.add(count).cast::<u8>();
++                }
++                (false, JsStrVariant::Utf16(s)) => {
++                    let count = s.len();
++                    let dst = data.cast::<u16>();
++                    ptr::copy_nonoverlapping(s.as_ptr(), dst, count);
++                    data = dst.add(count).cast::<u8>();
++                }
++                (true, JsStrVariant::Utf16(_)) => {
++                    unreachable!("latin1 rope cannot contain a utf16 leaf");
++                }
++            }
++        }
++    }
++
++    // SAFETY: `seq_ptr` is a fully initialized `SequenceString` with refcount 1.
++    unsafe { JsString::from_ptr(seq_ptr.cast()) }
++}
++
++fn cons_as_str(vtable: NonNull<JsStringVTable>) -> JsStr<'static> {
++    // SAFETY: `vtable` is the first field of a live `ConsString`.
++    let this: &ConsString = unsafe { vtable.cast().as_ref() };
++
++    // Fast path: already flattened. Once `Flat`, `state` never mutates again until drop.
++    if let ConsState::Flat(flat) = unsafe { &*this.state.get() } {
++        // SAFETY: `flat` lives inside `this` until `this` is dropped.
++        return unsafe { flat.as_str().as_static() };
++    }
++
++    // Clone children in a narrow scope so no `&ConsState` reference exists during flattening.
++    let (left, right) = match unsafe { &*this.state.get() } {
++        ConsState::Pair(l, r) => (l.clone(), r.clone()),
++        ConsState::Flat(_) => unreachable!("checked above"),
++    };
++
++    let flat = flatten_rope(left, right, this.vtable.len, this.is_latin1);
++
++    // SAFETY: `JsString` is `!Sync`, no `&ConsState` reference is live, and the rope DAG is
++    // acyclic so flattening children cannot re-enter `this`.
++    let old = unsafe { mem::replace(&mut *this.state.get(), ConsState::Flat(flat)) };
++    drop(old);
++
++    match unsafe { &*this.state.get() } {
++        // SAFETY: `flat` now lives inside `this` until `this` is dropped.
++        ConsState::Flat(flat) => unsafe { flat.as_str().as_static() },
++        ConsState::Pair(..) => unreachable!("just transitioned to Flat"),
++    }
++}
++
++#[inline]
++fn cons_code_points(vtable: NonNull<JsStringVTable>) -> CodePointsIter<'static> {
++    CodePointsIter::new(cons_as_str(vtable))
++}
++
++#[inline]
++#[allow(clippy::unnecessary_wraps)]
++fn cons_refcount(vtable: NonNull<JsStringVTable>) -> Option<usize> {
++    // SAFETY: `vtable` is the first field of a live `ConsString`.
++    let this: &ConsString = unsafe { vtable.cast().as_ref() };
++    Some(this.refcount.get())
++}
+diff --git a/src/vtable/mod.rs b/src/vtable/mod.rs
+index 3e5f915..f43140c 100644
+--- a/src/vtable/mod.rs
++++ b/src/vtable/mod.rs
+@@ -3,6 +3,9 @@ use crate::iter::CodePointsIter;
+ use crate::{JsStr, JsString, JsStringKind};
+ use std::ptr::NonNull;
+
++mod cons;
++pub(crate) use cons::ConsString;
++
+ mod sequence;
+ pub(crate) use sequence::SequenceString;
+
+diff --git a/src/vtable/slice.rs b/src/vtable/slice.rs
+index c433f09..e850e0e 100644
+--- a/src/vtable/slice.rs
++++ b/src/vtable/slice.rs
+@@ -53,6 +53,12 @@ impl SliceString {
+     pub(crate) fn owned(&self) -> &JsString {
+         &self.owned
+     }
++
++    #[inline]
++    #[must_use]
++    pub(crate) fn is_latin1(&self) -> bool {
++        self.inner.is_latin1()
++    }
+ }
+
+ #[inline]

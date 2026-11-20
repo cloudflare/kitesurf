@@ -273,9 +273,9 @@
     "//bazel/rust:crates.bzl%cargo_workspaces": {
       "general": {
         "bzlTransitiveDigest": "Azt4Ub+gfepkRli3W2Ekw9F1bhXQ2J4Sc24M58PeNEs=",
-        "usagesDigest": "XgRFAwiiN/JbNw/EVi11gImX1C0mVBfSkPbuZbDFlhY=",
+        "usagesDigest": "JI/nqsH2dGynOD/nwVU890ige0QaEZOYDoZ1ubxoEaI=",
         "recordedInputs": [
-          "FILE:@@//Cargo.toml 7fbf3dd18ed2a2c9c88667b7fd02ac358a1e1ca0ba762305723e3929b7c6c5f9"
+          "FILE:@@//Cargo.toml 7f2f9ede562b343f59c9a8776283ded835c4af438f36a1b7e27a68af41311b0f"
         ],
         "generatedRepoSpecs": {
           "patched_vello_cpu-0.3.0": {
@@ -458,6 +458,15 @@
               "patches_marker": "@@//scripts:patches/README.md"
             }
           },
+          "patched_boa_string-0.22.0": {
+            "repoRuleId": "@@//bazel/rust:crates.bzl%_patched_crate",
+            "attributes": {
+              "crate": "boa_string",
+              "version": "0.22.0",
+              "sha256": "30bf86c2bcff5bf2547acbfc516c5d3108ca527cb131511d749bf6fbef762c0e",
+              "patches_marker": "@@//scripts:patches/README.md"
+            }
+          },
           "patched_usvg-0.48.1": {
             "repoRuleId": "@@//bazel/rust:crates.bzl%_patched_crate",
             "attributes": {
@@ -520,6 +529,7 @@
                 "boa_gc-0.22.0": "@@+cargo_workspaces+patched_boa_gc-0.22.0//:BUILD.bazel",
                 "boa_engine-0.22.0": "@@+cargo_workspaces+patched_boa_engine-0.22.0//:BUILD.bazel",
                 "boa_parser-0.22.0": "@@+cargo_workspaces+patched_boa_parser-0.22.0//:BUILD.bazel",
+                "boa_string-0.22.0": "@@+cargo_workspaces+patched_boa_string-0.22.0//:BUILD.bazel",
                 "usvg-0.48.1": "@@+cargo_workspaces+patched_usvg-0.48.1//:BUILD.bazel",
                 "ratatui-image-8.1.1": "@@+cargo_workspaces+patched_ratatui-image-8.1.1//:BUILD.bazel",
                 "jpeg-encoder-0.7.0": "@@+cargo_workspaces+patched_jpeg-encoder-0.7.0//:BUILD.bazel"
@@ -555,6 +565,7 @@
                 "boa_gc": "boa_gc-0.22.0",
                 "boa_engine": "boa_engine-0.22.0",
                 "boa_parser": "boa_parser-0.22.0",
+                "boa_string": "boa_string-0.22.0",
                 "usvg": "usvg-0.48.1",
                 "ratatui-image": "ratatui-image-8.1.1",
                 "jpeg-encoder": "jpeg-encoder-0.7.0"
@@ -580,6 +591,7 @@
                 "boa_gc": "@@+cargo_workspaces+patched_boa_gc-0.22.0//:BUILD.bazel",
                 "boa_engine": "@@+cargo_workspaces+patched_boa_engine-0.22.0//:BUILD.bazel",
                 "boa_parser": "@@+cargo_workspaces+patched_boa_parser-0.22.0//:BUILD.bazel",
+                "boa_string": "@@+cargo_workspaces+patched_boa_string-0.22.0//:BUILD.bazel",
                 "usvg": "@@+cargo_workspaces+patched_usvg-0.48.1//:BUILD.bazel",
                 "ratatui-image": "@@+cargo_workspaces+patched_ratatui-image-8.1.1//:BUILD.bazel",
                 "jpeg-encoder": "@@+cargo_workspaces+patched_jpeg-encoder-0.7.0//:BUILD.bazel"
@@ -598,6 +610,7 @@
                 "boa_gc-0.22.0": "af82119558ab1002d1978c8459b53a3ebb506177d29a3aca37c07c1777b1d966",
                 "boa_interner-0.22.0": "317c631e791f5cb7d0017e43c0a758b0eaffd40c34c4c360e2a6be7752b78cd1",
                 "boa_parser-0.22.0": "641e81b3c8cbb7a2140547fb3ea534e9edf210b4e8c920b5fa864a919e11fbcf",
+                "boa_string-0.22.0": "30bf86c2bcff5bf2547acbfc516c5d3108ca527cb131511d749bf6fbef762c0e",
                 "jpeg-encoder-0.7.0": "0b0b36cbb4e6704f12f5b5d7b01dac593982c6550859ebd5a66fb15c9ea27fd5",
                 "parley-0.12.0": "61bd0c0c1737f0b3d3726dc06b225083af213b61913e4fbae1670613a106c6ce",
                 "parley_engine-0.12.0": "b74c0d373e462e504ad4436710a39f099e18e848e1ee711f70cd2dcd5a69b290",
@@ -641,6 +654,7 @@
                 "boa_gc": "boa_gc-0.22.0",
                 "boa_engine": "boa_engine-0.22.0",
                 "boa_parser": "boa_parser-0.22.0",
+                "boa_string": "boa_string-0.22.0",
                 "usvg": "usvg-0.48.1",
                 "ratatui-image": "ratatui-image-8.1.1",
                 "jpeg-encoder": "jpeg-encoder-0.7.0"
@@ -666,6 +680,7 @@
                 "boa_gc": "@@+cargo_workspaces+patched_boa_gc-0.22.0//:BUILD.bazel",
                 "boa_engine": "@@+cargo_workspaces+patched_boa_engine-0.22.0//:BUILD.bazel",
                 "boa_parser": "@@+cargo_workspaces+patched_boa_parser-0.22.0//:BUILD.bazel",
+                "boa_string": "@@+cargo_workspaces+patched_boa_string-0.22.0//:BUILD.bazel",
                 "usvg": "@@+cargo_workspaces+patched_usvg-0.48.1//:BUILD.bazel",
                 "ratatui-image": "@@+cargo_workspaces+patched_ratatui-image-8.1.1//:BUILD.bazel",
                 "jpeg-encoder": "@@+cargo_workspaces+patched_jpeg-encoder-0.7.0//:BUILD.bazel"
@@ -684,6 +699,7 @@
                 "boa_gc-0.22.0": "af82119558ab1002d1978c8459b53a3ebb506177d29a3aca37c07c1777b1d966",
                 "boa_interner-0.22.0": "317c631e791f5cb7d0017e43c0a758b0eaffd40c34c4c360e2a6be7752b78cd1",
                 "boa_parser-0.22.0": "641e81b3c8cbb7a2140547fb3ea534e9edf210b4e8c920b5fa864a919e11fbcf",
+                "boa_string-0.22.0": "30bf86c2bcff5bf2547acbfc516c5d3108ca527cb131511d749bf6fbef762c0e",
                 "jpeg-encoder-0.7.0": "0b0b36cbb4e6704f12f5b5d7b01dac593982c6550859ebd5a66fb15c9ea27fd5",
                 "parley-0.12.0": "61bd0c0c1737f0b3d3726dc06b225083af213b61913e4fbae1670613a106c6ce",
                 "parley_engine-0.12.0": "b74c0d373e462e504ad4436710a39f099e18e848e1ee711f70cd2dcd5a69b290",
@@ -727,6 +743,7 @@
                 "boa_gc": "boa_gc-0.22.0",
                 "boa_engine": "boa_engine-0.22.0",
                 "boa_parser": "boa_parser-0.22.0",
+                "boa_string": "boa_string-0.22.0",
                 "usvg": "usvg-0.48.1",
                 "ratatui-image": "ratatui-image-8.1.1",
                 "jpeg-encoder": "jpeg-encoder-0.7.0"
@@ -752,6 +769,7 @@
                 "boa_gc": "@@+cargo_workspaces+patched_boa_gc-0.22.0//:BUILD.bazel",
                 "boa_engine": "@@+cargo_workspaces+patched_boa_engine-0.22.0//:BUILD.bazel",
                 "boa_parser": "@@+cargo_workspaces+patched_boa_parser-0.22.0//:BUILD.bazel",
+                "boa_string": "@@+cargo_workspaces+patched_boa_string-0.22.0//:BUILD.bazel",
                 "usvg": "@@+cargo_workspaces+patched_usvg-0.48.1//:BUILD.bazel",
                 "ratatui-image": "@@+cargo_workspaces+patched_ratatui-image-8.1.1//:BUILD.bazel",
                 "jpeg-encoder": "@@+cargo_workspaces+patched_jpeg-encoder-0.7.0//:BUILD.bazel"
@@ -770,6 +788,7 @@
                 "boa_gc-0.22.0": "af82119558ab1002d1978c8459b53a3ebb506177d29a3aca37c07c1777b1d966",
                 "boa_interner-0.22.0": "317c631e791f5cb7d0017e43c0a758b0eaffd40c34c4c360e2a6be7752b78cd1",
                 "boa_parser-0.22.0": "641e81b3c8cbb7a2140547fb3ea534e9edf210b4e8c920b5fa864a919e11fbcf",
+                "boa_string-0.22.0": "30bf86c2bcff5bf2547acbfc516c5d3108ca527cb131511d749bf6fbef762c0e",
                 "jpeg-encoder-0.7.0": "0b0b36cbb4e6704f12f5b5d7b01dac593982c6550859ebd5a66fb15c9ea27fd5",
                 "parley-0.12.0": "61bd0c0c1737f0b3d3726dc06b225083af213b61913e4fbae1670613a106c6ce",
                 "parley_engine-0.12.0": "b74c0d373e462e504ad4436710a39f099e18e848e1ee711f70cd2dcd5a69b290",
@@ -1121,15 +1140,15 @@
           "REPO_MAPPING:rules_rust+,bazel_skylib bazel_skylib+",
           "REPO_MAPPING:rules_rust+,bazel_tools bazel_tools",
           "REPO_MAPPING:rules_rust+,rules_cc rules_cc+",
-          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.lock e2e8e7a757415ded5f470e584c5e220a3b59356f05c90c1d740bdb61ca4ea6fe",
-          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.toml c10fc525a4fa69fb3b28896171b126c445d8571bc0814aeff92a0f8d45eea3dd",
-          "FILE:@@+cargo_workspaces+cargo_ws_core//patched.json 8e8a9f40c217aaf55e285d8c200c9687627271dea3384c965430464eb7533431",
-          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.lock a194b1cdc256e82653b679f974a3eb17364d51b0f8ead3da0c44a6c29ea93197",
-          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.toml f8439821a58dc300e7d788c7ad423c6b70bbd712f91788f04570cd12e11c8053",
-          "FILE:@@+cargo_workspaces+cargo_ws_renderer//patched.json 8e8a9f40c217aaf55e285d8c200c9687627271dea3384c965430464eb7533431",
-          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.lock f9fadaf9329edad78625aebe86ecc9121ea3787527223004e571caf920554878",
-          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.toml 9fd32cf5068ff46d0ed56e8bae17e35f8daafad766ce0694e839791fc4e72ac2",
-          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//patched.json 8e8a9f40c217aaf55e285d8c200c9687627271dea3384c965430464eb7533431",
+          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.lock d2c35a31e43ec70d099a105a43a47c33fb42e3da7b9e10b691b2b51a7d38746b",
+          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.toml 2aa9b6c3d7bb81850b14914ea318d4c9c9ee35e5bbd3518450522209e5b7af33",
+          "FILE:@@+cargo_workspaces+cargo_ws_core//patched.json 07fcdeba66705cadce1ba9c335e04afe5d34b2fe9e5f3946a73290f3bb4463d0",
+          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.lock dc1701c97742bfc596f5a3b16e7edd6b326152acded7d6ef28bb6cc05300d965",
+          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.toml d338e91fe7b8dbb1d8b135967c3f1a885c7dfecf78f1ef09d18ba17bf05de801",
+          "FILE:@@+cargo_workspaces+cargo_ws_renderer//patched.json 07fcdeba66705cadce1ba9c335e04afe5d34b2fe9e5f3946a73290f3bb4463d0",
+          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.lock 0fb01670e73c7e6c286ebc9021716a29c218e11ddd23cf93b884c2513a92abf7",
+          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.toml b151249b9780aa3c903df3566c66c44bce9bbb45525791dc0cb37326bf8bceb0",
+          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//patched.json 07fcdeba66705cadce1ba9c335e04afe5d34b2fe9e5f3946a73290f3bb4463d0",
           "FILE:@@+cargo_workspaces+cargo_ws_memprof//Cargo.lock 700ce60a085805e81be18248290fa55c12fd753835006ab68256b8f397261384",
           "FILE:@@+cargo_workspaces+cargo_ws_memprof//Cargo.toml 6982e34060f201166856e8294a4c4a42cd957eb79df82f72f536b5318e6244b8",
           "FILE:@@//packages/kitesurf-cli/Cargo.lock 152fed308b4920eadd2828ba02d0dda6109d0a733cba973a78a25394334fd143",
@@ -1633,7 +1652,16 @@
                 "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0101-Restyle-only-what-a-loaded-import-s-rules-can-match.patch",
                 "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0102-Start-web-font-fetches-from-a-style-only-resolve.patch",
                 "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0103-Order-a-shadow-root-s-sheets-by-tree-position-not-pr.patch",
-                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0104-Lay-out-leaves-and-tables-outside-the-recursive-layo.patch"
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0104-Lay-out-leaves-and-tables-outside-the-recursive-layo.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0105-Let-stylo-invalidate-a-removed-stylesheet-instead-of.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0106-Invalidate-has-on-child-list-changes-like-Gecko-not-.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0107-Give-a-disconnected-style-no-stylesheet.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0108-fonts-gate-lazy-font-face-fetches-by-weight-style-vi.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0109-dom-skip-disabled-link-stylesheets-and-expose-pendin.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0110-fonts-dom-preserve-variable-weight-ranges-in-FontFac.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0111-Skip-non-rendered-elements-and-fast-path-ASCII-in-co.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0112-Track-style_text_epoch-and-record-style-parent-on-ap.patch",
+                "@@//scripts:patches/blitz-dom-0.3.0-beta.4/0113-dom-fonts-fix-has-sibling-only-child-invalidation-ca.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "a814bfd3ad19e6d8d26f99c75188062baca499564f9abe44250230962427d183",
@@ -1754,7 +1782,8 @@
                 "@@//scripts:patches/boa_ast-0.22.0/0005-source_text-report-the-bytes-a-source-text-retains.patch",
                 "@@//scripts:patches/boa_ast-0.22.0/0006-source_text-lend-out-the-compact-form-for-an-embedde.patch",
                 "@@//scripts:patches/boa_ast-0.22.0/0007-scope-let-the-compiler-drop-a-scope-s-name-lookup-ma.patch",
-                "@@//scripts:patches/boa_ast-0.22.0/0008-scope-export-a-scope-s-parts-and-rebuild-it-under-an.patch"
+                "@@//scripts:patches/boa_ast-0.22.0/0008-scope-export-a-scope-s-parts-and-rebuild-it-under-an.patch",
+                "@@//scripts:patches/boa_ast-0.22.0/0009-assign-add-owned-conversions-from-an-expression-to-a.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "9221b0a090572b4a118b46c5874c0781fe4bc9546b85f0a615b8bfb609ca4ed7",
@@ -1798,7 +1827,17 @@
                 "@@//scripts:patches/boa_engine-0.22.0/0023-bytecompiler-drop-each-compiled-scope-s-name-lookup-.patch",
                 "@@//scripts:patches/boa_engine-0.22.0/0024-code_block-split-a-block-into-a-shell-and-a-body.patch",
                 "@@//scripts:patches/boa_engine-0.22.0/0025-ks_body-move-never-run-function-bodies-to-the-code-s.patch",
-                "@@//scripts:patches/boa_engine-0.22.0/0026-error-lead-the-stack-string-with-the-error-s-name-an.patch"
+                "@@//scripts:patches/boa_engine-0.22.0/0026-error-lead-the-stack-string-with-the-error-s-name-an.patch",
+                "@@//scripts:patches/boa_engine-0.22.0/0027-proxy-allow-direct-Rust-trap-callbacks-on-embedder-h.patch",
+                "@@//scripts:patches/boa_engine-0.22.0/0028-vm-fast-path-dense-array-appends-and-typed-array-ind.patch",
+                "@@//scripts:patches/boa_engine-0.22.0/0029-vm-avoid-WeakShape-upgrades-in-inline-caches-and-des.patch",
+                "@@//scripts:patches/boa_engine-0.22.0/0030-vm-use-lazy-rope-concat-in-add-ConcatToString-and-di.patch",
+                "@@//scripts:patches/boa_engine-0.22.0/0031-vm-stack-allocate-up-to-4-native-call-arguments-and-.patch",
+                "@@//scripts:patches/boa_engine-0.22.0/0032-vm-inline-hottest-opcodes-in-Context-run-with-cached.patch",
+                "@@//scripts:patches/boa_engine-0.22.0/0033-Split-InlineCache-get_slot-hot-path-and-use-FxBuildH.patch",
+                "@@//scripts:patches/boa_engine-0.22.0/0034-Fast-path-string-keyed-Get-SetPropertyByValue-and-ou.patch",
+                "@@//scripts:patches/boa_engine-0.22.0/0035-Add-direct-mapped-VM-megamorphic-property-cache-for-.patch",
+                "@@//scripts:patches/boa_engine-0.22.0/0036-vm-use-fn_addr_eq-for-vtable-checks-mark-by-value-ca.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "5d6aaf7fdc4299df68adb67e1a5440a51d34630a1f5271b9698fd74bc97b60d9",
@@ -1820,7 +1859,8 @@
                 "@@//scripts:patches/boa_gc-0.22.0/0001-Mark-on-enqueue-to-bound-the-GC-worklist.patch",
                 "@@//scripts:patches/boa_gc-0.22.0/0002-pointers-widen-WeakGc-s-Clone-to-unsized-targets.patch",
                 "@@//scripts:patches/boa_gc-0.22.0/0003-expose-heap-occupancy-stats.patch",
-                "@@//scripts:patches/boa_gc-0.22.0/0004-add-a-mark-only-census-that-discounts-external-handl.patch"
+                "@@//scripts:patches/boa_gc-0.22.0/0004-add-a-mark-only-census-that-discounts-external-handl.patch",
+                "@@//scripts:patches/boa_gc-0.22.0/0005-Raise-GC-threshold-to-4-MiB-and-skip-unreachable-Vec.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "af82119558ab1002d1978c8459b53a3ebb506177d29a3aca37c07c1777b1d966",
@@ -1875,7 +1915,12 @@
                 "@@//scripts:patches/boa_parser-0.22.0/0002-lexer-size-the-collected-source-text-from-the-input-.patch",
                 "@@//scripts:patches/boa_parser-0.22.0/0003-Follow-boa_ast-s-boxed-variants-and-stop-cloning-par.patch",
                 "@@//scripts:patches/boa_parser-0.22.0/0004-Parse-long-comma-and-assignment-chains-without-deep-.patch",
-                "@@//scripts:patches/boa_parser-0.22.0/0005-expression-parse-binary-operators-in-one-frame-by-pr.patch"
+                "@@//scripts:patches/boa_parser-0.22.0/0005-expression-parse-binary-operators-in-one-frame-by-pr.patch",
+                "@@//scripts:patches/boa_parser-0.22.0/0006-assignment-move-the-left-hand-side-into-the-target-i.patch",
+                "@@//scripts:patches/boa_parser-0.22.0/0007-identifier-classify-ASCII-characters-without-the-Uni.patch",
+                "@@//scripts:patches/boa_parser-0.22.0/0008-function-skip-checked-bodies-when-looking-for-invali.patch",
+                "@@//scripts:patches/boa_parser-0.22.0/0009-buffered_lexer-return-the-buffered-next-token-withou.patch",
+                "@@//scripts:patches/boa_parser-0.22.0/0010-token-compare-token-kinds-inline.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "641e81b3c8cbb7a2140547fb3ea534e9edf210b4e8c920b5fa864a919e11fbcf",
@@ -1890,6 +1935,12 @@
           "crates__boa_string-0.22.0": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
             "attributes": {
+              "patch_args": [
+                "-p1"
+              ],
+              "patches": [
+                "@@//scripts:patches/boa_string-0.22.0/0001-string-add-lazy-ConsString-rope-for-concat_owned-and.patch"
+              ],
               "remote_patch_strip": 1,
               "sha256": "30bf86c2bcff5bf2547acbfc516c5d3108ca527cb131511d749bf6fbef762c0e",
               "type": "tar.gz",

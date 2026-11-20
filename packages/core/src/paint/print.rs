@@ -12,7 +12,7 @@ use crate::{emulated_color_scheme, DomHandle, LayoutMode};
 use crate::paint::pdf::{
     compute_page_bands, evict_recorded_page_layouts, max_printed_height, record_doc_pdf_page,
 };
-use crate::paint::pdf_paint::content_box;
+use crate::paint::scene_replay::content_box;
 
 #[wasm_bindgen]
 pub struct PdfSceneStream {

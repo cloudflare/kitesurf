@@ -153,6 +153,7 @@ console_error_panic_hook = { workspace = true, optional = true }
 
 [features]
 native-host = []
+scene-rasterizer-wasm = []
 default = ["console_error_panic_hook", "blitz", "pdf"]
 blitz = []
 pdf = ["blitz"]

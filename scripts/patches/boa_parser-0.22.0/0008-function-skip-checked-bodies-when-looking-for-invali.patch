@@ -1,0 +1,207 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Wed, 18 Nov 2026 16:50:45 +0000
+Subject: [PATCH] function: skip checked bodies when looking for invalid object
+ literals
+
+Every function body, the script and each module item are searched for a
+CoverInitializedName (`{a=1}` left in an expression), and the search
+descended into nested functions whose bodies had already been searched.
+The cost grew with the nesting depth; it was about 6% of the parse
+samples for reCAPTCHA's recaptcha__en.js and similar bundles.
+
+A body parsed by FunctionStatementList is searched before it is returned
+and a hit is a syntax error, so a body in the finished AST never has
+one. The search now stops at function bodies. Arrow function bodies are
+still searched, because a concise body (`x => expr`) is built without
+that check. Parameters and class field initializers are searched as
+before.
+
+Parse time for nine third-party scripts (3.0 MiB): 254 -> 240 ms
+natively. ASTs, collected source text, errors and top-level bytecode for
+6009 npm files and 59 valid and invalid cover-grammar snippets are
+unchanged; skipping arrow bodies too makes the snippets diverge.
+---
+ src/parser/function/mod.rs                    | 66 +++++++++++++++++--
+ src/parser/function/tests.rs                  | 18 +++++
+ src/parser/mod.rs                             |  4 +-
+ .../declaration/hoistable/class_decl/mod.rs   |  9 +--
+ src/parser/statement/mod.rs                   |  3 +-
+ 5 files changed, 87 insertions(+), 13 deletions(-)
+
+diff --git a/src/parser/function/mod.rs b/src/parser/function/mod.rs
+index 144a466..8584e8b 100644
+--- a/src/parser/function/mod.rs
++++ b/src/parser/function/mod.rs
+@@ -20,17 +20,71 @@ use crate::{
+     },
+     source::ReadChar,
+ };
+-use ast::{
+-    Position,
+-    operations::{check_labels, contains_invalid_object_literal},
+-};
++use ast::{Position, operations::check_labels};
+ use boa_ast::{
+     self as ast, Punctuator, Span, Spanned,
+     declaration::Variable,
+-    expression::Identifier,
+-    function::{FormalParameterList, FormalParameterListFlags, FunctionBody as AstFunctionBody},
++    expression::{
++        Identifier,
++        literal::{ObjectLiteral, PropertyDefinition},
++    },
++    function::{
++        ArrowFunction, AsyncArrowFunction, FormalParameterList, FormalParameterListFlags,
++        FunctionBody as AstFunctionBody,
++    },
++    visitor::{VisitWith, Visitor},
+ };
+ use boa_interner::{Interner, Sym};
++use std::ops::ControlFlow;
++
++/// Returns `true` if the node contains a `CoverInitializedName`, like
++/// [`ast::operations::contains_invalid_object_literal`], but does not descend into function bodies
++/// the parser has already checked.
++///
++/// Every function body `FunctionStatementList` parses is checked before it is returned, and a
++/// body that fails is a syntax error, so a checked body never contains one. Rechecking them made
++/// the check quadratic in function nesting depth. Arrow function bodies are still walked: a
++/// concise body (`x => expr`) is built without going through `FunctionStatementList`.
++pub(in crate::parser) fn contains_invalid_object_literal<N>(node: &N) -> bool
++where
++    N: VisitWith,
++{
++    struct ContainsInvalidObjectLiteral;
++
++    impl<'ast> Visitor<'ast> for ContainsInvalidObjectLiteral {
++        type BreakTy = ();
++
++        fn visit_object_literal(&mut self, node: &'ast ObjectLiteral) -> ControlFlow<()> {
++            for pd in node.properties() {
++                if let PropertyDefinition::CoverInitializedName(..) = pd {
++                    return ControlFlow::Break(());
++                }
++                self.visit_property_definition(pd)?;
++            }
++            ControlFlow::Continue(())
++        }
++
++        fn visit_function_body(&mut self, _: &'ast AstFunctionBody) -> ControlFlow<()> {
++            ControlFlow::Continue(())
++        }
++
++        fn visit_arrow_function(&mut self, node: &'ast ArrowFunction) -> ControlFlow<()> {
++            self.visit_formal_parameter_list(node.parameters())?;
++            node.body().visit_with(self)
++        }
++
++        fn visit_async_arrow_function(
++            &mut self,
++            node: &'ast AsyncArrowFunction,
++        ) -> ControlFlow<()> {
++            self.visit_formal_parameter_list(node.parameters())?;
++            node.body().visit_with(self)
++        }
++    }
++
++    node.visit_with(&mut ContainsInvalidObjectLiteral)
++        .is_break()
++}
+
+ /// Formal parameters parsing.
+ ///
+diff --git a/src/parser/function/tests.rs b/src/parser/function/tests.rs
+index 50e2ba1..d21d23d 100644
+--- a/src/parser/function/tests.rs
++++ b/src/parser/function/tests.rs
+@@ -1246,3 +1246,21 @@ fn check_arrow_assignment_3arg_nobrackets() {
+         interner,
+     );
+ }
++
++/// A `CoverInitializedName` left in an expression is a syntax error at any function nesting
++/// depth, including in a concise arrow body, which is not checked on its own.
++#[test]
++fn check_invalid_object_literal_in_nested_functions() {
++    for js in [
++        "function f() { function g() { ({a=1}); } }",
++        "function f() { return () => ({a=1}); }",
++        "function f() { return () => () => ({a=1}); }",
++        "function f() { return async x => ({a=1}); }",
++        "function f() { function g(x = {a=1}) {} }",
++        "function f() { return class { x = () => ({a=1}); }; }",
++        "function f() { return { m() { return () => ({a=1}); } }; }",
++        "x => x => ({a=1});",
++    ] {
++        check_invalid_script(js);
++    }
++}
+diff --git a/src/parser/mod.rs b/src/parser/mod.rs
+index d3e06d3..0aa3b66 100644
+--- a/src/parser/mod.rs
++++ b/src/parser/mod.rs
+@@ -15,7 +15,7 @@ use crate::{
+     lexer::{Error as LexError, InputElement},
+     parser::{
+         cursor::Cursor,
+-        function::{FormalParameters, FunctionStatementList},
++        function::{FormalParameters, FunctionStatementList, contains_invalid_object_literal},
+     },
+     source::ReadChar,
+ };
+@@ -24,7 +24,7 @@ use boa_ast::{
+     function::{FormalParameterList, FunctionBody},
+     operations::{
+         ContainsSymbol, all_private_identifiers_valid, check_labels, contains,
+-        contains_invalid_object_literal, lexically_declared_names, var_declared_names,
++        lexically_declared_names, var_declared_names,
+     },
+     scope::Scope,
+ };
+diff --git a/src/parser/statement/declaration/hoistable/class_decl/mod.rs b/src/parser/statement/declaration/hoistable/class_decl/mod.rs
+index 0e8a713..347943e 100644
+--- a/src/parser/statement/declaration/hoistable/class_decl/mod.rs
++++ b/src/parser/statement/declaration/hoistable/class_decl/mod.rs
+@@ -10,7 +10,10 @@ use crate::{
+             AssignmentExpression, AsyncGeneratorMethod, AsyncMethod, BindingIdentifier,
+             GeneratorMethod, LeftHandSideExpression, PropertyName,
+         },
+-        function::{FUNCTION_BREAK_TOKENS, FunctionBody, UniqueFormalParameters},
++        function::{
++            FUNCTION_BREAK_TOKENS, FunctionBody, UniqueFormalParameters,
++            contains_invalid_object_literal,
++        },
+         statement::StatementList,
+     },
+     source::ReadChar,
+@@ -18,9 +21,7 @@ use crate::{
+ use ast::{
+     function::FunctionBody as AstFunctionBody,
+     function::PrivateName,
+-    operations::{
+-        check_labels, contains_invalid_object_literal, lexically_declared_names, var_declared_names,
+-    },
++    operations::{check_labels, lexically_declared_names, var_declared_names},
+     property::MethodDefinitionKind,
+ };
+ use boa_ast::{
+diff --git a/src/parser/statement/mod.rs b/src/parser/statement/mod.rs
+index a51e6d5..cb3015e 100644
+--- a/src/parser/statement/mod.rs
++++ b/src/parser/statement/mod.rs
+@@ -44,12 +44,13 @@ use crate::{
+     parser::{
+         AllowAwait, AllowReturn, AllowYield, Cursor, OrAbrupt, ParseResult, TokenParser,
+         expression::{BindingIdentifier, Initializer, PropertyName},
++        function::contains_invalid_object_literal,
+     },
+     source::ReadChar,
+ };
+ use ast::{
+     Position,
+-    operations::{all_private_identifiers_valid, check_labels, contains_invalid_object_literal},
++    operations::{all_private_identifiers_valid, check_labels},
+ };
+ use boa_ast::{
+     self as ast, Keyword, Punctuator, Span, Spanned,

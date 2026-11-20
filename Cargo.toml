@@ -98,6 +98,7 @@ boa_interner = { path = "packages/core/target/vendor-patched/boa_interner-0.22.0
 boa_gc = { path = "packages/core/target/vendor-patched/boa_gc-0.22.0" }
 boa_engine = { path = "packages/core/target/vendor-patched/boa_engine-0.22.0" }
 boa_parser = { path = "packages/core/target/vendor-patched/boa_parser-0.22.0" }
+boa_string = { path = "packages/core/target/vendor-patched/boa_string-0.22.0" }
 # Patched for SVG2 geometry properties from CSS (`circle { r: 65px }`),
 # which usvg drops. blitz-dom's usvg resolves here too via this patch.
 usvg = { path = "packages/core/target/vendor-patched/usvg-0.48.1" }

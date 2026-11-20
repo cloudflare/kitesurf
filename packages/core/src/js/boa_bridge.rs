@@ -6,9 +6,14 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::str;
 
 use boa_engine::{
-    builtins::{object::OrdinaryObject, promise::ResolvingFunctions},
+    builtins::{
+        object::OrdinaryObject,
+        promise::ResolvingFunctions,
+        proxy::{HostProxyTraps, Proxy as BoaProxy},
+    },
     job::{Job, NativeAsyncJob, PromiseJob},
     js_string,
     native_function::{NativeFunction, NativeFunctionPointer},
@@ -17,9 +22,12 @@ use boa_engine::{
         FunctionObjectBuilder, JsObject,
     },
     property::{PropertyDescriptor, PropertyKey},
+    string::JsStrVariant,
     value::JsVariant,
     Context, JsError, JsNativeError, JsResult, JsString, JsSymbol, JsValue as BoaValue,
 };
+
+use crate::js::{dom_fastpath, internals};
 
 // A runtime-limit (engine) error has no JS value, so page code cannot catch boa's
 // recursion guard; hand V8 a plain Error so the callback fails, not the trampoline.
@@ -444,6 +452,7 @@ fn finalize_held(held: JsValue) {
 // because JS cannot run during a GC sweep; the next bridge entry drains it.
 thread_local! {
     static V8_RELEASE_QUEUE: RefCell<Vec<u64>> = const { RefCell::new(Vec::new()) };
+    static V8_RELEASE_PENDING: Cell<bool> = const { Cell::new(false) };
 }
 
 struct KsV8Release {
@@ -894,6 +903,7 @@ impl boa_engine::JsData for KsV8Release {}
 impl Drop for KsV8Release {
     fn drop(&mut self) {
         V8_RELEASE_QUEUE.with(|q| q.borrow_mut().push(self.handle));
+        V8_RELEASE_PENDING.with(|p| p.set(true));
     }
 }
 
@@ -935,6 +945,10 @@ pub(crate) fn boa_buffer_bytes(v: &JsValue) -> Option<js_sys::Uint8Array> {
 }
 
 fn drain_v8_releases() {
+    if !V8_RELEASE_PENDING.with(Cell::get) {
+        return;
+    }
+    V8_RELEASE_PENDING.with(|p| p.set(false));
     let pending = V8_RELEASE_QUEUE.with(|q| std::mem::take(&mut *q.borrow_mut()));
     if pending.is_empty() {
         return;
@@ -1019,7 +1033,7 @@ pub(crate) fn bridged_v8_handle(o: &JsObject, ctx: &mut Context) -> Option<u64> 
     let (target, handler) = o
         .downcast_ref::<boa_engine::builtins::proxy::Proxy>()?
         .target_and_handler()?;
-    if !handler.is::<BridgeHandlerMark>() {
+    if !handler.is::<HostProxyTraps>() {
         return None;
     }
     read_handle(&target, "__ks_h", ctx)
@@ -1084,10 +1098,7 @@ fn our_v8_register(v: &JsValue, handle: u64) {
     });
 }
 
-fn our_v8_lookup(v: &JsValue) -> Option<u64> {
-    if !v.is_object() && !v.is_function() {
-        return None;
-    }
+fn our_v8_lookup_obj(v: &JsValue) -> Option<u64> {
     OUR_V8.with(|c| {
         let b = c.borrow();
         let m = b.as_ref()?;
@@ -1097,6 +1108,13 @@ fn our_v8_lookup(v: &JsValue) -> Option<u64> {
             .as_f64()
             .map(|n| n as u64)
     })
+}
+
+fn our_v8_lookup(v: &JsValue) -> Option<u64> {
+    if !v.is_object() && !v.is_function() {
+        return None;
+    }
+    our_v8_lookup_obj(v)
 }
 
 fn v8_builtin_prototype(name: &str) -> Option<JsValue> {
@@ -1202,13 +1220,17 @@ fn v8_intrinsic(name: &str) -> Option<JsValue> {
     v.is_function().then_some(v)
 }
 
+fn v8_intrinsic_ctor_name_fn(v: &JsValue) -> Option<&'static str> {
+    let i = v8_intrinsics().by_fn.get(v).as_f64()?;
+    INTRINSIC_CTOR_NAMES.get(i as usize).copied()
+}
+
 fn v8_intrinsic_ctor_name(v: &JsValue) -> Option<&'static str> {
     // Every name is a constructor, so only a function can match.
     if !v.is_function() {
         return None;
     }
-    let i = v8_intrinsics().by_fn.get(v).as_f64()?;
-    INTRINSIC_CTOR_NAMES.get(i as usize).copied()
+    v8_intrinsic_ctor_name_fn(v)
 }
 
 thread_local! {
@@ -1227,12 +1249,12 @@ thread_local! {
 
 pub(crate) fn boa_str_to_v8(s: &JsString) -> JsValue {
     if s.len() > 64 {
-        return JsValue::from_str(&s.to_std_string_escaped());
+        return JsValue::from_str(&key_string(s));
     }
     if let Some(v) = V8_STRS.with(|m| m.borrow().get(s).cloned()) {
         return v;
     }
-    let v = JsValue::from_str(&s.to_std_string_escaped());
+    let v = JsValue::from_str(&key_string(s));
     V8_STRS.with(|m| {
         let mut m = m.borrow_mut();
         if m.len() >= 4096 {
@@ -1241,6 +1263,67 @@ pub(crate) fn boa_str_to_v8(s: &JsString) -> JsValue {
         m.insert(s.clone(), v.clone());
     });
     v
+}
+
+// Canonical decimal u32 index (`"0"` or `[1-9][0-9]*` <= u32::MAX) maps to a raw JS number
+// key so Reflect.get/set/has skip string decoding and never thrash V8_STRS.
+fn parse_canonical_u32_index(s: &JsString) -> Option<u32> {
+    let bytes = match s.as_str().variant() {
+        JsStrVariant::Latin1(b) => b,
+        JsStrVariant::Utf16(_) => return None,
+    };
+    if bytes.is_empty() || bytes.len() > 10 {
+        return None;
+    }
+    if bytes.len() == 1 {
+        let d = bytes[0].wrapping_sub(b'0');
+        return (d <= 9).then_some(u32::from(d));
+    }
+    if !matches!(bytes[0], b'1'..=b'9') {
+        return None;
+    }
+    let mut n: u64 = u64::from(bytes[0] - b'0');
+    for &b in &bytes[1..] {
+        let d = b.wrapping_sub(b'0');
+        if d > 9 {
+            return None;
+        }
+        n = n * 10 + u64::from(d);
+    }
+    u32::try_from(n).ok()
+}
+
+fn boa_key_str_to_v8(s: &JsString) -> JsValue {
+    if let Some(idx) = parse_canonical_u32_index(s) {
+        return JsValue::from_f64(f64::from(idx));
+    }
+    boa_str_to_v8(s)
+}
+
+// Borrow a short ASCII JsString as `&str` without allocating on the heap.
+fn short_ascii_key<'a>(s: &'a JsString, buf: &'a mut [u8; 24]) -> Option<&'a str> {
+    let len = s.len();
+    if len > buf.len() {
+        return None;
+    }
+    match s.as_str().variant() {
+        JsStrVariant::Latin1(bytes) => {
+            if bytes.is_ascii() {
+                str::from_utf8(bytes).ok()
+            } else {
+                None
+            }
+        }
+        JsStrVariant::Utf16(units) => {
+            for (dst, &u) in buf[..len].iter_mut().zip(units.iter()) {
+                if u >= 128 {
+                    return None;
+                }
+                *dst = u as u8;
+            }
+            str::from_utf8(&buf[..len]).ok()
+        }
+    }
 }
 
 // Keys are a page's property names, so the set is small; the cap only bounds a
@@ -1528,10 +1611,7 @@ fn boa_v8_stamp(o: &JsObject, idx: u64) {
     o.insert_property(stamp_pk(), desc);
 }
 
-fn v8_boa_cache_get(v: &JsValue) -> Option<u64> {
-    if !v.is_object() {
-        return None;
-    }
+fn v8_boa_cache_get_obj(v: &JsValue) -> Option<u64> {
     V8_BOA_CACHE.with(|c| {
         let b = c.borrow();
         let m = b.as_ref()?;
@@ -1541,6 +1621,13 @@ fn v8_boa_cache_get(v: &JsValue) -> Option<u64> {
             .as_f64()
             .map(|n| n as u64)
     })
+}
+
+fn v8_boa_cache_get(v: &JsValue) -> Option<u64> {
+    if !v.is_object() {
+        return None;
+    }
+    v8_boa_cache_get_obj(v)
 }
 
 fn v8_boa_cache_set(v: &JsValue, handle: u64) {
@@ -1817,8 +1904,121 @@ fn chunk_end(s: &js_sys::JsString, pos: u32, len: u32) -> u32 {
     }
 }
 
-pub(crate) fn v8_to_boa(v: wasm_bindgen::JsValue, ctx: &mut Context) -> BoaValue {
+const V8_KIND_UNDEFINED: u32 = 0;
+const V8_KIND_NULL: u32 = 1;
+const V8_KIND_FALSE: u32 = 2;
+const V8_KIND_TRUE: u32 = 3;
+const V8_KIND_NUMBER: u32 = 4;
+const V8_KIND_STRING: u32 = 5;
+const V8_KIND_FUNCTION: u32 = 6;
+const V8_KIND_OBJECT: u32 = 7;
+const V8_KIND_SYMBOL: u32 = 8;
+
+thread_local! {
+    static BRIDGE_HELPER: RefCell<Option<Option<BridgeHelper>>> = const { RefCell::new(None) };
+}
+
+fn bridge_helper() -> Option<BridgeHelper> {
+    if let Some(cached) = BRIDGE_HELPER.with(|cell| cell.borrow().clone()) {
+        return cached;
+    }
+    let fetched = internals::get("bridgeHelper").map(|v| v.unchecked_into::<BridgeHelper>());
+    // Cache only once present: a test or early boot may install internals later.
+    if fetched.is_some() {
+        BRIDGE_HELPER.with(|cell| {
+            *cell.borrow_mut() = Some(fetched.clone());
+        });
+    }
+    fetched
+}
+
+fn v8_function_to_boa(
+    v: &JsValue,
+    receiver: Option<(Option<&str>, (u64, &JsObject))>,
+    ctx: &mut Context,
+) -> BoaValue {
+    if let Some(h) = our_v8_lookup_obj(v) {
+        if let Some(o) = get_boa(h) {
+            return o.into();
+        }
+    }
+    if let Some(name) = v8_intrinsic_ctor_name_fn(v) {
+        if let Some(o) = boa_intrinsic_ctor(name, ctx) {
+            return o.into();
+        }
+    }
+    // Function.prototype is callable, so the identity check has to precede the proxy: a
+    // proxied one hands page code a write path into the V8 realm's own intrinsics.
+    if let Some(proto) = boa_intrinsic_prototype_for(v, ctx) {
+        return proto.into();
+    }
+    let bound_receiver = receiver.and_then(|(key, recv)| {
+        let is_dom_exception_constructor = key
+            .is_some_and(|key| matches!(key, "constructor" | "DOMException"))
+            && v8_intrinsic("DOMException").is_some_and(|ctor| Object::is(v, &ctor));
+        (!is_dom_exception_constructor).then_some(recv)
+    });
+    v8_fn_to_boa_proxy(v, bound_receiver, ctx).into()
+}
+
+fn v8_plain_object_to_boa(v: JsValue, check_promise: bool, ctx: &mut Context) -> BoaValue {
+    if let Some(h) = our_v8_lookup_obj(&v) {
+        if let Some(o) = get_boa(h) {
+            return o.into();
+        }
+    }
+    // A cached proxy is never a Promise (Promises bridge via bridge_v8_promise, not the cache),
+    // so checking the cache first avoids an instanceof Promise crossing on every cached object.
+    if let Some(o) = v8_boa_cache_get_obj(&v).and_then(weak_boa_get) {
+        if CC_ACTIVE.with(Cell::get) {
+            if let Some(n) = bridged_v8_handle(&o, ctx) {
+                cc_touch_v8(n);
+            }
+        }
+        return o.into();
+    }
+    if check_promise && with_v8(ctx, || v.dyn_ref::<Promise>().is_some()) {
+        return bridge_v8_promise(v.unchecked_into::<Promise>(), ctx);
+    }
+    if let Some(proto) = boa_intrinsic_prototype_for(&v, ctx) {
+        return proto.into();
+    }
+    let handle = pin(v.clone());
+    let proxy = make_v8_proxy(handle, None, false, ctx);
+    let weak = weak_boa_insert(&proxy);
+    PIN_WEAK_BOA.with(|m| m.borrow_mut().insert(handle, weak));
+    v8_boa_cache_set(&v, weak);
+    proxy.into()
+}
+
+fn v8_to_boa_classified(
+    v: JsValue,
+    receiver: Option<(Option<&str>, (u64, &JsObject))>,
+    ctx: &mut Context,
+) -> BoaValue {
     drain_v8_releases();
+    if let Some(helper) = bridge_helper() {
+        return match helper.kind(&v) {
+            V8_KIND_UNDEFINED => BoaValue::undefined(),
+            V8_KIND_NULL => BoaValue::null(),
+            V8_KIND_FALSE => BoaValue::from(false),
+            V8_KIND_TRUE => BoaValue::from(true),
+            V8_KIND_NUMBER => BoaValue::from(helper.num(&v)),
+            V8_KIND_STRING => {
+                if let Some(s) = large_v8_string_to_boa(v.unchecked_ref()) {
+                    return BoaValue::from(s);
+                }
+                match v.as_string() {
+                    Some(s) => BoaValue::from(JsString::from(s.as_str())),
+                    None => BoaValue::undefined(),
+                }
+            }
+            V8_KIND_FUNCTION => v8_function_to_boa(&v, receiver, ctx),
+            V8_KIND_OBJECT => v8_plain_object_to_boa(v, true, ctx),
+            V8_KIND_SYMBOL => BoaValue::from(v8_symbol_to_boa(v.unchecked_into::<Symbol>(), ctx)),
+            _ => v8_object_to_boa(v, ctx),
+        };
+    }
     if v.is_null() {
         return BoaValue::null();
     }
@@ -1842,19 +2042,24 @@ pub(crate) fn v8_to_boa(v: wasm_bindgen::JsValue, ctx: &mut Context) -> BoaValue
     if v.is_symbol() {
         return BoaValue::from(v8_symbol_to_boa(v.unchecked_into::<Symbol>(), ctx));
     }
-    // Bridge V8 promises through async jobs. Promise detection can itself trigger
-    // proxy traps, so keep the `instanceof` probe inside `with_v8`.
-    if with_v8(ctx, || v.dyn_ref::<Promise>().is_some()) {
-        return bridge_v8_promise(v.unchecked_into::<Promise>(), ctx);
+    if v.is_function() {
+        return v8_function_to_boa(&v, receiver, ctx);
+    }
+    if v.is_object() {
+        return v8_plain_object_to_boa(v, true, ctx);
     }
     v8_object_to_boa(v, ctx)
+}
+
+pub(crate) fn v8_to_boa(v: wasm_bindgen::JsValue, ctx: &mut Context) -> BoaValue {
+    v8_to_boa_classified(v, None, ctx)
 }
 
 // For a DOM wrapper the fast path minted through the shim: never a Promise, so
 // skip the instanceof excursion, whose re-arm made every minted node revalidate.
 pub(crate) fn v8_node_to_boa(v: JsValue, ctx: &mut Context) -> BoaValue {
     drain_v8_releases();
-    v8_object_to_boa(v, ctx)
+    v8_plain_object_to_boa(v, false, ctx)
 }
 
 fn v8_object_to_boa(v: JsValue, ctx: &mut Context) -> BoaValue {
@@ -2019,81 +2224,97 @@ fn v8_property_to_boa(
     receiver: (u64, &JsObject),
     ctx: &mut Context,
 ) -> BoaValue {
-    if let Some(handle) = boa_unwrap_handle(&value) {
-        if let Some(object) = get_boa(handle) {
-            return object.into();
-        }
+    v8_to_boa_classified(value, Some((key, receiver)), ctx)
+}
+
+fn property_key_to_v8(key: &PropertyKey, ctx: &mut Context) -> JsValue {
+    match key {
+        PropertyKey::Index(idx) => JsValue::from_f64(f64::from(idx.get())),
+        PropertyKey::String(s) => boa_key_str_to_v8(s),
+        PropertyKey::Symbol(sym) => boa_symbol_to_v8(sym, ctx).into(),
     }
-    if value.is_function() {
-        if let Some(name) = v8_intrinsic_ctor_name(&value) {
-            if let Some(object) = boa_intrinsic_ctor(name, ctx) {
-                return object.into();
+}
+
+fn host_trap_get(
+    target: &JsObject,
+    key: &PropertyKey,
+    receiver: &BoaValue,
+    ctx: &mut Context,
+) -> JsResult<BoaValue> {
+    let Some(handle) = read_handle(target, "__ks_h", ctx) else {
+        return Ok(BoaValue::undefined());
+    };
+    match key {
+        PropertyKey::Index(idx) => {
+            let recv = inheriting_receiver_for_target(Some(receiver), target, handle, ctx);
+            let v8 = get_v8(handle);
+            let v8_idx = JsValue::from_f64(f64::from(idx.get()));
+            match with_v8(ctx, || reflect_get(&v8, &v8_idx, recv.as_ref())) {
+                Ok(res) => Ok(v8_property_to_boa(res, None, (handle, target), ctx)),
+                Err(e) => getter_threw(e, ctx),
             }
         }
-        // Intrinsic prototypes cross as plain property values too (`fn.prototype`, a descriptor
-        // value), and Function.prototype is callable, so the identity check must precede the
-        // proxy: otherwise a write through it lands on the V8 realm's own Function.prototype,
-        // which the shim's own `Function.prototype.apply` calls depend on.
-        if let Some(proto) = boa_intrinsic_prototype_for(&value, ctx) {
-            return proto.into();
+        PropertyKey::Symbol(sym) => {
+            let v8sym = boa_symbol_to_v8(sym, ctx);
+            let recv = inheriting_receiver_for_target(Some(receiver), target, handle, ctx);
+            let v8 = get_v8(handle);
+            match with_v8(ctx, || reflect_get(&v8, v8sym.as_ref(), recv.as_ref())) {
+                Ok(res) => Ok(v8_property_to_boa(res, None, (handle, target), ctx)),
+                Err(e) => getter_threw(e, ctx),
+            }
         }
-        let is_dom_exception_constructor = key
-            .is_some_and(|key| matches!(key, "constructor" | "DOMException"))
-            && v8_intrinsic("DOMException").is_some_and(|ctor| Object::is(&value, &ctor));
-        let receiver = (!is_dom_exception_constructor).then_some(receiver);
-        return v8_fn_to_boa_proxy(&value, receiver, ctx).into();
+        PropertyKey::String(key_js) => {
+            let mut ascii_buf = [0u8; 24];
+            let ascii = short_ascii_key(key_js, &mut ascii_buf);
+            // boa→blitz DOM short-circuit: whitelisted reads on branded node
+            // proxies answer inside the wasm (dom_fastpath.rs); None falls
+            // through to the crossing below, unchanged.
+            if let Some(fast_key) = ascii {
+                if let Some(fast) = dom_fastpath::try_fast_get(handle, fast_key, target, ctx) {
+                    return Ok(fast);
+                }
+            }
+            let recv = inheriting_receiver_for_target(Some(receiver), target, handle, ctx);
+            let v8 = get_v8(handle);
+            let v8_prop = boa_key_str_to_v8(key_js);
+            match with_v8(ctx, || reflect_get(&v8, &v8_prop, recv.as_ref())) {
+                Ok(res) => Ok(v8_property_to_boa(res, ascii, (handle, target), ctx)),
+                Err(e) => getter_threw(e, ctx),
+            }
+        }
     }
-    v8_to_boa(value, ctx)
 }
 
 fn trap_get(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<BoaValue> {
     let Some(target) = args.first().and_then(|v| v.as_object()) else {
         return Ok(BoaValue::undefined());
     };
-    let Some(handle) = read_handle(&target, "__ks_h", ctx) else {
-        return Ok(BoaValue::undefined());
+    let key = match args.get(1) {
+        Some(k) => k.to_property_key(ctx)?,
+        None => PropertyKey::from(JsString::default()),
     };
-    if let Some(sym) = args.get(1).and_then(|k| k.as_symbol()) {
-        let v8sym = boa_symbol_to_v8(&sym, ctx);
-        let recv = inheriting_receiver_v8(args.get(2), handle, ctx);
-        let v8 = get_v8(handle);
-        return match with_v8(ctx, || reflect_get(&v8, v8sym.as_ref(), recv.as_ref())) {
-            Ok(res) => Ok(v8_property_to_boa(res, None, (handle, &target), ctx)),
-            Err(e) => getter_threw(e, ctx),
-        };
-    }
-    let key = args
-        .get(1)
-        .and_then(|k| k.to_string(ctx).ok())
-        .map(|s| key_string(&s))
-        .unwrap_or_default();
-    // boa→blitz DOM short-circuit: whitelisted reads on branded node
-    // proxies answer inside the wasm (dom_fastpath.rs); None falls
-    // through to the crossing below, unchanged.
-    if let Some(fast) = crate::js::dom_fastpath::try_fast_get(handle, &key, &target, ctx) {
-        return Ok(fast);
-    }
-    let recv = inheriting_receiver_v8(args.get(2), handle, ctx);
-    let v8 = get_v8(handle);
-    match with_v8(ctx, || reflect_get(&v8, &v8_key(&key), recv.as_ref())) {
-        Ok(res) => Ok(v8_property_to_boa(
-            res,
-            Some(key.as_str()),
-            (handle, &target),
-            ctx,
-        )),
-        Err(e) => getter_threw(e, ctx),
-    }
+    let receiver = args.get(2).cloned().unwrap_or(BoaValue::undefined());
+    host_trap_get(&target, &key, &receiver, ctx)
 }
 
 // A V8 getter found through a boa object's prototype chain runs with that object as `this`,
 // as OrdinaryGet passes the receiver; a direct read keeps the two-argument form.
-fn inheriting_receiver_v8(
+fn inheriting_receiver_for_target(
     recv: Option<&BoaValue>,
+    target: &JsObject,
     handle: u64,
     ctx: &mut Context,
 ) -> Option<JsValue> {
     let recv = recv?.as_object()?;
+    // Direct reads pass the proxy itself as receiver; matching target proves own == handle
+    // without re-reading the target's handle slot.
+    if let Some(proxy) = recv.downcast_ref::<BoaProxy>() {
+        if let Some((recv_target, recv_handler)) = proxy.target_and_handler() {
+            if JsObject::equals(&recv_target, target) && recv_handler.is::<HostProxyTraps>() {
+                return None;
+            }
+        }
+    }
     inheriting_receiver(&recv, handle, ctx)
 }
 
@@ -2176,57 +2397,93 @@ fn boa_intrinsic_prototype_for(proto: &wasm_bindgen::JsValue, ctx: &Context) -> 
     boa_intrinsic_prototype(INTRINSIC_CTOR_NAMES.get(index as usize)?, ctx)
 }
 
+fn host_trap_has(target: &JsObject, key: &PropertyKey, ctx: &mut Context) -> JsResult<bool> {
+    let Some(handle) = read_handle(target, "__ks_h", ctx) else {
+        return Ok(false);
+    };
+    let v8key = property_key_to_v8(key, ctx);
+    let v8 = get_v8(handle);
+    Ok(with_v8(ctx, || Reflect::has(&v8, &v8key)).unwrap_or(false))
+}
+
 fn trap_has(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<BoaValue> {
     let Some(target) = args.first().and_then(|v| v.as_object()) else {
         return Ok(BoaValue::from(false));
     };
-    let Some(handle) = read_handle(&target, "__ks_h", ctx) else {
-        return Ok(BoaValue::from(false));
+    let key = match args.get(1) {
+        Some(k) => k.to_property_key(ctx)?,
+        None => PropertyKey::from(JsString::default()),
     };
-    if let Some(sym) = args.get(1).and_then(|k| k.as_symbol()) {
-        let v8sym = boa_symbol_to_v8(&sym, ctx);
-        let v8 = get_v8(handle);
-        let has = with_v8(ctx, || Reflect::has(&v8, v8sym.as_ref())).unwrap_or(false);
-        return Ok(BoaValue::from(has));
+    Ok(BoaValue::from(host_trap_has(&target, &key, ctx)?))
+}
+
+fn host_trap_call(
+    target: &JsObject,
+    this_arg: &BoaValue,
+    args: &[BoaValue],
+    ctx: &mut Context,
+) -> JsResult<BoaValue> {
+    let Some(fn_handle) = read_handle(target, "__ks_h", ctx) else {
+        return Ok(BoaValue::undefined());
+    };
+    let this_v8 = match read_handle(target, "__ks_t", ctx) {
+        // Methods stay bound to the object they were read from, keeping their identity; a boa
+        // object that inherited one through it is still the receiver when it is `this`.
+        Some(h) => this_arg
+            .as_object()
+            .and_then(|t| inheriting_receiver(&t, h, ctx))
+            .unwrap_or_else(|| get_v8(h)),
+        None => {
+            if this_arg
+                .as_object()
+                .is_some_and(|o| JsObject::equals(&o, &ctx.global_object()))
+            {
+                js_sys::global().into()
+            } else {
+                boa_to_v8(this_arg, ctx)
+            }
+        }
+    };
+    let func: Function = get_v8(fn_handle).unchecked_into();
+    let res = if let (Some(helper), true) = (bridge_helper(), args.len() <= 3) {
+        match args {
+            [] => with_v8(ctx, || helper.call0(&func, &this_v8)),
+            [a0] => {
+                let a0 = boa_to_v8(a0, ctx);
+                with_v8(ctx, || helper.call1(&func, &this_v8, &a0))
+            }
+            [a0, a1] => {
+                let a0 = boa_to_v8(a0, ctx);
+                let a1 = boa_to_v8(a1, ctx);
+                with_v8(ctx, || helper.call2(&func, &this_v8, &a0, &a1))
+            }
+            [a0, a1, a2] => {
+                let a0 = boa_to_v8(a0, ctx);
+                let a1 = boa_to_v8(a1, ctx);
+                let a2 = boa_to_v8(a2, ctx);
+                with_v8(ctx, || helper.call3(&func, &this_v8, &a0, &a1, &a2))
+            }
+            _ => unreachable!("args.len() <= 3"),
+        }
+    } else {
+        let out = Array::new();
+        for arg in args {
+            out.push(&boa_to_v8(arg, ctx));
+        }
+        with_v8(ctx, || Reflect::apply(&func, &this_v8, &out))
+    };
+    match res {
+        Ok(res) => Ok(v8_to_boa(res, ctx)),
+        Err(e) => Err(JsError::from_opaque(v8_to_boa(e, ctx))),
     }
-    let key = args
-        .get(1)
-        .and_then(|k| k.to_string(ctx).ok())
-        .map(|s| key_string(&s))
-        .unwrap_or_default();
-    let v8 = get_v8(handle);
-    let has = with_v8(ctx, || Reflect::has(&v8, &v8_key(&key))).unwrap_or(false);
-    Ok(BoaValue::from(has))
 }
 
 fn trap_apply(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<BoaValue> {
     let Some(target) = args.first().and_then(|v| v.as_object()) else {
         return Ok(BoaValue::undefined());
     };
-    let Some(fn_handle) = read_handle(&target, "__ks_h", ctx) else {
-        return Ok(BoaValue::undefined());
-    };
-    let this_v8 = match read_handle(&target, "__ks_t", ctx) {
-        // Methods stay bound to the object they were read from, keeping their identity; a boa
-        // object that inherited one through it is still the receiver when it is `this`.
-        Some(h) => args
-            .get(1)
-            .and_then(|t| t.as_object())
-            .and_then(|t| inheriting_receiver(&t, h, ctx))
-            .unwrap_or_else(|| get_v8(h)),
-        None => match args.get(1) {
-            Some(t)
-                if t.as_object()
-                    .is_some_and(|o| JsObject::equals(&o, &ctx.global_object())) =>
-            {
-                js_sys::global().into()
-            }
-            Some(t) => boa_to_v8(t, ctx),
-            None => JsValue::UNDEFINED,
-        },
-    };
-    let func: Function = get_v8(fn_handle).unchecked_into();
-    let out = Array::new();
+    let this_arg = args.get(1).cloned().unwrap_or(BoaValue::undefined());
+    let mut call_args = Vec::new();
     if let Some(list) = args.get(2).and_then(|v| v.as_object()) {
         let len = list
             .get(js_string!("length"), ctx)
@@ -2234,14 +2491,10 @@ fn trap_apply(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResul
             .and_then(|v| v.as_number())
             .unwrap_or(0.0) as u32;
         for i in 0..len {
-            let el = list.get(i, ctx).unwrap_or(BoaValue::undefined());
-            out.push(&boa_to_v8(&el, ctx));
+            call_args.push(list.get(i, ctx).unwrap_or(BoaValue::undefined()));
         }
     }
-    match with_v8(ctx, || Reflect::apply(&func, &this_v8, &out)) {
-        Ok(res) => Ok(v8_to_boa(res, ctx)),
-        Err(e) => Err(boa_engine::JsError::from_opaque(v8_to_boa(e, ctx))),
-    }
+    host_trap_call(&target, &this_arg, &call_args, ctx)
 }
 
 fn trap_construct(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<BoaValue> {
@@ -2282,31 +2535,50 @@ fn trap_construct(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsR
     }
 }
 
+fn host_trap_set(
+    target: &JsObject,
+    key: &PropertyKey,
+    value: &BoaValue,
+    receiver: &BoaValue,
+    ctx: &mut Context,
+) -> JsResult<bool> {
+    let Some(handle) = read_handle(target, "__ks_h", ctx) else {
+        return Ok(false);
+    };
+    // OrdinarySet writes inherited data to the receiver. Preserve V8 super-setters,
+    // the global-proxy exception, and foreign Proxy forwarding.
+    if let Some(recv) = receiver.as_object() {
+        if receives_through(&recv, handle, ctx) {
+            let key_val: BoaValue = key.clone().into();
+            return set_on_receiver(handle, Some(&key_val), value.clone(), recv, ctx)
+                .map(|v| v.to_boolean());
+        }
+    }
+    let v8val = boa_to_v8(value, ctx);
+    let v8 = get_v8(handle);
+    // Marshal the key BEFORE the excursion: a V8 setter can re-enter boa,
+    // so `ctx` must be free by the time we call into V8 (see `with_v8`).
+    let v8key = property_key_to_v8(key, ctx);
+    let res = with_v8(ctx, || Reflect::set(&v8, &v8key, &v8val));
+    match res {
+        Ok(ok) => Ok(ok),
+        Err(e) => Err(JsError::from_opaque(v8_to_boa(e, ctx))),
+    }
+}
+
 fn trap_set(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<BoaValue> {
     let Some(target) = args.first().and_then(|v| v.as_object()) else {
         return Ok(BoaValue::from(false));
     };
-    let Some(handle) = read_handle(&target, "__ks_h", ctx) else {
-        return Ok(BoaValue::from(false));
+    let key = match args.get(1) {
+        Some(k) => k.to_property_key(ctx)?,
+        None => PropertyKey::from(JsString::default()),
     };
     let value = args.get(2).cloned().unwrap_or(BoaValue::undefined());
-    // OrdinarySet writes inherited data to the receiver. Preserve V8 super-setters,
-    // the global-proxy exception, and foreign Proxy forwarding.
-    if let Some(recv) = args.get(3).and_then(|v| v.as_object()) {
-        if receives_through(&recv, handle, ctx) {
-            return set_on_receiver(handle, args.get(1), value, recv, ctx);
-        }
-    }
-    let v8val = boa_to_v8(&value, ctx);
-    let v8 = get_v8(handle);
-    // Marshal the key BEFORE the excursion: a V8 setter can re-enter boa,
-    // so `ctx` must be free by the time we call into V8 (see `with_v8`).
-    let v8key = trap_key_to_v8(args.get(1), ctx);
-    let res = with_v8(ctx, || Reflect::set(&v8, &v8key, &v8val));
-    match res {
-        Ok(ok) => Ok(BoaValue::from(ok)),
-        Err(e) => Err(JsError::from_opaque(v8_to_boa(e, ctx))),
-    }
+    let receiver = args.get(3).cloned().unwrap_or(BoaValue::undefined());
+    Ok(BoaValue::from(host_trap_set(
+        &target, &key, &value, &receiver, ctx,
+    )?))
 }
 
 // Whether OrdinaryGet/OrdinarySet reached `handle` through `recv`'s own boa prototype chain. A
@@ -2420,11 +2692,14 @@ fn trap_key_to_v8(key: Option<&BoaValue>, ctx: &mut Context) -> JsValue {
     if let Some(sym) = key.and_then(|k| k.as_symbol()) {
         return boa_symbol_to_v8(&sym, ctx).into();
     }
-    let s = key
-        .and_then(|k| k.to_string(ctx).ok())
-        .map(|s| key_string(&s))
-        .unwrap_or_default();
-    JsValue::from_str(&s)
+    let s = match key {
+        Some(k) => match k.as_string() {
+            Some(s) => s,
+            None => k.to_string(ctx).unwrap_or_default(),
+        },
+        None => JsString::default(),
+    };
+    boa_key_str_to_v8(&s)
 }
 
 fn trap_define_property(
@@ -2675,17 +2950,6 @@ fn make_v8_proxy(
     boa_engine::builtins::proxy::Proxy::from_target_and_handler(target, handler, ctx)
 }
 
-// Marks the shared trap handlers, so any realm's bridge proxy is recognised by its
-// handler alone: no trap runs, and a page Proxy over one of ours is not taken for it.
-struct BridgeHandlerMark;
-impl boa_engine::gc::Finalize for BridgeHandlerMark {}
-// SAFETY: a unit marker with no GC-managed fields, so the collector has
-// nothing to trace through it.
-unsafe impl boa_engine::gc::Trace for BridgeHandlerMark {
-    boa_engine::gc::empty_trace!();
-}
-impl boa_engine::JsData for BridgeHandlerMark {}
-
 // Proxy traps forward to the target, so each realm can share two handlers.
 struct BridgeProxyHandlers {
     plain: JsObject,
@@ -2713,7 +2977,12 @@ fn proxy_handler(callable: bool, ctx: &mut Context) -> JsObject {
     let build = |callable: bool, ctx: &mut Context| {
         let handler = JsObject::from_proto_and_data(
             Some(ctx.intrinsics().constructors().object().prototype()),
-            BridgeHandlerMark,
+            HostProxyTraps {
+                get: Some(host_trap_get),
+                set: Some(host_trap_set),
+                has: Some(host_trap_has),
+                call: callable.then_some(host_trap_call),
+            },
         );
         let traps: &[(&str, NativeFunctionPointer, usize)] = &[
             ("get", trap_get, 3),
@@ -3175,6 +3444,45 @@ extern "C" {
         target: &JsValue,
         key: &JsValue,
         receiver: &JsValue,
+    ) -> Result<JsValue, JsValue>;
+
+    #[derive(Clone)]
+    type BridgeHelper;
+
+    #[wasm_bindgen(method, js_name = kind)]
+    fn kind(this: &BridgeHelper, v: &JsValue) -> u32;
+
+    #[wasm_bindgen(method, js_name = num)]
+    fn num(this: &BridgeHelper, v: &JsValue) -> f64;
+
+    #[wasm_bindgen(method, js_name = call0, catch)]
+    fn call0(this: &BridgeHelper, f: &Function, this_arg: &JsValue) -> Result<JsValue, JsValue>;
+
+    #[wasm_bindgen(method, js_name = call1, catch)]
+    fn call1(
+        this: &BridgeHelper,
+        f: &Function,
+        this_arg: &JsValue,
+        a0: &JsValue,
+    ) -> Result<JsValue, JsValue>;
+
+    #[wasm_bindgen(method, js_name = call2, catch)]
+    fn call2(
+        this: &BridgeHelper,
+        f: &Function,
+        this_arg: &JsValue,
+        a0: &JsValue,
+        a1: &JsValue,
+    ) -> Result<JsValue, JsValue>;
+
+    #[wasm_bindgen(method, js_name = call3, catch)]
+    fn call3(
+        this: &BridgeHelper,
+        f: &Function,
+        this_arg: &JsValue,
+        a0: &JsValue,
+        a1: &JsValue,
+        a2: &JsValue,
     ) -> Result<JsValue, JsValue>;
 }
 
@@ -3784,6 +4092,9 @@ fn shim_own_keys(target: JsValue) -> JsValue {
         if !Reflect::is_extensible(obj).unwrap_or(true) {
             if let Some(handle) = target_handle_get(&target) {
                 with_context(|ctx| get_boa(handle).map(|o| prune_shell(obj, &o, ctx)));
+            }
+            if let Ok(keys) = Reflect::own_keys(obj) {
+                return keys.into();
             }
             let all = Array::new();
             for k in Object::get_own_property_names(obj).iter() {

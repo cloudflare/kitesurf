@@ -1,0 +1,449 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 19 Nov 2026 17:53:09 +0000
+Subject: [PATCH] vm: fast-path dense array appends and typed-array indexed
+ access
+
+SetPropertyByValue previously only fast-pathed in-bounds overwrites on
+dense arrays, sending every arr[arr.length] = v append through OrdinarySet,
+prototype walks, and PropertyDescriptor allocation. Add a guarded dense
+append path that verifies extensibility, default Array shape, receiver
+identity, and an index-free ordinary prototype chain.
+
+Also fast-path non-negative i32 indexed reads and writes on Arrays,
+TypedArrays, and Strings directly from VM registers without cloning or
+running base_class/to_property_key.
+---
+ src/builtins/typed_array/mod.rs    |   1 +
+ src/builtins/typed_array/object.rs |  57 +++++++++++
+ src/object/property_map.rs         |  70 +++++++++++++
+ src/vm/opcode/get/property.rs      |  50 ++++++++--
+ src/vm/opcode/set/property.rs      | 151 ++++++++++++++++++++++++++---
+ 5 files changed, 307 insertions(+), 22 deletions(-)
+
+diff --git a/src/builtins/typed_array/mod.rs b/src/builtins/typed_array/mod.rs
+index d79c8d1..87d6cac 100644
+--- a/src/builtins/typed_array/mod.rs
++++ b/src/builtins/typed_array/mod.rs
+@@ -36,6 +36,7 @@ pub(crate) use builtin::{BuiltinTypedArray, is_valid_integer_index};
+ pub(crate) use element::Float16;
+ pub(crate) use element::{Atomic, ClampedU8, Element};
+ pub use object::TypedArray;
++pub(crate) use object::{typed_array_get_element_u32, typed_array_set_element_u32};
+
+ pub(crate) trait TypedArrayMarker {
+     type Element: Element;
+diff --git a/src/builtins/typed_array/object.rs b/src/builtins/typed_array/object.rs
+index 57087cc..1166539 100644
+--- a/src/builtins/typed_array/object.rs
++++ b/src/builtins/typed_array/object.rs
+@@ -674,6 +674,63 @@ pub(crate) fn typed_array_exotic_own_property_keys(
+     Ok(keys)
+ }
+
++/// Fast `TypedArrayGetElement` for a `u32` index already proven non-negative and integral.
++pub(crate) fn typed_array_get_element_u32(obj: &JsObject, index: u32) -> Option<JsValue> {
++    let inner = obj.downcast_ref::<TypedArray>()?;
++    let buffer = inner.viewed_array_buffer();
++    let buffer = buffer.as_buffer();
++    let buffer = buffer.bytes(Ordering::Relaxed)?;
++    let index = inner.validate_index_u64(u64::from(index), buffer.len())?;
++    let offset = inner.byte_offset();
++    let size = inner.kind.element_size();
++    let byte_index = ((index * size) + offset) as usize;
++    let elem_type = inner.kind();
++    // SAFETY: `TypedArray` guarantees buffer alignment and `validate_index_u64` checked bounds.
++    let value = unsafe {
++        buffer
++            .subslice(byte_index..)
++            .get_value(elem_type, Ordering::Relaxed)
++    };
++    Some(value.into())
++}
++
++/// Fast `TypedArraySetElement` for a `u32` index already proven non-negative and integral.
++pub(crate) fn typed_array_set_element_u32(
++    obj: &JsObject,
++    index: u32,
++    value: &JsValue,
++    context: &mut Context,
++) -> JsResult<()> {
++    let elem_type = obj
++        .downcast_ref::<TypedArray>()
++        .js_expect("typed_array_set_element_u32 requires a TypedArray")?
++        .kind();
++
++    // Perform ToNumber/ToBigInt before validating the buffer, matching spec steps 1-2.
++    let element = elem_type.get_element(value, context)?;
++
++    let inner = obj
++        .downcast_ref::<TypedArray>()
++        .js_expect("typed_array_set_element_u32 requires a TypedArray")?;
++    let mut buffer = inner.viewed_array_buffer().as_buffer_mut();
++    let Some(mut buffer) = buffer.bytes(Ordering::Relaxed) else {
++        return Ok(());
++    };
++    let Some(index) = inner.validate_index_u64(u64::from(index), buffer.len()) else {
++        return Ok(());
++    };
++    let offset = inner.byte_offset();
++    let size = elem_type.element_size();
++    let byte_index = ((index * size) + offset) as usize;
++    // SAFETY: `TypedArray` guarantees buffer alignment and `validate_index_u64` checked bounds.
++    unsafe {
++        buffer
++            .subslice_mut(byte_index..)
++            .set_value(element, Ordering::Relaxed);
++    }
++    Ok(())
++}
++
+ /// Abstract operation `TypedArrayGetElement ( O, index )`.
+ ///
+ /// More information:
+diff --git a/src/object/property_map.rs b/src/object/property_map.rs
+index 7947f14..9f7e1bf 100644
+--- a/src/object/property_map.rs
++++ b/src/object/property_map.rs
+@@ -59,6 +59,18 @@ impl Default for IndexedProperties {
+ }
+
+ impl IndexedProperties {
++    /// Returns `true` if there are no indexed properties stored.
++    #[inline]
++    pub(crate) fn is_empty(&self) -> bool {
++        match self {
++            Self::DenseI32(vec) => vec.is_empty(),
++            Self::DenseF64(vec) => vec.is_empty(),
++            Self::DenseElement(vec) => vec.is_empty(),
++            Self::SparseElement(map) => map.is_empty(),
++            Self::SparseProperty(map) => map.is_empty(),
++        }
++    }
++
+     pub(crate) fn from_dense_js_value(elements: ThinVec<JsValue>) -> Self {
+         if elements.is_empty() {
+             return Self::default();
+@@ -810,6 +822,64 @@ impl PropertyMap {
+         }
+     }
+
++    /// Appends `value` at `index` when `self` holds dense indexed properties and
++    /// `index` equals the current dense length. Returns `true` if appended.
++    pub(crate) fn push_dense_property(&mut self, index: u32, value: &JsValue) -> bool {
++        let index = index as usize;
++
++        match &mut self.indexed_properties {
++            IndexedProperties::DenseI32(properties) => {
++                if properties.len() != index {
++                    return false;
++                }
++
++                // If it can fit in an i32 and the truncated version is equal to the original
++                // (preserving -0.0 as f64), keep dense i32 storage.
++                let is_rational_integer = |n: f64| n.to_bits() == f64::from(n as i32).to_bits();
++
++                match value.variant() {
++                    JsVariant::Integer32(n) => properties.push(n),
++                    JsVariant::Float64(n) if is_rational_integer(n) => properties.push(n as i32),
++                    JsVariant::Float64(n) => {
++                        let mut wide = ThinVec::with_capacity(properties.len() + 1);
++                        wide.extend(properties.iter().copied().map(f64::from));
++                        wide.push(n);
++                        self.indexed_properties = IndexedProperties::DenseF64(wide);
++                    }
++                    _ => {
++                        let mut wide = ThinVec::with_capacity(properties.len() + 1);
++                        wide.extend(properties.iter().copied().map(JsValue::from));
++                        wide.push(value.clone());
++                        self.indexed_properties = IndexedProperties::DenseElement(wide);
++                    }
++                }
++                true
++            }
++            IndexedProperties::DenseF64(properties) => {
++                if properties.len() != index {
++                    return false;
++                }
++                if let Some(n) = value.as_number() {
++                    properties.push(n);
++                } else {
++                    let mut wide = ThinVec::with_capacity(properties.len() + 1);
++                    wide.extend(properties.iter().copied().map(JsValue::from));
++                    wide.push(value.clone());
++                    self.indexed_properties = IndexedProperties::DenseElement(wide);
++                }
++                true
++            }
++            IndexedProperties::DenseElement(properties) => {
++                if properties.len() != index {
++                    return false;
++                }
++                properties.push(value.clone());
++                true
++            }
++            IndexedProperties::SparseProperty(_) | IndexedProperties::SparseElement(_) => false,
++        }
++    }
++
+     /// Returns the vec of dense indexed properties if they exist.
+     pub(crate) fn to_dense_indexed_properties(&self) -> Option<ThinVec<JsValue>> {
+         match &self.indexed_properties {
+diff --git a/src/vm/opcode/get/property.rs b/src/vm/opcode/get/property.rs
+index bb3ae5f..b92de72 100644
+--- a/src/vm/opcode/get/property.rs
++++ b/src/vm/opcode/get/property.rs
+@@ -1,7 +1,9 @@
+ use boa_string::StaticJsStrings;
+
+ use crate::{
+-    Context, JsResult, JsValue, js_string,
++    Context, JsResult, JsValue,
++    builtins::typed_array::{TypedArray, typed_array_get_element_u32},
++    js_string,
+     object::{internal_methods::InternalMethodPropertyContext, shape::slot::SlotAttributes},
+     property::PropertyKey,
+     vm::opcode::{
+@@ -94,6 +96,35 @@ fn get_by_value<const PUSH_KEY: bool>(
+     ),
+     context: &mut Context,
+ ) -> JsResult<()> {
++    // Fast path for non-negative integer indices without cloning registers or calling base_class.
++    if !PUSH_KEY
++        && let Some(idx) = context.vm.get_register(key.into()).as_i32()
++        && idx >= 0
++    {
++        let idx = idx as u32;
++        let base_ref = context.vm.get_register(object.into());
++        if let Some(obj) = base_ref.as_object() {
++            if obj.is_array() {
++                let element = obj.borrow().properties().get_dense_property(idx);
++                if let Some(element) = element {
++                    context.vm.set_register(dst.into(), element);
++                    return Ok(());
++                }
++            } else if obj.is::<TypedArray>() {
++                let element = typed_array_get_element_u32(&obj, idx).unwrap_or_default();
++                context.vm.set_register(dst.into(), element);
++                return Ok(());
++            }
++        } else if let Some(string) = base_ref.as_string()
++            && let Some(ch) = string.code_unit_at(idx as usize)
++        {
++            context
++                .vm
++                .set_register(dst.into(), js_string!([ch].as_slice()).into());
++            return Ok(());
++        }
++    }
++
+     let key_value = context.vm.get_register(key.into()).clone();
+     let base = context.vm.get_register(object.into()).clone();
+     let object = base
+@@ -119,12 +150,17 @@ fn get_by_value<const PUSH_KEY: bool>(
+                     context.vm.set_register(dst.into(), element);
+                     return Ok(());
+                 }
+-            } else if let Some(string) = base.as_string() {
+-                let value = string
+-                    .code_unit_at(index.get() as usize)
+-                    .map_or_else(JsValue::undefined, |char| {
+-                        js_string!([char].as_slice()).into()
+-                    });
++            } else if object.is::<TypedArray>() {
++                let element = typed_array_get_element_u32(&object, index.get()).unwrap_or_default();
++                if PUSH_KEY {
++                    context.vm.set_register(key.into(), key_value.into());
++                }
++                context.vm.set_register(dst.into(), element);
++                return Ok(());
++            } else if let Some(string) = base.as_string()
++                && let Some(char) = string.code_unit_at(index.get() as usize)
++            {
++                let value = js_string!([char].as_slice()).into();
+
+                 if PUSH_KEY {
+                     context.vm.set_register(key.into(), key_value.into());
+diff --git a/src/vm/opcode/set/property.rs b/src/vm/opcode/set/property.rs
+index befcfd3..2b3043f 100644
+--- a/src/vm/opcode/set/property.rs
++++ b/src/vm/opcode/set/property.rs
+@@ -1,5 +1,11 @@
++use std::ptr;
++
+ use crate::JsExpect;
+ use crate::JsValue;
++use crate::builtins::array::ARRAY_EXOTIC_INTERNAL_METHODS;
++use crate::builtins::typed_array::{TypedArray, typed_array_set_element_u32};
++use crate::object::JsObject;
++use crate::object::internal_methods::ORDINARY_INTERNAL_METHODS;
+ use crate::value::JsVariant;
+ use crate::vm::opcode::{
+     Access, IndexOperand, RegisterOperand, describe_key, null_base_error, null_base_error_by_name,
+@@ -147,6 +153,80 @@ impl Operation for SetPropertyByName {
+ #[derive(Debug, Clone, Copy)]
+ pub(crate) struct SetPropertyByValue;
+
++fn prototype_chain_has_no_indexed_properties(obj: &JsObject) -> bool {
++    let mut cur = obj.prototype();
++    while let Some(proto) = cur {
++        let vtable = proto.vtable();
++        if !ptr::eq(vtable, &ORDINARY_INTERNAL_METHODS)
++            && !ptr::eq(vtable, &ARRAY_EXOTIC_INTERNAL_METHODS)
++        {
++            return false;
++        }
++        if !proto.borrow().properties().indexed_properties.is_empty() {
++            return false;
++        }
++        cur = proto.prototype();
++    }
++    true
++}
++
++fn try_set_dense_array_index(
++    object: &JsObject,
++    index: u32,
++    value: &JsValue,
++    receiver_is_object: bool,
++    array_template_shape_addr: usize,
++) -> bool {
++    if !receiver_is_object {
++        return false;
++    }
++
++    // Fast overwrite of an existing dense element.
++    {
++        let mut object_borrowed = object.borrow_mut();
++        if !object_borrowed.extensible {
++            return false;
++        }
++        if object_borrowed
++            .properties_mut()
++            .set_dense_property(index, value)
++        {
++            return true;
++        }
++        // Only append when shape matches the default Array template
++        // (writable `length` at storage[0]) and index + 1 fits within max array length.
++        if index >= u32::MAX - 1
++            || object_borrowed.properties().shape.to_addr_usize() != array_template_shape_addr
++        {
++            return false;
++        }
++    }
++
++    if !prototype_chain_has_no_indexed_properties(object) {
++        return false;
++    }
++
++    let mut object_borrowed = object.borrow_mut();
++    let old_len = match object_borrowed.properties().storage[0].variant() {
++        JsVariant::Integer32(n) if n >= 0 => n as u32,
++        JsVariant::Float64(n) if n >= 0.0 && n <= f64::from(u32::MAX) && n.fract() == 0.0 => {
++            n as u32
++        }
++        _ => return false,
++    };
++    if !object_borrowed
++        .properties_mut()
++        .push_dense_property(index, value)
++    {
++        return false;
++    }
++    let new_len = index + 1;
++    if new_len > old_len {
++        object_borrowed.properties_mut().storage[0] = JsValue::new(new_len);
++    }
++    true
++}
++
+ impl SetPropertyByValue {
+     #[inline(always)]
+     pub(crate) fn operation(
+@@ -158,6 +238,41 @@ impl SetPropertyByValue {
+         ),
+         context: &mut Context,
+     ) -> JsResult<()> {
++        // Fast path for non-negative integer indices on Arrays and TypedArrays.
++        if let Some(idx) = context.vm.get_register(key.into()).as_i32()
++            && idx >= 0
++            && let Some(obj) = context.vm.get_register(object.into()).as_object()
++        {
++            let idx = idx as u32;
++            let receiver_is_object = context
++                .vm
++                .get_register(receiver.into())
++                .as_object()
++                .is_some_and(|r| JsObject::equals(&r, &obj));
++            if obj.is_array() {
++                let array_template_shape_addr = context
++                    .intrinsics()
++                    .templates()
++                    .array()
++                    .shape()
++                    .to_addr_usize();
++                let val_ref = context.vm.get_register(value.into());
++                if try_set_dense_array_index(
++                    &obj,
++                    idx,
++                    val_ref,
++                    receiver_is_object,
++                    array_template_shape_addr,
++                ) {
++                    return Ok(());
++                }
++            } else if receiver_is_object && obj.is::<TypedArray>() {
++                let val = context.vm.get_register(value.into()).clone();
++                typed_array_set_element_u32(&obj, idx, &val, context)?;
++                return Ok(());
++            }
++        }
++
+         let value = context.vm.get_register(value.into()).clone();
+         let key = context.vm.get_register(key.into()).clone();
+         let receiver = context.vm.get_register(receiver.into()).clone();
+@@ -169,22 +284,28 @@ impl SetPropertyByValue {
+         let key = key.to_property_key(context)?;
+
+         // Fast Path:
+-        'fast_path: {
+-            if object.is_array()
+-                && let PropertyKey::Index(index) = &key
+-            {
+-                let mut object_borrowed = object.borrow_mut();
+-
+-                // Cannot modify if not extensible.
+-                if !object_borrowed.extensible {
+-                    break 'fast_path;
+-                }
+-
+-                if object_borrowed
+-                    .properties_mut()
+-                    .set_dense_property(index.get(), &value)
+-                {
++        if let PropertyKey::Index(index) = &key {
++            let receiver_is_object = receiver
++                .as_object()
++                .is_some_and(|r| JsObject::equals(&r, &object));
++            if object.is_array() {
++                let array_template_shape_addr = context
++                    .intrinsics()
++                    .templates()
++                    .array()
++                    .shape()
++                    .to_addr_usize();
++                if try_set_dense_array_index(
++                    &object,
++                    index.get(),
++                    &value,
++                    receiver_is_object,
++                    array_template_shape_addr,
++                ) {
+                     return Ok(());
+                 }
++            } else if receiver_is_object && object.is::<TypedArray>() {
++                typed_array_set_element_u32(&object, index.get(), &value, context)?;
++                return Ok(());
+             }
+         }

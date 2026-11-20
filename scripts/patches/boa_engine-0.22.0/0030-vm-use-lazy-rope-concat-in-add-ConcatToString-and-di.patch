@@ -1,0 +1,267 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 19 Nov 2026 18:32:43 +0000
+Subject: [PATCH] vm: use lazy rope concat in add/ConcatToString and direct
+ writes in ordinary_set
+
+Route string addition and template concatenation through JsString::concat_owned
+so repeated s += chunk loops stay O(N) via ConsString ropes instead of O(N^2)
+copying.
+
+Also add a direct own-property write/create fast path in ordinary_set when
+receiver === obj and the prototype chain is ordinary, avoiding temporary
+PropertyDescriptor allocations and duplicate [[GetOwnProperty]] lookups.
+---
+ src/object/internal_methods/mod.rs | 154 ++++++++++++++++++++++++++++-
+ src/value/operations.rs            |  13 ++-
+ src/vm/opcode/concat/mod.rs        |   8 +-
+ 3 files changed, 165 insertions(+), 10 deletions(-)
+
+diff --git a/src/object/internal_methods/mod.rs b/src/object/internal_methods/mod.rs
+index 384a245..34eb7df 100644
+--- a/src/object/internal_methods/mod.rs
++++ b/src/object/internal_methods/mod.rs
+@@ -7,14 +7,16 @@
+
+ use std::ops::{Deref, DerefMut};
+ use std::ptr;
++use std::slice;
+
+ use super::{
+-    JsPrototype, PROTOTYPE,
++    IndexedProperties, JsPrototype, PROTOTYPE,
+     property_map::PropertyValue,
+     shape::slot::{Slot, SlotAttributes},
+ };
+ use crate::{
+     Context, JsNativeError, JsResult,
++    builtins::array::ARRAY_EXOTIC_INTERNAL_METHODS,
+     context::intrinsics::{StandardConstructor, StandardConstructors},
+     object::JsObject,
+     property::{DescriptorKind, PropertyDescriptor, PropertyKey},
+@@ -826,6 +828,152 @@ pub(crate) fn ordinary_try_get(
+     }
+ }
+
++/// Direct own-property overwrite or creation for ordinary objects when `receiver === obj`,
++/// skipping temporary `PropertyDescriptor` construction and redundant `[[GetOwnProperty]]` calls.
++fn try_ordinary_set_direct(
++    obj: &JsObject,
++    key: &PropertyKey,
++    value: &JsValue,
++    receiver: &JsValue,
++    context: &mut InternalMethodPropertyContext<'_>,
++) -> Option<JsResult<bool>> {
++    if !receiver.as_object().is_some_and(|r| JsObject::equals(&r, obj)) {
++        return None;
++    }
++    let vtable = obj.vtable();
++    let ordinary_get_own = ptr::fn_addr_eq(
++        vtable.__get_own_property__,
++        ORDINARY_INTERNAL_METHODS.__get_own_property__,
++    );
++    if !ordinary_get_own {
++        return None;
++    }
++
++    // Existing own SparseElement on an Array (index < length is guaranteed by Array invariant).
++    if let PropertyKey::Index(idx) = key
++        && ptr::fn_addr_eq(
++            vtable.__define_own_property__,
++            ARRAY_EXOTIC_INTERNAL_METHODS.__define_own_property__,
++        )
++    {
++        let mut borrowed = obj.borrow_mut();
++        if let IndexedProperties::SparseElement(map) = &mut borrowed.properties.indexed_properties
++            && let Some(slot) = map.get_mut(&idx.get())
++        {
++            *slot = value.clone();
++            return Some(Ok(true));
++        }
++        return None;
++    }
++
++    if !ptr::fn_addr_eq(
++        vtable.__define_own_property__,
++        ORDINARY_INTERNAL_METHODS.__define_own_property__,
++    ) {
++        return None;
++    }
++
++    match key {
++        PropertyKey::Index(idx) => {
++            let mut borrowed = obj.borrow_mut();
++            if borrowed.properties.set_dense_property(idx.get(), value) {
++                return Some(Ok(true));
++            }
++            if let IndexedProperties::SparseElement(map) =
++                &mut borrowed.properties.indexed_properties
++                && let Some(slot) = map.get_mut(&idx.get())
++            {
++                *slot = value.clone();
++                return Some(Ok(true));
++            }
++            if borrowed.properties.contains_key(key) {
++                // Existing SparseProperty (may be accessor or read-only); take full path.
++                return None;
++            }
++        }
++        PropertyKey::String(_) | PropertyKey::Symbol(_) => {
++            let mut borrowed = obj.borrow_mut();
++            if let Some(slot) = borrowed.properties.shape.lookup(key) {
++                let out_slot = context.slot();
++                out_slot.index = slot.index;
++                out_slot.attributes = (out_slot.attributes & SlotAttributes::INLINE_CACHE_BITS)
++                    | slot.attributes
++                    | SlotAttributes::FOUND;
++                if slot.attributes.is_accessor_descriptor() {
++                    if !slot.attributes.has_set() {
++                        return Some(Ok(false));
++                    }
++                    let setter = borrowed.properties.storage[slot.index as usize + 1].clone();
++                    drop(borrowed);
++                    if setter.is_undefined() {
++                        return Some(Ok(false));
++                    }
++                    return Some(
++                        setter
++                            .call(receiver, slice::from_ref(value), context)
++                            .map(|_| true),
++                    );
++                }
++                if !slot.attributes.contains(SlotAttributes::WRITABLE) {
++                    return Some(Ok(false));
++                }
++                borrowed.properties.storage[slot.index as usize] = value.clone();
++                return Some(Ok(true));
++            }
++        }
++    }
++
++    // Key is not an own property. If the prototype chain is ordinary and none carry `key`,
++    // create the new own data property directly.
++    if !ptr::fn_addr_eq(
++        vtable.__get_prototype_of__,
++        ORDINARY_INTERNAL_METHODS.__get_prototype_of__,
++    ) || !ptr::fn_addr_eq(
++        vtable.__is_extensible__,
++        ORDINARY_INTERNAL_METHODS.__is_extensible__,
++    ) {
++        return None;
++    }
++    let mut cur = obj.prototype();
++    while let Some(proto) = cur {
++        let pv = proto.vtable();
++        if !ptr::fn_addr_eq(
++            pv.__get_own_property__,
++            ORDINARY_INTERNAL_METHODS.__get_own_property__,
++        ) || !ptr::fn_addr_eq(
++            pv.__get_prototype_of__,
++            ORDINARY_INTERNAL_METHODS.__get_prototype_of__,
++        ) || !ptr::fn_addr_eq(pv.__set__, ORDINARY_INTERNAL_METHODS.__set__)
++        {
++            return None;
++        }
++        if proto.borrow().properties.contains_key(key) {
++            return None;
++        }
++        cur = proto.prototype();
++    }
++
++    context
++        .slot()
++        .attributes
++        .remove(SlotAttributes::PROTOTYPE | SlotAttributes::NOT_CACHEABLE);
++    let mut borrowed = obj.borrow_mut();
++    if !borrowed.extensible {
++        return Some(Ok(false));
++    }
++    borrowed.properties.insert_with_slot(
++        key,
++        PropertyDescriptor::builder()
++            .value(value.clone())
++            .writable(true)
++            .enumerable(true)
++            .configurable(true)
++            .build(),
++        context.slot(),
++    );
++    Some(Ok(true))
++}
++
+ /// Abstract operation `OrdinarySet`.
+ ///
+ /// More information:
+@@ -839,6 +987,10 @@ pub(crate) fn ordinary_set(
+     receiver: JsValue,
+     context: &mut InternalMethodPropertyContext<'_>,
+ ) -> JsResult<bool> {
++    if let Some(result) = try_ordinary_set_direct(obj, &key, &value, &receiver, context) {
++        return result;
++    }
++
+     // 1. Assert: IsPropertyKey(P) is true.
+     // 2. Let ownDesc be ? O.[[GetOwnProperty]](P).
+     // 3. Return OrdinarySetWithOwnDescriptor(O, P, V, Receiver, ownDesc).
+diff --git a/src/value/operations.rs b/src/value/operations.rs
+index 7300684..ce259a7 100644
+--- a/src/value/operations.rs
++++ b/src/value/operations.rs
+@@ -1,11 +1,10 @@
+ use crate::{
+-    Context, JsBigInt, JsResult, JsValue, JsVariant,
++    Context, JsBigInt, JsResult, JsString, JsValue, JsVariant,
+     builtins::{
+         Number,
+         number::{f64_to_int32, f64_to_uint32},
+     },
+     error::JsNativeError,
+-    js_string,
+     value::{JsSymbol, Numeric, PreferredType},
+ };
+
+@@ -24,15 +23,19 @@ impl JsValue {
+             (JsVariant::BigInt(x), JsVariant::BigInt(y)) => Self::new(JsBigInt::add(&x, &y)),
+
+             // String concat
+-            (JsVariant::String(x), JsVariant::String(y)) => Self::from(js_string!(&x, &y)),
++            (JsVariant::String(x), JsVariant::String(y)) => Self::from(JsString::concat_owned(x, y)),
+
+             // Slow path:
+             (_, _) => {
+                 let x = self.to_primitive(context, PreferredType::Default)?;
+                 let y = other.to_primitive(context, PreferredType::Default)?;
+                 match (x.variant(), y.variant()) {
+-                    (JsVariant::String(x), _) => Self::from(js_string!(&x, &y.to_string(context)?)),
+-                    (_, JsVariant::String(y)) => Self::from(js_string!(&x.to_string(context)?, &y)),
++                    (JsVariant::String(x), _) => {
++                        Self::from(JsString::concat_owned(x, y.to_string(context)?))
++                    }
++                    (_, JsVariant::String(y)) => {
++                        Self::from(JsString::concat_owned(x.to_string(context)?, y))
++                    }
+                     (_, _) => {
+                         match (x.to_numeric(context)?, y.to_numeric(context)?) {
+                             (Numeric::Number(x), Numeric::Number(y)) => Self::new(x + y),
+diff --git a/src/vm/opcode/concat/mod.rs b/src/vm/opcode/concat/mod.rs
+index eee34e2..056953e 100644
+--- a/src/vm/opcode/concat/mod.rs
++++ b/src/vm/opcode/concat/mod.rs
+@@ -16,13 +16,13 @@ impl ConcatToString {
+
+         context: &mut Context,
+     ) -> JsResult<()> {
+-        let mut strings = Vec::with_capacity(values.len());
++        let mut acc = JsString::default();
+         for value in values {
+             let val = context.vm.get_register(value.into()).clone();
+-            strings.push(val.to_string(context)?);
++            let part = val.to_string(context)?;
++            acc = JsString::concat_owned(acc, part);
+         }
+-        let s = JsString::concat_array(&strings.iter().map(JsString::as_str).collect::<Vec<_>>());
+-        context.vm.set_register(string.into(), s.into());
++        context.vm.set_register(string.into(), acc.into());
+         Ok(())
+     }
+ }
