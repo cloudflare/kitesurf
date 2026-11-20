@@ -98,6 +98,30 @@ test("open pages of one origin share localStorage live, with storage events", as
   }
 }, 120_000);
 
+test("storage events do not depend on the page's StorageEvent or dispatchEvent", async ({
+  browser,
+  page,
+}) => {
+  const two = await browser.newPage();
+  try {
+    await page.goto(A, { waitUntil: "load" });
+    await two.goto(A, { waitUntil: "load" });
+    await two.evaluate(() => {
+      const events: unknown[] = [];
+      Reflect.set(window, "__events", events);
+      addEventListener("storage", (e) => events.push([e.key, e.isTrusted]));
+      Reflect.set(window, "StorageEvent", 1);
+      Reflect.set(window, "dispatchEvent", () => true);
+    });
+    await page.evaluate(() => localStorage.setItem("k", "v"));
+    await expect
+      .poll(() => two.evaluate(() => JSON.stringify(Reflect.get(window, "__events"))))
+      .toBe(JSON.stringify([["k", true]]));
+  } finally {
+    await two.close();
+  }
+}, 120_000);
+
 test("each browser context has its own localStorage", async ({ browser, page }) => {
   const context = await browser.createBrowserContext();
   try {

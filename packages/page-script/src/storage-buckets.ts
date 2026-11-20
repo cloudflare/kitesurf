@@ -11,7 +11,7 @@ import type {
   WebStorageReply,
 } from "@kitesurf/jsrpc-types/page-script";
 import { runPageTaskOrQueue } from "./page-tasks.ts";
-import { ksGlobalByKey } from "./state.ts";
+import { ksEventCtors, state, type ShimEventCtors } from "./state.ts";
 import {
   memoryArea,
   sessionArea,
@@ -55,21 +55,22 @@ export function storageBuckets(seed: ReadonlyArray<readonly [string, string]> | 
   return { localStorage, sessionStorage: sessionBucket.storage };
 }
 
+type StorageEventInit = NonNullable<ConstructorParameters<ShimEventCtors["StorageEvent"]>[1]>;
+
 function fireStorageEvents(
   changes: StorageChange[],
   storageArea: object,
   url: string | null,
 ): void {
   if (changes.length === 0 || url === null) return;
-  const win = ksGlobalByKey.window ?? globalThis;
-  const StorageEventConstructor = ksGlobalByKey.StorageEvent;
-  if (typeof StorageEventConstructor !== "function") return;
-  const dispatch: unknown = Reflect.get(win as object, "dispatchEvent");
-  if (typeof dispatch !== "function") return;
+  // The captured constructor and trusted dispatch: page script can replace both globals.
+  const win = state.window;
+  const StorageEventConstructor = ksEventCtors.StorageEvent;
+  if (!win || typeof StorageEventConstructor !== "function") return;
   runPageTaskOrQueue(() => {
     for (const change of changes) {
-      const init = { ...change, url, storageArea };
-      Reflect.apply(dispatch, win, [Reflect.construct(StorageEventConstructor, ["storage", init])]);
+      const init = { ...change, url, storageArea: storageArea as StorageEventInit["storageArea"] };
+      state.dispatchTrustedEvent(win, new StorageEventConstructor("storage", init));
     }
   });
 }
