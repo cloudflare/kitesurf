@@ -5,10 +5,13 @@
 // Loads each page generation's PageScript isolate and wires its RPC, egress, and tails.
 
 import type Protocol from "devtools-protocol";
+import { pageIsolateEntry } from "./page-isolate-entry.ts";
 import wasmGlueSource from "../../../core/pkg/kitesurf_core.glue.js";
+import coreWasmModule from "../../../core/pkg/kitesurf_core_bg.wasm";
 import { DOM_SHIM_SOURCE } from "@kitesurf/dom-shim";
 import { INTERNAL_STATE_SOURCE, PAGE_SCRIPT_SOURCE } from "@kitesurf/page-script";
 import type { RenderPortStub } from "@kitesurf/jsrpc-types/page-renderer";
+import type { SandboxRestrictions } from "@kitesurf/script-gate";
 import type {
   PageScriptEntrypoint,
   PageScriptEntrypointStub,
@@ -35,42 +38,28 @@ import {
 } from "./page-script-rpc-session.ts";
 import { traceSpan, type Tracer } from "../tracing.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
+import { MAX_DOCUMENT_BYTES } from "../read-capped.ts";
 import { attributionTails, type AttributionTailExports } from "./attribution-tail.ts";
 import { makeWallClock, type HostClock } from "./host-clock.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
-import fs from "node:fs";
+import type { SessionContext } from "../cdp/dispatch.ts";
 import type { ParentScriptDescriptor } from "../wasm.ts";
 import type { ScriptBundle } from "./script-bundle.ts";
 import { FALLBACK_MODULE_RESOLVER_SOURCE } from "./walk-module-graph.ts";
+import { DEFAULT_FONT_PROFILE, type FontProfile } from "../cdp/font-profile.ts";
 import type { WasmBake } from "./prefetch-wasm.ts";
 
-const cachedWasmBytes = new Map<string, ArrayBuffer>();
-export function loadWasmBytesFromVfs(filename = "kitesurf_core_bg.wasm"): ArrayBuffer {
-  const cached = cachedWasmBytes.get(filename);
-  if (cached) return cached;
-  const entries = fs.readdirSync("/bundle");
-  const name = entries.find((n) => n.endsWith(`-${filename}`) || n === filename);
-  if (!name) {
-    throw new Error(
-      `page-script: could not find ${filename} in /bundle. Entries: ${entries.join(", ")}`,
-    );
-  }
-  const buf = fs.readFileSync(`/bundle/${name}`);
-  const out = new ArrayBuffer(buf.byteLength);
-  new Uint8Array(out).set(buf);
-  cachedWasmBytes.set(filename, out);
-  return out;
-}
-
 export interface PageScriptStub extends PageScriptSession {
+  /** Identity this isolate stamps into its Runtime handles and compiled-script ids. */
+  isolateStamp?: string;
   close?(reason?: string): void;
-  killIsolate?(reason?: string): Promise<unknown> | void;
+  killIsolate?(reason?: string, opts?: { atOnce?: boolean }): Promise<unknown> | void;
   setUpstreamEventHandler?(handler: UpstreamEventHandler | null): void;
   armAwaitLoad?(): void;
   getRenderPort(): Promise<RenderPortStub>;
 }
 
-type CtxWithExports = ExecutionContext & {
+type CtxWithExports = SessionContext & {
   exports: AttributionTailExports & {
     SandboxOutbound(opts: { props: OutboundProps }): Fetcher;
     PageScriptTail(opts: {
@@ -91,6 +80,26 @@ export const PAGE_SCRIPT_COMPAT_FLAGS: readonly string[] = [
   "no_nodejs_compat",
   "no_nodejs_compat_v2",
 ];
+
+// workerd's local-only, experimental flag that lets a Worker generate code from strings. The
+// isolate's eval paths try native code first and fall back to boa on the EvalError without it.
+const NATIVE_EVAL_COMPAT_FLAG = "allow_insecure_inefficient_logged_eval";
+
+/**
+ * The loaded workers' flags. With KITESURF_NATIVE_EVAL they add native eval, which as an
+ * experimental flag needs `allowExperimental`, so the engine needs the `experimental` flag.
+ */
+export function pageScriptCompatOptions(env: { KITESURF_NATIVE_EVAL?: string }): {
+  compatibilityFlags: string[];
+  allowExperimental?: boolean;
+} {
+  if (env.KITESURF_NATIVE_EVAL !== "1")
+    return { compatibilityFlags: [...PAGE_SCRIPT_COMPAT_FLAGS] };
+  return {
+    compatibilityFlags: [...PAGE_SCRIPT_COMPAT_FLAGS, NATIVE_EVAL_COMPAT_FLAG],
+    allowExperimental: true,
+  };
+}
 
 export const PAGE_SCRIPT_SUBREQUEST_CAP = 10_000;
 
@@ -170,6 +179,7 @@ export interface PageScriptStartupInput {
   cdpDebug: boolean;
   pixelFree: boolean;
   fontDefer?: boolean;
+  fontProfile?: FontProfile;
 }
 
 function emptyWasmBytes(): ArrayBuffer {
@@ -179,7 +189,7 @@ function emptyWasmBytes(): ArrayBuffer {
 interface GetOrCreatePageScriptOptions {
   env: {
     LOADER: WorkerLoader;
-    KITESURF_SIMULATE_PROD_EVAL?: string;
+    KITESURF_NATIVE_EVAL?: string;
     KITESURF_RESOURCE_DRAIN_QUIET_TURNS?: string;
     KITESURF_LAG_WATCHDOG?: string;
     KITESURF_PAGE_CPU_MS_CAP?: string;
@@ -187,9 +197,10 @@ interface GetOrCreatePageScriptOptions {
     HOST_TRACER?: Tracer;
     HOST_CLOCK?: HostClock;
   };
-  ctx: ExecutionContext;
+  ctx: SessionContext;
   key: PageScriptKey;
   pageOrigin: string;
+  cookieSiteOrigin?: string;
   startupInput?: Partial<PageScriptStartupInput>;
   attributionHeaders?: Record<string, string>;
   mainLoaderId?: string;
@@ -197,6 +208,8 @@ interface GetOrCreatePageScriptOptions {
   initTimings: PageScriptInitTimings | undefined;
   capOverrides: PageIsolateCapOverrides | undefined;
   sandboxOutbound: SandboxOutboundOverride;
+  /** Extra modules and the host class name for this isolate (EngineHost.pageIsolate). */
+  pageIsolate?: { modules?: Record<string, string>; hostClassName?: string };
 }
 
 /** Loads one PageScript worker for the supplied target generation and returns its RPC adapter. */
@@ -205,6 +218,7 @@ export function getOrCreatePageScript({
   ctx,
   key,
   pageOrigin,
+  cookieSiteOrigin,
   startupInput = {},
   attributionHeaders = {},
   mainLoaderId = "",
@@ -212,6 +226,7 @@ export function getOrCreatePageScript({
   initTimings,
   capOverrides,
   sandboxOutbound,
+  pageIsolate,
 }: GetOrCreatePageScriptOptions): PageScriptStub {
   const cx = ctx as CtxWithExports;
   const wall = makeWallClock(env);
@@ -220,8 +235,13 @@ export function getOrCreatePageScript({
   // Authenticates the child's [ks-err] engine error channel (see engine-errors.ts
   // parseKsErrLine): page JS can spoof console prefixes, not this.
   const tailToken = crypto.randomUUID();
+  // Routes Runtime handles and compiled-script ids back to the isolate that minted them.
+  const isolateStamp = crypto.randomUUID();
 
-  const html = typeof startupInput.html === "string" ? startupInput.html : null;
+  // HTML reaches navigate over RPC. Embedding it here retains both the literal
+  // and generated module source for the page's lifetime; diagnostics need only metadata.
+  const hasHtml = typeof startupInput.html === "string";
+  const htmlLength = typeof startupInput.html === "string" ? startupInput.html.length : 0;
   const url = typeof startupInput.url === "string" ? startupInput.url : null;
   const cookies = typeof startupInput.cookies === "string" ? startupInput.cookies : "";
   // The classic bundle already carries every body. A copy here stayed live as
@@ -241,6 +261,7 @@ export function getOrCreatePageScript({
   const cdpDebug = startupInput.cdpDebug === true;
   const pixelFree = startupInput.pixelFree === true;
   const fontDefer = startupInput.fontDefer === true;
+  const fontProfile = startupInput.fontProfile ?? DEFAULT_FONT_PROFILE;
   const configuredQuietTurns = Number.parseInt(env.KITESURF_RESOURCE_DRAIN_QUIET_TURNS ?? "", 10);
   const resourceDrainQuietTurns = Number.isFinite(configuredQuietTurns)
     ? Math.max(1, configuredQuietTurns)
@@ -250,6 +271,12 @@ export function getOrCreatePageScript({
   const wasmBake = startupInput.wasmBake ?? null;
   const moduleScriptUrls = scriptBundle ? scriptBundle.moduleScriptUrls : [];
   const moduleScriptCount = moduleScriptUrls.length;
+  // A baked JSON record's namespace is only trustworthy for an import that asks for JSON.
+  const jsonModuleUrls = scriptBundle
+    ? Object.entries(scriptBundle.additionalModules)
+        .filter(([, baked]) => typeof baked !== "string")
+        .map(([url]) => url)
+    : [];
   const hasClassicRegular = !!(scriptBundle && scriptBundle.classicRegularSource);
   const hasClassicAsync = !!(scriptBundle && scriptBundle.classicAsyncSource);
   const csp = Array.isArray(startupInput.csp) ? startupInput.csp : [];
@@ -258,7 +285,8 @@ export function getOrCreatePageScript({
   const startupInputModule = `// AUTO-GENERATED per navigate by getOrCreatePageScript.
 // Carries parent-extracted, parent-pre-fetched per-navigate
 // inputs into the loaded worker's module-init phase.
-export const html = ${JSON.stringify(html)};
+export const hasHtml = ${JSON.stringify(hasHtml)};
+export const htmlLength = ${JSON.stringify(htmlLength)};
 export const url = ${JSON.stringify(url)};
 export const cookies = ${JSON.stringify(cookies)};
 export const scriptDescriptors = ${JSON.stringify(scriptDescriptors)};
@@ -269,10 +297,12 @@ export const hasClassicRegular = ${JSON.stringify(hasClassicRegular)};
 export const hasClassicAsync = ${JSON.stringify(hasClassicAsync)};
 export const moduleScriptCount = ${JSON.stringify(moduleScriptCount)};
 export const moduleScriptUrls = ${JSON.stringify(moduleScriptUrls)};
+export const jsonModuleUrls = ${JSON.stringify(jsonModuleUrls)};
 export const cdpDebug = ${JSON.stringify(cdpDebug)};
 export const lagWatchdog = ${JSON.stringify(lagWatchdog)};
 export const pixelFree = ${JSON.stringify(pixelFree)};
 export const fontDefer = ${JSON.stringify(fontDefer)};
+export const fontProfile = ${JSON.stringify(fontProfile)};
 export const resourceDrainQuietTurns = ${JSON.stringify(resourceDrainQuietTurns)};
 export const csp = ${JSON.stringify(csp)};
 export const metaCsp = ${JSON.stringify(metaCsp)};
@@ -281,19 +311,30 @@ export const insertedBaked = ${JSON.stringify(scriptBundle?.insertedManifest ?? 
 
   const modules: Record<
     string,
-    string | { wasm: ArrayBuffer } | { cjs: string } | { js: string } | { json: unknown }
+    | string
+    | { wasm: ArrayBuffer | WebAssembly.Module }
+    | { cjs: string }
+    | { js: string }
+    | { json: unknown }
   > = {
     "page.js": PAGE_SCRIPT_SOURCE,
     "dom-shim.js": DOM_SHIM_SOURCE,
     "internal-state.js": INTERNAL_STATE_SOURCE,
     "wasm-glue.js": wasmGlueSource,
-    "core_bg.wasm": { wasm: loadWasmBytesFromVfs() },
+    // The parent's compiled module: each page isolate shares its code instead of compiling
+    // 27 MB of bytes again on every navigation.
+    "core_bg.wasm": { wasm: coreWasmModule },
     "__ks_startup_probe_input.js": startupInputModule,
     "__ks_import_map.js": scriptBundle?.importMapModuleSource ?? FALLBACK_MODULE_RESOLVER_SOURCE,
   };
   if (scriptBundle && scriptBundle.classicRegularSource) {
     modules["__ks_user_classic_regular.js"] = {
       cjs: scriptBundle.classicRegularSource,
+    };
+  }
+  if (scriptBundle && scriptBundle.preNavSource) {
+    modules["__ks_user_pre_nav.js"] = {
+      cjs: scriptBundle.preNavSource,
     };
   }
   if (scriptBundle && scriptBundle.classicAsyncSource) {
@@ -337,6 +378,7 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
   const outboundProps = {
     ...localTraceParentProps(),
     pageOrigin,
+    ...(cookieSiteOrigin !== undefined ? { cookieSiteOrigin } : {}),
     pageUrl: url ?? undefined,
     referrerPolicy:
       typeof startupInput.referrerPolicy === "string" ? startupInput.referrerPolicy : undefined,
@@ -347,13 +389,15 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
     cookieKey: key.cookieKey ?? "",
     pixelFree,
   };
+  const mainModule = pageIsolateEntry(modules, pageIsolate);
   const stub = env.LOADER.load({
     compatibilityDate: PAGE_SCRIPT_COMPAT_DATE,
-    compatibilityFlags: [...PAGE_SCRIPT_COMPAT_FLAGS],
-    mainModule: "page.js",
+    ...pageScriptCompatOptions(env),
+    mainModule,
     modules,
+    // Page modules run in this worker and can import its env, so the tail
+    // token goes in the entrypoint props below instead.
     env: {
-      KS_TAIL_TOKEN: tailToken,
       ...(env.HOST_TRACER
         ? {
             KS_SPAN_SINK: cx.exports.SpanSink({
@@ -382,8 +426,12 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
     },
   });
 
-  const workerEntrypoint: PageScriptEntrypointStub =
-    stub.getEntrypoint<PageScriptEntrypoint>("PageScript");
+  const workerEntrypoint: PageScriptEntrypointStub = stub.getEntrypoint<PageScriptEntrypoint>(
+    "PageScript",
+    {
+      props: { KS_TAIL_TOKEN: tailToken, KS_ISOLATE_STAMP: isolateStamp },
+    },
+  );
   // The RPC adapter needs promises; the local entrypoint contract is synchronous.
 
   // SAFETY: WorkerLoader follows the PageScript JSRPC contract, but Rpc.Provider loses generic
@@ -406,7 +454,7 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
         }
       }
     : spanWrap;
-  return openPageScriptRpcSession(entrypoint, {
+  const session = openPageScriptRpcSession(entrypoint, {
     now: makeWallClock(env),
     outbound: sandboxOutbound.session(outboundProps),
     wallCapMs: caps.wallMs > 0 ? caps.wallMs : undefined,
@@ -414,6 +462,8 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
     getTraceParent: tracer ? () => tracer.getSpanContext()?.spanId ?? null : undefined,
     wrapOpen,
   });
+  session.isolateStamp = isolateStamp;
+  return session;
 }
 
 export interface PageScriptInitTimings {
@@ -423,34 +473,43 @@ export interface PageScriptInitTimings {
 export function spawnFramePageScript(
   env: {
     LOADER: WorkerLoader;
-    KITESURF_SIMULATE_PROD_EVAL?: string;
+    KITESURF_NATIVE_EVAL?: string;
     KITESURF_LAG_WATCHDOG?: string;
   },
-  ctx: ExecutionContext,
+  ctx: SessionContext,
   args: {
     connectionId: string;
     targetId: string;
     frameId: string;
     frameLoaderId: string;
     frameUrl: string;
+    // The child document's active sandbox restrictions; absent means no restrictions.
+    sandbox: SandboxRestrictions;
+    cookieKey?: string;
+    cookieSiteOrigin?: string;
     extraHeaders?: Record<string, string>;
     attributionHeaders?: Record<string, string>;
+    fontProfile: FontProfile;
     sandboxOutbound: SandboxOutboundOverride;
   },
 ): PageScriptStub {
-  const pageOrigin = originOf(args.frameUrl);
+  const sandbox = args.sandbox;
+  // Without allow-same-origin the isolate's outbound identity is opaque, never the URL's origin.
+  const pageOrigin = sandbox.sameOrigin ? originOf(args.frameUrl) : "";
   const key: PageScriptKey = {
     connectionId: args.connectionId,
     targetId: args.targetId,
     navigateGeneration: Date.now(),
     frameId: args.frameId,
+    cookieKey: args.cookieKey,
   };
   return getOrCreatePageScript({
     env,
     ctx,
     key,
     pageOrigin,
-    startupInput: {},
+    cookieSiteOrigin: args.cookieSiteOrigin,
+    startupInput: { fontProfile: args.fontProfile },
     attributionHeaders: args.attributionHeaders ?? {},
     mainLoaderId: args.frameLoaderId,
     extraHeaders: args.extraHeaders ?? {},
@@ -478,6 +537,22 @@ export function originOf(url: string): string {
   } catch {
     return "";
   }
+}
+
+const VALUE_SIZE_LIMIT_TEXT = "Runtime result exceeds the value size limit";
+
+// True when text is at most MAX_DOCUMENT_BYTES UTF-8 bytes. A UTF-16 unit encodes to at most
+// 3 bytes, so only long text needs its code points counted.
+export function valueJsonWithinLimit(text: string): boolean {
+  if (text.length > MAX_DOCUMENT_BYTES) return false;
+  if (text.length * 3 <= MAX_DOCUMENT_BYTES) return true;
+  let bytes = 0;
+  for (const ch of text) {
+    const cp = ch.codePointAt(0) ?? 0;
+    bytes += cp <= 0x7f ? 1 : cp <= 0x7ff ? 2 : cp <= 0xffff ? 3 : 4;
+    if (bytes > MAX_DOCUMENT_BYTES) return false;
+  }
+  return true;
 }
 
 export function pageScriptResultToCdp(
@@ -519,7 +594,26 @@ export function pageScriptResultToCdp(
     res.type === "bigint" ||
     res.type === "undefined";
   const wantValue = isPrimitiveType || returnByValue;
-  if (wantValue && res.valueJson !== undefined) {
+  // The page realm can replace JSON.stringify, so the reply's value text may not be a string.
+  if (wantValue && typeof res.valueJson === "string") {
+    if (!valueJsonWithinLimit(res.valueJson)) {
+      const error: Protocol.Runtime.RemoteObject = {
+        type: "object",
+        subtype: "error",
+        className: "Error",
+        description: VALUE_SIZE_LIMIT_TEXT,
+      };
+      return {
+        result: error,
+        exceptionDetails: {
+          exceptionId: 1,
+          text: VALUE_SIZE_LIMIT_TEXT,
+          lineNumber: 0,
+          columnNumber: 0,
+          exception: error,
+        },
+      };
+    }
     try {
       remote.value = JSON.parse(res.valueJson);
     } catch {}
@@ -561,9 +655,9 @@ export function pageScriptResultToCdp(
 function consoleArgToRemote(arg: PackedResult): Protocol.Runtime.RemoteObject {
   const remote: Protocol.Runtime.RemoteObject = { type: arg.type };
   if (arg.subtype) remote.subtype = arg.subtype;
-  if (arg.className) remote.className = arg.className;
-  if (arg.description !== undefined) remote.description = arg.description;
-  if (arg.valueJson !== undefined) {
+  if (typeof arg.className === "string" && arg.className) remote.className = arg.className;
+  if (typeof arg.description === "string") remote.description = arg.description;
+  if (typeof arg.valueJson === "string" && valueJsonWithinLimit(arg.valueJson)) {
     try {
       remote.value = JSON.parse(arg.valueJson);
     } catch {}

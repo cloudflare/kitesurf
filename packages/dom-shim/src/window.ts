@@ -2,17 +2,21 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-// Window object construction. `installWindow(document, dom)` is a
-// factory called from buildDocument body (it needs per-navigate
-// locals) and returns { window (Proxy), windowObj (target), Window
-// (proto anchor) }. Named-globals helpers live at module scope.
+// Window object construction. `installWindow(document)` is a factory
+// called from buildDocument body (it needs per-navigate locals) and
+// returns { window (Proxy), windowObj (target), Window (proto anchor) }.
+// Named-globals helpers live at module scope.
 
 import { makeStyleDeclaration, type StyleDeclarationBackend } from "./style-declaration.js";
 import {
   ksGlobal,
+  ksGlobalByKey,
   dom,
   documentImpl,
+  elementFor,
+  documentOpaqueOrigin,
   getCurrentUrl,
+  getDocumentUrl,
   setCurrentUrl,
   getComputedStyleForAuthId,
   getComputedStyleValueForAuthId,
@@ -27,7 +31,7 @@ import {
   cookieString,
   setCookieString,
 } from "./state.js";
-import { stampedNames, nodeIdName, forgetIdGlobal, boundFromGlobal } from "./registries.js";
+import { boundFromGlobal } from "./registries.js";
 import { getDocId } from "./mutations/attached.js";
 import {
   DEFAULT_VIEWPORT_HEIGHT_CSS_PX,
@@ -37,9 +41,8 @@ import {
   notSupported,
 } from "./constants.js";
 import { ksSpan } from "./otel.js";
-import { isReservedGlobalName, cssPropCamelToKebab } from "./util/strings.js";
+import { cssPropCamelToKebab } from "./util/strings.js";
 import { normalizeScrollArgs } from "./util/scroll-args.js";
-import type { Element } from "./element/element.js";
 import {
   addListener,
   removeListener,
@@ -51,6 +54,7 @@ import { getSelection as selectionSingleton } from "./range.js";
 import { getInternalState } from "./internal-state.js";
 import { KsPopStateEvent, postMessageEvent } from "./events/event.js";
 import type * as Idl from "./idl/types.generated.js";
+import type { DocumentImpl } from "./document.js";
 import { sendUpstreamEvent } from "./internal-state.js";
 import {
   GLOBAL_EVENT_HANDLERS,
@@ -59,6 +63,19 @@ import {
 } from "./event-handler-names.js";
 
 const runtimeToString = Function.prototype.toString;
+
+// History validation must not read URL intrinsics after page code can replace them.
+const HistoryURL = URL;
+const historyString = String;
+const historyApply = Reflect.apply;
+function historyUrlGetter(name: "href" | "origin" | "protocol"): (this: URL) => string {
+  const getter = Object.getOwnPropertyDescriptor(HistoryURL.prototype, name)?.get;
+  if (typeof getter !== "function") throw new Error(`URL ${name} getter unavailable`);
+  return getter;
+}
+const historyHref = historyUrlGetter("href");
+const historyOrigin = historyUrlGetter("origin");
+const historyProtocol = historyUrlGetter("protocol");
 
 export function locUrl(): URL | null {
   try {
@@ -136,30 +153,34 @@ export function __ks_documentImpl_location_set(v: unknown): void {
 Object.defineProperties(location, {
   href: {
     get: () => getCurrentUrl(),
-    set: (v: any) => locationMutate("href", String(v)),
+    set: (v: unknown) => locationMutate("href", String(v)),
     enumerable: true,
     configurable: false,
   },
-  origin: { get: () => locUrl()?.origin ?? "", enumerable: true, configurable: false },
+  origin: {
+    get: () => (documentOpaqueOrigin ? "null" : (locUrl()?.origin ?? "")),
+    enumerable: true,
+    configurable: false,
+  },
   protocol: { get: () => locUrl()?.protocol ?? "", enumerable: true, configurable: false },
   host: { get: () => locUrl()?.host ?? "", enumerable: true, configurable: false },
   hostname: { get: () => locUrl()?.hostname ?? "", enumerable: true, configurable: false },
   port: { get: () => locUrl()?.port ?? "", enumerable: true, configurable: false },
   pathname: {
     get: () => locUrl()?.pathname ?? "",
-    set: (v: any) => locationMutate("pathname", String(v)),
+    set: (v: unknown) => locationMutate("pathname", String(v)),
     enumerable: true,
     configurable: false,
   },
   search: {
     get: () => locUrl()?.search ?? "",
-    set: (v: any) => locationMutate("search", String(v)),
+    set: (v: unknown) => locationMutate("search", String(v)),
     enumerable: true,
     configurable: false,
   },
   hash: {
     get: () => locUrl()?.hash ?? "",
-    set: (v: any) => locationMutate("hash", String(v)),
+    set: (v: unknown) => locationMutate("hash", String(v)),
     enumerable: true,
     configurable: false,
   },
@@ -176,13 +197,13 @@ Object.defineProperties(location, {
     configurable: false,
   },
   assign: {
-    value: (url: any) => locationMutate("href", String(url)),
+    value: (url: unknown) => locationMutate("href", String(url)),
     writable: false,
     enumerable: true,
     configurable: false,
   },
   replace: {
-    value: (url: any) => locationMutate("href", String(url)),
+    value: (url: unknown) => locationMutate("href", String(url)),
     writable: false,
     enumerable: true,
     configurable: false,
@@ -309,15 +330,42 @@ function viewportDims(): { w: number; h: number } {
   };
 }
 
-export function installWindow(
-  document: any,
-  dom: any,
-): {
-  window: any;
-  windowObj: any;
-  Window: any;
-} {
-  void dom;
+// Keys page code adds, and the keys the window Proxy forwards by name.
+type Expandos = { [key: string]: unknown; [key: symbol]: unknown };
+// The [LegacyUnforgeable] accessors (and [Replaceable] parent) that
+// installWindow defines after the window literal.
+interface WindowAccessors<W> {
+  readonly window: W;
+  readonly document: DocumentImpl;
+  location: LocationSurface;
+  readonly top: W | ParentWindowStub;
+  readonly parent: W | ParentWindowStub;
+}
+// window.parent and window.top in an OOPIF child isolate.
+interface ParentWindowStub {
+  closed: boolean;
+  location: { href: string; toString(): string };
+  frames: never[];
+  postMessage(...args: unknown[]): void;
+  focus(): void;
+  blur(): void;
+  addEventListener(): void;
+  removeEventListener(): void;
+  dispatchEvent(): boolean;
+  self?: ParentWindowStub;
+  window?: ParentWindowStub;
+  parent?: ParentWindowStub;
+  top?: ParentWindowStub;
+}
+// The window object (windowObj) and its Proxy (window) share this type.
+export type ShimWindow = ReturnType<typeof installWindow>["windowObj"];
+
+// The return type is the window literal's own, inferred inside buildWindow.
+export function installWindow(document: DocumentImpl): ReturnType<typeof buildWindow> {
+  return buildWindow(document);
+}
+
+function buildWindow(document: DocumentImpl) {
   type HistoryEntry = { url: string; state: unknown };
 
   const historyStack: HistoryEntry[] = [{ url: getCurrentUrl() || "", state: null }];
@@ -327,35 +375,52 @@ export function installWindow(
     rawUrl: string | null | undefined,
     method: "pushState" | "replaceState",
   ): string => {
-    const cur = locUrl();
-    const curStr = cur?.toString() ?? "";
+    // Validate against the committed document URL: `location.href =` advances
+    // the page URL before the new document commits, so it must not authorize a
+    // history entry in the current document.
+    let cur: URL | null = null;
+    try {
+      cur = new HistoryURL(getDocumentUrl());
+    } catch {}
+    // A call with no URL argument copies the current entry, so it never needs to
+    // parse the document URL: an empty or invalid one must not throw here.
     if (rawUrl === undefined || rawUrl === null) {
-      return historyStack[historyIndex]?.url ?? curStr;
+      return historyStack[historyIndex]?.url ?? (cur ? historyApply(historyHref, cur, []) : "");
     }
+    if (!cur) {
+      throw new ksGlobal.DOMException(
+        `Failed to execute '${method}' on 'History': The current document URL is invalid.`,
+        "SecurityError",
+      );
+    }
+    const curStr = historyApply(historyHref, cur, []);
     let target: URL;
     try {
-      target = new URL(String(rawUrl), curStr || undefined);
+      target = new HistoryURL(historyString(rawUrl), curStr);
     } catch {
       throw new ksGlobal.DOMException(
         `Failed to execute '${method}' on 'History': '${rawUrl}' could not be parsed as a URL.`,
         "SecurityError",
       );
     }
-    if (cur) {
-      const sameOrigin = target.origin !== "null" && target.origin === cur.origin;
-      const bothOpaqueAndSameScheme =
-        target.origin === "null" && cur.origin === "null" && target.protocol === cur.protocol;
-      if (!sameOrigin && !bothOpaqueAndSameScheme) {
-        throw new ksGlobal.DOMException(
-          `Failed to execute '${method}' on 'History': A history state object with URL '${target.toString()}' cannot be created in a document with origin '${cur.origin}' and URL '${curStr}'.`,
-          "SecurityError",
-        );
-      }
+    const targetHref = historyApply(historyHref, target, []);
+    const targetOrigin = historyApply(historyOrigin, target, []);
+    const curOrigin = historyApply(historyOrigin, cur, []);
+    const sameOrigin = targetOrigin !== "null" && targetOrigin === curOrigin;
+    const bothOpaqueAndSameScheme =
+      targetOrigin === "null" &&
+      curOrigin === "null" &&
+      historyApply(historyProtocol, target, []) === historyApply(historyProtocol, cur, []);
+    if (!sameOrigin && !bothOpaqueAndSameScheme) {
+      throw new ksGlobal.DOMException(
+        `Failed to execute '${method}' on 'History': A history state object with URL '${targetHref}' cannot be created in a document with origin '${curOrigin}' and URL '${curStr}'.`,
+        "SecurityError",
+      );
     }
-    return target.toString();
+    return targetHref;
   };
 
-  const history: any = {
+  const history = {
     get state() {
       return historyStack[historyIndex]?.state ?? null;
     },
@@ -401,7 +466,7 @@ export function installWindow(
       };
       queuePopstate(() => {
         try {
-          const ev: any = new KsPopStateEvent("popstate", {
+          const ev = new KsPopStateEvent("popstate", {
             bubbles: false,
             cancelable: false,
             state: stateForPopstate,
@@ -433,26 +498,25 @@ export function installWindow(
     },
   };
 
-  const windowObj: any = {
+  const windowLiteral = {
     get navigator() {
       return navigator;
     },
     get history() {
       return history;
     },
-    get self() {
+    get self(): WindowObj {
       return window;
     },
-    get parent() {
+    get parent(): WindowObj {
       return window;
     },
-    get frames() {
+    get frames(): WindowObj {
       return window;
     },
     get length() {
       try {
-        const doc = (documentImpl as any)?.get?.() ?? documentImpl;
-        return doc?.querySelectorAll?.("iframe")?.length ?? 0;
+        return documentImpl?.querySelectorAll("iframe").length ?? 0;
       } catch {
         return 0;
       }
@@ -487,9 +551,7 @@ export function installWindow(
     get pageYOffset() {
       return scrollOffset().y;
     },
-    scrollTo(xOrOptions: any, y: any) {
-      void xOrOptions;
-      void y;
+    scrollTo(_xOrOptions?: Idl.ScrollToOptions | number, _y?: number) {
       const args = arguments;
       return (async () => {
         const norm = normalizeScrollArgs(args, "scrollTo");
@@ -500,12 +562,16 @@ export function installWindow(
         setScrollOffset(left, top);
       })();
     },
-    scroll(...args: any[]) {
-      return (this as any).scrollTo(...args);
+    // A rest parameter keeps scroll.length at 0, as the IDL has it.
+    scroll(
+      this: {
+        scrollTo(...args: [xOrOptions?: Idl.ScrollToOptions | number, y?: number]): Promise<void>;
+      },
+      ...args: [xOrOptions?: Idl.ScrollToOptions | number, y?: number]
+    ) {
+      return this.scrollTo(...args);
     },
-    scrollBy(xOrOptions: any, y: any) {
-      void xOrOptions;
-      void y;
+    scrollBy(_xOrOptions?: Idl.ScrollToOptions | number, _y?: number) {
       const args = arguments;
       return (async () => {
         const norm = normalizeScrollArgs(args, "scrollBy");
@@ -534,12 +600,19 @@ export function installWindow(
     get fetch() {
       return globalThis.fetch;
     },
-    getComputedStyle(element: any, pseudoArg?: any) {
+    getComputedStyle(element: Idl.Element, pseudoArg?: string | null) {
       return windowObj[GET_COMPUTED_STYLE_INTERNAL](element, pseudoArg, false);
     },
-    [GET_COMPUTED_STYLE_INTERNAL](element: any, pseudoArg?: any, computedValuesOnly = false) {
+    [GET_COMPUTED_STYLE_INTERNAL](
+      element: unknown,
+      pseudoArg?: unknown,
+      computedValuesOnly = false,
+    ) {
       const nodeId =
-        element && typeof element === "object" && typeof element._id === "number"
+        typeof element === "object" &&
+        element !== null &&
+        "_id" in element &&
+        typeof element._id === "number"
           ? element._id
           : -1;
       const pseudoNorm = (() => {
@@ -578,7 +651,7 @@ export function installWindow(
         const curSeq = ksState().mutationSeq | 0;
         if (cachedMap !== null && cachedSeq === curSeq) return cachedMap;
         const props = ksSpan("dom.getComputedStyle", null, () =>
-          (getComputedStyleForAuthId as any)(nodeId, pseudoNorm || undefined),
+          getComputedStyleForAuthId?.(nodeId, pseudoNorm || undefined),
         );
         if (!Array.isArray(props)) {
           cachedMap = null;
@@ -648,6 +721,12 @@ export function installWindow(
         // then Stylo assembles shorthands (font, margin, background, ...).
         getPropertyValue(name) {
           const k = String(name);
+          // Custom properties live only on the single-value path: the bulk longhand list has none.
+          if (k.startsWith("--")) {
+            if (!hasNodeId || pseudoNorm || !valueForAuthId) return "";
+            const value = valueForAuthId(nodeId, k);
+            return typeof value === "string" ? value : "";
+          }
           if (singleOk) {
             const value = single(k);
             if (value !== null) return value;
@@ -739,11 +818,15 @@ export function installWindow(
         },
       });
     },
-    getSelection: markNoBind(function (this: any) {
+    getSelection: markNoBind(function (this: unknown) {
       assertWindowReceiver(this);
       return selectionSingleton();
     }, "getSelection"),
-    addEventListener(type: any, listener: any, options: any) {
+    addEventListener(
+      type: string,
+      listener: Idl.EventListener | null,
+      options?: boolean | Idl.AddEventListenerOptions,
+    ) {
       if (arguments.length < 2) {
         throw new TypeError(
           "Failed to execute 'addEventListener' on 'EventTarget': 2 arguments required, but only " +
@@ -753,7 +836,11 @@ export function installWindow(
       }
       addListener(WINDOW_KEY, type, listener, options);
     },
-    removeEventListener(type: any, listener: any, options: any) {
+    removeEventListener(
+      type: string,
+      listener: Idl.EventListener | null,
+      options?: boolean | Idl.EventListenerOptions,
+    ) {
       if (arguments.length < 2) {
         throw new TypeError(
           "Failed to execute 'removeEventListener' on 'EventTarget': 2 arguments required, but only " +
@@ -763,37 +850,38 @@ export function installWindow(
       }
       removeListener(WINDOW_KEY, type, listener, options);
     },
-    dispatchEvent(event: any) {
+    dispatchEvent(event: Idl.Event) {
       return dispatchOnKey(WINDOW_KEY, event);
     },
-    event: undefined,
+    event: undefined as unknown,
     // Return the runtime callback directly; a forwarding wrapper can re-enter its wasm FnMut.
-    get requestAnimationFrame(): any {
+    get requestAnimationFrame(): unknown {
       const g = ksGlobal.requestAnimationFrame;
       if (typeof g === "function") return g;
       return (rafFallbackFn ??= (cb) => setTimeout(() => cb(Date.now()), RAF_FALLBACK_DELAY_MS));
     },
-    set requestAnimationFrame(v: any) {
-      ksGlobal.requestAnimationFrame = v;
+    set requestAnimationFrame(v: unknown) {
+      ksGlobalByKey.requestAnimationFrame = v;
     },
-    get cancelAnimationFrame(): any {
+    get cancelAnimationFrame(): unknown {
       const g = ksGlobal.cancelAnimationFrame;
       if (typeof g === "function") return g;
-      return (cafFallbackFn ??= (id) => clearTimeout(id as any));
+      // The page's id goes to clearTimeout unchanged; it converts it itself.
+      return (cafFallbackFn ??= (id) => clearTimeout(id as number));
     },
-    set cancelAnimationFrame(v: any) {
-      ksGlobal.cancelAnimationFrame = v;
+    set cancelAnimationFrame(v: unknown) {
+      ksGlobalByKey.cancelAnimationFrame = v;
     },
-    alert: () => {
-      throw notSupported("alert");
-    },
+    // TODO: surface alert() as a dialog instead of dropping it.
+    // https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#dom-alert
+    alert: () => {},
     confirm: () => {
       throw notSupported("confirm");
     },
     prompt: () => {
       throw notSupported("prompt");
     },
-    open: (url?: any, _target?: any, _features?: any) => {
+    open: (url?: unknown, _target?: unknown, _features?: unknown) => {
       const raw = url == null || url === "" ? "about:blank" : String(url);
       const base =
         typeof windowObj.document !== "undefined" &&
@@ -809,7 +897,7 @@ export function installWindow(
           "SyntaxError",
         );
       }
-      const stub: any = {
+      const stub = {
         closed: false,
         document: null,
         location: {
@@ -831,7 +919,11 @@ export function installWindow(
   };
 
   class Window {}
-  Object.setPrototypeOf(windowObj, Window.prototype);
+  Object.setPrototypeOf(windowLiteral, Window.prototype);
+  // defineProperties below adds the [LegacyUnforgeable] accessors the
+  // literal leaves out, and page code or the Proxy traps may write any key.
+  type WindowObj = typeof windowLiteral & WindowAccessors<WindowObj> & Expandos;
+  const windowObj = windowLiteral as WindowObj;
 
   const boundFromWindow = new WeakMap<object, Function>();
   const pageAssigned = new WeakSet<object>();
@@ -917,7 +1009,10 @@ export function installWindow(
     Reflect.set(windowObj, m, { [m]: function () {} }[m]);
   }
 
+  // The document's own origin: "null" when its sandbox made it opaque. A tuple targetOrigin never
+  // matches an opaque origin, and MessageEvent.origin serializes it as "null".
   const ownOrigin = (() => {
+    if (documentOpaqueOrigin) return "null";
     try {
       return new URL(getCurrentUrl() || pageUrl || "").origin;
     } catch {
@@ -1040,7 +1135,7 @@ export function installWindow(
     return { cloned, ports: outPorts };
   };
   const frameContext = getInternalState().frameContext;
-  const parentWindowStub: any = frameContext
+  const parentWindowStub: ParentWindowStub | null = frameContext
     ? {
         closed: false,
         location: { href: "", toString: () => "" },
@@ -1055,7 +1150,6 @@ export function installWindow(
               toParent: true,
               dataJson,
               targetOrigin: target,
-              sourceOrigin: ownOrigin,
             },
           });
         },
@@ -1100,7 +1194,7 @@ export function installWindow(
     },
     location: {
       get: () => location,
-      set: (v: any) => {
+      set: (v: unknown) => {
         location.href = String(v);
       },
       enumerable: true,
@@ -1122,7 +1216,7 @@ export function installWindow(
 
   const pageDefinedGetters = new Set<string | symbol>();
   // Preserve target descriptors before global fallback to satisfy Window's Proxy invariants.
-  const window = new Proxy(windowObj, {
+  const window: WindowObj = new Proxy(windowObj, {
     has(_t, prop) {
       if (prop in windowObj || prop in globalThis) return true;
       return namedAccess(prop) !== undefined;
@@ -1143,7 +1237,7 @@ export function installWindow(
         boundFromWindow.set(v, own);
         return own;
       }
-      const v = ksGlobal[prop];
+      const v = ksGlobalByKey[prop];
       if (v === undefined && !(prop in globalThis)) {
         const named = namedAccess(prop);
         if (named !== undefined) return named;
@@ -1204,7 +1298,7 @@ export function installWindow(
       }
       if (onGlobal || !onWindow) {
         try {
-          ksGlobal[prop] = value;
+          ksGlobalByKey[prop] = value;
         } catch {}
       }
       return true;
@@ -1226,12 +1320,12 @@ export function installWindow(
       if (ok && mirror) {
         try {
           if ("value" in desc) {
-            ksGlobal[prop] = (desc as any).value;
+            ksGlobalByKey[prop] = desc.value;
           } else {
             Reflect.defineProperty(ksGlobal, prop, {
               get: desc.get ? () => windowObj[prop] : undefined,
               set: desc.set
-                ? (v: any) => {
+                ? (v: unknown) => {
                     windowObj[prop] = v;
                   }
                 : undefined,
@@ -1251,43 +1345,125 @@ export function installWindow(
   return { window, windowObj, Window };
 }
 
-// Every owner is recorded, so reclaiming one node keeps the accessor for a connected same-ID node.
-// The accessor is installed only once an owner is in the document: a detached-only ID must leave
-// `name in window` false and a bare read a ReferenceError.
-export function stampNamedGlobal(nodeId: number, name: string): void {
-  recordNamedGlobal(nodeId, name, isConnectedNode(nodeId));
+// The HTML named properties object sits between the global and its prototype, the slot Blink's
+// WindowProperties fills. It must stay an ORDINARY object: with a Proxy in the global's prototype
+// chain, V8 resolves an unresolvable reference without calling the proxy's `has` trap, so strict
+// code created a global instead of throwing ReferenceError (AGENTS.md, platform quirks).
+
+// A name gets an accessor only while a connected element carries that id: one is installed when
+// the element joins the document and dropped when the last owner leaves, so a detached id stays
+// invisible without paying one accessor per id at parse time.
+interface NamedProperties {
+  readonly object: object;
+  // The object's prototype. A member the prototype chain already has wins, so a named property
+  // never shadows one: `Reflect.has(props.parent, name)` skips ids like `toString`.
+  readonly parent: object;
+  // One getter per installed name, for identity checks when a name loses its last owner.
+  readonly getters: Map<string, () => unknown>;
 }
 
-function recordNamedGlobal(nodeId: number, name: string, connected: boolean): void {
-  if (nodeIdName.get(nodeId) !== name) forgetIdGlobal(nodeId);
-  if (typeof name !== "string" || name.length === 0) return;
-  if (/^[0-9_$]/.test(name)) return;
-  nodeIdName.set(nodeId, name);
-  let entry = stampedNames.get(name);
-  if (!entry) {
-    entry = { getter: () => namedGlobalValue(name), nodeIds: new Set() };
-    stampedNames.set(name, entry);
+let namedProperties: NamedProperties | null = null;
+
+export function installNamedPropertiesObject(): void {
+  const installed = namedProperties;
+  if (installed !== null && Object.getPrototypeOf(ksGlobal) === installed.object) {
+    // A second document in one isolate keeps the object but none of the old document's names. A
+    // name the page made undeletable keeps its getters entry, so a later forget retries it.
+    for (const name of [...installed.getters.keys()]) {
+      if (Reflect.deleteProperty(installed.object, name)) installed.getters.delete(name);
+    }
+    return;
   }
-  entry.nodeIds.add(nodeId);
-  // An own property here is a real global or the page's own; a named property never shadows it.
-  if (!connected || isReservedGlobalName(name)) return;
-  const getter = entry.getter;
+  const parent = Object.getPrototypeOf(ksGlobal);
+  const object = Object.create(parent);
+  namedProperties = { object, parent, getters: new Map() };
+  Object.setPrototypeOf(ksGlobal, object);
+}
+
+// Same names the eager registry stamped: no numeric, underscore, or dollar prefixes.
+function isBareNamedProperty(name: string): boolean {
+  return name.length > 0 && !/^[0-9_$]/.test(name);
+}
+
+// The wasm id map answers the connected light-tree element that carries an id: shadow-tree ids
+// and template contents stay out of it, and no page-replaceable method is involved.
+function hasDocumentOwner(name: string): boolean {
   try {
-    Object.defineProperty(ksGlobal, name, {
+    return dom.getElementById(name) >= 0;
+  } catch {
+    return false;
+  }
+}
+
+// The getter resolves through the live id map at read time, so a duplicate id answers the
+// connected owner the map reports.
+function installNamedGlobal(name: string): void {
+  const props = namedProperties;
+  if (props === null || props.getters.has(name)) return;
+  if (!isBareNamedProperty(name) || Reflect.has(props.parent, name)) return;
+  const getter = () => namedGlobalValue(name);
+  // An assignment makes a real global that shadows the named property, as Chrome's writable
+  // named property does, and the accessor stays so deleting that global exposes it again. A
+  // getter-only accessor would instead throw TypeError in strict code and drop the value in
+  // sloppy code.
+  const setter = function (this: unknown, value: unknown): void {
+    const receiver = typeof this === "object" && this !== null ? this : ksGlobal;
+    try {
+      Reflect.defineProperty(receiver, name, {
+        value,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+    } catch {}
+  };
+  try {
+    Object.defineProperty(props.object, name, {
       configurable: true,
-      enumerable: true,
+      // Chrome keeps named properties off the global's own keys, and every enumeration here
+      // already skips them; enumerating this object would only add ids to a for-in over the
+      // global.
+      enumerable: false,
       get: getter,
-      set(value: unknown) {
-        stampedNames.delete(name);
-        Object.defineProperty(ksGlobal, name, {
-          value,
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        });
-      },
+      set: setter,
     });
-  } catch {}
+  } catch {
+    // A page can freeze the named properties object or keep a non-configurable same-name
+    // property on it. The mutation that asked for the name still applies without it.
+    return;
+  }
+  props.getters.set(name, getter);
+}
+
+// An id installs a name only while the id map holds it, so a shadow-tree or template id never
+// gets an accessor and any connected owner keeps a duplicate id visible.
+function installOwnedNamedGlobal(name: string): void {
+  if (hasDocumentOwner(name)) installNamedGlobal(name);
+}
+
+// A name keeps its accessor while any connected element carries that id.
+function forgetNamedGlobal(name: string): void {
+  const props = namedProperties;
+  if (props === null) return;
+  const getter = props.getters.get(name);
+  if (getter === undefined) return;
+  if (hasDocumentOwner(name)) return;
+  const desc = Object.getOwnPropertyDescriptor(props.object, name);
+  // A page that replaced the accessor through the prototype keeps its property.
+  if (desc !== undefined && desc.get !== getter) {
+    props.getters.delete(name);
+    return;
+  }
+  // A name the page made undeletable keeps its getters entry, so a later forget retries it.
+  if (Reflect.deleteProperty(props.object, name)) props.getters.delete(name);
+}
+
+function idAttributeOf(nodeId: number): string | null {
+  try {
+    return dom.idAttribute(nodeId) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function isConnectedNode(nodeId: number): boolean {
@@ -1300,41 +1476,126 @@ function isConnectedNode(nodeId: number): boolean {
   }
 }
 
-// Insertion is when a detached owner's name becomes visible. Read IDs from
-// wasm so a page-replaced querySelectorAll or getAttribute is never called.
-export function stampConnectedNamedGlobals(rootId: number): void {
-  if (!isConnectedNode(rootId)) return;
-  const rootIdAttr = idAttributeOf(rootId);
-  if (rootIdAttr !== null) recordNamedGlobal(rootId, rootIdAttr, true);
-  stampSubtreeIds(rootId, true);
-}
-
-function idAttributeOf(nodeId: number): string | null {
+// Descendant ids only: the selector engine scopes to the root and skips it. Read from wasm so a
+// page-replaced querySelectorAll is never called.
+function subtreeIdNodes(rootId: number): Iterable<number> {
   try {
-    return idFromNodeInfo(dom.nodeInfo(nodeId));
+    return dom.querySelectorAllInSubtree(rootId, "[id]");
   } catch {
-    return null;
+    return [];
   }
 }
 
-// Descendants only: the selector engine scopes to the root and skips it.
-function stampSubtreeIds(rootId: number, connected: boolean) {
-  try {
-    for (const nodeId of dom.querySelectorAllInSubtree(rootId, "[id]")) {
-      const id = idAttributeOf(nodeId);
-      if (id !== null) recordNamedGlobal(nodeId, id, connected);
-    }
-  } catch {}
+function installNodeNamedGlobal(nodeId: number): void {
+  const name = idAttributeOf(nodeId);
+  if (name !== null) installOwnedNamedGlobal(name);
 }
 
-// The accessor behind a bare ID, resolved through blitz's ID map. Frame names without a
-// matching ID go through the window proxy instead, which scans every iframe and would make
-// each bare read O(document).
+function forgetNodeNamedGlobal(nodeId: number): void {
+  const name = idAttributeOf(nodeId);
+  if (name !== null) forgetNamedGlobal(name);
+}
+
+function installSubtreeNamedGlobals(rootId: number): void {
+  installNodeNamedGlobal(rootId);
+  for (const nodeId of subtreeIdNodes(rootId)) installNodeNamedGlobal(nodeId);
+}
+
+// The removed subtree still exists in wasm, so its ids are still readable here.
+function forgetSubtreeNamedGlobals(rootId: number): void {
+  forgetNodeNamedGlobal(rootId);
+  for (const nodeId of subtreeIdNodes(rootId)) forgetNodeNamedGlobal(nodeId);
+}
+
+// The parsed document's ids, stamped once at build. The document-scoped query already answers
+// only connected light-tree ids, so no id here needs the owner lookup.
+export function installInitialNamedGlobals(): void {
+  if (namedProperties === null) return;
+  let ids: Int32Array;
+  try {
+    ids = dom.querySelectorAll("[id]");
+  } catch {
+    return;
+  }
+  for (const nodeId of ids) {
+    const name = idAttributeOf(nodeId);
+    if (name !== null) installNamedGlobal(name);
+  }
+}
+
+// Insertion is when a detached id's name becomes visible.
+export function installConnectedNamedGlobals(rootId: number): void {
+  if (namedProperties === null || !isConnectedNode(rootId)) return;
+  installSubtreeNamedGlobals(rootId);
+}
+
+// One entry for a mutation that can move a name across the document boundary: a connected root
+// installs its subtree's ids, a detached one forgets them. With no name installed a detached
+// root has nothing to forget, so it skips the subtree query.
+export function syncNamedGlobals(rootId: number): void {
+  const props = namedProperties;
+  if (props === null) return;
+  if (isConnectedNode(rootId)) {
+    installSubtreeNamedGlobals(rootId);
+    return;
+  }
+  if (props.getters.size === 0) return;
+  forgetSubtreeNamedGlobals(rootId);
+}
+
+// A dropped subtree's nodes are freed by the drop, so its names are read first and forgotten
+// afterwards.
+export function captureNamedGlobals(ids: Iterable<number>): string[] {
+  const props = namedProperties;
+  if (props === null || props.getters.size === 0) return [];
+  const names: string[] = [];
+  for (const nodeId of ids) {
+    const name = idAttributeOf(nodeId);
+    if (name !== null && props.getters.has(name)) names.push(name);
+  }
+  return names;
+}
+
+export function forgetCapturedNamedGlobals(names: readonly string[]): void {
+  for (const name of names) forgetNamedGlobal(name);
+}
+
+// An id write: the old name may have lost its last owner, and the new one becomes visible.
+// `idAttributeOf` reports no id for an empty value, so "" and null both mean "no id".
+export function updateNamedGlobal(previousId: string | null, nextId: string | null): void {
+  if (previousId !== null) forgetNamedGlobal(previousId);
+  if (nextId === null || nextId.length === 0) return;
+  installOwnedNamedGlobal(nextId);
+}
+
+// The id a node carries now, for a caller that is about to change it.
+export function namedGlobalIdOf(nodeId: number): string | null {
+  return idAttributeOf(nodeId);
+}
+
+// An attribute value read straight from wasm, so a page-replaced getAttribute cannot answer it.
+function attributeValueOf(nodeId: number, name: string): string | null {
+  try {
+    const flat = dom.attributeList(nodeId)?.attributes;
+    if (!flat) return null;
+    for (let i = 0; i < flat.length; i += 2) {
+      if (flat[i] === name) return flat[i + 1];
+    }
+  } catch {}
+  return null;
+}
+
+// The value behind a named global, resolved through the wasm id map and the wrapper builder
+// document.getElementById uses, so a page-replaced getElementById or getAttribute cannot answer
+// for it. Frame names without a matching ID go through the window proxy instead, which scans
+// every iframe and would make each bare read O(document).
 function namedGlobalValue(name: string): unknown {
   try {
-    const el = documentImpl?.getElementById(name);
+    const nodeId = dom.getElementById(name);
+    if (nodeId < 0) return undefined;
+    const el = elementFor(nodeId);
     if (!el) return undefined;
-    if (el.localName === "iframe" && el.getAttribute("name") === name) {
+    if (el.localName === "iframe" && attributeValueOf(nodeId, "name") === name) {
       const frame: NamedIframe = el;
       return frame.contentWindow ?? undefined;
     }
@@ -1377,7 +1638,7 @@ function namedIframeAccess(doc: IframeRoot, prop: string): NamedIframeAccess {
   return { matched: false };
 }
 
-function namedAccess(prop: any) {
+function namedAccess(prop: PropertyKey) {
   if (typeof prop !== "string" || prop.length === 0) return undefined;
   if (/^\d+$/.test(prop)) {
     try {
@@ -1406,27 +1667,10 @@ function namedAccess(prop: any) {
   return undefined;
 }
 
-export function stampSubtreeNamedGlobals(el: Element): void {
-  try {
-    const withIds = el.querySelectorAll("[id]");
-    for (let i = 0; i < withIds.length; i++) {
-      const node = withIds[i];
-      const id = node && node.getAttribute && node.getAttribute("id");
-      if (typeof id === "string" && id.length > 0) stampNamedGlobal(node._id, id);
-    }
-  } catch {}
-}
-
-// Parse-created fragments bypass setAttribute. Record their owners without
-// page-replaceable DOM calls; insertion installs the accessors.
-export function stampDetachedSubtreeNamedGlobals(rootId: number): void {
-  stampSubtreeIds(rootId, isConnectedNode(rootId));
-}
-
 const KS_NO_BIND = Symbol("ks-no-bind");
 function markNoBind<F extends object>(fn: F, idlName?: string): F {
   try {
-    (fn as any)[KS_NO_BIND] = true;
+    Reflect.set(fn, KS_NO_BIND, true);
   } catch {}
   if (idlName) {
     try {
@@ -1445,33 +1689,4 @@ function assertWindowReceiver(self: unknown) {
   if (self === null || self === undefined) return;
   if (self === stateWindowObj || self === windowProxy || self === globalThis) return;
   throw new TypeError("Illegal invocation");
-}
-
-function idFromNodeInfo(info: unknown) {
-  // nodeInfo is wasm-owned; this scan only needs its dynamic attributes field.
-  const attributes: unknown = info && (info as { attributes?: unknown }).attributes;
-  if (!Array.isArray(attributes)) return null;
-  for (let i = 0; i < attributes.length - 1; i += 2) {
-    if (attributes[i] !== "id") continue;
-    const id = attributes[i + 1];
-    if (typeof id === "string" && id.length > 0) return id;
-  }
-  return null;
-}
-
-export function stampInitialNamedGlobals(): void {
-  let ids: Int32Array | null;
-  try {
-    ids = typeof dom.querySelectorAll === "function" ? dom.querySelectorAll("[id]") : null;
-  } catch {
-    return;
-  }
-  if (!ids || typeof ids !== "object") return;
-  for (let i = 0; i < ids.length; i++) {
-    const nodeId = ids[i];
-    if (typeof nodeId !== "number" || nodeId <= 0) continue;
-    const id = idAttributeOf(nodeId);
-    // A document-scoped query only returns connected nodes.
-    if (id !== null) recordNamedGlobal(nodeId, id, true);
-  }
 }

@@ -23,12 +23,74 @@ import type { Protocol } from "devtools-protocol";
 
 const EXEC_CONTEXT_ID = 1;
 
+// PageScript stamps its own isolate into every handle (`ps:<stamp>:<seq>`) and compiled script
+// (`cs:<stamp>:<seq>`), so an id names the isolate that minted it. Isolate sequences restart at
+// one, so the stamp is what keeps a replaced or sibling isolate's ids from being reused.
+const STAMPED_REMOTE_ID = /^(?:ps|cs):([^:]+):(\d+)$/;
+
+function stubForStamp(
+  target: TargetState | null | undefined,
+  stamp: string,
+  mainStub: PageScriptStub | null,
+): PageScriptStub | null {
+  if (mainStub?.isolateStamp === stamp) return mainStub;
+  if (!target) return null;
+  for (const frame of target.frames.values()) {
+    if (frame.pageScript?.isolateStamp === stamp) return frame.pageScript;
+  }
+  return null;
+}
+
+// Resolves an id to the isolate that minted it: the ready main stub or a live child frame stub.
+// A stamp that names any other isolate belongs to one that was replaced or destroyed, so its ids
+// must not be replayed in the isolate that answers now.
+function liveOwnerStubOfId(
+  target: TargetState | null | undefined,
+  id: unknown,
+  mainStub: PageScriptStub | null,
+): PageScriptStub | null {
+  if (typeof id !== "string") return null;
+  const match = STAMPED_REMOTE_ID.exec(id);
+  return match ? stubForStamp(target, match[1]!, mainStub) : null;
+}
+
+function ownerStubOfId(target: TargetState | null | undefined, id: unknown): PageScriptStub | null {
+  return liveOwnerStubOfId(target, id, target?.pageScript ?? null);
+}
+
+function frameOfStub(
+  target: TargetState | null | undefined,
+  stub: PageScriptStub,
+): FrameState | null {
+  if (!target) return null;
+  for (const frame of target.frames.values()) {
+    if (frame.pageScript === stub) return frame;
+  }
+  return null;
+}
+
 function readyPageScript(
   ctx: DispatchCtx,
   target: TargetState | null | undefined,
 ): Promise<PageScriptStub | null> {
   if (!target) return Promise.resolve(null);
   return sessionOf(ctx, target).ready();
+}
+
+function isParentHostedSameOriginFrame(frame: FrameState): boolean {
+  return (
+    !frame.pageScript &&
+    !frame.detached &&
+    !frame.isCrossOrigin &&
+    frame.sandbox.sameOrigin &&
+    frame.execContextId > 0
+  );
+}
+
+interface ResolvedExecutionContext {
+  frame: FrameState | null;
+  childStub: PageScriptStub | null;
+  parentHostedFrameId: string | undefined;
 }
 
 function resolveExecutionContextFrame(
@@ -39,13 +101,40 @@ function resolveExecutionContextFrame(
     return null;
   }
   if (!target) return false;
-  if ((target.isolatedWorlds ?? []).some((w) => w.id === contextId)) {
+  const world = (target.isolatedWorlds ?? []).find((w) => w.id === contextId);
+  if (world) {
+    // A world belongs to a frame. An out-of-process child runs in its own isolate; a parent-hosted
+    // same-origin child runs in a realm on the parent isolate; a cross-origin child without a live
+    // isolate must not fall back to its embedder's.
+    const frame = target.frames.get(world.frameId);
+    // A world names a frame the target must still know; otherwise the context is gone.
+    if (!frame) return false;
+    if (frame.frameId !== target.frameId) {
+      if (frame.pageScript || isParentHostedSameOriginFrame(frame)) return frame;
+      if (frame.isCrossOrigin) return false;
+    }
     return null;
   }
   for (const f of target.frames.values()) {
-    if (f.execContextId === contextId) {
+    if (f.execContextId === contextId && !f.detached) {
       return f;
     }
+  }
+  return false;
+}
+
+function resolveExecutionContextTarget(
+  target: TargetState | null | undefined,
+  contextId: number | undefined,
+): ResolvedExecutionContext | false {
+  const frame = resolveExecutionContextFrame(target, contextId);
+  if (frame === false) return false;
+  if (!frame) return { frame: null, childStub: null, parentHostedFrameId: undefined };
+  if (frame.pageScript) {
+    return { frame, childStub: frame.pageScript, parentHostedFrameId: undefined };
+  }
+  if (isParentHostedSameOriginFrame(frame)) {
+    return { frame, childStub: null, parentHostedFrameId: frame.frameId };
   }
   return false;
 }
@@ -66,19 +155,29 @@ function throwIfContextDestroyed(
   }
 }
 
-export function emitOopifExecutionContext(ctx: DispatchCtx, frame: FrameState): void {
-  if (!frame.pageScript || frame.execContextId <= 0) return;
-  for (const sid of ctx.browser.runtimeEnabledSessions) {
+export function emitOopifExecutionContext(
+  ctx: DispatchCtx,
+  frame: FrameState,
+  parentUrl?: string,
+): void {
+  if (frame.execContextId <= 0 || frame.detached) return;
+  if (!frame.pageScript && !isParentHostedSameOriginFrame(frame)) return;
+  const origin = frame.sandbox.sameOrigin
+    ? originOf(frame.url) || (parentUrl ? originOf(parentUrl) : "")
+    : "://";
+  for (const sid of ctx.browser.runtimeEnabledSessions ?? []) {
     ctx.emit({
       method: "Runtime.executionContextCreated",
       params: {
         context: {
           id: frame.execContextId,
-          origin: originOf(frame.url),
+          origin,
           name: frame.url,
           uniqueId: `ctx-oopif-${frame.execContextId}`,
           auxData: {
-            isDefault: false,
+            // Playwright and Puppeteer only treat a frame's main world as default when this is
+            // true, so a false here leaves every evaluate in the frame waiting for a world.
+            isDefault: true,
             type: "default",
             frameId: frame.frameId,
           },
@@ -91,7 +190,7 @@ export function emitOopifExecutionContext(ctx: DispatchCtx, frame: FrameState): 
 
 export function emitOopifExecutionContextDestroyed(ctx: DispatchCtx, execContextId: number): void {
   if (execContextId <= 0) return;
-  for (const sid of ctx.browser.runtimeEnabledSessions) {
+  for (const sid of ctx.browser.runtimeEnabledSessions ?? []) {
     ctx.emit({
       method: "Runtime.executionContextDestroyed",
       params: {
@@ -147,17 +246,19 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
       }
       if (target) {
         for (const f of target.frames.values()) {
-          if (!f.pageScript || f.execContextId <= 0) continue;
+          if (f.execContextId <= 0 || f.detached) continue;
+          if (!f.pageScript && !isParentHostedSameOriginFrame(f)) continue;
+          const origin = f.sandbox.sameOrigin ? originOf(f.url) || originOf(target.url) : "://";
           ctx.emit({
             method: "Runtime.executionContextCreated",
             params: {
               context: {
                 id: f.execContextId,
-                origin: originOf(f.url),
+                origin,
                 name: f.url,
                 uniqueId: `ctx-oopif-${f.execContextId}`,
                 auxData: {
-                  isDefault: false,
+                  isDefault: true,
                   type: "default",
                   frameId: f.frameId,
                 },
@@ -225,13 +326,13 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
 
       const target = pickTarget(ctx, req.sessionId);
       const requestedCtx = (req.params as { contextId?: number } | undefined)?.contextId;
-      const oopifFrame = resolveExecutionContextFrame(target, requestedCtx);
-      if (oopifFrame === false || (oopifFrame && !oopifFrame.pageScript)) {
+      const resolved = resolveExecutionContextTarget(target, requestedCtx);
+      if (resolved === false) {
         return loaderFailureResponse(
           new Error(`Runtime.evaluate: unknown or destroyed contextId ${requestedCtx}`),
         );
       }
-      const oopifStub = oopifFrame ? oopifFrame.pageScript : null;
+      const { frame: oopifFrame, childStub: oopifStub, parentHostedFrameId } = resolved;
 
       const trivial = tryTrivial(expression);
       if (trivial !== undefined) {
@@ -247,25 +348,25 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
         const result = await traceSpan(
           ctx.env.HOST_TRACER,
           "eval.pagescript_rpc",
-          () => ps.evaluate(expression, { returnByValue, awaitPromise }),
+          () =>
+            ps.evaluate(expression, {
+              returnByValue,
+              awaitPromise,
+              ...(parentHostedFrameId ? { frameId: parentHostedFrameId } : {}),
+            }),
           { exprBytes: expression.length, returnByValue, awaitPromise },
         );
         emitCapturedConsole(ctx, result.console, req.sessionId);
         if (!oopifStub) {
           replayReopenedLifecycle(ctx, target, result, req.sessionId);
         }
-        applyCookieWrites(
-          ctx,
-          target,
-          result.cookieWrites,
-          oopifFrame ? oopifFrame.url : undefined,
-        );
+        applyCookieWrites(ctx, target, result.cookieWrites, ps, oopifStub ? oopifFrame : null);
         if (!oopifStub && target) {
           emitMutations(ctx, target, result.cdpMutations);
         }
         return pageScriptResultToCdp(result, returnByValue);
       } catch (err) {
-        throwIfContextDestroyed(oopifFrame || target, ps);
+        throwIfContextDestroyed(oopifStub ? oopifFrame : target, ps);
         return loaderFailureResponse(err);
       }
     }
@@ -274,30 +375,59 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
       const functionDeclaration = req.params!.functionDeclaration;
       const returnByValue = Boolean(req.params?.returnByValue);
       const awaitPromise = Boolean(req.params?.awaitPromise);
-      const argSpecs = encodeArgSpecs(req.params?.arguments);
       const objectId = req.params?.objectId;
-      const thisObjectId =
-        typeof objectId === "string" && objectId.startsWith("ps:") ? objectId : undefined;
 
       const target = pickTarget(ctx, req.sessionId);
       const requestedCtxCfn = (req.params as { executionContextId?: number } | undefined)
         ?.executionContextId;
       assertLiveContextId(target, requestedCtxCfn);
-      const oopifFrameCfn = resolveExecutionContextFrame(target, requestedCtxCfn);
-      if (oopifFrameCfn === false || (oopifFrameCfn && !oopifFrameCfn.pageScript)) {
+      const resolvedCfn = resolveExecutionContextTarget(target, requestedCtxCfn);
+      if (resolvedCfn === false) {
         return loaderFailureResponse(
           new Error(
             `Runtime.callFunctionOn: unknown or destroyed executionContextId ${requestedCtxCfn}`,
           ),
         );
       }
-      const oopifStubCfn = oopifFrameCfn ? oopifFrameCfn.pageScript : null;
-      const ps = oopifStubCfn ?? (await readyPageScript(ctx, target));
+      // A main-isolate call must use the ready stub: a pending about:blank setup or a navigation
+      // can still replace target.pageScript after this request arrives. An explicit child isolate
+      // answers for itself and is not gated on the main one.
+      const { frame: oopifFrameCfn, childStub, parentHostedFrameId } = resolvedCfn;
+      const mainStub = childStub
+        ? (target?.pageScript ?? null)
+        : await readyPageScript(ctx, target);
+      const receiverStub =
+        typeof objectId === "string" && objectId.startsWith("ps:")
+          ? liveOwnerStubOfId(target, objectId, mainStub)
+          : null;
+      if (typeof objectId === "string" && objectId.startsWith("ps:") && !receiverStub) {
+        return loaderFailureResponse(
+          new Error("Runtime.callFunctionOn: unknown or destroyed objectId"),
+        );
+      }
+      const contextStub = childStub ?? mainStub;
+      if (receiverStub && typeof requestedCtxCfn === "number" && requestedCtxCfn > 0) {
+        if (contextStub !== receiverStub) {
+          return loaderFailureResponse(
+            new Error("Runtime.callFunctionOn: objectId belongs to another execution context"),
+          );
+        }
+      }
+      const ps = receiverStub ?? contextStub;
       if (!ps) {
         return loaderFailureResponse(
           new Error("Runtime.callFunctionOn requires an attached page target"),
         );
       }
+      const argSpecs = encodeArgSpecs(req.params?.arguments, target, ps);
+      if (!argSpecs) {
+        return loaderFailureResponse(
+          new Error("Runtime.callFunctionOn: argument belongs to another execution context"),
+        );
+      }
+      const thisObjectId = receiverStub ? objectId : undefined;
+      const childFrame =
+        ps === target?.pageScript ? null : (oopifFrameCfn ?? frameOfStub(target, ps));
       try {
         const result = await traceSpan(
           ctx.env.HOST_TRACER,
@@ -307,6 +437,7 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
               returnByValue,
               awaitPromise,
               thisObjectId,
+              ...(parentHostedFrameId ? { frameId: parentHostedFrameId } : {}),
             }),
           {
             fnBytes: functionDeclaration.length,
@@ -316,21 +447,16 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
           },
         );
         emitCapturedConsole(ctx, result.console, req.sessionId);
-        if (!oopifStubCfn) {
+        if (!childFrame) {
           replayReopenedLifecycle(ctx, target, result, req.sessionId);
         }
-        applyCookieWrites(
-          ctx,
-          target,
-          result.cookieWrites,
-          oopifFrameCfn ? oopifFrameCfn.url : undefined,
-        );
-        if (!oopifStubCfn && target) {
+        applyCookieWrites(ctx, target, result.cookieWrites, ps, childFrame);
+        if (!childFrame && target) {
           emitMutations(ctx, target, result.cdpMutations);
         }
         return pageScriptResultToCdp(result, returnByValue);
       } catch (err) {
-        throwIfContextDestroyed(oopifFrameCfn || target, ps);
+        throwIfContextDestroyed(childFrame || target, ps);
         return loaderFailureResponse(err);
       }
     }
@@ -341,7 +467,7 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
         return { result: [] };
       }
       const target = pickTarget(ctx, req.sessionId);
-      const ps = target?.pageScript;
+      const ps = ownerStubOfId(target, objectId);
       if (!ps) return { result: [] };
       try {
         const { result: descriptors } = await ps.getProperties(objectId, {
@@ -369,8 +495,7 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
     case "Runtime.releaseObject": {
       const objectId = req.params!.objectId;
       if (objectId.startsWith("ps:")) {
-        const target = pickTarget(ctx, req.sessionId);
-        const ps = target?.pageScript;
+        const ps = ownerStubOfId(pickTarget(ctx, req.sessionId), objectId);
         if (ps) {
           try {
             await ps.releaseObject(objectId);
@@ -385,7 +510,18 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
       const sourceURL = req.params!.sourceURL;
       const persistScript = req.params!.persistScript;
       const target = pickTarget(ctx, req.sessionId);
-      const ps = await readyPageScript(ctx, target);
+      const requestedCtxCompile = (req.params as { executionContextId?: number } | undefined)
+        ?.executionContextId;
+      const resolvedCompile = resolveExecutionContextTarget(target, requestedCtxCompile);
+      if (resolvedCompile === false) {
+        return loaderFailureResponse(
+          new Error(
+            `Runtime.compileScript: unknown or destroyed executionContextId ${requestedCtxCompile}`,
+          ),
+        );
+      }
+      const { frame: oopifFrameCompile, childStub: compileStub } = resolvedCompile;
+      const ps = compileStub ?? (await readyPageScript(ctx, target));
       if (!ps) {
         return loaderFailureResponse(
           new Error("Runtime.compileScript requires an attached page target"),
@@ -414,7 +550,7 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
         if (target) {
           target.compiledScripts.push(meta);
           if (hasDebuggerListeners(target)) {
-            emitScriptParsedToSessions(ctx, target, meta);
+            emitScriptParsedToSessions(ctx, target, meta, oopifFrameCompile);
           }
         }
         return { scriptId: res.scriptId };
@@ -428,21 +564,54 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
       const returnByValue = Boolean(req.params?.returnByValue);
       const awaitPromise = Boolean(req.params?.awaitPromise);
       const target = pickTarget(ctx, req.sessionId);
-      const ps = await readyPageScript(ctx, target);
+      const requestedCtxRun = (req.params as { executionContextId?: number } | undefined)
+        ?.executionContextId;
+      const resolvedRun = resolveExecutionContextTarget(target, requestedCtxRun);
+      if (resolvedRun === false) {
+        return loaderFailureResponse(
+          new Error(
+            `Runtime.runScript: unknown or destroyed executionContextId ${requestedCtxRun}`,
+          ),
+        );
+      }
+      // A persisted script runs in the isolate that compiled it; a supplied context cannot move
+      // it to another one. The main isolate must be the ready stub, so a script minted by an
+      // isolate a pending navigation replaced is rejected instead of running in the outgoing one.
+      const { frame: oopifFrameRun, childStub, parentHostedFrameId } = resolvedRun;
+      const mainStub = childStub
+        ? (target?.pageScript ?? null)
+        : await readyPageScript(ctx, target);
+      const stampedScript = typeof scriptId === "string" && STAMPED_REMOTE_ID.test(scriptId);
+      const scriptOwner = stampedScript ? liveOwnerStubOfId(target, scriptId, mainStub) : null;
+      if (stampedScript && !scriptOwner) {
+        return loaderFailureResponse(new Error("Runtime.runScript: unknown or destroyed scriptId"));
+      }
+      if (scriptOwner && typeof requestedCtxRun === "number" && requestedCtxRun > 0) {
+        const contextStub = childStub ?? mainStub;
+        if (contextStub !== scriptOwner) {
+          return loaderFailureResponse(
+            new Error("Runtime.runScript: script belongs to another execution context"),
+          );
+        }
+      }
+      const ps = scriptOwner ?? childStub ?? mainStub;
       if (!ps) {
         return loaderFailureResponse(
           new Error("Runtime.runScript requires an attached page target"),
         );
       }
+      const childFrame =
+        ps === target?.pageScript ? null : (oopifFrameRun ?? frameOfStub(target, ps));
       try {
         const result = await ps.runScript(scriptId, {
           returnByValue,
           awaitPromise,
+          ...(parentHostedFrameId ? { frameId: parentHostedFrameId } : {}),
         });
         emitCapturedConsole(ctx, result.console, req.sessionId);
-        replayReopenedLifecycle(ctx, target, result, req.sessionId);
-        applyCookieWrites(ctx, target, result.cookieWrites);
-        if (target) emitMutations(ctx, target, result.cdpMutations);
+        if (!childFrame) replayReopenedLifecycle(ctx, target, result, req.sessionId);
+        applyCookieWrites(ctx, target, result.cookieWrites, ps, childFrame);
+        if (!childFrame && target) emitMutations(ctx, target, result.cdpMutations);
         return pageScriptResultToCdp(result, returnByValue);
       } catch (err) {
         return loaderFailureResponse(err);
@@ -459,14 +628,20 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
   }
 }
 
+// Writes go under the url of the document that answered. target.url may already name the next
+// document while the old isolate still answers, so a main-frame reply uses the isolate's sealed
+// url and a frame reply uses the url sealed with its installed stub, and a reply from an isolate
+// that was replaced while it ran is dropped.
 function applyCookieWrites(
   ctx: DispatchCtx,
   target: TargetState | undefined,
   cookieWrites: string[] | undefined,
-  urlOverride?: string,
+  ps: PageScriptStub,
+  oopifFrame: FrameState | null,
 ): void {
   if (!target || !cookieWrites || cookieWrites.length === 0) return;
-  const url = urlOverride || target.url;
+  if ((oopifFrame ?? target).pageScript !== ps) return;
+  const url = oopifFrame ? oopifFrame.pageScriptUrl : target.pageScriptUrl;
   if (!url) return;
   const jar = jarForTarget(ctx, target);
   for (const raw of cookieWrites) {
@@ -529,25 +704,34 @@ function encodeArgSpecs(
         unserializableValue?: string;
       }>
     | undefined,
-): Array<{ json?: string; objectId?: string }> {
+  target: TargetState | undefined,
+  owner: PageScriptStub,
+): Array<{ json?: string; objectId?: string }> | null {
   if (!args) return [];
-  return args.map((a) => {
+  const specs: Array<{ json?: string; objectId?: string }> = [];
+  for (const a of args) {
     if (typeof a.objectId === "string" && a.objectId.startsWith("ps:")) {
-      return { objectId: a.objectId };
+      // An argument object must live in the isolate the function runs in.
+      if (ownerStubOfId(target, a.objectId) !== owner) return null;
+      specs.push({ objectId: a.objectId });
+      continue;
     }
     if ("value" in a) {
       try {
         const json = JSON.stringify(a.value);
-        return json === undefined ? {} : { json };
+        specs.push(json === undefined ? {} : { json });
       } catch {
-        return { json: "null" };
+        specs.push({ json: "null" });
       }
+      continue;
     }
     if (typeof a.objectId === "string" || typeof a.unserializableValue === "string") {
-      return { json: "null" };
+      specs.push({ json: "null" });
+      continue;
     }
-    return {};
-  });
+    specs.push({});
+  }
+  return specs;
 }
 
 function loaderFailureResponse(err: unknown) {
@@ -623,14 +807,15 @@ function emitScriptParsedToSessions(
   ctx: DispatchCtx,
   target: TargetState,
   meta: ReturnType<typeof makeCompiledScriptMeta>,
+  frame?: FrameState | null,
 ): void {
   for (const sessionId of target.debuggerEnabledSessions) {
     emitScriptParsed(
       ctx,
       meta,
       sessionId === "" ? undefined : sessionId,
-      target.frameId,
-      target.defaultContextId || undefined,
+      frame?.frameId ?? target.frameId,
+      frame ? frame.execContextId || undefined : target.defaultContextId || undefined,
     );
   }
 }

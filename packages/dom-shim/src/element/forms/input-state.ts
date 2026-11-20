@@ -4,7 +4,7 @@
 
 // Stores input dirty-state and runs form-control clone and attribute-change steps.
 
-import { dom, documentImpl as document } from "../../state.js";
+import { dom, elementDocument } from "../../state.js";
 import { inputState, type InputControlState } from "../../registries.js";
 import { markDamageNode, bumpMutationSeq } from "../../mutations/seq.js";
 import { computeStep, sanitizeValue } from "../../input-types.js";
@@ -114,9 +114,8 @@ function inputTypeOf(input: Pick<Element, "getAttribute">): string {
 }
 function ksPushInputText(el: Element, str: string): void {
   try {
-    const domHandle = dom;
     // This updates the editor buffer without rewriting the value content attribute.
-    if (typeof domHandle.setInputText === "function" && domHandle.setInputText(el._id, str)) {
+    if (dom.setInputText(el._id, str)) {
       markDamageNode(el._id);
       bumpMutationSeq();
     }
@@ -200,13 +199,15 @@ function inputValueMode(type: string): InputValueMode {
 
 function uncheckSiblingRadios(input: Element, name: string): void {
   const myForm = resolveFormOwner(input);
-  const doc = input.ownerDocument || document;
-  let scope = doc;
+  const doc = elementDocument(input);
+  let scope: { querySelectorAll(selectors: string): Iterable<unknown> } = doc;
   try {
     const root = typeof input.getRootNode === "function" ? input.getRootNode() : null;
-    if (root && typeof root.querySelectorAll === "function") scope = root;
+    // Element and fragment roots query their subtree; a Text root has none.
+    if (root && "querySelectorAll" in root && typeof root.querySelectorAll === "function")
+      scope = root;
   } catch {}
-  let candidates;
+  let candidates: Iterable<unknown>;
   try {
     candidates = scope.querySelectorAll(`input[type=radio][name=${JSON.stringify(name)}]`);
   } catch {
@@ -221,11 +222,8 @@ function uncheckSiblingRadios(input: Element, name: string): void {
     s.checkedDirty = true;
     s.checked = false;
     try {
-      const domHandle = dom;
-      if (typeof domHandle.setCheckboxChecked === "function") {
-        domHandle.setCheckboxChecked(cand._id, false);
-        markDamageNode(cand._id);
-      }
+      dom.setCheckboxChecked(cand._id, false);
+      markDamageNode(cand._id);
     } catch {}
   }
   bumpMutationSeq();

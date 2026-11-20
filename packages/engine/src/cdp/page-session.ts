@@ -4,8 +4,10 @@
 
 // Resolves CDP targets to PageScript generations and routes typed DOM queries.
 
+import type { Protocol } from "devtools-protocol";
 import type { DispatchCtx } from "./dispatch.ts";
-import type { TargetState } from "./types.ts";
+import { RawJsonResult, type TargetState } from "./types.ts";
+import { withDeadline } from "../read-capped.ts";
 import type { PageScriptStub } from "../eval/page-script.ts";
 import type { PageScriptSession } from "@kitesurf/jsrpc-types/page-script";
 export type {
@@ -15,7 +17,13 @@ export type {
   QueryDomMethods,
   QueryDomResult,
 } from "@kitesurf/jsrpc-types/query-dom";
-import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
+import type {
+  AccessibilityBudgetError,
+  QueryDomArgs,
+  QueryDomMethod,
+  QueryDomResult,
+  ReadStamp,
+} from "@kitesurf/jsrpc-types/query-dom";
 
 export type QueryDomCarrier = Pick<PageScriptSession, "queryDom">;
 
@@ -25,6 +33,154 @@ export function stubQueryDom<M extends QueryDomMethod>(
   args: QueryDomArgs<M>,
 ): Promise<QueryDomResult<M>> {
   return stub.queryDom(method, args);
+}
+
+// Matches the PageScript RPC call budget; the cap is far above any page the isolate can hold.
+const JSON_READ_DEADLINE_MS = 60_000;
+const MAX_JSON_READ_BYTES = 512 * 1024 * 1024;
+
+type OuterHtmlRequest = (
+  args: Pick<QueryDomArgs<"getOuterHTML">, "snapshot">,
+) => Promise<QueryDomResult<"getOuterHTML">>;
+
+/**
+ * A `Protocol.DOM.GetOuterHTMLResponse` as JSON text, escaped a chunk at a time, so a large page
+ * is never held as bytes, a decoded string and that string's JSON copy at once.
+ */
+export async function outerHtmlResponse(request: OuterHtmlRequest): Promise<RawJsonResult> {
+  const live = await readOuterHtml(await request({}));
+  if (live.complete) return outerHtmlJson(live.escaped);
+  // The DOM changed while the live stream was read; a snapshot cannot tear.
+  const snapshot = await readOuterHtml(await request({ snapshot: true }));
+  if (snapshot.complete) return outerHtmlJson(snapshot.escaped);
+  throw new Error(
+    `DOM.getOuterHTML: PageScript stream ended after ${snapshot.filled} of ${snapshot.byteLength} bytes`,
+  );
+}
+
+// `JSON.stringify` escapes each code point alone, and a streaming decode never splits one, so
+// the pieces join to what stringifying the whole string gives.
+function outerHtmlJson(escaped: readonly string[]): RawJsonResult {
+  return new RawJsonResult(['{"outerHTML":"', ...escaped, '"}'], () => {
+    const outerHTML = escaped.map(unescapeJsonPiece).join("");
+    return { outerHTML } satisfies Protocol.DOM.GetOuterHTMLResponse;
+  });
+}
+
+function unescapeJsonPiece(piece: string): string {
+  const text: unknown = JSON.parse(`"${piece}"`);
+  if (typeof text !== "string") throw new TypeError("DOM.getOuterHTML: piece is not a string");
+  return text;
+}
+
+// A short read keeps no text, so a retry does not hold the discarded pieces.
+type OuterHtmlRead =
+  | { complete: true; escaped: string[] }
+  | { complete: false; filled: number; byteLength: number };
+
+async function readOuterHtml(result: QueryDomResult<"getOuterHTML">): Promise<OuterHtmlRead> {
+  const { byteLength } = result;
+  if (!Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > MAX_JSON_READ_BYTES) {
+    await result.outerHTMLUtf8.cancel("invalid byteLength").catch(() => {});
+    throw new Error(`DOM.getOuterHTML: PageScript sent an invalid byteLength ${byteLength}`);
+  }
+
+  const escaped: string[] = [];
+  const filled = await readJsonChunks(
+    result.outerHTMLUtf8,
+    byteLength,
+    "DOM.getOuterHTML",
+    (text) => {
+      if (text) escaped.push(JSON.stringify(text).slice(1, -1));
+    },
+  );
+  if (filled !== byteLength) return { complete: false, filled, byteLength };
+  return { complete: true, escaped };
+}
+
+/**
+ * Feeds `stream` to `onPiece` as UTF-8 and returns how many bytes it carried. Only a complete
+ * read flushes the decoder: a truncated stream may end mid-character.
+ */
+async function readJsonChunks(
+  stream: ReadableStream<Uint8Array>,
+  byteLength: number,
+  label: string,
+  onPiece: (piece: string) => void,
+): Promise<number> {
+  // Same decoder options as the wasm-bindgen string return this replaced, so output is identical.
+  const decoder = new TextDecoder("utf-8", { ignoreBOM: true, fatal: true });
+  // The RPC deadline ends when the result arrives, so the stream needs its own.
+  const reader = withDeadline(stream, JSON_READ_DEADLINE_MS).getReader();
+  let filled = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value.byteLength > byteLength - filled) {
+        throw new Error(`${label}: PageScript sent more than ${byteLength} bytes`);
+      }
+      filled += value.byteLength;
+      onPiece(decoder.decode(value, { stream: true }));
+    }
+  } catch (error) {
+    await reader.cancel(error).catch(() => {});
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+  if (filled === byteLength) onPiece(decoder.decode());
+  return filled;
+}
+
+export type AccessibilityTreeRequest = (
+  buffered: boolean,
+) => Promise<QueryDomResult<"accessibilityTree">>;
+
+export type AccessibilityTreeReply =
+  | { budgetError: AccessibilityBudgetError }
+  | { result: RawJsonResult; readStamp?: ReadStamp };
+
+// A short read keeps no text, so a retry does not hold the discarded pieces.
+type AccessibilityTreeRead =
+  | { complete: true; pieces: string[] }
+  | { complete: false; filled: number; byteLength: number };
+
+export async function accessibilityTreeResponse(
+  request: AccessibilityTreeRequest,
+  method: string,
+): Promise<AccessibilityTreeReply> {
+  const live = await request(false);
+  if ("budgetError" in live) return live;
+  const first = await readAccessibilityTree(live);
+  if (first.complete) return { result: new RawJsonResult(first.pieces), readStamp: live.readStamp };
+
+  // A stream built as the caller pulls can tear if the page mutates; a buffered read cannot.
+  const buffered = await request(true);
+  if ("budgetError" in buffered) return buffered;
+  const retry = await readAccessibilityTree(buffered);
+  if (retry.complete) {
+    return { result: new RawJsonResult(retry.pieces), readStamp: buffered.readStamp };
+  }
+  throw new Error(
+    `${method}: PageScript stream ended after ${retry.filled} of ${retry.byteLength} bytes`,
+  );
+}
+
+async function readAccessibilityTree(
+  result: Extract<QueryDomResult<"accessibilityTree">, { byteLength: number }>,
+): Promise<AccessibilityTreeRead> {
+  const { byteLength } = result;
+  if (!Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > MAX_JSON_READ_BYTES) {
+    await result.json.cancel("invalid byteLength").catch(() => {});
+    throw new Error(`Accessibility: PageScript sent an invalid byteLength ${byteLength}`);
+  }
+  const pieces: string[] = [];
+  const filled = await readJsonChunks(result.json, byteLength, "Accessibility", (piece) => {
+    if (piece) pieces.push(piece);
+  });
+  if (filled !== byteLength) return { complete: false, filled, byteLength };
+  return { complete: true, pieces };
 }
 
 type EnsurePageScriptFn = (
@@ -61,6 +217,17 @@ export type SessionOps = {
 export type SessionSoftOps = {
   readonly [M in QueryDomMethod]: (args: QueryDomArgs<M>) => Promise<QueryDomResult<M> | null>;
 };
+
+const RETIRED = "PageScript generation retired";
+const NO_ISOLATE = "No PageScript isolate for target";
+
+/**
+ * Whether `error` is a read that found no live PageScript generation. `call` throws it where
+ * `tryCall` answers `null`, and a caller that retries on `null` reads this as "no document yet".
+ */
+export function isGoneGeneration(error: unknown): boolean {
+  return error instanceof Error && (error.message === RETIRED || error.message === NO_ISOLATE);
+}
 
 export class PageSession {
   readonly #dctx: DispatchCtx;
@@ -104,7 +271,7 @@ export class PageSession {
     if (this.#pinned) {
       const stub = this.live();
       if (!stub) {
-        if (kind === "call") throw new Error("PageScript generation retired");
+        if (kind === "call") throw new Error(RETIRED);
         return null;
       }
       try {
@@ -126,7 +293,7 @@ export class PageSession {
     }
     const stub = await this.ready();
     if (!stub) {
-      if (kind === "call") throw new Error("No PageScript isolate for target");
+      if (kind === "call") throw new Error(NO_ISOLATE);
       return null;
     }
     if (kind === "call") return stubQueryDom(stub, method, args);

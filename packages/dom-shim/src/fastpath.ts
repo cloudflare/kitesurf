@@ -4,6 +4,7 @@
 
 // Rust shares these fast-path bits; only canonical wrappers are branded.
 // revalidate runs under with_v8_quiet and must use captured intrinsics only.
+import type { NodeBase } from "./node-base.js";
 import {
   dom,
   nodeFor,
@@ -189,7 +190,7 @@ export function installFastpath(document: object): void {
   // querySelectorAll's own construction, so the NodeList class and the
   // wrappers in it are the ones the slow path returns.
   const nodeList = (ids: number[]): unknown =>
-    makeStaticNodeList(ids.map((id) => nodeFor(id)).filter(Boolean));
+    makeStaticNodeList(ids.map((id) => nodeFor(id)).filter((n): n is NodeBase => n !== null));
 
   try {
     d.fastpathBind(brand, revalidate, wrapperForNodeId, peek, nodeList);

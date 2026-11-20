@@ -119,6 +119,9 @@ export interface EngineE2EOptions {
 }
 
 export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defineConfig> {
+  // Match `pnpm run dev`: Miniflare passes these to workerd, so the engine collects retired page
+  // isolates (src/eval/retired-worker-gc.ts) and tests see that pages do not get gc().
+  process.env.MINIFLARE_WORKERD_V8_FLAGS ??= "--expose-gc";
   process.env.KS_E2E_WRANGLER_CONFIG = opts.wranglerConfig;
   process.env.KS_E2E_ENGINE_DIST = opts.engineDist;
   process.env.KS_E2E_FIXTURE_WORKER_BUILDS = JSON.stringify(
@@ -155,14 +158,20 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
   wo.bindings = engineBindings;
   const ENGINE_RULES: ModuleRule[] = [
     { type: "CompiledWasm", include: ["**/*.wasm"] },
-    { type: "Text", include: ["**/*.glue.js", "*.css", "**/*.css"] },
+    { type: "Text", include: ["**/*.glue.js", "*.css", "**/*.css", "**/*.dat"] },
     // Wrangler bundles *.bin as Data by default; wrapping engines ship such modules.
     { type: "Data", include: ["**/*.woff2", "**/*.bin"] },
   ];
 
-  function engineWorkerOptions(name: string, outboundService: string, bindings = engineBindings) {
+  function engineWorkerOptions(
+    name: string,
+    outboundService: string,
+    bindings: Record<string, unknown> = engineBindings,
+    compatibilityFlags = wo.compatibilityFlags,
+  ) {
     return {
       ...wo,
+      compatibilityFlags,
       bindings,
       name,
       modulesRoot: opts.engineDist,
@@ -196,6 +205,20 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
     "kitesurf-engine-no-inspector",
     { ...engineBindings, KITESURF_INSPECTOR_BASE_URL: "" },
   );
+  // The same-origin frontend copy that the bundle_devtools build stages; the routes need no assets.
+  const sameOriginInspectorEngineWorker = engineWorkerOptions(
+    "kitesurf-engine-same-origin-inspector",
+    "kitesurf-engine-same-origin-inspector",
+    { ...engineBindings, KITESURF_INSPECTOR_BASE_URL: "/inspector/inspector.html" },
+  );
+
+  // Page isolates with native eval, which the engine may grant only with the experimental flag.
+  const nativeEvalEngineWorker = engineWorkerOptions(
+    "kitesurf-engine-native-eval",
+    "kitesurf-engine-native-eval",
+    { ...engineBindings, KITESURF_NATIVE_EVAL: "1" },
+    [...new Set([...((wo.compatibilityFlags as string[] | undefined) ?? []), "experimental"])],
+  );
 
   const extraEngineWorkers = (opts.extraEngines ?? []).map((engine) =>
     engineWorkerOptions(engine.name, engine.outboundService, {
@@ -213,6 +236,8 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
           serviceBindings: {
             ENGINE: "kitesurf-engine",
             ENGINE_NO_INSPECTOR: "kitesurf-engine-no-inspector",
+            ENGINE_SAME_ORIGIN_INSPECTOR: "kitesurf-engine-same-origin-inspector",
+            ENGINE_NATIVE_EVAL: "kitesurf-engine-native-eval",
             ...opts.serviceBindings,
             OTLP_CAPTURE: "kitesurf-otlp-capture",
             CORE_WASM: "kitesurf-core-wasm",
@@ -221,6 +246,8 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
           workers: [
             engineWorker as never,
             noInspectorEngineWorker as never,
+            sameOriginInspectorEngineWorker as never,
+            nativeEvalEngineWorker as never,
             ...(extraEngineWorkers as never[]),
             fixturesWorker as never,
             ...((opts.workers ?? []).concat(fixtureWorkers) as never[]),

@@ -8,15 +8,16 @@
 // Opaque Blobs submit an empty body but keep their name and type.
 
 import type * as Idl from "./idl/types.generated.js";
-import { ksGlobal } from "./state.js";
+import { ksGlobal, ksGlobalByKey } from "./state.js";
 import { finalizeInterface, idlInterfaceMeta } from "./webidl.js";
 
 export const fileInputFiles: Map<number, File[]> = new Map();
 
 const FILELIST_GUARD = Symbol("kitesurf-filelist-guard");
 
-// FileList is a FileAPI interface, which the pinned IDL model leaves out.
-export class KsFileList {
+// FileList is a FileAPI interface: the generated types have it, but the
+// conformance model leaves it out.
+export class KsFileList implements Idl.FileList {
   declare readonly length: number;
   // The constructor stores the files as own index properties.
   readonly [index: number]: File;
@@ -207,10 +208,11 @@ class KsDataTransferItemList implements Idl.DataTransferItemList {
   }
   // The IDL overloads by argument count: add(data, type) adds a string,
   // add(file) a File, and anything else fails the conversion to File.
-  add(...args: unknown[]): KsDataTransferItem {
-    const [data, type] = args;
+  add(data: string, type: string): KsDataTransferItem;
+  add(data: Idl.File): KsDataTransferItem;
+  add(data: string | Idl.File, type?: string): KsDataTransferItem {
     let item: KsDataTransferItem;
-    if (args.length >= 2) {
+    if (arguments.length >= 2) {
       item = new KsDataTransferItem(DATA_TRANSFER_TOKEN, String(type), String(data));
     } else if (data instanceof NativeFile) {
       item = new KsDataTransferItem(DATA_TRANSFER_TOKEN, data.type, data);
@@ -357,4 +359,6 @@ ksGlobal.DataTransfer = KsDataTransfer;
 ksGlobal.DataTransferItem = KsDataTransferItem;
 ksGlobal.DataTransferItemList = KsDataTransferItemList;
 ksGlobal.File = KsFile;
-ksGlobal.Blob = KsBlob;
+// Through the untyped view: KsBlob is a function constructor over NativeBlob.prototype, which
+// TypeScript cannot see as `typeof Blob`. Readers keep `typeof Blob`, which page code gets.
+ksGlobalByKey.Blob = KsBlob;

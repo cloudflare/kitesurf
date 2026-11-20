@@ -65,7 +65,7 @@ impl DomHandle {
         };
         doc.flush_slot_assignments();
         doc.get_node(slot_id)
-            .and_then(|n| n.assigned_nodes.as_ref())
+            .and_then(|n| n.assigned_nodes())
             .map(|v| {
                 v.iter()
                     .copied()
@@ -86,7 +86,7 @@ impl DomHandle {
         };
         doc.flush_slot_assignments();
         doc.get_node(node_id)
-            .and_then(|n| n.assigned_slot)
+            .and_then(|n| n.assigned_slot())
             .map(|id| self.external_node_id_i32(id))
             .unwrap_or(-1)
     }
@@ -112,7 +112,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return vec![-1; node_ids.len()],
         };
-        let root = doc.root_node().id;
+        let root = doc.root_node().id();
         let mut out = Vec::with_capacity(node_ids.len());
         for external in node_ids {
             let Some(mut cur) = self.resolve_node_id(external) else {
@@ -125,7 +125,7 @@ impl DomHandle {
             }
             for _ in 0..100_000 {
                 let Some(node) = doc.get_node(cur) else { break };
-                if let Some(p) = node.parent {
+                if let Some(p) = node.parent_id() {
                     cur = p;
                 } else if let Some(d) = node.shadow_root_data() {
                     cur = d.host;

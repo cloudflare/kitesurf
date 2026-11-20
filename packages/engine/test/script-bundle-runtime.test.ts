@@ -20,15 +20,26 @@ function module_(body: string, opts: Partial<ParentScriptDescriptor> = {}): Pare
 async function bootBundleAndCollectGlobals(
   descriptors: ParentScriptDescriptor[],
   globalsToCollect: string[],
+  options: { cdpDebug?: boolean } = {},
 ): Promise<Record<string, unknown>> {
-  const bundle = buildScriptBundle(descriptors);
+  const bundle = buildScriptBundle(descriptors, { cdpDebug: options.cdpDebug === true });
   const moduleUrls = bundle.moduleScriptUrls;
+  const hasPreNav = !!bundle.preNavSource;
   const hasRegular = !!bundle.classicRegularSource;
   const hasAsync = !!bundle.classicAsyncSource;
 
   const pageJsSource = `
 import { WorkerEntrypoint } from "cloudflare:workers";
-import { getInternalState } from "./internal-state.js";
+import {
+  getInternalState,
+  registerUpstreamSender,
+  sendUpstreamEvent,
+} from "./internal-state.js";
+
+const __ks_events = [];
+registerUpstreamSender((message) => {
+  __ks_events.push(message);
+});
 
 // Production wires setCurrentScript onto the shared internal-state via
 // the dom-shim (current-script.ts) during navigate, before the classic
@@ -38,9 +49,21 @@ const __ks_is = getInternalState();
 if (typeof __ks_is.setCurrentScript !== "function") {
   __ks_is.setCurrentScript = function () {};
 }
+__ks_is.parserScriptLifecycle = async function (domIndex, rawSrc, src, ok) {
+  (globalThis.__log = globalThis.__log || []).push((ok ? "load:" : "error:") + rawSrc);
+};
+// The bundle reports a caught script failure through the internal state.
+__ks_is.pushException = function (err, opts) {
+  (globalThis.__pushedExceptions = globalThis.__pushedExceptions || []).push({
+    message: err && err.message ? String(err.message) : String(err),
+    scriptId: opts && opts.scriptId,
+    url: opts && opts.url,
+  });
+};
 
 const globalsToCollect = ${JSON.stringify(globalsToCollect)};
 const moduleUrls = ${JSON.stringify(moduleUrls)};
+const hasPreNav = ${JSON.stringify(hasPreNav)};
 const hasRegular = ${JSON.stringify(hasRegular)};
 const hasAsync = ${JSON.stringify(hasAsync)};
 
@@ -51,6 +74,15 @@ const dynamicImport = new (async function () {}).constructor(
 );
 
 const runPromise = (async () => {
+  // Run pre-navigation (CDP addScriptToEvaluateOnNewDocument) scripts first.
+  if (hasPreNav) {
+    const mod = await import("./__ks_user_pre_nav.js");
+    const run = (mod && mod.default && mod.default.run) || mod.run;
+    if (typeof run !== "function") {
+      throw new Error("pre-nav: no run() export");
+    }
+    await run();
+  }
   // Run regular classic scripts.
   if (hasRegular) {
     const mod = await import("./__ks_user_classic_regular.js");
@@ -86,7 +118,8 @@ export default class TestProbe extends WorkerEntrypoint {
         stack: err && err.stack ? String(err.stack) : null,
       });
     }
-    const out = { ok: true, globals: {} };
+    const out = { ok: true, globals: {}, events: __ks_events };
+    sendUpstreamEvent({ event: "kitesurf.paintDirty", params: {} });
     for (const name of globalsToCollect) {
       try {
         const v = globalThis[name];
@@ -113,6 +146,9 @@ export default class TestProbe extends WorkerEntrypoint {
   if (bundle.classicRegularSource) {
     modules["__ks_user_classic_regular.js"] = { cjs: bundle.classicRegularSource };
   }
+  if (bundle.preNavSource) {
+    modules["__ks_user_pre_nav.js"] = { cjs: bundle.preNavSource };
+  }
   if (bundle.classicAsyncSource) {
     modules["__ks_user_classic_async.js"] = { cjs: bundle.classicAsyncSource };
   }
@@ -136,12 +172,13 @@ export default class TestProbe extends WorkerEntrypoint {
     error?: string;
     stack?: string;
     globals?: Record<string, { kind: string; value?: unknown; result?: unknown; error?: string }>;
+    events?: unknown[];
   };
 
   if (!body.ok) {
     throw new Error(`bundle runtime threw: ${body.error}\n${body.stack ?? ""}`);
   }
-  return body.globals!;
+  return { ...body.globals!, __events: { kind: "object", value: body.events } };
 }
 
 describe("legacy bucket runtime behaviour", () => {
@@ -262,6 +299,34 @@ describe("legacy bucket runtime behaviour", () => {
     });
   });
 
+  it("an external script gets load after its body, a failed one error in its place", async () => {
+    const globals = await bootBundleAndCollectGlobals(
+      [
+        classic(`globalThis.__log = ["inline"];`),
+        classic("", { src: "/a.js", prefetchedSource: 'globalThis.__log.push("a");' }),
+        classic("", { src: "/gone.js", prefetchError: "HTTP 404" }),
+        classic(`globalThis.__log.push("inline-2");`),
+        classic("", { src: "/d.js", defer: true, prefetchedSource: 'globalThis.__log.push("d");' }),
+        classic("", { src: "/s.js", async: true, prefetchedSource: 'globalThis.__log.push("s");' }),
+      ],
+      ["__log"],
+    );
+    expect(globals.__log).toEqual({
+      kind: "object",
+      value: [
+        "inline",
+        "a",
+        "load:/a.js",
+        "error:/gone.js",
+        "inline-2",
+        "d",
+        "load:/d.js",
+        "s",
+        "load:/s.js",
+      ],
+    });
+  });
+
   it("top-level var is a LIVE globalThis binding — post-bucket reassignment is visible", async () => {
     const globals = await bootBundleAndCollectGlobals(
       [
@@ -340,5 +405,121 @@ describe("legacy bucket runtime behaviour", () => {
     );
     expect(globals.__moduleLeak).toEqual({ kind: "string", value: "undefined" });
     expect(globals.__exportsLeak).toEqual({ kind: "string", value: "undefined" });
+  });
+});
+
+describe("script URLs in generated comments", () => {
+  it.each(["\n", "\u2028"])("code after a line terminator in src does not run (%j)", async (t) => {
+    const globals = await bootBundleAndCollectGlobals(
+      [
+        classic("", {
+          src: `https://cdn.test/a.js${t}globalThis.__injected = 1;//`,
+          prefetchedSource: "var a = 1;\nglobalThis.__ran = a;",
+        }),
+      ],
+      ["__injected", "__ran"],
+    );
+    expect(globals.__injected).toEqual({ kind: "undefined" });
+    expect(globals.__ran).toEqual({ kind: "number", value: 1 });
+  });
+});
+
+describe("classic script isolation from internal state", () => {
+  it("classic bundles cannot reach internal state or forge upstream events", async () => {
+    const globals = await bootBundleAndCollectGlobals(
+      [
+        classic(`
+          try {
+            __ks_state_local.upstreamSender({ event: "kitesurf.frameAttached", params: { frameId: "forged" } });
+          } catch (e) {}
+          globalThis.__senderType = typeof __ks_state_local.upstreamSender;
+          globalThis.__afterInsertType = typeof __ks_state_local.afterIframeInsert;
+        `),
+      ],
+      ["__senderType", "__afterInsertType"],
+    );
+    expect(globals.__senderType).toEqual({ kind: "string", value: "undefined" });
+    expect(globals.__afterInsertType).toEqual({ kind: "string", value: "undefined" });
+    // Only the trusted post-run event is delivered; the forged one is not.
+    expect(globals.__events).toEqual({
+      kind: "object",
+      value: [{ event: "kitesurf.paintDirty", params: {} }],
+    });
+  });
+});
+
+describe("pre-navigation script source isolation", () => {
+  const foreign = "foreign-origin-token-3f9c";
+  const current = "current-origin-token-8b21";
+
+  it.each([false, true])("page code cannot read injected source (debug=%s)", async (cdpDebug) => {
+    const globals = await bootBundleAndCollectGlobals(
+      [
+        classic(`globalThis.__store = [${JSON.stringify(foreign)}];`, { injected: true }),
+        classic(`globalThis.__store.push(${JSON.stringify(current)});`, { injected: true }),
+        classic(`
+          var pageVar = "page";
+          globalThis.__leak = arguments.callee.toString().includes(globalThis.__store[0]);
+          globalThis.__seeded = globalThis.__store.slice();
+        `),
+      ],
+      ["__leak", "__seeded", "pageVar"],
+      { cdpDebug },
+    );
+    expect(globals.__leak).toEqual({ kind: "boolean", value: false });
+    expect(globals.__seeded).toEqual({ kind: "object", value: [foreign, current] });
+    expect(globals.pageVar).toEqual({ kind: "string", value: "page" });
+  });
+});
+
+describe("classic script failures", () => {
+  it("a throwing script reports the error and the later scripts still run", async () => {
+    const globals = await bootBundleAndCollectGlobals(
+      [classic(`throw new Error("boom");`), classic(`globalThis.afterThrow = 1;`)],
+      ["afterThrow", "__pushedExceptions"],
+    );
+    expect(globals.afterThrow).toEqual({ kind: "number", value: 1 });
+    expect(globals.__pushedExceptions).toEqual({
+      kind: "object",
+      value: [
+        {
+          message: "boom",
+          scriptId: "bundle:classic-regular",
+          url: "inline#0",
+        },
+      ],
+    });
+  });
+});
+
+describe("classic script lifecycle and scan edge cases", () => {
+  it("a throwing external script still gets load", async () => {
+    const globals = await bootBundleAndCollectGlobals(
+      [
+        classic("", {
+          src: "/boom.js",
+          prefetchedSource: 'globalThis.__beforeBoom = 1; throw new Error("boom");',
+        }),
+        classic("", { src: "/ok.js", prefetchedSource: "globalThis.__ok = 1;" }),
+      ],
+      ["__beforeBoom", "__ok", "__log"],
+    );
+    expect(globals.__beforeBoom).toEqual({ kind: "number", value: 1 });
+    expect(globals.__ok).toEqual({ kind: "number", value: 1 });
+    expect(globals.__log).toEqual({ kind: "object", value: ["load:/boom.js", "load:/ok.js"] });
+  });
+
+  it("a script whose scan desyncs on a nested template still runs", async () => {
+    const globals = await bootBundleAndCollectGlobals(
+      [
+        classic(
+          "!function(){ var c = `${`}`}`; function helper(){return 1} globalThis.__helper = helper(); }();",
+        ),
+        classic("globalThis.__afterDesync = 1;"),
+      ],
+      ["__helper", "__afterDesync"],
+    );
+    expect(globals.__helper).toEqual({ kind: "number", value: 1 });
+    expect(globals.__afterDesync).toEqual({ kind: "number", value: 1 });
   });
 });

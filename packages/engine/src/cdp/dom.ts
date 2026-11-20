@@ -20,8 +20,20 @@ import { syncStyleSheetsFromMutations } from "./css.ts";
 import { installIsolateLimitSurface, installUpstreamEventHandler } from "./page.ts";
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
 import { publishStub } from "./page-script-generation.ts";
-import { ensureTargetDom } from "./dom-release.ts";
+import { ensureTargetDom, releasedFallbackError } from "./dom-release.ts";
 import {
+  childNodesSubtree,
+  documentSubtree,
+  frontendNodes,
+  GET_DOCUMENT_DEPTH,
+  GET_FLATTENED_DOCUMENT_DEPTH,
+  sessionKeyOf,
+  subtreeBudgetError,
+  type DomFrontendNodes,
+  type SubtreeParams,
+} from "./dom-frontend.ts";
+import {
+  outerHtmlResponse,
   registerEnsurePageScript,
   resolveTarget,
   sessionOf,
@@ -47,6 +59,9 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       if (!f || f.ownerBackendNodeId <= 0) {
         throw new Error("Frame with the given id was not found.");
       }
+      // The default document read stops at `<head>`/`<body>`, so the client may never have been
+      // sent the owner; it places the returned id in its model, so send the path first.
+      if (ps) await pushNodePaths(ctx, target, session, req.sessionId, [f.ownerBackendNodeId]);
       return {
         backendNodeId: f.ownerBackendNodeId,
         nodeId: f.ownerBackendNodeId,
@@ -62,71 +77,49 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
 
     case "DOM.getDocument": {
       registerDomObserver(target, req.sessionId);
-      if (ps) {
-        try {
-          const r = await session.call.getDocument({});
-          annotateIframeFrameIds(r.root, target);
-          return r;
-        } catch (err) {
-          const msg = (err as Error)?.message ?? String(err);
-          if (!/no document loaded/i.test(msg)) throw err;
-        }
-      }
-      {
-        const dom = ensureTargetDom(target);
-        if (!dom) return { root: syntheticBlankDocument() };
-        const root = dom.getDocument();
-        stripAttributeNamespaceSidecars(root);
-        annotateIframeFrameIds(root, target);
-        return { root };
-      }
+      const subtree = documentSubtree(req.params, GET_DOCUMENT_DEPTH);
+      const root = await documentRoot(session, target, ps, subtree, req.method);
+      rebindDocument(target, req.sessionId, root);
+      return { root };
     }
 
     case "DOM.getFlattenedDocument": {
       registerDomObserver(target, req.sessionId);
-      if (ps) {
-        try {
-          const r = await session.call.getDocument({});
-          annotateIframeFrameIds(r.root, target);
-          return { nodes: r.root ? [r.root] : [] };
-        } catch (err) {
-          const msg = (err as Error)?.message ?? String(err);
-          if (!/no document loaded/i.test(msg)) throw err;
-        }
-      }
-      {
-        const dom = ensureTargetDom(target);
-        if (!dom) return { nodes: [syntheticBlankDocument()] };
-        const root = dom.getDocument();
-        stripAttributeNamespaceSidecars(root);
-        annotateIframeFrameIds(root, target);
-        return { nodes: [root] };
-      }
+      const subtree = documentSubtree(req.params, GET_FLATTENED_DOCUMENT_DEPTH);
+      const root = await documentRoot(session, target, ps, subtree, req.method);
+      rebindDocument(target, req.sessionId, root);
+      return { nodes: [root] };
     }
 
     case "DOM.requestChildNodes": {
       registerDomObserver(target, req.sessionId);
+      const subtree = childNodesSubtree(req.params);
       const id = numericNodeId(req.params);
       if (id == null || id <= 0) return {};
       let node: unknown = null;
       if (ps) {
-        const r = await session.tryCall.nodeSubtree({ nodeId: id });
+        // The push is advisory, so a retired generation leaves the client to ask again, but a
+        // read the page refused is the client's answer.
+        const r = await session.tryCall.nodeSubtree({ nodeId: id, ...subtree });
+        if (r?.budgetError) throw subtreeBudgetError(req.method, r.budgetError);
         node = r?.node ?? null;
       }
       if (!node) return {};
+      assertDomReplyGraph(node);
       const nodes = childNodesForRebind(node) ?? [];
-      ctx.emit({
-        method: "DOM.setChildNodes",
-        params: { parentId: id, nodes },
-        sessionId: req.sessionId,
-      });
+      // These nodes come straight from PageScript, which does not know frame ids.
+      const byOwner = iframeFrameIdsByOwner(target);
+      for (const child of nodes) annotateIframeFrameIds(child, byOwner);
+      sendChildNodes(ctx, target, sessionKeyOf(req.sessionId), id, nodes);
       return {};
     }
 
     case "DOM.querySelector": {
       const sel = req.params!.selector;
       if (ps) {
-        return await session.call.querySelector({ selector: sel });
+        const r = await session.call.querySelector({ selector: sel });
+        if (r.nodeId) await pushNodePaths(ctx, target, session, req.sessionId, [r.nodeId]);
+        return r;
       }
       const dom = requireDom(target);
       try {
@@ -140,7 +133,9 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
     case "DOM.querySelectorAll": {
       const sel = req.params!.selector;
       if (ps) {
-        return await session.call.querySelectorAll({ selector: sel });
+        const r = await session.call.querySelectorAll({ selector: sel });
+        if (r.nodeIds) await pushNodePaths(ctx, target, session, req.sessionId, r.nodeIds);
+        return r;
       }
       const dom = requireDom(target);
       try {
@@ -155,10 +150,18 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       const id = numericNodeId(req.params);
       if (ps) {
         const includeDoctype = req.params?.includeDoctype === true;
-        return await session.call.getOuterHTML({
-          ...(id != null ? { nodeId: id } : {}),
-          ...(includeDoctype ? { includeDoctype: true } : {}),
-        });
+        // Both reads must describe one document: the snapshot retry happens after an await, so
+        // an unpinned call could apply this node id to the document a navigation just installed.
+        await session.ready();
+        const pinned = session.pin();
+        if (!pinned) throw new Error("No PageScript isolate for target");
+        return await outerHtmlResponse((mode) =>
+          pinned.call.getOuterHTML({
+            ...(id != null ? { nodeId: id } : {}),
+            ...(includeDoctype ? { includeDoctype: true } : {}),
+            ...mode,
+          }),
+        );
       }
       const dom = requireDom(target);
       if (id == null) return { outerHTML: "" };
@@ -170,7 +173,10 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       if (ps) {
         const objectId = req.params?.objectId;
         const args = id != null ? { nodeId: id } : typeof objectId === "string" ? { objectId } : {};
-        return await session.call.describeNode(args);
+        const reply = await session.call.describeNode(args);
+        if (reply.budgetError) throw subtreeBudgetError(req.method, reply.budgetError);
+        assertDomReplyGraph(reply);
+        return reply;
       }
       const dom = requireDom(target);
       if (id == null) {
@@ -178,15 +184,19 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
           node: { nodeId: 0, nodeType: 1, nodeName: "", localName: "", nodeValue: "" },
         };
       }
+      const budgetError = dom.nodeDescriptionBudgetError(id);
+      if (budgetError) throw subtreeBudgetError(req.method, budgetError);
+      let node: unknown;
       try {
-        const node: unknown = dom.nodeInfo(id);
-        stripAttributeNamespaceSidecars(node);
-        return { node };
+        node = dom.nodeInfo(id);
       } catch {
         return {
           node: { nodeId: 0, nodeType: 1, nodeName: "", localName: "", nodeValue: "" },
         };
       }
+      assertDomReplyGraph(node);
+      stripAttributeNamespaceSidecars(node);
+      return { node };
     }
 
     case "DOM.resolveNode": {
@@ -208,10 +218,9 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
 
     case "DOM.requestNode": {
       const objectId = req.params!.objectId;
-      if (objectId.startsWith("node:")) {
-        return { nodeId: Number(objectId.slice(5)) || 0 };
-      }
-      return { nodeId: 0 };
+      const nodeId = objectId.startsWith("node:") ? Number(objectId.slice(5)) || 0 : 0;
+      if (ps && nodeId > 0) await pushNodePaths(ctx, target, session, req.sessionId, [nodeId]);
+      return { nodeId };
     }
 
     case "DOM.getAttributes": {
@@ -230,18 +239,17 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
     }
 
     case "DOM.getBoxModel": {
-      const nodeId = numericNodeId(req.params);
-      const rect = nodeId != null && nodeId > 0 ? await pageScriptRect(session, nodeId) : null;
+      const ref = rectNodeRef(req.params);
+      const rect = ref ? await pageScriptRect(session, ref) : null;
       if (!rect) throw new Error("Could not compute box model.");
       return { model: realBoxFor(rect) };
     }
 
     case "DOM.getContentQuads": {
-      const nodeId = numericNodeId(req.params);
-      if (nodeId == null || nodeId <= 0) return { quads: [] };
-      const rect = await pageScriptRect(session, nodeId);
-      if (!rect) return { quads: [] };
-      return { quads: [rectToQuad(rect)] };
+      const ref = rectNodeRef(req.params);
+      const read = ref ? await session.callIfLive.getRect(ref) : null;
+      if (!read) return { quads: [] };
+      return { quads: lineBoxRects(read).filter(hasArea).map(rectToQuad) };
     }
 
     case "DOM.getNodeForLocation": {
@@ -249,6 +257,7 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       const y = req.params!.y;
       const id = await pageScriptElementFromPoint(session, x, y);
       const nodeId = id >= 0 ? id : 0;
+      if (ps && nodeId > 0) await pushNodePaths(ctx, target, session, req.sessionId, [nodeId]);
       return { backendNodeId: nodeId, frameId: target.frameId, nodeId };
     }
 
@@ -262,7 +271,21 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       return {};
     }
 
-    case "DOM.scrollIntoViewIfNeeded":
+    case "DOM.scrollIntoViewIfNeeded": {
+      // An empty reply read as success: puppeteer skipped its own fallback scroll, and its
+      // locator re-checked an off-screen element until it timed out.
+      if (!ps) return {};
+      const id = numericNodeId(req.params);
+      const objectId = req.params?.objectId;
+      const rect = req.params?.rect;
+      const reply = await session.call.scrollIntoViewIfNeeded({
+        ...(id != null ? { nodeId: id } : typeof objectId === "string" ? { objectId } : {}),
+        ...(rect ? { rect } : {}),
+      });
+      if (!reply.found) throw new Error("Node is detached from document");
+      return {};
+    }
+
     case "DOM.highlightNode":
     case "DOM.hideHighlight":
       return {};
@@ -270,6 +293,7 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
     case "DOM.pushNodesByBackendIdsToFrontend": {
       const ids = req.params!.backendNodeIds ?? [];
       const valid = ids.filter((n): n is number => typeof n === "number" && n >= 0);
+      if (ps) await pushNodePaths(ctx, target, session, req.sessionId, valid);
       return { nodeIds: valid };
     }
 
@@ -286,11 +310,69 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
   }
 }
 
+// The client replaces its tree with the new root, so earlier bindings no longer hold.
+function rebindDocument(
+  target: TargetState,
+  sessionId: string | undefined,
+  root: Protocol.DOM.Node,
+): void {
+  const nodes = frontendNodes(target, sessionKeyOf(sessionId));
+  nodes.reset();
+  nodes.bindTree(root);
+}
+
+async function documentRoot(
+  session: PageSession,
+  target: TargetState,
+  ps: PageScriptStub | null,
+  subtree: SubtreeParams,
+  cdpMethod: string,
+): Promise<Protocol.DOM.Node> {
+  if (ps) {
+    try {
+      const r = await session.call.getDocument(subtree);
+      assertDomReplyGraph(r);
+      if (r.budgetError) throw subtreeBudgetError(cdpMethod, r.budgetError);
+      if (!r.root) return syntheticBlankDocument();
+      annotateIframeFrameIds(r.root, iframeFrameIdsByOwner(target));
+      return r.root;
+    } catch (err) {
+      const msg = (err as Error)?.message ?? String(err);
+      if (!/no document loaded/i.test(msg)) throw err;
+      // Engine-parsed node ids would not resolve in PageScript. DOM.documentUpdated follows
+      // once a document commits, and the client asks again.
+      return syntheticBlankDocument();
+    }
+  }
+  const dom = ensureTargetDom(target);
+  if (!dom) {
+    if (target.fallbackHtmlReleased) throw releasedFallbackError("DOM.getDocument");
+    return syntheticBlankDocument();
+  }
+  const budgetError = dom.documentBudgetError(subtree.depth, subtree.pierce);
+  if (budgetError) throw subtreeBudgetError(cdpMethod, budgetError);
+  const root = dom.getDocument(subtree.depth, subtree.pierce);
+  if (!root) return syntheticBlankDocument();
+  assertDomReplyGraph(root);
+  stripAttributeNamespaceSidecars(root);
+  annotateIframeFrameIds(root, iframeFrameIdsByOwner(target));
+  return root;
+}
+
+// PageScript owns `ps:` handles, so an objectId that is not `node:N` goes there unresolved.
+function rectNodeRef(
+  params: { nodeId?: number; backendNodeId?: number; objectId?: string } | undefined,
+): { nodeId: number } | { objectId: string } | null {
+  const nodeId = numericNodeId(params);
+  if (nodeId != null) return nodeId > 0 ? { nodeId } : null;
+  return typeof params?.objectId === "string" ? { objectId: params.objectId } : null;
+}
+
 async function pageScriptRect(
   session: PageSession,
-  nodeId: number,
+  ref: { nodeId: number } | { objectId: string },
 ): Promise<{ x: number; y: number; width: number; height: number } | null> {
-  const r = await session.callIfLive.getRect({ nodeId });
+  const r = await session.callIfLive.getRect(ref);
   if (!r?.rect) return null;
   if (r.rect.width <= 0 || r.rect.height <= 0) return null;
   return r.rect;
@@ -333,6 +415,20 @@ function realBoxFor(rect: { x: number; y: number; width: number; height: number 
   };
 }
 
+// DOM.getContentQuads wants one quad per line box, so a wrapped inline node reports a rect per
+// line instead of one bounding rect.
+function lineBoxRects(read: {
+  rect?: Protocol.DOM.Rect | null;
+  rects?: Protocol.DOM.Rect[] | null;
+}): Protocol.DOM.Rect[] {
+  if (read.rects && read.rects.length > 0) return read.rects;
+  return read.rect ? [read.rect] : [];
+}
+
+function hasArea(rect: { width: number; height: number }): boolean {
+  return rect.width > 0 && rect.height > 0;
+}
+
 function rectToQuad(rect: { x: number; y: number; width: number; height: number }): number[] {
   return [
     rect.x,
@@ -373,56 +469,113 @@ function requireDom(target: TargetState): NonNullable<TargetState["dom"]> {
   return dom;
 }
 
-function annotateIframeFrameIds(root: unknown, target: TargetState): void {
+/** Cross-origin frame owners the client needs stamped on the iframe node it was sent. */
+function iframeFrameIdsByOwner(target: TargetState): Map<number, string> {
   const byOwner = new Map<number, string>();
   for (const f of target.frames.values()) {
     if (f.parentFrameId !== null && f.isCrossOrigin && f.ownerBackendNodeId > 0) {
       byOwner.set(f.ownerBackendNodeId, f.frameId);
     }
   }
-  if (byOwner.size === 0 || !root || typeof root !== "object") return;
-  const walk = (n: {
-    nodeName?: string;
-    backendNodeId?: number;
-    frameId?: string;
-    children?: unknown[];
-  }): void => {
-    if (
-      n.nodeName === "IFRAME" &&
-      typeof n.backendNodeId === "number" &&
-      byOwner.has(n.backendNodeId)
-    ) {
-      n.frameId = byOwner.get(n.backendNodeId);
-    }
-    if (Array.isArray(n.children)) {
-      for (const c of n.children) {
-        if (c && typeof c === "object") walk(c as typeof n);
+  return byOwner;
+}
+
+// A DOM reply is page-shaped data the engine walks and then JSON-serializes to the CDP
+// client. Shared references make that walk exponential, so a reply must be a plain tree.
+// Each record and array counts once, so 2^20 containers is ~350k nodes: a CDP node costs
+// about three. That is tens of MiB of JSON, several times the 16 MiB document cap.
+const MAX_DOM_REPLY_CONTAINERS = 1 << 20;
+// The accessibility builder recursed once per element level and overflowed the worker
+// stack at about 1535 levels, so half of that is the largest depth with a 2x margin. JSON
+// serialization and other recursive consumers handle far less than that in practice.
+const MAX_DOM_REPLY_DEPTH = 767;
+
+function rejectDomReply(reason: string): Error {
+  return new Error(`DOM reply from the page isolate ${reason}`);
+}
+
+export function assertDomReplyGraph(root: unknown): void {
+  if (!isCdpRecord(root)) return;
+  const seen = new WeakSet<object>();
+  const stack: Array<{ node: object; depth: number }> = [{ node: root, depth: 0 }];
+  let containers = 0;
+  while (stack.length > 0) {
+    const frame = stack.pop();
+    if (!frame) continue;
+    const { node, depth } = frame;
+    if (seen.has(node)) throw rejectDomReply("repeats an object reference");
+    seen.add(node);
+    // Count each record and array once, not each of its properties or slots.
+    containers += 1;
+    if (containers > MAX_DOM_REPLY_CONTAINERS) throw rejectDomReply("is too large");
+    if (depth > MAX_DOM_REPLY_DEPTH) throw rejectDomReply("nests too deeply");
+    const isArray = Array.isArray(node);
+    let slots = 0;
+    for (const key of Reflect.ownKeys(node)) {
+      // RPC results carry symbol keys such as Symbol.dispose; JSON drops them and the engine
+      // never reads them. Array `length` is checked against the index keys below.
+      if (typeof key === "symbol") continue;
+      if (isArray && key === "length") continue;
+      if (isArray && isArrayIndexKey(key)) slots += 1;
+      const descriptor = Object.getOwnPropertyDescriptor(node, key);
+      if (!descriptor) continue;
+      if (descriptor.get !== undefined || descriptor.set !== undefined) {
+        throw rejectDomReply("has an accessor");
+      }
+      if (isCdpRecord(descriptor.value)) {
+        stack.push({ node: descriptor.value, depth: isArray ? depth : depth + 1 });
       }
     }
-  };
-  walk(root as Parameters<typeof walk>[0]);
+    // Consumers visit an array once per slot (`for..of`, `JSON.stringify`), so holes cost
+    // work the record budget does not see. Builders emit dense arrays; a reply never has one.
+    if (isArray && slots !== node.length) throw rejectDomReply("has a sparse array");
+  }
+}
+
+function annotateIframeFrameIds(root: unknown, byOwner: Map<number, string>): void {
+  if (byOwner.size === 0 || !isCdpRecord(root)) return;
+  const visited = new WeakSet<object>();
+  const stack: unknown[] = [root];
+  while (stack.length > 0) {
+    const n = stack.pop();
+    if (!isCdpRecord(n) || visited.has(n)) continue;
+    visited.add(n);
+    if (n.nodeName === "IFRAME" && typeof n.backendNodeId === "number") {
+      const frameId = byOwner.get(n.backendNodeId);
+      if (frameId !== undefined) n.frameId = frameId;
+    }
+    const children = n.children;
+    if (Array.isArray(children)) for (const child of children) stack.push(child);
+    const shadowRoots = n.shadowRoots;
+    if (Array.isArray(shadowRoots)) for (const shadow of shadowRoots) stack.push(shadow);
+  }
 }
 
 function isCdpRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function isArrayIndexKey(key: string): boolean {
+  const index = Number(key);
+  return Number.isInteger(index) && index >= 0 && String(index) === key;
+}
+
 function stripAttributeNamespaceSidecars(node: unknown): void {
-  if (!isCdpRecord(node)) return;
-  delete node.attributeNamespaces;
-  const childNodes = node.children;
-  if (Array.isArray(childNodes)) {
-    const children: unknown[] = childNodes;
-    for (const child of children) stripAttributeNamespaceSidecars(child);
-  }
-  const shadowRoots = node.shadowRoots;
-  if (Array.isArray(shadowRoots)) {
-    const roots: unknown[] = shadowRoots;
-    for (const root of roots) stripAttributeNamespaceSidecars(root);
+  const visited = new WeakSet<object>();
+  const stack: unknown[] = [node];
+  while (stack.length > 0) {
+    const n = stack.pop();
+    if (!isCdpRecord(n) || visited.has(n)) continue;
+    visited.add(n);
+    delete n.attributeNamespaces;
+    const childNodes = n.children;
+    if (Array.isArray(childNodes)) for (const child of childNodes) stack.push(child);
+    const shadowRoots = n.shadowRoots;
+    if (Array.isArray(shadowRoots)) for (const root of shadowRoots) stack.push(root);
   }
 }
 
-function syntheticBlankDocument(): Record<string, unknown> {
+function syntheticBlankDocument(): Protocol.DOM.Node {
   return {
     nodeId: 0,
     backendNodeId: 0,
@@ -474,6 +627,7 @@ export function ensurePageScript(
           pageOrigin: pageScriptOriginOf(navUrl),
           startupInput: {
             pixelFree: dctx.browser.skipSpeculativeRaster,
+            fontProfile: dctx.browser.fontProfile,
           },
           attributionHeaders: dctx.browser.attributionHeaders,
           mainLoaderId: target.loaderId,
@@ -568,6 +722,65 @@ function registerDomObserver(target: TargetState, sessionId: string | undefined)
   }
 }
 
+// Parents per RPC when pushing node paths; each brings its children, so keep replies small.
+const PUSH_PARENTS_PER_READ = 64;
+// A broad selector can match thousands of nodes under distinct parents, and every parent pushed is
+// an RPC and an event before the command returns. The client can request the rest itself.
+const MAX_PUSHED_PARENTS = 256;
+
+/**
+ * Sends `DOM.setChildNodes` down to each of `nodeIds` before their ids are returned, so the
+ * client can place every node it is given. Only for a session that read the document.
+ */
+async function pushNodePaths(
+  ctx: DispatchCtx,
+  target: TargetState,
+  session: PageSession,
+  sessionId: string | undefined,
+  nodeIds: readonly number[],
+): Promise<void> {
+  const sessionKey = sessionKeyOf(sessionId);
+  if (!target.domEnabledSessions.has(sessionKey)) return;
+  const nodes = frontendNodes(target, sessionKey);
+  if (!nodes.hasDocument()) return;
+  const unboundIds = nodeIds.filter((id) => id > 0 && !nodes.isBound(id));
+  if (unboundIds.length === 0) return;
+
+  const ancestors = await bestEffort(() => session.call.nodeAncestors({ nodeIds: unboundIds }));
+  if (!ancestors) return;
+  // Ancestors come outermost-first, so keep the head: its first entry hangs off a parent the
+  // client already has, and each later one is a child of the entry before it. A tail would start
+  // at a parent that was sliced away, so the client could not place any of it.
+  const parents = ancestors.ancestorIds
+    .filter((id) => !nodes.childrenSent(id))
+    .slice(0, MAX_PUSHED_PARENTS);
+
+  for (let at = 0; at < parents.length; at += PUSH_PARENTS_PER_READ) {
+    const batch = parents.slice(at, at + PUSH_PARENTS_PER_READ);
+    const reply = await bestEffort(() =>
+      session.call.childNodeLists({ nodeIds: batch, depth: 1, pierce: false }),
+    );
+    if (!reply) return;
+    const byOwner = iframeFrameIdsByOwner(target);
+    for (const { parentId, nodes: children } of reply.lists) {
+      // PageScript does not know frame ids; the client needs them to attach a child document.
+      for (const child of children) annotateIframeFrameIds(child, byOwner);
+      nodes.bindChildren(parentId, children);
+      ctx.emit({ method: "DOM.setChildNodes", params: { parentId, nodes: children }, sessionId });
+    }
+  }
+}
+
+// The push is advisory: the client can request the children itself, so a generation that retired
+// mid-push must not turn a computed result into a CDP error.
+async function bestEffort<T>(run: () => Promise<T>): Promise<T | null> {
+  try {
+    return await run();
+  } catch {
+    return null;
+  }
+}
+
 export function emitMutations(
   ctx: DispatchCtx,
   target: TargetState,
@@ -576,24 +789,90 @@ export function emitMutations(
   if (!mutations || mutations.length === 0) return;
   syncStyleSheetsFromMutations(ctx, target, mutations);
   if (target.domEnabledSessions.size === 0) return;
-  const staleParents = new Set<number>();
+  // A changed child count leaves the parent's list stale in the sessions that hold it, and only
+  // those have a list to replace: a session that was sent the parent without its children has
+  // nothing to resend, and a session that was never sent the parent cannot place them.
+  const parentsNeedingRebind = new Map<number, Set<string>>();
+  const byOwner = iframeFrameIdsByOwner(target);
   for (const m of mutations) {
     if (!m || typeof m !== "object") continue;
     const kind = m.kind;
     if (typeof kind !== "string" || kind.length === 0) continue;
     if (kind === "stylesheetResourceLoaded") continue;
     if (m.kind === "childNodeCountUpdated" && typeof m.nodeId === "number" && m.nodeId > 0) {
-      staleParents.add(m.nodeId);
+      const holders = new Set<string>();
+      for (const sessionId of target.domEnabledSessions) {
+        const key = sessionKeyOf(sessionId);
+        const nodes = frontendNodes(target, key);
+        if (nodes.isBound(m.nodeId) && nodes.childrenSent(m.nodeId)) holders.add(key);
+      }
+      if (holders.size > 0) parentsNeedingRebind.set(m.nodeId, holders);
     }
     for (const sessionId of target.domEnabledSessions) {
-      const event = mutationEvent(m, sessionId.length === 0 ? undefined : sessionId);
+      const nodes = frontendNodes(target, sessionKeyOf(sessionId));
+      const event = mutationEvent(
+        m,
+        nodes,
+        sessionId.length === 0 ? undefined : sessionId,
+        byOwner,
+      );
       if (event) ctx.emit(event);
     }
   }
-  if (staleParents.size > 0) scheduleChildRebinds(ctx, target, staleParents);
+  if (parentsNeedingRebind.size > 0) scheduleChildRebinds(ctx, target, parentsNeedingRebind);
 }
 
-function mutationEvent(mutation: CdpMutation, sessionId: string | undefined): CdpEvent | null {
+/**
+ * The event for `mutation` in a session that was sent `nodes`, binding what it sends. A change
+ * under a parent whose children the client lacks is only a count update: it has no list to edit.
+ */
+function mutationEvent(
+  mutation: CdpMutation,
+  nodes: DomFrontendNodes,
+  sessionId: string | undefined,
+  byOwner: Map<number, string>,
+): CdpEvent | null {
+  switch (mutation.kind) {
+    case "attributeModified":
+    case "attributeRemoved":
+    case "characterDataModified":
+    case "childNodeCountUpdated":
+      return nodes.isBound(mutation.nodeId) ? nodeEvent(mutation, sessionId) : null;
+    case "childNodeInserted":
+    case "childNodeRemoved": {
+      const parentId = mutation.parentNodeId;
+      if (!nodes.childrenSent(parentId)) {
+        if (!nodes.isBound(parentId)) return null;
+        return {
+          method: "DOM.childNodeCountUpdated",
+          params: { nodeId: parentId, childNodeCount: mutation.parentChildNodeCount },
+          sessionId,
+        };
+      }
+      if (mutation.kind === "childNodeInserted") {
+        // An insert can be a move: the client drops the old subtree, and the node
+        // arrives at depth 0, so clear what it was sent with before rebinding it.
+        // This is the only place an inserted iframe reaches the client, so stamp its frame.
+        annotateIframeFrameIds(mutation.node, byOwner);
+        nodes.noteInserted(parentId, mutation.node);
+      } else {
+        nodes.noteRemoved(parentId, mutation.nodeId);
+      }
+      return nodeEvent(mutation, sessionId);
+    }
+    case "shadowRootPushed":
+      if (!nodes.isBound(mutation.hostId)) return null;
+      annotateIframeFrameIds(mutation.root, byOwner);
+      nodes.noteShadowRoot(mutation.hostId, mutation.root);
+      return nodeEvent(mutation, sessionId);
+    case "stylesheetResourceLoaded":
+      return null;
+    default:
+      return null;
+  }
+}
+
+function nodeEvent(mutation: CdpMutation, sessionId: string | undefined): CdpEvent | null {
   switch (mutation.kind) {
     case "attributeModified":
       return {
@@ -645,39 +924,62 @@ function mutationEvent(mutation: CdpMutation, sessionId: string | undefined): Cd
         params: { hostId: mutation.hostId, root: mutation.root },
         sessionId,
       };
-    case "stylesheetResourceLoaded":
-      return null;
     default:
       return null;
   }
 }
 
-function scheduleChildRebinds(ctx: DispatchCtx, target: TargetState, parentIds: Set<number>): void {
+// Binds the children to one session's model before the event, so its later mutations resolve.
+function sendChildNodes(
+  ctx: DispatchCtx,
+  target: TargetState,
+  sessionKey: string,
+  parentId: number,
+  nodes: Protocol.DOM.Node[],
+): void {
+  const frontend = frontendNodes(target, sessionKey);
+  if (!frontend.isBound(parentId)) return;
+  frontend.bindChildren(parentId, nodes);
+  ctx.emit({
+    method: "DOM.setChildNodes",
+    params: { parentId, nodes },
+    sessionId: sessionKey.length === 0 ? undefined : sessionKey,
+  });
+}
+
+// Resends the children, one level deep as `DOM.requestChildNodes` would, to the sessions that
+// held them.
+function scheduleChildRebinds(
+  ctx: DispatchCtx,
+  target: TargetState,
+  parents: Map<number, Set<string>>,
+): void {
   const pageScript = target.pageScript;
   if (!pageScript) return;
   const work = (async () => {
     const reads = await Promise.all(
-      Array.from(parentIds, async (id) => {
+      Array.from(parents.keys(), async (id) => {
         try {
           const r = await stubQueryDom(pageScript, "nodeSubtree", {
             nodeId: id,
           });
-          return { id, node: r?.node ?? null };
+          const node = r?.node ?? null;
+          assertDomReplyGraph(node);
+          return { id, node };
         } catch {
           return { id, node: null };
         }
       }),
     );
     if (target.pageScript !== pageScript) return;
+    const byOwner = iframeFrameIdsByOwner(target);
     for (const { id, node } of reads) {
       const nodes = childNodesForRebind(node);
       if (!nodes) continue;
-      for (const sessionId of target.domEnabledSessions) {
-        ctx.emit({
-          method: "DOM.setChildNodes",
-          params: { parentId: id, nodes },
-          sessionId: sessionId.length === 0 ? undefined : sessionId,
-        });
+      for (const child of nodes) annotateIframeFrameIds(child, byOwner);
+      for (const sessionKey of parents.get(id) ?? []) {
+        if (!target.domEnabledSessions.has(sessionKey)) continue;
+        sendChildNodes(ctx, target, sessionKey, id, nodes);
       }
     }
   })();

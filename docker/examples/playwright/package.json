@@ -1,0 +1,15 @@
+{
+  "name": "kitesurf-example-playwright",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "types": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1",
+    "@types/node": "24.19.2",
+    "typescript": "5.9.3"
+  }
+}

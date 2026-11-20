@@ -4,15 +4,17 @@
 
 //! Scroll containers, scroll offsets, and sticky positioning.
 
-use blitz_dom::local_name;
+use std::panic;
+
+use blitz_dom::{local_name, Node};
 use blitz_traits::NodeId;
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 use crate::DomHandle;
-use crate::dom::tree::has_layout_data;
+use crate::dom::tree::{generates_box, has_layout_data};
 
-pub(crate) fn overflow_clips(node: &blitz_dom::Node) -> (bool, bool) {
+pub(crate) fn overflow_clips(node: &Node) -> (bool, bool) {
     use ::style::values::computed::Overflow;
     node.primary_styles().map_or((false, false), |styles| {
         (
@@ -22,7 +24,7 @@ pub(crate) fn overflow_clips(node: &blitz_dom::Node) -> (bool, bool) {
     })
 }
 
-pub(crate) fn is_scroll_container(node: &blitz_dom::Node) -> bool {
+pub(crate) fn is_scroll_container(node: &Node) -> bool {
     use ::style::values::computed::Overflow;
     node.primary_styles().is_some_and(|styles| {
         [styles.clone_overflow_x(), styles.clone_overflow_y()]
@@ -30,6 +32,34 @@ pub(crate) fn is_scroll_container(node: &blitz_dom::Node) -> bool {
             .any(|o| matches!(o, Overflow::Hidden | Overflow::Scroll | Overflow::Auto))
     })
 }
+
+// The TypeScript shapes of ScrollInfo and ScrollOffset.
+#[wasm_bindgen(typescript_custom_section)]
+const TS_SCROLL: &str = r#"
+export interface KsScrollInfo {
+    scrollTop: number;
+    scrollLeft: number;
+    scrollWidth: number;
+    scrollHeight: number;
+    clientWidth: number;
+    clientHeight: number;
+    clientTop: number;
+    clientLeft: number;
+    contentWidth: number;
+    contentHeight: number;
+    hasBox: boolean;
+    overflowsX: boolean;
+    overflowsY: boolean;
+    userScrollableX: boolean;
+    userScrollableY: boolean;
+    stopScrollChainX: boolean;
+    stopScrollChainY: boolean;
+}
+export interface KsScrollOffset {
+    x: number;
+    y: number;
+}
+"#;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -74,7 +104,7 @@ impl DomHandle {
             Ok(i) => i,
             Err(_) => return,
         };
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             if after_layout {
                 *nodes = crate::layout::sticky::collect_sticky_nodes(doc.as_ref());
                 if let Ok(mut previous) = self.pinned_nodes.try_borrow_mut() {
@@ -140,7 +170,10 @@ impl DomHandle {
         }
     }
 
-    #[wasm_bindgen(js_name = "nodeScrollInfo")]
+    #[wasm_bindgen(
+        js_name = "nodeScrollInfo",
+        unchecked_return_type = "KsScrollInfo | null"
+    )]
     pub fn node_scroll_info(&self, node_id: u32) -> Result<JsValue, JsError> {
         match self.read_scroll_info(node_id) {
             Some(i) => serde_wasm_bindgen::to_value(&i).map_err(|e| JsError::new(&e.to_string())),
@@ -154,7 +187,7 @@ impl DomHandle {
         self.ensure_layout();
         let internal_id = self.resolve_node_id(node_id);
         let doc = self.doc.try_borrow().ok()?;
-        let info_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let info_result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let node = internal_id.and_then(|id| doc.get_node(id))?;
             if !has_layout_data(node) {
                 return None;
@@ -190,42 +223,18 @@ impl DomHandle {
                     )
                 })
                 .unwrap_or((false, false, false, false, false, false));
-            let no_box = |d: ::style::values::specified::box_::Display| {
-                use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
-                d.outside() == DisplayOutside::None && d.inside() == DisplayInside::None
-            };
-            let mut has_box = !no_box(*node.display_constructed_as());
-            if has_box {
-                let root_id = doc.root_node().id;
-                let mut connected = node.id == root_id;
-                let mut cur = node.parent;
-                while let Some(pid) = cur {
-                    let Some(p) = doc.get_node(pid) else { break };
-                    if p.is_element() && no_box(*p.display_constructed_as()) {
-                        has_box = false;
-                        break;
-                    }
-                    if pid == root_id {
-                        connected = true;
-                        break;
-                    }
-                    cur = p.parent;
-                }
-                if !connected {
-                    has_box = false;
-                }
-            }
+            let has_box = generates_box(&doc, node);
             let mut scroll_width = layout.scroll_width();
             let mut scroll_height = layout.scroll_height();
-            if node.id == doc.root_element().id {
+            if node.id() == doc.root_element().id() {
                 scroll_width = 0.0;
                 scroll_height = 0.0;
                 let root_client_width =
                     (layout.size.width - layout.border.left - layout.border.right).max(0.0);
                 let root_client_height =
                     (layout.size.height - layout.border.top - layout.border.bottom).max(0.0);
-                let body_layout = doc.root_element().children.iter().find_map(|child_id| {
-                    let child = doc.get_node(*child_id)?;
+                let body_layout = doc.root_element().children().iter().find_map(|child_id| {
+                    let child = doc.get_node(child_id)?;
                     (child
                         .element_data()
                         .is_some_and(|element| element.name.local == local_name!("body"))
@@ -246,12 +255,12 @@ impl DomHandle {
                 }
                 // Root and root-hoisted abspos children contribute to document
                 // scroll; fixed boxes do not.
-                let layout_children = doc.root_element().layout_children.borrow();
-                let hoisted_children = doc.root_element().hoisted_children.borrow();
+                let layout_children = doc.root_element().layout_children();
+                let hoisted_children = doc.root_element().hoisted_children();
                 let root_children = layout_children
                     .iter()
-                    .flatten()
-                    .chain(hoisted_children.iter());
+                    .chain(hoisted_children.iter())
+                    .flat_map(|children| children.iter());
                 for child in root_children.filter_map(|id| doc.get_node(*id)) {
                     if child
                         .primary_styles()
@@ -305,7 +314,10 @@ impl DomHandle {
         info_result.unwrap_or(None)
     }
 
-    #[wasm_bindgen(js_name = "setNodeScrollOffset")]
+    #[wasm_bindgen(
+        js_name = "setNodeScrollOffset",
+        unchecked_return_type = "KsScrollOffset | null"
+    )]
     pub fn set_node_scroll_offset(&self, node_id: u32, x: f64, y: f64) -> Result<JsValue, JsError> {
         match self.write_scroll_offset(node_id, x, y) {
             Some(o) => serde_wasm_bindgen::to_value(&o).map_err(|e| JsError::new(&e.to_string())),
@@ -316,7 +328,7 @@ impl DomHandle {
     pub(crate) fn write_scroll_offset(&self, node_id: u32, x: f64, y: f64) -> Option<ScrollOffset> {
         let node_id = self.resolve_node_id(node_id)?;
         let mut doc = self.doc.try_borrow_mut().ok()?;
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let node = doc.get_node_mut(node_id)?;
             if !has_layout_data(node) {
                 return None;
@@ -326,9 +338,11 @@ impl DomHandle {
             let scroll_height = layout.scroll_height() as f64;
             let clamped_x = x.clamp(0.0, scroll_width.max(0.0));
             let clamped_y = y.clamp(0.0, scroll_height.max(0.0));
+            let previous_y = node.scroll_offset().y;
             node.scroll_offset_mut().x = clamped_x;
             node.scroll_offset_mut().y = clamped_y;
             doc.note_boxes_moved(&[node_id]);
+            doc.note_inner_scroll(clamped_y - previous_y);
             Some(ScrollOffset {
                 x: clamped_x,
                 y: clamped_y,
@@ -352,7 +366,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return false,
         };
-        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             doc.scroll_node_by_has_changed(node_id, -dx, -dy, |_event| {})
         }));
         drop(doc);

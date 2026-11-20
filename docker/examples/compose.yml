@@ -1,0 +1,44 @@
+# The engine, the app under test and the two test suites on one network, as in a CI job:
+#   docker compose -f docker/examples/compose.yml run --rm playwright
+#   docker compose -f docker/examples/compose.yml run --rm puppeteer
+#   docker compose -f docker/examples/compose.yml down
+# KITESURF_IMAGE selects the engine image, for example one that you built with docker/Dockerfile.
+
+x-tests: &tests
+  image: node:24-bookworm-slim
+  depends_on:
+    kitesurf:
+      condition: service_healthy
+    app:
+      condition: service_started
+  environment:
+    KITESURF_WS: ws://kitesurf:8787/devtools/browser
+    APP_URL: http://app:3000/
+  # Install into a copy, so the run writes nothing into the checkout.
+  command: >-
+    sh -c "cp -R /src/. /work && cd /work &&
+    npm install --no-audit --no-fund --no-package-lock && npm test"
+
+services:
+  kitesurf:
+    image: ${KITESURF_IMAGE:-ghcr.io/cloudflare/kitesurf:latest}
+    ports:
+      - "127.0.0.1:8787:8787"
+
+  app:
+    image: node:24-bookworm-slim
+    command: node /app/server.ts
+    volumes:
+      - ./app:/app:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  playwright:
+    <<: *tests
+    volumes:
+      - ./playwright:/src:ro
+
+  puppeteer:
+    <<: *tests
+    volumes:
+      - ./puppeteer:/src:ro

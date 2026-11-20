@@ -11,12 +11,7 @@ import { fileURLToPath } from "node:url";
 
 // `bazel run //scripts:lint` starts in its runfiles tree; it lints the workspace it was run from.
 const WORKSPACE = process.env.BUILD_WORKSPACE_DIRECTORY;
-export const TOOLING_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 export const ROOT = resolve(WORKSPACE ?? process.cwd());
-export const RUST_TARGET_DIR = resolve(
-  ROOT,
-  existsSync(resolve(ROOT, "packages/core")) ? "packages/core/target" : "target",
-);
 const MAX_GIT_OUTPUT_BYTES = 64 * 1024 * 1024;
 
 /**
@@ -68,17 +63,6 @@ function copyOxlintConfig(configPath, directory) {
   const copy = join(mkdtempSync(join(directory, "config-")), "oxlintrc.json");
   writeFileSync(copy, JSON.stringify(config));
   return copy;
-}
-
-/** @returns {string} */
-export function pinnedRustToolchain() {
-  const toolchainPath = resolve(TOOLING_ROOT, "rust-toolchain.toml");
-  const source = readFileSync(toolchainPath, "utf8");
-  const channel = source.match(/^\s*channel\s*=\s*"(nightly-\d{4}-\d{2}-\d{2})"\s*$/mu)?.[1];
-  if (channel === undefined) {
-    throw new Error(`${toolchainPath} must pin an exact nightly-YYYY-MM-DD toolchain`);
-  }
-  return channel;
 }
 
 function exclusionsFor(configFile) {

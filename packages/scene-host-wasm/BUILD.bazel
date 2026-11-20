@@ -4,6 +4,7 @@ load("@rules_rust//cargo:defs.bzl", "cargo_toml_env_vars")
 load("@rules_rust//rust:defs.bzl", "rust_shared_library")
 load("//bazel:checks.bzl", "node_test")
 load("//bazel:paths.bzl", "bin_relative", "exec_path")
+load("//bazel:rust_checks.bzl", "rust_comments_test", "rust_lint_tests", "rust_nesting_test")
 
 exports_files(
     ["Cargo.toml"],
@@ -41,9 +42,11 @@ js_run_binary(
     name = "rbi",
     srcs = [
         ":scene_host_wasm",
+        "//packages/core:scene_record_rs",
+    ],
+    tools = [
         "//bazel:wasm_opt",
         "//bazel:wasm_opt_runtime",
-        "//packages/core:scene_record_rs",
     ],
     outs = [
         "rbi/scene_host.json",
@@ -72,4 +75,18 @@ node_test(
         "//:node_modules/pngjs",
         "//packages/engine:rbi",
     ],
+)
+
+rust_nesting_test(
+    name = "nesting_test",
+    srcs = glob(["src/**/*.rs"]),
+)
+
+rust_comments_test(
+    name = "comments_test",
+    srcs = glob(["src/**/*.rs"]),
+)
+
+rust_lint_tests(
+    targets = ["scene_host_wasm"],
 )

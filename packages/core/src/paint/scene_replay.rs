@@ -8,20 +8,27 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::io::Cursor;
+use std::panic::{self, RefUnwindSafe};
 
 use anyrender::{Glyph as AnyGlyph, ImageRenderer as _, PaintScene};
-use kurbo::{Affine, BezPath, Point, Shape};
-use peniko::{BlendMode, Blob, Color, FontData, ImageBrush, ImageData, ImageSampler};
+use kurbo::{Affine, BezPath, Point, Shape, Vec2};
+use peniko::{
+    BlendMode, Blob, Color, Fill, FontData, ImageAlphaType, ImageBrush, ImageData, ImageSampler,
+};
 #[cfg(not(feature = "native-host"))]
 use wasm_bindgen::prelude::*;
 
 use crate::paint::scene_decode::{
     self, DecodedCap, DecodedFillRule, DecodedJoin, DecodedPaint, DecodedPathEl, DecodedResources,
-    DecodedTransform, SceneVisitor,
+    DecodedTransform, ResourceKind, SceneVisitor,
 };
 use crate::paint::scene_record::{
     font_data_key, fx_hash_u64, FONT_DATA_REF_ASSET, FONT_DATA_REF_BLOB, IMAGE_REF_HINT_BYTES,
     RBI_RESOURCE_KIND_FONT_DATA, RBI_RESOURCE_KIND_IMAGE,
+};
+use crate::paint::screenshot::{
+    encode_jpeg, encode_jpeg_retained, encode_png, encode_webp, ImageFormat, JpegRowCache,
 };
 
 pub(crate) const RESOURCE_COUNT_BYTES: usize = 4;
@@ -106,6 +113,8 @@ impl ResourceStore {
     fn evict_images_over(&mut self, budget: usize) {
         while self.image_bytes_total > budget && self.image_order.len() > 1 {
             let evict = self.image_order.remove(0);
+            // A cached key is broken only after a failed upgrade; let a later engine ref retry it.
+            self.broken_images.remove(&evict);
             self.solid_images.remove(&evict);
             if let Some(old) = self.images.remove(&evict) {
                 self.image_bytes_total =
@@ -156,7 +165,14 @@ impl ResourceStore {
                     ((0, 0), &payload[IMAGE_RESOURCE_HEADER_BYTES..])
                 };
                 if format == crate::paint::scene_record::IMAGE_FORMAT_ENGINE_REF {
-                    if !self.images.contains_key(&hash) && !self.broken_images.contains(&hash) {
+                    // Re-pend a cached decode that this hint outgrows; the cached copy keeps
+                    // painting until put_image_bytes replaces it.
+                    if !self.broken_images.contains(&hash)
+                        && self
+                            .images
+                            .get(&hash)
+                            .is_none_or(|img| !decode_covers(img, w, h, hint))
+                    {
                         self.pending_images.insert(hash, (w, h, hint));
                     }
                     continue;
@@ -266,6 +282,12 @@ impl ResourceStore {
                 self.broken_fonts.insert(*key);
                 self.pending_assets.remove(key);
             }
+            if processed.is_empty() {
+                crate::console_warn_str(&format!(
+                    "[ks-replay] font asset delivered no bytes (marked broken): path={path}"
+                ));
+                return 0;
+            }
             let magic: Vec<u8> = processed.iter().take(4).copied().collect();
             crate::console_warn_str(&format!(
                 "[ks-replay] font asset is not a parseable face (marked broken): path={path} len={} magic={magic:02x?}",
@@ -290,10 +312,12 @@ impl ResourceStore {
     }
 }
 
+/// A refused container stays compressed, so `is_shapeable_face` marks it broken.
 fn normalize_font_container(bytes: &[u8]) -> Vec<u8> {
-    wuff::decompress_woff2(bytes)
-        .or_else(|_| wuff::decompress_woff1(bytes))
-        .unwrap_or_else(|_| bytes.to_vec())
+    match super::font_container::inflate_font_container(bytes) {
+        super::font_container::FontContainer::Inflated(sfnt) => sfnt,
+        _ => bytes.to_vec(),
+    }
 }
 
 fn is_shapeable_face(bytes: &[u8], index: u32) -> bool {
@@ -329,10 +353,14 @@ pub(crate) fn missing_resources(store: &ResourceStore, scene_bytes: &[u8]) -> Ve
         match store.images.get(hash) {
             None if store.broken_images.contains(hash) => {}
             None => missing.push((RBI_RESOURCE_KIND_IMAGE, *hash)),
+            // A broken key with a cached copy is a failed upgrade: paint the smaller decode
+            // instead of reporting it missing every frame.
             Some(img) if res.format == 2 => {
                 let (hw, hh) = decode_hint(res);
-                let (tw, th) = mip_dims(res.width, res.height, hw, hh, REPLAY_DECODE_CEILING);
-                if img.width < tw || img.height < th {
+                if !decode_covers(img, res.width, res.height, (hw, hh))
+                    && !store.broken_images.contains(hash)
+                {
+                    let (tw, th) = decode_target(res.width, res.height, (hw, hh));
                     crate::console_warn_str(&format!(
                         "[ks-replay] undersized decode: hash={hash} cached={}x{} target={tw}x{th} header={}x{} hint={hw}x{hh}",
                         img.width, img.height, res.width, res.height
@@ -370,6 +398,16 @@ fn encode_missing(missing: &[(u8, u64)]) -> Vec<u8> {
 }
 
 const REPLAY_DECODE_CEILING: u32 = 4096;
+
+fn decode_target(w: u32, h: u32, hint: (u32, u32)) -> (u32, u32) {
+    mip_dims(w, h, hint.0, hint.1, REPLAY_DECODE_CEILING)
+}
+
+// `w` and `h` are the image's header dims, which the scene entry and the engine ref both carry.
+fn decode_covers(img: &ImageData, w: u32, h: u32, hint: (u32, u32)) -> bool {
+    let (tw, th) = decode_target(w, h, hint);
+    img.width >= tw && img.height >= th
+}
 
 fn mip_dims(header_w: u32, header_h: u32, hint_w: u32, hint_h: u32, ceiling: u32) -> (u32, u32) {
     let (mut w, mut h) = (header_w.max(1), header_h.max(1));
@@ -420,7 +458,7 @@ pub(crate) fn decode_image_payload(
         }
         2 => {
             {
-                let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes.as_ref()));
+                let mut reader = image::ImageReader::new(Cursor::new(bytes.as_ref()));
                 match reader.with_guessed_format() {
                     Ok(r) => reader = r,
                     Err(e) => {
@@ -471,10 +509,70 @@ pub(crate) fn decode_image_payload(
     Some(ImageData {
         data: Blob::from(rgba),
         format: peniko::ImageFormat::Rgba8,
-        alpha_type: peniko::ImageAlphaType::Alpha,
+        alpha_type: ImageAlphaType::Alpha,
         width: out_w,
         height: out_h,
     })
+}
+
+/// Retained RGBA bytes an inline image will need, without decoding its pixels.
+fn inline_rgba_len(w: u32, h: u32, format: u8, bytes: &[u8]) -> Option<usize> {
+    if !matches!(format, 0 | 1) {
+        return None;
+    }
+    if format == 1 {
+        let dims = image::ImageReader::with_format(Cursor::new(bytes), image::ImageFormat::WebP)
+            .into_dimensions()
+            .ok()?;
+        if dims != (w, h) {
+            return None;
+        }
+    }
+    let len = usize::try_from(w)
+        .ok()?
+        .checked_mul(usize::try_from(h).ok()?)?
+        .checked_mul(4)?;
+    if format == 0 && len != bytes.len() {
+        return None;
+    }
+    Some(len)
+}
+
+/// Decodes the scene's inline images within one shared retained-byte budget.
+/// Images over the remaining budget are skipped and render as missing.
+pub(crate) fn decode_inline_images(resources: &mut DecodedResources) -> HashMap<u64, ImageData> {
+    let mut keys: Vec<u64> = resources.by_hash.keys().copied().collect();
+    keys.sort_unstable();
+    let mut out = HashMap::new();
+    let mut remaining = IMAGE_BYTES_BUDGET;
+    for key in keys {
+        let Some(res) = resources.by_hash.get_mut(&key) else {
+            continue;
+        };
+        if res.kind != ResourceKind::Image || res.data.is_empty() {
+            continue;
+        }
+        let Some(len) = inline_rgba_len(res.width, res.height, res.format, &res.data) else {
+            continue;
+        };
+        if len > remaining {
+            continue;
+        }
+        remaining -= len;
+        match decode_image_payload(
+            res.width,
+            res.height,
+            res.format,
+            (0, 0),
+            std::mem::take(&mut res.data).into(),
+        ) {
+            Some(img) if img.data.data().len() == len => {
+                out.insert(key, img);
+            }
+            _ => remaining += len,
+        }
+    }
+    out
 }
 
 fn opaque_solid_color(img: &ImageData) -> Option<Color> {
@@ -499,24 +597,11 @@ struct ReplayContext<'a> {
 
 impl<'a> ReplayContext<'a> {
     fn new(store: &'a ResourceStore, resources: &mut DecodedResources) -> Self {
-        let mut inline_images = HashMap::new();
-        let mut inline_solid = HashMap::new();
-        for (hash, res) in &mut resources.by_hash {
-            if !res.data.is_empty() && res.format != 2 {
-                if let Some(img) = decode_image_payload(
-                    res.width,
-                    res.height,
-                    res.format,
-                    (0, 0),
-                    std::mem::take(&mut res.data).into(),
-                ) {
-                    if let Some(color) = opaque_solid_color(&img) {
-                        inline_solid.insert(*hash, color);
-                    }
-                    inline_images.insert(*hash, img);
-                }
-            }
-        }
+        let inline_images = decode_inline_images(resources);
+        let inline_solid = inline_images
+            .iter()
+            .filter_map(|(hash, img)| Some((*hash, opaque_solid_color(img)?)))
+            .collect();
         let mut fonts_by_id = HashMap::new();
         for (font_id, meta) in &resources.font_meta {
             fonts_by_id.insert(
@@ -824,7 +909,7 @@ fn image_sampler() -> ImageSampler {
 impl<'a, 'b, S: PaintScene> ReplayVisitor<'a, 'b, S> {
     fn fill_with_paint(
         &mut self,
-        rule: peniko::Fill,
+        rule: Fill,
         t: Affine,
         brush_transform: Option<Affine>,
         paint: &DecodedPaint,
@@ -868,7 +953,7 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
         let blend = BlendMode::new(mix_from_u8(blend_mix), compose_from_u8(blend_compose));
         // The wire carries no clip fill rule (see RecordingScene::push_layer).
         self.scene.push_layer(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             blend,
             alpha,
             affine(transform),
@@ -882,17 +967,11 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
     fn on_push_clip_layer(&mut self, transform: DecodedTransform, clip_path: &[DecodedPathEl]) {
         let as_path = self.clip_paths && is_whole_pixel_rect(transform, clip_path);
         if as_path {
-            self.scene.push_clip_path(
-                peniko::Fill::NonZero,
-                affine(transform),
-                &bez_path(clip_path),
-            );
+            self.scene
+                .push_clip_path(Fill::NonZero, affine(transform), &bez_path(clip_path));
         } else {
-            self.scene.push_clip_layer(
-                peniko::Fill::NonZero,
-                affine(transform),
-                &bez_path(clip_path),
-            );
+            self.scene
+                .push_clip_layer(Fill::NonZero, affine(transform), &bez_path(clip_path));
         }
         self.open_clip_paths.push(as_path);
     }
@@ -914,8 +993,8 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
         path: &[DecodedPathEl],
     ) {
         let rule = match fill_rule {
-            DecodedFillRule::NonZero => peniko::Fill::NonZero,
-            DecodedFillRule::EvenOdd => peniko::Fill::EvenOdd,
+            DecodedFillRule::NonZero => Fill::NonZero,
+            DecodedFillRule::EvenOdd => Fill::EvenOdd,
         };
         let p = bez_path(path);
         let bt = brush_transform.map(affine);
@@ -1009,8 +1088,8 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
                     font_size,
                     true,
                     normalized_coords,
-                    kurbo::Vec2::ZERO,
-                    peniko::Fill::NonZero,
+                    Vec2::ZERO,
+                    Fill::NonZero,
                     solid(*r, *g, *b, *a),
                     1.0,
                     t,
@@ -1025,8 +1104,8 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
                     font_size,
                     true,
                     normalized_coords,
-                    kurbo::Vec2::ZERO,
-                    peniko::Fill::NonZero,
+                    Vec2::ZERO,
+                    Fill::NonZero,
                     &pg,
                     1.0,
                     t,
@@ -1045,8 +1124,8 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
                         font_size,
                         true,
                         normalized_coords,
-                        kurbo::Vec2::ZERO,
-                        peniko::Fill::NonZero,
+                        Vec2::ZERO,
+                        Fill::NonZero,
                         brush.as_ref(),
                         1.0,
                         t,
@@ -1159,6 +1238,350 @@ pub(crate) fn replay_to_rgba(
 
 const RENDERER_IMAGE_CACHE_BYTES: usize = 16 * 1024 * 1024;
 const RENDERER_IMAGE_CACHE_PRUNE_FRAMES: u64 = 1;
+const RASTER_BAND_ROWS: u16 = 128;
+const MAX_BANDED_SCENE_DIMENSION: u32 = u16::MAX as u32;
+
+/// A recorded scene whose pixels are produced a bounded band at a time.
+struct SceneRasterBands {
+    render: vello_cpu::PreparedRender,
+    width: u16,
+    height: u16,
+    next_row: u16,
+}
+
+impl SceneRasterBands {
+    /// Render the next band, or return an empty buffer after the final band.
+    fn next_band(&mut self) -> Vec<u8> {
+        if self.next_row == self.height {
+            return Vec::new();
+        }
+        let rows = (self.height - self.next_row).min(RASTER_BAND_ROWS);
+        let mut pixels = vec![0; usize::from(self.width) * usize::from(rows) * 4];
+        let target = vello_cpu::PixmapMut::new(self.width, rows, &mut pixels)
+            .expect("band buffer matches its dimensions");
+        // Every band re-traverses the whole scene, so the row count bounds peak pixels, not work.
+        self.render.render_with(
+            target,
+            vello_cpu::RasterizerSettings {
+                source_y: self.next_row,
+                ..Default::default()
+            },
+        );
+        self.next_row += rows;
+        pixels
+    }
+}
+
+#[derive(Clone, Default)]
+struct PngOutput(std::rc::Rc<RefCell<Vec<u8>>>);
+
+impl std::io::Write for PngOutput {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.borrow_mut().extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// PNG filter type 4 (Paeth), the filter the full-frame encoder emits.
+const PNG_FILTER_PAETH: u8 = 4;
+
+fn filter_png_row(previous: &[u8], row: &[u8], filtered: &mut [u8]) {
+    filtered[0] = PNG_FILTER_PAETH;
+    for i in 0..row.len() {
+        // Paeth predicts from the pixel to the left, the one above, and the one above-left.
+        let left = if i >= 4 { i32::from(row[i - 4]) } else { 0 };
+        let above = i32::from(previous[i]);
+        let above_left = if i >= 4 {
+            i32::from(previous[i - 4])
+        } else {
+            0
+        };
+        let estimate = left + above - above_left;
+        let (to_left, to_above, to_above_left) = (
+            (estimate - left).abs(),
+            (estimate - above).abs(),
+            (estimate - above_left).abs(),
+        );
+        let predictor = if to_left <= to_above && to_left <= to_above_left {
+            left
+        } else if to_above <= to_above_left {
+            above
+        } else {
+            above_left
+        };
+        filtered[i + 1] = row[i].wrapping_sub(predictor as u8);
+    }
+}
+
+fn append_png_chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+    out.extend_from_slice(&(data.len() as u32).to_be_bytes());
+    out.extend_from_slice(kind);
+    out.extend_from_slice(data);
+    let mut crc = crc32fast::Hasher::new();
+    crc.update(kind);
+    crc.update(data);
+    out.extend_from_slice(&crc.finalize().to_be_bytes());
+}
+
+const PNG_IDAT_LENGTH_OFFSET: usize = 33;
+const PNG_FIXED_BYTES: usize = 57;
+
+fn patch_png_idat_length(bytes: &mut [u8]) -> Result<usize, String> {
+    let data_len = bytes
+        .len()
+        .checked_sub(PNG_FIXED_BYTES)
+        .ok_or("invalid encoded PNG length")?;
+    if data_len > (u32::MAX >> 1) as usize {
+        return Err("PNG IDAT exceeds transport limits".to_string());
+    }
+    bytes[PNG_IDAT_LENGTH_OFFSET..PNG_IDAT_LENGTH_OFFSET + 4]
+        .copy_from_slice(&(data_len as u32).to_be_bytes());
+    Ok(data_len)
+}
+
+struct StoredPng {
+    remaining: usize,
+    block_remaining: usize,
+    adler_a: u32,
+    adler_b: u32,
+}
+
+/// Longest run between adler32 reductions (zlib's NMAX), so the running sums stay in `u32`.
+const ADLER_CHUNK: usize = 5552;
+
+impl StoredPng {
+    fn write(&mut self, mut data: &[u8], out: &mut Vec<u8>) {
+        while !data.is_empty() {
+            if self.block_remaining == 0 {
+                let size = self.remaining.min(u16::MAX as usize) as u16;
+                out.push(u8::from(usize::from(size) == self.remaining));
+                out.extend_from_slice(&size.to_le_bytes());
+                out.extend_from_slice(&(!size).to_le_bytes());
+                self.block_remaining = usize::from(size);
+            }
+            let n = data.len().min(self.block_remaining).min(ADLER_CHUNK);
+            let chunk = &data[..n];
+            for byte in chunk {
+                self.adler_a += u32::from(*byte);
+                self.adler_b += self.adler_a;
+            }
+            self.adler_a %= 65521;
+            self.adler_b %= 65521;
+            out.extend_from_slice(chunk);
+            self.block_remaining -= n;
+            self.remaining -= n;
+            data = &data[n..];
+        }
+    }
+}
+
+enum PngCompressor {
+    Fast(Option<fdeflate::Compressor<PngOutput>>),
+    Stored(StoredPng),
+}
+
+/// PNG encoder that emits the same IDAT stream as the full-frame encoder.
+struct ScenePngStream {
+    bands: SceneRasterBands,
+    compressor: PngCompressor,
+    output: PngOutput,
+    previous: Vec<u8>,
+    filtered: Vec<u8>,
+    crc: crc32fast::Hasher,
+    prefix: Vec<u8>,
+    done: bool,
+    poisoned: bool,
+}
+
+// Each mutable operation marks the stream poisoned until it completes successfully.
+impl std::panic::RefUnwindSafe for ScenePngStream {}
+
+impl ScenePngStream {
+    /// Encode the next band, returning empty bytes after the final chunk.
+    fn next_chunk(&mut self) -> Result<Vec<u8>, String> {
+        if self.poisoned {
+            return Err("PNG stream failed and cannot be reused".to_string());
+        }
+        self.poisoned = true;
+        let result = self.next_chunk_inner();
+        if result.is_ok() {
+            self.poisoned = false;
+        }
+        result
+    }
+
+    fn next_chunk_inner(&mut self) -> Result<Vec<u8>, String> {
+        if self.done {
+            return Ok(Vec::new());
+        }
+        self.compress_band()?;
+        if self.bands.next_row == self.bands.height {
+            self.finish_compressor()?;
+            self.done = true;
+        }
+        Ok(self.take_output())
+    }
+
+    /// Filter and compress the rows of the next band into the IDAT stream.
+    fn compress_band(&mut self) -> Result<(), String> {
+        let pixels = self.bands.next_band();
+        let stride = usize::from(self.bands.width) * 4;
+        for row in pixels.chunks_exact(stride) {
+            match &mut self.compressor {
+                PngCompressor::Fast(Some(compressor)) => {
+                    filter_png_row(&self.previous, row, &mut self.filtered);
+                    compressor
+                        .write_data(&self.filtered)
+                        .map_err(|e| format!("png encode: {e}"))?;
+                    self.previous.copy_from_slice(row);
+                }
+                PngCompressor::Fast(None) => {
+                    return Err("PNG compressor already finished".to_string())
+                }
+                PngCompressor::Stored(stored) => {
+                    let mut output = self.output.0.borrow_mut();
+                    stored.write(&[0], &mut output);
+                    stored.write(row, &mut output);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// End the deflate stream once the last band has been compressed.
+    fn finish_compressor(&mut self) -> Result<(), String> {
+        match &mut self.compressor {
+            PngCompressor::Fast(compressor) => {
+                compressor
+                    .take()
+                    .ok_or("PNG compressor already finished")?
+                    .finish()
+                    .map_err(|e| format!("png finish: {e}"))?;
+            }
+            PngCompressor::Stored(stored) => {
+                let adler = (stored.adler_b << 16) | stored.adler_a;
+                self.output
+                    .0
+                    .borrow_mut()
+                    .extend_from_slice(&adler.to_be_bytes());
+            }
+        }
+        Ok(())
+    }
+
+    /// The bytes written since the last call, framed by the header and, once, the trailer.
+    fn take_output(&mut self) -> Vec<u8> {
+        let mut output = std::mem::take(&mut *self.output.0.borrow_mut());
+        self.crc.update(&output);
+        if !self.prefix.is_empty() {
+            let mut prefix = std::mem::take(&mut self.prefix);
+            prefix.append(&mut output);
+            output = prefix;
+        }
+        if self.done {
+            output.extend_from_slice(&self.crc.clone().finalize().to_be_bytes());
+            append_png_chunk(&mut output, b"IEND", &[]);
+        }
+        output
+    }
+}
+
+/// JPEG encoder that consumes the recorded scene in MCU-aligned bands.
+#[cfg_attr(not(feature = "native-host"), wasm_bindgen)]
+pub struct SceneJpegStream {
+    bands: SceneRasterBands,
+    quality: u8,
+    row_count: usize,
+    done: bool,
+    poisoned: bool,
+}
+
+// A failed or unwound operation leaves the stream poisoned, so it cannot be reused.
+impl std::panic::RefUnwindSafe for SceneJpegStream {}
+
+#[cfg_attr(not(feature = "native-host"), wasm_bindgen)]
+impl SceneJpegStream {
+    /// Encode the next band, returning empty bytes only after the final chunk.
+    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "nextChunk"))]
+    pub fn next_chunk(&mut self) -> Result<Vec<u8>, String> {
+        if self.poisoned {
+            return Err("JPEG stream failed and cannot be reused".to_string());
+        }
+        self.poisoned = true;
+        let result = self.next_chunk_inner();
+        if result.is_ok() {
+            self.poisoned = false;
+        }
+        result
+    }
+}
+
+impl SceneJpegStream {
+    fn next_chunk_inner(&mut self) -> Result<Vec<u8>, String> {
+        if self.done {
+            return Ok(Vec::new());
+        }
+        let start = self.bands.next_row;
+        let mut pixels = self.bands.next_band();
+        let height = self.bands.next_row - start;
+        let jpeg = crate::paint::screenshot::encode_jpeg(
+            &mut pixels,
+            self.bands.width.into(),
+            height.into(),
+            self.quality,
+        )?;
+        let (header_end, rows) = crate::paint::screenshot::split_jpeg_rows(&jpeg)?;
+        let mut output = Vec::new();
+        if self.row_count == 0 {
+            output.extend_from_slice(&jpeg[..header_end]);
+            set_jpeg_height(&mut output, self.bands.height)?;
+        }
+        for row in rows {
+            if self.row_count > 0 {
+                output.extend_from_slice(&jpeg_restart_marker(self.row_count));
+            }
+            output.extend_from_slice(&jpeg[row]);
+            self.row_count += 1;
+        }
+        if self.bands.next_row == self.bands.height {
+            output.extend_from_slice(&[0xff, 0xd9]);
+            self.done = true;
+        }
+        Ok(output)
+    }
+}
+
+/// JPEG restart markers cycle FF D0 to FF D7 between the rows of a streamed image.
+fn jpeg_restart_marker(row_count: usize) -> [u8; 2] {
+    [0xff, 0xd0 + ((row_count - 1) % 8) as u8]
+}
+
+fn set_jpeg_height(header: &mut [u8], height: u16) -> Result<(), String> {
+    let mut pos = 2;
+    while let Some(segment) = header.get(pos..pos + 4) {
+        if segment[0] != 0xff {
+            break;
+        }
+        let marker = segment[1];
+        let len = usize::from(u16::from_be_bytes([segment[2], segment[3]]));
+        if marker == 0xc0 {
+            let field = header
+                .get_mut(pos + 5..pos + 7)
+                .ok_or("invalid JPEG frame header")?;
+            field.copy_from_slice(&height.to_be_bytes());
+            return Ok(());
+        }
+        if len < 2 {
+            break;
+        }
+        pos += 2 + len;
+    }
+    Err("missing JPEG frame header".to_string())
+}
 
 pub(crate) struct CachedRenderer {
     w: u32,
@@ -1166,8 +1589,31 @@ pub(crate) struct CachedRenderer {
     renderer: anyrender_vello_cpu::VelloCpuImageRenderer,
 }
 
+/// The single-pass rasterizer's per-side cap. A frame above it must take the banded path, or the
+/// replay silently clamps it.
+const MAX_SINGLE_PASS_DIMENSION: u32 = 4096;
+
+/// A framed scene's rendered size in pixels.
+fn frame_dimensions(scene: &[u8]) -> Result<(u32, u32), String> {
+    let header = scene_decode::parse_header(scene).map_err(|e| e.to_string())?;
+    let height = if header.render_h > 0 {
+        header.render_h
+    } else {
+        header.viewport_h
+    };
+    Ok((header.viewport_w, height))
+}
+
+/// Whether a frame must be rasterized in bands: one side above the single-pass cap, or an area
+/// too large to retain whole.
+fn needs_banded_raster(width: u32, height: u32) -> bool {
+    width > MAX_SINGLE_PASS_DIMENSION
+        || height > MAX_SINGLE_PASS_DIMENSION
+        || (width as usize) * (height as usize) > MAX_RETAINED_PIXELS
+}
+
 fn raster_dimensions(header: &scene_decode::SceneHeader) -> (u32, u32) {
-    const MAX_DIM: u32 = 4096;
+    const MAX_DIM: u32 = MAX_SINGLE_PASS_DIMENSION;
     let h = if header.render_h > 0 {
         header.render_h
     } else {
@@ -1252,14 +1698,47 @@ struct PdfRenderOptions {
 }
 
 #[cfg(feature = "pdf")]
+#[cfg_attr(not(feature = "native-host"), wasm_bindgen)]
+pub struct StreamingPdf {
+    document: Option<krilla::Document>,
+    options: PdfRenderOptions,
+    pages: usize,
+}
+
+// Replay takes the document out before catching a panic, so it cannot be reused after unwinding.
+#[cfg(feature = "pdf")]
+impl std::panic::RefUnwindSafe for StreamingPdf {}
+
+#[cfg(feature = "pdf")]
 fn render_pdf_impl(
     store: &ResourceStore,
     envelope: &[u8],
     options: PdfRenderOptions,
 ) -> Result<Vec<u8>, String> {
-    use krilla::page::PageSettings;
-    use krilla::Document;
+    let scenes = split_pdf_envelope(envelope);
+    if scenes.is_empty() {
+        return Err("empty pdf scene envelope".to_string());
+    }
+    let mut pdf_doc = krilla::Document::new();
+    for scene_bytes in scenes {
+        replay_pdf_page(&mut pdf_doc, store, scene_bytes, options)?;
+    }
+    pdf_doc
+        .finish()
+        .map_err(|e| format!("krilla finish: {:?}", e))
+}
 
+#[cfg(feature = "pdf")]
+fn replay_pdf_page(
+    pdf_doc: &mut krilla::Document,
+    store: &ResourceStore,
+    scene_bytes: &[u8],
+    options: PdfRenderOptions,
+) -> Result<(), String> {
+    use crate::paint::pdf_paint::{
+        content_box, paint_white_background, push_page_clip, push_px_to_pt_scale, KrillaPaintScene,
+    };
+    use krilla::page::PageSettings;
     let PdfRenderOptions {
         paper_width,
         paper_height,
@@ -1269,11 +1748,7 @@ fn render_pdf_impl(
         margin_bottom,
         margin_left,
     } = options;
-    let scenes = split_pdf_envelope(envelope);
-    if scenes.is_empty() {
-        return Err("empty pdf scene envelope".to_string());
-    }
-    let (ml, mt, content_w, _content_h) = crate::paint::pdf_paint::content_box(
+    let (offset_x, offset_y, content_w, _content_h) = content_box(
         paper_width,
         paper_height,
         margin_top,
@@ -1284,44 +1759,37 @@ fn render_pdf_impl(
     const PX_TO_PT: f32 = 72.0 / 96.0;
     let page_w_pt = (paper_width as f32) * PX_TO_PT;
     let page_h_pt = (paper_height as f32) * PX_TO_PT;
-    let mut pdf_doc = Document::new();
-    for scene_bytes in scenes {
-        let header = scene_decode::parse_header(scene_bytes).map_err(|e| e.to_string())?;
-        let stripe_h = if header.render_h > 0 {
-            header.render_h
-        } else {
-            header.viewport_h
-        };
-        let settings = PageSettings::from_wh(page_w_pt, page_h_pt)
-            .ok_or_else(|| format!("invalid page size {}x{}pt", page_w_pt, page_h_pt))?;
-        let mut page = pdf_doc.start_page_with(settings);
-        let mut surface = page.surface();
-        crate::paint::pdf_paint::push_px_to_pt_scale(&mut surface);
-        if !omit_background {
-            crate::paint::pdf_paint::paint_white_background(
-                &mut surface,
-                paper_width,
-                paper_height,
-            )?;
-        }
-        if ml > 0 || mt > 0 {
-            let t = krilla::geom::Transform::from_row(1.0, 0.0, 0.0, 1.0, ml as f32, mt as f32);
-            surface.push_transform(&t);
-        }
-        crate::paint::pdf_paint::push_page_clip(&mut surface, content_w as f32, stripe_h as f32);
-        {
-            let mut kps = crate::paint::pdf_paint::KrillaPaintScene::new(&mut surface);
-            replay_into(scene_bytes, store, &mut kps)?;
-        }
-        surface.pop();
-        if ml > 0 || mt > 0 {
-            surface.pop();
-        }
+    let header = scene_decode::parse_header(scene_bytes).map_err(|e| e.to_string())?;
+    let stripe_h = if header.render_h > 0 {
+        header.render_h
+    } else {
+        header.viewport_h
+    };
+    let settings = PageSettings::from_wh(page_w_pt, page_h_pt)
+        .ok_or_else(|| format!("invalid page size {}x{}pt", page_w_pt, page_h_pt))?;
+    let mut page = pdf_doc.start_page_with(settings);
+    let mut surface = page.surface();
+    push_px_to_pt_scale(&mut surface);
+    if !omit_background {
+        paint_white_background(&mut surface, paper_width, paper_height)?;
+    }
+    let has_offsets = offset_x > 0 || offset_y > 0;
+    if has_offsets {
+        let t =
+            krilla::geom::Transform::from_row(1.0, 0.0, 0.0, 1.0, offset_x as f32, offset_y as f32);
+        surface.push_transform(&t);
+    }
+    push_page_clip(&mut surface, content_w as f32, stripe_h as f32);
+    {
+        let mut kps = KrillaPaintScene::new(&mut surface);
+        replay_into(scene_bytes, store, &mut kps)?;
+    }
+    surface.pop();
+    if has_offsets {
         surface.pop();
     }
-    pdf_doc
-        .finish()
-        .map_err(|e| format!("krilla finish: {:?}", e))
+    surface.pop();
+    Ok(())
 }
 
 fn u32_le(b: &[u8]) -> u32 {
@@ -1344,9 +1812,9 @@ struct RetainedFrame {
     w: u32,
     h: u32,
     opaque: bool,
-    jpeg: Option<crate::paint::screenshot::JpegRowCache>,
+    jpeg: Option<JpegRowCache>,
     dirty: (u32, u32),
-    history: Vec<crate::paint::screenshot::JpegRowCache>,
+    history: Vec<JpegRowCache>,
 }
 
 const JPEG_ROW_HISTORY: usize = 4;
@@ -1354,12 +1822,11 @@ const JPEG_ROW_HISTORY: usize = 4;
 impl RetainedFrame {
     fn encode(
         &mut self,
-        fmt: crate::paint::screenshot::ImageFormat,
+        fmt: ImageFormat,
         quality: u8,
         dirty: Option<(u32, u32)>,
         scratch: &mut Vec<u8>,
     ) -> Result<Vec<u8>, String> {
-        use crate::paint::screenshot::{ImageFormat, JpegRowCache};
         let cache = self.jpeg.take();
         self.dirty = (0, 0);
         if !matches!(fmt, ImageFormat::Jpeg) {
@@ -1525,22 +1992,20 @@ fn blit_rgba(
 }
 
 fn encode_rgba_frame_owned(
-    fmt: crate::paint::screenshot::ImageFormat,
+    fmt: ImageFormat,
     mut buffer: Vec<u8>,
     w: u32,
     h: u32,
     quality: u8,
 ) -> Result<Vec<u8>, String> {
     match fmt {
-        crate::paint::screenshot::ImageFormat::Jpeg => {
-            crate::paint::screenshot::encode_jpeg(&mut buffer, w, h, quality)
-        }
+        ImageFormat::Jpeg => encode_jpeg(&mut buffer, w, h, quality),
         _ => encode_rgba_frame(fmt, &mut buffer, w, h, quality, &mut Vec::new()),
     }
 }
 
 fn encode_rgba_frame(
-    fmt: crate::paint::screenshot::ImageFormat,
+    fmt: ImageFormat,
     buffer: &mut [u8],
     w: u32,
     h: u32,
@@ -1548,16 +2013,10 @@ fn encode_rgba_frame(
     scratch: &mut Vec<u8>,
 ) -> Result<Vec<u8>, String> {
     match fmt {
-        crate::paint::screenshot::ImageFormat::Png => {
-            crate::paint::screenshot::encode_png(buffer, w, h)
-        }
-        crate::paint::screenshot::ImageFormat::Jpeg => {
-            crate::paint::screenshot::encode_jpeg_retained(buffer, w, h, quality, false, scratch)
-        }
-        crate::paint::screenshot::ImageFormat::Webp => {
-            crate::paint::screenshot::encode_webp(buffer, w, h)
-        }
-        crate::paint::screenshot::ImageFormat::Rgba => {
+        ImageFormat::Png => encode_png(buffer, w, h),
+        ImageFormat::Jpeg => encode_jpeg_retained(buffer, w, h, quality, false, scratch),
+        ImageFormat::Webp => encode_webp(buffer, w, h),
+        ImageFormat::Rgba => {
             let mut out = Vec::with_capacity(8 + buffer.len());
             out.extend_from_slice(&w.to_le_bytes());
             out.extend_from_slice(&h.to_le_bytes());
@@ -1582,7 +2041,159 @@ pub struct SceneRasterizer {
 
 // Manual RefUnwindSafe is valid in single-threaded Wasm: unwinding drops
 // RefCell guards. A raster panic discards renderer state but keeps resources.
-impl std::panic::RefUnwindSafe for SceneRasterizer {}
+impl RefUnwindSafe for SceneRasterizer {}
+
+impl SceneRasterizer {
+    /// Record a scene once and retain its resources until its bands are dropped.
+    fn start_bands(&self, scene: &[u8]) -> Result<SceneRasterBands, String> {
+        let (width, height) = frame_dimensions(scene)?;
+        if width == 0 || height == 0 {
+            return Err("scene dimensions must be nonzero".to_string());
+        }
+        if width > MAX_BANDED_SCENE_DIMENSION || height > MAX_BANDED_SCENE_DIMENSION {
+            return Err(format!(
+                "scene dimensions {}x{} exceed band rasterizer limit of {} pixels per axis",
+                width, height, MAX_BANDED_SCENE_DIMENSION
+            ));
+        }
+        let width = u16::try_from(width)
+            .map_err(|_| "scene width exceeds band rasterizer limit".to_string())?;
+        let height = u16::try_from(height)
+            .map_err(|_| "scene height exceeds band rasterizer limit".to_string())?;
+        let mut replay = Ok(ReplayStats::default());
+        let store = self.store.borrow();
+        let render = anyrender_vello_cpu::VelloCpuImageRenderer::new(width.into(), height.into())
+            .prepare(|painter| replay = replay_into(scene, &store, painter));
+        *self.last_stats.borrow_mut() = replay?;
+        drop(store);
+        Ok(SceneRasterBands {
+            render,
+            width,
+            height,
+            next_row: 0,
+        })
+    }
+
+    fn encode_banded(
+        &self,
+        scene: &[u8],
+        format: ImageFormat,
+        quality: u8,
+        encoded_limit: Option<usize>,
+    ) -> Result<Vec<u8>, String> {
+        let mut bytes = Vec::new();
+        match format {
+            ImageFormat::Png => return self.encode_banded_png(scene, encoded_limit),
+            ImageFormat::Jpeg => {
+                let mut stream = self.start_jpeg(scene, quality)?;
+                while !stream.done {
+                    append_encoded_chunk(
+                        &mut bytes,
+                        stream.next_chunk()?,
+                        encoded_limit,
+                        &stream.bands,
+                    )?;
+                }
+            }
+            ImageFormat::Webp | ImageFormat::Rgba => unreachable!("not a banded format"),
+        }
+        Ok(bytes)
+    }
+
+    fn encode_banded_png(
+        &self,
+        scene: &[u8],
+        encoded_limit: Option<usize>,
+    ) -> Result<Vec<u8>, String> {
+        let fast_stream = self.start_png(scene)?;
+        let width = fast_stream.bands.width;
+        let height = fast_stream.bands.height;
+        let (stored_png_len, stored_threshold) = stored_png_sizes(width, height)?;
+
+        let fast = collect_png_stream(fast_stream, encoded_limit);
+        // A frame that compressed worse than its stored form, or that hit the encoded limit, is
+        // re-encoded uncompressed.
+        let use_stored = match &fast {
+            Ok((_, compressed_len)) => *compressed_len > stored_threshold,
+            Err(error) if error.starts_with("encoded-limit:") => true,
+            Err(error) => return Err(error.clone()),
+        };
+        if !use_stored {
+            return fast.map(|(bytes, _)| bytes);
+        }
+        if let Some(limit) = encoded_limit {
+            if stored_png_len > limit {
+                return Err(encoded_limit_error(width, height, stored_png_len, limit));
+            }
+        }
+        let stored_stream = self.start_png_with_storage(scene, true)?;
+        collect_png_stream(stored_stream, encoded_limit).map(|(bytes, _)| bytes)
+    }
+}
+
+/// The stored (uncompressed) PNG's encoded length, and the compressed length it must beat.
+fn stored_png_sizes(width: u16, height: u16) -> Result<(usize, usize), String> {
+    let raw_len = (usize::from(width) * 4 + 1)
+        .checked_mul(usize::from(height))
+        .ok_or("PNG scanlines exceed addressable memory")?;
+    let threshold =
+        fdeflate::StoredOnlyCompressor::<std::io::Cursor<Vec<u8>>>::compressed_size(raw_len);
+    let block_overhead = raw_len
+        .div_ceil(u16::MAX as usize)
+        .checked_mul(5)
+        .ok_or("PNG compressed data exceeds addressable memory")?;
+    let data_len = raw_len
+        .checked_add(block_overhead)
+        .and_then(|size| size.checked_add(6))
+        .ok_or("PNG compressed data exceeds addressable memory")?;
+    let png_len = PNG_FIXED_BYTES
+        .checked_add(data_len)
+        .ok_or("PNG compressed data exceeds addressable memory")?;
+    Ok((png_len, threshold))
+}
+
+fn collect_png_stream(
+    mut stream: ScenePngStream,
+    encoded_limit: Option<usize>,
+) -> Result<(Vec<u8>, usize), String> {
+    let mut bytes = Vec::new();
+    while !stream.done {
+        append_encoded_chunk(
+            &mut bytes,
+            stream.next_chunk()?,
+            encoded_limit,
+            &stream.bands,
+        )?;
+    }
+    let data_len = patch_png_idat_length(&mut bytes)?;
+    Ok((bytes, data_len))
+}
+
+fn encoded_limit_error(width: u16, height: u16, size: usize, limit: usize) -> String {
+    format!(
+        "encoded-limit: screenshot {width}x{height} encoded {size} bytes, exceeding limit {limit} bytes; use a clip, JPEG, or lower quality"
+    )
+}
+
+fn append_encoded_chunk(
+    bytes: &mut Vec<u8>,
+    chunk: Vec<u8>,
+    limit: Option<usize>,
+    bands: &SceneRasterBands,
+) -> Result<(), String> {
+    let size = bytes.len().saturating_add(chunk.len());
+    if let Some(limit) = limit {
+        if size > limit {
+            return Err(encoded_limit_error(bands.width, bands.height, size, limit));
+        }
+        if bytes.capacity() < size {
+            let capacity = size.max(bytes.capacity().saturating_mul(2)).min(limit);
+            bytes.reserve_exact(capacity - bytes.len());
+        }
+    }
+    bytes.extend(chunk);
+    Ok(())
+}
 
 #[cfg_attr(not(feature = "native-host"), wasm_bindgen)]
 impl SceneRasterizer {
@@ -1590,6 +2201,67 @@ impl SceneRasterizer {
     #[cfg_attr(not(feature = "native-host"), wasm_bindgen(constructor))]
     pub fn new() -> SceneRasterizer {
         SceneRasterizer::default()
+    }
+
+    /// Start a JPEG capture without retaining a full-frame pixel buffer.
+    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "startJpeg"))]
+    pub fn start_jpeg(&self, scene: &[u8], quality: u8) -> Result<SceneJpegStream, String> {
+        Ok(SceneJpegStream {
+            bands: self.start_bands(scene)?,
+            quality,
+            row_count: 0,
+            done: false,
+            poisoned: false,
+        })
+    }
+
+    fn start_png(&self, scene: &[u8]) -> Result<ScenePngStream, String> {
+        self.start_png_with_storage(scene, false)
+    }
+
+    fn start_png_with_storage(&self, scene: &[u8], stored: bool) -> Result<ScenePngStream, String> {
+        let bands = self.start_bands(scene)?;
+        let stride = usize::from(bands.width) * 4;
+        let raw_len = (stride + 1)
+            .checked_mul(usize::from(bands.height))
+            .ok_or("PNG scanlines exceed addressable memory")?;
+        let output = PngOutput::default();
+        let compressor = if stored {
+            output.0.borrow_mut().extend_from_slice(&[0x78, 0x01]);
+            PngCompressor::Stored(StoredPng {
+                remaining: raw_len,
+                block_remaining: 0,
+                adler_a: 1,
+                adler_b: 0,
+            })
+        } else {
+            PngCompressor::Fast(Some(
+                fdeflate::Compressor::new(output.clone())
+                    .map_err(|e| format!("png compressor: {e}"))?,
+            ))
+        };
+        let mut prefix = vec![137, 80, 78, 71, 13, 10, 26, 10];
+        let mut ihdr = [0; 13];
+        ihdr[..4].copy_from_slice(&u32::from(bands.width).to_be_bytes());
+        ihdr[4..8].copy_from_slice(&u32::from(bands.height).to_be_bytes());
+        ihdr[8] = 8;
+        ihdr[9] = 6;
+        append_png_chunk(&mut prefix, b"IHDR", &ihdr);
+        prefix.extend_from_slice(&0u32.to_be_bytes());
+        prefix.extend_from_slice(b"IDAT");
+        let mut crc = crc32fast::Hasher::new();
+        crc.update(b"IDAT");
+        Ok(ScenePngStream {
+            bands,
+            compressor,
+            output,
+            previous: vec![0; stride],
+            filtered: vec![0; stride + 1],
+            crc,
+            prefix,
+            done: false,
+            poisoned: false,
+        })
     }
 
     /// Scan a framed scene for resources the store can't satisfy.
@@ -1611,6 +2283,13 @@ impl SceneRasterizer {
     #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "putResources"))]
     pub fn put_resources(&self, batch: &[u8]) -> u32 {
         self.store.borrow_mut().put_batch(batch)
+    }
+
+    /// Drop every cached font and image. Batch entries are stored under the hash the page
+    /// reports, so the host calls this when the document that supplies them changes.
+    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "resetResources"))]
+    pub fn reset_resources(&self) {
+        *self.store.borrow_mut() = ResourceStore::default();
     }
 
     /// Engine-store image keys awaiting putImageBytes, as decimal
@@ -1666,11 +2345,10 @@ impl SceneRasterizer {
             if i > 0 {
                 out.push(',');
             }
-            out.push_str(&format!(
-                "{{\"hash\":\"{}\",\"path\":\"{}\"}}",
-                hash,
-                path.replace('"', "")
-            ));
+            // Serializing a Rust string to an in-memory JSON string is infallible.
+            let json_path =
+                serde_json::to_string(path).expect("serializing a font asset path cannot fail");
+            out.push_str(&format!("{{\"hash\":\"{}\",\"path\":{}}}", hash, json_path));
         }
         out.push(']');
         out
@@ -1695,7 +2373,30 @@ impl SceneRasterizer {
         quality: u8,
         omit_background: bool,
     ) -> Vec<u8> {
-        self.rasterize_inner(scene, format, quality, omit_background, None)
+        self.rasterize_inner(scene, format, quality, omit_background, None, None)
+    }
+
+    /// Rasterize PNG or JPEG with a limit on encoded output bytes.
+    #[cfg_attr(
+        not(feature = "native-host"),
+        wasm_bindgen(js_name = "rasterizeLimited")
+    )]
+    pub fn rasterize_limited(
+        &self,
+        scene: &[u8],
+        format: &str,
+        quality: u8,
+        omit_background: bool,
+        limit: u32,
+    ) -> Vec<u8> {
+        self.rasterize_inner(
+            scene,
+            format,
+            quality,
+            omit_background,
+            None,
+            Some(limit as usize),
+        )
     }
 
     /// Rasterize a full frame and retain its RGBA under `key` for later partial updates.
@@ -1711,8 +2412,16 @@ impl SceneRasterizer {
         quality: u8,
         omit_background: bool,
         key: &str,
+        encoded_limit: u32,
     ) -> Vec<u8> {
-        self.rasterize_inner(scene, format, quality, omit_background, Some(key))
+        self.rasterize_inner(
+            scene,
+            format,
+            quality,
+            omit_background,
+            Some(key),
+            Some(encoded_limit as usize),
+        )
     }
 
     fn rasterize_inner(
@@ -1722,17 +2431,36 @@ impl SceneRasterizer {
         quality: u8,
         omit_background: bool,
         retain_key: Option<&str>,
+        encoded_limit: Option<usize>,
     ) -> Vec<u8> {
         let _ks_span =
             tracing::info_span!("wasm.rasterize", scene_bytes = scene.len(), format).entered();
-        let fmt = crate::paint::screenshot::ImageFormat::from_str(format);
-        let store = self.store.borrow();
+        let fmt = ImageFormat::from_str(format);
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if retain_key.is_none() && matches!(fmt, ImageFormat::Png | ImageFormat::Jpeg) {
+                // Banding re-walks the scene once per band, so it only pays off for a frame that
+                // cannot be retained whole. Smaller frames keep one replay and the retained slot.
+                let (width, height) = frame_dimensions(scene)?;
+                if needs_banded_raster(width, height) {
+                    return self.encode_banded(scene, fmt, quality, encoded_limit);
+                }
+            }
+            if retain_key.is_none()
+                && encoded_limit.is_some()
+                && !matches!(
+                    fmt,
+                    ImageFormat::Png | ImageFormat::Jpeg | ImageFormat::Webp
+                )
+            {
+                return Err("encoded size limit requires PNG or JPEG".to_string());
+            }
+            let store = self.store.borrow();
             let (buffer, w, h, stats) = {
                 let _sp = tracing::info_span!("wasm.rasterize.replay").entered();
                 let buffer = std::mem::take(&mut *self.scratch.borrow_mut());
                 replay_to_rgba_with(scene, &store, &mut self.renderer.borrow_mut(), buffer)?
             };
+            drop(store);
             *self.last_stats.borrow_mut() = stats;
             let _ = omit_background;
             match retain_key {
@@ -1742,13 +2470,13 @@ impl SceneRasterizer {
                     let frame = match slot.as_mut() {
                         Some(f) => {
                             f.key.clear();
-                            if matches!(fmt, crate::paint::screenshot::ImageFormat::Jpeg)
+                            if matches!(fmt, ImageFormat::Jpeg)
                                 && f.jpeg.as_ref().is_some_and(|c| c.matches(w, h, quality))
                             {
                                 dirty = Some(changed_rows(&f.buf, &buffer, w));
                             }
                             let prev = std::mem::replace(&mut f.buf, buffer);
-                            if matches!(fmt, crate::paint::screenshot::ImageFormat::Jpeg) {
+                            if matches!(fmt, ImageFormat::Jpeg) {
                                 *self.scratch.borrow_mut() = prev;
                             }
                             f.w = w;
@@ -1771,6 +2499,16 @@ impl SceneRasterizer {
                         let _sp = tracing::info_span!("wasm.rasterize.encode", format).entered();
                         frame.encode(fmt, quality, dirty, &mut self.scratch.borrow_mut())?
                     };
+                    if let Some(limit) = encoded_limit {
+                        if bytes.len() > limit {
+                            return Err(encoded_limit_error(
+                                w as u16,
+                                h as u16,
+                                bytes.len(),
+                                limit,
+                            ));
+                        }
+                    }
                     frame.key.push_str(key);
                     Ok(bytes)
                 }
@@ -1781,7 +2519,13 @@ impl SceneRasterizer {
                         }
                     }
                     let _sp = tracing::info_span!("wasm.rasterize.encode", format).entered();
-                    encode_rgba_frame_owned(fmt, buffer, w, h, quality)
+                    let bytes = encode_rgba_frame_owned(fmt, buffer, w, h, quality)?;
+                    match encoded_limit {
+                        Some(limit) if bytes.len() > limit => {
+                            Err(encoded_limit_error(w as u16, h as u16, bytes.len(), limit))
+                        }
+                        _ => Ok(bytes),
+                    }
                 }
             }
         }));
@@ -1821,7 +2565,7 @@ impl SceneRasterizer {
         let _ks_span =
             tracing::info_span!("wasm.rasterize_partial", scene_bytes = scene.len(), format)
                 .entered();
-        let fmt = crate::paint::screenshot::ImageFormat::from_str(format);
+        let fmt = ImageFormat::from_str(format);
         self.with_retained(key, "rasterizePartial", |frame| {
             self.blit_patch(frame, scene, dst_x, dst_y)?;
             let dirty = frame.dirty;
@@ -1855,7 +2599,7 @@ impl SceneRasterizer {
     /// Returns empty bytes when `key` is not the retained base or encoding fails.
     #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "encodeRetained"))]
     pub fn encode_retained(&self, format: &str, quality: u8, key: &str) -> Vec<u8> {
-        let fmt = crate::paint::screenshot::ImageFormat::from_str(format);
+        let fmt = ImageFormat::from_str(format);
         self.with_retained(key, "encodeRetained", |frame| {
             let dirty = frame.dirty;
             frame.encode(fmt, quality, Some(dirty), &mut self.scratch.borrow_mut())
@@ -1872,7 +2616,7 @@ impl SceneRasterizer {
         let mut retained = self.retained.borrow_mut();
         let result = match retained.as_mut() {
             Some(frame) if frame.key == key => {
-                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(frame)))
+                panic::catch_unwind(panic::AssertUnwindSafe(|| f(frame)))
             }
             _ => Ok(Err("no retained base frame for key".to_string())),
         };
@@ -1992,6 +2736,86 @@ impl SceneRasterizer {
         encode_missing(&union)
     }
 
+    #[cfg(feature = "pdf")]
+    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "beginPdf"))]
+    #[allow(clippy::too_many_arguments)]
+    pub fn begin_pdf(
+        &self,
+        paper_width: u32,
+        paper_height: u32,
+        omit_background: bool,
+        margin_top: u32,
+        margin_right: u32,
+        margin_bottom: u32,
+        margin_left: u32,
+    ) -> StreamingPdf {
+        StreamingPdf {
+            document: Some(krilla::Document::new()),
+            options: PdfRenderOptions {
+                paper_width,
+                paper_height,
+                omit_background,
+                margin_top,
+                margin_right,
+                margin_bottom,
+                margin_left,
+            },
+            pages: 0,
+        }
+    }
+
+    #[cfg(feature = "pdf")]
+    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "appendPdfPage"))]
+    pub fn append_pdf_page(&self, pdf: &mut StreamingPdf, scene: &[u8]) -> bool {
+        let Some(mut document) = pdf.document.take() else {
+            *self.last_error.borrow_mut() = "PDF session already closed".to_string();
+            return false;
+        };
+        let store = self.store.borrow();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            replay_pdf_page(&mut document, &store, scene, pdf.options)
+        }));
+        drop(store);
+        match result {
+            Ok(Ok(())) => {
+                pdf.document = Some(document);
+                pdf.pages += 1;
+                self.last_error.borrow_mut().clear();
+                true
+            }
+            failure => {
+                *self.last_error.borrow_mut() = match failure {
+                    Ok(Err(error)) => error,
+                    _ => "appendPdfPage panicked".to_string(),
+                };
+                false
+            }
+        }
+    }
+
+    #[cfg(feature = "pdf")]
+    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "finishPdf"))]
+    pub fn finish_pdf(&self, pdf: &mut StreamingPdf) -> Vec<u8> {
+        let Some(document) = pdf.document.take().filter(|_| pdf.pages > 0) else {
+            *self.last_error.borrow_mut() = "empty or closed PDF session".to_string();
+            return Vec::new();
+        };
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| document.finish())) {
+            Ok(Ok(bytes)) => {
+                self.last_error.borrow_mut().clear();
+                bytes
+            }
+            Ok(Err(error)) => {
+                *self.last_error.borrow_mut() = format!("krilla finish: {:?}", error);
+                Vec::new()
+            }
+            Err(_) => {
+                *self.last_error.borrow_mut() = "finishPdf panicked".to_string();
+                Vec::new()
+            }
+        }
+    }
+
     /// Replay a `recordPdfScenes` envelope into a Krilla document, one scene per page.
     /// Pages use a point-sized MediaBox, px-to-pt scale, and optional white fill.
     /// Margins and `render_h` set paint bounds. Failures return empty bytes; read
@@ -2014,7 +2838,7 @@ impl SceneRasterizer {
         margin_left: u32,
     ) -> Vec<u8> {
         let store = self.store.borrow();
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             render_pdf_impl(
                 &store,
                 envelope,
@@ -2075,14 +2899,14 @@ mod tests {
 
     fn script_ops<S: PaintScene>(scene: &mut S, font: Option<&FontData>, img: Option<&ImageData>) {
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             Color::WHITE,
             None,
             &Rect::new(0.0, 0.0, W as f64, H as f64),
         );
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::translate((10.0, 10.0)),
             Color::from_rgba8(200, 30, 30, 255),
             None,
@@ -2093,7 +2917,7 @@ mod tests {
             Color::from_rgba8(0, 255, 0, 255),
         ]);
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             &grad,
             None,
@@ -2107,12 +2931,12 @@ mod tests {
             &kurbo::Line::new((10.0, 60.0), (150.0, 70.0)),
         );
         scene.push_clip_layer(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             &Rect::new(20.0, 75.0, 90.0, 110.0),
         );
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             Color::from_rgba8(255, 160, 0, 255),
             None,
@@ -2149,8 +2973,8 @@ mod tests {
                 16.0,
                 true,
                 &[],
-                kurbo::Vec2::ZERO,
-                peniko::Fill::NonZero,
+                Vec2::ZERO,
+                Fill::NonZero,
                 Color::from_rgba8(20, 20, 120, 255),
                 1.0,
                 Affine::IDENTITY,
@@ -2164,7 +2988,7 @@ mod tests {
                 sampler: image_sampler(),
             };
             scene.fill(
-                peniko::Fill::NonZero,
+                Fill::NonZero,
                 Affine::translate((110.0, 10.0)),
                 brush.as_ref(),
                 None,
@@ -2207,7 +3031,7 @@ mod tests {
         ImageData {
             data: Blob::from(rgba),
             format: peniko::ImageFormat::Rgba8,
-            alpha_type: peniko::ImageAlphaType::Alpha,
+            alpha_type: ImageAlphaType::Alpha,
             width: side,
             height: side,
         }
@@ -2237,6 +3061,380 @@ mod tests {
         fonts: Vec<(u64, Blob<u8>, u32)>,
     }
 
+    fn whole_frame_encoded(
+        raster: &SceneRasterizer,
+        scene: &[u8],
+        format: &str,
+        quality: u8,
+    ) -> Vec<u8> {
+        let store = raster.store.borrow();
+        let (buffer, width, height, _) =
+            replay_to_rgba_with(scene, &store, &mut None, Vec::new()).unwrap();
+        drop(store);
+        encode_rgba_frame_owned(
+            crate::paint::screenshot::ImageFormat::from_str(format),
+            buffer,
+            width,
+            height,
+            quality,
+        )
+        .unwrap()
+    }
+
+    /// Joins a JPEG stream's bands and checks the stream is drained.
+    fn collect_jpeg_stream(raster: &SceneRasterizer, scene: &[u8], quality: u8) -> Vec<u8> {
+        let mut stream = raster.start_jpeg(scene, quality).unwrap();
+        let mut chunks = Vec::new();
+        // The fixtures are 257px tall, so they stream three bands.
+        for _ in 0..3 {
+            chunks.extend(stream.next_chunk().unwrap());
+        }
+        assert!(stream.next_chunk().unwrap().is_empty());
+        chunks
+    }
+
+    #[test]
+    fn limited_band_encoding_rejects_excess_and_recovers() {
+        let (scene, _) = record_scene(None, None);
+        let raster = SceneRasterizer::new();
+        for format in ["png", "jpeg"] {
+            let expected = raster.rasterize(&scene, format, 80, false);
+            let limit = u32::try_from(expected.len()).unwrap();
+            assert!(!expected.is_empty());
+            assert!(raster
+                .rasterize_limited(&scene, format, 80, false, limit - 1)
+                .is_empty());
+            let info = raster.last_rasterize_info();
+            assert!(info.contains(&format!("screenshot {W}x{H}")), "{info}");
+            assert!(
+                info.contains(&format!("limit {} bytes", limit - 1)),
+                "{info}"
+            );
+            assert!(info.contains("clip, JPEG, or lower quality"), "{info}");
+            assert_eq!(
+                raster.rasterize_limited(&scene, format, 80, false, limit),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn non_retained_bands_match_whole_frame_at_seams() {
+        let (width, height) = (1280, 4000);
+        let font = test_font();
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(width, height, 0, 0);
+        scene.fill(
+            peniko::Fill::NonZero,
+            Affine::IDENTITY,
+            Color::WHITE,
+            None,
+            &Rect::new(0.0, 0.0, width as f64, height as f64),
+        );
+        for y in [128.0, 2048.0, 3840.0] {
+            scene.fill(
+                peniko::Fill::NonZero,
+                Affine::IDENTITY,
+                Color::from_rgba8(40, 150, 240, 180),
+                None,
+                &Rect::new(4.3, y - 11.2, 1200.7, y + 19.8),
+            );
+            scene.draw_glyphs(
+                &font,
+                30.0,
+                true,
+                &[],
+                kurbo::Vec2::ZERO,
+                peniko::Fill::NonZero,
+                Color::BLACK,
+                1.0,
+                Affine::IDENTITY,
+                None,
+                [AnyGlyph {
+                    id: 40,
+                    x: 18.0,
+                    y: y as f32 + 5.0,
+                }]
+                .into_iter(),
+            );
+        }
+        let fonts = scene.drain_font_bytes();
+        let scene = scene.finish_framed();
+        let raster = SceneRasterizer::new();
+        raster.store.borrow_mut().insert_font(fonts[0].0, font);
+        for (format, quality) in [("png", 80), ("jpeg", 80), ("jpeg", 95)] {
+            let expected = whole_frame_encoded(&raster, &scene, format, quality);
+            assert_eq!(
+                raster.rasterize(&scene, format, quality, false),
+                expected,
+                "{format} {quality}"
+            );
+        }
+    }
+
+    #[test]
+    fn non_retained_png_decodes_full_tall_scene() {
+        let (width, height) = (1280, 15_000);
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(width, height, 0, 0);
+        scene.fill(
+            peniko::Fill::NonZero,
+            Affine::IDENTITY,
+            Color::from_rgba8(40, 150, 240, 255),
+            None,
+            &Rect::new(0.0, 0.0, width as f64, height as f64),
+        );
+        let raster = SceneRasterizer::new();
+        let bytes = raster.rasterize(&scene.finish_framed(), "png", 80, false);
+        let mut reader = png::Decoder::new(std::io::Cursor::new(bytes))
+            .read_info()
+            .unwrap();
+        let mut pixels = vec![0; reader.output_buffer_size().unwrap()];
+        let frame = reader.next_frame(&mut pixels).unwrap();
+        assert_eq!((frame.width, frame.height), (width, height));
+        assert_eq!(&pixels[pixels.len() - 4..], &[40, 150, 240, 255]);
+    }
+
+    #[test]
+    fn non_retained_bands_report_coordinate_limit() {
+        let raster = SceneRasterizer::new();
+        // Above the retained-frame cap, so the banded path is the one under test.
+        for (width, height) in [(65_536, 200), (200, 65_536)] {
+            let mut scene = RecordingScene::for_replay();
+            scene.set_viewport(width, height, 0, 0);
+            let scene = scene.finish_framed();
+            for format in ["png", "jpeg"] {
+                assert!(raster.rasterize(&scene, format, 80, false).is_empty());
+                assert!(raster
+                    .last_rasterize_info()
+                    .contains("limit of 65535 pixels per axis"));
+            }
+        }
+    }
+
+    #[test]
+    fn banded_scene_matches_full_frame_with_resources_and_seams() {
+        let font = test_font();
+        let image = test_image(64);
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(W, 257, 0, 0);
+        script_ops(&mut scene, Some(&font), Some(&image));
+        scene.fill(
+            peniko::Fill::NonZero,
+            Affine::IDENTITY,
+            Color::from_rgba8(40, 150, 240, 180),
+            None,
+            &Rect::new(4.3, 119.2, 135.7, 251.8),
+        );
+        scene.draw_glyphs(
+            &font,
+            30.0,
+            true,
+            &[],
+            kurbo::Vec2::ZERO,
+            peniko::Fill::NonZero,
+            Color::BLACK,
+            1.0,
+            Affine::IDENTITY,
+            None,
+            [AnyGlyph {
+                id: 40,
+                x: 18.0,
+                y: 135.0,
+            }]
+            .into_iter(),
+        );
+        let images = scene.drain_rbi_images();
+        let fonts = scene.drain_font_bytes();
+        let scene = scene.finish_framed();
+        let raster = SceneRasterizer::new();
+        {
+            let mut store = raster.store.borrow_mut();
+            store.insert_font(fonts[0].0, font);
+            store.insert_image(images[0].0, image);
+        }
+        let full = raster.rasterize(&scene, "rgba", 80, false);
+        assert_eq!(&full[..8], &[160, 0, 0, 0, 1, 1, 0, 0]);
+        let mut bands = raster.start_bands(&scene).unwrap();
+        let mut joined = Vec::new();
+        for _ in 0..3 {
+            joined.extend(bands.next_band());
+        }
+        assert!(bands.next_band().is_empty());
+        assert_eq!(joined, full[8..]);
+        let stride = W as usize * 4;
+        assert_ne!(&joined[..stride], &joined[128 * stride..129 * stride]);
+        for quality in [80, 95] {
+            let expected = whole_frame_encoded(&raster, &scene, "jpeg", quality);
+            assert_eq!(
+                collect_jpeg_stream(&raster, &scene, quality),
+                expected,
+                "quality {quality}"
+            );
+        }
+        let expected = whole_frame_encoded(&raster, &scene, "png", 80);
+        let stream = raster.start_png(&scene).unwrap();
+        assert!(matches!(stream.compressor, PngCompressor::Fast(_)));
+        let (actual, _) = collect_png_stream(stream, None).unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn banded_png_matches_stored_fallback() {
+        let (width, height) = (160u32, 257u32);
+        let mut random = 0x1234_5678u32;
+        let mut pixels = Vec::new();
+        for _ in 0..width * height {
+            for _ in 0..3 {
+                random ^= random << 13;
+                random ^= random >> 17;
+                random ^= random << 5;
+                pixels.push(random as u8);
+            }
+            pixels.push(255);
+        }
+        let image = ImageData {
+            data: Blob::from(pixels),
+            format: peniko::ImageFormat::Rgba8,
+            alpha_type: peniko::ImageAlphaType::Alpha,
+            width,
+            height,
+        };
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(width, height, 0, 0);
+        let brush = ImageBrush {
+            image: image.clone(),
+            sampler: image_sampler(),
+        };
+        scene.fill(
+            peniko::Fill::NonZero,
+            Affine::IDENTITY,
+            brush.as_ref(),
+            None,
+            &Rect::new(0.0, 0.0, width as f64, height as f64),
+        );
+        let images = scene.drain_rbi_images();
+        let scene = scene.finish_framed();
+        let raster = SceneRasterizer::new();
+        raster.store.borrow_mut().insert_image(images[0].0, image);
+        let expected = whole_frame_encoded(&raster, &scene, "png", 80);
+        let actual = raster.rasterize(&scene, "png", 80, false);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn banded_encoding_matches_transparent_frame() {
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(19, 257, 0, 0);
+        scene.fill(
+            peniko::Fill::NonZero,
+            Affine::IDENTITY,
+            Color::from_rgba8(30, 160, 220, 127),
+            None,
+            &Rect::new(2.3, 119.2, 17.8, 252.8),
+        );
+        let scene = scene.finish_framed();
+        let raster = SceneRasterizer::new();
+        let expected = whole_frame_encoded(&raster, &scene, "png", 80);
+        let stream = raster.start_png(&scene).unwrap();
+        let (actual, _) = collect_png_stream(stream, None).unwrap();
+        assert_eq!(actual, expected);
+        for quality in [80, 95] {
+            let expected = whole_frame_encoded(&raster, &scene, "jpeg", quality);
+            assert_eq!(
+                collect_jpeg_stream(&raster, &scene, quality),
+                expected,
+                "quality {quality}"
+            );
+        }
+    }
+
+    #[test]
+    fn banded_png_matches_stored_block_boundary() {
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(4, 3855, 0, 0);
+        scene.fill(
+            peniko::Fill::NonZero,
+            Affine::IDENTITY,
+            Color::WHITE,
+            None,
+            &Rect::new(0.0, 0.0, 4.0, 3855.0),
+        );
+        let scene = scene.finish_framed();
+        let raster = SceneRasterizer::new();
+        let expected = whole_frame_encoded(&raster, &scene, "png", 80);
+        assert_eq!(raster.rasterize(&scene, "png", 80, false), expected);
+    }
+
+    #[test]
+    fn failed_png_stream_cannot_be_reused() {
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(4, 10, 0, 0);
+        let raster = SceneRasterizer::new();
+        let mut stream = raster.start_png(&scene.finish_framed()).unwrap();
+        stream.compressor = PngCompressor::Fast(None);
+        assert_eq!(
+            stream.next_chunk().unwrap_err(),
+            "PNG compressor already finished"
+        );
+        assert_eq!(
+            stream.next_chunk().unwrap_err(),
+            "PNG stream failed and cannot be reused"
+        );
+    }
+
+    #[test]
+    fn panicked_png_stream_cannot_be_reused() {
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(4, 10, 0, 0);
+        let raster = SceneRasterizer::new();
+        let mut stream = raster.start_png(&scene.finish_framed()).unwrap();
+        stream.previous.clear();
+        let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| stream.next_chunk()));
+        assert!(panic.is_err());
+        assert_eq!(
+            stream.next_chunk().unwrap_err(),
+            "PNG stream failed and cannot be reused"
+        );
+    }
+
+    #[test]
+    fn banded_tall_scene_matches_direct_raster() {
+        let (width, height) = (8, 40_000);
+        let draw = |scene: &mut anyrender_vello_cpu::VelloCpuScenePainter| {
+            scene.fill(
+                peniko::Fill::NonZero,
+                Affine::IDENTITY,
+                Color::from_rgba8(40, 120, 210, 180),
+                None,
+                &Rect::new(1.0, 39_900.0, 7.0, 40_000.0),
+            );
+        };
+        let mut direct = vec![0; width as usize * height as usize * 4];
+        VelloCpuImageRenderer::new(width, height).render(draw, &mut direct);
+        let mut scene = RecordingScene::for_replay();
+        scene.set_viewport(width, height, 0, 0);
+        scene.fill(
+            peniko::Fill::NonZero,
+            Affine::IDENTITY,
+            Color::from_rgba8(40, 120, 210, 180),
+            None,
+            &Rect::new(1.0, 39_900.0, 7.0, 40_000.0),
+        );
+        let raster = SceneRasterizer::new();
+        let mut bands = raster.start_bands(&scene.finish_framed()).unwrap();
+        let mut actual = Vec::new();
+        loop {
+            let band = bands.next_band();
+            if band.is_empty() {
+                break;
+            }
+            actual.extend(band);
+        }
+        assert!(direct.iter().any(|&byte| byte != 0));
+        assert_eq!(actual, direct);
+    }
+
     #[test]
     fn render_pdf_replays_envelope_into_valid_pdf() {
         let img = test_image(64);
@@ -2257,6 +3455,10 @@ mod tests {
         drop(store);
         assert_eq!(u32_le(&raster.missing_resources_pdf(&envelope)[0..4]), 0);
         let pdf = raster.render_pdf(&envelope, 816, 1056, false, 10, 10, 10, 10);
+        let mut streamed = raster.begin_pdf(816, 1056, false, 10, 10, 10, 10);
+        assert!(raster.append_pdf_page(&mut streamed, &page1));
+        assert!(raster.append_pdf_page(&mut streamed, &page2));
+        assert_eq!(raster.finish_pdf(&mut streamed), pdf);
         assert!(pdf.len() > 500, "got {} bytes", pdf.len());
         assert_eq!(&pdf[0..5], b"%PDF-");
         let text = String::from_utf8_lossy(&pdf);
@@ -2267,7 +3469,7 @@ mod tests {
         let mut rec = RecordingScene::for_replay();
         rec.set_viewport(w, h, 0, 0);
         rec.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             color,
             None,
@@ -2287,7 +3489,7 @@ mod tests {
         let (image, _) = record_scene(None, Some(&test_image(2)));
         for scene in [&red, &blue, &small, &blue, &image, &image] {
             assert_eq!(raster.rasterize(scene, "rgba", 0, false), fresh(scene));
-            let jpeg = retained.rasterize_and_retain(scene, "jpeg", 80, false, "warm");
+            let jpeg = retained.rasterize_and_retain(scene, "jpeg", 80, false, "warm", 0xffff_ffff);
             assert!(!jpeg.is_empty());
             let expected = SceneRasterizer::new().rasterize(scene, "jpeg", 80, false);
             assert_eq!(
@@ -2301,7 +3503,7 @@ mod tests {
     fn rasterize_partial_composites_into_retained_frame() {
         let raster = SceneRasterizer::new();
         let base = solid_scene(W, H, Color::from_rgba8(0, 0, 255, 255));
-        let full = raster.rasterize_and_retain(&base, "rgba", 80, false, "k1");
+        let full = raster.rasterize_and_retain(&base, "rgba", 80, false, "k1", 0xffff_ffff);
         assert_eq!(raster.retained_frame_key(), "k1");
         assert_eq!(u32_le(&full[0..4]), W);
         let patch = solid_scene(20, 10, Color::from_rgba8(255, 0, 0, 255));
@@ -2324,7 +3526,7 @@ mod tests {
         let offframe = solid_scene(8, 8, Color::from_rgba8(255, 0, 0, 255));
 
         let pristine = SceneRasterizer::new();
-        let expected = pristine.rasterize_and_retain(&base, "rgba", 80, false, "k");
+        let expected = pristine.rasterize_and_retain(&base, "rgba", 80, false, "k", 0xffff_ffff);
         assert!(
             expected[8..]
                 .as_chunks::<4>()
@@ -2335,7 +3537,7 @@ mod tests {
         );
 
         let raster = SceneRasterizer::new();
-        let jpeg = raster.rasterize_and_retain(&base, "jpeg", 80, false, "k");
+        let jpeg = raster.rasterize_and_retain(&base, "jpeg", 80, false, "k", 0xffff_ffff);
         assert!(!jpeg.is_empty(), "jpeg retain produced bytes");
         let after_jpeg = raster.rasterize_partial(&offframe, 10_000, 10_000, "rgba", 80, "k");
         assert_eq!(
@@ -2359,7 +3561,14 @@ mod tests {
         let scene = solid_scene(W, H, Color::from_rgba8(0, 0, 255, 128));
         for fmt in ["png", "jpeg", "rgba"] {
             let plain = SceneRasterizer::new().rasterize(&scene, fmt, 80, false);
-            let retained = SceneRasterizer::new().rasterize_and_retain(&scene, fmt, 80, false, "k");
+            let retained = SceneRasterizer::new().rasterize_and_retain(
+                &scene,
+                fmt,
+                80,
+                false,
+                "k",
+                0xffff_ffff,
+            );
             assert!(!plain.is_empty(), "{fmt}: rasterize produced bytes");
             assert_eq!(retained, plain, "{fmt}: retaining changed the output");
         }
@@ -2369,7 +3578,7 @@ mod tests {
         let mut rec = RecordingScene::for_replay();
         rec.set_viewport(W, H, 0, 0);
         let fill = |rec: &mut RecordingScene, color, rect: Rect| {
-            rec.fill(peniko::Fill::NonZero, Affine::IDENTITY, color, None, &rect)
+            rec.fill(Fill::NonZero, Affine::IDENTITY, color, None, &rect)
         };
         fill(
             &mut rec,
@@ -2390,13 +3599,20 @@ mod tests {
         let mut rec = RecordingScene::for_replay();
         rec.set_viewport(W, H, 0, 0);
         rec.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             Color::WHITE,
             None,
             &Rect::new(0.0, 0.0, W as f64, H as f64),
         );
-        let base = r.rasterize_and_retain(&rec.finish_framed(), "rgba", 0, false, "opaque");
+        let base = r.rasterize_and_retain(
+            &rec.finish_framed(),
+            "rgba",
+            0,
+            false,
+            "opaque",
+            0xffff_ffff,
+        );
         assert_eq!(base.len(), 8 + (W * H * 4) as usize);
         assert!(base[8..]
             .as_chunks::<4>()
@@ -2407,7 +3623,7 @@ mod tests {
         let mut patch = RecordingScene::for_replay();
         patch.set_viewport(16, 16, 0, 0);
         patch.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             Color::from_rgba8(0, 200, 0, 128),
             None,
@@ -2420,7 +3636,7 @@ mod tests {
             }
         }
         let jpeg = r.rasterize_partial(&patch.finish_framed(), 8, 8, "jpeg", 60, "opaque");
-        let fresh = crate::paint::screenshot::encode_jpeg(&mut expected.clone(), W, H, 60).unwrap();
+        let fresh = encode_jpeg(&mut expected.clone(), W, H, 60).unwrap();
         assert_eq!(jpeg, fresh);
         assert_eq!(
             &r.encode_retained("rgba", 0, "opaque")[8..],
@@ -2435,16 +3651,10 @@ mod tests {
             rec.set_viewport(W, H, 0, 0);
             let bounds = Rect::new(0.0, 0.0, W as f64, H as f64);
             if erase {
-                rec.fill(
-                    peniko::Fill::NonZero,
-                    Affine::IDENTITY,
-                    Color::WHITE,
-                    None,
-                    &bounds,
-                );
+                rec.fill(Fill::NonZero, Affine::IDENTITY, Color::WHITE, None, &bounds);
             }
             rec.push_layer(
-                peniko::Fill::NonZero,
+                Fill::NonZero,
                 BlendMode::new(
                     peniko::Mix::Normal,
                     if erase {
@@ -2460,7 +3670,7 @@ mod tests {
                 None,
             );
             rec.fill(
-                peniko::Fill::NonZero,
+                Fill::NonZero,
                 Affine::IDENTITY,
                 Color::from_rgba8(255, 0, 0, 255),
                 None,
@@ -2469,13 +3679,12 @@ mod tests {
             rec.pop_layer();
             let r = SceneRasterizer::new();
             let framed = rec.finish_framed();
-            let rgba = r.rasterize_and_retain(&framed, "rgba", 0, false, "group");
+            let rgba = r.rasterize_and_retain(&framed, "rgba", 0, false, "group", 0xffff_ffff);
             assert_eq!(rgba.len(), 8 + (W * H * 4) as usize);
             assert_eq!(rgba[11], if erase { 0 } else { 128 });
-            let fresh =
-                crate::paint::screenshot::encode_jpeg(&mut rgba[8..].to_vec(), W, H, 60).unwrap();
+            let fresh = encode_jpeg(&mut rgba[8..].to_vec(), W, H, 60).unwrap();
             assert_eq!(
-                r.rasterize_and_retain(&framed, "jpeg", 60, false, "group"),
+                r.rasterize_and_retain(&framed, "jpeg", 60, false, "group", 0xffff_ffff),
                 fresh
             );
             assert_eq!(r.encode_retained("rgba", 0, "group"), rgba);
@@ -2496,7 +3705,8 @@ mod tests {
             for (i, &(x, y)) in frames.iter().enumerate() {
                 let scene = block_scene(x, y);
                 let fresh = SceneRasterizer::new().rasterize(&scene, "jpeg", quality, false);
-                let out = raster.rasterize_and_retain(&scene, "jpeg", quality, false, "k");
+                let out =
+                    raster.rasterize_and_retain(&scene, "jpeg", quality, false, "k", 0xffff_ffff);
                 assert_eq!(out, fresh, "q{quality} frame {i}: retained encode differs");
             }
         }
@@ -2512,7 +3722,7 @@ mod tests {
                     Color::from_rgba8((row * 37 % 256) as u8, (col * 53 % 256) as u8, 128, 255);
                 let (cx, cy) = ((col * CELL - x) as f64, (row * CELL - y) as f64);
                 let cell = Rect::new(cx, cy, cx + CELL as f64, cy + CELL as f64);
-                rec.fill(peniko::Fill::NonZero, Affine::IDENTITY, color, None, &cell);
+                rec.fill(Fill::NonZero, Affine::IDENTITY, color, None, &cell);
             }
         }
         rec.finish_framed()
@@ -2534,7 +3744,14 @@ mod tests {
         ];
         for format in ["rgba", "jpeg"] {
             let raster = SceneRasterizer::new();
-            raster.rasterize_and_retain(&page_window(0, 0, W, H), format, 80, false, "k");
+            raster.rasterize_and_retain(
+                &page_window(0, 0, W, H),
+                format,
+                80,
+                false,
+                "k",
+                0xffff_ffff,
+            );
             for pair in scrolls.windows(2) {
                 let ((ox, oy), (sx, sy)) = (pair[0], pair[1]);
                 let (dx, dy) = (sx - ox, sy - oy);
@@ -2568,7 +3785,7 @@ mod tests {
             .rasterize_partial(&patch, 0, 0, "rgba", 80, "k1")
             .is_empty());
         let base = solid_scene(W, H, Color::WHITE);
-        let _ = raster.rasterize_and_retain(&base, "rgba", 80, false, "k1");
+        let _ = raster.rasterize_and_retain(&base, "rgba", 80, false, "k1", 0xffff_ffff);
         assert!(raster
             .rasterize_partial(&patch, 0, 0, "rgba", 80, "other")
             .is_empty());
@@ -2586,7 +3803,7 @@ mod tests {
             .rasterize_partial(&patch, 0, 0, "rgba", 80, "k1")
             .is_empty());
         let base = solid_scene(W, H, Color::from_rgba8(0, 0, 255, 255));
-        let _ = raster.rasterize_and_retain(&base, "rgba", 80, false, "k1");
+        let _ = raster.rasterize_and_retain(&base, "rgba", 80, false, "k1", 0xffff_ffff);
         assert_eq!(raster.retained_frame_key(), "k1");
         let out = raster.rasterize_partial(&patch, 30, 40, "rgba", 80, "k1");
         assert_eq!(u32_le(&out[0..4]), W);
@@ -2602,7 +3819,7 @@ mod tests {
     fn rasterize_partial_clamps_offframe_patches() {
         let raster = SceneRasterizer::new();
         let base = solid_scene(W, H, Color::from_rgba8(0, 0, 255, 255));
-        let _ = raster.rasterize_and_retain(&base, "rgba", 80, false, "k");
+        let _ = raster.rasterize_and_retain(&base, "rgba", 80, false, "k", 0xffff_ffff);
         let patch = solid_scene(20, 10, Color::from_rgba8(255, 0, 0, 255));
         let out = raster.rasterize_partial(&patch, -10, -5, "rgba", 80, "k");
         let px = |x: u32, y: u32| {
@@ -2635,14 +3852,14 @@ mod tests {
 
     fn translucent_overlaps_in_fractional_clip<S: PaintScene>(scene: &mut S) {
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             Color::WHITE,
             None,
             &Rect::new(0.0, 0.0, W as f64, H as f64),
         );
         scene.push_clip_layer(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             &Rect::new(20.5, 20.5, 100.5, 80.5),
         );
@@ -2652,7 +3869,7 @@ mod tests {
         ] {
             let [r, g, b, a] = rgba;
             scene.fill(
-                peniko::Fill::NonZero,
+                Fill::NonZero,
                 Affine::IDENTITY,
                 Color::from_rgba8(r, g, b, a),
                 None,
@@ -2664,19 +3881,19 @@ mod tests {
 
     fn dest_out_layer_in_whole_pixel_clip<S: PaintScene>(scene: &mut S) {
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             Color::WHITE,
             None,
             &Rect::new(0.0, 0.0, W as f64, H as f64),
         );
         scene.push_clip_layer(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             &Rect::new(20.0, 20.0, 100.0, 80.0),
         );
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             Color::from_rgba8(255, 0, 0, 255),
             None,
@@ -2684,7 +3901,7 @@ mod tests {
         );
         let hole = Rect::new(40.0, 30.0, 80.0, 60.0);
         scene.push_layer(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             BlendMode::new(peniko::Mix::Normal, peniko::Compose::DestOut),
             1.0,
             Affine::IDENTITY,
@@ -2692,13 +3909,7 @@ mod tests {
             None,
             None,
         );
-        scene.fill(
-            peniko::Fill::NonZero,
-            Affine::IDENTITY,
-            Color::BLACK,
-            None,
-            &hole,
-        );
+        scene.fill(Fill::NonZero, Affine::IDENTITY, Color::BLACK, None, &hole);
         scene.pop_layer();
         scene.pop_layer();
     }
@@ -2762,7 +3973,7 @@ mod tests {
         ImageData {
             data: Blob::from(rgba.repeat((side * side) as usize)),
             format: peniko::ImageFormat::Rgba8,
-            alpha_type: peniko::ImageAlphaType::Alpha,
+            alpha_type: ImageAlphaType::Alpha,
             width: side,
             height: side,
         }
@@ -2774,7 +3985,7 @@ mod tests {
             sampler: image_sampler(),
         };
         scene.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::translate((10.3, 7.6)) * Affine::scale_non_uniform(0.84, 1.7),
             brush.as_ref(),
             None,
@@ -2835,8 +4046,8 @@ mod tests {
             48.0,
             true,
             &[],
-            kurbo::Vec2::ZERO,
-            peniko::Fill::NonZero,
+            Vec2::ZERO,
+            Fill::NonZero,
             Color::from_rgba8(0, 0, 0, 255),
             1.0,
             Affine::IDENTITY,
@@ -3043,6 +4254,32 @@ mod tests {
         assert_eq!(u32_le(&missing_resources(&store, &framed)[0..4]), 0);
     }
 
+    // The renderer reports a url-ref whose pull returned nothing as empty bytes; the next
+    // scan must not ask for it again, or every render re-fetches the page-chosen URL.
+    #[test]
+    fn font_url_ref_that_delivered_nothing_is_not_asked_for_again() {
+        let font = test_font();
+        let (framed, drains) = record_scene(Some(&font), None);
+        let mut store = ResourceStore::default();
+        let (font_hash, _, idx) = &drains.fonts[0];
+
+        let path = "https://fonts.example/gone.woff2";
+        let mut body = vec![FONT_DATA_REF_ASSET];
+        body.extend_from_slice(&idx.to_le_bytes());
+        body.extend_from_slice(path.as_bytes());
+        let mut batch = Vec::new();
+        batch.extend_from_slice(&1u32.to_le_bytes());
+        batch.push(RBI_RESOURCE_KIND_FONT_DATA);
+        batch.extend_from_slice(&font_hash.to_le_bytes());
+        batch.extend_from_slice(&(body.len() as u32).to_le_bytes());
+        batch.extend_from_slice(&body);
+        store.put_batch(&batch);
+
+        assert_eq!(store.put_font_asset(path, &[]), 0);
+        assert!(store.pending_assets.is_empty());
+        assert_eq!(u32_le(&missing_resources(&store, &framed)[0..4]), 0);
+    }
+
     #[test]
     fn asset_ref_flow_pends_then_resolves() {
         let font = test_font();
@@ -3101,9 +4338,49 @@ mod tests {
         );
     }
 
+    #[test]
+    fn reset_resources_forgets_every_supplied_image() {
+        let raster = SceneRasterizer::default();
+        let mut batch = Vec::new();
+        batch.extend_from_slice(&1u32.to_le_bytes());
+        batch.push(RBI_RESOURCE_KIND_IMAGE);
+        batch.extend_from_slice(&9u64.to_le_bytes());
+        batch.extend_from_slice(&13u32.to_le_bytes());
+        batch.extend_from_slice(&1u32.to_le_bytes());
+        batch.extend_from_slice(&1u32.to_le_bytes());
+        batch.push(0);
+        batch.extend_from_slice(&[255, 0, 0, 255]);
+        assert_eq!(raster.put_resources(&batch), 1);
+        assert!(raster.store.borrow().images.contains_key(&9));
+        raster.reset_resources();
+        assert!(raster.store.borrow().images.is_empty());
+    }
+
+    // Paths reach JSON verbatim: quote stripping loses bytes, and raw control
+    // characters or backslashes break the parser.
+    #[test]
+    fn pending_font_assets_round_trips_every_path() {
+        for path in [
+            "/fonts/normal.ttf",
+            "/fonts/a\nb.ttf",
+            "/fonts/a\\xb.ttf",
+            "/fonts/a\"b.ttf",
+        ] {
+            let raster = SceneRasterizer::default();
+            raster
+                .store
+                .borrow_mut()
+                .pending_assets
+                .insert(42, path.to_owned());
+            let json: serde_json::Value =
+                serde_json::from_str(&raster.pending_font_assets()).expect("font assets JSON");
+            assert_eq!(json[0], serde_json::json!({"hash": "42", "path": path}));
+        }
+    }
+
     fn png_bytes(rgba: &[u8], w: u32, h: u32) -> Vec<u8> {
         let img = image::RgbaImage::from_raw(w, h, rgba.to_vec()).unwrap();
-        let mut out = std::io::Cursor::new(Vec::new());
+        let mut out = Cursor::new(Vec::new());
         image::DynamicImage::ImageRgba8(img)
             .write_to(&mut out, image::ImageFormat::Png)
             .unwrap();
@@ -3114,7 +4391,7 @@ mod tests {
         ImageData {
             data: Blob::from(png),
             format: peniko::ImageFormat::Rgba8,
-            alpha_type: peniko::ImageAlphaType::Alpha,
+            alpha_type: ImageAlphaType::Alpha,
             width: w,
             height: h,
         }
@@ -3199,7 +4476,7 @@ mod tests {
             sampler: image_sampler(),
         };
         rec.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::scale(0.25),
             brush.as_ref(),
             None,
@@ -3256,7 +4533,7 @@ mod tests {
                 sampler: image_sampler(),
             };
             rec.fill(
-                peniko::Fill::NonZero,
+                Fill::NonZero,
                 Affine::scale(scale),
                 brush.as_ref(),
                 None,
@@ -3297,7 +4574,7 @@ mod tests {
             sampler: image_sampler(),
         };
         rec.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::IDENTITY,
             brush.as_ref(),
             None,
@@ -3374,7 +4651,7 @@ mod tests {
             sampler: image_sampler(),
         };
         rec.fill(
-            peniko::Fill::NonZero,
+            Fill::NonZero,
             Affine::scale(0.394),
             brush.as_ref(),
             None,
@@ -3392,6 +4669,147 @@ mod tests {
             0,
             "cached decode satisfies the hint — loop terminates"
         );
+    }
+
+    fn blank_image(w: u32, h: u32) -> ImageData {
+        ImageData {
+            data: Blob::from(vec![0u8; (w * h * 4) as usize]),
+            format: peniko::ImageFormat::Rgba8,
+            alpha_type: ImageAlphaType::Alpha,
+            width: w,
+            height: h,
+        }
+    }
+
+    #[test]
+    fn engine_ref_re_pends_a_cached_decode_the_hint_outgrows() {
+        let mut store = ResourceStore::default();
+        store.insert_image(11, blank_image(250, 251));
+        store.put_batch(&engine_ref_batch(11, 500, 503, (250, 252)));
+        assert_eq!(store.pending_images.get(&11), Some(&(500, 503, (250, 252))));
+        assert_eq!(
+            store.images.get(&11).map(|img| (img.width, img.height)),
+            Some((250, 251)),
+            "the cached copy keeps painting until the larger decode lands"
+        );
+    }
+
+    #[test]
+    fn engine_ref_does_not_re_pend_a_covering_decode() {
+        let mut store = ResourceStore::default();
+        store.insert_image(11, blank_image(250, 251));
+        store.put_batch(&engine_ref_batch(11, 500, 503, (250, 251)));
+        store.put_batch(&engine_ref_batch(11, 500, 503, (120, 120)));
+        assert!(store.pending_images.is_empty());
+    }
+
+    fn odd_dims_scene(enc: &ImageData, scale: f64) -> (u64, (u32, u32), Vec<u8>) {
+        let mut rec = RecordingScene::for_replay();
+        rec.set_viewport(W, H, 0, 0);
+        let brush = ImageBrush {
+            image: enc.clone(),
+            sampler: image_sampler(),
+        };
+        rec.fill(
+            Fill::NonZero,
+            Affine::scale(scale),
+            brush.as_ref(),
+            None,
+            &Rect::new(0.0, 0.0, enc.width as f64, enc.height as f64),
+        );
+        let images = rec.drain_rbi_images();
+        let (hash, info) = &images[0];
+        (*hash, (info.needed_w, info.needed_h), rec.finish_framed())
+    }
+
+    fn odd_dims_png() -> (Vec<u8>, u32, u32) {
+        let (w, h) = (500u32, 503u32);
+        let mut rgba = Vec::with_capacity((w * h * 4) as usize);
+        for y in 0..h {
+            for x in 0..w {
+                rgba.extend_from_slice(&[(x % 256) as u8, (y % 256) as u8, 0, 255]);
+            }
+        }
+        (png_bytes(&rgba, w, h), w, h)
+    }
+
+    #[test]
+    fn engine_ref_upgrade_terminates_the_undersized_miss_loop() {
+        let (png, w, h) = odd_dims_png();
+        let enc = encoded_image(png.clone(), w, h);
+        let (hash, small_hint, small_scene) = odd_dims_scene(&enc, 0.499);
+        let (big_hash, big_hint, big_scene) = odd_dims_scene(&enc, 0.5);
+        assert_eq!(hash, big_hash);
+        assert_eq!((small_hint, big_hint), ((250, 251), (250, 252)));
+
+        let mut store = ResourceStore::default();
+        store.put_batch(&engine_ref_batch(hash, w, h, small_hint));
+        assert_eq!(store.put_image_bytes(hash, &png), 1);
+        let cached = store.images.get(&hash).unwrap();
+        assert_eq!((cached.width, cached.height), (250, 251));
+        assert_eq!(u32_le(&missing_resources(&store, &small_scene)[0..4]), 0);
+
+        assert_eq!(u32_le(&missing_resources(&store, &big_scene)[0..4]), 1);
+        store.put_batch(&engine_ref_batch(hash, w, h, big_hint));
+        assert_eq!(store.pending_image_keys(), vec![hash]);
+        assert_eq!(store.put_image_bytes(hash, &png), 1);
+        let cached = store.images.get(&hash).unwrap();
+        assert_eq!((cached.width, cached.height), (500, 503));
+        assert_eq!(store.image_bytes_total, 500 * 503 * 4);
+        assert_eq!(u32_le(&missing_resources(&store, &big_scene)[0..4]), 0);
+        assert_eq!(u32_le(&missing_resources(&store, &small_scene)[0..4]), 0);
+    }
+
+    #[test]
+    fn abandoned_upgrade_keeps_the_cached_decode_and_stops_the_miss_loop() {
+        let (png, w, h) = odd_dims_png();
+        let enc = encoded_image(png.clone(), w, h);
+        let (hash, small_hint, _) = odd_dims_scene(&enc, 0.499);
+        let (_, big_hint, big_scene) = odd_dims_scene(&enc, 0.5);
+
+        let raster = SceneRasterizer::default();
+        let key = hash.to_string();
+        raster.put_resources(&engine_ref_batch(hash, w, h, small_hint));
+        assert_eq!(raster.put_image_bytes(&key, &png), 1);
+        raster.put_resources(&engine_ref_batch(hash, w, h, big_hint));
+        assert_eq!(raster.pending_images(), vec![key.clone()]);
+
+        assert_eq!(raster.abandon_image(&key), 1);
+        let store = raster.store.borrow();
+        let cached = store.images.get(&hash).unwrap();
+        assert_eq!((cached.width, cached.height), (250, 251));
+        assert_eq!(
+            u32_le(&missing_resources(&store, &big_scene)[0..4]),
+            0,
+            "a failed upgrade must paint the smaller copy, not miss every frame"
+        );
+        drop(store);
+        raster.put_resources(&engine_ref_batch(hash, w, h, big_hint));
+        assert!(raster.pending_images().is_empty());
+    }
+
+    #[test]
+    fn evicted_failed_upgrade_is_fetched_again() {
+        let (png, w, h) = odd_dims_png();
+        let enc = encoded_image(png, w, h);
+        let (hash, big_hint, big_scene) = odd_dims_scene(&enc, 0.5);
+
+        let mut store = ResourceStore::default();
+        store.insert_image(hash, blank_image(250, 251));
+        store.put_batch(&engine_ref_batch(hash, w, h, big_hint));
+        store.abandon_image_key(hash);
+        assert_eq!(u32_le(&missing_resources(&store, &big_scene)[0..4]), 0);
+
+        store.insert_image(hash ^ 1, blank_image(8, 8));
+        store.evict_images_over(0);
+        assert!(!store.images.contains_key(&hash));
+        assert_eq!(
+            u32_le(&missing_resources(&store, &big_scene)[0..4]),
+            1,
+            "an evicted copy must not leave the image as a silent hole"
+        );
+        store.put_batch(&engine_ref_batch(hash, w, h, big_hint));
+        assert_eq!(store.pending_image_keys(), vec![hash]);
     }
 
     #[test]
@@ -3444,6 +4862,59 @@ mod tests {
         assert!(store.font_bytes_total <= font.data.data().len() * 2);
         assert!(!store.fonts.contains_key(&0));
         assert!(store.fonts.contains_key(&3));
+    }
+
+    fn inline_scene(entries: &[(u64, u32, u32, &[u8])]) -> Vec<u8> {
+        let (mut scene, _) = record_scene(None, None);
+        let offset = (scene.len() as u32).to_le_bytes();
+        scene[28..32].copy_from_slice(&offset);
+        scene.extend_from_slice(&(entries.len() as u32).to_le_bytes());
+        for (hash, w, h, bytes) in entries {
+            scene.extend_from_slice(&hash.to_le_bytes());
+            scene.extend_from_slice(&w.to_le_bytes());
+            scene.extend_from_slice(&h.to_le_bytes());
+            scene.extend_from_slice(&[0, 1, 0, 0]);
+            scene.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+            scene.extend_from_slice(bytes);
+        }
+        scene
+    }
+
+    fn inline_totals(scene: &[u8]) -> (Vec<u64>, usize) {
+        let header = crate::paint::scene_decode::parse_header(scene).unwrap();
+        let mut res = crate::paint::scene_decode::parse_resources(scene, &header).unwrap();
+        let store = ResourceStore::default();
+        let ctx = ReplayContext::new(&store, &mut res);
+        let mut keys: Vec<u64> = ctx.inline_images.keys().copied().collect();
+        let images = &ctx.inline_images;
+        let total: usize = images.values().map(|i| i.data.data().len()).sum();
+        drop(ctx);
+        keys.sort_unstable();
+        let tty = crate::tty::grid::inline_images(scene);
+        let mut tty_keys: Vec<u64> = tty.keys().copied().collect();
+        tty_keys.sort_unstable();
+        assert_eq!(keys, tty_keys);
+        let tty_total: usize = tty.values().map(|i| i.rgba.data().len()).sum();
+        assert_eq!(total, tty_total);
+        (keys, total)
+    }
+
+    #[test]
+    fn inline_images_share_one_bounded_decode() {
+        let mut webp = Vec::new();
+        let rgba = vec![255u8; 1024 * 1024 * 4];
+        image::codecs::webp::WebPEncoder::new_lossless(&mut webp)
+            .encode(&rgba, 1024, 1024, image::ExtendedColorType::Rgba8)
+            .unwrap();
+        let entries: Vec<(u64, u32, u32, &[u8])> =
+            (1..=13).map(|i| (i, 1024, 1024, webp.as_slice())).collect();
+        let one = inline_scene(&entries[..1]);
+        assert_eq!(inline_totals(&one), (vec![1], 1024 * 1024 * 4));
+        let many = inline_scene(&entries);
+        let expected = ((1..=12).collect(), 12 * 1024 * 1024 * 4);
+        assert_eq!(inline_totals(&many), expected);
+        let false_header = inline_scene(&[(1, 1024, 768, webp.as_slice())]);
+        assert_eq!(inline_totals(&false_header), (vec![], 0));
     }
 
     fn assert_buffers_close(a: &[u8], b: &[u8], max_diff_frac: f64) {

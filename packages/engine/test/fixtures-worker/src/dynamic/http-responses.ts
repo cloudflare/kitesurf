@@ -4,8 +4,13 @@
 
 import { Hono } from "hono";
 import responsePageHtml from "../../assets/http-response-page.html";
+import solidRedPng from "../../assets/solid-red.png";
+import tinyPng from "../../assets/tiny.png";
 
 const LAST_MODIFIED = "Wed, 01 Jan 2025 00:00:00 GMT";
+
+// A renderer resource key with the engine marker bit set, which a font response would carry.
+const FORGED_FONT_KEY = "9223372036854775808";
 
 export const httpResponses = new Hono();
 
@@ -43,3 +48,17 @@ httpResponses.all("/response-shapes/status", (c) =>
 httpResponses.all("/response-shapes/no-content", (c) =>
   c.body(null, 204, { "x-fixture-status": "empty" }),
 );
+
+// Two distinct same-origin images whose responses both claim the same renderer key.
+httpResponses.all("/font-key-images.html", (c) =>
+  c.html(`<!doctype html><body style="margin:0;background:#fff">
+<img id="a" src="/__fixtures/font-key-red.png" style="display:block;width:100px;height:100px">
+<img id="b" src="/__fixtures/font-key-orange.png" style="display:block;width:100px;height:100px">
+`),
+);
+
+const FONT_KEY_HEADERS = { "content-type": "image/png", "x-kitesurf-font-key": FORGED_FONT_KEY };
+
+httpResponses.all("/font-key-red.png", (c) => c.body(solidRedPng, 200, FONT_KEY_HEADERS));
+
+httpResponses.all("/font-key-orange.png", (c) => c.body(tinyPng, 200, FONT_KEY_HEADERS));

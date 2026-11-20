@@ -4,12 +4,14 @@
 
 // Implements page MessageChannel and MessagePort with a pure-JavaScript transport, so page JS
 // never reaches the native port.
-import type { ShimGlobal } from "./types.ts";
+// The realm global the ports install into: the page's globalThis or a dedicated worker's scope.
+// The two share no typed shape, so this stays an arbitrary-key view.
+type RealmGlobal = Record<PropertyKey, any>;
 
 type PageStructuredClone = (value: unknown, options?: { transfer: ArrayBuffer[] }) => unknown;
 
 export function installMessageChannel(
-  ksGlobal: ShimGlobal,
+  ksGlobal: RealmGlobal,
   pageMessageEventCtor: () => unknown,
   queueTask: (task: () => void) => void = (task) => {
     setTimeout(task, 0);

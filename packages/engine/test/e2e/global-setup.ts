@@ -14,7 +14,7 @@ export const FIXTURES_DIST = resolve(
   process.env.KS_E2E_FIXTURES_DIST ?? resolve(HERE, ".fixtures-dist"),
 );
 
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 
 const WRANGLER_CONFIG = process.env.KS_E2E_WRANGLER_CONFIG ?? resolve(ENGINE_DIR, "wrangler.jsonc");
 const ENGINE_DIST = resolve(process.env.KS_E2E_ENGINE_DIST ?? resolve(HERE, ".engine-dist"));
@@ -37,6 +37,50 @@ function fixtureWorkerBuilds(): Array<{ wranglerConfig: string; outdir: string }
     throw new Error("KS_E2E_FIXTURE_WORKER_BUILDS must be valid JSON", { cause: error });
   }
   return fixtureWorkerBuildsSchema.parse(value);
+}
+
+// The sources of the engine dist and what `pnpm run build` stages next to them. The CLI is not
+// part of the engine.
+const DIST_INPUT_DIRS = ["src", "pkg", "dist", "public"];
+
+export function distInputRoots(repoRoot: string = REPO_ROOT): string[] {
+  const packages = resolve(repoRoot, "packages");
+  if (!existsSync(packages)) return [];
+  return readdirSync(packages)
+    .filter((name) => name !== "kitesurf-cli")
+    .flatMap((name) => DIST_INPUT_DIRS.map((dir) => resolve(packages, name, dir)));
+}
+
+export function newestInput(roots: string[]): { path: string; mtimeMs: number } | null {
+  let newest: { path: string; mtimeMs: number } | null = null;
+  const visit = (path: string) => {
+    const stat = statSync(path, { throwIfNoEntry: false });
+    if (!stat) return;
+    if (stat.isDirectory()) {
+      for (const name of readdirSync(path)) {
+        if (name === "node_modules" || name.startsWith(".")) continue;
+        visit(resolve(path, name));
+      }
+    } else if (!newest || stat.mtimeMs > newest.mtimeMs) {
+      newest = { path, mtimeMs: stat.mtimeMs };
+    }
+  };
+  for (const root of roots) visit(root);
+  return newest;
+}
+
+export function assertDistFresh(distIndex: string, roots: string[]): void {
+  if (process.env.KS_E2E_ALLOW_STALE_DIST) return;
+  const distMtimeMs = statSync(distIndex).mtimeMs;
+  const newest = newestInput(roots);
+  if (!newest || newest.mtimeMs <= distMtimeMs) return;
+  const iso = (ms: number) => new Date(ms).toISOString();
+  throw new Error(
+    `[e2e] KS_E2E_SKIP_BUILD is set but the engine dist is stale: ${newest.path} ` +
+      `(${iso(newest.mtimeMs)}) is newer than ${distIndex} (${iso(distMtimeMs)}). Run once ` +
+      "without KS_E2E_SKIP_BUILD to rebuild it, or set KS_E2E_ALLOW_STALE_DIST=1 to test the " +
+      "old build anyway.",
+  );
 }
 
 export default function setup(): void {
@@ -66,21 +110,26 @@ export default function setup(): void {
     ENGINE_DIR,
   );
   for (const fixtureWorker of fixtureWorkerBuilds()) {
-    runE("pnpm", [
-      "exec",
-      "wrangler",
-      "deploy",
-      "--dry-run",
-      "--config",
-      fixtureWorker.wranglerConfig,
-      "--outdir",
-      fixtureWorker.outdir,
-    ]);
+    runE(
+      "pnpm",
+      [
+        "exec",
+        "wrangler",
+        "deploy",
+        "--dry-run",
+        "--config",
+        fixtureWorker.wranglerConfig,
+        "--outdir",
+        fixtureWorker.outdir,
+      ],
+      ENGINE_DIR,
+    );
   }
   // Outside Bazel the dist is bundled from the source tree, so stage the Bazel-built wasm, bundles
   // and RBI files into it first, as `pnpm run dev` does.
   if (!process.env.KS_E2E_SKIP_BUILD) runE("bazel", ["run", "//packages/engine:dev_build"]);
   if (process.env.KS_E2E_SKIP_BUILD && existsSync(resolve(ENGINE_DIST, "index.js"))) {
+    assertDistFresh(resolve(ENGINE_DIST, "index.js"), [WRANGLER_CONFIG, ...distInputRoots()]);
     console.log("[e2e] KS_E2E_SKIP_BUILD set — reusing existing engine dist");
     return;
   }

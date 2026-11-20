@@ -4,7 +4,7 @@
 
 // Collects successful form controls and encodes URL-encoded or multipart submissions.
 
-import { ksGlobal } from "../../state.js";
+import { elementDocument, ksGlobal } from "../../state.js";
 import {
   encodeHtmlBytes,
   urlencodedSerialize,
@@ -16,7 +16,8 @@ import { fileInputFiles, binaryString } from "../../file-input.js";
 import { inputTypeOf } from "./input-state.js";
 import { isDisabledInFormContext } from "./listed.js";
 import { selectedOptionsOf, isOptionEffectivelyDisabled } from "./select-options.js";
-import type { Element } from "../element.js";
+import { type Element, elementAttributes } from "../element.js";
+import { formBehindProxy } from "../../registries.js";
 import type { HTMLFormElement } from "./form.js";
 import type { HTMLInputElement } from "./input.js";
 import { isHtmlTag } from "../html-tag.js";
@@ -53,7 +54,8 @@ function collectFormEntries(
   encoding: string,
 ): SubmissionEntry[] {
   const entries: SubmissionEntry[] = [];
-  const els = form.elements;
+  // The form behind the proxy: a control named "elements" must not hide the controls.
+  const els = formBehindProxy(form).elements;
   for (let i = 0; i < els.length; i++) {
     const el: unknown = els[i];
     if (
@@ -167,7 +169,7 @@ function formStringEntries(entries: readonly SubmissionEntry[]): Array<[string, 
 }
 
 function formEncoding(form: HTMLFormElement): string {
-  const accept = form.getAttribute("accept-charset");
+  const accept = elementAttributes.get.call(form, "accept-charset");
   if (accept) {
     for (const token of accept.split(/[\t\n\f\r ]+/)) {
       if (!token) continue;
@@ -179,11 +181,12 @@ function formEncoding(form: HTMLFormElement): string {
 }
 
 function namedTargetIframe(form: HTMLFormElement, name: string): Element | null {
-  const doc = form.ownerDocument;
-  if (!doc || typeof doc.getElementsByTagName !== "function") return null;
+  const doc = elementDocument(form);
+  if (typeof doc.getElementsByTagName !== "function") return null;
   const frames = doc.getElementsByTagName("iframe");
   for (let i = 0; i < frames.length; i++) {
-    if (frames[i].getAttribute("name") === name) return frames[i];
+    const frame = frames[i];
+    if (frame && frame.getAttribute("name") === name) return frame;
   }
   return null;
 }

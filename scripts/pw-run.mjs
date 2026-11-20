@@ -2,19 +2,11 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-import {
-  existsSync,
-  mkdirSync,
-  openSync,
-  closeSync,
-  readFileSync,
-  writeFileSync,
-  rmSync,
-} from "node:fs";
-import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
-import net from "node:net";
+import { localEngines } from "./local-engine.mjs";
 import {
   coverageGaps,
   deviations as diffExpectations,
@@ -22,6 +14,7 @@ import {
   loadExpectations as readExpectations,
   rebaseline,
   reportGaps,
+  reportResults,
   summarize,
 } from "./pw-shared.mjs";
 
@@ -41,6 +34,7 @@ const OUT_DIR = resolve(optionValue("--out-dir") ?? join(PW_DIR, "test-results")
 const launcher = optionValue("--engine-launcher") ?? "wrangler";
 const engineDist = resolve(optionValue("--dist") ?? resolve(ENGINE_DIR, ".wpt-dist"));
 const resultsOut = optionValue("--results-out");
+const v8Flags = optionValue("--v8-flags");
 const noGate = args.includes("--no-gate");
 if (launcher !== "wrangler" && launcher !== "miniflare") {
   console.error(`[pw-run] --engine-launcher wants wrangler or miniflare, got ${launcher}`);
@@ -54,18 +48,8 @@ const batchSizeIdx = args.indexOf("--batch-size");
 const batchSize = batchSizeIdx >= 0 ? Math.max(1, parseInt(args[batchSizeIdx + 1], 10) || 1) : 1;
 const grepIdx = args.indexOf("--grep");
 const userGrep = grepIdx >= 0 ? args[grepIdx + 1] : null;
-const shardIdx = args.indexOf("--shard");
-const shard = (() => {
-  if (shardIdx < 0) return null;
-  const m = /^(\d+)\/(\d+)$/.exec(args[shardIdx + 1] ?? "");
-  const k = m && parseInt(m[1], 10),
-    n = m && parseInt(m[2], 10);
-  if (!m || k < 1 || k > n) {
-    console.error(`[pw-run] bad --shard "${args[shardIdx + 1]}" (want k/n, 1<=k<=n)`);
-    process.exit(2);
-  }
-  return { k, n };
-})();
+const specIdx = args.indexOf("--spec");
+const spec = specIdx >= 0 ? args[specIdx + 1] : null;
 
 if (!existsSync(join(PW_DIR, "packages/playwright/cli.js"))) {
   console.error("[pw-run] .playwright/ missing or unbuilt — run `pnpm run pw:setup` first");
@@ -74,162 +58,25 @@ if (!existsSync(join(PW_DIR, "packages/playwright/cli.js"))) {
 
 const allowList = loadAllowList(TESTS_JSON);
 let specs = filter ? allowList.filter((e) => e.file.includes(filter)) : allowList;
-if (shard) specs = specs.filter((_, i) => i % shard.n === shard.k - 1);
+if (spec) specs = specs.filter((e) => e.file === spec);
 if (specs.length === 0) {
-  if (shard && !filter) {
-    console.log(`[pw-run] shard ${shard.k}/${shard.n}: no specs — nothing to do`);
-    process.exit(0);
-  }
-  console.error(`[pw-run] no allow-listed specs match filter "${filter}"`);
+  console.error(
+    spec
+      ? `[pw-run] ${spec} is not an allow-listed spec${filter ? ` matching "${filter}"` : ""}`
+      : `[pw-run] no allow-listed specs match filter "${filter}"`,
+  );
   process.exit(1);
 }
 
-const ALL_STOPS = new Set();
-function cleanupAll() {
-  for (const s of Array.from(ALL_STOPS)) {
-    try {
-      s();
-    } catch {}
-  }
-  ALL_STOPS.clear();
-}
-process.on("exit", cleanupAll);
-process.on("SIGINT", () => {
-  cleanupAll();
-  process.exit(130);
+const { buildBundles, startEngine } = localEngines({
+  tag: "pw-run",
+  launcher,
+  dist: engineDist,
+  outDir: OUT_DIR,
+  firstPort: 9720,
+  skipBuildEnv: "PW_SKIP_BUILD",
+  v8Flags,
 });
-process.on("SIGTERM", () => {
-  cleanupAll();
-  process.exit(143);
-});
-
-let nextPort = 9720;
-const MAX_PORT_ALLOCATION_ATTEMPTS = 500;
-const ENGINE_HEALTH_POLL_INTERVAL_MS = 300;
-const ENGINE_HEALTH_STARTUP_BUDGET_MS = 90_000;
-
-function isFree(port) {
-  return new Promise((res) => {
-    const srv = net.createServer();
-    srv.once("error", () => res(false));
-    srv.listen(port, "127.0.0.1", () => srv.close(() => res(true)));
-  });
-}
-async function allocPort() {
-  for (let i = 0; i < MAX_PORT_ALLOCATION_ATTEMPTS; i++) {
-    const p = nextPort++;
-    if (await isFree(p)) return p;
-  }
-  throw new Error("no free port found");
-}
-async function waitHealth(port, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      if ((await fetch(`http://127.0.0.1:${port}/health`)).ok) return true;
-    } catch {}
-    await new Promise((r) => setTimeout(r, ENGINE_HEALTH_POLL_INTERVAL_MS));
-  }
-  return false;
-}
-
-const MINIFLARE_VARS = [
-  "KITESURF_ENV:local",
-  "KITESURF_RESOURCE_DRAIN_QUIET_TURNS:5",
-  "KITESURF_LAG_WATCHDOG:1",
-  "KITESURF_OTLP_ENDPOINT:http://localhost:4318/v1/traces",
-];
-
-async function buildBundles() {
-  if (process.env.PW_SKIP_BUILD === "1" || launcher === "miniflare") return;
-  const wasm = resolve(ROOT, "packages/core/pkg/kitesurf_core_bg.wasm");
-  if (!existsSync(wasm))
-    throw new Error("core wasm not built — run `pnpm run build` first (or PW_SKIP_BUILD=1)");
-  for (const pkg of [
-    "packages/dom-shim",
-    "packages/page-script",
-    "packages/page-renderer",
-    "packages/worker-script",
-  ]) {
-    const script = resolve(ROOT, pkg, "scripts/build.mjs");
-    const r = spawnSync(process.execPath, [script], { stdio: "ignore" });
-    if (r.status !== 0) throw new Error(`${pkg} build failed (exit ${r.status})`);
-  }
-  console.log("[pw-run] built dom-shim + page-script + page-renderer + worker-script bundles");
-}
-
-async function startEngine() {
-  const port = await allocPort();
-  const iport = await allocPort();
-  const wranglerBin = (() => {
-    const p = resolve(ENGINE_DIR, "node_modules/.bin/wrangler");
-    return existsSync(p) ? p : "wrangler";
-  })();
-  const bin = launcher === "miniflare" ? process.execPath : wranglerBin;
-  const cliArgs =
-    launcher === "miniflare"
-      ? [
-          resolve(ROOT, "scripts/wpt-engine.mjs"),
-          "serve",
-          "--dist",
-          engineDist,
-          "--port",
-          String(port),
-          "--inspector-port",
-          String(iport),
-          ...MINIFLARE_VARS.flatMap((value) => ["--var", value]),
-        ]
-      : [
-          "dev",
-          "--env",
-          "local",
-          "-c",
-          "wrangler.jsonc",
-          "-c",
-          "test/fixtures-worker/wrangler.jsonc",
-          "--port",
-          String(port),
-          "--inspector-port",
-          String(iport),
-        ];
-  if (process.env.KITESURF_SIMULATE_PROD_EVAL)
-    cliArgs.push("--var", "KITESURF_SIMULATE_PROD_EVAL:1");
-  mkdirSync(OUT_DIR, { recursive: true });
-  const logPath = join(OUT_DIR, `kitesurf-engine-${port}.log`);
-  const fd = openSync(logPath, "w");
-  const proc = spawn(bin, cliArgs, {
-    cwd: ENGINE_DIR,
-    env: process.env,
-    detached: true,
-    stdio: ["ignore", fd, fd],
-  });
-  const stop = () => {
-    try {
-      if (proc.pid) process.kill(-proc.pid, "SIGKILL");
-    } catch {
-      try {
-        proc.kill("SIGKILL");
-      } catch {}
-    }
-    try {
-      closeSync(fd);
-    } catch {}
-  };
-  ALL_STOPS.add(stop);
-  if (!(await waitHealth(port, ENGINE_HEALTH_STARTUP_BUDGET_MS))) {
-    stop();
-    ALL_STOPS.delete(stop);
-    throw new Error(`engine never became healthy on :${port} (see ${logPath})`);
-  }
-  return {
-    wsEndpoint: `ws://127.0.0.1:${port}/devtools/browser`,
-    port,
-    stop: () => {
-      ALL_STOPS.delete(stop);
-      stop();
-    },
-  };
-}
 
 function loadExpectations() {
   return readExpectations(EXPECTATIONS_JSON);
@@ -263,7 +110,9 @@ function idGrep(id) {
 function runPlaywright(wsEndpoint, specFiles, grep, tag) {
   mkdirSync(OUT_DIR, { recursive: true });
   const jsonOut = join(OUT_DIR, `kitesurf-report-${tag}.json`);
+  const blobOut = join(OUT_DIR, "blob", `${tag}.zip`);
   rmSync(jsonOut, { force: true });
+  rmSync(blobOut, { force: true });
   const cliArgs = [
     "packages/playwright/cli.js",
     "test",
@@ -282,6 +131,7 @@ function runPlaywright(wsEndpoint, specFiles, grep, tag) {
       PWPAGE_IMPL: "kitesurf",
       KITESURF_WS: wsEndpoint,
       PWTEST_JSON_OUTPUT: jsonOut,
+      PLAYWRIGHT_BLOB_OUTPUT_FILE: blobOut,
     },
   });
   if (!existsSync(jsonOut)) {
@@ -292,26 +142,7 @@ function runPlaywright(wsEndpoint, specFiles, grep, tag) {
 }
 
 function collectResults(jsonPath) {
-  const report = JSON.parse(readFileSync(jsonPath, "utf8"));
-  const out = {};
-  const mapStatus = (s) =>
-    s === "passed" ? "PASS" : s === "timedOut" ? "TIMEOUT" : s === "skipped" ? "SKIP" : "FAIL";
-  const walk = (suite, titles) => {
-    for (const child of suite.suites ?? [])
-      walk(child, suite.title ? [...titles, suite.title] : titles);
-    for (const spec of suite.specs ?? []) {
-      const file = spec.file.replace(/\\/g, "/");
-      for (const t of spec.tests ?? []) {
-        const status = t.results?.length
-          ? mapStatus(t.results[t.results.length - 1].status)
-          : "SKIP";
-        const id = `${file}::${[...titles, spec.title].join(" › ")}`;
-        out[id] = status;
-      }
-    }
-  };
-  for (const suite of report.suites ?? []) walk(suite, []);
-  return out;
+  return reportResults(JSON.parse(readFileSync(jsonPath, "utf8")));
 }
 
 function deviations(results) {
@@ -400,7 +231,7 @@ for (const e of specs) {
   else last.push(e);
 }
 console.log(
-  `[pw-run] ${specs.length} spec file(s) → ${batches.length} batch(es) of ${batchSize}${shard ? ` (shard ${shard.k}/${shard.n})` : ""}${noRetry ? " (retry off)" : ""}`,
+  `[pw-run] ${specs.length} spec file(s) → ${batches.length} batch(es) of ${batchSize}${noRetry ? " (retry off)" : ""}`,
 );
 
 const merged = {};

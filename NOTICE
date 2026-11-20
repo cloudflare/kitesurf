@@ -10,10 +10,10 @@ Rust notices list the dependencies resolved for each artifact's target.
 Fonts
   - Noto Sans, Noto Serif, Noto Sans Mono, and script-specific Noto faces in
     packages/engine/public/fonts/, including their shaping-only derivatives,
-    except for Noto Color Emoji and Noto Sans SC below. The OpenType name
-    records identify The Noto Project Authors: 2022 for most faces, 2024 for
-    Hebrew, and 2025 for Bengali. The family repositories recorded in those
-    name tables are:
+    except for Noto Color Emoji, Noto Sans SC, Noto Sans CJK JP and TC, and
+    Noto Sans KR below. The OpenType name records identify The Noto Project
+    Authors: 2022 for most faces, 2024 for Hebrew, and 2025 for Bengali. The
+    family repositories recorded in those name tables are:
     https://github.com/notofonts/latin-greek-cyrillic,
     https://github.com/notofonts/arabic, https://github.com/notofonts/armenian,
     https://github.com/notofonts/bengali, https://github.com/notofonts/devanagari,
@@ -55,9 +55,36 @@ Fonts
     including Adobe's Reserved Font Name notice, is in
     licenses/OFL-1.1-Noto-SC.txt; upstream license source:
     https://github.com/google/fonts/blob/main/ofl/notosanssc/OFL.txt
-  - Inter (packages/engine/public/fonts/inter-latin-variable.woff2)
+  - Noto Sans CJK JP and TC
+    (packages/engine/public/fonts/NotoSansCJKjp-Regular.* and
+    packages/engine/public/fonts/NotoSansCJKtc-Regular.*)
+    The OpenType name records identify Noto Sans JP and Noto Sans TC version
+    2.004;GOOG;NotoSans<JP|TC>-Regular;ADOBE, copyright metadata
+    © 2014-2021 Adobe (http://www.adobe.com/), and OFL 1.1. They are the
+    Sans/SubsetOTF regional Regular faces of https://github.com/notofonts/noto-cjk
+    as WOFF2; the shaping OTFs are derived assets. The OFL text, including
+    Adobe's Reserved Font Name notice, is the same as licenses/OFL-1.1-Noto-SC.txt.
+  - Noto Sans KR (packages/engine/public/fonts/NotoSansKR.ttf and
+    NotoSansKR.shaping.otf)
+    Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name
+    'Source'. Noto Sans KR from https://github.com/google/fonts (ofl/notosanskr),
+    subset to the Hangul blocks and instanced to wght 400-900.
+    SIL Open Font License 1.1, see packages/engine/public/fonts/NotoSansKR-OFL.txt
+  - Inter (packages/engine/public/fonts/inter-latin-variable.woff2,
+    InterVariable.ttf and InterVariable-Italic.ttf)
     Copyright (c) 2016 The Inter Project Authors
     SIL Open Font License 1.1, see packages/engine/public/fonts/Inter-OFL.txt
+  - Arimo and Tinos (packages/engine/public/fonts/Arimo*.ttf and Tinos-*.ttf)
+    Copyright 2026 The Arimo Project Authors (https://github.com/googlefonts/arimo)
+    and The Tinos Project Authors (https://github.com/googlefonts/tinos) in the
+    upstream OFL texts. The Arimo OpenType name records say Copyright 2020.
+    SIL Open Font License 1.1, see packages/engine/public/fonts/Arimo-OFL.txt
+    and packages/engine/public/fonts/Tinos-OFL.txt
+  - Gelasio (packages/engine/public/fonts/Gelasio.ttf and Gelasio-Italic.ttf)
+    Copyright 2022 The Gelasio Project Authors (https://github.com/SorkinType/Gelasio)
+    The hhea and OS/2 vertical metrics are changed to match Georgia's.
+    SIL Open Font License 1.1, see packages/engine/public/fonts/Gelasio-OFL.txt
+  - The shaping-only derivatives (*.shaping.otf) of the faces above.
   - Bungee test font
     (packages/engine/test/fixtures-worker/assets/bungee.woff2)
     Copyright 2023 The Bungee Project Authors
@@ -116,8 +143,17 @@ Generated WebIDL metadata
     Full upstream texts: licenses/BSD-3-Clause-WPT.txt and
     licenses/MIT-Webref.txt.
 
+Public Suffix List
+  - packages/engine/src/public-suffix-list.dat is a byte-for-byte snapshot of
+    https://publicsuffix.org/list/public_suffix_list.dat, version
+    2026-11-09_13-00-17_UTC (commit
+    ab73a956765706dc3f42dbac5c7e48df2297e1ac). It contains the ICANN and
+    PRIVATE sections, is bundled unmodified as a text module, and is parsed at
+    runtime by packages/engine/src/public-suffix.ts. The list is licensed under
+    the Mozilla Public License 2.0; see licenses/MPL-2.0-PSL.txt.
+
 WPT-derived corner-shape contours
-  - scripts/patches/blitz-paint-0.3.0-beta.3/0017-Paint-corner-shape-on-backgrounds-and-clips.patch
+  - scripts/patches/blitz-paint-0.3.0-beta.4/0017-Paint-corner-shape-on-backgrounds-and-clips.patch
     adds src/kurbo_css/corner_shape.rs, a Rust adaptation of WPT's
     css/css-borders/corner-shape/resources/render-corner-shape.js.
     Copyright web-platform-tests contributors; 3-Clause BSD.

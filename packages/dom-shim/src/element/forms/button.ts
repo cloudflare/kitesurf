@@ -6,6 +6,7 @@
 
 import type * as Idl from "../../idl/types.generated.js";
 import { ELEMENT_NODE } from "../../constants.js";
+import { elementDocument } from "../../state.js";
 import {
   defineAttribute,
   defineReflectedEnumWithDefaults,
@@ -70,9 +71,9 @@ class HTMLButtonElement extends HTMLElement implements Idl.HTMLButtonElement {
   get commandForElement() {
     const ref = this.getAttribute("commandfor");
     if (!ref) return null;
-    const doc = this.ownerDocument;
+    const doc = elementDocument(this);
     try {
-      return doc?.getElementById?.(ref) || null;
+      return doc.getElementById(ref) || null;
     } catch {
       return null;
     }

@@ -56,6 +56,65 @@ describe("next route chunks", () => {
     expect(nextRouteChunkUrls([ext("/app.js", "go('/input')")], page)).toEqual([]);
   });
 
+  it("scans manifest text without backtracking", () => {
+    const cases: Array<[string, Array<[string, string[]]>]> = [
+      [
+        MANIFEST,
+        [
+          [
+            "/",
+            [
+              "static/chunks/shared-a.js",
+              "static/chunks/shared-c.js",
+              "static/chunks/pages/index-1.js",
+            ],
+          ],
+          [
+            "/input",
+            [
+              "static/chunks/shared-a.js",
+              "static/chunks/shared-c.js",
+              "static/chunks/9764-x.js",
+              "static/chunks/pages/input-2.js",
+            ],
+          ],
+          ["/pro", ["static/chunks/shared-a.js", "static/chunks/pages/pro-3.js"]],
+          ["/w/[slug]", ["static/chunks/shared-a.js", "static/chunks/pages/w/[slug]-4.js"]],
+          ["/_error", ["static/chunks/shared-a.js", "static/chunks/pages/_error-5.js"]],
+        ],
+      ],
+      [
+        `self.__BUILD_MANIFEST={"/":[a,c,"static/chunks/pages/index-1.js"],"/empty":[],` +
+          `"/nonjs":[a,"static/x.css",7,"static/y.js"]}`,
+        [
+          ["/", ["static/chunks/pages/index-1.js"]],
+          ["/nonjs", ["static/y.js"]],
+        ],
+      ],
+      [
+        `self.__BUILD_MANIFEST=function(a,n){return{"/a":[a,n,"z.css"],"/a":["other.js"]}}` +
+          `("shared.js",7)`,
+        [["/a", ["other.js"]]],
+      ],
+      [
+        `self.__BUILD_MANIFEST=function(a){return{"/a":[a]}}("st\\"atic/x.js")`,
+        [["/a", ['st\\"atic/x.js']]],
+      ],
+    ];
+    for (const [source, expected] of cases) {
+      expect([...(parseBuildManifest(source) ?? [])]).toEqual(expected);
+    }
+    const attacks = [
+      "__BUILD_MANIFEST=function(".repeat(8000),
+      `__BUILD_MANIFEST=function(a){return{${"}}(".repeat(16000)}`,
+      `__BUILD_MANIFEST={${'"/a":['.repeat(8000)}`,
+      `__BUILD_MANIFEST=function(a){return{}}(${'"\\'.repeat(16000)})`,
+    ];
+    const start = performance.now();
+    for (const source of attacks) expect(parseBuildManifest(source)).toBeNull();
+    expect(performance.now() - start).toBeLessThan(250);
+  });
+
   it("builds the URL Next inserts for a dynamic route on a dpl deployment", () => {
     const urls = nextRouteChunkUrls(
       [

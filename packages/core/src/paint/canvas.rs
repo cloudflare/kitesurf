@@ -4,12 +4,14 @@
 
 //! The `<canvas>` 2D API on `DomHandle`.
 
+use std::panic;
 use std::sync::Arc;
 
 use blitz_dom::local_name;
 use wasm_bindgen::prelude::*;
 
 use crate::DomHandle;
+use crate::paint::canvas2d::ResolvedImage;
 
 #[wasm_bindgen]
 impl DomHandle {
@@ -53,7 +55,10 @@ impl DomHandle {
         }
     }
 
-    #[wasm_bindgen(js_name = "canvasSourceInfo")]
+    #[wasm_bindgen(
+        js_name = "canvasSourceInfo",
+        unchecked_return_type = "{ kind: \"canvas\" | \"img\"; src: string } | null"
+    )]
     pub fn canvas_source_info(&self, node_id: u32) -> Result<JsValue, JsError> {
         let Some(internal_id) = self.resolve_node_id(node_id) else {
             return Ok(JsValue::NULL);
@@ -109,13 +114,19 @@ impl DomHandle {
         };
         let doc_cell = &self.doc;
         let node_handles = &self.node_handles;
-        let mut resolve = |id: u32| -> Option<crate::paint::canvas2d::ResolvedImage> {
+        // The ops come from the page realm, so a drawImage can name any node. Only an <img> is
+        // an image source: an <iframe> also holds a raster, its cross-origin child's frame.
+        let is_img = |el: &&blitz_dom::node::ElementData| {
+            el.name.local.eq_ignore_ascii_case(&local_name!("img"))
+        };
+        let mut resolve = |id: u32| -> Option<ResolvedImage> {
             let internal_id = node_handles.borrow().resolve(id)?;
             {
                 let needs_decode = {
                     let doc = doc_cell.try_borrow().ok()?;
                     doc.get_node(internal_id)
                         .and_then(|n| n.element_data())
+                        .filter(is_img)
                         .and_then(|el| el.raster_image_data())
                         .is_some_and(|img| img.encoded)
                 };
@@ -129,18 +140,18 @@ impl DomHandle {
             }
             let doc = doc_cell.try_borrow().ok()?;
             let node = doc.get_node(internal_id)?;
-            let el = node.element_data()?;
+            let el = node.element_data().filter(is_img)?;
             let img = el.raster_image_data()?;
             if img.encoded {
                 return None;
             }
-            Some(crate::paint::canvas2d::ResolvedImage {
+            Some(ResolvedImage {
                 width: img.width,
                 height: img.height,
                 rgba: img.data.clone(),
             })
         };
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             reg.apply_ops(node_id, ops_json, &mut resolve)
         }));
         match result {
@@ -161,8 +172,7 @@ impl DomHandle {
             Ok(r) => r,
             Err(_) => return -2,
         };
-        let rendered =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| reg.flush(node_id)));
+        let rendered = panic::catch_unwind(panic::AssertUnwindSafe(|| reg.flush(node_id)));
         let (w, h, rgba) = match rendered {
             Ok(Some(t)) => t,
             Ok(None) => return 2,
@@ -198,7 +208,7 @@ impl DomHandle {
             Ok(r) => r,
             Err(_) => return -2,
         };
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             reg.put_image_data(node_id, dx, dy, width, height, rgba);
         }));
         match result {
@@ -226,7 +236,7 @@ impl DomHandle {
             Ok(r) => r,
             Err(_) => return Vec::new(),
         };
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        panic::catch_unwind(panic::AssertUnwindSafe(|| {
             reg.get_image_data(node_id, sx as i64, sy as i64, sw, sh)
         }))
         .unwrap_or_default()
@@ -238,8 +248,7 @@ impl DomHandle {
             Ok(r) => r,
             Err(_) => return Vec::new(),
         };
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| reg.encode_png(node_id)))
-            .unwrap_or_default()
+        panic::catch_unwind(panic::AssertUnwindSafe(|| reg.encode_png(node_id))).unwrap_or_default()
     }
 
     #[wasm_bindgen(js_name = "canvasIsOriginClean")]
@@ -265,7 +274,7 @@ impl DomHandle {
 
     #[wasm_bindgen(js_name = "canvasMeasureText")]
     pub fn canvas_measure_text(&self, text: &str, font: &str) -> String {
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        panic::catch_unwind(panic::AssertUnwindSafe(|| {
             crate::paint::canvas2d::measure_text(text, font)
         }))
         .unwrap_or_else(|_| "{\"width\":0}".to_string())

@@ -99,10 +99,10 @@ function scheduleRetry(fn: () => void): void {
   }
 }
 
-function wrapAsync<T>(
-  real: (...args: unknown[]) => Promise<T>,
-): (...args: unknown[]) => Promise<T> {
-  return function (this: unknown, ...args: unknown[]): Promise<T> {
+function wrapAsync<A extends unknown[], T>(
+  real: (...args: A) => Promise<T>,
+): (...args: A) => Promise<T> {
+  return function (this: unknown, ...args: A): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       let attempts = 0;
       const tryOnce = (): void => {

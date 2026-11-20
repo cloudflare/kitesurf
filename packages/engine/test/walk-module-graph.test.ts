@@ -3,6 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { describe, it, expect } from "vitest";
+import { parseCspPolicies } from "@kitesurf/script-gate/csp";
 import {
   assignModuleRegistryNames,
   astroIslandModuleUrls,
@@ -10,20 +11,50 @@ import {
   documentTokens,
   extractClassicDynamicSeeds,
   importMapModuleSource,
+  MAX_IMPORT_MAP_WORK,
   mergeImportMap,
   modulePreloadSeeds,
   parseImportMap,
   parseImportMaps,
   resolvedModuleRecord,
   resolveImportMapSpecifier,
-  rewriteImportMetaResolve,
+  unusedIdentifier,
   walkModuleGraph,
   type ParsedImportMap,
 } from "../src/eval/walk-module-graph.ts";
 import type { SandboxOutboundOverride } from "../src/eval/outbound.ts";
-import type { ParentScriptDescriptor } from "../src/wasm.ts";
+import type { ParentScriptDescriptor, ScannedModulePreload } from "../src/wasm.ts";
+import { bakedJsonModuleName } from "../../page-script/src/baked-module.ts";
 
 const BASE = "https://example.com/js/app.min.js";
+
+describe("unusedIdentifier", () => {
+  it.each([
+    ["", "__ks_x"],
+    ["__ks_y", "__ks_x"],
+    ["__ks_x", "__ks_x_0"],
+    ["__ks_x_0", "__ks_x_1"],
+    ["__ks_x__ __ks_x_", "__ks_x_00"],
+    ["__ks_x_00 __ks_x_01 __ks_x_02", "__ks_x_03"],
+  ])("%j -> %s", (body, expected) => {
+    expect(unusedIdentifier(body, "__ks_x")).toBe(expected);
+    expect(body.includes(expected)).toBe(false);
+  });
+
+  it("keeps the name short after a long run of underscores", () => {
+    const body = "__ks_x" + "_".repeat(300_000);
+    const start = performance.now();
+    expect(unusedIdentifier(body, "__ks_x")).toBe("__ks_x_000000");
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+
+  it("finds a free name when the body takes every short candidate", () => {
+    const names = Array.from({ length: 100 }, (_, n) => `__ks_x_${String(n).padStart(4, "0")}`);
+    const body = names.join(" ");
+    expect(unusedIdentifier(body, "__ks_x")).toBe("__ks_x_0100");
+    expect(body.includes("__ks_x_0100")).toBe(false);
+  });
+});
 
 describe("astroIslandModuleUrls", () => {
   it("collects component and renderer urls from every island once", () => {
@@ -36,6 +67,29 @@ describe("astroIslandModuleUrls", () => {
       "https://site.example/_astro/client.js",
       "https://cdn.example/b.js",
     ]);
+  });
+
+  it("matches the replaced attribute regexes without rescanning malformed markup", () => {
+    const cases: Array<[string, string[]]> = [
+      ['<astro-island component-url="/a.js>"/b.js">', []],
+      ['<astro-island component-url="">', []],
+      ["<astro-island component-url='/a.js'>", []],
+      ["<astro-island component-url=/a.js>", []],
+      [
+        '<astro-island component-url="/a.js" component-url="/b.js">' +
+          '<astro-island component-url="/a.js">',
+        ["https://example.com/a.js", "https://example.com/b.js"],
+      ],
+      ['<ASTRO-ISLAND RENDERER-URL="https://cdn.example/r.js">', ["https://cdn.example/r.js"]],
+    ];
+    for (const [html, urls] of cases) expect(astroIslandModuleUrls(html, BASE)).toEqual(urls);
+    const start = performance.now();
+    const openers = ('<astro-island component-url="' + "a".repeat(32)).repeat(8000);
+    expect(astroIslandModuleUrls(openers, BASE)).toEqual([]);
+    expect(astroIslandModuleUrls(`<astro-island${" component-url=".repeat(4000)}>`, BASE)).toEqual(
+      [],
+    );
+    expect(performance.now() - start).toBeLessThan(250);
   });
 });
 
@@ -52,14 +106,14 @@ describe("extractClassicDynamicSeeds", () => {
       BASE,
     );
     expect(seeds).toEqual([]);
-    expect(rewritten).toContain(`__ks_import("@wordpress/vips/worker", ${JSON.stringify(BASE)})`);
+    expect(rewritten).toMatch(/__ks_import_\w+\("@wordpress\/vips\/worker"\)/);
     expect(rewritten).not.toMatch(/(?<!__ks_)import\("@wordpress/);
   });
 
   it("treats backtick bare specifiers the same", () => {
     const { rewritten, seeds } = extractClassicDynamicSeeds("import(`lodash-es`).then(go);", BASE);
     expect(seeds).toEqual([]);
-    expect(rewritten).toContain(`__ks_import("lodash-es"`);
+    expect(rewritten).toMatch(/__ks_import_\w+\("lodash-es"\)/);
   });
 
   it("seeds root-absolute and leaves data: untouched", () => {
@@ -73,7 +127,7 @@ describe("extractClassicDynamicSeeds", () => {
   it("routes computed import(expr) to __ks_import", () => {
     const { rewritten, seeds } = extractClassicDynamicSeeds(`import(name + ".js");`, BASE);
     expect(seeds).toEqual([]);
-    expect(rewritten).toContain(`__ks_import(name + ".js", ${JSON.stringify(BASE)})`);
+    expect(rewritten).toMatch(/__ks_import_\w+\(name \+ "\.js"\)/);
   });
 
   it("keeps the options argument when absolutizing a literal", () => {
@@ -85,25 +139,240 @@ describe("extractClassicDynamicSeeds", () => {
     expect(rewritten).toBe(`import("https://example.com/js/cfg.json", { with: { type: "json" } })`);
   });
 
-  it("passes only the specifier expression of a computed import to __ks_import", () => {
+  it("forwards a computed import's options to __ks_import", () => {
     const { rewritten } = extractClassicDynamicSeeds(
       'import(`./${name}.json`, { with: { type: "json" } })',
       BASE,
     );
-    expect(rewritten).toBe("__ks_import(`./${name}.json`, " + JSON.stringify(BASE) + ")");
+    expect(rewritten.split("\n")[0]).toMatch(
+      /^__ks_import_\w+\(`\.\/\$\{name\}\.json`, \{ with: \{ type: "json" \} \}\)$/,
+    );
+  });
+
+  it("hoists one binding per base instead of repeating it at every call", () => {
+    const base = `https://example.com/${"a".repeat(4096)}/app.js`;
+    const many = `import(importPath);`.repeat(1500);
+    const bulk = extractClassicDynamicSeeds(`${many}import("./chunk.js");`, base);
+    expect(bulk.seeds).toEqual([`https://example.com/${"a".repeat(4096)}/chunk.js`]);
+    expect(bulk.rewritten.split(base)).toHaveLength(2);
+    expect(bulk.rewritten.length).toBeLessThan(many.length + base.length + 30_000);
+  });
+});
+
+describe("walkModuleGraph classic import referrers", () => {
+  it("keeps a referrer per colliding base in one bundle scope", async () => {
+    // Both bases hash to 76f2b8a5, so a hash-named binding would collide in one scope.
+    const bases = [
+      "https://example.com/static/a468471.js",
+      "https://example.com/static/a1063000.js",
+    ];
+    const { descriptors } = await walkModuleGraph({
+      descriptors: bases.map((url) => classicExternal(url, `import(importPath);`)),
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      options: {},
+      sandboxOutbound: stubOutbound(),
+    });
+    const calls: unknown[][] = [];
+    const bundle = descriptors.map((d) => d.prefetchedSource).join("\n");
+    const spy = (...args: unknown[]) => calls.push(args);
+    new Function("__ks_import", "importPath", bundle)(spy, "chunk.js");
+    expect(calls).toEqual(bases.map((url) => ["chunk.js", url, undefined]));
+  });
+});
+
+describe("extractClassicDynamicSeeds when the lexer misreads a script", () => {
+  const nativeCalls = (source: string) => source.match(/(?<![\w$])import\s*(?:\/\*.*?\*\/\s*)*\(/g);
+
+  it.each([
+    ["the lexer throws", `{}\n/}/.test(""); import("./internal-state.js").then(go);`],
+    ["the lexer skips code", `with ({}) /a\\//.test(""); import("./internal-state.js");`],
+    ["a call is spread", `{}\n/}/.test(""); [...import("./x.js").then(go)];`],
+    ["a number ends the line before a call", `const n = 1.\nimport("./x.js");`],
+  ])("sends every import() to the runtime loader when %s", (_, body) => {
+    expect(() => new Function(body)).not.toThrow();
+    const { rewritten, seeds } = extractClassicDynamicSeeds(body, BASE);
+    expect(seeds).toEqual([]);
+    expect(nativeCalls(rewritten)).toBeNull();
+    expect(rewritten).toContain("__ks_import");
+  });
+
+  // Each input makes the lexer skip a live call while a quote that is not a string would open one,
+  // so a scan that guesses where strings end can leave the call native.
+  it.each([
+    ["a nested template", 'const a = `${`x`}`; with ({}) /a\\//.test(""); import("./x.js");'],
+    [
+      "a quote in a regex after a condition",
+      'var s = ""; if (s === ")") /\'/.test(s); with ({}) /a\\//.test(""); import("./x.js"); //\'',
+    ],
+    [
+      "await before a regex",
+      '(async () => { await /\'/; with ({}) /a\\//.test(""); import("./x.js"); //\'\n})();',
+    ],
+  ])("leaves no native import() when the script holds %s", (_, body) => {
+    expect(() => new Function(body)).not.toThrow();
+    const { rewritten } = extractClassicDynamicSeeds(body, BASE);
+    expect(nativeCalls(rewritten)).toBeNull();
+    expect(rewritten).toContain("__ks_import");
+  });
+
+  it("publishes the runtime helper so a script built from a string can call it", () => {
+    // The string keeps its call renamed, and an inserted script runs it in the page realm, where a
+    // bare name resolves through the global object, which is why the helper must be published.
+    const body = `const s = 'import("./a.js")'; globalThis.out = s;`;
+    const { rewritten } = extractClassicDynamicSeeds(body, BASE);
+    const page: { out?: string; [key: string]: unknown } = {};
+    new Function("globalThis", "__ks_import", rewritten)(page, () => {});
+    const helper = Object.keys(page).find((key) => key.startsWith("__ks_import_"));
+    expect(helper).toBeDefined();
+    expect(typeof page[helper as string]).toBe("function");
+    expect(page.out).toContain(`${helper}(`);
+    expect(nativeCalls(page.out ?? "")).toBeNull();
+  });
+
+  it("publishes the helper after a use strict prologue", () => {
+    const body = `"use strict";\nconst s = 'import("./a.js")';`;
+    const { rewritten } = extractClassicDynamicSeeds(body, BASE);
+    expect(rewritten.startsWith(`"use strict";\n`)).toBe(true);
+    expect(rewritten).toContain("globalThis.__ks_import_");
+  });
+
+  it("absolutizes an import() with a comment before the paren", () => {
+    const { rewritten, seeds } = extractClassicDynamicSeeds(`import/**/("./x.js");`, BASE);
+    expect(seeds).toEqual(["https://example.com/js/x.js"]);
+    expect(rewritten).toBe(`import/**/("https://example.com/js/x.js");`);
+  });
+
+  it("rewrites an import() on the line after a comment that ends with a dot", () => {
+    const { rewritten, seeds } = extractClassicDynamicSeeds(
+      `// Load the chunk.\nimport("./x.js");`,
+      BASE,
+    );
+    expect(seeds).toEqual(["https://example.com/js/x.js"]);
+    expect(rewritten).toBe(`// Load the chunk.\nimport("https://example.com/js/x.js");`);
+  });
+
+  it("sends an import() after a --> comment that ends with a dot to the runtime loader", () => {
+    const body = `globalThis.x = 1;\n--> Load the chunk.\nimport("./x.js");`;
+    expect(() => new Function(body)).not.toThrow();
+    const { rewritten, seeds } = extractClassicDynamicSeeds(body, BASE);
+    // The lexer does not treat `-->` as a comment here, so the call is renamed, not absolutized.
+    expect(seeds).toEqual([]);
+    expect(nativeCalls(rewritten)).toBeNull();
+    expect(rewritten).toContain("__ks_import");
+    expect(rewritten).toContain(JSON.stringify(BASE));
+  });
+
+  it.each([
+    ["alone", `const a = { import: (x) => x };\nglobalThis.out = a.\nimport(1);`],
+    [
+      "next to a call the lexer skips",
+      `const a = { import: (x) => x };\nglobalThis.out = a?.\n  import(1);\nwith ({}) /a\\//.test(""); import("./x.js");`,
+    ],
+  ])("keeps a member call whose dot ends the previous line %s", (_, body) => {
+    const { rewritten } = extractClassicDynamicSeeds(body, BASE);
+    expect(rewritten).toMatch(/\.\n\s*import\(1\)/);
+    const out: { out?: unknown } = {};
+    new Function("globalThis", "__ks_import", rewritten)(out, () => {});
+    expect(out.out).toBe(1);
+  });
+
+  it("does not rewrite member calls or names that end in import", () => {
+    const body = `{}\n/}/.test(""); a.import(1); a?.import(2); reimport(3); import("./x.js");`;
+    const { rewritten } = extractClassicDynamicSeeds(body, BASE);
+    expect(rewritten).toMatch(
+      /^globalThis\.__ks_import_\w+ \?\?= __ks_import_\w+;\n\{\}\n\/\}\/\.test\(""\); a\.import\(1\); a\?\.import\(2\); reimport\(3\); __ks_import_\w+\("\.\/x\.js"\);\n/,
+    );
+  });
+
+  // Runs rewritten classic scripts in one scope, as the bundle does, and records the loader calls.
+  function runClassic(...scripts: string[]): unknown[][] {
+    const calls: unknown[][] = [];
+    new Function("__ks_import", scripts.join("\n"))((...args: unknown[]) => calls.push(args));
+    return calls;
+  }
+
+  it("resolves the runtime imports against each script, not the document", () => {
+    const other = "https://cdn.example/lib/b.js";
+    const a = extractClassicDynamicSeeds(
+      `{}\n/}/.test(""); import("./chunk.js", { with: { type: "json" } });`,
+      BASE,
+    );
+    const b = extractClassicDynamicSeeds(`{}\n/}/.test(""); import("./c.js");`, other);
+    expect(runClassic(a.rewritten, b.rewritten)).toEqual([
+      ["./chunk.js", BASE, { with: { type: "json" } }],
+      ["./c.js", other, undefined],
+    ]);
+  });
+
+  it.each([
+    ["a comment", `// lazy: import("./a.js")\nimport("./b.js");`],
+    ["a string", `const s = "import('./a.js')"; import("./b.js");`],
+  ])("still seeds the lexed calls when %s mentions import(", (_, body) => {
+    const { rewritten, seeds } = extractClassicDynamicSeeds(body, BASE);
+    expect(seeds).toEqual(["https://example.com/js/b.js"]);
+    expect(rewritten).toContain(`import("https://example.com/js/b.js")`);
+  });
+
+  it("sends only the calls the lexer skipped to the runtime loader", () => {
+    const body = `import("./a.js");\nwith ({}) /a\\//.test(""); import("./b.js");`;
+    expect(() => new Function(body)).not.toThrow();
+    const { rewritten, seeds } = extractClassicDynamicSeeds(body, BASE);
+    expect(seeds).toEqual(["https://example.com/js/a.js"]);
+    expect(nativeCalls(rewritten)).toEqual([`import(`]);
+    expect(rewritten).toContain(`import("https://example.com/js/a.js")`);
+    expect(runClassic(rewritten.replace(/import\("[^"]*"\);/, ""))).toEqual([
+      ["./b.js", BASE, undefined],
+    ]);
+  });
+
+  it("sends a call nested in another call to the runtime loader", () => {
+    const { rewritten, seeds } = extractClassicDynamicSeeds(`import(import("./a.js"));`, BASE);
+    expect(seeds).toEqual([]);
+    expect(nativeCalls(rewritten)).toBeNull();
+    expect(runClassic(rewritten).length).toBe(2);
+  });
+
+  it("keeps a method named import valid", () => {
+    const { rewritten } = extractClassicDynamicSeeds(
+      `{}\n/}/.test(""); const o = { import(x) { return x; } }; import("./x.js");`,
+      BASE,
+    );
+    expect(runClassic(rewritten)).toEqual([["./x.js", BASE, undefined]]);
+  });
+
+  it.each([
+    ["line comments", `const s = "import${"//".repeat(2000)}x";`],
+    ["block comments", `const s = "import${"/**/".repeat(2000)}x";`],
+    ["nested block comments", `const s = "import${"/*a/*b*/c*/".repeat(1000)}";`],
+  ])("scans a run of %s that no call follows in linear time", (_, body) => {
+    const start = performance.now();
+    expect(extractClassicDynamicSeeds(body, BASE)).toEqual({ rewritten: body, seeds: [] });
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+
+  it("leaves a script without import() calls alone", () => {
+    const body = `{}\n/}/.test(""); const s = "imports";`;
+    expect(extractClassicDynamicSeeds(body, BASE)).toEqual({ rewritten: body, seeds: [] });
   });
 });
 
 function stubOutbound(
   bodies: Record<string, string> = {},
   delays: Record<string, number> = {},
+  redirects: Record<string, string> = {},
+  contentTypes: Record<string, string> = {},
 ): SandboxOutboundOverride {
   const fetcher = {
     fetch: async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (delays[url]) await new Promise((r) => setTimeout(r, delays[url]));
-      return new Response(bodies[url] ?? "export default 1;", {
-        headers: { "content-type": "text/javascript" },
+      const location = redirects[url];
+      return new Response(location ? null : (bodies[url] ?? "export default 1;"), {
+        status: location ? 302 : 200,
+        headers: location
+          ? { location }
+          : { "content-type": contentTypes[url] ?? "text/javascript" },
       });
     },
   } as Fetcher;
@@ -157,21 +426,225 @@ describe("walkModuleGraph query-collision alias in classic bodies", () => {
   });
 });
 
+describe("page specifiers that name the loaded worker's own modules", () => {
+  const PAGE = "https://example.com/page.html";
+  const walk = (descriptors: ParentScriptDescriptor[], baseUrl?: string) =>
+    walkModuleGraph({
+      descriptors,
+      pageUrl: PAGE,
+      connectionId: "conn",
+      options: baseUrl ? { baseUrl } : {},
+      sandboxOutbound: stubOutbound(),
+    });
+
+  it.each(["file:///bundle/internal-state.js", "cloudflare:workers", "node:fs"])(
+    "fails an inline module that statically imports %s",
+    async (specifier) => {
+      const { descriptors, additionalModules } = await walk([
+        moduleInline(`import * as ns from ${JSON.stringify(specifier)}; globalThis.ns = ns;`),
+      ]);
+      expect(descriptors[0]?.prefetchError).toMatch(/is not an http\(s\) module URL/);
+      expect(Object.keys(additionalModules)).toEqual([]);
+    },
+  );
+
+  it("fails a fetched module that statically imports a private module", async () => {
+    const { descriptors, additionalModules } = await walk([moduleInline(`import "./dep.js";`)]);
+    expect(descriptors[0]?.prefetchError).toBeUndefined();
+    expect(Object.keys(additionalModules)).toContain("https://example.com/dep.js");
+    const hostile = await walkModuleGraph({
+      descriptors: [moduleInline(`import "./dep.js";`)],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({
+        "https://example.com/dep.js": `import "file:///bundle/internal-state.js";`,
+      }),
+    });
+    expect(Object.keys(hostile.additionalModules)).not.toContain("https://example.com/dep.js");
+  });
+
+  it("routes a dynamic import of a private module to the runtime loader", async () => {
+    const { descriptors, additionalModules } = await walk([
+      moduleInline(`import("file:///bundle/internal-state.js");`),
+      {
+        src: null,
+        kind: "classic",
+        defer: false,
+        async: false,
+        body: `import("file:///bundle/internal-state.js");`,
+      },
+    ]);
+    const [inline] = Object.values(additionalModules);
+    expect(inline).toContain(`__ks_import_here("file:///bundle/internal-state.js");`);
+    expect(inline).toContain(
+      "function __ks_import_here(s, o) { return __ks_import(s, __ks_module_url(), o); }",
+    );
+    expect(descriptors[1]?.body).toBe(
+      `__ks_import_0("file:///bundle/internal-state.js");\n` +
+        `function __ks_import_0(s, o) { return __ks_import(s, ${JSON.stringify(PAGE)}, o); }`,
+    );
+  });
+
+  it("keys inline modules under an http(s) url whatever the base url", async () => {
+    const { descriptors, additionalModules } = await walk(
+      [moduleInline(`import "./internal-state.js";`)],
+      "file:///bundle/",
+    );
+    expect(Object.keys(additionalModules).every((k) => k.startsWith("https://"))).toBe(true);
+    expect(descriptors[0]?.resolvedSrc).toMatch(/^https:\/\//);
+  });
+
+  it("does not resolve a registry name outside http(s) at run time", () => {
+    const source = importMapModuleSource(
+      { imports: new Map(), scopes: new Map() },
+      new Map([["https://example.com/evil.js", "file:///bundle/internal-state.js"]]),
+    );
+    const { resolveModuleRegistryUrl } = new Function(
+      `${source.replaceAll("export function", "function")}\nreturn { resolveModuleRegistryUrl };`,
+    )() as { resolveModuleRegistryUrl(url: string): string };
+    for (const url of [
+      "internal-state.js",
+      "./internal-state.js",
+      "file:///bundle/internal-state.js",
+      "cloudflare:workers",
+      "https://example.com/evil.js",
+    ]) {
+      expect(() => resolveModuleRegistryUrl(url), url).toThrow(TypeError);
+    }
+    expect(resolveModuleRegistryUrl("https://example.com/app.js")).toBe(
+      "https://example.com/app.js",
+    );
+  });
+});
+
+describe("walkModuleGraph asset-import stubs", () => {
+  const PAGE = "https://example.com/page.html";
+  const STUB = "/* kitesurf: asset-import side-effect stub */\nexport {};\n";
+  const walk = (descriptors: ParentScriptDescriptor[], outbound = stubOutbound()) =>
+    walkModuleGraph({
+      descriptors,
+      pageUrl: PAGE,
+      connectionId: "conn",
+      sandboxOutbound: outbound,
+    });
+
+  it("keeps the imported url out of the stub body", async () => {
+    const url = "https://example.com/a.css?*/globalThis.ran=1;/*";
+    const { additionalModules } = await walk(
+      [moduleInline(`import ${JSON.stringify(url)};`)],
+      stubOutbound({}, {}, {}, { [url]: "text/css" }),
+    );
+    const stub = String(
+      Object.values(additionalModules).find(
+        (body) => typeof body === "string" && body.includes("asset-import"),
+      ),
+    );
+    // A registry-renamed module also gets a synthetic import.meta that holds the url as a string.
+    expect(stub.endsWith(STUB)).toBe(true);
+    expect(stub.split(JSON.stringify(url)).join("")).not.toContain("globalThis.ran");
+  });
+
+  it("bakes an asset-extension url served as JavaScript", async () => {
+    // Vite answers `?import` with a JS module, so the default export must survive the walk.
+    const url = "https://example.com/icons.svg?import";
+    const { additionalModules } = await walk(
+      [moduleInline(`import iconUrl from "/icons.svg?import";`)],
+      stubOutbound({ [url]: `export default "/icons.svg";` }),
+    );
+    const bodies = Object.values(additionalModules).map(String);
+    expect(bodies.some((body) => body.includes(`export default "/icons.svg";`))).toBe(true);
+    expect(bodies.some((body) => body.includes("asset-import"))).toBe(false);
+  });
+
+  it("stubs an asset-extension url served as an image", async () => {
+    const url = "https://example.com/logo.svg";
+    const { additionalModules } = await walk(
+      [moduleInline(`import "/logo.svg";`)],
+      stubOutbound({ [url]: "<svg/>" }, {}, {}, { [url]: "image/svg+xml" }),
+    );
+    const bodies = Object.values(additionalModules).map(String);
+    expect(bodies.some((body) => body.endsWith(STUB))).toBe(true);
+  });
+
+  it("stubs an asset-extension url served as JavaScript with a non-JS body", async () => {
+    // A real SVG document is not lexable JavaScript, so the walker keeps the stub for it.
+    const url = "https://example.com/logo.svg";
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><circle r="4"/></svg>';
+    const { descriptors, additionalModules } = await walk(
+      [moduleInline(`import "/logo.svg"; globalThis.ran = 1;`)],
+      stubOutbound({ [url]: svg }),
+    );
+    const bodies = Object.values(additionalModules).map(String);
+    expect(bodies.some((body) => body.endsWith(STUB))).toBe(true);
+    expect(descriptors[0]?.prefetchError).toBeUndefined();
+  });
+
+  it("keeps the stub intact for an asset-extension url whose JavaScript fails to resolve", async () => {
+    const url = "https://example.com/theme.css";
+    const { descriptors, additionalModules } = await walk(
+      [moduleInline(`import "/theme.css";`)],
+      stubOutbound({ [url]: `import "/dep.js?v=1"; import "node:fs";` }),
+    );
+    const stub = Object.values(additionalModules)
+      .map(String)
+      .find((body) => body.includes("asset-import"));
+    expect(stub?.endsWith(STUB)).toBe(true);
+    expect(stub).not.toContain("dep");
+    expect(descriptors[0]?.prefetchError).toBeUndefined();
+  });
+
+  it("fetches a failing asset-extension url once", async () => {
+    const url = "https://example.com/a.css";
+    const fetches: string[] = [];
+    const fetcher = {
+      fetch: async (input: RequestInfo | URL) => {
+        const href =
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        fetches.push(href);
+        const unavailable = href === url;
+        return new Response(unavailable ? "unavailable" : "export default 1;", {
+          status: unavailable ? 503 : 200,
+          headers: { "content-type": "text/javascript" },
+        });
+      },
+    } as Fetcher;
+    const outbound: SandboxOutboundOverride = {
+      external: false,
+      parent: () => fetcher,
+      loaded: () => fetcher,
+      session: () => (request) => fetcher.fetch(request.url),
+      final: async () => new Response(null, { status: 404 }),
+    };
+
+    const { descriptors, additionalModules } = await walk(
+      [moduleInline(`import "/a.css";`)],
+      outbound,
+    );
+
+    expect(fetches.filter((href) => href === url)).toHaveLength(1);
+    const bodies = Object.values(additionalModules).map(String);
+    expect(bodies.some((body) => body.endsWith(STUB))).toBe(true);
+    expect(descriptors[0]?.prefetchError).toBeUndefined();
+  });
+});
+
 describe("modulePreloadSeeds", () => {
-  it("collects script-destination modulepreload links once, with their nonce", () => {
-    const html =
-      '<link rel="modulepreload" href="/a.js?x=1&amp;y=2" nonce="n1">' +
-      "<link rel='preload modulepreload' href='b.js'>" +
-      '<link rel=modulepreload href="/a.js?x=1&amp;y=2">' +
-      '<link rel="modulepreload" as="script" href="https://cdn.example/c.js">' +
-      '<link rel="modulepreload" as="style" href="/style.css">' +
-      '<link rel="modulepreload" href="/sri.js" integrity="sha384-x">' +
-      '<link rel="modulepreload" href="data:text/javascript,export{}">' +
-      '<link rel="preload" as="script" href="/classic.js">';
-    expect(modulePreloadSeeds(html, "https://site.example/dir/page")).toEqual([
-      { url: "https://site.example/a.js?x=1&y=2", nonce: "n1" },
-      { url: "https://site.example/dir/b.js", nonce: null },
-      { url: "https://cdn.example/c.js", nonce: null },
+  it("collects script-destination modulepreload records once, with their nonce and integrity", () => {
+    // Hrefs arrive decoded from the document scanner; this helper only resolves and dedupes them.
+    const links: ScannedModulePreload[] = [
+      { href: "/a.js?x=1&y=2", nonce: "n1", integrity: null },
+      { href: "b.js", nonce: null, integrity: null },
+      { href: "/a.js?x=1&y=2", nonce: "later", integrity: "sha384-later" },
+      { href: "https://cdn.example/c.js", nonce: null, integrity: null },
+      { href: "data:text/javascript,export{}", nonce: null, integrity: null },
+      { href: "http://[", nonce: null, integrity: null },
+      { href: "/sri.js", nonce: null, integrity: "sha384-x" },
+    ];
+    expect(modulePreloadSeeds(links, "https://site.example/dir/page")).toEqual([
+      { url: "https://site.example/a.js?x=1&y=2", nonce: "n1", integrity: null },
+      { url: "https://site.example/dir/b.js", nonce: null, integrity: null },
+      { url: "https://cdn.example/c.js", nonce: null, integrity: null },
+      { url: "https://site.example/sri.js", nonce: null, integrity: "sha384-x" },
     ]);
   });
 });
@@ -179,6 +652,27 @@ describe("modulePreloadSeeds", () => {
 describe("walkModuleGraph modulepreload seeds", () => {
   const PAGE = "https://example.com/page.html";
   const DEP = "https://example.com/dep.js";
+
+  it("checks a module against its modulepreload integrity when another module imports it", async () => {
+    const pinned = "export const dep = 1;";
+    const digest = new Uint8Array(
+      await crypto.subtle.digest("SHA-384", new TextEncoder().encode(pinned)),
+    );
+    const integrity = "sha384-" + btoa(String.fromCharCode(...digest));
+    const walk = (served: string) =>
+      walkModuleGraph({
+        descriptors: [moduleInline(`import "/dep.js";`)],
+        pageUrl: PAGE,
+        connectionId: "conn",
+        options: {
+          preloadSeeds: modulePreloadSeeds([{ href: "/dep.js", nonce: null, integrity }], PAGE),
+        },
+        sandboxOutbound: stubOutbound({ [DEP]: served }),
+      });
+    expect(Object.keys((await walk(pinned)).additionalModules)).toContain(DEP);
+    const tampered = await walk("globalThis.changed = 1; export const dep = 1;");
+    expect(Object.keys(tampered.additionalModules)).not.toContain(DEP);
+  });
 
   it("still bakes an imported module whose preload fetch failed", async () => {
     let depRequests = 0;
@@ -200,7 +694,7 @@ describe("walkModuleGraph modulepreload seeds", () => {
       mainLoaderId: "",
       extraHeaders: {},
       cookieKey: "",
-      options: { preloadSeeds: [{ url: DEP, nonce: null }] },
+      options: { preloadSeeds: [{ url: DEP, nonce: null, integrity: null }] },
       sandboxOutbound: {
         external: false,
         parent: () => fetcher,
@@ -400,6 +894,49 @@ describe("walkModuleGraph import maps in document order", () => {
   });
 });
 
+describe("walkModuleGraph speculative inserted scripts", () => {
+  const PAGE = "https://example.com/page.html";
+  const walk = (body: string) =>
+    walkModuleGraph({
+      descriptors: [{ ...moduleInline(`import "/x.js?v=1";`), scriptDomIndex: 0 }],
+      insertedDescriptors: [classicExternal("/learned.js", body)],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      options: {
+        importMaps: [
+          {
+            source: JSON.stringify({ imports: { "/x.js?v=1": "/x.js?v=2" } }),
+            baseUrl: PAGE,
+            scriptDomIndex: 1,
+          },
+        ],
+      },
+      sandboxOutbound: stubOutbound(),
+    });
+
+  it.each([
+    [`import("./dep.js").then(go);`, `import("https://example.com/dep.js").then(go);`],
+    [`import("/x.js?v=1");`, /import\("https:\/\/example\.com\/x\.__ks_query_\d+\.js"\);/],
+    [
+      `import(spec);`,
+      /^__ks_import_\d+\(spec\);\nfunction __ks_import_\d+\(s, o\) \{ return __ks_import\(s, "https:\/\/example\.com\/learned\.js", o\); \}$/,
+    ],
+    [`{}\n/}/.test(""); import("./internal-state.js")`, /__ks_import_/],
+  ])("walks the inserted classic %# against the final map", async (body, expected) => {
+    const result = await walk(body);
+    expect(result.insertedDescriptors).toHaveLength(1);
+    expect(result.insertedDescriptors[0]!.prefetchedSource).toMatch(expected);
+    expect(result.descriptors.map((d) => d.src)).toEqual([null]);
+  });
+
+  it("keeps the seed of an already-absolute literal whose text is unchanged", async () => {
+    const body = `import("https://example.com/abs.js");`;
+    const result = await walk(body);
+    expect(result.insertedDescriptors[0]!.prefetchedSource).toBe(body);
+    expect(Object.keys(result.additionalModules)).toContain("https://example.com/abs.js");
+  });
+});
+
 describe("import maps", () => {
   const map = parseImportMaps(
     [
@@ -437,6 +974,10 @@ describe("import maps", () => {
 
   it("leaves unmapped bare specifiers unresolved", () => {
     expect(resolveImportMapSpecifier("missing", "https://example.com/app/main.js", map)).toBeNull();
+    // The URL parser strips this leading tab, so the specifier is URL-like.
+    expect(resolveImportMapSpecifier("\thttps://cdn.test/x.js", "https://example.com/", map)).toBe(
+      "https://cdn.test/x.js",
+    );
   });
 
   it("blocks null mappings and prefix backtracking", () => {
@@ -690,34 +1231,62 @@ describe("import maps", () => {
     expect(result.rewritten).toBe(`import("https://example.com/vendor/react.js?dev")`);
   });
 
-  it("routes import.meta.resolve through the document import map", () => {
-    expect(
-      rewriteImportMetaResolve(`import.meta.resolve("react")`, "https://example.com/app.js"),
-    ).toBe(
-      `((specifier) => globalThis.__ks_resolve_import_map(specifier, "https://example.com/app.js"))("react")`,
-    );
+  it("names a lone query variant apart from its bare url", () => {
+    const names = assignModuleRegistryNames([
+      "https://example.com/lib.js?preview=1",
+      "https://example.com/plain.js",
+    ]);
+    expect([...names]).toEqual([
+      ["https://example.com/lib.js?preview=1", "https://example.com/lib.__ks_query_0.js"],
+    ]);
   });
 
-  it("rewrites only import.meta.resolve syntax inside computed imports", () => {
-    expect(
-      rewriteImportMetaResolve(
-        `new URL("import.meta.resolve", import.meta.url) + import.meta ["resolve"]("react")`,
-        "https://example.com/app.js",
-      ),
-    ).toBe(
-      `new URL("import.meta.resolve", import.meta.url) + ((specifier) => globalThis.__ks_resolve_import_map(specifier, "https://example.com/app.js"))("react")`,
-    );
+  it("does not bake a query variant under the name of a module its pin rejected", async () => {
+    const { descriptors, additionalModules } = await walkModuleGraph({
+      descriptors: [
+        moduleInline(`import "/lib.js"; if (false) import("/lib.js?preview=1");`),
+        {
+          src: "/lib.js",
+          kind: "module",
+          defer: false,
+          async: false,
+          body: "",
+          integrity: "sha384-" + "A".repeat(64),
+        },
+      ],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound(),
+    });
+    expect(descriptors[1]?.prefetchError).toBeTruthy();
+    const workerdNames = Object.keys(additionalModules).map((k) => k.replace(/[?#].*$/, ""));
+    expect(workerdNames).not.toContain("https://example.com/lib.js");
   });
 
-  it("rewrites other import.meta uses to one synthetic binding", () => {
-    expect(
-      rewriteImportMetaResolve(
-        `new URL("./x.js", import.meta.url) + (import.meta === import.meta) + import.meta.resolve("pkg")`,
-        "https://example.com/app.js",
-        "__ks_import_meta",
-      ),
-    ).toBe(
-      `new URL("./x.js", __ks_import_meta.url) + (__ks_import_meta === __ks_import_meta) + __ks_import_meta.resolve("pkg")`,
+  it("fails a static importer when a rejected pin equals a query variant's alias", async () => {
+    const { descriptors, additionalModules } = await walkModuleGraph({
+      descriptors: [
+        moduleInline(`import "/lib.__ks_query_0.js"; if (false) import("/lib.js?preview=1");`),
+        {
+          src: "/lib.__ks_query_0.js",
+          kind: "module",
+          defer: false,
+          async: false,
+          body: "",
+          integrity: "sha384-" + "A".repeat(64),
+        },
+      ],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({
+        "https://example.com/lib.js?preview=1": "export const preview = 1;",
+      }),
+    });
+    expect(additionalModules["https://example.com/lib.__ks_query_0.js"]).toContain(
+      "export const preview = 1;",
+    );
+    expect(descriptors[0]?.prefetchError).toMatch(
+      /Failed to load static module https:\/\/example\.com\/lib\.__ks_query_0\.js/,
     );
   });
 
@@ -729,11 +1298,535 @@ describe("import maps", () => {
     expect(names.get(second)).toBe("https://example.com/log.__ks_query_1.js");
   });
 
+  it("bakes a data: module script under an http(s) name workerd accepts", async () => {
+    const src = "data:text/javascript,globalThis.u = import.meta.url;";
+    const { descriptors, additionalModules } = await walkModuleGraph({
+      descriptors: [{ src, kind: "module", defer: false, async: false, body: "" }],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ [src]: "globalThis.u = import.meta.url;" }),
+    });
+    const name = "https://kitesurf-data.invalid/module-0.js";
+    expect(Object.keys(additionalModules)).toEqual([name]);
+    expect(descriptors[0]?.resolvedSrc).toBe(name);
+    expect(String(additionalModules[name])).toContain(
+      `function __ks_module_url() { return ${JSON.stringify(src)}; }`,
+    );
+    expect(String(additionalModules[name])).toContain("{url:__ks_module_url(),");
+  });
+
+  it("bakes a static data: import and points the importer at its registry name", async () => {
+    const dep = "data:text/javascript,export const dep = 1;";
+    const { descriptors, additionalModules } = await walkModuleGraph({
+      descriptors: [
+        moduleInline(`import { dep } from ${JSON.stringify(dep)}; globalThis.d = dep;`),
+      ],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ [dep]: "export const dep = 1;" }),
+    });
+    const name = "https://kitesurf-data.invalid/module-0.js";
+    expect(descriptors[0]?.prefetchError).toBeUndefined();
+    expect(String(additionalModules[name])).toContain("export const dep = 1;");
+    expect(String(additionalModules["https://example.com/__kitesurf_inline_0.js"])).toContain(
+      `from ${JSON.stringify(name)}`,
+    );
+  });
+
+  it("holds a data: module's URL a fixed number of times, not once per import()", async () => {
+    const sites = 200;
+    const source = `globalThis.f = (a) => { ${"import(a);".repeat(sites)} };/*${"x".repeat(4096)}*/`;
+    const src = `data:text/javascript,${source}`;
+    const { additionalModules } = await walkModuleGraph({
+      descriptors: [{ src, kind: "module", defer: false, async: false, body: "" }],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ [src]: source }),
+    });
+    const baked = String(additionalModules["https://kitesurf-data.invalid/module-0.js"]);
+    // Only the function that the synthetic import.meta and every site call holds it.
+    expect(baked.split(JSON.stringify(src)).length - 1).toBe(1);
+    expect(baked.split("__ks_import_here(a)").length - 1).toBe(sites);
+  });
+
+  it("keeps each import() site short when the module names the URL helper", async () => {
+    const sites = 400;
+    const source = `/*__ks_module_url${"_".repeat(8192)}*/globalThis.f = (a) => { ${"import(a);".repeat(sites)} };`;
+    const src = `data:text/javascript,${source}`;
+    const { additionalModules } = await walkModuleGraph({
+      descriptors: [{ src, kind: "module", defer: false, async: false, body: "" }],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ [src]: source }),
+    });
+    const baked = String(additionalModules["https://kitesurf-data.invalid/module-0.js"]);
+    expect(baked.split("__ks_import_here(a)").length - 1).toBe(sites);
+    expect(baked).toContain("return __ks_import(s, __ks_module_url_00000(), o);");
+    expect(baked.length).toBeLessThan(3 * src.length + 64 * sites);
+  });
+
   it("accepts a single-use iterable when assigning registry names", () => {
     function* urls() {
       yield "https://example.com/log.js?first";
       yield "https://example.com/log.js?second";
     }
     expect(assignModuleRegistryNames(urls()).size).toBe(2);
+  });
+
+  it("looks a baked JSON record up by its registry name", () => {
+    const requested = "https://example.com/config.json?preview=1";
+    const other = "https://example.com/other.json";
+    const registry = assignModuleRegistryNames([requested, other]);
+    const resolveRegistryUrl = (url: unknown) => registry.get(String(url)) ?? String(url);
+    const bakedJsonNames = new Set([registry.get(requested)!]);
+    // The bake key is the alias, so the requested URL alone never matches it.
+    expect(bakedJsonModuleName(requested, bakedJsonNames, resolveRegistryUrl)).toBe(
+      "https://example.com/config.__ks_query_0.json",
+    );
+    // A URL nothing baked as JSON stays unresolved, so the gate parses it as JSON.
+    expect(bakedJsonModuleName(other, bakedJsonNames, resolveRegistryUrl)).toBeUndefined();
+  });
+});
+
+describe("walkModuleGraph module response urls", () => {
+  const PKG = "https://cdn.example/pkg";
+  const MAIN = "https://cdn.example/pkg/dist/main.js";
+  const HELPER = "https://cdn.example/pkg/dist/helper.js";
+
+  it("resolves and refers against the module response url", async () => {
+    const { additionalModules } = await walkModuleGraph({
+      descriptors: [moduleInline(`import ${JSON.stringify(PKG)};`)],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound(
+        { [MAIN]: `import "./helper.js"; globalThis.u = import.meta.url;` },
+        {},
+        { [PKG]: "/pkg/dist/main.js" },
+      ),
+    });
+    expect(String(additionalModules[PKG])).toContain(`import "${HELPER}"`);
+    expect(String(additionalModules[PKG])).toContain(`return ${JSON.stringify(MAIN)};`);
+    expect(String(additionalModules[PKG])).toContain("{url:__ks_module_url(),");
+    const upgraded = await walkModuleGraph({
+      descriptors: [moduleInline(`import "http://cdn.example/plain.js";`)],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      options: {
+        gate: {
+          documentUrl: "https://example.com/page.html",
+          policies: [],
+          reportOnlyPolicies: [],
+          upgradeInsecureRequests: true,
+        },
+      },
+      sandboxOutbound: stubOutbound({
+        "https://cdn.example/plain.js": "export const upgraded = 1;",
+      }),
+    });
+    expect(String(upgraded.additionalModules["http://cdn.example/plain.js"])).toContain("upgraded");
+  });
+});
+
+describe("import map budgets", () => {
+  const PAGE = "https://example.com/page.html";
+  const walk = (
+    bodies: string[],
+    importMaps: { source: string; baseUrl: string; scriptDomIndex: number }[] = [],
+  ) =>
+    walkModuleGraph({
+      descriptors: bodies.map((body, scriptDomIndex): ParentScriptDescriptor => ({
+        src: null,
+        kind: "classic",
+        defer: false,
+        async: false,
+        body,
+        scriptDomIndex,
+      })),
+      pageUrl: PAGE,
+      connectionId: "conn",
+      options: { importMaps },
+      sandboxOutbound: stubOutbound(),
+    });
+  const sourceMap = (source: string, scriptDomIndex = 1) => [
+    { source, baseUrl: PAGE, scriptDomIndex },
+  ];
+  const map = (value: unknown, scriptDomIndex = 1) =>
+    sourceMap(JSON.stringify(value), scriptDomIndex);
+  const keys = (count: number, prefix: string) =>
+    Object.fromEntries(Array.from({ length: count }, (_, i) => [`${prefix}${i}`, "/x.js"]));
+  const scopes = (count: number) =>
+    Object.fromEntries(Array.from({ length: count }, (_, i) => [`/${"s".repeat(i + 1)}/`, {}]));
+  // 100 literals per script keeps the pre-existing per-body rewrite linear.
+  const literalScripts = (count: number, prefix = "m") => {
+    const bodies: string[] = [];
+    for (let i = 0; i < count; i += 100) {
+      const chunk = Array.from({ length: Math.min(100, count - i) }, (_, j) => `${prefix}${i + j}`);
+      bodies.push(chunk.map((name) => `import("${name}");`).join(""));
+    }
+    return bodies;
+  };
+  // Keys and literals share a 2,000-character prefix and differ only at the end.
+  const long = "p".repeat(2_000);
+  const longKeys = (count: number) =>
+    Object.fromEntries(Array.from({ length: count }, (_, i) => [`${long}k${i}/`, "/x.js"]));
+  const outcome = async (run: () => Promise<unknown>) => {
+    try {
+      return {
+        result: (await run()) as {
+          importMapModuleSource: string;
+          descriptors: ParentScriptDescriptor[];
+          additionalModules: Record<string, unknown>;
+        },
+      };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  };
+  // Every map carries this rule, so "applied" means the map survived and "dropped" means it was
+  // ignored the way an invalid map is.
+  const MARK = `{"imports":{"mark":"/vendor/mark.js"}}`;
+  const markMap = (imports: Record<string, unknown> = {}) =>
+    map({ imports: { mark: "/vendor/mark.js", ...imports } });
+  const paddedMarkMap = (bytes: number) => " ".repeat(bytes - MARK.length) + MARK;
+
+  it("keeps a map one step under each limit and ignores one step over", async () => {
+    const one = [`import("m0");`];
+    const rows: Array<[string, () => Promise<unknown>, string, string?, string?]> = [
+      ["16384 entries", () => walk(one, markMap(keys(16_383, "k"))), "applied"],
+      ["16385 entries", () => walk(one, markMap(keys(16_384, "k"))), "dropped"],
+      [
+        "256 scopes",
+        () => walk(one, map({ imports: { mark: "/vendor/mark.js" }, scopes: scopes(256) })),
+        "applied",
+      ],
+      [
+        "257 scopes",
+        () => walk(one, map({ imports: { mark: "/vendor/mark.js" }, scopes: scopes(257) })),
+        "dropped",
+      ],
+      ["2048-unit key", () => walk(one, markMap({ ["a".repeat(2_048)]: "/x.js" })), "applied"],
+      ["2049-unit key", () => walk(one, markMap({ ["a".repeat(2_049)]: "/x.js" })), "dropped"],
+      ["2 MiB source", () => walk(one, sourceMap(paddedMarkMap(2 * 1024 * 1024))), "applied"],
+      [
+        "2 MiB + 1 source",
+        () => walk(one, sourceMap(paddedMarkMap(2 * 1024 * 1024 + 1))),
+        "dropped",
+      ],
+      [
+        "8192 recorded resolutions",
+        () => walk(literalScripts(8_192), markMap(keys(8_192, "m"))),
+        "ok",
+      ],
+      [
+        "8193 recorded resolutions",
+        () => walk(literalScripts(8_193), markMap(keys(8_193, "m"))),
+        "past-record-limit",
+        undefined,
+        'import("https://example.com/x.js")',
+      ],
+      [
+        "1 long record against 900 long keys",
+        () => walk([`import("${long}a0");`], markMap(longKeys(900))),
+        "applied",
+      ],
+      [
+        "300 long records against 900 long keys",
+        () =>
+          walk(
+            ["", `import("mark");`, ...literalScripts(300, long), `import("mark");`],
+            markMap(longKeys(900)),
+          ),
+        "degraded",
+        "mark",
+        'import("https://example.com/vendor/mark.js")',
+      ],
+    ];
+    for (const [label, run, expected, unresolved, resolvedBefore] of rows) {
+      const result = await outcome(run);
+      if (expected === "applied") {
+        expect(result.error, label).toBeUndefined();
+        expect(result.result?.importMapModuleSource, label).toContain("vendor/mark.js");
+      } else if (expected === "dropped") {
+        expect(result.error, label).toBeUndefined();
+        expect(result.result?.importMapModuleSource, label).not.toContain("vendor/mark.js");
+      } else if (expected === "ok") {
+        expect(result.error, label).toBeUndefined();
+      } else if (expected === "past-record-limit") {
+        // Recording stops at the limit; resolution keeps working through the maps already merged,
+        // so even the literal that crossed the limit resolves.
+        expect(result.error, label).toBeUndefined();
+        const descriptors = result.result?.descriptors ?? [];
+        const lastBody = descriptors[descriptors.length - 1]?.body ?? "";
+        expect(lastBody, label).not.toMatch(/__ks_import_/);
+        expect(lastBody, label).toContain(resolvedBefore ?? "");
+      } else {
+        // Degraded: the walk returns, and the import that crossed the limit stays unresolved
+        // while the imports under it resolved through the same map.
+        expect(result.error, label).toBeUndefined();
+        const descriptors = result.result?.descriptors ?? [];
+        const lastBody = descriptors[descriptors.length - 1]?.body ?? "";
+        const calls = lastBody.match(/__ks_import_\d+\("[^"]*"\)/g) ?? [];
+        expect(calls, label).toHaveLength(1);
+        expect(calls[0], label).toContain(`(${JSON.stringify(unresolved ?? "")})`);
+        if (resolvedBefore) {
+          expect(descriptors.map((d) => d.body).join(""), label).toContain(resolvedBefore);
+        }
+      }
+    }
+  });
+
+  it("keeps resolving past the record limit without degrading the whole document", async () => {
+    // 8,192 literals fill the record list; the inline module's static import is the one that
+    // crosses it, and the walk must still resolve ./dep.js against the (empty) map.
+    const result = await outcome(() =>
+      walkModuleGraph({
+        descriptors: [
+          ...literalScripts(8_192).map((body, scriptDomIndex): ParentScriptDescriptor => ({
+            src: null,
+            kind: "classic",
+            defer: false,
+            async: false,
+            body,
+            scriptDomIndex,
+          })),
+          { ...moduleInline(`import "./dep.js";`), scriptDomIndex: 100 },
+        ],
+        pageUrl: PAGE,
+        connectionId: "conn",
+        sandboxOutbound: stubOutbound(),
+      }),
+    );
+    expect(result.error).toBeUndefined();
+    const entry = result.result?.descriptors.find((d) => d.kind === "module");
+    expect(entry?.prefetchError).toBeUndefined();
+    expect(result.result?.additionalModules["https://example.com/dep.js"]).toBeDefined();
+  });
+
+  it("stops charging merge work as soon as the budget is spent", () => {
+    const start = MAX_IMPORT_MAP_WORK - 1_000;
+    const budget = { entries: 0, scopes: 0, records: 0, work: start, degraded: false };
+    const referrer = "https://example.com/app/main.js";
+    const target: ParsedImportMap = { imports: new Map(), scopes: new Map() };
+    const prefixKeys = Object.fromEntries(
+      Array.from({ length: 4_096 }, (_, i) => [`p${i}/`, "/x.js"]),
+    );
+    const incoming = parseImportMap(
+      JSON.stringify({ imports: prefixKeys, scopes: { "/app/": prefixKeys } }),
+      "https://example.com/app/",
+    )!;
+    const resolved = Array.from({ length: 512 }, (_, i) =>
+      resolvedModuleRecord(`p${i}/x.js`, referrer),
+    );
+    mergeImportMap(target, incoming, resolved, budget);
+    expect(budget.work - start).toBeLessThan(10_000);
+  });
+});
+
+describe("walkModuleGraph import.meta and nested dynamic imports", () => {
+  const SELF = "__ks_module_url()";
+  const RESOLVE = `((specifier) => globalThis.__ks_resolve_import_map(specifier, ${SELF}))`;
+  const URL_FUNCTION = `\nfunction __ks_module_url() { return "https://example.com/__kitesurf_inline_0.js"; }\n`;
+  const HERE = `\nfunction __ks_import_here(s, o) { return __ks_import(s, ${SELF}, o); }`;
+  const walk = async (body: string) => {
+    const { additionalModules } = await walkModuleGraph({
+      descriptors: [moduleInline(body)],
+      pageUrl: "https://example.com/page.html",
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ "https://example.com/dep.js": "export default 1;" }),
+    });
+    return additionalModules["https://example.com/__kitesurf_inline_0.js"];
+  };
+
+  it.each([
+    ["a standalone resolve", `import.meta.resolve("a");`, `${RESOLVE}("a");`],
+    [
+      "a bracketed resolve, not the words in a string",
+      `new URL("import.meta.resolve", import.meta.url) + import.meta ["resolve"]("a");`,
+      `new URL("import.meta.resolve", import.meta.url) + ${RESOLVE}("a");`,
+    ],
+  ])("keeps the rewrite for %s", async (_, body, expected) => {
+    expect(await walk(body)).toBe(expected + URL_FUNCTION);
+  });
+
+  it.each([
+    [
+      "a resolve inside a computed import",
+      `import(import.meta.resolve("a"));`,
+      `__ks_import_here(${RESOLVE}("a"));`,
+    ],
+    [
+      "a resolve after a nested dynamic import",
+      `import(import("/dep.js") + import.meta.resolve("b"));`,
+      `__ks_import_here(import("/dep.js") + ${RESOLVE}("b"));`,
+    ],
+    [
+      "a resolve outside every dynamic import",
+      `import("a");import.meta.resolve("b");`,
+      `__ks_import_here("a");${RESOLVE}("b");`,
+    ],
+    [
+      "a renamed import in a computed import's options",
+      `import(a, { k: import("/v.js?q=1") });`,
+      `__ks_import_here(a, { k: import("https://example.com/v.__ks_query_0.js") });`,
+    ],
+    [
+      "a renamed import in a computed specifier",
+      `import(f(import("/v.js?q=1")));`,
+      `__ks_import_here(f(import("https://example.com/v.__ks_query_0.js")));`,
+    ],
+  ])("keeps the rewrite for %s in a runtime-loader call", async (_, body, expected) => {
+    expect(await walk(body)).toBe(expected + HERE + URL_FUNCTION);
+  });
+
+  it("walks 10,000 imports and 20,000 meta records quickly", async () => {
+    const source = `import("/dep.js");import.meta.url;import.meta.url;`.repeat(10_000);
+    const start = performance.now();
+    expect(await walk(source)).toBe(source);
+    expect(performance.now() - start).toBeLessThan(600);
+  });
+});
+
+describe("walkModuleGraph data: module limits and heuristics", () => {
+  const PAGE = "https://example.com/page.html";
+  const NAME = "https://kitesurf-data.invalid/module-0.js";
+
+  it("holds a static data: import to the bake budget and fails its importer", async () => {
+    const filler = `//${"x".repeat(14 * 1024 * 1024)}\n`;
+    const dep = "data:text/javascript,export default 1;";
+    const { descriptors, additionalModules } = await walkModuleGraph({
+      descriptors: [moduleInline(`import "/a.js"; import "/b.js"; import "/c.js";`)],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound(
+        {
+          "https://example.com/a.js": filler,
+          "https://example.com/b.js": filler,
+          "https://example.com/c.js": `import ${JSON.stringify(dep)};\n${filler}`,
+        },
+        { "https://example.com/c.js": 50 },
+      ),
+    });
+    expect(Object.keys(additionalModules)).not.toContain(NAME);
+    expect(descriptors[0]?.prefetchError).toMatch(/Failed to load static module/);
+  });
+
+  it("charges each copy of a data: module's URL against the bake budget", async () => {
+    // Body plus one URL is 14 MiB, under the budget; the bake holds two more JSON copies.
+    const dep = "data:text/javascript,export default 1;";
+    const source = `import ${JSON.stringify(dep)};//${"x".repeat(7 * 1024 * 1024)}`;
+    const src = `data:text/javascript,${source}`;
+    const { descriptors, additionalModules } = await walkModuleGraph({
+      descriptors: [{ src, kind: "module", defer: false, async: false, body: "" }],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ [src]: source, [dep]: "export default 1;" }),
+    });
+    expect(Object.keys(additionalModules)).not.toContain(NAME);
+    expect(descriptors[0]?.prefetchError).toMatch(/Failed to load static module data:/);
+    // The diagnostic names the 7 MiB importer by a prefix, not by its whole URL.
+    expect(descriptors[0]?.prefetchError?.length).toBeLessThan(1024);
+  });
+
+  it("holds a data: import of a webpack chunk to the bake budget", async () => {
+    const filler = `//${"x".repeat(14 * 1024 * 1024)}\n`;
+    const dep = "data:text/javascript,export default 1;";
+    const runtime = `const r = {}; r.u = (e) => "" + {1:"chunk"}[e] + "." + {1:"abc"}[e] + ".js"; r.e(1);\n`;
+    const { additionalModules } = await walkModuleGraph({
+      descriptors: [moduleInline(`import "/runtime.js"; import "/a.js";`)],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({
+        "https://example.com/runtime.js": runtime + filler,
+        "https://example.com/a.js": filler,
+        "https://example.com/chunk.abc.js": `import ${JSON.stringify(dep)};\n${filler}`,
+      }),
+    });
+    // The chunk fails with its dropped dependency instead of keeping a data: literal.
+    expect(Object.keys(additionalModules)).not.toContain(NAME);
+    expect(Object.keys(additionalModules)).not.toContain("https://example.com/chunk.abc.js");
+  });
+
+  it("does not parse a data: module's URL as the base of each relative import()", async () => {
+    const source = `globalThis.f = () => { ${'import("./x.js");'.repeat(4000)} };/*${"x".repeat(600 * 1024)}*/`;
+    const src = `data:text/javascript,${source}`;
+    const start = performance.now();
+    await walkModuleGraph({
+      descriptors: [{ src, kind: "module", defer: false, async: false, body: "" }],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ [src]: source }),
+    });
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
+  it("does not stub a broken data: module script whose source ends in an asset extension", async () => {
+    const source = "globalThis.ran = (;//a.css";
+    const src = `data:text/javascript,${source}`;
+    const { descriptors, additionalModules } = await walkModuleGraph({
+      descriptors: [{ src, kind: "module", defer: false, async: false, body: "" }],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ [src]: source }),
+    });
+    expect(descriptors[0]?.prefetchError).toContain("lex failed");
+    expect(additionalModules[NAME]).toBeUndefined();
+  });
+
+  it.each(["a.css", "a.wasm"])("bakes a data: import ending in %s as source", async (tail) => {
+    const dep = `data:text/javascript,export const v = 1;//${tail}`;
+    const { descriptors, additionalModules } = await walkModuleGraph({
+      descriptors: [moduleInline(`import { v } from ${JSON.stringify(dep)}; globalThis.v = v;`)],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ [dep]: `export const v = 1;//${tail}` }),
+    });
+    expect(descriptors[0]?.prefetchError).toBeUndefined();
+    expect(typeof additionalModules[NAME]).toBe("string");
+    expect(String(additionalModules[NAME])).not.toContain("asset-import side-effect stub");
+  });
+
+  it("gives import.meta inside a data: module's import() options the data: URL", async () => {
+    const source =
+      `import "https://example.com/dep.js";` +
+      `globalThis.a = import("https://example.com/dep.js", { k: import.meta.url });` +
+      `globalThis.b = import("pkg", { k: import.meta.url });`;
+    const src = `data:text/javascript,${source}`;
+    const { additionalModules } = await walkModuleGraph({
+      descriptors: [{ src, kind: "module", defer: false, async: false, body: "" }],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      sandboxOutbound: stubOutbound({ [src]: source }),
+    });
+    // The helper returns the data: URL, which is the original source; the rest is the bake.
+    const code = String(additionalModules[NAME]).replace(
+      `function __ks_module_url() { return ${JSON.stringify(src)}; }`,
+      "",
+    );
+    expect(code).not.toContain("import.meta");
+    expect(code.split("__ks_import_meta.url").length - 1).toBe(2);
+  });
+
+  // Chrome gives an import its importer's parser-inserted status, so 'strict-dynamic' trusts a
+  // data: import only through the nonce it inherits. An https: import keeps the old behavior.
+  it.each([
+    ["data:text/javascript,export default 1;", undefined, true],
+    ["data:text/javascript,export default 1;", "n0nce", false],
+    ["https://example.com/dep.js", undefined, false],
+  ])("under 'strict-dynamic', %s with nonce %s is blocked: %s", async (dep, nonce, blocked) => {
+    const { descriptors } = await walkModuleGraph({
+      descriptors: [{ ...moduleInline(`import ${JSON.stringify(dep)};`), nonce }],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      options: {
+        gate: {
+          documentUrl: PAGE,
+          policies: parseCspPolicies(["script-src 'strict-dynamic' 'nonce-n0nce'"]),
+          reportOnlyPolicies: [],
+          upgradeInsecureRequests: false,
+        },
+      },
+      sandboxOutbound: stubOutbound({ [dep]: "export default 1;" }),
+    });
+    expect(!!descriptors[0]?.prefetchError).toBe(blocked);
   });
 });

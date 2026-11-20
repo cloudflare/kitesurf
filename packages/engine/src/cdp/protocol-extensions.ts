@@ -37,6 +37,12 @@ declare module "devtools-protocol" {
         _kitesurfInternal?: boolean;
         _kitesurfPostData?: string;
         _kitesurfPostContentType?: string;
+        _kitesurfLoaderId?: string;
+        /**
+         * Origin of the document that initiated a page-started navigation. Absent for a
+         * browser/CDP-started navigation; the literal "null" for an opaque page initiator.
+         */
+        _kitesurfInitiatorOrigin?: string;
       }
       interface StartScreencastRequest {
         minFrameIntervalMs?: integer;
@@ -50,6 +56,11 @@ declare module "devtools-protocol" {
 
       interface TargetScopedRequest {
         targetId?: Target.TargetID;
+      }
+
+      interface GetMemoryStatsRequest extends TargetScopedRequest {
+        /** Reset only the PageScript allocator's diagnostic peak window before reading it. */
+        resetPeak?: boolean;
       }
 
       /** Reply of the per-target methods that fan out without a `targetId`. */
@@ -264,6 +275,10 @@ declare module "devtools-protocol" {
         };
       }
 
+      // Patterns are JS RegExp syntax, non-unicode and flagless. Lookaround, backreferences,
+      // octal escapes, repeats over 1000 and expansions past 8192 steps are refused, and at most
+      // 32 patterns of 500 chars each are accepted. One refused pattern rejects the call and
+      // keeps the previous filters. Cost is linear in URL x pattern size; URLs are unbounded.
       interface SetOutboundFiltersRequest {
         allowRequestPattern?: string[];
         rejectRequestPattern?: string[];
@@ -423,7 +438,7 @@ declare module "devtools-protocol/types/protocol-mapping" {
         returnType: Protocol.Kitesurf.GetPaintDamageSinceResponse;
       };
       "Kitesurf.getMemoryStats": {
-        paramsType: [Protocol.Kitesurf.TargetScopedRequest?];
+        paramsType: [Protocol.Kitesurf.GetMemoryStatsRequest?];
         returnType: Protocol.Kitesurf.GetMemoryStatsResponse;
       };
       "Kitesurf.setOutboundFilters": {

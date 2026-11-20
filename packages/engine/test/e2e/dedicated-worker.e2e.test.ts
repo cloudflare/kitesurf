@@ -21,6 +21,16 @@ test("a blob worker answers messages and sees a worker global", async ({ page })
           noDocument: typeof document === "undefined",
           protocol: location.protocol,
           ua: navigator.userAgent.length > 0,
+          // MapLibre's worker serializer tests instanceof ImageData unguarded.
+          imageData: new ImageData(2, 1).data.length,
+          emptyImageData: (function () {
+            try {
+              new ImageData(new Uint8ClampedArray(0), 1);
+              return "no error";
+            } catch (err) {
+              return err.name;
+            }
+          })(),
         });
       };`;
     const url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
@@ -46,6 +56,8 @@ test("a blob worker answers messages and sees a worker global", async ({ page })
       noDocument: true,
       protocol: "blob:",
       ua: true,
+      imageData: 8,
+      emptyImageData: "InvalidStateError",
     },
     {
       echo: { n: 2, nested: [1, { deep: true }] },
@@ -55,6 +67,8 @@ test("a blob worker answers messages and sees a worker global", async ({ page })
       noDocument: true,
       protocol: "blob:",
       ua: true,
+      imageData: 8,
+      emptyImageData: "InvalidStateError",
     },
   ]);
 });
@@ -96,6 +110,102 @@ test("an http worker loads from the page origin and fetches through the gateway"
     body: "kitesurf-xhr-ok",
   });
 });
+
+test("a worker's same-origin fetch stays same-origin across a redirect", async ({ page }) => {
+  await page.goto("http://127.0.0.1:8787/__fixtures/worker-host.html", {
+    waitUntil: "domcontentloaded",
+  });
+  const reply = await page.evaluate(async () => {
+    // The redirect answers without CORS headers, so only a same-origin hop can follow it.
+    const urls = ["/__fixtures/response-shapes/page.html", "/__fixtures/response-shapes/redirect"];
+    const source =
+      "const go = (u) => fetch(u).then((r) => r.status + ' ' + r.type, () => 'rejected');" +
+      `Promise.all(${JSON.stringify(urls.map((u) => location.origin + u))}.map(go))` +
+      ".then((r) => postMessage(r));";
+    const worker = new Worker(URL.createObjectURL(new Blob([source])));
+    const data = await new Promise((resolve) => {
+      worker.onmessage = (e) => resolve(e.data);
+    });
+    worker.terminate();
+    return data;
+  });
+  expect(reply).toEqual(["200 basic", "200 basic"]);
+});
+
+// A worker runs with its creator's origin, so a cross-origin hop of its script fetch would supply
+// source the engine still treats as the creator's own.
+const WORKER_REDIRECT_PAGE = "http://127.0.0.1:8787/__fixtures/worker-host.html";
+const WORKER_ORIGIN = "http://127.0.0.1:8787";
+const FOREIGN_WORKER_ORIGIN = "https://ks-alt.invalid";
+
+const workerRedirectCases = [
+  {
+    name: "a same-origin worker script redirect still loads",
+    to: WORKER_ORIGIN,
+    allowed: true,
+  },
+  {
+    name: "a cross-origin worker script redirect is refused before the hop",
+    to: FOREIGN_WORKER_ORIGIN,
+    allowed: false,
+  },
+  {
+    name: "a redirect that leaves the creator origin is refused before the foreign hop",
+    to: WORKER_ORIGIN,
+    via: FOREIGN_WORKER_ORIGIN,
+    allowed: false,
+  },
+  {
+    // A page that replaces URL's origin getter gets past an in-page origin check, so the
+    // redirect check must not read the page's URL.
+    name: "a page-replaced URL origin cannot widen a worker script redirect",
+    to: FOREIGN_WORKER_ORIGIN,
+    poison: true,
+    allowed: false,
+  },
+];
+
+for (const testCase of workerRedirectCases) {
+  test(testCase.name, async ({ page }) => {
+    await page.goto(WORKER_REDIRECT_PAGE, { waitUntil: "domcontentloaded" });
+    const key = Math.random().toString(36).slice(2);
+    const terminal = `${testCase.to}/__fixtures/worker-hop/${key}.js`;
+    const target = testCase.via
+      ? `${testCase.via}/__fixtures/worker-hop-back?key=${key}&to=${encodeURIComponent(terminal)}`
+      : terminal;
+    const start = "/__fixtures/cors-redirect?to=" + encodeURIComponent(target);
+    const poison = testCase.poison
+      ? `var pageOrigin = new NativeURL(location.href).origin;
+         var descriptor = Object.getOwnPropertyDescriptor(NativeURL.prototype, "origin");
+         Object.defineProperty(NativeURL.prototype, "origin", {
+           configurable: true,
+           get: function () { return pageOrigin; },
+         });
+         var restore = function () {
+           Object.defineProperty(NativeURL.prototype, "origin", descriptor);
+         };`
+      : "var restore = function () {};";
+    const outcome = (await page.evaluate(`
+      new Promise(function (resolve) {
+        var NativeURL = URL;
+        ${poison}
+        var w = new Worker(${JSON.stringify(start)});
+        w.onmessage = function (e) { restore(); resolve({ message: e.data }); };
+        w.onerror = function () { restore(); resolve({ error: true }); };
+      })
+    `)) as { message?: string; error?: boolean };
+    const hits = (await page.evaluate(
+      `Promise.all([${JSON.stringify(`/__fixtures/worker-hop-hits/${key}`)},
+        ${JSON.stringify(`/__fixtures/worker-hop-hits/back-${key}`)}]
+        .map((u) => fetch(u).then((r) => r.json()).then((b) => b.hits)))`,
+    )) as number[];
+    expect(hits, "requests the redirect target and the foreign hop received").toEqual([
+      testCase.allowed ? 1 : 0,
+      0,
+    ]);
+    expect(outcome).toEqual(testCase.allowed ? { message: `hop:${key}` } : { error: true });
+  });
+}
 
 test("transferred buffers detach on the sender and arrive intact", async ({ page }) => {
   await setContent(

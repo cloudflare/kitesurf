@@ -4,6 +4,8 @@
 
 // Handles document and element scroll offsets, wheel chaining, and trusted scroll events.
 
+import type { KsScrollInfo } from "../../../core/pkg/kitesurf_core";
+import type { NodeBase } from "../node-base.js";
 import { ksGlobal, dom, WINDOW_KEY, opts, nodeFor } from "../state.js";
 import type { AuthScrollInfoSnapshot } from "../state.js";
 import {
@@ -18,6 +20,7 @@ import { bumpMutationSeq, markDamageNode } from "../mutations/seq.js";
 import { KsEvent } from "../events/event.js";
 import { dispatchTrustedEvent, dispatchTrustedOnKey } from "../events/dispatch.js";
 import { MAX_SCROLL_CHAIN_HOPS } from "../constants.js";
+import { ksInternals } from "../internals.js";
 
 const WHEEL_SCROLL_REMAINDER_EPSILON_CSS_PX = 0.5;
 
@@ -59,9 +62,9 @@ function nodeScrollInfoSafe(nodeId: number): AuthScrollInfoSnapshot | null {
     try {
       const layoutInfo = scrollInfoCb(nodeId);
       if (layoutInfo && typeof layoutInfo === "object") {
-        let wasmInfo: any = null;
+        let wasmInfo: KsScrollInfo | null = null;
         try {
-          wasmInfo = (dom as any).nodeScrollInfo(nodeId);
+          wasmInfo = dom.nodeScrollInfo(nodeId);
         } catch {}
         return {
           scrollTop: wasmInfo?.scrollTop ?? layoutInfo.scrollTop ?? 0,
@@ -86,13 +89,13 @@ function nodeScrollInfoSafe(nodeId: number): AuthScrollInfoSnapshot | null {
     } catch {}
   }
   try {
-    const info = (dom as any).nodeScrollInfo(nodeId);
+    const info = dom.nodeScrollInfo(nodeId);
     if (info && typeof info === "object") return info;
   } catch {}
   return null;
 }
 
-function fireElementScroll(el: any): void {
+function fireElementScroll(el: NodeBase): void {
   const id: number = el._id;
   if (id == null) return;
   try {
@@ -194,8 +197,8 @@ function scrollNodeByWheel(
 
 function scrollByWheel(hitNodeId: number, dx: number, dy: number): boolean {
   const state: WheelScrollState = { remainingX: dx, remainingY: dy, handled: false };
-  const cellX = Math.max(0, Number(ksGlobal.__ks_tty_cell_w) || 0);
-  const cellY = Math.max(0, Number(ksGlobal.__ks_tty_cell_h) || 0);
+  const cellX = Math.max(0, Number(ksInternals.ttyCellWidth) || 0);
+  const cellY = Math.max(0, Number(ksInternals.ttyCellHeight) || 0);
   const htmlId = dom.querySelector("html");
   let cur = hitNodeId;
   let safety = 0;
@@ -224,7 +227,7 @@ function scrollByWheel(hitNodeId: number, dx: number, dy: number): boolean {
   }
   return state.handled;
 }
-ksGlobal.__ks_scrollByWheel = scrollByWheel;
+ksInternals.scrollByWheel = scrollByWheel;
 
 function setScrollOffset(
   x: unknown,
@@ -249,7 +252,7 @@ function setScrollOffset(
   }
   if (fireEvent && (before.x !== after.x || before.y !== after.y)) {
     try {
-      let docKey: any = WINDOW_KEY;
+      let docKey: number | string = WINDOW_KEY;
       try {
         docKey = dom.documentNodeId();
       } catch {}
@@ -264,7 +267,7 @@ function setScrollOffset(
     const scheduleScrollend = () => {
       if (mySeq !== scrollendSeq) return;
       try {
-        let docKey: any = WINDOW_KEY;
+        let docKey: number | string = WINDOW_KEY;
         try {
           docKey = dom.documentNodeId();
         } catch {}

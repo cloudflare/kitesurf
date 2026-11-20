@@ -4,7 +4,7 @@
 
 // Resolves option lists and selectedness for select controls.
 
-import { dom } from "../../state.js";
+import { dom, isElementNode } from "../../state.js";
 import { TEXT_NODE } from "../../constants.js";
 import { SelectednessWeakMap, optionSelected, selectednessWrites } from "../../registries.js";
 import { getInternalState } from "../../internal-state.js";
@@ -19,8 +19,9 @@ function isOptionEffectivelyDisabled(option: HTMLOptionElement | null | undefine
   if (option.disabled) return true;
   let p = option.parentNode;
   while (p) {
-    if (p.localName === "optgroup" && p.disabled) return true;
-    if (p.localName === "select") break;
+    // Any element named optgroup or select counts, in any namespace.
+    if (isElementNode(p) && p.localName === "optgroup" && p.disabled) return true;
+    if (isElementNode(p) && p.localName === "select") break;
     p = p.parentNode;
   }
   return false;
@@ -92,14 +93,13 @@ function selectedOptionsOf(
 
 function resyncSelectLabel(select: Element | null): void {
   if (!isHtmlTag(select, "select")) return;
-  if (typeof dom.setSelectLabel !== "function") return;
   const opts = selectOptions(select);
   let chosen: HTMLOptionElement | null = null;
   chosen = selectedOptionsOf(select, opts)[0] ?? null;
   if (!chosen && opts.length > 0) chosen = opts[0];
   const text = chosen ? chosen.textContent || "" : null;
   let removedLabelId = -1;
-  if (!text && typeof dom.childIds === "function") {
+  if (!text) {
     const ids = Array.from<number>(dom.childIds(select._id));
     const lastId = ids.at(-1);
     if (lastId !== undefined) {

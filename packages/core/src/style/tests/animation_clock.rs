@@ -6,7 +6,7 @@
 
 use ::style::properties::LonghandId;
 
-use crate::style::transitions::{AnimationEvent, TransitionEvent};
+use crate::style::transitions::{occurrence_ordinals, AnimationEvent, TransitionEvent};
 use crate::DomHandle;
 
 fn computed(dom: &DomHandle, node_id: u32, longhand: LonghandId) -> String {
@@ -256,9 +256,14 @@ fn transition_events_mint_handle_for_internal_inner_html_descendant() {
         let host_internal = dom.resolve_node_id(host).expect("mapped host");
         doc.get_node(host_internal)
             .expect("live host")
-            .children
+            .children()
             .iter()
-            .map(|id| (*id, handles.external_by_internal[id]))
+            .map(|id| {
+                (
+                    id,
+                    handles.existing_external(id).expect("seeded child mapped"),
+                )
+            })
             .collect()
     };
     for &(_, child) in &stale_children {
@@ -273,7 +278,11 @@ fn transition_events_mint_handle_for_internal_inner_html_descendant() {
     let new_internal = {
         let doc = dom.doc.borrow();
         let host_internal = dom.resolve_node_id(host).expect("mapped host");
-        doc.get_node(host_internal).expect("live host").children[0]
+        doc.get_node(host_internal)
+            .expect("live host")
+            .children()
+            .first()
+            .unwrap()
     };
     let (stale_internal, stale_child) = stale_children
         .into_iter()
@@ -281,10 +290,10 @@ fn transition_events_mint_handle_for_internal_inner_html_descendant() {
         .expect("setInnerHtml should reuse an explicitly dropped child slot");
     assert_ne!(stale_internal, new_internal);
     assert!(
-        !dom.node_handles
+        dom.node_handles
             .borrow()
-            .external_by_internal
-            .contains_key(&new_internal),
+            .existing_external(new_internal)
+            .is_none(),
         "the internally parsed child must not already have an external handle"
     );
 
@@ -316,7 +325,12 @@ fn opaque_node_of_a_reused_slot_resolves_to_its_current_id() {
 
     let doc = dom.doc.borrow();
     let host_internal = dom.resolve_node_id(host).expect("mapped host");
-    let span = doc.get_node(host_internal).expect("live host").children[0];
+    let span = doc
+        .get_node(host_internal)
+        .expect("live host")
+        .children()
+        .first()
+        .unwrap();
     assert_ne!(span.as_u64() >> 32, 1, "the span must sit in a reused slot");
     let wasm32_opaque = span.as_u64() as u32 as usize;
     assert_eq!(doc.tree().id_from_opaque(wasm32_opaque), Some(span));
@@ -649,22 +663,10 @@ fn occurrence_ordinals_count_from_the_right() {
     let a = Atom::from("a");
     let b = Atom::from("b");
 
-    assert_eq!(
-        crate::style::transitions::occurrence_ordinals([&a]),
-        vec![0]
-    );
-    assert_eq!(
-        crate::style::transitions::occurrence_ordinals([&a, &a]),
-        vec![1, 0]
-    );
-    assert_eq!(
-        crate::style::transitions::occurrence_ordinals([&a, &a, &a]),
-        vec![2, 1, 0]
-    );
-    assert_eq!(
-        crate::style::transitions::occurrence_ordinals([&a, &b]),
-        vec![0, 0]
-    );
+    assert_eq!(occurrence_ordinals([&a]), vec![0]);
+    assert_eq!(occurrence_ordinals([&a, &a]), vec![1, 0]);
+    assert_eq!(occurrence_ordinals([&a, &a, &a]), vec![2, 1, 0]);
+    assert_eq!(occurrence_ordinals([&a, &b]), vec![0, 0]);
 }
 
 #[test]
@@ -682,7 +684,7 @@ fn simultaneous_animation_events_follow_composite_order() {
 </style></head><body>
 <div id="one">x</div><div id="two">y</div>
 </body></html>"##;
-    let dom = crate::DomHandle::new(html, "https://test.example/");
+    let dom = DomHandle::new(html, "https://test.example/");
     dom.set_animation_events_requested(true);
     dom.resolve_layout();
     let one = dom.query_selector("#one").expect("query ok") as u32;
@@ -729,7 +731,7 @@ fn canceled_animation_sorts_before_live_start_on_the_same_owner() {
 #t { animation: 1s linear 0s 1 normal both fade, 1s linear 0s 1 normal both spin }
 #t.grow-fade { animation: 1s linear 0s 1 normal both grow, 1s linear 0s 1 normal both fade }
 </style></head><body><div id="t">x</div></body></html>"##;
-    let dom = crate::DomHandle::new(html, "https://test.example/");
+    let dom = DomHandle::new(html, "https://test.example/");
     dom.set_animation_events_requested(true);
     dom.resolve_layout();
     let id = dom.query_selector("#t").expect("query ok") as u32;
@@ -765,7 +767,7 @@ fn a_moved_owner_cancels_by_its_current_tree_order() {
 </style></head><body>
 <div id="one">x</div><div id="two">y</div>
 </body></html>"##;
-    let dom = crate::DomHandle::new(html, "https://test.example/");
+    let dom = DomHandle::new(html, "https://test.example/");
     dom.set_animation_events_requested(true);
     dom.resolve_layout();
     let one = dom.query_selector("#one").expect("query ok") as u32;
@@ -795,7 +797,7 @@ fn a_moved_owner_cancels_by_its_current_tree_order() {
 fn shadow_animation_events_follow_flat_tree_order() {
     let html = r##"<!DOCTYPE html>
 <html><body><div id="host"></div></body></html>"##;
-    let dom = crate::DomHandle::new(html, "https://test.example/");
+    let dom = DomHandle::new(html, "https://test.example/");
     dom.set_animation_events_requested(true);
     dom.resolve_layout();
     let host = dom.query_selector("#host").expect("query ok") as u32;

@@ -6,6 +6,7 @@
 // Inline SVG paints from a usvg snapshot, which cannot fetch, so each sprite file is parsed into a
 // hidden holder in the document and `<use>` is rewritten to the local fragment.
 
+import { getInternalState } from "./internal-state.js";
 import { state } from "./state.ts";
 import { resourceInflight } from "./resource-fetch.ts";
 import { nativeSleep } from "./native-scheduling.ts";
@@ -61,9 +62,9 @@ function collectUses(): any[] {
   }
 }
 
-export function rewriteSpriteUses(): number {
+export function rewriteSpriteUses(uses: any[] = collectUses()): number {
   let rewritten = 0;
-  for (const use of collectUses()) {
+  for (const use of uses) {
     const ref = externalRef(use);
     if (!ref) continue;
     const ids = loadedSprites.get(ref.url);
@@ -125,7 +126,8 @@ async function loadSprite(url: string): Promise<void> {
 
 export function resolveExternalSvgSprites(): Promise<void> {
   const wanted: string[] = [];
-  for (const use of collectUses()) {
+  const uses = collectUses();
+  for (const use of uses) {
     const ref = externalRef(use);
     if (!ref) continue;
     if (loadedSprites.has(ref.url) || failedSprites.has(ref.url)) continue;
@@ -135,7 +137,7 @@ export function resolveExternalSvgSprites(): Promise<void> {
     }
   }
   if (wanted.length === 0) {
-    rewriteSpriteUses();
+    rewriteSpriteUses(uses);
     return Promise.resolve();
   }
   try {
@@ -164,8 +166,14 @@ export function startLateSpriteSweep(
   intervalMs = LATE_SPRITE_SWEEP_INTERVAL_MS,
 ): void {
   void (async () => {
+    // A pass searches the whole document, so skip it while the tree is unchanged since the last
+    // one: on a 740k-node page each search took about 0.4 s of CPU.
+    let scannedTreeSeq: number | null = null;
     for (let i = 0; i < passes; i++) {
       await nativeSleep(intervalMs);
+      const treeSeq = getInternalState().treeSeq | 0;
+      if (treeSeq === scannedTreeSeq) continue;
+      scannedTreeSeq = treeSeq;
       try {
         await resolveExternalSvgSprites();
       } catch {}

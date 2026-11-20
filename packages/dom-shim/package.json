@@ -17,9 +17,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "vitest run",
-    "types": "tsc --noEmit && pnpm run types:strict",
-    "types:strict": "node ../../scripts/ts-strict-ratchet.mjs --project tsconfig.strict.json --baseline strict-baseline.json",
-    "types:strict:update": "node ../../scripts/ts-strict-ratchet.mjs --project tsconfig.strict.json --baseline strict-baseline.json --update"
+    "types": "tsc --noEmit && node ../../scripts/check-no-explicit-any.mjs src"
   },
   "dependencies": {
     "@kitesurf/jsrpc-types": "workspace:*",
@@ -28,8 +26,8 @@
   "devDependencies": {
     "esbuild": "^0.27.0",
     "typescript": "^5.6.0",
-    "vite": "^8.0.14",
-    "vitest": "^4.1.7",
+    "vite": "^8.1.6",
+    "vitest": "^4.1.12",
     "webmcp-types": "^0.1.5"
   }
 }

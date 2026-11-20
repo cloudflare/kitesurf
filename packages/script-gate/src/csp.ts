@@ -50,7 +50,7 @@ function effectiveDirectiveName(policy: CspPolicy): string {
   return "default-src";
 }
 
-function defaultPortForScheme(scheme: string): string {
+export function defaultPortForScheme(scheme: string): string {
   switch (scheme) {
     case "http:":
       return "80";
@@ -71,7 +71,7 @@ function portOf(url: URL): string {
   return url.port || defaultPortForScheme(url.protocol);
 }
 
-function schemeMatches(sourceScheme: string, urlScheme: string): boolean {
+export function schemeMatches(sourceScheme: string, urlScheme: string): boolean {
   if (sourceScheme === urlScheme) return true;
   if (sourceScheme === "http:" && urlScheme === "https:") return true;
   if (sourceScheme === "ws:" && urlScheme === "wss:") return true;
@@ -108,7 +108,9 @@ function safeDecode(value: string): string {
   }
 }
 
-function sourceExpressionMatches(source: string, url: URL): boolean {
+// After a redirect the path part of a source is not matched (CSP3 §6.7.2.5), so a
+// policy does not reveal where a cross-origin redirect led.
+function sourceExpressionMatches(source: string, url: URL, redirected = false): boolean {
   if (/^[a-z][a-z0-9+.-]*:$/i.test(source)) {
     return schemeMatches(source.toLowerCase(), url.protocol);
   }
@@ -151,7 +153,7 @@ function sourceExpressionMatches(source: string, url: URL): boolean {
     return false;
   }
   if (!hostMatches(sourceHost, url.hostname)) return false;
-  if (sourcePort === "*") return pathMatches(path, url.pathname);
+  if (sourcePort === "*") return redirected || pathMatches(path, url.pathname);
   if (sourcePort) {
     if (sourcePort !== portOf(url)) return false;
   } else if (!sourceScheme) {
@@ -161,7 +163,7 @@ function sourceExpressionMatches(source: string, url: URL): boolean {
       return false;
     }
   }
-  return pathMatches(path, url.pathname);
+  return redirected || pathMatches(path, url.pathname);
 }
 
 export interface CspScriptRequest {
@@ -169,6 +171,8 @@ export interface CspScriptRequest {
   documentUrl: string;
   nonce?: string | null;
   runtimeInserted?: boolean;
+  /** The URL is a redirect target, so source paths are not matched. */
+  redirected?: boolean;
 }
 
 export interface CspVerdict {
@@ -203,8 +207,10 @@ function sourceListAllows(
   if (nonce && nonces.includes(nonce)) return true;
 
   if (request.url === null) {
-    // CSP ignores unsafe-inline once a nonce or hash source is present.
+    // A nonce, a hash or 'strict-dynamic' turns 'unsafe-inline' off:
+    // https://w3c.github.io/webappsec-csp/#allow-all-inline
     if (nonces.length === 0 && hashes.length === 0) {
+      if (lowercaseSources.includes("'strict-dynamic'")) return false;
       return lowercaseSources.includes("'unsafe-inline'");
     }
     for (const inlineHash of inlineHashes) {
@@ -242,7 +248,7 @@ function sourceListAllows(
       continue;
     }
     if (lowercaseSource.startsWith("'")) continue;
-    if (sourceExpressionMatches(source, url)) return true;
+    if (sourceExpressionMatches(source, url, request.redirected === true)) return true;
   }
   return false;
 }
@@ -260,6 +266,40 @@ export function cspAllowsScript(
         allowed: false,
         policyText: policy.text,
         directive: `${effectiveDirectiveName(policy)} ${sourceList.join(" ")}`.trim(),
+      };
+    }
+  }
+  return { allowed: true };
+}
+
+function handlerSourceList(policy: CspPolicy): { name: string; list: string[] } | null {
+  for (const name of ["script-src-attr", "script-src", "default-src"]) {
+    const list = policy.directives.get(name);
+    if (list) return { name, list };
+  }
+  return null;
+}
+
+/** CSP3 inline check for an event handler attribute: a nonce never admits one. A hash needs
+ *  'unsafe-hashes' and an async digest, but handlers compile synchronously, so it refuses.
+ *  A nonce, a hash or 'strict-dynamic' turns 'unsafe-inline' off for the "script attribute"
+ *  type: https://w3c.github.io/webappsec-csp/#allow-all-inline */
+export function cspAllowsInlineHandler(policies: readonly CspPolicy[]): CspVerdict {
+  for (const policy of policies) {
+    const found = handlerSourceList(policy);
+    if (found === null) continue;
+    const sources = found.list.map((source) => source.toLowerCase());
+    const disablesUnsafeInline = sources.some(
+      (source) =>
+        (source.startsWith(NONCE_PREFIX) && source.endsWith("'")) ||
+        HASH_RE.test(source) ||
+        source === "'strict-dynamic'",
+    );
+    if (!sources.includes("'unsafe-inline'") || disablesUnsafeInline) {
+      return {
+        allowed: false,
+        policyText: policy.text,
+        directive: `${found.name} ${found.list.join(" ")}`.trim(),
       };
     }
   }

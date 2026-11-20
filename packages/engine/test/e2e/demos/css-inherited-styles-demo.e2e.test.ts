@@ -40,7 +40,7 @@ test("css-inherited-styles-demo", async ({ page }) => {
     await sleep(10);
   }
 
-  const doc = await session.send("DOM.getDocument");
+  const doc = await session.send("DOM.getDocument", { depth: -1 });
   function findById(root, id) {
     const stack = [root];
     while (stack.length) {

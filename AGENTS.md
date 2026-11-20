@@ -23,7 +23,10 @@ A pnpm monorepo. One line per package; read the code for details.
   machinery, and `src/tty/` the terminal UA styles.
 - `packages/page-script/`: the per-page runtime, bundled to a string and loaded through
   `env.LOADER`. Owns navigation, script execution and CDP DOM/eval routing. `state.ts` is the
-  shared mutable state and holds `ksGlobal`, the package's only arbitrary-key view of `globalThis`.
+  shared mutable state and holds `ksGlobal`, the package's typed view of `globalThis`
+  (`PageScriptGlobals`, which extends dom-shim's `DomShimGlobals`). Declare a new page global
+  there; computed keys go through `ksGlobalByKey`. Engine hooks go on the internals record
+  instead (`KitesurfInternals` in `page-script/src/internal-state.ts`).
 - `packages/dom-shim/`: the in-sandbox DOM (`buildDocument` and the Element, Node, Event and CSSOM
   classes), bundled to a string.
 - `packages/core/`: Rust to wasm on Blitz. `DomHandle`, paint and screenshots, PDF, boa eval, the
@@ -35,12 +38,20 @@ A pnpm monorepo. One line per package; read the code for details.
   render port and owns the wasm resource cache.
 - `packages/worker-script/`: the loaded worker that runs a page's `new Worker()`.
 - `packages/script-gate/`: the shared script-execution policy (SRI, CSP `script-src`, JS MIME and
-  `nosniff`, mixed content), so the engine and PageScript bundle one copy.
+  `nosniff`, mixed content, the iframe sandbox capability set), so the engine and PageScript bundle
+  one copy.
 - `packages/jsrpc-types/`: type-only JSRPC contracts between the engine and its loaded workers.
   Both ends of a call import from here; do not redeclare a wire shape on one side.
 - `packages/scene-host-wasm/`: the CLI's local scene rasterizer, staged into
   `packages/engine/public/rbi/`. The scene protocol is documented in `packages/engine/src/rbi.ts`.
-- `packages/kitesurf-cli/`: the Rust terminal client, with its own Cargo workspace and lockfile.
+- `packages/kitesurf-cli/`: the complete Rust terminal client, including Browser Run and OAuth
+  through public APIs, with its own Cargo workspace and lockfile.
+- `packages/engine-server/`: serves the built `:dist` on Miniflare without `wrangler dev`, for the
+  WPT, Playwright and Puppeteer runners (`scripts/wpt-engine.mjs serve`).
+- `docker/`: the Docker image (`Dockerfile`, built from the repository root), which runs the
+  engine on workerd alone behind `front.js` with the config from `scripts/workerd-config.mjs`,
+  and the Jaeger compose file for `pnpm dev:tracing`. `.github/workflows/docker.yml` publishes
+  the image on tags.
 - `packages/engine/test/fixtures-worker/`: the fixtures Worker that serves `/__fixtures/*` in dev
   and tests only.
 - `scripts/`: development and CI tooling, including the WPT runners, the lint rules and the
@@ -54,15 +65,21 @@ Engine-wide invariants. The owning code carries the detail; keep these in sync w
 
 - Runtime code generation (`Runtime.evaluate`, `eval`, `new Function`, computed `import()`) runs on
   boa inside the per-target PageScript isolate, in dev and production, never in the parent Worker.
-  The loaded worker never gets a native-eval compatibility flag.
-- The CDP WebSocket bounds the session. Per-connection state lives in `handleWebSocket`'s closure;
-  no Durable Object holds it and nothing persists across connections.
+  Only `KITESURF_NATIVE_EVAL=1` on a local workerd (`packages/engine-server`, the Docker image)
+  changes this: the loaded workers get workerd's experimental native-eval flag, so the paths that
+  try V8 first (CDP evaluation, page `eval` and `new Function`) stay on V8. Cloudflare rejects the
+  flag.
+- The CDP WebSocket bounds the session. `BrowserSession` (`cdp/connection.ts`) holds the browser
+  state and `ClientConnection` its one socket, and the session ends when that socket closes. No
+  Durable Object holds it and nothing persists across connections.
 - Each `Page.navigate` loads a fresh anonymous PageScript worker with `env.LOADER.load` and kills
   the previous one. Use `load()`, never a named `LOADER.get`.
 - Wasm panics unwind (`packages/core/.cargo/config.toml`, symlinked into `renderer-core`), so the
   live DOM survives a panic. `scene-host-wasm` stays `abort`.
-- Kitesurf ships no DevTools build (`src/inspector.ts`). Always send `devtoolsFrontendUrl`, or
-  Chrome's **inspect** link does nothing.
+- The DevTools frontend is optional: `--config=devtools` stages Chrome's prebuilt one at
+  `/inspector/`, deploys always include it, and `wrangler dev` falls back to Chrome's hosted one
+  without it (`resolveInspectorBaseUrl`, README). Always send `devtoolsFrontendUrl`, or Chrome's
+  **inspect** link does nothing.
 - `/devtools/page/<id>` selects page mode, which never announces the page as a child target;
   Puppeteer must use `/devtools/browser`.
 - CDP types come from `devtools-protocol`. Declare `Kitesurf.*` methods and extra fields in
@@ -70,6 +87,12 @@ Engine-wide invariants. The owning code carries the detail; keep these in sync w
 - A new target has a live `about:blank` document: `ensurePageScript` (`cdp/dom.ts`) starts a lazy
   isolate, because many clients evaluate without navigating.
 - Layout is incremental. Work done at box construction needs explicit `CONSTRUCT_BOX` damage.
+- Offscreen inline text is evicted by default: after a resolve, an inline root more than two
+  viewport heights from the viewport drops its shaped text and keeps a 48-byte break summary that
+  layout replays, so paint, geometry and print are unchanged. Print and PDF pin their extent
+  (`inline_keep_extent`) so their text stays shaped, and `BaseDocument::set_inline_layout_eviction`
+  turns it off (Rust only, no wasm export). The work is vendor patch `blitz-dom/0078`; the
+  differential tests are `packages/core/src/layout/tests/inline_eviction.rs`.
 - Partial frames are composited in the renderer isolate (`SceneRasterizer`), so CDP clients
   never see one. The terminal scene stream is the exception; see `packages/engine/src/rbi.ts`.
 - `history.pushState` stays in the document unless the navigate URL opts in with
@@ -81,6 +104,10 @@ Do not undo these.
 
 - The sandbox ships a pure-JS `MessagePort`; page JS must never reach the native one.
 - Every outbound request needs a deadline, and an ignored response body must be cancelled.
+- The global's named-properties object (`packages/dom-shim/src/window.ts`) is an ordinary object,
+  never a Proxy: with a Proxy in the global's prototype chain, V8 resolves an unresolvable
+  reference without calling its `has` trap and assigns through `set`, so strict code created a
+  global instead of throwing ReferenceError.
 
 We do not shim single-subtest differences from the spec in the platform; we pin the test and report
 upstream. Reproduce by running the snippet under `node` and under
@@ -104,7 +131,7 @@ Bazel builds and tests everything; the root `package.json` scripts are front end
 build step or check as a Bazel target, not as a pnpm script or a script that CI calls directly.
 `pnpm run build` (`bazel run //packages/engine:dev_build`) copies the wasm, the loaded-worker
 bundles and the RBI files into the source tree, where `wrangler dev` and tools outside Bazel read
-them. The exceptions run cargo through rustup: `lint:rust`, the vendor patch workflow and the
+them. The exceptions run cargo through rustup: the vendor patch workflow and the
 memprof build (`pnpm run dev:memprof`).
 
 ## Vendored crate patches
@@ -129,13 +156,16 @@ pnpm run check             # bazel test //:check, then the tracked-file checks
 pnpm run test:e2e <file-substring>
 pnpm run test:wpt --filter <substring>
 pnpm run test:playwright --filter <substring>
+pnpm run test:puppeteer --filter <substring>   # after pnpm run pptr:setup
 ```
 
 Use an explicit `KITESURF_PORT` or `--port` when other engines may be running, and stop only the
 `wrangler` and `workerd` processes you started.
 
-- **Deploying:** `packages/engine/wrangler.jsonc` is a template with no account or routes.
-  Self-hosting is not supported yet.
+- **Deploying:** `pnpm run deploy [wrangler deploy args]` builds with `--config=devtools` and
+  uploads `:dist` and the assets unbundled (`scripts/engine-deploy.mjs`) to wrangler's account.
+  `pnpm run deploy:preview` does the same with `wrangler versions upload`, which moves no traffic.
+  `packages/engine/wrangler.jsonc` stays a template with no account or routes. Agents never deploy.
 - **Tracing:** send a `traceparent` header (or a bare trace id in it) with `pnpm dev:tracing` running.
 - **WPT:** `test:wpt` starts, health-checks and stops its own engines every `--batch-size` tests.
   It refuses to start if a port in its range is taken. `-j N` runs N engines and uses ports
@@ -179,9 +209,11 @@ Use an explicit `KITESURF_PORT` or `--port` when other engines may be running, a
 
 ### Tests
 
-- Never run a full suite unless asked; the runners are slow and memory-hungry. CI does not run
-  the e2e, WPT or Playwright lanes. Before reporting work complete, run `pnpm run check` and the
-  smallest relevant e2e subset. Uncaught workerd errors fail a run even if assertions pass.
+- Never run a full suite unless asked; the runners are slow and memory-hungry. CI runs the
+  e2e suite (`//tests/e2e:gate`, one bazelflare action per file), the Playwright lane and the WPT
+  gate (`scripts/wpt-ci.sh`); a fork's pull request skips all three, and main runs them once it
+  merges. Before reporting work complete, run `pnpm run check` and the smallest relevant e2e
+  subset. Uncaught workerd errors fail a run even if assertions pass.
 - Do not put `--` before test arguments; pnpm forwards it and the runners misread it.
 - Prefer a hermetic e2e test (`packages/engine/test/e2e/**.e2e.test.ts`) over a script or demo.
   They boot the engine in-process with `@cloudflare/vitest-plugin` and drive it over CDP. Give each
@@ -200,4 +232,7 @@ Use an explicit `KITESURF_PORT` or `--port` when other engines may be running, a
 - Synchronous XHR. workerd has no way to block the JS thread on network I/O.
 - A fake `crypto.subtle`; Workers provide the real one.
 - WebGL, WebGPU, WebAudio, WebRTC, MediaStream and anti-bot fingerprinting.
-- Persistent storage across navigations or connections, and WebDriver; Kitesurf speaks CDP.
+- `sessionStorage` across navigations, and any storage across connections. The exception is
+  `localStorage`, which the engine keeps per browser context and origin for the connection
+  (`packages/engine/src/state/local-storage.ts`).
+- WebDriver; Kitesurf speaks CDP.

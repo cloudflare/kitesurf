@@ -26,9 +26,12 @@ export interface RedirectWalkOptions {
   readonly fetchHop: (req: Request) => Promise<Response>;
   readonly signal?: AbortSignal | undefined;
   readonly maxHops?: number;
-  readonly cookieHeaderFor?: (url: string) => string | null | undefined;
+  readonly cookieHeaderFor?: (url: string, method: "GET" | "POST") => string | null | undefined;
   readonly onSetCookie?: (url: string, resp: Response) => void;
   readonly onRedirect?: (hop: RedirectHop) => void;
+  // Vets each redirect target before it is fetched: the url to fetch (an upgraded one, say), or
+  // null to stop the walk with "redirect-blocked".
+  readonly checkRedirect?: (url: string) => Promise<string | null>;
   readonly taintOriginFrom?: string;
 }
 
@@ -44,7 +47,8 @@ export type RedirectWalkResult =
        */
       readonly referrer: string;
     }
-  | { readonly ok: false; readonly reason: "too-many-redirects" };
+  | { readonly ok: false; readonly reason: "too-many-redirects" }
+  | { readonly ok: false; readonly reason: "redirect-blocked"; readonly url: string };
 
 export class InvalidRedirectError extends Error {
   constructor(location: string, reason: string) {
@@ -96,7 +100,7 @@ export async function walkRedirects(opts: RedirectWalkOptions): Promise<Redirect
     opts.signal?.throwIfAborted?.();
 
     if (opts.cookieHeaderFor) {
-      const cookie = opts.cookieHeaderFor(currentUrl);
+      const cookie = opts.cookieHeaderFor(currentUrl, method);
       deleteHeader(headers, "cookie");
       if (cookie) headers.cookie = cookie;
       else if (callerCookie !== undefined) headers.cookie = callerCookie;
@@ -124,6 +128,9 @@ export async function walkRedirects(opts: RedirectWalkOptions): Promise<Redirect
       };
     }
 
+    // The walk never returns a redirect's body, whether it follows the hop or stops here.
+    void resp.body?.cancel().catch(() => {});
+
     let next: URL;
     try {
       next = new URL(location, currentUrl);
@@ -139,6 +146,12 @@ export async function walkRedirects(opts: RedirectWalkOptions): Promise<Redirect
 
     // Store this hop's cookies before the next loop reads its jar header.
     opts.onSetCookie?.(currentUrl, resp);
+
+    if (opts.checkRedirect) {
+      const allowed = await opts.checkRedirect(next.toString());
+      if (allowed === null) return { ok: false, reason: "redirect-blocked", url: next.toString() };
+      next = new URL(allowed);
+    }
 
     const fromOrigin = originOfUrl(currentUrl);
     const crossOriginHop = fromOrigin === null || next.origin !== fromOrigin;

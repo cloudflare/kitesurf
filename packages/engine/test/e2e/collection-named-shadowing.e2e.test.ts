@@ -32,3 +32,34 @@ test("collection named properties don't shadow subclass members", async ({ page,
     reflection: [null, ["plain"], true, true, "function", false],
   });
 }, 60_000);
+
+const expandoHtml = `<div id="a"><i></i></div><div id="b"><i></i></div>
+<script>
+  (function () {
+    var a = document.getElementById("a").children;
+    var b = document.getElementById("b").children;
+    a.extra = 1;
+    a.later = "expando";
+    for (var id of ["a", "b"]) {
+      var span = document.createElement("span");
+      span.id = "later";
+      document.getElementById(id).appendChild(span);
+    }
+    globalThis.__expandoReport = JSON.stringify({
+      own: [a.extra, document.getElementById("a").children.extra, a.later],
+      other: [b.extra === undefined, "extra" in b, b.later === b[1]],
+      keys: Object.keys(a),
+      removed: [delete a.extra, a.extra === undefined, "extra" in a],
+    });
+  })();
+</script>`;
+
+test("collection expandos stay on their own collection", async ({ page, cdpSession }) => {
+  await setContent(page, expandoHtml, { waitUntil: "domcontentloaded" });
+  expect(await readJsonReport(cdpSession, "globalThis.__expandoReport")).toEqual({
+    own: [1, 1, "expando"],
+    other: [true, false, true],
+    keys: ["0", "1", "extra", "later"],
+    removed: [true, true, false],
+  });
+}, 60_000);

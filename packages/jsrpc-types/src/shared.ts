@@ -82,14 +82,18 @@ export type RawCdpMutation =
   | { kind: "characterDataModified"; nodeId: number; characterData: string }
   | { kind: "shadowRootPushed"; hostId: number; root: Protocol.DOM.Node };
 
+// Structural changes carry the parent's child count, for clients that know the parent but
+// not its children (`DOM.childNodeCountUpdated` instead).
 export type CdpMutation =
-  | Exclude<RawCdpMutation, { kind: "childNodeInserted" }>
+  | Exclude<RawCdpMutation, { kind: "childNodeInserted" | "childNodeRemoved" }>
   | {
       kind: "childNodeInserted";
       parentNodeId: number;
       previousNodeId: number;
       node: Protocol.DOM.Node;
+      parentChildNodeCount: number;
     }
+  | { kind: "childNodeRemoved"; parentNodeId: number; nodeId: number; parentChildNodeCount: number }
   | { kind: "stylesheetResourceLoaded" };
 
 export interface JsWindowDrain {

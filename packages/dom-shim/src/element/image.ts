@@ -4,6 +4,7 @@
 
 // Implements HTMLImageElement attributes and connects images to load-state handling.
 
+import type { WrapperInfo } from "../node-base.js";
 import type * as Idl from "../idl/types.generated.js";
 import { nodeScrollInfoSafe } from "../layout/scroll.js";
 import {
@@ -54,7 +55,7 @@ interface HTMLImageElement extends Pick<Idl.HTMLImageElement, ReflectedImageMemb
 // this prototype. The image sizes reflection replaces Element's shared <link>
 // accessor at runtime, but the installer cannot narrow the inherited type.
 class HTMLImageElement extends HTMLElement implements Idl.HTMLImageElement {
-  constructor(nodeId: number, info: unknown, token?: symbol) {
+  constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
     super(nodeId, info);
     checkInternalConstruct(token, "HTMLImageElement");
   }

@@ -9,9 +9,10 @@ import { test } from "node:test";
 import {
   buildScriptGateContext,
   checkScriptBeforeFetch,
+  checkScriptRedirect,
   checkScriptResponse,
 } from "../src/gate.ts";
-import { cspAllowsScript, parseCspPolicies } from "../src/csp.ts";
+import { cspAllowsInlineHandler, cspAllowsScript, parseCspPolicies } from "../src/csp.ts";
 import { blockedByNosniff, isJavaScriptMime, isModuleMime } from "../src/mime.ts";
 import { digestBase64, integrityMatches, parseIntegrity } from "../src/sri.ts";
 
@@ -191,6 +192,69 @@ test("a nosniff JSON response is refused at the response gate", async () => {
   assert.equal(verdict.reason, "nosniff");
 });
 
+test("the effective MIME type decides, and non-script data never runs", async () => {
+  const cases: {
+    contentType: string;
+    contentTypeOptions?: string;
+    module?: boolean;
+    expected: [boolean, string | undefined];
+  }[] = [
+    // Fetch takes the last valid MIME type from a combined Content-Type header.
+    {
+      contentType: "text/javascript; charset=utf-8, text/plain",
+      contentTypeOptions: "nosniff",
+      expected: [false, "nosniff"],
+    },
+    {
+      contentType: "text/javascript; charset=utf-8, text/plain",
+      contentTypeOptions: "nosniff",
+      module: true,
+      expected: [false, "nosniff"],
+    },
+    {
+      contentType: "text/plain, text/javascript",
+      contentTypeOptions: "nosniff",
+      expected: [true, undefined],
+    },
+    // Non-script data types are refused whether or not nosniff is present.
+    { contentType: "image/png", expected: [false, "mime"] },
+    { contentType: "audio/ogg", expected: [false, "mime"] },
+    { contentType: "video/mp4", expected: [false, "mime"] },
+    { contentType: "text/csv", expected: [false, "mime"] },
+    // Malformed parameters never fail the parse; leading subtype whitespace does.
+    { contentType: "image/png;", expected: [false, "mime"] },
+    { contentType: 'text/csv; a="b"c; d; =e;;', expected: [false, "mime"] },
+    { contentType: "text/javascript; charset=", module: true, expected: [true, undefined] },
+    {
+      contentType: "text/\tjavascript",
+      contentTypeOptions: "nosniff",
+      expected: [false, "nosniff"],
+    },
+    // A classic script on a non-JS type still runs without nosniff.
+    { contentType: "text/javascript", expected: [true, undefined] },
+    { contentType: "text/plain", expected: [true, undefined] },
+    // A quoted MIME parameter may contain a comma.
+    {
+      contentType: 'text/javascript; charset="utf-8,utf-16"',
+      module: true,
+      expected: [true, undefined],
+    },
+  ];
+
+  for (const entry of cases) {
+    const verdict = await checkScriptResponse(
+      { url: "https://example.com/x.js", module: entry.module === true },
+      {
+        contentType: entry.contentType,
+        contentTypeOptions: entry.contentTypeOptions ?? null,
+        bytes: bytes("x"),
+        opaque: false,
+      },
+    );
+    assert.deepEqual([verdict.allowed, verdict.reason], entry.expected, entry.contentType);
+  }
+});
+
 const gateWith = (...csp: string[]) => buildScriptGateContext(DOC, { cspHeaders: csp });
 
 test("'self' admits same-origin and refuses a third-party host", async () => {
@@ -220,6 +284,19 @@ test("a nonce policy is not defeated by a legacy 'unsafe-inline'", async () => {
   });
   assert.equal(injected.allowed, false);
   assert.equal(injected.reason, "csp");
+});
+
+test("'strict-dynamic' turns off a legacy 'unsafe-inline' for inline scripts", async () => {
+  const gate = gateWith("script-src 'strict-dynamic' 'unsafe-inline'");
+  const inline = await checkScriptBeforeFetch(gate, { url: null, body: "steal()" });
+  assert.equal(inline.allowed, false);
+  assert.equal(inline.reason, "csp");
+  const inserted = await checkScriptBeforeFetch(gate, {
+    url: null,
+    body: "steal()",
+    runtimeInserted: true,
+  });
+  assert.equal(inserted.allowed, false);
 });
 
 test("a hash source admits exactly the inline body it names", async () => {
@@ -510,5 +587,45 @@ test("a plain-http document is not held to mixed content", async () => {
   assert.equal(
     (await checkScriptBeforeFetch(gate, { url: "http://cdn.example.com/a.js" })).allowed,
     true,
+  );
+});
+
+test("inline event handlers follow script-src-attr, then script-src, then default-src", () => {
+  const allowed = (...headers: string[]) =>
+    cspAllowsInlineHandler(parseCspPolicies(headers)).allowed;
+  assert.equal(allowed(), true);
+  assert.equal(allowed("img-src 'self'"), true);
+  assert.equal(allowed("script-src 'self' 'unsafe-inline'"), true);
+  assert.equal(allowed("default-src 'unsafe-inline'"), true);
+  assert.equal(allowed("script-src 'self'"), false);
+  assert.equal(allowed("default-src 'none'"), false);
+  // A nonce admits script elements, never handler attributes, and turns off 'unsafe-inline'.
+  assert.equal(allowed("script-src 'nonce-abc' 'unsafe-inline'"), false);
+  assert.equal(allowed(`script-src 'unsafe-inline' ${cspHash("sha256", "go()")}`), false);
+  // 'strict-dynamic' turns off 'unsafe-inline' for handler attributes as well.
+  assert.equal(allowed("script-src 'strict-dynamic' 'unsafe-inline'"), false);
+  assert.equal(allowed("script-src-attr 'strict-dynamic' 'unsafe-inline'"), false);
+  // script-src-attr takes precedence over script-src for attributes.
+  assert.equal(allowed("script-src 'nonce-abc'; script-src-attr 'unsafe-inline'"), true);
+  assert.equal(allowed("script-src 'unsafe-inline'; script-src-attr 'none'"), false);
+  // Every enforced policy must allow it.
+  assert.equal(allowed("script-src 'unsafe-inline'", "script-src 'self'"), false);
+});
+
+test("a redirect target is rechecked against the source list, ignoring paths", () => {
+  const ctx = buildScriptGateContext(DOC, {
+    cspHeaders: ["script-src https://cdn.example/lib/ 'nonce-abc'"],
+  });
+  const request = { url: "https://cdn.example/lib/a.js" };
+  assert.equal(checkScriptRedirect(ctx, request, "https://cdn.example/elsewhere.js").allowed, true);
+  assert.deepEqual(checkScriptRedirect(ctx, request, "https://evil.example/a.js").reason, "csp");
+  // A nonce admits the script wherever it redirects, as for the initial request.
+  assert.equal(
+    checkScriptRedirect(ctx, { ...request, nonce: "abc" }, "https://evil.example/a.js").allowed,
+    true,
+  );
+  assert.equal(
+    checkScriptRedirect(ctx, request, "http://cdn.example/lib/a.js").reason,
+    "mixed-content",
   );
 });

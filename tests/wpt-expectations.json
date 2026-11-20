@@ -2546,8 +2546,8 @@
     "reason": "T18 enrollment (css-display): measured PASS"
   },
   "/css/css-display/display-contents-focusable-001.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-display): 0/1 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-display/display-contents-inline-001.html": {
     "expected": "PASS",
@@ -3911,8 +3911,8 @@
     "subtestSlack": 17
   },
   "/css/css-masking/animations/clip-path-interpolation-shape-control-points.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-masking): 177/306 subtests pass \u2014 the animation matrix runs 2-4s on a healthy CI node, and a 2.4x-slower node turned two of its siblings from FAIL into TIMEOUT at the default 5s scrape budget",
+    "expected": "PASS",
+    "reason": "slow: the animation matrix runs 2-4s on a healthy CI node, and a 2.4x-slower node turned two of its siblings from FAIL into TIMEOUT at the default 5s scrape budget",
     "timeout": 15000
   },
   "/css/css-masking/animations/clip-path-interpolation-shape.html": {
@@ -4554,7 +4554,9 @@
   },
   "/css/css-masking/parsing/mask-computed.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-masking): 25/32 subtests pass"
+    "slow": true,
+    "timeout": 20000,
+    "reason": "slow: finishes at 4.9-5.0 s against the 5000ms default budget, so fresh draws alternate FAIL and TIMEOUT. T18 enrollment (css-masking): 25/32 subtests pass"
   },
   "/css/css-masking/parsing/mask-image-computed.html": {
     "expected": "PASS",
@@ -4611,6 +4613,41 @@
   "/css/css-masking/parsing/mask-valid.sub.html": {
     "expected": "FAIL",
     "reason": "T18 enrollment (css-masking): 38/55 subtests pass"
+  },
+  "/css/css-mixins/function-relative-units.html": {
+    "expected": "FAIL",
+    "reason": "0/11 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
+  },
+  "/css/css-mixins/functions/dashed-function-cycles.html": {
+    "expected": "FAIL",
+    "reason": "0/25 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
+  },
+  "/css/css-mixins/functions/dashed-function-eval.html": {
+    "expected": "FAIL",
+    "reason": "0/89 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
+  },
+  "/css/css-mixins/functions/function-conditionals.html": {
+    "expected": "FAIL",
+    "reason": "0/22 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
+  },
+  "/css/css-mixins/functions/function-parameter-types.tentative.html": {
+    "expected": "FAIL",
+    "reason": "0/7 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
+  },
+  "/css/css-mixins/functions/function-shadow.html": {
+    "expected": "FAIL",
+    "reason": "1/11 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
+  },
+  "/css/css-mixins/functions/local-if-substitution.html": {
+    "expected": "FAIL",
+    "reason": "0/20 subtests pass. CSS custom functions (@function and <dashed-function> calls) are not implemented: stylo parses neither, so `--actual: --f()` is never evaluated and does not match `--expected`. The old PASS was vacuous: getComputedStyle read \"\" for every custom property, so both sides matched. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-multicol/inheritance.html": {
     "expected": "PASS",
@@ -6227,15 +6264,16 @@
   },
   "/css/css-values/attr-argument-grammar.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 9/15 subtests pass"
+    "reason": "8/15 subtests pass. attr() does not take var() in its name, type or unit arguments. The one further earlier pass compared \"\" with \"\" while getComputedStyle read no custom property. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-values/attr-container-style-query.html": {
     "expected": "FAIL",
     "reason": "T18 enrollment (css-values): 0/1 subtests pass"
   },
   "/css/css-values/attr-css-wide-keywords.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 7/21 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-values/attr-cycle.html": {
     "expected": "FAIL",
@@ -6250,8 +6288,8 @@
     "reason": null
   },
   "/css/css-values/attr-length-specified.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 0/3 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-values/attr-namespace-wildcard.html": {
     "expected": "PASS",
@@ -6294,8 +6332,8 @@
     "reason": "T18 enrollment (css-values): 9/14 subtests pass"
   },
   "/css/css-values/attr-security-transition-interpolated.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 1/3 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-values/attr-security-transition.html": {
     "expected": "PASS",
@@ -6303,7 +6341,9 @@
   },
   "/css/css-values/attr-security.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 14/30 subtests pass"
+    "slow": true,
+    "timeout": 20000,
+    "reason": "slow: finishes at 4.9-5.0 s against the 5000ms default budget, so fresh draws alternate FAIL and TIMEOUT. T18 enrollment (css-values): 14/30 subtests pass"
   },
   "/css/css-values/attr-serialization.html": {
     "expected": "PASS",
@@ -6839,11 +6879,13 @@
   },
   "/css/css-values/if-conditionals.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 16/202 subtests pass"
+    "reason": "0/203 subtests pass. CSS if() is not implemented: stylo keeps `if(...)` unsubstituted, so a custom property set to one reads back verbatim. The 16 earlier passes compared \"\" with \"\" while getComputedStyle read no custom property. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-values/if-cycle.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 17/46 subtests pass"
+    "reason": "10/46 subtests pass. CSS if() is not implemented: stylo keeps `if(...)` unsubstituted, so a custom property set to one reads back verbatim. The 7 further earlier passes compared \"\" with \"\" while getComputedStyle read no custom property. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-values/if-function-revert-rule.html": {
     "expected": "FAIL",
@@ -7058,8 +7100,8 @@
     "reason": "T18 enrollment (css-values): 10/37 subtests pass"
   },
   "/css/css-values/random-in-container-query.tentative.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 2/9 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-values/random-in-custom-function.tentative.html": {
     "expected": "FAIL",
@@ -7638,16 +7680,17 @@
     "reason": "T18 enrollment (css-variables): 2/6 subtests pass Records the outcome this produces. The previous expectation was stale: reproduced on CI and locally."
   },
   "/css/css-variables/variable-created-document.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-variables): 1/2 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-variables/variable-created-element.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-variables): 2/3 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-variables/variable-css-wide-keywords-after-substitution.html": {
     "expected": "FAIL",
-    "reason": "T18 enrollment (css-variables): 5/6 subtests pass"
+    "reason": "4/6 subtests pass. A revert-layer that var() substitution produces does not revert to the previous cascade layer. The one further earlier pass compared \"\" with \"\" while getComputedStyle read no custom property. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-variables/variable-css-wide-keywords.html": {
     "expected": "FAIL",
@@ -7658,8 +7701,8 @@
     "reason": "T18 enrollment (css-variables): 10/11 subtests pass"
   },
   "/css/css-variables/variable-cycles.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-variables): 0/11 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-variables/variable-declaration-01.html": {
     "expected": "PASS",
@@ -7904,12 +7947,12 @@
     "reason": "T18 enrollment (css-variables): measured PASS"
   },
   "/css/css-variables/variable-definition-cascading.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-variables): 0/9 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-variables/variable-definition-keywords.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-variables): 5/8 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-variables/variable-definition.html": {
     "expected": "FAIL",
@@ -8468,8 +8511,9 @@
     "reason": "T18 enrollment (css-variables): measured PASS"
   },
   "/css/css-variables/variables-animation-math-functions.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "getComputedStyle now reads custom properties, so the old vacuous pass (\"\" against \"\") is gone: CSS transitions do not interpolate a registered custom property, and animations land 0.01deg off. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
+    "acceptedRegression": true
   },
   "/css/css-variables/variables-substitute-guaranteed-invalid.html": {
     "expected": "PASS",
@@ -8780,8 +8824,8 @@
     "reason": null
   },
   "/css/cssom/CSSStyleSheet-constructable-concat.html": {
-    "expected": "FAIL",
-    "reason": "Shadow DOM not implemented. Test does host.attachShadow({mode:'open'}); shadow.adoptedStyleSheets = ... Our shim has no attachShadow on HTMLElement.prototype. 2 of 4 assertions (the document-level ones) succeed; the 2 shadow-level ones fail. Diff is mostly the PASS/FAIL text in <pre>. Same blocker as any other shadow-DOM test in the suite."
+    "expected": "PASS",
+    "reason": null
   },
   "/css/cssom/CSSStyleSheet-constructable-cssRules.html": {
     "expected": "PASS",
@@ -8804,7 +8848,7 @@
     "reason": null
   },
   "/css/cssom/CSSStyleSheet-constructable-invalidation.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/cssom/CSSStyleSheet-constructable-replace-cssRules.html": {
@@ -9685,8 +9729,8 @@
     "reason": "15/20 subtests pass. dir=auto input-type gating is incomplete: the value is consulted for types whose directionality must NOT come from it (checkbox, radio, image), the telephone state is not forced to ltr inside an RTL block, and a dynamic type change doesn't re-resolve. HTML \u00a7the-dir-attribute limits value-derived directionality to the text-ish input states."
   },
   "/css/selectors/has-specificity.html": {
-    "expected": "FAIL",
-    "reason": "Not a :has() bug: the test reads CSS custom properties via getComputedStyle().getPropertyValue('--tN'), which kitesurf doesn't expose (all 8 subtests read '' so fail). :has() specificity itself is computed by the selectors crate; blocked on custom-property CSSOM support."
+    "expected": "PASS",
+    "reason": null
   },
   "/css/selectors/invalidation/dir-pseudo-class-in-has.html": {
     "expected": "FAIL",
@@ -12571,7 +12615,7 @@
     "reason": "4/6 pass. The two 'should be stripped' subtests set an author RequestInit.referrer, which the page fetch shim doesn't thread to the gateway (buildForwardRequest synthesizes Referer from pageUrl only). They previously PASSed by accident: previously we sent origin-only Referer, which coincidentally equals the expected stripped value. The wave-2 full-URL same-origin Referer (browser-correct; fixed 'origin-when-cross-origin on a same-origin URL') exposed the gap. Fix = honor init.referrer (same-origin-with-client check + userinfo/fragment strip, per-hop interaction with the redirect loop) \u2014 separate slice."
   },
   "/fetch/api/basic/request-forbidden-headers.any.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null,
     "timeout": 15000
   },
@@ -12633,7 +12677,9 @@
   },
   "/fetch/api/basic/stream-response.any.html": {
     "expected": "FAIL",
-    "reason": "triage: the stale-connection fetch retry lets the subtest finish, so the harness now completes (TIMEOUT -> FAIL)"
+    "slow": true,
+    "timeout": 20000,
+    "reason": "slow: finishes at 4.9-5.0 s against the 5000ms default budget, so fresh draws alternate FAIL and TIMEOUT. triage: the stale-connection fetch retry lets the subtest finish, so the harness now completes (TIMEOUT -> FAIL)"
   },
   "/fetch/api/basic/stream-safe-creation.any.html": {
     "expected": "PASS",
@@ -13298,8 +13344,8 @@
     "reason": null
   },
   "/hr-time/raf-coarsened-time.https.html": {
-    "expected": "FAIL",
-    "reason": "document.timeline follows the animation clock, not frame times: kitesurf has no frame loop"
+    "expected": "PASS",
+    "reason": null
   },
   "/hr-time/test_cross_frame_start.html": {
     "expected": "FAIL",
@@ -18364,7 +18410,7 @@
     "reason": null
   },
   "/html/semantics/embedded-content/the-iframe-element/sandbox_005.htm": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/semantics/embedded-content/the-iframe-element/sandbox_011.htm": {
@@ -18428,7 +18474,7 @@
     "reason": null
   },
   "/html/semantics/embedded-content/the-iframe-element/sandbox_029.htm": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/semantics/embedded-content/the-iframe-element/sandbox_030.htm": {
@@ -18436,7 +18482,7 @@
     "reason": null
   },
   "/html/semantics/embedded-content/the-iframe-element/sandbox_031.htm": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/semantics/embedded-content/the-iframe-element/sandbox_032.htm": {
@@ -18448,11 +18494,11 @@
     "reason": null
   },
   "/html/semantics/embedded-content/the-iframe-element/srcdoc-anchor.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/semantics/embedded-content/the-iframe-element/srcdoc-attribute-reset.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/semantics/embedded-content/the-iframe-element/srcdoc-lifecycle-crash-crbug-1472607.https.html": {
@@ -18464,8 +18510,8 @@
     "reason": "crashtest: the runner now scores *-crash.html by survival instead of waiting for testharness results that never come"
   },
   "/html/semantics/embedded-content/the-iframe-element/srcdoc_change_hash.html": {
-    "expected": "FAIL",
-    "reason": null
+    "expected": "TIMEOUT",
+    "reason": "contentDocument.body.innerText now passes, so the test reaches await hash_changed and times out because iframe.contentWindow.location.hash does not fire onhashchange yet."
   },
   "/html/semantics/embedded-content/the-iframe-element/srcdoc_process_attributes.html": {
     "expected": "FAIL",
@@ -18802,7 +18848,7 @@
     "reason": null
   },
   "/html/semantics/forms/the-input-element/range.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/semantics/forms/the-input-element/selection-weekmonth.html": {
@@ -19034,7 +19080,7 @@
     "reason": null
   },
   "/html/semantics/scripting-1/the-script-element/module/dynamic-import/microtasks/with-import-assertions.any.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/semantics/scripting-1/the-script-element/module/import-meta/import-meta-object.any.html": {
@@ -19930,7 +19976,7 @@
     "reason": null
   },
   "/selection/move-selection-range-into-different-root.tentative.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/selection/onselectionchange-on-distinct-text-controls.html": {
@@ -23054,7 +23100,7 @@
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-large-top.tentative.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-left-002.html": {
@@ -32539,8 +32585,8 @@
     "reason": null
   },
   "/dom/events/EventListener-incumbent-global-1.sub.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "TIMEOUT",
+    "reason": "The www1 subframe sets document.domain and reads frames[0].document.body of its www2 child. Each cross-origin frame runs in its own PageScript isolate, so that synchronous DOM access gets null, the listener throws, and no result is posted. It times out at fb4dd599 too, so the earlier PASS did not come from the engine."
   },
   "/dom/events/keypress-dispatch-crash.html": {
     "expected": "PASS",
@@ -34203,1020 +34249,1020 @@
     "reason": null
   },
   "/wasm/core/address.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/align.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/annotations.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/binary-leb128.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/binary.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/block.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/br.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/br_if.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/br_on_non_null.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/br_on_null.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/br_table.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/bulk-memory/bulk.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/bulk-memory/memory_copy.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/bulk-memory/memory_fill.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/bulk-memory/memory_init.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/bulk-memory/table-sub.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/bulk-memory/table_copy.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/bulk-memory/table_fill.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/bulk-memory/table_init.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/call.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/call_indirect.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/call_ref.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/comments.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/const.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/conversions.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/custom.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/data.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/elem.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/endianness.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/exceptions/tag.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/exceptions/throw.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/exceptions/throw_ref.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/exceptions/try_table.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/exports.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/f32.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/f32_bitwise.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/f32_cmp.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/f64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/f64_bitwise.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/f64_cmp.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/fac.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/float_exprs.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/float_literals.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/float_memory.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/float_misc.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/forward.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/func.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/func_ptrs.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/array.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/array_copy.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/array_fill.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/array_init_data.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/array_init_elem.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/array_new_data.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/array_new_elem.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/binary-gc.wast.js.html": {
     "expected": "PASS",
     "reason": null
   },
   "/wasm/core/gc/br_on_cast.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/br_on_cast_fail.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/extern.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/i31.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/ref_cast.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/ref_eq.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/ref_test.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/struct.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/gc/type-subtyping.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/global.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/i32.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/i64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/id.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/if.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/imports.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/inline-module.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/instance.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/int_exprs.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/int_literals.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/labels.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/left-to-right.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/linking.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/load.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/local_get.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/local_init.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/local_set.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/local_tee.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/loop.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/address64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/align64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/binary_leb128_64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/bulk64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/call_indirect64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/endianness64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/float_memory64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/load64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/memory64-imports.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/memory64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/memory_copy64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/memory_fill64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/memory_grow64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/memory_init64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/memory_redundancy64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/memory_trap64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/table64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/table_copy64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/table_copy_mixed.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/table_fill64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/table_get64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/table_grow64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/table_init64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/table_set64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory64/table_size64.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory_grow.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory_redundancy.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory_size.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/memory_trap.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/address0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/address1.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/align0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/binary0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/data0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/data1.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/data_drop0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/exports0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/float_exprs0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/float_exprs1.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/float_memory0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/imports0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/imports1.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/imports2.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/imports3.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/imports4.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/linking0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/linking1.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/linking2.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/linking3.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/load0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/load1.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/load2.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/memory-multi.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/memory_copy0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/memory_copy1.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/memory_fill0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/memory_grow.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/memory_init0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/memory_size0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/memory_size1.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/memory_size2.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/memory_size3.wast.js.html": {
     "expected": "PASS",
     "reason": null
   },
   "/wasm/core/multi-memory/memory_size_import.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/memory_trap0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/memory_trap1.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/start0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/store0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/store1.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/store2.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/multi-memory/traps0.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/names.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/nop.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/obsolete-keywords.wast.js.html": {
     "expected": "PASS",
     "reason": null
   },
   "/wasm/core/ref.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/ref_as_non_null.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/ref_func.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/ref_is_null.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/ref_null.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/relaxed-simd/i16x8_relaxed_q15mulr_s.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/relaxed-simd/i32x4_relaxed_trunc.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/relaxed-simd/i8x16_relaxed_swizzle.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/relaxed-simd/relaxed_dot_product.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/relaxed-simd/relaxed_laneselect.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/relaxed-simd/relaxed_madd_nmadd.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/relaxed-simd/relaxed_min_max.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/return.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/return_call.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/return_call_indirect.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/return_call_ref.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/select.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_address.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_align.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_bit_shift.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_bitwise.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_boolean.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_const.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_conversions.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_f32x4.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_f32x4_arith.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_f32x4_cmp.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_f32x4_pmin_pmax.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_f32x4_rounding.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_f64x2.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_f64x2_arith.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_f64x2_cmp.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_f64x2_pmin_pmax.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_f64x2_rounding.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i16x8_arith.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i16x8_arith2.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i16x8_cmp.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i16x8_extadd_pairwise_i8x16.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i16x8_extmul_i8x16.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i16x8_q15mulr_sat_s.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i16x8_sat_arith.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i32x4_arith.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i32x4_arith2.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i32x4_cmp.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i32x4_dot_i16x8.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i32x4_extadd_pairwise_i16x8.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i32x4_extmul_i16x8.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i32x4_trunc_sat_f32x4.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i32x4_trunc_sat_f64x2.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i64x2_arith.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i64x2_arith2.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i64x2_cmp.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i64x2_extmul_i32x4.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i8x16_arith.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i8x16_arith2.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i8x16_cmp.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_i8x16_sat_arith.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_int_to_int_extend.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_lane.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_linking.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_load.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_load16_lane.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_load32_lane.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_load64_lane.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_load8_lane.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_load_extend.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_load_splat.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_load_zero.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_memory-multi.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_select.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_splat.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_store.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_store16_lane.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_store32_lane.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_store64_lane.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/simd/simd_store8_lane.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/skip-stack-guard-page.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/stack.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/start.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/store.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/switch.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/table.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/table_get.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/table_grow.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/table_set.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/table_size.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/token.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/traps.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/type-canon.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/type-equivalence.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/type-rec.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/type.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/unreachable.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/unreached-invalid.wast.js.html": {
     "expected": "PASS",
     "reason": null
   },
   "/wasm/core/unreached-valid.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/unwind.wast.js.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Runtime `WebAssembly.compile(bytes)` is blocked by workerd (\"Wasm code generation disallowed by embedder\") because the loaded worker no longer carries `allow_insecure_inefficient_logged_eval` (native V8 eval removed; runtime eval is boa-only). The same compatibility flag gates wasm module compilation, so this matches the deployed platform."
   },
   "/wasm/core/utf8-custom-section-id.wast.js.html": {
     "expected": "PASS",
@@ -38978,5 +39024,109 @@
   "/html/semantics/document-metadata/the-meta-element/pragma-directives/attr-meta-http-equiv-refresh/parsing.html?131-last": {
     "expected": "PASS",
     "reason": "document.referrer on frame documents: measured PASS on two runs"
+  },
+  "/css/CSS2/normal-flow/block-in-inline-nested-001.xht": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/CSS2/normal-flow/block-in-inline-nested-002.xht": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/CSS2/normal-flow/block-in-inline-percents-001.xht": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/css/css-cascade/layer-stylesheet-multi-adoption.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-cascade/scope-shadow.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-display/display-contents-shadow-dom-1.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-masking/mask-svg-content/mask-empty-container-with-filter.svg": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-masking/mask-svg-content/mask-negative-scale.svg": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/css/css-masking/mask-svg-content/mask-on-thin-stroked-path-default.svg": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/css/css-masking/mask-svg-content/mask-text-001.svg": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/css/css-masking/mask-svg-content/mask-type-001.svg": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/css/css-masking/mask-svg-content/mask-type-002.svg": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-masking/mask-svg-content/mask-type-003.svg": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-masking/mask-svg-content/mask-with-filter-clipped-to-region.svg": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-masking/mask-svg-content/mask-with-filter.svg": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-masking/mask-svg-content/mask-with-rotation.svg": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/css/css-shadow/reslot-text-inheritance.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-shadow/shadow-host-style-sharing.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/css/css-shadow/shadow-host-with-before-after.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/cssom/StyleSheetList-constructable-shadow-with-style-recalc.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/cssom/StyleSheetList-constructable-shadow.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/cssom/StyleSheetList-constructable-with-style-recalc.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/cssom/StyleSheetList-constructable.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/cssom/adoptedstylesheets-cascade-order.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/cssom/adoptedstylesheets-observablearray.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/html/rendering/bidi-rendering/slot-no-isolate-001.html": {
+    "expected": "FAIL",
+    "reason": null
   }
 }

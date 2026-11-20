@@ -4,15 +4,20 @@
 
 //! Scene rendering, paint damage tracking, ink rects, and the RBI image cache.
 
+use std::collections::HashMap;
+use std::panic;
 use std::sync::Arc;
 
 use blitz_html::HtmlDocument;
 use blitz_traits::NodeId;
+use kurbo::Affine;
+use peniko::Fill;
 use wasm_bindgen::prelude::*;
 
 use crate::{DomHandle, LayoutMode};
 use crate::layout::geometry::{bounding_rect_for_node, composed_transform_for_node, doc_position};
 use crate::layout::scroll::overflow_clips;
+use crate::paint::scene_record::{RecordingScene, IMAGE_FORMAT_ENGINE_REF};
 
 // Mirrors blitz-dom's private DAMAGE_SUMMARY_CAP: past it a list reads as overflow,
 // which the screencast's partial-frame gate already turns into a full frame.
@@ -90,9 +95,9 @@ impl DamageFanout {
 }
 
 pub(crate) fn cache_recorded_resources(
-    scene: &mut crate::paint::scene_record::RecordingScene,
-    fonts: &mut std::collections::HashMap<u64, (peniko::Blob<u8>, u32)>,
-    images: &mut std::collections::HashMap<u64, crate::paint::scene_record::ImageInfo>,
+    scene: &mut RecordingScene,
+    fonts: &mut HashMap<u64, (peniko::Blob<u8>, u32)>,
+    images: &mut HashMap<u64, crate::paint::scene_record::ImageInfo>,
 ) {
     for (key, blob, index) in scene.drain_font_bytes() {
         fonts.entry(key).or_insert((blob, index));
@@ -116,7 +121,7 @@ pub(crate) const RBI_IMAGE_KEEP_RECORDS: u64 = 8;
 #[derive(Default)]
 pub(crate) struct RbiImageRecency {
     record: u64,
-    last_seen: std::collections::HashMap<u64, u64>,
+    last_seen: HashMap<u64, u64>,
 }
 
 impl RbiImageRecency {
@@ -129,8 +134,8 @@ impl RbiImageRecency {
 
     fn evict_stale(
         &mut self,
-        cache: &mut std::collections::HashMap<u64, crate::paint::scene_record::ImageInfo>,
-        scene: &crate::paint::scene_record::RecordingScene,
+        cache: &mut HashMap<u64, crate::paint::scene_record::ImageInfo>,
+        scene: &RecordingScene,
     ) {
         self.note(scene.image_hashes());
         self.last_seen.retain(|h, _| cache.contains_key(h));
@@ -178,9 +183,8 @@ fn paint_outset(doc: &HtmlDocument, node_id: NodeId) -> Option<f64> {
             continue;
         };
         stack.extend(
-            node.children
+            node.children()
                 .iter()
-                .copied()
                 .chain(node.before())
                 .chain(node.after()),
         );
@@ -222,7 +226,7 @@ fn paint_outset(doc: &HtmlDocument, node_id: NodeId) -> Option<f64> {
     Some(reach)
 }
 
-fn max_linear_scale(t: kurbo::Affine) -> f64 {
+fn max_linear_scale(t: Affine) -> f64 {
     let [a, b, c, d, _, _] = t.as_coeffs();
     let sum = a * a + b * b + c * c + d * d;
     let det = a * d - b * c;
@@ -272,7 +276,7 @@ fn ink_bounds(doc: &HtmlDocument, node_id: NodeId) -> Option<kurbo::Rect> {
         Some((composed, _)) => composed,
         None => {
             let p = doc_position(doc, node);
-            kurbo::Affine::translate((
+            Affine::translate((
                 (p.x as f64 + node.scroll_offset().x) * scale,
                 (p.y as f64 + node.scroll_offset().y) * scale,
             ))
@@ -285,6 +289,10 @@ fn ink_bounds(doc: &HtmlDocument, node_id: NodeId) -> Option<kurbo::Rect> {
 #[wasm_bindgen]
 impl DomHandle {
     #[wasm_bindgen(js_name = "renderSceneClip")]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "wasm-bindgen exports take the clip and its flags as flat scalars."
+    )]
     pub fn render_scene_clip(
         &self,
         clip_x: i32,
@@ -293,6 +301,7 @@ impl DomHandle {
         clip_h: u32,
         omit_background: bool,
         client_wire: bool,
+        document_crop: bool,
     ) -> Vec<u8> {
         self.render_scene_clip_inner(
             SceneClip {
@@ -304,10 +313,15 @@ impl DomHandle {
             omit_background,
             client_wire,
             false,
+            document_crop,
         )
     }
 
     #[wasm_bindgen(js_name = "renderSceneClipRaw")]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "wasm-bindgen exports take the clip and its flags as flat scalars."
+    )]
     pub fn render_scene_clip_raw(
         &self,
         clip_x: i32,
@@ -316,6 +330,7 @@ impl DomHandle {
         clip_h: u32,
         omit_background: bool,
         client_wire: bool,
+        document_crop: bool,
     ) -> Vec<u8> {
         self.render_scene_clip_inner(
             SceneClip {
@@ -327,6 +342,7 @@ impl DomHandle {
             omit_background,
             client_wire,
             true,
+            document_crop,
         )
     }
 
@@ -336,6 +352,7 @@ impl DomHandle {
         omit_background: bool,
         client_wire: bool,
         raw_images: bool,
+        document_crop: bool,
     ) -> Vec<u8> {
         use anyrender::PaintScene as _;
         let SceneClip {
@@ -355,7 +372,8 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return Vec::new(),
         };
-        const MAX_CLIP_DIM: u32 = 2560;
+        // Raster coordinates are u16.
+        const MAX_CLIP_DIM: u32 = u16::MAX as u32;
         let overhang_x = (-clip_x).max(0) as u32;
         let overhang_y = (-clip_y).max(0) as u32;
         let sx = clip_x.max(0) as u32;
@@ -378,19 +396,24 @@ impl DomHandle {
             Err(_) => return Vec::new(),
         };
         let entry_scroll = doc.viewport_scroll();
-        doc.set_viewport_scroll_with_fixed_anchor(
-            blitz_dom::Point {
-                x: sx as f64,
-                y: sy as f64,
-            },
-            entry_scroll,
-        );
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let clip_origin = blitz_dom::Point {
+            x: sx as f64,
+            y: sy as f64,
+        };
+        // A document crop paints as if the page were scrolled to the clip, like Chrome's
+        // beyond-viewport capture; a viewport fragment keeps fixed boxes where the page shows them.
+        let fixed_anchor = if document_crop {
+            clip_origin
+        } else {
+            entry_scroll
+        };
+        doc.set_viewport_scroll_with_fixed_anchor(clip_origin, fixed_anchor);
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let base: &mut blitz_dom::BaseDocument = &mut doc;
             let mut scene = if client_wire {
-                crate::paint::scene_record::RecordingScene::new()
+                RecordingScene::new()
             } else {
-                crate::paint::scene_record::RecordingScene::for_replay()
+                RecordingScene::for_replay()
             };
             scene.set_viewport(w, h, sx, sy);
             scene.raw_images = raw_images;
@@ -399,8 +422,8 @@ impl DomHandle {
                 use blitz_dom::util::Color;
                 use peniko::kurbo::Rect;
                 scene.fill(
-                    peniko::Fill::NonZero,
-                    kurbo::Affine::IDENTITY,
+                    Fill::NonZero,
+                    Affine::IDENTITY,
                     Color::WHITE,
                     None,
                     &Rect::new(0.0, 0.0, w as f64, h as f64),
@@ -417,6 +440,10 @@ impl DomHandle {
             scene.finish_framed()
         }));
         doc.set_viewport_scroll(entry_scroll);
+        // Scrolling paints through strips, so this path must age layouts too;
+        // after the restore, so the band follows the viewport, not the strip.
+        let base: &mut blitz_dom::BaseDocument = &mut doc;
+        base.evict_offscreen_inline_layouts();
         result.unwrap_or_default()
     }
 
@@ -530,7 +557,7 @@ impl DomHandle {
         };
         drop(fan);
         let target = self.resolve_node_id(exclude);
-        let parent = |id: NodeId| base.get_node(id).and_then(|n| n.parent);
+        let parent = |id: NodeId| base.get_node(id).and_then(|n| n.parent_id());
         let mut lineage = std::collections::HashSet::new();
         let mut cur = target;
         while let Some(id) = cur {
@@ -566,7 +593,7 @@ impl DomHandle {
         self.ensure_layout();
         let internal_id = self.resolve_node_id(node_id)?;
         let doc = self.doc.try_borrow().ok()?;
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        panic::catch_unwind(panic::AssertUnwindSafe(|| {
             ink_rect_for_node(&doc, internal_id)
         }))
         .ok()
@@ -583,7 +610,7 @@ impl DomHandle {
         }
         self.ensure_layout();
         let doc = self.doc.try_borrow().ok()?;
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let mut out = Vec::new();
             for (id, node) in doc.tree().iter() {
                 let Some(styles) = node.primary_styles() else {
@@ -638,15 +665,15 @@ impl DomHandle {
             y: scroll_y.max(0) as f64,
         });
 
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let base: &mut blitz_dom::BaseDocument = &mut doc;
-            let mut scene = crate::paint::scene_record::RecordingScene::new();
+            let mut scene = RecordingScene::new();
             {
                 use blitz_dom::util::Color;
                 use peniko::kurbo::Rect;
                 scene.fill(
-                    peniko::Fill::NonZero,
-                    kurbo::Affine::IDENTITY,
+                    Fill::NonZero,
+                    Affine::IDENTITY,
                     Color::WHITE,
                     None,
                     &Rect::new(0.0, 0.0, w as f64, h as f64),
@@ -790,20 +817,20 @@ impl DomHandle {
             Err(_) => return Vec::new(),
         };
 
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let _sp = tracing::info_span!("wasm.record_scene.paint").entered();
             let base: &mut blitz_dom::BaseDocument = &mut doc;
             let mut scene = if client_wire {
-                crate::paint::scene_record::RecordingScene::new()
+                RecordingScene::new()
             } else {
-                crate::paint::scene_record::RecordingScene::for_replay()
+                RecordingScene::for_replay()
             };
             scene.set_viewport(w, h, sx, sy);
             scene.raw_images = raw_images;
             scene.set_render_region(render_top_y, render_h);
             fn harvest_glyphs(
-                scene: &mut crate::paint::scene_record::RecordingScene,
-                cache: &mut std::collections::HashMap<u64, Vec<u8>>,
+                scene: &mut RecordingScene,
+                cache: &mut HashMap<u64, Vec<u8>>,
                 seen: &mut crate::paint::scene_record::GlyphSeen,
                 tables: &mut crate::paint::scene_record::FontTableCache,
             ) {
@@ -813,15 +840,15 @@ impl DomHandle {
                 *seen = scene.take_glyph_seen();
                 *tables = scene.take_font_tables();
             }
-            if let Err(panic) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if let Err(panic) = panic::catch_unwind(panic::AssertUnwindSafe(|| {
                 scene.set_glyph_seen(std::mem::take(&mut *seen_ref));
                 scene.set_font_tables(std::mem::take(&mut *tables_ref));
                 if !omit_background {
                     use blitz_dom::util::Color;
                     use peniko::kurbo::Rect;
                     scene.fill(
-                        peniko::Fill::NonZero,
-                        kurbo::Affine::IDENTITY,
+                        Fill::NonZero,
+                        Affine::IDENTITY,
                         Color::WHITE,
                         None,
                         &Rect::new(0.0, 0.0, w as f64, render_h as f64),
@@ -830,13 +857,16 @@ impl DomHandle {
                 blitz_paint::paint_scene(&mut scene, base, 1.0, w, render_h, 0, 0);
             })) {
                 harvest_glyphs(&mut scene, &mut cache_ref, &mut seen_ref, &mut tables_ref);
-                std::panic::resume_unwind(panic);
+                panic::resume_unwind(panic);
             }
             harvest_glyphs(&mut scene, &mut cache_ref, &mut seen_ref, &mut tables_ref);
             cache_recorded_resources(&mut scene, &mut fonts_ref, &mut images_ref);
             if let Ok(mut recency) = self.rbi_image_recency.try_borrow_mut() {
                 recency.evict_stale(&mut images_ref, &scene);
             }
+            // Scrolling resolves nothing, so this is where text that scrolled
+            // far out of view drops its shaped layout again.
+            base.evict_offscreen_inline_layouts();
             scene.finish_framed()
         }));
         result.unwrap_or_default()
@@ -936,7 +966,7 @@ impl DomHandle {
                 let format = if *h & crate::paint::scene_record::ENGINE_KEY_MARKER != 0
                     && info.wire_bytes.data().is_empty()
                 {
-                    crate::paint::scene_record::IMAGE_FORMAT_ENGINE_REF
+                    IMAGE_FORMAT_ENGINE_REF
                 } else {
                     info.format
                 };
@@ -959,7 +989,7 @@ impl DomHandle {
             + resolved_images
                 .iter()
                 .map(|image| {
-                    if image.format == crate::paint::scene_record::IMAGE_FORMAT_ENGINE_REF {
+                    if image.format == IMAGE_FORMAT_ENGINE_REF {
                         17
                     } else if image.format == 2 {
                         image.bytes.len() + 17
@@ -999,7 +1029,7 @@ impl DomHandle {
         for image in &resolved_images {
             out.push(crate::paint::scene_record::RBI_RESOURCE_KIND_IMAGE);
             out.extend_from_slice(&image.hash.to_le_bytes());
-            let is_ref = image.format == crate::paint::scene_record::IMAGE_FORMAT_ENGINE_REF;
+            let is_ref = image.format == IMAGE_FORMAT_ENGINE_REF;
             let prefix = if image.format == 2 || is_ref { 17 } else { 9 };
             let body_len = if is_ref { 0 } else { image.bytes.len() };
             out.extend_from_slice(&((body_len + prefix) as u32).to_le_bytes());
@@ -1093,16 +1123,16 @@ impl DomHandle {
             y: sy as f64,
         });
 
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let base: &mut blitz_dom::BaseDocument = &mut doc;
-            let mut scene = crate::paint::scene_record::RecordingScene::new();
+            let mut scene = RecordingScene::new();
             scene.set_viewport(w, h, sx, sy);
             {
                 use blitz_dom::util::Color;
                 use peniko::kurbo::Rect;
                 scene.fill(
-                    peniko::Fill::NonZero,
-                    kurbo::Affine::IDENTITY,
+                    Fill::NonZero,
+                    Affine::IDENTITY,
                     Color::WHITE,
                     None,
                     &Rect::new(0.0, 0.0, w as f64, h as f64),

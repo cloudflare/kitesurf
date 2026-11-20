@@ -6,6 +6,9 @@
 
 import { isDisallowedError } from "./defer-shim.ts";
 import {
+  cancelResponseBody,
+  copyOwnEnumerable,
+  defineOwn,
   hdrAppend,
   hdrDelete,
   hdrEntries,
@@ -15,8 +18,10 @@ import {
   newHeaders,
   responseHeaderGet,
   responseHeaders,
+  responseStatus,
+  responseText,
 } from "./native-http.ts";
-import { ksGlobal, state } from "./state.ts";
+import { ksGlobal, ksGlobalByKey, state } from "./state.ts";
 import { takeTrustedRequestMeta } from "./trusted-fetch.ts";
 import { routeViaSession } from "./session-outbound.ts";
 import { serializeMimeType, setBlobMimeType } from "./mime-type.ts";
@@ -291,14 +296,16 @@ function installRequestShim(): void {
     );
     const request = new.target
       ? Reflect.construct(RealRequest, [resolvedInput, effectiveInit], new.target)
-      : new RealRequest(resolvedInput, effectiveInit);
+      : Reflect.construct(RealRequest, [resolvedInput, effectiveInit]);
     requestReferrers.set(request, referrerState);
     return request;
   }
   WrappedRequest.prototype = RealRequest.prototype;
   Object.defineProperty(WrappedRequest, "name", { value: "Request" });
   (WrappedRequest as any).__ksWrapped = true;
-  ksGlobal.Request = WrappedRequest;
+  // Through the untyped view: a function constructor over RealRequest.prototype, which
+  // TypeScript cannot see as `typeof Request`.
+  ksGlobalByKey.Request = WrappedRequest;
   patchFormDataRealmCrossing(RealRequest.prototype);
   patchBodyBlobMimeType(RealRequest.prototype);
   installRequestReferrerAttributes(RealRequest.prototype);
@@ -370,10 +377,7 @@ function requestReferrerState(input: unknown, init: unknown): RequestReferrerSta
           `Failed to construct 'Request': Referrer '${value}' is not a valid URL.`,
         );
       }
-      let pageOrigin = "";
-      try {
-        pageOrigin = new URL(state.pageUrl).origin;
-      } catch {}
+      let pageOrigin = state.documentOrigin;
       // about:client, or a cross-origin URL, falls back to the client.
       next.referrer =
         parsed.href === "about:client" || parsed.origin !== pageOrigin ? "client" : parsed.href;
@@ -433,7 +437,7 @@ function installResponseShim(): void {
     if (new.target) {
       return Reflect.construct(RealResponse, [effectiveBody, effectiveInit], new.target);
     }
-    return new RealResponse(effectiveBody, effectiveInit);
+    return Reflect.construct(RealResponse, [effectiveBody, effectiveInit]);
   }
   WrappedResponse.prototype = RealResponse.prototype;
   for (const propertyName of Object.getOwnPropertyNames(RealResponse)) {
@@ -446,7 +450,9 @@ function installResponseShim(): void {
   }
   Object.defineProperty(WrappedResponse, "name", { value: "Response" });
   (WrappedResponse as any).__ksWrapped = true;
-  ksGlobal.Response = WrappedResponse;
+  // Through the untyped view: a function constructor over RealResponse.prototype with its
+  // statics copied on, which TypeScript cannot see as `typeof Response`.
+  ksGlobalByKey.Response = WrappedResponse;
   patchFormDataRealmCrossing(RealResponse.prototype);
   patchBodyBlobMimeType(RealResponse.prototype);
 }
@@ -570,7 +576,7 @@ const STATUS_CARRIER = 599;
 function restoreCarriedStatus(response: Response): Response {
   const carried = responseHeaderGet(response, CARRIED_STATUS_HEADER);
   if (carried === null) return response;
-  const authentic = response.status === STATUS_CARRIER;
+  const authentic = responseStatus(response) === STATUS_CARRIER;
   const actualStatus = authentic ? Number(carried) : NaN;
   const visibleHeaders = newHeaders();
   for (const [name, value] of hdrEntries(responseHeaders(response))) {
@@ -694,6 +700,7 @@ interface RedirectContext {
   redirectMode: string;
   mode: string;
   inputRequest: PageRequest | null;
+  checkRedirect: ((url: string) => string | null) | undefined;
 }
 
 function redirectDowngradesToGet(status: number, method: string): boolean {
@@ -702,7 +709,7 @@ function redirectDowngradesToGet(status: number, method: string): boolean {
 }
 
 function opaqueRedirect(response: Response): Response {
-  const opaqueResponse = new Response(null, { status: response.status, statusText: "" });
+  const opaqueResponse = new Response(null, { status: responseStatus(response), statusText: "" });
   try {
     Object.defineProperty(opaqueResponse, "type", {
       value: "opaqueredirect",
@@ -713,11 +720,24 @@ function opaqueRedirect(response: Response): Response {
   return opaqueResponse;
 }
 
+async function throwIfBlocked(response: Response): Promise<void> {
+  const blockedReason = responseHeaderGet(response, "x-kitesurf-blocked");
+  if (responseStatus(response) === 403 && blockedReason) {
+    // A CORS block rejects before any body read, and its diagnostic names the blocked
+    // target: never hand it to a page-visible console callback.
+    if (blockedReason === "cors") {
+      cancelResponseBody(response);
+      throw new TypeError("Failed to fetch");
+    }
+    throw new TypeError(await responseText(response));
+  }
+}
+
 async function followRedirects(
   realFetch: typeof globalThis.fetch,
   first: Response,
   firstUrl: string,
-  { pageOrigin, headers, init, redirectMode, mode, inputRequest }: RedirectContext,
+  { pageOrigin, headers, init, redirectMode, mode, inputRequest, checkRedirect }: RedirectContext,
 ): Promise<{ response: Response; url: string; hops: number; tainting: "basic" | "cors" }> {
   // The shim owns redirects so each hop receives updated origin and referrer carriers.
   let response = first;
@@ -735,7 +755,7 @@ async function followRedirects(
   let keepBody = true;
 
   for (;;) {
-    const isRedirect = REDIRECT_STATUSES.indexOf(response.status) !== -1;
+    const isRedirect = REDIRECT_STATUSES.indexOf(responseStatus(response)) !== -1;
     if (isRedirect && redirectMode === "manual") {
       return { response: opaqueRedirect(response), url: currentUrl, hops, tainting };
     }
@@ -748,16 +768,23 @@ async function followRedirects(
     signal?.throwIfAborted?.();
 
     if (location.includes("\uFFFD")) {
+      // A policy callback cannot vet an unparseable target, and the handoff below follows it
+      // natively; refuse instead of fetching an unchecked hop.
+      if (checkRedirect) throw new TypeError("Failed to fetch");
       if ((method !== "GET" && method !== "HEAD") || init.body != null) {
         throw new TypeError("Failed to fetch");
       }
-      const handoff: KsRequestInit = { ...init, redirect: "follow" };
-      return {
-        response: await realFetch(currentUrl, handoff),
-        url: currentUrl,
-        hops,
-        tainting,
-      };
+      const handoff: KsRequestInit = copyOwnEnumerable<KsRequestInit>(init);
+      defineOwn(handoff, "redirect", {
+        value: "follow",
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+      cancelResponseBody(response);
+      const followed = await realFetch(currentUrl, handoff);
+      await throwIfBlocked(followed);
+      return { response: followed, url: currentUrl, hops, tainting };
     }
     let redirectTarget: URL;
     try {
@@ -771,6 +798,12 @@ async function followRedirects(
     if (mode !== "no-cors" && (redirectTarget.username !== "" || redirectTarget.password !== "")) {
       throw new TypeError("Failed to fetch");
     }
+    if (checkRedirect) {
+      // Before the hop is requested, so a refused target is never contacted.
+      const next = checkRedirect(redirectTarget.toString());
+      if (next === null) throw new TypeError("Failed to fetch");
+      if (next !== redirectTarget.toString()) redirectTarget = new URL(next);
+    }
     let currentHopOrigin = "";
     try {
       currentHopOrigin = new URL(currentUrl).origin;
@@ -778,7 +811,7 @@ async function followRedirects(
     if (tainting === "cors" && redirectTarget.origin !== currentHopOrigin) opaqueOrigin = true;
     if (redirectTarget.origin !== currentHopOrigin) hdrDelete(headers, "authorization");
 
-    if (redirectDowngradesToGet(response.status, method)) {
+    if (redirectDowngradesToGet(responseStatus(response), method)) {
       method = "GET";
       delete init.body;
       keepBody = false;
@@ -812,15 +845,7 @@ async function followRedirects(
     init.method = method;
     init.headers = headers;
     response = await realFetch(currentUrl, init);
-    const blockedReason = responseHeaderGet(response, "x-kitesurf-blocked");
-    if (response.status === 403 && blockedReason) {
-      const detail = await response.text();
-      try {
-        console.error(detail);
-      } catch {}
-      if (blockedReason === "cors") throw new TypeError("Failed to fetch");
-      throw new TypeError(detail);
-    }
+    await throwIfBlocked(response);
   }
 }
 
@@ -843,11 +868,13 @@ export function installFetchShim(): void {
     }
     const inputRequest =
       typeof Request === "function" && input instanceof Request ? (input as PageRequest) : null;
-    const origin = pageOriginFromUrl(state.pageUrl);
+    const origin = state.documentOrigin;
     const initMaybeCoerced: KsRequestInit | undefined = serializeFormDataBodyInInit(
       validateAndStripCache(init, true),
     );
-    const mergedInit: KsRequestInit = { ...(initMaybeCoerced || {}) };
+    // Own-enumerable copy on a null prototype: the untrusted init's getters still run, but no
+    // later write of the stamped headers can reach a page-defined inherited setter.
+    const mergedInit: KsRequestInit = copyOwnEnumerable<KsRequestInit>(initMaybeCoerced);
     const requestHeaders = newHeaders(
       mergedInit.headers ?? (inputRequest ? inputRequest.headers : {}),
     );
@@ -886,6 +913,8 @@ export function installFetchShim(): void {
     }
     const requestMode = String(initMaybeCoerced?.mode ?? inputRequest?.mode ?? "cors");
     hdrSet(requestHeaders, "x-kitesurf-mode", requestMode === "no-cors" ? "no-cors" : "cors");
+    // Only applyCacheMode (session-outbound.ts) may mark the headers a cache mode adds.
+    hdrDelete(requestHeaders, "x-kitesurf-cache-mode");
     // SAFETY: Strip page-supplied referrer carriers before deriving the trusted page referrer.
     hdrDelete(requestHeaders, "x-kitesurf-referrer");
     {
@@ -948,7 +977,12 @@ export function installFetchShim(): void {
         hdrSet(requestHeaders, "Origin", origin);
       }
     }
-    mergedInit.headers = requestHeaders;
+    defineOwn(mergedInit, "headers", {
+      value: requestHeaders,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
     if (
       String(initMaybeCoerced?.mode ?? inputRequest?.mode ?? "cors") === "no-cors" &&
       !["GET", "HEAD", "POST"].includes(
@@ -1014,15 +1048,14 @@ export function installFetchShim(): void {
       response = await realFetch(resolved, mergedInit);
     }
     const blockedReason = responseHeaderGet(response, "x-kitesurf-blocked");
-    if (response.status === 403 && blockedReason) {
-      const detail = await response.text();
-      try {
-        console.error(detail);
-      } catch {}
+    if (responseStatus(response) === 403 && blockedReason) {
+      // See followRedirects: CORS rejects before the body is read, and no page-visible
+      // console callback receives the diagnostic.
       if (blockedReason === "cors") {
+        cancelResponseBody(response);
         throw new TypeError("Failed to fetch");
       }
-      throw new TypeError(detail);
+      throw new TypeError(await responseText(response));
     }
     const hopStart = requestUrlString(resolved, inputRequest);
     const followed = await followRedirects(realFetch, response, hopStart, {
@@ -1032,6 +1065,7 @@ export function installFetchShim(): void {
       redirectMode,
       mode: String(mergedInit.mode ?? inputRequest?.mode ?? "cors"),
       inputRequest,
+      checkRedirect: trustedMeta?.checkRedirect,
     });
     response = followed.response;
     response = restoreCarriedStatus(response);
@@ -1058,7 +1092,7 @@ export function installFetchShim(): void {
         computedType = requestMode === "no-cors" ? "opaque" : "cors";
       } else if (finalRequestUrl && state.pageUrl) {
         const requestOrigin = new URL(finalRequestUrl, state.pageUrl).origin;
-        const pageOrigin = new URL(state.pageUrl).origin;
+        const pageOrigin = state.documentOrigin;
         if (requestOrigin !== pageOrigin) computedType = "cors";
       }
       if (computedType === "opaque") {

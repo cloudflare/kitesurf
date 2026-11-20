@@ -6,7 +6,7 @@
 
 import type { SandboxOutboundOverride } from "./outbound.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
-import { readCapped } from "../read-capped.ts";
+import { readCappedBytes, readCappedText } from "../read-capped.ts";
 import { walkRedirects } from "./redirect-walk.ts";
 
 export interface WasmBakeManifestEntry {
@@ -24,12 +24,14 @@ export interface WasmBake {
 }
 
 const MAX_WASM_URLS = 8;
+const MAX_WASM_LITERAL_RESOLUTIONS = 256;
 const MAX_TOTAL_WASM_BYTES = 48 * 1024 * 1024;
 const PREFETCH_WASM_DEADLINE_MS = 10_000;
 const MAX_SINGLE_WASM_BYTES = MAX_TOTAL_WASM_BYTES;
 const TINY_MODULE_MAX_BYTES = 64;
 const MAX_INLINE_WASM_LABEL_PREFIX_CHARS = 24;
 const MAX_WASM_LITERAL_SPECIFIER_CHARS = 512;
+const MAX_BLOCKED_MESSAGE_BYTES = 4 * 1024;
 
 const WASM_LITERAL_RE = new RegExp(
   "[\"'`]([^\"'`\\s]{1," + MAX_WASM_LITERAL_SPECIFIER_CHARS + "}\\.wasm)[\"'`]",
@@ -136,13 +138,24 @@ function sha256Hex(buf: ArrayBuffer): Promise<string> {
 export function scanForWasmUrls(sources: Array<{ body: string; baseUrl: string }>): string[] {
   const found: string[] = [];
   const seen = new Set<string>();
+  let resolutions = 0;
   for (const { body, baseUrl } of sources) {
     if (!body || body.indexOf("WebAssembly") === -1) continue;
+    const seenLiterals = new Set<string>();
     WASM_LITERAL_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = WASM_LITERAL_RE.exec(body)) !== null) {
       const literal = m[1];
-      if (!literal) continue;
+      if (!literal || seenLiterals.has(literal)) continue;
+      if (resolutions >= MAX_WASM_LITERAL_RESOLUTIONS) {
+        console.warn(
+          `[kitesurf-wasm] MAX_WASM_LITERAL_RESOLUTIONS=${MAX_WASM_LITERAL_RESOLUTIONS} reached; ` +
+            `later .wasm literals not prefetched`,
+        );
+        return found;
+      }
+      seenLiterals.add(literal);
+      resolutions++;
       let abs: string;
       try {
         abs = new URL(literal, baseUrl || undefined).toString();
@@ -238,10 +251,12 @@ export async function prefetchWasmModules({
           const res = walk.response;
           const blockedReason = res.headers.get("x-kitesurf-blocked");
           if (res.status === 403 && blockedReason) {
-            bake.errors[wasmUrl] = await res.text();
+            const denial = await readCappedText(res, MAX_BLOCKED_MESSAGE_BYTES, connectionId);
+            bake.errors[wasmUrl] = denial.ok ? denial.text : ".wasm fetch blocked";
             return;
           }
           if (!res.ok) {
+            void res.body?.cancel().catch(() => {});
             bake.errors[wasmUrl] = ".wasm fetch returned HTTP " + res.status;
             return;
           }
@@ -249,13 +264,18 @@ export async function prefetchWasmModules({
           const clHeader = res.headers.get("content-length");
           const cl = clHeader ? parseInt(clHeader, 10) : NaN;
           if (Number.isFinite(cl) && cl > remaining) {
+            void res.body?.cancel().catch(() => {});
             bake.errors[wasmUrl] =
               "skipped: total .wasm bake budget exceeded (" + cl + " bytes over cap)";
             return;
           }
-          const capped = await readCapped(res.body, Math.min(remaining, MAX_SINGLE_WASM_BYTES));
-          if (capped.bytes === null) {
-            await capped.rest.cancel().catch(() => {});
+          const capped = await readCappedBytes(
+            res,
+            Math.min(remaining, MAX_SINGLE_WASM_BYTES),
+            connectionId,
+            MAX_SINGLE_WASM_BYTES,
+          );
+          if (!capped.ok) {
             bake.errors[wasmUrl] =
               capped.failure === "error"
                 ? "skipped: .wasm body failed mid-stream"
@@ -273,6 +293,13 @@ export async function prefetchWasmModules({
               return;
             }
           } catch {}
+          // Reads run concurrently: re-check the live total, as a sibling may have been admitted
+          // after this read's snapshot. The check and the charge below have no await between them.
+          if (buf.byteLength > MAX_TOTAL_WASM_BYTES - totalBytes) {
+            bake.errors[wasmUrl] =
+              "skipped: total .wasm bake budget exceeded (" + buf.byteLength + " bytes over cap)";
+            return;
+          }
           totalBytes += buf.byteLength;
           const u8 = new Uint8Array(buf);
           const entry: WasmBakeManifestEntry = {

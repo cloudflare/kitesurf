@@ -21,6 +21,7 @@ import {
 } from "./element/index.js";
 import type { HTMLOptionElement } from "./element/index.js";
 import { ksGlobal } from "./state.js";
+import { formBehindProxy } from "./registries.js";
 import type * as Idl from "./idl/types.generated.js";
 
 type FormDataEntry = { name: string; value: string | File };
@@ -67,7 +68,7 @@ class FormData implements Idl.FormData {
    * Dispatches `formdata` before collecting fields.
    * Invalid forms or submitters throw a DOMException named `TypeError`, or an Error fallback.
    */
-  constructor(form?: unknown, submitter?: unknown) {
+  constructor(form?: Idl.HTMLFormElement, submitter?: Idl.HTMLElement | null) {
     if (form == null) return;
     if (!(form instanceof HTMLFormElement)) {
       throw new (ksGlobal.DOMException || Error)(
@@ -92,10 +93,10 @@ class FormData implements Idl.FormData {
         formData: FormData;
       };
       fdEv.formData = this;
-      form.dispatchEvent(fdEv);
+      formBehindProxy(form).dispatchEvent.call(form, fdEv);
     } catch {}
 
-    const els = form.elements;
+    const els = formBehindProxy(form).elements;
     for (let i = 0; i < els.length; i++) {
       const el = els[i];
       const name = el.getAttribute && el.getAttribute("name");
@@ -143,7 +144,7 @@ class FormData implements Idl.FormData {
       }
     }
   }
-  append(name: string, value: unknown, filename?: string) {
+  append(name: string, value: string | Idl.Blob, filename?: string) {
     if (arguments.length >= 3) requireBlobWithFilename(value, "append");
     // WebIDL DOMString conversion: null and undefined become "null" and
     // "undefined".
@@ -169,7 +170,7 @@ class FormData implements Idl.FormData {
     const n = String(name);
     return this.#entries.some((e) => e.name === n);
   }
-  set(name: string, value: unknown, filename?: string) {
+  set(name: string, value: string | Idl.Blob, filename?: string) {
     if (arguments.length >= 3) requireBlobWithFilename(value, "set");
     const n = String(name);
     const fname = filename !== undefined ? String(filename) : undefined;

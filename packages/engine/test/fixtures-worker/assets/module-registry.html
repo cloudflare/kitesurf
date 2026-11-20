@@ -84,9 +84,34 @@ https://opensource.org/licenses/Apache-2.0
   } catch (e) {
     result.fallbackMalformed = String(e);
   }
+  // With `type: "json"` a computed import parses the body as JSON in the
+  // page realm, not as a Boa object literal: a `__proto__` key stays an own
+  // property, and every import of the URL shares one namespace.
+  const protoJson = "proto";
+  const jsonNs = await import(`./module-registry-${protoJson}.json`, { with: { type: "json" } });
+  result.attributedJson = {
+    ownProto: Object.hasOwn(jsonNs.default, "__proto__"),
+    plain: jsonNs.default.plain,
+    tag: Object.prototype.toString.call(jsonNs),
+    same: jsonNs === (await import(`./module-registry-${protoJson}.json`, { with: { type: "json" } })),
+  };
   // Boa links this module to the baked library above; its imports must see
   // later writes to the library's `let` exports.
   const liveReader = "live-reader";
+  // A JSON-typed import of a JavaScript module must reject before the module
+  // runs: the loader keys its cache by requested type, so this is not the
+  // plain load below. It rejects rather than throwing, as import() does.
+  result.jsonTypedJs = await import(`./module-registry-${liveReader}.js`, {
+    with: { type: "json" },
+  }).then(
+    (ns) => "loaded:" + typeof ns.read,
+    (e) => String(e),
+  );
+  // The same attribute on a real JSON record still yields its value.
+  const configName = "config";
+  result.typedConfig = (
+    await import(`./module-registry-${configName}.json`, { with: { type: "json" } })
+  ).default;
   const reader = await import(`./module-registry-${liveReader}.js`);
   result.boaLiveCount = [reader.read(), reader.bump(), reader.read()];
   result.done = true;

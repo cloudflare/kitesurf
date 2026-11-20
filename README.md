@@ -1,4 +1,4 @@
-![Kitesurf logo](kitesurf_logo.png)
+![Kitesurf logo](.github/assets/kitesurf_logo.png)
 
 # Kitesurf
 
@@ -15,6 +15,12 @@ so you can use it with CDP clients such as Puppeteer.
 > Local development uses `wrangler dev`. A Cloudflare Workers Paid plan is
 > required to run Kitesurf on Cloudflare.
 
+> [!WARNING]
+> Do not open untrusted sites with a local Kitesurf. This includes the
+> [Docker image](#run-with-docker). Locally, Kitesurf runs page JavaScript in
+> `workerd`, which
+> [is not a hardened sandbox](https://developers.cloudflare.com/workers/local-development/#security-considerations).
+
 ## Requirements
 
 - [Bazelisk](https://github.com/bazelbuild/bazelisk), installed as `bazel`.
@@ -23,9 +29,11 @@ so you can use it with CDP clients such as Puppeteer.
 - Node.js 22 or newer
 - pnpm 9.15.4, which the repository pins in `package.json`
 - On macOS, GNU tar (`brew install gnu-tar`)
-- Rust through [rustup](https://rustup.rs/), only for `pnpm run lint:rust` and
-  for editing the vendored crate patches. `rust-toolchain.toml` pins the same
-  nightly that Bazel uses.
+- On Linux, GCC with the libstdc++ development files (`sudo apt install g++`
+  on Debian and Ubuntu). Without them the first Rust host tool fails to link
+  with `cannot find -lstdc++`.
+- Rust through [rustup](https://rustup.rs/), only for editing the vendored
+  crate patches. `rust-toolchain.toml` pins the same nightly that Bazel uses.
 
 Install pnpm separately if it is not already available:
 
@@ -52,8 +60,9 @@ pnpm run dev
 The engine listens on `http://127.0.0.1:8787`. Visit
 `http://127.0.0.1:8787/health` to confirm that it is running.
 
-The root URL has the same Chrome DevTools instructions as this README. Kitesurf
-speaks CDP and has no web UI.
+The root URL shows the landing page. It has a form to open a URL in Chrome
+DevTools, example pages, and the CDP endpoints for agents and other clients.
+See [Use Chrome DevTools](#use-chrome-devtools).
 
 `pnpm run dev` builds the WebAssembly modules and the page and renderer bundles
 with Bazel, then starts `wrangler dev`. The first build compiles the Rust core
@@ -64,6 +73,112 @@ Set `KITESURF_PORT` when port `8787` is already in use:
 ```bash
 KITESURF_PORT=8799 pnpm run dev
 ```
+
+### Run many navigations locally
+
+Each navigation starts a new page isolate and stops the previous one. A local
+engine keeps a stopped isolate in memory until the engine's garbage collector
+runs. If you run many navigations in parallel, these isolates can use many
+gigabytes of memory.
+
+`pnpm run dev` starts the runtime with the V8 flag `--expose-gc`. The engine
+then runs garbage collection after it stops a page isolate. Pages do not get
+`gc()`. In one test, five parallel connections loaded 940 pages in total.
+Without the flag, the runtime stopped with a V8 out-of-memory error after about
+300 pages. With the flag, all 940 pages loaded and memory stayed below 4 GB.
+
+If you start `wrangler dev` directly, for example in a container, set the flag
+yourself. Run this from `packages/engine` and add your other options:
+
+```bash
+MINIFLARE_WORKERD_V8_FLAGS=--expose-gc wrangler dev --env local
+```
+
+If you set `MINIFLARE_WORKERD_V8_FLAGS` for `pnpm run dev`, your value replaces
+the default. Include `--expose-gc` in it.
+
+## Run with Docker
+
+The Docker image runs the engine on workerd, the open-source Workers runtime,
+without Node.js. It needs no Cloudflare account. Use it, for example, to run
+end-to-end tests with Playwright or Puppeteer in CI. Tagged releases publish
+the image to `ghcr.io/cloudflare/kitesurf` for `linux/amd64` and `linux/arm64`.
+
+Start the engine:
+
+```bash
+docker run --rm -p 127.0.0.1:8787:8787 ghcr.io/cloudflare/kitesurf
+```
+
+The engine starts in under a second. On its first request, the image opens one
+page to warm up and logs `[kitesurf] warmed up`. Docker's health check sends
+that request within a second of start. Until the warm-up ends, `/health`
+answers `503`, so a CI service that waits for a healthy engine gets a fast
+first page.
+
+To build the image yourself, run this command from the repository root. You do
+not need Bazel, Node.js or Rust on the host:
+
+```bash
+docker build -f docker/Dockerfile -t kitesurf .
+```
+
+The first build compiles the Rust core, which takes a while. Docker keeps
+Bazel's cache in a build cache mount, so later builds are faster. Add
+`--build-arg DEVTOOLS=1` to bundle the Chrome DevTools frontend. It adds about
+130 MB to the image, or 25 MB compressed. Without it, the landing page uses Chrome's hosted frontend, which connects only
+to `127.0.0.1`. Behind a TLS-inspecting proxy, give the build the proxy's root
+certificate with `--secret id=ca_certificates,src=<root.pem>`.
+
+Connect Playwright to the browser endpoint:
+
+```js
+import { chromium } from "playwright";
+
+const browser = await chromium.connectOverCDP("ws://127.0.0.1:8787/devtools/browser");
+const page = await browser.contexts()[0].newPage();
+await page.goto("https://example.com/");
+await page.screenshot({ path: "page.png" });
+await browser.close();
+```
+
+[`docker/examples/`](docker/examples/) has complete Playwright and Puppeteer
+test suites, a Compose file and a GitHub Actions job that run them against the
+image.
+
+Set these environment variables with `docker run -e`:
+
+- `KITESURF_PORT` selects the port inside the container. The default is
+  `8787`.
+- `KITESURF_NATIVE_EVAL` is `1` by default in the image. Then CDP evaluation,
+  such as Playwright's and Puppeteer's `evaluate` and their locators, and page
+  `eval` and `new Function` run on V8. On Cloudflare, they run on boa, a
+  JavaScript interpreter in the engine's WebAssembly, which is slower. The
+  variable also lets pages compile WebAssembly at run time, which Cloudflare
+  blocks, so a test that does so can pass in the image and fail on Cloudflare.
+  Set the variable to an empty value to use boa, as on Cloudflare.
+- `KITESURF_ALLOW_PRIVATE_NETWORK=1` lets public pages send requests to
+  loopback and private addresses. The engine blocks these requests by default.
+  A page that you open on a private address can load its own resources without
+  this variable. Only set it for pages that you trust.
+- `SSL_CERT_FILE` selects the CA bundle for HTTPS requests. Behind a
+  TLS-inspecting proxy, mount a bundle that includes the proxy's root
+  certificate and set this variable to its path.
+- Other `KITESURF_*` and `WEB_BOT_AUTH_*` variables override the engine
+  variables in `packages/engine/wrangler.jsonc`.
+
+Inside the container, `127.0.0.1` is the container itself. To reach an app on
+the host, use `host.docker.internal`. On Linux, add
+`--add-host=host.docker.internal:host-gateway`. In a Compose file or a CI
+service, put the engine and the app on the same network and use the service
+name.
+
+> [!WARNING]
+> Do not open untrusted sites with the image. The image runs page JavaScript
+> in `workerd`, which
+> [is not a hardened sandbox](https://developers.cloudflare.com/workers/local-development/#security-considerations),
+> and a container does not make it one. The engine also has no
+> authentication. Do not publish its port on a public network.
 
 ## Connect with Puppeteer
 
@@ -89,6 +204,30 @@ discovery is available at `http://127.0.0.1:8787/json/version`.
 
 ## Use Chrome DevTools
 
+With `pnpm run dev`, open `http://127.0.0.1:8787/` in Chrome. Enter a URL to
+inspect, or select one of the example pages. DevTools opens in the tab on that
+page. To go to DevTools directly, open
+`http://127.0.0.1:8787/?url=https://example.com`, or
+`http://127.0.0.1:8787/?inspect=1` for a blank page.
+
+If you built the bundled frontend, `pnpm run dev` serves it from the engine's
+own origin. See
+[Use the bundled DevTools frontend](#use-the-bundled-devtools-frontend).
+Otherwise, the DevTools frontend comes from
+`chrome-devtools-frontend.appspot.com`, the build that Google hosts for Chrome.
+The hosted frontend has these limits:
+
+- The first time it connects, Chrome asks whether
+  `chrome-devtools-frontend.appspot.com` can access apps on this device. Select
+  **Allow**.
+- If you block this access, DevTools says that the WebSocket disconnected. To
+  allow it again, click the site information icon to the left of the address.
+  Then allow the access and reconnect DevTools.
+- The frontend can connect only to `127.0.0.1`. Thus it does not work with a
+  deployed engine.
+
+You can also use `chrome://inspect`:
+
 1. Open `chrome://inspect/#devices` in Chrome. Type or paste it into the address
    bar because web pages cannot link to it.
 2. Select **Discover network targets**.
@@ -105,6 +244,89 @@ DevTools features do not work yet. We are working to add more support over time.
 Puppeteer and other CDP clients can connect to
 `ws://127.0.0.1:8787/devtools/browser`.
 
+### Use the bundled DevTools frontend
+
+Kitesurf can serve the Chrome DevTools frontend from its own origin. Then
+DevTools works without the hosted frontend, its permission prompt and the
+`127.0.0.1` limit. A deployed engine always uses this copy. The frontend is the
+prebuilt build that Google publishes for Chromium. The default build does not
+include it.
+
+#### Build the frontend
+
+The `--config=devtools` Bazel option adds the frontend to the build. The first
+build with it downloads the frontend (about 250 MB). Bazel keeps the download
+in its cache for later builds.
+
+To build the frontend once, run this command from the repository root:
+
+```bash
+bazel run --config=devtools //packages/engine:dev_build
+```
+
+To include the frontend in every local build, add the option to
+`.bazelrc.user`. Git ignores this file. Then `pnpm run build` and
+`pnpm run dev` include the frontend.
+
+```bash
+echo 'common --config=devtools' >> .bazelrc.user
+```
+
+The build copies the frontend to `packages/engine/public/inspector/`. Git
+ignores this directory. A build without the option removes it. To turn the
+frontend off, remove the line from `.bazelrc.user`.
+
+#### Run the frontend locally
+
+1. Build the frontend as described above.
+2. Start the engine with `pnpm run dev`. The engine serves the bundled frontend
+   when the build includes it, and the hosted frontend when it does not.
+3. Open `http://127.0.0.1:8787/` in Chrome. Enter a URL to inspect, or select
+   one of the example pages. DevTools opens in the tab on that page.
+
+To start on a page, open `http://127.0.0.1:8787/?url=https://example.com`.
+
+#### Rebuild the frontend
+
+Use the smallest step that fixes the problem:
+
+- To copy the frontend files again, delete the copy and build again:
+
+  ```bash
+  rm -rf packages/engine/public/inspector
+  bazel run --config=devtools //packages/engine:dev_build
+  ```
+
+- To extract the archive again, for example after you change
+  `bazel/devtools_frontend.BUILD`, fetch it again and then build:
+
+  ```bash
+  bazel fetch --force --repo=@devtools_frontend --config=devtools
+  bazel run --config=devtools //packages/engine:dev_build
+  ```
+
+  Bazel extracts the archive from its cache. To download the archive again
+  from Google, add `--repository_cache=` to the `bazel fetch` command.
+
+Do not use `bazel clean --expunge` for this. It also removes the WebAssembly
+build and the rest of the Bazel cache.
+
+#### Update the frontend version
+
+Two pins select the frontend version:
+
+- `DEVTOOLS_FRONTEND_REV` and the values after it in `MODULE.bazel` select the
+  bundled frontend. The comment above them tells you how to select a new
+  snapshot.
+- `KITESURF_INSPECTOR_FALLBACK_URL` in the `local` environment of
+  `packages/engine/wrangler.jsonc` selects the hosted frontend. Use the
+  Chrome commit that
+  `https://chromiumdash.appspot.com/fetch_version?version=<chrome-version>`
+  returns in `hashes.chromium`.
+
+Keep the two pins on the same Chrome version. After you change
+`MODULE.bazel`, the next build downloads the new archive.
+
 ## Build and test
 
 The pnpm scripts are front ends to Bazel:
@@ -114,9 +336,13 @@ pnpm run build                    # bazel run //packages/engine:dev_build
 pnpm run check                    # type checks, bundles, and repository checks
 pnpm run test:unit                # engine vitest and Rust host tests
 pnpm run test:e2e <file-substring>
-pnpm run format:check             # oxfmt; pnpm run format rewrites files
+pnpm run format:check             # oxfmt; pnpm run format rewrites the same files
+pnpm run format:rust              # format Rust with Bazel's pinned rustfmt
 pnpm run lint                     # oxlint, the custom lint rules, and Rust lint
 ```
+
+The Rust formatter rewrites tracked and non-ignored untracked files, excluding
+paths in `.oxfmtrc.json`.
 
 `pnpm run build` copies the Bazel-built WebAssembly, bundles, and RBI files into
 the source tree, where `wrangler dev` reads them. Other targets run directly,
@@ -147,8 +373,84 @@ Kitesurf patches its Rust dependencies. The patch series are in
 
 ## Cloudflare deployment
 
-The repository supports local development with Wrangler. A complete self-hosting
-workflow is not available yet.
+> [!WARNING]
+> Do not deploy Kitesurf without authentication in front of it. Use
+> [Cloudflare Access](https://developers.cloudflare.com/workers/configuration/routing/workers-dev/#manage-access-to-workersdev)
+> (Cloudflare Zero Trust) or another authentication layer. The engine has no
+> authentication of its own. A person who has the URL can:
+>
+> - Open DevTools and browse the web through your engine.
+> - Connect Puppeteer and other CDP clients to it.
+> - Send outbound requests that come from your Cloudflare account.
+> - Use CPU time and Dynamic Workers that your account pays for.
+>
+> The `workers.dev` URL is public by default. Its name follows a predictable
+> pattern: `kitesurf.<your-subdomain>.workers.dev`.
+
+To deploy the engine as a Worker on your Cloudflare account:
+
+1. Deploy the engine. Run the command from the repository root. In a package
+   directory, use `pnpm -w run deploy`.
+
+   ```bash
+   pnpm run deploy
+   ```
+
+2. Protect the Worker URL with Cloudflare Access immediately. Follow
+   [Manage access to `workers.dev`](https://developers.cloudflare.com/workers/configuration/routing/workers-dev/#manage-access-to-workersdev).
+   For a custom domain or route, protect it with a
+   [self-hosted Access application](https://developers.cloudflare.com/cloudflare-one/applications/configure-apps/self-hosted-public-app/).
+3. Open the Worker URL in Chrome. Access asks you to sign in. Then the landing
+   page opens. Enter a URL to open it in DevTools.
+
+Between steps 1 and 2, the engine is public. To prevent this gap, turn on Access
+for all Workers in the account before you deploy. The `workers.dev` page in
+step 2 tells you how.
+
+The command builds the engine with Bazel and uploads it with Wrangler. Wrangler
+uses the account of `wrangler login`, or `CLOUDFLARE_ACCOUNT_ID` and
+`CLOUDFLARE_API_TOKEN`. The command sends other arguments to `wrangler deploy`,
+for example `--name <worker-name>`. Without `--name`, the Worker name is
+`kitesurf`.
+
+To build the deploy without an upload, run `pnpm run deploy --dry-run`.
+
+To upload a version without sending traffic to it, run `pnpm run deploy:preview`.
+The command runs `wrangler versions upload`. If the Worker has Version URLs
+turned on, Wrangler prints the URL of the new version. Version URLs are public
+too. Protect them with Access as well. Follow
+[Manage access to Version URLs](https://developers.cloudflare.com/workers/versions-and-deployments/version-urls/#manage-access-to-version-urls).
+
+The deploy always builds with `--config=devtools`, so it includes the Chrome
+DevTools frontend. You do not need `.bazelrc.user` for it. The first deploy
+downloads the frontend, as the first local build does. The deploy sets
+`KITESURF_INSPECTOR_BASE_URL` to `/inspector/inspector.html`. To use a different
+frontend, add `--var KITESURF_INSPECTOR_BASE_URL:<url>` to the command.
+
+DevTools loads from the Worker's own origin, so its WebSocket sends the Access
+cookie. A DevTools frontend on another origin cannot connect through Access.
+
+### Connect a CDP client through Access
+
+Access blocks a CDP client that has no browser session. To connect Puppeteer:
+
+1. Create an
+   [Access service token](https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/service-tokens/).
+2. Add a policy with the **Service Auth** action that allows this token.
+3. Send the token headers with the WebSocket connection:
+
+   ```js
+   const browser = await puppeteer.connect({
+     browserWSEndpoint: "wss://<worker-host>/devtools/browser",
+     headers: {
+       "CF-Access-Client-Id": process.env.CF_ACCESS_CLIENT_ID,
+       "CF-Access-Client-Secret": process.env.CF_ACCESS_CLIENT_SECRET,
+     },
+   });
+   ```
+
+Keep the service token secret. The token gives the same access as a signed-in
+user.
 
 The engine configuration includes a Worker Loader binding. Kitesurf uses this
 binding to start a separate worker for each page and renderer. Cloudflare

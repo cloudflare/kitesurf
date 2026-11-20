@@ -68,7 +68,7 @@ test("SRI: a matching digest runs, a tampered body does not", async ({ browser }
 });
 
 test("SRI: integrity without crossorigin cannot be honoured", async ({ browser }) => {
-  const url = "http://127.0.0.1:8787/__fixtures/policy-script.js?tag=opaque";
+  const url = "https://ks-other.invalid/__fixtures/policy-script.js?tag=opaque";
   const digest = await sri(fixtureBody("opaque", false));
 
   const page = await browser.newPage();
@@ -185,6 +185,48 @@ test("a runtime-inserted script is gated too", async ({ browser }) => {
   expect(await ran(page2)).toEqual(["chunk"]);
 });
 
+test("'self' stays the committed document's origin during a pending navigation", async ({
+  browser,
+}) => {
+  // The 204 aborts the navigation, so the inserting document stays live.
+  const OTHER = "https://ks-other.invalid";
+  const insert = (src: string) =>
+    `<script nonce="n0nce">` +
+    `location.href = ${JSON.stringify(`${OTHER}/__fixtures/status-204`)};` +
+    `var s = document.createElement("script");` +
+    `s.src = ${JSON.stringify(src)};` +
+    `document.head.appendChild(s);` +
+    `</script>`;
+  const policy = "script-src 'nonce-n0nce' 'self'";
+  const crossOrigin = scriptUrl({ tag: "xo" }).replace(ORIGIN, OTHER);
+
+  const page = await browser.newPage();
+  await page.goto(docUrl(policy, insert(crossOrigin)), { waitUntil: "load" });
+  await settle(page);
+  expect(await ran(page)).toEqual([]);
+
+  const page2 = await browser.newPage();
+  await page2.goto(docUrl(policy, insert(scriptUrl({ tag: "self" }))), { waitUntil: "load" });
+  await settle(page2);
+  expect(await ran(page2)).toEqual(["self"]);
+});
+
+test("a relative script src resolves against the URL a history traversal returns to", async ({
+  page,
+}) => {
+  const body =
+    `<script>` +
+    `history.pushState(null, "", "/elsewhere/x");` +
+    `history.back();` +
+    `var s = document.createElement("script");` +
+    `s.src = "policy-script.js?tag=original-dir";` +
+    `document.head.appendChild(s);` +
+    `</script>`;
+  await page.goto(docUrl("", body), { waitUntil: "load" });
+  await settle(page);
+  expect(await ran(page)).toEqual(["original-dir"]);
+});
+
 test("a runtime-inserted script's nonce is read from the IDL property", async ({ browser }) => {
   const inline = `globalThis.__ksRan=(globalThis.__ksRan||[]).concat(["inline"]);`;
   const insert = (how: string, body: string) =>
@@ -249,4 +291,124 @@ test("<base href> is what relative script src resolves against", async ({ page }
     { waitUntil: "load" },
   );
   expect(await ran(page)).toEqual(["based"]);
+});
+
+const HANDLER_BODY =
+  `<script nonce="n0nce">` +
+  `globalThis.__ksRan = [];` +
+  `const b = document.createElement("button");` +
+  `b.setAttribute("onclick", "__ksRan.push('setAttribute')");` +
+  `document.body.append(b);` +
+  `addEventListener("load", () => { document.getElementById("p").click(); b.click(); });` +
+  `</script>` +
+  `<button id="p" onclick="__ksRan.push('parsed')"></button>` +
+  `<img src="/__fixtures/missing.png" onerror="__ksRan.push('onerror')">`;
+
+test("CSP: a nonce does not admit inline event handler attributes", async ({ page }) => {
+  await page.goto(docUrl("script-src 'nonce-n0nce'", HANDLER_BODY), { waitUntil: "load" });
+  await new Promise((r) => setTimeout(r, 200));
+  expect(await ran(page)).toEqual([]);
+});
+
+test("CSP: 'unsafe-inline' still admits inline event handler attributes", async ({ page }) => {
+  await page.goto(
+    docUrl("script-src 'unsafe-inline'", HANDLER_BODY.replace(' nonce="n0nce"', "")),
+    {
+      waitUntil: "load",
+    },
+  );
+  await new Promise((r) => setTimeout(r, 200));
+  expect([...(await ran(page))].sort()).toEqual(["onerror", "parsed", "setAttribute"]);
+});
+
+test("CSP: script-src-attr governs handlers independently of script-src", async ({ page }) => {
+  await page.goto(
+    docUrl("script-src 'nonce-n0nce'; script-src-attr 'unsafe-inline'", HANDLER_BODY),
+    {
+      waitUntil: "load",
+    },
+  );
+  await new Promise((r) => setTimeout(r, 200));
+  expect([...(await ran(page))].sort()).toEqual(["onerror", "parsed", "setAttribute"]);
+});
+
+const viaRedirect = (to: string): string =>
+  `${ORIGIN}/__fixtures/loud-redirect?to=${encodeURIComponent(to)}`;
+const OTHER_SCRIPT = "https://ks-other.invalid/__fixtures/policy-script.js";
+
+test("CSP: a parser script that redirects off the allowlist does not run", async ({ browser }) => {
+  const csp = `script-src ${ORIGIN} 'nonce-n0nce'`;
+  const page = await browser.newPage();
+  await page.goto(
+    docUrl(csp, `<script src="${viaRedirect(`${OTHER_SCRIPT}?tag=redirected`)}"></script>`),
+    { waitUntil: "load" },
+  );
+  expect(await ran(page)).toEqual([]);
+
+  // A redirect inside the allowlist still runs, and a source path is not matched after it.
+  const page2 = await browser.newPage();
+  await page2.goto(
+    docUrl(
+      `script-src ${ORIGIN}/__fixtures/loud-redirect`,
+      `<script src="${viaRedirect(scriptUrl({ tag: "same-host" }))}"></script>`,
+    ),
+    { waitUntil: "load" },
+  );
+  expect(await ran(page2)).toEqual(["same-host"]);
+});
+
+test("CSP: a runtime-inserted script that redirects under 'strict-dynamic' runs", async ({
+  page,
+}) => {
+  const body =
+    `<script nonce="n0nce">` +
+    `for (const src of ${JSON.stringify([
+      viaRedirect(scriptUrl({ tag: "sd-redirect" })),
+      scriptUrl({ tag: "sd-fragment" }) + "#v1",
+    ])}) { const s = document.createElement("script"); s.src = src; document.head.append(s); }` +
+    `</script>`;
+  await page.goto(docUrl(`script-src 'nonce-n0nce' 'strict-dynamic'`, body), { waitUntil: "load" });
+  await settle(page);
+  // Chrome trusts a script a trusted script inserted at any URL, redirects and fragments
+  // included; a recheck that forgets the insert or compares the fragment refuses both.
+  expect((await ran(page)).sort()).toEqual(["sd-fragment", "sd-redirect"]);
+});
+
+test("CSP: a runtime-inserted script that redirects off the allowlist does not run", async ({
+  page,
+}) => {
+  const body =
+    `<script nonce="n0nce">` +
+    `for (const src of ${JSON.stringify([
+      viaRedirect(`${OTHER_SCRIPT}?tag=inserted-off`),
+      viaRedirect(scriptUrl({ tag: "inserted-on" })),
+    ])}) { const s = document.createElement("script"); s.src = src; document.head.append(s); }` +
+    `</script>`;
+  await page.goto(docUrl(`script-src ${ORIGIN} 'nonce-n0nce'`, body), { waitUntil: "load" });
+  await settle(page);
+  expect(await ran(page)).toEqual(["inserted-on"]);
+});
+
+test("CSP: an inserted script or module that bounces off the allowlist and back does not run", async ({
+  page,
+}) => {
+  // ks.invalid, then ks-other.invalid, then ks.invalid: only a per-hop check refuses it.
+  // The hops send CORS headers so the module, a CORS fetch, is refused by CSP alone.
+  const bounce = (tag: string) => {
+    const hop = (host: string, to: string) =>
+      `https://${host}/__fixtures/cors-redirect?to=${encodeURIComponent(to)}`;
+    return hop("ks.invalid", hop("ks-other.invalid", scriptUrl({ tag })));
+  };
+  const body =
+    `<script nonce="n0nce">` +
+    `const s = document.createElement("script"); s.src = ${JSON.stringify(bounce("bounced"))};` +
+    `document.head.append(s);` +
+    // A computed specifier keeps the engine's static module walk from fetching it first.
+    `const spec = [${JSON.stringify(bounce("bounced-module"))}][0]; import(spec).catch(() => {});` +
+    `const ok = document.createElement("script"); ok.src = ${JSON.stringify(scriptUrl({ tag: "direct" }))};` +
+    `document.head.append(ok);` +
+    `</script>`;
+  await page.goto(docUrl(`script-src ${ORIGIN} 'nonce-n0nce'`, body), { waitUntil: "load" });
+  await settle(page);
+  expect(await ran(page)).toEqual(["direct"]);
 });

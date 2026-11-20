@@ -6,8 +6,9 @@
 
 import type { CdpRequest, TargetState } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
-import { entryToCdp, setCdpCookie } from "../cookies.ts";
-import { jarForContextId, jarForTarget } from "./target.ts";
+import { entryToCdp, setCdpCookie, type CookieJar } from "../cookies.ts";
+import { jarForContextId, jarForTarget, localStorageForTarget } from "./target.ts";
+import { localStorageOrigin } from "../state/local-storage.ts";
 
 export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
   switch (req.method) {
@@ -118,6 +119,24 @@ export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<
       return {};
     }
 
+    case "Storage.clearDataForOrigin": {
+      const origin = req.params?.origin;
+      const url = typeof origin === "string" ? parseUrl(origin) : null;
+      if (!url) throw new Error(`${String(origin)} is not a valid URL`);
+      clearOriginData(ctx, req.sessionId, url, req.params?.storageTypes);
+      return {};
+    }
+
+    case "Storage.clearDataForStorageKey": {
+      const key = req.params?.storageKey;
+      // A partitioned key ("https://a.test/^0https://b.test") names data Kitesurf never keeps.
+      const partitioned = typeof key === "string" && key.includes("^");
+      const url = typeof key === "string" ? parseUrl(key.split("^", 1)[0] ?? "") : null;
+      if (!url) throw new Error("Invalid Storage Key given.");
+      clearOriginData(ctx, req.sessionId, partitioned ? null : url, req.params?.storageTypes);
+      return {};
+    }
+
     case "Network.clearBrowserCache":
       return {};
 
@@ -126,14 +145,13 @@ export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<
 
     case "Network.getResponseBody": {
       const requestId = req.params!.requestId;
-      if (!requestId) {
-        return { body: "", base64Encoded: false };
+      const tracker = ctx.browser.networkEvents;
+      // Chrome rejects an id it never issued. Kitesurf keeps fewer bodies than Chrome, so a known
+      // request whose body it dropped answers empty rather than failing a read Chrome would serve.
+      if (!requestId || !tracker.knowsRequest(requestId)) {
+        throw new Error("No resource with given identifier found");
       }
-      const found = ctx.browser.networkEvents.getResponseBody(requestId);
-      if (!found) {
-        return { body: "", base64Encoded: false };
-      }
-      return found;
+      return tracker.getResponseBody(requestId) ?? { body: "", base64Encoded: false };
     }
 
     default:
@@ -150,6 +168,84 @@ export function effectiveExtraHeaders(t: TargetState): Record<string, string> {
   }
   merged["user-agent"] = t.userAgentOverride;
   return merged;
+}
+
+// Protocol.Storage.StorageType. Chromium ignores names it does not know and fails only when no
+// name is valid. Kitesurf keeps only cookies and localStorage, so the other types clear nothing.
+const STORAGE_TYPES = new Set([
+  "cookies",
+  "file_systems",
+  "indexeddb",
+  "local_storage",
+  "shader_cache",
+  "websql",
+  "service_workers",
+  "cache_storage",
+  "interest_groups",
+  "shared_storage",
+  "storage_buckets",
+  "all",
+  "other",
+]);
+
+// Storage.clearDataFor*: the browser session clears the default context, a page or frame session
+// its own context. A null `url` validates the request and clears nothing. Open pages see a
+// localStorage clear from their next navigation on.
+function clearOriginData(
+  ctx: DispatchCtx,
+  sessionId: string | undefined,
+  url: URL | null,
+  storageTypes: unknown,
+): void {
+  const target = storageSessionTarget(ctx, sessionId);
+  const types = new Set(
+    typeof storageTypes === "string"
+      ? storageTypes
+          .split(",")
+          .map((t) => t.trim())
+          .filter((t) => STORAGE_TYPES.has(t))
+      : [],
+  );
+  if (types.size === 0) throw new Error("No valid storage type specified");
+  if (!url) return;
+  const all = types.has("all");
+  if (all || types.has("cookies")) clearCookiesForHost(jarForTarget(ctx, target), url.hostname);
+  const origin = localStorageOrigin(url.href);
+  if (origin && (all || types.has("local_storage"))) {
+    localStorageForTarget(ctx, target).apply(origin, [{ op: "clear" }]);
+  }
+}
+
+// The target whose browser context a session names. An unknown session fails rather than fall
+// back to the default context, as jarForContextId does for an unknown context id.
+function storageSessionTarget(
+  ctx: DispatchCtx,
+  sessionId: string | undefined,
+): TargetState | undefined {
+  if (!sessionId) return undefined;
+  for (const t of ctx.browser.targets.values()) {
+    if (t.sessions.has(sessionId)) return t;
+    for (const f of t.frames.values()) if (f.sessions.has(sessionId)) return t;
+  }
+  throw new Error("Session with given id not found.");
+}
+
+// Every cookie a request to `host` would carry: host-only cookies of the host and domain cookies
+// of the host or a parent domain.
+function clearCookiesForHost(jar: CookieJar, host: string): void {
+  if (!host) return;
+  for (const c of jar.getAll()) {
+    const matches = c.hostOnly ? c.host === host : c.host === host || host.endsWith(`.${c.host}`);
+    if (matches) jar.remove({ name: c.name, domain: c.host, path: c.path });
+  }
+}
+
+function parseUrl(s: string): URL | null {
+  try {
+    return new URL(s);
+  } catch {
+    return null;
+  }
 }
 
 function resolveNetworkTarget(

@@ -22,7 +22,66 @@ fn parse_full(html: &str) -> HtmlDocument {
 }
 
 fn scan_value(html: &str) -> Value {
-    serde_json::from_str(&crate::dom::scan::ks_scan_document(html)).expect("scan JSON parses")
+    let mut scanner = crate::dom::scan::DocScanner::new();
+    scanner.push(html.as_bytes());
+    serde_json::from_str(&scanner.finish()).expect("scan JSON parses")
+}
+
+fn scan_in_chunks(html: &str, chunk_bytes: usize) -> Value {
+    serde_json::to_value(crate::dom::scan::scan_document_in_chunks(html, chunk_bytes))
+        .expect("scan serializes")
+}
+
+#[test]
+fn scan_is_the_same_whatever_the_input_chunking() {
+    let html = "<!DOCTYPE html>\r\n<html><head><title>Tést &amp;\r\n café 😀</title>\
+        <base href=\"/b/\"><meta http-equiv=\"Content-Security-Policy\" content=\"script-src 'self'\">\
+        <script type=\"importmap\">{\"imports\":{\"a\":\"./é.js\"}}</script></head><body>\
+        <!-- c --><script src=\"x.js\" nonce=\"n\"></script><script>let s = '</scr' + 'ipt>é';\0\
+        </script><svg><script>1</script></svg><textarea><script>no</script></textarea>\
+        <iframe src=\"f.html\" srcdoc=\"&lt;p&gt;\"></iframe><p>&notin;&#x1F600;&#128512;</p></body></html>";
+    let whole = scan_in_chunks(html, html.len());
+
+    assert_eq!(
+        whole,
+        scan_value(html),
+        "the exported scan reads the same document"
+    );
+    assert!(
+        whole["scripts"].as_array().is_some_and(|s| s.len() >= 2),
+        "{whole}"
+    );
+
+    for chunk_bytes in [1, 2, 3, 5, 7, 64] {
+        assert_eq!(
+            scan_in_chunks(html, chunk_bytes),
+            whole,
+            "chunks of {chunk_bytes} bytes"
+        );
+    }
+}
+
+// The XHTML sniff settles only at the root tag, after the leading comment; until then the scan
+// holds the input back, since XHTML closes `<script/>` where HTML would read on as script text.
+#[test]
+fn xhtml_scan_is_the_same_whatever_the_input_chunking() {
+    let html = "<!-- lead é -->\n<html xmlns=\"http://www.w3.org/1999/xhtml\"><head>\
+        <title>X</title><script src=\"a.js\"/><script src=\"b.js\"></script></head><body/></html>";
+    let whole = scan_value(html);
+
+    assert_eq!(
+        whole["scripts"].as_array().map(Vec::len),
+        Some(2),
+        "{whole}"
+    );
+
+    for chunk_bytes in [1, 2, 3, 5, 7, 64, html.len()] {
+        assert_eq!(
+            scan_in_chunks(html, chunk_bytes),
+            whole,
+            "chunks of {chunk_bytes} bytes"
+        );
+    }
 }
 
 fn element_local(doc: &BaseDocument, id: NodeId) -> Option<&str> {
@@ -34,20 +93,20 @@ fn element_local(doc: &BaseDocument, id: NodeId) -> Option<&str> {
 
 fn element_is_html_ns(doc: &BaseDocument, id: NodeId) -> bool {
     match &doc.get_node(id).map(|n| &n.data) {
-        Some(NodeData::Element(d)) => &*d.name.ns == "http://www.w3.org/1999/xhtml",
+        Some(NodeData::Element(d)) => &**d.namespace() == "http://www.w3.org/1999/xhtml",
         _ => false,
     }
 }
 
 fn has_ancestor_in(doc: &BaseDocument, id: NodeId, names: &[&str]) -> bool {
-    let mut cur = doc.get_node(id).and_then(|n| n.parent);
+    let mut cur = doc.get_node(id).and_then(|n| n.parent_id());
     while let Some(pid) = cur {
         if let Some(local) = element_local(doc, pid) {
             if names.contains(&local) {
                 return true;
             }
         }
-        cur = doc.get_node(pid).and_then(|n| n.parent);
+        cur = doc.get_node(pid).and_then(|n| n.parent_id());
     }
     false
 }
@@ -57,7 +116,7 @@ fn attrs_of(doc: &BaseDocument, id: NodeId) -> Vec<(String, String)> {
         Some(NodeData::Element(d)) => d
             .attrs
             .iter()
-            .map(|a| (str::to_ascii_lowercase(&a.name.local), a.value.clone()))
+            .map(|a| (str::to_ascii_lowercase(&a.name.local), a.value.to_string()))
             .collect(),
         _ => Vec::new(),
     }
@@ -80,6 +139,7 @@ fn ground_truth(html: &str) -> Value {
     };
     let script_ids = sel("script");
     let iframe_ids = sel("iframe");
+    let link_ids = sel("link");
     let title_ids = sel("title");
     let base_ids = sel("base");
     let meta_ids = sel("meta");
@@ -160,10 +220,38 @@ fn ground_truth(html: &str) -> Value {
         let attrs = attrs_of(doc, id);
         iframes.push(json!({
             "src": attr(&attrs, "src"),
+            "srcdoc": attr(&attrs, "srcdoc"),
+            "sandbox": attr(&attrs, "sandbox"),
             "name": attr(&attrs, "name"),
+            "id": attr(&attrs, "id"),
             "loading": attr(&attrs, "loading"),
             "docOrderIndex": iframes.len(),
         }));
+    }
+
+    let mut module_preloads = Vec::new();
+    for &id in link_ids.iter() {
+        if !element_is_html_ns(doc, id) || has_ancestor_in(doc, id, &hidden) {
+            continue;
+        }
+        let attrs = attrs_of(doc, id);
+        let is_modulepreload = attr(&attrs, "rel")
+            .unwrap_or("")
+            .split_ascii_whitespace()
+            .any(|rel| rel.eq_ignore_ascii_case("modulepreload"));
+        let script_destination = attr(&attrs, "as")
+            .map(|value| value.is_empty() || value.eq_ignore_ascii_case("script"))
+            .unwrap_or(true);
+        if let Some(href) = attr(&attrs, "href").filter(|href| !href.is_empty()) {
+            if is_modulepreload && script_destination {
+                module_preloads.push(json!({
+                    "href": href,
+                    "nonce": attr(&attrs, "nonce"),
+                    "integrity": attr(&attrs, "integrity"),
+                    "crossOrigin": attr(&attrs, "crossorigin"),
+                }));
+            }
+        }
     }
 
     let title = title_ids
@@ -211,6 +299,7 @@ fn ground_truth(html: &str) -> Value {
         "importMaps": import_maps,
         "scripts": scripts,
         "iframes": iframes,
+        "modulePreloads": module_preloads,
     })
 }
 
@@ -320,6 +409,19 @@ fn title_with_entities_and_base_relative() {
 fn unclosed_script_swallows_rest_of_document() {
     check("<div>before</div><script>tail = '<div>not a div</div>'");
     check("<title>never closed");
+}
+
+#[test]
+fn iframe_sandbox_and_srcdoc_are_captured() {
+    check(concat!(
+        "<iframe src=a.html sandbox></iframe>",
+        r#"<iframe srcdoc="<p>x</p>" sandbox="allow-scripts"></iframe>"#,
+        "<iframe src=b.html sandbox=\"  ALLOW-FORMS  \"></iframe>",
+    ));
+    // An absent attribute and an empty one must stay distinguishable; the raw value is preserved.
+    let v = scan_value("<iframe src=a.html></iframe><iframe src=b.html sandbox></iframe>");
+    assert_eq!(v["iframes"][0]["sandbox"], Value::Null);
+    assert_eq!(v["iframes"][1]["sandbox"], "");
 }
 
 #[test]
@@ -476,7 +578,7 @@ fn html_doctype_with_xhtml_later_on_its_line_parses_as_html() {
     let document = parse_full(html);
     let doc: &BaseDocument = &document;
     let title = doc.query_selector_all("title").unwrap()[0];
-    let parent = doc.get_node(title).and_then(|n| n.parent).unwrap();
+    let parent = doc.get_node(title).and_then(|n| n.parent_id()).unwrap();
     assert_eq!(
         element_local(doc, parent),
         Some("head"),
@@ -621,6 +723,26 @@ fn iframe_loading_attribute_is_scanned() {
 }
 
 #[test]
+fn iframe_name_and_id_are_scanned() {
+    let html = concat!(
+        "<html><body>",
+        "<iframe src=\"a.html\" name=\"named\" id=\"first\"></iframe>",
+        "<iframe src=\"b.html\" id=\"second\"></iframe>",
+        "<iframe src=\"c.html\"></iframe>",
+        "</body></html>",
+    );
+    check(html);
+    let v = scan_value(html);
+    let iframes = v["iframes"].as_array().unwrap();
+    assert_eq!(iframes.len(), 3);
+    assert_eq!(iframes[0]["name"], "named");
+    assert_eq!(iframes[0]["id"], "first");
+    assert!(iframes[1]["name"].is_null());
+    assert_eq!(iframes[1]["id"], "second");
+    assert!(iframes[2]["id"].is_null());
+}
+
+#[test]
 fn xhtml_script_body_expands_char_refs() {
     let html = concat!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
@@ -732,6 +854,39 @@ fn integrity_and_nonce_are_carried() {
 }
 
 #[test]
+fn modulepreload_links_follow_html_tokenization() {
+    let cases: &[(&str, Value)] = &[
+        (
+            r#"<link data-note=">" rel="modulepreload" href="/a.js?x=1&amp;y=2" integrity="sha384-test" crossorigin="use-credentials">"#,
+            json!([{"href": "/a.js?x=1&y=2", "nonce": null, "integrity": "sha384-test", "crossOrigin": "use-credentials"}]),
+        ),
+        (
+            r#"<link rel="ModulePreload" as="script" href="/case.js" nonce="n1">"#,
+            json!([{"href": "/case.js", "nonce": "n1", "integrity": null, "crossOrigin": null}]),
+        ),
+        (
+            concat!(
+                r#"<script>var s = '<link rel="modulepreload" href="/script.js">';</script>"#,
+                r#"<!-- <link rel="modulepreload" href="/comment.js"> -->"#,
+                r#"<template><link rel="modulepreload" href="/template.js"></template>"#,
+                r#"<svg><link rel="modulepreload" href="/svg.js"></svg>"#,
+                r#"<link rel="preload" as="script" href="/classic.js">"#,
+                r#"<link rel="modulepreload" as="style" href="/style.css">"#,
+            ),
+            json!([]),
+        ),
+    ];
+    for (html, expected) in cases {
+        check(html);
+        assert_eq!(
+            scan_value(html)["modulePreloads"],
+            *expected,
+            "modulePreloads for:\n{html}"
+        );
+    }
+}
+
+#[test]
 fn meta_csp_is_captured_in_document_order() {
     let v = scan_value(concat!(
         "<meta charset=utf-8>",
@@ -744,4 +899,24 @@ fn meta_csp_is_captured_in_document_order() {
     assert_eq!(csp.len(), 2);
     assert_eq!(csp[0], "script-src 'self'");
     assert_eq!(csp[1], "default-src https:");
+}
+
+// html5ever's tokenizer drops a leading U+FEFF on every `feed`, and the scanner feeds it once per
+// chunk, so only the document's own first character is a BOM: one that starts a later chunk is
+// part of the script text.
+#[test]
+fn a_byte_order_mark_inside_the_document_survives_chunking() {
+    let html = "<script>window.x='aaa\u{feff}'</script>";
+    let whole = scan_value(html);
+    assert_eq!(
+        scan_in_chunks(html, html.len()),
+        whole,
+        "one push reads the document"
+    );
+    let boundary = "<script>window.x='aaa".len();
+    assert_eq!(
+        scan_in_chunks(html, boundary),
+        whole,
+        "a U+FEFF that starts the second chunk is script text"
+    );
 }

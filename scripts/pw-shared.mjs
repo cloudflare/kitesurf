@@ -27,6 +27,36 @@ export function leafTitle(id) {
   return id.split("::").slice(1).join("::").split(" › ").pop();
 }
 
+/** @param {string} status @returns {string} */
+function resultStatus(status) {
+  if (status === "passed") return "PASS";
+  if (status === "timedOut") return "TIMEOUT";
+  if (status === "skipped") return "SKIP";
+  return "FAIL";
+}
+
+// Ids are `<file>::<describe titles and test title, joined by " › ">`, the
+// same path --grep matches, so a pin's id can select or skip that test.
+/** @param {{suites?: object[]}} report Playwright JSON reporter output @returns {Record<string, string>} */
+export function reportResults(report) {
+  const output = {};
+  const walk = (suite, titles) => {
+    for (const child of suite.suites ?? [])
+      walk(child, child.title ? [...titles, child.title] : titles);
+    for (const spec of suite.specs ?? []) {
+      const file = spec.file.replace(/\\/g, "/");
+      for (const run of spec.tests ?? []) {
+        const last = run.results?.[run.results.length - 1];
+        output[`${file}::${[...titles, spec.title].join(" › ")}`] = last
+          ? resultStatus(last.status)
+          : "SKIP";
+      }
+    }
+  };
+  for (const fileSuite of report.suites ?? []) walk(fileSuite, []);
+  return output;
+}
+
 /** @param {Record<string, string>} results @param {Record<string, {expected?: string}>} expectations @returns {{id: string, expected: string, actual: string}[]} */
 export function deviations(results, expectations) {
   const output = [];

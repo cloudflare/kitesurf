@@ -19,9 +19,11 @@ use boa_engine::{
     Context, JsValue as BoaValue,
 };
 
+use js_sys::{Array, Function};
 use wasm_bindgen::JsCast;
+use wasm_bindgen::JsValue;
 
-use crate::js::boa_bridge::{get_v8, with_v8, with_v8_quiet};
+use crate::js::boa_bridge::{boa_to_v8, get_v8, v8_node_to_boa, v8_to_boa, with_v8, with_v8_quiet};
 use crate::NodeHandleMap;
 
 const OP_GET_ATTRIBUTE: u8 = 0;
@@ -111,15 +113,15 @@ fn op_for_key(key: &str) -> Option<u8> {
 struct Binding {
     doc: Weak<RefCell<HtmlDocument>>,
     node_handles: Weak<RefCell<NodeHandleMap>>,
-    brand: js_sys::Function,
-    revalidate: js_sys::Function,
-    wrapper: js_sys::Function,
+    brand: Function,
+    revalidate: Function,
+    wrapper: Function,
     // The cached wrapper for an id or null, touching nothing page-writable, so
     // it runs quiet; a miss falls back to `wrapper`, which can run page code.
-    peek: Option<js_sys::Function>,
+    peek: Option<Function>,
     // ids -> a static NodeList of nodeFor(id), built the way querySelectorAll
     // builds one, so the fast path returns the same class and wrappers.
-    node_list: Option<js_sys::Function>,
+    node_list: Option<Function>,
 }
 
 thread_local! {
@@ -147,11 +149,11 @@ thread_local! {
 pub(crate) fn bind(
     doc: Weak<RefCell<HtmlDocument>>,
     node_handles: Weak<RefCell<NodeHandleMap>>,
-    brand: js_sys::Function,
-    revalidate: js_sys::Function,
-    wrapper: js_sys::Function,
-    peek: Option<js_sys::Function>,
-    node_list: Option<js_sys::Function>,
+    brand: Function,
+    revalidate: Function,
+    wrapper: Function,
+    peek: Option<Function>,
+    node_list: Option<Function>,
 ) {
     BINDING.with(|b| {
         *b.borrow_mut() = Some(Binding {
@@ -259,7 +261,7 @@ fn brand_check(handle: u64, ctx: &mut Context) -> i32 {
         drop(b);
         with_v8(ctx, || {
             brand
-                .call1(&wasm_bindgen::JsValue::NULL, &v8obj)
+                .call1(&JsValue::NULL, &v8obj)
                 .ok()
                 .and_then(|v| v.as_f64())
                 .map(|f| f as i32)
@@ -283,10 +285,7 @@ fn revalidate(op: u8, ctx: &mut Context) {
         drop(b);
         with_v8_quiet(ctx, || {
             reval
-                .call1(
-                    &wasm_bindgen::JsValue::NULL,
-                    &wasm_bindgen::JsValue::from(op),
-                )
+                .call1(&JsValue::NULL, &JsValue::from(op))
                 .ok()
                 .and_then(|v| v.as_f64())
                 .map(|f| f as u32)
@@ -313,13 +312,13 @@ fn attr_lookup(doc: &HtmlDocument, nid: NodeId, name: &str) -> Option<Option<Str
     let NodeData::Element(data) = &node.data else {
         return None;
     };
-    let lookup = if data.name.ns == ns!(html) {
+    let lookup = if *data.namespace() == ns!(html) {
         name.to_ascii_lowercase()
     } else {
         name.to_owned()
     };
     for a in data.attrs.iter() {
-        let matches = match &a.name.prefix {
+        let matches = match a.prefix() {
             Some(prefix) => lookup
                 .strip_prefix(&**prefix)
                 .and_then(|remaining| remaining.strip_prefix(':'))
@@ -327,7 +326,7 @@ fn attr_lookup(doc: &HtmlDocument, nid: NodeId, name: &str) -> Option<Option<Str
             None => *a.name.local == lookup,
         };
         if matches {
-            return Some(Some(a.value.clone()));
+            return Some(Some(a.value.to_string()));
         }
     }
     Some(None)
@@ -339,11 +338,11 @@ fn node_name(doc: &HtmlDocument, nid: NodeId) -> Option<String> {
         return None;
     };
     let local = data.name.local.to_string();
-    let qname = match &data.name.prefix {
+    let qname = match data.prefix() {
         Some(p) => format!("{}:{}", p, local),
         None => local,
     };
-    Some(if data.name.ns == ns!(html) {
+    Some(if *data.namespace() == ns!(html) {
         qname.to_ascii_uppercase()
     } else {
         qname
@@ -351,7 +350,7 @@ fn node_name(doc: &HtmlDocument, nid: NodeId) -> Option<String> {
 }
 
 fn parent_of(doc: &HtmlDocument, nid: NodeId) -> Option<Option<NodeId>> {
-    Some(doc.get_node(nid)?.parent)
+    Some(doc.get_node(nid)?.parent_id())
 }
 
 fn is_element(doc: &HtmlDocument, nid: NodeId) -> bool {
@@ -377,14 +376,11 @@ fn mint_node(nid: u32, ctx: &mut Context) -> Option<BoaValue> {
         // Quiet: a cached wrapper is a pure lookup, so it must not re-arm the
         // boundary revalidation that a minting nodeFor (which can run page code) needs.
         let hit = with_v8_quiet(ctx, || {
-            peek.call1(
-                &wasm_bindgen::JsValue::NULL,
-                &wasm_bindgen::JsValue::from_f64(nid as f64),
-            )
-            .ok()
+            peek.call1(&JsValue::NULL, &JsValue::from_f64(nid as f64))
+                .ok()
         });
         if let Some(v8) = hit.filter(|v| v.is_object()) {
-            return Some(crate::js::boa_bridge::v8_node_to_boa(v8, ctx));
+            return Some(v8_node_to_boa(v8, ctx));
         }
     }
     let v8 = BINDING.with(|b| {
@@ -394,17 +390,14 @@ fn mint_node(nid: u32, ctx: &mut Context) -> Option<BoaValue> {
         drop(b);
         with_v8(ctx, || {
             wrapper
-                .call1(
-                    &wasm_bindgen::JsValue::NULL,
-                    &wasm_bindgen::JsValue::from_f64(nid as f64),
-                )
+                .call1(&JsValue::NULL, &JsValue::from_f64(nid as f64))
                 .ok()
         })
     })?;
     if v8.is_null() || v8.is_undefined() {
         return None;
     }
-    Some(crate::js::boa_bridge::v8_node_to_boa(v8, ctx))
+    Some(v8_node_to_boa(v8, ctx))
 }
 
 fn handle_of_boa_value(v: &BoaValue, ctx: &mut Context) -> Option<u64> {
@@ -461,7 +454,7 @@ fn slow_method_call(
 
 // The cached closure outlives the proxy whose pin it captured: once a GC releases that
 // pin, get_v8 reads undefined (or a reused slot), so fallbacks find the node afresh.
-fn live_holder(this: &BoaValue, nid: u32, handle: u64, ctx: &mut Context) -> wasm_bindgen::JsValue {
+fn live_holder(this: &BoaValue, nid: u32, handle: u64, ctx: &mut Context) -> JsValue {
     let names_node =
         |h: u64| NID_BY_HANDLE.with(|m| m.borrow().get(&h).copied()) == Some(nid as i32);
     if let Some(h) = handle_of_boa_value(this, ctx).filter(|&h| names_node(h)) {
@@ -475,17 +468,14 @@ fn live_holder(this: &BoaValue, nid: u32, handle: u64, ctx: &mut Context) -> was
         let binding = b.as_ref()?;
         Some((binding.peek.clone(), binding.wrapper.clone()))
     });
-    let id = wasm_bindgen::JsValue::from_f64(nid as f64);
+    let id = JsValue::from_f64(nid as f64);
     if let Some((peek, wrapper)) = found {
-        let peeked = peek.and_then(|peek| {
-            with_v8_quiet(ctx, || peek.call1(&wasm_bindgen::JsValue::NULL, &id).ok())
-        });
+        let peeked =
+            peek.and_then(|peek| with_v8_quiet(ctx, || peek.call1(&JsValue::NULL, &id).ok()));
         if let Some(v8) = peeked.filter(|v| v.is_object()) {
             return v8;
         }
-        let minted = with_v8(ctx, || {
-            wrapper.call1(&wasm_bindgen::JsValue::NULL, &id).ok()
-        });
+        let minted = with_v8(ctx, || wrapper.call1(&JsValue::NULL, &id).ok());
         if let Some(v8) = minted.filter(|v| v.is_object()) {
             return v8;
         }
@@ -513,25 +503,22 @@ fn foreign_method_call(
 ) -> boa_engine::JsResult<BoaValue> {
     STAT_FALLBACKS.with(|c| c.set(c.get() + 1));
     let holder = live_holder(&BoaValue::undefined(), nid, handle, ctx);
-    let recv = crate::js::boa_bridge::boa_to_v8(this, ctx);
+    let recv = boa_to_v8(this, ctx);
     slow_method_call_on(holder, recv, method, args, ctx)
 }
 
 fn slow_method_call_on(
-    holder: wasm_bindgen::JsValue,
-    recv: wasm_bindgen::JsValue,
+    holder: JsValue,
+    recv: JsValue,
     method: &str,
     args: &[BoaValue],
     ctx: &mut Context,
 ) -> boa_engine::JsResult<BoaValue> {
-    let marshalled: Vec<wasm_bindgen::JsValue> = args
-        .iter()
-        .map(|a| crate::js::boa_bridge::boa_to_v8(a, ctx))
-        .collect();
+    let marshalled: Vec<JsValue> = args.iter().map(|a| boa_to_v8(a, ctx)).collect();
     let out = with_v8(ctx, || {
-        let m = js_sys::Reflect::get(&holder, &wasm_bindgen::JsValue::from_str(method)).ok()?;
-        let f: &js_sys::Function = m.dyn_ref::<js_sys::Function>()?;
-        let arr = js_sys::Array::new();
+        let m = js_sys::Reflect::get(&holder, &JsValue::from_str(method)).ok()?;
+        let f: &Function = m.dyn_ref::<Function>()?;
+        let arr = Array::new();
         for a in &marshalled {
             arr.push(a);
         }
@@ -540,10 +527,8 @@ fn slow_method_call_on(
     // A throw rethrows like trap_apply's does: querySelector("[") must still
     // surface the shim's SyntaxError DOMException, not read as undefined.
     match out {
-        Some(Ok(v)) => Ok(crate::js::boa_bridge::v8_to_boa(v, ctx)),
-        Some(Err(e)) => Err(boa_engine::JsError::from_opaque(
-            crate::js::boa_bridge::v8_to_boa(e, ctx),
-        )),
+        Some(Ok(v)) => Ok(v8_to_boa(v, ctx)),
+        Some(Err(e)) => Err(boa_engine::JsError::from_opaque(v8_to_boa(e, ctx))),
         None => Ok(BoaValue::undefined()),
     }
 }
@@ -710,7 +695,7 @@ fn run_query(root: u32, sel: &str, q: Query) -> Option<QueryOut<u32>> {
     let internal = resolve_node_id(root)?;
     let raw = with_doc(|doc| {
         let node = doc.get_node(internal)?;
-        let is_root = internal == doc.root_node().id;
+        let is_root = internal == doc.root_node().id();
         let blitz_parses = is_root && matches!(q, Query::First | Query::All);
         let parsed = (!blitz_parses).then(|| doc.try_parse_selector_list(sel));
         let list = match parsed {
@@ -734,7 +719,7 @@ fn run_query(root: u32, sel: &str, q: Query) -> Option<QueryOut<u32>> {
                     &mut out,
                     MayUseInvalidation::Yes,
                 );
-                Some(QueryOut::Node(out.map(|n| n.id)))
+                Some(QueryOut::Node(out.map(|n| n.id())))
             }
             Query::All => {
                 let mut out: smallvec::SmallVec<[&Node; 128]> = smallvec::SmallVec::new();
@@ -744,7 +729,7 @@ fn run_query(root: u32, sel: &str, q: Query) -> Option<QueryOut<u32>> {
                     &mut out,
                     MayUseInvalidation::Yes,
                 );
-                Some(QueryOut::Nodes(out.into_iter().map(|n| n.id).collect()))
+                Some(QueryOut::Nodes(out.into_iter().map(|n| n.id()).collect()))
             }
             Query::Matches => Some(QueryOut::Bool(element_matches::<&Node>(
                 &node,
@@ -752,7 +737,8 @@ fn run_query(root: u32, sel: &str, q: Query) -> Option<QueryOut<u32>> {
                 QuirksMode::NoQuirks,
             ))),
             Query::Closest => Some(QueryOut::Node(
-                element_closest::<&Node>(node, list.as_ref()?, QuirksMode::NoQuirks).map(|n| n.id),
+                element_closest::<&Node>(node, list.as_ref()?, QuirksMode::NoQuirks)
+                    .map(|n| n.id()),
             )),
         }))
         .ok()
@@ -778,13 +764,12 @@ fn mint_node_list(ids: &[u32], ctx: &mut Context) -> Option<BoaValue> {
             .as_ref()
             .and_then(|binding| binding.node_list.clone())
     })?;
-    let arr = js_sys::Array::new();
+    let arr = Array::new();
     for &id in ids {
-        arr.push(&wasm_bindgen::JsValue::from_f64(id as f64));
+        arr.push(&JsValue::from_f64(id as f64));
     }
-    let v8 = with_v8(ctx, || hook.call1(&wasm_bindgen::JsValue::NULL, &arr).ok())?;
-    v8.is_object()
-        .then(|| crate::js::boa_bridge::v8_node_to_boa(v8, ctx))
+    let v8 = with_v8(ctx, || hook.call1(&JsValue::NULL, &arr).ok())?;
+    v8.is_object().then(|| v8_node_to_boa(v8, ctx))
 }
 
 fn node_or_null(id: Option<u32>, ctx: &mut Context) -> Option<BoaValue> {
@@ -825,7 +810,7 @@ fn make_query_method(
                         let node = doc.get_node(doc.get_element_by_id(&arg)?)?;
                         Some(
                             (node.attr(blitz_dom::local_name!("id")) == Some(arg.as_str()))
-                                .then_some(node.id),
+                                .then_some(node.id()),
                         )
                     })
                     .flatten();
@@ -964,9 +949,9 @@ pub(crate) fn try_fast_get(
             let pick = with_node(nid, |doc, internal| {
                 let node = doc.get_node(internal)?;
                 Some(if op == OP_FIRST_CHILD {
-                    node.children.first().copied()
+                    node.children().first()
                 } else {
-                    node.children.last().copied()
+                    node.children().last()
                 })
             })?;
             match pick {
@@ -985,8 +970,8 @@ pub(crate) fn try_fast_get(
                     } else {
                         let found = with_doc(|doc| {
                             let parent = doc.get_node(pid)?;
-                            let kids = &parent.children;
-                            let i = kids.iter().position(|&c| c == internal)?;
+                            let kids = parent.children();
+                            let index = kids.position(internal)?;
                             let fwd = op == OP_NEXT_SIBLING || op == OP_NEXT_ELEM_SIBLING;
                             let elems_only =
                                 op == OP_NEXT_ELEM_SIBLING || op == OP_PREV_ELEM_SIBLING;
@@ -998,13 +983,13 @@ pub(crate) fn try_fast_get(
                                 }
                             };
                             if fwd {
-                                for &cid in &kids[i + 1..] {
+                                for cid in kids.iter().skip(index + 1) {
                                     if let Some(hit) = step(cid) {
                                         return Some(Some(hit));
                                     }
                                 }
                             } else {
-                                for &cid in kids[..i].iter().rev() {
+                                for cid in kids.iter().take(index).rev() {
                                     if let Some(hit) = step(cid) {
                                         return Some(Some(hit));
                                     }

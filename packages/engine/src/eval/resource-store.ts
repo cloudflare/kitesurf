@@ -24,7 +24,17 @@ interface Entry {
   targetId: string;
 }
 
+interface Owner {
+  bytes: number;
+  /** Entry ids in least-recently-read order. */
+  ids: Set<string>;
+}
+
 const stores: Record<ResourceKind, Map<string, Entry>> = {
+  image: new Map(),
+  font: new Map(),
+};
+const owners: Record<ResourceKind, Map<string, Owner>> = {
   image: new Map(),
   font: new Map(),
 };
@@ -62,8 +72,16 @@ function put(
   if (bytes.byteLength === 0 || bytes.byteLength > MAX_ENTRY_BYTES) return null;
   const key = mintKey();
   const id = key.toString();
+  const charge = chargeOf(bytes);
   stores[kind].set(id, { bytes, connectionId, targetId });
-  bytesTotal[kind] += chargeOf(bytes);
+  let owner = owners[kind].get(connectionId);
+  if (!owner) {
+    owner = { bytes: 0, ids: new Set() };
+    owners[kind].set(connectionId, owner);
+  }
+  owner.bytes += charge;
+  owner.ids.add(id);
+  bytesTotal[kind] += charge;
   evictOverBudget(kind, connectionId, id);
   return key;
 }
@@ -75,8 +93,40 @@ function chargeOf(bytes: Uint8Array): number {
 function drop(kind: ResourceKind, id: string): void {
   const entry = stores[kind].get(id);
   if (!entry) return;
-  bytesTotal[kind] -= chargeOf(entry.bytes);
+  const charge = chargeOf(entry.bytes);
+  bytesTotal[kind] -= charge;
   stores[kind].delete(id);
+  const owner = owners[kind].get(entry.connectionId);
+  if (!owner) return;
+  owner.bytes -= charge;
+  owner.ids.delete(id);
+  if (owner.ids.size === 0) owners[kind].delete(entry.connectionId);
+}
+
+function oldestOf(owner: Owner, keepId: string): string | undefined {
+  for (const id of owner.ids) {
+    if (id !== keepId) return id;
+  }
+  return undefined;
+}
+
+// The store is shared by every connection in the isolate. The admitting
+// connection evicts its own least-recently-read entries first; only then does
+// the connection holding the most bytes give one up, so one page's churn
+// cannot reclaim the retained payloads of a connection holding less.
+function evictionVictim(
+  kind: ResourceKind,
+  connectionId: string,
+  keepId: string,
+): string | undefined {
+  const own = owners[kind].get(connectionId);
+  const mine = own && oldestOf(own, keepId);
+  if (mine !== undefined) return mine;
+  let largest: Owner | undefined;
+  for (const [id, owner] of owners[kind]) {
+    if (id !== connectionId && (!largest || owner.bytes > largest.bytes)) largest = owner;
+  }
+  return largest && oldestOf(largest, keepId);
 }
 
 function evictOverBudget(kind: ResourceKind, connectionId: string, keepId: string): void {
@@ -85,25 +135,10 @@ function evictOverBudget(kind: ResourceKind, connectionId: string, keepId: strin
   const over = (): boolean =>
     bytesTotal[kind] > ceiling || (kind === "font" && entries.size > MAX_FONT_ENTRIES);
 
-  if (kind === "font") {
-    while (over() && entries.size > 1) {
-      let victim: string | undefined;
-      for (const [id, entry] of entries) {
-        if (id === keepId) continue;
-        if (entry.connectionId === connectionId) {
-          victim = id;
-          break;
-        }
-      }
-      if (victim === undefined) break;
-      drop(kind, victim);
-    }
-  }
-
   while (over() && entries.size > 1) {
-    const oldest = entries.keys().next().value;
-    if (oldest === undefined) break;
-    drop(kind, oldest);
+    const victim = evictionVictim(kind, connectionId, keepId);
+    if (victim === undefined) break;
+    drop(kind, victim);
   }
 }
 
@@ -121,8 +156,9 @@ function get(key: bigint, kind: ResourceKind, connectionId: string): Uint8Array 
   const entry = entries.get(id);
   // Opaque keys are not authorization; every read must match its connection owner.
   if (!entry || entry.connectionId !== connectionId) return null;
-  entries.delete(id);
-  entries.set(id, entry);
+  const owner = owners[kind].get(connectionId);
+  owner?.ids.delete(id);
+  owner?.ids.add(id);
   return entry.bytes;
 }
 

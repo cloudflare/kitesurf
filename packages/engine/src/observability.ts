@@ -4,6 +4,8 @@
 
 // Defines session timing, telemetry events, and host-provided analytics sinks.
 
+import type { WorkerLeaseStats } from "./eval/worker-budget.ts";
+
 export interface HostClockTimer {
   readonly timeOrigin: number;
   now(): number;
@@ -69,6 +71,8 @@ export interface SessionEndFields {
   endReason: string;
   closeCode: number;
   wasClean: number;
+  /** Snapshot at the first terminal socket event, before session teardown releases leases. */
+  workerLeases?: WorkerLeaseStats;
 }
 
 export type TelemetryEvent =

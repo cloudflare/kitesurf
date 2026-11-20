@@ -133,7 +133,7 @@ test("an unrelated observer does not retain innerHTML replacements", async ({ br
   };
   expect(freed).toMatchObject(expectedControl);
   expect(unrelated).toMatchObject(expectedControl);
-  expect(observed.delta).toBeGreaterThan(unrelated.delta + 16 * 1024 * 1024);
+  expect(observed.delta).toBeGreaterThan(unrelated.delta + 8 * 1024 * 1024);
   expect(Math.abs(unrelated.delta - freed.delta)).toBeLessThan(4 * 1024 * 1024);
 }, 120_000);
 

@@ -1,10 +1,9 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("//bazel:checks.bzl", "workspace_configs")
-load("//tests/e2e:defs.bzl", "e2e_shards")
-load("//tests/e2e:shards.bzl", "E2E_SHARD_STARTS")
+load("//tests/e2e:defs.bzl", "e2e_files")
 
-e2e_shards(
+e2e_files(
     helper_deps = [
         "//packages/dom-shim:srcs",
         "//packages/page-script:srcs",
@@ -18,7 +17,6 @@ e2e_shards(
             "BUILD.bazel",
         ],
     ),
-    starts = E2E_SHARD_STARTS,
     tests = glob(["**/*.e2e.test.ts"]),
 )
 

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { TailExceptionReport } from "../src/engine-errors.ts";
 import {
@@ -82,6 +82,35 @@ describe("PageScriptTail isolate kills", () => {
 
   it("reports other exceptions after a kill line", () => {
     expect(invocation([`[ks-kill] ${TOKEN} engine WS closed`], "boom")).toHaveLength(1);
+  });
+
+  it("explains an authenticated kill on the console without its token", () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      invocation([`[ks-kill] ${TOKEN} Target.closeTarget`], HUNG);
+      expect(logSpy.mock.calls).toHaveLength(1);
+      const line = logSpy.mock.calls[0]!.join(" ");
+      expect(line).toMatch(/^\[page-test\] \[ks-kill\] Target\.closeTarget \(engine closed/);
+      expect(line).toContain("script terminated for unknown reasons");
+      expect(line).not.toContain(TOKEN);
+      expect(errorSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("does not explain a forged kill line", () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      invocation(["[ks-kill] forged Target.closeTarget"], HUNG);
+      const logged = logSpy.mock.calls.map((call) => call.join(" ")).join("\n");
+      expect(logged).not.toContain("engine closed the isolate");
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });
 

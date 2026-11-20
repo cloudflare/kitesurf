@@ -11,7 +11,7 @@ import type { UpstreamMessage, WebMcpTool } from "@kitesurf/jsrpc-types/page-scr
 import { sendUpstreamEvent } from "./internal-state.js";
 import { KsEvent, KsInputEvent, KsSubmitEvent, submitEventResponse } from "./events/event.js";
 import { dispatchTrustedEvent } from "./events/dispatch.js";
-import { postMutationHooks } from "./registries.js";
+import { formBehindProxy, postMutationHooks } from "./registries.js";
 import type { MutationHint } from "./mutations/seq.js";
 import { DOCUMENT_NODE } from "./constants.js";
 
@@ -131,7 +131,8 @@ function toCdpTool(def: ToolDefinition): CdpTool {
   const out: CdpTool = { name: def.name, description: def.description };
   if (def.inputSchema !== "") {
     try {
-      out.inputSchema = JSON.parse(def.inputSchema);
+      const schema: unknown = JSON.parse(def.inputSchema);
+      out.inputSchema = schema;
     } catch {}
   }
   if (def.annotations !== null) {
@@ -159,7 +160,8 @@ export function listModelContextTools(watchRevision: unknown): CdpTool[] {
 function declarativeSchema(form: DeclarativeForm): Record<string, unknown> {
   const properties: Record<string, Record<string, unknown>> = {};
   const required = new Set<string>();
-  const elements = form?.elements;
+  // Off the form behind its proxy: a control named "elements" must not hide the controls.
+  const elements = form ? formBehindProxy(form).elements : undefined;
   for (let i = 0; elements && i < elements.length; i++) {
     const control = elements[i];
     const name = String(control?.name ?? "");
@@ -338,28 +340,30 @@ function notifyChanged(context: ModelContext): void {
 
 // ModelContext has no node ID, so listeners cannot use the node-keyed DOM registry.
 class ToolEventTarget {
-  private _listeners = new Map<string, Array<(e: unknown) => void>>();
+  private _listeners = new Map<string, Array<(event: Idl.Event) => void>>();
 
-  addEventListener(type: unknown, listener: unknown, _options: unknown = undefined): void {
+  // Only function listeners are kept; a handleEvent object is ignored.
+  addEventListener(
+    type: string,
+    listener: Idl.EventListener | null,
+    _options: boolean | Idl.AddEventListenerOptions | undefined = undefined,
+  ): void {
     if (typeof listener !== "function") return;
     const key = String(type);
     const list = this._listeners.get(key) ?? [];
-    if (!list.includes(listener as (e: unknown) => void)) {
-      list.push(listener as (e: unknown) => void);
-    }
+    if (!list.includes(listener)) list.push(listener);
     this._listeners.set(key, list);
   }
 
-  removeEventListener(type: unknown, listener: unknown): void {
+  removeEventListener(type: string, listener: Idl.EventListener | null): void {
     const list = this._listeners.get(String(type));
     if (!list) return;
-    const at = list.indexOf(listener as (e: unknown) => void);
+    const at = typeof listener === "function" ? list.indexOf(listener) : -1;
     if (at >= 0) list.splice(at, 1);
   }
 
-  dispatchEvent(event: unknown): boolean {
-    const ev = event as { type?: string };
-    const list = this._listeners.get(String(ev?.type ?? ""));
+  dispatchEvent(event: Idl.Event): boolean {
+    const list = this._listeners.get(String(event?.type ?? ""));
     for (const listener of list ? list.slice() : []) {
       try {
         listener.call(this, event);
@@ -490,7 +494,11 @@ export class ModelContext extends ToolEventTarget implements Idl.ModelContext {
     }
   }
 
-  addEventListener(type: unknown, listener: unknown, options?: unknown): void {
+  addEventListener(
+    type: string,
+    listener: Idl.EventListener | null,
+    options?: boolean | Idl.AddEventListenerOptions,
+  ): void {
     if (this._isMain && String(type) === "toolchange") {
       markDeclarativeInterest();
     }
@@ -822,7 +830,7 @@ export function isToolSubmitActive(el: unknown): boolean {
 
 function dispatchToolSubmit(form: DeclarativeForm): unknown {
   let submitter: DeclarativeControl | null = null;
-  const elements = form.elements;
+  const elements = formBehindProxy(form).elements;
   for (let i = 0; elements && i < elements.length; i++) {
     const control = elements[i];
     const tag = String(control?.localName ?? "").toLowerCase();
@@ -842,7 +850,7 @@ function dispatchToolSubmit(form: DeclarativeForm): unknown {
     agentInvoked: true,
     submitter,
   });
-  if (typeof form.dispatchEvent === "function") {
+  if (typeof formBehindProxy(form).dispatchEvent === "function") {
     const fire = () => {
       dispatchTrustedEvent(form, ev);
     };
@@ -935,7 +943,7 @@ function makeDeclarativeExec(entry: DeclarativeTool): WebMCP.ToolExecuteCallback
 }
 
 function fillDeclarativeControls(form: DeclarativeForm, args: Record<string, unknown>): void {
-  const elements = form?.elements;
+  const elements = form ? formBehindProxy(form).elements : undefined;
   for (let i = 0; elements && i < elements.length; i++) {
     const control = elements[i];
     const field = String(control?.name ?? "");
@@ -1154,7 +1162,8 @@ function isChildDocumentFullyActive(doc: object): boolean {
 function jsonSafe(value: unknown): unknown {
   try {
     const json = JSON.stringify(value);
-    return json === undefined ? null : JSON.parse(json);
+    const parsed: unknown = json === undefined ? null : JSON.parse(json);
+    return parsed;
   } catch {
     return null;
   }
@@ -1193,7 +1202,7 @@ function declarativeResult(out: unknown): ToolCallResult {
     content: [],
     isError: false,
     rawOutput: true,
-    output: JSON.parse(serialized),
+    output: JSON.parse(serialized) as unknown,
   };
 }
 

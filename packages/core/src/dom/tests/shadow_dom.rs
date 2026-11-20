@@ -186,8 +186,10 @@ fn shadow_content_lays_out_and_light_children_do_not() {
 
 #[test]
 fn scroll_queries_on_a_shadow_root_return_none_without_panicking() {
+    use std::panic;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use std::thread;
 
     let html = r##"<!DOCTYPE html>
 <html><body><div id="host" style="width:100px;height:100px;overflow:scroll"></div></body></html>"##;
@@ -201,16 +203,16 @@ fn scroll_queries_on_a_shadow_root_return_none_without_panicking() {
 
     let panicked = Arc::new(AtomicBool::new(false));
     let flag = Arc::clone(&panicked);
-    let this_thread = std::thread::current().id();
-    let prev = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |_| {
-        if std::thread::current().id() == this_thread {
+    let this_thread = thread::current().id();
+    let prev = panic::take_hook();
+    panic::set_hook(Box::new(move |_| {
+        if thread::current().id() == this_thread {
             flag.store(true, Ordering::SeqCst);
         }
     }));
     let root_info = dom.read_scroll_info(root);
     let root_write = dom.write_scroll_offset(root, 0.0, 40.0);
-    std::panic::set_hook(prev);
+    panic::set_hook(prev);
 
     assert!(root_info.is_none(), "a shadow root has no scroll metrics");
     assert!(root_write.is_none(), "a shadow root has no scroll offset");
@@ -410,13 +412,13 @@ fn named_and_default_slots_assign_and_render() {
     let doc = dom.doc.borrow();
     let named = doc.get_node(internal_id(&dom, named_slot)).unwrap();
     assert_eq!(
-        named.assigned_nodes.as_deref(),
+        named.assigned_nodes().map(|nodes| &nodes[..]),
         Some(&[internal_id(&dom, span)][..]),
         "named slot gets the slot=a child"
     );
     let default = doc.get_node(internal_id(&dom, default_slot)).unwrap();
     assert_eq!(
-        default.assigned_nodes.as_deref(),
+        default.assigned_nodes().map(|nodes| &nodes[..]),
         Some(
             &[
                 internal_id(&dom, text),
@@ -427,7 +429,9 @@ fn named_and_default_slots_assign_and_render() {
         "default slot gets text + un-attributed elements, in host order"
     );
     assert_eq!(
-        doc.get_node(internal_id(&dom, span)).unwrap().assigned_slot,
+        doc.get_node(internal_id(&dom, span))
+            .unwrap()
+            .assigned_slot(),
         Some(internal_id(&dom, named_slot)),
         "slottable back-pointer"
     );
@@ -435,9 +439,8 @@ fn named_and_default_slots_assign_and_render() {
     let fallback_p = doc
         .get_node(internal_id(&dom, default_slot))
         .unwrap()
-        .children
+        .children()
         .first()
-        .copied()
         .unwrap();
     assert_eq!(
         (doc.get_node(fallback_p).unwrap().final_layout().size.height),
@@ -470,7 +473,12 @@ fn empty_slots_render_fallback_until_content_arrives() {
     let slot = find_in_subtree(&dom, root, "slot");
     {
         let doc = dom.doc.borrow();
-        let fb = doc.get_node(internal_id(&dom, slot)).unwrap().children[0];
+        let fb = doc
+            .get_node(internal_id(&dom, slot))
+            .unwrap()
+            .children()
+            .first()
+            .unwrap();
         let size = doc.get_node(fb).unwrap().final_layout().size;
         assert_eq!((size.width, size.height), (80.0, 30.0), "fallback renders");
     }
@@ -604,7 +612,9 @@ fn slot_attribute_change_reassigns() {
     {
         let doc = dom.doc.borrow();
         assert_eq!(
-            doc.get_node(internal_id(&dom, span)).unwrap().assigned_slot,
+            doc.get_node(internal_id(&dom, span))
+                .unwrap()
+                .assigned_slot(),
             Some(internal_id(&dom, default_slot)),
             "no slot attr -> default slot"
         );
@@ -614,15 +624,17 @@ fn slot_attribute_change_reassigns() {
     dom.resolve_layout();
     let doc = dom.doc.borrow();
     assert_eq!(
-        doc.get_node(internal_id(&dom, span)).unwrap().assigned_slot,
+        doc.get_node(internal_id(&dom, span))
+            .unwrap()
+            .assigned_slot(),
         Some(internal_id(&dom, named_slot)),
         "slot attr flip moves the assignment"
     );
     assert_eq!(
         doc.get_node(internal_id(&dom, default_slot))
             .unwrap()
-            .assigned_nodes
-            .as_deref(),
+            .assigned_nodes()
+            .map(|nodes| &nodes[..]),
         Some(&[][..]),
         "old slot loses it"
     );
@@ -795,7 +807,71 @@ fn freeing_a_slot_clears_its_slottables_assigned_slot() {
     dom.resolve_layout();
     let doc = dom.doc.borrow();
     assert_eq!(
-        doc.get_node(internal_id(&dom, span)).unwrap().assigned_slot,
+        doc.get_node(internal_id(&dom, span))
+            .unwrap()
+            .assigned_slot(),
         None
+    );
+}
+
+#[test]
+fn restyled_shadow_style_elements_cascade_in_tree_order() {
+    const STYLES: u8 = 12;
+    let dom = DomHandle::new(HTML, "https://test.example/");
+    let host = host_id(&dom);
+    let root = dom.attach_shadow(host, "open") as u32;
+    let texts: Vec<u32> = (0..STYLES)
+        .map(|_| {
+            let style = dom.create_element("style");
+            let text = dom.create_text_node("");
+            assert!(dom.append_child_node(style, text));
+            assert!(dom.append_child_node(root, style));
+            text
+        })
+        .collect();
+    let span = dom.create_element("span");
+    assert!(dom.append_child_node(root, span));
+    dom.resolve_layout();
+
+    // All sheets reparse in one resolve, so the last one in tree order must win.
+    for (i, text) in texts.iter().enumerate() {
+        assert!(dom.set_node_text(*text, &format!("span {{ color: rgb({i}, 0, 0); }}")));
+    }
+    dom.resolve_layout();
+    assert_eq!(
+        dom.computed_style_value(span, "color"),
+        Some(format!("rgb({}, 0, 0)", STYLES - 1))
+    );
+}
+
+#[test]
+fn restyled_nested_shadow_style_elements_cascade_in_tree_order() {
+    const STYLES: u8 = 12;
+    let dom = DomHandle::new(HTML, "https://test.example/");
+    let host = host_id(&dom);
+    let root = dom.attach_shadow(host, "open") as u32;
+    let texts: Vec<u32> = (0..STYLES)
+        .map(|_| {
+            let wrapper = dom.create_element("div");
+            let style = dom.create_element("style");
+            let text = dom.create_text_node("");
+            assert!(dom.append_child_node(style, text));
+            assert!(dom.append_child_node(wrapper, style));
+            assert!(dom.append_child_node(root, wrapper));
+            text
+        })
+        .collect();
+    let span = dom.create_element("span");
+    assert!(dom.append_child_node(root, span));
+    dom.resolve_layout();
+
+    // The next sheet sits under a later sibling of an ancestor, so the walk climbs to find it.
+    for (i, text) in texts.iter().enumerate() {
+        assert!(dom.set_node_text(*text, &format!("span {{ color: rgb({i}, 0, 0); }}")));
+    }
+    dom.resolve_layout();
+    assert_eq!(
+        dom.computed_style_value(span, "color"),
+        Some(format!("rgb({}, 0, 0)", STYLES - 1))
     );
 }

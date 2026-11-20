@@ -3,7 +3,6 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { expect, test } from "./harness";
-import { setContent } from "./set-content";
 
 const LANDING = "http://127.0.0.1:8787/__fixtures/navigation-landing.html";
 
@@ -35,11 +34,12 @@ test("location.replace navigates the tab whose script called it", async ({ brows
 test("a script form.submit() navigates the tab that submitted it", async ({ browser }) => {
   const first = (await browser.pages())[0] ?? (await browser.newPage());
   const second = await browser.newPage();
-  await setContent(
-    second,
-    `<!doctype html><title>Form</title>
-    <form action="${LANDING}" method="get"><input name="q" value="x"></form>
-    <script>setTimeout(() => document.forms[0].submit(), 300);</script>`,
+  // Served from the fixture host: an opaque (data:) document may not navigate to loopback.
+  const body = `<form action="${LANDING}" method="get"><input name="q" value="x"></form>
+    <script>setTimeout(() => document.forms[0].submit(), 300);</script>`;
+  await second.goto(
+    `http://127.0.0.1:8787/__fixtures/policy-doc.html?body=${encodeURIComponent(body)}`,
+    { waitUntil: "load" },
   );
   const href = () => second.evaluate("location.href") as Promise<string>;
   expect(await waitForUrl(href, `${LANDING}?q=x`)).toBe(`${LANDING}?q=x`);

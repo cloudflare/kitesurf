@@ -6,6 +6,26 @@
 
 export type CredentialsMode = "omit" | "same-origin" | "include";
 
+// A script's crossorigin attribute is an HTML enumerated attribute: its keywords are ASCII
+// case-insensitive and values are not trimmed, so "USE-CREDENTIALS" asks for credentials too.
+export function scriptCredentialsMode(
+  crossOrigin: string | null | undefined,
+): "include" | "same-origin" {
+  return crossOrigin != null && crossOrigin.toLowerCase() === "use-credentials"
+    ? "include"
+    : "same-origin";
+}
+
+// Fetch's main fetch gives a data: URL "basic" response tainting: no CORS check, preflight or
+// Origin header applies to it. Other non-HTTP(S) schemes fail a CORS-mode fetch instead.
+export function isCorsExemptUrl(url: URL | string): boolean {
+  try {
+    return (typeof url === "string" ? new URL(url) : url).protocol === "data:";
+  } catch {
+    return false;
+  }
+}
+
 const SAFELISTED_RESPONSE_HEADERS = new Set([
   "cache-control",
   "content-language",
@@ -157,12 +177,27 @@ export function isSafelistedRequestHeader(name: string, value: string): boolean 
   }
 }
 
+// page-script marks the headers a fetch cache mode added, not the page; only these two qualify.
+const CACHE_MODE_MARK = "x-kitesurf-cache-mode";
+const CACHE_MODE_REQUEST_HEADERS = new Set(["cache-control", "pragma"]);
+
+function cacheModeHeaders(headers: Headers): Set<string> {
+  const marked = new Set<string>();
+  for (const raw of (headers.get(CACHE_MODE_MARK) ?? "").split(",")) {
+    const name = raw.trim().toLowerCase();
+    if (CACHE_MODE_REQUEST_HEADERS.has(name)) marked.add(name);
+  }
+  return marked;
+}
+
 export function corsUnsafeRequestHeaderNames(headers: Headers): string[] {
   const unsafe = new Set<string>();
+  const fromCacheMode = cacheModeHeaders(headers);
   for (const [rawName, value] of headers.entries()) {
     const name = rawName.toLowerCase();
     if (name.startsWith("x-kitesurf-")) continue;
     if (UA_OWNED_REQUEST_HEADERS.has(name)) continue;
+    if (fromCacheMode.has(name)) continue;
     if (name.startsWith("proxy-") || name.startsWith("sec-")) continue;
     if (!isSafelistedRequestHeader(name, value)) unsafe.add(name);
   }
@@ -236,8 +271,13 @@ const preflightCache = new Map<string, PreflightEntry>();
 
 const PREFLIGHT_CACHE_MAX = 512;
 
-function cacheKey(origin: string, url: string, credentialsInclude: boolean): string {
-  return `${origin}\u0000${url}\u0000${credentialsInclude ? "1" : "0"}`;
+function cacheKey(
+  partition: string,
+  origin: string,
+  url: string,
+  credentialsInclude: boolean,
+): string {
+  return JSON.stringify([partition, origin, url, credentialsInclude]);
 }
 
 function entrySatisfies(
@@ -263,18 +303,20 @@ function entrySatisfies(
 }
 
 export function preflightCacheLookup(
+  partition: string,
   origin: string,
   url: string,
   method: string,
   unsafeNames: string[],
   credentialsInclude: boolean,
 ): boolean {
-  const entry = preflightCache.get(cacheKey(origin, url, credentialsInclude));
+  const entry = preflightCache.get(cacheKey(partition, origin, url, credentialsInclude));
   if (!entry) return false;
   return entrySatisfies(entry, method, unsafeNames, credentialsInclude);
 }
 
 function storePreflight(
+  partition: string,
   origin: string,
   url: string,
   credentialsInclude: boolean,
@@ -285,7 +327,7 @@ function storePreflight(
     const oldest = preflightCache.keys().next();
     if (!oldest.done) preflightCache.delete(oldest.value);
   }
-  preflightCache.set(cacheKey(origin, url, credentialsInclude), entry);
+  preflightCache.set(cacheKey(partition, origin, url, credentialsInclude), entry);
 }
 
 export function clearPreflightCache(): void {
@@ -293,6 +335,9 @@ export function clearPreflightCache(): void {
 }
 
 export interface CorsPreflightRequest {
+  // Browser context the grant belongs to: the sealed cookie key. Grants never
+  // cross it, and an empty partition is never cached.
+  partition: string;
   url: string;
   method: string;
   unsafeNames: string[];
@@ -385,8 +430,8 @@ export async function corsPreflight(
   const rawMaxAge = resp.headers.get("access-control-max-age");
   const maxAge = rawMaxAge !== null && /^[0-9]+$/.test(rawMaxAge) ? Number(rawMaxAge) : 0;
   const seconds = maxAge > 0 ? Math.min(maxAge, MAX_PREFLIGHT_CACHE_AGE_SECONDS) : 0;
-  if (seconds > 0 && req.cacheable !== false) {
-    storePreflight(requestOrigin, url, credentialsInclude, {
+  if (seconds > 0 && req.cacheable !== false && req.partition !== "") {
+    storePreflight(req.partition, requestOrigin, url, credentialsInclude, {
       methods,
       methodWildcard,
       headerNames: allowed,

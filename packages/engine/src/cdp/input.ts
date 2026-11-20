@@ -5,13 +5,19 @@
 // Mouse and keyboard events enter PageScript; other Input methods are no-ops.
 // Hit-testing is partial, and the DOM shim does not implement KeyboardEvent.
 
-import type { CdpRequest, TargetState } from "./types.ts";
+import { makeTargetId, type CdpRequest, type TargetState } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
 import { makeFrameInfo, makeMainFrameState } from "./frames.ts";
 import type { MouseEventInit } from "@kitesurf/jsrpc-types/page-script";
 import type { ConsoleEntry } from "@kitesurf/jsrpc-types/shared";
 import { consoleEntryToCdpEvent } from "../eval/page-script.ts";
 import { emitMutations } from "./dom.ts";
+import {
+  canRewriteDocumentUrl,
+  emitInputNavigationStarted,
+  formPostContentType,
+  initiatorOriginOf,
+} from "./page.ts";
 import { terminalSceneWheelQueue } from "./scene-stream.ts";
 import {
   fenceWheelQueues,
@@ -81,11 +87,20 @@ function configureWheelDispatch(
   });
 }
 
+export interface HandleInputOptions {
+  // Chrome replies once the input is dispatched and reports a navigation it starts through Page
+  // events. The CDP router asks for that; an embedder judging a click by its page leaves it off.
+  replyOnDispatch?: boolean;
+}
+
 export async function handleInput(
   ctx: DispatchCtx,
   req: CdpRequest,
   expected?: { targetId: string; generation: number },
+  { replyOnDispatch = false }: HandleInputOptions = {},
 ): Promise<unknown> {
+  const pendingNavigation = pickTarget(ctx, req.sessionId)?.inputNavigation;
+  if (pendingNavigation) await pendingNavigation;
   const expectedStub = expected ? pickTarget(ctx, req.sessionId)?.pageScript : undefined;
   const assertExpected = (target: TargetState | undefined): void => {
     if (
@@ -224,16 +239,32 @@ export async function handleInput(
 
       try {
         assertExpected(target);
-        const result = await target.pageScript.dispatchMouseEvent(evType, init);
+        const inputPageScript = target.pageScript;
+        const inputPageScriptUrl = target.pageScriptUrl;
+        if (!inputPageScript) return {};
+        const result = await inputPageScript.dispatchMouseEvent(evType, init);
         emitConsole(ctx, result.console, req.sessionId);
         emitMutations(ctx, target, result.cdpMutations);
         if (p.type !== "mouseReleased") {
           releaseWheelFencesNow();
-          await maybeFollowAnchor(ctx, result, req.sessionId);
+          if (
+            target.pageScript !== inputPageScript ||
+            target.pageScriptUrl !== inputPageScriptUrl
+          ) {
+            return {};
+          }
+          await followNavigation(
+            ctx,
+            target,
+            result,
+            req.sessionId,
+            !replyOnDispatch,
+            initiatorOriginOf(inputPageScriptUrl) ?? "null",
+          );
         }
         if (p.type === "mousePressed" && p.button === "right") {
           assertExpected(target);
-          const menuResult = await target.pageScript.dispatchMouseEvent("contextmenu", init);
+          const menuResult = await inputPageScript.dispatchMouseEvent("contextmenu", init);
           emitConsole(ctx, menuResult.console, req.sessionId);
           emitMutations(ctx, target, menuResult.cdpMutations);
         }
@@ -243,21 +274,34 @@ export async function handleInput(
           const primary = p.button === "left" || p.button === undefined;
           const evName = primary ? "click" : "auxclick";
           assertExpected(target);
-          const clickResult = await target.pageScript.dispatchMouseEvent(evName, clickInit);
+          const clickResult = await inputPageScript.dispatchMouseEvent(evName, clickInit);
           emitConsole(ctx, clickResult.console, req.sessionId);
           emitMutations(ctx, target, clickResult.cdpMutations);
           if (primary && clickCount === 2) {
             assertExpected(target);
-            const dblResult = await target.pageScript.dispatchMouseEvent("dblclick", clickInit);
+            const dblResult = await inputPageScript.dispatchMouseEvent("dblclick", clickInit);
             emitConsole(ctx, dblResult.console, req.sessionId);
             emitMutations(ctx, target, dblResult.cdpMutations);
           }
           releaseWheelFencesNow();
+          if (
+            target.pageScript !== inputPageScript ||
+            target.pageScriptUrl !== inputPageScriptUrl
+          ) {
+            return {};
+          }
           const navigationResult =
             clickResult.navigatePost || clickResult.navigateTo || clickResult.hashNavigateTo
               ? clickResult
               : result;
-          await maybeFollowAnchor(ctx, navigationResult, req.sessionId);
+          await followNavigation(
+            ctx,
+            target,
+            navigationResult,
+            req.sessionId,
+            !replyOnDispatch,
+            initiatorOriginOf(inputPageScriptUrl) ?? "null",
+          );
         }
         return {};
       } catch (err) {
@@ -302,11 +346,24 @@ export async function handleInput(
       if (!releaseWheelFences) return {};
       try {
         assertExpected(target);
-        const result = await target.pageScript.dispatchKeyEvent(evType, init);
+        const inputPageScript = target.pageScript;
+        const inputPageScriptUrl = target.pageScriptUrl;
+        if (!inputPageScript) return {};
+        const result = await inputPageScript.dispatchKeyEvent(evType, init);
         emitConsole(ctx, result.console, req.sessionId);
         emitMutations(ctx, target, result.cdpMutations);
         for (const release of releaseWheelFences) release();
-        await maybeFollowAnchor(ctx, result, req.sessionId);
+        if (target.pageScript !== inputPageScript || target.pageScriptUrl !== inputPageScriptUrl) {
+          return {};
+        }
+        await followNavigation(
+          ctx,
+          target,
+          result,
+          req.sessionId,
+          !replyOnDispatch,
+          initiatorOriginOf(inputPageScriptUrl) ?? "null",
+        );
         return {};
       } catch (err) {
         assertExpected(target);
@@ -494,6 +551,77 @@ function emitConsole(
   }
 }
 
+type NavigationResult = Parameters<typeof maybeFollowAnchor>[1];
+
+interface FormPost {
+  url: string;
+  postData: string;
+  postContentType: string;
+}
+
+// The reply comes from the page realm, so only the enctypes a real form can produce may become a
+// document POST.
+function formPost(result: NavigationResult): FormPost | null {
+  const post = result?.navigatePost;
+  if (typeof post?.url !== "string") return null;
+  const postContentType = formPostContentType(post.postContentType);
+  if (postContentType === null) return null;
+  return {
+    url: post.url,
+    postData: typeof post.postData === "string" ? post.postData : "",
+    postContentType,
+  };
+}
+
+function startsNavigation(result: NavigationResult): boolean {
+  return !!result && (formPost(result) !== null || !!result.navigateTo || !!result.hashNavigateTo);
+}
+
+// Page.navigate replies once the new document has loaded, which held a link click's mouseup for
+// seconds: puppeteer's locator timed out on clicks that had in fact navigated.
+async function followNavigation(
+  ctx: DispatchCtx,
+  target: TargetState,
+  result: NavigationResult,
+  sessionId: string | undefined,
+  wait: boolean,
+  initiatorOrigin: string,
+): Promise<void> {
+  if (!startsNavigation(result)) return;
+  const loaderId = announceNavigation(ctx, target, result, sessionId);
+  const navigation = maybeFollowAnchor(ctx, result, sessionId, loaderId, initiatorOrigin);
+  if (wait) return navigation;
+  const pending: Promise<void> = navigation
+    .catch((err: unknown) =>
+      console.warn("kitesurf: input-started navigation failed", {
+        targetId: target.targetId,
+        sessionId,
+        error: err instanceof Error ? (err.stack ?? err.message) : String(err),
+      }),
+    )
+    .finally(() => {
+      if (target.inputNavigation === pending) target.inputNavigation = undefined;
+    });
+  target.inputNavigation = pending;
+}
+
+// A new document's navigation is announced before its input replies, under the loader id the
+// Page.navigate that loads it adopts; a fragment change stays within the document.
+function announceNavigation(
+  ctx: DispatchCtx,
+  target: TargetState,
+  result: NavigationResult,
+  sessionId: string | undefined,
+): string | undefined {
+  const post = formPost(result);
+  const url = post?.url ?? result?.navigateTo;
+  if (!url) return undefined;
+  const loaderId = makeTargetId();
+  const reason = post ? "formSubmissionPost" : "other";
+  emitInputNavigationStarted(ctx, target, { url, loaderId, reason }, sessionId);
+  return loaderId;
+}
+
 async function maybeFollowAnchor(
   ctx: DispatchCtx,
   result:
@@ -509,11 +637,14 @@ async function maybeFollowAnchor(
     | null
     | undefined,
   sessionId: string | undefined,
+  loaderId: string | undefined,
+  initiatorOrigin: string,
 ): Promise<void> {
+  const announced = loaderId ? { _kitesurfLoaderId: loaderId } : {};
   const navigateTo = result?.navigateTo;
   const hashNavigateTo = result?.hashNavigateTo;
-  const navigatePost = result?.navigatePost;
-  if (navigatePost && typeof navigatePost.url === "string") {
+  const navigatePost = formPost(result);
+  if (navigatePost) {
     const { dispatch } = await import("./dispatch.ts");
     try {
       await dispatch(ctx, {
@@ -522,9 +653,10 @@ async function maybeFollowAnchor(
         params: {
           url: navigatePost.url,
           _kitesurfInternal: true,
-          _kitesurfPostData: navigatePost.postData ?? "",
-          _kitesurfPostContentType:
-            navigatePost.postContentType ?? "application/x-www-form-urlencoded",
+          _kitesurfPostData: navigatePost.postData,
+          _kitesurfPostContentType: navigatePost.postContentType,
+          _kitesurfInitiatorOrigin: initiatorOrigin,
+          ...announced,
         },
         sessionId,
       });
@@ -542,7 +674,12 @@ async function maybeFollowAnchor(
       await dispatch(ctx, {
         id: -1,
         method: "Page.navigate",
-        params: { url: navigateTo, _kitesurfInternal: true },
+        params: {
+          url: navigateTo,
+          _kitesurfInternal: true,
+          _kitesurfInitiatorOrigin: initiatorOrigin,
+          ...announced,
+        },
         sessionId,
       });
     } catch (err) {
@@ -555,7 +692,7 @@ async function maybeFollowAnchor(
   }
   if (typeof hashNavigateTo === "string" && hashNavigateTo.length > 0) {
     const target = pickTarget(ctx, sessionId);
-    if (!target) return;
+    if (!target || !isFragmentChange(target, hashNavigateTo)) return;
     target.url = hashNavigateTo;
     const main = target.frames.get(target.frameId);
     if (main) {
@@ -572,11 +709,27 @@ async function maybeFollowAnchor(
     ctx.emit({
       method: "Page.frameNavigated",
       params: {
-        frame: makeFrameInfo(frame),
+        frame: makeFrameInfo(frame, target.frames),
         type: "Navigation",
       },
       sessionId,
     });
+  }
+}
+
+// The reply comes from the page realm, so check the move here: only target.url's fragment may
+// change, and the url must stay one the isolate's sealed document can take without a navigation.
+function isFragmentChange(target: TargetState, url: string): boolean {
+  if (!url.includes("#")) return false;
+  if (!target.pageScriptUrl || !canRewriteDocumentUrl(target.pageScriptUrl, url)) return false;
+  try {
+    const current = new URL(target.url);
+    const next = new URL(url);
+    current.hash = "";
+    next.hash = "";
+    return current.href === next.href;
+  } catch {
+    return false;
   }
 }
 

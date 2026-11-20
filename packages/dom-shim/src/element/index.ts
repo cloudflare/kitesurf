@@ -37,6 +37,7 @@ import "./forms/submission.js";
 import { notifyImageResults, notifyStylesheetResults } from "./load-events.js";
 import { Element, parseFragmentInContext } from "./element.js";
 import "./aria.js";
+import "./dialog.js";
 import { HTMLElement, defineHTMLClass, InternalElementCtorToken } from "./html-element.js";
 import { HTMLInputElement } from "./forms/input.js";
 import { HTMLTextAreaElement } from "./forms/textarea.js";

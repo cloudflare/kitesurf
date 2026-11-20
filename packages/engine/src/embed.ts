@@ -13,6 +13,10 @@ export {
 } from "./index.ts";
 export { DEFAULT_ENGINE_HOST } from "./host.ts";
 export type { EngineHost, ConnectionOptions } from "./host.ts";
+export type { FontProfile } from "./cdp/font-profile.ts";
+export { resolveSessionStore } from "./host.ts";
+export { MemorySessionStore, isStoredBytes, isStoredString } from "./state/session-store.ts";
+export type { SessionStore, StoreGuard, StoreStats, StoreTable } from "./state/session-store.ts";
 export type { BlockableRequest, RequestBlocker, RequestBlockVerdict } from "./request-blocker.ts";
 export type { ResourceType } from "./cdp/network-events.ts";
 export { SESSION_ID_HEADER, resolveEntrypoint } from "./observability.ts";
@@ -23,6 +27,7 @@ export type {
   TelemetryFactory,
   TelemetryInit,
 } from "./observability.ts";
+export type { DynamicWorkerKind, WorkerLeaseStats } from "./eval/worker-budget.ts";
 export { traceSpan } from "./tracing.ts";
 export type { Tracer } from "./tracing.ts";
 export { armLocalTracing, localTraceparentHeader } from "./tracing-local.ts";
@@ -32,13 +37,14 @@ export type { CdpRequest, CdpResponse } from "./cdp/types.ts";
 export { arrivalOf } from "./cdp/arrival.ts";
 export { ensurePageScript } from "./cdp/dom.ts";
 export { handleInput } from "./cdp/input.ts";
+export type { HandleInputOptions } from "./cdp/input.ts";
 export { buildTree } from "./cdp/accessibility.ts";
 export type { AxNode, BuiltTree, DomNode } from "./cdp/accessibility.ts";
 export { handlePage, mainFrame } from "./cdp/page.ts";
 export { sessionOf } from "./cdp/page-session.ts";
 export type { PageSession } from "./cdp/page-session.ts";
-export type { DispatchCtx, EngineCdpCommandExtension } from "./cdp/dispatch.ts";
-export type { TargetState } from "./cdp/types.ts";
+export type { DispatchCtx, EngineCdpCommandExtension, SessionContext } from "./cdp/dispatch.ts";
+export type { CdpClientState, TargetState } from "./cdp/types.ts";
 export { makeWallClock } from "./eval/host-clock.ts";
 export { isRecord, isStringArray, oneOf } from "./guards.ts";
 export { clampSide, clampViewport, MAX_PIXELS, MAX_SIDE, MIN_DIM } from "./cdp/viewport.ts";

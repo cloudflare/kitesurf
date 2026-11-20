@@ -8,15 +8,27 @@ import type { QueryDomArgs, QueryDomResult } from "./query-dom.ts";
 
 export type RenderStage = "record" | "resources" | "raster";
 
+export interface RendererMemoryStats {
+  bytes: number;
+  initialBytes: number;
+  deltaBytes: number;
+}
+
 export interface RenderFrameOpts {
   format: string;
   quality: number;
   omitBackground: boolean;
   sinceSeq?: number;
   clip?: { x: number; y: number; width: number; height: number };
+  // The clip is a crop of the whole document, so fixed boxes anchor at its origin.
+  documentCrop?: boolean;
   partialKey?: string;
+  // Rejects a frame whose encoded image would exceed this many bytes.
+  encodedLimit?: number;
   // "encoded" opts out of the renderer's default raw RGBA transport.
   images?: "raw" | "encoded";
+  // The document whose resources the call may use; the renderer drops its cache when it changes.
+  scope?: string;
   traced?: boolean;
   tp?: string;
 }
@@ -28,6 +40,9 @@ export interface RenderFrameReply {
   stage?: RenderStage;
   info?: string;
   phases?: string[];
+  // Sent with every reply because a renderer idle after its last frame may have been evicted, and
+  // a separate call only to ask would start a fresh one.
+  memory?: RendererMemoryStats;
   seq: number;
   scrollX: number;
   scrollY: number;
@@ -41,6 +56,7 @@ export interface RenderPdfOpts {
   marginRight: number;
   marginBottom: number;
   marginLeft: number;
+  scope?: string;
   traced?: boolean;
   tp?: string;
 }
@@ -51,6 +67,7 @@ export interface RenderPdfReply {
   stage?: RenderStage;
   info?: string;
   phases?: string[];
+  memory?: RendererMemoryStats;
 }
 
 type RenderPortMethod = "recordScene" | "getPaintResources" | "getFontUrlData" | "recordPdfScenes";
@@ -69,7 +86,7 @@ export type FetchFont = (key: string) => Promise<Uint8Array | ArrayBuffer>;
 
 export interface PageRendererRpc {
   ping(): { pong: number };
-  memoryStats(): { bytes: number; initialBytes: number; deltaBytes: number };
+  memoryStats(): RendererMemoryStats;
   renderFrame(
     port: RenderPort,
     opts: RenderFrameOpts,

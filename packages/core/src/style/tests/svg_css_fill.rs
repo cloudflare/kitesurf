@@ -30,7 +30,7 @@ fn icon_tree(html: &str) -> usvg::Tree {
     let doc = dom.doc.borrow();
     let node = doc.get_node(crate::blitz_node_id(id as u32)).expect("node");
     let elem = node.element_data().expect("element");
-    match &elem.special_data {
+    match elem.special_data() {
         SpecialElementData::Image(data) => match &**data {
             ImageData::Svg(svg) => (*svg.tree).clone(),
             _ => panic!("expected svg image data"),

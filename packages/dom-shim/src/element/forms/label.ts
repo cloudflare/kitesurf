@@ -5,7 +5,7 @@
 // Implements HTMLLabelElement control lookup and label-to-control association.
 
 import type * as Idl from "../../idl/types.generated.js";
-import { documentImpl as document } from "../../state.js";
+import { elementDocument } from "../../state.js";
 import { isLabelable } from "./labelable.js";
 import { HTMLElement } from "../html-element.js";
 
@@ -19,7 +19,7 @@ class HTMLLabelElement extends HTMLElement implements Idl.HTMLLabelElement {
   get control() {
     const forId = this.getAttribute("for");
     if (forId) {
-      const doc = this.ownerDocument || document;
+      const doc = elementDocument(this);
       const el = doc.getElementById(forId);
       return isLabelable(el) ? el : null;
     }

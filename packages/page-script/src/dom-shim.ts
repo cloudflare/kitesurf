@@ -16,8 +16,14 @@ export {
   parseUrlForNode,
   setWrapperSweepScheduler,
   setAnimationTaskScheduler,
+  setInlineHandlerGate,
   detachedWrapperStats,
   armKsOtel,
   ksSpan,
 } from "@kitesurf/dom-shim/contract";
-export type { BuildDocumentOpts, BuildDocumentResult } from "@kitesurf/dom-shim/contract";
+export type {
+  BuildDocumentOpts,
+  BuildDocumentResult,
+  DomShimGlobals,
+  ScrollIntoViewOptions,
+} from "@kitesurf/dom-shim/contract";

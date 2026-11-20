@@ -23,14 +23,17 @@ import { getWheelQueue, stopAndRemoveWheelQueue, type WheelQueue } from "./wheel
 import {
   DeliveredKeys,
   dropAlreadySent,
+  engineOwnedBytes,
   MAX_MISSING_RESOURCE_LIST_B64_CHARS,
   MISSING_RESOURCE_LIST_ENTRY_BYTES,
   MISSING_RESOURCE_LIST_HEADER_BYTES,
   MISSING_RESOURCE_LIST_KIND_BYTES,
   noteDelivered,
   supplyEngineResources,
+  typedArrayLength,
 } from "../rbi-protocol.ts";
 import { getFontBytes, getImageBytes } from "../eval/resource-store.ts";
+import { MAX_CONCURRENT_READ_BYTES } from "../read-capped.ts";
 import { makeWallClock } from "../eval/host-clock.ts";
 import { MAX_SIDE } from "./viewport.ts";
 import { TTY_CELL_PX_MAX, TTY_CELL_PX_MIN } from "../tty/nav-params.ts";
@@ -42,9 +45,11 @@ interface Stream {
   flow: SceneFlow;
   target: TargetState;
   resources: DeliveredKeys;
+  resourceGeneration: number;
   terminal: boolean;
   ownerSessionId: string | undefined;
   wheelQueue: WheelQueue | null;
+  warnedSceneBudget: boolean;
 }
 
 const streams = new WeakMap<BrowserState, Map<string, Stream>>();
@@ -104,6 +109,23 @@ const MAX_SCENE_FRAME_SEQUENCE = 0xffff_ffff;
 const MAX_SCENE_RESOURCE_REQUEST_ITEMS = 4096;
 // Each resource request is an RPC into the page isolate.
 const MAX_IN_FLIGHT_RESOURCE_REQUESTS = 2;
+
+// A scene over the read cap is dropped rather than failing the stream, so report it once per
+// stream instead of once per frame.
+function warnSceneBudget(stream: Stream, sceneBytes: number): void {
+  if (stream.warnedSceneBudget) return;
+  stream.warnedSceneBudget = true;
+  console.warn(
+    `kitesurf: scene of ${sceneBytes} bytes over ${MAX_CONCURRENT_READ_BYTES} bytes; sending an empty scene`,
+  );
+}
+
+/** Length of a scene the read cap rejects, or null when the value is not a readable byte view. */
+function oversizedSceneBytes(value: unknown): number | null {
+  if (!ArrayBuffer.isView(value) || !(value instanceof Uint8Array)) return null;
+  const length = typedArrayLength(value);
+  return length !== null && length > MAX_CONCURRENT_READ_BYTES ? length : null;
+}
 
 const TargetParams = z.object({ targetId: z.string().optional() });
 const StartParams = TargetParams.extend({
@@ -231,12 +253,18 @@ export async function sceneStreamCommand(
         );
       }
     }
+    const generation = target.navigateGeneration;
+    const ps = target.pageScript;
     active.needInFlight++;
     try {
-      const reply = await stubQueryDom(target.pageScript, "getPaintResources", {
+      const reply = await stubQueryDom(ps, "getPaintResources", {
         imageHashes: new Uint8Array(images),
         fontDataHashes: new Uint8Array(fonts),
       });
+      // A reply from the retired document names resources the successor may not have.
+      if (target.navigateGeneration !== generation || target.pageScript !== ps) {
+        return { batchB64: "" } satisfies Protocol.Kitesurf.GetSceneResourcesResponse;
+      }
       const batch = reply.batch
         ? supplyEngineResources(
             reply.batch,
@@ -279,10 +307,12 @@ export async function sceneStreamCommand(
     flow,
     target,
     resources: new DeliveredKeys(),
+    resourceGeneration: target.navigateGeneration,
     needInFlight: 0,
     terminal: terminal === true,
     ownerSessionId: req.sessionId,
     wheelQueue: null,
+    warnedSceneBudget: false,
   };
   byTarget.set(target.targetId, stream);
   if (terminal) {
@@ -305,24 +335,49 @@ export async function sceneStreamCommand(
   };
   const loop = runSceneLoop(
     async (args) => {
-      if (!target.pageScript) throw new Error("page not ready");
-      const have = stream.resources.pack();
+      const generation = target.navigateGeneration;
+      const ps = target.pageScript;
+      if (!ps) throw new Error("page not ready");
+      // A delayed reply from the retired document must not seed the successor's ledger, and a
+      // reply that settles after navigation must not publish the old frame.
+      if (stream.resourceGeneration !== generation) {
+        stream.resourceGeneration = generation;
+        stream.resources = new DeliveredKeys();
+      }
+      const resources = stream.resources;
+      const have = resources.pack();
       const recordArgs = {
         ...args,
         haveImages: have.images,
         haveFonts: have.fonts,
       };
-      const reply = await stubQueryDom(target.pageScript, "recordScene", recordArgs);
-      if (!reply.resourceBatch) return reply;
-      const fresh = dropAlreadySent(reply.resourceBatch, stream.resources);
-      if (fresh.length === 0) return { ...reply, resourceBatch: null };
+      const reply = await stubQueryDom(ps, "recordScene", recordArgs);
+      if (
+        target.navigateGeneration !== generation ||
+        target.pageScript !== ps ||
+        stream.resources !== resources
+      ) {
+        throw new Error("stale scene generation");
+      }
+      // Both fields cross an untrusted RPC boundary: validate and copy before reading or
+      // calling anything on them. No producer caps a scene or a getPaintResources batch.
+      const scene = engineOwnedBytes(reply.scene, MAX_CONCURRENT_READ_BYTES);
+      if (!scene) {
+        const oversized = oversizedSceneBytes(reply.scene);
+        if (oversized !== null) warnSceneBudget(stream, oversized);
+        return { ...reply, scene: new Uint8Array(0), resourceBatch: null };
+      }
+      const batch = engineOwnedBytes(reply.resourceBatch, MAX_CONCURRENT_READ_BYTES);
+      if (!batch || batch.length === 0) return { ...reply, scene, resourceBatch: null };
+      const fresh = dropAlreadySent(batch, resources);
+      if (fresh.length === 0) return { ...reply, scene, resourceBatch: null };
       const supplied = supplyEngineResources(
         fresh,
         (hash) => getImageBytes(hash, ctx.connectionId),
         (key) => getFontBytes(key, ctx.connectionId),
       );
-      noteDelivered(supplied, stream.resources);
-      return { ...reply, resourceBatch: supplied };
+      noteDelivered(supplied, resources);
+      return { ...reply, scene, resourceBatch: supplied };
     },
     { send },
     () => stream.closed || ctx.browser.wsClosing || !ctx.browser.targets.has(target.targetId),

@@ -94,7 +94,7 @@ fn template_images_stay_inert_until_inserted_into_the_document() {
 
     {
         let doc: &mut BaseDocument = document.as_mut();
-        let root_id = doc.root_node().id;
+        let root_id = doc.root_node().id();
         let mut mutator = doc.mutate();
         mutator.append_children(root_id, &[image_id]);
     }
@@ -119,7 +119,7 @@ fn inserting_a_detached_template_keeps_its_contents_inert() {
 
     {
         let doc: &mut BaseDocument = document.as_mut();
-        let root_id = doc.root_node().id;
+        let root_id = doc.root_node().id();
         let mut mutator = doc.mutate();
         let host = mutator.create_element(blitz_dom::qual_name!("div", html), Vec::new());
         mutator.set_inner_html(

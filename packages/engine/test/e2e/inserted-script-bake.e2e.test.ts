@@ -27,7 +27,10 @@ async function loadInserting(
   return title.slice("BAKE:".length);
 }
 
-function probe(mode: "stable" | "volatile" | "gone" | "slow"): { key: string; src: string } {
+function probe(mode: "stable" | "volatile" | "gone" | "slow" | "hostile"): {
+  key: string;
+  src: string;
+} {
   const key = mode + "-" + Math.random().toString(36).slice(2);
   return { key, src: `/__fixtures/inserted-probe/${mode}/${key}.js` };
 }
@@ -38,6 +41,17 @@ async function probeHits(page: import("@cloudflare/puppeteer").Page, key: string
   );
   expect(typeof hits).toBe("number");
   return typeof hits === "number" ? hits : NaN;
+}
+
+async function probeHeaders(
+  page: import("@cloudflare/puppeteer").Page,
+  key: string,
+): Promise<Array<string | null>> {
+  const headers: unknown = await page.evaluate(
+    `fetch("/__fixtures/inserted-probe-headers/${key}").then((r) => r.json()).then((b) => b.headers)`,
+  );
+  expect(Array.isArray(headers)).toBe(true);
+  return headers as Array<string | null>;
 }
 
 test("a script the origin inserted before runs natively on the next navigate", async ({ page }) => {
@@ -77,6 +91,17 @@ test("a learned script that no longer loads stops being prefetched", async ({ pa
   expect(await probeHits(page, key)).toBe(2);
   await loadInserting(page, "none");
   expect(await probeHits(page, key)).toBe(2);
+}, 90_000);
+
+test("a learned inserted script cannot import a private sibling", async ({ page }) => {
+  const { src } = probe("hostile");
+  await loadInserting(page, src);
+  const baked = JSON.parse(await loadInserting(page, src));
+  expect(baked.native).toBe(true);
+  expect(baked.runs).toBe(1);
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window, "__hostileResult")))
+    .toBe("refused");
 }, 90_000);
 
 test("a script learned in one browser context is not baked in another", async ({ browser }) => {
@@ -126,3 +151,17 @@ test("a speculative prefetch does not go around Fetch interception", async ({ pa
   expect(paused).toEqual([]);
   expect(await probeHits(page, key)).toBe(1);
 }, 90_000);
+
+test("a speculative prefetch omits the session's extra headers", async ({ page }) => {
+  for (const origin of ["http://127.0.0.1:8787", "http://ks-other.invalid"]) {
+    const learned = probe("stable");
+    const fresh = probe("stable");
+    await page.setExtraHTTPHeaders({});
+    await loadInserting(page, origin + learned.src);
+    await page.setExtraHTTPHeaders({ "x-probe-secret": "session" });
+    const title = await loadInserting(page, origin + fresh.src);
+    expect(await probeHeaders(page, learned.key)).toEqual([null, null]);
+    expect(await probeHeaders(page, fresh.key)).toEqual(["session"]);
+    expect(JSON.parse(title)).toMatchObject({ runs: 1, hello: "hi" });
+  }
+}, 120_000);

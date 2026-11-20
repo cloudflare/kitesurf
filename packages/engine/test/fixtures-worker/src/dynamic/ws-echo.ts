@@ -24,3 +24,18 @@ wsEcho.all("/ws-echo", (c) => {
   });
   return new Response(null, { status: 101, webSocket: client });
 });
+
+wsEcho.all("/ws-handshake", (c) => {
+  if (c.req.header("upgrade")?.toLowerCase() !== "websocket") {
+    return c.text("expected websocket upgrade", 426);
+  }
+  const { 0: client, 1: server } = new WebSocketPair();
+  server.accept();
+  server.send(
+    JSON.stringify({
+      origin: c.req.header("origin") ?? null,
+      userAgent: c.req.header("user-agent") ?? null,
+    }),
+  );
+  return new Response(null, { status: 101, webSocket: client });
+});

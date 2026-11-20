@@ -14,6 +14,7 @@ const MILLISECONDS_PER_SECOND = 1_000;
 
 export function emitChildFrameAttachAndStart(
   ctx: DispatchCtx,
+  allFrames: ReadonlyMap<string, FrameState>,
   frames: Iterable<FrameState>,
   sessions: readonly (string | undefined)[],
 ): void {
@@ -41,7 +42,7 @@ export function emitChildFrameAttachAndStart(
     }
 
     const navigated: Protocol.Page.FrameNavigatedEvent = {
-      frame: makeFrameInfo(frame),
+      frame: makeFrameInfo(frame, allFrames),
       type: "Navigation",
     };
     for (const sessionId of sessions) {

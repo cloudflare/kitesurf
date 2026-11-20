@@ -13,12 +13,15 @@ import {
   hasClassicAsync as startupHasClassicAsync,
   insertedBaked as startupInsertedBaked,
   hasClassicRegular as startupHasClassicRegular,
-  html as startupHtml,
+  hasHtml as startupHasHtml,
+  htmlLength as startupHtmlLength,
   moduleScriptCount as startupModuleScriptCount,
   moduleScriptUrls as startupModuleScriptUrls,
+  jsonModuleUrls as startupJsonModuleUrls,
   cookies as startupCookies,
   pixelFree as startupPixelFree,
   fontDefer as startupFontDefer,
+  fontProfile as startupFontProfile,
   scriptDescriptors as startupScriptDescriptors,
   url as startupUrl,
   userAgent as startupUserAgent,
@@ -28,7 +31,7 @@ import {
 import { initSync, ks_bridge_install_desc_helpers } from "./wasm-glue.js";
 import wasmModule from "./core_bg.wasm";
 
-import { ksGlobal } from "./state.ts";
+import { ksInternals } from "./internals.ts";
 
 let coreWasmMemory: WebAssembly.Memory | null = null;
 const OriginalWebAssemblyInstance = WebAssembly.Instance;
@@ -39,9 +42,9 @@ const trackedInstance = new Proxy(OriginalWebAssemblyInstance, {
     if (
       imports &&
       (typeof imports === "object" || typeof imports === "function") &&
-      ksGlobal.__ks_memprof_imports
+      ksInternals.memprofImports
     ) {
-      Object.assign(imports, { wmprof: ksGlobal.__ks_memprof_imports });
+      Object.assign(imports, { wmprof: ksInternals.memprofImports });
     }
     const instance = Reflect.construct(target, argumentsList);
     if (
@@ -109,12 +112,13 @@ export {
   startupCookies,
   startupPixelFree,
   startupFontDefer,
+  startupFontProfile,
   startupHasClassicAsync,
   startupInsertedBaked,
   startupHasClassicRegular,
-  startupHtml,
   startupModuleScriptCount,
   startupModuleScriptUrls,
+  startupJsonModuleUrls,
   startupScriptDescriptors,
   startupUrl,
   startupUserAgent,
@@ -127,8 +131,8 @@ export {
 const STARTUP_SCRIPT_DESCRIPTOR_SAMPLE_SIZE = 5;
 
 export const startupInputSnapshot = {
-  hasHtml: typeof startupHtml === "string",
-  htmlLength: typeof startupHtml === "string" ? startupHtml.length : 0,
+  hasHtml: startupHasHtml,
+  htmlLength: startupHtmlLength,
   url: startupUrl,
   hasCookies: typeof startupCookies === "string" && startupCookies.length > 0,
   scriptDescriptorCount: Array.isArray(startupScriptDescriptors)

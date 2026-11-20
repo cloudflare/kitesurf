@@ -89,6 +89,35 @@ test("a client-set Cookie is dropped when a navigate hop changes origin", async 
   expect(echoed.cookie, "a client-set Cookie survived a cross-origin redirect hop").toBeUndefined();
 });
 
+async function docHeadersAfterPageNavigatesTo(
+  page: Page,
+  landingOrigin: string,
+): Promise<Record<string, string>> {
+  await page.setExtraHTTPHeaders({ Authorization: "Bearer ks-hop-secret", Cookie: "sid=ks" });
+  await page.goto(`https://ks.invalid${ECHO}`, { waitUntil: "domcontentloaded" });
+  const to = `${landingOrigin}${ECHO}?landed=1`;
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+    page.evaluate(`location.href = ${JSON.stringify(to)}`).catch(() => {}),
+  ]);
+  expect(page.url()).toBe(to);
+  const raw = (await page.evaluate("JSON.stringify(globalThis.__ks_doc_headers)")) as string;
+  return JSON.parse(raw) as Record<string, string>;
+}
+
+test("a page-started navigation to another origin drops the caller's credentials", async ({
+  page,
+}) => {
+  const echoed = await docHeadersAfterPageNavigatesTo(page, "https://ks-other.invalid");
+  expect(echoed.authorization).toBeUndefined();
+  expect(echoed.cookie).toBeUndefined();
+});
+
+test("a page-started same-origin navigation keeps the caller's credentials", async ({ page }) => {
+  const echoed = await docHeadersAfterPageNavigatesTo(page, "https://ks.invalid");
+  expect(echoed.authorization).toBe("Bearer ks-hop-secret");
+});
+
 test("a cross-site navigate hop withholds Strict cookies but keeps Lax", async ({ page }) => {
   const session = await page.target().createCDPSession();
   await session.send("Network.enable");
@@ -153,6 +182,47 @@ test("a same-origin iframe that redirects off-origin adopts the new origin", asy
   expect(child, "the fixture's iframe produced no child frame").toBeDefined();
   expect(child?.url).toBe("https://ks-other.invalid/__fixtures/lifecycle.html");
   expect(child?.securityOrigin).toBe("https://ks-other.invalid");
+});
+
+// A malformed Location (the replacement character a lossy decode yields) takes the native-follow
+// handoff; its terminal response must be screened like a hop the shim walks itself.
+const HANDOFF_PAGE = "http://127.0.0.1:8787/__fixtures/redirect-gate.html";
+const HANDOFF_SECRET = "kitesurf-native-handoff-secret";
+const DENIED_TARGET = `https://ks-other.invalid/__fixtures/no-acao-secret.json?secret=${HANDOFF_SECRET}`;
+
+async function fetchOutcome(page: Page, path: string): Promise<string> {
+  return (await page.evaluate(`
+    fetch(${JSON.stringify(path)})
+      .then(async (r) => "STATUS:" + r.status + ":" + (await r.text()))
+      .catch((e) => "THREW:" + String(e))
+  `)) as string;
+}
+
+const handoffCases = [
+  {
+    name: "a walked redirect to a CORS denial rejects with TypeError",
+    path: `/__fixtures/loud-redirect?to=${encodeURIComponent(DENIED_TARGET)}`,
+  },
+  {
+    name: "a native-followed malformed Location CORS denial rejects with TypeError",
+    path: `/__fixtures/invalid-location-redirect?to=${encodeURIComponent(DENIED_TARGET)}`,
+  },
+];
+
+for (const testCase of handoffCases) {
+  test(testCase.name, async ({ page }) => {
+    await page.goto(HANDOFF_PAGE, { waitUntil: "domcontentloaded" });
+    const outcome = await fetchOutcome(page, testCase.path);
+    expect(outcome).toBe("THREW:TypeError: Failed to fetch");
+    expect(outcome, "the denial diagnostic reached page code").not.toContain(HANDOFF_SECRET);
+  });
+}
+
+test("a malformed Location with an allowed target still follows natively", async ({ page }) => {
+  await page.goto(HANDOFF_PAGE, { waitUntil: "domcontentloaded" });
+  const target = encodeURIComponent("/__fixtures/echo-headers.json?x=");
+  const outcome = await fetchOutcome(page, `/__fixtures/invalid-location-redirect?to=${target}`);
+  expect(outcome).toMatch(/^STATUS:200:/);
 });
 
 test("a depth-2 frame that redirects off-origin still gets a realm", async ({ page }) => {

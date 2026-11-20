@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { coverageGaps, deviations, rebaseline } from "./pw-shared.mjs";
+import { coverageGaps, deviations, rebaseline, reportResults } from "./pw-shared.mjs";
 import { junit } from "./pw-gate.mjs";
 
 const specs = [
@@ -35,6 +35,37 @@ test("coverage identifies empty specs and vanished pins", () => {
   });
 });
 
+test("report ids follow each test's describe path, not the file suite", () => {
+  const spec = (title, status) => ({
+    title,
+    file: "a.spec.ts",
+    tests: [{ results: status ? [{ status }] : [] }],
+  });
+  const report = {
+    suites: [
+      {
+        title: "a.spec.ts",
+        specs: [spec("top", "passed")],
+        suites: [
+          {
+            title: "outer",
+            specs: [spec("same", "failed")],
+            suites: [{ title: "inner", specs: [spec("same", "timedOut"), spec("idle")] }],
+          },
+          { title: "", specs: [spec("anonymous", "skipped")] },
+        ],
+      },
+    ],
+  };
+  assert.deepEqual(reportResults(report), {
+    "a.spec.ts::top": "PASS",
+    "a.spec.ts::outer › same": "FAIL",
+    "a.spec.ts::outer › inner › same": "TIMEOUT",
+    "a.spec.ts::outer › inner › idle": "SKIP",
+    "a.spec.ts::anonymous": "SKIP",
+  });
+});
+
 test("rebaseline removes passing pins and sorts the output", () => {
   const next = rebaseline({ "z::t": { expected: "FAIL" }, "m::t": { expected: "PASS" } }, [
     { id: "z::t", actual: "PASS" },
@@ -44,12 +75,12 @@ test("rebaseline removes passing pins and sorts the output", () => {
   assert.equal(next["b::t"].expected, "TIMEOUT");
 });
 
-test("JUnit includes deviations and specs that no shard ran", () => {
+test("JUnit includes deviations and specs that no spec action ran", () => {
   const xml = junit(results, deviations(results, expectations), ["c.spec.ts"], [], ["c.spec.ts"]);
   assert.match(xml, /<testsuite name="playwright" tests="4" failures="2">/);
   assert.match(
     xml,
     /classname="pw\.b\.spec\.ts" name="kept"><failure message="expected FAIL, got PASS"/,
   );
-  assert.match(xml, /name="\(spec file\)"><failure message="no shard ran it"/);
+  assert.match(xml, /name="\(spec file\)"><failure message="no spec action ran it"/);
 });

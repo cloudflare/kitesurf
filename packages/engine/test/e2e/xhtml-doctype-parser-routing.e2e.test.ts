@@ -105,3 +105,16 @@ test("XHTML sniff ignores comments and tag-name prefixes", async ({ page }) => {
     expect(result).toEqual({ root: "html", scripts: 1 });
   }
 });
+
+test("getOuterHTML restores a source doctype that follows comments", async ({
+  page,
+  cdpSession,
+}) => {
+  await setContent(page, `<!-- a -->\n<!----><!doctype html><p>x</p>`);
+  const { outerHTML } = await cdpSession.send("DOM.getOuterHTML", {
+    nodeId: 0,
+    includeDoctype: true,
+  });
+  expect(outerHTML).toMatch(/^<!-- a -->\n?<!----><!DOCTYPE html><html>/);
+  expect(await page.evaluate(() => document.compatMode)).toBe("CSS1Compat");
+});

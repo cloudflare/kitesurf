@@ -92,8 +92,11 @@ Run the checks that cover what you changed rather than every lane in the repo.
 - Bazelisk, installed as `bazel`. Bazel builds and tests everything, and fetches
   its own Rust toolchains, wasm-bindgen, and binaryen.
 - On macOS, GNU tar (`brew install gnu-tar`).
-- Rust through rustup, only for `pnpm run lint:rust` and for editing vendored
-  crate patches. `rust-toolchain.toml` pins `nightly-2026-05-14` with the
+- On Linux, GCC with the libstdc++ development files (`sudo apt install g++`
+  on Debian and Ubuntu). rules_rust links its host tools with `-lstdc++`, so
+  without them the build stops at `cannot find -lstdc++`.
+- Rust through rustup, only for editing vendored crate patches.
+  `rust-toolchain.toml` pins `nightly-2026-05-14` with the
   `wasm32-unknown-unknown` target, the same nightly Bazel uses.
 
 ```bash
@@ -105,6 +108,21 @@ pnpm run build
 and copies them into the source tree. Run `pnpm run dev` to build and serve the
 engine locally and `pnpm run test:e2e <substring>` for a focused e2e subset.
 
+On a machine with little memory, cap Bazel in `.bazelrc.user`, which Git
+ignores. The pinned Bazel 9 rejects the older `--local_ram_resources` and
+`--local_cpu_resources` flags; use `--local_resources`:
+
+```text
+startup --host_jvm_args=-Xmx1g
+common --local_resources=cpu=2 --local_resources=memory=2800 --jobs=2
+```
+
+Maintainers with a Cloudflare Access login can add `--config=bazelflare` to any
+Bazel command on Linux x86-64. It runs every action on bazelflare, the remote
+execution service CI builds on, and reads the cache main's CI writes. Log in
+once with `cloudflared access login https://bazelflare.kitesurf.workers.dev`.
+Everyone else builds locally, as above.
+
 ## Checks
 
 Before you open a pull request, run:
@@ -115,9 +133,14 @@ pnpm run test:e2e <file-substring>
 ```
 
 Pass a file-name substring to `test:e2e` to run only the files you touched. For
-Rust changes, also run `pnpm run test:rust` and `pnpm run lint:rust`. CI runs
-the build, the checks, the Rust host tests and the vitest suite. It does not run
-the e2e, WPT or Playwright lanes, so run the ones your change touches.
+Rust changes, also run `pnpm run test:rust` and `pnpm run lint:rust` (the Rust
+gates as Bazel tests). CI runs
+the build, the checks, the Rust host tests, the vitest suite, the e2e suite, the
+Playwright lane and the WPT expectations gate (`scripts/wpt-ci.sh`). CI builds
+on bazelflare, except for a pull request from a fork: GitHub gives its jobs no
+token to authenticate with, so they build on the runner, which takes longer, and
+skip the e2e suite, the Playwright lane and the WPT gate, which main runs once
+the change merges.
 
 ## Commits
 

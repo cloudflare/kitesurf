@@ -14,6 +14,52 @@ function steadyStateBudget(): DynamicWorkerBudget {
 }
 
 describe("DynamicWorkerBudget worker kind", () => {
+  it("starts with empty live counts, peaks and denials", () => {
+    expect(new DynamicWorkerBudget().snapshot()).toEqual({
+      live: 0,
+      peak: 0,
+      liveByKind: { pageScript: 0, renderer: 0, oopif: 0, worker: 0 },
+      peakByKind: { pageScript: 0, renderer: 0, oopif: 0, worker: 0 },
+      oopifDenied: 0,
+      workerDenied: 0,
+    });
+  });
+
+  it("retains simultaneous peaks and denials after lease turnover and teardown", () => {
+    const budget = new DynamicWorkerBudget();
+    const oldPage = budget.acquire("pageScript");
+    const renderer = budget.acquire("renderer");
+    const newPage = budget.acquire("pageScript");
+    oldPage?.release();
+    const worker = budget.acquire("worker");
+    worker?.release();
+    worker?.release();
+    const frame = budget.acquire("oopif");
+    expect(frame).not.toBeNull();
+    expect(budget.acquire("oopif")).toBeNull();
+    expect(budget.acquire("worker")).toBeNull();
+
+    const active = budget.snapshot();
+    expect(active).toEqual({
+      live: 3,
+      peak: 3,
+      liveByKind: { pageScript: 1, renderer: 1, oopif: 1, worker: 0 },
+      peakByKind: { pageScript: 2, renderer: 1, oopif: 1, worker: 1 },
+      oopifDenied: 1,
+      workerDenied: 1,
+    });
+
+    newPage?.release();
+    renderer?.release();
+    frame?.release();
+    expect(budget.snapshot()).toEqual({
+      ...active,
+      live: 0,
+      liveByKind: { pageScript: 0, renderer: 0, oopif: 0, worker: 0 },
+    });
+    expect(active.liveByKind).toEqual({ pageScript: 1, renderer: 1, oopif: 1, worker: 0 });
+  });
+
   it("grants a worker the free slot", () => {
     const budget = steadyStateBudget();
     const lease = budget.acquire("worker");

@@ -5,13 +5,16 @@
 // Initializes core WebAssembly on demand and exposes document, render, and font helpers.
 
 import wasmModule from "../../core/pkg/kitesurf_core_bg.wasm";
+import type { ParsedStyleSheet } from "@kitesurf/jsrpc-types/query-dom";
 import { registerEngineWasmProbe } from "./engine-wasm-probe.ts";
 import { setDomFactory } from "./cdp/dom-release.ts";
+import { forEachUtf8Chunk } from "./utf8-chunks.ts";
 import {
   initSync,
   DomHandle,
+  DocScanner,
+  ks_parse_stylesheet_structured,
   ks_render_html_to_image,
-  ks_scan_document,
   stripFontForShaping as ks_strip_font_for_shaping,
   __setBridgeFetchResource,
 } from "kitesurf-core";
@@ -32,17 +35,8 @@ let initialized = false;
 function ensureInit(): void {
   if (initialized) return;
   __setBridgeFetchResource((_id: number, _url: string, _kind: string) => {});
-  // SAFETY: This engine isolate owns the field; PageScript's namesake is separate.
-  // TypeScript has no declaration for this private initialization hook.
-  // Verified by: packages/engine/test/e2e/target-dom-reclaim.e2e.test.ts.
-  const g = globalThis as typeof globalThis & {
-    __ks_memprof_imports?: WebAssembly.ModuleImports;
-  };
-  let memprofImports = g.__ks_memprof_imports;
-  if (!memprofImports) {
-    memprofImports = new Proxy<WebAssembly.ModuleImports>({}, { get: () => () => {} });
-    g.__ks_memprof_imports = memprofImports;
-  }
+  // Parent instances need no-op imports when the wasm is instrumented for memprof.
+  const noopMemprofImports = new Proxy<WebAssembly.ModuleImports>({}, { get: () => () => {} });
   // Capture exported memory while initSync creates its otherwise-hidden instance.
   const OrigInstance = WebAssembly.Instance;
   // SAFETY: This view narrows the temporary mutation to WebAssembly.Instance only.
@@ -54,7 +48,7 @@ function ensureInit(): void {
     imports?: WebAssembly.Imports,
   ) {
     if (imports && !imports.wmprof) {
-      imports.wmprof = memprofImports;
+      imports.wmprof = noopMemprofImports;
     }
     const inst = new OrigInstance(module, imports);
     if (inst.exports && inst.exports.memory instanceof WebAssembly.Memory) {
@@ -102,9 +96,19 @@ export interface ScannedScript {
 
 export interface ScannedIframe {
   src: string | null;
+  srcdoc: string | null;
+  sandbox: string | null;
   name: string | null;
+  id: string | null;
   loading: string | null;
   docOrderIndex: number;
+}
+
+export interface ScannedModulePreload {
+  href: string;
+  nonce: string | null;
+  integrity: string | null;
+  crossOrigin?: string | null;
 }
 
 export interface DocScan {
@@ -119,11 +123,36 @@ export interface DocScan {
   }>;
   scripts: ScannedScript[];
   iframes: ScannedIframe[];
+  modulePreloads: ScannedModulePreload[];
 }
 
+// UTF-16 units encoded per scan push.
+const SCAN_CHUNK_UNITS = 32 * 1024;
+
+/**
+ * Scans `html` a chunk at a time: wasm memory never shrinks, so passing the page whole kept its
+ * size in the engine for the session.
+ */
 export function scanDocument(html: string): DocScan {
   ensureInit();
-  return JSON.parse(ks_scan_document(html)) as DocScan;
+  const scanner = new DocScanner();
+  try {
+    forEachUtf8Chunk(html, SCAN_CHUNK_UNITS, (bytes) => scanner.push(bytes));
+  } catch (error) {
+    scanner.free();
+    throw error;
+  }
+  // `finish` consumes the scanner.
+  return JSON.parse(scanner.finish()) as DocScan;
+}
+
+export type ParsedStyleSheetRules = ParsedStyleSheet["rules"];
+
+// Stylesheet text the page cannot read is parsed here, in the engine's own realm, so no page
+// hook can observe the argument or the rules the parser builds.
+export function parseStyleSheetRules(css: string): ParsedStyleSheetRules {
+  ensureInit();
+  return ks_parse_stylesheet_structured(css).rules;
 }
 
 export function renderHtmlToImage(
@@ -197,6 +226,8 @@ export function extractScriptDescriptorsFromDom(dom: DomHandle | null): ParentSc
     ) {
       continue;
     }
+    // A browser that runs modules skips a classic script marked nomodule (scan.rs agrees).
+    if (rawType !== "module" && "nomodule" in attrs) continue;
     const src = attrs.src ? String(attrs.src).trim() : "";
     let body = "";
     if (!src) {

@@ -9,7 +9,7 @@ import {
   makeHtmlCollection,
   HTMLOptionsCollectionCls,
   OPTIONS_OWNER_SYM,
-  documentImpl as document,
+  elementDocument,
   ksGlobal,
 } from "../../state.js";
 import { optionSelected, optionsCache } from "../../registries.js";
@@ -101,7 +101,7 @@ class HTMLSelectElement extends HTMLElement implements Idl.HTMLSelectElement {
       if (o && o.parentNode) o.parentNode.removeChild(o);
     }
     if (opts.length < target) {
-      const doc = this.ownerDocument || document;
+      const doc = elementDocument(this);
       for (let i = opts.length; i < target; i++) {
         this.appendChild(doc.createElement("option"));
       }

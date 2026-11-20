@@ -6,7 +6,7 @@
 
 import { SpanStatusCode } from "@opentelemetry/api";
 import type { Attributes, Span, SpanContext, Tracer } from "@opentelemetry/api";
-import { ksGlobal } from "./state.js";
+import { ksInternals } from "./internals.js";
 
 let armed = false;
 
@@ -162,7 +162,7 @@ class KsSpan implements Span {
   constructor(name: string, attributes?: Attributes) {
     this._name = name;
     const top = stack[stack.length - 1];
-    this._parent = top ? top.spanContext().spanId : (ksGlobal.__ksTp as string) || null;
+    this._parent = top ? top.spanContext().spanId : ksInternals.traceParent || null;
     this._ctx = { traceId: traceId(), spanId: randHex(8), traceFlags: 1 };
     if (attributes) this.setAttributes(attributes);
     this._start = nowNano();
@@ -202,7 +202,7 @@ class KsSpan implements Span {
     return !this._ended;
   }
   recordException(e: unknown): void {
-    const name = (e as any)?.name;
+    const name: unknown = e == null ? undefined : Reflect.get(Object(e), "name");
     this.setAttribute("exception", typeof name === "string" ? name : "Error");
   }
   end(): void {
@@ -227,13 +227,13 @@ const ksTracer: Tracer = {
   startSpan(name: string, options?: { attributes?: Attributes }): Span {
     return new KsSpan(name, options?.attributes);
   },
-  startActiveSpan(name: string, ...rest: unknown[]): any {
+  startActiveSpan(name: string, ...rest: unknown[]): unknown {
     const fn = rest.find((a) => typeof a === "function") as ((span: Span) => unknown) | undefined;
     const opts = (typeof rest[0] === "object" && rest[0] !== null ? rest[0] : undefined) as
       | { attributes?: Attributes }
       | undefined;
-    const enter = ksGlobal.__ksJsSpanEnter;
-    const exit = ksGlobal.__ksJsSpanExit;
+    const enter = ksInternals.jsSpanEnter;
+    const exit = ksInternals.jsSpanExit;
     if (fn && typeof enter === "function" && typeof exit === "function") {
       let bytes = -1;
       let detail = "";
@@ -260,7 +260,7 @@ const ksTracer: Tracer = {
       }
     }
     const span = new KsSpan(name, opts?.attributes);
-    if (!fn) return span as any;
+    if (!fn) return span;
     stack.push(span as KsSpan);
     try {
       return fn(span);

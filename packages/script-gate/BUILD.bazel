@@ -8,6 +8,7 @@ npm_link_all_packages(name = "node_modules")
 js_library(
     name = "pkg",
     srcs = ["package.json", "tsconfig.json"] + glob(["src/**"]),
+    deps = [":node_modules/@kitesurf/jsrpc-types"],
     visibility = ["//visibility:public"],
 )
 
@@ -16,6 +17,7 @@ tsc_test(
     bin = tsc,
     data = [
         ":node_modules/@types/node",
+        ":node_modules/@kitesurf/jsrpc-types",
         ":pkg",
     ] + glob(["test/**"]),
 )

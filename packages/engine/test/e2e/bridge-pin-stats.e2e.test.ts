@@ -161,3 +161,18 @@ test("repeated method reads reuse one pin (Phase 1 dedupe)", async ({ page }) =>
     "300 reads of the same methods must not pin per read",
   ).toBeLessThan(100);
 });
+
+test("rereading one V8 promise from Boa keeps one identity slot", async ({ page }) => {
+  await setContent(page, `<script>globalThis.ready = Promise.resolve("ok");<\/script>`);
+  const read = (count: number) =>
+    page.evaluate(`(() => {
+      let reads = 0;
+      for (let i = 0; i < ${count}; i++) if (globalThis.ready) reads++;
+      return reads;
+    })()`);
+  await read(1);
+  const before = await bridgeStats(page);
+  expect(await read(2000)).toBe(2000);
+  const after = await bridgeStats(page);
+  expect(after.wrappers - before.wrappers, "each read reuses the promise's slot").toBeLessThan(10);
+});

@@ -10,6 +10,7 @@ import { documents } from "./dynamic/documents.ts";
 import { fonts } from "./dynamic/fonts.ts";
 import { frames } from "./dynamic/frames.ts";
 import { scripts } from "./dynamic/scripts.ts";
+import { screenshot } from "./dynamic/screenshot.ts";
 import { slow } from "./dynamic/slow.ts";
 import { wsEcho } from "./dynamic/ws-echo.ts";
 import { snapshot } from "./snapshot.ts";
@@ -44,6 +45,7 @@ for (const family of [
   bench,
   frames,
   scripts,
+  screenshot,
   cors,
   documents,
   wsEcho,

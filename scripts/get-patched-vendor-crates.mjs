@@ -26,13 +26,15 @@ const OUT_ROOT = resolve(REPO_ROOT, "packages/core/target/vendor-patched");
 const CRATES = [
   { name: "parley", version: "0.12.0" },
   { name: "parley_engine", version: "0.12.0" },
-  { name: "blitz-dom", version: "0.3.0-beta.3" },
-  { name: "blitz-paint", version: "0.3.0-beta.3" },
-  { name: "blitz-html", version: "0.3.0-beta.3" },
+  { name: "blitz-dom", version: "0.3.0-beta.4" },
+  { name: "blitz-paint", version: "0.3.0-beta.4" },
+  { name: "blitz-html", version: "0.3.0-beta.4" },
+  { name: "blitz-traits", version: "0.3.0-beta.4" },
   { name: "anyrender", version: "0.14.0" },
+  { name: "anyrender_svg", version: "0.15.0" },
   { name: "anyrender_vello_cpu", version: "0.18.0" },
   { name: "taffy", version: "0.15.0" },
-  { name: "stylo_taffy", version: "0.3.0-beta.3" },
+  { name: "stylo_taffy", version: "0.3.0-beta.4" },
   { name: "stylo", version: "0.22.0" },
   { name: "selectors", version: "0.41.0" },
   { name: "boa_ast", version: "0.22.0" },
@@ -41,6 +43,7 @@ const CRATES = [
   { name: "boa_engine", version: "0.22.0" },
   { name: "boa_parser", version: "0.22.0" },
   { name: "usvg", version: "0.48.1" },
+  { name: "vello_common", version: "0.3.0" },
   { name: "vello_cpu", version: "0.3.0" },
   { name: "ratatui-image", version: "8.1.1" },
   { name: "jpeg-encoder", version: "0.7.0" },
@@ -72,71 +75,13 @@ function git(args, cwd, { inherit = false } = {}) {
   });
 }
 
-let cargoFetchAttempted = false;
-function ensureRegistryExtracted() {
-  if (cargoFetchAttempted) return;
-  cargoFetchAttempted = true;
-  const cargoToml = resolve(REPO_ROOT, "Cargo.toml");
-  const backup = resolve(REPO_ROOT, "Cargo.toml.vendor-bootstrap.bak");
-  const cargoLock = resolve(REPO_ROOT, "Cargo.lock");
-  log("cargo registry source missing; running `cargo fetch` to populate it");
-  const original = readFileSync(cargoToml, "utf8");
-  // Without the patch block, cargo fetch re-resolves and rewrites the lockfile; restore it too.
-  const originalLock = readFileSync(cargoLock, "utf8");
-  writeFileSync(backup, original);
-  try {
-    // Bootstrap without unresolved patch paths or vendor-only features, then restore the manifest.
-    const lines = original.split("\n");
-    let inBlock = false;
-    for (let i = 0; i < lines.length; i++) {
-      const ln = lines[i];
-      if (!inBlock) {
-        if (ln.trim() === "[patch.crates-io]") {
-          inBlock = true;
-          lines[i] = "# " + ln;
-        }
-        continue;
-      }
-      if (ln.trim() === "" || ln.startsWith("[")) {
-        inBlock = false;
-        continue;
-      }
-      lines[i] = "# " + ln;
-    }
-    const neutered = lines.join("\n");
-    const bootstrapSafe = neutered.replace(
-      /^(\s*vello_cpu\s*=\s*\{[^}\n]*features\s*=\s*\[)([^\]]*)(\])/gm,
-      (_match, pre, feats, post) => {
-        const stripped = feats
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => s !== '"poly-pnorm"')
-          .join(", ");
-        return pre + stripped + post;
-      },
-    );
-    writeFileSync(cargoToml, bootstrapSafe);
-    execSync("cargo fetch", {
-      cwd: REPO_ROOT,
-      stdio: ["ignore", "inherit", "inherit"],
-    });
-  } finally {
-    writeFileSync(cargoToml, original);
-    writeFileSync(cargoLock, originalLock);
-    rmSync(backup, { force: true });
-  }
-}
-
 /** @returns {string} */
 function findRegistrySource(crateName, version) {
   const cargoRoot = resolve(process.env.CARGO_HOME || resolve(homedir(), ".cargo"));
   const srcRoot = resolve(cargoRoot, "registry/src");
   const tryLookup = () => {
     if (!existsSync(srcRoot)) return null;
-    const indexDirs = execSync(`ls "${srcRoot}"`, { encoding: "utf8" })
-      .split("\n")
-      .map((s) => s.trim())
-      .filter((s) => s.startsWith("index.crates.io-"));
+    const indexDirs = readdirSync(srcRoot).filter((s) => s.startsWith("index.crates.io-"));
     for (const indexDir of indexDirs) {
       const candidate = resolve(srcRoot, indexDir, `${crateName}-${version}`);
       if (existsSync(candidate)) return candidate;
@@ -145,13 +90,23 @@ function findRegistrySource(crateName, version) {
   };
   const first = tryLookup();
   if (first) return first;
-  ensureRegistryExtracted();
+  // `cargo fetch` without the local patches can select newer compatible releases.
+  // `info` downloads this exact registry source without resolving the workspace.
+  log(`cargo registry source missing; downloading ${crateName}-${version}`);
+  execFileSync(
+    "cargo",
+    ["info", "--locked", "--registry", "crates-io", `${crateName}@${version}`],
+    {
+      cwd: REPO_ROOT,
+      stdio: ["ignore", "ignore", "inherit"],
+      timeout: 180_000,
+    },
+  );
   const second = tryLookup();
   if (second) return second;
   throw new Error(
-    `${crateName}-${version} not present in cargo registry even after ` +
-      `cargo fetch. Check scripts/get-patched-vendor-crates.mjs CRATES ` +
-      `versions match the root Cargo.lock.`,
+    `${crateName}-${version} not present in cargo registry after cargo info. ` +
+      `Check CARGO_HOME and the crates.io registry configuration.`,
   );
 }
 

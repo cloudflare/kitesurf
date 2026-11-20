@@ -10,23 +10,26 @@ import type { WorkerEventParams } from "@kitesurf/jsrpc-types/dedicated-worker";
 import { sendUpstreamEvent } from "./internal-state.js";
 import { fetchInsertedScript } from "./resource-fetch.ts";
 import {
+  insertedRedirectGate,
   insertedResponseAllowed,
   insertedScriptAllowed,
   reportBlocked,
   reportOnly,
 } from "./script-policy.ts";
 import { holdsSharedMemory } from "./shared-memory.ts";
-import { ksEventCtors, ksGlobal, state } from "./state.ts";
+import { ksEventCtors, ksGlobal, shimEventCtor, state, type ShimEventCtors } from "./state.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
 
-type ListenerFn = (this: unknown, event: Event) => unknown;
+// Events here are always the shim's (ksEventCtors), never workerd's.
+type PageEvent = InstanceType<ShimEventCtors["Event"]>;
+type ListenerFn = (this: unknown, event: PageEvent) => unknown;
 type Listener = { fn: ListenerFn; once: boolean; src: unknown };
 
-type MessageEventCtor = new (type: string, init: { data: unknown; origin: string }) => Event;
+type MessageEventCtor = new (type: string, init: { data: unknown; origin: string }) => PageEvent;
 type ErrorEventCtor = new (
   type: string,
   init: { message: string; filename: string; lineno: number; colno: number; cancelable: boolean },
-) => Event;
+) => PageEvent;
 
 function isIterable(value: unknown): value is Iterable<unknown> {
   return (
@@ -41,7 +44,7 @@ function isListenerFn(value: unknown): value is ListenerFn {
   return typeof value === "function";
 }
 
-function hasHandleEvent(value: unknown): value is { handleEvent(event: Event): unknown } {
+function hasHandleEvent(value: unknown): value is { handleEvent(event: PageEvent): unknown } {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -73,13 +76,28 @@ function domException(message: string, name: string): Error {
   }
 }
 
-function documentOrigin(): string {
+// Capture these before page code can replace URL or its prototype accessors: a worker's creator
+// origin and every redirect hop must be compared with an origin the page cannot forge.
+const NativeURL = URL;
+const nativeApply = Reflect.apply;
+const nativeOriginGetter = Object.getOwnPropertyDescriptor(NativeURL.prototype, "origin")?.get;
+
+function urlOrigin(href: string): string | null {
   try {
-    const origin = new URL(state.pageUrl).origin;
-    return origin === "null" ? "null" : origin;
+    const url = new NativeURL(href);
+    const origin: unknown = nativeOriginGetter
+      ? nativeApply(nativeOriginGetter, url, [])
+      : url.origin;
+    return typeof origin === "string" ? origin : null;
   } catch {
-    return "null";
+    return null;
   }
+}
+
+// The committed document origin, or "null" for an opaque sandboxed origin. A worker script URL
+// from an opaque document never matches, so the constructor refuses it.
+function documentOrigin(): string {
+  return state.documentOrigin === "" ? "null" : state.documentOrigin;
 }
 
 function documentBase(): string {
@@ -130,7 +148,7 @@ function cloneForWorker(message: unknown, transferOrOptions: unknown): unknown {
   return data;
 }
 
-async function loadSource(url: string): Promise<string> {
+async function loadSource(url: string, creatorOrigin: string): Promise<string> {
   const meta = { url };
   const pre = await insertedScriptAllowed(meta);
   reportOnly(pre);
@@ -148,15 +166,40 @@ async function loadSource(url: string): Promise<string> {
     if (!response.ok) throw new Error(`data: URL failed to load`);
     return await response.text();
   }
-  const response = await fetchInsertedScript(pre.upgradeTo ?? url, "");
+  const redirects = insertedRedirectGate(meta);
+  // A worker runs under its creator's origin, so every hop of its script fetch must stay
+  // same-origin: a cross-origin redirect with CORS would otherwise supply source the engine
+  // still treats as the creator's own. The origin is the one the constructor already checked.
+  const checkWorkerRedirect = (next: string): string | null => {
+    const checked = redirects.check ? redirects.check(next) : next;
+    if (checked === null) return null;
+    return urlOrigin(checked) === creatorOrigin ? checked : null;
+  };
+  const fetchUrl = pre.upgradeTo ?? url;
+  if (urlOrigin(fetchUrl) !== creatorOrigin) throw new Error("worker origin mismatch");
+  const response = await fetchInsertedScript(fetchUrl, "", checkWorkerRedirect);
+  if (redirects.refusal) {
+    reportBlocked(redirects.refusal);
+    throw new Error(redirects.refusal.reason ?? "blocked by policy");
+  }
   if (response.status === 0) throw new Error("fetch failed");
   if (response.status >= 400) throw new Error(`HTTP ${response.status}`);
-  const post = await insertedResponseAllowed(meta, {
-    contentType: response.contentType,
-    contentTypeOptions: response.nosniff,
-    bytes: response.bytes,
-    opaque: response.opaque,
-  });
+  // Defense in depth: a successful response must still be the creator's own, and a successful
+  // fetch without a final URL fails closed.
+  if (!response.finalUrl || urlOrigin(response.finalUrl) !== creatorOrigin) {
+    throw new Error("worker origin mismatch");
+  }
+  const post = await insertedResponseAllowed(
+    meta,
+    {
+      contentType: response.contentType,
+      contentTypeOptions: response.nosniff,
+      bytes: response.bytes,
+      opaque: response.opaque,
+      finalUrl: response.finalUrl,
+    },
+    pre.upgradeTo ?? url,
+  );
   if (!post.allowed) {
     reportBlocked(post);
     throw new Error(post.reason ?? "blocked by policy");
@@ -177,7 +220,7 @@ export function installWorker(): void {
 }
 
 function buildWorkerClass(): unknown {
-  const EventTargetBase: typeof EventTarget = ksGlobal.EventTarget;
+  const EventTargetBase = ksGlobal.EventTarget;
   const STATE = Symbol("kitesurf-worker-state");
 
   class Worker extends EventTargetBase {
@@ -245,7 +288,7 @@ function buildWorkerClass(): unknown {
         languages: isIterable(nav.languages) ? Array.from(nav.languages, String) : ["en-US"],
         platform: String(nav.platform ?? ""),
       };
-      void loadSource(href).then(
+      void loadSource(href, origin).then(
         (source) => {
           if (ws.done) return;
           sendUpstreamEvent({
@@ -270,7 +313,7 @@ function buildWorkerClass(): unknown {
             );
           } catch {}
           finish(ws);
-          dispatch(ws, new ksEventCtors.Event("error"));
+          dispatch(ws, new (shimEventCtor("Event"))("error"));
         },
       );
     }
@@ -306,7 +349,7 @@ function buildWorkerClass(): unknown {
       if (isListenerFn(listener)) {
         fn = listener;
       } else if (hasHandleEvent(listener)) {
-        fn = function (event: Event) {
+        fn = function (event: PageEvent) {
           return listener.handleEvent(event);
         };
       }
@@ -324,7 +367,7 @@ function buildWorkerClass(): unknown {
       removeListener(this[STATE], String(type), listener);
     }
 
-    dispatchEvent(event: Event): boolean {
+    dispatchEvent(event: PageEvent): boolean {
       dispatch(this[STATE], event);
       return !event.defaultPrevented;
     }
@@ -350,7 +393,7 @@ function buildWorkerClass(): unknown {
     if (i >= 0) list.splice(i, 1);
   }
 
-  function dispatch(ws: KsWorkerState, event: Event): void {
+  function dispatch(ws: KsWorkerState, event: PageEvent): void {
     const worker = ws.owner;
     for (const key of ["target", "currentTarget", "srcElement"]) {
       try {
@@ -412,11 +455,11 @@ function buildWorkerClass(): unknown {
         colno: params.colno,
         cancelable: true,
       };
-      let event: Event;
+      let event: PageEvent;
       try {
         event = new Ctor("error", init);
       } catch {
-        event = Object.assign(new ksEventCtors.Event("error", { cancelable: true }), init);
+        event = Object.assign(new (shimEventCtor("Event"))("error", { cancelable: true }), init);
       }
       dispatch(ws, event);
       if (!event.defaultPrevented) {
@@ -426,7 +469,7 @@ function buildWorkerClass(): unknown {
       }
     } else if (params.type === "loadError") {
       finish(ws);
-      dispatch(ws, new ksEventCtors.Event("error"));
+      dispatch(ws, new (shimEventCtor("Event"))("error"));
     } else if (params.type === "closed") {
       finish(ws);
     }

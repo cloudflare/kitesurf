@@ -10,7 +10,7 @@ import {
   KITESURF_NOSNIFF_HEADER,
   responseIsOpaque,
 } from "@kitesurf/script-gate/gateway-headers";
-import { __setBridgeFetchResource } from "./wasm-glue.js";
+import { __setBridgeFetchResource, DomHandle } from "./wasm-glue.js";
 import {
   CLASS_IMAGE_VIEWPORT,
   FetchSlots,
@@ -19,10 +19,20 @@ import {
   classForKind,
 } from "./fetch-slots.ts";
 import { NativePromise } from "./native-scheduling.ts";
+import { runPageTaskWhenUnpaused } from "./page-tasks.ts";
 import { getInternalState } from "./internal-state.js";
 import { cascadeSeq, invalidatePaintDom } from "./paint.ts";
 import { noteSyncOp } from "./lag-monitor.ts";
-import { responseHeaderGet } from "./native-http.ts";
+import {
+  responseHeaderGet,
+  responseArrayBuffer,
+  responseOk,
+  mapDelete,
+  mapGet,
+  mapSet,
+  nativeApply,
+  NativeUint8Array,
+} from "./native-http.ts";
 import { state } from "./state.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
 import {
@@ -563,7 +573,12 @@ function readOpaqueImage(response: Response): OpaqueImage | null {
   }
   return { key, w: width, h: height };
 }
-const inflightFetches = new Map<string, Promise<FetchResult>>();
+type SharedFetch = { done: Promise<void> | null; result: FetchResult | undefined };
+const inflightFetches = new Map<string, SharedFetch>();
+
+// Captured before page scripts: the wasm renderer methods receive the private resource bytes.
+const nativeDeliverResource = DomHandle.prototype.deliverResource;
+const nativeDeliverFontResource = DomHandle.prototype.deliverFontResource;
 
 async function doRealFetch(url: string, kind: string, corsMode: string = ""): Promise<FetchResult> {
   const queuedAt = Date.now();
@@ -599,7 +614,7 @@ async function doRealFetch(url: string, kind: string, corsMode: string = ""): Pr
     // Release at response headers so body reads do not hold admission capacity.
     release();
     const headersMs = Date.now() - slotStartedAt;
-    if (!response.ok) {
+    if (!responseOk(response)) {
       fetchPhaseStats.errors++;
       return { ok: false };
     }
@@ -607,7 +622,7 @@ async function doRealFetch(url: string, kind: string, corsMode: string = ""): Pr
       responseHeaderGet(response, "x-kitesurf-cors") === "clean"
         ? ("clean" as const)
         : ("opaque" as const);
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    const bytes = new NativeUint8Array(await responseArrayBuffer(response));
     const slotMs = slotStartedAt - queuedAt;
     const fetchMs = Date.now() - slotStartedAt;
     fetchPhaseStats.count++;
@@ -639,6 +654,8 @@ async function doRealFetch(url: string, kind: string, corsMode: string = ""): Pr
 export async function fetchInsertedScript(
   url: string,
   crossOrigin: string | null = null,
+  checkRedirect?: (url: string) => string | null,
+  initiator: "script" | "parser" = "script",
 ): Promise<{
   status: number;
   source: string;
@@ -646,6 +663,8 @@ export async function fetchInsertedScript(
   contentType: string | null;
   nosniff: string | null;
   opaque: boolean;
+  /** The URL after redirects, when the fetch succeeded. */
+  finalUrl?: string;
 }> {
   await acquireFetchSlot(url, "Script");
   let released = false;
@@ -657,9 +676,21 @@ export async function fetchInsertedScript(
   try {
     const corsMode = crossOrigin == null ? "no-cors" : "cors";
     const headers: Record<string, string> = {
+      "x-kitesurf-allow-cross-origin": "1",
       "x-kitesurf-script-cors": corsMode,
       accept: "*/*",
+      // A classic script without crossorigin sends cookies, as every browser fetch does; the page
+      // fetch shim would otherwise default the carrier to same-origin. A CORS script uses
+      // same-origin unless its crossorigin attribute asks for use-credentials (case-insensitive).
+      ...(crossOrigin == null
+        ? { "x-kitesurf-credentials": "include" }
+        : {
+            "x-kitesurf-credentials":
+              crossOrigin.toLowerCase() === "use-credentials" ? "include" : "same-origin",
+          }),
     };
+    // The engine's opaque bypass requires this marker for no-cors scripts.
+    if (corsMode === "no-cors") headers["x-kitesurf-allow-cross-origin"] = "1";
     if (state.connectionId) {
       headers["x-kitesurf-connection-id"] = state.connectionId;
     }
@@ -668,7 +699,11 @@ export async function fetchInsertedScript(
     const response = await trustedFetch(
       url,
       { headers },
-      { resourceType: "Script", initiator: "script" },
+      {
+        resourceType: "Script",
+        initiator,
+        ...(checkRedirect ? { checkRedirect } : {}),
+      },
     );
     release();
     if (!response.ok) {
@@ -689,6 +724,7 @@ export async function fetchInsertedScript(
       contentType: response.headers.get("content-type"),
       nosniff: response.headers.get(KITESURF_NOSNIFF_HEADER),
       opaque: responseIsOpaque(response.headers.get(KITESURF_CORS_VERDICT_HEADER)),
+      finalUrl: response.url || url,
     };
   } catch {
     return {
@@ -739,7 +775,8 @@ export async function fetchResource(
     if (hint === null || hint.crossOrigin) {
       try {
         const dom = state.dom as { deliverResourceError?: (id: number) => void } | null;
-        dom?.deliverResourceError?.(id);
+        const pending = runPageTaskWhenUnpaused(() => dom?.deliverResourceError?.(id));
+        if (pending) await pending;
       } catch {}
       return;
     }
@@ -789,15 +826,22 @@ export async function fetchResource(
   try {
     // CORS mode stays in the key so callers never share a differently entitled response.
     const coalesceKey = `${corsMode}\n${url}`;
-    let shared = inflightFetches.get(coalesceKey);
+    let shared = mapGet(inflightFetches, coalesceKey);
     if (!shared) {
-      shared = doRealFetch(url, kind, corsMode);
-      inflightFetches.set(coalesceKey, shared);
-      shared.finally(() => {
-        if (inflightFetches.get(coalesceKey) === shared) {
-          inflightFetches.delete(coalesceKey);
+      // The stored record exposes only a void completion promise; the result stays in this
+      // private closure until a waiter has awaited it.
+      const entry: SharedFetch = { done: null, result: undefined };
+      entry.done = (async () => {
+        try {
+          entry.result = await doRealFetch(url, kind, corsMode);
+        } finally {
+          if (mapGet(inflightFetches, coalesceKey) === entry) {
+            mapDelete(inflightFetches, coalesceKey);
+          }
         }
-      });
+      })();
+      mapSet(inflightFetches, coalesceKey, entry);
+      shared = entry;
     }
 
     if (kind === "Image") {
@@ -805,14 +849,18 @@ export async function fetchResource(
       reevaluateDeferred(url);
     }
 
-    const result = await shared;
+    if (!shared.done) throw new Error("missing resource completion");
+    await shared.done;
+    const result = shared.result;
+    if (!result) throw new Error("missing resource result");
     if (!result.ok) {
       if (kind === "Font") {
         try {
           console.warn(`[ks-fonts] @font-face fetch FAILED: ${url}`);
         } catch {}
       }
-      reportError();
+      const pending = runPageTaskWhenUnpaused(reportError);
+      if (pending) await pending;
       return;
     }
     const bytes = result.bytes;
@@ -861,30 +909,42 @@ export async function fetchResource(
       deliverResourceMeta?: (id: number, key: string, w: number, h: number) => boolean;
       deliverResourceError?: (id: number) => void;
     } | null;
-    if (dom?.deliverResource) {
-      const imageNodes = snapshotImageNodes();
-      try {
-        noteSyncOp(`deliver:${kind}`);
-        const deliveryStartedAt = Date.now();
+    const deliverResource = dom?.deliverResource;
+    if (dom && deliverResource) {
+      const deliverBytes = (): boolean => {
         const opaque = result.opaqueImage;
-        const ok =
-          opaque && dom.deliverResourceMeta
-            ? dom.deliverResourceMeta(id, opaque.key, opaque.w, opaque.h)
-            : result.fontKey && dom.deliverFontResource
-              ? dom.deliverFontResource(id, bytes, result.fontKey)
-              : dom.deliverResource(id, bytes);
-        recordDeliverMs(Date.now() - deliveryStartedAt);
-        if (kind === "Font") warnFontDelivery(id, ok, url);
-        if (ok) {
+        if (opaque && dom.deliverResourceMeta) {
+          return dom.deliverResourceMeta(id, opaque.key, opaque.w, opaque.h);
+        }
+        if (kind === "Font" && result.fontKey && dom.deliverFontResource) {
+          return nativeApply(nativeDeliverFontResource, dom, [
+            id,
+            bytes,
+            result.fontKey,
+          ]) as boolean;
+        }
+        return nativeApply(nativeDeliverResource, dom, [id, bytes]) as boolean;
+      };
+      const pending = runPageTaskWhenUnpaused(() => {
+        const imageNodes = snapshotImageNodes();
+        try {
+          noteSyncOp(`deliver:${kind}`);
+          const deliveryStartedAt = Date.now();
+          const ok = deliverBytes();
+          recordDeliverMs(Date.now() - deliveryStartedAt);
+          if (kind === "Font") warnFontDelivery(id, ok, url);
+          if (!ok) return;
           notifyImages(imageNodes, true);
           markResourceDelivered(getInternalState(), kind, url);
+        } catch {
+          reportError();
         }
-      } catch {
-        reportError();
-      }
+      });
+      if (pending) await pending;
     }
   } catch {
-    reportError();
+    const pending = runPageTaskWhenUnpaused(reportError);
+    if (pending) await pending;
   } finally {
     if (blocksLoad) removeInflight(url);
     if (kind === "Font") removeFontInflight(url);

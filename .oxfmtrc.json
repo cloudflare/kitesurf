@@ -39,6 +39,7 @@
     "artifacts-metadata.json",
     ".wpt/**",
     ".playwright/**",
+    ".puppeteer/**",
     ".base-wasm/**",
     "packages/engine/public/rbi/**",
     "packages/engine/wrangler.json",

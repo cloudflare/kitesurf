@@ -42,6 +42,8 @@ packages/dom-shim/src/editing/implementation.js
 # the engine public dir. Both come from the wasm build. Cargo.lock IS committed.
 packages/renderer-core/pkg/
 packages/engine/public/rbi/
+# The DevTools frontend that `--config=devtools` stages (packages/engine:bundle_devtools).
+packages/engine/public/inspector/
 
 # Web Platform Tests checkout (shallow clone via `npm run wpt:setup`).
 .wpt/
@@ -51,6 +53,8 @@ packages/engine/public/rbi/
 
 # playwright checkout (tag-pinned shallow clone via `pnpm run pw:setup`).
 .playwright/
+# puppeteer checkout (tag-pinned shallow clone via `pnpm run pptr:setup`).
+.puppeteer/
 
 # slop
 **/PLAN*.md
@@ -72,3 +76,6 @@ packages/engine/test/e2e/.fixtures-dist/
 # Local Bazel flags, read by .bazelrc.
 .bazelrc.user
 .turbo/
+
+# Triage skill scratch space (.agents/skills/triage).
+/triage/

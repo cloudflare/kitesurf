@@ -4,7 +4,7 @@
 
 // Builds one page generation's DOM shim and wires its document, Window, and PageScript hooks.
 
-import type { DomHandle } from "../../core/pkg/kitesurf_core";
+import type { DomHandle, KsNodeIdentity } from "../../core/pkg/kitesurf_core";
 import type { BuildDocumentOpts } from "./state.js";
 
 import { getInternalState } from "./internal-state.js";
@@ -24,14 +24,19 @@ import { installFastpath } from "./fastpath.js";
 import { fileInputFiles, fileInputLists } from "./file-input.js";
 
 import {
-  ops,
   cdpMutations,
   cookieWrites,
   activeElement,
   setReadyState,
   setCookieString,
+  fastpathMarkSpecial,
 } from "./state.js";
-import { installWindow, stampInitialNamedGlobals } from "./window.js";
+import { elementAttributes } from "./element/element.js";
+import {
+  installInitialNamedGlobals,
+  installNamedPropertiesObject,
+  installWindow,
+} from "./window.js";
 import {
   setDocumentImpl,
   setNodeFor,
@@ -120,6 +125,8 @@ import { NodeFilter, TreeWalker, NodeIterator } from "./traversal.js";
 import { XPathEvaluator, XPathExpression, XPathResult } from "./xpath.js";
 import { FormData } from "./form-data.js";
 import "./record.js";
+// UA <select> dropdown overlay — installs ksInternals.toggleSelectDropdown
+// for page-script's click default action.
 import "./select-dropdown.js";
 import {
   AttrCls,
@@ -190,6 +197,7 @@ import {
   customValidity,
   elemNs,
   fragmentIds,
+  registerFormProxy,
 } from "./registries.js";
 import { installDetachedWrapperHooks } from "./detached-wrappers.js";
 
@@ -213,6 +221,76 @@ const peekHasOwn = Object.prototype.hasOwnProperty;
 const peekApply = Reflect.apply;
 const peekGopd = Object.getOwnPropertyDescriptor;
 
+// Members a form's named controls never override, though HTML lets them: the engine walks trees
+// and reads attributes through these, so a control named parentNode would loop every ancestor
+// walk. Pages do not rely on clobbering them. The form's own members (id, action, submit,
+// elements, ...) stay overridable.
+const ELEMENT_TREE_MEMBERS = [
+  "namespaceURI",
+  "prefix",
+  "localName",
+  "tagName",
+  "attributes",
+  "shadowRoot",
+  "assignedSlot",
+  "hasAttributes",
+  "getAttributeNames",
+  "getAttribute",
+  "getAttributeNS",
+  "setAttribute",
+  "setAttributeNS",
+  "removeAttribute",
+  "removeAttributeNS",
+  "toggleAttribute",
+  "hasAttribute",
+  "hasAttributeNS",
+  "getAttributeNode",
+  "getAttributeNodeNS",
+  "setAttributeNode",
+  "setAttributeNodeNS",
+  "removeAttributeNode",
+  "attachShadow",
+  "closest",
+  "matches",
+  "webkitMatchesSelector",
+  "getElementsByTagName",
+  "getElementsByTagNameNS",
+  "getElementsByClassName",
+  "insertAdjacentElement",
+  "insertAdjacentText",
+  "insertAdjacentHTML",
+  "children",
+  "firstElementChild",
+  "lastElementChild",
+  "childElementCount",
+  "previousElementSibling",
+  "nextElementSibling",
+  "prepend",
+  "append",
+  "replaceChildren",
+  "moveBefore",
+  "querySelector",
+  "querySelectorAll",
+  "before",
+  "after",
+  "replaceWith",
+  "remove",
+];
+let formOwnMembers: Set<string> | null = null;
+const isFormOwnMember = (name: string): boolean => {
+  if (!formOwnMembers) {
+    formOwnMembers = new Set([
+      ...Object.getOwnPropertyNames(KsEventTarget.prototype),
+      ...Object.getOwnPropertyNames(NodeBase.prototype),
+      ...ELEMENT_TREE_MEMBERS,
+    ]);
+  }
+  return formOwnMembers.has(name);
+};
+// A canonical array index stays the indexed getter's, ahead of a control named "0".
+const isArrayIndex = (name: string): boolean =>
+  /^(?:0|[1-9]\d*)$/.test(name) && Number(name) < 4294967295;
+
 const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocumentOpts) {
   initState(dom, opts.pageUrl, opts.initialCookieString, opts);
   installDetachedWrapperHooks(dom);
@@ -221,10 +299,57 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     typeof opts.getCurrentUrl === "function" ? opts.getCurrentUrl : () => opts.pageUrl;
   ksState().lastMutationAt = Date.now();
 
-  function makeNamedAccessProxy(node, localName) {
+  function makeNamedAccessProxy(node: Element, localName: string) {
     const isForm = localName === "form";
-    return new Proxy(node, {
+    // HTMLFormElement is [LegacyOverrideBuiltIns]: a listed control's id or name reads ahead of
+    // the form's own members, so form.id can be an <input name="id">. Indices, tree members and
+    // names starting with "_" stay ours. The fast path reads id from the tree, so it skips forms.
+    // https://html.spec.whatwg.org/#the-form-element
+    let namesSeq = -1;
+    let names = new Set<string>();
+    let resolving = false;
+    const supportedNames = (t: Element, receiver: unknown): Set<string> => {
+      const seq = ksState().mutationSeq | 0;
+      if (seq === namesSeq) return names;
+      const next = new Set<string>();
+      const list: unknown = Reflect.get(t, "elements", receiver);
+      const len = Number(Reflect.get(Object(list), "length")) || 0;
+      for (let i = 0; i < len; i++) {
+        const el: unknown = Reflect.get(Object(list), i);
+        if (!(el instanceof Element)) continue;
+        const id = elementAttributes.get.call(el, "id");
+        if (id) next.add(id);
+        const name = elementAttributes.get.call(el, "name");
+        if (name) next.add(name);
+      }
+      names = next;
+      namesSeq = seq;
+      return names;
+    };
+    // The control or RadioNodeList a supported name reads, else undefined.
+    const namedOverride = (t: Element, prop: string, receiver: unknown): unknown => {
+      if (resolving || prop === "" || prop[0] === "_") return undefined;
+      if (isArrayIndex(prop) || isFormOwnMember(prop)) return undefined;
+      resolving = true;
+      try {
+        if (!supportedNames(t, receiver).has(prop)) return undefined;
+        const m: unknown = Reflect.get(t, "namedItem", receiver);
+        if (typeof m !== "function") return undefined;
+        const named: unknown = m.call(receiver, prop);
+        return named ?? undefined;
+      } catch {
+        return undefined;
+      } finally {
+        resolving = false;
+      }
+    };
+    if (isForm) fastpathMarkSpecial(node._id);
+    const proxy = new Proxy(node, {
       get(t, prop, receiver) {
+        if (isForm && typeof prop === "string") {
+          const named = namedOverride(t, prop, receiver);
+          if (named !== undefined) return named;
+        }
         if (typeof prop === "symbol" || prop in t) {
           return Reflect.get(t, prop, receiver);
         }
@@ -233,21 +358,25 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
         }
         try {
           if (/^\d+$/.test(prop)) {
-            const list = isForm
+            const list: unknown = isForm
               ? Reflect.get(t, "elements", receiver)
               : Reflect.get(t, "options", receiver);
-            return list ? list[prop] : undefined;
+            // elements and options are collection objects.
+            return list ? (Reflect.get(Object(list), prop) as unknown) : undefined;
           }
           if (isForm) {
-            const m = Reflect.get(t, "namedItem", receiver);
+            const m: unknown = Reflect.get(t, "namedItem", receiver);
             if (typeof m === "function") {
-              return m.call(receiver, prop) ?? undefined;
+              const named: unknown = m.call(receiver, prop);
+              return named ?? undefined;
             }
           }
         } catch {}
         return undefined;
       },
     });
+    if (isForm) registerFormProxy(proxy, node);
+    return proxy;
   }
 
   function evictCachedNode(nodeId: number): void {
@@ -261,7 +390,43 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     fileInputLists.delete(nodeId);
   }
 
-  function nodeFor(nodeId) {
+  // Every nodeIdentity reply decodes fresh name strings, and each wrapper keeps its reply, so
+  // a big page held one "#text" or "LI" copy per wrapper. Names repeat; share one copy each.
+  // Real tag names are short; a length cap keeps the table under 4096 x 64 characters.
+  const MAX_INTERNED_NAMES = 4096;
+  const MAX_INTERNED_NAME_LENGTH = 64;
+  const internedNames = new Map<string, string>();
+  const internName = (name: string): string => {
+    if (name.length > MAX_INTERNED_NAME_LENGTH) return name;
+    const shared = internedNames.get(name);
+    if (shared !== undefined) return shared;
+    if (internedNames.size < MAX_INTERNED_NAMES) internedNames.set(name, name);
+    return name;
+  };
+  // Element wrappers of one name share one frozen identity record: a large spec page had 45,163
+  // element wrappers and 43 distinct records. Only character data records are ever written.
+  const sharedIdentities = new Map<string, KsNodeIdentity>();
+  const sharedElementIdentity = (info: KsNodeIdentity): KsNodeIdentity => {
+    const { nodeName, localName } = info;
+    const ns = info.namespaceURI ?? "";
+    if (
+      nodeName.length > MAX_INTERNED_NAME_LENGTH ||
+      localName.length > MAX_INTERNED_NAME_LENGTH ||
+      ns.length > MAX_INTERNED_NAME_LENGTH
+    ) {
+      return info;
+    }
+    // Length prefixes keep the key unambiguous whatever characters the names hold.
+    const key = `${localName.length}:${localName}${nodeName.length}:${nodeName}${ns}`;
+    const shared = sharedIdentities.get(key);
+    if (shared !== undefined) return shared;
+    if (sharedIdentities.size >= MAX_INTERNED_NAMES) return info;
+    Object.freeze(info);
+    sharedIdentities.set(key, info);
+    return info;
+  };
+
+  function nodeFor(nodeId: number): NodeBase | null {
     if (nodeId == null || nodeId < 0) return null;
     const cached = liveWrapper(nodeId);
     if (cached) {
@@ -276,7 +441,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     }
     let info;
     try {
-      info = dom.nodeInfo(nodeId);
+      info = dom.nodeIdentity(nodeId);
     } catch {
       evictCachedNode(nodeId);
       return null;
@@ -285,6 +450,9 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
       evictCachedNode(nodeId);
       return null;
     }
+    info.nodeName = internName(info.nodeName);
+    info.localName = internName(info.localName);
+    if (info.nodeType === ELEMENT_NODE) info = sharedElementIdentity(info);
     if (cached) {
       const cachedType = cached._info && cached._info.nodeType;
       const tagStable =
@@ -331,7 +499,8 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
   // nodeFor's first branch only. The stamp is read as an own data property so a
   // page-defined _typeCheckSeq accessor (or Object.prototype.value) never runs.
   setNodePeek((nodeId) => {
-    const cached = peekApply(peekMapGet, cache, [nodeId]);
+    // Map.prototype.get on the wrapper cache.
+    const cached: NodeBase | undefined = peekApply(peekMapGet, cache, [nodeId]);
     if (!cached) return null;
     const stamp = peekGopd(cached, "_typeCheckSeq");
     if (!stamp || !peekApply(peekHasOwn, stamp, ["value"])) return null;
@@ -342,7 +511,13 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
 
   installIdlHandlersOn(DocumentImpl.prototype);
 
-  function installAsOwn(target: any, sourceProto: any, names: string[]) {
+  // An interface class: what these helpers read off it.
+  type InterfaceClass = { readonly prototype: object };
+  function installAsOwn(
+    target: InterfaceClass | null | undefined,
+    sourceProto: object | null | undefined,
+    names: string[],
+  ) {
     if (!target || !target.prototype || !sourceProto) return;
     for (const name of names) {
       if (Object.prototype.hasOwnProperty.call(target.prototype, name)) {
@@ -382,7 +557,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
   }
   installAsOwn(HTMLElement, Element.prototype, ["click", "focus", "blur"]);
 
-  function forceEnumerableProtoOwnProps(klass: any) {
+  function forceEnumerableProtoOwnProps(klass: InterfaceClass | null | undefined) {
     if (!klass || !klass.prototype) return;
     const proto = klass.prototype;
     for (const name of Object.getOwnPropertyNames(proto)) {
@@ -457,7 +632,9 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
   cache.set(DOCUMENT_ID, document);
   setDocumentImpl(document);
 
-  const { window, Window } = installWindow(document, dom);
+  const { window, Window } = installWindow(document);
+  installNamedPropertiesObject();
+  installInitialNamedGlobals();
 
   createModelContext({
     getWindow: () => window,
@@ -723,7 +900,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     XPathResult,
     XPathExpression,
     XPathEvaluator,
-    setReadyState: (s) => {
+    setReadyState: (s: unknown) => {
       if (s === "loading" || s === "interactive" || s === "complete") {
         setReadyState(s);
       }
@@ -734,14 +911,14 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
       cookieWrites.length = 0;
       return out;
     },
-    setCookieString: (s) => {
+    setCookieString: (s: string) => {
       setCookieString(s);
     },
-    nodeFor: (id) => nodeFor(id),
-    notifyImageResults: (nodeIds, ok) => notifyImageResults(nodeIds, ok),
-    notifyStylesheetResults: (url, ok) => notifyStylesheetResults(url, ok),
+    nodeFor: (id: number) => nodeFor(id),
+    notifyImageResults: (nodeIds: Iterable<unknown> | null | undefined, ok: boolean) =>
+      notifyImageResults(nodeIds, ok),
+    notifyStylesheetResults: (url: string, ok: boolean) => notifyStylesheetResults(url, ok),
     getActiveElement: () => activeElement,
-    getOpLog: () => ops,
     drainCdpMutations: () => {
       if (cdpMutations.length === 0) return [];
       const out = cdpMutations.slice();
@@ -750,7 +927,6 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     },
     __ks_dispatchTrustedEvent: dispatchTrustedEvent,
     __ks_activateLabel: activateLabel,
-    stampInitialNamedGlobals: stampInitialNamedGlobals,
     applyDeclarativeShadowRoots: () => applyDeclarativeShadowRoots(document),
   };
 
@@ -789,3 +965,4 @@ export {
   sweepDetachedWrappers,
 } from "./detached-wrappers.js";
 export { setAnimationTaskScheduler } from "./animations.js";
+export { setInlineHandlerGate } from "./element/event-handlers.js";

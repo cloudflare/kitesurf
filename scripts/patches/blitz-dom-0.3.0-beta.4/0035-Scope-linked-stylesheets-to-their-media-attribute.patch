@@ -1,0 +1,222 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 5 Aug 2026 14:31:03 +0100
+Subject: [PATCH] Scope linked stylesheets to their media attribute
+
+External sheets were parsed with MediaList::empty(), so a media="print"
+sheet cascaded on screen: sigarra.up.pt's print CSS (#cabecalho /
+#colunaprincipal / #colunaextra display:none) erased the whole page
+chrome from screen renders. Parse the owning link's media attribute into
+the sheet's MediaList (via a helper shared with the <style media> path)
+so stylo re-evaluates it against the device on every cascade.
+
+The media attribute was only snapshotted at fetch time
+(StylesheetHandler.media_attr), so a post-load mutation never
+re-evaluated the installed sheet. The async-CSS pattern of beasties,
+critters and loadCSS (<link media="print" onload="this.media='all'">)
+therefore left the full sheet print-scoped forever and pages rendered
+with critical CSS only (Angular TodoMVC's whole app CSS was inert).
+
+set_attribute/clear_attribute on (link, media) now rewrite the installed
+sheet's MediaList in place through the shared lock and force the
+affected origin set dirty (or rebuild the shadow scope), which is enough
+for stylo to re-evaluate scoping on the next resolve. When no sheet is
+installed yet (fetch in flight), the load is re-fired so the handler
+snapshots the new media value; the embedder coalesces the duplicate
+fetch.
+---
+ src/document.rs | 26 +++++---------------------
+ src/mutator.rs  | 44 ++++++++++++++++++++++++++++++++++++++++++++
+ src/net.rs      | 42 ++++++++++++++++++++++++++++++++++++++++--
+ 3 files changed, 89 insertions(+), 23 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index ea7f4cd..395d9fe 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -1367,6 +1367,9 @@ impl BaseDocument {
+                                             None => "no-cors",
+                                         },
+                                     )),
++                                    media_attr: element
++                                        .attr(local_name!("media"))
++                                        .map(ToString::to_string),
+                                 },
+                             ),
+                         );
+@@ -1474,27 +1477,8 @@ impl BaseDocument {
+         let css = rewritten.as_deref().unwrap_or(css);
+         // Parse the element's media attribute into a real MediaList (empty
+         // list == matches everything, same as no attribute / "all").
+-        let media_list = media
+-            .map(str::trim)
+-            .filter(|m| !m.is_empty() && !m.eq_ignore_ascii_case("all"))
+-            .map(|m| {
+-                let url_data = self.url.url_extra_data();
+-                let context = style::parser::ParserContext::new(
+-                    origin,
+-                    &url_data,
+-                    Some(style::stylesheets::CssRuleType::Media),
+-                    style_traits::ParsingMode::DEFAULT,
+-                    QuirksMode::NoQuirks,
+-                    Default::default(),
+-                    None,
+-                    None,
+-                    Default::default(),
+-                );
+-                let mut input = cssparser::ParserInput::new(m);
+-                let mut parser = cssparser::Parser::new(&mut input);
+-                MediaList::parse(&context, &mut parser)
+-            })
+-            .unwrap_or_else(MediaList::empty);
++        let media_list =
++            crate::net::parse_media_attr(media, &self.url.url_extra_data(), origin);
+
+         let data = Stylesheet::from_str(
+             css,
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 0bec171..2e6db2e 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -466,6 +466,8 @@ impl DocumentMutator<'_> {
+             || (tag, attr) == tag_and_attr!("iframe", "srcdoc")
+         {
+             self.load_iframe(node_id);
++        } else if (tag, attr) == tag_and_attr!("link", "media") {
++            self.update_link_stylesheet_media(node_id);
+         }
+
+         self.note_possible_slot_reassignment(node_id, &name.local);
+@@ -595,6 +597,8 @@ impl DocumentMutator<'_> {
+         } else if (tag, attr) == tag_and_attr!("iframe", "srcdoc") && node_is_in_document {
+             // Fall back to loading from the `src` attribute (if any)
+             self.load_iframe(node_id);
++        } else if (tag, attr) == tag_and_attr!("link", "media") {
++            self.update_link_stylesheet_media(node_id);
+         }
+
+         self.note_possible_slot_reassignment(node_id, &name.local);
+@@ -1312,6 +1316,10 @@ impl<'doc> DocumentMutator<'doc> {
+             None => "no-cors",
+         };
+
++        // Carry the media attribute to the parse so the built
++        // sheet is scoped to it (print sheets must not apply on screen).
++        let media_attr = node.attr(local_name!("media")).map(ToString::to_string);
++
+         let url = self.doc.resolve_url(href);
+         let handler = ResourceHandler::new(
+             self.doc.tx.clone(),
+@@ -1324,6 +1332,7 @@ impl<'doc> DocumentMutator<'doc> {
+                 net_provider: self.doc.net_provider.clone(),
+                 abort_signal: self.doc.abort_signal.clone(),
+                 cors_mode: Some(String::from(cors_mode)),
++                media_attr,
+             },
+         );
+
+@@ -1347,6 +1356,41 @@ impl<'doc> DocumentMutator<'doc> {
+         self.doc.net_provider.fetch(self.doc.id(), req, Box::new(handler));
+     }
+
++    // A <link media> mutation re-scopes the loaded sheet
++    // in place; the async-CSS pattern (media="print" + onload flipping
++    // to "all") depends on this. Media was only snapshotted at fetch
++    // time before, so the flip never re-cascaded the new scope.
++    fn update_link_stylesheet_media(&mut self, node_id: NodeId) {
++        let node = &self.doc.nodes[node_id];
++        let media_attr = node.attr(local_name!("media")).map(ToString::to_string);
++        let Some((sheet, scope)) = self.doc.nodes_to_stylesheet.get(&node_id).cloned() else {
++            // No installed sheet (fetch in flight or never fired):
++            // re-fire so the handler snapshots the NEW media value.
++            if self.doc.nodes[node_id].flags.is_in_document() {
++                self.load_linked_stylesheet(node_id);
++            }
++            return;
++        };
++        let media_list = crate::net::parse_media_attr(
++            media_attr.as_deref(),
++            &self.doc.url.url_extra_data(),
++            style::stylesheets::Origin::Author,
++        );
++        {
++            let mut guard = self.doc.guard.write();
++            *sheet.0.media.write_with(&mut guard) = media_list;
++        }
++        // Stylo caches media evaluation in cascade data, so a pure
++        // MediaList swap needs a forced origin rebuild to recascade.
++        match scope {
++            Some(shadow_root_id) => self.doc.note_shadow_style_change(shadow_root_id),
++            None => self
++                .doc
++                .stylist
++                .force_stylesheet_origins_dirty(OriginSet::all()),
++        }
++    }
++
+     fn unload_stylesheet(&mut self, node_id: NodeId) {
+         let node = &mut self.doc.nodes[node_id];
+         let Some(element) = node.element_data_mut() else {
+diff --git a/src/net.rs b/src/net.rs
+index be293f8..70498a2 100644
+--- a/src/net.rs
++++ b/src/net.rs
+@@ -150,6 +150,37 @@ pub struct StylesheetHandler {
+     // "cors" or "no-cors". Threaded onto nested @import loads, which
+     // inherit the importing sheet's mode per CSSOM.
+     pub cors_mode: Option<String>,
++    // The owning <link>'s media attribute, parsed into the
++    // sheet's MediaList so print-only sheets don't cascade on screen.
++    pub media_attr: Option<String>,
++}
++
++// Parse a link/style element's media attribute into a real
++// MediaList (empty == matches everything, same as no attr / "all").
++pub(crate) fn parse_media_attr(
++    media: Option<&str>,
++    url_data: &UrlExtraData,
++    origin: Origin,
++) -> MediaList {
++    media
++        .map(str::trim)
++        .filter(|m| !m.is_empty() && !m.eq_ignore_ascii_case("all"))
++        .map(|m| {
++            let mut context = style::parser::ParserContext::new(
++                origin,
++                url_data,
++                Some(style::stylesheets::CssRuleType::Media),
++                style_traits::ParsingMode::DEFAULT,
++                QuirksMode::NoQuirks,
++                Default::default(),
++                None,
++                None,
++                Default::default(),
++            );
++            let mut parser = cssparser::Parser::new(m);
++            MediaList::parse(&mut context, &mut parser)
++        })
++        .unwrap_or_else(MediaList::empty)
+ }
+
+ /// Stylesheet `content_type` tag, carrying the fetch mode as
+@@ -198,11 +229,18 @@ impl NetHandler for ResourceHandler<StylesheetHandler> {
+         let rewritten = crate::css_compat::rewrite_legacy_widget_pseudo_rules(css);
+         let css: &str = rewritten.as_deref().unwrap_or(css);
+
++        // Honor the <link media=…> scope. MediaList::empty()
++        // applied print-only sheets on screen (sigarra.up.pt lost its
++        // whole chrome to a print sheet's `#cabecalho{display:none}`);
++        // stylo re-evaluates the parsed list per device, like <style>.
++        let url_data: UrlExtraData = self.data.source_url.clone().into();
++        let media_list =
++            parse_media_attr(self.data.media_attr.as_deref(), &url_data, Origin::Author);
+         let sheet = Stylesheet::from_str(
+             css,
+-            self.data.source_url.clone().into(),
++            url_data,
+             Origin::Author,
+-            ServoArc::new(self.data.guard.wrap(MediaList::empty())),
++            ServoArc::new(self.data.guard.wrap(media_list)),
+             self.data.guard.clone(),
+             Some(&StylesheetLoader {
+                 tx: self.tx.clone(),

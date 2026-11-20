@@ -106,6 +106,52 @@ test.for(["src", "base", "invalid"] as const)(
   },
 );
 
+// The loader fetches the srcset candidate, not the src attribute (blitz
+// select_image_url), so the taint decision has to cover both.
+test.for(["srcset", "picture"] as const)(
+  "a cross-origin %s candidate taints the canvas",
+  { timeout: 120_000 },
+  async (kind, { page }) => {
+    await page.goto(FIXTURE, { waitUntil: "load" });
+    const out = await page.evaluate(async (kind) => {
+      const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+      const img = document.createElement("img");
+      // Same-origin src (7x4); the cross-origin candidate is 8x8, so naturalWidth
+      // proves which URL the loader actually fetched.
+      img.setAttribute("src", "/__fixtures/tiny.png");
+      const cross = "https://ks-other.invalid/__fixtures/solid-red.png 2x";
+      if (kind === "srcset") {
+        img.setAttribute("srcset", cross);
+        document.body.appendChild(img);
+      } else {
+        const picture = document.createElement("picture");
+        const source = document.createElement("source");
+        source.setAttribute("srcset", cross);
+        picture.appendChild(source);
+        picture.appendChild(img);
+        document.body.appendChild(picture);
+      }
+      for (let i = 0; i < 100 && img.naturalWidth === 0; i++) await sleep(50);
+      const natural = `${img.naturalWidth}x${img.naturalHeight}`;
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 8;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("canvas 2D context is unavailable");
+      context.drawImage(img, 0, 0);
+      await sleep(300);
+      try {
+        const pixel = context.getImageData(4, 4, 1, 1).data;
+        return `readable:${natural}:${pixel[0]},${pixel[1]},${pixel[2]},${pixel[3]}`;
+      } catch (error) {
+        const name =
+          typeof error === "object" && error !== null ? Reflect.get(error, "name") : null;
+        return `${typeof name === "string" ? name : String(error)}:${natural}`;
+      }
+    }, kind);
+    expect(out).toBe("SecurityError:8x8");
+  },
+);
+
 test("cross-origin drawImage taints the canvas and paints nothing", async ({ page }) => {
   await page.goto(FIXTURE, { waitUntil: "load" });
   const out = await page.evaluate(async () => {

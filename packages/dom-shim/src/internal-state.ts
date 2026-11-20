@@ -7,11 +7,13 @@
 export type {
   BundleDiag,
   IframePost,
+  KitesurfInternals,
   KitesurfInternalState,
 } from "../../page-script/src/internal-state";
 export {
   createInternalState,
   getInternalState,
+  getInternals,
   sendUpstreamEvent,
   registerUpstreamSender,
   clearUpstreamSender,

@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Mon, 2 Nov 2026 11:40:21 +0000
+Subject: [PATCH] Taint the attribute text that attr() parses against type()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+attr(name type(<syntax>)) parsed the attribute against the syntax with
+an empty taint, so an attribute holding url("...") produced a <url>.
+Every attr() substitution is attr()-tainted, and a tainted <url> is
+invalid at computed-value time: the attribute must not choose what the
+page fetches. An unregistered custom property kept the url, since only
+a later property parse re-checked the taint.
+
+The attribute text is now tainted as a whole while it parses, so a
+<url> in it fails and attr() takes its fallback, or makes the
+declaration invalid at computed-value time, as WPT's
+css-values/attr-all-types expects.
+
+https://drafts.csswg.org/css-values-5/#attr-security
+
+beep-boop-🤖
+---
+ custom_properties.rs | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/custom_properties.rs b/custom_properties.rs
+index 04337b4..847c4f0 100644
+--- a/custom_properties.rs
++++ b/custom_properties.rs
+@@ -1921,13 +1921,16 @@ fn substitute_one_reference<'a>(
+                                 ))
+                             },
+                             AttributeType::Type(syntax) => {
++                                // The attribute's text is attr()-tainted as a whole, so a <url>
++                                // in it fails to parse.
++                                // https://drafts.csswg.org/css-values-5/#attr-security
+                                 let value = SpecifiedRegisteredValue::parse(
+                                     &mut parser,
+                                     syntax,
+                                     url_data,
+                                     None,
+                                     AllowComputationallyDependent::Yes,
+-                                    AttrTaint::default(),
++                                    AttrTaint::new_fully_tainted(attr.len()),
+                                 )
+                                 .ok()?;
+                                 let value = value.to_variable_value();

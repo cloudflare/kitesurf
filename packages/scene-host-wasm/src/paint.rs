@@ -23,6 +23,8 @@ pub(crate) mod scene_record;
 )]
 #[path = "../../core/src/paint/scene_replay.rs"]
 pub(crate) mod scene_replay;
+#[path = "../../core/src/paint/font_container.rs"]
+pub(crate) mod font_container;
 #[allow(
     dead_code,
     reason = "The byte ABI uses PNG/RGBA paths; kitesurf-core checks retained JPEG support."

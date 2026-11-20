@@ -4,10 +4,24 @@
 
 //! Splits document content into printable vertical bands and records paint scenes for each page.
 
+use std::collections::HashMap;
+
+use crate::layout::geometry::doc_position;
+use crate::paint::scene_record::ImageInfo;
+
 const MAX_PAGES: u32 = 200;
 
-pub(crate) fn compute_page_bands(doc: &blitz_dom::BaseDocument, height: u32) -> Vec<(f64, f64)> {
-    let node_ranges = collect_node_y_ranges(doc);
+/// The document rows a print of pages `page_height` tall can reach: a band is
+/// at most a page tall, and there are at most [`MAX_PAGES`] of them.
+pub(crate) fn max_printed_height(page_height: u32) -> f64 {
+    MAX_PAGES as f64 * page_height as f64
+}
+
+pub(crate) fn compute_page_bands(
+    doc: &mut blitz_dom::BaseDocument,
+    height: u32,
+) -> Vec<(f64, f64)> {
+    let node_ranges = collect_node_y_ranges(doc, max_printed_height(height) as f32);
     let unbreakable = merge_break_intervals(&node_ranges, height as f32 * 0.5);
 
     let (forced_breaks, avoid_ranges) = collect_break_intents(doc);
@@ -42,29 +56,57 @@ pub(crate) fn record_doc_pdf_scenes(
     doc: &mut blitz_dom::BaseDocument,
     content_w: u32,
     content_h: u32,
-    fonts_ref: &mut std::collections::HashMap<u64, (peniko::Blob<u8>, u32)>,
-    images_ref: &mut std::collections::HashMap<u64, crate::paint::scene_record::ImageInfo>,
+    fonts_ref: &mut HashMap<u64, (peniko::Blob<u8>, u32)>,
+    images_ref: &mut HashMap<u64, ImageInfo>,
     seen_images: &mut Vec<u64>,
 ) -> Vec<u8> {
-    use blitz_paint::paint_scene;
     let bands = compute_page_bands(doc, content_h);
     let mut out: Vec<u8> = Vec::new();
     out.extend_from_slice(&(bands.len() as u32).to_le_bytes());
     for (y_top, y_bot) in bands {
-        let stripe_h = (y_bot - y_top).ceil().max(1.0) as u32;
-        doc.set_viewport_scroll(blitz_dom::Point { x: 0.0, y: y_top });
-        let mut scene = crate::paint::scene_record::RecordingScene::for_replay();
-        scene.set_viewport(content_w, stripe_h, 0, y_top as u32);
-        scene.set_render_region(y_top as u32, stripe_h);
-        paint_scene(&mut scene, doc, 1.0, content_w, stripe_h, 0, 0);
-        seen_images.extend(scene.image_hashes());
-        crate::paint::render::cache_recorded_resources(&mut scene, fonts_ref, images_ref);
-        let framed = scene.finish_framed();
+        let framed = record_doc_pdf_page(
+            doc,
+            content_w,
+            (y_top, y_bot),
+            fonts_ref,
+            images_ref,
+            seen_images,
+        );
         out.extend_from_slice(&(framed.len() as u32).to_le_bytes());
         out.extend_from_slice(&framed);
     }
     out
 }
+
+pub(crate) fn record_doc_pdf_page(
+    doc: &mut blitz_dom::BaseDocument,
+    content_w: u32,
+    (y_top, y_bot): (f64, f64),
+    fonts_ref: &mut HashMap<u64, (peniko::Blob<u8>, u32)>,
+    images_ref: &mut HashMap<u64, ImageInfo>,
+    seen_images: &mut Vec<u64>,
+) -> Vec<u8> {
+    let stripe_h = (y_bot - y_top).ceil().max(1.0) as u32;
+    doc.set_inline_keep_extent(Some((y_top, y_bot)));
+    doc.set_viewport_scroll(blitz_dom::Point { x: 0.0, y: y_top });
+    let mut scene = crate::paint::scene_record::RecordingScene::for_replay();
+    scene.set_viewport(content_w, stripe_h, 0, y_top as u32);
+    scene.set_render_region(y_top as u32, stripe_h);
+    blitz_paint::paint_scene(&mut scene, doc, 1.0, content_w, stripe_h, 0, 0);
+    seen_images.extend(scene.image_hashes());
+    crate::paint::render::cache_recorded_resources(&mut scene, fonts_ref, images_ref);
+    let framed = scene.finish_framed();
+    evict_recorded_page_layouts(doc);
+    framed
+}
+
+/// Release text shaped only for the pages already recorded. A read grants one scan of grace, so
+/// the second scan evicts what the page left behind.
+pub(crate) fn evict_recorded_page_layouts(doc: &mut blitz_dom::BaseDocument) {
+    doc.evict_offscreen_inline_layouts();
+    doc.evict_offscreen_inline_layouts();
+}
+
 fn select_band_end(
     y_cur: f64,
     total_height: f64,
@@ -114,7 +156,7 @@ fn collect_break_intents(doc: &blitz_dom::BaseDocument) -> (Vec<f32>, Vec<(f32, 
             continue;
         }
         let h = node.final_layout().size.height;
-        let pos = crate::layout::geometry::doc_position(doc, node);
+        let pos = doc_position(doc, node);
         let (top, bot) = (pos.y, pos.y + h);
         if !top.is_finite() || !bot.is_finite() {
             continue;
@@ -145,9 +187,14 @@ fn collect_break_intents(doc: &blitz_dom::BaseDocument) -> (Vec<f32>, Vec<(f32, 
     (forced, avoid)
 }
 
-fn collect_node_y_ranges(doc: &blitz_dom::BaseDocument) -> Vec<(f32, f32)> {
+/// Boxes and line boxes starting above `limit`. A range starting at or below
+/// it cannot hold a band end, and skipping it leaves evicted text unrebuilt.
+fn collect_node_y_ranges(doc: &mut blitz_dom::BaseDocument, limit: f32) -> Vec<(f32, f32)> {
     let mut out: Vec<(f32, f32)> = Vec::with_capacity(1024);
-    for (_, node) in doc.tree().iter() {
+    // Collect the ids first: the loop evicts layouts through `doc` while it iterates.
+    let ids: Vec<_> = doc.tree().iter().map(|(id, _)| id).collect();
+    for id in ids {
+        let node = &doc.tree()[id];
         // Text, comments, and shadow roots have no independent layout.
         if node.try_stylo_element_data().is_none() {
             continue;
@@ -156,10 +203,10 @@ fn collect_node_y_ranges(doc: &blitz_dom::BaseDocument) -> Vec<(f32, f32)> {
         if h <= 0.5 {
             continue;
         }
-        let pos = crate::layout::geometry::doc_position(doc, node);
+        let pos = doc_position(doc, node);
         let top = pos.y;
         let bot = top + h;
-        if !top.is_finite() || !bot.is_finite() {
+        if !top.is_finite() || !bot.is_finite() || top >= limit {
             continue;
         }
         out.push((top, bot));
@@ -167,16 +214,21 @@ fn collect_node_y_ranges(doc: &blitz_dom::BaseDocument) -> Vec<(f32, f32)> {
         let Some(el) = node.element_data() else {
             continue;
         };
-        let Some(text_layout) = el.inline_layout_data.as_ref() else {
+        let Some(text_layout) = el.inline_layout_data() else {
             continue;
         };
-        for line in text_layout.layout.lines() {
+        let was_evicted = text_layout.is_evicted();
+        for line in text_layout.layout(node.tree()).lines() {
             let m = line.metrics();
             let l_top = top + m.block_min_coord;
             let l_bot = top + m.block_max_coord;
             if l_top.is_finite() && l_bot.is_finite() && l_bot > l_top {
                 out.push((l_top, l_bot));
             }
+        }
+        // Leave layouts that were evicted before the read evicted afterwards.
+        if was_evicted {
+            doc.evict_inline_layout(id);
         }
     }
     out
@@ -219,10 +271,128 @@ fn safe_break_above(unbreakable: &[(f32, f32)], ideal: f32, lower_bound: f32) ->
 
 #[cfg(test)]
 mod band_tests {
-    use super::select_band_end;
+    use super::{
+        collect_break_intents, collect_node_y_ranges, compute_page_bands, max_printed_height,
+        merge_break_intervals, select_band_end, MAX_PAGES,
+    };
 
     const PAGE: f64 = 1000.0;
     const TOTAL: f64 = 5000.0;
+
+    #[test]
+    fn pages_beyond_the_print_cap_stay_evicted_without_changing_bands_or_pdf() {
+        let paragraphs: String = (0..600)
+            .map(|i| {
+                format!(
+                    "<p id=p{i}>{}</p>",
+                    "words that wrap across lines ".repeat(5)
+                )
+            })
+            .collect();
+        let html = format!(
+            "<!DOCTYPE html><style>body {{margin:0;font:16px/17px serif}} p {{margin:7px 0}}</style>{paragraphs}"
+        );
+        let load = |html: &str, eviction| {
+            let dom = crate::DomHandle::new(html, "https://test.example/");
+            dom.set_viewport(300, 100);
+            dom.doc
+                .borrow_mut()
+                .as_mut()
+                .set_inline_layout_eviction(eviction);
+            dom.resolve_layout();
+            dom
+        };
+        let keep = load(&html, None);
+        let evict = load(&html, Some(2.0));
+        let limited = {
+            let mut doc = evict.doc.borrow_mut();
+            let base = doc.as_mut();
+            assert!(base.root_element().scroll_height() as f64 > max_printed_height(100));
+            let bands = compute_page_bands(base, 100);
+            assert_eq!(bands.len(), MAX_PAGES as usize);
+            let last = base.get_element_by_id("p599").unwrap();
+            assert!(
+                base.tree()[last]
+                    .element_data()
+                    .unwrap()
+                    .inline_layout_data()
+                    .unwrap()
+                    .is_evicted(),
+                "collecting page bands must not rebuild text beyond the print cap"
+            );
+            bands
+        };
+        let unrestricted = {
+            let mut doc = keep.doc.borrow_mut();
+            let base = doc.as_mut();
+            let ranges = collect_node_y_ranges(base, f32::INFINITY);
+            assert!(ranges
+                .iter()
+                .any(|&(top, _)| top as f64 >= max_printed_height(100)));
+            let heuristic = merge_break_intervals(&ranges, 50.0);
+            let (forced, avoid) = collect_break_intents(base);
+            let author = merge_break_intervals(&avoid, 100.0);
+            let total = base.root_element().scroll_height() as f64;
+            let mut bands = Vec::new();
+            let mut top = 0.0;
+            for _ in 0..MAX_PAGES {
+                let bottom = select_band_end(top, total, 100.0, &forced, &author, &heuristic);
+                bands.push((top, bottom));
+                top = bottom;
+            }
+            bands
+        };
+        assert_eq!(limited, unrestricted);
+        let expected = keep.record_pdf_scenes(300, 100, 0, 0, 0, 0);
+        assert!(!expected.is_empty(), "the fixture must produce PDF scenes");
+        assert_eq!(evict.record_pdf_scenes(300, 100, 0, 0, 0, 0), expected);
+        let shorter = load(html.split("<p id=p400>").next().unwrap(), Some(2.0));
+        {
+            let mut doc = shorter.doc.borrow_mut();
+            assert!(doc.root_element().scroll_height() as f64 > max_printed_height(100));
+            assert_eq!(compute_page_bands(doc.as_mut(), 100), limited);
+            drop(doc);
+        }
+        assert_eq!(shorter.record_pdf_scenes(300, 100, 0, 0, 0, 0), expected);
+        let doc = evict.doc.borrow();
+        let base = doc.as_ref();
+        let last = base.get_element_by_id("p599").unwrap();
+        assert!(
+            base.tree()[last]
+                .element_data()
+                .unwrap()
+                .inline_layout_data()
+                .unwrap()
+                .is_evicted(),
+            "printing must leave text beyond the print cap evicted"
+        );
+        drop(doc);
+    }
+
+    #[test]
+    fn a_print_does_not_reshape_the_rows_its_layout_pass_just_shaped() {
+        let paragraphs: String = (0..40)
+            .map(|i| {
+                format!(
+                    "<p id=p{i}>{}</p>",
+                    "words that wrap across lines ".repeat(5)
+                )
+            })
+            .collect();
+        let html = format!(
+            "<!DOCTYPE html><style>body {{margin:0;font:16px/17px serif}} p {{margin:7px 0}}</style>{paragraphs}"
+        );
+        let dom = crate::DomHandle::new(&html, "https://test.example/");
+        dom.set_viewport(800, 600);
+        dom.doc
+            .borrow_mut()
+            .as_mut()
+            .set_inline_layout_eviction(Some(2.0));
+        dom.resolve_layout();
+        // The paper box differs from the session viewport, so this re-lays out the
+        // document at the print width before collecting the page bands.
+        assert!(!dom.record_pdf_scenes(300, 100, 0, 0, 0, 0).is_empty());
+    }
 
     #[test]
     fn no_intent_no_overlap_breaks_at_ideal() {

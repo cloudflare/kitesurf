@@ -15,6 +15,7 @@ import type {
   WorkerUpstreamMessage,
 } from "@kitesurf/jsrpc-types/dedicated-worker";
 import type { IsolateKillMarker } from "@kitesurf/jsrpc-types/shared";
+import { installEventSource } from "@kitesurf/page-script/event-source";
 import { installFetchShim } from "@kitesurf/page-script/fetch-shim";
 import {
   clearSessionOutbound,
@@ -22,6 +23,9 @@ import {
   type OutboundStub,
 } from "@kitesurf/page-script/session-outbound";
 import { state } from "@kitesurf/page-script/state";
+// Imported statically so it binds the native console before the page's worker script loads.
+import { setTailToken, writeIsolateKillLine } from "@kitesurf/page-script/tail-channel";
+import { captureTrustedFetch } from "@kitesurf/page-script/trusted-fetch";
 import {
   deliverToScope,
   errorInfo,
@@ -40,15 +44,16 @@ const ISOLATE_KILL_MARKER: IsolateKillMarker = "[ks-kill]";
 
 let started = false;
 
-interface DedicatedWorkerEnv {
+// Props, not env: the page's worker script runs here and can import env.
+interface DedicatedWorkerProps {
   KS_TAIL_TOKEN?: unknown;
 }
 
-export class DedicatedWorker extends WorkerEntrypoint<DedicatedWorkerEnv> {
+export class DedicatedWorker extends WorkerEntrypoint<unknown, DedicatedWorkerProps> {
   killIsolate(reason?: string): void {
     const why = reason || "worker terminated";
-    const token = this.env.KS_TAIL_TOKEN;
-    if (typeof token === "string" && token) console.log(`${ISOLATE_KILL_MARKER} ${token} ${why}`);
+    setTailToken(this.ctx.props?.KS_TAIL_TOKEN);
+    writeIsolateKillLine(ISOLATE_KILL_MARKER, why);
     abortIsolate(`kitesurf: ${why}`);
   }
 
@@ -91,10 +96,20 @@ export class DedicatedWorker extends WorkerEntrypoint<DedicatedWorkerEnv> {
         if (started) return { ok: false };
         started = true;
         state.pageUrl = params.baseUrl;
+        // The fetch shim takes request origins from documentOrigin, which only a page navigation
+        // sets. A worker uses the origin its outbound is sealed with, so a worker created by an
+        // opaque document stays opaque.
+        state.documentOrigin = params.origin;
         state.connectionId = params.connectionId;
         state.mainFrameId = params.frameId;
         state.cookieKey = params.cookieKey;
         installFetchShim();
+        // Capture the shim so trustedFetch can carry attribution (the EventSource resource type).
+        captureTrustedFetch();
+        // The native EventSource egresses without the page fetch shim's carriers, so a worker's
+        // stream would reach the gateway as an uncarried page-realm request. Install the page
+        // shim over the gated path so `withCredentials` selects the request's credentials mode.
+        installEventSource();
         installScope(params, send);
         let mod: typeof import("./__ks_worker_script.js");
         try {

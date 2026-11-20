@@ -4,7 +4,7 @@
 
 // Finds labelable controls and creates their live associated-label lists.
 
-import { documentImpl as document, makeNodeList } from "../../state.js";
+import { elementDocument, makeNodeList } from "../../state.js";
 import type { NodeListCls } from "../../collections.js";
 import { inputTypeOf } from "./input-state.js";
 import { htmlTagOf, isHtmlTag } from "../html-tag.js";
@@ -13,6 +13,7 @@ import type { HTMLElement } from "../html-element.js";
 
 // https://html.spec.whatwg.org/#category-label
 const LABELABLE_TAGS = new Set(["button", "meter", "output", "progress", "select", "textarea"]);
+// Every labelable tag maps to an HTMLElement subclass.
 function isLabelable(el: unknown): el is HTMLElement {
   if (isHtmlTag(el, "input")) return inputTypeOf(el) !== "hidden";
   const tag = htmlTagOf(el);
@@ -36,7 +37,7 @@ function computeLabelsForControl(control: Element): Element[] {
     p = p.parentNode;
   }
   if (control.id) {
-    const doc = control.ownerDocument || document;
+    const doc = elementDocument(control);
     try {
       const all = doc.querySelectorAll("label[for]");
       for (const l of all) {

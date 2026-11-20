@@ -31,6 +31,7 @@ import corsSheetEchoOriginCss from "../assets/cors-sheet-echo-origin.css";
 import corsSheetEchoOriginHtml from "../assets/cors-sheet-echo-origin.html";
 import corsSheetNoAcaoHtml from "../assets/cors-sheet-no-acao.html";
 import corsSheetNoAttrHtml from "../assets/cors-sheet-no-attr.html";
+import corsSheetPrivateMarkerCss from "../assets/cors-sheet-private-marker.css";
 import corsSheetRedirectHtml from "../assets/cors-sheet-redirect.html";
 import corsSheetSameOriginHtml from "../assets/cors-sheet-same-origin.html";
 import crossOriginFontHtml from "../assets/cross-origin-font.html";
@@ -133,6 +134,7 @@ import imgLoadEventsHtml from "../assets/img-load-events.html";
 import importmapCspHtml from "../assets/importmap-csp.html";
 import importmapEarlyJs from "../assets/importmap-early.js";
 import importmapLazyJs from "../assets/importmap-lazy.js";
+import importmapOverBudgetHtml from "../assets/importmap-over-budget.html";
 import importmapHtml from "../assets/importmap.html";
 import importmetaChunkJs from "../assets/importmeta-chunk.js";
 import inlineBoxModelHtml from "../assets/inline-box-model.html";
@@ -168,6 +170,7 @@ import moduleRegistryLibJs from "../assets/module-registry-lib.js";
 import moduleRegistryLiveReaderJs from "../assets/module-registry-live-reader.js";
 import moduleRegistryMalformedJsonTxt from "../assets/module-registry-malformed-json.txt";
 import moduleRegistryMetaJs from "../assets/module-registry-meta.js";
+import moduleRegistryProtoJsonTxt from "../assets/module-registry-proto-json.txt";
 import moduleRegistrySheetCss from "../assets/module-registry-sheet.css";
 import moduleRegistryTlaJs from "../assets/module-registry-tla.js";
 import moduleRegistryHtml from "../assets/module-registry.html";
@@ -186,12 +189,14 @@ import oopifChildColorSwapHtml from "../assets/oopif-child-color-swap.html";
 import oopifChildPostmessageHtml from "../assets/oopif-child-postmessage.html";
 import oopifChildWorkerHtml from "../assets/oopif-child-worker.html";
 import oopifChildQuadsHtml from "../assets/oopif-child-quads.html";
+import oopifChildSubtreeBudgetHtml from "../assets/oopif-child-subtree-budget.html";
 import oopifChildRedHtml from "../assets/oopif-child-red.html";
 import oopifDynamicHostHtml from "../assets/oopif-dynamic-host.html";
 import oopifHostBudgetHtml from "../assets/oopif-host-budget.html";
 import oopifHostColorSwapHtml from "../assets/oopif-host-color-swap.html";
 import oopifHostPostmessageHtml from "../assets/oopif-host-postmessage.html";
 import oopifHostQuadsHtml from "../assets/oopif-host-quads.html";
+import oopifHostSubtreeBudgetHtml from "../assets/oopif-host-subtree-budget.html";
 import oopifHostWorkerHtml from "../assets/oopif-host-worker.html";
 import oopifHostHtml from "../assets/oopif-host.html";
 import pdfCssBgSmokeHtml from "../assets/pdf-css-bg-smoke.html";
@@ -279,6 +284,7 @@ export const STATIC_FIXTURES: Record<string, string | ArrayBuffer> = {
   "modules.html": modulesHtml,
   "importmap.html": importmapHtml,
   "importmap-csp.html": importmapCspHtml,
+  "importmap-over-budget.html": importmapOverBudgetHtml,
   "external-module.js": externalModuleJs,
   "importmap-lazy.js": importmapLazyJs,
   "importmap-early.js": importmapEarlyJs,
@@ -290,6 +296,7 @@ export const STATIC_FIXTURES: Record<string, string | ArrayBuffer> = {
   "module-registry-config.json": jsonText(moduleRegistryConfigJson),
   "module-registry-fallback.json": jsonText(moduleRegistryFallbackJson),
   "module-registry-malformed.json": moduleRegistryMalformedJsonTxt,
+  "module-registry-proto.json": moduleRegistryProtoJsonTxt,
   "module-registry-sheet.css": moduleRegistrySheetCss,
   "keyboard.html": keyboardHtml,
   "external-sheet.html": externalSheetHtml,
@@ -303,6 +310,7 @@ export const STATIC_FIXTURES: Record<string, string | ArrayBuffer> = {
   "iframe-euckr-host.html": iframeEuckrHostHtml,
   "cors-sheet-acao.css": corsSheetEchoOriginCss,
   "cors-sheet-bare.css": corsSheetEchoOriginCss,
+  "cors-sheet-private-marker.css": corsSheetPrivateMarkerCss,
   "cors-sheet-echo-origin.css": corsSheetEchoOriginCss,
   "cors-sheet-clean.html": corsSheetCleanHtml,
   "cors-sheet-no-acao.html": corsSheetNoAcaoHtml,
@@ -420,7 +428,9 @@ export const STATIC_FIXTURES: Record<string, string | ArrayBuffer> = {
   "oopif-child-blue.html": oopifChildBlueHtml,
   "oopif-host-budget.html": oopifHostBudgetHtml,
   "oopif-child-quads.html": oopifChildQuadsHtml,
+  "oopif-child-subtree-budget.html": oopifChildSubtreeBudgetHtml,
   "oopif-host-quads.html": oopifHostQuadsHtml,
+  "oopif-host-subtree-budget.html": oopifHostSubtreeBudgetHtml,
   "oopif-dynamic-host.html": oopifDynamicHostHtml,
   "oopif-host-postmessage.html": oopifHostPostmessageHtml,
   "oopif-child-postmessage.html": oopifChildPostmessageHtml,

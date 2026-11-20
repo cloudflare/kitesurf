@@ -236,6 +236,122 @@ test("patched Function.apply cannot intercept a trusted init", async ({ page }) 
   });
 });
 
+// The privileged transport consults these page-mutable operations after it stamps trusted
+// headers or before it releases an opaque response. Each row poisons one, proves the hook is
+// live with a harmless control, then takes the privileged path.
+const CUSTODY_SHEET = "https://ks-alt.invalid/__fixtures/cors-sheet-bare.css";
+type CustodyProbe = { live: boolean; captured: boolean; result: string; style: string };
+
+const FETCH_ACTION = `
+        try {
+          const r = await fetch(${JSON.stringify(SECRET)});
+          out.result = (await r.text()).includes("kitesurf-cross-origin-secret")
+            ? "READABLE"
+            : "opaque";
+        } catch (e) {
+          out.result = "blocked";
+        }`;
+
+const SHEET_ACTION = `
+        const el = document.createElement("p");
+        el.id = "target";
+        document.body.appendChild(el);
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = ${JSON.stringify(CUSTODY_SHEET)};
+        const settled = new Promise((r) => {
+          link.onload = () => r("load");
+          link.onerror = () => r("error");
+          setTimeout(() => r("timeout"), 5000);
+        });
+        document.head.appendChild(link);
+        const landed = await settled;
+        const color = getComputedStyle(el).color;
+        let mutate = "";
+        for (const s of document.styleSheets) {
+          if (String(s && s.href).indexOf("cors-sheet-bare") === -1) continue;
+          try { s.insertRule("#zz{color:rgb(1,2,3)}", 0); }
+          catch (e) { mutate = String((e && e.name) || e); }
+        }
+        out.style = [landed, color, mutate].join("|");`;
+
+const POISON_REQUEST = `
+      const real = Request;
+      Request = function (input, init) {
+        live = true;
+        const h = init && init.headers;
+        if (h && h.get("x-kitesurf-page-origin") !== null) forge(h);
+        return Reflect.construct(real, [input, init]);
+      };
+      control = () => new Request("https://ks.invalid/");
+      restore = () => { Request = real; };`;
+
+const POISON_REQUEST_HEADERS = `
+      const proto = Request.prototype, desc = Object.getOwnPropertyDescriptor(proto, "headers");
+      Object.defineProperty(proto, "headers", { configurable: true, enumerable: desc.enumerable, get() {
+        const h = desc.get.call(this);
+        live = true;
+        if (h.get("x-kitesurf-page-origin") !== null) forge(h);
+        return h;
+      } });
+      control = () => new Request("https://ks.invalid/").headers;
+      restore = () => Object.defineProperty(proto, "headers", desc);`;
+
+const POISON_ARRAY_BUFFER = `
+      const real = Response.prototype.arrayBuffer;
+      Response.prototype.arrayBuffer = function () {
+        live = true;
+        if (String(this && this.url).indexOf("cors-sheet-bare") !== -1) captured = true;
+        return real.call(this);
+      };
+      control = () => new Response("x").arrayBuffer();
+      restore = () => { Response.prototype.arrayBuffer = real; };`;
+
+// Page scripts run in the Boa realm with their own Array/Object intrinsics, so replacing those
+// never reaches the worker-realm transport (measured). The host-realm globals and prototypes
+// below are reachable, so they are the rows this runtime can falsify.
+// Row: name, stylesheet row, poison installed in page scope.
+const CUSTODY_ROWS: Array<[string, boolean, string]> = [
+  ["globalThis.Request", false, POISON_REQUEST],
+  ["Request.prototype.headers", false, POISON_REQUEST_HEADERS],
+  ["Response.prototype.arrayBuffer", true, POISON_ARRAY_BUFFER],
+];
+
+test("page intrinsics cannot take custody of the transport request or response", async ({
+  page,
+}) => {
+  const got: Array<[string, boolean, CustodyProbe]> = [];
+  for (const [name, sheet, poison] of CUSTODY_ROWS) {
+    await page.goto(PAGE, { waitUntil: "domcontentloaded" });
+    const probe = (await page.evaluate(`(async () => {
+      let live = false, captured = false, control = () => {}, restore = () => {};
+      const forge = (h) => {
+        captured = true;
+        h.set("x-kitesurf-resource-type", "Stylesheet");
+        h.set("x-kitesurf-allow-cross-origin", "1");
+      };
+      const out = { live: false, captured: false, result: "", style: "" };
+      ${poison}
+      try {
+        await control();
+        ${sheet ? SHEET_ACTION : FETCH_ACTION}
+      } finally {
+        restore();
+        out.live = live;
+        out.captured = captured;
+      }
+      return out;
+    })()`)) as CustodyProbe;
+    got.push([name, sheet, probe]);
+  }
+  for (const [name, sheet, probe] of got) {
+    expect(probe.live, name).toBe(true);
+    expect(probe.captured, name).toBe(false);
+    if (sheet) expect(probe.style, name).toBe("load|rgb(0, 0, 255)|SecurityError");
+    else expect(probe.result, name).toBe("blocked");
+  }
+}, 300_000);
+
 test("the parser's own loads keep their type", async ({ page }) => {
   await page.goto("https://ks.invalid/__fixtures/external-sheet.html", {
     waitUntil: "load",

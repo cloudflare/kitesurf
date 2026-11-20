@@ -6,10 +6,21 @@
 
 import type Protocol from "devtools-protocol";
 import { decodeHtmlBytes } from "@kitesurf/dom-shim/html-encoding";
+import {
+  SANDBOX_ALLOW_ALL,
+  committedOriginOfUrl,
+  embeddingPolicyVerdict,
+  intersectSandbox,
+  parseSandboxAttribute,
+  sameCommittedOrigin,
+  type SandboxRestrictions,
+} from "@kitesurf/script-gate";
+import type { CommittedOrigin } from "@kitesurf/jsrpc-types/frame-origin";
 import type {
   CdpParamsOf,
   CdpEvent,
   CdpRequest,
+  ChildFrameBudget,
   FrameState,
   NavigationHistoryEntry,
   ScreencastState,
@@ -17,11 +28,13 @@ import type {
 } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
 import { resolveTarget, sessionOf, stubQueryDom, type QueryDomResult } from "./page-session.ts";
+import { emitOopifExecutionContext, emitOopifExecutionContextDestroyed } from "./runtime.ts";
 import {
   applyTtyNavParams,
   DEFAULT_TTY_CELL_HEIGHT_PX,
   DEFAULT_TTY_CELL_WIDTH_PX,
 } from "../tty/nav-params.ts";
+import { navigateSourceOf } from "@kitesurf/page-script/source-scan";
 import { ttyFocusStylesheet, ttyUaStylesheet } from "../tty/stylesheet.ts";
 import { wakeSceneStream } from "./scene-stream.ts";
 import {
@@ -59,6 +72,7 @@ import {
 } from "../eval/walk-module-graph.ts";
 import { traceSpan, redactUrl } from "../tracing.ts";
 import { makeWallClock } from "../eval/host-clock.ts";
+import { htmlTagSpans, removeHtmlTagSpans } from "../eval/html-tag-spans.ts";
 import { DiagSpanTracker } from "./diag-spans.ts";
 import { registerTailTrace } from "../eval/tail-trace-registry.ts";
 import { buildScriptBundle, insertedSourceDigests } from "../eval/script-bundle.ts";
@@ -77,12 +91,15 @@ import {
   type WasmBake,
 } from "../eval/prefetch-wasm.ts";
 import { makeTargetId } from "./types.ts";
+import type { StyleCache } from "./style-cache.ts";
 import {
   buildFrameResourceTree,
   buildFrameTree,
+  frameAncestorOrigins,
   makeChildFrameState,
   makeFrameInfo,
   makeMainFrameState,
+  MAX_IFRAME_DEPTH,
   mintFrameId,
   matchesAboutBlank,
   mintLoaderId,
@@ -98,14 +115,24 @@ import {
   originOf as pageScriptOriginOf,
   type PageScriptInitTimings,
   type PageScriptStub,
+  valueJsonWithinLimit,
 } from "../eval/page-script.ts";
-import { registerIsolateLimitListener } from "../eval/limit-registry.ts";
-import { disposeStub, publishStub, retireStub } from "./page-script-generation.ts";
+import {
+  registerIsolateLimitListener,
+  unregisterIsolateLimitListenersForTarget,
+  type IsolateLimitNotice,
+} from "../eval/limit-registry.ts";
+import {
+  disposeStub,
+  publishStub,
+  retireStub,
+  type GenerationDeps,
+} from "./page-script-generation.ts";
 import { emitSessionStart } from "../observability.ts";
-import type { OutboundProps, SandboxOutboundOverride } from "../eval/outbound.ts";
+import type { CallerOutboundProps, SandboxOutboundOverride } from "../eval/outbound.ts";
 import { getOutboundInflight } from "../eval/outbound.ts";
 import { walkRedirects } from "../eval/redirect-walk.ts";
-import { siteKey } from "../public-suffix.ts";
+import { schemefulSite } from "../public-suffix.ts";
 import { PageRendererManager, withTimeout } from "../eval/page-renderer.ts";
 import { headersToRecord, type NetworkEventTracker } from "./network-events.ts";
 import { effectiveExtraHeaders } from "./network.ts";
@@ -113,9 +140,21 @@ import { isWorkerUpstreamEvent } from "./dedicated-workers.ts";
 import { isRecord } from "../guards.ts";
 import { classifyRequest } from "../request-blocker.ts";
 import { emitMutations } from "./dom.ts";
+import { frontendNodes, sessionKeyOf } from "./dom-frontend.ts";
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
+import {
+  localStorageOrigin,
+  readLocalStorageOps,
+  type LocalStorage,
+} from "../state/local-storage.ts";
 import { dropTargetImages } from "../eval/resource-store.ts";
-import { documentKind, imageDocumentHtml } from "./document-kind.ts";
+import {
+  documentKind,
+  escapeHtml,
+  imageDocumentHtml,
+  jsonViewerHtml,
+  svgDocumentHtml,
+} from "./document-kind.ts";
 import {
   MAX_DOCUMENT_BYTES,
   MAX_STYLESHEET_BYTES,
@@ -132,14 +171,17 @@ import {
 import {
   emitFrameTarget,
   jarForTarget,
+  localStorageForTarget,
   announceOopifTarget,
   destroyOopifTarget,
 } from "./target.ts";
 import {
   ensureTargetDom,
   freeDetachedDom,
+  releaseFallbackHtml,
   releaseFrameDom,
   releaseTargetDom,
+  releasedFallbackError,
 } from "./dom-release.ts";
 import { clearStyleSheetsForNavigate, syncStyleSheetsFromEnumeration } from "./css.ts";
 import { emitScriptParsed, hasDebuggerListeners, makeCompiledScriptMeta } from "./debugger.ts";
@@ -162,6 +204,15 @@ const AUTO_RELOAD_SETTLED_MS = 2_000;
 const MILLISECONDS_PER_SECOND = 1_000;
 const MAX_IMAGE_QUALITY = 100;
 const DEFAULT_IMAGE_QUALITY = 80;
+// Encoded bytes E plus base64 and JSON strings cost about 3.7E in the engine.
+// At 16 MiB that leaves room for a 40-60 MB baseline in a 128 MB isolate.
+const MAX_SCREENSHOT_ENCODED_BYTES = 16 * 1024 * 1024;
+const MAX_SCREENSHOT_DIMENSION = 65_535;
+// The band rasterizer walks the whole scene once per 128-row band, so a large area is minutes of
+// work even when both sides are legal. 64M px admits a 1280x40000 full-page capture.
+const MAX_SCREENSHOT_PIXELS = 64 * 1024 * 1024;
+const MAX_WEBP_SCREENSHOT_PIXELS = 2_560 * 2_560;
+const MAX_WEBP_SCREENSHOT_DIMENSION = 4_096;
 const MIN_SCREENCAST_DIMENSION = 32;
 const MIN_SCREENCAST_FRAME_INTERVAL_MS = 16;
 const MAX_SCREENCAST_FRAME_INTERVAL_MS = 1_000;
@@ -216,13 +267,32 @@ function partialKeyFor(ctx: DispatchCtx, target: TargetState): string | undefine
   return `${target.targetId}:${target.navigateGeneration}`;
 }
 
-function hostOfUrl(url: string): string | null {
+/** The URL's tuple origin, or null when it has none (opaque or unparsable). */
+export function initiatorOriginOf(url: string | undefined): string | null {
+  if (!url) return null;
   try {
-    const h = new URL(url).hostname;
-    return h === "" ? null : h.toLowerCase();
+    const origin = new URL(url).origin;
+    return origin === "null" ? null : origin;
   } catch {
     return null;
   }
+}
+
+const CREDENTIAL_HEADERS = new Set(["authorization", "cookie", "proxy-authorization"]);
+
+/** Caller extra headers for a document fetch. Credentials the caller set for the page it
+ *  drives stay with that origin: a page-started navigation elsewhere does not carry them. */
+export function navigationExtraHeaders(
+  extra: Record<string, string>,
+  initiatorOrigin: string | null,
+  url: string,
+): Record<string, string> {
+  if (initiatorOrigin === null || initiatorOrigin === initiatorOriginOf(url)) return extra;
+  const kept: Record<string, string> = {};
+  for (const [k, v] of Object.entries(extra)) {
+    if (!CREDENTIAL_HEADERS.has(k.toLowerCase())) kept[k] = v;
+  }
+  return kept;
 }
 
 function getRendererManager(ctx: DispatchCtx, target?: TargetState): PageRendererManager {
@@ -251,7 +321,9 @@ async function renderViaPageRenderer(
     omitBackground: boolean;
     sinceSeq?: number;
     clip?: { x: number; y: number; width: number; height: number };
+    documentCrop?: boolean;
     partialKey?: string;
+    encodedLimit?: number;
     images?: "raw" | "encoded";
   },
 ): Promise<
@@ -296,6 +368,103 @@ async function renderViaPageRenderer(
     scrollX: res.scrollX,
     scrollY: res.scrollY,
   };
+}
+
+type ScreenshotFormat = "png" | "jpeg" | "webp";
+
+interface ScreenshotCapture {
+  clip: { x: number; y: number; width: number; height: number } | null;
+  fullDocument: boolean;
+  width: number;
+  height: number;
+}
+
+function readScreenshotClipRect(
+  clip: Protocol.Page.Viewport | undefined,
+): { x: number; y: number; width: number; height: number } | null {
+  if (!clip) return null;
+  const { x, y, width, height } = clip;
+  return typeof x === "number" &&
+    typeof y === "number" &&
+    typeof width === "number" &&
+    typeof height === "number"
+    ? { x, y, width, height }
+    : null;
+}
+
+// Rendering is in CSS pixels, so a clip scale only works when it cancels the emulated device
+// pixel ratio. Playwright's `scale: "css"` sends exactly that (1 / deviceScaleFactor).
+function assertSupportedClipScale(
+  clip: Protocol.Page.Viewport | undefined,
+  deviceScaleFactor: number,
+): void {
+  if (!clip || clip.scale === undefined || clip.scale === 1) return;
+  if (clip.scale * (deviceScaleFactor || 1) === 1) return;
+  throw new Error("Page.captureScreenshot failed: clip.scale other than 1 is not supported");
+}
+
+// A clip wins; otherwise a beyond-viewport capture spans the document, and the viewport is the
+// fallback for both.
+async function resolveScreenshotCapture(
+  ctx: DispatchCtx,
+  target: TargetState,
+  params: Protocol.Page.CaptureScreenshotRequest | undefined,
+): Promise<ScreenshotCapture> {
+  const requestedClip = readScreenshotClipRect(params?.clip);
+  const fullDocument = !requestedClip && params?.captureBeyondViewport === true;
+  const metrics = fullDocument ? await sessionOf(ctx, target).callIfLive.layoutMetrics({}) : null;
+  const clip =
+    requestedClip ??
+    (metrics ? { x: 0, y: 0, width: metrics.contentWidth, height: metrics.contentHeight } : null);
+  return {
+    clip,
+    fullDocument,
+    width: Math.ceil(clip?.width ?? target.viewportWidth ?? DEFAULT_VIEWPORT_WIDTH),
+    height: Math.ceil(clip?.height ?? target.viewportHeight ?? DEFAULT_VIEWPORT_HEIGHT),
+  };
+}
+
+// The drain can land resources that grow the document, so a full-document capture measures again.
+async function remeasureAfterDrain(
+  ctx: DispatchCtx,
+  target: TargetState,
+  params: Protocol.Page.CaptureScreenshotRequest | undefined,
+  capture: ScreenshotCapture,
+  format: ScreenshotFormat,
+): Promise<ScreenshotCapture> {
+  if (!capture.fullDocument) return capture;
+  const remeasured = await resolveScreenshotCapture(ctx, target, params);
+  if (!remeasured.clip) return capture;
+  assertScreenshotRasterLimits(remeasured.width, remeasured.height, format);
+  return remeasured;
+}
+
+function assertScreenshotRasterLimits(
+  width: number,
+  height: number,
+  format: ScreenshotFormat,
+): void {
+  if (width > MAX_SCREENSHOT_DIMENSION || height > MAX_SCREENSHOT_DIMENSION) {
+    throw new Error(
+      `Page.captureScreenshot failed: requested ${width}x${height} px exceeds the 65535 px per-side raster limit; capture a smaller clip`,
+    );
+  }
+  // Bounded for every format, not only WebP: the band walk is the cost, not the encoder.
+  if (width * height > MAX_SCREENSHOT_PIXELS) {
+    throw new Error(
+      `Page.captureScreenshot failed: requested ${width}x${height} px exceeds the ${MAX_SCREENSHOT_PIXELS} px total raster limit; capture a smaller clip`,
+    );
+  }
+  if (format !== "webp") return;
+  if (
+    width > MAX_WEBP_SCREENSHOT_DIMENSION ||
+    height > MAX_WEBP_SCREENSHOT_DIMENSION ||
+    width * height > MAX_WEBP_SCREENSHOT_PIXELS
+  ) {
+    throw new Error(
+      `Page.captureScreenshot failed: requested ${width}x${height} px exceeds WebP limits of ${MAX_WEBP_SCREENSHOT_DIMENSION} px per side and ${MAX_WEBP_SCREENSHOT_PIXELS} px total; use png or jpeg`,
+    );
+  }
 }
 
 function recordNavigationHistory(target: TargetState, url: string, transitionType: string): void {
@@ -421,6 +590,7 @@ function consoleArgumentText(value: unknown): string {
   if (typeof description === "string" && description) return description;
   const valueJson = "valueJson" in value ? value.valueJson : undefined;
   if (typeof valueJson === "string" && valueJson) {
+    if (!valueJsonWithinLimit(valueJson)) return "[value exceeds size limit]";
     try {
       const parsed: unknown = JSON.parse(valueJson);
       return typeof parsed === "string" ? parsed : (JSON.stringify(parsed) ?? "");
@@ -610,7 +780,11 @@ export async function handlePage(
       target.pendingNavAbort?.abort();
       const navAbort = new AbortController();
       target.pendingNavAbort = navAbort;
-      target.loaderId = makeTargetId();
+      // An input-started navigation announced its loader in Page.frameStartedNavigating.
+      target.loaderId =
+        ksParams?._kitesurfInternal === true && typeof ksParams._kitesurfLoaderId === "string"
+          ? ksParams._kitesurfLoaderId
+          : makeTargetId();
       const loaderId = target.loaderId;
 
       try {
@@ -631,6 +805,7 @@ export async function handlePage(
       target.url = url;
       target.title = "";
       target.html = "";
+      target.fallbackHtmlReleased = false;
       releaseTargetDom(target);
       target.docScan = null;
       target.docCsp = null;
@@ -656,6 +831,7 @@ export async function handlePage(
       if (url === "about:blank" || url === "") {
         const html = "<html><head></head><body></body></html>";
         target.html = html;
+        target.fallbackHtmlReleased = false;
         const blitzUrl = sanitizeBaseUrl(url);
         try {
           target.dom = createDom(html, blitzUrl);
@@ -663,7 +839,11 @@ export async function handlePage(
           const msg = e instanceof Error ? e.message : String(e);
           console.warn("kitesurf: navigate(about:blank) createDom trap:", msg);
           target.dom = null;
-          return { error: `navigate: wasm trap during parse: ${msg}` };
+          return navigateReply(
+            target.frameId,
+            loaderId,
+            `navigate: wasm trap during parse: ${msg}`,
+          );
         }
         const {
           console: capturedConsole,
@@ -677,7 +857,7 @@ export async function handlePage(
         emitCapturedExceptions(ctx, target, exceptions, req.sessionId);
         emitMutations(ctx, target, cdpMutations);
         clearPendingNavAbort(target, navAbort);
-        return { frameId: target.frameId, loaderId };
+        return navigateReply(target.frameId, loaderId);
       }
 
       emitFrameStartedLoading(ctx, target, mainFrame(target), req.sessionId);
@@ -688,7 +868,33 @@ export async function handlePage(
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
           accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         };
-        const cookieHeader = jarForTarget(ctx, target).cookieHeaderForUrl(url);
+        // A page-started navigation carries the initiating document's origin,
+        // so SameSite=Strict is withheld on a cross-site top-level navigation
+        // just as it is in a browser. CDP-started navigations have no
+        // initiator and keep the existing same-site behavior.
+        const ksInitiatorOrigin =
+          typeof ksParams?._kitesurfInitiatorOrigin === "string"
+            ? ksParams._kitesurfInitiatorOrigin
+            : null;
+        const navExtraHeaders = {
+          ...navigationExtraHeaders(effectiveExtraHeaders(target), ksInitiatorOrigin, url),
+        };
+        if (ksInitiatorOrigin !== null) {
+          const originKeys = Object.keys(navExtraHeaders).filter(
+            (k) => k.toLowerCase() === "origin",
+          );
+          for (const key of originKeys) delete navExtraHeaders[key];
+        }
+        const cookieHeader = jarForTarget(ctx, target).cookieHeaderForUrl(
+          url,
+          ksInitiatorOrigin !== null
+            ? {
+                initiatorOrigin: ksInitiatorOrigin === "null" ? null : ksInitiatorOrigin,
+                topLevel: true,
+                method: ksPostData !== null ? "POST" : "GET",
+              }
+            : undefined,
+        );
         if (cookieHeader) reqHeaders.cookie = cookieHeader;
 
         const navReferrer: unknown = req.params?.referrer;
@@ -696,7 +902,7 @@ export async function handlePage(
           reqHeaders.referer = navReferrer;
         }
 
-        for (const [k, v] of Object.entries(effectiveExtraHeaders(target))) {
+        for (const [k, v] of Object.entries(navExtraHeaders)) {
           reqHeaders[k] = v;
         }
         target.docReferrer =
@@ -704,6 +910,7 @@ export async function handlePage(
 
         if (ksPostData !== null) {
           reqHeaders["content-type"] = ksPostContentType;
+          if (ksInitiatorOrigin !== null) reqHeaders.origin = ksInitiatorOrigin;
         }
         const requestId = ctx.browser.networkEvents.beginRequest({
           url,
@@ -719,11 +926,19 @@ export async function handlePage(
         ctx.browser.networkEvents.drain();
 
         let docPageOrigin = "";
-        try {
-          docPageOrigin = new URL(url).origin;
-        } catch {}
-        const docProps: Omit<OutboundProps, "externalOutbound"> = {
+        if (ksInitiatorOrigin === null) {
+          try {
+            docPageOrigin = new URL(url).origin;
+          } catch {}
+        } else if (ksInitiatorOrigin !== "null") {
+          docPageOrigin = ksInitiatorOrigin;
+        }
+        const docProps: CallerOutboundProps = {
           pageOrigin: docPageOrigin,
+          // A navigation the page started names its initiating document; one the CDP client
+          // started has none, so Private Network Access leaves it alone. An opaque initiator
+          // ("null") still reaches privateNetworkRefusal, which treats it as public.
+          privateNetworkInitiator: ksInitiatorOrigin === null ? undefined : ksInitiatorOrigin,
           mainFrameId: target.frameId,
           mainLoaderId: target.loaderId,
           interceptConnectionId: ctx.connectionId,
@@ -732,7 +947,7 @@ export async function handlePage(
           skipRequestBlocker: true,
           topLevelDocument: true,
           walksOwnRedirects: true,
-          extraHeaders: effectiveExtraHeaders(target),
+          extraHeaders: navExtraHeaders,
         };
         const docOutbound = ctx.browser.sandboxOutbound.parent(docProps);
         let resp: Response;
@@ -743,7 +958,11 @@ export async function handlePage(
         });
         abortP.catch(() => {});
         let currentUrl = url;
-        let chainLeftSite = false;
+        const initialSite = schemefulSite(url);
+        const initiatorSite = ksInitiatorOrigin === null ? null : schemefulSite(ksInitiatorOrigin);
+        let chainLeftSite =
+          ksInitiatorOrigin !== null &&
+          (initiatorSite === null || initialSite === null || initiatorSite !== initialSite);
         let hopBody: Uint8Array | undefined;
         if (ksPostData !== null) {
           hopBody = new Uint8Array(ksPostData.length);
@@ -765,10 +984,11 @@ export async function handlePage(
               "x-kitesurf-page-origin": docPageOrigin,
               "x-kitesurf-network-id": loaderId,
             },
-            cookieHeaderFor: (hopUrl) =>
+            taintOriginFrom: ksPostData !== null ? (ksInitiatorOrigin ?? undefined) : undefined,
+            cookieHeaderFor: (hopUrl, method) =>
               jarForTarget(ctx, target).cookieHeaderForUrl(
                 hopUrl,
-                chainLeftSite ? { initiatorHost: null, topLevel: true } : undefined,
+                chainLeftSite ? { initiatorOrigin: null, topLevel: true, method } : undefined,
               ),
             onSetCookie: (hopUrl, hopResp) => {
               for (const sc of readSetCookieHeaders(hopResp)) {
@@ -777,9 +997,9 @@ export async function handlePage(
             },
             onRedirect: (hop) => {
               if (!chainLeftSite) {
-                const from = hostOfUrl(hop.fromUrl);
-                const to = hostOfUrl(hop.newUrl);
-                if (from === null || to === null || siteKey(from) !== siteKey(to)) {
+                const from = schemefulSite(hop.fromUrl);
+                const to = schemefulSite(hop.newUrl);
+                if (from === null || to === null || from !== to) {
                   chainLeftSite = true;
                 }
               }
@@ -808,11 +1028,7 @@ export async function handlePage(
           });
           if (!walk.ok) {
             ctx.browser.networkEvents.failRequest(requestId, "net::ERR_TOO_MANY_REDIRECTS");
-            return {
-              frameId: target.frameId,
-              loaderId,
-              errorText: "net::ERR_TOO_MANY_REDIRECTS",
-            };
+            return navigateReply(target.frameId, loaderId, "net::ERR_TOO_MANY_REDIRECTS");
           }
           resp = walk.response;
           currentUrl = walk.finalUrl;
@@ -826,7 +1042,7 @@ export async function handlePage(
             errorText ?? (fetchErr instanceof Error ? fetchErr.message : String(fetchErr)),
           );
           if (errorText) {
-            return { frameId: target.frameId, loaderId, errorText };
+            return navigateReply(target.frameId, loaderId, errorText);
           }
           throw fetchErr;
         }
@@ -844,7 +1060,7 @@ export async function handlePage(
           });
           ctx.browser.networkEvents.drain();
           clearPendingNavAbort(target, navAbort);
-          return { frameId: target.frameId, loaderId, errorText: "net::ERR_ABORTED" };
+          return navigateReply(target.frameId, loaderId, "net::ERR_ABORTED");
         }
         const finalUrl = currentUrl;
         target.url = finalUrl;
@@ -863,13 +1079,13 @@ export async function handlePage(
         let networkBody: { body: string; length: number } | null = null;
         if (docKind === "html") {
           const read = await traceSpan(ctx.env.HOST_TRACER, "navigate.read_document_body", () =>
-            readCappedBytes(resp, MAX_DOCUMENT_BYTES),
+            readCappedBytes(resp, MAX_DOCUMENT_BYTES, ctx.connectionId),
           );
           if (!read.ok) {
             const errorText = cappedErrorText(read.failure);
             ctx.browser.networkEvents.failRequest(requestId, errorText);
             clearPendingNavAbort(target, navAbort);
-            return { frameId: target.frameId, loaderId, errorText };
+            return navigateReply(target.frameId, loaderId, errorText);
           }
           const buf = read.bytes;
           const decoded = decodeHtmlBytes(buf, ct);
@@ -880,6 +1096,7 @@ export async function handlePage(
             html = '<?xml version="1.0" encoding="UTF-8"?>\n' + sniffHead;
           }
           target.html = html;
+          target.fallbackHtmlReleased = false;
           releaseTargetDom(target);
           target.docScan = traceSpan(
             ctx.env.HOST_TRACER,
@@ -890,12 +1107,12 @@ export async function handlePage(
           target.title = target.docScan.title;
           pageHtml = html;
         } else {
-          const read = await readCappedBytes(resp, MAX_DOCUMENT_BYTES);
+          const read = await readCappedBytes(resp, MAX_DOCUMENT_BYTES, ctx.connectionId);
           if (!read.ok) {
             const errorText = cappedErrorText(read.failure);
             ctx.browser.networkEvents.failRequest(requestId, errorText);
             clearPendingNavAbort(target, navAbort);
-            return { frameId: target.frameId, loaderId, errorText };
+            return navigateReply(target.frameId, loaderId, errorText);
           }
           let wrapper: string;
           if (docKind === "image") {
@@ -917,6 +1134,7 @@ export async function handlePage(
           releaseTargetDom(target);
           target.docScan = scanDocument(wrapper);
           target.html = wrapper;
+          target.fallbackHtmlReleased = false;
           pageHtml = wrapper;
         }
 
@@ -942,25 +1160,37 @@ export async function handlePage(
 
         let inlinedPageHtml = pageHtml;
         if (target.docScan) {
-          inlinedPageHtml = pageHtml.replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript\s*>/gi, "");
+          inlinedPageHtml = removeHtmlTagSpans(pageHtml, htmlTagSpans(pageHtml, "noscript", true));
         }
 
-        rebuildFrameTreeChildren(target);
+        // One admission owner for every child frame and child DOM this navigation retains,
+        // shared by discovery and every load branch.
+        const childBudget = newChildFrameBudget();
+        rebuildFrameTreeChildren(target, childBudget);
         const childFrames = [...target.frames.values()].filter(
           (frame) => frame.parentFrameId !== null && frame.lifecycle === "init",
         );
-        emitChildFrameAttachAndStart(ctx, childFrames, targetSessions(target, req.sessionId));
+        emitChildFrameAttachAndStart(
+          ctx,
+          target.frames,
+          childFrames,
+          targetSessions(target, req.sessionId),
+        );
         resetPrespawnBudget(target);
         for (const f of target.frames.values()) {
           if (f.parentFrameId === null) continue;
           if (f.lifecycle !== "init") continue;
-          if (f.isCrossOrigin || f.url === "about:blank" || f.url === "") {
+          // An opaque child is served by its isolate, whose fetch the prespawn overlaps. A srcdoc
+          // child has no isolate to prespawn.
+          const prespawnable =
+            (f.isCrossOrigin || childFrameIsOpaque(f)) && /^(https?|data):/i.test(f.url);
+          if (prespawnable || f.url === "about:blank" || f.url === "") {
             f.readyState = "complete";
             f.pendingLoad = Promise.resolve();
             prespawnOopifFrame(ctx, target, f);
             continue;
           }
-          f.pendingLoad = loadChildFrame(ctx, target, f, req.sessionId);
+          f.pendingLoad = loadChildFrame(ctx, target, f, req.sessionId, 1, new Set(), childBudget);
         }
 
         const armedIframeGate = navigateOwesIframeInstalls(target);
@@ -969,7 +1199,10 @@ export async function handlePage(
           cdpMutations,
           exceptions,
         } = await pushNavigateToPageScript(ctx, target, inlinedPageHtml, finalUrl, armedIframeGate);
-        if (target.pageScript) releaseTargetDom(target);
+        if (target.pageScript) {
+          releaseTargetDom(target);
+          releaseFallbackHtml(target);
+        }
         await backfillIframeOwnerNodeIds(target);
         emitFrameDclComplete(ctx, target, mainFrame(target), req.sessionId);
         scheduleLoadCompleteEmit(ctx, target, req.sessionId, armedIframeGate);
@@ -980,14 +1213,10 @@ export async function handlePage(
         emitCapturedExceptions(ctx, target, exceptions, req.sessionId);
         emitMutations(ctx, target, cdpMutations);
         if (target.pendingNavAbort === navAbort) target.pendingNavAbort = null;
-        return { frameId: target.frameId, loaderId };
+        return navigateReply(target.frameId, loaderId);
       } catch (err) {
         const errorText = err instanceof Error ? err.message : String(err);
-        return {
-          frameId: target.frameId,
-          loaderId,
-          errorText,
-        };
+        return navigateReply(target.frameId, loaderId, errorText);
       }
     }
 
@@ -1067,16 +1296,15 @@ export async function handlePage(
       const url = sanitizeBaseUrl(requestedUrl);
       target.url = url;
       target.html = html;
-      const isSyntheticUrl = url === "https://kitesurf.local/";
+      target.fallbackHtmlReleased = false;
       releaseTargetDom(target);
-      target.docScan = null;
       target.docCsp = null;
       target.docCspReportOnly = null;
       target.docCharset = null;
-      if (!isSyntheticUrl) {
-        target.docScan = scanDocument(html);
-        target.title = target.docScan.title;
-      }
+      // Scan every document, synthetic origin included: the scan is what puts its scripts
+      // through the script gate and into the bundle.
+      target.docScan = scanDocument(html);
+      target.title = target.docScan.title;
       ctx.browser.dedicatedWorkers.terminateTarget(target.targetId, "setDocumentContent");
       const {
         console: capturedConsole,
@@ -1098,14 +1326,17 @@ export async function handlePage(
       emitCapturedConsole(ctx, target, capturedConsole, req.sessionId);
       emitCapturedExceptions(ctx, target, exceptions, req.sessionId);
       emitMutations(ctx, target, cdpMutations);
-      if (target.pageScript) releaseTargetDom(target);
+      if (target.pageScript) {
+        releaseTargetDom(target);
+        releaseFallbackHtml(target);
+      }
       return {};
     }
 
     case "Page.captureScreenshot": {
       try {
         const reqFormat = req.params?.format;
-        const format: "png" | "jpeg" | "webp" =
+        const format: ScreenshotFormat =
           reqFormat === "jpeg" ? "jpeg" : reqFormat === "webp" ? "webp" : "png";
         const reqQuality = req.params?.quality;
         const quality =
@@ -1113,7 +1344,10 @@ export async function handlePage(
             ? reqQuality
             : DEFAULT_IMAGE_QUALITY;
         const omitBackground = req.params?.omitBackground === true;
-        const clip = req.params?.clip;
+        assertSupportedClipScale(req.params?.clip, target.deviceScaleFactor);
+        let capture = await resolveScreenshotCapture(ctx, target, req.params);
+        let clip = capture.clip;
+        assertScreenshotRasterLimits(capture.width, capture.height, format);
 
         const pageUrl = target.url || "https://kitesurf.local/";
         if (target.pageScript) {
@@ -1121,28 +1355,24 @@ export async function handlePage(
           const __drainStart = Date.now();
           let drainInfo: Record<string, unknown> | null = null;
           let __graceTimer: ReturnType<typeof setTimeout> | null = null;
-          const __clipRect = (() => {
-            if (!clip || typeof clip !== "object") return null;
-            const { x, y, width, height } = clip;
-            return typeof x === "number" &&
-              typeof y === "number" &&
-              typeof width === "number" &&
-              typeof height === "number"
-              ? { x, y, width, height }
-              : null;
-          })();
           try {
+            // A full-document capture drains unscoped: an unloaded image at the document bottom
+            // starts at the measured height, outside any rect sized from it.
             const drain = stubQueryDom(ps, "awaitPendingResources", {
               timeoutMs: RENDER_DRAIN_TIMEOUT_MS,
-              scope: __clipRect
-                ? {
-                    mode: "rect",
-                    x: __clipRect.x,
-                    y: __clipRect.y,
-                    w: __clipRect.width,
-                    h: __clipRect.height,
-                  }
-                : { mode: "viewport" },
+              ...(capture.fullDocument
+                ? {}
+                : {
+                    scope: clip
+                      ? {
+                          mode: "rect",
+                          x: clip.x,
+                          y: clip.y,
+                          w: clip.width,
+                          h: clip.height,
+                        }
+                      : { mode: "viewport" },
+                  }),
             }).catch(() => null);
             const drainResult = await traceSpan(
               ctx.env.HOST_TRACER,
@@ -1169,12 +1399,16 @@ export async function handlePage(
             target,
             __drainStart + RENDER_DRAIN_TIMEOUT_MS + RENDER_DRAIN_GRACE_MS - Date.now(),
           );
+          capture = await remeasureAfterDrain(ctx, target, req.params, capture, format);
+          clip = capture.clip;
           const __rpcStart = Date.now();
           const viaRenderer = await renderViaPageRenderer(ctx, target, {
             format,
             quality,
             omitBackground,
             ...(clip ? { clip } : {}),
+            ...(clip && capture.fullDocument ? { documentCrop: true } : {}),
+            encodedLimit: MAX_SCREENSHOT_ENCODED_BYTES,
             ...(ctx.browser.screencasts.has(target.targetId)
               ? {}
               : { partialKey: partialKeyFor(ctx, target) }),
@@ -1191,7 +1425,7 @@ export async function handlePage(
             );
           }
           if ("failed" in viaRenderer) {
-            throw new Error(`Page.captureScreenshot failed: ${viaRenderer.failed}`);
+            throw rendererFailure(viaRenderer.failed, capture.width, capture.height);
           }
           if (viaRenderer.bytes && viaRenderer.bytes.length > 0) {
             return { data: bytesToBase64(viaRenderer.bytes) };
@@ -1209,10 +1443,13 @@ export async function handlePage(
               leased,
               pageUrl,
               ctx.browser.sandboxOutbound,
-              ctx.browser.styleCache,
-              ctx.browser.networkEvents,
-              target.loaderId,
-              target.frameId,
+              ctx.connectionId,
+              {
+                cache: ctx.browser.styleCache,
+                tracker: ctx.browser.networkEvents,
+                loaderId: target.loaderId,
+                frameId: target.frameId,
+              },
             );
             html = leased.outerHTML(0);
           } finally {
@@ -1220,6 +1457,7 @@ export async function handlePage(
           }
         }
         if (!html) {
+          if (target.fallbackHtmlReleased) throw releasedFallbackError("Page.captureScreenshot");
           return { data: TINY_TRANSPARENT_PNG_B64 };
         }
         const width = target.viewportWidth ?? DEFAULT_VIEWPORT_WIDTH;
@@ -1566,6 +1804,15 @@ const TINY_TRANSPARENT_PNG_B64 =
 const EMPTY_PDF_B64 =
   "JVBERi0xLjQKMSAwIG9iago8PC9UeXBlIC9DYXRhbG9nIC9QYWdlcyAyIDAgUj4+CmVuZG9iagoyIDAgb2JqCjw8L1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlIC9QYWdlIC9QYXJlbnQgMiAwIFIgL01lZGlhQm94IFswIDAgNjEyIDc5Ml0gL1Jlc291cmNlcyA8PD4+IC9Db250ZW50cyA0IDAgUj4+CmVuZG9iago0IDAgb2JqCjw8L0xlbmd0aCAwPj4Kc3RyZWFtCgplbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA1CjAwMDAwMDAwMDAgNjU1MzUgZgowMDAwMDAwMDA5IDAwMDAwIG4KMDAwMDAwMDA1OCAwMDAwMCBuCjAwMDAwMDAxMTEgMDAwMDAgbgowMDAwMDAwMjEzIDAwMDAwIG4KdHJhaWxlcgo8PC9TaXplIDUgL1Jvb3QgMSAwIFI+PgpzdGFydHhyZWYKMjY0CiUlRU9G";
 
+function rendererFailure(failed: string, width: number, height: number): Error {
+  if (failed.startsWith("encoded-limit:")) {
+    return new Error(
+      `Page.captureScreenshot failed: encoded image exceeds ${MAX_SCREENSHOT_ENCODED_BYTES} bytes (${width}x${height} px); capture a smaller clip, or use format "jpeg" with a lower quality`,
+    );
+  }
+  return new Error(`Page.captureScreenshot failed: ${failed}`);
+}
+
 function bytesToBase64(bytes: Uint8Array): string {
   return bytes.toBase64();
 }
@@ -1629,19 +1876,23 @@ async function pushNavigateToPageScriptInner(
   url: string,
   owesIframeInstalls = false,
 ): Promise<NavigatePushResult> {
+  const docScan = target.docScan ?? scanDocument(html);
+  const scriptBaseUrl = documentBaseUrl(url, docScan.baseHref);
+  const preloadSeeds = modulePreloadSeeds(docScan.modulePreloads, scriptBaseUrl);
   target.wheelTeardownDepth += 1;
   const consoleAcc: ConsoleEntry[] = [];
   try {
     await cancelAndRemoveTargetWheelQueues(ctx.browser, target.targetId);
 
     if (target.pageScript) {
+      const retiringUrl = target.pageScriptUrl;
       const harvest = await retireStub(target, "navigate", "Page.navigate: generation bump", {
         budget: ctx.browser.workerBudget,
       });
       for (const e of harvest?.console ?? []) consoleAcc.push(e);
-      if (target.url) {
+      if (retiringUrl) {
         for (const raw of harvest?.cookieWrites ?? []) {
-          jarForTarget(ctx, target).setFromDocumentCookie(target.url, raw);
+          jarForTarget(ctx, target).setFromDocumentCookie(retiringUrl, raw);
         }
       }
     }
@@ -1672,9 +1923,7 @@ async function pushNavigateToPageScriptInner(
   let scriptBundle: ScriptBundle | null = null;
   let wasmBake: WasmBake | null = null;
   try {
-    const raw = target.docScan
-      ? target.docScan.scripts
-      : extractScriptDescriptorsFromDom(target.dom);
+    const raw = target.docScan ? docScan.scripts : extractScriptDescriptorsFromDom(target.dom);
     const preNav: ParentScriptDescriptor[] = [];
     if (ctx.browser.preNavScripts.size > 0) {
       for (const source of ctx.browser.preNavScripts.values()) {
@@ -1692,9 +1941,8 @@ async function pushNavigateToPageScriptInner(
     const scriptGate = documentGateContext(url, {
       csp: target.docCsp,
       cspReportOnly: target.docCspReportOnly,
-      scan: target.docScan,
+      scan: docScan,
     });
-    const scriptBaseUrl = documentBaseUrl(url, target.docScan?.baseHref);
     const gatedDescriptors = await traceSpan(ctx.env.HOST_TRACER, "navigate.script_gate", () =>
       applyPreFetchScriptGate(rawWithPreNav, scriptGate, scriptBaseUrl),
     );
@@ -1723,6 +1971,8 @@ async function pushNavigateToPageScriptInner(
           cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
           baseUrl: scriptBaseUrl,
           sandboxOutbound: ctx.browser.sandboxOutbound,
+          gate: scriptGate,
+          initiator: "parser",
         }),
     );
     const routeChunkUrls = nextRouteChunkUrls(afterClassicPrefetch, url).filter(
@@ -1755,37 +2005,17 @@ async function pushNavigateToPageScriptInner(
                     connectionId: "",
                     mainFrameId: target.frameId,
                     mainLoaderId: target.loaderId,
-                    extraHeaders: effectiveExtraHeaders(target),
+                    extraHeaders: {},
                     cookieKey: "",
                     baseUrl: scriptBaseUrl,
                     sandboxOutbound: ctx.browser.sandboxOutbound,
                     signal,
+                    gate: scriptGate,
                   }).then((fetched) => fetched[0] ?? d),
               ),
             ),
           ).catch((): ParentScriptDescriptor[] => []);
-    const importMaps = await applyImportMapGate(target.docScan?.importMaps ?? [], scriptGate, url);
-    const walkResult = await traceSpan(ctx.env.HOST_TRACER, "navigate.walk_module_graph", () =>
-      walkModuleGraph({
-        descriptors: afterClassicPrefetch,
-        pageUrl: url,
-        connectionId: ctx.connectionId,
-        mainFrameId: target.frameId,
-        mainLoaderId: target.loaderId,
-        extraHeaders: effectiveExtraHeaders(target),
-        cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
-        options: {
-          baseUrl: scriptBaseUrl,
-          gate: scriptGate,
-          importMaps,
-          moduleSeeds: astroIslandModuleUrls(html, scriptBaseUrl),
-          preloadSeeds: modulePreloadSeeds(html, scriptBaseUrl),
-          documentHtml: html,
-        },
-        sandboxOutbound: ctx.browser.sandboxOutbound,
-      }),
-    );
-    scriptDescriptors = walkResult.descriptors;
+    const importMaps = await applyImportMapGate(docScan.importMaps, scriptGate, url);
     const speculativeFetched = await speculativePrefetch;
     const learnedSet = new Set(learnedUrls);
     for (const d of speculativeFetched) {
@@ -1806,13 +2036,36 @@ async function pushNavigateToPageScriptInner(
         `[kitesurf-nav] speculative scripts baked ${insertedBake.length}/${speculativeUrls.length}`,
       );
     }
+    // Hash the bytes the page will fetch, before the walk rewrites them.
     const insertedDigests = await insertedSourceDigests(insertedBake);
+    const walkResult = await traceSpan(ctx.env.HOST_TRACER, "navigate.walk_module_graph", () =>
+      walkModuleGraph({
+        descriptors: afterClassicPrefetch,
+        insertedDescriptors: insertedBake,
+        pageUrl: url,
+        connectionId: ctx.connectionId,
+        mainFrameId: target.frameId,
+        mainLoaderId: target.loaderId,
+        extraHeaders: effectiveExtraHeaders(target),
+        cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
+        options: {
+          baseUrl: scriptBaseUrl,
+          gate: scriptGate,
+          importMaps,
+          moduleSeeds: astroIslandModuleUrls(html, scriptBaseUrl),
+          preloadSeeds,
+          documentHtml: html,
+        },
+        sandboxOutbound: ctx.browser.sandboxOutbound,
+      }),
+    );
+    scriptDescriptors = walkResult.descriptors;
     scriptBundle = traceSpan(ctx.env.HOST_TRACER, "navigate.build_bundle", () =>
       buildScriptBundle(scriptDescriptors, {
         cdpDebug: ctx.browser.cdpDebug,
         additionalModules: walkResult.additionalModules,
         importMapModuleSource: walkResult.importMapModuleSource,
-        insertedBake,
+        insertedBake: walkResult.insertedDescriptors,
         insertedDigests,
       }),
     );
@@ -1963,6 +2216,11 @@ async function pushNavigateToPageScriptInner(
     );
   }
 
+  // The bundle and prefetch awaits above can outlast the connection or be overtaken by a newer
+  // navigate; either way, load no isolate for this one.
+  if (ctx.browser.wsClosing || target.navigateGeneration !== generation) {
+    return { console: consoleAcc };
+  }
   const raInitTimings: PageScriptInitTimings = {};
   let pendingPageScript: ReturnType<typeof getOrCreatePageScript> | null;
   try {
@@ -1990,6 +2248,7 @@ async function pushNavigateToPageScriptInner(
             cdpDebug: ctx.browser.cdpDebug,
             pixelFree: ctx.browser.skipSpeculativeRaster,
             fontDefer: ctx.browser.fontDefer,
+            fontProfile: ctx.browser.fontProfile,
             userAgent: target.userAgentOverride || null,
             referrerPolicy: target.docReferrerPolicy ?? null,
             referrer: target.docReferrer ?? null,
@@ -2015,8 +2274,21 @@ async function pushNavigateToPageScriptInner(
 
   const raBakeMs = ctx.analytics.now() - raBakeStart;
 
+  // The browser context's localStorage for the document's origin: the page gets a copy and sends
+  // its changes back as upstream events.
+  const lsOrigin = localStorageOrigin(url);
+  const sharedLocalStorage = lsOrigin
+    ? { storage: localStorageForTarget(ctx, target), origin: lsOrigin }
+    : undefined;
   if (pendingPageScript) {
-    installUpstreamEventHandler(ctx, target, pendingPageScript, generation, url);
+    installUpstreamEventHandler(
+      ctx,
+      target,
+      pendingPageScript,
+      generation,
+      url,
+      sharedLocalStorage,
+    );
     installIsolateLimitSurface(
       ctx,
       target,
@@ -2049,7 +2321,7 @@ async function pushNavigateToPageScriptInner(
           tracer.getSpanContext(),
         );
       }
-      const navPromise = ps.navigate(html, url, {
+      const navPromise = ps.navigate(navigateSourceOf(html), url, {
         cookies: initialCookies,
         ...(traced ? { traced: true } : {}),
         expectIframeInstalls: owesIframeInstalls,
@@ -2074,6 +2346,17 @@ async function pushNavigateToPageScriptInner(
         connectionId: ctx.connectionId,
         mainFrameId: target.frameId,
         cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
+        // Read after retireStub, so the old document's last writes are in.
+        ...(sharedLocalStorage
+          ? { localStorage: sharedLocalStorage.storage.entries(sharedLocalStorage.origin) }
+          : {}),
+        modulePreloadPins: preloadSeeds.map(({ url, integrity }) => ({ url, integrity })),
+        // The legacy plan (no bundle: a failed bake) gates its parser scripts from these.
+        scriptPolicy: {
+          cspHeaders: target.docCsp ? [target.docCsp] : [],
+          cspReportOnlyHeaders: target.docCspReportOnly ? [target.docCspReportOnly] : [],
+          metaCsp: target.docScan?.metaCsp ?? [],
+        },
         bindingNames:
           ctx.browser.pendingBindings.size > 0
             ? Array.from(ctx.browser.pendingBindings)
@@ -2218,7 +2501,7 @@ async function pushNavigateToPageScriptInner(
         });
       } catch {}
     }
-    if (target.cssEnabledSessions.size > 0 || ctx.browser.connectionMode === "page") {
+    if (target.cssEnabledSessions.size > 0 || ctx.client.connectionMode === "page") {
       try {
         await syncStyleSheetsFromEnumeration(ctx, target, pendingPageScript);
       } catch {}
@@ -2245,6 +2528,9 @@ async function pushNavigateToPageScriptInner(
         await pendingPageScript.unload();
       } catch {}
     }
+    // Reporting success here leaves a target with no page, and its next DOM call starts a blank
+    // isolate that answers as this document, so a failed load is served as an empty page.
+    if (target.navigateGeneration === generation && !target.pageScript) throw err;
     return { console: consoleAcc };
   }
 }
@@ -2401,6 +2687,18 @@ export function mainFrame(t: TargetState): FrameState {
   return makeMainFrameState({ frameId: t.frameId, loaderId: t.loaderId, url: t.url });
 }
 
+// Chrome includes isDownload in every Page.navigate reply, and Playwright reads it. Kitesurf
+// aborts a response Chrome would download (net::ERR_ABORTED), so it never reports a download.
+function navigateReply(
+  frameId: string,
+  loaderId: string,
+  errorText?: string,
+): Protocol.Page.NavigateResponse {
+  return errorText === undefined
+    ? { frameId, loaderId, isDownload: false }
+    : { frameId, loaderId, errorText, isDownload: false };
+}
+
 function navErrorText(err: unknown, aborted: boolean): string | null {
   if (aborted) return "net::ERR_ABORTED";
   const name = err instanceof Error ? err.name : "";
@@ -2436,6 +2734,34 @@ function targetSessionsNetwork(
   return [fallback ? fallback : undefined];
 }
 
+// Chrome announces a renderer-initiated navigation before the input that started it replies, and
+// chrome-devtools-mcp waits for a click's page only when frameStartedNavigating comes first.
+export function emitInputNavigationStarted(
+  ctx: DispatchCtx,
+  target: TargetState,
+  nav: { url: string; loaderId: string; reason: Protocol.Page.ClientNavigationReason },
+  sessionId: string | undefined,
+): void {
+  const frameId = target.frameId;
+  for (const s of targetSessions(target, sessionId)) {
+    ctx.emit({
+      method: "Page.frameRequestedNavigation",
+      params: { frameId, reason: nav.reason, url: nav.url, disposition: "currentTab" },
+      sessionId: s,
+    });
+    ctx.emit({
+      method: "Page.frameStartedNavigating",
+      params: {
+        frameId,
+        url: nav.url,
+        loaderId: nav.loaderId,
+        navigationType: "differentDocument",
+      },
+      sessionId: s,
+    });
+  }
+}
+
 function emitFrameStartedLoading(
   ctx: DispatchCtx,
   target: TargetState,
@@ -2461,7 +2787,7 @@ function emitFrameNavigated(
     emitContextsCleared(ctx, target, sessionId);
   }
   const params: Protocol.Page.FrameNavigatedEvent = {
-    frame: makeFrameInfo(frame),
+    frame: makeFrameInfo(frame, target.frames),
     type: "Navigation",
   };
   for (const s of targetSessions(target, sessionId)) {
@@ -2581,7 +2907,7 @@ function scheduleLoadCompleteEmit(
     return;
   }
   const generationAtSchedule = target.navigateGeneration;
-  const urlAtSchedule = target.url;
+  const urlAtSchedule = target.pageScriptUrl;
   const browser = ctx.browser;
   const work = (async () => {
     const iframeWaits: Promise<void>[] = [];
@@ -2616,8 +2942,11 @@ function scheduleLoadCompleteEmit(
                 typeof (ps as { installIframeContent?: unknown }).installIframeContent ===
                   "function"
               ) {
+                const crossOrigin =
+                  !!f.url && f.url !== "about:blank" && frameFacadeIsCrossOrigin(f);
+                // A cross-origin facade has no document to install, so skip the serialization.
                 let html = "";
-                if (f.dom) {
+                if (f.dom && !crossOrigin) {
                   try {
                     html = f.dom.outerHTML(0);
                   } catch {}
@@ -2628,10 +2957,11 @@ function scheduleLoadCompleteEmit(
                     ownerBackendNodeId: f.ownerBackendNodeId,
                     html,
                     url: f.url,
+                    baseUrl: isSrcdocUrl(f.url) ? f.baseUrl : f.url,
                     failed: !f.dom,
                     mimeType: f.mimeType,
-                    crossOrigin:
-                      !!(f.url && f.url !== "about:blank") && (f.isCrossOrigin || f.hasScript),
+                    crossOrigin,
+                    sandbox: f.sandbox,
                   });
                 } catch (err) {
                   console.warn(
@@ -2644,8 +2974,10 @@ function scheduleLoadCompleteEmit(
             } finally {
               markInstalled();
             }
-            if (f.url && f.url !== "about:blank" && (f.isCrossOrigin || f.hasScript) && ps) {
+            if (f.url && f.url !== "about:blank" && frameNeedsIsolate(f) && ps) {
               await spawnOopifPipeline(ctx, target, f);
+            } else if (ps) {
+              announceParentHostedFrameContext(ctx, target, f);
             }
             emitChildFrameDclLoad(ctx, target, f, sessionId);
           }),
@@ -2687,7 +3019,7 @@ function scheduleLoadCompleteEmit(
     drivePageTasks(ctx, target, summaryWait);
     await Promise.all([summaryWait, ...iframeWaits]);
     if (browser.wsClosing) return;
-    if (target.navigateGeneration !== generationAtSchedule) {
+    if (target.navigateGeneration !== generationAtSchedule || target.pageScript !== pageScript) {
       return;
     }
     if (target.diagSpans) {
@@ -2737,15 +3069,16 @@ export function pumpBackgroundEvents(ctx: DispatchCtx, target: TargetState): voi
   if (!pageScript || typeof pageScript.drainConsole !== "function") return;
   if (backgroundDrainInFlight.has(target)) return;
   backgroundDrainInFlight.add(target);
-  const urlAtSchedule = target.url;
   const work = (async () => {
     try {
       const summary = await pageScript.drainConsole();
       if (ctx.browser.wsClosing) return;
       if (target.pageScript !== pageScript) return;
-      if (summary.cookieWrites && summary.cookieWrites.length > 0 && urlAtSchedule) {
+      // target.url already names the next document while a navigate fetches it.
+      const cookieUrl = target.pageScriptUrl;
+      if (summary.cookieWrites && summary.cookieWrites.length > 0 && cookieUrl) {
         for (const raw of summary.cookieWrites) {
-          jarForTarget(ctx, target).setFromDocumentCookie(urlAtSchedule, raw);
+          jarForTarget(ctx, target).setFromDocumentCookie(cookieUrl, raw);
         }
       }
       if (summary.console && summary.console.length > 0) {
@@ -2895,11 +3228,12 @@ function emitNavigationLifecycle(
 ): void {
   emitFrameStartedLoading(ctx, target, mainFrame(target), sessionId);
   emitFrameNavigated(ctx, target, mainFrame(target), sessionId);
-  rebuildFrameTreeChildren(target);
+  // These documents register their frames but never load a child document.
+  rebuildFrameTreeChildren(target, newChildFrameBudget());
   const childFrames = [...target.frames.values()].filter(
     (frame) => frame.parentFrameId !== null && frame.lifecycle === "init",
   );
-  emitChildFrameAttachAndStart(ctx, childFrames, targetSessions(target, sessionId));
+  emitChildFrameAttachAndStart(ctx, target.frames, childFrames, targetSessions(target, sessionId));
   for (const f of target.frames.values()) {
     if (f.parentFrameId === null) continue;
     f.readyState = "complete";
@@ -2916,6 +3250,8 @@ function emitDocumentUpdated(
   sessionId: string | undefined,
 ): void {
   for (const s of targetSessions(target, sessionId)) {
+    // The client drops its nodes and asks for the document again.
+    frontendNodes(target, sessionKeyOf(s)).reset();
     ctx.emit({
       method: "DOM.documentUpdated",
       sessionId: s,
@@ -2941,283 +3277,6 @@ function readSetCookieHeaders(resp: Response): string[] {
   }
   const single = resp.headers.get("set-cookie");
   return single ? [single] : [];
-}
-
-function escapeHtml(s: string): string {
-  return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-}
-
-const SVG_BREAKOUT_META = /<meta\b[^>]*?\/?>/gi;
-function svgRootStart(source: string): number {
-  let at = 0;
-  while (at < source.length) {
-    const lt = source.indexOf("<", at);
-    if (lt < 0) return -1;
-    const rest = source.slice(lt);
-    if (rest.startsWith("<!--")) {
-      const close = source.indexOf("-->", lt + 4);
-      if (close < 0) return -1;
-      at = close + 3;
-    } else if (rest.startsWith("<?")) {
-      const close = source.indexOf("?>", lt + 2);
-      if (close < 0) return -1;
-      at = close + 2;
-    } else if (/^<!doctype/i.test(rest)) {
-      const bracket = source.indexOf("[", lt);
-      const gt = source.indexOf(">", lt);
-      if (gt < 0) return -1;
-      if (bracket >= 0 && bracket < gt) {
-        const closeBracket = source.indexOf("]", bracket);
-        if (closeBracket < 0) return -1;
-        const gtAfter = source.indexOf(">", closeBracket);
-        if (gtAfter < 0) return -1;
-        at = gtAfter + 1;
-      } else {
-        at = gt + 1;
-      }
-    } else if (/^<svg[\s>]/i.test(rest)) {
-      return lt;
-    } else if (rest.startsWith("<") && /^<[a-z!?/]/i.test(rest)) {
-      return -1;
-    } else {
-      at = lt + 1;
-    }
-  }
-  return -1;
-}
-
-function svgDocumentHtml(svgSource: string, viewport: { width: number; height: number }): string {
-  const rootStart = svgRootStart(svgSource);
-  let svg = rootStart >= 0 ? svgSource.slice(rootStart) : svgSource;
-
-  const lifted: string[] = [];
-  svg = svg.replace(SVG_BREAKOUT_META, (m) => {
-    lifted.push(m);
-    return "";
-  });
-
-  let rootTag = svg.slice(0, svg.indexOf(">") + 1 || undefined);
-
-  const hasAbsoluteSize = (attr: string): boolean => {
-    const m = rootTag.match(new RegExp(`[\\s"']${attr}\\s*=\\s*["']?\\s*([^"'\\s>]+)`, "i"));
-    return !!m && !/%$/.test(m[1] ?? "");
-  };
-  if (
-    !/[\s"']viewBox\s*=/i.test(rootTag) &&
-    !(hasAbsoluteSize("width") && hasAbsoluteSize("height"))
-  ) {
-    const vb = `viewBox="0 0 ${viewport.width} ${viewport.height}"`;
-    svg = svg.replace("<svg", `<svg ${vb}`);
-    rootTag = svg.slice(0, svg.indexOf(">") + 1 || undefined);
-  }
-  const hasViewBox = /[\s"']viewBox\s*=/i.test(rootTag);
-
-  const axisRule = (attr: "width" | "height", unit: "vw" | "vh"): string => {
-    const m = rootTag.match(new RegExp(`[\\s"']${attr}\\s*=\\s*["']?\\s*([^"'\\s>]+)`, "i"));
-    if (!m) return hasViewBox ? `${attr}:100${unit};` : "";
-    const pct = (m[1] ?? "").match(/^([\d.]+)%$/);
-    if (!pct) return "";
-    return hasViewBox ? `${attr}:${pct[1]}${unit};` : "";
-  };
-
-  return (
-    "<!doctype html><html><head><style>" +
-    "html,body{margin:0;padding:0}" +
-    `body>svg{display:block;${axisRule("width", "vw")}${axisRule("height", "vh")}}` +
-    "</style>" +
-    lifted.join("") +
-    "</head><body>" +
-    svg +
-    "</body></html>"
-  );
-}
-
-function jsonViewerHtml(text: string, url: string): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return `<html><head><title>${escapeHtml(url)}</title></head><body><pre>${escapeHtml(text)}</pre></body></html>`;
-  }
-
-  return `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>${escapeHtml(url)}</title>
-<style>
-  :root { color-scheme: light; }
-  html, body {
-    margin: 0;
-    background: #fff;
-    color: #111;
-    font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  }
-  body { padding: 16px 24px 32px; }
-  .json-toolbar {
-    position: fixed;
-    top: 12px;
-    right: 20px;
-    display: inline-flex;
-    border: 1px solid #aaa;
-    border-radius: 3px;
-    overflow: hidden;
-    background: linear-gradient(#fdfdfd, #dadada);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
-    z-index: 1;
-  }
-  .json-toolbar button {
-    min-width: 70px;
-    padding: 6px 14px;
-    border: 0;
-    border-left: 1px solid #aaa;
-    background: transparent;
-    color: #333;
-    font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    cursor: pointer;
-  }
-  .json-toolbar button:first-child { border-left: 0; }
-  .json-toolbar button.active { background: linear-gradient(#d8d8d8, #f5f5f5); }
-  .json-panel { padding-right: 200px; }
-  pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-   /* Reserve a gutter on every row so leaf text aligns with disclosure controls. */
-  .json-row {
-    position: relative;
-    padding-left: 14px;
-    white-space: pre;
-    min-height: 1.4em;
-  }
-  .json-row > .json-toggle {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 12px;
-    color: #aaa;
-    cursor: pointer;
-    user-select: none;
-    font-size: 10px;
-    line-height: 1.4em;
-  }
-   /* Fixed indentation keeps child rows aligned regardless of key length. */
-  .json-children { margin-left: 14px; }
-  .json-collapsed > .json-children,
-  .json-collapsed > .json-close { display: none; }
-   /* Show the preview only while the row is collapsed. */
-  .json-preview { color: #888; }
-  .json-row:not(.json-collapsed) > .json-summary > .json-preview { display: none; }
-  .json-key { color: #881391; }
-  .json-string { color: #c41a16; }
-  .json-number { color: #1a01cc; }
-  .json-bool { color: #1a01cc; font-weight: 600; }
-  .json-null { color: #808080; font-weight: 600; }
-  .json-punct { color: #444; }
-</style>
-</head>
-<body>
-<div class="json-toolbar" role="tablist" aria-label="JSON view mode">
-  <button type="button" class="active" data-view="parsed" role="tab" aria-selected="true">Parsed</button>
-  <button type="button" data-view="raw" role="tab" aria-selected="false">Raw</button>
-</div>
-<main>
-  <section id="json-parsed" class="json-panel">${renderJsonRoot(parsed)}</section>
-  <section id="json-raw" class="json-panel" style="display:none"><pre>${escapeHtml(text)}</pre></section>
-</main>
-<script>
-  (function () {
-    var parsedPanel = document.getElementById("json-parsed");
-    var rawPanel = document.getElementById("json-raw");
-    var buttons = document.querySelectorAll(".json-toolbar button");
-    // The DOM shim does not reflect hidden into paint; use style.display.
-    function show(view) {
-      parsedPanel.style.display = view === "parsed" ? "" : "none";
-      rawPanel.style.display = view === "raw" ? "" : "none";
-      buttons.forEach(function (button) {
-        var active = button.getAttribute("data-view") === view;
-        button.classList.toggle("active", active);
-        button.setAttribute("aria-selected", active ? "true" : "false");
-      });
-    }
-    buttons.forEach(function (button) {
-      button.addEventListener("click", function () {
-        show(button.getAttribute("data-view"));
-      });
-    });
-    parsedPanel.addEventListener("click", function (ev) {
-      var summary = ev.target.closest && ev.target.closest(".json-summary");
-      if (!summary) return;
-      var row = summary.parentElement;
-      if (!row || !row.classList.contains("json-collapsible")) return;
-      row.classList.toggle("json-collapsed");
-    });
-  })();
-</script>
-</body>
-</html>`;
-}
-
-function renderJsonRoot(value: unknown): string {
-  return renderJsonRow(value, null, true);
-}
-
-function renderJsonRow(value: unknown, keyJson: string | null, last: boolean): string {
-  const keyHtml =
-    keyJson === null
-      ? ""
-      : `<span class="json-key">${escapeHtml(keyJson)}</span><span class="json-punct">: </span>`;
-  const trailing = last ? "" : `<span class="json-punct">,</span>`;
-
-  if (value === null || typeof value !== "object") {
-    return `<div class="json-row">${keyHtml}${renderJsonScalar(value)}${trailing}</div>`;
-  }
-
-  if (Array.isArray(value)) {
-    if (value.length === 0) {
-      return `<div class="json-row">${keyHtml}<span class="json-punct">[]</span>${trailing}</div>`;
-    }
-    const children = value
-      .map((item, index) => renderJsonRow(item, null, index === value.length - 1))
-      .join("");
-    return (
-      `<div class="json-row json-collapsible">` +
-      `<span class="json-toggle" aria-hidden="true">\u25bc</span>` +
-      `<span class="json-summary">${keyHtml}<span class="json-punct">[</span>` +
-      `<span class="json-preview">\u2026]${last ? "" : ","}</span></span>` +
-      `<div class="json-children">${children}</div>` +
-      `<div class="json-close"><span class="json-punct">]</span>${trailing}</div>` +
-      `</div>`
-    );
-  }
-
-  const entries = Object.entries(value as Record<string, unknown>);
-  if (entries.length === 0) {
-    return `<div class="json-row">${keyHtml}<span class="json-punct">{}</span>${trailing}</div>`;
-  }
-  const children = entries
-    .map(([k, v], index) => renderJsonRow(v, JSON.stringify(k), index === entries.length - 1))
-    .join("");
-  return (
-    `<div class="json-row json-collapsible">` +
-    `<span class="json-toggle" aria-hidden="true">\u25bc</span>` +
-    `<span class="json-summary">${keyHtml}<span class="json-punct">{</span>` +
-    `<span class="json-preview">\u2026}${last ? "" : ","}</span></span>` +
-    `<div class="json-children">${children}</div>` +
-    `<div class="json-close"><span class="json-punct">}</span>${trailing}</div>` +
-    `</div>`
-  );
-}
-
-function renderJsonScalar(value: unknown): string {
-  if (value === null) return `<span class="json-null">null</span>`;
-  switch (typeof value) {
-    case "string":
-      return `<span class="json-string">${escapeHtml(JSON.stringify(value))}</span>`;
-    case "number":
-      return `<span class="json-number">${escapeHtml(JSON.stringify(value))}</span>`;
-    case "boolean":
-      return `<span class="json-bool">${value ? "true" : "false"}</span>`;
-    default:
-      return `<span class="json-null">null</span>`;
-  }
 }
 
 const STYLE_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -3260,7 +3319,10 @@ function findStylesheetLinks(dom: DomHandle): Array<{ nodeId: number; href: stri
 function findIframes(dom: DomHandle): Array<{
   nodeId: number;
   src: string | null;
+  srcdoc: string | null;
+  sandbox: string | null;
   name: string | null;
+  id: string | null;
   loading: string | null;
 }> {
   let ids: Int32Array;
@@ -3272,7 +3334,10 @@ function findIframes(dom: DomHandle): Array<{
   const out: Array<{
     nodeId: number;
     src: string | null;
+    srcdoc: string | null;
+    sandbox: string | null;
     name: string | null;
+    id: string | null;
     loading: string | null;
   }> = [];
   for (const id of ids) {
@@ -3280,12 +3345,18 @@ function findIframes(dom: DomHandle): Array<{
     const info = safeNodeInfo(dom, id);
     if (!info) continue;
     const src = readAttr(info.attributes, "src");
+    const srcdoc = readAttr(info.attributes, "srcdoc");
+    const sandbox = readAttr(info.attributes, "sandbox");
     const name = readAttr(info.attributes, "name");
+    const idAttr = readAttr(info.attributes, "id");
     const loading = readAttr(info.attributes, "loading");
     out.push({
       nodeId: id,
       src: src ?? null,
+      srcdoc: srcdoc ?? null,
+      sandbox: sandbox ?? null,
       name: name ?? null,
+      id: idAttr ?? null,
       loading: loading ?? null,
     });
   }
@@ -3296,42 +3367,112 @@ function iframeDelaysLoadEvent(loading: string | null | undefined): boolean {
   return (loading ?? "").trim().toLowerCase() !== "lazy";
 }
 
+// A frame's active restrictions are its owner's sandbox attribute intersected with the embedding
+// document's own active restrictions, so a nested frame can never regain a capability.
+function childSandboxRestrictions(
+  parent: SandboxRestrictions,
+  ownerAttribute: string | null,
+): SandboxRestrictions {
+  return intersectSandbox(parent, parseSandboxAttribute(ownerAttribute));
+}
+
+function childFrameIsOpaque(frame: FrameState): boolean {
+  return !frame.sandbox.sameOrigin;
+}
+
+// A child that needs its own execution context: cross-origin, script-bearing, or opaque. A
+// script-disabled same-origin child keeps the parent-side document, as an unsandboxed one does.
+function frameNeedsIsolate(frame: FrameState): boolean {
+  return childFrameIsOpaque(frame) || frame.isCrossOrigin || frame.hasScript;
+}
+
+// The parent facade must not expose a document an isolate owns, and an opaque child has no
+// same-origin document at all. srcdoc has no isolate, so its parent-side document stays visible.
+function frameFacadeIsCrossOrigin(frame: FrameState): boolean {
+  if (childFrameIsOpaque(frame) || frame.isCrossOrigin) return true;
+  return frame.hasScript && !isSrcdocUrl(frame.url);
+}
+
+function isSrcdocUrl(url: string): boolean {
+  return /^about:srcdoc([?#]|$)/.test(url);
+}
+
+function resolvesToEmbedderOrigin(url: string): boolean {
+  return matchesAboutBlank(url) || isSrcdocUrl(url);
+}
+
+function childFrameUrl(src: string | null, srcdoc: string | null, baseUrl: string): string {
+  if (srcdoc !== null) return "about:srcdoc";
+  if (!src) return "about:blank";
+  try {
+    return new URL(src, baseUrl || undefined).toString();
+  } catch {
+    return "about:blank";
+  }
+}
+
+// The base URL a frame's own document resolves relative URLs against. A srcdoc document inherits
+// its embedder's base, and Page.Frame.url stays about:srcdoc.
+function frameBaseUrl(frame: FrameState, fallback: string): string {
+  return frame.baseUrl ?? frame.url ?? fallback;
+}
+
 function discoverChildFramesFor(
   target: TargetState,
   parentFrame: FrameState,
   parentDom: DomHandle,
+  budget: ChildFrameBudget,
 ): FrameState[] {
-  const baseUrl = parentFrame.url || target.url;
+  const baseUrl = frameBaseUrl(parentFrame, target.url);
   const iframes = findIframes(parentDom);
   const registered: FrameState[] = [];
   for (const ifr of iframes) {
-    let resolvedUrl: string;
-    if (ifr.src) {
-      try {
-        resolvedUrl = new URL(ifr.src, baseUrl || undefined).toString();
-      } catch {
-        resolvedUrl = "about:blank";
-      }
-    } else {
-      resolvedUrl = "about:blank";
-    }
+    if (!admitChildFrame(budget, baseUrl)) break;
+    const resolvedUrl = childFrameUrl(ifr.src, ifr.srcdoc, baseUrl);
     const childFrameId = mintFrameId();
     const childLoaderId = mintLoaderId();
     const isCrossOrigin =
-      resolvedUrl !== "about:blank" && originOf(resolvedUrl) !== originOf(target.url);
+      !resolvesToEmbedderOrigin(resolvedUrl) && originOf(resolvedUrl) !== originOf(target.url);
     const childFrame = makeChildFrameState({
       frameId: childFrameId,
       parentFrameId: parentFrame.frameId,
       loaderId: childLoaderId,
       url: resolvedUrl,
+      sandbox: childSandboxRestrictions(parentFrame.sandbox, ifr.sandbox),
+      srcdoc: ifr.srcdoc,
+      baseUrl: ifr.srcdoc !== null ? baseUrl : resolvedUrl,
+      name: ifr.name ?? "",
+      ownerElementId: ifr.id ?? "",
       ownerBackendNodeId: ifr.nodeId,
       isCrossOrigin,
       delaysLoadEvent: iframeDelaysLoadEvent(ifr.loading),
     });
     target.frames.set(childFrameId, childFrame);
+    childFrame.domBudget = budget;
     registered.push(childFrame);
   }
   return registered;
+}
+
+// Admits one child frame against the navigation's shared count before it is registered, so a
+// byte-only cap cannot leave thousands of empty iframe entries behind.
+function newChildFrameBudget(): ChildFrameBudget {
+  return { frames: 0, bytes: 0, framesWarned: false, bytesWarned: false };
+}
+
+function admitChildFrame(budget: ChildFrameBudget, at: string): boolean {
+  if (budget.frames < MAX_CHILD_FRAMES) {
+    budget.frames += 1;
+    return true;
+  }
+  if (!budget.framesWarned) {
+    budget.framesWarned = true;
+    console.warn(
+      `[kitesurf-iframe] MAX_CHILD_FRAMES=${MAX_CHILD_FRAMES} reached at ${at}; ` +
+        `further iframes not registered`,
+    );
+  }
+  return false;
 }
 
 const OOPIF_POLL_TIMEOUT_MS = 10_000;
@@ -3506,6 +3647,20 @@ function refuseBlockedFrame(ctx: DispatchCtx, target: TargetState, f: FrameState
   return true;
 }
 
+// HTML's site for cookies of the request that loads a frame: the top-level origin when every
+// ancestor is same-site with it, else none, which the cookie jar treats as cross-site with every
+// host. The frame's own requests also check its document (frameDocumentCookieSite).
+export function frameCookieSiteOrigin(target: TargetState, frame: FrameState): string {
+  const siteOf = (url: string): string | null => schemefulSite(url);
+  const topSite = siteOf(target.url);
+  for (let f = target.frames.get(frame.parentFrameId ?? ""); f;) {
+    if (f.parentFrameId === null) break;
+    if (!/^about:(blank|srcdoc)([?#]|$)/.test(f.url) && siteOf(f.url) !== topSite) return "";
+    f = target.frames.get(f.parentFrameId);
+  }
+  return topSite ? originOf(target.url) : "";
+}
+
 function oopifSpawnArgs(ctx: DispatchCtx, target: TargetState, f: FrameState): RenderFrameArgs {
   const embedder =
     f.parentFrameId && f.parentFrameId !== target.frameId
@@ -3524,19 +3679,27 @@ function oopifSpawnArgs(ctx: DispatchCtx, target: TargetState, f: FrameState): R
     frameId: f.frameId,
     frameLoaderId: f.loaderId,
     frameUrl: f.url,
+    sandbox: f.sandbox,
+    ancestorOrigins: frameAncestorOrigins(f, target.frames, target.url),
     parentOrigin: originOf(embedder ? embedder.url : target.url),
+    cookieSiteOrigin: frameCookieSiteOrigin(target, f),
     attributionHeaders: ctx.browser.attributionHeaders,
+    fontProfile: ctx.browser.fontProfile,
     makeUpstreamHandler: ({ stub, url }) => {
+      // The isolate is sealed with the restrictions active when it was spawned; a later navigation
+      // reassigns frame.sandbox before this document's unload handlers run.
+      const sealedSandbox = f.sandbox;
       const workerOwner = ctx.browser.dedicatedWorkers.ownerFor(
         target,
         f.frameId,
         stub,
         url,
         f.loaderId,
+        sealedSandbox.sameOrigin ? originOf(url) : "",
       );
       return (event, params) => {
         if (event === "kitesurf.postMessage") {
-          routePostMessageToParent(target, f.frameId, params);
+          routeChildFramePostMessage(target, f, params, url, sealedSandbox);
         } else if (isWorkerUpstreamEvent(event)) {
           ctx.browser.dedicatedWorkers.handle(ctx, workerOwner, event, params);
         }
@@ -3563,19 +3726,27 @@ function resetPrespawnBudget(target: TargetState): void {
 }
 
 function prespawnOopifFrame(ctx: DispatchCtx, target: TargetState, f: FrameState): void {
-  if (f.pageScript || f.oopifPrespawn || f.detached) return;
+  if (f.pageScript || f.oopifPrespawn || f.detached || f.framePolicyBlocked) return;
   const queue = prespawnQueueFor(target);
   if (queue.started >= MAX_PRESPAWNS_PER_NAVIGATE) return;
   if (!f.url || f.url === "about:blank") return;
-  if (!f.isCrossOrigin) return;
+  if (!f.isCrossOrigin && !childFrameIsOpaque(f)) return;
   if (!/^(https?|data):/i.test(f.url)) return;
   if (refuseBlockedFrame(ctx, target, f)) return;
   const lease = ctx.browser.workerBudget.acquire("oopif");
   if (!lease) return;
   f.pageScriptLease = lease;
   const url = f.url;
+  const sandbox = f.sandbox;
   const args = oopifSpawnArgs(ctx, target, f);
+  const ancestorOrigins = args.ancestorOrigins;
   queue.started++;
+  const entry: NonNullable<FrameState["oopifPrespawn"]> = {
+    url,
+    sandbox,
+    ancestorOrigins,
+    promise: Promise.resolve(null),
+  };
   const promise = queue.tail.then(async () => {
     if (f.detached || ctx.browser.wsClosing) return null;
     try {
@@ -3583,6 +3754,7 @@ function prespawnOopifFrame(ctx: DispatchCtx, target: TargetState, f: FrameState
       const pre = await prespawnFrameIsolate(ctx.env, ctx.ctx, args);
       if (!pre.ok) {
         console.warn(`[kitesurf-oopif] prespawn failed for ${url}: ${pre.error}`);
+        if (pre.refused) entry.refused = true;
         return null;
       }
       return pre;
@@ -3602,34 +3774,53 @@ function prespawnOopifFrame(ctx: DispatchCtx, target: TargetState, f: FrameState
     return pre;
   });
   queue.tail = settled.catch(() => null);
-  f.oopifPrespawn = { url, promise: settled };
+  entry.promise = settled;
+  f.oopifPrespawn = entry;
   ctx.ctx.waitUntil(promise.then(() => {}));
 }
 
 async function takeOopifPrespawn(
   f: FrameState,
   currentUrl: string,
-): Promise<PrespawnedFrame | null> {
+  currentAncestorOrigins: readonly CommittedOrigin[],
+): Promise<PrespawnedFrame | "refused" | null> {
   const entry = f.oopifPrespawn;
   if (!entry) return null;
   f.oopifPrespawn = undefined;
   const pre = await entry.promise;
-  if (!pre) return null;
-  if (entry.url !== currentUrl) {
-    await discardOopifPrespawnResult(pre, "oopif prespawn stale: src changed");
+  const current =
+    entry.url === currentUrl &&
+    entry.sandbox === f.sandbox &&
+    sameAncestorOrigins(entry.ancestorOrigins, currentAncestorOrigins);
+  if (!pre) return entry.refused && current ? "refused" : null;
+  if (!current) {
+    await discardOopifPrespawnResult(pre, "oopif prespawn stale: src, sandbox or ancestry changed");
     return null;
   }
   return pre;
 }
 
-async function discardOopifPrespawnResult(pre: PrespawnedFrame, reason: string): Promise<void> {
+function sameAncestorOrigins(
+  a: readonly CommittedOrigin[],
+  b: readonly CommittedOrigin[],
+): boolean {
+  return (
+    a.length === b.length && a.every((origin, index) => sameCommittedOrigin(origin, b[index]!))
+  );
+}
+
+async function discardOopifPrespawnResult(
+  pre: PrespawnedFrame,
+  reason: string,
+  final = false,
+): Promise<void> {
   try {
     const { discardPrespawnedFrame } = await import("../eval/oopif-render.ts");
-    await discardPrespawnedFrame(pre, reason);
+    await discardPrespawnedFrame(pre, reason, final);
   } catch {}
 }
 
-function discardOopifPrespawn(f: FrameState, reason: string): void {
+function discardOopifPrespawn(f: FrameState, reason: string, atClose?: GenerationDeps): void {
   const entry = f.oopifPrespawn;
   if (!entry) return;
   f.oopifPrespawn = undefined;
@@ -3637,7 +3828,40 @@ function discardOopifPrespawn(f: FrameState, reason: string): void {
     f.pageScriptLease?.release();
     f.pageScriptLease = null;
   }
-  void entry.promise.then((pre) => (pre ? discardOopifPrespawnResult(pre, reason) : undefined));
+  const discarding = entry.promise.then((pre) =>
+    pre ? discardOopifPrespawnResult(pre, reason, atClose !== undefined) : undefined,
+  );
+  if (atClose?.waitUntil) atClose.waitUntil(discarding);
+}
+
+function clearRefusedFrameBitmap(target: TargetState, f: FrameState): void {
+  const ps = target.pageScript;
+  if (!ps || f.ownerBackendNodeId < 0) return;
+  void ps.clearFrameBitmap({ ownerBackendNodeId: f.ownerBackendNodeId }).catch(() => {});
+}
+
+// A script-free same-origin child keeps its document in the parent isolate. Announcing its context
+// lets CDP evaluate against that same contentWindow/contentDocument without spawning an isolate.
+function isParentHostedFrame(frame: FrameState): boolean {
+  return (
+    frame.parentFrameId !== null &&
+    !frame.detached &&
+    !frame.framePolicyBlocked &&
+    !frame.requestBlocked &&
+    !frameNeedsIsolate(frame)
+  );
+}
+
+function announceParentHostedFrameContext(
+  ctx: DispatchCtx,
+  target: TargetState,
+  frame: FrameState,
+): void {
+  if (frame.execContextId > 0 || !isParentHostedFrame(frame)) return;
+  const nextId = ctx.browser.execContextSeq ?? 2;
+  ctx.browser.execContextSeq = nextId + 1;
+  frame.execContextId = nextId;
+  emitOopifExecutionContext(ctx, frame, target.url);
 }
 
 async function spawnOopifPipeline(
@@ -3647,9 +3871,9 @@ async function spawnOopifPipeline(
 ): Promise<void> {
   const ps = target.pageScript;
   if (!ps) return;
-  if (f.pageScript || f.oopifSpawning || f.detached) return;
+  if (f.pageScript || f.oopifSpawning || f.detached || f.framePolicyBlocked) return;
   if (!f.url || f.url === "about:blank") return;
-  if (!f.isCrossOrigin && !f.hasScript) return;
+  if (!frameNeedsIsolate(f)) return;
   if (!/^(https?|data):/i.test(f.url)) return;
   if (refuseBlockedFrame(ctx, target, f)) return;
   const lease = f.pageScriptLease ?? ctx.browser.workerBudget.acquire("oopif");
@@ -3692,11 +3916,22 @@ async function spawnOopifPipeline(
       return;
     }
     const args = { ...oopifSpawnArgs(ctx, target, f), viewport };
-    const pre = await takeOopifPrespawn(f, f.url);
+    const pre = await takeOopifPrespawn(f, f.url, args.ancestorOrigins);
+    if (pre === "refused") {
+      f.framePolicyBlocked = true;
+      clearRefusedFrameBitmap(target, f);
+      lease.release();
+      f.pageScriptLease = null;
+      return;
+    }
     const spawn = pre
       ? await navigatePrespawnedFrame(pre, args)
       : await spawnAndNavigateFrame(ctx.env, ctx.ctx, args);
     if (!spawn.ok) {
+      if (spawn.refused) {
+        f.framePolicyBlocked = true;
+        clearRefusedFrameBitmap(target, f);
+      }
       console.warn(`[kitesurf-oopif] spawn failed for ${f.url}: ${spawn.error}`);
       lease.release();
       f.pageScriptLease = null;
@@ -3718,6 +3953,21 @@ async function spawnOopifPipeline(
       f.pageScriptLease = null;
       return;
     }
+    // The response policy was checked against the ancestry at fetch time; a parent that committed
+    // a different document meanwhile must not authorize this one.
+    if (
+      !sameAncestorOrigins(args.ancestorOrigins, frameAncestorOrigins(f, target.frames, target.url))
+    ) {
+      try {
+        await spawn.stub.unload();
+      } catch {}
+      try {
+        spawn.stub.close?.("oopif spawn stale: ancestry changed");
+      } catch {}
+      lease.release();
+      f.pageScriptLease = null;
+      return;
+    }
     if (f.url !== urlAtStart) {
       try {
         await spawn.stub.unload();
@@ -3728,12 +3978,14 @@ async function spawnOopifPipeline(
       lease.release();
       f.pageScriptLease = null;
       f.oopifSpawning = false;
-      if (f.url && f.url !== "about:blank" && (f.isCrossOrigin || f.hasScript)) {
+      if (f.url && f.url !== "about:blank" && frameNeedsIsolate(f)) {
         await spawnOopifPipeline(ctx, target, f);
       }
       return;
     }
+    f.pageScriptUrl = spawn.finalUrl || urlAtStart;
     f.pageScript = spawn.stub;
+    f.pageScriptSandbox = args.sandbox;
     if (spawn.finalUrl && spawn.finalUrl !== f.url) {
       f.url = spawn.finalUrl;
       f.securityOrigin = originOf(spawn.finalUrl);
@@ -3741,13 +3993,10 @@ async function spawnOopifPipeline(
     {
       const queued = f.pendingPostMessages;
       f.pendingPostMessages = undefined;
-      for (const p of queued ?? []) {
-        routePostMessageToChild(target, p);
-      }
+      for (const p of queued ?? []) deliverPostMessageToChild(f, p);
     }
     f.execContextId = ctx.browser.execContextSeq++;
-    const { emitOopifExecutionContext } = await import("./runtime.ts");
-    emitOopifExecutionContext(ctx, f);
+    emitOopifExecutionContext(ctx, f, target.url);
     announceOopifTarget(ctx, f);
     if (ctx.browser.skipSpeculativeRaster) return;
     const manager = getRendererManager(ctx, target);
@@ -3791,9 +4040,16 @@ async function spawnOopifPipeline(
   }
 }
 
-export function teardownOopifStubs(target: TargetState, reason: string, ctx?: DispatchCtx): void {
+// `atClose` is for the socket close: nothing reads a frame again, so its isolate is killed without
+// the background unload, and the kill stays within the request's lifetime.
+export function teardownOopifStubs(
+  target: TargetState,
+  reason: string,
+  ctx?: DispatchCtx,
+  atClose?: GenerationDeps,
+): void {
   for (const f of target.frames.values()) {
-    teardownOopifStubForFrame(target, f, reason, ctx);
+    teardownOopifStubForFrame(target, f, reason, ctx, atClose);
     releaseFrameDom(f);
   }
 }
@@ -3803,74 +4059,77 @@ function teardownOopifStubForFrame(
   f: FrameState,
   reason: string,
   ctx?: DispatchCtx,
+  atClose?: GenerationDeps,
 ): void {
-  discardOopifPrespawn(f, reason);
+  discardOopifPrespawn(f, reason, atClose);
   if (ctx && f.parentFrameId !== null) {
     ctx.browser.dedicatedWorkers.terminateFrame(target.targetId, f.frameId, reason);
   }
   if (ctx && f.parentFrameId !== null) {
-    if (ctx.browser.connectionMode === "browser" || f.sessions.size > 0) {
+    if (ctx.client.connectionMode === "browser" || f.sessions.size > 0) {
       destroyOopifTarget(ctx, f);
     } else {
       ctx.browser.networkEvents.deleteTargetAttribution(f.frameId);
     }
   }
-  if (!f.pageScript) return;
   const destroyedCtxId = f.execContextId;
-  f.lastRenderSeq = -1;
   f.execContextId = 0;
-  void retireStub(f, "frameTeardown", `oopif teardown: ${reason}`, {
-    budget: ctx?.browser.workerBudget,
-  });
   if (ctx && destroyedCtxId > 0) {
-    (async () => {
-      const { emitOopifExecutionContextDestroyed } = await import("./runtime.ts");
-      emitOopifExecutionContextDestroyed(ctx, destroyedCtxId);
-    })();
+    emitOopifExecutionContextDestroyed(ctx, destroyedCtxId);
   }
+  if (!f.pageScript) return;
+  f.lastRenderSeq = -1;
+  void retireStub(
+    f,
+    atClose ? "wsClosed" : "frameTeardown",
+    `oopif teardown: ${reason}`,
+    atClose ?? { budget: ctx?.browser.workerBudget },
+  );
+  f.pageScriptUrl = null;
+  f.pageScriptSandbox = undefined;
 }
 
-function rebuildFrameTreeChildren(target: TargetState): void {
+function rebuildFrameTreeChildren(target: TargetState, budget: ChildFrameBudget): void {
   if (target.docScan) {
-    discoverChildFramesFromScan(target, mainFrame(target), target.docScan);
+    discoverChildFramesFromScan(target, mainFrame(target), target.docScan, budget);
     return;
   }
   if (!target.dom) return;
-  discoverChildFramesFor(target, mainFrame(target), target.dom);
+  discoverChildFramesFor(target, mainFrame(target), target.dom, budget);
 }
 
 function discoverChildFramesFromScan(
   target: TargetState,
   parentFrame: FrameState,
   scan: DocScan,
+  budget: ChildFrameBudget,
 ): FrameState[] {
-  const baseUrl = parentFrame.url || target.url;
+  const baseUrl = frameBaseUrl(parentFrame, target.url);
   const registered: FrameState[] = [];
   for (const ifr of scan.iframes) {
-    let resolvedUrl: string;
-    if (ifr.src) {
-      try {
-        resolvedUrl = new URL(ifr.src, baseUrl || undefined).toString();
-      } catch {
-        resolvedUrl = "about:blank";
-      }
-    } else {
-      resolvedUrl = "about:blank";
-    }
+    if (!admitChildFrame(budget, baseUrl)) break;
+    const srcdoc = ifr.srcdoc ?? null;
+    const resolvedUrl = childFrameUrl(ifr.src, srcdoc, baseUrl);
     const childFrameId = mintFrameId();
     const childLoaderId = mintLoaderId();
     const isCrossOrigin =
-      resolvedUrl !== "about:blank" && originOf(resolvedUrl) !== originOf(target.url);
+      !resolvesToEmbedderOrigin(resolvedUrl) && originOf(resolvedUrl) !== originOf(target.url);
     const childFrame = makeChildFrameState({
       frameId: childFrameId,
       parentFrameId: parentFrame.frameId,
       loaderId: childLoaderId,
       url: resolvedUrl,
+      sandbox: childSandboxRestrictions(parentFrame.sandbox, ifr.sandbox ?? null),
+      srcdoc,
+      baseUrl: srcdoc !== null ? baseUrl : resolvedUrl,
+      name: ifr.name ?? "",
+      ownerElementId: ifr.id ?? "",
       ownerBackendNodeId: -1,
       isCrossOrigin,
       delaysLoadEvent: iframeDelaysLoadEvent(ifr.loading),
     });
     target.frames.set(childFrameId, childFrame);
+    childFrame.domBudget = budget;
     registered.push(childFrame);
   }
   return registered;
@@ -3896,7 +4155,9 @@ async function backfillIframeOwnerNodeIds(target: TargetState): Promise<void> {
   } catch {}
 }
 
-const MAX_IFRAME_DEPTH = 8;
+// One navigation may register this many child frames, and retain at most MAX_DOCUMENT_BYTES of
+// their parse input, across every branch and depth.
+const MAX_CHILD_FRAMES = 256;
 
 const IFRAME_DOC_WALK_BUDGET_MS = 15_000;
 
@@ -3915,13 +4176,41 @@ function isSameOriginPathChange(from: string, to: string): boolean {
   }
 }
 
+// HTML's "can have its URL rewritten". A document never moves to another origin, and a
+// non-HTTP(S) one such as data: or about: changes only its fragment (file: also its query).
+export function canRewriteDocumentUrl(documentUrl: string, targetUrl: string): boolean {
+  let doc: URL;
+  let next: URL;
+  try {
+    doc = new URL(documentUrl);
+    next = new URL(targetUrl);
+  } catch {
+    return false;
+  }
+  if (
+    doc.protocol !== next.protocol ||
+    doc.username !== next.username ||
+    doc.password !== next.password ||
+    doc.host !== next.host
+  ) {
+    return false;
+  }
+  if (next.protocol === "http:" || next.protocol === "https:") return true;
+  if (next.protocol === "file:") return doc.pathname === next.pathname;
+  return doc.pathname === next.pathname && doc.search === next.search;
+}
+
 export function installUpstreamEventHandler(
   ctx: DispatchCtx,
   target: TargetState,
   stub: PageScriptStub,
   generation: number,
   url: string,
+  // Where this document's localStorage changes go: absent for an opaque origin, whose
+  // localStorage stays in the page (state/local-storage.ts).
+  sharedLocalStorage?: { storage: LocalStorage; origin: string },
 ): void {
+  if (target.navigateGeneration === generation) target.pageScriptUrl = url;
   if (typeof stub.setUpstreamEventHandler !== "function") return;
   const workerOwner = ctx.browser.dedicatedWorkers.ownerFor(
     target,
@@ -3929,21 +4218,33 @@ export function installUpstreamEventHandler(
     stub,
     url,
     target.loaderId,
+    originOf(url),
   );
+  const loaderId = target.loaderId;
   stub.setUpstreamEventHandler((event, params) => {
-    if (target.navigateGeneration !== generation) return;
     if (ctx.browser.wsClosing) return;
+    // Before the generation check: a write the old document made just before a navigation still
+    // happened, and this closure knows its origin.
+    if (event === "kitesurf.localStorage") {
+      if (sharedLocalStorage) {
+        sharedLocalStorage.storage.apply(sharedLocalStorage.origin, readLocalStorageOps(params));
+      }
+      return;
+    }
+    if (target.navigateGeneration !== generation) return;
     if (event === "kitesurf.diag") {
       target.diagSpans?.handle(params);
       return;
     }
     if (event === "kitesurf.insertedScriptRan") {
       const p = params as { url?: unknown; bytes?: unknown; run?: unknown };
-      if (typeof p.url === "string" && typeof p.bytes === "number" && target.url) {
+      if (typeof p.url === "string" && typeof p.bytes === "number") {
         const run = p.run === "baked" || p.run === "stale" ? p.run : "boa";
+        // The isolate's own url, not target.url: during Page.navigate target.url already names
+        // the next document while this isolate can still report.
         recordInsertedScript(
           ctx.browser.learnedInsertedScripts,
-          target.url,
+          url,
           p.url,
           p.bytes,
           run,
@@ -3965,7 +4266,11 @@ export function installUpstreamEventHandler(
       ctx.browser.dedicatedWorkers.handle(ctx, workerOwner, event, params);
       return;
     }
-    handleUpstreamFrameEvent(ctx, target, undefined, event, params);
+    // Page.navigate mints the next loader id and resets target.frames before it bumps the
+    // generation, while this isolate still runs. Its frame events then describe a document that
+    // is being replaced and must not reach the next one's frames.
+    if (target.loaderId !== loaderId) return;
+    handleUpstreamFrameEvent(ctx, target, undefined, event, params, url);
   });
 }
 
@@ -3975,8 +4280,14 @@ export function installIsolateLimitSurface(
   generation: number,
   scriptName: string,
 ): void {
+  // A replacement generation retires the previous one's listener; nothing else removes it.
+  unregisterIsolateLimitListenersForTarget(ctx.connectionId, target.targetId);
   const caps = pageIsolateCaps(ctx.env, ctx.browser.isolateCapOverrides);
-  registerIsolateLimitListener(scriptName, (notice) => {
+  const isLive = () =>
+    !ctx.browser.wsClosing &&
+    target.navigateGeneration === generation &&
+    ctx.browser.targets.get(target.targetId) === target;
+  const onLimit = (notice: IsolateLimitNotice) => {
     if (target.navigateGeneration !== generation) return;
     if (target.isolateLimitReportedGen === generation) return;
     target.isolateLimitReportedGen = generation;
@@ -4026,6 +4337,11 @@ export function installIsolateLimitSurface(
     }
     for (const ev of events) ctx.browser.networkEvents.queueRaw(ev);
     if (!notice.fromTail) ctx.browser.networkEvents.drain();
+  };
+  registerIsolateLimitListener(scriptName, onLimit, {
+    owner: ctx.connectionId,
+    targetId: target.targetId,
+    isLive,
   });
 }
 
@@ -4035,56 +4351,129 @@ function postMessageOriginAllowed(
   recipientOrigin: string,
 ): boolean {
   if (targetOrigin === "*") return true;
+  // An opaque recipient has no serializable identity to match, and unrelated opaque origins
+  // never compare equal, so only "*" can address it.
+  if (recipientOrigin === "") return false;
   if (targetOrigin === "/") return recipientOrigin === senderOrigin;
   return originOf(targetOrigin) === recipientOrigin;
 }
 
-function routePostMessageToChild(target: TargetState, params: ReceivedUpstreamParams): void {
+// The committed origin of a frame's document: opaque when its sandbox omits allow-same-origin. An
+// installed isolate keeps the snapshot it was sealed with until teardown.
+function committedFrameOrigin(frame: FrameState): string {
+  const sandbox = frame.pageScriptSandbox ?? frame.sandbox;
+  return sandbox.sameOrigin ? originOf(frame.pageScriptUrl ?? frame.url) : "";
+}
+
+// MessageEvent.origin comes from the url the engine committed for the sending frame, never from
+// the isolate's claim. An about:blank or about:srcdoc frame has its embedder's origin. An isolate
+// uses the url and sandbox it was sealed with (sealedUrl/sealedSandbox): a frame's url and
+// restrictions move to the next document before the old one has run its unload handlers.
+function frameMessageOrigin(
+  target: TargetState,
+  frame: FrameState,
+  sealedUrl?: string,
+  sealedSandbox?: SandboxRestrictions,
+): string {
+  // A sandboxed document without allow-same-origin serializes its origin as "null".
+  if (!(sealedSandbox ?? frame.sandbox).sameOrigin) return "null";
+  const about = /^about:(blank|srcdoc)([?#]|$)/;
+  let f: FrameState | undefined = frame;
+  let url = sealedUrl !== undefined && !about.test(sealedUrl) ? sealedUrl : null;
+  while (url === null && f && f.parentFrameId !== null && about.test(f.url)) {
+    f = target.frames.get(f.parentFrameId);
+  }
+  url ??= !f ? "" : f.parentFrameId === null ? (target.pageScriptUrl ?? f.url) : f.url;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return "null";
+  }
+}
+
+// A child frame's message goes to its parent only when it says so, or else to its own child.
+export function routeChildFramePostMessage(
+  target: TargetState,
+  from: FrameState,
+  params: ReceivedUpstreamParams,
+  sealedUrl?: string,
+  sealedSandbox?: SandboxRestrictions,
+): void {
+  if (params.toParent === true) {
+    routePostMessageToParent(target, from.frameId, params, sealedUrl, sealedSandbox);
+  } else {
+    routePostMessageToChild(target, from, params, sealedUrl, sealedSandbox);
+  }
+}
+
+// Owner ids are node ids in the sender's document, so match them only among its own children.
+export function routePostMessageToChild(
+  target: TargetState,
+  from: FrameState,
+  params: ReceivedUpstreamParams,
+  sealedUrl?: string,
+  sealedSandbox?: SandboxRestrictions,
+): void {
   const ownerId = typeof params.toFrameOwnerId === "number" ? params.toFrameOwnerId : -1;
   if (ownerId <= 0) return;
   for (const f of target.frames.values()) {
-    if (f.ownerBackendNodeId !== ownerId || f.parentFrameId === null) continue;
+    if (f.ownerBackendNodeId !== ownerId || f.parentFrameId !== from.frameId) continue;
+    const message = {
+      ...params,
+      sourceOrigin: frameMessageOrigin(target, from, sealedUrl, sealedSandbox),
+    };
     if (!f.pageScript) {
       if (!f.detached) {
         const q = (f.pendingPostMessages ??= []);
-        if (q.length < MAX_PENDING_CHILD_POST_MESSAGES) q.push(params);
+        if (q.length < MAX_PENDING_CHILD_POST_MESSAGES) q.push(message);
       }
       return;
     }
-    const senderOrigin = String(params.sourceOrigin ?? "");
-    if (
-      !postMessageOriginAllowed(String(params.targetOrigin ?? "*"), senderOrigin, originOf(f.url))
-    ) {
-      return;
-    }
-    void f.pageScript
-      .deliverMessage({
-        dataJson: String(params.dataJson ?? "null"),
-        origin: senderOrigin,
-        fromParent: true,
-      })
-      .catch(() => {});
+    deliverPostMessageToChild(f, message);
     return;
   }
 }
 
-function routePostMessageToParent(
+function deliverPostMessageToChild(f: FrameState, message: ReceivedUpstreamParams): void {
+  if (!f.pageScript) return;
+  const senderOrigin = String(message.sourceOrigin ?? "");
+  if (
+    !postMessageOriginAllowed(
+      String(message.targetOrigin ?? "*"),
+      senderOrigin,
+      committedFrameOrigin(f),
+    )
+  ) {
+    return;
+  }
+  void f.pageScript
+    .deliverMessage({
+      dataJson: String(message.dataJson ?? "null"),
+      origin: senderOrigin,
+      fromParent: true,
+    })
+    .catch(() => {});
+}
+
+export function routePostMessageToParent(
   target: TargetState,
   fromFrameId: string,
   params: ReceivedUpstreamParams,
+  sealedUrl?: string,
+  sealedSandbox?: SandboxRestrictions,
 ): void {
   const f = target.frames.get(fromFrameId);
   if (!f || f.detached) return;
-  const senderOrigin = String(params.sourceOrigin ?? "");
+  const senderOrigin = frameMessageOrigin(target, f, sealedUrl, sealedSandbox);
   let recipient: PageScriptStub | null = null;
   let recipientOrigin = "";
   if (!f.parentFrameId || f.parentFrameId === target.frameId) {
     recipient = target.pageScript;
-    recipientOrigin = originOf(target.url);
+    recipientOrigin = committedFrameOrigin(mainFrame(target));
   } else {
     const pf = target.frames.get(f.parentFrameId);
     recipient = pf?.pageScript ?? null;
-    recipientOrigin = pf ? originOf(pf.url) : "";
+    recipientOrigin = pf ? committedFrameOrigin(pf) : "";
   }
   if (!recipient) return;
   if (
@@ -4101,12 +4490,29 @@ function routePostMessageToParent(
     .catch(() => {});
 }
 
+// The page supplies the reply or event that carries a form POST, so only the enctypes a real
+// HTML form can produce may become a document navigation. Anything else would mint a
+// credentialed POST with a content type a browser forces through a CORS preflight.
+const FORM_POST_CONTENT_TYPES = new Set(["application/x-www-form-urlencoded", "text/plain"]);
+
+// An RFC 2046 boundary token of at most 70 characters cannot break out of the header.
+const MULTIPART_CONTENT_TYPE = /^multipart\/form-data; boundary=[0-9A-Za-z'()+_,\-./:=?]{1,70}$/;
+
+export function formPostContentType(raw: unknown): string | null {
+  if (raw === undefined) return "application/x-www-form-urlencoded";
+  if (typeof raw !== "string") return null;
+  const type = raw.trim();
+  if (FORM_POST_CONTENT_TYPES.has(type)) return type;
+  return MULTIPART_CONTENT_TYPE.test(type) ? type : null;
+}
+
 function handleUpstreamFrameEvent(
   ctx: DispatchCtx,
   target: TargetState,
   sessionId: string | undefined,
   event: UpstreamEventName,
   params: ReceivedUpstreamParams,
+  isolateUrl: string,
 ): void {
   if (event === "kitesurf.bindingCalled") {
     const name = typeof params.name === "string" ? params.name : "";
@@ -4128,22 +4534,24 @@ function handleUpstreamFrameEvent(
   }
 
   if (event === "kitesurf.postMessage") {
-    routePostMessageToChild(target, params);
+    routePostMessageToChild(target, mainFrame(target), params);
     return;
   }
   if (event === "kitesurf.formSubmitNavigate") {
     const url = typeof params.url === "string" ? params.url : null;
     if (!url) return;
     const postData = typeof params.postData === "string" ? params.postData : null;
-    const postContentType =
-      typeof params.postContentType === "string"
-        ? params.postContentType
-        : "application/x-www-form-urlencoded";
+    const postContentType = formPostContentType(params.postContentType);
+    if (postData !== null && postContentType === null) return;
     (async () => {
       try {
         const { dispatch } = await import("./dispatch.ts");
-        const navParams: Protocol.Page.NavigateRequest = { url, _kitesurfInternal: true };
-        if (postData !== null) {
+        const navParams: Protocol.Page.NavigateRequest = {
+          url,
+          _kitesurfInternal: true,
+          _kitesurfInitiatorOrigin: initiatorOriginOf(isolateUrl) ?? "null",
+        };
+        if (postData !== null && postContentType !== null) {
           navParams._kitesurfPostData = postData;
           navParams._kitesurfPostContentType = postContentType;
         }
@@ -4219,7 +4627,11 @@ function handleUpstreamFrameEvent(
           await dispatch(ctx, {
             id: -1,
             method: "Page.navigate",
-            params: { url, _kitesurfInternal: true },
+            params: {
+              url,
+              _kitesurfInternal: true,
+              _kitesurfInitiatorOrigin: initiatorOriginOf(isolateUrl) ?? "null",
+            },
             sessionId: targetSessionsNetwork(target, sessionId)[0],
           });
         } catch (err) {
@@ -4232,6 +4644,8 @@ function handleUpstreamFrameEvent(
       return;
     }
 
+    // Checked against the isolate's url because target.url is what this event would overwrite.
+    if (!canRewriteDocumentUrl(isolateUrl, url)) return;
     target.url = url;
     if (kind === "replaceState") {
       const live = target.navigationHistory[target.navigationHistoryIndex];
@@ -4260,12 +4674,19 @@ function handleUpstreamFrameEvent(
     const url = typeof params.url === "string" && params.url ? params.url : "about:blank";
     const ownerBackendNodeId =
       typeof params.ownerBackendNodeId === "number" ? params.ownerBackendNodeId : -1;
-    const isCrossOrigin = url !== "about:blank" && originOf(url) !== originOf(target.url);
+    const isCrossOrigin = !resolvesToEmbedderOrigin(url) && originOf(url) !== originOf(target.url);
+    const parentFrame = target.frames.get(target.frameId);
     const frame = makeChildFrameState({
       frameId,
       parentFrameId: target.frameId,
       loaderId: mintLoaderId(),
       url,
+      sandbox: childSandboxRestrictions(
+        parentFrame?.sandbox ?? SANDBOX_ALLOW_ALL,
+        typeof params.sandbox === "string" ? params.sandbox : null,
+      ),
+      name: typeof params.name === "string" ? params.name : "",
+      ownerElementId: typeof params.id === "string" ? params.id : "",
       ownerBackendNodeId,
       isCrossOrigin,
       delaysLoadEvent: iframeDelaysLoadEvent(
@@ -4295,7 +4716,7 @@ function handleUpstreamFrameEvent(
     return;
   }
   const frame = target.frames.get(frameId);
-  if (!frame) return;
+  if (!frame || frame.parentFrameId === null) return;
   const revived = frame.detached;
   if (revived) {
     if (event !== "kitesurf.frameNavigated") return;
@@ -4305,10 +4726,23 @@ function handleUpstreamFrameEvent(
   if (event === "kitesurf.frameNavigated") {
     const url = typeof params.url === "string" && params.url ? params.url : frame.url;
     const urlChanged = url !== frame.url;
+    // A new document commits its own response policy; a refusal is never inherited by the next
+    // navigation of the same frame.
+    frame.framePolicyBlocked = false;
+    // page-script snapshots the owner attribute when the navigation starts; a later attribute
+    // change only affects the next navigation.
+    if (Object.prototype.hasOwnProperty.call(params, "sandbox")) {
+      const parentFrame = target.frames.get(frame.parentFrameId);
+      frame.sandbox = childSandboxRestrictions(
+        parentFrame?.sandbox ?? SANDBOX_ALLOW_ALL,
+        typeof params.sandbox === "string" ? params.sandbox : null,
+      );
+    }
     if (urlChanged) {
       frame.url = url;
       frame.securityOrigin = originOf(url);
-      frame.isCrossOrigin = !matchesAboutBlank(url) && originOf(url) !== originOf(target.url);
+      frame.isCrossOrigin =
+        !resolvesToEmbedderOrigin(url) && originOf(url) !== originOf(target.url);
     }
     emitFrameNavigated(ctx, target, frame, sessionId);
     if (urlChanged && !revived) {
@@ -4317,8 +4751,12 @@ function handleUpstreamFrameEvent(
     if (urlChanged || revived) {
       emitFrameTarget(ctx, frame);
     }
-    if (!frame.pageScript && !frame.oopifSpawning && (frame.isCrossOrigin || frame.hasScript)) {
-      ctx.ctx.waitUntil(spawnOopifPipeline(ctx, target, frame).catch(() => {}));
+    if (!frame.pageScript && !frame.oopifSpawning) {
+      if (frameNeedsIsolate(frame)) {
+        ctx.ctx.waitUntil(spawnOopifPipeline(ctx, target, frame).catch(() => {}));
+      } else {
+        announceParentHostedFrameContext(ctx, target, frame);
+      }
     }
     return;
   }
@@ -4415,16 +4853,20 @@ async function loadChildFrame(
   sessionId: string | undefined,
   depth: number = 1,
   ancestorUrls: ReadonlySet<string> = new Set(),
+  budget: ChildFrameBudget,
 ): Promise<void> {
   const docPageOrigin = originOf(frame.url);
   const entryUrl = frame.url;
+  const ancestorOrigins = frameAncestorOrigins(frame, target.frames, target.url);
   const embedder =
     frame.parentFrameId && frame.parentFrameId !== target.frameId
       ? target.frames.get(frame.parentFrameId)
       : undefined;
   // Child requests inherit the embedding document's URL and referrer policy.
-  const childDocProps: Omit<OutboundProps, "externalOutbound"> = {
+  const childDocProps: CallerOutboundProps = {
     pageOrigin: docPageOrigin,
+    // The embedder decides whether the frame may reach a private address.
+    cookieSiteOrigin: frameCookieSiteOrigin(target, frame),
     // The embedder's URL and policy give the Referer a browser sends;
     // page-script reports the same value as the frame's document.referrer.
     pageUrl: embedder ? embedder.url : target.url,
@@ -4434,89 +4876,131 @@ async function loadChildFrame(
     allowDocumentBypass: true,
     walksOwnRedirects: true,
   };
-  const docOutbound = ctx.browser.sandboxOutbound.parent(childDocProps);
-  let resp: Response;
-  let finalUrl: string;
-  const walkAbort = new AbortController();
-  const walkTimer = setTimeout(
-    () => walkAbort.abort(new Error("kitesurf: iframe document walk timeout")),
-    IFRAME_DOC_WALK_BUDGET_MS,
-  );
-  try {
-    const walk = await walkRedirects({
-      url: frame.url,
-      signal: walkAbort.signal,
-      fetchHop: (hopReq) => docOutbound.fetch(hopReq),
-      headers: {
-        "x-kitesurf-allow-cross-origin": "1",
-        "x-kitesurf-resource-type": "Document",
-        "x-kitesurf-frame-id": frame.frameId,
-        "x-kitesurf-initiator": "parser",
-        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "sec-fetch-dest": "iframe",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
-      },
-    });
-    if (!walk.ok) {
-      console.warn(`[kitesurf-iframe] too many redirects for ${frame.url}`);
+  let html: string;
+  let docBytes: number;
+  const srcdoc = frame.srcdoc;
+  if (srcdoc !== null) {
+    // srcdoc wins over src and has no network document; relative URLs use the embedder's base.
+    frame.url = "about:srcdoc";
+    frame.baseUrl ??= embedder ? frameBaseUrl(embedder, target.url) : target.url;
+    frame.mimeType = "text/html";
+    frame.isCrossOrigin = false;
+    frame.securityOrigin = frame.sandbox.sameOrigin ? originOf(frame.baseUrl) : "";
+    html = srcdoc;
+    // The parse input is page-controlled and can be large; it is consumed here.
+    frame.srcdoc = null;
+    docBytes = new TextEncoder().encode(html).byteLength;
+  } else {
+    const docOutbound = ctx.browser.sandboxOutbound.parent(childDocProps);
+    let resp: Response;
+    let finalUrl: string;
+    const walkAbort = new AbortController();
+    const walkTimer = setTimeout(
+      () => walkAbort.abort(new Error("kitesurf: iframe document walk timeout")),
+      IFRAME_DOC_WALK_BUDGET_MS,
+    );
+    try {
+      const walk = await walkRedirects({
+        url: frame.url,
+        signal: walkAbort.signal,
+        fetchHop: (hopReq) => docOutbound.fetch(hopReq),
+        headers: {
+          "x-kitesurf-allow-cross-origin": "1",
+          "x-kitesurf-resource-type": "Document",
+          "x-kitesurf-frame-id": frame.frameId,
+          "x-kitesurf-initiator": "parser",
+          accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "sec-fetch-dest": "iframe",
+          "sec-fetch-mode": "navigate",
+          "sec-fetch-site": "same-origin",
+        },
+      });
+      if (!walk.ok) {
+        console.warn(`[kitesurf-iframe] too many redirects for ${frame.url}`);
+        frame.readyState = "complete";
+        return;
+      }
+      resp = walk.response;
+      finalUrl = walk.finalUrl;
+    } catch (err) {
+      console.warn(
+        `[kitesurf-iframe] fetch failed for ${frame.url}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+      frame.readyState = "complete";
+      return;
+    } finally {
+      clearTimeout(walkTimer);
+    }
+    if (!resp.ok) {
+      console.warn(`[kitesurf-iframe] fetch ${resp.status} for ${frame.url}`);
       frame.readyState = "complete";
       return;
     }
-    resp = walk.response;
-    finalUrl = walk.finalUrl;
-  } catch (err) {
-    console.warn(
-      `[kitesurf-iframe] fetch failed for ${frame.url}:`,
-      err instanceof Error ? err.message : String(err),
-    );
-    frame.readyState = "complete";
-    return;
-  } finally {
-    clearTimeout(walkTimer);
-  }
-  if (!resp.ok) {
-    console.warn(`[kitesurf-iframe] fetch ${resp.status} for ${frame.url}`);
-    frame.readyState = "complete";
-    return;
-  }
-  if (finalUrl !== frame.url) {
-    frame.url = finalUrl;
-    frame.securityOrigin = originOf(finalUrl);
-    frame.isCrossOrigin = originOf(finalUrl) !== originOf(target.url);
-    if (frame.isCrossOrigin) {
+    if (finalUrl !== frame.url) {
+      frame.url = finalUrl;
+      frame.securityOrigin = originOf(finalUrl);
+      frame.isCrossOrigin = originOf(finalUrl) !== originOf(target.url);
+      if (frame.isCrossOrigin) {
+        try {
+          await resp.body?.cancel();
+        } catch {}
+        frame.readyState = "complete";
+        emitFrameNavigated(ctx, target, frame, sessionId);
+        return;
+      }
+    }
+    const contentType = resp.headers.get("content-type") ?? "";
+    // Check the terminal response's embedding policy before decoding or parsing its body. A
+    // refused document keeps the frame in the tree with a blank parent-side document.
+    const csp = resp.headers.get("content-security-policy");
+    const policy = embeddingPolicyVerdict({
+      cspHeaders: [csp],
+      xFrameOptions: [resp.headers.get("x-frame-options")],
+      destinationOrigin: committedOriginOfUrl(finalUrl, `${frame.frameId}:${frame.loaderId}`),
+      ancestorOrigins,
+    });
+    if (!policy.allowed) {
       try {
         await resp.body?.cancel();
       } catch {}
-      frame.readyState = "complete";
-      emitFrameNavigated(ctx, target, frame, sessionId);
-      return;
-    }
-  }
-  const contentType = resp.headers.get("content-type") ?? "";
-  {
-    const ct = contentType.split(";")[0]?.trim();
-    if (ct) frame.mimeType = ct;
-  }
-  // Read before the grandchildren below are discovered and fetched.
-  frame.referrerPolicy = resp.headers.get("referrer-policy");
-  let html: string;
-  try {
-    const read = await readCappedBytes(resp, MAX_DOCUMENT_BYTES);
-    if (!read.ok) {
-      console.warn(`[kitesurf-iframe] body read refused (${read.failure}) for ${frame.url}`);
+      console.warn(`[kitesurf-iframe] refused ${finalUrl} by ${policy.directive ?? policy.reason}`);
+      frame.framePolicyBlocked = true;
+      frame.dom = null;
+      frame.mimeType = "text/html";
       frame.readyState = "complete";
       return;
     }
-    html = decodeHtmlBytes(read.bytes, contentType).html;
-  } catch (err) {
-    console.warn(
-      `[kitesurf-iframe] body read failed for ${frame.url}:`,
-      err instanceof Error ? err.message : String(err),
-    );
-    frame.readyState = "complete";
-    return;
+    {
+      const ct = contentType.split(";")[0]?.trim();
+      if (ct) frame.mimeType = ct;
+    }
+    // Read before the grandchildren below are discovered and fetched.
+    frame.referrerPolicy = resp.headers.get("referrer-policy");
+    try {
+      // Cap the read at what this navigation's child-document budget still admits.
+      const read = await readCappedBytes(
+        resp,
+        Math.max(0, MAX_DOCUMENT_BYTES - budget.bytes),
+        ctx.connectionId,
+      );
+      if (!read.ok) {
+        console.warn(`[kitesurf-iframe] body read refused (${read.failure}) for ${frame.url}`);
+        frame.readyState = "complete";
+        return;
+      }
+      docBytes = read.bytes.byteLength;
+      html = decodeHtmlBytes(read.bytes, contentType).html;
+    } catch (err) {
+      console.warn(
+        `[kitesurf-iframe] body read failed for ${frame.url}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+      frame.readyState = "complete";
+      return;
+    }
   }
+  const docBaseUrl = srcdoc !== null ? (frame.baseUrl ?? target.url) : frame.url;
   const strip = stripIframeScripts(html, frame.url);
   html = strip.html;
   if (frame.mimeType) {
@@ -4534,8 +5018,33 @@ async function loadChildFrame(
     frame.readyState = "complete";
     return;
   }
+  // The response policy was checked against the ancestry when the fetch started. If a parent
+  // committed another document meanwhile, this response must not commit.
+  if (
+    !sameAncestorOrigins(ancestorOrigins, frameAncestorOrigins(frame, target.frames, target.url))
+  ) {
+    console.warn(`[kitesurf-iframe] ancestry changed before ${frame.url} committed`);
+    frame.readyState = "complete";
+    return;
+  }
+  // Check and charge synchronously around the parse, so concurrent branches cannot both claim
+  // the same remaining bytes.
+  if (budget.bytes + docBytes > MAX_DOCUMENT_BYTES) {
+    if (!budget.bytesWarned) {
+      budget.bytesWarned = true;
+      console.warn(
+        `[kitesurf-iframe] child document budget spent at ${frame.url}; ` +
+          `further child documents not parsed`,
+      );
+    }
+    frame.readyState = "complete";
+    return;
+  }
   try {
-    frame.dom = createDom(html, frame.url);
+    frame.dom = createDom(html, docBaseUrl);
+    budget.bytes += docBytes;
+    frame.domBytes = docBytes;
+    frame.domBudget = budget;
     frame.readyState = "interactive";
     frame.hasScript = strip.count > 0;
   } catch (err) {
@@ -4551,24 +5060,36 @@ async function loadChildFrame(
     const nextAncestors = new Set(ancestorUrls);
     nextAncestors.add(frame.url);
     nextAncestors.add(entryUrl);
-    const grandchildren = discoverChildFramesFor(target, frame, frame.dom);
+    const grandchildren = discoverChildFramesFor(target, frame, frame.dom, budget);
     if (grandchildren.length > 0) {
       const attachableGrandchildren = grandchildren.filter(
         (frame) => frame.parentFrameId !== null && frame.lifecycle === "init",
       );
-      emitChildFrameAttachAndStart(ctx, attachableGrandchildren, targetSessions(target, sessionId));
+      emitChildFrameAttachAndStart(
+        ctx,
+        target.frames,
+        attachableGrandchildren,
+        targetSessions(target, sessionId),
+      );
       const waits: Promise<void>[] = [];
       for (const gc of grandchildren) {
         const cycled = nextAncestors.has(gc.url);
         if (cycled) {
           console.warn(`[kitesurf-iframe] cycle detected, skipping fetch for ${gc.url}`);
         }
-        if (gc.isCrossOrigin || gc.url === "about:blank" || gc.url === "" || cycled) {
+        // An opaque grandchild has no same-origin view for this document to install.
+        if (
+          gc.isCrossOrigin ||
+          gc.url === "about:blank" ||
+          gc.url === "" ||
+          !gc.sandbox.sameOrigin ||
+          cycled
+        ) {
           gc.readyState = "complete";
           gc.pendingLoad = Promise.resolve();
           continue;
         }
-        const p = loadChildFrame(ctx, target, gc, sessionId, depth + 1, nextAncestors);
+        const p = loadChildFrame(ctx, target, gc, sessionId, depth + 1, nextAncestors, budget);
         gc.pendingLoad = p;
         waits.push(p);
       }
@@ -4586,11 +5107,9 @@ async function loadChildFrame(
 }
 
 function stripIframeScripts(html: string, url: string): { html: string; count: number } {
-  let count = 0;
-  const stripped = html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, () => {
-    count++;
-    return "";
-  });
+  const spans = htmlTagSpans(html, "script", true);
+  const count = spans.length;
+  const stripped = removeHtmlTagSpans(html, spans);
   if (count > 0) {
     console.warn(
       `[kitesurf-iframe] stripped ${count} <script> tag(s) from ${url} ` +
@@ -4638,10 +5157,18 @@ async function inlineStylesheets(
   dom: DomHandle,
   pageUrl: string,
   sandboxOutbound: SandboxOutboundOverride,
-  cache?: Map<string, { css: string; fetchedAt: number }>,
-  tracker?: NetworkEventTracker,
-  loaderId?: string,
-  frameId?: string,
+  connectionId: string,
+  {
+    cache,
+    tracker,
+    loaderId,
+    frameId,
+  }: {
+    cache?: StyleCache;
+    tracker?: NetworkEventTracker;
+    loaderId?: string;
+    frameId?: string;
+  } = {},
 ): Promise<void> {
   const links = findStylesheetLinks(dom);
   if (links.length === 0) return;
@@ -4680,10 +5207,23 @@ async function inlineStylesheets(
 
   const now = Date.now();
   const fetchTasks: Task[] = [];
+  // Aggregate inlining budget for this capture, in UTF-16 bytes (two per code unit, a
+  // conservative DOM cost). Refused sheets are dropped like a failed load, never partially
+  // copied, so repeated links to one cached sheet cannot multiply it into shared engine memory.
+  let remaining = MAX_STYLESHEET_BYTES;
+  const admit = (css: string, url: string): boolean => {
+    const cost = 2 * css.length;
+    if (!Number.isSafeInteger(cost) || cost > remaining) {
+      console.warn(`[kitesurf-css] inline budget exhausted (${cost} bytes): ${url}`);
+      return false;
+    }
+    remaining -= cost;
+    return true;
+  };
   for (const t of tasks) {
     const hit = cache?.get(t.resolved);
     if (hit && now - hit.fetchedAt < STYLE_CACHE_TTL_MS) {
-      t.css = hit.css;
+      if (admit(hit.css, t.resolved)) t.css = hit.css;
       if (tracker && loaderId && frameId) {
         const reqId = tracker.beginRequest({
           url: t.resolved,
@@ -4747,7 +5287,7 @@ async function inlineStylesheets(
         }
         const resp = walk.response;
         if (resp.status >= 200 && resp.status < 300) {
-          const read = await readCappedText(resp, MAX_STYLESHEET_BYTES);
+          const read = await readCappedText(resp, MAX_STYLESHEET_BYTES, connectionId);
           if (!read.ok) {
             console.warn(`[kitesurf-css] stylesheet read refused (${read.failure}): ${t.resolved}`);
             if (reqId && tracker) {
@@ -4756,7 +5296,7 @@ async function inlineStylesheets(
             return;
           }
           const css = read.text;
-          t.css = css;
+          if (admit(css, t.resolved)) t.css = css;
           if (cache) cache.set(t.resolved, { css, fetchedAt: now });
           if (reqId && tracker) {
             tracker.completeRequest(reqId, {

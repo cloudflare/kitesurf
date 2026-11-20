@@ -5,6 +5,7 @@
 import { describe, it, expect } from "vitest";
 
 import { createCookieJar, entryToCdp, setCdpCookie } from "../src/cookies.ts";
+import { schemefulSite } from "../src/public-suffix.ts";
 
 const HTTPS = "https://app.example.com/x";
 
@@ -192,6 +193,22 @@ describe("Secure", () => {
     expect(jar.cookieHeaderForUrl(HTTPS)).toBe("sid=secure");
   });
 
+  it.each([
+    ["setFromHeader", "http://victim.example/login", "sid=bad; Path=/login"],
+    [
+      "setFromHeader",
+      "http://evil.victim.example/login",
+      "sid=bad; Domain=victim.example; Path=/login",
+    ],
+    ["setFromDocumentCookie", "http://victim.example/login", "sid=bad; Path=/login"],
+  ] as const)("rejects insecure overlapping cookies via %s at %s", (method, url, cookie) => {
+    const jar = createCookieJar();
+    jar.setFromHeader("https://victim.example/", "sid=good; Secure; Path=/");
+    expect(jar[method](url, cookie)).toBeNull();
+    expect(jar.cookieHeaderForUrl("https://victim.example/login")).toBe("sid=good");
+    expect(jar[method](url, "other=ok; Path=/login")).not.toBeNull();
+  });
+
   it("can be overwritten from https", () => {
     const jar = createCookieJar();
     jar.setFromHeader(HTTPS, "sid=first; Secure");
@@ -201,9 +218,19 @@ describe("Secure", () => {
 });
 
 describe("SameSite", () => {
-  const CROSS = { initiatorHost: "attacker.net" };
-  const SAME_SITE = { initiatorHost: "other.example.com" };
-  const OPAQUE = { initiatorHost: null };
+  const CROSS = { initiatorOrigin: "https://attacker.net" };
+  const SAME_SITE = { initiatorOrigin: "https://other.example.com" };
+  const OPAQUE = { initiatorOrigin: null };
+
+  it.each([
+    ["ws://other.example.com:8080/", "http://example.com"],
+    ["wss://other.example.com:8443/", "https://example.com"],
+    ["data:text/html,top", null],
+    ["file:///example.com", null],
+    ["not a url", null],
+  ])("maps %s to its schemeful site", (url, site) => {
+    expect(schemefulSite(url)).toBe(site);
+  });
 
   it("withholds Strict, Lax and unspecified from a cross-site subrequest", () => {
     const jar = createCookieJar();
@@ -212,6 +239,22 @@ describe("SameSite", () => {
     jar.setFromHeader(HTTPS, "d=1");
     expect(jar.cookieHeaderForUrl(HTTPS, CROSS)).toBeNull();
   });
+
+  it.each(["Strict", "Lax", ""])(
+    "does not replace %s cookies from a cross-site response",
+    (site) => {
+      const jar = createCookieJar();
+      const url = "https://victim.test/login";
+      const attr = site ? `; SameSite=${site}` : "";
+      jar.setFromHeader(url, `sid=old; Secure; HttpOnly; Path=/${attr}`);
+      expect(
+        jar.setFromHeader(url, `sid=new; Secure; HttpOnly; Path=/${attr}`, {
+          initiatorOrigin: "https://attacker.test",
+        }),
+      ).toBeNull();
+      expect(jar.cookieHeaderForUrl(url)).toBe("sid=old");
+    },
+  );
 
   it("sends SameSite=None Secure cross-site", () => {
     const jar = createCookieJar();
@@ -223,6 +266,25 @@ describe("SameSite", () => {
     const jar = createCookieJar();
     jar.setFromHeader(HTTPS, "s=1; SameSite=Strict");
     expect(jar.cookieHeaderForUrl(HTTPS, SAME_SITE)).toBe("s=1");
+  });
+
+  it.each([
+    ["an HTTP sibling", { initiatorOrigin: "http://other.example.com" }, "n=1"],
+    [
+      "an HTTPS sibling on another port",
+      { initiatorOrigin: "https://other.example.com:8443" },
+      "s=1; l=1; d=1; n=1",
+    ],
+    ["an opaque initiator", { initiatorOrigin: null }, "n=1"],
+    ["an omitted context", undefined, "s=1; l=1; d=1; n=1"],
+  ])("compares schemeful sites for %s", (_label, ctx, expected) => {
+    const jar = createCookieJar();
+    const victim = "https://victim.example.com/";
+    jar.setFromHeader(victim, "s=1; SameSite=Strict");
+    jar.setFromHeader(victim, "l=1; SameSite=Lax");
+    jar.setFromHeader(victim, "d=1");
+    jar.setFromHeader(victim, "n=1; SameSite=None; Secure");
+    expect(jar.cookieHeaderForUrl(victim, ctx)).toBe(expected);
   });
 
   it("an opaque initiator is same-site with nothing", () => {
@@ -274,6 +336,27 @@ describe("shadowing", () => {
     jar.setFromHeader(HTTPS, "sid=server; Domain=example.com; HttpOnly; Secure");
     expect(jar.setFromDocumentCookie(HTTPS, "sid=evil")).toBeNull();
     expect(jar.cookieHeaderForUrl(HTTPS)).toBe("sid=server");
+  });
+
+  it("blocks a Domain write from reaching a host-only HttpOnly cookie on the parent", () => {
+    const jar = createCookieJar();
+    jar.setFromHeader("https://example.com/", "sid=server; Path=/; HttpOnly; Secure");
+    expect(jar.setFromDocumentCookie(HTTPS, "sid=evil; Domain=example.com; Path=/")).toBeNull();
+    expect(jar.documentCookieString(HTTPS)).toBe("");
+  });
+
+  it("blocks a Domain write from reaching a host-only HttpOnly cookie on a sibling", () => {
+    const jar = createCookieJar();
+    jar.setFromHeader("https://api.example.com/", "sid=server; Path=/; HttpOnly; Secure");
+    expect(jar.setFromDocumentCookie(HTTPS, "sid=evil; Domain=example.com; Path=/")).toBeNull();
+  });
+
+  it("allows a host-only write on a child when the HttpOnly cookie is host-only on the parent", () => {
+    const jar = createCookieJar();
+    jar.setFromHeader("https://example.com/", "sid=server; Path=/; HttpOnly; Secure");
+    expect(jar.setFromDocumentCookie(HTTPS, "sid=evil; Path=/")).not.toBeNull();
+    expect(jar.documentCookieString(HTTPS)).toBe("sid=evil");
+    expect(jar.cookieHeaderForUrl("https://example.com/")).toBe("sid=server");
   });
 
   it("a server may still shadow its own non-HttpOnly cookie, oldest first", () => {
@@ -372,6 +455,19 @@ describe("size quotas", () => {
     expect(mine.some((c) => c.path === "/p199")).toBe(true);
   });
 
+  it.each(["Domain=victim.example; ", ""])(
+    "protects secure entries under quota pressure: %s",
+    (domain) => {
+      const jar = createCookieJar();
+      const victim = "https://victim.example/";
+      jar.setFromHeader(victim, `sid=good; ${domain}Secure; HttpOnly; Path=/`);
+      for (let i = 0; i < 180; i++) {
+        jar.setFromHeader("http://evil.victim.example/", `f${i}=1; Domain=victim.example; Path=/`);
+      }
+      expect(jar.cookieHeaderForUrl(victim)).toContain("sid=good");
+    },
+  );
+
   it("refuses a cookie over 4096 bytes", () => {
     const jar = createCookieJar();
     expect(jar.setFromHeader(HTTPS, `big=${"x".repeat(4096)}`)).toBeNull();
@@ -467,5 +563,61 @@ describe("CDP cookie params", () => {
     ).toBe(false);
     expect(setCdpCookie(jar, null)).toBeNull();
     expect(setCdpCookie(jar, "a=1")).toBeNull();
+  });
+});
+
+describe("private public suffixes", () => {
+  it.each(["github.io", "pages.dev", "workers.dev", "s3.amazonaws.com"])(
+    "rejects Domain=%s from one tenant",
+    (suffix) => {
+      const jar = createCookieJar();
+      expect(jar.setFromHeader(`https://a.${suffix}/x`, `sid=1; Domain=${suffix}`)).toBeNull();
+      expect(jar.getForUrl(`https://b.${suffix}/`)).toEqual([]);
+    },
+  );
+
+  it("keeps a tenant's own parent domain", () => {
+    const jar = createCookieJar();
+    expect(
+      jar.setFromHeader("https://www.a.github.io/x", "sid=1; Domain=a.github.io"),
+    ).not.toBeNull();
+    expect(jar.getForUrl("https://a.github.io/").map((c) => c.name)).toEqual(["sid"]);
+  });
+
+  it("treats two tenants as different sites", () => {
+    const jar = createCookieJar();
+    jar.setFromHeader("https://b.github.io/x", "lax=1; SameSite=Lax");
+    expect(
+      jar.getForUrl("https://b.github.io/", { initiatorOrigin: "https://a.github.io" }),
+    ).toEqual([]);
+    expect(
+      jar.getForUrl("https://b.github.io/", { initiatorOrigin: "https://www.b.github.io" }).length,
+    ).toBe(1);
+  });
+
+  it.each([
+    "duckdns.org",
+    "s3-website-us-east-1.amazonaws.com",
+    "a.ck", // *.ck: a.ck is the suffix.
+    "xn--55qx5d.cn", // IDN rule matched through its A-label.
+  ])("rejects domain cookies and Strict reads across %s tenants", (suffix) => {
+    const jar = createCookieJar();
+    const cookie = `sid=attacker; Domain=${suffix}; Path=/; Secure; SameSite=None`;
+    expect(jar.setFromHeader(`https://a.${suffix}/`, cookie)).toBeNull();
+    expect(jar.setFromDocumentCookie(`https://a.${suffix}/`, cookie)).toBeNull();
+    expect(jar.cookieHeaderForUrl(`https://b.${suffix}/`)).toBeNull();
+    expect(
+      jar.setFromHeader(`https://www.a.${suffix}/`, `ok=1; Domain=a.${suffix}; Path=/`),
+    ).not.toBeNull();
+    expect(jar.cookieHeaderForUrl(`https://a.${suffix}/`)).toBe("ok=1");
+    jar.setFromHeader(`https://b.${suffix}/`, "strict=1; SameSite=Strict");
+    expect(
+      jar.cookieHeaderForUrl(`https://b.${suffix}/`, { initiatorOrigin: `https://a.${suffix}` }),
+    ).toBeNull();
+    expect(
+      jar.cookieHeaderForUrl(`https://b.${suffix}/`, {
+        initiatorOrigin: `https://www.b.${suffix}`,
+      }),
+    ).toBe("strict=1");
   });
 });

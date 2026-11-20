@@ -34,7 +34,7 @@ test("dom-innerhtml-rebuild-demo", async ({ page, cdpSession: session }) => {
     html: HTML,
   });
   await session.send("DOM.enable");
-  const doc = await session.send("DOM.getDocument");
+  const doc = await session.send("DOM.getDocument", { depth: -1 });
   const findById = (n: any, id: string): any => {
     const attrs: string[] = n?.attributes ?? [];
     const i = attrs.indexOf("id");

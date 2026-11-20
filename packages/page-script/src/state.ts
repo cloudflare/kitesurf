@@ -6,7 +6,10 @@
 
 import type { RawCdpMutation } from "@kitesurf/jsrpc-types/shared";
 import type { LoadCompletion } from "@kitesurf/jsrpc-types/page-script";
+import type { CommittedOrigin } from "@kitesurf/jsrpc-types/frame-origin";
+import { SANDBOX_ALLOW_ALL, type SandboxRestrictions } from "@kitesurf/script-gate";
 import type {
+  BuildDocumentResult,
   DomHandle,
   ShimDocument,
   ShimElement,
@@ -25,6 +28,22 @@ export interface PageScriptState {
 
   pageUrl: string;
 
+  /** The current document's URL. Unlike pageUrl, a pending cross-document
+   *  location write does not change it, so it backs CSP 'self'. */
+  documentUrl: string;
+
+  /** The committed document origin serialized, or "" for an opaque sandboxed origin. */
+  documentOrigin: string;
+
+  /** The committed document's active iframe sandbox restrictions. */
+  sandbox: SandboxRestrictions;
+
+  /** The committed origins of this document's ancestors, nearest first. */
+  ancestorOrigins: CommittedOrigin[];
+
+  /** One opaque identity per committed opaque document, so "null" origins never compare equal. */
+  opaqueOriginId: string;
+
   sourceDoctype: { markup: string; marker: string } | null;
 
   connectionId: string;
@@ -33,10 +52,12 @@ export interface PageScriptState {
 
   cookieKey: string;
 
+  // The browser context's localStorage area for this document's origin, set by navigate()
+  // (web-storage.ts sharedArea). Null keeps localStorage in memory for this document only.
+  localStorageSeed: Array<[string, string]> | null;
+
   document: ShimDocument | null;
   window: ShimWindow | null;
-
-  lastForceRestyleSeq: number;
 
   lastRecordScrollX: number;
   lastRecordScrollY: number;
@@ -55,7 +76,6 @@ export interface PageScriptState {
   scrollX: number;
   scrollY: number;
 
-  getOpLog: () => unknown[];
   setReadyState: (s: string) => void;
   drainCookieWrites: () => string[];
   setCookieString: (s: string) => void;
@@ -63,7 +83,7 @@ export interface PageScriptState {
   getActiveElement: () => ShimElement | null;
   drainCdpMutationsRaw: () => RawCdpMutation[];
   dispatchTrustedEvent: (target: ShimNode, event: unknown) => boolean;
-  notifyImageResults: (nodeIds: ArrayLike<number>, ok: boolean) => void;
+  notifyImageResults: (nodeIds: Iterable<number>, ok: boolean) => void;
 
   notifyStylesheetResults: (url: string, ok: boolean) => void;
 
@@ -73,12 +93,44 @@ export interface PageScriptState {
 
   loadCompletionArmed: Promise<void>;
   settleLoadCompletionArmed: () => void;
+
+  // The navigate's emulated color scheme, mirrored for the shim's matchMedia so it agrees with
+  // the cascade.
+  darkColorScheme: boolean;
+
+  // Runs queued custom-element upgrades. installGlobals sets it; module imports and inbound calls
+  // drain in handler scope, where callbacks may do I/O.
+  drainCustomElementUpgrades: (() => void) | null;
 }
 
-// This arbitrary-key view is for page shims, not WorkerGlobalScope's event types.
+// globalThis with the keys page-script and dom-shim add to it (PageScriptGlobals in types.ts).
 export const ksGlobal = globalThis as ShimGlobal;
 
-export const ksEventCtors: ShimGlobal = {};
+// The same object for computed keys (constructor-install loops). No type can list those keys,
+// so reads are `unknown` and need narrowing.
+export const ksGlobalByKey: Record<PropertyKey, unknown> = globalThis;
+
+// A local workerd with V8's --expose-gc gives every isolate gc() for the engine's sake
+// (engine/src/eval/retired-worker-gc.ts). workerd makes it non-configurable, so pages and their
+// workers get it as undefined instead.
+if (Object.getOwnPropertyDescriptor(globalThis, "gc")?.writable)
+  Reflect.set(globalThis, "gc", undefined);
+
+// Every buildDocument constructor named Event or *Event.
+type ShimEventCtorName = Extract<keyof BuildDocumentResult, "Event" | `${string}Event`>;
+export type ShimEventCtors = Pick<BuildDocumentResult, ShimEventCtorName>;
+
+// The dom-shim event constructors, which engine-created events use instead of a globalThis.Event
+// that page libraries can overwrite. Empty until installGlobals fills it.
+export const ksEventCtors: Partial<ShimEventCtors> = {};
+
+// One captured constructor. Before installGlobals it throws the TypeError a bare
+// `new ksEventCtors.X()` would have.
+export function shimEventCtor<K extends ShimEventCtorName>(name: K): ShimEventCtors[K] {
+  const ctor = ksEventCtors[name];
+  if (ctor === undefined) throw new TypeError(`${name} is not installed yet`);
+  return ctor;
+}
 
 let settleArmed: () => void = () => {};
 const armedDeferred = new Promise<void>((resolve) => {
@@ -89,13 +141,18 @@ export const state: PageScriptState = {
   dom: null,
   blobUrls: new Map(),
   pageUrl: "",
+  documentUrl: "",
+  documentOrigin: "",
+  sandbox: SANDBOX_ALLOW_ALL,
+  ancestorOrigins: [],
+  opaqueOriginId: "",
   sourceDoctype: null,
   connectionId: "",
   mainFrameId: "",
   cookieKey: "",
+  localStorageSeed: null,
   document: null,
   window: null,
-  lastForceRestyleSeq: -1,
   lastRecordScrollX: 0,
   lastRecordScrollY: 0,
   lastRecordViewportW: 0,
@@ -112,7 +169,6 @@ export const state: PageScriptState = {
   scrollX: 0,
   scrollY: 0,
 
-  getOpLog: () => [],
   setReadyState: () => {},
   drainCookieWrites: () => [],
   setCookieString: () => {},
@@ -128,4 +184,7 @@ export const state: PageScriptState = {
   navigateStarted: false,
   loadCompletionArmed: armedDeferred,
   settleLoadCompletionArmed: () => settleArmed(),
+
+  darkColorScheme: false,
+  drainCustomElementUpgrades: null,
 };

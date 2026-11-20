@@ -53,8 +53,8 @@ pub(crate) fn paint_document_to_image(
 
 /// Paint a viewport-sized slice of a resolved document.
 /// Scroll offsets are document-space CSS pixels; the painter translates the root
-/// by their negatives. Use `set_viewport_scroll` because `paint_scene` offsets
-/// move content in the opposite direction.
+/// by their negatives. Use `set_viewport_scroll` because `paint_scene_bounded`
+/// offsets move content the other way. Over-budget SVG layers are skipped, not errors.
 #[cfg(feature = "blitz")]
 pub(crate) fn paint_document_to_image_scrolled(
     document: &mut blitz_dom::BaseDocument,
@@ -68,7 +68,7 @@ pub(crate) fn paint_document_to_image_scrolled(
     use anyrender::{ImageRenderer as _, PaintScene as _};
     use anyrender_vello_cpu::VelloCpuImageRenderer;
     use blitz_dom::util::Color;
-    use blitz_paint::paint_scene;
+    use blitz_paint::paint_scene_bounded;
     use peniko::kurbo::Rect;
     use peniko::Fill;
 
@@ -86,18 +86,7 @@ pub(crate) fn paint_document_to_image_scrolled(
         omit_background && matches!(format, ImageFormat::Png | ImageFormat::Webp);
 
     let buffer_size = (render_w as usize) * (render_h as usize) * 4;
-    let mut buffer: Vec<u8> = Vec::with_capacity(buffer_size);
-    if effective_omit_bg {
-        buffer.resize(buffer_size, 0);
-    } else {
-        // SAFETY: vello_cpu's render path writes every byte before
-        // any reader (encode_png / encode_jpeg) sees the buffer.
-        // The Vec is immediately filled below; nothing reads from
-        // the uninitialized region in between.
-        unsafe {
-            buffer.set_len(buffer_size);
-        }
-    }
+    let mut buffer = vec![0u8; buffer_size];
     let mut renderer = VelloCpuImageRenderer::new(render_w, render_h);
     renderer.render(
         |scene| {
@@ -110,7 +99,7 @@ pub(crate) fn paint_document_to_image_scrolled(
                     &Rect::new(0.0, 0.0, render_w as f64, render_h as f64),
                 );
             }
-            paint_scene(scene, document, scale, render_w, render_h, 0, 0);
+            paint_scene_bounded(scene, document, scale, render_w, render_h, 0, 0);
         },
         &mut buffer,
     );
@@ -494,7 +483,7 @@ fn row_hashes(buffer: &[u8], width: u32, quality: u8) -> Vec<u64> {
         .collect()
 }
 
-fn split_jpeg_rows(bytes: &[u8]) -> Result<(usize, Vec<Range<usize>>), String> {
+pub(crate) fn split_jpeg_rows(bytes: &[u8]) -> Result<(usize, Vec<Range<usize>>), String> {
     let err = || "jpeg row split: malformed stream".to_string();
     let mut pos = 2;
     let header_end = loop {

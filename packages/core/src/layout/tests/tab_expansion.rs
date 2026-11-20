@@ -4,7 +4,9 @@
 
 #![cfg(test)]
 
-use parley::style::{FontFamily, GenericFamily};
+use parley::layout::PositionedLayoutItem;
+use parley::style::{FontFamily, GenericFamily, TextStyle};
+use parley::LayoutContext;
 
 use crate::resources::fonts::make_font_context;
 
@@ -13,9 +15,9 @@ type Brush = u32;
 #[test]
 fn tab_advances_to_tab_stops() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
 
-    let root_style = parley::style::TextStyle::<'_, '_, Brush> {
+    let root_style = TextStyle::<'_, '_, Brush> {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 16.0,
         ..Default::default()
@@ -54,7 +56,7 @@ fn tab_advances_to_tab_stops() {
         let glyphs: Vec<_> = line
             .items()
             .filter_map(|item| match item {
-                parley::layout::PositionedLayoutItem::GlyphRun(run) => {
+                PositionedLayoutItem::GlyphRun(run) => {
                     Some(run.positioned_glyphs().collect::<Vec<_>>())
                 }
                 _ => None,
@@ -83,9 +85,9 @@ fn tab_advances_to_tab_stops() {
 #[test]
 fn tab_advances_honor_explicit_tab_size() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
 
-    let mut root_style = parley::style::TextStyle::<'_, '_, Brush> {
+    let mut root_style = TextStyle::<'_, '_, Brush> {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 16.0,
         ..Default::default()
@@ -111,7 +113,7 @@ fn tab_advances_honor_explicit_tab_size() {
 #[test]
 fn intrinsic_max_width_includes_the_tab_stop() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
     let root_style = root_style();
     let stop = tab_advance_of(&mut fcx, &mut lcx, &root_style, 1.0);
 
@@ -136,7 +138,7 @@ fn trailing_tab_hangs_conditionally() {
     // it, max-content keeps it. The tab advances from the pen to the next
     // stop, so "X\t" is exactly one stop wide at max-content.
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
 
     let letter = content_widths(&mut fcx, &mut lcx, "X");
     let stop = content_widths(&mut fcx, &mut lcx, "\tX").max - letter.max;
@@ -157,7 +159,7 @@ fn trailing_tab_hangs_conditionally() {
 #[test]
 fn tab_near_a_stop_advances_to_the_following_stop() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
     let root_style = root_style();
     let stop = tab_advance_of(&mut fcx, &mut lcx, &root_style, 1.0);
     let prefix = max_content_width(&mut fcx, &mut lcx, "iiiiiiii");
@@ -193,7 +195,7 @@ fn tab_near_a_stop_advances_to_the_following_stop() {
 #[test]
 fn constrained_break_accounts_for_the_expanded_tab() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
     let root_style = root_style();
     let stop = tab_advance_of(&mut fcx, &mut lcx, &root_style, 1.0);
     let word = max_content_width(&mut fcx, &mut lcx, "AAAA");
@@ -217,7 +219,7 @@ fn constrained_break_accounts_for_the_expanded_tab() {
 #[test]
 fn rebreaking_matches_a_freshly_built_layout() {
     let mut fcx = make_font_context();
-    let mut lcx: parley::LayoutContext<Brush> = parley::LayoutContext::new();
+    let mut lcx: LayoutContext<Brush> = LayoutContext::new();
     let root_style = root_style();
     let stop = tab_advance_of(&mut fcx, &mut lcx, &root_style, 1.0);
     let word = max_content_width(&mut fcx, &mut lcx, "AAAA");
@@ -262,8 +264,8 @@ fn rebreaking_matches_a_freshly_built_layout() {
     }
 }
 
-fn root_style() -> parley::style::TextStyle<'static, 'static, Brush> {
-    parley::style::TextStyle {
+fn root_style() -> TextStyle<'static, 'static, Brush> {
+    TextStyle {
         font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
         font_size: 16.0,
         ..Default::default()
@@ -272,7 +274,7 @@ fn root_style() -> parley::style::TextStyle<'static, 'static, Brush> {
 
 fn layout_of(
     fcx: &mut parley::FontContext,
-    lcx: &mut parley::LayoutContext<Brush>,
+    lcx: &mut LayoutContext<Brush>,
     text: &str,
     max_advance: Option<f32>,
 ) -> parley::Layout<Brush> {
@@ -286,7 +288,7 @@ fn layout_of(
 
 fn max_content_width(
     fcx: &mut parley::FontContext,
-    lcx: &mut parley::LayoutContext<Brush>,
+    lcx: &mut LayoutContext<Brush>,
     text: &str,
 ) -> f32 {
     content_widths(fcx, lcx, text).max
@@ -294,7 +296,7 @@ fn max_content_width(
 
 fn content_widths(
     fcx: &mut parley::FontContext,
-    lcx: &mut parley::LayoutContext<Brush>,
+    lcx: &mut LayoutContext<Brush>,
     text: &str,
 ) -> parley::ContentWidths {
     let root_style = root_style();
@@ -311,7 +313,7 @@ fn line_geometry(layout: &parley::Layout<Brush>) -> Vec<(f32, Vec<f32>)> {
             let glyphs: Vec<f32> = line
                 .items()
                 .filter_map(|item| match item {
-                    parley::layout::PositionedLayoutItem::GlyphRun(run) => {
+                    PositionedLayoutItem::GlyphRun(run) => {
                         Some(run.positioned_glyphs().map(|g| g.x).collect::<Vec<_>>())
                     }
                     _ => None,
@@ -325,8 +327,8 @@ fn line_geometry(layout: &parley::Layout<Brush>) -> Vec<(f32, Vec<f32>)> {
 
 fn tab_advance_of(
     fcx: &mut parley::FontContext,
-    lcx: &mut parley::LayoutContext<Brush>,
-    root_style: &parley::style::TextStyle<'_, '_, Brush>,
+    lcx: &mut LayoutContext<Brush>,
+    root_style: &TextStyle<'_, '_, Brush>,
     scale: f32,
 ) -> f32 {
     let mut tb = lcx.tree_builder(fcx, scale, true, root_style);

@@ -1,0 +1,50 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 4 Nov 2026 22:00:16 +0000
+Subject: [PATCH] Reserve a block's item list for all its children
+
+The display:none filter hides the length from collect, which then grew the list by doubling; the child count is an upper bound, so a block with many children allocates once. The function is now kept out of line: inlined into the recursive block layout, its locals grew every nesting level's frame, and nested blocks overflowed wasm32's 1 MiB stack about 25 levels sooner.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/compute/block.rs | 15 +++++++++++----
+ 1 file changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/src/compute/block.rs b/src/compute/block.rs
+index 261162a..bd819dc 100644
+--- a/src/compute/block.rs
++++ b/src/compute/block.rs
+@@ -880,13 +880,19 @@ fn compute_inner(
+ }
+
+ /// Create a `Vec` of `BlockItem` structs where each item in the `Vec` represents a child of the current node
+-#[inline]
++// Kept out of line: inlined, its locals join the frame of the recursive block layout, and on
++// wasm32's 1 MiB stack nested blocks then overflow about 25 levels sooner.
++#[inline(never)]
+ fn generate_item_list(
+     tree: &impl LayoutBlockContainer,
+     node: NodeId,
+     node_inner_size: Size<Option<f32>>,
+ ) -> Vec<BlockItem> {
+-    tree.child_ids(node)
++    // The display:none filter hides the length from the iterator, so an unreserved `Vec` would
++    // grow by doubling: reserve the child count, an upper bound, so a block with many children
++    // allocates once.
++    let mut items = Vec::with_capacity(tree.child_count(node));
++    let children = tree.child_ids(node)
+         .map(|child_node_id| (child_node_id, tree.get_block_child_style(child_node_id)))
+         .filter(|(_, style)| style.box_generation_mode() != BoxGenerationMode::None)
+         .enumerate()
+@@ -972,8 +978,9 @@ fn generate_item_list(
+                 location: None,
+                 oof_candidates: OofCandidates::new(),
+             }
+-        })
+-        .collect()
++        });
++    items.extend(children);
++    items
+ }
+
+ /// Resolve the `stretch` sizing keyword for an item's height style. In the block axis the

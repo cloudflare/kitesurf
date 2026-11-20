@@ -1,0 +1,93 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Mon, 16 Nov 2026 12:00:00 +0000
+Subject: [PATCH] Resolve percentage heights through inline flow wrappers
+
+An inline box is not a block container, so it never establishes the
+containing block of a block inside it (CSS 2.1 10.1): a percentage
+height on that block resolves against the nearest block container
+ancestor. Layout lays the inline out through a wrapper, which handed its
+own indefinite height down instead, so `height: 100%` collapsed to the
+content height.
+
+Carry the parent's percentage-height basis through an inline wrapper and
+apply it to in-flow children before the cache lookup. The basis resets
+at the first box that is not inline, so block, inline-block and other
+containers below still resolve against themselves.
+---
+ src/layout/mod.rs | 27 +++++++++++++++++++++++++++
+ 1 file changed, 27 insertions(+)
+
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 5d1598f..9a12138 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -85,6 +85,8 @@ pub(crate) fn resolve_calc_value(calc_ptr: *const (), parent_size: f32) -> f32 {
+ /// the Taffy tree trait implementations. Derefs to [`BaseDocument`].
+ pub(crate) struct LayoutPassState<'doc> {
+     doc: &'doc mut BaseDocument,
++    // Inline flow wrappers do not establish a percentage-height containing block.
++    inline_percentage_height: Option<f32>,
+     /// The writing mode of the box whose layout algorithm is currently running (see
+     /// `layout::writing_mode`). Child styles read during that algorithm are expressed in its axes.
+     #[cfg(feature = "writing-mode")]
+@@ -131,6 +133,7 @@ impl<'doc> LayoutPassState<'doc> {
+                 doc.root_layout_wm(id)
+             }),
+             doc,
++            inline_percentage_height: None,
+             #[cfg(feature = "writing-mode")]
+             root_id,
+             #[cfg(feature = "writing-mode")]
+@@ -192,13 +195,35 @@ impl LayoutPassState<'_> {
+         inputs: taffy::tree::LayoutInput,
+         block_ctx: Option<&mut BlockContext<'_>>,
+     ) -> taffy::tree::LayoutOutput {
++        let parent_basis = self.inline_percentage_height;
++        self.inline_percentage_height = self.nodes[dom_node_id(node_id)]
++            .display_style()
++            .filter(|display| *display == style::values::specified::box_::Display::Inline)
++            .and(inputs.parent_size.height);
+         let mut output = self.dispatch_child_layout(node_id, inputs, block_ctx);
++        self.inline_percentage_height = parent_basis;
+         if inputs.run_mode == RunMode::PerformLayout {
+             compute_oof_layout(self, node_id, &mut output);
+         }
+         output
+     }
+
++    fn with_inline_percentage_height(
++        &self,
++        node_id: NodeId,
++        mut inputs: taffy::LayoutInput,
++    ) -> taffy::LayoutInput {
++        if self.inline_percentage_height.is_some()
++            && !self
++                .get_core_container_style(node_id)
++                .position()
++                .is_out_of_flow()
++        {
++            inputs.parent_size.height = self.inline_percentage_height;
++        }
++        inputs
++    }
++
+     /// The style of a node being laid out *by* the node whose algorithm is currently running,
+     /// expressed in that node's writing mode (see `layout::writing_mode`).
+     #[inline]
+@@ -714,6 +739,7 @@ impl LayoutPartialTree for LayoutPassState<'_> {
+         node_id: NodeId,
+         inputs: taffy::LayoutInput,
+     ) -> taffy::LayoutOutput {
++        let inputs = self.with_inline_percentage_height(node_id, inputs);
+         compute_cached_layout(self, node_id, inputs, |tree, node_id, inputs| {
+             tree.compute_child_layout_internal(node_id, inputs, None)
+         })
+@@ -826,6 +852,7 @@ impl taffy::LayoutBlockContainer for LayoutPassState<'_> {
+         inputs: taffy::LayoutInput,
+         block_ctx: Option<&mut BlockContext<'_>>,
+     ) -> taffy::LayoutOutput {
++        let inputs = self.with_inline_percentage_height(node_id, inputs);
+         compute_cached_layout(self, node_id, inputs, |tree, node_id, inputs| {
+             tree.compute_child_layout_internal(node_id, inputs, block_ctx)
+         })

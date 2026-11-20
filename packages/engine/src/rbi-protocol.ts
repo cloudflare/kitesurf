@@ -29,6 +29,40 @@ const FONT_DATA_REF_ASSET = 1;
 const FONT_ENTRY_HEAD = 5;
 
 import { ENGINE_KEY_MARKER } from "./eval/resource-store.ts";
+import { MAX_CONCURRENT_READ_BYTES } from "./read-capped.ts";
+
+// Cap for one received batch and for one expanded batch. The largest honest producer output is
+// bounded by the 16 MiB image plus 16 MiB font stores; scenes have no producer cap.
+const MAX_RESOURCE_BATCH_BYTES = MAX_CONCURRENT_READ_BYTES;
+
+// %TypedArray%.prototype's byteLength getter, so a supplied value cannot shadow the length with a
+// property of its own.
+const TYPED_ARRAY_BYTE_LENGTH = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype),
+  "byteLength",
+)?.get;
+
+/** Length of a real Uint8Array view, read through the intrinsic getter. */
+export function typedArrayLength(value: Uint8Array): number | null {
+  const length = TYPED_ARRAY_BYTE_LENGTH?.call(value);
+  return typeof length === "number" ? length : null;
+}
+
+/** Copies an untrusted byte value into engine-owned memory, or returns null for one it will not
+ * copy. `ArrayBuffer.isView` rejects a plain object, proxy or DataView however it presents itself;
+ * a detached view reports length 0 but throws from `set`, so it is refused here too. */
+export function engineOwnedBytes(value: unknown, maxBytes: number): Uint8Array | null {
+  if (!ArrayBuffer.isView(value) || !(value instanceof Uint8Array)) return null;
+  const length = typedArrayLength(value);
+  if (length === null || length > maxBytes) return null;
+  const copy = new Uint8Array(length);
+  try {
+    Uint8Array.prototype.set.call(copy, value);
+  } catch {
+    return null;
+  }
+  return copy;
+}
 
 // A missing-resource request is [count u32 LE] then [kind u8][hash u64 LE] per item.
 export const MISSING_RESOURCE_LIST_HEADER_BYTES = 4;
@@ -52,34 +86,41 @@ function engineFontKey(batch: Uint8Array, from: number, to: number): bigint | nu
 }
 
 // Inlines engine-store image and font references before sending, because the client cannot
-// resolve engine-store keys.
+// resolve engine-store keys. The batch arrives from an untrusted RPC producer: its bytes are
+// copied before use and the expanded output is bounded, with refused expansions left as the
+// original reference so the client's next missing-resource request can retry them.
 export function supplyEngineResources(
   batch: Uint8Array,
   image: (hash: bigint) => Uint8Array | null,
   font: (key: bigint) => Uint8Array | null,
 ): Uint8Array {
-  if (batch.length < RBI_BATCH_HEAD) return batch;
-  const dv = new DataView(batch.buffer, batch.byteOffset, batch.byteLength);
+  const source = engineOwnedBytes(batch, MAX_RESOURCE_BATCH_BYTES);
+  if (!source || source.length < RBI_BATCH_HEAD) return new Uint8Array(0);
+  const dv = new DataView(source.buffer, source.byteOffset, source.byteLength);
   const count = dv.getUint32(0, true);
-  const out: Uint8Array[] = [batch.subarray(0, RBI_BATCH_HEAD)];
-  let p = RBI_BATCH_HEAD;
+  const parts: Uint8Array[] = [];
+  let total = RBI_BATCH_HEAD;
+  let emitted = 0;
   let rewrote = false;
-  for (let n = 0; n < count && p + RBI_ENTRY_HEAD <= batch.length; n++) {
+  let truncated = false;
+  let p = RBI_BATCH_HEAD;
+  for (let n = 0; n < count; n++) {
+    if (p + RBI_ENTRY_HEAD > source.length) return new Uint8Array(0);
     const len = dv.getUint32(p + RBI_ENTRY_LENGTH_OFFSET, true);
     const payload = p + RBI_ENTRY_HEAD;
     const end = payload + len;
-    if (end > batch.length) break;
-    const kind = batch[p];
+    if (end > source.length) return new Uint8Array(0);
+    const kind = source[p];
     let head: Uint8Array | null = null;
     let bytes: Uint8Array | null = null;
     if (
       kind === RBI_KIND_IMAGE &&
       len === IMAGE_REF_PAYLOAD &&
-      batch[payload + IMAGE_REF_FORMAT_OFFSET] === IMAGE_FORMAT_ENGINE_REF
+      source[payload + IMAGE_REF_FORMAT_OFFSET] === IMAGE_FORMAT_ENGINE_REF
     ) {
       bytes = image(dv.getBigUint64(p + RBI_ENTRY_ID_OFFSET, true));
       if (bytes && bytes.length > 0) {
-        head = batch.slice(p, payload + IMAGE_REF_PAYLOAD);
+        head = source.slice(p, payload + IMAGE_REF_PAYLOAD);
         new DataView(head.buffer).setUint32(
           RBI_ENTRY_LENGTH_OFFSET,
           IMAGE_REF_PAYLOAD + bytes.length,
@@ -90,12 +131,12 @@ export function supplyEngineResources(
     } else if (
       kind === RBI_KIND_FONT_DATA &&
       len > FONT_ENTRY_HEAD &&
-      batch[payload] === FONT_DATA_REF_ASSET
+      source[payload] === FONT_DATA_REF_ASSET
     ) {
-      const key = engineFontKey(batch, payload + FONT_ENTRY_HEAD, end);
+      const key = engineFontKey(source, payload + FONT_ENTRY_HEAD, end);
       bytes = key === null ? null : font(key);
       if (bytes && bytes.length > 0) {
-        head = batch.slice(p, payload + FONT_ENTRY_HEAD);
+        head = source.slice(p, payload + FONT_ENTRY_HEAD);
         new DataView(head.buffer).setUint32(
           RBI_ENTRY_LENGTH_OFFSET,
           FONT_ENTRY_HEAD + bytes.length,
@@ -104,19 +145,31 @@ export function supplyEngineResources(
         head[RBI_ENTRY_HEAD] = FONT_DATA_REF_BLOB;
       }
     }
-    if (head && bytes) {
-      out.push(head, bytes);
+    if (head && bytes && total + head.length + bytes.length <= MAX_RESOURCE_BATCH_BYTES) {
+      parts.push(head, bytes);
+      total += head.length + bytes.length;
       rewrote = true;
+    } else if (total + (end - p) <= MAX_RESOURCE_BATCH_BYTES) {
+      parts.push(source.subarray(p, end));
+      total += end - p;
     } else {
-      out.push(batch.subarray(p, end));
+      truncated = true;
+      break;
     }
+    emitted++;
     p = end;
   }
-  if (!rewrote) return batch;
-  if (p < batch.length) out.push(batch.subarray(p));
-  const merged = new Uint8Array(out.reduce((n, s) => n + s.length, 0));
-  let o = 0;
-  for (const s of out) {
+  if (!truncated && p < source.length) return new Uint8Array(0);
+  if (!rewrote && !truncated) return source;
+  if (truncated) {
+    console.warn(
+      `kitesurf: [ks-rbi] resource batch over ${MAX_RESOURCE_BATCH_BYTES} bytes; sent ${emitted} of ${count} entries`,
+    );
+  }
+  const merged = new Uint8Array(total);
+  new DataView(merged.buffer).setUint32(0, emitted, true);
+  let o = RBI_BATCH_HEAD;
+  for (const s of parts) {
     merged.set(s, o);
     o += s.length;
   }

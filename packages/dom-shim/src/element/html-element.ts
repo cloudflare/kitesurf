@@ -4,8 +4,9 @@
 
 // Defines HTMLElement and installs its shared attributes and helper behavior.
 
+import type { WrapperInfo } from "../node-base.js";
 import type * as Idl from "../idl/types.generated.js";
-import { documentImpl as document } from "../state.js";
+import { elementDocument } from "../state.js";
 import { MATHML_NS, SVG_NS, TEXT_NODE } from "../constants.js";
 import {
   defineReflectedString,
@@ -137,7 +138,7 @@ class HTMLElement extends Element implements Idl.HTMLElement {
       throw new DOMException("The element has no parent.", "NoModificationAllowedError");
     }
     const value = v === null ? "" : String(v);
-    const doc = this.ownerDocument || document;
+    const doc = elementDocument(this);
     const next = this.nextSibling;
     const previous = this.previousSibling;
     const nodes = renderedTextFragmentNodes(value, doc);
@@ -198,7 +199,7 @@ type IdlOwnMembers<I> = Omit<I, keyof Idl.HTMLElement>;
 // The class defineHTMLClass returns: HTMLElement's statics, with a constructor
 // and prototype typed as the instance I.
 type HTMLElementClass<I extends HTMLElement> = Omit<typeof HTMLElement, "prototype"> & {
-  new (nodeId: number, info: unknown, token: typeof InternalElementCtorToken): I;
+  new (nodeId: number, info: WrapperInfo, token: typeof InternalElementCtorToken): I;
   readonly prototype: I;
 };
 
@@ -209,7 +210,7 @@ function defineHTMLClass<I extends Idl.HTMLElement>(
 ): HTMLElementClass<HTMLElement & IdlOwnMembers<I>> {
   const cls = {
     [name]: class extends HTMLElement {
-      constructor(nodeId: number, info: unknown, token?: symbol) {
+      constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
         super(nodeId, info);
         checkInternalConstruct(token, name);
       }

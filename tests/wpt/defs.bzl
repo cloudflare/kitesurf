@@ -107,6 +107,8 @@ def _wpt_retry_impl(ctx):
         "JS_BINARY__USE_EXECROOT_ENTRY_POINT": "1",
         "WPT_RETRY_NONCE": ctx.attr._nonce[_SettingInfo].value,
     }
+    # The bucket starts in bazel-out/<config>/bin, three levels below the execroot.
+    execroot_prefix = "../../../"
     manifest = {}
     results = []
     for test in tests:
@@ -127,15 +129,15 @@ def _wpt_retry_impl(ctx):
                 outputs = outputs,
                 arguments = [
                     "--tests",
-                    tests_json.short_path,
+                    execroot_prefix + tests_json.path,
                     "--expectations",
-                    ctx.file._expectations.short_path,
+                    execroot_prefix + ctx.file._expectations.path,
                     "--dist",
-                    dist.short_path,
+                    execroot_prefix + dist.path,
                     "--out-dir",
-                    "%s/%s" % (ctx.label.package, output),
+                    execroot_prefix + outputs[0].dirname,
                     "--revision-file",
-                    ctx.file._revision.short_path,
+                    execroot_prefix + ctx.file._revision.path,
                     "-j",
                     "1",
                     "--draw",

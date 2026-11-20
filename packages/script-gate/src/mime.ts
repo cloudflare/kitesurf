@@ -23,13 +23,93 @@ const JS_MIME_ESSENCES = new Set([
   "text/x-javascript",
 ]);
 
+// HTTP token code points (Fetch, "HTTP token code point").
+const HTTP_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+function isHttpWhitespace(char: string): boolean {
+  return char === " " || char === "\t" || char === "\n" || char === "\r";
+}
+
+function trimHttpWhitespace(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && isHttpWhitespace(value.charAt(start))) start += 1;
+  while (end > start && isHttpWhitespace(value.charAt(end - 1))) end -= 1;
+  return value.slice(start, end);
+}
+
+/** Splits a Content-Type header into list values; a quoted string is never split.
+ * Mirrors Fetch's "get, decode, and split a header value", keeping quotes and escapes.
+ */
+function splitHeaderValues(header: string): string[] {
+  const values: string[] = [];
+  let start = 0;
+  let index = 0;
+  while (index < header.length) {
+    const char = header[index];
+    if (char === '"') {
+      index += 1;
+      while (index < header.length) {
+        const inner = header[index];
+        index += 1;
+        if (inner === "\\") index += 1;
+        else if (inner === '"') break;
+      }
+    } else if (char === ",") {
+      values.push(header.slice(start, index));
+      index += 1;
+      start = index;
+    } else {
+      index += 1;
+    }
+  }
+  values.push(header.slice(start));
+  return values;
+}
+
+/** Parses one value's essence with the WHATWG MIME parsing algorithm; null on failure or a
+ * `*` wildcard. Parameters never make that algorithm fail, so they are not parsed.
+ */
+function parseMimeEssence(input: string): string | null {
+  const value = trimHttpWhitespace(input);
+  const slash = value.indexOf("/");
+  if (slash < 0) return null;
+  const type = value.slice(0, slash);
+  if (!HTTP_TOKEN.test(type)) return null;
+  const semicolon = value.indexOf(";", slash + 1);
+  let end = semicolon < 0 ? value.length : semicolon;
+  // Only trailing whitespace is removed from the subtype; leading whitespace fails the parse.
+  while (end > slash + 1 && isHttpWhitespace(value.charAt(end - 1))) end -= 1;
+  const subtype = value.slice(slash + 1, end);
+  if (!HTTP_TOKEN.test(subtype)) return null;
+
+  const essence = `${type}/${subtype}`.toLowerCase();
+  return essence === "*/*" ? null : essence;
+}
+
+/** Returns the essence of the last valid MIME type in a Content-Type header, as Fetch does;
+ * `""` when no value parses. A wildcard `*` type is not a usable MIME type.
+ */
 export function mimeEssence(contentType: string | null | undefined): string {
   if (!contentType) return "";
-  const parameterStart = contentType.indexOf(";");
-  const mediaType = (
-    parameterStart >= 0 ? contentType.slice(0, parameterStart) : contentType
-  ).trim();
-  return mediaType.toLowerCase();
+  let essence = "";
+  for (const value of splitHeaderValues(contentType)) {
+    const parsed = parseMimeEssence(value);
+    if (parsed !== null) essence = parsed;
+  }
+  return essence;
+}
+
+const NON_SCRIPT_MIME_PREFIXES = ["image/", "audio/", "video/"] as const;
+
+/** Whether the effective MIME type is data a script destination must refuse even without
+ * nosniff: images, audio, video and CSV.
+ */
+export function blockedScriptMime(contentType: string | null | undefined): boolean {
+  const essence = mimeEssence(contentType);
+  return (
+    essence === "text/csv" || NON_SCRIPT_MIME_PREFIXES.some((prefix) => essence.startsWith(prefix))
+  );
 }
 
 export function isJavaScriptMime(contentType: string | null | undefined): boolean {

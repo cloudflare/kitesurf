@@ -1,0 +1,295 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Wed, 29 Jul 2026 14:03:02 +0100
+Subject: [PATCH] Honour SVG view fragments on image loads (img.svg#viewname)
+
+An SVG fragment naming a <view> element selects that view: its viewBox
+(and preserveAspectRatio, when present) replace the root's for that
+rendering (SVG2 linking.html#ViewElement). usvg has no fragment
+handling and the fragment never reached the parse, so <img
+src="views.svg#transform"> rendered the default view (WPT
+view-transform-viewBox.html).
+
+apply_svg_view_fragment rewrites the root tag string-level before the
+usvg parse (find the <view> by id, lift its viewBox/PAR onto the
+root) and ImageHandler carries the src fragment from load_image to
+the svg fallback branch. Unmatched fragments and viewBox-less views
+leave the source untouched, the spec's fallback to a normal view.
+
+A fragment also has to match :target. An SVG stack hides every icon
+with `svg>[id]{display:none}` and shows the one the URL fragment names
+with `svg>[id]:target{display:inline}`. usvg has no document URL, so
+the `:target` rule was dropped and every icon stayed hidden. tldraw
+draws all its toolbar and style-panel icons as
+`mask: url(sprite.svg#icon)`, which painted as empty grey squares.
+Rewrite `:target` in the sprite's <style> to the id the fragment names
+before the parse. CSS images pass their URL fragment to the image
+handler as <img> does.
+---
+ src/layout/damage.rs |   5 +-
+ src/mutator.rs       |   5 +-
+ src/net.rs           |  35 +++++++++--
+ src/util.rs          | 139 +++++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 178 insertions(+), 6 deletions(-)
+
+diff --git a/src/layout/damage.rs b/src/layout/damage.rs
+index 299a864..fe12988 100644
+--- a/src/layout/damage.rs
++++ b/src/layout/damage.rs
+@@ -622,7 +622,10 @@ impl BaseDocument {
+                                     ImageHandler::new_dims_only(kind.image_type(idx))
+                                 } else {
+                                     ImageHandler::new(kind.image_type(idx))
+-                                },
++                                }
++                                // `mask: url(sprite.svg#icon)` picks one
++                                // icon out of an SVG stack.
++                                .with_view_fragment(new_url.fragment()),
+                             ),
+                         );
+
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 42712b1..026b900 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1523,6 +1523,7 @@ impl<'doc> DocumentMutator<'doc> {
+                 // outbound gateway routes through the Image
+                 // cross-origin bypass even for URLs without a useful
+                 // file extension.
++                let src_fragment = src.fragment().map(|f| f.to_string());
+                 let mut req = self.doc.build_request(src);
+                 req.content_type = Some("image/*".to_string());
+                 // Normal mode uses the attribute hint to size the returned raster.
+@@ -1534,7 +1535,9 @@ impl<'doc> DocumentMutator<'doc> {
+                         Some(d) => ImageHandler::with_max_dim(ImageType::Image, d),
+                         None => ImageHandler::new(ImageType::Image),
+                     }
+-                };
++                }
++                // SVG view selection: img.svg#viewname (SVG2 linking).
++                .with_view_fragment(src_fragment.as_deref());
+                 self.doc.net_provider.fetch(
+                     self.doc.id(),
+                     req,
+diff --git a/src/net.rs b/src/net.rs
+index ed85adc..13be51d 100644
+--- a/src/net.rs
++++ b/src/net.rs
+@@ -612,6 +612,9 @@ pub struct ImageHandler {
+     /// original bytes and no pixel decode. An unreadable header falls back to
+     /// normal decoding; renderer mode decodes retained bytes in another isolate.
+     dims_only: bool,
++    /// URL fragment from the image src (`img.svg#viewname`),
++    /// applied as an SVG view selection before the usvg parse.
++    view_fragment: Option<String>,
+ }
+
+ /// Default maximum dimension of the returned raster when the `<img>` has no
+@@ -621,13 +624,22 @@ const DEFAULT_DECODE_MAX_DIM: u32 = 600;
+
+ impl ImageHandler {
+     pub fn new(kind: ImageType) -> Self {
+-        Self { kind, decode_max_dim: None, dims_only: false }
++        Self { kind, decode_max_dim: None, dims_only: false, view_fragment: None }
+     }
+
+     /// Dims-only handler for renderer mode. See the
+     /// `dims_only` field doc.
+     pub fn new_dims_only(kind: ImageType) -> Self {
+-        Self { kind, decode_max_dim: None, dims_only: true }
++        Self { kind, decode_max_dim: None, dims_only: true, view_fragment: None }
++    }
++
++    /// Remember the src URL's fragment so an SVG body can
++    /// honour its `<view>` selection (SVG2 linking.html#ViewElement).
++    pub fn with_view_fragment(mut self, fragment: Option<&str>) -> Self {
++        self.view_fragment = fragment
++            .filter(|f| !f.is_empty())
++            .map(|f| f.to_string());
++        self
+     }
+
+     /// Set the maximum dimension of the returned raster. The source is fully
+@@ -641,6 +653,7 @@ impl ImageHandler {
+             kind,
+             decode_max_dim: Some(cap),
+             dims_only: false,
++            view_fragment: None,
+         }
+     }
+ }
+@@ -776,8 +789,22 @@ impl ImageHandler {
+
+         #[cfg(feature = "svg")]
+         let svg_err = {
+-            use crate::util::parse_svg_image;
+-            match parse_svg_image(&bytes) {
++            use crate::util::{apply_svg_target_fragment, apply_svg_view_fragment, parse_svg_image};
++            // `img.svg#viewname`: the named <view>'s viewBox overrides the
++            // root's before the parse; unmatched fragments fall through.
++            // `sprite.svg#icon`: the fragment is also what `:target`
++            // matches in the sprite's own stylesheet.
++            let rewritten: Option<Vec<u8>> = self
++                .view_fragment
++                .as_deref()
++                .and_then(|frag| {
++                    let source = std::str::from_utf8(&bytes).ok()?;
++                    let viewed = apply_svg_view_fragment(source, frag);
++                    let base = viewed.as_deref().unwrap_or(source);
++                    apply_svg_target_fragment(base, frag).or(viewed)
++                })
++                .map(String::into_bytes);
++            match parse_svg_image(rewritten.as_deref().unwrap_or(&bytes)) {
+                 Ok(svg) => return Ok(Resource::Svg(self.kind, svg)),
+                 Err(e) => e.to_string(),
+             }
+diff --git a/src/util.rs b/src/util.rs
+index dc2651e..42af584 100644
+--- a/src/util.rs
++++ b/src/util.rs
+@@ -157,6 +157,145 @@ pub fn walk_tree(indent: usize, node: &Node) {
+
+ /// Parse an SVG image.
+ #[cfg(feature = "svg")]
++/// SVG fragment views: `image.svg#viewname` selects a `<view>` whose
++/// viewBox (and preserveAspectRatio, when present) override the root's
++/// (SVG2 linking.html#ViewElement). usvg has no fragment handling, so
++/// rewrite the root tag before the parse: string-level, same technique
++/// as the inline-svg stamps. An unmatched or viewBox-less view leaves
++/// the source untouched, which is the spec's fallback to a normal view.
++pub fn apply_svg_view_fragment(source: &str, fragment: &str) -> Option<String> {
++    if fragment.is_empty() {
++        return None;
++    }
++    let id_attr_a = format!("id=\"{fragment}\"");
++    let id_attr_b = format!("id='{fragment}'");
++    // Find the <view ...> opening tag carrying this id.
++    let mut at = 0usize;
++    let view_tag = loop {
++        let rel = source[at..].find("<view")?;
++        let start = at + rel;
++        let end = start + source[start..].find('>')?;
++        let tag = &source[start..=end];
++        if tag.contains(&id_attr_a) || tag.contains(&id_attr_b) {
++            break tag;
++        }
++        at = end + 1;
++    };
++    let attr_of = |tag: &str, name: &str| -> Option<String> {
++        let pos = tag.find(&format!("{name}="))?;
++        let rest = &tag[pos + name.len() + 1..];
++        let quote = rest.chars().next()?;
++        if quote != '"' && quote != '\'' {
++            return None;
++        }
++        let inner = &rest[1..];
++        Some(inner[..inner.find(quote)?].to_string())
++    };
++    let vb = attr_of(view_tag, "viewBox")?;
++    // An invalid view viewBox (malformed, or non-positive extents) makes
++    // the whole fragment invalid; the spec falls back to the normal view,
++    // so the source must stay untouched. Without this gate the negative
++    // extents would be stamped and then disable rendering outright.
++    {
++        // Every token must parse (filter_map would let "0 0 bogus 0 100"
++        // pass as four numbers) and be finite.
++        let tokens: Vec<&str> = vb
++            .split(|c: char| c == ',' || c.is_ascii_whitespace())
++            .filter(|s| !s.is_empty())
++            .collect();
++        if tokens.len() != 4 {
++            return None;
++        }
++        let nums: Vec<f64> = tokens
++            .iter()
++            .filter_map(|s| s.parse().ok())
++            .filter(|n: &f64| n.is_finite())
++            .collect();
++        if nums.len() != 4 || nums[2] <= 0.0 || nums[3] <= 0.0 {
++            return None;
++        }
++    }
++    let par = attr_of(view_tag, "preserveAspectRatio");
++
++    // Rewrite the root <svg ...> tag: drop its own viewBox (and PAR when
++    // the view supplies one), then inject the view's values.
++    let root_start = source.find("<svg")?;
++    let root_end = root_start + source[root_start..].find('>')?;
++    let mut root = source[root_start..root_end].to_string();
++    let strip_attr = |tag: &mut String, name: &str| {
++        if let Some(pos) = tag.find(&format!(" {name}=")) {
++            let rest = &tag[pos + name.len() + 2..];
++            if let Some(q) = rest.chars().next() {
++                if q == '"' || q == '\'' {
++                    if let Some(close) = rest[1..].find(q) {
++                        let end = pos + name.len() + 2 + 1 + close + 1;
++                        tag.replace_range(pos..end, "");
++                    }
++                }
++            }
++        }
++    };
++    strip_attr(&mut root, "viewBox");
++    if par.is_some() {
++        strip_attr(&mut root, "preserveAspectRatio");
++    }
++    let mut inject = format!(" viewBox=\"{vb}\"");
++    if let Some(par) = &par {
++        inject.push_str(&format!(" preserveAspectRatio=\"{par}\""));
++    }
++    root.insert_str(4, &inject);
++    let mut out = String::with_capacity(source.len() + inject.len());
++    out.push_str(&source[..root_start]);
++    out.push_str(&root);
++    out.push_str(&source[root_end..]);
++    Some(out)
++}
++
++/// SVG stacks: `sprite.svg#name` shows one icon out of many through
++/// `svg>[id]{display:none} svg>[id]:target{display:inline}` in the
++/// sprite's `<style>` (tldraw's toolbar icons are CSS masks of this
++/// kind). usvg knows no document URL, so it cannot match `:target`,
++/// and simplecss drops the rule: every icon stayed hidden. Rewrite
++/// `:target` inside `<style>` blocks to the id selector it stands for.
++///
++/// Without a fragment nothing is targeted, which is what the dropped
++/// rule already gives, so there is nothing to rewrite.
++pub fn apply_svg_target_fragment(source: &str, fragment: &str) -> Option<String> {
++    // The fragment lands inside a quoted attribute selector; refuse
++    // anything that could close the quote or the style block early.
++    if fragment.is_empty()
++        || fragment
++            .chars()
++            .any(|c| matches!(c, '"' | '\\' | '<' | '>') || c.is_control())
++        || !source.contains(":target")
++    {
++        return None;
++    }
++    let id_selector = format!("[id=\"{fragment}\"]");
++    let mut out = String::with_capacity(source.len() + 64);
++    let mut rest = source;
++    let mut changed = false;
++    while let Some(open) = rest.find("<style") {
++        let Some(body_start) = rest[open..].find('>').map(|i| open + i + 1) else {
++            break;
++        };
++        let Some(close) = rest[body_start..].find("</style").map(|i| body_start + i) else {
++            break;
++        };
++        out.push_str(&rest[..body_start]);
++        let body = &rest[body_start..close];
++        if body.contains(":target") {
++            out.push_str(&body.replace(":target", &id_selector));
++            changed = true;
++        } else {
++            out.push_str(body);
++        }
++        rest = &rest[close..];
++    }
++    out.push_str(rest);
++    changed.then_some(out)
++}
++
+ pub fn parse_svg_image(source: &[u8]) -> Result<crate::node::SvgImageData, usvg::Error> {
+     let options = usvg::Options {
+         fontdb: Arc::clone(&*FONT_DB),

@@ -4,12 +4,146 @@
 
 //! Print output: PDF scenes, the page box, and the print media type.
 
+use std::panic;
+
 use wasm_bindgen::prelude::*;
 
 use crate::{emulated_color_scheme, DomHandle, LayoutMode};
+use crate::paint::pdf::{
+    compute_page_bands, evict_recorded_page_layouts, max_printed_height, record_doc_pdf_page,
+};
+use crate::paint::pdf_paint::content_box;
+
+#[wasm_bindgen]
+pub struct PdfSceneStream {
+    bands: Vec<(f64, f64)>,
+    content_width: u32,
+    next: usize,
+}
+
+#[wasm_bindgen]
+impl PdfSceneStream {
+    #[wasm_bindgen(getter, js_name = "pageCount")]
+    pub fn page_count(&self) -> usize {
+        self.bands.len()
+    }
+
+    #[wasm_bindgen(js_name = "nextPage")]
+    pub fn next_page(&mut self, dom: &DomHandle) -> Result<Vec<u8>, JsError> {
+        let Some(&band) = self.bands.get(self.next) else {
+            // A stream that records no page never reaches `record_stream_page`'s clear.
+            dom.release_inline_keep_extent();
+            return Ok(Vec::new());
+        };
+        let page = record_stream_page(dom, self.content_width, band)?;
+        self.next += 1;
+        Ok(page)
+    }
+}
+
+// Keep this boundary separate: pinned LLVM WebAssemblyCFGStackify has SIGBUS'd on print codegen.
+#[inline(never)]
+fn record_stream_page(
+    dom: &DomHandle,
+    content_width: u32,
+    band: (f64, f64),
+) -> Result<Vec<u8>, JsError> {
+    let mut doc = dom
+        .doc
+        .try_borrow_mut()
+        .map_err(|_| JsError::new("PDF document busy"))?;
+    let mut fonts = dom
+        .rbi_font_bytes
+        .try_borrow_mut()
+        .map_err(|_| JsError::new("PDF font cache busy"))?;
+    let mut images = dom
+        .rbi_image_cache
+        .try_borrow_mut()
+        .map_err(|_| JsError::new("PDF image cache busy"))?;
+    let mut seen_images = Vec::new();
+    let recorded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        record_doc_pdf_page(
+            &mut doc,
+            content_width,
+            band,
+            &mut fonts,
+            &mut images,
+            &mut seen_images,
+        )
+    }));
+    drop(images);
+    drop(fonts);
+    doc.set_inline_keep_extent(None);
+    let cleanup = cleanup_stream_page(&mut doc);
+    drop(doc);
+    if let Ok(mut recency) = dom.rbi_image_recency.try_borrow_mut() {
+        recency.note(seen_images);
+    }
+    let page = recorded.map_err(|_| JsError::new("PDF page recording panicked"))?;
+    cleanup.map_err(|_| JsError::new("PDF page cleanup panicked"))?;
+    Ok(page)
+}
+
+// Keep cleanup separate for the same pinned-toolchain WebAssemblyCFGStackify SIGBUS workaround.
+#[inline(never)]
+fn cleanup_stream_page(doc: &mut blitz_dom::BaseDocument) -> std::thread::Result<()> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        evict_recorded_page_layouts(doc);
+    }))
+}
 
 #[wasm_bindgen]
 impl DomHandle {
+    #[wasm_bindgen(js_name = "startPdfSceneStream")]
+    pub fn start_pdf_scene_stream(
+        &self,
+        width: u32,
+        height: u32,
+        margin_top: u32,
+        margin_right: u32,
+        margin_bottom: u32,
+        margin_left: u32,
+    ) -> Option<PdfSceneStream> {
+        if self.layout_mode.get() == LayoutMode::Off {
+            return None;
+        }
+        let (_, _, content_width, content_height) = content_box(
+            width,
+            height,
+            margin_top,
+            margin_right,
+            margin_bottom,
+            margin_left,
+        );
+        // Set before the layout passes it protects: the resolve below and the print-viewport
+        // `ensure_layout` end with an eviction scan.
+        let mut doc = self.doc.try_borrow_mut().ok()?;
+        doc.set_inline_keep_extent(Some((0.0, max_printed_height(content_height))));
+        drop(doc);
+        self.resolve_until_images_settle();
+        let mut doc = self.doc.try_borrow_mut().ok()?;
+        let viewport = doc.viewport();
+        if viewport.window_size.0 != content_width || viewport.window_size.1 != content_height {
+            doc.set_viewport(blitz_traits::shell::Viewport::new(
+                content_width,
+                content_height,
+                1.0,
+                emulated_color_scheme(),
+            ));
+            drop(doc);
+            self.layout_dirty.set(true);
+            self.ensure_layout();
+            doc = self.doc.try_borrow_mut().ok()?;
+        }
+        let bands = compute_page_bands(&mut doc, content_height);
+        drop(doc);
+        Some(PdfSceneStream {
+            bands,
+            content_width,
+            next: 0,
+        })
+    }
+
     #[wasm_bindgen(js_name = "recordPdfScenes")]
     pub fn record_pdf_scenes(
         &self,
@@ -24,12 +158,7 @@ impl DomHandle {
         if self.layout_mode.get() == LayoutMode::Off {
             return Vec::new();
         }
-        self.resolve_until_images_settle();
-        let mut doc = match self.doc.try_borrow_mut() {
-            Ok(d) => d,
-            Err(_) => return Vec::new(),
-        };
-        let (_ml, _mt, content_w, content_h) = crate::paint::pdf_paint::content_box(
+        let (_ml, _mt, content_w, content_h) = content_box(
             width,
             height,
             margin_top,
@@ -37,51 +166,109 @@ impl DomHandle {
             margin_bottom,
             margin_left,
         );
-        {
-            use blitz_traits::shell::Viewport;
-            let cur = doc.viewport();
-            if cur.window_size.0 != content_w || cur.window_size.1 != content_h {
-                doc.set_viewport(Viewport::new(
-                    content_w,
-                    content_h,
-                    1.0,
-                    emulated_color_scheme(),
-                ));
-                drop(doc);
-                self.layout_dirty.set(true);
-                self.ensure_layout();
-                doc = match self.doc.try_borrow_mut() {
-                    Ok(d) => d,
-                    Err(_) => return Vec::new(),
-                };
-            }
+
+        // Set before the layout passes it protects: both the resolve below and the
+        // print-viewport layout end with an eviction scan.
+        if !self.hold_inline_keep_extent(content_h) {
+            return Vec::new();
         }
-        let mut fonts_ref = match self.rbi_font_bytes.try_borrow_mut() {
-            Ok(f) => f,
-            Err(_) => return Vec::new(),
+        let scenes = self.record_pdf_scenes_at(content_w, content_h);
+        self.release_inline_keep_extent();
+        let released = self.release_print_only_layouts();
+
+        match scenes {
+            Some(env)
+                if released && env.len() > crate::paint::scene_replay::PDF_ENVELOPE_U32_BYTES =>
+            {
+                env
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    /// Releases the text this print rebuilt. Returns false when the eviction panicked
+    /// or the document is already borrowed.
+    fn release_print_only_layouts(&self) -> bool {
+        let Ok(mut doc) = self.doc.try_borrow_mut() else {
+            return false;
         };
-        let mut images_ref = match self.rbi_image_cache.try_borrow_mut() {
-            Ok(i) => i,
-            Err(_) => return Vec::new(),
+        cleanup_stream_page(&mut doc).is_ok()
+    }
+
+    /// Records the PDF scenes of the document laid out at the paper box.
+    fn record_pdf_scenes_at(&self, content_w: u32, content_h: u32) -> Option<Vec<u8>> {
+        self.resolve_until_images_settle();
+        if !self.fit_print_viewport(content_w, content_h) {
+            return None;
+        }
+
+        let mut doc = self.doc.try_borrow_mut().ok()?;
+        let (Ok(mut fonts), Ok(mut images)) = (
+            self.rbi_font_bytes.try_borrow_mut(),
+            self.rbi_image_cache.try_borrow_mut(),
+        ) else {
+            return None;
         };
+
         let mut pdf_images = Vec::new();
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let base: &mut blitz_dom::BaseDocument = &mut doc;
+        let scenes = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             crate::paint::pdf::record_doc_pdf_scenes(
-                base,
+                &mut doc,
                 content_w,
                 content_h,
-                &mut fonts_ref,
-                &mut images_ref,
+                &mut fonts,
+                &mut images,
                 &mut pdf_images,
             )
         }));
+
         if let Ok(mut recency) = self.rbi_image_recency.try_borrow_mut() {
             recency.note(pdf_images);
         }
-        match result {
-            Ok(env) if env.len() > crate::paint::scene_replay::PDF_ENVELOPE_U32_BYTES => env,
-            _ => Vec::new(),
+        scenes.ok()
+    }
+
+    /// Lays the document out at the paper box. Returns false when the document is
+    /// already borrowed.
+    fn fit_print_viewport(&self, content_w: u32, content_h: u32) -> bool {
+        use blitz_traits::shell::Viewport;
+
+        let Ok(mut doc) = self.doc.try_borrow_mut() else {
+            return false;
+        };
+        if doc.viewport().window_size == (content_w, content_h) {
+            return true;
+        }
+
+        doc.set_viewport(Viewport::new(
+            content_w,
+            content_h,
+            1.0,
+            emulated_color_scheme(),
+        ));
+        drop(doc);
+        self.layout_dirty.set(true);
+        self.ensure_layout();
+        true
+    }
+
+    /// Keeps inline layouts shaped down to the last printed row, so this print's
+    /// layout passes do not evict the text they just shaped. Returns false when
+    /// the document is already borrowed.
+    fn hold_inline_keep_extent(&self, content_h: u32) -> bool {
+        let Ok(mut doc) = self.doc.try_borrow_mut() else {
+            return false;
+        };
+        doc.set_inline_keep_extent(Some((
+            0.0,
+            crate::paint::pdf::max_printed_height(content_h),
+        )));
+        true
+    }
+
+    fn release_inline_keep_extent(&self) {
+        if let Ok(mut doc) = self.doc.try_borrow_mut() {
+            doc.set_inline_keep_extent(None);
         }
     }
 
@@ -106,8 +293,7 @@ impl DomHandle {
 
     #[wasm_bindgen(js_name = "pageBoxJson")]
     pub fn page_box_json(&self) -> String {
-        let computed =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.compute_page_box()));
+        let computed = panic::catch_unwind(panic::AssertUnwindSafe(|| self.compute_page_box()));
         match computed {
             Ok(Ok(pb)) => pb,
             Ok(Err(e)) => format!(

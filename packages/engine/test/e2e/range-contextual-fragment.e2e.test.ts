@@ -86,8 +86,9 @@ const html = `<table><tbody id=tb></tbody></table><div id=d>text</div><template 
     // usvg turns svg <text> into outlines, so a parse that can create one
     // asks for the full fonts, as innerHTML does.
     var demands = 0;
-    var origDemand = globalThis.__ksFontOutlineDemand;
-    globalThis.__ksFontOutlineDemand = function () {
+    var ksInternals = globalThis[Symbol.for("kitesurf.internals")];
+    var origDemand = ksInternals.demandFontOutlines;
+    ksInternals.demandFontOutlines = function () {
       demands++;
       return origDemand ? origDemand.apply(this, arguments) : undefined;
     };
@@ -96,7 +97,7 @@ const html = `<table><tbody id=tb></tbody></table><div id=d>text</div><template 
       fragmentAt(document.getElementById("sv"), "<text x=0 y=10>Hi</text>");
       fragmentAt(document.body, "<p>no svg text</p>");
     } finally {
-      globalThis.__ksFontOutlineDemand = origDemand;
+      ksInternals.demandFontOutlines = origDemand;
     }
     out.fontDemand = demands;
     // A <tbody> context keeps the <tr>; a <div> context drops the row

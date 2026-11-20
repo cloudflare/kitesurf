@@ -4,6 +4,8 @@
 
 // Stores per-connection URL and resource-type filters used by page egress.
 
+import { compileLinearRegex, type LinearRegex } from "./linear-regex.ts";
+
 export type OutboundResourceType =
   | "Document"
   | "Stylesheet"
@@ -25,8 +27,8 @@ export type OutboundResourceType =
   | "Other";
 
 export interface OutboundFilters {
-  allowPatterns?: RegExp[];
-  rejectPatterns?: RegExp[];
+  allowPatterns?: LinearRegex[];
+  rejectPatterns?: LinearRegex[];
   allowResourceTypes?: Set<string>;
   rejectResourceTypes?: Set<string>;
 }
@@ -96,6 +98,15 @@ export function shouldBlock(
 const MAX_PATTERN_LEN = 500;
 const MAX_PATTERNS_PER_SIDE = 32;
 
+// Compiled in linear time; a rejected pattern fails the whole call so filters stay all-or-nothing.
+function compilePatterns(patterns: string[]): LinearRegex[] {
+  return patterns.map((source) => {
+    const compiled = compileLinearRegex(source);
+    if (!compiled.ok) throw new Error(compiled.error);
+    return compiled.regex;
+  });
+}
+
 export function compileOutboundFilters(input: {
   allowRequestPattern?: string[];
   rejectRequestPattern?: string[];
@@ -125,10 +136,10 @@ export function compileOutboundFilters(input: {
   }
   try {
     if (input.allowRequestPattern && input.allowRequestPattern.length > 0) {
-      filters.allowPatterns = input.allowRequestPattern.map((s) => new RegExp(s));
+      filters.allowPatterns = compilePatterns(input.allowRequestPattern);
     }
     if (input.rejectRequestPattern && input.rejectRequestPattern.length > 0) {
-      filters.rejectPatterns = input.rejectRequestPattern.map((s) => new RegExp(s));
+      filters.rejectPatterns = compilePatterns(input.rejectRequestPattern);
     }
   } catch (err) {
     return {

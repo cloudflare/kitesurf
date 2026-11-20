@@ -1,0 +1,1125 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 11 Nov 2026 16:01:29 +0000
+Subject: [PATCH] Reuse the glyphs of words seen before
+
+Long documents shape the same words thousands of times, and shaping was
+most of the time a first layout spent in parley: on the HTML Standard it
+took 1.4 s of a 3.8 s layout.
+
+When a font's shaping cannot act across a space, a run's glyphs are its
+words' and spaces' glyphs laid end to end. The shaper now checks each font
+once: no GSUB lookup may read the space, and GPOS may read it only as the
+glyph right before or after the glyphs it moves, which are then listed as
+space-sensitive. Runs in left-to-right Latin, Greek, Cyrillic or common
+text are split at spaces, keeping graphemes whole; pieces seen before take
+their cached glyphs, and the rest are shaped together with one neighbouring
+piece on each side, so a space-sensitive glyph still sees its space, then
+remembered unless they begin or end with a space-sensitive glyph.
+
+Kerning, ligatures and marks within a word are shaped as before. The cache
+holds up to 2048 words for each of 8 font and option sets.
+---
+ src/lru_cache.rs         |  12 +
+ src/shape/mod.rs         |   1 +
+ src/shape/shaped_text.rs |  35 +--
+ src/shape/shaper.rs      | 311 ++++++++++++++++++----
+ src/shape/word_cache.rs  | 545 +++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 833 insertions(+), 71 deletions(-)
+ create mode 100644 src/shape/word_cache.rs
+
+diff --git a/src/lru_cache.rs b/src/lru_cache.rs
+index 592576b..3cf00c9 100644
+--- a/src/lru_cache.rs
++++ b/src/lru_cache.rs
+@@ -45,6 +45,18 @@ impl<ID, T> LruCache<ID, T> {
+         &entry.data
+     }
+
++    /// Like [`Self::entry`], but returns a mutable reference.
++    pub(crate) fn entry_mut<K>(&mut self, id: K, make_data: impl FnOnce() -> T) -> &mut T
++    where
++        K: Equivalent<ID> + Into<ID>,
++    {
++        let index = self.find_entry(id, make_data);
++        self.epoch += 1;
++        let entry = &mut self.entries[index];
++        entry.epoch = self.epoch;
++        &mut entry.data
++    }
++
+     fn find_entry<K>(&mut self, id: K, make_data: impl FnOnce() -> T) -> usize
+     where
+         K: Equivalent<ID> + Into<ID>,
+diff --git a/src/shape/mod.rs b/src/shape/mod.rs
+index 9ab03ce..2a0d923 100644
+--- a/src/shape/mod.rs
++++ b/src/shape/mod.rs
+@@ -9,6 +9,7 @@ mod cluster;
+ mod data;
+ pub(crate) mod shaped_text;
+ pub(crate) mod shaper;
++mod word_cache;
+
+ pub use cluster::{Char, CharCluster, Coverage, SourceRange, Whitespace};
+ pub use data::{Character, CharacterFlags, ShapedCluster};
+diff --git a/src/shape/shaped_text.rs b/src/shape/shaped_text.rs
+index dcd879c..9d701ac 100644
+--- a/src/shape/shaped_text.rs
++++ b/src/shape/shaped_text.rs
+@@ -20,6 +20,7 @@ use super::{
+     atom::{ShapedSlice, cluster_char_range},
+     data::ShapedIndex,
+     shaper::ShapeOptions,
++    word_cache::RawGlyph,
+ };
+
+ /// Metrics that apply to the glyphs of a font.
+@@ -340,7 +341,7 @@ impl ShapedText {
+         char_info: &[CharInfo],
+         char_style_indices: &[u16],
+         font: &FontInstance,
+-        glyph_buffer: &harfrust::GlyphBuffer,
++        glyphs: &[RawGlyph],
+         normalized_coords: &[harfrust::NormalizedCoord],
+     ) {
+         debug_assert_eq!(
+@@ -349,8 +350,6 @@ impl ShapedText {
+             "The claimed character range and the text's covered byte range should agree"
+         );
+
+-        let glyph_infos = glyph_buffer.glyph_infos();
+-
+         let normalized_coords_range = {
+             let start = self.normalized_coords.len();
+             self.normalized_coords.extend(
+@@ -387,7 +386,6 @@ impl ShapedText {
+         // `HarfRust` returns glyphs in visual order, so we need to process them as such while
+         // maintaining logical ordering of clusters.
+
+-        let glyph_positions = glyph_buffer.glyph_positions();
+         let scale_factor = options.font_size / units_per_em;
+         let shaped_clusters_start = self.shaped_clusters.len();
+
+@@ -425,8 +423,7 @@ impl ShapedText {
+                 &mut self.shaped_clusters,
+                 &mut self.glyphs,
+                 scale_factor,
+-                glyph_infos.iter(),
+-                glyph_positions.iter(),
++                glyphs.iter(),
+                 &self.characters,
+                 characters_start,
+             );
+@@ -436,8 +433,7 @@ impl ShapedText {
+                 &mut self.shaped_clusters,
+                 &mut self.glyphs,
+                 scale_factor,
+-                glyph_infos.iter().rev(),
+-                glyph_positions.iter().rev(),
++                glyphs.iter().rev(),
+                 &self.characters,
+                 characters_start,
+             );
+@@ -512,9 +508,7 @@ pub struct ShapedRun {
+ ///
+ /// ## Input Parameters:
+ /// * `scale_factor` - Scaling factor used to convert font units to the target size.
+-/// * `glyph_infos` - `HarfRust` glyph information in logical order (i.e., reversed for RTL runs).
+-/// * `glyph_positions` - `HarfRust` glyph positioning data in logical order (i.e., reversed for RTL
+-///   runs).
++/// * `shaped` - Shaped glyphs in logical order (i.e., reversed for RTL runs).
+ /// * `characters` must contain the shaped characters whose clusters we're now processing, starting at
+ ///   index `characters_start`.
+ /// * `characters_start` - See `characters`.
+@@ -523,8 +517,7 @@ fn process_shaped_clusters<'a>(
+     shaped_clusters: &mut Vec<ShapedCluster>,
+     glyphs: &mut ThinVec<Glyph>,
+     scale_factor: f32,
+-    glyph_infos: impl Iterator<Item = &'a harfrust::GlyphInfo>,
+-    glyph_positions: impl Iterator<Item = &'a harfrust::GlyphPosition>,
++    shaped: impl Iterator<Item = &'a RawGlyph>,
+     characters: &[Character],
+     characters_start: usize,
+ ) {
+@@ -588,13 +581,13 @@ fn process_shaped_clusters<'a>(
+         advance: 0.,
+     };
+
+-    for (glyph_info, glyph_pos) in glyph_infos.zip(glyph_positions) {
+-        if glyph_info.cluster != cluster.id {
+-            let char_end = characters_start + glyph_info.cluster as usize;
++    for shaped_glyph in shaped {
++        if shaped_glyph.cluster != cluster.id {
++            let char_end = characters_start + shaped_glyph.cluster as usize;
+             flush(&mut cluster, characters, index, shaped_clusters);
+
+             cluster = Cluster {
+-                id: glyph_info.cluster,
++                id: shaped_glyph.cluster,
+                 characters_start: char_end,
+                 glyphs_start: glyphs.len(),
+                 glyphs: 0,
+@@ -604,11 +597,11 @@ fn process_shaped_clusters<'a>(
+         }
+
+         let glyph = Glyph {
+-            id: glyph_info.glyph_id,
+-            x: (glyph_pos.x_offset as f32) * scale_factor,
++            id: shaped_glyph.id,
++            x: (shaped_glyph.x_offset as f32) * scale_factor,
+             // Convert from font space (Y-up) to layout space (Y-down)
+-            y: -(glyph_pos.y_offset as f32) * scale_factor,
+-            advance: (glyph_pos.x_advance as f32) * scale_factor,
++            y: -(shaped_glyph.y_offset as f32) * scale_factor,
++            advance: (shaped_glyph.x_advance as f32) * scale_factor,
+         };
+         if cluster.glyphs == 0 && glyph.x == 0. && glyph.y == 0. {
+             // Defer this potential zero-offset, single glyph cluster
+diff --git a/src/shape/shaper.rs b/src/shape/shaper.rs
+index f1ad855..90acc59 100644
+--- a/src/shape/shaper.rs
++++ b/src/shape/shaper.rs
+@@ -5,6 +5,7 @@
+
+ use alloc::vec::Vec;
+ use core::mem;
++use core::ops::Range;
+ use harfrust::ShapeOptions as HarfShapeOptions;
+ use linebender_resource_handle::{Blob, FontData};
+ use parlance::{FontFeature, FontVariation, Language};
+@@ -13,7 +14,10 @@ use crate::{
+     Analysis, CharInfo, ShapedText,
+     itemize::{Item, Segment, TextRange},
+     lru_cache::LruCache,
+-    shape::{CharCluster, cache},
++    shape::{
++        CharCluster, cache,
++        word_cache::{self, RawGlyph, SpaceSensitive, WordGlyphs},
++    },
+ };
+
+ /// Shaping options for one item.
+@@ -88,25 +92,42 @@ pub struct Shaper {
+     shape_data_cache: LruCache<cache::ShapeDataKey, harfrust::ShaperData>,
+     shape_instance_cache: LruCache<cache::ShapeInstanceId, harfrust::ShaperInstance>,
+     shape_plan_cache: LruCache<cache::ShapePlanId, harfrust::ShapePlan>,
++    /// How each font's shaping can see spaces, `None` when words of it cannot be reused.
++    space_sensitive_cache: LruCache<cache::ShapeDataKey, Option<SpaceSensitive>>,
++    word_cache: LruCache<cache::ShapePlanId, WordGlyphs>,
+     unicode_buffer: Option<harfrust::UnicodeBuffer>,
+     features: Vec<harfrust::Feature>,
+     char_cluster: CharCluster,
++    glyphs: Vec<RawGlyph>,
++    pieces: Vec<Piece>,
+ }
+
+ impl Default for Shaper {
+     fn default() -> Self {
+         const MAX_ENTRIES: usize = 16;
++        const MAX_WORD_CACHES: usize = 8;
+         Self {
+             shape_data_cache: LruCache::new(MAX_ENTRIES),
+             shape_instance_cache: LruCache::new(MAX_ENTRIES),
+             shape_plan_cache: LruCache::new(MAX_ENTRIES),
++            space_sensitive_cache: LruCache::new(MAX_ENTRIES),
++            word_cache: LruCache::new(MAX_WORD_CACHES),
+             unicode_buffer: Some(harfrust::UnicodeBuffer::new()),
+             features: Vec::new(),
+             char_cluster: CharCluster::default(),
++            glyphs: Vec::new(),
++            pieces: Vec::new(),
+         }
+     }
+ }
+
++/// A maximal stretch of a run that is all U+0020 spaces or has none, relative to the run.
++#[derive(Clone, Debug)]
++struct Piece {
++    bytes: Range<usize>,
++    chars: Range<u32>,
++}
++
+ impl core::fmt::Debug for Shaper {
+     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+         f.debug_struct("Shaper").finish_non_exhaustive()
+@@ -271,6 +292,13 @@ fn shape_segment(
+         )
+     }));
+
++    // Word reuse is limited to left-to-right scripts that no shaper reshapes from context.
++    let by_words = direction == harfrust::Direction::LeftToRight
++        && matches!(
++            &segment.script.to_bytes(),
++            b"Latn" | b"Grek" | b"Cyrl" | b"Zyyy"
++        );
++
+     // Shape a run of the segment with a single font, appending it to `shaped_text`.
+     let mut shape_run = |font: &FontInstance, range: TextRange| {
+         // TODO: How do we want to handle errors like this?
+@@ -301,7 +329,7 @@ fn shape_segment(
+             .shaper(&font_ref)
+             .instance(Some(instance))
+             .build();
+-        let shaper_plan = scx.shape_plan_cache.entry(
++        let plan_key = || {
+             cache::ShapePlanKey::new(
+                 font.font.data.id(),
+                 font.font.index,
+@@ -311,54 +339,99 @@ fn shape_segment(
+                 language.clone(),
+                 &scx.features,
+                 Some(options.variations),
+-            ),
+-            || {
+-                harfrust::ShapePlan::new(
+-                    &harf_shaper,
+-                    direction,
+-                    Some(hb_script),
+-                    language.as_ref(),
+-                    &scx.features,
+-                )
+-            },
+-        );
++            )
++        };
++        let shaper_plan = scx.shape_plan_cache.entry(plan_key(), || {
++            harfrust::ShapePlan::new(
++                &harf_shaper,
++                direction,
++                Some(hb_script),
++                language.as_ref(),
++                &scx.features,
++            )
++        });
++
++        let mut shape =
++            |byte_range: Range<usize>, cluster_base: u32, glyphs: &mut Vec<RawGlyph>| {
++                // Prepare harfrust buffer
++                let mut buffer = mem::take(&mut scx.unicode_buffer).unwrap();
++                buffer.clear();
++                buffer.set_cluster_level(harfrust::BufferClusterLevel::MonotoneCharacters);
++
++                // Use the entire run text including newlines.
++                let run_text = &text[byte_range.clone()];
++                buffer.reserve(run_text.len());
++                #[expect(clippy::cast_possible_truncation, reason = "Deferred")]
++                for (i, ch) in run_text.chars().enumerate() {
++                    // Ensure that each cluster's index matches the index into `infos`. This is
++                    // required for efficient cluster lookup within `data.rs`.
++                    //
++                    // In other words, instead of using `buffer.push_str`, which iterates `run_text`
++                    // with `char_indices`, push each char individually via `.chars` with a cluster
++                    // index that matches its `infos` counterpart. This allows us to lookup `infos`
++                    // via cluster index in `data.rs`.
++                    buffer.add(ch, cluster_base + i as u32);
++                }
+
+-        // Prepare harfrust buffer
+-        let mut buffer = mem::take(&mut scx.unicode_buffer).unwrap();
+-        buffer.clear();
+-        buffer.set_cluster_level(harfrust::BufferClusterLevel::MonotoneCharacters);
+-
+-        // Use the entire run text including newlines.
+-        let run_text = &text[range.byte_range.clone()];
+-        buffer.reserve(run_text.len());
+-        #[expect(clippy::cast_possible_truncation, reason = "Deferred")]
+-        for (i, ch) in run_text.chars().enumerate() {
+-            // Ensure that each cluster's index matches the index into `infos`. This is required
+-            // for efficient cluster lookup within `data.rs`.
+-            //
+-            // In other words, instead of using `buffer.push_str`, which iterates `run_text`
+-            // with `char_indices`, push each char individually via `.chars` with a cluster index
+-            // that matches its `infos` counterpart. This allows us to lookup `infos` via cluster
+-            // index in `data.rs`.
+-            buffer.add(ch, i as u32);
+-        }
++                buffer.set_pre_context(&text[..byte_range.start]);
++                buffer.set_post_context(&text[byte_range.end..]);
++                buffer.set_direction(direction);
++                buffer.set_script(hb_script);
+
+-        buffer.set_pre_context(&text[..range.byte_range.start]);
+-        buffer.set_post_context(&text[range.byte_range.end..]);
+-        buffer.set_direction(direction);
+-        buffer.set_script(hb_script);
++                if let Some(lang) = &language {
++                    buffer.set_language(lang.clone());
++                }
+
+-        if let Some(lang) = &language {
+-            buffer.set_language(lang.clone());
+-        }
++                let glyph_buffer = harf_shaper.shape(
++                    buffer,
++                    HarfShapeOptions::new()
++                        .plan(Some(shaper_plan))
++                        .features(&scx.features)
++                        .point_size(Some(options.font_size)),
++                );
++                glyphs.extend(
++                    glyph_buffer
++                        .glyph_infos()
++                        .iter()
++                        .zip(glyph_buffer.glyph_positions())
++                        .map(|(info, pos)| RawGlyph::from_harfrust(info, pos)),
++                );
+
+-        let glyph_buffer = harf_shaper.shape(
+-            buffer,
+-            HarfShapeOptions::new()
+-                .plan(Some(shaper_plan))
+-                .features(&scx.features)
+-                .point_size(Some(options.font_size)),
+-        );
++                // Replace buffer to reuse allocation in the next run.
++                scx.unicode_buffer = Some(glyph_buffer.clear());
++            };
++
++        let mut glyphs = mem::take(&mut scx.glyphs);
++        glyphs.clear();
++        let sensitive = if by_words && text[range.byte_range.clone()].contains(' ') {
++            scx.space_sensitive_cache
++                .entry(
++                    cache::ShapeDataKey::new(font.font.data.id(), font.font.index),
++                    || word_cache::space_sensitive_glyphs(&font_ref),
++                )
++                .as_ref()
++        } else {
++            None
++        };
++        if let Some(sensitive) = sensitive {
++            split_into_pieces(
++                &text[range.byte_range.clone()],
++                &char_info[range.char_range.clone()],
++                &mut scx.pieces,
++            );
++            let words = scx.word_cache.entry_mut(plan_key(), WordGlyphs::default);
++            shape_by_words(
++                &text[range.byte_range.clone()],
++                range.byte_range.start,
++                &scx.pieces,
++                sensitive,
++                words,
++                &mut glyphs,
++                &mut shape,
++            );
++        } else {
++            shape(range.byte_range.clone(), 0, &mut glyphs);
++        }
+
+         shaped_text.push_run(
+             text,
+@@ -368,12 +441,10 @@ fn shape_segment(
+             char_info,
+             char_style_indices,
+             font,
+-            &glyph_buffer,
++            &glyphs,
+             harf_shaper.coords(),
+         );
+-
+-        // Replace buffer to reuse allocation in the next run.
+-        scx.unicode_buffer = Some(glyph_buffer.clear());
++        scx.glyphs = glyphs;
+     };
+
+     // This is the run being accumulated, i.e., consecutive graphemes for which `select_font`
+@@ -429,6 +500,146 @@ fn shape_segment(
+     Ok(())
+ }
+
++/// Split a run where it changes between spaces and other text, keeping graphemes whole: a mark on
++/// a space stays in the space's piece.
++fn split_into_pieces(run_text: &str, char_info: &[CharInfo], pieces: &mut Vec<Piece>) {
++    pieces.clear();
++    let mut start = 0;
++    let mut char_start = 0;
++    let mut char_index = 0;
++    let mut in_spaces = run_text.starts_with(' ');
++    for ((byte, ch), info) in run_text.char_indices().zip(char_info) {
++        if (ch == ' ') != in_spaces && info.is_grapheme_start() {
++            pieces.push(Piece {
++                bytes: start..byte,
++                chars: char_start..char_index,
++            });
++            start = byte;
++            char_start = char_index;
++            in_spaces = !in_spaces;
++        }
++        char_index += 1;
++    }
++    pieces.push(Piece {
++        bytes: start..run_text.len(),
++        chars: char_start..char_index,
++    });
++}
++
++/// Append the glyphs of a run whose font shapes across spaces only as `sensitive` allows,
++/// reusing the glyphs of the pieces seen before.
++///
++/// Consecutive unseen pieces are shaped together with one seen piece on each side, so a glyph
++/// that the space beside it moves is shaped next to that space, then the pieces are remembered.
++fn shape_by_words(
++    run_text: &str,
++    run_start: usize,
++    pieces: &[Piece],
++    sensitive: &SpaceSensitive,
++    words: &mut WordGlyphs,
++    glyphs: &mut Vec<RawGlyph>,
++    shape: &mut impl FnMut(Range<usize>, u32, &mut Vec<RawGlyph>),
++) {
++    let text_of = |piece: &Piece| &run_text[piece.bytes.clone()];
++    // Where the glyphs of the piece before the current one start.
++    let mut previous_piece_start = 0;
++    let mut piece_index = 0;
++    while piece_index < pieces.len() {
++        if let Some(cached) = words.get(text_of(&pieces[piece_index])) {
++            let base = pieces[piece_index].chars.start;
++            previous_piece_start = glyphs.len();
++            glyphs.extend(cached.iter().map(|glyph| RawGlyph {
++                cluster: glyph.cluster + base,
++                ..*glyph
++            }));
++            piece_index += 1;
++            continue;
++        }
++
++        // The unseen pieces up to the next seen one, then one seen piece on each side.
++        let mut unseen_end = piece_index + 1;
++        while unseen_end < pieces.len() && words.get(text_of(&pieces[unseen_end])).is_none() {
++            unseen_end += 1;
++        }
++        let span_start = if piece_index > 0 {
++            // Reshape the preceding piece's cached glyphs with the span.
++            glyphs.truncate(previous_piece_start);
++            piece_index - 1
++        } else {
++            piece_index
++        };
++        let span_end = (unseen_end + 1).min(pieces.len());
++        let span = &pieces[span_start..span_end];
++        let last = &span[span.len() - 1];
++
++        let first_glyph = glyphs.len();
++        shape(
++            run_start + span[0].bytes.start..run_start + last.bytes.end,
++            span[0].chars.start,
++            glyphs,
++        );
++        remember_pieces(run_text, span, &glyphs[first_glyph..], sensitive, words);
++
++        let reshaped = &glyphs[first_glyph..];
++        previous_piece_start = first_glyph + last_piece_start(reshaped, last.chars.start);
++        piece_index = span_end;
++    }
++}
++
++/// Where the glyphs of the piece whose characters start at `chars_start` begin in `glyphs`.
++fn last_piece_start(glyphs: &[RawGlyph], chars_start: u32) -> usize {
++    let last_piece_glyphs = glyphs
++        .iter()
++        .rev()
++        .take_while(|glyph| glyph.cluster >= chars_start)
++        .count();
++    glyphs.len() - last_piece_glyphs
++}
++
++/// Remember the glyphs of each piece of `span`, whose clusters count from its first character.
++fn remember_pieces(
++    run_text: &str,
++    span: &[Piece],
++    glyphs: &[RawGlyph],
++    sensitive: &SpaceSensitive,
++    words: &mut WordGlyphs,
++) {
++    // Clusters are monotonic, so each piece's glyphs follow the previous piece's. A piece whose
++    // first glyph does not start its first character shares a cluster with its neighbour, which
++    // the font check should rule out: then nothing in the span is remembered.
++    let mut bounds = Vec::with_capacity(span.len());
++    let mut piece_start = 0;
++    for piece in span {
++        let piece_end =
++            piece_start + glyphs[piece_start..].partition_point(|g| g.cluster < piece.chars.end);
++        if piece_end == piece_start || glyphs[piece_start].cluster != piece.chars.start {
++            return;
++        }
++        bounds.push(piece_start..piece_end);
++        piece_start = piece_end;
++    }
++    if piece_start != glyphs.len() {
++        return;
++    }
++
++    for (piece, range) in span.iter().zip(bounds) {
++        let word = &run_text[piece.bytes.clone()];
++        let edge_glyphs = [glyphs[range.start].id, glyphs[range.end - 1].id];
++        let space_sensitive = edge_glyphs.iter().any(|glyph| sensitive.contains(glyph));
++        if word.len() > word_cache::MAX_WORD_BYTES || space_sensitive {
++            continue;
++        }
++        let word_glyphs: Vec<RawGlyph> = glyphs[range]
++            .iter()
++            .map(|glyph| RawGlyph {
++                cluster: glyph.cluster - piece.chars.start,
++                ..*glyph
++            })
++            .collect();
++        words.insert(word, &word_glyphs);
++    }
++}
++
+ #[inline]
+ fn variations_iter<'a>(
+     synthesis: &'a fontique::Synthesis,
+diff --git a/src/shape/word_cache.rs b/src/shape/word_cache.rs
+new file mode 100644
+index 0000000..76d50dc
+--- /dev/null
++++ b/src/shape/word_cache.rs
+@@ -0,0 +1,545 @@
++// Copyright 2026 the Parley Authors
++// SPDX-License-Identifier: Apache-2.0 OR MIT
++
++//! Reusing the glyphs of words that repeat across runs.
++//!
++//! Long documents shape the same words over and over. When no shaping rule of a font acts across
++//! a space, a run's glyphs are its words' and spaces' glyphs laid end to end, so each distinct
++//! word needs shaping only once per font and set of shaping options.
++//!
++//! Some fonts position a few glyphs by the space next to them, such as a mark that follows a
++//! space. Those glyphs are listed as space-sensitive: a word that begins or ends with one is never
++//! reused, and every word is shaped next to its neighbouring pieces, so the space is there.
++
++use alloc::boxed::Box;
++use alloc::vec::Vec;
++use hashbrown::{HashMap, HashSet};
++use skrifa::raw::{
++    FontRef, ReadError, TableProvider,
++    tables::{
++        gpos::{PairPos, PositionSubtables, SinglePos},
++        gsub::{SingleSubst, SubstitutionSubtables},
++        layout::{
++            ChainedSequenceContext, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
++            ChainedSequenceContextFormat3, ClassDef, CoverageTable, LookupFlag, SequenceContext,
++        },
++    },
++    types::{BigEndian, GlyphId, GlyphId16, Tag},
++};
++
++/// One shaped glyph, in font units, with its cluster as a character index into the shaped text.
++#[derive(Clone, Copy, Debug, PartialEq)]
++pub(crate) struct RawGlyph {
++    pub id: u32,
++    pub cluster: u32,
++    pub x_advance: i32,
++    pub x_offset: i32,
++    pub y_offset: i32,
++}
++
++impl RawGlyph {
++    pub(crate) fn from_harfrust(info: &harfrust::GlyphInfo, pos: &harfrust::GlyphPosition) -> Self {
++        Self {
++            id: info.glyph_id,
++            cluster: info.cluster,
++            x_advance: pos.x_advance,
++            x_offset: pos.x_offset,
++            y_offset: pos.y_offset,
++        }
++    }
++}
++
++/// Words longer than this are rare enough that caching them costs more than it saves.
++pub(crate) const MAX_WORD_BYTES: usize = 48;
++
++/// Distinct words kept per font and shaping options; the cache restarts once it fills.
++const MAX_WORDS: usize = 2048;
++
++/// The glyphs of the words shaped with one font and one set of shaping options.
++#[derive(Default)]
++pub(crate) struct WordGlyphs {
++    words: HashMap<Box<str>, Box<[RawGlyph]>>,
++}
++
++impl WordGlyphs {
++    pub(crate) fn get(&self, word: &str) -> Option<&[RawGlyph]> {
++        self.words.get(word).map(|glyphs| &**glyphs)
++    }
++
++    /// Keep `glyphs`, whose clusters count from the word's first character.
++    pub(crate) fn insert(&mut self, word: &str, glyphs: &[RawGlyph]) {
++        if self.words.len() >= MAX_WORDS {
++            self.words.clear();
++        }
++        self.words.insert(word.into(), glyphs.into());
++    }
++}
++
++/// The glyphs of a font whose shaping can depend on the space next to them.
++pub(crate) type SpaceSensitive = HashSet<u32>;
++
++/// How a font's shaping can see the U+0020 space glyph, or `None` when words cannot be reused.
++///
++/// Words can be reused when no GSUB lookup reads the space and GPOS reads it only as the glyph
++/// directly before or after the glyphs it moves: as chained-context backtrack or lookahead, or as
++/// the base a mark attaches to. Those moved glyphs are returned. Lookups that skip base glyphs,
++/// tables outside GSUB and GPOS that shape sequences or scale by size, and unreadable tables all
++/// rule reuse out.
++pub(crate) fn space_sensitive_glyphs(font: &FontRef<'_>) -> Option<SpaceSensitive> {
++    let mut scan = Scan {
++        space: font.cmap().ok()?.map_codepoint(' ')?,
++        sensitive: SpaceSensitive::new(),
++    };
++    for tag in [b"kern", b"kerx", b"morx", b"mort", b"trak"] {
++        if font.table_data(Tag::new(tag)).is_some() {
++            return None;
++        }
++    }
++    scan.check(font).ok()?.then_some(scan.sensitive)
++}
++
++struct Scan {
++    space: GlyphId,
++    sensitive: SpaceSensitive,
++}
++
++impl Scan {
++    /// Whether reuse is possible, collecting the space-sensitive glyphs on the way.
++    fn check(&mut self, font: &FontRef<'_>) -> Result<bool, ReadError> {
++        if let Ok(gdef) = font.gdef()
++            && let Some(class_def) = gdef.glyph_class_def()
++            && class_def?.get(self.space) > 1
++        {
++            // A space classed as a ligature, mark or component can be skipped by lookup flags.
++            return Ok(false);
++        }
++        let ignores_bases = |flag: LookupFlag| flag.contains(LookupFlag::IGNORE_BASE_GLYPHS);
++        if let Ok(gsub) = font.gsub() {
++            for lookup in gsub.lookup_list()?.lookups().iter() {
++                let lookup = lookup?;
++                if ignores_bases(lookup.lookup_flag())
++                    || gsub_reads(&lookup.subtables()?, self.space)?
++                {
++                    return Ok(false);
++                }
++            }
++        }
++        if let Ok(gpos) = font.gpos() {
++            for lookup in gpos.lookup_list()?.lookups().iter() {
++                let lookup = lookup?;
++                if ignores_bases(lookup.lookup_flag()) || !self.gpos_allows(&lookup.subtables()?)? {
++                    return Ok(false);
++                }
++            }
++        }
++        Ok(true)
++    }
++
++    fn gpos_allows(&mut self, subtables: &PositionSubtables<'_>) -> Result<bool, ReadError> {
++        let g = self.space;
++        match subtables {
++            PositionSubtables::Single(s) => none(s.iter(), |t| match t {
++                SinglePos::Format1(t) => covers(t.coverage(), g),
++                SinglePos::Format2(t) => covers(t.coverage(), g),
++            }),
++            PositionSubtables::Pair(s) => none(s.iter(), |t| match t {
++                PairPos::Format1(t) => Ok(covers(t.coverage(), g)?
++                    || any(t.pair_sets().iter(), |set| {
++                        any(set.pair_value_records().iter(), |record| {
++                            Ok(record.second_glyph().to_u32() == g.to_u32())
++                        })
++                    })?),
++                // Class 0 of the second class definition holds every glyph it does not list.
++                PairPos::Format2(t) => Ok(covers(t.coverage(), g)?
++                    || class_of(t.class_def2(), g) != 0
++                    || t.class2_count() > 0 && class_zero_adjusts(&t)?),
++            }),
++            PositionSubtables::Cursive(s) => none(s.iter(), |t| covers(t.coverage(), g)),
++            PositionSubtables::MarkToBase(s) => {
++                for t in s.iter() {
++                    let t = t?;
++                    if covers(t.mark_coverage(), g)? {
++                        return Ok(false);
++                    }
++                    if covers(t.base_coverage(), g)? {
++                        self.sensitive
++                            .extend(t.mark_coverage()?.iter().map(|m| m.to_u32()));
++                    }
++                }
++                Ok(true)
++            }
++            PositionSubtables::MarkToLig(s) => none(s.iter(), |t| {
++                Ok(covers(t.mark_coverage(), g)? || covers(t.ligature_coverage(), g)?)
++            }),
++            PositionSubtables::MarkToMark(s) => none(s.iter(), |t| {
++                Ok(covers(t.mark1_coverage(), g)? || covers(t.mark2_coverage(), g)?)
++            }),
++            PositionSubtables::Contextual(s) => none(s.iter(), |t| context_reads(&t, g)),
++            PositionSubtables::ChainContextual(s) => {
++                for t in s.iter() {
++                    if !self.chain_allows(&t?)? {
++                        return Ok(false);
++                    }
++                }
++                Ok(true)
++            }
++            PositionSubtables::EmptyExtension => Ok(true),
++        }
++    }
++
++    /// Whether a chained context reads the space only at the far end of its backtrack or
++    /// lookahead, adding the glyphs from the space up to and including its input. A rule that
++    /// reads past the space would see the neighbouring word.
++    fn chain_allows(&mut self, context: &ChainedSequenceContext<'_>) -> Result<bool, ReadError> {
++        match context {
++            ChainedSequenceContext::Format1(t) => self.chain_allows_glyphs(t),
++            ChainedSequenceContext::Format2(t) => self.chain_allows_classes(t),
++            ChainedSequenceContext::Format3(t) => self.chain_allows_coverages(t),
++        }
++    }
++
++    /// [`Self::chain_allows`] for a context whose rules name glyphs.
++    fn chain_allows_glyphs(
++        &mut self,
++        t: &ChainedSequenceContextFormat1<'_>,
++    ) -> Result<bool, ReadError> {
++        let g = self.space;
++        let coverage = t.coverage()?;
++        if coverage.get(g).is_some() {
++            return Ok(false);
++        }
++        let is_space = is_glyph(g);
++        for (first, set) in coverage.iter().zip(t.chained_seq_rule_sets().iter()) {
++            let Some(set) = set else { continue };
++            for rule in set?.chained_seq_rules().iter() {
++                let rule = rule?;
++                let (backtrack, lookahead) = (rule.backtrack_sequence(), rule.lookahead_sequence());
++                if rule.input_sequence().iter().any(&is_space) {
++                    return Ok(false);
++                }
++                let (Some(backtrack_at), Some(lookahead_at)) = (
++                    reach(backtrack.iter().map(&is_space)),
++                    reach(lookahead.iter().map(&is_space)),
++                ) else {
++                    return Ok(false);
++                };
++                if backtrack_at.is_none() && lookahead_at.is_none() {
++                    continue;
++                }
++                let glyph = |g: &BigEndian<GlyphId16>| g.get().to_u32();
++                self.sensitive.insert(first.to_u32());
++                self.sensitive
++                    .extend(rule.input_sequence().iter().map(glyph));
++                self.sensitive
++                    .extend(backtrack[..backtrack_at.unwrap_or(0)].iter().map(glyph));
++                self.sensitive
++                    .extend(lookahead[..lookahead_at.unwrap_or(0)].iter().map(glyph));
++            }
++        }
++        Ok(true)
++    }
++
++    /// [`Self::chain_allows`] for a context whose rules name glyph classes.
++    fn chain_allows_classes(
++        &mut self,
++        t: &ChainedSequenceContextFormat2<'_>,
++    ) -> Result<bool, ReadError> {
++        let g = self.space;
++        if covers(t.coverage(), g)? {
++            return Ok(false);
++        }
++        let space_class = [
++            class_of(t.backtrack_class_def(), g),
++            class_of(t.input_class_def(), g),
++            class_of(t.lookahead_class_def(), g),
++        ];
++
++        // The classes, per class definition, of the glyphs the rules reading the space move or
++        // match between it and their input.
++        let mut moved_classes: [HashSet<u16>; 3] = Default::default();
++        for (rule_set_class, set) in t.chained_class_seq_rule_sets().iter().enumerate() {
++            let Some(set) = set else { continue };
++            for rule in set?.chained_class_seq_rules().iter() {
++                let rule = rule?;
++                let (backtrack, lookahead) = (rule.backtrack_sequence(), rule.lookahead_sequence());
++                if rule
++                    .input_sequence()
++                    .iter()
++                    .any(|c| c.get() == space_class[1])
++                {
++                    return Ok(false);
++                }
++                let (Some(backtrack_at), Some(lookahead_at)) = (
++                    reach(backtrack.iter().map(|c| c.get() == space_class[0])),
++                    reach(lookahead.iter().map(|c| c.get() == space_class[2])),
++                ) else {
++                    return Ok(false);
++                };
++                if backtrack_at.is_none() && lookahead_at.is_none() {
++                    continue;
++                }
++                #[expect(clippy::cast_possible_truncation, reason = "class set counts are u16")]
++                moved_classes[1].insert(rule_set_class as u16);
++                moved_classes[1].extend(rule.input_sequence().iter().map(|c| c.get()));
++                moved_classes[0].extend(
++                    backtrack[..backtrack_at.unwrap_or(0)]
++                        .iter()
++                        .map(|c| c.get()),
++                );
++                moved_classes[2].extend(
++                    lookahead[..lookahead_at.unwrap_or(0)]
++                        .iter()
++                        .map(|c| c.get()),
++                );
++            }
++        }
++
++        let class_defs = [
++            t.backtrack_class_def(),
++            t.input_class_def(),
++            t.lookahead_class_def(),
++        ];
++        for (classes, class_def) in moved_classes.iter().zip(class_defs) {
++            if !self.mark_class_glyphs(classes, class_def)? {
++                return Ok(false);
++            }
++        }
++        Ok(true)
++    }
++
++    /// Mark the glyphs of `class_def` in any of `classes` as space-sensitive.
++    fn mark_class_glyphs(
++        &mut self,
++        classes: &HashSet<u16>,
++        class_def: Result<ClassDef<'_>, ReadError>,
++    ) -> Result<bool, ReadError> {
++        if classes.is_empty() {
++            return Ok(true);
++        }
++        if classes.contains(&0) {
++            // Class 0 is every glyph its class definition leaves out.
++            return Ok(false);
++        }
++        for (glyph, class) in class_def?.iter() {
++            if classes.contains(&class) {
++                self.sensitive.insert(glyph.to_u32());
++            }
++        }
++        Ok(true)
++    }
++
++    /// [`Self::chain_allows`] for a context whose rules name coverages.
++    fn chain_allows_coverages(
++        &mut self,
++        t: &ChainedSequenceContextFormat3<'_>,
++    ) -> Result<bool, ReadError> {
++        let g = self.space;
++        if any(t.input_coverages().iter(), |c| covers(Ok(c), g))? {
++            return Ok(false);
++        }
++        let backtrack = t.backtrack_coverages();
++        let lookahead = t.lookahead_coverages();
++        let reads = |c: Result<CoverageTable<'_>, ReadError>| covers(c, g);
++        let (Some(backtrack_at), Some(lookahead_at)) = (
++            reach(
++                backtrack
++                    .iter()
++                    .map(reads)
++                    .collect::<Result<Vec<_>, _>>()?
++                    .into_iter(),
++            ),
++            reach(
++                lookahead
++                    .iter()
++                    .map(reads)
++                    .collect::<Result<Vec<_>, _>>()?
++                    .into_iter(),
++            ),
++        ) else {
++            return Ok(false);
++        };
++        if backtrack_at.is_none() && lookahead_at.is_none() {
++            return Ok(true);
++        }
++        let between = backtrack.iter().take(backtrack_at.unwrap_or(0));
++        let ahead = lookahead.iter().take(lookahead_at.unwrap_or(0));
++        for coverage in t.input_coverages().iter().chain(between).chain(ahead) {
++            self.sensitive.extend(coverage?.iter().map(|g| g.to_u32()));
++        }
++        Ok(true)
++    }
++}
++
++/// Where a context sequence holds the space: `Some(None)` nowhere, `Some(Some(k))` at position
++/// `k` with nothing past it, and `None` when it reads past the space.
++fn reach(holds_space: impl Iterator<Item = bool>) -> Option<Option<usize>> {
++    let mut found = None;
++    for (position, holds) in holds_space.enumerate() {
++        if found.is_some() {
++            return None;
++        }
++        if holds {
++            found = Some(position);
++        }
++    }
++    Some(found)
++}
++
++fn covers(
++    coverage: Result<CoverageTable<'_>, ReadError>,
++    glyph: GlyphId,
++) -> Result<bool, ReadError> {
++    Ok(coverage?.get(glyph).is_some())
++}
++
++fn class_of(class_def: Result<ClassDef<'_>, ReadError>, glyph: GlyphId) -> u16 {
++    // A missing class definition puts every glyph in class 0.
++    class_def.map_or(0, |class_def| class_def.get(glyph))
++}
++
++fn is_glyph(glyph: GlyphId) -> impl Fn(&BigEndian<GlyphId16>) -> bool {
++    move |g| g.get().to_u32() == glyph.to_u32()
++}
++
++fn any<T>(
++    items: impl Iterator<Item = Result<T, ReadError>>,
++    mut f: impl FnMut(T) -> Result<bool, ReadError>,
++) -> Result<bool, ReadError> {
++    for item in items {
++        if f(item?)? {
++            return Ok(true);
++        }
++    }
++    Ok(false)
++}
++
++fn none<T>(
++    items: impl Iterator<Item = Result<T, ReadError>>,
++    f: impl FnMut(T) -> Result<bool, ReadError>,
++) -> Result<bool, ReadError> {
++    Ok(!any(items, f)?)
++}
++
++/// Whether some first glyph is adjusted next to a second glyph in class 0.
++fn class_zero_adjusts(
++    t: &skrifa::raw::tables::gpos::PairPosFormat2<'_>,
++) -> Result<bool, ReadError> {
++    any(t.class1_records().iter(), |record| {
++        let Some(first) = record.class2_records().iter().next() else {
++            return Ok(false);
++        };
++        let first = first?;
++        Ok([first.value_record1(), first.value_record2()]
++            .iter()
++            .any(|value| {
++                let nonzero = |v: Option<BigEndian<i16>>| v.is_some_and(|v| v.get() != 0);
++                nonzero(value.x_placement)
++                    || nonzero(value.y_placement)
++                    || nonzero(value.x_advance)
++                    || nonzero(value.y_advance)
++                    || !value.x_placement_device.get().is_null()
++                    || !value.y_placement_device.get().is_null()
++                    || !value.x_advance_device.get().is_null()
++                    || !value.y_advance_device.get().is_null()
++            }))
++    })
++}
++
++fn gsub_reads(subtables: &SubstitutionSubtables<'_>, g: GlyphId) -> Result<bool, ReadError> {
++    match subtables {
++        SubstitutionSubtables::Single(s) => any(s.iter(), |t| match t {
++            SingleSubst::Format1(t) => covers(t.coverage(), g),
++            SingleSubst::Format2(t) => covers(t.coverage(), g),
++        }),
++        SubstitutionSubtables::Multiple(s) => any(s.iter(), |t| covers(t.coverage(), g)),
++        SubstitutionSubtables::Alternate(s) => any(s.iter(), |t| covers(t.coverage(), g)),
++        SubstitutionSubtables::Ligature(s) => any(s.iter(), |t| {
++            if covers(t.coverage(), g)? {
++                return Ok(true);
++            }
++            any(t.ligature_sets().iter(), |set| {
++                any(set.ligatures().iter(), |lig| {
++                    Ok(lig.component_glyph_ids().iter().any(is_glyph(g)))
++                })
++            })
++        }),
++        SubstitutionSubtables::Contextual(s) => any(s.iter(), |t| context_reads(&t, g)),
++        SubstitutionSubtables::ChainContextual(s) => any(s.iter(), |t| chain_reads(&t, g)),
++        SubstitutionSubtables::Reverse(s) => any(s.iter(), |t| {
++            Ok(covers(t.coverage(), g)?
++                || any(t.backtrack_coverages().iter(), |c| covers(Ok(c), g))?
++                || any(t.lookahead_coverages().iter(), |c| covers(Ok(c), g))?)
++        }),
++        SubstitutionSubtables::EmptyExtension => Ok(false),
++    }
++}
++
++fn context_reads(context: &SequenceContext<'_>, g: GlyphId) -> Result<bool, ReadError> {
++    match context {
++        SequenceContext::Format1(t) => {
++            if covers(t.coverage(), g)? {
++                return Ok(true);
++            }
++            any(t.seq_rule_sets().iter().flatten(), |set| {
++                any(set.seq_rules().iter(), |rule| {
++                    Ok(rule.input_sequence().iter().any(is_glyph(g)))
++                })
++            })
++        }
++        SequenceContext::Format2(t) => {
++            if covers(t.coverage(), g)? {
++                return Ok(true);
++            }
++            let class = class_of(t.class_def(), g);
++            any(t.class_seq_rule_sets().iter().flatten(), |set| {
++                any(set.class_seq_rules().iter(), |rule| {
++                    Ok(rule.input_sequence().iter().any(|c| c.get() == class))
++                })
++            })
++        }
++        SequenceContext::Format3(t) => any(t.coverages().iter(), |c| covers(Ok(c), g)),
++    }
++}
++
++fn chain_reads(context: &ChainedSequenceContext<'_>, g: GlyphId) -> Result<bool, ReadError> {
++    match context {
++        ChainedSequenceContext::Format1(t) => {
++            if covers(t.coverage(), g)? {
++                return Ok(true);
++            }
++            any(t.chained_seq_rule_sets().iter().flatten(), |set| {
++                any(set.chained_seq_rules().iter(), |rule| {
++                    Ok(rule.backtrack_sequence().iter().any(is_glyph(g))
++                        || rule.input_sequence().iter().any(is_glyph(g))
++                        || rule.lookahead_sequence().iter().any(is_glyph(g)))
++                })
++            })
++        }
++        ChainedSequenceContext::Format2(t) => {
++            if covers(t.coverage(), g)? {
++                return Ok(true);
++            }
++            let backtrack = class_of(t.backtrack_class_def(), g);
++            let input = class_of(t.input_class_def(), g);
++            let lookahead = class_of(t.lookahead_class_def(), g);
++            any(t.chained_class_seq_rule_sets().iter().flatten(), |set| {
++                any(set.chained_class_seq_rules().iter(), |rule| {
++                    Ok(rule
++                        .backtrack_sequence()
++                        .iter()
++                        .any(|c| c.get() == backtrack)
++                        || rule.input_sequence().iter().any(|c| c.get() == input)
++                        || rule
++                            .lookahead_sequence()
++                            .iter()
++                            .any(|c| c.get() == lookahead))
++                })
++            })
++        }
++        ChainedSequenceContext::Format3(t) => {
++            Ok(any(t.backtrack_coverages().iter(), |c| covers(Ok(c), g))?
++                || any(t.input_coverages().iter(), |c| covers(Ok(c), g))?
++                || any(t.lookahead_coverages().iter(), |c| covers(Ok(c), g))?)
++        }
++    }
++}

@@ -26,17 +26,18 @@ test("oopif-runtime-evaluate", async ({ page, cdpSession }) => {
   });
 
   await expect
-    .poll(() => contexts.some((c) => !c.isDefault && c.origin === "http://127.0.0.1:8787"), {
+    .poll(() => contexts.some((c) => c.origin === "http://127.0.0.1:8787"), {
       timeout: 15_000,
     })
     .toBe(true);
 
   const main = contexts.find((c) => c.isDefault && c.id === 1);
-  const oopif = contexts.find((c) => !c.isDefault && c.origin === "http://127.0.0.1:8787");
+  const oopif = contexts.find((c) => c.origin === "http://127.0.0.1:8787");
   expect(main, `main context missing; got ${JSON.stringify(contexts)}`).toBeTruthy();
   expect(oopif, `OOPIF context missing; got ${JSON.stringify(contexts)}`).toBeTruthy();
   expect(oopif!.id).toBeGreaterThan(1);
   expect(oopif!.frameId).toBeTruthy();
+  expect(oopif!.isDefault).toBe(true);
 
   const initialViewport = await cdpSession.send("Runtime.evaluate", {
     expression: "globalThis.__fixtureInitialViewport",
@@ -87,4 +88,10 @@ test("oopif-runtime-evaluate", async ({ page, cdpSession }) => {
     /unknown or destroyed/.test(err),
     `bogus contextId should raise; got ${JSON.stringify(bogus)}`,
   ).toBe(true);
+
+  contexts.length = 0;
+  await cdpSession.send("Runtime.enable");
+  const replayed = contexts.find((c) => c.origin === "http://127.0.0.1:8787");
+  expect(replayed?.id).toBe(oopif!.id);
+  expect(replayed?.isDefault).toBe(true);
 });

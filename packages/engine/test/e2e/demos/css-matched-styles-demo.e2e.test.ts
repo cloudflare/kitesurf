@@ -39,7 +39,7 @@ test("css-matched-styles-demo", async ({ page }) => {
     "captured styleSheetId from CSS.styleSheetAdded",
   ).toBeTruthy();
 
-  const doc = await session.send("DOM.getDocument");
+  const doc = await session.send("DOM.getDocument", { depth: -1 });
   function findById(root, wantId) {
     const stack = [root];
     while (stack.length) {

@@ -5,8 +5,10 @@ load("@npm//:defs.bzl", "npm_link_all_packages")
 npm_link_all_packages(name = "node_modules")
 
 exports_files([
+    "clippy.toml",
     "package.json",
     "pnpm-workspace.yaml",
+    "rustfmt.toml",
 ])
 
 copy_to_bin(
@@ -16,14 +18,14 @@ copy_to_bin(
 )
 
 copy_to_bin(
-    name = "oxlintrc",
-    srcs = [".oxlintrc.json"],
+    name = "module_bazel",
+    srcs = ["MODULE.bazel"],
     visibility = ["//scripts:__pkg__"],
 )
 
 copy_to_bin(
-    name = "rust_toolchain",
-    srcs = ["rust-toolchain.toml"],
+    name = "oxlintrc",
+    srcs = [".oxlintrc.json"],
     visibility = ["//scripts:__pkg__"],
 )
 
@@ -51,11 +53,25 @@ copy_to_bin(
     visibility = ["//scripts:__pkg__"],
 )
 
+copy_to_bin(
+    name = "pptr_expectations",
+    srcs = ["tests/pptr-expectations.json"],
+    visibility = ["//scripts:__pkg__"],
+)
+
+copy_to_bin(
+    name = "pptr_tests",
+    srcs = ["tests/pptr-tests.json"],
+    visibility = ["//scripts:__pkg__"],
+)
+
 _CONFIG_PACKAGES = [
+    "docker",
     "packages/core/pkg",
     "packages/dom-shim",
     "packages/engine",
     "packages/engine/test/e2e",
+    "packages/engine-server",
     "packages/jsrpc-types",
     "packages/kitesurf-cli",
     "packages/page-renderer",
@@ -157,8 +173,9 @@ test_suite(
         ":ts_coverage_test",
         "//packages/core/pkg:memprof_build",
         "//packages/dom-shim:build",
+        "//packages/dom-shim:no_explicit_any",
         "//packages/dom-shim:types",
-        "//packages/dom-shim:types_strict",
+        "//packages/dom-shim:vitest",
         "//packages/engine:types",
         "//packages/engine:types_e2e",
         "//packages/engine:types_e2e_demos",
@@ -177,5 +194,48 @@ test_suite(
         "//scripts:helpers_test",
         "//scripts:lint_test",
         "//scripts:lint_types",
+        "//scripts:page_renderer_pdf_stream_test",
+        "//scripts:page_script_font_loader_test",
+        "//scripts:page_script_frame_bitmap_gate_test",
+        "//scripts:page_script_pdf_stream_test",
+        "//scripts:page_script_startup_input_test",
+        "//scripts:wasm_memory_views_test",
+    ],
+)
+
+# The Rust lint gates: clippy, rustfmt, control-flow nesting and the comment policy over every
+# package's Rust sources. CI runs `bazel test //:rust_lint`; they need no cargo install.
+test_suite(
+    name = "rust_lint",
+    tests = [
+        "//bazel/rust:clippy_test",
+        "//bazel/rust:comments_test",
+        "//bazel/rust:fmt_test",
+        "//bazel/rust:nesting_test",
+        "//packages/core:clippy_test",
+        "//packages/core:comments_test",
+        "//packages/core:fmt_test",
+        "//packages/core:nesting_test",
+        "//packages/kitesurf-cli:clippy_test",
+        "//packages/kitesurf-cli:comments_test",
+        "//packages/kitesurf-cli:fmt_test",
+        "//packages/kitesurf-cli:nesting_test",
+        "//packages/renderer-core:clippy_test",
+        "//packages/renderer-core:comments_test",
+        "//packages/renderer-core:fmt_test",
+        "//packages/renderer-core:nesting_test",
+        "//packages/scene-host-wasm:clippy_test",
+        "//packages/scene-host-wasm:comments_test",
+        "//packages/scene-host-wasm:fmt_test",
+        "//packages/scene-host-wasm:nesting_test",
+        "//scripts/lint/rust-check:clippy_test",
+        "//scripts/lint/rust-check:comments_test",
+        "//scripts/lint/rust-check:fmt_test",
+        "//scripts/lint/rust-check:nesting_test",
+        "//scripts/lint/rust-check:rust_check_test",
+        "//scripts/memprof-rewriter:clippy_test",
+        "//scripts/memprof-rewriter:comments_test",
+        "//scripts/memprof-rewriter:fmt_test",
+        "//scripts/memprof-rewriter:nesting_test",
     ],
 )

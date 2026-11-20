@@ -5,8 +5,15 @@
 // Builds CDP frame metadata and computes frame origins and document domains.
 
 import type { Protocol } from "devtools-protocol";
+import { SANDBOX_ALLOW_ALL } from "@kitesurf/script-gate";
+import type { CommittedOrigin } from "@kitesurf/jsrpc-types/frame-origin";
 import { isIpHost, isPublicSuffix, siteKey } from "../public-suffix.ts";
-import { makeTargetId, type FrameState, type TargetState } from "./types.ts";
+import {
+  makeTargetId,
+  type FrameState,
+  type SandboxRestrictions,
+  type TargetState,
+} from "./types.ts";
 
 export function mintFrameId(): string {
   return makeTargetId();
@@ -46,25 +53,219 @@ export function domainAndRegistryOf(url: string): string {
   }
 }
 
-export function makeFrameInfo(frame: FrameState): Protocol.Page.Frame {
+interface FrameOrigin {
+  serialized: string;
+  trustworthy: boolean;
+  localhost: boolean;
+  // Chrome's process-model site: the scheme plus the registrable domain, or the bare host when
+  // there is none. Null for an opaque origin.
+  site: string | null;
+}
+
+const OPAQUE_FRAME_ORIGIN: FrameOrigin = {
+  serialized: "://",
+  trustworthy: false,
+  localhost: false,
+  site: null,
+};
+
+// Page.Frame reports origins as Chrome serializes them, unlike originOf(): an opaque origin is
+// "://" and a blob: URL has its creator's origin. Only https, wss and localhost are trustworthy.
+function frameOriginOf(frame: FrameState): FrameOrigin {
+  // A sandbox without allow-same-origin forces an opaque origin even for a same-origin URL.
+  if (!frame.sandbox.sameOrigin) return OPAQUE_FRAME_ORIGIN;
+  const url = frame.url || "about:blank";
+  let serialized: string;
+  let host: string;
+  let protocol: string;
+  try {
+    serialized = new URL(url).origin;
+    if (serialized === "null") return OPAQUE_FRAME_ORIGIN;
+    const origin = new URL(serialized);
+    host = origin.hostname.replace(/\.$/, "");
+    protocol = origin.protocol;
+  } catch {
+    return OPAQUE_FRAME_ORIGIN;
+  }
+  const localhost =
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host === "[::1]" ||
+    /^127(?:\.\d{1,3}){3}$/.test(host);
+  const trustworthy = localhost || protocol === "https:" || protocol === "wss:";
+  const site = `${protocol}//${domainAndRegistryOf(serialized) || host}`;
+  return { serialized, trustworthy, localhost, site };
+}
+
+function inheritsCreatorOrigin(url: string): boolean {
+  if (url === "") return true;
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === "about:" && (parsed.pathname === "blank" || parsed.pathname === "srcdoc")
+    );
+  } catch {
+    return false;
+  }
+}
+
+// The engine's maximum iframe nesting, shared by discovery and the trusted ancestry snapshot.
+export const MAX_IFRAME_DEPTH = 8;
+
+function opaqueCommittedOrigin(frame: FrameState): CommittedOrigin {
+  // One identity per committed document, so two opaque ancestors never compare equal.
+  return { kind: "opaque", id: `${frame.frameId}:${frame.loaderId}` };
+}
+
+// The origin a document committed under, resolving about:blank/srcdoc inheritance from the frame
+// tree rather than from a URL string. An opaque ancestor keeps its creator's identity.
+export function committedFrameOriginOf(
+  frame: FrameState,
+  frames: ReadonlyMap<string, FrameState>,
+  mainUrl: string,
+): CommittedOrigin {
+  const sandbox = frame.pageScriptSandbox ?? frame.sandbox;
+  if (!sandbox.sameOrigin) return opaqueCommittedOrigin(frame);
+  let current = frame;
+  const seen = new Set<string>();
+  while (inheritsCreatorOrigin(current.url) && current.parentFrameId !== null) {
+    if (seen.has(current.frameId)) break;
+    seen.add(current.frameId);
+    const parent = frames.get(current.parentFrameId);
+    if (!parent) break;
+    const parentSandbox = parent.pageScriptSandbox ?? parent.sandbox;
+    if (!parentSandbox.sameOrigin) return opaqueCommittedOrigin(parent);
+    current = parent;
+  }
+  const url =
+    current.parentFrameId === null
+      ? mainUrl || current.url
+      : (current.pageScriptUrl ?? current.url);
+  try {
+    const origin = new URL(url).origin;
+    if (origin === "null" || origin === "") return opaqueCommittedOrigin(current);
+    return { kind: "tuple", origin };
+  } catch {
+    return opaqueCommittedOrigin(current);
+  }
+}
+
+// The trusted ancestor chain of committed origins, nearest first. Built only from
+// FrameState.parentFrameId, never from page-provided ancestorOrigins or URL strings.
+export function frameAncestorOrigins(
+  frame: FrameState,
+  frames: ReadonlyMap<string, FrameState>,
+  mainUrl: string,
+): CommittedOrigin[] {
+  const origins: CommittedOrigin[] = [];
+  const seen = new Set<string>();
+  let current = frame.parentFrameId === null ? undefined : frames.get(frame.parentFrameId);
+  while (current && !seen.has(current.frameId) && origins.length < MAX_IFRAME_DEPTH) {
+    seen.add(current.frameId);
+    origins.push(committedFrameOriginOf(current, frames, mainUrl));
+    current = current.parentFrameId === null ? undefined : frames.get(current.parentFrameId);
+  }
+  return origins;
+}
+
+interface FrameContext {
+  secureContextType: Protocol.Page.SecureContextType;
+  crossOriginIsolatedContextType: Protocol.Page.CrossOriginIsolatedContextType;
+  // Whether Chrome would keep the frame in its parent's process, so that its iframe element is
+  // local to it.
+  sameSiteAsParent: boolean;
+}
+
+// Every value depends on the chain: about:blank and srcdoc inherit their parent's origin, and an
+// insecure ancestor or a cross-origin step (by default policy) carries to every frame below it.
+function frameContextOf(frame: FrameState, frames: ReadonlyMap<string, FrameState>): FrameContext {
+  const chain: FrameState[] = [];
+  for (
+    let current: FrameState | undefined = frame;
+    current && !chain.includes(current);
+    current = current.parentFrameId === null ? undefined : frames.get(current.parentFrameId)
+  ) {
+    chain.unshift(current);
+  }
+  let origin = OPAQUE_FRAME_ORIGIN;
+  let site: string | null = null;
+  let ancestorsSecure = true;
+  let isolationAllowed = true;
+  const context: FrameContext = {
+    secureContextType: "InsecureScheme",
+    crossOriginIsolatedContextType: "NotIsolated",
+    sameSiteAsParent: false,
+  };
+  chain.forEach((current, depth) => {
+    const parentOrigin = origin;
+    const parentSite = site;
+    const opaque = !current.sandbox.sameOrigin;
+    const inherits = !opaque && depth > 0 && inheritsCreatorOrigin(current.url);
+    if (!inherits) origin = frameOriginOf(current);
+    // An opaque child (data:) shares its parent's process; a frame with a tuple origin goes to the
+    // process of its own site.
+    if (origin.site !== null) site = origin.site;
+    if (depth > 0) {
+      const sameOrigin =
+        inherits || (origin.site !== null && origin.serialized === parentOrigin.serialized);
+      isolationAllowed &&= sameOrigin && !opaque;
+      context.sameSiteAsParent = !opaque && site === parentSite;
+    }
+    let type: Protocol.Page.SecureContextType;
+    if (!origin.trustworthy) type = "InsecureScheme";
+    else if (!ancestorsSecure) type = "InsecureAncestor";
+    else type = origin.localhost ? "SecureLocalhost" : "Secure";
+    context.secureContextType = type;
+    ancestorsSecure &&= type === "Secure" || type === "SecureLocalhost";
+  });
+  context.crossOriginIsolatedContextType = isolationAllowed
+    ? "NotIsolated"
+    : "NotIsolatedFeatureDisabled";
+  return context;
+}
+
+export function makeFrameInfo(
+  frame: FrameState,
+  frames: ReadonlyMap<string, FrameState>,
+): Protocol.Page.Frame {
+  const href = frame.url || "about:blank";
+  const hash = href.indexOf("#");
+  const url = hash < 0 ? href : href.slice(0, hash);
+  const origin = frameOriginOf(frame);
+  const context = frameContextOf(frame, frames);
   const info: Protocol.Page.Frame = {
     id: frame.frameId,
     loaderId: frame.loaderId,
-    url: frame.url || "about:blank",
-    domainAndRegistry: domainAndRegistryOf(frame.url),
-    securityOrigin: originOf(frame.url),
+    url,
+    domainAndRegistry: domainAndRegistryOf(url),
+    securityOrigin: origin.serialized,
+    securityOriginDetails: { isLocalhost: origin.localhost },
     mimeType: frame.mimeType || "text/html",
-    secureContextType: "Secure",
-    crossOriginIsolatedContextType: "NotIsolated",
+    secureContextType: context.secureContextType,
+    crossOriginIsolatedContextType: context.crossOriginIsolatedContextType,
     gatedAPIFeatures: [],
+    // Chrome tracks ad evidence only for child frames, so only they carry an explanations list;
+    // the main frame reports a bare adFrameType.
+    adFrameStatus: frame.parentFrameId
+      ? { adFrameType: "none", explanations: [] }
+      : { adFrameType: "none" },
   };
+  if (hash >= 0) {
+    info.urlFragment = href.slice(hash);
+  }
   if (frame.parentFrameId) {
     info.parentId = frame.parentFrameId;
+    // Chrome falls back to the iframe's id only when that element lives in the frame's process,
+    // which for an out-of-process frame it does not.
+    const ownerId = context.sameSiteAsParent ? frame.ownerElementId : undefined;
+    info.name = frame.name || ownerId || "";
   }
   return info;
 }
 
-export function buildFrameTree(target: TargetState): Protocol.Page.FrameTree {
+// The tree below `root` (the main frame by default); a child frame's own session reports the tree
+// rooted at it, as Chrome does for an out-of-process frame.
+export function buildFrameTree(target: TargetState, root?: FrameState): Protocol.Page.FrameTree {
   const childrenByParent = new Map<string, FrameState[]>();
   let mainFrame: FrameState | undefined;
   for (const frame of target.frames.values()) {
@@ -79,28 +280,34 @@ export function buildFrameTree(target: TargetState): Protocol.Page.FrameTree {
       arr.push(frame);
     }
   }
+  let frames: ReadonlyMap<string, FrameState> = target.frames;
   if (!mainFrame) {
-    mainFrame = makeMainFrameState({
+    const synthesized = makeMainFrameState({
       frameId: target.frameId,
       loaderId: target.loaderId,
       url: target.url,
     });
+    mainFrame = synthesized;
+    frames = new Map([...target.frames, [synthesized.frameId, synthesized]]);
   }
 
   function buildSubtree(frame: FrameState): Protocol.Page.FrameTree {
     const kids = childrenByParent.get(frame.frameId) ?? [];
-    const node: Protocol.Page.FrameTree = { frame: makeFrameInfo(frame) };
+    const node: Protocol.Page.FrameTree = { frame: makeFrameInfo(frame, frames) };
     if (kids.length > 0) {
       node.childFrames = kids.map(buildSubtree);
     }
     return node;
   }
 
-  return buildSubtree(mainFrame);
+  return buildSubtree(root ?? mainFrame);
 }
 
-export function buildFrameResourceTree(target: TargetState): Protocol.Page.FrameResourceTree {
-  const tree = buildFrameTree(target);
+export function buildFrameResourceTree(
+  target: TargetState,
+  root?: FrameState,
+): Protocol.Page.FrameResourceTree {
+  const tree = buildFrameTree(target, root);
   function decorate(node: Protocol.Page.FrameTree): Protocol.Page.FrameResourceTree {
     const out: Protocol.Page.FrameResourceTree = {
       frame: node.frame,
@@ -124,6 +331,8 @@ export function makeMainFrameState(args: {
     parentFrameId: null,
     loaderId: args.loaderId,
     url: args.url,
+    sandbox: SANDBOX_ALLOW_ALL,
+    srcdoc: null,
     securityOrigin: originOf(args.url),
     mimeType: "text/html",
     ownerBackendNodeId: -1,
@@ -137,6 +346,7 @@ export function makeMainFrameState(args: {
     delaysLoadEvent: true,
     readyState: "loading",
     pageScript: null,
+    pageScriptUrl: null,
     lastRenderSeq: -1,
     execContextId: 0,
   };
@@ -147,6 +357,11 @@ export function makeChildFrameState(args: {
   parentFrameId: string;
   loaderId: string;
   url: string;
+  sandbox?: SandboxRestrictions;
+  srcdoc?: string | null;
+  baseUrl?: string;
+  name: string;
+  ownerElementId: string;
   ownerBackendNodeId: number;
   isCrossOrigin: boolean;
   delaysLoadEvent: boolean;
@@ -156,6 +371,11 @@ export function makeChildFrameState(args: {
     parentFrameId: args.parentFrameId,
     loaderId: args.loaderId,
     url: args.url,
+    sandbox: args.sandbox ?? SANDBOX_ALLOW_ALL,
+    srcdoc: args.srcdoc ?? null,
+    baseUrl: args.baseUrl,
+    name: args.name,
+    ownerElementId: args.ownerElementId,
     securityOrigin: originOf(args.url),
     mimeType: "text/html",
     ownerBackendNodeId: args.ownerBackendNodeId,
@@ -169,6 +389,7 @@ export function makeChildFrameState(args: {
     delaysLoadEvent: args.delaysLoadEvent,
     readyState: "loading",
     pageScript: null,
+    pageScriptUrl: null,
     lastRenderSeq: -1,
     execContextId: 0,
   };

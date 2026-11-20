@@ -1,0 +1,181 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 11 Nov 2026 14:29:19 +0000
+Subject: [PATCH] Restyle only what a loaded @import's rules can match
+
+A loaded @import forced every stylesheet origin dirty, which restyles and
+relays out the whole document. On the ECMAScript spec the two highlight.js
+theme imports, one of them behind a dark-scheme media query that never
+matches, each cost about 800 ms of full restyle and relayout after the
+first layout.
+
+Report the load to stylo as a rule insertion against the owning document
+sheet, the way Gecko handles an import load. Stylo skips imports whose media
+does not match and invalidates by selector otherwise. An import that is not
+found under a document sheet, such as one inside a shadow root, keeps the old
+full invalidation.
+---
+ src/document.rs | 122 ++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 118 insertions(+), 4 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 6a4040b..8aee2c2 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -62,8 +62,12 @@ use style::{
+     dom::{OpaqueNode, TDocument, TNode},
+     media_queries::MediaList,
+     selector_parser::{PseudoElement, SnapshotMap},
+-    shared_lock::{SharedRwLock, StylesheetGuards},
+-    stylesheets::{AllowImportRules, DocumentStyleSheet, Origin, Stylesheet},
++    invalidation::stylesheets::RuleChangeKind,
++    shared_lock::{Locked, SharedRwLock, SharedRwLockReadGuard, StylesheetGuards},
++    stylesheets::{
++        AllowImportRules, CssRule, CssRuleRef, DocumentStyleSheet, ImportRule, Origin, Stylesheet,
++        StylesheetInDocument,
++    },
+     stylist::Stylist,
+ };
+ use style_dom::ElementState;
+@@ -2385,8 +2389,7 @@ impl BaseDocument {
+                 import_rule.write_with(&mut guard).stylesheet =
+                     style::stylesheets::import_rule::ImportSheet::Sheet(sheet);
+                 drop(guard);
+-                self.stylist
+-                    .force_stylesheet_origins_dirty(style::stylesheets::OriginSet::all());
++                self.invalidate_for_loaded_import(&import_rule);
+             }
+             Resource::EncodedImage(_kind, width, height, encoded_bytes, key) => {
+                 // Dims-only load: cache dims + encoded
+@@ -2690,6 +2693,28 @@ impl BaseDocument {
+         node.insert_damage(ALL_DAMAGE);
+     }
+
++    /// A loaded `@import` restyles only what its rules can match, as Gecko
++    /// does. Forcing every origin dirty restyled and relaid out the whole
++    /// document per import, even one whose media never matches.
++    fn invalidate_for_loaded_import(&mut self, import_rule: &ServoArc<Locked<ImportRule>>) {
++        let guard = self.guard.read();
++        for (sheet, scope) in self.nodes_to_stylesheet.values() {
++            if scope.is_some() {
++                continue;
++            }
++            let mut ancestors = Vec::new();
++            let rules = sheet.contents(&guard).rules(&guard);
++            if let Some(rule) = find_import_rule(rules, import_rule, &guard, &mut ancestors) {
++                self.stylist
++                    .rule_changed(sheet, rule, &guard, RuleChangeKind::Insertion, &ancestors);
++                return;
++            }
++        }
++        drop(guard);
++        self.stylist
++            .force_stylesheet_origins_dirty(style::stylesheets::OriginSet::all());
++    }
++
+     fn apply_loaded_image(&mut self, url: &str, image: ImageData) {
+         // Get all nodes waiting for this image
+         let waiting_nodes = self.pending_images.remove(url).unwrap_or_default();
+@@ -4366,6 +4391,31 @@ impl BoundingRect {
+     }
+ }
+
++/// Finds `target` among the imports reachable from `rules`, collecting the
++/// enclosing import rules into `ancestors`.
++fn find_import_rule<'a>(
++    rules: &'a [CssRule],
++    target: &ServoArc<Locked<ImportRule>>,
++    guard: &'a SharedRwLockReadGuard,
++    ancestors: &mut Vec<CssRuleRef<'a>>,
++) -> Option<&'a CssRule> {
++    for rule in rules {
++        let CssRule::Import(import) = rule else {
++            continue;
++        };
++        if ServoArc::ptr_eq(import, target) {
++            return Some(rule);
++        }
++        ancestors.push(CssRuleRef::Import(import));
++        let nested = import.read_with(guard).stylesheet.rules(guard);
++        if let Some(found) = find_import_rule(nested, target, guard, ancestors) {
++            return Some(found);
++        }
++        ancestors.pop();
++    }
++    None
++}
++
+ /// Snap a CSSOM geometry value to a 1/64px grid (the precision of Blink's `LayoutUnit`).
+ /// Layout values are accumulated in `f32`, so e.g. seven `55/7`-wide flex items would
+ /// otherwise end at `55.0000005` and appear to overflow their 55px container.
+@@ -4385,6 +4435,70 @@ impl AsMut<BaseDocument> for BaseDocument {
+     }
+ }
+
++#[cfg(test)]
++mod import_load_tests {
++    use super::*;
++    use crate::{Attribute, qual_name};
++
++    #[test]
++    fn a_loaded_import_restyles_only_the_elements_its_rules_match() {
++        let mut doc = BaseDocument::new(DocumentConfig::default());
++        let root_id = doc.root_node().id();
++        let (style, plain, code) = {
++            let mut mutator = doc.mutate();
++            let html = mutator.create_element(qual_name!("html"), vec![]);
++            let body = mutator.create_element(qual_name!("body"), vec![]);
++            let style = mutator.create_element(qual_name!("style"), vec![]);
++            let plain = mutator.create_element(qual_name!("p"), vec![]);
++            let code = mutator.create_element(
++                qual_name!("code"),
++                vec![Attribute::new(qual_name!("class"), "hljs")],
++            );
++            mutator.append_children(body, &[style, plain, code]);
++            mutator.append_children(html, &[body]);
++            mutator.append_children(root_id, &[html]);
++            (style, plain, code)
++        };
++        let import = "@import url(https://example.com/theme.css);";
++        let sheet = doc.make_stylesheet(import, Origin::Author);
++        doc.add_stylesheet_for_node(sheet, style);
++        doc.resolve(0.0);
++
++        let styles_of =
++            |doc: &BaseDocument, id: NodeId| doc.nodes[id].primary_styles().unwrap().clone();
++        let plain_before = styles_of(&doc, plain);
++        let code_before = styles_of(&doc, code);
++        let import_rule = {
++            let guard = doc.guard.read();
++            match &doc.nodes_to_stylesheet[&style].0.contents(&guard).rules(&guard)[0] {
++                CssRule::Import(rule) => rule.clone(),
++                _ => panic!("expected the @import rule"),
++            }
++        };
++        let theme = ServoArc::new(Stylesheet::from_str(
++            ".hljs { color: red }",
++            doc.url.url_extra_data(),
++            Origin::Author,
++            ServoArc::new(doc.guard.wrap(MediaList::empty())),
++            doc.guard.clone(),
++            None,
++            None,
++            QuirksMode::NoQuirks,
++            AllowImportRules::Yes,
++        ));
++        doc.load_resource(ResourceLoadResponse {
++            request_id: 0,
++            node_id: None,
++            resolved_url: None,
++            result: Ok(Resource::ImportedCss(import_rule, theme)),
++        });
++        doc.resolve(0.0);
++
++        assert!(ServoArc::ptr_eq(&plain_before, &styles_of(&doc, plain)));
++        assert_ne!(code_before.clone_color(), styles_of(&doc, code).clone_color());
++    }
++}
++
+ #[cfg(test)]
+ mod zoom_tests {
+     use super::*;

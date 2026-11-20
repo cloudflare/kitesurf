@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 28 Oct 2026 14:42:04 +0000
+Subject: [PATCH] Shape outside list markers when painted
+
+blitz-dom no longer keeps a shaped layout of each outside list marker.
+Shape the marker from the list item's style and recorded scale when the
+item is painted, with the contexts that rebuild evicted text. Paint
+output is unchanged.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/render.rs | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index dcf399a..128160e 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -20,7 +20,7 @@ use crate::text::DrawTextContext;
+ use crate::{CustomWidgetSceneMap, SELECTION_COLOR};
+ use anyrender::{PaintScene, Scene, ScenePart};
+ use blitz_dom::node::{
+-    ListItemLayout, ListItemLayoutPosition, Marker, NodeData, RasterImageData, TextInputData,
++    ListItemLayout, Marker, NodeData, RasterImageData, TextInputData,
+     TextNodeData,
+ };
+ use blitz_dom::{BaseDocument, ElementData, Node, NodeId, local_name};
+@@ -1183,11 +1183,11 @@ impl ElementCx<'_, '_> {
+     }
+
+     fn draw_marker(&self, scene: &mut impl PaintScene, pos: Point) {
+-        if let Some(ListItemLayout {
+-            marker,
+-            position: ListItemLayoutPosition::Outside(layout),
+-        }) = self.list_item
++        if let Some(list_item) = self.list_item
++            && let Some(layout) =
++                list_item.outside_marker_layout(self.context.dom.tree(), self.node.id)
+         {
++            let marker = &list_item.marker;
+             // Right align and pad the bullet when rendering outside
+             let x_padding = match marker {
+                 Marker::Char(_) => 8.0,

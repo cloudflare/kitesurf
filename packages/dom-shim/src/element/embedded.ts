@@ -4,6 +4,7 @@
 
 // Implements embedded-content element interfaces and their tag-specific behavior.
 
+import type { WrapperInfo } from "../node-base.js";
 import type * as Idl from "../idl/types.generated.js";
 import {
   defineReflectedString,
@@ -61,7 +62,7 @@ class HTMLIFrameElement extends HTMLElement implements Idl.HTMLIFrameElement {
   // PageScript sets these on the element once the child document loads.
   declare __ks_iframeContentDocument?: Idl.Document | null;
   declare __ks_iframeContentWindow?: unknown;
-  constructor(nodeId: number, info: unknown, token?: symbol) {
+  constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
     super(nodeId, info);
     checkInternalConstruct(token, "HTMLIFrameElement");
   }
@@ -83,7 +84,7 @@ interface HTMLEmbedElement extends Pick<
   "name" | "type" | "width" | "height" | "align"
 > {}
 class HTMLEmbedElement extends HTMLElement implements Idl.HTMLEmbedElement {
-  constructor(nodeId: number, info: unknown, token?: symbol) {
+  constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
     super(nodeId, info);
     checkInternalConstruct(token, "HTMLEmbedElement");
   }
@@ -117,7 +118,7 @@ interface HTMLObjectElement extends Pick<
 
 // There is no nested document, so getSVGDocument() always returns null.
 class HTMLObjectElement extends HTMLElement implements Idl.HTMLObjectElement {
-  constructor(nodeId: number, info: unknown, token?: symbol) {
+  constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
     super(nodeId, info);
     checkInternalConstruct(token, "HTMLObjectElement");
   }

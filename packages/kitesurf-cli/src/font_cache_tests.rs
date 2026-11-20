@@ -337,3 +337,43 @@ fn font_urls_are_confined_to_builtin_font_assets() {
         assert!(font_url(&origin, path).is_err(), "{path}");
     }
 }
+
+// One path aliased by many claimed hashes must cost one fetch and one put, not one per hash.
+#[tokio::test]
+async fn duplicate_hashes_for_one_font_path_fetch_and_resolve_once() {
+    let (url, task) = server(vec![response("200 OK", Some("\"v1\""), b"font-v1")]).await;
+    let directory = Directory::new();
+    let bytes = fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../engine/public/rbi/scene_host.wasm"
+    ))
+    .unwrap();
+    let mut raster = crate::wasm::Raster::new(&bytes).unwrap();
+    let path = "/fonts/font.ttf";
+    let mut batch = 2u32.to_le_bytes().to_vec();
+    for hash in [7u64, 8] {
+        let mut body = vec![1]; // FONT_DATA_REF_ASSET
+        body.extend_from_slice(&0u32.to_le_bytes());
+        body.extend_from_slice(path.as_bytes());
+        batch.push(3); // RBI_RESOURCE_KIND_FONT_DATA
+        batch.extend_from_slice(&hash.to_le_bytes());
+        batch.extend_from_slice(&(body.len() as u32).to_le_bytes());
+        batch.extend_from_slice(&body);
+    }
+    raster.run(1, &batch).unwrap(); // OP_PUT_RESOURCES
+    let queue = crate::playback::queue_pending_fonts(&mut raster).unwrap();
+    assert_eq!(queue.len(), 1, "one path is queued for two hashes");
+    let cache = directory.cache(url.join("/").unwrap());
+    let mut diagnostics = Diagnostics::new(false);
+    for path in queue {
+        crate::playback::load_font(&cache, &mut raster, &mut diagnostics, &path)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        raster.run(5, &[]).unwrap(), // OP_PENDING_FONTS
+        b"[]",
+        "one put clears both hashes"
+    );
+    assert_eq!(task.await.unwrap().len(), 1, "one font request");
+}

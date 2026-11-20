@@ -7,9 +7,12 @@
 // returned function becomes a live capability that extends the session.
 
 import { WorkerEntrypoint, RpcTarget, abortIsolate } from "cloudflare:workers";
+import { pdfScenePages } from "./pdf-stream.ts";
+import { createFrameBitmapDeliveryGate } from "./frame-bitmap-gate.ts";
 import type {
   ArgSpec,
   CallFunctionOnOptions,
+  ClearFrameBitmapParams,
   CompileScriptReply,
   DeliverMessageParams,
   DrainConsoleReply,
@@ -26,6 +29,7 @@ import type {
   NavigateOptions,
   NavigateSummary,
   OkReply,
+  NavigateSource,
   PageScriptMethod,
   PageScriptReply,
   PageScriptSession,
@@ -37,10 +41,20 @@ import type {
   WireMeta,
   UnloadReply,
 } from "@kitesurf/jsrpc-types/page-script";
+import {
+  SANDBOX_ALLOW_ALL,
+  committedOriginOfUrl,
+  embeddingPolicyVerdict,
+  intersectSandbox,
+  parseSandboxAttribute,
+  type SandboxRestrictions,
+} from "@kitesurf/script-gate";
+import type { CommittedOrigin } from "@kitesurf/jsrpc-types/frame-origin";
 import type { RenderPort as RenderPortContract } from "@kitesurf/jsrpc-types/page-renderer";
 import type { WorkerEventParams } from "@kitesurf/jsrpc-types/dedicated-worker";
 import { deliverWorkerEvent } from "./dedicated-worker.ts";
 import type {
+  FormStateSnapshot,
   PendingImageDrain,
   QueryDomArgs,
   QueryDomMethod,
@@ -100,25 +114,34 @@ import {
   stylesheetCors,
 } from "./resource-fetch.ts";
 import { resolveExternalSvgSprites, startLateSpriteSweep } from "./svg-sprites.ts";
-import { evalInsertedOnBoa, runInsertedExternalScript } from "./inserted-scripts.ts";
+import {
+  drainWrittenScripts,
+  evalInsertedOnBoa,
+  queueWrittenScript,
+  runInsertedExternalScript,
+  setModulePreloadPins,
+} from "./inserted-scripts.ts";
 import { editContentEditable, editingHostOf } from "./contenteditable-input.ts";
 import {
+  inlineHandlerAllowed,
   inlineInsertDecisionSync,
   insertedScriptAllowed,
   reportBlocked,
   reportOnly,
+  setNavigationScriptPolicy,
 } from "./script-policy.ts";
 
 import {
   SyncFunction,
   anchorHrefAttribute,
   findAnchorAncestor,
-  findAnchorViaSingleChild,
+  findAnchorUnderPoint,
   findFocusableAncestor,
+  findSvgAnchorAtPoint,
   packBoaResult,
   runExpression,
 } from "./eval-helpers.ts";
-import { installFetchShim } from "./fetch-shim.ts";
+import { installFetchShim, pageOriginFromUrl } from "./fetch-shim.ts";
 import { drainEvalResult, type EvalResultBody } from "./eval-results.ts";
 import {
   drainCdpMutations,
@@ -134,9 +157,10 @@ import {
   documentScrollSize,
   ensurePaintDom,
   invalidatePaintDom,
-  kickLayoutForFontFaceDiscovery,
+  discoverFontFaces,
   takePaintPrep,
   paintPrepStats,
+  layoutResolveStats,
   rectWithScrollOffset,
   renderSceneRawPooled,
   scrollBy,
@@ -150,17 +174,19 @@ import {
   nativeSleep,
   yieldToPageTasks,
 } from "./native-scheduling.ts";
-import { splitSelectorList } from "./selectors.ts";
+import { encodeSelectorBytes, splitSelectorList, trimSelector } from "./selectors.ts";
 import {
   compileScriptEntry,
   getCompiledScript,
   lookupHandle,
+  lookupHandleFrame,
   mintHandle,
   releaseHandle,
+  setIsolateStamp,
 } from "./handles.ts";
 import { drainInitShims, installInitShims } from "./init-shims.ts";
 import { deferShimStats, drainDeferParked, installDeferShim } from "./defer-shim.ts";
-import { responseHeaderGet } from "./native-http.ts";
+import { isNativeUint8Array, nativeApply, responseHeaderGet } from "./native-http.ts";
 import { captureTrustedFetch, trustedFetch } from "./trusted-fetch.ts";
 import {
   awaitDeferredFontBytes,
@@ -182,6 +208,11 @@ import {
   upgradePendingPromise,
   upgradeToFullFonts,
 } from "./font-loader.ts";
+import { navigateSourceOf, releaseNavigateSource } from "./source-scan.ts";
+
+// The UA stylesheet text, cached by the first enumerateStyleSheets query;
+// it never changes within an isolate.
+let uaStylesheetText: string | undefined;
 
 const SESSION_CLOSED_ERROR = new Error("PageScript session closed");
 let sessionClosing = false;
@@ -189,6 +220,51 @@ let resolveSessionClosing = () => {};
 const sessionClosingSignal = new NativePromise<void>((resolve) => {
   resolveSessionClosing = resolve;
 });
+
+const frameBitmapDeliveryGate = createFrameBitmapDeliveryGate(applyFrameBitmap);
+
+function applyFrameBitmap(params: FrameBitmapParams): FrameBitmapReply {
+  if (!isObjectRecord(params)) return { ok: false, rc: -1, error: "bad args" };
+
+  // Wire params arrive untyped, so every field is re-checked before the wasm call.
+  const ownerBackendNodeId: unknown = params.ownerBackendNodeId;
+  const width: unknown = params.width;
+  const height: unknown = params.height;
+  const rgba: unknown = params.rgba;
+  if (
+    typeof ownerBackendNodeId !== "number" ||
+    typeof width !== "number" ||
+    typeof height !== "number" ||
+    !isNativeUint8Array(rgba)
+  ) {
+    return { ok: false, rc: -1, error: "bad args" };
+  }
+
+  if (!state.dom || typeof nativeSetIframeImage !== "function") {
+    return { ok: false, rc: -1, error: "dom missing" };
+  }
+
+  try {
+    const resultCode = nativeApply(nativeSetIframeImage, state.dom, [
+      ownerBackendNodeId,
+      width,
+      height,
+      rgba,
+    ]);
+    if (resultCode === 0) {
+      try {
+        getInternalState().damageNodes.add(ownerBackendNodeId | 0);
+      } catch {}
+    }
+    return { ok: resultCode >= 0, rc: resultCode };
+  } catch (e) {
+    return {
+      ok: false,
+      rc: -1,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
 
 function afterFontUpgrade(): void {
   try {
@@ -239,7 +315,7 @@ setAuthorFontUpgradeHook(async () => {
   }
 });
 
-ksGlobal.__ksFontOutlineDemand = (): Promise<void> | null => {
+ksInternals.demandFontOutlines = (): Promise<void> | null => {
   if (fontLoaderMode() !== "lazy") return null;
   return upgradeToFullFonts();
 };
@@ -247,7 +323,9 @@ import { packException, packResult } from "./pack.ts";
 import {
   dispatchLifecycle,
   extractScripts,
+  findParserScript,
   planScripts,
+  scriptsInScanOrder,
   runAsyncPhase,
   runModulePhase,
   runRegularPhase,
@@ -257,6 +335,7 @@ import {
   DEFAULT_VIEWPORT_WIDTH_PX,
   ksEventCtors,
   ksGlobal,
+  shimEventCtor,
   state,
 } from "./state.ts";
 import { sanitizeCdpNodeTree } from "./cdp-nodes.ts";
@@ -265,7 +344,8 @@ import {
   intersectionObserverStats,
   recheckIntersectionObservers,
 } from "./intersection-observer.ts";
-import { isolateKillLine, reportEngineError, setTailToken } from "./engine-error.ts";
+import { reportEngineError } from "./engine-error.ts";
+import { setTailToken, writeIsolateKillLine } from "./tail-channel.ts";
 import { installWasmTerminatedHandler } from "./wasm-crash.ts";
 import { armTransitionDrain, isAnimating } from "./transitions.ts";
 import {
@@ -276,6 +356,8 @@ import {
   pageTimerDueWithin,
   pumpDuePageTasks,
   pumpPageTask,
+  pausePageTaskPump,
+  runPageTaskOrQueue,
   timerWheelStats,
   timersScheduledCount,
 } from "./page-tasks.ts";
@@ -314,6 +396,11 @@ import {
   ks_js_span_enter,
   ks_js_span_exit,
   ks_call_cdp,
+  ks_call_cdp_in_frame,
+  ks_release_frame_realm,
+  ks_code_stats,
+  ks_swap_alloc_stats,
+  ks_swap_alloc_reset_peak_window,
 } from "./wasm-glue.js";
 import {
   buildDocument,
@@ -327,15 +414,26 @@ import {
   decodeHtmlBytes,
   parseUrlForNode,
   detachedWrapperStats,
+  setInlineHandlerGate,
 } from "./dom-shim.js";
 import type { BuildDocumentResult } from "./dom-shim.js";
+import { ksInternals } from "./internals.ts";
 
 import type { IsolateKillMarker } from "@kitesurf/jsrpc-types/shared";
 
 const ISOLATE_KILL_MARKER: IsolateKillMarker = "[ks-kill]";
+const nativeSetIframeImage = DomHandle.prototype.setIframeImage;
+const nativeClearIframeImage = DomHandle.prototype.clearIframeImage;
+// Selector text can come from a sheet the page cannot read. Hold the prototype method so a page
+// that shadows the instance's copy (domDebug is reachable from page code) cannot answer for it.
+const nativeMatchesInSubtreeBytes = DomHandle.prototype.matchesInSubtreeBytes;
 
-ksGlobal.__ksJsSpanEnter = ks_js_span_enter;
-ksGlobal.__ksJsSpanExit = ks_js_span_exit;
+// Bounds the pre-DCL wait for document.write'd scripts: long enough for a
+// loader's dependency chain, short enough that a dead origin can't hold DCL.
+const WRITTEN_SCRIPT_DRAIN_MS = 10_000;
+
+ksInternals.jsSpanEnter = ks_js_span_enter;
+ksInternals.jsSpanExit = ks_js_span_exit;
 
 interface FragmentLookupDoc {
   getElementById?: (id: string) => unknown;
@@ -391,7 +489,7 @@ let __ksControlCaretAnchor: { el: any; offset: number } | null = null;
 let __ksCaretDragOrigin: { x: number; y: number } | null = null;
 
 function caretX(clientX: number, clientY: number, eventType: string): number {
-  const cellWidth = Number(ksGlobal.__ks_tty_cell_w) || 0;
+  const cellWidth = Number(ksInternals.ttyCellWidth) || 0;
   if (!(cellWidth > 0)) return clientX;
   const left = Math.floor(clientX / cellWidth) * cellWidth;
   const CARET_CELL_EDGE_INSET_PX = 0.5;
@@ -495,7 +593,7 @@ function moveTabFocus(reverse: boolean): void {
     const tabIndex = Number.isFinite(parsedTabIndex) ? parsedTabIndex : 0;
     if (tabIndex < 0) continue;
     if (!element.getClientRects?.()?.length) continue;
-    const visibility = state.window?.getComputedStyle?.(element).visibility;
+    const visibility = state.window?.getComputedStyle?.(element).getPropertyValue("visibility");
     if (visibility === "hidden" || visibility === "collapse") continue;
     focusableElements.push({ element, tabIndex, domOrder: focusableElements.length });
   }
@@ -555,8 +653,8 @@ function scrollForKey(key: string, init: KeyScrollInit | undefined): void {
   }
 
   const ttyKeyboard = init?.ttyKeyboard === true;
-  const cellHeight = Number(ksGlobal.__ks_tty_cell_h) || 0;
-  const cellWidth = Number(ksGlobal.__ks_tty_cell_w) || 0;
+  const cellHeight = Number(ksInternals.ttyCellHeight) || 0;
+  const cellWidth = Number(ksInternals.ttyCellWidth) || 0;
   const lineHeight = cellHeight || DEFAULT_KEY_SCROLL_STEP_PX;
   const lineWidth = cellWidth || DEFAULT_KEY_SCROLL_STEP_PX;
   const pageHeight = Math.max(lineHeight, state.paintViewportH - lineHeight);
@@ -591,7 +689,7 @@ function scrollForKey(key: string, init: KeyScrollInit | undefined): void {
   }
   if (!scrollDeltaX && !scrollDeltaY) return;
   const scrollTarget = focused || state.document.body;
-  const scrollByWheel: unknown = ksGlobal.__ks_scrollByWheel;
+  const scrollByWheel: unknown = ksInternals.scrollByWheel;
   if (typeof scrollByWheel === "function" && typeof scrollTarget?._id === "number") {
     try {
       if (scrollByWheel(scrollTarget._id, scrollDeltaX, scrollDeltaY)) return;
@@ -819,17 +917,12 @@ function __wireContentWindowPostMessage(contentWindow: any, iframeElement: any) 
         transferable.transfer();
       }
     }
-    let sourceOrigin = "";
-    try {
-      sourceOrigin = new URL(state.pageUrl || "").origin;
-    } catch {}
     sendUpstreamEvent({
       event: "kitesurf.postMessage",
       params: {
         toFrameOwnerId: typeof iframeElement?._id === "number" ? iframeElement._id : -1,
         dataJson,
         targetOrigin: targetOriginValue,
-        sourceOrigin,
       },
     });
   };
@@ -1053,8 +1146,21 @@ function __decorateContentWindow(contentWindow: any) {
     "Math",
     "Node",
     "Element",
+    "HTMLElement",
+    "SVGElement",
+    "Text",
+    "Comment",
+    "CharacterData",
+    "ShadowRoot",
     "Document",
     "DocumentFragment",
+    "DocumentType",
+    "Attr",
+    "NamedNodeMap",
+    "DOMTokenList",
+    "CSSStyleDeclaration",
+    "NodeFilter",
+    "TreeWalker",
     "Event",
     "MessageEvent",
     "CustomEvent",
@@ -1064,6 +1170,30 @@ function __decorateContentWindow(contentWindow: any) {
     "DOMParser",
     "Range",
     "StaticRange",
+    "MutationObserver",
+    "ResizeObserver",
+    "IntersectionObserver",
+    "XPathResult",
+    "CSS",
+    "getComputedStyle",
+    "matchMedia",
+    "requestAnimationFrame",
+    "cancelAnimationFrame",
+    "setTimeout",
+    "clearTimeout",
+    "setInterval",
+    "clearInterval",
+    "queueMicrotask",
+    "console",
+    "performance",
+    "navigator",
+    "fetch",
+    "atob",
+    "btoa",
+    "crypto",
+    "structuredClone",
+    "TextEncoder",
+    "TextDecoder",
     "URL",
     "URLSearchParams",
     "Blob",
@@ -1079,6 +1209,35 @@ function __decorateContentWindow(contentWindow: any) {
       contentWindow[globalName] = pageGlobal[globalName];
     }
   }
+}
+
+const iframeElementsByFrameId = new Map<string, unknown>();
+
+function registerSameOriginIframe(frameId: unknown, iframeElement: unknown): void {
+  if (typeof frameId !== "string" || frameId.length === 0) return;
+  iframeElementsByFrameId.set(frameId, iframeElement);
+  try {
+    ks_release_frame_realm(frameId);
+  } catch {}
+}
+
+function unregisterIframe(frameId: unknown): void {
+  if (typeof frameId !== "string" || frameId.length === 0) return;
+  iframeElementsByFrameId.delete(frameId);
+  try {
+    ks_release_frame_realm(frameId);
+  } catch {}
+}
+
+function lookupFrameWindow(frameId: string): unknown {
+  const iframeElement = iframeElementsByFrameId.get(frameId) as {
+    __ks_iframeContentDocument?: unknown;
+    __ks_iframeContentWindow?: unknown;
+  } | null;
+  if (!iframeElement?.__ks_iframeContentDocument || !iframeElement.__ks_iframeContentWindow) {
+    return null;
+  }
+  return iframeElement.__ks_iframeContentWindow;
 }
 
 function preinstallStaticIframes() {
@@ -1107,6 +1266,10 @@ function preinstallStaticIframes() {
       } catch {
         resolvedUrl = "about:blank";
       }
+    }
+    if (facadeMustBeCrossOrigin(childSandbox(readSandboxAttribute(iframeElement)), resolvedUrl)) {
+      installCrossOriginFacade(iframeElement, resolvedUrl);
+      continue;
     }
     installPlaceholderContentDocument(iframeElement, resolvedUrl, win, DOMParserConstructor);
   }
@@ -1142,18 +1305,121 @@ function readSrcdoc(iframeEl: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+// Snapshot of the owner's sandbox attribute at a navigation start. Null means no attribute.
+function readSandboxAttribute(iframeEl: unknown): string | null {
+  if (!isObjectRecord(iframeEl)) return null;
+  const getAttribute = iframeEl.getAttribute;
+  if (typeof getAttribute !== "function") return null;
+  const value: unknown = Reflect.apply(getAttribute, iframeEl, ["sandbox"]);
+  return typeof value === "string" ? value : null;
+}
+
+// The child's active restrictions: its own attribute intersected with this document's.
+function childSandbox(sandboxAttribute: string | null): SandboxRestrictions {
+  return intersectSandbox(state.sandbox, parseSandboxAttribute(sandboxAttribute));
+}
+
+function sandboxIsOpaque(sandbox: SandboxRestrictions): boolean {
+  return !sandbox.sameOrigin;
+}
+
+// The committed origin of this document. It is the self-origin of any policy this document
+// inherits and the nearest ancestor of a child it creates.
+function currentDocumentCommittedOrigin(): CommittedOrigin {
+  if (!state.sandbox.sameOrigin) return { kind: "opaque", id: state.opaqueOriginId };
+  try {
+    const origin = new URL(state.documentUrl || state.pageUrl).origin;
+    if (origin === "null" || origin === "") return { kind: "opaque", id: state.opaqueOriginId };
+    return { kind: "tuple", origin };
+  } catch {
+    return { kind: "opaque", id: state.opaqueOriginId };
+  }
+}
+
+function currentChildAncestorOrigins(): CommittedOrigin[] {
+  return [currentDocumentCommittedOrigin(), ...state.ancestorOrigins];
+}
+
+// A child whose origin is opaque, or whose URL is not this document's origin, has no same-origin
+// document to expose. srcdoc and about:blank inherit this document's origin.
+function facadeMustBeCrossOrigin(sandbox: SandboxRestrictions, url: string): boolean {
+  if (sandboxIsOpaque(sandbox)) return true;
+  if (isAboutBlankUrl(url) || url === SRCDOC_URL) return false;
+  let origin = "";
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    return false;
+  }
+  let page = "";
+  try {
+    page = new URL(state.pageUrl).origin;
+  } catch {}
+  return !!(page && origin && page !== origin);
+}
+
+// Installs the cross-origin facade on an iframe: no document, only postMessage forwarding.
+function installCrossOriginFacade(iframeEl: any, url: string): Record<string, unknown> {
+  unregisterIframe(iframeEl?.__ks_iframeFrameId);
+  const contentWindow =
+    iframeEl.__ks_iframeContentWindow ?? __makeCrossOriginContentWindow(iframeEl, url);
+  try {
+    contentWindow.document = null;
+  } catch {}
+  setIframeFacadeLocation(contentWindow, iframeEl, url);
+  iframeEl.__ks_iframeContentDocument = null;
+  iframeEl.__ks_iframeContentWindow = contentWindow;
+  return contentWindow;
+}
+
+// A facade document is parsed in this realm, so an inline handler attribute would compile against
+// the embedder's privileges. A child whose sandbox omits allow-scripts must not carry one.
+function stripInlineHandlers(doc: any): void {
+  let nodes: any[];
+  try {
+    nodes = Array.from(doc.querySelectorAll?.("*") ?? []);
+  } catch {
+    return;
+  }
+  for (const element of nodes) {
+    const names: string[] = [];
+    try {
+      for (const attr of element?.attributes ?? []) {
+        const name = String((attr as { name?: unknown })?.name ?? "");
+        if (/^on/i.test(name)) names.push(name);
+      }
+    } catch {
+      continue;
+    }
+    for (const name of names) {
+      try {
+        element.removeAttribute(name);
+      } catch {}
+    }
+  }
+}
+
 function queueSrcdocLoad(
   iframeEl: object,
   srcdoc: string,
   win: unknown,
   DOMParserConstructor: unknown,
+  sandbox: string | null,
 ): void {
   const pendingLoad = {};
   pendingDocumentLoads.set(iframeEl, pendingLoad);
   Promise.resolve().then(() => {
     if (pendingDocumentLoads.get(iframeEl) !== pendingLoad) return;
     pendingDocumentLoads.delete(iframeEl);
-    void loadDynamicIframe(iframeEl, SRCDOC_URL, win, DOMParserConstructor, srcdoc);
+    void loadDynamicIframe(
+      iframeEl,
+      SRCDOC_URL,
+      win,
+      DOMParserConstructor,
+      srcdoc,
+      undefined,
+      sandbox,
+    );
   });
 }
 
@@ -1167,6 +1433,11 @@ function handleDynamicIframeInsert(iframeEl: any) {
   const DOMParserConstructor = ksGlobal.DOMParser;
   if (!DOMParserConstructor) return;
   const srcdoc = readSrcdoc(iframeEl);
+  // Read the attribute once: the snapshot drives both the restrictions and the reported value.
+  const sandboxAttr = readSandboxAttribute(iframeEl);
+  const sandbox = childSandbox(sandboxAttr);
+  // The Rust DOM paints srcdoc natively; an opaque child must not expose the parsed facade.
+  const srcdocIsOpaque = srcdoc !== null && sandboxIsOpaque(sandbox);
   let src = "";
   try {
     src = String(iframeEl.getAttribute?.("src") ?? "");
@@ -1181,59 +1452,77 @@ function handleDynamicIframeInsert(iframeEl: any) {
       resolvedUrl = "about:blank";
     }
   }
-  installPlaceholderContentDocument(
-    iframeEl,
-    resolvedUrl,
-    win,
-    DOMParserConstructor,
-    "about:blank",
-  );
+  if (facadeMustBeCrossOrigin(sandbox, resolvedUrl)) {
+    // An opaque or cross-origin child has no same-origin facade for this document to expose.
+    installCrossOriginFacade(iframeEl, resolvedUrl);
+  } else {
+    installPlaceholderContentDocument(
+      iframeEl,
+      resolvedUrl,
+      win,
+      DOMParserConstructor,
+      "about:blank",
+    );
+  }
 
   const frameId = mintDynamicFrameId();
   (iframeEl as any).__ks_iframeFrameId = frameId;
+  if (!facadeMustBeCrossOrigin(sandbox, resolvedUrl)) {
+    registerSameOriginIframe(frameId, iframeEl);
+  }
   const ownerBackendNodeId = (iframeEl as any)._id ?? -1;
+  let name = "";
+  let id = "";
+  try {
+    name = String(iframeEl.getAttribute?.("name") ?? "");
+    id = String(iframeEl.getAttribute?.("id") ?? "");
+  } catch {}
   sendUpstreamEvent({
     event: "kitesurf.frameAttached",
     params: {
       frameId,
       ownerBackendNodeId,
       url: resolvedUrl,
+      name,
+      id,
+      sandbox: sandboxAttr,
     },
   });
 
   if (srcdoc !== null) {
-    queueSrcdocLoad(iframeEl, srcdoc, win, DOMParserConstructor);
+    if (srcdocIsOpaque) {
+      // No child execution context: keep the facade cross-origin and let the native iframe paint.
+      Promise.resolve().then(() => {
+        emitFrameLifecycle(frameId, SRCDOC_URL, sandboxAttr);
+        fireIframeLoad(iframeEl);
+      });
+      return;
+    }
+    queueSrcdocLoad(iframeEl, srcdoc, win, DOMParserConstructor, sandboxAttr);
     return;
   }
   if (isAboutBlankUrl(resolvedUrl) || !src) {
-    emitFrameLifecycle(frameId, "about:blank");
+    emitFrameLifecycle(frameId, "about:blank", sandboxAttr);
     fireIframeLoad(iframeEl);
     return;
   }
-  let pageOrigin = "";
-  try {
-    pageOrigin = new URL(state.pageUrl).origin;
-  } catch {}
-  let frameOrigin = "";
-  try {
-    frameOrigin = new URL(resolvedUrl).origin;
-  } catch {}
-  if (pageOrigin && frameOrigin && pageOrigin !== frameOrigin) {
+  if (facadeMustBeCrossOrigin(sandbox, resolvedUrl)) {
     Promise.resolve().then(() => {
-      const contentWindow =
-        iframeEl.__ks_iframeContentWindow ?? __makeCrossOriginContentWindow(iframeEl, resolvedUrl);
-      try {
-        contentWindow.document = null;
-      } catch {}
-      setIframeFacadeLocation(contentWindow, iframeEl, resolvedUrl);
-      iframeEl.__ks_iframeContentDocument = null;
-      iframeEl.__ks_iframeContentWindow = contentWindow;
-      emitFrameLifecycle(frameId, resolvedUrl);
+      installCrossOriginFacade(iframeEl, resolvedUrl);
+      emitFrameLifecycle(frameId, resolvedUrl, sandboxAttr);
       fireIframeLoad(iframeEl);
     });
     return;
   }
-  loadDynamicIframe(iframeEl, resolvedUrl, win, DOMParserConstructor);
+  loadDynamicIframe(
+    iframeEl,
+    resolvedUrl,
+    win,
+    DOMParserConstructor,
+    undefined,
+    undefined,
+    sandboxAttr,
+  );
 }
 
 function handleIframeSrcChange(iframeEl: any, urlOverride?: string, post?: IframePost) {
@@ -1245,8 +1534,22 @@ function handleIframeSrcChange(iframeEl: any, urlOverride?: string, post?: Ifram
   if (!DOMParserConstructor) return;
   const isLocationNavigation = typeof urlOverride === "string" && urlOverride.length > 0;
   const srcdoc = isLocationNavigation ? null : readSrcdoc(iframeEl);
+  // Snapshot the owner attribute now: a later attribute change applies only to the next
+  // navigation.
+  const sandboxAttr = readSandboxAttribute(iframeEl);
+  const sandbox = childSandbox(sandboxAttr);
   if (srcdoc !== null) {
-    queueSrcdocLoad(iframeEl, srcdoc, win, DOMParserConstructor);
+    if (sandboxIsOpaque(sandbox)) {
+      // No child execution context: keep the facade cross-origin and let the native iframe paint.
+      const frameId = (iframeEl as any).__ks_iframeFrameId;
+      installCrossOriginFacade(iframeEl, SRCDOC_URL);
+      Promise.resolve().then(() => {
+        emitFrameLifecycle(frameId, SRCDOC_URL, sandboxAttr);
+        fireIframeLoad(iframeEl);
+      });
+      return;
+    }
+    queueSrcdocLoad(iframeEl, srcdoc, win, DOMParserConstructor, sandboxAttr);
     return;
   }
   let src = "";
@@ -1267,29 +1570,12 @@ function handleIframeSrcChange(iframeEl: any, urlOverride?: string, post?: Ifram
     }
   }
   const frameId = (iframeEl as any).__ks_iframeFrameId;
-  let pageOrigin = "";
-  try {
-    pageOrigin = new URL(state.pageUrl).origin;
-  } catch {}
-  let frameOrigin = "";
-  try {
-    frameOrigin = new URL(resolvedUrl).origin;
-  } catch {}
   const isCrossOriginNav =
-    !!(pageOrigin && frameOrigin && pageOrigin !== frameOrigin) &&
-    !isAboutBlankUrl(resolvedUrl) &&
-    !!src;
+    facadeMustBeCrossOrigin(sandbox, resolvedUrl) && !isAboutBlankUrl(resolvedUrl) && !!src;
   if (isCrossOriginNav) {
-    const contentWindow =
-      iframeEl.__ks_iframeContentWindow ?? __makeCrossOriginContentWindow(iframeEl, resolvedUrl);
-    try {
-      contentWindow.document = null;
-    } catch {}
-    setIframeFacadeLocation(contentWindow, iframeEl, resolvedUrl);
-    iframeEl.__ks_iframeContentDocument = null;
-    iframeEl.__ks_iframeContentWindow = contentWindow;
+    installCrossOriginFacade(iframeEl, resolvedUrl);
     Promise.resolve().then(() => {
-      emitFrameLifecycle(frameId, resolvedUrl);
+      emitFrameLifecycle(frameId, resolvedUrl, sandboxAttr);
       fireIframeLoad(iframeEl);
     });
     return;
@@ -1308,12 +1594,12 @@ function handleIframeSrcChange(iframeEl: any, urlOverride?: string, post?: Ifram
     Promise.resolve().then(() => {
       if (pendingDocumentLoads.get(iframeEl) !== pendingLoad) return;
       pendingDocumentLoads.delete(iframeEl);
-      emitFrameLifecycle(frameId, resolvedUrl);
+      emitFrameLifecycle(frameId, resolvedUrl, sandboxAttr);
       fireIframeLoad(iframeEl);
     });
     return;
   }
-  loadDynamicIframe(iframeEl, resolvedUrl, win, DOMParserConstructor, undefined, post);
+  loadDynamicIframe(iframeEl, resolvedUrl, win, DOMParserConstructor, undefined, post, sandboxAttr);
 }
 
 // The referrer a frame navigation from this document to `url` carries,
@@ -1419,6 +1705,54 @@ function warnDynamicIframeStatus(response: Response, url: string): void {
   } catch {}
 }
 
+interface DynamicIframeFetch {
+  finalUrl: string;
+  contentType: string | null;
+  bytes: Uint8Array | null;
+  refused: boolean;
+}
+
+async function fetchDynamicIframeBody(
+  url: string,
+  post: IframePost | undefined,
+): Promise<DynamicIframeFetch> {
+  const response = await fetchDynamicIframeDocument(url, post);
+  const finalUrl = response && response.url ? response.url : url;
+  // Check the terminal response before decoding its body. A refused document never reaches this
+  // realm as protected markup.
+  const policy = embeddingPolicyVerdict({
+    cspHeaders: [responseHeaderGet(response, "content-security-policy")],
+    xFrameOptions: [responseHeaderGet(response, "x-frame-options")],
+    destinationOrigin: committedOriginOfUrl(finalUrl, `${state.opaqueOriginId}:child`),
+    ancestorOrigins: currentChildAncestorOrigins(),
+  });
+  if (!policy.allowed) {
+    try {
+      await response.body?.cancel();
+    } catch {}
+    try {
+      console.warn(
+        "[kitesurf-iframe] dynamic iframe refused by " +
+          (policy.directive ?? policy.reason) +
+          " for " +
+          finalUrl,
+      );
+    } catch {}
+    return { finalUrl, contentType: "text/html", bytes: null, refused: true };
+  }
+  const contentType = responseHeaderGet(response, "content-type");
+  if (response && response.ok && response.status !== 204 && response.status !== 205) {
+    return {
+      finalUrl,
+      contentType,
+      bytes: new Uint8Array(await response.arrayBuffer()),
+      refused: false,
+    };
+  }
+  if (response && !response.ok) warnDynamicIframeStatus(response, url);
+  return { finalUrl, contentType, bytes: null, refused: false };
+}
+
 async function loadDynamicIframe(
   iframeEl: any,
   url: string,
@@ -1426,6 +1760,7 @@ async function loadDynamicIframe(
   DOMParserConstructor: any,
   srcdoc?: string,
   post?: IframePost,
+  sandboxAttr?: string | null,
 ) {
   let html = "";
   let characterSet = "UTF-8";
@@ -1444,13 +1779,15 @@ async function loadDynamicIframe(
         contentType = blob.type || null;
         bytes = new Uint8Array(await blob.arrayBuffer());
       } else {
-        const response = await fetchDynamicIframeDocument(url, post);
-        finalUrl = response && response.url ? response.url : url;
-        contentType = responseHeaderGet(response, "content-type");
-        if (response && response.ok && response.status !== 204 && response.status !== 205) {
-          bytes = new Uint8Array(await response.arrayBuffer());
-        } else if (response && !response.ok) {
-          warnDynamicIframeStatus(response, url);
+        const fetched = await fetchDynamicIframeBody(url, post);
+        finalUrl = fetched.finalUrl;
+        contentType = fetched.contentType;
+        if (fetched.refused) {
+          // Replace any previously displayed child with a blank document.
+          html = "<!doctype html><html><head></head><body></body></html>";
+          decodedResponse = true;
+        } else {
+          bytes = fetched.bytes;
         }
       }
     }
@@ -1490,6 +1827,8 @@ async function loadDynamicIframe(
     }
   }
   if (newDoc) {
+    // A facade parsed in this realm must not carry an inline handler from a script-disabled child.
+    if (!childSandbox(sandboxAttr ?? null).scripts) stripInlineHandlers(newDoc);
     try {
       Object.defineProperty(newDoc, "_baseUrl", {
         value:
@@ -1548,13 +1887,17 @@ async function loadDynamicIframe(
     }
   }
   const frameId = (iframeEl as any).__ks_iframeFrameId;
-  emitFrameLifecycle(frameId, finalUrl);
+  registerSameOriginIframe(frameId, iframeEl);
+  emitFrameLifecycle(frameId, finalUrl, sandboxAttr);
   fireIframeLoad(iframeEl);
 }
 
-function emitFrameLifecycle(frameId: unknown, url: string): void {
+function emitFrameLifecycle(frameId: unknown, url: string, sandbox?: string | null): void {
   if (typeof frameId !== "string") return;
-  sendUpstreamEvent({ event: "kitesurf.frameNavigated", params: { frameId, url } });
+  sendUpstreamEvent({
+    event: "kitesurf.frameNavigated",
+    params: { frameId, url, sandbox: sandbox ?? null },
+  });
   sendUpstreamEvent({
     event: "kitesurf.frameLifecycle",
     params: { frameId, name: "DOMContentLoaded" },
@@ -1570,11 +1913,14 @@ function dispatchWindowUnload(): void {
   dispatchLifecycle(state.window, "unload", { bubbles: false });
 }
 
+setInlineHandlerGate(inlineHandlerAllowed);
+
 function compileEventAttribute(element: any, handlerName: string): void {
   try {
     if (typeof element?.[handlerName] === "function") return;
     const handlerSource = element?.getAttribute?.(handlerName);
     if (typeof handlerSource !== "string" || handlerSource.length === 0) return;
+    if (!inlineHandlerAllowed(handlerName)) return;
     let eventHandler: Function;
     try {
       eventHandler = new Function("event", handlerSource);
@@ -1587,7 +1933,9 @@ function compileEventAttribute(element: any, handlerName: string): void {
   } catch {}
 }
 
-function pickDomParserMime(contentType: string | null | undefined): string {
+// Returns one of DOMParser's supported types, as parseFromString declares
+// them, so the return type is the inferred union of the literals below.
+function pickDomParserMime(contentType: string | null | undefined) {
   if (typeof contentType !== "string" || contentType.length === 0) {
     return "text/html";
   }
@@ -1836,6 +2184,38 @@ function isWasmBoundingRect(
   );
 }
 
+// DOM.getContentQuads wants one rect per line box, so an inline element that wraps yields a rect
+// per line instead of one bounding rect.
+function contentRectsFor(
+  paint: { getContentRects?: (id: number) => unknown },
+  id: number,
+): Array<{ x: number; y: number; width: number; height: number }> | null {
+  if (typeof paint.getContentRects !== "function") return null;
+  try {
+    const rects = paint.getContentRects(id);
+    if (!Array.isArray(rects)) return null;
+    const viewportRects = rects.filter(isWasmBoundingRect).map(toViewportRect);
+    return viewportRects.length > 0 ? viewportRects : null;
+  } catch {
+    return null;
+  }
+}
+
+// Wasm reports layout rects in document coordinates; CDP wants viewport ones.
+function toViewportRect(rect: { x: number; y: number; width: number; height: number }): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  return {
+    x: (Number(rect.x) || 0) - state.scrollX,
+    y: (Number(rect.y) || 0) - state.scrollY,
+    width: Number(rect.width) || 0,
+    height: Number(rect.height) || 0,
+  };
+}
+
 function readPartialDamageRect(
   value: unknown,
 ): { x: number; y: number; width: number; height: number } | null {
@@ -2055,7 +2435,15 @@ function renderScrollScenePatches(
   const patches: ScenePatch[] = [];
   for (const [x, y, width, height] of scrollClips) {
     const clip = { x: x + scrollX, y: y + scrollY, w: width, h: height };
-    const patchScene = renderClip(clip.x, clip.y, width, height, false, clientWire);
+    const patchScene = renderClip(
+      clip.x,
+      clip.y,
+      Math.min(MAX_SCENE_CLIP_DIMENSION_PX, width),
+      Math.min(MAX_SCENE_CLIP_DIMENSION_PX, height),
+      false,
+      clientWire,
+      false,
+    );
     if (!patchScene || patchScene.length === 0) {
       throw new Error("renderSceneClip returned empty");
     }
@@ -2076,7 +2464,7 @@ const TLA_SETTLE_BUDGET_MS = 1_500;
 
 function fireIframeLoad(iframeElement: any) {
   try {
-    const EventConstructor = ksEventCtors.Event || ksGlobal.CsEvent;
+    const EventConstructor = ksEventCtors.Event;
     if (!EventConstructor) return;
     compileEventAttribute(iframeElement, "onload");
     const event = new EventConstructor("load", { bubbles: false, cancelable: false });
@@ -2088,15 +2476,15 @@ function fireIframeLoad(iframeElement: any) {
 }
 
 installResourceFetchBridge();
-ksGlobal.__ks_fontsReady = async () => {
+ksInternals.fontsReady = async () => {
   if (fontDeferActive()) {
     await awaitDeferredFonts();
-    kickLayoutForFontFaceDiscovery();
+    discoverFontFaces();
   }
   return fontsIdle();
 };
-ksGlobal.__ks_fontsInflightCount = fontsInflightCount;
-ksGlobal.__ks_fontDemand = demandDeferredFonts;
+ksInternals.fontsInflightCount = fontsInflightCount;
+ksInternals.demandDeferredFonts = demandDeferredFonts;
 installFetchShim();
 installConsoleWrapper();
 // Install deferral after the fetch shim so retries still use the page's outbound path.
@@ -2189,7 +2577,7 @@ interface MouseTarget extends ShimElement {
   pseudo?: (name: string) => unknown;
   setAttribute?: (name: string, value: string) => void;
   removeAttribute?: (name: string) => void;
-  form?: NonNullable<ShimElement["form"]> & { reset?: () => void };
+  form?: (NonNullable<ShimElement["form"]> & { reset?: () => void }) | null;
 }
 
 type AttributeTarget = MouseTarget &
@@ -2222,16 +2610,9 @@ function mouseTargetAtPoint(
   try {
     const paint = ensurePaintDom();
     if (!paint) return null;
-    const seqNow = cascadeSeq();
     try {
       if (typeof paint.resolveLayout === "function") paint.resolveLayout();
     } catch {}
-    if (seqNow > state.lastForceRestyleSeq) {
-      try {
-        if (typeof paint.forceFullRestyle === "function") paint.forceFullRestyle();
-      } catch {}
-      state.lastForceRestyleSeq = seqNow;
-    }
     let paintHitId: unknown;
     try {
       paintHitId = paint.elementFromPoint(clientX + state.scrollX, clientY + state.scrollY);
@@ -2419,7 +2800,9 @@ function buttonActivationNavigation(targetEl: MouseTarget): string | null {
     const navUrl = form.__ksRequestSubmit(activator);
     return typeof navUrl === "string" && navUrl.length > 0 ? navUrl : null;
   }
-  if (isReset && typeof form.reset === "function") form.reset();
+  // Read off the form behind its proxy: a reset control named "reset" must not shadow reset().
+  const behind = ksInternals.formBehindProxy?.(form) ?? form;
+  if (isReset && typeof behind.reset === "function") behind.reset.call(form);
   return null;
 }
 
@@ -2456,20 +2839,24 @@ function toggleDetailsFromSummary(targetEl: MouseTarget): void {
   try {
     __ks_dispatchTrusted(
       details,
-      new ksEventCtors.Event("toggle", { bubbles: false, cancelable: false }),
+      new (shimEventCtor("Event"))("toggle", { bubbles: false, cancelable: false }),
     );
   } catch {}
 }
 
 type AnchorNavigation = { kind: "hash" | "navigate"; url: string };
 
+// A click follows a link only when it lands on the link or inside it (HTML's activation behavior
+// runs on the event path), never on a nearby one.
 function activateAnchorNavigation(
   targetEl: MouseTarget,
   clientX: number,
   clientY: number,
 ): AnchorNavigation | null {
   const anchor =
-    findAnchorAncestor(targetEl) || findAnchorViaSingleChild(targetEl, clientX, clientY);
+    findAnchorAncestor(targetEl) ||
+    findAnchorUnderPoint(targetEl, clientX, clientY) ||
+    findSvgAnchorAtPoint(targetEl, clientX, clientY);
   if (!anchor) return null;
   const rawHref = anchorHrefAttribute(anchor);
   if (typeof rawHref !== "string" || rawHref.length === 0) return null;
@@ -2484,12 +2871,13 @@ function activateAnchorNavigation(
     if (!isHashOnly) return { kind: "navigate", url: resolved };
     const previous = state.pageUrl;
     state.pageUrl = resolved;
+    state.documentUrl = resolved;
     const win = state.window;
     if (win) {
       const stateForPopstate = win.history?.state ?? null;
       queuePageTask(() => {
         try {
-          const event: unknown = new ksEventCtors.HashChangeEvent("hashchange", {
+          const event: unknown = new (shimEventCtor("HashChangeEvent"))("hashchange", {
             bubbles: false,
             cancelable: false,
             oldURL: previous,
@@ -2500,7 +2888,7 @@ function activateAnchorNavigation(
       });
       queuePageTask(() => {
         try {
-          const event: unknown = new ksEventCtors.PopStateEvent("popstate", {
+          const event: unknown = new (shimEventCtor("PopStateEvent"))("popstate", {
             bubbles: false,
             cancelable: false,
             state: stateForPopstate,
@@ -2542,7 +2930,7 @@ function notifyControlValueMutation(
 
 function findDefaultSubmitButton(form: NonNullable<ShimElement["form"]>): ShimElement | null {
   let defaultButton: ShimElement | null = null;
-  const elements = form.elements;
+  const elements = (ksInternals.formBehindProxy?.(form) ?? form).elements;
   for (let i = 0; i < elements.length; i++) {
     const element = elements[i];
     const type = ((element.getAttribute && element.getAttribute("type")) || "").toLowerCase();
@@ -2668,7 +3056,7 @@ function attributesFromNodeInfo(info: unknown): unknown[] | undefined {
   return isUnknownArray(info.attributes) ? info.attributes : undefined;
 }
 
-function drainPageCustomElementUpgrades(upgrades: (() => void) | undefined): void {
+function drainPageCustomElementUpgrades(upgrades: (() => void) | null): void {
   if (typeof upgrades !== "function") return;
   try {
     upgrades();
@@ -2677,27 +3065,13 @@ function drainPageCustomElementUpgrades(upgrades: (() => void) | undefined): voi
   }
 }
 
-type PaintSequence = number | (() => number);
-
-function readPaintSequence(sequence: PaintSequence): number {
-  return typeof sequence === "function" ? sequence() : sequence;
-}
-
-function prepareCachedPaint(
-  paint: DomHandle,
-  fresh: boolean,
-  sequence: PaintSequence,
-  sequenceAfterRestyle: PaintSequence = sequence,
-): void {
+// Incremental invalidation keeps a cached handle current; a full restyle here would redo the
+// whole document's style and layout on every frame or hit test after any DOM change.
+function prepareCachedPaint(paint: DomHandle, fresh: boolean): void {
   if (fresh) return;
   try {
     if (typeof paint.resolveLayout === "function") paint.resolveLayout();
   } catch {}
-  if (readPaintSequence(sequence) <= state.lastForceRestyleSeq) return;
-  try {
-    if (typeof paint.forceFullRestyle === "function") paint.forceFullRestyle();
-  } catch {}
-  state.lastForceRestyleSeq = readPaintSequence(sequenceAfterRestyle);
 }
 
 async function runClassicRegularBucket(
@@ -2808,39 +3182,47 @@ function cycleCollectStatsForLog(): unknown {
   }
 }
 
+const EMPTY_DOCUMENT = "<html><head></head><body></body></html>";
+
+/** The navigate source: the engine's, or one built from `html` when the caller sent a string. */
+function navigateSourceFor(html: string | NavigateSource): NavigateSource {
+  if (typeof html === "object" && html !== null) return html;
+  return navigateSourceOf(typeof html === "string" && html.length > 0 ? html : EMPTY_DOCUMENT);
+}
+
+/** Logs the shape of the navigate input, not the page, under startup CDP debug. */
+function logNavigateInput(source: NavigateSource, url: string): void {
+  const NAVIGATE_HTML_PREVIEW_BYTES = 200;
+  try {
+    console.log(
+      "[kitesurf-debug] PageScript.navigate() called",
+      JSON.stringify({
+        url,
+        htmlBytes: source.utf8.byteLength,
+        htmlPreview: new TextDecoder().decode(source.utf8.subarray(0, NAVIGATE_HTML_PREVIEW_BYTES)),
+        startupScriptCount: startupInputSnapshot?.scriptDescriptorCount,
+        startupSample: startupInputSnapshot?.scriptDescriptorSample,
+        startupHasClassicRegular: startupHasClassicRegular,
+      }),
+    );
+  } catch {}
+}
+
 export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   async fetch(_req: Request) {
     return new Response("PageScript", { status: 404 });
   }
 
   async navigate(
-    html: string,
+    html: string | NavigateSource,
     url: string,
     navigateOptions?: NavigateOptions,
   ): Promise<NavigateSummary> {
     state.navigateStarted = true;
     startCycleCollector();
     const safeUrl = typeof url === "string" ? url : "about:blank";
-    const safeHtml =
-      typeof html === "string" && html.length > 0
-        ? html
-        : "<html><head></head><body></body></html>";
-    if (startupCdpDebug) {
-      const NAVIGATE_HTML_PREVIEW_CHARS = 200;
-      try {
-        console.log(
-          "[kitesurf-debug] PageScript.navigate() called",
-          JSON.stringify({
-            url: safeUrl,
-            htmlLength: safeHtml.length,
-            htmlPreview: safeHtml.slice(0, NAVIGATE_HTML_PREVIEW_CHARS),
-            startupScriptCount: startupInputSnapshot?.scriptDescriptorCount,
-            startupSample: startupInputSnapshot?.scriptDescriptorSample,
-            startupHasClassicRegular: startupHasClassicRegular,
-          }),
-        );
-      } catch {}
-    }
+    let source: NavigateSource | null = navigateSourceFor(html);
+    if (startupCdpDebug) logNavigateInput(source, safeUrl);
     const initialCookies =
       navigateOptions && typeof navigateOptions.cookies === "string" ? navigateOptions.cookies : "";
     if (navigateOptions && typeof navigateOptions.connectionId === "string") {
@@ -2851,6 +3233,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     }
     if (navigateOptions && typeof navigateOptions.cookieKey === "string") {
       state.cookieKey = navigateOptions.cookieKey;
+    }
+    if (navigateOptions && Array.isArray(navigateOptions.localStorage)) {
+      state.localStorageSeed = navigateOptions.localStorage;
     }
 
     if (navigateOptions && Array.isArray(navigateOptions.bindingNames)) {
@@ -2902,14 +3287,26 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     emitNavigateDiagnostic("start", "teardown");
 
     dispatchWindowUnload();
+    setModulePreloadPins(navigateOptions?.modulePreloadPins ?? []);
 
     if (state.dom) {
       try {
         state.dom.free();
       } catch {}
+      // Null it now: the next document arrives after an await, and a reader in that window would
+      // otherwise see a freed handle that still compares equal to itself.
+      state.dom = null;
     }
     state.pageUrl = safeUrl;
-    state.lastForceRestyleSeq = -1;
+    state.documentUrl = safeUrl;
+    // The engine carries the effective sandbox restrictions for this committed document. A
+    // missing set on a main frame grants every capability.
+    state.sandbox = navigateOptions?.sandbox ?? SANDBOX_ALLOW_ALL;
+    state.documentOrigin = state.sandbox.sameOrigin ? pageOriginFromUrl(safeUrl) : "";
+    state.ancestorOrigins = navigateOptions?.ancestorOrigins ?? [];
+    state.opaqueOriginId = crypto.randomUUID();
+    // Every navigation resets the gate's cache, including one to the same URL.
+    setNavigationScriptPolicy(navigateOptions?.scriptPolicy);
     state.currentMediaType = "screen";
 
     emitNavigateDiagnostic("end", "teardown");
@@ -2922,7 +3319,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       try {
         setDarkColorScheme(navigateOptions.darkColorScheme);
       } catch {}
-      ksGlobal.__ks_dark_scheme = navigateOptions.darkColorScheme;
+      state.darkColorScheme = navigateOptions.darkColorScheme;
     }
     if (
       navigateOptions &&
@@ -2938,9 +3335,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     }
     emitNavigateDiagnostic("start", "fonts");
     if (fontDeferActive()) {
-      startFontPrefetch(safeHtml);
+      startFontPrefetch(source.fonts);
     } else {
-      await ensureFontsRegistered(safeHtml);
+      await ensureFontsRegistered(source.fonts);
     }
     emitNavigateDiagnostic("end", "fonts");
     markPhase("fontsMs");
@@ -2963,8 +3360,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           typeof navigateOptions.ttyCellH === "number" && navigateOptions.ttyCellH > 0
             ? navigateOptions.ttyCellH
             : DEFAULT_TTY_CELL_HEIGHT_PX;
-        ksGlobal.__ks_tty_cell_w = cellWidth;
-        ksGlobal.__ks_tty_cell_h = cellHeight;
+        ksInternals.ttyCellWidth = cellWidth;
+        ksInternals.ttyCellHeight = cellHeight;
         const ratio = monoAdvancePerEm();
         if (ratio > 0) {
           const fontPx = cellWidth / ratio;
@@ -2990,20 +3387,26 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     }
     emitNavigateDiagnostic("start", "parse");
 
-    const sourceDoctype = sourceDoctypeOf(safeHtml);
+    const sourceDoctype = source.doctype;
     const marker = sourceDoctype
       ? `__kitesurf_doctype_${Math.random().toString(36).slice(2)}__`
       : null;
-    const parsedHtml =
-      sourceDoctype && marker
-        ? safeHtml.slice(0, sourceDoctype.end) +
-          `<!--${marker}-->` +
-          safeHtml.slice(sourceDoctype.end)
-        : safeHtml;
-    const navigateDom = new DomHandle(parsedHtml, safeUrl);
+    const navigateDom = DomHandle.newUtf8(
+      source.utf8,
+      sourceDoctype?.utf8End ?? 0,
+      marker ? `<!--${marker}-->` : "",
+      safeUrl,
+    );
+    const hasScriptObservers = startupScriptDescriptors.length > 0 || source.eventHandlerAttributes;
+    // Free the source before scripts and first layout so it does not count against the isolate
+    // limit at the Wasm peak.
+    releaseNavigateSource(source);
+    html = "";
+    source = null;
     state.dom = navigateDom;
     noteNavigateText(navigateDom);
-    state.sourceDoctype = sourceDoctype && marker ? { markup: sourceDoctype.markup, marker } : null;
+    state.sourceDoctype =
+      sourceDoctype && marker ? { markup: unsharedString(sourceDoctype.markup), marker } : null;
     if (
       navigateOptions &&
       typeof navigateOptions.viewportWidth === "number" &&
@@ -3022,9 +3425,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         state.dom.setViewport(viewportWidth, viewportHeight);
       } catch {}
     }
-    try {
-      ksGlobal.__ks_dom_debug = state.dom;
-    } catch {}
+    ksInternals.domDebug = state.dom;
     state.scrollX = 0;
     state.scrollY = 0;
     invalidatePaintDom();
@@ -3036,7 +3437,10 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     const built = ksSpan("dom.build_document", null, () =>
       buildDocument(navigateDom, {
         pageUrl: safeUrl,
-        initialCookieString: initialCookies,
+        initialCookieString: state.sandbox.sameOrigin ? initialCookies : "",
+        opaqueOrigin: !state.sandbox.sameOrigin,
+        formsAllowed: state.sandbox.forms,
+        topNavigationAllowed: state.sandbox.topNavigation,
         doctypeMarker: marker,
         userAgent: startupUserAgent,
         referrer: startupReferrer,
@@ -3102,6 +3506,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         percentEncodeAfterEncoding: ks_percent_encode_after_encoding,
         encodeHtml: ks_encode_html,
         getCurrentUrl: () => state.pageUrl,
+        // History and origin checks use the committed document URL, not the
+        // page URL a cross-document navigation may already have advanced.
+        getDocumentUrl: () => state.documentUrl || state.pageUrl,
         setCurrentUrl: (newUrl, kind) => {
           if (typeof newUrl !== "string" || newUrl.length === 0) return;
           const previous = state.pageUrl;
@@ -3119,11 +3526,15 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
             } catch {}
           }
           state.pageUrl = newUrl;
+          // A same-document change, including a history traversal, commits now;
+          // a cross-document one waits for the new document, so the current one
+          // keeps its URL until then.
+          if (kind !== "navigate") state.documentUrl = newUrl;
           if (kind === "hash" && previous !== newUrl && state.window) {
             const stateForPopstate = state.window.history?.state ?? null;
             queuePageTask(() => {
               try {
-                const event: any = new ksEventCtors.HashChangeEvent("hashchange", {
+                const event: any = new (shimEventCtor("HashChangeEvent"))("hashchange", {
                   bubbles: false,
                   cancelable: false,
                   oldURL: previous,
@@ -3134,7 +3545,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
             });
             queuePageTask(() => {
               try {
-                const event: any = new ksEventCtors.PopStateEvent("popstate", {
+                const event: any = new (shimEventCtor("PopStateEvent"))("popstate", {
                   bubbles: false,
                   cancelable: false,
                   state: stateForPopstate,
@@ -3145,23 +3556,30 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
             scrollToFragment(newUrl);
           }
           if (previous !== newUrl || kind === "navigate") {
-            try {
-              const navigationType =
-                kind === "hash"
-                  ? "fragment"
-                  : kind === "pushState" || kind === "replaceState"
-                    ? "historyApi"
-                    : "other";
-              sendUpstreamEvent({
-                event: "kitesurf.navigatedWithinDocument",
-                params: {
-                  url: newUrl,
-                  navigationType,
-                  kind,
-                  previousUrl: previous,
-                },
-              });
-            } catch {}
+            const navigationType =
+              kind === "hash"
+                ? "fragment"
+                : kind === "pushState" || kind === "replaceState"
+                  ? "historyApi"
+                  : "other";
+            const report = () => {
+              try {
+                sendUpstreamEvent({
+                  event: "kitesurf.navigatedWithinDocument",
+                  params: {
+                    url: newUrl,
+                    navigationType,
+                    kind,
+                    previousUrl: previous,
+                  },
+                });
+              } catch {}
+            };
+            // A cross-document navigation retires this isolate once the new page is fetched.
+            // Report it after the running script returns, as Chrome does, so the reply to the
+            // evaluate that set the location is sent before the engine starts the navigation.
+            if (kind === "navigate") nativeSetTimeout(report, 0);
+            else report();
           }
         },
         getRectByAuthId: (authId: number) => {
@@ -3241,7 +3659,6 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     try {
       void resolveExternalSvgSprites();
     } catch {}
-    state.getOpLog = built.getOpLog || (() => []);
     state.setReadyState = built.setReadyState || (() => {});
     state.drainCookieWrites = built.drainCookieWrites || (() => []);
     state.setCookieString = built.setCookieString || (() => {});
@@ -3253,13 +3670,6 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     __ks_dispatchTrustedEvent = built.__ks_dispatchTrustedEvent || null;
     __ks_activateLabel = built.__ks_activateLabel;
     state.dispatchTrustedEvent = __ks_dispatchTrusted;
-    ksGlobal.__ks_canonicalize_inline_style = (css: string) => {
-      try {
-        return ks_parse_inline_style(css);
-      } catch {
-        return [];
-      }
-    };
     installGlobals(state.document, state.window, built);
     preinstallStaticIframes();
     ksSpan("dom.mark_engine_functions", null, () =>
@@ -3281,6 +3691,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       try {
         const frameId = (iframeEl as { __ks_iframeFrameId?: unknown } | null)?.__ks_iframeFrameId;
         if (typeof frameId !== "string" || frameId.length === 0) return;
+        unregisterIframe(frameId);
         sendUpstreamEvent({ event: "kitesurf.frameDetached", params: { frameId } });
       } catch {}
     };
@@ -3303,12 +3714,41 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         warnIframeFailure(err, { operation: "form target navigation", url });
       }
     };
+    // The classic bundle catches each script's throw, so it reports through here; the buffer
+    // lives in this module, not in the separately bundled internal state.
+    getInternalState().pushException = pushException;
     getInternalState().endClassicScript = async () => {
       try {
         await drainSettleMicrotasks();
       } catch {}
       try {
         getInternalState().setCurrentScript?.(null);
+      } catch {}
+    };
+    // The parser's script wrappers, taken before page code runs, so each external script's event
+    // reaches its own element after inserts shift the ordinals, or after it leaves the tree.
+    const parserScripts = new Map<number, { node: ShimElement; src: string }>();
+    try {
+      const nodes = scriptsInScanOrder();
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        const parsedSrc = node?.getAttribute?.("src")?.trim();
+        if (node && parsedSrc) parserScripts.set(i, { node, src: parsedSrc });
+      }
+    } catch {}
+    getInternalState().parserScriptLifecycle = async (domIndex, rawSrc, src, ok) => {
+      const parsed = parserScripts.get(domIndex);
+      parserScripts.delete(domIndex);
+      const target =
+        parsed && (parsed.src === rawSrc || parsed.src === src)
+          ? parsed.node
+          : findParserScript(domIndex, rawSrc, src);
+      dispatchLifecycle(target, ok ? "load" : "error", {
+        bubbles: false,
+        cancelable: false,
+      });
+      try {
+        await drainSettleMicrotasks();
       } catch {}
     };
     getInternalState().afterScriptInsert = (info: unknown) => {
@@ -3320,6 +3760,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         integrity?: unknown;
         nonce?: unknown;
         crossOrigin?: unknown;
+        written?: unknown;
       };
       const src = typeof rec.src === "string" ? rec.src : "";
       const source = typeof rec.source === "string" ? rec.source : "";
@@ -3333,6 +3774,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           integrity,
           nonce,
           crossOrigin: typeof rec.crossOrigin === "string" ? rec.crossOrigin : null,
+          written: rec.written === true,
         });
         return;
       }
@@ -3350,36 +3792,34 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         }
       };
       const inlineMeta = { url: null, nonce, body: source };
-      const sync = inlineInsertDecisionSync(inlineMeta);
-      if (sync) {
-        reportOnly(sync);
-        if (sync.allowed) runInline();
-        else reportBlocked(sync);
-        return;
-      }
-      void (async () => {
-        const verdict = await insertedScriptAllowed(inlineMeta);
-        reportOnly(verdict);
-        if (!verdict.allowed) {
-          reportBlocked(verdict);
-          return;
+      const runGated = (): Promise<void> | undefined => {
+        const sync = inlineInsertDecisionSync(inlineMeta);
+        if (sync) {
+          reportOnly(sync);
+          if (sync.allowed) runInline();
+          else reportBlocked(sync);
+          return undefined;
         }
-        runInline();
-      })();
+        return (async () => {
+          const verdict = await insertedScriptAllowed(inlineMeta);
+          reportOnly(verdict);
+          if (!verdict.allowed) {
+            reportBlocked(verdict);
+            return;
+          }
+          runInline();
+        })();
+      };
+      if (rec.written === true) queueWrittenScript(runGated, true);
+      else void runGated();
     };
     if (typeof built.applyDeclarativeShadowRoots === "function") {
       try {
         built.applyDeclarativeShadowRoots();
       } catch {}
     }
-    if (typeof built.stampInitialNamedGlobals === "function") {
-      try {
-        built.stampInitialNamedGlobals();
-      } catch {}
-    }
     emitNavigateDiagnostic("end", "shim");
     markPhase("shimMs");
-    const hasScriptObservers = startupScriptDescriptors.length > 0 || /\son\w+\s*=/i.test(safeHtml);
     if (fontDeferActive() && hasScriptObservers) {
       await awaitDeferredFontBytes();
     }
@@ -3418,7 +3858,10 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     let scriptCount = 0;
     let legacyPlan: ReturnType<typeof planScripts> | null = null;
 
-    if (useBundle) {
+    if (!state.sandbox.scripts) {
+      // Without allow-scripts the document still parses, lays out and fires lifecycle events.
+      bundleExec.push("sandbox:scripts-disabled");
+    } else if (useBundle) {
       if (startupHasClassicRegular) {
         bundleExec.push("classic:start");
         const scriptStartedAt = nowMs();
@@ -3445,8 +3888,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       let moduleSuccessCount = 0;
       let moduleFailureCount = 0;
       try {
-        const drainUpgrades = (globalThis as { __ks_drainCustomElementUpgrades?: () => void })
-          .__ks_drainCustomElementUpgrades;
+        const drainUpgrades = state.drainCustomElementUpgrades;
         const pendingImports: Array<Promise<void>> = [];
         const trackModuleImport = (
           moduleIndex: number,
@@ -3529,8 +3971,20 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
 
       scriptCount = scripts.length;
     }
+
+    // document.write'd scripts are parser-inserted, so DCL waits for them.
+    // Without this, a loader that writes its modules (tdl.js) has none of
+    // them defined when a ready handler runs.
+    emitNavigateDiagnostic("start", "written_scripts");
+    const writtenOk = await drainWrittenScripts(WRITTEN_SCRIPT_DRAIN_MS);
+    emitNavigateDiagnostic("end", "written_scripts");
+    bundleExec.push("written:done(ok=" + writtenOk + ")");
+
     state.setReadyState("interactive");
     dispatchLifecycle(state.document, "readystatechange", { bubbles: false });
+    // Scroll to the fragment identifier; HTML browsing-the-web section.
+    // https://html.spec.whatwg.org/multipage/browsing-the-web.html
+    scrollToFragment(state.pageUrl);
     dispatchLifecycle(state.document, "DOMContentLoaded", {
       bubbles: true,
       cancelable: false,
@@ -3547,7 +4001,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       };
 
       emitNavigateDiagnostic("start", "async_scripts");
-      if (useBundle) {
+      if (useBundle && state.sandbox.scripts) {
         if (startupHasClassicAsync) {
           try {
             const mod = (await importModule("./__ks_user_classic_async.js")) as {
@@ -3718,7 +4172,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         loadPhases.plInflightEnd = finalSettleState[2];
       }
       try {
-        ksGlobal.__ks_drainCustomElementUpgrades?.();
+        state.drainCustomElementUpgrades?.();
         await drainSettleMicrotasks();
         const afterUpgradeState = getSettleState();
         if (
@@ -3796,8 +4250,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
 
   killIsolate(reason?: string): void {
     const why = reason || "generation retired";
-    const killLine = isolateKillLine(ISOLATE_KILL_MARKER, why);
-    if (killLine) console.log(killLine);
+    writeIsolateKillLine(ISOLATE_KILL_MARKER, why);
     abortIsolate(`kitesurf: ${why}`);
   }
 
@@ -3822,7 +4275,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
 
   openSession(init: ReceivedSessionInit | undefined): RetainedPageScriptSessionTarget {
     try {
-      setTailToken((this.env as any)?.KS_TAIL_TOKEN);
+      // Props, not env: page modules share this worker and can import its env.
+      setTailToken(Reflect.get(Object(this.ctx.props), "KS_TAIL_TOKEN"));
+      setIsolateStamp(Reflect.get(Object(this.ctx.props), "KS_ISOLATE_STAMP"));
     } catch {}
     if (startupLagWatchdog) {
       try {
@@ -3897,9 +4352,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     }
     invalidatePaintDom();
     state.pageUrl = "";
+    state.documentUrl = "";
     state.document = null;
     state.window = null;
-    state.getOpLog = () => [];
     state.setReadyState = () => {};
     const cookieWrites = state.drainCookieWrites();
     state.drainCookieWrites = () => [];
@@ -3940,51 +4395,20 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   }
 
   async setFrameBitmap(params: FrameBitmapParams): Promise<FrameBitmapReply> {
-    const bitmap: {
-      ownerBackendNodeId: unknown;
-      width: unknown;
-      height: unknown;
-      rgba: unknown;
-    } = isObjectRecord(params)
-      ? {
-          ownerBackendNodeId: params.ownerBackendNodeId,
-          width: params.width,
-          height: params.height,
-          rgba: params.rgba,
-        }
-      : {
-          ownerBackendNodeId: undefined,
-          width: undefined,
-          height: undefined,
-          rgba: undefined,
-        };
-    const { ownerBackendNodeId, width, height, rgba } = bitmap;
-    if (
-      typeof ownerBackendNodeId !== "number" ||
-      typeof width !== "number" ||
-      typeof height !== "number" ||
-      !(rgba instanceof Uint8Array)
-    ) {
-      return { ok: false, rc: -1, error: "bad args" };
-    }
-    if (!state.dom || typeof state.dom.setIframeImage !== "function") {
-      return { ok: false, rc: -1, error: "dom missing" };
-    }
+    return frameBitmapDeliveryGate.deliver(params);
+  }
+
+  async clearFrameBitmap(params: ClearFrameBitmapParams): Promise<OkReply> {
+    const ownerBackendNodeId = params?.ownerBackendNodeId;
+    if (typeof ownerBackendNodeId !== "number" || !state.dom) return { ok: true };
+    if (typeof nativeClearIframeImage !== "function") return { ok: true };
     try {
-      const resultCode = state.dom.setIframeImage(ownerBackendNodeId, width, height, rgba);
-      if (resultCode === 0) {
-        try {
-          getInternalState().damageNodes.add(ownerBackendNodeId | 0);
-        } catch {}
-      }
-      return { ok: resultCode >= 0, rc: resultCode };
-    } catch (e) {
-      return {
-        ok: false,
-        rc: -1,
-        error: e instanceof Error ? e.message : String(e),
-      };
-    }
+      nativeApply(nativeClearIframeImage, state.dom, [ownerBackendNodeId]);
+      try {
+        getInternalState().damageNodes.add(ownerBackendNodeId | 0);
+      } catch {}
+    } catch {}
+    return { ok: true };
   }
 
   async deliverMessage(params: DeliverMessageParams): Promise<{ ok: boolean; error?: string }> {
@@ -4016,7 +4440,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         origin: String(origin ?? ""),
         source,
       });
-      win.dispatchEvent(event);
+      runPageTaskOrQueue(() => win.dispatchEvent(event));
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -4024,27 +4448,30 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   }
 
   async deliverWorkerEvent(params: WorkerEventParams): Promise<OkReply> {
-    deliverWorkerEvent(params);
+    runPageTaskOrQueue(() => deliverWorkerEvent(params));
     return { ok: true };
   }
 
   async installIframeContent(params: IframeContentParams): Promise<OkReply> {
-    const { ownerBackendNodeId, html, url, failed, frameId, mimeType, crossOrigin } = params ?? {};
+    const {
+      ownerBackendNodeId,
+      html,
+      url,
+      baseUrl,
+      failed,
+      frameId,
+      mimeType,
+      crossOrigin,
+      sandbox,
+    } = params ?? {};
     const iframeElement = state.resolveNodeId?.(ownerBackendNodeId);
     if (!iframeElement || String(iframeElement.tagName || "").toLowerCase() !== "iframe") {
       return { ok: true };
     }
     if (crossOrigin === true) {
-      const existingWindow = (iframeElement as any).__ks_iframeContentWindow;
-      const win =
-        existingWindow ??
-        __makeCrossOriginContentWindow(iframeElement, typeof url === "string" ? url : "");
-      try {
-        win.document = null;
-      } catch {}
-      (iframeElement as any).__ks_iframeContentDocument = null;
-      (iframeElement as any).__ks_iframeContentWindow = win;
+      installCrossOriginFacade(iframeElement, typeof url === "string" ? url : "");
       (iframeElement as any).__ks_iframeFrameId = frameId;
+      unregisterIframe(frameId);
       fireIframeLoad(iframeElement);
       return { ok: true };
     }
@@ -4060,9 +4487,10 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       (iframeElement as any).__ks_iframeContentDocument
     ) {
       (iframeElement as any).__ks_iframeFrameId = frameId;
+      registerSameOriginIframe(frameId, iframeElement);
       return { ok: true };
     }
-    let contentDoc = null;
+    let contentDoc: FrameDocument | null = null;
     try {
       const DOMParserConstructor = ksGlobal.DOMParser;
       // An about:blank document has no doctype, so it is in quirks mode.
@@ -4077,6 +4505,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         const parserMime = pickDomParserMime(mimeType);
         contentDoc = parser.parseFromString(sourceHtml, parserMime);
         if (contentDoc) (contentDoc as any)._mutable = true;
+        // A facade parsed here must not keep an inline handler from a script-disabled child.
+        if (contentDoc && sandbox && !sandbox.scripts) stripInlineHandlers(contentDoc);
         // An initial about:blank child inherits its creator's referrer.
         setFrameReferrer(
           contentDoc,
@@ -4084,11 +4514,12 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
             ? frameNavigationReferrer(url)
             : state.pageUrl,
         );
-        // Keep the committed URL available as the document base.
-        if (contentDoc && typeof url === "string" && url.length > 0) {
+        // The document base is the embedder's URL for srcdoc; the frame URL stays about:srcdoc.
+        const documentUrl = typeof baseUrl === "string" && baseUrl ? baseUrl : url;
+        if (contentDoc && typeof documentUrl === "string" && documentUrl.length > 0) {
           try {
             Object.defineProperty(contentDoc, "_baseUrl", {
-              value: url,
+              value: documentUrl,
               configurable: true,
               writable: true,
             });
@@ -4142,6 +4573,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     (iframeElement as any).__ks_iframeContentDocument = contentDoc;
     (iframeElement as any).__ks_iframeContentWindow = contentWindow;
     (iframeElement as any).__ks_iframeFrameId = frameId;
+    registerSameOriginIframe(frameId, iframeElement);
     fireIframeLoad(iframeElement);
     return { ok: true };
   }
@@ -4155,6 +4587,18 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     const returnByValue = !!(options && options.returnByValue);
     const awaitPromise = options === undefined ? true : options.awaitPromise !== false;
     const expr = typeof expression === "string" ? expression : "undefined";
+    const frameId = options?.frameId;
+    if (frameId) {
+      const frameWindow = lookupFrameWindow(frameId);
+      if (!frameWindow) {
+        return drainEvalResult(packException(new Error("Execution context was destroyed.")));
+      }
+      return await runExpression(expr, {
+        returnByValue,
+        awaitPromise,
+        frame: { frameId, window: frameWindow },
+      });
+    }
     return await runExpression(expr, { returnByValue, awaitPromise });
   }
 
@@ -4189,6 +4633,18 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     if (entry.sourceURL) {
       expr = expr + "\n//# sourceURL=" + entry.sourceURL;
     }
+    const frameId = options?.frameId;
+    if (frameId) {
+      const frameWindow = lookupFrameWindow(frameId);
+      if (!frameWindow) {
+        return drainEvalResult(packException(new Error("Execution context was destroyed.")));
+      }
+      return await runExpression(expr, {
+        returnByValue,
+        awaitPromise,
+        frame: { frameId, window: frameWindow },
+      });
+    }
     return await runExpression(expr, { returnByValue, awaitPromise });
   }
 
@@ -4201,16 +4657,10 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     const awaitPromise = options === undefined ? true : options.awaitPromise !== false;
     const thisObjectId =
       options && typeof options.thisObjectId === "string" ? options.thisObjectId : null;
-    let result: EvalResultBody;
-    try {
-      const functionSource =
-        typeof functionDeclaration === "string" ? functionDeclaration : "undefined";
-      const factory = new SyncFunction("return (" + functionSource + ");");
-      const pageFunction = factory();
-      if (typeof pageFunction !== "function") {
-        throw new TypeError("functionDeclaration did not evaluate to a function");
-      }
-      const argumentValues = (Array.isArray(argumentSpecs) ? argumentSpecs : []).map((spec) => {
+    const functionSource =
+      typeof functionDeclaration === "string" ? functionDeclaration : "undefined";
+    const decodeArgSpecs = (): unknown[] =>
+      (Array.isArray(argumentSpecs) ? argumentSpecs : []).map((spec) => {
         if (typeof spec === "string") {
           try {
             return JSON.parse(spec);
@@ -4219,9 +4669,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           }
         }
         if (spec && typeof spec === "object") {
-          if (typeof spec.objectId === "string") {
-            return lookupHandle(spec.objectId);
-          }
+          if (typeof spec.objectId === "string") return lookupHandle(spec.objectId);
           if (typeof spec.json === "string") {
             try {
               return JSON.parse(spec.json);
@@ -4232,9 +4680,43 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         }
         return undefined;
       });
+    const frameId =
+      options?.frameId ?? (thisObjectId ? lookupHandleFrame(thisObjectId) : undefined);
+    if (frameId) {
+      const frameWindow = lookupFrameWindow(frameId);
+      if (!frameWindow) {
+        return drainEvalResult(packException(new Error("Execution context was destroyed.")));
+      }
+      const thisValue = thisObjectId !== null ? lookupHandle(thisObjectId) : undefined;
+      let frameResult: EvalResultBody;
+      try {
+        const boaResult = await ks_call_cdp_in_frame(
+          functionSource,
+          thisValue,
+          decodeArgSpecs(),
+          frameId,
+          frameWindow,
+          awaitPromise,
+          returnByValue,
+        );
+        frameResult = packBoaResult(boaResult, returnByValue, frameId);
+      } catch (boaError) {
+        frameResult = packException(
+          boaError instanceof Error ? boaError : new Error(String(boaError)),
+        );
+      }
+      return drainEvalResult(frameResult);
+    }
+    let result: EvalResultBody;
+    try {
+      const factory = new SyncFunction("return (" + functionSource + ");");
+      const pageFunction = factory();
+      if (typeof pageFunction !== "function") {
+        throw new TypeError("functionDeclaration did not evaluate to a function");
+      }
       const thisValue =
         thisObjectId !== null ? (lookupHandle(thisObjectId) ?? globalThis) : globalThis;
-      let value = pageFunction.apply(thisValue, argumentValues);
+      let value = pageFunction.apply(thisValue, decodeArgSpecs());
       if (awaitPromise && value && typeof value.then === "function") {
         value = await value;
       }
@@ -4246,35 +4728,13 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         typeof error.message === "string" &&
         error.message.includes("Code generation from strings disallowed")
       ) {
-        const functionSource =
-          typeof functionDeclaration === "string" ? functionDeclaration : "undefined";
-        const liveArguments = (Array.isArray(argumentSpecs) ? argumentSpecs : []).map((spec) => {
-          if (typeof spec === "string") {
-            try {
-              return JSON.parse(spec);
-            } catch {
-              return undefined;
-            }
-          }
-          if (spec && typeof spec === "object") {
-            if (typeof spec.objectId === "string") return lookupHandle(spec.objectId);
-            if (typeof spec.json === "string") {
-              try {
-                return JSON.parse(spec.json);
-              } catch {
-                return undefined;
-              }
-            }
-          }
-          return undefined;
-        });
         const thisValue =
           thisObjectId !== null ? (lookupHandle(thisObjectId) ?? globalThis) : globalThis;
         try {
           const boaResult = await ks_call_cdp(
             functionSource,
             thisValue,
-            liveArguments,
+            decodeArgSpecs(),
             awaitPromise,
             returnByValue,
           );
@@ -4408,19 +4868,19 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       const POINTER_EVENT_TYPES = ["click", "auxclick", "dblclick", "contextmenu"];
       let event: MouseInputEvent;
       if (eventType === "wheel" && typeof ksEventCtors.WheelEvent === "function") {
-        event = new ksEventCtors.WheelEvent(eventType, eventInit);
+        event = new (shimEventCtor("WheelEvent"))(eventType, eventInit);
       } else if (
         POINTER_EVENT_TYPES.indexOf(eventType) !== -1 &&
         typeof ksEventCtors.PointerEvent === "function"
       ) {
-        event = new ksEventCtors.PointerEvent(eventType, {
+        event = new (shimEventCtor("PointerEvent"))(eventType, {
           ...eventInit,
           pointerId: 1,
           pointerType: "mouse",
           isPrimary: true,
         });
       } else {
-        event = new ksEventCtors.MouseEvent(eventType, eventInit);
+        event = new (shimEventCtor("MouseEvent"))(eventType, eventInit);
       }
 
       let targetEl = mouseTargetAtPoint(eventType, clientX, clientY, event);
@@ -4505,7 +4965,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           try {
             __ks_dispatchTrusted(
               element,
-              new ksEventCtors.InputEvent("input", {
+              new (shimEventCtor("InputEvent"))("input", {
                 bubbles: true,
                 cancelable: false,
               }),
@@ -4526,7 +4986,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           try {
             __ks_dispatchTrusted(
               rangeDrag.el,
-              new ksEventCtors.Event("change", {
+              new (shimEventCtor("Event"))("change", {
                 bubbles: true,
                 cancelable: false,
               }),
@@ -4573,11 +5033,11 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         };
         const coalescedEvents =
           eventType === "pointermove"
-            ? [new ksEventCtors.PointerEvent(eventType, pointerInit)]
+            ? [new (shimEventCtor("PointerEvent"))(eventType, pointerInit)]
             : undefined;
         return __ks_dispatchTrusted(
           targetEl,
-          new ksEventCtors.PointerEvent(eventType, {
+          new (shimEventCtor("PointerEvent"))(eventType, {
             ...pointerInit,
             coalescedEvents,
           }),
@@ -4646,10 +5106,10 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       if (eventType === "wheel" && !defaultPrevented) {
         const dx = event.deltaX || 0;
         const dy = event.deltaY || 0;
-        const wheelBridge = ksGlobal.__ks_scrollByWheel;
-        let bridgeAvailable =
-          typeof wheelBridge === "function" && !!targetEl && typeof targetEl._id === "number";
-        if (bridgeAvailable) {
+        const wheelBridge = ksInternals.scrollByWheel;
+        let bridgeAvailable = false;
+        if (typeof wheelBridge === "function" && targetEl && typeof targetEl._id === "number") {
+          bridgeAvailable = true;
           try {
             wheelBridge(targetEl._id, dx, dy);
           } catch {
@@ -4668,14 +5128,14 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           setCheckedRaw(targetEl, previousCheckedState);
         } else {
           try {
-            const inputEv = new ksEventCtors.InputEvent("input", {
+            const inputEv = new (shimEventCtor("InputEvent"))("input", {
               bubbles: true,
               cancelable: false,
             });
             __ks_dispatchTrusted(targetEl, inputEv);
           } catch {}
           try {
-            const changeEv = new ksEventCtors.Event("change", {
+            const changeEv = new (shimEventCtor("Event"))("change", {
               bubbles: true,
               cancelable: false,
             });
@@ -4709,7 +5169,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
           while (sel && sel !== state.document && (sel.tagName || "").toUpperCase() !== "SELECT") {
             sel = sel.parentNode;
           }
-          const toggle = ksGlobal.__ksSelectDropdownToggle;
+          const toggle = ksInternals.toggleSelectDropdown;
           if (
             sel &&
             (sel.tagName || "").toUpperCase() === "SELECT" &&
@@ -4761,7 +5221,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
   async dispatchKeyEvent(type: string, init: KeyEventInit): Promise<KeyDispatchReply> {
     const KeyboardEventConstructor:
       | BuildDocumentResult["Event"]
-      | BuildDocumentResult["KeyboardEvent"] = ksEventCtors.KeyboardEvent || ksEventCtors.Event;
+      | BuildDocumentResult["KeyboardEvent"]
+      | undefined = ksEventCtors.KeyboardEvent || ksEventCtors.Event;
     if (!state.document || typeof KeyboardEventConstructor !== "function") {
       return {
         console: drainConsole(),
@@ -4973,6 +5434,10 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         return queryDomSelectorRead(state, method, queryArgs);
       case "getAncestorElementIds":
         return queryDomAncestorElementIds(state, queryArgs);
+      case "nodeAncestors":
+        return queryDomNodeAncestors(state, queryArgs);
+      case "childNodeLists":
+        return queryDomChildNodeLists(state, queryArgs);
       case "parseStyleSheet":
         return queryDomParseStylesheet(queryArgs);
       case "enumerateStyleSheets":
@@ -4995,6 +5460,8 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         return queryDomPaintGeometry(method, queryArgs);
       case "notRenderedNodeIds":
         return queryDomNotRenderedNodeIds(queryArgs);
+      case "accessibilityTree":
+        return queryDomAccessibilityTree(state, queryArgs);
       case "formStateSnapshot":
       case "setControlValueAsUser":
         return queryDomFormState(state, method, queryArgs);
@@ -5029,10 +5496,12 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       case "getAttributes":
       case "focus":
         return queryDomNodeHandle(state, method, queryArgs);
+      case "scrollIntoViewIfNeeded":
+        return queryDomScrollIntoView(queryArgs);
       case "hasPendingCriticalResources":
         return queryDomHasPendingCriticalResources(state);
       case "getMemoryStats":
-        return queryDomMemoryStats();
+        return queryDomMemoryStats(queryArgs);
       case "boaForceCollect":
       case "getFontFaces":
       case "getMemprofDump":
@@ -5057,6 +5526,77 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
 
 type QueryDomActiveState = typeof state & { dom: DomHandle };
 
+// The whole tree, shadow roots included, unless the caller passes CDP's depth and pierce.
+function subtreeArgs(queryArgs: Record<string, unknown>): { depth: number; pierce: boolean } {
+  const depth = typeof queryArgs.depth === "number" ? queryArgs.depth : -1;
+  const pierce = typeof queryArgs.pierce === "boolean" ? queryArgs.pierce : depth < 0;
+  return { depth, pierce };
+}
+
+function queryDomNodeAncestors(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"nodeAncestors"> {
+  const ids = Array.isArray(queryArgs.nodeIds) ? queryArgs.nodeIds : [];
+  const seen = new Set<number>();
+  const ancestorIds: number[] = [];
+  for (const id of ids) {
+    if (typeof id !== "number") continue;
+    // Walk up to the first ancestor already listed, then list the new ones top-down.
+    const chain = ancestorChain(pageState.dom, id, seen);
+    for (let i = chain.length - 1; i >= 0; i--) ancestorIds.push(chain[i]);
+  }
+  return { ancestorIds } satisfies QueryDomResult<"nodeAncestors">;
+}
+
+// Collects the ancestors of `nodeId` that `seen` does not hold yet, nearest first.
+function ancestorChain(
+  dom: QueryDomActiveState["dom"],
+  nodeId: number,
+  seen: Set<number>,
+): number[] {
+  const chain: number[] = [];
+  let current = nodeId;
+  for (;;) {
+    let parent: number;
+    try {
+      parent = dom.parentId(current);
+    } catch {
+      break;
+    }
+    if (typeof parent !== "number" || parent < 0 || seen.has(parent)) break;
+    seen.add(parent);
+    chain.push(parent);
+    current = parent;
+  }
+  return chain;
+}
+
+function queryDomChildNodeLists(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"childNodeLists"> {
+  const ids = Array.isArray(queryArgs.nodeIds) ? queryArgs.nodeIds : [];
+  const { depth, pierce } = subtreeArgs(queryArgs);
+  const lists: QueryDomResult<"childNodeLists">["lists"] = [];
+  // One reply carries every parent's list, so the transport budget applies to their sum: a batch of
+  // individually acceptable lists could otherwise be many times the cap. Measure before
+  // serializing; an over-budget parent is left out and the client can request it on its own.
+  const budget = pageState.dom.subtreeBudgetBytes();
+  let total = 0;
+  for (const id of ids) {
+    if (typeof id !== "number") continue;
+    const bytes = pageState.dom.nodeSubtreeBytes(id, depth, pierce);
+    if (bytes > budget) continue;
+    if (total + bytes > budget) break;
+    total += bytes;
+    // The children at `depth` are the node's own subtree one level deeper.
+    const node = sanitizeCdpNodeTree(pageState.dom.nodeSubtree(id, depth, pierce));
+    if (node) lists.push({ parentId: id, nodes: node.children ?? [] });
+  }
+  return { lists } satisfies QueryDomResult<"childNodeLists">;
+}
+
 function requireQueryDomDocument(
   pageState: typeof state,
 ): asserts pageState is QueryDomActiveState {
@@ -5077,7 +5617,10 @@ function queryDomDocumentRead(
     case "getDocument": {
       // Read stamps bracket the synchronous DOM read with the mutation sequence.
       const before = getInternalState().mutationSeq | 0;
-      const root = sanitizeCdpNodeTree(pageState.dom.getDocument());
+      const { depth, pierce } = subtreeArgs(queryArgs);
+      const budgetError = pageState.dom.documentBudgetError(depth, pierce);
+      if (budgetError) return { budgetError } satisfies QueryDomResult<"getDocument">;
+      const root = sanitizeCdpNodeTree(pageState.dom.getDocument(depth, pierce)) ?? undefined;
       return {
         root,
         ...(queryArgs.includeReadStamp === true
@@ -5095,7 +5638,10 @@ function queryDomDocumentRead(
       const id = numericNodeId(queryArgs);
       if (id == null) return { node: null } satisfies QueryDomResult<"nodeSubtree">;
       try {
-        const subtree = pageState.dom.nodeSubtree ? pageState.dom.nodeSubtree(id) : null;
+        const { depth, pierce } = subtreeArgs(queryArgs);
+        const budgetError = pageState.dom.nodeSubtreeBudgetError(id, depth, pierce);
+        if (budgetError) return { budgetError } satisfies QueryDomResult<"nodeSubtree">;
+        const subtree = pageState.dom.nodeSubtree(id, depth, pierce);
         return {
           node: sanitizeCdpNodeTree(subtree) || null,
         } satisfies QueryDomResult<"nodeSubtree">;
@@ -5124,33 +5670,80 @@ function queryDomOuterHTML(
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<"getOuterHTML"> {
   const id = numericNodeId(queryArgs) ?? 0;
-  try {
-    const rawOuterHTML = pageState.dom.outerHTML(id);
-    const sourceDoctype =
-      state.document?.doctype?.parentNode === state.document ? state.sourceDoctype : null;
-    const markerMarkup = state.sourceDoctype ? `<!--${state.sourceDoctype.marker}-->` : null;
-    const markerIndex = id === 0 && markerMarkup ? rawOuterHTML.indexOf(markerMarkup) : -1;
-    const outerHTML =
-      markerIndex >= 0 && markerMarkup
-        ? rawOuterHTML.slice(0, markerIndex) + rawOuterHTML.slice(markerIndex + markerMarkup.length)
-        : rawOuterHTML;
-    if (
-      id !== 0 ||
-      queryArgs.includeDoctype !== true ||
-      !sourceDoctype ||
-      markerIndex < 0 ||
-      /^(?:\s|<!--[\s\S]*?-->)*<!doctype\b/i.test(outerHTML)
-    ) {
-      return { outerHTML } satisfies QueryDomResult<"getOuterHTML">;
-    }
-    return {
-      outerHTML:
-        outerHTML.slice(0, markerIndex) + sourceDoctype.markup + outerHTML.slice(markerIndex),
-    } satisfies QueryDomResult<"getOuterHTML">;
-  } catch {
-    return { outerHTML: "" } satisfies QueryDomResult<"getOuterHTML">;
+  const { marker, doctype } = outerHtmlMarkup(id, queryArgs);
+  // Let a serialization failure reach the CDP caller; empty output reads as an empty page.
+  const dom = pageState.dom;
+  // The live stream is the default; `snapshot` serializes one tree before streaming it.
+  const stream = queryArgs.snapshot === true ? undefined : dom.outerHTMLStream(id, marker, doctype);
+  if (stream) {
+    return outerHtmlResult(stream, () => {
+      // A navigate or unload frees `dom`, and this stream is pulled long after the read returns.
+      // End it instead of entering wasm through a freed handle, so the engine's snapshot retry
+      // takes over.
+      if (pageState.dom !== dom) return new Uint8Array(0);
+      return stream.nextChunk(dom, OUTER_HTML_CHUNK_BYTES);
+    });
   }
+  const bytes = dom.outerHTMLBytes(id, marker, doctype);
+  return outerHtmlResult(bytes, () => bytes.nextChunk(OUTER_HTML_CHUNK_BYTES));
 }
+
+/** The synthetic doctype marker to strip, and the source doctype to restore, for this read. */
+function outerHtmlMarkup(
+  id: number,
+  queryArgs: Record<string, unknown>,
+): { marker: string; doctype: string } {
+  const sourceDoctype =
+    state.document?.doctype?.parentNode === state.document ? state.sourceDoctype : null;
+  const marker = id === 0 && state.sourceDoctype ? `<!--${state.sourceDoctype.marker}-->` : "";
+  const doctype =
+    id === 0 && queryArgs.includeDoctype === true && sourceDoctype ? sourceDoctype.markup : "";
+  return { marker, doctype };
+}
+
+function outerHtmlResult(
+  source: { readonly byteLength: number; free(): void },
+  nextChunk: () => Uint8Array,
+): QueryDomResult<"getOuterHTML"> {
+  return {
+    byteLength: source.byteLength,
+    outerHTMLUtf8: byteStream(source, nextChunk),
+  } satisfies QueryDomResult<"getOuterHTML">;
+}
+
+function byteStream(
+  source: { free(): void },
+  nextChunk: () => Uint8Array,
+): ReadableStream<Uint8Array> {
+  let freed = false;
+  const release = () => {
+    if (freed) return;
+    freed = true;
+    source.free();
+  };
+  return new ReadableStream({
+    type: "bytes",
+    pull(controller) {
+      let chunk: Uint8Array;
+      try {
+        chunk = nextChunk();
+      } catch (error) {
+        release();
+        throw error;
+      }
+      if (chunk.byteLength > 0) {
+        controller.enqueue(chunk);
+        return;
+      }
+      release();
+      controller.close();
+    },
+    cancel: release,
+  });
+}
+
+// Small next to the isolate limit, large enough that a long page needs few RPC stream writes.
+const OUTER_HTML_CHUNK_BYTES = 256 * 1024;
 
 type QueryDomSelectorReadMethod = Extract<
   QueryDomMethod,
@@ -5186,14 +5779,20 @@ function queryDomSelectorRead(
     case "matchSelectorList": {
       const nodeId = numericNodeId(queryArgs);
       if (nodeId == null) return { matches: [] } satisfies QueryDomResult<"matchSelectorList">;
-      const selectorListText = String(queryArgs.selectorListText || "");
-      const selectors = splitSelectorList(selectorListText);
+      // The list can come from a sheet the page cannot read, so it is never coerced or split by
+      // a function the page can replace.
+      const listText = queryArgs.selectorListText;
+      if (typeof listText !== "string") {
+        return { matches: [] } satisfies QueryDomResult<"matchSelectorList">;
+      }
+      const selectors = splitSelectorList(listText);
       const matches: number[] = [];
       for (let i = 0; i < selectors.length; i++) {
-        const sel = selectors[i].trim();
+        const sel = trimSelector(selectors[i]);
         if (!sel) continue;
         try {
-          if (pageState.dom.matchesInSubtree(nodeId, sel)) {
+          const selectorBytes = encodeSelectorBytes(sel);
+          if (nativeApply(nativeMatchesInSubtreeBytes, pageState.dom, [nodeId, selectorBytes])) {
             matches.push(i);
           }
         } catch {}
@@ -5253,15 +5852,14 @@ function queryDomEnumerateStyleSheets(
 ): QueryDomResult<"enumerateStyleSheets"> {
   try {
     const sheets: QueryDomEnumeratedStyleSheets = [];
-    let uaText = ksGlobal.__ks_uaStylesheetText as string | undefined;
-    if (typeof uaText !== "string") {
+    if (uaStylesheetText === undefined) {
       try {
-        uaText = ks_ua_stylesheet();
+        uaStylesheetText = ks_ua_stylesheet();
       } catch {
-        uaText = "";
+        uaStylesheetText = "";
       }
-      ksGlobal.__ks_uaStylesheetText = uaText;
     }
+    const uaText = uaStylesheetText;
     if (uaText.length > 0) {
       sheets.push({
         ownerNodeId: -1,
@@ -5331,7 +5929,6 @@ function appendLinkedStyleSheets(
 function queryDomSceneStats(): QueryDomResult<"getSceneStats"> {
   const recordStartedAt = Date.now();
   const seqNow = getInternalState().mutationSeq | 0;
-  const cascadeSeqNow = cascadeSeq();
   const { paint, fresh: isFreshPaint } = takePaintPrep();
   if (!paint) {
     return {
@@ -5339,7 +5936,7 @@ function queryDomSceneStats(): QueryDomResult<"getSceneStats"> {
       error: "ensurePaintDom returned null",
     } satisfies QueryDomResult<"getSceneStats">;
   }
-  prepareCachedPaint(paint, isFreshPaint, cascadeSeqNow);
+  prepareCachedPaint(paint, isFreshPaint);
   const prepFinishedAt = Date.now();
   let statsJson = "";
   try {
@@ -5420,6 +6017,7 @@ interface QueryDomRecordSceneContext {
   paint: DomHandle;
   clip: ReturnType<typeof readSceneClip>;
   hasClip: boolean;
+  documentCrop: boolean;
   scrollDx: number;
   scrollDy: number;
   scrolled: boolean;
@@ -5509,7 +6107,6 @@ function prepareQueryDomRecordScene(
   queryArgs: Record<string, unknown>,
   wake: QueryDomRecordSceneWake,
 ): QueryDomRecordScenePreparation {
-  const cascadeSeqNow = cascadeSeq();
   const omitBg = queryArgs.omitBackground === true;
   const clientWire = queryArgs.producer === "client";
   const rawImages = queryArgs.images === "raw";
@@ -5523,23 +6120,18 @@ function prepareQueryDomRecordScene(
   const epochBase = internalState.lastRecordSeq | 0;
   const { paint, fresh: isFreshPaint } = takePaintPrep();
   if (!paint) {
-    let fallbackHtml = "";
-    try {
-      fallbackHtml = pageState.dom.outerHTML(0) || "";
-    } catch {}
     return {
       kind: "response",
       response: {
         scene: new Uint8Array(0),
         seq: wake.seqNow,
         error: "ensurePaintDom returned null (serialize/parse failed)",
-        fallbackHtml,
         scrollX: state.scrollX,
         scrollY: state.scrollY,
       } satisfies QueryDomResult<"recordScene">,
     };
   }
-  prepareCachedPaint(paint, isFreshPaint, cascadeSeqNow);
+  prepareCachedPaint(paint, isFreshPaint);
   const clip = readSceneClip(queryArgs.clip);
   const hasClip = clip !== null;
   const scrollDx = state.scrollX - state.lastRecordScrollX;
@@ -5578,6 +6170,7 @@ function prepareQueryDomRecordScene(
     paint,
     clip,
     hasClip,
+    documentCrop: hasClip && queryArgs.documentCrop === true,
     scrollDx,
     scrollDy,
     scrolled,
@@ -5619,7 +6212,7 @@ function queryDomRecordSceneSkipResult(
 }
 
 function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecordSceneRender {
-  const { pageState, paint, rawImages, clientWire, hasClip, clip, omitBg } = context;
+  const { paint, rawImages, clientWire, hasClip, clip, documentCrop, omitBg } = context;
   let scene: Uint8Array | null = null;
   let emittedPartial = false;
   let partialClip = context.partialPlan.partialClip;
@@ -5651,6 +6244,7 @@ function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecor
         Math.min(MAX_SCENE_CLIP_DIMENSION_PX, partialClip.h),
         false,
         clientWire,
+        false,
       );
       emittedPartial = true;
     } else {
@@ -5658,27 +6252,23 @@ function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecor
         ? renderClip(
             Math.floor(clip.x),
             Math.floor(clip.y),
-            Math.min(MAX_SCENE_CLIP_DIMENSION_PX, Math.ceil(clip.width)),
-            Math.min(MAX_SCENE_CLIP_DIMENSION_PX, Math.ceil(clip.height)),
+            Math.ceil(clip.width),
+            Math.ceil(clip.height),
             omitBg,
             clientWire,
+            documentCrop,
           )
         : renderScene(state.scrollX, state.scrollY, 0, 0, omitBg, clientWire);
     }
   } catch (e) {
     invalidatePaintDom();
     reportEngineError("wasm", e, "renderScene threw");
-    let fallbackHtml = "";
-    try {
-      fallbackHtml = pageState.dom.outerHTML(0) || "";
-    } catch {}
     return {
       kind: "response",
       response: {
         scene: new Uint8Array(0),
         seq: getInternalState().mutationSeq | 0,
         error: errorMessage(e),
-        fallbackHtml,
         scrollX: state.scrollX,
         scrollY: state.scrollY,
       } satisfies QueryDomResult<"recordScene">,
@@ -5687,17 +6277,12 @@ function renderQueryDomScene(context: QueryDomRecordSceneContext): QueryDomRecor
   if (!scene || scene.length === 0) {
     invalidatePaintDom();
     reportEngineError("wasm", new Error("renderScene returned empty"));
-    let fallbackHtml = "";
-    try {
-      fallbackHtml = pageState.dom.outerHTML(0) || "";
-    } catch {}
     return {
       kind: "response",
       response: {
         scene: new Uint8Array(0),
         seq: getInternalState().mutationSeq | 0,
         error: "renderScene returned empty",
-        fallbackHtml,
         scrollX: state.scrollX,
         scrollY: state.scrollY,
       } satisfies QueryDomResult<"recordScene">,
@@ -5856,58 +6441,124 @@ function queryDomHasPendingCriticalResources(
   }
 }
 
-function queryDomRecordPdfScenes(
+async function queryDomRecordPdfScenes(
   queryArgs: Record<string, unknown>,
-): QueryDomResult<"recordPdfScenes"> {
+): Promise<QueryDomResult<"recordPdfScenes">> {
   const DEFAULT_PDF_PAPER_WIDTH_CSS_PX = 816;
   const DEFAULT_PDF_PAPER_HEIGHT_CSS_PX = 1056;
-  const pdfW =
-    queryArgs && typeof queryArgs.width === "number" && queryArgs.width > 0
-      ? queryArgs.width | 0
-      : DEFAULT_PDF_PAPER_WIDTH_CSS_PX;
-  const pdfH =
-    queryArgs && typeof queryArgs.height === "number" && queryArgs.height > 0
-      ? queryArgs.height | 0
-      : DEFAULT_PDF_PAPER_HEIGHT_CSS_PX;
-  const readPx = (v: unknown) =>
-    typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
-  const { paint, fresh: isFreshPaint } = takePaintPrep();
-  if (!paint) {
-    return {
-      envelope: new Uint8Array(0),
-      error: "ensurePaintDom returned null",
-    } satisfies QueryDomResult<"recordPdfScenes">;
-  }
-  prepareCachedPaint(paint, isFreshPaint, cascadeSeq, cascadeSeq);
+  const paperWidth = readPdfPaperSize(queryArgs.width, DEFAULT_PDF_PAPER_WIDTH_CSS_PX);
+  const paperHeight = readPdfPaperSize(queryArgs.height, DEFAULT_PDF_PAPER_HEIGHT_CSS_PX);
+
+  let releaseGates: (() => void) | null = null;
+  let source: ReturnType<DomHandle["startPdfSceneStream"]> | null = null;
+  let handedToStream = false;
+
   try {
-    if (typeof paint.recordPdfScenes !== "function") {
+    const gates = await acquirePdfStreamGates();
+    releaseGates = gates;
+
+    const { paint, fresh: isFreshPaint } = takePaintPrep();
+    if (!paint) {
+      return { error: "ensurePaintDom returned null" } satisfies QueryDomResult<"recordPdfScenes">;
+    }
+    prepareCachedPaint(paint, isFreshPaint);
+    if (typeof paint.startPdfSceneStream !== "function") {
       return {
-        envelope: new Uint8Array(0),
-        error: "recordPdfScenes not exported",
+        error: "startPdfSceneStream not exported",
       } satisfies QueryDomResult<"recordPdfScenes">;
     }
-    const envelope = paint.recordPdfScenes(
-      pdfW,
-      pdfH,
-      readPx(queryArgs.marginTop),
-      readPx(queryArgs.marginRight),
-      readPx(queryArgs.marginBottom),
-      readPx(queryArgs.marginLeft),
+
+    const sceneSource = paint.startPdfSceneStream(
+      paperWidth,
+      paperHeight,
+      readPdfMargin(queryArgs.marginTop),
+      readPdfMargin(queryArgs.marginRight),
+      readPdfMargin(queryArgs.marginBottom),
+      readPdfMargin(queryArgs.marginLeft),
     );
-    if (!envelope || envelope.length === 0) {
-      return {
-        envelope: new Uint8Array(0),
-        error: "empty pdf scene envelope",
-      } satisfies QueryDomResult<"recordPdfScenes">;
+    source = sceneSource;
+    if (!sceneSource || sceneSource.pageCount === 0) {
+      return { error: "empty pdf scene stream" } satisfies QueryDomResult<"recordPdfScenes">;
     }
-    return { envelope } satisfies QueryDomResult<"recordPdfScenes">;
+
+    const paintSnapshot = capturePdfPaintSnapshot(paint);
+    const pages = pdfScenePages(
+      sceneSource,
+      () => sceneSource.nextPage(paint),
+      () => assertPdfPaintUnchanged(paintSnapshot),
+      invalidatePaintDom,
+      gates,
+    );
+    handedToStream = true;
+    return { pages, pageCount: sceneSource.pageCount } satisfies QueryDomResult<"recordPdfScenes">;
   } catch (e) {
     invalidatePaintDom();
-    return {
-      envelope: new Uint8Array(0),
-      error: errorMessage(e),
-    } satisfies QueryDomResult<"recordPdfScenes">;
+    return { error: errorMessage(e) } satisfies QueryDomResult<"recordPdfScenes">;
+  } finally {
+    // The stream owns the source and the gates once it starts; otherwise they end here.
+    if (!handedToStream) {
+      try {
+        source?.free();
+      } catch {}
+      releaseGates?.();
+    }
   }
+}
+
+async function acquirePdfStreamGates(): Promise<() => void> {
+  const releasePageTasks = await pausePageTaskPump();
+  const releaseFrameBitmaps = frameBitmapDeliveryGate.hold();
+  return () => {
+    releaseFrameBitmaps();
+    releasePageTasks();
+  };
+}
+
+type PdfPaintSnapshot = {
+  paint: DomHandle;
+  revision: number;
+  viewportW: number;
+  viewportH: number;
+  media: typeof state.currentMediaType;
+  scrollX: number;
+  scrollY: number;
+};
+
+function capturePdfPaintSnapshot(paint: DomHandle): PdfPaintSnapshot {
+  return {
+    paint,
+    // setInputText calls bumpMutationSeq(), so this covers form-control editor text too.
+    revision: cascadeSeq(),
+    viewportW: state.paintViewportW,
+    viewportH: state.paintViewportH,
+    media: state.currentMediaType,
+    scrollX: state.scrollX,
+    scrollY: state.scrollY,
+  };
+}
+
+// The page stream renders page by page across turns, so the document must not move underneath it.
+function assertPdfPaintUnchanged(snapshot: PdfPaintSnapshot): void {
+  if (
+    state.dom !== snapshot.paint ||
+    state.paintCacheHandle !== snapshot.paint ||
+    cascadeSeq() !== snapshot.revision ||
+    state.paintViewportW !== snapshot.viewportW ||
+    state.paintViewportH !== snapshot.viewportH ||
+    state.currentMediaType !== snapshot.media ||
+    state.scrollX !== snapshot.scrollX ||
+    state.scrollY !== snapshot.scrollY
+  ) {
+    throw new Error("PDF document changed during scene streaming");
+  }
+}
+
+function readPdfPaperSize(value: unknown, fallbackPx: number): number {
+  return typeof value === "number" && value > 0 ? value | 0 : fallbackPx;
+}
+
+function readPdfMargin(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
 }
 
 type QueryDomPaintGeometryMethod = Extract<
@@ -5944,6 +6595,7 @@ function queryDomPaintGeometry(
             x: (Number(range.x) || 0) - state.scrollX,
             y: (Number(range.y) || 0) - state.scrollY,
           },
+          rects: contentRectsFor(paint, id),
         } satisfies QueryDomResult<"getRect">;
       } catch {
         invalidatePaintDom();
@@ -6004,6 +6656,114 @@ async function queryDomNotRenderedNodeIds(
     invalidatePaintDom();
     return { displayNone: [], invisible: [] } satisfies QueryDomResult<"notRenderedNodeIds">;
   }
+}
+
+async function queryDomAccessibilityTree(
+  pageState: QueryDomActiveState,
+  queryArgs: Record<string, unknown>,
+): Promise<QueryDomResult<"accessibilityTree">> {
+  await awaitDeferredFonts();
+  // `unload()` nulls `state.dom` while this await is suspended, so the narrowing above is only a
+  // type-level claim; re-read it and capture the handle for the stream's pulls.
+  const dom = pageState.dom as QueryDomActiveState["dom"] | null;
+  if (!dom) throw new Error("PageScript: no document loaded");
+  // A stamped read cannot stream: the mutation sequence must bracket the whole
+  // build, and a stream builds lazily as the caller pulls.
+  const includeStamp = queryArgs.includeReadStamp === true;
+  const before = getInternalState().mutationSeq | 0;
+  const visibility = accessibilityVisibility(dom);
+  const formState = queryDomFormState(pageState, "formStateSnapshot", {});
+  const values = "values" in formState ? formValuesForWire(formState.values) : undefined;
+  const serializedFormState = values === undefined ? formState : { ...formState, values };
+  const start = dom.accessibilityStream(
+    JSON.stringify({
+      ...queryArgs,
+      ...(includeStamp ? { buffered: true } : {}),
+      visibility,
+      ...serializedFormState,
+    }),
+  );
+  try {
+    const budgetJson = start.budgetError();
+    if (budgetJson) return accessibilityBudgetReply(budgetJson);
+
+    const stream = start.takeStream();
+    if (stream) {
+      return {
+        byteLength: stream.byteLength,
+        json: byteStream(stream, () =>
+          pageState.dom === dom ? stream.nextChunk(dom, OUTER_HTML_CHUNK_BYTES) : new Uint8Array(0),
+        ),
+      } satisfies QueryDomResult<"accessibilityTree">;
+    }
+
+    const bytes = start.takeBytes();
+    if (bytes) {
+      return {
+        byteLength: bytes.byteLength,
+        json: byteStream(bytes, () => bytes.nextChunk(OUTER_HTML_CHUNK_BYTES)),
+        ...(includeStamp
+          ? {
+              readStamp: {
+                before,
+                after: getInternalState().mutationSeq | 0,
+                complete: true,
+              },
+            }
+          : {}),
+      } satisfies QueryDomResult<"accessibilityTree">;
+    }
+    throw new Error("accessibility stream returned no result");
+  } finally {
+    start.free();
+  }
+}
+
+function accessibilityBudgetReply(json: string): QueryDomResult<"accessibilityTree"> {
+  const value: unknown = JSON.parse(json);
+  if (
+    !isObjectRecord(value) ||
+    typeof value.nodes !== "number" ||
+    typeof value.bytes !== "number" ||
+    typeof value.budget !== "number"
+  ) {
+    throw new Error("accessibility stream returned an invalid budget error");
+  }
+  return {
+    budgetError: { nodes: value.nodes, bytes: value.bytes, budget: value.budget },
+  } satisfies QueryDomResult<"accessibilityTree">;
+}
+
+// A lone surrogate cannot travel in JSON text, so such a value goes as its UTF-16 code units and
+// Rust re-encodes it.
+function formValuesForWire(
+  values: FormStateSnapshot["values"],
+): Array<[number, string | number[]]> | undefined {
+  return values?.map(([id, value]): [number, string | number[]] => [
+    id,
+    isWellFormedUtf16(value)
+      ? value
+      : Array.from({ length: value.length }, (_, index) => value.charCodeAt(index)),
+  ]);
+}
+
+function isWellFormedUtf16(value: string): boolean {
+  for (let index = 0; index < value.length; index++) {
+    const unit = value.charCodeAt(index);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (index + 1 >= value.length || next < 0xdc00 || next > 0xdfff) return false;
+      index++;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function accessibilityVisibility(dom: QueryDomActiveState["dom"]): boolean {
+  if (dom.layoutMode?.() === "off") return false;
+  return ensurePaintDom() !== null;
 }
 
 function queryDomSetViewport(
@@ -6215,6 +6975,12 @@ async function queryDomAwaitPendingResources(
     return null;
   })();
 
+  // The drain below waits for these faces anyway; loading them before its first layout keeps
+  // that layout from shaping the page in fallback fonts only to reshape it when they land.
+  discoverFontFaces();
+  if (fontsInflightCount() > 0) {
+    await NativePromise.race([fontsIdle(), nativeSleep(Math.max(0, deadline - Date.now()))]);
+  }
   const images = await drainPendingImages(pageState, captureRect, deadline, drainStartedAt);
   if (fontPromises.length > 0) {
     console.log(
@@ -6501,7 +7267,7 @@ function queryDomLayoutSettings(
     }
     case "setCdpDomActive": {
       try {
-        ksGlobal.__ks_cdpDomActive = !!(queryArgs && queryArgs.active);
+        ksInternals.cdpDomActive = !!(queryArgs && queryArgs.active);
       } catch {}
       return { ok: true } satisfies QueryDomResult<"setCdpDomActive">;
     }
@@ -6534,21 +7300,24 @@ function queryDomNodeHandle(
         } satisfies QueryDomResult<"describeNode">;
       }
       try {
+        const budgetError = pageState.dom.nodeDescriptionBudgetError(id);
+        if (budgetError) return { budgetError } satisfies QueryDomResult<"describeNode">;
         const info = pageState.dom.nodeInfo(id);
-        if (info && typeof info === "object") delete info.attributeNamespaces;
-        return { node: { ...info, backendNodeId: id } } satisfies QueryDomResult<"describeNode">;
-      } catch {
-        return {
-          node: {
-            nodeId: 0,
-            backendNodeId: 0,
-            nodeType: 1,
-            nodeName: "",
-            localName: "",
-            nodeValue: "",
-          },
-        } satisfies QueryDomResult<"describeNode">;
-      }
+        if (info) {
+          delete info.attributeNamespaces;
+          return { node: { ...info, backendNodeId: id } } satisfies QueryDomResult<"describeNode">;
+        }
+      } catch {}
+      return {
+        node: {
+          nodeId: 0,
+          backendNodeId: 0,
+          nodeType: 1,
+          nodeName: "",
+          localName: "",
+          nodeValue: "",
+        },
+      } satisfies QueryDomResult<"describeNode">;
     }
     case "resolveNode": {
       const id = numericNodeId(queryArgs);
@@ -6591,6 +7360,85 @@ function queryDomNodeHandle(
       return {} satisfies QueryDomResult<"focus">;
     }
   }
+}
+
+// Chrome's center-if-needed: a rect wholly shown by the viewport and by every clipping ancestor
+// stays put, any other is centred. Puppeteer's locator scrolls this way and re-checks per click.
+function queryDomScrollIntoView(
+  queryArgs: Record<string, unknown>,
+): QueryDomResult<"scrollIntoViewIfNeeded"> {
+  const id = numericNodeId(queryArgs);
+  const node = id == null ? null : state.resolveNodeId(id);
+  const element =
+    node && typeof node.getBoundingClientRect === "function" ? node : (node?.parentElement ?? null);
+  const box = element?.getBoundingClientRect?.() ?? null;
+  if (!element || !box || typeof element.scrollIntoView !== "function") return { found: false };
+  const sub = rectArg(queryArgs.rect);
+  const r = sub
+    ? { left: box.left + sub.x, top: box.top + sub.y, width: sub.width, height: sub.height }
+    : box;
+  const vw = Number(ksGlobal.innerWidth) || 0;
+  const vh = Number(ksGlobal.innerHeight) || 0;
+  const inViewport = r.left >= 0 && r.top >= 0 && r.left + r.width <= vw && r.top + r.height <= vh;
+  if (inViewport && !clippedByAncestor(element._id, r)) return { found: true, scrolled: false };
+  element.scrollIntoView({ block: "center", inline: "center" });
+  return { found: true, scrolled: true };
+}
+
+interface ViewportRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+// The overflow boxes Element.scrollIntoView scrolls, below the root: a rect outside one's client
+// area is hidden though the window would show it, like a button in a scrolled consent dialog.
+function clippedByAncestor(elementId: number | undefined, r: ViewportRect): boolean {
+  const dom = state.dom;
+  const paint = ensurePaintDom();
+  if (typeof elementId !== "number" || !dom || !paint) return false;
+  let cur = elementId;
+  try {
+    const rootId = dom.querySelector("html");
+    for (let hops = 0; hops < MAX_ANCESTOR_STYLE_HOPS; hops++) {
+      const parent = dom.parentId(cur);
+      if (typeof parent !== "number" || parent < 0 || parent === rootId) return false;
+      if (clipsRect(paint, parent, r)) return true;
+      cur = parent;
+    }
+  } catch {
+    invalidatePaintDom();
+  }
+  return false;
+}
+
+function clipsRect(paint: DomHandle, id: number, r: ViewportRect): boolean {
+  const info: unknown = paint.nodeScrollInfo(id);
+  const box = rectWithScrollOffset(paint.getBoundingClientRect(id));
+  if (typeof info !== "object" || info === null || !box) return false;
+  const num = (key: string): number => Number(Reflect.get(info, key)) || 0;
+  const left = box.x + num("clientLeft");
+  const top = box.y + num("clientTop");
+  const outX = r.left < left || r.left + r.width > left + num("clientWidth");
+  const outY = r.top < top || r.top + r.height > top + num("clientHeight");
+  return (!!Reflect.get(info, "overflowsX") && outX) || (!!Reflect.get(info, "overflowsY") && outY);
+}
+
+// CDP's optional DOM.Rect, relative to the node's border box; anything else reads as absent.
+function rectArg(v: unknown): { x: number; y: number; width: number; height: number } | null {
+  if (typeof v !== "object" || v === null) return null;
+  const num = (key: string): number | null => {
+    const n: unknown = Reflect.get(v, key);
+    return typeof n === "number" && Number.isFinite(n) ? n : null;
+  };
+  const x = num("x");
+  const y = num("y");
+  const width = num("width");
+  const height = num("height");
+  return x !== null && y !== null && width !== null && height !== null
+    ? { x, y, width, height }
+    : null;
 }
 
 function queryDomPageState(): QueryDomResult<"getPageState"> {
@@ -6700,12 +7548,18 @@ function queryDomPaintDamage(
   }
 }
 
-function queryDomMemoryStats(): QueryDomResult<"getMemoryStats"> {
+function queryDomMemoryStats(queryArgs: Record<string, unknown>): QueryDomResult<"getMemoryStats"> {
+  if (queryArgs.resetPeak === true) ks_swap_alloc_reset_peak_window();
   const bytes = getCoreWasmMemoryBytes();
   const initialBytes = getCoreWasmMemoryInitialBytes();
   let bridge = null;
   try {
-    bridge = { ...JSON.parse(ks_bridge_pins()), ...JSON.parse(ks_cycle_stats()) };
+    bridge = {
+      ...JSON.parse(ks_bridge_pins()),
+      ...JSON.parse(ks_cycle_stats()),
+      boaCode: JSON.parse(ks_code_stats()),
+      swapAlloc: JSON.parse(ks_swap_alloc_stats()),
+    };
   } catch {
     bridge = null;
   }
@@ -6730,6 +7584,7 @@ function queryDomMemoryStats(): QueryDomResult<"getMemoryStats"> {
     domNodes,
     wrappers: detachedWrapperStats(),
     paint: paintPrepStats(),
+    layout: layoutResolveStats(),
     intersectionObserver: intersectionObserverStats(),
     timerWheel: { ...timerWheelStats(), shim: deferShimStats() },
   } satisfies QueryDomResult<"getMemoryStats">;
@@ -6765,7 +7620,7 @@ function queryDomDiagnostics(
       }
     }
     case "getMemprofDump": {
-      const dump = ksGlobal.__memprof_dump;
+      const dump = ksInternals.memprofDump;
       if (typeof dump !== "function") {
         return {
           error: "memprof recorder not installed (build with KITESURF_MEMPROF=1)",
@@ -6780,7 +7635,7 @@ function queryDomDiagnostics(
       }
     }
     case "resetMemprof": {
-      const reset = ksGlobal.__memprof_reset;
+      const reset = ksInternals.memprofReset;
       if (typeof reset !== "function") {
         return {
           error: "memprof recorder not installed (build with KITESURF_MEMPROF=1)",
@@ -6857,38 +7712,10 @@ function hasControlChar(text: string): boolean {
   return false;
 }
 
-function sourceDoctypeOf(html: string): { markup: string; end: number } | null {
-  const match = html.match(/^((?:\s|<!--[\s\S]*?-->)*)(<!doctype\b[^>]*>)/i);
-  const raw = match?.[2];
-  if (!raw) return null;
-  const prefix = match?.[1] ?? "";
-  const end = prefix.length + raw.length;
-
-  const body = raw.slice("<!doctype".length, -1).trim();
-  const parsed = body.match(
-    /^([^\s>]+)(?:\s+(PUBLIC|SYSTEM)\s+(?:"([^"]*)"|'([^']*)')(?:\s+(?:"([^"]*)"|'([^']*)'))?)?$/i,
-  );
-  if (!parsed) return { markup: raw, end };
-
-  const name = parsed[1]?.toLowerCase() ?? "html";
-  const keyword = parsed[2]?.toUpperCase();
-  const firstId = parsed[3] ?? parsed[4];
-  const secondId = parsed[5] ?? parsed[6];
-  const quote = (value: string) => (value.includes('"') ? `'${value}'` : `"${value}"`);
-  if (keyword === "PUBLIC" && firstId !== undefined) {
-    const system = secondId === undefined ? "" : ` ${quote(secondId)}`;
-    return {
-      markup: `<!DOCTYPE ${name} PUBLIC ${quote(firstId)}${system}>`,
-      end,
-    };
-  }
-  if (keyword === "SYSTEM" && firstId !== undefined) {
-    return {
-      markup: `<!DOCTYPE ${name} SYSTEM ${quote(firstId)}>`,
-      end,
-    };
-  }
-  return { markup: `<!DOCTYPE ${name}>`, end };
+// V8 substrings of 13+ chars point into their parent, so a long doctype ID would keep the whole
+// page source reachable for the life of the page. join() builds a fresh string.
+function unsharedString(value: string): string {
+  return [...value].join("");
 }
 
 function numericNodeId(params: Record<string, unknown>): number | null {

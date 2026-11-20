@@ -11,6 +11,7 @@ test("engine functions stringify as native code under their own names", async ({
     `<!doctype html><title>t</title><script>
     var F = Function.prototype.toString;
     function pageFn(a) { return a + 1; }
+    async function pageAsync() { return pageAsync.name; }
     var d = Object.getOwnPropertyDescriptor(Node.prototype, "firstChild");
     document.title = JSON.stringify({
       timeout: F.call(setTimeout),
@@ -21,6 +22,7 @@ test("engine functions stringify as native code under their own names", async ({
       fn: [Function.name, F.call(Function)],
       toStringItself: F.call(F),
       page: F.call(pageFn),
+      pageAsync: [pageAsync.name, F.call(pageAsync)],
       pageArrow: String(() => 1),
     });
   </script>`,
@@ -34,6 +36,7 @@ test("engine functions stringify as native code under their own names", async ({
     fn: ["Function", "function Function() { [native code] }"],
     toStringItself: "function toString() { [native code] }",
     page: "function pageFn(a) { return a + 1; }",
+    pageAsync: ["pageAsync", "async function pageAsync() { return pageAsync.name; }"],
     pageArrow: "() => 1",
   });
 }, 60_000);

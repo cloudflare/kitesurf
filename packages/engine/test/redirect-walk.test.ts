@@ -4,6 +4,7 @@
 
 import { describe, expect, test } from "vitest";
 
+import { createCookieJar } from "../src/cookies.ts";
 import {
   InvalidRedirectError,
   MAX_REDIRECT_HOPS,
@@ -45,6 +46,26 @@ describe("walkRedirects", () => {
       "https://a.test/2",
       "https://a.test/3",
     ]);
+  });
+
+  test.each([
+    ["follows the hop", null],
+    ["stops at a blocked hop", async () => null],
+  ])("cancels a redirect's body when it %s", async (_, checkRedirect) => {
+    const cancelled: string[] = [];
+    const fetchHop = async (req: Request): Promise<Response> => {
+      const body = new ReadableStream({ cancel: () => void cancelled.push(req.url) });
+      if (req.url !== "https://a.test/1") return new Response(body);
+      return new Response(body, { status: 302, headers: { location: "https://a.test/2" } });
+    };
+    await walkRedirects({
+      url: "https://a.test/1",
+      headers: {},
+      fetchHop,
+      ...(checkRedirect ? { checkRedirect } : {}),
+    });
+    await Promise.resolve();
+    expect(cancelled).toEqual(["https://a.test/1"]);
   });
 
   test("Authorization is dropped on a cross-origin hop and stays dropped", async () => {
@@ -258,6 +279,31 @@ describe("walkRedirects", () => {
     expect(asked).toEqual(["https://b.test/1", "https://c.test/2"]);
     expect(seen[0]?.headers["cookie"]).toBe("sid=1");
     expect(seen[1]?.headers["cookie"]).toBeUndefined();
+  });
+
+  test.each([307, 308])("selects cookies after a %i POST redirect", async (status) => {
+    const jar = createCookieJar();
+    const target = "https://victim.test/pay";
+    jar.setFromHeader(target, "lax=1; Secure; SameSite=Lax; Path=/");
+    const seen: Array<{ method: string; cookie: string | null }> = [];
+    await walkRedirects({
+      url: "https://attacker.test/start",
+      method: "POST",
+      headers: {},
+      cookieHeaderFor: (url, method) =>
+        jar.cookieHeaderForUrl(url, {
+          initiatorOrigin: "https://attacker.test",
+          topLevel: true,
+          method,
+        }),
+      fetchHop: async (req) => {
+        seen.push({ method: req.method, cookie: req.headers.get("cookie") });
+        return seen.length === 1
+          ? new Response(null, { status, headers: { location: target } })
+          : new Response(null, { status: 204 });
+      },
+    });
+    expect(seen[1]).toEqual({ method: "POST", cookie: null });
   });
 
   test("a caller's own Cookie does not survive a cross-origin hop", async () => {

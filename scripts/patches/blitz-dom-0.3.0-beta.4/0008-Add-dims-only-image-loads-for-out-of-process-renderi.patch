@@ -1,0 +1,622 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 25 Jul 2026 06:41:34 +0100
+Subject: [PATCH] Add dims-only image loads for out-of-process rendering
+
+DocumentConfig::dims_only_images routes every ImageHandler through a
+header-only dimension sniff (image crate into_dimensions; no RGBA
+decode) and stores the original encoded bytes in the node's replaced
+slot via Resource::EncodedImage -> RasterImageData{encoded:true}. Layout
+only ever reads width/height, so intrinsic sizing is exact (better than
+the decode-cap path, which downscales dims too).
+
+Why: an embedder can paint in a separate process or isolate. Decoded
+RGBA is the dominant page heap cost (4000x3000 jpeg: ~2 MB encoded vs
+~48 MB decoded), and shipping encoded bytes also beats re-encoding the
+pixels for transport on both size and CPU.
+
+A local consumer that does need pixels (canvas drawImage of an <img>)
+calls kitesurf_materialize_node_image to decode in place, damage-marked.
+It decodes at the node's laid-out size the way Chrome decodes at need:
+the final_layout box is the hint, quantized to the largest power-of-two
+downscale of the header dims that still covers it. The ceiling parameter
+only guards the extreme (a GPU max-texture analog), not quality.
+Zero-box nodes (display:none, not laid out) decode at header dims,
+ceiling-capped. Undecodable bytes drop to ImageData::None so vello never
+sees garbage.
+
+An embedder that has already sniffed the dimensions can also keep the
+payload out of the document's process entirely. That matters for
+cross-origin images when page JS runs next to the document: bytes there
+are bytes the page can read. kitesurf_set_pending_image stages a
+resource key and, optionally, dimensions immediately around the
+synchronous handler.bytes() call that parses a delivery. Non-zero
+dimensions mean the payload is absent by design, so the dims-only parse
+skips the header sniff and stores an empty encoded entry carrying just
+w/h plus the key.
+
+The key rides in the Blob id via Blob::from_raw_parts, so it reaches the
+paint brush with no new field and no change to any trait signature,
+which lets a consumer holding no bytes name the resource it is asking
+for. Zero keeps Blob::new's counter id and the embedder's existing
+content-hash identity.
+
+Materialization sniffs the container dims before its full decode and
+drops the image to None when the full-resolution RGBA plane would
+exceed 128 MiB (~32 Mpx), the renderer's own decode budget: the encoded
+bytes are page-controlled and a tiny file can declare dims that exhaust
+memory on decode. Paint skips a None slot, the same degradation as
+undecodable bytes.
+---
+ src/config.rs        |   5 ++
+ src/document.rs      | 119 +++++++++++++++++++++++++
+ src/iframe.rs        |   1 +
+ src/layout/damage.rs |   8 +-
+ src/mutator.rs       |  31 +++----
+ src/net.rs           | 207 ++++++++++++++++++++++++++++++++++---------
+ src/node/element.rs  |  26 ++++++
+ 7 files changed, 333 insertions(+), 64 deletions(-)
+
+diff --git a/src/config.rs b/src/config.rs
+index 9d4af12..cbd861b 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -30,6 +30,10 @@ pub enum StyleThreading {
+
+ /// Options used when constructing a [`BaseDocument`](crate::BaseDocument)
+ pub struct DocumentConfig {
++    /// When true, image loads sniff dimensions from the
++    /// container header and store the encoded bytes (renderer mode)
++    /// instead of decoding RGBA in this isolate.
++    pub dims_only_images: bool,
+     /// The initial `Viewport`
+     pub viewport: Option<Viewport>,
+     /// The base url which relative URLs are resolved against
+@@ -79,6 +83,7 @@ pub struct DocumentConfig {
+ impl Default for DocumentConfig {
+     fn default() -> Self {
+         Self {
++            dims_only_images: false,
+             viewport: None,
+             base_url: None,
+             ua_stylesheets: vec![UserAgentStylesheet::default_sheet()],
+diff --git a/src/document.rs b/src/document.rs
+index d5f1be3..f5996d8 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -391,6 +391,9 @@ pub struct BaseDocument {
+     /// Cache of loaded images, keyed by URL. Allows reusing images across multiple
+     /// elements without re-fetching from the network.
+     pub(crate) image_cache: HashMap<String, ImageData>,
++    /// Renderer-mode flag: image loads keep encoded
++    /// bytes + dims only. See DocumentConfig::dims_only_images.
++    pub dims_only_images: bool,
+
+     /// Tracks in-flight image requests. When an image is being fetched, additional
+     /// requests for the same URL are queued here instead of starting new fetches.
+@@ -555,6 +558,7 @@ impl BaseDocument {
+             changed_nodes: HashSet::new(),
+             deferred_construction_nodes: Vec::new(),
+             image_cache: HashMap::new(),
++            dims_only_images: config.dims_only_images,
+             pending_images: HashMap::new(),
+             pending_style_image_nodes: Vec::new(),
+             pending_critical_resources: HashSet::new(),
+@@ -1655,6 +1659,23 @@ impl BaseDocument {
+                 self.stylist
+                     .force_stylesheet_origins_dirty(style::stylesheets::OriginSet::all());
+             }
++            Resource::EncodedImage(_kind, width, height, encoded_bytes, key) => {
++                // Dims-only load: cache dims + encoded
++                // bytes; paint happens out-of-isolate. The bytes are
++                // empty when the embedder kept the payload itself.
++                let image = ImageData::Raster(RasterImageData::new_encoded(
++                    width,
++                    height,
++                    encoded_bytes,
++                    key,
++                ));
++
++                let Some(url) = res.resolved_url.as_ref() else {
++                    return;
++                };
++
++                self.apply_loaded_image(url, image);
++            }
+             Resource::Image(_kind, width, height, image_data) => {
+                 // Create the ImageData and cache it
+                 let image = ImageData::Raster(RasterImageData::new(width, height, image_data));
+@@ -1727,6 +1748,48 @@ impl BaseDocument {
+         }
+     }
+
++    /// Decode one encoded (dims-only) image in place:
++    /// RGBA-materialise a node's replaced image so local raster
++    /// paths (canvas drawImage, legacy screenshot/PDF fallback)
++    /// see real pixels. Returns true if anything changed.
++    ///
++    /// Chrome-style decode-at-need: the node's laid-out box size
++    /// is the decode hint; the decode picks the smallest power-of-
++    /// two mip of the header dims that still covers it (ceiling as
++    /// the extreme guard). Decoded dims can therefore differ from
++    /// header dims; damage + cache clears keep layout honest.
++    pub fn kitesurf_materialize_node_image(&mut self, node_id: NodeId, ceiling: u32) -> bool {
++        let Some(node) = self.get_node_mut(node_id) else {
++            return false;
++        };
++        // Laid-out content box in CSS px (device px at scale 1).
++        // A zero box (display:none / not laid out) means no hint;
++        // decode at header dims, ceiling-capped.
++        let hint = {
++            let size = node.final_layout().size;
++            let w = size.width.ceil() as u32;
++            let h = size.height.ceil() as u32;
++            if w > 0 && h > 0 { (w, h) } else { (0, 0) }
++        };
++        let Some(el) = node.element_data_mut() else {
++            return false;
++        };
++        let mut changed = false;
++        if let SpecialElementData::Image(data) = &mut el.special_data {
++            changed |= kitesurf_materialize_image_data(data, hint, ceiling);
++        }
++        for layer in el.background_images.iter_mut().chain(el.mask_images.iter_mut()) {
++            if let Some(res) = layer {
++                changed |= kitesurf_materialize_image_data(&mut res.image, hint, ceiling);
++            }
++        }
++        if changed {
++            node.clear_layout_cache();
++            node.insert_damage(ALL_DAMAGE);
++        }
++        changed
++    }
++
+     /// Cache a loaded image and apply it to all nodes waiting on it
+     /// (`<img>` elements, `background-image` layers and `mask-image` layers).
+     /// Set a canvas element's framebuffer as its replaced
+@@ -3843,3 +3906,59 @@ mod font_face_override_tests {
+         );
+     }
+ }
++
++/// Decode an EncodedRaster-style ImageData (RGBA blob
++/// flagged `encoded`) in place. Shared by the materialize paths.
++/// hint = painted/laid-out size in device px ((0,0) = none);
++/// ceiling = extreme guard on either axis.
++fn kitesurf_materialize_image_data(
++    image: &mut ImageData,
++    hint: (u32, u32),
++    ceiling: u32,
++) -> bool {
++    let ImageData::Raster(raster) = image else {
++        return false;
++    };
++    if !raster.encoded {
++        return false;
++    }
++    let decoded = match crate::net::decode_image_bounded(raster.data.as_ref()) {
++        Ok(d) => d,
++        // Undecodable bytes: drop to None so paint skips it
++        // instead of feeding garbage to vello.
++        Err(_) => {
++            *image = ImageData::None;
++            return true;
++        }
++    };
++    let (tw, th) = kitesurf_mip_dims(decoded.width(), decoded.height(), hint.0, hint.1, ceiling);
++    let scaled = if decoded.width() > tw || decoded.height() > th {
++        use image::imageops::FilterType;
++        decoded.resize(tw, th, FilterType::Triangle)
++    } else {
++        decoded
++    };
++    let (fw, fh) = (scaled.width(), scaled.height());
++    let rgba = scaled.into_rgba8().into_raw();
++    *image = ImageData::Raster(RasterImageData::new(fw, fh, std::sync::Arc::new(rgba)));
++    true
++}
++
++/// Chrome-style mip selection: largest power-of-two
++/// downscale of the header dims still covering the hint, clamped
++/// to the ceiling. Mirrors scene_replay::mip_dims in kitesurf-core
++/// (kept in sync by the round-trip parity e2e).
++fn kitesurf_mip_dims(header_w: u32, header_h: u32, hint_w: u32, hint_h: u32, ceiling: u32) -> (u32, u32) {
++    let (mut w, mut h) = (header_w.max(1), header_h.max(1));
++    if hint_w > 0 && hint_h > 0 {
++        while w / 2 >= hint_w && h / 2 >= hint_h {
++            w /= 2;
++            h /= 2;
++        }
++    }
++    while w > ceiling || h > ceiling {
++        w = (w / 2).max(1);
++        h = (h / 2).max(1);
++    }
++    (w, h)
++}
+diff --git a/src/iframe.rs b/src/iframe.rs
+index 2ddbb98..19cd39b 100644
+--- a/src/iframe.rs
++++ b/src/iframe.rs
+@@ -55,6 +55,7 @@ impl BaseDocument {
+         abort_signal: AbortSignal,
+     ) -> DocumentConfig {
+         DocumentConfig {
++            dims_only_images: self.dims_only_images,
+             viewport: None,
+             base_url,
+             ua_stylesheets: vec![UserAgentStylesheet::default_sheet()],
+diff --git a/src/layout/damage.rs b/src/layout/damage.rs
+index b8b190d..299a864 100644
+--- a/src/layout/damage.rs
++++ b/src/layout/damage.rs
+@@ -616,7 +616,13 @@ impl BaseDocument {
+                                 doc_id,
+                                 None, // Don't pass node_id, we'll handle via pending_images
+                                 self.shell_provider.clone(),
+-                                ImageHandler::new(kind.image_type(idx)),
++                                // Dims-only in renderer
++                                // mode (see mutator.rs load_image).
++                                if self.dims_only_images {
++                                    ImageHandler::new_dims_only(kind.image_type(idx))
++                                } else {
++                                    ImageHandler::new(kind.image_type(idx))
++                                },
+                             ),
+                         );
+
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 3f98f74..21f4259 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1435,18 +1435,9 @@ impl<'doc> DocumentMutator<'doc> {
+             .map(|s| s.to_string())
+     }
+
+-    /// Read the `<img width|height>` attrs and return
+-    /// the larger of the two as a u32 hint for ImageHandler's
+-    /// rgba8 cap. Returns `None` if neither attr is set or
+-    /// neither parses to a useful integer; ImageHandler falls
+-    /// back to `DEFAULT_DECODE_MAX_DIM` in that case.
+-    ///
+-    /// We deliberately ignore CSS-driven sizing here (`<img
+-    /// style="width:240px">`). Reading style requires a cascade
+-    /// to have run, which it hasn't at LoadImage queue time; the
+-    /// attr-only path covers the dominant real-world case: most
+-    /// large sites set explicit width/height attrs for layout
+-    /// stability.
++    /// Read the `<img width|height>` attrs as a hint for the returned raster's
++    /// size cap. CSS sizing is unavailable because image loading starts before
++    /// the cascade runs.
+     fn read_img_display_dim(&self, node_id: NodeId) -> Option<u32> {
+         let node = &self.doc.nodes[node_id];
+         let w = node
+@@ -1513,13 +1504,15 @@ impl<'doc> DocumentMutator<'doc> {
+                 // file extension.
+                 let mut req = self.doc.build_request(src);
+                 req.content_type = Some("image/*".to_string());
+-                // Pass the display-size hint to
+-                // ImageHandler so it can downscale before
+-                // materialising rgba8. Critical for image-heavy
+-                // pages; see ImageHandler::decode_max_dim doc.
+-                let handler = match display_dim {
+-                    Some(d) => ImageHandler::with_max_dim(ImageType::Image, d),
+-                    None => ImageHandler::new(ImageType::Image),
++                // Normal mode uses the attribute hint to size the returned raster.
++                // Renderer mode keeps encoded bytes when header sniffing succeeds.
++                let handler = if self.doc.dims_only_images {
++                    ImageHandler::new_dims_only(ImageType::Image)
++                } else {
++                    match display_dim {
++                        Some(d) => ImageHandler::with_max_dim(ImageType::Image, d),
++                        None => ImageHandler::new(ImageType::Image),
++                    }
+                 };
+                 self.doc.net_provider.fetch(
+                     self.doc.id(),
+diff --git a/src/net.rs b/src/net.rs
+index f1b096c..0f42b4b 100644
+--- a/src/net.rs
++++ b/src/net.rs
+@@ -56,6 +56,15 @@ pub struct FontFaceOverrides {
+ #[derive(Clone, Debug)]
+ pub enum Resource {
+     Image(ImageType, u32, u32, Arc<Vec<u8>>),
++    /// Dims-only image load: width/height sniffed from
++    /// the container header, payload = original encoded bytes.
++    /// Used in renderer mode where paint happens out-of-isolate,
++    /// so we never materialise decoded RGBA here.
++    ///
++    /// Trailing u64 is the embedder-supplied resource key (0 = none),
++    /// and the payload is empty when the embedder kept it: see
++    /// `kitesurf_set_pending_image`.
++    EncodedImage(ImageType, u32, u32, Arc<Vec<u8>>, u64),
+     #[cfg(feature = "svg")]
+     Svg(ImageType, crate::node::SvgImageData),
+     Css(DocumentStyleSheet),
+@@ -569,45 +578,34 @@ impl NetHandler for ResourceHandler<DocumentSrcHandler> {
+
+ pub struct ImageHandler {
+     kind: ImageType,
+-    /// Cap on the longest decoded-RGBA8 dimension. When
+-    /// `Some(n)` and the decoded image exceeds `n` on either axis,
+-    /// we resize down (Lanczos3) before materialising the rgba8
+-    /// buffer. Set by `load_image` from the `<img width|height>`
+-    /// attrs.
+-    ///
+-    /// Why this exists: workerd's 128 MiB memory ceiling. Image-
+-    /// heavy pages (bbc.co.uk: 121 images per render) blow past
+-    /// it instantly when every decode allocates a full-res rgba8
+-    /// (~2 MB per 960×540 webp). Capping at the display size
+-    /// drops typical thumbnail footprint from ~2 MB to ~130 KB
+-    /// without any visible quality regression: the canvas
+-    /// rasteriser samples at display resolution anyway.
+-    ///
+-    /// `None` falls back to `DEFAULT_DECODE_MAX_DIM` (600 px on
+-    /// the longest side): enough for any single hero image while
+-    /// keeping the worst case bounded. Pages that need bigger
+-    /// images can set explicit width/height attrs.
++    /// Maximum dimension of the returned raster. The source image is fully
++    /// decoded before resizing, so this does not limit peak decoder memory.
++    /// `None` uses `DEFAULT_DECODE_MAX_DIM`.
+     decode_max_dim: Option<u32>,
++    /// When true, a readable header yields `Resource::EncodedImage` with the
++    /// original bytes and no pixel decode. An unreadable header falls back to
++    /// normal decoding; renderer mode decodes retained bytes in another isolate.
++    dims_only: bool,
+ }
+
+-/// Default cap on decoded-image longest dimension when
+-/// the `<img>` element carries no `width` / `height` attrs.
+-///
+-/// Sized for the workerd 128 MiB ceiling: 600 × 600 × 4 = 1.4 MB
+-/// rgba8 per image. BBC-class pages with ~120 images fit in
+-/// ~170 MB worst case, comfortably handled by the layout cascade
+-/// since pending images decode one-at-a-time through the fetch
+-/// concurrency cap (6 in-flight per workerd 6-fetch limit).
++/// Default maximum dimension of the returned raster when the `<img>` has no
++/// `width` or `height` attribute. At 600 × 600 × 4 bytes, one image can retain
++/// up to 1,440,000 bytes of RGBA8 data; this is not a page-wide memory budget.
+ const DEFAULT_DECODE_MAX_DIM: u32 = 600;
+
+ impl ImageHandler {
+     pub fn new(kind: ImageType) -> Self {
+-        Self { kind, decode_max_dim: None }
++        Self { kind, decode_max_dim: None, dims_only: false }
++    }
++
++    /// Dims-only handler for renderer mode. See the
++    /// `dims_only` field doc.
++    pub fn new_dims_only(kind: ImageType) -> Self {
++        Self { kind, decode_max_dim: None, dims_only: true }
+     }
+
+-    /// Build an ImageHandler with an explicit
+-    /// decoded-RGBA8 longest-side cap. Called from `load_image`
+-    /// when the `<img>` carries `width` / `height` attrs.
++    /// Set the maximum dimension of the returned raster. The source is fully
++    /// decoded before this cap is applied.
+     pub fn with_max_dim(kind: ImageType, max_dim: u32) -> Self {
+         // Clamp to a sane floor (16 px): pages occasionally set
+         // width="0" or width="1" placeholders to hide images, and
+@@ -616,6 +614,7 @@ impl ImageHandler {
+         Self {
+             kind,
+             decode_max_dim: Some(cap),
++            dims_only: false,
+         }
+     }
+ }
+@@ -627,23 +626,107 @@ impl NetHandler for ResourceHandler<ImageHandler> {
+     }
+ }
+
++thread_local! {
++    /// Resource key and, when the embedder sniffed them,
++    /// dimensions for the delivery currently being parsed. Set right
++    /// before handing bytes to a stashed handler; `parse` runs
++    /// synchronously inside that call, so a thread-local is enough and
++    /// no trait signature has to change.
++    static KITESURF_PENDING_IMAGE: std::cell::Cell<(u64, u32, u32)> =
++        const { std::cell::Cell::new((0, 0, 0)) };
++}
++
++/// Stage the key + dimensions the next dims-only image parse
++/// will adopt. A non-zero key means the embedder owns this resource's
++/// identity, which is what lets a consumer holding no bytes name it.
++/// Non-zero dimensions mean the payload is absent and these are
++/// authoritative: layout reads nothing else from an image.
++///
++/// Always clear it (0, 0, 0) after the delivery, so an unkeyed load
++/// cannot inherit a stale id or, worse, stale dimensions.
++pub fn kitesurf_set_pending_image(key: u64, width: u32, height: u32) {
++    KITESURF_PENDING_IMAGE.with(|k| k.set((key, width, height)));
++}
++
++fn kitesurf_take_pending_image() -> (u64, u32, u32) {
++    KITESURF_PENDING_IMAGE.with(|k| k.get())
++}
++
++const MAX_IMAGE_RGBA_BYTES: u64 = 128 * 1024 * 1024;
++// 16-bit RGBA sources need twice the RGBA8 policy budget during decode.
++const MAX_IMAGE_DECODE_BYTES: u64 = MAX_IMAGE_RGBA_BYTES * 2;
++
++pub(crate) fn decode_image_bounded(bytes: &[u8]) -> image::ImageResult<image::DynamicImage> {
++    decode_image_with_limits(bytes, MAX_IMAGE_DECODE_BYTES, MAX_IMAGE_RGBA_BYTES)
++}
++
++fn rgba_fits((width, height): (u32, u32), max_rgba_bytes: u64) -> bool {
++    u128::from(width) * u128::from(height) * 4 <= u128::from(max_rgba_bytes)
++}
++
++fn decode_image_with_limits(
++    bytes: &[u8],
++    max_decode_bytes: u64,
++    max_rgba_bytes: u64,
++) -> image::ImageResult<image::DynamicImage> {
++    let dimensions = image::ImageReader::new(Cursor::new(bytes))
++        .with_guessed_format()
++        .map_err(image::ImageError::IoError)?
++        .into_dimensions()?;
++    if !rgba_fits(dimensions, max_rgba_bytes) {
++        return Err(image::ImageError::Limits(
++            image::error::LimitError::from_kind(image::error::LimitErrorKind::InsufficientMemory),
++        ));
++    }
++
++    let mut limits = image::Limits::default();
++    limits.max_alloc = Some(max_decode_bytes);
++    let mut reader = image::ImageReader::new(Cursor::new(bytes))
++        .with_guessed_format()
++        .map_err(image::ImageError::IoError)?;
++    reader.limits(limits);
++    reader.decode()
++}
++
+ impl ImageHandler {
+     fn parse(&self, bytes: Bytes) -> Result<Resource, String> {
+-        let image_err = match image::ImageReader::new(Cursor::new(&bytes))
+-            .with_guessed_format()
+-            .expect("IO errors impossible with Cursor")
+-            .decode()
+-        {
++        // Renderer-mode fast path: header-only dimension
++        // sniff, retain the encoded container bytes for the out-of-
++        // isolate rasterizer. Falls through to the normal decode
++        // (and the SVG fallback) when the header can't be read.
++        if self.dims_only {
++            // Embedder-supplied dimensions: the payload is absent by
++            // design, so there is nothing to sniff and nothing to keep.
++            let (staged_key, staged_w, staged_h) = kitesurf_take_pending_image();
++            if staged_w > 0 && staged_h > 0 {
++                return Ok(Resource::EncodedImage(
++                    self.kind,
++                    staged_w,
++                    staged_h,
++                    Arc::new(Vec::new()),
++                    staged_key,
++                ));
++            }
++            if let Ok((w, h)) = image::ImageReader::new(Cursor::new(&bytes))
++                .with_guessed_format()
++                .expect("IO errors impossible with Cursor")
++                .into_dimensions()
++            {
++                if w > 0 && h > 0 {
++                    return Ok(Resource::EncodedImage(
++                        self.kind,
++                        w,
++                        h,
++                        Arc::new(bytes.to_vec()),
++                        staged_key,
++                    ));
++                }
++            }
++        }
++        let image_err = match decode_image_bounded(&bytes) {
+             Ok(image) => {
+-                // Downscale before rgba8 materialisation if
+-                // the decoded image exceeds the display-size cap. The
+-                // `image` crate's `resize` preserves aspect ratio and
+-                // we pick `FilterType::Triangle`; Lanczos3 produces
+-                // ~10% sharper output but adds ~3× wall-clock on a
+-                // 960×540 webp; on a 121-image page that's the
+-                // difference between 200 ms and 600 ms of decode CPU.
+-                // Triangle is fine for screenshots; we're not pixel-
+-                // peeping.
++                // The source image is already decoded. Resize before RGBA conversion to limit
++                // the dimensions and storage of the raster returned to the document.
+                 let cap = self.decode_max_dim.unwrap_or(DEFAULT_DECODE_MAX_DIM);
+                 let (w, h) = (image.width(), image.height());
+                 let scaled = if w > cap || h > cap {
+@@ -686,9 +769,45 @@ impl ImageHandler {
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++    use image::ImageEncoder;
+     use parley::fontique::FontStyle as Fq;
+     use style::values::specified::Angle;
+
++    fn rgba16_png() -> Vec<u8> {
++        let mut bytes = Vec::new();
++        image::codecs::png::PngEncoder::new(&mut bytes)
++            .write_image(&[0; 8], 1, 1, image::ExtendedColorType::Rgba16)
++            .unwrap();
++        bytes
++    }
++
++    #[test]
++    fn bounded_image_decode_limits_decoder_and_rgba_allocations() {
++        let bytes = rgba16_png();
++        let decoded = decode_image_with_limits(&bytes, 1024, 4).unwrap();
++        assert_eq!(decoded.color(), image::ColorType::Rgba16);
++
++        assert!(matches!(
++            decode_image_with_limits(&bytes, 4, 4),
++            Err(image::ImageError::Limits(_))
++        ));
++        assert!(matches!(
++            decode_image_with_limits(&bytes, 1024, 3),
++            Err(image::ImageError::Limits(_))
++        ));
++    }
++
++    #[test]
++    fn bounded_image_decode_budget_covers_32_megapixel_rgba16_sources() {
++        let dimensions = (8192, 4096);
++        assert!(rgba_fits(dimensions, MAX_IMAGE_RGBA_BYTES));
++        assert!(
++            MAX_IMAGE_DECODE_BYTES >= u64::from(dimensions.0) * u64::from(dimensions.1) * 8
++        );
++        assert!(!rgba_fits((8192, 4097), MAX_IMAGE_RGBA_BYTES));
++        assert!(!rgba_fits((u32::MAX, u32::MAX), MAX_IMAGE_RGBA_BYTES));
++    }
++
+     fn oblique(min_deg: f32, max_deg: f32) -> FontStyleRange {
+         FontStyleRange::Oblique(Angle::from_degrees(min_deg), Angle::from_degrees(max_deg))
+     }
+diff --git a/src/node/element.rs b/src/node/element.rs
+index c3452f2..c50f4bd 100644
+--- a/src/node/element.rs
++++ b/src/node/element.rs
+@@ -845,6 +845,11 @@ pub struct RasterImageData {
+     pub height: u32,
+     /// The raw image data in RGBA8 format
+     pub data: Blob<u8>,
++    /// When true, `data` holds the original encoded
++    /// container bytes (png/jpeg/gif/webp), not RGBA8: dims-only
++    /// renderer mode. Layout reads width/height only; paint-side
++    /// consumers must check this before touching pixels.
++    pub encoded: bool,
+ }
+ impl RasterImageData {
+     pub fn new(width: u32, height: u32, data: Arc<Vec<u8>>) -> Self {
+@@ -852,6 +857,27 @@ impl RasterImageData {
+             width,
+             height,
+             data: Blob::new(data),
++            encoded: false,
++        }
++    }
++
++    /// Dims-only entry: see the `encoded` field doc.
++    ///
++    /// `key` is the embedder-supplied resource id. Non-zero means the
++    /// embedder owns identity for these bytes, so it rides in the Blob
++    /// id rather than being derived from a content hash: the point
++    /// being that a consumer holding no bytes can still name the
++    /// resource. Zero keeps `Blob::new`'s counter id.
++    pub fn new_encoded(width: u32, height: u32, data: Arc<Vec<u8>>, key: u64) -> Self {
++        Self {
++            width,
++            height,
++            data: if key != 0 {
++                Blob::from_raw_parts(data, key)
++            } else {
++                Blob::new(data)
++            },
++            encoded: true,
+         }
+     }
+ }

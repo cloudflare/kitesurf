@@ -1,0 +1,65 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 16 Nov 2026 15:41:13 +0000
+Subject: [PATCH] Clear the previous layout child links before collecting
+
+The sweep that dropped stale layout_parent links ran after the collect, which had already linked
+the flattened inlines it consumes without listing them, so it cleared those too: the node then had
+no inline root ancestor and every geometry read answered an empty rect.
+---
+ src/resolve.rs | 26 +++++++++++---------------
+ 1 file changed, 11 insertions(+), 15 deletions(-)
+
+diff --git a/src/resolve.rs b/src/resolve.rs
+index f75bcb9..68f8b42 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -662,6 +662,13 @@ impl BaseDocument {
+                     doc.deallocate_anonymous_block(anon_id);
+                 }
+
++                // Child links are bare slot indexes, so a child that drops out of this list must
++                // not keep one to us: once our slot is reused, that index names the new
++                // occupant. Clear the previous links before collecting, which sets them again
++                // for the layout children and for the flattened inlines it links without
++                // listing.
++                BaseDocument::clear_previous_layout_parents(doc, node_id);
++
+                 let mut collected = LayoutChildren::default();
+                 collect_layout_children(doc, node_id, &mut collected);
+                 let layout_children = collected.children;
+@@ -695,10 +702,6 @@ impl BaseDocument {
+                     }
+                 }
+
+-                // Child links are bare slot indexes, so a child that dropped out of this
+-                // list must not keep one to us: once our slot is reused, that index names
+-                // the new occupant. Clear the ones this pass did not re-collect.
+-                BaseDocument::clear_dropped_layout_parents(doc, node_id, &layout_children);
+                 doc.nodes[node_id].set_layout_children(Some(layout_children.clone()));
+
+                 damage.remove(CONSTRUCT_DESCENDENT | CONSTRUCT_FC | CONSTRUCT_BOX);
+@@ -728,19 +731,12 @@ impl BaseDocument {
+         }
+     }
+
+-    /// Clear `layout_parent` on the children `node_id`'s rebuild dropped from its layout
+-    /// child list.
+-    fn clear_dropped_layout_parents(
+-        doc: &mut BaseDocument,
+-        node_id: NodeId,
+-        layout_children: &ThinVec<NodeId>,
+-    ) {
+-        let kept: HashSet<NodeId> = layout_children.iter().copied().collect();
++    /// Clear `layout_parent` on the children of the previous layout pass, before this pass links
++    /// the ones it keeps. A link is a bare slot index, so one left behind names the next occupant
++    /// of our slot.
++    fn clear_previous_layout_parents(doc: &mut BaseDocument, node_id: NodeId) {
+         let previous = doc.nodes[node_id].take_layout_children();
+         for child_id in previous.unwrap_or_default() {
+-            if kept.contains(&child_id) {
+-                continue;
+-            }
+             if let Some(child) = doc.nodes.get_mut(child_id) {
+                 if child.layout_parent_id() == Some(node_id) {
+                     child.set_layout_parent_id(None);

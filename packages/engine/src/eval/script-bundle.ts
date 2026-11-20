@@ -35,11 +35,20 @@ function countLines(s: string): number {
   return n;
 }
 
+// A line terminator in a script URL would end the `//` comment or directive it is placed in.
+function commentSafe(text: string): string {
+  return text.replace(/[\n\r\u2028\u2029]/g, (c) => encodeURI(c));
+}
+
 interface ClassicSegment {
   source: string;
   generatedLine: number;
   lineCount: number;
 }
+
+// A page-provided script with many newlines would otherwise allocate and encode a source map
+// line for each one before the page runs; above this many generated lines the map is omitted.
+const MAX_CLASSIC_SOURCE_MAP_LINES = 50_000;
 
 function buildClassicSourceMap(segments: ClassicSegment[], totalLines: number): string {
   if (segments.length === 0) return "";
@@ -82,6 +91,7 @@ function buildClassicSourceMap(segments: ClassicSegment[], totalLines: number): 
 export interface ScriptBundle {
   classicRegularSource: string | null;
   classicAsyncSource: string | null;
+  preNavSource: string | null;
   moduleScriptUrls: string[];
   additionalModules: Record<string, BakedModule>;
   importMapModuleSource: string;
@@ -115,28 +125,36 @@ function buildClassicSegment(
   d: ParentScriptDescriptor,
   index: number,
   opts: { currentScript?: boolean } = {},
-): { source: string; sourceLineOffset: number } {
-  const label = d.src ? d.src : `inline#${index}`;
+): { source: string; sourceLineOffset: number; lexicalNames: string[] } {
+  const label = commentSafe(d.src ? d.src : `inline#${index}`);
+  const currentScriptUrl = d.resolvedSrc ?? d.src ?? "";
+  const domIdx = typeof d.scriptDomIndex === "number" ? d.scriptDomIndex : -1;
+  const rawSrc = d.src ?? "";
+  const bracket = opts.currentScript !== false;
+  // Only parser-inserted external scripts get load or error here; inserted bakes
+  // (currentScript: false) get theirs from the insert path.
+  const lifecycle = (ok: boolean): string =>
+    !bracket || !d.src
+      ? ""
+      : `if (__ks_state_local.parserScriptLifecycle) { await __ks_state_local.parserScriptLifecycle(${domIdx}, ${JSON.stringify(rawSrc)}, ${JSON.stringify(currentScriptUrl)}, ${ok}); }\n`;
   if (d.blocked) {
     return {
-      source: `console.error(${JSON.stringify(d.blocked.message)});\n`,
+      source: `console.error(${JSON.stringify(d.blocked.message)});\n${lifecycle(false)}`,
       sourceLineOffset: 0,
+      lexicalNames: [],
     };
   }
   if (d.prefetchError) {
     return {
-      source: `console.error(${JSON.stringify(`[${label}] prefetch failed: ${d.prefetchError}`)});\n`,
+      source: `console.error(${JSON.stringify(`[${label}] prefetch failed: ${d.prefetchError}`)});\n${lifecycle(false)}`,
       sourceLineOffset: 0,
+      lexicalNames: [],
     };
   }
   const source = d.src ? (d.prefetchedSource ?? "") : (d.body ?? "");
-  if (!source.trim()) return { source: "", sourceLineOffset: 0 };
+  if (!source.trim()) return { source: lifecycle(true), sourceLineOffset: 0, lexicalNames: [] };
 
-  const currentScriptUrl = d.resolvedSrc ?? d.src ?? "";
-  const domIdx = typeof d.scriptDomIndex === "number" ? d.scriptDomIndex : -1;
   const bodyKey = !d.src ? (d.body || "").trim().slice(0, INLINE_SCRIPT_BODY_KEY_PREFIX_CHARS) : "";
-  const rawSrc = d.src ?? "";
-  const bracket = opts.currentScript !== false;
   const setCurrent = !bracket
     ? ""
     : `__ks_state_local.setCurrentScript(${JSON.stringify(currentScriptUrl)}, ${domIdx}, ${JSON.stringify(bodyKey)}, ${JSON.stringify(rawSrc)});
@@ -148,22 +166,71 @@ function buildClassicSegment(
   const scan = extractTopLevelDecls(source);
   const blockedNames = new Set(["module", "exports", "require"]);
   let bodySource = source;
-  if (scan.varSites.length > 0) {
-    const parts: string[] = [];
-    let last = 0;
-    for (const kwStart of scan.varSites) {
-      parts.push(bodySource.slice(last, kwStart), "   ");
-      last = kwStart + 3;
+  // Top-level let/const/class share one global lexical scope across scripts.
+  // https://html.spec.whatwg.org/multipage/webappapis.html#run-a-classic-script
+  type SourceEdit = { start: number; end: number; text: string };
+  const edits: SourceEdit[] = [];
+  for (const start of scan.varSites) edits.push({ start, end: start + 3, text: "   " });
+  // `var` is function-scoped, so a lexical declaration inside the segment's try block keeps
+  // the binding the wrapper shares with later scripts. A destructuring pattern stays valid.
+  for (const start of scan.lexicalSites) {
+    const length = source.startsWith("const", start) ? 5 : 3;
+    edits.push({ start, end: start + length, text: "var" + " ".repeat(length - 3) });
+  }
+  // `class Name {}` becomes `Name = class Name {};`. The trailing `;` stops a following
+  // `(` or `[` from calling or indexing the class expression.
+  for (let i = 0; i < scan.classSites.length; i++) {
+    const start = scan.classSites[i];
+    const end = scan.classEnds[i];
+    const name = scan.classNames[i];
+    if (start === undefined || end === undefined || name === undefined) continue;
+    edits.push({ start, end: start, text: `${name} = ` });
+    edits.push({ start: end, end, text: ";" });
+  }
+  // `function f` in the try block binds `f` in the block, so the script's own `f = ...` would
+  // miss the wrapper binding other scripts read. See the web browser steps of
+  // https://tc39.es/ecma262/#sec-functiondeclarationinstantiation
+  // Renamed, each declaration is still hoisted to the block start, where `f` is pointed at it.
+  const hoistedFunctions = new Map<string, string>();
+  const renamedFunctions: { name: string; internal: string }[] = [];
+  // A desynced scan can list a function that is not top-level, and the hoist line would
+  // then reference a name that is out of scope and throw before the script starts. Leave
+  // such a segment unrewritten; it keeps the pre-bundle behaviour instead.
+  if (!scan.unreliable) {
+    for (let i = 0; i < scan.functionNameSites.length; i++) {
+      const start = scan.functionNameSites[i];
+      const name = scan.functionNames[i];
+      if (start === undefined || name === undefined || blockedNames.has(name)) continue;
+      // One name per declaration: a strict block refuses two declarations of the same name.
+      const internal = `__ks_fn${i}_${name}`;
+      edits.push({ start, end: start + name.length, text: internal });
+      // The last declaration of a name is the one the script sees, as at the top level.
+      hoistedFunctions.set(name, internal);
+      renamedFunctions.push({ name, internal });
     }
-    parts.push(bodySource.slice(last));
-    bodySource = parts.join("");
+  }
+  const hoistFunctions =
+    [...hoistedFunctions].map(([name, internal]) => `${name} = ${internal}; `).join("") +
+    renamedFunctions
+      .map(
+        ({ name, internal }) =>
+          `__ks_define_property(${internal}, "name", { value: ${JSON.stringify(name)} }); ` +
+          `__ks_state_local.markRenamed(${internal}, ${JSON.stringify(internal)}, ${JSON.stringify(name)}); `,
+      )
+      .join("");
+  edits.sort((a, b) => b.start - a.start || b.end - a.end);
+  for (const edit of edits) {
+    bodySource = bodySource.slice(0, edit.start) + edit.text + bodySource.slice(edit.end);
   }
   const liveVarNames = scan.varNames.filter((n) => !blockedNames.has(n));
   const predeclareHead =
     liveVarNames.length === 0
       ? ""
-      : `// === ${label} (live-globalize top-level vars) ===\n${predeclareVarsHead(liveVarNames, "globalThis")}\n`;
+      : `// === ${label} (live-globalize top-level vars) ===\n${predeclareVarsHead(liveVarNames, "globalThis", true)}\n`;
   const liveVarSet = new Set(liveVarNames);
+  // Lexical names are hoisted for classic scripts and also copied to globalThis
+  // so module scripts can see them; the spec keeps them off the global object.
+  // https://html.spec.whatwg.org/multipage/webappapis.html#run-a-classic-script
   const topDecls = scan.names.filter((n) => !liveVarSet.has(n));
   let promoteTail = "";
   if (topDecls.length > 0) {
@@ -178,10 +245,30 @@ ${lines.join("\n")}
 `;
     }
   }
-  const prefix = `// === ${label} ===\n${predeclareHead}${setCurrent}`;
+  const prefix = `// === ${label} ===\n${predeclareHead}if (typeof globalThis.require !== "undefined") require = globalThis.require;\n${setCurrent}`;
+  // The catch has to report the failure the way a rejected bucket did, or a pageerror
+  // listener sees nothing for a script that threw.
+  const reportException = `try { if (__ks_state_local.pushException) __ks_state_local.pushException(__ks_segment_error, { scriptId: "bundle:classic-regular", url: ${JSON.stringify(label)} }); } catch {}`;
+  // Load still fires after the currentScript reset, as it did when the segment body ran
+  // unwrapped, and a throw does not change that: the spec fires `error` only when the
+  // fetch fails. https://html.spec.whatwg.org/multipage/scripting.html#execute-the-script-element
+  const lifecycleDynamic =
+    !bracket || !d.src
+      ? ""
+      : `if (__ks_state_local.parserScriptLifecycle) { await __ks_state_local.parserScriptLifecycle(${domIdx}, ${JSON.stringify(rawSrc)}, ${JSON.stringify(currentScriptUrl)}, true); }\n`;
+  // hoistFunctions stays on the `try {` line, so the body keeps its line numbers.
+  const segmentBody = `try { ${hoistFunctions}
+${bodySource}
+${promoteTail}} catch (__ks_segment_error) {
+  ${reportException}
+  console.error("classic script threw: " + String(__ks_segment_error && __ks_segment_error.message || __ks_segment_error));
+} finally {
+${clearCurrent}${lifecycleDynamic}}\n`;
   return {
-    source: `${prefix}${bodySource}\n${promoteTail}${clearCurrent}\n`,
-    sourceLineOffset: countLines(prefix),
+    source: `${prefix}${segmentBody}`,
+    sourceLineOffset: countLines(prefix) + 1,
+    // Function names join the hoisted bindings, since the block's first line assigns them.
+    lexicalNames: [...scan.lexicalNames, ...hoistedFunctions.keys()],
   };
 }
 
@@ -198,11 +285,16 @@ export function buildScriptBundle(
   options: BuildScriptBundleOptions = {},
 ): ScriptBundle {
   const cdpDebug = options.cdpDebug === true;
+  const preNav: ParentScriptDescriptor[] = [];
   const regularInline: ParentScriptDescriptor[] = [];
   const regularDeferred: ParentScriptDescriptor[] = [];
   const asyncBucket: ParentScriptDescriptor[] = [];
   const moduleBucket: ParentScriptDescriptor[] = [];
   for (const d of descriptors) {
+    if (d.injected) {
+      preNav.push(d);
+      continue;
+    }
     if (d.kind === "module") {
       moduleBucket.push(d);
       continue;
@@ -218,6 +310,8 @@ export function buildScriptBundle(
 
   const regularAcc = { parts: [] as string[], lines: 0 };
   const asyncAcc = { parts: [] as string[], lines: 0 };
+  const regularLexical = new Set<string>();
+  const asyncLexical = new Set<string>();
   const moduleScriptUrls: string[] = [];
   const additionalModules: Record<string, BakedModule> = {
     ...(options.additionalModules ?? {}),
@@ -257,6 +351,7 @@ export function buildScriptBundle(
     d.prefetchError || d.blocked ? "" : d.src ? (d.prefetchedSource ?? "") : (d.body ?? "");
   for (const d of regularInline) {
     const segment = buildClassicSegment(d, regularIdx);
+    for (const name of segment.lexicalNames) regularLexical.add(name);
     pushSegment(
       regularAcc,
       segment.source,
@@ -275,6 +370,7 @@ export function buildScriptBundle(
   }
   for (const d of regularDeferred) {
     const segment = buildClassicSegment(d, regularIdx);
+    for (const name of segment.lexicalNames) regularLexical.add(name);
     pushSegment(
       regularAcc,
       segment.source,
@@ -294,6 +390,7 @@ export function buildScriptBundle(
   let asyncIdx = 0;
   for (const d of asyncBucket) {
     const segment = buildClassicSegment(d, asyncIdx);
+    for (const name of segment.lexicalNames) asyncLexical.add(name);
     pushSegment(
       asyncAcc,
       segment.source,
@@ -304,6 +401,10 @@ export function buildScriptBundle(
     );
     asyncIdx++;
   }
+  // CDP addScriptToEvaluateOnNewDocument source is compiled into its own module so page
+  // classic code cannot read it through its enclosing function's source text.
+  let preNavBody = "";
+  for (const [i, d] of preNav.entries()) preNavBody += buildClassicSegment(d, i).source;
   for (const [mi, d] of moduleBucket.entries()) {
     if (d.blocked) {
       const errorUrl = `https://kitesurf-error.invalid/module-${mi}.js`;
@@ -334,12 +435,30 @@ export function buildScriptBundle(
     moduleScriptUrls.push(url);
   }
 
-  const regularBody = regularAcc.parts.join("");
-  const asyncBody = asyncAcc.parts.join("");
+  const regularLexicalDecl =
+    regularLexical.size > 0 ? `var ${[...regularLexical].join(", ")};\n` : "";
+  const asyncLexicalDecl = asyncLexical.size > 0 ? `var ${[...asyncLexical].join(", ")};\n` : "";
+  const regularBody = regularLexicalDecl + regularAcc.parts.join("");
+  const asyncBody = asyncLexicalDecl + asyncAcc.parts.join("");
+  // Runs the pre-navigation module before any page classic source in the same realm.
+  const preNavPrelude =
+    preNavBody.length > 0
+      ? 'await import("./__ks_user_pre_nav.js").then((m) => ((m.default && m.default.run) || m.run)());\n'
+      : "";
 
   const umdShadow = "var module=undefined,exports=undefined,require=undefined;\n";
-  const stateLocalDecl =
-    'var __ks_state_local = (await import("./internal-state.js")).getInternalState();\n';
+  // Taken before the first segment runs, so a page that replaces Object.defineProperty
+  // does not see the calls that restore function names.
+  const stateLocalDecl = `var __ks_define_property = Object.defineProperty;
+var __ks_state_local = ((state) => Object.freeze({
+  setCurrentScript: (...args) => state.setCurrentScript(...args),
+  get endClassicScript() { return state.endClassicScript; },
+  get parserScriptLifecycle() { return state.parserScriptLifecycle; },
+  get pushException() { return state.pushException; },
+  markRenamed: (...args) => { if (state.markRenamed) state.markRenamed(...args); },
+  set bundleDiag(value) { state.bundleDiag = value; },
+}))((await import("./internal-state.js")).getInternalState());
+`;
   const prodWrap = (body: string, strict = false): string =>
     `module.exports.run = async function () {
 ${strict ? '"use strict"; ' : ""}${stateLocalDecl}${umdShadow}${body}
@@ -405,31 +524,47 @@ __ks_diag.exited = true;
     body: string,
     bundleUrl: string,
     segments: ClassicSegment[],
+    bodyLineOffset = 0,
   ): { source: string; sourceMapURL: string } => {
     const wrapped = wrap(body);
     const shifted = segments.map((s) => ({
       ...s,
-      generatedLine: s.generatedLine + wrapHeaderLines,
+      generatedLine: s.generatedLine + wrapHeaderLines + bodyLineOffset,
     }));
     const totalLines = countLines(wrapped) + 1;
-    const sourceMapURL = buildClassicSourceMap(shifted, totalLines);
+    const sourceMapURL =
+      totalLines <= MAX_CLASSIC_SOURCE_MAP_LINES ? buildClassicSourceMap(shifted, totalLines) : "";
     const directives =
       `\n//# sourceURL=${bundleUrl}\n` +
       (sourceMapURL ? `//# sourceMappingURL=${sourceMapURL}\n` : "");
     return { source: wrapped + directives, sourceMapURL };
   };
 
+  let preNavSource: string | null = null;
+  if (preNavBody.length > 0) {
+    preNavSource = finalize(preNavBody, "/__ks_user_pre_nav.js", []).source;
+  }
   let classicRegularSource: string | null = null;
   let classicRegularSourceMapURL = "";
-  if (regularBody.length > 0) {
-    const r = finalize(regularBody, "/__ks_user_classic_regular.js", regularSegMeta);
+  if (regularBody.length > 0 || preNavBody.length > 0) {
+    const r = finalize(
+      preNavPrelude + regularBody,
+      "/__ks_user_classic_regular.js",
+      regularSegMeta,
+      countLines(preNavPrelude) + countLines(regularLexicalDecl),
+    );
     classicRegularSource = r.source;
     classicRegularSourceMapURL = r.sourceMapURL;
   }
   let classicAsyncSource: string | null = null;
   let classicAsyncSourceMapURL = "";
   if (asyncBody.length > 0) {
-    const r = finalize(asyncBody, "/__ks_user_classic_async.js", asyncSegMeta);
+    const r = finalize(
+      asyncBody,
+      "/__ks_user_classic_async.js",
+      asyncSegMeta,
+      countLines(asyncLexicalDecl),
+    );
     classicAsyncSource = r.source;
     classicAsyncSourceMapURL = r.sourceMapURL;
   }
@@ -442,11 +577,14 @@ __ks_diag.exited = true;
     const digest = url ? options.insertedDigests?.get(url) : undefined;
     if (typeof source !== "string" || !source.trim() || !url || !digest) continue;
     const module = `__ks_inserted_${i}.js`;
+    const segment = buildClassicSegment(d, i, { currentScript: false });
+    const lexicalDecl =
+      segment.lexicalNames.length > 0
+        ? `var ${[...new Set(segment.lexicalNames)].join(", ")};\n`
+        : "";
     insertedModules[module] =
-      prodWrap(
-        buildClassicSegment(d, i, { currentScript: false }).source,
-        hasUseStrictDirective(source),
-      ) + `\n//# sourceURL=${url}\n`;
+      prodWrap(lexicalDecl + segment.source, hasUseStrictDirective(source)) +
+      `\n//# sourceURL=${commentSafe(url)}\n`;
     insertedManifest.push({ url, module, digest });
   }
 
@@ -455,6 +593,7 @@ __ks_diag.exited = true;
     insertedManifest,
     classicRegularSource,
     classicAsyncSource,
+    preNavSource,
     moduleScriptUrls,
     additionalModules,
     importMapModuleSource: options.importMapModuleSource ?? FALLBACK_MODULE_RESOLVER_SOURCE,

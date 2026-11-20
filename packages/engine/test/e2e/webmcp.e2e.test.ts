@@ -770,3 +770,36 @@ test("registerTool rejects duplicates, empty fields and bad names", async ({ pag
     })`),
   ).toBe("object");
 }, 120_000);
+
+// A control named "elements" overrides form.elements for page code only; the tool still sees
+// every control, for its schema and when an agent fills it.
+test("a declarative tool form with a control named elements keeps its schema", async ({
+  page,
+  cdpSession,
+}) => {
+  const j = journal(cdpSession);
+  await cdpSession.send("WebMCP.enable");
+  const doc = new URL(`${ORIGIN}/__fixtures/policy-doc.html`);
+  doc.searchParams.set(
+    "body",
+    `<form toolname="lookup" tooldescription="Look up an item" onsubmit="event.preventDefault()">` +
+      `<input name="q" required><input name="elements"><button>go</button></form>`,
+  );
+  await page.goto(doc.toString(), { waitUntil: "load" });
+  await expect.poll(() => namesOf(j.added), { timeout: 15_000 }).toEqual(["lookup"]);
+  const tool = j.added.flatMap((event) => event.tools).find(({ name }) => name === "lookup")!;
+  expect(Object.keys(tool.inputSchema?.properties ?? {}).sort()).toEqual(["elements", "q"]);
+  await cdpSession.send("WebMCP.invokeTool", {
+    frameId: tool.frameId,
+    toolName: "lookup",
+    input: { q: "hat", elements: "two" },
+  });
+  await expect
+    .poll(
+      () => page.evaluate(() => (document.querySelector("[name=q]") as HTMLInputElement).value),
+      {
+        timeout: 10_000,
+      },
+    )
+    .toBe("hat");
+}, 60_000);

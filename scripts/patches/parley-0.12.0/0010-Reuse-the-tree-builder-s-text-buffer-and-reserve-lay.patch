@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 5 Nov 2026 01:50:08 +0000
+Subject: [PATCH] Reuse the tree builder's text buffer and reserve layout runs
+ and items
+
+Taking the text made every build regrow it by doubling; the layout keeps the text for the
+paragraph's life, so hand out an exact copy and clear the buffer.
+
+Each shaped run makes one run and one item and each inline box one item, so reserve the
+vectors up front instead of growing them by doubling only to shrink them at the end of the
+build.
+---
+ src/resolve/tree.rs | 6 +++++-
+ src/shape/mod.rs    | 7 ++++++-
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/src/resolve/tree.rs b/src/resolve/tree.rs
+index 68c7551..6594f48 100644
+--- a/src/resolve/tree.rs
++++ b/src/resolve/tree.rs
+@@ -344,7 +344,11 @@ impl<B: Brush> TreeStyleBuilder<B> {
+             });
+         }
+
+-        core::mem::take(&mut self.text)
++        // An exact copy, keeping the buffer for the next paragraph: taking it made every build
++        // regrow its text by doubling, and the layout keeps the text for the paragraph's life.
++        let text = String::from(self.text.as_str());
++        self.text.clear();
++        text
+     }
+ }
+
+diff --git a/src/shape/mod.rs b/src/shape/mod.rs
+index 060a32d..89d2cd8 100644
+--- a/src/shape/mod.rs
++++ b/src/shape/mod.rs
+@@ -195,7 +195,12 @@ pub(crate) fn shape_text<'a, B: Brush>(
+         .map(|b| &b.inline_box)
+         .enumerate()
+         .peekable();
+-    for shaped_run_idx in 0..layout.data.shaped_text.runs().len() {
++    // Each shaped run makes one run and one item, and each inline box one item: reserve them
++    // so the layout's vectors do not grow by doubling and then shrink at the end of the build.
++    let shaped_runs = layout.data.shaped_text.runs().len();
++    layout.data.runs.reserve(shaped_runs);
++    layout.data.items.reserve(shaped_runs + inline_boxes.len());
++    for shaped_run_idx in 0..shaped_runs {
+         let shaped_run = &layout.data.shaped_text.runs()[shaped_run_idx];
+         let run_text_byte_start = shaped_run.range.byte_range.start;
+         let run_style_index = char_style_indices[shaped_run.range.char_range.start];

@@ -62,6 +62,16 @@ export interface KitesurfInternalState {
   currentScriptBodyKey?: string | undefined;
 
   endClassicScript: (() => Promise<void>) | null;
+  // Reports a caught script error to the Runtime.exceptionThrown buffer. The classic bundle
+  // catches per script, so this is the only signal a pageerror listener gets.
+  pushException:
+    | ((err: unknown, opts: { scriptId: string; url: string; text?: string }) => void)
+    | null;
+  // Fires load (ok) or error at a parser-inserted external classic script. domIndex is its
+  // ordinal among the document's <script> elements; rawSrc and src check the match.
+  parserScriptLifecycle:
+    | ((domIndex: number, rawSrc: string, src: string, ok: boolean) => Promise<void>)
+    | null;
 
   bundleDiag: BundleDiag | null;
 
@@ -76,8 +86,7 @@ export interface KitesurfInternalState {
 
   markNative: ((fn: unknown, name: string) => void) | null;
 
-  // A duplicated RPC callback owned and cleared by the retained session.
-  upstreamSender: UpstreamSender | null;
+  markRenamed: ((fn: unknown, internal: string, name: string) => void) | null;
 
   viewportW: number;
   viewportH: number;
@@ -112,9 +121,11 @@ export function notePaintWake(): void {
   sendUpstreamEvent({ event: "kitesurf.paintDirty", params: {} });
 }
 
+// No prototype: page script can put a setter on Object.prototype, and a write to a field that
+// is not an own property yet would call it with this record as its receiver.
 export function createInternalState(): KitesurfInternalState {
   let mutationSeq = 0;
-  return {
+  const state: KitesurfInternalState = {
     attrSeq: 0,
     childSeq: 0,
     treeSeq: 0,
@@ -141,6 +152,8 @@ export function createInternalState(): KitesurfInternalState {
     setCurrentScript: null,
     currentScriptSrc: undefined,
     endClassicScript: null,
+    pushException: null,
+    parserScriptLifecycle: null,
     bundleDiag: null,
     afterIframeInsert: null,
     afterIframeRemove: null,
@@ -148,17 +161,22 @@ export function createInternalState(): KitesurfInternalState {
     afterIframeSrcChange: null,
     navigateIframe: null,
     markNative: null,
-    upstreamSender: null,
+    markRenamed: null,
     viewportW: DEFAULT_VIEWPORT_WIDTH_PX,
     viewportH: DEFAULT_VIEWPORT_HEIGHT_PX,
     dispatchingUserEvent: false,
     pendingSubmitNav: null,
     frameContext: null,
   };
+  return Object.setPrototypeOf(state, null);
 }
 
+// A duplicated RPC callback owned and cleared by the retained session. Module-private: the
+// shared state record is reachable from page source scope, so it must not hold the sender.
+let upstreamSender: UpstreamSender | null = null;
+
 export function sendUpstreamEvent(message: UpstreamMessage): void {
-  const sender = _state.upstreamSender;
+  const sender = upstreamSender;
   if (!sender) return;
   try {
     sender(message);
@@ -168,14 +186,105 @@ export function sendUpstreamEvent(message: UpstreamMessage): void {
 }
 
 export function registerUpstreamSender(sender: UpstreamSender): void {
-  _state.upstreamSender = sender;
+  upstreamSender = sender;
 }
 
 export function clearUpstreamSender(): void {
-  _state.upstreamSender = null;
+  upstreamSender = null;
 }
 
 const _state: KitesurfInternalState = createInternalState();
+
+// The hooks dom-shim, page-script and the wasm core call each other through. Declared beside the
+// record so both packages type it the same way without importing each other; dom-shim objects are
+// `object` here for the same reason as BundleDiag's `unknown`. All optional: each side installs
+// its hooks when it loads, and a bare WPT harness never installs page-script's.
+export interface KitesurfInternals {
+  // Installed by page-script for dom-shim. True while a CDP client has the DOM domain enabled;
+  // record.ts and element.ts then queue DOM.* mutation events.
+  cdpDomActive?: boolean;
+  // Terminal cell size in CSS px, set for TTY targets so wheel scrolls move by whole cells.
+  ttyCellWidth?: number;
+  ttyCellHeight?: number;
+  // Trace parent of the current RPC (the `tp` envelope field).
+  traceParent?: string;
+  // The highest parent clock sample, in epoch ms. Date.now() can freeze within a turn, so
+  // animation time floors to this; the wasm core reads it too.
+  clockFloorMs?: number;
+  // The running animation frame's timestamp, in epoch ms, until the frame's task ends.
+  // Document timelines read it so they agree with the rAF callbacks' timestamp.
+  animationFrameTimeMs?: number;
+  jsSpanEnter?: (op: string, bytes: number, detail: string) => number;
+  jsSpanExit?: (slot: number) => void;
+  // In lazy font mode, upgrades to the full fonts so text shaped outside layout (canvas, SVG)
+  // gets outlines. Null when nothing is pending.
+  demandFontOutlines?: () => Promise<void> | null;
+  // document.fonts.ready and .status read these.
+  fontsReady?: () => Promise<void>;
+  fontsInflightCount?: () => number;
+  // Registers deferred fonts for canvas measureText. False while bytes are still in flight.
+  demandDeferredFonts?: () => boolean;
+  // Custom-element registry hooks; page-script owns the registry.
+  notifyConnected?: (root: object) => void;
+  upgradeCustomElement?: (element: object, tagName: string) => void;
+  customElementObservesAttribute?: (element: object, name: string) => boolean;
+  notifyCustomElementAttributeChanged?: (
+    element: object,
+    name: string,
+    oldValue: string | null,
+    newValue: string | null,
+    namespace: string | null,
+  ) => void;
+
+  // Installed by dom-shim for page-script. createElementNoUpgrade mints a wrapper with no
+  // custom-element upgrade, for page-script's HTMLElement constructor.
+  createElementNoUpgrade?: (tag: string) => unknown;
+  // The form behind a form's page-facing proxy, whose members no named control overrides.
+  formBehindProxy?: <T extends object>(form: T) => T;
+  scrollByWheel?: (hitNodeId: number, dx: number, dy: number) => boolean;
+  toggleSelectDropdown?: (select: unknown) => boolean;
+
+  // Installed by page-script for the wasm core (core/src/js/internals.rs). Close a small V8
+  // function over a boa trampoline shim and its pin handle(s), so a crossing costs no closure.
+  wrapBoaFunction?: (call: Function, construct: Function, handle: number) => Function;
+  // The wrapper forwards its own `this` as the trampoline's fourth argument.
+  wrapBoaMethod?: (call: Function, fnHandle: number, receiverHandle: number) => Function;
+  // A baked module's V8 namespace, so boa reuses it instead of fetching. A JSON request only
+  // resolves a record the navigate baked as JSON; anything else falls through to the gate.
+  nativeImport?: (url: unknown, type?: unknown) => Promise<unknown>;
+  // A module body for boa's fetch-and-interpret path, through the script gate. Source text is
+  // parsed by boa; a JSON module's namespace is wrapped as a synthetic module, so the page realm
+  // parses its data and boa never holds it as an object graph. The referrer is the importing
+  // module's URL, or the page's for an entry import.
+  fetchModuleSource?: (
+    url: unknown,
+    referrer?: unknown,
+    type?: unknown,
+  ) => Promise<string | object>;
+  // Run due page timers while boa awaits; returns how many ran. Installed read-only.
+  readonly pumpDueTimers?: (deadlineMs?: number) => number;
+  // Ms until the next page timer is due, or Infinity.
+  readonly nextTimerDelay?: () => number;
+
+  // Set by tests, benches and the memprof build. domDebug is the live DomHandle, for e2e tests
+  // that inspect wasm state directly; canvasPushMs overrides the canvas push backstop, in ms.
+  domDebug?: unknown;
+  canvasPushMs?: unknown;
+  // Installed by the memprof recorder banner.
+  memprofImports?: object;
+  memprofDump?: () => string;
+  memprofReset?: () => void;
+}
+
+// The one KitesurfInternals record, with no prototype, so a missing hook reads as undefined. The
+// wasm and the e2e tests have no import, so it is also on globalThis under a registered symbol:
+// non-enumerable and non-writable. Its fields stay writable for the tests that stub a hook.
+const ksInternals: KitesurfInternals = Object.create(null);
+Object.defineProperty(globalThis, Symbol.for("kitesurf.internals"), { value: ksInternals });
+
+export function getInternals(): KitesurfInternals {
+  return ksInternals;
+}
 
 export function getInternalState(): KitesurfInternalState {
   return _state;

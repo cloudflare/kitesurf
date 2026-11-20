@@ -5,13 +5,17 @@
 // Judge the merged public WPT buckets against expectations and optional retry draws.
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { RETRY_CAP, betterFirst, readRetryManifest } from "./wpt-draws.mjs";
 import { isMain } from "./wpt-shared.mjs";
 
 const USAGE = `usage: node scripts/wpt-gate.mjs --results <merged.json> [--retries <manifest.json>] [--junit <file>]
        node scripts/wpt-gate.mjs --results <merged.json> --retry-candidates <out.json>`;
 const RETRIED = new Set(["TIMEOUT", "CRASH", "ERROR"]);
+// A timing-sensitive test can fail under a bucket's load and pass alone, so a PASS that turns
+// into a FAIL gets fresh draws too. Order-dependent failures pass alone and read as flakes.
+const retried = (entry) =>
+  RETRIED.has(entry.outcome) || (entry.expected === "PASS" && entry.outcome === "FAIL");
 const xml = (value) =>
   String(value).replace(
     /[<>&\"']/g,
@@ -46,10 +50,10 @@ export function deviations(byFile) {
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
 }
 
-/** @param {Record<string, {outcome: string, unexpected: boolean}>} byFile @param {number} [cap] @returns {{tests: string[], mass?: number}} */
+/** @param {Record<string, {outcome: string, expected?: string, unexpected: boolean}>} byFile @param {number} [cap] @returns {{tests: string[], mass?: number}} */
 export function retryCandidates(byFile, cap = RETRY_CAP) {
   const tests = deviations(byFile)
-    .filter(([, entry]) => RETRIED.has(entry.outcome))
+    .filter(([, entry]) => retried(entry))
     .map(([test]) => test);
   return tests.length > cap ? { tests: [], mass: tests.length } : { tests };
 }
@@ -59,7 +63,7 @@ export function applyRetries(byFile, draws, cap = RETRY_CAP) {
   const { tests, mass } = retryCandidates(byFile, cap);
   const output = { ...byFile };
   const notes = mass
-    ? [`${mass} unexpected TIMEOUT/CRASH/ERROR exceed WPT_COMPARE_RETRY_CAP=${cap}: retry disabled`]
+    ? [`${mass} retry candidates exceed WPT_COMPARE_RETRY_CAP=${cap}: retry disabled`]
     : [];
   for (const test of tests) {
     const entry = byFile[test];
@@ -86,6 +90,98 @@ export function applyRetries(byFile, draws, cap = RETRY_CAP) {
     );
   }
   return { byFile: output, notes };
+}
+
+const SUMMARY_ROWS = 50;
+const ANNOTATIONS = 10;
+const subtests = (entry) => (entry.subTotal ? `${entry.subPass}/${entry.subTotal}` : "");
+const cell = (value) => String(value).replace(/[\\|]/g, "\\$&");
+const totalsLine = (s) =>
+  `${s.total} tests: ${s.expected} as expected, ${s.unexpectedFail} unexpected fail, ${s.unexpectedPass} unexpected pass`;
+
+/** @param {Record<string, object>} byFile @param {string[]} notes @returns {string} */
+export function markdownSummary(byFile, notes) {
+  const devs = deviations(byFile);
+  const retried = Object.entries(byFile)
+    .filter(([, entry]) => entry.retried)
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+  const table = (header, rows) => {
+    const shown = rows.slice(0, SUMMARY_ROWS);
+    const more = rows.length - shown.length;
+    return [header, ...shown, ...(more > 0 ? [`\n…and ${more} more; see the job log.`] : [])];
+  };
+  const lines = [
+    `## WPT expectations gate: ${devs.length ? "failed" : "passed"}`,
+    "",
+    totalsLine(summarize(byFile)) + ".",
+  ];
+  if (devs.length) {
+    lines.push("", `### Unexpected results (${devs.length})`, "");
+    lines.push(
+      ...table(
+        "| Test | Expected | Got | Subtests |\n| --- | --- | --- | --- |",
+        devs.map(
+          ([test, e]) =>
+            `| \`${cell(test)}\` | ${e.expected} | ${e.outcome} | ${subtests(e) || "–"} |`,
+        ),
+      ),
+      "",
+      "Rebaseline deliberate changes with `bazel run //tests/wpt:update_expectations`.",
+    );
+  }
+  if (retried.length) {
+    lines.push("", `### Retried (${retried.length})`, "");
+    lines.push(
+      ...table(
+        "| Test | First run | Draws | Gated as |\n| --- | --- | --- | --- |",
+        retried.map(
+          ([test, e]) =>
+            `| \`${cell(test)}\` | ${e.retried} | ${cell(e.retryDraws.join(", "))} | ${e.unexpected ? e.outcome : "flake"} |`,
+        ),
+      ),
+    );
+  }
+  const other = notes.filter((note) => !/: retry passed;|: no draw matched /.test(note));
+  if (other.length) lines.push("", ...other.map((note) => `- ${cell(note)}`));
+  return lines.join("\n") + "\n";
+}
+
+// GitHub workflow commands: an error per unexpected result and a warning per flake, each capped
+// at the 10 annotations GitHub shows for one step.
+/** @param {Record<string, object>} byFile @returns {string} */
+export function annotations(byFile) {
+  const data = (value) =>
+    String(value).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+  const property = (value) => data(value).replace(/:/g, "%3A").replace(/,/g, "%2C");
+  const command = (kind, title, message) => `::${kind} title=${property(title)}::${data(message)}`;
+  const devs = deviations(byFile);
+  const flakes = Object.entries(byFile)
+    .filter(([, entry]) => entry.retried && !entry.unexpected)
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+  const shownDevs = devs.length > ANNOTATIONS ? ANNOTATIONS - 1 : devs.length;
+  const lines = [
+    ...devs
+      .slice(0, shownDevs)
+      .map(([test, e]) =>
+        command(
+          "error",
+          `WPT ${e.expected} → ${e.outcome}`,
+          `${test}${subtests(e) ? ` (${subtests(e)} subtests)` : ""}`,
+        ),
+      ),
+    ...flakes
+      .slice(0, ANNOTATIONS)
+      .map(([test, e]) =>
+        command(
+          "warning",
+          `WPT flake: ${e.retried}`,
+          `${test} (retry draws: ${e.retryDraws.join(", ")})`,
+        ),
+      ),
+  ];
+  if (shownDevs < devs.length)
+    lines.push(command("error", "WPT", `${devs.length - shownDevs} more unexpected results`));
+  return lines.length ? lines.join("\n") + "\n" : "";
 }
 
 function summarize(byFile) {
@@ -127,21 +223,27 @@ function main(argv) {
     );
     return;
   }
+  /** @type {string[]} */
+  let notes = [];
   if (options.retries) {
     const retried = applyRetries(byFile, readRetryManifest(resolve(options.retries)));
     byFile = retried.byFile;
-    for (const note of retried.notes) console.log(`  ${note}`);
+    notes = retried.notes;
+    for (const note of notes) console.log(`  ${note}`);
   }
   if (options.junit) writeFileSync(options.junit, junit(byFile));
+  // scripts/wpt-ci.sh shows these in the GitHub job summary and annotations.
+  const outputs = process.env.TEST_UNDECLARED_OUTPUTS_DIR;
+  if (outputs) {
+    writeFileSync(join(outputs, "summary.md"), markdownSummary(byFile, notes));
+    writeFileSync(join(outputs, "annotations.txt"), annotations(byFile));
+  }
   const devs = deviations(byFile);
   for (const [test, entry] of devs)
     console.log(
       `  ${entry.expected} → ${entry.outcome}${entry.subTotal ? `  ${entry.subPass}/${entry.subTotal}` : ""}  ${test}`,
     );
-  const summary = summarize(byFile);
-  console.log(
-    `[wpt-gate] ${summary.total} tests: ${summary.expected} as expected, ${summary.unexpectedFail} unexpected fail, ${summary.unexpectedPass} unexpected pass`,
-  );
+  console.log(`[wpt-gate] ${totalsLine(summarize(byFile))}`);
   if (devs.length)
     console.log(
       "[wpt-gate] rebaseline deliberate changes with: bazel run //tests/wpt:update_expectations",

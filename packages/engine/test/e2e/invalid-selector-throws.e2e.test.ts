@@ -40,3 +40,25 @@ test("querySelector throws SyntaxError on invalid pseudo constructs", async ({
     plain: "ok",
   });
 }, 120_000);
+
+test("querySelectorAll returns an empty NodeList for a valid pseudo-element", async ({
+  cdpSession: cdp,
+}) => {
+  const r = (await cdp.send("Runtime.evaluate", {
+    expression: `(() => {
+      const shape = (list) => ({
+        isNodeList: list instanceof NodeList,
+        isArray: Array.isArray(list),
+        length: list.length,
+      });
+      return JSON.stringify({
+        document: shape(document.querySelectorAll("::before")),
+        element: shape(document.documentElement.querySelectorAll("div::after")),
+      });
+    })()`,
+    returnByValue: true,
+  })) as EvalResult;
+  expect(r.exceptionDetails).toBeFalsy();
+  const empty = { isNodeList: true, isArray: false, length: 0 };
+  expect(JSON.parse(String(r.result?.value))).toEqual({ document: empty, element: empty });
+}, 120_000);

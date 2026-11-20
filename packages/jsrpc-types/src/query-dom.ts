@@ -7,6 +7,7 @@
 import type { Protocol } from "devtools-protocol";
 
 // Each nested gauge group comes from one producer and is null when unavailable.
+
 export interface PageScriptGauges {
   bridge?: {
     v8Pins: number;
@@ -44,6 +45,55 @@ export interface PageScriptGauges {
     ccDeadReads: number;
     ccLastMs: number;
     ccSkipped: number;
+    /** What compiled code retains, in bytes by form (vendored boa ks_code_stats). Shared
+     * strings and scopes are not counted; blocksRun is blocks whose bytecode expanded. */
+    boaCode: {
+      blocks: number;
+      blocksRun: number;
+      sourceTexts: number;
+      sourceBytes: number;
+      /** Source texts boa's code store holds instead of wasm memory, toString reads of
+       * them, and store reads that failed (toString then says "[native code]"). */
+      sourceSwappedTexts: number;
+      sourceSwappedBytes: number;
+      sourceReads: number;
+      storeFailures: number;
+      /** Blocks whose packed bytecode is in the code store, its bytes, first runs that read
+       * it back, executable bytes a forced round dropped, and blocks it still could. */
+      swappedBlocks: number;
+      swappedBytes: number;
+      bytecodeReads: number;
+      flushes: number;
+      flushableBlocks: number;
+      forcedRounds: number;
+      packedBytes: number;
+      expandedBytes: number;
+      icBytes: number;
+      sourceMapBytes: number;
+      otherBytes: number;
+      /** Blocks whose body is in the code store, bodies read back, records written (one per
+       * block, nested ones too) and their bytes, and subtrees left resident (vendored ks_body). */
+      bodiesSwapped: number;
+      bodyFaults: number;
+      bodyRecords: number;
+      bodyRecordBytes: number;
+      bodySkips: number;
+    };
+    /** The wasm allocator's swap trigger (core swap_alloc.rs): live bytes, the budget past
+     * which an allocation forces a swap round (-1 when off), and what those rounds did. */
+    swapAlloc: {
+      liveBytes: number;
+      budgetBytes: number;
+      rounds: number;
+      rescued: number;
+      freedBytes: number;
+      failedAllocs: number;
+      /** The worst moment this isolate had: wasm pages are one-way, so the high-water is what
+       * it is charged for from then on, however much it frees later. */
+      peakLiveBytes: number;
+      /** Wasm linear memory right now, which is what the platform charges. */
+      wasmBytes: number;
+    };
   } | null;
   domFastpath?: {
     fastHits: number;
@@ -56,11 +106,19 @@ export interface PageScriptGauges {
   domNodes?: number | null;
   wrappers?: Record<string, number> | null;
   paint?: { prepares: number } | null;
+  // Layout resolves since the document was built. An animation-only resolve
+  // re-cascades every running animation, so a fast climb on an idle page
+  // means some poller keeps asking.
+  layout?: { mutationResolves: number; animationResolves: number } | null;
   intersectionObserver?: {
     free: number;
     forced: number;
     skipped: number;
   } | null;
+  /**
+   * Page timer wheel (page-tasks.ts timerWheelStats); armed-but-overdue means every page timer
+   * is frozen. `shim` is the defer-shim's real-timer accounting underneath it.
+   */
   timerWheel?: {
     entries: number;
     armed: boolean;
@@ -139,17 +197,48 @@ export interface FormStateSnapshot {
   selected?: Array<[number, boolean]>;
 }
 
+export interface SubtreeBudgetError {
+  nodes: number;
+  /** Lower bound that already exceeds budget. */
+  atLeastBytes: number;
+  /** The walk stopped at the budget, so `nodes` is a lower bound too. */
+  nodesAtLeast: boolean;
+  budget: number;
+}
+
+/** The accessibility tree exceeded the reply budget before it was serialized. */
+export interface AccessibilityBudgetError {
+  nodes: number;
+  bytes: number;
+  budget: number;
+}
+
 /** Typed wire operations multiplexed over the retained PageScript session.
  * Node IDs and object handles expire with that generation; read stamps expose snapshot mutations.
  */
 export interface QueryDomMethods {
+  // CDP `depth` (-1 for all) and `pierce`; without them the whole tree, shadow roots included.
   getDocument: {
-    args: ReadStampArgs;
-    result: Partial<Protocol.DOM.GetDocumentResponse> & { readStamp?: ReadStamp };
+    args: ReadStampArgs & SubtreeArgs;
+    result: Partial<Protocol.DOM.GetDocumentResponse> & {
+      readStamp?: ReadStamp;
+      budgetError?: SubtreeBudgetError;
+    };
   };
+  // The node with its children to `depth`, as CDP describes nodes; without it, the whole subtree.
   nodeSubtree: {
-    args: { nodeId: number };
-    result: { node?: Protocol.DOM.Node | null };
+    args: { nodeId: number } & SubtreeArgs;
+    result: { node?: Protocol.DOM.Node | null; budgetError?: SubtreeBudgetError };
+  };
+  // Every ancestor of `nodeIds`, the document included, each once and after its own ancestors.
+  nodeAncestors: {
+    args: { nodeIds: number[] };
+    result: { ancestorIds: number[] };
+  };
+  // The children of each of `nodeIds`, described to `depth`; a missing node is left out.
+  childNodeLists: {
+    args: { nodeIds: number[] } & SubtreeArgs;
+    result: { lists: Array<{ parentId: number; nodes: Protocol.DOM.Node[] }> };
   };
   querySelector: {
     args: { selector: string };
@@ -160,12 +249,16 @@ export interface QueryDomMethods {
     result: Partial<Protocol.DOM.QuerySelectorAllResponse> & { error?: string };
   };
   getOuterHTML: {
-    args: { nodeId?: number; includeDoctype?: boolean };
-    result: Partial<Protocol.DOM.GetOuterHTMLResponse>;
+    // `snapshot` serializes the whole output before streaming it, instead of as it is read.
+    args: { nodeId?: number; includeDoctype?: boolean; snapshot?: boolean };
+    // Streamed UTF-8 of `byteLength` bytes: a whole copy in PageScript, then another in the RPC
+    // serializer, pushed large pages over the isolate memory limit. Without `snapshot`, a DOM
+    // change while streaming ends the stream short; ask again with `snapshot` then.
+    result: { byteLength: number; outerHTMLUtf8: ReadableStream<Uint8Array> };
   };
   describeNode: {
     args: { nodeId?: number; objectId?: string };
-    result: Partial<Protocol.DOM.DescribeNodeResponse>;
+    result: Partial<Protocol.DOM.DescribeNodeResponse> & { budgetError?: SubtreeBudgetError };
   };
   getAttributes: {
     args: { nodeId?: number };
@@ -183,11 +276,39 @@ export interface QueryDomMethods {
     args: ReadStampArgs;
     result: { displayNone?: number[]; invisible?: number[]; readStamp?: ReadStamp };
   };
+  accessibilityTree: {
+    args: {
+      method: "full" | "root" | "partial" | "children" | "ancestors" | "query";
+      nodeId: number | null;
+      axId: string | null;
+      fetchRelatives: boolean;
+      role: string | null;
+      accessibleName: string | null;
+      depth?: number;
+      frameId: string;
+      title: string;
+      url: string;
+      buffered?: boolean;
+      includeReadStamp?: boolean;
+    };
+    result:
+      | { budgetError: AccessibilityBudgetError }
+      | { byteLength: number; json: ReadableStream<Uint8Array>; readStamp?: ReadStamp };
+  };
   formStateSnapshot: {
     args: ReadStampArgs;
     result: FormStateSnapshot & { readStamp?: ReadStamp };
   };
   focus: { args: { nodeId: number }; result: EmptyArgs };
+  // DOM.scrollIntoViewIfNeeded: `found` is false when the id names no node of this document.
+  scrollIntoViewIfNeeded: {
+    args: {
+      nodeId?: number;
+      objectId?: string;
+      rect?: { x: number; y: number; width: number; height: number };
+    };
+    result: { found: boolean; scrolled?: boolean };
+  };
   getPageState: {
     args: EmptyArgs;
     result: { seq?: number; scrollX?: number; scrollY?: number; href?: string; title?: string };
@@ -203,8 +324,14 @@ export interface QueryDomMethods {
     result: { ids?: number[]; overflow?: boolean };
   };
   getRect: {
-    args: { nodeId: number };
-    result: { rect?: Protocol.DOM.Rect | null };
+    // `objectId` is a PageScript handle (`ps:<isolateStamp>:<seq>`) from Runtime, as
+    // Playwright passes it.
+    args: { nodeId: number } | { objectId: string };
+    result: {
+      rect?: Protocol.DOM.Rect | null;
+      // One rect per line box for an inline node, for DOM.getContentQuads.
+      rects?: Protocol.DOM.Rect[] | null;
+    };
   };
   elementFromPoint: {
     args: { x: number; y: number };
@@ -310,6 +437,8 @@ export interface QueryDomMethods {
       sinceSeq?: unknown;
       omitBackground?: unknown;
       clip?: unknown;
+      // The clip is a crop of the whole document, so fixed boxes anchor at its origin.
+      documentCrop?: unknown;
       allowPartial?: unknown;
       allowScrollShift?: unknown;
       baseSeq?: unknown;
@@ -339,7 +468,6 @@ export interface QueryDomMethods {
       scrollX?: number;
       scrollY?: number;
       error?: string;
-      fallbackHtml?: string;
       damageCount?: number;
       layoutDirty?: boolean;
       skipReason?: string;
@@ -366,14 +494,17 @@ export interface QueryDomMethods {
       marginBottom: number;
       marginLeft: number;
     };
-    result: { envelope?: Uint8Array; error?: string };
+    // Each page is a little-endian byte length followed by its scene; a zero length starts an
+    // error frame carrying the message length and the message.
+    result: { pages?: ReadableStream<Uint8Array>; pageCount?: number; error?: string };
   };
   getOuterHTMLAndSeq: {
     args: EmptyArgs;
     result: { outerHTML: string; seq: number; scrollX: number; scrollY: number };
   };
   getMemoryStats: {
-    args: EmptyArgs;
+    // resetPeak restarts the allocator's diagnostic peak window before the stats are read.
+    args: { resetPeak?: boolean };
     result: {
       bytes?: number;
       initialBytes?: number;
@@ -381,6 +512,8 @@ export interface QueryDomMethods {
     } & PageScriptGauges;
   };
   boaForceCollect: { args: EmptyArgs; result: BoaCollectStats };
+  // Sets the live wasm bytes past which an allocation forces a boa swap round (core
+  // swap_alloc.rs); zero turns it off. Replies with the allocator's gauges after.
   getFontFaces: { args: EmptyArgs; result: FontFaces };
   getMemprofDump: { args: EmptyArgs; result: { json?: string; error?: string } };
   resetMemprof: { args: EmptyArgs; result: { ok?: boolean; error?: string } };
@@ -426,6 +559,7 @@ type EmptyArgs = Record<string, never>;
 
 // Read stamps bracket snapshots with mutationSeq to expose concurrent DOM changes.
 type ReadStampArgs = { includeReadStamp?: boolean };
+type SubtreeArgs = { depth?: number; pierce?: boolean };
 
 export interface PendingImageDrain {
   waited: boolean;

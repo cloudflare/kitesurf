@@ -23,7 +23,7 @@ export type InterceptAction =
   | { kind: "fail"; errorReason: string };
 
 interface CompiledPattern {
-  re: RegExp;
+  pattern: string;
   resourceType?: string;
 }
 
@@ -86,9 +86,54 @@ export function unregisterInterception(connectionId: string): void {
   registry.delete(connectionId);
 }
 
-export function globToRegExp(pattern: string): RegExp {
-  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-  return new RegExp("^" + escaped.replace(/\*/g, ".*").replace(/\?/g, ".") + "$");
+/** Longest urlPattern accepted by Fetch.enable. */
+export const MAX_GLOB_PATTERN_CHARS = 1024;
+
+/**
+ * Most request-stage patterns Fetch.enable retains for one connection. Chrome has no cap and
+ * clients register one pattern per route, so this stays well above real use.
+ */
+export const MAX_GLOB_PATTERNS = 1024;
+
+// The four code units a JavaScript `.` refuses to match without the `s` flag.
+function isLineTerminator(code: number): boolean {
+  return code === 0x0a || code === 0x0d || code === 0x2028 || code === 0x2029;
+}
+
+// Matches a Fetch urlPattern without a RegExp, so no pattern can backtrack. `*` matches any
+// run of code units and `?` one, both excluding line terminators like `.`; everything else is
+// literal. Code units, not code points: the previous regex had no `u` flag.
+export function globMatches(pattern: string, url: string): boolean {
+  let i = 0;
+  let j = 0;
+  let star = -1;
+  let mark = 0;
+  while (i < url.length) {
+    if (j < pattern.length) {
+      const pc = pattern.charCodeAt(j);
+      const uc = url.charCodeAt(i);
+      if (pc === 0x2a) {
+        star = j++;
+        mark = i;
+        continue;
+      }
+      if (pc === 0x3f ? !isLineTerminator(uc) : pc === uc) {
+        i++;
+        j++;
+        continue;
+      }
+    }
+    if (star >= 0 && mark < url.length && !isLineTerminator(url.charCodeAt(mark))) {
+      // The last `*` takes one more code unit and matching resumes after it.
+      mark++;
+      i = mark;
+      j = star + 1;
+      continue;
+    }
+    return false;
+  }
+  while (j < pattern.length && pattern.charCodeAt(j) === 0x2a) j++;
+  return j === pattern.length;
 }
 
 export function interceptionMatches(
@@ -97,9 +142,11 @@ export function interceptionMatches(
   resourceType: string,
 ): boolean {
   if (url.startsWith("data:") || url.startsWith("blob:")) return false;
-  return st.patterns.some(
-    (p) => p.re.test(url) && (!p.resourceType || p.resourceType === resourceType),
-  );
+  return st.patterns.some((p) => {
+    // The resourceType comparison is cheap; skip the glob for a pattern it excludes.
+    if (p.resourceType && p.resourceType !== resourceType) return false;
+    return globMatches(p.pattern, url);
+  });
 }
 
 export function registerParked(

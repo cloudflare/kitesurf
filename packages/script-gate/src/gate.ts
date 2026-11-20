@@ -6,11 +6,18 @@
 // inserted scripts and boa's module fallback all call it, so a refusal cannot be refetched.
 
 import { cspAllowsScript, inlineHashAlgorithms, parseCspPolicies, type CspPolicy } from "./csp.ts";
-import { blockedByNosniff, isModuleMime, mimeEssence, type ModuleType } from "./mime.ts";
+import {
+  blockedByNosniff,
+  blockedScriptMime,
+  isModuleMime,
+  mimeEssence,
+  type ModuleType,
+} from "./mime.ts";
 import { digestBase64, integrityMatches, parseIntegrity, type SriAlgorithm } from "./sri.ts";
 
 export type ScriptBlockReason =
   | "csp"
+  | "sandbox"
   | "mime"
   | "mixed-content"
   | "nosniff"
@@ -74,7 +81,8 @@ export function scriptGateIsNoop(ctx: ScriptGateContext): boolean {
 }
 
 /** Shared facts for both checks; null URLs mean inline code.
- * `runtimeInserted` selects the CSP strict-dynamic behavior.
+ * `runtimeInserted` selects the CSP strict-dynamic behavior. `expectedModuleType` is the type a
+ * dynamic import requested, which the response MIME must match.
  */
 export interface ScriptGateRequest {
   url: string | null;
@@ -83,6 +91,7 @@ export interface ScriptGateRequest {
   body?: string;
   runtimeInserted?: boolean;
   module?: boolean;
+  expectedModuleType?: ModuleType;
 }
 
 function isPotentiallyTrustworthy(url: URL): boolean {
@@ -220,6 +229,51 @@ export async function checkScriptBeforeFetch(
   return upgradedTo === null ? ALLOWED : { allowed: true, upgradeTo: upgradedTo };
 }
 
+/** Rechecks an external script's source list for a redirect target before it is fetched.
+ *  Enforced policies only; report-only policies were already reported for the request. */
+export function checkScriptRedirect(
+  ctx: ScriptGateContext,
+  request: ScriptGateRequest,
+  redirectUrl: string,
+): ScriptGateDecision {
+  let url = redirectUrl;
+  let upgradedTo: string | null = null;
+  const documentUrl = parseOrNull(ctx.documentUrl);
+  const target = parseOrNull(redirectUrl);
+  if (documentUrl?.protocol === "https:" && target && !isPotentiallyTrustworthy(target)) {
+    if (ctx.upgradeInsecureRequests && target.protocol === "http:") {
+      target.protocol = "https:";
+      url = target.toString();
+      upgradedTo = url;
+    } else {
+      return {
+        allowed: false,
+        reason: "mixed-content",
+        message:
+          `Mixed Content: the page at ${ctx.documentUrl} was loaded over HTTPS, but a ` +
+          `script redirected to the insecure ${redirectUrl}. This request has been blocked.`,
+      };
+    }
+  }
+  const verdict = cspAllowsScript(ctx.policies, {
+    url,
+    documentUrl: ctx.documentUrl,
+    nonce: request.nonce ?? null,
+    runtimeInserted: request.runtimeInserted === true,
+    redirected: true,
+  });
+  if (verdict.allowed)
+    return upgradedTo === null ? ALLOWED : { allowed: true, upgradeTo: upgradedTo };
+  return {
+    allowed: false,
+    reason: "csp",
+    message:
+      `Refused to load the script '${url}' (a redirect of '${request.url ?? ""}') ` +
+      `because it violates the following Content Security Policy directive: ` +
+      `"${verdict.directive}".`,
+  };
+}
+
 async function inlineBodyHashes(
   body: string,
   algorithms: readonly SriAlgorithm[],
@@ -248,6 +302,30 @@ export async function checkScriptResponse(
   const url = request.url ?? "";
   const moduleType: ModuleType =
     request.module === true && isModuleMime("json", response.contentType) ? "json" : "javascript";
+
+  // A dynamic import's requested type must match the response, before any body is used: a JSON
+  // request must never receive a JavaScript module.
+  if (request.expectedModuleType !== undefined && request.expectedModuleType !== moduleType) {
+    return {
+      allowed: false,
+      reason: "mime",
+      message:
+        `Failed to load module script: expected a ` +
+        `${request.expectedModuleType === "json" ? "JSON" : "JavaScript"} module script but the ` +
+        `server responded with a MIME type of "${mimeEssence(response.contentType)}" for '${url}'.`,
+    };
+  }
+
+  // A script destination never executes image, audio, video or CSV data, nosniff or not.
+  if (blockedScriptMime(response.contentType)) {
+    return {
+      allowed: false,
+      reason: "mime",
+      message:
+        `Refused to execute script from '${url}' because its MIME type ` +
+        `('${mimeEssence(response.contentType)}') is not executable.`,
+    };
+  }
 
   if (
     moduleType === "javascript" &&

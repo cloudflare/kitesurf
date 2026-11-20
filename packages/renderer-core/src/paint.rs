@@ -29,5 +29,7 @@ pub(crate) mod screenshot;
 )]
 #[path = "../../core/src/paint/scene_replay.rs"]
 pub(crate) mod scene_replay;
+#[path = "../../core/src/paint/font_container.rs"]
+pub(crate) mod font_container;
 #[path = "../../core/src/paint/pdf_paint.rs"]
 pub(crate) mod pdf_paint;

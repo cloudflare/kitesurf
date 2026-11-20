@@ -9,7 +9,7 @@
   "rules": [
     {
       "type": "Text",
-      "globs": ["**/*.glue.js", "**/*.css"],
+      "globs": ["**/*.glue.js", "**/*.css", "**/*.dat"],
       "fallthrough": true,
     },
   ],
@@ -27,15 +27,27 @@
     "KITESURF_ENV": "production",
     "KITESURF_VERSION": "dev",
     "KITESURF_RESOURCE_DRAIN_QUIET_TURNS": "",
-    "KITESURF_SIMULATE_PROD_EVAL": "",
+    // "1" gives page isolates workerd's local-only native eval, so CDP evaluation and page eval
+    // run on V8 instead of boa. It needs the engine's `experimental` flag, which the Docker image
+    // and the Miniflare launcher add; `pnpm run dev` does not, and Cloudflare rejects the flag.
+    "KITESURF_NATIVE_EVAL": "",
     "KITESURF_DISABLE_PARTIAL_RASTER": "",
     "KITESURF_PAGE_CPU_MS_CAP": "",
     "KITESURF_PAGE_WALL_MS_CAP": "",
     "KITESURF_LAG_WATCHDOG": "",
-    // DevTools frontend for the `/?url=` shortcut and `/json/list`. It must
-    // accept `?wss=<endpoint>` or `?ws=<endpoint>`. Empty disables the web
-    // shortcut; Chrome discovery falls back to its bundled frontend.
+    // UA font profile: "noto" (the default when empty) or "macos". A connection's
+    // `?ks_font_profile=` overrides it. Envs don't inherit vars, so set it in each.
+    "KITESURF_FONT_PROFILE": "",
+    // DevTools frontend for the landing page, `/?url=` and `/json/list`. It must accept
+    // `?wss=<endpoint>` or `?ws=<endpoint>`. Empty disables the web shortcut; Chrome
+    // discovery falls back to its bundled frontend. A `--config=devtools` build serves
+    // a same-origin copy: set the path `/inspector/inspector.html`.
     "KITESURF_INSPECTOR_BASE_URL": "",
+    // Replaces a path base that the assets do not have (src/inspector.ts). Empty: no fallback.
+    "KITESURF_INSPECTOR_FALLBACK_URL": "",
+    // "1" lets page-chosen requests reach loopback and private addresses (Private Network
+    // Access). Empty keeps the check; a page is untrusted even on a local engine.
+    "KITESURF_ALLOW_PRIVATE_NETWORK": "",
     // Web Bot Auth: origin of the key directory that publishes the public
     // half of the WEB_BOT_AUTH_JWK secret. Empty disables signing.
     "WEB_BOT_AUTH_SIGNATURE_AGENT": "",
@@ -51,13 +63,25 @@
 
   "env": {
     "local": {
+      // Envs do not inherit the top-level vars, and wrangler dev warns about each one an env
+      // leaves off. The engine reads "" the same as unset, so the empty ones only quiet that.
       "vars": {
         "KITESURF_ENV": "local",
         "KITESURF_VERSION": "dev",
         "KITESURF_RESOURCE_DRAIN_QUIET_TURNS": "5",
-        "KITESURF_SIMULATE_PROD_EVAL": "",
+        "KITESURF_NATIVE_EVAL": "",
+        "KITESURF_DISABLE_PARTIAL_RASTER": "",
+        "KITESURF_PAGE_CPU_MS_CAP": "",
+        "KITESURF_PAGE_WALL_MS_CAP": "",
         "KITESURF_LAG_WATCHDOG": "1",
-        "KITESURF_INSPECTOR_BASE_URL": "",
+        "KITESURF_FONT_PROFILE": "",
+        // The same-origin copy when a --config=devtools build staged it, else Chrome's hosted
+        // frontend at Chrome 156.0.8078.47 (chromiumdash `hashes.chromium`). The hosted CSP
+        // allows only `ws://127.0.0.1:*`, and Chrome asks once to allow access to this device.
+        "KITESURF_INSPECTOR_BASE_URL": "/inspector/inspector.html",
+        "KITESURF_INSPECTOR_FALLBACK_URL": "https://chrome-devtools-frontend.appspot.com/serve_rev/@1d17a2e2ee147bb7d6ae2ab6abdb3a2510c17775/inspector.html",
+        "KITESURF_ALLOW_PRIVATE_NETWORK": "",
+        "WEB_BOT_AUTH_SIGNATURE_AGENT": "",
         "KITESURF_OTLP_ENDPOINT": "http://localhost:4318/v1/traces",
       },
       "worker_loaders": [{ "binding": "LOADER" }],

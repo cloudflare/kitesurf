@@ -6,7 +6,7 @@
 
 import type * as Idl from "../idl/types.generated.js";
 import { ksGlobal, dom, nodeFor } from "../state.js";
-import { moPendingObservers, linkLoadFired } from "../registries.js";
+import { hostIdToDoc, moPendingObservers, linkLoadFired } from "../registries.js";
 import { getInternalState } from "../internal-state.js";
 import { KsEvent } from "../events/event.js";
 import { DOCUMENT_FRAGMENT_NODE } from "../constants.js";
@@ -109,7 +109,7 @@ const RECORD_TOKEN = Symbol("kitesurfMutationRecord");
 // addedNodes and removedNodes are arrays (idl/type-gaps.json).
 export class MutationRecord implements Idl.MutationRecord {
   readonly #type: MutationKind;
-  readonly #target: NodeBase;
+  readonly #target: Idl.Node;
   readonly #addedNodes: NodeBase[];
   readonly #removedNodes: NodeBase[];
   readonly #previousSibling: NodeBase | null;
@@ -117,7 +117,7 @@ export class MutationRecord implements Idl.MutationRecord {
   readonly #attributeName: string | null;
   readonly #attributeNamespace: string | null;
   readonly #oldValue: string | null;
-  constructor(token: symbol, type: MutationKind, target: NodeBase, extras: MutationRecordExtras) {
+  constructor(token: symbol, type: MutationKind, target: Idl.Node, extras: MutationRecordExtras) {
     if (token !== RECORD_TOKEN) throw new TypeError("Illegal constructor");
     this.#type = type;
     this.#target = target;
@@ -160,7 +160,7 @@ export class MutationRecord implements Idl.MutationRecord {
 
 function makeRecord(
   type: MutationKind,
-  target: NodeBase,
+  target: Idl.Node,
   extras: MutationRecordExtras,
 ): MutationRecord {
   return new MutationRecord(RECORD_TOKEN, type, target, extras);
@@ -212,7 +212,7 @@ function forEachMatchingTransientSource(
     if (sources) for (const source of sources) visit(source);
     let parent;
     try {
-      parent = (dom as any).parentId(cur);
+      parent = dom.parentId(cur);
     } catch {
       return;
     }
@@ -259,7 +259,7 @@ function targetMatchesRegistration(
   while (safety < OBSERVER_ANCESTOR_HOP_LIMIT) {
     let parent;
     try {
-      parent = (dom as any).parentId(cur);
+      parent = dom.parentId(cur);
     } catch {
       return false;
     }
@@ -368,12 +368,15 @@ function queueMutationRecord(
     consider(entry, observerMatchesTarget(entry, targetId));
   }
   forEachMatchingTransientSource(targetId, (source) => consider(source, true));
+  // A created document's children live under its host element, so the tree reports the host as
+  // the mutation target; the record must name the document the page passed to observe().
+  const recordTarget: Idl.Node = hostIdToDoc.get(targetId) ?? target;
   for (const [observer, wantsOldValue] of interested) {
     const recExtras = { ...extras };
     if ((kind === "attributes" || kind === "characterData") && !wantsOldValue) {
       recExtras.oldValue = null;
     }
-    const rec = makeRecord(kind, target, recExtras);
+    const rec = makeRecord(kind, recordTarget, recExtras);
     queueObserverRecord(observer, rec);
     moPendingObservers.add(observer);
   }
@@ -446,6 +449,7 @@ function notifyIframeInserts(insertedNode: LinkishNode, nested: LinkishNode[]): 
 }
 
 interface RemovedNode {
+  readonly nodeType?: number;
   readonly tagName?: string;
   readonly querySelectorAll?: (
     selectors: string,
@@ -486,6 +490,34 @@ const executedScriptIds = new Set<number>();
 
 export function markRuntimeCreatedScript(id: number): void {
   if (typeof id === "number" && id >= 0) runtimeCreatedScriptIds.add(id);
+}
+
+// A script from createElement starts with force async set, so its async IDL reads true until
+// the page sets async. Parser-created scripts never have it.
+// https://html.spec.whatwg.org/#script-force-async
+const forceAsyncScriptIds = new Set<number>();
+
+export function markForceAsyncScript(id: number): void {
+  if (typeof id === "number" && id >= 0) forceAsyncScriptIds.add(id);
+}
+
+export function scriptForceAsync(id: number): boolean {
+  return forceAsyncScriptIds.has(id);
+}
+
+export function clearScriptForceAsync(id: number): void {
+  forceAsyncScriptIds.delete(id);
+}
+
+// A document.write'd script is parser-inserted: it must run in write order
+// and before DOMContentLoaded. An appended script has no such ordering, so
+// written scripts carry their own mark.
+const writtenScriptIds = new Set<number>();
+
+export function markWrittenScript(id: number): void {
+  if (id < 0) return;
+  runtimeCreatedScriptIds.add(id);
+  writtenScriptIds.add(id);
 }
 
 export function copyScriptStartedFlag(src: LinkishNode, clone: LinkishNode): void {
@@ -567,6 +599,15 @@ function notifyScriptInserts(insertedNode: LinkishNode, nested: LinkishNode[]): 
       source = String(el.textContent || "");
     } catch {}
     if (!src && source === "") return;
+    // A browser that runs modules skips a classic script marked nomodule: no fetch, no events.
+    // It counts as started, so dropping the attribute later does not run it. An empty script
+    // has not started, so it is checked first.
+    try {
+      if (type !== "module" && el.hasAttribute?.("nomodule")) {
+        executedScriptIds.add(id);
+        return;
+      }
+    } catch {}
     let integrity = "";
     try {
       integrity = String(el.getAttribute?.("integrity") || "").trim();
@@ -583,8 +624,9 @@ function notifyScriptInserts(insertedNode: LinkishNode, nested: LinkishNode[]): 
         : null;
     } catch {}
     executedScriptIds.add(id);
+    const written = writtenScriptIds.has(id);
     try {
-      hook({ id, src, type, source, integrity, nonce, crossOrigin });
+      hook({ id, src, type, source, integrity, nonce, crossOrigin, written });
     } catch {}
   };
   try {
@@ -626,6 +668,15 @@ function isObservable(value: unknown): value is { readonly _id: number } {
   );
 }
 
+type ObservableTarget = { readonly _id: number };
+
+// A created or imported document has no node id; its host element owns the tree.
+function observableTarget(target: Idl.Node): ObservableTarget | null {
+  if (isObservable(target)) return target;
+  const host: unknown = Reflect.get(target, "_host");
+  return isObservable(host) ? host : null;
+}
+
 type MutationCallback = (records: MutationRecord[], observer: MutationObserverImpl) => void;
 
 let queueObserverRecord!: (observer: MutationObserverImpl, record: MutationRecord) => void;
@@ -658,8 +709,9 @@ export class MutationObserverImpl implements Idl.MutationObserver {
    * Empty or contradictory options throw `TypeError`.
    * Old-value and filter options infer the matching observation flag.
    */
-  observe(target: unknown, options?: Idl.MutationObserverInit) {
-    if (!isObservable(target)) {
+  observe(target: Idl.Node, options?: Idl.MutationObserverInit) {
+    const observed = observableTarget(target);
+    if (!observed) {
       throw new TypeError("MutationObserver.observe: invalid target");
     }
     const opts = options || {};
@@ -719,7 +771,7 @@ export class MutationObserverImpl implements Idl.MutationObserver {
     // An existing registration for this target only gets new options.
     for (let i = 0; i < mutationObservers.length; i++) {
       const e = mutationObservers[i];
-      if (e.observer === this && e.targetId === target._id) {
+      if (e.observer === this && e.targetId === observed._id) {
         clearTransientSource(e);
         e.options = normalized;
         return;
@@ -727,7 +779,7 @@ export class MutationObserverImpl implements Idl.MutationObserver {
     }
     mutationObservers.push({
       observer: this,
-      targetId: target._id,
+      targetId: observed._id,
       options: normalized,
     });
   }

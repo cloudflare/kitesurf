@@ -159,8 +159,7 @@ test("supports User Timing and navigation timing APIs", async ({ page }) => {
   expect(result.strictWriteOk, "strict-mode writes to timeOrigin and now work").toBe(true);
 });
 
-test.fails("measure with a missing mark throws SyntaxError", async ({ page }) => {
-  // Gap: the engine's performance.measure does not throw a SyntaxError for an unknown mark.
+test("measure with a missing mark throws SyntaxError", async ({ page }) => {
   await setContent(page, "<p>timing</p>");
 
   const threw = await page.evaluate(() => {

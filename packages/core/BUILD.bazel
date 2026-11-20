@@ -4,6 +4,7 @@ load("@rules_rust//rust:defs.bzl", "rust_shared_library", "rust_test")
 load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//bazel:executors.bzl", "RUST")
+load("//bazel:rust_checks.bzl", "rust_comments_test", "rust_lint_tests", "rust_nesting_test")
 
 exports_files(
     ["Cargo.toml"],
@@ -44,6 +45,7 @@ filegroup(
     name = "renderer_shared_srcs",
     srcs = [
         "src/ks_tracing.rs",
+        "src/paint/font_container.rs",
         "src/paint/pdf_paint.rs",
         "src/paint/scene_decode.rs",
         "src/paint/scene_record.rs",
@@ -81,6 +83,53 @@ rust_test(
     deps = all_crate_deps(normal = True, normal_dev = True),
 )
 
+# A separate process keeps other core tests' font registrations from clearing the cache.
+rust_test(
+    name = "svg_cache_test",
+    srcs = ["tests/svg_cache.rs"],
+    edition = "2021",
+    exec_properties = RUST,
+    deps = ["@crates//:blitz-dom"],
+)
+
+rust_test(
+    name = "blitz_dom_child_lists_test",
+    srcs = ["tests/blitz_dom_child_lists.rs"],
+    edition = "2021",
+    exec_properties = RUST,
+    deps = ["@crates//:blitz-dom"],
+)
+
+rust_test(
+    name = "blitz_dom_undisplayed_layout_test",
+    crate = "@crates//:blitz-dom",
+    crate_features = ["svg", "floats", "woff"],
+    # Run the whole crate. These two upstream tests have failed since patch 0001 and are unrelated
+    # to this series, so they are skipped by name rather than by filtering everything else out.
+    args = [
+        "--skip",
+        "hover_styles_apply_and_clear",
+        "--skip",
+        "scroll_by_clamps_and_bubbles",
+    ],
+    exec_properties = RUST,
+)
+
+rust_test(
+    name = "blitz_traits_node_id_test",
+    crate = "@crates//:blitz-traits",
+    args = ["halves_round_trip_and_hash_order_like_the_raw_u64"],
+    exec_properties = RUST,
+)
+
+rust_test(
+    name = "taffy_cache_test",
+    srcs = ["tests/taffy_cache.rs"],
+    edition = "2021",
+    exec_properties = RUST,
+    deps = ["@crates//:taffy"],
+)
+
 rust_test(
     name = "boa_gc_test",
     crate = "@crates__boa_gc-0.22.0//:boa_gc",
@@ -91,6 +140,13 @@ rust_test(
     crate = "@crates__boa_interner-0.22.0//:boa_interner",
 )
 
+rust_test(
+    name = "vello_common_test",
+    crate = "@crates__vello_common-0.3.0//:vello_common",
+    # rust_test does not inherit the library's features, and the crate needs std or libm.
+    crate_features = ["std"],
+)
+
 build_test(
     name = "vello_cpu_fallback_test",
     targets = ["@crates__vello_cpu-0.3.0//:vello_cpu_fallback"],
@@ -99,9 +155,15 @@ build_test(
 test_suite(
     name = "host_tests",
     tests = [
+        ":blitz_dom_child_lists_test",
+        ":blitz_dom_undisplayed_layout_test",
+        ":blitz_traits_node_id_test",
         ":boa_gc_test",
         ":boa_interner_test",
         ":core_test",
+        ":svg_cache_test",
+        ":taffy_cache_test",
+        ":vello_common_test",
         ":vello_cpu_fallback_test",
     ],
 )
@@ -109,6 +171,7 @@ test_suite(
 filegroup(
     name = "scene_host_srcs",
     srcs = [
+        "src/paint/font_container.rs",
         "src/paint/scene_decode.rs",
         "src/paint/scene_record.rs",
         "src/paint/scene_replay.rs",
@@ -122,4 +185,25 @@ copy_to_bin(
     name = "scene_record_rs",
     srcs = ["src/paint/scene_record.rs"],
     visibility = ["//packages/scene-host-wasm:__pkg__"],
+)
+
+rust_nesting_test(
+    name = "nesting_test",
+    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+)
+
+rust_comments_test(
+    name = "comments_test",
+    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+)
+
+rust_lint_tests(
+    targets = [
+        "blitz_dom_child_lists_test",
+        "core_test",
+        "kitesurf_core",
+        "kitesurf_core_memprof",
+        "svg_cache_test",
+        "taffy_cache_test",
+    ],
 )

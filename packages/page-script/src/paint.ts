@@ -13,14 +13,7 @@ import {
 import { getInternalState } from "./internal-state.js";
 import { noteSyncOp } from "./lag-monitor.ts";
 import { state } from "./state.ts";
-import type { DomHandle, DomRect } from "./types.ts";
-
-interface DomScrollInfo {
-  clientWidth: number;
-  scrollWidth: number;
-  clientHeight: number;
-  scrollHeight: number;
-}
+import type { DomHandle } from "./types.ts";
 
 const POOLED_SCENE_MIN_BYTES = 256 * 1024;
 const POOLED_SCENE_SLACK_BYTES = 64 * 1024;
@@ -72,6 +65,27 @@ export function paintPrepStats(): { prepares: number } {
   return { prepares: paintPrepCount };
 }
 
+let layoutResolveStatsWarned = false;
+
+// Null before the first document. A throwing wasm read is null too, so a
+// stats read never fails the getMemoryStats reply around it.
+export function layoutResolveStats(): {
+  mutationResolves: number;
+  animationResolves: number;
+} | null {
+  let counts: Uint32Array | undefined;
+  try {
+    counts = state.dom?.resolveCounts();
+  } catch (error) {
+    if (!layoutResolveStatsWarned) console.warn("[kitesurf] resolveCounts failed", error);
+    layoutResolveStatsWarned = true;
+    return null;
+  }
+  const [mutationResolves, animationResolves] = counts ?? [];
+  if (mutationResolves === undefined || animationResolves === undefined) return null;
+  return { mutationResolves, animationResolves };
+}
+
 export function cascadeSeq(): number {
   const internalState = getInternalState();
   return ((internalState.mutationSeq | 0) - (internalState.paintNeutralSeq | 0)) | 0;
@@ -117,12 +131,10 @@ export function takePaintPrep(): { paint: DomHandle | null; fresh: boolean } {
   return { paint, fresh };
 }
 
-export function kickLayoutForFontFaceDiscovery(): void {
+/** Restyles, which starts fetching the web fonts the styles use, without laying out. */
+export function discoverFontFaces(): void {
   try {
-    const paint = ensurePaintDom();
-    if (!paint) return;
-    const id = paint.querySelector("html");
-    if (typeof id === "number" && id >= 0) paint.getBoundingClientRect(id);
+    ensurePaintDom()?.flushStyles();
   } catch {
     invalidatePaintDom();
   }
@@ -135,7 +147,7 @@ export function invalidatePaintDom(): void {
   state.paintCacheViewportH = 0;
 }
 
-export function rectWithScrollOffset(rect: DomRect | null): DomRect | null {
+export function rectWithScrollOffset<R extends { x: number; y: number }>(rect: R | null): R | null {
   if (!rect) return rect;
   return {
     ...rect,
@@ -152,7 +164,7 @@ export function documentScrollSize(): { width: number; height: number } {
   try {
     const id = paint.querySelector("html");
     if (typeof id === "number" && id >= 0) {
-      const info = paint.nodeScrollInfo(id) as DomScrollInfo | null;
+      const info = paint.nodeScrollInfo(id);
       if (info) {
         maxWidth = Math.max(
           maxWidth,
@@ -273,7 +285,8 @@ export function computedStyleForAuthId(
 
 export function computedStyleValueForAuthId(authId: number, name: string): string | null {
   if (typeof authId !== "number" || authId < 0 || name === "page-orientation") return null;
-  if (cascadeSeq() === computedStyleCacheSeq) {
+  // The bulk list holds no custom property, so a cached one cannot answer `--name`.
+  if (cascadeSeq() === computedStyleCacheSeq && !name.startsWith("--")) {
     const cached = computedStyleCache.get(`${authId}|`);
     if (cached !== undefined) {
       for (const p of cached) if (p.name === name) return p.value;

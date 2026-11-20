@@ -48,6 +48,12 @@ const MODEL_SPECS = [
   "webmcp",
 ];
 
+// Specs read for types.generated.ts only, so shim signatures can name Blob, File, FileList and
+// TrustedHTML. They stay out of the model and its runtime slice, so the conformance test doesn't
+// check them: Blob and File are workerd's, and the page has no Trusted Types.
+const TYPE_ONLY_SPECS = ["FileAPI", "trusted-types"];
+const TYPE_SPECS = [...MODEL_SPECS, ...TYPE_ONLY_SPECS];
+
 const TYPED_OM = {
   input: ".wpt/interfaces/css-typed-om.idl",
   output: "packages/dom-shim/src/css-typed-om.webidl.generated.ts",
@@ -447,7 +453,7 @@ const checkoutRevision = fs.existsSync(revisionMarker)
 if (checkoutRevision !== revision) {
   throw new Error(`${wptDir} is at ${checkoutRevision}, expected pinned revision ${revision}`);
 }
-const inputs = [TYPED_OM.input, ...MODEL_SPECS.map((spec) => `.wpt/interfaces/${spec}.idl`)];
+const inputs = [TYPED_OM.input, ...TYPE_SPECS.map((spec) => `.wpt/interfaces/${spec}.idl`)];
 if (!fs.existsSync(revisionMarker)) {
   for (const input of new Set(inputs)) {
     const relative = path.relative(wptDir, wptPath(input));
@@ -465,11 +471,11 @@ const outputs = [
   [RUNTIME_OUTPUT, renderRuntime(model, revision)],
   [
     TYPES_OUTPUT,
-    header(`.wpt/interfaces/{${MODEL_SPECS.join(",")}}.idl`, revision) +
+    header(`.wpt/interfaces/{${TYPE_SPECS.join(",")}}.idl`, revision) +
       `// A commented-out member is a gap: ${LEDGER} reports it\n` +
       `// missing, or ${TYPE_GAPS} lists it, with the reason.\n\n` +
       renderTypes(
-        MODEL_SPECS.map((spec) => parse(readIdl(`.wpt/interfaces/${spec}.idl`))),
+        TYPE_SPECS.map((spec) => parse(readIdl(`.wpt/interfaces/${spec}.idl`))),
         loadGaps(),
       ),
   ],

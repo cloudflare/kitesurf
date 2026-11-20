@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { NetworkEventTracker, isolateRetainedBodyBytesTotal } from "../src/cdp/network-events.ts";
 import { destroyOopifTarget } from "../src/cdp/target.ts";
+import { testClient } from "./client-state.ts";
 
 interface Seen {
   method: string;
@@ -347,6 +348,7 @@ describe("destroyOopifTarget drops Network state", () => {
     const ctx = {
       emit: (ev: { method: string; sessionId?: string }) => seen.push(ev),
       browser: { networkEvents: tracker },
+      client: testClient(),
     } as unknown as Parameters<typeof destroyOopifTarget>[0];
     destroyOopifTarget(ctx, { frameId: "frame-1", sessions });
 

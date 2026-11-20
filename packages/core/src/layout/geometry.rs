@@ -5,14 +5,19 @@
 //! Element geometry: viewport, bounding, inline-aware, and intersection rects, and offset
 //! metrics.
 
-use blitz_dom::{local_name, ns, BaseDocument, Node, NodeData};
+use std::panic;
+
+use blitz_dom::node::TextBrush;
+use blitz_dom::{local_name, ns, util::Point, BaseDocument, Node, NodeData};
 use blitz_html::HtmlDocument;
 use blitz_traits::NodeId;
+use parley::{Affinity, Cursor};
 use serde::Serialize;
+use taffy::Position;
 use wasm_bindgen::prelude::*;
 
 use crate::{emulated_color_scheme, DomHandle, LayoutMode};
-use crate::dom::tree::has_layout_data;
+use crate::dom::tree::{generates_box, has_layout_data};
 use crate::layout::scroll::{is_scroll_container, overflow_clips};
 
 pub(crate) fn svg_natural_dimensions(
@@ -37,6 +42,18 @@ pub(crate) fn svg_natural_dimensions(
         },
     }
 }
+
+// The TypeScript shape of a serialized Rect (getBoundingClientRect).
+#[wasm_bindgen(typescript_custom_section)]
+const TS_RECT: &str = r#"
+export interface KsLayoutRect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    hasBox?: boolean;
+}
+"#;
 
 #[derive(Serialize)]
 pub(crate) struct Rect {
@@ -161,8 +178,8 @@ pub(crate) fn composed_transform_for_node(
             .map(|parent| (parent.scroll_offset().x, parent.scroll_offset().y))
             .unwrap_or((0.0, 0.0));
         // A viewport-fixed box cancels the scroll (see fixed_scroll_anchor).
-        if node.taffy_position() == taffy::Position::Fixed
-            && parent.is_some_and(|parent| parent.id == doc.root_element().id)
+        if node.taffy_position() == Position::Fixed
+            && parent.is_some_and(|parent| parent.id() == doc.root_element().id())
         {
             let viewport_scroll = doc.tree().fixed_anchor_scroll();
             parent_scroll_x = -viewport_scroll.x;
@@ -173,7 +190,7 @@ pub(crate) fn composed_transform_for_node(
             (node.final_layout().location.y as f64 - parent_scroll_y) * scale,
         ));
         if let Some(transform) = node.transform() {
-            composed *= **transform;
+            composed *= transform;
         }
     }
 
@@ -205,7 +222,7 @@ fn resolve_margins(margins: &[f32], width: f32, height: f32) -> [f32; 4] {
     })
 }
 
-fn padding_edges(node: &blitz_dom::Node, [l, t, r, b]: [f32; 4]) -> [f32; 4] {
+fn padding_edges(node: &Node, [l, t, r, b]: [f32; 4]) -> [f32; 4] {
     let border = node.final_layout().border;
     let (left, top) = (l + border.left, t + border.top);
     [
@@ -216,13 +233,13 @@ fn padding_edges(node: &blitz_dom::Node, [l, t, r, b]: [f32; 4]) -> [f32; 4] {
     ]
 }
 
-fn containing_block_of(doc: &HtmlDocument, node: &blitz_dom::Node) -> Option<NodeId> {
+fn containing_block_of(doc: &HtmlDocument, node: &Node) -> Option<NodeId> {
     use ::style::properties::generated::longhands::position::computed_value::T as Position;
     use ::style::values::specified::box_::DisplayOutside;
     let position = node
         .primary_styles()
         .map_or(Position::Static, |s| s.clone_position());
-    let mut current = node.parent;
+    let mut current = node.parent_id();
     while let Some(id) = current {
         let parent = doc.get_node(id)?;
         if let Some(styles) = parent.primary_styles().filter(|_| parent.is_element()) {
@@ -236,14 +253,14 @@ fn containing_block_of(doc: &HtmlDocument, node: &blitz_dom::Node) -> Option<Nod
                 return Some(id);
             }
         }
-        current = parent.parent;
+        current = parent.parent_id();
     }
     None
 }
 
 fn clip_to_containing_blocks(
     doc: &HtmlDocument,
-    target: &blitz_dom::Node,
+    target: &Node,
     root: Option<NodeId>,
     scroll_margin: &[f32],
     mut rect: [f32; 4],
@@ -259,11 +276,11 @@ fn clip_to_containing_blocks(
             return Some(rect);
         }
         node = doc.get_node(id)?;
-        let is_body = node.parent == Some(root_element.id)
+        let is_body = node.parent_id() == Some(root_element.id())
             && node
                 .element_data()
                 .is_some_and(|e| &*e.name.local == "body");
-        if id == root_element.id || (is_body && body_propagates) {
+        if id == root_element.id() || (is_body && body_propagates) {
             continue;
         }
         let (clip_x, clip_y) = overflow_clips(node);
@@ -298,7 +315,7 @@ fn clip_to_containing_blocks(
     }
 }
 
-fn clip_path_edges(node: &blitz_dom::Node, [l, t, r, b]: [f32; 4]) -> Option<[f32; 4]> {
+fn clip_path_edges(node: &Node, [l, t, r, b]: [f32; 4]) -> Option<[f32; 4]> {
     use ::style::values::computed::basic_shape::ClipPath;
     use ::style::values::computed::CSSPixelLength;
     use ::style::values::generics::basic_shape::{GenericBasicShape, ShapeBox, ShapeGeometryBox};
@@ -345,13 +362,13 @@ fn clip_path_edges(node: &blitz_dom::Node, [l, t, r, b]: [f32; 4]) -> Option<[f3
 /// Document-space scroll compensation shared by geometry and IntersectionObserver.
 /// A viewport-fixed box stays put on screen, so its document-space position adds the scroll.
 pub(crate) fn fixed_scroll_anchor(doc: &BaseDocument, node: &blitz_dom::Node) -> (f32, f32) {
-    let root_element_id = doc.root_element().id;
+    let root_element_id = doc.root_element().id();
     let mut cur = Some(node);
     while let Some(n) = cur {
         let cb = n.containing_block().and_then(|id| doc.get_node(id));
-        if n.taffy_position() == taffy::Position::Fixed {
+        if n.taffy_position() == Position::Fixed {
             return match cb {
-                Some(cb) if cb.id == root_element_id => {
+                Some(cb) if cb.id() == root_element_id => {
                     let viewport_scroll = doc.tree().fixed_anchor_scroll();
                     (
                         cb.scroll_offset().x as f32 + viewport_scroll.x as f32,
@@ -369,19 +386,16 @@ pub(crate) fn fixed_scroll_anchor(doc: &BaseDocument, node: &blitz_dom::Node) ->
 
 /// `Node::absolute_position(0, 0)` in doc space: pinned for boxes in a
 /// viewport-fixed box (see [`fixed_scroll_anchor`]).
-pub(crate) fn doc_position(
-    doc: &BaseDocument,
-    node: &blitz_dom::Node,
-) -> blitz_dom::util::Point<f32> {
+pub(crate) fn doc_position(doc: &BaseDocument, node: &Node) -> Point<f32> {
     let pos = node.absolute_position(0.0, 0.0);
     let (x, y) = fixed_scroll_anchor(doc, node);
-    blitz_dom::util::Point {
+    Point {
         x: pos.x + x,
         y: pos.y + y,
     }
 }
 
-pub(crate) fn bounding_rect_for_node(doc: &HtmlDocument, node: &blitz_dom::Node) -> Rect {
+pub(crate) fn bounding_rect_for_node(doc: &HtmlDocument, node: &Node) -> Rect {
     let mut ancestor = Some(node);
     while let Some(n) = ancestor {
         if let Some(styles) = n.primary_styles() {
@@ -401,7 +415,7 @@ pub(crate) fn bounding_rect_for_node(doc: &HtmlDocument, node: &blitz_dom::Node)
                 };
             }
         }
-        ancestor = n.parent.and_then(|p| doc.get_node(p));
+        ancestor = n.parent_id().and_then(|p| doc.get_node(p));
     }
     // Only box-bearing nodes have Blitz layout storage; text nodes use their
     // inline geometry, while comments and other non-box nodes have no rect.
@@ -414,20 +428,20 @@ pub(crate) fn bounding_rect_for_node(doc: &HtmlDocument, node: &blitz_dom::Node)
     // `absolute_position` subtracts this node's scroll as well as its ancestors';
     // add it back because scrolling content does not move the border box.
     let raw_pos = doc_position(doc, node);
-    let pos = blitz_dom::util::Point {
+    let pos = Point {
         x: raw_pos.x + node.scroll_offset().x as f32,
         y: raw_pos.y + node.scroll_offset().y as f32,
     };
     let size = node.final_layout().size;
     if size.width <= 0.0 || size.height <= 0.0 {
-        if let Some(rect) = svg_descendant_rect_for_node(doc.as_ref(), node.id) {
+        if let Some(rect) = svg_descendant_rect_for_node(doc.as_ref(), node.id()) {
             return rect;
         }
-        if let Some(rect) = inline_aware_rect_for_node(doc, node.id) {
+        if let Some(rect) = inline_aware_rect_for_node(doc, node.id()) {
             return rect;
         }
     }
-    if let Some(rect) = transformed_rect_for_node(doc, node.id) {
+    if let Some(rect) = transformed_rect_for_node(doc, node.id()) {
         return rect;
     }
     Rect::resolved(pos.x, pos.y, size.width, size.height)
@@ -452,6 +466,16 @@ fn transformed_rect_for_node(doc: &BaseDocument, node_id: NodeId) -> Option<Rect
     ))
 }
 
+// The TypeScript shape of OffsetMetrics.
+#[wasm_bindgen(typescript_custom_section)]
+const TS_OFFSET_METRICS: &str = r#"
+export interface KsOffsetMetrics {
+    parent: number;
+    top: number;
+    left: number;
+}
+"#;
+
 #[derive(Serialize)]
 struct OffsetMetrics {
     parent: f64,
@@ -459,35 +483,50 @@ struct OffsetMetrics {
     left: f64,
 }
 
-/// Compute viewport bounds from inline fragments when Taffy has no per-node box.
-/// Undecorated wrappers can use descendant in-flow content.
-fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rect> {
-    let base: &BaseDocument = doc.as_ref();
-    let node = base.get_node(node_id)?;
-    let inline_root = node.inline_root_ancestor()?;
-    let elem = inline_root.element_data()?;
-    let inline = elem.inline_layout_data.as_ref()?;
-    let layout = &inline.layout;
+/// One line's contribution to an inline node's bounds: `(line index, (x0, y0, x1, y1))`.
+type LineBounds = (usize, (f32, f32, f32, f32));
 
-    let lines: Vec<parley::layout::Line<'_, _>> = layout.lines().collect();
+/// Where an inline root's layout coordinates start in the viewport, and how they reach it.
+struct InlineOrigin {
+    /// The root's absolute position in the viewport.
+    x: f32,
+    y: f32,
+    /// The content-box offset inside the root.
+    content_x: f32,
+    content_y: f32,
+    /// The root's own scroll offset.
+    scroll_x: f32,
+    scroll_y: f32,
+    /// The composed ancestor transform, with the viewport scale it was composed at.
+    composed: Option<(kurbo::Affine, f64)>,
+}
 
-    // Inline root's content-box origin in viewport coords.
-    let root_abs = doc_position(doc, inline_root);
-    let content_off_x =
-        inline_root.final_layout().padding.left + inline_root.final_layout().border.left;
-    let content_off_y =
-        inline_root.final_layout().padding.top + inline_root.final_layout().border.top;
-    let composed = composed_transform_for_node(base, inline_root.id);
-    let root_scroll = inline_root.scroll_offset();
-    let transform_bounds = |x0: f32, y0: f32, x1: f32, y1: f32| {
-        let Some((composed, scale)) = composed.as_ref() else {
+impl InlineOrigin {
+    fn new(doc: &HtmlDocument, inline_root: &Node) -> Self {
+        let root_abs = doc_position(doc, inline_root);
+        let root_layout = inline_root.final_layout();
+        let scroll = inline_root.scroll_offset();
+        InlineOrigin {
+            x: root_abs.x,
+            y: root_abs.y,
+            content_x: root_layout.padding.left + root_layout.border.left,
+            content_y: root_layout.padding.top + root_layout.border.top,
+            scroll_x: scroll.x as f32,
+            scroll_y: scroll.y as f32,
+            composed: composed_transform_for_node(doc.as_ref(), inline_root.id()),
+        }
+    }
+
+    /// Viewport bounds of layout coordinates inside the inline root.
+    fn bounds(&self, x0: f32, y0: f32, x1: f32, y1: f32) -> (f32, f32, f32, f32) {
+        let Some((composed, scale)) = self.composed.as_ref() else {
             return (x0, y0, x1, y1);
         };
         let local = kurbo::Rect::new(
-            (x0 - root_abs.x - root_scroll.x as f32) as f64 * scale,
-            (y0 - root_abs.y - root_scroll.y as f32) as f64 * scale,
-            (x1 - root_abs.x - root_scroll.x as f32) as f64 * scale,
-            (y1 - root_abs.y - root_scroll.y as f32) as f64 * scale,
+            (x0 - self.x - self.scroll_x) as f64 * scale,
+            (y0 - self.y - self.scroll_y) as f64 * scale,
+            (x1 - self.x - self.scroll_x) as f64 * scale,
+            (y1 - self.y - self.scroll_y) as f64 * scale,
         );
         let transformed = composed.transform_rect_bbox(local);
         (
@@ -496,98 +535,221 @@ fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rec
             (transformed.x1 / scale) as f32,
             (transformed.y1 / scale) as f32,
         )
-    };
+    }
+}
 
+/// Ancestor steps allowed between a styled node and the queried inline node.
+const MAX_INLINE_ANCESTOR_STEPS: usize = 32;
+
+/// Whether `styled_id` is positioned out of flow (`position: absolute | fixed`).
+fn is_out_of_flow(base: &BaseDocument, styled_id: NodeId) -> bool {
     use ::style::properties::generated::longhands::position::computed_value::T as Position;
-    let out_of_flow = |id: NodeId| -> bool {
-        base.get_node(id)
-            .and_then(|n| n.primary_styles())
-            .is_some_and(|s| matches!(s.clone_position(), Position::Absolute | Position::Fixed))
-    };
+    base.get_node(styled_id)
+        .and_then(|n| n.primary_styles())
+        .is_some_and(|s| matches!(s.clone_position(), Position::Absolute | Position::Fixed))
+}
 
-    let accepted = |styled_id: NodeId| -> bool {
-        if styled_id == node_id {
+/// Whether a glyph run or inline box styled by `styled_id` belongs to `node_id`'s bounds:
+/// `node_id` itself, or an in-flow descendant of it inside `inline_root`.
+fn contributes_to_inline_bounds(
+    base: &BaseDocument,
+    inline_root: NodeId,
+    node_id: NodeId,
+    styled_id: NodeId,
+) -> bool {
+    if styled_id == node_id {
+        return true;
+    }
+    if is_out_of_flow(base, styled_id) {
+        return false;
+    }
+
+    let mut current = styled_id;
+    for _ in 0..MAX_INLINE_ANCESTOR_STEPS {
+        let Some(node) = base.get_node(current) else {
+            return false;
+        };
+        let Some(parent) = node.parent_id() else {
+            return false;
+        };
+        if parent == node_id {
             return true;
         }
-        if out_of_flow(styled_id) {
+        if parent == inline_root {
             return false;
         }
-        let mut cur = styled_id;
-        for _ in 0..32 {
-            let Some(n) = base.get_node(cur) else {
-                return false;
-            };
-            let Some(parent) = n.parent else { return false };
-            if parent == node_id {
-                return true;
-            }
-            if parent == inline_root.id {
-                return false;
-            }
-            if out_of_flow(parent) {
-                return false;
-            }
-            cur = parent;
+        if is_out_of_flow(base, parent) {
+            return false;
         }
-        false
+        current = parent;
+    }
+    false
+}
+
+/// Whether a span's box decorations paint any padding or border.
+fn has_padding_or_border(decorations: &parley::style::BoxDecorations<TextBrush>) -> bool {
+    decorations.padding_inline_start > 0.0
+        || decorations.padding_inline_end > 0.0
+        || decorations.padding_block_start > 0.0
+        || decorations.padding_block_end > 0.0
+        || decorations.border_inline_start_width > 0.0
+        || decorations.border_inline_end_width > 0.0
+        || decorations.border_block_start_width > 0.0
+        || decorations.border_block_end_width > 0.0
+}
+
+/// Per-line viewport bounds of an inline node, from the inline fragments and the glyph runs and
+/// inline boxes each line holds. `DOM.getContentQuads` returns one quad per line, so Puppeteer's
+/// click point lands inside the first fragment of a link that wraps.
+fn inline_line_rects_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Vec<Rect>> {
+    let base: &BaseDocument = doc.as_ref();
+    let node = base.get_node(node_id)?;
+    let inline_root = node.inline_root_ancestor()?;
+    let elem = inline_root.element_data()?;
+    let inline = elem.inline_layout_data()?;
+    let layout = inline.layout(node.tree());
+    let lines: Vec<parley::layout::Line<'_, TextBrush>> = layout.lines().collect();
+
+    let origin = InlineOrigin::new(doc, inline_root);
+    let accepted = |styled_id: NodeId| {
+        contributes_to_inline_bounds(base, inline_root.id(), node_id, styled_id)
     };
 
-    // Fragments contribute only the queried inline's own padding and border. Its text and
-    // atomic children come from the glyph runs and in-flow inline boxes below.
-    let styles = layout.styles();
-    let fragment_bounds = layout.span_fragments().iter().filter_map(|fragment| {
-        let style = styles.get(fragment.style_index as usize)?;
-        let decorations = &style.box_decorations;
-        let has_padding_or_border = decorations.padding_inline_start > 0.0
-            || decorations.padding_inline_end > 0.0
-            || decorations.padding_block_start > 0.0
-            || decorations.padding_block_end > 0.0
-            || decorations.border_inline_start_width > 0.0
-            || decorations.border_inline_end_width > 0.0
-            || decorations.border_block_start_width > 0.0
-            || decorations.border_block_end_width > 0.0;
-        if style.brush.id != node_id || !has_padding_or_border {
-            return None;
+    let mut entries = Vec::new();
+    collect_fragment_bounds(
+        &mut entries,
+        layout.styles(),
+        &lines,
+        layout.span_fragments(),
+        node_id,
+        &origin,
+    );
+    collect_item_bounds(&mut entries, &lines, &origin, &accepted);
+    merge_line_bounds(entries)
+}
+
+/// Fragments contribute only the queried inline's own padding and border. Its text and atomic
+/// children come from the glyph runs and in-flow inline boxes below.
+fn collect_fragment_bounds(
+    entries: &mut Vec<LineBounds>,
+    styles: &[parley::layout::Style<TextBrush>],
+    lines: &[parley::layout::Line<'_, TextBrush>],
+    fragments: &[parley::layout::SpanFragment],
+    node_id: NodeId,
+    origin: &InlineOrigin,
+) {
+    for fragment in fragments {
+        let Some(style) = styles.get(fragment.style_index as usize) else {
+            continue;
+        };
+        let Some(decorations) = style.box_decorations.as_deref() else {
+            continue;
+        };
+        if style.brush.id != node_id || !has_padding_or_border(decorations) {
+            continue;
         }
-        let metrics = lines.get(fragment.line_index as usize)?.metrics();
+        let Some(metrics) = lines
+            .get(fragment.line_index as usize)
+            .map(|line| line.metrics())
+        else {
+            continue;
+        };
+
         let x_origin = metrics.inline_min_coord + metrics.offset;
-        let x0 = root_abs.x + content_off_x + x_origin + fragment.x_start;
-        let x1 = root_abs.x + content_off_x + x_origin + fragment.x_end;
-        let y0 = root_abs.y + content_off_y + metrics.block_min_coord;
-        let y1 = root_abs.y + content_off_y + metrics.block_max_coord;
-        Some(transform_bounds(x0, y0, x1, y1))
-    });
-    let item_bounds = lines
-        .iter()
-        .flat_map(|line| line.items())
-        .filter_map(|item| match item {
-            parley::layout::PositionedLayoutItem::GlyphRun(run)
-                if accepted(run.style().brush.id) =>
-            {
-                // Glyph-run coordinates include the line's alignment offset.
-                let metrics = run.run().font_metrics();
-                let baseline = run.baseline();
-                let x0 = root_abs.x + content_off_x + run.offset();
-                let x1 = x0 + run.advance();
-                let y0 = root_abs.y + content_off_y + baseline - metrics.ascent;
-                let y1 = root_abs.y + content_off_y + baseline + metrics.descent;
-                Some(transform_bounds(x0, y0, x1, y1))
+        let x0 = origin.x + origin.content_x + x_origin + fragment.x_start;
+        let x1 = origin.x + origin.content_x + x_origin + fragment.x_end;
+        let y0 = origin.y + origin.content_y + metrics.block_min_coord;
+        let y1 = origin.y + origin.content_y + metrics.block_max_coord;
+        entries.push((fragment.line_index as usize, origin.bounds(x0, y0, x1, y1)));
+    }
+}
+
+/// The glyph runs and in-flow inline boxes of every line that belong to the queried inline.
+fn collect_item_bounds(
+    entries: &mut Vec<LineBounds>,
+    lines: &[parley::layout::Line<'_, TextBrush>],
+    origin: &InlineOrigin,
+    accepted: &impl Fn(NodeId) -> bool,
+) {
+    for (line_index, line) in lines.iter().enumerate() {
+        for item in line.items() {
+            let Some(bounds) = item_bounds(item, origin, accepted) else {
+                continue;
+            };
+            entries.push((line_index, bounds));
+        }
+    }
+}
+
+fn item_bounds(
+    item: parley::layout::PositionedLayoutItem<'_, TextBrush>,
+    origin: &InlineOrigin,
+    accepted: &impl Fn(NodeId) -> bool,
+) -> Option<(f32, f32, f32, f32)> {
+    match item {
+        parley::layout::PositionedLayoutItem::GlyphRun(run) if accepted(run.style().brush.id) => {
+            // Glyph-run coordinates include the line's alignment offset.
+            let metrics = run.run().font_metrics();
+            let baseline = run.baseline();
+            let x0 = origin.x + origin.content_x + run.offset();
+            let x1 = x0 + run.advance();
+            let y0 = origin.y + origin.content_y + baseline - metrics.ascent;
+            let y1 = origin.y + origin.content_y + baseline + metrics.descent;
+            Some(origin.bounds(x0, y0, x1, y1))
+        }
+        parley::layout::PositionedLayoutItem::InlineBox(ibox)
+            if ibox.kind == parley::InlineBoxKind::InFlow
+                && accepted(NodeId::from_u64(ibox.id)) =>
+        {
+            let x0 = origin.x + origin.content_x + ibox.x;
+            let y0 = origin.y + origin.content_y + ibox.y;
+            Some(origin.bounds(x0, y0, x0 + ibox.width, y0 + ibox.height))
+        }
+        _ => None,
+    }
+}
+
+/// Unions the entries into one rect per line, in line order.
+fn merge_line_bounds(entries: Vec<LineBounds>) -> Option<Vec<Rect>> {
+    let mut per_line: Vec<LineBounds> = Vec::new();
+    for (line_index, (x0, y0, x1, y1)) in entries {
+        match per_line.iter_mut().find(|(index, _)| *index == line_index) {
+            Some((_, (ax0, ay0, ax1, ay1))) => {
+                *ax0 = ax0.min(x0);
+                *ay0 = ay0.min(y0);
+                *ax1 = ax1.max(x1);
+                *ay1 = ay1.max(y1);
             }
-            parley::layout::PositionedLayoutItem::InlineBox(ibox)
-                if ibox.kind == parley::InlineBoxKind::InFlow
-                    && accepted(NodeId::from_u64(ibox.id)) =>
-            {
-                let x0 = root_abs.x + content_off_x + ibox.x;
-                let y0 = root_abs.y + content_off_y + ibox.y;
-                Some(transform_bounds(x0, y0, x0 + ibox.width, y0 + ibox.height))
-            }
-            _ => None,
-        });
-    let (min_x, min_y, max_x, max_y) = fragment_bounds.chain(item_bounds).reduce(
-        |(ax0, ay0, ax1, ay1), (bx0, by0, bx1, by1)| {
-            (ax0.min(bx0), ay0.min(by0), ax1.max(bx1), ay1.max(by1))
-        },
-    )?;
+            None => per_line.push((line_index, (x0, y0, x1, y1))),
+        }
+    }
+    if per_line.is_empty() {
+        return None;
+    }
+
+    per_line.sort_unstable_by_key(|(line_index, _)| *line_index);
+    Some(
+        per_line
+            .into_iter()
+            .map(|(_, (x0, y0, x1, y1))| Rect::resolved(x0, y0, x1 - x0, y1 - y0))
+            .collect(),
+    )
+}
+
+/// Union of the per-line inline bounds, for getBoundingClientRect.
+fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rect> {
+    let rects = inline_line_rects_for_node(doc, node_id)?;
+    let (min_x, min_y, max_x, max_y) =
+        rects
+            .iter()
+            .fold((f32::MAX, f32::MAX, f32::MIN, f32::MIN), |acc, rect| {
+                (
+                    acc.0.min(rect.x),
+                    acc.1.min(rect.y),
+                    acc.2.max(rect.x + rect.width),
+                    acc.3.max(rect.y + rect.height),
+                )
+            });
     Some(Rect::resolved(min_x, min_y, max_x - min_x, max_y - min_y))
 }
 
@@ -597,7 +759,7 @@ fn inline_aware_rect_for_node(doc: &HtmlDocument, node_id: NodeId) -> Option<Rec
 /// when the text was not laid out (whitespace-only, or collapsed away).
 fn text_node_rect(doc: &BaseDocument, node: &Node) -> Option<Rect> {
     // Anonymous blocks wrap loose text and are only on the layout chain.
-    let mut cur = node.layout_parent.get().or(node.parent);
+    let mut cur = node.layout_parent_id().or(node.parent_id());
     let mut inline_root = None;
     for _ in 0..512 {
         let n = doc.get_node(cur?)?;
@@ -605,23 +767,23 @@ fn text_node_rect(doc: &BaseDocument, node: &Node) -> Option<Rect> {
             inline_root = Some(n);
             break;
         }
-        cur = n.layout_parent.get().or(n.parent);
+        cur = n.layout_parent_id().or(n.parent_id());
     }
     let inline_root = inline_root?;
-    let inline = inline_root.element_data()?.inline_layout_data.as_ref()?;
+    let inline = inline_root.element_data()?.inline_layout_data()?;
     let range = inline
-        .node_ranges
+        .node_ranges(node.tree())
         .iter()
-        .find(|(id, _)| *id == node.id)?
+        .find(|(id, _)| *id == node.id())?
         .1
         .clone();
-    let layout = &inline.layout;
+    let layout = inline.layout(node.tree());
     let scale = layout.scale();
     if !scale.is_finite() || scale <= 0.0 {
         return None;
     }
-    let anchor = parley::Cursor::from_byte_index(layout, range.start, parley::Affinity::Downstream);
-    let focus = parley::Cursor::from_byte_index(layout, range.end, parley::Affinity::Downstream);
+    let anchor = Cursor::from_byte_index(layout, range.start, Affinity::Downstream);
+    let focus = Cursor::from_byte_index(layout, range.end, Affinity::Downstream);
     let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
     parley::Selection::new(anchor, focus).geometry_with(layout, |r, _line| {
         x0 = x0.min(r.x0);
@@ -645,7 +807,7 @@ fn text_node_rect(doc: &BaseDocument, node: &Node) -> Option<Rect> {
     // Text scrolls with its inline root's content. absolute_position
     // already subtracts the root's own scroll offset; the composed
     // transform maps the unscrolled box, so that branch subtracts it.
-    let rect = match composed_transform_for_node(doc, inline_root.id) {
+    let rect = match composed_transform_for_node(doc, inline_root.id()) {
         Some((composed, device)) => {
             let scroll = inline_root.scroll_offset();
             let local = local - kurbo::Vec2::new(scroll.x, scroll.y);
@@ -679,7 +841,7 @@ fn svg_canvas_bbox(
     let key: &str = match elem.attr(local_name!("id")).filter(|s| !s.is_empty()) {
         Some(id) => id,
         None => {
-            synthetic = host.svg_snapshot_id(node.id)?;
+            synthetic = host.svg_snapshot_id(node.id())?;
             &synthetic
         }
     };
@@ -690,7 +852,7 @@ fn svg_canvas_bbox(
         return None;
     }
     let mut union: Option<usvg::Rect> = None;
-    for &child_id in &node.children {
+    for child_id in node.children() {
         let Some(child) = doc.get_node(child_id) else {
             continue;
         };
@@ -716,21 +878,21 @@ fn svg_canvas_bbox(
 fn svg_descendant_rect_for_node(doc: &BaseDocument, node_id: NodeId) -> Option<Rect> {
     let node = doc.get_node(node_id)?;
     let elem = node.element_data()?;
-    if elem.name.ns != ns!(svg) {
+    if *elem.namespace() != ns!(svg) {
         return None;
     }
     let mut host: Option<&Node> = None;
-    let mut cur = node.parent;
+    let mut cur = node.parent_id();
     while let Some(pid) = cur {
         let p = doc.get_node(pid)?;
         let Some(pel) = p.element_data() else { break };
-        if pel.name.ns != ns!(svg) {
+        if *pel.namespace() != ns!(svg) {
             break;
         }
         if pel.svg_image_data().is_some() {
             host = Some(p);
         }
-        cur = p.parent;
+        cur = p.parent_id();
     }
     let host = host?;
     let host_layout = host.final_layout();
@@ -777,7 +939,7 @@ fn svg_descendant_rect_for_node(doc: &BaseDocument, node_id: NodeId) -> Option<R
     let x1 = x0 + bbox.width() * scale_x;
     let y1 = y0 + bbox.height() * scale_y;
 
-    let (x0, y0, x1, y1) = match composed_transform_for_node(doc, host.id) {
+    let (x0, y0, x1, y1) = match composed_transform_for_node(doc, host.id()) {
         Some((composed, scale)) => {
             let local = kurbo::Rect::new(
                 (x0 - host_abs.x) as f64 * scale,
@@ -834,7 +996,10 @@ impl DomHandle {
         vec![v.window_size.0, v.window_size.1]
     }
 
-    #[wasm_bindgen(js_name = "getBoundingClientRect")]
+    #[wasm_bindgen(
+        js_name = "getBoundingClientRect",
+        unchecked_return_type = "KsLayoutRect | null"
+    )]
     pub fn get_bounding_client_rect(&self, node_id: u32) -> Result<JsValue, JsError> {
         if self.layout_mode.get() == LayoutMode::Off {
             return serde_wasm_bindgen::to_value(&Rect::ZERO)
@@ -846,7 +1011,7 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return Ok(JsValue::NULL),
         };
-        let rect_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let rect_result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let Some(node) = internal_id.and_then(|id| doc.get_node(id)) else {
                 return Rect::ZERO;
             };
@@ -854,6 +1019,87 @@ impl DomHandle {
         }));
         let rect = rect_result.unwrap_or(Rect::ZERO);
         serde_wasm_bindgen::to_value(&rect).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Per-line content rects for `DOM.getContentQuads`: one rect per line box
+    /// for an inline node, and the single border box otherwise.
+    #[wasm_bindgen(js_name = "getContentRects", unchecked_return_type = "KsLayoutRect[]")]
+    pub fn get_content_rects(&self, node_id: u32) -> Result<JsValue, JsError> {
+        if self.layout_mode.get() == LayoutMode::Off {
+            return serde_wasm_bindgen::to_value(&Vec::<Rect>::new())
+                .map_err(|e| JsError::new(&e.to_string()));
+        }
+        self.ensure_layout();
+        let internal_id = self.resolve_node_id(node_id);
+        let doc = match self.doc.try_borrow() {
+            Ok(d) => d,
+            Err(_) => return Ok(JsValue::NULL),
+        };
+        let rects = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let Some(node) = internal_id.and_then(|id| doc.get_node(id)) else {
+                return Vec::new();
+            };
+            if has_layout_data(node) {
+                let size = node.final_layout().size;
+                if size.width > 0.0 && size.height > 0.0 {
+                    return vec![bounding_rect_for_node(&doc, node)];
+                }
+            }
+            inline_line_rects_for_node(&doc, node.id())
+                .unwrap_or_else(|| vec![bounding_rect_for_node(&doc, node)])
+        }))
+        .unwrap_or_default();
+        serde_wasm_bindgen::to_value(&rects).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// ResizeObserver's two boxes in one call: `[contentWidth, contentHeight, borderWidth,
+    /// borderHeight]` from the layout box, so transforms do not count. A node that generates no
+    /// box measures zero. Empty when there is no layout to read, so the caller falls back to its
+    /// CSSOM reads. With `resolve` false this reads the last committed layout.
+    #[wasm_bindgen(js_name = "resizeObserverBoxes")]
+    pub fn resize_observer_boxes(&self, node_id: u32, resolve: bool) -> Vec<f32> {
+        if self.layout_mode.get() == LayoutMode::Off {
+            return Vec::new();
+        }
+        if resolve {
+            self.ensure_layout();
+        }
+        let Some(internal_id) = self.resolve_node_id(node_id) else {
+            return Vec::new();
+        };
+        let Ok(doc) = self.doc.try_borrow() else {
+            return Vec::new();
+        };
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+            let node = doc.get_node(internal_id)?;
+            if !has_layout_data(node) {
+                return None;
+            }
+            if !generates_box(&doc, node) {
+                return Some(vec![0.0; 4]);
+            }
+            let layout = node.final_layout();
+            let content_width = (layout.size.width
+                - layout.border.left
+                - layout.border.right
+                - layout.padding.left
+                - layout.padding.right)
+                .max(0.0);
+            let content_height = (layout.size.height
+                - layout.border.top
+                - layout.border.bottom
+                - layout.padding.top
+                - layout.padding.bottom)
+                .max(0.0);
+            Some(vec![
+                content_width,
+                content_height,
+                layout.size.width,
+                layout.size.height,
+            ])
+        }));
+        drop(doc);
+        result.ok().flatten().unwrap_or_default()
     }
 
     /// Compute one Intersection Observer geometry result.
@@ -882,7 +1128,7 @@ impl DomHandle {
             .doc
             .try_borrow()
             .map_err(|e| JsError::new(&e.to_string()))?;
-        let geometry = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let geometry = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let boxed = |id: Option<NodeId>| {
                 id.and_then(|id| doc.get_node(id))
                     .map(|node| (node, bounding_rect_for_node(&doc, node)))
@@ -939,7 +1185,7 @@ impl DomHandle {
                 GeometryRect::from_edges(l - scroll_x, t - scroll_y, r - scroll_x, b - scroll_y)
             };
             let root_node = root_internal.flatten();
-            let intersection = (root_node != Some(target_node.id))
+            let intersection = (root_node != Some(target_node.id()))
                 .then(|| {
                     clip_to_containing_blocks(
                         &doc,
@@ -969,7 +1215,10 @@ impl DomHandle {
         serde_json::to_string(&geometry).map_err(|e| JsError::new(&e.to_string()))
     }
 
-    #[wasm_bindgen(js_name = "offsetMetrics")]
+    #[wasm_bindgen(
+        js_name = "offsetMetrics",
+        unchecked_return_type = "KsOffsetMetrics | null"
+    )]
     pub fn offset_metrics(&self, node_id: u32) -> Result<JsValue, JsError> {
         use ::style::properties::generated::longhands::position::computed_value::T as Position;
         if self.layout_mode.get() == LayoutMode::Off {
@@ -981,13 +1230,12 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return Ok(JsValue::NULL),
         };
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             let node = doc.get_node(internal_id?)?;
-            let root_element_id = doc.root_element().id;
+            let root_element_id = doc.root_element().id();
 
-            let local_name = |n: &blitz_dom::Node| -> Option<String> {
-                n.element_data().map(|e| e.name.local.to_string())
-            };
+            let local_name =
+                |n: &Node| -> Option<String> { n.element_data().map(|e| e.name.local.to_string()) };
             let no_box = |d: ::style::values::specified::box_::Display| {
                 use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
                 d.outside() == DisplayOutside::None && d.inside() == DisplayInside::None
@@ -998,10 +1246,10 @@ impl DomHandle {
                     let Some(n) = doc.get_node(cid) else {
                         return false;
                     };
-                    if n.is_element() && no_box(*n.display_constructed_as()) {
+                    if n.is_element() && no_box(n.display_constructed_as()) {
                         return false;
                     }
-                    cur = n.parent;
+                    cur = n.parent_id();
                 }
                 true
             };
@@ -1021,10 +1269,10 @@ impl DomHandle {
                 .unwrap_or(true);
 
             if own_name == "body"
-                || node.id == root_element_id
+                || node.id() == root_element_id
                 || !node.is_element()
                 || self_boxless
-                || !has_layout_box(node.id)
+                || !has_layout_box(node.id())
             {
                 return Some(OffsetMetrics {
                     parent: -1.0,
@@ -1033,7 +1281,7 @@ impl DomHandle {
                 });
             }
 
-            let generates_box = |p: &blitz_dom::Node| -> bool {
+            let generates_box = |p: &Node| -> bool {
                 use ::style::values::specified::box_::DisplayOutside;
                 p.primary_styles()
                     .map(|s| s.clone_display().outside() != DisplayOutside::None)
@@ -1043,7 +1291,7 @@ impl DomHandle {
                 None
             } else {
                 let mut found = None;
-                let mut cur = node.parent;
+                let mut cur = node.parent_id();
                 while let Some(pid) = cur {
                     let Some(p) = doc.get_node(pid) else { break };
                     if p.is_element() && generates_box(p) {
@@ -1059,7 +1307,7 @@ impl DomHandle {
                             break;
                         }
                     }
-                    cur = p.parent;
+                    cur = p.parent_id();
                 }
                 found
             };
@@ -1079,7 +1327,7 @@ impl DomHandle {
                 ))
             };
 
-            let (node_x, node_y) = viewport_pos(node.id)?;
+            let (node_x, node_y) = viewport_pos(node.id())?;
             let Some(op_id) = offset_parent else {
                 return Some(OffsetMetrics {
                     parent: -1.0,

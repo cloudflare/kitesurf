@@ -15,6 +15,13 @@ export declare function ks_eval_cdp(
   awaitPromise: boolean,
   returnByValue: boolean,
 ): Promise<unknown>;
+export declare function ks_eval_cdp_in_frame(
+  src: string,
+  frameId: string,
+  frameWindow: unknown,
+  awaitPromise: boolean,
+  returnByValue: boolean,
+): Promise<unknown>;
 export declare function ks_call_cdp(
   fnSrc: string,
   thisV8: unknown,
@@ -22,13 +29,27 @@ export declare function ks_call_cdp(
   awaitPromise: boolean,
   returnByValue: boolean,
 ): Promise<unknown>;
+export declare function ks_call_cdp_in_frame(
+  fnSrc: string,
+  thisV8: unknown,
+  argsV8: unknown[],
+  frameId: string,
+  frameWindow: unknown,
+  awaitPromise: boolean,
+  returnByValue: boolean,
+): Promise<unknown>;
+export declare function ks_release_frame_realm(frameId: string): void;
 
 export declare function ks_eval_page(src: string): unknown;
 export declare function ks_run_page_jobs(): void;
 
 export declare function font_families_json(): string;
 
-export declare function ks_import(specifier: string, referrerUrl: string): Promise<unknown>;
+export declare function ks_import(
+  specifier: string,
+  referrerUrl: string,
+  moduleType?: string,
+): Promise<unknown>;
 export declare function ks_set_boa_strict(v: boolean): void;
 
 export declare function ks_bridge_pins(): string;
@@ -102,12 +123,22 @@ export declare class RuleStyleDeclarationStore {
 
 export declare function ks_ua_stylesheet(): string;
 
+// `profile` names the faces the bytes came from; uaFontProfile gives their paths as JSON.
+// eslint-disable-next-line max-params -- Keep the generated wasm-bindgen ABI.
 export declare function register_ua_fonts(
   sans_bytes: Uint8Array,
   sans_italic_bytes: Uint8Array,
+  system_bytes: Uint8Array,
+  system_italic_bytes: Uint8Array,
   serif_bytes: Uint8Array,
+  serif_bold_bytes: Uint8Array,
+  serif_italic_bytes: Uint8Array,
+  georgia_bytes: Uint8Array,
+  georgia_italic_bytes: Uint8Array,
   mono_bytes: Uint8Array,
+  profile: string,
 ): boolean;
+export declare function uaFontProfile(profile: string): string;
 export declare function register_symbol_fonts(
   symbols_bytes: Uint8Array,
   symbols2_bytes: Uint8Array,
@@ -115,6 +146,7 @@ export declare function register_symbol_fonts(
 export declare function register_emoji_font(bytes: Uint8Array): boolean;
 
 export declare function register_cjk_font(bytes: Uint8Array): boolean;
+export declare function register_cjk_region_font(bytes: Uint8Array, region: string): boolean;
 
 export declare function register_script_font(bytes: Uint8Array, script_tag: string): boolean;
 
@@ -150,3 +182,25 @@ export declare function monoAdvancePerEm(): number;
 export declare function setTtyUaCss(css: string): void;
 
 export declare function setTtyCellGrid(w: number, h: number): void;
+
+// boa's code store (core boa_code_store.rs): an append log where put returns a key >= 0, or -1
+// to keep the bytes resident; read returns exactly len bytes from that key's offset.
+export declare function ks_set_code_store(
+  minBytes: number,
+  put: ((bytes: Uint8Array) => number) | null,
+  read: ((key: number, offset: number, len: number) => Uint8Array | undefined) | null,
+  release: ((key: number, len: number) => void) | null,
+  flush: (() => void) | null,
+): void;
+
+/** Live wasm bytes past which an allocation forces a swap round; 0 turns it off. */
+export declare function ks_set_swap_budget(bytes: number): void;
+
+/** What compiled code retains by form, as JSON; the shape of `bridge.boaCode`. */
+export declare function ks_code_stats(): string;
+
+/** Live bytes, budget and forced rounds from the counting allocator, as JSON. */
+export declare function ks_swap_alloc_stats(): string;
+
+/** Resets only the diagnostic peak window for the counting allocator. */
+export declare function ks_swap_alloc_reset_peak_window(): void;

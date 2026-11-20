@@ -42,8 +42,6 @@ dependencies = [
 [[package]]
 name = "anyrender_svg"
 version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39327debd1bdca190d086c107825a5dc4c665be31e99e5c0854345a050d08cad"
 dependencies = [
  "anyrender",
  "image",
@@ -146,19 +144,17 @@ name = "bitflags"
 version = "2.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
-dependencies = [
- "serde_core",
-]
 
 [[package]]
 name = "blitz-dom"
-version = "0.3.0-beta.3"
+version = "0.3.0-beta.4"
 dependencies = [
  "app_units",
  "atomic_refcell",
  "bitflags 2.13.2",
  "blitz-traits",
  "color",
+ "compact_str",
  "cssparser",
  "cursor-icon",
  "debug_timer",
@@ -179,7 +175,6 @@ dependencies = [
  "rayon",
  "selectors",
  "skrifa 0.44.0",
- "slotmap",
  "smallvec",
  "stylo",
  "stylo_dom",
@@ -198,7 +193,7 @@ dependencies = [
 
 [[package]]
 name = "blitz-html"
-version = "0.3.0-beta.3"
+version = "0.3.0-beta.4"
 dependencies = [
  "blitz-dom",
  "blitz-traits",
@@ -208,7 +203,7 @@ dependencies = [
 
 [[package]]
 name = "blitz-paint"
-version = "0.3.0-beta.3"
+version = "0.3.0-beta.4"
 dependencies = [
  "anyrender",
  "anyrender_svg",
@@ -229,9 +224,7 @@ dependencies = [
 
 [[package]]
 name = "blitz-traits"
-version = "0.3.0-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61b6c502871a565bb274ddead6d08e33af62cacf88ff0e2557698fdaf24dcaf0"
+version = "0.3.0-beta.4"
 dependencies = [
  "atomic_refcell",
  "bitflags 2.13.2",
@@ -1540,13 +1533,12 @@ dependencies = [
 
 [[package]]
 name = "keyboard-types"
-version = "0.7.0"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b750dcadc39a09dbadd74e118f6dd6598df77fa01df0cfcdc52c28dece74528a"
+checksum = "0fbe853b403ae61a04233030ae8a79d94975281ed9770a1f9e246732b534b28d"
 dependencies = [
  "bitflags 2.13.2",
  "serde",
- "unicode-segmentation",
 ]
 
 [[package]]
@@ -1567,6 +1559,7 @@ dependencies = [
  "cssparser",
  "encoding_rs",
  "euclid",
+ "fdeflate",
  "flate2",
  "foldhash 0.2.0",
  "futures-util",
@@ -1587,6 +1580,7 @@ dependencies = [
  "ratatui",
  "ratatui-image",
  "rustc-hash",
+ "ryu-js",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
@@ -1963,6 +1957,7 @@ dependencies = [
  "parley_engine",
  "skrifa 0.44.0",
  "smallvec",
+ "thin-vec",
 ]
 
 [[package]]
@@ -1997,6 +1992,7 @@ dependencies = [
  "parley_data",
  "parley_emoji",
  "skrifa 0.44.0",
+ "thin-vec",
 ]
 
 [[package]]
@@ -2425,6 +2421,8 @@ dependencies = [
  "anyrender",
  "anyrender_vello_cpu",
  "console_error_panic_hook",
+ "crc32fast",
+ "fdeflate",
  "flate2",
  "foldhash 0.2.0",
  "getrandom 0.2.17",
@@ -2531,6 +2529,8 @@ version = "0.0.1"
 dependencies = [
  "anyrender",
  "anyrender_vello_cpu",
+ "crc32fast",
+ "fdeflate",
  "flate2",
  "foldhash 0.2.0",
  "image",
@@ -2957,7 +2957,7 @@ dependencies = [
 
 [[package]]
 name = "stylo_taffy"
-version = "0.3.0-beta.3"
+version = "0.3.0-beta.4"
 dependencies = [
  "bitflags 2.13.2",
  "stylo",
@@ -3502,8 +3502,6 @@ checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 [[package]]
 name = "vello_common"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73c2fbe53548bcd25c8ff42f75a93770a8611a16b37bee56d7ef7b44e36027f1"
 dependencies = [
  "bytemuck",
  "fearless_simd",

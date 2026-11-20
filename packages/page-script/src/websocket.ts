@@ -4,7 +4,7 @@
 
 // Installs the page WebSocket facade over workerd's WebSocket-upgrade fetch.
 
-import { ksEventCtors, ksGlobal } from "./state.ts";
+import { ksGlobal, ksGlobalByKey, shimEventCtor } from "./state.ts";
 
 type AnyFn = (...args: unknown[]) => unknown;
 
@@ -19,7 +19,7 @@ const WEBSOCKET_ABNORMAL_CLOSURE_CODE = 1006;
 function mkEvent(type: string, fields: Record<string, unknown>): any {
   let ev: any;
   try {
-    ev = new ksEventCtors.Event(type);
+    ev = new (shimEventCtor("Event"))(type);
   } catch {
     ev = { type };
   }
@@ -268,5 +268,7 @@ export function installWebSocketFacade(): void {
   try {
     Object.defineProperty(KsWebSocket, "name", { value: "WebSocket" });
   } catch {}
-  ksGlobal.WebSocket = KsWebSocket;
+  // Through the untyped view: the page's WebSocket has no workerd-only READY_STATE_* statics, so
+  // it isn't `typeof WebSocket`.
+  ksGlobalByKey.WebSocket = KsWebSocket;
 }

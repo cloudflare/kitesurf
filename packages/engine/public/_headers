@@ -1,2 +1,8 @@
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
+
+# The bundled DevTools frontend (--config=devtools) changes only on a re-pin, but its file names
+# carry no content hash. An hour spares the hundreds of module requests per load and bounds how
+# long a re-pin can leave a browser with mixed old and new modules.
+/inspector/*
+  Cache-Control: public, max-age=3600

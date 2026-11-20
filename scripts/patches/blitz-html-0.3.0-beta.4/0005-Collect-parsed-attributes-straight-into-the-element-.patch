@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Wed, 4 Nov 2026 22:00:16 +0000
+Subject: [PATCH] Collect parsed attributes straight into the element's list
+
+blitz-dom's Attributes collects from an iterator, so the parser maps html5ever's attributes into it directly instead of collecting a Vec first.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/html_sink.rs | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/html_sink.rs b/src/html_sink.rs
+index 0db8770..7cf0764 100644
+--- a/src/html_sink.rs
++++ b/src/html_sink.rs
+@@ -6,7 +6,7 @@ use html5ever::tree_builder::TreeBuilderOpts;
+ use std::borrow::Cow;
+ use std::cell::{Cell, Ref, RefCell, RefMut};
+
+-use blitz_dom::node::Attribute;
++use blitz_dom::node::{Attribute, Attributes};
+ use blitz_dom::{DocumentMutator, ElementData, HtmlParserProvider, NodeId};
+ use html5ever::{
+     LocalName, Namespace, QualName,
+@@ -411,6 +411,6 @@ impl<'m, 'doc> TreeSink for DocumentHtmlParser<'m, 'doc> {
+         attrs: Vec<html5ever::Attribute>,
+         _flags: ElementFlags,
+     ) -> Self::Handle {
+-        let attrs = attrs.into_iter().map(html5ever_to_blitz_attr).collect();
++        let attrs: Attributes = attrs.into_iter().map(html5ever_to_blitz_attr).collect();
+         self.mutr().create_element(name, attrs)
+     }

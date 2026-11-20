@@ -34,7 +34,7 @@ test("oopif-late-spawn", async ({ page, cdpSession }) => {
   let childCtx: { id: number; origin: string } | undefined;
   for (let i = 0; i < 40 && !childCtx; i++) {
     await new Promise((r) => setTimeout(r, 250));
-    childCtx = contexts.find((c) => !c.isDefault && c.origin === "http://127.0.0.1:8787");
+    childCtx = contexts.find((c) => c.origin === "http://127.0.0.1:8787");
   }
   expect(childCtx, `child execution context missing: ${JSON.stringify(contexts)}`).toBeTruthy();
 

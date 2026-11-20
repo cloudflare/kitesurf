@@ -1,0 +1,25 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sun, 4 Oct 2026 11:37:54 +0100
+Subject: [PATCH] Pass the scale to live_rehomed_reach
+
+blitz-dom maps each re-homed box through its transform, and the
+transform and scrollable_overflow it reads are in device pixels, so the
+reach needs the scale to come back to CSS pixels.
+---
+ src/render.rs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index 4e42bd5..111309c 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -572,7 +572,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+                 // corner radii only round inward, so no path is built here.
+                 let mut effect_layer_clip = cx.frame.border_box;
+                 effect_layer_clip = effect_layer_clip.union(*cx.node.scrollable_overflow());
+-                if let Some((x0, y0, x1, y1)) = cx.node.live_rehomed_reach() {
++                if let Some((x0, y0, x1, y1)) = cx.node.live_rehomed_reach(self.scale) {
+                     effect_layer_clip = effect_layer_clip.union(Rect::new(
+                         x0 as f64 * self.scale,
+                         y0 as f64 * self.scale,

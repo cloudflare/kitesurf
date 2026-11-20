@@ -10,6 +10,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::{poll_fn, Future};
+use std::panic;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Poll, Waker};
@@ -22,23 +23,33 @@ use boa_engine::{
     module::{ModuleLoader, ModuleRequest, Referrer, SyntheticModuleInitializer},
     object::{builtins::JsPromise, FunctionObjectBuilder, JsObject},
     property::Attribute,
+    realm::Realm,
     Context, JsArgs, JsNativeError, JsResult, JsString, JsValue as BoaValue, Module,
     NativeFunction, Source,
 };
 use futures_util::stream::FuturesUnordered;
 use futures_util::StreamExt;
+use js_sys::{Date, Promise, Reflect};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
+use crate::js::boa_bridge::{context_ptr, with_context};
+use crate::js::dom_fastpath::arm_v8_ran;
+use crate::js::internals::get;
+
+// A module's requested type is part of its identity: a JSON request must never reuse a
+// JavaScript load of the same URL.
+type ModuleCache = Rc<RefCell<HashMap<(String, Option<String>), Module>>>;
+
 #[derive(Default)]
 struct KsModuleLoader {
-    cache: Rc<RefCell<HashMap<String, Module>>>,
+    cache: ModuleCache,
 }
 
 fn page_base_url() -> Option<String> {
     let global = js_sys::global();
-    let loc = js_sys::Reflect::get(&global, &JsValue::from_str("location")).ok()?;
-    js_sys::Reflect::get(&loc, &JsValue::from_str("href"))
+    let loc = Reflect::get(&global, &JsValue::from_str("location")).ok()?;
+    Reflect::get(&loc, &JsValue::from_str("href"))
         .ok()?
         .as_string()
 }
@@ -46,8 +57,7 @@ fn page_base_url() -> Option<String> {
 #[cfg(target_arch = "wasm32")]
 fn resolve_with_import_map(specifier: &str, base: &str) -> Result<Option<String>, String> {
     let global = js_sys::global();
-    let Ok(hook) = js_sys::Reflect::get(&global, &JsValue::from_str("__ks_resolve_import_map"))
-    else {
+    let Ok(hook) = Reflect::get(&global, &JsValue::from_str("__ks_resolve_import_map")) else {
         return Ok(None);
     };
     let Ok(hook) = hook.dyn_into::<js_sys::Function>() else {
@@ -90,54 +100,73 @@ fn resolve_specifier(specifier: &str, referrer: &Referrer) -> Result<String, Str
     }
 }
 
-async fn gated_module_source(url: &str) -> Option<Result<String, String>> {
-    let global = js_sys::global();
-    let hook = js_sys::Reflect::get(&global, &JsValue::from_str("__ks_module_source")).ok()?;
-    let hook: js_sys::Function = hook.dyn_into().ok()?;
+// The referrer's URL lets the gate give an import its referrer's nonce (HTML's descendant
+// script fetch options); an entry import's referrer is the page. The requested module type
+// makes the gate check the response MIME before any body is used.
+async fn gated_module_source(
+    url: &str,
+    referrer: Option<&str>,
+    module_type: Option<&str>,
+) -> Option<Result<LoadedModule, String>> {
+    let hook: js_sys::Function = get("fetchModuleSource")?.dyn_into().ok()?;
+    let referrer = referrer.map_or(JsValue::UNDEFINED, JsValue::from_str);
+    let module_type = module_type.map_or(JsValue::UNDEFINED, JsValue::from_str);
     let promise = hook
-        .call1(&global, &JsValue::from_str(url))
-        .map_err(|_| format!("__ks_module_source({url}) threw"));
+        .call3(
+            &JsValue::UNDEFINED,
+            &JsValue::from_str(url),
+            &referrer,
+            &module_type,
+        )
+        .map_err(|_| format!("fetchModuleSource({url}) threw"));
     let promise = match promise {
         Ok(p) => p,
         Err(e) => return Some(Err(e)),
     };
-    match wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise)).await {
-        Ok(v) => Some(
-            v.as_string()
-                .ok_or_else(|| "module body not a string".to_string()),
-        ),
-        Err(e) => Some(Err(format!("module refused for {url}: {e:?}"))),
-    }
+    let value = match wasm_bindgen_futures::JsFuture::from(Promise::from(promise)).await {
+        Ok(v) => v,
+        Err(e) => return Some(Err(format!("module refused for {url}: {e:?}"))),
+    };
+    Some(
+        module_body(&value)
+            .ok_or_else(|| format!("module body for {url} is neither source nor a namespace")),
+    )
 }
 
-async fn fetch_module_source(url: String) -> Result<String, String> {
-    if let Some(gated) = gated_module_source(&url).await {
+async fn fetch_module_source(
+    url: String,
+    referrer: Option<String>,
+    module_type: Option<String>,
+) -> Result<LoadedModule, String> {
+    if let Some(gated) =
+        gated_module_source(&url, referrer.as_deref(), module_type.as_deref()).await
+    {
         return gated;
     }
     let global = js_sys::global();
-    let fetch_fn: js_sys::Function = js_sys::Reflect::get(&global, &JsValue::from_str("fetch"))
+    let fetch_fn: js_sys::Function = Reflect::get(&global, &JsValue::from_str("fetch"))
         .map_err(|_| "no global fetch".to_string())?
         .dyn_into()
         .map_err(|_| "fetch is not a function".to_string())?;
-    let resp = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(
+    let resp = wasm_bindgen_futures::JsFuture::from(Promise::from(
         fetch_fn
             .call1(&global, &JsValue::from_str(&url))
             .map_err(|_| format!("fetch({url}) threw"))?,
     ))
     .await
     .map_err(|e| format!("fetch({url}) rejected: {e:?}"))?;
-    let status = js_sys::Reflect::get(&resp, &JsValue::from_str("status"))
+    let status = Reflect::get(&resp, &JsValue::from_str("status"))
         .ok()
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0) as u32;
     if status != 0 && !(200..300).contains(&status) {
         return Err(format!("fetch({url}) HTTP {status}"));
     }
-    let text_fn: js_sys::Function = js_sys::Reflect::get(&resp, &JsValue::from_str("text"))
+    let text_fn: js_sys::Function = Reflect::get(&resp, &JsValue::from_str("text"))
         .map_err(|_| "response has no text()".to_string())?
         .dyn_into()
         .map_err(|_| "text is not a function".to_string())?;
-    let text = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(
+    let text = wasm_bindgen_futures::JsFuture::from(Promise::from(
         text_fn
             .call0(&resp)
             .map_err(|_| "text() threw".to_string())?,
@@ -145,15 +174,22 @@ async fn fetch_module_source(url: String) -> Result<String, String> {
     .await
     .map_err(|_| "text() rejected".to_string())?;
     text.as_string()
+        .map(LoadedModule::Source)
         .ok_or_else(|| "module body not a string".to_string())
 }
 
-async fn native_import_namespace(url: String) -> Option<wasm_bindgen::JsValue> {
-    let global = js_sys::global();
-    let f = js_sys::Reflect::get(&global, &JsValue::from_str("__ks_native_import")).ok()?;
-    let f: js_sys::Function = f.dyn_into().ok()?;
-    let promise = f.call1(&global, &JsValue::from_str(&url)).ok()?;
-    let ns = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise))
+async fn native_import_namespace(
+    url: String,
+    module_type: Option<String>,
+) -> Option<wasm_bindgen::JsValue> {
+    let f: js_sys::Function = get("nativeImport")?.dyn_into().ok()?;
+    let module_type = module_type
+        .as_deref()
+        .map_or(JsValue::UNDEFINED, JsValue::from_str);
+    let promise = f
+        .call2(&JsValue::UNDEFINED, &JsValue::from_str(&url), &module_type)
+        .ok()?;
+    let ns = wasm_bindgen_futures::JsFuture::from(Promise::from(promise))
         .await
         .ok()?;
     if ns.is_undefined() || ns.is_null() {
@@ -198,10 +234,23 @@ fn v8_namespace_to_synthetic(url: &str, ns: &wasm_bindgen::JsValue, ctx: &mut Co
     Module::synthetic(&names, init, Some(std::path::PathBuf::from(url)), None, ctx)
 }
 
+// What a module load produced: text for boa to parse, or a namespace the page realm already
+// built. A JSON module takes the namespace path, so its data is never parsed here.
 enum LoadedModule {
     Native(wasm_bindgen::JsValue),
     Source(String),
-    Err(String),
+}
+
+// A module body the page's hook answered: source text for a JavaScript module, or the namespace
+// of a JSON module the page realm parsed.
+fn module_body(value: &JsValue) -> Option<LoadedModule> {
+    if let Some(source) = value.as_string() {
+        return Some(LoadedModule::Source(source));
+    }
+    if value.is_object() {
+        return Some(LoadedModule::Native(value.clone()));
+    }
+    None
 }
 
 impl ModuleLoader for KsModuleLoader {
@@ -213,41 +262,44 @@ impl ModuleLoader for KsModuleLoader {
     ) -> JsResult<Module> {
         let url = resolve_specifier(&request.specifier().to_std_string_escaped(), &referrer)
             .map_err(|message| JsNativeError::typ().with_message(message))?;
-        if let Some(m) = self.cache.borrow().get(&url).cloned() {
+        let module_type = request
+            .get_attribute("type")
+            .map(|t| t.to_std_string_escaped());
+        let referrer_url = referrer.path().and_then(|p| p.to_str()).map(String::from);
+        let key = (url.clone(), module_type.clone());
+        if let Some(m) = self.cache.borrow().get(&key).cloned() {
             return Ok(m);
         }
-        // Use the loaded Worker's module instance when one is available.
-        let loaded = if let Some(ns) = native_import_namespace(url.clone()).await {
-            LoadedModule::Native(ns)
-        } else {
-            match fetch_module_source(url.clone()).await {
-                Ok(src) => LoadedModule::Source(src),
-                Err(msg) => LoadedModule::Err(msg),
-            }
+        // Use the loaded Worker's module instance when one is available. The page only answers
+        // a JSON request from a record it baked as JSON, so a typed request cannot reach
+        // JavaScript here.
+        let loaded = match native_import_namespace(url.clone(), module_type.clone()).await {
+            Some(ns) => Ok(LoadedModule::Native(ns)),
+            None => fetch_module_source(url.clone(), referrer_url, module_type).await,
         };
         // Dedupe concurrent in-flight loads of the same URL: a sibling load may
         // have parsed and registered this module while we fetched.
-        if let Some(existing) = self.cache.borrow().get(&url).cloned() {
+        if let Some(existing) = self.cache.borrow().get(&key).cloned() {
             return Ok(existing);
         }
         let module = {
             let ctx = &mut *context.borrow_mut();
             match loaded {
-                LoadedModule::Native(ns) => v8_namespace_to_synthetic(&url, &ns, ctx),
-                // A JSON module arrives wrapped as `export default <literal>` by the
-                // gated source hook, which types it from the response MIME.
-                LoadedModule::Source(src) => Module::parse(
+                Ok(LoadedModule::Native(ns)) => v8_namespace_to_synthetic(&url, &ns, ctx),
+                // An untyped import of a JSON-MIME body arrives wrapped as
+                // `export default <literal>`; a JSON-typed one arrives as a namespace above.
+                Ok(LoadedModule::Source(src)) => Module::parse(
                     Source::from_bytes(src.as_bytes())
                         .with_path(std::path::Path::new(url.as_str())),
                     None,
                     ctx,
                 )?,
-                LoadedModule::Err(msg) => {
+                Err(msg) => {
                     return Err(JsNativeError::typ().with_message(msg).into());
                 }
             }
         };
-        self.cache.borrow_mut().insert(url, module.clone());
+        self.cache.borrow_mut().insert(key, module.clone());
         Ok(module)
     }
 
@@ -282,7 +334,7 @@ impl ModuleLoader for KsModuleLoader {
 
 fn resolve_import_meta(specifier: &str, referrer: &str) -> Result<String, String> {
     let global = js_sys::global();
-    let resolver = js_sys::Reflect::get(&global, &JsValue::from_str("__ks_resolve_import_map"))
+    let resolver = Reflect::get(&global, &JsValue::from_str("__ks_resolve_import_map"))
         .ok()
         .and_then(|f| f.dyn_into::<js_sys::Function>().ok())
         .ok_or_else(|| "import.meta.resolve is unavailable".to_string())?;
@@ -294,7 +346,7 @@ fn resolve_import_meta(specifier: &str, referrer: &str) -> Result<String, String
         Ok(resolved) => resolved
             .as_string()
             .ok_or_else(|| "import.meta.resolve returned a non-string".to_string()),
-        Err(err) => Err(js_sys::Reflect::get(&err, &JsValue::from_str("message"))
+        Err(err) => Err(Reflect::get(&err, &JsValue::from_str("message"))
             .ok()
             .and_then(|m| m.as_string())
             .unwrap_or_else(|| format!("Failed to resolve module specifier \"{specifier}\""))),
@@ -543,12 +595,10 @@ thread_local! {
     static PERSIST_QUEUE: RefCell<Option<Rc<WasmJobQueue>>> = const { RefCell::new(None) };
     static PERSIST_CP: RefCell<Option<boa_engine::interner::InternerCheckpoint>> =
         const { RefCell::new(None) };
-    static PERSIST_MODULES: RefCell<Option<PersistentModuleCache>> = const { RefCell::new(None) };
+    static PERSIST_MODULES: RefCell<Option<ModuleCache>> = const { RefCell::new(None) };
     static INTERNER_RECLAIMS: Cell<u64> = const { Cell::new(0) };
     static PERSIST_CP_LEN: Cell<usize> = const { Cell::new(0) };
 }
-
-type PersistentModuleCache = Rc<RefCell<HashMap<String, Module>>>;
 
 fn maybe_truncate_interner(ctx: &mut Context) {
     if ctx.interner().dynamic_len() <= PERSIST_CP_LEN.with(Cell::get) {
@@ -612,7 +662,7 @@ pub(crate) fn pump_stats() -> PumpStats {
 }
 
 pub(crate) fn interner_stats() -> (usize, u64, usize, u8) {
-    let len = crate::js::boa_bridge::with_context(|ctx| ctx.interner().dynamic_len()).unwrap_or(0);
+    let len = with_context(|ctx| ctx.interner().dynamic_len()).unwrap_or(0);
     let pending = PERSIST_MODULES.with(|m| {
         m.borrow().as_ref().map_or(0, |cache| {
             cache
@@ -672,11 +722,11 @@ fn ensure_persistent() -> bool {
 
 #[wasm_bindgen]
 pub fn ks_eval_page(src: &str) -> Result<JsValue, JsValue> {
-    crate::js::dom_fastpath::arm_v8_ran();
+    arm_v8_ran();
     if !ensure_persistent() {
         return Err(JsValue::from_str("kitesurf boa: context init failed"));
     }
-    crate::js::boa_bridge::with_context(|ctx| match ctx.eval(Source::from_bytes(src.as_bytes())) {
+    with_context(|ctx| match ctx.eval(Source::from_bytes(src.as_bytes())) {
         Ok(v) => {
             let _ = ctx.run_jobs();
             let out = crate::js::boa_bridge::boa_to_v8(&v, ctx);
@@ -690,11 +740,11 @@ pub fn ks_eval_page(src: &str) -> Result<JsValue, JsValue> {
 
 #[wasm_bindgen]
 pub fn ks_run_page_jobs() {
-    crate::js::dom_fastpath::arm_v8_ran();
+    arm_v8_ran();
     if !ensure_persistent() {
         return;
     }
-    crate::js::boa_bridge::with_context(|ctx| {
+    with_context(|ctx| {
         let _ = ctx.run_jobs();
         maybe_truncate_interner(ctx);
     });
@@ -886,10 +936,10 @@ fn heal_residual_stack(ctx: &mut Context) {
 }
 
 fn drain_ready_bounded(queue: &WasmJobQueue, ctx: &mut Context) -> usize {
-    let t0 = js_sys::Date::now();
+    let t0 = Date::now();
     heal_residual_stack(ctx);
     let mut n = 0usize;
-    while n < JOB_DRAIN_BATCH && js_sys::Date::now() - t0 < JOB_DRAIN_BUDGET_MS {
+    while n < JOB_DRAIN_BATCH && Date::now() - t0 < JOB_DRAIN_BUDGET_MS {
         let job = queue.promise_jobs.borrow_mut().pop_front();
         match job {
             Some(j) => {
@@ -953,7 +1003,7 @@ async fn background_pump() {
         if did {
             BG_PROGRESS.with(|t| t.set(t.get() + 1));
         }
-        BG_LAST_TICK_MS.with(|t| t.set(js_sys::Date::now()));
+        BG_LAST_TICK_MS.with(|t| t.set(Date::now()));
         yield_to_v8(if did { BG_FAST_MS } else { BG_IDLE_MS }).await;
     }
 }
@@ -962,7 +1012,7 @@ async fn bg_drain_once() -> bool {
     let Some(queue) = PERSIST_QUEUE.with(|q| q.borrow().clone()) else {
         return false;
     };
-    let ptr = crate::js::boa_bridge::context_ptr();
+    let ptr = context_ptr();
     if ptr.is_null() {
         return false;
     }
@@ -1019,24 +1069,29 @@ fn describe_rejection(v: &BoaValue, ctx: &mut Context) -> String {
 }
 
 #[wasm_bindgen]
-pub fn ks_import(specifier: String, referrer_url: String) -> js_sys::Promise {
-    crate::js::dom_fastpath::arm_v8_ran();
-    wasm_bindgen_futures::future_to_promise(std::panic::AssertUnwindSafe(async move {
+pub fn ks_import(specifier: String, referrer_url: String, module_type: Option<String>) -> Promise {
+    arm_v8_ran();
+    wasm_bindgen_futures::future_to_promise(panic::AssertUnwindSafe(async move {
         let promise = {
             let _boa_guard = acquire_boa_lock().await;
             if !ensure_persistent() {
                 return Err(JsValue::from_str("kitesurf boa: context init failed"));
             }
-            let ptr = crate::js::boa_bridge::context_ptr();
+            let ptr = context_ptr();
             if ptr.is_null() {
                 return Err(JsValue::from_str("kitesurf boa: no context"));
             }
             // SAFETY: single-threaded; the persistent context outlives this.
             let ctx: &mut Context = unsafe { &mut *ptr };
-            let src = format!(
-                "import({})",
-                serde_json::to_string(&specifier).unwrap_or_else(|_| "''".to_string())
-            );
+            let spec_json = serde_json::to_string(&specifier).unwrap_or_else(|_| "''".to_string());
+            // The requested type rides the module request, so the loader can key and check it.
+            let src = match &module_type {
+                Some(module_type) => format!(
+                    "import({spec_json}, {{ with: {{ type: {} }} }})",
+                    serde_json::to_string(module_type).unwrap_or_else(|_| "\"\"".to_string())
+                ),
+                None => format!("import({spec_json})"),
+            };
             let promise_val = match ctx.eval(
                 Source::from_bytes(src.as_bytes()).with_path(std::path::Path::new(&referrer_url)),
             ) {
@@ -1048,7 +1103,7 @@ pub fn ks_import(specifier: String, referrer_url: String) -> js_sys::Promise {
                 None => return Err(JsValue::from_str("import() did not return a promise")),
             }
         };
-        let ptr = crate::js::boa_bridge::context_ptr();
+        let ptr = context_ptr();
         pump(ptr, || !matches!(promise.state(), PromiseState::Pending)).await;
         let _boa_guard = acquire_boa_lock().await;
         let ctx: &mut Context = unsafe { &mut *ptr };
@@ -1073,8 +1128,8 @@ pub fn ks_set_boa_strict(v: bool) {
 }
 
 #[wasm_bindgen]
-pub fn ks_eval(src: String, await_promise: bool) -> js_sys::Promise {
-    wasm_bindgen_futures::future_to_promise(std::panic::AssertUnwindSafe(async move {
+pub fn ks_eval(src: String, await_promise: bool) -> Promise {
+    wasm_bindgen_futures::future_to_promise(panic::AssertUnwindSafe(async move {
         Ok(JsValue::from_str(
             &eval_to_envelope(&src, await_promise).await,
         ))
@@ -1082,9 +1137,9 @@ pub fn ks_eval(src: String, await_promise: bool) -> js_sys::Promise {
 }
 
 async fn yield_to_v8(ms: i32) {
-    let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+    let promise = Promise::new(&mut |resolve, _reject| {
         let global = js_sys::global();
-        if let Ok(st) = js_sys::Reflect::get(&global, &JsValue::from_str("setTimeout")) {
+        if let Ok(st) = Reflect::get(&global, &JsValue::from_str("setTimeout")) {
             if let Ok(f) = st.dyn_into::<js_sys::Function>() {
                 let _ = f.call2(&global, &resolve, &JsValue::from_f64(f64::from(ms)));
             }
@@ -1094,19 +1149,15 @@ async fn yield_to_v8(ms: i32) {
 }
 
 async fn yield_to_v8_microtasks() {
-    let promise = js_sys::Promise::resolve(&JsValue::UNDEFINED);
+    let promise = Promise::resolve(&JsValue::UNDEFINED);
     let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
 }
 
 fn pump_due_page_timers(deadline: f64) -> bool {
-    let global = js_sys::global();
-    let Ok(hook) = js_sys::Reflect::get(&global, &JsValue::from_str("__ks_pump_due_timers")) else {
+    let Some(Ok(hook)) = get("pumpDueTimers").map(|v| v.dyn_into::<js_sys::Function>()) else {
         return false;
     };
-    let Ok(hook) = hook.dyn_into::<js_sys::Function>() else {
-        return false;
-    };
-    hook.call1(&global, &JsValue::from_f64(deadline))
+    hook.call1(&JsValue::UNDEFINED, &JsValue::from_f64(deadline))
         .ok()
         .and_then(|value| value.as_f64())
         .is_some_and(|count| count > 0.0)
@@ -1115,11 +1166,9 @@ fn pump_due_page_timers(deadline: f64) -> bool {
 const AWAITED_YIELD_MAX_MS: f64 = 16.0;
 
 fn awaited_yield_ms() -> i32 {
-    let global = js_sys::global();
-    let delay = js_sys::Reflect::get(&global, &JsValue::from_str("__ks_next_timer_delay"))
-        .ok()
+    let delay = get("nextTimerDelay")
         .and_then(|hook| hook.dyn_into::<js_sys::Function>().ok())
-        .and_then(|hook| hook.call0(&global).ok())
+        .and_then(|hook| hook.call0(&JsValue::UNDEFINED).ok())
         .and_then(|value| value.as_f64())
         .unwrap_or(1.0);
     delay.clamp(1.0, AWAITED_YIELD_MAX_MS).ceil() as i32
@@ -1154,7 +1203,7 @@ async fn drive_cdp(
             Attribute::all(),
         );
     }
-    let mut pump_budget_started_at = js_sys::Date::now();
+    let mut pump_budget_started_at = Date::now();
     let mut pump_turns = 0;
     loop {
         {
@@ -1165,6 +1214,9 @@ async fn drive_cdp(
                 }
                 PromiseState::Rejected(v) => {
                     let ctx = unsafe { &mut *ptr };
+                    if let Some(original) = bridged_v8_throw(&v, ctx) {
+                        return Err(original);
+                    }
                     let msg = v
                         .to_string(ctx)
                         .map(|s| s.to_std_string_escaped())
@@ -1184,18 +1236,32 @@ async fn drive_cdp(
             pump(ptr, || !matches!(promise.state(), PromiseState::Pending)).await;
             if !matches!(promise.state(), PromiseState::Pending)
                 || (pump_turns < AWAITED_TIMER_PUMP_MAX_TURNS
-                    && js_sys::Date::now() - pump_budget_started_at < AWAITED_TIMER_PUMP_BUDGET_MS)
+                    && Date::now() - pump_budget_started_at < AWAITED_TIMER_PUMP_BUDGET_MS)
             {
                 continue;
             }
         }
-        pump_budget_started_at = js_sys::Date::now();
+        pump_budget_started_at = Date::now();
         pump_turns = 0;
         yield_to_v8(awaited_yield_ms()).await;
         // Drain boa jobs the callback enqueued; the lock is released during
         // any async-job wait so a concurrent driver can interleave.
         pump(ptr, || !matches!(promise.state(), PromiseState::Pending)).await;
     }
+}
+
+// A throw from page code V8 ran (a natively baked script) reaches boa as a
+// bridged proxy, which formats as "{ }". Hand V8 its own error back, so the
+// CDP exception keeps the class, message and stack the page threw.
+fn bridged_v8_throw(thrown: &BoaValue, ctx: &mut Context) -> Option<JsValue> {
+    let obj = thrown.as_object()?;
+    crate::js::boa_bridge::bridged_v8_handle(&obj, ctx).map(crate::js::boa_bridge::get_v8)
+}
+
+fn cdp_throw(e: &boa_engine::JsError, ctx: &mut Context) -> JsValue {
+    e.as_opaque()
+        .and_then(|thrown| bridged_v8_throw(thrown, ctx))
+        .unwrap_or_else(|| js_sys::Error::new(&format!("{e}")).into())
 }
 
 fn build_envelope(value: BoaValue, ctx: &mut Context) -> String {
@@ -1222,11 +1288,116 @@ fn marshal_cdp(value: BoaValue, return_by_value: bool, ctx: &mut Context) -> JsV
     }
 }
 
+struct FrameRealm {
+    realm: Realm,
+    window: JsValue,
+    bridge_handle: u64,
+}
+
+thread_local! {
+    static FRAME_REALMS: RefCell<HashMap<String, FrameRealm>> = RefCell::new(HashMap::new());
+}
+
+struct RealmGuard {
+    ptr: *mut Context,
+    previous: Option<Realm>,
+}
+
+impl Drop for RealmGuard {
+    fn drop(&mut self) {
+        if let Some(prev) = self.previous.take() {
+            // SAFETY: single-threaded; the guard drops before any await yields `*ptr`.
+            unsafe {
+                let _ = (&mut *self.ptr).enter_realm(prev);
+            }
+        }
+    }
+}
+
+fn enter_frame_realm(
+    ptr: *mut Context,
+    frame: Option<(String, JsValue)>,
+) -> Result<RealmGuard, JsValue> {
+    let Some((frame_id, frame_window)) = frame else {
+        return Ok(RealmGuard {
+            ptr,
+            previous: None,
+        });
+    };
+    let existing = FRAME_REALMS.with(|cell| {
+        let realms = cell.borrow();
+        let entry = realms.get(&frame_id);
+        let hit = entry
+            .filter(|r| r.window == frame_window)
+            .map(|r| r.realm.clone());
+        drop(realms);
+        hit
+    });
+    // SAFETY: single-threaded; no await occurs while `ctx` is live.
+    let ctx = unsafe { &mut *ptr };
+    let (guard, created) = match existing {
+        Some(realm) => (
+            RealmGuard {
+                ptr,
+                previous: Some(ctx.enter_realm(realm)),
+            },
+            None,
+        ),
+        None => {
+            let realm = ctx
+                .create_realm()
+                .map_err(|e| js_sys::Error::new(&format!("{e}")))?;
+            let guard = RealmGuard {
+                ptr,
+                previous: Some(ctx.enter_realm(realm.clone())),
+            };
+            (guard, Some(realm))
+        }
+    };
+    if let Some(realm) = created {
+        let bridge_handle = crate::js::boa_bridge::install_realm_bridge(frame_window.clone(), ctx);
+        let old = FRAME_REALMS.with(|cell| {
+            let mut realms = cell.borrow_mut();
+            let prev = realms.insert(
+                frame_id,
+                FrameRealm {
+                    realm,
+                    window: frame_window,
+                    bridge_handle,
+                },
+            );
+            drop(realms);
+            prev
+        });
+        if let Some(stale) = old {
+            crate::js::boa_bridge::release_v8_value(stale.bridge_handle);
+        }
+    }
+    Ok(guard)
+}
+
 #[wasm_bindgen]
-pub fn ks_eval_cdp(src: String, await_promise: bool, return_by_value: bool) -> js_sys::Promise {
-    crate::js::dom_fastpath::arm_v8_ran();
+pub fn ks_release_frame_realm(frame_id: String) {
+    let removed = FRAME_REALMS.with(|cell| {
+        let mut realms = cell.borrow_mut();
+        let old = realms.remove(&frame_id);
+        drop(realms);
+        old
+    });
+    if let Some(entry) = removed {
+        crate::js::boa_bridge::release_v8_value(entry.bridge_handle);
+    }
+}
+
+fn eval_cdp_impl(
+    src: String,
+    frame: Option<(String, JsValue)>,
+    await_promise: bool,
+    return_by_value: bool,
+) -> Promise {
+    arm_v8_ran();
     let ks_span = tracing::info_span!("wasm.boa_eval", src_bytes = src.len(), engine = "boa");
-    wasm_bindgen_futures::future_to_promise(std::panic::AssertUnwindSafe(
+    wasm_bindgen_futures::future_to_promise(panic::AssertUnwindSafe(
         tracing::Instrument::instrument(
             async move {
                 let (ptr, value) = {
@@ -1234,7 +1405,7 @@ pub fn ks_eval_cdp(src: String, await_promise: bool, return_by_value: bool) -> j
                     if !ensure_persistent() {
                         return Err(JsValue::from_str("kitesurf boa: context init failed"));
                     }
-                    let ptr = crate::js::boa_bridge::context_ptr();
+                    let ptr = context_ptr();
                     if ptr.is_null() {
                         return Err(JsValue::from_str("kitesurf boa: no context"));
                     }
@@ -1243,11 +1414,94 @@ pub fn ks_eval_cdp(src: String, await_promise: bool, return_by_value: bool) -> j
                     // counter, so a nested `with_context` under it reads as 2;
                     // it does not gate anything.
                     let _depth = crate::js::boa_bridge::DepthGuard::enter();
+                    let _realm_guard = enter_frame_realm(ptr, frame)?;
                     let ctx = unsafe { &mut *ptr };
                     heal_residual_stack(ctx);
                     let value = match ctx.eval(Source::from_bytes(src.as_bytes())) {
                         Ok(v) => v,
+                        Err(e) => return Err(cdp_throw(&e, ctx)),
+                    };
+                    (ptr, value)
+                };
+                pump(ptr, || true).await;
+                drive_cdp(value, await_promise, return_by_value, ptr).await
+            },
+            ks_span,
+        ),
+    ))
+}
+
+#[wasm_bindgen]
+pub fn ks_eval_cdp(src: String, await_promise: bool, return_by_value: bool) -> Promise {
+    eval_cdp_impl(src, None, await_promise, return_by_value)
+}
+
+#[wasm_bindgen]
+pub fn ks_eval_cdp_in_frame(
+    src: String,
+    frame_id: String,
+    frame_window: JsValue,
+    await_promise: bool,
+    return_by_value: bool,
+) -> Promise {
+    eval_cdp_impl(
+        src,
+        Some((frame_id, frame_window)),
+        await_promise,
+        return_by_value,
+    )
+}
+
+fn call_cdp_impl(
+    fn_src: String,
+    this_v8: JsValue,
+    args_v8: js_sys::Array,
+    frame: Option<(String, JsValue)>,
+    await_promise: bool,
+    return_by_value: bool,
+) -> Promise {
+    arm_v8_ran();
+    let ks_span = tracing::info_span!("wasm.boa_call", src_bytes = fn_src.len(), engine = "boa");
+    let use_realm_global = frame.is_some() && this_v8.is_undefined();
+    wasm_bindgen_futures::future_to_promise(panic::AssertUnwindSafe(
+        tracing::Instrument::instrument(
+            async move {
+                let (ptr, value) = {
+                    let _boa_guard = acquire_boa_lock().await;
+                    if !ensure_persistent() {
+                        return Err(JsValue::from_str("kitesurf boa: context init failed"));
+                    }
+                    let ptr = context_ptr();
+                    if ptr.is_null() {
+                        return Err(JsValue::from_str("kitesurf boa: no context"));
+                    }
+                    // SAFETY: see eval_cdp_impl. &mut is never held across a yield.
+                    let _depth = crate::js::boa_bridge::DepthGuard::enter();
+                    let _realm_guard = enter_frame_realm(ptr, frame)?;
+                    let ctx = unsafe { &mut *ptr };
+                    heal_residual_stack(ctx);
+                    let fn_expr = format!("({fn_src})");
+                    let fn_val = match ctx.eval(Source::from_bytes(fn_expr.as_bytes())) {
+                        Ok(v) => v,
                         Err(e) => return Err(js_sys::Error::new(&format!("{e}")).into()),
+                    };
+                    let Some(callable) = fn_val.as_object().filter(|o| o.is_callable()) else {
+                        return Err(JsValue::from_str(
+                            "kitesurf boa: callFunctionOn target is not a function",
+                        ));
+                    };
+                    let this_boa = if use_realm_global {
+                        ctx.global_object().clone().into()
+                    } else {
+                        crate::js::boa_bridge::v8_to_boa(this_v8, ctx)
+                    };
+                    let mut boa_args: Vec<BoaValue> = Vec::with_capacity(args_v8.length() as usize);
+                    for i in 0..args_v8.length() {
+                        boa_args.push(crate::js::boa_bridge::v8_to_boa(args_v8.get(i), ctx));
+                    }
+                    let value = match callable.call(&this_boa, &boa_args, ctx) {
+                        Ok(v) => v,
+                        Err(e) => return Err(cdp_throw(&e, ctx)),
                     };
                     (ptr, value)
                 };
@@ -1266,62 +1520,45 @@ pub fn ks_call_cdp(
     args_v8: js_sys::Array,
     await_promise: bool,
     return_by_value: bool,
-) -> js_sys::Promise {
-    crate::js::dom_fastpath::arm_v8_ran();
-    let ks_span = tracing::info_span!("wasm.boa_call", src_bytes = fn_src.len(), engine = "boa");
-    wasm_bindgen_futures::future_to_promise(std::panic::AssertUnwindSafe(
-        tracing::Instrument::instrument(
-            async move {
-                let (ptr, value) = {
-                    let _boa_guard = acquire_boa_lock().await;
-                    if !ensure_persistent() {
-                        return Err(JsValue::from_str("kitesurf boa: context init failed"));
-                    }
-                    let ptr = crate::js::boa_bridge::context_ptr();
-                    if ptr.is_null() {
-                        return Err(JsValue::from_str("kitesurf boa: no context"));
-                    }
-                    // SAFETY: see ks_eval_cdp. &mut is never held across a yield.
-                    let _depth = crate::js::boa_bridge::DepthGuard::enter();
-                    let ctx = unsafe { &mut *ptr };
-                    heal_residual_stack(ctx);
-                    let fn_expr = format!("({fn_src})");
-                    let fn_val = match ctx.eval(Source::from_bytes(fn_expr.as_bytes())) {
-                        Ok(v) => v,
-                        Err(e) => return Err(js_sys::Error::new(&format!("{e}")).into()),
-                    };
-                    let Some(callable) = fn_val.as_object().filter(|o| o.is_callable()) else {
-                        return Err(JsValue::from_str(
-                            "kitesurf boa: callFunctionOn target is not a function",
-                        ));
-                    };
-                    let this_boa = crate::js::boa_bridge::v8_to_boa(this_v8, ctx);
-                    let mut boa_args: Vec<BoaValue> = Vec::with_capacity(args_v8.length() as usize);
-                    for i in 0..args_v8.length() {
-                        boa_args.push(crate::js::boa_bridge::v8_to_boa(args_v8.get(i), ctx));
-                    }
-                    let value = match callable.call(&this_boa, &boa_args, ctx) {
-                        Ok(v) => v,
-                        Err(e) => return Err(js_sys::Error::new(&format!("{e}")).into()),
-                    };
-                    (ptr, value)
-                };
-                pump(ptr, || true).await;
-                drive_cdp(value, await_promise, return_by_value, ptr).await
-            },
-            ks_span,
-        ),
-    ))
+) -> Promise {
+    call_cdp_impl(
+        fn_src,
+        this_v8,
+        args_v8,
+        None,
+        await_promise,
+        return_by_value,
+    )
 }
 
 #[wasm_bindgen]
-pub fn ks_spike_boa_await(js_promise: js_sys::Promise) -> js_sys::Promise {
-    wasm_bindgen_futures::future_to_promise(std::panic::AssertUnwindSafe(boa_spike_await_impl(
+pub fn ks_call_cdp_in_frame(
+    fn_src: String,
+    this_v8: JsValue,
+    args_v8: js_sys::Array,
+    frame_id: String,
+    frame_window: JsValue,
+    await_promise: bool,
+    return_by_value: bool,
+) -> Promise {
+    call_cdp_impl(
+        fn_src,
+        this_v8,
+        args_v8,
+        Some((frame_id, frame_window)),
+        await_promise,
+        return_by_value,
+    )
+}
+
+#[wasm_bindgen]
+pub fn ks_spike_boa_await(js_promise: Promise) -> Promise {
+    wasm_bindgen_futures::future_to_promise(panic::AssertUnwindSafe(boa_spike_await_impl(
         js_promise,
     )))
 }
 
-async fn boa_spike_await_impl(js_promise: js_sys::Promise) -> Result<JsValue, JsValue> {
+async fn boa_spike_await_impl(js_promise: Promise) -> Result<JsValue, JsValue> {
     let queue = Rc::new(WasmJobQueue::default());
     let mut context = ContextBuilder::new()
         .job_executor(queue.clone())

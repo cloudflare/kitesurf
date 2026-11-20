@@ -218,7 +218,7 @@ export function renderReportMd({ date, base, ws, summary, results }) {
     } else if (r.counts) {
       notes = formatCounts(r.counts);
     }
-    notes = notes.replace(/\|/g, "\\|").replace(/\n/g, " ");
+    notes = notes.replace(/[\\|]/g, "\\$&").replace(/\n/g, " ");
     lines.push(`| ${tag} | \`${r.test}\` | ${r.expected} | ${r.actual} | ${notes} |`);
   }
 

@@ -1,0 +1,382 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 16 Oct 2026 11:43:29 +0100
+Subject: [PATCH] ks_code_stats: count the memory compiled code retains, by
+ form
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The GC's byte count sees only GcBoxes, not the source text, bytecode,
+inline caches and source maps a code block owns, so nothing could say
+how much of a page's memory is compiled code, or how much of it never
+ran. That is the number that decides whether moving cold code out of
+wasm memory is worth building.
+
+Per-thread counters, charged when a code block or source text is
+created and refunded when it drops: blocks and blocks that ran,
+retained source texts and their bytes, packed and expanded bytecode
+(first run moves a block from one to the other), built inline caches,
+source maps, and the rest of each block's own arrays. Shared strings,
+scopes and nested blocks are not charged to the block holding them.
+
+beep-boop-🤖
+---
+ src/bytecompiler/mod.rs    |   2 +
+ src/ks_code_stats.rs       | 131 +++++++++++++++++++++++++++++++++++++
+ src/lib.rs                 |   3 +
+ src/spanned_source_text.rs |  21 +++++-
+ src/vm/code_block.rs       |  32 ++++++++-
+ src/vm/opcode/mod.rs       |  35 +++++++++-
+ src/vm/source_info/mod.rs  |   8 +++
+ 7 files changed, 227 insertions(+), 5 deletions(-)
+ create mode 100644 src/ks_code_stats.rs
+
+diff --git a/src/bytecompiler/mod.rs b/src/bytecompiler/mod.rs
+index c8048e8..3d51ec9 100644
+--- a/src/bytecompiler/mod.rs
++++ b/src/bytecompiler/mod.rs
+@@ -2833,9 +2833,11 @@ impl<'ctx> ByteCompiler<'ctx> {
+             global_fns: self.global_fns.into_boxed_slice(),
+             global_vars: self.global_vars.into_boxed_slice(),
+             debug_id: CodeBlock::get_next_codeblock_id(),
++            ks_charge: crate::ks_code_stats::CodeCharge::default(),
+             #[cfg(feature = "trace")]
+             traced: Cell::new(false),
+         }
++        .ks_charged()
+     }
+
+     fn compile_declaration_pattern(
+diff --git a/src/ks_code_stats.rs b/src/ks_code_stats.rs
+new file mode 100644
+index 0000000..af941c4
+--- /dev/null
++++ b/src/ks_code_stats.rs
+@@ -0,0 +1,131 @@
++//! Kitesurf: live counts and bytes of compiled code on this thread, so an embedder can
++//! tell what code retains apart from the GC heap and from everything else in memory.
++
++use std::cell::Cell;
++
++#[derive(Clone, Copy, Debug)]
++pub(crate) struct Stats {
++    pub(crate) blocks: i64,
++    pub(crate) blocks_run: i64,
++    pub(crate) source_texts: i64,
++    pub(crate) source_bytes: i64,
++    pub(crate) packed_bytes: i64,
++    pub(crate) expanded_bytes: i64,
++    pub(crate) ic_bytes: i64,
++    pub(crate) source_map_bytes: i64,
++    pub(crate) other_bytes: i64,
++}
++
++impl Stats {
++    const ZERO: Self = Self {
++        blocks: 0,
++        blocks_run: 0,
++        source_texts: 0,
++        source_bytes: 0,
++        packed_bytes: 0,
++        expanded_bytes: 0,
++        ic_bytes: 0,
++        source_map_bytes: 0,
++        other_bytes: 0,
++    };
++}
++
++thread_local! {
++    static STATS: Cell<Stats> = const { Cell::new(Stats::ZERO) };
++}
++
++#[inline]
++pub(crate) fn update(f: impl FnOnce(&mut Stats)) {
++    let _ = STATS.try_with(|cell| {
++        let mut stats = cell.get();
++        f(&mut stats);
++        cell.set(stats);
++    });
++}
++
++#[inline]
++pub(crate) fn bytes(n: usize) -> i64 {
++    i64::try_from(n).unwrap_or(i64::MAX)
++}
++
++/// Kitesurf: live compiled code as (name, value) pairs: code blocks, those that ran, retained
++/// source texts, then bytes by kind. Strings and scopes shared by code blocks are not counted.
++#[must_use]
++pub fn ks_code_stats() -> [(&'static str, i64); 9] {
++    let s = STATS.try_with(Cell::get).unwrap_or(Stats::ZERO);
++    [
++        ("blocks", s.blocks),
++        ("blocksRun", s.blocks_run),
++        ("sourceTexts", s.source_texts),
++        ("sourceBytes", s.source_bytes),
++        ("packedBytes", s.packed_bytes),
++        ("expandedBytes", s.expanded_bytes),
++        ("icBytes", s.ic_bytes),
++        ("sourceMapBytes", s.source_map_bytes),
++        ("otherBytes", s.other_bytes),
++    ]
++}
++
++// What one code block charged to the counters, refunded when it drops. Its inline caches
++// are charged later, by `charge_ic`, the first time the block uses one.
++#[derive(Debug, Default)]
++pub(crate) struct CodeCharge {
++    counted: bool,
++    fixed: i64,
++    map: i64,
++    ic: Cell<i64>,
++}
++
++impl CodeCharge {
++    pub(crate) fn new(fixed: usize, map: usize) -> Self {
++        Self::charge(bytes(fixed), bytes(map), 0)
++    }
++
++    fn charge(fixed: i64, map: i64, ic: i64) -> Self {
++        update(|s| {
++            s.blocks += 1;
++            s.other_bytes += fixed;
++            s.source_map_bytes += map;
++            s.ic_bytes += ic;
++        });
++        Self {
++            counted: true,
++            fixed,
++            map,
++            ic: Cell::new(ic),
++        }
++    }
++
++    pub(crate) fn charge_ic(&self, n: usize) {
++        if !self.counted {
++            return;
++        }
++        let n = bytes(n);
++        self.ic.set(self.ic.get() + n);
++        update(|s| s.ic_bytes += n);
++    }
++}
++
++impl Clone for CodeCharge {
++    fn clone(&self) -> Self {
++        if !self.counted {
++            return Self::default();
++        }
++        Self::charge(self.fixed, self.map, self.ic.get())
++    }
++}
++
++impl Drop for CodeCharge {
++    fn drop(&mut self) {
++        if !self.counted {
++            return;
++        }
++        let ic = self.ic.get();
++        update(|s| {
++            s.blocks -= 1;
++            s.other_bytes -= self.fixed;
++            s.source_map_bytes -= self.map;
++            s.ic_bytes -= ic;
++        });
++    }
++}
+diff --git a/src/lib.rs b/src/lib.rs
+index 3755860..610ee7f 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -107,6 +107,9 @@ pub mod vm;
+ mod host_defined;
+ mod sys;
+
++mod ks_code_stats;
++pub use ks_code_stats::ks_code_stats;
++
+ mod spanned_source_text;
+ use spanned_source_text::SourceText;
+ pub use spanned_source_text::SpannedSourceText;
+diff --git a/src/spanned_source_text.rs b/src/spanned_source_text.rs
+index 265801f..4946dbb 100644
+--- a/src/spanned_source_text.rs
++++ b/src/spanned_source_text.rs
+@@ -5,13 +5,32 @@ use boa_gc::{Finalize, Trace};
+
+ struct Inner {
+     source_text: boa_ast::SourceText,
++    charged: i64,
+ }
+ impl Inner {
+     fn new(mut source_text: boa_ast::SourceText) -> Self {
+         // Kept for the script's life, so drop the lexer's growth slack
+         // and store Latin-1 when it fits (half of a bundle's retained source).
+         source_text.compact();
+-        Self { source_text }
++        let charged = crate::ks_code_stats::bytes(source_text.retained_bytes());
++        crate::ks_code_stats::update(|s| {
++            s.source_texts += 1;
++            s.source_bytes += charged;
++        });
++        Self {
++            source_text,
++            charged,
++        }
++    }
++}
++
++impl Drop for Inner {
++    fn drop(&mut self) {
++        let charged = self.charged;
++        crate::ks_code_stats::update(|s| {
++            s.source_texts -= 1;
++            s.source_bytes -= charged;
++        });
+     }
+ }
+
+diff --git a/src/vm/code_block.rs b/src/vm/code_block.rs
+index d791749..004f2b3 100644
+--- a/src/vm/code_block.rs
++++ b/src/vm/code_block.rs
+@@ -173,6 +173,11 @@ pub struct CodeBlock {
+     // Used for identifying anonymous functions in compiled output and call frames.
+     pub(crate) debug_id: u64,
+
++    // Kitesurf: this block's share of the code counters (crate::ks_code_stats), refunded
++    // when it drops; `ks_charged` sets it once the block's parts are in place.
++    #[unsafe_ignore_trace]
++    pub(crate) ks_charge: crate::ks_code_stats::CodeCharge,
++
+     #[cfg(feature = "trace")]
+     #[unsafe_ignore_trace]
+     pub(crate) traced: Cell<bool>,
+@@ -183,8 +188,30 @@ impl CodeBlock {
+     /// The inline caches, built from [`Self::ic_names`] the first time any is used.
+     #[inline]
+     pub(crate) fn ic(&self) -> &[InlineCache] {
+-        self.ic
+-            .get_or_init(|| self.ic_names.iter().cloned().map(InlineCache::new).collect())
++        self.ic.get_or_init(|| {
++            let ic: Box<[InlineCache]> =
++                self.ic_names.iter().cloned().map(InlineCache::new).collect();
++            self.ks_charge.charge_ic(size_of_val::<[InlineCache]>(&ic));
++            ic
++        })
++    }
++
++    /// Kitesurf: charges this block to the code counters: the struct and the arrays it owns,
++    /// and its source map apart. Shared strings, scopes and nested blocks are not its own.
++    #[must_use]
++    pub(crate) fn ks_charged(mut self) -> Self {
++        let fixed = size_of::<Self>()
++            + self.mapped_arguments_binding_indices.capacity() * size_of::<Option<u32>>()
++            + self.constants.capacity() * size_of::<Constant>()
++            + size_of_val::<[BindingLocator]>(&self.bindings)
++            + self.handlers.capacity() * size_of::<Handler>()
++            + size_of_val::<[JsString]>(&self.ic_names)
++            + size_of_val::<[u32]>(&self.global_lexs)
++            + size_of_val::<[GlobalFunctionBinding]>(&self.global_fns)
++            + size_of_val::<[u32]>(&self.global_vars);
++        let map = self.source_info.map().ks_heap_bytes();
++        self.ks_charge = crate::ks_code_stats::CodeCharge::new(fixed, map);
++        self
+     }
+
+     /// Creates a new `CodeBlock`.
+@@ -214,6 +241,7 @@ impl CodeBlock {
+             global_fns: Box::default(),
+             global_vars: Box::default(),
+             debug_id: CodeBlock::get_next_codeblock_id(),
++            ks_charge: crate::ks_code_stats::CodeCharge::new(size_of::<Self>(), 0),
+             #[cfg(feature = "trace")]
+             traced: Cell::new(false),
+         }
+diff --git a/src/vm/opcode/mod.rs b/src/vm/opcode/mod.rs
+index eb91502..9c22c7e 100644
+--- a/src/vm/opcode/mod.rs
++++ b/src/vm/opcode/mod.rs
+@@ -264,10 +264,17 @@ impl Clone for Bytecode {
+             len: self.len,
+         };
+         self.packed.set(packed);
++        clone.charge(1);
+         clone
+     }
+ }
+
++impl Drop for Bytecode {
++    fn drop(&mut self) {
++        self.charge(-1);
++    }
++}
++
+ impl std::fmt::Debug for Bytecode {
+     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+         f.debug_struct("Bytecode")
+@@ -285,11 +292,29 @@ impl Bytecode {
+             packed.push(bytes[pc]);
+             pc = Self::pack_operands(Opcode::decode(bytes[pc]), bytes, pc + 1, &mut packed);
+         }
+-        Self {
++        let packed = Self {
+             bytes: UnsafeCell::default(),
+             packed: Cell::new(packed.into_boxed_slice()),
+             len: bytes.len() as u32,
+-        }
++        };
++        packed.charge(1);
++        packed
++    }
++
++    // Kitesurf: adds (sign 1) or refunds (-1) this bytecode's bytes to the code counters,
++    // under the form it holds now: packed until it first runs, expanded after.
++    fn charge(&self, sign: i64) {
++        let packed = self.packed.take();
++        let packed_len = crate::ks_code_stats::bytes(packed.len());
++        self.packed.set(packed);
++        // SAFETY: a shared read of the box, its length only; `Self::expand` is the one write,
++        // and it never runs while a counter update does.
++        let expanded = crate::ks_code_stats::bytes(unsafe { (&*self.bytes.get()).len() });
++        crate::ks_code_stats::update(|s| {
++            s.packed_bytes += sign * packed_len;
++            s.expanded_bytes += sign * expanded;
++            s.blocks_run += sign * i64::from(expanded != 0);
++        });
+     }
+
+     /// Whether [`Self::executable`] is still empty because the bytecode has not been expanded.
+@@ -335,6 +360,12 @@ impl Bytecode {
+             pos = Self::unpack_operands(Opcode::decode(packed[pos]), &packed, pos + 1, &mut bytes);
+         }
+         debug_assert_eq!(bytes.len(), self.len as usize);
++        let (packed_len, expanded) = (packed.len(), bytes.len());
++        crate::ks_code_stats::update(|s| {
++            s.packed_bytes -= crate::ks_code_stats::bytes(packed_len);
++            s.expanded_bytes += crate::ks_code_stats::bytes(expanded);
++            s.blocks_run += 1;
++        });
+         // SAFETY: `bytes()` expands before handing out a reference and the dispatch loop drops
+         // its slice before expanding, so nothing borrows the empty box being replaced.
+         unsafe { *self.bytes.get() = bytes.into_boxed_slice() };
+diff --git a/src/vm/source_info/mod.rs b/src/vm/source_info/mod.rs
+index 958e512..aa42c53 100644
+--- a/src/vm/source_info/mod.rs
++++ b/src/vm/source_info/mod.rs
+@@ -74,6 +74,14 @@ pub(crate) struct SourceMap {
+
+ const CHECKPOINT_EVERY: usize = 32;
+
++impl SourceMap {
++    /// Kitesurf: the heap bytes of the encoded entries and their checkpoints, for the code
++    /// counters. The path is shared with the rest of the script, so it is left out.
++    pub(crate) fn ks_heap_bytes(&self) -> usize {
++        self.data.len() + size_of_val::<[Checkpoint]>(&self.checkpoints)
++    }
++}
++
+ /// Decoder state at the start of an entry: its pc, byte offset, and the last
+ /// line/column seen before it (the bases its deltas are relative to).
+ #[derive(Debug, Clone, Copy)]

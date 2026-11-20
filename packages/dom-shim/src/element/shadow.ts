@@ -4,8 +4,10 @@
 
 // Implements shadow roots and slots plus declarative shadow-root conversion.
 
+import type { WrapperInfo } from "../node-base.js";
 import type * as Idl from "../idl/types.generated.js";
-import { dom, nodeFor, shadowRootModes } from "../state.js";
+import { dom, nodeFor, shadowRootFor, shadowRootModes } from "../state.js";
+import type { NodeBase } from "../node-base.js";
 import { ELEMENT_NODE, HTML_NS } from "../constants.js";
 import { recordCdpMutation } from "../record.js";
 import { Element } from "./element.js";
@@ -17,7 +19,7 @@ interface HTMLSlotElement extends Pick<Idl.HTMLSlotElement, "name"> {}
 
 // Slots take their assigned nodes from the wasm DOM; there is no assign().
 class HTMLSlotElement extends HTMLElement implements Idl.HTMLSlotElement {
-  constructor(nodeId: number, info: unknown, token?: symbol) {
+  constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
     super(nodeId, info);
     checkInternalConstruct(token, "HTMLSlotElement");
   }
@@ -26,7 +28,7 @@ class HTMLSlotElement extends HTMLElement implements Idl.HTMLSlotElement {
     try {
       return Array.from(dom.assignedNodesOf(this._id))
         .map((id) => nodeFor(id))
-        .filter(Boolean);
+        .filter((n): n is NodeBase => n !== null);
     } catch {
       return [];
     }
@@ -61,7 +63,8 @@ HTMLElement.prototype.attachShadow = function (this: HTMLElement, opts) {
   }
   shadowRootModes.set(rootId, mode);
   try {
-    const root = dom.nodeSubtree(rootId);
+    // Depth 0 keeps the event small whatever the root holds; clients request its children.
+    const root = dom.nodeSubtree(rootId, 0, false);
     if (root) {
       recordCdpMutation({
         kind: "shadowRootPushed",
@@ -70,7 +73,12 @@ HTMLElement.prototype.attachShadow = function (this: HTMLElement, opts) {
       });
     }
   } catch {}
-  return nodeFor(rootId);
+  const root = shadowRootFor(rootId);
+  // nodeFor wraps a new shadow root node as a ShadowRoot; returning null
+  // here was a broken invariant, as mintedNode treats one.
+  if (!root)
+    throw new TypeError(`dom-shim: new shadow root ${rootId} did not wrap as a ShadowRoot`);
+  return root;
 };
 
 defineAttribute(Element.prototype, "shadowRoot", {
@@ -79,7 +87,7 @@ defineAttribute(Element.prototype, "shadowRoot", {
     const rootId = dom.shadowRootId(this._id);
     if (rootId < 0) return null;
     if (shadowRootModes.get(rootId) === "closed") return null;
-    return nodeFor(rootId);
+    return shadowRootFor(rootId);
   },
 });
 

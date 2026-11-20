@@ -1,0 +1,207 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sat, 7 Nov 2026 17:42:34 +0000
+Subject: [PATCH] Store a cached layout's positioning area out of line
+
+A node's CacheInner is 108 bytes, which the slab allocator serves from its
+112-byte class for every node that caches a layout: 84,683 of them on the
+WHATWG HTML page. Sixteen of those bytes are the out-of-flow positioning area,
+and a container with no border or scrollbar insets produces the area its own
+size already describes at the origin.
+
+Store the area in a box only when it differs, compared by bit pattern so NaN
+and -0.0 round-trip exactly, and rebuild the default from the stored size.
+CacheInner drops to 96 bytes, the next class down; a container with insets
+keeps a boxed area and costs the same as before. Because the stored bits now
+differ from LayoutOutput's PartialEq, CachedLayout compares the rebuilt
+outputs so Cache equality keeps its meaning.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/tree/cache.rs | 121 ++++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 111 insertions(+), 10 deletions(-)
+
+diff --git a/src/tree/cache.rs b/src/tree/cache.rs
+index a09ee05..583a10a 100644
+--- a/src/tree/cache.rs
++++ b/src/tree/cache.rs
+@@ -216,7 +216,7 @@ pub(crate) struct CacheEntry<T> {
+ /// A [`LayoutOutput`] stored without its `Option` discriminants, which cost 4 bytes each.
+ /// Presence lives in `presence` bits rather than in a NaN sentinel, so `Some(NaN)` round-trips.
+ /// `margins_can_collapse_through` stays a `bool` to give `Option<CacheEntry<_>>` its niche.
+-#[derive(Debug, Clone, PartialEq)]
++#[derive(Debug, Clone)]
+ struct CachedLayout {
+     /// See [`LayoutOutput::size`]
+     size: Size<f32>,
+@@ -233,8 +233,10 @@ struct CachedLayout {
+     bottom_margin: CollapsibleMarginSet,
+     /// See [`LayoutOutput::oof_candidates`]
+     oof_candidates: OofCandidates,
+-    /// [`LayoutOutput::oof_positioning_area`], or zeroed when the `OOF_AREA` bit is clear
+-    oof_area: OofPositioningArea,
++    /// [`LayoutOutput::oof_positioning_area`] when it differs from the area a container without
++    /// border or scrollbar insets produces, which is `size` at the origin and needs no storage.
++    /// Whether the output had one at all is the `OOF_AREA` bit, so `None` here is not "no area".
++    oof_area: Option<Box<OofPositioningArea>>,
+     /// See [`LayoutOutput::margins_can_collapse_through`]
+     margins_can_collapse_through: bool,
+     /// Which of the optional fields are present
+@@ -246,7 +248,7 @@ impl CachedLayout {
+     const FIRST_BASELINE: u8 = 0b001;
+     /// Set if `last_baseline` holds a baseline
+     const LAST_BASELINE: u8 = 0b010;
+-    /// Set if `oof_area` holds a positioning area
++    /// Set if the output had a positioning area; the area is either boxed or rebuilt from `size`
+     const OOF_AREA: u8 = 0b100;
+
+     /// Return the optional value if `bit` is set in `presence`
+@@ -273,18 +275,68 @@ impl CachedLayout {
+             bottom_margin: self.bottom_margin,
+             margins_can_collapse_through: self.margins_can_collapse_through,
+             oof_candidates: self.oof_candidates.clone(),
+-            oof_positioning_area: self.present(Self::OOF_AREA, self.oof_area),
++            oof_positioning_area: self.oof_positioning_area(),
++        }
++    }
++
++    /// [`LayoutOutput::oof_positioning_area`], rebuilt from `size` when it was the default area
++    fn oof_positioning_area(&self) -> Option<OofPositioningArea> {
++        if self.presence & Self::OOF_AREA == 0 {
++            return None;
+         }
++        Some(
++            self.oof_area
++                .as_deref()
++                .copied()
++                .unwrap_or(OofPositioningArea { size: self.size, offset: Point::ZERO }),
++        )
++    }
++}
++
++/// Whether `area` is what a container with no border or scrollbar insets produces: the output's
++/// own size at the origin. Compared by bit pattern so NaN and `-0.0` are never folded.
++fn is_default_oof_area(area: &OofPositioningArea, size: Size<f32>) -> bool {
++    area.size.width.to_bits() == size.width.to_bits()
++        && area.size.height.to_bits() == size.height.to_bits()
++        && area.offset.x.to_bits() == 0.0f32.to_bits()
++        && area.offset.y.to_bits() == 0.0f32.to_bits()
++}
++
++/// Equal when the [`LayoutOutput`]s they were built from compare equal. The stored bits differ
++/// from the output's `PartialEq` (an offset of `-0.0` is boxed, `0.0` is folded), so comparing
++/// the fields directly would make a [`Cache`] unequal to a cache holding an equal output.
++impl PartialEq for CachedLayout {
++    fn eq(&self, other: &Self) -> bool {
++        #[cfg(feature = "content_size")]
++        let overflow_rects_match = self.scrollable_overflow_rect == other.scrollable_overflow_rect;
++        #[cfg(not(feature = "content_size"))]
++        let overflow_rects_match = true;
++
++        self.size == other.size
++            && self.present(Self::FIRST_BASELINE, self.first_baseline)
++                == other.present(Self::FIRST_BASELINE, other.first_baseline)
++            && self.present(Self::LAST_BASELINE, self.last_baseline)
++                == other.present(Self::LAST_BASELINE, other.last_baseline)
++            && self.top_margin == other.top_margin
++            && self.bottom_margin == other.bottom_margin
++            && self.margins_can_collapse_through == other.margins_can_collapse_through
++            && self.oof_candidates == other.oof_candidates
++            && self.oof_positioning_area() == other.oof_positioning_area()
++            && overflow_rects_match
+     }
+ }
+
+ impl From<LayoutOutput> for CachedLayout {
+     fn from(output: LayoutOutput) -> Self {
+-        /// Stored in `oof_area` when the output has no positioning area
+-        const NO_OOF_AREA: OofPositioningArea = OofPositioningArea { size: Size::ZERO, offset: Point::ZERO };
+         let presence = (output.baselines.first.is_some() as u8 * Self::FIRST_BASELINE)
+             | (output.baselines.last.is_some() as u8 * Self::LAST_BASELINE)
+             | (output.oof_positioning_area.is_some() as u8 * Self::OOF_AREA);
++        // Only an area that differs from the default needs its own allocation; the rest rebuild
++        // from `size` on a cache hit.
++        let oof_area = output
++            .oof_positioning_area
++            .filter(|area| !is_default_oof_area(area, output.size))
++            .map(Box::new);
+         Self {
+             size: output.size,
+             #[cfg(feature = "content_size")]
+@@ -294,7 +346,7 @@ impl From<LayoutOutput> for CachedLayout {
+             top_margin: output.top_margin,
+             bottom_margin: output.bottom_margin,
+             oof_candidates: output.oof_candidates,
+-            oof_area: output.oof_positioning_area.unwrap_or(NO_OOF_AREA),
++            oof_area,
+             margins_can_collapse_through: output.margins_can_collapse_through,
+             presence,
+         }
+@@ -382,9 +434,10 @@ impl CacheInner {
+     }
+ }
+
+-// A box larger than 108 bytes lands in dlmalloc's 128-byte chunk instead of the 112-byte one.
++// Requests above 48 bytes round up to 8-byte classes, so a byte over 96 costs 8 more bytes on
++// every node that caches a layout.
+ #[cfg(target_pointer_width = "32")]
+-const _: () = assert!(core::mem::size_of::<CacheInner>() <= 108);
++const _: () = assert!(core::mem::size_of::<CacheInner>() <= 96);
+
+ /// Serialize the final entry with the shape of a `CacheEntry<LayoutOutput>`
+ #[cfg(feature = "serde")]
+@@ -792,6 +845,54 @@ mod tests {
+         assert_eq!(restored, layout);
+     }
+
++    #[test]
++    fn the_default_positioning_area_needs_no_allocation() {
++        let mut layout = output(3.0);
++        layout.oof_positioning_area = Some(OofPositioningArea { size: layout.size, offset: Point::ZERO });
++        let cached = CachedLayout::from(layout.clone());
++        assert!(cached.oof_area.is_none(), "the default area rebuilds from size");
++        assert_eq!(cached.to_layout_output(), layout);
++    }
++
++    #[test]
++    fn a_negative_zero_offset_is_not_folded_into_the_default_area() {
++        let mut layout = output(3.0);
++        layout.oof_positioning_area =
++            Some(OofPositioningArea { size: layout.size, offset: Point { x: -0.0, y: 0.0 } });
++        assert!(CachedLayout::from(layout.clone()).oof_area.is_some());
++        let area = round_trip(layout).oof_positioning_area.expect("area present");
++        assert_eq!(area.offset.x.to_bits(), (-0.0f32).to_bits());
++        assert_eq!(area.offset.y.to_bits(), 0.0f32.to_bits());
++    }
++
++    #[test]
++    fn a_nan_positioning_area_round_trips_by_bits() {
++        let mut layout = output(3.0);
++        layout.oof_positioning_area =
++            Some(OofPositioningArea { size: Size { width: f32::NAN, height: 3.0 }, offset: Point::ZERO });
++        let area = round_trip(layout).oof_positioning_area.expect("area present");
++        assert_eq!(area.size.width.to_bits(), f32::NAN.to_bits());
++        assert_eq!(area.size.height.to_bits(), 3.0f32.to_bits());
++    }
++
++    #[test]
++    fn equal_layout_outputs_make_equal_caches() {
++        // An offset of `-0.0` is boxed and `0.0` is folded, so the stored bits differ even though
++        // the outputs compare equal; `Cache` equality must still agree with `LayoutOutput`'s.
++        let mut signed_zero = output(3.0);
++        signed_zero.oof_positioning_area =
++            Some(OofPositioningArea { size: signed_zero.size, offset: Point { x: -0.0, y: 0.0 } });
++        let mut positive_zero = output(3.0);
++        positive_zero.oof_positioning_area = Some(OofPositioningArea { size: positive_zero.size, offset: Point::ZERO });
++        assert_eq!(signed_zero, positive_zero);
++        let store = |layout: LayoutOutput| {
++            let mut cache = Cache::new();
++            cache.store(&perform_layout_input(100.0, 50.0), layout);
++            cache
++        };
++        assert_eq!(store(signed_zero), store(positive_zero));
++    }
++
+     #[test]
+     fn stored_final_layouts_are_returned_unchanged() {
+         let mut layout = output(3.0);

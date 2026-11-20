@@ -10,8 +10,13 @@ import { armLocalTracing } from "./tracing-local.ts";
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { Hono, type Context, type ErrorHandler } from "hono";
 import { z } from "zod";
-import { inspectorBaseUrlOrNull } from "./inspector.ts";
+import {
+  cdpUpgradeOriginAllowed,
+  inspectorTargetUrl,
+  resolveInspectorBaseUrl,
+} from "./inspector.ts";
 import { DEFAULT_ENGINE_HOST, type EngineHost } from "./host.ts";
+import { FONT_PROFILES } from "./cdp/font-profile.ts";
 
 // Loopback service binding for PageScript subresource fetches.
 export { SandboxOutbound } from "./eval/outbound.ts";
@@ -81,11 +86,13 @@ upgrades.use("/__fixtures/*", async (c, next) => {
 });
 
 upgrades.all("*", (c) =>
-  traceSpan(c.env.env.HOST_TRACER, "ws.connect", () =>
-    handleWebSocket(c.req.raw, c.env.env, c.env.ctx, undefined, {
-      host: c.env.host,
-    }),
-  ),
+  !cdpUpgradeOriginAllowed(c.req.raw, c.env.env)
+    ? c.text("CDP connections from this origin are not allowed", 403)
+    : traceSpan(c.env.env.HOST_TRACER, "ws.connect", () =>
+        handleWebSocket(c.req.raw, c.env.env, c.env.ctx, undefined, {
+          host: c.env.host,
+        }),
+      ),
 );
 
 const app = new Hono<EngineApp>();
@@ -141,33 +148,35 @@ const inspectorQuery = z.object({
     .string()
     .optional()
     .transform((value) => value === "1"),
+  ks_font_profile: z.enum(FONT_PROFILES).optional().catch(undefined),
 });
 app.get("/", async (c, next) => {
   const url = new URL(c.req.url);
   const query = inspectorQuery.parse(c.req.query());
   if (query.url === undefined && !query.inspect) return next();
-  const initialQuery =
-    query.url === undefined ? "" : "?initialUrl=" + encodeURIComponent(query.url);
-
-  const inspectorBase = inspectorBaseUrlOrNull(c.env.env);
+  const inspectorBase = await resolveInspectorBaseUrl(c.env.env);
   if (inspectorBase === null) {
     return new Response(
       "Inspector base URL not configured. Set the\n" +
         "KITESURF_INSPECTOR_BASE_URL env var on the engine worker\n" +
         "to a hosted Chrome DevTools Frontend build (any URL that\n" +
-        "accepts `?wss=<endpoint>`), or use\n" +
+        "accepts `?wss=<endpoint>`), or to /inspector/inspector.html\n" +
+        "after a `--config=devtools` build, or use\n" +
         "chrome://inspect → Configure → Discover network targets\n" +
         "and add this host.\n",
       { status: 501, headers: { "content-type": "text/plain; charset=utf-8" } },
     );
   }
-  const requestHost = c.req.header("host") ?? url.host;
-  const wsScheme = url.protocol === "https:" ? "wss" : "ws";
-  const wsValue = `${requestHost}/devtools/page/kitesurf${initialQuery}`;
-  const params = new URLSearchParams();
-  params.set(wsScheme, wsValue);
-  const target = inspectorBase.replace(/\/$/, "") + "?" + params.toString();
-  return Response.redirect(target, 302);
+  const host = c.req.header("host") ?? url.host;
+  return Response.redirect(
+    inspectorTargetUrl(inspectorBase, {
+      url,
+      host,
+      initialUrl: query.url,
+      fontProfile: query.ks_font_profile,
+    }),
+    302,
+  );
 });
 
 app.get(
@@ -190,12 +199,12 @@ function discoveryVersion(c: Context<EngineApp>): Response {
 app.get("/json/version", discoveryVersion);
 app.get("/json/version/", discoveryVersion);
 
-function discoveryList(c: Context<EngineApp>): Response {
+async function discoveryList(c: Context<EngineApp>): Promise<Response> {
   const url = new URL(c.req.url);
   const host = c.req.header("host") ?? url.host;
   const scheme = url.protocol === "https:" ? "wss" : "ws";
   const wsUrl = `${scheme}://${host}/devtools/page/kitesurf`;
-  const inspectorBase = inspectorBaseUrlOrNull(c.env.env);
+  const inspectorBase = await resolveInspectorBaseUrl(c.env.env);
   const entry: Record<string, unknown> = {
     id: "kitesurf",
     type: "page",
@@ -206,7 +215,8 @@ function discoveryList(c: Context<EngineApp>): Response {
     faviconUrl: `${url.protocol}//${host}/favicon.ico`,
   };
   // Chrome's discovery UI needs this field even for "inspect fallback";
-  // omitting it makes both actions silently do nothing.
+  // omitting it makes both actions silently do nothing. A path-only base
+  // stays relative, like Chrome's own /json/list, which chrome://inspect accepts.
   entry.devtoolsFrontendUrl =
     (inspectorBase ?? CHROME_BUNDLED_INSPECTOR_URL).replace(/\/$/, "") +
     `?${scheme}=${host}/devtools/page/kitesurf`;

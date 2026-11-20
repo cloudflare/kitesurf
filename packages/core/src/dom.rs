@@ -12,6 +12,7 @@ pub(crate) mod mutate;
 pub(crate) mod shadow;
 pub(crate) mod input;
 pub(crate) mod cdp;
+pub(crate) mod accessibility;
 
 #[cfg(test)]
 mod tests;

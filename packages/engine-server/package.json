@@ -1,0 +1,14 @@
+{
+  "name": "@kitesurf/engine-server",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Serves the built engine (bazel build //packages/engine:dist) on Miniflare without wrangler dev, for the WPT, Playwright and Puppeteer runners.",
+  "exports": {
+    ".": "./server.mjs"
+  },
+  "dependencies": {
+    "miniflare": "5.20260911.1-alpha"
+  }
+}

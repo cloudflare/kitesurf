@@ -1,0 +1,127 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Mon, 16 Nov 2026 12:00:00 +0000
+Subject: [PATCH] Composite alpha and white luminance SVG masks
+
+The renderer parsed a group's mask and then drew the group without it,
+so anything painted through a mask showed in full: a chart that paints
+a coloured rectangle through a white path mask to draw its line came
+out as a solid rectangle.
+
+Render the mask's content into an isolated layer, then composite the
+group into it with SrcIn, so only covered pixels remain, with their
+coverage as alpha. The layer is clipped to the mask region. Alpha masks
+work this way directly. A luminance mask whose paint is all white has
+the same coverage as its alpha, so it is handled too. Other luminance
+masks, which need a conversion after compositing, and masks that
+reference a mask are still drawn unmasked, as before.
+---
+ src/lib.rs    |  2 +-
+ src/render.rs | 72 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 73 insertions(+), 1 deletion(-)
+
+diff --git a/src/lib.rs b/src/lib.rs
+index 3370fa2..91d0b46 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -3,7 +3,7 @@
+
+ //! Render an SVG into any impl of [`anyrender::PaintScene`].
+ //!
+-//! This currently lacks support for some important SVG features. Known missing features include: masking, filter effects, group backgrounds
++//! This currently lacks support for some important SVG features. Masking is partial: alpha masks and white luminance masks are composited. Known missing features include: other luminance masks, nested mask references, filter effects, group backgrounds
+ //! path shape-rendering, and patterns.
+
+ // LINEBENDER LINT SET - lib.rs - v1
+diff --git a/src/render.rs b/src/render.rs
+index 2e9e1c4..2d46df0 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -83,8 +83,17 @@ pub(crate) fn render_group<S: PaintScene, F: FnMut(&mut S, &usvg::Node)>(
+                     _ => false,
+                 };
+
++                let masked = g.mask().is_some_and(|mask| {
++                    push_mask(scene, mask, global_transform * transform, error_handler)
++                });
++
+                 render_group(scene, g, Affine::IDENTITY, global_transform, error_handler);
+
++                if masked {
++                    scene.pop_layer();
++                    scene.pop_layer();
++                }
++
+                 if did_push_layer {
+                     scene.pop_layer();
+                 }
+@@ -161,6 +170,69 @@ pub(crate) fn render_group<S: PaintScene, F: FnMut(&mut S, &usvg::Node)>(
+     }
+ }
+
++fn white_mask_group(group: &usvg::Group) -> bool {
++    group.mask().is_none()
++        && group.filters().is_empty()
++        && group.blend_mode() == usvg::BlendMode::Normal
++        && group.children().iter().all(|node| match node {
++            Node::Group(group) => white_mask_group(group),
++            Node::Path(path) => path
++                .fill()
++                .map(|fill| fill.paint())
++                .into_iter()
++                .chain(path.stroke().map(|stroke| stroke.paint()))
++                .all(|paint| matches!(paint, usvg::Paint::Color(color) if color.red == 255 && color.green == 255 && color.blue == 255)),
++            Node::Text(text) => white_mask_group(text.flattened()),
++            Node::Image(_) => false,
++        })
++}
++
++fn push_mask<S: PaintScene, F: FnMut(&mut S, &usvg::Node)>(
++    scene: &mut S,
++    mask: &usvg::Mask,
++    transform: Affine,
++    error_handler: &mut F,
++) -> bool {
++    // White luminance masks have the same coverage as alpha masks. Coloured
++    // luminance masks need conversion after compositing the mask's children.
++    if mask.mask().is_some()
++        || (mask.kind() == usvg::MaskType::Luminance && !white_mask_group(mask.root()))
++    {
++        return false;
++    }
++    let bounds = mask.rect();
++    let clip = kurbo::Rect::from_origin_size(
++        (f64::from(bounds.x()), f64::from(bounds.y())),
++        (f64::from(bounds.width()), f64::from(bounds.height())),
++    );
++    // Isolate the mask from the backdrop, then retain only source pixels
++    // covered by its alpha. The clip also bounds transparent mask regions.
++    for compose in [peniko::Compose::SrcOver, peniko::Compose::SrcIn] {
++        scene.push_layer(
++            Fill::NonZero,
++            BlendMode {
++                mix: peniko::Mix::Normal,
++                compose,
++            },
++            1.0,
++            transform,
++            &clip,
++            None,
++            None,
++        );
++        if compose == peniko::Compose::SrcOver {
++            render_group(
++                scene,
++                mask.root(),
++                Affine::IDENTITY,
++                transform,
++                error_handler,
++            );
++        }
++    }
++    true
++}
++
+ fn fill<S: PaintScene, F: FnMut(&mut S, &usvg::Node)>(
+     scene: &mut S,
+     error_handler: &mut F,

@@ -6,9 +6,11 @@ import { describe, expect, it } from "vitest";
 import { ENGINE_KEY_MARKER } from "../src/eval/resource-store.ts";
 import {
   dropAlreadySent,
+  engineOwnedBytes,
   noteDelivered,
   DeliveredKeys,
   supplyEngineResources,
+  typedArrayLength,
 } from "../src/rbi-protocol.ts";
 
 const KIND_IMAGE = 2;
@@ -134,21 +136,21 @@ describe("supplyEngineResources: images", () => {
 
   it("leaves a ref the store cannot answer alone, for the client to retire", () => {
     const batch = batchOf(imageRef(0x8000000000009999n));
-    expect(supplyEngineResources(batch, noImage, noFont)).toBe(batch);
-    expect(supplyEngineResources(batch, () => new Uint8Array(0), noFont)).toBe(batch);
+    expect(supplyEngineResources(batch, noImage, noFont)).toEqual(batch);
+    expect(supplyEngineResources(batch, () => new Uint8Array(0), noFont)).toEqual(batch);
   });
 
   it("leaves entries that are not engine refs untouched", () => {
     const inline = imageRef(0x8000000000000003n);
     inline[21] = FORMAT_ENCODED;
     const batch = batchOf(inline, fontData(4n, "/fonts/y.ttf"));
-    expect(supplyEngineResources(batch, () => new Uint8Array([7]), noFont)).toBe(batch);
+    expect(supplyEngineResources(batch, () => new Uint8Array([7]), noFont)).toEqual(batch);
   });
 
-  it("forwards a truncated batch instead of reading past it", () => {
+  it("rejects a truncated batch instead of reading past it", () => {
     const batch = batchOf(imageRef(0x8000000000000005n)).subarray(0, 20);
-    expect(supplyEngineResources(batch, () => new Uint8Array([7]), noFont)).toBe(batch);
-    expect(supplyEngineResources(new Uint8Array(2), noImage, noFont)).toHaveLength(2);
+    expect(supplyEngineResources(batch, () => new Uint8Array([7]), noFont)).toHaveLength(0);
+    expect(supplyEngineResources(new Uint8Array(2), noImage, noFont)).toHaveLength(0);
   });
 });
 
@@ -170,17 +172,17 @@ describe("supplyEngineResources: fonts", () => {
 
   it("leaves a UA asset path alone, which the client fetches itself", () => {
     const batch = batchOf(fontData(5n, "/fonts/NotoSans.ttf"));
-    expect(supplyEngineResources(batch, noImage, () => new Uint8Array([1]))).toBe(batch);
+    expect(supplyEngineResources(batch, noImage, () => new Uint8Array([1]))).toEqual(batch);
   });
 
   it("leaves a url-shaped ref alone", () => {
     const batch = batchOf(fontData(6n, "https://fonts.gstatic.com/s/a.woff2"));
-    expect(supplyEngineResources(batch, noImage, () => new Uint8Array([1]))).toBe(batch);
+    expect(supplyEngineResources(batch, noImage, () => new Uint8Array([1]))).toEqual(batch);
   });
 
   it("leaves a decimal name without the engine marker alone", () => {
     const batch = batchOf(fontData(7n, "1234"));
-    expect(supplyEngineResources(batch, noImage, () => new Uint8Array([1]))).toBe(batch);
+    expect(supplyEngineResources(batch, noImage, () => new Uint8Array([1]))).toEqual(batch);
   });
 
   it("leaves a 20-digit name that overshoots u64 alone", () => {
@@ -188,18 +190,18 @@ describe("supplyEngineResources: fonts", () => {
     expect(tooBig.toString().length).toBe(20);
     expect(tooBig & ENGINE_KEY).toBeTruthy();
     const batch = batchOf(fontData(11n, tooBig.toString()));
-    expect(supplyEngineResources(batch, noImage, () => new Uint8Array([1]))).toBe(batch);
+    expect(supplyEngineResources(batch, noImage, () => new Uint8Array([1]))).toEqual(batch);
   });
 
   it("leaves a blob entry alone", () => {
     const batch = batchOf(fontData(8n, "already-bytes", REF_BLOB));
-    expect(supplyEngineResources(batch, noImage, () => new Uint8Array([1]))).toBe(batch);
+    expect(supplyEngineResources(batch, noImage, () => new Uint8Array([1]))).toEqual(batch);
   });
 
   it("leaves a key the store cannot answer, and an empty answer", () => {
     const batch = batchOf(fontData(9n, (ENGINE_KEY | 7n).toString()));
-    expect(supplyEngineResources(batch, noImage, noFont)).toBe(batch);
-    expect(supplyEngineResources(batch, noImage, () => new Uint8Array(0))).toBe(batch);
+    expect(supplyEngineResources(batch, noImage, noFont)).toEqual(batch);
+    expect(supplyEngineResources(batch, noImage, () => new Uint8Array(0))).toEqual(batch);
   });
 
   it("substitutes an image ref and a font ref in the same batch", () => {
@@ -321,5 +323,56 @@ describe("inline resource dedupe", () => {
     expect(fonts.length).toBe(0);
     expect(images.length / 8).toBe(4096);
     expect(images.length / 8 + fonts.length / 8).toBe(sent.size);
+  });
+});
+
+describe("untrusted resource batches", () => {
+  it("bounds the expanded batch and leaves a refused expansion as its original ref", () => {
+    const key = 0x8000000000007777n;
+    const body = new Uint8Array(8 * 1024 * 1024);
+    const batch = batchOf(...Array.from({ length: 6 }, () => imageRef(key)));
+
+    const got = supplyEngineResources(batch, () => body, noFont);
+
+    expect(got.length).toBeLessThanOrEqual(48 * 1024 * 1024);
+    const parsed = entries(got);
+    expect(parsed).toHaveLength(6);
+    expect(parsed.slice(0, 5).map((e) => e.format)).toEqual(Array(5).fill(FORMAT_ENCODED));
+    expect(at(parsed, 5).format).toBe(FORMAT_ENGINE_REF);
+  });
+
+  it("rejects a forged view without calling its methods", () => {
+    let calls = 0;
+    // An RPC reply is not type-checked; this is the forged value the decoder must reject.
+    const forged = {
+      length: 64,
+      byteOffset: 0,
+      byteLength: 64,
+      buffer: new ArrayBuffer(64),
+      subarray: () => {
+        calls++;
+        return new Uint8Array(0);
+      },
+      slice: () => {
+        calls++;
+        return new Uint8Array(0);
+      },
+    };
+    // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- forged RPC batch.
+    const value = forged as unknown as Uint8Array;
+
+    const got = supplyEngineResources(value, () => new Uint8Array([1]), noFont);
+
+    expect(got).toHaveLength(0);
+    expect(calls).toBe(0);
+  });
+
+  it("refuses a detached view instead of throwing while copying it", () => {
+    const detached = new Uint8Array([1, 2, 3, 4]);
+    structuredClone(detached.buffer, { transfer: [detached.buffer] });
+    expect(typedArrayLength(detached)).toBe(0);
+
+    expect(engineOwnedBytes(detached, 1024)).toBeNull();
+    expect(supplyEngineResources(detached, noImage, noFont)).toHaveLength(0);
   });
 });

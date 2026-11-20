@@ -2,14 +2,14 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-// Judge the public e2e shards and emit a JUnit report for their test results.
+// Judge the e2e file actions and emit a JUnit report for their test results.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { isMain } from "./wpt-shared.mjs";
 
 const USAGE =
-  "usage: node scripts/e2e-gate.mjs --shard <dir with report.json and shard.json>... [--junit <file>]";
+  "usage: node scripts/e2e-gate.mjs --report <report.json next to file.json>... [--junit <file>]";
 const xml = (value) =>
   String(value).replace(
     /[<>&\"']/g,
@@ -69,41 +69,37 @@ export function junit(all) {
 }
 
 function main(argv) {
-  const options = { shards: [], junit: process.env.XML_OUTPUT_FILE };
+  const options = { reports: [], junit: process.env.XML_OUTPUT_FILE };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--shard") options.shards.push(argv[++i]);
+    if (argv[i] === "--report") options.reports.push(argv[++i]);
     else if (argv[i] === "--junit") options.junit = argv[++i];
     else {
       console.error(USAGE);
       process.exit(2);
     }
   }
-  if (!options.shards.length) {
+  if (!options.reports.length) {
     console.error(USAGE);
     process.exit(2);
   }
   const all = [];
-  const failedShards = [];
-  let files = 0;
-  for (const argument of options.shards) {
-    const dir = argument.endsWith(".json") ? dirname(argument) : argument;
-    const shard = JSON.parse(readFileSync(resolve(dir, "shard.json"), "utf8"));
-    const report = JSON.parse(readFileSync(resolve(dir, "report.json"), "utf8"));
-    files += report.testResults.length;
-    all.push(...cases(report));
-    if (shard.exit !== 0)
-      failedShards.push(`${dir} (vitest exit ${shard.exit}, ${shard.seconds}s)`);
+  const retried = [];
+  for (const path of options.reports) {
+    const summary = JSON.parse(readFileSync(resolve(dirname(path), "file.json"), "utf8"));
+    all.push(...cases(JSON.parse(readFileSync(path, "utf8"))));
+    if (summary.attempts > 1) retried.push(summary.file);
   }
   if (options.junit) writeFileSync(options.junit, junit(all));
   const failed = all.filter((test) => test.status === "failed");
   const count = (status) => all.filter((test) => test.status === status).length;
   console.log(
-    `[e2e-gate] ${options.shards.length} shard(s), ${files} file(s): ${count("passed")} passed, ${failed.length} failed, ${all.length - count("passed") - failed.length} skipped`,
+    `[e2e-gate] ${options.reports.length} file(s): ${count("passed")} passed, ${failed.length} failed, ${all.length - count("passed") - failed.length} skipped`,
   );
   for (const test of failed)
     console.log(`  FAIL ${test.file} > ${test.name}\n       ${test.message}`);
-  for (const shard of failedShards) console.log(`  vitest failed in ${shard}`);
-  process.exit(failed.length || failedShards.length ? 1 : 0);
+  // A file action fails unless its run or its retry passed, so these passed only on the retry.
+  for (const file of retried) console.log(`  FLAKY ${file} (passed on its retry)`);
+  process.exit(failed.length ? 1 : 0);
 }
 
 if (isMain(import.meta.url)) main(process.argv.slice(2));

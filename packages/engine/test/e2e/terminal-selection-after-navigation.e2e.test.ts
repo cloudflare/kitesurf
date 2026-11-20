@@ -14,8 +14,12 @@ test("a drag selection is readable after link navigation", async ({ page, cdpSes
 
   const rect = await page.evaluate(() => {
     const r = document.querySelector("#target")!.getBoundingClientRect();
+    const internals: unknown = Reflect.get(globalThis, Symbol.for("kitesurf.internals"));
     return {
-      cellW: (globalThis as typeof globalThis & { __ks_tty_cell_w?: number }).__ks_tty_cell_w,
+      cellW:
+        typeof internals === "object" && internals !== null
+          ? Reflect.get(internals, "ttyCellWidth")
+          : undefined,
       left: r.left,
       y: r.top + r.height / 2,
     };

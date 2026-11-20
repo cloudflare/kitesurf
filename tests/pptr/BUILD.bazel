@@ -1,0 +1,21 @@
+load("@pptr_specs//:defs.bzl", PPTR_SPECS = "SPECS")
+load(":defs.bzl", "pptr_spec", "pptr_test_project")
+
+pptr_test_project(name = "test_project")
+
+[pptr_spec(name = spec, spec = spec, test_project = "test_project") for spec in PPTR_SPECS]
+
+filegroup(
+    name = "specs",
+    srcs = [":" + spec for spec in PPTR_SPECS],
+)
+
+test_suite(
+    name = "expectations_test",
+    tests = ["//scripts:pptr_expectations_test"],
+)
+
+alias(
+    name = "update_expectations",
+    actual = "//scripts:pptr_update_expectations",
+)

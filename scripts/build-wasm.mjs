@@ -3,7 +3,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import {
   writeFileSync,
   readFileSync,
@@ -12,12 +12,14 @@ import {
   readdirSync,
   existsSync,
   mkdirSync,
+  renameSync,
 } from "node:fs";
 import { copyFileSync } from "node:fs";
 import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPatchedVendorCrates } from "./get-patched-vendor-crates.mjs";
 import { WASM_BINDGEN_VERSION, getWasmBindgen } from "./get-wasm-bindgen.mjs";
+import { rewriteWasmMemoryViews } from "./wasm-memory-views.mjs";
 import { getWasmOpt } from "./wasm-opt.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -80,6 +82,7 @@ function shouldRebuild() {
     resolve(ROOT, "rust-toolchain.toml"),
     SELF,
     resolve(dirname(SELF), "get-patched-vendor-crates.mjs"),
+    resolve(dirname(SELF), "wasm-memory-views.mjs"),
   ];
   function walkPatches(dir) {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -170,7 +173,7 @@ if (!postprocessWasm) {
   }
 }
 console.log("[build-wasm] wasm-bindgen --target web --typescript");
-execSync(`"${wasmBindgen}" "${cargoWasm}" --out-dir "${PKG_DIR}" --target web --typescript`, {
+execFileSync(wasmBindgen, [cargoWasm, "--out-dir", PKG_DIR, "--target", "web", "--typescript"], {
   cwd: CORE_DIR,
   stdio: "inherit",
 });
@@ -202,15 +205,23 @@ if (memprof) {
     console.log("[build-wasm] wasm-opt -O3 " + WASM_OPT);
     const beforeBytes = statSync(WASM_OUT).size;
     // Keep optimizer features aligned with Cargo's wasm target flags.
-    execSync(
-      `"${WASM_OPT}" -O3 -g ` +
-        "--enable-simd --enable-bulk-memory " +
-        "--enable-nontrapping-float-to-int --enable-sign-ext " +
-        "--enable-exception-handling " +
-        `"${WASM_OUT}" -o "${WASM_OUT}.opt"`,
+    execFileSync(
+      WASM_OPT,
+      [
+        "-O3",
+        "-g",
+        "--enable-simd",
+        "--enable-bulk-memory",
+        "--enable-nontrapping-float-to-int",
+        "--enable-sign-ext",
+        "--enable-exception-handling",
+        WASM_OUT,
+        "-o",
+        `${WASM_OUT}.opt`,
+      ],
       { cwd: CORE_DIR, stdio: "inherit" },
     );
-    execSync(`mv "${WASM_OUT}.opt" "${WASM_OUT}"`, { stdio: "inherit" });
+    renameSync(`${WASM_OUT}.opt`, WASM_OUT);
     const afterBytes = statSync(WASM_OUT).size;
     const pct = (((beforeBytes - afterBytes) / beforeBytes) * 100).toFixed(1);
     console.log(`[build-wasm] wasm-opt: ${beforeBytes} → ${afterBytes} bytes (-${pct}%)`);
@@ -226,13 +237,9 @@ if (memprof) {
   if (!existsSync(rewriter)) throw new Error(`memprof-rewriter not found at ${rewriter}`);
   console.log("[build-wasm] memprof: instrumenting wasm");
   const instrumented = `${WASM_OUT}.memprof`;
-  execSync(`"${rewriter}" "${WASM_OUT}" "${instrumented}"`, {
-    stdio: "inherit",
-  });
-  execSync(`mv "${instrumented}" "${WASM_OUT}"`, { stdio: "inherit" });
-  execSync(`mv "${instrumented}.memprof.json" "${WASM_OUT}.memprof.json"`, {
-    stdio: "inherit",
-  });
+  execFileSync(rewriter, [WASM_OUT, instrumented], { stdio: "inherit" });
+  renameSync(instrumented, WASM_OUT);
+  renameSync(`${instrumented}.memprof.json`, `${WASM_OUT}.memprof.json`);
   console.log("[build-wasm] memprof: wrote instrumented wasm + manifest");
 }
 
@@ -272,7 +279,7 @@ console.log("[build-wasm] post-pass: hide fetchResource bridge");
     }
     const replaced = original.replace(
       LEGACY_CALL,
-      "(__bridgeFetchResource ? __bridgeFetchResource : (() => {})).call(null, ",
+      "(__bridgeFetchResource ? __bridgeFetchResource : (() => {}))( ",
     );
     if (replaced === original) {
       console.error(
@@ -340,6 +347,58 @@ console.log("[build-wasm] post-pass: terminated hook");
       console.log("[build-wasm]   hooked __wbg_handle_catch");
     }
   }
+}
+
+// passArray8ToWasm0 copies caller bytes into wasm memory through the cached Uint8Array view's
+// `set` and constructs that view from the global constructor. Both are ordinary property
+// lookups, so a page that replaced them would receive the bytes — including selector text from
+// a sheet it cannot read. Capture the natives at module load and copy through them.
+console.log("[build-wasm] post-pass: capture typed-array copy intrinsics");
+{
+  const gluePath = resolve(PKG_DIR, "kitesurf_core.js");
+  const original = readFileSync(gluePath, "utf8");
+  if (original.includes("// TYPED-COPY-MARKER-v1")) {
+    console.log("[build-wasm]   marker present; skipping");
+  } else {
+    const preamble =
+      "// TYPED-COPY-MARKER-v1 — see scripts/build-wasm.mjs post-pass\n" +
+      "// Module-private captures: page JS must not be able to observe the bytes copied into\n" +
+      "// wasm memory, nor supply the view they are copied through.\n" +
+      "const __ksReflectApply = Reflect.apply;\n" +
+      "const __ksUint8Array = Uint8Array;\n" +
+      "const __ksUint8ArraySet = Uint8Array.prototype.set;\n";
+    const VIEW = "cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);";
+    const COPY = "getUint8ArrayMemory0().set(arg, ptr / 1);";
+    if (
+      !original.includes(VIEW) ||
+      original.indexOf(VIEW) !== original.lastIndexOf(VIEW) ||
+      !original.includes(COPY) ||
+      original.indexOf(COPY) !== original.lastIndexOf(COPY)
+    ) {
+      console.error(
+        "[build-wasm] FATAL: expected one " +
+          JSON.stringify(VIEW) +
+          " and one " +
+          JSON.stringify(COPY) +
+          "; wasm-bindgen's typed-array copy path changed, revisit the post-pass.",
+      );
+      process.exit(1);
+    }
+    const replaced = original
+      .replace(VIEW, "cachedUint8ArrayMemory0 = new __ksUint8Array(wasm.memory.buffer);")
+      .replace(
+        COPY,
+        "__ksReflectApply(__ksUint8ArraySet, getUint8ArrayMemory0(), [arg, ptr / 1]);",
+      );
+    writeFileSync(gluePath, preamble + replaced);
+    console.log("[build-wasm]   captured Uint8Array + set for passArray8ToWasm0");
+  }
+}
+
+console.log("[build-wasm] post-pass: direct Wasm memory views");
+{
+  const gluePath = resolve(PKG_DIR, "kitesurf_core.js");
+  writeFileSync(gluePath, rewriteWasmMemoryViews(readFileSync(gluePath, "utf8")));
 }
 
 console.log("[build-wasm] cp kitesurf_core.js → kitesurf_core.glue.js");

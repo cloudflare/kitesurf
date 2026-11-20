@@ -3,6 +3,7 @@ load("@crates_renderer//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rust//cargo:defs.bzl", "cargo_toml_env_vars")
 load("@rules_rust//rust:defs.bzl", "rust_shared_library")
 load("//bazel:paths.bzl", "exec_path")
+load("//bazel:rust_checks.bzl", "rust_comments_test", "rust_lint_tests", "rust_nesting_test")
 
 exports_files(
     ["Cargo.toml"],
@@ -40,7 +41,8 @@ js_binary(
 
 js_run_binary(
     name = "wasm_pkg",
-    srcs = [":renderer_core", "//bazel:wasm_bindgen"],
+    srcs = [":renderer_core"],
+    tools = ["//bazel:wasm_bindgen"],
     outs = [
         "pkg/renderer_core.d.ts",
         "pkg/renderer_core.glue.d.ts",
@@ -55,4 +57,18 @@ js_run_binary(
     tool = ":build_tool",
     # Workers that wrap the engine through its embed entry bundle this module too.
     visibility = ["//visibility:public"],
+)
+
+rust_nesting_test(
+    name = "nesting_test",
+    srcs = glob(["src/**/*.rs"]),
+)
+
+rust_comments_test(
+    name = "comments_test",
+    srcs = glob(["src/**/*.rs"]),
+)
+
+rust_lint_tests(
+    targets = ["renderer_core"],
 )

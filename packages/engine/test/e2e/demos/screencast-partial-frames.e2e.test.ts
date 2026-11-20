@@ -682,3 +682,90 @@ test("a mid-cast resize forces a full frame at the new size", async ({ page, cdp
   ).toBeGreaterThan(partialsBefore);
   expect(info.relaunchCount, "no renderer relaunch").toBe(0);
 });
+
+test("a cross-origin child frame leaves the main document's partial base intact", async ({
+  page,
+  cdpSession,
+}) => {
+  await page.goto("http://localhost:8787/__fixtures/oopif-host-quads.html", {
+    waitUntil: "load",
+    timeout: 60_000,
+  });
+  // Each screencast iteration renders the child under its own resource scope before the main
+  // document renders, so a scope switch that dropped the retained base would leave the main
+  // document with nothing to composite against.
+  type TargetInfo = { targetId: string; type: string; url: string };
+  const deadline = Date.now() + 20_000;
+  let childTarget: TargetInfo | undefined;
+  while (!childTarget && Date.now() < deadline) {
+    const { targetInfos } = (await cdpSession.send("Target.getTargets")) as {
+      targetInfos: TargetInfo[];
+    };
+    childTarget = targetInfos.find(
+      (t) => t.type === "iframe" && t.url.startsWith("http://127.0.0.1:8787"),
+    );
+    if (!childTarget) await new Promise((r) => setTimeout(r, 100));
+  }
+  expect(childTarget, "the cross-origin child spawned its own target").toBeTruthy();
+
+  await page.evaluate(() => {
+    const patch = document.createElement("div");
+    patch.id = "patch";
+    patch.setAttribute(
+      "style",
+      "position:absolute;left:600px;top:400px;width:60px;height:60px;background:#0000ff",
+    );
+    document.body.appendChild(patch);
+  });
+
+  const frames: Uint8Array[] = [];
+  const frameWaiters = new Set<() => void>();
+  cdpSession.on("Page.screencastFrame", (ev: { data: string; sessionId: number }) => {
+    frames.push(Uint8Array.from(Buffer.from(ev.data, "base64")));
+    for (const notify of [...frameWaiters]) notify();
+    cdpSession.send("Page.screencastFrameAck", { sessionId: ev.sessionId }).catch(() => {});
+  });
+  await cdpSession.send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
+
+  const waitForCount = (n: number, what: string, timeoutMs: number): Promise<boolean> =>
+    new Promise<boolean>((resolve) => {
+      if (frames.length >= n) {
+        resolve(true);
+        return;
+      }
+      const done = (reached: boolean) => {
+        clearTimeout(timer);
+        frameWaiters.delete(notify);
+        resolve(reached);
+      };
+      const notify = () => {
+        if (frames.length >= n) done(true);
+      };
+      const timer = setTimeout(() => done(frames.length >= n), timeoutMs);
+      frameWaiters.add(notify);
+    });
+  expect(await waitForCount(1, "first (full) frame arrives", 15_000)).toBe(true);
+
+  const getInfo = () => cdpSession.send("Kitesurf.getRendererInfo");
+  const partialsBefore = (await getInfo()).partialFramesRendered;
+  for (const css of ["#ff0000", "#00ff00", "#ff00ff"]) {
+    const before = frames.length;
+    await page.evaluate((c: string) => {
+      const el = document.getElementById("patch");
+      if (el) (el as HTMLElement).style.background = c;
+    }, css);
+    expect(await waitForCount(before + 1, `frame after ${css}`, 10_000)).toBe(true);
+  }
+
+  await cdpSession.send("Page.stopScreencast");
+  const info = await getInfo();
+  console.log(
+    `[partial-oopif] frames=${frames.length} before=${partialsBefore} ` +
+      `after=${info.partialFramesRendered} relaunches=${info.relaunchCount}`,
+  );
+  expect(
+    info.partialFramesRendered - partialsBefore,
+    "the child's scope switch left the main document's base intact",
+  ).toBeGreaterThanOrEqual(1);
+  expect(info.relaunchCount, "no renderer relaunch burned the base").toBe(0);
+});

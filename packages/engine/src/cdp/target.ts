@@ -8,9 +8,10 @@ import type { BrowserState, CdpRequest } from "./types.ts";
 import { makeSessionId, makeTargetId, type FrameState, type TargetState } from "./types.ts";
 import type { Protocol } from "devtools-protocol";
 import type { DispatchCtx } from "./dispatch.ts";
-import { domainAndRegistryOf, makeMainFrameState } from "./frames.ts";
+import { buildFrameResourceTree, buildFrameTree, makeMainFrameState } from "./frames.ts";
 import { retireStub } from "./page-script-generation.ts";
 import { createCookieJar, type CookieJar } from "../cookies.ts";
+import type { LocalStorage } from "../state/local-storage.ts";
 import { engineWasmBytes, engineWasmInitialBytes } from "../engine-wasm-probe.ts";
 import { isolateRetainedBodyBytesTotal } from "./network-events.ts";
 import { imageStoreStats } from "../eval/resource-store.ts";
@@ -18,10 +19,19 @@ import { assetCacheRetainedBytes } from "../eval/outbound.ts";
 import { clearLearnedScripts } from "../eval/learned-scripts.ts";
 import { releaseParkedForConnection } from "./fetch-interception.ts";
 import { releaseAllDomHandles } from "./dom-release.ts";
-import { stubQueryDom } from "./page-session.ts";
+import { outerHtmlResponse, stubQueryDom } from "./page-session.ts";
+import {
+  childNodesSubtree,
+  documentSubtree,
+  forgetFrontendNodes,
+  GET_DOCUMENT_DEPTH,
+  GET_FLATTENED_DOCUMENT_DEPTH,
+  subtreeBudgetError,
+} from "./dom-frontend.ts";
 import { detachWebMcpSession } from "./webmcp.ts";
 import { stopSceneStreams } from "./scene-stream.ts";
 import { cancelAndRemoveTargetWheelQueues, stopAndRemoveWheelQueue } from "./wheel-queue.ts";
+import { unregisterIsolateLimitListenersForTarget } from "../eval/limit-registry.ts";
 import { registerCookieJar, unregisterCookieJar, cookieKeyFor } from "./cookie-jar-registry.ts";
 
 const BROWSER_TARGET_ID = "browser";
@@ -71,6 +81,19 @@ export function jarForTarget(ctx: DispatchCtx, target: TargetState | null | unde
   return ctx.browser.cookies;
 }
 
+// The localStorage of a target's browser context, picked as jarForTarget picks the jar.
+export function localStorageForTarget(
+  ctx: DispatchCtx,
+  target: TargetState | null | undefined,
+): LocalStorage {
+  const cid = target?.browserContextId;
+  if (cid) {
+    const entry = ctx.browser.contexts.get(cid);
+    if (entry) return entry.localStorage;
+  }
+  return ctx.browser.localStorage;
+}
+
 export function jarForContextId(ctx: DispatchCtx, browserContextId: string | undefined): CookieJar {
   if (browserContextId) {
     const entry = ctx.browser.contexts.get(browserContextId);
@@ -92,16 +115,16 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
     case "Target.setAutoAttach": {
       if (req.sessionId) return {};
 
-      ctx.browser.autoAttach = Boolean(req.params?.autoAttach);
-      ctx.browser.flatten = Boolean(req.params?.flatten);
-      if (ctx.browser.autoAttach && ctx.browser.connectionMode !== "page") {
+      ctx.client.autoAttach = Boolean(req.params?.autoAttach);
+      ctx.client.flatten = Boolean(req.params?.flatten);
+      if (ctx.client.autoAttach && ctx.client.connectionMode !== "page") {
         for (const t of ctx.browser.targets.values()) {
           if (t.type !== "page") continue;
           if (t.sessions.size > 0) continue;
           autoAttachTarget(ctx, t);
         }
       }
-      if (ctx.browser.autoAttach && ctx.browser.connectionMode === "page") {
+      if (ctx.client.autoAttach && ctx.client.connectionMode === "page") {
         announceRendererTarget(ctx);
         announceEngineTarget(ctx);
         announceExistingOopifTargets(ctx);
@@ -113,7 +136,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
       const infos: Protocol.Target.TargetInfo[] = [];
       for (const t of ctx.browser.targets.values()) {
         infos.push(targetInfo(ctx, t));
-        if (t.type !== "page" || ctx.browser.connectionMode !== "browser") continue;
+        if (t.type !== "page" || ctx.client.connectionMode !== "browser") continue;
         for (const frame of t.frames.values()) {
           if (frame.parentFrameId === null) continue;
           infos.push(frameTargetInfo(frame));
@@ -138,7 +161,10 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
     case "Target.createBrowserContext": {
       const id = `ctx-${ctx.browser.nextBrowserContextId++}`;
       const jar = createCookieJar();
-      ctx.browser.contexts.set(id, { cookieJar: jar });
+      ctx.browser.contexts.set(id, {
+        cookieJar: jar,
+        localStorage: ctx.browser.localStorage.forContext(id),
+      });
       registerCookieJar(cookieKeyFor(ctx.connectionId, id), jar);
       return { browserContextId: id };
     }
@@ -151,6 +177,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
           if (t.browserContextId === id) closes.push(closeTargetInternal(ctx, t.targetId));
         }
         await Promise.all(closes);
+        ctx.browser.contexts.get(id)?.localStorage.dispose();
         ctx.browser.contexts.delete(id);
         unregisterCookieJar(cookieKeyFor(ctx.connectionId, id));
         clearLearnedScripts(ctx.browser.learnedInsertedScripts, id);
@@ -172,7 +199,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
         method: "Target.targetCreated",
         params: { targetInfo: targetInfo(ctx, target) },
       });
-      if (ctx.browser.autoAttach) {
+      if (ctx.client.autoAttach) {
         autoAttachTarget(ctx, target);
       }
       return { targetId: target.targetId };
@@ -212,7 +239,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
         });
         return { sessionId };
       }
-      if (ctx.browser.connectionMode === "browser") {
+      if (ctx.client.connectionMode === "browser") {
         for (const parent of ctx.browser.targets.values()) {
           const frame = parent.frames.get(id);
           if (!frame || frame.parentFrameId === null || frame.detached) continue;
@@ -256,6 +283,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
             );
           }
           detachWebMcpSession(t, sessionId);
+          forgetFrontendNodes(t, sessionId);
           const stream = ctx.browser.screencasts.get(t.targetId);
           if (stream?.ownerSessionId === sessionId) {
             stream.stopped = true;
@@ -297,6 +325,7 @@ export function ensureBrowserTarget(ctx: DispatchCtx): TargetState {
     url: "",
     title: "",
     html: "",
+    fallbackHtmlReleased: false,
     dom: null,
     docScan: null,
     domEpoch: 0,
@@ -313,6 +342,7 @@ export function ensureBrowserTarget(ctx: DispatchCtx): TargetState {
     nextNavigationHistoryId: 1,
     viewportWidth: null,
     viewportHeight: null,
+    deviceScaleFactor: 1,
     screencastConfigurationBarrier: Promise.resolve(),
     screencastConfigurationVersion: 0,
     emulatedMedia: "screen",
@@ -348,6 +378,7 @@ export async function closeTargetInternal(ctx: DispatchCtx, id: string): Promise
     } catch {}
     target.pendingNavAbort = null;
     target.navigateGeneration++;
+    unregisterIsolateLimitListenersForTarget(ctx.connectionId, target.targetId);
     target.blankReady = null;
     target.wheelTeardownDepth += 1;
     const stream = ctx.browser.screencasts.get(id);
@@ -431,6 +462,7 @@ export function createPageTarget(
     url,
     title: "",
     html: "",
+    fallbackHtmlReleased: false,
     dom: null,
     docScan: null,
     domEpoch: 0,
@@ -455,6 +487,7 @@ export function createPageTarget(
     nextNavigationHistoryId: 2,
     viewportWidth: null,
     viewportHeight: null,
+    deviceScaleFactor: 1,
     screencastConfigurationBarrier: Promise.resolve(),
     screencastConfigurationVersion: 0,
     emulatedMedia: "screen",
@@ -506,7 +539,7 @@ function targetInfo(ctx: DispatchCtx, t: TargetState) {
     type: t.type,
     title: t.title,
     url: t.url,
-    attached: t.sessions.size > 0 || (ctx.browser.connectionMode === "page" && t.type === "page"),
+    attached: t.sessions.size > 0 || (ctx.client.connectionMode === "page" && t.type === "page"),
     canAccessOpener: false,
     browserContextId: t.browserContextId ?? "default",
   };
@@ -526,13 +559,13 @@ export function frameTargetInfo(frame: FrameState): Protocol.Target.TargetInfo {
 }
 
 export function emitFrameTarget(ctx: DispatchCtx, frame: FrameState): string | null {
-  if (ctx.browser.connectionMode !== "browser") return null;
+  if (ctx.client.connectionMode !== "browser") return null;
   const info = frameTargetInfo(frame);
   ctx.emit({
     method: "Target.targetCreated",
     params: { targetInfo: info },
   });
-  if (!ctx.browser.autoAttach) return null;
+  if (!ctx.client.autoAttach) return null;
   const sessionId = makeSessionId();
   frame.sessions.add(sessionId);
   ctx.browser.networkEvents.setTargetAttribution(
@@ -685,7 +718,7 @@ export async function handleRendererSession(ctx: DispatchCtx, req: CdpRequest): 
       return {};
     }
     case "Runtime.getHeapUsage": {
-      const mem = await ctx.browser.rendererManager?.memoryStats();
+      const mem = ctx.browser.rendererManager?.memoryStats();
       const usedSize = mem?.bytes ?? 0;
       return { usedSize, totalSize: usedSize };
     }
@@ -709,8 +742,8 @@ export function findOopifFrameBySession(
 }
 
 export function announceOopifTarget(ctx: DispatchCtx, frame: FrameState): string | null {
-  if (ctx.browser.connectionMode !== "page") return null;
-  if (!ctx.browser.autoAttach) return null;
+  if (ctx.client.connectionMode !== "page") return null;
+  if (!ctx.client.autoAttach) return null;
   if (!frame.pageScript) return null;
   const existing = frame.sessions.values().next();
   if (!existing.done) {
@@ -754,7 +787,7 @@ export function destroyOopifTarget(
 export async function handleOopifSession(
   ctx: DispatchCtx,
   req: CdpRequest,
-  _target: TargetState,
+  target: TargetState,
   frame: FrameState,
 ): Promise<unknown> {
   switch (req.method) {
@@ -773,23 +806,16 @@ export async function handleOopifSession(
     case "Network.disable":
       ctx.browser.networkEvents.setEnabled(req.sessionId, false);
       return {};
+    case "Log.enable":
+      ctx.browser.networkEvents.setLogEnabled(req.sessionId, true);
+      return {};
+    case "Log.disable":
+      ctx.browser.networkEvents.setLogEnabled(req.sessionId, false);
+      return {};
     case "Page.getFrameTree":
-    case "Page.getResourceTree": {
-      const frameJson = {
-        id: frame.frameId,
-        loaderId: frame.loaderId,
-        url: frame.url,
-        domainAndRegistry: domainAndRegistryOf(frame.url),
-        securityOrigin: originOfUrl(frame.url),
-        mimeType: "text/html",
-        secureContextType: "Secure",
-        crossOriginIsolatedContextType: "NotIsolated",
-        gatedAPIFeatures: [],
-      };
-      return req.method === "Page.getFrameTree"
-        ? { frameTree: { frame: frameJson, childFrames: [] } }
-        : { frameTree: { frame: frameJson, resources: [] } };
-    }
+      return { frameTree: buildFrameTree(target, frame) };
+    case "Page.getResourceTree":
+      return { frameTree: buildFrameResourceTree(target, frame) };
     case "Runtime.enable": {
       ctx.emit({
         method: "Runtime.executionContextCreated",
@@ -832,28 +858,58 @@ export async function handleOopifSession(
       return {};
     }
     case "DOM.getDocument": {
+      const subtree = documentSubtree(req.params, GET_DOCUMENT_DEPTH);
       const r = frame.pageScript
-        ? await stubQueryDom(frame.pageScript, "getDocument", {})
+        ? await stubQueryDom(frame.pageScript, "getDocument", subtree)
         : undefined;
-      return r?.root ? r : { root: null };
+      if (r?.budgetError) throw subtreeBudgetError(req.method, r.budgetError);
+      return r?.root ? { root: r.root } : { root: null };
     }
     case "DOM.getFlattenedDocument": {
+      const subtree = documentSubtree(req.params, GET_FLATTENED_DOCUMENT_DEPTH);
       const r = frame.pageScript
-        ? await stubQueryDom(frame.pageScript, "getDocument", {})
+        ? await stubQueryDom(frame.pageScript, "getDocument", subtree)
         : undefined;
+      if (r?.budgetError) throw subtreeBudgetError(req.method, r.budgetError);
       return { nodes: r?.root ? [r.root] : [] };
     }
-    case "DOM.requestChildNodes":
+    case "DOM.requestChildNodes": {
+      const subtree = childNodesSubtree(req.params);
+      const nodeId = oopifNodeId(req.params);
+      if (!frame.pageScript || nodeId == null || nodeId <= 0) return {};
+      const r = await stubQueryDom(frame.pageScript, "nodeSubtree", { nodeId, ...subtree });
+      if (r.budgetError) throw subtreeBudgetError(req.method, r.budgetError);
+      const nodes = r.node?.children;
+      if (nodes) {
+        ctx.emit({
+          method: "DOM.setChildNodes",
+          params: { parentId: nodeId, nodes },
+          sessionId: req.sessionId,
+        });
+      }
       return {};
+    }
     case "DOM.getOuterHTML": {
       const nodeId = oopifNodeId(req.params);
-      if (!frame.pageScript) return undefined;
-      return await stubQueryDom(frame.pageScript, "getOuterHTML", nodeId != null ? { nodeId } : {});
+      const pageScript = frame.pageScript;
+      if (!pageScript) return undefined;
+      return await outerHtmlResponse((mode) =>
+        stubQueryDom(pageScript, "getOuterHTML", {
+          ...(nodeId != null ? { nodeId } : {}),
+          ...mode,
+        }),
+      );
     }
     case "DOM.describeNode": {
       const nodeId = oopifNodeId(req.params);
       if (!frame.pageScript) return undefined;
-      return await stubQueryDom(frame.pageScript, "describeNode", nodeId != null ? { nodeId } : {});
+      const result = await stubQueryDom(
+        frame.pageScript,
+        "describeNode",
+        nodeId != null ? { nodeId } : {},
+      );
+      if (result.budgetError) throw subtreeBudgetError(req.method, result.budgetError);
+      return result;
     }
     case "DOM.getAttributes": {
       const nodeId = oopifNodeId(req.params);

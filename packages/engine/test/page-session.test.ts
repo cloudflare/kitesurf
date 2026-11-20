@@ -4,6 +4,8 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  accessibilityTreeResponse,
+  outerHtmlResponse,
   PageSession,
   registerEnsurePageScript,
   resolveTarget,
@@ -12,9 +14,11 @@ import {
 } from "../src/cdp/page-session.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { TargetState } from "../src/cdp/types.ts";
+import { RawJsonResult } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
 import type { Protocol } from "devtools-protocol";
+import { testClient } from "./client-state.ts";
 
 type StubReplies = Partial<{ [M in QueryDomMethod]: QueryDomResult<M> }>;
 type StubWithTestState = PageScriptStub & {
@@ -59,7 +63,7 @@ function makeTarget(over: Partial<TargetState> = {}): TargetState {
   } as TargetState;
 }
 
-const fakeCtx = {} as DispatchCtx;
+const fakeCtx = { client: testClient() } as DispatchCtx;
 
 function sessionFor(target: TargetState): PageSession {
   return new PageSession(fakeCtx, target);
@@ -183,6 +187,7 @@ describe("sessionOf / resolveTarget", () => {
           ["t2", attached],
         ]),
       },
+      client: testClient(),
     } as DispatchCtx;
     expect(resolveTarget(ctx, "s1")).toBe(attached);
     expect(resolveTarget(ctx, undefined)).toBe(first);
@@ -191,6 +196,7 @@ describe("sessionOf / resolveTarget", () => {
   it("throws the caller's message when no page target exists", () => {
     const ctx = {
       browser: { targets: new Map() },
+      client: testClient(),
     } as DispatchCtx;
     expect(() => resolveTarget(ctx, undefined)).toThrow("No page target attached to session");
     expect(() => resolveTarget(ctx, undefined, "WebMCP: nope")).toThrow("WebMCP: nope");
@@ -333,5 +339,157 @@ describe("PageSession.ready — the navigate window", () => {
     expect(await sessionFor(target).ready()).toBe(stub);
     order.push("ready");
     expect(order).toEqual(["blank", "ready"]);
+  });
+});
+
+describe("outerHtmlResponse", () => {
+  type OuterHtmlResult = QueryDomResult<"getOuterHTML">;
+
+  const utf8 = new TextEncoder().encode("<p>é𝔽</p>");
+
+  const streamOf = (chunks: Uint8Array[], onCancel?: () => void) =>
+    new ReadableStream<Uint8Array>({
+      pull(controller) {
+        const next = chunks.shift();
+        if (next) controller.enqueue(next);
+        else controller.close();
+      },
+      cancel: onCancel,
+    });
+
+  const resultOf = (chunks: Uint8Array[], byteLength = utf8.byteLength): OuterHtmlResult => ({
+    byteLength,
+    outerHTMLUtf8: streamOf(chunks),
+  });
+
+  const alwaysReplies = (result: OuterHtmlResult) => () => Promise.resolve(result);
+
+  // Replies in turn and records whether each request asked for a snapshot.
+  const repliesInTurn = (...results: OuterHtmlResult[]) => {
+    const snapshotRequests: Array<boolean | undefined> = [];
+    const request = (args: Pick<QueryDomArgs<"getOuterHTML">, "snapshot">) => {
+      snapshotRequests.push(args.snapshot);
+      const next = results.shift();
+      return next ? Promise.resolve(next) : Promise.reject(new Error("no more replies"));
+    };
+    return { snapshotRequests, request };
+  };
+
+  // A live stream that ends one byte before the byteLength it declared.
+  const shortByOneByte = (): OuterHtmlResult => ({
+    byteLength: utf8.byteLength + 1,
+    outerHTMLUtf8: streamOf([utf8]),
+  });
+
+  // The wire text must stringify the whole response, and parse() must give it back.
+  const expectSerializedAs = (result: RawJsonResult, outerHTML: string) => {
+    expect(result.pieces.join("")).toBe(JSON.stringify({ outerHTML }));
+    expect(result.parse()).toEqual({ outerHTML });
+  };
+
+  it("joins chunks that split a multibyte character", async () => {
+    const chunks = [utf8.slice(0, 5), utf8.slice(5, 7), utf8.slice(7)];
+
+    expectSerializedAs(await outerHtmlResponse(alwaysReplies(resultOf(chunks))), "<p>é𝔽</p>");
+  });
+
+  it("escapes JSON specials in every chunk", async () => {
+    const html = '<p title="a\\b">\n\t\u0001\u2028</p>';
+    const bytes = new TextEncoder().encode(html);
+    const oneBytePerChunk = Array.from(bytes, (byte) => Uint8Array.of(byte));
+
+    const reply = alwaysReplies(resultOf(oneBytePerChunk, bytes.byteLength));
+
+    expectSerializedAs(await outerHtmlResponse(reply), html);
+  });
+
+  it("asks for a snapshot once when the live stream ends short", async () => {
+    const { snapshotRequests, request } = repliesInTurn(shortByOneByte(), resultOf([utf8.slice()]));
+
+    expectSerializedAs(await outerHtmlResponse(request), "<p>é𝔽</p>");
+    expect(snapshotRequests).toEqual([undefined, true]);
+  });
+
+  it("rejects a snapshot stream shorter than byteLength", async () => {
+    const { snapshotRequests, request } = repliesInTurn(shortByOneByte(), shortByOneByte());
+
+    await expect(outerHtmlResponse(request)).rejects.toThrow(
+      `DOM.getOuterHTML: PageScript stream ended after ${utf8.byteLength} of ${utf8.byteLength + 1} bytes`,
+    );
+    expect(snapshotRequests).toEqual([undefined, true]);
+  });
+
+  it("cancels a stream longer than byteLength", async () => {
+    let cancelled = false;
+    const endless = new ReadableStream<Uint8Array>({
+      pull: (controller) => controller.enqueue(utf8.slice()),
+      cancel: () => {
+        cancelled = true;
+      },
+    });
+
+    await expect(
+      outerHtmlResponse(alwaysReplies({ byteLength: utf8.byteLength, outerHTMLUtf8: endless })),
+    ).rejects.toThrow(`DOM.getOuterHTML: PageScript sent more than ${utf8.byteLength} bytes`);
+    expect(cancelled).toBe(true);
+  });
+
+  it("cancels the stream when byteLength is invalid", async () => {
+    for (const byteLength of [-1, 1.5, Number.NaN]) {
+      let cancelled = false;
+      const stream = streamOf([utf8], () => {
+        cancelled = true;
+      });
+
+      const result = { byteLength, outerHTMLUtf8: stream };
+
+      await expect(outerHtmlResponse(alwaysReplies(result))).rejects.toThrow(
+        "DOM.getOuterHTML: PageScript sent an invalid byteLength",
+      );
+      expect(cancelled).toBe(true);
+    }
+  });
+});
+
+describe("accessibilityTreeResponse", () => {
+  const streamOf = (chunks: Uint8Array[]) =>
+    new ReadableStream<Uint8Array>({
+      pull(controller) {
+        const next = chunks.shift();
+        if (next) controller.enqueue(next);
+        else controller.close();
+      },
+    });
+
+  it("retries a short live stream and decodes split UTF-8 into string pieces", async () => {
+    const text = '{"name":"café 😀"}';
+    const encoded = new TextEncoder().encode(text);
+    const modes: boolean[] = [];
+    const result = await accessibilityTreeResponse((buffered) => {
+      modes.push(buffered);
+      return Promise.resolve(
+        buffered
+          ? {
+              byteLength: encoded.byteLength,
+              json: streamOf([encoded.slice(0, 11), encoded.slice(11, 14), encoded.slice(14)]),
+            }
+          : { byteLength: encoded.byteLength + 1, json: streamOf([encoded]) },
+      );
+    }, "Accessibility.getFullAXTree");
+    if ("budgetError" in result) throw new Error("expected a tree reply");
+    expect(result.result).toBeInstanceOf(RawJsonResult);
+    expect(result.result.pieces.join("")).toBe(text);
+    expect(modes).toEqual([false, true]);
+  });
+
+  it("returns a budget error without retrying", async () => {
+    const budgetError = { nodes: 120_000, bytes: 30_000_000, budget: 25_165_824 };
+    const modes: boolean[] = [];
+    const result = await accessibilityTreeResponse((buffered) => {
+      modes.push(buffered);
+      return Promise.resolve({ budgetError });
+    }, "Accessibility.getFullAXTree");
+    expect(result).toEqual({ budgetError });
+    expect(modes).toEqual([false]);
   });
 });

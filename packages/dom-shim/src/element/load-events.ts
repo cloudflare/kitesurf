@@ -4,7 +4,7 @@
 
 // Converts image and stylesheet resource results into DOM load and error events.
 
-import { dom, pageUrl, nodeFor, liveDocument } from "../state.js";
+import { dom, pageUrl, elementFor, liveDocument } from "../state.js";
 import { linkLoadFired } from "../registries.js";
 import { KsEvent } from "../events/event.js";
 import { installAttrEventHandler } from "./event-handlers.js";
@@ -23,20 +23,20 @@ const imageLoadResults = new Map<number, boolean>();
 const pendingImageReloads = new Set<number>();
 
 // Advancing on every src/srcset write rejects queued results from older requests.
-const imageRequestGen = new Map();
-function bumpImageRequestGen(id) {
+const imageRequestGen = new Map<number, number>();
+function bumpImageRequestGen(id: number) {
   const next = (imageRequestGen.get(id) || 0) + 1;
   imageRequestGen.set(id, next);
   return next;
 }
 
-function queueImageTerminalEvent(id, gen, pumpDecodes = false) {
+function queueImageTerminalEvent(id: number, gen: number, pumpDecodes = false) {
   try {
     setTimeout(() => {
       if (imageRequestGen.get(id) !== gen) return;
       if (pumpDecodes) {
         try {
-          dom.pumpResourceMessages?.();
+          dom.pumpResourceMessages();
         } catch {}
       }
       try {
@@ -46,7 +46,7 @@ function queueImageTerminalEvent(id, gen, pumpDecodes = false) {
   } catch {}
 }
 
-function resolveImageUrl(raw, el) {
+function resolveImageUrl(raw: string, el: Element) {
   try {
     return new URL(raw, el.baseURI || pageUrl).href;
   } catch {
@@ -61,7 +61,7 @@ function isFetchableImageUrl(resolved: string | null): resolved is string {
       resolved.startsWith("data:"))
   );
 }
-function srcsetHasNoFetchableCandidate(srcset, el) {
+function srcsetHasNoFetchableCandidate(srcset: string, el: Element) {
   let seen = 0;
   for (const part of String(srcset).split(",")) {
     const raw = part.trim().split(/\s+/)[0];
@@ -109,7 +109,7 @@ function invalidateImageLoadStateFor(el: HTMLImageElement): void {
         return;
       }
       try {
-        if (dom.imageCacheHas?.(resolved)) {
+        if (dom.imageCacheHas(resolved)) {
           pendingImageReloads.delete(id);
           queueImageTerminalEvent(id, gen);
           return;
@@ -117,7 +117,7 @@ function invalidateImageLoadStateFor(el: HTMLImageElement): void {
       } catch {}
     }
     try {
-      if (typeof dom.imageIsPending === "function" && !dom.imageIsPending(id)) {
+      if (!dom.imageIsPending(id)) {
         pendingImageReloads.delete(id);
         queueImageTerminalEvent(id, gen);
         return;
@@ -142,8 +142,8 @@ function invalidateImageLoadStateFor(el: HTMLImageElement): void {
 // Read the decoded size from wasm so cache hits are included.
 function imageNaturalSizeFor(el: Element): [number, number] | null {
   try {
-    const imageSize = dom.imageNaturalSize?.(el._id);
-    if (imageSize && imageSize.length >= 2) return [imageSize[0], imageSize[1]];
+    const imageSize = dom.imageNaturalSize(el._id);
+    if (imageSize.length >= 2) return [imageSize[0], imageSize[1]];
   } catch {}
   return null;
 }
@@ -160,7 +160,7 @@ export function notifyImageResults(
     pendingImageReloads.delete(id);
     let el: Element | null = null;
     try {
-      el = nodeFor(id);
+      el = elementFor(id);
     } catch {}
     const applied = ok && el ? imageNaturalSizeFor(el) !== null : ok;
     imageLoadResults.set(id, applied);

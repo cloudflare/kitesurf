@@ -6,14 +6,18 @@
 
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use linebender_resource_handle::Blob;
 use parley::fontique::{
-    Collection, CollectionOptions, FontInfoOverride, GenericFamily, Script, SourceCache,
+    Collection, CollectionOptions, FamilyId, FontInfoOverride, GenericFamily, Script, SourceCache,
 };
 use parley::FontContext;
 use wasm_bindgen::prelude::wasm_bindgen;
+
+use crate::paint::font_container::{inflate_font_container, FontContainer, MAX_DECOMPRESSED_FONT_BYTES};
+use crate::paint::scene_record::{font_data_key, fx_hash_u64};
 
 thread_local! {
     static SHARED_FONT_CONTEXT: RefCell<Option<FontContext>> = const { RefCell::new(None) };
@@ -29,17 +33,25 @@ thread_local! {
     static SCRIPT_FONTS_REGISTERED: RefCell<std::collections::HashSet<String>> =
         RefCell::new(std::collections::HashSet::new());
 
-    static BASE_COMMON_IDS: RefCell<Vec<parley::fontique::FamilyId>> =
+    static BASE_COMMON_IDS: RefCell<Vec<FamilyId>> =
         const { RefCell::new(Vec::new()) };
-    static SYMBOL_IDS: RefCell<Vec<parley::fontique::FamilyId>> =
+    static SYMBOL_IDS: RefCell<Vec<FamilyId>> =
         const { RefCell::new(Vec::new()) };
-    static EMOJI_IDS: RefCell<Vec<parley::fontique::FamilyId>> =
+    static EMOJI_IDS: RefCell<Vec<FamilyId>> =
         const { RefCell::new(Vec::new()) };
-    static CJK_IDS: RefCell<Vec<parley::fontique::FamilyId>> =
+    static CJK_IDS: RefCell<Vec<FamilyId>> =
         const { RefCell::new(Vec::new()) };
+    static CJK_JP_IDS: RefCell<Vec<FamilyId>> =
+        const { RefCell::new(Vec::new()) };
+    static CJK_TC_IDS: RefCell<Vec<FamilyId>> =
+        const { RefCell::new(Vec::new()) };
+    // Noto Sans as the `Latn` script face, in profiles whose UA faces lack some Latin codepoints.
+    static LATIN_FALLBACK_IDS: RefCell<Vec<FamilyId>> =
+        const { RefCell::new(Vec::new()) };
+    static UA_FONT_PROFILE: Cell<Option<&'static UaFontProfile>> = const { Cell::new(None) };
 
-    static FONT_ASSET_HASHES: RefCell<std::collections::HashMap<u64, &'static str>> =
-        RefCell::new(std::collections::HashMap::new());
+    static FONT_ASSET_HASHES: RefCell<HashMap<u64, &'static str>> =
+        RefCell::new(HashMap::new());
 }
 
 const SFNT_HEADER_BYTES: usize = 12;
@@ -69,35 +81,36 @@ pub(crate) fn strip_sfnt_tables(bytes: &[u8], drop: &[[u8; 4]]) -> Option<Vec<u8
         let checksum: [u8; 4] = bytes[e + 4..e + 8].try_into().ok()?;
         let off = u32::from_be_bytes(bytes[e + 8..e + 12].try_into().ok()?) as usize;
         let len = u32::from_be_bytes(bytes[e + 12..e + 16].try_into().ok()?) as usize;
-        if off + len > bytes.len() {
-            return None;
-        }
+        // usize is 32 bits on wasm32, so an unchecked sum can wrap past the bound.
+        let end = off.checked_add(len).filter(|&end| end <= bytes.len())?;
         if drop.contains(&tag) {
             continue;
         }
         kept.push(Entry {
             tag,
             checksum,
-            data: off..off + len,
+            data: off..end,
         });
     }
     if kept.is_empty() || kept.len() == num_tables {
         return None;
     }
     let n = kept.len();
-    let mut entry_selector = 0u16;
-    while (2usize << entry_selector) <= n {
-        entry_selector += 1;
-    }
-    entry_selector -= 1;
+    let n_records = u16::try_from(n * SFNT_TABLE_RECORD_BYTES).ok()?;
+    let entry_selector = n.ilog2().saturating_sub(1) as u16;
     let search_range = 16u16 << entry_selector;
-    let range_shift = (n as u16) * 16 - search_range;
+    let range_shift = n_records - search_range;
 
-    let mut out = Vec::with_capacity(
-        SFNT_HEADER_BYTES
-            + n * SFNT_TABLE_RECORD_BYTES
-            + kept.iter().map(|e| (e.data.len() + 3) & !3).sum::<usize>(),
-    );
+    let max_output = bytes.len().checked_add(n.checked_mul(3)?)?;
+    let mut output_size = SFNT_HEADER_BYTES.checked_add(n.checked_mul(SFNT_TABLE_RECORD_BYTES)?)?;
+    for entry in &kept {
+        let padded = entry.data.len().checked_add(3)? & !3;
+        output_size = output_size.checked_add(padded)?;
+        if output_size > max_output {
+            return None;
+        }
+    }
+    let mut out = Vec::with_capacity(output_size);
     out.extend_from_slice(sfnt_version);
     out.extend_from_slice(&(n as u16).to_be_bytes());
     out.extend_from_slice(&search_range.to_be_bytes());
@@ -162,30 +175,12 @@ pub(crate) fn strip_outline_tables(bytes: &[u8]) -> Option<Vec<u8>> {
     }
 }
 
-const MAX_DECOMPRESSED_FONT_BYTES: u32 = 32 * 1024 * 1024;
-
-fn declared_sfnt_size(bytes: &[u8]) -> Option<u32> {
-    if bytes.len() < 20 {
-        return None;
-    }
-    Some(u32::from_be_bytes(bytes[16..20].try_into().ok()?))
-}
-
 #[wasm_bindgen(js_name = "stripFontForShaping")]
 pub fn strip_font_for_shaping(bytes: Vec<u8>) -> Option<Vec<u8>> {
-    let compressed = bytes.len() >= 4 && (&bytes[0..4] == b"wOF2" || &bytes[0..4] == b"wOFF");
-    if compressed {
-        match declared_sfnt_size(&bytes) {
-            Some(n) if n <= MAX_DECOMPRESSED_FONT_BYTES => {}
-            _ => return None,
-        }
-    }
-    let sfnt: Vec<u8> = if bytes.len() >= 4 && &bytes[0..4] == b"wOF2" {
-        wuff::decompress_woff2(&bytes).ok()?
-    } else if bytes.len() >= 4 && &bytes[0..4] == b"wOFF" {
-        wuff::decompress_woff1(&bytes).ok()?
-    } else {
-        bytes
+    let sfnt: Vec<u8> = match inflate_font_container(&bytes) {
+        FontContainer::Sfnt => bytes,
+        FontContainer::Inflated(sfnt) => sfnt,
+        FontContainer::Refused => return None,
     };
     if sfnt.len() > MAX_DECOMPRESSED_FONT_BYTES as usize {
         return None;
@@ -289,16 +284,16 @@ pub(crate) fn strip_fetched_font_for_session(
 }
 
 thread_local! {
-    static FONT_URL_HASHES: RefCell<std::collections::HashMap<u64, String>> =
-        RefCell::new(std::collections::HashMap::new());
-    static FONT_ENGINE_KEY_HASHES: RefCell<std::collections::HashMap<u64, String>> =
-        RefCell::new(std::collections::HashMap::new());
-    static FONT_ENGINE_KEYS: RefCell<std::collections::HashMap<String, String>> =
-        RefCell::new(std::collections::HashMap::new());
+    static FONT_URL_HASHES: RefCell<HashMap<u64, String>> =
+        RefCell::new(HashMap::new());
+    static FONT_ENGINE_KEY_HASHES: RefCell<HashMap<u64, String>> =
+        RefCell::new(HashMap::new());
+    static FONT_ENGINE_KEYS: RefCell<HashMap<String, String>> =
+        RefCell::new(HashMap::new());
 }
 
 fn blob_key(bytes: &[u8]) -> u64 {
-    crate::paint::scene_record::font_data_key(crate::paint::scene_record::fx_hash_u64(bytes), 0)
+    font_data_key(fx_hash_u64(bytes), 0)
 }
 
 fn note_font_url(bytes: &[u8], url: &str) {
@@ -343,10 +338,7 @@ pub(crate) fn stash_author_upgrades(regs: Vec<blitz_dom::AuthorFontRegistration>
     AUTHOR_LAZY.with(|c| {
         let mut stash = c.borrow_mut();
         for reg in regs {
-            let h = crate::paint::scene_record::font_data_key(
-                crate::paint::scene_record::fx_hash_u64(reg.bytes.data()),
-                0,
-            );
+            let h = font_data_key(fx_hash_u64(reg.bytes.data()), 0);
             let Some(url) = font_url_for_hash(h) else {
                 continue;
             };
@@ -427,12 +419,9 @@ fn is_plain_sfnt(bytes: &[u8]) -> bool {
 }
 
 fn strip_woff_container(bytes: Vec<u8>) -> Vec<u8> {
-    if bytes.len() >= 4 && &bytes[0..4] == b"wOF2" {
-        wuff::decompress_woff2(&bytes).unwrap_or(bytes)
-    } else if bytes.len() >= 4 && &bytes[0..4] == b"wOFF" {
-        wuff::decompress_woff1(&bytes).unwrap_or(bytes)
-    } else {
-        bytes
+    match inflate_font_container(&bytes) {
+        FontContainer::Inflated(sfnt) => sfnt,
+        FontContainer::Sfnt | FontContainer::Refused => bytes,
     }
 }
 
@@ -442,27 +431,142 @@ fn strip_fetched_font(bytes: Vec<u8>) -> Vec<u8> {
 }
 
 struct LazyFaceRecord {
-    family: parley::fontique::FamilyId,
+    family: FamilyId,
     width: parley::fontique::FontWidth,
     style: parley::fontique::FontStyle,
     weight: parley::fontique::FontWeight,
 }
 
+// One record per registration. A blob registered under N family-name aliases leaves N records on
+// one path; `family_name` is None for the font's own name.
 struct LazyBlobRecord {
     path: &'static str,
     svg_slot: Option<blitz_dom::util::SvgGenericSlot>,
+    family_name: Option<&'static str>,
     faces: Vec<LazyFaceRecord>,
 }
 
 thread_local! {
     static LAZY_REGISTERED: RefCell<Vec<LazyBlobRecord>> =
         const { RefCell::new(Vec::new()) };
+    // The faces each platform-name alias family holds, until an author @font-face claims it.
+    static UA_ALIAS_FACES: RefCell<Vec<(FamilyId, Vec<LazyFaceRecord>)>> =
+        const { RefCell::new(Vec::new()) };
+}
+
+// An alias family an author face is registering into: the alias faces it held, set aside with
+// their blobs and lazy-upgrade records until blitz reports whether the author face registered.
+struct UaAliasClaim {
+    family: FamilyId,
+    blobs: Vec<Blob<u8>>,
+    faces: Vec<LazyFaceRecord>,
+    lazy: Vec<LazyBlobRecord>,
+}
+
+thread_local! {
+    static UA_ALIAS_CLAIMS: RefCell<Vec<UaAliasClaim>> = const { RefCell::new(Vec::new()) };
+}
+
+/// blitz-dom's author-family hook. An author `@font-face` for a platform name the UA aliases
+/// (`Arial`, `Hiragino Sans`, `Apple Color Emoji`, ...) takes the family, so the alias faces
+/// neither shadow it nor have a lazy upgrade remove it. A face fontique rejects gives it back.
+fn ua_alias_family_hook(
+    collection: &mut Collection,
+    family_name: &str,
+    event: blitz_dom::util::AuthorFontFamilyEvent,
+) {
+    use blitz_dom::util::AuthorFontFamilyEvent;
+    let Some(family) = collection.family_id(family_name) else {
+        return;
+    };
+    match event {
+        AuthorFontFamilyEvent::BeforeRegister => claim_ua_alias_family(collection, family),
+        AuthorFontFamilyEvent::Registered(true) => {
+            UA_ALIAS_CLAIMS.with(|c| c.borrow_mut().retain(|claim| claim.family != family));
+        }
+        AuthorFontFamilyEvent::Registered(false) => restore_ua_alias_family(collection, family),
+    }
+}
+
+fn claim_ua_alias_family(collection: &mut Collection, family: FamilyId) {
+    let Some((_, faces)) = UA_ALIAS_FACES.with(|c| {
+        let mut aliases = c.borrow_mut();
+        let i = aliases.iter().position(|(id, _)| *id == family)?;
+        Some(aliases.remove(i))
+    }) else {
+        return;
+    };
+    let mut blobs: Vec<Blob<u8>> = Vec::new();
+    for font in collection.family(family).iter().flat_map(|f| f.fonts()) {
+        if let parley::fontique::SourceKind::Memory(blob) = &font.source().kind {
+            if !blobs.iter().any(|b| b.id() == blob.id()) {
+                blobs.push(blob.clone());
+            }
+        }
+    }
+    for face in &faces {
+        collection.unregister_font(face.family, face.width, face.style, face.weight);
+    }
+    let lazy: Vec<LazyBlobRecord> = LAZY_REGISTERED.with(|c| {
+        c.borrow_mut()
+            .extract_if(.., |r| r.faces.iter().any(|f| f.family == family))
+            .collect()
+    });
+    UA_ALIAS_CLAIMS.with(|c| {
+        c.borrow_mut().push(UaAliasClaim {
+            family,
+            blobs,
+            faces,
+            lazy,
+        })
+    });
+}
+
+fn restore_ua_alias_family(collection: &mut Collection, family: FamilyId) {
+    let Some(claim) = UA_ALIAS_CLAIMS.with(|c| {
+        let mut claims = c.borrow_mut();
+        let i = claims.iter().position(|claim| claim.family == family)?;
+        Some(claims.remove(i))
+    }) else {
+        return;
+    };
+    let Some(name) = collection.family_name(family).map(str::to_owned) else {
+        return;
+    };
+    for blob in &claim.blobs {
+        let info = FontInfoOverride {
+            family_name: Some(&name),
+            ..Default::default()
+        };
+        collection.register_fonts(blob.clone(), Some(info));
+    }
+    UA_ALIAS_FACES.with(|c| c.borrow_mut().push((family, claim.faces)));
+    LAZY_REGISTERED.with(|c| c.borrow_mut().extend(claim.lazy));
+}
+
+fn record_ua_alias_faces(result: &[(FamilyId, Vec<parley::fontique::FontInfo>)]) {
+    UA_ALIAS_FACES.with(|c| {
+        let mut aliases = c.borrow_mut();
+        for (family, fonts) in result {
+            let faces = fonts.iter().map(|f| LazyFaceRecord {
+                family: *family,
+                width: f.width(),
+                style: f.style(),
+                weight: f.weight(),
+            });
+            match aliases.iter_mut().find(|(id, _)| id == family) {
+                Some((_, recorded)) => recorded.extend(faces),
+                None => aliases.push((*family, faces.collect())),
+            }
+        }
+    });
 }
 
 fn record_lazy_registration(
     path: &'static str,
     svg_slot: Option<blitz_dom::util::SvgGenericSlot>,
-    result: &[(parley::fontique::FamilyId, Vec<parley::fontique::FontInfo>)],
+    family_name: Option<&'static str>,
+    result: &[(FamilyId, Vec<parley::fontique::FontInfo>)],
 ) {
     if font_mode() != FontMode::Lazy || result.is_empty() {
         return;
@@ -483,6 +587,7 @@ fn record_lazy_registration(
         c.borrow_mut().push(LazyBlobRecord {
             path,
             svg_slot,
+            family_name,
             faces,
         });
     });
@@ -493,28 +598,42 @@ pub(crate) fn upgrade_recorded_face(
     path: &str,
     full_bytes: Vec<u8>,
 ) -> bool {
-    let Some(record) = LAZY_REGISTERED.with(|c| {
-        let mut recs = c.borrow_mut();
-        recs.iter()
-            .position(|r| r.path == path)
-            .map(|i| recs.remove(i))
-    }) else {
+    let records: Vec<LazyBlobRecord> =
+        LAZY_REGISTERED.with(|c| c.borrow_mut().extract_if(.., |r| r.path == path).collect());
+    let Some(first) = records.first() else {
         return false;
     };
+    // The CJK full files are WOFF2.
+    let full_bytes = if full_bytes.starts_with(b"wOF2") {
+        wuff::decompress_woff2(&full_bytes).unwrap_or(full_bytes)
+    } else {
+        full_bytes
+    };
     if full_bytes.is_empty() || !has_outline_tables(&full_bytes) {
-        LAZY_REGISTERED.with(|c| c.borrow_mut().push(record));
+        LAZY_REGISTERED.with(|c| c.borrow_mut().extend(records));
         return false;
     }
-    for face in &record.faces {
+    for face in records.iter().flat_map(|r| &r.faces) {
         font_ctx
             .collection
             .unregister_font(face.family, face.width, face.style, face.weight);
     }
-    note_font_asset(&full_bytes, record.path);
+    note_font_asset(&full_bytes, first.path);
     let blob = Blob::from(full_bytes);
-    blitz_dom::util::register_svg_font(std::sync::Arc::new(blob.clone()), record.svg_slot);
-    let registered = font_ctx.collection.register_fonts(blob, None);
-    !registered.is_empty()
+    let svg_slot = records.iter().find_map(|r| r.svg_slot);
+    blitz_dom::util::register_svg_font(Arc::new(blob.clone()), svg_slot);
+    let mut registered = false;
+    for record in &records {
+        let info = record.family_name.map(|name| FontInfoOverride {
+            family_name: Some(name),
+            ..Default::default()
+        });
+        registered |= !font_ctx
+            .collection
+            .register_fonts(blob.clone(), info)
+            .is_empty();
+    }
+    registered
 }
 
 pub(crate) fn has_pending_lazy_faces() -> bool {
@@ -522,7 +641,15 @@ pub(crate) fn has_pending_lazy_faces() -> bool {
 }
 
 pub(crate) fn pending_lazy_face_paths() -> Vec<String> {
-    LAZY_REGISTERED.with(|c| c.borrow().iter().map(|r| r.path.to_string()).collect())
+    LAZY_REGISTERED.with(|c| {
+        let mut paths: Vec<String> = Vec::new();
+        for record in c.borrow().iter() {
+            if !paths.iter().any(|p| p == record.path) {
+                paths.push(record.path.to_string());
+            }
+        }
+        paths
+    })
 }
 
 /// JS-callable: asset paths awaiting the full-file swap, in
@@ -569,10 +696,7 @@ pub fn finish_font_upgrade() -> bool {
 }
 
 fn note_font_asset(bytes: &[u8], path: &'static str) {
-    let h = crate::paint::scene_record::font_data_key(
-        crate::paint::scene_record::fx_hash_u64(bytes),
-        0,
-    );
+    let h = font_data_key(fx_hash_u64(bytes), 0);
     FONT_ASSET_HASHES.with(|c| {
         c.borrow_mut().insert(h, path);
     });
@@ -583,15 +707,19 @@ pub(crate) fn font_asset_name_for_hash(hash: u64) -> Option<&'static str> {
 }
 
 fn rebuild_common_fallbacks(font_ctx: &mut FontContext) {
-    let mut chain: Vec<parley::fontique::FamilyId> = Vec::new();
+    let mut chain: Vec<FamilyId> = Vec::new();
     BASE_COMMON_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
+    LATIN_FALLBACK_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
     EMOJI_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
     SYMBOL_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
+    // Fullwidth punctuation after Latin text, or with no script around it, lands here. fontique
+    // keys this chain by script alone, so it cannot honour `lang`; SC stays its only CJK face.
+    // Punctuation after Han or kana takes that script and its locale-aware chain instead.
     CJK_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
     font_ctx
         .collection
         .set_fallbacks(Script::COMMON, chain.iter().copied());
-    let latn = parley::fontique::Script::from_bytes(*b"Latn");
+    let latn = Script::from_bytes(*b"Latn");
     font_ctx
         .collection
         .set_fallbacks(latn, chain.iter().copied());
@@ -639,7 +767,7 @@ pub fn register_emoji_font(bytes: &[u8]) -> bool {
         let blob_bytes: Arc<dyn AsRef<[u8]> + Send + Sync> = Arc::new(opentype_bytes);
         let blob = Blob::new(blob_bytes);
 
-        let mut registered_family_ids: Vec<parley::fontique::FamilyId> = Vec::new();
+        let mut registered_family_ids: Vec<FamilyId> = Vec::new();
         for alias in aliases {
             let override_info = FontInfoOverride {
                 family_name: Some(alias),
@@ -648,8 +776,12 @@ pub fn register_emoji_font(bytes: &[u8]) -> bool {
             let result = font_ctx
                 .collection
                 .register_fonts(blob.clone(), Some(override_info));
-            for (family_id, _) in result {
-                registered_family_ids.push(family_id);
+            // The chain takes the internal name, which no author face claims; the platform
+            // names are aliases an author `@font-face` can take.
+            if alias == "Kitesurf Emoji" {
+                registered_family_ids.extend(result.iter().map(|(id, _)| *id));
+            } else {
+                record_ua_alias_faces(&result);
             }
         }
 
@@ -664,9 +796,162 @@ pub fn register_emoji_font(bytes: &[u8]) -> bool {
     true
 }
 
-/// Register Noto Sans CJK SC for Han, Hiragana, Katakana, and Hangul fallbacks.
-/// Regional aliases, including Simplified Chinese variants, share one blob.
-/// Add it after emoji in Common for ideographic spaces and fullwidth punctuation.
+/// CJK faces by region. SC is the Han default; JP and TC take Han in `lang="ja"` and
+/// `lang="zh-TW"` (or HK, MO) text, where the same codepoints have regional glyph forms, and
+/// kana prefers JP. Each face carries the CSS family names of its region's platform fonts.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CjkRegion {
+    Sc,
+    Jp,
+    Tc,
+}
+
+impl CjkRegion {
+    fn path(self) -> &'static str {
+        match self {
+            Self::Sc => "/fonts/NotoSansCJKsc-Regular.woff2",
+            Self::Jp => "/fonts/NotoSansCJKjp-Regular.woff2",
+            Self::Tc => "/fonts/NotoSansCJKtc-Regular.woff2",
+        }
+    }
+
+    fn chain_name(self) -> &'static str {
+        match self {
+            Self::Sc => "Kitesurf CJK SC",
+            Self::Jp => "Kitesurf CJK JP",
+            Self::Tc => "Kitesurf CJK TC",
+        }
+    }
+
+    fn aliases(self) -> &'static [&'static str] {
+        match self {
+            // Korean has its Hangul script face; its Hanja come from SC.
+            Self::Sc => &[
+                "PingFang SC",
+                "Hiragino Sans GB",
+                "Microsoft YaHei",
+                "Microsoft YaHei UI",
+                "SimHei",
+                "SimSun",
+                "Source Han Sans SC",
+                "Noto Sans CJK SC",
+                "Noto Sans SC",
+                "Apple SD Gothic Neo",
+            ],
+            Self::Jp => &[
+                "Hiragino Sans",
+                "Hiragino Kaku Gothic Pro",
+                "Hiragino Kaku Gothic ProN",
+                "Yu Gothic",
+                "YuGothic",
+                "Meiryo",
+                "MS Gothic",
+                "MS PGothic",
+                "Source Han Sans JP",
+                "Noto Sans CJK JP",
+                "Noto Sans JP",
+            ],
+            Self::Tc => &[
+                "PingFang TC",
+                "PingFang HK",
+                "Microsoft JhengHei",
+                "PMingLiU",
+                "Source Han Sans TC",
+                "Noto Sans CJK TC",
+                "Noto Sans TC",
+            ],
+        }
+    }
+
+    fn ids(self) -> &'static std::thread::LocalKey<RefCell<Vec<FamilyId>>> {
+        match self {
+            Self::Sc => &CJK_IDS,
+            Self::Jp => &CJK_JP_IDS,
+            Self::Tc => &CJK_TC_IDS,
+        }
+    }
+}
+
+/// Rebuild the Han, kana and Common chains from whichever CJK faces are registered, so the
+/// order holds whatever order they arrive in. fontique appends the default Han list to every
+/// query, so a locale list needs only its own face.
+fn rebuild_cjk_fallbacks(font_ctx: &mut FontContext) {
+    let ids = |region: CjkRegion| region.ids().with(|c| c.borrow().clone());
+    let (sc, jp, tc) = (ids(CjkRegion::Sc), ids(CjkRegion::Jp), ids(CjkRegion::Tc));
+    let han = Script::from_bytes(*b"Hani");
+    let c = &mut font_ctx.collection;
+    c.set_fallbacks(han, sc.iter().copied());
+    c.set_fallbacks((han, "ja"), jp.iter().copied());
+    for locale in ["zh-TW", "zh-HK", "zh-MO"] {
+        c.set_fallbacks((han, locale), tc.iter().copied());
+    }
+    for kana in [*b"Hira", *b"Kana"] {
+        c.set_fallbacks(Script::from_bytes(kana), jp.iter().chain(&sc).copied());
+    }
+    rebuild_common_fallbacks(font_ctx);
+}
+
+/// Register a fetched CJK face (WOFF2 or raw OpenType) under its region's aliases. Returns
+/// false when the region is already registered or there is no shared context yet.
+fn register_cjk_region(bytes: &[u8], region: CjkRegion) -> bool {
+    if region.ids().with(|c| !c.borrow().is_empty()) {
+        return false;
+    }
+    // As for UA faces: a full-mode page paints canvas and SVG text here, so it keeps outlines.
+    let opentype =
+        maybe_strip_for_session(wuff::decompress_woff2(bytes).unwrap_or_else(|_| bytes.to_vec()));
+    SHARED_FONT_CONTEXT.with(|cell| {
+        let mut borrow = cell.borrow_mut();
+        // PageScript registers the UA faces, and with them the context, before any CJK face.
+        let Some(font_ctx) = borrow.as_mut() else {
+            return false;
+        };
+        note_font_asset(&opentype, region.path());
+        // An outline-free shaping file waits for the lazy upgrade to its full file, as UA faces do.
+        let lazy = !has_outline_tables(&opentype);
+        let blob_bytes: Arc<dyn AsRef<[u8]> + Send + Sync> = Arc::new(opentype);
+        let blob = Blob::new(blob_bytes);
+        if !lazy {
+            // usvg shapes `<text>` through its own font database.
+            blitz_dom::util::register_svg_font(Arc::new(blob.clone()), None);
+        }
+        let mut ids: Vec<FamilyId> = Vec::new();
+        // The chains take the internal name, which no author face claims; the platform names
+        // are aliases an author `@font-face` can take.
+        for (i, alias) in std::iter::once(region.chain_name())
+            .chain(region.aliases().iter().copied())
+            .enumerate()
+        {
+            let override_info = FontInfoOverride {
+                family_name: Some(alias),
+                ..Default::default()
+            };
+            let result = font_ctx
+                .collection
+                .register_fonts(blob.clone(), Some(override_info));
+            if lazy {
+                record_lazy_registration(region.path(), None, Some(alias), &result);
+            }
+            if i == 0 {
+                ids.extend(result.iter().map(|(id, _)| *id));
+            } else {
+                record_ua_alias_faces(&result);
+            }
+        }
+        if region == CjkRegion::Sc {
+            // Hangul text still needs SC for Hanja and CJK punctuation.
+            font_ctx
+                .collection
+                .append_fallbacks(Script::from_bytes(*b"Hang"), ids.iter().copied());
+        }
+        region.ids().with(|c| *c.borrow_mut() = ids);
+        rebuild_cjk_fallbacks(font_ctx);
+        true
+    })
+}
+
+/// Register Noto Sans CJK SC, the Han default, when content needs CJK. It has no Hangul
+/// syllables, which come from the `Hang` script face; Korean text still needs it for Hanja.
 /// Returns true only on the first registration.
 #[wasm_bindgen]
 pub fn register_cjk_font(bytes: &[u8]) -> bool {
@@ -675,96 +960,35 @@ pub fn register_cjk_font(bytes: &[u8]) -> bool {
     if CJK_FONT_REGISTERED.with(|c| c.get()) {
         return false;
     }
-
-    let mut opentype: Vec<u8> = wuff::decompress_woff2(bytes).unwrap_or_else(|_| bytes.to_vec());
-
-    if crate::renderer_mode() {
-        if let Some(stripped) = strip_sfnt_tables(&opentype, &OUTLINE_STRIP_TABLES) {
-            opentype = stripped;
-        }
+    let ok = register_cjk_region(bytes, CjkRegion::Sc);
+    if ok {
+        CJK_FONT_REGISTERED.with(|c| c.set(true));
     }
+    ok
+}
 
-    note_font_asset(&opentype, "/fonts/NotoSansCJKsc-Regular.woff2");
-
-    const ALIASES: [&str; 24] = [
-        "PingFang SC",
-        "Hiragino Sans GB",
-        "Microsoft YaHei",
-        "Microsoft YaHei UI",
-        "SimHei",
-        "SimSun",
-        "Source Han Sans SC",
-        "Noto Sans CJK SC",
-        "Noto Sans SC",
-        "PingFang TC",
-        "Microsoft JhengHei",
-        "PMingLiU",
-        "Source Han Sans TC",
-        "Noto Sans CJK TC",
-        "Noto Sans TC",
-        "Hiragino Sans",
-        "Hiragino Kaku Gothic Pro",
-        "Yu Gothic",
-        "Meiryo",
-        "MS Gothic",
-        "Source Han Sans JP",
-        "Noto Sans CJK JP",
-        "Noto Sans JP",
-        "Apple SD Gothic Neo",
-    ];
-
-    SHARED_FONT_CONTEXT.with(|cell| {
-        let mut borrow = cell.borrow_mut();
-        if borrow.is_none() {
-            return;
-        }
-        let font_ctx = borrow.as_mut().unwrap();
-
-        let blob_bytes: Arc<dyn AsRef<[u8]> + Send + Sync> = Arc::new(opentype);
-        let blob = Blob::new(blob_bytes);
-
-        let mut ids: Vec<parley::fontique::FamilyId> = Vec::new();
-        for alias in ALIASES {
-            let override_info = FontInfoOverride {
-                family_name: Some(alias),
-                ..Default::default()
-            };
-            for (id, _) in font_ctx
-                .collection
-                .register_fonts(blob.clone(), Some(override_info))
-            {
-                ids.push(id);
-            }
-        }
-
-        let han = parley::fontique::Script::from_bytes(*b"Hani");
-        let hira = parley::fontique::Script::from_bytes(*b"Hira");
-        let kana = parley::fontique::Script::from_bytes(*b"Kana");
-        let hang = parley::fontique::Script::from_bytes(*b"Hang");
-        font_ctx
-            .collection
-            .append_fallbacks(han, ids.iter().copied());
-        font_ctx
-            .collection
-            .append_fallbacks(hira, ids.iter().copied());
-        font_ctx
-            .collection
-            .append_fallbacks(kana, ids.iter().copied());
-        font_ctx
-            .collection
-            .append_fallbacks(hang, ids.iter().copied());
-        CJK_IDS.with(|c| {
-            c.borrow_mut().clear();
-            c.borrow_mut().extend(ids.iter().copied());
-        });
-        rebuild_common_fallbacks(font_ctx);
-    });
-
-    CJK_FONT_REGISTERED.with(|c| c.set(true));
-    true
+/// Register the Japanese (`"JP"`) or Traditional Chinese (`"TC"`) face. Han in text of that
+/// language, and kana for JP, prefer it over SC. Unknown regions and repeat calls return false.
+#[wasm_bindgen]
+pub fn register_cjk_region_font(bytes: &[u8], region: &str) -> bool {
+    let _ks_span = tracing::info_span!(
+        "wasm.font_register",
+        kind = "cjk",
+        region,
+        bytes = bytes.len()
+    )
+    .entered();
+    let region = match region {
+        "JP" => CjkRegion::Jp,
+        "TC" => CjkRegion::Tc,
+        _ => return false,
+    };
+    register_cjk_region(bytes, region)
 }
 
 const SCRIPT_FONT_ASSETS: &[(&str, &str)] = &[
+    // Only for a profile with `latin_fallback`; it joins the rebuilt Common and Latin chains.
+    ("Latn", "/fonts/NotoSans.ttf"),
     ("Arab", "/fonts/NotoSansArabic.ttf"),
     ("Hebr", "/fonts/NotoSansHebrew.ttf"),
     ("Deva", "/fonts/NotoSansDevanagari.ttf"),
@@ -783,6 +1007,8 @@ const SCRIPT_FONT_ASSETS: &[(&str, &str)] = &[
     ("Laoo", "/fonts/NotoSansLao.ttf"),
     ("Geor", "/fonts/NotoSansGeorgian.ttf"),
     ("Armn", "/fonts/NotoSansArmenian.ttf"),
+    // The CJK asset is the Noto Sans SC subset, which has no Hangul syllables.
+    ("Hang", "/fonts/NotoSansKR.ttf"),
 ];
 
 /// Register a fetched Noto face in its script fallback chain. Idempotent per tag.
@@ -810,6 +1036,14 @@ pub fn register_script_font(bytes: Vec<u8>, script_tag: String) -> bool {
     if SCRIPT_FONTS_REGISTERED.with(|c| c.borrow().contains(&script_tag)) {
         return false;
     }
+    let latin = script_tag == "Latn";
+    if latin
+        && !UA_FONT_PROFILE
+            .with(|c| c.get())
+            .is_some_and(|p| p.latin_fallback)
+    {
+        return false;
+    }
     let Ok(tag_bytes) = <[u8; 4]>::try_from(script_tag.as_bytes()) else {
         return false;
     };
@@ -820,13 +1054,24 @@ pub fn register_script_font(bytes: Vec<u8>, script_tag: String) -> bool {
     SHARED_FONT_CONTEXT.with(|cell| {
         let mut borrow = cell.borrow_mut();
         let font_ctx = borrow.get_or_insert_with(make_empty_font_context);
+        let svg_usable = has_outline_tables(&bytes);
         let blob = Blob::from(bytes);
+        if svg_usable {
+            // usvg shapes `<text>` through its own font database.
+            blitz_dom::util::register_svg_font(Arc::new(blob.clone()), None);
+        }
         let result = font_ctx.collection.register_fonts(blob, None);
-        record_lazy_registration(path, None, &result);
-        let ids: Vec<parley::fontique::FamilyId> = result.into_iter().map(|(id, _)| id).collect();
-        font_ctx
-            .collection
-            .append_fallbacks(script, ids.iter().copied());
+        record_lazy_registration(path, None, None, &result);
+        let ids: Vec<FamilyId> = result.into_iter().map(|(id, _)| id).collect();
+        if latin {
+            // rebuild_common_fallbacks owns the Latin chain and would drop an appended entry.
+            LATIN_FALLBACK_IDS.with(|c| *c.borrow_mut() = ids);
+            rebuild_common_fallbacks(font_ctx);
+        } else {
+            font_ctx
+                .collection
+                .append_fallbacks(script, ids.iter().copied());
+        }
     });
 
     SCRIPT_FONTS_REGISTERED.with(|c| {
@@ -915,117 +1160,263 @@ fn make_empty_font_context() -> FontContext {
     }
 }
 
-fn populate_ua_fonts(
-    font_ctx: &mut FontContext,
-    sans_bytes: Vec<u8>,
-    sans_italic_bytes: Vec<u8>,
-    serif_bytes: Vec<u8>,
-    mono_bytes: Vec<u8>,
-) {
-    let register = |c: &mut Collection,
-                    bytes: Vec<u8>,
-                    slot: Option<blitz_dom::util::SvgGenericSlot>,
-                    path: &'static str|
-     -> Vec<_> {
+/// The UA faces a font profile registers, as the asset paths page-script fetches and the renderer
+/// paints from, in `register_ua_fonts` argument order, and the platform family names each family
+/// answers to. An empty path leaves its slot out. The engine's `cdp/font-profile.ts` validates
+/// profile names against this table.
+pub(crate) struct UaFontProfile {
+    pub name: &'static str,
+    /// Upright, italic. Behind sans-serif; also behind system-ui when `system` is empty.
+    pub sans: [&'static str; 2],
+    /// Upright, italic. Behind system-ui, ui-sans-serif and ui-rounded.
+    pub system: [&'static str; 2],
+    /// Regular, bold, italic. Behind serif.
+    pub serif: [&'static str; 3],
+    /// Upright, italic. Named only through `georgia_aliases`.
+    pub georgia: [&'static str; 2],
+    pub sans_aliases: &'static [&'static str],
+    pub system_aliases: &'static [&'static str],
+    pub serif_aliases: &'static [&'static str],
+    pub georgia_aliases: &'static [&'static str],
+    /// page-script fetches the serif faces only for pages that name a serif family.
+    pub serif_on_demand: bool,
+    /// Noto Sans loads as the `Latn` script face for the Latin codepoints the UA faces lack.
+    pub latin_fallback: bool,
+}
+
+impl UaFontProfile {
+    fn paths(&self) -> [&'static str; 9] {
+        let [sans, sans_italic] = self.sans;
+        let [system, system_italic] = self.system;
+        let [serif, serif_bold, serif_italic] = self.serif;
+        let [georgia, georgia_italic] = self.georgia;
+        [
+            sans,
+            sans_italic,
+            system,
+            system_italic,
+            serif,
+            serif_bold,
+            serif_italic,
+            georgia,
+            georgia_italic,
+        ]
+    }
+}
+
+const MONO_PATH: &str = "/fonts/NotoSansMono.ttf";
+
+/// `noto`, the default: Noto Sans behind every sans generic, Noto Serif for pages that name a
+/// serif family, and no platform family names.
+const NOTO_PROFILE: UaFontProfile = UaFontProfile {
+    name: "noto",
+    sans: ["/fonts/NotoSans.ttf", "/fonts/NotoSans-Italic.ttf"],
+    system: ["", ""],
+    serif: ["/fonts/NotoSerif.ttf", "", ""],
+    georgia: ["", ""],
+    sans_aliases: &[],
+    system_aliases: &[],
+    serif_aliases: &[],
+    georgia_aliases: &[],
+    serif_on_demand: true,
+    latin_fallback: false,
+};
+
+/// `macos`: families resolve as in Chrome on macOS. Arimo, Tinos and Gelasio match Arial, Times
+/// New Roman and Georgia advance for advance at 400 and 700, but Tinos bold italic is synthesized
+/// from the italic, and variable Arimo and Gelasio render 500 and 600 where Chrome snaps to 400 or
+/// 700. Inter stands in for SF Pro; Segoe UI stays unaliased, so a stack naming it moves on.
+const MACOS_PROFILE: UaFontProfile = UaFontProfile {
+    name: "macos",
+    sans: ["/fonts/Arimo.ttf", "/fonts/Arimo-Italic.ttf"],
+    system: [
+        "/fonts/InterVariable.ttf",
+        "/fonts/InterVariable-Italic.ttf",
+    ],
+    serif: [
+        "/fonts/Tinos-Regular.ttf",
+        "/fonts/Tinos-Bold.ttf",
+        "/fonts/Tinos-Italic.ttf",
+    ],
+    georgia: ["/fonts/Gelasio.ttf", "/fonts/Gelasio-Italic.ttf"],
+    sans_aliases: &["Arial", "Helvetica", "Helvetica Neue", "Liberation Sans"],
+    // Blitz maps -apple-system to system-ui only on Apple targets, never in wasm.
+    system_aliases: &[
+        "-apple-system",
+        "BlinkMacSystemFont",
+        "SF Pro",
+        "SF Pro Text",
+        "SF Pro Display",
+    ],
+    serif_aliases: &["Times", "Times New Roman", "Liberation Serif"],
+    georgia_aliases: &["Georgia"],
+    serif_on_demand: false,
+    latin_fallback: true,
+};
+
+const UA_FONT_PROFILES: [&UaFontProfile; 2] = [&NOTO_PROFILE, &MACOS_PROFILE];
+
+fn ua_font_profile(name: &str) -> Option<&'static UaFontProfile> {
+    UA_FONT_PROFILES.into_iter().find(|p| p.name == name)
+}
+
+/// JS-callable: the profile's UA faces as JSON, `{faces, serifOnDemand, latinFallback}` with
+/// `faces` in `register_ua_fonts` order ("" = none), so page-script fetches exactly what
+/// registration records. Empty for an unknown profile.
+#[wasm_bindgen(js_name = "uaFontProfile")]
+pub fn ua_font_profile_json(profile: &str) -> String {
+    ua_font_profile(profile)
+        .map(|p| {
+            serde_json::json!({
+                "faces": p.paths(),
+                "serifOnDemand": p.serif_on_demand,
+                "latinFallback": p.latin_fallback,
+            })
+            .to_string()
+        })
+        .unwrap_or_default()
+}
+
+/// UA face bytes in `UaFontProfile` slot order. Sans is required; an empty face is skipped and
+/// its generics fall back to sans.
+#[derive(Default)]
+pub(crate) struct UaFontBytes {
+    pub sans: [Vec<u8>; 2],
+    pub system: [Vec<u8>; 2],
+    pub serif: [Vec<u8>; 3],
+    pub georgia: [Vec<u8>; 2],
+    pub mono: Vec<u8>,
+}
+
+/// Register one family's faces, each under the font's own name and every alias, all on the
+/// same Blob. Italic and bold files carry their upright's family name, so they share its
+/// FamilyId and `font-style: italic` finds a real italic. Returns the family's ids.
+fn register_ua_family<const N: usize>(
+    c: &mut Collection,
+    faces: [Vec<u8>; N],
+    paths: [&'static str; N],
+    slot: Option<blitz_dom::util::SvgGenericSlot>,
+    aliases: &[&'static str],
+) -> Vec<FamilyId> {
+    let mut ids: Vec<FamilyId> = Vec::new();
+    // Without its upright a family would answer a normal request with its italic or bold, so it
+    // stays out and its generics fall back to sans.
+    if faces[0].is_empty() || paths[0].is_empty() {
+        return ids;
+    }
+    for (i, (bytes, path)) in faces.into_iter().zip(paths).enumerate() {
+        if bytes.is_empty() || path.is_empty() {
+            continue;
+        }
+        // usvg's generic slot goes to the first face; it has no system fonts under wasm.
+        let slot = if i == 0 { slot } else { None };
+        // Outline-less faces stay out of usvg, which would drop their text instead of falling
+        // back to a face it can paint.
         let svg_usable = has_outline_tables(&bytes);
         let blob = Blob::from(bytes);
         if svg_usable {
-            blitz_dom::util::register_svg_font(std::sync::Arc::new(blob.clone()), slot);
+            blitz_dom::util::register_svg_font(Arc::new(blob.clone()), slot);
         }
-        let result = c.register_fonts(blob, None);
-        record_lazy_registration(path, slot, &result);
-        result.into_iter().map(|(id, _)| id).collect()
-    };
+        let result = c.register_fonts(blob.clone(), None);
+        record_lazy_registration(path, slot, None, &result);
+        for alias in aliases {
+            let info = FontInfoOverride {
+                family_name: Some(alias),
+                ..Default::default()
+            };
+            let aliased = c.register_fonts(blob.clone(), Some(info));
+            record_lazy_registration(path, None, Some(alias), &aliased);
+            record_ua_alias_faces(&aliased);
+        }
+        for (id, _) in result {
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+    }
+    ids
+}
 
-    let sans = register(
-        &mut font_ctx.collection,
-        sans_bytes,
-        Some(blitz_dom::util::SvgGenericSlot::SansSerif),
-        "/fonts/NotoSans.ttf",
+fn populate_ua_fonts(font_ctx: &mut FontContext, profile: &UaFontProfile, faces: UaFontBytes) {
+    use blitz_dom::util::SvgGenericSlot;
+    blitz_dom::util::set_author_font_family_hook(ua_alias_family_hook);
+    let c = &mut font_ctx.collection;
+    let sans = register_ua_family(
+        c,
+        faces.sans,
+        profile.sans,
+        Some(SvgGenericSlot::SansSerif),
+        profile.sans_aliases,
     );
-    let _sans_italic = register(
-        &mut font_ctx.collection,
-        sans_italic_bytes,
+    let system = register_ua_family(
+        c,
+        faces.system,
+        profile.system,
         None,
-        "/fonts/NotoSans-Italic.ttf",
+        profile.system_aliases,
     );
-    let serif: Vec<parley::fontique::FamilyId> = if serif_bytes.is_empty() {
-        Vec::new()
-    } else {
-        register(
-            &mut font_ctx.collection,
-            serif_bytes,
-            Some(blitz_dom::util::SvgGenericSlot::Serif),
-            "/fonts/NotoSerif.ttf",
-        )
-    };
-    let serif_family: &[parley::fontique::FamilyId] = if serif.is_empty() { &sans } else { &serif };
-    let mono: Vec<parley::fontique::FamilyId> = if mono_bytes.is_empty() {
-        Vec::new()
-    } else {
-        if let Some(r) = measure_mono_advance_per_em(&mono_bytes) {
+    let serif = register_ua_family(
+        c,
+        faces.serif,
+        profile.serif,
+        Some(SvgGenericSlot::Serif),
+        profile.serif_aliases,
+    );
+    register_ua_family(
+        c,
+        faces.georgia,
+        profile.georgia,
+        None,
+        profile.georgia_aliases,
+    );
+    if !faces.mono.is_empty() {
+        if let Some(r) = measure_mono_advance_per_em(&faces.mono) {
             MONO_ADVANCE_PER_EM.with(|c| c.set(r));
         }
-        register(
-            &mut font_ctx.collection,
-            mono_bytes,
-            Some(blitz_dom::util::SvgGenericSlot::Monospace),
-            "/fonts/NotoSansMono.ttf",
-        )
+    }
+    let mono = register_ua_family(
+        c,
+        [faces.mono],
+        [MONO_PATH],
+        Some(SvgGenericSlot::Monospace),
+        &[],
+    );
+    let or_sans = |ids: &[FamilyId]| {
+        if ids.is_empty() {
+            sans.clone()
+        } else {
+            ids.to_vec()
+        }
     };
-    let mono_family: &[parley::fontique::FamilyId] = if mono.is_empty() { &sans } else { &mono };
+    let system_family = or_sans(&system);
+    let serif_family = or_sans(&serif);
+    let mono_family = or_sans(&mono);
 
-    let set =
-        |c: &mut Collection, generic: GenericFamily, ids: &[&[parley::fontique::FamilyId]]| {
-            let flat: Vec<_> = ids.iter().flat_map(|s| s.iter().copied()).collect();
-            c.set_generic_families(generic, flat.into_iter());
-        };
+    // ui-sans-serif and ui-rounded are SF on macOS, so they follow system-ui.
+    for (generic, ids) in [
+        (GenericFamily::SansSerif, &sans),
+        (GenericFamily::SystemUi, &system_family),
+        (GenericFamily::UiSansSerif, &system_family),
+        (GenericFamily::UiRounded, &system_family),
+        (GenericFamily::Serif, &serif_family),
+        (GenericFamily::UiSerif, &serif_family),
+        (GenericFamily::FangSong, &serif_family),
+        (GenericFamily::Monospace, &mono_family),
+        (GenericFamily::UiMonospace, &mono_family),
+        (GenericFamily::Cursive, &sans),
+        (GenericFamily::Fantasy, &sans),
+        (GenericFamily::Math, &sans),
+        (GenericFamily::Emoji, &sans),
+    ] {
+        c.set_generic_families(generic, ids.iter().copied());
+    }
 
-    set(&mut font_ctx.collection, GenericFamily::SansSerif, &[&sans]);
-    set(&mut font_ctx.collection, GenericFamily::SystemUi, &[&sans]);
-    set(
-        &mut font_ctx.collection,
-        GenericFamily::UiSansSerif,
-        &[&sans],
-    );
-    set(&mut font_ctx.collection, GenericFamily::UiRounded, &[&sans]);
-
-    set(
-        &mut font_ctx.collection,
-        GenericFamily::Serif,
-        &[serif_family],
-    );
-    set(
-        &mut font_ctx.collection,
-        GenericFamily::UiSerif,
-        &[serif_family],
-    );
-    set(
-        &mut font_ctx.collection,
-        GenericFamily::FangSong,
-        &[serif_family],
-    );
-
-    set(
-        &mut font_ctx.collection,
-        GenericFamily::Monospace,
-        &[mono_family],
-    );
-    set(
-        &mut font_ctx.collection,
-        GenericFamily::UiMonospace,
-        &[mono_family],
-    );
-
-    set(&mut font_ctx.collection, GenericFamily::Cursive, &[&sans]);
-    set(&mut font_ctx.collection, GenericFamily::Fantasy, &[&sans]);
-    set(&mut font_ctx.collection, GenericFamily::Math, &[&sans]);
-    set(&mut font_ctx.collection, GenericFamily::Emoji, &[&sans]);
-
-    let mut base: Vec<parley::fontique::FamilyId> = Vec::new();
-    base.extend(sans.iter().copied());
-    base.extend(serif.iter().copied());
-    base.extend(mono.iter().copied());
+    let mut base: Vec<FamilyId> = Vec::new();
+    for id in [&sans, &system, &serif, &mono].into_iter().flatten() {
+        if !base.contains(id) {
+            base.push(*id);
+        }
+    }
     BASE_COMMON_IDS.with(|c| {
         c.borrow_mut().clear();
         c.borrow_mut().extend(base.iter().copied());
@@ -1038,10 +1429,10 @@ fn add_symbol_fonts(font_ctx: &mut FontContext, symbols_bytes: Vec<u8>, symbols2
     if !symbols2_bytes.is_empty() {
         blobs.push((symbols2_bytes, "/fonts/NotoSansSymbols2.ttf"));
     }
-    let mut ids: Vec<parley::fontique::FamilyId> = Vec::new();
+    let mut ids: Vec<FamilyId> = Vec::new();
     for (bytes, path) in blobs {
         let result = font_ctx.collection.register_fonts(Blob::from(bytes), None);
-        record_lazy_registration(path, None, &result);
+        record_lazy_registration(path, None, None, &result);
         for (id, _) in result {
             ids.push(id);
         }
@@ -1114,53 +1505,70 @@ pub fn mono_advance_per_em() -> f32 {
     MONO_ADVANCE_PER_EM.with(|c| c.get())
 }
 
-/// Register UA fonts before constructing a DomHandle. Sans and italic are
-/// required; serif and mono are optional. Missing required bytes or duplicate
-/// calls return false. Empty mono leaves the generic on its sans fallback.
+/// Register the profile's UA fonts before constructing a DomHandle. Each argument is the face at
+/// the matching `uaFontProfile` path ("" paths take empty bytes). Sans and its italic are
+/// required; an empty optional face leaves its generics on sans. An unknown profile, missing
+/// required bytes or a repeat call returns false.
 #[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
 pub fn register_ua_fonts(
     sans_bytes: Vec<u8>,
     sans_italic_bytes: Vec<u8>,
+    system_bytes: Vec<u8>,
+    system_italic_bytes: Vec<u8>,
     serif_bytes: Vec<u8>,
+    serif_bold_bytes: Vec<u8>,
+    serif_italic_bytes: Vec<u8>,
+    georgia_bytes: Vec<u8>,
+    georgia_italic_bytes: Vec<u8>,
     mono_bytes: Vec<u8>,
+    profile: &str,
 ) -> bool {
-    let _ks_span = tracing::info_span!("wasm.font_register", kind = "ua").entered();
+    let _ks_span = tracing::info_span!("wasm.font_register", kind = "ua", profile).entered();
     if UA_FONTS_REGISTERED.with(|c| c.get()) {
         return false;
     }
+    let Some(profile) = ua_font_profile(profile) else {
+        return false;
+    };
     if sans_bytes.is_empty() || sans_italic_bytes.is_empty() {
         return false;
     }
 
-    let sans_bytes = maybe_strip_for_session(sans_bytes);
-    let sans_italic_bytes = maybe_strip_for_session(sans_italic_bytes);
-    let serif_bytes = maybe_strip_for_session(serif_bytes);
-    let mono_bytes = maybe_strip_for_session(mono_bytes);
+    let strip = maybe_strip_for_session;
+    let faces = UaFontBytes {
+        sans: [strip(sans_bytes), strip(sans_italic_bytes)],
+        system: [strip(system_bytes), strip(system_italic_bytes)],
+        serif: [
+            strip(serif_bytes),
+            strip(serif_bold_bytes),
+            strip(serif_italic_bytes),
+        ],
+        georgia: [strip(georgia_bytes), strip(georgia_italic_bytes)],
+        mono: strip(mono_bytes),
+    };
 
-    note_font_asset(&sans_bytes, "/fonts/NotoSans.ttf");
-    note_font_asset(&sans_italic_bytes, "/fonts/NotoSans-Italic.ttf");
-    if !serif_bytes.is_empty() {
-        note_font_asset(&serif_bytes, "/fonts/NotoSerif.ttf");
-    }
-    if !mono_bytes.is_empty() {
-        note_font_asset(&mono_bytes, "/fonts/NotoSansMono.ttf");
+    // The hash covers the exact bytes the Blob will carry.
+    let face_bytes = faces
+        .sans
+        .iter()
+        .chain(&faces.system)
+        .chain(&faces.serif)
+        .chain(&faces.georgia)
+        .chain(std::iter::once(&faces.mono));
+    for (bytes, path) in face_bytes.zip(profile.paths().into_iter().chain([MONO_PATH])) {
+        if !bytes.is_empty() && !path.is_empty() {
+            note_font_asset(bytes, path);
+        }
     }
 
     SHARED_FONT_CONTEXT.with(|cell| {
         let mut borrow = cell.borrow_mut();
-        if borrow.is_none() {
-            *borrow = Some(make_empty_font_context());
-        }
-        let font_ctx = borrow.as_mut().unwrap();
-        populate_ua_fonts(
-            font_ctx,
-            sans_bytes,
-            sans_italic_bytes,
-            serif_bytes,
-            mono_bytes,
-        );
+        let font_ctx = borrow.get_or_insert_with(make_empty_font_context);
+        populate_ua_fonts(font_ctx, profile, faces);
     });
 
+    UA_FONT_PROFILE.with(|c| c.set(Some(profile)));
     UA_FONTS_REGISTERED.with(|c| c.set(true));
     true
 }
@@ -1170,10 +1578,16 @@ pub fn make_font_context() -> FontContext {
     let mut font_ctx = make_empty_font_context();
     populate_ua_fonts(
         &mut font_ctx,
-        NOTO_SANS_TEST_BYTES.to_vec(),
-        NOTO_SANS_ITALIC_TEST_BYTES.to_vec(),
-        NOTO_SERIF_TEST_BYTES.to_vec(),
-        NOTO_SANS_MONO_TEST_BYTES.to_vec(),
+        &NOTO_PROFILE,
+        UaFontBytes {
+            sans: [
+                NOTO_SANS_TEST_BYTES.to_vec(),
+                NOTO_SANS_ITALIC_TEST_BYTES.to_vec(),
+            ],
+            serif: [NOTO_SERIF_TEST_BYTES.to_vec(), Vec::new(), Vec::new()],
+            mono: NOTO_SANS_MONO_TEST_BYTES.to_vec(),
+            ..Default::default()
+        },
     );
     add_symbol_fonts(
         &mut font_ctx,
@@ -1186,6 +1600,7 @@ pub fn make_font_context() -> FontContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::paint::font_container::declared_sfnt_size;
 
     // A cluster may need a family face other than the best/default match.
     // Verify that the query offers every registered subset face.
@@ -1270,11 +1685,64 @@ mod tests {
         assert!(stripped.len() < src.len());
 
         let mut ctx = make_empty_font_context();
-        let blob = Blob::new(
-            std::sync::Arc::new(stripped) as std::sync::Arc<dyn AsRef<[u8]> + Send + Sync>
-        );
+        let blob = Blob::new(Arc::new(stripped) as Arc<dyn AsRef<[u8]> + Send + Sync>);
         let fams = ctx.collection.register_fonts(blob, None);
         assert!(!fams.is_empty(), "fontique rejects stripped sfnt");
+    }
+
+    fn synthetic_sfnt(tables: &[([u8; 4], u32, u32)], body: usize) -> Vec<u8> {
+        let mut out = vec![0x00, 0x01, 0x00, 0x00];
+        out.extend_from_slice(&(tables.len() as u16).to_be_bytes());
+        out.extend_from_slice(&[0; 6]);
+        for (tag, off, len) in tables {
+            out.extend_from_slice(tag);
+            out.extend_from_slice(&[0; 4]);
+            out.extend_from_slice(&off.to_be_bytes());
+            out.extend_from_slice(&len.to_be_bytes());
+        }
+        out.resize(out.len() + body, 0);
+        out
+    }
+
+    #[test]
+    fn strip_sfnt_tables_refuses_a_wrapping_table_range() {
+        let font = synthetic_sfnt(
+            &[(*b"cmap", 44, 4), (*b"post", 0x8000_0000, 0x8000_0010)],
+            8,
+        );
+        assert!(strip_sfnt_tables(&font, &[*b"post"]).is_none());
+    }
+
+    #[test]
+    fn strip_sfnt_tables_bounds_rebuild_of_overlapping_tables() {
+        let mut font = synthetic_sfnt(
+            &[(*b"cmap", 60, 8), (*b"post", 68, 4), (*b"name", 72, 0)],
+            12,
+        );
+        font[60..68].copy_from_slice(b"payload!");
+        let out = strip_sfnt_tables(&font, &[*b"post"]).expect("disjoint tables fit the bound");
+        assert_eq!(sfnt_tags(&out), vec![*b"cmap", *b"name"]);
+        assert_eq!(&out[44..], b"payload!");
+        assert_eq!(&out[36..44], &[0, 0, 0, 52, 0, 0, 0, 0]);
+
+        let font = synthetic_sfnt(
+            &[
+                (*b"cmap", 92, 60),
+                (*b"post", 92, 60),
+                (*b"name", 92, 60),
+                (*b"head", 92, 60),
+                (*b"hhea", 92, 60),
+            ],
+            60,
+        );
+        assert!(strip_sfnt_tables(&font, &[*b"post"]).is_none());
+    }
+
+    #[test]
+    fn strip_sfnt_tables_writes_search_fields_for_one_table() {
+        let font = synthetic_sfnt(&[(*b"cmap", 44, 4), (*b"post", 48, 4)], 8);
+        let out = strip_sfnt_tables(&font, &[*b"post"]).expect("strips");
+        assert_eq!(&out[4..12], &[0, 1, 0, 16, 0, 0, 0, 0]);
     }
 
     #[test]
@@ -1308,9 +1776,7 @@ mod tests {
             stripped.len()
         );
         let mut ctx = make_empty_font_context();
-        let blob = Blob::new(
-            std::sync::Arc::new(stripped) as std::sync::Arc<dyn AsRef<[u8]> + Send + Sync>
-        );
+        let blob = Blob::new(Arc::new(stripped) as Arc<dyn AsRef<[u8]> + Send + Sync>);
         assert!(!ctx.collection.register_fonts(blob, None).is_empty());
     }
 
@@ -1338,9 +1804,7 @@ mod tests {
             stripped.len()
         );
         let mut ctx = make_empty_font_context();
-        let blob = Blob::new(
-            std::sync::Arc::new(stripped) as std::sync::Arc<dyn AsRef<[u8]> + Send + Sync>
-        );
+        let blob = Blob::new(Arc::new(stripped) as Arc<dyn AsRef<[u8]> + Send + Sync>);
         assert!(!ctx.collection.register_fonts(blob, None).is_empty());
     }
 
@@ -1351,15 +1815,16 @@ mod tests {
     #[ignore]
     fn generate_shaping_assets() {
         let out_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../engine/public/fonts");
-        let cjk_woff2: &[u8] =
-            include_bytes!("../../../engine/public/fonts/NotoSansCJKsc-Regular.woff2");
-        let cjk = wuff::decompress_woff2(cjk_woff2).expect("woff2");
-        let cjk_stripped = strip_sfnt_tables(&cjk, &OUTLINE_STRIP_TABLES).expect("strips");
-        std::fs::write(
-            format!("{out_dir}/NotoSansCJKsc-Regular.shaping.otf"),
-            &cjk_stripped,
-        )
-        .unwrap();
+        let mut cjk_sizes = Vec::new();
+        for region in ["sc", "jp", "tc"] {
+            let name = format!("NotoSansCJK{region}-Regular");
+            let woff2 = std::fs::read(format!("{out_dir}/{name}.woff2"))
+                .unwrap_or_else(|e| panic!("read {name}.woff2: {e}"));
+            let cjk = wuff::decompress_woff2(&woff2).expect("woff2");
+            let stripped = strip_sfnt_tables(&cjk, &OUTLINE_STRIP_TABLES).expect("strips");
+            std::fs::write(format!("{out_dir}/{name}.shaping.otf"), &stripped).unwrap();
+            cjk_sizes.push((name, cjk.len(), stripped.len()));
+        }
         let emoji_woff2: &[u8] =
             include_bytes!("../../../engine/public/fonts/noto-color-emoji.woff2");
         let emoji = wuff::decompress_woff2(emoji_woff2).expect("woff2");
@@ -1370,9 +1835,7 @@ mod tests {
         )
         .unwrap();
         println!(
-            "cjk {} -> {} bytes, emoji {} -> {} bytes",
-            cjk.len(),
-            cjk_stripped.len(),
+            "cjk {cjk_sizes:?}, emoji {} -> {} bytes",
             emoji.len(),
             emoji_stripped.len()
         );
@@ -1398,6 +1861,15 @@ mod tests {
         "NotoSans",
         "NotoSans-Italic",
         "NotoSerif",
+        "Arimo",
+        "Arimo-Italic",
+        "InterVariable",
+        "InterVariable-Italic",
+        "Tinos-Regular",
+        "Tinos-Bold",
+        "Tinos-Italic",
+        "Gelasio",
+        "Gelasio-Italic",
         "NotoSansMono",
         "NotoSansSymbols",
         "NotoSansSymbols2",
@@ -1419,6 +1891,7 @@ mod tests {
         "NotoSansLao",
         "NotoSansGeorgian",
         "NotoSansArmenian",
+        "NotoSansKR",
     ];
 
     #[test]
@@ -1443,9 +1916,7 @@ mod tests {
             stripped.len()
         );
         let mut ctx = make_empty_font_context();
-        let blob = Blob::new(
-            std::sync::Arc::new(stripped) as std::sync::Arc<dyn AsRef<[u8]> + Send + Sync>
-        );
+        let blob = Blob::new(Arc::new(stripped) as Arc<dyn AsRef<[u8]> + Send + Sync>);
         assert!(!ctx.collection.register_fonts(blob, None).is_empty());
     }
 
@@ -1610,10 +2081,15 @@ mod tests {
         let mut ctx = make_empty_font_context();
         populate_ua_fonts(
             &mut ctx,
-            strip_outline_tables(&sans_full).expect("strip sans"),
-            strip_outline_tables(&italic_full).expect("strip italic"),
-            Vec::new(),
-            strip_outline_tables(&mono_full).expect("strip mono"),
+            &NOTO_PROFILE,
+            UaFontBytes {
+                sans: [
+                    strip_outline_tables(&sans_full).expect("strip sans"),
+                    strip_outline_tables(&italic_full).expect("strip italic"),
+                ],
+                mono: strip_outline_tables(&mono_full).expect("strip mono"),
+                ..Default::default()
+            },
         );
 
         let sans_id_before = ctx
@@ -1677,7 +2153,14 @@ mod tests {
         let sans_full = read_asset("NotoSans.ttf");
         let stripped = strip_outline_tables(&sans_full).expect("strip");
         let mut ctx = make_empty_font_context();
-        populate_ua_fonts(&mut ctx, stripped.clone(), stripped, Vec::new(), Vec::new());
+        populate_ua_fonts(
+            &mut ctx,
+            &NOTO_PROFILE,
+            UaFontBytes {
+                sans: [stripped.clone(), stripped],
+                ..Default::default()
+            },
+        );
         assert!(!upgrade_recorded_face(
             &mut ctx,
             "/fonts/NotoSans.ttf",
@@ -1742,16 +2225,10 @@ mod tests {
         let url = "https://fonts.test/author.woff2";
         let out = strip_fetched_font_for_session(woff2.clone(), url, 0);
         assert!(!has_outline_tables(&out));
-        let h = crate::paint::scene_record::font_data_key(
-            crate::paint::scene_record::fx_hash_u64(&out),
-            0,
-        );
+        let h = font_data_key(fx_hash_u64(&out), 0);
         assert_eq!(font_url_for_hash(h), Some(url.to_string()));
         let garbage = strip_fetched_font_for_session(b"garbage".to_vec(), "g", 0);
-        let gh = crate::paint::scene_record::font_data_key(
-            crate::paint::scene_record::fx_hash_u64(&garbage),
-            0,
-        );
+        let gh = font_data_key(fx_hash_u64(&garbage), 0);
         assert_eq!(font_url_for_hash(gh), None);
         set_font_mode(FontMode::Full);
     }
@@ -1818,10 +2295,14 @@ mod tests {
             let mut ctx = make_empty_font_context();
             populate_ua_fonts(
                 &mut ctx,
-                maybe_strip_for_session(sans.clone()),
-                maybe_strip_for_session(sans),
-                Vec::new(),
-                Vec::new(),
+                &NOTO_PROFILE,
+                UaFontBytes {
+                    sans: [
+                        maybe_strip_for_session(sans.clone()),
+                        maybe_strip_for_session(sans),
+                    ],
+                    ..Default::default()
+                },
             );
             assert!(!has_pending_lazy_faces(), "{mode:?} must not record");
             let outlined = family_blobs_have_outlines(&mut ctx, "Noto Sans");
@@ -1831,5 +2312,462 @@ mod tests {
             }
         }
         set_font_mode(FontMode::Full);
+    }
+
+    fn profile_bytes(profile: &UaFontProfile) -> UaFontBytes {
+        let read = |path: &str| {
+            if path.is_empty() {
+                Vec::new()
+            } else {
+                read_asset(path.trim_start_matches("/fonts/"))
+            }
+        };
+        UaFontBytes {
+            sans: profile.sans.map(read),
+            system: profile.system.map(read),
+            serif: profile.serif.map(read),
+            georgia: profile.georgia.map(read),
+            mono: read(MONO_PATH),
+        }
+    }
+
+    #[test]
+    fn profile_table_names_existing_assets() {
+        for profile in UA_FONT_PROFILES {
+            for path in profile.paths().into_iter().filter(|p| !p.is_empty()) {
+                let shaping = path.replace(".ttf", ".shaping.otf");
+                for asset in [path, shaping.as_str()] {
+                    read_asset(asset.trim_start_matches("/fonts/"));
+                }
+            }
+            let json: serde_json::Value =
+                serde_json::from_str(&ua_font_profile_json(profile.name)).expect("json");
+            assert_eq!(json["faces"], serde_json::json!(profile.paths()));
+        }
+        assert_eq!(ua_font_profile_json("Noto"), "");
+        assert!(!register_ua_fonts(
+            read_asset("NotoSans.ttf"),
+            read_asset("NotoSans-Italic.ttf"),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            "nope",
+        ));
+    }
+
+    #[test]
+    fn macos_profile_resolves_families_like_chrome_on_macos() {
+        let mut ctx = make_empty_font_context();
+        populate_ua_fonts(&mut ctx, &MACOS_PROFILE, profile_bytes(&MACOS_PROFILE));
+        let [arimo, inter, tinos] = ["Arimo", "Inter Variable", "Tinos"].map(|name| {
+            ctx.collection
+                .family_by_name(name)
+                .unwrap_or_else(|| panic!("{name} missing"))
+                .id()
+        });
+        for (generic, want) in [
+            (GenericFamily::SansSerif, arimo),
+            (GenericFamily::SystemUi, inter),
+            (GenericFamily::UiSansSerif, inter),
+            (GenericFamily::UiRounded, inter),
+            (GenericFamily::Serif, tinos),
+            (GenericFamily::UiSerif, tinos),
+        ] {
+            let ids: Vec<_> = ctx.collection.generic_families(generic).collect();
+            assert_eq!(ids, vec![want], "{generic:?}");
+        }
+        // Each alias carries the whole family: upright and italic share one family, and serif
+        // adds its bold.
+        for (aliases, faces) in [
+            (MACOS_PROFILE.sans_aliases, 2),
+            (MACOS_PROFILE.system_aliases, 2),
+            (MACOS_PROFILE.serif_aliases, 3),
+            (MACOS_PROFILE.georgia_aliases, 2),
+        ] {
+            for name in aliases {
+                let fam = ctx.collection.family_by_name(name).expect(name);
+                assert_eq!(fam.fonts().len(), faces, "{name}");
+            }
+        }
+        assert!(ctx.collection.family_by_name("Segoe UI").is_none());
+        // Noto Sans waits for text that needs it.
+        assert!(ctx.collection.family_by_name("Noto Sans").is_none());
+        let base = BASE_COMMON_IDS.with(|c| c.borrow().clone());
+        assert_eq!(&base[..3], &[arimo, inter, tinos]);
+    }
+
+    #[test]
+    fn noto_profile_keeps_noto_sans_behind_every_sans_generic() {
+        let mut ctx = make_empty_font_context();
+        populate_ua_fonts(&mut ctx, &NOTO_PROFILE, profile_bytes(&NOTO_PROFILE));
+        let noto = ctx.collection.family_by_name("Noto Sans").expect("noto");
+        assert_eq!(noto.fonts().len(), 2);
+        let noto = noto.id();
+        for generic in [
+            GenericFamily::SansSerif,
+            GenericFamily::SystemUi,
+            GenericFamily::UiSansSerif,
+            GenericFamily::UiRounded,
+        ] {
+            let ids: Vec<_> = ctx.collection.generic_families(generic).collect();
+            assert_eq!(ids, vec![noto], "{generic:?}");
+        }
+        for name in ["Arial", "Arimo", "Tinos", "Georgia", "-apple-system"] {
+            assert!(ctx.collection.family_by_name(name).is_none(), "{name}");
+        }
+    }
+
+    #[test]
+    fn lazy_upgrade_swaps_every_alias_of_a_path() {
+        set_font_mode(FontMode::Lazy);
+        let sans_full = read_asset("Arimo.ttf");
+        let italic_full = read_asset("Arimo-Italic.ttf");
+        let mut ctx = make_empty_font_context();
+        populate_ua_fonts(
+            &mut ctx,
+            &MACOS_PROFILE,
+            UaFontBytes {
+                sans: [
+                    strip_outline_tables(&sans_full).expect("strip sans"),
+                    strip_outline_tables(&italic_full).expect("strip italic"),
+                ],
+                ..Default::default()
+            },
+        );
+        let ids_before =
+            ["Arimo", "Arial"].map(|f| ctx.collection.family_by_name(f).expect(f).id());
+        assert_eq!(
+            pending_lazy_face_paths(),
+            MACOS_PROFILE.sans.map(String::from)
+        );
+        let [sans_path, italic_path] = MACOS_PROFILE.sans;
+        assert!(upgrade_recorded_face(&mut ctx, sans_path, sans_full));
+        assert!(upgrade_recorded_face(&mut ctx, italic_path, italic_full));
+        assert!(!has_pending_lazy_faces());
+        for (family, id) in ["Arimo", "Arial"].into_iter().zip(ids_before) {
+            let fam = ctx.collection.family_by_name(family).expect(family);
+            assert_eq!(fam.id(), id, "{family}");
+            assert_eq!(fam.fonts().len(), 2, "{family}");
+            assert!(family_blobs_have_outlines(&mut ctx, family)
+                .iter()
+                .all(|has| *has));
+        }
+        set_font_mode(FontMode::Full);
+    }
+
+    #[test]
+    fn a_family_without_its_upright_face_leaves_its_generics_on_sans() {
+        let full = profile_bytes(&MACOS_PROFILE);
+        let mut ctx = make_empty_font_context();
+        populate_ua_fonts(
+            &mut ctx,
+            &MACOS_PROFILE,
+            UaFontBytes {
+                sans: full.sans,
+                // The uprights failed; the italic and the bold arrived.
+                system: [Vec::new(), full.system[1].clone()],
+                serif: [Vec::new(), full.serif[1].clone(), Vec::new()],
+                ..Default::default()
+            },
+        );
+        let arimo = ctx.collection.family_by_name("Arimo").unwrap().id();
+        for generic in [GenericFamily::SystemUi, GenericFamily::Serif] {
+            let ids: Vec<_> = ctx.collection.generic_families(generic).collect();
+            assert_eq!(ids, vec![arimo], "{generic:?}");
+        }
+        for name in ["Inter Variable", "-apple-system", "Tinos", "Times"] {
+            assert!(ctx.collection.family_by_name(name).is_none(), "{name}");
+        }
+    }
+
+    // What blitz-dom's Resource::Font arm does for an `@font-face` of the top-level document.
+    fn register_author_face(collection: &mut Collection, family: &str, blob: Blob<u8>) -> bool {
+        use blitz_dom::util::AuthorFontFamilyEvent::{BeforeRegister, Registered};
+        ua_alias_family_hook(collection, family, BeforeRegister);
+        let info = FontInfoOverride {
+            family_name: Some(family),
+            ..Default::default()
+        };
+        let ok = !collection.register_fonts(blob, Some(info)).is_empty();
+        ua_alias_family_hook(collection, family, Registered(ok));
+        ok
+    }
+
+    #[test]
+    fn a_rejected_author_font_face_leaves_the_alias_family_to_the_ua() {
+        let mut ctx = make_empty_font_context();
+        populate_ua_fonts(&mut ctx, &MACOS_PROFILE, profile_bytes(&MACOS_PROFILE));
+        let gelasio = |ctx: &mut FontContext| {
+            let fam = ctx.collection.family_by_name("Georgia").expect("Georgia");
+            fam.fonts().len()
+        };
+        assert_eq!(gelasio(&mut ctx), 2);
+        // A truncated WOFF2: fontique registers nothing.
+        assert!(!register_author_face(
+            &mut ctx.collection,
+            "Georgia",
+            Blob::from(b"wOF2".to_vec())
+        ));
+        assert_eq!(gelasio(&mut ctx), 2, "the UA faces came back");
+        // A later valid face still takes the family.
+        let author = Blob::from(NOTO_SANS_TEST_BYTES.to_vec());
+        assert!(register_author_face(&mut ctx.collection, "Georgia", author));
+        assert_eq!(gelasio(&mut ctx), 1);
+    }
+
+    #[test]
+    fn author_font_faces_take_cjk_and_emoji_platform_names_but_not_the_chains() {
+        let _ = get_or_init_font_context();
+        assert!(register_cjk_region_font(
+            &read_asset("NotoSansCJKjp-Regular.shaping.otf"),
+            "JP"
+        ));
+        assert!(register_emoji_font(&read_asset(
+            "noto-color-emoji.shaping.otf"
+        )));
+        SHARED_FONT_CONTEXT.with(|cell| {
+            let mut borrow = cell.borrow_mut();
+            let ctx = borrow.as_mut().expect("shared context");
+            let author = Blob::from(NOTO_SANS_TEST_BYTES.to_vec());
+            for name in ["Hiragino Sans", "Apple Color Emoji"] {
+                assert!(register_author_face(
+                    &mut ctx.collection,
+                    name,
+                    author.clone()
+                ));
+                let fam = ctx.collection.family_by_name(name).expect(name);
+                assert_eq!(fam.fonts().len(), 1, "{name} holds only the author face");
+            }
+            // The fallback chains keep the UA faces under their internal names.
+            let lang = parley::fontique::Language::parse("ja").unwrap();
+            let han = parley::fontique::FallbackKey::new(Script::from_bytes(*b"Hani"), Some(&lang));
+            let jp = ctx
+                .collection
+                .family_by_name("Kitesurf CJK JP")
+                .expect("JP")
+                .id();
+            assert_eq!(ctx.collection.fallback_families(han).next(), Some(jp));
+            let common = parley::fontique::FallbackKey::new(Script::COMMON, None);
+            let chain: Vec<_> = ctx.collection.fallback_families(common).collect();
+            let emoji = ctx
+                .collection
+                .family_by_name("Kitesurf Emoji")
+                .expect("emoji")
+                .id();
+            let apple = ctx
+                .collection
+                .family_by_name("Apple Color Emoji")
+                .unwrap()
+                .id();
+            assert!(chain.contains(&emoji) && !chain.contains(&apple));
+        });
+    }
+
+    #[test]
+    fn author_font_face_takes_a_platform_alias_family() {
+        set_font_mode(FontMode::Lazy);
+        let sans_full = read_asset("Arimo.ttf");
+        let mut ctx = make_empty_font_context();
+        populate_ua_fonts(
+            &mut ctx,
+            &MACOS_PROFILE,
+            UaFontBytes {
+                sans: [
+                    strip_outline_tables(&sans_full).expect("strip sans"),
+                    strip_outline_tables(&read_asset("Arimo-Italic.ttf")).expect("strip italic"),
+                ],
+                ..Default::default()
+            },
+        );
+        let arial = ctx.collection.family_by_name("Arial").expect("Arial").id();
+        let author = Blob::from(NOTO_SANS_TEST_BYTES.to_vec());
+        assert!(register_author_face(
+            &mut ctx.collection,
+            "arial",
+            author.clone()
+        ));
+        let fam = ctx.collection.family_by_name("Arial").expect("Arial");
+        assert_eq!(fam.id(), arial);
+        assert_eq!(fam.fonts().len(), 1, "only the author face is left");
+        let is_author = |fam: &parley::fontique::FamilyInfo| {
+            matches!(&fam.fonts()[0].source().kind,
+                parley::fontique::SourceKind::Memory(b) if b.id() == author.id())
+        };
+        assert!(is_author(&fam));
+        // The other aliases and the generics keep the UA faces.
+        assert_eq!(
+            ctx.collection
+                .family_by_name("Helvetica")
+                .unwrap()
+                .fonts()
+                .len(),
+            2
+        );
+        let arimo = ctx.collection.family_by_name("Arimo").unwrap().id();
+        let sans: Vec<_> = ctx
+            .collection
+            .generic_families(GenericFamily::SansSerif)
+            .collect();
+        assert_eq!(sans, vec![arimo]);
+        // The lazy upgrade swaps the UA faces and leaves the author family alone.
+        assert!(upgrade_recorded_face(
+            &mut ctx,
+            MACOS_PROFILE.sans[0],
+            sans_full
+        ));
+        let fam = ctx.collection.family_by_name("Arial").expect("Arial");
+        assert_eq!(fam.fonts().len(), 1, "the upgrade kept the author face");
+        assert!(is_author(&fam));
+        assert!(family_blobs_have_outlines(&mut ctx, "Helvetica").contains(&true));
+        // A second author face, or one for a name the UA does not alias, changes nothing.
+        assert!(!register_author_face(
+            &mut ctx.collection,
+            "Arial",
+            Blob::from(vec![0u8; 8])
+        ));
+        register_author_face(&mut ctx.collection, "Roboto", author.clone());
+        assert_eq!(
+            ctx.collection
+                .family_by_name("Arial")
+                .unwrap()
+                .fonts()
+                .len(),
+            1
+        );
+        LAZY_REGISTERED.with(|c| c.borrow_mut().clear());
+        set_font_mode(FontMode::Full);
+    }
+
+    #[test]
+    fn latin_script_face_needs_a_profile_that_asks_for_it() {
+        let _ = get_or_init_font_context();
+        // The test context is noto, whose sans face is already Noto Sans.
+        assert!(!register_script_font(
+            read_asset("NotoSans.ttf"),
+            "Latn".into()
+        ));
+        SHARED_FONT_CONTEXT.with(|cell| {
+            let mut ctx = make_empty_font_context();
+            populate_ua_fonts(&mut ctx, &MACOS_PROFILE, profile_bytes(&MACOS_PROFILE));
+            *cell.borrow_mut() = Some(ctx);
+        });
+        UA_FONT_PROFILE.with(|c| c.set(Some(&MACOS_PROFILE)));
+        assert!(register_script_font(
+            read_asset("NotoSans.ttf"),
+            "Latn".into()
+        ));
+        // A later rebuild, as any symbol or emoji registration triggers, keeps it.
+        assert!(register_symbol_fonts(
+            NOTO_SANS_SYMBOLS_TEST_BYTES.to_vec(),
+            Vec::new()
+        ));
+        SHARED_FONT_CONTEXT.with(|cell| {
+            let mut borrow = cell.borrow_mut();
+            let ctx = borrow.as_mut().expect("shared context");
+            let noto = ctx
+                .collection
+                .family_by_name("Noto Sans")
+                .expect("noto")
+                .id();
+            let base = BASE_COMMON_IDS.with(|c| c.borrow().clone());
+            for script in [Script::COMMON, Script::from_bytes(*b"Latn")] {
+                let chain: Vec<_> = ctx
+                    .collection
+                    .fallback_families(parley::fontique::FallbackKey::new(script, None))
+                    .collect();
+                assert_eq!(chain[base.len()], noto, "{script:?}");
+            }
+        });
+    }
+
+    #[test]
+    fn lazy_regional_cjk_face_upgrades_to_its_woff2_full_file() {
+        set_font_mode(FontMode::Lazy);
+        let _ = get_or_init_font_context();
+        LAZY_REGISTERED.with(|c| c.borrow_mut().clear());
+        assert!(register_cjk_region_font(
+            &read_asset("NotoSansCJKjp-Regular.shaping.otf"),
+            "JP"
+        ));
+        let path = CjkRegion::Jp.path();
+        assert_eq!(pending_lazy_face_paths(), vec![path.to_string()]);
+        let upgraded = SHARED_FONT_CONTEXT.with(|cell| {
+            let mut borrow = cell.borrow_mut();
+            let ctx = borrow.as_mut().expect("shared context");
+            assert!(!family_blobs_have_outlines(ctx, "Hiragino Sans").contains(&true));
+            let id = ctx.collection.family_by_name("Hiragino Sans").unwrap().id();
+            let ok = upgrade_recorded_face(ctx, path, read_asset("NotoSansCJKjp-Regular.woff2"));
+            // The fallback chains hold family ids, so the swap must keep them.
+            assert_eq!(
+                ctx.collection.family_by_name("Hiragino Sans").unwrap().id(),
+                id
+            );
+            ok && family_blobs_have_outlines(ctx, "Hiragino Sans")
+                .iter()
+                .all(|has| *has)
+        });
+        assert!(upgraded, "the JP aliases carry the full file's outlines");
+        assert!(!has_pending_lazy_faces());
+        set_font_mode(FontMode::Full);
+    }
+
+    #[test]
+    fn regional_cjk_faces_take_han_for_their_language_and_kana_for_jp() {
+        let _ = get_or_init_font_context();
+        // JP lands before SC here; the chains must not depend on the order.
+        assert!(register_cjk_region_font(
+            &read_asset("NotoSansCJKjp-Regular.shaping.otf"),
+            "JP"
+        ));
+        assert!(register_cjk_font(&read_asset(
+            "NotoSansCJKsc-Regular.shaping.otf"
+        )));
+        assert!(register_cjk_region_font(
+            &read_asset("NotoSansCJKtc-Regular.shaping.otf"),
+            "TC"
+        ));
+        assert!(!register_cjk_region_font(&[], "KR"));
+        SHARED_FONT_CONTEXT.with(|cell| {
+            let mut borrow = cell.borrow_mut();
+            let ctx = borrow.as_mut().expect("shared context");
+            let mut id = |name: &str| ctx.collection.family_by_name(name).expect(name).id();
+            let [sc, jp, tc] =
+                [CjkRegion::Sc, CjkRegion::Jp, CjkRegion::Tc].map(|region| id(region.chain_name()));
+            let han = Script::from_bytes(*b"Hani");
+            let first = |ctx: &mut FontContext, key: parley::fontique::FallbackKey| {
+                ctx.collection.fallback_families(key).next()
+            };
+            let lang = |tag: &str| parley::fontique::Language::parse(tag).unwrap();
+            for (tag, want) in [
+                ("ja", jp),
+                ("zh-TW", tc),
+                ("zh-Hant", tc),
+                ("zh-HK", tc),
+                ("zh-CN", sc),
+                ("en", sc),
+            ] {
+                let key = parley::fontique::FallbackKey::new(han, Some(&lang(tag)));
+                assert_eq!(first(ctx, key), Some(want), "Hani {tag}");
+            }
+            assert_eq!(
+                first(ctx, parley::fontique::FallbackKey::new(han, None)),
+                Some(sc)
+            );
+            let hira = parley::fontique::FallbackKey::new(Script::from_bytes(*b"Hira"), None);
+            assert_eq!(first(ctx, hira), Some(jp));
+            // The shared chains ignore `lang`, so a regional face there would change Chinese
+            // punctuation on a page that also has Japanese.
+            for script in [Script::COMMON, Script::from_bytes(*b"Latn")] {
+                let key = parley::fontique::FallbackKey::new(script, Some(&lang("zh-CN")));
+                let chain: Vec<_> = ctx.collection.fallback_families(key).collect();
+                assert!(chain.contains(&sc), "{script:?}");
+                assert!(!chain.contains(&jp) && !chain.contains(&tc), "{script:?}");
+            }
+        });
     }
 }

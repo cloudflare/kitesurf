@@ -14,12 +14,65 @@ import type {
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "./query-dom.ts";
 import type { RenderPort } from "./page-renderer.ts";
 import type { WorkerEventParams, WorkerNavigatorInfo } from "./dedicated-worker.ts";
+import type { SandboxRestrictions } from "./sandbox.ts";
+import type { CommittedOrigin } from "./frame-origin.ts";
+
+export interface ModulePreloadPin {
+  url: string;
+  integrity: string | null;
+}
+
+export type { SandboxRestrictions } from "./sandbox.ts";
+export type { CommittedOrigin } from "./frame-origin.ts";
+
+/** The font faces a document's source wants before its first layout. */
+export interface SourceFontScan {
+  /** A `<canvas>`, or `<svg>` with `<text>`, which paints glyph outlines. */
+  outline: boolean;
+  symbols: boolean;
+  symbols2: boolean;
+  emoji: boolean;
+  cjk: boolean;
+  /** Regional Han faces (`JP`, `TC`) the page's `lang` or kana asks for. */
+  cjkRegions: string[];
+  mono: boolean;
+  serif: boolean;
+  /** Script face tags, in registration order. */
+  scripts: string[];
+}
+
+/** A document sent to `navigate` as UTF-8 with the whole-source scans PageScript needs, so the
+ * page isolate can free the source after the parse. A string would live until a major GC. */
+export interface NavigateSource {
+  utf8: Uint8Array;
+  fonts: SourceFontScan;
+  /** Whether the source has an `on…=` attribute. */
+  eventHandlerAttributes: boolean;
+  /** The leading doctype, normalised, and the UTF-8 offset just past it. */
+  doctype: { markup: string; utf8End: number } | null;
+}
 
 export interface NavigateOptions {
   cookies?: string;
   connectionId?: string;
   mainFrameId?: string;
   cookieKey?: string;
+  // The browser context's localStorage area for the document's origin (engine
+  // state/local-storage.ts). Absent for an opaque origin or a child frame, whose localStorage
+  // stays in the isolate for this document only.
+  localStorage?: Array<[string, string]>;
+  // The effective iframe sandbox restrictions for this document, already intersected with its
+  // ancestors. Absent means no restrictions.
+  sandbox?: SandboxRestrictions;
+  // The committed origins of this document's ancestors, nearest first. The engine supplies this
+  // trusted snapshot for a child navigation; page script never derives it from the page.
+  ancestorOrigins?: CommittedOrigin[];
+  modulePreloadPins?: ModulePreloadPin[];
+  scriptPolicy?: {
+    cspHeaders: string[];
+    cspReportOnlyHeaders: string[];
+    metaCsp: string[];
+  };
   bindingNames?: string[];
   charset?: string;
   viewportWidth?: number;
@@ -70,6 +123,8 @@ export interface DrainConsoleReply extends JsWindowDrain {
 export interface EvalOptions {
   returnByValue?: boolean;
   awaitPromise?: boolean;
+  // Targets a parent-hosted same-origin child frame's contentWindow realm in this isolate.
+  frameId?: string;
 }
 
 export interface CallFunctionOnOptions extends EvalOptions {
@@ -106,9 +161,14 @@ export interface IframeContentParams {
   ownerBackendNodeId: number;
   html: string;
   url: string;
+  // The document base URL, which differs from `url` for a srcdoc child.
+  baseUrl?: string;
   failed: boolean;
   mimeType?: string;
   crossOrigin?: boolean;
+  // The child document's active restrictions. A facade without allow-scripts keeps no inline
+  // handlers, because it is parsed in the embedder's realm.
+  sandbox: SandboxRestrictions;
 }
 
 export interface FrameBitmapParams {
@@ -116,6 +176,10 @@ export interface FrameBitmapParams {
   width: number;
   height: number;
   rgba: Uint8Array;
+}
+
+export interface ClearFrameBitmapParams {
+  ownerBackendNodeId: number;
 }
 
 export interface FrameBitmapReply {
@@ -182,7 +246,11 @@ export interface MouseDispatchReply extends KeyDispatchReply {
 
 export interface PageScriptSession {
   /** Resolves at DOMContentLoaded while the session continues the resource drain. */
-  navigate(html: string, url: string, opts?: NavigateOptions): Promise<NavigateSummary>;
+  navigate(
+    html: string | NavigateSource,
+    url: string,
+    opts?: NavigateOptions,
+  ): Promise<NavigateSummary>;
   /** Waits for the bounded resource drain, `load`, and post-load tasks during navigation.
    * Resource draining has a 25-second budget; teardown can return partial results.
    * A pipelined call waits for `navigate` to publish the drain.
@@ -195,6 +263,8 @@ export interface PageScriptSession {
   installIframeContent(params: IframeContentParams): Promise<OkReply>;
   iframeInstallsSettled(): Promise<OkReply>;
   setFrameBitmap(params: FrameBitmapParams): Promise<FrameBitmapReply>;
+  /** Clears a previously displayed child bitmap, e.g. when its next document is refused. */
+  clearFrameBitmap(params: ClearFrameBitmapParams): Promise<OkReply>;
   deliverMessage(params: DeliverMessageParams): Promise<{ ok: boolean; error?: string }>;
   deliverWorkerEvent(params: WorkerEventParams): Promise<OkReply>;
   evaluate(expression: string, opts: EvalOptions): Promise<EvalResult>;
@@ -227,7 +297,7 @@ export type PageScriptReply<M extends PageScriptMethod> = Awaited<ReturnType<Pag
 type NoParams = Record<string, never>;
 
 export interface PageScriptWireParams {
-  navigate: { html: string; url: string; opts?: NavigateOptions };
+  navigate: { html: string | NavigateSource; url: string; opts?: NavigateOptions };
   awaitLoad: NoParams;
   unload: NoParams;
   drainConsole: NoParams;
@@ -236,6 +306,7 @@ export interface PageScriptWireParams {
   installIframeContent: IframeContentParams;
   iframeInstallsSettled: NoParams;
   setFrameBitmap: FrameBitmapParams;
+  clearFrameBitmap: ClearFrameBitmapParams;
   deliverMessage: DeliverMessageParams;
   deliverWorkerEvent: WorkerEventParams;
   evaluate: { expression: string; opts?: EvalOptions };
@@ -299,13 +370,20 @@ export interface UpstreamEvents {
     frameId: string;
     ownerBackendNodeId: number;
     url: string;
+    name?: string;
+    id?: string;
     loading?: string;
+    // The iframe's sandbox attribute at the navigation start; absent means no attribute.
+    sandbox?: string | null;
   };
   "kitesurf.frameDetached": { frameId: string };
   "kitesurf.frameLifecycle": { frameId: string; name: "DOMContentLoaded" | "load" };
-  "kitesurf.frameNavigated": { frameId: string; url: string };
+  "kitesurf.frameNavigated": { frameId: string; url: string; sandbox?: string | null };
   "kitesurf.frameStoppedLoading": { frameId: string };
   "kitesurf.insertedScriptRan": { url: string; bytes: number; run: "baked" | "stale" | "boa" };
+  // localStorage changes on a page with a seeded area, batched per microtask. The engine applies
+  // them to the browser context's area for the origin.
+  "kitesurf.localStorage": { ops: LocalStorageOp[] };
   "kitesurf.modelContextToolsAdded": { tools: WebMcpTool[] };
   "kitesurf.modelContextToolsRemoved": { names: string[] };
   "kitesurf.navigatedWithinDocument": {
@@ -322,7 +400,9 @@ export interface UpstreamEvents {
     toParent?: true;
     dataJson: string;
     targetOrigin: string;
-    sourceOrigin: string;
+    // Set by the engine when it queues the message for a child frame, from the sender's
+    // committed URL; page script never supplies it.
+    sourceOrigin?: string;
   };
   "kitesurf.workerCreate": {
     workerId: number;
@@ -336,6 +416,12 @@ export interface UpstreamEvents {
 }
 
 export type UpstreamEventName = keyof UpstreamEvents;
+
+/** A change to a shared localStorage area, as the engine applies it. */
+export type LocalStorageOp =
+  | { op: "set"; key: string; value: string }
+  | { op: "remove"; key: string }
+  | { op: "clear" };
 
 export interface WebMcpTool {
   name: string;

@@ -38,6 +38,42 @@ cors.all("/cors-redirect", (c) =>
   }),
 );
 
+// A worker script redirect target. Every fixture host serves it, so the same route is both the
+// allowed same-origin target and the refused cross-origin one; the counter proves which hops
+// were requested, and the marker proves which source ran.
+const workerHopHits = new Map<string, number>();
+
+cors.all("/worker-hop/:file{[\\w-]+\\.js}", (c) => {
+  const key = c.req.param("file").slice(0, -".js".length);
+  workerHopHits.set(key, (workerHopHits.get(key) ?? 0) + 1);
+  return c.body(`postMessage("hop:${key}")`, 200, {
+    "content-type": "text/javascript; charset=utf-8",
+    "access-control-allow-origin": c.req.header("origin") ?? "*",
+  });
+});
+
+cors.all("/worker-hop-hits/:key{[\\w-]+}", (c) =>
+  c.json({ hits: workerHopHits.get(c.req.param("key")) ?? 0 }, 200, {
+    "cache-control": "no-store",
+  }),
+);
+
+// A foreign hop in a worker script redirect chain: it counts its own request and sends the chain
+// back to a same-origin terminal, so a check that only reads the final URL still contacts it.
+cors.all("/worker-hop-back", (c) => {
+  const key = c.req.query("key") ?? "";
+  workerHopHits.set(`back-${key}`, (workerHopHits.get(`back-${key}`) ?? 0) + 1);
+  return c.body(null, 302, { location: c.req.query("to") ?? "/" });
+});
+
+// A Location the shim treats as unparseable (the replacement character a lossy decode yields), so
+// it hands the chain to native follow instead of walking the hop itself.
+cors.all("/invalid-location-redirect", (c) =>
+  c.body(null, 302, {
+    location: `${c.req.query("to") ?? "/__fixtures/echo-headers.json"}\uFFFD`,
+  }),
+);
+
 cors.all("/loud-redirect", (c) =>
   c.body(`${SECRET}-in-a-302-body`, 302, {
     location: c.req.query("to") ?? "/__fixtures/no-acao-secret.json",
@@ -53,6 +89,15 @@ cors.all("/set-cookie", (c) =>
     "set-cookie": c.req.query("v") ?? "probe=1",
     "access-control-allow-origin": c.req.header("origin") ?? "*",
     "access-control-allow-credentials": "true",
+  }),
+);
+
+// Allows any origin and only the request headers named in ?allow=, preflight included.
+cors.all("/allow-headers", (c) =>
+  c.body("ok", 200, {
+    "content-type": "text/plain; charset=utf-8",
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers": c.req.query("allow") ?? "",
   }),
 );
 

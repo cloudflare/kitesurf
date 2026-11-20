@@ -14,6 +14,8 @@ export function captureTrustedFetch(): void {
 export interface TrustedRequestMeta {
   resourceType?: string;
   initiator?: string;
+  /** Called before each redirect hop is requested: the URL to request, or null to refuse. */
+  checkRedirect?: (url: string) => string | null;
 }
 
 const trustedMeta = new WeakMap<object, TrustedRequestMeta>();

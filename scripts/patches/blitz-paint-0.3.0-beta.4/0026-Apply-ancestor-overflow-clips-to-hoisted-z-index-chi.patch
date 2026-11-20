@@ -1,0 +1,177 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 9 Oct 2026 19:23:24 +0100
+Subject: [PATCH] Apply ancestor overflow clips to hoisted z-index children
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A positioned box with a z-index paints with its stacking context, not
+with its parent. That skipped the overflow clip of every box between
+the two, so content that sits inside an `overflow: hidden` box in
+Chrome painted outside it. A collapsed disclosure panel (height 0,
+overflow hidden) leaked its z-indexed children: radar.cloudflare.com's
+sidebar showed the guide line of every closed submenu.
+
+Each hoisted child now paints inside the intersection of the clips on
+its layout-parent chain up to the stacking context. That chain runs
+through an abspos box's containing block, so a clip outside the
+containing block still does not apply. Nothing on the chain has a
+transform, because a transform would make that box the stacking
+context.
+
+beep-boop-🤖
+---
+ src/render.rs | 122 +++++++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 110 insertions(+), 12 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index e183cec..83348ff 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -1188,14 +1188,11 @@ impl ElementCx<'_, '_> {
+         if let Some(hoisted) = &self.node.stacking_context {
+             for hoisted_child in hoisted.neg_z_hoisted_children() {
+                 let position = hoisted_child.position(self.node.tree(), self.node.id);
+-                let pos = kurbo::Vec2 {
+-                    x: position.x as f64 * self.scale,
+-                    y: position.y as f64 * self.scale,
+-                };
+-                self.render_node(
++                self.render_hoisted_child(
+                     scene,
+                     hoisted_child.node_id,
+-                    parent_style_transform.pre_translate(pos),
++                    position,
++                    parent_style_transform,
+                     clip_rect,
+                 );
+             }
+@@ -1241,20 +1238,121 @@ impl ElementCx<'_, '_> {
+         if let Some(hoisted) = &self.node.stacking_context {
+             for hoisted_child in hoisted.pos_z_hoisted_children() {
+                 let position = hoisted_child.position(self.node.tree(), self.node.id);
+-                let pos = kurbo::Vec2 {
+-                    x: position.x as f64 * self.scale,
+-                    y: position.y as f64 * self.scale,
+-                };
+-                self.render_node(
++                self.render_hoisted_child(
+                     scene,
+                     hoisted_child.node_id,
+-                    parent_style_transform.pre_translate(pos),
++                    position,
++                    parent_style_transform,
+                     clip_rect,
+                 );
+             }
+         }
+     }
+
++    /// Paint a child hoisted to this stacking context. Hoisting skips the
++    /// paint of every box between this context and the child, and with it
++    /// their overflow clips, so re-apply the clips of the boxes the child
++    /// would have painted inside. A collapsed `overflow: hidden` disclosure
++    /// panel otherwise leaked its `z-index` descendants (radar's sidebar).
++    fn render_hoisted_child(
++        &self,
++        scene: &mut impl PaintScene,
++        child_id: NodeId,
++        position: taffy::Point<f32>,
++        parent_style_transform: Affine,
++        clip_rect: Rect,
++    ) {
++        let pos = kurbo::Vec2 {
++            x: position.x as f64 * self.scale,
++            y: position.y as f64 * self.scale,
++        };
++        let transform = parent_style_transform.pre_translate(pos);
++        let Some(ancestor_clip) = self.hoisted_ancestor_clip(child_id) else {
++            self.render_node(scene, child_id, transform, clip_rect);
++            return;
++        };
++        if ancestor_clip.width() <= 0.0 || ancestor_clip.height() <= 0.0 {
++            return;
++        }
++        let screen_clip = Affine::translate(Vec2 {
++            x: -self.context.initial_x,
++            y: -self.context.initial_y,
++        }) * parent_style_transform;
++        let child_clip_rect = clip_rect.intersect(screen_clip.transform_rect_bbox(ancestor_clip));
++        scene.push_layer(
++            Fill::NonZero,
++            peniko::Mix::Normal,
++            1.0,
++            parent_style_transform,
++            &ancestor_clip,
++            None,
++            None,
++        );
++        self.render_node(scene, child_id, transform, child_clip_rect);
++        scene.pop_layer();
++    }
++
++    /// The intersection of the overflow clips between this stacking context
++    /// and a hoisted descendant, in this context's local (device-scaled)
++    /// space. Walks the same containing-block chain that
++    /// `hoisted_child_position` sums to place the child, so an abspos box
++    /// meets its containing block rather than its DOM parent. Nothing on the
++    /// chain is transformed: a transform would have made that box the
++    /// stacking context instead. `None` when no box on the chain clips.
++    fn hoisted_ancestor_clip(&self, child_id: NodeId) -> Option<Rect> {
++        let tree = self.context.dom.as_ref().tree();
++        let mut chain = Vec::new();
++        let mut cursor = tree.get(child_id).and_then(|node| node.containing_block());
++        while let Some(id) = cursor {
++            if id == self.node.id {
++                break;
++            }
++            let node = tree.get(id)?;
++            chain.push(node);
++            cursor = node.containing_block();
++        }
++        // A chain that never meets this context is not the one the child's
++        // position was summed along, so its offsets would be wrong.
++        cursor?;
++        let mut clip: Option<Rect> = None;
++        let mut offset = Vec2::ZERO;
++        for node in chain.iter().rev() {
++            let layout = node.final_layout();
++            let origin = offset + Vec2::new(layout.location.x as f64, layout.location.y as f64);
++            let scroll = node.scroll_offset();
++            offset = origin - Vec2::new(scroll.x, scroll.y);
++            if self.context.root_element_id == Some(node.id) {
++                continue;
++            }
++            let Some(styles) = node.primary_styles() else {
++                continue;
++            };
++            let box_styles = styles.get_box();
++            let contain_paint = box_styles.clone_contain().contains(Contain::PAINT);
++            let unclipped_x = !contain_paint && matches!(box_styles.overflow_x, Overflow::Visible);
++            let unclipped_y = !contain_paint && matches!(box_styles.overflow_y, Overflow::Visible);
++            if unclipped_x && unclipped_y {
++                continue;
++            }
++            let border = layout.border;
++            let padding_box = Rect::new(
++                origin.x + border.left as f64,
++                origin.y + border.top as f64,
++                origin.x + (layout.size.width - border.right) as f64,
++                origin.y + (layout.size.height - border.bottom) as f64,
++            );
++            let rect = open_unclipped_axes(padding_box, unclipped_x, unclipped_y);
++            let rect = Rect::new(
++                rect.x0 * self.scale,
++                rect.y0 * self.scale,
++                rect.x1 * self.scale,
++                rect.y1 * self.scale,
++            );
++            clip = Some(clip.map_or(rect, |clip| clip.intersect(rect)));
++        }
++        clip
++    }
++
+     /// Paint re-homed abspos children outside this flow parent's overflow clip.
+     fn draw_rehomed_children(
+         &self,

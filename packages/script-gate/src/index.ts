@@ -7,6 +7,7 @@
 export {
   buildScriptGateContext,
   checkScriptBeforeFetch,
+  checkScriptRedirect,
   checkScriptResponse,
   scriptGateIsNoop,
   type ScriptBlockReason,
@@ -17,6 +18,7 @@ export {
   type ScriptResponseFacts,
 } from "./gate.ts";
 export {
+  cspAllowsInlineHandler,
   cspAllowsScript,
   inlineHashAlgorithms,
   parseCspPolicies,
@@ -25,6 +27,13 @@ export {
   type CspScriptRequest,
   type CspVerdict,
 } from "./csp.ts";
+export {
+  committedOriginOfUrl,
+  embeddingPolicyVerdict,
+  sameCommittedOrigin,
+  type EmbeddingPolicyInput,
+  type EmbeddingPolicyVerdict,
+} from "./frame-policy.ts";
 export {
   blockedByNosniff,
   hasNosniff,
@@ -53,3 +62,9 @@ export {
   predeclareVarsHead,
   type TopLevelDeclScan,
 } from "./classic-scan.ts";
+export {
+  SANDBOX_ALLOW_ALL,
+  intersectSandbox,
+  parseSandboxAttribute,
+  type SandboxRestrictions,
+} from "./sandbox.ts";

@@ -1,0 +1,127 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Mon, 19 Oct 2026 17:42:10 +0100
+Subject: [PATCH] scope: export a scope's parts and rebuild it under an outer
+ scope
+
+Compiled code that moves out of memory has to come back with the scopes it was compiled
+against, linked as before: eval resolves names through them and environments keep them.
+`ks_parts`/`ks_rebuild` carry a scope's own state (id, depth, flags, bindings) across, the
+outer link supplied by the embedder; `ks_ptr` tells shared scopes apart, and binding
+locators get the same pair of functions.
+---
+ src/scope.rs | 87 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 87 insertions(+)
+
+diff --git a/src/scope.rs b/src/scope.rs
+index 96c3b3f..28f1886 100644
+--- a/src/scope.rs
++++ b/src/scope.rs
+@@ -567,6 +567,62 @@ impl Scope {
+         self.inner.unique_id
+     }
+
++    /// Kitesurf: identity of the shared scope, for an embedder that has to tell scopes
++    /// apart (several blocks hold the same one).
++    #[must_use]
++    pub fn ks_ptr(&self) -> usize {
++        Rc::as_ptr(&self.inner) as usize
++    }
++
++    /// Kitesurf: this scope's own state apart from its outer scope, for an embedder that
++    /// moves it out of memory and rebuilds it with [`Self::ks_rebuild`].
++    #[must_use]
++    pub fn ks_parts(&self) -> KsScopeParts {
++        KsScopeParts {
++            unique_id: self.inner.unique_id,
++            index: self.inner.index.get(),
++            function: self.inner.function,
++            this_escaped: self.inner.this_escaped.get(),
++            bindings: self
++                .inner
++                .bindings
++                .borrow()
++                .iter()
++                .map(|b| (b.name.clone(), b.index, b.flags.bits()))
++                .collect(),
++        }
++    }
++
++    /// Kitesurf: a scope equal to the one [`Self::ks_parts`] read, under `outer`, sharing its
++    /// unique-id counter. Its lookup map is built by the first query that needs one.
++    #[must_use]
++    pub fn ks_rebuild(outer: Option<Self>, parts: KsScopeParts) -> Self {
++        let context = outer.as_ref().map(|o| o.inner.context.clone()).unwrap_or_default();
++        let bindings: Vec<Binding> = parts
++            .bindings
++            .into_iter()
++            .map(|(name, index, flags)| Binding {
++                name,
++                index,
++                flags: BindingFlags::from_bits_retain(flags),
++            })
++            .collect();
++        let dropped = !bindings.is_empty();
++        Self {
++            inner: Rc::new(Inner {
++                unique_id: parts.unique_id,
++                outer,
++                index: Cell::new(parts.index),
++                bindings: RefCell::new(bindings),
++                lookup: RefCell::default(),
++                lookup_dropped: Cell::new(dropped),
++                function: parts.function,
++                this_escaped: Cell::new(parts.this_escaped),
++                context,
++            }),
++        }
++    }
++
+     /// Kitesurf: frees the name lookup map once the compiler is done with this scope; a later
+     /// query rebuilds it. A minified bundle's flat function scopes hold thousands of names.
+     pub fn ks_drop_lookup(&self) {
+@@ -579,6 +635,18 @@ impl Scope {
+     }
+ }
+
++/// Kitesurf: a scope's own state, as [`Scope::ks_parts`] reads it: everything but its outer
++/// scope and its bookkeeping. Bindings are `(name, index, flags)`.
++#[derive(Debug, Clone)]
++#[allow(missing_docs)]
++pub struct KsScopeParts {
++    pub unique_id: u32,
++    pub index: u32,
++    pub function: bool,
++    pub this_escaped: bool,
++    pub bindings: Vec<(JsString, u32, u8)>,
++}
++
+ /// Additional state that all Scopes of a single AST share for bookkeeping.
+ #[derive(Debug, PartialEq, Default)]
+ struct ScopeContext {
+@@ -662,6 +730,25 @@ pub struct BindingLocator {
+ }
+
+ impl BindingLocator {
++    /// Kitesurf: `(name, scope, binding index, unique scope id)`, for an embedder that moves
++    /// compiled code out of memory; [`Self::ks_from_parts`] puts them back together.
++    #[must_use]
++    pub fn ks_parts(&self) -> (&JsString, u32, u32, u32) {
++        (&self.name, self.scope, self.binding_index, self.unique_scope_id)
++    }
++
++    /// Kitesurf: the locator [`Self::ks_parts`] read, put back together for code rebuilt
++    /// from the store.
++    #[must_use]
++    pub const fn ks_from_parts(name: JsString, scope: u32, binding_index: u32, unique_scope_id: u32) -> Self {
++        Self {
++            name,
++            scope,
++            binding_index,
++            unique_scope_id,
++        }
++    }
++
+     /// Creates a new declarative binding locator that has knows indices.
+     pub(crate) const fn declarative(
+         name: JsString,

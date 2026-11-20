@@ -4,6 +4,8 @@
 
 #![cfg(test)]
 
+use std::time::Duration;
+
 use ::style::properties::LonghandId;
 
 use crate::DomHandle;
@@ -47,7 +49,7 @@ fn fading_dom(fill_mode: &str) -> (DomHandle, u32, u32) {
 }
 
 fn settle(dom: &DomHandle, id: u32) {
-    std::thread::sleep(std::time::Duration::from_millis(DURATION_MS + 250));
+    std::thread::sleep(Duration::from_millis(DURATION_MS + 250));
     resolve_again(dom);
     assert_eq!(
         computed(dom, id, LonghandId::Opacity),
@@ -92,7 +94,7 @@ fn forwards_fill_survives_a_restyle_of_the_element_itself() {
 #[test]
 fn a_finished_animation_without_a_forwards_fill_stops_contributing() {
     let (dom, id, other) = fading_dom("backwards");
-    std::thread::sleep(std::time::Duration::from_millis(DURATION_MS + 250));
+    std::thread::sleep(Duration::from_millis(DURATION_MS + 250));
     resolve_again(&dom);
 
     assert!(dom.set_attribute(other, "style", "margin-left: 1px"));

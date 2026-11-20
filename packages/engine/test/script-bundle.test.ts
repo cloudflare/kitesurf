@@ -3,7 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { buildScriptBundle } from "../src/eval/script-bundle.ts";
+import { buildScriptBundle, insertedSourceDigests } from "../src/eval/script-bundle.ts";
 import type { ParentScriptDescriptor } from "../src/wasm.ts";
 
 function classic(body: string, opts: Partial<ParentScriptDescriptor> = {}): ParentScriptDescriptor {
@@ -84,6 +84,119 @@ describe("buildScriptBundle.classicRegularSource", () => {
   });
 });
 
+describe("buildScriptBundle classic source map bound", () => {
+  const marker = "globalThis.__sourceMapMarker = sample;";
+  const asyncScript = (source: string): ParentScriptDescriptor =>
+    classic("", { src: "/a.js", async: true, prefetchedSource: source });
+
+  it("still maps a short async external script", () => {
+    const bundle = buildScriptBundle([asyncScript(`var sample = 1;\n${marker}`)]);
+    const source = bundle.classicAsyncSource!;
+    const sourceLine = source.slice(0, source.lastIndexOf(marker)).split("\n").length - 1;
+    const sourceMapURL = bundle.classicAsyncSourceMapURL!;
+    const encoded = sourceMapURL.slice(sourceMapURL.indexOf(",") + 1);
+    const { mappings } = JSON.parse(atob(encoded)) as { mappings: string };
+    expect(mappings.split(";")[sourceLine]).toBe("AACA");
+  });
+
+  it("omits an oversized source map but keeps the scripts and their sourceURLs", () => {
+    const body = `${"\n".repeat(1_000_000)}globalThis.__oversizedRan = true;`;
+    const bundle = buildScriptBundle([classic(body), asyncScript(body)]);
+    const check = (source: string | null, url: string): void => {
+      expect(source?.includes("globalThis.__oversizedRan = true;")).toBe(true);
+      expect(source?.slice(-120)).toContain(`//# sourceURL=${url}`);
+      expect(source?.includes("sourceMappingURL")).toBe(false);
+    };
+    check(bundle.classicRegularSource, "/__ks_user_classic_regular.js");
+    check(bundle.classicAsyncSource, "/__ks_user_classic_async.js");
+    expect(bundle.classicRegularSourceMapURL).toBe("");
+    expect(bundle.classicAsyncSourceMapURL).toBe("");
+  }, 30_000);
+});
+
+describe("buildScriptBundle parser-inserted script lifecycle", () => {
+  const LIFECYCLE = "__ks_state_local.parserScriptLifecycle(";
+
+  it("fires load after an external script's body and the currentScript reset", () => {
+    const bundle = buildScriptBundle([
+      classic("", {
+        src: "/a.js",
+        resolvedSrc: "https://example.com/a.js",
+        prefetchedSource: "globalThis.ranA = true;",
+        scriptDomIndex: 3,
+      }),
+    ]);
+    const src = bundle.classicRegularSource!;
+    const call = `${LIFECYCLE}3, "/a.js", "https://example.com/a.js", true)`;
+    expect(src).toContain(call);
+    expect(src.indexOf("globalThis.ranA = true;")).toBeLessThan(src.indexOf(call));
+    expect(src.indexOf("endClassicScript()")).toBeLessThan(src.indexOf(call));
+  });
+
+  it("fires load in the defer and async buckets, and for an empty external body", () => {
+    const bundle = buildScriptBundle([
+      classic("", { src: "/d.js", defer: true, prefetchedSource: "1;", scriptDomIndex: 0 }),
+      classic("", { src: "/e.js", prefetchedSource: "", scriptDomIndex: 1 }),
+      classic("", { src: "/s.js", async: true, prefetchedSource: "2;", scriptDomIndex: 2 }),
+    ]);
+    expect(bundle.classicRegularSource).toContain(`${LIFECYCLE}0, "/d.js", "/d.js", true)`);
+    expect(bundle.classicRegularSource).toContain(`${LIFECYCLE}1, "/e.js", "/e.js", true)`);
+    expect(bundle.classicAsyncSource).toContain(`${LIFECYCLE}2, "/s.js", "/s.js", true)`);
+  });
+
+  it("fires load for an external script that throws", () => {
+    const bundle = buildScriptBundle([
+      classic("", {
+        src: "/boom.js",
+        prefetchedSource: 'throw new Error("boom");',
+        scriptDomIndex: 0,
+      }),
+    ]);
+    const src = bundle.classicRegularSource!;
+    // The spec fires load after the script runs, also when it throws; error means a
+    // failed fetch.
+    // https://html.spec.whatwg.org/multipage/scripting.html#execute-the-script-element
+    expect(src).toContain(`${LIFECYCLE}0, "/boom.js", "/boom.js", true)`);
+    expect(src).not.toContain(`${LIFECYCLE}0, "/boom.js", "/boom.js", false)`);
+  });
+
+  it("fires error for a blocked or failed external script", () => {
+    const bundle = buildScriptBundle([
+      classic("", {
+        src: "/blocked.js",
+        blocked: { reason: "sri", message: "integrity mismatch" },
+        scriptDomIndex: 0,
+      }),
+      classic("", { src: "/gone.js", prefetchError: "HTTP 404", scriptDomIndex: 1 }),
+    ]);
+    const src = bundle.classicRegularSource!;
+    expect(src).toContain("integrity mismatch");
+    expect(src).toContain(`${LIFECYCLE}0, "/blocked.js", "/blocked.js", false)`);
+    expect(src).toContain(`${LIFECYCLE}1, "/gone.js", "/gone.js", false)`);
+    expect(src).not.toContain(", true)");
+  });
+
+  it("fires nothing for inline scripts or inserted bakes", () => {
+    const bundle = buildScriptBundle(
+      [
+        classic("globalThis.inline = 1;", { scriptDomIndex: 0 }),
+        classic("globalThis.blockedInline = 1;", {
+          blocked: { reason: "csp", message: "inline blocked" },
+        }),
+      ],
+      {
+        insertedBake: [classic("", { src: "/i.js", prefetchedSource: "globalThis.i = 1;" })],
+        insertedDigests: new Map([["/i.js", "digest"]]),
+      },
+    );
+    expect(bundle.classicRegularSource).toContain("globalThis.inline = 1;");
+    expect(bundle.classicRegularSource).not.toContain(LIFECYCLE);
+    const inserted = Object.values(bundle.insertedModules);
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).not.toContain(LIFECYCLE);
+  });
+});
+
 describe("buildScriptBundle.moduleScriptUrls + additionalModules", () => {
   it("preserves module entries in document order and bakes bodies by URL", () => {
     const bundle = buildScriptBundle([
@@ -141,5 +254,65 @@ describe("buildScriptBundle.moduleScriptUrls + additionalModules", () => {
     const body = bundle.additionalModules[errUrl]!;
     expect(body).toContain("module prefetch failed");
     expect(body).toContain("/broken.js");
+  });
+});
+
+describe("script URLs in generated comments", () => {
+  const payload = "globalThis.injected = 1;//";
+  const spellings = ["\n", "\r", "\u2028", "\u2029"].map(
+    (terminator) => `https://cdn.test/a.js${terminator}${payload}`,
+  );
+  const body = "var a = 1;\nlet b = 2;\nglobalThis.ran = a + b;";
+  // String literals may hold U+2028 and U+2029, so quoted copies of the src are not code.
+  const linesStartingWithPayload = (source: string, src: string): string[] =>
+    source
+      .replaceAll(JSON.stringify(src), '""')
+      .split(/\r\n|[\n\r\u2028\u2029]/)
+      .filter((line) => line.trimStart().startsWith(payload));
+
+  it.each(spellings)("keeps a parser-inserted script's src inside its comments (%j)", (src) => {
+    const bundle = buildScriptBundle([classic("", { src, prefetchedSource: body })]);
+    const source = bundle.classicRegularSource!;
+    expect(source).toContain("globalThis.ran = a + b;");
+    expect(linesStartingWithPayload(source, src)).toEqual([]);
+  });
+
+  it.each(spellings)("keeps an inserted bake's src inside its comments (%j)", async (src) => {
+    const insertedBake = [classic("", { src, resolvedSrc: src, prefetchedSource: body })];
+    const insertedDigests = await insertedSourceDigests(insertedBake);
+    const bundle = buildScriptBundle([], { insertedBake, insertedDigests });
+    expect(bundle.insertedManifest).toHaveLength(1);
+    const source = bundle.insertedModules[bundle.insertedManifest[0]!.module]!;
+    expect(source).toContain("globalThis.ran = a + b;");
+    expect(source).toContain("//# sourceURL=https://cdn.test/a.js");
+    expect(linesStartingWithPayload(source, src)).toEqual([]);
+  });
+});
+
+describe("buildScriptBundle inserted bakes", () => {
+  it("declares a strict inserted script's class name", async () => {
+    const source =
+      '"use strict"; class Widget { v() { return "ok"; } } globalThis.__w = new Widget().v();';
+    const insertedBake = [
+      classic("", { src: "/w.js", resolvedSrc: "/w.js", prefetchedSource: source }),
+    ];
+    const insertedDigests = await insertedSourceDigests(insertedBake);
+    const bundle = buildScriptBundle([], { insertedBake, insertedDigests });
+    const module = bundle.insertedModules[bundle.insertedManifest[0]!.module]!;
+    // In strict mode the class rewrite's assignment needs a declared binding.
+    expect(module).toContain('"use strict";');
+    expect(module).toContain("var Widget;");
+    expect(module).toContain("Widget = class Widget");
+  });
+});
+
+describe("buildScriptBundle desynced scan", () => {
+  it("does not rename a function the scan misplaced", () => {
+    const body =
+      "!function(){ var c = `${`}`}`; function helper(){return 1} globalThis.__v = helper(); }();";
+    const bundle = buildScriptBundle([classic(body)]);
+    const src = bundle.classicRegularSource!;
+    expect(src).toContain("function helper()");
+    expect(src).not.toContain("__ks_fn");
   });
 });

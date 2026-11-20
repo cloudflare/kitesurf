@@ -4,11 +4,22 @@
 
 // Runs the source-based legacy script plan and dispatches document lifecycle events.
 // The normal path bundles classic scripts into one sloppy CJS module; this plan runs only when the
-// parent supplied no bundle, and it is not script-gated.
+// parent supplied no bundle (an OOPIF child, or a navigate whose bake threw). Everything runs on
+// boa. Classic and inline parser scripts pass the gate as parser inserts, not runtime inserts.
 
-import { AsyncFunction } from "./eval-helpers.ts";
+import { globalizeForBoa } from "./boa-classic.ts";
+import { fetchInsertedScript } from "./resource-fetch.ts";
+import {
+  importHitFailedFetch,
+  parserRedirectGate,
+  parserResponseAllowed,
+  parserScriptAllowed,
+  reportBlocked,
+  reportOnly,
+} from "./script-policy.ts";
 import { ksEventCtors, state } from "./state.ts";
-import { trustedFetch } from "./trusted-fetch.ts";
+import type { ShimElement } from "./types.ts";
+import { ks_eval_page, ks_import } from "./wasm-glue.js";
 
 export interface ScriptDescriptor {
   src: string | null;
@@ -16,6 +27,12 @@ export interface ScriptDescriptor {
   defer: boolean;
   async: boolean;
   body: string;
+  // Empty collapses to null, the rule scan.rs and the engine's DOM fallback use.
+  nonce: string | null;
+  integrity: string | null;
+  // Absent and present-empty are different CORS modes; keep the raw attribute.
+  crossOrigin: string | null;
+  nodeId?: number;
   _resolvedUrl?: string;
 }
 
@@ -34,7 +51,24 @@ export interface ScriptPlan {
   deferred: ScriptDescriptor[];
   async_: ScriptDescriptor[];
   modules: ScriptDescriptor[];
-  sourceCache: Map<string, Promise<FetchResult>>;
+  // Keyed by descriptor: two elements with one URL may differ in nonce, integrity or CORS.
+  sourceCache: Map<ScriptDescriptor, Promise<FetchResult>>;
+}
+
+// blitz-html keeps template contents under the <template> element, and a script there is inert:
+// the scan skips it, so the source plan must not run it either.
+function hasTemplateAncestor(dom: NonNullable<typeof state.dom>, id: number): boolean {
+  try {
+    for (let parent = dom.parentId(id); parent >= 0; parent = dom.parentId(parent)) {
+      const info = dom.nodeInfo(parent);
+      if (!info) return false;
+      if ((info.localName || info.nodeName).toLowerCase() === "template") return true;
+    }
+  } catch {
+    // A stale id throws in the tree walk. An ancestor chain that cannot be read is not a
+    // template ancestor, and the caller reads its own node id inside its own guard.
+  }
+  return false;
 }
 
 export function extractScripts(): ScriptDescriptor[] {
@@ -49,6 +83,7 @@ export function extractScripts(): ScriptDescriptor[] {
   const out: ScriptDescriptor[] = [];
   for (let i = 0; i < ids.length; i++) {
     const id = ids[i];
+    if (hasTemplateAncestor(dom, id)) continue;
     let info: ReturnType<typeof dom.nodeInfo> | null;
     try {
       info = dom.nodeInfo(id);
@@ -70,6 +105,8 @@ export function extractScripts(): ScriptDescriptor[] {
     ) {
       continue;
     }
+    // A browser that runs modules skips a classic script marked nomodule (scan.rs agrees).
+    if (rawType !== "module" && "nomodule" in attrs) continue;
     const src = attrs.src ? String(attrs.src).trim() : "";
     let body = "";
     if (!src) {
@@ -86,6 +123,10 @@ export function extractScripts(): ScriptDescriptor[] {
       defer: "defer" in attrs,
       async: "async" in attrs,
       body,
+      nonce: attrs.nonce || null,
+      integrity: attrs.integrity?.trim() || null,
+      crossOrigin: attrs.crossorigin ?? null,
+      nodeId: id,
     });
   }
   return out;
@@ -93,39 +134,62 @@ export function extractScripts(): ScriptDescriptor[] {
 
 function resolveScriptUrl(src: string | null | undefined): string | null {
   if (!src) return null;
+  // The document owns base resolution; pageUrl only stands in before it exists.
+  const base = state.document?.baseURI || state.pageUrl;
   try {
-    return state.pageUrl ? new URL(src, state.pageUrl).toString() : new URL(src).toString();
+    return base ? new URL(src, base).toString() : new URL(src).toString();
   } catch {
     return null;
   }
 }
 
-async function fetchScriptSource(url: string): Promise<string> {
-  const response = await trustedFetch(
-    url,
-    { headers: { accept: "*/*" } },
-    { resourceType: "Script", initiator: "parser" },
+async function fetchScriptSource(script: ScriptDescriptor, url: string): Promise<string> {
+  const meta = { url, nonce: script.nonce, integrity: script.integrity };
+  const pre = await parserScriptAllowed(meta);
+  reportOnly(pre);
+  if (!pre.allowed) {
+    reportBlocked(pre);
+    throw new Error(pre.message ?? "script blocked by policy");
+  }
+  const redirects = parserRedirectGate(meta);
+  const fetchedUrl = pre.upgradeTo ?? url;
+  const response = await fetchInsertedScript(
+    fetchedUrl,
+    script.crossOrigin,
+    redirects.check,
+    "parser",
   );
-  if (!response.ok) {
+  if (redirects.refusal) {
+    reportBlocked(redirects.refusal);
+    throw new Error(redirects.refusal.message ?? "script redirect blocked by policy");
+  }
+  if (response.status < 200 || response.status >= 300) {
     throw new Error("<script src> fetch returned HTTP " + response.status + " for " + url);
   }
-  return await response.text();
+  const post = await parserResponseAllowed(
+    meta,
+    {
+      contentType: response.contentType,
+      contentTypeOptions: response.nosniff,
+      bytes: response.bytes,
+      opaque: response.opaque,
+      ...(response.finalUrl ? { finalUrl: response.finalUrl } : {}),
+    },
+    fetchedUrl,
+  );
+  if (!post.allowed) {
+    reportBlocked(post);
+    throw new Error(post.message ?? "script response blocked by policy");
+  }
+  return response.source;
 }
 
+// The loaded worker refuses native code generation after startup, so the body runs on boa,
+// globalized like a runtime insert so its top-level declarations land on window.
 async function runOneClassic(source: string, label: string): Promise<void> {
   if (!source) return;
   try {
-    if (/\bawait\b/.test(source)) {
-      const scriptFunction = new AsyncFunction(source);
-      await scriptFunction();
-    } else {
-      let src = source;
-      const m =
-        /^\s*(?:\/\*[\s\S]*?\*\/\s*|\/\/[^\n]*\n\s*)*("use strict"|'use strict')\s*;?\s*/.exec(src);
-      if (m) src = src.slice(0, m.index) + src.slice(m.index + m[0].length);
-      // eslint-disable-next-line no-eval
-      (0, eval)(src);
-    }
+    ks_eval_page(globalizeForBoa(source));
   } catch (err) {
     console.error("[" + label + "]", err);
   }
@@ -150,13 +214,13 @@ export function planScripts(scripts: ScriptDescriptor[]): ScriptPlan {
     }
   }
 
-  const sourceCache = new Map<string, Promise<FetchResult>>();
-  const startFetch = (url: string) => {
-    const existing = sourceCache.get(url);
+  const sourceCache = new Map<ScriptDescriptor, Promise<FetchResult>>();
+  const startFetch = (script: ScriptDescriptor, url: string) => {
+    const existing = sourceCache.get(script);
     if (existing) return existing;
     const fetchPromise: Promise<FetchResult> = (async () => {
       try {
-        const source = await fetchScriptSource(url);
+        const source = await fetchScriptSource(script, url);
         return { ok: true, source };
       } catch (err) {
         return {
@@ -165,10 +229,11 @@ export function planScripts(scripts: ScriptDescriptor[]): ScriptPlan {
         };
       }
     })();
-    sourceCache.set(url, fetchPromise);
+    sourceCache.set(script, fetchPromise);
     return fetchPromise;
   };
 
+  // Boa's loader fetches module sources, through the script gate, when runModulePhase imports them.
   for (const script of [...regular, ...deferred, ...async_, ...modules]) {
     if (!script.src) continue;
     const url = resolveScriptUrl(script.src);
@@ -177,33 +242,58 @@ export function planScripts(scripts: ScriptDescriptor[]): ScriptPlan {
       continue;
     }
     script._resolvedUrl = url;
-    startFetch(url);
+    if (script.kind !== "module") startFetch(script, url);
   }
 
   return { regular, deferred, async_, modules, sourceCache };
+}
+
+// The legacy plan runs in the document it scanned, so the scanned node id names the element.
+function fireScriptLifecycle(script: ScriptDescriptor, ok: boolean): void {
+  if (!script.src || typeof script.nodeId !== "number") return;
+  let element: ShimElement | null = null;
+  try {
+    element = state.resolveNodeId(script.nodeId);
+  } catch {}
+  dispatchLifecycle(element, ok ? "load" : "error", { bubbles: false, cancelable: false });
 }
 
 export async function runRegularPhase(plan: ScriptPlan): Promise<void> {
   for (const script of plan.regular) {
     if (script.src) {
       const url = script._resolvedUrl;
-      if (!url) continue;
-      const fetchResult = await plan.sourceCache.get(url);
+      if (!url) {
+        fireScriptLifecycle(script, false);
+        continue;
+      }
+      const fetchResult = await plan.sourceCache.get(script);
       if (!fetchResult || !fetchResult.ok) {
         console.error(
           "[kitesurf] <script src> fetch failed for " + url + ": " + fetchErrorDetail(fetchResult),
         );
+        fireScriptLifecycle(script, false);
         continue;
       }
       await runOneClassic(fetchResult.source, url);
+      fireScriptLifecycle(script, true);
     } else {
-      await runOneClassic(script.body, "<inline>");
+      const pre = await parserScriptAllowed({
+        url: null,
+        nonce: script.nonce,
+        body: script.body,
+      });
+      reportOnly(pre);
+      if (pre.allowed) await runOneClassic(script.body, "<inline>");
+      else reportBlocked(pre);
     }
   }
   for (const script of plan.deferred) {
     const url = script._resolvedUrl;
-    if (!url) continue;
-    const fetchResult = await plan.sourceCache.get(url);
+    if (!url) {
+      fireScriptLifecycle(script, false);
+      continue;
+    }
+    const fetchResult = await plan.sourceCache.get(script);
     if (!fetchResult || !fetchResult.ok) {
       console.error(
         "[kitesurf] deferred <script src> fetch failed for " +
@@ -211,9 +301,11 @@ export async function runRegularPhase(plan: ScriptPlan): Promise<void> {
           ": " +
           fetchErrorDetail(fetchResult),
       );
+      fireScriptLifecycle(script, false);
       continue;
     }
     await runOneClassic(fetchResult.source, url);
+    fireScriptLifecycle(script, true);
   }
 }
 
@@ -227,8 +319,11 @@ export async function runAsyncPhase(plan: ScriptPlan): Promise<void> {
   await Promise.all(
     plan.async_.map(async (s) => {
       const url = s._resolvedUrl;
-      if (!url) return;
-      const fetchResult = await plan.sourceCache.get(url);
+      if (!url) {
+        fireScriptLifecycle(s, false);
+        return;
+      }
+      const fetchResult = await plan.sourceCache.get(s);
       if (!fetchResult || !fetchResult.ok) {
         console.error(
           "[kitesurf] async <script src> fetch failed for " +
@@ -236,230 +331,174 @@ export async function runAsyncPhase(plan: ScriptPlan): Promise<void> {
             ": " +
             fetchErrorDetail(fetchResult),
         );
+        fireScriptLifecycle(s, false);
         return;
       }
       await runOneClassic(fetchResult.source, url);
+      fireScriptLifecycle(s, true);
     }),
   );
 }
 
-type ModuleExports = Record<string, unknown>;
+// Boa's module loader parses each module and fetches its imports through the script gate
+// (fetchGatedModuleSource). An inline module has no URL, so it goes in under a fragment of the
+// document URL: relative imports still resolve against the document, and the fragment keeps each
+// inline module a distinct record.
+const inlineModuleSources = new Map<string, string>();
+let inlineModuleCounter = 0;
+// The gate needs an entry module's own nonce and integrity; its imports carry neither. Elements
+// sharing a URL share one fetch made with the first one's options, held until every holder
+// releases them so a later element cannot replace them mid-fetch. `parser` marks a parser module:
+// 'strict-dynamic' must not admit it, or a redirect hop of its fetch, as it would an insert.
+type EntryModuleAttributes = {
+  nonce: string | null;
+  integrity: string | null;
+  parser: boolean;
+};
+const entryModuleAttributes = new Map<
+  string,
+  { attributes: EntryModuleAttributes; holders: number }
+>();
 
-const moduleExportsCache = new Map<string, Promise<ModuleExports>>();
-
-async function loadModule(spec: string, baseUrl: string): Promise<ModuleExports> {
-  const url = (() => {
-    try {
-      return new URL(spec, baseUrl).toString();
-    } catch {
-      return null;
-    }
-  })();
-  if (!url) {
-    console.warn("[kitesurf] cannot resolve module specifier:", spec);
-    return {};
-  }
-  const cached = moduleExportsCache.get(url);
-  if (cached) return cached;
-  const modulePromise: Promise<ModuleExports> = (async () => {
-    let source: string;
-    try {
-      source = await fetchScriptSource(url);
-    } catch (err) {
-      console.warn("[kitesurf] module fetch failed for " + url, err);
-      return {};
-    }
-    const exportsObj: ModuleExports = {};
-    const { code, deps } = transpileModule(source);
-    const depEntries = await Promise.all(
-      deps.map(async (d) => [d.local, await loadModule(d.spec, url)] as const),
-    );
-    const depBindings: Record<string, ModuleExports> = {};
-    for (const [name, ns] of depEntries) depBindings[name] = ns;
-    try {
-      const paramNames = ["__ks_exports", "__ks_baseUrl", ...Object.keys(depBindings)];
-      const paramValues: unknown[] = [exportsObj, url, ...Object.values(depBindings)];
-      const moduleFunction = new AsyncFunction(...paramNames, code);
-      await moduleFunction(...paramValues);
-    } catch (err) {
-      console.warn("[kitesurf] module exec failed for " + url, err);
-    }
-    return exportsObj;
-  })();
-  moduleExportsCache.set(url, modulePromise);
-  return modulePromise;
+export function entryModuleGateAttributes(url: string): EntryModuleAttributes | undefined {
+  return entryModuleAttributes.get(url)?.attributes;
 }
 
-interface ModuleDep {
-  local: string;
-  spec: string;
+export function setEntryModuleGateAttributes(url: string, attributes: EntryModuleAttributes): void {
+  const held = entryModuleAttributes.get(url);
+  if (held) held.holders++;
+  else entryModuleAttributes.set(url, { attributes, holders: 1 });
 }
 
-function transpileModule(source: string): { code: string; deps: ModuleDep[] } {
-  let out = source;
-  const deps: ModuleDep[] = [];
-  let depCounter = 0;
-  const nextDepLocal = () => "__ks_dep_" + ++depCounter;
-
-  out = out.replace(
-    /\bimport\s*\*\s*as\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*from\s*(['"])([^'"\n]+)\2\s*;?/g,
-    (_, ns, _q, spec) => {
-      const local = nextDepLocal();
-      deps.push({ local, spec });
-      return "const " + ns + " = " + local + ";";
-    },
-  );
-
-  out = out.replace(
-    /\bimport\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*,\s*\{([^}]*)\}\s*from\s*(['"])([^'"\n]+)\3\s*;?/g,
-    (_, def, named, _q, spec) => {
-      const local = nextDepLocal();
-      deps.push({ local, spec });
-      return (
-        "const " +
-        def +
-        " = " +
-        local +
-        ".default; " +
-        "const {" +
-        rewriteNamedBindings(named) +
-        "} = " +
-        local +
-        ";"
-      );
-    },
-  );
-
-  out = out.replace(
-    /\bimport\s*\{([^}]*)\}\s*from\s*(['"])([^'"\n]+)\2\s*;?/g,
-    (_, named, _q, spec) => {
-      const local = nextDepLocal();
-      deps.push({ local, spec });
-      return "const {" + rewriteNamedBindings(named) + "} = " + local + ";";
-    },
-  );
-
-  out = out.replace(
-    /\bimport\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*from\s*(['"])([^'"\n]+)\2\s*;?/g,
-    (_, def, _q, spec) => {
-      const local = nextDepLocal();
-      deps.push({ local, spec });
-      return "const " + def + " = " + local + ".default;";
-    },
-  );
-
-  out = out.replace(/\bimport\s*(['"])([^'"\n]+)\1\s*;?/g, (_, _q, spec) => {
-    const local = nextDepLocal();
-    deps.push({ local, spec });
-    return "void " + local + ";";
-  });
-
-  out = out.replace(
-    /\bimport\s*\(\s*(['"])([^'"\n]+)\1\s*\)/g,
-    (_, _q, spec) => "__ks_loadModule(" + JSON.stringify(spec) + ", __ks_baseUrl)",
-  );
-
-  out = out.replace(
-    /\bexport\s+(const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=/g,
-    "$1 $2 = __ks_exports.$2 =",
-  );
-
-  out = out.replace(
-    /\bexport\s+(async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)/g,
-    "$1function $2",
-  );
-  const funcExportNames: string[] = [];
-  source.replace(/\bexport\s+(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)/g, (_, name) => {
-    funcExportNames.push(name);
-    return "";
-  });
-  for (const name of funcExportNames) {
-    out += "; __ks_exports." + name + " = " + name + ";";
-  }
-
-  const classExportNames: string[] = [];
-  source.replace(/\bexport\s+class\s+([A-Za-z_$][A-Za-z0-9_$]*)/g, (_, name) => {
-    classExportNames.push(name);
-    return "";
-  });
-  out = out.replace(/\bexport\s+class\s+/g, "class ");
-  for (const name of classExportNames) {
-    out += "; __ks_exports." + name + " = " + name + ";";
-  }
-
-  out = out.replace(/\bexport\s*\{([^}]*)\}\s*;?/g, (_, body) => {
-    const parts = body
-      .split(",")
-      .map((s: string) => s.trim())
-      .filter(Boolean);
-    return parts
-      .map((p: string) => {
-        const m = /^([A-Za-z_$][A-Za-z0-9_$]*)\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$/.exec(p);
-        if (m) return "__ks_exports." + m[2] + " = " + m[1] + ";";
-        const m2 = /^([A-Za-z_$][A-Za-z0-9_$]*)$/.exec(p);
-        if (m2) return "__ks_exports." + m2[1] + " = " + m2[1] + ";";
-        return "";
-      })
-      .join(" ");
-  });
-
-  out = out.replace(/\bexport\s+default\s+/g, "__ks_exports.default = ");
-
-  return { code: out, deps };
+export function clearEntryModuleGateAttributes(url: string): void {
+  const held = entryModuleAttributes.get(url);
+  if (held && --held.holders === 0) entryModuleAttributes.delete(url);
 }
 
-function rewriteNamedBindings(body: string): string {
-  return body
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((p) => {
-      const m = /^([A-Za-z_$][A-Za-z0-9_$]*)\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$/.exec(p);
-      return m ? m[1] + ": " + m[2] : p;
-    })
-    .join(", ");
+// One-shot: boa caches the parsed record, so the source is never asked for twice.
+export function takeInlineModuleSource(url: string): string | undefined {
+  const source = inlineModuleSources.get(url);
+  if (source !== undefined) inlineModuleSources.delete(url);
+  return source;
+}
+
+function inlineModuleUrl(baseUrl: string): string {
+  const url = new URL(baseUrl);
+  url.hash = "__ks_inline_module_" + ++inlineModuleCounter;
+  return url.toString();
 }
 
 export async function runModulePhase(plan: ScriptPlan): Promise<void> {
+  // HTML evaluates parser-inserted modules in document order.
   for (const script of plan.modules) {
-    let source = "";
-    let label = "<inline-module>";
-    let baseUrl = state.pageUrl;
-    if (script.src) {
-      const url = script._resolvedUrl;
-      if (!url) {
-        console.error("[kitesurf] cannot resolve module <script src>: " + String(script.src));
-        continue;
-      }
-      label = url;
-      baseUrl = url;
-      const fetchResult = await plan.sourceCache.get(url);
-      if (!fetchResult || !fetchResult.ok) {
-        console.error(
-          "[kitesurf] module <script src> fetch failed for " + url,
-          fetchErrorDetail(fetchResult) || "unknown fetch error",
-        );
-        continue;
-      }
-      source = fetchResult.source;
+    const url = script.src ? (script._resolvedUrl ?? null) : null;
+    const source = script.src ? "" : script.body || "";
+    if (script.src && !url) {
+      console.error("[kitesurf] cannot resolve module <script src>: " + String(script.src));
+      continue;
+    }
+    if (!script.src && !source.trim()) continue;
+    // A parser module passes the parser gate, not the insert gate: 'strict-dynamic' does not
+    // admit it, and an inline body is checked before it is registered under an inline URL.
+    const pre = await parserScriptAllowed({
+      url,
+      nonce: script.nonce,
+      integrity: script.integrity,
+      module: true,
+      ...(url === null ? { body: source } : {}),
+    });
+    reportOnly(pre);
+    if (!pre.allowed) {
+      reportBlocked(pre);
+      fireScriptLifecycle(script, false);
+      continue;
+    }
+    let moduleUrl: string;
+    if (url) {
+      moduleUrl = url;
+      setEntryModuleGateAttributes(url, {
+        nonce: script.nonce,
+        integrity: script.integrity,
+        parser: true,
+      });
     } else {
-      source = script.body || "";
-      if (!source.trim()) continue;
+      try {
+        moduleUrl = inlineModuleUrl(state.pageUrl || "about:blank");
+      } catch {
+        console.error("[kitesurf] cannot address inline module for " + state.pageUrl);
+        continue;
+      }
+      inlineModuleSources.set(moduleUrl, source);
+      // No integrity for inline source, but its imports inherit its nonce.
+      setEntryModuleGateAttributes(moduleUrl, {
+        nonce: script.nonce,
+        integrity: null,
+        parser: true,
+      });
     }
     try {
-      const exportsObj: ModuleExports = {};
-      const { code, deps } = transpileModule(source);
-      const depEntries = await Promise.all(
-        deps.map(async (d) => [d.local, await loadModule(d.spec, baseUrl)] as const),
-      );
-      const paramNames = ["__ks_exports", "__ks_baseUrl", ...depEntries.map(([n]) => n)];
-      const paramValues: unknown[] = [exportsObj, baseUrl, ...depEntries.map(([, v]) => v)];
-      const moduleFunction = new AsyncFunction(...paramNames, code);
-      await moduleFunction(...paramValues);
+      await ks_import(moduleUrl, state.pageUrl || "about:blank");
     } catch (err) {
-      console.error("[" + label + "]", err);
+      console.error("[" + (script.src ? moduleUrl : "<inline-module>") + "]", err);
+      // A refused fetch (CSP, integrity, MIME) fails the element, as runRegularPhase does for
+      // classics. A module that throws while evaluating still fires load in a browser, so the
+      // event follows the gate's failed URLs, not the rejection text the page can write.
+      const reason = err instanceof Error ? err.message : String(err);
+      if (importHitFailedFetch(reason)) fireScriptLifecycle(script, false);
+    } finally {
+      inlineModuleSources.delete(moduleUrl);
+      clearEntryModuleGateAttributes(moduleUrl);
     }
   }
+}
+
+// The document's scripts in scan order: scan.rs gives no ordinal to a script inside <template>,
+// which the tree keeps in place, so those are left out here too.
+export function scriptsInScanOrder(): ShimElement[] {
+  const out: ShimElement[] = [];
+  let all: ArrayLike<ShimElement> | undefined;
+  try {
+    all = state.document?.querySelectorAll("script");
+  } catch {
+    return out;
+  }
+  for (let i = 0; all && i < all.length; i++) {
+    const node = all[i];
+    let inTemplate = false;
+    try {
+      inTemplate = !!node?.closest?.("template");
+    } catch {}
+    if (node && !inTemplate) out.push(node);
+  }
+  return out;
+}
+
+// The bundle names a parser-inserted script by its scan ordinal. Earlier scripts can add or
+// remove <script> nodes, so the ordinal must agree with src; else take the first src match.
+export function findParserScript(
+  domIndex: number,
+  rawSrc: string,
+  src: string,
+): ShimElement | null {
+  const scripts = scriptsInScanOrder();
+  const matches = (node: ShimElement | undefined): boolean => {
+    let attr: string | null | undefined;
+    try {
+      attr = node?.getAttribute?.("src");
+    } catch {
+      return false;
+    }
+    if (attr == null) return false;
+    const trimmed = attr.trim();
+    return trimmed === rawSrc || trimmed === src;
+  };
+  if (domIndex >= 0 && domIndex < scripts.length && matches(scripts[domIndex])) {
+    return scripts[domIndex] ?? null;
+  }
+  for (let i = 0; i < scripts.length; i++) {
+    if (matches(scripts[i])) return scripts[i] ?? null;
+  }
+  return null;
 }
 
 export function dispatchLifecycle(

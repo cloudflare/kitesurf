@@ -19,11 +19,14 @@ use crossterm::{
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
 use std::{
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
+    env::var_os,
+    fs::{DirBuilder, OpenOptions},
     io::{self, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+use tokio_tungstenite::tungstenite::protocol::{frame::coding::CloseCode, CloseFrame};
 use crate::{
     CdpSocket, FontSource, Message, PlaybackMode as Mode, PlaybackOptions, PlaybackResult, Result,
 };
@@ -44,9 +47,9 @@ const MEMORY_INTERVAL: Duration = Duration::from_secs(10);
 const SCENE_STALL_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub(crate) fn cache_directory() -> Result<PathBuf> {
-    Ok(std::env::var_os("XDG_CACHE_HOME")
+    Ok(var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
+        .or_else(|| var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
         .ok_or("no cache directory")?
         .join("kitesurf"))
 }
@@ -134,6 +137,7 @@ const INPUT_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const RESIZE_TICK_INTERVAL: Duration = Duration::from_millis(200);
 const RESIZE_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 const DEADLINE_POLL_INTERVAL: Duration = Duration::from_millis(100);
+const CLOSE_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
 const FPS_WINDOW: Duration = Duration::from_secs(1);
 const SCENE_HEARTBEAT_MS: u64 = 1_000;
 
@@ -337,6 +341,34 @@ struct KittyImages {
     last_bytes: u64,
 }
 
+fn create_private_dir(dir: &Path) -> io::Result<()> {
+    if !dir.is_absolute() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "temporary frame directory must be absolute",
+        ));
+    }
+    let mut builder = DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder.create(dir)
+}
+
+fn write_private_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(path)?;
+    file.write_all(bytes)
+}
+
 impl KittyImages {
     fn temp_file(&mut self, pixels: &[u8], rgba: bool) -> io::Result<PathBuf> {
         if self.temp_dir.is_none() {
@@ -348,7 +380,7 @@ impl KittyImages {
                 "tty-graphics-protocol-kitesurf-{}-{nonce}",
                 std::process::id()
             ));
-            std::fs::create_dir(&dir)?;
+            create_private_dir(&dir)?;
             self.temp_dir = Some(dir);
         }
         self.file_seq += 1;
@@ -361,7 +393,7 @@ impl KittyImages {
                 self.file_seq,
                 if rgba { "rgba" } else { "png" }
             ));
-        std::fs::write(&path, pixels)?;
+        write_private_file(&path, pixels)?;
         Ok(path)
     }
 }
@@ -437,6 +469,20 @@ impl ReplayState {
             raster_time: Duration::ZERO,
             retained_frames: false,
         }
+    }
+
+    fn paint_pending(
+        &mut self,
+        raster: &mut Raster,
+        w: u16,
+        h: u16,
+        display: bool,
+        size: &DisplaySize,
+    ) -> Result<()> {
+        if let Some(frame) = self.pending.take() {
+            self.paint(raster, &frame, w, h, display, size)?;
+        }
+        Ok(())
     }
 
     fn paint(
@@ -1002,29 +1048,37 @@ impl Drop for Terminal {
     }
 }
 
-async fn fonts(
-    cache: &FontCache,
-    raster: &mut Raster,
-    diagnostics: &mut Diagnostics,
-) -> Result<()> {
+/// Validated font paths awaiting a fetch, deduplicated per path: one put resolves every hash
+/// aliased to a path, so the snapshot's duplicate hashes must not become repeated loads.
+pub(crate) fn queue_pending_fonts(raster: &mut Raster) -> Result<VecDeque<String>> {
     let pending = raster.run(OP_PENDING_FONTS, &[])?;
+    let mut seen = HashSet::new();
+    let mut queue = VecDeque::new();
     for asset in serde_json::from_slice::<Vec<FontAsset>>(&pending)? {
         if !asset.path.starts_with("/fonts/") || asset.path.contains("..") {
             continue;
         }
-        let bytes = cache.get(&asset.path, diagnostics).await?;
-        let path_len = u32::try_from(asset.path.len())?;
-        diagnostics.log(format!(
-            "loaded {} font bytes for {}",
-            bytes.len(),
-            asset.path
-        ));
-        let mut data = Vec::with_capacity(4 + asset.path.len() + bytes.len());
-        data.extend_from_slice(&path_len.to_le_bytes());
-        data.extend_from_slice(asset.path.as_bytes());
-        data.extend_from_slice(&bytes);
-        raster.run(OP_PUT_FONT, &data)?;
+        if seen.insert(asset.path.clone()) {
+            queue.push_back(asset.path);
+        }
     }
+    Ok(queue)
+}
+
+pub(crate) async fn load_font(
+    cache: &FontCache,
+    raster: &mut Raster,
+    diagnostics: &mut Diagnostics,
+    path: &str,
+) -> Result<()> {
+    let bytes = cache.get(path, diagnostics).await?;
+    let path_len = u32::try_from(path.len())?;
+    diagnostics.log(format!("loaded {} font bytes for {path}", bytes.len()));
+    let mut data = Vec::with_capacity(4 + path.len() + bytes.len());
+    data.extend_from_slice(&path_len.to_le_bytes());
+    data.extend_from_slice(path.as_bytes());
+    data.extend_from_slice(&bytes);
+    raster.run(OP_PUT_FONT, &data)?;
     Ok(())
 }
 
@@ -1256,11 +1310,10 @@ pub async fn play(
     let start = Instant::now();
     let local_files = std::env::var("TERM_PROGRAM")
         .is_ok_and(|name| name.eq_ignore_ascii_case("ghostty"))
-        && std::env::var_os("SSH_CONNECTION").is_none()
-        && std::env::var_os("TMUX").is_none();
-    let raw_files = local_files
-        && manifest.abi >= MIN_RAW_FILE_ABI
-        && std::env::var_os("KITESURF_KITTY_PNG").is_none();
+        && var_os("SSH_CONNECTION").is_none()
+        && var_os("TMUX").is_none();
+    let raw_files =
+        local_files && manifest.abi >= MIN_RAW_FILE_ABI && var_os("KITESURF_KITTY_PNG").is_none();
     let mut kitty_images = KittyImages::default();
     kitty_images.local_files = local_files;
     kitty_images.raw_files = raw_files;
@@ -1279,6 +1332,7 @@ pub async fn play(
     memory_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut pending_memory: Option<(u64, Instant)> = None;
     let mut scenes = 0u64;
+    let mut font_queue: VecDeque<String> = VecDeque::new();
     let deadline = seconds.map(|duration| start + duration);
     loop {
         if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
@@ -1386,16 +1440,9 @@ pub async fn play(
                         let resources = base64::engine::general_purpose::STANDARD.decode(batch)?;
                         raster.run(OP_PUT_RESOURCES, &resources)?;
                         retire_unavailable_images(&mut raster)?;
-                        fonts(&font_cache, &mut raster, &mut diagnostics).await?;
-                        if let Some(frame) = replay.pending.take() {
-                            replay.paint(
-                                &mut raster,
-                                &frame,
-                                w,
-                                h,
-                                display,
-                                display_size.as_ref().unwrap_or(&fallback_size),
-                            )?;
+                        font_queue = queue_pending_fonts(&mut raster)?;
+                        if font_queue.is_empty() {
+                            replay.paint_pending(&mut raster, w, h, display, display_size.as_ref().unwrap_or(&fallback_size))?;
                         }
                     }
                     continue;
@@ -1431,16 +1478,9 @@ pub async fn play(
                     RESOURCE_MESSAGE => {
                         raster.run(OP_PUT_RESOURCES, &bytes[FRAME_HEADER_BYTES..])?;
                         retire_unavailable_images(&mut raster)?;
-                        fonts(&font_cache, &mut raster, &mut diagnostics).await?;
-                        if let Some(frame) = replay.pending.take() {
-                            replay.paint(
-                                &mut raster,
-                                &frame,
-                                w,
-                                h,
-                                display,
-                                display_size.as_ref().unwrap_or(&fallback_size),
-                            )?;
+                        font_queue = queue_pending_fonts(&mut raster)?;
+                        if font_queue.is_empty() {
+                            replay.paint_pending(&mut raster, w, h, display, display_size.as_ref().unwrap_or(&fallback_size))?;
                         }
                     }
                     SCENE_MESSAGE | PARTIAL_MESSAGE => {
@@ -1525,6 +1565,15 @@ pub async fn play(
                 }
             }, if scene_stall_at.is_some() => return Err(SCENE_STREAM_STALLED.into()),
             _ = tokio::time::sleep(DEADLINE_POLL_INTERVAL), if deadline.is_some() => {}
+            // One queued path per iteration: a fetch never delays input, Ctrl-C or the timers
+            // above by more than itself, and the pending frame paints once the queue drains.
+            _ = std::future::ready(()), if !font_queue.is_empty() => {
+                let path = font_queue.pop_front().expect("checked non-empty font queue");
+                load_font(&font_cache, &mut raster, &mut diagnostics, &path).await?;
+                if font_queue.is_empty() {
+                    replay.paint_pending(&mut raster, w, h, display, display_size.as_ref().unwrap_or(&fallback_size))?;
+                }
+            }
         }
     }
     drop(_terminal);
@@ -1534,7 +1583,28 @@ pub async fn play(
         replay.frames as f64 / start.elapsed().as_secs_f64(),
         replay.wire_bytes / 1024, replay.terminal_bytes / 1024,
         replay.raster_time.as_secs_f64() * 1000.0 / replay.frames.max(1) as f64);
+    close_socket(&mut ws).await;
     Ok(())
+}
+
+// RFC 6455 section 7.1.2: the ending side sends Close and waits for the peer's Close. Without
+// it the server logs 1006. Send and wait share one bound so a slow server cannot hold up exit.
+async fn close_socket(ws: &mut CdpSocket) {
+    let frame = CloseFrame {
+        code: CloseCode::Normal,
+        reason: "".into(),
+    };
+    let _ = tokio::time::timeout(CLOSE_HANDSHAKE_TIMEOUT, async {
+        if ws.close(Some(frame)).await.is_err() {
+            return;
+        }
+        while let Some(Ok(message)) = ws.next().await {
+            if matches!(message, Message::Close(_)) {
+                break;
+            }
+        }
+    })
+    .await;
 }
 
 fn render(
@@ -1628,7 +1698,22 @@ fn render_ansi(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use tokio_tungstenite::connect_async;
+
+    #[cfg(unix)]
+    #[test]
+    fn kitty_temp_files_are_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let mut images = KittyImages::default();
+        let path = images.temp_file(b"frame", false).unwrap();
+        let dir = images.temp_dir.clone().unwrap();
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&dir), 0o700);
+        assert_eq!(mode(&path), 0o600);
+        assert_eq!(std::fs::read(&path).unwrap(), b"frame");
+        assert!(write_private_file(&path, b"again").is_err());
+    }
 
     #[test]
     fn liveness_probe_only_accepts_its_own_successful_reply() {
@@ -1736,7 +1821,7 @@ mod tests {
 
     #[test]
     fn retained_replay_reports_corrupt_full_scenes() {
-        let bytes = std::fs::read(concat!(
+        let bytes = fs::read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         ))
@@ -1770,7 +1855,7 @@ mod tests {
 
     #[test]
     fn partial_replay_composites_without_a_display_and_recovers_a_lost_base() {
-        let bytes = std::fs::read(concat!(
+        let bytes = fs::read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         ))
@@ -1873,7 +1958,7 @@ mod tests {
 
     #[test]
     fn partial_replay_preserves_full_rgba_dimensions_and_terminal_placement() {
-        let bytes = std::fs::read(concat!(
+        let bytes = fs::read(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../engine/public/rbi/scene_host.wasm"
         ))
@@ -2325,7 +2410,7 @@ mod tests {
         )
         .unwrap();
         assert!(path.contains("tty-graphics-protocol"));
-        assert_eq!(std::fs::read(&path).unwrap(), png);
+        assert_eq!(fs::read(&path).unwrap(), png);
         assert_eq!(images.last_bytes, encoded.len() as u64);
         drop(images);
         assert!(!std::path::Path::new(&path).exists());
@@ -2347,7 +2432,7 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        assert_eq!(std::fs::read(path).unwrap(), rgba[8..]);
+        assert_eq!(fs::read(path).unwrap(), rgba[8..]);
     }
 
     #[test]
@@ -2418,5 +2503,86 @@ mod tests {
         frame.partial = false;
         sync.painted(&frame);
         assert!(!sync.retry_due());
+    }
+
+    async fn loopback_ws_pair() -> (
+        CdpSocket,
+        tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+    ) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let accept = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            tokio_tungstenite::accept_async(stream).await.unwrap()
+        });
+        let (client, _) = connect_async(format!("ws://{address}/devtools/browser"))
+            .await
+            .unwrap();
+        (client, accept.await.unwrap())
+    }
+
+    #[tokio::test]
+    async fn closing_sends_a_close_frame_with_code_1000() {
+        let (mut client, mut server) = loopback_ws_pair().await;
+        let receive = tokio::spawn(async move {
+            tokio::time::timeout(CDP_MESSAGE_TIMEOUT, server.next())
+                .await
+                .expect("close frame should arrive")
+                .unwrap()
+                .unwrap()
+        });
+
+        tokio::time::timeout(CDP_MESSAGE_TIMEOUT, close_socket(&mut client))
+            .await
+            .expect("close should finish");
+
+        match receive.await.unwrap() {
+            Message::Close(Some(frame)) => assert_eq!(frame.code, CloseCode::Normal),
+            message => panic!("expected a close frame, got {message:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_peer_that_answers_the_close_ends_the_wait_early() {
+        let (mut client, mut server) = loopback_ws_pair().await;
+        let peer = tokio::spawn(async move {
+            let received = tokio::time::timeout(CDP_MESSAGE_TIMEOUT, server.next())
+                .await
+                .expect("close frame should arrive")
+                .unwrap()
+                .unwrap();
+            assert!(matches!(received, Message::Close(_)));
+            // Flush tungstenite's auto-queued Close reply and keep TCP open to prove the client
+            // stops on the Close frame rather than waiting for EOF.
+            let _ = server.flush().await;
+            tokio::time::sleep(Duration::from_secs(10)).await;
+        });
+
+        let started = Instant::now();
+        close_socket(&mut client).await;
+
+        assert!(started.elapsed() < CLOSE_HANDSHAKE_TIMEOUT / 2);
+        peer.abort();
+    }
+
+    #[tokio::test]
+    async fn closing_does_not_wait_past_the_handshake_timeout_for_a_silent_peer() {
+        let (mut client, mut server) = loopback_ws_pair().await;
+        let peer = tokio::spawn(async move {
+            tokio::time::timeout(CDP_MESSAGE_TIMEOUT, server.next())
+                .await
+                .expect("close frame should arrive")
+                .unwrap()
+                .unwrap();
+            tokio::time::sleep(Duration::from_secs(10)).await;
+        });
+
+        let started = Instant::now();
+        close_socket(&mut client).await;
+        let elapsed = started.elapsed();
+
+        assert!(elapsed >= CLOSE_HANDSHAKE_TIMEOUT - Duration::from_millis(100));
+        assert!(elapsed < CLOSE_HANDSHAKE_TIMEOUT + Duration::from_secs(2));
+        peer.abort();
     }
 }

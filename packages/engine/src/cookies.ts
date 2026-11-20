@@ -4,7 +4,7 @@
 
 // Stores page cookies and selects entries for requests and document.cookie reads.
 
-import { isIpHost, isPublicSuffix, siteKey } from "./public-suffix.ts";
+import { isIpHost, isPublicSuffix, schemefulSite } from "./public-suffix.ts";
 
 const MAX_COOKIE_BYTES = 4096;
 const MAX_COOKIES_PER_HOST = 180;
@@ -25,8 +25,9 @@ export interface CookieEntry {
 }
 
 export interface RequestContext {
-  initiatorHost: string | null;
+  initiatorOrigin: string | null;
   topLevel?: boolean;
+  method?: string;
 }
 
 export interface CookieJar {
@@ -34,7 +35,7 @@ export interface CookieJar {
   getForUrl(urlStr: string, ctx?: RequestContext): CookieEntry[];
   cookieHeaderForUrl(urlStr: string, ctx?: RequestContext): string | null;
   /** Stores a valid Set-Cookie value; returns `null` when input or policy rejects it. */
-  setFromHeader(urlStr: string, setCookieHeader: string): CookieEntry | null;
+  setFromHeader(urlStr: string, setCookieHeader: string, ctx?: RequestContext): CookieEntry | null;
   /** Stores a script write; it cannot create or replace an HttpOnly cookie. */
   setFromDocumentCookie(urlStr: string, raw: string): CookieEntry | null;
   /** Returns the script-visible cookie string; HttpOnly cookies are omitted. */
@@ -79,7 +80,7 @@ export function createCookieJar(): CookieJar {
     return entry.name.length + entry.value.length + entry.path.length;
   }
 
-  function upsert(entry: CookieEntry): CookieEntry | null {
+  function upsert(entry: CookieEntry, trustworthy: boolean): CookieEntry | null {
     if (entryBytes(entry) > MAX_COOKIE_BYTES) {
       warnOnce(`cookie over ${MAX_COOKIE_BYTES} bytes refused (${entry.name})`);
       return null;
@@ -101,8 +102,11 @@ export function createCookieJar(): CookieJar {
         return null;
       }
       if (list.length >= MAX_COOKIES_PER_HOST) {
-        list.sort((a, b) => a.createdAt - b.createdAt);
-        list.splice(0, list.length - MAX_COOKIES_PER_HOST + 1);
+        const nonSecure = list.filter((c) => !c.secure);
+        if (nonSecure.length === 0 && !trustworthy) return null;
+        const candidates = nonSecure.length ? nonSecure : list;
+        const oldest = candidates.reduce((a, b) => (a.createdAt <= b.createdAt ? a : b));
+        list.splice(list.indexOf(oldest), 1);
       }
       list.push(entry);
     }
@@ -151,12 +155,18 @@ export function createCookieJar(): CookieJar {
   }
 
   function resolveDomain(claimed: string, host: string): string | null {
-    const d = claimed.toLowerCase().replace(/^\./, "").replace(/\.$/, "");
-    if (!d) return null;
+    const raw = claimed.toLowerCase().replace(/^\./, "").replace(/\.$/, "");
+    if (!raw) return null;
+    if (raw === host) return raw;
+    if (isIpHost(host) || /[\\/\s:@?#%\[\]]/u.test(raw)) return null;
+    let d: string;
+    try {
+      d = new URL(`http://${raw}/`).hostname.replace(/\.$/, "");
+    } catch {
+      return null;
+    }
     if (d === host) return d;
-    if (isIpHost(host) || isIpHost(d)) return null;
-    if (!domainMatches(d, host)) return null;
-    if (isPublicSuffix(d)) return null;
+    if (isIpHost(d) || !domainMatches(d, host) || isPublicSuffix(d)) return null;
     return d;
   }
 
@@ -178,14 +188,17 @@ export function createCookieJar(): CookieJar {
   function getForUrl(urlStr: string, ctx?: RequestContext): CookieEntry[] {
     const parts = urlParts(urlStr);
     if (!parts) return [];
+    const initiatorSite = ctx?.initiatorOrigin ? schemefulSite(ctx.initiatorOrigin) : null;
+    const targetSite = schemefulSite(urlStr);
     const crossSite =
       ctx !== undefined &&
-      (ctx.initiatorHost === null ||
-        siteKey(ctx.initiatorHost.toLowerCase()) !== siteKey(parts.host));
-    const strictOnly = crossSite && ctx?.topLevel === true;
+      (initiatorSite === null || targetSite === null || initiatorSite !== targetSite);
+    const safeTopLevel =
+      ctx?.topLevel === true &&
+      ["GET", "HEAD", "OPTIONS", "TRACE"].includes((ctx.method ?? "GET").toUpperCase());
     const matched = candidateEntries(parts.host).filter((c) => {
-      if (strictOnly && c.sameSite === "Strict") return false;
-      if (crossSite && !strictOnly && c.sameSite !== "None") return false;
+      if (crossSite && c.sameSite === "Strict") return false;
+      if (crossSite && !safeTopLevel && c.sameSite !== "None") return false;
       if (c.secure && !parts.trustworthy) return false;
       if (!pathMatches(c.path, parts.path)) return false;
       return true;
@@ -312,13 +325,46 @@ export function createCookieJar(): CookieJar {
     return true;
   }
 
+  // A script write must not shadow an HttpOnly cookie on any host the new
+  // cookie reaches. `candidateEntries` misses a host-only HttpOnly cookie on a
+  // parent or sibling that a Domain write would also reach, so compare the
+  // send sets directly.
+  function shadowsHttpOnly(entry: CookieEntry): boolean {
+    for (const c of getAll()) {
+      if (c.name !== entry.name || !c.httpOnly) continue;
+      if (entry.hostOnly) {
+        // The new cookie goes to entry.host only.
+        if (c.hostOnly ? c.host === entry.host : domainMatches(c.host, entry.host)) {
+          return true;
+        }
+      } else {
+        // The new Domain cookie goes to entry.host and every subdomain. The
+        // existing cookie reaches a host in that set when either domain is a
+        // suffix of the other, or it is host-only under the new domain.
+        if (
+          c.hostOnly
+            ? domainMatches(entry.host, c.host)
+            : domainMatches(entry.host, c.host) || domainMatches(c.host, entry.host)
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   function existing(entry: CookieEntry): CookieEntry | undefined {
     return (byHost.get(entry.host) ?? []).find(
       (c) => c.name === entry.name && c.path === entry.path && c.hostOnly === entry.hostOnly,
     );
   }
 
-  function store(urlStr: string, raw: string, fromScript: boolean): CookieEntry | null {
+  function store(
+    urlStr: string,
+    raw: string,
+    fromScript: boolean,
+    ctx?: RequestContext,
+  ): CookieEntry | null {
     const parts = urlParts(urlStr);
     if (!parts) return null;
     const parsed = parseSetCookie(raw);
@@ -346,25 +392,34 @@ export function createCookieJar(): CookieJar {
     }
 
     const entry = buildEntry(parsed, host, hostOnly);
+    if (ctx !== undefined && ctx.topLevel !== true && entry.sameSite !== "None") {
+      const sourceSite = ctx.initiatorOrigin ? schemefulSite(ctx.initiatorOrigin) : null;
+      const targetSite = schemefulSite(urlStr);
+      if (sourceSite === null || targetSite === null || sourceSite !== targetSite) return null;
+    }
     if (fromScript) entry.httpOnly = false;
 
-    if (fromScript) {
-      const shadowed = candidateEntries(parts.host).some(
-        (c) => c.name === entry.name && c.httpOnly,
-      );
-      if (shadowed) return null;
-    }
+    if (fromScript && shadowsHttpOnly(entry)) return null;
 
-    const prev = existing(entry);
-    if (prev) {
-      if (fromScript && prev.httpOnly) return null;
-      if (prev.secure && !parts.trustworthy) return null;
+    if (
+      !parts.trustworthy &&
+      getAll().some(
+        (c) =>
+          c.secure &&
+          c.name === entry.name &&
+          (domainMatches(c.host, entry.host) || domainMatches(entry.host, c.host)) &&
+          pathMatches(c.path, entry.path),
+      )
+    ) {
+      return null;
     }
-    return upsert(entry);
+    const prev = existing(entry);
+    if (prev && fromScript && prev.httpOnly) return null;
+    return upsert(entry, parts.trustworthy);
   }
 
-  function setFromHeader(urlStr: string, raw: string): CookieEntry | null {
-    return store(urlStr, raw, false);
+  function setFromHeader(urlStr: string, raw: string, ctx?: RequestContext): CookieEntry | null {
+    return store(urlStr, raw, false, ctx);
   }
 
   function setFromDocumentCookie(urlStr: string, raw: string): CookieEntry | null {

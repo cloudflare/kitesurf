@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Mon, 16 Nov 2026 12:00:00 +0000
+Subject: [PATCH] Detect blocks inside inline shadow hosts through the flat
+ tree
+
+A block descendant breaks its inline ancestors out of the inline
+formatting context. is_or_contains_block walked the light-DOM children,
+so it missed blocks in a shadow tree or assigned to a slot, and an inline
+host around them shrink-wrapped instead of filling its container. It also
+stopped at a display: contents box, whose children are laid out as if
+they were its parent's.
+
+Walk the flat tree, and look through display: contents.
+---
+ src/node/node.rs | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 9d6b547..01ae861 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -579,11 +579,11 @@ impl Node {
+         }
+         let display = self.display_style().unwrap_or(StyloDisplay::inline());
+         match display.outside() {
+-            DisplayOutside::None => false,
++            DisplayOutside::None if display.inside() != DisplayInside::Contents => false,
+             DisplayOutside::Block => true,
+             _ => {
+-                if display.inside() == DisplayInside::Flow {
+-                    self.children
++                if matches!(display.inside(), DisplayInside::Flow | DisplayInside::Contents) {
++                    self.flat_children()
+                         .iter()
+                         .copied()
+                         .any(|child_id| self.tree()[child_id].is_or_contains_block())

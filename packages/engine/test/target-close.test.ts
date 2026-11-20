@@ -10,6 +10,13 @@ import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import { DynamicWorkerBudget } from "../src/eval/worker-budget.ts";
 import { DedicatedWorkers } from "../src/cdp/dedicated-workers.ts";
+import { SANDBOX_ALLOW_ALL } from "@kitesurf/script-gate";
+import {
+  notifyIsolateLimit,
+  registerIsolateLimitListener,
+  unregisterIsolateLimitListener,
+} from "../src/eval/limit-registry.ts";
+import { testClient } from "./client-state.ts";
 
 function makeCtx(budget: DynamicWorkerBudget, background: Promise<unknown>[]) {
   // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- partial DispatchCtx teardown fixture.
@@ -34,6 +41,7 @@ function makeCtx(budget: DynamicWorkerBudget, background: Promise<unknown>[]) {
       },
     },
     connectionId: "test",
+    client: testClient(),
   } as unknown as DispatchCtx;
 }
 
@@ -52,6 +60,8 @@ describe("closeTargetInternal", () => {
     frame.pageScriptLease = budget.acquire("oopif");
     frame.oopifPrespawn = {
       url: frame.url,
+      sandbox: SANDBOX_ALLOW_ALL,
+      ancestorOrigins: [],
       promise: new Promise<never>(() => {}),
     };
     target.frames.set(frame.frameId, frame);
@@ -86,5 +96,24 @@ describe("closeTargetInternal", () => {
     releaseKill();
     await expect(closing).resolves.toBe(true);
     expect(budget.isolatesKilled).toBe(1);
+  });
+
+  it("retires the target's isolate-limit listener and keeps its sibling's", async () => {
+    const ctx = makeCtx(new DynamicWorkerBudget(), []);
+    const fired: string[] = [];
+    const target = createPageTarget(ctx, "https://example.com");
+    const sibling = createPageTarget(ctx, "https://example.net");
+    for (const t of [target, sibling]) {
+      registerIsolateLimitListener(t.targetId, () => fired.push(t.url), {
+        owner: "test",
+        targetId: t.targetId,
+      });
+    }
+    await closeTargetInternal(ctx, target.targetId);
+    for (const t of [target, sibling]) {
+      notifyIsolateLimit(t.targetId, { kind: "cpu", capMs: 50, fromTail: true });
+    }
+    unregisterIsolateLimitListener(sibling.targetId);
+    expect(fired).toEqual(["https://example.net"]);
   });
 });

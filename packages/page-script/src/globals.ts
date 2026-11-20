@@ -5,17 +5,20 @@
 // Installs browser-facing globals and adapters in the PageScript realm.
 
 import { resolveImportMap, resolveModuleRegistryUrl } from "./__ks_import_map.js";
-import type { BuildDocumentResult, ShimDocument, ShimWindow } from "./types.ts";
+import { bakedJsonModuleName } from "./baked-module.ts";
+import type { BuildDocumentResult, ShimDocument, ShimNavigator, ShimWindow } from "./types.ts";
 import {
   ks_bridge_buffer_bytes,
   ks_bridge_ever_minted,
   ks_eval_page,
   ks_import,
   ks_is_bridged,
+  ks_parse_inline_style,
   ks_set_boa_strict,
 } from "./wasm-glue.js";
 import { matchWasmByUrl, matchWasmByBytes, matchWasmByBytesSync } from "./wasm-baked.ts";
 import { installWebSocketFacade } from "./websocket.ts";
+import { installEventSource } from "./event-source.ts";
 import { installWorker } from "./dedicated-worker.ts";
 import { installMessageChannel } from "./message-channel.ts";
 import {
@@ -23,19 +26,72 @@ import {
   DEFAULT_VIEWPORT_WIDTH_PX,
   ksEventCtors,
   ksGlobal,
+  ksGlobalByKey,
+  shimEventCtor,
   state,
+  type ShimEventCtors,
 } from "./state.ts";
-import { fetchGatedModuleSource } from "./inserted-scripts.ts";
+import { ensurePaintDom, invalidatePaintDom } from "./paint.ts";
+import { fetchGatedJsonModule, fetchGatedModuleSource } from "./inserted-scripts.ts";
+import { startupJsonModuleUrls } from "./startup-probe.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
+import { memoryArea, sharedArea, StorageInterface, storageObject } from "./web-storage.ts";
 import { indexedDbGlobals } from "./indexeddb.ts";
 import { createScheduler } from "./scheduler.ts";
 import { installIdleCallbackGlobals, installPageTaskGlobals, queuePortTask } from "./page-tasks.ts";
 import { getBlobMimeType, normalizeBlobType, setBlobMimeType } from "./mime-type.ts";
+import { ksInternals } from "./internals.ts";
 
 const MAX_IMAGE_DATA_PIXELS = 4096 * 4096;
 
-type PageNavigator = Navigator & {
-  mediaDevices?: unknown;
+// The module URLs this navigate baked as JSON records. Module-private: page code can read the
+// set only through the closures below, so it cannot widen the trusted types.
+const jsonModuleUrls = new Set(startupJsonModuleUrls);
+
+// The requested module type of a dynamic import's options (`{ with: { type } }`). JSON is the
+// only type this runtime supports, and the options are read exactly once.
+function importModuleType(options: unknown): string | undefined {
+  if (options === undefined) return undefined;
+  if (options === null || (typeof options !== "object" && typeof options !== "function")) {
+    throw new TypeError("import options must be an object or undefined");
+  }
+  const attributes = (options as { with?: unknown }).with;
+  if (attributes === undefined) return undefined;
+  if (attributes === null || (typeof attributes !== "object" && typeof attributes !== "function")) {
+    throw new TypeError("the 'with' option must be an object");
+  }
+  const type = (attributes as { type?: unknown }).type;
+  if (type === undefined) return undefined;
+  if (typeof type !== "string") throw new TypeError("import attribute value must be a string");
+  if (type !== "json") throw new TypeError(`Unsupported import attribute type: "${type}"`);
+  return type;
+}
+
+// SVGAnimatedString is absent from the pinned IDL. It is an interface, not a
+// constructor: new SVGAnimatedString() throws, as in Chrome.
+// https://svgwg.org/svg2-draft/types.html#InterfaceSVGAnimatedString
+const SVGAnimatedString = class SVGAnimatedString {
+  #value = "";
+  constructor() {
+    throw new TypeError("Illegal constructor");
+  }
+  get baseVal(): string {
+    return this.#value;
+  }
+  set baseVal(value: string) {
+    this.#value = String(value);
+  }
+  get animVal(): string {
+    return this.#value;
+  }
+};
+
+type KeyUsageInput = Iterable<string> | ArrayLike<string>;
+
+// workerd requires keyUsages to be a real Array; pages pass Sets and array-likes.
+const toKeyUsages = (value: KeyUsageInput): string[] => Array.from(value);
+
+type PageNavigator = ShimNavigator & {
   userAgentData?: unknown;
   webdriver?: unknown;
 };
@@ -258,6 +314,14 @@ function installWebAssemblyShim(): void {
   } catch {}
 }
 
+// installGlobals runs again on teardown; Function and eval are patched once.
+let functionPatched = false;
+let evalPatched = false;
+// Reverse registry (ctor to defined tag), filled by customElements.define() and read by the
+// HTMLElement constructor. Module-level: only the first installGlobals defines customElements,
+// but every call re-wraps HTMLElement, so both must see the same map.
+const ctorTagNames = new WeakMap<object, string>();
+
 export function installGlobals(
   doc: ShimDocument | null,
   win: ShimWindow | null,
@@ -328,7 +392,7 @@ export function installGlobals(
         delete (o as Record<string, unknown>)[name];
       } catch {}
     }
-    if (typeof ksGlobal[name] !== "undefined") {
+    if (typeof ksGlobalByKey[name] !== "undefined") {
       try {
         Object.defineProperty(globalThis, name, {
           value: undefined,
@@ -339,8 +403,8 @@ export function installGlobals(
       } catch {}
     }
   }
-  if (!ksGlobal.__ks_function_patched) {
-    ksGlobal.__ks_function_patched = true;
+  if (!functionPatched) {
+    functionPatched = true;
     const NativeFunction = globalThis.Function;
     const Patched: any = function (this: any, ...args: any[]) {
       try {
@@ -366,8 +430,8 @@ export function installGlobals(
     ksGlobal.Function = Patched;
   }
   // Forward the call receiver; construction uses Boa's separate [[Construct]] path.
-  if (!ksGlobal.__ks_thisfwd) {
-    ksGlobal.__ks_thisfwd = function (call: any, ctor: any, handle: number) {
+  if (!ksInternals.wrapBoaFunction) {
+    ksInternals.wrapBoaFunction = function (call, ctor, handle) {
       return function (this: any) {
         if (new.target !== undefined) {
           return ctor(handle, Array.prototype.slice.call(arguments));
@@ -376,10 +440,10 @@ export function installGlobals(
       };
     };
   }
-  if (!ksGlobal.__ks_argpack) {
-    ksGlobal.__ks_argpack = function (call: any, fnHandle: number, recvHandle: number) {
-      return function () {
-        return call(fnHandle, recvHandle, Array.prototype.slice.call(arguments));
+  if (!ksInternals.wrapBoaMethod) {
+    ksInternals.wrapBoaMethod = function (call, fnHandle, recvHandle) {
+      return function (this: unknown) {
+        return call(fnHandle, recvHandle, Array.prototype.slice.call(arguments), this);
       };
     };
   }
@@ -389,22 +453,46 @@ export function installGlobals(
     };
   }
   if (!ksGlobal.__ks_import) {
-    ksGlobal.__ks_import = function (spec: unknown, referrerUrl?: string): unknown {
-      return ks_import(String(spec), referrerUrl || ksGlobal.location?.href || "about:blank");
+    ksGlobal.__ks_import = function (
+      spec: unknown,
+      referrerUrl?: string,
+      options?: unknown,
+    ): unknown {
+      let type: string | undefined;
+      try {
+        type = importModuleType(options);
+      } catch (err) {
+        // import() rejects on bad options; it never throws out of the call.
+        return Promise.reject(err);
+      }
+      return ks_import(String(spec), referrerUrl || ksGlobal.location?.href || "about:blank", type);
     };
   }
-  if (!ksGlobal.__ks_native_import) {
-    ksGlobal.__ks_native_import = function (url: unknown): Promise<unknown> {
+  if (!ksInternals.nativeImport) {
+    ksInternals.nativeImport = function (url, type) {
+      // A JSON request must not be answered with a baked JavaScript module, so only a record
+      // the navigate baked as JSON may resolve here; anything else goes through the gate, and
+      // the page realm parses it as JSON. The bake key is the resolver's registry name, not the
+      // requested URL.
+      if (type === "json") {
+        const name = bakedJsonModuleName(url, jsonModuleUrls, resolveModuleRegistryUrl);
+        return name === undefined ? Promise.resolve(undefined) : import(name);
+      }
       return import(resolveModuleRegistryUrl(url));
     };
   }
-  if (!ksGlobal.__ks_module_source) {
-    ksGlobal.__ks_module_source = function (url: unknown): Promise<string> {
-      return fetchGatedModuleSource(String(url));
+  if (!ksInternals.fetchModuleSource) {
+    ksInternals.fetchModuleSource = function (url, referrer, type) {
+      const moduleUrl = String(url);
+      const from = typeof referrer === "string" ? referrer : undefined;
+      // A JSON module is parsed in the page realm and reaches boa as a namespace, so boa never
+      // holds its data as an object graph; every other module reaches it as source text.
+      if (type === "json") return fetchGatedJsonModule(moduleUrl, from);
+      return fetchGatedModuleSource(moduleUrl, from);
     };
   }
-  if (!globalThis.__ks_eval_patched) {
-    globalThis.__ks_eval_patched = true;
+  if (!evalPatched) {
+    evalPatched = true;
     const nativeEval = globalThis.eval;
     globalThis.eval = function (src: unknown): unknown {
       if (typeof src !== "string") return src;
@@ -519,9 +607,9 @@ export function installGlobals(
       } catch {}
     } catch {}
     // Publish through the shim-global view, not WorkerGlobalScope's typed event methods.
-    ksGlobal.addEventListener = win.addEventListener.bind(win);
-    ksGlobal.removeEventListener = win.removeEventListener.bind(win);
-    ksGlobal.dispatchEvent = win.dispatchEvent.bind(win);
+    ksGlobalByKey.addEventListener = win.addEventListener.bind(win);
+    ksGlobalByKey.removeEventListener = win.removeEventListener.bind(win);
+    ksGlobalByKey.dispatchEvent = win.dispatchEvent.bind(win);
 
     // Workerd host methods can reject detached calls, so page globals need bound receiver shadows.
     const __ks_boundCache = new WeakMap<Function, Function>();
@@ -566,6 +654,12 @@ export function installGlobals(
     installBoundShadow(globalThis, "atob");
     installBoundShadow(globalThis, "btoa");
     installBoundShadow(globalThis, "structuredClone");
+
+    // Chrome exposes these as bare globals; the shim only had them on window.
+    for (const name of ["alert", "confirm", "prompt"]) {
+      const method = Reflect.get(win, name);
+      if (typeof method === "function") Reflect.set(globalThis, name, method.bind(win));
+    }
 
     {
       type StructuredCloneFunction = (value: unknown, options?: unknown) => unknown;
@@ -778,9 +872,10 @@ export function installGlobals(
           Object.defineProperty(subtle, "generateKey", {
             value: async function generateKey(
               algorithm: unknown,
-              ...rest: unknown[]
+              ...rest: [extractable?: boolean, keyUsages?: KeyUsageInput]
             ): Promise<unknown> {
               const name = algName(algorithm).toUpperCase();
+              if (rest.length >= 2 && rest[1] !== undefined) rest[1] = toKeyUsages(rest[1]);
               const entry = GEN_SUPPORTED_UC.get(name);
               if (!entry) {
                 if (GEN_PASSTHROUGH.has(name)) {
@@ -1029,7 +1124,7 @@ export function installGlobals(
       typeof globalThis.BroadcastChannel !== "function" ||
       !(globalThis.BroadcastChannel.prototype as any)?.postMessage
     ) {
-      const EventTargetConstructor: typeof EventTarget | undefined = ksGlobal.EventTarget;
+      const EventTargetConstructor = ksGlobal.EventTarget;
       if (typeof EventTargetConstructor === "function") {
         class BroadcastChannel extends EventTargetConstructor {
           private _name: string;
@@ -1260,6 +1355,9 @@ export function installGlobals(
               : Object) as any) {};
       copyHandlerAccessors(__svgBase.prototype, handlerNames("all"));
       Reflect.set(globalThis, "SVGElement", __svgBase);
+      if (typeof Reflect.get(globalThis, "SVGAnimatedString") !== "function") {
+        Reflect.set(globalThis, "SVGAnimatedString", SVGAnimatedString);
+      }
       for (const constructorName of [
         "SVGAElement",
         "SVGSVGElement",
@@ -1390,7 +1488,7 @@ export function installGlobals(
       "MediaList",
       "StyleSheet",
     ] as const satisfies readonly (keyof BuildDocumentResult)[]) {
-      if (built[constructorName]) ksGlobal[constructorName] = built[constructorName];
+      if (built[constructorName]) ksGlobalByKey[constructorName] = built[constructorName];
     }
     for (const constructorName of [
       "CSSStyleValue",
@@ -1437,7 +1535,7 @@ export function installGlobals(
       "DOMRect",
       "DOMRectList",
     ] as const satisfies readonly (keyof BuildDocumentResult)[]) {
-      if (built[constructorName]) ksGlobal[constructorName] = built[constructorName];
+      if (built[constructorName]) ksGlobalByKey[constructorName] = built[constructorName];
     }
     ks_eval_page(`
       for (const valueConstructor of [
@@ -1466,7 +1564,8 @@ export function installGlobals(
     if (built.CanvasPattern) ksGlobal.CanvasPattern = built.CanvasPattern;
     if (built.getSelection) globalThis.getSelection = built.getSelection;
     {
-      const __nativePerf: Performance | undefined = ksGlobal.performance;
+      const __nativePerf: Pick<Performance, "now" | "timeOrigin"> | undefined =
+        ksGlobal.performance;
       const __nativeNow =
         __nativePerf && typeof __nativePerf.now === "function"
           ? __nativePerf.now.bind(__nativePerf)
@@ -1535,10 +1634,16 @@ export function installGlobals(
           return "PerformanceMeasure";
         }
       }
+      class PerformanceNavigationTiming extends PerformanceEntry {
+        get [Symbol.toStringTag]() {
+          return "PerformanceNavigationTiming";
+        }
+      }
       Object.defineProperty(PerformanceMark, "length", { value: 1, configurable: true });
       ksGlobal.PerformanceEntry = PerformanceEntry;
       ksGlobal.PerformanceMark = PerformanceMark;
       ksGlobal.PerformanceMeasure = PerformanceMeasure;
+      ksGlobal.PerformanceNavigationTiming = PerformanceNavigationTiming;
 
       type PerfEntryRecord = {
         name: string;
@@ -1552,7 +1657,7 @@ export function installGlobals(
       try {
         const __pageUrl =
           win && win.location && typeof win.location.href === "string" ? win.location.href : "";
-        __perfEntries.push({
+        const navigationEntry = {
           name: __pageUrl,
           entryType: "navigation",
           startTime: 0,
@@ -1587,7 +1692,9 @@ export function installGlobals(
           toJSON() {
             return { ...this };
           },
-        });
+        };
+        Object.setPrototypeOf(navigationEntry, PerformanceNavigationTiming.prototype);
+        __perfEntries.push(navigationEntry);
       } catch {}
 
       const __navigationTimingMarks = new Set([
@@ -1815,10 +1922,16 @@ export function installGlobals(
     if (typeof globalThis.ResizeObserver !== "function") {
       const RESIZE_OBSERVER_POLL_INTERVAL_MS = 250;
       const RESIZE_OBSERVER_SIZE_TOLERANCE_PX = 0.5;
-      const activeResizeObservers = new Set<any>();
+      // A poll on a clean layout reads the committed boxes, since a resolve
+      // re-cascades every running animation. Every 4th poll on an animating
+      // page resolves anyway, so a size only an animation moves lands within
+      // about 1 s. A mutation dirties the layout and lands on the next poll.
+      const RESIZE_OBSERVER_ANIMATING_RESOLVE_EVERY = 4;
+      const activeResizeObservers = new Set<ResizeObserverShim>();
       let resizeObserverPollTimer: number | null = null;
       let resizeObserverPolledEpoch = -1;
       let resizeObserverResolveWarned = false;
+      let resizeObserverPolls = 0;
       const pollResizeObservers = () => {
         if (activeResizeObservers.size === 0) {
           if (resizeObserverPollTimer !== null) {
@@ -1832,55 +1945,61 @@ export function installGlobals(
         // A box only resizes through a resolve, and a running CSS animation only advances
         // when someone resolves, so skip only an idle page that nothing relaid out since.
         const dom = state.dom;
-        const idle = dom?.layoutClean() === true && dom.isAnimating() !== true;
-        if (idle && dom.layoutEpoch() === resizeObserverPolledEpoch) return;
+        const animating = dom?.isAnimating() === true;
+        if (
+          resizeObserverLayoutCommitted() &&
+          !animating &&
+          dom?.layoutEpoch() === resizeObserverPolledEpoch
+        )
+          return;
         resizeObserverPolledEpoch = -1;
-        try {
-          dom?.resolveLayout();
-        } catch (error) {
-          if (!resizeObserverResolveWarned)
-            console.warn("[kitesurf] ResizeObserver poll: layout failed", error);
-          resizeObserverResolveWarned = true;
-        }
-        const measuredEpoch = dom?.layoutClean() === true ? dom.layoutEpoch() : -1;
-        pollResizeTargets();
+        resizeObserverPolls++;
+        const measuredEpoch = pollResizeTargets(
+          animating && resizeObserverPolls % RESIZE_OBSERVER_ANIMATING_RESOLVE_EVERY === 0,
+        );
         // A callback that relaid out may have moved boxes measured before it
         // ran, so only an epoch nothing advanced past lets the next poll skip.
-        const settled = dom?.layoutClean() === true && dom.layoutEpoch() === measuredEpoch;
+        const settled =
+          measuredEpoch !== -1 &&
+          dom?.layoutClean() === true &&
+          dom.layoutEpoch() === measuredEpoch;
         resizeObserverPolledEpoch = settled ? measuredEpoch : -1;
       };
-      const pollResizeTargets = () => {
+      // Returns the layout epoch the measurements read, or -1 if unknown. The
+      // first measurement resolves if anything is pending, so the epoch read
+      // right after it is the layout every later measurement must match.
+      const pollResizeTargets = (forceResolve: boolean): number => {
+        let measuredEpoch: number | undefined;
         for (const observer of activeResizeObservers) {
-          const changedEntries: unknown[] = [];
+          const changed: ResizeObserverSizes[] = [];
           for (const target of observer._targets) {
-            const entry = observer._entryFor(target);
+            const sizes = measureResizeObserverTarget(target, forceResolve);
+            forceResolve = false;
+            if (measuredEpoch === undefined) {
+              const dom = state.dom;
+              measuredEpoch = dom?.layoutClean() === true ? dom.layoutEpoch() : -1;
+            }
             const lastSize = observer._last.get(target);
-            const width = entry.contentRect.width;
-            const height = entry.contentRect.height;
-            const borderWidth = entry.borderBoxSize[0].inlineSize;
-            const borderHeight = entry.borderBoxSize[0].blockSize;
+            // Watch BOTH boxes: a padding-only change moves the border box
+            // while the content box stands still, and vice versa.
             const moved =
               !lastSize ||
-              Math.abs(lastSize.w - width) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX ||
-              Math.abs(lastSize.h - height) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX ||
-              Math.abs(lastSize.bw - borderWidth) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX ||
-              Math.abs(lastSize.bh - borderHeight) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX;
+              Math.abs(lastSize.w - sizes.w) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX ||
+              Math.abs(lastSize.h - sizes.h) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX ||
+              Math.abs(lastSize.bw - sizes.bw) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX ||
+              Math.abs(lastSize.bh - sizes.bh) > RESIZE_OBSERVER_SIZE_TOLERANCE_PX;
             if (moved) {
-              observer._last.set(target, {
-                w: width,
-                h: height,
-                bw: borderWidth,
-                bh: borderHeight,
-              });
-              changedEntries.push(entry);
+              observer._last.set(target, sizes);
+              changed.push(sizes);
             }
           }
-          if (changedEntries.length) {
+          if (changed.length) {
             try {
-              observer._cb(changedEntries, observer);
+              observer._cb(changed.map(resizeObserverEntry), observer);
             } catch {}
           }
         }
+        return measuredEpoch ?? -1;
       };
       const ensureResizeObserverPoll = () => {
         if (resizeObserverPollTimer === null && globalThis.setInterval) {
@@ -1892,28 +2011,82 @@ export function installGlobals(
           } catch {}
         }
       };
+      interface ResizeObserverSizes {
+        target: unknown;
+        w: number;
+        h: number;
+        bw: number;
+        bh: number;
+      }
       interface ResizeObserverShim {
         _cb: (entries: unknown[], observer: ResizeObserverShim) => void;
         _targets: Set<unknown>;
-        _last: Map<unknown, { w: number; h: number; bw: number; bh: number }>;
-        _entryFor(target: unknown): ReturnType<typeof entryFor>;
+        _last: Map<unknown, ResizeObserverSizes>;
       }
       const ResizeObserverStub = function (this: ResizeObserverShim, callback) {
         this._cb = callback;
         this._targets = new Set();
         this._last = new Map();
       };
-      const entryFor = (target) => {
+      // One wasm read per target. The CSSOM path below is only the fallback
+      // for a target the layout cannot answer for. A clean layout at the
+      // current viewport is read as committed unless the caller forces a
+      // resolve; a callback that mutated the DOM dirties it again.
+      const resizeObserverLayoutCommitted = () =>
+        state.dom?.layoutClean() === true &&
+        state.paintCacheViewportW === state.paintViewportW &&
+        state.paintCacheViewportH === state.paintViewportH;
+      const measureResizeObserverTarget = (
+        target: unknown,
+        forceResolve: boolean,
+      ): ResizeObserverSizes => {
+        const nodeId: unknown =
+          typeof target === "object" && target !== null ? Reflect.get(target, "_id") : undefined;
+        if (typeof nodeId === "number") {
+          const resolve = forceResolve || !resizeObserverLayoutCommitted();
+          try {
+            const dom = resolve ? ensurePaintDom() : state.dom;
+            const [w, h, bw, bh] = dom?.resizeObserverBoxes(nodeId, resolve) ?? [];
+            if (w !== undefined && h !== undefined && bw !== undefined && bh !== undefined) {
+              return { target, w, h, bw, bh };
+            }
+          } catch (error) {
+            // A panicked resolve has already recovered; the CSSOM read below
+            // measures what it left. Warn once so a broken poll is not silent.
+            if (!resizeObserverResolveWarned)
+              console.warn("[kitesurf] ResizeObserver poll: layout failed", error);
+            resizeObserverResolveWarned = true;
+            invalidatePaintDom();
+          }
+        }
+        return measureResizeObserverTargetFromCssom(target);
+      };
+      interface ResizeObserverCssomTarget {
+        getBoundingClientRect(): { width: number; height: number };
+        clientWidth?: unknown;
+        clientHeight?: unknown;
+      }
+      const isResizeObserverCssomTarget = (target: unknown): target is ResizeObserverCssomTarget =>
+        typeof target === "object" &&
+        target !== null &&
+        typeof Reflect.get(target, "getBoundingClientRect") === "function";
+      // A border-box request must not receive content-box numbers.
+      const measureResizeObserverTargetFromCssom = (target: unknown): ResizeObserverSizes => {
         let borderWidth = 0;
         let borderHeight = 0;
         let width = 0;
         let height = 0;
+        if (!isResizeObserverCssomTarget(target)) {
+          return { target, w: width, h: height, bw: borderWidth, bh: borderHeight };
+        }
         try {
           const rect = target.getBoundingClientRect();
           borderWidth = rect.width;
           borderHeight = rect.height;
           width = borderWidth;
           height = borderHeight;
+          // contentRect is the content box; clientWidth and clientHeight are the
+          // padding box, so take the padding back off.
           const computedStyle = globalThis.getComputedStyle
             ? globalThis.getComputedStyle(target)
             : null;
@@ -1927,12 +2100,21 @@ export function installGlobals(
             );
             height = Math.max(
               0,
-              target.clientHeight -
+              Number(target.clientHeight) -
                 parsePixels(computedStyle.paddingTop) -
                 parsePixels(computedStyle.paddingBottom),
             );
           }
         } catch {}
+        return { target, w: width, h: height, bw: borderWidth, bh: borderHeight };
+      };
+      const resizeObserverEntry = ({
+        target,
+        w: width,
+        h: height,
+        bw,
+        bh,
+      }: ResizeObserverSizes) => {
         const devicePixelRatio = Number(globalThis.devicePixelRatio) || 1;
         return {
           target,
@@ -1946,7 +2128,7 @@ export function installGlobals(
             right: width,
             bottom: height,
           },
-          borderBoxSize: [{ inlineSize: borderWidth, blockSize: borderHeight }],
+          borderBoxSize: [{ inlineSize: bw, blockSize: bh }],
           contentBoxSize: [{ inlineSize: width, blockSize: height }],
           devicePixelContentBoxSize: [
             {
@@ -1965,15 +2147,10 @@ export function installGlobals(
           const observer = this;
           ((globalThis.setTimeout || ((callback) => callback())) as any)(() => {
             if (!observer._targets.has(target)) return;
-            const entry = observer._entryFor(target);
-            observer._last.set(target, {
-              w: entry.contentRect.width,
-              h: entry.contentRect.height,
-              bw: entry.borderBoxSize[0].inlineSize,
-              bh: entry.borderBoxSize[0].blockSize,
-            });
+            const sizes = measureResizeObserverTarget(target, true);
+            observer._last.set(target, sizes);
             try {
-              observer._cb([entry], observer);
+              observer._cb([resizeObserverEntry(sizes)], observer);
             } catch {}
           }, 0);
         },
@@ -1986,9 +2163,6 @@ export function installGlobals(
           this._targets.clear();
           this._last.clear();
           activeResizeObservers.delete(this);
-        },
-        _entryFor(target) {
-          return entryFor(target);
         },
       });
       globalThis.ResizeObserver = ResizeObserverStub;
@@ -2141,11 +2315,14 @@ export function installGlobals(
       });
       ksGlobal.OffscreenCanvas = OffscreenCanvas;
     }
-    const ksCanonicalize = ksGlobal.__ks_canonicalize_inline_style as
-      | ((css: string) => Array<{ name: string; value: string }>)
-      | undefined;
+    const ksCanonicalize = (css: string) => {
+      try {
+        return ks_parse_inline_style(css);
+      } catch {
+        return [];
+      }
+    };
     const declSupported = (name: string, value: string): boolean => {
-      if (typeof ksCanonicalize !== "function") return false;
       try {
         const decls = ksCanonicalize(`${name}: ${value}`);
         if (Array.isArray(decls) && decls.length > 0) return true;
@@ -2341,7 +2518,7 @@ export function installGlobals(
       "dppx",
       "fr",
     ]) {
-      ksGlobal.CSS[unit] = (value: unknown) => new built.CSSUnitValue(value, unit);
+      ksGlobal.CSS[unit] = (value: number) => new built.CSSUnitValue(value, unit);
     }
     class Highlight extends Set<unknown> {
       priority = 0;
@@ -2375,7 +2552,7 @@ export function installGlobals(
       const MEDIA_QUERY_PERCENT_SCALE = 100;
       const MEDIA_QUERY_DPI_PER_DPPX = 96;
       const MEDIA_QUERY_DPCM_PER_DPPX = 37.7953;
-      const __ksMediaState = {
+      const mediaState = {
         get width() {
           return Number(globalThis.innerWidth) || DEFAULT_VIEWPORT_WIDTH_PX;
         },
@@ -2386,7 +2563,7 @@ export function installGlobals(
           return Number(globalThis.devicePixelRatio) || 1;
         },
         get colorScheme(): "light" | "dark" | "no-preference" {
-          return ksGlobal.__ks_dark_scheme === true ? "dark" : "light";
+          return state.darkColorScheme ? "dark" : "light";
         },
         reducedMotion: "no-preference" as "reduce" | "no-preference",
         contrast: "no-preference" as "more" | "less" | "no-preference",
@@ -2397,7 +2574,6 @@ export function installGlobals(
         colorBits: 8,
         mediaType: "screen" as "screen" | "print" | "all",
       };
-      ksGlobal.__ksMediaState = __ksMediaState;
 
       const parseLength = (valueText: string): number => {
         const match = /^(-?\d+(?:\.\d+)?)\s*(px|em|rem|vw|vh|%)?$/.exec(valueText.trim());
@@ -2412,9 +2588,9 @@ export function installGlobals(
             return numericValue * MEDIA_QUERY_EM_REFERENCE_PX;
           case "vw":
           case "%":
-            return (numericValue / MEDIA_QUERY_PERCENT_SCALE) * __ksMediaState.width;
+            return (numericValue / MEDIA_QUERY_PERCENT_SCALE) * mediaState.width;
           case "vh":
-            return (numericValue / MEDIA_QUERY_PERCENT_SCALE) * __ksMediaState.height;
+            return (numericValue / MEDIA_QUERY_PERCENT_SCALE) * mediaState.height;
           default:
             return NaN;
         }
@@ -2441,7 +2617,6 @@ export function installGlobals(
                 .slice(colon + 1)
                 .trim()
                 .toLowerCase();
-        const mediaState = __ksMediaState;
         const widthMatch = name.match(/^(min-|max-)?(device-)?width$/);
         if (widthMatch) {
           const requestedWidth = parseLength(value);
@@ -2497,7 +2672,6 @@ export function installGlobals(
       };
 
       const evalMediaType = (mediaType: string): boolean => {
-        const mediaState = __ksMediaState;
         if (mediaType === "all") return true;
         if (mediaType === mediaState.mediaType) return true;
         return false;
@@ -2604,8 +2778,6 @@ export function installGlobals(
     }
     if (typeof globalThis.HTMLElement === "function") {
       const Base = globalThis.HTMLElement;
-      const ctorTagNames = new WeakMap();
-      ksGlobal.__ks_ctorTagNames = ctorTagNames;
       const upgradeTargets: Array<{ target: any; consumed: boolean }> = [];
       const htmlInterfaces: readonly unknown[] = Object.values(built.htmlElementInterfaces ?? {});
       const shimElementClasses = new WeakSet<object>(
@@ -2623,7 +2795,7 @@ export function installGlobals(
             return frame.target;
           }
           const tag = ctorTagNames.get(new.target);
-          const mint = ksGlobal.__ks_createElementNoUpgrade;
+          const mint = ksInternals.createElementNoUpgrade;
           if (tag && typeof mint === "function") {
             const element = mint(tag);
             if (element) {
@@ -2762,7 +2934,7 @@ export function installGlobals(
           console.warn("[kitesurf] custom element upgrade failed for " + tagName, error);
         }
       };
-      ksGlobal.__ks_upgradeCustomElement = (element: any, tagName: string): void => {
+      ksInternals.upgradeCustomElement = (element: any, tagName: string): void => {
         const customElementConstructor = registry.get(tagName);
         if (typeof customElementConstructor !== "function") return;
         upgradeCustomElement(element, customElementConstructor, {
@@ -2770,7 +2942,7 @@ export function installGlobals(
           fireConnectedCallback: false,
         });
       };
-      ksGlobal.__ks_notifyCustomElementAttributeChanged = (
+      ksInternals.notifyCustomElementAttributeChanged = (
         element: any,
         name: string,
         oldValue: string | null,
@@ -2803,7 +2975,7 @@ export function installGlobals(
           console.warn("[kitesurf] attributeChangedCallback for " + tagName + " threw", error);
         }
       };
-      ksGlobal.__ks_customElementObservesAttribute = (element: any, name: string): boolean => {
+      ksInternals.customElementObservesAttribute = (element: any, name: string): boolean => {
         const customElementConstructor = registry.get(String(element?.localName || ""));
         return !!(
           customElementConstructor &&
@@ -2849,8 +3021,8 @@ export function installGlobals(
           }
         }
       };
-      ksGlobal.__ks_drainCustomElementUpgrades = drainUpgrades;
-      ksGlobal.__ks_notifyConnected = (rootElement: any) => {
+      state.drainCustomElementUpgrades = drainUpgrades;
+      ksInternals.notifyConnected = (rootElement: any) => {
         try {
           if (registry.size === 0) return;
           if (!rootElement || rootElement.nodeType !== 1 || !rootElement.isConnected) return;
@@ -2899,7 +3071,7 @@ export function installGlobals(
           registry.set(tagName, customElementConstructor);
           observedAttributes.set(customElementConstructor, observedAttributeNames);
           try {
-            ksGlobal.__ks_ctorTagNames.set(customElementConstructor, String(tagName));
+            ctorTagNames.set(customElementConstructor, String(tagName));
           } catch {}
           pendingUpgrades.push({ tagName, customElementConstructor });
           const resolvers = whenDefinedResolvers.get(tagName);
@@ -2926,34 +3098,48 @@ export function installGlobals(
       };
     }
     installIdleCallbackGlobals();
-    if (typeof globalThis.localStorage !== "object") {
-      const makeStorage = () => {
-        const data = Object.create(null);
-        const api = {
-          getItem(key) {
-            return Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null;
-          },
-          setItem(key, value) {
-            data[String(key)] = String(value);
-          },
-          removeItem(key) {
-            delete data[key];
-          },
-          clear() {
-            for (const key of Object.keys(data)) delete data[key];
-          },
-          key(index) {
-            const keys = Object.keys(data);
-            return index >= 0 && index < keys.length ? keys[index] : null;
-          },
-          get length() {
-            return Object.keys(data).length;
-          },
-        };
-        return api;
+    if (Object.getOwnPropertyDescriptor(globalThis, "localStorage") === undefined) {
+      try {
+        Object.defineProperty(globalThis, "Storage", {
+          value: StorageInterface,
+          writable: true,
+          configurable: true,
+          enumerable: false,
+        });
+      } catch {}
+      // localStorage is a copy of the browser context's area when the engine seeded one
+      // (web-storage.ts). One isolate is one document, so the origin is fixed here.
+      const seed = state.sandbox.sameOrigin ? state.localStorageSeed : null;
+      // An opaque sandboxed origin has no storage bucket; the accessor throws, as in Chrome.
+      const buckets = {
+        localStorage: storageObject(seed ? sharedArea(seed) : memoryArea()),
+        sessionStorage: storageObject(memoryArea()),
       };
-      globalThis.localStorage = makeStorage();
-      globalThis.sessionStorage = makeStorage();
+      const storageAccessor =
+        (name: keyof typeof buckets): (() => unknown) =>
+        () => {
+          if (!state.sandbox.sameOrigin) {
+            const DOMExceptionConstructor: any = ksGlobal.DOMException;
+            throw DOMExceptionConstructor
+              ? new DOMExceptionConstructor(
+                  "Storage is unavailable for an opaque origin.",
+                  "SecurityError",
+                )
+              : Object.assign(new Error("SecurityError"), { name: "SecurityError" });
+          }
+          return buckets[name];
+        };
+      for (const name of ["localStorage", "sessionStorage"] as const) {
+        try {
+          Object.defineProperty(globalThis, name, {
+            configurable: true,
+            enumerable: true,
+            get: storageAccessor(name),
+          });
+        } catch {
+          ksGlobalByKey[name] = buckets[name];
+        }
+      }
     }
 
     if (typeof globalThis.RTCPeerConnection !== "function") {
@@ -3731,11 +3917,14 @@ export function installGlobals(
     }
     for (const name of ["XPathResult", "XPathExpression", "XPathEvaluator"]) {
       const constructor: unknown = built ? Reflect.get(built, name) : undefined;
-      if (typeof constructor === "function") ksGlobal[name] = constructor;
+      if (typeof constructor === "function") ksGlobalByKey[name] = constructor;
     }
     installBlobMimeTypeSerialization();
     try {
       installWebSocketFacade();
+    } catch {}
+    try {
+      installEventSource();
     } catch {}
     installWorker();
     if (typeof globalThis.XMLHttpRequest !== "function") {
@@ -3820,9 +4009,9 @@ export function installGlobals(
           this._sent = false;
         }
         _fire(name) {
-          let event = null;
+          let event: InstanceType<ShimEventCtors["Event"]> | null = null;
           try {
-            event = new ksEventCtors.Event(name);
+            event = new (shimEventCtor("Event"))(name);
           } catch {}
           const handler = (this as any)["on" + name];
           if (typeof handler === "function") {
@@ -4198,7 +4387,7 @@ export function installGlobals(
         _fire(type: string, detail?: any) {
           let event: any;
           try {
-            event = new ksEventCtors.Event(type, { bubbles: false, cancelable: false });
+            event = new (shimEventCtor("Event"))(type, { bubbles: false, cancelable: false });
             if (detail) Object.assign(event, detail);
           } catch {
             event = { type, ...detail };
@@ -4325,42 +4514,17 @@ export function installGlobals(
     try {
       const URLConstructor: any = ksGlobal.URL;
       if (URLConstructor && typeof URLConstructor.createObjectURL === "function") {
-        const blobOrigin = (() => {
-          try {
-            const document = ksGlobal.document;
-            const documentUrl = document?.URL ? new URLConstructor(document.URL) : null;
-            if (!documentUrl || !documentUrl.origin || documentUrl.origin === "null") {
-              return "null";
-            }
-            return documentUrl.origin;
-          } catch {
-            return "null";
-          }
-        })();
+        // An opaque document's blobs carry its opaque origin, so their URLs serialize as
+        // blob:null/<uuid> and no other document can resolve them.
+        const blobOrigin = state.documentOrigin === "" ? "null" : state.documentOrigin;
+        // Bound now, so a page that replaces `crypto` cannot make blob URLs guessable.
+        const cryptoObj = ksGlobal.crypto;
+        const randomUUID = cryptoObj.randomUUID.bind(cryptoObj);
         URLConstructor.createObjectURL = function (blob: any) {
           if (blob == null || typeof blob !== "object") {
             throw new TypeError("URL.createObjectURL: argument is not a Blob/MediaSource");
           }
-          let uuid: string;
-          const cryptoObj = ksGlobal.crypto;
-          if (typeof cryptoObj?.randomUUID === "function") {
-            uuid = cryptoObj.randomUUID();
-          } else {
-            const randomBytes = new Uint8Array(16);
-            cryptoObj?.getRandomValues?.(randomBytes) ??
-              (() => {
-                for (let i = 0; i < 16; i++) {
-                  randomBytes[i] = Math.floor(Math.random() * 256);
-                }
-              })();
-            randomBytes[6] = ((randomBytes[6] as number) & 0x0f) | 0x40;
-            randomBytes[8] = ((randomBytes[8] as number) & 0x3f) | 0x80;
-            const hex = Array.from(randomBytes)
-              .map((byte) => (byte as number).toString(16).padStart(2, "0"))
-              .join("");
-            uuid = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
-          }
-          const url = `blob:${blobOrigin === "null" ? "" : blobOrigin + "/"}${uuid}`;
+          const url = `blob:${blobOrigin}/${randomUUID()}`;
           state.blobUrls.set(url, blob);
           return url;
         };
@@ -4490,29 +4654,6 @@ export function installGlobals(
     }
 
     const barPropStub = () => ({ visible: false });
-    const storageStub = (): any => {
-      const values = new Map<string, string>();
-      return {
-        get length() {
-          return values.size;
-        },
-        key(index: number) {
-          return [...values.keys()][index >>> 0] ?? null;
-        },
-        getItem(key: string) {
-          return values.has(String(key)) ? values.get(String(key))! : null;
-        },
-        setItem(key: string, value: string) {
-          values.set(String(key), String(value));
-        },
-        removeItem(key: string) {
-          values.delete(String(key));
-        },
-        clear() {
-          values.clear();
-        },
-      };
-    };
     const winMiscDefaults: Record<string, any> = {
       closed: false,
       crossOriginIsolated: false,
@@ -4533,8 +4674,6 @@ export function installGlobals(
         },
       },
       isSecureContext: false,
-      localStorage: storageStub(),
-      sessionStorage: storageStub(),
       locationbar: barPropStub(),
       menubar: barPropStub(),
       personalbar: barPropStub(),
@@ -4545,12 +4684,6 @@ export function installGlobals(
       status: "",
       origin: typeof ksGlobal.location?.origin === "string" ? ksGlobal.location.origin : "",
       originAgentCluster: false,
-      navigation: {
-        entries() {
-          return [];
-        },
-        currentEntry: null,
-      },
       clientInformation: ksGlobal.navigator,
     };
     for (const [name, value] of Object.entries(winMiscDefaults)) {
@@ -4574,7 +4707,7 @@ export function installGlobals(
       });
     } catch {}
     for (const [name, value] of Object.entries(indexedDbGlobals)) {
-      if (typeof ksGlobal[name] !== "undefined") continue;
+      if (typeof ksGlobalByKey[name] !== "undefined") continue;
       try {
         Object.defineProperty(globalThis, name, {
           value,
@@ -4633,7 +4766,7 @@ export function installGlobals(
       "WebAssembly",
     ];
     for (const name of ownConstructorNames) {
-      const constructor = ksGlobal[name];
+      const constructor = ksGlobalByKey[name];
       if (typeof constructor === "undefined") continue;
       if (Object.prototype.hasOwnProperty.call(globalThis, name)) continue;
       try {
@@ -4828,7 +4961,7 @@ export function installGlobals(
     ];
     const unconstructible = new Set(["SharedWorker"]);
     for (const name of idlStubs) {
-      if (typeof ksGlobal[name] !== "undefined") continue;
+      if (typeof ksGlobalByKey[name] !== "undefined") continue;
       const cls = unconstructible.has(name)
         ? {
             [name]: class {
@@ -5096,7 +5229,13 @@ export function installGlobals(
     ];
     const winOwnKeys = new Set(Reflect.ownKeys(win));
     for (const k of mirrorKeys) {
-      const globalValue = ksGlobal[k];
+      // A sandboxed opaque origin installs throwing localStorage/sessionStorage accessors.
+      let globalValue: unknown;
+      try {
+        globalValue = ksGlobalByKey[k];
+      } catch {
+        continue;
+      }
       if (globalValue === undefined) continue;
       if (winOwnKeys.has(k)) continue;
       try {
@@ -5112,21 +5251,21 @@ export function installGlobals(
     delete globalThis.document;
     delete globalThis.window;
     delete globalThis.location;
-    delete ksGlobal.navigator;
+    delete ksGlobalByKey.navigator;
     delete globalThis.history;
-    if (ksGlobal.self === win) delete ksGlobal.self;
+    if (ksGlobal.self === win) delete ksGlobalByKey.self;
     if (globalThis.top === win) delete globalThis.top;
     if (globalThis.parent === win) delete globalThis.parent;
     if (globalThis.frames === win) delete globalThis.frames;
     delete globalThis.frameElement;
     delete globalThis.opener;
-    delete ksGlobal.Event;
+    delete ksGlobalByKey.Event;
     delete globalThis.MouseEvent;
     delete globalThis.KeyboardEvent;
     delete globalThis.Element;
     delete globalThis.HTMLElement;
     delete globalThis.Node;
-    delete ksGlobal.EventTarget;
+    delete ksGlobalByKey.EventTarget;
     delete globalThis.getComputedStyle;
   }
 }
@@ -5204,7 +5343,7 @@ function installBlobMimeTypeSerialization(): void {
         error,
       });
     }
-    ksGlobal[name] = constructor;
+    ksGlobalByKey[name] = constructor;
   };
 
   wrapConstructor("Blob", 1);

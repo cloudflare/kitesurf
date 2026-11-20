@@ -16,21 +16,22 @@ import { drainDeferParked } from "./defer-shim.ts";
 import { state } from "./state.ts";
 import { noteSyncOp } from "./lag-monitor.ts";
 import { set_ks_trace_parent } from "./wasm-glue.js";
+import { ksInternals } from "./internals.ts";
+import { nativeApply } from "./native-http.ts";
 
 type ReceivedMeta = Partial<WireMeta>;
 type MethodArguments<M extends PageScriptMethod> = Parameters<PageScriptSession[M]>;
 
 export function updateClockFloor(timestamp: unknown): void {
   if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) return;
-  const clockState = globalThis as { __ks_clock_floor_ms?: number };
-  if (!clockState.__ks_clock_floor_ms || timestamp > clockState.__ks_clock_floor_ms) {
-    clockState.__ks_clock_floor_ms = timestamp;
+  if (!ksInternals.clockFloorMs || timestamp > ksInternals.clockFloorMs) {
+    ksInternals.clockFloorMs = timestamp;
   }
 }
 
 export function enterMethodScope(meta: ReceivedMeta): void {
   const traceParent = typeof meta.tp === "string" ? meta.tp : "";
-  (globalThis as { __ksTp?: string }).__ksTp = traceParent;
+  ksInternals.traceParent = traceParent;
   try {
     set_ks_trace_parent(traceParent);
   } catch {}
@@ -38,9 +39,7 @@ export function enterMethodScope(meta: ReceivedMeta): void {
 
   // Upgrade callbacks before parked I/O; connected callbacks can start requests.
   try {
-    (
-      globalThis as { __ks_drainCustomElementUpgrades?: () => void }
-    ).__ks_drainCustomElementUpgrades?.();
+    state.drainCustomElementUpgrades?.();
   } catch {}
 
   drainDeferParked();
@@ -56,6 +55,7 @@ export const PAGE_SCRIPT_METHODS: PageScriptArgBuilders = {
   installIframeContent: (params): MethodArguments<"installIframeContent"> => [params],
   iframeInstallsSettled: (): MethodArguments<"iframeInstallsSettled"> => [],
   setFrameBitmap: (params): MethodArguments<"setFrameBitmap"> => [params],
+  clearFrameBitmap: (params): MethodArguments<"clearFrameBitmap"> => [params],
   deliverMessage: (params): MethodArguments<"deliverMessage"> => [params],
   deliverWorkerEvent: (params): MethodArguments<"deliverWorkerEvent"> => [params],
   evaluate: (params): MethodArguments<"evaluate"> => [params.expression, params.opts ?? {}],
@@ -98,7 +98,6 @@ export async function invokeSessionMethod<M extends PageScriptMethod>(
       : `rpc:${method}`,
   );
   try {
-    const args = argBuilder(params);
     const methodHandler = self[method];
     if (typeof methodHandler !== "function") {
       throw new Error("method not callable: " + method);
@@ -106,7 +105,11 @@ export async function invokeSessionMethod<M extends PageScriptMethod>(
     type Handler = (
       ...handlerArgs: Parameters<PageScriptSession[M]>
     ) => Promise<PageScriptReply<M>>;
-    return await (methodHandler as Handler).apply(self, args);
+    // Pass the arguments straight through: a local would keep this frame's copy alive for the
+    // whole call, and the navigate source must be collectable once the handler drops it.
+    const pending = nativeApply(methodHandler as Handler, self, argBuilder(params));
+    if (method === "navigate") (params as PageScriptWireParams["navigate"]).html = "";
+    return await pending;
   } finally {
     if (method === "navigate") state.settleLoadCompletionArmed();
   }

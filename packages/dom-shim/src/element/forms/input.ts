@@ -5,7 +5,7 @@
 // Implements HTMLInputElement values, checkedness, type-specific state, files, and selection.
 
 import type * as Idl from "../../idl/types.generated.js";
-import { dom, documentImpl as document } from "../../state.js";
+import { dom, elementDocument } from "../../state.js";
 import { inputState } from "../../registries.js";
 import { markDamageNode, bumpMutationSeq } from "../../mutations/seq.js";
 import {
@@ -185,10 +185,7 @@ class HTMLInputElement extends HTMLElement implements Idl.HTMLInputElement {
     s.checkedDirty = true;
     s.checked = bool;
     try {
-      const domHandle = dom;
-      if (typeof domHandle.setCheckboxChecked === "function") {
-        domHandle.setCheckboxChecked(this._id, bool);
-      }
+      dom.setCheckboxChecked(this._id, bool);
     } catch {}
     markDamageNode(this._id);
     bumpMutationSeq();
@@ -368,7 +365,7 @@ class HTMLInputElement extends HTMLElement implements Idl.HTMLInputElement {
   get list() {
     const ref = this.getAttribute("list");
     if (!ref) return null;
-    const doc = this.ownerDocument || document;
+    const doc = elementDocument(this);
     const el = doc.getElementById(ref);
     return el instanceof HTMLDataListElement ? el : null;
   }
@@ -382,7 +379,7 @@ class HTMLInputElement extends HTMLElement implements Idl.HTMLInputElement {
     if (assigned) return assigned;
     return fileListFor(getInputFiles(this._id));
   }
-  set files(v: unknown) {
+  set files(v: Idl.FileList | null) {
     if (inputTypeOf(this) !== "file") return;
     if (v === null || v === undefined) return;
     if (!isKsFileList(v)) {
@@ -407,7 +404,7 @@ class HTMLInputElement extends HTMLElement implements Idl.HTMLInputElement {
     const state = inputState.get(this._id);
     const checked = state?.checkedDirty ? !!state.checked : value !== null;
     try {
-      dom.setCheckboxChecked?.(this._id, checked);
+      dom.setCheckboxChecked(this._id, checked);
     } catch {}
     if (checked && !state?.checkedDirty && type === "radio") {
       const name = this.getAttribute("name");

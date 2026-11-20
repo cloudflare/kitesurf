@@ -4,7 +4,14 @@
 
 // Routes CDP commands to target sessions, domain handlers, and host extensions.
 
-import type { BrowserState, CdpRequest, CdpResponse, EventEmitter, TargetState } from "./types.ts";
+import type {
+  BrowserState,
+  CdpClientState,
+  CdpRequest,
+  CdpResponse,
+  EventEmitter,
+  TargetState,
+} from "./types.ts";
 import type { RequestBlocker } from "../request-blocker.ts";
 import { CDP_COMMAND_UNHANDLED } from "./types.ts";
 import {
@@ -18,6 +25,7 @@ import { handlePage } from "./page.ts";
 import { handleRuntime } from "./runtime.ts";
 import { handleDom } from "./dom.ts";
 import { handleNetwork } from "./network.ts";
+import { handleLog } from "./log.ts";
 import { handleFetch } from "./fetch.ts";
 import { handleInput } from "./input.ts";
 import { handleKitesurf } from "./kitesurf.ts";
@@ -45,6 +53,12 @@ export type EngineCdpCommandExtension = (
   req: EngineCdpCommandRequest,
 ) => Promise<EngineCdpCommandResult>;
 
+/** The part of an ExecutionContext a browser session uses. A host builds one without a cast. */
+export type SessionContext = Pick<
+  ExecutionContext,
+  "waitUntil" | "passThroughOnException" | "exports" | "props"
+>;
+
 export interface DispatchCtx {
   browser: BrowserState;
   emit: EventEmitter;
@@ -54,20 +68,29 @@ export interface DispatchCtx {
   env: {
     LOADER: WorkerLoader;
     FONT_ASSETS: Fetcher;
-    KITESURF_SIMULATE_PROD_EVAL?: string;
+    KITESURF_NATIVE_EVAL?: string;
     KITESURF_RESOURCE_DRAIN_QUIET_TURNS?: string;
     KITESURF_LAG_WATCHDOG?: string;
     // Per-page-isolate deployment budgets: CPU cap on LOADER.load,
     // wall-clock kill timer per generation. See eval/page-script.ts.
     KITESURF_PAGE_CPU_MS_CAP?: string;
     KITESURF_PAGE_WALL_MS_CAP?: string;
+    KITESURF_ALLOW_PRIVATE_NETWORK?: string;
     HOST_TRACER?: Tracer;
     HOST_CLOCK?: HostClock;
   };
-  ctx: ExecutionContext;
+  ctx: SessionContext;
   connectionId: string;
   analytics: KitesurfAnalytics;
+  // The client this context acts for. Background work that captured the context keeps acting
+  // for that client, even after it leaves.
+  client: CdpClientState;
 }
+
+const STORAGE_CLEAR_METHODS = new Set([
+  "Storage.clearDataForOrigin",
+  "Storage.clearDataForStorageKey",
+]);
 
 export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpResponse> {
   const [domain] = req.method.split(".", 1);
@@ -99,7 +122,8 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
       ctx.browser.networkEvents.drain();
       return { id: req.id, result: result ?? {}, sessionId: req.sessionId };
     }
-    if (req.sessionId) {
+    // A frame session clears its page's browser context (network.ts storageSessionTarget).
+    if (req.sessionId && !STORAGE_CLEAR_METHODS.has(req.method)) {
       const oopif = findOopifFrameBySession(ctx, req.sessionId);
       if (oopif) {
         const result = await handleOopifSession(ctx, req, oopif.target, oopif.frame);
@@ -125,11 +149,14 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
       case "Storage":
         result = await handleNetwork(ctx, req);
         break;
+      case "Log":
+        result = await handleLog(ctx, req);
+        break;
       case "Fetch":
         result = await handleFetch(ctx, req);
         break;
       case "Input":
-        result = await handleInput(ctx, req);
+        result = await handleInput(ctx, req, undefined, { replyOnDispatch: true });
         break;
       case "Kitesurf": {
         result = await handleKitesurf(ctx, req);
@@ -184,7 +211,6 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
       case "Inspector":
       case "IO":
       case "LayerTree":
-      case "Log":
       case "Media":
       case "Memory":
       case "Overlay":
@@ -264,6 +290,8 @@ async function handleEmulation(
     const vp = clampViewport(width, height);
     target.viewportWidth = vp.width;
     target.viewportHeight = vp.height;
+    const scale = req.params?.deviceScaleFactor;
+    target.deviceScaleFactor = typeof scale === "number" && scale > 0 ? scale : 1;
     await sessionOf(ctx, target).callIfLive.setViewport({
       width: target.viewportWidth,
       height: target.viewportHeight,

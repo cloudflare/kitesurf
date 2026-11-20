@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lu=C3=ADs=20Duarte?= <lduarte@cloudflare.com>
+Date: Fri, 16 Oct 2026 11:43:29 +0100
+Subject: [PATCH] source_text: report the bytes a source text retains
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A script keeps its whole source for Function.prototype.toString, and an
+embedder deciding what to move out of memory has to know how much of a
+compiled script that is. The representation is private, so the text
+reports its own heap bytes.
+
+beep-boop-🤖
+---
+ src/source_text.rs | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/src/source_text.rs b/src/source_text.rs
+index b01f5f1..f2419f9 100644
+--- a/src/source_text.rs
++++ b/src/source_text.rs
+@@ -76,6 +76,17 @@ impl SourceText {
+         };
+     }
+
++    /// Kitesurf: the heap bytes this text holds, so an embedder can account for what a
++    /// script retains for `toString` apart from its compiled code.
++    #[must_use]
++    pub fn retained_bytes(&self) -> usize {
++        match &self.repr {
++            Repr::Collecting(v) => v.capacity() * 2,
++            Repr::Latin1(v) => v.len(),
++            Repr::Utf16(v) => v.len() * 2,
++        }
++    }
++
+     // Collection after `compact` is not expected, but stays correct: re-expand.
+     #[inline]
+     fn collecting(&mut self) -> &mut Vec<u16> {

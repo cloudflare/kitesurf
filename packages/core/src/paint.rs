@@ -8,6 +8,7 @@
 pub(crate) mod scene_record;
 pub(crate) mod scene_decode;
 pub(crate) mod scene_replay;
+pub(crate) mod font_container;
 pub(crate) mod screenshot;
 pub(crate) mod canvas2d;
 pub(crate) mod pdf;

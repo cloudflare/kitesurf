@@ -5,12 +5,13 @@
 // Runs CDP expressions through the native probe or Boa fallback and packs the result.
 
 import { packException, packResult } from "./pack.ts";
-import { ks_eval_cdp } from "./wasm-glue.js";
+import { ks_eval_cdp, ks_eval_cdp_in_frame } from "./wasm-glue.js";
 import type { EvalResult } from "@kitesurf/jsrpc-types/page-script";
 import { drainEvalResult, type EvalResultBody } from "./eval-results.ts";
 import type { DomRect, ShimElement } from "./types.ts";
 
-// Native eval is only a probe; workerd's code-generation EvalError falls back to Boa.
+// Native eval runs where the engine grants it (KITESURF_NATIVE_EVAL); elsewhere workerd's
+// code-generation EvalError falls back to Boa.
 const NATIVE_INDIRECT_EVAL: (source: string) => unknown = globalThis.eval;
 
 export const AsyncFunction = (async () => {}).constructor as new (
@@ -23,7 +24,6 @@ export const SyncFunction = function () {}.constructor as new (
 
 const INPUT_ANCESTOR_DEPTH = 32;
 const ANCHOR_SEARCH_DEPTH = 8;
-const MAX_ANCHOR_WRAPPER_AREA_RATIO = 4;
 
 export function findAnchorAncestor(el: ShimElement | null): ShimElement | null {
   let currentElement: ShimElement | null = el;
@@ -38,44 +38,42 @@ export function findAnchorAncestor(el: ShimElement | null): ShimElement | null {
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
+/**
+ * The link under (`x`, `y`) inside an inline `<svg>` target: inline SVG paints from a snapshot, so
+ * hit testing stops at the `<svg>`. Later links paint on top, so they are checked first.
+ */
+export function findSvgAnchorAtPoint(
+  targetEl: ShimElement | null,
+  x: number,
+  y: number,
+): ShimElement | null {
+  if (!targetEl || targetEl.namespaceURI !== SVG_NAMESPACE || targetEl.tagName !== "svg") {
+    return null;
+  }
+  // `[href]` matches only a no-namespace href (Selectors 3 §6.3.4); `*|` also finds xlink:href.
+  const anchors = targetEl.querySelectorAll?.("a[*|href]");
+  if (!anchors) return null;
+  for (let k = anchors.length - 1; k >= 0; k--) {
+    const anchor = anchors[k];
+    const rect = anchor.getBoundingClientRect?.();
+    if (rect && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+      return anchor;
+    }
+  }
+  return null;
+}
+
 export function anchorHrefAttribute(anchor: ShimElement): string | null {
   const href = anchor.getAttribute?.("href") ?? null;
   if (href !== null || anchor.namespaceURI !== SVG_NAMESPACE) return href;
   return anchor.getAttribute?.("xlink:href") ?? null;
 }
 
-export function findFocusableAncestor(el: ShimElement | null): ShimElement | null {
-  let currentElement: ShimElement | null = el;
-  for (let i = 0; currentElement && i < INPUT_ANCESTOR_DEPTH; i++) {
-    const tag =
-      typeof currentElement.tagName === "string" ? currentElement.tagName.toUpperCase() : "";
-    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON") {
-      if (currentElement.hasAttribute && currentElement.hasAttribute("disabled")) {
-        currentElement =
-          (currentElement.parentNode as ShimElement | null) || currentElement.parentElement || null;
-        continue;
-      }
-      return currentElement;
-    }
-    if (tag === "A" && currentElement.hasAttribute && currentElement.hasAttribute("href"))
-      return currentElement;
-    if (currentElement.getAttribute) {
-      const contentEditable = currentElement.getAttribute("contenteditable");
-      if (contentEditable != null && contentEditable.toLowerCase() !== "false")
-        return currentElement;
-      const tabIndex = currentElement.getAttribute("tabindex");
-      if (tabIndex != null) {
-        const value = parseInt(tabIndex, 10);
-        if (Number.isFinite(value) && value >= 0) return currentElement;
-      }
-    }
-    currentElement =
-      (currentElement.parentNode as ShimElement | null) || currentElement.parentElement || null;
-  }
-  return null;
-}
-
-export function findAnchorViaSingleChild(
+/**
+ * A link whose own box is under (`x`, `y`) among an ancestor's children. A wrapped link's rect is
+ * the union of its line boxes, so it is found; a link merely near the click is not a hit.
+ */
+export function findAnchorUnderPoint(
   targetEl: ShimElement | null,
   x: number,
   y: number,
@@ -104,8 +102,6 @@ export function findAnchorViaSingleChild(
     px <= rect.right &&
     py >= rect.top &&
     py <= rect.bottom;
-  const rectArea = (rect: DomRect | null | undefined) =>
-    rect && rect.width > 0 && rect.height > 0 ? rect.width * rect.height : 0;
   let currentElement: ShimElement | null = targetEl;
   for (let i = 0; currentElement && i < ANCHOR_SEARCH_DEPTH; i++) {
     if (currentElement.querySelectorAll) {
@@ -123,19 +119,6 @@ export function findAnchorViaSingleChild(
         if (!anchor.getBoundingClientRect) continue;
         const rect = anchor.getBoundingClientRect();
         if (!rectContains(rect, x, y)) continue;
-        const href = anchorHrefAttribute(anchor);
-        if (href && href !== "" && !/^javascript:/i.test(href)) return anchor;
-      }
-      for (let k = 0; k < anchors.length; k++) {
-        const anchor = anchors[k];
-        const parent =
-          (anchor.parentElement as ShimElement | null) || (anchor.parentNode as ShimElement | null);
-        if (!parent?.getBoundingClientRect || !anchor.getBoundingClientRect) continue;
-        const parentRect = parent.getBoundingClientRect();
-        if (!rectContains(parentRect, x, y)) continue;
-        const anchorArea = rectArea(anchor.getBoundingClientRect());
-        const parentArea = rectArea(parentRect);
-        if (anchorArea <= 0 || parentArea > anchorArea * MAX_ANCHOR_WRAPPER_AREA_RATIO) continue;
         const href = anchorHrefAttribute(anchor);
         if (href && href !== "" && !/^javascript:/i.test(href)) return anchor;
       }
@@ -178,15 +161,56 @@ function hasInteractiveNonAnchorAncestor(el: ShimElement | null): boolean {
   return false;
 }
 
+export function findFocusableAncestor(el: ShimElement | null): ShimElement | null {
+  let currentElement: ShimElement | null = el;
+  for (let i = 0; currentElement && i < INPUT_ANCESTOR_DEPTH; i++) {
+    const tag =
+      typeof currentElement.tagName === "string" ? currentElement.tagName.toUpperCase() : "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON") {
+      if (currentElement.hasAttribute && currentElement.hasAttribute("disabled")) {
+        currentElement =
+          (currentElement.parentNode as ShimElement | null) || currentElement.parentElement || null;
+        continue;
+      }
+      return currentElement;
+    }
+    if (tag === "A" && currentElement.hasAttribute && currentElement.hasAttribute("href"))
+      return currentElement;
+    if (currentElement.getAttribute) {
+      const contentEditable = currentElement.getAttribute("contenteditable");
+      if (contentEditable != null && contentEditable.toLowerCase() !== "false")
+        return currentElement;
+      const tabIndex = currentElement.getAttribute("tabindex");
+      if (tabIndex != null) {
+        const value = parseInt(tabIndex, 10);
+        if (Number.isFinite(value) && value >= 0) return currentElement;
+      }
+    }
+    currentElement =
+      (currentElement.parentNode as ShimElement | null) || currentElement.parentElement || null;
+  }
+  return null;
+}
+
+export interface FrameEvalTarget {
+  frameId: string;
+  window: unknown;
+}
+
 export interface RunExpressionOpts {
   returnByValue?: boolean;
   awaitPromise?: boolean;
+  frame?: FrameEvalTarget;
 }
 
 export type RunExpressionResult = EvalResult;
 
-export function packBoaResult(raw: unknown, returnByValue: boolean): EvalResultBody {
-  if (!returnByValue) return packResult(raw, false);
+export function packBoaResult(
+  raw: unknown,
+  returnByValue: boolean,
+  frameId?: string,
+): EvalResultBody {
+  if (!returnByValue) return packResult(raw, false, undefined, frameId);
   let envelope: {
     k: string;
     j?: string;
@@ -239,14 +263,47 @@ export async function boaEvalFallback(
   expression: string,
   awaitPromise: boolean | undefined,
   returnByValue: boolean,
+  frame?: FrameEvalTarget,
 ): Promise<EvalResultBody> {
   try {
-    const boaResult = await ks_eval_cdp(expression, awaitPromise !== false, returnByValue);
-    return packBoaResult(boaResult, returnByValue);
+    const boaResult = frame
+      ? await ks_eval_cdp_in_frame(
+          expression,
+          frame.frameId,
+          frame.window,
+          awaitPromise !== false,
+          returnByValue,
+        )
+      : await ks_eval_cdp(expression, awaitPromise !== false, returnByValue);
+    return packBoaResult(boaResult, returnByValue, frame?.frameId);
   } catch (error) {
     return packException(error instanceof Error ? error : new Error(String(error)));
   }
 }
+
+const isCodeGenerationDisallowed = function (error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.name === "EvalError" &&
+    typeof error.message === "string" &&
+    error.message.includes("Code generation from strings disallowed")
+  );
+};
+
+// An expression with `await` runs as an async function's return value. When that does not parse,
+// as for statements around an `await` in a string, the expression runs as a script instead.
+// The box keeps the async function from adopting a promise that awaitPromise leaves unawaited.
+const asyncExpression = function (expr: string): (() => Promise<{ value: unknown }>) | null {
+  if (!/\bawait\b/.test(expr)) return null;
+  try {
+    return new AsyncFunction("return { value: (" + expr + ") };") as () => Promise<{
+      value: unknown;
+    }>;
+  } catch (error) {
+    if (error instanceof SyntaxError) return null;
+    throw error;
+  }
+};
 
 export async function runExpression(
   expression: string,
@@ -254,39 +311,25 @@ export async function runExpression(
 ): Promise<RunExpressionResult> {
   const returnByValue = !!options?.returnByValue;
   const awaitPromise = options === undefined ? true : options.awaitPromise !== false;
+  if (options?.frame) {
+    const expr = typeof expression === "string" ? expression : "undefined";
+    return drainEvalResult(await boaEvalFallback(expr, awaitPromise, returnByValue, options.frame));
+  }
   let result: EvalResultBody;
   try {
     const expr = typeof expression === "string" ? expression : "undefined";
-    const hasTopLevelAwait = /\bawait\b/.test(expr);
-    let value: unknown;
-    if (!hasTopLevelAwait) {
-      value = NATIVE_INDIRECT_EVAL(expr);
-      if (
-        awaitPromise &&
-        value !== null &&
-        typeof (value as { then?: unknown })?.then === "function"
-      ) {
-        value = await (value as Promise<unknown>);
-      }
-    } else {
-      const asyncFunction = new AsyncFunction("return (" + expr + ");");
-      value = await asyncFunction();
-      if (
-        awaitPromise &&
-        value !== null &&
-        typeof (value as { then?: unknown })?.then === "function"
-      ) {
-        value = await (value as Promise<unknown>);
-      }
+    const asyncFunction = asyncExpression(expr);
+    let value = asyncFunction ? (await asyncFunction()).value : NATIVE_INDIRECT_EVAL(expr);
+    if (
+      awaitPromise &&
+      value !== null &&
+      typeof (value as { then?: unknown })?.then === "function"
+    ) {
+      value = await (value as Promise<unknown>);
     }
     result = packResult(value, returnByValue);
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.name === "EvalError" &&
-      typeof error.message === "string" &&
-      error.message.includes("Code generation from strings disallowed")
-    ) {
+    if (isCodeGenerationDisallowed(error)) {
       result = await boaEvalFallback(
         typeof expression === "string" ? expression : "undefined",
         awaitPromise,

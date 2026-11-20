@@ -2,6 +2,7 @@ load("@crates_cli//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rust//cargo:defs.bzl", "cargo_toml_env_vars")
 load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
 load("//bazel:checks.bzl", "workspace_configs")
+load("//bazel:rust_checks.bzl", "rust_comments_test", "rust_lint_tests", "rust_nesting_test")
 
 exports_files([
     "Cargo.lock",
@@ -80,3 +81,17 @@ rust_test(
 )
 
 workspace_configs()
+
+rust_nesting_test(
+    name = "nesting_test",
+    srcs = glob(["src/**/*.rs"]),
+)
+
+rust_comments_test(
+    name = "comments_test",
+    srcs = glob(["src/**/*.rs"]),
+)
+
+rust_lint_tests(
+    targets = ["kitesurf_playback", "lib_test", "bin_test"],
+)

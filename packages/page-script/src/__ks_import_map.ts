@@ -6,4 +6,5 @@
 
 export declare function resolveImportMap(specifier: unknown, importer: string): string;
 
+// Throws for a name outside http(s): the registry also holds this isolate's own modules.
 export declare function resolveModuleRegistryUrl(url: unknown): string;

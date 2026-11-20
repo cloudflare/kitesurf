@@ -9,6 +9,8 @@ import type { SessionOutbound } from "./page-script.ts";
 export interface WorkerStartParams {
   url: string;
   baseUrl: string;
+  // The origin the engine sealed into the worker's outbound; "" is opaque.
+  origin: string;
   name: string;
   navigator: WorkerNavigatorInfo;
   connectionId: string;

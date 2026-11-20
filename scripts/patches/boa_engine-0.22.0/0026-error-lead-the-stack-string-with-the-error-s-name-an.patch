@@ -1,0 +1,97 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Thu, 5 Nov 2026 19:45:16 +0000
+Subject: [PATCH] error: lead the stack string with the error's name and
+ message
+
+The stack accessor returned only the frames. Engines print "Name: message" first, and
+code that logs only `stack` (page error reporters, the embedder's own logging) lost the
+message of every error thrown on boa.
+---
+ src/builtins/error/mod.rs | 55 +++++++++++++++++++++++++++++++--------
+ 1 file changed, 44 insertions(+), 11 deletions(-)
+
+diff --git a/src/builtins/error/mod.rs b/src/builtins/error/mod.rs
+index 44c8f56..4788622 100644
+--- a/src/builtins/error/mod.rs
++++ b/src/builtins/error/mod.rs
+@@ -301,7 +301,7 @@ impl Error {
+     ///
+     /// [spec]: https://tc39.es/proposal-error-stacks/
+     #[allow(clippy::unnecessary_wraps)]
+-    fn get_stack(this: &JsValue, _: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
++    fn get_stack(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+         // 1. Let E be the this value.
+         // 2. If E is not an Object, return undefined.
+         let Some(e) = this.as_object() else {
+@@ -310,20 +310,32 @@ impl Error {
+
+         // 3. Let errorData be the value of the [[ErrorData]] internal slot of E.
+         // 4. If errorData is undefined, return undefined.
+-        let Some(error_data) = e.downcast_ref::<Error>() else {
+-            return Ok(JsValue::undefined());
++        let frames = {
++            let Some(error_data) = e.downcast_ref::<Error>() else {
++                return Ok(JsValue::undefined());
++            };
++            error_data.stack.0.backtrace().map(|backtrace| {
++                backtrace
++                    .iter()
++                    .rev()
++                    .fold(String::new(), |mut output, entry| {
++                        let _ = writeln!(&mut output, "    at {}", entry.display(true));
++                        output
++                    })
++            })
+         };
+
+         // 5. Let stackString be an implementation-defined String value representing the call stack.
+         // 6. Return stackString.
+-        if let Some(backtrace) = error_data.stack.0.backtrace() {
+-            let stack_string = backtrace
+-                .iter()
+-                .rev()
+-                .fold(String::new(), |mut output, entry| {
+-                    let _ = writeln!(&mut output, "    at {}", entry.display(true));
+-                    output
+-                });
++        // Lead with the error's own "Name: message" line, as engines print it, so code that logs
++        // only `stack` keeps the message. A throwing name or message getter leaves the frames.
++        if let Some(frames) = frames {
++            let header = Self::stack_header(&e, context).unwrap_or_default();
++            let stack_string = if header.is_empty() {
++                frames
++            } else {
++                format!("{header}\n{frames}")
++            };
+             return Ok(js_string!(stack_string).into());
+         }
+
+@@ -331,6 +343,27 @@ impl Error {
+         Ok(JsValue::undefined())
+     }
+
++    // The line Error.prototype.toString gives: name defaults to "Error", message to "".
++    fn stack_header(e: &JsObject, context: &mut Context) -> JsResult<String> {
++        let name = e.get(js_string!("name"), context)?;
++        let name = if name.is_undefined() {
++            "Error".to_string()
++        } else {
++            name.to_string(context)?.to_std_string_escaped()
++        };
++        let msg = e.get(js_string!("message"), context)?;
++        let msg = if msg.is_undefined() {
++            String::new()
++        } else {
++            msg.to_string(context)?.to_std_string_escaped()
++        };
++        Ok(match (name.is_empty(), msg.is_empty()) {
++            (true, _) => msg,
++            (false, true) => name,
++            (false, false) => format!("{name}: {msg}"),
++        })
++    }
++
+     /// `set Error.prototype.stack`
+     ///
+     /// The setter for the stack property.

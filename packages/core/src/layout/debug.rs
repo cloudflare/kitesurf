@@ -65,18 +65,18 @@ impl DomHandle {
             node.pe_by_index(0).map(|id| self.external_node_id(id))
         );
         let children: Vec<u32> = node
-            .children
+            .children()
             .iter()
-            .map(|&id| self.external_node_id(id))
+            .map(|id| self.external_node_id(id))
             .collect();
         let _ = writeln!(out, "  children: {:?}", children);
-        if let Some(pc) = node.paint_children.borrow().as_ref() {
+        if let Some(pc) = node.paint_children() {
             let paint_children: Vec<u32> = pc.iter().map(|&id| self.external_node_id(id)).collect();
             let _ = writeln!(out, "  paint_children: {:?}", paint_children);
         } else {
             let _ = writeln!(out, "  paint_children: None");
         }
-        if let Some(sc) = node.stacking_context.as_ref() {
+        if let Some(sc) = node.stacking_context() {
             let _ = writeln!(
                 out,
                 "  stacking_context children: {:?}",
@@ -112,7 +112,7 @@ impl DomHandle {
         let mut out = String::new();
         let lay = node.final_layout();
         let abs = node.absolute_position(0.0, 0.0);
-        let parent = node.layout_parent.get().map(|id| self.external_node_id(id));
+        let parent = node.layout_parent_id().map(|id| self.external_node_id(id));
         let _ = writeln!(
             out,
             "node #{}: location=({:.1},{:.1}), size={:.1}x{:.1}, absolute=({:.1},{:.1}), layout_parent={:?}",
@@ -181,9 +181,9 @@ impl DomHandle {
                             pl.location.x, pl.location.y, pl.size.width, pl.size.height,
                         );
                         let children: Vec<u32> = pe_node
-                            .children
+                            .children()
                             .iter()
-                            .map(|&id| self.external_node_id(id))
+                            .map(|id| self.external_node_id(id))
                             .collect();
                         let _ = writeln!(out, "    children: {:?}", children);
                         if let Some(styles) = pe_node.primary_styles() {
@@ -197,7 +197,7 @@ impl DomHandle {
                         } else {
                             let _ = writeln!(out, "    no primary_styles");
                         }
-                        for &child_id in &pe_node.children {
+                        for child_id in pe_node.children() {
                             debug_write_pseudo_child(self, base, child_id, &mut out);
                         }
                     }
@@ -263,7 +263,7 @@ impl DomHandle {
         let base: &BaseDocument = doc.as_ref();
         let mut out = String::new();
         let mut all_ids: Vec<u32> = Vec::new();
-        let root_id = base.root_node().id;
+        let root_id = base.root_node().id();
         all_ids.push(self.external_node_id(root_id));
         collect_descendants(
             base,
@@ -278,10 +278,10 @@ impl DomHandle {
             let Some(elem) = node.element_data() else {
                 continue;
             };
-            let Some(inline) = elem.inline_layout_data.as_ref() else {
+            let Some(inline) = elem.inline_layout_data() else {
                 continue;
             };
-            for (idx, line) in inline.layout.lines().enumerate() {
+            for (idx, line) in inline.layout(base.tree()).lines().enumerate() {
                 let m = line.metrics();
                 let _ = writeln!(
                     out,
@@ -303,11 +303,11 @@ impl DomHandle {
             let Some(el) = node.element_data() else {
                 continue;
             };
-            if el.background_images.is_empty() {
+            if el.background_images().is_empty() {
                 continue;
             }
             let states: Vec<&str> = el
-                .background_images
+                .background_images()
                 .iter()
                 .map(|s| if s.is_some() { "Some" } else { "None" })
                 .collect();
@@ -328,7 +328,7 @@ impl DomHandle {
         let base: &BaseDocument = doc.as_ref();
         let mut out = String::new();
         let mut all_ids: Vec<u32> = Vec::new();
-        let root_id = base.root_node().id;
+        let root_id = base.root_node().id();
         all_ids.push(self.external_node_id(root_id));
         collect_descendants_with_pseudos(
             base,
@@ -344,10 +344,10 @@ impl DomHandle {
             let Some(elem) = node.element_data() else {
                 continue;
             };
-            let Some(inline) = elem.inline_layout_data.as_ref() else {
+            let Some(inline) = elem.inline_layout_data() else {
                 continue;
             };
-            let layout = &inline.layout;
+            let layout = inline.layout(base.tree());
             let frags = layout.span_fragments();
             let lay = node.final_layout();
             let text_align = node
@@ -371,7 +371,7 @@ impl DomHandle {
                 display,
                 text_align,
                 frags.len(),
-                inline.text.as_str(),
+                inline.text(base.tree()),
             );
             for f in frags {
                 let style = layout.styles().get(f.style_index as usize);
@@ -418,7 +418,7 @@ impl DomHandle {
     pub fn test_containing_block(&self, node_id: u32) -> Option<u32> {
         let node_id = self.resolve_node_id(node_id)?;
         let doc = self.doc.try_borrow().ok()?;
-        let cb = doc.get_node(node_id)?.oof_containing_block.get()?;
+        let cb = doc.get_node(node_id)?.oof_containing_block()?;
         Some(self.external_node_id(cb))
     }
 
@@ -433,8 +433,8 @@ impl DomHandle {
             .tree()
             .iter()
             .filter_map(|(_, node)| {
-                let cb = node.oof_containing_block.get()?;
-                Some((self.external_node_id(node.id), self.external_node_id(cb)))
+                let cb = node.oof_containing_block()?;
+                Some((self.external_node_id(node.id()), self.external_node_id(cb)))
             })
             .collect();
         claims.sort_unstable();
@@ -454,8 +454,7 @@ impl DomHandle {
             return Vec::new();
         };
         let kids = node
-            .layout_children
-            .borrow()
+            .layout_children()
             .as_ref()
             .map(|v| {
                 v.iter()
@@ -475,7 +474,7 @@ impl DomHandle {
             return false;
         };
         doc.get_node(node_id)
-            .map(|n| n.placed_floats.get())
+            .map(|n| n.placed_floats())
             .unwrap_or(false)
     }
 
@@ -489,20 +488,21 @@ impl DomHandle {
         let Some(node) = doc.get_node(node_id) else {
             return Vec::new();
         };
-        let kids = node
-            .rehomed_paint_children
-            .borrow()
-            .iter()
-            .copied()
-            .map(|id| self.external_node_id(id))
-            .collect();
-        kids
+        node.rehomed_paint_children()
+            .map(|children| {
+                children
+                    .iter()
+                    .copied()
+                    .map(|id| self.external_node_id(id))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     pub fn test_rehomed_reach(&self, node_id: u32) -> Option<(f32, f32, f32, f32)> {
         let node_id = self.resolve_node_id(node_id)?;
         let doc = self.doc.try_borrow().ok()?;
-        doc.get_node(node_id)?.rehomed_reach.get()
+        doc.get_node(node_id)?.rehomed_reach()
     }
 
     pub fn test_get_inline_aware_rect(&self, node_id: u32) -> (f32, f32, f32, f32) {

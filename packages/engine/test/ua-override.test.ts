@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import { handleNetwork, effectiveExtraHeaders } from "../src/cdp/network.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { CdpRequest, TargetState } from "../src/cdp/types.ts";
+import { testClient } from "./client-state.ts";
 
 function makeTarget(over: Partial<TargetState> = {}): TargetState {
   return {
@@ -20,6 +21,7 @@ function makeTarget(over: Partial<TargetState> = {}): TargetState {
 function makeCtx(targets: Map<string, TargetState>): DispatchCtx {
   return {
     browser: { targets, cookies: {} },
+    client: testClient(),
   } as DispatchCtx;
 }
 

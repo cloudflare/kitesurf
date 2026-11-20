@@ -32,7 +32,10 @@ pub(crate) struct ScanScript {
 #[derive(Serialize)]
 pub(crate) struct ScanIframe {
     pub src: Option<String>,
+    pub srcdoc: Option<String>,
+    pub sandbox: Option<String>,
     pub name: Option<String>,
+    pub id: Option<String>,
     pub loading: Option<String>,
     #[serde(rename = "docOrderIndex")]
     pub doc_order_index: usize,
@@ -49,6 +52,15 @@ pub(crate) struct ScanImportMap {
 }
 
 #[derive(Serialize)]
+pub(crate) struct ScanModulePreload {
+    pub href: String,
+    pub nonce: Option<String>,
+    pub integrity: Option<String>,
+    #[serde(rename = "crossOrigin")]
+    pub cross_origin: Option<String>,
+}
+
+#[derive(Serialize)]
 pub(crate) struct ScanResult {
     pub title: String,
     #[serde(rename = "baseHref")]
@@ -59,6 +71,8 @@ pub(crate) struct ScanResult {
     pub import_maps: Vec<ScanImportMap>,
     pub scripts: Vec<ScanScript>,
     pub iframes: Vec<ScanIframe>,
+    #[serde(rename = "modulePreloads")]
+    pub module_preloads: Vec<ScanModulePreload>,
 }
 
 enum Capture {
@@ -148,6 +162,7 @@ struct ScanState {
     import_maps: Vec<ScanImportMap>,
     scripts: Vec<ScanScript>,
     iframes: Vec<ScanIframe>,
+    module_preloads: Vec<ScanModulePreload>,
     capture: Option<Capture>,
     template_depth: usize,
     foreign_depth: usize,
@@ -198,6 +213,10 @@ impl ScanState {
             && raw_type != "application/javascript"
             && raw_type != "module"
         {
+            return;
+        }
+        // A browser that runs modules skips a classic script marked nomodule: no fetch, no events.
+        if raw_type != "module" && attr(&attrs, "nomodule").is_some() {
             return;
         }
         let src = attr(&attrs, "src").map(str::trim).unwrap_or("");
@@ -393,7 +412,10 @@ impl TokenSink for ScanSink {
                     let idx = s.iframes.len();
                     s.iframes.push(ScanIframe {
                         src: attr(&attrs, "src").map(|v| v.to_string()),
+                        srcdoc: attr(&attrs, "srcdoc").map(|v| v.to_string()),
+                        sandbox: attr(&attrs, "sandbox").map(|v| v.to_string()),
                         name: attr(&attrs, "name").map(|v| v.to_string()),
+                        id: attr(&attrs, "id").map(|v| v.to_string()),
                         loading: attr(&attrs, "loading").map(|v| v.to_string()),
                         doc_order_index: idx,
                     });
@@ -409,6 +431,29 @@ impl TokenSink for ScanSink {
                 if s.base_href.is_none() && s.template_depth == 0 {
                     if let Some(href) = attr(&tag_attrs(tag), "href") {
                         s.base_href = Some(href.to_string());
+                    }
+                }
+                TokenSinkResult::Continue
+            }
+            "link" => {
+                if s.template_depth == 0 {
+                    let attrs = tag_attrs(tag);
+                    let is_modulepreload = attr(&attrs, "rel")
+                        .unwrap_or("")
+                        .split_ascii_whitespace()
+                        .any(|rel| rel.eq_ignore_ascii_case("modulepreload"));
+                    let script_destination = attr(&attrs, "as")
+                        .map(|value| value.is_empty() || value.eq_ignore_ascii_case("script"))
+                        .unwrap_or(true);
+                    if let Some(href) = attr(&attrs, "href").filter(|href| !href.is_empty()) {
+                        if is_modulepreload && script_destination {
+                            s.module_preloads.push(ScanModulePreload {
+                                href: href.to_string(),
+                                nonce: attr(&attrs, "nonce").map(str::to_string),
+                                integrity: attr(&attrs, "integrity").map(str::to_string),
+                                cross_origin: attr(&attrs, "crossorigin").map(str::to_string),
+                            });
+                        }
                     }
                 }
                 TokenSinkResult::Continue
@@ -454,33 +499,147 @@ fn capture_meta_csp(state: &mut ScanState, tag: &Tag) {
     }
 }
 
-pub(crate) fn scan_document(html: &str) -> ScanResult {
-    let sink = ScanSink {
-        state: RefCell::new(ScanState {
-            is_xhtml: blitz_html::is_xhtml_document(html),
-            ..ScanState::default()
-        }),
-    };
-    let tokenizer = Tokenizer::new(sink, TokenizerOpts::default());
-    let input = BufferQueue::default();
-    input.push_back(StrTendril::from_slice(html));
-    let _ = tokenizer.feed(&input);
-    tokenizer.end();
-    let s = tokenizer.sink.state.into_inner();
-    ScanResult {
-        title: s.title.unwrap_or_default(),
-        base_href: s.base_href,
-        meta_csp: s.meta_csp,
-        import_maps: s.import_maps,
-        scripts: s.scripts,
-        iframes: s.iframes,
+const SCAN_CHUNK_BYTES: usize = 64 * 1024;
+
+/// Splits `text` into pieces of about `chunk_bytes`, never inside a character.
+fn str_chunks(mut text: &str, chunk_bytes: usize) -> impl Iterator<Item = &str> {
+    std::iter::from_fn(move || {
+        if text.is_empty() {
+            return None;
+        }
+        let mut end = chunk_bytes.max(1).min(text.len());
+        while !text.is_char_boundary(end) {
+            end += 1;
+        }
+        let (chunk, rest) = text.split_at(end);
+        text = rest;
+        Some(chunk)
+    })
+}
+
+#[cfg(test)]
+pub(crate) fn scan_document_in_chunks(html: &str, chunk_bytes: usize) -> ScanResult {
+    let mut scanner = DocScanner::new();
+    for chunk in str_chunks(html, chunk_bytes) {
+        scanner.push_str(chunk);
+    }
+    scanner.finish_scan()
+}
+
+/// Scans a page pushed in parts, so the page is never copied into wasm whole: wasm memory
+/// never shrinks, and a whole copy kept the page's size in the engine for the session.
+#[wasm_bindgen]
+pub struct DocScanner {
+    tokenizer: Tokenizer<ScanSink>,
+    input: BufferQueue,
+    /// The page's start, held until it settles whether the page is XHTML, which decides how
+    /// its tokens are read. `None` once the tokenizer has started.
+    pending: Option<String>,
+    /// Pending length at which the sniff runs next; doubling keeps a long prolog linear.
+    next_sniff: usize,
+    /// Whether the document's own leading U+FEFF is still to be dropped. The tokenizer drops a
+    /// leading one on every feed, and this scanner feeds it once per chunk.
+    strip_bom: bool,
+}
+
+// wasm-bindgen requires this marker for exported receivers. A panic leaves the tokenizer
+// half-updated, but `scanDocument` frees a scanner whose push threw and never reads it again.
+impl std::panic::RefUnwindSafe for DocScanner {}
+
+impl Default for DocScanner {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 #[wasm_bindgen]
-pub fn ks_scan_document(html: &str) -> String {
-    serde_json::to_string(&scan_document(html)).unwrap_or_else(|_| {
-        "{\"title\":\"\",\"baseHref\":null,\"metaCsp\":[],\"importMaps\":[],\"scripts\":[],\"iframes\":[]}"
-            .to_string()
-    })
+impl DocScanner {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> DocScanner {
+        let sink = ScanSink {
+            state: RefCell::new(ScanState::default()),
+        };
+        // The tokenizer drops a leading U+FEFF on every feed; this scanner feeds it per chunk,
+        // so it drops the document's own mark once in `push_str` instead.
+        let opts = TokenizerOpts {
+            discard_bom: false,
+            ..TokenizerOpts::default()
+        };
+        DocScanner {
+            tokenizer: Tokenizer::new(sink, opts),
+            input: BufferQueue::default(),
+            pending: Some(String::new()),
+            next_sniff: 0,
+            strip_bom: true,
+        }
+    }
+
+    /// Adds the next part of the page as UTF-8. A part must not split a character.
+    pub fn push(&mut self, chunk: &[u8]) {
+        self.push_str(&String::from_utf8_lossy(chunk));
+    }
+
+    /// The scan of everything pushed, as JSON.
+    pub fn finish(self) -> String {
+        serde_json::to_string(&self.finish_scan()).unwrap_or_else(|_| {
+            "{\"title\":\"\",\"baseHref\":null,\"metaCsp\":[],\"importMaps\":[],\"scripts\":[],\"iframes\":[],\"modulePreloads\":[]}"
+                .to_string()
+        })
+    }
+}
+
+impl DocScanner {
+    fn push_str(&mut self, chunk: &str) {
+        let chunk = if self.strip_bom && !chunk.is_empty() {
+            self.strip_bom = false;
+            chunk.strip_prefix('\u{feff}').unwrap_or(chunk)
+        } else {
+            chunk
+        };
+        let Some(pending) = &mut self.pending else {
+            self.feed(chunk);
+            return;
+        };
+        pending.push_str(chunk);
+        if pending.len() < self.next_sniff {
+            return;
+        }
+        match blitz_html::is_xhtml_document_prefix(pending) {
+            Some(is_xhtml) => self.start(is_xhtml),
+            None => self.next_sniff = pending.len() * 2,
+        }
+    }
+
+    fn start(&mut self, is_xhtml: bool) {
+        let pending = self.pending.take().unwrap_or_default();
+        self.tokenizer.sink.state.borrow_mut().is_xhtml = is_xhtml;
+        self.feed(&pending);
+    }
+
+    /// The tokenizer copies its input into tendrils; feeding it a piece at a time keeps that
+    /// copy small.
+    fn feed(&self, text: &str) {
+        for chunk in str_chunks(text, SCAN_CHUNK_BYTES) {
+            self.input.push_back(StrTendril::from_slice(chunk));
+            let _ = self.tokenizer.feed(&self.input);
+        }
+    }
+
+    fn finish_scan(mut self) -> ScanResult {
+        if let Some(pending) = &self.pending {
+            let is_xhtml = blitz_html::is_xhtml_document(pending);
+            self.start(is_xhtml);
+        }
+        self.tokenizer.end();
+        let s = self.tokenizer.sink.state.into_inner();
+        ScanResult {
+            title: s.title.unwrap_or_default(),
+            base_href: s.base_href,
+            meta_csp: s.meta_csp,
+            import_maps: s.import_maps,
+            scripts: s.scripts,
+            iframes: s.iframes,
+            module_preloads: s.module_preloads,
+        }
+    }
 }

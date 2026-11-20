@@ -5,7 +5,8 @@
 // Resolves form owners and collects the controls listed by a form.
 
 import type * as Idl from "../../idl/types.generated.js";
-import { documentImpl as document } from "../../state.js";
+import { elementDocument } from "../../state.js";
+import { formBehindProxy } from "../../registries.js";
 import { htmlTagOf, isHtmlTag } from "../html-tag.js";
 import type { Element } from "../element.js";
 import type { HTMLFormElement } from "./form.js";
@@ -20,7 +21,7 @@ import type { HTMLTextAreaElement } from "./textarea.js";
 function resolveFormOwner(control: Element): HTMLFormElement | null {
   const ref = control.getAttribute("form");
   if (ref) {
-    const doc = control.ownerDocument || document;
+    const doc = elementDocument(control);
     const owner = doc.getElementById(ref);
     if (isHtmlTag(owner, "form")) return owner;
   }
@@ -106,7 +107,8 @@ function activateFormButton(
     }
   } else {
     try {
-      form.reset();
+      // Read off the form behind the proxy: a control named "reset" must not shadow it.
+      formBehindProxy(form).reset.call(form);
     } catch {
       /* unlikely */
     }

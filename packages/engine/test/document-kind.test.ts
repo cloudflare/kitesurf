@@ -4,7 +4,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { documentKind, imageDocumentHtml } from "../src/cdp/document-kind.ts";
+import {
+  documentKind,
+  imageDocumentHtml,
+  JSON_PARSED_MAX_CHARS,
+  jsonViewerHtml,
+} from "../src/cdp/document-kind.ts";
+import { htmlTagSpans, removeHtmlTagSpans } from "../src/eval/html-tag-spans.ts";
 
 function kind(contentType: string | null, disposition?: string): string {
   const h = new Headers();
@@ -61,6 +67,50 @@ describe("documentKind", () => {
     expect(kind("text/html", "inline; filename=a.html")).toBe("html");
     expect(kind("text/html", "filename=a.html")).toBe("html");
     expect(kind("text/html", "")).toBe("html");
+  });
+});
+
+it("preserves regex tag matches without rescanning unterminated openers", () => {
+  const cases = [
+    ["script", /<script\b[^>]*>[\s\S]*?<\/script\s*>/gi],
+    ["noscript", /<noscript\b[^>]*>[\s\S]*?<\/noscript\s*>/gi],
+    ["meta", /<meta\b[^>]*?\/?>/gi],
+  ] as const;
+  for (const [name, regex] of cases) {
+    for (const text of [
+      `<${name}>a</${name}>b<${name} x=">">c</${name}>`,
+      `<!--<${name}>--><${name}s>x</${name}s><${name}>x</${name}\u00a0><${name}`,
+    ]) {
+      const spans = htmlTagSpans(text, name, name !== "meta");
+      expect(spans.map(([start, end]) => text.slice(start, end))).toEqual(
+        Array.from(text.matchAll(regex), (match) => match[0]),
+      );
+      expect(removeHtmlTagSpans(text, spans)).toBe(text.replace(regex, ""));
+    }
+  }
+  const text = ("<noscript " + "a".repeat(32)).repeat(8000);
+  const start = performance.now();
+  const spans = htmlTagSpans(text, "noscript", true);
+  const elapsed = performance.now() - start;
+  expect(removeHtmlTagSpans(text, spans)).toBe(text);
+  expect(elapsed).toBeLessThan(250);
+});
+
+describe("jsonViewerHtml", () => {
+  it("expands a small document into the parsed tree", () => {
+    const html = jsonViewerHtml('{"a":1}', "https://ex.com/a.json");
+    expect(html).toContain('id="json-parsed"');
+    expect(html).toContain('<span class="json-key">"a"</span>');
+    expect(html).toContain('<span class="json-number">1</span>');
+  });
+
+  it("renders a document over the parsed-tree limit as raw text", () => {
+    const text = JSON.stringify({ blob: "x".repeat(JSON_PARSED_MAX_CHARS) });
+    expect(text.length).toBeGreaterThan(JSON_PARSED_MAX_CHARS);
+    const html = jsonViewerHtml(text, "https://ex.com/big.json");
+    expect(html).not.toContain('id="json-parsed"');
+    expect(html).toContain(`<pre>${text}</pre>`);
+    expect(html.length, "output stays close to the document").toBeLessThan(text.length * 2);
   });
 });
 

@@ -1,0 +1,1259 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sun, 25 Oct 2026 04:52:37 +0000
+Subject: [PATCH] Break lines from a summary of a layout's break segments
+
+An embedder that evicts a laid-out paragraph needs to break and measure
+it again without reshaping. Summarize a layout's break segments (widths,
+break opportunities, inline boxes, indent) so lines can be broken from
+the summary, including pre-wrap text, top and bottom aligned spans and
+paragraphs with absolutely positioned boxes, and expose the text indent
+a layout was last given. Breaking from a summary yields the same lines
+as breaking the shaped layout.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/layout/data.rs               |   15 +
+ src/layout/layout.rs             |    5 +
+ src/layout/line_break.rs         |    3 +
+ src/layout/line_break/summary.rs | 1161 ++++++++++++++++++++++++++++++
+ src/layout/mod.rs                |    3 +-
+ 5 files changed, 1186 insertions(+), 1 deletion(-)
+ create mode 100644 src/layout/line_break/summary.rs
+
+diff --git a/src/layout/data.rs b/src/layout/data.rs
+index 1f61c55..b278b9a 100644
+--- a/src/layout/data.rs
++++ b/src/layout/data.rs
+@@ -664,6 +664,21 @@ struct ContentWidthsMeasurer {
+     hard_indent: f32,
+ }
+
++/// Whether every character of the cluster at `cluster_idx` hangs.
++///
++/// Its first character is checked separately, through the cluster's cached flags, so a
++/// single-character cluster needs no scan of `characters`.
++fn cluster_hangs<B: Brush>(slice: ShapedSlice<'_>, cluster_idx: u32, styles: &[Style<B>]) -> bool {
++    let char_range = slice.shaped_cluster_char_range(cluster_idx);
++    char_range.end - char_range.start == 1
++        || slice.characters_in(char_range).iter().all(|character| {
++            whitespace_hangs(
++                character.whitespace,
++                &styles[character.style_index as usize],
++            )
++        })
++}
++
+ impl ContentWidthsMeasurer {
+     #[inline(always)]
+     fn new(indent_amount: f32, indent_options: IndentOptions) -> Self {
+diff --git a/src/layout/layout.rs b/src/layout/layout.rs
+index 9467a8c..781cfc1 100644
+--- a/src/layout/layout.rs
++++ b/src/layout/layout.rs
+@@ -266,6 +266,11 @@ impl<B: Brush> Layout<B> {
+         self.data.indent_options = options;
+     }
+
++    /// Returns the indent last passed to [`Self::set_text_indent`].
++    pub fn text_indent(&self) -> (f32, IndentOptions) {
++        (self.data.indent_amount, self.data.indent_options)
++    }
++
+     /// Returns line breaker to compute lines for the layout.
+     pub fn break_lines(&mut self) -> BreakLines<'_, B> {
+         BreakLines::new(self)
+diff --git a/src/layout/line_break.rs b/src/layout/line_break.rs
+index 33d83f2..932536b 100644
+--- a/src/layout/line_break.rs
++++ b/src/layout/line_break.rs
+@@ -5,6 +5,9 @@
+
+ use alloc::vec::Vec;
+
++mod summary;
++pub use summary::{BreakSummary, SummaryLine, SummaryLines};
++
+ #[cfg(feature = "libm")]
+ #[allow(unused_imports)]
+ use core_maths::CoreFloat;
+diff --git a/src/layout/line_break/summary.rs b/src/layout/line_break/summary.rs
+new file mode 100644
+index 0000000..ce987fd
+--- /dev/null
++++ b/src/layout/line_break/summary.rs
+@@ -0,0 +1,1161 @@
++// Copyright 2026 the Parley Authors
++// SPDX-License-Identifier: Apache-2.0 OR MIT
++
++//! Line breaking from a summary of a layout's break segments.
++//!
++//! A [`BreakSummary`] keeps what the greedy breaker in [`super`] reads between break
++//! opportunities: the summed advance of each segment of atoms, the whitespace at its end that
++//! hangs, and the line-box extents its atoms add to a line. It breaks the paragraph at a new
++//! width without the shaped text, so an owner can drop the shaping and still size the lines.
++//!
++//! Only paragraphs whose breaking depends on nothing else are summarized: no in-flow or custom
++//! out-of-flow inline boxes, tabs, atoms with mixed styles or partly hanging whitespace,
++//! `break-spaces`, or atoms in more than one `top`/`bottom` aligned subtree. Out-of-flow boxes
++//! take no space and add no break opportunity, so the summary only records which line each one
++//! lands on; it keeps them only in paragraphs without right-to-left runs, whose boxes are in text
++//! order on their lines. The breaker sums advances atom by atom along a line while
++//! the summary sums them per segment, so the two can round differently: a fit decision (or a
++//! decision whether conditionally hanging whitespace overflows) within that rounding error is
++//! reported as ambiguous, as is a line that may need an emergency break. The caller then breaks
++//! the shaped layout instead.
++
++use alloc::boxed::Box;
++use alloc::vec::Vec;
++
++use parley_engine::{Atom, ShapedSlice, shape::Whitespace};
++
++use super::{Extents, LineBoxMetrics, SubtreeHistory};
++use crate::layout::spacing::{EffectiveSpacing, Justification};
++use crate::layout::whitespace::atom_hanging_advance;
++use crate::layout::{BreakReason, IndentOptions, Layout, LayoutData, LayoutItemKind};
++use crate::style::Brush;
++use crate::{BaselineShift, InlineBoxKind, OverflowWrap, Style, TextWrapMode, WhiteSpaceCollapse};
++
++// Segment flags, one byte per segment.
++/// The segment's first atom is a soft wrap opportunity.
++const SOFT_WRAP: u8 = 1;
++/// The segment is a single newline atom.
++const NEWLINE: u8 = 1 << 1;
++/// Every atom of the segment hangs.
++const ALL_HANG: u8 = 1 << 2;
++/// The other bits: one plus the index of the segment's hanging atoms in the hang table, or zero
++/// when none of its atoms hang.
++const HANG_SHIFT: u8 = 3;
++const MAX_HANGS: usize = (u8::MAX >> HANG_SHIFT) as usize;
++const MAX_SEGMENT_ATOMS: u8 = u8::MAX;
++
++// Unit kind flags.
++const UNIT_WRAP: u32 = 1;
++/// The unit's style allows emergency breaks (`overflow-wrap` other than `normal`).
++const UNIT_EMERGENCY: u32 = 1 << 1;
++/// The unit's run is at the paragraph's base bidi level, so its trailing whitespace can hang.
++const UNIT_BASE_LEVEL: u32 = 1 << 2;
++/// The unit's whitespace is preserved, so at the end of a line before a forced break (or the end
++/// of the paragraph) it hangs only as far as it overflows.
++const UNIT_PRESERVE: u32 = 1 << 3;
++/// Bits 8..16 of a unit kind's flags: one plus the index of the `top`/`bottom` aligned subtree
++/// extents its atoms add in the subtree table, or zero if they only add to the root subtree.
++const UNIT_SUBTREE_SHIFT: u32 = 8;
++const MAX_KINDS: usize = u8::MAX as usize;
++const MAX_SUBTREES: usize = u8::MAX as usize;
++const MAX_SEGMENTS: usize = 1 << 24;
++/// A subtree table entry's root word: the style index of the subtree root, and this bit if it is
++/// `vertical-align: bottom`.
++const SUBTREE_BOTTOM: u32 = 1 << 16;
++
++// Header flags.
++const FIRST_WRAPS: u32 = 1;
++const QUANTIZE: u32 = 1 << 1;
++const HAS_TRAILING: u32 = 1 << 2;
++
++/// Header words: the counts indexed below, the strut's extents, and the trailing line's unit kind
++/// with the subtree and out-of-flow box counts.
++const HEADER: usize = 6;
++/// The number of segments.
++const H_SEGMENTS: usize = 0;
++/// The number of units.
++const H_UNITS: usize = 1;
++/// The kind count, the hang count, the most atoms in a segment and the header flags.
++const H_COUNTS: usize = 2;
++/// The strut's extents, in two words.
++const H_STRUT: usize = 3;
++/// The trailing line's unit kind, the subtree count and the out-of-flow box count.
++const H_TRAILING: usize = 5;
++const MAX_BOXES: usize = u16::MAX as usize;
++
++/// Enough of a broken [`Layout`] to break it again at another width without its shaped text.
++///
++/// Built with [`Layout::break_summary`]. It is one allocation of 32-bit words: a header, then per
++/// segment the advance of its atoms that don't hang (summed from zero) and a flags byte, then per
++/// unit (a stretch of segments whose atoms add the same boxes to a line) its first segment and
++/// kind, then the distinct unit kinds (root subtree extents and flags), then the distinct extents
++/// they add to `top`/`bottom` aligned subtrees, then the distinct hanging advances, then per
++/// out-of-flow box one plus the segment of the last atom before it (zero if none).
++#[derive(Clone, Debug)]
++pub struct BreakSummary {
++    words: Box<[u32]>,
++}
++
++/// One line as [`BreakSummary::break_lines`] breaks it, with the metrics the breaker gives it.
++#[derive(Clone, Copy, Debug, PartialEq)]
++pub struct SummaryLine {
++    /// Why the line ended.
++    pub break_reason: BreakReason,
++    /// [`LineMetrics::line_height`](crate::LineMetrics::line_height).
++    pub line_height: f32,
++    /// [`LineMetrics::baseline`](crate::LineMetrics::baseline).
++    pub baseline: f32,
++    /// [`LineMetrics::block_min_coord`](crate::LineMetrics::block_min_coord).
++    pub block_min_coord: f32,
++    /// [`LineMetrics::block_max_coord`](crate::LineMetrics::block_max_coord).
++    pub block_max_coord: f32,
++    /// [`LineMetrics::advance`](crate::LineMetrics::advance), up to rounding (see
++    /// [`SummaryLines::width`]).
++    pub advance: f32,
++    /// Whether this is the empty line the breaker adds after a final newline.
++    pub is_trailing_empty: bool,
++}
++
++/// The lines [`BreakSummary::break_lines`] computed, sized like the layout's would be.
++#[derive(Clone, Debug, PartialEq)]
++pub struct SummaryLines {
++    width: f32,
++    height: f32,
++    lines: Vec<SummaryLine>,
++    box_lines: Vec<u32>,
++}
++
++impl SummaryLines {
++    /// [`Layout::width`]. The breaker and the summary sum a line's advances in a different
++    /// order, so this can differ from it by rounding.
++    pub fn width(&self) -> f32 {
++        self.width
++    }
++
++    /// [`Layout::height`].
++    pub fn height(&self) -> f32 {
++        self.height
++    }
++
++    /// The lines, in order.
++    pub fn lines(&self) -> &[SummaryLine] {
++        &self.lines
++    }
++
++    /// The index of the line each inline box (all out of flow) lands on, in the order of
++    /// [`Layout::inline_boxes`]. After
++    /// [`Self::truncate_lines`] it can be past the last line, as the box is on no line.
++    pub fn box_lines(&self) -> &[u32] {
++        &self.box_lines
++    }
++
++    /// [`Layout::truncate_lines`].
++    pub fn truncate_lines(&mut self, max_lines: usize) {
++        if self.lines.len() <= max_lines {
++            return;
++        }
++        self.lines.truncate(max_lines);
++        self.height = self.lines.last().map_or(0., |line| line.block_max_coord);
++    }
++}
++
++impl<B: Brush> Layout<B> {
++    /// A [`BreakSummary`] of this layout, or `None` if its breaking can't be summarized (see the
++    /// [module docs](self)).
++    pub fn break_summary(&self) -> Option<BreakSummary> {
++        Builder::default().build(&self.data)
++    }
++}
++
++/// What a unit's atoms add to a line.
++#[derive(Clone, Copy, Debug)]
++struct UnitKind {
++    /// Line-box extents of the span boxes of the atoms' style and of their run's box.
++    extents: Extents,
++    flags: u32,
++}
++
++impl UnitKind {
++    fn same(self, other: Self) -> bool {
++        self.extents.over.to_bits() == other.extents.over.to_bits()
++            && self.extents.under.to_bits() == other.extents.under.to_bits()
++            && self.flags == other.flags
++    }
++}
++
++/// The segment being collected.
++#[derive(Default)]
++struct OpenSegment {
++    advance: f32,
++    hang_advance: f32,
++    hanging: f32,
++    atoms: u8,
++    flags: u8,
++    has_hang: bool,
++    has_content: bool,
++}
++
++/// One run of the layout, as its atoms are collected.
++struct RunAtoms<'a> {
++    /// Index into the layout's runs.
++    index: usize,
++    slice: ShapedSlice<'a>,
++    spacing: EffectiveSpacing<'a>,
++    is_rtl: bool,
++    /// Whether the run is at the paragraph's base bidi level.
++    base_level: bool,
++}
++
++/// Collects a layout's break segments, then serializes them.
++#[derive(Default)]
++struct Builder {
++    advances: Vec<f32>,
++    flags: Vec<u8>,
++    /// Per unit: first segment and kind.
++    units: Vec<(u32, u8)>,
++    kinds: Vec<UnitKind>,
++    /// Per distinct `top`/`bottom` aligned subtree contribution: root word and extents.
++    aligned: Vec<(u32, Extents)>,
++    hangs: Vec<(f32, f32)>,
++    /// Per out-of-flow box, in the layout's box order: one plus the segment of the last atom
++    /// before it, or zero.
++    boxes: Vec<u32>,
++    /// The segment being collected, the kind of its atoms, the style they have and whether the
++    /// last atom collected was a newline.
++    segment: OpenSegment,
++    current_kind: Option<UnitKind>,
++    run_style: Option<u16>,
++    last_was_newline: bool,
++    /// The strut, once the layout is known to be summarizable.
++    strut: LineBoxMetrics,
++    max_atoms: u8,
++    /// Scratch buffers for `unit_kind`, kept to reuse their allocations.
++    contributed: Vec<u16>,
++    subtrees: SubtreeHistory,
++}
++
++impl Builder {
++    /// Summarize `data`, or `None` if its breaking depends on anything the summary does not keep.
++    fn build<B: Brush>(mut self, data: &LayoutData<B>) -> Option<BreakSummary> {
++        self.check_summarizable(data)?;
++        self.collect_segments(data)?;
++        let trailing = self.trailing_kind(data)?;
++        self.encode(data, trailing)
++    }
++
++    /// Reject a layout whose breaking depends on anything the summary does not keep.
++    fn check_summarizable<B: Brush>(&mut self, data: &LayoutData<B>) -> Option<()> {
++        if data.text_len == 0 || data.has_tabs {
++            return None;
++        }
++        if !data.inline_boxes.is_empty() {
++            // Out-of-flow boxes take no space and add no break opportunity, but only a
++            // left-to-right paragraph has them in text order on their lines.
++            let out_of_flow = data
++                .inline_boxes
++                .iter()
++                .all(|layout_box| layout_box.inline_box.kind == InlineBoxKind::OutOfFlow);
++            if !out_of_flow
++                || data.inline_boxes.len() > MAX_BOXES
++                || data.items.iter().any(|item| item.bidi_level.is_rtl())
++            {
++                return None;
++            }
++            self.boxes = alloc::vec![0; data.inline_boxes.len()];
++        }
++        if data
++            .styles
++            .iter()
++            .any(|style| style.white_space_collapse == WhiteSpaceCollapse::BreakSpaces)
++        {
++            return None;
++        }
++        // Every line starts with the strut's boxes, so they must not add a `top`/`bottom` aligned
++        // subtree that the summary does not track.
++        self.strut.add_style(
++            0,
++            &data.style_metrics,
++            &mut self.contributed,
++            &mut self.subtrees,
++        );
++        if self.subtrees.entries.is_empty() {
++            return Some(());
++        }
++        None
++    }
++
++    fn collect_segments<B: Brush>(&mut self, data: &LayoutData<B>) -> Option<()> {
++        for item in &data.items {
++            if item.kind == LayoutItemKind::InlineBox {
++                self.anchor_box(item.index)?;
++            } else {
++                self.push_run(
++                    data,
++                    item.index,
++                    item.bidi_level.is_rtl(),
++                    item.bidi_level == data.base_level,
++                )?;
++            }
++        }
++        self.close_segment()?;
++        if self.advances.is_empty() || self.advances.len() >= MAX_SEGMENTS {
++            return None;
++        }
++        Some(())
++    }
++
++    /// Record the segment of the last atom before out-of-flow box `index`.
++    fn anchor_box(&mut self, index: usize) -> Option<()> {
++        // The breaker appends an out-of-flow box to the line it is building, so the box stays with
++        // the atom before it when the line breaks at the atom after it.
++        let last_atom = if self.segment.has_content {
++            Some(self.advances.len())
++        } else {
++            self.advances.len().checked_sub(1)
++        };
++        *self.boxes.get_mut(index)? = last_atom.map_or(Some(0), |at| u32::try_from(at + 1).ok())?;
++        Some(())
++    }
++
++    fn push_run<B: Brush>(
++        &mut self,
++        data: &LayoutData<B>,
++        run_idx: usize,
++        is_rtl: bool,
++        base_level: bool,
++    ) -> Option<()> {
++        let run = &data.runs[run_idx];
++        if run.has_mixed_style_atoms {
++            return None;
++        }
++        let atoms = RunAtoms {
++            index: run_idx,
++            slice: data.shaped_text.run_slice(u32::try_from(run_idx).ok()?),
++            spacing: EffectiveSpacing::new(run.spacing, Justification::NONE)
++                .with_span_edges(data.span_edges(run_idx)),
++            is_rtl,
++            base_level,
++        };
++        self.run_style = None;
++        for atom in atoms.slice.atoms_start() {
++            self.push_atom(data, &atoms, &atom)?;
++        }
++        Some(())
++    }
++
++    fn push_atom<B: Brush>(
++        &mut self,
++        data: &LayoutData<B>,
++        run: &RunAtoms<'_>,
++        atom: &Atom<'_>,
++    ) -> Option<()> {
++        let first = &atom.characters()[0];
++        let is_newline = first.whitespace == Whitespace::Newline;
++        let advance = run.spacing.atom_advance(atom);
++        if !(advance >= 0. && advance.is_finite()) {
++            return None;
++        }
++        let (hanging, all_hang) =
++            atom_hanging_advance(run.slice, atom, &data.styles, run.spacing, run.is_rtl);
++        if !all_hang && hanging != 0. {
++            return None;
++        }
++
++        let new_kind = self.start_unit(data, run, first.style_index)?;
++        let continues = self.segment.has_content
++            && new_kind.is_none()
++            && !is_newline
++            && self.segment.flags & NEWLINE == 0
++            && !first.flags.is_soft_wrap_opportunity()
++            && self.segment.atoms < MAX_SEGMENT_ATOMS
++            && (all_hang || !self.segment.has_hang);
++        if !continues {
++            self.close_segment()?;
++        }
++        if let Some(kind) = new_kind {
++            self.current_kind = Some(kind);
++            let index = self.intern_kind(kind)?;
++            self.units
++                .push((u32::try_from(self.advances.len()).ok()?, index));
++        }
++
++        let segment = &mut self.segment;
++        if !segment.has_content && first.flags.is_soft_wrap_opportunity() {
++            segment.flags |= SOFT_WRAP;
++        }
++        segment.has_content = true;
++        segment.atoms += 1;
++        if is_newline {
++            // A newline doesn't move the pen, but hangs past the line's end.
++            segment.flags |= NEWLINE;
++            segment.has_hang = true;
++            segment.hanging += hanging;
++            if all_hang {
++                segment.flags |= ALL_HANG;
++            }
++        } else if all_hang {
++            if !segment.has_hang && segment.atoms == 1 {
++                segment.flags |= ALL_HANG;
++            }
++            segment.has_hang = true;
++            segment.hang_advance += advance;
++            segment.hanging += hanging;
++        } else {
++            segment.advance += advance;
++        }
++        self.last_was_newline = is_newline;
++        Some(())
++    }
++
++    /// The kind of the unit starting at an atom of `style_index`, if its style starts a new one.
++    fn start_unit<B: Brush>(
++        &mut self,
++        data: &LayoutData<B>,
++        run: &RunAtoms<'_>,
++        style_index: u16,
++    ) -> Option<Option<UnitKind>> {
++        // Atoms of another run or style start a new unit, unless they add the same boxes.
++        if self.run_style == Some(style_index) {
++            return Some(None);
++        }
++        self.run_style = Some(style_index);
++        let flags = unit_flags(&data.styles[usize::from(style_index)], run.base_level);
++        let kind = self.unit_kind(data, run.index, style_index, flags)?;
++        match self.current_kind {
++            Some(current) if current.same(kind) => Some(None),
++            _ => Some(Some(kind)),
++        }
++    }
++
++    /// The kind of the atoms of run `run_idx` with style `style_index`, given its `flags`.
++    fn unit_kind<B: Brush>(
++        &mut self,
++        data: &LayoutData<B>,
++        run_idx: usize,
++        style_index: u16,
++        mut flags: u32,
++    ) -> Option<UnitKind> {
++        let (extents, aligned) = unit_extents(
++            data,
++            run_idx,
++            style_index,
++            &mut self.contributed,
++            &mut self.subtrees,
++        )?;
++        if let Some(aligned) = aligned {
++            let same = |known: &(u32, Extents)| {
++                known.0 == aligned.0
++                    && known.1.over.to_bits() == aligned.1.over.to_bits()
++                    && known.1.under.to_bits() == aligned.1.under.to_bits()
++            };
++            let slot = match self.aligned.iter().position(same) {
++                Some(slot) => slot,
++                None if self.aligned.len() < MAX_SUBTREES => {
++                    self.aligned.push(aligned);
++                    self.aligned.len() - 1
++                }
++                None => return None,
++            };
++            flags |= u32::try_from(slot + 1).ok()? << UNIT_SUBTREE_SHIFT;
++        }
++        Some(UnitKind { extents, flags })
++    }
++
++    /// The index of `kind` in the kind table, adding it if new.
++    fn intern_kind(&mut self, kind: UnitKind) -> Option<u8> {
++        let index = match self.kinds.iter().position(|known| known.same(kind)) {
++            Some(index) => index,
++            None if self.kinds.len() < MAX_KINDS => {
++                self.kinds.push(kind);
++                self.kinds.len() - 1
++            }
++            None => return None,
++        };
++        u8::try_from(index).ok()
++    }
++
++    /// The kind of the empty line the breaker adds after a final newline.
++    ///
++    /// `None` if the paragraph cannot be summarized, otherwise the kind index, if there is such a
++    /// line.
++    fn trailing_kind<B: Brush>(&mut self, data: &LayoutData<B>) -> Option<Option<u8>> {
++        if !self.last_was_newline {
++            return Some(None);
++        }
++        // A box after the final newline makes the breaker's last line hold it and no text, which
++        // is sized unlike the empty line it adds otherwise.
++        let after_last_segment = u32::try_from(self.advances.len()).ok()?;
++        if self.boxes.contains(&after_last_segment) {
++            return None;
++        }
++        // The breaker sizes this line with the style of the newline that produced it; see
++        // `BreakLines::finish_line`.
++        let (run_idx, run) = data
++            .shaped_text
++            .runs()
++            .iter()
++            .enumerate()
++            .rfind(|(_, run)| !run.range.byte_range.is_empty())?;
++        let cluster = run.shaped_clusters_range.end.checked_sub(1)?;
++        let style_index = data.shaped_text.cluster_style_index(cluster);
++        let kind = self.unit_kind(data, run_idx, style_index, 0)?;
++        Some(Some(self.intern_kind(kind)?))
++    }
++
++    /// Serialize the collected tables into the summary's words.
++    fn encode<B: Brush>(&self, data: &LayoutData<B>, trailing: Option<u8>) -> Option<BreakSummary> {
++        let mut flags = 0;
++        if data
++            .styles
++            .first()
++            .is_none_or(|style| style.text_wrap_mode == TextWrapMode::Wrap)
++        {
++            flags |= FIRST_WRAPS;
++        }
++        if data.quantize {
++            flags |= QUANTIZE;
++        }
++        if trailing.is_some() {
++            flags |= HAS_TRAILING;
++        }
++        let trailing_kind = trailing.unwrap_or_default();
++        let segments = self.advances.len();
++        let mut words = Vec::with_capacity(
++            HEADER
++                + segments
++                + segments.div_ceil(4)
++                + self.units.len()
++                + 3 * self.kinds.len()
++                + 3 * self.aligned.len()
++                + 2 * self.hangs.len()
++                + self.boxes.len(),
++        );
++
++        let mut header = [0; HEADER];
++        header[H_SEGMENTS] = u32::try_from(segments).ok()?;
++        header[H_UNITS] = u32::try_from(self.units.len()).ok()?;
++        header[H_COUNTS] = u32::try_from(self.kinds.len()).ok()?
++            | u32::try_from(self.hangs.len()).ok()? << 8
++            | u32::from(self.max_atoms) << 16
++            | flags << 24;
++        header[H_STRUT] = self.strut.root.line_box.over.to_bits();
++        header[H_STRUT + 1] = self.strut.root.line_box.under.to_bits();
++        header[H_TRAILING] = u32::from(trailing_kind)
++            | u32::try_from(self.aligned.len()).ok()? << 8
++            | u32::try_from(self.boxes.len()).ok()? << 16;
++        words.extend(header);
++
++        words.extend(self.advances.iter().map(|advance| advance.to_bits()));
++        words.extend(self.flags.chunks(4).map(pack_flags));
++        words.extend(
++            self.units
++                .iter()
++                .map(|&(start, kind)| start << 8 | u32::from(kind)),
++        );
++        for kind in &self.kinds {
++            words.extend([
++                kind.extents.over.to_bits(),
++                kind.extents.under.to_bits(),
++                kind.flags,
++            ]);
++        }
++        for &(root, extents) in &self.aligned {
++            words.extend([root, extents.over.to_bits(), extents.under.to_bits()]);
++        }
++        for &(advance, hanging) in &self.hangs {
++            words.extend([advance.to_bits(), hanging.to_bits()]);
++        }
++        words.extend_from_slice(&self.boxes);
++        Some(BreakSummary {
++            words: words.into_boxed_slice(),
++        })
++    }
++
++    /// Store the open segment, if it has any atoms, and start a new one.
++    fn close_segment(&mut self) -> Option<()> {
++        let segment = core::mem::take(&mut self.segment);
++        if !segment.has_content {
++            return Some(());
++        }
++        let mut flags = segment.flags;
++        if segment.has_hang {
++            flags |= self.intern_hang(segment.hang_advance, segment.hanging)? << HANG_SHIFT;
++        }
++        self.max_atoms = self.max_atoms.max(segment.atoms);
++        self.advances.push(segment.advance);
++        self.flags.push(flags);
++        Some(())
++    }
++
++    /// The index in the hang table of hanging atoms with this advance and hanging advance, adding
++    /// them if new.
++    fn intern_hang(&mut self, advance: f32, hanging: f32) -> Option<u8> {
++        let hang = (advance, hanging);
++        let same = |known: &(f32, f32)| {
++            known.0.to_bits() == hang.0.to_bits() && known.1.to_bits() == hang.1.to_bits()
++        };
++        let slot = match self.hangs.iter().position(same) {
++            Some(slot) => slot,
++            None if self.hangs.len() < MAX_HANGS => {
++                self.hangs.push(hang);
++                self.hangs.len() - 1
++            }
++            None => return None,
++        };
++        u8::try_from(slot + 1).ok()
++    }
++}
++
++/// The flags of a unit's atoms: how their style wraps, and where they can hang.
++fn unit_flags<B: Brush>(style: &Style<B>, base_level: bool) -> u32 {
++    let mut flags = 0;
++    if style.text_wrap_mode == TextWrapMode::Wrap {
++        flags |= UNIT_WRAP;
++    }
++    if style.overflow_wrap != OverflowWrap::Normal {
++        flags |= UNIT_EMERGENCY;
++    }
++    if base_level {
++        flags |= UNIT_BASE_LEVEL;
++    }
++    if style.white_space_collapse == WhiteSpaceCollapse::Preserve {
++        flags |= UNIT_PRESERVE;
++    }
++    flags
++}
++
++/// Pack four segments' flags into one word, the first in the low byte.
++fn pack_flags(flags: &[u8]) -> u32 {
++    flags
++        .iter()
++        .rev()
++        .fold(0, |word, &flag| word << 8 | u32::from(flag))
++}
++
++/// Section offsets into [`BreakSummary::words`].
++#[derive(Clone, Copy)]
++struct Sections {
++    segments: usize,
++    flags: usize,
++    units: usize,
++    unit_count: usize,
++    kinds: usize,
++    aligned: usize,
++    hangs: usize,
++    boxes: usize,
++    box_count: usize,
++}
++
++/// Where a line sits, as [`LineMetrics`](crate::LineMetrics) reports it.
++struct LineBox {
++    line_height: f32,
++    /// [`LineMetrics::block_min_coord`](crate::LineMetrics::block_min_coord).
++    top: f32,
++    baseline: f32,
++    /// [`LineMetrics::block_max_coord`](crate::LineMetrics::block_max_coord).
++    block_max_coord: f32,
++}
++
++impl BreakSummary {
++    /// Bytes this summary holds on the heap.
++    pub fn heap_size(&self) -> usize {
++        self.words.len() * size_of::<u32>()
++    }
++
++    fn sections(&self) -> Sections {
++        let segments = self.words[H_SEGMENTS] as usize;
++        let unit_count = self.words[H_UNITS] as usize;
++        let kind_count = (self.words[H_COUNTS] & 0xff) as usize;
++        let hang_count = ((self.words[H_COUNTS] >> 8) & 0xff) as usize;
++        let aligned_count = ((self.words[H_TRAILING] >> 8) & 0xff) as usize;
++        let flags = HEADER + segments;
++        let units = flags + segments.div_ceil(4);
++        let kinds = units + unit_count;
++        let aligned = kinds + 3 * kind_count;
++        let hangs = aligned + 3 * aligned_count;
++        Sections {
++            segments,
++            flags,
++            units,
++            unit_count,
++            kinds,
++            aligned,
++            hangs,
++            boxes: hangs + 2 * hang_count,
++            box_count: (self.words[H_TRAILING] >> 16) as usize,
++        }
++    }
++
++    fn kind_at(&self, sections: Sections, kind: usize) -> UnitKind {
++        let index = sections.kinds + 3 * kind;
++        UnitKind {
++            extents: self.extents_at(index),
++            flags: self.words[index + 2],
++        }
++    }
++
++    /// The `top`/`bottom` aligned subtree extents `kind` adds, as (root word, extents).
++    fn aligned_of(&self, sections: Sections, kind: UnitKind) -> Option<(u32, Extents)> {
++        match (kind.flags >> UNIT_SUBTREE_SHIFT) & 0xff {
++            0 => None,
++            slot => {
++                let index = sections.aligned + 3 * (slot as usize - 1);
++                Some((self.words[index], self.extents_at(index + 1)))
++            }
++        }
++    }
++
++    fn header_flags(&self) -> u32 {
++        self.words[H_COUNTS] >> 24
++    }
++
++    fn max_atoms(&self) -> u32 {
++        (self.words[H_COUNTS] >> 16) & 0xff
++    }
++
++    fn extents_at(&self, index: usize) -> Extents {
++        Extents {
++            over: f32::from_bits(self.words[index]),
++            under: f32::from_bits(self.words[index + 1]),
++        }
++    }
++
++    fn advance(&self, segment: usize) -> f32 {
++        f32::from_bits(self.words[HEADER + segment])
++    }
++
++    fn flags(&self, sections: Sections, segment: usize) -> u8 {
++        (self.words[sections.flags + segment / 4] >> (8 * (segment % 4))) as u8
++    }
++
++    fn unit_start(&self, sections: Sections, unit: usize) -> usize {
++        (self.words[sections.units + unit] >> 8) as usize
++    }
++
++    fn unit_kind(&self, sections: Sections, unit: usize) -> UnitKind {
++        let kind = (self.words[sections.units + unit] & 0xff) as usize;
++        self.kind_at(sections, kind)
++    }
++
++    /// The hanging atoms of a segment with `flags`, as (advance, hanging advance).
++    fn hang(&self, sections: Sections, flags: u8) -> Option<(f32, f32)> {
++        match usize::from(flags >> HANG_SHIFT) {
++            0 => None,
++            slot => {
++                let index = sections.hangs + 2 * (slot - 1);
++                Some((
++                    f32::from_bits(self.words[index]),
++                    f32::from_bits(self.words[index + 1]),
++                ))
++            }
++        }
++    }
++
++    /// The unit of `segment`.
++    fn unit_of(&self, sections: Sections, segment: usize) -> usize {
++        let units = &self.words[sections.units..sections.units + sections.unit_count];
++        units
++            .partition_point(|&unit| (unit >> 8) as usize <= segment)
++            .saturating_sub(1)
++    }
++
++    /// The unit of `segment`, given a unit at or before it.
++    fn unit_from(&self, sections: Sections, segment: usize, mut unit: usize) -> usize {
++        while unit + 1 < sections.unit_count && self.unit_start(sections, unit + 1) <= segment {
++            unit += 1;
++        }
++        unit
++    }
++
++    /// Break the lines as [`Layout::break_all_lines`] with `Some(max_advance)` would after
++    /// [`Layout::set_text_indent`] with `indent_amount` and `indent_options`.
++    ///
++    /// Returns `None` when the result could differ from the layout's: a fit decision within
++    /// rounding error of the available width, or a line that may need an emergency break.
++    pub fn break_lines(
++        &self,
++        max_advance: f32,
++        indent_amount: f32,
++        indent_options: IndentOptions,
++    ) -> Option<SummaryLines> {
++        if max_advance.is_nan() {
++            return None;
++        }
++        let sections = self.sections();
++        let header_flags = self.header_flags();
++        let quantize = header_flags & QUANTIZE != 0;
++        let strut = self.extents_at(H_STRUT);
++        let count = sections.segments;
++
++        let mut lines: Vec<SummaryLine> = Vec::new();
++        // The first segment of each line, kept to find the lines of out-of-flow boxes.
++        let mut line_starts: Vec<usize> = Vec::new();
++        let mut line_y = 0_f64;
++        let mut height = 0_f64;
++        let mut width = 0_f32;
++
++        // Where breaking has got to: the next segment, its unit, and whether the unit before it
++        // wraps.
++        let mut segment = 0;
++        let mut unit = 0;
++        let mut lagged_wrap = header_flags & FIRST_WRAPS != 0;
++        // The `top`/`bottom` aligned subtree extents added on the current line, in order, without
++        // consecutive repeats; a break opportunity records its length. `subtrees` merges them per
++        // root, and is kept across lines to reuse its capacity.
++        let mut aligned: Vec<(u32, Extents)> = Vec::new();
++        let mut subtrees: Vec<(u32, Extents)> = Vec::new();
++
++        loop {
++            let line_indent = self.line_indent(&lines, indent_amount, indent_options);
++            let max = max_advance - line_indent;
++            let line_start = segment;
++            let mut x = 0_f32;
++            let mut extents = strut;
++            aligned.clear();
++            let mut may_break_emergency = false;
++            // The last regular break opportunity: segment, pen, extents and the number of aligned
++            // subtree entries before it.
++            let mut boundary: Option<(usize, f32, Extents, usize)> = None;
++
++            let reason = loop {
++                if segment == count {
++                    break BreakReason::None;
++                }
++                unit = self.unit_from(sections, segment, unit);
++                let kind = self.unit_kind(sections, unit);
++                let flags = self.flags(sections, segment);
++                if flags & NEWLINE != 0 {
++                    self.add_kind(sections, kind, &mut extents, &mut aligned);
++                    lagged_wrap = kind.flags & UNIT_WRAP != 0;
++                    segment += 1;
++                    break BreakReason::Explicit;
++                }
++                if flags & SOFT_WRAP != 0 && lagged_wrap && x != 0. {
++                    boundary = Some((segment, x, extents, aligned.len()));
++                }
++                lagged_wrap = kind.flags & UNIT_WRAP != 0;
++                may_break_emergency |= kind.flags & UNIT_EMERGENCY != 0;
++                if flags & ALL_HANG == 0 {
++                    let end = x + self.advance(segment);
++                    if max != f32::INFINITY
++                        && (end - max).abs()
++                            <= self.rounding_tolerance(segment - line_start + 1, max, end)
++                    {
++                        return None;
++                    }
++                    if end > max {
++                        if let Some((at, at_x, at_extents, at_aligned)) = boundary {
++                            segment = at;
++                            x = at_x;
++                            extents = at_extents;
++                            aligned.truncate(at_aligned);
++                            unit = self.unit_of(sections, segment);
++                            break BreakReason::Regular;
++                        }
++                        if may_break_emergency {
++                            return None;
++                        }
++                    }
++                    x = end;
++                }
++                if let Some((hang_advance, _)) = self.hang(sections, flags) {
++                    x += hang_advance;
++                }
++                self.add_kind(sections, kind, &mut extents, &mut aligned);
++                segment += 1;
++            };
++
++            let is_trailing_empty = line_start == count;
++            if is_trailing_empty {
++                // The breaker sizes its empty last line like the newline that produced it.
++                if header_flags & HAS_TRAILING == 0 {
++                    return None;
++                }
++                let kind = self.kind_at(sections, (self.words[H_TRAILING] & 0xff) as usize);
++                self.add_kind(sections, kind, &mut extents, &mut aligned);
++            }
++
++            let metrics = self.line_metrics(&aligned, &mut subtrees, extents, quantize, line_y);
++            line_y += f64::from(metrics.line_height);
++            height += f64::from(metrics.line_height);
++
++            let hanging = self.line_hanging(sections, line_start, segment, reason, x, max)?;
++            width = width.max(x + line_indent.max(0.) - hanging);
++
++            lines.push(SummaryLine {
++                break_reason: reason,
++                line_height: metrics.line_height,
++                baseline: metrics.baseline,
++                block_min_coord: metrics.top,
++                block_max_coord: metrics.block_max_coord,
++                advance: x,
++                is_trailing_empty,
++            });
++            if sections.box_count != 0 {
++                line_starts.push(line_start);
++            }
++            if reason == BreakReason::None {
++                break;
++            }
++        }
++
++        let box_lines = self.box_lines(sections, &line_starts)?;
++        Some(SummaryLines {
++            width,
++            height: height as f32,
++            lines,
++            box_lines,
++        })
++    }
++
++    fn line_indent(
++        &self,
++        lines: &[SummaryLine],
++        indent_amount: f32,
++        indent_options: IndentOptions,
++    ) -> f32 {
++        match lines.last().map(|line| line.break_reason) {
++            None => indent_options.indent_for_first_line(indent_amount),
++            Some(BreakReason::Explicit) => {
++                indent_options.indent_following_forced_line_break(indent_amount)
++            }
++            Some(_) => indent_options.indent_following_soft_wrap_break(indent_amount),
++        }
++    }
++
++    /// How far a fit decision may be from the exact one: the summary's and the breaker's sums of a
++    /// line's advances are both within `atoms * EPSILON` (relative) of the exact sum.
++    fn rounding_tolerance(&self, segments: usize, max: f32, value: f32) -> f32 {
++        let atoms = segments as f32 * self.max_atoms() as f32;
++        (atoms + 2.) * f32::EPSILON * value.abs().max(max.abs())
++    }
++
++    /// Where a line with `extents` sits, given the `top`/`bottom` aligned subtree extents it
++    /// collected. `subtrees` is a scratch buffer, cleared here.
++    fn line_metrics(
++        &self,
++        aligned: &[(u32, Extents)],
++        subtrees: &mut Vec<(u32, Extents)>,
++        extents: Extents,
++        quantize: bool,
++        line_y: f64,
++    ) -> LineBox {
++        // The current extents of each `top`/`bottom` aligned subtree, as `SubtreeHistory`.
++        subtrees.clear();
++        for &(root, entry) in aligned {
++            match subtrees.iter_mut().find(|(known, _)| *known == root) {
++                Some((_, known)) => *known = union(*known, entry),
++                None => subtrees.push((root, entry)),
++            }
++        }
++
++        // As `LineBoxMetrics::line_height` and `BreakLines::finish_line`.
++        let mut top_height = 0_f32;
++        let mut bottom_height = 0_f32;
++        for &(root, subtree) in subtrees.iter() {
++            let subtree_height = subtree.height();
++            if root & SUBTREE_BOTTOM != 0 {
++                bottom_height = bottom_height.max(subtree_height);
++            } else {
++                top_height = top_height.max(subtree_height);
++            }
++        }
++        let line_height = extents.height().max(top_height).max(bottom_height);
++        let mut line_box = extents.or_zero();
++        let root_height = line_box.over + line_box.under;
++        if top_height > root_height {
++            line_box.under += top_height - root_height;
++        }
++        let root_height = line_box.over + line_box.under;
++        if bottom_height > root_height {
++            line_box.over += bottom_height - root_height;
++        }
++
++        let top = if quantize {
++            line_y.round() as f32
++        } else {
++            line_y as f32
++        };
++        let baseline = top + line_box.over;
++        let block_max_coord = if quantize {
++            (baseline + line_box.under).round()
++        } else {
++            baseline + line_box.under
++        };
++        LineBox {
++            line_height,
++            top,
++            baseline,
++            block_max_coord,
++        }
++    }
++
++    /// The advance of the whitespace hanging at the end of the line of segments
++    /// `line_start..end`, up to rounding.
++    fn line_hanging(
++        &self,
++        sections: Sections,
++        line_start: usize,
++        end: usize,
++        reason: BreakReason,
++        x: f32,
++        max: f32,
++    ) -> Option<f32> {
++        // Conditionally hanging whitespace only hangs as far as it overflows, and a wrapped line
++        // overflows in full (see `commit_line`).
++        let overflow = match reason {
++            BreakReason::Regular | BreakReason::Emergency => f32::INFINITY,
++            BreakReason::Explicit | BreakReason::None => x - max,
++        };
++        let tolerance = if overflow.is_finite() {
++            self.rounding_tolerance(end - line_start + 1, max, x)
++        } else {
++            0.
++        };
++        self.hanging(sections, line_start, end, overflow, tolerance)
++    }
++
++    /// The line each out-of-flow box lands on.
++    fn box_lines(&self, sections: Sections, line_starts: &[usize]) -> Option<Vec<u32>> {
++        (0..sections.box_count)
++            .map(|index| match self.words[sections.boxes + index] as usize {
++                0 => Some(0),
++                anchor => {
++                    let segment = anchor - 1;
++                    let line = line_starts.partition_point(|&start| start <= segment) - 1;
++                    // A newline ends its line, so the box starts the next one.
++                    let line = line + usize::from(self.flags(sections, segment) & NEWLINE != 0);
++                    u32::try_from(line).ok()
++                }
++            })
++            .collect::<Option<Vec<_>>>()
++    }
++
++    /// Add the boxes of a unit of `kind` to the line's root subtree `extents` and its `aligned`
++    /// subtree entries.
++    fn add_kind(
++        &self,
++        sections: Sections,
++        kind: UnitKind,
++        extents: &mut Extents,
++        aligned: &mut Vec<(u32, Extents)>,
++    ) {
++        *extents = union(*extents, kind.extents);
++        if let Some(entry) = self.aligned_of(sections, kind)
++            && aligned
++                .last()
++                .is_none_or(|&last| !same_aligned(last, entry))
++        {
++            aligned.push(entry);
++        }
++    }
++
++    /// The advance of the whitespace hanging at the end of the line of segments `start..end`, as
++    /// `hanging_whitespace` computes it given `overflow` (up to rounding). `None` if whether the
++    /// conditionally hanging whitespace overflows is within `tolerance` of the line's end.
++    fn hanging(
++        &self,
++        sections: Sections,
++        start: usize,
++        end: usize,
++        overflow: f32,
++        tolerance: f32,
++    ) -> Option<f32> {
++        if start == end {
++            return Some(0.);
++        }
++        let mut hanging = 0.;
++        // Whether the segments walked so far all hang conditionally, and their advance.
++        let mut in_conditional_suffix = true;
++        let mut conditional_advance: Option<f32> = None;
++        let mut unit = self.unit_of(sections, end - 1);
++        for segment in (start..end).rev() {
++            while self.unit_start(sections, unit) > segment {
++                unit -= 1;
++            }
++            let kind = self.unit_kind(sections, unit);
++            if kind.flags & UNIT_BASE_LEVEL == 0 {
++                break;
++            }
++            let flags = self.flags(sections, segment);
++            let segment_hanging = self
++                .hang(sections, flags)
++                .map_or(0., |(_, hanging)| hanging);
++            // Every atom of a segment has the unit's style, so the segment hangs conditionally as
++            // a whole.
++            if in_conditional_suffix && flags & NEWLINE == 0 {
++                if kind.flags & UNIT_PRESERVE != 0 {
++                    *conditional_advance.get_or_insert(0.) += segment_hanging;
++                } else {
++                    in_conditional_suffix = false;
++                    if let Some(advance) = conditional_advance {
++                        if advance > 0. && (advance - overflow).abs() <= tolerance {
++                            return None;
++                        }
++                        if advance <= 0. || advance > overflow {
++                            break;
++                        }
++                    }
++                }
++            }
++            hanging += segment_hanging;
++            if flags & ALL_HANG == 0 {
++                break;
++            }
++        }
++        if let Some(advance) = conditional_advance {
++            hanging -= advance - advance.min(overflow).max(0.);
++        }
++        Some(hanging)
++    }
++}
++
++/// The extents the atoms of run `run_idx` with style `style_index` add to a line: to the root
++/// aligned subtree, and to at most one `top`/`bottom` aligned subtree as (root word, extents).
++/// `None` if they add to more than one.
++fn unit_extents<B: Brush>(
++    data: &LayoutData<B>,
++    run_idx: usize,
++    style_index: u16,
++    contributed: &mut Vec<u16>,
++    subtrees: &mut SubtreeHistory,
++) -> Option<(Extents, Option<(u32, Extents)>)> {
++    contributed.clear();
++    subtrees.clear();
++    let mut metrics = LineBoxMetrics::default();
++    metrics.add_text_boxes(
++        run_idx,
++        run_idx,
++        style_index,
++        &[],
++        data,
++        contributed,
++        subtrees,
++    );
++    let aligned = match subtrees.current().as_slice() {
++        [] => None,
++        [subtree] => {
++            let mut root = u32::from(subtree.root);
++            if data.styles[usize::from(subtree.root)].vertical_align.shift == BaselineShift::Bottom
++            {
++                root |= SUBTREE_BOTTOM;
++            }
++            Some((root, subtree.line_box))
++        }
++        _ => return None,
++    };
++    Some((metrics.root.line_box, aligned))
++}
++
++fn same_aligned(a: (u32, Extents), b: (u32, Extents)) -> bool {
++    a.0 == b.0
++        && a.1.over.to_bits() == b.1.over.to_bits()
++        && a.1.under.to_bits() == b.1.under.to_bits()
++}
++
++fn union(a: Extents, b: Extents) -> Extents {
++    Extents {
++        over: a.over.max(b.over),
++        under: a.under.max(b.under),
++    }
++}
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 4f99aee..360559a 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -29,6 +29,7 @@ pub use data::{BreakReason, SpanFragment};
+ pub use layout::Layout;
+ pub use line::{GlyphRun, Line, LineMetrics, PositionedInlineBox, PositionedLayoutItem};
+ pub use line_break::{
+-    BoxBreakData, BreakLines, BreakerState, LineBreakData, MaxHeightBreakData, YieldData,
++    BoxBreakData, BreakLines, BreakSummary, BreakerState, LineBreakData, MaxHeightBreakData,
++    SummaryLine, SummaryLines, YieldData,
+ };
+ pub use run::Run;

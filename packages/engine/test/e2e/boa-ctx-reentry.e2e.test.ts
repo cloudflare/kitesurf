@@ -95,15 +95,17 @@ test("the chaperone counter names an unwrapped boa->V8 call site", async ({ page
   await page.evaluate(() => {
     const g = globalThis as typeof globalThis & {
       __probe: { marker: number };
-      __ks_thisfwd: (...args: unknown[]) => unknown;
       __cb: () => number;
     };
     g.__probe = { marker: 7 };
-    const original = g.__ks_thisfwd;
-    g.__ks_thisfwd = function (...args: unknown[]) {
+    const internals: unknown = Reflect.get(globalThis, Symbol.for("kitesurf.internals"));
+    if (typeof internals !== "object" || internals === null) throw new Error("no internals record");
+    const original: unknown = Reflect.get(internals, "wrapBoaFunction");
+    if (typeof original !== "function") throw new Error("no wrapBoaFunction hook");
+    Reflect.set(internals, "wrapBoaFunction", function (...args: unknown[]) {
       void g.__probe.marker;
       return original(...args);
-    };
+    });
     g.__cb = () => 1;
     return 1;
   });

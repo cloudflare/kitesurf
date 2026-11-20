@@ -1,0 +1,118 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Mon, 26 Oct 2026 11:57:08 +0000
+Subject: [PATCH] layout: rebuild inline backgrounds when fragment presence
+ changes
+
+Parley stores the presence of an inline background fragment during box construction. Background-only changes receive repaint damage, which bypasses the embedder layout-damage hook and leaves a formerly transparent span without a fragment.
+
+Compare the same inline-background predicate before and after style traversal, including pseudo-element style synchronization. Request box construction only when fragment presence changes; ordinary background color changes still repaint through the existing node brush.
+
+Signed-off-by: Bernardo Pereira <bpereira@cloudflare.com>
+---
+ src/stylo.rs           | 22 ++++++++++++++++++++--
+ src/stylo_to_parley.rs | 26 ++++++++++++++++----------
+ 2 files changed, 36 insertions(+), 12 deletions(-)
+
+diff --git a/src/stylo.rs b/src/stylo.rs
+index d2f7f6f..8c15d6f 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -8,9 +8,10 @@ use std::sync::Mutex;
+ use std::sync::atomic::Ordering;
+
+ use crate::StyleThreading;
+-use crate::layout::damage::compute_layout_damage;
++use crate::layout::damage::{CONSTRUCT_BOX, compute_layout_damage};
+ use crate::node::Node;
+ use crate::node::NodeData;
++use crate::stylo_to_parley::has_inline_background;
+ use markup5ever::{LocalName, LocalNameStaticSet, Namespace, NamespaceStaticSet, local_name, ns};
+ use selectors::bloom::BLOOM_HASH_MASK;
+ use selectors::{
+@@ -1738,8 +1739,22 @@ impl<'dom> DomTraversal<BlitzNode<'dom>> for RecalcStyle<'_> {
+         if let Some(el) = node.as_element() {
+             // let mut data = el.mutate_data().unwrap();
+             let mut data = unsafe { el.ensure_data() };
++            let had_inline_background = data
++                .styles
++                .get_primary()
++                .map(|style| has_inline_background(style));
+             recalc_style_at(self, context, el, &mut data, note_child);
+
++            // Parley captures background-fragment presence at box construction. Stylo's repaint
++            // damage does not call compute_layout_damage, so handle transparency changes here.
++            if let (Some(had_background), Some(style)) =
++                (had_inline_background, data.styles.get_primary())
++            {
++                if had_background != has_inline_background(style) {
++                    data.damage.insert(CONSTRUCT_BOX);
++                }
++            }
++
+             sync_pseudo_element_styles(el, &data, &self.nodes_needing_style_image_flush);
+
+             if !data.damage.is_empty() {
+@@ -1843,7 +1858,10 @@ fn sync_pseudo_element_styles(
+             continue;
+         }
+
+-        let diff = RestyleDamage::compute_style_difference::<&Node>(&old_style, &pe_style);
++        let mut diff = RestyleDamage::compute_style_difference::<&Node>(&old_style, &pe_style);
++        if has_inline_background(&old_style) != has_inline_background(&pe_style) {
++            diff.damage.insert(CONSTRUCT_BOX);
++        }
+         if !diff.damage.is_empty() {
+             pe_data.damage.insert(diff.damage);
+             pe_node.mark_damaged();
+diff --git a/src/stylo_to_parley.rs b/src/stylo_to_parley.rs
+index bc05667..2387f62 100644
+--- a/src/stylo_to_parley.rs
++++ b/src/stylo_to_parley.rs
+@@ -524,15 +524,6 @@ fn extract_box_decorations(
+     let (bottom_right_x, bottom_right_y) =
+         resolve_radius(&border.border_bottom_right_radius);
+     let (bottom_left_x, bottom_left_y) = resolve_radius(&border.border_bottom_left_radius);
+-    let current_color = style.clone_color();
+-    let has_background_color = style
+-        .get_background()
+-        .background_color
+-        .resolve_to_absolute(&current_color)
+-        .to_color_space(::style::color::ColorSpace::Srgb)
+-        .raw_components()[3]
+-        > 0.0;
+-
+     parley::BoxDecorations {
+         padding_inline_start,
+         padding_inline_end,
+@@ -546,7 +537,7 @@ fn extract_box_decorations(
+         border_inline_end_brush: None,
+         border_block_start_brush: None,
+         border_block_end_brush: None,
+-        background_brush: has_background_color.then(|| TextBrush::from_id(span_id)),
++        background_brush: has_inline_background(style).then(|| TextBrush::from_id(span_id)),
+         border_radius: parley::BorderRadius {
+             top_left_x,
+             top_left_y,
+@@ -560,6 +551,21 @@ fn extract_box_decorations(
+     }
+ }
+
++pub(crate) fn has_inline_background(style: &stylo::ComputedValues) -> bool {
++    use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
++
++    let display = style.clone_display();
++    display.outside() == DisplayOutside::Inline
++        && display.inside() == DisplayInside::Flow
++        && style
++            .get_background()
++            .background_color
++            .resolve_to_absolute(&style.clone_color())
++            .to_color_space(::style::color::ColorSpace::Srgb)
++            .raw_components()[3]
++            > 0.0
++}
++
+ pub(crate) fn style(
+     span_id: NodeId,
+     style: &stylo::ComputedValues,

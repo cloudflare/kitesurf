@@ -6,18 +6,39 @@
 
 import type { DomHandle as WasmDomHandle } from "../../core/pkg/kitesurf_core";
 import type { RawCdpMutation } from "@kitesurf/jsrpc-types/shared";
-import type { DocumentImpl } from "./document.js";
+import type { DetachedDocument, DocumentImpl } from "./document.js";
+import type { ShimWindow } from "./window.js";
 import type {
   AttrCls as Attr,
   DOMTokenListCls,
   DocumentFragmentImpl,
   HtmlCollectionCls,
+  ShadowRootImpl,
   NamedNodeMapCls,
   NodeListCls,
+  scopedQuerySelector as ScopedQuerySelectorImpl,
+  scopedQuerySelectorAll as ScopedQuerySelectorAllImpl,
 } from "./collections.js";
+import {
+  CDATA_SECTION_NODE,
+  COMMENT_NODE,
+  DOCTYPE_NODE,
+  DOCUMENT_FRAGMENT_NODE,
+  DOCUMENT_NODE,
+  ELEMENT_NODE,
+  PROCESSING_INSTRUCTION_NODE,
+  TEXT_NODE,
+} from "./constants.js";
 import type { Element } from "./element/element.js";
-import type { CommentNode, NodeBase, TextNode } from "./node-base.js";
-import { resetRegistries } from "./registries.js";
+import type {
+  CharacterDataNode,
+  CommentNode,
+  DocumentTypeNode,
+  NodeBase,
+  TextNode,
+} from "./node-base.js";
+import { fragmentIds, resetRegistries } from "./registries.js";
+import type { ShimGlobal } from "./global-scope.js";
 
 type DomHandle = WasmDomHandle;
 
@@ -85,10 +106,17 @@ export interface ListenerEntry {
 export interface BuildDocumentOpts {
   pageUrl: string;
   initialCookieString: string;
+  /** The document's origin is opaque, because its sandbox omits allow-same-origin. */
+  opaqueOrigin?: boolean;
+  /** A form submission may navigate, because the document's sandbox allows forms. */
+  formsAllowed?: boolean;
+  /** The document may navigate the top-level frame, because its sandbox allows it. */
+  topNavigationAllowed?: boolean;
   doctypeMarker?: string | null;
   userAgent?: string | null;
   referrer?: string;
   getCurrentUrl?: () => string;
+  getDocumentUrl?: () => string;
   setCurrentUrl?: (
     newUrl: string,
     kind: "hash" | "navigate" | "pushState" | "replaceState" | "historyApi",
@@ -110,7 +138,7 @@ export interface BuildDocumentOpts {
   getRectByAuthId?: (id: number) => AuthRectSnapshot | null;
   getScrollInfoByAuthId?: (id: number) => AuthScrollInfoSnapshot | null;
   getOffsetMetricsByAuthId?: (id: number) => AuthOffsetMetricsSnapshot | null;
-  getStickyShiftByAuthId?: (id: number) => any;
+  getStickyShiftByAuthId?: (id: number) => Float32Array | null;
   hitTestViaPaint?: (x: number, y: number) => number;
   getComputedStyleForAuthId?: (
     id: number,
@@ -135,12 +163,16 @@ export interface BuildDocumentOpts {
   encodeHtml?: (encoding: string, input: string) => Uint8Array;
 }
 
-export let dom: DomHandle = null as any;
+export let dom!: DomHandle;
 export let pageUrl: string = "";
 export let initialCookieString: string = "";
 export let opts: BuildDocumentOpts | undefined = undefined;
+export let documentOpaqueOrigin: boolean = false;
+export let formsAllowed: boolean = true;
+export let topNavigationAllowed: boolean = true;
 
 export let getCurrentUrl: () => string = () => "";
+export let getDocumentUrl: () => string = () => "";
 export let setCurrentUrl:
   | ((url: string, kind: "hash" | "navigate" | "pushState" | "replaceState" | "historyApi") => void)
   | null = null;
@@ -148,7 +180,7 @@ export let getRectByAuthId: ((id: number) => AuthRectSnapshot | null) | null = n
 export let getScrollInfoByAuthId: ((id: number) => AuthScrollInfoSnapshot | null) | null = null;
 export let getOffsetMetricsByAuthId: ((id: number) => AuthOffsetMetricsSnapshot | null) | null =
   null;
-export let getStickyShiftByAuthId: ((id: number) => any) | null = null;
+export let getStickyShiftByAuthId: ((id: number) => Float32Array | null) | null = null;
 export let hitTestViaPaint: ((x: number, y: number) => number) | null = null;
 export let getComputedStyleValueForAuthId: ((id: number, name: string) => string | null) | null =
   null;
@@ -176,8 +208,6 @@ export let getScrollOffset: (() => { x: number; y: number } | null) | null = nul
 export let setScrollOffset: ((x: number, y: number) => { x: number; y: number } | null) | null =
   null;
 
-export const ops: DomOperation[] = [];
-
 export const cdpMutations: RawCdpMutation[] = [];
 
 export let readyState: "loading" | "interactive" | "complete" = "loading";
@@ -185,8 +215,8 @@ export function setReadyState(s: "loading" | "interactive" | "complete"): void {
   readyState = s;
 }
 
-export let activeElement: any = null;
-export function setActiveElement(el: any): void {
+export let activeElement: Element | null = null;
+export function setActiveElement(el: Element | null): void {
   activeElement = el;
 }
 
@@ -196,7 +226,7 @@ export function setCookieString(s: string): void {
   cookieString = typeof s === "string" ? s : "";
 }
 
-export const listenerRegistry = new Map<any, Map<string, ListenerEntry[]>>();
+export const listenerRegistry = new Map<string, Map<string, ListenerEntry[]>>();
 
 export const WINDOW_KEY = "window";
 
@@ -204,6 +234,12 @@ export let documentImpl: DocumentImpl | null = null;
 export function liveDocument(): DocumentImpl {
   if (documentImpl === null) throw new TypeError("dom-shim: no document is built");
   return documentImpl;
+}
+// An element's node document: the page document or a DetachedDocument. The
+// only wrapper a DOMParser document owns is a doctype its DOMImplementation
+// made, so NodeBase.ownerDocument's ParsedDocument case never applies here.
+export function elementDocument(el: Element): DocumentImpl | DetachedDocument {
+  return (el.ownerDocument as DocumentImpl | DetachedDocument | null) || liveDocument();
 }
 export let createElementInternal = (tag: string): Element => liveDocument().createElement(tag);
 export let createElementNSInternal = (ns: string | null, qname: string): Element =>
@@ -227,13 +263,19 @@ export function setDocumentImpl(d: DocumentImpl): void {
   createDocumentFragmentInternal = () => cf.call(d);
 }
 
-export let windowObj: any = null;
-export function setWindowObj(w: any): void {
+export let windowObj: ShimWindow | null = null;
+// windowObj for code that only runs once installWindow has set it. A read
+// before that throws the TypeError the null access did.
+export function liveWindow(): ShimWindow {
+  if (windowObj === null) throw new TypeError("dom-shim: no window is built");
+  return windowObj;
+}
+export function setWindowObj(w: ShimWindow): void {
   windowObj = w;
 }
 
-export let windowProxy: any = null;
-export function setWindowProxy(w: any): void {
+export let windowProxy: ShimWindow | null = null;
+export function setWindowProxy(w: ShimWindow): void {
   windowProxy = w;
 }
 
@@ -267,25 +309,114 @@ export function fastpathMarkSpecial(nodeId: number): void {
   } catch {}
 }
 
-let nodeForFn: ((nodeId: number) => any) | null = null;
-export function setNodeFor(fn: (nodeId: number) => any): void {
+let nodeForFn: ((nodeId: number) => NodeBase | null) | null = null;
+export function setNodeFor(fn: (nodeId: number) => NodeBase | null): void {
   nodeForFn = fn;
 }
-export function nodeFor(nodeId: number): any {
+export function nodeFor(nodeId: number): NodeBase | null {
   return nodeForFn!(nodeId);
+}
+// nodeFor builds an Element subclass for every element node, so a wrapper
+// whose nodeType is ELEMENT_NODE is an Element. (A DocumentFragment
+// stand-in extends Element too, but reports DOCUMENT_FRAGMENT_NODE.)
+export function isElementNode(
+  node: { readonly nodeType: number } | null | undefined,
+): node is Element {
+  return !!node && node.nodeType === ELEMENT_NODE;
+}
+// Text, CDATA and processing-instruction nodes are TextNode wrappers with a
+// stamped nodeType, and comments are CommentNode wrappers.
+export function isCharacterDataNode(
+  node: { readonly nodeType: number } | null | undefined,
+): node is CharacterDataNode {
+  if (!node) return false;
+  const t = node.nodeType;
+  return (
+    t === TEXT_NODE ||
+    t === CDATA_SECTION_NODE ||
+    t === PROCESSING_INSTRUCTION_NODE ||
+    t === COMMENT_NODE
+  );
+}
+// A Text or CDATA node: both are TextNode wrappers.
+export function isTextNode(
+  node: { readonly nodeType: number } | null | undefined,
+): node is TextNode {
+  return !!node && (node.nodeType === TEXT_NODE || node.nodeType === CDATA_SECTION_NODE);
+}
+// A document a node wrapper or a Range can sit in. (A DOMParser
+// ParsedDocument is also nodeType 9, but is neither.)
+export function isDocumentNode(
+  node: NodeBase | DetachedDocument | null | undefined,
+): node is DocumentImpl | DetachedDocument {
+  return !!node && node.nodeType === DOCUMENT_NODE;
+}
+// A DocumentType wrapper: nodeFor's for a wasm doctype, or a synthetic one.
+export function isDoctypeNode(
+  node: { readonly nodeType: number } | null | undefined,
+): node is DocumentTypeNode {
+  return !!node && node.nodeType === DOCTYPE_NODE;
+}
+// A DocumentFragment wrapper: a fragment stand-in or a shadow root.
+export function isFragmentNode(
+  node: { readonly nodeType: number } | null | undefined,
+): node is DocumentFragmentImpl {
+  return !!node && node.nodeType === DOCUMENT_FRAGMENT_NODE;
+}
+// The wrapper for a node id that names an element, such as a selector
+// match. Null when the id is gone or names some other kind of node.
+export function elementFor(nodeId: number): Element | null {
+  const node = nodeForFn!(nodeId);
+  return isElementNode(node) ? node : null;
+}
+// nodeFor wraps a node that wasm reports as a fragment as a ShadowRoot; the
+// fragment stand-ins are wasm elements listed in fragmentIds.
+export function isShadowRootNode(
+  node: NodeBase | DetachedDocument | null | undefined,
+): node is ShadowRootImpl {
+  return isFragmentNode(node) && !fragmentIds.has(node._id);
+}
+// The wrapper for a shadow root id.
+export function shadowRootFor(nodeId: number): ShadowRootImpl | null {
+  const node = nodeForFn!(nodeId);
+  return isShadowRootNode(node) ? node : null;
+}
+// The wrapper class nodeFor picks for each kind of node a caller creates.
+interface WrapperByNodeType {
+  [ELEMENT_NODE]: Element;
+  [TEXT_NODE]: TextNode;
+  [COMMENT_NODE]: CommentNode;
+  [DOCUMENT_FRAGMENT_NODE]: DocumentFragmentImpl;
+}
+// The wrapper for a node the caller has just created in wasm. A fresh node
+// is live and nodeFor wraps it with the class for its nodeType, so the
+// TypeError marks a broken invariant, not a page error.
+export function mintedNode<K extends keyof WrapperByNodeType>(
+  nodeId: number,
+  nodeType: K,
+): WrapperByNodeType[K] {
+  const node = nodeForFn!(nodeId);
+  if (!node || node.nodeType !== nodeType) {
+    throw new TypeError(`dom-shim: new node ${nodeId} did not wrap as nodeType ${nodeType}`);
+  }
+  // nodeFor chose the class from this nodeType (see WrapperByNodeType).
+  return node as WrapperByNodeType[K];
 }
 // nodeFor's cache hit and nothing else (null on a miss). Pure by contract: the
 // boa fast path runs it without re-arming revalidation, see fastpath.ts.
-let nodePeekFn: ((nodeId: number) => unknown) | null = null;
-export function setNodePeek(fn: (nodeId: number) => unknown): void {
+let nodePeekFn: ((nodeId: number) => NodeBase | null) | null = null;
+export function setNodePeek(fn: (nodeId: number) => NodeBase | null): void {
   nodePeekFn = fn;
 }
-export function nodePeek(nodeId: number): unknown {
+export function nodePeek(nodeId: number): NodeBase | null {
   return nodePeekFn ? nodePeekFn(nodeId) : null;
 }
 
 export type NodeListSeqKey = "mutationSeq" | "childSeq";
-type MakeNodeList = (getList: () => NodeBase[], seqKey?: NodeListSeqKey) => NodeListCls;
+type MakeNodeList = <T extends NodeBase>(
+  getList: () => T[],
+  seqKey?: NodeListSeqKey,
+) => NodeListCls<T>;
 type MakeHtmlCollection = {
   (
     getList: () => Element[],
@@ -331,7 +462,10 @@ export function setMakeDOMTokenList(fn: MakeDOMTokenList): void {
 export function setMakeNamedNodeMap(fn: MakeNamedNodeMap): void {
   makeNamedNodeMapFn = fn;
 }
-export function makeNodeList(getList: () => NodeBase[], seqKey?: NodeListSeqKey): NodeListCls {
+export function makeNodeList<T extends NodeBase = NodeBase>(
+  getList: () => T[],
+  seqKey?: NodeListSeqKey,
+): NodeListCls<T> {
   return makeNodeListFn!(getList, seqKey);
 }
 export function makeHtmlCollection(
@@ -400,17 +534,22 @@ export function parseFragmentInContext(...args: Parameters<ParseFragmentInContex
   wired(parseFragmentInContextFn, "parseFragmentInContext")(...args);
 }
 
-type ScopedQuery = (rootId: number, selector: string) => any;
-let scopedQuerySelectorFn: ScopedQuery | null = null;
-let scopedQuerySelectorAllFn: ScopedQuery | null = null;
-export function setScopedQueries(qs: any, qsa: any): void {
+type ScopedQuerySelector = typeof ScopedQuerySelectorImpl;
+type ScopedQuerySelectorAll = typeof ScopedQuerySelectorAllImpl;
+let scopedQuerySelectorFn: ScopedQuerySelector | null = null;
+let scopedQuerySelectorAllFn: ScopedQuerySelectorAll | null = null;
+export function setScopedQueries(qs: ScopedQuerySelector, qsa: ScopedQuerySelectorAll): void {
   scopedQuerySelectorFn = qs;
   scopedQuerySelectorAllFn = qsa;
 }
-export function scopedQuerySelector(...args: Parameters<ScopedQuery>): ReturnType<ScopedQuery> {
+export function scopedQuerySelector(
+  ...args: Parameters<ScopedQuerySelector>
+): ReturnType<ScopedQuerySelector> {
   return wired(scopedQuerySelectorFn, "scopedQuerySelector")(...args);
 }
-export function scopedQuerySelectorAll(...args: Parameters<ScopedQuery>): ReturnType<ScopedQuery> {
+export function scopedQuerySelectorAll(
+  ...args: Parameters<ScopedQuerySelectorAll>
+): ReturnType<ScopedQuerySelectorAll> {
   return wired(scopedQuerySelectorAllFn, "scopedQuerySelectorAll")(...args);
 }
 
@@ -441,8 +580,14 @@ export function initState(d: DomHandle, url: string, cookies: string, o?: BuildD
   pageUrl = url;
   initialCookieString = cookies;
   opts = o;
+  documentOpaqueOrigin = o?.opaqueOrigin === true;
+  formsAllowed = o?.formsAllowed !== false;
+  topNavigationAllowed = o?.topNavigationAllowed !== false;
 
   getCurrentUrl = o && typeof o.getCurrentUrl === "function" ? o.getCurrentUrl : () => url;
+  // The committed document URL; history and origin checks must not follow a
+  // page URL that a cross-document navigation advanced ahead of commit.
+  getDocumentUrl = o && typeof o.getDocumentUrl === "function" ? o.getDocumentUrl : getCurrentUrl;
   setCurrentUrl = o && typeof o.setCurrentUrl === "function" ? o.setCurrentUrl : null;
   getRectByAuthId = o && typeof o.getRectByAuthId === "function" ? o.getRectByAuthId : null;
   getScrollInfoByAuthId =
@@ -469,7 +614,6 @@ export function initState(d: DomHandle, url: string, cookies: string, o?: BuildD
   getScrollOffset = o && typeof o.getScrollOffset === "function" ? o.getScrollOffset : null;
   setScrollOffset = o && typeof o.setScrollOffset === "function" ? o.setScrollOffset : null;
 
-  ops.length = 0;
   cdpMutations.length = 0;
   cookieWrites.length = 0;
   readyState = "loading";
@@ -484,7 +628,9 @@ export function initState(d: DomHandle, url: string, cookies: string, o?: BuildD
   resetRegistries();
 }
 
-export type ShimGlobal = typeof globalThis & Record<PropertyKey, any>;
-
-// PageScript and the shim install dynamic hooks on this page-realm global.
+// globalThis with the keys this package and page-script add to it (see global-scope.ts).
 export const ksGlobal = globalThis as ShimGlobal;
+
+// The same object for computed keys: window.ts's Proxy traps, named-element globals and on*
+// handler forwarding. No type can list those keys, so reads are `unknown` and need narrowing.
+export const ksGlobalByKey: Record<PropertyKey, unknown> = globalThis;

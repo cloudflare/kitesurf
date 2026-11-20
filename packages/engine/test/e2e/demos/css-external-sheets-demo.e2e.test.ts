@@ -38,7 +38,7 @@ test("exposes linked stylesheet text and matched rules", async ({ page }) => {
     });
     expect(text.text, "getStyleSheetText returns the external sheet body").toBe(expectedSheetBody);
 
-    const doc = await session.send("DOM.getDocument");
+    const doc = await session.send("DOM.getDocument", { depth: -1 });
     function findById(root: any, id: string): any {
       const stack = [root];
       while (stack.length) {

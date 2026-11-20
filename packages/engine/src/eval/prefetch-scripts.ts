@@ -4,7 +4,12 @@
 
 // Fetches external classic scripts before navigation and checks their script policy.
 
-import { checkScriptResponse } from "@kitesurf/script-gate";
+import {
+  checkScriptRedirect,
+  checkScriptResponse,
+  scriptGateIsNoop,
+  type ScriptGateContext,
+} from "@kitesurf/script-gate";
 import {
   KITESURF_CORS_VERDICT_HEADER,
   KITESURF_NOSNIFF_HEADER,
@@ -13,9 +18,13 @@ import {
 import type { ParentScriptDescriptor } from "../wasm.ts";
 import type { SandboxOutboundOverride } from "./outbound.ts";
 import { localTraceParentProps } from "../tracing-local.ts";
+import { isCorsExemptUrl, scriptCredentialsMode } from "./cors.ts";
 import { walkRedirects } from "./redirect-walk.ts";
+import { MAX_DOCUMENT_BYTES, readCapped, readCappedText } from "../read-capped.ts";
 
 const PREFETCH_TIMEOUT_MS = 10_000;
+
+const MAX_BLOCKED_MESSAGE_BYTES = 4 * 1024;
 
 function resolveScriptUrl(src: string, baseUrl: string): string | null {
   if (!src) return null;
@@ -85,6 +94,12 @@ interface PrefetchExternalScriptsOptions {
   baseUrl: string;
   sandboxOutbound: SandboxOutboundOverride;
   signal?: AbortSignal;
+  // The document's script gate. Each descriptor's own url was checked before; it also applies to
+  // every redirect target.
+  gate?: ScriptGateContext | null;
+  // A parser-inserted classic reports initiator type "parser"; a speculative insert reports
+  // "script". The engine's outbound maps only "parser" to the parser initiator.
+  initiator?: "parser" | "script";
 }
 
 /** Prefetches classic scripts; per-script failures are stored on each descriptor. */
@@ -99,6 +114,8 @@ export async function prefetchExternalScripts({
   baseUrl,
   sandboxOutbound,
   signal,
+  gate = null,
+  initiator = "script",
 }: PrefetchExternalScriptsOptions): Promise<ParentScriptDescriptor[]> {
   const resolveBase = baseUrl || pageUrl;
 
@@ -148,25 +165,57 @@ export async function prefetchExternalScripts({
           const scriptCorsMode = d.crossOrigin == null ? "no-cors" : "cors";
           const headers: Record<string, string> = {
             "x-kitesurf-resource-type": "Script",
-            "x-kitesurf-initiator": "parser-prefetch",
+            "x-kitesurf-initiator": initiator,
             "x-kitesurf-page-origin": pageOrigin,
             "x-kitesurf-allow-cross-origin": "1",
             "x-kitesurf-script-cors": scriptCorsMode,
+            // A crossorigin classic script fetches with credentials mode "same-origin" unless it
+            // asks for use-credentials; a plain no-CORS script keeps the browser's include.
+            ...(d.crossOrigin == null
+              ? {}
+              : { "x-kitesurf-credentials": scriptCredentialsMode(d.crossOrigin) }),
           };
           if (connectionId) {
             headers["x-kitesurf-connection-id"] = connectionId;
           }
           if (mainFrameId) headers["x-kitesurf-frame-id"] = mainFrameId;
-          if (originClass === "cross" && pageOrigin) {
+          if (originClass === "cross" && pageOrigin && !isCorsExemptUrl(target)) {
             headers["origin"] = pageOrigin;
           }
+          let redirectBlocked: ParentScriptDescriptor["blocked"];
+          const checkRedirect =
+            gate && d.injected !== true && !scriptGateIsNoop(gate)
+              ? async (hopUrl: string): Promise<string | null> => {
+                  const hop = checkScriptRedirect(
+                    gate,
+                    { url: resolved, nonce: d.nonce ?? null },
+                    hopUrl,
+                  );
+                  if (!hop.allowed) {
+                    redirectBlocked = {
+                      reason: hop.reason ?? "csp",
+                      message: hop.message ?? "blocked by policy",
+                    };
+                    return null;
+                  }
+                  return hop.upgradeTo ?? hopUrl;
+                }
+              : undefined;
           const walk = await walkRedirects({
             url: resolved,
             signal: ctrl.signal,
             headers,
             taintOriginFrom: pageOrigin || undefined,
             fetchHop: (hopReq) => outbound.fetch(hopReq),
+            checkRedirect,
           });
+          if (!walk.ok && walk.reason === "redirect-blocked") {
+            d.blocked = redirectBlocked ?? { reason: "csp", message: "blocked by policy" };
+            console.warn(
+              `[kitesurf-csp] blocked (${d.blocked.reason}) ${walk.url}: ` + d.blocked.message,
+            );
+            return;
+          }
           if (!walk.ok) {
             d.prefetchError = "<script src> too many redirects for " + resolved;
             return;
@@ -174,14 +223,24 @@ export async function prefetchExternalScripts({
           const res = walk.response;
           const blockedReason = res.headers.get("x-kitesurf-blocked");
           if (res.status === 403 && blockedReason) {
-            d.prefetchError = await res.text();
+            const text = await readCappedText(res, MAX_BLOCKED_MESSAGE_BYTES, connectionId);
+            d.prefetchError = text.ok ? text.text : "<script src> blocked for " + resolved;
             return;
           }
           if (!res.ok) {
+            await res.body?.cancel().catch(() => {});
             d.prefetchError = "<script src> fetch returned HTTP " + res.status + " for " + resolved;
             return;
           }
-          const bytes = new Uint8Array(await res.arrayBuffer());
+          // Capped per body, not charged to the shared read budget: a budget refusal would
+          // drop a script the page needs. Concurrent reads are bounded only per body.
+          const capped = await readCapped(res.body, MAX_DOCUMENT_BYTES);
+          if (capped.bytes === null) {
+            await capped.rest.cancel().catch(() => {});
+            d.prefetchError = "<script src> body " + capped.failure + " for " + resolved;
+            return;
+          }
+          const bytes = capped.bytes;
           const opaque = responseIsOpaque(res.headers.get(KITESURF_CORS_VERDICT_HEADER));
           const verdict = await checkScriptResponse(
             {

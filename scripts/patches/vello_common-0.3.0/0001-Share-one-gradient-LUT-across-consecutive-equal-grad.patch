@@ -1,0 +1,265 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Tue, 3 Nov 2026 11:43:30 +0000
+Subject: [PATCH] Share one gradient LUT across consecutive equal gradients
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Every gradient fill pushes its own EncodedGradient, and each one
+lazily builds its own colour lookup table. blitz-paint draws a
+repeating gradient layer as one fill per tile, so a dot pattern
+(`radial-gradient(#000 2px, transparent 2px) 0 0 / 8px 8px`) builds
+the same LUT for every tile. A hard stop has a zero-width range,
+so the LUT has the maximum 4096 entries: 16 KB as u8 and 64 KB as
+f32, per tile. About 7,500 such tiles exhaust the renderer
+isolate's 128 MB, and blog.cloudflare.com's 10px dot grid reaches
+that once the viewport is 1536px or wider.
+
+The LUT depends only on the stops and the interpolation settings,
+which the gradient's cache key already holds. encode_into now
+reuses the LUT cells of the most recent gradient when the keys
+match. It compares only that gradient: the tiles of one layer are
+consecutive, and a scan over every earlier paint would be O(n^2).
+
+vello_cpu's dispatchers are Send and own the encoded paints, so the
+shared cell is an Arc'd OnceLock. Without std, nothing is shared.
+
+Measured natively with the u8 pipeline, white background plus 8px
+hard-stop dots, peak heap during encode and render:
+
+  1440x900,  20,340 tiles: 339.7 MiB, 114 ms -> 20.4 MiB, 16 ms
+  1945x1894, 57,828 tiles: 951.7 MiB, 265 ms -> 45.1 MiB, 35 ms
+
+The second row is past blitz-paint's 24,000-tile cap and only shows
+the scaling. The pixels are unchanged. In kitesurf's renderer
+isolate, the 1440x900 page grew the wasm memory by 431 MB before
+and 58 MB after.
+
+beep-boop-🤖
+
+Signed-off-by: Rui Figueira <rfigueira@cloudflare.com>
+---
+ src/encode.rs | 162 +++++++++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 153 insertions(+), 9 deletions(-)
+
+diff --git a/src/encode.rs b/src/encode.rs
+index 0196f53..83245d0 100644
+--- a/src/encode.rs
++++ b/src/encode.rs
+@@ -16,7 +16,7 @@ use alloc::fmt::Debug;
+ use alloc::vec;
+ use alloc::vec::Vec;
+ use bytemuck::Pod;
+-#[cfg(not(feature = "multithreading"))]
++#[cfg(not(feature = "std"))]
+ use core::cell::OnceCell;
+ use core::hash::{Hash, Hasher};
+ use fearless_simd::{Simd, SimdBase, SimdFloat, SimdFrom, f32x4, f32x16, mask32x16};
+@@ -27,9 +27,22 @@ use peniko::{
+     SweepGradientPosition,
+ };
+ use smallvec::ToSmallVec;
+-// So we can just use `OnceCell` regardless of which feature is activated.
+-#[cfg(feature = "multithreading")]
+-use std::sync::OnceLock as OnceCell;
++// vello_cpu's dispatchers are `Send` and own the encoded paints, so a lookup table shared
++// between gradients needs a `Sync` cell: std's `OnceLock`. Without std, nothing is shared.
++#[cfg(feature = "std")]
++type LutCell<T> = alloc::sync::Arc<std::sync::OnceLock<GradientLut<T>>>;
++#[cfg(not(feature = "std"))]
++type LutCell<T> = OnceCell<GradientLut<T>>;
++
++#[cfg(feature = "std")]
++fn share_lut<T: GradientLutExt>(lut: &LutCell<T>) -> LutCell<T> {
++    lut.clone()
++}
++
++#[cfg(not(feature = "std"))]
++fn share_lut<T: GradientLutExt>(_lut: &LutCell<T>) -> LutCell<T> {
++    LutCell::default()
++}
+
+ use crate::simd::{Splat4thExt, element_wise_splat};
+ #[cfg(not(feature = "std"))]
+@@ -223,6 +236,20 @@ impl EncodeExt for Gradient {
+
+         let has_undefined = kind.has_undefined();
+
++        // Callers often fill one gradient many times in a row, e.g. once per background tile.
++        // The ranges, and so the LUTs, depend only on the cache key, so share the previous
++        // gradient's LUTs when the keys match. Stopping at the last gradient keeps it O(1)
++        // amortised: each non-gradient paint is passed over by at most one lookup.
++        let (u8_lut, f32_lut) = match paints.iter().rev().find_map(|paint| match paint {
++            EncodedPaint::Gradient(gradient) => Some(gradient),
++            _ => None,
++        }) {
++            Some(prev) if prev.cache_key == cache_key => {
++                (share_lut(&prev.u8_lut), share_lut(&prev.f32_lut))
++            }
++            _ => (LutCell::default(), LutCell::default()),
++        };
++
+         let encoded = EncodedGradient {
+             cache_key,
+             kind,
+@@ -233,8 +260,8 @@ impl EncodeExt for Gradient {
+             ranges,
+             extend: self.extend,
+             may_have_transparency,
+-            u8_lut: OnceCell::new(),
+-            f32_lut: OnceCell::new(),
++            u8_lut,
++            f32_lut,
+         };
+
+         let idx = paints.len();
+@@ -777,8 +804,8 @@ pub struct EncodedGradient {
+     pub extend: Extend,
+     /// Whether the gradient requires `source_over` compositing.
+     pub may_have_transparency: bool,
+-    u8_lut: OnceCell<GradientLut<u8>>,
+-    f32_lut: OnceCell<GradientLut<f32>>,
++    u8_lut: LutCell<u8>,
++    f32_lut: LutCell<f32>,
+ }
+
+ impl EncodedGradient {
+@@ -1184,7 +1211,7 @@ mod private {
+
+ #[cfg(test)]
+ mod tests {
+-    use super::{EncodeExt, EncodedPaint, Gradient};
++    use super::{EncodeExt, EncodedGradient, EncodedPaint, Gradient};
+     use crate::blurred_rounded_rect::BlurredRoundedRectangle;
+     use crate::color::DynamicColor;
+     use crate::color::palette::css::{BLACK, BLUE, GREEN};
+@@ -1192,6 +1219,8 @@ mod tests {
+     use crate::paint::{Image, ImageId, ImageSource, Tint, TintMode};
+     use crate::peniko::{ColorStop, ColorStops};
+     use alloc::vec;
++    use alloc::vec::Vec;
++    use fearless_simd::{Level, Simd, dispatch};
+     use peniko::{
+         Color, ImageSampler, InterpolationAlphaSpace, LinearGradientPosition,
+         RadialGradientPosition,
+@@ -1585,4 +1614,119 @@ mod tests {
+         };
+         assert!(encoded.transform.is_finite(), "inverse must be finite");
+     }
++
++    fn hard_stop_dot(color: Color) -> Gradient {
++        Gradient {
++            kind: RadialGradientPosition {
++                start_center: Point::new(4.0, 4.0),
++                start_radius: 0.0,
++                end_center: Point::new(4.0, 4.0),
++                end_radius: 8.0,
++            }
++            .into(),
++            stops: ColorStops(smallvec![
++                ColorStop {
++                    offset: 0.25,
++                    color: color.into(),
++                },
++                ColorStop {
++                    offset: 0.25,
++                    color: Color::TRANSPARENT.into(),
++                },
++            ]),
++            ..Default::default()
++        }
++    }
++
++    fn gradients(paints: &[EncodedPaint]) -> Vec<&EncodedGradient> {
++        paints
++            .iter()
++            .filter_map(|paint| match paint {
++                EncodedPaint::Gradient(gradient) => Some(gradient),
++                _ => None,
++            })
++            .collect()
++    }
++
++    fn shares_luts(a: &EncodedGradient, b: &EncodedGradient) -> bool {
++        fn inner<S: Simd>(simd: S, a: &EncodedGradient, b: &EncodedGradient) -> bool {
++            let u8_shared = core::ptr::eq(a.u8_lut(simd), b.u8_lut(simd));
++            let f32_shared = core::ptr::eq(a.f32_lut(simd), b.f32_lut(simd));
++            assert_eq!(
++                u8_shared, f32_shared,
++                "u8 and f32 LUTs must be shared together"
++            );
++            u8_shared
++        }
++        dispatch!(Level::baseline(), simd => inner(simd, a, b))
++    }
++
++    fn first_lut_entry(gradient: &EncodedGradient) -> ([u8; 4], usize) {
++        fn inner<S: Simd>(simd: S, gradient: &EncodedGradient) -> ([u8; 4], usize) {
++            let lut = gradient.u8_lut(simd);
++            (lut.get(0), lut.width())
++        }
++        dispatch!(Level::baseline(), simd => inner(simd, gradient))
++    }
++
++    #[cfg(feature = "std")]
++    #[test]
++    fn consecutive_equal_gradients_share_luts() {
++        let mut paints = vec![];
++        let dot = hard_stop_dot(Color::BLACK);
++        dot.encode_into(&mut paints, Affine::IDENTITY, None);
++        dot.encode_into(&mut paints, Affine::translate((8.0, 0.0)), None);
++        dot.clone()
++            .encode_into(&mut paints, Affine::translate((0.0, 8.0)), None);
++
++        let encoded = gradients(&paints);
++        assert_eq!(encoded.len(), 3);
++        assert_ne!(encoded[0].transform, encoded[1].transform);
++        assert!(shares_luts(encoded[0], encoded[1]));
++        assert!(shares_luts(encoded[1], encoded[2]));
++        // A hard stop asks for the largest LUT, which made a LUT per tile so costly.
++        assert_eq!(first_lut_entry(encoded[0]).1, super::MAX_GRADIENT_LUT_SIZE);
++    }
++
++    #[cfg(feature = "std")]
++    #[test]
++    fn non_gradient_paint_between_equal_gradients_keeps_sharing() {
++        let mut paints = vec![];
++        let dot = hard_stop_dot(Color::BLACK);
++        dot.encode_into(&mut paints, Affine::IDENTITY, None);
++        BlurredRoundedRectangle {
++            rect: Rect::new(0.0, 0.0, 10.0, 10.0),
++            color: GREEN,
++            radius: 2.0,
++            std_dev: 1.0,
++            invert: false,
++        }
++        .encode_into(&mut paints, Affine::IDENTITY, None);
++        dot.encode_into(&mut paints, Affine::translate((8.0, 0.0)), None);
++
++        assert_eq!(paints.len(), 3);
++        let encoded = gradients(&paints);
++        assert!(shares_luts(encoded[0], encoded[1]));
++    }
++
++    #[test]
++    fn gradients_with_other_stops_get_their_own_luts() {
++        let mut paints = vec![];
++        let black = hard_stop_dot(Color::BLACK);
++        let white = hard_stop_dot(Color::WHITE);
++        let mut unpremultiplied = black.clone();
++        unpremultiplied.interpolation_alpha_space = InterpolationAlphaSpace::Unpremultiplied;
++        black.encode_into(&mut paints, Affine::IDENTITY, None);
++        white.encode_into(&mut paints, Affine::IDENTITY, None);
++        unpremultiplied.encode_into(&mut paints, Affine::IDENTITY, None);
++        // Only the last gradient is compared, so returning to an earlier one builds a new LUT.
++        black.encode_into(&mut paints, Affine::IDENTITY, None);
++
++        let encoded = gradients(&paints);
++        assert!(!shares_luts(encoded[0], encoded[1]));
++        assert!(!shares_luts(encoded[1], encoded[2]));
++        assert!(!shares_luts(encoded[2], encoded[3]));
++        assert!(!shares_luts(encoded[0], encoded[3]));
++        assert_ne!(first_lut_entry(encoded[0]).0, first_lut_entry(encoded[1]).0);
++    }
+ }

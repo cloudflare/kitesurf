@@ -3,6 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { expect, test } from "./harness";
+import { setContent } from "./set-content";
 
 test("Typed OM maps round-trip keyword and numeric values", async ({ page }) => {
   await page.goto("data:text/html,<!doctype html><div id='target'></div>");
@@ -916,4 +917,26 @@ test("Typed OM color subclasses normalize, validate, and parse channels", async 
     parseErrors: Array(5).fill("SyntaxError"),
     accessors: [true, true, true, true],
   });
+});
+
+test("Typed OM append rejects a value associated with another property", async ({ page }) => {
+  await setContent(page, `<div id="target" style="background-position: 1px 2px"></div>`);
+  const result = await page.evaluate(() => {
+    const target = document.getElementById("target") as any;
+    const position = target.computedStyleMap().get("background-position");
+    const thrown = (run: () => void) => {
+      try {
+        run();
+        return null;
+      } catch (error) {
+        return (error as Error).name;
+      }
+    };
+    return {
+      append: thrown(() => target.attributeStyleMap.append("background-size", position)),
+      set: thrown(() => target.attributeStyleMap.set("background-size", position)),
+      backgroundSize: target.style.backgroundSize,
+    };
+  });
+  expect(result).toEqual({ append: "TypeError", set: "TypeError", backgroundSize: "" });
 });

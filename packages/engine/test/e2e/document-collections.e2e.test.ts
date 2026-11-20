@@ -35,3 +35,27 @@ test("a created document's collections are live HTMLCollections", async ({ page,
     named: true,
   });
 }, 60_000);
+
+const NAMES = ["a\\b", 'q"x', '\\"],*,[x="', "😀", "a\nb", "a\rb", "a\fb", "ab"];
+
+test("getElementsByName matches the name literally", async ({ page }) => {
+  await setContent(page, "<title>names</title>");
+  const r = await page.evaluate((names) => {
+    const lookups = (doc: Document) => {
+      for (const name of names.filter((n) => !n.includes("*"))) {
+        const input = doc.createElement("input");
+        input.setAttribute("name", name);
+        doc.body.appendChild(input);
+      }
+      return names.map((name) =>
+        Array.from(doc.getElementsByName(name), (el) => el.getAttribute("name")),
+      );
+    };
+    return {
+      live: lookups(document),
+      created: lookups(document.implementation.createHTMLDocument("t")),
+    };
+  }, NAMES);
+  const expected = NAMES.map((name) => (name.includes("*") ? [] : [name]));
+  expect(r).toEqual({ live: expected, created: expected });
+});

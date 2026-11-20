@@ -96,3 +96,110 @@ test("each strippable var site lists its own names", () => {
   const scan = extractTopLevelDecls("var exports = {}, a = 1; var b; var { c } = d;");
   assert.deepEqual(scan.varSiteNames, [["exports", "a"], ["b"]]);
 });
+
+test("lexical and class declarations report their sites", () => {
+  const source = "let a = 1; const b = 2; class C {}";
+  const scan = extractTopLevelDecls(source);
+  // A class rewrite assigns the name, so the wrapper declares it like a lexical binding.
+  assert.deepEqual(scan.lexicalNames, ["a", "b", "C"]);
+  assert.deepEqual(scan.classNames, ["C"]);
+  assert.equal(scan.lexicalSites.length, 2);
+  assert.equal(scan.classSites.length, 1);
+  assert.deepEqual(
+    scan.lexicalSites.map((site) => source.slice(site, site + 5)),
+    ["let a", "const"],
+  );
+});
+
+test("only a function or class in statement position is a declaration", () => {
+  const declared = (source: string) => {
+    const scan = extractTopLevelDecls(source);
+    return [...scan.functionNames, ...scan.classNames];
+  };
+  for (const source of [
+    "function f(){}",
+    "a(); function f(){}",
+    "a()\nfunction f(){}",
+    "x = 1\nfunction f(){}",
+    "if (a) {} function f(){}",
+    "async function f(){}",
+    "a(); async function* f(){}",
+    "function* f(){}",
+    "class f {}",
+  ]) {
+    assert.deepEqual(declared(source), ["f"], source);
+  }
+  for (const source of [
+    "x = function f(){}",
+    "!function f(){}()",
+    "void function f(){}",
+    "new function f(){}",
+    "a ? b : function f(){}",
+    "x = async function f(){}",
+    "if (a) function f(){}",
+    "if (a)\nfunction f(){}",
+    "if (a) {} else function f(){}",
+    "x = class f {}",
+    "new class f {}()",
+  ]) {
+    assert.deepEqual(declared(source), [], source);
+  }
+  // A line break after `async` makes it an identifier: `async; function f(){}`.
+  assert.deepEqual(declared("async\nfunction f(){}"), ["f"]);
+  const scan = extractTopLevelDecls("x(); async function name(){}");
+  assert.deepEqual(scan.functionNameSites, ["x(); async function ".length]);
+});
+
+test("a closer at depth 0 marks the scan unreliable", () => {
+  assert.equal(extractTopLevelDecls("var a = 1; function f(){}").unreliable, false);
+  // A nested template literal desyncs the string handling, so a later `}` or `)` is
+  // seen at depth 0 even though the script is valid.
+  assert.equal(
+    extractTopLevelDecls("!function(){ var c = `${`}`}`; function helper(){return 1} }();")
+      .unreliable,
+    true,
+  );
+  assert.equal(extractTopLevelDecls("var s = `a${b}c`; var after = 1;").unreliable, false);
+});
+
+test("braces inside parens or brackets in a function or class body stay balanced", () => {
+  // Braces inside a call's arguments must not close the enclosing function early or
+  // swallow declarations that follow it.
+  const nested = extractTopLevelDecls(`
+    function outer() {
+      function first() {
+        run(function () { return 1; });
+      }
+      function second() {
+        return [{ b: 2 }];
+      }
+    }
+    const afterConst = 1;
+    function afterFn() {}
+  `);
+  assert.equal(nested.unreliable, false);
+  assert.deepEqual(nested.functionNames, ["outer", "afterFn"]);
+  assert.deepEqual(nested.lexicalNames, ["afterConst"]);
+
+  const single = extractTopLevelDecls(`
+    function wrap(a = { init: 1 }) {
+      return new Promise((resolve) => { resolve([() => ({ ok: true })]); });
+    }
+    const green = "rgb(0, 128, 0)";
+    async function runTest() {}
+  `);
+  assert.equal(single.unreliable, false);
+  assert.deepEqual(single.functionNames, ["wrap", "runTest"]);
+  assert.deepEqual(single.lexicalNames, ["green"]);
+
+  const clsSource = `class Widget extends mixin({ x: 1 }) {
+    m() { run(function () { return { ok: true }; }); }
+  }
+  const afterClass = 1;`;
+  const cls = extractTopLevelDecls(clsSource);
+  assert.equal(cls.unreliable, false);
+  assert.deepEqual(cls.classNames, ["Widget"]);
+  assert.equal(clsSource.slice(cls.classSites[0], cls.classEnds[0]).endsWith("}"), true);
+  assert.equal(clsSource.slice(cls.classEnds[0]).trim(), "const afterClass = 1;");
+  assert.deepEqual(cls.lexicalNames, ["Widget", "afterClass"]);
+});

@@ -10,6 +10,8 @@ export type {
   AuthScrollInfoSnapshot,
   BuildDocumentOpts,
 } from "./state.js";
+export type { DomShimGlobals } from "./global-scope.js";
+export type { ScrollIntoViewOptions } from "./idl/types.generated.js";
 export {
   buildDocument,
   listModelContextTools,
@@ -22,6 +24,7 @@ export {
   parseUrlForNode,
   setWrapperSweepScheduler,
   setAnimationTaskScheduler,
+  setInlineHandlerGate,
   detachedWrapperStats,
   armKsOtel,
   ksSpan,

@@ -213,7 +213,7 @@ export async function handleKitesurf(ctx: DispatchCtx, req: CdpRequest): Promise
 
     case "Kitesurf.getRendererInfo": {
       const m = ctx.browser.rendererManager;
-      const memory = m ? await m.memoryStats() : null;
+      const memory = m ? m.memoryStats() : null;
       return cdpResult(req, {
         enabled: true,
         active: !!m,
@@ -355,9 +355,10 @@ export async function handleKitesurf(ctx: DispatchCtx, req: CdpRequest): Promise
 
     case "Kitesurf.getMemoryStats": {
       const targetId = targetIdOf(req.params);
+      const resetPeak = req.params?.resetPeak === true;
       const askStub = async (stub: QueryDomCarrier) => {
         try {
-          const reply = await stubQueryDom(stub, "getMemoryStats", {});
+          const reply = await stubQueryDom(stub, "getMemoryStats", { resetPeak });
           return {
             wasmBytes: typeof reply?.bytes === "number" ? reply.bytes : 0,
             wasmInitialBytes: typeof reply?.initialBytes === "number" ? reply.initialBytes : 0,
@@ -367,6 +368,7 @@ export async function handleKitesurf(ctx: DispatchCtx, req: CdpRequest): Promise
             domNodes: typeof reply?.domNodes === "number" ? reply.domNodes : null,
             wrappers: reply?.wrappers ?? null,
             paint: reply?.paint ?? null,
+            layout: reply?.layout ?? null,
             intersectionObserver: reply?.intersectionObserver ?? null,
             timerWheel: reply?.timerWheel ?? null,
             error: reply?.error,
@@ -420,7 +422,7 @@ export async function handleKitesurf(ctx: DispatchCtx, req: CdpRequest): Promise
           pageScriptDeltaBytes += stats.wasmDeltaBytes + stats.frameWasmDeltaBytes;
         }
         const engine = engineMemoryBreakdown(ctx.browser);
-        const rendererMem = (await ctx.browser.rendererManager?.memoryStats()) ?? null;
+        const rendererMem = ctx.browser.rendererManager?.memoryStats() ?? null;
         const renderer = {
           wasmBytes: rendererMem?.bytes ?? 0,
           wasmInitialBytes: rendererMem?.initialBytes ?? 0,

@@ -1,0 +1,426 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sun, 25 Oct 2026 19:47:10 +0000
+Subject: [PATCH] Allocate and pack measurement cache slots only when needed
+
+Most nodes never measure more than once, yet each carried a full inline
+array of measurement slots. Box the slots on first store, and keep only
+the populated prefix without per-slot options. Lookup order and the
+second-chance clock indices are preserved, so cache hits and evictions
+are unchanged.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/tree/cache.rs | 306 ++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 272 insertions(+), 34 deletions(-)
+
+diff --git a/src/tree/cache.rs b/src/tree/cache.rs
+index 82d136f..bcb1b7f 100644
+--- a/src/tree/cache.rs
++++ b/src/tree/cache.rs
+@@ -2,9 +2,13 @@
+
+ #![allow(clippy::unusual_byte_groupings)]
+
+-use crate::geometry::Size;
++#[cfg(feature = "content_size")]
++use crate::geometry::Rect;
++use crate::geometry::{Point, Size};
+ use crate::style::AvailableSpace;
+-use crate::tree::{CollapsibleMarginSet, LayoutInput, LayoutOutput, RunMode, SizingMode};
++use crate::tree::{
++    Baselines, CollapsibleMarginSet, LayoutInput, LayoutOutput, OofCandidates, OofPositioningArea, RunMode, SizingMode,
++};
+ use crate::RequestedAxis;
+
+ #[cfg(all(feature = "alloc", not(feature = "std")))]
+@@ -87,6 +91,8 @@ fn size_mixed_cache_key(kd: Size<Option<f32>>, avs: Size<AvailableSpace>) -> u64
+ /// Space-optimised cache key that packs bits into as small a size as possible
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ #[cfg_attr(feature = "serde", derive(Serialize))]
++// Four-byte alignment removes tail padding without narrowing either packed key.
++#[repr(C, packed(4))]
+ struct CacheKey {
+     /// The initial cached size of the node itself
+     kd_available_space: u64,
+@@ -207,15 +213,105 @@ pub(crate) struct CacheEntry<T> {
+     content: T,
+ }
+
++/// A [`LayoutOutput`] stored without its `Option` discriminants, which cost 4 bytes each.
++/// Presence lives in `presence` bits rather than in a NaN sentinel, so `Some(NaN)` round-trips.
++/// `margins_can_collapse_through` stays a `bool` to give `Option<CacheEntry<_>>` its niche.
++#[derive(Debug, Clone, PartialEq)]
++struct CachedLayout {
++    /// See [`LayoutOutput::size`]
++    size: Size<f32>,
++    /// See [`LayoutOutput::scrollable_overflow_rect`]
++    #[cfg(feature = "content_size")]
++    scrollable_overflow_rect: Rect<f32>,
++    /// [`Baselines::first`], or `0.0` when the `FIRST_BASELINE` bit is clear
++    first_baseline: f32,
++    /// [`Baselines::last`], or `0.0` when the `LAST_BASELINE` bit is clear
++    last_baseline: f32,
++    /// See [`LayoutOutput::top_margin`]
++    top_margin: CollapsibleMarginSet,
++    /// See [`LayoutOutput::bottom_margin`]
++    bottom_margin: CollapsibleMarginSet,
++    /// See [`LayoutOutput::oof_candidates`]
++    oof_candidates: OofCandidates,
++    /// [`LayoutOutput::oof_positioning_area`], or zeroed when the `OOF_AREA` bit is clear
++    oof_area: OofPositioningArea,
++    /// See [`LayoutOutput::margins_can_collapse_through`]
++    margins_can_collapse_through: bool,
++    /// Which of the optional fields are present
++    presence: u8,
++}
++
++impl CachedLayout {
++    /// Set if `first_baseline` holds a baseline
++    const FIRST_BASELINE: u8 = 0b001;
++    /// Set if `last_baseline` holds a baseline
++    const LAST_BASELINE: u8 = 0b010;
++    /// Set if `oof_area` holds a positioning area
++    const OOF_AREA: u8 = 0b100;
++
++    /// Return the optional value if `bit` is set in `presence`
++    #[inline(always)]
++    fn present<T>(&self, bit: u8, value: T) -> Option<T> {
++        if self.presence & bit != 0 {
++            Some(value)
++        } else {
++            None
++        }
++    }
++
++    /// Rebuild the [`LayoutOutput`] that this entry was created from
++    fn to_layout_output(&self) -> LayoutOutput {
++        LayoutOutput {
++            size: self.size,
++            #[cfg(feature = "content_size")]
++            scrollable_overflow_rect: self.scrollable_overflow_rect,
++            baselines: Baselines {
++                first: self.present(Self::FIRST_BASELINE, self.first_baseline),
++                last: self.present(Self::LAST_BASELINE, self.last_baseline),
++            },
++            top_margin: self.top_margin,
++            bottom_margin: self.bottom_margin,
++            margins_can_collapse_through: self.margins_can_collapse_through,
++            oof_candidates: self.oof_candidates.clone(),
++            oof_positioning_area: self.present(Self::OOF_AREA, self.oof_area),
++        }
++    }
++}
++
++impl From<LayoutOutput> for CachedLayout {
++    fn from(output: LayoutOutput) -> Self {
++        /// Stored in `oof_area` when the output has no positioning area
++        const NO_OOF_AREA: OofPositioningArea = OofPositioningArea { size: Size::ZERO, offset: Point::ZERO };
++        let presence = (output.baselines.first.is_some() as u8 * Self::FIRST_BASELINE)
++            | (output.baselines.last.is_some() as u8 * Self::LAST_BASELINE)
++            | (output.oof_positioning_area.is_some() as u8 * Self::OOF_AREA);
++        Self {
++            size: output.size,
++            #[cfg(feature = "content_size")]
++            scrollable_overflow_rect: output.scrollable_overflow_rect,
++            first_baseline: output.baselines.first.unwrap_or(0.0),
++            last_baseline: output.baselines.last.unwrap_or(0.0),
++            top_margin: output.top_margin,
++            bottom_margin: output.bottom_margin,
++            oof_candidates: output.oof_candidates,
++            oof_area: output.oof_positioning_area.unwrap_or(NO_OOF_AREA),
++            margins_can_collapse_through: output.margins_can_collapse_through,
++            presence,
++        }
++    }
++}
++
+ /// The heap-allocated payload of a [`Cache`]. Boxed so an empty cache costs one
+ /// pointer inside every DOM node instead of the full measure-entry array.
+ #[derive(Debug, Clone, PartialEq)]
+ #[cfg_attr(feature = "serde", derive(Serialize))]
+ struct CacheInner {
+     /// The cache entry for the node's final layout
+-    final_layout_entry: Option<CacheEntry<LayoutOutput>>,
++    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_final_layout_entry"))]
++    final_layout_entry: Option<CacheEntry<CachedLayout>>,
+     /// The cache entries for the node's preliminary size measurements
+-    measure_entries: [Option<CacheEntry<Size<f32>>>; CACHE_SIZE],
++    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_measure_entries"))]
++    measure_entries: crate::util::sys::Vec<CacheEntry<Size<f32>>>,
+     /// Tracks which measure entries have been used since the eviction cursor last passed them
+     recently_used_entries: u16,
+     /// The next measure entry to consider replacing
+@@ -228,11 +324,9 @@ struct CacheInner {
+
+ impl CacheInner {
+     fn new(mode: CacheMode) -> Self {
+-        /// Workaround for `Option<CacheEntry<_>>` not being `Copy` (required for array repeat expressions)
+-        const NONE_MEASURE_ENTRY: Option<CacheEntry<Size<f32>>> = None;
+         Self {
+             final_layout_entry: None,
+-            measure_entries: [NONE_MEASURE_ENTRY; CACHE_SIZE],
++            measure_entries: crate::util::sys::Vec::new(),
+             recently_used_entries: 0,
+             next_measure_entry: 0,
+             mode,
+@@ -240,6 +334,36 @@ impl CacheInner {
+     }
+ }
+
++// A box larger than 108 bytes lands in dlmalloc's 128-byte chunk instead of the 112-byte one.
++#[cfg(target_pointer_width = "32")]
++const _: () = assert!(core::mem::size_of::<CacheInner>() <= 108);
++
++/// Serialize the final entry with the shape of a `CacheEntry<LayoutOutput>`
++#[cfg(feature = "serde")]
++fn serialize_final_layout_entry<S: serde::Serializer>(
++    entry: &Option<CacheEntry<CachedLayout>>,
++    serializer: S,
++) -> Result<S::Ok, S::Error> {
++    use serde::Serialize;
++    entry
++        .as_ref()
++        .map(|entry| CacheEntry { key: entry.key, content: entry.content.to_layout_output() })
++        .serialize(serializer)
++}
++
++#[cfg(feature = "serde")]
++fn serialize_measure_entries<S: serde::Serializer>(
++    entries: &[CacheEntry<Size<f32>>],
++    serializer: S,
++) -> Result<S::Ok, S::Error> {
++    use serde::ser::SerializeTuple;
++    let mut sequence = serializer.serialize_tuple(CACHE_SIZE)?;
++    for index in 0..CACHE_SIZE {
++        sequence.serialize_element(&entries.get(index))?;
++    }
++    sequence.end()
++}
++
+ /// A cache for caching the results of a sizing a Grid Item or Flexbox Item
+ #[derive(Debug, Clone, PartialEq)]
+ #[cfg_attr(feature = "serde", derive(Serialize))]
+@@ -270,11 +394,10 @@ impl Cache {
+         let key = CacheKey::from(input);
+         match input.run_mode {
+             RunMode::PerformLayout => {
+-                inner.final_layout_entry.as_ref().filter(|entry| entry.key == key).map(|e| e.content.clone())
++                inner.final_layout_entry.as_ref().filter(|entry| entry.key == key).map(|e| e.content.to_layout_output())
+             }
+             RunMode::ComputeSize => {
+                 for (index, entry) in inner.measure_entries.iter().enumerate() {
+-                    let Some(entry) = entry else { continue };
+                     if entry.key.kd_available_space == key.kd_available_space
+                         && entry.key.known_dimensions_are_definite == key.known_dimensions_are_definite
+                         && (entry.key.x_axis_parent_size() == key.x_axis_parent_size())
+@@ -307,7 +430,7 @@ impl Cache {
+         match input.run_mode {
+             RunMode::PerformLayout => {
+                 let inner = self.inner.get_or_insert_with(|| Box::new(CacheInner::new(mode)));
+-                inner.final_layout_entry = Some(CacheEntry { key, content: layout_output })
++                inner.final_layout_entry = Some(CacheEntry { key, content: CachedLayout::from(layout_output) })
+             }
+             RunMode::ComputeSize => {
+                 // Measure entries only store the size, and cache hits are reconstructed with
+@@ -321,27 +444,7 @@ impl Cache {
+                     return;
+                 }
+                 let inner = self.inner.get_or_insert_with(|| Box::new(CacheInner::new(mode)));
+-                if let Some(index) =
+-                    inner.measure_entries.iter().position(|entry| entry.as_ref().is_some_and(|entry| entry.key == key))
+-                {
+-                    inner.measure_entries[index].as_mut().unwrap().content = layout_output.size;
+-                    inner.recently_used_entries |= 1 << index;
+-                    return;
+-                }
+-                while inner.recently_used_entries & (1 << inner.next_measure_entry) != 0 {
+-                    inner.recently_used_entries &= !(1 << inner.next_measure_entry);
+-                    inner.next_measure_entry += 1;
+-                    if inner.next_measure_entry == CACHE_SIZE as u8 {
+-                        inner.next_measure_entry = 0;
+-                    }
+-                }
+-                let entry_index = inner.next_measure_entry as usize;
+-                inner.measure_entries[entry_index] = Some(CacheEntry { key, content: layout_output.size });
+-                inner.recently_used_entries |= 1 << entry_index;
+-                inner.next_measure_entry += 1;
+-                if inner.next_measure_entry == CACHE_SIZE as u8 {
+-                    inner.next_measure_entry = 0;
+-                }
++                inner.store_measurement(key, layout_output.size);
+             }
+             RunMode::PerformHiddenLayout => {}
+         }
+@@ -414,10 +517,23 @@ mod tests {
+         cache.store(&input(2.0), output(2.0));
+         cache.store(&input(1.0), output(3.0));
+
+-        assert_eq!(cache.inner.as_ref().unwrap().measure_entries.iter().flatten().count(), 2);
++        assert_eq!(cache.inner.as_ref().unwrap().measure_entries.len(), 2);
+         assert_eq!(cache.get(&input(1.0)), Some(output(3.0)));
+     }
+
++    #[test]
++    #[cfg(feature = "serde")]
++    fn unused_measure_entries_keep_the_serialized_array_shape() {
++        let mut cache = Cache::new();
++        cache.store(&perform_layout_input(1.0, 2.0), output(2.0));
++
++        let serialized = serde_json::to_value(cache).unwrap();
++        assert_eq!(
++            serialized["inner"]["measure_entries"],
++            serde_json::json!([null, null, null, null, null, null, null, null, null]),
++        );
++    }
++
+     #[test]
+     fn measurements_with_margin_collapse_metadata_are_not_cached() {
+         let mut cache = Cache::new();
+@@ -507,7 +623,7 @@ mod tests {
+             cache.store(&other, output(3.0));
+             assert_eq!(cache.get(&other), Some(output(3.0)));
+             assert!(cache.inner.as_ref().unwrap().final_layout_entry.is_none());
+-            assert_eq!(cache.inner.as_ref().unwrap().measure_entries.iter().flatten().count(), 1);
++            assert_eq!(cache.inner.as_ref().unwrap().measure_entries.len(), 1);
+
+             // The old entries are gone, even for inputs that have the mode that the cache had before
+             cache.store(&input(4.0), output(4.0));
+@@ -524,7 +640,7 @@ mod tests {
+
+             cache.store(&other, output(3.0));
+             assert_eq!(cache.get(&other), Some(output(3.0)));
+-            assert!(cache.inner.as_ref().unwrap().measure_entries.iter().all(|entry| entry.is_none()));
++            assert!(cache.inner.as_ref().unwrap().measure_entries.is_empty());
+             assert_eq!(cache.get(&perform_layout_input(100.0, 50.0)), None);
+         }
+     }
+@@ -537,6 +653,128 @@ mod tests {
+         assert_eq!(cache.get(&input(1.0)), Some(output(1.0)));
+     }
+
++    #[test]
++    fn growing_measurements_keep_first_matching_slot_and_clock_order() {
++        let mut cache = Cache::new();
++        let both = input(1.0);
++        let horizontal = LayoutInput { axis: RequestedAxis::Horizontal, ..both };
++        cache.store(&horizontal, output(11.0));
++        cache.store(&both, output(12.0));
++        for width in 2..CACHE_SIZE {
++            cache.store(&input(width as f32), output(width as f32));
++        }
++        assert_eq!(cache.get(&horizontal), Some(output(11.0)));
++        assert_eq!(cache.get(&both), Some(output(12.0)));
++        cache.store(&input(20.0), output(20.0));
++        assert_eq!(cache.get(&horizontal), Some(output(12.0)));
++        assert_eq!(cache.get(&both), Some(output(12.0)));
++        cache.clear();
++        assert_eq!(cache.get(&horizontal), None);
++        cache.store(&both, output(13.0));
++        assert_eq!(cache.get(&horizontal), Some(output(13.0)));
++    }
++
++    fn round_trip(layout: LayoutOutput) -> LayoutOutput {
++        CachedLayout::from(layout).to_layout_output()
++    }
++
++    fn baseline_bits(baselines: Baselines) -> (Option<u32>, Option<u32>) {
++        (baselines.first.map(f32::to_bits), baselines.last.map(f32::to_bits))
++    }
++
++    #[test]
++    fn final_layouts_without_optional_fields_round_trip() {
++        let layout = output(3.0);
++        assert_eq!(layout.baselines, Baselines::NONE);
++        assert_eq!(layout.oof_positioning_area, None);
++        assert_eq!(round_trip(layout.clone()), layout);
++    }
++
++    #[test]
++    fn final_layout_baselines_round_trip_bit_for_bit() {
++        for (first, last) in [
++            (Some(f32::NAN), None),
++            (None, Some(f32::NAN)),
++            (Some(-0.0), Some(0.0)),
++            (Some(0.0), None),
++            (None, Some(-0.0)),
++            (Some(4.5), Some(f32::NAN)),
++        ] {
++            let mut layout = output(3.0);
++            layout.baselines = Baselines { first, last };
++            let restored = round_trip(layout.clone());
++            assert_eq!(baseline_bits(restored.baselines), baseline_bits(layout.baselines));
++            layout.baselines = Baselines::NONE;
++            assert_eq!(LayoutOutput { baselines: Baselines::NONE, ..restored }, layout);
++        }
++    }
++
++    #[test]
++    fn final_layout_positioning_areas_and_margins_round_trip() {
++        let mut layout = output(3.0);
++        layout.oof_positioning_area = Some(OofPositioningArea { size: Size::ZERO, offset: Point::ZERO });
++        assert_eq!(round_trip(layout.clone()), layout);
++
++        layout.oof_positioning_area =
++            Some(OofPositioningArea { size: Size { width: 7.0, height: 8.0 }, offset: Point { x: -1.0, y: 2.5 } });
++        layout.top_margin = CollapsibleMarginSet::from_margin(10.0);
++        layout.bottom_margin = CollapsibleMarginSet::from_margin(-4.0);
++        layout.margins_can_collapse_through = true;
++        assert_eq!(round_trip(layout.clone()), layout);
++    }
++
++    #[test]
++    fn final_layout_oof_candidates_round_trip() {
++        use crate::style::Position;
++        use crate::tree::{AxisStaticEdge, AxisStaticPosition, NodeId, OofCandidate};
++        let mut layout = output(3.0);
++        for (node, position) in [(1u64, Position::Absolute), (2u64, Position::Fixed)] {
++            layout.oof_candidates.push(OofCandidate {
++                node: NodeId::from(node),
++                order: node as u32,
++                position,
++                static_position: Point {
++                    x: AxisStaticPosition::from_edge(node as f32, AxisStaticEdge::Start),
++                    y: AxisStaticPosition::from_edge(-(node as f32), AxisStaticEdge::End),
++                },
++            });
++        }
++        let restored = round_trip(layout.clone());
++        assert_eq!(restored.oof_candidates.as_slice().len(), 2);
++        assert_eq!(restored, layout);
++    }
++
++    #[test]
++    fn stored_final_layouts_are_returned_unchanged() {
++        let mut layout = output(3.0);
++        layout.baselines = Baselines { first: Some(1.0), last: None };
++        layout.oof_positioning_area =
++            Some(OofPositioningArea { size: Size { width: 3.0, height: 3.0 }, offset: Point::ZERO });
++        layout.top_margin = CollapsibleMarginSet::from_margin(2.0);
++        let mut cache = Cache::new();
++        cache.store(&perform_layout_input(100.0, 50.0), layout.clone());
++        assert_eq!(cache.get(&perform_layout_input(100.0, 50.0)), Some(layout.clone()));
++        assert_eq!(cache.get(&perform_layout_input(100.0, 50.0)), Some(layout));
++    }
++
++    #[test]
++    fn measure_slots_double_to_four_then_grow_by_one() {
++        let mut cache = Cache::new();
++        let mut capacities = crate::util::sys::Vec::new();
++        for width in 0..CACHE_SIZE {
++            cache.store(&input(width as f32), output(width as f32));
++            capacities.push(cache.inner.as_ref().unwrap().measure_entries.capacity());
++        }
++        assert_eq!(capacities, [1, 2, 4, 4, 5, 6, 7, 8, 9]);
++        for width in 0..CACHE_SIZE {
++            assert_eq!(cache.get(&input(width as f32)), Some(output(width as f32)));
++        }
++        let entries = &cache.inner.as_ref().unwrap().measure_entries;
++        for (index, entry) in entries.iter().enumerate() {
++            assert_eq!(entry.content, output(index as f32).size);
++        }
++    }
++
+     #[test]
+     #[cfg(all(debug_assertions, feature = "std"))]
+     fn mode_change_evictions_are_counted_for_non_empty_caches_only() {

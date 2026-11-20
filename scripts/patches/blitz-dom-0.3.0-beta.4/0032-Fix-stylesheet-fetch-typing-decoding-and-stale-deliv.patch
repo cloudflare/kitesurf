@@ -1,0 +1,288 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Mon, 3 Aug 2026 22:47:04 +0100
+Subject: [PATCH] Fix stylesheet fetch typing, decoding and stale deliveries
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+load_linked_stylesheet stamps `content_type = "text/css"` so the
+embedder's NetProvider can tell a stylesheet load from a generic one
+without peeking at the NetHandler type. StylesheetLoader's nested
+@import fetch never got the same stamp, so those requests fell through
+to URL-extension inference. Any @import whose URL carries no `.css`
+extension resolved to a generic resource kind and lost the
+stylesheet-specific handling the top-level sheet receives.
+Wikipedia-style `load.php?modules=...` imports are the common shape.
+
+Whether a stylesheet's bytes may ever be handed to page JS depends on
+its fetch mode, and only the DOM knows that: a `<link>` with a
+`crossorigin` attribute fetches in mode "cors", and without one it
+fetches "no-cors", whose response is opaque even when the server sends
+Access-Control-Allow-Origin. Rather than add a field to blitz-traits'
+Request, the mode rides on the same `content_type` tag as a MIME
+parameter: `text/css;ks-cors=cors`. StylesheetLoader carries the mode so
+an @import chain inherits what its root sheet declared, per CSSOM. An
+inline `<style>` has no crossorigin attribute, so its imports are
+"no-cors".
+
+NetHandler::bytes bailed with Err("Invalid UTF8") on any sheet that
+wasn't valid UTF-8, silently discarding it. sigarra.up.pt serves its
+2022 theme and base sheet as iso-8859-15, so the page lost its masthead
+gradient and every screen-only visibility rule while pure-ASCII sheets
+kept applying; a half-styled render that looked like a layout bug.
+Follow css-syntax §3.2: BOM, then @charset, then strict UTF-8, with a
+windows-1252 fallback for legacy bytes, via the already-vendored
+encoding_rs. Applies to @import'ed sheets too.
+
+load_resource handed a Resource::Css to add_stylesheet_for_node without
+checking that the <link> still exists. Script can remove the link while
+its sheet is still in flight. When the node was dropped, its slotmap key
+went stale and add_stylesheet_for_node panicked with "invalid SlotMap
+key used". When the node was only detached, its sheet styled a document
+the link was no longer part of. Nothing removes that sheet, because the
+removal ran before the sheet was registered.
+
+The load is now dropped unless the node is a live element in the
+document, as Chrome does. Inserting the link again starts a new fetch
+through process_added_subtree. A Resource::Css with no node id is
+dropped instead of unwrapped.
+
+Co-authored-by: Luís Duarte <lduarte@cloudflare.com>
+---
+ Cargo.toml      |  3 +++
+ src/cssom.rs    |  3 +++
+ src/document.rs | 28 +++++++++++++++++++++-
+ src/mutator.rs  | 15 +++++++++++-
+ src/net.rs      | 62 +++++++++++++++++++++++++++++++++++++++++++------
+ 5 files changed, 102 insertions(+), 9 deletions(-)
+
+diff --git a/Cargo.toml b/Cargo.toml
+index 0168cec..da0916a 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -88,6 +88,9 @@ version = "0.1.13"
+ [dependencies.bitflags]
+ version = "2.8.0"
+
++[dependencies.encoding_rs]
++version = "0.8"
++
+ [dependencies.blitz-traits]
+ version = "=0.3.0-beta.4"
+ default-features = false
+diff --git a/src/cssom.rs b/src/cssom.rs
+index 971fae5..d86bd01 100644
+--- a/src/cssom.rs
++++ b/src/cssom.rs
+@@ -337,6 +337,9 @@ impl BaseDocument {
+             shell_provider: self.shell_provider.clone(),
+             abort_signal: self.abort_signal.clone(),
+             import_depth: 0,
++            // The owning sheet's fetch mode isn't known here; treat
++            // CSSOM-inserted @imports as opaque ("no-cors").
++            cors_mode: Some(String::from("no-cors")),
+         }
+     }
+
+diff --git a/src/document.rs b/src/document.rs
+index 0383d3c..14396af 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -1359,6 +1359,14 @@ impl BaseDocument {
+                                     guard: self.guard.clone(),
+                                     net_provider: self.net_provider.clone(),
+                                     abort_signal: self.abort_signal.clone(),
++                                    // Same crossorigin rule as the
++                                    // initial load in load_linked_stylesheet.
++                                    cors_mode: Some(String::from(
++                                        match element.attr(LocalName::from("crossorigin")) {
++                                            Some(_) => "cors",
++                                            None => "no-cors",
++                                        },
++                                    )),
+                                 },
+                             ),
+                         );
+@@ -1501,6 +1509,9 @@ impl BaseDocument {
+                 shell_provider: self.shell_provider.clone(),
+                 abort_signal: self.abort_signal.clone(),
+                 import_depth: 0,
++                // An inline <style> carries no crossorigin
++                // attribute, so its @imports fetch in mode "no-cors".
++                cors_mode: Some(String::from("no-cors")),
+             }),
+             None,
+             QuirksMode::NoQuirks,
+@@ -1807,7 +1818,22 @@ impl BaseDocument {
+
+         match resource {
+             Resource::Css(css) => {
+-                let node_id = res.node_id.unwrap();
++                // Script can remove the <link> while its sheet is
++                // still in flight. A dropped node leaves a stale key, and
++                // indexing it panicked in the middle of handle_messages; a
++                // detached one would apply its sheet to a document it is no
++                // longer part of. Chrome drops that load too. Inserting the
++                // link again starts a new fetch (process_added_subtree).
++                let Some(node_id) = res.node_id else {
++                    return;
++                };
++                let connected = self
++                    .nodes
++                    .get(node_id)
++                    .is_some_and(|node| node.is_element() && node.flags.is_in_document());
++                if !connected {
++                    return;
++                }
+                 self.add_stylesheet_for_node(css, node_id);
+             }
+             Resource::ImportedCss(import_rule, sheet) => {
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 37c955b..0bec171 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1303,6 +1303,15 @@ impl<'doc> DocumentMutator<'doc> {
+             return;
+         }
+
++        // A `crossorigin` attribute (any value, including the
++        // empty string) puts the CSS fetch in mode "cors"; its absence
++        // means "no-cors", whose response is opaque even when the server
++        // does send Access-Control-Allow-Origin. HTML §link-type-stylesheet.
++        let cors_mode = match node.attr(LocalName::from("crossorigin")) {
++            Some(_) => "cors",
++            None => "no-cors",
++        };
++
+         let url = self.doc.resolve_url(href);
+         let handler = ResourceHandler::new(
+             self.doc.tx.clone(),
+@@ -1314,6 +1323,7 @@ impl<'doc> DocumentMutator<'doc> {
+                 guard: self.doc.guard.clone(),
+                 net_provider: self.doc.net_provider.clone(),
+                 abort_signal: self.doc.abort_signal.clone(),
++                cors_mode: Some(String::from(cors_mode)),
+             },
+         );
+
+@@ -1329,8 +1339,11 @@ impl<'doc> DocumentMutator<'doc> {
+         // the NetHandler trait object. Blitz's NetProvider trait
+         // doesn't expose the handler type, and Request has no
+         // `kind` field, so content_type is the cleanest signal.
++        //
++        // The `ks-cors` MIME parameter rides along so the embedder can
++        // tell a CORS-mode sheet from an opaque one.
+         let mut req = self.doc.build_request(url);
+-        req.content_type = Some("text/css".to_string());
++        req.content_type = Some(crate::net::css_content_type(Some(cors_mode)));
+         self.doc.net_provider.fetch(self.doc.id(), req, Box::new(handler));
+     }
+
+diff --git a/src/net.rs b/src/net.rs
+index 13be51d..be293f8 100644
+--- a/src/net.rs
++++ b/src/net.rs
+@@ -146,13 +146,50 @@ pub struct StylesheetHandler {
+     pub guard: SharedRwLock,
+     pub net_provider: Arc<dyn NetProvider>,
+     pub abort_signal: Option<AbortSignal>,
++    // The CSS fetch mode this sheet was requested with,
++    // "cors" or "no-cors". Threaded onto nested @import loads, which
++    // inherit the importing sheet's mode per CSSOM.
++    pub cors_mode: Option<String>,
++}
++
++/// Stylesheet `content_type` tag, carrying the fetch mode as
++/// a MIME parameter so the embedder can decide whether the sheet's text
++/// is ever allowed to reach page JS.
++pub(crate) fn css_content_type(cors_mode: Option<&str>) -> String {
++    match cors_mode {
++        Some(mode) => format!("text/css;ks-cors={mode}"),
++        None => String::from("text/css"),
++    }
++}
++
++// Css-syntax §3.2 "decode a stylesheet": BOM, then @charset,
++// then strict UTF-8. Legacy non-UTF-8 bytes (sigarra.up.pt ships
++// iso-8859-15 sheets) fall back to windows-1252 instead of the old
++// hard `Err("Invalid UTF8")`, which silently dropped the whole sheet.
++pub(crate) fn decode_css_bytes(bytes: &[u8]) -> String {
++    use encoding_rs::{Encoding, UTF_8, UTF_16BE, UTF_16LE, WINDOWS_1252};
++    // @charset "<label>"; must be the exact byte prefix per the spec;
++    // utf-16 labels decode as utf-8 (css-syntax's deliberate quirk).
++    let prelude = bytes
++        .strip_prefix(b"@charset \"")
++        .and_then(|rest| {
++            let end = rest.iter().position(|&b| b == b'"')?;
++            (rest.get(end + 1) == Some(&b';')).then(|| &rest[..end])
++        })
++        .and_then(Encoding::for_label)
++        .map(|enc| if enc == UTF_16BE || enc == UTF_16LE { UTF_8 } else { enc });
++    let fallback = prelude.unwrap_or_else(|| {
++        if std::str::from_utf8(bytes).is_ok() { UTF_8 } else { WINDOWS_1252 }
++    });
++    // encoding_rs's decode() sniffs a UTF-8/16 BOM ahead of the fallback.
++    let (text, _, _) = fallback.decode(bytes);
++    text.into_owned()
+ }
+
+ impl NetHandler for ResourceHandler<StylesheetHandler> {
+     fn bytes(self: Box<Self>, resolved_url: String, bytes: Bytes) {
+-        let Ok(css) = std::str::from_utf8(&bytes) else {
+-            return self.respond(resolved_url, Err(String::from("Invalid UTF8")));
+-        };
++        let css = decode_css_bytes(&bytes);
++        let css: &str = &css;
+
+         // NOTE(Nico): I don't *think* external stylesheets should have HTML entities escaped
+         // let escaped_css = html_escape::decode_html_entities(css);
+@@ -174,6 +211,7 @@ impl NetHandler for ResourceHandler<StylesheetHandler> {
+                 shell_provider: self.shell_provider.clone(),
+                 abort_signal: self.data.abort_signal.clone(),
+                 import_depth: 0,
++                cors_mode: self.data.cors_mode.clone(),
+             }),
+             None, // error_reporter
+             QuirksMode::NoQuirks,
+@@ -203,6 +241,9 @@ pub(crate) struct StylesheetLoader {
+     /// Depth of `@import` nesting for the stylesheet this loader is parsing
+     /// (0 for a top-level stylesheet)
+     pub(crate) import_depth: usize,
++    // Fetch mode inherited from the importing sheet, so a
++    // whole @import chain carries the mode its root <link> declared.
++    pub(crate) cors_mode: Option<String>,
+ }
+ impl ServoStylesheetLoader for StylesheetLoader {
+     fn request_stylesheet(
+@@ -234,9 +275,15 @@ impl ServoStylesheetLoader for StylesheetLoader {
+
+         let url = import.url.url().unwrap().clone();
+         let import = ServoArc::new(lock.wrap(import));
++        // Tag nested @import loads `text/css` too. Without
++        // it the embedder falls back to URL-extension inference, and
++        // an extension-less @import (load.php?…) resolves to a generic
++        // kind, losing the stylesheet handling the top level gets.
++        let mut req = stamped_request(url.as_ref().clone(), self.abort_signal.as_ref());
++        req.content_type = Some(css_content_type(self.cors_mode.as_deref()));
+         self.net_provider.fetch(
+             self.doc_id,
+-            stamped_request(url.as_ref().clone(), self.abort_signal.as_ref()),
++            req,
+             ResourceHandler::boxed(
+                 self.tx.clone(),
+                 self.doc_id,
+@@ -269,9 +316,10 @@ struct NestedStylesheetHandler {
+
+ impl NetHandler for ResourceHandler<NestedStylesheetHandler> {
+     fn bytes(self: Box<Self>, resolved_url: String, bytes: Bytes) {
+-        let Ok(css) = std::str::from_utf8(&bytes) else {
+-            return self.respond(resolved_url, Err(String::from("Invalid UTF8")));
+-        };
++        // Same lossy legacy-encoding decode as the top level
++        // (an @import'ed sheet can be iso-8859-* just as easily).
++        let css = decode_css_bytes(&bytes);
++        let css: &str = &css;
+
+         // NOTE(Nico): I don't *think* external stylesheets should have HTML entities escaped
+         // let escaped_css = html_escape::decode_html_entities(css);

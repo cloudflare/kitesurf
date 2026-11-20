@@ -1,0 +1,203 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 4 Aug 2026 14:38:22 +0100
+Subject: [PATCH] Handle empty clip regions and the layer budget correctly
+
+An inset() whose opposing insets meet or cross resolves to an empty clip
+region, which per css-masking hides the element entirely. The Rect arm
+returned None, and the caller reads None as "no clip-path" and pushes no
+layer at all, so the element painted at full size: the exact inverse of
+what an empty region means. Clamp the far edges to the near ones so the
+rect stays empty instead of inverting into a mirrored region.
+
+inset(50%) is one of the spellings visually-hidden labels use, so it
+rendered the label at full size. The other, `clip: rect(0,0,0,0)`, is
+handled by upstream's CSS 2 `clip` support.
+
+LayerManager checked `layers_used` against LAYER_LIMIT, but
+`layers_used` is only ever incremented: `maybe_pop_layer` gives back
+`layer_depth` and never `layers_used`. The check therefore capped the
+total number of clips a paint pass may ever push, not how many are open
+at once, so a heavy page exhausts it partway through and every later
+clip is silently refused. A refused clip does not skip its content; it
+paints it unclipped. On a page scrolled to the bottom, 1x1 `clip:
+rect(0,0,0,0)` screen-reader spans inside a fixed header painted their
+text over the page. Fixed subtrees are hoisted and painted last, which
+is why they were the ones left without budget.
+
+Depth is also the quantity worth bounding: each open layer costs the
+rasterizer a scratch buffer, and a pop releases it. 1024 concurrently
+open layers is still far beyond anything real content nests.
+
+Also fix the depth high-water mark, which read
+`layer_depth.max(layer_depth)` (a no-op) instead of writing the
+`layer_depth_used` field that exists for it.
+
+An empty clip region discards every pixel below it, but the painter
+still pushed the layer and rasterized the whole subtree into it before
+the clip threw the result away. On 1400 stacked visually-hidden spans
+(the `clip: rect(0,0,0,0)` plus `clip-path: inset(50%)` idiom) at
+1280x900 that cost 40.6 ms/frame against a 14.1 ms visibility:hidden
+floor: 87% of the price of painting the text, for zero visible pixels.
+
+Skipping is pixel-identical: everything below the early-out paints
+inside the layer whose region is empty, so it contributes nothing
+anyway. Descendants that leave the box are covered too. A re-homed
+abspos still paints from its flow parent, so it is inside the layer and
+already invisible, and a position:fixed box is hoisted to be a layout
+child of the root with no paint_parent_override, so it never entered
+this subtree. Hit testing walks paint_children separately, so it is
+untouched.
+
+One difference: past LAYER_LIMIT a refused clip painted its content
+unclipped and visible, and now it stays hidden. That is what an empty
+region means, and it only matters 1024 open layers deep, where the page
+is already mis-rendering everything else.
+
+Upstream already returns early for an empty `clip: rect()`, so this only
+adds the clip-path half. Outline and outset box shadow paint outside the
+clip-path layer here, so they stay above the early-out. Clipping them
+away would be the spec behaviour, but that is a separate change, not
+part of an optimisation.
+---
+ src/layers.rs           | 21 ++++++++++++++-------
+ src/render.rs           | 32 ++++++++++++++++++++++++++++----
+ src/render/clip_path.rs | 10 ++++------
+ 3 files changed, 46 insertions(+), 17 deletions(-)
+
+diff --git a/src/layers.rs b/src/layers.rs
+index bd1b4e7..c4c0d67 100644
+--- a/src/layers.rs
++++ b/src/layers.rs
+@@ -7,11 +7,15 @@ const LAYER_LIMIT: u32 = 1024;
+
+ #[derive(Default)]
+ pub(crate) struct LayerManager {
+-    layers_used: Cell<u32>,
+     layer_depth: Cell<u32>,
+-    layers_wanted: Cell<u32>,
+
+-    #[allow(unused)] // Only used for debugging. Enabled as required.
++    // Diagnostics only. layers_wanted minus layers_used is how many layers
++    // LAYER_LIMIT refused; layer_depth_used is the depth high-water mark.
++    #[allow(unused)]
++    layers_used: Cell<u32>,
++    #[allow(unused)]
++    layers_wanted: Cell<u32>,
++    #[allow(unused)]
+     layer_depth_used: Cell<u32>,
+ }
+
+@@ -57,9 +61,11 @@ impl LayerManager {
+         }
+         self.layers_wanted.update(|x| x + 1);
+
+-        // Check if clips are above limit
+-        let layers_available = self.layers_used.get() <= LAYER_LIMIT;
+-        if !layers_available {
++        // Budget concurrently-open layers, not the running total: each open
++        // layer costs the rasterizer a scratch buffer, and pops give that back.
++        // Counting every push ever made exhausts the budget partway through a
++        // heavy page, and a refused clip then paints its content unclipped.
++        if self.layer_depth.get() >= LAYER_LIMIT {
+             return false;
+         }
+
+@@ -81,7 +87,8 @@ impl LayerManager {
+         // Update accounting
+         self.layers_used.update(|x| x + 1);
+         self.layer_depth.update(|x| x + 1);
+-        self.layer_depth.update(|x| x.max(self.layer_depth.get()));
++        self.layer_depth_used
++            .update(|x| x.max(self.layer_depth.get()));
+
+         true
+     }
+diff --git a/src/render.rs b/src/render.rs
+index 75746f2..60a5938 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -40,7 +40,7 @@ use style::{
+     },
+ };
+
+-use kurbo::{self, Affine, Insets, Point, Rect, Shape, Size, Stroke, Vec2};
++use kurbo::{self, Affine, BezPath, Insets, Point, Rect, Shape, Size, Stroke, Vec2};
+ use peniko::{self, Fill, ImageData, ImageSampler};
+ use style::values::generics::color::GenericColor;
+ use taffy::Layout;
+@@ -482,9 +482,6 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+         // Compute clip-path (if any) and wrap all rendering in a clip layer
+         let clip_path_shape = cx.clip_path_shape();
+         let has_clip_path = clip_path_shape.is_some();
+-        let default_clip = cx.frame.border_box_path();
+-        let mut clip_path_for_layer = clip_path_shape.unwrap_or(default_clip);
+-        clip_path_for_layer.apply_affine(Affine::scale(self.scale));
+
+         // CSS 2 `clip` property (absolutely positioned elements only). Applies to the whole of
+         // the element's rendering (including outlines and shadows), so it is the outermost layer.
+@@ -502,9 +499,25 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+             None,
+         );
+
++        // An empty clip-path region means every pixel the subtree paints is discarded
++        // by the layer that wraps it, so the whole traversal below is dead work.
++        let clipped_away = is_empty_clip_region(clip_path_shape.as_ref());
++
+         cx.draw_outline(scene);
+         cx.draw_outset_box_shadow(scene);
+
++        // Outline and outset shadow paint outside the clip-path layer here, so they
++        // stay above the skip to keep an empty-clipped frame pixel-identical.
++        if clipped_away {
++            self.layer_manager
++                .maybe_pop_layer(scene, css_clip_layer_pushed);
++            return;
++        }
++
++        let default_clip = cx.frame.border_box_path();
++        let mut clip_path_for_layer = clip_path_shape.unwrap_or(default_clip);
++        clip_path_for_layer.apply_affine(Affine::scale(self.scale));
++
+         // clip-path clip ayer
+         self.layer_manager.maybe_with_layer(
+             scene,
+@@ -777,6 +790,17 @@ fn convert_rect(rect: &parley::BoundingBox) -> kurbo::Rect {
+     peniko::kurbo::Rect::new(rect.x0, rect.y0, rect.x1, rect.y1)
+ }
+
++/// Whether a resolved clip region covers no area, and so hides the element and
++/// everything painted inside its clip layer.
++fn is_empty_clip_region(shape: Option<&BezPath>) -> bool {
++    // Zero-area bounding box is sufficient, not necessary: it catches the empty
++    // rects inset() collapses to without walking odd-even fill rules.
++    shape.is_some_and(|shape| {
++        let bounds = shape.bounding_box();
++        bounds.width() <= 0.0 || bounds.height() <= 0.0
++    })
++}
++
+ impl ElementCx<'_, '_> {
+     /// Paint overlay scrollbar thumbs for scroll containers: `overflow:
+     /// scroll`, or `auto` when the content overflows (never `hidden`/`clip`,
+diff --git a/src/render/clip_path.rs b/src/render/clip_path.rs
+index 9f23e03..674b033 100644
+--- a/src/render/clip_path.rs
++++ b/src/render/clip_path.rs
+@@ -157,12 +157,10 @@ impl ElementCx<'_, '_> {
+
+                 let x0 = ox + left;
+                 let y0 = oy + top;
+-                let x1 = ox + w - right;
+-                let y1 = oy + h - bottom;
+-
+-                if x1 <= x0 || y1 <= y0 {
+-                    return None;
+-                }
++                // Insets that meet or cross over leave an empty region, which clips the
++                // element away; clamping keeps the rect empty rather than inverting it.
++                let x1 = (ox + w - right).max(x0);
++                let y1 = (oy + h - bottom).max(y0);
+
+                 // TODO: Support border-radius on inset()
+                 Some(kurbo::Rect::new(x0, y0, x1, y1).into_path(0.1))

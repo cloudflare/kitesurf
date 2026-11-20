@@ -1,14 +1,14 @@
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_test")
 load("@npm//:typescript/package_json.bzl", tsc = "bin")
+load("@pptr_specs//:defs.bzl", PPTR_SPECS = "SPECS")
+load("@pw_specs//:defs.bzl", PW_SPECS = "SPECS")
 load("//bazel:checks.bzl", "node_test", "tsc_test", "workspace_configs")
-load("//bazel:executors.bzl", "WPT", "for_test")
-load("//tests/e2e:defs.bzl", "e2e_shard_name")
-load("//tests/e2e:shards.bzl", "E2E_SHARD_STARTS")
-load("//tests/pw:defs.bzl", "PW_SHARDS")
+load("//bazel:executors.bzl", "PW", "WPT", "for_test")
 
 js_library(
     name = "wpt_shared",
     srcs = ["wpt-shared.mjs"],
+    visibility = ["//packages/engine/test/e2e:__pkg__"],
 )
 
 js_library(
@@ -26,7 +26,7 @@ js_library(
     srcs = ["wpt-engine.mjs"],
     data = ["//packages/engine:package_json"],
     deps = [
-        "//packages/engine:node_modules/miniflare",
+        "//packages/engine-server:pkg",
         "//packages/engine:node_modules/wrangler",
     ],
 )
@@ -52,6 +52,17 @@ js_library(
 )
 
 js_library(
+    name = "local_engine",
+    srcs = ["local-engine.mjs"],
+    data = ["//packages/engine:package_json"],
+    deps = [
+        ":engine_launcher",
+        "//packages/engine:node_modules/miniflare",
+        "//packages/engine:node_modules/wrangler",
+    ],
+)
+
+js_library(
     name = "pw_runner",
     srcs = ["pw-run.mjs", "pw-setup.mjs"] + glob(["patches/playwright/*.patch"]),
     data = [
@@ -61,6 +72,7 @@ js_library(
     ],
     deps = [
         ":engine_launcher",
+        ":local_engine",
         ":pw_shared",
         ":wpt_shared",
         "//packages/engine:node_modules/miniflare",
@@ -69,10 +81,42 @@ js_library(
 )
 
 js_library(
+    name = "pptr_shared",
+    srcs = ["pptr-shared.mjs"],
+    deps = [":pw_shared"],
+)
+
+js_library(
+    name = "pptr_checkout",
+    srcs = [
+        "pptr-checkout.mjs",
+        "pptr-setup.mjs",
+    ],
+)
+
+js_library(
+    name = "pptr_runner",
+    srcs = [
+        "pptr-reporter.mjs",
+        "pptr-run.mjs",
+    ],
+    data = [
+        "//:pptr_expectations",
+        "//:pptr_tests",
+    ],
+    deps = [
+        ":local_engine",
+        ":pptr_shared",
+        ":pw_shared",
+    ],
+)
+
+js_library(
     name = "wasm_build_helpers",
     srcs = [
         "get-patched-vendor-crates.mjs",
         "get-wasm-bindgen.mjs",
+        "wasm-memory-views.mjs",
         "wasm-opt.mjs",
     ],
     visibility = [
@@ -119,6 +163,22 @@ js_binary(
     visibility = ["//packages/engine:__pkg__"],
 )
 
+js_binary(
+    name = "container_vars",
+    data = [
+        "//packages/engine:package_json",
+        "//packages/engine:node_modules/wrangler",
+    ],
+    entry_point = "container-vars.mjs",
+    visibility = ["//docker:__pkg__"],
+)
+
+js_binary(
+    name = "workerd_config",
+    entry_point = "workerd-config.mjs",
+    visibility = ["//docker:__pkg__"],
+)
+
 _LINT_DATA = glob(
     ["lint/**"],
     exclude = ["lint/rust-check/target/**"],
@@ -127,13 +187,12 @@ _LINT_DATA = glob(
     "//:node_modules/oxfmt",
     "//:node_modules/oxlint",
     "//:node_modules/typescript",
-    "//:rust_toolchain",
 ]
 
-# `bazel run //scripts:lint -- format --check|--write`, `-- lint:js`, `-- lint:rust` or `-- lint`.
-# It checks the workspace it runs from, which may be a host workspace running @kitesurf//scripts:lint,
-# with oxfmt and oxlint from Bazel's npm tree. The Rust half runs cargo through rustup, because
-# clippy also checks the wasm32 targets, whose standard library the Bazel host tools lack.
+# `bazel run //scripts:lint -- format --check|--write` or `-- lint:js`. It checks the workspace
+# it runs from, which may be a host workspace running @kitesurf//scripts:lint, with oxfmt and
+# oxlint from Bazel's npm tree. The Rust gates are Bazel tests (`bazel test //:rust_lint`), wired
+# per package through //bazel:rust_checks.bzl.
 js_binary(
     name = "lint",
     data = _LINT_DATA,
@@ -179,26 +238,62 @@ js_library(
 )
 
 js_library(
+    name = "engine_deploy",
+    srcs = ["engine-deploy.mjs"],
+    visibility = ["//packages/engine:__pkg__"],
+)
+
+js_library(
     name = "stage_dev_build",
     srcs = ["stage-dev-build.mjs"],
     visibility = ["//packages/core/pkg:__pkg__", "//packages/engine:__pkg__"],
 )
 
 js_binary(
-    name = "e2e_shard",
+    name = "e2e_file",
     data = [
         "//packages/engine:package_json",
         "//packages/engine:node_modules/vitest",
     ],
-    entry_point = "e2e-shard.mjs",
+    entry_point = "e2e-file.mjs",
+    visibility = ["//packages/engine/test/e2e:__pkg__"],
+)
+
+# The entry point of //packages/engine/test/e2e:gate, which lists the file actions' reports.
+js_library(
+    name = "e2e_gate",
+    srcs = ["e2e-gate.mjs"],
     visibility = ["//packages/engine/test/e2e:__pkg__"],
 )
 
 js_binary(
-    name = "pw_shard",
+    name = "pw_spec",
     data = [":pw_runner"],
-    entry_point = "pw-shard.mjs",
+    entry_point = "pw-spec.mjs",
     visibility = ["//tests/pw:__pkg__"],
+)
+
+js_binary(
+    name = "pw_html_report",
+    entry_point = "pw-html-report.mjs",
+    visibility = ["//tests/pw:__pkg__"],
+)
+
+js_binary(
+    name = "pptr_build",
+    data = [":pptr_checkout"] + glob(["patches/puppeteer/*.patch"]),
+    entry_point = "pptr-build.mjs",
+    visibility = ["//tests/pptr:__pkg__"],
+)
+
+js_binary(
+    name = "pptr_spec",
+    data = [
+        ":pptr_checkout",
+        ":pptr_runner",
+    ],
+    entry_point = "pptr-spec.mjs",
+    visibility = ["//tests/pptr:__pkg__"],
 )
 
 js_binary(
@@ -270,6 +365,23 @@ js_library(
     visibility = ["//:__pkg__"],
 )
 
+# The Rust comment-policy gate's runfiles entry (check-rust-comments.mjs remains the
+# checkout-driven twin); rust_comments_test passes each package's sources as runfiles paths.
+js_library(
+    name = "rust_comments_check_entry",
+    srcs = ["lint/check-rust-comments-bazel.mjs"],
+    visibility = ["//visibility:public"],
+)
+
+js_library(
+    name = "rust_comments_check",
+    srcs = [
+        "lint/comment-policy.mjs",
+        "lint/rust-comments.mjs",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 [
     js_library(
         name = name,
@@ -291,6 +403,12 @@ js_library(
 )
 
 js_library(
+    name = "check_no_explicit_any",
+    srcs = ["check-no-explicit-any.mjs"],
+    visibility = ["//packages:__subpackages__"],
+)
+
+js_library(
     name = "ts_strict_ratchet",
     srcs = ["ts-strict-ratchet.mjs"],
     visibility = ["//visibility:public"],
@@ -303,10 +421,17 @@ js_library(
 )
 
 _HELPERS_DATA = glob(["*.mjs"]) + [
+    "lint/scope.mjs",
+    # wasm-opt.test.mjs compares the JS sha256 pin with the Bazel pin.
+    "//:module_bazel",
     # check-public-imports.mjs parses imports with the TypeScript compiler, and
     # engine-e2e-config.test.mjs loads the engine's e2e vitest config.
     "//:node_modules/typescript",
     "//packages/engine:e2e_config",
+    # wpt-engine.test.mjs serves a dist through the engine server, and workerd-config.test.mjs
+    # runs docker/front.js on the server's workerd.
+    "//docker:front_js",
+    "//packages/engine-server:pkg",
     "//:pw_expectations",
     "//:pw_tests",
     "//:wpt_expectations",
@@ -314,10 +439,88 @@ _HELPERS_DATA = glob(["*.mjs"]) + [
     "//:wpt_tests",
 ]
 
+# check-dco.test.mjs builds Git fixtures. The pw profile's image carries git; without a configured
+# profile the test runs locally, as before.
 node_test(
     name = "helpers_test",
-    args = glob(["*.test.mjs"], exclude = ["wpt-compare.test.mjs"]),
+    args = glob(
+        ["*.test.mjs"],
+        exclude = [
+            "page-script-font-loader.test.mjs",
+            "page-script-pdf-stream.test.mjs",
+            "page-renderer-pdf-stream.test.mjs",
+            "page-script-startup-input.test.mjs",
+            "page-script-frame-bitmap-gate.test.mjs",
+            "wasm-memory-views.test.mjs",
+            "wpt-compare.test.mjs",
+        ],
+    ),
     data = _HELPERS_DATA,
+    exec_properties = for_test(PW),
+)
+
+node_test(
+    name = "page_renderer_pdf_stream_test",
+    args = ["page-renderer-pdf-stream.test.mjs"],
+    data = [
+        "page-renderer-pdf-stream.test.mjs",
+        "//:node_modules/typescript",
+        "//packages/page-renderer:pdf_stream_test_source",
+        "//packages/page-script:pdf_stream_source",
+    ],
+)
+
+node_test(
+    name = "page_script_pdf_stream_test",
+    args = ["page-script-pdf-stream.test.mjs"],
+    data = [
+        "page-script-pdf-stream.test.mjs",
+        "//:node_modules/typescript",
+        "//packages/page-script:pdf_stream_source",
+    ],
+)
+
+node_test(
+    name = "page_script_startup_input_test",
+    args = ["page-script-startup-input.test.mjs"],
+    data = [
+        "page-script-startup-input.test.mjs",
+        "//:node_modules/typescript",
+        "//packages/engine:startup_input_generator_source",
+        "//packages/page-script:startup_probe_source",
+    ],
+)
+
+node_test(
+    name = "page_script_font_loader_test",
+    args = ["page-script-font-loader.test.mjs"],
+    data = [
+        "page-script-font-loader.test.mjs",
+        "//:node_modules/typescript",
+        "//packages/page-script:font_loader_source",
+    ],
+)
+
+# Runs wasm-bindgen's built glue and wasm under a modeled V8 embedder subarray cap.
+node_test(
+    name = "wasm_memory_views_test",
+    size = "medium",
+    args = ["wasm-memory-views.test.mjs"],
+    data = [
+        "wasm-memory-views.mjs",
+        "wasm-memory-views.test.mjs",
+        "//packages/core/pkg",
+    ],
+)
+
+node_test(
+    name = "page_script_frame_bitmap_gate_test",
+    args = ["page-script-frame-bitmap-gate.test.mjs"],
+    data = [
+        "page-script-frame-bitmap-gate.test.mjs",
+        "//:node_modules/typescript",
+        "//packages/page-script:frame_bitmap_gate_source",
+    ],
 )
 
 js_test(
@@ -336,10 +539,7 @@ js_test(
     exec_properties = for_test(WPT),
 )
 
-_PW_RESULTS = [
-    "//tests/pw:shard_%d/results.json" % index
-    for index in range(1, PW_SHARDS + 1)
-]
+_PW_RESULTS = ["//tests/pw:%s/results.json" % spec for spec in PW_SPECS]
 
 _PW_GATE_ARGS = [
     "--tests",
@@ -379,22 +579,42 @@ js_binary(
     visibility = ["//tests/pw:__pkg__"],
 )
 
-_E2E_REPORTS = [
-    "//packages/engine/test/e2e:%s/report.json" % e2e_shard_name(index + 1)
-    for index in range(len(E2E_SHARD_STARTS))
+_PPTR_RESULTS = ["//tests/pptr:%s/results.json" % spec for spec in PPTR_SPECS]
+
+_PPTR_GATE_ARGS = [
+    "--tests",
+    "$(rootpath //:pptr_tests)",
+    "--expectations",
+    "$(rootpath //:pptr_expectations)",
+] + [
+    arg
+    for result in _PPTR_RESULTS
+    for arg in ["--results", "$(rootpath %s)" % result]
 ]
 
+_PPTR_GATE_DATA = [
+    ":pptr_shared",
+    ":pw_shared",
+    ":wpt_shared",
+    "//:pptr_expectations",
+    "//:pptr_tests",
+] + _PPTR_RESULTS
+
 js_test(
-    name = "e2e_gate_test",
+    name = "pptr_expectations_test",
     size = "small",
-    args = [arg for report in _E2E_REPORTS for arg in ["--shard", "$(rootpath %s)" % report]],
-    data = (
-        [":wpt_shared"]
-        + _E2E_REPORTS
-        + [report.replace("/report.json", "/shard.json") for report in _E2E_REPORTS]
-    ),
-    entry_point = "e2e-gate.mjs",
-    visibility = ["//tests/e2e:__pkg__"],
+    args = _PPTR_GATE_ARGS,
+    data = _PPTR_GATE_DATA,
+    entry_point = "pptr-gate.mjs",
+    visibility = ["//tests/pptr:__pkg__"],
+)
+
+js_binary(
+    name = "pptr_update_expectations",
+    args = _PPTR_GATE_ARGS + ["--update-expectations"],
+    data = _PPTR_GATE_DATA,
+    entry_point = "pptr-gate.mjs",
+    visibility = ["//tests/pptr:__pkg__"],
 )
 
 workspace_configs()

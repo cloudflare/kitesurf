@@ -168,6 +168,30 @@ describe("resource-store", () => {
     expect(imageStoreStats()).toEqual({ bytes: 0, count: 0 });
   });
 
+  it("one connection's image churn does not evict another's", () => {
+    const mine = putOpaqueImage(bytes(4096), "conn-a", "frame-a")!;
+    for (let i = 0; i < 8; i++) {
+      putOpaqueImage(bytes(MAX_ENTRY_BYTES), "conn-b", "frame-b");
+    }
+    expect(getImageBytes(mine, "conn-a")).not.toBeNull();
+    expect(imageStoreStats().bytes).toBeLessThanOrEqual(16 * 1024 * 1024);
+    dropConnectionImages("conn-a");
+    dropConnectionImages("conn-b");
+    expect(imageStoreStats()).toEqual({ bytes: 0, count: 0 });
+  });
+
+  it("a newcomer reclaims from the connection holding the most", () => {
+    const mb = 1024 * 1024;
+    const small = putOpaqueImage(bytes(2 * mb), "conn-a", "frame-a")!;
+    const big = putOpaqueImage(bytes(6 * mb), "conn-b", "frame-b")!;
+    putOpaqueImage(bytes(6 * mb), "conn-b", "frame-b");
+    putOpaqueImage(bytes(4 * mb), "conn-c", "frame-c");
+    expect(getImageBytes(small, "conn-a")).not.toBeNull();
+    expect(getImageBytes(big, "conn-b")).toBeNull();
+    for (const c of ["conn-a", "conn-b", "conn-c"]) dropConnectionImages(c);
+    expect(imageStoreStats()).toEqual({ bytes: 0, count: 0 });
+  });
+
   it("a single connection over the ceiling still evicts its own", () => {
     const first = putAuthorFont(bytes(1024 * 1024), "conn-a", "frame-a")!;
     for (let i = 0; i < 24; i++) {

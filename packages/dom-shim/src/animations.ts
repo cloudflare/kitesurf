@@ -9,6 +9,7 @@ import type * as Idl from "./idl/types.generated.js";
 import { KsEvent, setEventCurrentTarget, setEventTarget } from "./events/event.js";
 import { bumpMutationSeq } from "./mutations/seq.js";
 import { dom, ksGlobal } from "./state.js";
+import { ksInternals } from "./internals.js";
 
 type TaskScheduler = (fn: () => void, ms: number) => unknown;
 type Direction = "normal" | "reverse" | "alternate" | "alternate-reverse";
@@ -31,9 +32,12 @@ export function setAnimationTaskScheduler(scheduler: TaskScheduler): void {
 // Rust samples the same clock (now_for_animations), so the epoch start time JS hands
 // over and the time Rust measures from it agree. In production Date.now freezes within a
 // turn, so deltas around synchronous work read 0.
+// Captured at load: a page that moves Date.now must not latch the timeline's high-water mark.
+const nativeDateNow = Date.now.bind(Date);
+
 function clockMs(): number {
-  const floor = Number(Reflect.get(globalThis, "__ks_clock_floor_ms"));
-  return Number.isFinite(floor) ? Math.max(Date.now(), floor) : Date.now();
+  // updateClockFloor only ever stores a finite number.
+  return Math.max(nativeDateNow(), ksInternals.clockFloorMs ?? 0);
 }
 
 function domException(message: string, name: string): Error {
@@ -351,14 +355,29 @@ export class KsDocumentTimeline extends KsAnimationTimeline implements Idl.Docum
     this.#origin = documentTimelineOrigin + originTime;
   }
   override get currentTime(): number | null {
-    return clockMs() - this.#origin;
+    return timelineNowMs() - this.#origin;
   }
   override get _originEpoch(): number {
     return this.#origin;
   }
 }
 
-const documentTimelineOrigin = clockMs();
+let timelineHighWaterMs = 0;
+
+// During an animation frame the timelines take the frame's timestamp; otherwise the live clock.
+// The high-water mark keeps time monotonic when the clock floor ran ahead of the frame sample.
+function timelineNowMs(): number {
+  const now = ksInternals.animationFrameTimeMs ?? clockMs();
+  if (now > timelineHighWaterMs) timelineHighWaterMs = now;
+  return timelineHighWaterMs;
+}
+
+// The time origin, as performance.now() and so rAF timestamps count from it; frames publish
+// their time on the same base.
+const documentTimelineOrigin =
+  typeof performance !== "undefined" && typeof performance.timeOrigin === "number"
+    ? performance.timeOrigin
+    : clockMs();
 let documentTimeline: KsDocumentTimeline | null = null;
 export function getDocumentTimeline(): KsDocumentTimeline {
   return (documentTimeline ??= new KsDocumentTimeline());
@@ -438,7 +457,12 @@ export class KsKeyframeEffect extends KsAnimationEffect implements Idl.KeyframeE
   #target: Idl.Element | null = null;
   #composite: "replace" | "add" | "accumulate" = "replace";
   _keyframes: Keyframe[] = [];
-  constructor(target: unknown, keyframes?: unknown, options?: unknown) {
+  // The copy constructor's KeyframeEffect source, or a target element.
+  constructor(
+    target: Idl.Element | Idl.KeyframeEffect | null,
+    keyframes?: object | null,
+    options?: number | Idl.KeyframeEffectOptions,
+  ) {
     super(ILLEGAL);
     if (target instanceof KsKeyframeEffect) {
       this.#target = target.#target;
@@ -458,8 +482,7 @@ export class KsKeyframeEffect extends KsAnimationEffect implements Idl.KeyframeE
       applyTiming(this._timing, { duration: options });
     } else if (options !== undefined && options !== null) {
       applyTiming(this._timing, options);
-      const composite: unknown =
-        typeof options === "object" ? Reflect.get(options, "composite") : undefined;
+      const composite = typeof options === "object" ? options.composite : undefined;
       if (composite !== undefined)
         this.#composite = enumValue(
           composite,
@@ -532,7 +555,7 @@ export class KsAnimationPlaybackEvent extends KsEvent {
   }
 }
 
-type ListenerEntry = { callback: unknown; once: boolean; handler?: string };
+type ListenerEntry = { callback: Idl.EventListener | null; once: boolean; handler?: string };
 
 let nextAnimationId = 1;
 // Animations a page started but no longer references keep playing (they stay relevant),
@@ -797,14 +820,18 @@ export class KsAnimation implements Idl.Animation {
     for (const name of names) if (name) style.setProperty(name, computed.getPropertyValue(name));
   }
 
-  addEventListener(type: string, callback: unknown, options?: boolean | { once?: boolean }): void {
+  addEventListener(
+    type: string,
+    callback: Idl.EventListener | null,
+    options?: boolean | Idl.AddEventListenerOptions,
+  ): void {
     if (callback === null || callback === undefined) return;
     const list = this.#listeners.get(type) ?? [];
     if (list.some((l) => l.callback === callback && !l.handler)) return;
     list.push({ callback, once: typeof options === "object" && !!options?.once });
     this.#listeners.set(type, list);
   }
-  removeEventListener(type: string, callback: unknown): void {
+  removeEventListener(type: string, callback: Idl.EventListener | null): void {
     const list = this.#listeners.get(type);
     const at = list?.findIndex((l) => l.callback === callback && !l.handler) ?? -1;
     if (list && at >= 0) list.splice(at, 1);
@@ -819,7 +846,7 @@ export class KsAnimation implements Idl.Animation {
       try {
         if (typeof cb === "function") cb.call(this, event);
         else if (typeof cb === "object" && cb !== null) {
-          const handleEvent: unknown = Reflect.get(cb, "handleEvent");
+          const handleEvent = cb.handleEvent;
           if (typeof handleEvent === "function") Reflect.apply(handleEvent, cb, [event]);
         }
       } catch (err) {
@@ -981,14 +1008,14 @@ export class KsAnimation implements Idl.Animation {
 }
 
 export function animateElement(
-  element: unknown,
-  keyframes: unknown,
-  options?: unknown,
+  element: Idl.Element,
+  keyframes: object | null,
+  options?: number | Idl.KeyframeAnimationOptions,
 ): KsAnimation {
   const effect = new KsKeyframeEffect(element, keyframes, options);
   const animation = new KsAnimation(effect, getDocumentTimeline());
   if (options !== null && typeof options === "object") {
-    const id: unknown = Reflect.get(options, "id");
+    const id = options.id;
     if (id !== undefined) animation.id = String(id);
   }
   animation.play();

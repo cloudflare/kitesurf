@@ -14,9 +14,11 @@ import {
 import {
   ksGlobal,
   dom,
+  pageUrl,
   liveDocument,
   windowObj,
-  nodeFor,
+  elementFor,
+  elementDocument,
   setCollectionsClasses,
   shadowRootModes,
   DOCUMENT_ID,
@@ -51,10 +53,15 @@ import {
 import { bumpMutationSeq } from "./mutations/seq.js";
 import { recordAttributeMutation } from "./mutations/observer.js";
 import { Element, HTMLInputElement } from "./element/index.js";
-import type { HTMLSelectElement } from "./element/forms/select.js";
-import type { NodeBase } from "./node-base.js";
+import type {
+  HTMLOptGroupElement,
+  HTMLOptionElement,
+  HTMLSelectElement,
+} from "./element/forms/select.js";
+import type { HTMLElement } from "./element/html-element.js";
+import type { NodeBase, WrapperInfo } from "./node-base.js";
 import type { ParsedElement } from "./parser.js";
-import { dropUnwrappedSubtrees } from "./node-base.js";
+import { cloneWrapper, dropUnwrappedSubtrees } from "./node-base.js";
 import { makeStylePropertyMap } from "./css-typed-om.js";
 
 function ksState() {
@@ -136,31 +143,35 @@ class AttrCls implements Idl.Attr {
   get nodeType() {
     return 2;
   }
-  isSameNode(other) {
+  isSameNode(other: Idl.Node | null) {
     if (!other) return false;
     return this === other;
   }
-  isEqualNode(other) {
+  isEqualNode(other: Idl.Node | null) {
     if (!other || other.nodeType !== ATTRIBUTE_NODE) return false;
+    // Any ATTRIBUTE_NODE object compares by these slots, as an Attr does.
+    const o = other as Partial<Pick<AttrCls, "_namespaceURI" | "_localName" | "_value">>;
     return (
-      this._namespaceURI === other._namespaceURI &&
-      this._localName === other._localName &&
-      this._value === other._value
+      this._namespaceURI === o._namespaceURI &&
+      this._localName === o._localName &&
+      this._value === o._value
     );
   }
-  get baseURI(): string | null {
+  get baseURI(): string {
     const owner = this._ownerElement;
     if (owner && typeof owner.baseURI === "string") return owner.baseURI;
     try {
-      if (typeof windowObj !== "undefined" && windowObj.document) {
+      if (windowObj && windowObj.document) {
         const u = windowObj.document.baseURI;
         if (typeof u === "string") return u;
       }
     } catch {}
-    return null;
+    // Attrs exist only once buildDocument has built the window, so this
+    // is unreachable from page code; it answers what the document would.
+    return pageUrl;
   }
-  cloneNode(_deep) {
-    const a = Object.create(AttrCls.prototype);
+  cloneNode(_deep?: boolean): AttrCls {
+    const a: AttrCls = Object.create(AttrCls.prototype);
     a._name = this._name;
     a._value = this._value;
     a._nodeValue = this._nodeValue;
@@ -171,17 +182,17 @@ class AttrCls implements Idl.Attr {
     a._ownerElement = null;
     return a;
   }
-  lookupNamespaceURI(prefix) {
+  lookupNamespaceURI(prefix: string | null) {
     const owner = this._ownerElement;
     if (!owner) return null;
     return owner.lookupNamespaceURI(prefix);
   }
-  lookupPrefix(namespace) {
+  lookupPrefix(namespace: string | null) {
     const owner = this._ownerElement;
     if (!owner) return null;
     return owner.lookupPrefix(namespace);
   }
-  isDefaultNamespace(namespace) {
+  isDefaultNamespace(namespace: string | null) {
     const ns = namespace === "" ? null : namespace;
     return this.lookupNamespaceURI(null) === ns;
   }
@@ -190,25 +201,26 @@ class AttrCls implements Idl.Attr {
 // ----- NodeList -----------------------------------------------------------
 // Live per-wrapper list; the proxy reflects current tree state. WPT checks
 // Array.prototype method identity, and internal callers use aliases like findIndex.
-class NodeListCls implements Idl.NodeList {
-  readonly [index: number]: Idl.Node;
+// T is the item type: NodeBase for the shim's own lists, Element for selector matches.
+class NodeListCls<T extends Idl.Node = Idl.Node> implements Idl.NodeList {
+  readonly [index: number]: T;
   declare readonly length: number;
-  declare [Symbol.iterator]: () => ArrayIterator<Idl.Node>;
-  declare keys: typeof Array.prototype.keys;
-  declare values: typeof Array.prototype.values;
-  declare entries: typeof Array.prototype.entries;
-  declare forEach: typeof Array.prototype.forEach;
-  declare findIndex: typeof Array.prototype.findIndex;
-  declare find: typeof Array.prototype.find;
-  declare indexOf: typeof Array.prototype.indexOf;
-  declare includes: typeof Array.prototype.includes;
-  declare map: typeof Array.prototype.map;
-  declare filter: typeof Array.prototype.filter;
-  declare slice: typeof Array.prototype.slice;
-  declare some: typeof Array.prototype.some;
-  declare every: typeof Array.prototype.every;
-  declare reduce: typeof Array.prototype.reduce;
-  declare concat: typeof Array.prototype.concat;
+  declare [Symbol.iterator]: () => ArrayIterator<T>;
+  declare keys: T[]["keys"];
+  declare values: T[]["values"];
+  declare entries: T[]["entries"];
+  declare forEach: T[]["forEach"];
+  declare findIndex: T[]["findIndex"];
+  declare find: T[]["find"];
+  declare indexOf: T[]["indexOf"];
+  declare includes: T[]["includes"];
+  declare map: T[]["map"];
+  declare filter: T[]["filter"];
+  declare slice: T[]["slice"];
+  declare some: T[]["some"];
+  declare every: T[]["every"];
+  declare reduce: T[]["reduce"];
+  declare concat: T[]["concat"];
   item(index: number): Idl.Node | null {
     const list = nodeListGetters.get(this);
     if (!list) return null;
@@ -234,13 +246,68 @@ NodeListCls.prototype.every = Array.prototype.every;
 NodeListCls.prototype.reduce = Array.prototype.reduce;
 NodeListCls.prototype.concat = Array.prototype.concat;
 
+function readNodeList(target: NodeListCls): NodeBase[] {
+  const getList = nodeListGetters.get(target);
+  if (getList === undefined) throw new TypeError("dom-shim: NodeList target has no getter");
+  return getList();
+}
+
+// A property key naming an array index. Live collections report these as read-only elements.
+function isIndexKey(prop: PropertyKey): prop is string {
+  return typeof prop === "string" && /^\d+$/.test(prop);
+}
+
+// A live collection property: read-only and configurable, re-reported on every read.
+// Indexes enumerate; `length` and named properties do not.
+function indexDescriptor(value: unknown): PropertyDescriptor {
+  return { value, writable: false, enumerable: true, configurable: true };
+}
+function hiddenDescriptor(value: unknown): PropertyDescriptor {
+  return { value, writable: false, enumerable: false, configurable: true };
+}
+
+const nodeListHandler: ProxyHandler<NodeListCls> = {
+  // The indexes and length are read-only; false makes a strict-mode write
+  // throw. Any other write is an ordinary set, so RadioNodeList's value
+  // setter runs and an expando lands on the target.
+  set(t, prop, value, receiver) {
+    if (prop === "length" || isIndexKey(prop)) return false;
+    return Reflect.set(t, prop, value, receiver);
+  },
+  // The target's own keys are the page's expandos. A Proxy must list them,
+  // since Object.defineProperty makes them non-configurable by default.
+  ownKeys(t) {
+    const list = readNodeList(t);
+    const keys: (string | symbol)[] = [];
+    for (let i = 0; i < list.length; i++) keys.push(String(i));
+    keys.push("length");
+    const seen = new Set(keys);
+    for (const key of Reflect.ownKeys(t)) {
+      if (!seen.has(key)) keys.push(key);
+    }
+    return keys;
+  },
+  getOwnPropertyDescriptor(t, prop) {
+    if (prop === "length") return hiddenDescriptor(readNodeList(t).length);
+    if (isIndexKey(prop)) {
+      const index = Number(prop);
+      const list = readNodeList(t);
+      if (index < list.length) return indexDescriptor(list[index]);
+    }
+    return Reflect.getOwnPropertyDescriptor(t, prop);
+  },
+};
+
 // Child lists pass seqKey "childSeq" so attribute writes do not force a rebuild.
 // cls picks the list's interface: NodeList, or a subclass such as
 // RadioNodeList.
 /**
  * Creates a live NodeList; contents refresh when the selected mutation sequence changes.
  */
-function makeNodeList(getList: () => NodeBase[], seqKey?: NodeListSeqKey): NodeListCls;
+function makeNodeList<T extends NodeBase = NodeBase>(
+  getList: () => T[],
+  seqKey?: NodeListSeqKey,
+): NodeListCls<T>;
 function makeNodeList<L extends NodeListCls>(
   getList: () => NodeBase[],
   seqKey: NodeListSeqKey,
@@ -256,14 +323,20 @@ function makeNodeList(
   // share one wasm call and wrapper walk; the next mutation invalidates it.
   let cachedList: NodeBase[] | null = null;
   let cachedSeq = -1;
-  function memoGetList() {
-    const curSeq = ksState()[seqKey] | 0;
-    if (cachedList !== null && cachedSeq === curSeq) return cachedList;
-    cachedList = getList();
-    cachedSeq = curSeq;
-    return cachedList;
-  }
+  // Concise methods avoid esbuild keepNames name redefinitions and the property
+  // array each redefined closure would retain.
+  const { memoGetList } = {
+    memoGetList() {
+      const curSeq = ksState()[seqKey] | 0;
+      if (cachedList !== null && cachedSeq === curSeq) return cachedList;
+      cachedList = getList();
+      cachedSeq = curSeq;
+      return cachedList;
+    },
+  };
+  // Keep frequent reads closure-local; only reflection needs a registry lookup.
   const proxy = new Proxy(target, {
+    ...nodeListHandler,
     get(t, prop, receiver) {
       if (prop === "length") return memoGetList().length;
       if (typeof prop === "string" && /^\d+$/.test(prop)) {
@@ -273,55 +346,12 @@ function makeNodeList(
       }
       return Reflect.get(t, prop, receiver);
     },
-    // The indexes and length are read-only; false makes a strict-mode write
-    // throw. Any other write is an ordinary set, so RadioNodeList's value
-    // setter runs and an expando lands on the target.
-    set(t, prop, value, receiver) {
-      if (prop === "length" || (typeof prop === "string" && /^\d+$/.test(prop))) return false;
-      return Reflect.set(t, prop, value, receiver);
-    },
     has(t, prop) {
       if (prop === "length") return true;
       if (typeof prop === "string" && /^\d+$/.test(prop)) {
         return +prop < memoGetList().length;
       }
       return prop in t;
-    },
-    // The target's own keys are the page's expandos. A Proxy must list them,
-    // since Object.defineProperty makes them non-configurable by default.
-    ownKeys(t) {
-      const list = memoGetList();
-      const keys: (string | symbol)[] = [];
-      for (let i = 0; i < list.length; i++) keys.push(String(i));
-      keys.push("length");
-      const seen = new Set(keys);
-      for (const key of Reflect.ownKeys(t)) {
-        if (!seen.has(key)) keys.push(key);
-      }
-      return keys;
-    },
-    getOwnPropertyDescriptor(t, prop) {
-      if (prop === "length") {
-        return {
-          value: memoGetList().length,
-          writable: false,
-          enumerable: false,
-          configurable: true,
-        };
-      }
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        const i = +prop;
-        const list = memoGetList();
-        if (i < list.length) {
-          return {
-            value: list[i],
-            writable: false,
-            enumerable: true,
-            configurable: true,
-          };
-        }
-      }
-      return Reflect.getOwnPropertyDescriptor(t, prop);
     },
   });
   nodeListGetters.set(target, memoGetList);
@@ -336,13 +366,16 @@ class DocumentFragmentImpl extends Element implements Idl.DocumentFragment {
   // constructor, Element's `(nodeId, info)` setup reads node 0 (`<html>`) as
   // its first child instead of the fragment child.
   // The constructor WPT checks that an appended Text becomes `firstChild`.
-  constructor(nodeId, info) {
+  constructor(nodeId?: number, info?: WrapperInfo) {
     if (typeof nodeId === "number" && info) {
       super(nodeId, info);
     } else {
       const id = dom.createElement("div");
       fragmentIds.add(id);
-      super(id, dom.nodeInfo(id));
+      // A node created a line above always has a snapshot.
+      const created = dom.nodeInfo(id);
+      if (!created) throw new TypeError("dom-shim: new fragment node has no info");
+      super(id, created);
     }
   }
   get nodeType() {
@@ -351,15 +384,12 @@ class DocumentFragmentImpl extends Element implements Idl.DocumentFragment {
   get nodeName() {
     return "#document-fragment";
   }
-  get tagName(): undefined {
-    return undefined;
-  }
-  cloneNode(deep) {
+  cloneNode(deep?: boolean) {
     const clone = createDocumentFragmentInternal();
     if (deep) {
-      for (const child of Array.from<Idl.Node>(this.childNodes)) {
+      for (const child of Array.from(this.childNodes)) {
         if (child && typeof child.cloneNode === "function") {
-          clone.appendChild(child.cloneNode(true));
+          clone.appendChild(cloneWrapper(child, true));
         }
       }
     }
@@ -381,6 +411,17 @@ class DocumentFragmentImpl extends Element implements Idl.DocumentFragment {
   }
 }
 
+// tagName is not defined on DocumentFragment per spec — it's inherited
+// from Element which reads from wasm. Force undefined. Defined here, not
+// as a class getter, because Element types tagName as a string.
+Object.defineProperty(DocumentFragmentImpl.prototype, "tagName", {
+  get: function tagName() {
+    return undefined;
+  },
+  enumerable: false,
+  configurable: true,
+});
+
 // A shadow root backed by the wasm ShadowRoot node (attachShadow). It
 // extends the fragment class so nodeType, nodeName and the queries fit.
 // ShadowRoot has no constructor, so `new ShadowRoot()` throws; internal
@@ -388,17 +429,18 @@ class DocumentFragmentImpl extends Element implements Idl.DocumentFragment {
 let __shadowRootAllowConstruct = false;
 // root.styleSheets is [SameObject].
 const shadowStyleSheets = new WeakMap<ShadowRootImpl, EmptyStyleSheetList>();
+const shadowAdoptedStyleSheets = new WeakMap<ShadowRootImpl, AdoptedStyleSheets>();
 class ShadowRootImpl extends DocumentFragmentImpl implements Idl.ShadowRoot {
-  constructor(nodeId, info) {
+  constructor(nodeId: number, info: WrapperInfo) {
     if (!__shadowRootAllowConstruct) {
       throw new TypeError("Illegal constructor");
     }
     __shadowRootAllowConstruct = false;
     super(nodeId, info);
   }
-  get host() {
+  get host(): Element | null {
     const hostId = dom.shadowHostId(this._id);
-    return hostId >= 0 ? nodeFor(hostId) : null;
+    return hostId >= 0 ? elementFor(hostId) : null;
   }
   get mode() {
     return shadowRootModes.get(this._id) || "open";
@@ -441,6 +483,41 @@ class ShadowRootImpl extends DocumentFragmentImpl implements Idl.ShadowRoot {
     }
     return sheets;
   }
+  get adoptedStyleSheets(): Idl.CSSStyleSheet[] {
+    return this._adopted().sheets;
+  }
+  set adoptedStyleSheets(value: Idl.CSSStyleSheet[]) {
+    const sheets = toAdoptedSheets(value);
+    const adopted = this.adoptedStyleSheets;
+    adopted.splice(0, adopted.length, ...sheets);
+  }
+  // Replacing the root's children removes the adopted-sheet mirrors with them.
+  get innerHTML(): string {
+    return super.innerHTML;
+  }
+  set innerHTML(value: string) {
+    super.innerHTML = value;
+    shadowAdoptedStyleSheets.get(this)?.reattach();
+  }
+  get textContent(): string | null {
+    return super.textContent;
+  }
+  set textContent(value: string | null) {
+    super.textContent = value;
+    shadowAdoptedStyleSheets.get(this)?.reattach();
+  }
+  replaceChildren(...nodes: Array<NodeBase | string>): void {
+    super.replaceChildren(...nodes);
+    shadowAdoptedStyleSheets.get(this)?.reattach();
+  }
+  private _adopted(): AdoptedStyleSheets {
+    let adopted = shadowAdoptedStyleSheets.get(this);
+    if (!adopted) {
+      adopted = makeAdoptedStyleSheets(this);
+      shadowAdoptedStyleSheets.set(this, adopted);
+    }
+    return adopted;
+  }
 }
 
 // The minimal StyleSheetList shape a shadow root's styleSheets needs.
@@ -455,7 +532,7 @@ class EmptyStyleSheetList implements Idl.StyleSheetList {
   }
 }
 
-function mintShadowRoot(nodeId: number, info: unknown): ShadowRootImpl {
+function mintShadowRoot(nodeId: number, info: WrapperInfo): ShadowRootImpl {
   __shadowRootAllowConstruct = true;
   return new ShadowRootImpl(nodeId, info);
 }
@@ -539,8 +616,8 @@ class HTMLFormControlsCollectionCls
   // can't do; the first signature repeats the base one so the class still
   // extends it.
   namedItem(name: string): Element | null;
-  namedItem(name: string): Idl.RadioNodeList | Idl.Element | null;
-  namedItem(name: string): Idl.RadioNodeList | Idl.Element | null {
+  namedItem(name: string): Idl.RadioNodeList | Element | null;
+  namedItem(name: string): Idl.RadioNodeList | Element | null {
     const key = String(name);
     if (key === "") return null;
     const getList = htmlCollectionFn(this, "namedItem");
@@ -559,6 +636,8 @@ const formControlsNamedItem = HTMLFormControlsCollectionCls.prototype.namedItem;
 const OPTIONS_OWNER_SYM = Symbol("optionsOwner");
 class HTMLOptionsCollectionCls extends HtmlCollectionCls implements Idl.HTMLOptionsCollection {
   declare readonly [OPTIONS_OWNER_SYM]?: HTMLSelectElement;
+  // The owner <select>'s list holds only its options.
+  readonly [index: number]: HTMLOptionElement;
   get [Symbol.toStringTag](): string {
     return "HTMLOptionsCollection";
   }
@@ -580,10 +659,7 @@ class HTMLOptionsCollectionCls extends HtmlCollectionCls implements Idl.HTMLOpti
     if (select) select.selectedIndex = v;
   }
   // Keep the WebIDL signature; runtime compatibility is based on tagName, not a brand check.
-  add(
-    item: Idl.HTMLOptionElement | Idl.HTMLOptGroupElement,
-    before?: Idl.HTMLElement | number | null,
-  ): void {
+  add(item: HTMLOptionElement | HTMLOptGroupElement, before?: HTMLElement | number | null): void {
     const select = this[OPTIONS_OWNER_SYM];
     if (!select) {
       throw new TypeError("HTMLOptionsCollection.add: missing owner select");
@@ -650,7 +726,7 @@ function optionsCollectionSet(
   value: unknown,
   list: Element[],
 ) {
-  const doc = select.ownerDocument || ksGlobal.document;
+  const doc = elementDocument(select);
   if (prop === "length") {
     const n = Math.min(OPTIONS_COLLECTION_MAX, Number(value) >>> 0);
     const cur = list.length;
@@ -678,7 +754,7 @@ function optionsCollectionSet(
     throw new TypeError("HTMLOptionsCollection: indexed value must be an HTMLOptionElement");
   }
   // SAFETY: the existing tag-name check accepts option-shaped values without branding them.
-  const option = value as Idl.HTMLOptionElement;
+  const option = value as HTMLOptionElement;
   if (idx < list.length) {
     const o = list[idx];
     if (o && o.parentNode) o.parentNode.replaceChild(option, o);
@@ -722,7 +798,7 @@ class RadioNodeListCls extends NodeListCls implements Idl.RadioNodeList {
   }
 }
 
-function htmlCollectionExposesName(el) {
+function htmlCollectionExposesName(el: Element | null | undefined) {
   if (!el) return false;
   return el.namespaceURI === HTML_NS;
 }
@@ -734,6 +810,47 @@ type HtmlCollectionProxyTarget = HtmlCollectionCls & {
 type HtmlCollectionConstructor =
   | typeof HTMLFormControlsCollectionCls
   | typeof HTMLOptionsCollectionCls;
+type HtmlCollectionProto = { prototype: HtmlCollectionProxyTarget } | HtmlCollectionConstructor;
+
+function exposedNames(list: Element[]): string[] {
+  const names: string[] = [];
+  const seen = new Set();
+  for (const el of list) {
+    if (!el || !el.getAttribute) continue;
+    const id = el.getAttribute("id");
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      names.push(id);
+    }
+    if (htmlCollectionExposesName(el)) {
+      const nm = el.getAttribute("name");
+      if (nm && !seen.has(nm)) {
+        seen.add(nm);
+        names.push(nm);
+      }
+    }
+  }
+  return names;
+}
+
+// form.elements shares named RadioNodeLists; other collections prefer an id match.
+function namedValue(
+  target: object,
+  name: string,
+  list: Element[],
+  protoCls: HtmlCollectionProto | undefined,
+) {
+  if (protoCls?.prototype === HTMLFormControlsCollectionCls.prototype)
+    return formControlsNamedItem.call(target, name);
+  for (const el of list) {
+    if (el.getAttribute && el.getAttribute("id") === name) return el;
+  }
+  for (const el of list) {
+    if (!htmlCollectionExposesName(el)) continue;
+    if (el.getAttribute && el.getAttribute("name") === name) return el;
+  }
+  return null;
+}
 
 /**
  * Creates a live HTMLCollection; contents refresh when the DOM mutation sequence changes.
@@ -750,7 +867,7 @@ function makeHtmlCollection<T extends HtmlCollectionProxyTarget>(
 ): T;
 function makeHtmlCollection(
   getList: () => Element[],
-  protoCls?: { prototype: HtmlCollectionProxyTarget } | HtmlCollectionConstructor,
+  protoCls?: HtmlCollectionProto,
   extras?: Record<string | symbol, unknown>,
 ): HtmlCollectionProxyTarget {
   // The selected prototype preserves subclass `instanceof`. Keep the live
@@ -769,230 +886,199 @@ function makeHtmlCollection(
       });
     }
   }
-  // Keep expandos separate so a property can shadow a live name added later.
-  const shadow: Record<PropertyKey, unknown> = Object.create(null);
-  // Reuse per mutation sequence so reads do not rerun childIds and the nodeFor
-  // wrapper walk. Mutations invalidate the cached list.
-  let cachedList: Element[] | null = null;
-  let cachedSeq = -1;
-  function memoGetList() {
-    const curSeq = ksState().mutationSeq | 0;
-    if (cachedList !== null && cachedSeq === curSeq) return cachedList;
-    cachedList = getList();
-    cachedSeq = curSeq;
-    return cachedList;
-  }
-
-  let cachedNames: string[] | null = null;
-  let cachedNamesSeq = -1;
-  function memoExposedNames(list) {
-    const curSeq = ksState().mutationSeq | 0;
-    if (cachedNames !== null && cachedNamesSeq === curSeq) return cachedNames;
-    cachedNames = exposedNames(list);
-    cachedNamesSeq = curSeq;
-    return cachedNames;
-  }
-
-  function exposedNames(list) {
-    const names: string[] = [];
-    const seen = new Set();
-    for (const el of list) {
-      if (!el || !el.getAttribute) continue;
-      const id = el.getAttribute("id");
-      if (id && !seen.has(id)) {
-        seen.add(id);
-        names.push(id);
-      }
-      if (htmlCollectionExposesName(el)) {
-        const nm = el.getAttribute("name");
-        if (nm && !seen.has(nm)) {
-          seen.add(nm);
-          names.push(nm);
-        }
-      }
-    }
-    return names;
-  }
-
-  // A supported name's value, the same for a read and for reflection:
-  // form.elements answers a shared name with a RadioNodeList; otherwise the
-  // first id match wins, then the first name match.
-  function namedValue(t: object, name: string, list: Element[]) {
-    if (protoCls === HTMLFormControlsCollectionCls) return formControlsNamedItem.call(t, name);
-    for (const el of list) {
-      if (el.getAttribute && el.getAttribute("id") === name) return el;
-    }
-    for (const el of list) {
-      if (!htmlCollectionExposesName(el)) continue;
-      if (el.getAttribute && el.getAttribute("name") === name) return el;
-    }
-    return null;
-  }
-  // Supported names exclude indexes and own/prototype properties, as WebIDL
-  // specifies for named-property visibility:
-  // https://webidl.spec.whatwg.org/#legacy-platform-object-named-property-visibility
-  function isVisibleName(t: object, prop: PropertyKey): prop is string {
-    if (typeof prop !== "string") return false;
-    if (/^\d+$/.test(prop) && Number(prop) < 4294967295) return false;
-    if (Object.prototype.hasOwnProperty.call(shadow, prop) || prop in t) return false;
-    return memoExposedNames(memoGetList()).includes(prop);
-  }
-
-  let proxy: HtmlCollectionProxyTarget;
-  proxy = new Proxy(target, {
-    get(t, prop, receiver) {
-      const isOwn = receiver === proxy;
-      if (isOwn && Object.prototype.hasOwnProperty.call(shadow, prop)) {
-        return shadow[prop];
-      }
-      if (isOwn) {
-        if (prop === "length") return memoGetList().length;
-        if (typeof prop === "string" && /^\d+$/.test(prop)) {
-          const i = Number(prop);
-          if (i >= 0 && i < 4294967295) {
-            const list = memoGetList();
-            return i < list.length ? list[i] : undefined;
-          }
-        }
-      }
-      if (isOwn && typeof prop !== "symbol" && Object.prototype.hasOwnProperty.call(t, prop)) {
-        return Reflect.get(t, prop, receiver);
-      }
-      // Named lookup: visible names act as own properties, and they also
-      // answer reads through a derived object (`Object.create(coll).named`,
-      // WPT HTMLCollection-as-prototype). Anything else falls through to the
-      // prototype.
-      if (isVisibleName(t, prop)) {
-        const found = namedValue(t, prop, memoGetList());
-        if (found) return found;
-      }
-      const v = Reflect.get(t, prop, receiver);
-      return v;
-    },
-    set(t, prop, value, receiver) {
-      if (receiver !== proxy) {
-        return Reflect.set(t, prop, value, receiver);
-      }
-      const optionsOwner = t[OPTIONS_OWNER_SYM];
-      if (optionsOwner && (prop === "length" || (typeof prop === "string" && /^\d+$/.test(prop)))) {
-        return optionsCollectionSet(optionsOwner, prop, value, memoGetList());
-      }
-      // selectedIndex is the prototype's setter, not an expando.
-      if (optionsOwner && prop === "selectedIndex") {
-        return Reflect.set(t, prop, value, receiver);
-      }
-      // Numeric indexes are read-only. Returning false causes strict-mode
-      // assignment to throw and sloppy-mode assignment to fail silently.
-      // Other names may shadow unless they resolve to a named property,
-      // whose WebIDL descriptor is non-configurable.
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        return false;
-      }
-      if (typeof prop === "string" && memoExposedNames(memoGetList()).includes(prop)) {
-        return false;
-      }
-      shadow[prop] = value;
-      return true;
-    },
-    has(t, prop) {
-      if (Object.prototype.hasOwnProperty.call(shadow, prop)) return true;
-      if (prop === "length") return true;
-      if (typeof prop === "string") {
-        if (/^\d+$/.test(prop)) return +prop < memoGetList().length;
-        if (memoExposedNames(memoGetList()).includes(prop)) return true;
-      }
-      return prop in t;
-    },
-    deleteProperty(t, prop) {
-      if (Object.prototype.hasOwnProperty.call(shadow, prop)) {
-        delete shadow[prop];
-        return true;
-      }
-      if (typeof prop === "string") {
-        if (/^\d+$/.test(prop)) {
-          const i = +prop;
-          if (i < memoGetList().length) return false;
-        }
-      }
-      if (isVisibleName(t, prop)) return false;
-      return Reflect.deleteProperty(t, prop);
-    },
-    defineProperty(t, prop, desc) {
-      if (typeof prop === "string") {
-        if (/^\d+$/.test(prop) && Number(prop) < 4294967295) {
-          return false;
-        }
-        if (memoExposedNames(memoGetList()).includes(prop)) return false;
-      }
-      return Reflect.defineProperty(t, prop, desc);
-    },
-    ownKeys(t) {
-      // Expose indexes, visible names, and string expandos, but omit `length`,
-      // prototype methods, and hidden symbols. Live-key descriptors stay
-      // configurable so the proxy can report the current collection.
-      const list = memoGetList();
-      const keys: (string | symbol)[] = [];
-      for (let i = 0; i < list.length; i++) keys.push(String(i));
-      for (const n of memoExposedNames(list)) {
-        if (isVisibleName(t, n)) keys.push(n);
-      }
-      const seen = new Set(keys);
-      for (const k of [...Object.keys(shadow), ...Object.getOwnPropertyNames(t)]) {
-        if (!seen.has(k)) {
-          seen.add(k);
-          keys.push(k);
-        }
-      }
-      return keys;
-    },
-    getOwnPropertyDescriptor(t, prop) {
-      if (Object.prototype.hasOwnProperty.call(shadow, prop)) {
-        return {
-          value: shadow[prop],
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        };
-      }
-      if (prop === "length") {
-        return {
-          value: memoGetList().length,
-          writable: false,
-          enumerable: false,
-          configurable: true,
-        };
-      }
-      if (typeof prop === "string") {
-        if (/^\d+$/.test(prop)) {
-          const i = +prop;
-          const list = memoGetList();
-          if (i < list.length) {
-            return {
-              value: list[i],
-              writable: false,
-              enumerable: true,
-              configurable: true,
-            };
-          }
-        }
-        if (isVisibleName(t, prop)) {
-          const named = namedValue(t, prop, memoGetList());
-          if (named) {
-            return {
-              value: named,
-              writable: false,
-              enumerable: false,
-              configurable: true,
-            };
-          }
-        }
-      }
-      return Reflect.getOwnPropertyDescriptor(t, prop);
-    },
-  });
+  const state: HtmlCollectionState = {
+    getList,
+    protoCls,
+    shadow: Object.create(null),
+    proxy: null,
+    cachedList: null,
+    cachedSeq: -1,
+    cachedNames: null,
+    cachedNamesSeq: -1,
+  };
+  htmlCollectionStates.set(target, state);
+  const proxy = new Proxy(target, htmlCollectionHandler);
+  state.proxy = proxy;
   htmlCollectionGetters.set(proxy, getList);
   return proxy;
 }
+
+// One record per collection, read by a handler every collection shares: a handler and its
+// trap closures per collection cost about 400 bytes, and pages keep thousands of `children`.
+interface HtmlCollectionState {
+  getList: () => Element[];
+  protoCls: HtmlCollectionProto | undefined;
+  // Expandos live apart so a property can shadow a live name added later.
+  shadow: Record<PropertyKey, unknown>;
+  proxy: HtmlCollectionProxyTarget | null;
+  // Reused per mutation sequence so reads do not rerun childIds and the nodeFor wrapper walk.
+  cachedList: Element[] | null;
+  cachedSeq: number;
+  cachedNames: string[] | null;
+  cachedNamesSeq: number;
+}
+const htmlCollectionStates = new WeakMap<object, HtmlCollectionState>();
+
+function collectionState(target: object): HtmlCollectionState {
+  const state = htmlCollectionStates.get(target);
+  if (!state) throw new TypeError("Illegal invocation");
+  return state;
+}
+
+function memoGetList(s: HtmlCollectionState): Element[] {
+  const curSeq = ksState().mutationSeq | 0;
+  if (s.cachedList !== null && s.cachedSeq === curSeq) return s.cachedList;
+  s.cachedList = s.getList();
+  s.cachedSeq = curSeq;
+  return s.cachedList;
+}
+
+function memoExposedNames(s: HtmlCollectionState, list: Element[]): string[] {
+  const curSeq = ksState().mutationSeq | 0;
+  if (s.cachedNames !== null && s.cachedNamesSeq === curSeq) return s.cachedNames;
+  s.cachedNames = exposedNames(list);
+  s.cachedNamesSeq = curSeq;
+  return s.cachedNames;
+}
+
+// Supported names exclude indexes and own/prototype properties, as WebIDL
+// specifies for named-property visibility:
+// https://webidl.spec.whatwg.org/#legacy-platform-object-named-property-visibility
+function isVisibleName(s: HtmlCollectionState, t: object, prop: PropertyKey): prop is string {
+  if (typeof prop !== "string") return false;
+  if (isIndexKey(prop) && Number(prop) < 4294967295) return false;
+  if (Object.prototype.hasOwnProperty.call(s.shadow, prop) || prop in t) return false;
+  return memoExposedNames(s, memoGetList(s)).includes(prop);
+}
+
+const htmlCollectionHandler: ProxyHandler<HtmlCollectionProxyTarget> = {
+  get(t, prop, receiver) {
+    const s = collectionState(t);
+    const isOwn = receiver === s.proxy;
+    if (isOwn && Object.prototype.hasOwnProperty.call(s.shadow, prop)) {
+      return s.shadow[prop];
+    }
+    if (isOwn) {
+      if (prop === "length") return memoGetList(s).length;
+      if (isIndexKey(prop)) {
+        const index = Number(prop);
+        if (index < 4294967295) {
+          const list = memoGetList(s);
+          return index < list.length ? list[index] : undefined;
+        }
+      }
+    }
+    if (isOwn && typeof prop !== "symbol" && Object.prototype.hasOwnProperty.call(t, prop)) {
+      return Reflect.get(t, prop, receiver);
+    }
+    // Named lookup: visible names act as own properties, and they also
+    // answer reads through a derived object (`Object.create(coll).named`,
+    // WPT HTMLCollection-as-prototype). Anything else falls through to the
+    // prototype.
+    if (isVisibleName(s, t, prop)) {
+      const found = namedValue(t, prop, memoGetList(s), s.protoCls);
+      if (found) return found;
+    }
+    return Reflect.get(t, prop, receiver);
+  },
+  set(t, prop, value, receiver) {
+    const s = collectionState(t);
+    if (receiver !== s.proxy) {
+      return Reflect.set(t, prop, value, receiver);
+    }
+    const optionsOwner = t[OPTIONS_OWNER_SYM];
+    if (optionsOwner && (prop === "length" || isIndexKey(prop))) {
+      // Only makeHtmlCollection's extras put a <select> under this symbol.
+      return optionsCollectionSet(optionsOwner, prop, value, memoGetList(s));
+    }
+    // selectedIndex is the prototype's setter, not an expando.
+    if (optionsOwner && prop === "selectedIndex") {
+      return Reflect.set(t, prop, value, receiver);
+    }
+    // Numeric indexes are read-only. Returning false causes strict-mode
+    // assignment to throw and sloppy-mode assignment to fail silently.
+    // Other names may shadow unless they resolve to a named property,
+    // whose WebIDL descriptor is non-configurable.
+    if (isIndexKey(prop)) return false;
+    if (typeof prop === "string" && memoExposedNames(s, memoGetList(s)).includes(prop)) {
+      return false;
+    }
+    s.shadow[prop] = value;
+    return true;
+  },
+  has(t, prop) {
+    const s = collectionState(t);
+    if (Object.prototype.hasOwnProperty.call(s.shadow, prop)) return true;
+    if (prop === "length") return true;
+    if (isIndexKey(prop)) return Number(prop) < memoGetList(s).length;
+    if (typeof prop === "string" && memoExposedNames(s, memoGetList(s)).includes(prop)) return true;
+    return prop in t;
+  },
+  deleteProperty(t, prop) {
+    const s = collectionState(t);
+    if (Object.prototype.hasOwnProperty.call(s.shadow, prop)) {
+      delete s.shadow[prop];
+      return true;
+    }
+    if (isIndexKey(prop) && Number(prop) < memoGetList(s).length) return false;
+    if (isVisibleName(s, t, prop)) return false;
+    return Reflect.deleteProperty(t, prop);
+  },
+  defineProperty(t, prop, desc) {
+    const s = collectionState(t);
+    if (typeof prop === "string") {
+      if (isIndexKey(prop) && Number(prop) < 4294967295) {
+        return false;
+      }
+      if (memoExposedNames(s, memoGetList(s)).includes(prop)) return false;
+    }
+    return Reflect.defineProperty(t, prop, desc);
+  },
+  ownKeys(t) {
+    const s = collectionState(t);
+    // Expose indexes, visible names, and string expandos, but omit `length`,
+    // prototype methods, and hidden symbols. Live-key descriptors stay
+    // configurable so the proxy can report the current collection.
+    const list = memoGetList(s);
+    const keys: (string | symbol)[] = [];
+    for (let i = 0; i < list.length; i++) keys.push(String(i));
+    for (const n of memoExposedNames(s, list)) {
+      if (isVisibleName(s, t, n)) keys.push(n);
+    }
+    const seen = new Set(keys);
+    for (const k of [...Object.keys(s.shadow), ...Object.getOwnPropertyNames(t)]) {
+      if (!seen.has(k)) {
+        seen.add(k);
+        keys.push(k);
+      }
+    }
+    return keys;
+  },
+  getOwnPropertyDescriptor(t, prop) {
+    const s = collectionState(t);
+    if (Object.prototype.hasOwnProperty.call(s.shadow, prop)) {
+      return {
+        value: s.shadow[prop],
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      };
+    }
+    if (prop === "length") return hiddenDescriptor(memoGetList(s).length);
+    if (typeof prop === "string") {
+      if (isIndexKey(prop)) {
+        const index = Number(prop);
+        const list = memoGetList(s);
+        if (index < list.length) return indexDescriptor(list[index]);
+      }
+      if (isVisibleName(s, t, prop)) {
+        const named = namedValue(t, prop, memoGetList(s), s.protoCls);
+        if (named) return hiddenDescriptor(named);
+      }
+    }
+    return Reflect.getOwnPropertyDescriptor(t, prop);
+  },
+};
 
 // ----- DOMTokenList -------------------------------------------------------
 // Live tokenized view for classList and reflected attributes:
@@ -1145,11 +1231,11 @@ interface ParsedRuleList extends Array<ParsedRuleChunk> {
 type RuleStyleDecl = StyleDeclaration;
 
 interface FeatureValuesMap {
-  get(k: unknown): number[] | undefined;
-  set(k: unknown, v: unknown): FeatureValuesMap;
-  delete(k: unknown): boolean;
+  get(k: string): number[] | undefined;
+  set(k: string, v: number | number[]): FeatureValuesMap;
+  delete(k: string): boolean;
   clear(): void;
-  has(k: unknown): boolean;
+  has(k: string): boolean;
   readonly size: number;
   forEach(cb: (v: number[], k: string, m: FeatureValuesMap) => void, thisArg?: unknown): void;
   entries(): IterableIterator<[string, number[]]>;
@@ -1453,7 +1539,7 @@ class CSSGroupingRuleCls extends CSSRuleInterface implements Idl.CSSGroupingRule
   get cssRules(): RuleList | undefined {
     return rs<"childRules">(this).childRules;
   }
-  insertRule(text?: unknown, index?: unknown) {
+  insertRule(text: string, index?: number) {
     if (arguments.length === 0) {
       throw new TypeError(
         "Failed to execute 'insertRule': 1 argument required, but only 0 present.",
@@ -1476,7 +1562,7 @@ class CSSGroupingRuleCls extends CSSRuleInterface implements Idl.CSSGroupingRule
     if (s.onMutate) s.onMutate();
     return i;
   }
-  deleteRule(index?: unknown) {
+  deleteRule(index: number) {
     if (arguments.length === 0) {
       throw new TypeError(
         "Failed to execute 'deleteRule': 1 argument required, but only 0 present.",
@@ -1509,7 +1595,7 @@ class CSSMediaRuleCls extends CSSConditionRuleCls {
   get media(): MediaListCls {
     return rs<"media">(this).media;
   }
-  set media(v: unknown) {
+  set media(v: string) {
     rs<"media">(this).media.mediaText = v == null ? "" : String(v);
   }
   get conditionText(): string {
@@ -1608,7 +1694,7 @@ class CSSPageRuleCls extends CSSGroupingRuleCls implements Idl.CSSPageRule {
   // not the generic grouping-rule grammar CSSGroupingRuleCls.insertRule
   // implements, so this overrides rather than extends it. Duplicates
   // are allowed and document order is kept (WPT cssom/margin-003.html).
-  insertRule(text?: unknown, index?: unknown) {
+  insertRule(text: string, index?: number) {
     if (arguments.length === 0) {
       throw new TypeError(
         "Failed to execute 'insertRule': 1 argument required, but only 0 present.",
@@ -1659,7 +1745,7 @@ function constructMarginRule(
   parentRule: CSSRuleInterface | null,
   onMutate: (() => void) | null,
 ): AnyCssRule {
-  const rule = Object.create(CSSMarginRuleCls.prototype);
+  const rule: CSSMarginRuleCls = Object.create(CSSMarginRuleCls.prototype);
   const style = makeRuleStyleDeclaration(
     parsed.declText || "",
     "style",
@@ -1746,7 +1832,7 @@ class CSSFontFaceRuleCls extends CSSRuleInterface {
   get style(): RuleStyleDecl {
     return rs<"style">(this).style;
   }
-  set style(v: unknown) {
+  set style(v: string) {
     rs<"style">(this).style.cssText = String(v == null ? "" : v);
   }
 }
@@ -1774,7 +1860,7 @@ class CSSFontFeatureValuesRuleCls extends CSSRuleInterface {
   get fontFamily(): string {
     return rs(this).name || "";
   }
-  set fontFamily(v: unknown) {
+  set fontFamily(v: string) {
     const s = rs(this);
     // Like Chrome, the value is a plain comma list and empty items are dropped. A family that is
     // one plain identifier stays bare; any other text, a CSS-wide keyword or a generic family
@@ -2554,7 +2640,7 @@ function ruleStyleCascadeText(style: RuleStyleDecl): string {
 }
 
 function makeRuleStyleDeclaration(
-  initialDeclText,
+  initialDeclText: string,
   context: "style" | "keyframe" | "font-face" | "page" = "style",
   baseUrl = opts?.pageUrl || "about:blank",
 ): RuleStyleDecl {
@@ -2860,16 +2946,16 @@ function constructKeyframe(
 function makeFeatureValuesMap(onMutateRef: { fn: (() => void) | null }) {
   const m = new Map<string, number[]>();
   const api: FeatureValuesMap = {
-    get(k: unknown) {
+    get(k: string) {
       return m.get(String(k));
     },
-    set(k: unknown, v: unknown) {
+    set(k: string, v: number | number[]) {
       const arr = Array.isArray(v) ? v.map(Number) : [Number(v)];
       m.set(String(k), arr);
       if (onMutateRef.fn) onMutateRef.fn();
       return api;
     },
-    delete(k: unknown) {
+    delete(k: string) {
       const deleted = m.delete(String(k));
       if (onMutateRef.fn) onMutateRef.fn();
       return deleted;
@@ -2878,7 +2964,7 @@ function makeFeatureValuesMap(onMutateRef: { fn: (() => void) | null }) {
       m.clear();
       if (onMutateRef.fn) onMutateRef.fn();
     },
-    has(k: unknown) {
+    has(k: string) {
       return m.has(String(k));
     },
     get size() {
@@ -3315,9 +3401,7 @@ function securityError(message: string): Error {
   try {
     return new ksGlobal.DOMException(message, "SecurityError");
   } catch {
-    const e = new Error(message);
-    e.name = "SecurityError";
-    return e;
+    return Object.assign(new Error(message), { name: "SecurityError" });
   }
 }
 
@@ -3345,7 +3429,7 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
   let lastParsedText: string | null = null;
   let mirrorTextId = -1;
   function readNodeText() {
-    if (!isStyleEl || id < 0 || !dom.textContent) return "";
+    if (!isStyleEl || id < 0) return "";
     try {
       return String(dom.textContent(id) || "");
     } catch {
@@ -3364,14 +3448,12 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
   }
   function writeMirrorText(text: string) {
     // Reuse the unwrapped mirror node to avoid leaving detached nodes in Blitz's slab.
-    const children = dom.childIds ? dom.childIds(id) : null;
+    const children = dom.childIds(id);
     const reusable =
       mirrorTextId >= 0 &&
-      children !== null &&
       children.length === 1 &&
       children[0] === mirrorTextId &&
-      !hasLiveWrapper(mirrorTextId) &&
-      typeof dom.setNodeText === "function";
+      !hasLiveWrapper(mirrorTextId);
     if (reusable) {
       if (text) {
         dom.setNodeText(mirrorTextId, text);
@@ -3382,17 +3464,15 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
       }
       return;
     }
-    if (children) {
-      for (const cid of children) dom.removeNode(cid);
-      dropUnwrappedSubtrees(children);
-    }
+    for (const cid of children) dom.removeNode(cid);
+    dropUnwrappedSubtrees(children);
     mirrorTextId = -1;
     if (text) {
       mirrorTextId = dom.createTextNode(text);
       dom.appendChildNode(id, mirrorTextId);
     }
   }
-  function reparseFromText(text) {
+  function reparseFromText(text: string) {
     rules.length = 0;
     for (const p of splitStylesheetRules(text)) {
       if (!isConstructibleRuleKind(classifyRuleKind(p))) continue;
@@ -3402,7 +3482,7 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
     lastParsedText = text;
   }
   let linkRulesLoaded = false;
-  function syncFromLink(strict) {
+  function syncFromLink(strict: boolean) {
     if (linkRulesLoaded || id < 0 || !getExternalSheetRules) return;
     let res;
     try {
@@ -3543,6 +3623,7 @@ interface CSSStyleSheetBackend {
   replace(text: unknown): Promise<Idl.CSSStyleSheet>;
   attachMirror?(styleEl: Element): void;
   detachMirror?(styleEl: Element): void;
+  disabledChanged?(): void;
 }
 interface SheetRecord {
   fields: StyleSheetFields;
@@ -3561,7 +3642,30 @@ function styleSheetFields(sheet: object): StyleSheetFields {
 }
 
 // The adoptedStyleSheets binding mirrors a constructed sheet's rules into a
-// hidden <style> per adopting document.
+// hidden <style> per adopting document or shadow root.
+// https://drafts.csswg.org/cssom/#dom-documentorshadowroot-adoptedstylesheets
+// Only constructed sheets can be adopted; each is checked before any is set.
+export function toAdoptedSheets(value: unknown): Idl.CSSStyleSheet[] {
+  if (value == null || typeof (value as Iterable<unknown>)[Symbol.iterator] !== "function") {
+    throw new TypeError("Failed to set 'adoptedStyleSheets': the value is not iterable");
+  }
+  const sheets = Array.from(value as Iterable<unknown>);
+  for (const sheet of sheets) {
+    const record = sheet && typeof sheet === "object" ? sheetRecords.get(sheet) : undefined;
+    if (!record) {
+      throw new TypeError("Failed to set 'adoptedStyleSheets': an entry is not a CSSStyleSheet");
+    }
+    if (!record.backend.attachMirror) {
+      throw new DOMException(
+        "Failed to set 'adoptedStyleSheets': can't adopt a non-constructed stylesheet",
+        "NotAllowedError",
+      );
+    }
+  }
+  // SAFETY: every entry has a sheet record, which only CSSStyleSheet instances get.
+  return sheets as Idl.CSSStyleSheet[];
+}
+
 function attachSheetMirror(sheet: object, styleEl: Element): void {
   sheetRecords.get(sheet)?.backend.attachMirror?.(styleEl);
 }
@@ -3602,7 +3706,10 @@ class StyleSheetCls implements Idl.StyleSheet {
     return styleSheetFields(this).disabled;
   }
   set disabled(v: boolean) {
-    styleSheetFields(this).disabled = !!v;
+    const record = sheetRecord(this);
+    if (record.fields.disabled === !!v) return;
+    record.fields.disabled = !!v;
+    record.backend.disabledChanged?.();
   }
 }
 
@@ -3613,8 +3720,19 @@ class CSSStyleSheetCtor extends StyleSheetCls implements Idl.CSSStyleSheet {
     super(STYLE_SHEET_TOKEN);
     const rules = makeRuleList([]);
     const mirrors = new Set<Element>();
+    const fields: StyleSheetFields = {
+      ownerNode: null,
+      href: null,
+      title: null,
+      media: makeEmptyMediaList(),
+      disabled: !!(options && options.disabled),
+      ownerRule: null,
+      parentStyleSheet: null,
+    };
+    // A disabled sheet stays adopted but leaves the cascade, so its mirrors hold no rules.
+    const mirrorText = () => (fields.disabled ? "" : rules.map((r) => r.cssText).join("\n"));
     const rerender = () => {
-      const text = rules.map((r) => r.cssText).join("\n");
+      const text = mirrorText();
       for (const styleEl of mirrors) {
         try {
           styleEl.textContent = text;
@@ -3674,25 +3792,15 @@ class CSSStyleSheetCtor extends StyleSheetCls implements Idl.CSSStyleSheet {
         mirrors.add(styleEl);
         // Push the current rules now so the cascade sees them on the next paint.
         try {
-          styleEl.textContent = rules.map((r) => r.cssText).join("\n");
+          styleEl.textContent = mirrorText();
         } catch {}
       },
       detachMirror(styleEl) {
         mirrors.delete(styleEl);
       },
+      disabledChanged: rerender,
     };
-    sheetRecords.set(this, {
-      fields: {
-        ownerNode: null,
-        href: null,
-        title: null,
-        media: makeEmptyMediaList(),
-        disabled: !!(options && options.disabled),
-        ownerRule: null,
-        parentStyleSheet: null,
-      },
-      backend,
-    });
+    sheetRecords.set(this, { fields, backend });
   }
   get ownerRule() {
     return styleSheetFields(this).ownerRule;
@@ -3765,23 +3873,56 @@ for (const [n, C] of Object.entries(CSSOM_GLOBALS) as Array<[string, { prototype
   });
 }
 
+interface AdoptedStyleSheets {
+  sheets: Idl.CSSStyleSheet[];
+  // Put every mirror back at the end of its root, in array order.
+  reattach(): void;
+}
+
 // adoptedStyleSheets is an ObservableArray. Its proxy reconciles membership
-// changes by creating/removing hidden `<style>` mirrors in the live document;
-// those real nodes appear in styleSheets and participate in the paint cascade.
-function makeAdoptedStyleSheets() {
+// changes by creating/removing hidden `<style>` mirrors in the adopting root;
+// those real nodes appear in styleSheets and participate in the paint cascade,
+// after the root's own sheets and in array order.
+function makeAdoptedStyleSheets(root?: ShadowRootImpl): AdoptedStyleSheets {
   const arr: Idl.CSSStyleSheet[] = [];
   const mirrors = new WeakMap<object, Element>();
+  function mirrorParent(): NodeBase | null {
+    if (root) return root;
+    const doc = liveDocument();
+    return doc.head || doc.documentElement;
+  }
   function ensureMirror(sheet: Idl.CSSStyleSheet) {
     if (!sheet || typeof sheet !== "object") return;
     if (mirrors.has(sheet)) return;
     try {
       const styleEl = createElementInternal("style");
       styleEl.setAttribute("data-ks-adopted", "");
-      const doc = liveDocument();
-      const head = doc.head || doc.documentElement;
-      if (head) head.appendChild(styleEl);
+      const parent = mirrorParent();
+      if (parent) parent.appendChild(styleEl);
       mirrors.set(sheet, styleEl);
       attachSheetMirror(sheet, styleEl);
+    } catch {}
+  }
+  // A child-list replacement (innerHTML, textContent, replaceChildren) on the
+  // root removes its mirrors; a removed one is replaced by a fresh mirror. The
+  // mirrors are real children, visible in childNodes, until blitz-dom can feed
+  // a shadow root's cascade without a node.
+  function reattach() {
+    const parent = mirrorParent();
+    if (!parent) return;
+    const ordered = new Set<Element>();
+    for (const sheet of arr) {
+      if (mirrors.get(sheet)?.parentNode !== parent) {
+        dropMirror(sheet);
+        ensureMirror(sheet);
+      }
+      const styleEl = mirrors.get(sheet);
+      if (styleEl) ordered.add(styleEl);
+    }
+    // Moving a <style> reparses its sheet, so only move when the order is wrong.
+    if (endsWith(parent, ordered)) return;
+    try {
+      for (const styleEl of ordered) parent.appendChild(styleEl);
     } catch {}
   }
   function dropMirror(sheet: Idl.CSSStyleSheet) {
@@ -3796,6 +3937,7 @@ function makeAdoptedStyleSheets() {
   function reconcile(prevSet: Set<Idl.CSSStyleSheet>, nextSet: Set<Idl.CSSStyleSheet>) {
     for (const s of prevSet) if (!nextSet.has(s)) dropMirror(s);
     for (const s of nextSet) if (!prevSet.has(s)) ensureMirror(s);
+    reattach();
   }
   function snapshotSet(a: readonly Idl.CSSStyleSheet[]) {
     const s = new Set<Idl.CSSStyleSheet>();
@@ -3840,16 +3982,26 @@ function makeAdoptedStyleSheets() {
       return ok;
     },
   });
-  return proxy;
+  return { sheets: proxy, reattach };
 }
-export const adoptedStyleSheets = makeAdoptedStyleSheets();
+
+function endsWith(parent: NodeBase, tail: Set<Element>): boolean {
+  const children = parent.childNodes;
+  let index = children.length - tail.size;
+  if (index < 0) return false;
+  for (const node of tail) {
+    if (children[index++] !== node) return false;
+  }
+  return true;
+}
+export const adoptedStyleSheets = makeAdoptedStyleSheets().sheets;
 
 function makeStyleSheetList(): ItemList<CSSStyleSheetCtor> {
   const list: CSSStyleSheetCtor[] = [];
   try {
     const ids = Array.from(dom.querySelectorAll("style, link"));
     for (const nid of ids) {
-      const node = nodeFor(nid);
+      const node = elementFor(nid);
       if (!node) continue;
       if (node.tagName === "LINK") {
         const rel = (node.getAttribute("rel") || "").toLowerCase();
@@ -3898,75 +4050,65 @@ function parseTokens(serialized: string | null): string[] {
   }
   return out;
 }
+function readTokenList(target: DOMTokenListCls): string[] {
+  const { read } = tokenListState(target);
+  return parseTokens(read());
+}
+
+const tokenListHandler: ProxyHandler<DOMTokenListCls> = {
+  get(t, prop, receiver) {
+    if (prop === "length") return readTokenList(t).length;
+    // WebIDL iterable<DOMString>: WPT DOMTokenList-iteration checks that
+    // these are Array.prototype's own functions. finalizeInterface would
+    // wrap them on the prototype, so the proxy serves them.
+    if (prop === "values") return Array.prototype.values;
+    if (prop === "keys") return Array.prototype.keys;
+    if (prop === "entries") return Array.prototype.entries;
+    if (prop === "forEach") return Array.prototype.forEach;
+    if (isIndexKey(prop)) {
+      const index = Number(prop);
+      const tokens = readTokenList(t);
+      return index < tokens.length ? tokens[index] : undefined;
+    }
+    return Reflect.get(t, prop, receiver);
+  },
+  set(t, prop, value) {
+    // Indexed writes are rejected.
+    if (isIndexKey(prop)) return false;
+    return Reflect.set(t, prop, value);
+  },
+  has(t, prop) {
+    if (prop === "length") return true;
+    if (prop === "values" || prop === "keys" || prop === "entries" || prop === "forEach")
+      return true;
+    if (isIndexKey(prop)) return Number(prop) < readTokenList(t).length;
+    return prop in t;
+  },
+  ownKeys(t) {
+    const tokens = readTokenList(t);
+    const keys: (string | symbol)[] = [];
+    for (let i = 0; i < tokens.length; i++) keys.push(String(i));
+    keys.push("length");
+    return keys;
+  },
+  getOwnPropertyDescriptor(t, prop) {
+    if (prop === "length") return hiddenDescriptor(readTokenList(t).length);
+    if (isIndexKey(prop)) {
+      const index = Number(prop);
+      const tokens = readTokenList(t);
+      if (index < tokens.length) return indexDescriptor(tokens[index]);
+    }
+    return Reflect.getOwnPropertyDescriptor(t, prop);
+  },
+};
+
 function makeDOMTokenList(
   read: () => string | null,
   write: (value: string) => void,
   supported?: ReadonlySet<string>,
 ): DOMTokenListCls {
   const target: DOMTokenListCls = Object.create(DOMTokenListCls.prototype);
-  const getter = () => parseTokens(read());
-  const proxy = new Proxy(target, {
-    get(t, prop, receiver) {
-      if (prop === "length") return getter().length;
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        const i = +prop;
-        const tokens = getter();
-        return i < tokens.length ? tokens[i] : undefined;
-      }
-      // WebIDL iterable<DOMString>: WPT DOMTokenList-iteration checks that
-      // these are Array.prototype's own functions. finalizeInterface would
-      // wrap them on the prototype, so the proxy serves them.
-      if (prop === "values") return Array.prototype.values;
-      if (prop === "keys") return Array.prototype.keys;
-      if (prop === "entries") return Array.prototype.entries;
-      if (prop === "forEach") return Array.prototype.forEach;
-      return Reflect.get(t, prop, receiver);
-    },
-    set(t, prop, value) {
-      // Indexed writes are rejected.
-      if (typeof prop === "string" && /^\d+$/.test(prop)) return false;
-      return Reflect.set(t, prop, value);
-    },
-    has(t, prop) {
-      if (prop === "length") return true;
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        return +prop < getter().length;
-      }
-      if (prop === "values" || prop === "keys" || prop === "entries" || prop === "forEach")
-        return true;
-      return prop in t;
-    },
-    ownKeys() {
-      const tokens = getter();
-      const keys: (string | symbol)[] = [];
-      for (let i = 0; i < tokens.length; i++) keys.push(String(i));
-      keys.push("length");
-      return keys;
-    },
-    getOwnPropertyDescriptor(t, prop) {
-      if (prop === "length") {
-        return {
-          value: getter().length,
-          writable: false,
-          enumerable: false,
-          configurable: true,
-        };
-      }
-      if (typeof prop === "string" && /^\d+$/.test(prop)) {
-        const i = +prop;
-        const tokens = getter();
-        if (i < tokens.length) {
-          return {
-            value: tokens[i],
-            writable: false,
-            enumerable: true,
-            configurable: true,
-          };
-        }
-      }
-      return Reflect.getOwnPropertyDescriptor(t, prop);
-    },
-  });
+  const proxy = new Proxy(target, tokenListHandler);
   // Both are registered: a prototype method runs on the proxy, and the
   // set trap runs the value setter on the target.
   const state: TokenListState = { read, write, supported };
@@ -4199,10 +4341,9 @@ function filterByQualifiedName(candidates: Element[], qname: string): Element[] 
   return out;
 }
 
-function scopedQuerySelector(rootId: number, selector: string): Idl.Element | null {
+function scopedQuerySelector(rootId: number, selector: unknown): Element | null {
   const all = scopedQuerySelectorAll(rootId, selector);
-  // SAFETY: the wasm selector returns only element IDs.
-  return all.length > 0 ? (all[0] as Idl.Element) : null;
+  return all.length > 0 ? all[0] : null;
 }
 
 const pseudoElementRegex =
@@ -4211,10 +4352,13 @@ export function selectorHasPseudoElement(selector: string): boolean {
   return pseudoElementRegex.test(selector);
 }
 
-function scopedQuerySelectorAll(rootId: number, selector: string): NodeListCls | [] {
-  if (typeof selector !== "string") {
+function scopedQuerySelectorAll(rootId: number, selectorArg: unknown): NodeListCls<Element> {
+  let selector: string;
+  if (typeof selectorArg === "string") {
+    selector = selectorArg;
+  } else {
     try {
-      selector = String(selector);
+      selector = String(selectorArg);
     } catch {
       throw new DOMException(
         "Failed to execute 'querySelectorAll': selector argument is not a valid string",
@@ -4226,15 +4370,17 @@ function scopedQuerySelectorAll(rootId: number, selector: string): NodeListCls |
     try {
       dom.querySelectorAll(selector);
     } catch (err) {
+      // The wasm selector parser may throw any value, not just an Error.
+      const e = err as { message?: unknown } | null | undefined;
       throw new DOMException(
         "Failed to execute 'querySelectorAll': '" +
           selector +
           "' is not a valid selector. " +
-          (err && (err as any).message ? (err as any).message : String(err)),
+          (e && e.message ? e.message : String(e)),
         "SyntaxError",
       );
     }
-    return [];
+    return makeStaticNodeList([]);
   }
   let ids: number[];
   try {
@@ -4252,7 +4398,12 @@ function scopedQuerySelectorAll(rootId: number, selector: string): NodeListCls |
       "SyntaxError",
     );
   }
-  return makeStaticNodeList(ids.map((id) => nodeFor(id)).filter(Boolean));
+  const matches: Element[] = [];
+  for (const id of ids) {
+    const el = elementFor(id);
+    if (el) matches.push(el);
+  }
+  return makeStaticNodeList(matches);
 }
 
 const nodeListLenSym = Symbol.for("kitesurf.nodeListLength");
@@ -4266,15 +4417,18 @@ Object.defineProperty(NodeListCls.prototype, "length", {
 });
 
 /** Creates a NodeList snapshot whose contents do not track later DOM changes. */
-function makeStaticNodeList(items: Idl.Node[]): NodeListCls {
+function makeStaticNodeList<T extends NodeBase>(items: ArrayLike<T>): NodeListCls<T> {
   // SAFETY: every numeric index and the length slot are installed before return.
   type WritableNodeList = {
-    -readonly [K in keyof NodeListCls]: NodeListCls[K];
+    -readonly [K in keyof NodeListCls<T>]: NodeListCls<T>[K];
   } & { [nodeListLenSym]: number };
   const writable = Object.create(NodeListCls.prototype) as WritableNodeList;
-  const n = items.length;
-  for (let i = 0; i < n; i++) writable[i] = items[i];
+  const snapshot = Array.from(items);
+  const n = snapshot.length;
+  for (let i = 0; i < n; i++) writable[i] = snapshot[i];
   writable[nodeListLenSym] = n;
+  // item() reads the list through this getter, so give the static list one.
+  nodeListGetters.set(writable, () => snapshot);
   return writable;
 }
 

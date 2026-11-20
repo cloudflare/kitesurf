@@ -64,9 +64,10 @@ test("forms-file-input-idl", async ({ page }) => {
 });
 
 test("forms-file-input-multipart-post", async ({ page }) => {
+  // Served from the fixture host: an opaque (data:) document may not navigate to loopback.
   await page.goto(
-    "data:text/html," +
-      encodeURIComponent(`<!doctype html><body>
+    "http://127.0.0.1:8787/__fixtures/policy-doc.html?body=" +
+      encodeURIComponent(`
         <form id="fm" method="post" enctype="multipart/form-data"
               action="http://127.0.0.1:8787/__fixtures/form-echo">
           <input type="file" name="doc">

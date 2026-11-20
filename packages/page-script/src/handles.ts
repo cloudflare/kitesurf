@@ -5,11 +5,26 @@
 // Stores generation-local CDP object handles and compiled-script entries.
 
 const __handles = new Map<string, unknown>();
+const __handleFrames = new Map<string, string>();
 let __handleSeq = 0;
 
-export function mintHandle(value: unknown): string {
-  const id = "ps:" + ++__handleSeq;
+// Stamped into every handle and compiled-script id so the engine can route an id back to the
+// isolate that minted it. Isolates start with independent sequences, so bare `ps:N` collides.
+// Global scope cannot generate random values, so the engine sets this when the session opens.
+let __isolateStamp = "";
+
+export function setIsolateStamp(stamp: unknown): void {
+  if (typeof stamp === "string" && stamp) __isolateStamp = stamp;
+}
+
+function stampedId(prefix: string, seq: number): string {
+  return __isolateStamp ? `${prefix}:${__isolateStamp}:${seq}` : `${prefix}:${seq}`;
+}
+
+export function mintHandle(value: unknown, frameId?: string): string {
+  const id = stampedId("ps", ++__handleSeq);
   __handles.set(id, value);
+  if (frameId) __handleFrames.set(id, frameId);
   return id;
 }
 
@@ -18,8 +33,15 @@ export function lookupHandle(id: unknown): unknown {
   return __handles.get(id);
 }
 
+export function lookupHandleFrame(id: unknown): string | undefined {
+  if (typeof id !== "string") return undefined;
+  return __handleFrames.get(id);
+}
+
 export function releaseHandle(id: unknown): void {
-  if (typeof id === "string") __handles.delete(id);
+  if (typeof id !== "string") return;
+  __handles.delete(id);
+  __handleFrames.delete(id);
 }
 
 export interface CompiledScript {
@@ -31,7 +53,7 @@ const __compiledScripts = new Map<string, CompiledScript>();
 let __compiledScriptSeq = 0;
 
 export function compileScriptEntry(source: string, sourceURL: string): string {
-  const scriptId = "cs:" + ++__compiledScriptSeq;
+  const scriptId = stampedId("cs", ++__compiledScriptSeq);
   __compiledScripts.set(scriptId, { source, sourceURL });
   return scriptId;
 }

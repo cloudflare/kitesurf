@@ -3,7 +3,6 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
 
 HOISTED = [
-    "//:node_modules/buffer",
     "//:node_modules/devtools-protocol",
     "//:node_modules/undici",
     "//:node_modules/zod",
@@ -65,6 +64,19 @@ def strict_ratchet_test(
         entry_point = "//scripts:ts_strict_ratchet",
         include_transitive_types = True,
         include_types = True,
+        size = size,
+        **kwargs
+    )
+
+def no_explicit_any_test(name, data, dirs = ["src"], size = "small", **kwargs):
+    """scripts/check-no-explicit-any.mjs over dirs: no written-out `any` without a `// any:` reason;
+    data is the sources plus the typescript the script parses them with."""
+    js_test(
+        name = name,
+        args = dirs,
+        chdir = native.package_name(),
+        data = data,
+        entry_point = "//scripts:check_no_explicit_any",
         size = size,
         **kwargs
     )

@@ -99,6 +99,16 @@ const V8_SIDE = `<!doctype html>
     configurable: true,
   });
   globalThis.Brand = Brand;
+  globalThis.__ksReadLabel = (instance) => instance.label;
+  globalThis.__ksWrapDescribe = (Ctor) => {
+    const original = Ctor.prototype.describe;
+    Ctor.prototype.describe = function () { return original.call(this); };
+    return new Ctor(21).describe();
+  };
+  globalThis.__ksCallDetached = function (holder) {
+    const method = holder.who;
+    return method();
+  };
   // V8-side reads on an instance of a boa subclass of Brand.
   globalThis.__ksReadInst = function (inst, Sub) {
     try {
@@ -277,6 +287,69 @@ test("V8 reads through a boa subclass prototype resolve on the V8 super with the
     superIsBrand: true,
   });
   expect(out.isSubBoa).toBe(true);
+});
+
+test("super calls into V8 preserve the subclass instance", async ({ page }) => {
+  await setContent(page, V8_SIDE, { waitUntil: "domcontentloaded" });
+  const out = await page.evaluate(`(() => {
+    class Sub extends Brand {
+      describe() { return super.describe(); }
+      extra() { return this.value * 2; }
+    }
+    const instance = new Sub(21);
+    return {
+      constructorCall: instance.text,
+      directCall: instance.describe(),
+      nativeCall: __ksReadInst(instance, Sub).describe,
+    };
+  })()`);
+  expect(out).toEqual({
+    constructorCall: "brand:21",
+    directCall: "brand:21",
+    nativeCall: "brand:21",
+  });
+});
+
+test("inherited getters preserve their receiver across both realms", async ({ page }) => {
+  await setContent(page, V8_SIDE, { waitUntil: "domcontentloaded" });
+  const out = await page.evaluate(`(() => {
+    class Sub extends Brand {
+      get label() { return "value:" + this.value; }
+      get parentValue() { return super.value; }
+    }
+    const instance = new Sub(21);
+    return {
+      ownGetter: instance.label,
+      nativeRead: __ksReadLabel(instance),
+      parentGetter: instance.parentValue,
+    };
+  })()`);
+  expect(out).toEqual({
+    ownGetter: "value:21",
+    nativeRead: "value:21",
+    parentGetter: 21,
+  });
+});
+
+test("a V8 wrapper that calls a Boa method with .call(this) forwards its receiver", async ({
+  page,
+}) => {
+  await setContent(page, V8_SIDE, { waitUntil: "domcontentloaded" });
+  expect(
+    await page.evaluate(`(() => {
+      class Sub extends Brand {
+        describe() { return super.describe(); }
+      }
+      return __ksWrapDescribe(Sub);
+    })()`),
+  ).toBe("brand:21");
+});
+
+test("a detached call from V8 keeps the object a Boa method was read from", async ({ page }) => {
+  await setContent(page, V8_SIDE, { waitUntil: "domcontentloaded" });
+  expect(
+    await page.evaluate(`__ksCallDetached({ value: 7, who() { return this && this.value; } })`),
+  ).toBe(7);
 });
 
 test("a bridged function's `prototype` descriptor mirrors Boa's writability", async ({ page }) => {

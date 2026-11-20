@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 9 Oct 2026 19:27:33 +0100
+Subject: [PATCH] Parse ::-webkit-input-placeholder as ::placeholder
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Chromium still matches the WebKit spelling as an alias, and older
+stylesheets (todomvc's among them) style placeholders with it and the
+-moz- form only. Without the alias those rules were dropped, which
+only went unnoticed while paint forced every placeholder italic and
+dim on its own.
+
+beep-boop-🤖
+---
+ servo/selector_parser.rs | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/servo/selector_parser.rs b/servo/selector_parser.rs
+index f08a8c2..d9e43a7 100644
+--- a/servo/selector_parser.rs
++++ b/servo/selector_parser.rs
+@@ -715,6 +715,9 @@ impl<'a, 'i> ::selectors::Parser<'i> for SelectorParser<'a> {
+             "details-content" => DetailsContent,
+             "color-swatch" => ColorSwatch,
+             "placeholder" => Placeholder,
++            // The WebKit spelling that Chromium still accepts as
++            // an alias, and that todomvc-era stylesheets use on their own.
++            "-webkit-input-placeholder" => Placeholder,
+             "-servo-text-control-inner-container" => {
+                 if !self.in_user_agent_stylesheet() {
+                     return Err(ParseError::custom(SelectorParseErrorKind::UnexpectedIdent))
