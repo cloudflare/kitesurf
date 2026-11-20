@@ -195,6 +195,23 @@ describe("DOMStorage sessions", () => {
     expect(await seen()).toEqual([]);
   });
 
+  it("sends a page-mode client its events without a session id", async () => {
+    const { send, emitted } = setup();
+    // With no session the first page answers, here the one in the second browser context.
+    await send(undefined, "DOMStorage.enable");
+    const set = (value: string) =>
+      send("p2", "DOMStorage.setDOMStorageItem", { storageId: local(A), key: "k", value });
+    await set("v");
+    const storageId = { securityOrigin: A, storageKey: `${A}/`, isLocalStorage: true };
+    expect(emitted).toEqual([
+      { method: "DOMStorage.domStorageItemAdded", params: { storageId, key: "k", newValue: "v" } },
+    ]);
+    expect(emitted[0]).not.toHaveProperty("sessionId", "");
+    await send(undefined, "DOMStorage.disable");
+    await set("w");
+    expect(emitted).toHaveLength(1);
+  });
+
   it("refuses a set past the quota", async () => {
     const { storage, send } = setup();
     const value = "x".repeat(LOCAL_STORAGE_QUOTA_UNITS);

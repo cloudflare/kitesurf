@@ -193,6 +193,9 @@ export function documentOrigin(target: TargetState): string | null {
   return localStorageOrigin(target.pageScriptUrl ?? target.url);
 }
 
+/** The domStorageSessions key of a page-mode client, which sends no session id. */
+export const NO_SESSION = "";
+
 // The origin a frame session shows: its document's, or its embedder's for about:blank and
 // about:srcdoc. A data: document and a frame sandboxed without allow-same-origin are opaque.
 function sessionOrigin(target: TargetState, frame: FrameState | null): string | null {
@@ -223,8 +226,9 @@ function emitChanges(
   for (const target of ctx.browser.targets.values()) {
     if (target.domStorageSessions.size === 0) continue;
     if (localStorageForTarget(ctx, target) !== storage) continue;
-    for (const [sessionId, frame] of target.domStorageSessions) {
+    for (const [key, frame] of target.domStorageSessions) {
       if (sessionOrigin(target, frame) !== origin) continue;
+      const sessionId = key === NO_SESSION ? undefined : key;
       for (const change of changes) {
         if (change.op === "clear") {
           ctx.emit({

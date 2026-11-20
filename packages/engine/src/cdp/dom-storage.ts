@@ -13,7 +13,7 @@ import type { PageScriptStub } from "../eval/page-script.ts";
 import { localStorageOrigin, type LocalStorage } from "../state/local-storage.ts";
 import { findSessionOwner, localStorageForTarget } from "./target.ts";
 import { resolveTarget } from "./page-session.ts";
-import { changeLocalStorage, documentOrigin, liveCopies } from "./storage-copies.ts";
+import { changeLocalStorage, documentOrigin, liveCopies, NO_SESSION } from "./storage-copies.ts";
 
 // How long a read waits for a page's flushed changes to arrive before it answers without them.
 const FLUSH_WAIT_MS = 2_000;
@@ -91,10 +91,10 @@ export async function handleDomStorage(ctx: DispatchCtx, req: CdpRequest): Promi
   const { target, frame } = sessionOwner(ctx, req.sessionId);
   switch (req.method) {
     case "DOMStorage.enable":
-      if (req.sessionId) target.domStorageSessions.set(req.sessionId, frame);
+      target.domStorageSessions.set(req.sessionId ?? NO_SESSION, frame);
       return {};
     case "DOMStorage.disable":
-      if (req.sessionId) target.domStorageSessions.delete(req.sessionId);
+      target.domStorageSessions.delete(req.sessionId ?? NO_SESSION);
       return {};
     case "DOMStorage.getDOMStorageItems": {
       const { origin, isLocalStorage } = storageIdOrigin(req.params?.storageId);
