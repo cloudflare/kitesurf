@@ -81,10 +81,14 @@ export class LocalStorage {
   }
 
   /**
-   * Apply changes; a set past LOCAL_STORAGE_AREA_LIMIT_UNITS is dropped. Returns the ops applied
-   * and what changed: a set to the same value or a remove of a missing key changes nothing.
+   * Apply changes; a set past `limit` units is dropped. Returns the ops applied and what changed:
+   * a set to the same value or a remove of a missing key changes nothing.
    */
-  apply(origin: string, ops: readonly LocalStorageOp[]): LocalStorageApplied {
+  apply(
+    origin: string,
+    ops: readonly LocalStorageOp[],
+    limit = LOCAL_STORAGE_AREA_LIMIT_UNITS,
+  ): LocalStorageApplied {
     const out: LocalStorageApplied = { applied: [], changes: [] };
     // A page's last writes can land after its browser context is gone.
     if (this.#disposed || ops.length === 0) return out;
@@ -102,8 +106,11 @@ export class LocalStorage {
       const freed = old === undefined ? 0 : op.key.length + old.length;
       if (op.op === "set") {
         const next = units - freed + op.key.length + op.value.length;
-        if (next > LOCAL_STORAGE_AREA_LIMIT_UNITS) {
-          console.warn(`[kitesurf-local-storage] ${origin}: dropped a set past the area limit`);
+        if (next > limit) {
+          // A caller with a stricter limit reports the refusal itself.
+          if (limit === LOCAL_STORAGE_AREA_LIMIT_UNITS) {
+            console.warn(`[kitesurf-local-storage] ${origin}: dropped a set past the area limit`);
+          }
           continue;
         }
         area.set(op.key, op.value);

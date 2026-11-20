@@ -9,7 +9,11 @@ import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import { changeLocalStorage, StorageCopy } from "../src/cdp/storage-copies.ts";
 import type { CdpEvent, TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
-import { LOCAL_STORAGE_AREA_LIMIT_UNITS, LocalStorage } from "../src/state/local-storage.ts";
+import {
+  LOCAL_STORAGE_AREA_LIMIT_UNITS,
+  LOCAL_STORAGE_QUOTA_UNITS,
+  LocalStorage,
+} from "../src/state/local-storage.ts";
 import { MemorySessionStore } from "../src/state/session-store.ts";
 
 const A = "https://a.test";
@@ -101,6 +105,18 @@ describe("changeLocalStorage", () => {
       { op: "remove", key: "new" },
     ];
     expect(one.calls).toEqual([{ op: "apply", area: "local", ops: fixes, url: null, seq: 1 }]);
+  });
+
+  it("holds a change from no page to the quota, and a page's batch to the area limit", async () => {
+    const { ctx, storage, page } = setup();
+    const one = page("one");
+    const set = [{ op: "set", key: "k", value: "x".repeat(LOCAL_STORAGE_QUOTA_UNITS) }] as const;
+    const refused = await changeLocalStorage(ctx, storage, A, set, { url: null });
+    expect(refused.applied).toEqual([]);
+    expect(storage.entries(A)).toEqual([]);
+    const from = { source: one.copy, seq: 1, url: one.copy.url };
+    const kept = await changeLocalStorage(ctx, storage, A, set, from);
+    expect(kept.applied).toEqual(set);
   });
 
   it("emits DOMStorage events to sessions on a page of the origin", async () => {

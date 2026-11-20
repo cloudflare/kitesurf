@@ -12,6 +12,8 @@ import type { DispatchCtx } from "./dispatch.ts";
 import type { TargetState } from "./types.ts";
 import type { PageScriptStub } from "../eval/page-script.ts";
 import {
+  LOCAL_STORAGE_AREA_LIMIT_UNITS,
+  LOCAL_STORAGE_QUOTA_UNITS,
   localStorageOrigin,
   type LocalStorage,
   type LocalStorageApplied,
@@ -97,7 +99,8 @@ export function liveCopies(storage: LocalStorage, origin: string): StorageCopy[]
 
 // Change an origin's area and send the change to every other open copy, with `storage` events
 // unless `url` is null. `source`, whose batch `seq` it is, gets an ack with the area's value for
-// each set the area dropped. Resolves once every copy has the change.
+// each set the area dropped. Its page checked the quota; any other change must fit it here.
+// Resolves once every copy has the change.
 export async function changeLocalStorage(
   ctx: DispatchCtx,
   storage: LocalStorage,
@@ -105,8 +108,9 @@ export async function changeLocalStorage(
   ops: readonly LocalStorageOp[],
   from: { source?: StorageCopy; seq?: number; url: string | null },
 ): Promise<LocalStorageApplied> {
-  const result = storage.apply(origin, ops);
   const source = from.source;
+  const limit = source ? LOCAL_STORAGE_AREA_LIMIT_UNITS : LOCAL_STORAGE_QUOTA_UNITS;
+  const result = storage.apply(origin, ops, limit);
   source?.received(from.seq ?? 0);
   emitChanges(ctx, storage, origin, result.changes);
   const pushes: Promise<unknown>[] = [];
