@@ -1497,7 +1497,10 @@ class MediaListCls implements Idl.MediaList {
     return m != null ? m : null;
   }
   appendMedium(medium: string) {
-    const m = normalizeMedium(String(medium));
+    // An argument holding more than one query parses to no single medium: Chrome ignores it.
+    const parts = splitCssList(String(medium));
+    if (parts.length !== 1) return;
+    const m = normalizeMedium(parts[0]);
     if (m && !this.#media.includes(m)) {
       this.#media.push(m);
       this.#sync(this.#media.length - 1);
@@ -1505,7 +1508,9 @@ class MediaListCls implements Idl.MediaList {
     }
   }
   deleteMedium(medium: string) {
-    const i = this.#media.indexOf(normalizeMedium(String(medium)));
+    const parts = splitCssList(String(medium));
+    if (parts.length !== 1) return;
+    const i = this.#media.indexOf(normalizeMedium(parts[0]));
     if (i >= 0) {
       const old = this.#media.length;
       this.#media.splice(i, 1);

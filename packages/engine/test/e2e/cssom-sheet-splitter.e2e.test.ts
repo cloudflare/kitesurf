@@ -412,6 +412,22 @@ test("a balanced brace inside @import supports() keeps the rule", async ({ page 
   expect(types).toEqual([[3, 1, 1], "3px", "4px"]);
 }, 60_000);
 
+// appendMedium and deleteMedium take one query. An argument that holds more than one leaves the
+// list as it is, as in Chrome; one invalid query is `not all`.
+test("media mutators ignore an argument with more than one query", async ({ page }) => {
+  await setContent(page, `<style id=s>@media not all{} @media print{}</style>`);
+  const result = await page.evaluate(`(() => {
+    const r = document.getElementById("s").sheet.cssRules;
+    r[0].media.deleteMedium("all, all;");
+    r[1].media.appendMedium("all, all;");
+    r[1].media.appendMedium("all, print");
+    const kept = [r[0].media.mediaText, r[1].media.mediaText];
+    r[1].media.appendMedium("x{");
+    return { kept, appended: r[1].media.mediaText };
+  })()`);
+  expect(result).toEqual({ kept: ["not all", "print"], appended: "print, not all" });
+}, 60_000);
+
 // A comment right after a hex escape still separates two tokens: the escape's terminator is
 // not the separator. `onl\79/**/all` is `only all`, and the rule applies, as in Chrome.
 test("a comment after a hex escape in media text keeps the tokens apart", async ({
