@@ -71,6 +71,11 @@ export interface DispatchCtx {
   analytics: KitesurfAnalytics;
 }
 
+const STORAGE_CLEAR_METHODS = new Set([
+  "Storage.clearDataForOrigin",
+  "Storage.clearDataForStorageKey",
+]);
+
 export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpResponse> {
   const [domain] = req.method.split(".", 1);
 
@@ -101,7 +106,8 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
       ctx.browser.networkEvents.drain();
       return { id: req.id, result: result ?? {}, sessionId: req.sessionId };
     }
-    if (req.sessionId) {
+    // A frame session clears its page's browser context (network.ts storageSessionTarget).
+    if (req.sessionId && !STORAGE_CLEAR_METHODS.has(req.method)) {
       const oopif = findOopifFrameBySession(ctx, req.sessionId);
       if (oopif) {
         const result = await handleOopifSession(ctx, req, oopif.target, oopif.frame);

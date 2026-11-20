@@ -5,7 +5,8 @@
 // localStorage belongs to the browser context, not the document: the engine keeps each origin's
 // area and every navigation gets a copy (state/local-storage.ts, page-script web-storage.ts).
 import type { Page } from "@cloudflare/puppeteer";
-import { expect, test } from "./harness";
+import { engine, expect, test } from "./harness";
+import { openCdpWireSession } from "./cdp-wire";
 import { setContent } from "./set-content";
 
 const A = "https://ks.invalid/__fixtures/lifecycle.html";
@@ -200,3 +201,80 @@ test("Storage.clearDataForOrigin clears an origin's localStorage", async ({ page
   await page.reload({ waitUntil: "load" });
   expect(await read(page)).toEqual({});
 }, 120_000);
+
+test("Storage.clearDataForOrigin clears an origin's cookies for cookies and all", async ({
+  page,
+  cdpSession,
+}) => {
+  const cookieNames = async () =>
+    (await cdpSession.send("Storage.getCookies")).cookies
+      .map((c) => `${c.domain}:${c.name}`)
+      .sort();
+  await page.goto(A, { waitUntil: "load" });
+  await page.evaluate(() => {
+    document.cookie = "a=1; path=/";
+    document.cookie = "deep=1; path=/__fixtures";
+  });
+  await page.goto(OTHER, { waitUntil: "load" });
+  await page.evaluate(() => {
+    document.cookie = "o=1; path=/";
+  });
+  const a = new URL(A);
+  const other = new URL(OTHER);
+  const all = [`${a.hostname}:a`, `${a.hostname}:deep`, `${other.hostname}:o`].sort();
+  expect(await cookieNames()).toEqual(all);
+  await cdpSession.send("Storage.clearDataForOrigin", {
+    origin: a.origin,
+    storageTypes: "local_storage",
+  });
+  expect(await cookieNames()).toEqual(all);
+  await cdpSession.send("Storage.clearDataForOrigin", {
+    origin: a.origin,
+    storageTypes: "cookies",
+  });
+  expect(await cookieNames()).toEqual([`${other.hostname}:o`]);
+  await cdpSession.send("Storage.clearDataForStorageKey", {
+    storageKey: `${other.origin}/`,
+    storageTypes: "all",
+  });
+  expect(await cookieNames()).toEqual([]);
+}, 120_000);
+
+test("Storage.clearDataForOrigin rejects what it cannot act on", async ({ cdpSession }) => {
+  const origin = new URL(A).origin;
+  for (const storageTypes of [undefined, "", "bogus", "bogus, other_typo"]) {
+    await expect(
+      cdpSession.send("Storage.clearDataForOrigin", { origin, storageTypes } as never),
+    ).rejects.toThrow("No valid storage type specified");
+  }
+  await expect(
+    cdpSession.send("Storage.clearDataForOrigin", { origin: "not a url", storageTypes: "all" }),
+  ).rejects.toThrow("not a url is not a valid URL");
+  await expect(
+    cdpSession.send("Storage.clearDataForStorageKey", { storageKey: "nope", storageTypes: "all" }),
+  ).rejects.toThrow("Invalid Storage Key given.");
+  // A partitioned key names data Kitesurf never keeps: valid, and nothing to clear.
+  await cdpSession.send("Storage.clearDataForStorageKey", {
+    storageKey: `${origin}/^0https://b.test`,
+    storageTypes: "all",
+  });
+}, 60_000);
+
+test("Storage.clearDataForOrigin refuses a session it does not know", async () => {
+  // A closed page's session must not fall back to the default context.
+  const { ws, next } = await openCdpWireSession(engine);
+  ws.send(
+    JSON.stringify({
+      id: 1,
+      sessionId: "no-such-session",
+      method: "Storage.clearDataForOrigin",
+      params: { origin: new URL(A).origin, storageTypes: "local_storage" },
+    }),
+  );
+  expect(await next()).toEqual({
+    id: 1,
+    sessionId: "no-such-session",
+    error: { code: -32000, message: "Session with given id not found." },
+  });
+  ws.close();
+});
