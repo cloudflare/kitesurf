@@ -2965,6 +2965,7 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
   const isStyleEl = !!(ownerNode && ownerNode.tagName === "STYLE");
   const isLinkEl = !!(ownerNode && ownerNode.tagName === "LINK");
   const rules: AnyCssRule[] = [];
+  const ruleTexts: string[] = [];
   Object.defineProperty(rules, "item", {
     value: function item(index: unknown) {
       const i = typeof index === "number" ? index : 0;
@@ -2978,7 +2979,11 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
   const cssRules = rules as RuleList;
 
   let lastParsedText: string | null = null;
+  let lastStyleEpoch = -1;
   let mirrorTextId = -1;
+  function readStyleEpoch() {
+    return typeof dom.styleTextEpoch === "function" ? dom.styleTextEpoch() : -1;
+  }
   function readNodeText() {
     if (!isStyleEl || id < 0) return "";
     try {
@@ -2988,14 +2993,23 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
     }
   }
   // Stylo reads <style> text, so CSSOM edits must be mirrored into the wasm child.
-  function remirror() {
+  function mirrorRuleTexts() {
     if (!(isStyleEl && id >= 0)) return;
     try {
-      const joined = rules.map(ruleTextForCascade).join("\n");
+      const joined = ruleTexts.join("\n");
       writeMirrorText(joined);
       lastParsedText = joined;
+      lastStyleEpoch = readStyleEpoch();
       bumpMutationSeq();
     } catch {}
+  }
+  function remirror() {
+    if (!(isStyleEl && id >= 0)) return;
+    for (let idx = 0; idx < rules.length; idx++) {
+      ruleTexts[idx] = ruleTextForCascade(rules[idx]);
+    }
+    ruleTexts.length = rules.length;
+    mirrorRuleTexts();
   }
   function writeMirrorText(text: string) {
     // Reuse the unwrapped mirror node to avoid leaving detached nodes in Blitz's slab.
@@ -3025,10 +3039,15 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
   }
   function reparseFromText(text: string) {
     rules.length = 0;
+    ruleTexts.length = 0;
+    mirrorTextId = -1;
     for (const p of splitStylesheetRules(text)) {
       if (!isConstructibleRuleKind(classifyRuleKind(p))) continue;
       const rule = constructRule(p, sheet, null, remirror);
-      if (rule) rules.push(rule);
+      if (rule) {
+        rules.push(rule);
+        ruleTexts.push(ruleTextForCascade(rule));
+      }
     }
     lastParsedText = text;
   }
@@ -3058,8 +3077,16 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
   function syncFromDom(strict = false) {
     if (isLinkEl) return syncFromLink(strict);
     if (!isStyleEl) return;
+    const epoch = readStyleEpoch();
+    if (lastStyleEpoch >= 0 && epoch === lastStyleEpoch) return;
     const cur = readNodeText();
-    if (cur !== lastParsedText) reparseFromText(cur);
+    const expected = lastParsedText ?? ruleTexts.join("\n");
+    if (cur !== expected) {
+      reparseFromText(cur);
+    } else {
+      lastParsedText = cur;
+    }
+    lastStyleEpoch = readStyleEpoch();
   }
   // href is the <link>'s resolved URL, or the raw attribute when it doesn't
   // resolve; an inline <style> has none.
@@ -3096,8 +3123,29 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
       const parsed = parseSingleRuleOrThrow(text);
       const rule = constructRule(parsed, sheet, null, remirror);
       if (!rule) throw ruleSyntaxError(text);
+      const serialized = ruleTextForCascade(rule);
+      const isAppend = i === rules.length;
       rules.splice(i, 0, rule);
-      remirror();
+      ruleTexts.splice(i, 0, serialized);
+      if (
+        isAppend &&
+        isStyleEl &&
+        id >= 0 &&
+        mirrorTextId >= 0 &&
+        !hasLiveWrapper(mirrorTextId) &&
+        typeof dom.appendNodeText === "function"
+      ) {
+        try {
+          const suffix = rules.length > 1 ? "\n" + serialized : serialized;
+          if (dom.appendNodeText(mirrorTextId, suffix)) {
+            lastParsedText = null;
+            lastStyleEpoch = readStyleEpoch();
+            bumpMutationSeq();
+            return i;
+          }
+        } catch {}
+      }
+      mirrorRuleTexts();
       return i;
     },
     deleteRule(index) {
@@ -3107,7 +3155,8 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
         throw new DOMException("Index out of bounds", "IndexSizeError");
       }
       rules.splice(i, 1);
-      remirror();
+      ruleTexts.splice(i, 1);
+      mirrorRuleTexts();
     },
     replaceSync(text) {
       syncFromDom(true);
@@ -3117,6 +3166,7 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
         try {
           writeMirrorText(t);
           lastParsedText = t;
+          lastStyleEpoch = readStyleEpoch();
           bumpMutationSeq();
         } catch {}
       }
@@ -3270,6 +3320,7 @@ class CSSStyleSheetCtor extends StyleSheetCls implements Idl.CSSStyleSheet {
   constructor(options?: Idl.CSSStyleSheetInit) {
     super(STYLE_SHEET_TOKEN);
     const rules = makeRuleList([]);
+    const ruleTexts: string[] = [];
     const mirrors = new Set<Element>();
     const fields: StyleSheetFields = {
       ownerNode: null,
@@ -3281,14 +3332,21 @@ class CSSStyleSheetCtor extends StyleSheetCls implements Idl.CSSStyleSheet {
       parentStyleSheet: null,
     };
     // A disabled sheet stays adopted but leaves the cascade, so its mirrors hold no rules.
-    const mirrorText = () => (fields.disabled ? "" : rules.map((r) => r.cssText).join("\n"));
-    const rerender = () => {
+    const mirrorText = () => (fields.disabled ? "" : ruleTexts.join("\n"));
+    const syncMirrors = () => {
       const text = mirrorText();
       for (const styleEl of mirrors) {
         try {
           styleEl.textContent = text;
         } catch {}
       }
+    };
+    const rerender = () => {
+      for (let idx = 0; idx < rules.length; idx++) {
+        ruleTexts[idx] = rules[idx].cssText;
+      }
+      ruleTexts.length = rules.length;
+      syncMirrors();
     };
     const backend: CSSStyleSheetBackend = {
       cssRules: () => rules,
@@ -3308,7 +3366,8 @@ class CSSStyleSheetCtor extends StyleSheetCls implements Idl.CSSStyleSheet {
         const rule = constructRule(parsed, this, null, rerender);
         if (!rule) throw ruleSyntaxError(text);
         rules.splice(i, 0, rule);
-        rerender();
+        ruleTexts.splice(i, 0, rule.cssText);
+        syncMirrors();
         return i;
       },
       deleteRule: (index) => {
@@ -3317,19 +3376,24 @@ class CSSStyleSheetCtor extends StyleSheetCls implements Idl.CSSStyleSheet {
           throw new DOMException("Index out of bounds", "IndexSizeError");
         }
         rules.splice(i, 1);
-        rerender();
+        ruleTexts.splice(i, 1);
+        syncMirrors();
       },
       replaceSync: (text) => {
         rules.length = 0;
+        ruleTexts.length = 0;
         for (const p of splitStylesheetRules(String(text == null ? "" : text))) {
           const k = classifyRuleKind(p);
           // @import is disallowed in constructed sheets; drop it (and
           // non-rules) during replace instead of throwing mid-way.
           if (k === "import" || !isConstructibleRuleKind(k)) continue;
           const rule = constructRule(p, this, null, rerender);
-          if (rule) rules.push(rule);
+          if (rule) {
+            rules.push(rule);
+            ruleTexts.push(rule.cssText);
+          }
         }
-        rerender();
+        syncMirrors();
       },
       replace: (text) => {
         try {
@@ -3547,7 +3611,61 @@ function endsWith(parent: NodeBase, tail: Set<Element>): boolean {
 }
 export const adoptedStyleSheets = makeAdoptedStyleSheets().sheets;
 
+// A live list, as browsers return: a reference taken before a sheet is inserted sees it, so a
+// loader polling a saved `document.styleSheets` for its link ends. Contents refresh per mutation.
 function makeStyleSheetList(): ItemList<CSSStyleSheetCtor> {
+  let cached: CSSStyleSheetCtor[] | null = null;
+  let cachedSeq = -1;
+  const current = (): CSSStyleSheetCtor[] => {
+    const seq = ksState().mutationSeq | 0;
+    if (cached === null || cachedSeq !== seq) {
+      cached = collectStyleSheets();
+      cachedSeq = seq;
+    }
+    return cached;
+  };
+  const target: CSSStyleSheetCtor[] = [];
+  Object.defineProperty(target, "item", {
+    value: function item(index: unknown) {
+      const i = typeof index === "number" ? index : 0;
+      return current()[i] || null;
+    },
+    configurable: true,
+    enumerable: false,
+    writable: true,
+  });
+  const proxy = new Proxy(target, {
+    get(t, prop, receiver) {
+      if (prop === "length") return current().length;
+      if (typeof prop === "string" && /^\d+$/.test(prop)) return current()[+prop];
+      return Reflect.get(t, prop, receiver);
+    },
+    has(t, prop) {
+      if (typeof prop === "string" && /^\d+$/.test(prop)) return +prop < current().length;
+      return Reflect.has(t, prop);
+    },
+    set(t, prop, value, receiver) {
+      if (prop === "length" || (typeof prop === "string" && /^\d+$/.test(prop))) return false;
+      return Reflect.set(t, prop, value, receiver);
+    },
+    ownKeys(t) {
+      return Array.from(new Set([...current().map((_, i) => String(i)), ...Reflect.ownKeys(t)]));
+    },
+    getOwnPropertyDescriptor(t, prop) {
+      if (typeof prop === "string" && /^\d+$/.test(prop)) {
+        const sheet = current()[+prop];
+        return sheet === undefined
+          ? undefined
+          : { value: sheet, writable: false, enumerable: true, configurable: true };
+      }
+      return Reflect.getOwnPropertyDescriptor(t, prop);
+    },
+  });
+  // SAFETY: item is installed on the proxied Array. Verified by cssom-rule-interfaces.e2e.test.ts.
+  return proxy as ItemList<CSSStyleSheetCtor>;
+}
+
+function collectStyleSheets(): CSSStyleSheetCtor[] {
   const list: CSSStyleSheetCtor[] = [];
   try {
     const ids = Array.from(dom.querySelectorAll("style, link"));
@@ -3561,17 +3679,7 @@ function makeStyleSheetList(): ItemList<CSSStyleSheetCtor> {
       list.push(makeStyleSheetStub(node));
     }
   } catch {}
-  Object.defineProperty(list, "item", {
-    value: function item(index: unknown) {
-      const i = typeof index === "number" ? index : 0;
-      return list[i] || null;
-    },
-    configurable: true,
-    enumerable: false,
-    writable: true,
-  });
-  // SAFETY: item is installed on this same Array. Verified by cssom-rule-interfaces.e2e.test.ts.
-  return list as ItemList<CSSStyleSheetCtor>;
+  return list;
 }
 
 function validateToken(token: unknown, fnName: string): string {
