@@ -3483,6 +3483,189 @@ mod tests {
         assert!(text.contains("/Count 2"), "expected 2-page PDF");
     }
 
+    /// Every stream of `pdf`, inflated where it is Flate-compressed, joined as Latin-1.
+    fn inflated_pdf_streams(pdf: &[u8]) -> String {
+        use std::io::Read;
+        let mut out = String::new();
+        let mut rest = pdf;
+        while let Some(start) = rest.windows(7).position(|w| w == b"stream\n") {
+            let body = &rest[start + 7..];
+            let Some(end) = body.windows(9).position(|w| w == b"endstream") else {
+                break;
+            };
+            let mut inflated = Vec::new();
+            let raw = &body[..end];
+            if flate2::read::ZlibDecoder::new(raw)
+                .read_to_end(&mut inflated)
+                .is_err()
+            {
+                inflated = raw.to_vec();
+            }
+            out.extend(inflated.iter().map(|&b| b as char));
+            out.push('\n');
+            rest = &body[end + 9..];
+        }
+        out
+    }
+
+    #[test]
+    #[allow(
+        clippy::single_range_in_vec_init,
+        reason = "Each slice holds one range per glyph, and some runs have one glyph."
+    )]
+    fn pdf_text_layer_comes_from_glyph_text_not_the_reverse_cmap() {
+        use skrifa::MetadataProvider;
+        let font = test_font();
+        let charmap = skrifa::FontRef::new(font.data.data()).unwrap().charmap();
+        let gid = |c: char| charmap.map(c).unwrap().to_u32();
+        let draw = |rec: &mut RecordingScene, glyphs: &[(char, f32)]| {
+            rec.draw_glyphs(
+                &font,
+                16.0,
+                true,
+                &[],
+                Vec2::ZERO,
+                Fill::NonZero,
+                Color::BLACK,
+                1.0,
+                Affine::IDENTITY,
+                None,
+                glyphs.iter().map(|&(c, x)| AnyGlyph {
+                    id: gid(c),
+                    x,
+                    y: 30.0,
+                }),
+            );
+        };
+        let mut rec = RecordingScene::for_pdf();
+        rec.set_viewport(W, H, 0, 0);
+        // One glyph shows two characters, like a ligature; the text outside its range is dropped.
+        rec.glyph_text("[fi]", &[1..3]);
+        draw(&mut rec, &[('Q', 10.0)]);
+        // Right-to-left: drawn left to right, so the text ranges decrease.
+        rec.glyph_text("XY", &[1..2, 0..1]);
+        draw(&mut rec, &[('Y', 10.0), ('X', 20.0)]);
+        // An RTL cluster of two glyphs, a narrow mark (drawn as I) then its base (T), maps
+        // through the wider base alone.
+        rec.glyph_text("STU", &[2..3, 1..2, 1..2, 0..1]);
+        draw(
+            &mut rec,
+            &[('U', 10.0), ('I', 20.0), ('T', 20.0), ('S', 30.0)],
+        );
+        // Three glyphs with the base in the middle: the marks get distinct empty ranges.
+        rec.glyph_text("def", &[2..3, 1..2, 1..2, 1..2, 0..1]);
+        draw(
+            &mut rec,
+            &[
+                ('f', 10.0),
+                ('j', 20.0),
+                ('w', 20.0),
+                ('r', 20.0),
+                ('d', 30.0),
+            ],
+        );
+        // Three glyphs with the base first: both marks would get the same empty range, which
+        // Krilla spans, so the cluster stays whole and its span carries the text.
+        rec.glyph_text("abc", &[2..3, 1..2, 1..2, 1..2, 0..1]);
+        draw(
+            &mut rec,
+            &[
+                ('c', 10.0),
+                ('m', 20.0),
+                ('l', 20.0),
+                ('i', 20.0),
+                ('a', 30.0),
+            ],
+        );
+        // Two clusters whose marks would meet with the same empty range: the first splits and
+        // the second stays whole.
+        rec.glyph_text("gh", &[1..2, 1..2, 0..1, 0..1]);
+        draw(
+            &mut rec,
+            &[('o', 10.0), ('.', 10.0), (',', 20.0), ('p', 20.0)],
+        );
+        // Text for a different glyph count is ignored; the reverse cmap maps this one.
+        rec.glyph_text("ZZ", &[0..1]);
+        draw(&mut rec, &[('W', 10.0), ('V', 20.0)]);
+        let scene = rec.finish_framed();
+
+        let mut replay_only = RecordingScene::for_replay();
+        assert!(!replay_only.wants_glyph_text());
+        replay_only.set_viewport(W, H, 0, 0);
+        replay_only.glyph_text("[fi]", &[1..3]);
+        draw(&mut replay_only, &[('Q', 10.0)]);
+        assert!(!replay_only.finish_framed().windows(2).any(|w| w == b"fi"));
+
+        let mut store = ResourceStore::default();
+        let key = font_data_key(crate::paint::scene_record::fx_hash_u64(font.data.data()), 0);
+        store.insert_font(key, font.clone());
+        let mut envelope = 1u32.to_le_bytes().to_vec();
+        envelope.extend_from_slice(&(scene.len() as u32).to_le_bytes());
+        envelope.extend_from_slice(&scene);
+        let options = PdfRenderOptions {
+            paper_width: W,
+            paper_height: H,
+            omit_background: true,
+            margin_top: 0,
+            margin_right: 0,
+            margin_bottom: 0,
+            margin_left: 0,
+        };
+        let streams = inflated_pdf_streams(&render_pdf_impl(&store, &envelope, options).unwrap());
+        assert!(
+            streams.contains("<00660069>"),
+            "the Q glyph maps to \"fi\":\n{streams}"
+        );
+        assert!(
+            streams.contains("/ReversedChars"),
+            "RTL runs are marked:\n{streams}"
+        );
+        for (c, hex) in [('X', "0058"), ('Y', "0059"), ('W', "0057"), ('V', "0056")] {
+            assert!(
+                streams.contains(&format!("<{hex}>")),
+                "{c} maps to itself:\n{streams}"
+            );
+        }
+        assert!(
+            !streams.contains("<005A>"),
+            "mismatched text is unused:\n{streams}"
+        );
+        for hex in ["0053", "0054", "0055"] {
+            assert!(
+                streams.contains(&format!("<{hex}>")),
+                "{hex} is mapped:\n{streams}"
+            );
+        }
+        for (mark, hex) in [('I', "0049"), ('j', "006A"), ('r', "0072"), ('.', "002E")] {
+            assert!(
+                !streams.contains(&format!("<{hex}>")),
+                "the mark {mark} maps to nothing:\n{streams}"
+            );
+        }
+        for (base, hex) in [('w', "0065"), ('o', "0068")] {
+            assert!(
+                streams.contains(&format!("<{hex}>")),
+                "{base} carries its cluster's text:\n{streams}"
+            );
+        }
+        assert_eq!(
+            streams.matches("/ReversedChars").count(),
+            3,
+            "the RTL runs with split clusters stay marked reversed:\n{streams}"
+        );
+        assert_eq!(
+            streams.matches("/ActualText").count(),
+            2,
+            "only the clusters kept whole are spanned:\n{streams}"
+        );
+        for text in ["(b)", "(g)"] {
+            assert!(
+                streams.contains(&format!("/ActualText{text}")),
+                "a whole cluster's span carries its text {text}:\n{streams}"
+            );
+        }
+    }
+
     fn solid_scene(w: u32, h: u32, color: Color) -> Vec<u8> {
         let mut rec = RecordingScene::for_replay();
         rec.set_viewport(w, h, 0, 0);
