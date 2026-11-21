@@ -1627,6 +1627,39 @@ impl DomHandle {
         }
     }
 
+    /// The number of children of `node_id`, or 0 for an unknown node.
+    #[wasm_bindgen(js_name = "childCount")]
+    pub fn child_count(&self, node_id: u32) -> u32 {
+        let Some(internal_id) = self.resolve_node_id(node_id) else {
+            return 0;
+        };
+        let doc = match self.doc.try_borrow() {
+            Ok(d) => d,
+            Err(_) => return 0,
+        };
+        let count = doc.get_node(internal_id).map_or(0, |n| n.children().len());
+        drop(doc);
+        u32::try_from(count).unwrap_or(u32::MAX)
+    }
+
+    /// The child of `node_id` at `index`, or -1 past the end. Edge and append reads use it so a
+    /// large parent is not copied out through `childIds` on every mutation.
+    #[wasm_bindgen(js_name = "childIdAt")]
+    pub fn child_id_at(&self, node_id: u32, index: u32) -> i32 {
+        let Some(internal_id) = self.resolve_node_id(node_id) else {
+            return -1;
+        };
+        let doc = match self.doc.try_borrow() {
+            Ok(d) => d,
+            Err(_) => return -1,
+        };
+        let child = doc
+            .get_node(internal_id)
+            .and_then(|n| n.children().get(index as usize));
+        drop(doc);
+        child.map_or(-1, |id| self.external_node_id_i32(id))
+    }
+
     #[wasm_bindgen(js_name = "parentId")]
     pub fn parent_id(&self, node_id: u32) -> i32 {
         let Some(internal_id) = self.resolve_node_id(node_id) else {
