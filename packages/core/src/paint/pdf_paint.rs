@@ -38,6 +38,8 @@ pub struct KrillaPaintScene<'a, 'b> {
     surface: &'a mut Surface<'b>,
     font_cache: HashMap<FontKey, CachedFont>,
     layer_pops: Vec<u32>,
+    pending_text: String,
+    pending_text_ranges: Vec<std::ops::Range<usize>>,
 }
 
 impl<'a, 'b> KrillaPaintScene<'a, 'b> {
@@ -46,6 +48,8 @@ impl<'a, 'b> KrillaPaintScene<'a, 'b> {
             surface,
             font_cache: HashMap::new(),
             layer_pops: Vec::with_capacity(16),
+            pending_text: String::new(),
+            pending_text_ranges: Vec::new(),
         }
     }
 
@@ -66,7 +70,7 @@ impl<'a, 'b> KrillaPaintScene<'a, 'b> {
 
 struct CachedFont {
     font: KrillaFont,
-    gid_to_char: HashMap<u32, char>,
+    gid_to_char: std::rc::Rc<HashMap<u32, char>>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -92,6 +96,25 @@ impl RenderContext for KrillaPaintScene<'_, '_> {}
 
 impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
     fn reset(&mut self) {}
+
+    fn wants_glyph_text(&self) -> bool {
+        true
+    }
+
+    // Krilla writes ToUnicode entries, `/ActualText` and `/ReversedChars` from these ranges.
+    // A run without them falls back to the font's reverse cmap, which loses shaped forms.
+    fn glyph_text(&mut self, text: &str, glyph_ranges: &[std::ops::Range<usize>]) {
+        self.pending_text.clear();
+        self.pending_text_ranges.clear();
+        if glyph_ranges.iter().all(|r| text.get(r.clone()).is_some()) {
+            self.pending_text.push_str(text);
+            self.pending_text_ranges.extend(
+                glyph_ranges
+                    .iter()
+                    .map(|r| trim_bidi_controls(text, r.clone())),
+            );
+        }
+    }
 
     fn push_layer(
         &mut self,
@@ -245,6 +268,9 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
         glyph_transform: Option<Affine>,
         glyphs: impl Iterator<Item = AnyGlyph> + Clone,
     ) {
+        // Text given for this run applies to it alone.
+        let source_text = std::mem::take(&mut self.pending_text);
+        let mut source_ranges = std::mem::take(&mut self.pending_text_ranges);
         let (krilla_font, gid_to_char) =
             match get_or_register_font(&mut self.font_cache, font, normalized_coords) {
                 Some(c) => (c.font.clone(), c.gid_to_char.clone()),
@@ -283,7 +309,18 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
         let n = collected.len();
         let mut krilla_glyphs: Vec<KrillaGlyph> = Vec::with_capacity(n);
 
-        let mut text_buf = String::with_capacity(n);
+        let has_source = source_ranges.len() == n;
+        if has_source {
+            let gids: Vec<u32> = collected.iter().map(|g| g.id).collect();
+            map_clusters_to_widest_glyph(&mut source_ranges, &gids, |gids| {
+                glyph_advances(font, normalized_coords, gids)
+            });
+        }
+        let mut text_buf = if has_source {
+            source_text
+        } else {
+            String::with_capacity(n)
+        };
 
         for i in 0..n {
             let g = &collected[i];
@@ -294,7 +331,9 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
             } else {
                 (0.0, 0.0)
             };
-            let text_range = if let Some(ch) = gid_to_char.get(&g.id) {
+            let text_range = if has_source {
+                source_ranges[i].clone()
+            } else if let Some(ch) = gid_to_char.get(&g.id) {
                 let start = text_buf.len();
                 text_buf.push(*ch);
                 start..text_buf.len()
@@ -339,6 +378,104 @@ impl anyrender::PaintScene for KrillaPaintScene<'_, '_> {
         _std_dev: f64,
     ) {
     }
+}
+
+/// Gives a multi-glyph cluster's text to its widest glyph and an empty range to the rest, as
+/// Chrome does, so Krilla needs no `/ActualText` span that drops `/ReversedChars` from an RTL
+/// run (an Arabic ب is a dot and a base). Mapping the base leaves no gap for extractors that
+/// place text by glyph geometry.
+fn map_clusters_to_widest_glyph(
+    ranges: &mut [std::ops::Range<usize>],
+    gids: &[u32],
+    advances: impl FnOnce(&[u32]) -> Vec<f32>,
+) {
+    let has_cluster = ranges.windows(2).any(|w| w[0] == w[1] && !w[0].is_empty());
+    if !has_cluster {
+        return;
+    }
+    let advances = advances(gids);
+    let rtl = ranges[0].start > ranges[ranges.len() - 1].start;
+    let mut split: Vec<std::ops::Range<usize>> = Vec::new();
+    let mut i = 0;
+    while i < ranges.len() {
+        let cluster = ranges[i].clone();
+        let mut end = i + 1;
+        while end < ranges.len() && ranges[end] == cluster {
+            end += 1;
+        }
+        if end - i > 1 && !cluster.is_empty() {
+            let mut carrier = i;
+            for j in i + 1..end {
+                if advances.get(j) > advances.get(carrier) {
+                    carrier = j;
+                }
+            }
+            // Empty ranges sit on the side that keeps the run's ranges monotonic, so an RTL
+            // run still reads as reversed.
+            split.clear();
+            split.extend((i..end).map(|j| {
+                if j == carrier {
+                    return cluster.clone();
+                }
+                let edge = if (j < carrier) == rtl {
+                    cluster.end
+                } else {
+                    cluster.start
+                };
+                edge..edge
+            }));
+            // Krilla spans adjacent glyphs with equal ranges, empty ones included, so keep the
+            // cluster whole (one span with its text) when the split would put two side by side.
+            let left = i.checked_sub(1).map(|j| &ranges[j]);
+            let right = ranges.get(end);
+            let side_by_side = left
+                .into_iter()
+                .chain(split.iter())
+                .chain(right)
+                .collect::<Vec<_>>()
+                .windows(2)
+                .any(|w| w[0].is_empty() && w[0] == w[1]);
+            if !side_by_side {
+                ranges[i..end].clone_from_slice(&split);
+            }
+        }
+        i = end;
+    }
+}
+
+/// The font's advance width of each glyph, in font units, at the given variation coordinates.
+fn glyph_advances(font: &peniko::FontData, coords: &[NormalizedCoord], gids: &[u32]) -> Vec<f32> {
+    let Ok(font_ref) = FontRef::from_index(font.data.data(), font.index) else {
+        return vec![0.0; gids.len()];
+    };
+    let coords: Vec<skrifa::instance::NormalizedCoord> = coords
+        .iter()
+        .map(|c| skrifa::instance::NormalizedCoord::from_bits(*c))
+        .collect();
+    let metrics = font_ref.glyph_metrics(
+        skrifa::instance::Size::unscaled(),
+        skrifa::instance::LocationRef::new(&coords),
+    );
+    gids.iter()
+        .map(|&gid| {
+            metrics
+                .advance_width(skrifa::GlyphId::new(gid))
+                .unwrap_or(0.0)
+        })
+        .collect()
+}
+
+/// Narrows `range` past the bidi controls at its ends. Layout inserts them for `dir` and
+/// `unicode-bidi`; they are not page text, so their glyphs map to nothing.
+fn trim_bidi_controls(text: &str, range: std::ops::Range<usize>) -> std::ops::Range<usize> {
+    let is_control = |c: char| {
+        matches!(c, '\u{061C}' | '\u{200E}' | '\u{200F}')
+            || matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+    };
+    let slice = &text[range.clone()];
+    let start = range.start + (slice.len() - slice.trim_start_matches(is_control).len());
+    let end = range.end - (slice.len() - slice.trim_end_matches(is_control).len());
+    start..end.max(start)
 }
 
 fn affine_is_identity(a: Affine) -> bool {
@@ -510,7 +647,7 @@ fn get_or_register_font<'c>(
             key.clone(),
             CachedFont {
                 font: kfont,
-                gid_to_char,
+                gid_to_char: std::rc::Rc::new(gid_to_char),
             },
         );
     }

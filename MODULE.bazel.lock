@@ -1122,14 +1122,14 @@
           "REPO_MAPPING:rules_rust+,bazel_tools bazel_tools",
           "REPO_MAPPING:rules_rust+,rules_cc rules_cc+",
           "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.lock e2e8e7a757415ded5f470e584c5e220a3b59356f05c90c1d740bdb61ca4ea6fe",
-          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.toml f791175535d5ff002a6d89e96218d7770dbf37a9205324c2d5654adca758fffc",
-          "FILE:@@+cargo_workspaces+cargo_ws_core//patched.json 984ed3453197ec99607e57f1a31ceebdde975e825f769a62f9c0e47561fdda24",
+          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.toml 5b84bb6fbab614de35079460a4a451930cf2e7aad8fcd90e2e9cda652f2a6b89",
+          "FILE:@@+cargo_workspaces+cargo_ws_core//patched.json 6496d8afe0676164f238e0a57175e002153c2d4ad96aaf84b556a799d472326f",
           "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.lock a194b1cdc256e82653b679f974a3eb17364d51b0f8ead3da0c44a6c29ea93197",
-          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.toml bb3d325e8fbacee803e215f82f5e20b36f45c6f7f02c6ac23c4e77975f2272a2",
-          "FILE:@@+cargo_workspaces+cargo_ws_renderer//patched.json 984ed3453197ec99607e57f1a31ceebdde975e825f769a62f9c0e47561fdda24",
+          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.toml 1b0c12f5daa7299410e6bcef6f04684ea8dc201e3210558dfb3283a0f16db549",
+          "FILE:@@+cargo_workspaces+cargo_ws_renderer//patched.json 6496d8afe0676164f238e0a57175e002153c2d4ad96aaf84b556a799d472326f",
           "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.lock f9fadaf9329edad78625aebe86ecc9121ea3787527223004e571caf920554878",
-          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.toml 6231c8218c6002ee7dae6fab6970c6e48743b77a05f4f20102a82d670f189859",
-          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//patched.json 984ed3453197ec99607e57f1a31ceebdde975e825f769a62f9c0e47561fdda24",
+          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.toml 453d58822e04642fd0b8412c59c8a5733170b2a2b8e09298395db9edb9b09b89",
+          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//patched.json 6496d8afe0676164f238e0a57175e002153c2d4ad96aaf84b556a799d472326f",
           "FILE:@@+cargo_workspaces+cargo_ws_memprof//Cargo.lock 700ce60a085805e81be18248290fa55c12fd753835006ab68256b8f397261384",
           "FILE:@@+cargo_workspaces+cargo_ws_memprof//Cargo.toml 6982e34060f201166856e8294a4c4a42cd957eb79df82f72f536b5318e6244b8",
           "FILE:@@//packages/kitesurf-cli/Cargo.lock 152fed308b4920eadd2828ba02d0dda6109d0a733cba973a78a25394334fd143",
@@ -1328,7 +1328,8 @@
               ],
               "patches": [
                 "@@//scripts:patches/anyrender-0.14.0/0001-Add-semantic-scene-parts-that-carry-form-control-sta.patch",
-                "@@//scripts:patches/anyrender-0.14.0/0002-Add-PaintScene-push_clip_path-pop_clip_path.patch"
+                "@@//scripts:patches/anyrender-0.14.0/0002-Add-PaintScene-push_clip_path-pop_clip_path.patch",
+                "@@//scripts:patches/anyrender-0.14.0/0003-Add-PaintScene-glyph_text-for-a-scene-s-text-layer.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "1755d0ef8e00e87b6b825dfbe5a35d34d3b302e97e80a48e93f9cd361fbada06",
@@ -1701,7 +1702,8 @@
                 "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0031-Read-inline-layouts-through-the-rebuilding-accessor.patch",
                 "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0032-Read-box-child-lists-through-node-accessors.patch",
                 "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0033-Shape-outside-list-markers-when-painted.patch",
-                "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0034-Read-packed-node-storage-through-accessors.patch"
+                "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0034-Read-packed-node-storage-through-accessors.patch",
+                "@@//scripts:patches/blitz-paint-0.3.0-beta.4/0035-Give-text-layer-scenes-each-glyph-run-s-source-text.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "28803328124d7b7ea5f8f41501513ccb005559e9f6baf33fa0c1fb7612654a93",
@@ -4020,7 +4022,8 @@
                 "@@//scripts:patches/parley-0.12.0/0007-Add-Blink-s-extra-pixel-to-sub-and-super-shifts.patch",
                 "@@//scripts:patches/parley-0.12.0/0008-Compact-retained-Parley-layouts.patch",
                 "@@//scripts:patches/parley-0.12.0/0009-Break-lines-from-a-summary-of-a-layout-s-break-segme.patch",
-                "@@//scripts:patches/parley-0.12.0/0010-Reuse-the-tree-builder-s-text-buffer-and-reserve-lay.patch"
+                "@@//scripts:patches/parley-0.12.0/0010-Reuse-the-tree-builder-s-text-buffer-and-reserve-lay.patch",
+                "@@//scripts:patches/parley-0.12.0/0011-Map-a-glyph-run-s-glyphs-to-the-source-text-they-sho.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "61bd0c0c1737f0b3d3726dc06b225083af213b61913e4fbae1670613a106c6ce",
@@ -6748,7 +6751,8 @@
               ],
               "patches": [
                 "@@//scripts:patches/anyrender-0.14.0/0001-Add-semantic-scene-parts-that-carry-form-control-sta.patch",
-                "@@//scripts:patches/anyrender-0.14.0/0002-Add-PaintScene-push_clip_path-pop_clip_path.patch"
+                "@@//scripts:patches/anyrender-0.14.0/0002-Add-PaintScene-push_clip_path-pop_clip_path.patch",
+                "@@//scripts:patches/anyrender-0.14.0/0003-Add-PaintScene-glyph_text-for-a-scene-s-text-layer.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "1755d0ef8e00e87b6b825dfbe5a35d34d3b302e97e80a48e93f9cd361fbada06",
@@ -8725,7 +8729,8 @@
               ],
               "patches": [
                 "@@//scripts:patches/anyrender-0.14.0/0001-Add-semantic-scene-parts-that-carry-form-control-sta.patch",
-                "@@//scripts:patches/anyrender-0.14.0/0002-Add-PaintScene-push_clip_path-pop_clip_path.patch"
+                "@@//scripts:patches/anyrender-0.14.0/0002-Add-PaintScene-push_clip_path-pop_clip_path.patch",
+                "@@//scripts:patches/anyrender-0.14.0/0003-Add-PaintScene-glyph_text-for-a-scene-s-text-layer.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "1755d0ef8e00e87b6b825dfbe5a35d34d3b302e97e80a48e93f9cd361fbada06",

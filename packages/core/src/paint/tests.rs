@@ -14,6 +14,7 @@ mod inline_block_border;
 mod inline_span_background;
 mod paint_damage;
 mod paint_damage_layout_cache;
+mod pdf_glyph_text;
 mod rbi_image_cache;
 mod render_scene_resolve_loop;
 mod repeated_svg_background_budget;
