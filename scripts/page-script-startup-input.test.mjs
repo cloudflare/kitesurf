@@ -60,6 +60,10 @@ const engine = execute(
     "./host-clock.ts": dependency({ makeWallClock: () => () => 0 }),
     "./walk-module-graph.ts": dependency({ FALLBACK_MODULE_RESOLVER_SOURCE: "resolver" }),
     "../cdp/font-profile.ts": dependency({ DEFAULT_FONT_PROFILE: "noto" }),
+    "./page-isolate-host.ts": dependency({
+      dropStashedPageModules: () => {},
+      stashPageModules: () => "test-modules-id",
+    }),
   },
   { crypto: { randomUUID: () => "test-uuid" }, URL },
 );

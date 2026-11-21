@@ -156,9 +156,13 @@ async function discardFrameIsolate(
   reason: string,
   final = false,
 ): Promise<void> {
-  try {
-    await warmup;
-  } catch {}
+  if (final) {
+    void warmup.catch(() => {});
+  } else {
+    try {
+      await warmup;
+    } catch {}
+  }
   await disposeStub(stub, { unload: final ? "none" : "awaited", reason, killAtOnce: final });
 }
 

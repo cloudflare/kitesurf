@@ -10,6 +10,7 @@ import {
   CONNECTION_ID_HEADER,
   FRAME_ID_HEADER,
   getTracker,
+  type NetworkEventTracker,
 } from "../cdp/network-events-registry.ts";
 import { getCookieJar } from "../cdp/cookie-jar-registry.ts";
 import { siteKey } from "../public-suffix.ts";
@@ -204,8 +205,15 @@ export interface SandboxOutboundOverride {
   readonly external: boolean;
   parent(props: CallerOutboundProps): Fetcher;
   loaded(props: CallerOutboundProps): Fetcher;
-  session(props: CallerOutboundProps): SessionOutbound;
+  session(props: CallerOutboundProps): SessionOutboundHandle;
   final(request: Request): Promise<Response>;
+}
+
+/** A page session's outbound callback and the bodies it is still streaming into that page. */
+export interface SessionOutboundHandle {
+  outbound: SessionOutbound;
+  /** Ends every body this handle handed out and fails later requests; the page is retiring. */
+  cancelBodies(reason?: string): void;
 }
 
 function sessionRequest(req: SessionOutboundRequest): Request {
@@ -276,6 +284,71 @@ export function outboundPolicyRefusal(
   return verdict ? { kind: "blocker", reason: verdict.reason, matched: verdict.matched } : null;
 }
 
+interface SessionBody {
+  reader: ReadableStreamDefaultReader<Uint8Array>;
+  controller: ReadableStreamDefaultController<Uint8Array>;
+}
+
+const SESSION_BODY_ABORT_MESSAGE = "The operation was aborted.";
+
+// A body streaming into a retired page keeps that page's isolate alive, and the page may be
+// killed before its own cancel arrives, so the engine ends the bodies it handed out when it
+// retires the page, as a browser cancels a document's loads.
+function createSessionOutboundHandle(send: SessionOutbound): SessionOutboundHandle {
+  const liveBodies = new Set<SessionBody>();
+  let retiredWith: DOMException | null = null;
+
+  const abortError = (reason: string): DOMException => new DOMException(reason, "AbortError");
+
+  const ownBody = (response: Response): Response => {
+    const source = response.body;
+    if (source === null) return response;
+    const reader = source.getReader();
+    let body: SessionBody | null = null;
+    const forget = (): void => {
+      if (body !== null) liveBodies.delete(body);
+    };
+    const wrapped = new ReadableStream<Uint8Array>({
+      start(controller) {
+        body = { reader, controller };
+        liveBodies.add(body);
+      },
+      pull: (controller) => forwardChunks(reader, controller, forget),
+      cancel(reason) {
+        forget();
+        return reader.cancel(reason);
+      },
+    });
+    return new Response(wrapped, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  };
+
+  return {
+    async outbound(request) {
+      const response = await send(request);
+      if (retiredWith !== null) {
+        void response.body?.cancel(retiredWith).catch(() => {});
+        throw new TypeError("Failed to fetch");
+      }
+      return ownBody(response);
+    },
+    cancelBodies(reason = SESSION_BODY_ABORT_MESSAGE) {
+      const abort = abortError(reason);
+      retiredWith = abort;
+      for (const body of [...liveBodies]) {
+        try {
+          body.controller.error(abort);
+        } catch {}
+        void body.reader.cancel(abort).catch(() => {});
+      }
+      liveBodies.clear();
+    },
+  };
+}
+
 export function createSandboxOutboundOverride(
   exports: SandboxOutboundExports,
   env: SandboxOutboundEnv,
@@ -301,8 +374,9 @@ export function createSandboxOutboundOverride(
     },
     session(props) {
       const sealed = { ...seal(props), pageRealm: true };
-      return async (req) =>
-        rpcSafeResponse(await SandboxOutbound.handle(env, sealed, sessionRequest(req)));
+      return createSessionOutboundHandle(async (req) =>
+        rpcSafeResponse(await SandboxOutbound.handle(env, sealed, sessionRequest(req))),
+      );
     },
     final(request) {
       return directExternalFetch(externalOutbound ?? egress, request);
@@ -1247,27 +1321,45 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       const mimeType = resp.headers.get("content-type") ?? "";
       const contentLength = Number(resp.headers.get("content-length") ?? "0") || 0;
       const trimmedMime = (mimeType.split(";")[0] ?? "").trim() || "application/octet-stream";
+      const record: CapturedTextRecord = {
+        url: request.url,
+        status: resp.status,
+        statusText: resp.statusText,
+        headers: headersToRecord(resp.headers),
+        mimeType: trimmedMime,
+        contentLength,
+      };
+      const complete = (bodyLength: number, body?: string): void => {
+        tracker.completeRequest(requestId, {
+          ...record,
+          bodyLength,
+          body,
+          bodyBase64Encoded: false,
+        });
+      };
+      // withholdImage and interceptFont read the bytes; the opaque and redirect shells drop them
+      // but stay on this path, which keeps its single buffered behaviour.
+      const needsBufferedBody = reduceToOpaque || withholdImage || interceptFont || shellRedirect;
       // An event stream ends when the page closes it, so capturing one would wait for an EOF
       // that never comes and starve the page's EventSource. Chrome reports no body for it either;
       // the response is completed at headers like any other unbuffered body.
       const eventStream =
         resourceType === "EventSource" || mimeEssence(mimeType) === "text/event-stream";
-      if (!eventStream && isTextLikeMime(mimeType) && resp.body && tracker.retainsBodies()) {
+      const textBody =
+        !eventStream && isTextLikeMime(mimeType) && resp.body !== null && tracker.retainsBodies()
+          ? resp.body
+          : null;
+      // Buffer error-status text bodies before returning so Network.responseReceived is emitted
+      // immediately even when the caller never reads the error body.
+      if (textBody && !needsBufferedBody && resp.status < 400) {
+        resp = new Response(streamCapturedTextBody(textBody, tracker, requestId, record), resp);
+      } else if (textBody) {
         try {
-          const capped = await readCapped(resp.body, RESPONSE_BODY_BUFFER_CAP);
+          const capped = await readCapped(textBody, RESPONSE_BODY_BUFFER_CAP);
           if (capped.bytes) {
             const buf = capped.bytes.buffer;
             const text = new TextDecoder("utf-8", { fatal: false, ignoreBOM: false }).decode(buf);
-            tracker.completeRequest(requestId, {
-              url: request.url,
-              status: resp.status,
-              statusText: resp.statusText,
-              headers: headersToRecord(resp.headers),
-              mimeType: trimmedMime,
-              bodyLength: contentLength || buf.byteLength,
-              body: text,
-              bodyBase64Encoded: false,
-            });
+            complete(contentLength || buf.byteLength, text);
             const capturedResponse = responseForCapturedBody(resp, buf);
             return capturedResponse instanceof Response ? capturedResponse : await capturedResponse;
           }
@@ -1276,34 +1368,13 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
             statusText: resp.statusText,
             headers: resp.headers,
           });
-          tracker.completeRequest(requestId, {
-            url: request.url,
-            status: resp.status,
-            statusText: resp.statusText,
-            headers: headersToRecord(resp.headers),
-            mimeType: trimmedMime,
-            bodyLength: contentLength,
-          });
+          complete(contentLength);
           resp = replay;
         } catch {
-          tracker.completeRequest(requestId, {
-            url: request.url,
-            status: resp.status,
-            statusText: resp.statusText,
-            headers: headersToRecord(resp.headers),
-            mimeType: trimmedMime,
-            bodyLength: contentLength,
-          });
+          complete(contentLength);
         }
       } else {
-        tracker.completeRequest(requestId, {
-          url: request.url,
-          status: resp.status,
-          statusText: resp.statusText,
-          headers: headersToRecord(resp.headers),
-          mimeType: trimmedMime,
-          bodyLength: contentLength,
-        });
+        complete(contentLength);
       }
     }
 
@@ -1352,6 +1423,106 @@ export function corsFilteredResponse(
 }
 
 const RESPONSE_BODY_BUFFER_CAP = 256 * 1024;
+
+interface CapturedTextRecord {
+  url: string;
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  mimeType: string;
+  contentLength: number;
+}
+
+// The page gets the response on headers, like a browser; the Network copy is taken from a tee of
+// the body, so a long-lived stream cannot hold the fetch, or the page isolate, open. The capture
+// stops at the cap and is cancelled, after which only the page branch pulls.
+function streamCapturedTextBody(
+  body: ReadableStream<Uint8Array>,
+  tracker: NetworkEventTracker,
+  requestId: string,
+  record: CapturedTextRecord,
+): ReadableStream<Uint8Array> {
+  const [pageBranch, captureBranch] = body.tee();
+  const pageReader = pageBranch.getReader();
+  const captureReader = captureBranch.getReader();
+  let recorded = false;
+
+  const complete = (bodyLength: number, body?: string): void => {
+    if (recorded) return;
+    recorded = true;
+    tracker.completeRequest(requestId, { ...record, bodyLength, body, bodyBase64Encoded: false });
+  };
+  const fail = (reason: string): void => {
+    if (recorded) return;
+    recorded = true;
+    tracker.failRequest(requestId, reason);
+  };
+
+  // readCapped locks the stream it reads, so it reads this feed; the page's cancel ends the feed.
+  const captureFeed = new ReadableStream<Uint8Array>({
+    pull: (controller) => forwardChunks(captureReader, controller),
+    cancel(reason) {
+      return captureReader.cancel(reason).catch(() => {});
+    },
+  });
+
+  const captureDone = readCapped(captureFeed, RESPONSE_BODY_BUFFER_CAP)
+    .then((capped) => {
+      if (capped.bytes === null) {
+        void capped.rest.cancel().catch(() => {});
+        if (capped.failure === "error") {
+          fail("net::ERR_FAILED");
+        } else {
+          complete(record.contentLength);
+        }
+        return;
+      }
+      const buf = capped.bytes.buffer;
+      const text = new TextDecoder("utf-8", { fatal: false, ignoreBOM: false }).decode(buf);
+      complete(record.contentLength || buf.byteLength, text);
+    })
+    .catch(() => complete(record.contentLength));
+
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await pageReader.read();
+        if (done) {
+          // Ensure the capture branch finishes recording the body before the page's read resolves.
+          await captureDone;
+          controller.close();
+        } else if (value) {
+          controller.enqueue(value);
+        }
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+    cancel(reason) {
+      // Chrome reports a load the page aborted as loadingFailed, not loadingFinished.
+      fail("net::ERR_ABORTED");
+      void captureReader.cancel(reason).catch(() => {});
+      return pageReader.cancel(reason);
+    },
+  });
+}
+
+async function forwardChunks(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  onEnd?: () => void,
+): Promise<void> {
+  try {
+    const { done, value } = await reader.read();
+    if (done) {
+      controller.close();
+      onEnd?.();
+    } else if (value) controller.enqueue(value);
+  } catch (error) {
+    controller.error(error);
+    onEnd?.();
+  }
+}
 
 function redirectShell(resp: Response): Response {
   const headers = new Headers();

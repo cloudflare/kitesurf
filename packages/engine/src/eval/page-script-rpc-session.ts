@@ -36,11 +36,15 @@ export type RpcSessionCallable = Pick<RetainedPageScriptSessionStub, "close"> &
 export interface RpcSessionEntrypoint {
   openSession(init: OpenSessionInit): Promise<RpcSessionCallable>;
   killIsolate?(reason?: string): Promise<unknown>;
+  /** Releases the entrypoint stub once teardown finishes; a host request ends with it. */
+  [Symbol.dispose]?: () => void;
 }
 
 export interface PageScriptRpcSessionOptions {
   defaultTimeoutMs?: number;
   outbound?: SessionOutbound;
+  /** Ends the response bodies this session's outbound is still streaming into the page. */
+  cancelOutboundBodies?: (reason?: string) => void;
   wrapOpen?: (open: () => Promise<RpcSessionCallable>) => Promise<RpcSessionCallable>;
   getTraceParent?: () => string | null;
   now?: () => number;
@@ -92,18 +96,22 @@ export class PageScriptRpcSession implements PageScriptStub {
   // kill is sent at most once and never after the isolate is known to be gone.
   private isolateGone = false;
   private killing: Promise<void> | null = null;
+  private entrypointReleased = false;
   private wallCapTimer: ReturnType<typeof setTimeout> | null = null;
   private closeReady: Promise<void> | null = null;
   private scriptName: string | null = null;
   private defaultTimeoutMs: number;
   private now: () => number;
   private getTraceParent?: () => string | null;
+  private cancelOutboundBodies?: (reason?: string) => void;
+  private outboundBodiesCancelled = false;
   private upstreamHandler: UpstreamEventHandler | null = null;
 
   constructor(entrypoint: RpcSessionEntrypoint, opts: PageScriptRpcSessionOptions = {}) {
     this.entrypoint = entrypoint;
     this.defaultTimeoutMs = opts.defaultTimeoutMs ?? 60_000;
     this.getTraceParent = opts.getTraceParent;
+    this.cancelOutboundBodies = opts.cancelOutboundBodies;
     this.now = opts.now ?? (() => Date.now());
     this.scriptName = opts.scriptName ?? null;
     const wallCapMs = opts.wallCapMs ?? 0;
@@ -325,6 +333,8 @@ export class PageScriptRpcSession implements PageScriptStub {
 
   killIsolate(reason = "generation retired", opts: { atOnce?: boolean } = {}): Promise<void> {
     if (this.killing) return this.killing;
+    // The page cannot end these itself once its isolate is killed, so teardown does it first.
+    this.endOutboundBodies(reason);
     const ep = this.entrypoint;
     if (typeof ep.killIsolate !== "function") return Promise.resolve();
     // Give the retained close one grace window before the entrypoint kill, unless nothing waits on
@@ -338,8 +348,23 @@ export class PageScriptRpcSession implements PageScriptStub {
           return settleTeardownWithin(Promise.resolve(ep.killIsolate?.(reason)));
         } catch {}
       })
+      .then(() => this.releaseEntrypoint())
       .finally(collectRetiredWorkers);
     return this.killing;
+  }
+
+  // The entrypoint stub owns the page isolate: releasing it once teardown is done lets the host
+  // request end, which frees the isolate's heap and wasm memory before the connection closes.
+  private releaseEntrypoint(): void {
+    if (this.entrypointReleased) return;
+    this.entrypointReleased = true;
+    disposeStub(this.entrypoint);
+  }
+
+  private endOutboundBodies(reason: string): void {
+    if (this.outboundBodiesCancelled) return;
+    this.outboundBodiesCancelled = true;
+    this.cancelOutboundBodies?.(reason);
   }
 
   close(reason = "session close"): void {
@@ -364,7 +389,13 @@ export class PageScriptRpcSession implements PageScriptStub {
     this.closeReady = this.session
       ? closeSession(this.session)
       : this.sessionReady.then(closeSession, () => {});
+    this.endOutboundBodies(reason);
     this.markDead(reason);
+    // A kill requested for this generation releases the entrypoint; this path does it when the
+    // close ends teardown with no kill behind it.
+    void settleTeardownWithin(this.closeReady).then(() => {
+      if (!this.killing) this.releaseEntrypoint();
+    });
   }
 
   setUpstreamEventHandler(handler: UpstreamEventHandler | null): void {

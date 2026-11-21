@@ -175,6 +175,7 @@ export async function readCappedBytes(
   connectionId: string,
   // A single large asset (a .wasm bake) may claim the whole shared budget.
   connectionCap: number = MAX_CONNECTION_READ_BYTES,
+  extraCharge?: (delta: number) => boolean,
 ): Promise<CappedBody> {
   if (
     inFlightBytes >= MAX_CONCURRENT_READ_BYTES ||
@@ -190,7 +191,11 @@ export async function readCappedBytes(
   const lease = readLease(connectionId, connectionCap);
   try {
     // Charge each chunk; concurrent readers can all pass the early budget check.
-    const got = await readCapped(resp.body, cap, (delta) => lease.charge(delta));
+    const got = await readCapped(
+      resp.body,
+      cap,
+      (delta) => lease.charge(delta) && (!extraCharge || extraCharge(delta)),
+    );
     if (got.bytes === null) {
       await got.rest.cancel().catch(() => {});
       return { ok: false, failure: got.failure };

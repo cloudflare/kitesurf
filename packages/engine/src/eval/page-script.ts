@@ -48,6 +48,11 @@ import type { ScriptBundle } from "./script-bundle.ts";
 import { FALLBACK_MODULE_RESOLVER_SOURCE } from "./walk-module-graph.ts";
 import { DEFAULT_FONT_PROFILE, type FontProfile } from "../cdp/font-profile.ts";
 import type { WasmBake } from "./prefetch-wasm.ts";
+import {
+  dropStashedPageModules,
+  stashPageModules,
+  type PageIsolateHostExport,
+} from "./page-isolate-host.ts";
 
 export interface PageScriptStub extends PageScriptSession {
   /** Identity this isolate stamps into its Runtime handles and compiled-script ids. */
@@ -71,6 +76,8 @@ type CtxWithExports = SessionContext & {
       };
     }): Fetcher;
     SpanSink(opts: { props: { kind: string } }): unknown;
+    // Optional: an embedder that does not export the host keeps the direct load path.
+    PageIsolateHost?: PageIsolateHostExport;
   };
 };
 
@@ -184,6 +191,31 @@ export interface PageScriptStartupInput {
 
 function emptyWasmBytes(): ArrayBuffer {
   return new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]).buffer;
+}
+
+/** A loaded worker's module map: the shared modules plus the per-navigation ones. */
+type PageScriptModules = WorkerLoaderWorkerCode["modules"];
+
+/** Adds the modules every page isolate shares; a host adds them to skip the per-load clone. */
+export function addStaticPageModules(modules: PageScriptModules): void {
+  modules["page.js"] = PAGE_SCRIPT_SOURCE;
+  modules["dom-shim.js"] = DOM_SHIM_SOURCE;
+  modules["internal-state.js"] = INTERNAL_STATE_SOURCE;
+  modules["wasm-glue.js"] = wasmGlueSource;
+  // The parent's compiled module: each page isolate shares its code instead of compiling
+  // 27 MB of bytes again on every navigation.
+  modules["core_bg.wasm"] = { wasm: coreWasmModule };
+  modules["__ks_empty.wasm"] = { wasm: emptyWasmBytes() };
+}
+
+/** A copy of `modules` without the shared ones, for a host that adds those itself. */
+function withoutStaticPageModules(
+  modules: PageScriptModules,
+  staticNames: readonly string[],
+): PageScriptModules {
+  const perNavigation = { ...modules };
+  for (const name of staticNames) delete perNavigation[name];
+  return perNavigation;
 }
 
 interface GetOrCreatePageScriptOptions {
@@ -309,24 +341,13 @@ export const metaCsp = ${JSON.stringify(metaCsp)};
 export const insertedBaked = ${JSON.stringify(scriptBundle?.insertedManifest ?? [])};
 `;
 
-  const modules: Record<
-    string,
-    | string
-    | { wasm: ArrayBuffer | WebAssembly.Module }
-    | { cjs: string }
-    | { js: string }
-    | { json: unknown }
-  > = {
-    "page.js": PAGE_SCRIPT_SOURCE,
-    "dom-shim.js": DOM_SHIM_SOURCE,
-    "internal-state.js": INTERNAL_STATE_SOURCE,
-    "wasm-glue.js": wasmGlueSource,
-    // The parent's compiled module: each page isolate shares its code instead of compiling
-    // 27 MB of bytes again on every navigation.
-    "core_bg.wasm": { wasm: coreWasmModule },
-    "__ks_startup_probe_input.js": startupInputModule,
-    "__ks_import_map.js": scriptBundle?.importMapModuleSource ?? FALLBACK_MODULE_RESOLVER_SOURCE,
-  };
+  const modules: PageScriptModules = {};
+  addStaticPageModules(modules);
+  // The shared modules stay on the host side; only these names travel in the load spec.
+  const staticModuleNames = Object.keys(modules);
+  modules["__ks_startup_probe_input.js"] = startupInputModule;
+  modules["__ks_import_map.js"] =
+    scriptBundle?.importMapModuleSource ?? FALLBACK_MODULE_RESOLVER_SOURCE;
   if (scriptBundle && scriptBundle.classicRegularSource) {
     modules["__ks_user_classic_regular.js"] = {
       cjs: scriptBundle.classicRegularSource,
@@ -352,7 +373,6 @@ export const insertedBaked = ${JSON.stringify(scriptBundle?.insertedManifest ?? 
     }
   }
 
-  modules["__ks_empty.wasm"] = { wasm: emptyWasmBytes() };
   const registryImports: string[] = ['import __ksEmpty from "./__ks_empty.wasm";'];
   const registryEntries: string[] = [];
   if (wasmBake) {
@@ -390,7 +410,7 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
     pixelFree,
   };
   const mainModule = pageIsolateEntry(modules, pageIsolate);
-  const stub = env.LOADER.load({
+  const code: WorkerLoaderWorkerCode = {
     compatibilityDate: PAGE_SCRIPT_COMPAT_DATE,
     ...pageScriptCompatOptions(env),
     mainModule,
@@ -424,21 +444,60 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
       cpuMs: caps.cpuMs,
       subRequests: PAGE_SCRIPT_SUBREQUEST_CAP,
     },
-  });
+  };
+  const props = { KS_TAIL_TOKEN: tailToken, KS_ISOLATE_STAMP: isolateStamp };
+  const host = cx.exports.PageIsolateHost;
+  let entrypoint: RpcSessionEntrypoint;
+  if (host) {
+    const modulesId = stashPageModules(withoutStaticPageModules(modules, staticModuleNames));
+    let handle: ReturnType<typeof host.open>;
+    try {
+      handle = host.open(
+        {
+          code: { ...code, modules: {} },
+          entrypoint: "PageScript",
+          props,
+        },
+        modulesId,
+      );
+    } catch (err) {
+      dropStashedPageModules(modulesId);
+      throw err;
+    }
+    handle.then(
+      () => {},
+      () => dropStashedPageModules(modulesId),
+    );
+    entrypoint = {
+      openSession: (init) => handle.openSession(init),
+      killIsolate: (reason) => handle.killIsolate?.(reason) ?? Promise.resolve(),
+      // Ends the host's loopback request, which releases the killed isolate.
+      [Symbol.dispose]: () => {
+        dropStashedPageModules(modulesId);
+        handle.then(
+          (h) => {
+            try {
+              h[Symbol.dispose]?.();
+            } catch {}
+          },
+          () => {},
+        );
+      },
+    };
+  } else {
+    const stub = env.LOADER.load(code);
+    const workerEntrypoint: PageScriptEntrypointStub = stub.getEntrypoint<PageScriptEntrypoint>(
+      "PageScript",
+      { props },
+    );
+    // The RPC adapter needs promises; the local entrypoint contract is synchronous.
 
-  const workerEntrypoint: PageScriptEntrypointStub = stub.getEntrypoint<PageScriptEntrypoint>(
-    "PageScript",
-    {
-      props: { KS_TAIL_TOKEN: tailToken, KS_ISOLATE_STAMP: isolateStamp },
-    },
-  );
-  // The RPC adapter needs promises; the local entrypoint contract is synchronous.
-
-  // SAFETY: WorkerLoader follows the PageScript JSRPC contract, but Rpc.Provider loses generic
-  // call/reply correlation and annotates cloneable reply objects with Disposable.
-  // Runtime replies remain PageScriptReply data.
-  // Verified by: packages/engine/test/e2e/demos/page-script-demo.e2e.test.ts.
-  const entrypoint = workerEntrypoint as RpcSessionEntrypoint;
+    // SAFETY: WorkerLoader follows the PageScript JSRPC contract, but Rpc.Provider loses generic
+    // call/reply correlation and annotates cloneable reply objects with Disposable.
+    // Runtime replies remain PageScriptReply data.
+    // Verified by: packages/engine/test/e2e/demos/page-script-demo.e2e.test.ts.
+    entrypoint = workerEntrypoint as RpcSessionEntrypoint;
+  }
   const tracer = env.HOST_TRACER;
   const spanWrap = tracer
     ? (open: () => Promise<RpcSessionCallable>) =>
@@ -454,9 +513,11 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
         }
       }
     : spanWrap;
+  const outboundHandle = sandboxOutbound.session(outboundProps);
   const session = openPageScriptRpcSession(entrypoint, {
     now: makeWallClock(env),
-    outbound: sandboxOutbound.session(outboundProps),
+    outbound: outboundHandle.outbound,
+    cancelOutboundBodies: outboundHandle.cancelBodies,
     wallCapMs: caps.wallMs > 0 ? caps.wallMs : undefined,
     scriptName: name,
     getTraceParent: tracer ? () => tracer.getSpanContext()?.spanId ?? null : undefined,

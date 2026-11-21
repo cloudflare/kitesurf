@@ -18,6 +18,7 @@ import type { IsolateKillMarker } from "@kitesurf/jsrpc-types/shared";
 import { installEventSource } from "@kitesurf/page-script/event-source";
 import { installFetchShim } from "@kitesurf/page-script/fetch-shim";
 import {
+  cancelSessionResponseBodies,
   clearSessionOutbound,
   setSessionOutbound,
   type OutboundStub,
@@ -87,6 +88,7 @@ export class DedicatedWorker extends WorkerEntrypoint<unknown, DedicatedWorkerPr
       disposeStub("upstream", upstream);
       if (outbound) {
         clearSessionOutbound(outbound);
+        cancelSessionResponseBodies();
         disposeStub("outbound", outbound);
       }
     };

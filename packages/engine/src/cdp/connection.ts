@@ -454,6 +454,14 @@ export class BrowserSession {
         budget: browser.workerBudget,
         waitUntil: (promise) => ctx.waitUntil(promise),
       });
+      if (target.retiringPageScript) {
+        const retiring = target.retiringPageScript;
+        target.retiringPageScript = null;
+        void retireStub(retiring, "wsClosed", "engine WS closed", {
+          budget: browser.workerBudget,
+          waitUntil: (promise) => ctx.waitUntil(promise),
+        });
+      }
       void retireStub(target, "wsClosed", "engine WS closed", {
         budget: browser.workerBudget,
         waitUntil: (promise) => ctx.waitUntil(promise),
