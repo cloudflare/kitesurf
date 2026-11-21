@@ -1670,10 +1670,29 @@ fn parse_font_shorthand(s: &str) -> Option<FontSpec> {
     }
     Some(FontSpec {
         size_px,
-        families: family,
+        families: strip_unquoted_generic_families(&family),
         weight,
         italic,
     })
+}
+
+/// A bare `generic(...)` is a CSS Fonts 5 generic name, not a family, and this font set has no
+/// such generic, so it resolves like an unknown generic instead of matching an `@font-face` that
+/// carries that name. A quoted `"generic(...)"` is still a family name.
+fn strip_unquoted_generic_families(family: &str) -> String {
+    let kept: Vec<&str> = family
+        .split(',')
+        .map(str::trim)
+        .filter(|item| {
+            let quoted = item.starts_with('"') || item.starts_with('\'');
+            !(!quoted && item.starts_with("generic(") && item.ends_with(')'))
+        })
+        .collect();
+    if kept.is_empty() {
+        "sans-serif".to_string()
+    } else {
+        kept.join(", ")
+    }
 }
 
 fn parse_css_length(s: &str) -> Option<f32> {
@@ -1698,6 +1717,13 @@ fn parse_css_length(s: &str) -> Option<f32> {
 type Brush = u32;
 
 fn shape_text(font: &FontSpec, text: &str) -> Option<parley::Layout<Brush>> {
+    // U+0000 has no glyph and no advance: canvas ignores it, while shaping it would substitute
+    // .notdef and add a full advance.
+    let text: std::borrow::Cow<'_, str> = if text.contains('\0') {
+        std::borrow::Cow::Owned(text.replace('\0', ""))
+    } else {
+        std::borrow::Cow::Borrowed(text)
+    };
     if text.is_empty() {
         return None;
     }
@@ -1711,7 +1737,7 @@ fn shape_text(font: &FontSpec, text: &str) -> Option<parley::Layout<Brush>> {
         style.font_style = parley::style::FontStyle::Italic;
     }
     let mut tb = lcx.tree_builder(&mut fcx, 1.0, true, &style);
-    tb.push_text(text);
+    tb.push_text(&text);
     let (mut layout, _text) = tb.build();
     layout.break_all_lines(None);
     Some(layout)
