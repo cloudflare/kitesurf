@@ -30,7 +30,13 @@ import type {
 import type { DispatchCtx } from "./dispatch.ts";
 import { defineDomain, stub } from "./domain.ts";
 import { CDP_COMMAND_UNHANDLED } from "./types.ts";
-import { resolveTarget, sessionOf, stubQueryDom, type QueryDomResult } from "./page-session.ts";
+import {
+  resolvePreNavScriptTarget,
+  resolveTarget,
+  sessionOf,
+  stubQueryDom,
+  type QueryDomResult,
+} from "./page-session.ts";
 import { emitOopifExecutionContext, emitOopifExecutionContextDestroyed } from "./runtime.ts";
 import {
   applyTtyNavParams,
@@ -62,6 +68,7 @@ import {
   documentBaseUrl,
   documentGateContext,
   learnedScriptGate,
+  resolveScriptUrl,
 } from "../eval/script-gate.ts";
 import {
   clampViewport,
@@ -79,7 +86,12 @@ import { makeWallClock } from "../eval/host-clock.ts";
 import { htmlTagSpans, removeHtmlTagSpans } from "../eval/html-tag-spans.ts";
 import { DiagSpanTracker } from "./diag-spans.ts";
 import { registerTailTrace } from "../eval/tail-trace-registry.ts";
-import { buildScriptBundle, insertedSourceDigests } from "../eval/script-bundle.ts";
+import {
+  analyzeClassicSource,
+  buildScriptBundle,
+  insertedSourceDigests,
+  type ClassicAnalysisCache,
+} from "../eval/script-bundle.ts";
 import {
   forgetLearnedScript,
   learnedScriptsFor,
@@ -87,6 +99,12 @@ import {
 } from "../eval/learned-scripts.ts";
 import { nextRouteChunkUrls } from "../eval/next-route-chunks.ts";
 import { maySpeculate, prefetchBestEffort } from "../eval/speculative-prefetch.ts";
+import { scriptGateIsNoop } from "@kitesurf/script-gate";
+import {
+  scanPreloadScriptLinks,
+  startStylesheetPrefetch,
+  type PrefetchedStylesheets,
+} from "../eval/prefetch-stylesheets.ts";
 import {
   scanForWasmUrls,
   scanForInlineWasm,
@@ -792,14 +810,24 @@ export const pageDomain = defineDomain("Page", {
       const id = crypto.randomUUID();
       const source = typeof req.params?.source === "string" ? req.params.source : "";
       if (source) {
-        ctx.browser.preNavScripts.set(id, source);
+        // Session-scoped adds die with their page target; session-less adds apply to every
+        // target, which is what a browser-level client asked for. A session on the browser
+        // target has no page, so it stays browser-wide rather than writing a map that navigate
+        // never reads.
+        const owner = req.sessionId ? resolvePreNavScriptTarget(ctx, req.sessionId) : null;
+        (owner ? owner.preNavScripts : ctx.browser.preNavScripts).set(id, source);
       }
       return { identifier: id };
     },
 
     "Page.removeScriptToEvaluateOnNewDocument": ({ ctx }, req) => {
       const id = typeof req.params?.identifier === "string" ? req.params.identifier : null;
-      if (id) ctx.browser.preNavScripts.delete(id);
+      if (id) {
+        if (req.sessionId) {
+          resolvePreNavScriptTarget(ctx, req.sessionId)?.preNavScripts.delete(id);
+        }
+        ctx.browser.preNavScripts.delete(id);
+      }
       return {};
     },
 
@@ -1907,10 +1935,6 @@ function sanitizeBaseUrl(url: string): string {
   }
 }
 
-function speculativeDescriptors(urls: readonly string[]): ParentScriptDescriptor[] {
-  return urls.map((src) => ({ src, kind: "classic", defer: false, async: false, body: "" }));
-}
-
 function frameGatesLoadEvent(f: FrameState): boolean {
   if (f.parentFrameId === null) return false;
   if (!f.pendingLoad) return false;
@@ -1963,16 +1987,54 @@ async function pushNavigateToPageScriptInner(
   const preloadSeeds = modulePreloadSeeds(docScan.modulePreloads, scriptBaseUrl);
   target.wheelTeardownDepth += 1;
   const consoleAcc: ConsoleEntry[] = [];
+  let pendingBlankRetire: Promise<void> | null = null;
   try {
     await cancelAndRemoveTargetWheelQueues(ctx.browser, target.targetId);
 
     if (target.pageScript) {
       const retiringUrl = target.pageScriptUrl;
-      const harvest = await retireStub(target, "navigate", "Page.navigate: generation bump", {
-        budget: ctx.browser.workerBudget,
-      });
-      for (const e of harvest?.console ?? []) consoleAcc.push(e);
-      if (retiringUrl) {
+      if (!retiringUrl || retiringUrl === "about:blank") {
+        // about:blank cannot write HTTP cookies, so overlap its unload with subresource
+        // prefetching; keep the live holder on target so closeTarget / WS close can take ownership
+        // and kill it immediately without double-retiring it.
+        const retiringStub = target.pageScript;
+        const oldHolder = {
+          pageScript: retiringStub,
+          pageScriptLease: target.pageScriptLease,
+        };
+        target.pageScript = null;
+        target.pageScriptLease = null;
+        const prevRetiring = target.retiringPageScript;
+        target.retiringPageScript = oldHolder;
+        if (prevRetiring) {
+          void retireStub(
+            prevRetiring,
+            "closeTarget",
+            "Page.navigate: superseded retiring holder",
+            {
+              budget: ctx.browser.workerBudget,
+            },
+          );
+        }
+        pendingBlankRetire = (async () => {
+          try {
+            const result = await retiringStub.unload();
+            for (const e of Array.isArray(result?.console) ? result.console : []) {
+              consoleAcc.push(e);
+            }
+          } catch {}
+          if (target.retiringPageScript === oldHolder) {
+            target.retiringPageScript = null;
+            await retireStub(oldHolder, "closeTarget", "Page.navigate: generation bump", {
+              budget: ctx.browser.workerBudget,
+            });
+          }
+        })();
+      } else {
+        const harvest = await retireStub(target, "navigate", "Page.navigate: generation bump", {
+          budget: ctx.browser.workerBudget,
+        });
+        for (const e of harvest?.console ?? []) consoleAcc.push(e);
         for (const raw of harvest?.cookieWrites ?? []) {
           jarForTarget(ctx, target).setFromDocumentCookie(retiringUrl, raw);
         }
@@ -2004,11 +2066,29 @@ async function pushNavigateToPageScriptInner(
   let scriptDescriptors: ParentScriptDescriptor[] = [];
   let scriptBundle: ScriptBundle | null = null;
   let wasmBake: WasmBake | null = null;
+  let stylesheetPrefetch: PrefetchedStylesheets | null = null;
   try {
+    stylesheetPrefetch = startStylesheetPrefetch({
+      html,
+      baseUrl: scriptBaseUrl,
+      pageUrl: url,
+      pageOrigin: pageScriptOriginOf(url),
+      connectionId: ctx.connectionId,
+      mainFrameId: target.frameId,
+      mainLoaderId: target.loaderId,
+      extraHeaders: effectiveExtraHeaders(target),
+      cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
+      referrerPolicy: target.docReferrerPolicy ?? undefined,
+      cspHeaders: [...(target.docCsp ? [target.docCsp] : []), ...(docScan.metaCsp ?? [])],
+      sandboxOutbound: ctx.browser.sandboxOutbound,
+    });
     const raw = target.docScan ? docScan.scripts : extractScriptDescriptorsFromDom(target.dom);
     const preNav: ParentScriptDescriptor[] = [];
-    if (ctx.browser.preNavScripts.size > 0) {
-      for (const source of ctx.browser.preNavScripts.values()) {
+    if (ctx.browser.preNavScripts.size > 0 || target.preNavScripts.size > 0) {
+      for (const source of [
+        ...ctx.browser.preNavScripts.values(),
+        ...target.preNavScripts.values(),
+      ]) {
         preNav.push({
           src: null,
           kind: "classic",
@@ -2039,48 +2119,57 @@ async function pushNavigateToPageScriptInner(
       url,
       target.browserContextId,
     );
-    const afterClassicPrefetch = await traceSpan(
-      ctx.env.HOST_TRACER,
-      "navigate.prefetch_scripts",
-      () =>
-        prefetchExternalScripts({
-          descriptors: gatedDescriptors,
-          pageUrl: url,
-          connectionId: ctx.connectionId,
-          mainFrameId: target.frameId,
-          mainLoaderId: target.loaderId,
-          extraHeaders: effectiveExtraHeaders(target),
-          cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
-          baseUrl: scriptBaseUrl,
-          sandboxOutbound: ctx.browser.sandboxOutbound,
-          gate: scriptGate,
-          initiator: "parser",
-        }),
+    const parserScriptUrls = new Set<string>();
+    for (const d of gatedDescriptors) {
+      if (d.resolvedSrc) parserScriptUrls.add(d.resolvedSrc);
+      if (d.src) {
+        parserScriptUrls.add(d.src);
+        // Preload links resolve against the document base, while a descriptor keeps the raw
+        // attribute, so compare the resolved form too or a page that preloads a script it also
+        // loads with `<script src>` fetches it twice.
+        const resolved = resolveScriptUrl(d.src, scriptBaseUrl);
+        if (resolved !== null) parserScriptUrls.add(resolved);
+      }
+    }
+    const preloadScriptUrls = scanPreloadScriptLinks(html, scriptBaseUrl).filter(
+      (u) => !parserScriptUrls.has(u) && !learnedUrls.includes(u),
     );
-    const routeChunkUrls = nextRouteChunkUrls(afterClassicPrefetch, url).filter(
-      (u) => !learnedUrls.includes(u),
-    );
-    const speculativeUrls = [...learnedUrls, ...routeChunkUrls];
-    const learnedSet = new Set(learnedUrls);
     const learnedGate = learnedScriptGate(scriptGate);
-    const speculativePrefetch =
-      speculativeUrls.length === 0
+    const earlySpeculativeUrls = [...learnedUrls, ...preloadScriptUrls];
+    // Analyse each body as it lands so the bundle build does not rescan every
+    // byte after the last script arrives. Inline bodies are primed here, after
+    // the prefetch call has issued its requests, so analysis never delays a
+    // request start.
+    const classicAnalysis: ClassicAnalysisCache = new Map();
+    const analyzeFetched = (d: ParentScriptDescriptor): void => {
+      if (typeof d.prefetchedSource === "string") {
+        analyzeClassicSource(classicAnalysis, d.prefetchedSource);
+      }
+    };
+    const SPECULATIVE_EARLY_CONCURRENCY = 16;
+    const SPECULATIVE_EARLY_DEADLINE_MS = 1_000;
+    const MAX_SPECULATIVE_BAKE_CHARS = 4 * 1024 * 1024;
+    const prefetchSpeculativeBatch = (
+      urls: readonly string[],
+      gate: typeof scriptGate,
+      concurrency?: number,
+    ): Promise<ParentScriptDescriptor[]> =>
+      urls.length === 0
         ? Promise.resolve<ParentScriptDescriptor[]>([])
         : traceSpan(ctx.env.HOST_TRACER, "navigate.prefetch_speculative", () =>
-            Promise.all([
-              applyPreFetchScriptGate(
-                speculativeDescriptors(learnedUrls),
-                learnedGate,
-                scriptBaseUrl,
-              ),
-              applyPreFetchScriptGate(
-                speculativeDescriptors(routeChunkUrls),
-                scriptGate,
-                scriptBaseUrl,
-              ),
-            ]).then(([learned, routeChunks]) =>
+            applyPreFetchScriptGate(
+              urls.map((src) => ({
+                src,
+                kind: "classic" as const,
+                defer: false,
+                async: false,
+                body: "",
+              })),
+              gate,
+              scriptBaseUrl,
+            ).then((gated) =>
               prefetchBestEffort(
-                [...learned, ...routeChunks].filter(
+                gated.filter(
                   (d) => !d.blocked && maySpeculate(ctx.connectionId, d.resolvedSrc ?? d.src ?? ""),
                 ),
                 (d, signal) =>
@@ -2095,54 +2184,156 @@ async function pushNavigateToPageScriptInner(
                     baseUrl: scriptBaseUrl,
                     sandboxOutbound: ctx.browser.sandboxOutbound,
                     signal,
-                    gate: d.src && learnedSet.has(d.src) ? learnedGate : scriptGate,
+                    gate,
+                    onFetched: analyzeFetched,
                   }).then((fetched) => fetched[0] ?? d),
+                SPECULATIVE_EARLY_DEADLINE_MS,
+                concurrency,
               ),
             ),
           ).catch((): ParentScriptDescriptor[] => []);
-    const importMaps = await applyImportMapGate(docScan.importMaps, scriptGate, url);
-    const speculativeFetched = await speculativePrefetch;
-    for (const d of speculativeFetched) {
-      if (d.src && learnedSet.has(d.src) && (d.prefetchError || d.blocked)) {
-        forgetLearnedScript(
-          ctx.browser.learnedInsertedScripts,
-          url,
-          d.src,
-          target.browserContextId,
-        );
-      }
-    }
-    const insertedBake = speculativeFetched.filter(
-      (d) => typeof d.prefetchedSource === "string" && !d.prefetchError && !d.blocked,
-    );
-    if (ctx.browser.cdpDebug && speculativeUrls.length > 0) {
-      console.log(
-        `[kitesurf-nav] speculative scripts baked ${insertedBake.length}/${speculativeUrls.length}`,
-      );
-    }
-    // Hash the bytes the page will fetch, before the walk rewrites them.
-    const insertedDigests = await insertedSourceDigests(insertedBake);
-    const walkResult = await traceSpan(ctx.env.HOST_TRACER, "navigate.walk_module_graph", () =>
-      walkModuleGraph({
-        descriptors: afterClassicPrefetch,
-        insertedDescriptors: insertedBake,
+
+    const astroSeeds = astroIslandModuleUrls(html, scriptBaseUrl);
+    const prefetchClassic = traceSpan(ctx.env.HOST_TRACER, "navigate.prefetch_scripts", () =>
+      prefetchExternalScripts({
+        descriptors: gatedDescriptors,
         pageUrl: url,
         connectionId: ctx.connectionId,
         mainFrameId: target.frameId,
         mainLoaderId: target.loaderId,
         extraHeaders: effectiveExtraHeaders(target),
         cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
-        options: {
-          baseUrl: scriptBaseUrl,
-          gate: scriptGate,
-          importMaps,
-          moduleSeeds: astroIslandModuleUrls(html, scriptBaseUrl),
-          preloadSeeds,
-          documentHtml: html,
-        },
+        baseUrl: scriptBaseUrl,
         sandboxOutbound: ctx.browser.sandboxOutbound,
+        gate: scriptGate,
+        initiator: "parser",
+        onFetched: analyzeFetched,
       }),
     );
+    const earlySpeculativePrefetch = Promise.all([
+      prefetchSpeculativeBatch(learnedUrls, learnedGate, SPECULATIVE_EARLY_CONCURRENCY),
+      prefetchSpeculativeBatch(preloadScriptUrls, scriptGate, SPECULATIVE_EARLY_CONCURRENCY),
+    ]).then(([learned, preload]) => [...learned, ...preload]);
+    const importMapsPromise = applyImportMapGate(docScan.importMaps, scriptGate, url);
+    for (const d of gatedDescriptors) {
+      if (!d.src && d.kind === "classic" && !d.blocked && d.body) {
+        analyzeClassicSource(classicAnalysis, d.body);
+      }
+    }
+    const classicsReadyPromise = (async () => {
+      const afterClassicPrefetch = await prefetchClassic;
+      const earlySet = new Set(earlySpeculativeUrls);
+      const routeChunkUrls = nextRouteChunkUrls(afterClassicPrefetch, url).filter(
+        (u) => !earlySet.has(u) && !parserScriptUrls.has(u),
+      );
+      const routeSpeculativePrefetch = prefetchSpeculativeBatch(
+        routeChunkUrls,
+        scriptGate,
+        SPECULATIVE_EARLY_CONCURRENCY,
+      );
+      const [earlyFetched, routeFetched] = await Promise.all([
+        earlySpeculativePrefetch,
+        routeSpeculativePrefetch,
+      ]);
+      const speculativeUrls = [...earlySpeculativeUrls, ...routeChunkUrls];
+      const speculativeFetched = [...earlyFetched, ...routeFetched];
+      const learnedSet = new Set(learnedUrls);
+      for (const d of speculativeFetched) {
+        if (d.src && learnedSet.has(d.src) && (d.prefetchError || d.blocked)) {
+          forgetLearnedScript(
+            ctx.browser.learnedInsertedScripts,
+            url,
+            d.src,
+            target.browserContextId,
+          );
+        }
+      }
+      const insertedBake: ParentScriptDescriptor[] = [];
+      let bakedChars = 0;
+      for (const d of speculativeFetched) {
+        if (typeof d.prefetchedSource !== "string" || d.prefetchError || d.blocked) continue;
+        if (bakedChars + d.prefetchedSource.length > MAX_SPECULATIVE_BAKE_CHARS) continue;
+        bakedChars += d.prefetchedSource.length;
+        insertedBake.push(d);
+      }
+      if (ctx.browser.cdpDebug && speculativeUrls.length > 0) {
+        console.log(
+          `[kitesurf-nav] speculative scripts baked ${insertedBake.length}/${speculativeUrls.length}`,
+        );
+      }
+      // Hash the bytes the page will fetch, before the walk rewrites them.
+      const insertedDigests = await insertedSourceDigests(insertedBake);
+      return {
+        descriptors: afterClassicPrefetch,
+        insertedDescriptors: insertedBake,
+        insertedDigests,
+      };
+    })();
+
+    const hasExternalClassicNonce = gatedDescriptors.some(
+      (d) => d.kind === "classic" && !!d.src && !d.blocked && !!d.nonce,
+    );
+    const overlapModuleWalk =
+      docScan.importMaps.length === 0 &&
+      (scriptGateIsNoop(scriptGate) || !hasExternalClassicNonce) &&
+      (gatedDescriptors.some((d) => d.kind === "module" && !d.blocked) ||
+        preloadSeeds.length > 0 ||
+        astroSeeds.length > 0);
+    let insertedDigests: Map<string, string>;
+    let walkResult: Awaited<ReturnType<typeof walkModuleGraph>>;
+    if (overlapModuleWalk) {
+      const earlyWalk = traceSpan(ctx.env.HOST_TRACER, "navigate.walk_module_graph", () =>
+        walkModuleGraph({
+          descriptors: gatedDescriptors,
+          deferredClassics: classicsReadyPromise,
+          pageUrl: url,
+          connectionId: ctx.connectionId,
+          mainFrameId: target.frameId,
+          mainLoaderId: target.loaderId,
+          extraHeaders: effectiveExtraHeaders(target),
+          cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
+          options: {
+            baseUrl: scriptBaseUrl,
+            gate: scriptGate,
+            importMaps: [],
+            moduleSeeds: astroSeeds,
+            preloadSeeds,
+            documentHtml: html,
+          },
+          sandboxOutbound: ctx.browser.sandboxOutbound,
+        }),
+      );
+      const [classicsReady, walked] = await Promise.all([classicsReadyPromise, earlyWalk]);
+      insertedDigests = classicsReady.insertedDigests;
+      walkResult = walked;
+    } else {
+      const [importMaps, classicsReady] = await Promise.all([
+        importMapsPromise,
+        classicsReadyPromise,
+      ]);
+      insertedDigests = classicsReady.insertedDigests;
+      walkResult = await traceSpan(ctx.env.HOST_TRACER, "navigate.walk_module_graph", () =>
+        walkModuleGraph({
+          descriptors: classicsReady.descriptors,
+          insertedDescriptors: classicsReady.insertedDescriptors,
+          pageUrl: url,
+          connectionId: ctx.connectionId,
+          mainFrameId: target.frameId,
+          mainLoaderId: target.loaderId,
+          extraHeaders: effectiveExtraHeaders(target),
+          cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
+          options: {
+            baseUrl: scriptBaseUrl,
+            gate: scriptGate,
+            importMaps,
+            moduleSeeds: astroSeeds,
+            preloadSeeds,
+            documentHtml: html,
+          },
+          sandboxOutbound: ctx.browser.sandboxOutbound,
+        }),
+      );
+    }
     scriptDescriptors = walkResult.descriptors;
     scriptBundle = traceSpan(ctx.env.HOST_TRACER, "navigate.build_bundle", () =>
       buildScriptBundle(scriptDescriptors, {
@@ -2151,6 +2342,7 @@ async function pushNavigateToPageScriptInner(
         importMapModuleSource: walkResult.importMapModuleSource,
         insertedBake: walkResult.insertedDescriptors,
         insertedDigests,
+        analysisCache: classicAnalysis,
       }),
     );
     try {
@@ -2300,9 +2492,12 @@ async function pushNavigateToPageScriptInner(
     );
   }
 
+  if (pendingBlankRetire) await pendingBlankRetire;
+
   // The bundle and prefetch awaits above can outlast the connection or be overtaken by a newer
   // navigate; either way, load no isolate for this one.
   if (ctx.browser.wsClosing || target.navigateGeneration !== generation) {
+    stylesheetPrefetch?.cancel();
     return { console: consoleAcc };
   }
   const raInitTimings: PageScriptInitTimings = {};
@@ -2345,10 +2540,12 @@ async function pushNavigateToPageScriptInner(
           initTimings: raInitTimings,
           capOverrides: ctx.browser.isolateCapOverrides,
           sandboxOutbound: ctx.browser.sandboxOutbound,
+          prefetchedStylesheets: stylesheetPrefetch,
         }),
       { generation },
     );
   } catch (err) {
+    stylesheetPrefetch?.cancel();
     console.warn(
       "[kitesurf-nav] getOrCreatePageScript threw:",
       err instanceof Error ? err.message : String(err),
@@ -3320,6 +3517,9 @@ function drivePageTasks(ctx: DispatchCtx, target: TargetState, loaded: Promise<u
       if (!r || r.pumped < 0) return;
       if (r.pumped > 0) {
         idleSince = null;
+        // workerd checks sockets and timers only once its ready queue drains, so back-to-back pump
+        // RPCs would hold fetch responses and engine timers until the page idles. Yield a turn.
+        await new Promise((resolve) => setTimeout(resolve, 0));
         continue;
       }
       idleSince ??= Date.now();
@@ -3929,7 +4129,14 @@ function prespawnOopifFrame(ctx: DispatchCtx, target: TargetState, f: FrameState
       return null;
     }
   });
-  const settled = promise.then((pre) => {
+  const settled = promise.then(async (pre) => {
+    if (pre && (f.detached || ctx.browser.wsClosing) && f.oopifPrespawn === entry) {
+      f.oopifPrespawn = undefined;
+      lease.release();
+      if (f.pageScriptLease === lease) f.pageScriptLease = null;
+      await discardOopifPrespawnResult(pre, "oopif prespawn detached before adopt", true);
+      return null;
+    }
     if (!pre) {
       lease.release();
       if (f.pageScriptLease === lease) f.pageScriptLease = null;
@@ -4070,12 +4277,21 @@ async function spawnOopifPipeline(
         viewport = { width: w, height: h };
       }
     } catch {}
+    const oopifDisposeDeps = {
+      budget: browser.workerBudget,
+      waitUntil: (p: Promise<unknown>) => ctx.ctx.waitUntil(p),
+    };
     if (
       browser.wsClosing ||
       target.navigateGeneration !== generationAtStart ||
       target.frames.get(f.frameId) !== f ||
       f.detached
     ) {
+      discardOopifPrespawn(f, "oopif spawn superseded", oopifDisposeDeps);
+      if (f.pageScriptLease === lease) {
+        lease.release();
+        f.pageScriptLease = null;
+      }
       return;
     }
     const args = { ...oopifSpawnArgs(ctx, target, f), viewport };
@@ -4106,12 +4322,16 @@ async function spawnOopifPipeline(
       target.frames.get(f.frameId) !== f ||
       f.detached
     ) {
-      try {
-        await spawn.stub.unload();
-      } catch {}
-      try {
-        spawn.stub.close?.("oopif spawn superseded");
-      } catch {}
+      const killAtOnce = browser.wsClosing || f.detached;
+      await disposeStub(
+        spawn.stub,
+        {
+          unload: killAtOnce ? "none" : "awaited",
+          reason: "oopif spawn superseded",
+          killAtOnce,
+        },
+        oopifDisposeDeps,
+      );
       lease.release();
       f.pageScriptLease = null;
       return;
@@ -4121,23 +4341,21 @@ async function spawnOopifPipeline(
     if (
       !sameAncestorOrigins(args.ancestorOrigins, frameAncestorOrigins(f, target.frames, target.url))
     ) {
-      try {
-        await spawn.stub.unload();
-      } catch {}
-      try {
-        spawn.stub.close?.("oopif spawn stale: ancestry changed");
-      } catch {}
+      await disposeStub(
+        spawn.stub,
+        { unload: "awaited", reason: "oopif spawn stale: ancestry changed" },
+        oopifDisposeDeps,
+      );
       lease.release();
       f.pageScriptLease = null;
       return;
     }
     if (f.url !== urlAtStart) {
-      try {
-        await spawn.stub.unload();
-      } catch {}
-      try {
-        spawn.stub.close?.("oopif spawn stale: src changed mid-spawn");
-      } catch {}
+      await disposeStub(
+        spawn.stub,
+        { unload: "awaited", reason: "oopif spawn stale: src changed mid-spawn" },
+        oopifDisposeDeps,
+      );
       lease.release();
       f.pageScriptLease = null;
       f.oopifSpawning = false;

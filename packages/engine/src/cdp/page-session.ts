@@ -214,6 +214,22 @@ export function resolveTarget(
   throw new Error(noTargetMessage);
 }
 
+/** The page target a session's pre-nav script belongs to: its target, or the page that owns its
+ * OOPIF frame. A browser-target session returns null so the caller stores it browser-wide. */
+export function resolvePreNavScriptTarget(
+  ctx: DispatchCtx,
+  sessionId: string,
+): TargetState | null {
+  for (const t of ctx.browser.targets.values()) {
+    if (t.type !== "page") continue;
+    if (t.sessions.has(sessionId)) return t;
+    for (const frame of t.frames.values()) {
+      if (frame.sessions.has(sessionId)) return t;
+    }
+  }
+  return null;
+}
+
 export type SessionOps = {
   readonly [M in QueryDomMethod]: (args: QueryDomArgs<M>) => Promise<QueryDomResult<M>>;
 };
