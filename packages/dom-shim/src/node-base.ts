@@ -200,10 +200,23 @@ function ownChildArray(parent: NodeBase | DetachedDocument): ArrayLike<NodeBase>
   return get ? get() : list;
 }
 
+// The first wrapper among the children of `parentId` walking from `start` by `step`, read by index
+// so an edge read after a mutation does not rebuild the whole child list. Skips what it filters.
+function wrapperAt(parentId: number, start: number, step: number): NodeBase | null {
+  for (let i = start; i >= 0; i += step) {
+    const id = dom.childIdAt(parentId, i);
+    if (id < 0) return null;
+    const child = cache.get(id) || nodeFor(id);
+    if (child) return child;
+  }
+  return null;
+}
+
 function edgeChild(node: NodeBase, edge: "first" | "last"): NodeBase | null {
-  const ids = unlistedChildIds(node);
-  if (ids) {
-    return edge === "first" ? wrapperFrom(ids, 0, 1) : wrapperFrom(ids, ids.length - 1, -1);
+  if (node instanceof NodeBase && node._id >= 0 && node.nodeType !== DOCUMENT_NODE) {
+    return edge === "first"
+      ? wrapperAt(node._id, 0, 1)
+      : wrapperAt(node._id, dom.childCount(node._id) - 1, -1);
   }
   const kids = ownChildArray(node);
   if (kids.length === 0) return null;
@@ -241,6 +254,60 @@ type TreeParent = NodeBase | DetachedDocument;
 // parsed handle themselves.
 type TreeArg = TreeParent | ParsedElement;
 
+// One element, text or comment node of `sourceDom` created in `destDom`, without children; null
+// for any other node type.
+function copyOneNodeAcross(
+  sourceDom: DomHandle,
+  sourceId: number,
+  destDom: DomHandle,
+): number | null {
+  let info: KsNodeInfo | null;
+  try {
+    info = sourceDom.nodeInfo(sourceId);
+  } catch {
+    info = null;
+  }
+  if (!info) return null;
+  try {
+    if (info.nodeType === ELEMENT_NODE) {
+      const newId = destDom.createElement((info.nodeName || "DIV").toLowerCase());
+      for (const a of parsedAttrs(sourceDom, sourceId)) {
+        try {
+          destDom.setAttribute(newId, a.name, a.value);
+        } catch {}
+      }
+      return newId;
+    }
+    if (info.nodeType === TEXT_NODE) {
+      let text = "";
+      try {
+        text = sourceDom.textContent(sourceId) || "";
+      } catch {}
+      return destDom.createTextNode(text);
+    }
+    if (info.nodeType === COMMENT_NODE) return destDom.createComment(info.nodeValue || "");
+  } catch {}
+  return null;
+}
+
+// A deep copy of `sourceId`'s subtree in `destDom`, built with an explicit stack so a deeply
+// nested parsed document cannot overflow the call stack. Skipped node types drop their subtree.
+function copyNodeAcross(sourceDom: DomHandle, sourceId: number, destDom: DomHandle): number | null {
+  const rootId = copyOneNodeAcross(sourceDom, sourceId, destDom);
+  if (rootId === null) return null;
+  const pending: Array<[number, number]> = [[sourceId, rootId]];
+  for (let next = pending.pop(); next; next = pending.pop()) {
+    const [fromId, toId] = next;
+    for (const childId of sourceDom.childIds(fromId)) {
+      const copyId = copyOneNodeAcross(sourceDom, childId, destDom);
+      if (copyId === null) continue;
+      destDom.appendChildNode(toId, copyId);
+      pending.push([childId, copyId]);
+    }
+  }
+  return rootId;
+}
+
 export function adoptIntoDom(
   destDom: DomHandle,
   wrapper: AdoptableNode | null | undefined,
@@ -252,40 +319,13 @@ export function adoptIntoDom(
   if (!sourceDom || sourceDom === destDom) return;
   // wasm-bindgen converts a node id argument to a number; do it here.
   const sourceId = Number(wrapper._id);
-  let info: KsNodeInfo | null;
+  const newId = copyNodeAcross(sourceDom, sourceId, destDom);
+  if (newId === null) return;
+  // Adoption moves the node out of its old tree. Leaving it there made
+  // `while (src.firstChild) dest.appendChild(src.firstChild)` loop forever.
   try {
-    info = sourceDom.nodeInfo(sourceId);
-  } catch {
-    info = null;
-  }
-  if (!info) return;
-  let newId: number;
-  if (info.nodeType === ELEMENT_NODE) {
-    const tag = (info.nodeName || "DIV").toLowerCase();
-    try {
-      newId = destDom.createElement(tag);
-    } catch {
-      return;
-    }
-    const attrs = parsedAttrs(sourceDom, sourceId);
-    for (const a of attrs) {
-      try {
-        destDom.setAttribute(newId, a.name, a.value);
-      } catch {}
-    }
-  } else if (info.nodeType === TEXT_NODE) {
-    let text = "";
-    try {
-      text = sourceDom.textContent(sourceId) || "";
-    } catch {}
-    try {
-      newId = destDom.createTextNode(text);
-    } catch {
-      return;
-    }
-  } else {
-    return;
-  }
+    sourceDom.removeNode(sourceId);
+  } catch {}
   registerParsedHandle(wrapper, destDom);
   wrapper._id = newId;
   if (destDom === dom) adoptedWrapperIds.add(newId);
@@ -1148,19 +1188,21 @@ class NodeBase extends KsEventTarget implements Idl.Node {
   appendChild<T extends NodeBase>(child: T): T {
     maybeScheduleSlotchange(this._id);
     if (!child) throw notSupported("appendChild: null/undefined child");
-    // A DOMParser node carries its handle in the private registry.
+    assertCanHaveChildren(this, "appendChild");
+    assertNotDocumentChild(child, "appendChild");
+    assertDoctypeOnlyInDocument(this, child, "appendChild");
+    assertNotTextIntoDocument(this, child, "appendChild");
+    assertOneElementChild(this, child, "appendChild");
+    // A DOMParser node carries its handle in the private registry; validate above before
+    // adopting so a rejected appendChild never mutates the source parsed document.
     const childDom = parsedHandle(child);
     if (childDom && childDom !== dom) {
       try {
         adoptIntoDom(dom, child, document);
       } catch {}
+    } else {
+      assertNotAncestor(this, child, "appendChild");
     }
-    assertCanHaveChildren(this, "appendChild");
-    assertNotAncestor(this, child, "appendChild");
-    assertNotDocumentChild(child, "appendChild");
-    assertDoctypeOnlyInDocument(this, child, "appendChild");
-    assertNotTextIntoDocument(this, child, "appendChild");
-    assertOneElementChild(this, child, "appendChild");
     let childNT;
     try {
       childNT = child.nodeType;
@@ -1234,7 +1276,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       dom.appendChildNode(this._id, child._id);
       bumpMutationSeq(undefined, true);
       {
-        const newIdx = dom.childIds(this._id).length - 1;
+        const newIdx = dom.childCount(this._id) - 1;
         if (newIdx >= 0) rangeAfterInsert(this, newIdx, 1);
       }
       if (oldParent && !intraParent && typeof oldParent._id === "number" && oldParent._id >= 0) {
@@ -1401,7 +1443,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     const insertBeforeOldIndex = oldParent && tracksRanges ? nodeIndexOf(newChild) : -1;
     let refIndex = -1;
     if (tracksRanges) {
-      refIndex = refChild ? nodeIndexOf(refChild) : dom.childIds(this._id).length;
+      refIndex = refChild ? nodeIndexOf(refChild) : dom.childCount(this._id);
     }
     try {
       const curParent = dom.parentId(newId);
