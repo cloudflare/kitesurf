@@ -1,0 +1,117 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 20 Nov 2026 06:57:00 +0000
+Subject: [PATCH] Raise GC threshold to 4 MiB and skip unreachable Vec on
+ remark pass
+
+Raise the initial collection threshold from 1 MiB to 4 MiB with 55% target occupancy to avoid repeated full mark-sweep collections during script boot, and skip allocating the unreachable Vec during the post-finalize mark pass.
+---
+ src/lib.rs | 43 ++++++++++++++++++++++++-------------------
+ 1 file changed, 24 insertions(+), 19 deletions(-)
+
+diff --git a/src/lib.rs b/src/lib.rs
+index a73c3c6..33b8076 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -65,9 +65,10 @@ struct GcConfig {
+ impl Default for GcConfig {
+     fn default() -> Self {
+         Self {
+-            // Start at 1MB, the nursary size for V8 is ~1-8MB and SM can be up to 16MB
+-            threshold: 1_048_576,
+-            used_space_percentage: 70,
++            // Start at 4 MiB with ~1.8x growth to avoid repeated full mark-sweep
++            // cycles while large scripts are parsed and executed on page load.
++            threshold: 4 * 1024 * 1024,
++            used_space_percentage: 55,
+         }
+     }
+ }
+@@ -230,7 +231,8 @@ impl Collector {
+
+         let mut tracer = Tracer::new();
+
+-        let unreachables = Self::mark_heap(&mut tracer, &gc.strongs, &gc.weaks, &gc.weak_maps);
++        let unreachables =
++            Self::mark_heap::<true>(&mut tracer, &gc.strongs, &gc.weaks, &gc.weak_maps);
+
+         assert!(tracer.is_empty(), "The queue should be empty");
+
+@@ -240,9 +242,8 @@ impl Collector {
+             // SAFETY: All passed pointers are valid, since we won't deallocate until `Self::sweep`.
+             unsafe { Self::finalize(unreachables) };
+
+-            // Reuse the tracer's already allocated capacity.
+-            let _final_unreachables =
+-                Self::mark_heap(&mut tracer, &gc.strongs, &gc.weaks, &gc.weak_maps);
++            // Reuse the tracer's already allocated capacity; skip building unreachable lists.
++            let _ = Self::mark_heap::<false>(&mut tracer, &gc.strongs, &gc.weaks, &gc.weak_maps);
+         }
+
+         // SAFETY: The head of our linked list is always valid per the invariants of our GC.
+@@ -299,7 +300,7 @@ impl Collector {
+     }
+
+     /// Walk the heap and mark any nodes deemed reachable
+-    fn mark_heap(
++    fn mark_heap<const COLLECT_UNREACHABLES: bool>(
+         tracer: &mut Tracer,
+         strongs: &[GcErasedPointer],
+         weaks: &[EphemeronPointer],
+@@ -322,17 +323,19 @@ impl Collector {
+                 unsafe {
+                     tracer.trace_until_empty();
+                 }
+-            } else if !node_ref.is_marked() {
++            } else if COLLECT_UNREACHABLES && !node_ref.is_marked() {
+                 strong_dead.push(*node);
+             }
+         }
+
+         // 0.1. Early return if there are no ephemerons in the GC
+         if weaks.is_empty() {
+-            strong_dead.retain_mut(|node| {
+-                // SAFETY: node must be valid as this phase cannot drop any node.
+-                unsafe { !node.as_ref().is_marked() }
+-            });
++            if COLLECT_UNREACHABLES {
++                strong_dead.retain_mut(|node| {
++                    // SAFETY: node must be valid as this phase cannot drop any node.
++                    unsafe { !node.as_ref().is_marked() }
++                });
++            }
+             return Unreachables {
+                 strong: strong_dead,
+                 weak: Vec::new(),
+@@ -406,10 +409,12 @@ impl Collector {
+         // 4. The remaining list should contain the ephemerons that are either unreachable or its key
+         // is dead. Cleanup the strong pointers since this procedure could have marked some more strong
+         // pointers.
+-        strong_dead.retain_mut(|node| {
+-            // SAFETY: node must be valid as this phase cannot drop any node.
+-            unsafe { !node.as_ref().is_marked() }
+-        });
++        if COLLECT_UNREACHABLES {
++            strong_dead.retain_mut(|node| {
++                // SAFETY: node must be valid as this phase cannot drop any node.
++                unsafe { !node.as_ref().is_marked() }
++            });
++        }
+
+         Unreachables {
+             strong: strong_dead,
+@@ -641,12 +646,12 @@ pub unsafe fn census<R>(discounted: &[CensusKey], f: impl FnOnce(&mut Census) ->
+             tracer: Tracer::new(),
+             values_by_key: HashMap::new(),
+         };
+-        drop(Collector::mark_heap(
++        let _ = Collector::mark_heap::<false>(
+             &mut census.tracer,
+             &gc.strongs,
+             &gc.weaks,
+             &gc.weak_maps,
+-        ));
++        );
+         // Script can deref a WeakRef, so a reached one roots its target. A
+         // WeakMap or WeakSet never yields its keys: its entries keep their
+         // values only while the key is reached, as in a collection.

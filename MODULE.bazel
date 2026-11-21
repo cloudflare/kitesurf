@@ -118,6 +118,7 @@ cargo_workspaces.patched(
         "boa_gc-0.22.0": "af82119558ab1002d1978c8459b53a3ebb506177d29a3aca37c07c1777b1d966",
         "boa_interner-0.22.0": "317c631e791f5cb7d0017e43c0a758b0eaffd40c34c4c360e2a6be7752b78cd1",
         "boa_parser-0.22.0": "641e81b3c8cbb7a2140547fb3ea534e9edf210b4e8c920b5fa864a919e11fbcf",
+        "boa_string-0.22.0": "30bf86c2bcff5bf2547acbfc516c5d3108ca527cb131511d749bf6fbef762c0e",
         "jpeg-encoder-0.7.0": "0b0b36cbb4e6704f12f5b5d7b01dac593982c6550859ebd5a66fb15c9ea27fd5",
         "parley-0.12.0": "61bd0c0c1737f0b3d3726dc06b225083af213b61913e4fbae1670613a106c6ce",
         "parley_engine-0.12.0": "b74c0d373e462e504ad4436710a39f099e18e848e1ee711f70cd2dcd5a69b290",

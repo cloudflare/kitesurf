@@ -1,0 +1,64 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Wed, 18 Nov 2026 17:04:08 +0000
+Subject: [PATCH] buffered_lexer: return the buffered next token without a call
+
+The parser peeks at the next token at every grammar level, so a few
+tokens' worth of peeks happen per token. Each went through the general
+peek loop out of line; that function was the largest single self-time
+entry in the parse profile, about 10% of samples.
+
+peek is now inlined and returns the buffered token directly when asked
+for the next one and it is not a line terminator being skipped, which is
+what the loop returns in that case. Everything else goes to the
+unchanged loop, now peek_buffered.
+
+Parse time for eight third-party scripts (3.0 MiB): 331 -> 287 ms as
+wasm under V8 and 234 -> 227 ms natively, for 15 KiB more wasm. ASTs,
+collected source text, errors and top-level bytecode for 6009 npm files
+are unchanged; returning a skipped line terminator from the fast path
+fails 81 parser tests.
+---
+ src/parser/cursor/buffered_lexer/mod.rs | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/src/parser/cursor/buffered_lexer/mod.rs b/src/parser/cursor/buffered_lexer/mod.rs
+index 67ba7ae..9528d43 100644
+--- a/src/parser/cursor/buffered_lexer/mod.rs
++++ b/src/parser/cursor/buffered_lexer/mod.rs
+@@ -227,6 +227,7 @@ where
+     ///  - `peek(1, false) == \n`
+     ///  - `peek(2, true) == None` (End of stream)
+     ///  - `peek(2, false) == B`
++    #[inline]
+     pub(super) fn peek(
+         &mut self,
+         skip_n: usize,
+@@ -238,6 +239,27 @@ where
+             "you cannot skip more than {MAX_PEEK_SKIP} elements",
+         );
+
++        // Most peeks are of the next token, already buffered, and the parser peeks at every
++        // grammar level; this path returns what `peek_buffered` would, without the call.
++        if skip_n == 0 && self.read_index != self.write_index {
++            let ready = self.peeked[self.read_index].as_ref().is_none_or(|token| {
++                !skip_line_terminators || !matches!(token.kind(), TokenKind::LineTerminator)
++            });
++            if ready {
++                return Ok(self.peeked[self.read_index].as_ref());
++            }
++        }
++
++        self.peek_buffered(skip_n, skip_line_terminators, interner)
++    }
++
++    #[inline(never)]
++    fn peek_buffered(
++        &mut self,
++        skip_n: usize,
++        skip_line_terminators: bool,
++        interner: &mut Interner,
++    ) -> ParseResult<Option<&Token>> {
+         let mut read_index = self.read_index;
+         let mut count = 0;
+         let res_token = loop {

@@ -1,0 +1,97 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 20 Nov 2026 06:57:00 +0000
+Subject: [PATCH] Split InlineCache::get_slot hot path and use FxBuildHasher in
+ SharedShape
+
+Move stale-entry pruning and polymorphic overflow lookup into a cold helper so monomorphic hits inline into property opcodes, and switch SharedShape::rollback_before from SipHash to FxBuildHasher.
+---
+ src/object/shape/shared_shape/mod.rs |  7 +++---
+ src/vm/inline_cache/mod.rs           | 33 +++++++++++++++++-----------
+ 2 files changed, 24 insertions(+), 16 deletions(-)
+
+diff --git a/src/object/shape/shared_shape/mod.rs b/src/object/shape/shared_shape/mod.rs
+index 2a24490..74ca58e 100644
+--- a/src/object/shape/shared_shape/mod.rs
++++ b/src/object/shape/shared_shape/mod.rs
+@@ -4,11 +4,12 @@ pub(crate) mod template;
+ #[cfg(test)]
+ mod tests;
+
+-use std::{collections::hash_map::RandomState, hash::Hash};
++use std::hash::Hash;
+
+ use bitflags::bitflags;
+ use boa_gc::{Finalize, Gc, Trace, WeakGc, empty_trace};
+ use indexmap::IndexMap;
++use rustc_hash::FxBuildHasher;
+
+ use crate::{JsObject, object::JsPrototype, property::PropertyKey};
+
+@@ -362,10 +363,10 @@ impl SharedShape {
+     ) -> (
+         Self,
+         Option<JsPrototype>,
+-        IndexMap<PropertyKey, SlotAttributes>,
++        IndexMap<PropertyKey, SlotAttributes, FxBuildHasher>,
+     ) {
+         let mut prototype = None;
+-        let mut transitions: IndexMap<PropertyKey, SlotAttributes, RandomState> =
++        let mut transitions: IndexMap<PropertyKey, SlotAttributes, FxBuildHasher> =
+             IndexMap::default();
+
+         let mut current = Some(self);
+diff --git a/src/vm/inline_cache/mod.rs b/src/vm/inline_cache/mod.rs
+index 7d8cffc..c3b3601 100644
+--- a/src/vm/inline_cache/mod.rs
++++ b/src/vm/inline_cache/mod.rs
+@@ -113,29 +113,36 @@ impl InlineCache {
+
+     /// Returns the cached [`Slot`] if a matching live shape exists in the inline cache.
+     ///
+-    /// Uses a shared borrow on the fast path and avoids upgrading the weak shape into a
+-    /// strong `Gc` handle; stale weak references are pruned only when encountered.
+-    #[inline]
++    /// Keeps the monomorphic hit path small enough to inline into property opcodes;
++    /// stale-entry pruning and polymorphic overflow live in `get_slot_slow`.
++    #[inline(always)]
+     pub(crate) fn get_slot(&self, shape: &Shape) -> Option<Slot> {
+         if self.megamorphic.get() {
+             return None;
+         }
+         let shape_addr = shape.to_addr_usize();
+-
+-        let mut first_stale = false;
+         {
+             let first = self.first.borrow();
+-            if let Some(entry) = first.as_ref() {
+-                if entry.shape_addr == shape_addr {
+-                    if entry.shape.is_upgradable() {
+-                        return Some(entry.slot);
+-                    }
+-                    first_stale = true;
+-                } else if !entry.shape.is_upgradable() {
+-                    first_stale = true;
++            let Some(entry) = first.as_ref() else {
++                drop(first);
++                return self.get_slot_slow(shape_addr, false);
++            };
++            if entry.shape_addr == shape_addr {
++                if entry.shape.is_upgradable() {
++                    return Some(entry.slot);
+                 }
++                drop(first);
++                return self.get_slot_slow(shape_addr, true);
+             }
++            let first_stale = !entry.shape.is_upgradable();
++            drop(first);
++            return self.get_slot_slow(shape_addr, first_stale);
+         }
++    }
++
++    #[cold]
++    #[inline(never)]
++    fn get_slot_slow(&self, shape_addr: usize, first_stale: bool) -> Option<Slot> {
+         if first_stale {
+             let mut first = self.first.borrow_mut();
+             if first.as_ref().is_some_and(|e| !e.shape.is_upgradable()) {

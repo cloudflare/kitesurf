@@ -1,0 +1,561 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 19 Nov 2026 19:06:10 +0000
+Subject: [PATCH] vm: inline hottest opcodes in Context::run with cached pc,
+ rp, and bytecode
+
+In WebAssembly every OPCODE_HANDLERS[op] dispatch is a call_indirect with
+signature checks, ABI overhead, and a ControlFlow<CompletionRecord> return,
+plus reloading frame, pc, rp, and bytecode slice on every instruction.
+
+Inline the hottest non-frame-changing opcodes (register moves, jumps,
+constant stores, int32 arithmetic/bitwise/comparison fast paths, and loop
+iteration checks) in a br_table loop inside Context::run, syncing pc and
+reloading frame state only on fallback to OPCODE_HANDLERS.
+---
+ src/vm/mod.rs        | 506 ++++++++++++++++++++++++++++++++++++++++---
+ src/vm/opcode/mod.rs |   3 +-
+ 2 files changed, 481 insertions(+), 28 deletions(-)
+
+diff --git a/src/vm/mod.rs b/src/vm/mod.rs
+index a1961a3..a05fb3c 100644
+--- a/src/vm/mod.rs
++++ b/src/vm/mod.rs
+@@ -12,7 +12,9 @@ use crate::{
+     object::JsFunction,
+     realm::Realm,
+     script::Script,
+-    vm::opcode::{OPCODE_HANDLERS, OPCODE_HANDLERS_BUDGET},
++    vm::opcode::{
++        Address, Argument, IndexOperand, OPCODE_HANDLERS, OPCODE_HANDLERS_BUDGET, RegisterOperand,
++    },
+     vm::shadow_stack::ErrorStack,
+ };
+ use boa_gc::{Finalize, Gc, Trace, custom_trace};
+@@ -1103,36 +1105,486 @@ impl Context {
+
+     pub(crate) fn run(&mut self) -> CompletionRecord {
+         let _ks_depth = KsExecDepthGuard::enter();
+-        loop {
+-            // Walk frame -> code block -> bytes once per instruction and share
+-            // it with the handler. This walk is hot.
+-            let frame = self.vm.frame();
+-            let pc = frame.pc as usize;
+-            // SAFETY: only `expand` writes the box, and only while it is empty: this slice is
+-            // dead before the cold path below calls it, and a non-empty box is never rewritten.
+-            let bytes: &[u8] = unsafe { frame.code_block.bytecode.executable() };
+-            let Some(&byte) = bytes.get(pc) else {
+-                // A still-packed code block reads as empty, so its first instruction
+-                // lands here; expanding on this cold path keeps running code free of the check.
+-                if frame.code_block.bytecode.is_packed() {
+-                    frame.code_block.bytecode.expand();
+-                    continue;
++        #[cfg(any(feature = "trace", feature = "fuzz"))]
++        {
++            loop {
++                let frame = self.vm.frame();
++                let pc = frame.pc as usize;
++                // SAFETY: only `expand` writes the box, and only while it is empty: this slice is
++                // dead before the cold path below calls it, and a non-empty box is never rewritten.
++                let bytes: &[u8] = unsafe { frame.code_block.bytecode.executable() };
++                let Some(&byte) = bytes.get(pc) else {
++                    if frame.code_block.bytecode.is_packed() {
++                        frame.code_block.bytecode.expand();
++                        continue;
++                    }
++                    break;
++                };
++                let bytes: *const [u8] = bytes;
++                let opcode = Opcode::decode(byte);
++
++                match self.execute_one(
++                    |context, opcode| OPCODE_HANDLERS[opcode as usize](context, pc, bytes),
++                    opcode,
++                ) {
++                    ControlFlow::Continue(()) => {}
++                    ControlFlow::Break(value) => return value,
+                 }
+-                break;
+-            };
+-            let bytes: *const [u8] = bytes;
+-            let opcode = Opcode::decode(byte);
+-
+-            match self.execute_one(
+-                |context, opcode| OPCODE_HANDLERS[opcode as usize](context, pc, bytes),
+-                opcode,
+-            ) {
+-                ControlFlow::Continue(()) => {}
+-                ControlFlow::Break(value) => return value,
+             }
++            return CompletionRecord::Throw(JsError::from_native(JsNativeError::error()));
+         }
+
+-        CompletionRecord::Throw(JsError::from_native(JsNativeError::error()))
++        #[cfg(not(any(feature = "trace", feature = "fuzz")))]
++        {
++            'frame_reload: loop {
++                let frame = self.vm.frame();
++                let mut pc = frame.pc as usize;
++                let rp = frame.rp as usize;
++                // SAFETY: only `expand` writes the box, and only while it is empty; frames pin
++                // their bytecode so the slice stays valid until a fallback handler changes frames.
++                let bytes: *const [u8] = unsafe { frame.code_block.bytecode.executable() };
++                let bytes_len = unsafe { (&*bytes).len() };
++                if pc >= bytes_len {
++                    if frame.code_block.bytecode.is_packed() {
++                        frame.code_block.bytecode.expand();
++                        continue 'frame_reload;
++                    }
++                    break 'frame_reload;
++                }
++
++                // Inline the hottest non-frame-changing opcodes in a `br_table` loop with
++                // cached `pc`, `rp`, and `bytes` to avoid `call_indirect` and frame reloads.
++                loop {
++                    // SAFETY: `bytes` stays valid while this frame remains top-of-stack and no
++                    // fallback handler has run.
++                    let slice: &[u8] = unsafe { &*bytes };
++                    let Some(&byte) = slice.get(pc) else {
++                        self.vm.frame_mut().pc = pc as u32;
++                        break 'frame_reload;
++                    };
++                    let opcode = Opcode::decode(byte);
++
++                    match opcode {
++                        Opcode::Move => {
++                            let ((dst, src), next_pc) =
++                                <(RegisterOperand, RegisterOperand)>::decode(slice, pc + 1);
++                            let val = self.vm.stack.stack[rp + usize::from(src)].clone();
++                            self.vm.stack.stack[rp + usize::from(dst)] = val;
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::PushFromRegister => {
++                            let (src, next_pc) = RegisterOperand::decode(slice, pc + 1);
++                            let val = self.vm.stack.stack[rp + usize::from(src)].clone();
++                            self.vm.stack.push(val);
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::PopIntoRegister => {
++                            let (dst, next_pc) = RegisterOperand::decode(slice, pc + 1);
++                            let val = self.vm.stack.pop();
++                            self.vm.stack.stack[rp + usize::from(dst)] = val;
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::Pop => {
++                            let _ = self.vm.stack.pop();
++                            pc += 1;
++                            continue;
++                        }
++                        Opcode::SetRegisterFromAccumulator => {
++                            let (dst, next_pc) = RegisterOperand::decode(slice, pc + 1);
++                            let val = self.vm.get_return_value();
++                            self.vm.stack.stack[rp + usize::from(dst)] = val;
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::Jump => {
++                            let (address, _) = Address::decode(slice, pc + 1);
++                            pc = u32::from(address) as usize;
++                            continue;
++                        }
++                        Opcode::JumpIfFalse => {
++                            let ((address, val), next_pc) =
++                                <(Address, RegisterOperand)>::decode(slice, pc + 1);
++                            pc = if self.vm.stack.stack[rp + usize::from(val)].to_boolean() {
++                                next_pc
++                            } else {
++                                u32::from(address) as usize
++                            };
++                            continue;
++                        }
++                        Opcode::JumpIfTrue => {
++                            let ((address, val), next_pc) =
++                                <(Address, RegisterOperand)>::decode(slice, pc + 1);
++                            pc = if self.vm.stack.stack[rp + usize::from(val)].to_boolean() {
++                                u32::from(address) as usize
++                            } else {
++                                next_pc
++                            };
++                            continue;
++                        }
++                        Opcode::JumpIfNotLessThan => {
++                            let ((address, lhs, rhs), next_pc) =
++                                <(Address, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            if let Some(lt) = self.vm.stack.stack[rp + usize::from(lhs)]
++                                .lt_fast(&self.vm.stack.stack[rp + usize::from(rhs)])
++                            {
++                                pc = if lt {
++                                    next_pc
++                                } else {
++                                    u32::from(address) as usize
++                                };
++                                continue;
++                            }
++                        }
++                        Opcode::JumpIfNotLessThanOrEqual => {
++                            let ((address, lhs, rhs), next_pc) =
++                                <(Address, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            if let Some(le) = self.vm.stack.stack[rp + usize::from(lhs)]
++                                .le_fast(&self.vm.stack.stack[rp + usize::from(rhs)])
++                            {
++                                pc = if le {
++                                    next_pc
++                                } else {
++                                    u32::from(address) as usize
++                                };
++                                continue;
++                            }
++                        }
++                        Opcode::StoreZero => {
++                            let (dst, next_pc) = RegisterOperand::decode(slice, pc + 1);
++                            self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(0);
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::StoreOne => {
++                            let (dst, next_pc) = RegisterOperand::decode(slice, pc + 1);
++                            self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(1);
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::StoreInt8 => {
++                            let ((dst, v), next_pc) =
++                                <(RegisterOperand, i8)>::decode(slice, pc + 1);
++                            self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(i32::from(v));
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::StoreInt16 => {
++                            let ((dst, v), next_pc) =
++                                <(RegisterOperand, i16)>::decode(slice, pc + 1);
++                            self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(i32::from(v));
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::StoreInt32 => {
++                            let ((dst, v), next_pc) =
++                                <(RegisterOperand, i32)>::decode(slice, pc + 1);
++                            self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(v);
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::StoreUndefined => {
++                            let (dst, next_pc) = RegisterOperand::decode(slice, pc + 1);
++                            self.vm.stack.stack[rp + usize::from(dst)] = JsValue::undefined();
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::StoreNull => {
++                            let (dst, next_pc) = RegisterOperand::decode(slice, pc + 1);
++                            self.vm.stack.stack[rp + usize::from(dst)] = JsValue::null();
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::StoreTrue => {
++                            let (dst, next_pc) = RegisterOperand::decode(slice, pc + 1);
++                            self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(true);
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::StoreFalse => {
++                            let (dst, next_pc) = RegisterOperand::decode(slice, pc + 1);
++                            self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(false);
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::StoreLiteral => {
++                            let ((dst, index), next_pc) =
++                                <(RegisterOperand, IndexOperand)>::decode(slice, pc + 1);
++                            let val: JsValue = match &self.vm.frame().code_block().body().constants
++                                [usize::from(index)]
++                            {
++                                Constant::BigInt(v) => v.clone().into(),
++                                Constant::String(v) => v.clone().into(),
++                                _ => unreachable!("constant should be a string or bigint"),
++                            };
++                            self.vm.stack.stack[rp + usize::from(dst)] = val;
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::Inc => {
++                            let ((dst, src), next_pc) =
++                                <(RegisterOperand, RegisterOperand)>::decode(slice, pc + 1);
++                            if let Some(n) = self.vm.stack.stack[rp + usize::from(src)].as_i32()
++                                && let Some(inc) = n.checked_add(1)
++                            {
++                                self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(inc);
++                                pc = next_pc;
++                                continue;
++                            }
++                        }
++                        Opcode::Dec => {
++                            let ((dst, src), next_pc) =
++                                <(RegisterOperand, RegisterOperand)>::decode(slice, pc + 1);
++                            if let Some(n) = self.vm.stack.stack[rp + usize::from(src)].as_i32()
++                                && let Some(dec) = n.checked_sub(1)
++                            {
++                                self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(dec);
++                                pc = next_pc;
++                                continue;
++                            }
++                        }
++                        Opcode::Add => {
++                            let ((dst, lhs, rhs), next_pc) =
++                                <(RegisterOperand, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            if let (Some(a), Some(b)) = (
++                                self.vm.stack.stack[rp + usize::from(lhs)].as_i32(),
++                                self.vm.stack.stack[rp + usize::from(rhs)].as_i32(),
++                            ) && let Some(sum) = a.checked_add(b)
++                            {
++                                self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(sum);
++                                pc = next_pc;
++                                continue;
++                            }
++                        }
++                        Opcode::Sub => {
++                            let ((dst, lhs, rhs), next_pc) =
++                                <(RegisterOperand, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            if let (Some(a), Some(b)) = (
++                                self.vm.stack.stack[rp + usize::from(lhs)].as_i32(),
++                                self.vm.stack.stack[rp + usize::from(rhs)].as_i32(),
++                            ) && let Some(diff) = a.checked_sub(b)
++                            {
++                                self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(diff);
++                                pc = next_pc;
++                                continue;
++                            }
++                        }
++                        Opcode::BitAnd => {
++                            let ((dst, lhs, rhs), next_pc) =
++                                <(RegisterOperand, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            if let (Some(a), Some(b)) = (
++                                self.vm.stack.stack[rp + usize::from(lhs)].as_i32(),
++                                self.vm.stack.stack[rp + usize::from(rhs)].as_i32(),
++                            ) {
++                                self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(a & b);
++                                pc = next_pc;
++                                continue;
++                            }
++                        }
++                        Opcode::BitOr => {
++                            let ((dst, lhs, rhs), next_pc) =
++                                <(RegisterOperand, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            if let (Some(a), Some(b)) = (
++                                self.vm.stack.stack[rp + usize::from(lhs)].as_i32(),
++                                self.vm.stack.stack[rp + usize::from(rhs)].as_i32(),
++                            ) {
++                                self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(a | b);
++                                pc = next_pc;
++                                continue;
++                            }
++                        }
++                        Opcode::BitXor => {
++                            let ((dst, lhs, rhs), next_pc) =
++                                <(RegisterOperand, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            if let (Some(a), Some(b)) = (
++                                self.vm.stack.stack[rp + usize::from(lhs)].as_i32(),
++                                self.vm.stack.stack[rp + usize::from(rhs)].as_i32(),
++                            ) {
++                                self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(a ^ b);
++                                pc = next_pc;
++                                continue;
++                            }
++                        }
++                        Opcode::ShiftLeft => {
++                            let ((dst, lhs, rhs), next_pc) =
++                                <(RegisterOperand, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            if let (Some(a), Some(b)) = (
++                                self.vm.stack.stack[rp + usize::from(lhs)].as_i32(),
++                                self.vm.stack.stack[rp + usize::from(rhs)].as_i32(),
++                            ) {
++                                self.vm.stack.stack[rp + usize::from(dst)] =
++                                    JsValue::new(a.wrapping_shl((b as u32) & 0x1f));
++                                pc = next_pc;
++                                continue;
++                            }
++                        }
++                        Opcode::ShiftRight => {
++                            let ((dst, lhs, rhs), next_pc) =
++                                <(RegisterOperand, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            if let (Some(a), Some(b)) = (
++                                self.vm.stack.stack[rp + usize::from(lhs)].as_i32(),
++                                self.vm.stack.stack[rp + usize::from(rhs)].as_i32(),
++                            ) {
++                                self.vm.stack.stack[rp + usize::from(dst)] =
++                                    JsValue::new(a.wrapping_shr((b as u32) & 0x1f));
++                                pc = next_pc;
++                                continue;
++                            }
++                        }
++                        Opcode::UnsignedShiftRight => {
++                            let ((dst, lhs, rhs), next_pc) =
++                                <(RegisterOperand, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            if let (Some(a), Some(b)) = (
++                                self.vm.stack.stack[rp + usize::from(lhs)].as_i32(),
++                                self.vm.stack.stack[rp + usize::from(rhs)].as_i32(),
++                            ) {
++                                self.vm.stack.stack[rp + usize::from(dst)] =
++                                    JsValue::new((a as u32).wrapping_shr((b as u32) & 0x1f));
++                                pc = next_pc;
++                                continue;
++                            }
++                        }
++                        Opcode::StrictEq => {
++                            let ((dst, lhs, rhs), next_pc) =
++                                <(RegisterOperand, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            let eq = JsValue::strict_equals(
++                                &self.vm.stack.stack[rp + usize::from(lhs)],
++                                &self.vm.stack.stack[rp + usize::from(rhs)],
++                            );
++                            self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(eq);
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::StrictNotEq => {
++                            let ((dst, lhs, rhs), next_pc) =
++                                <(RegisterOperand, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            let eq = JsValue::strict_equals(
++                                &self.vm.stack.stack[rp + usize::from(lhs)],
++                                &self.vm.stack.stack[rp + usize::from(rhs)],
++                            );
++                            self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(!eq);
++                            pc = next_pc;
++                            continue;
++                        }
++                        Opcode::LessThan => {
++                            let ((dst, lhs, rhs), next_pc) =
++                                <(RegisterOperand, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            if let Some(lt) = self.vm.stack.stack[rp + usize::from(lhs)]
++                                .lt_fast(&self.vm.stack.stack[rp + usize::from(rhs)])
++                            {
++                                self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(lt);
++                                pc = next_pc;
++                                continue;
++                            }
++                        }
++                        Opcode::LessThanOrEq => {
++                            let ((dst, lhs, rhs), next_pc) =
++                                <(RegisterOperand, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            if let Some(le) = self.vm.stack.stack[rp + usize::from(lhs)]
++                                .le_fast(&self.vm.stack.stack[rp + usize::from(rhs)])
++                            {
++                                self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(le);
++                                pc = next_pc;
++                                continue;
++                            }
++                        }
++                        Opcode::GreaterThan => {
++                            let ((dst, lhs, rhs), next_pc) =
++                                <(RegisterOperand, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            if let Some(gt) = self.vm.stack.stack[rp + usize::from(rhs)]
++                                .lt_fast(&self.vm.stack.stack[rp + usize::from(lhs)])
++                            {
++                                self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(gt);
++                                pc = next_pc;
++                                continue;
++                            }
++                        }
++                        Opcode::GreaterThanOrEq => {
++                            let ((dst, lhs, rhs), next_pc) =
++                                <(RegisterOperand, RegisterOperand, RegisterOperand)>::decode(
++                                    slice,
++                                    pc + 1,
++                                );
++                            if let Some(ge) = self.vm.stack.stack[rp + usize::from(rhs)]
++                                .le_fast(&self.vm.stack.stack[rp + usize::from(lhs)])
++                            {
++                                self.vm.stack.stack[rp + usize::from(dst)] = JsValue::new(ge);
++                                pc = next_pc;
++                                continue;
++                            }
++                        }
++                        Opcode::IncrementLoopIteration => {
++                            let max = self.vm.runtime_limits.loop_iteration_limit();
++                            let frame = self.vm.frame_mut();
++                            let prev = frame.loop_iteration_count;
++                            if prev <= max {
++                                frame.loop_iteration_count = prev.wrapping_add(1);
++                                pc += 1;
++                                continue;
++                            }
++                        }
++                        _ => {}
++                    }
++
++                    // Sync cached pc before calling a handler that may inspect pc, push/pop
++                    // frames, or throw, then reload frame state on return.
++                    self.vm.frame_mut().pc = pc as u32;
++                    match OPCODE_HANDLERS[opcode as usize](self, pc, bytes) {
++                        ControlFlow::Continue(()) => continue 'frame_reload,
++                        ControlFlow::Break(value) => return value,
++                    }
++                }
++            }
++
++            CompletionRecord::Throw(JsError::from_native(JsNativeError::error()))
++        }
+     }
+
+     /// Checks if we haven't exceeded the defined runtime limits.
+diff --git a/src/vm/opcode/mod.rs b/src/vm/opcode/mod.rs
+index 01d23a3..1d1b0c8 100644
+--- a/src/vm/opcode/mod.rs
++++ b/src/vm/opcode/mod.rs
+@@ -17,7 +17,8 @@ use crate::{
+     Context,
+     vm::{completion_record::CompletionRecord, completion_record::IntoCompletionRecord},
+ };
+-use args::{Argument, read};
++pub(crate) use args::Argument;
++use args::read;
+
+ // Which side of a property access failed on a null/undefined base, so
+ // the message can say "read" or "set" the way V8's does.
