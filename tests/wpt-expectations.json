@@ -2938,7 +2938,7 @@
     "reason": null
   },
   "/css/css-fonts/parsing/font-size-adjust-computed.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-fonts/parsing/font-size-adjust-invalid.html": {
@@ -3282,7 +3282,7 @@
     "reason": null
   },
   "/css/css-grid/parsing/grid-content-sized-columns-resolution.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/parsing/grid-row-invalid.html": {
@@ -5456,7 +5456,7 @@
   },
   "/css/css-text-decor/parsing/text-decoration-inset-computed.html": {
     "expected": "FAIL",
-    "reason": null
+    "reason": "6 of 16 subtests resolve ch against the default font on CI: document.fonts.load() can run before the ahem.css faces are declared. Passes on a warm engine, so the gate sees it as flaky."
   },
   "/css/css-text-decor/parsing/text-decoration-inset-invalid.html": {
     "expected": "PASS",
@@ -16260,11 +16260,11 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.align.center.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.align.end.ltr.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.align.end.rtl.html": {
@@ -16272,15 +16272,15 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.align.left.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.align.right.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.align.start.ltr.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.align.start.rtl.html": {
@@ -16288,11 +16288,11 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.baseline.alphabetic.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.baseline.bottom.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.baseline.hanging.html": {
@@ -16304,11 +16304,11 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.baseline.middle.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.baseline.top.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.fill.basic-manual.html": {
@@ -16320,7 +16320,7 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.fill.maxWidth.bound.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.fill.maxWidth.fontface.html": {
@@ -16352,7 +16352,7 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.fontface.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.fontface.notinpage.html": {
@@ -16368,27 +16368,27 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.space.basic.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.space.collapse.end.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.space.collapse.nonspace.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.space.collapse.other.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.space.collapse.space.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.space.collapse.start.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.stroke.basic-manual.html": {
@@ -16536,7 +16536,7 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.actualBoundingBox.small-font.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.actualBoundingBox.whitespace.html": {
@@ -16568,7 +16568,7 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.fontBoundingBox-reduced-ascent.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.fontBoundingBox-zero-descent.html": {
@@ -16576,11 +16576,11 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.fontBoundingBox.ahem.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.fontBoundingBox.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.getActualBoundingBox-exceptions.tentative.html": {
@@ -16648,7 +16648,7 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.width.basic.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.width.empty.html": {
