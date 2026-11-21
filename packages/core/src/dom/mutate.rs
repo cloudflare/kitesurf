@@ -597,6 +597,32 @@ impl DomHandle {
         self.layout_dirty.set(true);
         true
     }
+
+    #[wasm_bindgen(js_name = "appendNodeText")]
+    pub fn append_node_text(&self, node_id: u32, text: &str) -> bool {
+        let Some(nid) = self.resolve_node_id(node_id) else {
+            return false;
+        };
+        let mut doc = match self.doc.try_borrow_mut() {
+            Ok(d) => d,
+            Err(_) => return false,
+        };
+        let mut mutr = doc.mutate();
+        let ok = mutr.append_text_to_node(nid, text).is_ok();
+        drop(mutr);
+        if ok {
+            self.layout_dirty.set(true);
+        }
+        ok
+    }
+
+    #[wasm_bindgen(js_name = "styleTextEpoch")]
+    pub fn style_text_epoch(&self) -> u32 {
+        self.doc
+            .try_borrow()
+            .map(|doc| doc.style_text_epoch)
+            .unwrap_or(0)
+    }
 }
 
 impl DomHandle {
