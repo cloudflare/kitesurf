@@ -17,8 +17,10 @@ import type {
   PageScriptEntrypointStub,
   PageScriptSession,
   ReceivedUpstreamParams,
+  SessionOutbound,
   UpstreamEventName,
 } from "@kitesurf/jsrpc-types/page-script";
+import type { PrefetchedStylesheets } from "./prefetch-stylesheets.ts";
 
 export type UpstreamEventHandler = (
   event: UpstreamEventName,
@@ -359,6 +361,7 @@ interface GetOrCreatePageScriptOptions {
   initTimings: PageScriptInitTimings | undefined;
   capOverrides: PageIsolateCapOverrides | undefined;
   sandboxOutbound: SandboxOutboundOverride;
+  prefetchedStylesheets?: PrefetchedStylesheets | null;
   /** Extra modules and the host class name for this isolate (EngineHost.pageIsolate). */
   pageIsolate?: { modules?: Record<string, string>; hostClassName?: string };
 }
@@ -377,6 +380,7 @@ export function getOrCreatePageScript({
   initTimings,
   capOverrides,
   sandboxOutbound,
+  prefetchedStylesheets,
   pageIsolate,
 }: GetOrCreatePageScriptOptions): PageScriptStub {
   const cx = ctx as CtxWithExports;
@@ -589,10 +593,26 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
       }
     : spanWrap;
   const outboundHandle = sandboxOutbound.session(outboundProps);
+  const outbound: SessionOutbound = prefetchedStylesheets
+    ? async (req) => {
+        const hit = prefetchedStylesheets.take(req);
+        if (hit) {
+          const resp = await hit;
+          if (resp) return resp;
+        }
+        return outboundHandle.outbound(req);
+      }
+    : outboundHandle.outbound;
+  const cancelOutboundBodies = prefetchedStylesheets
+    ? (reason?: string) => {
+        prefetchedStylesheets.cancel();
+        outboundHandle.cancelBodies(reason);
+      }
+    : outboundHandle.cancelBodies;
   const session = openPageScriptRpcSession(entrypoint, {
     now: makeWallClock(env),
-    outbound: outboundHandle.outbound,
-    cancelOutboundBodies: outboundHandle.cancelBodies,
+    outbound,
+    cancelOutboundBodies,
     wallCapMs: caps.wallMs > 0 ? caps.wallMs : undefined,
     scriptName: name,
     getTraceParent: tracer ? () => tracer.getSpanContext()?.spanId ?? null : undefined,
