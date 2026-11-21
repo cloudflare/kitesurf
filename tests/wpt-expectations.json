@@ -2822,8 +2822,12 @@
     "reason": "Reftest pin for the all-small-caps/petite-caps/etc. OpenType feature mapping."
   },
   "/css/css-fonts/generic-family-keywords-002.html": {
+    "expected": "PASS",
+    "reason": "The lazy font demand loads the faces the styles use, so the -webkit-generic() fallback measures Ahem instead of the 29px fallback."
+  },
+  "/css/css-fonts/generic-family-keywords-003.html": {
     "expected": "FAIL",
-    "reason": "4 of 22 subtests fail: with `-webkit-generic(fangsong), Ahem` and its kai, khmer-mul and nastaliq siblings, the span does not fall back to Ahem and measures 29px against Ahem's 50px. The old PASS was vacuous: document.fonts.ready resolved before Ahem was fetched, so both sides measured in the fallback font. \u2014 acceptedRegression: waiting for the faces the styles use exposed a font-family gap; nothing regressed.",
+    "reason": "4 of 15 subtests fail: the canvas font parser maps a bare generic(fangsong), generic(kai), generic(khmer-mul) and generic(nastaliq) to sans-serif, so the quoted and unquoted canvas measurements do not both match the @font-face rule. The CSS layout form (generic-family-keywords-002) passes. \u2014 acceptedRegression: the canvas generic() gap is a known limitation of the custom canvas font parser.",
     "acceptedRegression": true
   },
   "/css/css-fonts/inheritance.html": {
@@ -5473,7 +5477,7 @@
   },
   "/css/css-text-decor/parsing/text-decoration-inset-computed.html": {
     "expected": "FAIL",
-    "reason": null
+    "reason": "6 of 16 subtests resolve ch against the default font on CI: document.fonts.load() can run before the ahem.css faces are declared. Passes on a warm engine, so the gate sees it as flaky."
   },
   "/css/css-text-decor/parsing/text-decoration-inset-invalid.html": {
     "expected": "PASS",
@@ -16673,9 +16677,8 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.width.nullCharacter.html": {
-    "expected": "FAIL",
-    "reason": "measureText('\\u0000') in the CanvasTest web font is 50px wide; the null character should take no space. The old PASS was vacuous: document.fonts.ready resolved before CanvasTest was fetched, and the fallback font gives the null character no width. \u2014 acceptedRegression: waiting for the faces the styles use exposed a text measurement gap; nothing regressed.",
-    "acceptedRegression": true
+    "expected": "PASS",
+    "reason": "The canvas shaper drops U+0000, so measureText gives it no advance even with the web font loaded."
   },
   "/html/canvas/element/text/2d.text.measure.width.space.html": {
     "expected": "FAIL",
