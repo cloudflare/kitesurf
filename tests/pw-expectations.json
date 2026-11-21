@@ -140,8 +140,8 @@
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
   "elementhandle-wait-for-element-state.spec.ts::should wait for stable position": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+    "expected": "PASS",
+    "reason": null
   },
   "eval-on-selector-all.spec.ts::should support * capture": {
     "expected": "FAIL",
@@ -436,8 +436,8 @@
     "reason": "Error: expect(received).toEqual(expected) // deep equality"
   },
   "page-add-init-script.spec.ts::should remove init script after dispose": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+    "expected": "PASS",
+    "reason": null
   },
   "page-add-locator-handler.spec.ts::should work when owner frame detaches": {
     "expected": "FAIL",

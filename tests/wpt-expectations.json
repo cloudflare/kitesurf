@@ -5456,7 +5456,7 @@
   },
   "/css/css-text-decor/parsing/text-decoration-inset-computed.html": {
     "expected": "FAIL",
-    "reason": "6 of 16 subtests resolve ch against the default font on CI: document.fonts.load() can run before the ahem.css faces are declared. Passes on a warm engine, so the gate sees it as flaky."
+    "reason": null
   },
   "/css/css-text-decor/parsing/text-decoration-inset-invalid.html": {
     "expected": "PASS",
@@ -18115,7 +18115,7 @@
   },
   "/html/semantics/embedded-content/the-iframe-element/iframe-loading-lazy-to-eager.html": {
     "expected": "PASS",
-    "reason": "Rebaselined 2026-09-16: measures PASS on main (CI and locally, 1/1 subtests); the FAIL pin had drifted behind work that landed without a rebaseline."
+    "reason": null
   },
   "/html/semantics/embedded-content/the-iframe-element/iframe-loading-lazy.html": {
     "expected": "FAIL",
@@ -23385,7 +23385,7 @@
   },
   "/css/cssom-view/offsetTopLeft-border-box.html": {
     "expected": "FAIL",
-    "reason": "Rebaselined 2026-09-16: measures FAIL on main (CI and locally; 22/28 subtests). First failing subtest: container: 0 \u2014 assert_equals: offsetTop expected 2 but got -2 Carried as a regression on the wpt-compare ledger; this pin records the current outcome, it does not accept it."
+    "reason": null
   },
   "/css/cssom-view/offsetParent-fixed.html": {
     "expected": "FAIL",
