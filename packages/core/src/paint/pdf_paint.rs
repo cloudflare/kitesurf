@@ -66,7 +66,7 @@ impl<'a, 'b> KrillaPaintScene<'a, 'b> {
 
 struct CachedFont {
     font: KrillaFont,
-    gid_to_char: HashMap<u32, char>,
+    gid_to_char: std::rc::Rc<HashMap<u32, char>>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -510,7 +510,7 @@ fn get_or_register_font<'c>(
             key.clone(),
             CachedFont {
                 font: kfont,
-                gid_to_char,
+                gid_to_char: std::rc::Rc::new(gid_to_char),
             },
         );
     }
