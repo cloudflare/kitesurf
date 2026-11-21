@@ -3,7 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 // scripts/workerd-config.mjs and docker/front.js, run on the pinned workerd in front of a fake
-// engine that echoes the path it receives and throws on /fail.
+// engine that logs and echoes the path it receives, answers 500 on /fail and throws on /throw.
 
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
@@ -26,7 +26,9 @@ const FAKE_ENGINE = `
 export default {
   fetch(request) {
     const { pathname } = new URL(request.url);
-    if (pathname === "/fail") throw new Error("engine down");
+    console.log("[fake-engine] " + pathname);
+    if (pathname === "/throw") throw new Error("engine down");
+    if (pathname === "/fail") return new Response("engine down", { status: 500 });
     return new Response("engine " + pathname);
   },
 };
@@ -123,12 +125,13 @@ const serve = async function (t, root, probe = "/health") {
   }
 };
 
-const readyLines = (output) => output().match(/\[kitesurf\] ready: /g)?.length ?? 0;
+const READY = "[kitesurf] ready: ";
+const readyLines = (output) => output().split(READY).length - 1;
 
-/** Waits for front.js's `ready` line, which can still be in the pipe after its response. */
-const waitForReady = async function (output) {
+/** Waits for a log line, which can still be in the pipe after its request's response. */
+const waitForLog = async function (output, text) {
   const deadline = Date.now() + DEADLINE_MS;
-  while (readyLines(output) === 0 && Date.now() < deadline) {
+  while (!output().includes(text) && Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 50));
   }
 };
@@ -213,7 +216,7 @@ test(
     assert.equal(text.headers.get("cache-control"), null);
     await text.body?.cancel();
 
-    await waitForReady(output);
+    await waitForLog(output, READY);
     assert.equal(readyLines(output), 1);
   },
 );
@@ -224,14 +227,20 @@ test(
   async (t) => {
     const root = makeImage(t);
     assert.equal(generate(root).status, 0);
-    const { base, output, probeStatus } = await serve(t, root, "/fail");
+    const { base, output, probeStatus } = await serve(t, root, "/throw");
     assert.equal(probeStatus, 500);
-    // A line from the failed request reaches the pipe within milliseconds.
-    await new Promise((r) => setTimeout(r, 500));
-    assert.equal(readyLines(output), 0);
-
+    const failed = await fetch(`${base}/fail`);
+    assert.equal(failed.status, 500);
+    await failed.body?.cancel();
     assert.equal(await (await fetch(`${base}/health`)).text(), "engine /health");
-    await waitForReady(output);
+
+    const answered = "[fake-engine] /health";
+    await waitForLog(output, answered);
+    await waitForLog(output, READY);
+    const log = output();
+    assert.ok(log.includes(answered), log);
+    // A line from a failed request would come before the request that the engine answered.
+    assert.ok(log.indexOf(READY) > log.indexOf(answered), log);
     assert.equal(readyLines(output), 1);
   },
 );
