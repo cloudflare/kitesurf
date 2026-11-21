@@ -146,6 +146,17 @@ test("a withheld image arrives as dimensions, and nothing else", async ({ page }
   expect(out.fetched).toBe("THREW:TypeError");
 }, 120_000);
 
+test("closing a page frees the images it withheld", async ({ browser, page }) => {
+  const before = await imageStore(page);
+  const tab = await browser.newPage();
+  await tab.goto(FIXTURE, { waitUntil: "load" });
+  await settleImages(tab);
+  expect((await imageStore(page)).count - before.count).toBe(1);
+
+  await tab.close();
+  expect(await imageStore(page)).toEqual(before);
+}, 120_000);
+
 test("there is no route back: the engine store is not page-reachable", async ({ page }) => {
   const before = await imageStore(page);
   await page.goto(FIXTURE, { waitUntil: "load" });

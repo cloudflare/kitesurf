@@ -181,4 +181,16 @@ describe("renderer memory stats", () => {
     expect(manager.memoryStats(), "still known once the renderer is gone").toEqual(memory);
     expect(counts.loads).toBe(1);
   });
+
+  it("recycles at high water once an overlapping render drains", async () => {
+    const { counts, render, manager } = harness(async () => ({
+      bytes: new Uint8Array([1]),
+      memory: { bytes: 40 * 1024 * 1024, initialBytes: 0, deltaBytes: 40 * 1024 * 1024 },
+    }));
+    expect((await render()).ok).toBe(true);
+    const pending = render();
+    expect(manager.recycleIfIdle("idle wasm high-water recycle", 36 * 1024 * 1024)).toBe(false);
+    expect((await pending).ok).toBe(true);
+    await vi.waitFor(() => expect(counts.kills).toBe(1));
+  });
 });

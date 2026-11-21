@@ -23,6 +23,7 @@ export { SandboxOutbound } from "./eval/outbound.ts";
 export { DeniedOutbound } from "./eval/denied-outbound.ts";
 export { SpanSink } from "./eval/span-sink.ts";
 export { PageScriptTail } from "./eval/page-script-tail.ts";
+export { PageIsolateHost } from "./eval/page-isolate-host.ts";
 
 // `Env` is generated from wrangler.jsonc; rerun type generation after changing bindings.
 

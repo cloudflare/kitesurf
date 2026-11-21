@@ -59,6 +59,10 @@ const engine = execute(
     "./attribution-tail.ts": dependency({ attributionTails: () => [] }),
     "./host-clock.ts": dependency({ makeWallClock: () => () => 0 }),
     "./walk-module-graph.ts": dependency({ FALLBACK_MODULE_RESOLVER_SOURCE: "resolver" }),
+    "./page-isolate-host.ts": dependency({
+      dropStashedPageModules: () => {},
+      stashPageModules: () => "test-modules-id",
+    }),
   },
   { crypto: { randomUUID: () => "test-uuid" }, URL },
 );
