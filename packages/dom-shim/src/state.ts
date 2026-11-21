@@ -310,6 +310,10 @@ export function setDocumentId(id: number): void {
 
 export const shadowRootModes: Map<number, "open" | "closed"> = new Map();
 
+// Shadow roots that came from a `<template shadowrootmode>`, by root id. The DOM spec lets
+// one later attachShadow() call with the same mode take such a root over instead of throwing.
+export const declarativeShadowRoots: Set<number> = new Set();
+
 let synthIdCounter: number = -2;
 export function nextSyntheticId(): number {
   return synthIdCounter--;
@@ -645,6 +649,8 @@ export function initState(d: DomHandle, url: string, cookies: string, o?: BuildD
   activeElement = null;
   cookieString = typeof cookies === "string" ? cookies : "";
   listenerRegistry.clear();
+  shadowRootModes.clear();
+  declarativeShadowRoots.clear();
 
   documentImpl = null;
   windowObj = null;

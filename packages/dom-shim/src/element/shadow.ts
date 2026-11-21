@@ -6,7 +6,7 @@
 
 import type { WrapperInfo } from "../node-base.js";
 import type * as Idl from "../idl/types.generated.js";
-import { dom, nodeFor, shadowRootFor, shadowRootModes } from "../state.js";
+import { declarativeShadowRoots, dom, nodeFor, shadowRootFor, shadowRootModes } from "../state.js";
 import type { NodeBase } from "../node-base.js";
 import { ELEMENT_NODE, HTML_NS } from "../constants.js";
 import { recordCdpMutation } from "../record.js";
@@ -51,7 +51,20 @@ HTMLElement.prototype.attachShadow = function (this: HTMLElement, opts) {
       "NotSupportedError",
     );
   }
-  if (dom.shadowRootId(this._id) >= 0) {
+  const existingId = dom.shadowRootId(this._id);
+  if (existingId >= 0) {
+    // DOM "attach a shadow root": a declarative root with the same mode is emptied, stops
+    // being declarative, and is returned. Server-rendered web components (for example
+    // NumberFlow) hydrate this way.
+    if (declarativeShadowRoots.has(existingId) && shadowRootModes.get(existingId) === mode) {
+      const existing = shadowRootFor(existingId);
+      if (existing) {
+        declarativeShadowRoots.delete(existingId);
+        // replaceChildren puts the adopted-stylesheet mirrors back after emptying the root.
+        existing.replaceChildren();
+        return existing;
+      }
+    }
     throw new DOMException(
       "Shadow root cannot be created on a host which already hosts a shadow root",
       "NotSupportedError",
@@ -109,6 +122,8 @@ export function applyDeclarativeShadowRoots(root: Pick<Idl.Document, "querySelec
     const host = hostNode as HTMLElement;
     const mode = tpl.getAttribute("shadowrootmode");
     if (mode !== "open" && mode !== "closed") continue;
+    // A host keeps its first declared root; a later template stays an ordinary template.
+    if (dom.shadowRootId(host._id) >= 0) continue;
     let shadow: Idl.ShadowRoot;
     try {
       shadow = host.attachShadow({
@@ -118,6 +133,8 @@ export function applyDeclarativeShadowRoots(root: Pick<Idl.Document, "querySelec
     } catch {
       continue;
     }
+    const declaredId = dom.shadowRootId(host._id);
+    if (declaredId >= 0) declarativeShadowRoots.add(declaredId);
     try {
       const content = tpl.content;
       while (content && content.firstChild) shadow.appendChild(content.firstChild);
