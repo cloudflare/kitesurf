@@ -3,8 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 // The Docker image's front Worker (scripts/workerd-config.mjs). It routes requests to public/ or
-// the engine as Wrangler's assets config does, serves public/ to the engine as FONT_ASSETS, and
-// warms the engine up on the first request. /health fails until a warm-up has succeeded.
+// the engine as Wrangler's assets config does, and serves public/ to the engine as FONT_ASSETS.
 
 import { WorkerEntrypoint } from "cloudflare:workers";
 
@@ -86,101 +85,24 @@ export class Assets extends WorkerEntrypoint {
   }
 }
 
-const WARM_UP_HTML =
-  "<!doctype html><title>warm-up</title>" +
-  "<style>body{font:16px sans-serif;display:flex}p{color:red;margin:1em}</style>" +
-  "<h1>Kitesurf</h1><p>Some <b>bold</b> and <i>italic</i> text</p>" +
-  "<form><input value=text><button>Submit</button></form><ul><li>One<li>Two</ul>" +
-  "<script>document.body.dataset.ready = [1, 2].map(String).join()</script>";
-const WARM_UP_TIMEOUT_MS = 60_000;
-
-/** Opens, screenshots and closes one small page over CDP, so that a client's first navigation
- * does not wait for V8 to compile the engine's wasm. Resolves with its duration. */
-const warmUp = async function (engine) {
-  const started = Date.now();
-  const response = await engine.fetch("http://kitesurf.internal/devtools/browser", {
-    headers: { upgrade: "websocket" },
-  });
-  const ws = response.webSocket;
-  if (!ws) throw new Error(`the engine answered the WebSocket upgrade with ${response.status}`);
-  ws.accept();
-  const pending = new Map();
-  let nextId = 0;
-  ws.addEventListener("message", (event) => {
-    const message = JSON.parse(String(event.data));
-    const reply = pending.get(message.id);
-    if (!reply) return;
-    pending.delete(message.id);
-    if (message.error) reply.reject(new Error(`${reply.method}: ${message.error.message}`));
-    else reply.resolve(message.result);
-  });
-  const send = (method, params = {}, sessionId) =>
-    new Promise((resolve, reject) => {
-      const id = ++nextId;
-      pending.set(id, { resolve, reject, method });
-      ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
-    });
-  const run = async () => {
-    const { targetId } = await send("Target.createTarget", { url: "about:blank" });
-    const { sessionId } = await send("Target.attachToTarget", { targetId, flatten: true });
-    const url = "data:text/html," + encodeURIComponent(WARM_UP_HTML);
-    const navigated = await send("Page.navigate", { url }, sessionId);
-    if (navigated.errorText) throw new Error(`Page.navigate: ${navigated.errorText}`);
-    const ready = await send(
-      "Runtime.evaluate",
-      { expression: "document.body.dataset.ready", returnByValue: true },
-      sessionId,
-    );
-    if (ready.exceptionDetails || ready.result?.value !== "1,2") {
-      throw new Error(`the warm-up page did not run its script: ${JSON.stringify(ready)}`);
-    }
-    await send("Page.captureScreenshot", {}, sessionId);
-    await send("Target.closeTarget", { targetId });
-  };
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error("warm-up timed out")), WARM_UP_TIMEOUT_MS);
-  });
-  try {
-    await Promise.race([run(), timeout]);
-    return Date.now() - started;
-  } finally {
-    clearTimeout(timer);
-    ws.close();
-  }
-};
-
-let warmUpStarted = false;
-let warm = false;
+let announced = false;
 
 export default {
   /** @param {Request} request @param {{ENGINE: Fetcher, PUBLIC: Fetcher, HEADERS: unknown[]}} env
-   * @param {ExecutionContext} ctx @returns {Promise<Response>} */
-  async fetch(request, env, ctx) {
-    // A failed warm-up leaves /health failing, and the next request tries again.
-    if (!warmUpStarted) {
-      warmUpStarted = true;
-      ctx.waitUntil(
-        warmUp(env.ENGINE).then(
-          (ms) => {
-            warm = true;
-            console.log(`[kitesurf] warmed up in ${ms} ms`);
-          },
-          (error) => {
-            warmUpStarted = false;
-            console.warn(`[kitesurf] warm-up failed: ${error.message}`);
-          },
-        ),
-      );
-    }
+   * @returns {Promise<Response>} */
+  async fetch(request, env) {
     const { pathname } = new URL(request.url);
-    if (pathname === "/health" && !warm) {
-      return new Response("warming up\n", { status: 503, headers: { "retry-after": "1" } });
-    }
     if (!workerFirst(pathname) && !request.headers.has("upgrade")) {
       const file = await serveFile(env, request);
       if (file.status !== 404) return file;
     }
-    return env.ENGINE.fetch(request);
+    const response = await env.ENGINE.fetch(request);
+    // Logged once the engine first answers, normally Docker's health check about a second after
+    // start. A request that the engine fails leaves the next one to try again.
+    if (!announced && response.status < 500) {
+      announced = true;
+      console.log("[kitesurf] ready: CDP at /devtools/browser, discovery at /json/version");
+    }
+    return response;
   },
 };

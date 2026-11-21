@@ -7,6 +7,7 @@
 # container's environment sets, then replaces itself with workerd, listening on KITESURF_PORT.
 set -eu
 . /opt/kitesurf/env.sh
+echo "[kitesurf] starting Kitesurf ${KITESURF_VERSION} on port ${KITESURF_PORT:-8787}"
 exec /usr/local/bin/workerd serve --experimental \
   --socket-addr "http=${KITESURF_HOST:-*}:${KITESURF_PORT:-8787}" \
   /opt/kitesurf/config.capnp "$@"

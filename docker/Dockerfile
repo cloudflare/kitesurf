@@ -114,7 +114,6 @@ ENV KITESURF_PORT=8787 \
 USER kitesurf
 WORKDIR /opt/kitesurf
 EXPOSE 8787
-# /health fails until the engine has warmed up (docker/front.js).
 HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --start-interval=1s \
   CMD curl -fsS -o /dev/null "http://127.0.0.1:${KITESURF_PORT}/health" || exit 1
 ENTRYPOINT ["/opt/kitesurf/entrypoint.sh"]
