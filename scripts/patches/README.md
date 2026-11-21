@@ -88,6 +88,7 @@ All plumbing git invocations run with `GIT_CONFIG_GLOBAL=/dev/null` /
 | `boa_gc`              | `0.22.0`       | `boa-dev/boa`, path `core/gc/`                       | registry tarball |
 | `boa_engine`          | `0.22.0`       | `boa-dev/boa`, path `core/engine/`                   | registry tarball |
 | `boa_parser`          | `0.22.0`       | `boa-dev/boa`, path `core/parser/`                   | registry tarball |
+| `boa_string`          | `0.22.0`       | `boa-dev/boa`, path `core/string/`                   | registry tarball |
 | `usvg`                | `0.48.1`       | `linebender/resvg`, path `crates/usvg/`              | registry tarball |
 | `vello_common`        | `0.3.0`        | `linebender/vello`, path `vello_common/`             | registry tarball |
 | `vello_cpu`           | `0.3.0`        | `linebender/vello`, path `vello_cpu/`                | registry tarball |
