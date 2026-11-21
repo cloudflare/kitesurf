@@ -280,6 +280,8 @@ function foreignDocumentMethod<K extends ForeignDocumentMethod>(
   return method as DocumentImpl[K];
 }
 
+const documentStyleSheets = new WeakMap<object, ReturnType<typeof makeStyleSheetList>>();
+
 class DocumentImpl extends NodeBase implements Idl.Document {
   // Storage behind the childNodes, doctype and implementation accessors.
   declare _doctype: DocumentTypeNode | undefined;
@@ -757,11 +759,16 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       return out;
     });
   }
-  // A fresh list per call, one sheet per <style> or stylesheet <link>.
+  // One live list per document, one sheet per <style> or stylesheet <link>.
   // CSS-in-JS libraries iterate it at boot. insertRule mirrors rules into
   // the owning <style> so blitz paints them.
   get styleSheets(): ReturnType<typeof makeStyleSheetList> {
-    return makeStyleSheetList();
+    let list = documentStyleSheets.get(this);
+    if (!list) {
+      list = makeStyleSheetList();
+      documentStyleSheets.set(this, list);
+    }
+    return list;
   }
   // A Proxy over a real array that mirrors each adopted sheet into a
   // hidden <style> in <head>, so stylo's cascade sees the rules.
@@ -1183,11 +1190,12 @@ class DocumentImpl extends NodeBase implements Idl.Document {
         },
         load(_font: string, _text?: string) {
           // Limitation: resolves with every added face once fonts are ready,
-          // not only the faces matching `font` and `text`.
+          // not only the faces matching `font` and `text`. The request is explicit,
+          // so every declared @font-face is fetched rather than only the ones in use.
           const p = fontsReadyHook
             ? (() => {
                 try {
-                  return fontsReadyHook();
+                  return fontsReadyHook(true);
                 } catch {
                   return null;
                 }

@@ -1127,6 +1127,14 @@ impl DomHandle {
         self.ensure_style();
     }
 
+    /// `document.fonts.load()`: fetch every declared face, not only the ones the styles use.
+    #[wasm_bindgen(js_name = "loadAllFontFaces")]
+    pub fn load_all_font_faces(&self) {
+        if let Ok(mut doc) = self.doc.try_borrow_mut() {
+            doc.as_mut().demand_all_font_faces();
+        }
+    }
+
     /// `[mutationResolves, animationResolves]` since the document was built.
     #[wasm_bindgen(js_name = "resolveCounts")]
     pub fn resolve_counts(&self) -> Vec<u32> {
