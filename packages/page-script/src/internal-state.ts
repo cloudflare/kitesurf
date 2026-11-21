@@ -219,8 +219,9 @@ export interface KitesurfInternals {
   // In lazy font mode, upgrades to the full fonts so text shaped outside layout (canvas, SVG)
   // gets outlines. Null when nothing is pending.
   demandFontOutlines?: () => Promise<void> | null;
-  // document.fonts.ready and .status read these.
-  fontsReady?: () => Promise<void>;
+  // document.fonts.ready and .status read these. `load()` passes true, an explicit request to
+  // fetch every declared face.
+  fontsReady?: (loadRequested?: boolean) => Promise<void>;
   fontsInflightCount?: () => number;
   // Registers deferred fonts for canvas measureText. False while bytes are still in flight.
   demandDeferredFonts?: () => boolean;
