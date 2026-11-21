@@ -758,11 +758,15 @@ async function followRedirects(
 
   for (;;) {
     const isRedirect = REDIRECT_STATUSES.indexOf(responseStatus(response)) !== -1;
+    // A redirect's body is never exposed to the page. Left unread, the stream stays open across
+    // the RPC boundary and keeps this isolate alive after it is retired.
     if (isRedirect && redirectMode === "manual") {
+      cancelResponseBody(response);
       return { response: opaqueRedirect(response), url: currentUrl, hops, tainting };
     }
     const rawLocation = isRedirect ? responseHeaderGet(response, "location") : null;
     if (rawLocation === null) return { response, url: currentUrl, hops, tainting };
+    cancelResponseBody(response);
     if (rawLocation === "") throw new TypeError("Failed to fetch");
     const location = rawLocation;
     if (redirectMode === "error") throw new TypeError("Failed to fetch");
@@ -783,7 +787,6 @@ async function followRedirects(
         enumerable: true,
         configurable: true,
       });
-      cancelResponseBody(response);
       const followed = await realFetch(currentUrl, handoff);
       await throwIfBlocked(followed);
       return { response: followed, url: currentUrl, hops, tainting };
@@ -1102,6 +1105,8 @@ export function installFetchShim(): void {
         if (requestOrigin !== pageOrigin) computedType = "cors";
       }
       if (computedType === "opaque") {
+        // The page can never read an opaque response's body; end it for the same reason.
+        cancelResponseBody(response);
         const OPAQUE_RESPONSE_CONSTRUCTION_STATUS = 400;
         const opaque = newResponse(null, {
           status: OPAQUE_RESPONSE_CONSTRUCTION_STATUS,

@@ -12697,10 +12697,10 @@
     "reason": null
   },
   "/fetch/api/basic/stream-response.any.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "slow": true,
     "timeout": 20000,
-    "reason": "slow: finishes at 4.9-5.0 s against the 5000ms default budget, so fresh draws alternate FAIL and TIMEOUT. triage: the stale-connection fetch retry lets the subtest finish, so the harness now completes (TIMEOUT -> FAIL)"
+    "reason": null
   },
   "/fetch/api/basic/stream-safe-creation.any.html": {
     "expected": "PASS",

@@ -120,6 +120,29 @@ const nativeReaderRead = protoMethod(
     : undefined,
   "read",
 );
+const nativeReaderCancel = protoMethod(
+  typeof ReadableStreamDefaultReader === "function"
+    ? ReadableStreamDefaultReader.prototype
+    : undefined,
+  "cancel",
+);
+const NativeReadableStream: typeof ReadableStream | undefined =
+  typeof ReadableStream === "function" ? ReadableStream : undefined;
+const nativeResponseStatusText = protoGetter(responseProto, "statusText");
+const byteControllerProto: ReadableByteStreamController | undefined =
+  typeof ReadableByteStreamController === "function"
+    ? ReadableByteStreamController.prototype
+    : undefined;
+const nativeByteControllerEnqueue = protoMethod(byteControllerProto, "enqueue");
+const nativeByteControllerClose = protoMethod(byteControllerProto, "close");
+const nativeByteControllerError = protoMethod(byteControllerProto, "error");
+const nativeByteControllerByobRequest = protoGetter(byteControllerProto, "byobRequest");
+const byobRequestProto: ReadableStreamBYOBRequest | undefined =
+  typeof ReadableStreamBYOBRequest === "function" ? ReadableStreamBYOBRequest.prototype : undefined;
+const nativeByobView = protoGetter(byobRequestProto, "view");
+const nativeByobRespond = protoMethod(byobRequestProto, "respond");
+const nativeUint8Set = protoMethod(NativeUint8Array.prototype, "set");
+const nativeUint8Subarray = protoMethod(NativeUint8Array.prototype, "subarray");
 
 // A missing capture must fail closed: skipping a stamped header or a body read can change
 // authentication, policy, or which bytes the page observes.
@@ -342,6 +365,120 @@ export function readerRead<T>(
 ): Promise<ReadableStreamReadResult<T>> {
   const method = requireIntrinsic(nativeReaderRead, "ReadableStreamDefaultReader.prototype.read");
   return nativeApply(method, reader, []) as Promise<ReadableStreamReadResult<T>>;
+}
+
+export function readerCancel<T>(reader: ReadableStreamDefaultReader<T>, reason: unknown): void {
+  const method = requireIntrinsic(
+    nativeReaderCancel,
+    "ReadableStreamDefaultReader.prototype.cancel",
+  );
+  const cancelled = nativeApply(method, reader, [reason]) as Promise<void>;
+  void cancelled.catch(() => {});
+}
+
+export function byteControllerClose(controller: ReadableByteStreamController): void {
+  const method = requireIntrinsic(
+    nativeByteControllerClose,
+    "ReadableByteStreamController.prototype.close",
+  );
+  nativeApply(method, controller, []);
+  const byob = nativeByteControllerByobRequest
+    ? (nativeApply(
+        nativeByteControllerByobRequest,
+        controller,
+        [],
+      ) as ReadableStreamBYOBRequest | null)
+    : null;
+  if (byob && nativeByobRespond) nativeApply(nativeByobRespond, byob, [0]);
+}
+
+export function byteControllerError(
+  controller: ReadableByteStreamController,
+  reason: unknown,
+): void {
+  const method = requireIntrinsic(
+    nativeByteControllerError,
+    "ReadableByteStreamController.prototype.error",
+  );
+  nativeApply(method, controller, [reason]);
+}
+
+export function byteControllerEnqueue(
+  controller: ReadableByteStreamController,
+  chunk: Uint8Array,
+): void {
+  if (chunk.byteLength === 0) return;
+  const byob = nativeByteControllerByobRequest
+    ? (nativeApply(
+        nativeByteControllerByobRequest,
+        controller,
+        [],
+      ) as ReadableStreamBYOBRequest | null)
+    : null;
+  if (byob && nativeByobView && nativeByobRespond && nativeUint8Set && nativeUint8Subarray) {
+    const view = nativeApply(nativeByobView, byob, []) as ArrayBufferView | null;
+    if (view && view.byteLength > 0) {
+      const target = nativeConstruct(NativeUint8Array, [
+        view.buffer,
+        view.byteOffset,
+        view.byteLength,
+      ]) as Uint8Array;
+      const n = Math.min(view.byteLength, chunk.byteLength);
+      const head =
+        n < chunk.byteLength
+          ? (nativeApply(nativeUint8Subarray, chunk, [0, n]) as Uint8Array)
+          : chunk;
+      nativeApply(nativeUint8Set, target, [head, 0]);
+      nativeApply(nativeByobRespond, byob, [n]);
+      if (n < chunk.byteLength) {
+        const tail = nativeApply(nativeUint8Subarray, chunk, [n]) as Uint8Array;
+        // A byte-stream enqueue detaches the buffer it is handed; copy so a chunk that
+        // shares its buffer with another view (a tee'd body, a reused scratch buffer) survives.
+        const copy = nativeConstruct(NativeUint8Array, [tail]) as Uint8Array;
+        const enqueue = requireIntrinsic(
+          nativeByteControllerEnqueue,
+          "ReadableByteStreamController.prototype.enqueue",
+        );
+        nativeApply(enqueue, controller, [copy]);
+      }
+      return;
+    }
+  }
+  const method = requireIntrinsic(
+    nativeByteControllerEnqueue,
+    "ReadableByteStreamController.prototype.enqueue",
+  );
+  nativeApply(method, controller, [chunk]);
+}
+
+export function newNativeByteReadableStream(source: {
+  start?: (controller: ReadableByteStreamController) => void;
+  pull?: (controller: ReadableByteStreamController) => Promise<void> | void;
+  cancel?: (reason?: unknown) => Promise<void> | void;
+}): ReadableStream<Uint8Array> {
+  const ctor = requireIntrinsic(NativeReadableStream, "ReadableStream");
+  // Null-prototype source and strategy prevent Object.prototype poisoning from affecting creation.
+  const safeSource = nativeCreate(null) as Record<string, unknown>;
+  safeSource.type = "bytes";
+  if (source.start) safeSource.start = source.start;
+  if (source.pull) safeSource.pull = source.pull;
+  if (source.cancel) safeSource.cancel = source.cancel;
+  const safeStrategy = nativeCreate(null) as Record<string, unknown>;
+  return nativeConstruct(ctor, [safeSource, safeStrategy]) as ReadableStream<Uint8Array>;
+}
+
+/** A response with `body` and the status, status text and headers of `source`. */
+export function newNativeResponseLike(
+  body: ReadableStream<Uint8Array>,
+  source: Response,
+): Response {
+  const ctor = requireIntrinsic(NativeResponse, "Response");
+  const statusText = requireIntrinsic(nativeResponseStatusText, "Response.prototype.statusText");
+  const init = nativeCreate(null) as Record<string, unknown>;
+  init.status = responseStatus(source);
+  init.statusText = nativeApply(statusText, source, []) as string;
+  init.headers = responseHeaders(source);
+  return nativeConstruct(ctor, [body, init]) as Response;
 }
 
 export async function responseText(response: Response): Promise<string> {
