@@ -1,0 +1,541 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 19 Nov 2026 11:54:57 +0000
+Subject: [PATCH] Invalidate :has() on child-list changes like Gecko, not by
+ parent
+
+Any insertion in a document with a :has() rule, and every removal, stamped restyle_subtree() on
+the parent, so adding or removing one child of <body> recascaded the whole page. Sites that keep
+mounting portals into <body> paid a full restyle for each style read in between.
+
+Port Gecko's insertion and removal handling instead. A mutated element inherits the :has()
+search direction of its parent and of its previous sibling, the elements on either side get the
+side-effect pass, and the anchors that read an :empty, :nth-* or edge-child position are
+invalidated through the tree-structural dependencies, from the same selector flags that already
+pick which siblings to restyle. Removal restyles only those siblings, as insertion already did.
+Slots, shadow hosts, dir=auto and the slow selector flags keep the whole-parent restyle.
+---
+ src/mutator.rs | 190 +++++++++++++++++++++++++++++++++++------------
+ src/stylo.rs   | 198 +++++++++++++++++++++++++++++++++++++++----------
+ 2 files changed, 300 insertions(+), 88 deletions(-)
+
+diff --git a/src/mutator.rs b/src/mutator.rs
+index df90ecc..a09c77a 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -14,12 +14,18 @@ use crate::{
+ };
+ use blitz_traits::shell::Viewport;
+ use style::Atom;
++use style::invalidation::element::invalidation_map::TSStateForInvalidation;
+ use style::invalidation::element::restyle_hints::RestyleHint;
+ use style::stylesheets::OriginSet;
+ use thin_vec::ThinVec;
+
+ const TEMPLATE_CONTENTS_FRAGMENT_NAME: &str = "#document-fragment";
+
++/// Gecko's `HasSlowSelectorNthAll`: the parent's children match an `:nth-*` selector.
++const NTH_FLAGS: selectors::matching::ElementSelectorFlags =
++    selectors::matching::ElementSelectorFlags::HAS_SLOW_SELECTOR_NTH
++        .union(selectors::matching::ElementSelectorFlags::HAS_SLOW_SELECTOR_NTH_OF);
++
+ /// Whether inserting a child must recascade the parent's whole subtree: its own `:empty`, a
+ /// `:last-child`-style or `sibling-index()` dependency on every child, or a flat tree that
+ /// slotting reshapes. Anything else goes through `restyle_for_insertion`.
+@@ -826,21 +832,13 @@ impl DocumentMutator<'_> {
+                 node.set_layout_parent_id(None);
+             }
+             self.mutations_occurred |= node_is_in_document;
+-            let parent = &mut self.doc.nodes[parent_id];
+-            parent.insert_damage(ALL_DAMAGE);
+-
+-            // Marking ancestors dirty without stamping a hint leaves
+-            // nothing to recascade the parent.
+-
+-            // Any selector reading the parent's child list (`:empty`,
+-            // `:nth-child`, `:has`) would keep stale style after removeChild.
+-            if parent.flags.is_in_document() {
+-                if let Some(mut data) = parent.try_stylo_element_data_mut().and_then(|s| s.get_mut()) {
+-                    data.hint |= RestyleHint::restyle_subtree();
+-                }
++            self.doc.nodes[parent_id].insert_damage(ALL_DAMAGE);
++            if self.doc.nodes[parent_id].flags.is_in_document() {
++                self.restyle_for_removal(parent_id, node_id);
++            } else {
++                self.doc.nodes[parent_id].mark_ancestors_dirty();
+             }
+-            // Mark ancestors dirty so the style traversal visits this subtree.
+-            parent.mark_ancestors_dirty();
++            let parent = &mut self.doc.nodes[parent_id];
+             parent.remove_child(node_id);
+             self.maybe_record_node(parent_id);
+         }
+@@ -866,6 +864,14 @@ impl DocumentMutator<'_> {
+
+         self.process_removed_subtree(node_id);
+
++        // Structural restyles read the node's position, so they too run before the drop.
++        let parent_id = self.doc.nodes[node_id].parent_id();
++        if let Some(parent_id) = parent_id {
++            if self.doc.nodes[parent_id].flags.is_in_document() {
++                self.restyle_for_removal(parent_id, node_id);
++            }
++        }
++
+         let node = self.doc.drop_node_ignoring_parent_with(node_id, on_drop);
+         self.mutations_occurred |= node_is_in_document;
+
+@@ -873,20 +879,6 @@ impl DocumentMutator<'_> {
+         if let Some(parent_id) = node.as_ref().and_then(|node| node.parent_id()) {
+             let parent = &mut self.doc.nodes[parent_id];
+             parent.insert_damage(ALL_DAMAGE);
+-            let parent_is_in_doc = parent.flags.is_in_document();
+-
+-            // TODO: make this fine grained / conditional based on ElementSelectorFlags
+-            if parent_is_in_doc {
+-                if let Some(mut data) = parent
+-                    .try_stylo_element_data_mut()
+-                    .and_then(|s| s.get_mut())
+-                {
+-                    data.hint |= RestyleHint::restyle_subtree();
+-                }
+-                // Mark ancestors dirty so the style traversal visits this subtree.
+-                parent.mark_ancestors_dirty();
+-            }
+-
+             parent.remove_child(node_id);
+             self.maybe_record_node(parent_id);
+         }
+@@ -916,8 +908,10 @@ impl DocumentMutator<'_> {
+             }
+             // Mark ancestors dirty so the style traversal visits this subtree.
+             parent.mark_ancestors_dirty();
++            self.invalidate_structural_has_for_whole_parent(node_id);
+         }
+
++        let parent = &mut self.doc.nodes[node_id];
+         let children = parent.take_children();
+         self.mutations_occurred |= parent_is_in_doc && !children.is_empty();
+         for child_id in children {
+@@ -1024,32 +1018,21 @@ impl DocumentMutator<'_> {
+                 self.doc.nodes[child_id].set_layout_parent_id(None);
+             }
+
+-            let old_parent = &mut self.doc.nodes[old_parent_id];
+-            old_parent.insert_damage(ALL_DAMAGE);
+-
+-            // TODO: make this fine grained / conditional based on ElementSelectorFlags
++            self.doc.nodes[old_parent_id].insert_damage(ALL_DAMAGE);
+             if child_was_in_doc {
+-                if let Some(mut data) = old_parent
+-                    .try_stylo_element_data_mut()
+-                    .and_then(|s| s.get_mut())
+-                {
+-                    data.hint |= RestyleHint::restyle_subtree();
+-                }
+-                // Mark ancestors dirty so the style traversal visits this subtree.
+-                old_parent.mark_ancestors_dirty();
++                self.restyle_for_removal(old_parent_id, child_id);
+             }
+
++            let old_parent = &mut self.doc.nodes[old_parent_id];
+             old_parent.remove_child(child_id);
+             self.maybe_record_node(old_parent_id);
+         }
+
+-        let has_relative_selectors =
+-            new_parent_is_in_document && self.doc.has_relative_selectors();
+         let new_parent = &mut self.doc.nodes[parent_id];
+         new_parent.insert_damage(ALL_DAMAGE);
+
+-        let restyle_whole_parent = new_parent_is_in_document
+-            && (insertion_restyles_whole_parent(new_parent) || has_relative_selectors);
++        let restyle_whole_parent =
++            new_parent_is_in_document && insertion_restyles_whole_parent(new_parent);
+         if new_parent_is_in_document {
+             if restyle_whole_parent {
+                 if let Some(mut data) = new_parent
+@@ -1084,7 +1067,9 @@ impl DocumentMutator<'_> {
+         // Insertions invalidate after linking, since the collector
+         // reads the node's final parent and sibling positions.
+         if new_parent_is_in_document {
+-            if !restyle_whole_parent {
++            if restyle_whole_parent {
++                self.invalidate_structural_has_for_whole_parent(parent_id);
++            } else {
+                 self.restyle_for_insertion(parent_id, child_ids);
+             }
+             for &child_id in child_ids.iter() {
+@@ -1112,23 +1097,132 @@ impl DocumentMutator<'_> {
+         }
+         let Some((first, last)) = self.spliced_run(parent_id, child_ids) else {
+             self.doc.nodes[parent_id].set_restyle_hint(RestyleHint::restyle_subtree());
++            self.invalidate_structural_has_for_whole_parent(parent_id);
+             return;
+         };
+
+         let children = self.doc.nodes[parent_id].children();
+         let is_element = |id: &NodeId| self.doc.nodes[*id].is_element();
++        let before = children.iter().take(first).rev().find(is_element);
++        let after = children.iter().skip(last + 1).find(is_element);
+         let mut targets: Vec<NodeId> = Vec::new();
++        // `:has()` anchors reading an edge or `:nth-*` position, per Gecko's
++        // `MaybeRestyleForEdgeChildChange` and `NthDependencyFromSibling`.
++        let mut ts_targets: Vec<(NodeId, TSStateForInvalidation)> = Vec::new();
+         if edge_children {
+             // The old first or last element child, or the old only child.
+-            targets.extend(children.iter().take(first).rev().find(is_element));
+-            targets.extend(children.iter().skip(last + 1).find(is_element));
++            targets.extend(before);
++            targets.extend(after);
++            if before.is_none() {
++                ts_targets.extend(after.map(|id| (id, TSStateForInvalidation::NTH_EDGE_FIRST)));
++            }
++            if after.is_none() {
++                ts_targets.extend(before.map(|id| (id, TSStateForInvalidation::NTH_EDGE_LAST)));
++            }
+         }
+         if later_siblings {
+-            targets.extend(children.iter().skip(last + 1).filter(is_element));
++            let later: Vec<NodeId> = children.iter().skip(last + 1).filter(is_element).collect();
++            if flags.intersects(NTH_FLAGS) {
++                ts_targets.extend(later.iter().map(|&id| (id, TSStateForInvalidation::NTH)));
++            }
++            targets.extend(later);
+         }
+         for id in targets {
+             self.doc.nodes[id].set_restyle_hint(RestyleHint::restyle_subtree());
+         }
++        for (id, state) in ts_targets {
++            self.doc.invalidate_relative_selector_ts_dependency(id, state);
++        }
++    }
++
++    /// Gecko's `RestyleManager::ContentWillBeRemoved`, run while `child_id` is still linked under
++    /// `parent_id`: restyle the siblings whose structural selectors can change, and the `:has()`
++    /// anchors that read their positions, instead of the whole parent.
++    fn restyle_for_removal(&mut self, parent_id: NodeId, child_id: NodeId) {
++        use selectors::matching::ElementSelectorFlags;
++
++        let parent = &self.doc.nodes[parent_id];
++        parent.set_dirty_descendants();
++        parent.mark_ancestors_dirty();
++        let whole_parent = insertion_restyles_whole_parent(parent);
++        let flags = if whole_parent {
++            ElementSelectorFlags::empty()
++        } else {
++            parent.selector_flags().get()
++        };
++        let children = parent.children();
++        let index = children.position(child_id);
++        let later_siblings = flags.contains(ElementSelectorFlags::HAS_SLOW_SELECTOR_LATER_SIBLINGS);
++        // Removing the first child restyles every later sibling anyway, and Gecko takes the whole
++        // parent there to keep emptying a parent from the front linear.
++        if whole_parent || index.is_none_or(|i| later_siblings && i == 0) {
++            self.doc.nodes[parent_id].set_restyle_hint(RestyleHint::restyle_subtree());
++            self.invalidate_structural_has_for_whole_parent(parent_id);
++            return;
++        }
++        let edge_children = flags.contains(ElementSelectorFlags::HAS_EDGE_CHILD_SELECTOR);
++        let Some(index) = index.filter(|_| self.doc.nodes[child_id].is_element()) else {
++            // Structural selectors count element siblings only.
++            return;
++        };
++        let is_element = |id: &NodeId| self.doc.nodes[*id].is_element();
++        let mut targets: Vec<NodeId> = Vec::new();
++        let mut ts_targets: Vec<(NodeId, TSStateForInvalidation)> = Vec::new();
++        if later_siblings {
++            let later: Vec<NodeId> = children.iter().skip(index + 1).filter(is_element).collect();
++            if flags.intersects(NTH_FLAGS) {
++                ts_targets.extend(later.iter().map(|&id| (id, TSStateForInvalidation::NTH)));
++            }
++            targets.extend(later);
++        }
++        if edge_children {
++            let before = children.iter().take(index).rev().find(is_element);
++            let after = children.iter().skip(index + 1).find(is_element);
++            // The element that becomes the first or the last child.
++            if let (None, Some(id)) = (before, after) {
++                targets.push(id);
++                ts_targets.push((id, TSStateForInvalidation::NTH_EDGE_FIRST));
++            }
++            if let (Some(id), None) = (before, after) {
++                targets.push(id);
++                ts_targets.push((id, TSStateForInvalidation::NTH_EDGE_LAST));
++            }
++        }
++        for id in targets {
++            self.doc.nodes[id].set_restyle_hint(RestyleHint::restyle_subtree());
++        }
++        for (id, state) in ts_targets {
++            self.doc.invalidate_relative_selector_ts_dependency(id, state);
++        }
++    }
++
++    /// The `:has()` half of Gecko's `RestyleWholeContainer` and `RestyleForEmptyChange`: an anchor
++    /// that reads the parent's `:empty` or a child's position sits outside the parent's subtree,
++    /// so the parent's own restyle cannot reach it.
++    fn invalidate_structural_has_for_whole_parent(&self, parent_id: NodeId) {
++        use selectors::matching::ElementSelectorFlags;
++
++        let parent = &self.doc.nodes[parent_id];
++        // Shadow roots and fragments hold no selector flags.
++        if !parent.is_element() {
++            return;
++        }
++        let flags = parent.selector_flags().get();
++        if flags.contains(ElementSelectorFlags::HAS_EMPTY_SELECTOR) {
++            self.doc
++                .invalidate_relative_selector_ts_dependency(parent_id, TSStateForInvalidation::EMPTY);
++        }
++        if !flags.intersects(NTH_FLAGS | ElementSelectorFlags::HAS_EDGE_CHILD_SELECTOR) {
++            return;
++        }
++        let positions = TSStateForInvalidation::NTH
++            | TSStateForInvalidation::NTH_EDGE_FIRST
++            | TSStateForInvalidation::NTH_EDGE_LAST;
++        for id in parent.children().iter() {
++            if self.doc.nodes[id].is_element() {
++                self.doc.invalidate_relative_selector_ts_dependency(id, positions);
++            }
++        }
+     }
+
+     /// The `first..=last` range `child_ids` occupies in `parent_id`'s child list, or `None` when
+diff --git a/src/stylo.rs b/src/stylo.rs
+index 9a5d837..34e89a1 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -29,6 +29,7 @@ use style::color::AbsoluteColor;
+ use style::data::{ElementDataFlags, ElementDataMut, ElementDataRef};
+ use style::global_style_data::STYLE_THREAD_POOL;
+ use style::invalidation::element::element_wrapper::ElementSnapshot;
++use style::invalidation::element::invalidation_map::TSStateForInvalidation;
+ use style::invalidation::element::invalidator::SiblingTraversalMap;
+ use style::invalidation::element::relative_selector::{
+     DomMutationOperation, RelativeSelectorInvalidator,
+@@ -390,38 +391,23 @@ impl crate::document::BaseDocument {
+                 .any(|(data, _)| data.relative_invalidation_map_attributes().used)
+     }
+
+-    /// Structural sibling of the pass above, for tree mutations rather than
+-    /// attribute and state ones. Snapshots only exist for the latter, so an
+-    /// insert or remove has to invalidate at mutation time.
+-    ///
+-    /// Ordering is forced by the collector reading the node's live parent and
+-    /// siblings: insertions invalidate after the node is linked, removals
+-    /// before it is unlinked.
+-    fn invalidate_relative_selectors_for_dom_mutation(
+-        &self,
+-        node_id: NodeId,
+-        operation: DomMutationOperation,
+-    ) {
++    /// The live element at `node_id`, when the document has any `:has()` to invalidate.
++    fn relative_selector_mutation_target(&self, node_id: NodeId) -> Option<BlitzNode<'_>> {
+         if !self.has_relative_selectors() {
+-            return;
++            return None;
+         }
+-        let Some(node) = self.nodes.get(node_id) else {
+-            return;
+-        };
+-        let Some(element) = TNode::as_element(&node) else {
+-            return;
+-        };
+-
+-        // A node that never took part in selector matching carries no search
+-        // direction, and `DomMutationOperation::accept` rejects those outright.
+-
+-        // Seeding it from the parent is what makes a freshly created element
+-        // invalidate at all, and mirrors what matching would have stamped.
+-        let inherited_search_path = selectors::Element::parent_element(&element)
+-            .map_or_else(ElementSelectorFlags::empty, |parent| {
+-                parent.relative_selector_search_direction()
+-            });
++        let node = self.nodes.get(node_id)?;
++        TNode::as_element(&node)
++    }
+
++    /// Structural sibling of the pass above, for tree mutations rather than
++    /// attribute and state ones. Snapshots only exist for the latter, so an
++    /// insert or remove has to invalidate at mutation time.
++    fn mutation_invalidator<'a>(
++        &'a self,
++        element: BlitzNode<'a>,
++        sibling_traversal_map: SiblingTraversalMap<BlitzNode<'a>>,
++    ) -> RelativeSelectorInvalidator<'a, 'a, BlitzNode<'a>> {
+         RelativeSelectorInvalidator {
+             element,
+             quirks_mode: self.stylist.quirks_mode(),
+@@ -440,28 +426,160 @@ impl crate::document::BaseDocument {
+                     anchor.mark_ancestors_dirty();
+                 }
+             },
+-            sibling_traversal_map: SiblingTraversalMap::default(),
++            sibling_traversal_map,
+             _marker: PhantomData,
+         }
+-        // `subtree`: the node may carry a whole subtree containing the
+-        // subject, and upstream still gates the walk on the map's own flag.
+-        .invalidate_relative_selectors_for_dom_mutation(
+-            true,
+-            &self.stylist,
+-            inherited_search_path,
+-            operation,
+-        );
+     }
+
++    /// Gecko's side-effect pass for the two elements on either side of an inserted or removed
++    /// one: `.a:has(+ .b)` can gain or lose its match through a node that is neither `.a` nor `.b`.
++    /// The traversal maps make each side see the other as adjacent, as if the node were absent.
++    fn invalidate_relative_selectors_for_sibling_side_effects<'a>(
++        &'a self,
++        prev: BlitzNode<'a>,
++        next: BlitzNode<'a>,
++    ) {
++        use selectors::Element as _;
++
++        let prev_map = SiblingTraversalMap::new(prev, prev.prev_sibling_element(), Some(next));
++        self.mutation_invalidator(prev, prev_map)
++            .invalidate_relative_selectors_for_dom_mutation(
++                false,
++                &self.stylist,
++                ElementSelectorFlags::empty(),
++                DomMutationOperation::SideEffectPrevSibling,
++            );
++        let next_map = SiblingTraversalMap::new(next, Some(prev), next.next_sibling_element());
++        self.mutation_invalidator(next, next_map)
++            .invalidate_relative_selectors_for_dom_mutation(
++                false,
++                &self.stylist,
++                ElementSelectorFlags::empty(),
++                DomMutationOperation::SideEffectNextSibling,
++            );
++    }
++
++    /// Gecko's `MaybeInvalidateRelativeSelectorForRemoval`. Runs before the node is unlinked: the
++    /// collector reads its live parent and siblings.
+     pub(crate) fn invalidate_relative_selectors_for_removal(&self, node_id: NodeId) {
+-        self.invalidate_relative_selectors_for_dom_mutation(node_id, DomMutationOperation::Remove);
++        use selectors::Element as _;
++
++        let Some(element) = self.relative_selector_mutation_target(node_id) else {
++            return;
++        };
++        // An element that no `:has()` search reached cannot change any anchor's match.
++        let search_direction = element.relative_selector_search_direction();
++        if search_direction.is_empty() {
++            return;
++        }
++        let (prev, next) = (element.prev_sibling_element(), element.next_sibling_element());
++        let inherited = inherited_search_direction(element);
++        if inherited.is_empty() {
++            return;
++        }
++        // The removed element may be the one a search stopped at; the next one continues it.
++        if let Some(next) = next {
++            next.apply_selector_flags(search_direction);
++        }
++        if let (Some(prev), Some(next)) = (prev, next) {
++            self.invalidate_relative_selectors_for_sibling_side_effects(prev, next);
++        }
++        // `subtree`: the node may carry a whole subtree containing the
++        // subject, and upstream still gates the walk on the map's own flag.
++        self.mutation_invalidator(element, SiblingTraversalMap::default())
++            .invalidate_relative_selectors_for_dom_mutation(
++                true,
++                &self.stylist,
++                inherited,
++                DomMutationOperation::Remove,
++            );
+     }
+
++    /// Gecko's `MaybeInvalidateRelativeSelectorForInsertion`. Runs after the node is linked.
+     pub(crate) fn invalidate_relative_selectors_for_insertion(&self, node_id: NodeId) {
++        use selectors::Element as _;
++
++        let Some(element) = self.relative_selector_mutation_target(node_id) else {
++            return;
++        };
++        let inherited = inherited_search_direction(element);
++        if inherited.is_empty() {
++            return;
++        }
++        let siblings = (element.prev_sibling_element(), element.next_sibling_element());
++        if let (Some(prev), Some(next)) = siblings {
++            if prev
++                .relative_selector_search_direction()
++                .intersects(ElementSelectorFlags::RELATIVE_SELECTOR_SEARCH_DIRECTION_SIBLING)
++            {
++                element.apply_selector_flags(
++                    ElementSelectorFlags::RELATIVE_SELECTOR_SEARCH_DIRECTION_SIBLING,
++                );
++                self.invalidate_relative_selectors_for_sibling_side_effects(prev, next);
++            }
++        }
+         // `Append` only unlocks an optimization that assumes a later sibling
+         // can take over the match, so `Insert` is the conservative choice.
+-        self.invalidate_relative_selectors_for_dom_mutation(node_id, DomMutationOperation::Insert);
++        self.mutation_invalidator(element, SiblingTraversalMap::default())
++            .invalidate_relative_selectors_for_dom_mutation(
++                true,
++                &self.stylist,
++                inherited,
++                DomMutationOperation::Insert,
++            );
+     }
++
++    /// Gecko's `invalidate_relative_selector_ts_dependency`: re-match the anchors whose `:has()`
++    /// reads `node_id`'s `:empty`, `:nth-*` or edge-child state, which a child-list change altered
++    /// without touching the node itself.
++    pub(crate) fn invalidate_relative_selector_ts_dependency(
++        &self,
++        node_id: NodeId,
++        state: TSStateForInvalidation,
++    ) {
++        let Some(element) = self.relative_selector_mutation_target(node_id) else {
++            return;
++        };
++        self.mutation_invalidator(element, SiblingTraversalMap::default())
++            .invalidate_relative_selectors_for_this(
++                &self.stylist,
++                |element, scope, data, quirks_mode, collector| {
++                    data.relative_invalidation_map_attributes()
++                        .ts_state_to_selector
++                        .lookup_with_additional(
++                            *element,
++                            quirks_mode,
++                            None,
++                            &[],
++                            ElementState::empty(),
++                            |dependency| {
++                                if dependency.state.intersects(state) {
++                                    collector.add_dependency(&dependency.dep, *element, scope);
++                                }
++                                true
++                            },
++                        );
++                },
++            );
++    }
++}
++
++/// Gecko's `inherit_relative_selector_search_direction`: a mutated element continues the `:has()`
++/// searches that reached its parent downward and its previous sibling sideways, including
++/// `:has(~ .a .b)`, which runs through the sibling's subtree.
++fn inherited_search_direction(element: BlitzNode<'_>) -> ElementSelectorFlags {
++    use selectors::Element as _;
++
++    let direction = |e: Option<BlitzNode<'_>>, mask: ElementSelectorFlags| {
++        e.map_or_else(ElementSelectorFlags::empty, |e| e.relative_selector_search_direction() & mask)
++    };
++    direction(
++        selectors::Element::parent_element(&element),
++        ElementSelectorFlags::RELATIVE_SELECTOR_SEARCH_DIRECTION_ANCESTOR,
++    ) | direction(
++        element.prev_sibling_element(),
++        ElementSelectorFlags::RELATIVE_SELECTOR_SEARCH_DIRECTION_ANCESTOR_SIBLING,
++    )
+ }
+
+ /// A handle to a node that Servo's style traits are implemented against
