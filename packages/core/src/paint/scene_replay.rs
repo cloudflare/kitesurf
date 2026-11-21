@@ -663,6 +663,8 @@ struct ReplayVisitor<'a, 'b, S: PaintScene> {
     text_runs: u32,
     clip_paths: bool,
     open_clip_paths: Vec<bool>,
+    /// The scene holds text from `on_glyph_text` that the next glyph run must consume.
+    glyph_text_pending: bool,
 }
 
 const PIXEL_EDGE_EPSILON: f64 = 1e-3;
@@ -1071,7 +1073,17 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
         paint: DecodedPaint,
         glyphs: &[(u32, f32, f32)],
     ) {
-        let Some(Some(font)) = self.ctx.fonts_by_id.get(&font_id) else {
+        let glyph_text_pending = std::mem::take(&mut self.glyph_text_pending);
+        let drawable = match &paint {
+            DecodedPaint::Image { content_hash } => self.ctx.image(*content_hash).is_some(),
+            _ => true,
+        };
+        let font = self.ctx.fonts_by_id.get(&font_id);
+        if glyph_text_pending && !(drawable && matches!(font, Some(Some(_)))) {
+            // Nothing is drawn, so drop the text rather than let a later run take it.
+            self.scene.glyph_text("", &[]);
+        }
+        let Some(Some(font)) = font else {
             self.missing_fonts += 1;
             return;
         };
@@ -1143,6 +1155,11 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
         clippy::too_many_arguments,
         reason = "ReplayVisitor consumes the ordered KSC0 box-shadow callback fields."
     )]
+    fn on_glyph_text(&mut self, text: &str, glyph_ranges: &[std::ops::Range<usize>]) {
+        self.scene.glyph_text(text, glyph_ranges);
+        self.glyph_text_pending = true;
+    }
+
     fn on_box_shadow(
         &mut self,
         transform: DecodedTransform,
@@ -1215,6 +1232,7 @@ pub(crate) fn replay_into<S: PaintScene>(
         text_runs: 0,
         clip_paths: !composition.non_source_over,
         open_clip_paths: Vec::new(),
+        glyph_text_pending: false,
     };
     scene_decode::decode(scene_bytes, &mut vis).map_err(|e| e.to_string())?;
     Ok(ReplayStats {

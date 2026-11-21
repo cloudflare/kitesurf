@@ -89,7 +89,7 @@ pub(crate) fn record_doc_pdf_page(
     let stripe_h = (y_bot - y_top).ceil().max(1.0) as u32;
     doc.set_inline_keep_extent(Some((y_top, y_bot)));
     doc.set_viewport_scroll(blitz_dom::Point { x: 0.0, y: y_top });
-    let mut scene = crate::paint::scene_record::RecordingScene::for_replay();
+    let mut scene = crate::paint::scene_record::RecordingScene::for_pdf();
     scene.set_viewport(content_w, stripe_h, 0, y_top as u32);
     scene.set_render_region(y_top as u32, stripe_h);
     blitz_paint::paint_scene(&mut scene, doc, 1.0, content_w, stripe_h, 0, 0);

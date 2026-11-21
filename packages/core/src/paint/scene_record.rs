@@ -29,13 +29,16 @@ const MIN_WEBP_IMAGE_BYTES: usize = 4096;
 
 pub const HEADER_MAGIC: [u8; 4] = *b"KSC0";
 /// Bump on any wire change; the decoder and the CLI's rasterizer manifest require an exact match.
-pub const WIRE_VERSION: u32 = 16;
+pub const WIRE_VERSION: u32 = 17;
 /// u32 fields after magic: version, viewport w/h, scroll x/y, op count (informational, excludes
-/// `Part`), resource offset (0 = none, else ends the op stream), render-band top y and height.
+/// `Part` and `GlyphText`), resource offset (0 = none, else ends the op stream), render-band
+/// top y and height.
 pub const HEADER_SIZE: usize = 40;
 
 // Op tags. Each op lists its fields in the order `write_*` emits them; `Part` brackets
 // semantic boxes (node ID u64, part code u8) for hit testing and is omitted in replay mode.
+// `GlyphText` precedes a glyph run only in PDF scenes: text length u32, UTF-8 text, glyph
+// count u32, then per glyph a [start u32][end u32] byte range of that text.
 pub(crate) const TAG_PUSH_LAYER: u8 = 0x01;
 pub(crate) const TAG_PUSH_CLIP_LAYER: u8 = 0x02;
 pub(crate) const TAG_POP_LAYER: u8 = 0x03;
@@ -45,6 +48,8 @@ pub(crate) const TAG_GLYPH_RUN: u8 = 0x06;
 pub(crate) const TAG_BOX_SHADOW: u8 = 0x07;
 pub(crate) const TAG_TEXT_RUN: u8 = 0x08;
 pub(crate) const TAG_PART: u8 = 0x09;
+pub(crate) const TAG_GLYPH_TEXT: u8 = 0x0a;
+pub(crate) const GLYPH_TEXT_RANGE_BYTES: usize = 8;
 
 // Paint tags: solid is RGBA8, image is a content hash u64, gradient has kind, extend, color
 // space, hue and alpha bytes, geometry, then u16 stops of 21 bytes. Unknown enums decode to
@@ -177,6 +182,10 @@ pub struct RecordingScene {
     emit_text_runs: bool,
     extract_glyph_outlines: bool,
     emit_parts: bool,
+    emit_glyph_text: bool,
+    /// The next glyph run's text from `glyph_text`, rebased to `pending_text`.
+    pending_text: String,
+    pending_text_ranges: Vec<(u32, u32)>,
     pub(crate) raw_images: bool,
     raw_image_bytes: usize,
 }
@@ -217,6 +226,9 @@ impl RecordingScene {
             emit_text_runs: true,
             extract_glyph_outlines: true,
             emit_parts: true,
+            emit_glyph_text: false,
+            pending_text: String::new(),
+            pending_text_ranges: Vec::new(),
             raw_images: false,
             raw_image_bytes: 0,
         }
@@ -227,6 +239,13 @@ impl RecordingScene {
         s.emit_text_runs = false;
         s.extract_glyph_outlines = false;
         s.emit_parts = false;
+        s
+    }
+
+    /// A replay scene that also records each glyph run's source text for a PDF text layer.
+    pub fn for_pdf() -> Self {
+        let mut s = Self::for_replay();
+        s.emit_glyph_text = true;
         s
     }
 
@@ -1235,6 +1254,32 @@ impl anyrender::PaintScene for RecordingScene {
         self.w_u8(0);
     }
 
+    fn wants_glyph_text(&self) -> bool {
+        self.emit_glyph_text
+    }
+
+    fn glyph_text(&mut self, text: &str, glyph_ranges: &[std::ops::Range<usize>]) {
+        self.pending_text.clear();
+        self.pending_text_ranges.clear();
+        if !self.emit_glyph_text {
+            return;
+        }
+        let lo = glyph_ranges.iter().map(|r| r.start).min().unwrap_or(0);
+        let hi = glyph_ranges.iter().map(|r| r.end).max().unwrap_or(0);
+        let Some(slice) = text.get(lo..hi) else {
+            return;
+        };
+        if u32::try_from(slice.len()).is_err() {
+            return;
+        }
+        self.pending_text.push_str(slice);
+        self.pending_text_ranges.extend(
+            glyph_ranges
+                .iter()
+                .map(|r| ((r.start - lo) as u32, (r.end - lo) as u32)),
+        );
+    }
+
     fn reset(&mut self) {
         self.buf.clear();
         self.op_count = 0;
@@ -1244,6 +1289,8 @@ impl anyrender::PaintScene for RecordingScene {
         self.depth = 0;
         self.max_depth = 0;
         self.dropped_paths = 0;
+        self.pending_text.clear();
+        self.pending_text_ranges.clear();
     }
 
     // The wire carries no clip fill rule, so clips replay non-zero.
@@ -1374,8 +1421,13 @@ impl anyrender::PaintScene for RecordingScene {
         let mut collected = std::mem::take(&mut self.glyph_scratch);
         collected.clear();
         collected.extend(glyphs);
+        // Text given for this run applies to it alone.
+        let mut text_ranges = std::mem::take(&mut self.pending_text_ranges);
+        let has_text = !text_ranges.is_empty() && text_ranges.len() == collected.len();
         if collected.is_empty() {
             self.glyph_scratch = collected;
+            text_ranges.clear();
+            self.pending_text_ranges = text_ranges;
             return;
         }
         if self.extract_glyph_outlines {
@@ -1434,6 +1486,21 @@ impl anyrender::PaintScene for RecordingScene {
             self.glyph_scratch = collected;
             return;
         }
+
+        if has_text {
+            self.tag_untracked(TAG_GLYPH_TEXT);
+            let text = std::mem::take(&mut self.pending_text);
+            self.w_u32(text.len() as u32);
+            self.buf.extend_from_slice(text.as_bytes());
+            self.pending_text = text;
+            self.w_u32(text_ranges.len() as u32);
+            for &(start, end) in &text_ranges {
+                self.w_u32(start);
+                self.w_u32(end);
+            }
+        }
+        text_ranges.clear();
+        self.pending_text_ranges = text_ranges;
 
         self.tag(TAG_GLYPH_RUN, OP_GLYPH_RUN);
         self.w_u32(font_id);

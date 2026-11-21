@@ -14,9 +14,10 @@ use crate::paint::scene_record::{
     FONT_METADATA_BYTES, FONT_METADATA_HASH_BYTES, HEADER_MAGIC, HEADER_SIZE, PAINT_GRADIENT,
     PAINT_IMAGE, PAINT_SOLID, PATH_CLOSE, PATH_CURVE, PATH_END_TAG, PATH_LINE, PATH_MOVE,
     PATH_PREC_F32, PATH_PREC_Q3, PATH_QUAD, Q3_PIXELS_PER_UNIT, RES_KIND_FONT_METADATA,
-    RES_KIND_GLYPH_OUTLINE, RES_KIND_IMAGE, TAG_BOX_SHADOW, TAG_FILL, TAG_GLYPH_RUN, TAG_PART,
-    SCENE_RESOURCE_COUNT_BYTES, TAG_POP_LAYER, TAG_PUSH_CLIP_LAYER, TAG_PUSH_LAYER, TAG_STROKE,
-    TAG_TEXT_RUN, TXFORM_FULL, TXFORM_IDENTITY, TXFORM_SAME_AS_PREV, WIRE_VERSION,
+    RES_KIND_GLYPH_OUTLINE, RES_KIND_IMAGE, TAG_BOX_SHADOW, TAG_FILL, TAG_GLYPH_RUN,
+    TAG_GLYPH_TEXT, TAG_PART, GLYPH_TEXT_RANGE_BYTES, SCENE_RESOURCE_COUNT_BYTES, TAG_POP_LAYER,
+    TAG_PUSH_CLIP_LAYER, TAG_PUSH_LAYER, TAG_STROKE, TAG_TEXT_RUN, TXFORM_FULL, TXFORM_IDENTITY,
+    TXFORM_SAME_AS_PREV, WIRE_VERSION,
 };
 
 /// Error returned when a KSC0 scene stream cannot be decoded.
@@ -31,6 +32,7 @@ pub enum DecodeError {
     UnknownPathTag { offset: usize, tag: u8 },
     UnknownPaintTag { offset: usize, tag: u8 },
     UnknownPartMarker { offset: usize, marker: u8 },
+    InvalidGlyphText { offset: usize },
 }
 
 impl std::fmt::Display for DecodeError {
@@ -79,6 +81,9 @@ impl std::fmt::Display for DecodeError {
                     "unknown part marker 0x{:02x} at offset {}",
                     marker, offset
                 )
+            }
+            DecodeError::InvalidGlyphText { offset } => {
+                write!(f, "invalid glyph text at offset {}", offset)
             }
         }
     }
@@ -462,6 +467,9 @@ pub trait SceneVisitor {
 
     fn on_part_begin(&mut self, _node_id: u64, _part: ScenePart) {}
     fn on_part_end(&mut self) {}
+
+    /// The source text of the next glyph run: per glyph, a byte range of `text`.
+    fn on_glyph_text(&mut self, _text: &str, _glyph_ranges: &[core::ops::Range<usize>]) {}
 }
 
 pub fn parse_header(bytes: &[u8]) -> Result<SceneHeader, DecodeError> {
@@ -630,6 +638,7 @@ pub fn decode<V: SceneVisitor>(bytes: &[u8], visitor: &mut V) -> Result<SceneHea
     let mut glyph_scratch: Vec<(u32, f32, f32)> = Vec::with_capacity(64);
     let mut dash_scratch: Vec<f32> = Vec::with_capacity(8);
     let mut coord_scratch: Vec<i16> = Vec::with_capacity(8);
+    let mut text_range_scratch: Vec<core::ops::Range<usize>> = Vec::new();
 
     while cur.pos < cur.buf.len() {
         let op_start = cur.pos;
@@ -758,6 +767,33 @@ pub fn decode<V: SceneVisitor>(bytes: &[u8], visitor: &mut V) -> Result<SceneHea
                         });
                     }
                 }
+            }
+            TAG_GLYPH_TEXT => {
+                let text_offset = cur.pos;
+                let text_len = cur.read_u32()? as usize;
+                cur.need(text_len)?;
+                let text =
+                    std::str::from_utf8(&cur.buf[cur.pos..cur.pos + text_len]).map_err(|_| {
+                        DecodeError::InvalidGlyphText {
+                            offset: text_offset,
+                        }
+                    })?;
+                cur.pos += text_len;
+                let n = cur.read_u32()? as usize;
+                cur.need(n.saturating_mul(GLYPH_TEXT_RANGE_BYTES))?;
+                text_range_scratch.clear();
+                text_range_scratch.reserve(n);
+                for _ in 0..n {
+                    let start = cur.read_u32()? as usize;
+                    let end = cur.read_u32()? as usize;
+                    if text.get(start..end).is_none() {
+                        return Err(DecodeError::InvalidGlyphText {
+                            offset: text_offset,
+                        });
+                    }
+                    text_range_scratch.push(start..end);
+                }
+                visitor.on_glyph_text(text, &text_range_scratch);
             }
             TAG_TEXT_RUN => {
                 let font_id = cur.read_u32()?;
