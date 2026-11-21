@@ -7,11 +7,11 @@
 import type { DispatchCtx } from "./dispatch.ts";
 import { defineDomain, stub } from "./domain.ts";
 import {
+  disableInterception,
   ensureInterception,
   getInterception,
   MAX_GLOB_PATTERN_CHARS,
   MAX_GLOB_PATTERNS,
-  releaseAllParked,
   resolveParked,
   type InterceptAction,
 } from "./fetch-interception.ts";
@@ -41,17 +41,14 @@ export const fetchDomain = defineDomain("Fetch", {
         resourceType: p.resourceType,
       }));
       const sessionId = req.sessionId;
+      st.ownerSessionId = sessionId;
       st.emit = (params) => ctx.emit({ method: "Fetch.requestPaused", params, sessionId });
       return {};
     },
 
     "Fetch.disable": (ctx) => {
       const st = getInterception(ctx.connectionId);
-      if (st) {
-        releaseAllParked(st);
-        st.patterns = [];
-        st.pendingEmits = [];
-      }
+      if (st) disableInterception(st);
       return {};
     },
 

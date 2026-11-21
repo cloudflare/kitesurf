@@ -26,7 +26,7 @@ it("seals a frame isolate's outbound with its browser context's cookie jar", () 
     },
     session: (props: CallerOutboundProps) => {
       sealed.push(props);
-      return async () => new Response(null);
+      return { outbound: async () => new Response(null), cancelBodies() {} };
     },
   } as unknown as SandboxOutboundOverride;
   spawnFramePageScript(

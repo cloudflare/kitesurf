@@ -72,6 +72,46 @@ describe("closeTargetInternal", () => {
     expect(background).toHaveLength(1);
   });
 
+  it("kills a resolved OOPIF prespawn immediately without awaiting warmup or unload", async () => {
+    const budget = new DynamicWorkerBudget();
+    const background: Promise<unknown>[] = [];
+    const ctx = makeCtx(budget, background);
+    const target = createPageTarget(ctx, "https://example.com");
+    const frame = makeMainFrameState({
+      frameId: "child",
+      loaderId: "child-loader",
+      url: "https://example.net",
+    });
+    frame.parentFrameId = target.frameId;
+    frame.pageScriptLease = budget.acquire("oopif");
+    const unload = vi.fn(() => new Promise<never>(() => {}));
+    const close = vi.fn();
+    const killIsolate = vi.fn(() => Promise.resolve());
+    // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- partial lifecycle RPC stub.
+    const stub = { unload, close, killIsolate } as unknown as PageScriptStub;
+    frame.oopifPrespawn = {
+      url: frame.url,
+      sandbox: SANDBOX_ALLOW_ALL,
+      ancestorOrigins: [],
+      promise: Promise.resolve({
+        ok: true,
+        stub,
+        warmup: new Promise<never>(() => {}),
+        finalUrl: frame.url,
+        html: "",
+        scriptPolicy: { cspHeaders: [], cspReportOnlyHeaders: [], metaCsp: [] },
+        modulePreloadPins: [],
+      }),
+    };
+    target.frames.set(frame.frameId, frame);
+
+    await expect(closeTargetInternal(ctx, target.targetId)).resolves.toBe(true);
+    await Promise.all(background);
+    expect(unload).not.toHaveBeenCalled();
+    expect(close).toHaveBeenCalledWith("Target.closeTarget");
+    expect(killIsolate).toHaveBeenCalledWith("Target.closeTarget", { atOnce: true });
+  });
+
   it("awaits its PageScript isolate teardown", async () => {
     const budget = new DynamicWorkerBudget();
     const ctx = makeCtx(budget, []);
@@ -115,5 +155,26 @@ describe("closeTargetInternal", () => {
     }
     unregisterIsolateLimitListener(sibling.targetId);
     expect(fired).toEqual(["https://example.net"]);
+  });
+
+  it("kills a detached retiringPageScript immediately on closeTarget", async () => {
+    const budget = new DynamicWorkerBudget();
+    const ctx = makeCtx(budget, []);
+    const target = createPageTarget(ctx, "https://example.com");
+    const killIsolate = vi.fn(() => Promise.resolve());
+    target.retiringPageScript = {
+      // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- partial lifecycle RPC stub.
+      pageScript: {
+        close: vi.fn(),
+        killIsolate,
+      } as unknown as PageScriptStub,
+      pageScriptLease: budget.acquire("pageScript"),
+    };
+
+    await expect(closeTargetInternal(ctx, target.targetId)).resolves.toBe(true);
+    expect(target.retiringPageScript).toBeNull();
+    expect(killIsolate).toHaveBeenCalledTimes(1);
+    expect(budget.liveOf("pageScript")).toBe(0);
+    expect(budget.isolatesKilled).toBe(1);
   });
 });

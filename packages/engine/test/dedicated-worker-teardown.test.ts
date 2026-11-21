@@ -41,7 +41,10 @@ function harness(opts: { openError?: Error; deliverError?: Error } = {}) {
       extraHeaders: {},
       cpuMs: 1_000,
       source: "postMessage(1)",
-      sandboxOutbound: { loaded: () => ({}), session: () => ({}) } as never,
+      sandboxOutbound: {
+        loaded: () => ({}),
+        session: () => ({ outbound: async () => new Response(null), cancelBodies() {} }),
+      } as never,
       onUpstream: () => {},
     },
   );

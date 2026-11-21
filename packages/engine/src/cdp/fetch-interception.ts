@@ -39,6 +39,8 @@ export interface FetchInterceptionState {
   parked: Map<string, ParkedRequest>;
   nextId: number;
   pendingEmits: Protocol.Fetch.RequestPausedEvent[];
+  /** The session that sent `Fetch.enable`; undefined for the browser session. */
+  ownerSessionId?: string;
 }
 
 const registry = new Map<string, FetchInterceptionState>();
@@ -79,6 +81,22 @@ export function releaseAllParked(st: FetchInterceptionState): void {
 export function releaseParkedForConnection(connectionId: string): void {
   const st = registry.get(connectionId);
   if (st) releaseAllParked(st);
+}
+
+export function disableInterception(st: FetchInterceptionState): void {
+  releaseAllParked(st);
+  st.patterns = [];
+  st.pendingEmits = [];
+}
+
+// Like Chrome, interception ends with the session that enabled it; otherwise every later
+// request on the connection parks for a verdict nobody can send.
+export function endSessionInterception(connectionId: string, sessionId: string): void {
+  const st = registry.get(connectionId);
+  if (!st || st.ownerSessionId !== sessionId) return;
+  disableInterception(st);
+  st.emit = () => {};
+  st.ownerSessionId = undefined;
 }
 
 export function unregisterInterception(connectionId: string): void {

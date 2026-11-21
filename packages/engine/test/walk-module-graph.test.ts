@@ -380,7 +380,10 @@ function stubOutbound(
     external: false,
     parent: () => fetcher,
     loaded: () => fetcher,
-    session: () => (request) => fetcher.fetch(request.url),
+    session: () => ({
+      outbound: (request) => fetcher.fetch(request.url),
+      cancelBodies: () => {},
+    }),
     final: async () => new Response(null, { status: 404 }),
   };
 }
@@ -612,7 +615,10 @@ describe("walkModuleGraph asset-import stubs", () => {
       external: false,
       parent: () => fetcher,
       loaded: () => fetcher,
-      session: () => (request) => fetcher.fetch(request.url),
+      session: () => ({
+        outbound: (request) => fetcher.fetch(request.url),
+        cancelBodies: () => {},
+      }),
       final: async () => new Response(null, { status: 404 }),
     };
 
@@ -699,7 +705,10 @@ describe("walkModuleGraph modulepreload seeds", () => {
         external: false,
         parent: () => fetcher,
         loaded: () => fetcher,
-        session: () => (request) => fetcher.fetch(request.url),
+        session: () => ({
+          outbound: (request) => fetcher.fetch(request.url),
+          cancelBodies: () => {},
+        }),
         final: async () => new Response(null, { status: 404 }),
       },
     });

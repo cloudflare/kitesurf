@@ -164,8 +164,9 @@ export function spawnDedicatedWorker(
   const entrypoint = stub.getEntrypoint<DedicatedWorkerEntrypointStub>("DedicatedWorker", {
     props: { KS_TAIL_TOKEN: tailToken },
   });
+  const outboundHandle = opts.sandboxOutbound.session(outboundProps);
   const init: OpenWorkerSessionInit = {
-    outbound: opts.sandboxOutbound.session(outboundProps),
+    outbound: outboundHandle.outbound,
     upstream: (message: unknown) => {
       if (!isWorkerUpstreamMessage(message)) {
         console.warn(
@@ -213,6 +214,7 @@ export function spawnDedicatedWorker(
       if (opts.gone) gone = true;
       if (terminated) return terminated;
       terminated = (async () => {
+        outboundHandle.cancelBodies(reason);
         await settleWithin(
           sessionReady.then(async (session) => {
             try {

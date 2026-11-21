@@ -153,6 +153,8 @@ export interface BrowserState {
   cdpDebug: boolean;
   isolateCapOverrides?: PageIsolateCapOverrides;
   ttyKeyboard?: boolean;
+  // Page.addScriptToEvaluateOnNewDocument sent without a session id is not
+  // target-scoped; it applies to every target the connection opens.
   preNavScripts: Map<string, string>;
   learnedInsertedScripts: LearnedScripts;
   pendingBindings: Set<string>;
@@ -349,6 +351,12 @@ export interface TargetState {
   pageScriptUrl?: string;
   pageSession?: PageSession;
   pageScriptLease: WorkerLease | null;
+  // Detached about:blank holder being retired concurrently with Page.navigate prefetches,
+  // kept reachable so Target.closeTarget and WS close can immediately kill it.
+  retiringPageScript?: {
+    pageScript: PageScriptStub | null;
+    pageScriptLease: WorkerLease | null;
+  } | null;
   navigateGeneration: number;
   wheelTeardownDepth: number;
   // A navigation an input started and replied before; the next input waits for it, so it never
@@ -372,6 +380,10 @@ export interface TargetState {
   lastLoadAt: number;
   layoutMode: "full" | "off";
   compiledScripts: CompiledScriptMeta[];
+  // Page.addScriptToEvaluateOnNewDocument is session-scoped in CDP: a script
+  // added on a page session belongs to that target and dies with it, never to
+  // a later target.
+  preNavScripts: Map<string, string>;
   debuggerEnabledSessions: Set<string>;
   domEnabledSessions: Set<string>;
   // The sessions with DOMStorage enabled, each with its frame, or null for the page's session.
