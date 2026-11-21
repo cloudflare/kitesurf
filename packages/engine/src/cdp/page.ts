@@ -922,6 +922,26 @@ export const pageDomain = defineDomain("Page", {
       emitCapturedExceptions(ctx, target, exceptions, req.sessionId);
       emitMutations(ctx, target, cdpMutations);
       if (target.pageScript) {
+        const pageScript = target.pageScript;
+        // Consume the background load summary so mutations drained at load completion are
+        // forwarded to CDP instead of dropped while the caller evaluates against the document.
+        ctx.ctx.waitUntil(
+          pageScript
+            .awaitLoad()
+            .then((summary) => {
+              if (ctx.browser.wsClosing || target.pageScript !== pageScript) return;
+              if (summary.console && summary.console.length > 0) {
+                emitCapturedConsole(ctx, target, summary.console, req.sessionId);
+              }
+              if (summary.exceptions && summary.exceptions.length > 0) {
+                emitCapturedExceptions(ctx, target, summary.exceptions, req.sessionId);
+              }
+              if (summary.cdpMutations && summary.cdpMutations.length > 0) {
+                emitMutations(ctx, target, summary.cdpMutations);
+              }
+            })
+            .catch(() => {}),
+        );
         releaseTargetDom(target);
         releaseFallbackHtml(target);
       }
@@ -4389,7 +4409,8 @@ async function spawnOopifPipeline(
       typeof res.width === "number" &&
       typeof res.height === "number" &&
       !browser.wsClosing &&
-      target.navigateGeneration === generationAtStart
+      target.navigateGeneration === generationAtStart &&
+      f.pageScript === spawn.stub
     ) {
       const rc = await ps.setFrameBitmap({
         ownerBackendNodeId: f.ownerBackendNodeId,
@@ -4418,6 +4439,19 @@ async function spawnOopifPipeline(
       f.pageScriptLease = null;
     }
     f.oopifSpawning = false;
+    // If src changed during post-publish speculative raster, teardown cleared f.pageScript while
+    // oopifSpawning was still true and skipped spawning the replacement; start it now.
+    if (
+      !f.pageScript &&
+      !browser.wsClosing &&
+      target.navigateGeneration === generationAtStart &&
+      f.url !== urlAtStart &&
+      f.url &&
+      f.url !== "about:blank" &&
+      frameNeedsIsolate(f)
+    ) {
+      ctx.ctx.waitUntil(spawnOopifPipeline(ctx, target, f).catch(() => {}));
+    }
   }
 }
 

@@ -24,14 +24,37 @@ export function nativeSleep(ms: number): Promise<void> {
   });
 }
 
-const SETTLE_MICROTASK_TURNS = 32;
+// A chain of thenables needs one turn per link, and `cs-microtask.html` relies
+// on five. Only a script that read document.currentScript pays this: draining
+// every classic script this deep cost 15 s of microtask work that
+// one turn does in 1.3 s.
+export const SETTLE_MICROTASK_TURNS = 32;
 
 const PAGE_TASK_YIELD_GRACE_MS = 50;
 
-export async function drainSettleMicrotasks(): Promise<void> {
-  for (let i = 0; i < SETTLE_MICROTASK_TURNS; i++) {
+// Deep settles are budgeted per navigation so a pathological page with
+// hundreds of scripts reading document.currentScript stays bounded, while
+// multi-chunk apps (e.g. Next.js/Turbopack) still settle every chunk.
+const DEEP_SETTLE_BUDGET_TURNS = 4096;
+let deepSettleTurnsLeft = DEEP_SETTLE_BUDGET_TURNS;
+
+export function resetDeepSettleBudget(): void {
+  deepSettleTurnsLeft = DEEP_SETTLE_BUDGET_TURNS;
+}
+
+export async function drainSettleMicrotasks(turns: number = SETTLE_MICROTASK_TURNS): Promise<void> {
+  for (let i = 0; i < turns; i++) {
     await NativePromise.resolve();
   }
+}
+
+export async function drainScriptSettleMicrotasks(deep: boolean): Promise<void> {
+  let limit = 1;
+  if (deep && deepSettleTurnsLeft > 0) {
+    limit = Math.min(SETTLE_MICROTASK_TURNS, deepSettleTurnsLeft);
+    deepSettleTurnsLeft -= limit;
+  }
+  await drainSettleMicrotasks(limit);
 }
 
 let engineScheduling = false;

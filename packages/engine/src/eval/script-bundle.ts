@@ -35,6 +35,31 @@ function countLines(s: string): number {
   return n;
 }
 
+export interface ClassicSourceAnalysis {
+  scan: ReturnType<typeof extractTopLevelDecls>;
+  lineCount: number;
+}
+
+export type ClassicAnalysisCache = Map<string, ClassicSourceAnalysis>;
+
+// A script's declaration scan and line count depend only on its exact source.
+// Fetch callbacks prime this cache as bodies arrive, so the bundle build does
+// not rescan every byte after the last script lands. A walker rewrite is a
+// different string and is analysed on its own.
+export function analyzeClassicSource(
+  cache: ClassicAnalysisCache | undefined,
+  source: string,
+): ClassicSourceAnalysis {
+  const cached = cache?.get(source);
+  if (cached !== undefined) return cached;
+  const analysis: ClassicSourceAnalysis = {
+    scan: extractTopLevelDecls(source),
+    lineCount: countLines(source),
+  };
+  cache?.set(source, analysis);
+  return analysis;
+}
+
 // A line terminator in a script URL would end the `//` comment or directive it is placed in.
 function commentSafe(text: string): string {
   return text.replace(/[\n\r\u2028\u2029]/g, (c) => encodeURI(c));
@@ -125,7 +150,13 @@ function buildClassicSegment(
   d: ParentScriptDescriptor,
   index: number,
   opts: { currentScript?: boolean } = {},
-): { source: string; sourceLineOffset: number; lexicalNames: string[] } {
+  analysisCache?: ClassicAnalysisCache,
+): {
+  source: string;
+  sourceLineOffset: number;
+  lineCount: number;
+  lexicalNames: string[];
+} {
   const label = commentSafe(d.src ? d.src : `inline#${index}`);
   const currentScriptUrl = d.resolvedSrc ?? d.src ?? "";
   const domIdx = typeof d.scriptDomIndex === "number" ? d.scriptDomIndex : -1;
@@ -138,21 +169,18 @@ function buildClassicSegment(
       ? ""
       : `if (__ks_state_local.parserScriptLifecycle) { await __ks_state_local.parserScriptLifecycle(${domIdx}, ${JSON.stringify(rawSrc)}, ${JSON.stringify(currentScriptUrl)}, ${ok}); }\n`;
   if (d.blocked) {
-    return {
-      source: `console.error(${JSON.stringify(d.blocked.message)});\n${lifecycle(false)}`,
-      sourceLineOffset: 0,
-      lexicalNames: [],
-    };
+    const source = `console.error(${JSON.stringify(d.blocked.message)});\n${lifecycle(false)}`;
+    return { source, sourceLineOffset: 0, lineCount: countLines(source), lexicalNames: [] };
   }
   if (d.prefetchError) {
-    return {
-      source: `console.error(${JSON.stringify(`[${label}] prefetch failed: ${d.prefetchError}`)});\n${lifecycle(false)}`,
-      sourceLineOffset: 0,
-      lexicalNames: [],
-    };
+    const source = `console.error(${JSON.stringify(`[${label}] prefetch failed: ${d.prefetchError}`)});\n${lifecycle(false)}`;
+    return { source, sourceLineOffset: 0, lineCount: countLines(source), lexicalNames: [] };
   }
   const source = d.src ? (d.prefetchedSource ?? "") : (d.body ?? "");
-  if (!source.trim()) return { source: lifecycle(true), sourceLineOffset: 0, lexicalNames: [] };
+  if (!source.trim()) {
+    const sourceText = lifecycle(true);
+    return { source: sourceText, sourceLineOffset: 0, lineCount: countLines(sourceText), lexicalNames: [] };
+  }
 
   const bodyKey = !d.src ? (d.body || "").trim().slice(0, INLINE_SCRIPT_BODY_KEY_PREFIX_CHARS) : "";
   const setCurrent = !bracket
@@ -163,7 +191,8 @@ function buildClassicSegment(
     ? ""
     : "if (__ks_state_local.endClassicScript) { await __ks_state_local.endClassicScript(); } else { __ks_state_local.setCurrentScript(null); }\n";
 
-  const scan = extractTopLevelDecls(source);
+  const analysis = analyzeClassicSource(analysisCache, source);
+  const scan = analysis.scan;
   const blockedNames = new Set(["module", "exports", "require"]);
   let bodySource = source;
   // Top-level let/const/class share one global lexical scope across scripts.
@@ -264,9 +293,11 @@ ${promoteTail}} catch (__ks_segment_error) {
   console.error("classic script threw: " + String(__ks_segment_error && __ks_segment_error.message || __ks_segment_error));
 } finally {
 ${clearCurrent}${lifecycleDynamic}}\n`;
+  const generated = `${prefix}${segmentBody}`;
   return {
-    source: `${prefix}${segmentBody}`,
+    source: generated,
     sourceLineOffset: countLines(prefix) + 1,
+    lineCount: countLines(generated),
     // Function names join the hoisted bindings, since the block's first line assigns them.
     lexicalNames: [...scan.lexicalNames, ...hoistedFunctions.keys()],
   };
@@ -278,6 +309,7 @@ export interface BuildScriptBundleOptions {
   importMapModuleSource?: string;
   insertedBake?: ParentScriptDescriptor[];
   insertedDigests?: ReadonlyMap<string, string>;
+  analysisCache?: ClassicAnalysisCache;
 }
 
 export function buildScriptBundle(
@@ -327,39 +359,35 @@ export function buildScriptBundle(
         `async=${asyncBucket.length} modules=${moduleBucket.length}`,
     );
   }
+  const countSourceLines = (sourceBody: string): number => {
+    if (!sourceBody) return 1;
+    const cached = options.analysisCache?.get(sourceBody);
+    return (cached ? cached.lineCount : countLines(sourceBody)) + 1;
+  };
   const pushSegment = (
     acc: { parts: string[]; lines: number },
-    seg: string,
-    sourceLineOffset: number,
+    segment: { source: string; sourceLineOffset: number; lineCount: number },
     label: string,
     sourceBody: string,
     metaList: ClassicSegment[],
   ): void => {
-    if (!seg) return;
-    const sourceLines = countLines(sourceBody) + 1;
+    if (!segment.source) return;
     metaList.push({
       source: label,
-      generatedLine: acc.lines + sourceLineOffset,
-      lineCount: sourceLines,
+      generatedLine: acc.lines + segment.sourceLineOffset,
+      lineCount: countSourceLines(sourceBody),
     });
-    acc.parts.push(seg);
-    acc.lines += countLines(seg);
+    acc.parts.push(segment.source);
+    acc.lines += segment.lineCount;
   };
   const segLabel = (d: ParentScriptDescriptor, idx: number): string =>
     d.src ? d.src : `inline#${idx}`;
   const segSourceBody = (d: ParentScriptDescriptor): string =>
     d.prefetchError || d.blocked ? "" : d.src ? (d.prefetchedSource ?? "") : (d.body ?? "");
   for (const d of regularInline) {
-    const segment = buildClassicSegment(d, regularIdx);
+    const segment = buildClassicSegment(d, regularIdx, {}, options.analysisCache);
     for (const name of segment.lexicalNames) regularLexical.add(name);
-    pushSegment(
-      regularAcc,
-      segment.source,
-      segment.sourceLineOffset,
-      segLabel(d, regularIdx),
-      segSourceBody(d),
-      regularSegMeta,
-    );
+    pushSegment(regularAcc, segment, segLabel(d, regularIdx), segSourceBody(d), regularSegMeta);
     if (cdpDebug) {
       console.log(
         `[kitesurf-nav] segment regularInline#${regularIdx} ` +
@@ -369,16 +397,9 @@ export function buildScriptBundle(
     regularIdx++;
   }
   for (const d of regularDeferred) {
-    const segment = buildClassicSegment(d, regularIdx);
+    const segment = buildClassicSegment(d, regularIdx, {}, options.analysisCache);
     for (const name of segment.lexicalNames) regularLexical.add(name);
-    pushSegment(
-      regularAcc,
-      segment.source,
-      segment.sourceLineOffset,
-      segLabel(d, regularIdx),
-      segSourceBody(d),
-      regularSegMeta,
-    );
+    pushSegment(regularAcc, segment, segLabel(d, regularIdx), segSourceBody(d), regularSegMeta);
     if (cdpDebug) {
       console.log(
         `[kitesurf-nav] segment regularDeferred#${regularIdx} ` +
@@ -389,16 +410,9 @@ export function buildScriptBundle(
   }
   let asyncIdx = 0;
   for (const d of asyncBucket) {
-    const segment = buildClassicSegment(d, asyncIdx);
+    const segment = buildClassicSegment(d, asyncIdx, {}, options.analysisCache);
     for (const name of segment.lexicalNames) asyncLexical.add(name);
-    pushSegment(
-      asyncAcc,
-      segment.source,
-      segment.sourceLineOffset,
-      segLabel(d, asyncIdx),
-      segSourceBody(d),
-      asyncSegMeta,
-    );
+    pushSegment(asyncAcc, segment, segLabel(d, asyncIdx), segSourceBody(d), asyncSegMeta);
     asyncIdx++;
   }
   // CDP addScriptToEvaluateOnNewDocument source is compiled into its own module so page
@@ -577,7 +591,7 @@ __ks_diag.exited = true;
     const digest = url ? options.insertedDigests?.get(url) : undefined;
     if (typeof source !== "string" || !source.trim() || !url || !digest) continue;
     const module = `__ks_inserted_${i}.js`;
-    const segment = buildClassicSegment(d, i, { currentScript: false });
+    const segment = buildClassicSegment(d, i, { currentScript: false }, options.analysisCache);
     const lexicalDecl =
       segment.lexicalNames.length > 0
         ? `var ${[...new Set(segment.lexicalNames)].join(", ")};\n`
