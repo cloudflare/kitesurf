@@ -1,0 +1,62 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 20 Nov 2026 18:56:48 +0000
+Subject: [PATCH] Treat a -webkit- prefixed function as a font family name
+
+font-family: -webkit-generic(fangsong), Ahem is a family list whose first entry is an
+unmatched name, so it falls through to Ahem. The parser rejected the function token and
+dropped the whole declaration, leaving the inherited family instead.
+---
+ values/computed/font.rs | 25 ++++++++++++++++++++++++-
+ 1 file changed, 24 insertions(+), 1 deletion(-)
+
+diff --git a/values/computed/font.rs b/values/computed/font.rs
+index a913963..838721f 100644
+--- a/values/computed/font.rs
++++ b/values/computed/font.rs
+@@ -28,7 +28,7 @@ use malloc_size_of::{MallocSizeOf, MallocSizeOfOps};
+ use num_traits::abs;
+ use num_traits::cast::AsPrimitive;
+ use std::fmt::{self, Write};
+-use style_traits::{CssWriter, ParseError, ToCss};
++use style_traits::{CssWriter, ParseError, StyleParseErrorKind, ToCss};
+ use thin_vec::ThinVec;
+
+ pub use crate::values::computed::Length as MozScriptMinSize;
+@@ -704,6 +704,22 @@ impl GenericFontFamily {
+     }
+ }
+
++/// A `-webkit-`-prefixed function token is a family name, not a generic, so a legacy
++/// `-webkit-generic(fangsong)` falls through to the next family instead of dropping the
++/// whole declaration (Chrome's behavior; see css-fonts generic-family-keywords tests).
++fn parse_webkit_function_family_name<'i>(input: &mut Parser<'i>) -> Result<Atom, ParseError> {
++    let start = input.position();
++    let name = input.expect_function()?.clone();
++    if !name.starts_with("-webkit-") {
++        return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
++    }
++    input.parse_nested_block(|input| {
++        while input.next().is_ok() {}
++        Ok(())
++    })?;
++    Ok(Atom::from(input.slice_from(start)))
++}
++
+ impl Parse for SingleFontFamily {
+     /// Parse a font-family value.
+     fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
+@@ -718,6 +734,13 @@ impl Parse for SingleFontFamily {
+             return Ok(SingleFontFamily::Generic(generic));
+         }
+
++        if let Ok(name) = input.try_parse(parse_webkit_function_family_name) {
++            return Ok(SingleFontFamily::FamilyName(FamilyName {
++                name,
++                syntax: FontFamilyNameSyntax::Identifiers,
++            }));
++        }
++
+         let first_ident = input.expect_ident_cloned()?;
+         let reserved = match_ignore_ascii_case! { &first_ident,
+             // https://drafts.csswg.org/css-fonts/#propdef-font-family

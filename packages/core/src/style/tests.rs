@@ -13,6 +13,7 @@ mod color_serialization;
 mod computed_style_no_layout;
 mod disconnected_style;
 mod flat_tree_style;
+mod font_family_parse;
 mod focus_pseudoclass;
 mod has_invalidation;
 mod insertion_invalidation;
