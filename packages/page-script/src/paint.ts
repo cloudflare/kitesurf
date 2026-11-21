@@ -140,6 +140,15 @@ export function discoverFontFaces(): void {
   }
 }
 
+/** `document.fonts.load()`: fetch every declared face, not only the ones the styles use. */
+export function loadAllFontFaces(): void {
+  try {
+    ensurePaintDom()?.loadAllFontFaces();
+  } catch {
+    invalidatePaintDom();
+  }
+}
+
 export function invalidatePaintDom(): void {
   state.paintCacheHandle = null;
   state.paintCacheSeq = -1;
