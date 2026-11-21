@@ -183,3 +183,55 @@ describe("script body reads", () => {
     );
   });
 });
+
+describe("prefetchExternalScripts onFetched", () => {
+  const prefetch = (
+    descriptors: ParentScriptDescriptor[],
+    onFetched?: (d: ParentScriptDescriptor) => void,
+    useGate = false,
+    redirects: Record<string, string> = {},
+  ) => {
+    const { sandboxOutbound } = outbound(redirects);
+    return prefetchExternalScripts({
+      descriptors,
+      pageUrl: PAGE,
+      connectionId: "c1",
+      baseUrl: PAGE,
+      sandboxOutbound,
+      ...(useGate ? { gate } : {}),
+      onFetched,
+    });
+  };
+
+  it("fires once per fetched script with the body set", async () => {
+    const seen: Array<{ src: string | null; len: number }> = [];
+    const descriptors = [classic("https://page.test/a.js"), classic("https://page.test/b.js")];
+    await prefetch(descriptors, (d) =>
+      seen.push({ src: d.src, len: d.prefetchedSource?.length ?? -1 }),
+    );
+    expect(seen).toEqual([
+      { src: "https://page.test/a.js", len: "globalThis.ran = 1; export {};".length },
+      { src: "https://page.test/b.js", len: "globalThis.ran = 1; export {};".length },
+    ]);
+  });
+
+  it("does not fire for a blocked script", async () => {
+    const seen: string[] = [];
+    const [blocked] = await prefetch(
+      [classic("https://page.test/c.js")],
+      (d) => seen.push(d.src ?? ""),
+      true,
+      { "https://page.test/c.js": "https://other.test/c.js" },
+    );
+    expect(seen).toEqual([]);
+    expect(blocked!.blocked).toBeDefined();
+  });
+
+  it("a throwing callback leaves the fetch result untouched", async () => {
+    const [descriptor] = await prefetch([classic("https://page.test/a.js")], () => {
+      throw new Error("analysis exploded");
+    });
+    expect(descriptor!.prefetchedSource).toBe("globalThis.ran = 1; export {};");
+    expect(descriptor!.prefetchError).toBeUndefined();
+  });
+});

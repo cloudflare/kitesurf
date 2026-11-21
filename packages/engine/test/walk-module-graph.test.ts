@@ -3,6 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { describe, it, expect } from "vitest";
+import { buildScriptGateContext } from "@kitesurf/script-gate";
 import { parseCspPolicies } from "@kitesurf/script-gate/csp";
 import {
   assignModuleRegistryNames,
@@ -824,6 +825,289 @@ describe("registry entries the document names", () => {
     const baked = Object.keys(additionalModules).map((u) => u.split("/").pop());
     expect(baked).toContain("ModelList-Ab12Cd39.js");
     expect(baked.filter((f) => f !== "index.js" && f !== "ModelList-Ab12Cd39.js")).toEqual([]);
+  });
+
+  it("skips unnamed fanout registry entries when modulepreload seeds name the active route", async () => {
+    const PAGE = "https://h.test/";
+    const routes = Array.from({ length: 12 }, (_, i) => `route${i}`);
+    const hash = (i: number) => `Ab12Cd${String(i).padStart(2, "0")}`;
+    const registry = routes
+      .map((r, i) => `case ${i}: return import("./${r}-${hash(i)}.js");`)
+      .join("\n");
+    const bodies: Record<string, string> = {
+      "https://h.test/build/app.js": `export function load(n) { switch (n) {\n${registry}\n} }`,
+    };
+    for (const [i, r] of routes.entries()) {
+      bodies[`https://h.test/build/${r}-${hash(i)}.js`] = `export const id = ${i};`;
+    }
+    const { additionalModules } = await walkModuleGraph({
+      descriptors: [moduleInline(`import "/build/app.js";`)],
+      pageUrl: PAGE,
+      connectionId: "conn",
+      mainFrameId: "",
+      mainLoaderId: "",
+      extraHeaders: {},
+      cookieKey: "",
+      options: {
+        preloadSeeds: [
+          { url: `https://h.test/build/route3-${hash(3)}.js`, integrity: null, nonce: null },
+        ],
+        documentHtml: `<section data-target="route7"></section>`,
+      },
+      sandboxOutbound: stubOutbound(bodies),
+    });
+    const baked = Object.keys(additionalModules)
+      .map((u) => u.split("/").pop())
+      .filter((f) => f && !f.startsWith("__kitesurf_inline_"))
+      .sort();
+    expect(baked).toEqual(["app.js", `route3-${hash(3)}.js`, `route7-${hash(7)}.js`]);
+  });
+
+  it("overlaps module fetches with deferred external classic scripts and seeds their dynamic imports", async () => {
+    const PAGE = "https://h.test/";
+    const events: string[] = [];
+    let releaseClassics!: () => void;
+    const classicsGate = new Promise<void>((resolve) => {
+      releaseClassics = resolve;
+    });
+    const moduleDesc: ParentScriptDescriptor = {
+      src: "/app.js",
+      resolvedSrc: "https://h.test/app.js",
+      kind: "module",
+      defer: false,
+      async: false,
+      body: "",
+    };
+    const classicDesc: ParentScriptDescriptor = {
+      src: "/classic.js",
+      resolvedSrc: "https://h.test/classic.js",
+      kind: "classic",
+      defer: false,
+      async: false,
+      body: "",
+    };
+    const out = stubOutbound({
+      "https://h.test/app.js": `export const fromMod = 1;`,
+      "https://h.test/from-classic.js": `export const fromClassic = 2;`,
+    });
+    const origParent = out.parent;
+    out.parent = (props) => {
+      const f = origParent(props);
+      return {
+        fetch: (input: RequestInfo | URL, init?: RequestInit) => {
+          const url =
+            typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          events.push(`fetch:${url.split("/").pop()}`);
+          if (url.endsWith("/app.js")) releaseClassics();
+          return f.fetch(input, init);
+        },
+      } as Fetcher;
+    };
+    const deferredClassics = classicsGate.then(() => {
+      events.push("classics-ready");
+      return {
+        descriptors: [
+          moduleDesc,
+          { ...classicDesc, prefetchedSource: `import("/from-classic.js");` },
+        ],
+        insertedDescriptors: [],
+      };
+    });
+    const res = await walkModuleGraph({
+      descriptors: [moduleDesc, classicDesc],
+      deferredClassics,
+      pageUrl: PAGE,
+      connectionId: "conn",
+      mainFrameId: "",
+      mainLoaderId: "",
+      extraHeaders: {},
+      cookieKey: "",
+      sandboxOutbound: out,
+    });
+    // Module entry fetched BEFORE deferredClassics resolved, and dynamic import from classic baked.
+    expect(events[0]).toBe("fetch:app.js");
+    expect(events).toContain("classics-ready");
+    expect(Object.keys(res.additionalModules).sort()).toEqual([
+      "https://h.test/app.js",
+      "https://h.test/from-classic.js",
+    ]);
+    expect(res.descriptors[1]?.prefetchedSource).toContain("https://h.test/from-classic.js");
+  });
+
+  it("keeps the nonce supplied by a deferred classic when CSP is active", async () => {
+    const pageUrl = "https://h.test/";
+    const mod: ParentScriptDescriptor = {
+      src: "/app.js",
+      kind: "module",
+      defer: false,
+      async: false,
+      body: "",
+    };
+    const classic: ParentScriptDescriptor = {
+      ...mod,
+      kind: "classic",
+      src: "/boot.js",
+      nonce: "valid",
+    };
+    const fetched: ParentScriptDescriptor = {
+      ...classic,
+      prefetchedSource: 'import("/shared.js");',
+    };
+    const gate = buildScriptGateContext(pageUrl, {
+      cspHeaders: ["script-src 'nonce-valid' https://h.test/app.js"],
+    });
+    const makeOpts = () => ({
+      pageUrl,
+      connectionId: "",
+      options: { gate },
+      sandboxOutbound: stubOutbound({
+        "https://h.test/app.js": 'import "./shared.js";',
+        "https://h.test/shared.js": "export {};",
+      }),
+    });
+    let resolveClassics!: (v: {
+      descriptors: ParentScriptDescriptor[];
+      insertedDescriptors: ParentScriptDescriptor[];
+    }) => void;
+    const ready = new Promise<{
+      descriptors: ParentScriptDescriptor[];
+      insertedDescriptors: ParentScriptDescriptor[];
+    }>((resolve) => {
+      resolveClassics = resolve;
+    });
+    const parallel = walkModuleGraph({
+      ...makeOpts(),
+      descriptors: [mod, classic],
+      deferredClassics: ready,
+    });
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    resolveClassics({ descriptors: [mod, fetched], insertedDescriptors: [] });
+    const seq = await walkModuleGraph({ ...makeOpts(), descriptors: [mod, fetched] });
+    expect(seq.descriptors[0]?.prefetchError).toBeUndefined();
+    expect((await parallel).descriptors[0]?.prefetchError).toBeUndefined();
+  });
+
+  it("overlaps module fetches under CSP when no deferred classic carries a nonce", async () => {
+    const pageUrl = "https://h.test/";
+    const events: string[] = [];
+    const mod: ParentScriptDescriptor = {
+      src: "/app.js",
+      kind: "module",
+      defer: false,
+      async: false,
+      body: "",
+    };
+    const classic: ParentScriptDescriptor = {
+      ...mod,
+      kind: "classic",
+      src: "/boot.js",
+    };
+    const gate = buildScriptGateContext(pageUrl, {
+      cspHeaders: ["script-src 'self'"],
+    });
+    let releaseClassics!: () => void;
+    const classicsGate = new Promise<void>((resolve) => {
+      releaseClassics = resolve;
+    });
+    const out = stubOutbound({ "https://h.test/app.js": "export const ok = 1;" });
+    const origParent = out.parent;
+    out.parent = (props) => {
+      const f = origParent(props);
+      return {
+        fetch: (input: RequestInfo | URL, init?: RequestInit) => {
+          const url =
+            typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          events.push(`fetch:${url.split("/").pop()}`);
+          if (url.endsWith("/app.js")) releaseClassics();
+          return f.fetch(input, init);
+        },
+      } as Fetcher;
+    };
+    const deferredClassics = classicsGate.then(() => {
+      events.push("classics-ready");
+      return {
+        descriptors: [mod, { ...classic, prefetchedSource: "window.booted = true;" }],
+        insertedDescriptors: [],
+      };
+    });
+    const res = await walkModuleGraph({
+      descriptors: [mod, classic],
+      deferredClassics,
+      pageUrl,
+      connectionId: "",
+      options: { gate },
+      sandboxOutbound: out,
+    });
+    expect(events).toEqual(["fetch:app.js", "classics-ready"]);
+    expect(res.descriptors[0]?.prefetchError).toBeUndefined();
+  });
+
+  it("bakes static imports of a route already queued by an inline registry", async () => {
+    const pageUrl = "https://h.test/";
+    const routes = Array.from(
+      { length: 9 },
+      (_, i) => `export const load${i} = () => import("/route${i}.js");`,
+    ).join("\n");
+    const { additionalModules } = await walkModuleGraph({
+      pageUrl,
+      connectionId: "",
+      descriptors: [moduleInline(routes)],
+      options: {
+        preloadSeeds: [{ url: `${pageUrl}route7.js`, nonce: null, integrity: null }],
+      },
+      sandboxOutbound: stubOutbound({
+        [`${pageUrl}route7.js`]: 'import "/dep.js";',
+        [`${pageUrl}dep.js`]: "export {};",
+      }),
+    });
+    expect(additionalModules[`${pageUrl}route7.js`]).toBeDefined();
+    expect(additionalModules[`${pageUrl}dep.js`]).toBeDefined();
+  });
+
+  it("skips unpreloaded unnamed dynamic imports when a preload manifest is present", async () => {
+    const pageUrl = "https://h.test/";
+    const preloadSeeds = [0, 1, 2, 3].map((i) => ({
+      url: `${pageUrl}chunk${i}.js`,
+      nonce: null,
+      integrity: null,
+    }));
+    const fetched: string[] = [];
+    const baseOut = stubOutbound({
+      [`${pageUrl}chunk0.js`]:
+        'import "/static-dep.js"; export const a = () => import("/lazy-admin.js"); export const b = () => import("/named-hero-a1b2c3d4.js");',
+      [`${pageUrl}chunk1.js`]: "export const c1 = 1;",
+      [`${pageUrl}chunk2.js`]: "export const c2 = 2;",
+      [`${pageUrl}chunk3.js`]: "export const c3 = 3;",
+      [`${pageUrl}static-dep.js`]: "export const s = 1;",
+      [`${pageUrl}lazy-admin.js`]: "export const lazy = 1;",
+      [`${pageUrl}named-hero-a1b2c3d4.js`]: "export const hero = 1;",
+    });
+    const origParent = baseOut.parent;
+    baseOut.parent = (props) => {
+      const f = origParent(props);
+      return {
+        fetch: (input: RequestInfo | URL, init?: RequestInit) => {
+          const url =
+            typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          fetched.push(url);
+          return f.fetch(input, init);
+        },
+      } as Fetcher;
+    };
+    const { additionalModules } = await walkModuleGraph({
+      pageUrl,
+      connectionId: "",
+      descriptors: [moduleInline('import "/chunk0.js";')],
+      options: {
+        preloadSeeds,
+        documentHtml: '<div data-component="named-hero"></div>',
+      },
+      sandboxOutbound: baseOut,
+    });
+    expect(additionalModules[`${pageUrl}static-dep.js`]).toBeDefined();
+    expect(additionalModules[`${pageUrl}named-hero-a1b2c3d4.js`]).toBeDefined();
+    expect(additionalModules[`${pageUrl}lazy-admin.js`]).toBeUndefined();
+    expect(fetched).not.toContain(`${pageUrl}lazy-admin.js`);
   });
 });
 

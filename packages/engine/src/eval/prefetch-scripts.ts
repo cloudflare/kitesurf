@@ -100,6 +100,10 @@ interface PrefetchExternalScriptsOptions {
   // A parser-inserted classic reports initiator type "parser"; a speculative insert reports
   // "script". The engine's outbound maps only "parser" to the parser initiator.
   initiator?: "parser" | "script";
+  // Runs as each body arrives so callers can prepare per-source work off the
+  // critical path. It cannot change the fetch result: a throw here is swallowed
+  // and leaves the descriptor exactly as the fetch left it.
+  onFetched?: (d: ParentScriptDescriptor) => void;
 }
 
 /** Prefetches classic scripts; per-script failures are stored on each descriptor. */
@@ -116,6 +120,7 @@ export async function prefetchExternalScripts({
   signal,
   gate = null,
   initiator = "script",
+  onFetched,
 }: PrefetchExternalScriptsOptions): Promise<ParentScriptDescriptor[]> {
   const resolveBase = baseUrl || pageUrl;
 
@@ -269,6 +274,11 @@ export async function prefetchExternalScripts({
             fatal: false,
             ignoreBOM: false,
           }).decode(bytes);
+          if (onFetched) {
+            try {
+              onFetched(d);
+            } catch {}
+          }
         } catch (err) {
           d.prefetchError = err instanceof Error ? err.message : String(err);
         } finally {

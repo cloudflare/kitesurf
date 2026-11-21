@@ -9,6 +9,7 @@ import {
   checkScriptBeforeFetch,
   checkScriptRedirect,
   checkScriptResponse,
+  scriptGateIsNoop,
   type ModuleType,
   type ScriptGateContext,
 } from "@kitesurf/script-gate";
@@ -891,11 +892,18 @@ const MODULE_FETCH_RETRY_BASE_DELAY_MS = 150;
 const MODULE_FETCH_RETRY_JITTER_RATIO = 0.5;
 const BYTES_PER_MIB = 1_048_576;
 
-const WALK_CONCURRENCY = 8;
+// Module fetches are latency-bound: a page's static graph is 70-120 modules,
+// and matching the per-host cap of 32 halves sequential round trips on large SPAs.
+const WALK_CONCURRENCY = 32;
 
-const WALK_DEADLINE_MS = 1_000;
+// Cap speculative fanout-registry and webpack chunk crawling so unused lazy routes do not
+// stall Page.navigate; static imports and direct dynamic imports ignore this deadline.
+const WALK_DEADLINE_MS = 350;
 
 const FANOUT_REGISTRY_THRESHOLD = 8;
+// A document declaring at least this many `<link rel="modulepreload">` entries already names the
+// eager chunks for the current route, so unpreloaded, unnamed dynamic imports stay lazy.
+const PRELOAD_MANIFEST_MIN_SEEDS = 4;
 
 export function chunkBaseName(url: string): string | null {
   let file: string;
@@ -931,6 +939,14 @@ export interface WalkResult {
 interface WalkModuleGraphInput {
   descriptors: ParentScriptDescriptor[];
   insertedDescriptors?: readonly ParentScriptDescriptor[];
+  /**
+   * Optional promise delivering prefetched external classic and speculative scripts while the
+   * walker runs concurrently on module entries and preload seeds (only used without import maps).
+   */
+  deferredClassics?: Promise<{
+    descriptors: ParentScriptDescriptor[];
+    insertedDescriptors: ParentScriptDescriptor[];
+  }>;
   pageUrl: string;
   connectionId: string;
   mainFrameId?: string;
@@ -951,6 +967,7 @@ interface WalkModuleGraphInput {
 export async function walkModuleGraph({
   descriptors,
   insertedDescriptors = [],
+  deferredClassics,
   pageUrl,
   connectionId,
   mainFrameId = "",
@@ -1104,7 +1121,11 @@ export async function walkModuleGraph({
   // not run at navigation.
   for (const d of insertedOut) seedClassic(d, resolveModule);
 
-  if (moduleEntries.length === 0 && classicSeeds.size === 0) {
+  const preloadSeedUrls = new Set((opts.preloadSeeds ?? []).map((s) => s.url));
+  const hasPreloadSeeds = preloadSeedUrls.size > 0;
+  let classicsDone = !deferredClassics;
+
+  if (moduleEntries.length === 0 && classicSeeds.size === 0 && !deferredClassics) {
     return {
       descriptors: out,
       insertedDescriptors: insertedOut,
@@ -1133,6 +1154,7 @@ export async function walkModuleGraph({
     depth: number;
     importerDynFanout: number;
     viaRegistry: boolean;
+    namedByDoc?: boolean;
     preload?: true;
   }
   const queue: WalkQueueItem[] = [];
@@ -1173,7 +1195,12 @@ export async function walkModuleGraph({
     for (const imp of imports) {
       if (imp.t === 2) dynFanout++;
     }
-    if (dynFanout > FANOUT_REGISTRY_THRESHOLD && opts.documentHtml && !docTokens) {
+    if (
+      (dynFanout > FANOUT_REGISTRY_THRESHOLD ||
+        (dynFanout > 0 && preloadSeedUrls.size >= PRELOAD_MANIFEST_MIN_SEEDS)) &&
+      opts.documentHtml &&
+      !docTokens
+    ) {
       docTokens = documentTokens(opts.documentHtml);
     }
     for (const imp of imports) {
@@ -1223,8 +1250,10 @@ export async function walkModuleGraph({
       const prev = viaDyn.get(resolved);
       viaDyn.set(resolved, prev === undefined ? childViaDyn : prev && childViaDyn);
       const named = isDynamic && docTokens !== null && namedByDocument(resolved);
+      const isPreload = preloadSeedUrls.has(resolved);
       const childViaReg =
-        fromViaReg || (isDynamic && dynFanout > FANOUT_REGISTRY_THRESHOLD && !named);
+        !isPreload &&
+        (fromViaReg || (isDynamic && dynFanout > FANOUT_REGISTRY_THRESHOLD && !named));
       const prevReg = viaReg.get(resolved);
       viaReg.set(resolved, prevReg === undefined ? childViaReg : prevReg && childViaReg);
       viaTrustedImporter.add(resolved);
@@ -1244,6 +1273,7 @@ export async function walkModuleGraph({
         depth: fromDepth + 1,
         importerDynFanout: isDynamic && !named ? dynFanout : 0,
         viaRegistry: childViaReg,
+        ...(named ? { namedByDoc: true } : {}),
       });
     }
   };
@@ -1309,10 +1339,24 @@ export async function walkModuleGraph({
   for (const { url, nonce, integrity, crossOrigin } of opts.preloadSeeds ?? []) {
     // The pin binds every fetch of the url, including one an entry's import already queued.
     if (integrity && !integrityByUrl.has(url)) integrityByUrl.set(url, integrity);
-    if (modules.has(url) || failed.has(url) || depthOf.has(url)) continue;
     if (nonce && !nonceByUrl.has(url)) nonceByUrl.set(url, nonce);
+    if (modules.has(url) || failed.has(url)) continue;
+    if (depthOf.has(url)) {
+      // Promote an already-queued registry route so it and its static children stay non-registry.
+      viaDyn.set(url, false);
+      viaReg.set(url, false);
+      for (const item of queue) {
+        if (item.url === url) {
+          item.viaRegistry = false;
+          item.isDynamic = false;
+          item.preload = true;
+        }
+      }
+      continue;
+    }
     if (!credentialsByUrl.has(url)) credentialsByUrl.set(url, scriptCredentialsMode(crossOrigin));
     viaDyn.set(url, false);
+    viaReg.set(url, false);
     depthOf.set(url, 0);
     queue.push({
       url,
@@ -1563,7 +1607,20 @@ export async function walkModuleGraph({
       // A data: module's source can import a larger data: URL, so a static chain of them is held
       // to the budget like a dynamic import.
       if (overBudget(item)) continue;
-      if (item.viaRegistry && pastDeadline()) {
+      if (
+        item.viaRegistry &&
+        ((hasPreloadSeeds && !preloadSeedUrls.has(item.url)) || pastDeadline())
+      ) {
+        deadlineSkipped++;
+        continue;
+      }
+      const isSpeculativeDyn = item.isDynamic || viaDyn.get(item.url) === true;
+      if (
+        isSpeculativeDyn &&
+        !preloadSeedUrls.has(item.url) &&
+        !item.namedByDoc &&
+        preloadSeedUrls.size >= PRELOAD_MANIFEST_MIN_SEEDS
+      ) {
         deadlineSkipped++;
         continue;
       }
@@ -1584,8 +1641,69 @@ export async function walkModuleGraph({
         sizeCapped: best.isDynamic || (best.importer === null && classicSeeds.has(best.url)),
       };
     }
-    return inflight > 0 ? "wait" : "done";
+    return inflight > 0 || !classicsDone ? "wait" : "done";
   };
+
+  const deferredClassicsTask = deferredClassics
+    ? deferredClassics.then(
+        ({ descriptors: fetchedClassics, insertedDescriptors: fetchedInserted }) => {
+          const prevSeeds = new Set(classicSeeds);
+          const fetchedBySrc = new Map<string, ParentScriptDescriptor>();
+          for (const srcDesc of fetchedClassics) {
+            if (srcDesc.kind === "classic" && srcDesc.src && !fetchedBySrc.has(srcDesc.src)) {
+              fetchedBySrc.set(srcDesc.src, srcDesc);
+            }
+          }
+          for (let i = 0; i < out.length; i++) {
+            const targetDesc = out[i];
+            if (!targetDesc || targetDesc.kind !== "classic" || !targetDesc.src) {
+              continue;
+            }
+            const positional = fetchedClassics[i];
+            const srcDesc =
+              positional && positional.kind === "classic" && positional.src === targetDesc.src
+                ? positional
+                : fetchedBySrc.get(targetDesc.src);
+            if (!srcDesc) continue;
+            targetDesc.prefetchedSource = srcDesc.prefetchedSource;
+            targetDesc.resolvedSrc = srcDesc.resolvedSrc;
+            targetDesc.prefetchError = srcDesc.prefetchError;
+            targetDesc.blocked = srcDesc.blocked;
+            seedClassic(targetDesc, resolveModule);
+          }
+          for (const ins of fetchedInserted) {
+            const copy = { ...ins };
+            insertedOut.push(copy);
+            seedClassic(copy, resolveModule);
+          }
+          for (const seedUrl of classicSeeds) {
+            if (prevSeeds.has(seedUrl)) continue;
+            if (!modules.has(seedUrl) && !failed.has(seedUrl)) {
+              viaDyn.set(seedUrl, false);
+              depthOf.set(seedUrl, 0);
+              queue.push({
+                url: seedUrl,
+                importer: null,
+                isDynamic: false,
+                depth: 0,
+                importerDynFanout: 0,
+                viaRegistry: false,
+              });
+            }
+          }
+          classicsDone = true;
+          notifyAll();
+        },
+        (err) => {
+          console.warn(
+            "[kitesurf-walk] deferred classics failed:",
+            err instanceof Error ? err.message : String(err),
+          );
+          classicsDone = true;
+          notifyAll();
+        },
+      )
+    : Promise.resolve();
 
   const workerLoop = async (): Promise<void> => {
     for (;;) {
@@ -1619,7 +1737,19 @@ export async function walkModuleGraph({
       }
     }
   };
-  await Promise.all(Array.from({ length: WALK_CONCURRENCY }, () => workerLoop()));
+  // When CSP is active and an external classic script carries a nonce, it may authorize a shared
+  // module, so merge deferred classics before starting module fetches. Without classic nonces,
+  // external classic scripts cannot alter module CSP verdicts and can safely overlap.
+  const hasDeferredClassicNonce =
+    deferredClassics !== undefined &&
+    out.some((d) => d.kind === "classic" && !!d.src && !d.blocked && !!d.nonce);
+  if (hasDeferredClassicNonce && gate && !scriptGateIsNoop(gate)) {
+    await deferredClassicsTask;
+  }
+  await Promise.all([
+    deferredClassicsTask,
+    ...Array.from({ length: WALK_CONCURRENCY }, () => workerLoop()),
+  ]);
 
   {
     const MAX_WEBPACK_CHUNKS = 300;

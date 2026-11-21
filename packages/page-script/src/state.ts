@@ -91,6 +91,7 @@ export interface PageScriptState {
   loadCompletion: Promise<LoadCompletion> | null;
 
   navigateStarted: boolean;
+  loadEventFired: boolean;
 
   loadCompletionArmed: Promise<void>;
   settleLoadCompletionArmed: () => void;
@@ -180,6 +181,7 @@ export const state: PageScriptState = {
   loadCompletion: null,
 
   navigateStarted: false,
+  loadEventFired: false,
   loadCompletionArmed: armedDeferred,
   settleLoadCompletionArmed: () => settleArmed(),
 
