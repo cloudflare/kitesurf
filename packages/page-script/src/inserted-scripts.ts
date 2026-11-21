@@ -342,7 +342,8 @@ function runInsertedModuleScript(info: InsertedScriptInfo): void {
     return;
   }
   insertedCount++;
-  const inflightKey = "inserted-module:" + info.id + ":" + url;
+  const inflightKey =
+    (state.loadEventFired ? "postload-module:" : "inserted-module:") + info.id + ":" + url;
   resourceInflight.add(inflightKey);
   const body = async (): Promise<void> => {
     let ok = false;
@@ -404,7 +405,7 @@ export function runInsertedExternalScript(info: InsertedScriptInfo): void {
     nonce: info.nonce || null,
   };
 
-  const inflightKey = "inserted-script:" + url;
+  const inflightKey = (state.loadEventFired ? "postload-script:" : "inserted-script:") + url;
   resourceInflight.add(inflightKey);
 
   const body = async () => {

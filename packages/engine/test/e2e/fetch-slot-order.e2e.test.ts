@@ -2,9 +2,13 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
+import { FETCH_CONCURRENCY_PER_HOST } from "../../../page-script/src/fetch-slots.ts";
 import { expect, test } from "./harness";
 
 const FIXTURE = "https://ks.invalid/__fixtures/fetch-priority-probe.html";
+
+// The fixture holds more tarpit images than FETCH_CONCURRENCY_PER_HOST, so the stylesheet queues.
+const TARPIT_IMAGES = 40;
 
 test("a late body stylesheet is admitted ahead of queued tarpit images", async ({
   page,
@@ -21,9 +25,9 @@ test("a late body stylesheet is admitted ahead of queued tarpit images", async (
 
   await page.goto(FIXTURE, { waitUntil: "load", timeout: 30000 });
 
-  expect(order.length).toBe(9);
+  expect(order.length).toBe(TARPIT_IMAGES + 1);
   const cssIndex = order.findIndex((u) => u.includes("probe-late.css"));
-  expect(cssIndex).toBeLessThanOrEqual(5);
+  expect(cssIndex).toBeLessThanOrEqual(FETCH_CONCURRENCY_PER_HOST);
 
   const color = await page.evaluate(`
     getComputedStyle(document.getElementById("probe")).color

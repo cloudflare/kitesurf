@@ -131,6 +131,18 @@ export function takePaintPrep(): { paint: DomHandle | null; fresh: boolean } {
   return { paint, fresh };
 }
 
+// The document handle for geometry queries: `ensurePaintDom` without `prepareForPaint`. Rect,
+// scroll, offset and sticky reads need layout, not a paint tree, which cost hundreds of
+// preparations per load on large documents. Hit testing reads the paint tree, so it keeps
+// `ensurePaintDom`.
+export function geometryDom(): DomHandle | null {
+  const dom = state.dom;
+  if (!dom) return null;
+  if (fontsDeferredUnregistered() && !demandDeferredFonts()) return null;
+  demandFacesForScriptText(dom);
+  return dom;
+}
+
 /** Restyles, which starts fetching the web fonts the styles use, without laying out. */
 export function discoverFontFaces(): void {
   try {
