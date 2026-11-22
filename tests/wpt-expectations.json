@@ -26328,11 +26328,11 @@
     "reason": null
   },
   "/css/css-grid/grid-model/display-grid.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/grid-model/display-inline-grid.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/grid-model/grid-areas-overflowing-grid-container-001.html": {
@@ -28140,11 +28140,11 @@
     "reason": null
   },
   "/css/css-grid/grid-definition/fr-unit-with-percentage.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/grid-definition/fr-unit.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/grid-definition/grid-auto-fit-with-calc.html": {
