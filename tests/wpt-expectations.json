@@ -25612,8 +25612,8 @@
     "reason": null
   },
   "/css/css-position/position-absolute-dynamic-relayout-004.html": {
-    "expected": "FAIL",
-    "reason": "MR-178: incremental layout - dynamic abspos/float relayout not fully propagated"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-position/position-absolute-dynamic-relayout-005.html": {
     "expected": "FAIL",
