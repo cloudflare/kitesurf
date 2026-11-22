@@ -12,6 +12,7 @@ export function testClient(connectionMode: "page" | "browser" = "browser"): CdpC
     autoAttach: false,
     flatten: false,
     sessions: new Set(),
+    preNavScriptIds: new Set(),
     memoryTargets: { renderer: null, engine: null },
   };
 }
