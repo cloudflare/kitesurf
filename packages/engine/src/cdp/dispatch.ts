@@ -38,6 +38,7 @@ import { cssDomain } from "./css.ts";
 import { accessibilityDomain } from "./accessibility.ts";
 import { sessionOf } from "./page-session.ts";
 import { clampViewport } from "./viewport.ts";
+import { setTargetOverride } from "./target-overrides.ts";
 import type { KitesurfAnalytics } from "../observability.ts";
 import type { Tracer } from "../tracing.ts";
 import type { HostClock } from "../eval/host-clock.ts";
@@ -321,14 +322,13 @@ const emulationDomain = defineDomain("Emulation", {
         return {};
       }
       const vp = clampViewport(width, height);
-      target.viewportWidth = vp.width;
-      target.viewportHeight = vp.height;
       const scale = req.params?.deviceScaleFactor;
-      target.deviceScaleFactor = typeof scale === "number" && scale > 0 ? scale : 1;
-      await sessionOf(ctx, target).callIfLive.setViewport({
-        width: target.viewportWidth,
-        height: target.viewportHeight,
+      setTargetOverride(target, "deviceMetrics", ctx.client.id, {
+        width: vp.width,
+        height: vp.height,
+        scale: typeof scale === "number" && scale > 0 ? scale : 1,
       });
+      await sessionOf(ctx, target).callIfLive.setViewport(vp);
       return {};
     },
 
@@ -336,17 +336,17 @@ const emulationDomain = defineDomain("Emulation", {
       if (!target) return {};
       const media = typeof req.params?.media === "string" ? req.params.media : "";
       const normalised = media === "print" ? "print" : "screen";
-      target.emulatedMedia = normalised;
+      setTargetOverride(target, "emulatedMedia", ctx.client.id, normalised);
       await sessionOf(ctx, target).callIfLive.setMediaType({
         media: normalised,
       });
       return {};
     },
 
-    "Emulation.setUserAgentOverride": ({ target }, req) => {
+    "Emulation.setUserAgentOverride": ({ ctx, target }, req) => {
       if (!target) return {};
-      target.userAgentOverride =
-        typeof req.params?.userAgent === "string" ? req.params.userAgent : "";
+      const userAgent = typeof req.params?.userAgent === "string" ? req.params.userAgent : "";
+      setTargetOverride(target, "userAgent", ctx.client.id, userAgent);
       return {};
     },
   },

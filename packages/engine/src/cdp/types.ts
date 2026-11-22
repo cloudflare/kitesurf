@@ -139,6 +139,8 @@ export interface CdpClientState {
   // The CDP sessions this client attached. On a persistent session, events on one of them
   // reach this client only.
   readonly sessions: Set<string>;
+  // Page.addScriptToEvaluateOnNewDocument identifiers this client added.
+  readonly preNavScriptIds: Set<string>;
   // This client's sessions on the synthetic Memory-panel targets, null until announced to it.
   readonly memoryTargets: { renderer: string | null; engine: string | null };
 }
@@ -195,6 +197,8 @@ export interface ScreencastState {
   maxInFlight: number;
   wheelQueue: WheelQueue;
   ownerSessionId: string | undefined;
+  // The client that started or last took over the stream; it stops when that client leaves.
+  ownerClientId: string;
   configurationVersion: number;
   appliedConfigurationVersion: number;
   lastAckedSeq: number;
@@ -405,7 +409,22 @@ export interface TargetState {
   screencastAckCount?: number;
   extraHttpHeaders: Record<string, string>;
   userAgentOverride: string;
+  // Each client's latest value of each override, oldest writer first; the target holds the
+  // newest one. When a client leaves a shared session, the next newest value applies.
+  overrideWriters: OverrideWriters;
 }
+
+/** The request and emulation overrides that a client sets on a target, with their values. */
+export interface TargetOverrideValues {
+  extraHttpHeaders: Record<string, string>;
+  userAgent: string;
+  emulatedMedia: "screen" | "print";
+  deviceMetrics: { width: number | null; height: number | null; scale: number };
+}
+
+export type TargetOverride = keyof TargetOverrideValues;
+
+export type OverrideWriters = { [K in TargetOverride]?: Map<string, TargetOverrideValues[K]> };
 
 export interface CompiledScriptMeta {
   scriptId: string;

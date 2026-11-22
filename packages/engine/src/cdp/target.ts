@@ -90,6 +90,36 @@ export function detachSessions(ctx: DispatchCtx, sessions: Set<string>, targetId
   sessions.clear();
 }
 
+/**
+ * Detaches one of `ctx`'s client's CDP sessions: its attachments, WebMCP state, the screencast
+ * it owns and its Network ledger. Sends nothing; Target.detachFromTarget answers the client.
+ */
+export function detachClientSession(ctx: DispatchCtx, sessionId: string): void {
+  ctx.client.sessions.delete(sessionId);
+  for (const t of ctx.browser.targets.values()) {
+    if (t.sessions.delete(sessionId)) {
+      ctx.browser.networkEvents.setTargetAttribution(t.frameId, t.loaderId, Array.from(t.sessions));
+    }
+    detachWebMcpSession(t, sessionId);
+    forgetFrontendNodes(t, sessionId);
+    t.domStorageSessions.delete(sessionId);
+    const stream = ctx.browser.screencasts.get(t.targetId);
+    if (stream?.ownerSessionId === sessionId) {
+      stream.stopped = true;
+      ctx.browser.screencasts.delete(t.targetId);
+      stopAndRemoveWheelQueue(ctx.browser, t.targetId, stream.ownerSessionId, stream.wheelQueue);
+    }
+    for (const frame of t.frames.values()) {
+      updateFrameSessionAttribution(ctx, frame, sessionId);
+    }
+  }
+  ctx.browser.networkEvents.forgetSession(sessionId);
+  endSessionInterception(ctx.connectionId, sessionId);
+  if (sessionId === ctx.client.memoryTargets.renderer) {
+    ctx.client.memoryTargets.renderer = null;
+  }
+}
+
 export function jarForTarget(ctx: DispatchCtx, target: TargetState | null | undefined): CookieJar {
   const cid = target?.browserContextId;
   if (cid) {
@@ -301,40 +331,10 @@ export const targetDomain = defineDomain("Target", {
 
     "Target.detachFromTarget": (ctx, req) => {
       const sessionId = req.params?.sessionId;
-      if (sessionId) {
-        ctx.client.sessions.delete(sessionId);
-        for (const t of ctx.browser.targets.values()) {
-          if (t.sessions.delete(sessionId)) {
-            ctx.browser.networkEvents.setTargetAttribution(
-              t.frameId,
-              t.loaderId,
-              Array.from(t.sessions),
-            );
-          }
-          detachWebMcpSession(t, sessionId);
-          forgetFrontendNodes(t, sessionId);
-          t.domStorageSessions.delete(sessionId);
-          const stream = ctx.browser.screencasts.get(t.targetId);
-          if (stream?.ownerSessionId === sessionId) {
-            stream.stopped = true;
-            ctx.browser.screencasts.delete(t.targetId);
-            stopAndRemoveWheelQueue(
-              ctx.browser,
-              t.targetId,
-              stream.ownerSessionId,
-              stream.wheelQueue,
-            );
-          }
-          for (const frame of t.frames.values()) {
-            updateFrameSessionAttribution(ctx, frame, sessionId);
-          }
-        }
-        ctx.browser.networkEvents.forgetSession(sessionId);
-        endSessionInterception(ctx.connectionId, sessionId);
-        if (sessionId === ctx.client.memoryTargets.renderer) {
-          ctx.client.memoryTargets.renderer = null;
-        }
-      }
+      if (!sessionId) return {};
+      // A client cannot detach a session another client of a shared browser attached.
+      if (ctx.peers().some((p) => p !== ctx && p.client.sessions.has(sessionId))) return {};
+      detachClientSession(ctx, sessionId);
       return {};
     },
 
@@ -393,6 +393,7 @@ export function ensureBrowserTarget(ctx: DispatchCtx): TargetState {
     lastNavigatePhases: null,
     extraHttpHeaders: {},
     userAgentOverride: "",
+    overrideWriters: {},
   };
   ctx.browser.targets.set(BROWSER_TARGET_ID, t);
   return t;
@@ -573,6 +574,7 @@ export function createPageTarget(
     lastNavigatePhases: null,
     extraHttpHeaders: {},
     userAgentOverride: "",
+    overrideWriters: {},
   };
   ctx.browser.targets.set(targetId, t);
   return t;

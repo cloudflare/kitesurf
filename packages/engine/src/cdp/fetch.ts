@@ -43,6 +43,7 @@ export const fetchDomain = defineDomain("Fetch", {
       const sessionId = req.sessionId;
       st.ownerSessionId = sessionId;
       st.emit = (params) => ctx.emit({ method: "Fetch.requestPaused", params, sessionId });
+      st.ownerClientId = ctx.client.id;
       return {};
     },
 

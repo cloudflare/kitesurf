@@ -161,6 +161,7 @@ import { determineReferrer, parseReferrerPolicy } from "@kitesurf/script-gate/re
 import { PageRendererManager, withTimeout } from "../eval/page-renderer.ts";
 import { headersToRecord, type NetworkEventTracker } from "./network-events.ts";
 import { effectiveExtraHeaders } from "./network.ts";
+import { setTargetOverride } from "./target-overrides.ts";
 import { isWorkerUpstreamEvent } from "./dedicated-workers.ts";
 import { isRecord } from "../guards.ts";
 import { classifyRequest } from "../request-blocker.ts";
@@ -816,6 +817,7 @@ export const pageDomain = defineDomain("Page", {
         // never reads.
         const owner = req.sessionId ? resolvePreNavScriptTarget(ctx, req.sessionId) : null;
         (owner ? owner.preNavScripts : ctx.browser.preNavScripts).set(id, source);
+        ctx.client.preNavScriptIds.add(id);
       }
       return { identifier: id };
     },
@@ -827,6 +829,7 @@ export const pageDomain = defineDomain("Page", {
           resolvePreNavScriptTarget(ctx, req.sessionId)?.preNavScripts.delete(id);
         }
         ctx.browser.preNavScripts.delete(id);
+        ctx.client.preNavScriptIds.delete(id);
       }
       return {};
     },
@@ -1278,6 +1281,7 @@ export const pageDomain = defineDomain("Page", {
         maxInFlight,
         wheelQueue: getWheelQueue(ctx.browser, target.targetId, nextOwner),
         ownerSessionId: nextOwner,
+        ownerClientId: ctx.client.id,
         configurationVersion,
         appliedConfigurationVersion: configurationVersion - 1,
         lastAckedSeq: 0,
@@ -1291,6 +1295,7 @@ export const pageDomain = defineDomain("Page", {
         framesDropped: 0,
       };
       state.configurationVersion = configurationVersion;
+      state.ownerClientId = ctx.client.id;
       if (!existing) {
         ctx.browser.screencasts.set(target.targetId, state);
         ctx.ctx.waitUntil(screencastLoop(ctx, target, state));
@@ -1337,8 +1342,11 @@ export const pageDomain = defineDomain("Page", {
           return {};
         }
 
-        target.viewportWidth = maxWidth;
-        target.viewportHeight = maxHeight;
+        setTargetOverride(target, "deviceMetrics", ctx.client.id, {
+          width: maxWidth,
+          height: maxHeight,
+          scale: target.deviceScaleFactor,
+        });
         if (target.pageScript) {
           try {
             await stubQueryDom(target.pageScript, "setViewport", {

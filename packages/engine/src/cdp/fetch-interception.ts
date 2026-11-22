@@ -36,6 +36,8 @@ export interface ParkedRequest {
 export interface FetchInterceptionState {
   patterns: CompiledPattern[];
   emit: (params: Protocol.Fetch.RequestPausedEvent) => void;
+  // The client whose Fetch.enable installed `emit`; nobody answers its pauses once it leaves.
+  ownerClientId: string | null;
   parked: Map<string, ParkedRequest>;
   nextId: number;
   pendingEmits: Protocol.Fetch.RequestPausedEvent[];
@@ -58,6 +60,7 @@ export function ensureInterception(connectionId: string): FetchInterceptionState
     st = {
       patterns: [],
       emit: () => {},
+      ownerClientId: null,
       parked: new Map(),
       nextId: 1,
       pendingEmits: [],
@@ -89,14 +92,26 @@ export function disableInterception(st: FetchInterceptionState): void {
   st.pendingEmits = [];
 }
 
+function endInterception(st: FetchInterceptionState): void {
+  disableInterception(st);
+  st.emit = () => {};
+  st.ownerSessionId = undefined;
+  st.ownerClientId = null;
+}
+
 // Like Chrome, interception ends with the session that enabled it; otherwise every later
 // request on the connection parks for a verdict nobody can send.
 export function endSessionInterception(connectionId: string, sessionId: string): void {
   const st = registry.get(connectionId);
   if (!st || st.ownerSessionId !== sessionId) return;
-  disableInterception(st);
-  st.emit = () => {};
-  st.ownerSessionId = undefined;
+  endInterception(st);
+}
+
+/** Stops interception as Fetch.disable would, if `clientId` enabled it. */
+export function disableInterceptionForClient(connectionId: string, clientId: string): void {
+  const st = registry.get(connectionId);
+  if (!st || st.ownerClientId !== clientId) return;
+  endInterception(st);
 }
 
 export function unregisterInterception(connectionId: string): void {

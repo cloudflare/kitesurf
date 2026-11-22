@@ -17,6 +17,7 @@ import {
 } from "./target.ts";
 import { localStorageOrigin } from "../state/local-storage.ts";
 import { changeLocalStorage } from "./storage-copies.ts";
+import { setTargetOverride } from "./target-overrides.ts";
 
 // SAFETY: Kitesurf's cookies omit priority, sourceScheme and sourcePort, which the protocol's
 // Cookie requires. The assertion keeps the reply as it is; sending them changes the wire.
@@ -45,7 +46,7 @@ export const networkDomain = defineDomain("Network", {
     "Network.setUserAgentOverride": (ctx, req) => {
       const ua = typeof req.params?.userAgent === "string" ? req.params.userAgent : "";
       const resolved = resolveNetworkTarget(ctx, req.sessionId);
-      if (resolved) resolved.userAgentOverride = ua;
+      if (resolved) setTargetOverride(resolved, "userAgent", ctx.client.id, ua);
       return {};
     },
 
@@ -58,7 +59,7 @@ export const networkDomain = defineDomain("Network", {
         sanitized[k] = v;
       }
       const resolved = resolveNetworkTarget(ctx, req.sessionId);
-      if (resolved) resolved.extraHttpHeaders = sanitized;
+      if (resolved) setTargetOverride(resolved, "extraHttpHeaders", ctx.client.id, sanitized);
       return {};
     },
 
