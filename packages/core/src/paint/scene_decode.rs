@@ -11,13 +11,14 @@ use std::collections::{HashMap, HashSet};
 use kurbo::Point;
 
 use crate::paint::scene_record::{
-    FONT_METADATA_BYTES, FONT_METADATA_HASH_BYTES, HEADER_MAGIC, HEADER_SIZE, PAINT_GRADIENT,
+    FILTER_COLOR_MATRIX, FILTER_DROP_SHADOW, FILTER_GAUSSIAN_BLUR, FONT_METADATA_BYTES,
+    FONT_METADATA_HASH_BYTES, GLYPH_TEXT_RANGE_BYTES, HEADER_MAGIC, HEADER_SIZE, PAINT_GRADIENT,
     PAINT_IMAGE, PAINT_SOLID, PATH_CLOSE, PATH_CURVE, PATH_END_TAG, PATH_LINE, PATH_MOVE,
     PATH_PREC_F32, PATH_PREC_Q3, PATH_QUAD, Q3_PIXELS_PER_UNIT, RES_KIND_FONT_METADATA,
-    RES_KIND_GLYPH_OUTLINE, RES_KIND_IMAGE, TAG_BOX_SHADOW, TAG_FILL, TAG_GLYPH_RUN,
-    TAG_GLYPH_TEXT, TAG_PART, GLYPH_TEXT_RANGE_BYTES, SCENE_RESOURCE_COUNT_BYTES, TAG_POP_LAYER,
-    TAG_PUSH_CLIP_LAYER, TAG_PUSH_LAYER, TAG_STROKE, TAG_TEXT_RUN, TXFORM_FULL, TXFORM_IDENTITY,
-    TXFORM_SAME_AS_PREV, WIRE_VERSION,
+    RES_KIND_GLYPH_OUTLINE, RES_KIND_IMAGE, SCENE_RESOURCE_COUNT_BYTES, TAG_BOX_SHADOW, TAG_FILL,
+    TAG_GLYPH_RUN, TAG_GLYPH_TEXT, TAG_LAYER_FILTER, TAG_PART, TAG_POP_LAYER, TAG_PUSH_CLIP_LAYER,
+    TAG_PUSH_LAYER, TAG_STROKE, TAG_TEXT_RUN, TXFORM_FULL, TXFORM_IDENTITY, TXFORM_SAME_AS_PREV,
+    WIRE_VERSION,
 };
 
 /// Error returned when a KSC0 scene stream cannot be decoded.
@@ -384,6 +385,24 @@ impl ScenePart {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DecodedFilterEffect {
+    GaussianBlur {
+        std_deviation: f32,
+        edge_mode: u8,
+    },
+    ColorMatrix {
+        matrix: [f32; 20],
+    },
+    DropShadow {
+        dx: f32,
+        dy: f32,
+        std_deviation: f32,
+        rgba: [f32; 4],
+        edge_mode: u8,
+    },
+}
+
 pub trait SceneVisitor {
     fn on_push_layer(
         &mut self,
@@ -470,6 +489,9 @@ pub trait SceneVisitor {
 
     /// The source text of the next glyph run: per glyph, a byte range of `text`.
     fn on_glyph_text(&mut self, _text: &str, _glyph_ranges: &[core::ops::Range<usize>]) {}
+
+    /// CSS filter chain attached to the immediately following `on_push_layer`.
+    fn on_layer_filter(&mut self, _effects: &[DecodedFilterEffect]) {}
 }
 
 pub fn parse_header(bytes: &[u8]) -> Result<SceneHeader, DecodeError> {
@@ -610,6 +632,52 @@ fn parse_resource_table(
     Ok(out)
 }
 
+fn read_layer_filter(
+    cur: &mut Cursor<'_>,
+    out: &mut Vec<DecodedFilterEffect>,
+) -> Result<(), DecodeError> {
+    let count = cur.read_u8()? as usize;
+    out.clear();
+    out.reserve(count);
+    for _ in 0..count {
+        let kind_offset = cur.pos;
+        let kind = cur.read_u8()?;
+        let effect = match kind {
+            FILTER_GAUSSIAN_BLUR => DecodedFilterEffect::GaussianBlur {
+                std_deviation: cur.read_f32()?,
+                edge_mode: cur.read_u8()?,
+            },
+            FILTER_COLOR_MATRIX => {
+                let mut matrix = [0.0f32; 20];
+                for v in &mut matrix {
+                    *v = cur.read_f32()?;
+                }
+                DecodedFilterEffect::ColorMatrix { matrix }
+            }
+            FILTER_DROP_SHADOW => DecodedFilterEffect::DropShadow {
+                dx: cur.read_f32()?,
+                dy: cur.read_f32()?,
+                std_deviation: cur.read_f32()?,
+                rgba: [
+                    cur.read_f32()?,
+                    cur.read_f32()?,
+                    cur.read_f32()?,
+                    cur.read_f32()?,
+                ],
+                edge_mode: cur.read_u8()?,
+            },
+            _ => {
+                return Err(DecodeError::UnknownOpTag {
+                    offset: kind_offset,
+                    tag: kind,
+                });
+            }
+        };
+        out.push(effect);
+    }
+    Ok(())
+}
+
 pub fn decode<V: SceneVisitor>(bytes: &[u8], visitor: &mut V) -> Result<SceneHeader, DecodeError> {
     let header = parse_header(bytes)?;
     let op_stream_end = if header.resource_offset != 0 {
@@ -639,6 +707,7 @@ pub fn decode<V: SceneVisitor>(bytes: &[u8], visitor: &mut V) -> Result<SceneHea
     let mut dash_scratch: Vec<f32> = Vec::with_capacity(8);
     let mut coord_scratch: Vec<i16> = Vec::with_capacity(8);
     let mut text_range_scratch: Vec<core::ops::Range<usize>> = Vec::new();
+    let mut filter_scratch: Vec<DecodedFilterEffect> = Vec::new();
 
     while cur.pos < cur.buf.len() {
         let op_start = cur.pos;
@@ -794,6 +863,10 @@ pub fn decode<V: SceneVisitor>(bytes: &[u8], visitor: &mut V) -> Result<SceneHea
                     text_range_scratch.push(start..end);
                 }
                 visitor.on_glyph_text(text, &text_range_scratch);
+            }
+            TAG_LAYER_FILTER => {
+                read_layer_filter(&mut cur, &mut filter_scratch)?;
+                visitor.on_layer_filter(&filter_scratch);
             }
             TAG_TEXT_RUN => {
                 let font_id = cur.read_u32()?;

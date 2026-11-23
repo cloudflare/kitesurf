@@ -1,0 +1,61 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Mon, 23 Nov 2026 15:15:59 +0000
+Subject: [PATCH] Execute ColorMatrix filter primitives on pixmaps
+
+---
+ src/filter/mod.rs | 35 +++++++++++++++++++++++++++++++++++
+ 1 file changed, 35 insertions(+)
+
+diff --git a/src/filter/mod.rs b/src/filter/mod.rs
+index 06222a0..bc0ecb9 100644
+--- a/src/filter/mod.rs
++++ b/src/filter/mod.rs
+@@ -79,6 +79,9 @@ pub(crate) fn filter_lowp(
+         PreparedFilter::DropShadow(drop_shadow) => {
+             drop_shadow.execute_lowp(pixmap, filter_scratch);
+         }
++        PreparedFilter::ColorMatrix(matrix) => {
++            execute_color_matrix(&matrix, pixmap);
++        }
+     }
+ }
+
+@@ -117,5 +120,37 @@ pub(crate) fn filter_highp(
+         PreparedFilter::DropShadow(drop_shadow) => {
+             drop_shadow.execute_highp(pixmap, filter_scratch);
+         }
++        PreparedFilter::ColorMatrix(matrix) => {
++            execute_color_matrix(&matrix, pixmap);
++        }
++    }
++}
++
++// Apply a 4x5 RGBA color matrix to each premultiplied pixel per CSS Filter Effects 1 §9.
++// https://drafts.fxtf.org/filter-effects/#feColorMatrixElement
++fn execute_color_matrix(m: &[f32; 20], pixmap: &mut Pixmap) {
++    use vello_common::color::PremulRgba8;
++    let has_offset = m[4] != 0.0 || m[9] != 0.0 || m[14] != 0.0 || m[19] != 0.0;
++    for px in pixmap.data_mut() {
++        if px.a == 0 && !has_offset {
++            continue;
++        }
++        let a = px.a as f32 / 255.0;
++        let (r, g, b) = if a > 0.0 {
++            let inv = 1.0 / (a * 255.0);
++            (px.r as f32 * inv, px.g as f32 * inv, px.b as f32 * inv)
++        } else {
++            (0.0, 0.0, 0.0)
++        };
++        let out_r = (m[0] * r + m[1] * g + m[2] * b + m[3] * a + m[4]).clamp(0.0, 1.0);
++        let out_g = (m[5] * r + m[6] * g + m[7] * b + m[8] * a + m[9]).clamp(0.0, 1.0);
++        let out_b = (m[10] * r + m[11] * g + m[12] * b + m[13] * a + m[14]).clamp(0.0, 1.0);
++        let out_a = (m[15] * r + m[16] * g + m[17] * b + m[18] * a + m[19]).clamp(0.0, 1.0);
++        *px = PremulRgba8 {
++            r: (out_r * out_a * 255.0).round() as u8,
++            g: (out_g * out_a * 255.0).round() as u8,
++            b: (out_b * out_a * 255.0).round() as u8,
++            a: (out_a * 255.0).round() as u8,
++        };
+     }
+ }

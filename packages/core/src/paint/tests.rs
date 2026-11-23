@@ -9,6 +9,7 @@ mod box_shadow_blur_accuracy;
 mod canvas_draw_sources;
 mod clip_path_shapes;
 mod counter_damage_gate;
+mod css_filters;
 mod damaged_subtree_skip;
 mod glyph_cache_panic;
 mod ink_rect;
