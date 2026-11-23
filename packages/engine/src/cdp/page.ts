@@ -1975,7 +1975,7 @@ async function pushNavigateToPageScriptInner(
   }
   target.lastLoadAt = 0;
   dropTargetImages(ctx.connectionId, target.targetId);
-  target.compiledScripts.length = 0;
+  target.compiledScripts.clear();
   clearStyleSheetsForNavigate(ctx, target);
   clearToolsForNavigate(ctx, target);
 
@@ -2683,7 +2683,7 @@ function registerBundleScripts(
   if (!bundle) return;
   const sessions = target.debuggerEnabledSessions;
   const emit = (meta: ReturnType<typeof makeCompiledScriptMeta>) => {
-    target.compiledScripts.push(meta);
+    target.compiledScripts.set(meta.scriptId, meta);
     if (hasDebuggerListeners(target)) {
       for (const sid of sessions) {
         emitScriptParsed(

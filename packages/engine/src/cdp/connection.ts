@@ -27,7 +27,7 @@ import { cancelAndRemoveTargetWheelQueues } from "./wheel-queue.ts";
 import { stopSceneStreams } from "./scene-stream.ts";
 import { DynamicWorkerBudget } from "../eval/worker-budget.ts";
 import { DedicatedWorkers } from "./dedicated-workers.ts";
-import { createCookieJar } from "../cookies.ts";
+import { cookieTableName, createCookieJar, isCookieEntryList } from "../cookies.ts";
 import {
   NetworkEventTracker,
   registerTracker,
@@ -54,7 +54,8 @@ import { resolveConnectionOptions, resolveSessionStore, type EngineHost } from "
 import type { PageIsolateCapOverrides } from "../eval/page-script.ts";
 import { buildDispatchEnv } from "./dispatch-env.ts";
 import { markArrival } from "./arrival.ts";
-import { StyleCache } from "./style-cache.ts";
+import { MAX_STYLE_CACHE_CHARS, StyleCache, isStyleCacheEntry } from "./style-cache.ts";
+import { isStoredString } from "../state/session-store.ts";
 import { makeWallClock } from "../eval/host-clock.ts";
 import { LocalStorage } from "../state/local-storage.ts";
 // Wrangler generates the ambient `Env` declaration from wrangler.jsonc.
@@ -273,7 +274,7 @@ export class BrowserSession {
     if (requestBlocker) registerRequestBlocker(connectionId, requestBlocker);
     this.#requestBlocker = requestBlocker;
 
-    const cookies = createCookieJar();
+    const cookies = createCookieJar(store.table(cookieTableName(), isCookieEntryList));
     registerCookieJar(connectionId, cookies);
     const workerBudget = new DynamicWorkerBudget();
     const browser: BrowserState = {
@@ -290,14 +291,17 @@ export class BrowserSession {
       nextBrowserContextId: 1,
       cookies,
       screencasts: new Map(),
-      styleCache: new StyleCache(),
+      styleCache: new StyleCache(
+        MAX_STYLE_CACHE_CHARS,
+        store.table("styleCache", isStyleCacheEntry),
+      ),
       imageCache: new Map(),
       networkEvents,
       layoutMode: params.layoutMode,
       cdpDebug: params.cdpDebug,
       isolateCapOverrides: params.isolateCapOverrides,
       ttyKeyboard: false,
-      preNavScripts: new Map<string, string>(),
+      preNavScripts: store.table("preNavScripts", isStoredString),
       learnedInsertedScripts: new Map(),
       pendingBindings: new Set<string>(),
       execContextSeq: 3,

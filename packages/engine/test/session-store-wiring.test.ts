@@ -9,9 +9,10 @@ import { createExecutionContext } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { handleWebSocket } from "../src/cdp/connection.ts";
+import { makeCompiledScriptMeta } from "../src/cdp/debugger.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import { NetworkEventTracker, isolateRetainedBodyBytesTotal } from "../src/cdp/network-events.ts";
-import type { CdpEvent } from "../src/cdp/types.ts";
+import type { CdpEvent, CdpRequest, CdpResponse } from "../src/cdp/types.ts";
 import type { EngineHost } from "../src/host.ts";
 import { JsonSessionStore } from "./json-session-store.ts";
 
@@ -124,9 +125,9 @@ describe("the network log in a session store", () => {
 });
 
 describe("a browser session with a host store", () => {
-  it("keeps its data in the store the host creates", async () => {
-    const store = new JsonSessionStore();
+  async function open(store: JsonSessionStore) {
     let seen: DispatchCtx | undefined;
+    let send: ((req: CdpRequest) => Promise<CdpResponse>) | undefined;
     const host: EngineHost = { createSessionStore: () => store };
     const r = await handleWebSocket(
       new Request("https://x/devtools/browser"),
@@ -135,10 +136,86 @@ describe("a browser session with a host store", () => {
       (dctx: DispatchCtx) => {
         seen = dctx;
       },
-      { host },
+      { host, onDispatch: (d) => (send = d) },
     );
-    expect(seen?.browser.store).toBe(store);
-    r.webSocket?.accept();
-    r.webSocket?.close(1000, "done");
+    if (!seen || !send) throw new Error("no session");
+    const dispatch = send;
+    let id = 0;
+    const call = async (method: string, params: Record<string, unknown> = {}) => {
+      const res = await dispatch({ id: ++id, method, params } as CdpRequest);
+      if ("error" in res) throw new Error(JSON.stringify(res.error));
+      return res.result as Record<string, unknown>;
+    };
+    const close = () => {
+      r.webSocket?.accept();
+      r.webSocket?.close(1000, "done");
+    };
+    return { browser: seen.browser, call, close };
+  }
+
+  it("keeps its data in the store the host creates", async () => {
+    const store = new JsonSessionStore();
+    const { browser, close } = await open(store);
+    expect(browser.store).toBe(store);
+    close();
+  });
+
+  it("keeps cookies, new-document scripts and style text in the store", async () => {
+    const store = new JsonSessionStore();
+    const { browser, call, close } = await open(store);
+
+    await call("Network.setCookie", { name: "a", value: "1", url: "https://a.test/" });
+    expect(Array.from(store.rows("cookies").keys())).toEqual(["a.test"]);
+    expect(browser.cookies.cookieHeaderForUrl("https://a.test/")).toBe("a=1");
+    // The jar reads a copy, changes it and writes it back.
+    await call("Network.setCookie", { name: "a", value: "2", url: "https://a.test/" });
+    expect(browser.cookies.cookieHeaderForUrl("https://a.test/")).toBe("a=2");
+
+    await call("Page.addScriptToEvaluateOnNewDocument", { source: "window.x = 1" });
+    expect(Array.from(store.rows("preNavScripts").values())).toEqual(["window.x = 1"]);
+
+    browser.styleCache.set("https://a.test/s.css", { css: "p{}", fetchedAt: 1 });
+    expect(store.rows("styleCache").get("https://a.test/s.css")).toEqual({
+      css: "p{}",
+      fetchedAt: 1,
+    });
+    expect(browser.styleCache.get("https://a.test/s.css")?.css).toBe("p{}");
+    close();
+  });
+
+  it("gives each browser context a cookie table and drops it with the context", async () => {
+    const store = new JsonSessionStore();
+    const { call, close } = await open(store);
+    const { browserContextId } = await call("Target.createBrowserContext");
+    await call("Storage.setCookies", {
+      browserContextId,
+      cookies: [{ name: "b", value: "2", domain: "b.test", path: "/" }],
+    });
+    expect(store.tableNames()).toContain(`cookies:${String(browserContextId)}`);
+
+    await call("Target.disposeBrowserContext", { browserContextId });
+    expect(store.tableNames()).not.toContain(`cookies:${String(browserContextId)}`);
+    close();
+  });
+
+  it("keeps a page's document and compiled scripts in the store until the page closes", async () => {
+    const store = new JsonSessionStore();
+    const { browser, call, close } = await open(store);
+    const page = Array.from(browser.targets.values()).find((t) => t.type === "page");
+    if (!page) throw new Error("no page");
+
+    page.html = "<p>stored</p>";
+    page.compiledScripts.set("s1", makeCompiledScriptMeta("s1", "1 + 1", "", { source: "1 + 1" }));
+    expect(store.rows("documents").get(page.targetId)).toBe("<p>stored</p>");
+    expect(page.html).toBe("<p>stored</p>");
+    expect(store.rows(`compiledScripts:${page.targetId}`).has("s1")).toBe(true);
+
+    await call("Target.closeTarget", { targetId: page.targetId });
+    expect(store.rows("documents").has(page.targetId)).toBe(false);
+    expect(store.tableNames()).not.toContain(`compiledScripts:${page.targetId}`);
+    // A navigate that ends after the close does not bring the row back.
+    page.html = "<p>late</p>";
+    expect(store.rows("documents").has(page.targetId)).toBe(false);
+    close();
   });
 });

@@ -15,6 +15,7 @@ import { handlePage, installUpstreamEventHandler } from "../src/cdp/page.ts";
 import { createPageTarget } from "../src/cdp/target.ts";
 import type { CdpRequest } from "../src/cdp/types.ts";
 import { createCookieJar } from "../src/cookies.ts";
+import { MemorySessionStore } from "../src/state/session-store.ts";
 import {
   createSandboxOutboundOverride,
   type SandboxOutboundEnv,
@@ -72,6 +73,7 @@ async function navigate(opts: NavigateOptions) {
   // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only fields navigate reads.
   const browser = {
     targets: new Map(),
+    store: new MemorySessionStore(),
     sandboxOutbound,
     cookies: jar,
     contexts: new Map(),

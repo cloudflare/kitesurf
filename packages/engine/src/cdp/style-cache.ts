@@ -5,6 +5,7 @@
 // Connection-scoped cache of fetched stylesheet text for the screenshot fallback.
 
 import { MAX_STYLESHEET_BYTES } from "../read-capped.ts";
+import type { StoreTable } from "../state/session-store.ts";
 
 /** Retained UTF-16 code units per connection; at least one sheet at the read cap fits. */
 export const MAX_STYLE_CACHE_CHARS = MAX_STYLESHEET_BYTES;
@@ -14,23 +15,42 @@ export interface StyleCacheEntry {
   fetchedAt: number;
 }
 
-/** Least-recently-used eviction once the retained text passes `maxChars`. */
+export function isStyleCacheEntry(v: unknown): v is StyleCacheEntry {
+  if (typeof v !== "object" || v === null) return false;
+  const e: Record<string, unknown> = { ...v };
+  return typeof e.css === "string" && typeof e.fetchedAt === "number";
+}
+
+/** Least-recently-used eviction once the retained text passes `maxChars`. The text lives in
+ * `entries`, a session-store table; the recency order and sizes stay in memory, so a hit
+ * rewrites nothing. */
 export class StyleCache {
-  readonly #entries = new Map<string, StyleCacheEntry>();
+  readonly #entries: StoreTable<StyleCacheEntry>;
+  // Each cached URL and its length in code units, least recently used first.
+  readonly #order = new Map<string, number>();
   #chars = 0;
 
-  constructor(readonly maxChars: number = MAX_STYLE_CACHE_CHARS) {}
+  constructor(
+    readonly maxChars: number = MAX_STYLE_CACHE_CHARS,
+    entries: StoreTable<StyleCacheEntry> = new Map<string, StyleCacheEntry>(),
+  ) {
+    this.#entries = entries;
+  }
 
   get retainedChars(): number {
     return this.#chars;
   }
 
   get(url: string): StyleCacheEntry | undefined {
+    const chars = this.#order.get(url);
+    if (chars === undefined) return undefined;
     const hit = this.#entries.get(url);
-    if (hit) {
-      this.#entries.delete(url);
-      this.#entries.set(url, hit);
+    if (!hit) {
+      this.#remove(url);
+      return undefined;
     }
+    this.#order.delete(url);
+    this.#order.set(url, chars);
     return hit;
   }
 
@@ -38,17 +58,19 @@ export class StyleCache {
     this.#remove(url);
     if (entry.css.length > this.maxChars) return;
     this.#entries.set(url, entry);
+    this.#order.set(url, entry.css.length);
     this.#chars += entry.css.length;
-    for (const oldest of this.#entries.keys()) {
+    for (const oldest of Array.from(this.#order.keys())) {
       if (this.#chars <= this.maxChars) break;
       this.#remove(oldest);
     }
   }
 
   #remove(url: string): void {
-    const old = this.#entries.get(url);
-    if (!old) return;
+    const chars = this.#order.get(url);
+    if (chars === undefined) return;
+    this.#order.delete(url);
     this.#entries.delete(url);
-    this.#chars -= old.css.length;
+    this.#chars -= chars;
   }
 }
