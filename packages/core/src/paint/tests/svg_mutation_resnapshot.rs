@@ -99,3 +99,20 @@ fn mutation_outside_the_svg_leaves_the_snapshot_untouched() {
         "unrelated mutation rebuilt the svg snapshot"
     );
 }
+
+#[test]
+fn stylesheet_fill_and_stroke_reach_inline_svg_snapshot() {
+    let html = r##"<html><head><style>
+        .logo rect { fill: #a31f34; stroke: #00ff00; }
+    </style></head><body>
+        <svg id="s" class="logo" width="40" height="40" viewBox="0 0 40 40">
+            <rect x="0" y="0" width="40" height="40" fill="black"/>
+        </svg>
+    </body></html>"##;
+    let dom = DomHandle::new(html, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+
+    let tree = svg_tree_of(&dom, "#s").expect("inline svg must parse");
+    assert_eq!(first_fill_rgb(&tree), Some((0xa3, 0x1f, 0x34)));
+}

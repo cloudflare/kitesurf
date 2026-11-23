@@ -1,0 +1,98 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Mon, 23 Nov 2026 10:02:46 +0000
+Subject: [PATCH] Stamp computed fill and stroke on inline SVG descendants for
+ usvg
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+usvg only sees the serialized SVG snapshot, never document stylesheets, so CSS
+rules targeting SVG children (such as `.logo path { fill: #a31f34 }`) were
+dropped and elements painted with default black fill or no stroke.
+
+Stamp computed `fill` and `stroke` on SVG graphics and group elements during
+usvg serialization via `paint_attr`, overriding presentation attributes per
+SVG2 §6.
+---
+ src/layout/construct.rs |  2 +-
+ src/node/serialize.rs   | 53 +++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 54 insertions(+), 1 deletion(-)
+
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index 5b92f02..87058f6 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -168,7 +168,7 @@ fn resolve_css_attr_value(
+
+ /// Serialize a computed SVG paint back into an attribute usvg accepts.
+ #[cfg(feature = "svg")]
+-fn paint_attr(
++pub(crate) fn paint_attr(
+     kind: &style::values::generics::svg::SVGPaintKind<
+         style::values::computed::Color,
+         style::values::computed::url::ComputedUrl,
+diff --git a/src/node/serialize.rs b/src/node/serialize.rs
+index 65dad41..93fc911 100644
+--- a/src/node/serialize.rs
++++ b/src/node/serialize.rs
+@@ -344,6 +344,59 @@ impl Node {
+                         if blend != style::computed_values::mix_blend_mode::T::Normal {
+                             style_stamp = Some(format!("mix-blend-mode:{}", blend.to_css_string()));
+                         }
++                        // usvg only sees the serialized SVG snapshot, never the document
++                        // stylesheet. Stamp computed fill and stroke on SVG graphics/group
++                        // elements so author CSS rules (e.g. `.logo path { fill: ... }`)
++                        // reach usvg and override presentation attributes per SVG2 §6.
++                        // https://svgwg.org/svg2-draft/styling.html#PresentationAttributes
++                        #[cfg(feature = "svg")]
++                        if matches!(
++                            &*data.name.local,
++                            "g" | "path"
++                                | "rect"
++                                | "circle"
++                                | "ellipse"
++                                | "line"
++                                | "polyline"
++                                | "polygon"
++                                | "text"
++                                | "tspan"
++                                | "textPath"
++                                | "use"
++                        ) {
++                            let fill_kind = &style.clone_fill().kind;
++                            // Stylo does not feed SVG presentation attributes into computed fill,
++                            // so only stamp when CSS produced a non-initial value (initial fill is
++                            // opaque black). Leaving initial black unstamped preserves explicit
++                            // `fill="..."` attributes and inherited `<svg fill="...">` values.
++                            let fill_is_initial = matches!(
++                                fill_kind,
++                                style::values::generics::svg::SVGPaintKind::Color(
++                                    style::values::generics::color::GenericColor::Absolute(abs)
++                                ) if *abs
++                                    .to_color_space(style::color::ColorSpace::Srgb)
++                                    .raw_components()
++                                    == [0.0, 0.0, 0.0, 1.0]
++                            );
++                            if !fill_is_initial {
++                                if let Some(fill) =
++                                    crate::layout::construct::paint_attr(fill_kind, style)
++                                {
++                                    stamps.push(("fill", fill));
++                                }
++                            }
++                            let stroke_kind = &style.clone_stroke().kind;
++                            if !matches!(
++                                stroke_kind,
++                                style::values::generics::svg::SVGPaintKind::None
++                            ) {
++                                if let Some(stroke) =
++                                    crate::layout::construct::paint_attr(stroke_kind, style)
++                                {
++                                    stamps.push(("stroke", stroke));
++                                }
++                            }
++                        }
+                     }
+                 }
+                 drop(styles);
