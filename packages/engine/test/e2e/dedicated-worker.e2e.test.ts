@@ -542,7 +542,9 @@ test("a worker created in an OOPIF reports to that frame", async ({ page }) => {
 test("workers past the budget wait for a slot and then run", async ({ page }) => {
   await setContent(page, "<p>x</p>");
   const result = await page.evaluate(async () => {
-    const source = "postMessage('up')";
+    // Keep each worker alive via `onmessage` until explicitly terminated so the
+    // budget saturates and exercises the FIFO queue.
+    const source = "onmessage = () => {}; postMessage('up')";
     const url = "data:text/javascript," + encodeURIComponent(source);
     const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
     const workers: Worker[] = [];

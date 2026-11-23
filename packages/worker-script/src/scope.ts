@@ -46,10 +46,56 @@ const NativeEvent = Event;
 const nativeAddEventListener = globalThis.addEventListener?.bind(globalThis);
 const nativeSetTimeout = globalThis.setTimeout.bind(globalThis);
 const nativeSetInterval = globalThis.setInterval.bind(globalThis);
+const nativeClearTimeout = globalThis.clearTimeout.bind(globalThis);
+const nativeClearInterval = globalThis.clearInterval.bind(globalThis);
 
 let hooks: ScopeHooks = { send: () => {} };
 let closing = false;
 let nameValue = "";
+let topLevelDone = false;
+let idleCheckScheduled = false;
+let activeFetches = 0;
+const activeTimers = new Set<unknown>();
+
+function hasMessageListener(): boolean {
+  if (handlers.get("message")) return true;
+  const list = listeners.get("message");
+  return list !== undefined && list.length > 0;
+}
+
+// Reclaim a finished worker that has no message listener, pending timers, or
+// in-flight fetches so it does not hold a dynamic-worker slot indefinitely.
+// https://html.spec.whatwg.org/multipage/workers.html#the-worker's-lifetime
+function scheduleIdleCloseCheck(): void {
+  if (
+    !topLevelDone ||
+    closing ||
+    idleCheckScheduled ||
+    hasMessageListener() ||
+    activeTimers.size > 0 ||
+    activeFetches > 0
+  ) {
+    return;
+  }
+  idleCheckScheduled = true;
+  nativeSetTimeout(() => {
+    idleCheckScheduled = false;
+    if (
+      topLevelDone &&
+      !closing &&
+      !hasMessageListener() &&
+      activeTimers.size === 0 &&
+      activeFetches === 0
+    ) {
+      workerClose();
+    }
+  }, 0);
+}
+
+export function markTopLevelDone(): void {
+  topLevelDone = true;
+  scheduleIdleCloseCheck();
+}
 
 interface ListenerRecord {
   fn: Listener;
@@ -461,15 +507,58 @@ function installUncaughtReporting(): void {
   defineValue(
     "setTimeout",
     function setTimeout(cb: unknown, ms?: number, ...args: unknown[]): unknown {
-      return Reflect.apply(nativeSetTimeout, globalThis, [wrap(cb), ms, ...args]);
+      const wrapped = wrap(cb);
+      let handle: unknown;
+      handle = Reflect.apply(nativeSetTimeout, globalThis, [
+        function (this: unknown, ...cbArgs: unknown[]) {
+          activeTimers.delete(handle);
+          try {
+            if (typeof wrapped === "function") return Reflect.apply(wrapped, this, cbArgs);
+          } finally {
+            scheduleIdleCloseCheck();
+          }
+        },
+        ms,
+        ...args,
+      ]);
+      activeTimers.add(handle);
+      return handle;
     },
   );
   defineValue(
     "setInterval",
     function setInterval(cb: unknown, ms?: number, ...args: unknown[]): unknown {
-      return Reflect.apply(nativeSetInterval, globalThis, [wrap(cb), ms, ...args]);
+      const handle = Reflect.apply(nativeSetInterval, globalThis, [wrap(cb), ms, ...args]);
+      activeTimers.add(handle);
+      return handle;
     },
   );
+  defineValue("clearTimeout", function clearTimeout(id?: unknown): void {
+    activeTimers.delete(id);
+    Reflect.apply(nativeClearTimeout, globalThis, [id]);
+    scheduleIdleCloseCheck();
+  });
+  defineValue("clearInterval", function clearInterval(id?: unknown): void {
+    activeTimers.delete(id);
+    Reflect.apply(nativeClearInterval, globalThis, [id]);
+    scheduleIdleCloseCheck();
+  });
+  const currentFetch: unknown = Reflect.get(globalThis, "fetch");
+  if (typeof currentFetch === "function") {
+    defineValue("fetch", function fetch(this: unknown, ...args: unknown[]): Promise<unknown> {
+      activeFetches += 1;
+      try {
+        return Promise.resolve(Reflect.apply(currentFetch, this, args)).finally(() => {
+          activeFetches -= 1;
+          scheduleIdleCloseCheck();
+        });
+      } catch (error) {
+        activeFetches -= 1;
+        scheduleIdleCloseCheck();
+        throw error;
+      }
+    });
+  }
   try {
     nativeAddEventListener?.("unhandledrejection", (native: Event) => {
       const event = new NativeEvent("unhandledrejection", { cancelable: true });
