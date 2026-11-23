@@ -1400,8 +1400,8 @@
     "reason": "times out"
   },
   "page-network-request.spec.ts::should not allow to access frame on popup main request": {
-    "expected": "FAIL",
-    "reason": "TypeError: Cannot read properties of undefined (reading 'message')"
+    "expected": "TIMEOUT",
+    "reason": "target=_blank keeps the current tab in place; popup windows are unsupported"
   },
   "page-network-request.spec.ts::should not get preflight CORS requests when intercepting": {
     "expected": "FAIL",
