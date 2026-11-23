@@ -4,6 +4,7 @@
 
 //! Tests for the paint stage; they use crate internals.
 
+mod background_clip_text;
 mod box_shadow_blur_accuracy;
 mod canvas_draw_sources;
 mod clip_path_shapes;
