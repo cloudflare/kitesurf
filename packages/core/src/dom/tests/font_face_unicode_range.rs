@@ -94,7 +94,7 @@ fn same_url_font_faces_keep_distinct_unicode_ranges() {
 }
 
 #[test]
-fn fonts_api_demand_fetches_every_declared_face() {
+fn fonts_api_demand_fetches_only_matching_faces() {
     let stylesheet = r#"
         @font-face { font-family: "Used"; src: url("/used.woff2"); }
         @font-face { font-family: "Unused"; src: url("/unused.woff2"); }
@@ -107,12 +107,34 @@ fn fonts_api_demand_fetches_every_declared_face() {
         ["https://fonts.test/used.woff2"]
     );
 
+    // Apply the stylesheet first so its @font-face rules are pending, then demand only "Unused".
     let (mut document, net_provider) = document_with_stylesheet(stylesheet, "<p>hello</p>");
+    resolve(&mut document, 1);
     {
         let doc: &mut BaseDocument = document.as_mut();
-        doc.demand_all_font_faces();
+        doc.demand_font_faces(&["Unused".to_string()], false, 400, " ");
     }
     resolve(&mut document, 2);
+    let mut requests = net_provider.requests();
+    requests.sort();
+    assert_eq!(
+        requests,
+        [
+            "https://fonts.test/unused.woff2",
+            "https://fonts.test/used.woff2",
+        ]
+    );
+
+    // A subset whose unicode-range does not cover the sample text stays unfetched until matched.
+    {
+        let doc: &mut BaseDocument = document.as_mut();
+        doc.demand_font_faces(&["Subset".to_string()], false, 400, " ");
+    }
+    assert_eq!(net_provider.requests().len(), 2);
+    {
+        let doc: &mut BaseDocument = document.as_mut();
+        doc.demand_font_faces(&["Subset".to_string()], false, 400, "Ω");
+    }
     let mut requests = net_provider.requests();
     requests.sort();
     assert_eq!(
@@ -121,6 +143,54 @@ fn fonts_api_demand_fetches_every_declared_face() {
             "https://fonts.test/subset",
             "https://fonts.test/unused.woff2",
             "https://fonts.test/used.woff2",
+        ]
+    );
+}
+
+#[test]
+fn fonts_api_demand_respects_weight_style_and_unicode_range_on_multi_slice_sheet() {
+    // Google Fonts css2 shape: 2 families x 3 weights x 7 unicode-range slices = 42 faces.
+    let slices = [
+        ("latin", "U+0000-00FF"),
+        ("latin-ext", "U+0100-02BA"),
+        ("cyrillic", "U+0400-045F"),
+        ("cyrillic-ext", "U+0460-052F"),
+        ("greek", "U+0370-0377"),
+        ("greek-ext", "U+1F00-1FFF"),
+        ("vietnamese", "U+0102-0103"),
+    ];
+    let mut stylesheet = String::new();
+    for family in ["Body", "Display"] {
+        for weight in [400, 600, 700] {
+            for (slice, range) in slices {
+                stylesheet.push_str(&format!(
+                    r#"@font-face {{ font-family: "{family}"; font-weight: {weight}; src: url("/{family}-{weight}-{slice}.woff2"); unicode-range: {range}; }}
+"#
+                ));
+            }
+        }
+    }
+    stylesheet.push_str(r#"p { font-family: "Body"; font-weight: 400; }"#);
+
+    let (mut document, net_provider) = document_with_stylesheet(&stylesheet, "<p>hello</p>");
+    resolve(&mut document, 1);
+    assert_eq!(
+        net_provider.requests(),
+        ["https://fonts.test/Body-400-latin.woff2"]
+    );
+
+    {
+        let doc: &mut BaseDocument = document.as_mut();
+        doc.demand_font_faces(&["Display".to_string()], false, 700, " ");
+    }
+    resolve(&mut document, 2);
+    let mut requests = net_provider.requests();
+    requests.sort();
+    assert_eq!(
+        requests,
+        [
+            "https://fonts.test/Body-400-latin.woff2",
+            "https://fonts.test/Display-700-latin.woff2",
         ]
     );
 }

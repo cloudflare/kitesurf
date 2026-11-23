@@ -1127,11 +1127,13 @@ impl DomHandle {
         self.ensure_style();
     }
 
-    /// `document.fonts.load()`: fetch every declared face, not only the ones the styles use.
-    #[wasm_bindgen(js_name = "loadAllFontFaces")]
-    pub fn load_all_font_faces(&self) {
+    /// `document.fonts.load(font, text)`: fetch the pending faces matching the requested families,
+    /// style, weight, and text, without turning on a sticky load-all mode.
+    #[wasm_bindgen(js_name = "loadFontFaces")]
+    pub fn load_font_faces(&self, families: Vec<String>, italic: bool, weight: u16, text: &str) {
         if let Ok(mut doc) = self.doc.try_borrow_mut() {
-            doc.as_mut().demand_all_font_faces();
+            doc.as_mut()
+                .demand_font_faces(&families, italic, weight, text);
         }
     }
 
