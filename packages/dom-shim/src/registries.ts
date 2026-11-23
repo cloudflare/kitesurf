@@ -62,7 +62,10 @@ export function forgetNodeIds(ids: Iterable<number>): void {
     elementOwnerIsHtml.delete(id);
     attrNs.delete(id);
     fragmentIds.delete(id);
+    const contents = templateContentFragment.get(id);
+    if (contents) templateOfContent.delete(contents._id);
     templateContentFragment.delete(id);
+    templateOfContent.delete(id);
     stampedPiIds.delete(id);
     commentData.delete(id);
     linkLoadFired.delete(id);
@@ -166,6 +169,10 @@ export const attrNs = new Map<
 export const fragmentIds = new Set<number>();
 
 export const templateContentFragment = new Map<number, DocumentFragmentImpl>();
+
+// The template each content fragment belongs to, so an ancestor walk can step from the
+// fragment to its template.
+export const templateOfContent = new Map<number, number>();
 
 export const stampedPiIds = new Set<number>();
 
@@ -310,6 +317,7 @@ export function resetRegistries(): void {
   attrNs.clear();
   fragmentIds.clear();
   templateContentFragment.clear();
+  templateOfContent.clear();
   stampedPiIds.clear();
   commentData.clear();
   moPendingObservers.clear();

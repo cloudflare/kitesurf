@@ -479,6 +479,22 @@ impl DomHandle {
         true
     }
 
+    /// Records that `contents_id` holds the content of the template `template_id`, which the
+    /// caller moved there. Serialization then writes that content inside the template.
+    #[wasm_bindgen(js_name = "setTemplateContents")]
+    pub fn set_template_contents(&self, template_id: u32, contents_id: u32) -> bool {
+        let (Some(template), Some(contents)) = (
+            self.resolve_node_id(template_id),
+            self.resolve_node_id(contents_id),
+        ) else {
+            return false;
+        };
+        self.template_contents
+            .borrow_mut()
+            .insert(template, contents);
+        true
+    }
+
     #[wasm_bindgen(js_name = "removeNode")]
     pub fn remove_node(&self, node_id: u32) -> bool {
         let Some(node_id) = self.resolve_node_id(node_id) else {
@@ -514,9 +530,11 @@ impl DomHandle {
             return false;
         }
         let mut node_handles = self.node_handles.borrow_mut();
+        let mut template_contents = self.template_contents.borrow_mut();
         let mut mutr = doc.mutate();
         mutr.remove_and_drop_node_with(node_id, &mut |dropped| {
             node_handles.retire(dropped);
+            template_contents.remove(&dropped);
         });
         drop(mutr);
         self.layout_dirty.set(true);
@@ -575,7 +593,21 @@ impl DomHandle {
             mutr.append_children(nid, &[tid]);
         }
         drop(mutr);
+        self.forget_dropped_templates(&doc);
         self.layout_dirty.set(true);
         true
+    }
+}
+
+impl DomHandle {
+    // Dropping an element's children for its text reports none of the nodes, so a template among
+    // them leaves its entry behind; drop the entries whose template or content no longer exists.
+    fn forget_dropped_templates(&self, doc: &blitz_dom::BaseDocument) {
+        let mut template_contents = self.template_contents.borrow_mut();
+        if !template_contents.is_empty() {
+            template_contents.retain(|&template, &mut contents| {
+                doc.get_node(template).is_some() && doc.get_node(contents).is_some()
+            });
+        }
     }
 }

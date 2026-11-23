@@ -53,6 +53,7 @@ import {
   syntheticParent,
   fragmentIds,
   templateContentFragment,
+  templateOfContent,
   stampedPiIds,
   commentData,
   nodeListCache,
@@ -682,8 +683,17 @@ function assertNotAncestor(parent: TreeParent, node: TreeArg | null | undefined,
         "HierarchyRequestError",
       );
     }
-    cur = cur.parentNode;
+    cur = cur.parentNode ?? contentHost(cur);
   }
+}
+
+// A template's content has no parent, yet inserting the template or one of its ancestors there
+// would put the template inside itself; the host-including ancestor walk steps to the template.
+function contentHost(node: TreeParent): TreeParent | null {
+  if (parsedHandle(node)) return null;
+  const id = treeId(node);
+  const template = typeof id === "number" ? templateOfContent.get(id) : undefined;
+  return template === undefined ? null : nodeFor(template);
 }
 
 const LEAF_PARENT_TYPES = new Set<number>([
@@ -743,8 +753,12 @@ function ensureTemplateContent(templateId: number): DocumentFragmentImpl {
   // The backing tag lets Rust keep template contents inert, unlike other detached elements.
   const fragId = dom.createElement(TEMPLATE_CONTENT_FRAGMENT_TAG);
   fragmentIds.add(fragId);
+  // The content leaves the element's child list, so the core is told where it went;
+  // otherwise outerHTML of the template, or of any ancestor, would lose it.
+  dom.setTemplateContents(templateId, fragId);
   frag = nodeFor(fragId) as DocumentFragmentImpl;
   templateContentFragment.set(templateId, frag);
+  templateOfContent.set(fragId, templateId);
   let kids: number[];
   try {
     kids = Array.from(dom.childIds(templateId));
@@ -763,6 +777,15 @@ function ensureTemplateContent(templateId: number): DocumentFragmentImpl {
     bumpMutationSeq();
   }
   return frag;
+}
+// The parser leaves a template's content under the element until the first .content read moves
+// it out; do that first, so a node inserted into the element stays the element's own child.
+function settleTemplateContent(parent: NodeBase): void {
+  const info = parent._info;
+  if (!info || info.nodeType !== ELEMENT_NODE) return;
+  if (info.nodeName !== "TEMPLATE" && info.nodeName !== "template") return;
+  if (templateContentFragment.has(parent._id) || !isTemplateElement(parent._id)) return;
+  ensureTemplateContent(parent._id);
 }
 function eventTargetKey(target: KsEventTarget): number | KsEventTarget {
   const id = target._id;
@@ -954,6 +977,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       if (this._info) this._info.nodeValue = text;
       return;
     }
+    settleTemplateContent(this);
     const text = String(value ?? "");
     const existing: NodeBase[] = [];
     const removedIds: number[] = [];
@@ -1149,6 +1173,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
   appendChild<T extends NodeBase>(child: T): T {
     maybeScheduleSlotchange(this._id);
     if (!child) throw notSupported("appendChild: null/undefined child");
+    settleTemplateContent(this);
     // A DOMParser node carries its handle in the private registry.
     const childDom = parsedHandle(child);
     if (childDom && childDom !== dom) {
@@ -1272,6 +1297,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
   }
   insertBefore(newChild: NodeBase, refChild: NodeBase | null) {
     maybeScheduleSlotchange(this._id);
+    settleTemplateContent(this);
     if (arguments.length < 2) {
       throw new TypeError(
         "insertBefore: 2 arguments required, but only " + arguments.length + " present",
@@ -1497,6 +1523,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
   }
   replaceChild<T extends NodeBase>(newChild: NodeBase, oldChild: T): T {
     maybeScheduleSlotchange(this._id);
+    settleTemplateContent(this);
     assertCanHaveChildren(this, "replaceChild");
     if (!newChild) {
       throw new TypeError("replaceChild: first argument is not a Node");
@@ -1678,6 +1705,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     }
   }
   replaceChildren(...nodes: Array<NodeBase | string>): void {
+    settleTemplateContent(this);
     const converted = nodes.map((n) => (isNodeLike(n) ? n : createTextNodeInternal(String(n))));
     const prospective: NodeBase[] = [];
     for (const node of converted) {
