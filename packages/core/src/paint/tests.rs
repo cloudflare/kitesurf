@@ -14,6 +14,7 @@ mod glyph_cache_panic;
 mod ink_rect;
 mod inline_block_border;
 mod inline_span_background;
+mod negative_z_index_body_bg;
 mod page_box_pending_style;
 mod paint_damage;
 mod paint_damage_layout_cache;
