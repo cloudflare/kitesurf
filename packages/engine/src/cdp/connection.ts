@@ -50,14 +50,13 @@ import {
   type HostClockTimer,
   type SessionEndFields,
 } from "../observability.ts";
-import { resolveConnectionOptions, type EngineHost } from "../host.ts";
+import { resolveConnectionOptions, resolveSessionStore, type EngineHost } from "../host.ts";
 import type { PageIsolateCapOverrides } from "../eval/page-script.ts";
 import { buildDispatchEnv } from "./dispatch-env.ts";
 import { markArrival } from "./arrival.ts";
 import { StyleCache } from "./style-cache.ts";
 import { makeWallClock } from "../eval/host-clock.ts";
 import { LocalStorage } from "../state/local-storage.ts";
-import { MemorySessionStore } from "../state/session-store.ts";
 // Wrangler generates the ambient `Env` declaration from wrangler.jsonc.
 
 const NOISY_CDP_METHODS = new Set<string>([
@@ -242,8 +241,13 @@ export class BrowserSession {
     const connectionId = this.id;
     const options = resolveConnectionOptions(request, connectionId, opts.host, env);
 
+    const store = resolveSessionStore(connectionId, env, opts.host);
     // Retain response bodies only when Network.enable requests buffering.
-    const networkEvents = new NetworkEventTracker((event) => this.route(event), connectionId);
+    const networkEvents = new NetworkEventTracker(
+      (event) => this.route(event),
+      connectionId,
+      store,
+    );
 
     this.analytics = new KitesurfAnalytics(
       {
@@ -274,6 +278,7 @@ export class BrowserSession {
     const workerBudget = new DynamicWorkerBudget();
     const browser: BrowserState = {
       targets: new Map(),
+      store,
       sandboxOutbound: createSandboxOutboundOverride(
         (ctx as SessionContext & { exports: SandboxOutboundExports }).exports,
         env,
@@ -281,7 +286,7 @@ export class BrowserSession {
         opts.externalOutbound ? undefined : opts.egress?.(),
       ),
       contexts: new Map(),
-      localStorage: new LocalStorage(new MemorySessionStore()),
+      localStorage: new LocalStorage(store),
       nextBrowserContextId: 1,
       cookies,
       screencasts: new Map(),

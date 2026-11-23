@@ -1253,7 +1253,11 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         resourceType === "EventSource" || mimeEssence(mimeType) === "text/event-stream";
       if (!eventStream && isTextLikeMime(mimeType) && resp.body && tracker.retainsBodies()) {
         try {
-          const capped = await readCapped(resp.body, RESPONSE_BODY_BUFFER_CAP);
+          // A store with a larger per-body budget reads more; a body past the read is not kept.
+          const capped = await readCapped(
+            resp.body,
+            Math.max(RESPONSE_BODY_BUFFER_CAP, tracker.perBodyBudget() / 2),
+          );
           if (capped.bytes) {
             const buf = capped.bytes.buffer;
             const text = new TextDecoder("utf-8", { fatal: false, ignoreBOM: false }).decode(buf);
