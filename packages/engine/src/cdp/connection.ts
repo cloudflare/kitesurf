@@ -36,7 +36,8 @@ import {
 import { pumpBackgroundEvents, teardownOopifStubs } from "./page.ts";
 import { retireStub } from "./page-script-generation.ts";
 import { releaseAllDomHandles } from "./dom-release.ts";
-import { cancelAndRemoveTargetWheelQueues, stopAndRemoveWheelQueue } from "./wheel-queue.ts";
+import { cancelAndRemoveTargetWheelQueues } from "./wheel-queue.ts";
+import { leaveScreencastsOfClient } from "./screencast-viewers.ts";
 import { stopSceneStreams } from "./scene-stream.ts";
 import { DynamicWorkerBudget } from "../eval/worker-budget.ts";
 import { DedicatedWorkers } from "./dedicated-workers.ts";
@@ -464,13 +465,7 @@ export class BrowserSession {
     const state = client.state;
     for (const id of state.preNavScriptIds) browser.preNavScripts.delete(id);
     state.preNavScriptIds.clear();
-    for (const [targetId, stream] of Array.from(browser.screencasts)) {
-      if (stream.ownerClientId !== state.id) continue;
-      stream.stopped = true;
-      stream.wake?.();
-      browser.screencasts.delete(targetId);
-      stopAndRemoveWheelQueue(browser, targetId, stream.ownerSessionId, stream.wheelQueue);
-    }
+    leaveScreencastsOfClient(browser, state.id);
     for (const sessionId of Array.from(state.sessions)) {
       detachClientSession(client.ctx, sessionId);
       browser.runtimeEnabledSessions.delete(sessionId);

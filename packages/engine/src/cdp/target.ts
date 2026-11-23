@@ -30,7 +30,8 @@ import {
 } from "./dom-frontend.ts";
 import { detachWebMcpSession } from "./webmcp.ts";
 import { stopSceneStreams } from "./scene-stream.ts";
-import { cancelAndRemoveTargetWheelQueues, stopAndRemoveWheelQueue } from "./wheel-queue.ts";
+import { cancelAndRemoveTargetWheelQueues } from "./wheel-queue.ts";
+import { leaveScreencast } from "./screencast-viewers.ts";
 import { unregisterIsolateLimitListenersForTarget } from "../eval/limit-registry.ts";
 import { registerCookieJar, unregisterCookieJar, cookieKeyFor } from "./cookie-jar-registry.ts";
 
@@ -89,8 +90,8 @@ export function detachSessions(ctx: DispatchCtx, sessions: Set<string>, targetId
 }
 
 /**
- * Detaches one of `ctx`'s client's CDP sessions: its attachments, WebMCP state, the screencast
- * it owns and its Network ledger. Sends nothing; Target.detachFromTarget answers the client.
+ * Detaches one of `ctx`'s client's CDP sessions: its attachments, WebMCP state, its screencast
+ * views and its Network ledger. Sends nothing; Target.detachFromTarget answers the client.
  */
 export function detachClientSession(ctx: DispatchCtx, sessionId: string): void {
   ctx.client.sessions.delete(sessionId);
@@ -101,12 +102,7 @@ export function detachClientSession(ctx: DispatchCtx, sessionId: string): void {
     detachWebMcpSession(t, sessionId);
     forgetFrontendNodes(t, sessionId);
     t.domStorageSessions.delete(sessionId);
-    const stream = ctx.browser.screencasts.get(t.targetId);
-    if (stream?.ownerSessionId === sessionId) {
-      stream.stopped = true;
-      ctx.browser.screencasts.delete(t.targetId);
-      stopAndRemoveWheelQueue(ctx.browser, t.targetId, stream.ownerSessionId, stream.wheelQueue);
-    }
+    leaveScreencast(ctx.browser, t.targetId, ctx.client.id, sessionId);
     for (const frame of t.frames.values()) {
       updateFrameSessionAttribution(ctx, frame, sessionId);
     }

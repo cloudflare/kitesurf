@@ -47,6 +47,12 @@ import {
   stopAndRemoveWheelQueue,
 } from "./wheel-queue.ts";
 import {
+  addScreencastViewer,
+  emitToScreencastViewers,
+  isScreencastOwner,
+  leaveScreencast,
+} from "./screencast-viewers.ts";
+import {
   createDom,
   extractScriptDescriptorsFromDom,
   scanDocument,
@@ -1654,6 +1660,7 @@ export async function handlePage(
         wheelQueue: getWheelQueue(ctx.browser, target.targetId, nextOwner),
         ownerSessionId: nextOwner,
         ownerClientId: ctx.client.id,
+        viewers: new Map(),
         configurationVersion,
         appliedConfigurationVersion: configurationVersion - 1,
         lastAckedSeq: 0,
@@ -1667,7 +1674,11 @@ export async function handlePage(
         framesDropped: 0,
       };
       state.configurationVersion = configurationVersion;
+      // The latest starter owns the stream. An earlier starter keeps its frames as a viewer.
+      const takeover =
+        existing !== undefined && !isScreencastOwner(existing, ctx.client.id, nextOwner);
       state.ownerClientId = ctx.client.id;
+      addScreencastViewer(state, ctx.client.id, nextOwner);
       if (!existing) {
         ctx.browser.screencasts.set(target.targetId, state);
         ctx.ctx.waitUntil(screencastLoop(ctx, target, state));
@@ -1693,6 +1704,11 @@ export async function handlePage(
         const drainBarrier = Promise.all(drains);
         setWheelHandoffDrain(ctx.browser, target.targetId, formerOwner, drainBarrier);
         formerDrain = drainBarrier;
+      } else if (existing && takeover) {
+        // Another client on the same session id: its wheel queue stays, and the ack credit resets.
+        existing.lastAckedSeq = existing.frameSeq;
+        existing.pendingAckSessionId = null;
+        existing.pendingAckSetAt = 0;
       }
 
       const previousConfiguration = target.screencastConfigurationBarrier;
@@ -1745,10 +1761,10 @@ export async function handlePage(
         state.appliedConfigurationVersion = configurationVersion;
         state.wake?.();
 
-        ctx.emit({
+        ctx.emitToClient({
           method: "Page.screencastVisibilityChanged",
           params: { visible: true },
-          sessionId: state.ownerSessionId,
+          sessionId: nextOwner,
         });
         return {};
       } finally {
@@ -1757,24 +1773,15 @@ export async function handlePage(
     }
 
     case "Page.stopScreencast": {
-      const state = ctx.browser.screencasts.get(target.targetId);
-      if (state && state.ownerSessionId === (req.sessionId || undefined)) {
-        state.stopped = true;
-        state.wake?.();
-        stopAndRemoveWheelQueue(
-          ctx.browser,
-          target.targetId,
-          state.ownerSessionId,
-          state.wheelQueue,
-        );
-        ctx.browser.screencasts.delete(target.targetId);
-      }
+      leaveScreencast(ctx.browser, target.targetId, ctx.client.id, req.sessionId || undefined);
       return {};
     }
 
     case "Page.screencastFrameAck": {
       const state = ctx.browser.screencasts.get(target.targetId);
       if (!state) return {};
+      // Only the owner paces the stream. Another viewer gets the frames the owner acks.
+      if (!isScreencastOwner(state, ctx.client.id, req.sessionId || undefined)) return {};
       const rawAckId = req.params?.sessionId ?? -1;
       const ackId =
         typeof rawAckId === "number" && Number.isInteger(rawAckId)
@@ -5469,10 +5476,8 @@ async function screencastLoop(
         state.pendingAckSetAt = now();
       }
 
-      const recipient = state.ownerSessionId;
-
       const data = bytesToBase64(bytes);
-      ctx.emit({
+      emitToScreencastViewers(ctx, state, {
         method: "Page.screencastFrame",
         params: {
           data,
@@ -5487,7 +5492,6 @@ async function screencastLoop(
           },
           sessionId: sid,
         },
-        sessionId: recipient,
       });
     };
 

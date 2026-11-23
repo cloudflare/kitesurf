@@ -15,6 +15,7 @@ import type { LearnedScripts } from "../eval/learned-scripts.ts";
 import type { DiagSpanTracker } from "./diag-spans.ts";
 import type { SandboxOutboundOverride } from "../eval/outbound.ts";
 import type { WheelQueue } from "./wheel-queue.ts";
+import type { ScreencastViewer } from "./screencast-viewers.ts";
 import type { StyleCache } from "./style-cache.ts";
 import type { FontProfile } from "./font-profile.ts";
 
@@ -182,8 +183,10 @@ export interface ScreencastState {
   maxInFlight: number;
   wheelQueue: WheelQueue;
   ownerSessionId: string | undefined;
-  // The client that started or last took over the stream; it stops when that client leaves.
+  // The client that started or last took over the stream.
   ownerClientId: string;
+  // Every client session that gets the frames, the owner included (cdp/screencast-viewers.ts).
+  viewers: Map<string, ScreencastViewer>;
   configurationVersion: number;
   appliedConfigurationVersion: number;
   lastAckedSeq: number;
