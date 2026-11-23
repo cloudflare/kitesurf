@@ -77,9 +77,9 @@ Engine-wide invariants. The owning code carries the detail; keep these in sync w
 - Wasm panics unwind (`packages/core/.cargo/config.toml`, symlinked into `renderer-core`), so the
   live DOM survives a panic. `scene-host-wasm` stays `abort`.
 - The DevTools frontend is optional: `--config=devtools` stages Chrome's prebuilt one at
-  `/inspector/`, deploys always include it, and `wrangler dev` falls back to Chrome's hosted one
-  without it (`resolveInspectorBaseUrl`, README). Always send `devtoolsFrontendUrl`, or Chrome's
-  **inspect** link does nothing.
+  `/inspector/`. Deploys always include it and the Docker image does by default; without it,
+  `wrangler dev` and the image fall back to Chrome's hosted one (`resolveInspectorBaseUrl`,
+  README). Always send `devtoolsFrontendUrl`, or Chrome's **inspect** link does nothing.
 - `/devtools/page/<id>` selects page mode, which never announces the page as a child target;
   Puppeteer must use `/devtools/browser`.
 - CDP types come from `devtools-protocol`. Declare `Kitesurf.*` methods and extra fields in

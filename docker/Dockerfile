@@ -7,16 +7,17 @@
 #   docker run --rm -p 127.0.0.1:8787:8787 kitesurf
 #
 # Build arguments:
-#   DEVTOOLS=1     bundle the Chrome DevTools frontend at /inspector/ (50 MB, 11 MB compressed)
+#   DEVTOOLS=0     leave out the Chrome DevTools frontend at /inspector/ (50 MB, 11 MB compressed)
 #   BAZEL_FLAGS    extra `bazel build` flags, for example --jobs=4
 #   VERSION        the engine's KITESURF_VERSION
 
 ARG NODE_IMAGE=node:24-bookworm-slim
+ARG DEVTOOLS=1
 
 # The engine bundle is the same on every platform, so it builds once, natively on the build host.
 FROM --platform=$BUILDPLATFORM debian:bookworm AS engine-build
 ARG BUILDARCH
-ARG DEVTOOLS=0
+ARG DEVTOOLS
 ARG BAZEL_FLAGS=
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl g++ gcc git libc6-dev \
@@ -61,7 +62,8 @@ RUN --mount=type=cache,id=kitesurf-bazel,target=/root/.cache \
   bazel shutdown
 
 # `--build-context engine=<dir>` replaces this stage with a bundle built outside the image, as the
-# Docker workflow does. The engine-build stage then never runs.
+# Docker workflow does. The engine-build stage then never runs, so build that bundle with
+# `bazel build --config=devtools //docker:engine`, or without the option for DEVTOOLS=0.
 FROM scratch AS engine
 COPY --from=engine-build /out/ /
 
@@ -98,6 +100,20 @@ COPY LICENSE NOTICE /usr/share/doc/kitesurf/
 COPY licenses /usr/share/doc/kitesurf/licenses
 COPY --from=workerd /workerd /usr/local/bin/workerd
 COPY --from=engine / /opt/kitesurf
+# DEVTOOLS says whether the image has the frontend, but it has no effect on a bundle from
+# `--build-context`. Stop on a bundle that disagrees: an image that lacks the frontend would
+# send Chrome to the hosted one.
+ARG DEVTOOLS
+RUN set -eu; \
+  want=absent; if [ "$DEVTOOLS" = 1 ]; then want=present; fi; \
+  have=absent; if [ -f /opt/kitesurf/public/inspector/inspector.html ]; then have=present; fi; \
+  if [ "$have" != "$want" ]; then \
+    echo "DEVTOOLS=$DEVTOOLS, but the DevTools frontend is $have in the engine bundle." \
+      "An image with the frontend needs DEVTOOLS=1 and a bundle from" \
+      "\`bazel build --config=devtools //docker:engine\`." \
+      "An image without it needs DEVTOOLS=0 and a bundle built without that option." >&2; \
+    exit 1; \
+  fi
 COPY docker/front.js docker/entrypoint.sh /opt/kitesurf/
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="Kitesurf" \

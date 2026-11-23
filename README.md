@@ -113,6 +113,10 @@ docker run --rm -p 127.0.0.1:8787:8787 ghcr.io/cloudflare/kitesurf
 The engine starts in under a second. `/health` answers when the engine
 answers requests. It does not open a page.
 
+The image includes the Chrome DevTools frontend. To inspect a page, open
+`http://127.0.0.1:8787/` in Chrome. See
+[Use Chrome DevTools](#use-chrome-devtools).
+
 The engine compiles its WebAssembly at start, so the first page does not wait
 for that. This uses memory: the engine holds about 350 MiB at idle, and about
 550 MiB after it runs pages. Pages that load their own WebAssembly also compile
@@ -126,11 +130,13 @@ docker build -f docker/Dockerfile -t kitesurf .
 ```
 
 The first build compiles the Rust core, which takes a while. Docker keeps
-Bazel's cache in a build cache mount, so later builds are faster. Add
-`--build-arg DEVTOOLS=1` to bundle the Chrome DevTools frontend. It adds about
-50 MB to the image, or 11 MB compressed. Without it, the landing page uses Chrome's hosted frontend, which connects only
-to `127.0.0.1`. Behind a TLS-inspecting proxy, give the build the proxy's root
-certificate with `--secret id=ca_certificates,src=<root.pem>`.
+Bazel's cache in a build cache mount, so later builds are faster. Behind a
+TLS-inspecting proxy, give the build the proxy's root certificate with
+`--secret id=ca_certificates,src=<root.pem>`.
+
+The Chrome DevTools frontend is about 50 MB of the image, or 11 MB compressed.
+Add `--build-arg DEVTOOLS=0` to leave it out. Then the landing page uses
+Chrome's hosted frontend, which connects only to `127.0.0.1`.
 
 Connect Playwright to the browser endpoint:
 
@@ -206,14 +212,15 @@ discovery is available at `http://127.0.0.1:8787/json/version`.
 
 ## Use Chrome DevTools
 
-With `pnpm run dev`, open `http://127.0.0.1:8787/` in Chrome. Enter a URL to
-inspect, or select one of the example pages. DevTools opens in the tab on that
-page. To go to DevTools directly, open
+With `pnpm run dev` or the Docker image, open `http://127.0.0.1:8787/` in
+Chrome. Enter a URL to inspect, or select one of the example pages. DevTools
+opens in the tab on that page. To go to DevTools directly, open
 `http://127.0.0.1:8787/?url=https://example.com`, or
 `http://127.0.0.1:8787/?inspect=1` for a blank page.
 
-If you built the bundled frontend, `pnpm run dev` serves it from the engine's
-own origin. See
+The Docker image serves the bundled frontend from the engine's own origin
+unless you built it with `DEVTOOLS=0`. `pnpm run dev` does the same if you
+built the bundled frontend. See
 [Use the bundled DevTools frontend](#use-the-bundled-devtools-frontend).
 Otherwise, the DevTools frontend comes from
 `chrome-devtools-frontend.appspot.com`, the build that Google hosts for Chrome.
@@ -250,9 +257,10 @@ Puppeteer and other CDP clients can connect to
 
 Kitesurf can serve the Chrome DevTools frontend from its own origin. Then
 DevTools works without the hosted frontend, its permission prompt and the
-`127.0.0.1` limit. A deployed engine always uses this copy. The frontend is the
-prebuilt build that Google publishes for Chromium. The default build does not
-include it.
+`127.0.0.1` limit. A deployed engine always uses this copy. The Docker image
+includes it unless you built the image with `DEVTOOLS=0`. The frontend is the
+prebuilt build that Google publishes for Chromium. The default local build does
+not include it.
 
 The copy has only the English text. If you select another language in the
 DevTools settings, DevTools stays in English.

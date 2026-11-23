@@ -30,10 +30,11 @@ jobs:
           pnpm-cache: "false"
       # The bundle is the same on every platform. Build it once with Bazel here, and give it to
       # docker/Dockerfile as its `engine` stage, so the image build skips its own Bazel build.
+      # The image's DEVTOOLS argument does not reach this build, so it adds the frontend itself.
       - name: Build the engine
         run: |
           set -euo pipefail
-          bazel build //docker:engine
+          bazel build --config=devtools //docker:engine
           mkdir -p "$RUNNER_TEMP/engine"
           cp -RL bazel-bin/packages/engine/dist bazel-bin/packages/engine/public \
             bazel-bin/docker/config.capnp bazel-bin/docker/env.sh "$RUNNER_TEMP/engine/"

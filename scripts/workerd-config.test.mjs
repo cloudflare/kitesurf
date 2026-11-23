@@ -12,7 +12,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSy
 import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 
 const REPO = resolve(import.meta.dirname, "..");
@@ -64,7 +64,10 @@ const makeImage = function (t, { options = BASE_OPTIONS, headers = HEADERS, file
   writeFileSync(join(root, "public/fonts/a.txt"), "fonts a");
   writeFileSync(join(root, "public/fonts/a.woff2"), "woff2");
   if (headers !== null) writeFileSync(join(root, "public/_headers"), headers);
-  for (const [name, body] of Object.entries(files)) writeFileSync(join(root, name), body);
+  for (const [name, body] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, name)), { recursive: true });
+    writeFileSync(join(root, name), body);
+  }
   copyFileSync(join(REPO, "docker/front.js"), join(root, "front.js"));
   return root;
 };
@@ -182,6 +185,34 @@ test("the generator lists the experimental flag once", (t) => {
   assert.equal(result.status, 0, result.stderr);
   const config = readFileSync(join(root, "config.capnp"), "utf8");
   assert.match(config, /compatibilityFlags = \["experimental", "nodejs_compat"\]/);
+});
+
+test("the generator sets the hosted frontend unless the image serves its own", (t) => {
+  const hosted = "https://example.com/inspector.html";
+  const frontend = { "public/inspector/inspector.html": "" };
+  /** The fallback's default in env.sh, for a base and a public/ with these files and dirs. */
+  const fallback = function ({ base = "/inspector/inspector.html", files = {}, dirs = [] }) {
+    const vars = JSON.stringify({
+      KITESURF_INSPECTOR_BASE_URL: base,
+      KITESURF_INSPECTOR_FALLBACK_URL: hosted,
+    });
+    const root = makeImage(t, { files: { "container-vars.json": vars, ...files } });
+    for (const dir of dirs) mkdirSync(join(root, dir), { recursive: true });
+    const result = generate(root);
+    assert.equal(result.status, 0, result.stderr);
+    const env = readFileSync(join(root, "env.sh"), "utf8");
+    assert.ok(env.includes(`|| KITESURF_INSPECTOR_BASE_URL='${base}'`), env);
+    return /\|\| KITESURF_INSPECTOR_FALLBACK_URL='([^']*)'/.exec(env)?.[1];
+  };
+  assert.equal(fallback({ files: frontend }), "");
+  // A build without the frontend leaves public/inspector/ empty.
+  assert.equal(fallback({ dirs: ["public/inspector"] }), hosted);
+  // front.js serves only a file whose name has an extension.
+  assert.equal(fallback({ base: "/inspector/", files: frontend }), hosted);
+  assert.equal(fallback({ base: "/inspector/", dirs: ["public/inspector"] }), hosted);
+  const license = { "public/inspector/LICENSE": "" };
+  assert.equal(fallback({ base: "/inspector/LICENSE", files: license }), hosted);
+  assert.equal(fallback({ base: "/inspector.d", dirs: ["public/inspector.d"] }), hosted);
 });
 
 test(

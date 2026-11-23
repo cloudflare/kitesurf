@@ -6,7 +6,7 @@
 // on workerd alone, behind docker/front.js, and env.sh, the vars' defaults for the entry point.
 // `--root` is the image directory that holds dist/, public/ and front.js.
 
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 
 // The module types of packages/engine-server/server.mjs's ENGINE_RULES, by file name suffix.
@@ -112,6 +112,20 @@ const headerRules = function (source) {
 const headersFile = resolve(publicDir, "_headers");
 const HEADER_RULES = existsSync(headersFile) ? headerRules(readFileSync(headersFile, "utf8")) : [];
 const vars = { ...options.bindings, ...JSON.parse(readFileSync(containerVarsFile, "utf8")) };
+/** Whether docker/front.js serves a path base from public/: it must name a file, and front.js
+ * takes only a name with an extension for one. */
+const servesInspector = function (base) {
+  if (!base.startsWith("/")) return false;
+  const { pathname } = new URL(base, "http://public");
+  if (!/\.[a-z0-9]+$/i.test(pathname)) return false;
+  return statSync(resolve(publicDir, `.${pathname}`), { throwIfNoEntry: false })?.isFile() === true;
+};
+// With a fallback, the engine probes public/ once for a path base and keeps the answer, so one
+// failed probe would send Chrome to the fallback until the container restarts. A base that the
+// image serves needs neither: without a fallback, the engine uses the base and never probes.
+if (servesInspector(vars.KITESURF_INSPECTOR_BASE_URL ?? "")) {
+  vars.KITESURF_INSPECTOR_FALLBACK_URL = "";
+}
 
 const text = (value) => {
   if (!/^[\x20-\x7e]*$/.test(value)) throw new Error(`not printable ASCII: ${value}`);
