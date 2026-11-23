@@ -1,0 +1,147 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Mon, 23 Nov 2026 14:37:08 +0000
+Subject: [PATCH] Map table valign hints and honour percentage column widths in
+ auto tables
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Map HTML `valign` attributes on table row groups, rows, and cells to Stylo's
+`alignment-baseline` / `baseline-shift` longhands per HTML §15.3.9.
+
+Honour percentage widths on `<col>` and single-column cells under
+`table-layout: auto` using `minmax(min-content, pct)` tracks with cumulative
+percentages capped at 100% per CSS Tables 3 §3.9.4.
+---
+ src/layout/table.rs | 51 ++++++++++++++++++++++++++++++++++++++-------
+ src/stylo.rs        | 40 +++++++++++++++++++++++++++++++++++
+ 2 files changed, 83 insertions(+), 8 deletions(-)
+
+diff --git a/src/layout/table.rs b/src/layout/table.rs
+index f20ff15..3a83a11 100644
+--- a/src/layout/table.rs
++++ b/src/layout/table.rs
+@@ -410,14 +410,6 @@ pub(crate) fn build_table_context(
+     for child_id in children.ids() {
+         collect_columns(doc, child_id, wm, &mut columns, &mut column_sizes);
+     }
+-    // Percentage column widths only take effect in the fixed table layout algorithm
+-    if !is_fixed {
+-        for column in column_sizes.iter_mut() {
+-            if column.max.into_raw().tag() == taffy::CompactLength::PERCENT_TAG {
+-                *column = style_helpers::auto();
+-            }
+-        }
+-    }
+     let mut first_cell_border: Option<ServoArc<Border>> = None;
+     // Percentage widths set on first-row cells: (column index, percentage, padding + border)
+     let mut percent_columns: Vec<(u16, f32, f32)> = Vec::new();
+@@ -475,6 +467,26 @@ pub(crate) fn build_table_context(
+     }
+     let num_columns = cursor.num_columns.max(column_sizes.len() as u16);
+     column_sizes.resize(num_columns as usize, remaining_column);
++    // CSS Tables 3 §3.9.4: in `table-layout: auto`, percentage-constrained
++    // columns keep a `min-content` floor and cap cumulative percentage at 100%.
++    // https://drafts.csswg.org/css-tables-3/#distributing-width-to-columns
++    if !is_fixed {
++        let mut remaining_percent = 1.0_f32;
++        for column in column_sizes.iter_mut() {
++            if column.max.into_raw().tag() == taffy::CompactLength::PERCENT_TAG {
++                let pct = column.max.into_raw().value().clamp(0.0, remaining_percent);
++                remaining_percent = (remaining_percent - pct).max(0.0);
++                *column = if pct > 0.0 {
++                    style_helpers::minmax(
++                        style_helpers::min_content(),
++                        style_helpers::percent(pct),
++                    )
++                } else {
++                    style_helpers::auto()
++                };
++            }
++        }
++    }
+     // With no other column to take the table's spare width, the columns that
+     // cell widths size (`min_content_ignores_width`) share it: an `auto` maximum stretches.
+     if !column_sizes.iter().any(|column| column.max.is_auto()) {
+@@ -940,6 +952,29 @@ fn collect_table_cells(
+                     columns.resize(col as usize, style_helpers::auto());
+                     columns.push(column);
+                 }
++            } else if !is_fixed
++                && colspan == 1
++                && style.size.width.tag() == taffy::CompactLength::PERCENT_TAG
++            {
++                // CSS Tables 3 §3.9.4: record the largest percentage width
++                // declared on any single-column cell in this column.
++                let pct = style.size.width.value();
++                if pct > 0.0 {
++                    if (col as usize) >= columns.len() {
++                        columns.resize(col as usize + 1, style_helpers::auto());
++                    }
++                    let existing = &mut columns[col as usize];
++                    let is_pct =
++                        existing.max.into_raw().tag() == taffy::CompactLength::PERCENT_TAG;
++                    if existing.max.is_auto()
++                        || (is_pct && pct > existing.max.into_raw().value())
++                    {
++                        *existing = style_helpers::minmax(
++                            style_helpers::min_content(),
++                            style_helpers::percent(pct),
++                        );
++                    }
++                }
+             }
+
+             if rowspan == 1 && style.size.height.tag() == taffy::CompactLength::LENGTH_TAG {
+diff --git a/src/stylo.rs b/src/stylo.rs
+index 9a5d837..5a1d309 100644
+--- a/src/stylo.rs
++++ b/src/stylo.rs
+@@ -1402,6 +1402,46 @@ impl<'a> TElement for BlitzNode<'a> {
+                 }
+             }
+
++            // Table `valign` presentational hints map to `vertical-align`
++            // (`alignment-baseline` + `baseline-shift` in Stylo).
++            // https://html.spec.whatwg.org/multipage/rendering.html#tables-2
++            if *name == local_name!("valign")
++                && (*tag == local_name!("thead")
++                    || *tag == local_name!("tbody")
++                    || *tag == local_name!("tfoot")
++                    || *tag == local_name!("tr")
++                    || *tag == local_name!("td")
++                    || *tag == local_name!("th"))
++            {
++                use style::Zero;
++                use style::properties::longhands::alignment_baseline::SpecifiedValue as AlignmentBaseline;
++                use style::values::generics::box_::BaselineShiftKeyword;
++                use style::values::specified::LengthPercentage;
++                use style::values::specified::box_::BaselineShift;
++                let zero_shift = BaselineShift::Length(LengthPercentage::zero());
++                let mapped = if value.eq_ignore_ascii_case("top") {
++                    Some((
++                        AlignmentBaseline::Baseline,
++                        BaselineShift::Keyword(BaselineShiftKeyword::Top),
++                    ))
++                } else if value.eq_ignore_ascii_case("middle") {
++                    Some((AlignmentBaseline::Middle, zero_shift))
++                } else if value.eq_ignore_ascii_case("bottom") {
++                    Some((
++                        AlignmentBaseline::Baseline,
++                        BaselineShift::Keyword(BaselineShiftKeyword::Bottom),
++                    ))
++                } else if value.eq_ignore_ascii_case("baseline") {
++                    Some((AlignmentBaseline::Baseline, zero_shift))
++                } else {
++                    None
++                };
++                if let Some((alignment_baseline, baseline_shift)) = mapped {
++                    push_style(PropertyDeclaration::AlignmentBaseline(alignment_baseline));
++                    push_style(PropertyDeclaration::BaselineShift(baseline_shift));
++                }
++            }
++
+             // The width/height attributes on these elements map to the
+             // corresponding dimension properties (percentages allowed):
+             // https://html.spec.whatwg.org/multipage/rendering.html#dimRendering
