@@ -10,6 +10,7 @@ mod block_align_content;
 mod box_decorations;
 mod display_none_release;
 mod float_cache_incremental;
+mod float_relative_insets;
 mod float_with_trailing_comment;
 mod grid_minmax;
 mod hit_test_block_axis;

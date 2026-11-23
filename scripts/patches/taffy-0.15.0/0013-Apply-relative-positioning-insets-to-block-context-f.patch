@@ -1,0 +1,51 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Mon, 23 Nov 2026 09:37:39 +0000
+Subject: [PATCH] Apply relative positioning insets to block-context floats
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A floated box with `position: relative` was placed in the float context and
+committed without applying its `left`/`right`/`top`/`bottom` insets, so
+push/pull grid layouts (such as `float: left; position: relative; left: 50%`)
+left columns in their unshifted order.
+
+Apply relative insets after `place_floated_box` so surrounding content and
+sibling floats still flow around the unshifted float box per CSS2 §9.4.3.
+---
+ src/compute/block.rs | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/src/compute/block.rs b/src/compute/block.rs
+index bd819dc..daa346e 100644
+--- a/src/compute/block.rs
++++ b/src/compute/block.rs
+@@ -1264,9 +1264,26 @@ fn perform_final_layout_on_in_flow_children(
+                 // y_offset_for_absolute = y_offset_for_absolute.max(location.y);
+
+                 // Convert the margin-box location returned by float placement into a border-box location
+-                // for the output Layout
++                // for the output Layout, then apply relative positioning offsets after float placement
++                // so surrounding flow still wraps the unshifted float box.
++                // https://drafts.csswg.org/css2/#relative-positioning
+                 location.y += item_non_auto_margin.top;
+                 location.x += item_non_auto_margin.left;
++                if item.position == Position::Relative {
++                    let inset_percentage_basis = Size {
++                        width: Some(container_inner_width),
++                        height: container_percentage_resolution_height,
++                    };
++                    let inset = item.inset.zip_size(inset_percentage_basis, |p, s| {
++                        p.maybe_resolve(s, |val, basis| tree.calc(val, basis))
++                    });
++                    location.x += if direction.is_rtl() {
++                        inset.right.map(|x| -x).or(inset.left).unwrap_or(0.0)
++                    } else {
++                        inset.left.or(inset.right.map(|x| -x)).unwrap_or(0.0)
++                    };
++                    location.y += inset.top.or(inset.bottom.map(|x| -x)).unwrap_or(0.0);
++                }
+
+                 // println!("BLOCK FLOATED BOX ({:?}) {:?}", item.node_id, float_direction);
+                 // println!("w:{} h:{} x:{}, y:{}", margin_box.width, margin_box.height, location.x, location.y);
