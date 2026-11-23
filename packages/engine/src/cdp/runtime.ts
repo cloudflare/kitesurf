@@ -649,6 +649,21 @@ export function applyCookieWrites(
   }
 }
 
+/** The sessions that get the console output of a call on `sessionId`: that session, and the
+ * sessions of other clients with Runtime enabled on the page, as in Chrome. */
+export function consoleRecipients(
+  ctx: DispatchCtx,
+  target: TargetState | undefined,
+  sessionId: string | undefined,
+): Array<string | undefined> {
+  const out: Array<string | undefined> = [sessionId];
+  for (const s of target?.sessions ?? []) {
+    if (s === sessionId || ctx.client.sessions.has(s)) continue;
+    if (ctx.browser.runtimeEnabledSessions.has(s)) out.push(s);
+  }
+  return out;
+}
+
 function emitCapturedConsole(
   ctx: DispatchCtx,
   entries: ConsoleEntry[] | undefined,
@@ -657,9 +672,10 @@ function emitCapturedConsole(
   if (!entries || entries.length === 0) return;
   const target = pickTarget(ctx, sessionId);
   const ctxId = target?.defaultContextId || 1;
+  const recipients = consoleRecipients(ctx, target, sessionId);
   for (const e of entries) {
     const ev = consoleEntryToCdpEvent(e, ctxId);
-    ctx.emit({ method: ev.method, params: ev.params, sessionId });
+    for (const s of recipients) ctx.emit({ method: ev.method, params: ev.params, sessionId: s });
   }
 }
 

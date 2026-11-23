@@ -28,6 +28,7 @@ import {
   type WheelQueue,
 } from "./wheel-queue.ts";
 import { isScreencastOwner } from "./screencast-viewers.ts";
+import { consoleRecipients } from "./runtime.ts";
 
 const MOUSE_MOVE_THROTTLE_MS = 33;
 
@@ -567,9 +568,10 @@ function emitConsole(
   if (!entries || entries.length === 0) return;
   const target = pickTarget(ctx, sessionId);
   const ctxId = target?.defaultContextId || 1;
+  const recipients = consoleRecipients(ctx, target, sessionId);
   for (const e of entries) {
     const ev = consoleEntryToCdpEvent(e, ctxId);
-    ctx.emit({ method: ev.method, params: ev.params, sessionId });
+    for (const s of recipients) ctx.emit({ method: ev.method, params: ev.params, sessionId: s });
   }
 }
 
