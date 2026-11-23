@@ -100,6 +100,24 @@ impl DomHandle {
         dispatched
     }
 
+    /// Resolve `:hover` against the pointer's viewport position, as a browser
+    /// does on every pointer move. Returns whether any element changed state.
+    /// https://drafts.csswg.org/selectors-4/#the-hover-pseudo
+    #[wasm_bindgen(js_name = "setHoverAt")]
+    pub fn set_hover_at(&self, x: f32, y: f32) -> bool {
+        self.doc
+            .try_borrow_mut()
+            .is_ok_and(|mut d| d.as_mut().set_hover_to(x, y))
+    }
+
+    /// Clear `:hover` when the pointer leaves the document.
+    #[wasm_bindgen(js_name = "clearHover")]
+    pub fn clear_hover(&self) -> bool {
+        self.doc
+            .try_borrow_mut()
+            .is_ok_and(|mut d| d.as_mut().clear_hover())
+    }
+
     /// Settle a pending fetch with an empty body.
     /// Returns `false` if its request ID is no longer pending.
     #[wasm_bindgen(js_name = "deliverResourceError")]

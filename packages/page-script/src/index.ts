@@ -5292,6 +5292,21 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       };
       if (eventType === "mousemove" || eventType === "mousedown" || eventType === "mouseup") {
         lastMousePosition = { x: clientX, y: clientY };
+        // Resolve :hover against the pointer before the page sees the event, as
+        // a browser does; the cascade then reflects it in computed style.
+        // https://drafts.csswg.org/selectors-4/#the-hover-pseudo
+        try {
+          const hoverChanged = (
+            state.dom as { setHoverAt?: (x: number, y: number) => boolean } | null
+          )?.setHoverAt?.(clientX, clientY);
+          // A hover restyle is not a DOM mutation, so bump the sequence that
+          // computed-style caches key on.
+          if (hoverChanged) {
+            const internalState = getInternalState();
+            internalState.mutationSeq = (internalState.mutationSeq | 0) + 1;
+            internalState.lastMutationAt = Date.now();
+          }
+        } catch {}
       }
       const POINTER_EVENT_TYPES = ["click", "auxclick", "dblclick", "contextmenu"];
       let event: MouseInputEvent;
