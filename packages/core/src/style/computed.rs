@@ -800,7 +800,13 @@ fn used_box_metric(
             | LonghandId::MarginInlineStart
             | LonghandId::MarginInlineEnd
     );
-    if !(is_size || value.contains('%')) || (is_margin && !cx.layout_margin_available) {
+    // CSSOM §4.2: margins resolve to their used value whenever the element has a
+    // layout box, including `auto` margins (e.g. `margin: 0 auto` centering).
+    // https://drafts.csswg.org/cssom/#resolved-value
+    let is_auto_margin = is_margin && value == "auto";
+    if !(is_size || is_auto_margin || value.contains('%'))
+        || (is_margin && !cx.layout_margin_available)
+    {
         return None;
     }
 
