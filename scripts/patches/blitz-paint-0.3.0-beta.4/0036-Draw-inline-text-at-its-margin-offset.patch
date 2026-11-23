@@ -1,0 +1,108 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Tue, 17 Nov 2026 14:02:24 +0000
+Subject: [PATCH] Draw inline text at its margin offset
+
+Parley lays text out without the horizontal margins of the inline boxes it
+runs through. The inline layout stores the per-item offset; the paint walk
+adds it to each run's transform and to the decoration extent, so painted text
+and geometry agree.
+---
+ src/render.rs |  3 +++
+ src/text.rs   | 27 ++++++++++++++++++++++++---
+ 2 files changed, 27 insertions(+), 3 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index 7d66190..51f1d02 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -1093,6 +1093,7 @@ impl ElementCx<'_, '_> {
+                 transform,
+                 self.scale,
+                 node_id,
++                text_layout.line_node_offsets(),
+                 &mut draw_text_context,
+                 None,
+                 Some(text_layout.text(self.context.dom.tree())),
+@@ -1172,6 +1173,7 @@ impl ElementCx<'_, '_> {
+                 transform,
+                 self.scale,
+                 self.node.id(),
++                &[],
+                 &mut draw_text_context,
+                 fill_override,
+                 Some(input_data.editor.raw_text()),
+@@ -1209,6 +1211,7 @@ impl ElementCx<'_, '_> {
+             transform,
+             self.scale,
+             self.node.id(),
++            &[],
+             &mut draw_text_context,
+             None,
+             Some(marker_text),
+diff --git a/src/text.rs b/src/text.rs
+index 0ed2b79..096d65e 100644
+--- a/src/text.rs
++++ b/src/text.rs
+@@ -594,6 +594,7 @@ pub(crate) fn stroke_text<'a>(
+     transform: Affine,
+     scale: f64,
+     inline_root_id: NodeId,
++    line_node_offsets: &[Vec<(NodeId, f32)>],
+     context: &mut DrawTextContext,
+     fill_override: Option<Color>,
+     text: Option<&str>,
+@@ -639,14 +640,30 @@ pub(crate) fn stroke_text<'a>(
+     // ancestor chain on every run, we cache each node's resolved values here and,
+     // for each run, only resolve styles for the nodes newly descended into (popping
+     // as we ascend). `path_scratch` is a reusable buffer for the run's node path.
+-    for line in lines {
++    for (line_index, line) in lines.enumerate() {
+         // Decorations accumulated for this line, keyed by decorating box, so each box is
+         // painted once (spanning all its runs) using its own font — matching Firefox, which
+         // draws one decoration per box rather than one stepped segment per differently-sized
+         // run. Clearing preserves the allocation for the next line and inline context.
+         deco_boxes.clear();
+
++        let line_offsets: &[(NodeId, f32)] = line_node_offsets
++            .get(line_index)
++            .map(Vec::as_slice)
++            .unwrap_or(&[]);
++        let shift_for = |node_id: NodeId| -> f64 {
++            line_offsets
++                .iter()
++                .find(|(id, _)| *id == node_id)
++                .map(|(_, offset)| *offset as f64)
++                .unwrap_or(0.0)
++        };
++
+         for item in line.items() {
++            let margin_shift = match &item {
++                PositionedLayoutItem::GlyphRun(run) => shift_for(run.style().brush.id),
++                PositionedLayoutItem::InlineBox(ibox) => shift_for(NodeId::from_u64(ibox.id)),
++            };
+             if let PositionedLayoutItem::GlyphRun(glyph_run) = item {
+                 let run = glyph_run.run();
+                 let font = run.font();
+@@ -741,7 +758,11 @@ pub(crate) fn stroke_text<'a>(
+                     Fill::NonZero,
+                     &anyrender::Paint::from(text_fill_color),
+                     1.0,
+-                    transform,
++                    if margin_shift == 0.0 {
++                        transform
++                    } else {
++                        transform * Affine::translate((margin_shift, 0.0))
++                    },
+                     glyph_xform,
+                     glyph_run.positioned_glyphs().map(|glyph| anyrender::Glyph {
+                         id: glyph.id as _,
+@@ -766,7 +787,7 @@ pub(crate) fn stroke_text<'a>(
+                     css_font_size,
+                 };
+                 let run_node_id = style.brush.id;
+-                let run_x0 = glyph_run.offset() as f64;
++                let run_x0 = glyph_run.offset() as f64 + margin_shift;
+                 let run_x1 = run_x0 + glyph_run.advance() as f64;
+
+                 for entry in stack.iter() {

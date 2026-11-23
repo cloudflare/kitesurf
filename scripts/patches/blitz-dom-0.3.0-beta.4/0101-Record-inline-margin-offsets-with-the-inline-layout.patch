@@ -1,0 +1,390 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Tue, 17 Nov 2026 13:59:37 +0000
+Subject: [PATCH] Record inline margin offsets with the inline layout
+
+Parley lays text out without the horizontal margins of the inline boxes it
+runs through, so a non-replaced inline box's margins did nothing. The inline
+layout now stores, per line, the inline-start offset of each item, and the
+geometry walk adds it. The paint walk follows in the same change.
+---
+ src/layout/inline.rs | 135 ++++++++++++++++++++++++++++++++++++++++++-
+ src/node/node.rs     | 102 +++++++++++++++++++++++++-------
+ src/node/text.rs     |  17 ++++++
+ src/resolve.rs       |  21 +++++++
+ 4 files changed, 251 insertions(+), 24 deletions(-)
+
+diff --git a/src/layout/inline.rs b/src/layout/inline.rs
+index f8e5372..9ce5eb2 100644
+--- a/src/layout/inline.rs
++++ b/src/layout/inline.rs
+@@ -1214,6 +1214,11 @@ impl LayoutPassState<'_> {
+             taffy::compute_block_align_content_offset(align_content, free_space)
+         };
+         inline_layout.block_offset = block_offset;
++        let line_node_offsets = inline_layout
++            .live_layout()
++            .map(|layout| self.doc.inline_margin_offsets(layout))
++            .unwrap_or_default();
++        inline_layout.set_line_node_offsets(line_node_offsets);
+         let line_box_top = container_pb.top + block_offset;
+
+         // Store sizes and positions of inline boxes
+@@ -1267,7 +1272,25 @@ impl LayoutPassState<'_> {
+             .into_iter()
+             .flat_map(|layout| layout.lines())
+         {
++            // Horizontal margins on a non-replaced inline box shift the items
++            // after it on the line; atomic boxes take the shift in their layout
++            // position, text through the offsets stored on the text layout.
++            let mut margin_shift = 0.0f32;
++            let mut margin_node: Option<NodeId> = None;
+             for item in line.items() {
++                let item_node = match &item {
++                    parley::PositionedLayoutItem::GlyphRun(run) => Some(run.style().brush.id),
++                    parley::PositionedLayoutItem::InlineBox(ibox) => Some(NodeId::from_u64(ibox.id)),
++                };
++                if let Some(node_id) = item_node {
++                    if margin_node != Some(node_id) {
++                        if let Some(previous) = margin_node {
++                            margin_shift += self.inline_box_margin_px(previous, false);
++                        }
++                        margin_shift += self.inline_box_margin_px(node_id, true);
++                        margin_node = Some(node_id);
++                    }
++                }
+                 if !commit_positions {
+                     break;
+                 }
+@@ -1375,8 +1398,11 @@ impl LayoutPassState<'_> {
+                         let mut layout = node.unrounded_layout();
+                         layout.size = size;
+                         layout.scrollable_overflow_rect = output.scrollable_overflow_rect;
+-                        layout.location.x =
+-                            (ibox.x / scale) + margin.left + container_pb.left + inset_offset.x;
++                        layout.location.x = (ibox.x / scale)
++                            + margin.left
++                            + container_pb.left
++                            + inset_offset.x
++                            + margin_shift;
+                         // Parley positions the margin box; offset to the border box even
+                         // when a negative top margin makes it extend above the margin box.
+                         layout.location.y =
+@@ -1735,3 +1761,108 @@ impl crate::BaseDocument {
+             .unwrap_or((parley::layout::Alignment::Start, None))
+     }
+ }
++
++impl crate::BaseDocument {
++    /// Per line, the inline-start offset each item is drawn at, from the
++    /// horizontal margins of the non-replaced inline boxes the line runs
++    /// through. Parley lays text out without box margins, so both the paint and
++    /// the geometry walks add this offset.
++    /// https://drafts.csswg.org/css2/#inline-box-dimensions
++    pub(crate) fn inline_margin_offsets(
++        &self,
++        layout: &parley::layout::Layout<crate::node::TextBrush>,
++    ) -> Vec<Vec<(NodeId, f32)>> {
++        use parley::PositionedLayoutItem;
++        let scale = layout.scale() as f32;
++        layout
++            .lines()
++            .map(|line| {
++                let mut shift = 0.0f32;
++                let mut current: Option<NodeId> = None;
++                let mut offsets: Vec<(NodeId, f32)> = Vec::new();
++                for item in line.items() {
++                    let node_id = match &item {
++                        PositionedLayoutItem::GlyphRun(run) => Some(run.style().brush.id),
++                        PositionedLayoutItem::InlineBox(ibox) => Some(NodeId::from_u64(ibox.id)),
++                    };
++                    let Some(node_id) = node_id else { continue };
++                    if current != Some(node_id) {
++                        if let Some(previous) = current {
++                            shift += self.inline_box_margin(previous, false, scale);
++                        }
++                        shift += self.inline_box_margin(node_id, true, scale);
++                        current = Some(node_id);
++                    }
++                    if !offsets.iter().any(|(id, _)| *id == node_id) {
++                        offsets.push((node_id, shift));
++                    }
++                }
++                offsets
++            })
++            .collect()
++    }
++
++    /// One inline box's horizontal margin in scaled px, resolved against the
++    /// inline root's content width.
++    fn inline_box_margin(&self, node_id: NodeId, leading: bool, scale: f32) -> f32 {
++        let Some(node) = self.get_node(node_id) else {
++            return 0.0;
++        };
++        // Only a non-replaced inline box contributes; the inline root and block
++        // boxes already sit at their own margin-adjusted position.
++        if !node.is_non_atomic_inline() {
++            return 0.0;
++        }
++        let Some(styles) = node.primary_styles() else {
++            return 0.0;
++        };
++        let margin = styles.clone_margin();
++        let value = if leading {
++            &margin.margin_left
++        } else {
++            &margin.margin_right
++        };
++        let basis = node
++            .inline_root_ancestor()
++            .map(|root| root.final_layout().size.width)
++            .unwrap_or(0.0);
++        match value {
++            style::values::generics::length::GenericMargin::LengthPercentage(lp) => {
++                lp.resolve(style::values::computed::CSSPixelLength::new(basis)).px() * scale
++            }
++            _ => 0.0,
++        }
++    }
++}
++
++impl LayoutPassState<'_> {
++    /// One inline box's horizontal margin in CSS px, for the item-positioning
++    /// walk (unscaled, because it is added to a CSS-px location).
++    fn inline_box_margin_px(&self, node_id: NodeId, leading: bool) -> f32 {
++        let Some(node) = self.nodes.get(node_id) else {
++            return 0.0;
++        };
++        if !node.is_non_atomic_inline() {
++            return 0.0;
++        }
++        let Some(styles) = node.primary_styles() else {
++            return 0.0;
++        };
++        let margin = styles.clone_margin();
++        let value = if leading {
++            &margin.margin_left
++        } else {
++            &margin.margin_right
++        };
++        let basis = node
++            .inline_root_ancestor()
++            .map(|root| root.final_layout().size.width)
++            .unwrap_or(0.0);
++        match value {
++            style::values::generics::length::GenericMargin::LengthPercentage(lp) => {
++                lp.resolve(style::values::computed::CSSPixelLength::new(basis)).px()
++            }
++            _ => 0.0,
++        }
++    }
++}
+diff --git a/src/node/node.rs b/src/node/node.rs
+index c1793b5..2df2236 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -3131,25 +3131,12 @@ impl Node {
+                 let text_x = x - content_box_offset.x;
+                 let text_y = y - content_box_offset.y - ild.block_offset;
+
+-                // Parley's `from_point_exact` is exact in the inline axis
+-                // only: `line_for_offset` clamps a block offset above the
+-                // first line or below the last one onto that line. The
+-                // descent above reaches nodes whose box does not contain
+-                // the point (matches_content / matches_overflow /
+-                // matches_rehomed exist for that), so without a block-axis
+-                // check a pointer 17,000px above a long reference list
+-                // hits the reference text whose x-range it shares, and
+-                // every drag in the lead paragraph selects the article.
+-                if let Some((cluster, _side)) =
+-                    Cluster::from_point_exact(layout, text_x * scale, text_y * scale)
+-                    && {
+-                        let line = cluster.line();
+-                        let m = line.metrics();
+-                        let by = text_y * scale;
+-                        by >= m.block_min_coord && by < m.block_max_coord
+-                    }
+-                {
+-                    let node_id = cluster.style().brush.id;
++                if let Some(node_id) = hit_inline_text(
++                    layout,
++                    ild.line_node_offsets(),
++                    text_x * scale,
++                    text_y * scale,
++                ) {
+                     let text_pointer_events_none = self
+                         .with(node_id)
+                         .primary_styles()
+@@ -3370,17 +3357,33 @@ impl Node {
+         }
+
+         // One rect per line box: the union of all of the target's fragments on that line
+-        Some(layout.lines().filter_map(move |line| {
++        Some(layout.lines().enumerate().filter_map(move |(line_index, line)| {
+             let line_metrics = line.metrics();
+             let mut line_rect: Option<taffy::Rect<f32>> = None;
+
++            let line_offsets = inline_layout
++                .line_node_offsets()
++                .get(line_index)
++                .map(Vec::as_slice)
++                .unwrap_or(&[]);
++            let shift_for = |node_id: NodeId| -> f32 {
++                line_offsets
++                    .iter()
++                    .find(|(id, _)| *id == node_id)
++                    .map(|(_, offset)| *offset)
++                    .unwrap_or(0.0)
++            };
+             for item in line.items() {
++                let margin_shift = match &item {
++                    PositionedLayoutItem::GlyphRun(run) => shift_for(run.style().brush.id),
++                    PositionedLayoutItem::InlineBox(ibox) => shift_for(NodeId::from_u64(ibox.id)),
++                };
+                 match item {
+                     PositionedLayoutItem::GlyphRun(glyph_run) => {
+                         if !is_in_target(glyph_run.style().brush.id) {
+                             continue;
+                         }
+-                        let x0 = glyph_run.offset();
++                        let x0 = glyph_run.offset() + margin_shift;
+                         let x1 = x0 + glyph_run.advance();
+                         // Use the line box's block extent rather than the
+                         // run's font ascent/descent: fonts with small
+@@ -3395,7 +3398,7 @@ impl Node {
+                         if !is_in_target(NodeId::from_u64(inline_box.id)) {
+                             continue;
+                         }
+-                        let x0 = inline_box.x;
++                        let x0 = inline_box.x + margin_shift;
+                         let y0 = inline_box.y;
+                         union(
+                             &mut line_rect,
+@@ -3657,6 +3660,61 @@ mod size_tests {
+     }
+ }
+
++/// Hit-test inline glyph runs at scaled inline-root content coordinates `(px, py)`,
++/// applying each line's recorded horizontal inline-box margin offsets so hit
++/// testing agrees with painted text and client rects.
++/// https://drafts.csswg.org/css2/#inline-box-dimensions
++fn hit_inline_text(
++    layout: &parley::layout::Layout<crate::node::TextBrush>,
++    line_node_offsets: &[Vec<(NodeId, f32)>],
++    px: f32,
++    py: f32,
++) -> Option<NodeId> {
++    let has_margin_offsets = line_node_offsets
++        .iter()
++        .any(|offsets| offsets.iter().any(|&(_, shift)| shift != 0.0));
++    if !has_margin_offsets {
++        // Parley's `from_point_exact` is exact in the inline axis only:
++        // `line_for_offset` clamps a block offset above the first line or below
++        // the last one onto that line, so check the line's block extent too.
++        let (cluster, _side) = Cluster::from_point_exact(layout, px, py)?;
++        let line = cluster.line();
++        let metrics = line.metrics();
++        if py >= metrics.block_min_coord && py < metrics.block_max_coord {
++            return Some(cluster.style().brush.id);
++        }
++        return None;
++    }
++
++    for (line_index, line) in layout.lines().enumerate() {
++        let metrics = line.metrics();
++        if py < metrics.block_min_coord || py >= metrics.block_max_coord {
++            continue;
++        }
++        let offsets = line_node_offsets
++            .get(line_index)
++            .map(Vec::as_slice)
++            .unwrap_or(&[]);
++        for item in line.items() {
++            let parley::PositionedLayoutItem::GlyphRun(glyph_run) = item else {
++                continue;
++            };
++            let node_id = glyph_run.style().brush.id;
++            let shift = offsets
++                .iter()
++                .find(|(id, _)| *id == node_id)
++                .map(|(_, offset)| *offset)
++                .unwrap_or(0.0);
++            let x0 = glyph_run.offset() + shift;
++            let x1 = x0 + glyph_run.advance();
++            if px >= x0 && px <= x1 {
++                return Some(node_id);
++            }
++        }
++    }
++    None
++}
++
+ /// Whether a point local to the node's border box falls inside its `clip-path`.
+ /// Shapes this build cannot evaluate are treated as covering everything, so an
+ /// unsupported clip never makes an element unhittable.
+diff --git a/src/node/text.rs b/src/node/text.rs
+index ef8436e..dbfd66b 100644
+--- a/src/node/text.rs
++++ b/src/node/text.rs
+@@ -74,6 +74,10 @@ const _: () = assert!(size_of::<TextLayout>() <= 44);
+ struct Built {
+     layout: parley::layout::Layout<TextBrush>,
+     content: TextContent,
++    /// Per line, the inline-start offset (in scaled px) of each inline node,
++    /// contributed by the horizontal margins of the non-replaced inline boxes
++    /// the line passes through. Keyed by node id.
++    line_node_offsets: Vec<Vec<(NodeId, f32)>>,
+ }
+
+ #[derive(Clone, Default)]
+@@ -570,6 +574,19 @@ impl TextLayout {
+         self.built.get_mut().map(|built| &mut built.layout)
+     }
+
++    pub fn line_node_offsets(&self) -> &[Vec<(NodeId, f32)>] {
++        self.built
++            .get()
++            .map(|built| built.line_node_offsets.as_slice())
++            .unwrap_or(&[])
++    }
++
++    pub fn set_line_node_offsets(&mut self, offsets: Vec<Vec<(NodeId, f32)>>) {
++        if let Some(built) = self.built.get_mut() {
++            built.line_node_offsets = offsets;
++        }
++    }
++
+     /// Clear the read flag, returning whether it was set.
+     pub(crate) fn take_recently_read(&self) -> bool {
+         self.recently_read.0.swap(false, Ordering::Relaxed)
+diff --git a/src/resolve.rs b/src/resolve.rs
+index f3ea86a..aaf264e 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -1094,5 +1094,26 @@ impl BaseDocument {
+         for (id, content_w) in stale {
+             self.rebreak_inline_to_width(id, content_w);
+         }
++        // Inline margins are read off the finished line boxes, so the offsets
++        // are refreshed here for every resident root rather than only where
++        // the layout was built.
++        let roots = std::mem::take(&mut self.inline_roots);
++        for &id in &roots {
++            let Some(offsets) = self.nodes[id]
++                .element_data()
++                .and_then(|el| el.inline_layout_data())
++                .and_then(|data| data.live_layout())
++                .map(|layout| self.inline_margin_offsets(layout))
++            else {
++                continue;
++            };
++            if let Some(layout) = self.nodes[id]
++                .element_data_mut()
++                .and_then(|el| el.inline_layout_data_mut())
++            {
++                layout.set_line_node_offsets(offsets);
++            }
++        }
++        self.inline_roots = roots;
+     }
+ }

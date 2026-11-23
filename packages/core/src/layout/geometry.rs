@@ -830,11 +830,34 @@ fn inline_line_rects_for_node(
         layout.styles(),
         &lines,
         layout.span_fragments(),
+        inline.line_node_offsets(),
         node_id,
         &origin,
     );
-    collect_item_bounds(&mut entries, &lines, &origin, &accepted);
+    collect_item_bounds(
+        &mut entries,
+        &lines,
+        inline.line_node_offsets(),
+        &origin,
+        &accepted,
+    );
     merge_line_bounds(entries)
+}
+
+fn line_margin_shift(
+    line_node_offsets: &[Vec<(NodeId, f32)>],
+    line_index: usize,
+    node_id: NodeId,
+) -> f32 {
+    line_node_offsets
+        .get(line_index)
+        .and_then(|offsets| {
+            offsets
+                .iter()
+                .find(|(id, _)| *id == node_id)
+                .map(|(_, offset)| *offset)
+        })
+        .unwrap_or(0.0)
 }
 
 /// Fragments contribute only the queried inline's own padding and border. Its text and atomic
@@ -844,6 +867,7 @@ fn collect_fragment_bounds(
     styles: &[parley::layout::Style<TextBrush>],
     lines: &[parley::layout::Line<'_, TextBrush>],
     fragments: &[parley::layout::SpanFragment],
+    line_node_offsets: &[Vec<(NodeId, f32)>],
     node_id: NodeId,
     origin: &InlineOrigin,
 ) {
@@ -864,9 +888,14 @@ fn collect_fragment_bounds(
             continue;
         };
 
+        let margin_shift = line_margin_shift(
+            line_node_offsets,
+            fragment.line_index as usize,
+            style.brush.id,
+        );
         let x_origin = metrics.inline_min_coord + metrics.offset;
-        let x0 = origin.x + origin.content_x + x_origin + fragment.x_start;
-        let x1 = origin.x + origin.content_x + x_origin + fragment.x_end;
+        let x0 = origin.x + origin.content_x + x_origin + fragment.x_start + margin_shift;
+        let x1 = origin.x + origin.content_x + x_origin + fragment.x_end + margin_shift;
         let y0 = origin.y + origin.content_y + metrics.block_min_coord;
         let y1 = origin.y + origin.content_y + metrics.block_max_coord;
         entries.push((fragment.line_index as usize, origin.bounds(x0, y0, x1, y1)));
@@ -877,12 +906,14 @@ fn collect_fragment_bounds(
 fn collect_item_bounds(
     entries: &mut Vec<LineBounds>,
     lines: &[parley::layout::Line<'_, TextBrush>],
+    line_node_offsets: &[Vec<(NodeId, f32)>],
     origin: &InlineOrigin,
     accepted: &impl Fn(NodeId) -> bool,
 ) {
     for (line_index, line) in lines.iter().enumerate() {
         for item in line.items() {
-            let Some(bounds) = item_bounds(item, origin, accepted) else {
+            let Some(bounds) = item_bounds(item, line_node_offsets, line_index, origin, accepted)
+            else {
                 continue;
             };
             entries.push((line_index, bounds));
@@ -892,6 +923,8 @@ fn collect_item_bounds(
 
 fn item_bounds(
     item: parley::layout::PositionedLayoutItem<'_, TextBrush>,
+    line_node_offsets: &[Vec<(NodeId, f32)>],
+    line_index: usize,
     origin: &InlineOrigin,
     accepted: &impl Fn(NodeId) -> bool,
 ) -> Option<(f32, f32, f32, f32)> {
@@ -900,7 +933,8 @@ fn item_bounds(
             // Glyph-run coordinates include the line's alignment offset.
             let metrics = run.run().font_metrics();
             let baseline = run.baseline();
-            let x0 = origin.x + origin.content_x + run.offset();
+            let shift = line_margin_shift(line_node_offsets, line_index, run.style().brush.id);
+            let x0 = origin.x + origin.content_x + run.offset() + shift;
             let x1 = x0 + run.advance();
             let y0 = origin.y + origin.content_y + baseline - metrics.ascent;
             let y1 = origin.y + origin.content_y + baseline + metrics.descent;
@@ -910,7 +944,8 @@ fn item_bounds(
             if ibox.kind == parley::InlineBoxKind::InFlow
                 && accepted(NodeId::from_u64(ibox.id)) =>
         {
-            let x0 = origin.x + origin.content_x + ibox.x;
+            let shift = line_margin_shift(line_node_offsets, line_index, NodeId::from_u64(ibox.id));
+            let x0 = origin.x + origin.content_x + ibox.x + shift;
             let y0 = origin.y + origin.content_y + ibox.y;
             Some(origin.bounds(x0, y0, x0 + ibox.width, y0 + ibox.height))
         }
