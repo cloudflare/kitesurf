@@ -139,6 +139,12 @@ function quotaExceeded(key: string): DOMException {
 const BATCH_UNITS = 2 * QUOTA_UNITS;
 const OP_UNITS = 16;
 
+// A page may replace Promise.prototype.then or Reflect.apply: looked up at flush time, one that
+// never calls back would leave the batch open and drop every later write of the document.
+const settled = NativePromise.resolve();
+const nativeThen = NativePromise.prototype.then;
+const nativeApply = Reflect.apply;
+
 /** A change as a `storage` event reports it. A null key is a clear. */
 export interface StorageChange {
   key: string | null;
@@ -244,10 +250,12 @@ export function sharedArea(
     pendingUnits += units;
     if (scheduled) return;
     scheduled = true;
-    void NativePromise.resolve().then(() => {
-      scheduled = false;
-      flush();
-    });
+    void nativeApply(nativeThen, settled, [
+      () => {
+        scheduled = false;
+        flush();
+      },
+    ]);
   };
   return {
     flush,

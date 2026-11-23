@@ -19,6 +19,28 @@ const batchUnits = (ops: LocalStorageOp[]) =>
   );
 
 describe("sharedArea", () => {
+  it("sends its batch on a page that replaced Promise.prototype.then and Reflect.apply", async () => {
+    const sent: LocalStorageOp[][] = [];
+    const area = sharedArea([], (ops) => sent.push(ops));
+    const { then } = Promise.prototype;
+    const { apply } = Reflect;
+    try {
+      Promise.prototype.then = () => new Promise(() => {});
+      Reflect.apply = () => undefined;
+      area.set("k", "v");
+    } finally {
+      Promise.prototype.then = then;
+      Reflect.apply = apply;
+    }
+    await Promise.resolve();
+    area.set("later", "w");
+    await Promise.resolve();
+    expect(sent).toEqual([
+      [{ op: "set", key: "k", value: "v" }],
+      [{ op: "set", key: "later", value: "w" }],
+    ]);
+  });
+
   it("sends one task's changes as one batch", async () => {
     const sent: LocalStorageOp[][] = [];
     const area = sharedArea([["seeded", "1"]], (ops) => sent.push(ops));
