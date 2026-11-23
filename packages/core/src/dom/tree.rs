@@ -467,11 +467,18 @@ fn write_node_open<'a, S: HtmlSink>(
             if emit_synth_checked {
                 out.push_str(" checked=\"\"");
             }
-            for Attribute { name, value, .. } in data.attrs.iter() {
+            for attr in data.attrs.iter() {
+                let Attribute { name, value, .. } = attr;
                 if suppress_attr_checked && &*name.local == "checked" {
                     continue;
                 }
                 out.push(' ');
+                // A foreign attribute keeps its prefix: xlink:href is not href. The parser gives a
+                // bare xmlns the empty prefix, which must not become ":xmlns".
+                if let Some(prefix) = attr.prefix().map(|p| &**p).filter(|p| !p.is_empty()) {
+                    out.push_str(prefix);
+                    out.push(':');
+                }
                 out.push_str(&name.local);
                 out.push_str("=\"");
                 escape_attr_value(value, out);

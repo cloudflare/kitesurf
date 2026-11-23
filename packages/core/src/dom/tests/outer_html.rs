@@ -363,3 +363,30 @@ fn escapes_markup_characters_and_no_break_space_in_attribute_values() {
          <p title=\"a&lt;b&gt;c&amp;d&quot;e&nbsp;f\u{a9}\">x</p></body></html>"
     );
 }
+
+#[test]
+fn keeps_the_prefix_of_a_namespaced_attribute() {
+    let dom = DomHandle::new(
+        "<html><head></head><body><svg xmlns:xlink=\"http://www.w3.org/1999/xlink\">\
+         <use xlink:href=\"#a\" xml:lang=\"en\"></use></svg></body></html>",
+        "https://example.test/",
+    );
+
+    assert_eq!(
+        dom.outer_html(0),
+        "<html><head></head><body><svg xmlns:xlink=\"http://www.w3.org/1999/xlink\">\
+         <use xlink:href=\"#a\" xml:lang=\"en\"></use></svg></body></html>"
+    );
+}
+
+#[test]
+fn writes_a_bare_xmlns_on_svg_and_math_without_a_prefix() {
+    let html = "<html><head></head><body>\
+                <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\">\
+                <circle r=\"4\"></circle></svg>\
+                <math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi>x</mi></math>\
+                </body></html>";
+    let dom = DomHandle::new(html, "https://example.test/");
+
+    assert_eq!(dom.outer_html(0), html);
+}
