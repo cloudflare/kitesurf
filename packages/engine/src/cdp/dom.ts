@@ -635,6 +635,7 @@ export function ensurePageScript(
           initTimings,
           capOverrides: dctx.browser.isolateCapOverrides,
           sandboxOutbound: dctx.browser.sandboxOutbound,
+          pageScriptHost: dctx.browser.pageScriptHost,
         }),
       { lazy: true },
     );

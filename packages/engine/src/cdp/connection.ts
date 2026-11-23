@@ -51,6 +51,7 @@ import {
   type SessionEndFields,
 } from "../observability.ts";
 import { resolveConnectionOptions, resolveSessionStore, type EngineHost } from "../host.ts";
+import type { PageScriptHost } from "../eval/page-script-host.ts";
 import type { PageIsolateCapOverrides } from "../eval/page-script.ts";
 import { buildDispatchEnv } from "./dispatch-env.ts";
 import { markArrival } from "./arrival.ts";
@@ -191,6 +192,9 @@ export interface BrowserSessionOptions {
   externalOutbound?: ExternalOutbound;
   // The host's egress for this session. Called once, and only without an external outbound.
   egress?: () => ExternalOutbound | undefined;
+  // Runs each page in a Durable Object facet (eval/page-script-host.ts). Unset, a page runs on
+  // the loaded worker's entrypoint.
+  pageScriptHost?: PageScriptHost;
 }
 
 export interface ClientOptions {
@@ -319,6 +323,7 @@ export class BrowserSession {
       engineSessionId: null,
       wsClosing: false,
       attributionHeaders: pickHeaders(request, opts.host?.attributionHeaders),
+      pageScriptHost: opts.pageScriptHost ?? null,
     };
     this.browser = browser;
 
@@ -470,6 +475,8 @@ export class BrowserSession {
       });
       releaseAllDomHandles(target);
     }
+    // No one waits for these pages to close, so retire their facets now.
+    browser.pageScriptHost?.retireAll("browser session ended");
     this.rejoinLocalTrace(() => endLocalTraceSession(this.#env));
   }
 }

@@ -6,6 +6,7 @@
 
 import type Protocol from "devtools-protocol";
 import { pageIsolateEntry } from "./page-isolate-entry.ts";
+import type { PageScriptHost } from "./page-script-host.ts";
 import wasmGlueSource from "../../../core/pkg/kitesurf_core.glue.js";
 import coreWasmModule from "../../../core/pkg/kitesurf_core_bg.wasm";
 import { DOM_SHIM_SOURCE } from "@kitesurf/dom-shim";
@@ -210,6 +211,8 @@ interface GetOrCreatePageScriptOptions {
   sandboxOutbound: SandboxOutboundOverride;
   /** Extra modules and the host class name for this isolate (EngineHost.pageIsolate). */
   pageIsolate?: { modules?: Record<string, string>; hostClassName?: string };
+  /** Runs a main frame's generation in a Durable Object facet; unset, on the entrypoint. */
+  pageScriptHost?: PageScriptHost | null;
 }
 
 /** Loads one PageScript worker for the supplied target generation and returns its RPC adapter. */
@@ -227,6 +230,7 @@ export function getOrCreatePageScript({
   capOverrides,
   sandboxOutbound,
   pageIsolate,
+  pageScriptHost,
 }: GetOrCreatePageScriptOptions): PageScriptStub {
   const cx = ctx as CtxWithExports;
   const wall = makeWallClock(env);
@@ -390,6 +394,7 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
     pixelFree,
   };
   const mainModule = pageIsolateEntry(modules, pageIsolate);
+  const pageLimits = { cpuMs: caps.cpuMs, subRequests: PAGE_SCRIPT_SUBREQUEST_CAP };
   const stub = env.LOADER.load({
     compatibilityDate: PAGE_SCRIPT_COMPAT_DATE,
     ...pageScriptCompatOptions(env),
@@ -420,17 +425,13 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
       }),
       ...attributionTails(cx.exports, attributionHeaders, "kitesurf-page-script"),
     ],
-    limits: {
-      cpuMs: caps.cpuMs,
-      subRequests: PAGE_SCRIPT_SUBREQUEST_CAP,
-    },
+    limits: pageLimits,
   });
 
+  const props = { KS_TAIL_TOKEN: tailToken, KS_ISOLATE_STAMP: isolateStamp };
   const workerEntrypoint: PageScriptEntrypointStub = stub.getEntrypoint<PageScriptEntrypoint>(
     "PageScript",
-    {
-      props: { KS_TAIL_TOKEN: tailToken, KS_ISOLATE_STAMP: isolateStamp },
-    },
+    { props },
   );
   // The RPC adapter needs promises; the local entrypoint contract is synchronous.
 
@@ -438,7 +439,11 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
   // call/reply correlation and annotates cloneable reply objects with Disposable.
   // Runtime replies remain PageScriptReply data.
   // Verified by: packages/engine/test/e2e/demos/page-script-demo.e2e.test.ts.
-  const entrypoint = workerEntrypoint as RpcSessionEntrypoint;
+  // An OOPIF child (key.frameId) is not a page, so it keeps the entrypoint.
+  const entrypoint =
+    pageScriptHost && !key.frameId
+      ? pageScriptHost.entrypoint(key.targetId, stub, { props, limits: pageLimits })
+      : (workerEntrypoint as RpcSessionEntrypoint);
   const tracer = env.HOST_TRACER;
   const spanWrap = tracer
     ? (open: () => Promise<RpcSessionCallable>) =>
