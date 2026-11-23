@@ -2480,10 +2480,10 @@ function fireIframeLoad(iframeElement: any) {
 
 installResourceFetchBridge();
 ksInternals.fontsReady = async () => {
-  if (fontDeferActive()) {
-    await awaitDeferredFonts();
-    discoverFontFaces();
-  }
+  if (fontDeferActive()) await awaitDeferredFonts();
+  // A face the styles use counts before any layout asks for it: the spec's ready waits for the
+  // style work that may load fonts, and a check right after it must lay out in that face.
+  discoverFontFaces();
   return fontsIdle();
 };
 ksInternals.fontsInflightCount = fontsInflightCount;

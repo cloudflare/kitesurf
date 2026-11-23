@@ -2821,6 +2821,11 @@
     "expected": "PASS",
     "reason": "Reftest pin for the all-small-caps/petite-caps/etc. OpenType feature mapping."
   },
+  "/css/css-fonts/generic-family-keywords-002.html": {
+    "expected": "FAIL",
+    "reason": "4 of 22 subtests fail: with `-webkit-generic(fangsong), Ahem` and its kai, khmer-mul and nastaliq siblings, the span does not fall back to Ahem and measures 29px against Ahem's 50px. The old PASS was vacuous: document.fonts.ready resolved before Ahem was fetched, so both sides measured in the fallback font. \u2014 acceptedRegression: waiting for the faces the styles use exposed a font-family gap; nothing regressed.",
+    "acceptedRegression": true
+  },
   "/css/css-fonts/inheritance.html": {
     "expected": "PASS",
     "reason": "font-optical-sizing and font-variation-settings parse once layout.variable_fonts.enabled is set, which completes this inheritance check."
@@ -2938,7 +2943,7 @@
     "reason": null
   },
   "/css/css-fonts/parsing/font-size-adjust-computed.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-fonts/parsing/font-size-adjust-invalid.html": {
@@ -3282,7 +3287,7 @@
     "reason": null
   },
   "/css/css-grid/parsing/grid-content-sized-columns-resolution.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/parsing/grid-row-invalid.html": {
@@ -16260,11 +16265,11 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.align.center.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.align.end.ltr.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.align.end.rtl.html": {
@@ -16272,15 +16277,15 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.align.left.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.align.right.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.align.start.ltr.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.align.start.rtl.html": {
@@ -16288,11 +16293,11 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.baseline.alphabetic.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.baseline.bottom.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.baseline.hanging.html": {
@@ -16304,11 +16309,11 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.baseline.middle.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.baseline.top.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.fill.basic-manual.html": {
@@ -16320,7 +16325,7 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.fill.maxWidth.bound.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.fill.maxWidth.fontface.html": {
@@ -16352,7 +16357,7 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.fontface.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.fontface.notinpage.html": {
@@ -16368,27 +16373,27 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.space.basic.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.space.collapse.end.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.space.collapse.nonspace.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.space.collapse.other.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.space.collapse.space.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.space.collapse.start.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.draw.stroke.basic-manual.html": {
@@ -16536,7 +16541,7 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.actualBoundingBox.small-font.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.actualBoundingBox.whitespace.html": {
@@ -16568,7 +16573,7 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.fontBoundingBox-reduced-ascent.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.fontBoundingBox-zero-descent.html": {
@@ -16576,11 +16581,11 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.fontBoundingBox.ahem.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.fontBoundingBox.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.getActualBoundingBox-exceptions.tentative.html": {
@@ -16648,7 +16653,7 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.width.basic.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.width.empty.html": {
@@ -16656,8 +16661,9 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.width.nullCharacter.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "measureText('\\u0000') in the CanvasTest web font is 50px wide; the null character should take no space. The old PASS was vacuous: document.fonts.ready resolved before CanvasTest was fetched, and the fallback font gives the null character no width. \u2014 acceptedRegression: waiting for the faces the styles use exposed a text measurement gap; nothing regressed.",
+    "acceptedRegression": true
   },
   "/html/canvas/element/text/2d.text.measure.width.space.html": {
     "expected": "FAIL",
