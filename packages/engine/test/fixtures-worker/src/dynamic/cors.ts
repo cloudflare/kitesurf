@@ -22,6 +22,8 @@ const echoOrigin = createMiddleware(async (c, next) => {
 });
 
 cors.use("/cors-sheet-acao.css", anyOrigin);
+// A font a page loads from another origin, as a font CDN serves one.
+cors.use("/bungee.woff2", anyOrigin);
 cors.use("/cors-sheet-echo-origin.css", echoOrigin);
 cors.use("/tracked.css", anyOrigin);
 cors.use("/module-registry-lib.js", echoOrigin);
