@@ -2454,8 +2454,8 @@ async function pushNavigateToPageScriptInner(
         ...(traced ? { traced: true } : {}),
         expectIframeInstalls: owesIframeInstalls,
         ...(target.docCharset ? { charset: target.docCharset } : {}),
-        ...(ctx.browser.darkColorScheme !== undefined
-          ? { darkColorScheme: ctx.browser.darkColorScheme }
+        ...((target.emulatedDarkColorScheme ?? ctx.browser.darkColorScheme) !== undefined
+          ? { darkColorScheme: target.emulatedDarkColorScheme ?? ctx.browser.darkColorScheme }
           : {}),
         ...(ctx.browser.ttyUaCss
           ? {

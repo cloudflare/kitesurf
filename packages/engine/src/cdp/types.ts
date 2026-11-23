@@ -367,6 +367,7 @@ export interface TargetState {
   screencastConfigurationBarrier: Promise<void>;
   screencastConfigurationVersion: number;
   emulatedMedia: "screen" | "print";
+  emulatedDarkColorScheme?: boolean;
   refetchOnPushState: boolean;
   autoReloadUrl: string | null;
   autoReloadCount: number;
