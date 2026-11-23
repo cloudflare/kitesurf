@@ -7,6 +7,7 @@ mod clipped_scroll_width;
 mod abs_filters_width;
 mod abspos_containing_block;
 mod block_align_content;
+mod block_pseudo_in_inline;
 mod box_decorations;
 mod display_none_release;
 mod float_cache_incremental;
