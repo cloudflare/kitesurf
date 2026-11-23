@@ -261,6 +261,8 @@ export class BrowserSession {
   readonly #idleCtx: DispatchCtx;
   // The first client, or openBrowser(), opened the browser and its initial page.
   #opened = false;
+  // A client connected once: a later client's initialUrl does not navigate the shared page.
+  #hadClient = false;
   readonly #openedAt: number;
   readonly #drainTimer: ReturnType<typeof setInterval>;
   #deadlineFired = false;
@@ -455,6 +457,9 @@ export class BrowserSession {
     if (!this.#persistent && this.#clients.size > 0) {
       throw new Error("browser session already has a client");
     }
+    // initialUrl navigates only a fresh browser; a client that reconnects keeps the page.
+    if (this.#hadClient && params.initialUrl !== null) params = { ...params, initialUrl: null };
+    this.#hadClient = true;
     const client = new ClientConnection(this, server, params, opts, {
       onLeave: (c, end) => this.#clientLeft(c, end),
       onLateDispatch: (c) => {
