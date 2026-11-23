@@ -1089,27 +1089,56 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     const w = whatToShow === undefined ? 0xffffffff : whatToShow >>> 0;
     return new NodeIterator(root, w, filter === undefined ? null : filter);
   }
-  // Limitation: write() runs after parse, so it appends the markup to body
-  // or documentElement. It must not throw: a throw stops the rest of the
+  // Insert `document.write()` markup after the active body `<script>` in write
+  // order, falling back to `body`/`documentElement` when reopened or outside `body`.
+  // https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#dom-document-write
+  _resolveWriteInsertionPoint(): { host: NodeBase; before: NodeBase | null } | null {
+    const body = this.body;
+    const script = this._reopened ? null : this.currentScript;
+    const parent = script instanceof NodeBase ? script.parentNode : null;
+    if (
+      body &&
+      script instanceof NodeBase &&
+      typeof script._id === "number" &&
+      parent instanceof NodeBase &&
+      (parent === body || body.contains(parent))
+    ) {
+      let anchor: NodeBase | null = this._writeAnchors.has(script._id)
+        ? (this._writeAnchors.get(script._id) ?? null)
+        : script.nextSibling;
+      if (anchor && anchor.parentNode !== parent) {
+        anchor = script.nextSibling;
+      }
+      this._writeAnchors.set(script._id, anchor);
+      return { host: parent, before: anchor };
+    }
+    const host = body || this.documentElement;
+    return host ? { host, before: null } : null;
+  }
+  // Limitation: write() runs after parse rather than feeding a live HTML parser
+  // stream, so it parses complete fragments and inserts them at the script's
+  // parent (or body). It must not throw: a throw stops the rest of the
   // classic-script bucket.
   write(...args: Array<Idl.TrustedHTML | string>) {
     try {
       const markup = args.join("");
       if (!markup) return;
-      const host = this.body || this.documentElement;
-      if (!host) return;
+      const target = this._resolveWriteInsertionPoint();
+      if (!target) return;
       withCustomElementReactions(() => {
         const tmp = this.createElement("div");
         tmp.innerHTML = markup;
         // innerHTML marks its scripts already-started, but written scripts run:
         // pre-ES6 loaders write `<script src>` from inside a script. Marking
-        // them lets the insert hook, notified by the append below, run them.
+        // them lets the insert hook, notified by the insert below, run them.
         const scripts = tmp.querySelectorAll("script");
         for (let i = 0; i < scripts.length; i++) {
           const id = scripts[i]?._id;
           if (typeof id === "number") markWrittenScript(id);
         }
-        while (tmp.firstChild) host.appendChild(tmp.firstChild);
+        while (tmp.firstChild) {
+          target.host.insertBefore(tmp.firstChild, target.before);
+        }
       });
     } catch {}
   }
@@ -1118,6 +1147,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
   }
   open() {
     this._reopened = true;
+    this._writeAnchors.clear();
     return this;
   }
   close() {
@@ -1127,6 +1157,9 @@ class DocumentImpl extends NodeBase implements Idl.Document {
   }
   // Armed by open(), consumed by close().
   _reopened = false;
+  // Tracks the fixed `nextSibling` anchor for each active `<script>` calling
+  // `document.write()` so sequential writes stay in document order.
+  _writeAnchors = new Map<number, NodeBase | null>();
 
   hasFocus() {
     return true;

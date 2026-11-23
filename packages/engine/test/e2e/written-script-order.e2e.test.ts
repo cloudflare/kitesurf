@@ -82,3 +82,16 @@ test("scripts a written script writes run before DOMContentLoaded", async ({ pag
   const order = await orderAtDcl(page, written("tag=a&next=b"));
   expect(order).toEqual({ atDcl: "a,b", all: "a,b" });
 });
+
+test("document.write inserts markup at the current script's parent in order", async ({ page }) => {
+  const u = new URL(`${ORIGIN}/__fixtures/policy-doc.html`);
+  u.searchParams.set(
+    "body",
+    `<header id="hdr"><span id="before">b</span><script>document.write('<span id="w1">1</span>');document.write('<span id="w2">2</span>');</script><span id="after">a</span></header><main id="main">m</main>`,
+  );
+  await page.goto(u.toString(), { waitUntil: "domcontentloaded", timeout: 30_000 });
+  const ids = await page.evaluate(() =>
+    Array.from(document.querySelectorAll("#hdr > span")).map((el) => el.id),
+  );
+  expect(ids).toEqual(["before", "w1", "w2", "after"]);
+});
