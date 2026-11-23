@@ -176,6 +176,7 @@ test_suite(
         "//packages/dom-shim:no_explicit_any",
         "//packages/dom-shim:types",
         "//packages/dom-shim:vitest",
+        "//packages/engine:node_test",
         "//packages/engine:types",
         "//packages/engine:types_e2e",
         "//packages/engine:types_e2e_demos",
