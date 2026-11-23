@@ -111,6 +111,26 @@ describe("Network body capture skips an event stream", () => {
     expect(network.tracker.getResponseBody(network.requestId())).toBeNull();
   });
 
+  it("reports a redirect hop whose body the walker cancels", async () => {
+    const network = trackNetwork();
+    const response = await gateway(
+      async () =>
+        new Response("<a href=/next>moved</a>", {
+          status: 302,
+          headers: { "content-type": "text/html; charset=utf-8", location: "/next" },
+        }),
+      new Request("https://page.test/hop", { headers: { "x-kitesurf-resource-type": "Script" } }),
+    );
+    expect(response.status).toBe(302);
+    // A redirect walker cancels each hop's body rather than reading it. A streaming body would
+    // report that cancel as net::ERR_ABORTED and drop the response event.
+    await response.body?.cancel();
+    network.tracker.drain();
+    expect(network.events).toContain("Network.responseReceived");
+    expect(network.events).toContain("Network.loadingFinished");
+    expect(network.events).not.toContain("Network.loadingFailed");
+  });
+
   it("still captures a finite text body", async () => {
     const network = trackNetwork();
     const response = await gateway(

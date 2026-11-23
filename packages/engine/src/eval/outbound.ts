@@ -1349,9 +1349,10 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         !eventStream && isTextLikeMime(mimeType) && resp.body !== null && tracker.retainsBodies()
           ? resp.body
           : null;
-      // Buffer error-status text bodies before returning so Network.responseReceived is emitted
-      // immediately even when the caller never reads the error body.
-      if (textBody && !needsBufferedBody && resp.status < 400) {
+      // Buffer error-status and redirect text bodies before returning so Network.responseReceived
+      // is emitted immediately even when the caller never reads the body. A redirect walker cancels
+      // each hop's body, and a streaming body reports that cancel as net::ERR_ABORTED.
+      if (textBody && !needsBufferedBody && resp.status < 300) {
         resp = new Response(streamCapturedTextBody(textBody, tracker, requestId, record), resp);
       } else if (textBody) {
         try {
