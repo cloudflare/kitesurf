@@ -20,7 +20,8 @@ export const isStoredString: StoreGuard<string> = (v): v is string => typeof v =
 export const isStoredBytes: StoreGuard<Uint8Array> = (v): v is Uint8Array =>
   v instanceof Uint8Array;
 
-function rejectRow(table: string, key: string): void {
+/** Logs a row that failed its table's guard; the read treats it as missing. */
+export function rejectRow(table: string, key: string): void {
   console.warn(JSON.stringify({ event: "session_store_row_rejected", table, key }));
 }
 

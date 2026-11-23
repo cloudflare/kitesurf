@@ -387,7 +387,12 @@ tsc_test(
 node_test(
     name = "node_test",
     args = ["test/node/*.test.ts"],
-    data = glob(["src/state/**", "src/eval/page-isolate-entry.ts", "test/node/**"]),
+    data = glob([
+        "src/cdp/network-events.ts",
+        "src/eval/page-isolate-entry.ts",
+        "src/state/**",
+        "test/node/**",
+    ]),
 )
 
 build_test(name = "build", targets = [":dist"])
