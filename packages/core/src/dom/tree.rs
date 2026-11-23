@@ -490,14 +490,45 @@ fn write_node_open<'a, S: HtmlSink>(
     }
 }
 
+// The HTML serialization of an attribute value. `<` and `>` are escaped too, as browsers do,
+// so that a value is not mistaken for markup when the serialized text is parsed again.
 fn escape_attr_value<S: HtmlSink>(s: &str, out: &mut S) {
-    for ch in s.chars() {
-        match ch {
-            '&' => out.push_str("&amp;"),
-            '"' => out.push_str("&quot;"),
-            _ => out.push(ch),
+    // The bytes that can start an escape: & " < >, and 0xC2, which leads U+00A0 in UTF-8.
+    // A table costs one load a byte where a match on five values costs a comparison each.
+    const ESCAPES: [bool; 256] = {
+        let mut table = [false; 256];
+        let mut i = 0;
+        let bytes = *b"&\"<>\xC2";
+        while i < bytes.len() {
+            table[bytes[i] as usize] = true;
+            i += 1;
         }
+        table
+    };
+    let bytes = s.as_bytes();
+    let (mut start, mut at) = (0, 0);
+    while at < bytes.len() {
+        if !ESCAPES[bytes[at] as usize] {
+            at += 1;
+            continue;
+        }
+        let (entity, width) = match bytes[at] {
+            b'&' => ("&amp;", 1),
+            b'"' => ("&quot;", 1),
+            b'<' => ("&lt;", 1),
+            b'>' => ("&gt;", 1),
+            _ if bytes.get(at + 1) == Some(&0xA0) => ("&nbsp;", 2),
+            _ => {
+                at += 1;
+                continue;
+            }
+        };
+        out.push_str(&s[start..at]);
+        out.push_str(entity);
+        at += width;
+        start = at;
     }
+    out.push_str(&s[start..]);
 }
 
 fn escape_text_content<S: HtmlSink>(s: &str, out: &mut S) {
