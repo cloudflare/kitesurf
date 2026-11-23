@@ -5980,7 +5980,7 @@ function queryDomDocumentRead(
     case "getOuterHTMLAndSeq": {
       let outerHTML = "";
       try {
-        outerHTML = pageState.dom.outerHTML(0);
+        outerHTML = pageState.dom.snapshotHTML(0);
       } catch {}
       const seq = getInternalState().mutationSeq | 0;
       return {
