@@ -366,9 +366,17 @@ export function installWindow(document: DocumentImpl): ReturnType<typeof buildWi
 }
 
 function buildWindow(document: DocumentImpl) {
-  type HistoryEntry = { url: string; state: unknown };
+  type HistoryEntry = {
+    url: string;
+    state: unknown;
+    scrollX: number;
+    scrollY: number;
+    scrollRestoration: "auto" | "manual";
+  };
 
-  const historyStack: HistoryEntry[] = [{ url: getCurrentUrl() || "", state: null }];
+  const historyStack: HistoryEntry[] = [
+    { url: getCurrentUrl() || "", state: null, scrollX: 0, scrollY: 0, scrollRestoration: "auto" },
+  ];
   let historyIndex = 0;
 
   const resolveHistoryUrl = (
@@ -427,17 +435,44 @@ function buildWindow(document: DocumentImpl) {
     get length() {
       return historyStack.length;
     },
-    scrollRestoration: "auto" as "auto" | "manual",
+    get scrollRestoration(): "auto" | "manual" {
+      return historyStack[historyIndex]?.scrollRestoration ?? "auto";
+    },
+    set scrollRestoration(value: unknown) {
+      // Enum setter: ignore values outside "auto" | "manual".
+      // https://html.spec.whatwg.org/multipage/nav-history-apis.html#dom-history-scrollrestoration
+      if (value !== "auto" && value !== "manual") return;
+      const entry = historyStack[historyIndex];
+      if (entry) entry.scrollRestoration = value;
+    },
     pushState(state: unknown, _title: string, url?: string | null) {
       const target = resolveHistoryUrl(url, "pushState");
+      const current = historyStack[historyIndex];
+      if (current) {
+        current.scrollX = windowObj.scrollX;
+        current.scrollY = windowObj.scrollY;
+      }
       historyStack.length = historyIndex + 1;
-      historyStack.push({ url: target, state: state ?? null });
+      historyStack.push({
+        url: target,
+        state: state ?? null,
+        scrollX: 0,
+        scrollY: 0,
+        scrollRestoration: current?.scrollRestoration ?? "auto",
+      });
       historyIndex = historyStack.length - 1;
       if (setCurrentUrl) setCurrentUrl(target, "pushState");
     },
     replaceState(state: unknown, _title: string, url?: string | null) {
       const target = resolveHistoryUrl(url, "replaceState");
-      historyStack[historyIndex] = { url: target, state: state ?? null };
+      const current = historyStack[historyIndex];
+      historyStack[historyIndex] = {
+        url: target,
+        state: state ?? null,
+        scrollX: current?.scrollX ?? 0,
+        scrollY: current?.scrollY ?? 0,
+        scrollRestoration: current?.scrollRestoration ?? "auto",
+      };
       if (setCurrentUrl) setCurrentUrl(target, "replaceState");
     },
     go(n?: number) {
@@ -446,6 +481,10 @@ function buildWindow(document: DocumentImpl) {
       const target = historyIndex + delta;
       if (target < 0 || target >= historyStack.length) return;
       const prevEntry = historyStack[historyIndex];
+      if (prevEntry) {
+        prevEntry.scrollX = windowObj.scrollX;
+        prevEntry.scrollY = windowObj.scrollY;
+      }
       const prevUrl = prevEntry?.url ?? "";
       historyIndex = target;
       const nextEntry = historyStack[historyIndex];
@@ -453,6 +492,9 @@ function buildWindow(document: DocumentImpl) {
       const sameDoc = prevUrl.split("#")[0] === nextUrl.split("#")[0];
       if (setCurrentUrl) {
         setCurrentUrl(nextUrl, sameDoc ? "hash" : "historyApi");
+      }
+      if (nextEntry && nextEntry.scrollRestoration !== "manual") {
+        windowObj.scrollTo(nextEntry.scrollX, nextEntry.scrollY);
       }
       const stateForPopstate = nextEntry?.state ?? null;
       const queuePopstate = (cb: () => void) => {
