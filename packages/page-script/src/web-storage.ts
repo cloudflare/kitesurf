@@ -117,6 +117,9 @@ export function storageObject(area: StorageArea): object {
         return Reflect.defineProperty(t, p, desc);
       }
       if (!("value" in desc) && !("writable" in desc)) return false;
+      // A Proxy may not report a non-configurable property its target lacks, so the call throws
+      // whatever this returns: refuse before storing, not after.
+      if (desc.configurable === false) return false;
       area.set(p, String(desc.value));
       return true;
     },

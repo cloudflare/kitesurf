@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import type { LocalStorageOp } from "@kitesurf/jsrpc-types/page-script";
 
-import { sharedArea } from "../../page-script/src/web-storage.ts";
+import { memoryArea, sharedArea, storageObject } from "../../page-script/src/web-storage.ts";
 
 const QUOTA = 5 * 1024 * 1024;
 // JSRPC's message limit (core dom/cdp.rs). A code unit serializes to two bytes or less.
@@ -117,5 +117,18 @@ describe("sharedArea", () => {
     // The ack of batch 2 leaves nothing to replay.
     area.applyRemote([{ op: "set", key: "j", value: "theirs" }], 2);
     expect(area.get("j")).toBe("theirs");
+  });
+});
+
+describe("storageObject", () => {
+  it("stores nothing for a defineProperty it has to refuse", () => {
+    const area = memoryArea();
+    const storage = storageObject(area);
+    expect(() => Object.defineProperty(storage, "k", { value: "v", configurable: false })).toThrow(
+      TypeError,
+    );
+    expect(area.get("k")).toBeNull();
+    Object.defineProperty(storage, "k", { value: "v" });
+    expect(area.get("k")).toBe("v");
   });
 });
