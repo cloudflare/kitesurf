@@ -4278,8 +4278,8 @@
     "reason": "T18 enrollment (css-masking): 0/1 subtests pass"
   },
   "/css/css-masking/hit-test/clip-path-shape-polygon-and-box-shadow.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-masking): 0/1 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-masking/hit-test/clip-path-svg-geometry-box.html": {
     "expected": "FAIL",
