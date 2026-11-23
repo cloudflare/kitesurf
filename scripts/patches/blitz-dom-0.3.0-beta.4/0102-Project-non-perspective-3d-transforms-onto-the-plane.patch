@@ -1,0 +1,55 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Tue, 17 Nov 2026 16:33:59 +0000
+Subject: [PATCH] Project non-perspective 3d transforms onto the plane
+
+A transform list that mentions a 3d function was dropped entirely, so
+`rotateX(45deg)` and `matrix3d(...)` left the box untransformed. Outside a 3d
+rendering context the transform still applies as a painting effect, and without
+perspective the z = 0 plane projects to exactly the 2d affine part of the
+matrix (e.g. `rotateX(45deg)` on a 20px box projects to 14.142px tall at
+y = 2.929).
+
+A matrix with perspective (m14/m24) is still dropped: its projection is
+projective, not affine.
+---
+ src/stylo_to_kurbo.rs | 26 +++++++++++++++++---------
+ 1 file changed, 17 insertions(+), 9 deletions(-)
+
+diff --git a/src/stylo_to_kurbo.rs b/src/stylo_to_kurbo.rs
+index dc12a66..9ea1e12 100644
+--- a/src/stylo_to_kurbo.rs
++++ b/src/stylo_to_kurbo.rs
+@@ -65,15 +65,23 @@ pub fn resolve_2d_transform(
+             // matrix needs 3d: `translate3d(x, y, 0)` sets it while resolving to a
+             // plain 2d translation.
+             //
+-            // TODO: support 3D transforms. Outside a 3d rendering context the spec
+-            // still applies the transform as a painting effect -- its own example
+-            // paints `rotateY(50deg)` narrower -- so dropping one is wrong. `is_2d()`
+-            // is closer than the flag, not the rule.
++            // Outside a 3d rendering context the transform still applies as a painting
++            // effect -- the spec's own example paints `rotateY(50deg)` narrower -- so a
++            // 3d matrix is only dropped when it cannot be expressed on the z = 0 plane.
++            // Without perspective the projected position of that plane is exactly the
++            // 2d affine part; with it the projection is projective, not affine.
+             // See: https://drafts.csswg.org/css-transforms-2/#3d-transform-rendering
+-            .filter(|(t, _has_3d)| t.is_2d())
+-            .map(|(t, _)| {
+-                // See: https://drafts.csswg.org/css-transforms-2/#two-dimensional-subset
+-                // And https://docs.rs/kurbo/latest/kurbo/struct.Affine.html#method.new
+-                Affine::new([t.m11, t.m12, t.m21, t.m22, t.m41, t.m42].map(|v| v as f64))
++            .and_then(|(t, _has_3d)| {
++                if t.m14 == 0.0 && t.m24 == 0.0 && t.m44 == 1.0 {
++                    // See: https://drafts.csswg.org/css-transforms-2/#two-dimensional-subset
++                    // And https://docs.rs/kurbo/latest/kurbo/struct.Affine.html#method.new
++                    Some(Affine::new(
++                        [t.m11, t.m12, t.m21, t.m22, t.m41, t.m42].map(|v| v as f64),
++                    ))
++                } else {
++                    // TODO: support perspective, where the projected plane needs a
++                    // projective map rather than an affine one.
++                    None
++                }
+             })
+     };

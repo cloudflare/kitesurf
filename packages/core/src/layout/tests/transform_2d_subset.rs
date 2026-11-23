@@ -136,7 +136,50 @@ fn rotated_multiline_inline_unions_transformed_fragments() {
     assert!((target.1 + target.3 - expected.3).abs() < 0.01);
 }
 
+// A 20px box with `rotateX(45deg)` about its centre projects to 14.142px tall
+// at y = 2.929: without perspective, the z = 0 plane projects to the 2d affine
+// part of the matrix.
+// https://drafts.csswg.org/css-transforms-2/#3d-transform-rendering
 #[test]
-fn true_3d_transform_is_still_dropped() {
-    assert!(icon_transform("rotateX(45deg)").is_none());
+fn non_perspective_3d_transform_projects_to_the_plane() {
+    let t = icon_transform("rotateX(45deg)").expect("a 3d transform must still paint");
+    let coeffs = t.as_coeffs();
+    let expected = [1.0, 0.0, 0.0, std::f64::consts::FRAC_1_SQRT_2, 0.0, 2.9289];
+    for (got, want) in coeffs.iter().zip(expected) {
+        assert!(
+            (got - want).abs() < 0.001,
+            "coeffs {coeffs:?} != {expected:?}"
+        );
+    }
+}
+
+#[test]
+fn matrix3d_without_perspective_projects_to_the_plane() {
+    let t = icon_transform("matrix3d(1,0,0,0, 0,1,0,0, 0,0,1,0, 10,20,0,1)")
+        .expect("a 3d matrix must still paint");
+    assert_eq!(t.as_coeffs()[4..], [10.0, 20.0]);
+}
+
+// Perspective makes the projection projective, not affine, so it needs a
+// projective map this renderer does not have yet.
+#[test]
+fn perspective_transform_is_still_dropped() {
+    assert!(icon_transform("perspective(100px) rotateY(30deg)").is_none());
+}
+
+#[test]
+fn rotate_x_projects_box_height_onto_plane() {
+    let dom = DomHandle::new(
+        r#"<!DOCTYPE html><body style="margin:0">
+          <div id="box" style="position:absolute;top:0;left:0;width:20px;height:20px;transform:rotateX(45deg)"></div>
+        </body>"#,
+        "https://example.com/",
+    );
+    dom.set_viewport(800, 600);
+    let id = dom.query_selector("#box").expect("box must match");
+    let (x, y, width, height) = dom.test_get_inline_aware_rect(id as u32);
+    assert_eq!(x, 0.0);
+    assert!((y - 2.9289).abs() < 0.01, "top {y}");
+    assert_eq!(width, 20.0);
+    assert!((height - 14.1421).abs() < 0.01, "height {height}");
 }
