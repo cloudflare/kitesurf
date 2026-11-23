@@ -497,3 +497,19 @@ fn dropping_a_resolved_subtree_keeps_no_link_to_a_freed_slot() {
 
     assert!(dom.drop_node(parent));
 }
+
+#[test]
+fn appending_to_a_text_node_that_set_node_text_dropped_returns_false() {
+    // set_node_text replaces a non-text node's children, which drops its old text node without
+    // retiring the handle, so resolve still yields an id Blitz no longer holds.
+    let dom = DomHandle::new(
+        "<!doctype html><style id=s>a{}</style>",
+        "https://example.test/",
+    );
+    let style = dom.query_selector("#s").expect("style") as u32;
+    let text = dom.child_id_at(style, 0) as u32;
+    assert!(text > 0);
+
+    assert!(dom.set_node_text(style, "b{}"));
+    assert!(!dom.append_node_text(text, "c{}"));
+}

@@ -607,6 +607,11 @@ impl DomHandle {
             Ok(d) => d,
             Err(_) => return false,
         };
+        // A text node that `set_node_text` dropped keeps its handle, so resolve
+        // can still return an id that Blitz no longer holds; check before mutate.
+        if doc.get_node(nid).is_none() {
+            return false;
+        }
         let mut mutr = doc.mutate();
         let ok = mutr.append_text_to_node(nid, text).is_ok();
         drop(mutr);
