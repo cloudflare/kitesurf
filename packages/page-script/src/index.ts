@@ -174,7 +174,7 @@ import {
   ensurePaintDom,
   invalidatePaintDom,
   discoverFontFaces,
-  loadAllFontFaces,
+  loadFontFaces,
   takePaintPrep,
   paintPrepStats,
   layoutResolveStats,
@@ -2510,17 +2510,18 @@ function fireIframeLoad(iframeElement: any) {
 }
 
 installResourceFetchBridge();
-ksInternals.fontsReady = async (loadRequested?: boolean) => {
+ksInternals.fontsReady = async (loadRequest) => {
   if (fontDeferActive()) {
     await awaitDeferredFonts();
   }
   // Apply the document's stylesheets before asking for faces: the faces they declare only
   // exist once the sheet is applied, and a sheet can land after this call.
   discoverFontFaces();
-  if (loadRequested) {
-    // document.fonts.load() names a font, so it fetches every declared face; .ready does not.
+  if (loadRequest && loadRequest.families.length > 0 && loadRequest.text.length > 0) {
+    // document.fonts.load() names a font and sample text, so it fetches matching faces; .ready
+    // only waits for faces already used by styles.
     for (let attempt = 0; attempt < 4; attempt++) {
-      loadAllFontFaces();
+      loadFontFaces(loadRequest);
       if (fontsInflightCount() > 0) break;
       await nativeSleep(1);
       discoverFontFaces();

@@ -282,6 +282,120 @@ function foreignDocumentMethod<K extends ForeignDocumentMethod>(
 
 const documentStyleSheets = new WeakMap<object, ReturnType<typeof makeStyleSheetList>>();
 
+const GENERIC_FONT_FAMILIES = new Set([
+  "serif",
+  "sans-serif",
+  "monospace",
+  "cursive",
+  "fantasy",
+  "system-ui",
+  "ui-serif",
+  "ui-sans-serif",
+  "ui-monospace",
+  "ui-rounded",
+  "math",
+  "emoji",
+  "fangsong",
+]);
+
+const FONT_SIZE_RE =
+  /^(?:[+-]?(?:\d+\.?\d*|\.\d+)(?:px|pt|pc|em|rem|ex|ch|vh|vw|vmin|vmax|%|cm|mm|in|q))$/i;
+const FONT_SIZE_KEYWORD_RE =
+  /^(?:xx-small|x-small|small|medium|large|x-large|xx-large|xxx-large|smaller|larger)$/i;
+
+function splitFontFamilyList(input: string): string[] {
+  const families: string[] = [];
+  let start = 0;
+  let quote = "";
+  for (let i = 0; i <= input.length; i++) {
+    const ch = i < input.length ? input[i] : ",";
+    if (quote) {
+      if (ch === quote && input[i - 1] !== "\\") quote = "";
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === ",") {
+      const raw = input.slice(start, i).trim();
+      const unquoted =
+        raw.length >= 2 &&
+        ((raw[0] === '"' && raw[raw.length - 1] === '"') ||
+          (raw[0] === "'" && raw[raw.length - 1] === "'"))
+          ? raw.slice(1, -1).trim()
+          : raw;
+      if (unquoted.length > 0 && !GENERIC_FONT_FAMILIES.has(unquoted.toLowerCase())) {
+        families.push(unquoted);
+      }
+      start = i + 1;
+    }
+  }
+  return families;
+}
+
+// Parse a CSS `font` shorthand for `document.fonts.load(font, text = " ")` into the family list,
+// italic flag, weight (1..=1000, default 400), and sample text.
+function parseFontLoadRequest(
+  font: string,
+  text?: string,
+): { families: string[]; italic: boolean; weight: number; text: string } {
+  const sampleText = text === undefined ? " " : String(text);
+  const src = String(font ?? "").trim();
+  const tokens: { text: string; end: number }[] = [];
+  const tokenRe = /\S+/g;
+  let match: RegExpExecArray | null;
+  while ((match = tokenRe.exec(src)) !== null) {
+    tokens.push({ text: match[0], end: match.index + match[0].length });
+    if (match[0].includes('"') || match[0].includes("'")) break;
+  }
+
+  let sizeIdx = -1;
+  for (let i = 0; i < tokens.length; i++) {
+    const base = tokens[i].text.replace(/\/.*$/, "");
+    if (FONT_SIZE_RE.test(base) || FONT_SIZE_KEYWORD_RE.test(base)) {
+      sizeIdx = i;
+      break;
+    }
+  }
+  if (sizeIdx < 0) {
+    return { families: [], italic: false, weight: 400, text: sampleText };
+  }
+
+  let italic = false;
+  let weight = 400;
+  for (let i = 0; i < sizeIdx; i++) {
+    const token = tokens[i].text.toLowerCase();
+    if (token === "italic" || token === "oblique") {
+      italic = true;
+    } else if (token === "bold" || token === "bolder") {
+      weight = 700;
+    } else if (token === "lighter") {
+      // CSS Fonts 4 §5.2.1 relative weights. `document.fonts.load()` has no element context, so
+      // the inherited weight is the initial 400, whose `lighter` result is 100 (`bolder` is 700).
+      weight = 100;
+    } else if (/^\d+(?:\.\d+)?$/.test(token)) {
+      const n = Math.round(Number(token));
+      if (n >= 1 && n <= 1000) weight = n;
+    }
+  }
+
+  let familyStart = tokens[sizeIdx].end;
+  // Skip optional `/ line-height` when separated by whitespace (`16px / 1.5 Roboto`).
+  if (!tokens[sizeIdx].text.includes("/")) {
+    const rest = src.slice(familyStart);
+    const slashMatch = /^\s*\/\s*\S+/.exec(rest);
+    if (slashMatch) familyStart += slashMatch[0].length;
+  }
+
+  return {
+    families: splitFontFamilyList(src.slice(familyStart)),
+    italic,
+    weight,
+    text: sampleText,
+  };
+}
+
 class DocumentImpl extends NodeBase implements Idl.Document {
   // Storage behind the childNodes, doctype and implementation accessors.
   declare _doctype: DocumentTypeNode | undefined;
@@ -1188,14 +1302,14 @@ class DocumentImpl extends NodeBase implements Idl.Document {
         forEach(cb: (face: unknown, face2: unknown, set: Set<unknown>) => void, thisArg?: unknown) {
           faces.forEach(cb, thisArg);
         },
-        load(_font: string, _text?: string) {
-          // Limitation: resolves with every added face once fonts are ready,
-          // not only the faces matching `font` and `text`. The request is explicit,
-          // so every declared @font-face is fetched rather than only the ones in use.
+        load(font: string, text?: string) {
+          // Fetch the faces matching `font` and covering `text` (defaulting to " " per CSS Font
+          // Loading), then wait for in-flight fonts to settle.
+          const request = parseFontLoadRequest(font, text);
           const p = fontsReadyHook
             ? (() => {
                 try {
-                  return fontsReadyHook(true);
+                  return fontsReadyHook(request);
                 } catch {
                   return null;
                 }

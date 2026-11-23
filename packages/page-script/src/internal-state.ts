@@ -195,6 +195,13 @@ export function clearUpstreamSender(): void {
 
 const _state: KitesurfInternalState = createInternalState();
 
+export interface FontLoadRequest {
+  families: string[];
+  italic: boolean;
+  weight: number;
+  text: string;
+}
+
 // The hooks dom-shim, page-script and the wasm core call each other through. Declared beside the
 // record so both packages type it the same way without importing each other; dom-shim objects are
 // `object` here for the same reason as BundleDiag's `unknown`. All optional: each side installs
@@ -219,9 +226,9 @@ export interface KitesurfInternals {
   // In lazy font mode, upgrades to the full fonts so text shaped outside layout (canvas, SVG)
   // gets outlines. Null when nothing is pending.
   demandFontOutlines?: () => Promise<void> | null;
-  // document.fonts.ready and .status read these. `load()` passes true, an explicit request to
-  // fetch every declared face.
-  fontsReady?: (loadRequested?: boolean) => Promise<void>;
+  // document.fonts.ready and .status read these. `load()` passes the parsed request so only
+  // matching declared faces are fetched.
+  fontsReady?: (loadRequest?: FontLoadRequest) => Promise<void>;
   fontsInflightCount?: () => number;
   // Registers deferred fonts for canvas measureText. False while bytes are still in flight.
   demandDeferredFonts?: () => boolean;
