@@ -733,18 +733,20 @@ function releaseParkedFontFetches(): void {
 }
 setParkedFontReleaseHook(releaseParkedFontFetches);
 
+/** Fetches one subresource and delivers it to `id`; true when the fetch succeeded. */
 export async function fetchResource(
   id: number,
   url: string,
   kind: string,
   corsMode: string = "",
-): Promise<void> {
+): Promise<boolean> {
+  let fetched = false;
   if (kind === "Font" && fontDeferActive() && !fontDemandFired()) {
     parkedFonts.push({ id, url, corsMode });
     try {
       console.warn(`[ks-fonts] @font-face parked: ${url}`);
     } catch {}
-    return;
+    return false;
   }
   let blocksLoad = true;
   if (kind === "Document") {
@@ -756,7 +758,7 @@ export async function fetchResource(
         const pending = runPageTaskWhenUnpaused(() => dom?.deliverResourceError?.(id));
         if (pending) await pending;
       } catch {}
-      return;
+      return false;
     }
     blocksLoad = !hint.lazy;
   }
@@ -839,9 +841,10 @@ export async function fetchResource(
       }
       const pending = runPageTaskWhenUnpaused(reportError);
       if (pending) await pending;
-      return;
+      return false;
     }
     const bytes = result.bytes;
+    fetched = true;
     if (kind === "Font") {
       try {
         console.warn(`[ks-fonts] @font-face fetched ${bytes.length} bytes: ${url}`);
@@ -932,6 +935,7 @@ export async function fetchResource(
     resourceSettleWaiters = [];
     for (const resolveWaiter of settledWaiters) resolveWaiter();
   }
+  return fetched;
 }
 
 export function installResourceFetchBridge(): void {
