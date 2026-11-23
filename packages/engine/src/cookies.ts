@@ -11,6 +11,8 @@ const MAX_COOKIE_BYTES = 4096;
 const MAX_COOKIES_PER_HOST = 180;
 const MAX_COOKIES_TOTAL = 3000;
 const MILLISECONDS_PER_SECOND = 1_000;
+// The largest time a JS Date can hold.
+const MAX_DATE_MS = 8.64e15;
 
 export interface CookieEntry {
   name: string;
@@ -321,7 +323,10 @@ export function createCookieJar(
     if (a.has("max-age")) {
       const ma = Number(a.get("max-age"));
       if (Number.isFinite(ma)) {
-        expiresAt = Date.now() + ma * MILLISECONDS_PER_SECOND;
+        // Kept finite: a store that serialises the jar as JSON writes Infinity as null, which
+        // reads back as a session cookie, and a far-past delete would come back live.
+        const at = Date.now() + ma * MILLISECONDS_PER_SECOND;
+        expiresAt = Math.min(Math.max(at, -MAX_DATE_MS), MAX_DATE_MS);
       }
     } else if (a.has("expires")) {
       const t = Date.parse(a.get("expires") || "");
