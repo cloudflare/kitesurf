@@ -1182,15 +1182,65 @@ function __makeCrossOriginContentWindow(iframeElement: any, url: string) {
   return contentWindow;
 }
 
-// A same-origin frame's window exposes its realm's constructors, so copy every
-// global that is a constructor (a function with a prototype). A hand-kept list
-// missed HTMLScriptElement, and pages read its prototype.
+// A same-origin frame's window exposes its realm's standard globals and DOM
+// element constructors (such as HTMLScriptElement, whose prototype pages read).
 // https://html.spec.whatwg.org/multipage/window-object.html#the-window-object
 function __decorateContentWindow(contentWindow: any) {
   const pageGlobal: any = globalThis;
   const names = [
+    "Error",
+    "TypeError",
+    "RangeError",
+    "SyntaxError",
+    "ReferenceError",
+    "URIError",
+    "EvalError",
+    "Array",
+    "Object",
+    "String",
+    "Number",
+    "Boolean",
+    "Symbol",
+    "Promise",
+    "Function",
+    "Date",
+    "RegExp",
+    "Map",
+    "Set",
+    "WeakMap",
+    "WeakSet",
     "JSON",
     "Math",
+    "Node",
+    "Element",
+    "HTMLElement",
+    "SVGElement",
+    "Text",
+    "Comment",
+    "CharacterData",
+    "ShadowRoot",
+    "Document",
+    "DocumentFragment",
+    "DocumentType",
+    "Attr",
+    "NamedNodeMap",
+    "DOMTokenList",
+    "CSSStyleDeclaration",
+    "NodeFilter",
+    "TreeWalker",
+    "Event",
+    "MessageEvent",
+    "CustomEvent",
+    "DOMException",
+    "NodeList",
+    "HTMLCollection",
+    "DOMParser",
+    "Range",
+    "StaticRange",
+    "MutationObserver",
+    "ResizeObserver",
+    "IntersectionObserver",
+    "XPathResult",
     "CSS",
     "getComputedStyle",
     "matchMedia",
@@ -1209,6 +1259,17 @@ function __decorateContentWindow(contentWindow: any) {
     "btoa",
     "crypto",
     "structuredClone",
+    "TextEncoder",
+    "TextDecoder",
+    "URL",
+    "URLSearchParams",
+    "Blob",
+    "FormData",
+    "Headers",
+    "Request",
+    "Response",
+    "AbortController",
+    "AbortSignal",
   ];
   for (const globalName of names) {
     if (contentWindow[globalName] === undefined && pageGlobal[globalName] !== undefined) {
@@ -1217,7 +1278,7 @@ function __decorateContentWindow(contentWindow: any) {
   }
   for (const globalName of Object.getOwnPropertyNames(pageGlobal)) {
     if (contentWindow[globalName] !== undefined) continue;
-    // Read the descriptor, so an accessor such as `document` is not invoked.
+    if (!/^(HTML|SVG|MathML).*Element$/.test(globalName)) continue;
     const value = Object.getOwnPropertyDescriptor(pageGlobal, globalName)?.value;
     if (typeof value !== "function" || value.prototype === undefined) continue;
     contentWindow[globalName] = value;
