@@ -99,6 +99,7 @@ import { webStorage } from "./storage-buckets.ts";
 import { clearSessionOutbound, setSessionOutbound } from "./session-outbound.ts";
 import {
   installResourceFetchBridge,
+  fetchResource,
   fontsIdle,
   fontsInflightCount,
   resolveFontUrlData,
@@ -537,6 +538,36 @@ let __ksOverChain: any[] = [];
 
 let __ksSpaceArmedTarget: any = null;
 let __ksSuppressChar = false;
+
+// A parser-inserted <link rel=preload as=style> fetches at parse time, and its
+// onload handler is how pages swap rel to stylesheet. Start the fetch here and
+// fire the event the element would get.
+// https://html.spec.whatwg.org/multipage/links.html#link-type-preload
+function startParserStylePreloads(): void {
+  const doc = state.document;
+  if (!doc) return;
+  let links: ArrayLike<ShimElement>;
+  try {
+    links = doc.querySelectorAll('link[rel~="preload"]');
+  } catch {
+    return;
+  }
+  for (const link of Array.from(links)) {
+    try {
+      if ((link as any).__ksStylePreloadStarted) continue;
+      if (String(link.getAttribute?.("as") ?? "").toLowerCase() !== "style") continue;
+      (link as any).__ksStylePreloadStarted = true;
+      const href = link.getAttribute?.("href");
+      if (!href) continue;
+      const url = new URL(href, doc.baseURI || state.pageUrl).toString();
+      void fetchResource(-1, url, "Stylesheet").then((ok) => {
+        try {
+          __ks_dispatchTrusted(link, new (shimEventCtor("Event"))(ok ? "load" : "error"));
+        } catch {}
+      });
+    } catch {}
+  }
+}
 
 function __ks_dispatchTrusted(target: any, event: any): boolean {
   if (__ks_dispatchTrustedEvent) {
@@ -3977,6 +4008,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     __ks_activateLabel = built.__ks_activateLabel;
     state.dispatchTrustedEvent = __ks_dispatchTrusted;
     installGlobals(state.document, state.window, built);
+    startParserStylePreloads();
     preinstallStaticIframes();
     ksSpan("dom.mark_engine_functions", null, () =>
       markEngineFunctions([globalThis, state.window, state.document]),
