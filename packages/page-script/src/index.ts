@@ -3750,8 +3750,13 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       typeof navigateOptions.viewportWidth === "number" &&
       typeof navigateOptions.viewportHeight === "number"
     ) {
-      const viewportWidth = Math.max(1, Math.floor(navigateOptions.viewportWidth));
-      const viewportHeight = Math.max(1, Math.floor(navigateOptions.viewportHeight));
+      const deviceWidth = Math.max(1, Math.floor(navigateOptions.viewportWidth));
+      const deviceHeight = Math.max(1, Math.floor(navigateOptions.viewportHeight));
+      const { width: viewportWidth, height: viewportHeight } = resolveLayoutViewport(
+        state.dom,
+        deviceWidth,
+        deviceHeight,
+      );
       state.paintViewportW = viewportWidth;
       state.paintViewportH = viewportHeight;
       try {
@@ -7121,18 +7126,78 @@ function accessibilityVisibility(dom: QueryDomActiveState["dom"]): boolean {
   return ensurePaintDom() !== null;
 }
 
+// Parse an explicit numeric `width=<px>` from a `<meta name="viewport">` content
+// string, ignoring `device-width` and invalid tokens.
+// https://drafts.csswg.org/css-viewport/#viewport-meta
+function parseMetaViewportWidth(content: string): number | null {
+  for (const part of content.split(/[,;]/)) {
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    const key = part.slice(0, eq).trim().toLowerCase();
+    if (key !== "width") continue;
+    const raw = part
+      .slice(eq + 1)
+      .trim()
+      .toLowerCase();
+    if (raw === "device-width" || raw === "") continue;
+    const parsed = Number.parseFloat(raw);
+    if (Number.isFinite(parsed) && parsed >= 1 && parsed <= 10000) {
+      return Math.round(parsed);
+    }
+  }
+  return null;
+}
+
+function resolveLayoutViewport(
+  dom: DomHandle | null,
+  deviceWidth: number,
+  deviceHeight: number,
+): { width: number; height: number } {
+  if (!dom) return { width: deviceWidth, height: deviceHeight };
+  try {
+    const metaId = dom.querySelector('meta[name="viewport" i]');
+    if (metaId < 0) return { width: deviceWidth, height: deviceHeight };
+    const attrs = dom.attributeList(metaId)?.attributes;
+    if (!Array.isArray(attrs)) return { width: deviceWidth, height: deviceHeight };
+    let content = "";
+    for (let i = 0; i + 1 < attrs.length; i += 2) {
+      if (String(attrs[i]).toLowerCase() === "content") {
+        content = String(attrs[i + 1] ?? "");
+        break;
+      }
+    }
+    if (!content) return { width: deviceWidth, height: deviceHeight };
+    const metaWidth = parseMetaViewportWidth(content);
+    if (metaWidth === null || metaWidth <= deviceWidth) {
+      return { width: deviceWidth, height: deviceHeight };
+    }
+    const scaledHeight = Math.max(
+      deviceHeight,
+      Math.round(deviceHeight * (metaWidth / deviceWidth)),
+    );
+    return { width: metaWidth, height: scaledHeight };
+  } catch {
+    return { width: deviceWidth, height: deviceHeight };
+  }
+}
+
 function queryDomSetViewport(
   pageState: QueryDomActiveState,
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<"setViewport"> {
-  const viewportWidth =
+  const deviceWidth =
     queryArgs && typeof queryArgs.width === "number"
       ? Math.max(1, Math.floor(queryArgs.width))
       : DEFAULT_VIEWPORT_WIDTH_PX;
-  const viewportHeight =
+  const deviceHeight =
     queryArgs && typeof queryArgs.height === "number"
       ? Math.max(1, Math.floor(queryArgs.height))
       : DEFAULT_VIEWPORT_HEIGHT_PX;
+  const { width: viewportWidth, height: viewportHeight } = resolveLayoutViewport(
+    pageState.dom,
+    deviceWidth,
+    deviceHeight,
+  );
   const dimsChanged =
     state.paintViewportW !== viewportWidth || state.paintViewportH !== viewportHeight;
   state.paintViewportW = viewportWidth;
