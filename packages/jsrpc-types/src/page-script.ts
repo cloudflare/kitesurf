@@ -376,6 +376,8 @@ export type PageScriptEntrypointStub = Fetcher<PageScriptEntrypoint>;
 export type PageScriptFacetEntrypoint = PageScriptSession & {
   makeRenderPort(): RenderPort & Rpc.RpcTargetBranded;
   openSession(init: OpenSessionInit): RetainedPageScriptSessionTarget;
+  /** The size of the facet's database file. */
+  storageStats(): { bytes: number };
 } & Rpc.DurableObjectBranded;
 
 export interface UpstreamEvents {

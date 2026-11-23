@@ -18,6 +18,7 @@ import {
   handleTarget,
   handleRendererSession,
   handleEngineSession,
+  handleStorageSession,
   handleOopifSession,
   findOopifFrameBySession,
 } from "./target.ts";
@@ -134,6 +135,10 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
     if (req.sessionId && req.sessionId === ctx.client.memoryTargets.engine) {
       const result = await handleEngineSession(ctx, req);
       ctx.browser.networkEvents.drain();
+      return { id: req.id, result: result ?? {}, sessionId: req.sessionId };
+    }
+    if (req.sessionId && req.sessionId === ctx.client.memoryTargets.storage) {
+      const result = await handleStorageSession(ctx, req);
       return { id: req.id, result: result ?? {}, sessionId: req.sessionId };
     }
     if (req.sessionId && !CONTEXT_STORAGE_METHODS.has(req.method)) {

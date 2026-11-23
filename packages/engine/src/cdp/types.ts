@@ -130,7 +130,12 @@ export interface CdpClientState {
   // Page.addScriptToEvaluateOnNewDocument identifiers this client added.
   readonly preNavScriptIds: Set<string>;
   // This client's sessions on the synthetic Memory-panel targets, null until announced to it.
-  readonly memoryTargets: { renderer: string | null; engine: string | null };
+  readonly memoryTargets: {
+    renderer: string | null;
+    engine: string | null;
+    // The Storage target: what the session keeps off the heap. Never announced otherwise.
+    storage: string | null;
+  };
 }
 
 export interface BrowserState {

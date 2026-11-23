@@ -513,6 +513,7 @@ export class BrowserSession {
     state.sessions.clear();
     state.memoryTargets.renderer = null;
     state.memoryTargets.engine = null;
+    state.memoryTargets.storage = null;
     disableInterceptionForClient(this.id, state.id);
     releaseClientOverrides(client.ctx, state.id);
   }
@@ -622,7 +623,7 @@ function newClientState(connectionMode: "page" | "browser", id: string): CdpClie
     flatten: false,
     sessions: new Set(),
     preNavScriptIds: new Set(),
-    memoryTargets: { renderer: null, engine: null },
+    memoryTargets: { renderer: null, engine: null, storage: null },
   };
 }
 

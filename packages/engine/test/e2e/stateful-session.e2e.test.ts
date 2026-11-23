@@ -293,6 +293,50 @@ test("a page endpoint drives its own page, and a reconnect does not reload it", 
   }
 });
 
+test("getMemoryStats and the Storage target report what the session keeps off the heap", async () => {
+  const { sessionId, pageTargetId } = await createStatefulSession(engine);
+  const browser = await connectStatefulSession(engine, sessionId);
+  try {
+    const page = await onlyPage(browser);
+    await page.goto("https://ks.invalid/__fixtures/lifecycle.html", { waitUntil: "load" });
+    await page.evaluate(() => sessionStorage.setItem("k", "v".repeat(1000)));
+    const cdp = await page.createCDPSession();
+    const stats = await cdp.send("Kitesurf.getMemoryStats", {});
+    expect(stats.storage?.session.backend).toBe("sqlite");
+    expect(stats.storage?.session.tables.documents?.keys).toBeGreaterThan(0);
+    // The tab's sessionStorage is a table of the session store.
+    const tab = `sessionStorage:${pageTargetId}|https://ks.invalid`;
+    expect(stats.storage?.session.tables[tab]?.bytes).toBeGreaterThanOrEqual(1000);
+    expect(stats.storage?.pages[pageTargetId]?.bytes).toBeGreaterThan(0);
+    expect(stats.total?.storageBytes).toBe(stats.storage?.bytes);
+
+    // A page endpoint gets the Storage row auto-attached, as the DevTools Memory panel needs.
+    const raw = await rawCdp(`/devtools/browser/${sessionId}/page/${pageTargetId}`);
+    await raw.send("Target.setAutoAttach", {
+      autoAttach: true,
+      flatten: true,
+      waitForDebuggerOnStart: false,
+    });
+    const storage = raw.events.find(
+      (m) =>
+        m.method === "Target.attachedToTarget" &&
+        Reflect.get(Object(m.params?.targetInfo), "targetId") === "kitesurf-storage",
+    );
+    expect(storage).toBeDefined();
+    raw.close();
+  } finally {
+    await browser.close();
+  }
+
+  const stateless = await connectEngine(engine);
+  try {
+    const cdp = await (await onlyPage(stateless)).createCDPSession();
+    expect((await cdp.send("Kitesurf.getMemoryStats", {})).storage).toBeNull();
+  } finally {
+    await stateless.close();
+  }
+});
+
 test("a page endpoint for an unknown target is a 404", async () => {
   const { sessionId } = await createStatefulSession(engine);
   const resp = await engine.fetch(

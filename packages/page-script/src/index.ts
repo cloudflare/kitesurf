@@ -5855,7 +5855,12 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
 // PageScript hosted as a Durable Object facet (engine eval/page-script-host.ts), which gives the
 // page a database of its own. Only the host class differs: PageScript's methods reach nothing but
 // this.ctx.props, this.env and module state, and both hosts provide those.
-export class PageScriptFacet extends DurableObject {}
+export class PageScriptFacet extends DurableObject {
+  /** The size of the facet's database file. */
+  storageStats(): { bytes: number } {
+    return { bytes: this.ctx.storage.sql.databaseSize };
+  }
+}
 for (const name of Object.getOwnPropertyNames(PageScript.prototype)) {
   if (name === "constructor") continue;
   const method = Object.getOwnPropertyDescriptor(PageScript.prototype, name);

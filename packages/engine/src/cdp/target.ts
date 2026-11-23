@@ -32,6 +32,7 @@ import {
 } from "./dom-frontend.ts";
 import { detachWebMcpSession } from "./webmcp.ts";
 import { stopSceneStreams } from "./scene-stream.ts";
+import { storageMemory } from "./storage-memory.ts";
 import { cancelAndRemoveTargetWheelQueues } from "./wheel-queue.ts";
 import { leaveScreencast } from "./screencast-viewers.ts";
 import { unregisterIsolateLimitListenersForTarget } from "../eval/limit-registry.ts";
@@ -127,6 +128,7 @@ export function detachClientSession(ctx: DispatchCtx, sessionId: string): void {
   if (sessionId === ctx.client.memoryTargets.renderer) {
     ctx.client.memoryTargets.renderer = null;
   }
+  if (sessionId === ctx.client.memoryTargets.storage) ctx.client.memoryTargets.storage = null;
 }
 
 export function jarForTarget(ctx: DispatchCtx, target: TargetState | null | undefined): CookieJar {
@@ -193,6 +195,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
       if (ctx.client.autoAttach && ctx.client.connectionMode === "page") {
         announceRendererTarget(ctx);
         announceEngineTarget(ctx);
+        announceStorageTarget(ctx);
         announceExistingOopifTargets(ctx);
       }
       return {};
@@ -218,6 +221,9 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
       }
       if (id === ENGINE_TARGET_ID) {
         return { targetInfo: engineTargetInfo(ctx) };
+      }
+      if (id === STORAGE_TARGET_ID && !ctx.browser.store.limits.onHeap) {
+        return { targetInfo: storageTargetInfo(ctx) };
       }
       const t = ctx.browser.targets.get(id);
       if (!t) throw new Error(`No target with id ${id}`);
@@ -287,6 +293,11 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
       }
       if (id === ENGINE_TARGET_ID) {
         return { sessionId: announceEngineTarget(ctx) };
+      }
+      if (id === STORAGE_TARGET_ID) {
+        const sessionId = announceStorageTarget(ctx);
+        if (!sessionId) throw new Error("this session keeps nothing off the heap");
+        return { sessionId };
       }
       const target = ctx.browser.targets.get(id);
       if (target) {
@@ -766,6 +777,67 @@ export function engineMemoryBreakdown(browser: BrowserState): {
     fontAssetCacheBytes,
     accountedBytes: wasmBytes + retainedBodyBytesIsolate + images.bytes + fontAssetCacheBytes,
   };
+}
+
+// What a session keeps off the heap (cdp/storage-memory.ts), as a synthetic worker target, so the
+// Memory panel lists it beside Engine and PageRenderer. Its "heap" is the databases: the stored
+// values are its used size and the database files its total.
+export const STORAGE_TARGET_ID = "kitesurf-storage";
+
+function storageTargetInfo(ctx: DispatchCtx) {
+  return {
+    targetId: STORAGE_TARGET_ID,
+    type: "worker",
+    title: "Storage",
+    url: "kitesurf://storage/session.db",
+    attached: ctx.client.memoryTargets.storage !== null,
+    canAccessOpener: false,
+    browserContextId: "default",
+  };
+}
+
+/** Announces the client's Storage target, or returns it; null for a store on the heap. */
+export function announceStorageTarget(ctx: DispatchCtx): string | null {
+  if (ctx.browser.store.limits.onHeap) return null;
+  if (ctx.client.memoryTargets.storage) return ctx.client.memoryTargets.storage;
+  const sessionId = newClientSession(ctx);
+  ctx.client.memoryTargets.storage = sessionId;
+  ctx.emit({
+    method: "Target.attachedToTarget",
+    params: {
+      sessionId,
+      targetInfo: { ...storageTargetInfo(ctx), attached: true },
+      waitingForDebugger: false,
+    },
+  });
+  return sessionId;
+}
+
+export async function handleStorageSession(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
+  switch (req.method) {
+    case "Runtime.enable": {
+      // One execution context keeps DevTools' RuntimeModel treating the target as alive.
+      ctx.emit({
+        method: "Runtime.executionContextCreated",
+        params: {
+          context: {
+            id: 1,
+            origin: "kitesurf://storage",
+            name: "Storage",
+            uniqueId: "kitesurf-storage-context",
+          },
+        },
+        sessionId: req.sessionId,
+      });
+      return {};
+    }
+    case "Runtime.getHeapUsage": {
+      const m = await storageMemory(ctx.browser);
+      return { usedSize: m?.valueBytes ?? 0, totalSize: m?.bytes ?? 0 };
+    }
+    default:
+      return {};
+  }
 }
 
 export async function handleEngineSession(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {

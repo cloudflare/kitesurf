@@ -13,6 +13,6 @@ export function testClient(connectionMode: "page" | "browser" = "browser"): CdpC
     flatten: false,
     sessions: new Set(),
     preNavScriptIds: new Set(),
-    memoryTargets: { renderer: null, engine: null },
+    memoryTargets: { renderer: null, engine: null, storage: null },
   };
 }

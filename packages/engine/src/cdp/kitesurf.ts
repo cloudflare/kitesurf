@@ -8,6 +8,7 @@ import type { Protocol } from "devtools-protocol";
 import type { DispatchCtx } from "./dispatch.ts";
 import type { CdpMethod, CdpRequest, CdpResultOf, TargetState } from "./types.ts";
 import { CDP_COMMAND_UNHANDLED } from "./types.ts";
+import { storageMemory } from "./storage-memory.ts";
 import {
   sessionOf,
   stubQueryDom,
@@ -428,10 +429,13 @@ export async function handleKitesurf(ctx: DispatchCtx, req: CdpRequest): Promise
           wasmInitialBytes: rendererMem?.initialBytes ?? 0,
           wasmDeltaBytes: rendererMem?.deltaBytes ?? 0,
         };
+        // Storage off the heap is outside total.bytes on purpose.
+        const storage = await storageMemory(ctx.browser);
         return cdpResult(req, {
           byTarget,
           engine,
           renderer,
+          storage,
           isolatesKilled: ctx.browser.workerBudget.isolatesKilled,
           total: {
             bytes: engine.accountedBytes + pageScriptBytes + renderer.wasmBytes,
@@ -439,6 +443,7 @@ export async function handleKitesurf(ctx: DispatchCtx, req: CdpRequest): Promise
             engineBytes: engine.accountedBytes,
             pageScriptBytes,
             rendererBytes: renderer.wasmBytes,
+            storageBytes: storage?.bytes ?? 0,
           },
         });
       }
