@@ -942,6 +942,16 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
   }
 
   installFastpath(document);
+  // DocumentImpl inherits a hasInstance that accepts any node, so page guards
+  // like `span instanceof document.constructor` misfired. Point the constructor
+  // at the Document interface; an own property fails webidl.ts's brand check.
+  // https://html.spec.whatwg.org/multipage/dom.html#the-document-object
+  Object.defineProperty(DocumentImpl.prototype, "constructor", {
+    value: DetachedDocument,
+    writable: true,
+    enumerable: false,
+    configurable: true,
+  });
 
   return bag;
 };
