@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Mon, 23 Nov 2026 15:15:59 +0000
+Subject: [PATCH] Skip unsupported Blend filter primitive in vello_cpu
+ conversion
+
+---
+ src/filters.rs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/filters.rs b/src/filters.rs
+index fd573d2..a0f5b95 100644
+--- a/src/filters.rs
++++ b/src/filters.rs
+@@ -40,7 +40,7 @@ pub(crate) fn convert_filter_effect(effect: &FilterEffect) -> Option<FilterPrimi
+         },
+         FilterEffect::ColorMatrix(matrix) => FilterPrimitive::ColorMatrix { matrix: matrix.0 },
+         FilterEffect::ComponentTransfer(_component_transfer_filter) => return None,
+-        FilterEffect::Blend(mode) => FilterPrimitive::Blend { mode: *mode },
++        FilterEffect::Blend(_mode) => return None,
+         FilterEffect::Composite(_composite_operator) => return None,
+         FilterEffect::Morphology(_morphology_filter) => return None,
+         FilterEffect::ConvolveMatrix(_convolution_kernel) => return None,

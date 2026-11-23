@@ -665,6 +665,8 @@ struct ReplayVisitor<'a, 'b, S: PaintScene> {
     open_clip_paths: Vec<bool>,
     /// The scene holds text from `on_glyph_text` that the next glyph run must consume.
     glyph_text_pending: bool,
+    /// CSS filter chain from `on_layer_filter` for the next `on_push_layer`.
+    pending_filter: Option<std::sync::Arc<anyrender::Filter>>,
 }
 
 const PIXEL_EDGE_EPSILON: f64 = 1e-3;
@@ -943,7 +945,66 @@ impl<'a, 'b, S: PaintScene> ReplayVisitor<'a, 'b, S> {
     }
 }
 
+fn rebuild_filter(effects: &[scene_decode::DecodedFilterEffect]) -> Option<anyrender::Filter> {
+    use anyrender::filters::{EdgeMode, FilterEffect};
+    if effects.is_empty() {
+        return None;
+    }
+    let decode_edge = |mode: u8| -> EdgeMode {
+        match mode {
+            1 => EdgeMode::Wrap,
+            2 => EdgeMode::Mirror,
+            3 => EdgeMode::None,
+            _ => EdgeMode::Duplicate,
+        }
+    };
+    Some(anyrender::Filter::linear_list(effects.iter().map(
+        |effect| match *effect {
+            scene_decode::DecodedFilterEffect::GaussianBlur {
+                std_deviation,
+                edge_mode,
+            } => {
+                let mut e = FilterEffect::blur(std_deviation);
+                if let FilterEffect::GaussianBlur(ref mut b) = e {
+                    b.edge_mode = decode_edge(edge_mode);
+                }
+                e
+            }
+            scene_decode::DecodedFilterEffect::ColorMatrix { matrix } => {
+                let mut e = FilterEffect::opacity(1.0);
+                if let FilterEffect::ColorMatrix(ref mut cm) = e {
+                    cm.0 = matrix;
+                }
+                e
+            }
+            scene_decode::DecodedFilterEffect::DropShadow {
+                dx,
+                dy,
+                std_deviation,
+                rgba,
+                edge_mode,
+            } => {
+                let color = peniko::Color::from_rgba8(
+                    (rgba[0].clamp(0.0, 1.0) * 255.0).round() as u8,
+                    (rgba[1].clamp(0.0, 1.0) * 255.0).round() as u8,
+                    (rgba[2].clamp(0.0, 1.0) * 255.0).round() as u8,
+                    (rgba[3].clamp(0.0, 1.0) * 255.0).round() as u8,
+                );
+                let mut e = FilterEffect::drop_shadow(dx, dy, std_deviation, color);
+                if let FilterEffect::DropShadow(ref mut s) = e {
+                    s.edge_mode = decode_edge(edge_mode);
+                }
+                e
+            }
+        },
+    )))
+}
+
 impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
+    fn on_layer_filter(&mut self, effects: &[scene_decode::DecodedFilterEffect]) {
+        self.pending_filter = rebuild_filter(effects).map(std::sync::Arc::new);
+    }
+
     fn on_push_layer(
         &mut self,
         blend_mix: u8,
@@ -953,6 +1014,7 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
         clip_path: &[DecodedPathEl],
     ) {
         let blend = BlendMode::new(mix_from_u8(blend_mix), compose_from_u8(blend_compose));
+        let filter = self.pending_filter.take();
         // The wire carries no clip fill rule (see RecordingScene::push_layer).
         self.scene.push_layer(
             Fill::NonZero,
@@ -960,7 +1022,7 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
             alpha,
             affine(transform),
             &bez_path(clip_path),
-            None,
+            filter,
             None,
         );
         self.open_clip_paths.push(false);
@@ -1233,6 +1295,7 @@ pub(crate) fn replay_into<S: PaintScene>(
         clip_paths: !composition.non_source_over,
         open_clip_paths: Vec::new(),
         glyph_text_pending: false,
+        pending_filter: None,
     };
     scene_decode::decode(scene_bytes, &mut vis).map_err(|e| e.to_string())?;
     Ok(ReplayStats {

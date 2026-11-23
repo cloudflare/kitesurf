@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Mon, 23 Nov 2026 15:15:59 +0000
+Subject: [PATCH] Prepare ColorMatrix filter primitives in PreparedFilter
+
+---
+ src/filter/mod.rs | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/filter/mod.rs b/src/filter/mod.rs
+index 208f9af..d94b981 100644
+--- a/src/filter/mod.rs
++++ b/src/filter/mod.rs
+@@ -34,6 +34,8 @@ pub enum PreparedFilter {
+     Offset(Offset),
+     /// A drop shadow filter.
+     DropShadow(DropShadow),
++    /// A 4x5 RGBA color matrix filter (`feColorMatrix` / CSS color filters).
++    ColorMatrix([f32; 20]),
+ }
+
+ impl PreparedFilter {
+@@ -96,6 +98,7 @@ impl PreparedFilter {
+
+                 Self::Offset(offset)
+             }
++            FilterPrimitive::ColorMatrix { matrix } => Self::ColorMatrix(*matrix),
+             _ => {
+                 // Other primitives like Blend, ColorMatrix, ComponentTransfer, etc.
+                 // are not yet implemented

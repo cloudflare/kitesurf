@@ -23,7 +23,7 @@ mod_module_files = "warn"
 
 [workspace.dependencies]
 anyrender = { version = "0.14", default-features = false }
-anyrender_vello_cpu = { version = "0.18", default-features = false }
+anyrender_vello_cpu = { version = "0.18", default-features = false, features = ["filters"] }
 vello_cpu = { version = "0.3", default-features = false, features = [
   "std",
   "text",
