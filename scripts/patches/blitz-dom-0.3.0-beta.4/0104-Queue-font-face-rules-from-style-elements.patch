@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Fri, 13 Nov 2026 09:34:07 +0000
+Subject: [PATCH] Queue @font-face rules from <style> elements
+
+A style element's text is parsed by process_style_element, not by the CSS
+resource handler, so the @font-face rules it declares were never added to
+pending_font_faces. The sheet applied but the face was never fetched, and
+every page that declares its webfonts in an inline or script-inserted
+<style> kept the fallback metrics.
+
+Collect the faces from the new sheet and queue them the way a linked
+stylesheet does.
+---
+ src/document.rs | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/src/document.rs b/src/document.rs
+index 7dc76d6..25bc0ad 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -1790,6 +1790,17 @@ impl BaseDocument {
+                 sheet,
+             )
+         };
++        // A <style> element's text is parsed here, not through the CSS net
++        // handler, so its @font-face rules were never queued: the sheet
++        // applied but the face was never fetched, and the page kept the
++        // fallback metrics. Queue them as a linked sheet does.
++        let faces = {
++            let guard = self.guard.read();
++            crate::net::collect_font_faces(Some(target_id), &sheet.0, &guard)
++        };
++        if !faces.is_empty() {
++            self.queue_font_faces(faces);
++        }
+         self.add_stylesheet_for_node(sheet, target_id);
+         let previous_key = self.author_sheet_keys.insert(target_id, cache_key.clone());
+         if let Some(previous) = previous_key.filter(|previous| previous != &cache_key) {
