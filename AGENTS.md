@@ -171,7 +171,9 @@ Use an explicit `KITESURF_PORT` or `--port` when other engines may be running, a
   It refuses to start if a port in its range is taken. `-j N` runs N engines and uses ports
   `port` to `port+2N-1`. It fails on any deviation from `tests/wpt-expectations.json`, including
   unexpected passes; rebaseline with `--update-expectations` in a separate commit. Tests with
-  variants are enrolled once per variant.
+  variants are enrolled once per variant. The gate ignores an entry's `reclassified` marker, which
+  serves tools that diff raw outcomes across runs; a rebaseline that moves a marked pin must
+  update or drop it (`reclassifiedErrors` in `scripts/wpt-shared.mjs`).
 - **testdriver:** `test_driver.click`, `send_keys` and `Actions().send()` dispatch real CDP input.
   Other actions keep upstream's "not implemented" error, and `in_automation` stays `false`.
 

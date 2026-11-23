@@ -12,7 +12,12 @@ import { project } from "./wpt-runplan.mjs";
 const expectations = {
   "/a.html": { expected: "PASS", reason: null },
   "/b.html": { expected: "FAIL", reason: "stylo" },
-  "/c.html": { expected: "TIMEOUT", reason: null, timeout: 60000 },
+  "/c.html": {
+    expected: "TIMEOUT",
+    reason: null,
+    timeout: 60000,
+    reclassified: { from: "FAIL", to: "TIMEOUT", commit: "0".repeat(40) },
+  },
   "/d.html": { expected: "CRASH", reason: "oom" },
   "/e.html": { expected: "FAIL", timeout: 20000, subtestSlack: 2 },
   "/f.html": { expected: "SKIP" },

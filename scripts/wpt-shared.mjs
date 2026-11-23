@@ -103,6 +103,39 @@ export function rebaseline(expectations, results) {
   return { next, skipped };
 }
 
+const RECLASSIFIED_KEYS = ["from", "to", "commit"];
+const COMMIT_SHA = /^[0-9a-f]{40}$/;
+
+function reclassifiedProblems(marker, expected) {
+  if (!marker || typeof marker !== "object" || Array.isArray(marker)) return ["is not an object"];
+  const problems = Object.keys(marker)
+    .filter((key) => !RECLASSIFIED_KEYS.includes(key))
+    .map((key) => `has unknown key ${JSON.stringify(key)}`);
+  for (const key of ["from", "to"])
+    if (!OUTCOMES.includes(marker[key]))
+      problems.push(`${key} ${JSON.stringify(marker[key])} is not an outcome`);
+  if (marker.from === marker.to) problems.push("from equals to");
+  if (marker.to !== expected)
+    problems.push(`to ${marker.to} differs from expected ${expected}: drop or update the marker`);
+  if (typeof marker.commit !== "string" || !COMMIT_SHA.test(marker.commit))
+    problems.push("commit is not a full lowercase hex SHA");
+  return problems;
+}
+
+// `reclassified: {from, to, commit}` marks a pin move that corrects the outcome, such as an exposed
+// false PASS, rather than a regression. The gate ignores it; a tool that diffs raw outcomes across
+// runs skips exactly from → to for that test. Remove it once the comparison base records `to`.
+/** @param {Record<string, object>} expectations @returns {string[]} */
+export function reclassifiedErrors(expectations) {
+  return Object.entries(expectations).flatMap(([test, entry]) =>
+    entry.reclassified === undefined
+      ? []
+      : reclassifiedProblems(entry.reclassified, entry.expected).map(
+          (problem) => `${test}: reclassified ${problem}`,
+        ),
+  );
+}
+
 /** @param {string} url @returns {boolean} */
 export function isMain(url) {
   try {
@@ -158,17 +191,18 @@ export function tallySubtests(results) {
   return { pass, fail, other, total: pass + fail + other };
 }
 
+export const OUTCOMES = ["PASS", "FAIL", "ERROR", "TIMEOUT", "CRASH", "SKIP"];
+
 /** @returns {{
  * total: number, expected: number, unexpectedFail: number,
  * unexpectedPass: number, byOutcome: Record<string, number>
  * }} */
 export function summarize(results) {
-  const KNOWN = ["PASS", "FAIL", "ERROR", "TIMEOUT", "CRASH", "SKIP"];
   const byOutcome = {};
   let unexpectedFail = 0;
   let unexpectedPass = 0;
   for (const r of results) {
-    const oc = KNOWN.includes(r.actual) ? r.actual : "FAIL";
+    const oc = OUTCOMES.includes(r.actual) ? r.actual : "FAIL";
     byOutcome[oc] = (byOutcome[oc] || 0) + 1;
     if (r.unexpected) {
       if (r.expected !== "PASS" && r.actual === "PASS") unexpectedPass++;
