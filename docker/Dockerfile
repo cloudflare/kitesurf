@@ -7,7 +7,7 @@
 #   docker run --rm -p 127.0.0.1:8787:8787 kitesurf
 #
 # Build arguments:
-#   DEVTOOLS=1     bundle the Chrome DevTools frontend at /inspector/ (130 MB, 25 MB compressed)
+#   DEVTOOLS=1     bundle the Chrome DevTools frontend at /inspector/ (50 MB, 11 MB compressed)
 #   BAZEL_FLAGS    extra `bazel build` flags, for example --jobs=4
 #   VERSION        the engine's KITESURF_VERSION
 

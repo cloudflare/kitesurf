@@ -128,7 +128,7 @@ docker build -f docker/Dockerfile -t kitesurf .
 The first build compiles the Rust core, which takes a while. Docker keeps
 Bazel's cache in a build cache mount, so later builds are faster. Add
 `--build-arg DEVTOOLS=1` to bundle the Chrome DevTools frontend. It adds about
-130 MB to the image, or 25 MB compressed. Without it, the landing page uses Chrome's hosted frontend, which connects only
+50 MB to the image, or 11 MB compressed. Without it, the landing page uses Chrome's hosted frontend, which connects only
 to `127.0.0.1`. Behind a TLS-inspecting proxy, give the build the proxy's root
 certificate with `--secret id=ca_certificates,src=<root.pem>`.
 
@@ -253,6 +253,9 @@ DevTools works without the hosted frontend, its permission prompt and the
 `127.0.0.1` limit. A deployed engine always uses this copy. The frontend is the
 prebuilt build that Google publishes for Chromium. The default build does not
 include it.
+
+The copy has only the English text. If you select another language in the
+DevTools settings, DevTools stays in English.
 
 #### Build the frontend
 

@@ -36,6 +36,18 @@ _PRUNED = [
     "**/*.test.js",
 ]
 
+# The translations of DevTools and Lighthouse, about two thirds of the frontend's size. Both use
+# the DevTools language, en-US by default, and fall back to en-US when a locale does not load.
+_LOCALE_DIRS = [
+    "core/i18n/locales",
+    "third_party/lighthouse/locales",
+]
+
+_TRANSLATIONS = glob(
+    ["%s/*.json" % d for d in _LOCALE_DIRS],
+    exclude = ["%s/en-US.json" % d for d in _LOCALE_DIRS],
+)
+
 # What inspector.html needs to start. If an upstream change moves one, the build stops here
 # instead of shipping a frontend that cannot load.
 _REQUIRED = [
@@ -43,11 +55,12 @@ _REQUIRED = [
     "inspector.html",
     "devtools_compatibility.js",
     "entrypoints/inspector/inspector.js",
+    "core/i18n/locales/en-US.json",
     "application_tokens.css",
     "design_system_tokens.css",
 ]
 
-_FRONTEND = glob(["**"], exclude = _PRUNED)
+_FRONTEND = glob(["**"], exclude = _PRUNED + _TRANSLATIONS)
 
 [
     fail("@devtools_frontend has no %s after pruning; re-check the pin and the prune rules" % f)
