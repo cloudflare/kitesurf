@@ -46,6 +46,20 @@ function newClientSession(ctx: DispatchCtx): string {
   return sessionId;
 }
 
+// Attaches `ctx`'s client to a page without announcing it: the session that a page-mode client
+// bound to one page stands for. In page mode the socket is the page, so a Target.attachedToTarget
+// would announce a second, duplicate target.
+export function bindClientSession(ctx: DispatchCtx, target: TargetState): string {
+  const sessionId = newClientSession(ctx);
+  target.sessions.add(sessionId);
+  ctx.browser.networkEvents.setTargetAttribution(
+    target.frameId,
+    target.loaderId,
+    Array.from(target.sessions),
+  );
+  return sessionId;
+}
+
 function hasClientSession(ctx: DispatchCtx, sessions: Set<string>): boolean {
   for (const s of sessions) {
     if (ctx.client.sessions.has(s)) return true;

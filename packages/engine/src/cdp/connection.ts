@@ -26,6 +26,7 @@ import {
   RawJsonResult,
 } from "./types.ts";
 import {
+  bindClientSession,
   childFrameTargets,
   createPageTarget,
   detachClientSession,
@@ -225,6 +226,8 @@ export interface BrowserSessionOptions {
 export interface ClientOptions {
   // Exempts the client from the idle deadline only; the session's wall-clock cap still applies.
   exemptIdleDeadline?: boolean;
+  // Page mode on this one page of a shared browser (ClientConnection's bound session).
+  pageTargetId?: string;
   onCtx?: (dispatchCtx: DispatchCtx) => void;
   onDispatch?: (dispatch: (req: CdpRequest) => Promise<CdpResponse>) => void;
 }
@@ -256,7 +259,7 @@ export class BrowserSession {
   readonly #clients = new Map<string, ClientConnection>();
   // Acts for no client: drains a persistent session while no client is connected.
   readonly #idleCtx: DispatchCtx;
-  // The first client opened the browser and its initial page.
+  // The first client, or openBrowser(), opened the browser and its initial page.
   #opened = false;
   readonly #openedAt: number;
   readonly #drainTimer: ReturnType<typeof setInterval>;
@@ -397,6 +400,12 @@ export class BrowserSession {
     this.#opened = true;
     ensureBrowserTarget(ctx);
     return createPageTarget(ctx, "about:blank");
+  }
+
+  /** Opens the browser before any client connects, for a host that creates the session first. */
+  openBrowser(): TargetState[] {
+    this.openInitialPage(this.#idleCtx);
+    return Array.from(this.browser.targets.values()).filter((t) => t.type === "page");
   }
 
   /** A dispatch context that acts for `client`. Its events go through `route`. */
@@ -643,6 +652,11 @@ export class ClientConnection {
   #lastClientMessageAt = Date.now();
   #deadlineFired = false;
   #left = false;
+  // Page mode on one page of a shared browser: the client's root session stands for its page.
+  // A command without a sessionId runs on this hidden session, except Target.*, which stays
+  // browser-level as the page-mode handlers expect. An event on it arrives with no sessionId,
+  // and of the other root events the client gets only Target.* ones, not its sibling pages'.
+  #boundSession: string | null = null;
 
   constructor(
     session: BrowserSession,
@@ -660,12 +674,18 @@ export class ClientConnection {
     const ctx = session.makeCtx(this.state);
     this.ctx = ctx;
     const connectionId = session.id;
-    this.#tracedDispatch = (req: CdpRequest) =>
+    const traced = (req: CdpRequest) =>
       NOISY_CDP_METHODS.has(req.method)
         ? dispatch(ctx, req)
         : traceSpan(ctx.env.HOST_TRACER, "cdp." + req.method, () => dispatch(ctx, req), {
             connectionId,
           });
+    this.#tracedDispatch = async (req: CdpRequest) => {
+      const bound = this.#boundSession;
+      if (!bound || req.sessionId || req.method.startsWith("Target.")) return traced(req);
+      const response = await traced({ ...req, sessionId: bound } as CdpRequest);
+      return { ...response, sessionId: req.sessionId };
+    };
   }
 
   /** Sends an event or response to this client alone. */
@@ -673,6 +693,11 @@ export class ClientConnection {
     if (this.#closing) {
       this.#sendFailCount++;
       return;
+    }
+    if (this.#boundSession) {
+      const bound = this.#asBoundPage(payload, this.#boundSession);
+      if (bound === null) return;
+      payload = bound;
     }
     try {
       const str = serializeCdpPayload(payload);
@@ -707,6 +732,24 @@ export class ClientConnection {
           `sendCount=${this.#sendCount}, totalBytes=${this.#sendBytesTotal}): ${msg}`,
       );
     }
+  }
+
+  // What a page-bound client gets for `payload`, or null to drop it. It never mutates the
+  // payload: route() hands every client the same event object.
+  #asBoundPage(payload: unknown, bound: string): unknown {
+    if (typeof payload !== "object" || payload === null) return payload;
+    const p: { id?: unknown; method?: unknown; sessionId?: unknown; params?: unknown } = payload;
+    if (p.id !== undefined || typeof p.method !== "string") return payload;
+    if (p.sessionId === bound) return { ...p, sessionId: undefined };
+    if (p.sessionId) return payload;
+    const detached = Reflect.get(Object(p.params), "sessionId");
+    if (p.method === "Target.detachedFromTarget" && detached === bound) {
+      // Its page closed, and Chrome closes a page's socket with it.
+      this.state.sessions.delete(bound);
+      this.close(1000, "kitesurf: target closed");
+      return null;
+    }
+    return p.method.startsWith("Target.") ? payload : null;
   }
 
   // Closes the socket. A non-persistent session tears down from the close listener. A
@@ -760,13 +803,22 @@ export class ClientConnection {
       console.warn("[kitesurf-ws] in-process consumer threw:", err);
     }
 
+    // A client bound to one page attaches to it before anything can emit, so its first command
+    // already runs there.
+    const boundTarget = this.#opts.pageTargetId
+      ? session.browser.targets.get(this.#opts.pageTargetId)
+      : undefined;
+    if (boundTarget) this.#boundSession = bindClientSession(this.ctx, boundTarget);
+
     // After the hooks: a page a hook creates is announced once, by the command that created
     // it. The first client opens the browser; a later one hears of the pages that exist, and in
     // browser mode of their child frames, as emitFrameTarget told the clients before it.
     const initialPage = session.openInitialPage(this.ctx);
     const announced = initialPage
       ? [initialPage]
-      : Array.from(session.browser.targets.values()).filter((t) => t.type === "page");
+      : Array.from(session.browser.targets.values()).filter(
+          (t) => t.type === "page" && (!boundTarget || t === boundTarget),
+        );
     for (const t of announced) {
       this.deliver({
         method: "Target.targetCreated",

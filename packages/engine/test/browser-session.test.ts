@@ -210,6 +210,32 @@ describe("BrowserSession", () => {
     );
   });
 
+  it("binds a page-mode client to one page of a shared browser", async () => {
+    const session = (current = openSession({ persistent: true }));
+    const first = session.openBrowser()[0];
+    if (!first) throw new Error("no page");
+    const a = connect(session);
+    const created = await a.send("Target.createTarget", { url: "about:blank" });
+    const second = String(created.result?.targetId);
+
+    const pageMode = { ...params(), connectionMode: "page" as const };
+    const bound = connect(session, pageMode, { pageTargetId: second });
+    await vi.waitFor(() => expect(bound.events("Target.targetCreated")).toHaveLength(1), WAIT);
+    const info = bound.events("Target.targetCreated")[0]?.params?.targetInfo;
+    expect(info).toMatchObject({ targetId: second });
+
+    // A command without a sessionId runs on the bound page, and its reply has no sessionId.
+    const tree = await bound.send("Page.getFrameTree");
+    expect(tree.sessionId).toBeUndefined();
+    expect(tree.result).toMatchObject({ frameTree: { frame: { id: second } } });
+
+    // Closing the bound page closes the client's socket, as Chrome closes a page's socket.
+    await a.send("Target.closeTarget", { targetId: second });
+    const closed = await bound.closed;
+    expect(closed.code).toBe(1000);
+    expect(session.browser.targets.has(first.targetId)).toBe(true);
+  });
+
   it("hands a leaving client's screencast to a client that still views it", async () => {
     let remaining = -1;
     const request = new Request("http://engine.test/devtools/browser");
