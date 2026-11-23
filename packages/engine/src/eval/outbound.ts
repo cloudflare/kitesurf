@@ -43,6 +43,7 @@ import { MAX_ENTRY_BYTES, putAuthorFont, putOpaqueImage } from "./resource-store
 import { MAX_SHAPED_FONT_BYTES, shapeFontBytes } from "./font-shaping.ts";
 import { engineIsolateId, isForeignIsolate } from "./isolate-id.ts";
 import { readCapped, readCappedBudgeted, withDeadline } from "../read-capped.ts";
+import { forwardToStatefulSession } from "../state/outbound-forward.ts";
 import {
   KITESURF_CORS_VERDICT_HEADER,
   KITESURF_NOSNIFF_HEADER,
@@ -93,6 +94,9 @@ export interface OutboundProps {
   // The document response's Referrer-Policy, shared with frame navigation.
   referrerPolicy?: string;
   connectionId?: string;
+  // The Durable Object id of a stateful session. The loopback forwards the call into that object,
+  // the only place that reaches the session's state (state/outbound-forward.ts).
+  statefulSessionId?: string;
   interceptConnectionId?: string;
   cookieKey?: string;
   allowDocumentBypass?: boolean;
@@ -281,12 +285,14 @@ export function createSandboxOutboundOverride(
   env: SandboxOutboundEnv,
   externalOutbound?: ExternalOutbound,
   egress?: ExternalOutbound,
+  statefulSessionId?: string,
 ): SandboxOutboundOverride {
   const seal = (props: CallerOutboundProps): OutboundProps => ({
     ...props,
     externalOutbound,
     egress: externalOutbound ? undefined : egress,
     engineIsolateId: engineIsolateId(),
+    ...(statefulSessionId ? { statefulSessionId } : {}),
   });
   return {
     external: externalOutbound !== undefined,
@@ -312,6 +318,8 @@ export function createSandboxOutboundOverride(
 
 export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, OutboundProps> {
   override fetch(request: Request): Promise<Response> {
+    const forwarded = forwardToStatefulSession(this.ctx.exports, this.ctx.props, request);
+    if (forwarded) return forwarded;
     return SandboxOutbound.handle(this.env, this.ctx.props, request);
   }
 

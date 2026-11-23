@@ -275,4 +275,7 @@ export function engineE2EConfig(opts: EngineE2EOptions): ReturnType<typeof defin
 export default engineE2EConfig({
   wranglerConfig: resolve(HERE, process.env.KS_E2E_WRANGLER_CONFIG ?? "wrangler.jsonc"),
   engineDist: ENGINE_DIST,
+  // The template declares no Durable Object, so stateful sessions are opt-in per deploy. The
+  // engine reaches the class through ctx.exports; the binding only gives miniflare a namespace.
+  engineDurableObjects: { STATEFUL_BROWSER: { className: "StatefulBrowser", useSQLite: true } },
 });

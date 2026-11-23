@@ -10,6 +10,7 @@ export {
   PageScriptTail,
   DeniedOutbound,
   SpanSink,
+  StatefulBrowser,
 } from "./index.ts";
 export { DEFAULT_ENGINE_HOST } from "./host.ts";
 export type { EngineHost, ConnectionOptions } from "./host.ts";

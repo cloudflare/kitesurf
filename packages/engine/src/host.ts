@@ -64,6 +64,10 @@ export interface EngineHost {
    * An external outbound takes precedence. Unset uses `fetch`.
    */
   egress?(env: Env, ctx: ExecutionContext): ExternalOutbound | undefined;
+  // The owner of a stateful session (stateful.ts), from the request that creates it or connects
+  // to it. A client connects only to a session that its owner created. Unset, or null at
+  // creation, admits every client that knows the session id.
+  sessionOwner?(request: Request, env: Env, ctx: ExecutionContext): string | null;
   /**
    * Creates the store a session keeps its data in. Unset, or returning nothing, keeps every
    * table on the isolate heap (`MemorySessionStore`), which is what a plain session wants.

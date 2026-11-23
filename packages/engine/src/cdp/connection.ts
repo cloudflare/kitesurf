@@ -75,7 +75,7 @@ import type { PageIsolateCapOverrides } from "../eval/page-script.ts";
 import { buildDispatchEnv } from "./dispatch-env.ts";
 import { markArrival } from "./arrival.ts";
 import { MAX_STYLE_CACHE_CHARS, StyleCache, isStyleCacheEntry } from "./style-cache.ts";
-import { isStoredString } from "../state/session-store.ts";
+import { isStoredString, type SessionStore } from "../state/session-store.ts";
 import { makeWallClock } from "../eval/host-clock.ts";
 import { LocalStorage } from "../state/local-storage.ts";
 // Wrangler generates the ambient `Env` declaration from wrangler.jsonc.
@@ -221,6 +221,11 @@ export interface BrowserSessionOptions {
   pageScriptHost?: PageScriptHost;
   // A client left a persistent session that keeps running; `remaining` clients are connected.
   onClientLeft?: (remaining: number) => void;
+  // Where the session keeps its data. Unset, the host's createSessionStore decides.
+  store?: SessionStore;
+  // The Durable Object that hosts the session (stateful.ts). Its loaded workers' outbound calls
+  // are forwarded into that object.
+  statefulSessionId?: string;
 }
 
 export interface ClientOptions {
@@ -285,7 +290,7 @@ export class BrowserSession {
     const connectionId = this.id;
     const options = resolveConnectionOptions(request, connectionId, opts.host, env);
 
-    const store = resolveSessionStore(connectionId, env, opts.host);
+    const store = opts.store ?? resolveSessionStore(connectionId, env, opts.host);
     // Retain response bodies only when Network.enable requests buffering.
     const networkEvents = new NetworkEventTracker(
       (event) => this.route(event),
@@ -329,6 +334,7 @@ export class BrowserSession {
         env,
         opts.externalOutbound,
         opts.externalOutbound ? undefined : opts.egress?.(),
+        opts.statefulSessionId,
       ),
       contexts: new Map(),
       localStorage: new LocalStorage(store),

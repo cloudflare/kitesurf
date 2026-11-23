@@ -39,13 +39,54 @@ export async function connectEngine(
   headers: Record<string, string> = {},
   query = "",
 ): Promise<Browser> {
-  const resp = await fetcher.fetch(`https://ks.invalid/devtools/browser${query}`, {
+  return connectPath(fetcher, `/devtools/browser${query}`, headers);
+}
+
+// Upgrades `path` on the engine and hands puppeteer the socket.
+export async function connectPath(
+  fetcher: { fetch: typeof fetch },
+  path: string,
+  headers: Record<string, string> = {},
+): Promise<Browser> {
+  const resp = await fetcher.fetch(`https://ks.invalid${path}`, {
     headers: { Upgrade: "websocket", ...headers },
   });
   const ws = upgradedSocket(resp);
-  if (!ws) throw new Error(`no webSocket on /devtools/browser (status ${resp.status})`);
+  if (!ws) throw new Error(`no webSocket on ${path} (status ${resp.status})`);
   ws.accept();
   return puppeteer.connect({ transport: wrapWebSocket(ws) as never });
+}
+
+// POST /devtools/browser: creates a stateful session.
+export async function createStatefulSession(
+  fetcher: { fetch: typeof fetch },
+  query = "",
+): Promise<{ sessionId: string; webSocketDebuggerUrl: string; pageTargetId: string }> {
+  const resp = await fetcher.fetch(`https://ks.invalid/devtools/browser${query}`, {
+    method: "POST",
+  });
+  if (resp.status !== 200) {
+    throw new Error(`POST /devtools/browser: ${resp.status} ${await resp.text()}`);
+  }
+  const body: unknown = await resp.json();
+  const field = (name: string): string => {
+    const value: unknown = Reflect.get(Object(body), name);
+    if (typeof value !== "string") throw new Error(`POST /devtools/browser: no ${name}`);
+    return value;
+  };
+  return {
+    sessionId: field("sessionId"),
+    webSocketDebuggerUrl: field("webSocketDebuggerUrl"),
+    pageTargetId: field("pageTargetId"),
+  };
+}
+
+// Connects puppeteer to a stateful session's browser endpoint.
+export function connectStatefulSession(
+  fetcher: { fetch: typeof fetch },
+  sessionId: string,
+): Promise<Browser> {
+  return connectPath(fetcher, `/devtools/browser/${sessionId}`);
 }
 
 export async function targetIdForSession(session: CDPSession): Promise<Protocol.Target.TargetID> {
