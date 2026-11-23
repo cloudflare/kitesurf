@@ -5,7 +5,7 @@
 // Where localStorage and sessionStorage keep their data. localStorage is shared by every page of
 // the browser context, so no one isolate can hold it: the engine keeps each origin's area (engine
 // state/local-storage.ts), hands the page a copy at navigation, and sends other sources' changes.
-// sessionStorage and an unseeded localStorage stay in memory for the isolate's one document.
+// It keeps a tab's sessionStorage the same way; an unseeded area stays in the one document.
 
 import type { LocalStorageOp } from "@kitesurf/jsrpc-types/page-script";
 import { sendUpstreamEvent } from "./internal-state.js";
@@ -196,9 +196,9 @@ export interface SharedArea extends RemoteArea {
   flush(): number;
 }
 
-// localStorage on a page the engine seeded: a copy of the browser context's area for this origin,
-// with every change also sent to the engine, batched per microtask. remove and clear are sent even
-// when this copy has nothing to drop: the engine's area can hold keys another page wrote since.
+// Storage on a page the engine seeded: a copy of the engine's area for this origin, with every
+// change also sent to the engine, batched per microtask. remove and clear are sent even when this
+// copy has nothing to drop: the engine's area can hold keys another page wrote since.
 export function sharedArea(
   seed: ReadonlyArray<readonly [string, string]>,
   send: (ops: LocalStorageOp[], seq: number) => void = (ops, seq) =>

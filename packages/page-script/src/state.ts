@@ -55,6 +55,7 @@ export interface PageScriptState {
   // The browser context's localStorage area for this document's origin, set by navigate()
   // (web-storage.ts sharedArea). Null keeps localStorage in memory for this document only.
   localStorageSeed: Array<[string, string]> | null;
+  sessionStorageSeed: Array<[string, string]> | null; // the tab's area, set with localStorageSeed
 
   document: ShimDocument | null;
   window: ShimWindow | null;
@@ -151,6 +152,7 @@ export const state: PageScriptState = {
   mainFrameId: "",
   cookieKey: "",
   localStorageSeed: null,
+  sessionStorageSeed: null,
   document: null,
   window: null,
   lastRecordScrollX: 0,

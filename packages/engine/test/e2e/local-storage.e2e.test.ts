@@ -23,15 +23,11 @@ const read = (p: Page) =>
     return out;
   });
 
-test("localStorage outlives navigations, per origin; sessionStorage does not", async ({ page }) => {
+test("localStorage outlives navigations, per origin", async ({ page }) => {
   await page.goto(A, { waitUntil: "load" });
-  await page.evaluate(() => {
-    localStorage.setItem("k", "local");
-    sessionStorage.setItem("k", "tab");
-  });
+  await page.evaluate(() => localStorage.setItem("k", "local"));
   await page.goto(A2, { waitUntil: "load" });
   expect(await read(page)).toEqual({ k: "local" });
-  expect(await page.evaluate(() => sessionStorage.getItem("k"))).toBe(null);
   // Another origin sees its own, empty area; coming back finds ours.
   await page.goto(OTHER, { waitUntil: "load" });
   expect(await read(page)).toEqual({});

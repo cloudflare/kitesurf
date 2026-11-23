@@ -75,6 +75,27 @@ describe("changeLocalStorage", () => {
     expect(two.calls.at(-1)).toMatchObject({ ops: [{ op: "clear" }], seq: 0 });
   });
 
+  it("sends a tab's sessionStorage changes to its copy as the session area", async () => {
+    const { ctx, storage, page } = setup();
+    const { target } = page("one");
+    const { stub, calls } = fakeStub();
+    const tab = storage.forTab("one");
+    const copy = new StorageCopy(ctx.browser.targets, target, 1, stub, tab, A, `${A}/`);
+    tab.apply(A, [{ op: "set", key: "step", value: "1" }]);
+    expect(await copy.seed()).toEqual([["step", "1"]]);
+    await changeLocalStorage(ctx, tab, A, [{ op: "set", key: "step", value: "2" }], { url: null });
+    expect(calls).toEqual([
+      {
+        op: "apply",
+        area: "session",
+        ops: [{ op: "set", key: "step", value: "2" }],
+        url: null,
+        seq: 0,
+      },
+    ]);
+    expect(storage.entries(A)).toEqual([]);
+  });
+
   it("skips a copy whose document was replaced or whose target closed", async () => {
     const { ctx, storage, page } = setup();
     const replaced = page("replaced");
@@ -191,7 +212,7 @@ describe("StorageCopy.seed", () => {
     storage.apply(A, [{ op: "set", key: "big", value: big }]);
     const { copy, calls } = page("next", `${A}/`, false);
     expect(await copy.seed()).toEqual([]);
-    expect(calls).toEqual([{ op: "seed", entries: [["big", big]] }]);
+    expect(calls).toEqual([{ op: "seed", area: "local", entries: [["big", big]] }]);
   });
 
   it("sends a small area inline only", async () => {

@@ -9,7 +9,7 @@
 
 // Tables: `localStorage` indexes the default context's origins, and `localStorage|<origin>`
 // holds one origin's keys. A browser context's tables carry its id: `localStorage:<id>` and
-// `localStorage:<id>|<origin>`.
+// `localStorage:<id>|<origin>`. A tab's sessionStorage uses `sessionStorage:<targetId>`.
 
 import type { LocalStorageOp } from "@kitesurf/jsrpc-types/page-script";
 import { isStoredString, type SessionStore, type StoreGuard } from "./session-store.ts";
@@ -46,18 +46,32 @@ const isIndexed: StoreGuard<true> = (v): v is true => v === true;
 export class LocalStorage {
   readonly #store: SessionStore;
   readonly #prefix: string;
+  // Which Web Storage area this is, named as page-script's webStorage calls name it, so a copy
+  // of it knows which of the page's areas to seed and update.
+  readonly area: "local" | "session";
   // Code units per origin, counted on first use so a store that outlives this object stays right.
   readonly #units = new Map<string, number>();
   #disposed = false;
 
-  constructor(store: SessionStore, contextId?: string) {
+  constructor(
+    store: SessionStore,
+    contextId?: string,
+    kind: "localStorage" | "sessionStorage" = "localStorage",
+  ) {
     this.#store = store;
-    this.#prefix = contextId ? `localStorage:${contextId}` : "localStorage";
+    this.#prefix = contextId ? `${kind}:${contextId}` : kind;
+    this.area = kind === "localStorage" ? "local" : "session";
   }
 
   /** The localStorage of browser context `contextId`, in the same store. */
   forContext(contextId: string): LocalStorage {
     return new LocalStorage(this.#store, contextId);
+  }
+
+  // The sessionStorage of tab `targetId`, in the same store: kept per origin like localStorage,
+  // but the tab's alone, so a navigation within the tab keeps it and another tab does not see it.
+  forTab(targetId: string): LocalStorage {
+    return new LocalStorage(this.#store, targetId, "sessionStorage");
   }
 
   #index() {

@@ -61,6 +61,9 @@ export interface NavigateOptions {
   // state/local-storage.ts). Absent for an opaque origin or a child frame, whose localStorage
   // stays in the isolate for this document only.
   localStorage?: Array<[string, string]>;
+  // The tab's sessionStorage area for the document's origin (engine target.ts), absent whenever
+  // localStorage is: its storage then stays in the isolate too.
+  sessionStorage?: Array<[string, string]>;
   // The effective iframe sandbox restrictions for this document, already intersected with its
   // ancestors. Absent means no restrictions.
   sandbox?: SandboxRestrictions;
@@ -396,6 +399,9 @@ export interface UpstreamEvents {
   // localStorage changes on a page with a seeded area, batched per microtask. The engine applies
   // them to the browser context's area for the origin. `seq` counts this document's batches.
   "kitesurf.localStorage": { ops: LocalStorageOp[]; seq: number };
+  // The same for sessionStorage, which the engine keeps per tab rather than per browser
+  // context; `seq` counts this document's sessionStorage batches.
+  "kitesurf.sessionStorage": { ops: LocalStorageOp[]; seq: number };
   "kitesurf.modelContextToolsAdded": { tools: WebMcpTool[] };
   "kitesurf.modelContextToolsRemoved": { names: string[] };
   "kitesurf.navigatedWithinDocument": {
@@ -439,13 +445,19 @@ export type LocalStorageOp =
 // The engine's calls on a page's Web Storage. `flush` sends the unsent localStorage changes now.
 // `apply` makes changes from another source (another page, a CDP client) and fires `storage`
 // events with `url` (none when null); `seq` is the page's last batch the area held before them.
-// `entries` reads sessionStorage, which only the page holds.
+// `entries` reads sessionStorage, whose unsent changes only the page holds.
 export type WebStorageParams =
   | { op: "flush" }
-  // Part of the next document's localStorage seed, ahead of navigate, which carries the rest.
-  | { op: "seed"; entries: Array<[string, string]> }
-  | { op: "apply"; area: "local"; ops: LocalStorageOp[]; url: string | null; seq: number }
-  | { op: "apply"; area: "session"; ops: LocalStorageOp[]; url: string | null }
+  // Part of the next document's seed for an area, sent ahead of navigate, which carries the
+  // rest; the page joins them when it builds the area.
+  | { op: "seed"; area: "local" | "session"; entries: Array<[string, string]> }
+  | {
+      op: "apply";
+      area: "local" | "session";
+      ops: LocalStorageOp[];
+      url: string | null;
+      seq: number;
+    }
   | { op: "entries"; area: "session" };
 
 export interface WebStorageReply {

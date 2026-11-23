@@ -146,7 +146,11 @@ import { classifyRequest } from "../request-blocker.ts";
 import { emitMutations } from "./dom.ts";
 import { frontendNodes, sessionKeyOf } from "./dom-frontend.ts";
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
-import { localStorageOrigin, readLocalStorageOps } from "../state/local-storage.ts";
+import {
+  localStorageOrigin,
+  readLocalStorageOps,
+  type LocalStorage,
+} from "../state/local-storage.ts";
 import { changeLocalStorage, StorageCopy } from "./storage-copies.ts";
 import { dropTargetImages } from "../eval/resource-store.ts";
 import {
@@ -173,6 +177,7 @@ import {
   emitFrameTarget,
   jarForTarget,
   localStorageForTarget,
+  sessionStorageForTarget,
   announceOopifTarget,
   destroyOopifTarget,
 } from "./target.ts";
@@ -2333,30 +2338,30 @@ async function pushNavigateToPageScriptInner(
 
   const raBakeMs = ctx.analytics.now() - raBakeStart;
 
-  // The browser context's localStorage for the document's origin: the page gets a copy and sends
-  // its changes back as upstream events (cdp/storage-copies.ts).
+  // The browser context's localStorage and the tab's sessionStorage for the document's origin:
+  // the page gets a copy of each and sends its changes back as upstream events (storage-copies.ts).
   const lsOrigin = localStorageOrigin(url);
-  const sharedLocalStorage =
+  const storageCopy = (storage: LocalStorage) =>
     lsOrigin && pendingPageScript
       ? new StorageCopy(
           ctx.browser.targets,
           target,
           generation,
           pendingPageScript,
-          localStorageForTarget(ctx, target),
+          storage,
           lsOrigin,
           url,
         )
       : undefined;
+  const sharedLocalStorage = storageCopy(localStorageForTarget(ctx, target));
+  const sharedSessionStorage = lsOrigin
+    ? storageCopy(sessionStorageForTarget(ctx, target))
+    : undefined;
   if (pendingPageScript) {
-    installUpstreamEventHandler(
-      ctx,
-      target,
-      pendingPageScript,
-      generation,
-      url,
-      sharedLocalStorage,
-    );
+    installUpstreamEventHandler(ctx, target, pendingPageScript, generation, url, {
+      local: sharedLocalStorage,
+      session: sharedSessionStorage,
+    });
     installIsolateLimitSurface(
       ctx,
       target,
@@ -2372,6 +2377,7 @@ async function pushNavigateToPageScriptInner(
   try {
     // Read after retireStub, so the old document's last writes are in.
     const localStorageSeed = await sharedLocalStorage?.seed();
+    const sessionStorageSeed = await sharedSessionStorage?.seed();
     const initialCookies = jarForTarget(ctx, target).documentCookieString(url);
     const ps = pendingPageScript;
     const raNavStart = ctx.analytics.now();
@@ -2417,6 +2423,7 @@ async function pushNavigateToPageScriptInner(
         mainFrameId: target.frameId,
         cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
         ...(localStorageSeed ? { localStorage: localStorageSeed } : {}),
+        ...(sessionStorageSeed ? { sessionStorage: sessionStorageSeed } : {}),
         modulePreloadPins: preloadSeeds.map(({ url, integrity }) => ({ url, integrity })),
         // The legacy plan (no bundle: a failed bake) gates its parser scripts from these.
         scriptPolicy: {
@@ -4335,9 +4342,9 @@ export function installUpstreamEventHandler(
   stub: PageScriptStub,
   generation: number,
   url: string,
-  // This document's copy of its origin's localStorage: absent for an opaque origin, whose
-  // localStorage stays in the page (state/local-storage.ts).
-  sharedLocalStorage?: StorageCopy,
+  // This document's copies of its origin's localStorage and sessionStorage: absent for an opaque
+  // origin, whose storage stays in the page (state/local-storage.ts).
+  shared: { local?: StorageCopy; session?: StorageCopy } = {},
 ): void {
   if (target.navigateGeneration === generation) {
     target.pageScriptUrl = url;
@@ -4357,8 +4364,8 @@ export function installUpstreamEventHandler(
     if (ctx.browser.wsClosing) return;
     // Before the generation check: a write the old document made just before a navigation still
     // happened, and this closure knows its origin.
-    if (event === "kitesurf.localStorage") {
-      const copy = sharedLocalStorage;
+    if (event === "kitesurf.localStorage" || event === "kitesurf.sessionStorage") {
+      const copy = event === "kitesurf.localStorage" ? shared.local : shared.session;
       if (!copy) return;
       const ops = readLocalStorageOps(params);
       const seq = typeof params.seq === "number" ? params.seq : 0;

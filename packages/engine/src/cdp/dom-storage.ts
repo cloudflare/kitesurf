@@ -3,15 +3,15 @@
 // https://opensource.org/licenses/Apache-2.0
 
 // The DOMStorage domain. localStorage goes to the engine's area for the page's browser context,
-// so it works for any http(s) origin, open or not (storage-copies.ts). sessionStorage lives in
-// the page, so it works only for the origin of the page's document, as in Chrome.
+// so it works for any http(s) origin, open or not (storage-copies.ts). sessionStorage, the tab's,
+// works only for the origin of the page's document, as in Chrome: reads ask the page's copy.
 
 import type { LocalStorageOp } from "@kitesurf/jsrpc-types/page-script";
 import type { DispatchCtx } from "./dispatch.ts";
 import type { CdpRequest, FrameState, TargetState } from "./types.ts";
 import type { PageScriptStub } from "../eval/page-script.ts";
 import { localStorageOrigin, type LocalStorage } from "../state/local-storage.ts";
-import { findSessionOwner, localStorageForTarget } from "./target.ts";
+import { findSessionOwner, localStorageForTarget, sessionStorageForTarget } from "./target.ts";
 import { resolveTarget } from "./page-session.ts";
 import { changeLocalStorage, documentOrigin, liveCopies, NO_SESSION } from "./storage-copies.ts";
 
@@ -64,12 +64,10 @@ async function changeStorage(
   ops: LocalStorageOp[],
 ): Promise<Record<string, never>> {
   const { origin, isLocalStorage } = storageIdOrigin(storageId);
-  if (!isLocalStorage) {
-    const stub = sessionStoragePage(target, origin);
-    await stub.webStorage({ op: "apply", area: "session", ops, url: target.url });
-    return {};
-  }
-  const storage = localStorageForTarget(ctx, target);
+  if (!isLocalStorage) sessionStoragePage(target, origin);
+  const storage = isLocalStorage
+    ? localStorageForTarget(ctx, target)
+    : sessionStorageForTarget(ctx, target);
   const result = await changeLocalStorage(ctx, storage, origin, ops, { url: target.url });
   if (result.applied.length < ops.length) throw new Error("Setting the value exceeded the quota");
   return {};

@@ -63,6 +63,19 @@ describe("LocalStorage", () => {
     ]);
   });
 
+  it("gives each tab sessionStorage areas of its own, apart from its context's", () => {
+    const store = new MemorySessionStore();
+    const base = new LocalStorage(store);
+    const tab = base.forContext("ctx-1").forTab("T1");
+    base.apply(A, [{ op: "set", key: "k", value: "local" }]);
+    tab.apply(A, [{ op: "set", key: "k", value: "session" }]);
+    expect(base.forTab("T2").entries(A)).toEqual([]);
+    expect(tab.entries(A)).toEqual([["k", "session"]]);
+    expect(base.entries(A)).toEqual([["k", "local"]]);
+    tab.dispose();
+    expect(Object.keys(store.stats().tables).some((t) => t.includes("T1"))).toBe(false);
+  });
+
   it("drops a disposed context's areas and ignores its late writes", () => {
     const store = new MemorySessionStore();
     const base = new LocalStorage(store);

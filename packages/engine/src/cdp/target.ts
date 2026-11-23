@@ -96,6 +96,13 @@ export function localStorageForTarget(
   return ctx.browser.localStorage;
 }
 
+// A tab's, as browsers keep it: what a flow writes there survives the tab's navigations, and a
+// new tab starts empty. The store is its browser context's, so a context's tabs share its fate.
+export function sessionStorageForTarget(ctx: DispatchCtx, target: TargetState): LocalStorage {
+  target.sessionStorage ??= localStorageForTarget(ctx, target).forTab(target.targetId);
+  return target.sessionStorage;
+}
+
 export function jarForContextId(ctx: DispatchCtx, browserContextId: string | undefined): CookieJar {
   if (browserContextId) {
     const entry = ctx.browser.contexts.get(browserContextId);
@@ -435,6 +442,7 @@ export async function closeTargetInternal(ctx: DispatchCtx, id: string): Promise
       );
     }
     releaseAllDomHandles(target);
+    target.sessionStorage?.dispose();
   }
   const existed = ctx.browser.targets.delete(id);
   stopSceneStreams(ctx.browser, id);

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-// The localStorage copies open pages hold. The engine's area (state/local-storage.ts) is the
+// The Web Storage copies open pages hold. The engine's area (state/local-storage.ts) is the
 // record: every change lands there first and then goes to each other open copy of the origin, so
 // the copies stay in step and fire `storage`. DOMStorage reads and writes through here too.
 
@@ -45,7 +45,9 @@ export class StorageCopy {
     registerCopy(this);
     const chunks = seedChunks(this.storage.entries(this.origin));
     const inline = chunks.pop() ?? [];
-    for (const entries of chunks) await this.stub.webStorage({ op: "seed", entries });
+    for (const entries of chunks) {
+      await this.stub.webStorage({ op: "seed", area: this.storage.area, entries });
+    }
     return inline;
   }
 
@@ -164,7 +166,7 @@ export async function changeLocalStorage(
 // `seq` tells the page which of its own batches the area held before these ops, so it replays
 // the rest on top (page-script web-storage.ts).
 function pushTo(copy: StorageCopy, ops: LocalStorageOp[], url: string | null): Promise<unknown> {
-  const params = { op: "apply", area: "local", ops, url, seq: copy.applied } as const;
+  const params = { op: "apply", area: copy.storage.area, ops, url, seq: copy.applied } as const;
   return copy.stub.webStorage(params).catch(() => {});
 }
 

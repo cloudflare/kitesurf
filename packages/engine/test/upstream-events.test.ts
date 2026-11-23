@@ -73,14 +73,17 @@ function installFor(isolateUrl: string, localStorage?: LocalStorage) {
   } as TargetState;
   targets.set(target.targetId, target);
   const origin = localStorage ? new URL(isolateUrl).origin : "";
-  const copy = localStorage
-    ? new StorageCopy(targets, target, 1, stub, localStorage, origin, isolateUrl)
-    : undefined;
-  void copy?.seed();
-  installUpstreamEventHandler(ctx, target, stub, 1, isolateUrl, copy);
+  const sessionStorage = localStorage?.forTab(target.targetId);
+  const copyOf = (storage: LocalStorage | undefined) =>
+    storage ? new StorageCopy(targets, target, 1, stub, storage, origin, isolateUrl) : undefined;
+  const local = copyOf(localStorage);
+  const session = copyOf(sessionStorage);
+  void local?.seed();
+  void session?.seed();
+  installUpstreamEventHandler(ctx, target, stub, 1, isolateUrl, { local, session });
   const send = (event: UpstreamEventName, params: ReceivedUpstreamParams) =>
     handler!(event, params);
-  return { store, emitted, target, send, ctx, stub, webStorageCalls };
+  return { store, emitted, target, send, ctx, stub, webStorageCalls, sessionStorage };
 }
 
 describe("kitesurf.insertedScriptRan", () => {
@@ -119,6 +122,16 @@ describe("kitesurf.localStorage", () => {
         sessionId: "s1",
       },
     ]);
+  });
+
+  it("keeps sessionStorage writes in the tab's area, apart from localStorage", () => {
+    const storage = new LocalStorage(new MemorySessionStore());
+    const { send, target, sessionStorage, webStorageCalls } = installFor(`${A}/x`, storage);
+    target.domStorageSessions.set("s1", null);
+    send("kitesurf.sessionStorage", { ops: [{ op: "set", key: "k", value: "v" }], seq: 2 });
+    expect(sessionStorage?.entries(A)).toEqual([["k", "v"]]);
+    expect(storage.entries(A)).toEqual([]);
+    expect(webStorageCalls).toEqual([{ op: "apply", area: "session", ops: [], url: null, seq: 2 }]);
   });
 
   it("drops writes once the connection is closing", () => {

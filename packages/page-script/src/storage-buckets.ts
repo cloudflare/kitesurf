@@ -10,6 +10,7 @@ import type {
   WebStorageParams,
   WebStorageReply,
 } from "@kitesurf/jsrpc-types/page-script";
+import { sendUpstreamEvent } from "./internal-state.js";
 import { runPageTaskOrQueue } from "./page-tasks.ts";
 import { ksEventCtors, state, type ShimEventCtors } from "./state.ts";
 import {
@@ -22,6 +23,9 @@ import {
   type StorageChange,
 } from "./web-storage.ts";
 
+type AreaName = "local" | "session";
+type Seed = ReadonlyArray<readonly [string, string]>;
+
 // The document's two Storage objects and their areas, for the engine's webStorage calls.
 interface Bucket {
   storage: object;
@@ -29,28 +33,41 @@ interface Bucket {
 }
 let localBucket: (Bucket & { area: SharedArea }) | null = null;
 let sessionBucket: Bucket | null = null;
-// Engine changes that arrived before navigate() built localStorage; they land on the seed.
-let earlyLocalOps: LocalStorageOp[] = [];
-// The part of the seed the engine sent ahead of navigate, for an area too large for one call.
-let seedAhead: Array<[string, string]> = [];
+// Engine changes that arrived before navigate() built an area, per area: they land on its seed
+// once the area exists.
+const earlyOps: Record<AreaName, LocalStorageOp[]> = { local: [], session: [] };
+// The part of each area's seed the engine sent ahead of navigate, for an area too large to go in
+// one call; navigate's own seed follows it.
+const seedAhead: Record<AreaName, Array<[string, string]>> = { local: [], session: [] };
+
+function seededArea(name: AreaName, seed: Seed): SharedArea {
+  const ahead = seedAhead[name];
+  seedAhead[name] = [];
+  const event = name === "local" ? "kitesurf.localStorage" : "kitesurf.sessionStorage";
+  const area = sharedArea(ahead.length > 0 ? [...ahead, ...seed] : seed, (ops, seq) =>
+    sendUpstreamEvent({ event, params: { ops, seq } }),
+  );
+  area.applyRemote(earlyOps[name], 0);
+  earlyOps[name] = [];
+  return area;
+}
 
 /**
- * The document's localStorage and sessionStorage. localStorage is shared when the engine seeded
- * it, and in memory for this document otherwise.
+ * The document's localStorage and sessionStorage. Each is shared when the engine seeded it, and
+ * in memory for this document otherwise.
  */
-export function storageBuckets(seed: ReadonlyArray<readonly [string, string]> | null): {
+export function storageBuckets(
+  localSeed: Seed | null,
+  sessionSeed: Seed | null,
+): {
   localStorage: object;
   sessionStorage: object;
 } {
-  const session = sessionArea();
+  const session = sessionSeed ? seededArea("session", sessionSeed) : sessionArea();
   sessionBucket = { storage: storageObject(session), area: session };
   let localStorage: object;
-  const ahead = seedAhead;
-  seedAhead = [];
-  if (seed) {
-    const area = sharedArea(ahead.length > 0 ? [...ahead, ...seed] : seed);
-    area.applyRemote(earlyLocalOps, 0);
-    earlyLocalOps = [];
+  if (localSeed) {
+    const area = seededArea("local", localSeed);
     localStorage = storageObject(area);
     localBucket = { storage: localStorage, area };
   } else {
@@ -83,7 +100,7 @@ function fireStorageEvents(
 export function webStorage(params: WebStorageParams): WebStorageReply {
   if (params.op === "flush") return { seq: localBucket ? localBucket.area.flush() : 0 };
   if (params.op === "seed") {
-    for (const entry of params.entries) seedAhead.push(entry);
+    for (const entry of params.entries) seedAhead[params.area].push(entry);
     return { seq: 0 };
   }
   if (params.op === "entries") {
@@ -94,10 +111,9 @@ export function webStorage(params: WebStorageParams): WebStorageReply {
   }
   const bucket = params.area === "local" ? localBucket : sessionBucket;
   if (!bucket) {
-    if (params.area === "local") earlyLocalOps.push(...params.ops);
+    earlyOps[params.area].push(...params.ops);
     return { seq: 0 };
   }
-  const acked = params.area === "local" ? params.seq : 0;
-  fireStorageEvents(bucket.area.applyRemote(params.ops, acked), bucket.storage, params.url);
+  fireStorageEvents(bucket.area.applyRemote(params.ops, params.seq), bucket.storage, params.url);
   return { seq: 0 };
 }

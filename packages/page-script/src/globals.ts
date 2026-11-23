@@ -3110,12 +3110,16 @@ export function installGlobals(
         });
       } catch {}
       // localStorage is a copy of the browser context's area when the engine seeded one
-      // (web-storage.ts). One isolate is one document, so the origin is fixed here.
-      const seed = state.sandbox.sameOrigin ? state.localStorageSeed : null;
+      // (web-storage.ts), and sessionStorage of the tab's. One isolate is one document.
+      const sameOrigin = state.sandbox.sameOrigin;
       // An opaque sandboxed origin has no storage bucket; the accessor throws, as in Chrome.
-      const buckets = storageBuckets(seed);
+      const buckets = storageBuckets(
+        sameOrigin ? state.localStorageSeed : null,
+        sameOrigin ? state.sessionStorageSeed : null,
+      );
       // The area holds the entries now; the seed would keep a second copy for the document's life.
       state.localStorageSeed = null;
+      state.sessionStorageSeed = null;
       const storageAccessor =
         (name: keyof typeof buckets): (() => unknown) =>
         () => {

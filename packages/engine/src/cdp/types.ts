@@ -363,6 +363,7 @@ export interface TargetState {
   domEnabledSessions: Set<string>;
   // The sessions with DOMStorage enabled, each with its frame, or null for the page's session.
   domStorageSessions: Map<string, FrameState | null>;
+  sessionStorage?: LocalStorage; // the tab's, made by its first http(s) navigation
   cssEnabledSessions: Set<string>;
   webmcpSessions: Set<string>;
   webmcpEnableRevisions: Map<string, number>;

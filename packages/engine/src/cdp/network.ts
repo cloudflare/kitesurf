@@ -220,6 +220,12 @@ async function clearOriginData(
   if (origin && (all || types.has("local_storage"))) {
     const storage = localStorageForTarget(ctx, target);
     await changeLocalStorage(ctx, storage, origin, [{ op: "clear" }], { url: null });
+    // Each tab's sessionStorage is an engine record too, which the next navigation would seed
+    // from: the context's tabs lose the origin's area with its localStorage, as in Chromium.
+    for (const tab of ctx.browser.targets.values()) {
+      if (!tab.sessionStorage || localStorageForTarget(ctx, tab) !== storage) continue;
+      await changeLocalStorage(ctx, tab.sessionStorage, origin, [{ op: "clear" }], { url: null });
+    }
   }
 }
 
