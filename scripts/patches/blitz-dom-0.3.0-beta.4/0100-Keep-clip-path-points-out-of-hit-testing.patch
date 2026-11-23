@@ -1,0 +1,165 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Tue, 17 Nov 2026 08:42:23 +0000
+Subject: [PATCH] Keep clip-path points out of hit testing
+
+A point outside an element's clip-path belongs to whatever is visible
+behind it, but hit testing only checked the border box, so a clipped-away
+control still took the click (a mobile menu hidden behind
+clip-path: circle()). Circle, ellipse, inset and polygon shapes are
+evaluated; shapes this build cannot resolve stay hittable rather than
+disappearing.
+---
+ Cargo.lock       |   1 +
+ src/node/node.rs | 122 +++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 123 insertions(+)
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 6ef2466..2b62d23 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -95,6 +95,7 @@ dependencies = [
+  "cssparser",
+  "cursor-icon",
+  "debug_timer",
++ "encoding_rs",
+  "euclid",
+  "html-escape",
+  "icu_casemap",
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 92e6d1a..c1793b5 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -2967,6 +2967,13 @@ impl Node {
+             y = (p.y / scale) as f32;
+         }
+
++        // A point outside the element's clip-path is not on the element or any
++        // of its descendants.
++        // https://drafts.csswg.org/css-shapes-1/#basic-shape-computed-values
++        if !point_inside_clip_path(self, x, y) {
++            return None;
++        }
++
+         let size = self.final_layout().size;
+         let matches_self = !(x < 0.0
+             || x > size.width + self.scroll_offset().x as f32
+@@ -3649,3 +3656,118 @@ mod size_tests {
+         assert!(words <= 4, "NodeData grew to {words} words");
+     }
+ }
++
++/// Whether a point local to the node's border box falls inside its `clip-path`.
++/// Shapes this build cannot evaluate are treated as covering everything, so an
++/// unsupported clip never makes an element unhittable.
++fn point_inside_clip_path(node: &Node, x: f32, y: f32) -> bool {
++    use style::values::computed::basic_shape::ClipPath;
++    use style::values::generics::basic_shape::BasicShape as GenericBasicShape;
++
++    let Some(style) = node.primary_styles() else {
++        return true;
++    };
++    let ClipPath::Shape(shape, _geometry_box) = style.clone_clip_path() else {
++        return true;
++    };
++    let size = node.final_layout().size;
++    let (w, h) = (size.width as f64, size.height as f64);
++    let (px, py) = (x as f64, y as f64);
++    match shape.as_ref() {
++        GenericBasicShape::Circle(circle) => {
++            let (cx, cy) = clip_position(&circle.position, w, h);
++            (px - cx).hypot(py - cy) <= clip_radius(&circle.radius, w, h, cx, cy)
++        }
++        GenericBasicShape::Ellipse(ellipse) => {
++            let (cx, cy) = clip_position(&ellipse.position, w, h);
++            let rx = clip_radius(&ellipse.semiaxis_x, w, h, cx, cy).max(f64::EPSILON);
++            let ry = clip_radius(&ellipse.semiaxis_y, h, w, cy, cx).max(f64::EPSILON);
++            ((px - cx) / rx).powi(2) + ((py - cy) / ry).powi(2) <= 1.0
++        }
++        GenericBasicShape::Rect(inset) => {
++            let top = clip_length(&inset.rect.0, h);
++            let right = clip_length(&inset.rect.1, w);
++            let bottom = clip_length(&inset.rect.2, h);
++            let left = clip_length(&inset.rect.3, w);
++            px >= left
++                && px <= (w - right).max(left)
++                && py >= top
++                && py <= (h - bottom).max(top)
++        }
++        GenericBasicShape::Polygon(polygon) => {
++            let points: Vec<(f64, f64)> = polygon
++                .coordinates
++                .iter()
++                .map(|coord| (clip_length(&coord.0, w), clip_length(&coord.1, h)))
++                .collect();
++            point_in_polygon(&points, px, py)
++        }
++        _ => true,
++    }
++}
++
++fn clip_length(value: &style::values::computed::LengthPercentage, size: f64) -> f64 {
++    value
++        .resolve(style::values::computed::CSSPixelLength::new(size as f32))
++        .px() as f64
++}
++
++fn clip_position(
++    position: &style::values::generics::position::GenericPositionOrAuto<
++        style::values::computed::Position,
++    >,
++    w: f64,
++    h: f64,
++) -> (f64, f64) {
++    match position {
++        style::values::generics::position::GenericPositionOrAuto::Auto => (w / 2.0, h / 2.0),
++        style::values::generics::position::GenericPositionOrAuto::Position(pos) => {
++            (clip_length(&pos.horizontal, w), clip_length(&pos.vertical, h))
++        }
++    }
++}
++
++fn clip_radius(
++    radius: &style::values::generics::basic_shape::GenericShapeRadius<
++        style::values::computed::LengthPercentage,
++    >,
++    primary: f64,
++    secondary: f64,
++    center_primary: f64,
++    center_secondary: f64,
++) -> f64 {
++    use style::values::generics::basic_shape::GenericShapeRadius;
++    let to_edge_primary = center_primary.min(primary - center_primary).max(0.0);
++    let to_edge_secondary = center_secondary
++        .min(secondary - center_secondary)
++        .max(0.0);
++    match radius {
++        GenericShapeRadius::Length(lp) => clip_length(&lp.0, primary),
++        GenericShapeRadius::ClosestSide => to_edge_primary.min(to_edge_secondary),
++        GenericShapeRadius::FarthestSide => center_primary
++            .max(primary - center_primary)
++            .max(center_secondary)
++            .max(secondary - center_secondary),
++        GenericShapeRadius::ClosestCorner => to_edge_primary.hypot(to_edge_secondary),
++        GenericShapeRadius::FarthestCorner => center_primary
++            .max(primary - center_primary)
++            .hypot(center_secondary.max(secondary - center_secondary)),
++    }
++}
++
++fn point_in_polygon(points: &[(f64, f64)], x: f64, y: f64) -> bool {
++    if points.len() < 3 {
++        return true;
++    }
++    let mut inside = false;
++    let mut j = points.len() - 1;
++    for i in 0..points.len() {
++        let (xi, yi) = points[i];
++        let (xj, yj) = points[j];
++        if (yi > y) != (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi {
++            inside = !inside;
++        }
++        j = i;
++    }
++    inside
++}

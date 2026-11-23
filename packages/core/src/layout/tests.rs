@@ -13,6 +13,7 @@ mod float_cache_incremental;
 mod float_with_trailing_comment;
 mod grid_minmax;
 mod hit_test_block_axis;
+mod hit_test_clipped;
 mod hit_test_fixed_scroll;
 mod hit_test_line_ripple;
 mod hit_test_paint_order;
