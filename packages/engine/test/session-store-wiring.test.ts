@@ -13,6 +13,15 @@ import { makeCompiledScriptMeta } from "../src/cdp/debugger.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import { NetworkEventTracker, isolateRetainedBodyBytesTotal } from "../src/cdp/network-events.ts";
 import type { CdpEvent, CdpRequest, CdpResponse } from "../src/cdp/types.ts";
+import {
+  dropConnectionImages,
+  dropTargetImages,
+  getImageBytes,
+  imageStoreStats,
+  putAuthorFont,
+  putOpaqueImage,
+  registerResourceStore,
+} from "../src/eval/resource-store.ts";
 import type { EngineHost } from "../src/host.ts";
 import { JsonSessionStore } from "./json-session-store.ts";
 
@@ -124,6 +133,49 @@ describe("the network log in a session store", () => {
   });
 });
 
+describe("withheld images and fonts in a session store", () => {
+  const bytes = (n: number, fill = 1) => new Uint8Array(n).fill(fill);
+
+  it("go to a store off the heap, under the image and font limits it declares", () => {
+    const store = new JsonSessionStore({ imageBytes: 10, fontBytes: 4 });
+    const conn = `conn-${crypto.randomUUID()}`;
+    registerResourceStore(conn, store);
+    const heapBefore = imageStoreStats();
+    try {
+      const first = putOpaqueImage(bytes(4, 1), conn, "t1");
+      const second = putOpaqueImage(bytes(4, 2), conn, "t2");
+      expect(first).not.toBeNull();
+      expect(store.rows("resources").size).toBe(2);
+      expect(imageStoreStats()).toEqual(heapBefore);
+      expect(getImageBytes(first ?? 0n, conn)).toEqual(bytes(4, 1));
+      expect(getImageBytes(first ?? 0n, "another-connection")).toBeNull();
+
+      // Past the limit the least recently read goes: `second`, since `first` was just read.
+      putOpaqueImage(bytes(4, 3), conn, "t1");
+      expect(getImageBytes(second ?? 0n, conn)).toBeNull();
+      expect(putAuthorFont(bytes(5), conn, "t1")).toBeNull();
+
+      dropTargetImages(conn, "t1");
+      expect(store.rows("resources").size).toBe(0);
+    } finally {
+      dropConnectionImages(conn);
+    }
+  });
+
+  it("stay in the isolate's caches when the store is on the heap", () => {
+    const store = new JsonSessionStore({ onHeap: true });
+    const conn = `conn-${crypto.randomUUID()}`;
+    registerResourceStore(conn, store);
+    try {
+      const key = putOpaqueImage(bytes(4), conn, "t1");
+      expect(store.rows("resources").size).toBe(0);
+      expect(getImageBytes(key ?? 0n, conn)).toEqual(bytes(4));
+    } finally {
+      dropConnectionImages(conn);
+    }
+  });
+});
+
 describe("a browser session with a host store", () => {
   async function open(store: JsonSessionStore) {
     let seen: DispatchCtx | undefined;
@@ -150,7 +202,7 @@ describe("a browser session with a host store", () => {
       r.webSocket?.accept();
       r.webSocket?.close(1000, "done");
     };
-    return { browser: seen.browser, call, close };
+    return { browser: seen.browser, connectionId: seen.connectionId, call, close };
   }
 
   it("keeps its data in the store the host creates", async () => {
@@ -180,6 +232,15 @@ describe("a browser session with a host store", () => {
       fetchedAt: 1,
     });
     expect(browser.styleCache.get("https://a.test/s.css")?.css).toBe("p{}");
+    close();
+  });
+
+  it("keeps withheld images in a store off the heap", async () => {
+    const store = new JsonSessionStore();
+    const { connectionId, close } = await open(store);
+    const key = putOpaqueImage(new Uint8Array([1, 2, 3]), connectionId, "t1");
+    expect(store.rows("resources").size).toBe(1);
+    expect(getImageBytes(key ?? 0n, connectionId)).toEqual(new Uint8Array([1, 2, 3]));
     close();
   });
 

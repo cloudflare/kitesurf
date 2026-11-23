@@ -35,7 +35,7 @@ import {
 } from "./network-events-registry.ts";
 import { registerCookieJar, unregisterConnectionCookieJars } from "./cookie-jar-registry.ts";
 import { disposeWebMcpConnection } from "./webmcp.ts";
-import { dropConnectionImages } from "../eval/resource-store.ts";
+import { dropConnectionImages, registerResourceStore } from "../eval/resource-store.ts";
 import { unregisterIsolateLimitListenersFor } from "../eval/limit-registry.ts";
 import type { ExternalOutbound } from "../eval/external-outbound.ts";
 import { createSandboxOutboundOverride, type SandboxOutboundExports } from "../eval/outbound.ts";
@@ -270,6 +270,7 @@ export class BrowserSession {
     );
 
     registerTracker(connectionId, networkEvents);
+    registerResourceStore(connectionId, store);
     const requestBlocker = opts.host?.requestBlocker;
     if (requestBlocker) registerRequestBlocker(connectionId, requestBlocker);
     this.#requestBlocker = requestBlocker;

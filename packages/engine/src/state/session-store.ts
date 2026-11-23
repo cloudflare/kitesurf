@@ -64,6 +64,10 @@ export interface StoreLimits {
   // two bytes per UTF-16 code unit. Network.enable may ask for less, never for more.
   networkBodyBytes: number;
   networkBodyBytesPerResource: number;
+  // Withheld image and author-font bytes. A store on the heap leaves them in the isolate's own
+  // caches, where all sessions together get this much.
+  imageBytes: number;
+  fontBytes: number;
 }
 
 /** The limits of a store on the isolate heap: what a session keeps when no host store exists. */
@@ -72,6 +76,8 @@ export const MEMORY_STORE_LIMITS: Readonly<StoreLimits> = Object.freeze({
   networkRequests: 500,
   networkBodyBytes: 12 * 1024 * 1024,
   networkBodyBytesPerResource: 256 * 1024,
+  imageBytes: 16 * 1024 * 1024,
+  fontBytes: 16 * 1024 * 1024,
 });
 
 // A backend may be bound to the execution context that created it, so only touch a store from
