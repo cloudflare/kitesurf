@@ -2220,16 +2220,12 @@ mod tests {
         let fam = ctx.collection.family_by_name("Noto Sans").expect("sans");
         assert_eq!(fam.id(), sans_id_before);
         assert_eq!(fam.fonts().len(), 2);
-        assert!(
-            family_blobs_have_outlines(&mut ctx, "Noto Sans")
-                .iter()
-                .all(|has| *has)
-        );
-        assert!(
-            family_blobs_have_outlines(&mut ctx, "Noto Sans Mono")
-                .iter()
-                .all(|has| *has)
-        );
+        assert!(family_blobs_have_outlines(&mut ctx, "Noto Sans")
+            .iter()
+            .all(|has| *has));
+        assert!(family_blobs_have_outlines(&mut ctx, "Noto Sans Mono")
+            .iter()
+            .all(|has| *has));
         let generic_sans: Vec<_> = ctx
             .collection
             .generic_families(parley::fontique::GenericFamily::SansSerif)
