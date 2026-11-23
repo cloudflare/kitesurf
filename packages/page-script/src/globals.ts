@@ -724,11 +724,38 @@ export function installGlobals(
           }
           return objectValue;
         };
+        // DOM nodes are not serializable; throw DataCloneError instead of copying
+        // a node into a plain object.
+        // https://html.spec.whatwg.org/multipage/structured-data.html#structuredserializeinternal
+        const isNode = (value: object): boolean => {
+          const candidate = value as { nodeType?: unknown; nodeName?: unknown };
+          return typeof candidate.nodeType === "number" && typeof candidate.nodeName === "string";
+        };
+        const findNode = (
+          value: unknown,
+          seen: WeakSet<object>,
+          budget: { left: number },
+        ): boolean => {
+          if (value === null || typeof value !== "object") return false;
+          if (budget.left-- <= 0) return false;
+          const objectValue = value as Record<string, unknown>;
+          if (seen.has(objectValue)) return false;
+          seen.add(objectValue);
+          if (isNode(objectValue)) return true;
+          if (!Array.isArray(objectValue) && !isContainer(objectValue)) return false;
+          for (const key of Object.keys(objectValue)) {
+            if (findNode(objectValue[key], seen, budget)) return true;
+          }
+          return false;
+        };
         // Native structuredClone cannot traverse Boa proxies; materialize bridged containers first.
         const wrapped: StructuredCloneFunction = function structuredClone(
           value: unknown,
           options?: unknown,
         ): unknown {
+          if (findNode(value, new WeakSet(), { left: 10_000 })) {
+            throw new DOMException("Node object could not be cloned.", "DataCloneError");
+          }
           let bridged = false;
           try {
             bridged = ks_bridge_ever_minted() && containsBridged(value, new WeakSet());
