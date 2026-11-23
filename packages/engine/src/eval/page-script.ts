@@ -447,6 +447,22 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
   };
   const props = { KS_TAIL_TOKEN: tailToken, KS_ISOLATE_STAMP: isolateStamp };
   const host = cx.exports.PageIsolateHost;
+  // A loopback call can reach a replacement isolate, which does not share this module's stash.
+  // The in-process load is the only path that works there, so both branches share it.
+  const loadDirect = (): RpcSessionEntrypoint => {
+    const stub = env.LOADER.load(code);
+    const workerEntrypoint: PageScriptEntrypointStub = stub.getEntrypoint<PageScriptEntrypoint>(
+      "PageScript",
+      { props },
+    );
+    // The RPC adapter needs promises; the local entrypoint contract is synchronous.
+
+    // SAFETY: WorkerLoader follows the PageScript JSRPC contract, but Rpc.Provider loses generic
+    // call/reply correlation and annotates cloneable reply objects with Disposable.
+    // Runtime replies remain PageScriptReply data.
+    // Verified by: packages/engine/test/e2e/demos/page-script-demo.e2e.test.ts.
+    return workerEntrypoint as RpcSessionEntrypoint;
+  };
   let entrypoint: RpcSessionEntrypoint;
   if (host) {
     const modulesId = stashPageModules(withoutStaticPageModules(modules, staticModuleNames));
@@ -464,13 +480,24 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
       dropStashedPageModules(modulesId);
       throw err;
     }
-    handle.then(
-      () => {},
-      () => dropStashedPageModules(modulesId),
-    );
+    let direct: RpcSessionEntrypoint | null = null;
+    // Resolve the host handle once. If the call reached a foreign isolate its stash is empty and
+    // open rejects; load the modules in this isolate instead of failing the navigation.
+    const resolveHandle = async (): Promise<RpcSessionEntrypoint> => {
+      try {
+        return await handle;
+      } catch {
+        dropStashedPageModules(modulesId);
+        direct ??= loadDirect();
+        return direct;
+      }
+    };
     entrypoint = {
-      openSession: (init) => handle.openSession(init),
-      killIsolate: (reason) => handle.killIsolate?.(reason) ?? Promise.resolve(),
+      openSession: (init) => resolveHandle().then((h) => h.openSession(init)),
+      killIsolate: (reason) =>
+        resolveHandle()
+          .then((h) => h.killIsolate?.(reason) ?? Promise.resolve())
+          .catch(() => {}),
       // Ends the host's loopback request, which releases the killed isolate.
       [Symbol.dispose]: () => {
         dropStashedPageModules(modulesId);
@@ -485,18 +512,7 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
       },
     };
   } else {
-    const stub = env.LOADER.load(code);
-    const workerEntrypoint: PageScriptEntrypointStub = stub.getEntrypoint<PageScriptEntrypoint>(
-      "PageScript",
-      { props },
-    );
-    // The RPC adapter needs promises; the local entrypoint contract is synchronous.
-
-    // SAFETY: WorkerLoader follows the PageScript JSRPC contract, but Rpc.Provider loses generic
-    // call/reply correlation and annotates cloneable reply objects with Disposable.
-    // Runtime replies remain PageScriptReply data.
-    // Verified by: packages/engine/test/e2e/demos/page-script-demo.e2e.test.ts.
-    entrypoint = workerEntrypoint as RpcSessionEntrypoint;
+    entrypoint = loadDirect();
   }
   const tracer = env.HOST_TRACER;
   const spanWrap = tracer
