@@ -170,9 +170,15 @@ describe("startStylesheetPrefetch", () => {
     // One-shot: second request misses.
     expect(prefetched!.take(makeReq("https://example.com/a.css"))).toBeNull();
 
-    // Redirects resolve to null so PageScript follows them normally.
+    // A redirect is handed over once, so the page follows it instead of fetching it again.
     const redir = await prefetched!.take(makeReq("https://example.com/redir.css"));
-    expect(redir).toBeNull();
+    expect(redir).not.toBeNull();
+    expect(redir!.status).toBe(302);
+    expect(redir!.headers.get("location")).toBe("https://example.com/a.css");
+    expect(prefetched!.take(makeReq("https://example.com/redir.css"))).toBeNull();
+    // One upstream request per stylesheet, the redirect included.
+    expect(calls.filter((url) => url.endsWith("/a.css"))).toHaveLength(1);
+    expect(calls.filter((url) => url.endsWith("/redir.css"))).toHaveLength(1);
 
     prefetched!.cancel();
   });

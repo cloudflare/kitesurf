@@ -140,6 +140,17 @@ export function geometryDom(): DomHandle | null {
   if (!dom) return null;
   if (fontsDeferredUnregistered() && !demandDeferredFonts()) return null;
   demandFacesForScriptText(dom);
+  // A print stream leaves the wasm viewport at the paper content box. Geometry reads report the
+  // screen layout, so put it back here; a paint would do it, and a read may come first.
+  if (state.paintViewportW > 0 && state.paintViewportH > 0) {
+    try {
+      const size = dom.viewportSize();
+      if (size[0] !== state.paintViewportW || size[1] !== state.paintViewportH) {
+        dom.setViewport(state.paintViewportW, state.paintViewportH);
+        invalidatePaintDom();
+      }
+    } catch {}
+  }
   return dom;
 }
 
