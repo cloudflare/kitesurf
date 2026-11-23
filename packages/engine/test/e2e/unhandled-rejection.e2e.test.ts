@@ -104,3 +104,48 @@ test("a rejected V8 promise that boa code handles is not reported", async ({ pag
   expect(await page.evaluate("window.__seen")).toEqual([]);
   expect(errors).toEqual([]);
 });
+
+// workerd tracks V8's promises only: boa reports its own, and the handler its bridge attaches to a
+// V8 promise read from boa code must not count as the page handling an already reported rejection.
+test("a rejection in boa code is reported, and boa reading one does not handle it", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message.split("\n")[0] ?? ""));
+  await setContent(
+    page,
+    `<script>
+      window.__events = [];
+      var note = function (e) {
+        window.__events.push([e.type, String(Object(e.reason).message)]);
+      };
+      addEventListener("unhandledrejection", note);
+      addEventListener("rejectionhandled", note);
+      window.late = Promise.reject(new Error("late"));
+    </script>`,
+  );
+  await page.waitForFunction("window.__events.length >= 1", { timeout: 10_000 });
+  expect(await page.evaluate(() => typeof Reflect.get(window, "late"))).toBe("object");
+  // The client awaits this one, so it handles the rejection: the page hears no event, and the
+  // client gets no pageerror for it.
+  await expect(page.evaluate(() => Promise.reject(new Error("awaited")))).rejects.toThrow(
+    "awaited",
+  );
+  await page.evaluate(() => {
+    const script = document.createElement("script");
+    script.textContent =
+      'var handledLater = (async function () { throw new Error("handled later"); })();' +
+      "setTimeout(function () { handledLater.catch(function () {}); }, 0);" +
+      '(async function () { throw new Error("inserted"); })();';
+    document.head.appendChild(script);
+  });
+  await page.waitForFunction("window.__events.length >= 2", { timeout: 10_000 });
+  // A rejectionhandled is queued as a task right after the handler that causes it, so one the
+  // read or the later handler caused would be in by now.
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  expect(await page.evaluate("window.__events")).toEqual([
+    ["unhandledrejection", "late"],
+    ["unhandledrejection", "inserted"],
+  ]);
+  await expect.poll(() => [...errors].sort(), { timeout: 10_000 }).toEqual(["inserted", "late"]);
+});

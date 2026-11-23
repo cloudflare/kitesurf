@@ -51,6 +51,9 @@ export declare function ks_import(
   moduleType?: string,
 ): Promise<unknown>;
 export declare function ks_set_boa_strict(v: boolean): void;
+export declare function ks_set_promise_rejection_hook(
+  hook: (kind: string, promise: unknown, reason: unknown) => void,
+): void;
 
 export declare function ks_bridge_pins(): string;
 export declare function ks_cycle_collect(idleSkip: boolean): number;

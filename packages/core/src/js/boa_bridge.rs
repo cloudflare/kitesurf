@@ -1950,6 +1950,7 @@ fn bridge_v8_promise(p: Promise, ctx: &mut Context) -> BoaValue {
     stamp_native_promise(&object, &native, ctx);
     // V8 must see a handler as the promise crosses into boa. Attached on the job's first poll,
     // a timer away, a rejection that boa code goes on to handle was reported as unhandled.
+    crate::js::boa_rejections::note_bridged(&native);
     let crossed = wasm_bindgen_futures::JsFuture::from(p);
     // The await is the async job; settling is a promise job, so the boa reaction
     // runs in a drain batch under the context lock like every other reaction.

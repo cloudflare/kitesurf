@@ -34,6 +34,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
 use crate::js::boa_bridge::{context_ptr, with_context};
+use crate::js::boa_rejections::RejectionTracker;
 use crate::js::dom_fastpath::arm_v8_ran;
 use crate::js::internals::get;
 
@@ -690,9 +691,12 @@ fn ensure_persistent() -> bool {
         PERSIST_QUEUE.with(|q| *q.borrow_mut() = Some(queue.clone()));
         let loader = Rc::new(KsModuleLoader::default());
         PERSIST_MODULES.with(|m| *m.borrow_mut() = Some(Rc::clone(&loader.cache)));
+        let rejections = Rc::new(RejectionTracker::default());
+        crate::js::boa_rejections::install(Rc::clone(&rejections));
         let Ok(ctx) = ContextBuilder::new()
             .job_executor(queue.clone())
             .module_loader(loader)
+            .host_hooks(rejections)
             .build()
         else {
             return false;
@@ -950,6 +954,11 @@ fn drain_ready_bounded(queue: &WasmJobQueue, ctx: &mut Context) -> usize {
         }
     }
     maybe_truncate_interner(ctx);
+    // An empty queue is a microtask checkpoint, where HTML reports the rejections no reaction
+    // handled; boa's own promises get no other report.
+    if queue.promise_jobs.borrow().is_empty() {
+        crate::js::boa_rejections::notify_persistent(ctx);
+    }
     n
 }
 
@@ -1099,7 +1108,10 @@ pub fn ks_import(specifier: String, referrer_url: String, module_type: Option<St
                 Err(e) => return Err(JsValue::from_str(&format!("import eval: {e}"))),
             };
             match promise_val.as_promise() {
-                Some(p) => p,
+                Some(p) => {
+                    crate::js::boa_rejections::consume(&p);
+                    p
+                }
                 None => return Err(JsValue::from_str("import() did not return a promise")),
             }
         };
@@ -1179,6 +1191,14 @@ const AWAITED_TIMER_PUMP_MAX_TURNS: u32 = 64;
 
 // Settle and marshal without holding Context across V8 yields; host callbacks
 // can re-enter Boa.
+// The pump below reaches a microtask checkpoint, where a promise that is already rejected would
+// be reported: one the client awaits is its to handle, so it leaves the report first.
+fn consume_awaited(value: &BoaValue, await_promise: bool) {
+    if let Some(promise) = value.as_promise().filter(|_| await_promise) {
+        crate::js::boa_rejections::consume(&promise);
+    }
+}
+
 async fn drive_cdp(
     value: BoaValue,
     await_promise: bool,
@@ -1194,6 +1214,7 @@ async fn drive_cdp(
         let _g = acquire_boa_lock().await;
         return Ok(marshal_cdp(value, return_by_value, unsafe { &mut *ptr }));
     };
+    crate::js::boa_rejections::consume(&promise);
     {
         let _g = acquire_boa_lock().await;
         let ctx = unsafe { &mut *ptr };
@@ -1423,6 +1444,7 @@ fn eval_cdp_impl(
                     };
                     (ptr, value)
                 };
+                consume_awaited(&value, await_promise);
                 pump(ptr, || true).await;
                 drive_cdp(value, await_promise, return_by_value, ptr).await
             },
@@ -1505,6 +1527,7 @@ fn call_cdp_impl(
                     };
                     (ptr, value)
                 };
+                consume_awaited(&value, await_promise);
                 pump(ptr, || true).await;
                 drive_cdp(value, await_promise, return_by_value, ptr).await
             },
