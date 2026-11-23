@@ -391,11 +391,6 @@ export function startStylesheetPrefetch(
         const resp = await outbound.fetch(
           new Request(url, { method: "GET", headers, redirect: "manual", signal: reqCtrl.signal }),
         );
-        // Only cache direct 200 responses; redirects and errors fall through to PageScript.
-        if (resp.status !== 200 || resp.headers.get("x-kitesurf-blocked")) {
-          await resp.body?.cancel().catch(() => {});
-          return null;
-        }
         const readCap = Math.min(MAX_STYLESHEET_BYTES, MAX_PREFETCH_TOTAL_BYTES);
         const got = await readCappedBytes(
           resp,
@@ -409,6 +404,9 @@ export function startStylesheetPrefetch(
             return true;
           },
         );
+        // Hand over whatever the prefetch received, whatever its status: a redirect or an error
+        // page is a response the page would otherwise fetch a second time. Only a response with
+        // no body to give (over budget, or a read error) falls through.
         if (!got.ok) return null;
         const respHeaders: Array<[string, string]> = [];
         resp.headers.forEach((v, k) => {
