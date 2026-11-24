@@ -31,6 +31,7 @@ vi.mock("../../page-script/src/wasm-glue.js", () => ({
   register_ua_fonts: () => {},
   register_emoji_font: () => {},
   register_symbol_fonts: () => {},
+  register_math_font: () => {},
   register_cjk_font: () => {},
   register_script_font: () => {},
   setFontShapingLazy: () => {},

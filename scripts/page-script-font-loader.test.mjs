@@ -36,6 +36,7 @@ const FACES = {
   mono: { url: "NotoSansMono.shaping.otf", fallback: "NotoSansMono.ttf", size: 1300 },
   symbols: { url: "NotoSansSymbols.shaping.otf", fallback: "NotoSansSymbols.ttf", size: 1400 },
   symbols2: { url: "NotoSansSymbols2.shaping.otf", fallback: "NotoSansSymbols2.ttf", size: 1500 },
+  math: { url: "NotoSansMath.shaping.otf", fallback: "NotoSansMath.ttf", size: 2200 },
   emoji: { url: "noto-color-emoji.shaping.otf", fallback: "noto-color-emoji.woff2", size: 1600 },
   cjk: {
     url: "NotoSansCJKsc-Regular.shaping.otf",
@@ -57,6 +58,7 @@ const REGISTER_EXPORTS = [
   "register_ua_fonts",
   "register_emoji_font",
   "register_symbol_fonts",
+  "register_math_font",
   "register_cjk_font",
   "register_cjk_region_font",
   "register_script_font",
@@ -195,6 +197,7 @@ function loadFontLoader(outcomes = {}, { lazy = false } = {}) {
       SCRIPT_RANGES: sourceScan.SCRIPT_RANGES,
       SYMBOL_SCAN: sourceScan.SYMBOL_SCAN,
       SYMBOLS2_EXCLUSIVE: sourceScan.SYMBOLS2_EXCLUSIVE,
+      MATH_EXCLUSIVE: sourceScan.MATH_EXCLUSIVE,
     }),
   };
   const require = (name) => {
@@ -238,7 +241,7 @@ function assertRegistered(calls, core, groups) {
 
 test("bytes-only prefetch stages without registering; demand releases groups", async () => {
   const page = loadFontLoader();
-  const faces = Object.keys(FACES).filter((face) => !["Hebr", "Deva", "JP"].includes(face));
+  const faces = Object.keys(FACES).filter((face) => !["Hebr", "Deva", "JP", "math"].includes(face));
   page.loader.startFontPrefetch(
     scan('<p style="font-family: serif">中 ع 😀</p><pre>x</pre><ul><li>a</li></ul>'),
   );
@@ -319,11 +322,12 @@ for (const [first, second] of [
 
 test("numeric character references want the symbol faces", () => {
   const page = loadFontLoader();
-  const wants = scan("<div>&#x21BB; &#x25BE;</div>");
+  const wants = scan("<div>&#x21BB; &#x25BE; &#x2211;</div>");
   assert.equal(wants.symbols, true);
   assert.equal(wants.symbols2, true);
+  assert.equal(wants.math, true);
   page.loader.startFontPrefetch(wants);
-  for (const face of ["symbols", "symbols2"]) {
+  for (const face of ["symbols", "symbols2", "math"]) {
     assert.ok(page.requested.includes(ASSET_ORIGIN + FACES[face].url), `${face} prefetched`);
   }
 });
@@ -364,10 +368,10 @@ test("a page with named references probes its parsed text once", () => {
 
 test("the probe leaves faces the deferred stash is fetching to the stash", async () => {
   const page = loadFontLoader();
-  page.loader.startFontPrefetch(scan("<p>&#x2191; &#x25BE;</p>"));
+  page.loader.startFontPrefetch(scan("<p>&#x21BB; &#x25BE;</p>"));
   const dom = { nonLatinTextWrites: () => 1, textUsesCodepoints: () => true };
   page.loader.demandFacesForScriptText(dom);
-  for (const face of ["symbols", "symbols2"]) {
+  for (const face of ["symbols", "symbols2", "math"]) {
     const url = ASSET_ORIGIN + FACES[face].url;
     assert.equal(page.requested.filter((u) => u === url).length, 1, `${face} fetched once`);
   }
@@ -379,7 +383,7 @@ test("a script-built symbol escape stays invisible to the source scan", () => {
 
 // The demand probe reads the document's own codepoints, so text a script built from escapes
 // still loads its faces. Ranges arrive as [start, end, …] pairs; a probe answers by first pair.
-test("script-inserted symbol text demands its faces, in phases", async () => {
+test("script-inserted symbol and math text demands its faces, in phases", async () => {
   const page = loadFontLoader();
   page.loader.startFontPrefetch(scan("<p>latin only</p>"));
   page.arrive("sans", "sansItalic");
@@ -387,19 +391,23 @@ test("script-inserted symbol text demands its faces, in phases", async () => {
   assert.equal(page.loader.demandDeferredFonts(), true);
   assert.deepEqual(page.calls, [uaCall()]);
 
-  // U+2191 sits in the symbol scan; U+25BE is Symbols-2-only.
+  // U+21BB sits in the symbol scan and the math-exclusive set; U+25BE is Symbols-2-only.
   const hit = (start) => (ranges) => ranges.length >= 2 && ranges[0] === start;
   let writes = 0;
   let hasSymbols2Text = false;
   const dom = {
     nonLatinTextWrites: () => ++writes,
-    textUsesCodepoints: (ranges) => hit(0x2100)(ranges) || (hasSymbols2Text && hit(0x21af)(ranges)),
+    textUsesCodepoints: (ranges) =>
+      hit(0x2100)(ranges) || hit(0x219a)(ranges) || (hasSymbols2Text && hit(0x21af)(ranges)),
   };
 
   page.loader.demandFacesForScriptText(dom);
-  page.arrive("symbols");
+  page.arrive("symbols", "math");
   await drainFetchCallbacks();
-  assert.deepEqual(page.calls, [uaCall(), ["register_symbol_fonts", size("symbols"), 0]]);
+  assert.deepEqual(page.calls.slice(1).sort(byCall), [
+    ["register_math_font", size("math")],
+    ["register_symbol_fonts", size("symbols"), 0],
+  ]);
 
   // A later write of Symbols-2-only text registers the second face beside the first.
   hasSymbols2Text = true;
@@ -407,10 +415,10 @@ test("script-inserted symbol text demands its faces, in phases", async () => {
   await drainFetchCallbacks();
   page.arrive("symbols2");
   await drainFetchCallbacks();
-  assert.deepEqual(page.calls, [
-    uaCall(),
-    ["register_symbol_fonts", size("symbols"), 0],
+  assert.deepEqual(page.calls.slice(1).sort(byCall), [
+    ["register_math_font", size("math")],
     ["register_symbol_fonts", 0, size("symbols2")],
+    ["register_symbol_fonts", size("symbols"), 0],
   ]);
 });
 

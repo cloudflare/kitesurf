@@ -147,6 +147,7 @@ export declare function register_symbol_fonts(
   symbols_bytes: Uint8Array,
   symbols2_bytes: Uint8Array,
 ): boolean;
+export declare function register_math_font(bytes: Uint8Array): boolean;
 export declare function register_emoji_font(bytes: Uint8Array): boolean;
 
 export declare function register_cjk_font(bytes: Uint8Array): boolean;

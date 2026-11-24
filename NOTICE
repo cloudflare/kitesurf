@@ -21,18 +21,22 @@ Fonts
     https://github.com/notofonts/gujarati, https://github.com/notofonts/gurmukhi,
     https://github.com/notofonts/hebrew, https://github.com/notofonts/kannada,
     https://github.com/notofonts/khmer, https://github.com/notofonts/lao,
-    https://github.com/notofonts/malayalam, https://github.com/notofonts/myanmar,
-    https://github.com/notofonts/sinhala, https://github.com/notofonts/symbols,
-    https://github.com/notofonts/tamil, https://github.com/notofonts/telugu,
-    and https://github.com/notofonts/thai.
+    https://github.com/notofonts/malayalam, https://github.com/notofonts/math,
+    https://github.com/notofonts/myanmar, https://github.com/notofonts/sinhala,
+    https://github.com/notofonts/symbols, https://github.com/notofonts/tamil,
+    https://github.com/notofonts/telugu, and https://github.com/notofonts/thai.
     Seventeen script faces are byte-identical to the hinted TTFs in
     https://github.com/notofonts/notofonts.github.io at commit
     5c3913063bb189df4edc94b766584dfb4c04a187 (fonts/NotoSans<Script>/hinted/ttf/).
     Noto Sans, Noto Sans Italic, Noto Serif, and Noto Sans Mono are the
     google/fonts ofl/ variable fonts with the wdth axis pinned to 100 and glyph
     names removed. Noto Sans Devanagari and Noto Sans Symbols2 match upstream
-    by version only; their exact source build is not recorded.
-    SIL Open Font License 1.1, see packages/engine/public/fonts/OFL.txt
+    by version only; their exact source build is not recorded. Noto Sans Math
+    (NotoSansMath.ttf and NotoSansMath.shaping.otf) is the hinted TTF from the
+    NotoSansMath-v3.000 release of https://github.com/notofonts/math and its
+    shaping-only derivative; its name record says Copyright 2022 Google LLC.
+    SIL Open Font License 1.1, see packages/engine/public/fonts/NotoSansMath-OFL.txt
+    for Noto Sans Math and packages/engine/public/fonts/OFL.txt for the rest
   - Noto Color Emoji
     (packages/engine/public/fonts/noto-color-emoji.woff2 and
     packages/engine/public/fonts/noto-color-emoji.shaping.otf)

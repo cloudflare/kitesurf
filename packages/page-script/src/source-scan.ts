@@ -137,6 +137,17 @@ function needsSymbols2(text: string): boolean {
   return SYMBOLS2_EXCLUSIVE.test(text) || hasListMarkers(text);
 }
 
+// Codepoints only Noto Sans Math covers: neither symbol face, no profile's UA face, and not
+// the color-emoji face (which precedes the symbol chain) maps them. Computed from the
+// shipped faces' charmaps; kept inside the SYMBOL_SCAN range so math text always wants the
+// symbol tier too.
+export const MATH_EXCLUSIVE =
+  /[\u219A-\u219B\u219F\u21A1\u21A5\u21A7-\u21AE\u21B0-\u21CF\u21D5-\u21D9\u21DC-\u21E5\u21F1-\u21F2\u21F4-\u21FF\u220F\u2211\u2213-\u2217\u221B-\u221D\u221F\u2221-\u2222\u2224-\u2226\u222B-\u2233\u2239-\u223B\u223E-\u2240\u2242\u2244\u2246\u224D-\u2253\u2256\u2258-\u225E\u2263\u2266-\u226B\u226D\u2276-\u2279\u227C-\u2281\u228A-\u228D\u228F-\u2290\u229D-\u22A1\u22A6-\u22B3\u22B6-\u22B7\u22B9-\u22C1\u22C7\u22CB-\u22CC\u22CF\u22D2-\u22E1\u22E4-\u22FF\u27C0-\u27D4\u27D8-\u27DB\u27DD-\u27E5\u27EC-\u27F4\u27F7-\u27FF\u2900-\u2920\u2923-\u2980\u2982-\u2986\u2989-\u29A2\u29A4-\u29B7\u29B9-\u29BE\u29C0-\u29EA\u29EC-\u29FF\u2A01-\u2A04\u2A07-\u2AFF\u2B0E-\u2B11\u2B30-\u2B4C\u2BFE]/;
+
+function needsMath(text: string): boolean {
+  return MATH_EXCLUSIVE.test(text);
+}
+
 const MONO_FACE = /(?:monospace|font-mono|DM(?:%20|\+|\s)+Mono)/i;
 
 function needsMono(html: string): boolean {
@@ -241,6 +252,7 @@ export function scanSourceFonts(html: string): SourceFontScan {
     outline: needsOutlineConsumers(html),
     symbols,
     symbols2: symbols && needsSymbols2(text),
+    math: symbols && needsMath(text),
     emoji: needsEmoji(text),
     cjk: CJK_SCAN.test(text),
     cjkRegions: cjkRegionsIn(html, text),

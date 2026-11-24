@@ -31,6 +31,8 @@ export interface SourceFontScan {
   outline: boolean;
   symbols: boolean;
   symbols2: boolean;
+  /** Math-only symbol text, which neither symbol face nor a UA face covers. */
+  math: boolean;
   emoji: boolean;
   cjk: boolean;
   /** Regional Han faces (`JP`, `TC`) the page's `lang` or kana asks for. */

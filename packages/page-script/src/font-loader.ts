@@ -10,6 +10,7 @@ import {
   register_ua_fonts,
   register_emoji_font,
   register_symbol_fonts,
+  register_math_font,
   register_cjk_font,
   register_cjk_region_font,
   register_script_font,
@@ -25,6 +26,7 @@ import {
   CJK_REGION_SCANS,
   CJK_SCAN,
   EMOJI_BMP_SCAN,
+  MATH_EXCLUSIVE,
   SCRIPT_RANGES,
   SYMBOLS2_EXCLUSIVE,
   SYMBOL_SCAN,
@@ -111,6 +113,8 @@ function registerUaFaces(faces: Uint8Array[], mono: Uint8Array): boolean {
 
 const SYMBOL_FONT_PATHS = ["/fonts/NotoSansSymbols.ttf", "/fonts/NotoSansSymbols2.ttf"];
 
+const MATH_FONT_PATH = "/fonts/NotoSansMath.ttf";
+
 const EMOJI_FONT_PATH = "/fonts/noto-color-emoji.woff2";
 
 const CJK_FONT_PATH = "/fonts/NotoSansCJKsc-Regular.woff2";
@@ -139,12 +143,13 @@ const CJK_REGION_FONTS: CjkRegionFont[] = CJK_REGION_SCANS.map(({ region, range 
 
 let symbolPending: Promise<void> | null = null;
 let symbols2Pending: Promise<void> | null = null;
+let mathPending: Promise<void> | null = null;
 
 let symbols2Demanded = false;
 
 // The deferred stash fetches and registers the faces the scan wanted without the pending
 // promises, so the script-text probe leaves those to it instead of fetching them twice.
-function stashOwns(face: "symbols" | "symbols2"): boolean {
+function stashOwns(face: "symbols" | "symbols2" | "math"): boolean {
   return deferWants?.[face] === true;
 }
 
@@ -190,11 +195,28 @@ function registerSymbols2IfNeeded(): Promise<void> {
   return symbols2Pending;
 }
 
+function registerMathIfNeeded(): Promise<void> {
+  if (mathPending) return mathPending;
+  mathPending = (async () => {
+    try {
+      const math = await fetchFaceBytes(MATH_FONT_PATH);
+      register_math_font(math);
+      console.log(`[kitesurf-fonts] registered math face (${math.byteLength} bytes)`);
+    } catch (e) {
+      console.warn("[kitesurf-fonts] math registration failed:", String(e));
+      mathPending = null;
+      throw e;
+    }
+  })();
+  return mathPending;
+}
+
 /** In-flight or settled symbol-tier registrations, for callers that drain fonts. */
 export function symbolPendingPromises(): Promise<void>[] {
   const pending: Promise<void>[] = [];
   if (symbolPending) pending.push(symbolPending);
   if (symbols2Pending) pending.push(symbols2Pending);
+  if (mathPending) pending.push(mathPending);
   return pending;
 }
 
@@ -490,6 +512,7 @@ const CJK_REGION_RANGES = CJK_REGION_FONTS.flatMap((font) =>
 const EMOJI_RANGES = Uint32Array.from([...classRanges(EMOJI_BMP_SCAN), 0x1f000, 0x1ffff]);
 const SYMBOL_RANGES = classRanges(SYMBOL_SCAN);
 const SYMBOLS2_RANGES = classRanges(SYMBOLS2_EXCLUSIVE);
+const MATH_RANGES = classRanges(MATH_EXCLUSIVE);
 const SCRIPT_FACE_RANGES = SCRIPT_FONTS.map((scriptFont) => ({
   scriptFont,
   ranges: classRanges(scriptFont.range),
@@ -539,6 +562,9 @@ export function demandFacesForScriptText(dom: ScriptTextProbe): void {
   ) {
     tasks.push(registerSymbols2IfNeeded());
   }
+  if (!mathPending && !stashOwns("math") && dom.textUsesCodepoints(MATH_RANGES)) {
+    tasks.push(registerMathIfNeeded());
+  }
   if (tasks.length === 0) return;
   void NativePromise.all(tasks.map((task) => task.catch(() => {}))).then(() => onUpgraded?.());
 }
@@ -552,6 +578,7 @@ export function forceMonoFace(): void {
 function computeFontWants(scan?: SourceFontScan): {
   symbols: boolean;
   symbols2: boolean;
+  math: boolean;
   emoji: boolean;
   cjk: boolean;
   cjkRegions: CjkRegionFont[];
@@ -562,6 +589,7 @@ function computeFontWants(scan?: SourceFontScan): {
   return {
     symbols: !!scan?.symbols,
     symbols2: !!scan?.symbols2,
+    math: !!scan?.math,
     emoji: !!scan?.emoji,
     cjk: !!scan?.cjk,
     cjkRegions: scan
@@ -581,6 +609,7 @@ export async function ensureFontsRegistered(scan?: SourceFontScan): Promise<void
   const wants = computeFontWants(scan);
   const wantSymbols = wants.symbols;
   const wantSymbols2 = wants.symbols2;
+  const wantMath = wants.math;
   const wantEmoji = wants.emoji;
   const wantCjk = wants.cjk;
   const wantMono = wants.mono;
@@ -632,6 +661,7 @@ export async function ensureFontsRegistered(scan?: SourceFontScan): Promise<void
 
   const tasks: Promise<void>[] = [];
   if (wantSymbols) tasks.push(registerSymbolsIfNeeded(wantSymbols2).catch(() => {}));
+  if (wantMath) tasks.push(registerMathIfNeeded().catch(() => {}));
   if (wantEmoji) tasks.push(registerEmojiIfNeeded().catch(() => {}));
   if (wantCjk) tasks.push(registerCjkIfNeeded().catch(() => {}));
   for (const font of wants.cjkRegions) {
@@ -657,6 +687,7 @@ const deferStash: {
   mono: Uint8Array | null;
   symbols: Uint8Array | null;
   symbols2: Uint8Array | null;
+  math: Uint8Array | null;
   emoji: Uint8Array | null;
   cjk: Uint8Array | null;
   cjkRegions: Map<CjkRegionFont["region"], Uint8Array>;
@@ -666,6 +697,7 @@ const deferStash: {
   mono: null,
   symbols: null,
   symbols2: null,
+  math: null,
   emoji: null,
   cjk: null,
   cjkRegions: new Map(),
@@ -724,13 +756,18 @@ function tryRegisterDeferred(): boolean {
       console.warn(`[kitesurf-fonts] deferred ${name} registration failed:`, String(e));
     }
   };
-  const { symbols, symbols2, emoji, cjk } = deferStash;
+  const { symbols, symbols2, math, emoji, cjk } = deferStash;
   if (wants.symbols && symbols && (!wants.symbols2 || symbols2)) {
     group("symbols", () => {
       if (register_symbol_fonts(symbols, symbols2 ?? new Uint8Array(0))) {
         deferStash.symbols = null;
         deferStash.symbols2 = null;
       }
+    });
+  }
+  if (wants.math && math) {
+    group("math", () => {
+      if (register_math_font(math)) deferStash.math = null;
     });
   }
   if (wants.emoji && emoji) {
@@ -815,6 +852,9 @@ export function startFontPrefetch(scan?: SourceFontScan): void {
       "extra",
       "symbols2",
     );
+  }
+  if (wants.math) {
+    kick(fetchFaceBytes(MATH_FONT_PATH), (bytes) => (deferStash.math = bytes), "extra", "math");
   }
   if (wants.emoji) {
     kick(
