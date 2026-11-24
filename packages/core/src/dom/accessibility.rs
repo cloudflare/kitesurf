@@ -2005,7 +2005,11 @@ impl Context<'_> {
             out.push(Property::new("url", string_value("string", url)));
         }
 
-        if focusable(node, name) {
+        let is_focusable = match name {
+            "option" => self.option_focusable(node),
+            _ => focusable(node, name),
+        };
+        if is_focusable {
             out.push(Property::new(
                 "focusable",
                 bool_value("booleanOrUndefined", true),
@@ -2144,6 +2148,18 @@ impl Context<'_> {
             .get(&self.id(node.id()))
             .copied()
             .unwrap_or_else(|| attr(node, "selected").is_some())
+    }
+
+    /// An option of a select is focusable in the tree though the DOM never focuses it. A disabled
+    /// option or optgroup takes that away, even with a tabindex; a disabled select does not.
+    fn option_focusable(&self, node: &Node) -> bool {
+        let parent = self.parent(node.id()).and_then(|id| self.doc.get_node(id));
+        let group_disabled = parent
+            .is_some_and(|group| tag(group) == "optgroup" && attr(group, "disabled").is_some());
+        if group_disabled || attr(node, "disabled").is_some() {
+            return false;
+        }
+        self.in_select(node.id()) || focusable(node, "option")
     }
 }
 

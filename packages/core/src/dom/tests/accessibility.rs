@@ -340,6 +340,7 @@ fn accessibility_full_uses_live_state_labels_and_document_base() {
     assert_eq!(
         find(option_b)["properties"],
         serde_json::json!([
+            {"name":"focusable","value":{"type":"booleanOrUndefined","value":true}},
             {"name":"selected","value":{"type":"boolean","value":true}}
         ])
     );
@@ -350,6 +351,49 @@ fn accessibility_full_uses_live_state_labels_and_document_base() {
     assert_eq!(find(hidden)["ignoredReasons"][0]["name"], "notRendered");
     assert!(find(hidden).get("childIds").is_none());
     assert!(!nodes.iter().any(|node| node["name"]["value"] == "pruned"));
+}
+
+#[test]
+fn accessibility_option_focusable_follows_select_and_disabled_state() {
+    let dom = DomHandle::new(
+        "<select><option id='enabled'>A</option><option id='disabled' disabled>B</option>\
+         <option id='tabbed' disabled tabindex='0'>C</option>\
+         <optgroup label='on'><option id='grouped'>D</option></optgroup>\
+         <optgroup label='off' disabled><option id='group_off'>E</option>\
+         <option id='group_tabbed' tabindex='0'>J</option></optgroup></select>\
+         <select disabled><option id='select_off'>F</option></select>\
+         <select multiple><option id='multiple'>G</option></select>\
+         <select size='3'><option id='sized'>H</option></select>\
+         <input list='dl'><datalist id='dl'><option id='listed' value='I'></datalist>",
+        "https://example.test/",
+    );
+    let result: serde_json::Value =
+        serde_json::from_str(&build_json(&dom, r#"{"method":"full"}"#).unwrap()).unwrap();
+    let nodes = result["nodes"].as_array().unwrap();
+    let focusable = |selector: &str| {
+        let id = node_id(&dom, selector);
+        let node = nodes
+            .iter()
+            .find(|node| node["backendDOMNodeId"] == id)
+            .unwrap_or_else(|| panic!("no AX node for {selector}"));
+        node["properties"]
+            .as_array()
+            .is_some_and(|properties| properties.iter().any(|p| p["name"] == "focusable"))
+    };
+    for (selector, expected) in [
+        ("#enabled", true),
+        ("#disabled", false),
+        ("#tabbed", false),
+        ("#grouped", true),
+        ("#group_off", false),
+        ("#group_tabbed", false),
+        ("#select_off", true),
+        ("#multiple", true),
+        ("#sized", true),
+        ("#listed", false),
+    ] {
+        assert_eq!(focusable(selector), expected, "{selector}");
+    }
 }
 
 #[test]
