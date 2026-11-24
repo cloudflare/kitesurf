@@ -89,3 +89,53 @@ fn css_filter_drop_shadow_uses_current_color_and_replays_over_ksc0() {
         "drop-shadow with omitted color must use currentColor (green) across KSC0 replay; got {shadow:?}"
     );
 }
+
+#[test]
+fn css_filter_output_is_clipped_by_overflow_hidden_and_clip_path() {
+    let html = r##"<!doctype html><html><head><style>
+      body { margin: 0; background: #ffffff; }
+      #clip {
+        position: absolute; left: 20px; top: 20px; width: 40px; height: 40px;
+        overflow: hidden;
+      }
+      #blur {
+        width: 40px; height: 40px;
+        background: rgb(0, 0, 255);
+        filter: blur(12px);
+      }
+      #masked {
+        position: absolute; left: 90px; top: 20px; width: 60px; height: 60px;
+        background: rgb(0, 200, 0);
+        filter: drop-shadow(15px 15px 10px rgb(255, 0, 0));
+        clip-path: inset(0px 30px 30px 0px);
+      }
+    </style></head><body>
+      <div id="clip"><div id="blur"></div></div>
+      <div id="masked"></div>
+    </body></html>"##;
+    let dom = crate::DomHandle::new(html, "https://test.example/");
+    dom.set_viewport(180, 100);
+    dom.resolve_layout();
+
+    let scene = dom.render_scene_raw(0, 0, 0, 0, false, false);
+    let rasterizer = crate::paint::scene_replay::SceneRasterizer::new();
+    let png = rasterizer.rasterize(&scene, "png", 90, false);
+    let (w, _, pixels) = decode_png(&png);
+
+    // Just outside #clip's right edge (x=65, y=40): blur must not bleed past overflow:hidden.
+    let outside_overflow = pixel_at(&pixels, w, 65, 40);
+    assert_eq!(
+        outside_overflow,
+        [255, 255, 255, 255],
+        "blur inside overflow:hidden must not bleed outside clip box; got {outside_overflow:?}"
+    );
+
+    // Just outside #masked's clip-path inset right edge (x=125, y=35):
+    // red drop-shadow must be clipped.
+    let outside_clip_path = pixel_at(&pixels, w, 125, 35);
+    assert_eq!(
+        outside_clip_path,
+        [255, 255, 255, 255],
+        "drop-shadow must be clipped by clip-path; got {outside_clip_path:?}"
+    );
+}
