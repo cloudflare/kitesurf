@@ -5,7 +5,12 @@
 // A BrowserSession owns one browser; a ClientConnection owns one CDP WebSocket that drives it.
 
 import { nanoid } from "nanoid";
-import { dispatch, type DispatchCtx, type SessionContext } from "./dispatch.ts";
+import {
+  dispatch,
+  releaseClientOverrides,
+  type DispatchCtx,
+  type SessionContext,
+} from "./dispatch.ts";
 import { traceSpan } from "../tracing.ts";
 import { endLocalTraceSession, localTraceEventWrap } from "../tracing-local.ts";
 import {
@@ -17,13 +22,21 @@ import {
   type CdpRequest,
   type CdpResponse,
   type CdpSuccess,
+  type TargetState,
   RawJsonResult,
 } from "./types.ts";
-import { ensureBrowserTarget, createPageTarget, engineMemoryBreakdown } from "./target.ts";
+import {
+  childFrameTargets,
+  createPageTarget,
+  detachClientSession,
+  engineMemoryBreakdown,
+  ensureBrowserTarget,
+  frameTargetInfo,
+} from "./target.ts";
 import { pumpBackgroundEvents, teardownOopifStubs } from "./page.ts";
 import { retireStub } from "./page-script-generation.ts";
 import { releaseAllDomHandles } from "./dom-release.ts";
-import { cancelAndRemoveTargetWheelQueues } from "./wheel-queue.ts";
+import { cancelAndRemoveTargetWheelQueues, stopAndRemoveWheelQueue } from "./wheel-queue.ts";
 import { stopSceneStreams } from "./scene-stream.ts";
 import { DynamicWorkerBudget } from "../eval/worker-budget.ts";
 import { DedicatedWorkers } from "./dedicated-workers.ts";
@@ -41,7 +54,11 @@ import type { ExternalOutbound } from "../eval/external-outbound.ts";
 import { createSandboxOutboundOverride, type SandboxOutboundExports } from "../eval/outbound.ts";
 import { unregisterOutboundFilters } from "./outbound-filter-registry.ts";
 import { registerRequestBlocker, unregisterRequestBlocker } from "../request-blocker.ts";
-import { unregisterInterception, drainInterception } from "./fetch-interception.ts";
+import {
+  disableInterceptionForClient,
+  unregisterInterception,
+  drainInterception,
+} from "./fetch-interception.ts";
 import {
   KitesurfAnalytics,
   SafePerformance,
@@ -70,6 +87,7 @@ const IDLE_SESSION_MS = 10 * 60_000;
 const MAX_SESSION_MS = 60 * 60_000;
 const BACKGROUND_EVENT_DRAIN_INTERVAL_MS = 200;
 const CDP_CONNECTION_ID_LENGTH = 10;
+const CDP_CLIENT_ID_LENGTH = 8;
 const CDP_DEBUG_SESSION_ID_PREFIX_CHARS = 6;
 
 function isRawJsonSuccess(payload: unknown): payload is CdpSuccess & { result: RawJsonResult } {
@@ -187,10 +205,16 @@ export function parseConnectionParams(request: Request): ConnectionParams {
 }
 
 export interface BrowserSessionOptions {
+  // A persistent session outlives its clients: one leaving takes only its own state, and the
+  // session ends on Browser.close, the wall-clock cap or dispose(). Otherwise the session ends
+  // when its one client leaves.
+  persistent?: boolean;
   host?: EngineHost;
   externalOutbound?: ExternalOutbound;
   // The host's egress for this session. Called once, and only without an external outbound.
   egress?: () => ExternalOutbound | undefined;
+  // A client left a persistent session that keeps running; `remaining` clients are connected.
+  onClientLeft?: (remaining: number) => void;
 }
 
 export interface ClientOptions {
@@ -201,8 +225,8 @@ export interface ClientOptions {
 }
 
 /**
- * One browser: targets, cookie jars, the network log, the renderer, the background drain, the
- * wall-clock cap and teardown. It has at most one client and ends when that client leaves.
+ * One browser and everything its clients share: targets, cookie jars, the network log, the
+ * renderer, the background drain, the wall-clock cap and teardown. Events go through `route`.
  */
 export class BrowserSession {
   // Also the analytics session ID, the log correlation key and the key of every
@@ -213,19 +237,26 @@ export class BrowserSession {
   // WebSocket events lose the local trace context; handlers rejoin the one captured here.
   readonly rejoinLocalTrace: ReturnType<typeof localTraceEventWrap>;
   readonly arrivalClock: () => number;
-  // Engine memory at teardown, for the client's close line.
+  // Engine memory at teardown, for each client's close line.
   memAtClose: ReturnType<typeof engineMemoryBreakdown> | null = null;
   readonly #env: Env;
   readonly #ctx: SessionContext;
   readonly #dispatchEnv: DispatchCtx["env"];
+  readonly #persistent: boolean;
   readonly #maxSessionMs: number;
+  readonly #onClientLeft: BrowserSessionOptions["onClientLeft"];
   readonly #commandExtension: DispatchCtx["commandExtension"];
   readonly #requestBlocker: DispatchCtx["requestBlocker"];
-  #client: ClientConnection | null = null;
+  // Insertion order is connection order.
+  readonly #clients = new Map<string, ClientConnection>();
+  // Acts for no client: drains a persistent session while no client is connected.
+  readonly #idleCtx: DispatchCtx;
+  // The first client opened the browser and its initial page.
+  #opened = false;
   readonly #openedAt: number;
   readonly #drainTimer: ReturnType<typeof setInterval>;
   #deadlineFired = false;
-  // The client idled out: the drain stops while the socket closes.
+  // A non-persistent session whose client idled out: the drain stops while the socket closes.
   #idleClosed = false;
   #disposed = false;
 
@@ -238,7 +269,9 @@ export class BrowserSession {
   ) {
     this.#env = env;
     this.#ctx = ctx;
+    this.#persistent = opts.persistent === true;
     this.#maxSessionMs = params.maxSessionMs;
+    this.#onClientLeft = opts.onClientLeft;
     const connectionId = this.id;
     const options = resolveConnectionOptions(request, connectionId, opts.host, env);
 
@@ -305,8 +338,6 @@ export class BrowserSession {
       // Deferred-fonts opt-in. See BrowserState.fontDefer.
       fontDefer: options.fontDefer,
       fontProfile: options.fontProfile,
-      rendererSessionId: null,
-      engineSessionId: null,
       wsClosing: false,
       attributionHeaders: pickHeaders(request, opts.host?.attributionHeaders),
     };
@@ -324,6 +355,7 @@ export class BrowserSession {
     // Host bindings belong to the session's lifetime, not a worker-global cache.
     this.#commandExtension = opts.host?.createCdpCommandExtension?.(env);
     this.#dispatchEnv = buildDispatchEnv(env);
+    this.#idleCtx = this.makeCtx(newClientState(params.connectionMode, ""));
 
     this.#openedAt = Date.now();
     this.rejoinLocalTrace = localTraceEventWrap(env);
@@ -331,8 +363,24 @@ export class BrowserSession {
     this.#drainTimer = setInterval(() => this.#tick(), BACKGROUND_EVENT_DRAIN_INTERVAL_MS);
   }
 
+  get persistent(): boolean {
+    return this.#persistent;
+  }
+
   get disposed(): boolean {
     return this.#disposed;
+  }
+
+  get clientCount(): number {
+    return this.#clients.size;
+  }
+
+  /** Opens the browser with one blank page for the first client; null for every later one. */
+  openInitialPage(ctx: DispatchCtx): TargetState | null {
+    if (this.#opened) return null;
+    this.#opened = true;
+    ensureBrowserTarget(ctx);
+    return createPageTarget(ctx, "about:blank");
   }
 
   /** A dispatch context that acts for `client`. Its events go through `route`. */
@@ -347,13 +395,29 @@ export class BrowserSession {
       connectionId: this.id,
       analytics: this.analytics,
       client,
+      emitToClient: (event) => {
+        if (!this.#disposed) this.#clients.get(client.id)?.deliver(event);
+      },
+      peers: () => Array.from(this.#clients.values(), (c) => c.ctx),
     };
   }
 
-  /** Delivers an event to the client, if one is connected. */
+  // Delivers an event. A non-persistent session sends everything to its one client. A
+  // persistent one sends an event on a CDP session to the client that owns it, and drops it
+  // when no client does; root-session events go to every client.
   route(event: CdpEvent): void {
     if (this.#disposed) return;
-    this.#client?.deliver(event);
+    const sessionId = addressedSession(event);
+    if (!this.#persistent || sessionId === undefined) {
+      for (const c of this.#clients.values()) c.deliver(event);
+    } else {
+      for (const c of this.#clients.values()) {
+        if (c.state.sessions.has(sessionId)) c.deliver(event);
+      }
+    }
+    if (event.method === "Target.detachedFromTarget" && sessionId !== undefined) {
+      for (const c of this.#clients.values()) c.state.sessions.delete(sessionId);
+    }
   }
 
   /** Connects a CDP client on an accepted server-side socket. */
@@ -363,18 +427,70 @@ export class BrowserSession {
     opts: ClientOptions = {},
   ): ClientConnection {
     if (this.#disposed) throw new Error("browser session has ended");
-    if (this.#client) throw new Error("browser session already has a client");
+    if (!this.#persistent && this.#clients.size > 0) {
+      throw new Error("browser session already has a client");
+    }
     const client = new ClientConnection(this, server, params, opts, {
-      onLeave: (end) => this.#clientLeft(end),
+      onLeave: (c, end) => this.#clientLeft(c, end),
+      onLateDispatch: (c) => {
+        if (this.#persistent && !this.#disposed) this.#releaseClient(c);
+      },
     });
-    this.#client = client;
+    this.#clients.set(client.state.id, client);
     client.start();
     return client;
   }
 
-  #clientLeft(end: SessionEndFields): void {
-    this.#client = null;
-    this.dispose(end);
+  #clientLeft(client: ClientConnection, end: SessionEndFields): void {
+    this.#clients.delete(client.state.id);
+    if (!this.#persistent) {
+      this.dispose(end);
+      return;
+    }
+    if (this.#disposed) return;
+    this.#releaseClient(client);
+    try {
+      this.#onClientLeft?.(this.#clients.size);
+    } catch (err) {
+      console.warn("[kitesurf-ws] onClientLeft threw:", err);
+    }
+  }
+
+  // Undoes what a departed client held on a session that keeps running: its CDP sessions and
+  // their domain enables, its screencasts, new-document scripts and Fetch interception. Safe
+  // to repeat, for a command that was still running when the client left.
+  #releaseClient(client: ClientConnection): void {
+    const browser = this.browser;
+    const state = client.state;
+    for (const id of state.preNavScriptIds) browser.preNavScripts.delete(id);
+    state.preNavScriptIds.clear();
+    for (const [targetId, stream] of Array.from(browser.screencasts)) {
+      if (stream.ownerClientId !== state.id) continue;
+      stream.stopped = true;
+      stream.wake?.();
+      browser.screencasts.delete(targetId);
+      stopAndRemoveWheelQueue(browser, targetId, stream.ownerSessionId, stream.wheelQueue);
+    }
+    for (const sessionId of Array.from(state.sessions)) {
+      detachClientSession(client.ctx, sessionId);
+      browser.runtimeEnabledSessions.delete(sessionId);
+      for (const t of browser.targets.values()) {
+        t.debuggerEnabledSessions.delete(sessionId);
+        t.domEnabledSessions.delete(sessionId);
+        t.cssEnabledSessions.delete(sessionId);
+      }
+    }
+    state.sessions.clear();
+    state.memoryTargets.renderer = null;
+    state.memoryTargets.engine = null;
+    disableInterceptionForClient(this.id, state.id);
+    releaseClientOverrides(client.ctx, state.id);
+  }
+
+  /** Closes every client and ends the session. */
+  close(code: number, reason: string): void {
+    for (const c of Array.from(this.#clients.values())) c.close(code, reason);
+    this.dispose({ endReason: "close", closeCode: code, wasClean: 1 });
   }
 
   // Returns true from the tick on which the wall-clock cap fires, and on every later one.
@@ -384,20 +500,21 @@ export class BrowserSession {
     this.#deadlineFired = true;
     const reason = `kitesurf: session exceeded ${this.#maxSessionMs} ms`;
     console.warn(`[kitesurf-ws] closing session ${this.id}: ${reason}`);
-    this.#client?.close(1001, reason);
+    for (const c of Array.from(this.#clients.values())) c.close(1001, reason);
+    if (this.#persistent) this.dispose({ endReason: "close", closeCode: 1001, wasClean: 1 });
     return true;
   }
 
   #tick(): void {
     // Once the client idles out, the wall-clock cap must not close its socket a second time.
     if (this.#idleClosed || this.#closeIfExpired()) return;
-    if (this.#client?.closeIfIdle()) {
-      this.#idleClosed = true;
-      return;
+    for (const c of Array.from(this.#clients.values())) {
+      if (c.closeIfIdle() && !this.#persistent) this.#idleClosed = true;
     }
-    const ctx = this.#client?.ctx;
+    if (this.#idleClosed) return;
+    const ctx = this.#clients.values().next().value?.ctx ?? this.#idleCtx;
     const browser = this.browser;
-    if (!ctx || browser.targets.size === 0) return;
+    if (browser.targets.size === 0) return;
     browser.networkEvents.drain();
     drainInterception(this.id);
     for (const t of browser.targets.values()) {
@@ -415,9 +532,10 @@ export class BrowserSession {
     });
     this.#disposed = true;
     clearInterval(this.#drainTimer);
-    const client = this.#client;
-    this.#client = null;
-    client?.close(1001, "kitesurf: browser session ended");
+    for (const c of Array.from(this.#clients.values())) {
+      c.close(1001, "kitesurf: browser session ended");
+    }
+    this.#clients.clear();
     const connectionId = this.id;
     const ctx = this.#ctx;
     browser.wsClosing = true;
@@ -464,13 +582,32 @@ export class BrowserSession {
   }
 }
 
-function newClientState(connectionMode: "page" | "browser"): CdpClientState {
-  return { connectionMode, autoAttach: false, flatten: false };
+function newClientState(connectionMode: "page" | "browser", id: string): CdpClientState {
+  return {
+    id,
+    connectionMode,
+    autoAttach: false,
+    flatten: false,
+    sessions: new Set(),
+    preNavScriptIds: new Set(),
+    memoryTargets: { renderer: null, engine: null },
+  };
+}
+
+// The session an event belongs to: its own, or the one an attach or detach notice names.
+function addressedSession(event: CdpEvent): string | undefined {
+  if (event.sessionId) return event.sessionId;
+  if (event.method === "Target.attachedToTarget" || event.method === "Target.detachedFromTarget") {
+    return event.params.sessionId;
+  }
+  return undefined;
 }
 
 interface ClientHooks {
   // The client is gone. Called once.
-  onLeave: (end: SessionEndFields) => void;
+  onLeave: (client: ClientConnection, end: SessionEndFields) => void;
+  // A command finished after the client left.
+  onLateDispatch: (client: ClientConnection) => void;
 }
 
 /** One CDP WebSocket on a BrowserSession: sending, the idle deadline and the message loop. */
@@ -507,7 +644,7 @@ export class ClientConnection {
     this.#params = params;
     this.#opts = opts;
     this.#hooks = hooks;
-    this.state = newClientState(params.connectionMode);
+    this.state = newClientState(params.connectionMode, nanoid(CDP_CLIENT_ID_LENGTH));
     const ctx = session.makeCtx(this.state);
     this.ctx = ctx;
     const connectionId = session.id;
@@ -560,11 +697,16 @@ export class ClientConnection {
     }
   }
 
-  // Closes the socket. The session tears down from the close listener.
+  // Closes the socket. A non-persistent session tears down from the close listener. A
+  // persistent one lets the client leave here, so a peer that never answers the close frame
+  // cannot hold its sessions open.
   close(code: number, reason: string): void {
     try {
       this.#server.close(code, reason);
     } catch {}
+    if (this.#session.persistent) {
+      this.#leave({ endReason: "close", closeCode: code, wasClean: 1 });
+    }
   }
 
   // The close listener, close() and a transport error can each report the same departure.
@@ -572,7 +714,7 @@ export class ClientConnection {
     this.#closing = true;
     if (this.#left) return;
     this.#left = true;
-    this.#hooks.onLeave(end);
+    this.#hooks.onLeave(this, end);
   }
 
   /** Closes this client once it has sent nothing for its idle budget; true on the closing call. */
@@ -588,8 +730,9 @@ export class ClientConnection {
     return true;
   }
 
-  /** Runs the in-process hooks, opens the initial blank page and starts listening. */
+  /** Runs the in-process hooks, announces the page targets and starts listening. */
   start(): void {
+    const session = this.#session;
     const server = this.#server;
     const params = this.#params;
 
@@ -605,14 +748,26 @@ export class ClientConnection {
       console.warn("[kitesurf-ws] in-process consumer threw:", err);
     }
 
-    // After the hooks, as before the split: a page a hook creates is announced once, by the
-    // command that created it, and an onCtx that changes the browser state sees no targets.
-    ensureBrowserTarget(this.ctx);
-    const initialPage = createPageTarget(this.ctx, "about:blank");
-    this.deliver({
-      method: "Target.targetCreated",
-      params: { targetInfo: { ...visibleInfo(initialPage, params.connectionMode) } },
-    });
+    // After the hooks: a page a hook creates is announced once, by the command that created
+    // it. The first client opens the browser; a later one hears of the pages that exist, and in
+    // browser mode of their child frames, as emitFrameTarget told the clients before it.
+    const initialPage = session.openInitialPage(this.ctx);
+    const announced = initialPage
+      ? [initialPage]
+      : Array.from(session.browser.targets.values()).filter((t) => t.type === "page");
+    for (const t of announced) {
+      this.deliver({
+        method: "Target.targetCreated",
+        params: { targetInfo: { ...visibleInfo(t, params.connectionMode) } },
+      });
+      if (initialPage || params.connectionMode !== "browser") continue;
+      for (const frame of childFrameTargets(t)) {
+        this.deliver({
+          method: "Target.targetCreated",
+          params: { targetInfo: frameTargetInfo(frame) },
+        });
+      }
+    }
 
     const initialUrl = params.initialUrl;
     if (initialUrl !== null) {
@@ -682,7 +837,8 @@ export class ClientConnection {
         // Chrome exits after it answers Browser.close, which drops the socket. Clients behind
         // a proxy wait for that drop, so `browser.close()` hangs unless the engine closes too.
         if (req.method === "Browser.close" && !("error" in response)) {
-          this.close(1000, "Browser.close");
+          if (this.#session.persistent) this.#session.close(1000, "Browser.close");
+          else this.close(1000, "Browser.close");
         }
       } catch (err) {
         console.error("[cdp dispatch threw]", req.method, err);
@@ -692,6 +848,7 @@ export class ClientConnection {
           sessionId: req.sessionId,
         });
       }
+      if (this.#left) this.#hooks.onLateDispatch(this);
     });
   }
 
@@ -701,8 +858,8 @@ export class ClientConnection {
     };
     const msg = e.error?.message ?? e.message ?? "";
     const postClose = this.#closing && msg.includes("Network connection lost");
-    // workerd may never follow the error with a close event, so the client leaves now and the
-    // session ends with it.
+    // workerd may never follow the error with a close event, so the client leaves now. A
+    // non-persistent session ends with it.
     if (!this.#closing) this.#leave({ endReason: "error", closeCode: 0, wasClean: 0 });
     const detail = {
       message: e.message,

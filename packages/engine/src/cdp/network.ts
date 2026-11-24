@@ -36,7 +36,10 @@ export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<
     case "Network.setUserAgentOverride": {
       const ua = typeof req.params?.userAgent === "string" ? req.params.userAgent : "";
       const resolved = resolveNetworkTarget(ctx, req.sessionId);
-      if (resolved) resolved.userAgentOverride = ua;
+      if (resolved) {
+        resolved.userAgentOverride = ua;
+        resolved.overrideOwners.set("userAgent", ctx.client.id);
+      }
       return {};
     }
 
@@ -49,7 +52,10 @@ export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<
         sanitized[k] = v;
       }
       const resolved = resolveNetworkTarget(ctx, req.sessionId);
-      if (resolved) resolved.extraHttpHeaders = sanitized;
+      if (resolved) {
+        resolved.extraHttpHeaders = sanitized;
+        resolved.overrideOwners.set("extraHttpHeaders", ctx.client.id);
+      }
       return {};
     }
 

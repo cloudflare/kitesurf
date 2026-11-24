@@ -36,6 +36,20 @@ import { registerCookieJar, unregisterCookieJar, cookieKeyFor } from "./cookie-j
 
 const BROWSER_TARGET_ID = "browser";
 
+// Every CDP session belongs to the client that attached it; see CdpClientState.sessions.
+function newClientSession(ctx: DispatchCtx): string {
+  const sessionId = makeSessionId();
+  ctx.client.sessions.add(sessionId);
+  return sessionId;
+}
+
+function hasClientSession(ctx: DispatchCtx, sessions: Set<string>): boolean {
+  for (const s of sessions) {
+    if (ctx.client.sessions.has(s)) return true;
+  }
+  return false;
+}
+
 function announceExistingOopifTargets(ctx: DispatchCtx): void {
   for (const target of ctx.browser.targets.values()) {
     for (const frame of target.frames.values()) {
@@ -72,6 +86,35 @@ export function detachSessions(ctx: DispatchCtx, sessions: Set<string>, targetId
     for (const t of ctx.browser.targets.values()) t.domStorageSessions.delete(sessionId);
   }
   sessions.clear();
+}
+
+/**
+ * Detaches one of `ctx`'s client's CDP sessions: its attachments, WebMCP state, the screencast
+ * it owns and its Network ledger. Sends nothing; Target.detachFromTarget answers the client.
+ */
+export function detachClientSession(ctx: DispatchCtx, sessionId: string): void {
+  ctx.client.sessions.delete(sessionId);
+  for (const t of ctx.browser.targets.values()) {
+    if (t.sessions.delete(sessionId)) {
+      ctx.browser.networkEvents.setTargetAttribution(t.frameId, t.loaderId, Array.from(t.sessions));
+    }
+    detachWebMcpSession(t, sessionId);
+    forgetFrontendNodes(t, sessionId);
+    t.domStorageSessions.delete(sessionId);
+    const stream = ctx.browser.screencasts.get(t.targetId);
+    if (stream?.ownerSessionId === sessionId) {
+      stream.stopped = true;
+      ctx.browser.screencasts.delete(t.targetId);
+      stopAndRemoveWheelQueue(ctx.browser, t.targetId, stream.ownerSessionId, stream.wheelQueue);
+    }
+    for (const frame of t.frames.values()) {
+      updateFrameSessionAttribution(ctx, frame, sessionId);
+    }
+  }
+  ctx.browser.networkEvents.forgetSession(sessionId);
+  if (sessionId === ctx.client.memoryTargets.renderer) {
+    ctx.client.memoryTargets.renderer = null;
+  }
 }
 
 export function jarForTarget(ctx: DispatchCtx, target: TargetState | null | undefined): CookieJar {
@@ -129,9 +172,11 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
       if (ctx.client.autoAttach && ctx.client.connectionMode !== "page") {
         for (const t of ctx.browser.targets.values()) {
           if (t.type !== "page") continue;
-          if (t.sessions.size > 0) continue;
+          // Another client's session does not count: each client gets its own on every page.
+          if (hasClientSession(ctx, t.sessions)) continue;
           autoAttachTarget(ctx, t);
         }
+        attachExistingChildFrames(ctx);
       }
       if (ctx.client.autoAttach && ctx.client.connectionMode === "page") {
         announceRendererTarget(ctx);
@@ -208,8 +253,9 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
         method: "Target.targetCreated",
         params: { targetInfo: targetInfo(ctx, target) },
       });
-      if (ctx.client.autoAttach) {
-        autoAttachTarget(ctx, target);
+      // As in Chrome, every client with auto-attach on gets a session, not only the creator.
+      for (const peer of ctx.peers()) {
+        if (peer.client.autoAttach) autoAttachTarget(peer, target);
       }
       return { targetId: target.targetId };
     }
@@ -231,7 +277,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
       }
       const target = ctx.browser.targets.get(id);
       if (target) {
-        const sessionId = makeSessionId();
+        const sessionId = newClientSession(ctx);
         target.sessions.add(sessionId);
         ctx.browser.networkEvents.setTargetAttribution(
           target.frameId,
@@ -252,7 +298,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
         for (const parent of ctx.browser.targets.values()) {
           const frame = parent.frames.get(id);
           if (!frame || frame.parentFrameId === null || frame.detached) continue;
-          const sessionId = makeSessionId();
+          const sessionId = newClientSession(ctx);
           frame.sessions.add(sessionId);
           ctx.browser.networkEvents.setTargetAttribution(
             frame.frameId,
@@ -274,7 +320,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
     }
 
     case "Target.attachToBrowserTarget": {
-      const sessionId = makeSessionId();
+      const sessionId = newClientSession(ctx);
       const browser = ctx.browser.targets.get(BROWSER_TARGET_ID);
       if (browser) browser.sessions.add(sessionId);
       return { sessionId };
@@ -282,38 +328,10 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
 
     case "Target.detachFromTarget": {
       const sessionId = req.params?.sessionId;
-      if (sessionId) {
-        for (const t of ctx.browser.targets.values()) {
-          if (t.sessions.delete(sessionId)) {
-            ctx.browser.networkEvents.setTargetAttribution(
-              t.frameId,
-              t.loaderId,
-              Array.from(t.sessions),
-            );
-          }
-          detachWebMcpSession(t, sessionId);
-          forgetFrontendNodes(t, sessionId);
-          t.domStorageSessions.delete(sessionId);
-          const stream = ctx.browser.screencasts.get(t.targetId);
-          if (stream?.ownerSessionId === sessionId) {
-            stream.stopped = true;
-            ctx.browser.screencasts.delete(t.targetId);
-            stopAndRemoveWheelQueue(
-              ctx.browser,
-              t.targetId,
-              stream.ownerSessionId,
-              stream.wheelQueue,
-            );
-          }
-          for (const frame of t.frames.values()) {
-            updateFrameSessionAttribution(ctx, frame, sessionId);
-          }
-        }
-        ctx.browser.networkEvents.forgetSession(sessionId);
-        if (sessionId === ctx.browser.rendererSessionId) {
-          ctx.browser.rendererSessionId = null;
-        }
-      }
+      if (!sessionId) return {};
+      // A client cannot detach a session another client of a shared browser attached.
+      if (ctx.peers().some((p) => p !== ctx && p.client.sessions.has(sessionId))) return {};
+      detachClientSession(ctx, sessionId);
       return {};
     }
 
@@ -375,6 +393,7 @@ export function ensureBrowserTarget(ctx: DispatchCtx): TargetState {
     lastNavigatePhases: null,
     extraHttpHeaders: {},
     userAgentOverride: "",
+    overrideOwners: new Map(),
   };
   ctx.browser.targets.set(BROWSER_TARGET_ID, t);
   return t;
@@ -414,6 +433,8 @@ export async function closeTargetInternal(ctx: DispatchCtx, id: string): Promise
       }
       for (const sessionId of frame.sessions) {
         ctx.browser.networkEvents.forgetSession(sessionId);
+        // The session can belong to any client, and no detach notice tells the others.
+        for (const peer of ctx.peers()) peer.client.sessions.delete(sessionId);
       }
       frame.sessions.clear();
       frame.detached = true;
@@ -522,13 +543,14 @@ export function createPageTarget(
     lastNavigatePhases: null,
     extraHttpHeaders: {},
     userAgentOverride: "",
+    overrideOwners: new Map(),
   };
   ctx.browser.targets.set(targetId, t);
   return t;
 }
 
 export function autoAttachTarget(ctx: DispatchCtx, target: TargetState): string {
-  const sessionId = makeSessionId();
+  const sessionId = newClientSession(ctx);
   target.sessions.add(sessionId);
   ctx.browser.networkEvents.setTargetAttribution(
     target.frameId,
@@ -571,15 +593,43 @@ export function frameTargetInfo(frame: FrameState): Protocol.Target.TargetInfo {
   };
 }
 
-export function emitFrameTarget(ctx: DispatchCtx, frame: FrameState): string | null {
-  if (ctx.client.connectionMode !== "browser") return null;
+/**
+ * Announces a child frame to every browser-mode client and attaches each one with auto-attach
+ * on. Page-mode clients learn about frames from Page.frameAttached instead.
+ */
+export function emitFrameTarget(ctx: DispatchCtx, frame: FrameState): void {
   const info = frameTargetInfo(frame);
-  ctx.emit({
-    method: "Target.targetCreated",
-    params: { targetInfo: info },
-  });
-  if (!ctx.client.autoAttach) return null;
-  const sessionId = makeSessionId();
+  for (const peer of ctx.peers()) {
+    if (peer.client.connectionMode !== "browser") continue;
+    peer.emitToClient({
+      method: "Target.targetCreated",
+      params: { targetInfo: info },
+    });
+    if (peer.client.autoAttach) attachClientToFrame(peer, frame);
+  }
+}
+
+/** The child frames of a page that are announced as iframe targets. */
+export function childFrameTargets(target: TargetState): FrameState[] {
+  return Array.from(target.frames.values()).filter(
+    (f) => f.frameId !== target.frameId && !f.detached,
+  );
+}
+
+// A client that joins a shared session late was told of the existing child frames in
+// ClientConnection.start; attach it to them as emitFrameTarget would have.
+function attachExistingChildFrames(ctx: DispatchCtx): void {
+  for (const t of ctx.browser.targets.values()) {
+    if (t.type !== "page") continue;
+    for (const frame of childFrameTargets(t)) {
+      if (!hasClientSession(ctx, frame.sessions)) attachClientToFrame(ctx, frame);
+    }
+  }
+}
+
+// Gives the client of `ctx` its own session on a child frame.
+function attachClientToFrame(ctx: DispatchCtx, frame: FrameState): void {
+  const sessionId = newClientSession(ctx);
   frame.sessions.add(sessionId);
   ctx.browser.networkEvents.setTargetAttribution(
     frame.frameId,
@@ -590,11 +640,10 @@ export function emitFrameTarget(ctx: DispatchCtx, frame: FrameState): string | n
     method: "Target.attachedToTarget",
     params: {
       sessionId,
-      targetInfo: { ...info, attached: true },
+      targetInfo: { ...frameTargetInfo(frame), attached: true },
       waitingForDebugger: false,
     },
   });
-  return sessionId;
 }
 
 export const RENDERER_TARGET_ID = "kitesurf-page-renderer";
@@ -605,16 +654,16 @@ function rendererTargetInfo(ctx: DispatchCtx) {
     type: "worker",
     title: "PageRenderer",
     url: "kitesurf://renderer/page-renderer.js",
-    attached: ctx.browser.rendererSessionId !== null,
+    attached: ctx.client.memoryTargets.renderer !== null,
     canAccessOpener: false,
     browserContextId: "default",
   };
 }
 
 export function announceRendererTarget(ctx: DispatchCtx): string | null {
-  if (ctx.browser.rendererSessionId) return ctx.browser.rendererSessionId;
-  const sessionId = makeSessionId();
-  ctx.browser.rendererSessionId = sessionId;
+  if (ctx.client.memoryTargets.renderer) return ctx.client.memoryTargets.renderer;
+  const sessionId = newClientSession(ctx);
+  ctx.client.memoryTargets.renderer = sessionId;
   ctx.emit({
     method: "Target.attachedToTarget",
     params: {
@@ -634,16 +683,16 @@ function engineTargetInfo(ctx: DispatchCtx) {
     type: "worker",
     title: "Engine",
     url: "kitesurf://engine/index.js",
-    attached: ctx.browser.engineSessionId !== null,
+    attached: ctx.client.memoryTargets.engine !== null,
     canAccessOpener: false,
     browserContextId: "default",
   };
 }
 
 export function announceEngineTarget(ctx: DispatchCtx): string {
-  if (ctx.browser.engineSessionId) return ctx.browser.engineSessionId;
-  const sessionId = makeSessionId();
-  ctx.browser.engineSessionId = sessionId;
+  if (ctx.client.memoryTargets.engine) return ctx.client.memoryTargets.engine;
+  const sessionId = newClientSession(ctx);
+  ctx.client.memoryTargets.engine = sessionId;
   ctx.emit({
     method: "Target.attachedToTarget",
     params: {
@@ -771,16 +820,17 @@ export function announceOopifTarget(ctx: DispatchCtx, frame: FrameState): string
   if (ctx.client.connectionMode !== "page") return null;
   if (!ctx.client.autoAttach) return null;
   if (!frame.pageScript) return null;
-  const existing = frame.sessions.values().next();
-  if (!existing.done) {
+  // Only this client's own session counts; route() never delivers another client's to it.
+  for (const existing of frame.sessions) {
+    if (!ctx.client.sessions.has(existing)) continue;
     ctx.browser.networkEvents.setTargetAttribution(
       frame.frameId,
       frame.loaderId,
       Array.from(frame.sessions),
     );
-    return existing.value;
+    return existing;
   }
-  const sessionId = makeSessionId();
+  const sessionId = newClientSession(ctx);
   frame.sessions.add(sessionId);
   ctx.browser.networkEvents.setTargetAttribution(
     frame.frameId,
@@ -802,12 +852,18 @@ export function destroyOopifTarget(
   ctx: DispatchCtx,
   frame: Pick<FrameState, "frameId" | "sessions">,
 ): void {
+  // Browser-mode clients saw the frame's targetCreated; page-mode ones only their own attach.
+  const recipients = ctx
+    .peers()
+    .filter((p) => p.client.connectionMode === "browser" || hasClientSession(p, frame.sessions));
   detachSessions(ctx, frame.sessions, frame.frameId);
   ctx.browser.networkEvents.deleteTargetAttribution(frame.frameId);
-  ctx.emit({
-    method: "Target.targetDestroyed",
-    params: { targetId: frame.frameId },
-  });
+  for (const peer of recipients) {
+    peer.emitToClient({
+      method: "Target.targetDestroyed",
+      params: { targetId: frame.frameId },
+    });
+  }
 }
 
 export async function handleOopifSession(
