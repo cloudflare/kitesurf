@@ -1166,7 +1166,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
           return new Response(body, {
             status: out.status,
             statusText: out.statusText,
-            headers: exposeHeaders(out.headers),
+            headers: scrubKitesurfNamespace(exposeHeaders(out.headers)),
           });
         }
         console.warn(

@@ -28,8 +28,12 @@ vi.mock("../src/eval/dedicated-worker.ts", () => ({
   },
 }));
 
-import { DedicatedWorkers } from "../src/cdp/dedicated-workers.ts";
-import { DynamicWorkerBudget, MAX_DYNAMIC_WORKERS } from "../src/eval/worker-budget.ts";
+import { DedicatedWorkers, MAX_PENDING_WORKER_MESSAGES } from "../src/cdp/dedicated-workers.ts";
+import {
+  DynamicWorkerBudget,
+  MAX_DYNAMIC_WORKERS,
+  MAX_WORKER_QUEUE_WAIT_MS,
+} from "../src/eval/worker-budget.ts";
 import { notifyIsolateLimit } from "../src/eval/limit-registry.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { TargetState } from "../src/cdp/types.ts";
@@ -132,6 +136,79 @@ describe("DedicatedWorkers", () => {
     expect(spawned).toHaveLength(cap + 1);
     expect(budget.liveOf("worker")).toBe(cap);
     expect(delivered).toEqual([]);
+  });
+
+  it("buffers messages posted to a queued worker and cancels a terminated queued worker", async () => {
+    const { budget, workers, create, ctx, owner, delivered } = setup();
+    const cap = MAX_DYNAMIC_WORKERS - 3;
+    for (let id = 1; id <= cap; id++) create(id);
+    await settle();
+
+    // Queue one worker and terminate it before a slot frees, and queue another with buffered posts.
+    create(cap + 1);
+    workers.handle(ctx, owner, "kitesurf.workerTerminate", { workerId: cap + 1 });
+    create(cap + 2);
+    workers.handle(ctx, owner, "kitesurf.workerPostMessage", { workerId: cap + 2, data: "first" });
+    workers.handle(ctx, owner, "kitesurf.workerPostMessage", { workerId: cap + 2, data: "second" });
+    await settle();
+    expect(spawned).toHaveLength(cap);
+
+    // Freeing a slot skips the terminated worker and delivers buffered posts to the live one.
+    workers.handle(ctx, owner, "kitesurf.workerTerminate", { workerId: 1 });
+    await settle();
+    expect(spawned).toHaveLength(cap + 1);
+    expect(spawned[cap]!.opts.label).toContain(`-${cap + 2}`);
+    expect(spawned[cap]!.deliverMessage).toHaveBeenNthCalledWith(1, "first");
+    expect(spawned[cap]!.deliverMessage).toHaveBeenNthCalledWith(2, "second");
+    expect(budget.liveOf("worker")).toBe(cap);
+    expect(delivered).toEqual([]);
+  });
+
+  it("fails a queued worker with an error when the slot wait deadline expires", async () => {
+    vi.useFakeTimers();
+    const { budget, workers, create, ctx, owner, delivered } = setup();
+    const cap = MAX_DYNAMIC_WORKERS - 3;
+    for (let id = 1; id <= cap; id++) create(id);
+    await vi.advanceTimersByTimeAsync(0);
+
+    create(cap + 1);
+    await vi.advanceTimersByTimeAsync(MAX_WORKER_QUEUE_WAIT_MS);
+    expect(spawned).toHaveLength(cap);
+    expect(delivered).toContainEqual(
+      expect.objectContaining({
+        workerId: cap + 1,
+        type: "error",
+        message: "Failed to start worker: no isolate slot is free for this worker",
+      }),
+    );
+    expect(delivered).toContainEqual({ workerId: cap + 1, type: "closed" });
+
+    // Freeing a slot afterward must not spawn the timed-out worker.
+    workers.handle(ctx, owner, "kitesurf.workerTerminate", { workerId: 1 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(spawned).toHaveLength(cap);
+    expect(budget.liveOf("worker")).toBe(cap - 1);
+  });
+
+  it("fails a queued worker when buffered postMessage count exceeds the cap", async () => {
+    vi.useFakeTimers();
+    const { workers, create, ctx, owner, delivered } = setup();
+    const cap = MAX_DYNAMIC_WORKERS - 3;
+    for (let id = 1; id <= cap; id++) create(id);
+    await vi.advanceTimersByTimeAsync(0);
+
+    create(cap + 1);
+    for (let i = 0; i <= MAX_PENDING_WORKER_MESSAGES; i++) {
+      workers.handle(ctx, owner, "kitesurf.workerPostMessage", { workerId: cap + 1, data: i });
+    }
+    expect(delivered).toContainEqual(
+      expect.objectContaining({
+        workerId: cap + 1,
+        type: "error",
+        message: "Worker message queue limit exceeded before startup",
+      }),
+    );
+    expect(delivered).toContainEqual({ workerId: cap + 1, type: "closed" });
   });
 
   it("keeps workers of different documents apart even with equal ids", async () => {

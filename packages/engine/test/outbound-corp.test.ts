@@ -224,6 +224,29 @@ it.each([false, true])("withholds an unusable image's status (captured=%s)", asy
   expect([...response.headers]).toEqual([]);
 });
 
+it("strips remote x-kitesurf-* headers on cross-origin SVG image passthrough", async () => {
+  const response = await gateway(
+    {},
+    new Request("https://other.test/icon.svg", {
+      headers: { "x-kitesurf-resource-type": "Image", "x-kitesurf-allow-cross-origin": "1" },
+    }),
+    async () =>
+      new Response('<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"/>', {
+        status: 200,
+        headers: {
+          "content-type": "image/svg+xml",
+          "x-kitesurf-resource-key": "9223372036854775807",
+          "x-kitesurf-image-width": "4294967295",
+          "x-kitesurf-image-height": "4294967295",
+        },
+      }),
+  );
+  expect(response.status).toBe(200);
+  expect(response.headers.get("x-kitesurf-resource-key")).toBeNull();
+  expect(response.headers.get("x-kitesurf-image-width")).toBeNull();
+  expect(response.headers.get("x-kitesurf-image-height")).toBeNull();
+});
+
 it("hides forbidden response headers from a page-realm response", async () => {
   const response = await gateway(
     { pageRealm: true },

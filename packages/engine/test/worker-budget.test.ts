@@ -2,11 +2,12 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   DynamicWorkerBudget,
   MAX_QUEUED_WORKER_STARTS,
+  MAX_WORKER_QUEUE_WAIT_MS,
   type WorkerLease,
 } from "../src/eval/worker-budget.ts";
 
@@ -120,15 +121,20 @@ describe("DynamicWorkerBudget worker kind", () => {
 });
 
 describe("DynamicWorkerBudget worker queue", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("grants at once when a slot is free", () => {
     const budget = steadyStateBudget();
     const granted: WorkerLease[] = [];
-    expect(budget.admitWorker((lease) => granted.push(lease))).toBe("granted");
+    expect(budget.admitWorker((lease) => granted.push(lease))).toEqual({ status: "granted" });
     expect(granted).toHaveLength(1);
     expect(budget.liveOf("worker")).toBe(1);
   });
 
   it("holds a start until a lease is released, in creation order", () => {
+    vi.useFakeTimers();
     const budget = steadyStateBudget();
     const held = fillWorkers(budget);
     expect(held.length).toBeGreaterThan(0);
@@ -138,8 +144,8 @@ describe("DynamicWorkerBudget worker queue", () => {
       order.push(name);
       granted.push(lease);
     };
-    expect(budget.admitWorker(admit("second"))).toBe("queued");
-    expect(budget.admitWorker(admit("third"))).toBe("queued");
+    expect(budget.admitWorker(admit("second")).status).toBe("queued");
+    expect(budget.admitWorker(admit("third")).status).toBe("queued");
     expect(order).toEqual([]);
 
     held[0]?.release();
@@ -152,11 +158,71 @@ describe("DynamicWorkerBudget worker queue", () => {
   });
 
   it("does not count a queued start as denied", () => {
+    vi.useFakeTimers();
     const budget = steadyStateBudget();
     fillWorkers(budget);
     const denied = budget.workerDenied;
-    budget.admitWorker(() => {});
+    const admission = budget.admitWorker(() => {});
+    expect(admission.status).toBe("queued");
     expect(budget.workerDenied).toBe(denied);
+  });
+
+  it("expires a queued start after the wait deadline and counts the denial", () => {
+    vi.useFakeTimers();
+    const budget = steadyStateBudget();
+    const held = fillWorkers(budget);
+    const deniedBefore = budget.workerDenied;
+    let granted = false;
+    let timedOut = false;
+
+    const admission = budget.admitWorker(
+      () => {
+        granted = true;
+      },
+      () => {
+        timedOut = true;
+      },
+    );
+    expect(admission.status).toBe("queued");
+
+    vi.advanceTimersByTime(MAX_WORKER_QUEUE_WAIT_MS - 1);
+    expect(timedOut).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(timedOut).toBe(true);
+    expect(budget.workerDenied).toBe(deniedBefore + 1);
+
+    held[0]?.release();
+    expect(granted).toBe(false);
+  });
+
+  it("cancels a queued start without denying or consuming a released slot", () => {
+    vi.useFakeTimers();
+    const budget = steadyStateBudget();
+    const held = fillWorkers(budget);
+    const deniedBefore = budget.workerDenied;
+    const order: string[] = [];
+
+    const first = budget.admitWorker(() => order.push("first"));
+    expect(first.status).toBe("queued");
+    const second = budget.admitWorker(() => order.push("second"));
+    expect(second.status).toBe("queued");
+
+    if (first.status === "queued") first.cancel();
+    held[0]?.release();
+    expect(order).toEqual(["second"]);
+    expect(budget.workerDenied).toBe(deniedBefore);
+  });
+
+  it("releases the lease if a queued onGrant callback throws", () => {
+    vi.useFakeTimers();
+    const budget = steadyStateBudget();
+    const held = fillWorkers(budget);
+    const liveBefore = budget.liveOf("worker");
+    budget.admitWorker(() => {
+      throw new Error("boom");
+    });
+    held[0]?.release();
+    expect(budget.liveOf("worker")).toBe(liveBefore - 1);
   });
 
   it("refuses when the reserves alone fill the budget", () => {
@@ -166,19 +232,20 @@ describe("DynamicWorkerBudget worker queue", () => {
     // An OOPIF leaves the worker slots structurally at zero: waiting cannot help.
     expect(budget.acquire("oopif")).not.toBeNull();
     const granted: WorkerLease[] = [];
-    expect(budget.admitWorker((lease) => granted.push(lease))).toBe("full");
+    expect(budget.admitWorker((lease) => granted.push(lease))).toEqual({ status: "full" });
     expect(granted).toEqual([]);
     expect(budget.workerDenied).toBe(1);
   });
 
   it("refuses past the queue cap and counts the denial", () => {
+    vi.useFakeTimers();
     const budget = steadyStateBudget();
     fillWorkers(budget);
     for (let i = 0; i < MAX_QUEUED_WORKER_STARTS; i++) {
-      expect(budget.admitWorker(() => {})).toBe("queued");
+      expect(budget.admitWorker(() => {}).status).toBe("queued");
     }
     const denied = budget.workerDenied;
-    expect(budget.admitWorker(() => {})).toBe("full");
+    expect(budget.admitWorker(() => {})).toEqual({ status: "full" });
     expect(budget.workerDenied).toBe(denied + 1);
   });
 });

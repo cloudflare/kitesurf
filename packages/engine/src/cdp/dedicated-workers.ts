@@ -25,6 +25,7 @@ import { effectiveExtraHeaders } from "./network.ts";
 
 const WORKER_TARGET_ID_LABEL_CHARS = 8;
 const MAX_WORKER_URL_PREVIEW_CHARS = 80;
+export const MAX_PENDING_WORKER_MESSAGES = 256;
 
 export interface WorkerOwner {
   target: TargetState;
@@ -44,7 +45,8 @@ interface WorkerEntry {
   label: string;
   workerId: number;
   owner: WorkerOwner;
-  lease: WorkerLease;
+  lease: WorkerLease | null;
+  cancelWait: (() => void) | null;
   handle: DedicatedWorkerHandle | null;
   started: boolean;
   pending: unknown[];
@@ -158,6 +160,10 @@ export class DedicatedWorkers {
     }
     if (event === "kitesurf.workerPostMessage") {
       if (!entry.started) {
+        if (entry.pending.length >= MAX_PENDING_WORKER_MESSAGES) {
+          this.kill(entry, "", "Worker message queue limit exceeded before startup");
+          return;
+        }
         entry.pending.push(params.data);
         return;
       }
@@ -230,26 +236,53 @@ export class DedicatedWorkers {
       this.fail(owner, workerId, url, "unsupported worker URL scheme");
       return;
     }
-    const admission = this.budget.admitWorker((lease) => {
-      // The page may be gone, or the worker started by another path, by the
-      // time a slot frees.
-      if (!this.ownerAlive(ctx, owner) || this.workers.has(key)) {
-        lease.release();
-        if (!this.workers.has(key))
-          this.fail(owner, workerId, url, "the creating document is gone");
-        return;
-      }
-      this.startWorker(ctx, owner, key, workerId, {
-        url,
-        source,
-        name,
-        origin,
-        baseUrl,
-        navigator: params.navigator,
-        lease,
-      });
-    });
-    if (admission === "full") {
+    const label = workerLabel(owner, workerId);
+    const entry: WorkerEntry = {
+      key,
+      connectionId: ctx.connectionId,
+      label,
+      workerId,
+      owner,
+      lease: null,
+      cancelWait: null,
+      handle: null,
+      started: false,
+      pending: [],
+      dead: false,
+      wallTimer: null,
+    };
+    this.workers.set(key, entry);
+    const admission = this.budget.admitWorker(
+      (lease) => {
+        entry.cancelWait = null;
+        if (entry.dead || !this.ownerAlive(ctx, owner)) {
+          lease.release();
+          if (!entry.dead)
+            this.kill(entry, url, "Failed to start worker: the creating document is gone", true);
+          return;
+        }
+        entry.lease = lease;
+        this.startWorker(ctx, entry, {
+          url,
+          source,
+          name,
+          origin,
+          baseUrl,
+          navigator: params.navigator,
+          lease,
+        });
+      },
+      () => {
+        entry.cancelWait = null;
+        if (entry.dead) return;
+        this.kill(entry, url, "Failed to start worker: no isolate slot is free for this worker");
+      },
+    );
+    if (admission.status === "queued") {
+      entry.cancelWait = admission.cancel;
+    } else if (admission.status === "full") {
+      this.workers.delete(key);
+      entry.dead = true;
       console.warn(
         `[kitesurf-worker] connection ${ctx.connectionId}: budget full, ` +
           `new Worker(${url.slice(0, MAX_WORKER_URL_PREVIEW_CHARS)}) fails ` +
@@ -260,30 +293,10 @@ export class DedicatedWorkers {
   }
 
   /** Starts a worker that holds a lease, whether granted now or queued. */
-  private startWorker(
-    ctx: DispatchCtx,
-    owner: WorkerOwner,
-    key: string,
-    workerId: number,
-    start: WorkerStart,
-  ): void {
-    const { url, source, name, origin, baseUrl, navigator: navigatorInfo, lease } = start;
+  private startWorker(ctx: DispatchCtx, entry: WorkerEntry, start: WorkerStart): void {
+    const { url, source, name, origin, baseUrl, navigator: navigatorInfo } = start;
+    const { owner, workerId, label } = entry;
     const target = owner.target;
-    const label = workerLabel(owner, workerId);
-    const entry: WorkerEntry = {
-      key,
-      connectionId: ctx.connectionId,
-      label,
-      workerId,
-      owner,
-      lease,
-      handle: null,
-      started: false,
-      pending: [],
-      dead: false,
-      wallTimer: null,
-    };
-    this.workers.set(key, entry);
     const caps = pageIsolateCaps(ctx.env, ctx.browser.isolateCapOverrides);
     if (caps.wallMs > 0) {
       entry.wallTimer = setTimeout(() => {
@@ -437,11 +450,13 @@ export class DedicatedWorkers {
     if (entry.dead) return;
     entry.dead = true;
     entry.pending = [];
+    entry.cancelWait?.();
+    entry.cancelWait = null;
     if (entry.wallTimer) clearTimeout(entry.wallTimer);
     entry.wallTimer = null;
     unregisterIsolateLimitListener(entry.label);
     this.workers.delete(entry.key);
-    entry.lease.release();
+    entry.lease?.release();
     const handle = entry.handle;
     if (!handle) return;
     this.waitUntil(handle.terminate(reason, { gone }).then(() => this.budget.noteIsolateKilled()));
