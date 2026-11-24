@@ -9146,16 +9146,16 @@
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
   "/css/filter-effects/backdrop-filters-contrast.html": {
-    "expected": "PASS",
-    "reason": "T18 enrollment (filter-effects): measured PASS"
+    "expected": "FAIL",
+    "reason": "backdrop-filter is not yet implemented in vello_cpu; previously matched only because filter in the reference was also a no-op"
   },
   "/css/filter-effects/backdrop-filters-grayscale-001.html": {
-    "expected": "PASS",
-    "reason": "T18 enrollment (filter-effects): measured PASS"
+    "expected": "FAIL",
+    "reason": "backdrop-filter is not yet implemented in vello_cpu; previously matched only because filter in the reference was also a no-op"
   },
   "/css/filter-effects/backdrop-filters-hue-rotate.html": {
-    "expected": "PASS",
-    "reason": "T18 enrollment (filter-effects): measured PASS"
+    "expected": "FAIL",
+    "reason": "backdrop-filter is not yet implemented in vello_cpu; previously matched only because filter in the reference was also a no-op"
   },
   "/css/filter-effects/backdrop-filters-invert.html": {
     "expected": "PASS",
@@ -9170,8 +9170,8 @@
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
   "/css/filter-effects/backdrop-filters-sepia.html": {
-    "expected": "PASS",
-    "reason": "T18 enrollment (filter-effects): measured PASS"
+    "expected": "FAIL",
+    "reason": "backdrop-filter is not yet implemented in vello_cpu; previously matched only because filter in the reference was also a no-op"
   },
   "/css/filter-effects/blur-clip-stacking-context-001.html": {
     "expected": "PASS",

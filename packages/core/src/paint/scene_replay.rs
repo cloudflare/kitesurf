@@ -712,6 +712,7 @@ fn is_whole_pixel_rect(transform: DecodedTransform, clip_path: &[DecodedPathEl])
 #[derive(Default)]
 struct LayerComposeScan {
     non_source_over: bool,
+    has_filter: bool,
     dimensions: (u32, u32),
     depth: u32,
     unbalanced: bool,
@@ -719,6 +720,9 @@ struct LayerComposeScan {
 }
 
 impl SceneVisitor for LayerComposeScan {
+    fn on_layer_filter(&mut self, _: &[scene_decode::DecodedFilterEffect]) {
+        self.has_filter = true;
+    }
     fn on_push_layer(
         &mut self,
         _: u8,
@@ -1292,7 +1296,7 @@ pub(crate) fn replay_into<S: PaintScene>(
         missing_fonts: 0,
         missing_images: 0,
         text_runs: 0,
-        clip_paths: !composition.non_source_over,
+        clip_paths: !composition.non_source_over && !composition.has_filter,
         open_clip_paths: Vec::new(),
         glyph_text_pending: false,
         pending_filter: None,
