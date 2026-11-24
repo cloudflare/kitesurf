@@ -24,6 +24,14 @@ const html = `<!doctype html><html><body><div id="d"><span>x</span></div>
     element: outcome(function () { return structuredClone(document.getElementById("d")); }),
     nested: outcome(function () { return structuredClone({ node: document.getElementById("d") }); }),
     array: outcome(function () { return structuredClone([document.body]); }),
+    parsed: outcome(function () {
+      return structuredClone(new DOMParser().parseFromString("<p>hi</p>", "text/html").body);
+    }),
+    duckTyped: outcome(function () {
+      return structuredClone({ nodeType: 1, nodeName: "DIV" }).nodeName;
+    }),
+    mapNode: outcome(function () { return structuredClone(new Map([["n", document.body]])); }),
+    setNode: outcome(function () { return structuredClone(new Set([document.body])); }),
     map: outcome(function () { return structuredClone(new Map([["a", 1]])).get("a"); }),
     plain: outcome(function () { return structuredClone({ a: [1, 2] }).a[1]; }),
   });
@@ -39,6 +47,10 @@ test("structuredClone rejects nodes and keeps cloning plain values", async ({
     element: "throw:DataCloneError",
     nested: "throw:DataCloneError",
     array: "throw:DataCloneError",
+    parsed: "throw:DataCloneError",
+    duckTyped: "ok:DIV",
+    mapNode: "throw:DataCloneError",
+    setNode: "throw:DataCloneError",
     map: "ok:1",
     plain: "ok:2",
   });

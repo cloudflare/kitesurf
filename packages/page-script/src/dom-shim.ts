@@ -6,6 +6,7 @@
 // Type-only twin for the external runtime module supplied through Worker Loader.
 export {
   buildDocument,
+  isDomNode,
   listModelContextTools,
   stopModelContextToolWatch,
   callModelContextTool,

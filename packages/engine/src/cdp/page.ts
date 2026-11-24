@@ -1337,6 +1337,7 @@ export const pageDomain = defineDomain("Page", {
             await stubQueryDom(target.pageScript, "setViewport", {
               width: maxWidth,
               height: maxHeight,
+              mobile: target.viewportMobile,
             });
           } catch {}
         }
@@ -2503,6 +2504,7 @@ async function pushNavigateToPageScriptInner(
           ? {
               viewportWidth: target.viewportWidth,
               viewportHeight: target.viewportHeight,
+              viewportMobile: target.viewportMobile,
             }
           : {}),
       });
@@ -2595,6 +2597,7 @@ async function pushNavigateToPageScriptInner(
         await stubQueryDom(pendingPageScript, "setViewport", {
           width: target.viewportWidth,
           height: target.viewportHeight,
+          mobile: target.viewportMobile,
         });
       } catch {}
     }

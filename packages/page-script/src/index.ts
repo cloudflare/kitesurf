@@ -560,7 +560,9 @@ function startParserStylePreloads(): void {
       const href = link.getAttribute?.("href");
       if (!href) continue;
       const url = new URL(href, doc.baseURI || state.pageUrl).toString();
-      void fetchResource(-1, url, "Stylesheet").then((ok) => {
+      const corsMode = link.getAttribute?.("crossorigin") != null ? "cors" : "no-cors";
+      // Preloads warm the cache without delaying the document load event.
+      void fetchResource(-1, url, "Stylesheet", corsMode, false).then((ok) => {
         try {
           __ks_dispatchTrusted(link, new (shimEventCtor("Event"))(ok ? "load" : "error"));
         } catch {}
@@ -1276,16 +1278,30 @@ function __decorateContentWindow(contentWindow: any) {
       contentWindow[globalName] = pageGlobal[globalName];
     }
   }
-  for (const globalName of Object.getOwnPropertyNames(pageGlobal)) {
-    if (contentWindow[globalName] !== undefined) continue;
-    if (!/^(HTML|SVG|MathML).*Element$/.test(globalName)) continue;
-    const value = Object.getOwnPropertyDescriptor(pageGlobal, globalName)?.value;
-    if (typeof value !== "function" || value.prototype === undefined) continue;
-    contentWindow[globalName] = value;
+  for (const globalName of elementInterfaceNames(pageGlobal)) {
+    if (contentWindow[globalName] === undefined && pageGlobal[globalName] !== undefined) {
+      contentWindow[globalName] = pageGlobal[globalName];
+    }
   }
 }
 
 const iframeElementsByFrameId = new Map<string, unknown>();
+
+let cachedElementInterfaceNames: string[] | null = null;
+
+function elementInterfaceNames(pageGlobal: Record<string, unknown>): string[] {
+  if (cachedElementInterfaceNames) return cachedElementInterfaceNames;
+  const matched: string[] = [];
+  for (const globalName of Object.getOwnPropertyNames(pageGlobal)) {
+    if (!/^(HTML|SVG|MathML).*Element$/.test(globalName)) continue;
+    const value = Object.getOwnPropertyDescriptor(pageGlobal, globalName)?.value;
+    if (typeof value === "function" && value.prototype !== undefined) {
+      matched.push(globalName);
+    }
+  }
+  cachedElementInterfaceNames = matched;
+  return matched;
+}
 
 function registerSameOriginIframe(frameId: unknown, iframeElement: unknown): void {
   if (typeof frameId !== "string" || frameId.length === 0) return;
@@ -2941,27 +2957,31 @@ function linkReferrerPolicy(anchor: { getAttribute?: (name: string) => string | 
   return attribute("referrerpolicy").trim().toLowerCase();
 }
 
-// A link with a target of `_blank`, or of a name that is not a reserved
-// keyword, opens another browsing context and leaves this document in place.
-// https://html.spec.whatwg.org/multipage/links.html#attr-hyperlink-target
-function opensNewBrowsingContext(anchor: AttributeTarget): boolean {
-  const target = String(anchor.getAttribute?.("target") ?? "")
-    .trim()
-    .toLowerCase();
-  return target !== "" && target !== "_self" && target !== "_parent" && target !== "_top";
+// Find a named `<iframe>` in the anchor's document matching a non-reserved
+// `target` attribute, matching form submission's target lookup.
+// https://html.spec.whatwg.org/multipage/document-sequences.html#the-rules-for-choosing-a-navigable
+function findNamedTargetIframe(anchor: AttributeTarget, name: string): AttributeTarget | null {
+  const ownerDoc: unknown = Reflect.get(anchor, "ownerDocument");
+  const doc: unknown = ownerDoc && typeof ownerDoc === "object" ? ownerDoc : state.document;
+  if (!doc || typeof doc !== "object") return null;
+  const query: unknown = Reflect.get(doc, "querySelectorAll");
+  if (typeof query !== "function") return null;
+  const frames: unknown = Reflect.apply(query, doc, ["iframe"]);
+  if (!frames || typeof frames !== "object" || !("length" in frames)) return null;
+  const list = frames as ArrayLike<MouseTarget>;
+  for (let i = 0; i < list.length; i++) {
+    const frame = list[i];
+    if (frame && hasAttributeMethods(frame) && frame.getAttribute?.("name") === name) return frame;
+  }
+  return null;
 }
 
-// HTML's "follow the hyperlink" downloads instead of navigating when the `download` attribute
-// targets a same-origin, `blob:`, or `data:` URL:
-// https://html.spec.whatwg.org/multipage/links.html#following-hyperlinks-2
-function isDownloadAnchor(anchor: AttributeTarget, resolved: string): boolean {
+// A `download` anchor for a `blob:` or `data:` URL keeps the current document.
+// Same-origin HTTP(S) downloads still navigate (attachment headers stay handled by the engine).
+// https://html.spec.whatwg.org/multipage/links.html#downloading-resources
+function isInlineDownloadAnchor(anchor: AttributeTarget, resolved: string): boolean {
   if (!anchor.hasAttribute("download")) return false;
-  if (resolved.startsWith("blob:") || resolved.startsWith("data:")) return true;
-  try {
-    return new URL(resolved).origin === new URL(state.pageUrl).origin;
-  } catch {
-    return false;
-  }
+  return resolved.startsWith("blob:") || resolved.startsWith("data:");
 }
 
 // A click follows a link only when it lands on the link or inside it (HTML's activation behavior
@@ -2984,14 +3004,27 @@ function activateAnchorNavigation(
       rawHref,
       state.pageUrl || "https://kitesurf.local/",
     ).toString();
-    if (hasAttributeMethods(anchor) && opensNewBrowsingContext(anchor)) return null;
+    if (hasAttributeMethods(anchor)) {
+      if (isInlineDownloadAnchor(anchor, resolved)) return null;
+      const targetName = String(anchor.getAttribute?.("target") ?? "").trim();
+      const targetKeyword = targetName.toLowerCase();
+      if (
+        targetName &&
+        targetKeyword !== "_self" &&
+        targetKeyword !== "_parent" &&
+        targetKeyword !== "_top" &&
+        targetKeyword !== "_blank"
+      ) {
+        const targetFrame = findNamedTargetIframe(anchor, targetName);
+        if (targetFrame) {
+          targetFrame.setAttribute("src", resolved);
+          return null;
+        }
+      }
+    }
     const isHashOnly =
       resolved.includes("#") && resolved.split("#")[0] === state.pageUrl.split("#")[0];
     if (!isHashOnly) {
-      // A `download` anchor saves a same-origin, blob: or data: target instead
-      // of navigating to it.
-      // https://html.spec.whatwg.org/multipage/links.html#downloading-resources
-      if (hasAttributeMethods(anchor) && isDownloadAnchor(anchor, resolved)) return null;
       return { kind: "navigate", url: resolved, referrerPolicy: linkReferrerPolicy(anchor) };
     }
     const previous = state.pageUrl;
@@ -3817,6 +3850,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         state.dom,
         deviceWidth,
         deviceHeight,
+        navigateOptions.viewportMobile === true,
       );
       state.paintViewportW = viewportWidth;
       state.paintViewportH = viewportHeight;
@@ -7209,12 +7243,31 @@ function parseMetaViewportWidth(content: string): number | null {
   return null;
 }
 
+// Match engine/src/cdp/viewport.ts limits so a mobile meta viewport cannot grow
+// the raster past the engine's side or pixel caps.
+const MAX_LAYOUT_VIEWPORT_SIDE = 2560;
+const MAX_LAYOUT_VIEWPORT_PIXELS = 2560 * 1440;
+const MIN_LAYOUT_VIEWPORT_DIM = 16;
+
+function clampLayoutViewport(w: number, h: number): { width: number; height: number } {
+  let width = Math.max(MIN_LAYOUT_VIEWPORT_DIM, Math.min(MAX_LAYOUT_VIEWPORT_SIDE, Math.floor(w)));
+  let height = Math.max(MIN_LAYOUT_VIEWPORT_DIM, Math.min(MAX_LAYOUT_VIEWPORT_SIDE, Math.floor(h)));
+  const pixels = width * height;
+  if (pixels > MAX_LAYOUT_VIEWPORT_PIXELS) {
+    const scale = Math.sqrt(MAX_LAYOUT_VIEWPORT_PIXELS / pixels);
+    width = Math.max(MIN_LAYOUT_VIEWPORT_DIM, Math.floor(width * scale));
+    height = Math.max(MIN_LAYOUT_VIEWPORT_DIM, Math.floor(height * scale));
+  }
+  return { width, height };
+}
+
 function resolveLayoutViewport(
   dom: DomHandle | null,
   deviceWidth: number,
   deviceHeight: number,
+  mobile: boolean,
 ): { width: number; height: number } {
-  if (!dom) return { width: deviceWidth, height: deviceHeight };
+  if (!mobile || !dom) return { width: deviceWidth, height: deviceHeight };
   try {
     const metaId = dom.querySelector('meta[name="viewport" i]');
     if (metaId < 0) return { width: deviceWidth, height: deviceHeight };
@@ -7236,7 +7289,7 @@ function resolveLayoutViewport(
       deviceHeight,
       Math.round(deviceHeight * (metaWidth / deviceWidth)),
     );
-    return { width: metaWidth, height: scaledHeight };
+    return clampLayoutViewport(metaWidth, scaledHeight);
   } catch {
     return { width: deviceWidth, height: deviceHeight };
   }
@@ -7258,6 +7311,7 @@ function queryDomSetViewport(
     pageState.dom,
     deviceWidth,
     deviceHeight,
+    queryArgs?.mobile === true,
   );
   const dimsChanged =
     state.paintViewportW !== viewportWidth || state.paintViewportH !== viewportHeight;

@@ -120,7 +120,7 @@ import {
   getSelection,
 } from "./range.js";
 import { DocumentImpl, DOMImplementationCls, DetachedDocument, XMLDocument } from "./document.js";
-import { DOMParser, ParsedDocument } from "./parser.js";
+import { DOMParser, ParsedDocument, ParsedElement, ParsedFragment } from "./parser.js";
 import { XMLSerializer } from "./xml-serializer.js";
 import { NodeFilter, TreeWalker, NodeIterator } from "./traversal.js";
 import { XPathEvaluator, XPathExpression, XPathResult } from "./xpath.js";
@@ -955,6 +955,19 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
 
   return bag;
 };
+
+/** True for real DOM node instances from this shim, never plain duck-typed objects. */
+export function isDomNode(value: unknown): boolean {
+  if (value === null || typeof value !== "object") return false;
+  return (
+    NodeBase.prototype.isPrototypeOf(value) ||
+    AttrCls.prototype.isPrototypeOf(value) ||
+    DetachedDocument.prototype.isPrototypeOf(value) ||
+    ParsedElement.prototype.isPrototypeOf(value) ||
+    ParsedFragment.prototype.isPrototypeOf(value) ||
+    ParsedDocument.prototype.isPrototypeOf(value)
+  );
+}
 
 /** Builds the per-navigation DOM globals and PageScript hooks over the supplied wasm DOM. */
 export const buildDocument: (

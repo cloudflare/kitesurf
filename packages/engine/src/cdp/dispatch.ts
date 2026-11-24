@@ -318,11 +318,13 @@ const emulationDomain = defineDomain("Emulation", {
       const vp = clampViewport(width, height);
       target.viewportWidth = vp.width;
       target.viewportHeight = vp.height;
+      target.viewportMobile = req.params?.mobile === true;
       const scale = req.params?.deviceScaleFactor;
       target.deviceScaleFactor = typeof scale === "number" && scale > 0 ? scale : 1;
       await sessionOf(ctx, target).callIfLive.setViewport({
         width: target.viewportWidth,
         height: target.viewportHeight,
+        mobile: target.viewportMobile,
       });
       return {};
     },

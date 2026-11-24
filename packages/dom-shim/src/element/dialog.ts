@@ -41,9 +41,12 @@ const FOCUSABLE_SELECTOR = [
 function focusInsideDialog(dialog: DialogLike): void {
   let target: FocusTarget | null = null;
   try {
-    const autofocus = dialog.querySelectorAll("[autofocus]")[0];
-    const focusable = dialog.querySelectorAll(FOCUSABLE_SELECTOR)[0];
-    target = autofocus ?? focusable ?? null;
+    const focusables = Array.from(dialog.querySelectorAll(FOCUSABLE_SELECTOR));
+    const autofocus = focusables.find((el) => {
+      const hasAttr = (el as { hasAttribute?: (name: string) => boolean }).hasAttribute;
+      return typeof hasAttr === "function" && hasAttr.call(el, "autofocus");
+    });
+    target = autofocus ?? focusables[0] ?? null;
   } catch {}
   const focus = (target ?? dialog).focus;
   if (typeof focus === "function") {

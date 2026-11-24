@@ -23,13 +23,15 @@ async function waitForUrl(page: {
   return current;
 }
 
-test("a download anchor keeps the current document", async ({ page }) => {
+test("a download anchor keeps the current document for blob/data but navigates same-origin http", async ({
+  page,
+}) => {
   await setContent(
     page,
     `<!doctype html><title>Downloads</title>
     <a id="data" download="note.txt" href="data:text/plain,hello">data</a>
     <a id="blob" download href="about:blank">blob</a>
-    <a id="plain" href="${LANDING}">navigate</a>
+    <a id="sameorigin" download="page.html" href="${LANDING}">same-origin download</a>
     <script>
       document.getElementById("blob").href = URL.createObjectURL(new Blob(["x"]));
     </script>`,
@@ -39,6 +41,6 @@ test("a download anchor keeps the current document", async ({ page }) => {
   await page.click("#blob");
   await new Promise((resolve) => setTimeout(resolve, 1500));
   expect(await page.evaluate(() => location.href)).toBe(before);
-  await page.click("#plain");
+  await page.click("#sameorigin");
   expect(await waitForUrl(page)).toBe(LANDING);
 }, 60_000);

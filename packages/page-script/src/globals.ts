@@ -4,6 +4,7 @@
 
 // Installs browser-facing globals and adapters in the PageScript realm.
 
+import { isDomNode } from "./dom-shim.js";
 import { resolveImportMap, resolveModuleRegistryUrl } from "./__ks_import_map.js";
 import { bakedJsonModuleName } from "./baked-module.ts";
 import type { BuildDocumentResult, ShimDocument, ShimNavigator, ShimWindow } from "./types.ts";
@@ -725,12 +726,9 @@ export function installGlobals(
           return objectValue;
         };
         // DOM nodes are not serializable; throw DataCloneError instead of copying
-        // a node into a plain object.
+        // a real node into a plain object, while still cloning plain objects that
+        // happen to have `nodeType`/`nodeName` properties.
         // https://html.spec.whatwg.org/multipage/structured-data.html#structuredserializeinternal
-        const isNode = (value: object): boolean => {
-          const candidate = value as { nodeType?: unknown; nodeName?: unknown };
-          return typeof candidate.nodeType === "number" && typeof candidate.nodeName === "string";
-        };
         const findNode = (
           value: unknown,
           seen: WeakSet<object>,
@@ -741,10 +739,34 @@ export function installGlobals(
           const objectValue = value as Record<string, unknown>;
           if (seen.has(objectValue)) return false;
           seen.add(objectValue);
-          if (isNode(objectValue)) return true;
-          if (!Array.isArray(objectValue) && !isContainer(objectValue)) return false;
+          if (typeof objectValue.nodeType === "number" && isDomNode(objectValue)) return true;
+          if (Array.isArray(objectValue)) {
+            for (let i = 0; i < objectValue.length; i++) {
+              const item = objectValue[i];
+              if (item !== null && typeof item === "object" && findNode(item, seen, budget)) {
+                return true;
+              }
+            }
+            return false;
+          }
+          if (objectValue instanceof Map) {
+            for (const [k, v] of objectValue) {
+              if (findNode(k, seen, budget) || findNode(v, seen, budget)) return true;
+            }
+            return false;
+          }
+          if (objectValue instanceof Set) {
+            for (const v of objectValue) {
+              if (findNode(v, seen, budget)) return true;
+            }
+            return false;
+          }
+          if (!isContainer(objectValue)) return false;
           for (const key of Object.keys(objectValue)) {
-            if (findNode(objectValue[key], seen, budget)) return true;
+            const prop = objectValue[key];
+            if (prop !== null && typeof prop === "object" && findNode(prop, seen, budget)) {
+              return true;
+            }
           }
           return false;
         };

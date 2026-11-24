@@ -356,7 +356,7 @@ export interface QueryDomMethods {
     result: { sheets?: EnumeratedStyleSheet[]; error?: string };
   };
   setViewport: {
-    args: { width: number | null; height: number | null };
+    args: { width: number | null; height: number | null; mobile?: boolean };
     result: {
       ok?: boolean;
       width?: number;
