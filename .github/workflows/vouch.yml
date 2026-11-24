@@ -1,11 +1,8 @@
 name: Vouch
 
-# Label every pull request with the author's trust so CI can tell a vouched
-# contributor from one who still needs a maintainer's approval. Unvouched pull
-# requests stay open; only denounced authors are closed.
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
+    types: [opened, reopened]
   issue_comment:
     types: [created]
   push:
@@ -17,9 +14,6 @@ on:
 permissions:
   contents: read
 
-# Per-PR events supersede each other at the run level, in arrival order (a job-level group
-# is joined when the job starts, so an older run's slower job could cancel the newer one).
-# Other comments and pushes get a unique group so they never cancel a PR's run.
 concurrency:
   group: >-
     ${{ (github.event_name == 'pull_request_target' ||
@@ -30,7 +24,6 @@ concurrency:
 
 jobs:
   collect-targets:
-    name: Collect PR targets
     if: >-
       github.repository_owner == 'cloudflare' &&
       (github.event_name != 'issue_comment' ||
@@ -47,31 +40,22 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
+            let targets;
             if (context.eventName === "pull_request_target") {
               const pr = context.payload.pull_request;
-              core.setOutput("targets", JSON.stringify([{ number: pr.number, user: pr.user.login }]));
-              return;
-            }
-
-            if (context.eventName === "issue_comment") {
+              targets = [{ number: pr.number, user: pr.user.login }];
+            } else if (context.eventName === "issue_comment") {
               const issue = context.payload.issue;
-              core.setOutput(
-                "targets",
-                JSON.stringify([{ number: issue.number, user: issue.user.login }]),
-              );
-              return;
+              targets = [{ number: issue.number, user: issue.user.login }];
+            } else {
+              const pulls = await github.paginate(github.rest.pulls.list, {
+                ...context.repo,
+                state: "open",
+                per_page: 100,
+              });
+              targets = pulls.map((pr) => ({ number: pr.number, user: pr.user.login }));
             }
-
-            const pulls = await github.paginate(github.rest.pulls.list, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: "open",
-              per_page: 100,
-            });
-            core.setOutput(
-              "targets",
-              JSON.stringify(pulls.map((pull) => ({ number: pull.number, user: pull.user.login }))),
-            );
+            core.setOutput("targets", JSON.stringify(targets));
 
   label:
     name: Label PR ${{ matrix.target.number }}
@@ -92,7 +76,7 @@ jobs:
         target: ${{ fromJSON(needs.collect-targets.outputs.targets) }}
     steps:
       - id: vouch
-        name: Check PR author trust
+        name: Check author trust
         uses: mitchellh/vouch/action/check-user@d66fa29a64600490892131ad87597c30c91fcac4 # v1
         with:
           user: ${{ matrix.target.user }}
@@ -100,186 +84,95 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Sync vouch labels
+      - name: Update labels and respond
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           PR_NUMBER: ${{ matrix.target.number }}
+          AUTHOR: ${{ matrix.target.user }}
           VOUCH_STATUS: ${{ steps.vouch.outputs.status }}
+          VOUCHED: ${{ steps.vouch.outputs.vouched }}
         with:
           script: |
-            const issueNumber = Number(process.env.PR_NUMBER);
-            const status = process.env.VOUCH_STATUS;
             const { owner, repo } = context.repo;
+            const issue_number = Number(process.env.PR_NUMBER);
+            const author = process.env.AUTHOR;
+            const status = process.env.VOUCH_STATUS;
 
-            // Managed labels describe the author's trust. ci:approved is created here but
-            // kept across a resync, except when the author is denounced.
-            const managedLabels = [
-              {
-                name: "vouch:trusted",
-                color: "1f883d",
-                description: "Author is a bot, a collaborator, or on the vouched list.",
-              },
-              {
-                name: "vouch:unvouched",
-                color: "fbca04",
-                description: "Author is not on the vouched list; CI waits for a maintainer.",
-              },
-              {
-                name: "vouch:denounced",
-                color: "d1242f",
-                description: "Author is explicitly blocked by the vouched list.",
-              },
+            const labels = [
+              { name: "vouch:trusted", color: "1f883d", description: "Author is vouched, a collaborator, or a bot." },
+              { name: "vouch:unvouched", color: "fbca04", description: "Author is not vouched; CI waits for a maintainer." },
+              { name: "vouch:denounced", color: "d1242f", description: "Author is blocked by the vouched list." },
+              { name: "ci:approved", color: "0e8a16", description: "Maintainer approved CI for this unvouched PR." },
             ];
-            const approvalLabel = {
-              name: "ci:approved",
-              color: "0e8a16",
-              description: "A maintainer approved CI for this unvouched pull request.",
-            };
-            const managedLabelNames = new Set(managedLabels.map((label) => label.name));
-
-            for (const label of [...managedLabels, approvalLabel]) {
+            for (const label of labels) {
               try {
-                const { data: existing } = await github.rest.issues.getLabel({
-                  owner,
-                  repo,
-                  name: label.name,
-                });
-                if (
-                  existing.color !== label.color ||
-                  (existing.description ?? "") !== label.description
-                ) {
-                  await github.rest.issues.updateLabel({
-                    owner,
-                    repo,
-                    name: label.name,
-                    color: label.color,
-                    description: label.description,
-                  });
-                }
+                await github.rest.issues.createLabel({ owner, repo, ...label });
               } catch (error) {
-                if (error.status !== 404) throw error;
-                try {
-                  await github.rest.issues.createLabel({ owner, repo, ...label });
-                } catch (createError) {
-                  if (createError.status !== 422) throw createError;
-                }
+                if (error.status !== 422) throw error;
               }
             }
 
-            const nextLabelName =
+            const next =
               status === "denounced"
                 ? "vouch:denounced"
-                : ["bot", "collaborator", "vouched"].includes(status)
+                : process.env.VOUCHED === "true"
                   ? "vouch:trusted"
                   : "vouch:unvouched";
+            const managed = new Set(["vouch:trusted", "vouch:unvouched", "vouch:denounced"]);
+            if (status === "denounced") managed.add("ci:approved");
 
-            const { data: currentLabels } = await github.rest.issues.listLabelsOnIssue({
+            const { data: current } = await github.rest.issues.listLabelsOnIssue({
               owner,
               repo,
-              issue_number: issueNumber,
+              issue_number,
               per_page: 100,
             });
-
-            for (const label of currentLabels) {
-              if (!managedLabelNames.has(label.name) || label.name === nextLabelName) continue;
+            for (const { name } of current) {
+              if (!managed.has(name) || name === next) continue;
               try {
-                await github.rest.issues.removeLabel({
-                  owner,
-                  repo,
-                  issue_number: issueNumber,
-                  name: label.name,
-                });
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name });
               } catch (error) {
                 if (error.status !== 404) throw error;
               }
             }
-
-            // A denouncement overrides a maintainer's earlier approval.
-            if (
-              status === "denounced" &&
-              currentLabels.some((label) => label.name === "ci:approved")
-            ) {
-              await github.rest.issues.removeLabel({
-                owner,
-                repo,
-                issue_number: issueNumber,
-                name: "ci:approved",
-              });
+            if (!current.some((label) => label.name === next)) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [next] });
             }
 
-            if (!currentLabels.some((label) => label.name === nextLabelName)) {
-              await github.rest.issues.addLabels({
+            const isOpenOrReopen =
+              context.eventName === "pull_request_target" &&
+              (context.payload.action === "opened" || context.payload.action === "reopened");
+            if (!isOpenOrReopen) return;
+
+            if (status === "unknown") {
+              const marker = "<!-- vouch-unvouched -->";
+              const comments = await github.paginate(github.rest.issues.listComments, {
                 owner,
                 repo,
-                issue_number: issueNumber,
-                labels: [nextLabelName],
+                issue_number,
+                per_page: 100,
               });
+              if (comments.some((comment) => comment.body?.includes(marker))) return;
+
+              const { data: file } = await github.rest.repos.getContent({
+                owner,
+                repo,
+                path: ".github/vouch-pr-response.md",
+                ref: context.payload.repository.default_branch,
+              });
+              const template = Buffer.from(file.content, "base64").toString("utf8");
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body: `${marker}\n${template.replaceAll("{author}", author)}`,
+              });
+            } else if (status === "denounced") {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body: `This pull request was closed because @${author} is blocked from contributing to this repository. See CONTRIBUTING.md.`,
+              });
+              await github.rest.pulls.update({ owner, repo, pull_number: issue_number, state: "closed" });
             }
-
-            core.info(`PR #${issueNumber}: ${status} -> ${nextLabelName}`);
-
-      - name: Explain CI approval to unvouched authors
-        if: >-
-          steps.vouch.outputs.status == 'unknown' &&
-          github.event_name == 'pull_request_target' &&
-          (github.event.action == 'opened' || github.event.action == 'reopened')
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-        env:
-          PR_NUMBER: ${{ matrix.target.number }}
-          AUTHOR: ${{ matrix.target.user }}
-        with:
-          script: |
-            const issueNumber = Number(process.env.PR_NUMBER);
-            const author = process.env.AUTHOR;
-            const { owner, repo } = context.repo;
-            const marker = "<!-- vouch-unvouched -->";
-
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner,
-              repo,
-              issue_number: issueNumber,
-              per_page: 100,
-            });
-            if (comments.some((comment) => comment.body?.includes(marker))) return;
-
-            // Read the text from the default branch, never from the pull request.
-            const { data: file } = await github.rest.repos.getContent({
-              owner,
-              repo,
-              path: ".github/vouch-pr-response.md",
-              ref: context.payload.repository.default_branch,
-            });
-            const template = Buffer.from(file.content, "base64").toString("utf8");
-            await github.rest.issues.createComment({
-              owner,
-              repo,
-              issue_number: issueNumber,
-              body: `${marker}\n${template.replaceAll("{author}", author)}`,
-            });
-
-      - name: Close PRs from denounced authors
-        if: >-
-          steps.vouch.outputs.status == 'denounced' &&
-          github.event_name == 'pull_request_target' &&
-          (github.event.action == 'opened' || github.event.action == 'reopened')
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-        env:
-          PR_NUMBER: ${{ matrix.target.number }}
-          AUTHOR: ${{ matrix.target.user }}
-        with:
-          script: |
-            const issueNumber = Number(process.env.PR_NUMBER);
-            const author = process.env.AUTHOR;
-            const { owner, repo } = context.repo;
-            await github.rest.issues.createComment({
-              owner,
-              repo,
-              issue_number: issueNumber,
-              body: `This pull request was closed because @${author} is blocked from contributing to this repository. See CONTRIBUTING.md.`,
-            });
-            await github.rest.pulls.update({
-              owner,
-              repo,
-              pull_number: issueNumber,
-              state: "closed",
-            });

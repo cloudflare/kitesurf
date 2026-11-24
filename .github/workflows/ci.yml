@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
     # labeled/unlabeled re-evaluate the gate when a maintainer adds or removes ci:approved.
-    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main]
   workflow_dispatch:
@@ -40,21 +40,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Block denounced authors
-        if: >-
-          github.event_name == 'pull_request' &&
-          (steps.vouch.outputs.status == 'denounced' ||
-          contains(github.event.pull_request.labels.*.name, 'vouch:denounced'))
-        run: |
-          echo "::error::This pull request is from a denounced author. CI does not run for it."
-          exit 1
       - name: Require vouch or maintainer approval
         if: >-
           github.event_name == 'pull_request' &&
-          !contains(fromJSON('["bot","collaborator","vouched"]'), steps.vouch.outputs.status) &&
-          !contains(github.event.pull_request.labels.*.name, 'ci:approved')
+          (steps.vouch.outputs.status == 'denounced' ||
+          contains(github.event.pull_request.labels.*.name, 'vouch:denounced') ||
+          (steps.vouch.outputs.vouched != 'true' &&
+          !contains(github.event.pull_request.labels.*.name, 'ci:approved')))
         run: |
-          echo "::error::This pull request is from a contributor who is not vouched. A maintainer must add the ci:approved label before CI runs."
+          echo "::error::This pull request is from an unvouched or denounced author. A maintainer must add the ci:approved label before CI runs."
           exit 1
       - uses: actions/checkout@v4
       - id: setup
