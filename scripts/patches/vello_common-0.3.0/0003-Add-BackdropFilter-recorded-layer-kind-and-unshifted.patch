@@ -1,0 +1,167 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Tue, 24 Nov 2026 14:41:34 +0000
+Subject: [PATCH] Add BackdropFilter recorded layer kind and unshifted
+ placement
+
+---
+ src/filter/mod.rs | 28 +++++++++++++++++++-
+ src/record.rs     | 65 +++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 92 insertions(+), 1 deletion(-)
+
+diff --git a/src/filter/mod.rs b/src/filter/mod.rs
+index d94b981..5eebe4e 100644
+--- a/src/filter/mod.rs
++++ b/src/filter/mod.rs
+@@ -12,7 +12,7 @@ use crate::filter::flood::Flood;
+ use crate::filter::gaussian_blur::{GaussianBlur, transform_blur_params};
+ use crate::filter::offset::Offset;
+ use crate::filter_effects::{Filter, FilterPrimitive};
+-use crate::geometry::{PaddingU16, RectU16};
++use crate::geometry::{PaddingU16, RectU16, SizeU16};
+ use crate::kurbo::{Affine, Rect, Vec2};
+ use crate::math::snap_up;
+ use crate::tile::Tile;
+@@ -193,6 +193,32 @@ impl FilterLayerPlacement {
+         }
+     }
+
++    /// Placement for a `backdrop-filter` layer sampled from the unshifted scene
++    /// behind `clip_bbox`, expanded by the filter padding and clamped to `scene_size`.
++    pub fn for_backdrop(clip_bbox: RectU16, filter_plan: &FilterData, scene_size: SizeU16) -> Self {
++        if clip_bbox.is_empty() || scene_size.width() == 0 || scene_size.height() == 0 {
++            return Self::EMPTY;
++        }
++        let pad = filter_plan.filter_padding;
++        let x0 = clip_bbox.x0.saturating_sub(pad.left);
++        let y0 = clip_bbox.y0.saturating_sub(pad.top);
++        let x1 = clip_bbox.x1.saturating_add(pad.right).min(scene_size.width());
++        let y1 = clip_bbox.y1.saturating_add(pad.bottom).min(scene_size.height());
++        let scene_rect = RectU16::new(0, 0, scene_size.width(), scene_size.height());
++        let pixmap_bbox = RectU16::new(x0, y0, x1, y1)
++            .snap_to_tile_coordinates()
++            .intersect(scene_rect);
++        if pixmap_bbox.is_empty() {
++            return Self::EMPTY;
++        }
++        Self {
++            pixmap_bbox,
++            dest_bbox: pixmap_bbox,
++            src_x: 0,
++            src_y: 0,
++        }
++    }
++
+     /// Return the bounds of the pixmap allocated for the filter layer.
+     ///
+     /// The bbox is guaranteed to be aligned to tile coordinates.
+diff --git a/src/record.rs b/src/record.rs
+index 47e5e34..9461dd8 100644
+--- a/src/record.rs
++++ b/src/record.rs
+@@ -136,6 +136,16 @@ pub enum RecordedLayerKind {
+         /// contents have been recorded.
+         placement: FilterLayerPlacement,
+     },
++    /// A backdrop-filter leaf layer sampling the scene behind its clip box.
++    BackdropFilter {
++        /// Static data about the backdrop filter itself.
++        filter_data: FilterData,
++        /// Tile-aligned unshifted region of the scene to sample and composite back.
++        placement: FilterLayerPlacement,
++        /// Nearest enclosing layer that forms a CSS Backdrop Root (opacity < 1,
++        /// non-default blend mode, or mask), or `None` for the document root.
++        backdrop_root: Option<u32>,
++    },
+ }
+
+ impl RecordedLayer {
+@@ -180,6 +190,8 @@ pub struct CommandRecorder<D> {
+     pub layers: Vec<RecordedLayer>,
+     /// IDs of recorded filter layers in creation order.
+     pub filter_layers: Vec<u32>,
++    /// IDs of recorded backdrop-filter layers in paint order.
++    pub backdrop_filter_layers: Vec<u32>,
+     /// Whether the root is the target of a non-default blending operation.
+     pub root_is_blend_target: bool,
+     /// Maximum layer depth across the whole layer graph.
+@@ -206,6 +218,7 @@ impl<D> Default for CommandRecorder<D> {
+             draws: Vec::new(),
+             layers: Vec::new(),
+             filter_layers: Vec::new(),
++            backdrop_filter_layers: Vec::new(),
+             root_is_blend_target: false,
+             max_layer_depth: 0,
+             largest_layer_size: None,
+@@ -248,6 +261,7 @@ impl<D> CommandRecorder<D> {
+
+         self.layers.clear();
+         self.filter_layers.clear();
++        self.backdrop_filter_layers.clear();
+         self.root_is_blend_target = false;
+         self.max_layer_depth = 0;
+         self.largest_layer_size = None;
+@@ -280,6 +294,54 @@ impl<D> CommandRecorder<D> {
+         self.filter_layers.push(id);
+     }
+
++    /// Record a self-contained backdrop-filter layer at the current paint position.
++    pub fn push_backdrop_filter_layer(&mut self, props: LayerProps, filter_plan: FilterData) {
++        let clip_bbox = props
++            .clip_path
++            .as_ref()
++            .map(|c| c.bbox)
++            .unwrap_or_else(|| {
++                RectU16::new(0, 0, self.scene_size.width(), self.scene_size.height())
++            });
++        let placement = FilterLayerPlacement::for_backdrop(clip_bbox, &filter_plan, self.scene_size);
++        if placement.pixmap_bbox().is_empty() {
++            return;
++        }
++        let depth = self.layer_stack.len() + 1;
++        self.max_layer_depth = self.max_layer_depth.max(depth);
++        let filter_size: SizeU16 = placement.pixmap_bbox().into();
++        self.largest_layer_size = Some(
++            self.largest_layer_size
++                .map_or(filter_size, |current| current.max(filter_size)),
++        );
++        self.largest_filter_layer_size = Some(
++            self.largest_filter_layer_size
++                .map_or(filter_size, |current| current.max(filter_size)),
++        );
++        let backdrop_root = self.layer_stack.iter().rev().find_map(|open| {
++            let p = &self.layers[open.id as usize].props;
++            let isolates = p.opacity < 1.0
++                || p.blend_mode != BlendMode::default()
++                || p.mask.is_some();
++            isolates.then_some(open.id)
++        });
++        let layer = RecordedLayer {
++            props,
++            nodes: SmallVec::new(),
++            kind: RecordedLayerKind::BackdropFilter {
++                filter_data: filter_plan,
++                placement,
++                backdrop_root,
++            },
++            depth,
++            bbox: placement.dest_bbox(),
++        };
++        let id = self.push_layer_metadata(layer);
++        self.push_layer_node(id);
++        self.backdrop_filter_layers.push(id);
++        self.record_bbox(|| Some(placement.dest_bbox()));
++    }
++
+     fn push_recorded_layer(&mut self, layer: RecordedLayer) -> u32 {
+         let parent_layer = self.active_layer;
+         self.max_layer_depth = self.max_layer_depth.max(layer.depth);
+@@ -354,5 +416,8 @@ impl<D> CommandRecorder<D> {
+
+                     (PoppedLayer::Filter, placement.dest_bbox())
+                 }
++                RecordedLayerKind::BackdropFilter { .. } => {
++                    unreachable!("backdrop filter layers are not pushed onto layer_stack")
++                }
+             }
+         };
