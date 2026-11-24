@@ -12,6 +12,9 @@ import {
 } from "../src/cdp/connection.ts";
 import type { SessionContext } from "../src/cdp/dispatch.ts";
 import { makeChildFrameState } from "../src/cdp/frames.ts";
+import { addScreencastViewer, isScreencastOwner } from "../src/cdp/screencast-viewers.ts";
+import type { ScreencastState } from "../src/cdp/types.ts";
+import { getWheelQueue } from "../src/cdp/wheel-queue.ts";
 
 type Message = {
   id?: number;
@@ -205,6 +208,40 @@ describe("BrowserSession", () => {
       () => expect(b.events("Runtime.executionContextsCleared")).toHaveLength(1),
       WAIT,
     );
+  });
+
+  it("hands a leaving client's screencast to a client that still views it", async () => {
+    let remaining = -1;
+    const request = new Request("http://engine.test/devtools/browser");
+    const session = (current = new BrowserSession(request, {} as Env, sessionCtx, params(), {
+      persistent: true,
+      onClientLeft: (n) => (remaining = n),
+    }));
+    const a = connect(session);
+    const b = connect(session);
+    const sessionA = await autoAttach(a);
+    const sessionB = await autoAttach(b);
+    const page = pageTarget(session);
+    // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only the fields these read.
+    const stream = {
+      wheelQueue: getWheelQueue(session.browser, page.targetId, sessionA),
+      ownerClientId: a.conn.state.id,
+      ownerSessionId: sessionA,
+      viewers: new Map(),
+      frameSeq: 0,
+      lastAckedSeq: 0,
+      stopped: false,
+    } as unknown as ScreencastState;
+    addScreencastViewer(stream, a.conn.state.id, sessionA);
+    addScreencastViewer(stream, b.conn.state.id, sessionB);
+    session.browser.screencasts.set(page.targetId, stream);
+
+    a.socket.close(1000, "done");
+    await vi.waitFor(() => expect(remaining).toBe(1), WAIT);
+    expect(session.browser.screencasts.get(page.targetId)).toBe(stream);
+    expect(isScreencastOwner(stream, b.conn.state.id, sessionB)).toBe(true);
+    expect(stream.stopped).toBe(false);
+    stream.stopped = true;
   });
 
   it("clears the overrides a leaving client set and keeps the other client's", async () => {

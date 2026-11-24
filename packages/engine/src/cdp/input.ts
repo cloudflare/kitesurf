@@ -27,6 +27,7 @@ import {
   type WheelBatch,
   type WheelQueue,
 } from "./wheel-queue.ts";
+import { isScreencastOwner } from "./screencast-viewers.ts";
 
 const MOUSE_MOVE_THROTTLE_MS = 33;
 
@@ -206,7 +207,9 @@ export async function handleInput(
         await flushPendingMove(ctx, target);
         const stream = ctx.browser.screencasts.get(target.targetId);
         const ownerScreencast =
-          stream?.ownerSessionId === (req.sessionId || undefined) ? stream : null;
+          stream && isScreencastOwner(stream, ctx.client.id, req.sessionId || undefined)
+            ? stream
+            : null;
         const queue =
           ownerScreencast?.wheelQueue ??
           terminalSceneWheelQueue(ctx.browser, target.targetId, req.sessionId);
