@@ -16,9 +16,9 @@ use crate::paint::scene_record::{
     PAINT_IMAGE, PAINT_SOLID, PATH_CLOSE, PATH_CURVE, PATH_END_TAG, PATH_LINE, PATH_MOVE,
     PATH_PREC_F32, PATH_PREC_Q3, PATH_QUAD, Q3_PIXELS_PER_UNIT, RES_KIND_FONT_METADATA,
     RES_KIND_GLYPH_OUTLINE, RES_KIND_IMAGE, SCENE_RESOURCE_COUNT_BYTES, TAG_BOX_SHADOW, TAG_FILL,
-    TAG_GLYPH_RUN, TAG_GLYPH_TEXT, TAG_LAYER_FILTER, TAG_PART, TAG_POP_LAYER, TAG_PUSH_CLIP_LAYER,
-    TAG_PUSH_LAYER, TAG_STROKE, TAG_TEXT_RUN, TXFORM_FULL, TXFORM_IDENTITY, TXFORM_SAME_AS_PREV,
-    WIRE_VERSION,
+    TAG_GLYPH_RUN, TAG_GLYPH_TEXT, TAG_BACKDROP_FILTER, TAG_LAYER_FILTER, TAG_PART, TAG_POP_LAYER,
+    TAG_PUSH_CLIP_LAYER, TAG_PUSH_LAYER, TAG_STROKE, TAG_TEXT_RUN, TXFORM_FULL, TXFORM_IDENTITY,
+    TXFORM_SAME_AS_PREV, WIRE_VERSION,
 };
 
 /// Error returned when a KSC0 scene stream cannot be decoded.
@@ -492,6 +492,9 @@ pub trait SceneVisitor {
 
     /// CSS filter chain attached to the immediately following `on_push_layer`.
     fn on_layer_filter(&mut self, _effects: &[DecodedFilterEffect]) {}
+
+    /// CSS backdrop-filter chain attached to the immediately following `on_push_layer`.
+    fn on_backdrop_filter(&mut self, _effects: &[DecodedFilterEffect]) {}
 }
 
 pub fn parse_header(bytes: &[u8]) -> Result<SceneHeader, DecodeError> {
@@ -867,6 +870,10 @@ pub fn decode<V: SceneVisitor>(bytes: &[u8], visitor: &mut V) -> Result<SceneHea
             TAG_LAYER_FILTER => {
                 read_layer_filter(&mut cur, &mut filter_scratch)?;
                 visitor.on_layer_filter(&filter_scratch);
+            }
+            TAG_BACKDROP_FILTER => {
+                read_layer_filter(&mut cur, &mut filter_scratch)?;
+                visitor.on_backdrop_filter(&filter_scratch);
             }
             TAG_TEXT_RUN => {
                 let font_id = cur.read_u32()?;

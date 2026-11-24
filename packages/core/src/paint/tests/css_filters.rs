@@ -139,3 +139,58 @@ fn css_filter_output_is_clipped_by_overflow_hidden_and_clip_path() {
         "drop-shadow must be clipped by clip-path; got {outside_clip_path:?}"
     );
 }
+
+#[test]
+fn css_backdrop_filter_filters_backdrop_without_filtering_children() {
+    let html = r##"<!doctype html><html><head><style>
+      body { margin: 0; background: #ffffff; }
+      #bg {
+        position: absolute; left: 0; top: 0; width: 100px; height: 100px;
+        background: rgb(255, 0, 0);
+      }
+      #overlay {
+        position: absolute; left: 20px; top: 20px; width: 60px; height: 60px;
+        backdrop-filter: grayscale(1);
+      }
+      #child {
+        position: absolute; left: 20px; top: 20px; width: 20px; height: 20px;
+        background: rgb(0, 200, 0);
+      }
+    </style></head><body>
+      <div id="bg"></div>
+      <div id="overlay"><div id="child"></div></div>
+    </body></html>"##;
+    let dom = crate::DomHandle::new(html, "https://test.example/");
+    dom.set_viewport(100, 100);
+    dom.resolve_layout();
+
+    let scene = dom.render_scene_raw(0, 0, 0, 0, false, false);
+    let rasterizer = crate::paint::scene_replay::SceneRasterizer::new();
+    let png = rasterizer.rasterize(&scene, "png", 90, false);
+    let (w, _, pixels) = decode_png(&png);
+
+    // Outside #overlay (x=10, y=10): original red background stays unfiltered.
+    let outside = pixel_at(&pixels, w, 10, 10);
+    assert_eq!(
+        outside,
+        [255, 0, 0, 255],
+        "backdrop outside #overlay must stay red; got {outside:?}"
+    );
+
+    // Inside #overlay, outside #child (x=25, y=25): red backdrop must be grayscaled.
+    let filtered = pixel_at(&pixels, w, 25, 25);
+    assert!(
+        (filtered[0] as i32 - filtered[1] as i32).abs() <= 4
+            && (filtered[1] as i32 - filtered[2] as i32).abs() <= 4
+            && filtered[0] > 20
+            && filtered[0] < 180,
+        "backdrop-filter: grayscale(1) must desaturate red backdrop; got {filtered:?}"
+    );
+
+    // Inside #child (x=50, y=50): #overlay's own child must stay unfiltered green.
+    let child = pixel_at(&pixels, w, 50, 50);
+    assert!(
+        child[1] > 180 && child[0] < 20 && child[2] < 20,
+        "child inside backdrop-filter element must stay unfiltered green; got {child:?}"
+    );
+}

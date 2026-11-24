@@ -1,0 +1,312 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Tue, 24 Nov 2026 14:41:34 +0000
+Subject: [PATCH] Implement backdrop-filter rendering in vello_cpu
+
+---
+ src/coarse/bucketer.rs          |  16 ++++-
+ src/dispatch/mod.rs             |   9 +++
+ src/dispatch/multi_threaded.rs  |   1 +
+ src/dispatch/single_threaded.rs | 123 +++++++++++++++++++++++++++++++-
+ src/render.rs                   |  22 ++++++
+ 5 files changed, 167 insertions(+), 4 deletions(-)
+
+diff --git a/src/coarse/bucketer.rs b/src/coarse/bucketer.rs
+index 7f267cd..5816168 100644
+--- a/src/coarse/bucketer.rs
++++ b/src/coarse/bucketer.rs
+@@ -286,7 +286,8 @@ impl CommandBucketer {
+         strips: &[Strip],
+         encoded_paints: &[EncodedPaint],
+         filter_ctx: &FilterContext,
+-    ) {
++        stop_at_layer: Option<u32>,
++    ) -> bool {
+         // When rendering filter layers, we always anchor them so that the top-left of the bounding
+         // box lands at (0, 0), even if the bounding box's top-left is for example at (200, 200).
+         // This is to ensure that the pixmap is as small as possible. Otherwise, if we for example
+@@ -319,6 +320,9 @@ impl CommandBucketer {
+             }
+
+             if let Some(id) = node.layer {
++                if stop_at_layer == Some(id) {
++                    return true;
++                }
+                 let layer = &layers[id as usize];
+                 let props = &layer.props;
+
+@@ -328,17 +332,22 @@ impl CommandBucketer {
+                         self.push_layer(props);
+                         // TODO: Avoid recursion to prevent stack overflows for deeply nested
+                         // layers.
+-                        self.bucket_commands(
++                        let stopped = self.bucket_commands(
+                             &layer.nodes,
+                             draws,
+                             layers,
+                             strips,
+                             encoded_paints,
+                             filter_ctx,
++                            stop_at_layer,
+                         );
+                         self.pop_layer(strips);
++                        if stopped {
++                            return true;
++                        }
+                     }
+-                    RecordedLayerKind::Filter { placement, .. } => {
++                    RecordedLayerKind::Filter { placement, .. }
++                    | RecordedLayerKind::BackdropFilter { placement, .. } => {
+                         let needs_layer = props.blend_mode != BlendMode::default()
+                             || props.opacity != 1.0
+                             || props.mask.is_some()
+@@ -365,6 +374,7 @@ impl CommandBucketer {
+                 }
+             }
+         }
++        false
+     }
+
+     pub(crate) fn push_layer(&mut self, props: &LayerProps) {
+diff --git a/src/dispatch/mod.rs b/src/dispatch/mod.rs
+index cbc78ac..d1a33ae 100644
+--- a/src/dispatch/mod.rs
++++ b/src/dispatch/mod.rs
+@@ -66,6 +66,15 @@ pub(crate) trait Dispatcher: Debug + Send {
+         filter_data: Option<FilterData>,
+     );
+     fn pop_layer(&mut self);
++    fn push_backdrop_filter(
++        &mut self,
++        _clip_path: &BezPath,
++        _fill_rule: Fill,
++        _clip_transform: Affine,
++        _opacity: f32,
++        _aliasing_threshold: Option<u8>,
++        _filter_data: FilterData,
++    ) {}
+     fn reset(&mut self, width: u16, height: u16);
+     fn flush(&mut self);
+     fn rasterize(
+diff --git a/src/dispatch/multi_threaded.rs b/src/dispatch/multi_threaded.rs
+index b5a4d6e..e677c0f 100644
+--- a/src/dispatch/multi_threaded.rs
++++ b/src/dispatch/multi_threaded.rs
+@@ -407,6 +407,7 @@ impl MultiThreadedDispatcher {
+             &self.strip_storage.strips,
+             encoded_paints,
+             &filters,
++            None,
+         );
+
+         let alpha_slots = self.alpha_storage.take();
+diff --git a/src/dispatch/single_threaded.rs b/src/dispatch/single_threaded.rs
+index e9d4d50..6ec506f 100644
+--- a/src/dispatch/single_threaded.rs
++++ b/src/dispatch/single_threaded.rs
+@@ -110,8 +110,16 @@ impl SingleThreadedDispatcher {
+         encoded_paints: &[EncodedPaint],
+         image_resolver: &dyn ImageResolver,
+     ) {
+-        let filters = self.rasterize_filter_layers::<S, F>(simd, encoded_paints, image_resolver);
++        let mut filters =
++            self.rasterize_filter_layers::<S, F>(simd, encoded_paints, image_resolver);
+         let target_init = settings.target_init.map(PremulColor::from_alpha_color);
++        self.rasterize_backdrop_filter_layers::<S, F>(
++            simd,
++            &mut filters,
++            target_init,
++            encoded_paints,
++            image_resolver,
++        );
+         let params = FineRenderParams {
+             scene_size: (scene_width, scene_height),
+             target_offset: settings.offset,
+@@ -129,6 +137,7 @@ impl SingleThreadedDispatcher {
+             self.recorder.root_is_blend_target,
+             encoded_paints,
+             image_resolver,
++            None,
+         );
+     }
+
+@@ -144,6 +153,7 @@ impl SingleThreadedDispatcher {
+         root_is_blend_target: bool,
+         encoded_paints: &[EncodedPaint],
+         image_resolver: &dyn ImageResolver,
++        stop_at_layer: Option<u32>,
+     ) {
+         let mut bucketer = self.bucketer.borrow_mut();
+         bucketer.reset(viewport);
+@@ -154,6 +164,7 @@ impl SingleThreadedDispatcher {
+             &self.strip_storage.strips,
+             encoded_paints,
+             filter_ctx,
++            stop_at_layer,
+         );
+
+         let alpha_buffers = &[self.strip_storage.alphas.as_slice()];
+@@ -266,6 +277,7 @@ impl SingleThreadedDispatcher {
+                 false,
+                 encoded_paints,
+                 image_resolver,
++                None,
+             );
+
+             F::filter_layer(
+@@ -284,6 +296,73 @@ impl SingleThreadedDispatcher {
+
+         filter_ctx
+     }
++
++    fn rasterize_backdrop_filter_layers<S: Simd, F: FineKernel<S>>(
++        &self,
++        simd: S,
++        filter_ctx: &mut FilterContext,
++        target_init: TargetInit<PremulColor>,
++        encoded_paints: &[EncodedPaint],
++        image_resolver: &dyn ImageResolver,
++    ) {
++        for id in self.recorder.backdrop_filter_layers.iter().copied() {
++            let RecordedLayerKind::BackdropFilter {
++                filter_data: filter_plan,
++                placement,
++                backdrop_root,
++            } = &self.recorder.layers[id as usize].kind
++            else {
++                unreachable!("backdrop_filter_layers only contains backdrop filter layers");
++            };
++            let pixmap_bbox = placement.pixmap_bbox();
++            if pixmap_bbox.is_empty() {
++                continue;
++            }
++            let width = pixmap_bbox.width();
++            let height = pixmap_bbox.height();
++            let mut pixmap = Pixmap::new(width, height);
++            let params = FineRenderParams {
++                scene_size: (width, height),
++                target_offset: (0, 0),
++                source_y: 0,
++            };
++            let (root_nodes, root_init, root_blend) = match backdrop_root {
++                Some(root_id) => (
++                    self.recorder.layers[*root_id as usize].nodes.as_slice(),
++                    TargetInit::Clear(PremulColor::from_alpha_color(AlphaColor::TRANSPARENT)),
++                    false,
++                ),
++                None => (
++                    self.recorder.nodes.as_slice(),
++                    target_init,
++                    self.recorder.root_is_blend_target,
++                ),
++            };
++
++            self.bucket_and_rasterize::<S, F>(
++                simd,
++                root_nodes,
++                pixmap_bbox,
++                filter_ctx,
++                (&mut pixmap).into(),
++                params,
++                root_init,
++                root_blend,
++                encoded_paints,
++                image_resolver,
++                Some(id),
++            );
++
++            F::filter_layer(
++                &mut pixmap,
++                &filter_plan.filter,
++                filter_ctx.scratch(),
++                filter_plan.transform,
++            );
++
++            filter_ctx.set_layer(id as usize, pixmap);
++        }
++    }
+ }
+
+ impl Dispatcher for SingleThreadedDispatcher {
+@@ -418,6 +497,48 @@ impl Dispatcher for SingleThreadedDispatcher {
+         }
+     }
+
++    fn push_backdrop_filter(
++        &mut self,
++        clip_path: &BezPath,
++        fill_rule: Fill,
++        clip_transform: Affine,
++        opacity: f32,
++        aliasing_threshold: Option<u8>,
++        filter_data: FilterData,
++    ) {
++        let strip_start = self.strip_storage.strips.len();
++        let strip_storage = &mut self.strip_storage;
++        let clip = self
++            .viewport
++            .with_generator_and_clip(|strip_generator, existing_clip| {
++                strip_generator.generate_filled_path(
++                    clip_path,
++                    fill_rule,
++                    clip_transform,
++                    aliasing_threshold,
++                    strip_storage,
++                    existing_clip.map(|clip| clip.path),
++                );
++
++                let strip_range = strip_start..strip_storage.strips.len();
++                LayerClip {
++                    bbox: strip_bbox(&strip_storage.strips[strip_range.clone()])
++                        .unwrap_or(RectU16::ZERO),
++                    strip_range,
++                    thread_idx: 0,
++                }
++            });
++        self.recorder.push_backdrop_filter_layer(
++            LayerProps {
++                blend_mode: BlendMode::default(),
++                opacity,
++                mask: None,
++                clip_path: Some(clip),
++            },
++            filter_data,
++        );
++    }
++
+     fn reset(&mut self, width: u16, height: u16) {
+         // Bucketer will be reset on demand, so no need to reset it here.
+         self.recorder.reset(width, height);
+diff --git a/src/render.rs b/src/render.rs
+index a85fbbc..9887b4b 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -645,6 +645,28 @@ impl RenderContext {
+         self.push_layer(None, None, None, None, Some(filter));
+     }
+
++    /// Apply a `backdrop-filter` to the already-painted scene behind `clip_path`.
++    pub fn push_backdrop_filter(
++        &mut self,
++        clip_path: &BezPath,
++        opacity: Option<f32>,
++        filter: Filter,
++    ) {
++        let opacity = opacity.unwrap_or(1.0).clamp(0.0, 1.0);
++        let layer_transform = self
++            .root_transforms
++            .effective_path_transform(self.transforms());
++        let filter_data = FilterData::new(filter, layer_transform);
++        self.dispatcher.push_backdrop_filter(
++            clip_path,
++            self.state.fill_rule,
++            layer_transform,
++            opacity,
++            self.aliasing_threshold,
++            filter_data,
++        );
++    }
++
+     /// Set the aliasing threshold.
+     ///
+     /// If set to `None` (which is the recommended option in nearly all cases),

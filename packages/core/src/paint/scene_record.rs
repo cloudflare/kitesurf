@@ -50,6 +50,7 @@ pub(crate) const TAG_TEXT_RUN: u8 = 0x08;
 pub(crate) const TAG_PART: u8 = 0x09;
 pub(crate) const TAG_GLYPH_TEXT: u8 = 0x0a;
 pub(crate) const TAG_LAYER_FILTER: u8 = 0x0b;
+pub(crate) const TAG_BACKDROP_FILTER: u8 = 0x0c;
 pub(crate) const GLYPH_TEXT_RANGE_BYTES: usize = 8;
 
 pub(crate) const FILTER_GAUSSIAN_BLUR: u8 = 0x00;
@@ -617,7 +618,7 @@ impl RecordingScene {
         self.buf.extend_from_slice(&[c.r, c.g, c.b, c.a]);
     }
 
-    fn w_layer_filter(&mut self, filter: &anyrender::Filter) {
+    fn w_layer_filter(&mut self, tag: u8, filter: &anyrender::Filter) {
         use anyrender::filters::{EdgeMode, FilterEffect};
         let encode_edge = |mode: EdgeMode| -> u8 {
             match mode {
@@ -642,7 +643,7 @@ impl RecordingScene {
         if count == 0 {
             return;
         }
-        self.tag_untracked(TAG_LAYER_FILTER);
+        self.tag_untracked(tag);
         self.w_u8(count);
         for effect in supported {
             match effect {
@@ -1367,10 +1368,13 @@ impl anyrender::PaintScene for RecordingScene {
         transform: Affine,
         clip: &impl Shape,
         filter: Option<Arc<anyrender::Filter>>,
-        _backdrop_filter: Option<Arc<anyrender::Filter>>,
+        backdrop_filter: Option<Arc<anyrender::Filter>>,
     ) {
         if let Some(ref f) = filter {
-            self.w_layer_filter(f);
+            self.w_layer_filter(TAG_LAYER_FILTER, f);
+        }
+        if let Some(ref bf) = backdrop_filter {
+            self.w_layer_filter(TAG_BACKDROP_FILTER, bf);
         }
         self.tag(TAG_PUSH_LAYER, OP_PUSH_LAYER);
         let bm: BlendMode = blend.into();

@@ -1,0 +1,59 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Tue, 24 Nov 2026 14:41:34 +0000
+Subject: [PATCH] Emit backdrop-filter clipped to border box before element
+ paint
+
+---
+ src/render.rs | 29 +++++++++++++++++++++++++++--
+ 1 file changed, 27 insertions(+), 2 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index 21c2216..71b66d7 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -669,17 +669,42 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+                 effect_layer_clip.x1 += filter_expansion_area.x1;
+                 effect_layer_clip.y1 += filter_expansion_area.y1;
+
++                // CSS Filter Effects 2 §2: `backdrop-filter` filters the
++                // backdrop behind this element clipped to its border box
++                // (including border-radius), before the element's own
++                // background and descendants paint on top.
++                // https://drafts.fxtf.org/filter-effects-2/#BackdropFilterProperty
++                if !is_root_element
++                    && let Some(bf) = backdrop_filter
++                {
++                    let border_path = cx.frame.border_box_path();
++                    scene.push_layer(
++                        Fill::NonZero,
++                        BlendMode::default(),
++                        if has_opacity && filter.is_none() {
++                            opacity
++                        } else {
++                            1.0
++                        },
++                        cx.transform,
++                        &border_path,
++                        None,
++                        Some(bf),
++                    );
++                    scene.pop_layer();
++                }
++
+                 // Opacity/Filter layer if box has opacity or a filter.
+                 // Clipped to the painted subtree (border box ∪ overflow ∪
+                 // re-homed reach, widened by the filter expansion above).
+                 self.layer_manager.maybe_with_layer(
+                     scene,
+-                    has_opacity || filter.is_some() || backdrop_filter.is_some(),
++                    has_opacity || filter.is_some(),
+                     opacity,
+                     cx.transform,
+                     &effect_layer_clip,
+                     filter,
+-                    backdrop_filter,
++                    None,
+                     |scene| {
+                         let part_id = node_id.as_u64();
+                         // CSS Backgrounds 3 §2.11.2: once the root or body background has
