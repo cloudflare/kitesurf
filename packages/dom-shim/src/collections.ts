@@ -3109,25 +3109,21 @@ function makeStyleSheetStub(ownerNode: Element | ParsedElement | null): CSSStyle
       rules.splice(i, 1);
       remirror();
     },
-    replaceSync(text) {
-      syncFromDom(true);
-      const t = String(text == null ? "" : text);
-      reparseFromText(t);
-      if (isStyleEl && id >= 0) {
-        try {
-          writeMirrorText(t);
-          lastParsedText = t;
-          bumpMutationSeq();
-        } catch {}
-      }
+    // CSSOM: replaceSync() and replace() are only allowed on constructed stylesheets.
+    // https://drafts.csswg.org/cssom/#dom-cssstylesheet-replacesync
+    replaceSync(_text) {
+      throw new DOMException(
+        "Failed to execute 'replaceSync' on 'CSSStyleSheet': Can't call replaceSync on non-constructed CSSStyleSheets.",
+        "NotAllowedError",
+      );
     },
-    // A document sheet's replace() resolves even when the replacement
-    // fails.
-    replace(text) {
-      try {
-        backend.replaceSync(text);
-      } catch {}
-      return Promise.resolve(sheet);
+    replace(_text) {
+      return Promise.reject(
+        new DOMException(
+          "Failed to execute 'replace' on 'CSSStyleSheet': Can't call replace on non-constructed CSSStyleSheets.",
+          "NotAllowedError",
+        ),
+      );
     },
   };
   // The backing state is in sheetRecords; this stub uses the public prototype.
@@ -3468,7 +3464,11 @@ function makeAdoptedStyleSheets(root?: ShadowRootImpl): AdoptedStyleSheets {
         ensureMirror(sheet);
       }
       const styleEl = mirrors.get(sheet);
-      if (styleEl) ordered.add(styleEl);
+      if (styleEl) {
+        // Duplicate entries take their last position in the adoptedStyleSheets cascade.
+        ordered.delete(styleEl);
+        ordered.add(styleEl);
+      }
     }
     // Moving a <style> reparses its sheet, so only move when the order is wrong.
     if (endsWith(parent, ordered)) return;
