@@ -1,0 +1,35 @@
+name: Stale
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stale:
+    if: ${{ github.repository_owner == 'cloudflare' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
+        with:
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
+          days-before-pr-stale: 11
+          days-before-pr-close: 3
+          only-pr-labels: vouch:unvouched
+          exempt-pr-labels: vouch:trusted,ci:approved
+          stale-pr-label: stale
+          stale-pr-message: >-
+            This unvouched pull request has been inactive for 11 days and will be
+            closed in 3 days if there is no activity.
+          close-pr-message: >-
+            Closing this unvouched pull request after 14 days of inactivity.
+            Comment or ask a maintainer to reopen it if you want to continue.

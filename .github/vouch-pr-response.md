@@ -6,6 +6,8 @@ maintainer adds the `ci:approved` label, so a red or missing CI check is
 expected while you wait. A maintainer will review the change and can approve CI
 or vouch for you.
 
+An unvouched pull request is closed after 14 days of inactivity.
+
 To become vouched, discuss the bug, use case, or proposed fix in a
 [Kitesurf issue](https://github.com/cloudflare/kitesurf/issues) and link this
 pull request from the issue. A maintainer can add your username to

@@ -49,6 +49,9 @@ Authors explicitly blocked in the vouched list are denounced: their pull
 requests are closed when they open or reopen them. Issues stay open to
 everyone.
 
+An unvouched pull request with no activity for 14 days is marked `stale` after
+11 days and closed 3 days later.
+
 ## Agree on the problem and scope first
 
 Features and intentional behavior changes need a maintainer to approve the
