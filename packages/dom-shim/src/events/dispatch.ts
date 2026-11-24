@@ -176,12 +176,23 @@ function isAbortSignal(value: unknown): value is AbortSignal {
   );
 }
 
-function listenerSignal(options: unknown): AbortSignal | null {
-  if (options === null || typeof options !== "object") return null;
-  const signal: unknown = Reflect.get(options, "signal");
-  return isAbortSignal(signal) ? signal : null;
+function extractListenerSignal(options: unknown): AbortSignal | undefined {
+  if (options === null || options === undefined || typeof options !== "object") {
+    return undefined;
+  }
+  if (!("signal" in options)) return undefined;
+  const raw: unknown = Reflect.get(options, "signal");
+  if (raw === undefined) return undefined;
+  if (!isAbortSignal(raw)) {
+    throw new TypeError(
+      "Failed to execute 'addEventListener' on 'EventTarget': member signal is not of type AbortSignal.",
+    );
+  }
+  return raw;
 }
 
+// Add a listener per DOM §2.7, validating and wiring `options.signal` when present.
+// https://dom.spec.whatwg.org/#add-an-event-listener
 export function addListener(
   key: EventTargetKey,
   type: unknown,
@@ -190,24 +201,25 @@ export function addListener(
 ): void {
   if (typeof type !== "string") return;
   const opts = normalizeListenerOptions(options);
+  const signal = extractListenerSignal(options);
   if (listener == null) return;
   if (typeof listener !== "function" && typeof listener !== "object") return;
+  if (signal?.aborted) return;
   let passive = opts.passive;
   if (!listenerOptionsHadPassive(options)) {
     passive = defaultPassiveFor(key, type);
   }
-  // DOM's "add an event listener": an aborted signal adds nothing, and a later abort removes
-  // the listener. Kept, it went on firing, and went on marking its element clickable.
-  const signal = listenerSignal(options);
-  if (signal?.aborted) return;
   const list = listenersFor(key, type, true)!;
   for (const entry of list) {
     if (entry.listener === listener && entry.capture === opts.capture) return;
   }
-  list.push({ listener, capture: opts.capture, once: opts.once, passive });
-  signal?.addEventListener("abort", () => removeListener(key, type, listener, opts.capture), {
-    once: true,
-  });
+  const entry: ListenerEntry = { listener, capture: opts.capture, once: opts.once, passive };
+  if (signal) {
+    const onAbort = () => removeListener(key, type, listener, opts.capture);
+    signal.addEventListener("abort", onAbort, { once: true });
+    entry.detachAbort = () => signal.removeEventListener("abort", onAbort);
+  }
+  list.push(entry);
   if (typeof key === "number" && ACTIVATION_EVENT_TYPES.has(type)) activationListenerIds.add(key);
   noteListenerType(type);
 }
@@ -249,6 +261,8 @@ export function removeListener(
   for (let i = 0; i < list.length; i++) {
     const e = list[i];
     if (e.listener === listener && e.capture === capture) {
+      e.detachAbort?.();
+      e.detachAbort = undefined;
       list.splice(i, 1);
       noteListenerRemoved(type);
       return;
@@ -660,6 +674,8 @@ export function invokeListeners(
     if (entry.once) {
       const idx = list.indexOf(entry);
       if (idx >= 0) {
+        entry.detachAbort?.();
+        entry.detachAbort = undefined;
         list.splice(idx, 1);
         noteListenerRemoved(event.type);
       }
