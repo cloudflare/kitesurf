@@ -1,0 +1,103 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 24 Nov 2026 21:52:23 +0000
+Subject: [PATCH] Add vertical band clipping to FilterLayerPlacement
+
+---
+ src/filter/mod.rs | 76 +++++++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 71 insertions(+), 5 deletions(-)
+
+diff --git a/src/filter/mod.rs b/src/filter/mod.rs
+index 5eebe4e..444012c 100644
+--- a/src/filter/mod.rs
++++ b/src/filter/mod.rs
+@@ -200,11 +200,29 @@ impl FilterLayerPlacement {
+             return Self::EMPTY;
+         }
+         let pad = filter_plan.filter_padding;
+-        let x0 = clip_bbox.x0.saturating_sub(pad.left);
+-        let y0 = clip_bbox.y0.saturating_sub(pad.top);
+-        let x1 = clip_bbox.x1.saturating_add(pad.right).min(scene_size.width());
+-        let y1 = clip_bbox.y1.saturating_add(pad.bottom).min(scene_size.height());
+-        let scene_rect = RectU16::new(0, 0, scene_size.width(), scene_size.height());
++        let max_tile_x = u16::MAX & !(Tile::WIDTH - 1);
++        let max_tile_y = u16::MAX & !(Tile::HEIGHT - 1);
++        let x0 = clip_bbox.x0.saturating_sub(pad.left).min(max_tile_x);
++        let y0 = clip_bbox.y0.saturating_sub(pad.top).min(max_tile_y);
++        let x1 = clip_bbox
++            .x1
++            .saturating_add(pad.right)
++            .min(scene_size.width())
++            .min(max_tile_x);
++        let y1 = clip_bbox
++            .y1
++            .saturating_add(pad.bottom)
++            .min(scene_size.height())
++            .min(max_tile_y);
++        if x0 >= x1 || y0 >= y1 {
++            return Self::EMPTY;
++        }
++        let scene_rect = RectU16::new(
++            0,
++            0,
++            scene_size.width().min(max_tile_x),
++            scene_size.height().min(max_tile_y),
++        );
+         let pixmap_bbox = RectU16::new(x0, y0, x1, y1)
+             .snap_to_tile_coordinates()
+             .intersect(scene_rect);
+@@ -239,6 +257,54 @@ impl FilterLayerPlacement {
+     pub fn src_origin(self) -> (u16, u16) {
+         (self.src_x, self.src_y)
+     }
++
++    /// Clip this placement vertically to a render band `[band_y0, band_y1)` in
++    /// destination coordinates, keeping `pad_top`/`pad_bottom` source halo rows
++    /// above/below so blur and drop-shadow seams across bands stay seamless.
++    /// Returns `None` if `dest_bbox` does not intersect the band.
++    pub fn clip_to_band(
++        self,
++        band_y0: u16,
++        band_y1: u16,
++        pad_top: u16,
++        pad_bottom: u16,
++    ) -> Option<Self> {
++        let dest_y0 = self.dest_bbox.y0.max(band_y0);
++        let dest_y1 = self.dest_bbox.y1.min(band_y1);
++        if dest_y0 >= dest_y1 {
++            return None;
++        }
++        let max_tile_y = u16::MAX & !(Tile::HEIGHT - 1);
++        let shift = i32::from(self.pixmap_bbox.y0) + i32::from(self.src_y)
++            - i32::from(self.dest_bbox.y0);
++        let layer_y0 = (i32::from(dest_y0) + shift).clamp(0, i32::from(max_tile_y)) as u16;
++        let layer_y1 = (i32::from(dest_y1) + shift).clamp(0, i32::from(max_tile_y)) as u16;
++        // Directional filters like drop-shadow(0 +dy 0) expand output downward
++        // (pad_bottom) by reading source pixels ABOVE the destination row. Use
++        // symmetric halo = max(pad_top, pad_bottom) on both sides so every
++        // band boundary includes all contributing source rows.
++        let halo_y = pad_top.max(pad_bottom);
++        let pix_y0 = layer_y0.saturating_sub(halo_y).max(self.pixmap_bbox.y0)
++            & !(Tile::HEIGHT - 1);
++        let pix_y1 = layer_y1
++            .saturating_add(halo_y)
++            .min(self.pixmap_bbox.y1)
++            .checked_next_multiple_of(Tile::HEIGHT)
++            .unwrap_or(max_tile_y)
++            .min(self.pixmap_bbox.y1);
++        if pix_y0 >= pix_y1 {
++            return None;
++        }
++        let pixmap_bbox = RectU16::new(self.pixmap_bbox.x0, pix_y0, self.pixmap_bbox.x1, pix_y1);
++        let dest_bbox = RectU16::new(self.dest_bbox.x0, dest_y0, self.dest_bbox.x1, dest_y1);
++        let src_y = layer_y0.saturating_sub(pix_y0);
++        Some(Self {
++            pixmap_bbox,
++            dest_bbox,
++            src_x: self.src_x,
++            src_y,
++        })
++    }
+ }
+
+ impl Default for FilterLayerPlacement {

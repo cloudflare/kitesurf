@@ -17,7 +17,7 @@ inline descendant spans.
  3 files changed, 321 insertions(+), 28 deletions(-)
 
 diff --git a/src/render.rs b/src/render.rs
-index 51f1d02..11cddc8 100644
+index 3c7f937..275f58d 100644
 --- a/src/render.rs
 +++ b/src/render.rs
 @@ -41,7 +41,7 @@ use style::{
@@ -29,7 +29,7 @@ index 51f1d02..11cddc8 100644
  use style::values::generics::color::GenericColor;
  use taffy::Layout;
 
-@@ -1084,6 +1084,12 @@ impl ElementCx<'_, '_> {
+@@ -1085,6 +1085,12 @@ impl ElementCx<'_, '_> {
                  crate::text::draw_text_selection(scene, layout, transform, sel_start, sel_end);
              }
 
@@ -42,7 +42,7 @@ index 51f1d02..11cddc8 100644
              // Render text
              let mut draw_text_context = self.context.draw_text_context.borrow_mut();
              crate::text::stroke_text(
-@@ -1109,6 +1115,165 @@ impl ElementCx<'_, '_> {
+@@ -1111,6 +1117,165 @@ impl ElementCx<'_, '_> {
          }
      }
 
@@ -208,7 +208,7 @@ index 51f1d02..11cddc8 100644
      fn draw_text_input_text(&self, scene: &mut impl PaintScene, pos: Point) {
          // Render the text in text inputs
          if let Some(input_data) = self.text_input {
-@@ -1740,3 +1905,64 @@ fn create_css_rect(style: &ComputedValues, layout: &Layout, scale: f64) -> CssBo
+@@ -1742,3 +1907,64 @@ fn create_css_rect(style: &ComputedValues, layout: &Layout, scale: f64) -> CssBo
      CssBox::new(border_box, border, padding, outline_width, border_radii)
          .with_corner_shapes(corner_shapes)
  }
@@ -346,7 +346,7 @@ index 64f7b45..eb66d00 100644
          let bg_styles = &self.style.get_background();
          let image_data = self.element.background_images();
 diff --git a/src/text.rs b/src/text.rs
-index 096d65e..67f9f2f 100644
+index b265e70..8a31982 100644
 --- a/src/text.rs
 +++ b/src/text.rs
 @@ -139,33 +139,6 @@ fn resolve_decoration_entry(doc: &BaseDocument, node_id: NodeId) -> DecorationSt
@@ -419,7 +419,7 @@ index 096d65e..67f9f2f 100644
  ) {
      let DrawTextContext {
          stack,
-@@ -693,6 +695,11 @@ pub(crate) fn stroke_text<'a>(
+@@ -683,6 +685,11 @@ pub(crate) fn stroke_text<'a>(
                  }
                  path_scratch.extend(ancestors.iter().copied());
                  path_scratch.reverse();

@@ -29,7 +29,7 @@ const MIN_WEBP_IMAGE_BYTES: usize = 4096;
 
 pub const HEADER_MAGIC: [u8; 4] = *b"KSC0";
 /// Bump on any wire change; the decoder and the CLI's rasterizer manifest require an exact match.
-pub const WIRE_VERSION: u32 = 17;
+pub const WIRE_VERSION: u32 = 18;
 /// u32 fields after magic: version, viewport w/h, scroll x/y, op count (informational, excludes
 /// `Part` and `GlyphText`), resource offset (0 = none, else ends the op stream), render-band
 /// top y and height.
