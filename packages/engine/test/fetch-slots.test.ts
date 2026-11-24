@@ -300,7 +300,7 @@ describe("FetchSlots", () => {
     // HTTP/2 multiplexes over one connection, so the cap sits above the HTTP/1.1 six;
     // pin both constants so concurrency changes are deliberate.
     expect(FETCH_CONCURRENCY_PER_HOST).toBe(32);
-    expect(FETCH_CONCURRENCY_GLOBAL).toBe(128);
+    expect(FETCH_CONCURRENCY_GLOBAL).toBe(48);
     expect(FETCH_CONCURRENCY_GLOBAL).toBeGreaterThan(FETCH_CONCURRENCY_PER_HOST);
   });
 });

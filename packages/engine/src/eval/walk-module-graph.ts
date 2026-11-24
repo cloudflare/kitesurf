@@ -901,9 +901,6 @@ const WALK_CONCURRENCY = 32;
 const WALK_DEADLINE_MS = 350;
 
 const FANOUT_REGISTRY_THRESHOLD = 8;
-// A document declaring at least this many `<link rel="modulepreload">` entries already names the
-// eager chunks for the current route, so unpreloaded, unnamed dynamic imports stay lazy.
-const PRELOAD_MANIFEST_MIN_SEEDS = 4;
 
 export function chunkBaseName(url: string): string | null {
   let file: string;
@@ -1195,12 +1192,7 @@ export async function walkModuleGraph({
     for (const imp of imports) {
       if (imp.t === 2) dynFanout++;
     }
-    if (
-      (dynFanout > FANOUT_REGISTRY_THRESHOLD ||
-        (dynFanout > 0 && preloadSeedUrls.size >= PRELOAD_MANIFEST_MIN_SEEDS)) &&
-      opts.documentHtml &&
-      !docTokens
-    ) {
+    if (dynFanout > FANOUT_REGISTRY_THRESHOLD && opts.documentHtml && !docTokens) {
       docTokens = documentTokens(opts.documentHtml);
     }
     for (const imp of imports) {
@@ -1557,9 +1549,10 @@ export async function walkModuleGraph({
     }
   };
 
-  const walkStartedAt = Date.now();
+  let walkStartedAt = Date.now();
   let deadlineHit = false;
   const pastDeadline = (): boolean => {
+    if (!classicsDone) return false;
     if (!deadlineHit && Date.now() - walkStartedAt >= WALK_DEADLINE_MS) {
       deadlineHit = true;
     }
@@ -1610,16 +1603,6 @@ export async function walkModuleGraph({
       if (
         item.viaRegistry &&
         ((hasPreloadSeeds && !preloadSeedUrls.has(item.url)) || pastDeadline())
-      ) {
-        deadlineSkipped++;
-        continue;
-      }
-      const isSpeculativeDyn = item.isDynamic || viaDyn.get(item.url) === true;
-      if (
-        isSpeculativeDyn &&
-        !preloadSeedUrls.has(item.url) &&
-        !item.namedByDoc &&
-        preloadSeedUrls.size >= PRELOAD_MANIFEST_MIN_SEEDS
       ) {
         deadlineSkipped++;
         continue;
@@ -1691,6 +1674,7 @@ export async function walkModuleGraph({
               });
             }
           }
+          walkStartedAt = Date.now();
           classicsDone = true;
           notifyAll();
         },
@@ -1699,6 +1683,7 @@ export async function walkModuleGraph({
             "[kitesurf-walk] deferred classics failed:",
             err instanceof Error ? err.message : String(err),
           );
+          walkStartedAt = Date.now();
           classicsDone = true;
           notifyAll();
         },

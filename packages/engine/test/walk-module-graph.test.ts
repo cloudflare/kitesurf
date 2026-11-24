@@ -1063,52 +1063,6 @@ describe("registry entries the document names", () => {
     expect(additionalModules[`${pageUrl}route7.js`]).toBeDefined();
     expect(additionalModules[`${pageUrl}dep.js`]).toBeDefined();
   });
-
-  it("skips unpreloaded unnamed dynamic imports when a preload manifest is present", async () => {
-    const pageUrl = "https://h.test/";
-    const preloadSeeds = [0, 1, 2, 3].map((i) => ({
-      url: `${pageUrl}chunk${i}.js`,
-      nonce: null,
-      integrity: null,
-    }));
-    const fetched: string[] = [];
-    const baseOut = stubOutbound({
-      [`${pageUrl}chunk0.js`]:
-        'import "/static-dep.js"; export const a = () => import("/lazy-admin.js"); export const b = () => import("/named-hero-a1b2c3d4.js");',
-      [`${pageUrl}chunk1.js`]: "export const c1 = 1;",
-      [`${pageUrl}chunk2.js`]: "export const c2 = 2;",
-      [`${pageUrl}chunk3.js`]: "export const c3 = 3;",
-      [`${pageUrl}static-dep.js`]: "export const s = 1;",
-      [`${pageUrl}lazy-admin.js`]: "export const lazy = 1;",
-      [`${pageUrl}named-hero-a1b2c3d4.js`]: "export const hero = 1;",
-    });
-    const origParent = baseOut.parent;
-    baseOut.parent = (props) => {
-      const f = origParent(props);
-      return {
-        fetch: (input: RequestInfo | URL, init?: RequestInit) => {
-          const url =
-            typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-          fetched.push(url);
-          return f.fetch(input, init);
-        },
-      } as Fetcher;
-    };
-    const { additionalModules } = await walkModuleGraph({
-      pageUrl,
-      connectionId: "",
-      descriptors: [moduleInline('import "/chunk0.js";')],
-      options: {
-        preloadSeeds,
-        documentHtml: '<div data-component="named-hero"></div>',
-      },
-      sandboxOutbound: baseOut,
-    });
-    expect(additionalModules[`${pageUrl}static-dep.js`]).toBeDefined();
-    expect(additionalModules[`${pageUrl}named-hero-a1b2c3d4.js`]).toBeDefined();
-    expect(additionalModules[`${pageUrl}lazy-admin.js`]).toBeUndefined();
-    expect(fetched).not.toContain(`${pageUrl}lazy-admin.js`);
-  });
 });
 
 describe("walkModuleGraph import maps in document order", () => {
