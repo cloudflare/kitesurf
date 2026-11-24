@@ -717,8 +717,10 @@ fn rebuild_common_fallbacks(font_ctx: &mut FontContext) {
     let mut chain: Vec<FamilyId> = Vec::new();
     BASE_COMMON_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
     LATIN_FALLBACK_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
-    EMOJI_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
+    // Text-presentation clusters take this chain, so text faces come before the color emoji
+    // face. Emoji-presentation clusters ask parley's generic `emoji` family first instead.
     SYMBOL_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
+    EMOJI_IDS.with(|c| chain.extend(c.borrow().iter().copied()));
     // Fullwidth punctuation after Latin text, or with no script around it, lands here. fontique
     // keys this chain by script alone, so it cannot honour `lang`; SC stays its only CJK face.
     // Punctuation after Han or kana takes that script and its locale-aware chain instead.
@@ -796,6 +798,13 @@ pub fn register_emoji_font(bytes: &[u8]) -> bool {
             c.borrow_mut().clear();
             c.borrow_mut().extend(registered_family_ids.iter().copied());
         });
+        // parley appends the generic to an emoji-presentation cluster's families, so that
+        // cluster finds the color face before the fallback chain, where text faces come first.
+        if !registered_family_ids.is_empty() {
+            font_ctx
+                .collection
+                .set_generic_families(GenericFamily::Emoji, registered_family_ids.iter().copied());
+        }
         rebuild_common_fallbacks(font_ctx);
     });
 
@@ -1398,6 +1407,8 @@ fn populate_ua_fonts(font_ctx: &mut FontContext, profile: &UaFontProfile, faces:
     let system_family = or_sans(&system);
     let serif_family = or_sans(&serif);
     let mono_family = or_sans(&mono);
+    // The emoji face may register before the UA faces; keep it behind the generic.
+    let emoji_family = or_sans(&EMOJI_IDS.with(|c| c.borrow().clone()));
 
     // ui-sans-serif and ui-rounded are SF on macOS, so they follow system-ui.
     for (generic, ids) in [
@@ -1413,7 +1424,7 @@ fn populate_ua_fonts(font_ctx: &mut FontContext, profile: &UaFontProfile, faces:
         (GenericFamily::Cursive, &sans),
         (GenericFamily::Fantasy, &sans),
         (GenericFamily::Math, &sans),
-        (GenericFamily::Emoji, &sans),
+        (GenericFamily::Emoji, &emoji_family),
     ] {
         c.set_generic_families(generic, ids.iter().copied());
     }
@@ -2758,6 +2769,117 @@ mod tests {
         assert!(upgraded, "the JP aliases carry the full file's outlines");
         assert!(!has_pending_lazy_faces());
         set_font_mode(FontMode::Full);
+    }
+
+    /// The family whose face drew each glyph run of `text`, set in sans-serif.
+    fn run_families(ctx: &mut FontContext, text: &str) -> Vec<String> {
+        use parley::layout::PositionedLayoutItem;
+        use parley::style::{FontFamily, TextStyle};
+        let blob_family: Vec<(u64, String)> = ctx
+            .collection
+            .family_names()
+            .map(str::to_string)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .filter_map(|name| {
+                let fam = ctx.collection.family_by_name(&name)?;
+                let ids = fam
+                    .fonts()
+                    .iter()
+                    .filter_map(|font| match &font.source().kind {
+                        parley::fontique::SourceKind::Memory(blob) => Some(blob.id()),
+                        _ => None,
+                    });
+                Some(ids.map(|id| (id, name.clone())).collect::<Vec<_>>())
+            })
+            .flatten()
+            .collect();
+        let mut lcx: parley::LayoutContext<u32> = parley::LayoutContext::new();
+        let style = TextStyle::<'_, '_, u32> {
+            font_family: FontFamily::Single(GenericFamily::SansSerif.into()),
+            font_size: 16.0,
+            ..Default::default()
+        };
+        let mut builder = lcx.tree_builder(ctx, 1.0, true, &style);
+        builder.push_text(text);
+        let (mut layout, _) = builder.build();
+        layout.break_all_lines(None);
+        let mut families = Vec::new();
+        for line in layout.lines() {
+            for item in line.items() {
+                if let PositionedLayoutItem::GlyphRun(run) = item {
+                    let id = run.run().font().data.id();
+                    // Aliases share a blob; the internal chain name identifies the UA face.
+                    let names = || {
+                        blob_family
+                            .iter()
+                            .filter(move |(blob, _)| *blob == id)
+                            .map(|(_, name)| name.as_str())
+                    };
+                    let name = names()
+                        .find(|name| name.starts_with("Kitesurf"))
+                        .or_else(|| names().find(|name| name.starts_with("Noto")))
+                        .unwrap_or("?");
+                    families.push(name.to_string());
+                }
+            }
+        }
+        families
+    }
+
+    /// Text-default arrows take a text face (whichever text face the chain reaches first),
+    /// VS16 and emoji-default codepoints the color face.
+    fn assert_emoji_presentation(ctx: &mut FontContext) {
+        for (text, want_color) in [
+            ("\u{2194}", false),
+            ("\u{2194}\u{FE0E}", false),
+            ("\u{21A9}", false),
+            ("\u{2194}\u{FE0F}", true),
+            ("\u{21A9}\u{FE0F}", true),
+            ("\u{231A}", true),
+            ("\u{2615}", true),
+        ] {
+            let families = run_families(ctx, text);
+            assert_eq!(
+                families.len(),
+                1,
+                "{text:?} shapes as one run: {families:?}"
+            );
+            let color = families[0] == "Kitesurf Emoji";
+            assert!(families[0] != "?", "{text:?} drew in an unknown face");
+            assert_eq!(color, want_color, "{text:?} drew in {}", families[0]);
+        }
+    }
+
+    #[test]
+    fn text_presentation_prefers_text_faces_over_color_emoji() {
+        let _ = get_or_init_font_context();
+        assert!(register_math_font(read_asset("NotoSansMath.ttf")));
+        assert!(register_emoji_font(&read_asset(
+            "noto-color-emoji.shaping.otf"
+        )));
+        let mut ctx = get_or_init_font_context();
+        assert_emoji_presentation(&mut ctx);
+    }
+
+    #[test]
+    fn emoji_registered_before_the_ua_faces_still_backs_the_generic() {
+        assert!(register_emoji_font(&read_asset(
+            "noto-color-emoji.shaping.otf"
+        )));
+        SHARED_FONT_CONTEXT.with(|cell| {
+            let mut borrow = cell.borrow_mut();
+            let ctx = borrow.as_mut().expect("shared context");
+            populate_ua_fonts(ctx, &NOTO_PROFILE, profile_bytes(&NOTO_PROFILE));
+            add_symbol_fonts(
+                ctx,
+                NOTO_SANS_SYMBOLS_TEST_BYTES.to_vec(),
+                NOTO_SANS_SYMBOLS2_TEST_BYTES.to_vec(),
+            );
+        });
+        assert!(register_math_font(read_asset("NotoSansMath.ttf")));
+        let mut ctx = get_or_init_font_context();
+        assert_emoji_presentation(&mut ctx);
     }
 
     #[test]
