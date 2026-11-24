@@ -7,8 +7,12 @@ import type { CdpClientState } from "../src/cdp/types.ts";
 /** The state of one CDP client, for a partial DispatchCtx fixture. */
 export function testClient(connectionMode: "page" | "browser" = "browser"): CdpClientState {
   return {
+    id: "test-client",
     connectionMode,
     autoAttach: false,
     flatten: false,
+    sessions: new Set(),
+    preNavScriptIds: new Set(),
+    memoryTargets: { renderer: null, engine: null },
   };
 }

@@ -347,10 +347,13 @@ describe("destroyOopifTarget drops Network state", () => {
     // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- partial DispatchCtx fixture.
     const ctx = {
       emit: (ev: { method: string; sessionId?: string }) => seen.push(ev),
+      emitToClient: (ev: { method: string; sessionId?: string }) => seen.push(ev),
+      peers: () => [ctx],
+      client: { ...testClient(), sessions: new Set(sessions) },
       browser: { networkEvents: tracker, targets: new Map() },
-      client: testClient(),
     } as unknown as Parameters<typeof destroyOopifTarget>[0];
     destroyOopifTarget(ctx, { frameId: "frame-1", sessions });
+    expect(seen.filter((e) => e.method === "Target.targetDestroyed")).toHaveLength(1);
 
     expect(sessions.size, "the set is emptied").toBe(0);
     expect(tracker.attributionForTarget("frame-1")).toBeUndefined();

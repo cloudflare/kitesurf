@@ -88,6 +88,8 @@ async function navigate(opts: NavigateOptions) {
     ctx: { waitUntil: () => {} },
     connectionId: CONN,
     client: testClient(),
+    emitToClient: () => {},
+    peers: () => [ctx],
   } as unknown as DispatchCtx;
   const target = createPageTarget(ctx, "about:blank");
   target.sessions.add(SID);

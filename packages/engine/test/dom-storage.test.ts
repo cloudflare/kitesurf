@@ -12,6 +12,7 @@ import type { CdpEvent, CdpRequest, FrameState, TargetState } from "../src/cdp/t
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import { LOCAL_STORAGE_QUOTA_UNITS, LocalStorage } from "../src/state/local-storage.ts";
 import { MemorySessionStore } from "../src/state/session-store.ts";
+import { testClient } from "./client-state.ts";
 
 const A = "https://a.test";
 
@@ -105,11 +106,9 @@ describe("DOMStorage sessions", () => {
         localStorage: storage,
         contexts: new Map([["ctx2", { localStorage: other }]]),
         networkEvents: { drain: () => {}, forgetSession: () => {} },
-        rendererSessionId: null,
-        engineSessionId: null,
       },
       emit: (e: CdpEvent) => emitted.push(e),
-      client: { connectionMode },
+      client: testClient(connectionMode),
     } as unknown as DispatchCtx;
     const send = (
       sessionId: string | undefined,

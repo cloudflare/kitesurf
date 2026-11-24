@@ -144,6 +144,8 @@ function setup() {
     ctx: { waitUntil: (p: Promise<unknown>) => background.push(p) },
     connectionId: CONN,
     client: testClient(),
+    emitToClient: emit,
+    peers: () => [ctx],
     analytics: { now: () => 0, sessionAgeMs: () => 0, once: () => false, emit: () => {} },
   } as unknown as DispatchCtx;
   const target = createPageTarget(ctx, "about:blank");
