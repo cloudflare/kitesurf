@@ -193,12 +193,12 @@ export function imageInflightUrls(): string[] {
   return Array.from(imageInflightRefcount.keys());
 }
 
-function addFontInflight(url: string): void {
+export function addFontInflight(url: string): void {
   const refCount = (fontInflightRefcount.get(url) ?? 0) + 1;
   fontInflightRefcount.set(url, refCount);
 }
 
-function removeFontInflight(url: string): void {
+export function removeFontInflight(url: string): void {
   const remaining = (fontInflightRefcount.get(url) ?? 1) - 1;
   if (remaining > 0) {
     fontInflightRefcount.set(url, remaining);

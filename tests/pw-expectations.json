@@ -71,39 +71,39 @@
     "expected": "SKIP",
     "reason": "times out"
   },
-  "elementhandle-screenshot.spec.ts::element screenshot \u203a should capture full element when larger than viewport": {
+  "elementhandle-screenshot.spec.ts::element screenshot › should capture full element when larger than viewport": {
     "expected": "FAIL",
     "reason": "Error: expect(Buffer).toMatchSnapshot(expected) failed"
   },
-  "elementhandle-screenshot.spec.ts::element screenshot \u203a should capture full element when larger than viewport in parallel": {
+  "elementhandle-screenshot.spec.ts::element screenshot › should capture full element when larger than viewport in parallel": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "elementhandle-screenshot.spec.ts::element screenshot \u203a should scroll element into view": {
+  "elementhandle-screenshot.spec.ts::element screenshot › should scroll element into view": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "elementhandle-screenshot.spec.ts::element screenshot \u203a should take into account padding and border": {
+  "elementhandle-screenshot.spec.ts::element screenshot › should take into account padding and border": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "elementhandle-screenshot.spec.ts::element screenshot \u203a should work": {
+  "elementhandle-screenshot.spec.ts::element screenshot › should work": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "elementhandle-screenshot.spec.ts::element screenshot \u203a should work for an element with an offset": {
+  "elementhandle-screenshot.spec.ts::element screenshot › should work for an element with an offset": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "elementhandle-screenshot.spec.ts::element screenshot \u203a should work for an element with fractional dimensions": {
+  "elementhandle-screenshot.spec.ts::element screenshot › should work for an element with fractional dimensions": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "elementhandle-screenshot.spec.ts::element screenshot \u203a should work when main world busts JSON.stringify": {
+  "elementhandle-screenshot.spec.ts::element screenshot › should work when main world busts JSON.stringify": {
     "expected": "SKIP",
     "reason": "times out"
   },
-  "elementhandle-screenshot.spec.ts::element screenshot \u203a should work with a rotated element": {
+  "elementhandle-screenshot.spec.ts::element screenshot › should work with a rotated element": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
@@ -151,15 +151,15 @@
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "expect-boolean.spec.ts::toBeAttached \u203a with frameLocator": {
+  "expect-boolean.spec.ts::toBeAttached › with frameLocator": {
     "expected": "SKIP",
     "reason": "fails slowly (10s): Error: expect(locator).toBeAttached() failed"
   },
-  "expect-boolean.spec.ts::toBeChecked \u203a friendly log": {
+  "expect-boolean.spec.ts::toBeChecked › friendly log": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toContain(expected) // indexOf"
   },
-  "expect-boolean.spec.ts::toBeChecked \u203a with role": {
+  "expect-boolean.spec.ts::toBeChecked › with role": {
     "expected": "FAIL",
     "reason": "Error: expect(locator).toBeChecked() failed"
   },
@@ -167,11 +167,11 @@
     "expected": "FAIL",
     "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'activeElement') (unknown at :1:52)"
   },
-  "expect-boolean.spec.ts::toBeVisible \u203a with frameLocator": {
+  "expect-boolean.spec.ts::toBeVisible › with frameLocator": {
     "expected": "SKIP",
     "reason": "fails slowly (10s): Error: expect(locator).toBeVisible() failed"
   },
-  "expect-boolean.spec.ts::toBeVisible \u203a with frameLocator 2": {
+  "expect-boolean.spec.ts::toBeVisible › with frameLocator 2": {
     "expected": "FAIL",
     "reason": "Error: expect(locator).toBeVisible() failed"
   },
@@ -183,15 +183,15 @@
     "expected": "FAIL",
     "reason": "Error: expect(received).toContain(expected) // indexOf"
   },
-  "expect-misc.spec.ts::toHaveCount \u203a eventually pass not non-zero": {
+  "expect-misc.spec.ts::toHaveCount › eventually pass not non-zero": {
     "expected": "SKIP",
     "reason": "fails slowly (11s): Error: expect(locator).not.toHaveCount(expected) failed"
   },
-  "expect-misc.spec.ts::toHaveCount \u203a toHaveCount pass": {
+  "expect-misc.spec.ts::toHaveCount › toHaveCount pass": {
     "expected": "SKIP",
     "reason": "fails slowly (12s): Error: expect(locator).toHaveCount(expected) failed"
   },
-  "expect-misc.spec.ts::toHaveURL \u203a resolve predicate after retries": {
+  "expect-misc.spec.ts::toHaveURL › resolve predicate after retries": {
     "expected": "SKIP",
     "reason": "flaky: navigates after 500 ms against a 1 s toHaveURL timeout"
   },
@@ -747,67 +747,67 @@
     "expected": "SKIP",
     "reason": "times out"
   },
-  "page-drag.spec.ts::Drag and drop \u203a iframe \u203a should drag into an iframe": {
+  "page-drag.spec.ts::Drag and drop › iframe › should drag into an iframe": {
     "expected": "SKIP",
     "reason": "skipped upstream for chromium"
   },
-  "page-drag.spec.ts::Drag and drop \u203a iframe \u203a should drag out of an iframe": {
+  "page-drag.spec.ts::Drag and drop › iframe › should drag out of an iframe": {
     "expected": "SKIP",
     "reason": "skipped upstream for chromium"
   },
-  "page-drag.spec.ts::Drag and drop \u203a should allow specifying the position": {
+  "page-drag.spec.ts::Drag and drop › should allow specifying the position": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toEqual(expected) // deep equality"
   },
-  "page-drag.spec.ts::Drag and drop \u203a should be able to drag the mouse in a frame": {
+  "page-drag.spec.ts::Drag and drop › should be able to drag the mouse in a frame": {
     "expected": "SKIP",
     "reason": "times out"
   },
-  "page-drag.spec.ts::Drag and drop \u203a should cancel on escape": {
+  "page-drag.spec.ts::Drag and drop › should cancel on escape": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toEqual(expected) // deep equality"
   },
-  "page-drag.spec.ts::Drag and drop \u203a should dragAndDrop with tweened mouse movement": {
+  "page-drag.spec.ts::Drag and drop › should dragAndDrop with tweened mouse movement": {
     "expected": "SKIP",
     "reason": "fails slowly (11s): Error: expect(received).toEqual(expected) // deep equality"
   },
-  "page-drag.spec.ts::Drag and drop \u203a should dragTo with tweened mouse movement": {
+  "page-drag.spec.ts::Drag and drop › should dragTo with tweened mouse movement": {
     "expected": "SKIP",
     "reason": "fails slowly (11s): Error: expect(received).toEqual(expected) // deep equality"
   },
-  "page-drag.spec.ts::Drag and drop \u203a should not send dragover on the first mousemove": {
+  "page-drag.spec.ts::Drag and drop › should not send dragover on the first mousemove": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toEqual(expected) // deep equality"
   },
-  "page-drag.spec.ts::Drag and drop \u203a should respect the drop effect": {
+  "page-drag.spec.ts::Drag and drop › should respect the drop effect": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-drag.spec.ts::Drag and drop \u203a should send the right events": {
+  "page-drag.spec.ts::Drag and drop › should send the right events": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toEqual(expected) // deep equality"
   },
-  "page-drag.spec.ts::Drag and drop \u203a should work @smoke": {
+  "page-drag.spec.ts::Drag and drop › should work @smoke": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-drag.spec.ts::Drag and drop \u203a should work if a frame is stalled": {
+  "page-drag.spec.ts::Drag and drop › should work if a frame is stalled": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-drag.spec.ts::Drag and drop \u203a should work if the drag event is captured but not canceled": {
+  "page-drag.spec.ts::Drag and drop › should work if the drag event is captured but not canceled": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-drag.spec.ts::Drag and drop \u203a should work inside iframe": {
+  "page-drag.spec.ts::Drag and drop › should work inside iframe": {
     "expected": "FAIL",
     "reason": "TypeError: Cannot read properties of null (reading '$')"
   },
-  "page-drag.spec.ts::Drag and drop \u203a should work with locators": {
+  "page-drag.spec.ts::Drag and drop › should work with locators": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-drag.spec.ts::Drag and drop \u203a should work with the helper method": {
+  "page-drag.spec.ts::Drag and drop › should work with the helper method": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
@@ -1344,8 +1344,8 @@
     "reason": "times out"
   },
   "page-mouse.spec.ts::should trigger hover state": {
-    "expected": "FAIL",
-    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'id') (unknown at :1:52)"
+    "expected": "PASS",
+    "reason": null
   },
   "page-mouse.spec.ts::should trigger hover state on disabled button": {
     "expected": "PASS",
@@ -1695,167 +1695,167 @@
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a mask option \u203a should hide elements based on attr": {
+  "page-screenshot.spec.ts::page screenshot › mask option › should hide elements based on attr": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a mask option \u203a should mask in parallel": {
+  "page-screenshot.spec.ts::page screenshot › mask option › should mask in parallel": {
     "expected": "SKIP",
     "reason": "times out"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a mask option \u203a should mask inside iframe": {
+  "page-screenshot.spec.ts::page screenshot › mask option › should mask inside iframe": {
     "expected": "SKIP",
     "reason": "times out"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a mask option \u203a should mask multiple elements": {
+  "page-screenshot.spec.ts::page screenshot › mask option › should mask multiple elements": {
     "expected": "FAIL",
     "reason": "Error: page.screenshot: Error: TypeError: cannot read properties of undefined (reading 'push') (unknown at :1:52)"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a mask option \u203a should remove elements based on attr": {
+  "page-screenshot.spec.ts::page screenshot › mask option › should remove elements based on attr": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a mask option \u203a should work": {
+  "page-screenshot.spec.ts::page screenshot › mask option › should work": {
     "expected": "FAIL",
     "reason": "Error: page.screenshot: Error: TypeError: cannot read properties of undefined (reading 'push') (unknown at :1:52)"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a mask option \u203a should work when mask color is not pink #F0F": {
+  "page-screenshot.spec.ts::page screenshot › mask option › should work when mask color is not pink #F0F": {
     "expected": "FAIL",
     "reason": "Error: page.screenshot: Error: TypeError: cannot read properties of undefined (reading 'push') (unknown at :1:52)"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a mask option \u203a should work when subframe used document.open after a weird url": {
+  "page-screenshot.spec.ts::page screenshot › mask option › should work when subframe used document.open after a weird url": {
     "expected": "FAIL",
     "reason": "Error: page.evaluate: Error: TypeError: not a callable function (callee=undefined, in fn '') (unknown at :1:52)"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a mask option \u203a should work with elementhandle": {
+  "page-screenshot.spec.ts::page screenshot › mask option › should work with elementhandle": {
     "expected": "FAIL",
     "reason": "Error: elementHandle.screenshot: Error: TypeError: cannot read properties of undefined (reading 'push') (unknown at :1:52)"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a mask option \u203a should work with locator": {
+  "page-screenshot.spec.ts::page screenshot › mask option › should work with locator": {
     "expected": "FAIL",
     "reason": "Error: locator.screenshot: Error: TypeError: cannot read properties of undefined (reading 'push') (unknown at :1:52)"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a quality option should work for webp": {
+  "page-screenshot.spec.ts::page screenshot › quality option should work for webp": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBeLessThan(expected)"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should allow transparency": {
+  "page-screenshot.spec.ts::page screenshot › should allow transparency": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should allow transparency with webp": {
+  "page-screenshot.spec.ts::page screenshot › should allow transparency with webp": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should capture blinking caret if explicitly asked for": {
+  "page-screenshot.spec.ts::page screenshot › should capture blinking caret if explicitly asked for": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should capture canvas changes": {
+  "page-screenshot.spec.ts::page screenshot › should capture canvas changes": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should clip elements to the viewport": {
+  "page-screenshot.spec.ts::page screenshot › should clip elements to the viewport": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should clip rect": {
+  "page-screenshot.spec.ts::page screenshot › should clip rect": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should produce a valid webp screenshot": {
+  "page-screenshot.spec.ts::page screenshot › should produce a valid webp screenshot": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should render white background on jpeg file": {
+  "page-screenshot.spec.ts::page screenshot › should render white background on jpeg file": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should run in parallel": {
+  "page-screenshot.spec.ts::page screenshot › should run in parallel": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should take fullPage screenshots": {
+  "page-screenshot.spec.ts::page screenshot › should take fullPage screenshots": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should take fullPage screenshots and mask elements outside of it": {
+  "page-screenshot.spec.ts::page screenshot › should take fullPage screenshots and mask elements outside of it": {
     "expected": "FAIL",
     "reason": "Error: page.screenshot: Error: TypeError: cannot read properties of undefined (reading 'push') (unknown at :1:52)"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should work @smoke": {
+  "page-screenshot.spec.ts::page screenshot › should work @smoke": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should work for canvas": {
+  "page-screenshot.spec.ts::page screenshot › should work for canvas": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should work for translateZ": {
+  "page-screenshot.spec.ts::page screenshot › should work for translateZ": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should work for webgl": {
+  "page-screenshot.spec.ts::page screenshot › should work for webgl": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should work while navigating": {
+  "page-screenshot.spec.ts::page screenshot › should work while navigating": {
     "expected": "SKIP",
     "reason": "times out"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should work with iframe in shadow": {
+  "page-screenshot.spec.ts::page screenshot › should work with iframe in shadow": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a should work with odd clip size on Retina displays": {
+  "page-screenshot.spec.ts::page screenshot › should work with odd clip size on Retina displays": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },
-  "page-screenshot.spec.ts::page screenshot \u203a webp screenshots should be lossless by default": {
+  "page-screenshot.spec.ts::page screenshot › webp screenshots should be lossless by default": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-screenshot.spec.ts::page screenshot animations \u203a should capture screenshots after layoutchanges in transitionend event": {
+  "page-screenshot.spec.ts::page screenshot animations › should capture screenshots after layoutchanges in transitionend event": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-screenshot.spec.ts::page screenshot animations \u203a should fire transitionend for finite transitions": {
+  "page-screenshot.spec.ts::page screenshot animations › should fire transitionend for finite transitions": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-screenshot.spec.ts::page screenshot animations \u203a should not capture css animations in shadow DOM": {
+  "page-screenshot.spec.ts::page screenshot animations › should not capture css animations in shadow DOM": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-screenshot.spec.ts::page screenshot animations \u203a should not capture infinite css animation": {
+  "page-screenshot.spec.ts::page screenshot animations › should not capture infinite css animation": {
     "expected": "SKIP",
     "reason": "times out"
   },
-  "page-screenshot.spec.ts::page screenshot animations \u203a should not capture pseudo element css animation": {
+  "page-screenshot.spec.ts::page screenshot animations › should not capture pseudo element css animation": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-screenshot.spec.ts::page screenshot animations \u203a should not change animation with playbackRate equal to 0": {
+  "page-screenshot.spec.ts::page screenshot animations › should not change animation with playbackRate equal to 0": {
     "expected": "FAIL",
     "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of undefined (reading 'ready')"
   },
-  "page-screenshot.spec.ts::page screenshot animations \u203a should stop animations that happen right before screenshot": {
+  "page-screenshot.spec.ts::page screenshot animations › should stop animations that happen right before screenshot": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-screenshot.spec.ts::page screenshot animations \u203a should trigger particular events for css transitions": {
+  "page-screenshot.spec.ts::page screenshot animations › should trigger particular events for css transitions": {
     "expected": "FAIL",
     "reason": "Error: locator.evaluate: Error: TypeError: cannot set properties of undefined (setting 'oncancel')"
   },
-  "page-screenshot.spec.ts::page screenshot animations \u203a should trigger particular events for finite css animation": {
+  "page-screenshot.spec.ts::page screenshot animations › should trigger particular events for finite css animation": {
     "expected": "FAIL",
     "reason": "Error: locator.evaluate: Error: TypeError: cannot set properties of undefined (setting 'oncancel')"
   },
-  "page-screenshot.spec.ts::page screenshot animations \u203a should trigger particular events for INfinite css animation": {
+  "page-screenshot.spec.ts::page screenshot animations › should trigger particular events for INfinite css animation": {
     "expected": "FAIL",
     "reason": "Error: locator.evaluate: Error: TypeError: cannot set properties of undefined (setting 'oncancel')"
   },
-  "page-screenshot.spec.ts::page screenshot animations \u203a should wait for fonts to load": {
+  "page-screenshot.spec.ts::page screenshot animations › should wait for fonts to load": {
     "expected": "SKIP",
     "reason": "no kitesurf screenshot baseline"
   },

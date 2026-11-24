@@ -37,6 +37,7 @@ import { fetchGatedJsonModule, fetchGatedModuleSource } from "./inserted-scripts
 import { startupJsonModuleUrls } from "./startup-probe.ts";
 import { trustedFetch } from "./trusted-fetch.ts";
 import { newHeaders } from "./native-http.ts";
+import { addFontInflight, removeFontInflight } from "./resource-fetch.ts";
 import { storageBuckets } from "./storage-buckets.ts";
 import { StorageInterface } from "./web-storage.ts";
 import { getInternalState } from "./internal-state.js";
@@ -4914,14 +4915,119 @@ export function installGlobals(
       }
     }
     if (typeof ksGlobal.FontFace === "undefined") {
-      // A face the page creates and loads itself. The bytes register with the
-      // engine under the CSS family, so layout shapes with them once loaded.
-      // https://drafts.csswg.org/css-font-loading/#fontface-interface
-      const fontFaceSourceUrl = (source: unknown): string | null => {
-        if (typeof source !== "string") return null;
-        const text = source.trim();
-        const match = /^url\(\s*["']?([^"')]+)["']?\s*\)$/i.exec(text);
-        return match ? match[1] : text;
+      // Split a `@font-face` `src` list on top-level commas and extract candidate `url(...)`
+      // entries in order, ignoring `local()`, `format()`, `tech()`, and CSS comments.
+      // https://drafts.csswg.org/css-fonts-4/#src-desc
+      const stripCssComments = (input: string): string => {
+        let out = "";
+        let quote: string | null = null;
+        for (let i = 0; i < input.length; i++) {
+          const ch = input[i]!;
+          if (quote !== null) {
+            out += ch;
+            if (ch === "\\" && i + 1 < input.length) {
+              out += input[++i]!;
+            } else if (ch === quote) {
+              quote = null;
+            }
+            continue;
+          }
+          if (ch === '"' || ch === "'") {
+            quote = ch;
+            out += ch;
+          } else if (ch === "/" && input[i + 1] === "*") {
+            const end = input.indexOf("*/", i + 2);
+            if (end < 0) break;
+            out += " ";
+            i = end + 1;
+          } else {
+            out += ch;
+          }
+        }
+        return out;
+      };
+      const splitTopLevelCommas = (input: string): string[] => {
+        const parts: string[] = [];
+        let depth = 0;
+        let quote: string | null = null;
+        let start = 0;
+        for (let i = 0; i < input.length; i++) {
+          const ch = input[i];
+          if (quote !== null) {
+            if (ch === "\\" && i + 1 < input.length) {
+              i += 1;
+            } else if (ch === quote) {
+              quote = null;
+            }
+            continue;
+          }
+          if (ch === '"' || ch === "'") {
+            quote = ch;
+          } else if (ch === "(") {
+            depth += 1;
+          } else if (ch === ")" && depth > 0) {
+            depth -= 1;
+          } else if (ch === "," && depth === 0) {
+            parts.push(input.slice(start, i));
+            start = i + 1;
+          }
+        }
+        parts.push(input.slice(start));
+        return parts;
+      };
+      const extractUrlToken = (item: string): string | null => {
+        const trimmed = item.trim();
+        if (!trimmed || /^local\s*\(/i.test(trimmed)) return null;
+        if (trimmed.length < 5 || trimmed.slice(0, 4).toLowerCase() !== "url(") return null;
+        let i = 4;
+        while (i < trimmed.length && /\s/.test(trimmed[i]!)) i += 1;
+        if (i >= trimmed.length) return null;
+        let rawUrl = "";
+        const quote = trimmed[i];
+        if (quote === '"' || quote === "'") {
+          i += 1;
+          const start = i;
+          while (i < trimmed.length && trimmed[i] !== quote) {
+            if (trimmed[i] === "\\" && i + 1 < trimmed.length) i += 2;
+            else i += 1;
+          }
+          if (i >= trimmed.length) return null;
+          rawUrl = trimmed.slice(start, i).trim();
+          i += 1;
+          while (i < trimmed.length && /\s/.test(trimmed[i]!)) i += 1;
+          if (trimmed[i] !== ")") return null;
+        } else {
+          const closeIdx = trimmed.indexOf(")", i);
+          if (closeIdx < 0) return null;
+          rawUrl = trimmed.slice(i, closeIdx).trim();
+          if (rawUrl.includes('"') || rawUrl.includes("'")) return null;
+          i = closeIdx;
+        }
+        if (!rawUrl) return null;
+        const trailing = trimmed.slice(i + 1).trim();
+        // Trailing modifiers may only be `format(...)` and/or `tech(...)`.
+        if (trailing && !/^(?:(?:format|tech)\([^)]*\)\s*)+$/i.test(trailing)) return null;
+        return rawUrl;
+      };
+      const fontFaceSourceUrls = (source: unknown): string[] => {
+        if (typeof source !== "string") return [];
+        const urls: string[] = [];
+        for (const entry of splitTopLevelCommas(stripCssComments(source))) {
+          const url = extractUrlToken(entry);
+          if (url) urls.push(url);
+        }
+        return urls;
+      };
+      const normalizeFontFamily = (raw: unknown): string => {
+        const text = String(raw ?? "").trim();
+        if (
+          text.length >= 2 &&
+          ((text[0] === '"' && text[text.length - 1] === '"') ||
+            (text[0] === "'" && text[text.length - 1] === "'"))
+        ) {
+          return text.slice(1, -1);
+        }
+        return text;
       };
       const fontFaceBytes = (source: unknown): Uint8Array | null => {
         if (source instanceof ArrayBuffer) return new Uint8Array(source);
@@ -4937,20 +5043,26 @@ export function installGlobals(
         weight: string;
         style: string;
         #source: unknown;
+        #loadPromise: Promise<FontFace> | null = null;
         constructor(family: any, source?: any, descriptors?: any) {
-          this.family = String(family);
+          this.family = normalizeFontFamily(family);
           this.status = "unloaded";
           this.weight = String(descriptors?.weight ?? "400");
           this.style = String(descriptors?.style ?? "normal");
           this.#source = source;
         }
-        async load(): Promise<FontFace> {
-          if (this.status === "loaded") return this;
+        load(): Promise<FontFace> {
+          if (this.status === "loaded") return Promise.resolve(this);
+          if (this.#loadPromise) return this.#loadPromise;
+          this.#loadPromise = this.#runLoad();
+          return this.#loadPromise;
+        }
+        async #runLoad(): Promise<FontFace> {
           this.status = "loading";
           try {
             const bytes =
               fontFaceBytes(this.#source) ??
-              (await this.#fetchBytes(fontFaceSourceUrl(this.#source)));
+              (await this.#fetchBytes(fontFaceSourceUrls(this.#source)));
             const numericWeight = Number.parseInt(this.weight, 10);
             const registered = (
               state.dom as {
@@ -4981,15 +5093,27 @@ export function installGlobals(
         get loaded(): Promise<FontFace> {
           return this.load();
         }
-        async #fetchBytes(url: string | null): Promise<Uint8Array> {
-          if (!url) throw new TypeError(`FontFace ${this.family}: unsupported src`);
-          const response = await trustedFetch(
-            url,
-            { headers: { "x-kitesurf-allow-cross-origin": "1" } },
-            { resourceType: "Font" },
-          );
-          if (!response.ok) throw new TypeError(`FontFace ${this.family}: ${response.status}`);
-          return new Uint8Array(await response.arrayBuffer());
+        async #fetchBytes(urls: string[]): Promise<Uint8Array> {
+          if (urls.length === 0) throw new TypeError(`FontFace ${this.family}: unsupported src`);
+          let lastError: unknown = null;
+          for (const url of urls) {
+            addFontInflight(url);
+            try {
+              const response = await trustedFetch(url, undefined, { resourceType: "Font" });
+              if (!response.ok) {
+                lastError = new TypeError(`FontFace ${this.family}: ${response.status}`);
+                continue;
+              }
+              return new Uint8Array(await response.arrayBuffer());
+            } catch (error) {
+              lastError = error;
+            } finally {
+              removeFontInflight(url);
+            }
+          }
+          throw lastError instanceof Error
+            ? lastError
+            : new TypeError(`FontFace ${this.family}: failed to fetch src`);
         }
       }
       Object.defineProperty(globalThis, "FontFace", {

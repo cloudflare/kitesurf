@@ -46,3 +46,27 @@ test("a :hover rule applies while the pointer is over the element", async ({
     .poll(() => readJsonReport(cdpSession, "globalThis.__hover()"), { timeout: 5_000 })
     .toEqual({ box: "rgb(0, 0, 255)", label: "rgb(0, 0, 0)" });
 }, 60_000);
+
+test(":hover hit-tests in scrolled page coordinates", async ({ page }) => {
+  await setContent(
+    page,
+    `<!doctype html><html><head><style>
+      body { margin: 0; }
+      .row { height: 100px; background: rgb(0, 0, 255); }
+      .row:hover { background: rgb(255, 0, 0); }
+    </style></head><body>
+      ${Array.from({ length: 20 }, (_, i) => `<div id="d${i}" class="row">row ${i}</div>`).join("")}
+    </body></html>`,
+    { waitUntil: "domcontentloaded" },
+  );
+  await page.evaluate(() => window.scrollTo(0, 1000));
+  await page.mouse.move(50, 50);
+  const result = await page.evaluate(() => ({
+    atPoint: document.elementFromPoint(50, 50)?.id ?? null,
+    d0Bg: getComputedStyle(document.getElementById("d0")!).backgroundColor,
+    d10Bg: getComputedStyle(document.getElementById("d10")!).backgroundColor,
+  }));
+  expect(result.atPoint).toBe("d10");
+  expect(result.d10Bg).toBe("rgb(255, 0, 0)");
+  expect(result.d0Bg).toBe("rgb(0, 0, 255)");
+}, 60_000);
