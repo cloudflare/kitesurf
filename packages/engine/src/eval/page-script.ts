@@ -481,12 +481,15 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
       throw err;
     }
     let direct: RpcSessionEntrypoint | null = null;
+    const isStashMiss = (err: unknown): boolean =>
+      err instanceof Error && err.message.includes("missing stashed page modules");
     // Resolve the host handle once. If the call reached a foreign isolate its stash is empty and
-    // open rejects; load the modules in this isolate instead of failing the navigation.
+    // open rejects with a stash miss; load the modules here instead of failing navigation.
     const resolveHandle = async (): Promise<RpcSessionEntrypoint> => {
       try {
         return await handle;
-      } catch {
+      } catch (err) {
+        if (!isStashMiss(err)) throw err;
         dropStashedPageModules(modulesId);
         direct ??= loadDirect();
         return direct;
@@ -501,6 +504,13 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
       // Ends the host's loopback request, which releases the killed isolate.
       [Symbol.dispose]: () => {
         dropStashedPageModules(modulesId);
+        if (direct) {
+          const d = direct;
+          direct = null;
+          try {
+            d[Symbol.dispose]?.();
+          } catch {}
+        }
         handle.then(
           (h) => {
             try {
