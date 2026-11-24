@@ -21,23 +21,33 @@ Report bugs and propose features in
 [issues](https://github.com/cloudflare/kitesurf/issues). Search existing issues
 and the docs before you start.
 
-## Get vouched before you open a pull request
+## Open a pull request
 
-Pull requests from contributors who are not on [`.github/VOUCHED.td`](.github/VOUCHED.td)
-are closed automatically when they are opened or reopened. Issues stay open to
-everyone.
+Anyone can open a pull request. The Vouch workflow labels each one
+`vouch:trusted` when the author is a bot, a collaborator with write access, or
+on [`.github/VOUCHED.td`](.github/VOUCHED.td), and `vouch:unvouched` otherwise.
+
+CI runs automatically for a `vouch:trusted` pull request. For a
+`vouch:unvouched` pull request, CI waits until a maintainer adds the
+`ci:approved` label. The pull request stays open in the meantime. A maintainer
+may still close a pull request that does not follow this guide.
+
+To become vouched:
 
 1. **Open an issue.** For a bug, include a minimal reproduction, the expected
    result, and the actual result. For a feature or behavior change, describe the
    use case and the approach you have in mind.
 2. **Wait for a maintainer to agree and vouch for you.** A maintainer adds your
-   GitHub username to the vouched list. A vouch lets you open pull requests; it
-   does not approve any code. Bots and collaborators with write access do not
-   need an entry.
-3. **Open a focused pull request** that links the issue.
+   GitHub username to the vouched list in a pull request. A vouch lets your pull
+   requests run CI without a separate approval; it does not approve any code.
+   Bots and collaborators with write access do not need an entry.
+3. **Open a focused pull request** that links the issue. If you were already
+   unvouched, a maintainer can add `ci:approved` to run CI while the vouch
+   lands.
 
-If your pull request was closed before you were vouched, link it from the issue.
-A maintainer can reopen it after vouching for you.
+Authors explicitly blocked in the vouched list are denounced: their pull
+requests are closed when they open or reopen them. Issues stay open to
+everyone.
 
 ## Agree on the problem and scope first
 
