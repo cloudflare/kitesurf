@@ -1196,16 +1196,28 @@ class DocumentImpl extends NodeBase implements Idl.Document {
           return (p || Promise.resolve()).then(() => Array.from(faces));
         },
         check(font: string, _text?: string) {
-          // A family this set knows is only usable once its face has loaded;
-          // anything else is assumed available, as a system font is.
+          // A family this set knows is only usable once its matching face has
+          // loaded; anything else is assumed available, as a system font is.
           // https://drafts.csswg.org/css-font-loading/#dom-fontfaceset-check
-          const family = familyFromFontShorthand(String(font ?? ""));
-          if (!family) return true;
-          for (const face of faces as Set<{ family?: unknown; status?: unknown }>) {
-            if (String(face?.family ?? "").toLowerCase() === family)
-              return face.status === "loaded";
+          const parsed = parseFontShorthand(String(font ?? ""));
+          if (!parsed.family) return true;
+          const matches: Array<{ status?: unknown; weight?: unknown; style?: unknown }> = [];
+          for (const face of faces as Set<{
+            family?: unknown;
+            status?: unknown;
+            weight?: unknown;
+            style?: unknown;
+          }>) {
+            if (String(face?.family ?? "").toLowerCase() === parsed.family) matches.push(face);
           }
-          return true;
+          if (matches.length === 0) return true;
+          const exact = matches.filter(
+            (face) =>
+              normalizeWeight(face.weight) === parsed.weight &&
+              normalizeFontStyle(face.style) === parsed.style,
+          );
+          const relevant = exact.length > 0 ? exact : matches;
+          return relevant.some((face) => face.status === "loaded");
         },
         addEventListener() {},
         removeEventListener() {},
@@ -2893,12 +2905,43 @@ Object.assign(DetachedDocument.prototype, {
 
 // ---------------------------------------------------------------------
 // Exports.
-// The family a CSS font shorthand names, lowercased: the text after the size
-// token, up to a comma, without quotes.
-function familyFromFontShorthand(shorthand: string): string {
-  const afterSize = shorthand.replace(/^[^0-9]*[0-9.]+[a-z%]*\s*(\/\s*[^\s]+\s*)?/i, "");
+function normalizeWeight(raw: unknown): number {
+  const s = String(raw ?? "400")
+    .trim()
+    .toLowerCase();
+  if (s === "normal") return 400;
+  if (s === "bold") return 700;
+  const n = Number.parseInt(s, 10);
+  return Number.isFinite(n) ? n : 400;
+}
+
+function normalizeFontStyle(raw: unknown): string {
+  const s = String(raw ?? "normal")
+    .trim()
+    .toLowerCase();
+  if (s.startsWith("italic")) return "italic";
+  if (s.startsWith("oblique")) return "oblique";
+  return "normal";
+}
+
+// Parse family, weight, and style from a CSS font shorthand for `FontFaceSet.check()`.
+function parseFontShorthand(shorthand: string): { family: string; weight: number; style: string } {
+  const sizeRe =
+    /(?:^|\s)(?:(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:px|pt|pc|in|cm|mm|q|em|rem|ex|ch|lh|rlh|vw|vh|vmin|vmax|cap|ic|%)|(?:xx-small|x-small|small|medium|large|x-large|xx-large|xxx-large|smaller|larger))(?:\s*\/\s*[^\s]+)?(?=\s)/i;
+  const match = sizeRe.exec(shorthand);
+  const beforeSize = match ? shorthand.slice(0, match.index).trim() : "";
+  const afterSize = match ? shorthand.slice(match.index + match[0].length) : shorthand;
   const first = afterSize.split(",")[0]?.trim() ?? "";
-  return first.replace(/^["']|["']$/g, "").toLowerCase();
+  const family = first.replace(/^["']|["']$/g, "").toLowerCase();
+  let weight = 400;
+  let style = "normal";
+  for (const token of beforeSize.split(/\s+/)) {
+    const lower = token.toLowerCase();
+    if (lower === "italic" || lower === "oblique") style = lower;
+    else if (lower === "bold") weight = 700;
+    else if (/^\d{1,4}$/.test(lower)) weight = Number.parseInt(lower, 10);
+  }
+  return { family, weight, style };
 }
 
 export {

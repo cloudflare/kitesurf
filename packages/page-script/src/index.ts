@@ -5298,7 +5298,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         try {
           const hoverChanged = (
             state.dom as { setHoverAt?: (x: number, y: number) => boolean } | null
-          )?.setHoverAt?.(clientX, clientY);
+          )?.setHoverAt?.(clientX + state.scrollX, clientY + state.scrollY);
           // A hover restyle is not a DOM mutation, so bump the sequence that
           // computed-style caches key on.
           if (hoverChanged) {
