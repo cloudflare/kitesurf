@@ -1,0 +1,166 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 24 Nov 2026 20:17:53 +0000
+Subject: [PATCH] Read per-item inline margin offsets
+
+---
+ src/render.rs               |  4 +++-
+ src/text.rs                 | 18 ++++------------
+ src/text_box_decorations.rs | 42 ++++++++++++++++++++++++++++++++++---
+ 3 files changed, 46 insertions(+), 18 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index 51f1d02..3c7f937 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -1077,6 +1077,7 @@ impl ElementCx<'_, '_> {
+                 self.context.dom,
+                 transform,
+                 node_id,
++                text_layout.line_item_offsets(),
+             );
+
+             // Render text selection highlight (if any) using cached selection ranges
+@@ -1093,7 +1094,7 @@ impl ElementCx<'_, '_> {
+                 transform,
+                 self.scale,
+                 node_id,
+-                text_layout.line_node_offsets(),
++                text_layout.line_item_offsets(),
+                 &mut draw_text_context,
+                 None,
+                 Some(text_layout.text(self.context.dom.tree())),
+@@ -1105,6 +1106,7 @@ impl ElementCx<'_, '_> {
+                 self.context.dom,
+                 transform,
+                 node_id,
++                text_layout.line_item_offsets(),
+             );
+         }
+     }
+diff --git a/src/text.rs b/src/text.rs
+index 096d65e..b265e70 100644
+--- a/src/text.rs
++++ b/src/text.rs
+@@ -594,7 +594,7 @@ pub(crate) fn stroke_text<'a>(
+     transform: Affine,
+     scale: f64,
+     inline_root_id: NodeId,
+-    line_node_offsets: &[Vec<(NodeId, f32)>],
++    line_item_offsets: &[Vec<f32>],
+     context: &mut DrawTextContext,
+     fill_override: Option<Color>,
+     text: Option<&str>,
+@@ -647,23 +647,13 @@ pub(crate) fn stroke_text<'a>(
+         // run. Clearing preserves the allocation for the next line and inline context.
+         deco_boxes.clear();
+
+-        let line_offsets: &[(NodeId, f32)] = line_node_offsets
++        let line_offsets: &[f32] = line_item_offsets
+             .get(line_index)
+             .map(Vec::as_slice)
+             .unwrap_or(&[]);
+-        let shift_for = |node_id: NodeId| -> f64 {
+-            line_offsets
+-                .iter()
+-                .find(|(id, _)| *id == node_id)
+-                .map(|(_, offset)| *offset as f64)
+-                .unwrap_or(0.0)
+-        };
+
+-        for item in line.items() {
+-            let margin_shift = match &item {
+-                PositionedLayoutItem::GlyphRun(run) => shift_for(run.style().brush.id),
+-                PositionedLayoutItem::InlineBox(ibox) => shift_for(NodeId::from_u64(ibox.id)),
+-            };
++        for (item_index, item) in line.items().enumerate() {
++            let margin_shift = line_offsets.get(item_index).copied().unwrap_or(0.0) as f64;
+             if let PositionedLayoutItem::GlyphRun(glyph_run) = item {
+                 let run = glyph_run.run();
+                 let font = run.font();
+diff --git a/src/text_box_decorations.rs b/src/text_box_decorations.rs
+index 6e1b415..b8f63cb 100644
+--- a/src/text_box_decorations.rs
++++ b/src/text_box_decorations.rs
+@@ -49,6 +49,7 @@ pub(crate) fn paint_span_fragment_backgrounds(
+     doc: &BaseDocument,
+     transform: Affine,
+     inline_root_id: blitz_dom::NodeId,
++    line_item_offsets: &[Vec<f32>],
+ ) {
+     let fragments = layout.span_fragments();
+     if fragments.is_empty() {
+@@ -106,7 +107,13 @@ pub(crate) fn paint_span_fragment_backgrounds(
+             continue;
+         }
+
+-        let rect = fragment_rect(fragment, line);
++        let margin_shift = fragment_margin_shift(
++            line,
++            line_item_offsets,
++            fragment.line_index as usize,
++            style.brush.id,
++        );
++        let rect = fragment_rect(fragment, line, margin_shift);
+         if decos.border_radius.is_zero() {
+             scene.fill(Fill::NonZero, transform, bg, None, &rect);
+         } else {
+@@ -127,6 +134,7 @@ pub(crate) fn paint_span_fragment_borders(
+     doc: &BaseDocument,
+     transform: Affine,
+     inline_root_id: blitz_dom::NodeId,
++    line_item_offsets: &[Vec<f32>],
+ ) {
+     let fragments = layout.span_fragments();
+     if fragments.is_empty() {
+@@ -189,7 +197,13 @@ pub(crate) fn paint_span_fragment_borders(
+             .as_srgb_color()
+             .multiply_alpha(opacity);
+
+-        let outer = fragment_rect(fragment, line);
++        let margin_shift = fragment_margin_shift(
++            line,
++            line_item_offsets,
++            fragment.line_index as usize,
++            style.brush.id,
++        );
++        let outer = fragment_rect(fragment, line, margin_shift);
+
+         // Borders are filled rectangles, one per edge, drawn
+         // inward from the outer rectangle by `border_*_width`.
+@@ -259,12 +273,34 @@ pub(crate) fn paint_span_fragment_borders(
+ /// pre-alignment. Adding `metrics.offset` here makes a centered or
+ /// right-aligned line draw the box decoration at the same x as the
+ /// glyphs.
++fn fragment_margin_shift(
++    line: &parley::layout::Line<'_, TextBrush>,
++    line_item_offsets: &[Vec<f32>],
++    line_index: usize,
++    node_id: blitz_dom::NodeId,
++) -> f32 {
++    let Some(offsets) = line_item_offsets.get(line_index) else {
++        return 0.0;
++    };
++    for (item_index, item) in line.items().enumerate() {
++        let item_node = match item {
++            parley::PositionedLayoutItem::GlyphRun(run) => run.style().brush.id,
++            parley::PositionedLayoutItem::InlineBox(ibox) => blitz_dom::NodeId::from_u64(ibox.id),
++        };
++        if item_node == node_id {
++            return offsets.get(item_index).copied().unwrap_or(0.0);
++        }
++    }
++    0.0
++}
++
+ fn fragment_rect(
+     fragment: &parley::layout::SpanFragment,
+     line: &parley::layout::Line<'_, TextBrush>,
++    margin_shift: f32,
+ ) -> Rect {
+     let metrics = line.metrics();
+-    let x_origin = metrics.inline_min_coord + metrics.offset;
++    let x_origin = metrics.inline_min_coord + metrics.offset + margin_shift;
+     let x0 = (x_origin + fragment.x_start) as f64;
+     let x1 = (x_origin + fragment.x_end) as f64;
+     let y0 = metrics.block_min_coord as f64;
