@@ -4068,7 +4068,6 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     getInternalState().endClassicScript = async () => {
       // Every script settles its microtask chain before the next one runs, and before
       // document.currentScript clears.
-      getInternalState().currentScriptRead = false;
       try {
         await drainScriptSettleMicrotasks();
       } catch {}

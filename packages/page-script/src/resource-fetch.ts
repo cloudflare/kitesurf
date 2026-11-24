@@ -757,28 +757,15 @@ function releaseParkedFontFetches(): void {
 setParkedFontReleaseHook(releaseParkedFontFetches);
 
 // Match HTML §4.8.4.3.5 ("await a stable state"): wait one microtask so synchronous
-// mutations (loading="lazy", appending <img> into <picture>, or updating src) settle before
-// opening a socket. Returns false when every waiting node moved on and the fetch is dropped.
-async function settleImageFetchBeforeOpen(id: number, url: string): Promise<boolean> {
+// mutations (loading="lazy" or appending <img> into <picture>) settle before opening a socket.
+async function settleImageFetchBeforeOpen(url: string): Promise<void> {
   await NativePromise.resolve();
-  const dom = state.dom as {
-    hasPendingImageWaiter?: (url: string) => boolean;
-    deliverResourceError?: (id: number) => void;
-  } | null;
-  if (dom?.hasPendingImageWaiter && !dom.hasPendingImageWaiter(url)) {
-    try {
-      const pending = runPageTaskWhenUnpaused(() => dom.deliverResourceError?.(id));
-      if (pending) await pending;
-    } catch {}
-    return false;
-  }
   const hints = collectImageHints(url);
   if (hints !== null && allHintsLazy(hints)) {
     deferredUrls.add(url);
     invalidateDeferredReevaluation();
     if (blockingInflightCount() === 0) notifyInflightZero();
   }
-  return true;
 }
 
 export async function fetchResource(
@@ -850,8 +837,8 @@ export async function fetchResource(
   };
 
   try {
-    if (kind === "Image" && !(await settleImageFetchBeforeOpen(id, url))) {
-      return;
+    if (kind === "Image") {
+      await settleImageFetchBeforeOpen(url);
     }
     // CORS mode stays in the key so callers never share a differently entitled response.
     const coalesceKey = `${corsMode}\n${url}`;

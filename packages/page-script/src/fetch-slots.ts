@@ -9,7 +9,7 @@
 // not be the bottleneck: 420 images at six per host took 30 s where Chrome took 2.5 s.
 export const FETCH_CONCURRENCY_PER_HOST = 32;
 
-export const FETCH_CONCURRENCY_GLOBAL = 128;
+export const FETCH_CONCURRENCY_GLOBAL = 48;
 const MISORDER_WINDOW_MS = 30;
 
 export const CLASS_STYLESHEET = 0;
