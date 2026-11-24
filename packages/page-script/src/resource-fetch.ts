@@ -111,44 +111,20 @@ export const stylesheetCors = new Map<string, "clean" | "opaque">();
 export function externalSheetRulesForNode(
   nodeId: number,
 ): { state: "clean"; text: string } | { state: "denied" } | { state: "pending" } {
-  const dom = state.dom as {
-    nodeInfo?: (id: number) => { attributes?: unknown[] } | null;
-    baseURL?: () => string;
-  } | null;
-  if (!dom?.nodeInfo) return { state: "pending" };
-
-  let href = "";
+  const dom = state.dom as { linkedStylesheetURL?: (id: number) => string | undefined } | null;
+  // The caches are keyed by the URL Rust requested, which a later <base href> write must not move.
+  let requested: string | undefined;
   try {
-    const attrs = dom.nodeInfo(nodeId)?.attributes;
-    if (Array.isArray(attrs)) {
-      for (
-        let i = 0;
-        i + NODE_ATTRIBUTE_VALUE_OFFSET < attrs.length;
-        i += NODE_ATTRIBUTE_PAIR_WIDTH
-      ) {
-        if (String(attrs[i] ?? "").toLowerCase() === "href") {
-          href = String(attrs[i + NODE_ATTRIBUTE_VALUE_OFFSET] ?? "");
-          break;
-        }
-      }
-    }
+    requested = dom?.linkedStylesheetURL?.(nodeId);
   } catch {
     return { state: "pending" };
   }
-  if (!href) return { state: "pending" };
+  if (!requested) return { state: "pending" };
 
-  let resolved = "";
-  try {
-    const base = (dom.baseURL && dom.baseURL()) || "about:blank";
-    resolved = new URL(href, base).href;
-  } catch {
-    return { state: "pending" };
-  }
-
-  const verdict = stylesheetCors.get(resolved);
+  const verdict = stylesheetCors.get(requested);
   if (verdict === undefined) return { state: "pending" };
   if (verdict !== "clean") return { state: "denied" };
-  const text = resourceCacheStyles.get(resolved);
+  const text = resourceCacheStyles.get(requested);
   if (text === undefined) return { state: "pending" };
   return { state: "clean", text };
 }
@@ -410,6 +386,7 @@ function iframeDocumentHint(url: string): { lazy: boolean; crossOrigin: boolean 
     querySelectorAll?: (selector: string) => ArrayLike<number>;
     nodeInfo?: (id: number) => { attributes?: unknown[] } | null;
     baseURL?: () => string;
+    documentBaseURL?: () => string;
   } | null;
   if (!dom?.querySelectorAll || !dom.nodeInfo) return null;
   const seq = getInternalState().mutationSeq | 0;
@@ -418,8 +395,9 @@ function iframeDocumentHint(url: string): { lazy: boolean; crossOrigin: boolean 
   }
   const hints = new Map<string, { lazy: boolean; crossOrigin: boolean }>();
   try {
-    const base = dom.baseURL?.() || "about:blank";
-    const baseOrigin = new URL(base).origin;
+    // An iframe src resolves against the base URL; cross-origin means the document's origin.
+    const base = dom.documentBaseURL?.() || dom.baseURL?.() || "about:blank";
+    const baseOrigin = new URL(dom.baseURL?.() || "about:blank").origin;
     for (const id of Array.from(dom.querySelectorAll("iframe"))) {
       const attrs = dom.nodeInfo(id)?.attributes;
       if (!Array.isArray(attrs)) continue;

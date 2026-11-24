@@ -293,6 +293,14 @@ test("<base href> is what relative script src resolves against", async ({ page }
   expect(await ran(page)).toEqual(["based"]);
 });
 
+test("a data: <base href> leaves relative script src on the document URL", async ({ page }) => {
+  await page.goto(
+    docUrl("", `<base href="data:/x/"><script src="policy-script.js?tag=fallback"></script>`),
+    { waitUntil: "load" },
+  );
+  expect(await ran(page)).toEqual(["fallback"]);
+});
+
 const HANDLER_BODY =
   `<script nonce="n0nce">` +
   `globalThis.__ksRan = [];` +

@@ -30,6 +30,8 @@ vi.mock("../src/wasm.ts", () => ({
     return {
       querySelectorAll: () => (cfg.mode === "fanout" ? Int32Array.of(1, 2) : new Int32Array()),
       nodeInfo: () => ({ attributes: ["src", "a/"] }),
+      baseURL: () => url,
+      documentBaseURL: () => url,
     };
   },
 }));

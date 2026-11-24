@@ -31,10 +31,15 @@ export function documentGateContext(
   });
 }
 
+const UNUSABLE_BASE_SCHEMES = new Set(["data:", "javascript:", "vbscript:"]);
+
 export function documentBaseUrl(pageUrl: string, baseHref: string | null | undefined): string {
   if (!baseHref) return pageUrl;
   try {
-    return new URL(baseHref, pageUrl || undefined).toString();
+    const base = new URL(baseHref, pageUrl || undefined);
+    // Chrome ignores data: and javascript: bases, and vbscript: is never usable; the engine's
+    // other fetches skip the same three.
+    return UNUSABLE_BASE_SCHEMES.has(base.protocol) ? pageUrl : base.toString();
   } catch {
     return pageUrl;
   }

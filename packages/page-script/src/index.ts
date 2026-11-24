@@ -6236,12 +6236,14 @@ function appendLinkedStyleSheets(
     if (!attrs) continue;
     const href = stylesheetHref(attrs);
     if (!href) continue;
-    let resolvedUrl = "";
-    try {
-      const base = pageState.dom.baseURL() || "about:blank";
-      resolvedUrl = new URL(href, base).href;
-    } catch {
-      continue;
+    // Rust's requested URL keys the cached text; a link it has not requested yet resolves here.
+    let resolvedUrl = pageState.dom.linkedStylesheetURL(id) ?? "";
+    if (!resolvedUrl) {
+      try {
+        resolvedUrl = new URL(href, pageState.dom.documentBaseURL() || "about:blank").href;
+      } catch {
+        continue;
+      }
     }
     const cached = resourceCacheStyles.get(resolvedUrl) ?? "";
     sheets.push({

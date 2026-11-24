@@ -1026,6 +1026,34 @@ impl DomHandle {
         self.base_url.clone()
     }
 
+    /// The document base URL that the engine's own fetches resolve element URLs against: the
+    /// first `<base href>`, else `baseURL()`. A borrowed document reports `baseURL()`.
+    #[wasm_bindgen(js_name = "documentBaseURL")]
+    pub fn document_base_url(&self) -> String {
+        match self.doc.try_borrow_mut() {
+            Ok(mut d) => {
+                let doc: &mut BaseDocument = d.as_mut();
+                doc.sync_base_url();
+                let url = doc.base_url().to_string();
+                drop(d);
+                url
+            }
+            Err(_) => self.base_url.clone(),
+        }
+    }
+
+    /// The URL the engine requested for a `<link rel=stylesheet>`, which keys its fetched text.
+    /// It stays put when `<base href>` changes later. `undefined` before the link loads.
+    #[wasm_bindgen(js_name = "linkedStylesheetURL")]
+    pub fn linked_stylesheet_url(&self, node_id: u32) -> Option<String> {
+        let internal_id = self.resolve_node_id(node_id)?;
+        let doc = self.doc.try_borrow().ok()?;
+        let base: &BaseDocument = doc.as_ref();
+        let url = base.linked_stylesheet_url(internal_id).map(str::to_string);
+        drop(doc);
+        url
+    }
+
     /// Moves whenever the first connected `<base href>` can change, so callers re-resolve
     /// `baseURI` only then. Any connected move counts; -1 means the document is borrowed.
     #[wasm_bindgen(js_name = "baseEpoch")]

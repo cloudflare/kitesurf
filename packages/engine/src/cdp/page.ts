@@ -3553,13 +3553,20 @@ function frameBaseUrl(frame: FrameState, fallback: string): string {
   return frame.baseUrl ?? frame.url ?? fallback;
 }
 
+// An iframe src resolves against its parent's document base URL, as the renderer resolves it.
+// Rust's base differs from its document URL only when a <base href> applies.
+function parentDocumentBaseUrl(dom: DomHandle, frameUrl: string): string {
+  const base = dom.documentBaseURL();
+  return base && base !== dom.baseURL() ? base : frameUrl;
+}
+
 function discoverChildFramesFor(
   target: TargetState,
   parentFrame: FrameState,
   parentDom: DomHandle,
   budget: ChildFrameBudget,
 ): FrameState[] {
-  const baseUrl = frameBaseUrl(parentFrame, target.url);
+  const baseUrl = parentDocumentBaseUrl(parentDom, frameBaseUrl(parentFrame, target.url));
   const iframes = findIframes(parentDom);
   const registered: FrameState[] = [];
   for (const ifr of iframes) {
@@ -4240,7 +4247,7 @@ function discoverChildFramesFromScan(
   scan: DocScan,
   budget: ChildFrameBudget,
 ): FrameState[] {
-  const baseUrl = frameBaseUrl(parentFrame, target.url);
+  const baseUrl = documentBaseUrl(frameBaseUrl(parentFrame, target.url), scan.baseHref);
   const registered: FrameState[] = [];
   for (const ifr of scan.iframes) {
     if (!admitChildFrame(budget, baseUrl)) break;

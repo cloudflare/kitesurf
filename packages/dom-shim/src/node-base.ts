@@ -2075,6 +2075,8 @@ NodeBase.prototype.isDefaultNamespace = function (namespace: string | null): boo
 // The base epoch moves whenever that can change, so the lookup reruns only then; a borrowed
 // document reports -1 and always reruns.
 let baseURIState: { dom: DomHandle; epoch: number; fallback: string; value: string } | null = null;
+// vbscript: is never a usable base either; the engine's Rust side skips the same three.
+const UNUSABLE_BASE_SCHEMES = new Set(["data:", "javascript:", "vbscript:"]);
 export function documentBaseURI(fallback: string): string {
   const epoch = dom ? dom.baseEpoch() : -1;
   const cached = baseURIState;
@@ -2091,6 +2093,15 @@ export function documentBaseURI(fallback: string): string {
   baseURIState = dom && epoch >= 0 ? { dom, epoch, fallback, value } : null;
   return value;
 }
+// A malformed href, or one Chrome ignores (data:, javascript:), falls back as the engine does.
+function usableBaseURL(href: string, fallback: string): string | null {
+  try {
+    const base = new URL(href, fallback);
+    return UNUSABLE_BASE_SCHEMES.has(base.protocol) ? null : base.toString();
+  } catch {
+    return null;
+  }
+}
 function resolveBaseURI(fallback: string): string {
   try {
     const baseId = dom ? dom.querySelector("base[href]") : -1;
@@ -2099,13 +2110,7 @@ function resolveBaseURI(fallback: string): string {
       const node = elementFor(baseId);
       const href =
         node && typeof node.getAttribute === "function" ? node.getAttribute("href") : null;
-      if (href != null && href !== "") {
-        try {
-          return new URL(String(href), fallback).toString();
-        } catch {
-          /* malformed: the spec falls back to the fallback URL */
-        }
-      }
+      if (href != null && href !== "") return usableBaseURL(String(href), fallback) ?? fallback;
     }
   } catch {}
   return fallback;

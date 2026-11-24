@@ -8,6 +8,7 @@ mod accessibility;
 mod attribute_list;
 mod cdp_depth;
 mod descendants;
+mod document_base_url;
 mod inner_text;
 mod font_arrival_reshape;
 mod font_face_unicode_range;
