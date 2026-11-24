@@ -53,6 +53,10 @@ RUST_NIGHTLY_SHA256S = {
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
 rust.toolchain(
     edition = "2021",
+    # This nightly's rust-objcopy leaves a stripped dylib's string table 4-byte aligned, and macOS
+    # 27's dyld refuses to load such a dylib built with the Xcode 27 SDK, so every proc-macro fails
+    # with E0463 (rust-lang/rust#157750). Drop this once the pin carries the fix from Rust 1.98.
+    extra_exec_rustc_flags_triples = {"aarch64-apple-darwin": ["-Cstrip=none"]},
     extra_target_triples = [],
     rustfmt_version = RUST_NIGHTLY,
     sha256s = RUST_NIGHTLY_SHA256S,
