@@ -739,6 +739,7 @@ export async function fetchResource(
   url: string,
   kind: string,
   corsMode: string = "",
+  blocksLoadOverride?: boolean,
 ): Promise<boolean> {
   let fetched = false;
   if (kind === "Font" && fontDeferActive() && !fontDemandFired()) {
@@ -748,7 +749,7 @@ export async function fetchResource(
     } catch {}
     return false;
   }
-  let blocksLoad = true;
+  let blocksLoad = blocksLoadOverride ?? true;
   if (kind === "Document") {
     await NativePromise.resolve();
     const hint = iframeDocumentHint(url);

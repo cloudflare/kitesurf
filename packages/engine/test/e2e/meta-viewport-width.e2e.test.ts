@@ -3,14 +3,16 @@
 // https://opensource.org/licenses/Apache-2.0
 
 // A `<meta name="viewport" content="width=N">` widens the layout viewport to N
-// when the device viewport is narrower, scaling height proportionally, while
-// leaving `width=device-width` and wider desktop viewports unchanged.
+// only when mobile emulation is enabled (`mobile: true`), clamping to engine
+// viewport caps while leaving desktop viewports and `width=device-width` intact.
 // https://drafts.csswg.org/css-viewport/#viewport-meta
 import { expect, test } from "./harness";
 import { setContent } from "./set-content";
 
-test("meta[name=viewport] numeric width widens a narrow mobile viewport", async ({ page }) => {
-  await page.setViewport({ width: 375, height: 812 });
+test("meta[name=viewport] numeric width applies only on mobile and clamps to engine limits", async ({
+  page,
+}) => {
+  await page.setViewport({ width: 375, height: 812, isMobile: true });
   await setContent(
     page,
     '<!doctype html><html><head><meta name="viewport" content="width=1120"></head><body style="margin:0"><div style="width:1120px;height:40px"></div></body></html>',
@@ -27,16 +29,35 @@ test("meta[name=viewport] numeric width widens a narrow mobile viewport", async 
   expect(mobile.scrollWidth).toBe(1120);
   expect(mobile.innerHeight).toBe(Math.round(812 * (1120 / 375)));
 
-  // Desktop viewport wider than 1120 stays at its own width.
-  await page.setViewport({ width: 1280, height: 720 });
+  // Oversized mobile meta widths clamp to the engine's side and pixel caps.
+  await setContent(
+    page,
+    '<!doctype html><html><head><meta name="viewport" content="width=9999"></head><body></body></html>',
+    { waitUntil: "load" },
+  );
+  const clamped = await page.evaluate(() => ({
+    innerWidth: window.innerWidth,
+    innerHeight: window.innerHeight,
+  }));
+  expect(clamped.innerWidth).toBeLessThanOrEqual(2560);
+  expect(clamped.innerHeight).toBeLessThanOrEqual(2560);
+  expect(clamped.innerWidth * clamped.innerHeight).toBeLessThanOrEqual(2560 * 1440);
+
+  // Desktop viewport (isMobile: false) ignores meta viewport width even when narrower.
+  await page.setViewport({ width: 800, height: 600, isMobile: false });
+  await setContent(
+    page,
+    '<!doctype html><html><head><meta name="viewport" content="width=1024"></head><body></body></html>',
+    { waitUntil: "load" },
+  );
   const desktop = await page.evaluate(() => ({
     innerWidth: window.innerWidth,
     innerHeight: window.innerHeight,
   }));
-  expect(desktop).toEqual({ innerWidth: 1280, innerHeight: 720 });
+  expect(desktop).toEqual({ innerWidth: 800, innerHeight: 600 });
 
-  // width=device-width keeps the device viewport.
-  await page.setViewport({ width: 375, height: 812 });
+  // width=device-width keeps the mobile device viewport.
+  await page.setViewport({ width: 375, height: 812, isMobile: true });
   await setContent(
     page,
     '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body></body></html>',

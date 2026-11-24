@@ -14,6 +14,7 @@ export type { DomShimGlobals } from "./global-scope.js";
 export type { ScrollIntoViewOptions } from "./idl/types.generated.js";
 export {
   buildDocument,
+  isDomNode,
   listModelContextTools,
   stopModelContextToolWatch,
   callModelContextTool,
