@@ -9,6 +9,10 @@ common --@rules_rust//rust/settings:clippy.toml=//:clippy.toml
 common --@rules_rust//rust/settings:rustfmt.toml=//:rustfmt.toml
 # Like cargo, a crate's dependents start on its metadata, not its codegen.
 common --@rules_rust//rust/settings:pipelined_compilation=true
+common --enable_platform_specific_config
+# rules_rust strips debuginfo in exec (opt) mode, which on macOS 27 leaves proc-macro dylibs with
+# a mis-aligned LINKEDIT string pool that dyld rejects.
+common:macos --@rules_rust//rust/settings:extra_exec_rustc_flag=-Cstrip=none
 # Repository rules get no PATH; cc autoconfiguration needs one to find the gcc that links
 # proc-macros and build scripts.
 common --repo_env=PATH=/usr/bin:/bin
