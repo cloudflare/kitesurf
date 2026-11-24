@@ -1695,7 +1695,11 @@ impl DomHandle {
         if current.window_size.0 == width && current.window_size.1 == height {
             return;
         }
+        let width_changed = current.window_size.0 != width;
         doc.set_viewport(Viewport::new(width, height, 1.0, emulated_color_scheme()));
+        if width_changed {
+            doc.as_mut().refresh_responsive_images();
+        }
         self.layout_dirty.set(true);
     }
 }

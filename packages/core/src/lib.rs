@@ -729,16 +729,22 @@ impl DomHandle {
     /// Invalid URLs and URLs that cannot serve as a base use `https://kitesurf.local/`.
     #[wasm_bindgen(constructor)]
     pub fn new(html: &str, base_url: &str) -> DomHandle {
-        Self::build(html, base_url, false)
+        Self::build(html, base_url, false, 1280, 720)
     }
 
     /// Like `new`, for a document whose scripts run: `<noscript>` content parses as text, in
     /// fragments too, serializes unescaped and renders nothing.
     pub fn scripted(html: &str, base_url: &str) -> DomHandle {
-        Self::build(html, base_url, true)
+        Self::build(html, base_url, true, 1280, 720)
     }
 
-    fn build(html: &str, base_url: &str, scripting: bool) -> DomHandle {
+    fn build(
+        html: &str,
+        base_url: &str,
+        scripting: bool,
+        viewport_w: u32,
+        viewport_h: u32,
+    ) -> DomHandle {
         use blitz_traits::shell::Viewport;
         let _ks_span =
             tracing::info_span!("wasm.parse_document", html_bytes = html.len()).entered();
@@ -753,7 +759,12 @@ impl DomHandle {
         let config = DocumentConfig {
             base_url: Some(resolved_base.clone()),
             net_provider: Some(net_provider.clone()),
-            viewport: Some(Viewport::new(1280, 720, 1.0, emulated_color_scheme())),
+            viewport: Some(Viewport::new(
+                viewport_w.max(1),
+                viewport_h.max(1),
+                1.0,
+                emulated_color_scheme(),
+            )),
             font_ctx: Some(crate::resources::fonts::get_or_init_font_context()),
             dims_only_images: DIMS_ONLY_IMAGES.load(Ordering::Relaxed),
             ..Default::default()
@@ -809,22 +820,47 @@ impl DomHandle {
     /// Parse `head + insert + tail` like [`DomHandle::new`]. Joining here, not in JS, avoids
     /// flattening a document-sized JS string that lives until the next major GC.
     pub fn new_spliced(head: &str, insert: &str, tail: &str, base_url: &str) -> DomHandle {
-        Self::spliced(head, insert, tail, base_url, false)
+        Self::spliced(head, insert, tail, base_url, false, 1280, 720)
     }
 
-    fn spliced(head: &str, insert: &str, tail: &str, base_url: &str, scripting: bool) -> DomHandle {
+    fn spliced(
+        head: &str,
+        insert: &str,
+        tail: &str,
+        base_url: &str,
+        scripting: bool,
+        viewport_w: u32,
+        viewport_h: u32,
+    ) -> DomHandle {
         let mut html = String::with_capacity(head.len() + insert.len() + tail.len());
         html.push_str(head);
         html.push_str(insert);
         html.push_str(tail);
-        Self::build(&html, base_url, scripting)
+        Self::build(&html, base_url, scripting, viewport_w, viewport_h)
     }
 
     /// Parse a UTF-8 document like [`DomHandle::new_spliced`], with `insert` at byte `insert_at`.
     /// Bytes let PageScript free the source right away; a JS string lives until a major GC.
+    /// Optional viewport dimensions let responsive image selection (`sizes`, `<source media>`)
+    /// match the real viewport during HTML parse instead of the 1280x720 fallback.
     #[wasm_bindgen(js_name = "newUtf8")]
-    pub fn new_utf8(source: &[u8], insert_at: usize, insert: &str, base_url: &str) -> DomHandle {
-        Self::from_utf8(source, insert_at, insert, base_url, false)
+    pub fn new_utf8(
+        source: &[u8],
+        insert_at: usize,
+        insert: &str,
+        base_url: &str,
+        viewport_width: Option<u32>,
+        viewport_height: Option<u32>,
+    ) -> DomHandle {
+        Self::from_utf8(
+            source,
+            insert_at,
+            insert,
+            base_url,
+            false,
+            viewport_width,
+            viewport_height,
+        )
     }
 
     /// Like `newUtf8`, for a document whose scripts run (see [`DomHandle::scripted`]).
@@ -834,8 +870,18 @@ impl DomHandle {
         insert_at: usize,
         insert: &str,
         base_url: &str,
+        viewport_width: Option<u32>,
+        viewport_height: Option<u32>,
     ) -> DomHandle {
-        Self::from_utf8(source, insert_at, insert, base_url, true)
+        Self::from_utf8(
+            source,
+            insert_at,
+            insert,
+            base_url,
+            true,
+            viewport_width,
+            viewport_height,
+        )
     }
 
     fn from_utf8(
@@ -844,13 +890,17 @@ impl DomHandle {
         insert: &str,
         base_url: &str,
         scripting: bool,
+        viewport_width: Option<u32>,
+        viewport_height: Option<u32>,
     ) -> DomHandle {
+        let vw = viewport_width.filter(|&w| w > 0).unwrap_or(1280);
+        let vh = viewport_height.filter(|&h| h > 0).unwrap_or(720);
         let source = String::from_utf8_lossy(source);
         if insert.is_empty() || insert_at > source.len() || !source.is_char_boundary(insert_at) {
-            return Self::build(&source, base_url, scripting);
+            return Self::build(&source, base_url, scripting, vw, vh);
         }
         let (head, tail) = source.split_at(insert_at);
-        Self::spliced(head, insert, tail, base_url, scripting)
+        Self::spliced(head, insert, tail, base_url, scripting, vw, vh)
     }
 
     #[wasm_bindgen(js_name = "nodeCount")]

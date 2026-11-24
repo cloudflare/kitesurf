@@ -116,3 +116,89 @@ fn stylesheet_fill_and_stroke_reach_inline_svg_snapshot() {
     let tree = svg_tree_of(&dom, "#s").expect("inline svg must parse");
     assert_eq!(first_fill_rgb(&tree), Some((0xa3, 0x1f, 0x34)));
 }
+
+fn all_path_fills(tree: &usvg::Tree) -> Vec<Option<(u8, u8, u8)>> {
+    fn walk(node: &usvg::Node, out: &mut Vec<Option<(u8, u8, u8)>>) {
+        match node {
+            usvg::Node::Group(g) => {
+                for child in g.children() {
+                    walk(child, out);
+                }
+            }
+            usvg::Node::Path(p) => {
+                let rgb = match p.fill().map(|f| f.paint()) {
+                    Some(usvg::Paint::Color(c)) => Some((c.red, c.green, c.blue)),
+                    _ => None,
+                };
+                out.push(rgb);
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    walk(&usvg::Node::Group(Box::new(tree.root().clone())), &mut out);
+    out
+}
+
+#[test]
+fn inherited_css_fill_does_not_override_child_fill_none_or_explicit_color() {
+    // Case 1: `.icon { fill: currentColor; color: #dd0000 }` with a `<path fill="none">`
+    // bounding box plus an unattributed glyph path.
+    let html_none = r##"<html><head><style>
+        .icon { fill: currentColor; color: #dd0000; }
+    </style></head><body>
+        <svg id="i" class="icon" width="96" height="96" viewBox="0 0 24 24">
+            <path fill="none" d="M0 0h24v24H0z"/>
+            <path d="M8 8h8v8H8z"/>
+        </svg>
+    </body></html>"##;
+    let dom_none = DomHandle::new(html_none, "https://example.com/");
+    dom_none.set_viewport(800, 600);
+    dom_none.resolve_layout();
+    let tree_none = svg_tree_of(&dom_none, "#i").expect("icon svg must parse");
+    let fills_none = all_path_fills(&tree_none);
+    // usvg omits invisible fill="none" paths or keeps fill() == None; either way
+    // only the glyph path has red fill, never the fill="none" bounding box.
+    assert!(
+        fills_none.iter().filter(|f| f.is_some()).count() == 1,
+        "only the glyph path should be filled, not fill=\"none\": {fills_none:?}"
+    );
+    assert_eq!(
+        fills_none.into_iter().flatten().next(),
+        Some((0xdd, 0x00, 0x00))
+    );
+
+    // Case 2: `svg { fill: #dd0000 }` with `<rect fill="#0000ff">`.
+    let html_blue = r##"<html><head><style>
+        svg { fill: #dd0000; }
+    </style></head><body>
+        <svg id="b" width="96" height="96" viewBox="0 0 96 96">
+            <rect x="0" y="0" width="96" height="96" fill="#0000ff"/>
+        </svg>
+    </body></html>"##;
+    let dom_blue = DomHandle::new(html_blue, "https://example.com/");
+    dom_blue.set_viewport(800, 600);
+    dom_blue.resolve_layout();
+    let tree_blue = svg_tree_of(&dom_blue, "#b").expect("blue svg must parse");
+    assert_eq!(
+        first_fill_rgb(&tree_blue),
+        Some((0x00, 0x00, 0xff)),
+        "inherited svg CSS fill must not override child's own fill=\"#0000ff\" attribute"
+    );
+}
+
+#[test]
+fn deeply_nested_calc_in_picture_media_does_not_overflow_stack() {
+    let png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAIAAAACUFjqAAAAEklEQVR4nGP4z8CAB+GTG8HSALfKY52fTcuYAAAAAElFTkSuQmCC";
+    let depth = 5_000;
+    let media = format!(
+        "(max-width: {}1px{})",
+        "calc(".repeat(depth),
+        ")".repeat(depth)
+    );
+    let html = format!(
+        r#"<html><body><picture><source media="{media}" srcset="{png}"><img src="{png}"></picture></body></html>"#
+    );
+    let dom = DomHandle::new(&html, "https://example.com/");
+    dom.resolve_layout();
+}
