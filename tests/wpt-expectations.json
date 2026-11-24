@@ -40550,5 +40550,13 @@
   "/css/filter-effects/filter-contrast-003.html": {
     "expected": "PASS",
     "reason": "CSS ColorMatrix filter rendering in vello_cpu"
+  },
+  "/css/css-overflow/overflow-abpos-transform.html": {
+    "expected": "PASS",
+    "reason": "transform-aware scrollable overflow for abspos boxes"
+  },
+  "/css/css-overflow/scrollable-overflow-transform-011.html": {
+    "expected": "PASS",
+    "reason": "transform-aware scrollable overflow"
   }
 }
