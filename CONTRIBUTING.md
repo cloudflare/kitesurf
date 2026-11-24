@@ -27,8 +27,9 @@ Anyone can open a pull request. The Vouch workflow labels each one
 `vouch:trusted` when the author is a bot, a collaborator with write access, or
 on [`.github/VOUCHED.td`](.github/VOUCHED.td), and `vouch:unvouched` otherwise.
 
-CI runs automatically for a `vouch:trusted` pull request. For a
-`vouch:unvouched` pull request, CI waits until a maintainer adds the
+GitHub holds CI on a pull request from an external contributor's fork until a
+maintainer approves its workflow runs, even when the author is vouched. For a
+`vouch:unvouched` pull request, CI also fails until a maintainer adds the
 `ci:approved` label. The pull request stays open in the meantime. A maintainer
 may still close a pull request that does not follow this guide.
 
@@ -38,8 +39,9 @@ To become vouched:
    result, and the actual result. For a feature or behavior change, describe the
    use case and the approach you have in mind.
 2. **Wait for a maintainer to agree and vouch for you.** A maintainer adds your
-   GitHub username to the vouched list in a pull request. A vouch lets your pull
-   requests run CI without a separate approval; it does not approve any code.
+   GitHub username to the vouched list in a pull request. A vouch removes the
+   need for the `ci:approved` label, but a maintainer still approves each pull
+   request's CI runs. It does not approve any code.
    Bots and collaborators with write access do not need an entry.
 3. **Open a focused pull request** that links the issue. If you were already
    unvouched, a maintainer can add `ci:approved` to run CI while the vouch

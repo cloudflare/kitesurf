@@ -11,6 +11,7 @@ An unvouched pull request is closed after 14 days of inactivity.
 To become vouched, discuss the bug, use case, or proposed fix in a
 [Kitesurf issue](https://github.com/cloudflare/kitesurf/issues) and link this
 pull request from the issue. A maintainer can add your username to
-[`.github/VOUCHED.td`](VOUCHED.td) in a pull request. After that merges, push a
-commit or ask a maintainer to add the `ci:approved` label to run CI. Comment
-`/recheck-vouch` to refresh the trust label. Vouching does not approve any code.
+[`.github/VOUCHED.td`](VOUCHED.td) in a pull request. After that merges, the
+`ci:approved` label is no longer needed, but a maintainer still approves the CI
+runs of a pull request from a fork. Comment `/recheck-vouch` to refresh the
+trust label. Vouching does not approve any code.
