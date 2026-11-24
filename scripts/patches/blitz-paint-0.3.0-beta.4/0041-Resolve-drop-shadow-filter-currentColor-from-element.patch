@@ -65,7 +65,7 @@ index d7389f0..a066e13 100644
          ),
          StyloFilter::Url(_) => return None,
 diff --git a/src/render.rs b/src/render.rs
-index 7c664ed..21c2216 100644
+index 99a6a39..cd13110 100644
 --- a/src/render.rs
 +++ b/src/render.rs
 @@ -622,8 +622,10 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {

@@ -38,3 +38,86 @@ fn negative_z_index_child_paints_above_propagated_body_background() {
         "z-index: -1 child must stay visible above propagated body background; got {green_pixels} green pixels"
     );
 }
+
+fn decode_rgba(png: &[u8]) -> (u32, u32, Vec<u8>) {
+    let decoder = png::Decoder::new(std::io::Cursor::new(png));
+    let mut reader = decoder.read_info().expect("png info");
+    let mut pixels = vec![0u8; reader.output_buffer_size().expect("pixel buffer size")];
+    let info = reader.next_frame(&mut pixels).expect("png frame");
+    pixels.truncate(info.line_size * info.height as usize);
+    (info.width, info.height, pixels)
+}
+
+#[test]
+fn propagated_body_and_html_backgrounds_scroll_with_viewport() {
+    for target in ["body", "html"] {
+        let html = format!(
+            r##"<!doctype html><html><head><style>
+              html, body {{ margin: 0; }}
+              {target} {{
+                height: 2000px;
+                background: linear-gradient(to bottom, rgb(255, 0, 0) 0px, rgb(255, 0, 0) 200px, rgb(0, 0, 255) 200px, rgb(0, 0, 255) 2000px);
+              }}
+            </style></head><body></body></html>"##
+        );
+        let dom = crate::DomHandle::new(&html, "https://test.example/");
+        dom.set_viewport(200, 200);
+        dom.resolve_layout();
+        let scene = dom.render_scene_raw(0, 1000, 0, 0, false, false);
+        let rasterizer = crate::paint::scene_replay::SceneRasterizer::new();
+        let png = rasterizer.rasterize(&scene, "png", 90, false);
+        let (w, _, pixels) = decode_rgba(&png);
+        let top = &pixels[((10 * w + 10) * 4) as usize..((10 * w + 10) * 4 + 4) as usize];
+        assert!(
+            top[2] > 200 && top[0] < 32,
+            "{target} gradient scrolled to y=1000 must show blue at top, got {top:?}"
+        );
+    }
+}
+
+#[test]
+fn html_filter_invert_inverts_propagated_background_and_text() {
+    let html = r##"<!doctype html><html><head><style>
+      html { background: #ffffff; filter: invert(1); }
+      body { margin: 0; color: #000000; }
+      #bar { width: 40px; height: 40px; background: #000000; }
+    </style></head><body><div id="bar"></div></body></html>"##;
+    let png =
+        crate::paint::screenshot::ks_render_html_to_png(html, "https://test.example/", 100, 100);
+    let (w, _, pixels) = decode_rgba(&png);
+    let bg = &pixels[((80 * w + 80) * 4) as usize..((80 * w + 80) * 4 + 4) as usize];
+    let bar = &pixels[((20 * w + 20) * 4) as usize..((20 * w + 20) * 4 + 4) as usize];
+    assert!(
+        bg[0] < 32 && bg[1] < 32 && bg[2] < 32,
+        "html {{ background: #fff; filter: invert(1) }} must invert page background to black; got {bg:?}"
+    );
+    assert!(
+        bar[0] > 220 && bar[1] > 220 && bar[2] > 220,
+        "black child inside html {{ filter: invert(1) }} must invert to white; got {bar:?}"
+    );
+}
+
+#[test]
+fn propagated_percentage_gradient_stays_scroll_stable() {
+    let html = r##"<!doctype html><html><head><style>
+      html, body { margin: 0; height: 100%; }
+      html { background: linear-gradient(to bottom, rgb(0, 0, 0), rgb(255, 255, 255)); }
+      #tall { height: 2000px; }
+    </style></head><body><div id="tall"></div></body></html>"##;
+    let dom = crate::DomHandle::new(html, "https://test.example/");
+    dom.set_viewport(200, 200);
+    dom.resolve_layout();
+    let rasterizer = crate::paint::scene_replay::SceneRasterizer::new();
+    let sample = |scroll_y: i32, vy: u32| {
+        let scene = dom.render_scene_raw(0, scroll_y, 0, 0, false, false);
+        let png = rasterizer.rasterize(&scene, "png", 90, false);
+        let (w, _, pixels) = decode_rgba(&png);
+        pixels[((vy * w + 100) * 4) as usize]
+    };
+    let at_0 = sample(0, 100);
+    let at_100 = sample(100, 0);
+    assert!(
+        (i32::from(at_0) - i32::from(at_100)).abs() <= 4,
+        "content y=100 must render the same gradient colour at scroll 0 and scroll 100; got {at_0} vs {at_100}"
+    );
+}

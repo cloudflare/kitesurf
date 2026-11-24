@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 24 Nov 2026 21:52:23 +0000
+Subject: [PATCH] Clamp drop-shadow dx and dy offsets
+
+---
+ src/filters.rs | 19 ++++++++++++-------
+ 1 file changed, 12 insertions(+), 7 deletions(-)
+
+diff --git a/src/filters.rs b/src/filters.rs
+index 4b52412..8cfd869 100644
+--- a/src/filters.rs
++++ b/src/filters.rs
+@@ -27,13 +27,18 @@ pub(crate) fn convert_filter_effect(effect: &FilterEffect) -> Option<FilterPrimi
+             std_deviation: blur.std_deviation.clamp(0.0, 256.0),
+             edge_mode: convert_edge_mode(blur.edge_mode),
+         },
+-        FilterEffect::DropShadow(shadow) => FilterPrimitive::DropShadow {
+-            dx: shadow.dx,
+-            dy: shadow.dy,
+-            std_deviation: shadow.std_deviation.clamp(0.0, 256.0),
+-            color: shadow.color,
+-            edge_mode: convert_edge_mode(shadow.edge_mode),
+-        },
++        // Cap blur sigma and drop-shadow offset to bound FilterLayerPlacement
++        // padding and offscreen pixmap memory in constrained wasm isolates.
++        FilterEffect::DropShadow(shadow) => {
++            const MAX_DROP_SHADOW_OFFSET_PX: f32 = 256.0;
++            FilterPrimitive::DropShadow {
++                dx: shadow.dx.clamp(-MAX_DROP_SHADOW_OFFSET_PX, MAX_DROP_SHADOW_OFFSET_PX),
++                dy: shadow.dy.clamp(-MAX_DROP_SHADOW_OFFSET_PX, MAX_DROP_SHADOW_OFFSET_PX),
++                std_deviation: shadow.std_deviation.clamp(0.0, MAX_DROP_SHADOW_OFFSET_PX),
++                color: shadow.color,
++                edge_mode: convert_edge_mode(shadow.edge_mode),
++            }
++        }
+         FilterEffect::Offset(offset) => FilterPrimitive::Offset {
+             dx: offset.x as f32,
+             dy: offset.y as f32,

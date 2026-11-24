@@ -1,0 +1,193 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 24 Nov 2026 21:52:23 +0000
+Subject: [PATCH] Scroll propagated canvas background and keep in-flow paint
+ under root filter
+
+---
+ src/render.rs | 83 +++++++++++++++++++++++++++++++--------------------
+ src/text.rs   |  4 +--
+ 2 files changed, 53 insertions(+), 34 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index dd415bf..b4d053a 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -254,8 +254,20 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+             return;
+         };
+         let root_id = root_element.id();
+-        let bg_width = (self.width as f32).max(root_element.final_layout().size.width);
+-        let bg_height = (self.height as f32).max(root_element.final_layout().size.height);
++        let root_overflow = root_element.scrollable_overflow();
++        // Size the canvas background box from the root's layout + scrollable
++        // overflow (never the transient viewport scroll offset) so percentage
++        // gradients and background-size stay scroll-stable.
++        let bg_width = (self.width as f32)
++            .max(root_element.final_layout().size.width)
++            .max(root_overflow.x1 as f32);
++        let bg_height = (self.height as f32)
++            .max(root_element.final_layout().size.height)
++            .max(root_overflow.y1 as f32);
++        let root_filter = root_element.primary_styles().and_then(|style| {
++            let current_color = style.clone_color();
++            convert_filters(&style.get_effects().filter.0, &current_color).map(Arc::new)
++        });
+
+         // CSS Backgrounds 3 section 2.11.1 canvas-background propagation. Pick
+         // the element whose complete background paints over the canvas, then
+@@ -285,6 +297,10 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+             }
+         };
+
++        let root_transform = Affine::translate(Vec2 {
++            x: self.initial_x - (viewport_scroll.x * self.scale),
++            y: self.initial_y - (viewport_scroll.y * self.scale),
++        });
+         self.canvas_bg_source_id.set(propagation_source.map(|s| s.id()));
+         if let Some(source) = propagation_source {
+             let canvas_layout = taffy::Layout {
+@@ -295,16 +311,31 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+                 },
+                 ..root_element.final_layout()
+             };
+-            let canvas_cx = self.element_cx(
+-                source,
+-                canvas_layout,
+-                Affine::translate(Vec2 {
+-                    x: self.initial_x,
+-                    y: self.initial_y,
+-                }),
+-                None,
+-            );
+-            canvas_cx.draw_background(scene);
++            let canvas_cx = self.element_cx(source, canvas_layout, root_transform, None);
++            // Apply the root element's CSS filter (e.g. `html { filter: invert(1) }`)
++            // to the propagated canvas background as well so it stays consistent with
++            // filtered root descendants across the full viewport.
++            if let Some(filter) = root_filter {
++                let clip = Rect::new(
++                    0.0,
++                    0.0,
++                    bg_width as f64 * self.scale,
++                    bg_height as f64 * self.scale,
++                );
++                scene.push_layer(
++                    Fill::NonZero,
++                    BlendMode::default(),
++                    1.0,
++                    root_transform,
++                    &clip,
++                    Some(filter),
++                    None,
++                );
++                canvas_cx.draw_background(scene);
++                scene.pop_layer();
++            } else {
++                canvas_cx.draw_background(scene);
++            }
+         }
+
+         // The root clip rectangle is the viewport (in screen coordinates, with the
+@@ -312,15 +343,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+         // scrollports narrow this rectangle further for their descendants.
+         let viewport_clip_rect = Rect::new(0.0, 0.0, self.width as f64, self.height as f64);
+
+-        self.render_element(
+-            scene,
+-            root_id,
+-            Affine::translate(Vec2 {
+-                x: self.initial_x - (viewport_scroll.x * self.scale),
+-                y: self.initial_y - (viewport_scroll.y * self.scale),
+-            }),
+-            viewport_clip_rect,
+-        );
++        self.render_element(scene, root_id, root_transform, viewport_clip_rect);
+
+         // Render debug overlay
+         if self.dom.devtools().highlight_hover {
+@@ -1198,7 +1221,7 @@ impl ElementCx<'_, '_> {
+                 text_transform,
+                 self.scale,
+                 inline_root_id,
+-                text_layout.line_node_offsets(),
++                text_layout.line_item_offsets(),
+                 &mut draw_text_context,
+                 Some(Color::BLACK),
+                 None,
+@@ -1244,7 +1267,7 @@ impl ElementCx<'_, '_> {
+             let Some(span_rect) = span_glyph_bounds(
+                 self.context.dom,
+                 layout,
+-                text_layout.line_node_offsets(),
++                text_layout.line_item_offsets(),
+                 inline_root_id,
+                 span_id,
+             ) else {
+@@ -1303,7 +1326,7 @@ impl ElementCx<'_, '_> {
+                 text_transform,
+                 self.scale,
+                 inline_root_id,
+-                text_layout.line_node_offsets(),
++                text_layout.line_item_offsets(),
+                 &mut draw_text_context,
+                 Some(Color::BLACK),
+                 None,
+@@ -1952,7 +1975,7 @@ fn create_css_rect(style: &ComputedValues, layout: &Layout, scale: f64) -> CssBo
+ fn span_glyph_bounds(
+     doc: &BaseDocument,
+     layout: &parley::layout::Layout<TextBrush>,
+-    line_node_offsets: &[Vec<(NodeId, f32)>],
++    line_item_offsets: &[Vec<f32>],
+     inline_root_id: NodeId,
+     span_id: NodeId,
+ ) -> Option<Rect> {
+@@ -1975,11 +1998,11 @@ fn span_glyph_bounds(
+
+     let mut bounds: Option<Rect> = None;
+     for (line_index, line) in layout.lines().enumerate() {
+-        let line_offsets = line_node_offsets
++        let line_offsets = line_item_offsets
+             .get(line_index)
+             .map(Vec::as_slice)
+             .unwrap_or(&[]);
+-        for item in line.items() {
++        for (item_index, item) in line.items().enumerate() {
+             let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
+                 continue;
+             };
+@@ -1987,11 +2010,7 @@ fn span_glyph_bounds(
+             if !belongs(run_node) {
+                 continue;
+             }
+-            let shift = line_offsets
+-                .iter()
+-                .find(|(id, _)| *id == run_node)
+-                .map(|(_, offset)| *offset as f64)
+-                .unwrap_or(0.0);
++            let shift = line_offsets.get(item_index).copied().unwrap_or(0.0) as f64;
+             let metrics = glyph_run.run().font_metrics();
+             let baseline = glyph_run.baseline() as f64;
+             let x0 = glyph_run.offset() as f64 + shift;
+diff --git a/src/text.rs b/src/text.rs
+index 8a31982..77f81dd 100644
+--- a/src/text.rs
++++ b/src/text.rs
+@@ -579,7 +579,7 @@ pub(crate) fn stroke_text<'a>(
+         transform,
+         scale,
+         inline_root_id,
+-        line_node_offsets,
++        line_item_offsets,
+         context,
+         fill_override,
+         text,
+@@ -595,7 +595,7 @@ pub(crate) fn stroke_text_filtered<'a>(
+     transform: Affine,
+     scale: f64,
+     inline_root_id: NodeId,
+-    line_node_offsets: &[Vec<(NodeId, f32)>],
++    line_item_offsets: &[Vec<f32>],
+     context: &mut DrawTextContext,
+     fill_override: Option<Color>,
+     text: Option<&str>,

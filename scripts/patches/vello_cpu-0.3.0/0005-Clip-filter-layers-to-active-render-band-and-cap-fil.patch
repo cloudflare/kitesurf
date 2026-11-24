@@ -1,0 +1,357 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 24 Nov 2026 21:52:23 +0000
+Subject: [PATCH] Clip filter layers to active render band and cap filter
+ pixmap area
+
+---
+ src/coarse/bucketer.rs          |  52 ++++++++++---
+ src/dispatch/single_threaded.rs | 130 ++++++++++++++++++++++++++++++--
+ src/filter/context.rs           |  26 +++++--
+ 3 files changed, 186 insertions(+), 22 deletions(-)
+
+diff --git a/src/coarse/bucketer.rs b/src/coarse/bucketer.rs
+index 5816168..8031149 100644
+--- a/src/coarse/bucketer.rs
++++ b/src/coarse/bucketer.rs
+@@ -4,7 +4,7 @@
+ use super::cmd::{DepthFill, LayerFill, LayerFillAttrs, PaintFill, PaintFillAttrs, RenderCmd};
+ use super::depth::{DepthSegment, DepthState};
+ use crate::coarse::depth;
+-use crate::filter::context::FilterContext;
++use crate::filter::context::{FilterContext, FilterLayerState};
+ use crate::kurbo::{Affine, Vec2};
+ use crate::peniko::{BlendMode, Extend, ImageQuality, ImageSampler};
+ use crate::record::RecordedFill;
+@@ -346,8 +346,8 @@ impl CommandBucketer {
+                             return true;
+                         }
+                     }
+-                    RecordedLayerKind::Filter { placement, .. }
+-                    | RecordedLayerKind::BackdropFilter { placement, .. } => {
++                    RecordedLayerKind::Filter { filter_data, .. }
++                    | RecordedLayerKind::BackdropFilter { filter_data, .. } => {
+                         let needs_layer = props.blend_mode != BlendMode::default()
+                             || props.opacity != 1.0
+                             || props.mask.is_some()
+@@ -357,19 +357,49 @@ impl CommandBucketer {
+                             self.push_layer(props);
+                         }
+
+-                        // Note: At this point, we've already rasterized all dependent
+-                        // filter layers, so this should never fail.
+-                        if let Some(pixmap) = filter_ctx.filter_layer(id as usize) {
+-                            self.generate_filter_layer_fill(
+-                                pixmap,
+-                                *placement,
+-                                encoded_paints.len(),
+-                            );
++                        let mut stopped = false;
++                        match filter_ctx.filter_layer(id as usize) {
++                            Some(FilterLayerState::Ready(pixmap, effective_placement)) => {
++                                self.generate_filter_layer_fill(
++                                    pixmap,
++                                    effective_placement,
++                                    encoded_paints.len(),
++                                );
++                            }
++                            Some(FilterLayerState::UnfilteredFallback)
++                                if matches!(layer.kind, RecordedLayerKind::Filter { .. }) =>
++                            {
++                                // Shift viewport origin by source_shift so the layer's
++                                // recorded children map back onto their original screen
++                                // coordinates when painted unfiltered.
++                                let saved_viewport = self.viewport;
++                                let (sx, sy) = filter_data.source_shift();
++                                self.viewport = RectU16::new(
++                                    saved_viewport.x0.saturating_add(sx),
++                                    saved_viewport.y0.saturating_add(sy),
++                                    saved_viewport.x1.saturating_add(sx),
++                                    saved_viewport.y1.saturating_add(sy),
++                                );
++                                stopped = self.bucket_commands(
++                                    &layer.nodes,
++                                    draws,
++                                    layers,
++                                    strips,
++                                    encoded_paints,
++                                    filter_ctx,
++                                    stop_at_layer,
++                                );
++                                self.viewport = saved_viewport;
++                            }
++                            _ => {}
+                         }
+
+                         if needs_layer {
+                             self.pop_layer(strips);
+                         }
++                        if stopped {
++                            return true;
++                        }
+                     }
+                 }
+             }
+diff --git a/src/dispatch/single_threaded.rs b/src/dispatch/single_threaded.rs
+index 6ec506f..b57fe1e 100644
+--- a/src/dispatch/single_threaded.rs
++++ b/src/dispatch/single_threaded.rs
+@@ -110,11 +110,34 @@ impl SingleThreadedDispatcher {
+         encoded_paints: &[EncodedPaint],
+         image_resolver: &dyn ImageResolver,
+     ) {
+-        let mut filters =
+-            self.rasterize_filter_layers::<S, F>(simd, encoded_paints, image_resolver);
++        let band_y = if settings.source_y > 0 || target.height() < scene_height {
++            Some((
++                settings.source_y,
++                settings
++                    .source_y
++                    .saturating_add(target.height())
++                    .min(scene_height),
++            ))
++        } else {
++            None
++        };
++        // Aggregate per-frame/band filter pixmap budget (16 MiB RGBA8) so neither
++        // a single oversized layer nor many small blurred layers can OOM wasm.
++        const MAX_TOTAL_FILTER_PIXMAP_PIXELS: usize = 4 * 1024 * 1024;
++        let mut remaining_pixels = MAX_TOTAL_FILTER_PIXMAP_PIXELS;
++        let band_windows = band_y.map(|by| self.compute_filter_band_windows(by));
++        let mut filters = self.rasterize_filter_layers::<S, F>(
++            simd,
++            band_windows.as_deref(),
++            &mut remaining_pixels,
++            encoded_paints,
++            image_resolver,
++        );
+         let target_init = settings.target_init.map(PremulColor::from_alpha_color);
+         self.rasterize_backdrop_filter_layers::<S, F>(
+             simd,
++            band_windows.as_deref(),
++            &mut remaining_pixels,
+             &mut filters,
+             target_init,
+             encoded_paints,
+@@ -230,14 +253,69 @@ impl SingleThreadedDispatcher {
+         self.recorder.push_draw(draw, strips);
+     }
+
++    /// Compute the active vertical band window `[y0, y1)` in each layer's parent
++    /// coordinate space, propagating outer filter `source_shift` and halo padding
++    /// into nested filter/backdrop-filter layers so nested filters band-clip too.
++    fn compute_filter_band_windows(&self, root_band: (u16, u16)) -> alloc::vec::Vec<(u16, u16)> {
++        let mut windows = alloc::vec![root_band; self.recorder.layers.len()];
++        fn propagate(
++            layers: &[vello_common::record::RecordedLayer],
++            nodes: &[Node],
++            child_window: (u16, u16),
++            windows: &mut [(u16, u16)],
++        ) {
++            for node in nodes {
++                let Some(id) = node.layer else { continue };
++                let idx = id as usize;
++                if idx >= layers.len() {
++                    continue;
++                }
++                windows[idx] = child_window;
++                if matches!(layers[idx].kind, RecordedLayerKind::Regular) {
++                    propagate(layers, &layers[idx].nodes, child_window, windows);
++                }
++            }
++        }
++        // `filter_layers` is recorded in outer-to-inner push order, so each outer
++        // filter's window is finalized before its nested filter children run.
++        for &id in &self.recorder.filter_layers {
++            let idx = id as usize;
++            let Some(layer) = self.recorder.layers.get(idx) else {
++                continue;
++            };
++            let RecordedLayerKind::Filter {
++                filter_data: filter_plan,
++                ..
++            } = &layer.kind
++            else {
++                continue;
++            };
++            let (wy0, wy1) = windows[idx];
++            let shift_y = filter_plan.source_shift().1;
++            let pad = filter_plan.filter_padding;
++            let halo_y = pad.top.max(pad.bottom);
++            let child_window = (
++                wy0.saturating_add(shift_y).saturating_sub(halo_y),
++                wy1.saturating_add(shift_y).saturating_add(halo_y),
++            );
++            propagate(&self.recorder.layers, &layer.nodes, child_window, &mut windows);
++        }
++        windows
++    }
++
+     fn rasterize_filter_layers<S: Simd, F: FineKernel<S>>(
+         &self,
+         simd: S,
++        band_windows: Option<&[(u16, u16)]>,
++        remaining_pixels: &mut usize,
+         encoded_paints: &[EncodedPaint],
+         image_resolver: &dyn ImageResolver,
+     ) -> FilterContext {
+         // TODO: Reuse across frames so that pixmaps can be reused.
+         let mut filter_ctx = FilterContext::new(self.recorder.layers.len());
++        if self.recorder.filter_layers.is_empty() {
++            return filter_ctx;
++        }
+         // We record filter layers upon "push", so nested filter layers get added after their
+         // parents. Subsequent sibling filter layers also get added after the previous layer they
+         // are composited into. Therefore, iterating in reverse order is enough to ensure that all
+@@ -250,13 +328,31 @@ impl SingleThreadedDispatcher {
+             else {
+                 unreachable!("filter_layers only contains filter layers");
+             };
+-            let pixmap_bbox = placement.pixmap_bbox();
++            let effective_placement = match band_windows.and_then(|w| w.get(id as usize).copied()) {
++                Some((band_y0, band_y1)) => {
++                    let pad = filter_plan.filter_padding;
++                    let Some(clipped) =
++                        placement.clip_to_band(band_y0, band_y1, pad.top, pad.bottom)
++                    else {
++                        continue;
++                    };
++                    clipped
++                }
++                None => *placement,
++            };
++            let pixmap_bbox = effective_placement.pixmap_bbox();
+             if pixmap_bbox.is_empty() {
+                 continue;
+             }
+
+             let width = pixmap_bbox.width();
+             let height = pixmap_bbox.height();
++            let pixels = usize::from(width) * usize::from(height);
++            if pixels > *remaining_pixels {
++                filter_ctx.set_unfiltered_fallback(id as usize);
++                continue;
++            }
++            *remaining_pixels -= pixels;
+             // TODO: See https://github.com/linebender/vello/pull/1701#discussion_r3400709986, explore
+             // using pools for more resources.
+             let mut pixmap = Pixmap::new(width, height);
+@@ -291,7 +387,7 @@ impl SingleThreadedDispatcher {
+             // #[cfg(all(debug_assertions, feature = "std", feature = "png"))]
+             // save_filtered_layer_debug(&pixmap, id);
+
+-            filter_ctx.set_layer(id as usize, pixmap);
++            filter_ctx.set_layer(id as usize, pixmap, effective_placement);
+         }
+
+         filter_ctx
+@@ -300,11 +396,16 @@ impl SingleThreadedDispatcher {
+     fn rasterize_backdrop_filter_layers<S: Simd, F: FineKernel<S>>(
+         &self,
+         simd: S,
++        band_windows: Option<&[(u16, u16)]>,
++        remaining_pixels: &mut usize,
+         filter_ctx: &mut FilterContext,
+         target_init: TargetInit<PremulColor>,
+         encoded_paints: &[EncodedPaint],
+         image_resolver: &dyn ImageResolver,
+     ) {
++        if self.recorder.backdrop_filter_layers.is_empty() {
++            return;
++        }
+         for id in self.recorder.backdrop_filter_layers.iter().copied() {
+             let RecordedLayerKind::BackdropFilter {
+                 filter_data: filter_plan,
+@@ -314,12 +415,29 @@ impl SingleThreadedDispatcher {
+             else {
+                 unreachable!("backdrop_filter_layers only contains backdrop filter layers");
+             };
+-            let pixmap_bbox = placement.pixmap_bbox();
++            let effective_placement = match band_windows.and_then(|w| w.get(id as usize).copied()) {
++                Some((band_y0, band_y1)) => {
++                    let pad = filter_plan.filter_padding;
++                    let Some(clipped) =
++                        placement.clip_to_band(band_y0, band_y1, pad.top, pad.bottom)
++                    else {
++                        continue;
++                    };
++                    clipped
++                }
++                None => *placement,
++            };
++            let pixmap_bbox = effective_placement.pixmap_bbox();
+             if pixmap_bbox.is_empty() {
+                 continue;
+             }
+             let width = pixmap_bbox.width();
+             let height = pixmap_bbox.height();
++            let pixels = usize::from(width) * usize::from(height);
++            if pixels > *remaining_pixels {
++                continue;
++            }
++            *remaining_pixels -= pixels;
+             let mut pixmap = Pixmap::new(width, height);
+             let params = FineRenderParams {
+                 scene_size: (width, height),
+@@ -360,7 +478,7 @@ impl SingleThreadedDispatcher {
+                 filter_plan.transform,
+             );
+
+-            filter_ctx.set_layer(id as usize, pixmap);
++            filter_ctx.set_layer(id as usize, pixmap, effective_placement);
+         }
+     }
+ }
+diff --git a/src/filter/context.rs b/src/filter/context.rs
+index 546cb40..d3b47fa 100644
+--- a/src/filter/context.rs
++++ b/src/filter/context.rs
+@@ -3,12 +3,21 @@
+
+ use alloc::sync::Arc;
+ use alloc::vec::Vec;
++use vello_common::filter::FilterLayerPlacement;
+ use vello_common::pixmap::Pixmap;
+
++#[derive(Debug, Clone)]
++pub(crate) enum FilterLayerState {
++    Ready(Arc<Pixmap>, FilterLayerPlacement),
++    /// Layer exceeded the filter pixel budget; inline its children unfiltered
++    /// rather than dropping content.
++    UnfilteredFallback,
++}
++
+ #[derive(Debug, Default)]
+ pub(crate) struct FilterContext {
+-    /// The rendered pixmaps for each filter layer.
+-    layers: Vec<Option<Arc<Pixmap>>>,
++    /// The rendered pixmaps (or unfiltered fallback markers) for each filter layer.
++    layers: Vec<Option<FilterLayerState>>,
+     scratch: ScratchBuffer,
+ }
+
+@@ -24,14 +33,21 @@ impl FilterContext {
+         &mut self.scratch
+     }
+
+-    pub(crate) fn set_layer(&mut self, id: usize, pixmap: Pixmap) {
++    pub(crate) fn set_layer(&mut self, id: usize, pixmap: Pixmap, placement: FilterLayerPlacement) {
++        if id >= self.layers.len() {
++            self.layers.resize_with(id + 1, || None);
++        }
++        self.layers[id] = Some(FilterLayerState::Ready(Arc::new(pixmap), placement));
++    }
++
++    pub(crate) fn set_unfiltered_fallback(&mut self, id: usize) {
+         if id >= self.layers.len() {
+             self.layers.resize_with(id + 1, || None);
+         }
+-        self.layers[id] = Some(Arc::new(pixmap));
++        self.layers[id] = Some(FilterLayerState::UnfilteredFallback);
+     }
+
+-    pub(crate) fn filter_layer(&self, id: usize) -> Option<Arc<Pixmap>> {
++    pub(crate) fn filter_layer(&self, id: usize) -> Option<FilterLayerState> {
+         self.layers.get(id).and_then(Option::as_ref).cloned()
+     }
+ }

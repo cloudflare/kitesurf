@@ -19,7 +19,7 @@ Record `canvas_bg_source_id` during canvas propagation and skip
  1 file changed, 13 insertions(+), 1 deletion(-)
 
 diff --git a/src/render.rs b/src/render.rs
-index 11cddc8..7c664ed 100644
+index 275f58d..99a6a39 100644
 --- a/src/render.rs
 +++ b/src/render.rs
 @@ -129,6 +129,10 @@ pub struct BlitzDomPainter<'dom, 'a> {

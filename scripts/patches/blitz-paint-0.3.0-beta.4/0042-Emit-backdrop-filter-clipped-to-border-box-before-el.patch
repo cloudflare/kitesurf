@@ -9,7 +9,7 @@ Subject: [PATCH] Emit backdrop-filter clipped to border box before element
  1 file changed, 27 insertions(+), 2 deletions(-)
 
 diff --git a/src/render.rs b/src/render.rs
-index 21c2216..71b66d7 100644
+index cd13110..dd415bf 100644
 --- a/src/render.rs
 +++ b/src/render.rs
 @@ -669,17 +669,42 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {

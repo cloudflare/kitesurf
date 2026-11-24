@@ -194,3 +194,133 @@ fn css_backdrop_filter_filters_backdrop_without_filtering_children() {
         "child inside backdrop-filter element must stay unfiltered green; got {child:?}"
     );
 }
+
+#[test]
+fn tall_filtered_element_banded_render_matches_grayscale_drop_shadow_and_nested_filters() {
+    // Height 4200 > MAX_SINGLE_PASS_DIMENSION (4096) forces the 128-row banded path.
+    let html = r##"<!doctype html><html><head><style>
+      body { margin: 0; background: #ffffff; }
+      #gray {
+        position: absolute; left: 0; top: 0; width: 100px; height: 4200px;
+        background: rgb(255, 0, 0);
+        filter: grayscale(1);
+      }
+      /* Box ends at y=384 (exact 128-row band seam); shadow extends to y=384..392. */
+      #shadow {
+        position: absolute; left: 110px; top: 344px; width: 40px; height: 40px;
+        background: rgb(0, 0, 200);
+        filter: drop-shadow(0px 8px 0px rgb(255, 0, 0));
+      }
+    </style></head><body>
+      <div id="gray"></div>
+      <div id="shadow"></div>
+    </body></html>"##;
+    let dom = crate::DomHandle::new(html, "https://test.example/");
+    dom.set_viewport(200, 4200);
+    dom.resolve_layout();
+
+    let scene = dom.render_scene_raw(0, 0, 0, 0, false, false);
+    let rasterizer = crate::paint::scene_replay::SceneRasterizer::new();
+    let start = std::time::Instant::now();
+    let png = rasterizer.rasterize(&scene, "png", 90, false);
+    let elapsed = start.elapsed();
+    let (w, h, pixels) = decode_png(&png);
+    assert_eq!((w, h), (200, 4200));
+
+    for y in [10, 2000, 4190] {
+        let p = pixel_at(&pixels, w, 50, y);
+        assert!(
+            (p[0] as i32 - p[1] as i32).abs() <= 4 && (p[1] as i32 - p[2] as i32).abs() <= 4,
+            "row {y} must be neutral gray; got {p:?}"
+        );
+        assert!(
+            p[0] > 30 && p[0] < 180,
+            "row {y} grayscale(1) on red must be mid-gray; got {p:?}"
+        );
+    }
+    // Shadow crossing the y=384 band seam must stay solid red at y=386.
+    let seam_shadow = pixel_at(&pixels, w, 130, 386);
+    assert!(
+        seam_shadow[0] > 200 && seam_shadow[1] < 32 && seam_shadow[2] < 32,
+        "drop-shadow across 128-row band seam must remain red; got {seam_shadow:?}"
+    );
+    assert!(
+        elapsed.as_secs() < 5,
+        "banded tall filter rasterization took too long: {elapsed:?}"
+    );
+}
+
+#[test]
+fn nested_and_over_budget_filters_render_fast_and_never_vanish() {
+    // Nested filter (html invert + tall main grayscale) on a 4200px banded scene
+    // must band-clip both layers instead of re-rendering the child per band.
+    let nested_html = r##"<!doctype html><html><head><style>
+      html { filter: invert(1); }
+      body { margin: 0; }
+      main { width: 200px; height: 4200px; background: rgb(255, 0, 0); filter: grayscale(1); }
+    </style></head><body><main></main></body></html>"##;
+    let dom = crate::DomHandle::new(nested_html, "https://test.example/");
+    dom.set_viewport(200, 4200);
+    dom.resolve_layout();
+    let scene = dom.render_scene_raw(0, 0, 0, 0, false, false);
+    let rasterizer = crate::paint::scene_replay::SceneRasterizer::new();
+    let start = std::time::Instant::now();
+    let png = rasterizer.rasterize(&scene, "png", 90, false);
+    assert!(
+        start.elapsed().as_secs() < 5,
+        "nested banded filter took too long: {:?}",
+        start.elapsed()
+    );
+    let (w, h, pixels) = decode_png(&png);
+    assert_eq!((w, h), (200, 4200));
+    let mid = pixel_at(&pixels, w, 100, 2000);
+    // grayscale(red) ~= 54, inverted ~= 201 (neutral light gray).
+    assert!(
+        mid[0] > 160 && (mid[0] as i32 - mid[2] as i32).abs() <= 4,
+        "nested inverted grayscale must paint light gray; got {mid:?}"
+    );
+
+    // Over-budget filter (single-pass 2100x2100 > 4M pixels) must fall back to
+    // painting unfiltered content instead of silently dropping the element.
+    let big_html = r##"<!doctype html><html><head><style>
+      body { margin: 0; background: #ffffff; }
+      #big { width: 2100px; height: 2100px; background: rgb(0, 0, 200); filter: blur(10px); }
+    </style></head><body><div id="big"></div></body></html>"##;
+    let png = crate::paint::screenshot::ks_render_html_to_png(
+        big_html,
+        "https://test.example/",
+        2100,
+        2100,
+    );
+    let (bw, bh, bpixels) = decode_png(&png);
+    assert_eq!((bw, bh), (2100, 2100));
+    let center = pixel_at(&bpixels, bw, 1050, 1050);
+    assert!(
+        center[2] > 180 && center[0] < 32,
+        "over-budget filter layer must fall back to painting its content unfiltered; got {center:?}"
+    );
+}
+
+#[test]
+fn large_drop_shadow_offset_is_clamped_and_fast() {
+    let html = r##"<!doctype html><html><head><style>
+      body { margin: 0; background: #ffffff; }
+      #box {
+        width: 200px; height: 200px;
+        background: rgb(0, 0, 200);
+        filter: drop-shadow(5000px 5000px 0px rgb(255, 0, 0));
+      }
+    </style></head><body><div id="box"></div></body></html>"##;
+    let start = std::time::Instant::now();
+    let png =
+        crate::paint::screenshot::ks_render_html_to_png(html, "https://test.example/", 200, 200);
+    let elapsed = start.elapsed();
+    let (w, h, pixels) = decode_png(&png);
+    assert_eq!((w, h), (200, 200));
+    let center = pixel_at(&pixels, w, 100, 100);
+    assert!(center[2] > 180 && center[0] < 32, "got {center:?}");
+    assert!(
+        elapsed.as_secs() < 5,
+        "clamped drop-shadow render took too long: {elapsed:?}"
+    );
+}
