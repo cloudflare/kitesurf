@@ -49,6 +49,7 @@ import { unregisterIsolateLimitListenersFor } from "../eval/limit-registry.ts";
 import type { ExternalOutbound } from "../eval/external-outbound.ts";
 import { createSandboxOutboundOverride, type SandboxOutboundExports } from "../eval/outbound.ts";
 import { unregisterOutboundFilters } from "./outbound-filter-registry.ts";
+import { unregisterConnectionExtraHeaders } from "./extra-headers-registry.ts";
 import { registerRequestBlocker, unregisterRequestBlocker } from "../request-blocker.ts";
 import {
   disableInterceptionForClient,
@@ -551,6 +552,7 @@ export class BrowserSession {
     this.memAtClose = engineMemoryBreakdown(browser);
     browser.networkEvents.dispose();
     unregisterOutboundFilters(connectionId);
+    unregisterConnectionExtraHeaders(connectionId);
     unregisterRequestBlocker(connectionId);
     unregisterInterception(connectionId);
     disposeWebMcpConnection(connectionId);

@@ -12,6 +12,8 @@ import {
 } from "../src/cdp/connection.ts";
 import type { SessionContext } from "../src/cdp/dispatch.ts";
 import { makeChildFrameState } from "../src/cdp/frames.ts";
+import { liveExtraHeaders } from "../src/cdp/extra-headers-registry.ts";
+import { liveExtraHeadersTarget } from "../src/cdp/network.ts";
 
 type Message = {
   id?: number;
@@ -257,6 +259,7 @@ describe("BrowserSession", () => {
     await c.send("Network.setExtraHTTPHeaders", { headers: { Authorization: "c" } }, sessionC);
 
     const page = pageTarget(session);
+    const liveId = liveExtraHeadersTarget(session.id, page);
     b.socket.close(1000, "done");
     await vi.waitFor(() => expect(remaining).toBe(2), WAIT);
     expect(page.extraHttpHeaders).toEqual({ Authorization: "c" });
@@ -265,6 +268,7 @@ describe("BrowserSession", () => {
     c.socket.close(1000, "done");
     await vi.waitFor(() => expect(remaining).toBe(1), WAIT);
     expect(page.extraHttpHeaders).toEqual({ Authorization: "a" });
+    expect(liveExtraHeaders(session.id, liveId)).toEqual({ Authorization: "a" });
   });
 
   it("gives back the viewport a leaving client's screencast set", async () => {

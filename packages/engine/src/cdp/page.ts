@@ -160,7 +160,7 @@ import { schemefulSite } from "../public-suffix.ts";
 import { determineReferrer, parseReferrerPolicy } from "@kitesurf/script-gate/referrer-policy";
 import { PageRendererManager, withTimeout } from "../eval/page-renderer.ts";
 import { headersToRecord, type NetworkEventTracker } from "./network-events.ts";
-import { effectiveExtraHeaders } from "./network.ts";
+import { effectiveExtraHeaders, liveExtraHeadersTarget } from "./network.ts";
 import { setTargetOverride } from "./target-overrides.ts";
 import { isWorkerUpstreamEvent } from "./dedicated-workers.ts";
 import { isRecord } from "../guards.ts";
@@ -2565,6 +2565,7 @@ async function pushNavigateToPageScriptInner(
           attributionHeaders: ctx.browser.attributionHeaders,
           mainLoaderId: target.loaderId,
           extraHeaders: effectiveExtraHeaders(target),
+          extraHeadersTargetId: liveExtraHeadersTarget(ctx.connectionId, target),
           initTimings: raInitTimings,
           capOverrides: ctx.browser.isolateCapOverrides,
           sandboxOutbound: ctx.browser.sandboxOutbound,

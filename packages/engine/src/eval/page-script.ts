@@ -358,6 +358,7 @@ interface GetOrCreatePageScriptOptions {
   attributionHeaders?: Record<string, string>;
   mainLoaderId?: string;
   extraHeaders?: Record<string, string>;
+  extraHeadersTargetId?: string;
   initTimings: PageScriptInitTimings | undefined;
   capOverrides: PageIsolateCapOverrides | undefined;
   sandboxOutbound: SandboxOutboundOverride;
@@ -377,6 +378,7 @@ export function getOrCreatePageScript({
   attributionHeaders = {},
   mainLoaderId = "",
   extraHeaders = {},
+  extraHeadersTargetId,
   initTimings,
   capOverrides,
   sandboxOutbound,
@@ -528,6 +530,7 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
     mainFrameId: key.frameId ?? key.targetId,
     mainLoaderId,
     extraHeaders,
+    extraHeadersTargetId,
     connectionId: key.connectionId,
     cookieKey: key.cookieKey ?? "",
     pixelFree,

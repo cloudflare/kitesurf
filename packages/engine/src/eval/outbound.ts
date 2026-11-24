@@ -24,6 +24,7 @@ import {
   errorReasonToNet,
 } from "../cdp/fetch-interception.ts";
 import { getOutboundFilters, shouldBlock } from "../cdp/outbound-filter-registry.ts";
+import { liveExtraHeaders } from "../cdp/extra-headers-registry.ts";
 import { isTextLikeMime, headersToRecord } from "../cdp/network-events.ts";
 import { classifyRequest, getRequestBlocker, parseResourceType } from "../request-blocker.ts";
 import {
@@ -90,6 +91,8 @@ export interface OutboundProps {
   mainFrameId?: string;
   mainLoaderId?: string;
   extraHeaders?: Record<string, string>;
+  // The target whose live extra headers replace extraHeaders when this isolate holds it.
+  extraHeadersTargetId?: string;
   pageUrl?: string;
   // The document response's Referrer-Policy, shared with frame navigation.
   referrerPolicy?: string;
@@ -744,7 +747,8 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       throw new TypeError("WebSocket handshake failed");
     }
 
-    const extraHeaders = props?.extraHeaders ?? {};
+    const extraHeaders =
+      liveExtraHeaders(connectionId, props?.extraHeadersTargetId) ?? props?.extraHeaders ?? {};
     const wbaHeaders = hostEgress ? {} : await wbaHeadersFor(env, target.host);
     let authorRequest = request;
     if (noCorsMode) {
