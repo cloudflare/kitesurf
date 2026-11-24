@@ -2609,6 +2609,14 @@ export function installGlobals(
     ksGlobal.Highlight = Highlight;
     ksGlobal.HighlightRegistry = HighlightRegistry;
     ksGlobal.CSS.highlights = new HighlightRegistry();
+    // WebIDL §3.7.3: namespace objects expose a non-writable, configurable @@toStringTag.
+    // https://webidl.spec.whatwg.org/#es-namespaces
+    Object.defineProperty(ksGlobal.CSS, Symbol.toStringTag, {
+      value: "CSS",
+      writable: false,
+      enumerable: false,
+      configurable: true,
+    });
     if (typeof globalThis.matchMedia !== "function") {
       const MEDIA_QUERY_EM_REFERENCE_PX = 16;
       const MEDIA_QUERY_PERCENT_SCALE = 100;
