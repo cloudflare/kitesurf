@@ -11761,8 +11761,8 @@
     "reason": null
   },
   "/domparsing/xml-serialization.xhtml": {
-    "expected": "FAIL",
-    "reason": "triage: XML-parsed via the xhtml prolog prepend; harness completes (was TIMEOUT), remaining fails are serializer gaps"
+    "expected": "PASS",
+    "reason": null
   },
   "/domparsing/xmldomparser.html": {
     "expected": "PASS",
