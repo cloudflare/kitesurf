@@ -6,8 +6,9 @@
 
 use std::panic;
 
-use blitz_dom::{local_name, Node};
+use blitz_dom::{BaseDocument, Node, local_name};
 use blitz_traits::NodeId;
+use kurbo::{Affine, Rect};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
@@ -31,6 +32,133 @@ pub(crate) fn is_scroll_container(node: &Node) -> bool {
             .iter()
             .any(|o| matches!(o, Overflow::Hidden | Overflow::Scroll | Overflow::Auto))
     })
+}
+
+fn is_fixed_position(node: &Node) -> bool {
+    use ::style::computed_values::position::T as Position;
+    node.primary_styles()
+        .is_some_and(|styles| styles.clone_position() == Position::Fixed)
+}
+
+fn collect_overflow_children(node: &Node, out: &mut Vec<NodeId>) {
+    if let Some(children) = node.layout_children().as_ref() {
+        for &child_id in children.iter() {
+            if !node.with(child_id).is_out_of_flow() {
+                out.push(child_id);
+            }
+        }
+    }
+    if let Some(hoisted) = node.hoisted_children().as_ref() {
+        for &child_id in hoisted.iter() {
+            if !is_fixed_position(node.with(child_id)) {
+                out.push(child_id);
+            }
+        }
+    }
+    for pseudo in [node.before(), node.after()].into_iter().flatten() {
+        if !node.with(pseudo).is_out_of_flow() {
+            out.push(pseudo);
+        }
+    }
+}
+
+fn subtree_has_unclipped_transform(doc: &BaseDocument, node_id: NodeId) -> bool {
+    let Some(node) = doc.get_node(node_id) else {
+        return false;
+    };
+    let mut children = Vec::new();
+    collect_overflow_children(node, &mut children);
+    for child_id in children {
+        let Some(child) = doc.get_node(child_id) else {
+            continue;
+        };
+        if child.transform().is_some() {
+            return true;
+        }
+        let (clip_x, clip_y) = overflow_clips(child);
+        if (!clip_x || !clip_y) && subtree_has_unclipped_transform(doc, child_id) {
+            return true;
+        }
+    }
+    false
+}
+
+// Compute a child's scrollable overflow contribution in its parent's coordinate
+// space after applying its CSS `transform` and own overflow clipping.
+// https://drafts.csswg.org/css-overflow-3/#scrollable
+fn transformed_child_bottom_right(doc: &BaseDocument, child: &Node, scale: f64) -> (f32, f32) {
+    let layout = child.final_layout();
+    let (clip_x, clip_y) = overflow_clips(child);
+    let (own_right, own_bottom) = if clip_x && clip_y {
+        (layout.size.width, layout.size.height)
+    } else if subtree_has_unclipped_transform(doc, child.id()) {
+        let (r, b) = transformed_overflow_extent(doc, child.id(), scale);
+        (
+            if clip_x { layout.size.width } else { r },
+            if clip_y { layout.size.height } else { b },
+        )
+    } else {
+        (
+            if clip_x {
+                layout.size.width
+            } else {
+                layout.size.width + layout.scroll_width()
+            },
+            if clip_y {
+                layout.size.height
+            } else {
+                layout.size.height + layout.scroll_height()
+            },
+        )
+    };
+    let local = Rect::new(
+        0.0,
+        0.0,
+        own_right as f64 * scale,
+        own_bottom as f64 * scale,
+    );
+    let translate = Affine::translate((
+        layout.location.x as f64 * scale,
+        layout.location.y as f64 * scale,
+    ));
+    let full = match child.transform() {
+        Some(t) => translate * t,
+        None => translate,
+    };
+    let bbox = full.transform_rect_bbox(local);
+    ((bbox.x1 / scale) as f32, (bbox.y1 / scale) as f32)
+}
+
+fn transformed_overflow_extent(doc: &BaseDocument, node_id: NodeId, scale: f64) -> (f32, f32) {
+    let Some(node) = doc.get_node(node_id) else {
+        return (0.0, 0.0);
+    };
+    let layout = node.final_layout();
+    let mut max_right = layout.size.width;
+    let mut max_bottom = layout.size.height;
+    let mut children = Vec::new();
+    collect_overflow_children(node, &mut children);
+    for child_id in children {
+        let Some(child) = doc.get_node(child_id) else {
+            continue;
+        };
+        let (r, b) = transformed_child_bottom_right(doc, child, scale);
+        max_right = max_right.max(r);
+        max_bottom = max_bottom.max(b);
+    }
+    (max_right, max_bottom)
+}
+
+fn node_scroll_excess(doc: &BaseDocument, node: &Node, scale: f64) -> (f32, f32) {
+    let layout = node.final_layout();
+    if !subtree_has_unclipped_transform(doc, node.id()) {
+        return (layout.scroll_width(), layout.scroll_height());
+    }
+    let (right, bottom) = transformed_overflow_extent(doc, node.id(), scale);
+    (
+        (right - layout.size.width).max(0.0),
+        (bottom - layout.size.height).max(0.0),
+    )
 }
 
 // The TypeScript shapes of ScrollInfo and ScrollOffset.
@@ -224,8 +352,8 @@ impl DomHandle {
                 })
                 .unwrap_or((false, false, false, false, false, false));
             let has_box = generates_box(&doc, node);
-            let mut scroll_width = layout.scroll_width();
-            let mut scroll_height = layout.scroll_height();
+            let scale = doc.viewport().scale_f64();
+            let (mut scroll_width, mut scroll_height) = node_scroll_excess(&doc, node, scale);
             if node.id() == doc.root_element().id() {
                 scroll_width = 0.0;
                 scroll_height = 0.0;
@@ -233,7 +361,7 @@ impl DomHandle {
                     (layout.size.width - layout.border.left - layout.border.right).max(0.0);
                 let root_client_height =
                     (layout.size.height - layout.border.top - layout.border.bottom).max(0.0);
-                let body_layout = doc.root_element().children().iter().find_map(|child_id| {
+                let body_node = doc.root_element().children().iter().find_map(|child_id| {
                     let child = doc.get_node(child_id)?;
                     (child
                         .element_data()
@@ -241,15 +369,11 @@ impl DomHandle {
                         && child
                             .primary_styles()
                             .is_none_or(|styles| styles.clone_position() != Position::Fixed))
-                    .then(|| child.final_layout())
+                    .then_some(child)
                 });
-                if let Some(body_layout) = body_layout {
-                    let body_bottom = body_layout.location.y
-                        + body_layout.size.height
-                        + body_layout.scroll_height();
-                    let body_right = body_layout.location.x
-                        + body_layout.size.width
-                        + body_layout.scroll_width();
+                if let Some(body) = body_node {
+                    let (body_right, body_bottom) =
+                        transformed_child_bottom_right(&doc, body, scale);
                     scroll_width = (body_right - root_client_width).max(0.0);
                     scroll_height = (body_bottom - root_client_height).max(0.0);
                 }
@@ -268,13 +392,8 @@ impl DomHandle {
                     {
                         continue;
                     }
-                    let child_layout = child.final_layout();
-                    let child_right = child_layout.location.x
-                        + child_layout.size.width
-                        + child_layout.scroll_width();
-                    let child_bottom = child_layout.location.y
-                        + child_layout.size.height
-                        + child_layout.scroll_height();
+                    let (child_right, child_bottom) =
+                        transformed_child_bottom_right(&doc, child, scale);
                     scroll_width = scroll_width.max(child_right - root_client_width);
                     scroll_height = scroll_height.max(child_bottom - root_client_height);
                 }
