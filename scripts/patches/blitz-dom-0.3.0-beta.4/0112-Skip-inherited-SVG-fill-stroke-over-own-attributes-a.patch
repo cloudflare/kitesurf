@@ -1,0 +1,443 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 24 Nov 2026 22:26:37 +0000
+Subject: [PATCH] Skip inherited SVG fill/stroke over own attributes and
+ refresh responsive images on viewport resize
+
+---
+ src/document.rs       |   5 ++
+ src/mutator.rs        | 194 +++++++++++++++++++++++++++++++++++-------
+ src/node/serialize.rs |  32 +++++--
+ 3 files changed, 194 insertions(+), 37 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 3637929..9cf2c9c 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -594,6 +594,10 @@ pub struct BaseDocument {
+     /// requests for the same URL are queued here instead of starting new fetches.
+     /// Value is a list of (node_id, image_type) pairs waiting for the image.
+     pub(crate) pending_images: HashMap<String, Vec<(NodeId, ImageType)>>,
++    /// Last selected URL for each responsive `<img>` (`srcset` or `<picture>` child),
++    /// so viewport width changes only re-fetch images whose selected candidate changed.
++    /// BTree, not Hash: on wasm each new RandomState shifts the keys of every later HashMap.
++    pub(crate) responsive_image_urls: BTreeMap<NodeId, String>,
+
+     /// Nodes whose `background-image`/`mask-image` layers need flushing to
+     /// dedicated storage on the node because their style changed (populated by
+@@ -804,6 +808,7 @@ impl BaseDocument {
+             linked_stylesheet_urls: BTreeMap::new(),
+             synced_base_epoch: 0,
+             pending_images: HashMap::new(),
++            responsive_image_urls: BTreeMap::new(),
+             pending_style_image_nodes: Vec::new(),
+             pending_critical_resources: HashSet::new(),
+             controls_to_form: HashMap::new(),
+diff --git a/src/mutator.rs b/src/mutator.rs
+index fe9b584..6f2247f 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1899,6 +1899,12 @@ impl<'doc> DocumentMutator<'doc> {
+         } else {
+             1280.0
+         };
++        let viewport_height = if viewport.window_size.1 > 0 {
++            viewport.window_size.1 as f32 / dpr
++        } else {
++            720.0
++        };
++        let dark_scheme = viewport.color_scheme == blitz_traits::shell::ColorScheme::Dark;
+
+         // Step 1: <picture><source> walk.
+         if let Some(parent_id) = node.parent_id() {
+@@ -1924,15 +1930,24 @@ impl<'doc> DocumentMutator<'doc> {
+                         continue;
+                     }
+                     if let Some(media) = sibling.attr(local_name!("media"))
+-                        && !evaluate_media_condition(media, viewport_width)
++                        && !evaluate_media_condition(
++                            media,
++                            viewport_width,
++                            viewport_height,
++                            dark_scheme,
++                        )
+                     {
+                         continue;
+                     }
+                     if let Some(srcset) = sibling.attr(local_name!("srcset"))
+                         && let Some(candidate) = pick_srcset_candidate_for_viewport(
+                             srcset,
+-                            sibling.attr(local_name!("sizes")),
++                            sibling
++                                .attr(local_name!("sizes"))
++                                .or_else(|| node.attr(local_name!("sizes"))),
+                             viewport_width,
++                            viewport_height,
++                            dark_scheme,
+                             dpr,
+                         )
+                     {
+@@ -1948,6 +1963,8 @@ impl<'doc> DocumentMutator<'doc> {
+                 srcset,
+                 node.attr(local_name!("sizes")),
+                 viewport_width,
++                viewport_height,
++                dark_scheme,
+                 dpr,
+             )
+         {
+@@ -1997,7 +2014,23 @@ impl<'doc> DocumentMutator<'doc> {
+         {
+             return;
+         }
++        let is_responsive = self.doc.nodes[target_id]
++            .attr(local_name!("srcset"))
++            .is_some()
++            || self.doc.nodes[target_id].parent_id().is_some_and(|pid| {
++                self.doc
++                    .nodes
++                    .get(pid)
++                    .is_some_and(|p| p.data.is_element_with_tag_name(&local_name!("picture")))
++            });
+         if let Some(raw_src) = self.select_image_url(target_id) {
++            if is_responsive {
++                self.doc
++                    .responsive_image_urls
++                    .insert(target_id, raw_src.clone());
++            } else {
++                self.doc.responsive_image_urls.remove(&target_id);
++            }
+             if !raw_src.is_empty() {
+                 // Fallible resolve. `img.src = "http://"`
+                 // (or any unresolvable string) must put the element
+@@ -2704,9 +2737,18 @@ fn pick_srcset_candidate(srcset: &str) -> Option<String> {
+     best.map(|(url, _)| url.to_string())
+ }
+
++const MAX_CALC_NESTING: u32 = 8;
++
+ /// Parse a CSS length token used in `sizes` or width media queries (`px`, `vw`,
+ /// `em`, `rem`, or a plain `0`) into CSS pixels.
+ fn parse_css_length_px(token: &str, viewport_width: f32) -> Option<f32> {
++    parse_css_length_px_depth(token, viewport_width, 0)
++}
++
++fn parse_css_length_px_depth(token: &str, viewport_width: f32, depth: u32) -> Option<f32> {
++    if depth > MAX_CALC_NESTING {
++        return None;
++    }
+     let trimmed = token.trim();
+     if trimmed == "0" {
+         return Some(0.0);
+@@ -2715,7 +2757,7 @@ fn parse_css_length_px(token: &str, viewport_width: f32) -> Option<f32> {
+         .strip_prefix("calc(")
+         .and_then(|rest| rest.strip_suffix(')'))
+     {
+-        return eval_simple_calc_px(inner, viewport_width);
++        return eval_simple_calc_px(inner, viewport_width, depth + 1);
+     }
+     let lower = trimmed.to_ascii_lowercase();
+     if let Some(num) = lower.strip_suffix("px") {
+@@ -2738,23 +2780,31 @@ fn parse_css_length_px(token: &str, viewport_width: f32) -> Option<f32> {
+
+ /// Evaluate a single binary `+`/`-` `calc(...)` expression in `sizes`, such as
+ /// `calc(100vw - 32px)`.
+-fn eval_simple_calc_px(expr: &str, viewport_width: f32) -> Option<f32> {
++fn eval_simple_calc_px(expr: &str, viewport_width: f32, depth: u32) -> Option<f32> {
++    if depth > MAX_CALC_NESTING {
++        return None;
++    }
+     if let Some((lhs, rhs)) = expr.split_once(" - ") {
+-        let a = parse_css_length_px(lhs, viewport_width)?;
+-        let b = parse_css_length_px(rhs, viewport_width)?;
++        let a = parse_css_length_px_depth(lhs, viewport_width, depth)?;
++        let b = parse_css_length_px_depth(rhs, viewport_width, depth)?;
+         return Some((a - b).max(0.0));
+     }
+     if let Some((lhs, rhs)) = expr.split_once(" + ") {
+-        let a = parse_css_length_px(lhs, viewport_width)?;
+-        let b = parse_css_length_px(rhs, viewport_width)?;
++        let a = parse_css_length_px_depth(lhs, viewport_width, depth)?;
++        let b = parse_css_length_px_depth(rhs, viewport_width, depth)?;
+         return Some((a + b).max(0.0));
+     }
+-    parse_css_length_px(expr, viewport_width)
++    parse_css_length_px_depth(expr, viewport_width, depth)
+ }
+
+-/// Evaluate a single parenthesized width media feature against `viewport_width`.
++/// Evaluate a single parenthesized media feature against the viewport state.
+ /// Unrecognized features return `true` so unsupported queries do not hide valid sources.
+-fn evaluate_media_feature(feature: &str, viewport_width: f32) -> bool {
++fn evaluate_media_feature(
++    feature: &str,
++    viewport_width: f32,
++    viewport_height: f32,
++    dark_scheme: bool,
++) -> bool {
+     let inner = feature.trim();
+     let inner = inner
+         .strip_prefix('(')
+@@ -2763,6 +2813,24 @@ fn evaluate_media_feature(feature: &str, viewport_width: f32) -> bool {
+         .trim();
+     if let Some((name, value)) = inner.split_once(':') {
+         let name = name.trim().to_ascii_lowercase();
++        let val = value.trim().to_ascii_lowercase();
++        match name.as_str() {
++            "prefers-color-scheme" => {
++                return match val.as_str() {
++                    "dark" => dark_scheme,
++                    "light" => !dark_scheme,
++                    _ => false,
++                };
++            }
++            "orientation" => {
++                return match val.as_str() {
++                    "portrait" => viewport_height >= viewport_width,
++                    "landscape" => viewport_width > viewport_height,
++                    _ => false,
++                };
++            }
++            _ => {}
++        }
+         let Some(px) = parse_css_length_px(value, viewport_width) else {
+             return true;
+         };
+@@ -2770,54 +2838,64 @@ fn evaluate_media_feature(feature: &str, viewport_width: f32) -> bool {
+             "min-width" => viewport_width >= px,
+             "max-width" => viewport_width <= px,
+             "width" => (viewport_width - px).abs() < 0.5,
++            "min-height" => viewport_height >= px,
++            "max-height" => viewport_height <= px,
++            "height" => (viewport_height - px).abs() < 0.5,
+             _ => true,
+         };
+     }
+     let lower = inner.to_ascii_lowercase();
+     if let Some(rhs) = lower.strip_prefix("width >=") {
+-        return parse_css_length_px(rhs, viewport_width)
+-            .is_none_or(|px| viewport_width >= px);
++        return parse_css_length_px(rhs, viewport_width).is_none_or(|px| viewport_width >= px);
+     }
+     if let Some(rhs) = lower.strip_prefix("width <=") {
+-        return parse_css_length_px(rhs, viewport_width)
+-            .is_none_or(|px| viewport_width <= px);
++        return parse_css_length_px(rhs, viewport_width).is_none_or(|px| viewport_width <= px);
++    }
++    if let Some(rhs) = lower.strip_prefix("height >=") {
++        return parse_css_length_px(rhs, viewport_width).is_none_or(|px| viewport_height >= px);
++    }
++    if let Some(rhs) = lower.strip_prefix("height <=") {
++        return parse_css_length_px(rhs, viewport_width).is_none_or(|px| viewport_height <= px);
+     }
+     true
+ }
+
+-/// Evaluate a `<source media="...">` or `sizes` media condition against `viewport_width`.
++/// Evaluate a `<source media="...">` or `sizes` media condition against the viewport.
+ /// https://html.spec.whatwg.org/multipage/images.html#sizes-attribute
+-fn evaluate_media_condition(query: &str, viewport_width: f32) -> bool {
++fn evaluate_media_condition(
++    query: &str,
++    viewport_width: f32,
++    viewport_height: f32,
++    dark_scheme: bool,
++) -> bool {
+     let trimmed = query.trim();
+     if trimmed.is_empty() {
+         return true;
+     }
+     // A comma-separated media query list matches if any query matches.
+     trimmed.split(',').any(|branch| {
+-        let branch = branch.trim();
+-        if branch.is_empty() {
++        let lower_branch = branch.trim().to_ascii_lowercase();
++        if lower_branch.is_empty() {
+             return false;
+         }
+-        let (negated, rest) = if let Some(after) = branch
+-            .strip_prefix("not ")
+-            .or_else(|| branch.strip_prefix("NOT "))
+-        {
++        let (negated, rest) = if let Some(after) = lower_branch.strip_prefix("not ") {
+             (true, after.trim())
+         } else {
+-            (false, branch)
++            (false, lower_branch.as_str())
+         };
+         let mut matched = true;
+         for part in rest.split(" and ") {
+             let part = part.trim();
+-            let lower = part.to_ascii_lowercase();
+-            if lower == "all" || lower == "screen" || lower == "only screen" || lower.is_empty() {
++            if part == "all" || part == "screen" || part == "only screen" || part.is_empty() {
+                 continue;
+             }
+-            if lower == "print" {
++            if part == "print" {
+                 matched = false;
+                 break;
+             }
+-            if part.starts_with('(') && !evaluate_media_feature(part, viewport_width) {
++            if part.starts_with('(')
++                && !evaluate_media_feature(part, viewport_width, viewport_height, dark_scheme)
++            {
+                 matched = false;
+                 break;
+             }
+@@ -2829,7 +2907,12 @@ fn evaluate_media_condition(query: &str, viewport_width: f32) -> bool {
+ /// Parse an HTML `sizes` attribute into the effective source width in CSS pixels.
+ /// Falls back to `viewport_width` (`100vw`) when empty or no entry parses.
+ /// https://html.spec.whatwg.org/multipage/images.html#parsing-a-sizes-attribute
+-fn parse_sizes_attribute(sizes: &str, viewport_width: f32) -> f32 {
++fn parse_sizes_attribute(
++    sizes: &str,
++    viewport_width: f32,
++    viewport_height: f32,
++    dark_scheme: bool,
++) -> f32 {
+     for raw in sizes.split(',') {
+         let entry = raw.trim();
+         if entry.is_empty() {
+@@ -2854,7 +2937,9 @@ fn parse_sizes_attribute(sizes: &str, viewport_width: f32) -> f32 {
+         if px < 0.0 {
+             continue;
+         }
+-        if condition.is_none_or(|cond| evaluate_media_condition(cond, viewport_width)) {
++        if condition.is_none_or(|cond| {
++            evaluate_media_condition(cond, viewport_width, viewport_height, dark_scheme)
++        }) {
+             return px;
+         }
+     }
+@@ -2894,6 +2979,8 @@ fn pick_srcset_candidate_for_viewport(
+     srcset: &str,
+     sizes: Option<&str>,
+     viewport_width: f32,
++    viewport_height: f32,
++    dark_scheme: bool,
+     dpr: f32,
+ ) -> Option<String> {
+     let mut width_candidates: Vec<(&str, f64)> = Vec::new();
+@@ -2950,7 +3037,7 @@ fn pick_srcset_candidate_for_viewport(
+     }
+
+     let source_size = sizes
+-        .map(|s| parse_sizes_attribute(s, viewport_width))
++        .map(|s| parse_sizes_attribute(s, viewport_width, viewport_height, dark_scheme))
+         .unwrap_or(viewport_width);
+     let target_width = (source_size * dpr) as f64;
+
+@@ -2968,6 +3055,51 @@ fn pick_srcset_candidate_for_viewport(
+         .map(|(url, _)| (*url).to_string())
+ }
+
++impl BaseDocument {
++    /// Re-run candidate selection for responsive `<img>` elements (`srcset` or
++    /// `<picture>` children) after the viewport width changes, reloading only
++    /// those whose selected URL actually changed.
++    /// https://html.spec.whatwg.org/multipage/images.html#updating-the-image-data
++    pub fn refresh_responsive_images(&mut self) {
++        if self.responsive_image_urls.is_empty() {
++            return;
++        }
++        let tracked: Vec<(NodeId, String)> = self
++            .responsive_image_urls
++            .iter()
++            .map(|(&id, url)| (id, url.clone()))
++            .collect();
++        let mut stale_ids = Vec::new();
++        let mut changed_ids = Vec::new();
++        {
++            let mutator = self.mutate();
++            for (id, prev_url) in tracked {
++                let alive = mutator.doc.nodes.get(id).is_some_and(|n| {
++                    n.flags.is_in_document()
++                        && n.data.is_element_with_tag_name(&local_name!("img"))
++                });
++                if !alive {
++                    stale_ids.push(id);
++                    continue;
++                }
++                if mutator.select_image_url(id).as_deref() != Some(prev_url.as_str()) {
++                    changed_ids.push(id);
++                }
++            }
++        }
++        for id in stale_ids {
++            self.responsive_image_urls.remove(&id);
++        }
++        if changed_ids.is_empty() {
++            return;
++        }
++        let mut mutator = self.mutate();
++        for id in changed_ids {
++            mutator.load_image(id);
++        }
++    }
++}
++
+ #[cfg(test)]
+ mod test {
+     use style::media_queries::MediaType;
+diff --git a/src/node/serialize.rs b/src/node/serialize.rs
+index 93fc911..91405e3 100644
+--- a/src/node/serialize.rs
++++ b/src/node/serialize.rs
+@@ -364,11 +364,22 @@ impl Node {
+                                 | "textPath"
+                                 | "use"
+                         ) {
++                            let has_own_attr = |name: &str| {
++                                data.attrs().iter().any(|a| &*a.name.local == name)
++                            };
++                            let has_own_fill = has_own_attr("fill");
++                            let has_own_stroke = has_own_attr("stroke");
++                            let parent_styles = (has_own_fill || has_own_stroke)
++                                .then(|| {
++                                    self.parent_id()
++                                        .and_then(|pid| self.with(pid).primary_styles())
++                                })
++                                .flatten();
+                             let fill_kind = &style.clone_fill().kind;
+                             // Stylo does not feed SVG presentation attributes into computed fill,
+-                            // so only stamp when CSS produced a non-initial value (initial fill is
+-                            // opaque black). Leaving initial black unstamped preserves explicit
+-                            // `fill="..."` attributes and inherited `<svg fill="...">` values.
++                            // so skip initial black AND skip values that were merely inherited from
++                            // the parent when the element carries its own `fill="..."` attribute
++                            // (e.g. `svg { fill: currentColor }` with `<path fill="none">`).
+                             let fill_is_initial = matches!(
+                                 fill_kind,
+                                 style::values::generics::svg::SVGPaintKind::Color(
+@@ -378,7 +389,11 @@ impl Node {
+                                     .raw_components()
+                                     == [0.0, 0.0, 0.0, 1.0]
+                             );
+-                            if !fill_is_initial {
++                            let fill_inherited = has_own_fill
++                                && parent_styles
++                                    .as_ref()
++                                    .is_some_and(|ps| ps.clone_fill().kind == *fill_kind);
++                            if !fill_is_initial && !fill_inherited {
+                                 if let Some(fill) =
+                                     crate::layout::construct::paint_attr(fill_kind, style)
+                                 {
+@@ -386,10 +401,15 @@ impl Node {
+                                 }
+                             }
+                             let stroke_kind = &style.clone_stroke().kind;
+-                            if !matches!(
++                            let stroke_is_none = matches!(
+                                 stroke_kind,
+                                 style::values::generics::svg::SVGPaintKind::None
+-                            ) {
++                            );
++                            let stroke_inherited = has_own_stroke
++                                && parent_styles
++                                    .as_ref()
++                                    .is_some_and(|ps| ps.clone_stroke().kind == *stroke_kind);
++                            if !stroke_is_none && !stroke_inherited {
+                                 if let Some(stroke) =
+                                     crate::layout::construct::paint_attr(stroke_kind, style)
+                                 {

@@ -65,18 +65,26 @@ fn utf8_source_parses_like_the_string_source() {
     let url = "https://example.test/";
     let source = "<!DOCTYPE html><p>é</p>";
     let doctype_end = "<!DOCTYPE html>".len();
-    let spliced = DomHandle::new_utf8(source.as_bytes(), doctype_end, "<!--marker-->", url);
+    let spliced = DomHandle::new_utf8(
+        source.as_bytes(),
+        doctype_end,
+        "<!--marker-->",
+        url,
+        None,
+        None,
+    );
     let joined = DomHandle::new("<!DOCTYPE html><!--marker--><p>é</p>", url);
     assert_eq!(spliced.outer_html(0), joined.outer_html(0));
 
     let plain = DomHandle::new(source, url);
     assert_eq!(
-        DomHandle::new_utf8(source.as_bytes(), 0, "", url).outer_html(0),
+        DomHandle::new_utf8(source.as_bytes(), 0, "", url, None, None).outer_html(0),
         plain.outer_html(0)
     );
     // An offset inside "é" is not a char boundary, so nothing is spliced in.
     let inside = source.find('é').expect("source has é") + 1;
-    let unspliced = DomHandle::new_utf8(source.as_bytes(), inside, "<!--marker-->", url);
+    let unspliced =
+        DomHandle::new_utf8(source.as_bytes(), inside, "<!--marker-->", url, None, None);
     assert_eq!(unspliced.outer_html(0), plain.outer_html(0));
 }
 
