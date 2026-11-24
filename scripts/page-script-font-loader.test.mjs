@@ -193,6 +193,8 @@ function loadFontLoader(outcomes = {}, { lazy = false } = {}) {
       CJK_SCAN: sourceScan.CJK_SCAN,
       EMOJI_BMP_SCAN: sourceScan.EMOJI_BMP_SCAN,
       SCRIPT_RANGES: sourceScan.SCRIPT_RANGES,
+      SYMBOL_SCAN: sourceScan.SYMBOL_SCAN,
+      SYMBOLS2_EXCLUSIVE: sourceScan.SYMBOLS2_EXCLUSIVE,
     }),
   };
   const require = (name) => {
@@ -314,6 +316,103 @@ for (const [first, second] of [
     assert.equal(page.heldBytes(), 0);
   });
 }
+
+test("numeric character references want the symbol faces", () => {
+  const page = loadFontLoader();
+  const wants = scan("<div>&#x21BB; &#x25BE;</div>");
+  assert.equal(wants.symbols, true);
+  assert.equal(wants.symbols2, true);
+  page.loader.startFontPrefetch(wants);
+  for (const face of ["symbols", "symbols2"]) {
+    assert.ok(page.requested.includes(ASSET_ORIGIN + FACES[face].url), `${face} prefetched`);
+  }
+});
+
+test("only uncommon named references ask for a parsed-text probe", () => {
+  for (const html of [
+    "<p>a &amp; b &nbsp;&copy; &eacute;&mdash;&rsquo;&AElig;</p>",
+    "<p>&#x2713;</p>",
+  ]) {
+    assert.equal(scan(html).namedRefs, false, html);
+  }
+  for (const html of ["<p>&check;</p>", "<p>&sum;</p>", "<p>&olarr; &amp;</p>"]) {
+    assert.equal(scan(html).namedRefs, true, html);
+  }
+});
+
+test("a page with named references probes its parsed text once", () => {
+  for (const [html, wantsProbe] of [
+    ["<p>&check;</p>", true],
+    ["<p>&amp;</p>", false],
+  ]) {
+    const page = loadFontLoader();
+    page.loader.startFontPrefetch(scan(html));
+    let probes = 0;
+    // The parse wrote non-Latin text before noteNavigateText; nothing writes after it.
+    const dom = {
+      nonLatinTextWrites: () => 1,
+      textUsesCodepoints: () => (probes++, false),
+    };
+    page.loader.noteNavigateText(dom);
+    page.loader.demandFacesForScriptText(dom);
+    assert.equal(probes > 0, wantsProbe, `${html} probed at the first paint`);
+    const afterFirst = probes;
+    page.loader.demandFacesForScriptText(dom);
+    assert.equal(probes, afterFirst, `${html} probed again without a new write`);
+  }
+});
+
+test("the probe leaves faces the deferred stash is fetching to the stash", async () => {
+  const page = loadFontLoader();
+  page.loader.startFontPrefetch(scan("<p>&#x2191; &#x25BE;</p>"));
+  const dom = { nonLatinTextWrites: () => 1, textUsesCodepoints: () => true };
+  page.loader.demandFacesForScriptText(dom);
+  for (const face of ["symbols", "symbols2"]) {
+    const url = ASSET_ORIGIN + FACES[face].url;
+    assert.equal(page.requested.filter((u) => u === url).length, 1, `${face} fetched once`);
+  }
+});
+
+test("a script-built symbol escape stays invisible to the source scan", () => {
+  assert.equal(scan('<script>d.textContent = "\\u21BB";</script>').symbols, false);
+});
+
+// The demand probe reads the document's own codepoints, so text a script built from escapes
+// still loads its faces. Ranges arrive as [start, end, …] pairs; a probe answers by first pair.
+test("script-inserted symbol text demands its faces, in phases", async () => {
+  const page = loadFontLoader();
+  page.loader.startFontPrefetch(scan("<p>latin only</p>"));
+  page.arrive("sans", "sansItalic");
+  await page.loader.awaitDeferredFontBytes();
+  assert.equal(page.loader.demandDeferredFonts(), true);
+  assert.deepEqual(page.calls, [uaCall()]);
+
+  // U+2191 sits in the symbol scan; U+25BE is Symbols-2-only.
+  const hit = (start) => (ranges) => ranges.length >= 2 && ranges[0] === start;
+  let writes = 0;
+  let hasSymbols2Text = false;
+  const dom = {
+    nonLatinTextWrites: () => ++writes,
+    textUsesCodepoints: (ranges) => hit(0x2100)(ranges) || (hasSymbols2Text && hit(0x21af)(ranges)),
+  };
+
+  page.loader.demandFacesForScriptText(dom);
+  page.arrive("symbols");
+  await drainFetchCallbacks();
+  assert.deepEqual(page.calls, [uaCall(), ["register_symbol_fonts", size("symbols"), 0]]);
+
+  // A later write of Symbols-2-only text registers the second face beside the first.
+  hasSymbols2Text = true;
+  page.loader.demandFacesForScriptText(dom);
+  await drainFetchCallbacks();
+  page.arrive("symbols2");
+  await drainFetchCallbacks();
+  assert.deepEqual(page.calls, [
+    uaCall(),
+    ["register_symbol_fonts", size("symbols"), 0],
+    ["register_symbol_fonts", 0, size("symbols2")],
+  ]);
+});
 
 test("script faces release only successful registrations and skip no entry", async () => {
   const page = loadFontLoader({ "register_script_font:Hebr": false });

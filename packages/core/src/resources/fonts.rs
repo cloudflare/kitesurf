@@ -28,6 +28,8 @@ thread_local! {
 
     static SYMBOL_FONTS_REGISTERED: Cell<bool> = const { Cell::new(false) };
 
+    static SYMBOLS2_FONTS_REGISTERED: Cell<bool> = const { Cell::new(false) };
+
     static CJK_FONT_REGISTERED: Cell<bool> = const { Cell::new(false) };
 
     static SCRIPT_FONTS_REGISTERED: RefCell<std::collections::HashSet<String>> =
@@ -1424,28 +1426,26 @@ fn populate_ua_fonts(font_ctx: &mut FontContext, profile: &UaFontProfile, faces:
     rebuild_common_fallbacks(font_ctx);
 }
 
-fn add_symbol_fonts(font_ctx: &mut FontContext, symbols_bytes: Vec<u8>, symbols2_bytes: Vec<u8>) {
-    let mut blobs = vec![(symbols_bytes, "/fonts/NotoSansSymbols.ttf")];
-    if !symbols2_bytes.is_empty() {
-        blobs.push((symbols2_bytes, "/fonts/NotoSansSymbols2.ttf"));
-    }
-    let mut ids: Vec<FamilyId> = Vec::new();
-    for (bytes, path) in blobs {
-        let result = font_ctx.collection.register_fonts(Blob::from(bytes), None);
-        record_lazy_registration(path, None, None, &result);
-        for (id, _) in result {
-            ids.push(id);
-        }
-    }
-    SYMBOL_IDS.with(|c| {
-        c.borrow_mut().clear();
-        c.borrow_mut().extend(ids.iter().copied());
-    });
+/// Register one symbol-tier face in the Common chain, after the faces already in it.
+fn add_symbol_face(font_ctx: &mut FontContext, bytes: Vec<u8>, path: &'static str) {
+    let result = font_ctx.collection.register_fonts(Blob::from(bytes), None);
+    record_lazy_registration(path, None, None, &result);
+    SYMBOL_IDS.with(|c| c.borrow_mut().extend(result.iter().map(|(id, _)| *id)));
     rebuild_common_fallbacks(font_ctx);
 }
 
-/// Lazily register symbol fallback faces. Symbols bytes are required; Symbols 2
-/// is optional. Later calls return false.
+/// Register the test context's symbol faces from a fresh chain.
+fn add_symbol_fonts(font_ctx: &mut FontContext, symbols_bytes: Vec<u8>, symbols2_bytes: Vec<u8>) {
+    SYMBOL_IDS.with(|c| c.borrow_mut().clear());
+    add_symbol_face(font_ctx, symbols_bytes, "/fonts/NotoSansSymbols.ttf");
+    if !symbols2_bytes.is_empty() {
+        add_symbol_face(font_ctx, symbols2_bytes, "/fonts/NotoSansSymbols2.ttf");
+    }
+}
+
+/// Lazily register the symbol fallback faces. Symbols bytes register the first face; Symbols 2
+/// bytes may come in the same call, or alone once script text demands it. A call with nothing
+/// left to register returns false.
 #[wasm_bindgen]
 pub fn register_symbol_fonts(symbols_bytes: Vec<u8>, symbols2_bytes: Vec<u8>) -> bool {
     let _ks_span = tracing::info_span!(
@@ -1454,27 +1454,30 @@ pub fn register_symbol_fonts(symbols_bytes: Vec<u8>, symbols2_bytes: Vec<u8>) ->
         bytes = symbols_bytes.len() + symbols2_bytes.len()
     )
     .entered();
-    if SYMBOL_FONTS_REGISTERED.with(|c| c.get()) {
+    let first = !SYMBOL_FONTS_REGISTERED.with(|c| c.get()) && !symbols_bytes.is_empty();
+    let second = !SYMBOLS2_FONTS_REGISTERED.with(|c| c.get()) && !symbols2_bytes.is_empty();
+    if !first && !second {
         return false;
     }
-    if symbols_bytes.is_empty() {
-        return false;
-    }
-    let symbols_bytes = maybe_strip_for_session(symbols_bytes);
-    let symbols2_bytes = maybe_strip_for_session(symbols2_bytes);
-    note_font_asset(&symbols_bytes, "/fonts/NotoSansSymbols.ttf");
-    if !symbols2_bytes.is_empty() {
-        note_font_asset(&symbols2_bytes, "/fonts/NotoSansSymbols2.ttf");
-    }
-    SHARED_FONT_CONTEXT.with(|cell| {
-        let mut borrow = cell.borrow_mut();
-        if borrow.is_none() {
-            *borrow = Some(make_empty_font_context());
+    let faces = [
+        (first, maybe_strip_for_session(symbols_bytes), "/fonts/NotoSansSymbols.ttf"),
+        (second, maybe_strip_for_session(symbols2_bytes), "/fonts/NotoSansSymbols2.ttf"),
+    ];
+    for (wanted, bytes, path) in faces {
+        if !wanted {
+            continue;
         }
-        let font_ctx = borrow.as_mut().unwrap();
-        add_symbol_fonts(font_ctx, symbols_bytes, symbols2_bytes);
-    });
-    SYMBOL_FONTS_REGISTERED.with(|c| c.set(true));
+        note_font_asset(&bytes, path);
+        SHARED_FONT_CONTEXT.with(|cell| {
+            let mut borrow = cell.borrow_mut();
+            if borrow.is_none() {
+                *borrow = Some(make_empty_font_context());
+            }
+            add_symbol_face(borrow.as_mut().unwrap(), bytes, path);
+        });
+    }
+    SYMBOL_FONTS_REGISTERED.with(|c| c.set(first || c.get()));
+    SYMBOLS2_FONTS_REGISTERED.with(|c| c.set(second || c.get()));
     true
 }
 
@@ -2714,6 +2717,33 @@ mod tests {
         assert!(upgraded, "the JP aliases carry the full file's outlines");
         assert!(!has_pending_lazy_faces());
         set_font_mode(FontMode::Full);
+    }
+
+    #[test]
+    fn symbols2_registers_after_the_first_symbol_face() {
+        // A fresh thread has no shared context; the registration creates one.
+        assert!(register_symbol_fonts(NOTO_SANS_SYMBOLS_TEST_BYTES.to_vec(), Vec::new()));
+        // Nothing new: an empty call, and repeats of what is already registered.
+        assert!(!register_symbol_fonts(Vec::new(), Vec::new()));
+        assert!(!register_symbol_fonts(NOTO_SANS_SYMBOLS_TEST_BYTES.to_vec(), Vec::new()));
+        assert!(register_symbol_fonts(
+            Vec::new(),
+            NOTO_SANS_SYMBOLS2_TEST_BYTES.to_vec()
+        ));
+        assert!(!register_symbol_fonts(
+            Vec::new(),
+            NOTO_SANS_SYMBOLS2_TEST_BYTES.to_vec()
+        ));
+        SHARED_FONT_CONTEXT.with(|cell| {
+            let mut borrow = cell.borrow_mut();
+            let ctx = borrow.as_mut().expect("shared context");
+            let mut id = |name: &str| ctx.collection.family_by_name(name).expect(name).id();
+            assert_eq!(
+                SYMBOL_IDS.with(|c| c.borrow().clone()),
+                vec![id("Noto Sans Symbols"), id("Noto Sans Symbols 2")],
+                "the chain keeps registration order"
+            );
+        });
     }
 
     #[test]

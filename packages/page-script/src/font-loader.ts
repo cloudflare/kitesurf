@@ -21,7 +21,14 @@ import {
 } from "./wasm-glue.js";
 import { NativePromise } from "./native-scheduling.ts";
 import { startupFontDefer, startupFontProfile, startupPixelFree } from "./startup-probe.ts";
-import { CJK_REGION_SCANS, CJK_SCAN, EMOJI_BMP_SCAN, SCRIPT_RANGES } from "./source-scan.ts";
+import {
+  CJK_REGION_SCANS,
+  CJK_SCAN,
+  EMOJI_BMP_SCAN,
+  SCRIPT_RANGES,
+  SYMBOLS2_EXCLUSIVE,
+  SYMBOL_SCAN,
+} from "./source-scan.ts";
 import type { SourceFontScan } from "@kitesurf/jsrpc-types/page-script";
 
 let pending: Promise<void> | null = null;
@@ -131,6 +138,65 @@ const CJK_REGION_FONTS: CjkRegionFont[] = CJK_REGION_SCANS.map(({ region, range 
 });
 
 let symbolPending: Promise<void> | null = null;
+let symbols2Pending: Promise<void> | null = null;
+
+let symbols2Demanded = false;
+
+// The deferred stash fetches and registers the faces the scan wanted without the pending
+// promises, so the script-text probe leaves those to it instead of fetching them twice.
+function stashOwns(face: "symbols" | "symbols2"): boolean {
+  return deferWants?.[face] === true;
+}
+
+function registerSymbolsIfNeeded(wantSymbols2: boolean): Promise<void> {
+  if (symbolPending) return symbolPending;
+  if (wantSymbols2) symbols2Demanded = true;
+  symbolPending = (async () => {
+    try {
+      const fontFetches = [fetchFaceBytes(SYMBOL_FONT_PATHS[0])];
+      if (wantSymbols2) fontFetches.push(fetchFaceBytes(SYMBOL_FONT_PATHS[1]));
+      const fetchedFonts = await Promise.all(fontFetches);
+      const symbols = fetchedFonts[0];
+      const symbols2 = wantSymbols2 ? fetchedFonts[1] : new Uint8Array(0);
+      register_symbol_fonts(symbols, symbols2);
+      console.log(
+        `[kitesurf-fonts] registered ${wantSymbols2 ? 2 : 1} symbol font(s) (${symbols.byteLength + symbols2.byteLength} bytes)`,
+      );
+    } catch (e) {
+      console.warn("[kitesurf-fonts] symbol registration failed:", String(e));
+      symbolPending = null;
+      throw e;
+    }
+  })();
+  return symbolPending;
+}
+
+// Symbols 2 can arrive after Symbols: text that needs only the first face registers it, and
+// a later write of Symbols-2-only text adds the second face beside it.
+function registerSymbols2IfNeeded(): Promise<void> {
+  if (symbols2Pending) return symbols2Pending;
+  symbols2Pending = (async () => {
+    try {
+      if (symbolPending) await symbolPending.catch(() => {});
+      const symbols2 = await fetchFaceBytes(SYMBOL_FONT_PATHS[1]);
+      register_symbol_fonts(new Uint8Array(0), symbols2);
+      console.log(`[kitesurf-fonts] registered Symbols 2 (${symbols2.byteLength} bytes)`);
+    } catch (e) {
+      console.warn("[kitesurf-fonts] Symbols 2 registration failed:", String(e));
+      symbols2Pending = null;
+      throw e;
+    }
+  })();
+  return symbols2Pending;
+}
+
+/** In-flight or settled symbol-tier registrations, for callers that drain fonts. */
+export function symbolPendingPromises(): Promise<void>[] {
+  const pending: Promise<void>[] = [];
+  if (symbolPending) pending.push(symbolPending);
+  if (symbols2Pending) pending.push(symbols2Pending);
+  return pending;
+}
 
 interface ScriptFont {
   tag: string;
@@ -316,28 +382,6 @@ export function upgradeToFullFonts(): Promise<void> | null {
   return upgradePending;
 }
 
-function registerSymbolsIfNeeded(wantSymbols2: boolean): Promise<void> {
-  if (symbolPending) return symbolPending;
-  symbolPending = (async () => {
-    try {
-      const fontFetches = [fetchFaceBytes(SYMBOL_FONT_PATHS[0])];
-      if (wantSymbols2) fontFetches.push(fetchFaceBytes(SYMBOL_FONT_PATHS[1]));
-      const fetchedFonts = await Promise.all(fontFetches);
-      const symbols = fetchedFonts[0];
-      const symbols2 = wantSymbols2 ? fetchedFonts[1] : new Uint8Array(0);
-      register_symbol_fonts(symbols, symbols2);
-      console.log(
-        `[kitesurf-fonts] registered ${wantSymbols2 ? 2 : 1} symbol font(s) (${symbols.byteLength + symbols2.byteLength} bytes)`,
-      );
-    } catch (e) {
-      console.warn("[kitesurf-fonts] symbol registration failed:", String(e));
-      symbolPending = null;
-      throw e;
-    }
-  })();
-  return symbolPending;
-}
-
 function registerCjkIfNeeded(): Promise<void> {
   if (cjkPending) return cjkPending;
   cjkPending = (async () => {
@@ -424,6 +468,13 @@ interface ScriptTextProbe {
 
 let nonLatinWritesSeen = 0;
 
+// Set from the navigation's scan: the source names text by reference the scan cannot decode.
+let probeParsedText = false;
+
+function noteScan(scan: SourceFontScan | undefined): void {
+  probeParsedText = !!scan?.namedRefs;
+}
+
 function classRanges(unicodeRange: RegExp): Uint32Array {
   const out: number[] = [];
   for (const match of unicodeRange.source.matchAll(/\\u([0-9A-F]{4})(?:-\\u([0-9A-F]{4}))?/gi)) {
@@ -437,13 +488,17 @@ const CJK_REGION_RANGES = CJK_REGION_FONTS.flatMap((font) =>
   font.range ? [{ font, ranges: classRanges(font.range) }] : [],
 );
 const EMOJI_RANGES = Uint32Array.from([...classRanges(EMOJI_BMP_SCAN), 0x1f000, 0x1ffff]);
+const SYMBOL_RANGES = classRanges(SYMBOL_SCAN);
+const SYMBOLS2_RANGES = classRanges(SYMBOLS2_EXCLUSIVE);
 const SCRIPT_FACE_RANGES = SCRIPT_FONTS.map((scriptFont) => ({
   scriptFont,
   ranges: classRanges(scriptFont.range),
 }));
 
+// Parsed text normally counts as seen, since the source scan already chose its faces. Text
+// written as named references is the exception: the next paint probes it.
 export function noteNavigateText(dom: ScriptTextProbe): void {
-  nonLatinWritesSeen = dom.nonLatinTextWrites?.() ?? 0;
+  nonLatinWritesSeen = probeParsedText ? -1 : (dom.nonLatinTextWrites?.() ?? 0);
 }
 
 export function demandFacesForScriptText(dom: ScriptTextProbe): void {
@@ -471,6 +526,18 @@ export function demandFacesForScriptText(dom: ScriptTextProbe): void {
     ) {
       tasks.push(registerScriptIfNeeded(scriptFont));
     }
+  }
+  // The symbol tier: the source scan misses text written as named references or built by
+  // scripts, so the probe demands the faces from the document's own codepoints.
+  if (!symbolPending && !stashOwns("symbols") && dom.textUsesCodepoints(SYMBOL_RANGES)) {
+    tasks.push(registerSymbolsIfNeeded(dom.textUsesCodepoints(SYMBOLS2_RANGES)));
+  } else if (
+    !symbols2Demanded &&
+    !symbols2Pending &&
+    !stashOwns("symbols2") &&
+    dom.textUsesCodepoints(SYMBOLS2_RANGES)
+  ) {
+    tasks.push(registerSymbols2IfNeeded());
   }
   if (tasks.length === 0) return;
   void NativePromise.all(tasks.map((task) => task.catch(() => {}))).then(() => onUpgraded?.());
@@ -510,6 +577,7 @@ function computeFontWants(scan?: SourceFontScan): {
 
 export async function ensureFontsRegistered(scan?: SourceFontScan): Promise<void> {
   decideFontMode(scan);
+  noteScan(scan);
   const wants = computeFontWants(scan);
   const wantSymbols = wants.symbols;
   const wantSymbols2 = wants.symbols2;
@@ -692,6 +760,7 @@ export function startFontPrefetch(scan?: SourceFontScan): void {
   if (deferStarted) return;
   deferStarted = true;
   decideFontMode(scan);
+  noteScan(scan);
   const wants = computeFontWants(scan);
   deferWants = wants;
   const all: Promise<void>[] = [];

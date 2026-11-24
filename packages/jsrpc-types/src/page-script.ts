@@ -39,6 +39,8 @@ export interface SourceFontScan {
   serif: boolean;
   /** Script face tags, in registration order. */
   scripts: string[];
+  /** A named character reference the scans cannot decode, so the parsed text needs a probe. */
+  namedRefs: boolean;
 }
 
 /** A document sent to `navigate` as UTF-8 with the whole-source scans PageScript needs, so the

@@ -48,8 +48,11 @@ function hasListMarkers(html: string): boolean {
   return /<(?:ul|ol|li)[\s/>]/i.test(html);
 }
 
-function needsSymbols(html: string): boolean {
-  return /[\u{2100}-\u{2BFF}]/u.test(html) || hasListMarkers(html);
+// U+2100-U+2BFF text wants the symbol-tier faces, which cover what the UA faces lack there.
+export const SYMBOL_SCAN = /[\u2100-\u2BFF]/;
+
+function needsSymbols(text: string): boolean {
+  return SYMBOL_SCAN.test(text) || hasListMarkers(text);
 }
 
 /** Script faces in registration order, each with the characters that want it. */
@@ -111,11 +114,27 @@ function htmlWithCharRefsDecoded(html: string): string {
   return decoded ? html + decoded : html;
 }
 
-const SYMBOLS2_EXCLUSIVE =
+// Named references for ASCII, Latin-1 letters and everyday punctuation, which the UA faces
+// draw. Any other name may stand for symbol text the scan cannot decode without the whole
+// entity table, so PageScript probes the parsed text for it instead.
+const PLAIN_NAMED_REF =
+  /^(?:amp|lt|gt|quot|apos|nbsp|shy|copy|reg|trade|deg|times|divide|middot|bull|hellip|[mn]dash|[lr][sd]quo|[sb]dquo|[lr]aquo|euro|pound|yen|cent|curren|sect|para|plusmn|micro|iexcl|iquest|ordf|ordm|sup[123]|frac(?:12|14|34)|(?:en|em|thin|hair)sp|zwn?j|lrm|rlm|[A-Za-z](?:acute|grave|circ|uml|tilde|ring|cedil|slash)|[AaOo]Elig|szlig|ETH|eth|THORN|thorn)$/;
+
+function hasUncommonNamedRef(html: string): boolean {
+  if (!html.includes("&")) return false;
+  for (const match of html.matchAll(/&([A-Za-z][A-Za-z0-9]{1,31});/g)) {
+    if (!PLAIN_NAMED_REF.test(match[1] ?? "")) return true;
+  }
+  return false;
+}
+
+// Codepoints Noto Sans Symbols 2 covers but Noto Sans Symbols does not. Fetching the second
+// face only for these keeps its file off pages the first face already serves.
+export const SYMBOLS2_EXCLUSIVE =
   /[\u21AF\u21E6-\u21F0\u21F3\u2218-\u2219\u2299\u22C4-\u22C6\u2316\u2318\u231A-\u231B\u2324-\u2328\u232B\u237B\u237D-\u237F\u23CE-\u23CF\u23E9-\u23EA\u23ED-\u23EF\u23F1-\u2426\u2440-\u244A\u25A0-\u25CB\u25CD-\u2609\u260E-\u2612\u2614-\u2623\u2630-\u2637\u263C\u2654-\u2668\u267F-\u268F\u269E-\u26A1\u26AA-\u26AC\u26BD-\u26CD\u26CF-\u26E1\u2700-\u2704\u2706-\u2709\u270B-\u271C\u2722-\u2727\u2729-\u274B\u274D\u274F-\u2753\u2756-\u2775\u2794\u2798-\u27AF\u27B1-\u27BE\u2800-\u28FF\u2981\u29BF\u29EB\u2B00-\u2B0D\u2B12-\u2B2F\u2B4D-\u2B73\u2B76-\u2B95\u2B97-\u2BFD\u2BFF]/;
 
-function needsSymbols2(html: string): boolean {
-  return SYMBOLS2_EXCLUSIVE.test(html) || hasListMarkers(html);
+function needsSymbols2(text: string): boolean {
+  return SYMBOLS2_EXCLUSIVE.test(text) || hasListMarkers(text);
 }
 
 const MONO_FACE = /(?:monospace|font-mono|DM(?:%20|\+|\s)+Mono)/i;
@@ -213,20 +232,22 @@ function scriptTagsIn(text: string): string[] {
 
 /** The font faces `html` wants before its first layout. */
 export function scanSourceFonts(html: string): SourceFontScan {
-  const symbols = needsSymbols(html);
-  // A script face may be written as a numeric character reference, so scan the decoded text.
-  const scriptText = htmlWithCharRefsDecoded(html);
+  // A face's text may be written as numeric character references, so every codepoint scan
+  // reads the decoded text; the markup greps read the raw `html`.
+  const text = htmlWithCharRefsDecoded(html);
+  const symbols = needsSymbols(text);
 
   return {
     outline: needsOutlineConsumers(html),
     symbols,
-    symbols2: symbols && needsSymbols2(html),
-    emoji: needsEmoji(scriptText),
-    cjk: CJK_SCAN.test(scriptText),
-    cjkRegions: cjkRegionsIn(html, scriptText),
+    symbols2: symbols && needsSymbols2(text),
+    emoji: needsEmoji(text),
+    cjk: CJK_SCAN.test(text),
+    cjkRegions: cjkRegionsIn(html, text),
     mono: needsMono(html),
     serif: needsSerif(html),
-    scripts: scriptTagsIn(scriptText),
+    scripts: scriptTagsIn(text),
+    namedRefs: hasUncommonNamedRef(html),
   };
 }
 

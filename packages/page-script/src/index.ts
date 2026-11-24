@@ -215,6 +215,7 @@ import {
   demandFacesForScriptText,
   noteNavigateText,
   scriptPendingPromises,
+  symbolPendingPromises,
   fontDeferActive,
   startFontPrefetch,
   forceMonoFace,
@@ -7301,6 +7302,9 @@ async function queryDomAwaitPendingResources(
   if (emoji) fontPromises.push(emoji.catch(() => {}));
   if (cjk) fontPromises.push(cjk.catch(() => {}));
   for (const promise of scriptPendingPromises()) {
+    fontPromises.push(promise.catch(() => {}));
+  }
+  for (const promise of symbolPendingPromises()) {
     fontPromises.push(promise.catch(() => {}));
   }
   if (upgrade) fontPromises.push(upgrade.catch(() => {}));
