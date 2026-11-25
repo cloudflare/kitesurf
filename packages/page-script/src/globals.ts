@@ -2828,8 +2828,8 @@ export function installGlobals(
       Object.defineProperty(Patched, Symbol.hasInstance, {
         value: function (this: unknown, v: unknown) {
           if (v == null) return false;
-          if (typeof this === "function" && shimElementClasses.has(this)) {
-            return Object.prototype.isPrototypeOf.call(this.prototype, v);
+          if (this !== Patched) {
+            return Reflect.apply(Function.prototype[Symbol.hasInstance], this, [v]);
           }
           return Base.prototype.isPrototypeOf(v);
         },

@@ -452,3 +452,42 @@ test("custom element constructor and callback errors fire the window error event
     "Uncaught Error: connected",
   ]);
 });
+
+test("instanceof a custom element class matches only its instances", async ({ page }) => {
+  await setContent(
+    page,
+    `<!doctype html><body>
+      <x-v8></x-v8>
+      <script>
+        window.V8El = class extends HTMLElement {};
+        customElements.define("x-v8", V8El);
+        const el = document.querySelector("x-v8");
+        window.__v8 = [
+          el instanceof V8El,
+          document.body instanceof V8El,
+          document.createElement("div") instanceof V8El,
+          el instanceof HTMLElement,
+          document.body instanceof HTMLElement,
+        ];
+      </script>
+    </body>`,
+  );
+  // page.evaluate runs on Boa, so this class crosses the bridge.
+  const boa = await page.evaluate(() => {
+    class BoaEl extends HTMLElement {}
+    customElements.define("x-boa", BoaEl);
+    const el = document.createElement("x-boa");
+    const V8El: typeof HTMLElement = Reflect.get(window, "V8El");
+    return [
+      el instanceof BoaEl,
+      document.body instanceof BoaEl,
+      document.querySelector("x-v8") instanceof BoaEl,
+      el instanceof HTMLElement,
+      document.createElement("x-undefined") instanceof HTMLElement,
+      document.body instanceof V8El,
+      document.querySelector("x-v8") instanceof V8El,
+    ];
+  });
+  expect(await page.evaluate("window.__v8")).toEqual([true, false, false, true, true]);
+  expect(boa).toEqual([true, false, false, true, true, false, true]);
+});
