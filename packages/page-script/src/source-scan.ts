@@ -116,9 +116,9 @@ function htmlWithCharRefsDecoded(html: string): string {
 
 // Named references for ASCII, Latin-1 letters and everyday punctuation, which the UA faces
 // draw. Any other name may stand for symbol text the scan cannot decode without the whole
-// entity table, so PageScript probes the parsed text for it instead.
+// entity table, so PageScript probes the parsed text for it instead. `xcirc` is U+25EF.
 const PLAIN_NAMED_REF =
-  /^(?:amp|lt|gt|quot|apos|nbsp|shy|copy|reg|trade|deg|times|divide|middot|bull|hellip|[mn]dash|[lr][sd]quo|[sb]dquo|[lr]aquo|euro|pound|yen|cent|curren|sect|para|plusmn|micro|iexcl|iquest|ordf|ordm|sup[123]|frac(?:12|14|34)|(?:en|em|thin|hair)sp|zwn?j|lrm|rlm|[A-Za-z](?:acute|grave|circ|uml|tilde|ring|cedil|slash)|[AaOo]Elig|szlig|ETH|eth|THORN|thorn)$/;
+  /^(?:amp|lt|gt|quot|apos|nbsp|shy|copy|reg|trade|deg|times|divide|middot|bull|hellip|[mn]dash|[lr][sd]quo|[sb]dquo|[lr]aquo|euro|pound|yen|cent|curren|sect|para|plusmn|micro|iexcl|iquest|ordf|ordm|sup[123]|frac(?:12|14|34)|(?:en|em|thin|hair)sp|zwn?j|lrm|rlm|(?!xcirc)[A-Za-z](?:acute|grave|circ|uml|tilde|ring|cedil|slash)|[AaOo]Elig|szlig|ETH|eth|THORN|thorn)$/;
 
 function hasUncommonNamedRef(html: string): boolean {
   if (!html.includes("&")) return false;

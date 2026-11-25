@@ -339,7 +339,7 @@ test("only uncommon named references ask for a parsed-text probe", () => {
   ]) {
     assert.equal(scan(html).namedRefs, false, html);
   }
-  for (const html of ["<p>&check;</p>", "<p>&sum;</p>", "<p>&olarr; &amp;</p>"]) {
+  for (const html of ["<p>&check;</p>", "<p>&sum;</p>", "<p>&olarr; &amp;</p>", "<p>&xcirc;</p>"]) {
     assert.equal(scan(html).namedRefs, true, html);
   }
 });

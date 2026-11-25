@@ -1473,6 +1473,7 @@ fn add_symbol_face(font_ctx: &mut FontContext, bytes: Vec<u8>, face: SymbolFace)
 }
 
 /// Register the test context's symbol faces from a fresh chain.
+#[cfg(test)]
 fn add_symbol_fonts(font_ctx: &mut FontContext, symbols_bytes: Vec<u8>, symbols2_bytes: Vec<u8>) {
     SYMBOL_FACE_IDS.with(|c| *c.borrow_mut() = Default::default());
     add_symbol_face(font_ctx, symbols_bytes, SymbolFace::Symbols);
