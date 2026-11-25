@@ -72,6 +72,23 @@ describe("defineDomain", () => {
   });
 });
 
+describe("a domain's fallback", () => {
+  it("answers only the commands the map does not define", async () => {
+    const asked: string[] = [];
+    const domain = defineDomain("Log", {
+      methods: { "Log.enable": () => ({}) },
+      fallback: (_ctx, req) => {
+        asked.push(req.method);
+        return { from: "fallback" };
+      },
+    });
+    expect(await domain.run(fakeCtx(), request({ id: 1, method: "Log.enable" }))).toEqual({});
+    const reply = await domain.run(fakeCtx(), request({ id: 2, method: "Log.notAMethod" }));
+    expect(reply).toEqual({ from: "fallback" });
+    expect(asked).toEqual(["Log.notAMethod"]);
+  });
+});
+
 describe("defineSessionMethods", () => {
   it("answers methods of any domain and leaves the rest to the caller", async () => {
     const table = defineSessionMethods("Engine", {
@@ -96,6 +113,39 @@ describe("dispatch of a defined domain", () => {
     expect(warn).toHaveBeenCalledWith(
       '[kitesurf-cdp] "Log.notAMethod" is not defined; answering {}',
     );
+  });
+
+  it("answers a Kitesurf command no handler defines with -32601 when there is no extension", async () => {
+    const response = await dispatch(fakeCtx(), request({ id: 4, method: "Kitesurf.notAMethod" }));
+    expect(response).toEqual({
+      id: 4,
+      error: { code: -32601, message: "'Kitesurf.notAMethod' wasn't found" },
+      sessionId: undefined,
+    });
+  });
+
+  it("passes a Kitesurf command no handler defines to the host extension", async () => {
+    const seen: string[] = [];
+    const ctx: DispatchCtx = {
+      ...fakeCtx(),
+      commandExtension: async (_ctx, req) => {
+        seen.push(req.method);
+        return req.method === "Kitesurf.hostCommand"
+          ? { handled: true, result: { from: "host" } }
+          : { handled: false };
+      },
+    };
+    const answered = await dispatch(ctx, request({ id: 5, method: "Kitesurf.hostCommand" }));
+    expect(answered).toEqual({ id: 5, result: { from: "host" }, sessionId: undefined });
+    const declined = await dispatch(ctx, request({ id: 6, method: "Kitesurf.notAMethod" }));
+    expect(declined).toEqual({
+      id: 6,
+      error: { code: -32601, message: "'Kitesurf.notAMethod' wasn't found" },
+      sessionId: undefined,
+    });
+    const defined = await dispatch(ctx, request({ id: 7, method: "Kitesurf.getConnectionInfo" }));
+    expect(defined).toMatchObject({ id: 7, result: {} });
+    expect(seen).toEqual(["Kitesurf.hostCommand", "Kitesurf.notAMethod"]);
   });
 
   it("refuses a WebMCP method the domain does not define", async () => {

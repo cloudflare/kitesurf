@@ -47,8 +47,22 @@ export function stub(): Record<string, never> {
 export interface CdpDomain<A extends unknown[] = []> {
   readonly name: string;
   readonly methods: ReadonlySet<string>;
-  /** Answers `req`, or returns CDP_COMMAND_UNHANDLED when the domain does not define its method. */
+  /**
+   * Answers `req`. For a method the domain does not define, answers with its fallback, or returns
+   * CDP_COMMAND_UNHANDLED when it has none.
+   */
   run(ctx: DispatchCtx, req: CdpRequest, ...args: A): Promise<unknown>;
+}
+
+/** Answers a command the map does not define, as a switch handler's default branch did. */
+export type CdpFallback = (ctx: DispatchCtx, req: CdpRequest) => unknown;
+
+/** Thrown to answer a command with Chrome's -32601 method-not-found error. */
+export class CdpMethodNotFound extends Error {
+  constructor(method: string) {
+    super(`'${method}' wasn't found`);
+    this.name = "CdpMethodNotFound";
+  }
 }
 
 // Method syntax makes the parameters bivariant, so every typed handler and context fits. That is
@@ -69,9 +83,10 @@ export function defineDomain<D extends CdpDomainName, C = DispatchCtx, A extends
   spec: {
     context?: (ctx: DispatchCtx, req: CdpRequestOf<CdpMethodsIn<D>>, ...args: A) => C | Promise<C>;
     methods: CdpDomainMethods<D, C>;
+    fallback?: CdpFallback;
   },
 ): CdpDomain<A> {
-  return buildMethodTable(name, `${name}.`, spec.context, spec.methods);
+  return buildMethodTable(name, `${name}.`, spec.context, spec.methods, spec.fallback);
 }
 
 /** The handlers of a session that answers methods of several domains, keyed by method. */
@@ -88,9 +103,10 @@ export function defineSessionMethods<C = DispatchCtx, A extends unknown[] = []>(
   spec: {
     context?: (ctx: DispatchCtx, req: CdpRequest, ...args: A) => C | Promise<C>;
     methods: CdpSessionMethods<C>;
+    fallback?: CdpFallback;
   },
 ): CdpDomain<A> {
-  return buildMethodTable(name, null, spec.context, spec.methods);
+  return buildMethodTable(name, null, spec.context, spec.methods, spec.fallback);
 }
 
 function buildMethodTable<A extends unknown[]>(
@@ -98,6 +114,7 @@ function buildMethodTable<A extends unknown[]>(
   prefix: string | null,
   contextOf: ErasedContext["call"] | undefined,
   table: { readonly [method: string]: ErasedHandler["call"] | undefined },
+  fallback: CdpFallback | undefined,
 ): CdpDomain<A> {
   const handlers = new Map<string, ErasedHandler>();
   for (const [method, call] of Object.entries(table)) {
@@ -117,7 +134,7 @@ function buildMethodTable<A extends unknown[]>(
       const built = context.call(ctx, req, ...args);
       const c = built instanceof Promise ? await built : built;
       const handler = handlers.get(req.method);
-      if (!handler) return CDP_COMMAND_UNHANDLED;
+      if (!handler) return fallback ? fallback(ctx, req) : CDP_COMMAND_UNHANDLED;
       return handler.call(c, req);
     },
   };

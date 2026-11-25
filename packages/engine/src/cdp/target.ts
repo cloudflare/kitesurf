@@ -686,6 +686,7 @@ export function engineMemoryBreakdown(browser: BrowserState): {
 
 // The engine and renderer targets are synthetic: they answer these and {} to everything else.
 export const engineSession = defineSessionMethods("engine", {
+  fallback: () => ({}),
   methods: {
     "Runtime.enable": (ctx, req) => {
       ctx.emit({
@@ -710,6 +711,7 @@ export const engineSession = defineSessionMethods("engine", {
 });
 
 export const rendererSession = defineSessionMethods("renderer", {
+  fallback: () => ({}),
   methods: {
     "Runtime.enable": (ctx, req) => {
       ctx.emit({

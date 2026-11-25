@@ -121,6 +121,18 @@ describe("handler parameters", () => {
     assertType(domain.run({} as DispatchCtx, {} as CdpRequest, "3"));
   });
 
+  test("a fallback gets the DispatchCtx and the raw request", () => {
+    defineDomain("Log", {
+      context: (ctx) => ({ ctx }),
+      methods: {},
+      fallback: (ctx, req) => {
+        expectTypeOf(ctx).toEqualTypeOf<DispatchCtx>();
+        expectTypeOf(req).toEqualTypeOf<CdpRequest>();
+        return {};
+      },
+    });
+  });
+
   test("a handler reads params as the protocol types them", () => {
     defineDomain("DOM", {
       methods: {

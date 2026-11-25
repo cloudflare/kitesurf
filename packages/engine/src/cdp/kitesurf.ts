@@ -7,7 +7,7 @@
 import type { Protocol } from "devtools-protocol";
 import type { DispatchCtx } from "./dispatch.ts";
 import type { CdpMethod, CdpRequest, CdpResultOf, TargetState } from "./types.ts";
-import { defineDomain, type CdpDomainMethods } from "./domain.ts";
+import { CdpMethodNotFound, defineDomain, type CdpDomainMethods } from "./domain.ts";
 import type { QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
 import {
   sessionOf,
@@ -586,9 +586,16 @@ const kitesurfMethods = {
   "Kitesurf.getSceneStats": (ctx, req) => pageDiagnostic(ctx, req.params, "getSceneStats"),
 } satisfies Required<CdpDomainMethods<"Kitesurf">>;
 
-// Every Kitesurf method protocol-extensions.ts declares has a handler; the host extension
-// answers the commands this map does not know.
-export const kitesurfDomain = defineDomain("Kitesurf", { methods: kitesurfMethods });
+// Every Kitesurf method protocol-extensions.ts declares has a handler. The host extension answers
+// the commands this map does not know, so public handlers win; any other command is not found.
+export const kitesurfDomain = defineDomain("Kitesurf", {
+  methods: kitesurfMethods,
+  fallback: async (ctx, req) => {
+    const extended = ctx.commandExtension ? await ctx.commandExtension(ctx, req) : null;
+    if (!extended?.handled) throw new CdpMethodNotFound(req.method);
+    return extended.result;
+  },
+});
 
 type PageDiagnosticOp = (typeof PAGE_DIAGNOSTIC_OPS)[keyof typeof PAGE_DIAGNOSTIC_OPS];
 

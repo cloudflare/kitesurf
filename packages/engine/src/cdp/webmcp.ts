@@ -342,6 +342,10 @@ async function runInvocation(
 }
 
 export const webMcpDomain = defineDomain("WebMCP", {
+  // Unlike most domains, WebMCP has always refused a method it does not define.
+  fallback: (_ctx, req) => {
+    throw new Error(`${req.method} is not a recognized WebMCP method`);
+  },
   methods: {
     "WebMCP.enable": async (ctx, req) => {
       const target = resolveTarget(ctx, req.sessionId);

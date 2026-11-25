@@ -14,7 +14,7 @@ import type {
   TargetState,
 } from "./types.ts";
 import type { RequestBlocker } from "../request-blocker.ts";
-import { defineDomain, type CdpDomain } from "./domain.ts";
+import { CdpMethodNotFound, defineDomain, type CdpDomain } from "./domain.ts";
 import { CDP_COMMAND_UNHANDLED } from "./types.ts";
 import {
   targetDomain,
@@ -124,12 +124,12 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
       };
     }
     if (req.sessionId && req.sessionId === ctx.browser.rendererSessionId) {
-      const result = await syntheticSessionReply(ctx, req, rendererSession);
+      const result = await runDomain(ctx, req, rendererSession);
       ctx.browser.networkEvents.drain();
       return { id: req.id, result: result ?? {}, sessionId: req.sessionId };
     }
     if (req.sessionId && req.sessionId === ctx.browser.engineSessionId) {
-      const result = await syntheticSessionReply(ctx, req, engineSession);
+      const result = await runDomain(ctx, req, engineSession);
       ctx.browser.networkEvents.drain();
       return { id: req.id, result: result ?? {}, sessionId: req.sessionId };
     }
@@ -170,24 +170,9 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
       case "Input":
         result = await runDomain(ctx, req, inputDomain, undefined, { replyOnDispatch: true });
         break;
-      case "Kitesurf": {
-        result = await kitesurfDomain.run(ctx, req);
-        if (result === CDP_COMMAND_UNHANDLED) {
-          // Public handlers win; the host only sees commands they decline.
-          const extension = ctx.commandExtension;
-          if (!extension) {
-            ctx.browser.networkEvents.drain();
-            return methodNotFound(req);
-          }
-          const extended = await extension(ctx, req);
-          if (!extended.handled) {
-            ctx.browser.networkEvents.drain();
-            return methodNotFound(req);
-          }
-          result = extended.result;
-        }
+      case "Kitesurf":
+        result = await runDomain(ctx, req, kitesurfDomain);
         break;
-      }
       case "DOMStorage":
         // Chrome has DOMStorage on page and frame sessions only. A page-mode client has no ids.
         if (!req.sessionId && ctx.client.connectionMode !== "page") {
@@ -197,11 +182,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         result = await runDomain(ctx, req, domStorageDomain);
         break;
       case "WebMCP":
-        result = await webMcpDomain.run(ctx, req);
-        // Unlike the other domains, WebMCP has always refused a method it does not define.
-        if (result === CDP_COMMAND_UNHANDLED) {
-          throw new Error(`${req.method} is not a recognized WebMCP method`);
-        }
+        result = await runDomain(ctx, req, webMcpDomain);
         break;
       case "Debugger":
         result = await runDomain(ctx, req, debuggerDomain);
@@ -264,6 +245,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
     };
   } catch (err) {
     ctx.browser.networkEvents.drain();
+    if (err instanceof CdpMethodNotFound) return methodNotFound(req);
     const message = err instanceof Error ? err.message : String(err);
     return {
       id: req.id,
@@ -273,8 +255,8 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
   }
 }
 
-// A switch handler answers {} for a method it has no case for. Until every domain is defined
-// method by method, a defined domain does the same, and logs the method so it can be defined.
+// A switch handler answered {} for a method it had no case for. A domain without its own fallback
+// does the same, and logs the method so it can be defined.
 async function runDomain<A extends unknown[]>(
   ctx: DispatchCtx,
   req: CdpRequest,
@@ -285,16 +267,6 @@ async function runDomain<A extends unknown[]>(
   if (result !== CDP_COMMAND_UNHANDLED) return result;
   warnUndefinedMethod(ctx.browser, req.method);
   return {};
-}
-
-// The engine and renderer targets answer {} to any command their table does not define, by design.
-async function syntheticSessionReply(
-  ctx: DispatchCtx,
-  req: CdpRequest,
-  session: CdpDomain,
-): Promise<unknown> {
-  const result = await session.run(ctx, req);
-  return result === CDP_COMMAND_UNHANDLED ? {} : result;
 }
 
 // The client names the method, so the log is capped per connection and each name is cut short.
