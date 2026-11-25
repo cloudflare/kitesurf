@@ -29,7 +29,7 @@ import { networkDomain, storageDomain } from "./network.ts";
 import { logDomain } from "./log.ts";
 import { fetchDomain } from "./fetch.ts";
 import { inputDomain } from "./input.ts";
-import { handleKitesurf } from "./kitesurf.ts";
+import { kitesurfDomain } from "./kitesurf.ts";
 import { webMcpDomain } from "./webmcp.ts";
 import { domStorageDomain } from "./dom-storage.ts";
 import { debuggerDomain } from "./debugger.ts";
@@ -170,7 +170,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         result = await runDomain(ctx, req, inputDomain, undefined, { replyOnDispatch: true });
         break;
       case "Kitesurf": {
-        result = await handleKitesurf(ctx, req);
+        result = await kitesurfDomain.run(ctx, req);
         if (result === CDP_COMMAND_UNHANDLED) {
           // Public handlers win; the host only sees commands they decline.
           const extension = ctx.commandExtension;

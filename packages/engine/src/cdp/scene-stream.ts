@@ -10,7 +10,7 @@
 import type { Protocol } from "devtools-protocol";
 import { z } from "zod";
 import type { DispatchCtx } from "./dispatch.ts";
-import type { BrowserState, CdpRequest, TargetState } from "./types.ts";
+import type { BrowserState, CdpRequest, CdpRequestOf, TargetState } from "./types.ts";
 import { stubQueryDom } from "./page-session.ts";
 import {
   claimSceneAck,
@@ -183,10 +183,31 @@ export type SceneStreamRequest = Extract<
   }
 >;
 
+type SceneStreamResult =
+  | Protocol.Kitesurf.StartSceneStreamResponse
+  | Protocol.Kitesurf.GetSceneResourcesResponse
+  | Record<string, never>;
+
+export function sceneStreamCommand(
+  ctx: DispatchCtx,
+  req: CdpRequestOf<"Kitesurf.startSceneStream">,
+): Promise<Protocol.Kitesurf.StartSceneStreamResponse>;
+export function sceneStreamCommand(
+  ctx: DispatchCtx,
+  req: CdpRequestOf<"Kitesurf.getSceneResources">,
+): Promise<Protocol.Kitesurf.GetSceneResourcesResponse>;
+export function sceneStreamCommand(
+  ctx: DispatchCtx,
+  req: CdpRequestOf<"Kitesurf.stopSceneStream" | "Kitesurf.sceneFrameAck">,
+): Promise<Record<string, never>>;
+export function sceneStreamCommand(
+  ctx: DispatchCtx,
+  req: SceneStreamRequest,
+): Promise<SceneStreamResult>;
 export async function sceneStreamCommand(
   ctx: DispatchCtx,
   req: SceneStreamRequest,
-): Promise<unknown> {
+): Promise<SceneStreamResult> {
   const targetParams = TargetParams.safeParse(req.params ?? {});
   if (!targetParams.success) throw new Error("invalid scene stream target");
   const target = page(ctx, targetParams.data.targetId, req.sessionId);

@@ -6,7 +6,7 @@
 
 import type { Protocol } from "devtools-protocol";
 import { z } from "zod";
-import type { CdpRequest } from "./types.ts";
+import type { CdpRequest, CdpRequestOf } from "./types.ts";
 
 const CHUNK_BYTES = 4 * 1024 * 1024;
 const MANIFEST_BYTES = 16 * 1024;
@@ -76,6 +76,16 @@ type SceneHostRequest = Extract<
   { method: "Kitesurf.getSceneHostManifest" | "Kitesurf.readSceneHost" }
 >;
 
+export function sceneHostCommand(
+  assets: Pick<Fetcher, "fetch">,
+  req: CdpRequestOf<"Kitesurf.getSceneHostManifest">,
+  session: object,
+): Promise<Protocol.Kitesurf.SceneHostManifest>;
+export function sceneHostCommand(
+  assets: Pick<Fetcher, "fetch">,
+  req: CdpRequestOf<"Kitesurf.readSceneHost">,
+  session: object,
+): Promise<Protocol.Kitesurf.ReadSceneHostResponse>;
 export async function sceneHostCommand(
   assets: Pick<Fetcher, "fetch">,
   req: SceneHostRequest,
