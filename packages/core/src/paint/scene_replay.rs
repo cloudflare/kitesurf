@@ -16,7 +16,7 @@ use kurbo::{Affine, BezPath, Point, Shape, Vec2};
 use peniko::{
     BlendMode, Blob, Color, Fill, FontData, ImageAlphaType, ImageBrush, ImageData, ImageSampler,
 };
-#[cfg(not(feature = "native-host"))]
+#[cfg(feature = "scene-rasterizer-wasm")]
 use wasm_bindgen::prelude::*;
 
 use crate::paint::scene_decode::{
@@ -1509,7 +1509,7 @@ impl ScenePngStream {
 }
 
 /// JPEG encoder that consumes the recorded scene in MCU-aligned bands.
-#[cfg_attr(not(feature = "native-host"), wasm_bindgen)]
+#[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen)]
 pub struct SceneJpegStream {
     bands: SceneRasterBands,
     quality: u8,
@@ -1521,10 +1521,10 @@ pub struct SceneJpegStream {
 // A failed or unwound operation leaves the stream poisoned, so it cannot be reused.
 impl std::panic::RefUnwindSafe for SceneJpegStream {}
 
-#[cfg_attr(not(feature = "native-host"), wasm_bindgen)]
+#[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen)]
 impl SceneJpegStream {
     /// Encode the next band, returning empty bytes only after the final chunk.
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "nextChunk"))]
+    #[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen(js_name = "nextChunk"))]
     pub fn next_chunk(&mut self) -> Result<Vec<u8>, String> {
         if self.poisoned {
             return Err("JPEG stream failed and cannot be reused".to_string());
@@ -1716,7 +1716,7 @@ struct PdfRenderOptions {
 }
 
 #[cfg(feature = "pdf")]
-#[cfg_attr(not(feature = "native-host"), wasm_bindgen)]
+#[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen)]
 pub struct StreamingPdf {
     document: Option<krilla::Document>,
     options: PdfRenderOptions,
@@ -1726,6 +1726,24 @@ pub struct StreamingPdf {
 // Replay takes the document out before catching a panic, so it cannot be reused after unwinding.
 #[cfg(feature = "pdf")]
 impl std::panic::RefUnwindSafe for StreamingPdf {}
+
+/// Printable content rectangle `(left, top, width, height)` in CSS pixels.
+pub(crate) fn content_box(
+    paper_width: u32,
+    paper_height: u32,
+    margin_top: u32,
+    margin_right: u32,
+    margin_bottom: u32,
+    margin_left: u32,
+) -> (u32, u32, u32, u32) {
+    let ml = margin_left.min(paper_width.saturating_sub(1));
+    let mr = margin_right.min(paper_width.saturating_sub(ml).saturating_sub(1));
+    let mt = margin_top.min(paper_height.saturating_sub(1));
+    let mb = margin_bottom.min(paper_height.saturating_sub(mt).saturating_sub(1));
+    let width = paper_width.saturating_sub(ml).saturating_sub(mr).max(1);
+    let height = paper_height.saturating_sub(mt).saturating_sub(mb).max(1);
+    (ml, mt, width, height)
+}
 
 #[cfg(feature = "pdf")]
 fn render_pdf_impl(
@@ -1754,7 +1772,7 @@ fn replay_pdf_page(
     options: PdfRenderOptions,
 ) -> Result<(), String> {
     use crate::paint::pdf_paint::{
-        content_box, paint_white_background, push_page_clip, push_px_to_pt_scale, KrillaPaintScene,
+        paint_white_background, push_page_clip, push_px_to_pt_scale, KrillaPaintScene,
     };
     use krilla::page::PageSettings;
     let PdfRenderOptions {
@@ -2046,7 +2064,7 @@ fn encode_rgba_frame(
 
 /// Wasm replay interface with one session resource cache per instance.
 /// Raster and PDF failures return empty bytes; diagnostics are available via `lastRasterizeInfo`.
-#[cfg_attr(not(feature = "native-host"), wasm_bindgen)]
+#[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen)]
 #[derive(Default)]
 pub struct SceneRasterizer {
     store: RefCell<ResourceStore>,
@@ -2213,16 +2231,16 @@ fn append_encoded_chunk(
     Ok(())
 }
 
-#[cfg_attr(not(feature = "native-host"), wasm_bindgen)]
+#[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen)]
 impl SceneRasterizer {
     /// Create a rasterizer with an empty resource store and no retained frame.
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(constructor))]
+    #[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen(constructor))]
     pub fn new() -> SceneRasterizer {
         SceneRasterizer::default()
     }
 
     /// Start a JPEG capture without retaining a full-frame pixel buffer.
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "startJpeg"))]
+    #[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen(js_name = "startJpeg"))]
     pub fn start_jpeg(&self, scene: &[u8], quality: u8) -> Result<SceneJpegStream, String> {
         Ok(SceneJpegStream {
             bands: self.start_bands(scene)?,
@@ -2285,7 +2303,7 @@ impl SceneRasterizer {
     /// Scan a framed scene for resources the store can't satisfy.
     /// Returns [count u32] + count × { kind u8, hash u64 (LE) }.
     #[cfg_attr(
-        not(feature = "native-host"),
+        feature = "scene-rasterizer-wasm",
         wasm_bindgen(js_name = "missingResources")
     )]
     pub fn missing_resources(&self, scene: &[u8]) -> Vec<u8> {
@@ -2298,14 +2316,20 @@ impl SceneRasterizer {
     /// Ingest a PageScript render_rbi_resources reply. Returns the
     /// number of entries stored; asset-refs land in the pending
     /// list instead (see pendingFontAssets).
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "putResources"))]
+    #[cfg_attr(
+        feature = "scene-rasterizer-wasm",
+        wasm_bindgen(js_name = "putResources")
+    )]
     pub fn put_resources(&self, batch: &[u8]) -> u32 {
         self.store.borrow_mut().put_batch(batch)
     }
 
     /// Drop every cached font and image. Batch entries are stored under the hash the page
     /// reports, so the host calls this when the document that supplies them changes.
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "resetResources"))]
+    #[cfg_attr(
+        feature = "scene-rasterizer-wasm",
+        wasm_bindgen(js_name = "resetResources")
+    )]
     pub fn reset_resources(&self) {
         *self.store.borrow_mut() = ResourceStore::default();
     }
@@ -2313,7 +2337,10 @@ impl SceneRasterizer {
     /// Engine-store image keys awaiting putImageBytes, as decimal
     /// strings (a u64 doesn't survive a JS number). Format-3 refs
     /// land here instead of being stored — see IMAGE_FORMAT_ENGINE_REF.
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "pendingImages"))]
+    #[cfg_attr(
+        feature = "scene-rasterizer-wasm",
+        wasm_bindgen(js_name = "pendingImages")
+    )]
     pub fn pending_images(&self) -> Vec<String> {
         self.store
             .borrow()
@@ -2325,7 +2352,10 @@ impl SceneRasterizer {
 
     /// Retire an engine-store image key whose payload is no longer available.
     /// Later missing-resource scans skip it; absent images paint as a no-op.
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "abandonImage"))]
+    #[cfg_attr(
+        feature = "scene-rasterizer-wasm",
+        wasm_bindgen(js_name = "abandonImage")
+    )]
     pub fn abandon_image(&self, key: &str) -> u32 {
         let Ok(parsed) = key.parse::<u64>() else {
             return 0;
@@ -2342,7 +2372,10 @@ impl SceneRasterizer {
 
     /// Supply the payload for one engine-store image ref. Returns 1 on
     /// a successful decode, 0 for an unknown key or undecodable bytes.
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "putImageBytes"))]
+    #[cfg_attr(
+        feature = "scene-rasterizer-wasm",
+        wasm_bindgen(js_name = "putImageBytes")
+    )]
     pub fn put_image_bytes(&self, key: &str, bytes: &[u8]) -> u32 {
         let Ok(parsed) = key.parse::<u64>() else {
             return 0;
@@ -2353,7 +2386,7 @@ impl SceneRasterizer {
     /// JSON array of { hash: "<u64 as decimal string>", path }
     /// entries for font asset-refs awaiting putFontAsset.
     #[cfg_attr(
-        not(feature = "native-host"),
+        feature = "scene-rasterizer-wasm",
         wasm_bindgen(js_name = "pendingFontAssets")
     )]
     pub fn pending_font_assets(&self) -> String {
@@ -2375,7 +2408,10 @@ impl SceneRasterizer {
     /// Register a fetched font asset file (post-fetch bytes; woff2
     /// is decompressed here). `path` matches pending asset-refs —
     /// see ResourceStore::put_font_asset for why path, not hash.
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "putFontAsset"))]
+    #[cfg_attr(
+        feature = "scene-rasterizer-wasm",
+        wasm_bindgen(js_name = "putFontAsset")
+    )]
     pub fn put_font_asset(&self, path: &str, bytes: &[u8]) -> u32 {
         self.store.borrow_mut().put_font_asset(path, bytes)
     }
@@ -2383,7 +2419,7 @@ impl SceneRasterizer {
     /// Rasterize a framed scene to an encoded image. Empty Vec on
     /// failure — read lastError for the reason. Format string and
     /// quality clamp semantics match screenshot.rs encoders.
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "rasterize"))]
+    #[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen(js_name = "rasterize"))]
     pub fn rasterize(
         &self,
         scene: &[u8],
@@ -2396,7 +2432,7 @@ impl SceneRasterizer {
 
     /// Rasterize PNG or JPEG with a limit on encoded output bytes.
     #[cfg_attr(
-        not(feature = "native-host"),
+        feature = "scene-rasterizer-wasm",
         wasm_bindgen(js_name = "rasterizeLimited")
     )]
     pub fn rasterize_limited(
@@ -2420,7 +2456,7 @@ impl SceneRasterizer {
     /// Rasterize a full frame and retain its RGBA under `key` for later partial updates.
     /// Only one base is kept per instance; oversized frames are returned but not retained.
     #[cfg_attr(
-        not(feature = "native-host"),
+        feature = "scene-rasterizer-wasm",
         wasm_bindgen(js_name = "rasterizeAndRetain")
     )]
     pub fn rasterize_and_retain(
@@ -2568,7 +2604,7 @@ impl SceneRasterizer {
     /// Requires a retained frame with the same `key`.
     /// Failures return empty bytes and set `lastRasterizeInfo`.
     #[cfg_attr(
-        not(feature = "native-host"),
+        feature = "scene-rasterizer-wasm",
         wasm_bindgen(js_name = "rasterizePartial")
     )]
     pub fn rasterize_partial(
@@ -2596,7 +2632,10 @@ impl SceneRasterizer {
     /// without encoding. The caller patches the exposed band with
     /// `blitPartial`, then ships the frame with `encodeRetained`.
     /// Returns `false` when `key` does not identify the retained frame.
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "shiftRetained"))]
+    #[cfg_attr(
+        feature = "scene-rasterizer-wasm",
+        wasm_bindgen(js_name = "shiftRetained")
+    )]
     pub fn shift_retained(&self, key: &str, dx: i32, dy: i32) -> bool {
         self.with_retained(key, "shiftRetained", |frame| frame.shift(dx, dy))
             .is_some()
@@ -2604,7 +2643,10 @@ impl SceneRasterizer {
 
     /// Apply `scene` at viewport-space `(dst_x, dst_y)` without encoding.
     /// Returns `false` if `key` does not match the base or the scene cannot be replayed.
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "blitPartial"))]
+    #[cfg_attr(
+        feature = "scene-rasterizer-wasm",
+        wasm_bindgen(js_name = "blitPartial")
+    )]
     pub fn blit_partial(&self, scene: &[u8], dst_x: i32, dst_y: i32, key: &str) -> bool {
         self.with_retained(key, "blitPartial", |frame| {
             self.blit_patch(frame, scene, dst_x, dst_y)
@@ -2615,7 +2657,10 @@ impl SceneRasterizer {
     /// Encode the retained frame, re-encoding only rows changed since its
     /// last encode.
     /// Returns empty bytes when `key` is not the retained base or encoding fails.
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "encodeRetained"))]
+    #[cfg_attr(
+        feature = "scene-rasterizer-wasm",
+        wasm_bindgen(js_name = "encodeRetained")
+    )]
     pub fn encode_retained(&self, format: &str, quality: u8, key: &str) -> Vec<u8> {
         let fmt = ImageFormat::from_str(format);
         self.with_retained(key, "encodeRetained", |frame| {
@@ -2694,7 +2739,10 @@ impl SceneRasterizer {
 
     /// Reserve scratch-buffer capacity for a `w`-by-`h` frame before rasterizing.
     /// This does not create or replace a retained frame.
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "reserveFrame"))]
+    #[cfg_attr(
+        feature = "scene-rasterizer-wasm",
+        wasm_bindgen(js_name = "reserveFrame")
+    )]
     pub fn reserve_frame(&self, w: u32, h: u32) {
         let px = (w as usize) * (h as usize);
         if px == 0 || px > MAX_RETAINED_PIXELS {
@@ -2708,7 +2756,7 @@ impl SceneRasterizer {
     /// Key of the currently retained base frame ("" = none). The JS
     /// side gates its baseSeq handshake on this before opting in.
     #[cfg_attr(
-        not(feature = "native-host"),
+        feature = "scene-rasterizer-wasm",
         wasm_bindgen(js_name = "retainedFrameKey")
     )]
     pub fn retained_frame_key(&self) -> String {
@@ -2725,7 +2773,7 @@ impl SceneRasterizer {
     /// missingResources so the manager's split/fetch loop is shared.
     #[cfg(feature = "pdf")]
     #[cfg_attr(
-        not(feature = "native-host"),
+        feature = "scene-rasterizer-wasm",
         wasm_bindgen(js_name = "missingResourcesPdf")
     )]
     pub fn missing_resources_pdf(&self, envelope: &[u8]) -> Vec<u8> {
@@ -2755,7 +2803,7 @@ impl SceneRasterizer {
     }
 
     #[cfg(feature = "pdf")]
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "beginPdf"))]
+    #[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen(js_name = "beginPdf"))]
     #[allow(clippy::too_many_arguments)]
     pub fn begin_pdf(
         &self,
@@ -2783,7 +2831,10 @@ impl SceneRasterizer {
     }
 
     #[cfg(feature = "pdf")]
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "appendPdfPage"))]
+    #[cfg_attr(
+        feature = "scene-rasterizer-wasm",
+        wasm_bindgen(js_name = "appendPdfPage")
+    )]
     pub fn append_pdf_page(&self, pdf: &mut StreamingPdf, scene: &[u8]) -> bool {
         let Some(mut document) = pdf.document.take() else {
             *self.last_error.borrow_mut() = "PDF session already closed".to_string();
@@ -2812,7 +2863,7 @@ impl SceneRasterizer {
     }
 
     #[cfg(feature = "pdf")]
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "finishPdf"))]
+    #[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen(js_name = "finishPdf"))]
     pub fn finish_pdf(&self, pdf: &mut StreamingPdf) -> Vec<u8> {
         let Some(document) = pdf.document.take().filter(|_| pdf.pages > 0) else {
             *self.last_error.borrow_mut() = "empty or closed PDF session".to_string();
@@ -2839,7 +2890,7 @@ impl SceneRasterizer {
     /// Margins and `render_h` set paint bounds. Failures return empty bytes; read
     /// `lastRasterizeInfo` for diagnostics.
     #[cfg(feature = "pdf")]
-    #[cfg_attr(not(feature = "native-host"), wasm_bindgen(js_name = "renderPdf"))]
+    #[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen(js_name = "renderPdf"))]
     #[allow(
         clippy::too_many_arguments,
         reason = "This wasm-bindgen export preserves the existing PageRenderer PDF ABI."
@@ -2890,7 +2941,7 @@ impl SceneRasterizer {
     /// Diagnostics for the last rasterize call: JSON with the
     /// error string (empty = ok) + degraded-frame counters.
     #[cfg_attr(
-        not(feature = "native-host"),
+        feature = "scene-rasterizer-wasm",
         wasm_bindgen(js_name = "lastRasterizeInfo")
     )]
     pub fn last_rasterize_info(&self) -> String {

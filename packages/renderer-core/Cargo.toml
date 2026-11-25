@@ -39,8 +39,9 @@ js-sys = { workspace = true }
 console_error_panic_hook = { workspace = true, optional = true }
 
 [features]
-default = ["console_error_panic_hook", "pdf"]
+default = ["console_error_panic_hook", "pdf", "scene-rasterizer-wasm"]
 native-host = []
+scene-rasterizer-wasm = []
 pdf = []
 
 [lints]
