@@ -71,15 +71,44 @@ export function defineDomain<D extends CdpDomainName, C = DispatchCtx, A extends
     methods: CdpDomainMethods<D, C>;
   },
 ): CdpDomain<A> {
-  const methods: { readonly [method: string]: ErasedHandler["call"] | undefined } = spec.methods;
+  return buildMethodTable(name, `${name}.`, spec.context, spec.methods);
+}
+
+/** The handlers of a session that answers methods of several domains, keyed by method. */
+export type CdpSessionMethods<C = DispatchCtx> = {
+  [M in CdpMethod]?: CdpHandler<M, C>;
+};
+
+/**
+ * Defines the commands one kind of session answers, such as a synthetic target's, from any
+ * domain. `context` works as it does for defineDomain.
+ */
+export function defineSessionMethods<C = DispatchCtx, A extends unknown[] = []>(
+  name: string,
+  spec: {
+    context?: (ctx: DispatchCtx, req: CdpRequest, ...args: A) => C | Promise<C>;
+    methods: CdpSessionMethods<C>;
+  },
+): CdpDomain<A> {
+  return buildMethodTable(name, null, spec.context, spec.methods);
+}
+
+function buildMethodTable<A extends unknown[]>(
+  name: string,
+  prefix: string | null,
+  contextOf: ErasedContext["call"] | undefined,
+  table: { readonly [method: string]: ErasedHandler["call"] | undefined },
+): CdpDomain<A> {
   const handlers = new Map<string, ErasedHandler>();
-  for (const [method, call] of Object.entries(methods)) {
+  for (const [method, call] of Object.entries(table)) {
     if (!call) continue;
     // The key type confines methods to the domain; a cast or a spread could still add one.
-    if (!method.startsWith(`${name}.`)) throw new Error(`${method} is not a ${name} method`);
+    if (prefix !== null && !method.startsWith(prefix)) {
+      throw new Error(`${method} is not a ${name} method`);
+    }
     handlers.set(method, { call });
   }
-  const context: ErasedContext = { call: spec.context ?? ((ctx: DispatchCtx) => ctx) };
+  const context: ErasedContext = { call: contextOf ?? ((ctx: DispatchCtx) => ctx) };
   return {
     name,
     methods: new Set(handlers.keys()),

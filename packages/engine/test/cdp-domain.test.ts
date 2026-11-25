@@ -3,7 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { defineDomain, stub } from "../src/cdp/domain.ts";
+import { defineDomain, defineSessionMethods, stub } from "../src/cdp/domain.ts";
 import { dispatch, type DispatchCtx } from "../src/cdp/dispatch.ts";
 import { CDP_COMMAND_UNHANDLED, parseCdpRequest, type CdpRequest } from "../src/cdp/types.ts";
 import { testClient } from "./client-state.ts";
@@ -69,6 +69,18 @@ describe("defineDomain", () => {
     const reply = await domain.run(fakeCtx(), request({ id: 1, method: "Log.enable" }));
     expect(reply).toBe(CDP_COMMAND_UNHANDLED);
     expect(context).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("defineSessionMethods", () => {
+  it("answers methods of any domain and leaves the rest to the caller", async () => {
+    const table = defineSessionMethods("Engine", {
+      methods: { "Runtime.enable": () => ({}), "Log.clear": stub },
+    });
+    expect([...table.methods]).toEqual(["Runtime.enable", "Log.clear"]);
+    expect(await table.run(fakeCtx(), request({ id: 1, method: "Log.clear" }))).toEqual({});
+    const reply = await table.run(fakeCtx(), request({ id: 2, method: "DOM.enable" }));
+    expect(reply).toBe(CDP_COMMAND_UNHANDLED);
   });
 });
 

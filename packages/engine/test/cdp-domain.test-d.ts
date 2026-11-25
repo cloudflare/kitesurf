@@ -9,6 +9,7 @@ import type { Protocol } from "devtools-protocol";
 import { assertType, describe, expectTypeOf, test } from "vitest";
 import {
   defineDomain,
+  defineSessionMethods,
   stub,
   type CdpDomain,
   type CdpDomainName,
@@ -230,5 +231,48 @@ describe("the defined domain", () => {
     expectTypeOf(domain).toEqualTypeOf<CdpDomain>();
     expectTypeOf(domain.run).parameters.toEqualTypeOf<[DispatchCtx, CdpRequest]>();
     expectTypeOf(domain.run).returns.toEqualTypeOf<Promise<unknown>>();
+  });
+});
+
+describe("session method tables", () => {
+  test("a session table takes methods of any domain, each checked against the protocol", () => {
+    defineSessionMethods("Engine", {
+      methods: {
+        "Runtime.enable": (ctx, req) => {
+          expectTypeOf(ctx).toEqualTypeOf<DispatchCtx>();
+          expectTypeOf(req).toEqualTypeOf<CdpRequestOf<"Runtime.enable">>();
+          return {};
+        },
+        "DOM.querySelector": () => ({ nodeId: 0 }),
+      },
+    });
+    defineSessionMethods("Engine", {
+      methods: {
+        // @ts-expect-error DOM.querySelector answers nodeId, not nodeIds.
+        "DOM.querySelector": () => ({ nodeIds: [] }),
+      },
+    });
+    defineSessionMethods("Engine", {
+      methods: {
+        // @ts-expect-error no such method.
+        "Runtime.enabel": stub,
+      },
+    });
+  });
+
+  test("a session table's context takes what the caller passes to run", () => {
+    const table = defineSessionMethods("Frame", {
+      context: (ctx, req, frameId: string) => {
+        expectTypeOf(req).toEqualTypeOf<CdpRequest>();
+        return { ctx, frameId };
+      },
+      methods: {
+        "Page.enable": (c) => {
+          expectTypeOf(c).toEqualTypeOf<{ ctx: DispatchCtx; frameId: string }>();
+          return {};
+        },
+      },
+    });
+    expectTypeOf(table.run).parameters.toEqualTypeOf<[DispatchCtx, CdpRequest, frameId: string]>();
   });
 });
