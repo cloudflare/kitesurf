@@ -211,6 +211,21 @@ describe("DedicatedWorkers", () => {
     expect(delivered).toContainEqual({ workerId: cap + 1, type: "closed" });
   });
 
+  it("delivers more than the queued cap when a starting worker already holds a slot", async () => {
+    const { workers, create, ctx, owner, delivered } = setup();
+    create(1);
+    const total = MAX_PENDING_WORKER_MESSAGES + 1;
+    for (let i = 0; i < total; i++) {
+      workers.handle(ctx, owner, "kitesurf.workerPostMessage", { workerId: 1, data: i });
+    }
+    await settle();
+    expect(delivered).toEqual([]);
+    expect(spawned).toHaveLength(1);
+    expect(spawned[0]!.deliverMessage).toHaveBeenCalledTimes(total);
+    expect(spawned[0]!.deliverMessage).toHaveBeenNthCalledWith(1, 0);
+    expect(spawned[0]!.deliverMessage).toHaveBeenNthCalledWith(total, total - 1);
+  });
+
   it("keeps workers of different documents apart even with equal ids", async () => {
     const { workers, create, budget, target } = setup();
     create(1);

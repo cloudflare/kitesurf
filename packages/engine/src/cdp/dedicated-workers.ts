@@ -160,7 +160,7 @@ export class DedicatedWorkers {
     }
     if (event === "kitesurf.workerPostMessage") {
       if (!entry.started) {
-        if (entry.pending.length >= MAX_PENDING_WORKER_MESSAGES) {
+        if (entry.lease === null && entry.pending.length >= MAX_PENDING_WORKER_MESSAGES) {
           this.kill(entry, "", "Worker message queue limit exceeded before startup");
           return;
         }
