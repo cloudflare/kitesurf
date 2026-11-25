@@ -28,6 +28,8 @@ export type {
   StoreStats,
   StoreTable,
 } from "./state/session-store.ts";
+export { SQLITE_STORE_LIMITS, SqliteSessionStore } from "./state/sqlite-session-store.ts";
+export type { SqliteStorage } from "./state/sqlite-session-store.ts";
 export type { BlockableRequest, RequestBlocker, RequestBlockVerdict } from "./request-blocker.ts";
 export type { ResourceType } from "./cdp/network-events.ts";
 export { SESSION_ID_HEADER, resolveEntrypoint } from "./observability.ts";
