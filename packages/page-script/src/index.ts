@@ -4098,9 +4098,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         cancelable: false,
       });
       try {
-        // The lifecycle event runs after the script, where currentScript is
-        // already null, so one turn is enough.
-        await drainSettleMicrotasks(1);
+        // Drain the full settle window after onload/onerror so multi-step async handlers finish
+        // before the next parser script starts.
+        await drainSettleMicrotasks();
       } catch {}
     };
     getInternalState().afterScriptInsert = (info: unknown) => {

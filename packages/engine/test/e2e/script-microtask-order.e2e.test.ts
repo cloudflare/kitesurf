@@ -18,3 +18,21 @@ test("the next parser script sees a finished promise chain", async ({ page }) =>
   await setContent(page, html, { waitUntil: "domcontentloaded" });
   expect(await page.title()).toBe("1");
 }, 60_000);
+
+const onloadHtml = `<script>
+  window.step = async () => { await null; };
+  document.getElementById("ext").addEventListener("load", async () => {
+    await window.step();
+    await window.step();
+    window.ready = 1;
+  });
+</script>
+<script id="ext" src="https://ks.invalid/__fixtures/policy-script.js"></script>
+<script>document.title = String(window.ready);</script>`;
+
+test("the next parser script sees a finished promise chain from external script onload", async ({
+  page,
+}) => {
+  await setContent(page, onloadHtml, { waitUntil: "domcontentloaded" });
+  expect(await page.title()).toBe("1");
+}, 60_000);
