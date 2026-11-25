@@ -90,6 +90,11 @@ declare module "devtools-protocol" {
         allowPartial?: boolean;
       }
 
+      interface StartSceneStreamResponse {
+        /** How often the stream sends a frame when nothing changed; a client checks it. */
+        heartbeatMs: integer;
+      }
+
       interface SceneFrameAckRequest extends TargetScopedRequest {
         seq: integer;
         painted?: boolean;
@@ -371,7 +376,7 @@ declare module "devtools-protocol/types/protocol-mapping" {
     interface Commands {
       "Kitesurf.startSceneStream": {
         paramsType: [Protocol.Kitesurf.StartSceneStreamRequest];
-        returnType: void;
+        returnType: Protocol.Kitesurf.StartSceneStreamResponse;
       };
       "Kitesurf.stopSceneStream": {
         paramsType: [Protocol.Kitesurf.TargetScopedRequest?];
