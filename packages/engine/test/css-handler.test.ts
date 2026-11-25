@@ -6,7 +6,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   MAX_PARSED_DECLARATIONS_PER_SHEET,
   MAX_PARSED_RULES_PER_SHEET,
-  handleCss,
+  cssDomain,
   syncStyleSheetsFromEnumeration,
 } from "../src/cdp/css.ts";
 import { ensureInterception, unregisterInterception } from "../src/cdp/fetch-interception.ts";
@@ -92,7 +92,7 @@ describe("CSS.getComputedStyleForNode", () => {
         },
       }),
     );
-    const r = (await handleCss(
+    const r = (await cssDomain.run(
       makeCtx(target),
       req("CSS.getComputedStyleForNode", { nodeId: 5 }),
     )) as { computedStyle: unknown };
@@ -101,7 +101,7 @@ describe("CSS.getComputedStyleForNode", () => {
 
   it("degrades to an empty reply when the isolate RPC blows up", async () => {
     const target = makeTarget(makeStub({}, new Error("wasm panicked")));
-    const r = (await handleCss(
+    const r = (await cssDomain.run(
       makeCtx(target),
       req("CSS.getComputedStyleForNode", { nodeId: 5 }),
     )) as { computedStyle: unknown };
@@ -118,7 +118,7 @@ describe("CSS.getInlineStylesForNode", () => {
         },
       }),
     );
-    const r = (await handleCss(
+    const r = (await cssDomain.run(
       makeCtx(target),
       req("CSS.getInlineStylesForNode", { nodeId: 5 }),
     )) as {
@@ -131,7 +131,10 @@ describe("CSS.getInlineStylesForNode", () => {
 
   it("returns an empty reply when the node has no style attribute", async () => {
     const target = makeTarget(makeStub({ getAttributes: { attributes: ["class", "x"] } }));
-    const r = await handleCss(makeCtx(target), req("CSS.getInlineStylesForNode", { nodeId: 5 }));
+    const r = await cssDomain.run(
+      makeCtx(target),
+      req("CSS.getInlineStylesForNode", { nodeId: 5 }),
+    );
     expect(r).toEqual({});
   });
 
@@ -141,7 +144,7 @@ describe("CSS.getInlineStylesForNode", () => {
     // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- partial DomHandle fixture.
     target.dom = engineDomWithInlineStyle as unknown as TargetState["dom"];
 
-    const response = await handleCss(
+    const response = await cssDomain.run(
       makeCtx(target),
       req("CSS.getInlineStylesForNode", { nodeId: 5 }),
     );
@@ -205,13 +208,16 @@ describe("CSS replies from the isolate", () => {
       parsed: null,
     });
     const ctx = makeCtx(target);
-    const matched = (await handleCss(ctx, {
+    const matched = (await cssDomain.run(ctx, {
       id: 1,
       method: "CSS.getMatchedStylesForNode",
       params: { nodeId: 5 },
       sessionId: "s1",
     })) as { matchedCSSRules: unknown[]; inherited: unknown[] };
-    const computed = (await handleCss(ctx, req("CSS.getComputedStyleForNode", { nodeId: 5 }))) as {
+    const computed = (await cssDomain.run(
+      ctx,
+      req("CSS.getComputedStyleForNode", { nodeId: 5 }),
+    )) as {
       computedStyle: unknown;
     };
 
@@ -241,7 +247,7 @@ describe("CSS.getMatchedStylesForNode source ranges", () => {
     target.nextStyleSheetRev = new Map();
     await syncStyleSheetsFromEnumeration(makeCtx(target), target, stub);
     const m = (
-      (await handleCss(makeCtx(target), {
+      (await cssDomain.run(makeCtx(target), {
         id: 1,
         method: "CSS.getMatchedStylesForNode",
         params: { nodeId: 5 },
@@ -429,7 +435,8 @@ describe("CSS.enable opaque stylesheet fetches", () => {
       attempts,
       headers,
       events,
-      enable: () => handleCss(ctx, { id: 1, method: "CSS.enable", sessionId: "s1" } as CdpRequest),
+      enable: () =>
+        cssDomain.run(ctx, { id: 1, method: "CSS.enable", sessionId: "s1" } as CdpRequest),
       texts: () => [...target.styleSheets.values()].map((e) => e.text),
       entries: () => [...target.styleSheets.values()],
       setSheets: (sheets: HarnessSheet[]) => {
@@ -747,7 +754,7 @@ describe("CSS.getMatchedStylesForNode reply bounds", () => {
       origin: "regular",
       parsed: null,
     });
-    const result = (await handleCss(makeCtx(target), {
+    const result = (await cssDomain.run(makeCtx(target), {
       id: 1,
       method: "CSS.getMatchedStylesForNode",
       params: { nodeId: 5 },
@@ -849,7 +856,7 @@ describe("CSS.getMatchedStylesForNode reply bounds", () => {
           parsed: null,
         });
       }
-      await handleCss(makeCtx(target), {
+      await cssDomain.run(makeCtx(target), {
         id: 1,
         method: "CSS.getMatchedStylesForNode",
         params: { nodeId: 5 },

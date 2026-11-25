@@ -4,9 +4,10 @@
 
 // Implements CDP CSS commands and syncs stylesheet state with PageScript.
 
-import type { CdpRequest, ParsedStyleSheet, StyleSheetEntry, TargetState } from "./types.ts";
+import type { ParsedStyleSheet, StyleSheetEntry, TargetState } from "./types.ts";
 import type { CdpMutation } from "@kitesurf/jsrpc-types/shared";
 import type { DispatchCtx } from "./dispatch.ts";
+import { defineDomain, stub } from "./domain.ts";
 import { outboundPolicyRefusal } from "../eval/outbound.ts";
 import type { PageScriptStub } from "../eval/page-script.ts";
 import {
@@ -49,13 +50,15 @@ function warnMatchBudget(budget: MatchBudget): void {
   console.warn("kitesurf: CSS matched-style reply is over budget; skipping larger matches");
 }
 
-export async function handleCss(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
-  const target = pickTarget(ctx, req.sessionId);
-  const session = target ? sessionOf(ctx, target) : null;
-  const ps = session?.ensure() ?? null;
-
-  switch (req.method) {
-    case "CSS.enable": {
+export const cssDomain = defineDomain("CSS", {
+  context: (ctx, req) => {
+    const target = pickTarget(ctx, req.sessionId);
+    const session = target ? sessionOf(ctx, target) : null;
+    const ps = session?.ensure() ?? null;
+    return { ctx, target, session, ps };
+  },
+  methods: {
+    "CSS.enable": async ({ ctx, target, ps }, req) => {
       if (req.sessionId && target) {
         target.cssEnabledSessions.add(req.sessionId);
         for (const [id, entry] of target.styleSheets) {
@@ -68,14 +71,15 @@ export async function handleCss(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
         } catch {}
       }
       return {};
-    }
-    case "CSS.disable":
+    },
+    "CSS.disable": ({ target }, req) => {
       if (req.sessionId && target) {
         target.cssEnabledSessions.delete(req.sessionId);
       }
       return {};
+    },
 
-    case "CSS.getComputedStyleForNode": {
+    "CSS.getComputedStyleForNode": async ({ session, ps }, req) => {
       const nodeId = req.params?.nodeId;
       if (typeof nodeId !== "number" || nodeId <= 0 || !session || !ps) {
         return {
@@ -88,9 +92,9 @@ export async function handleCss(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
         computedStyle: copyNameValues(r?.computedStyle),
         extraFields: { isAppearanceBase: false },
       } satisfies Protocol.CSS.GetComputedStyleForNodeResponse;
-    }
+    },
 
-    case "CSS.getInlineStylesForNode": {
+    "CSS.getInlineStylesForNode": async ({ ctx, target, session }, req) => {
       const nodeId = req.params?.nodeId;
       if (typeof nodeId !== "number" || nodeId <= 0) {
         return {} satisfies Protocol.CSS.GetInlineStylesForNodeResponse;
@@ -106,9 +110,9 @@ export async function handleCss(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
         cssText: styleText,
       };
       return { inlineStyle } satisfies Protocol.CSS.GetInlineStylesForNodeResponse;
-    }
+    },
 
-    case "CSS.getMatchedStylesForNode": {
+    "CSS.getMatchedStylesForNode": async ({ target, session, ps }, req) => {
       const nodeId = req.params?.nodeId;
       if (typeof nodeId !== "number" || nodeId <= 0 || !session || !ps || !target) {
         return {
@@ -147,9 +151,9 @@ export async function handleCss(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
         pseudoElements: [],
         inherited,
       } satisfies Protocol.CSS.GetMatchedStylesForNodeResponse;
-    }
+    },
 
-    case "CSS.getStyleSheetText": {
+    "CSS.getStyleSheetText": ({ target }, req) => {
       const id = req.params?.styleSheetId;
       if (typeof id !== "string" || !target) {
         return {
@@ -160,32 +164,28 @@ export async function handleCss(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       return {
         text: entry?.text ?? "",
       } satisfies Protocol.CSS.GetStyleSheetTextResponse;
-    }
+    },
 
-    case "CSS.getEnvironmentVariables":
-      return {
+    "CSS.getEnvironmentVariables": () =>
+      ({
         environmentVariables: {},
-      } satisfies Protocol.CSS.GetEnvironmentVariablesResponse;
+      }) satisfies Protocol.CSS.GetEnvironmentVariablesResponse,
 
-    case "CSS.getPlatformFontsForNode":
-      return {
+    "CSS.getPlatformFontsForNode": () =>
+      ({
         fonts: [],
-      } satisfies Protocol.CSS.GetPlatformFontsForNodeResponse;
+      }) satisfies Protocol.CSS.GetPlatformFontsForNodeResponse,
 
-    case "CSS.trackComputedStyleUpdates":
-    case "CSS.trackComputedStyleUpdatesForNode":
-      // Computed-style change badges are unsupported; style queries still work.
-      return {};
+    // Computed-style change badges are unsupported; style queries still work.
+    "CSS.trackComputedStyleUpdates": stub,
+    "CSS.trackComputedStyleUpdatesForNode": stub,
 
-    case "CSS.takeComputedStyleUpdates":
-      return {
+    "CSS.takeComputedStyleUpdates": () =>
+      ({
         nodeIds: [],
-      } satisfies Protocol.CSS.TakeComputedStyleUpdatesResponse;
-
-    default:
-      return {};
-  }
-}
+      }) satisfies Protocol.CSS.TakeComputedStyleUpdatesResponse,
+  },
+});
 
 function pickTarget(ctx: DispatchCtx, sessionId: string | undefined) {
   if (sessionId) {

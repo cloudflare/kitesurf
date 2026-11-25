@@ -33,7 +33,7 @@ import { handleKitesurf } from "./kitesurf.ts";
 import { webMcpDomain } from "./webmcp.ts";
 import { domStorageDomain } from "./dom-storage.ts";
 import { debuggerDomain } from "./debugger.ts";
-import { handleCss } from "./css.ts";
+import { cssDomain } from "./css.ts";
 import { accessibilityDomain } from "./accessibility.ts";
 import { sessionOf } from "./page-session.ts";
 import { clampViewport } from "./viewport.ts";
@@ -206,7 +206,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         result = await runDomain(ctx, req, debuggerDomain);
         break;
       case "CSS":
-        result = await handleCss(ctx, req);
+        result = await runDomain(ctx, req, cssDomain);
         break;
       case "Accessibility":
         result = await runDomain(ctx, req, accessibilityDomain);
