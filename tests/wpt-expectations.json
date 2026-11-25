@@ -9754,8 +9754,8 @@
     "reason": "Reftest, pixel-diff 10000/480000: a dir change inside :has() doesn't invalidate the subject, so the styled block never repaints. Matching itself works (dir-pseudo-in-has.html)."
   },
   "/css/selectors/invalidation/part-dir.html": {
-    "expected": "ERROR",
-    "reason": "::part():dir() doesn't match \u2014 the first subtest reads an empty computed color instead of green, so the second NOTRUNs and the file reports ERROR. Shadow ::part() combined with :dir() is unimplemented; plain :dir() invalidation is covered by dir-selector-change-00*."
+    "expected": "FAIL",
+    "reason": "::part():dir() doesn't match \u2014 both subtests read a transparent background instead of green. Shadow ::part() combined with :dir() is unimplemented; plain :dir() invalidation is covered by dir-selector-change-00*."
   },
   "/dom/abort/AbortSignal.any.html": {
     "expected": "PASS",
@@ -20381,7 +20381,7 @@
   },
   "/shadow-dom/innerHTML-setter.xhtml": {
     "expected": "FAIL",
-    "reason": "1/4 subtests. XHTML innerHTML setter parsing differs from HTML setter and doesn't re-parse subtree correctly."
+    "reason": "2/4 subtests. XHTML innerHTML setter parsing differs from HTML setter and doesn't re-parse subtree correctly."
   },
   "/shadow-dom/input-element-list.html": {
     "expected": "FAIL",
@@ -20480,8 +20480,8 @@
     "reason": "Test hangs \u2014 depends on a shadow-DOM feature (declarative, imperative slotting, focus, custom-element upgrade timing) that isn't implemented."
   },
   "/shadow-dom/slotchange-customelements.html": {
-    "expected": "FAIL",
-    "reason": "slotchange doesn't fire on the custom element upgrade path (customElements.upgrade interaction with slot assignment)."
+    "expected": "PASS",
+    "reason": null
   },
   "/shadow-dom/slotchange-event.html": {
     "expected": "FAIL",
