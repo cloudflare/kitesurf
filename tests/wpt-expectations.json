@@ -9963,8 +9963,8 @@
     "reason": null
   },
   "/dom/events/Event-dispatch-throwing.html": {
-    "expected": "FAIL",
-    "reason": "Records the outcome this produces. The baseline agrees, so this is a long-standing gap rather than a rebaselined regression; reproduced on CI and locally."
+    "expected": "PASS",
+    "reason": null
   },
   "/dom/events/Event-init-while-dispatching.html": {
     "expected": "PASS",
