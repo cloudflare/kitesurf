@@ -1,0 +1,123 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Wed, 25 Nov 2026 18:09:13 +0000
+Subject: [PATCH] vm: bound nested bytecode runs apart from the call-frame
+ count
+
+A call from JavaScript to JavaScript only pushes a call frame on the
+VM's heap stacks. An accessor, a callback from a native function, a
+generator resume or a direct eval instead runs the bytecode loop again
+on the native stack. The recursion limit counts both kinds together,
+so an embedder with a small native stack must keep it low, and a low
+limit refuses deep but ordinary JavaScript recursion such as React's
+commit traversal of a deep fiber tree.
+
+RuntimeLimits gains native_recursion_limit, checked against the number
+of live bytecode runs (ks_execution_depth). The default is usize::MAX,
+so the behavior does not change until an embedder sets it.
+---
+ src/vm/mod.rs            |  5 +++++
+ src/vm/runtime_limits.rs | 22 ++++++++++++++++++++++
+ src/vm/tests.rs          | 28 ++++++++++++++++++++++++++++
+ 3 files changed, 55 insertions(+)
+
+diff --git a/src/vm/mod.rs b/src/vm/mod.rs
+index 6c1729a..f4e933f 100644
+--- a/src/vm/mod.rs
++++ b/src/vm/mod.rs
+@@ -1093,6 +1093,11 @@ impl Context {
+         if self.vm.runtime_limits.recursion_limit() <= recursion_depth {
+             return Err(RuntimeLimitError::Recursion.into());
+         }
++        // Each live `run` holds its own native frames, which a deep frame limit must not
++        // multiply: an embedder with a small native stack bounds these runs on their own.
++        if self.vm.runtime_limits.native_recursion_limit() <= ks_execution_depth() {
++            return Err(RuntimeLimitError::Recursion.into());
++        }
+         // Must throw if the stack size exceeds the defined maximum length.
+         if self.vm.runtime_limits.stack_size_limit() <= self.vm.stack.stack.len() {
+             return Err(RuntimeLimitError::StackSize.into());
+diff --git a/src/vm/runtime_limits.rs b/src/vm/runtime_limits.rs
+index 5da21a7..e59cfae 100644
+--- a/src/vm/runtime_limits.rs
++++ b/src/vm/runtime_limits.rs
+@@ -12,6 +12,9 @@ pub struct RuntimeLimits {
+
+     /// Max function recursion limit
+     recursion: usize,
++
++    /// Max bytecode runs live on the native stack.
++    native_recursion: usize,
+ }
+
+ impl Default for RuntimeLimits {
+@@ -20,6 +23,7 @@ impl Default for RuntimeLimits {
+         Self {
+             loop_iteration: u64::MAX,
+             recursion: 512,
++            native_recursion: usize::MAX,
+             backtrace_limit: 50,
+             stack_size: 1024 * 10,
+         }
+@@ -94,4 +98,22 @@ impl RuntimeLimits {
+     pub fn set_recursion_limit(&mut self, value: usize) {
+         self.recursion = value;
+     }
++
++    /// Get the native recursion limit.
++    ///
++    /// A call from JavaScript to JavaScript only pushes a call frame, but an accessor, a callback
++    /// from a native function, a generator resume or a direct `eval` runs the bytecode loop again
++    /// on the native stack. This limit bounds those nested runs, apart from the frame count that
++    /// [`Self::recursion_limit`] bounds. Default is [`usize::MAX`] (no limit).
++    #[inline]
++    #[must_use]
++    pub const fn native_recursion_limit(&self) -> usize {
++        self.native_recursion
++    }
++
++    /// Set the native recursion limit before an error is thrown.
++    #[inline]
++    pub fn set_native_recursion_limit(&mut self, value: usize) {
++        self.native_recursion = value;
++    }
+ }
+diff --git a/src/vm/tests.rs b/src/vm/tests.rs
+index 0b25366..2e3833e 100644
+--- a/src/vm/tests.rs
++++ b/src/vm/tests.rs
+@@ -375,6 +375,34 @@ fn recursion_runtime_limit() {
+     ]);
+ }
+
++#[test]
++fn native_recursion_limit_bounds_nested_runs_but_not_call_frames() {
++    run_test_actions([
++        TestAction::inspect_context(|context| {
++            context.runtime_limits_mut().set_recursion_limit(2000);
++            context.runtime_limits_mut().set_stack_size_limit(1 << 16);
++            context.runtime_limits_mut().set_native_recursion_limit(16);
++        }),
++        TestAction::run(indoc! {r#"
++            function depth(n) { return n == 0 ? 0 : 1 + depth(n - 1); }
++            const viaGetter = {
++                get x() { return this.n-- > 0 ? this.x : 0; },
++            };
++        "#}),
++        TestAction::assert_eq("depth(1000)", JsValue::new(1000)),
++        TestAction::assert_eq("viaGetter.n = 8; viaGetter.x", JsValue::new(0)),
++        TestAction::assert_runtime_limit_error(
++            "viaGetter.n = 100; viaGetter.x",
++            RuntimeLimitError::Recursion,
++        ),
++        TestAction::assert_runtime_limit_error(
++            "[0].forEach(function f() { [0].forEach(f); })",
++            RuntimeLimitError::Recursion,
++        ),
++        TestAction::assert_eq("depth(1000)", JsValue::new(1000)),
++    ]);
++}
++
+ #[test]
+ fn arguments_object_constructor_valid_index() {
+     run_test_actions([TestAction::assert_eq(
