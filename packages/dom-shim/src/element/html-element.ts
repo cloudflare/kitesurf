@@ -214,11 +214,17 @@ type HTMLElementClass<I extends HTMLElement> = Omit<typeof HTMLElement, "prototy
   readonly prototype: I;
 };
 
+// The IDL interfaces that are HTML elements, by name.
+type HTMLInterfaceName = {
+  [N in keyof Idl.InterfaceMap]: Idl.InterfaceMap[N] extends Idl.HTMLElement ? N : never;
+}[keyof Idl.InterfaceMap];
+
 // Use for interfaces whose IDL members callers install later through reflection or
-// Object.defineProperty. Classes with their own behavior use a real subclass.
-function defineHTMLClass<I extends Idl.HTMLElement>(
-  name: string,
-): HTMLElementClass<HTMLElement & IdlOwnMembers<I>> {
+// Object.defineProperty. Classes with their own behavior use a real subclass. The name selects
+// the interface; Extras adds members the shim installs although the pinned IDL lacks them.
+function defineHTMLClass<N extends HTMLInterfaceName, Extras extends object = Record<never, never>>(
+  name: N,
+): HTMLElementClass<HTMLElement & IdlOwnMembers<Idl.InterfaceMap[N] & Extras>> {
   const cls = {
     [name]: class extends HTMLElement {
       constructor(nodeId: number, info: WrapperInfo, token?: symbol) {
@@ -230,7 +236,7 @@ function defineHTMLClass<I extends Idl.HTMLElement>(
   // codex-ignore: RFC-009. Callers install these members on the prototype.
   // TypeScript cannot check the cast; idl-conformance verifies installed IDL
   // members and rejects gaps recorded in idl-gaps.json.
-  return cls as HTMLElementClass<HTMLElement & IdlOwnMembers<I>>;
+  return cls as HTMLElementClass<HTMLElement & IdlOwnMembers<Idl.InterfaceMap[N] & Extras>>;
 }
 
 defineReflectedLong(HTMLElement.prototype, "headingOffset", "headingoffset", 0);

@@ -4,59 +4,57 @@
 
 // Defines HTML element interfaces whose members are installed by other element modules.
 
-import type * as Idl from "../idl/types.generated.js";
 import { defineHTMLClass } from "./html-element.js";
 
 // LegacyExtras are members the shim reflects although the pinned IDL has
 // none: area's charset and rev.
 type LegacyExtras<K extends string> = Record<K, string>;
-const HTMLDataListElement = defineHTMLClass<Idl.HTMLDataListElement>("HTMLDataListElement");
-const HTMLAnchorElement = defineHTMLClass<Idl.HTMLAnchorElement>("HTMLAnchorElement");
-const HTMLUnknownElement = defineHTMLClass<Idl.HTMLUnknownElement>("HTMLUnknownElement");
-const HTMLAreaElement = defineHTMLClass<Idl.HTMLAreaElement & LegacyExtras<"charset" | "rev">>(
+const HTMLDataListElement = defineHTMLClass("HTMLDataListElement");
+const HTMLAnchorElement = defineHTMLClass("HTMLAnchorElement");
+const HTMLUnknownElement = defineHTMLClass("HTMLUnknownElement");
+const HTMLAreaElement = defineHTMLClass<"HTMLAreaElement", LegacyExtras<"charset" | "rev">>(
   "HTMLAreaElement",
 );
-const HTMLPictureElement = defineHTMLClass<Idl.HTMLPictureElement>("HTMLPictureElement");
-const HTMLSourceElement = defineHTMLClass<Idl.HTMLSourceElement>("HTMLSourceElement");
-const HTMLDivElement = defineHTMLClass<Idl.HTMLDivElement>("HTMLDivElement");
-const HTMLSpanElement = defineHTMLClass<Idl.HTMLSpanElement>("HTMLSpanElement");
-const HTMLParagraphElement = defineHTMLClass<Idl.HTMLParagraphElement>("HTMLParagraphElement");
-const HTMLHeadingElement = defineHTMLClass<Idl.HTMLHeadingElement>("HTMLHeadingElement");
-const HTMLBodyElement = defineHTMLClass<Idl.HTMLBodyElement>("HTMLBodyElement");
-const HTMLHtmlElement = defineHTMLClass<Idl.HTMLHtmlElement>("HTMLHtmlElement");
-const HTMLHeadElement = defineHTMLClass<Idl.HTMLHeadElement>("HTMLHeadElement");
-const HTMLTitleElement = defineHTMLClass<Idl.HTMLTitleElement>("HTMLTitleElement");
-const HTMLScriptElement = defineHTMLClass<Idl.HTMLScriptElement>("HTMLScriptElement");
-const HTMLLinkElement = defineHTMLClass<Idl.HTMLLinkElement>("HTMLLinkElement");
-const HTMLMetaElement = defineHTMLClass<Idl.HTMLMetaElement>("HTMLMetaElement");
-const HTMLStyleElement = defineHTMLClass<Idl.HTMLStyleElement>("HTMLStyleElement");
-const HTMLBaseElement = defineHTMLClass<Idl.HTMLBaseElement>("HTMLBaseElement");
-const HTMLBRElement = defineHTMLClass<Idl.HTMLBRElement>("HTMLBRElement");
-const HTMLHRElement = defineHTMLClass<Idl.HTMLHRElement>("HTMLHRElement");
-const HTMLPreElement = defineHTMLClass<Idl.HTMLPreElement>("HTMLPreElement");
-const HTMLQuoteElement = defineHTMLClass<Idl.HTMLQuoteElement>("HTMLQuoteElement");
-const HTMLUListElement = defineHTMLClass<Idl.HTMLUListElement>("HTMLUListElement");
-const HTMLOListElement = defineHTMLClass<Idl.HTMLOListElement>("HTMLOListElement");
-const HTMLLIElement = defineHTMLClass<Idl.HTMLLIElement>("HTMLLIElement");
-const HTMLDListElement = defineHTMLClass<Idl.HTMLDListElement>("HTMLDListElement");
-const HTMLMenuElement = defineHTMLClass<Idl.HTMLMenuElement>("HTMLMenuElement");
-const HTMLTableCaptionElement =
-  defineHTMLClass<Idl.HTMLTableCaptionElement>("HTMLTableCaptionElement");
-const HTMLTableColElement = defineHTMLClass<Idl.HTMLTableColElement>("HTMLTableColElement");
-const HTMLTemplateElement = defineHTMLClass<Idl.HTMLTemplateElement>("HTMLTemplateElement");
-const HTMLTimeElement = defineHTMLClass<Idl.HTMLTimeElement>("HTMLTimeElement");
-const HTMLDetailsElement = defineHTMLClass<Idl.HTMLDetailsElement>("HTMLDetailsElement");
-const HTMLDialogElement = defineHTMLClass<Idl.HTMLDialogElement>("HTMLDialogElement");
-const HTMLModElement = defineHTMLClass<Idl.HTMLModElement>("HTMLModElement"); // <ins>, <del>
-const HTMLDataElement = defineHTMLClass<Idl.HTMLDataElement>("HTMLDataElement");
-const HTMLMapElement = defineHTMLClass<Idl.HTMLMapElement>("HTMLMapElement");
-const HTMLTrackElement = defineHTMLClass<Idl.HTMLTrackElement>("HTMLTrackElement");
-const HTMLParamElement = defineHTMLClass<Idl.HTMLParamElement>("HTMLParamElement");
-const HTMLDirectoryElement = defineHTMLClass<Idl.HTMLDirectoryElement>("HTMLDirectoryElement");
-const HTMLFontElement = defineHTMLClass<Idl.HTMLFontElement>("HTMLFontElement");
-const HTMLFrameElement = defineHTMLClass<Idl.HTMLFrameElement>("HTMLFrameElement");
-const HTMLFrameSetElement = defineHTMLClass<Idl.HTMLFrameSetElement>("HTMLFrameSetElement");
-const HTMLMarqueeElement = defineHTMLClass<Idl.HTMLMarqueeElement>("HTMLMarqueeElement");
+const HTMLPictureElement = defineHTMLClass("HTMLPictureElement");
+const HTMLSourceElement = defineHTMLClass("HTMLSourceElement");
+const HTMLDivElement = defineHTMLClass("HTMLDivElement");
+const HTMLSpanElement = defineHTMLClass("HTMLSpanElement");
+const HTMLParagraphElement = defineHTMLClass("HTMLParagraphElement");
+const HTMLHeadingElement = defineHTMLClass("HTMLHeadingElement");
+const HTMLBodyElement = defineHTMLClass("HTMLBodyElement");
+const HTMLHtmlElement = defineHTMLClass("HTMLHtmlElement");
+const HTMLHeadElement = defineHTMLClass("HTMLHeadElement");
+const HTMLTitleElement = defineHTMLClass("HTMLTitleElement");
+const HTMLScriptElement = defineHTMLClass("HTMLScriptElement");
+const HTMLLinkElement = defineHTMLClass("HTMLLinkElement");
+const HTMLMetaElement = defineHTMLClass("HTMLMetaElement");
+const HTMLStyleElement = defineHTMLClass("HTMLStyleElement");
+const HTMLBaseElement = defineHTMLClass("HTMLBaseElement");
+const HTMLBRElement = defineHTMLClass("HTMLBRElement");
+const HTMLHRElement = defineHTMLClass("HTMLHRElement");
+const HTMLPreElement = defineHTMLClass("HTMLPreElement");
+const HTMLQuoteElement = defineHTMLClass("HTMLQuoteElement");
+const HTMLUListElement = defineHTMLClass("HTMLUListElement");
+const HTMLOListElement = defineHTMLClass("HTMLOListElement");
+const HTMLLIElement = defineHTMLClass("HTMLLIElement");
+const HTMLDListElement = defineHTMLClass("HTMLDListElement");
+const HTMLMenuElement = defineHTMLClass("HTMLMenuElement");
+const HTMLTableCaptionElement = defineHTMLClass("HTMLTableCaptionElement");
+const HTMLTableColElement = defineHTMLClass("HTMLTableColElement");
+const HTMLTemplateElement = defineHTMLClass("HTMLTemplateElement");
+const HTMLTimeElement = defineHTMLClass("HTMLTimeElement");
+const HTMLDetailsElement = defineHTMLClass("HTMLDetailsElement");
+const HTMLDialogElement = defineHTMLClass("HTMLDialogElement");
+const HTMLModElement = defineHTMLClass("HTMLModElement"); // <ins>, <del>
+const HTMLDataElement = defineHTMLClass("HTMLDataElement");
+const HTMLMapElement = defineHTMLClass("HTMLMapElement");
+const HTMLTrackElement = defineHTMLClass("HTMLTrackElement");
+const HTMLParamElement = defineHTMLClass("HTMLParamElement");
+const HTMLDirectoryElement = defineHTMLClass("HTMLDirectoryElement");
+const HTMLFontElement = defineHTMLClass("HTMLFontElement");
+const HTMLFrameElement = defineHTMLClass("HTMLFrameElement");
+const HTMLFrameSetElement = defineHTMLClass("HTMLFrameSetElement");
+const HTMLMarqueeElement = defineHTMLClass("HTMLMarqueeElement");
 
 export {
   HTMLAnchorElement,
