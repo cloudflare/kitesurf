@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { buildTree, handleAccessibility } from "../src/cdp/accessibility.ts";
+import { accessibilityDomain, buildTree } from "../src/cdp/accessibility.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
@@ -40,7 +40,7 @@ describe("document read failure", () => {
       client: testClient(),
     } as DispatchCtx;
     await expect(
-      handleAccessibility(ctx, { id: 1, method: "Accessibility.getFullAXTree" }),
+      accessibilityDomain.run(ctx, { id: 1, method: "Accessibility.getFullAXTree" }),
     ).rejects.toThrow("Worker exceeded memory limit");
   });
 

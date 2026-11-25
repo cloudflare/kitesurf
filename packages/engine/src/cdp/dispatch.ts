@@ -34,7 +34,7 @@ import { webMcpDomain } from "./webmcp.ts";
 import { domStorageDomain } from "./dom-storage.ts";
 import { debuggerDomain } from "./debugger.ts";
 import { handleCss } from "./css.ts";
-import { handleAccessibility } from "./accessibility.ts";
+import { accessibilityDomain } from "./accessibility.ts";
 import { sessionOf } from "./page-session.ts";
 import { clampViewport } from "./viewport.ts";
 import type { KitesurfAnalytics } from "../observability.ts";
@@ -209,7 +209,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         result = await handleCss(ctx, req);
         break;
       case "Accessibility":
-        result = await handleAccessibility(ctx, req);
+        result = await runDomain(ctx, req, accessibilityDomain);
         break;
       case "Emulation":
         result = await handleEmulation(ctx, req);

@@ -8,6 +8,7 @@ import type { Protocol } from "devtools-protocol";
 
 import { RawJsonResult, type CdpRequest, type TargetState } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
+import { defineDomain, stub } from "./domain.ts";
 import {
   accessibilityTreeResponse,
   isGoneGeneration,
@@ -58,14 +59,15 @@ export interface DomNode {
   frameId?: string;
 }
 
-export async function handleAccessibility(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
-  const target = pickTarget(ctx, req.sessionId);
-  if (!target) return emptyReply(req.method);
-  const session = sessionOf(ctx, target);
-  const ps = session.available() ? session : null;
-
-  switch (req.method) {
-    case "Accessibility.enable": {
+export const accessibilityDomain = defineDomain("Accessibility", {
+  context: (ctx, req) => {
+    const target = pickTarget(ctx, req.sessionId);
+    const session = target ? sessionOf(ctx, target) : null;
+    return { ctx, target, ps: session?.available() ? session : null };
+  },
+  methods: {
+    "Accessibility.enable": async ({ ctx, target, ps }, req) => {
+      if (!target) return {};
       const root = rootFromResult(await accessibilityResult(target, ps, req, "root"));
       if (root) {
         ctx.emit({
@@ -78,38 +80,49 @@ export async function handleAccessibility(ctx: DispatchCtx, req: CdpRequest): Pr
         });
       }
       return {};
-    }
-    case "Accessibility.disable":
-      return {};
+    },
+    "Accessibility.disable": stub,
 
-    case "Accessibility.getFullAXTree":
-      return accessibilityResult(target, ps, req, "full");
-    case "Accessibility.getRootAXNode": {
+    "Accessibility.getFullAXTree": ({ target, ps }, req) =>
+      target ? accessibilityResult(target, ps, req, "full") : noNodes(),
+    "Accessibility.getRootAXNode": async ({ target, ps }, req) => {
+      if (!target) return emptyRoot();
       const result = await accessibilityResult(target, ps, req, "root");
       if (!rootFromResult(result)) throw new Error("Empty accessibility tree");
       return result;
-    }
-    case "Accessibility.getPartialAXTree":
-      return accessibilityResult(target, ps, req, "partial");
-    case "Accessibility.getChildAXNodes":
-      return accessibilityResult(target, ps, req, "children");
-    case "Accessibility.getAXNodeAndAncestors":
-      return accessibilityResult(target, ps, req, "ancestors");
-    case "Accessibility.queryAXTree":
-      return accessibilityResult(target, ps, req, "query");
+    },
+    "Accessibility.getPartialAXTree": ({ target, ps }, req) =>
+      target ? accessibilityResult(target, ps, req, "partial") : noNodes(),
+    "Accessibility.getChildAXNodes": ({ target, ps }, req) =>
+      target ? accessibilityResult(target, ps, req, "children") : noNodes(),
+    "Accessibility.getAXNodeAndAncestors": ({ target, ps }, req) =>
+      target ? accessibilityResult(target, ps, req, "ancestors") : noNodes(),
+    "Accessibility.queryAXTree": ({ target, ps }, req) =>
+      target ? accessibilityResult(target, ps, req, "query") : noNodes(),
+  },
+});
 
-    default:
-      // Accept unsupported Accessibility methods without a protocol error.
-      return {};
-  }
-}
+type AxTreeResult = { nodes: Protocol.Accessibility.AXNode[] };
+type AxRootResult = { node: Protocol.Accessibility.AXNode };
 
 async function accessibilityResult(
   target: TargetState,
   ps: ReturnType<typeof sessionOf> | null,
   req: CdpRequest,
+  axMethod: "root",
+): Promise<RawJsonResult<AxRootResult>>;
+async function accessibilityResult(
+  target: TargetState,
+  ps: ReturnType<typeof sessionOf> | null,
+  req: CdpRequest,
+  axMethod: Exclude<AxMethod, "root">,
+): Promise<RawJsonResult<AxTreeResult>>;
+async function accessibilityResult(
+  target: TargetState,
+  ps: ReturnType<typeof sessionOf> | null,
+  req: CdpRequest,
   axMethod: AxMethod,
-): Promise<RawJsonResult> {
+): Promise<RawJsonResult<AxRootResult | AxTreeResult>> {
   const args = accessibilityArgs(target, req, axMethod);
   const reply = ps
     ? await accessibilityTreeResponse(
@@ -118,7 +131,9 @@ async function accessibilityResult(
       )
     : accessibilityTreeFallback(target, args, req.method);
   if ("budgetError" in reply) throw accessibilityBudgetError(req.method, reply.budgetError);
-  return reply.result;
+  // SAFETY: the engine and PageScript write a root read as { node } and every other read as
+  // { nodes }. As with loadComplete, a node may carry AX property names the pinned protocol omits.
+  return reply.result as RawJsonResult<AxRootResult | AxTreeResult>;
 }
 
 function accessibilityArgs(
@@ -254,20 +269,22 @@ function isAxNode(value: unknown): value is AxNode {
   );
 }
 
-function emptyReply(method: string): Record<string, unknown> {
-  if (method === "Accessibility.getRootAXNode") {
-    return {
-      node: {
-        nodeId: "0",
-        ignored: false,
-        role: { type: "role", value: "RootWebArea" },
-        name: { type: "computedString", value: "" },
-        backendDOMNodeId: 0,
-        childIds: [],
-      },
-    };
-  }
+// With no target, a tree read answers an empty tree and a root read an empty root.
+function noNodes(): AxTreeResult {
   return { nodes: [] };
+}
+
+function emptyRoot(): AxRootResult {
+  return {
+    node: {
+      nodeId: "0",
+      ignored: false,
+      role: { type: "role", value: "RootWebArea" },
+      name: { type: "computedString", value: "" },
+      backendDOMNodeId: 0,
+      childIds: [],
+    },
+  };
 }
 
 function pickTarget(ctx: DispatchCtx, sessionId: string | undefined): TargetState | undefined {
