@@ -420,19 +420,6 @@ export function reportException(thrown: unknown): void {
         Reflect.apply(dispatchEvent, win, [event]);
       } catch {}
     }
-    const winHandler: unknown = Reflect.get(win, "onerror", win) || null;
-    const globalHandler: unknown = ksGlobal.onerror || null;
-    const handler =
-      typeof winHandler === "function"
-        ? winHandler
-        : typeof globalHandler === "function"
-          ? globalHandler
-          : null;
-    if (handler) {
-      try {
-        Reflect.apply(handler, win, [message, "", 0, 0, thrown]);
-      } catch {}
-    }
   } catch {
   } finally {
     inErrorReportingMode = false;

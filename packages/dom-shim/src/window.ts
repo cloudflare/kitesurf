@@ -52,7 +52,7 @@ import {
 import { scrollOffset, setScrollOffset } from "./layout/scroll.js";
 import { getSelection as selectionSingleton } from "./range.js";
 import { getInternalState } from "./internal-state.js";
-import { KsPopStateEvent, postMessageEvent } from "./events/event.js";
+import { KsErrorEvent, KsPopStateEvent, postMessageEvent } from "./events/event.js";
 import type * as Idl from "./idl/types.generated.js";
 import type { DocumentImpl } from "./document.js";
 import { sendUpstreamEvent } from "./internal-state.js";
@@ -991,6 +991,14 @@ function buildWindow(document: DocumentImpl) {
       const wrapper = function (this: unknown, event: unknown) {
         const fn = winHandlerSlots.get(eventType)?.fn;
         if (typeof fn !== "function") return undefined;
+        // HTML's special error event handling: onerror on a global takes the ErrorEvent's fields,
+        // and returning true cancels the event.
+        if (eventType === "error" && event instanceof KsErrorEvent) {
+          const { message, filename, lineno, colno, error } = event;
+          const result: unknown = fn.call(this, message, filename, lineno, colno, error);
+          if (result === true) event.preventDefault();
+          return result;
+        }
         return fn.call(this, event);
       };
       winHandlerSlots.set(eventType, { fn: value, wrapper });

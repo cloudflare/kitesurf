@@ -255,9 +255,7 @@ test("IntersectionObserver reports callback errors and continues delivery", asyn
         setTimeout(finish, 500);
       }),
   );
-  expect(
-    result.errors.some((message: string) => message.includes("intersection callback failed")),
-  ).toBe(true);
+  expect(result.errors).toEqual(["intersection callback failed"]);
   expect(result.secondCallback).toBe(true);
 });
 
