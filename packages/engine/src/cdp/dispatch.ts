@@ -30,7 +30,7 @@ import { logDomain } from "./log.ts";
 import { fetchDomain } from "./fetch.ts";
 import { handleInput } from "./input.ts";
 import { handleKitesurf } from "./kitesurf.ts";
-import { handleWebMcp } from "./webmcp.ts";
+import { webMcpDomain } from "./webmcp.ts";
 import { domStorageDomain } from "./dom-storage.ts";
 import { debuggerDomain } from "./debugger.ts";
 import { handleCss } from "./css.ts";
@@ -196,7 +196,11 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         result = await runDomain(ctx, req, domStorageDomain);
         break;
       case "WebMCP":
-        result = await handleWebMcp(ctx, req);
+        result = await webMcpDomain.run(ctx, req);
+        // Unlike the other domains, WebMCP has always refused a method it does not define.
+        if (result === CDP_COMMAND_UNHANDLED) {
+          throw new Error(`${req.method} is not a recognized WebMCP method`);
+        }
         break;
       case "Debugger":
         result = await runDomain(ctx, req, debuggerDomain);

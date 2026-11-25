@@ -85,4 +85,13 @@ describe("dispatch of a defined domain", () => {
       '[kitesurf-cdp] "Log.notAMethod" is not defined; answering {}',
     );
   });
+
+  it("refuses a WebMCP method the domain does not define", async () => {
+    const response = await dispatch(fakeCtx(), request({ id: 3, method: "WebMCP.notAMethod" }));
+    expect(response).toEqual({
+      id: 3,
+      error: { code: -32000, message: "WebMCP.notAMethod is not a recognized WebMCP method" },
+      sessionId: undefined,
+    });
+  });
 });

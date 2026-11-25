@@ -7,7 +7,8 @@
 import type { Protocol } from "devtools-protocol";
 
 import type { DispatchCtx } from "./dispatch.ts";
-import type { CdpRequest, TargetState } from "./types.ts";
+import type { TargetState } from "./types.ts";
+import { defineDomain } from "./domain.ts";
 import { resolveTarget as resolveTargetCanonical, stubQueryDom } from "./page-session.ts";
 
 interface PageTool {
@@ -340,9 +341,9 @@ async function runInvocation(
   }
 }
 
-export async function handleWebMcp(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
-  switch (req.method) {
-    case "WebMCP.enable": {
+export const webMcpDomain = defineDomain("WebMCP", {
+  methods: {
+    "WebMCP.enable": async (ctx, req) => {
       const target = resolveTarget(ctx, req.sessionId);
       const key = sessionKey(req.sessionId);
       target.webmcpSessions.add(key);
@@ -361,9 +362,9 @@ export async function handleWebMcp(ctx: DispatchCtx, req: CdpRequest): Promise<u
         emitToolsAdded(ctx, target, snapshot.tools, key);
       });
       return {};
-    }
+    },
 
-    case "WebMCP.disable": {
+    "WebMCP.disable": (ctx, req) => {
       const target = resolveTarget(ctx, req.sessionId);
       const key = sessionKey(req.sessionId);
       target.webmcpSessions.delete(key);
@@ -371,9 +372,9 @@ export async function handleWebMcp(ctx: DispatchCtx, req: CdpRequest): Promise<u
       target.webmcpAnnouncedTools.delete(key);
       if (target.webmcpSessions.size === 0) stopWatchingTools(target);
       return {};
-    }
+    },
 
-    case "WebMCP.invokeTool": {
+    "WebMCP.invokeTool": (ctx, req) => {
       const p = req.params;
       if (!p || typeof p.frameId !== "string" || typeof p.toolName !== "string") {
         throw new Error("WebMCP.invokeTool: frameId and toolName are required");
@@ -395,9 +396,9 @@ export async function handleWebMcp(ctx: DispatchCtx, req: CdpRequest): Promise<u
       });
       afterReply(ctx, () => runInvocation(ctx, invocationId, input));
       return { invocationId };
-    }
+    },
 
-    case "WebMCP.cancelInvocation": {
+    "WebMCP.cancelInvocation": (ctx, req) => {
       const invocationId = req.params?.invocationId;
       if (typeof invocationId !== "string") {
         throw new Error("WebMCP.cancelInvocation: invocationId is required");
@@ -424,9 +425,6 @@ export async function handleWebMcp(ctx: DispatchCtx, req: CdpRequest): Promise<u
         });
       }
       return {};
-    }
-
-    default:
-      throw new Error(`${(req as { method: string }).method} is not a recognized WebMCP method`);
-  }
-}
+    },
+  },
+});
