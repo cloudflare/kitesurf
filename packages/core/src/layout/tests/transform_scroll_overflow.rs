@@ -74,3 +74,57 @@ fn transformed_child_inside_overflow_hidden_does_not_leak_to_document() {
         info.scroll_width
     );
 }
+
+#[test]
+fn body_overflow_propagated_to_viewport_does_not_clip_document_scroll_height() {
+    let html = r#"<!doctype html><html><head><style>
+      html, body { margin: 0; height: 100%; }
+      body { overflow-x: hidden; }
+      #tall { height: 3000px; }
+      #shifted { width: 40px; height: 40px; transform: translateX(10px); }
+    </style></head><body><div id="shifted"></div><div id="tall"></div></body></html>"#;
+    let dom = DomHandle::new(html, "https://test.example/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+
+    let root_id = dom.query_selector("html").expect("html") as u32;
+    let info = dom.read_scroll_info(root_id).expect("root scroll info");
+    assert!(
+        (info.scroll_height - 2440.0).abs() <= 2.0,
+        "body with overflow-x:hidden propagated to viewport must keep root scroll_height 2440; got {}",
+        info.scroll_height
+    );
+}
+
+#[test]
+fn transformed_inline_block_preserves_inline_root_text_overflow() {
+    let text = "a".repeat(80);
+    let make_html = |transform: &str| {
+        format!(
+            r#"<!doctype html><html><head><style>
+              body {{ margin: 0; font-family: sans-serif; font-size: 16px; }}
+              #scroller {{ width: 200px; overflow-x: auto; white-space: nowrap; }}
+              #icon {{ display: inline-block; width: 10px; height: 10px; {transform} }}
+            </style></head><body><div id="scroller"><span id="icon"></span> {text}</div></body></html>"#
+        )
+    };
+    let measure = |transform: &str| {
+        let dom = DomHandle::new(&make_html(transform), "https://test.example/");
+        dom.set_viewport(800, 600);
+        dom.resolve_layout();
+        let scroller_id = dom.query_selector("#scroller").expect("#scroller") as u32;
+        dom.read_scroll_info(scroller_id)
+            .expect("scroller info")
+            .scroll_width
+    };
+    let without_transform = measure("");
+    let with_transform = measure("transform: rotate(1deg);");
+    assert!(
+        without_transform > 200.0,
+        "expected substantial text overflow without transform; got {without_transform}"
+    );
+    assert!(
+        (with_transform - without_transform).abs() <= 4.0,
+        "transformed inline-block must keep inline root text overflow ({without_transform}); got {with_transform}"
+    );
+}

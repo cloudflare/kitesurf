@@ -62,6 +62,15 @@ fn collect_overflow_children(node: &Node, out: &mut Vec<NodeId>) {
     }
 }
 
+fn effective_overflow_clips(doc: &BaseDocument, node: &Node) -> (bool, bool) {
+    // CSS Overflow 3 §3.3: when <body>'s overflow propagates to the viewport,
+    // <body> itself does not establish a scroll container or clip document scroll.
+    if doc.propagates_overflow_to_viewport(node.id()) {
+        return (false, false);
+    }
+    overflow_clips(node)
+}
+
 fn subtree_has_unclipped_transform(doc: &BaseDocument, node_id: NodeId) -> bool {
     let Some(node) = doc.get_node(node_id) else {
         return false;
@@ -75,7 +84,7 @@ fn subtree_has_unclipped_transform(doc: &BaseDocument, node_id: NodeId) -> bool 
         if child.transform().is_some() {
             return true;
         }
-        let (clip_x, clip_y) = overflow_clips(child);
+        let (clip_x, clip_y) = effective_overflow_clips(doc, child);
         if (!clip_x || !clip_y) && subtree_has_unclipped_transform(doc, child_id) {
             return true;
         }
@@ -88,7 +97,7 @@ fn subtree_has_unclipped_transform(doc: &BaseDocument, node_id: NodeId) -> bool 
 // https://drafts.csswg.org/css-overflow-3/#scrollable
 fn transformed_child_bottom_right(doc: &BaseDocument, child: &Node, scale: f64) -> (f32, f32) {
     let layout = child.final_layout();
-    let (clip_x, clip_y) = overflow_clips(child);
+    let (clip_x, clip_y) = effective_overflow_clips(doc, child);
     let (own_right, own_bottom) = if clip_x && clip_y {
         (layout.size.width, layout.size.height)
     } else if subtree_has_unclipped_transform(doc, child.id()) {
@@ -134,8 +143,17 @@ fn transformed_overflow_extent(doc: &BaseDocument, node_id: NodeId, scale: f64) 
         return (0.0, 0.0);
     };
     let layout = node.final_layout();
-    let mut max_right = layout.size.width;
-    let mut max_bottom = layout.size.height;
+    // An inline root's text extent is absent from `layout_children` (which holds
+    // only atomic inline boxes), so seed from Taffy's unclipped extent for inline
+    // roots while block containers recompute from their transformed children.
+    let (mut max_right, mut max_bottom) = if node.flags.is_inline_root() {
+        (
+            layout.size.width + layout.scroll_width(),
+            layout.size.height + layout.scroll_height(),
+        )
+    } else {
+        (layout.size.width, layout.size.height)
+    };
     let mut children = Vec::new();
     collect_overflow_children(node, &mut children);
     for child_id in children {
