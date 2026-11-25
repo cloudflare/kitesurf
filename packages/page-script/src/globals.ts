@@ -2795,6 +2795,7 @@ export function installGlobals(
           const frame = upgradeTargets[upgradeTargets.length - 1];
           if (frame && !frame.consumed) {
             frame.consumed = true;
+            Object.setPrototypeOf(frame.target, new.target.prototype);
             return frame.target;
           }
           const tag = ctorTagNames.get(new.target);
@@ -2865,13 +2866,12 @@ export function installGlobals(
         const tagName = options.tagName ?? "?";
         try {
           if (customElementConstructor.prototype.isPrototypeOf(element)) return;
-          if (failedElements.has(element)) return;
+          if (failedElements.has(element) || upgradingElements.has(element)) return;
           const initialAttributes = (Array.from(element.attributes || []) as any[]).map((attr) => ({
             name: String(attr.localName || attr.name || ""),
             value: String(attr.value),
             namespace: attr.namespaceURI ?? null,
           }));
-          Object.setPrototypeOf(element, customElementConstructor.prototype);
           const htmlElementConstructor = globalThis.HTMLElement;
           let constructed = true;
           upgradingElements.add(element);
@@ -2886,6 +2886,7 @@ export function installGlobals(
               (htmlElementConstructor as any)._upgradeTarget = null;
             }
           } else {
+            Object.setPrototypeOf(element, customElementConstructor.prototype);
             try {
               customElementConstructor.call(element);
             } catch {

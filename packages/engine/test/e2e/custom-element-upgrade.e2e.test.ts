@@ -491,3 +491,29 @@ test("instanceof a custom element class matches only its instances", async ({ pa
   expect(await page.evaluate("window.__v8")).toEqual([true, false, false, true, true]);
   expect(boa).toEqual([true, false, false, true, true, false, true]);
 });
+
+test("an upgraded element takes its class's prototype in super()", async ({ page }) => {
+  await setContent(page, "<!doctype html><body><x-proto></x-proto><x-early></x-early></body>");
+  const result = await page.evaluate(() => {
+    const element = document.querySelector("x-proto");
+    const seen: boolean[] = [];
+    class XProto extends HTMLElement {
+      constructor() {
+        seen.push(element instanceof XProto);
+        super();
+        seen.push(element instanceof XProto, this === element);
+      }
+    }
+    customElements.define("x-proto", XProto);
+    window.addEventListener("error", (event) => event.preventDefault(), { once: true });
+    class XEarly extends HTMLElement {
+      constructor() {
+        if (document.body) throw new Error("x-early");
+        super();
+      }
+    }
+    customElements.define("x-early", XEarly);
+    return { seen, early: document.querySelector("x-early") instanceof XEarly };
+  });
+  expect(result).toEqual({ seen: [false, true, true], early: false });
+});
