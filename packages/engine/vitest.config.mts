@@ -41,5 +41,7 @@ export default defineConfig({
   ],
   test: {
     include: ["test/*.test.ts"],
+    // `vitest --typecheck.only` reports these by name; //packages/engine:types is their CI gate.
+    typecheck: { include: ["test/*.test-d.ts"], tsconfig: "./tsconfig.json" },
   },
 });

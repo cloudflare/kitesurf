@@ -3,7 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { afterEach, describe, expect, it } from "vitest";
-import { handleLog } from "../src/cdp/log.ts";
+import { logDomain } from "../src/cdp/log.ts";
 import { NetworkEventTracker } from "../src/cdp/network-events.ts";
 import { registerTracker, unregisterTracker } from "../src/cdp/network-events-registry.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
@@ -74,11 +74,11 @@ describe("Log domain", () => {
     const enable = { id: 1, method: "Log.enable", sessionId: PAGE_SESSION } as CdpRequest;
     const disable = { id: 2, method: "Log.disable", sessionId: PAGE_SESSION } as CdpRequest;
 
-    expect(await handleLog(ctx, enable)).toEqual({});
+    expect(await logDomain.run(ctx, enable)).toEqual({});
     expect(tracker.isLogEnabled(PAGE_SESSION)).toBe(true);
     expect(tracker.isLogEnabled(OTHER_SESSION)).toBe(false);
 
-    expect(await handleLog(ctx, disable)).toEqual({});
+    expect(await logDomain.run(ctx, disable)).toEqual({});
     expect(tracker.isLogEnabled(PAGE_SESSION)).toBe(false);
   });
 

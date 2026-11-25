@@ -26,16 +26,25 @@ export type CdpParamsOf<M extends CdpMethod> = ProtocolMapping.Commands[M]["para
 
 export type CdpResultOf<M extends CdpMethod> = ProtocolMapping.Commands[M]["returnType"];
 
+/** A handler's result. The protocol types a command with no result as void; Chrome sends {}. */
+export type CdpReplyBody<M extends CdpMethod> = [CdpResultOf<M>] extends [void]
+  ? Record<string, never>
+  : CdpResultOf<M>;
+
 type Unvalidated<P> = P extends object ? { [K in keyof P]?: unknown } : P;
 
-export type CdpRequest = {
+type CdpRequestMap = {
   [M in CdpMethod]: {
     id: number;
     method: M;
     params?: M extends `Kitesurf.${string}` ? Unvalidated<CdpParamsOf<M>> : CdpParamsOf<M>;
     sessionId?: string;
   };
-}[CdpMethod];
+};
+
+export type CdpRequestOf<M extends CdpMethod> = CdpRequestMap[M];
+
+export type CdpRequest = CdpRequestMap[CdpMethod];
 
 export interface CdpSuccess {
   id: number;
@@ -43,11 +52,12 @@ export interface CdpSuccess {
   sessionId?: string;
 }
 
-export class RawJsonResult {
+/** A result already serialized to JSON. `T` is the shape the pieces encode. */
+export class RawJsonResult<T = unknown> {
   constructor(
     readonly pieces: readonly string[],
     /** The parsed result, for in-process callers; a result may parse cheaper than its text. */
-    readonly parse: () => unknown = () => JSON.parse(pieces.join("")),
+    readonly parse: () => T = () => JSON.parse(pieces.join("")),
   ) {}
 }
 

@@ -13,6 +13,7 @@ import type {
   TargetState,
 } from "./types.ts";
 import type { RequestBlocker } from "../request-blocker.ts";
+import type { CdpDomain } from "./domain.ts";
 import { CDP_COMMAND_UNHANDLED } from "./types.ts";
 import {
   handleTarget,
@@ -25,7 +26,7 @@ import { handlePage } from "./page.ts";
 import { handleRuntime } from "./runtime.ts";
 import { handleDom } from "./dom.ts";
 import { handleNetwork } from "./network.ts";
-import { handleLog } from "./log.ts";
+import { logDomain } from "./log.ts";
 import { handleFetch } from "./fetch.ts";
 import { handleInput } from "./input.ts";
 import { handleKitesurf } from "./kitesurf.ts";
@@ -158,7 +159,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         result = await handleNetwork(ctx, req);
         break;
       case "Log":
-        result = await handleLog(ctx, req);
+        result = await runDomain(ctx, req, logDomain);
         break;
       case "Fetch":
         result = await handleFetch(ctx, req);
@@ -263,6 +264,31 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
       sessionId: req.sessionId,
     };
   }
+}
+
+// A switch handler answers {} for a method it has no case for. Until every domain is defined
+// method by method, a defined domain does the same, and logs the method so it can be defined.
+async function runDomain(ctx: DispatchCtx, req: CdpRequest, domain: CdpDomain): Promise<unknown> {
+  const result = await domain.run(ctx, req);
+  if (result !== CDP_COMMAND_UNHANDLED) return result;
+  warnUndefinedMethod(ctx.browser, req.method);
+  return {};
+}
+
+// The client names the method, so the log is capped per connection and each name is cut short.
+const MAX_UNDEFINED_METHOD_WARNINGS = 32;
+const undefinedMethodWarnings = new WeakMap<BrowserState, Set<string>>();
+
+function warnUndefinedMethod(browser: BrowserState, method: string): void {
+  let warned = undefinedMethodWarnings.get(browser);
+  if (!warned) {
+    warned = new Set();
+    undefinedMethodWarnings.set(browser, warned);
+  }
+  const name = method.slice(0, 128);
+  if (warned.has(name) || warned.size >= MAX_UNDEFINED_METHOD_WARNINGS) return;
+  warned.add(name);
+  console.warn(`[kitesurf-cdp] ${JSON.stringify(name)} is not defined; answering {}`);
 }
 
 function methodNotFound(req: CdpRequest): CdpResponse {

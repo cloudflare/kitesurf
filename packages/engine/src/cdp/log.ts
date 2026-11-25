@@ -4,20 +4,21 @@
 
 // Implements CDP Log commands: the per-session ledger for engine-emitted entries.
 
-import type { CdpRequest } from "./types.ts";
-import type { DispatchCtx } from "./dispatch.ts";
+import { defineDomain, stub } from "./domain.ts";
 
-export async function handleLog(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
-  switch (req.method) {
-    case "Log.enable":
+export const logDomain = defineDomain("Log", {
+  methods: {
+    "Log.enable": (ctx, req) => {
       ctx.browser.networkEvents.setLogEnabled(req.sessionId, true);
       return {};
-
-    case "Log.disable":
+    },
+    "Log.disable": (ctx, req) => {
       ctx.browser.networkEvents.setLogEnabled(req.sessionId, false);
       return {};
-
-    default:
-      return {};
-  }
-}
+    },
+    // Entries go out as they happen, so there is no buffer to clear; nothing reports violations.
+    "Log.clear": stub,
+    "Log.startViolationsReport": stub,
+    "Log.stopViolationsReport": stub,
+  },
+});
