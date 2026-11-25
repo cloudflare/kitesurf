@@ -274,8 +274,13 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
 
 // A switch handler answers {} for a method it has no case for. Until every domain is defined
 // method by method, a defined domain does the same, and logs the method so it can be defined.
-async function runDomain(ctx: DispatchCtx, req: CdpRequest, domain: CdpDomain): Promise<unknown> {
-  const result = await domain.run(ctx, req);
+async function runDomain<A extends unknown[]>(
+  ctx: DispatchCtx,
+  req: CdpRequest,
+  domain: CdpDomain<A>,
+  ...args: A
+): Promise<unknown> {
+  const result = await domain.run(ctx, req, ...args);
   if (result !== CDP_COMMAND_UNHANDLED) return result;
   warnUndefinedMethod(ctx.browser, req.method);
   return {};

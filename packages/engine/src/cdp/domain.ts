@@ -43,11 +43,12 @@ export function stub(): Record<string, never> {
   return {};
 }
 
-export interface CdpDomain {
+/** A defined domain. `A` is what the caller passes to `run` after the request, for `context`. */
+export interface CdpDomain<A extends unknown[] = []> {
   readonly name: string;
   readonly methods: ReadonlySet<string>;
   /** Answers `req`, or returns CDP_COMMAND_UNHANDLED when the domain does not define its method. */
-  run(ctx: DispatchCtx, req: CdpRequest): Promise<unknown>;
+  run(ctx: DispatchCtx, req: CdpRequest, ...args: A): Promise<unknown>;
 }
 
 // Method syntax makes the parameters bivariant, so every typed handler and context fits. That is
@@ -56,20 +57,20 @@ interface ErasedHandler {
   call(c: unknown, req: CdpRequest): unknown;
 }
 interface ErasedContext {
-  call(ctx: DispatchCtx, req: CdpRequest): unknown;
+  call(ctx: DispatchCtx, req: CdpRequest, ...args: unknown[]): unknown;
 }
 
 /**
- * Defines domain `name`. `context` runs before every command of the domain, including ones it
- * does not define, and the handlers receive its value; without it they get the DispatchCtx.
+ * Defines domain `name`. `context` runs before every command, defined or not, with what `run` got
+ * after the request; the handlers receive its value, or the DispatchCtx without one.
  */
-export function defineDomain<D extends CdpDomainName, C = DispatchCtx>(
+export function defineDomain<D extends CdpDomainName, C = DispatchCtx, A extends unknown[] = []>(
   name: D,
   spec: {
-    context?: (ctx: DispatchCtx, req: CdpRequestOf<CdpMethodsIn<D>>) => C | Promise<C>;
+    context?: (ctx: DispatchCtx, req: CdpRequestOf<CdpMethodsIn<D>>, ...args: A) => C | Promise<C>;
     methods: CdpDomainMethods<D, C>;
   },
-): CdpDomain {
+): CdpDomain<A> {
   const methods: { readonly [method: string]: ErasedHandler["call"] | undefined } = spec.methods;
   const handlers = new Map<string, ErasedHandler>();
   for (const [method, call] of Object.entries(methods)) {
@@ -82,9 +83,9 @@ export function defineDomain<D extends CdpDomainName, C = DispatchCtx>(
   return {
     name,
     methods: new Set(handlers.keys()),
-    async run(ctx, req) {
+    async run(ctx, req, ...args) {
       // A switch handler ran synchronously up to its first await; a synchronous context keeps that.
-      const built = context.call(ctx, req);
+      const built = context.call(ctx, req, ...args);
       const c = built instanceof Promise ? await built : built;
       const handler = handlers.get(req.method);
       if (!handler) return CDP_COMMAND_UNHANDLED;

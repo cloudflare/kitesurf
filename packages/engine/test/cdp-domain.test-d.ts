@@ -88,6 +88,30 @@ describe("handler parameters", () => {
     });
   });
 
+  test("a context takes what the caller passes to run after the request", () => {
+    const domain = defineDomain("Log", {
+      context: (ctx, _req, retries: number, label?: string) => ({ ctx, retries, label }),
+      methods: {
+        "Log.enable": (c) => {
+          expectTypeOf(c).toEqualTypeOf<{
+            ctx: DispatchCtx;
+            retries: number;
+            label: string | undefined;
+          }>();
+          return {};
+        },
+      },
+    });
+    expectTypeOf(domain).toEqualTypeOf<CdpDomain<[retries: number, label?: string]>>();
+    expectTypeOf(domain.run).parameters.toEqualTypeOf<
+      [DispatchCtx, CdpRequest, retries: number, label?: string]
+    >();
+    // @ts-expect-error run must pass the arguments the context takes.
+    assertType(domain.run({} as DispatchCtx, {} as CdpRequest));
+    // @ts-expect-error retries is a number.
+    assertType(domain.run({} as DispatchCtx, {} as CdpRequest, "3"));
+  });
+
   test("a handler reads params as the protocol types them", () => {
     defineDomain("DOM", {
       methods: {
