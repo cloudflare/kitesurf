@@ -21,6 +21,7 @@ import {
   drainSettleMicrotasks,
   isEngineScheduling,
   NativePromise,
+  nativeSleep,
   yieldToPageTasks,
 } from "./native-scheduling.ts";
 import { ksInternals } from "./internals.ts";
@@ -641,18 +642,23 @@ export function pageTimerDueWithin(windowMs: number): boolean {
   return nextEntry ? nextEntry.due <= nativeTimerNow() + windowMs : false;
 }
 
-// Gives page tasks queued by an engine call up to `maxTurns` turns before its reply. A turn is a
-// host setTimeout(0), ~1.3 ms in workerd even when idle; with nothing else due it would only run
-// its own wheel entry and the boa job drain after it, so run that drain here and skip the turn.
-// A paused pump runs neither, so the drain waits for the pump too.
+// Gives page tasks queued by an engine call up to `maxTurns` turns before its reply. A wheel turn
+// costs ~1.3 ms in workerd even when idle, and then only runs the boa job drain; V8 has already
+// emptied the microtask queue before it. With nothing due, run the drain and wait one native
+// macrotask instead, so page promise chains of any length finish. A paused pump skips the drain.
 export async function yieldToDuePageTasks(maxTurns: number): Promise<void> {
   for (let turn = 0; turn < maxTurns; turn++) {
     await drainSettleMicrotasks();
     if (!pageTimerDueWithin(0)) {
-      if (pageTasksPaused()) return;
-      runBridgedPageJobs();
-      await drainSettleMicrotasks();
-      if (!pageTimerDueWithin(0)) return;
+      if (!pageTasksPaused()) {
+        runBridgedPageJobs();
+        await drainSettleMicrotasks();
+      }
+      if (!pageTimerDueWithin(0)) {
+        await nativeSleep(0);
+        if (pageTasksPaused() || !pageTimerDueWithin(0)) return;
+        continue;
+      }
     }
     await yieldToPageTasks();
   }
