@@ -6,6 +6,7 @@
 
 import type { Protocol } from "devtools-protocol";
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
+import type { CdpResultlessReplyExtensions } from "./protocol-extensions.ts";
 import type { NetworkEventTracker } from "./network-events.ts";
 import type { PageRendererManager } from "../eval/page-renderer.ts";
 import type { DynamicWorkerBudget, WorkerLease } from "../eval/worker-budget.ts";
@@ -28,7 +29,9 @@ export type CdpResultOf<M extends CdpMethod> = ProtocolMapping.Commands[M]["retu
 
 /** A handler's result. The protocol types a command with no result as void; Chrome sends {}. */
 export type CdpReplyBody<M extends CdpMethod> = [CdpResultOf<M>] extends [void]
-  ? Record<string, never>
+  ? M extends keyof CdpResultlessReplyExtensions
+    ? CdpResultlessReplyExtensions[M]
+    : Record<string, never>
   : CdpResultOf<M>;
 
 type Unvalidated<P> = P extends object ? { [K in keyof P]?: unknown } : P;

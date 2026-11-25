@@ -10,6 +10,16 @@ import type {
 } from "@kitesurf/jsrpc-types/query-dom";
 import "devtools-protocol/types/protocol-mapping";
 
+/**
+ * Fields Kitesurf sends in the reply of a command the protocol gives no result, by method.
+ * CdpReplyBody reads it; any other such command answers exactly {}.
+ */
+export interface CdpResultlessReplyExtensions {
+  // A reload answers with the navigation it starts.
+  "Page.reload": Protocol.Page.NavigateResponse;
+  "Page.setDocumentContent": Protocol.Page.SetDocumentContentResponse;
+}
+
 declare module "devtools-protocol" {
   namespace Protocol {
     namespace DOM {

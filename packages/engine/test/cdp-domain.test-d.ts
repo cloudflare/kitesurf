@@ -32,6 +32,14 @@ describe("protocol types", () => {
     >().toEqualTypeOf<Protocol.DOM.QuerySelectorResponse>();
   });
 
+  test("a command with no result answers the fields protocol-extensions.ts declares for it", () => {
+    expectTypeOf<
+      CdpReplyBody<"Page.setDocumentContent">
+    >().toEqualTypeOf<Protocol.Page.SetDocumentContentResponse>();
+    expectTypeOf<CdpReplyBody<"Page.reload">>().toEqualTypeOf<Protocol.Page.NavigateResponse>();
+    expectTypeOf<CdpReplyBody<"Page.enable">>().toEqualTypeOf<Record<string, never>>();
+  });
+
   test("a request carries its method and the protocol's params", () => {
     expectTypeOf<
       CdpRequestOf<"DOM.querySelector">["method"]
