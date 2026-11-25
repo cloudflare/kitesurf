@@ -242,11 +242,11 @@ export interface QueryDomMethods {
   };
   querySelector: {
     args: { selector: string };
-    result: Partial<Protocol.DOM.QuerySelectorResponse> & { error?: string };
+    result: Protocol.DOM.QuerySelectorResponse & { error?: string };
   };
   querySelectorAll: {
     args: { selector: string };
-    result: Partial<Protocol.DOM.QuerySelectorAllResponse> & { error?: string };
+    result: Protocol.DOM.QuerySelectorAllResponse & { error?: string };
   };
   getOuterHTML: {
     // `snapshot` serializes the whole output before streaming it, instead of as it is read.
@@ -258,11 +258,13 @@ export interface QueryDomMethods {
   };
   describeNode: {
     args: { nodeId?: number; objectId?: string };
-    result: Partial<Protocol.DOM.DescribeNodeResponse> & { budgetError?: SubtreeBudgetError };
+    result:
+      | (Protocol.DOM.DescribeNodeResponse & { budgetError?: undefined })
+      | { node?: undefined; budgetError: SubtreeBudgetError };
   };
   getAttributes: {
     args: { nodeId?: number };
-    result: Partial<Protocol.DOM.GetAttributesResponse>;
+    result: Protocol.DOM.GetAttributesResponse;
   };
   resolveNode: {
     args: { nodeId: number };
