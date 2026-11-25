@@ -6,6 +6,7 @@
 // error here, and `vitest --typecheck.only` reports them by name.
 
 import type { Protocol } from "devtools-protocol";
+import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 import { assertType, describe, expectTypeOf, test } from "vitest";
 import {
   defineDomain,
@@ -309,5 +310,24 @@ describe("session method tables", () => {
       },
     });
     expectTypeOf(table.run).parameters.toEqualTypeOf<[DispatchCtx, CdpRequest, frameId: string]>();
+  });
+});
+
+// An embedder declares its own Kitesurf commands for its command extension. The augmentation
+// reaches every file in this program, so kitesurf.ts is checked with this command declared.
+declare module "devtools-protocol/types/protocol-mapping" {
+  namespace ProtocolMapping {
+    interface Commands {
+      "Kitesurf.embedderCommand": { paramsType: []; returnType: void };
+    }
+  }
+}
+
+describe("embedder commands", () => {
+  test("an embedder's Kitesurf command joins the domain, not the commands it must handle", () => {
+    expectTypeOf<"Kitesurf.embedderCommand">().toExtend<CdpMethodsIn<"Kitesurf">>();
+    expectTypeOf<"Kitesurf.embedderCommand">().not.toExtend<
+      keyof ProtocolMapping.KitesurfCommands
+    >();
   });
 });

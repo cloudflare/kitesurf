@@ -383,7 +383,11 @@ declare module "devtools-protocol/types/protocol-mapping" {
       "Kitesurf.sceneFrame": [Protocol.Kitesurf.SceneFrameEvent];
     }
 
-    interface Commands {
+    // Commands an embedder declares for its command extension join Commands as well, so
+    // kitesurf.ts requires a handler only for the ones named here.
+    interface Commands extends KitesurfCommands {}
+
+    interface KitesurfCommands {
       "Kitesurf.startSceneStream": {
         paramsType: [Protocol.Kitesurf.StartSceneStreamRequest];
         returnType: Protocol.Kitesurf.StartSceneStreamResponse;

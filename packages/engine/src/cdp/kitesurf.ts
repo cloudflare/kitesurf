@@ -5,6 +5,7 @@
 // Handles Kitesurf CDP methods for scene transfer, engine settings, and diagnostics.
 
 import type { Protocol } from "devtools-protocol";
+import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 import type { DispatchCtx } from "./dispatch.ts";
 import type { CdpMethod, CdpRequest, CdpResultOf, TargetState } from "./types.ts";
 import { CdpMethodNotFound, defineDomain, type CdpDomainMethods } from "./domain.ts";
@@ -584,7 +585,7 @@ const kitesurfMethods = {
   "Kitesurf.resetMemprof": (ctx, req) => pageDiagnostic(ctx, req.params, "resetMemprof"),
   "Kitesurf.boaForceCollect": (ctx, req) => pageDiagnostic(ctx, req.params, "boaForceCollect"),
   "Kitesurf.getSceneStats": (ctx, req) => pageDiagnostic(ctx, req.params, "getSceneStats"),
-} satisfies Required<CdpDomainMethods<"Kitesurf">>;
+} satisfies Required<Pick<CdpDomainMethods<"Kitesurf">, keyof ProtocolMapping.KitesurfCommands>>;
 
 // Every Kitesurf method protocol-extensions.ts declares has a handler. The host extension answers
 // the commands this map does not know, so public handlers win; any other command is not found.
