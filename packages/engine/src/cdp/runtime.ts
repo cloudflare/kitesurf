@@ -4,9 +4,10 @@
 
 // Implements the CDP Runtime domain over per-target PageScript sessions.
 
-import type { CdpRequest, FrameState, TargetState } from "./types.ts";
+import type { FrameState, TargetState } from "./types.ts";
 import { ISOLATED_WORLD_CONTEXT_ID } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
+import { defineDomain, stub } from "./domain.ts";
 import {
   consoleEntryToCdpEvent,
   pageScriptResultToCdp,
@@ -202,9 +203,9 @@ export function emitOopifExecutionContextDestroyed(ctx: DispatchCtx, execContext
   }
 }
 
-export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
-  switch (req.method) {
-    case "Runtime.enable": {
+export const runtimeDomain = defineDomain("Runtime", {
+  methods: {
+    "Runtime.enable": async (ctx, req) => {
       const target = pickTarget(ctx, req.sessionId);
       const sidKey = req.sessionId ?? "";
       ctx.browser.runtimeEnabledSessions.add(sidKey);
@@ -269,26 +270,25 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
         }
       }
       return {};
-    }
+    },
 
-    case "Runtime.disable":
-    case "Runtime.discardConsoleEntries":
-    case "Runtime.runIfWaitingForDebugger":
-    case "Runtime.setAsyncCallStackDepth":
-    case "Runtime.setCustomObjectFormatterEnabled":
-      return {};
+    "Runtime.disable": stub,
+    "Runtime.discardConsoleEntries": stub,
+    "Runtime.runIfWaitingForDebugger": stub,
+    "Runtime.setAsyncCallStackDepth": stub,
+    "Runtime.setCustomObjectFormatterEnabled": stub,
 
-    case "Runtime.getHeapUsage": {
+    "Runtime.getHeapUsage": async (ctx, req) => {
       const target = pickTarget(ctx, req.sessionId);
       if (!target || target.type !== "page") {
-        return { usedSize: 0, totalSize: 0 };
+        return heapUsage(0);
       }
       const mem = await sessionOf(ctx, target).callIfLive.getMemoryStats({});
       const usedSize = typeof mem?.bytes === "number" ? mem.bytes : 0;
-      return { usedSize, totalSize: usedSize };
-    }
+      return heapUsage(usedSize);
+    },
 
-    case "Runtime.addBinding": {
+    "Runtime.addBinding": async (ctx, req) => {
       const name = (req.params as { name?: string } | undefined)?.name;
       if (typeof name === "string" && name.length > 0) {
         ctx.browser.pendingBindings.add(name);
@@ -300,16 +300,16 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
         } catch {}
       }
       return {};
-    }
-    case "Runtime.removeBinding": {
+    },
+    "Runtime.removeBinding": async (ctx, req) => {
       const name = (req.params as { name?: string } | undefined)?.name;
       if (typeof name === "string") {
         ctx.browser.pendingBindings.delete(name);
       }
       return {};
-    }
+    },
 
-    case "Runtime.evaluate": {
+    "Runtime.evaluate": async (ctx, req) => {
       const expression = req.params!.expression;
       assertLiveContextId(
         (() => {
@@ -369,9 +369,9 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
         throwIfContextDestroyed(oopifStub ? oopifFrame : target, ps);
         return loaderFailureResponse(err);
       }
-    }
+    },
 
-    case "Runtime.callFunctionOn": {
+    "Runtime.callFunctionOn": async (ctx, req) => {
       const functionDeclaration = req.params!.functionDeclaration;
       const returnByValue = Boolean(req.params?.returnByValue);
       const awaitPromise = Boolean(req.params?.awaitPromise);
@@ -459,9 +459,9 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
         throwIfContextDestroyed(childFrame || target, ps);
         return loaderFailureResponse(err);
       }
-    }
+    },
 
-    case "Runtime.getProperties": {
+    "Runtime.getProperties": async (ctx, req) => {
       const objectId = req.params?.objectId as string | undefined;
       if (typeof objectId !== "string" || !objectId.startsWith("ps:")) {
         return { result: [] };
@@ -474,7 +474,7 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
           ownProperties: req.params?.ownProperties !== false,
         });
         const result = descriptors.map((d) => {
-          const out: Record<string, unknown> = {
+          const out: Protocol.Runtime.PropertyDescriptor = {
             name: d.name,
             configurable: d.configurable,
             enumerable: d.enumerable,
@@ -490,9 +490,9 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
       } catch {
         return { result: [] };
       }
-    }
+    },
 
-    case "Runtime.releaseObject": {
+    "Runtime.releaseObject": async (ctx, req) => {
       const objectId = req.params!.objectId;
       if (objectId.startsWith("ps:")) {
         const ps = ownerStubOfId(pickTarget(ctx, req.sessionId), objectId);
@@ -503,9 +503,9 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
         }
       }
       return {};
-    }
+    },
 
-    case "Runtime.compileScript": {
+    "Runtime.compileScript": async (ctx, req) => {
       const expression = req.params!.expression;
       const sourceURL = req.params!.sourceURL;
       const persistScript = req.params!.persistScript;
@@ -557,9 +557,9 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
       } catch (err) {
         return loaderFailureResponse(err);
       }
-    }
+    },
 
-    case "Runtime.runScript": {
+    "Runtime.runScript": async (ctx, req) => {
       const scriptId = req.params!.scriptId;
       const returnByValue = Boolean(req.params?.returnByValue);
       const awaitPromise = Boolean(req.params?.awaitPromise);
@@ -616,16 +616,18 @@ export async function handleRuntime(ctx: DispatchCtx, req: CdpRequest): Promise<
       } catch (err) {
         return loaderFailureResponse(err);
       }
-    }
+    },
 
-    case "Runtime.releaseObjectGroup":
-    case "Runtime.awaitPromise":
-    case "Runtime.queryObjects":
-      return {};
+    "Runtime.releaseObjectGroup": stub,
+    // Runtime.awaitPromise and Runtime.queryObjects answered {} here, which lacks the result
+    // their protocol requires, so they stay undefined: the fallback still answers {} and logs them.
+  },
+});
 
-    default:
-      return {};
-  }
+// SAFETY: Kitesurf reports one heap size and omits embedderHeapUsedSize and backingStorageSize,
+// which the protocol's reply requires. The assertion keeps the reply; sending them changes the wire.
+export function heapUsage(usedSize: number): Protocol.Runtime.GetHeapUsageResponse {
+  return { usedSize, totalSize: usedSize } as Protocol.Runtime.GetHeapUsageResponse;
 }
 
 // Writes go under the url of the document that answered. target.url may already name the next
@@ -734,7 +736,7 @@ function encodeArgSpecs(
   return specs;
 }
 
-function loaderFailureResponse(err: unknown) {
+function loaderFailureResponse(err: unknown): Protocol.Runtime.EvaluateResponse {
   const message = err instanceof Error ? err.message : String(err);
   return {
     result: {

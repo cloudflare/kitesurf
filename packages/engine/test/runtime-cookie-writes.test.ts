@@ -7,7 +7,7 @@ import type Protocol from "devtools-protocol";
 import type { PackedResult } from "@kitesurf/jsrpc-types/shared";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import { makeChildFrameState } from "../src/cdp/frames.ts";
-import { handleRuntime } from "../src/cdp/runtime.ts";
+import { runtimeDomain } from "../src/cdp/runtime.ts";
 import type { CdpRequest, FrameState, TargetState } from "../src/cdp/types.ts";
 import { createCookieJar } from "../src/cookies.ts";
 import { consoleEntryToCdpEvent, type PageScriptStub } from "../src/eval/page-script.ts";
@@ -74,7 +74,7 @@ describe.each(requests)("$method reply cookie writes", (req) => {
   it("stay on the answering document while a navigate moved target.url", async () => {
     const { ctx, target, cookies, held } = setup();
     target.url = NEXT;
-    const pending = handleRuntime(ctx, req);
+    const pending = runtimeDomain.run(ctx, req);
     await flush();
     held[0]!(["a=1; Path=/"]);
     await pending;
@@ -84,7 +84,7 @@ describe.each(requests)("$method reply cookie writes", (req) => {
 
   it("stay on the answering document when target.url moves during the call", async () => {
     const { ctx, target, cookies, held } = setup();
-    const pending = handleRuntime(ctx, req);
+    const pending = runtimeDomain.run(ctx, req);
     await flush();
     target.url = NEXT;
     held[0]!(["a=1; Path=/"]);
@@ -95,7 +95,7 @@ describe.each(requests)("$method reply cookie writes", (req) => {
 
   it("are dropped when the answering isolate was replaced during the call", async () => {
     const { ctx, target, cookies, held } = setup();
-    const pending = handleRuntime(ctx, req);
+    const pending = runtimeDomain.run(ctx, req);
     await flush();
     target.url = NEXT;
     target.pageScriptUrl = NEXT;
@@ -108,7 +108,7 @@ describe.each(requests)("$method reply cookie writes", (req) => {
   it("land on the document's url after a same-origin history change", async () => {
     const { ctx, target, cookies, held } = setup();
     target.url = `${FIRST}app/page`;
-    const pending = handleRuntime(ctx, req);
+    const pending = runtimeDomain.run(ctx, req);
     await flush();
     held[0]!(["a=1"]);
     await pending;
@@ -159,7 +159,7 @@ describe("an out-of-process frame's reply cookie writes", () => {
 
   it("land on the frame's url", async () => {
     const { ctx, cookies, held, req } = setupFrame();
-    const pending = handleRuntime(ctx, req);
+    const pending = runtimeDomain.run(ctx, req);
     await flush();
     held[0]!(["c=1"]);
     await pending;
@@ -168,7 +168,7 @@ describe("an out-of-process frame's reply cookie writes", () => {
 
   it("are dropped when the frame navigated during the call", async () => {
     const { ctx, cookies, frame, held, req } = setupFrame();
-    const pending = handleRuntime(ctx, req);
+    const pending = runtimeDomain.run(ctx, req);
     await flush();
     frame.url = OTHER;
     frame.pageScript = null;
@@ -180,7 +180,7 @@ describe("an out-of-process frame's reply cookie writes", () => {
   it("are dropped when the frame has no sealed url", async () => {
     const { ctx, cookies, frame, held, req } = setupFrame();
     frame.pageScriptUrl = null;
-    const pending = handleRuntime(ctx, req);
+    const pending = runtimeDomain.run(ctx, req);
     await flush();
     held[0]!(["c=1; Path=/"]);
     await pending;
@@ -192,7 +192,7 @@ describe("an out-of-process frame's reply cookie writes", () => {
     (req) => {
       it("after the metadata moves during the call", async () => {
         const { ctx, cookies, frame, held } = setupFrame();
-        const pending = handleRuntime(ctx, req);
+        const pending = runtimeDomain.run(ctx, req);
         await flush();
         frame.url = OTHER;
         held[0]!(["c=1; Path=/"]);
@@ -204,7 +204,7 @@ describe("an out-of-process frame's reply cookie writes", () => {
       it("when the metadata already moved before dispatch", async () => {
         const { ctx, cookies, frame, held } = setupFrame();
         frame.url = OTHER;
-        const pending = handleRuntime(ctx, req);
+        const pending = runtimeDomain.run(ctx, req);
         await flush();
         held[0]!(["c=1; Path=/"]);
         await pending;
@@ -229,7 +229,7 @@ describe("runtime value json", () => {
     const { ctx, target } = setup();
     // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only evaluate is stubbed.
     target.pageScript = { evaluate: async () => reply(valueJson) } as unknown as PageScriptStub;
-    return (await handleRuntime(ctx, {
+    return (await runtimeDomain.run(ctx, {
       id: 1,
       method: "Runtime.evaluate",
       params: { expression: "value", returnByValue: true },
@@ -278,7 +278,7 @@ function setupOwners() {
 it("routes remote ids to the isolate that minted them", async () => {
   const { ctx, frame, parent, child } = setupOwners();
   const run = (method: string, params: Record<string, unknown>) =>
-    handleRuntime(ctx, { id: 1, method, params } as CdpRequest);
+    runtimeDomain.run(ctx, { id: 1, method, params } as CdpRequest);
   await run("Runtime.callFunctionOn", { functionDeclaration: "()=>1", objectId: "ps:c:1" });
   await run("Runtime.compileScript", { expression: "1", sourceURL: "", executionContextId: 9 });
   await run("Runtime.runScript", { scriptId: "cs:c:1" });
@@ -302,7 +302,7 @@ describe("a main-isolate call waits for the ready isolate", () => {
     const next = heldStub();
     let releaseBlank!: () => void;
     target.blankReady = new Promise<void>((resolve) => (releaseBlank = resolve));
-    const pending = handleRuntime(ctx, {
+    const pending = runtimeDomain.run(ctx, {
       id: 1,
       method: "Runtime.callFunctionOn",
       params: { functionDeclaration: "function(){return 1}", returnByValue: true },
@@ -323,7 +323,7 @@ describe("a main-isolate call waits for the ready isolate", () => {
     const next = heldStub("next");
     let releaseBlank!: () => void;
     target.blankReady = new Promise<void>((resolve) => (releaseBlank = resolve));
-    const pending = handleRuntime(ctx, {
+    const pending = runtimeDomain.run(ctx, {
       id: 1,
       method: "Runtime.runScript",
       params: { scriptId: "cs:old:1", returnByValue: true },
@@ -344,7 +344,7 @@ describe("a main-isolate call waits for the ready isolate", () => {
 it("rejects an isolated world whose frameId names no frame", async () => {
   const { ctx, target, held } = setup();
   target.isolatedWorlds = [{ name: "w", frameId: "gone", id: 9 }];
-  const pending = handleRuntime(ctx, {
+  const pending = runtimeDomain.run(ctx, {
     id: 1,
     method: "Runtime.evaluate",
     params: { expression: "location.href", contextId: 9, returnByValue: true },
