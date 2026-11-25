@@ -7,7 +7,11 @@ import { describe, expect, it } from "vitest";
 
 import { createCookieJar, setCdpCookie } from "../src/cookies.ts";
 import { LOCAL_STORAGE_QUOTA_UNITS } from "../src/state/local-storage.ts";
-import { parseStorageState, storageStateOps } from "../src/state/storage-state.ts";
+import {
+  MAX_STORAGE_STATE_ORIGINS,
+  parseStorageState,
+  storageStateOps,
+} from "../src/state/storage-state.ts";
 
 // A file as playwright writes it, with the fields kitesurf ignores.
 const FILE = {
@@ -70,9 +74,64 @@ describe("parseStorageState", () => {
         { origin: "https://example.com", localStorage: [{ name: "a", value: "2" }] },
       ],
     });
-    expect(state.cookies).toEqual([{ name: "u", value: "1", url: "https://example.com/x" }]);
+    expect(state.cookies).toEqual([
+      { name: "u", value: "1", url: "https://example.com/x", path: "/", secure: true },
+    ]);
     // Repeated origins merge, and a repeated key keeps its last value.
     expect(state.origins).toEqual(new Map([["https://example.com", new Map([["a", "2"]])]]));
+  });
+
+  it("takes a url cookie's path and secure flag from the URL, as playwright does", () => {
+    const jar = createCookieJar();
+    const state = parseStorageState({
+      cookies: [
+        { name: "app", value: "1", url: "https://example.com/app/x", secure: false },
+        { name: "plain", value: "1", url: "http://example.com/" },
+      ],
+    });
+    expect(state.cookies.map((c) => [c.path, c.secure])).toEqual([
+      ["/app/", true],
+      ["/", false],
+    ]);
+    for (const c of state.cookies) setCdpCookie(jar, c);
+    expect(jar.cookieHeaderForUrl("https://example.com/app/y")).toBe("app=1; plain=1");
+    expect(jar.cookieHeaderForUrl("https://example.com/other")).toBe("plain=1");
+    expect(jar.cookieHeaderForUrl("http://example.com/app/y")).toBe("plain=1");
+  });
+
+  it("keeps a cookie field from adding attributes to the cookie", () => {
+    expect(() =>
+      parseStorageState({
+        cookies: [
+          { name: "a", value: "1", domain: "app.example.com", path: "/; Domain=.example.com" },
+        ],
+      }),
+    ).toThrow(/cookies\[0\]\.path: has ";"/);
+  });
+
+  it("drops a cookie that expired at the epoch", () => {
+    const state = parseStorageState({
+      cookies: [
+        { name: "gone", value: "1", domain: "x", path: "/", expires: 0 },
+        { name: "kept", value: "1", domain: "x", path: "/", expires: -1 },
+      ],
+    });
+    expect(state.cookies.map((c) => c.name)).toEqual(["kept"]);
+  });
+
+  it("counts the quota across repeated origins and keys", () => {
+    const half = "v".repeat(LOCAL_STORAGE_QUOTA_UNITS / 2);
+    const entry = (name: string) => ({
+      origin: "https://x.example",
+      localStorage: [{ name, value: half }],
+    });
+    // A repeated key replaces its value, so it counts once.
+    expect(parseStorageState({ origins: [entry("k"), entry("k"), entry("k")] }).origins.size).toBe(
+      1,
+    );
+    expect(() => parseStorageState({ origins: [entry("a"), entry("b")] })).toThrow(
+      /origins\[1\]\.localStorage: over the .*quota/,
+    );
   });
 
   it.each([
@@ -86,6 +145,22 @@ describe("parseStorageState", () => {
     [{ cookies: [{ name: "a", value: "b", url: "ftp://x/" }] }, /cookies\[0\]\.url/],
     [{ cookies: [{ name: "a", value: "b", domain: "x", path: "/", sameSite: "lax" }] }, /sameSite/],
     [{ cookies: [{ name: "a", value: "b", domain: "x", path: "/", expires: "1" }] }, /expires/],
+    [{ cookies: [{ name: "a", value: "b", domain: "x", path: "/", expires: -5 }] }, /expires/],
+    [{ cookies: [{ name: "a=b", value: "c", domain: "x", path: "/" }] }, /name: has "="/],
+    [{ cookies: [{ name: "a", value: "b; Secure", domain: "x", path: "/" }] }, /value: has ";"/],
+    [{ cookies: [{ name: "a", value: "b\n", domain: "x", path: "/" }] }, /value: has "\\n"/],
+    [{ cookies: [{ name: "a", value: "b", domain: "x;y", path: "/" }] }, /domain: has ";"/],
+    [{ cookies: [{ name: "a", value: "b", domain: "x", path: "app" }] }, /path: does not start/],
+    [{ cookies: [{ name: "a", value: "b", url: "https://x/a;b/c" }] }, /url: has ";"/],
+    [
+      {
+        origins: Array.from({ length: MAX_STORAGE_STATE_ORIGINS + 1 }, (_, i) => ({
+          origin: `https://o${i}.example`,
+          localStorage: [],
+        })),
+      },
+      /over 1000 origins/,
+    ],
     [{ origins: [{ origin: "foo", localStorage: [] }] }, /origins\[0\]\.origin: .*foo/],
     [
       { origins: [{ origin: "https://x", localStorage: [{ name: 1 }] }] },
@@ -117,6 +192,16 @@ describe("storageStateOps", () => {
         ["https://a.example", [{ op: "clear" }, { op: "set", key: "k", value: "v" }]],
         ["https://b.example", [{ op: "clear" }]],
       ]),
+    );
+  });
+
+  it("leaves out an origin that has no keys and no area", () => {
+    const state = parseStorageState({
+      origins: [{ origin: "https://a.example", localStorage: [] }],
+    });
+    expect(storageStateOps(state, [])).toEqual(new Map());
+    expect(storageStateOps(state, ["https://a.example"])).toEqual(
+      new Map([["https://a.example", [{ op: "clear" }]]]),
     );
   });
 });

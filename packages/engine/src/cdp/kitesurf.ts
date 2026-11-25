@@ -101,6 +101,10 @@ function noPageScript(target: TargetState | null): string {
 // paintDamageSince always takes a node to leave out; this external id is never minted.
 const NO_EXCLUDED_NODE = 0xffff_ffff;
 
+// setStorageState changes this many origins at once, so a file of many origins does not hold
+// every origin's area and every push to its open copies in memory together.
+const STORAGE_STATE_ORIGIN_BATCH = 32;
+
 function positiveNodeId(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
 }
@@ -465,12 +469,16 @@ const kitesurfMethods = {
     const state = parseStorageState(req.params?.storageState);
     jar.clear();
     for (const cookie of state.cookies) setCdpCookie(jar, cookie);
-    const ops = storageStateOps(state, localStorage.origins());
-    await Promise.all(
-      Array.from(ops, ([origin, list]) =>
-        changeLocalStorage(ctx, localStorage, origin, list, { url: null }),
-      ),
-    );
+    const ops = Array.from(storageStateOps(state, localStorage.origins()));
+    for (let i = 0; i < ops.length; i += STORAGE_STATE_ORIGIN_BATCH) {
+      await Promise.all(
+        ops
+          .slice(i, i + STORAGE_STATE_ORIGIN_BATCH)
+          .map(([origin, list]) =>
+            changeLocalStorage(ctx, localStorage, origin, list, { url: null }),
+          ),
+      );
+    }
     return {};
   },
 
