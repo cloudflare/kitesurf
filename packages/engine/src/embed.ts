@@ -15,8 +15,19 @@ export { DEFAULT_ENGINE_HOST } from "./host.ts";
 export type { EngineHost, ConnectionOptions } from "./host.ts";
 export type { FontProfile } from "./cdp/font-profile.ts";
 export { resolveSessionStore } from "./host.ts";
-export { MemorySessionStore, isStoredBytes, isStoredString } from "./state/session-store.ts";
-export type { SessionStore, StoreGuard, StoreStats, StoreTable } from "./state/session-store.ts";
+export {
+  MEMORY_STORE_LIMITS,
+  MemorySessionStore,
+  isStoredBytes,
+  isStoredString,
+} from "./state/session-store.ts";
+export type {
+  SessionStore,
+  StoreGuard,
+  StoreLimits,
+  StoreStats,
+  StoreTable,
+} from "./state/session-store.ts";
 export type { BlockableRequest, RequestBlocker, RequestBlockVerdict } from "./request-blocker.ts";
 export type { ResourceType } from "./cdp/network-events.ts";
 export { SESSION_ID_HEADER, resolveEntrypoint } from "./observability.ts";

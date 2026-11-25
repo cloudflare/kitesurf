@@ -115,6 +115,7 @@ function setup() {
     sandboxOutbound,
     cookies,
     contexts: new Map(),
+    store: new MemorySessionStore(),
     localStorage: new LocalStorage(new MemorySessionStore()),
     screencasts: new Map(),
     networkEvents: new NetworkEventTracker(emit, CONN),

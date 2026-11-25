@@ -17,7 +17,7 @@ export async function handleDebugger(ctx: DispatchCtx, req: CdpRequest): Promise
         if (target.type !== "page") continue;
         if (sessionId && target.sessions.has(sessionId)) {
           target.debuggerEnabledSessions.add(sessionId);
-          for (const meta of target.compiledScripts) {
+          for (const meta of target.compiledScripts.values()) {
             emitScriptParsed(
               ctx,
               meta,
@@ -28,7 +28,7 @@ export async function handleDebugger(ctx: DispatchCtx, req: CdpRequest): Promise
           }
         } else if (!sessionId) {
           target.debuggerEnabledSessions.add("");
-          for (const meta of target.compiledScripts) {
+          for (const meta of target.compiledScripts.values()) {
             emitScriptParsed(
               ctx,
               meta,
@@ -63,11 +63,8 @@ export async function handleDebugger(ctx: DispatchCtx, req: CdpRequest): Promise
     case "Debugger.getScriptSource": {
       const scriptId = req.params!.scriptId;
       for (const target of ctx.browser.targets.values()) {
-        for (const meta of target.compiledScripts) {
-          if (meta.scriptId === scriptId) {
-            return { scriptSource: meta.source ?? "" };
-          }
-        }
+        const meta = target.compiledScripts.get(scriptId);
+        if (meta) return { scriptSource: meta.source ?? "" };
       }
       return { scriptSource: "" };
     }
@@ -142,6 +139,18 @@ export function makeCompiledScriptMeta(
     isModule: opts.isModule === true,
     source: opts.source,
   };
+}
+
+export function isCompiledScriptMeta(v: unknown): v is CompiledScriptMeta {
+  if (typeof v !== "object" || v === null) return false;
+  const m: Record<string, unknown> = { ...v };
+  return (
+    typeof m.scriptId === "string" &&
+    typeof m.url === "string" &&
+    typeof m.hash === "string" &&
+    typeof m.length === "number" &&
+    (m.source === undefined || typeof m.source === "string")
+  );
 }
 
 function fnv1aHex(s: string): string {

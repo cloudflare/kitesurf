@@ -52,12 +52,40 @@ export interface StoreStats {
   tables: Record<string, { keys: number; bytes: number }>;
 }
 
+/** What a session may keep in its store. The backend declares these, so the engine sizes its
+ * data by them and never by the backend's name. */
+export interface StoreLimits {
+  // Whether values live on the isolate heap. Every session in the isolate then shares the
+  // budgets that bound it, such as the total of retained response bodies.
+  onHeap: boolean;
+  // Requests the network log keeps, oldest dropped first.
+  networkRequests: number;
+  // Response bodies kept for Network.getResponseBody, in total and per body. A body is charged
+  // two bytes per UTF-16 code unit. Network.enable may ask for less, never for more.
+  networkBodyBytes: number;
+  networkBodyBytesPerResource: number;
+  // Withheld image and author-font bytes. A store on the heap leaves them in the isolate's own
+  // caches, where all sessions together get this much.
+  imageBytes: number;
+  fontBytes: number;
+}
+
+/** The limits of a store on the isolate heap: what a session keeps when no host store exists. */
+export const MEMORY_STORE_LIMITS: Readonly<StoreLimits> = Object.freeze({
+  onHeap: true,
+  networkRequests: 500,
+  networkBodyBytes: 12 * 1024 * 1024,
+  networkBodyBytesPerResource: 256 * 1024,
+  imageBytes: 16 * 1024 * 1024,
+  fontBytes: 16 * 1024 * 1024,
+});
+
 // A backend may be bound to the execution context that created it, so only touch a store from
 // where the host made it.
 export interface SessionStore {
-  // Lets callers size what they keep: the heap-bound limits that protect
-  // a shared isolate don't apply to data a host keeps outside it.
+  /** The backend's name, for the memory surfaces only. */
   readonly backend: string;
+  readonly limits: Readonly<StoreLimits>;
   /**
    * Sizes per table. Walks every value on the memory backend and runs an
    * aggregate on a database backend, so it is for diagnostics, not hot paths.
@@ -76,6 +104,7 @@ export interface SessionStore {
 
 export class MemorySessionStore implements SessionStore {
   readonly backend = "memory";
+  readonly limits = MEMORY_STORE_LIMITS;
   readonly #tables = new Map<string, Map<string, unknown>>();
 
   table<V>(name: string, is: StoreGuard<V>): StoreTable<V> {

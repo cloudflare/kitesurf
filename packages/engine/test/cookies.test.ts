@@ -4,8 +4,9 @@
 
 import { describe, it, expect } from "vitest";
 
-import { createCookieJar, entryToCdp, setCdpCookie } from "../src/cookies.ts";
+import { createCookieJar, entryToCdp, isCookieEntryList, setCdpCookie } from "../src/cookies.ts";
 import { schemefulSite } from "../src/public-suffix.ts";
+import { JsonSessionStore } from "./json-session-store.ts";
 
 const HTTPS = "https://app.example.com/x";
 
@@ -619,5 +620,25 @@ describe("private public suffixes", () => {
         initiatorOrigin: `https://www.b.${suffix}`,
       }),
     ).toBe("strict=1");
+  });
+});
+
+describe("Max-Age in a jar that a store keeps as JSON", () => {
+  // Number() of 307 digits is finite, but times 1000 it is not.
+  const digits = "9".repeat(307);
+
+  it("keeps a far-past delete expired", () => {
+    const jar = createCookieJar(new JsonSessionStore().table("cookies", isCookieEntryList));
+    jar.setFromHeader(HTTPS, "sid=1");
+    jar.setFromHeader(HTTPS, `sid=1; Max-Age=-${digits}`);
+    expect(jar.cookieHeaderForUrl(HTTPS)).toBeNull();
+  });
+
+  it("keeps a far-future cookie persistent, not a session cookie", () => {
+    const jar = createCookieJar(new JsonSessionStore().table("cookies", isCookieEntryList));
+    jar.setFromHeader(HTTPS, `sid=1; Max-Age=${digits}`);
+    const [entry] = jar.getAll();
+    expect(entry?.expiresAt).not.toBeNull();
+    expect(Number.isFinite(entry?.expiresAt)).toBe(true);
   });
 });

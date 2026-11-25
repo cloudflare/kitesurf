@@ -10,8 +10,10 @@ import type { Protocol } from "devtools-protocol";
 import type { DispatchCtx } from "./dispatch.ts";
 import { buildFrameResourceTree, buildFrameTree, makeMainFrameState } from "./frames.ts";
 import { retireStub } from "./page-script-generation.ts";
-import { createCookieJar, type CookieJar } from "../cookies.ts";
+import { cookieTableName, createCookieJar, isCookieEntryList, type CookieJar } from "../cookies.ts";
 import type { LocalStorage } from "../state/local-storage.ts";
+import { isStoredString } from "../state/session-store.ts";
+import { isCompiledScriptMeta } from "./debugger.ts";
 import { engineWasmBytes, engineWasmInitialBytes } from "../engine-wasm-probe.ts";
 import { isolateRetainedBodyBytesTotal } from "./network-events.ts";
 import { imageStoreStats } from "../eval/resource-store.ts";
@@ -169,7 +171,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
 
     case "Target.createBrowserContext": {
       const id = `ctx-${ctx.browser.nextBrowserContextId++}`;
-      const jar = createCookieJar();
+      const jar = createCookieJar(ctx.browser.store.table(cookieTableName(id), isCookieEntryList));
       ctx.browser.contexts.set(id, {
         cookieJar: jar,
         localStorage: ctx.browser.localStorage.forContext(id),
@@ -189,6 +191,7 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
         ctx.browser.contexts.get(id)?.localStorage.dispose();
         ctx.browser.contexts.delete(id);
         unregisterCookieJar(cookieKeyFor(ctx.connectionId, id));
+        ctx.browser.store.drop(cookieTableName(id));
         clearLearnedScripts(ctx.browser.learnedInsertedScripts, id);
       }
       return {};
@@ -325,6 +328,12 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
   }
 }
 
+// A page keeps its raw document and its compiled scripts in the session store.
+const DOCUMENTS_TABLE = "documents";
+function compiledScriptsTable(targetId: string): string {
+  return `compiledScripts:${targetId}`;
+}
+
 export function ensureBrowserTarget(ctx: DispatchCtx): TargetState {
   let t = ctx.browser.targets.get(BROWSER_TARGET_ID);
   if (t) return t;
@@ -361,7 +370,7 @@ export function ensureBrowserTarget(ctx: DispatchCtx): TargetState {
     autoReloadCount: 0,
     lastLoadAt: 0,
     layoutMode: ctx.browser.layoutMode,
-    compiledScripts: [],
+    compiledScripts: new Map(),
     debuggerEnabledSessions: new Set(),
     domEnabledSessions: new Set(),
     domStorageSessions: new Map(),
@@ -446,6 +455,8 @@ export async function closeTargetInternal(ctx: DispatchCtx, id: string): Promise
   }
   const existed = ctx.browser.targets.delete(id);
   stopSceneStreams(ctx.browser, id);
+  ctx.browser.store.table(DOCUMENTS_TABLE, isStoredString).delete(id);
+  ctx.browser.store.drop(compiledScriptsTable(id));
   if (existed) {
     ctx.emit({
       method: "Target.targetDestroyed",
@@ -466,6 +477,7 @@ export function createPageTarget(
   const loaderId = makeTargetId();
   const frames = new Map<string, FrameState>();
   frames.set(targetId, makeMainFrameState({ frameId: targetId, loaderId, url }));
+  const documents = ctx.browser.store.table(DOCUMENTS_TABLE, isStoredString);
   const t: TargetState = {
     targetId,
     type: "page",
@@ -473,7 +485,15 @@ export function createPageTarget(
     sessions: new Set(),
     url,
     title: "",
-    html: "",
+    get html() {
+      return documents.get(targetId) ?? "";
+    },
+    set html(value: string) {
+      // A navigate that ends after the page closed must not write its document back: nothing
+      // would delete that row.
+      if (value && ctx.browser.targets.get(targetId) === t) documents.set(targetId, value);
+      else documents.delete(targetId);
+    },
     fallbackHtmlReleased: false,
     dom: null,
     docScan: null,
@@ -508,7 +528,7 @@ export function createPageTarget(
     autoReloadCount: 0,
     lastLoadAt: 0,
     layoutMode: ctx.browser.layoutMode,
-    compiledScripts: [],
+    compiledScripts: ctx.browser.store.table(compiledScriptsTable(targetId), isCompiledScriptMeta),
     debuggerEnabledSessions: new Set(),
     domEnabledSessions: new Set(),
     domStorageSessions: new Map(),

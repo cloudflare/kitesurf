@@ -126,6 +126,9 @@ export interface CdpClientState {
 
 export interface BrowserState {
   targets: Map<string, TargetState>;
+  // The session's data: the host's store, or tables on the heap (state/session-store.ts).
+  // Live handles stay on this object.
+  store: SessionStore;
   sandboxOutbound: SandboxOutboundOverride;
   cookies: CookieJar;
   contexts: Map<string, { cookieJar: CookieJar; localStorage: LocalStorage }>;
@@ -140,7 +143,7 @@ export interface BrowserState {
   cdpDebug: boolean;
   isolateCapOverrides?: PageIsolateCapOverrides;
   ttyKeyboard?: boolean;
-  preNavScripts: Map<string, string>;
+  preNavScripts: StoreTable<string>;
   learnedInsertedScripts: LearnedScripts;
   pendingBindings: Set<string>;
 
@@ -197,6 +200,7 @@ import type { PageScriptStub, PageIsolateCapOverrides } from "../eval/page-scrip
 import type { PageSession } from "./page-session.ts";
 import type { CookieJar } from "../cookies.ts";
 import type { LocalStorage } from "../state/local-storage.ts";
+import type { SessionStore, StoreTable } from "../state/session-store.ts";
 
 // One navigation's child-frame admission, shared by every branch and depth: registered child
 // frames and the parse input their retained DOMs charged. A frame refunds its charge when its
@@ -358,7 +362,9 @@ export interface TargetState {
   autoReloadCount: number;
   lastLoadAt: number;
   layoutMode: "full" | "off";
-  compiledScripts: CompiledScriptMeta[];
+  // By script id, in compile order. A page keeps them in the session store: one can carry
+  // megabytes of source.
+  compiledScripts: StoreTable<CompiledScriptMeta>;
   debuggerEnabledSessions: Set<string>;
   domEnabledSessions: Set<string>;
   // The sessions with DOMStorage enabled, each with its frame, or null for the page's session.

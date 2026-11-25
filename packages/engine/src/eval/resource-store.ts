@@ -4,13 +4,20 @@
 
 // Stores image and font bytes behind connection-scoped resource keys for rendering.
 
+import {
+  MEMORY_STORE_LIMITS,
+  isStoredBytes,
+  type SessionStore,
+  type StoreTable,
+} from "../state/session-store.ts";
+
 export const ENGINE_KEY_MARKER = 1n << 63n;
 
 export const MAX_ENTRY_BYTES = 8 * 1024 * 1024;
 
-const MAX_TOTAL_BYTES = 16 * 1024 * 1024;
+const MAX_TOTAL_BYTES = MEMORY_STORE_LIMITS.imageBytes;
 
-const MAX_TOTAL_FONT_BYTES = 16 * 1024 * 1024;
+const MAX_TOTAL_FONT_BYTES = MEMORY_STORE_LIMITS.fontBytes;
 
 const MAX_FONT_ENTRIES = 256;
 
@@ -39,6 +46,74 @@ const owners: Record<ResourceKind, Map<string, Owner>> = {
   font: new Map(),
 };
 const bytesTotal: Record<ResourceKind, number> = { image: 0, font: 0 };
+
+// A session whose store is off the heap keeps its payloads there, under its own budget. Only an
+// index of ids, sizes and targets stays in memory, least recently read first.
+class OffHeapResources {
+  readonly #bytes: StoreTable<Uint8Array>;
+  readonly #limit: Record<ResourceKind, number>;
+  readonly #index: Record<ResourceKind, Map<string, { size: number; targetId: string }>> = {
+    image: new Map(),
+    font: new Map(),
+  };
+  readonly #total: Record<ResourceKind, number> = { image: 0, font: 0 };
+
+  constructor(store: SessionStore) {
+    this.#bytes = store.table("resources", isStoredBytes);
+    this.#limit = { image: store.limits.imageBytes, font: store.limits.fontBytes };
+  }
+
+  put(kind: ResourceKind, id: string, bytes: Uint8Array, targetId: string): boolean {
+    if (bytes.byteLength > this.#limit[kind]) return false;
+    this.#bytes.set(id, bytes);
+    const index = this.#index[kind];
+    index.set(id, { size: bytes.byteLength, targetId });
+    this.#total[kind] += bytes.byteLength;
+    for (const oldest of Array.from(index.keys())) {
+      if (this.#total[kind] <= this.#limit[kind]) break;
+      this.drop(kind, oldest);
+    }
+    return true;
+  }
+
+  get(kind: ResourceKind, id: string): Uint8Array | null {
+    const entry = this.#index[kind].get(id);
+    if (!entry) return null;
+    this.#index[kind].delete(id);
+    this.#index[kind].set(id, entry);
+    return this.#bytes.get(id) ?? null;
+  }
+
+  drop(kind: ResourceKind, id: string): void {
+    const entry = this.#index[kind].get(id);
+    if (!entry) return;
+    this.#total[kind] -= entry.size;
+    this.#index[kind].delete(id);
+    this.#bytes.delete(id);
+  }
+
+  dropTarget(targetId: string): void {
+    for (const kind of ["image", "font"] as const) {
+      for (const [id, entry] of Array.from(this.#index[kind])) {
+        if (entry.targetId === targetId) this.drop(kind, id);
+      }
+    }
+  }
+
+  clear(): void {
+    for (const kind of ["image", "font"] as const) {
+      for (const id of Array.from(this.#index[kind].keys())) this.drop(kind, id);
+    }
+  }
+}
+
+const offHeap = new Map<string, OffHeapResources>();
+
+/** Keeps the connection's payloads in its store when that store is off the heap. A store on the
+ * heap would only move them out from under the isolate budget that bounds them. */
+export function registerResourceStore(connectionId: string, store: SessionStore): void {
+  if (!store.limits.onHeap) offHeap.set(connectionId, new OffHeapResources(store));
+}
 
 function mintKey(): bigint {
   const words = new Uint32Array(2);
@@ -72,6 +147,8 @@ function put(
   if (bytes.byteLength === 0 || bytes.byteLength > MAX_ENTRY_BYTES) return null;
   const key = mintKey();
   const id = key.toString();
+  const session = offHeap.get(connectionId);
+  if (session) return session.put(kind, id, bytes, targetId) ? key : null;
   const charge = chargeOf(bytes);
   stores[kind].set(id, { bytes, connectionId, targetId });
   let owner = owners[kind].get(connectionId);
@@ -151,8 +228,10 @@ export function getFontBytes(key: bigint, connectionId: string): Uint8Array | nu
 }
 
 function get(key: bigint, kind: ResourceKind, connectionId: string): Uint8Array | null {
-  const entries = stores[kind];
   const id = key.toString();
+  const session = offHeap.get(connectionId);
+  if (session) return session.get(kind, id);
+  const entries = stores[kind];
   const entry = entries.get(id);
   // Opaque keys are not authorization; every read must match its connection owner.
   if (!entry || entry.connectionId !== connectionId) return null;
@@ -163,6 +242,7 @@ function get(key: bigint, kind: ResourceKind, connectionId: string): Uint8Array 
 }
 
 export function dropTargetImages(connectionId: string, targetId: string): void {
+  offHeap.get(connectionId)?.dropTarget(targetId);
   for (const kind of ["image", "font"] as const) {
     for (const [id, entry] of stores[kind]) {
       if (entry.connectionId === connectionId && entry.targetId === targetId) {
@@ -173,6 +253,8 @@ export function dropTargetImages(connectionId: string, targetId: string): void {
 }
 
 export function dropConnectionImages(connectionId: string): void {
+  offHeap.get(connectionId)?.clear();
+  offHeap.delete(connectionId);
   for (const kind of ["image", "font"] as const) {
     for (const [id, entry] of stores[kind]) {
       if (entry.connectionId === connectionId) drop(kind, id);
@@ -180,6 +262,7 @@ export function dropConnectionImages(connectionId: string): void {
   }
 }
 
+/** The payloads on the isolate heap. A store off the heap reports its own size. */
 export function imageStoreStats(): { bytes: number; count: number } {
   return {
     bytes: bytesTotal.image + bytesTotal.font,

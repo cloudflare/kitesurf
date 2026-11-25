@@ -9,6 +9,7 @@ import { closeTargetInternal, createPageTarget } from "../src/cdp/target.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import { DynamicWorkerBudget } from "../src/eval/worker-budget.ts";
+import { MemorySessionStore } from "../src/state/session-store.ts";
 import { DedicatedWorkers } from "../src/cdp/dedicated-workers.ts";
 import { SANDBOX_ALLOW_ALL } from "@kitesurf/script-gate";
 import {
@@ -23,6 +24,7 @@ function makeCtx(budget: DynamicWorkerBudget, background: Promise<unknown>[]) {
   return {
     browser: {
       targets: new Map(),
+      store: new MemorySessionStore(),
       screencasts: new Map(),
       workerBudget: budget,
       dedicatedWorkers: new DedicatedWorkers(budget, (p: Promise<unknown>) => {
