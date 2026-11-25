@@ -355,10 +355,74 @@ export function startStylesheetPrefetch(
 
   const controller = new AbortController();
   const entries = new Map<string, Promise<CachedStylesheet | null>>();
+  const liveStreams = new Set<() => void>();
   let cancelled = false;
   let batchBytes = 0;
   let active = 0;
   const waiters: Array<() => void> = [];
+
+  // Own every handed-off stream: enforce a read deadline, keep its buffered head
+  // charged against batchBytes until finished/cancelled, and cancel on teardown
+  // even after take() has handed the Response to PageScript.
+  const ownStream = (
+    raw: ReadableStream<Uint8Array>,
+    charged: number,
+  ): ReadableStream<Uint8Array> => {
+    const reader = raw.getReader();
+    let remainingCharge = charged;
+    let settled = false;
+    let streamCtrl: ReadableStreamDefaultController<Uint8Array> | null = null;
+    const finish = (): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      liveStreams.delete(abortStream);
+      if (remainingCharge > 0) {
+        batchBytes -= remainingCharge;
+        remainingCharge = 0;
+      }
+    };
+    const abortStream = (): void => {
+      finish();
+      void reader.cancel().catch(() => {});
+      try {
+        streamCtrl?.error(new DOMException("Prefetch stylesheet stream cancelled", "AbortError"));
+      } catch {}
+    };
+    const deadline = setTimeout(abortStream, PREFETCH_TIMEOUT_MS);
+    liveStreams.add(abortStream);
+    return new ReadableStream<Uint8Array>(
+      {
+        start(c) {
+          streamCtrl = c;
+          if (cancelled) abortStream();
+        },
+        async pull(c) {
+          if (settled) return;
+          try {
+            const { done, value } = await reader.read();
+            if (settled) return;
+            if (done) {
+              finish();
+              c.close();
+            } else if (value) {
+              c.enqueue(value);
+            }
+          } catch (err) {
+            finish();
+            try {
+              c.error(err);
+            } catch {}
+          }
+        },
+        cancel(reason) {
+          finish();
+          void reader.cancel(reason).catch(() => {});
+        },
+      },
+      { highWaterMark: 0 },
+    );
+  };
 
   const acquireSlot = async (): Promise<boolean> => {
     if (controller.signal.aborted) return false;
@@ -413,7 +477,7 @@ export function startStylesheetPrefetch(
         );
         const respHeaders = extractStylesheetHeaders(resp);
         const readCap = Math.min(MAX_STYLESHEET_BYTES, MAX_PREFETCH_TOTAL_BYTES);
-        if (declaredOverCap(resp.headers, readCap)) {
+        if (declaredOverCap(resp.headers, readCap) || batchBytes >= MAX_PREFETCH_TOTAL_BYTES) {
           if (cancelled) {
             await resp.body?.cancel().catch(() => {});
             return null;
@@ -426,7 +490,12 @@ export function startStylesheetPrefetch(
               stream: null,
             };
           }
-          return { status: resp.status, headers: respHeaders, bytes: null, stream: resp.body };
+          return {
+            status: resp.status,
+            headers: respHeaders,
+            bytes: null,
+            stream: ownStream(resp.body, 0),
+          };
         }
         const got = await readCappedBudgeted(
           resp.body,
@@ -434,10 +503,9 @@ export function startStylesheetPrefetch(
           opts.connectionId,
           MAX_CONNECTION_READ_BYTES,
           (delta) => {
-            if (batchBytes + delta > MAX_PREFETCH_TOTAL_BYTES) return false;
             batchBytes += delta;
             chargedBatch += delta;
-            return true;
+            return batchBytes <= MAX_PREFETCH_TOTAL_BYTES;
           },
         );
         if (got.bytes !== null) {
@@ -454,7 +522,13 @@ export function startStylesheetPrefetch(
           await got.rest.cancel().catch(() => {});
           return null;
         }
-        return { status: resp.status, headers: respHeaders, bytes: null, stream: got.rest };
+        kept = true;
+        return {
+          status: resp.status,
+          headers: respHeaders,
+          bytes: null,
+          stream: ownStream(got.rest, chargedBatch),
+        };
       } catch {
         return null;
       } finally {
@@ -489,6 +563,10 @@ export function startStylesheetPrefetch(
     },
     cancel(): void {
       cancelled = true;
+      for (const abortStream of [...liveStreams]) {
+        abortStream();
+      }
+      liveStreams.clear();
       for (const pending of entries.values()) {
         void pending.then((cached) => {
           if (cached?.stream) void cached.stream.cancel().catch(() => {});

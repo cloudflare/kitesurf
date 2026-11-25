@@ -415,4 +415,137 @@ describe("startStylesheetPrefetch", () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(streamCancelled).toBe(true);
   });
+
+  it("cancels a claimed-but-unread streaming stylesheet body on cancel()", async () => {
+    let streamCancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new Uint8Array(1024));
+      },
+      cancel() {
+        streamCancelled = true;
+      },
+    });
+    const fetcher: Fetcher = {
+      async fetch(): Promise<Response> {
+        return new Response(body, {
+          status: 404,
+          headers: {
+            "content-type": "text/css",
+            "content-length": String(5 * 1024 * 1024),
+          },
+        });
+      },
+      connect(): Socket {
+        throw new Error("unexpected connect");
+      },
+    };
+    const override: SandboxOutboundOverride = {
+      external: false,
+      parent: () => fetcher,
+      loaded: () => fetcher,
+      session: () => ({
+        outbound: async () => new Response("", { status: 404 }),
+        cancelBodies() {},
+      }),
+      final: () => Promise.resolve(new Response("", { status: 404 })),
+    };
+    const job = startStylesheetPrefetch({
+      html: '<link rel="stylesheet" href="/gone.css">',
+      baseUrl: "https://example.com/",
+      pageUrl: "https://example.com/",
+      pageOrigin: "https://example.com",
+      connectionId: "",
+      mainFrameId: "f1",
+      mainLoaderId: "l1",
+      extraHeaders: {},
+      cookieKey: "",
+      cspHeaders: [],
+      sandboxOutbound: override,
+    });
+    const resp = await job!.take({
+      url: "https://example.com/gone.css",
+      method: "GET",
+      headers: [
+        ["x-kitesurf-resource-type", "Stylesheet"],
+        ["x-kitesurf-initiator", "parser"],
+        ["x-kitesurf-stylesheet-cors", "no-cors"],
+        ["x-kitesurf-credentials", "same-origin"],
+      ],
+      body: null,
+    });
+    expect(resp?.status).toBe(404);
+    job!.cancel();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(streamCancelled).toBe(true);
+  });
+
+  it("stops buffering once replay streams saturate the 4 MiB batch budget", async () => {
+    const pullsByUrl = new Map<string, number>();
+    const chunk = new Uint8Array(2 * 1024 * 1024);
+    const fetcher: Fetcher = {
+      async fetch(input: RequestInfo | URL): Promise<Response> {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        let sent = 0;
+        const body = new ReadableStream<Uint8Array>(
+          {
+            pull(c) {
+              pullsByUrl.set(url, (pullsByUrl.get(url) ?? 0) + 1);
+              if (sent < 3) {
+                sent++;
+                c.enqueue(chunk);
+              } else {
+                c.close();
+              }
+            },
+          },
+          { highWaterMark: 0 },
+        );
+        return new Response(body, {
+          status: 200,
+          headers: { "content-type": "text/css" },
+        });
+      },
+      connect(): Socket {
+        throw new Error("unexpected connect");
+      },
+    };
+    const override: SandboxOutboundOverride = {
+      external: false,
+      parent: () => fetcher,
+      loaded: () => fetcher,
+      session: () => ({
+        outbound: async () => new Response("", { status: 404 }),
+        cancelBodies() {},
+      }),
+      final: () => Promise.resolve(new Response("", { status: 404 })),
+    };
+    // 16 links (> MAX_PREFETCH_CONCURRENCY=8): wave 1 saturates the 4 MiB batch
+    // budget and keeps those replay bytes charged, so wave 2 must not pull any chunks.
+    const links = Array.from(
+      { length: 16 },
+      (_, i) => `<link rel="stylesheet" href="/s${i}.css">`,
+    ).join("");
+    const job = startStylesheetPrefetch({
+      html: links,
+      baseUrl: "https://example.com/",
+      pageUrl: "https://example.com/",
+      pageOrigin: "https://example.com",
+      connectionId: "",
+      mainFrameId: "f1",
+      mainLoaderId: "l1",
+      extraHeaders: {},
+      cookieKey: "",
+      cspHeaders: [],
+      sandboxOutbound: override,
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    const wave2Pulls = Array.from(
+      { length: 8 },
+      (_, i) => pullsByUrl.get(`https://example.com/s${i + 8}.css`) ?? 0,
+    );
+    expect(wave2Pulls).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+    job!.cancel();
+  });
 });
