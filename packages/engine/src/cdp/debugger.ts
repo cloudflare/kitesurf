@@ -4,14 +4,15 @@
 
 // Implements CDP Debugger commands and events for PageScript execution.
 
-import type { CdpRequest, CompiledScriptMeta, TargetState } from "./types.ts";
+import type { CompiledScriptMeta, TargetState } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
+import { defineDomain, stub } from "./domain.ts";
 
 const EXEC_CONTEXT_ID = 1;
 
-export async function handleDebugger(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
-  switch (req.method) {
-    case "Debugger.enable": {
+export const debuggerDomain = defineDomain("Debugger", {
+  methods: {
+    "Debugger.enable": (ctx, req) => {
       const sessionId = req.sessionId;
       for (const target of ctx.browser.targets.values()) {
         if (target.type !== "page") continue;
@@ -40,27 +41,26 @@ export async function handleDebugger(ctx: DispatchCtx, req: CdpRequest): Promise
         }
       }
       return { debuggerId: `dbg-${sessionId ?? "browser"}` };
-    }
+    },
 
-    case "Debugger.disable": {
+    "Debugger.disable": (ctx, req) => {
       const sessionId = req.sessionId;
       for (const target of ctx.browser.targets.values()) {
         if (sessionId) target.debuggerEnabledSessions.delete(sessionId);
         else target.debuggerEnabledSessions.delete("");
       }
       return {};
-    }
+    },
 
     // Accept unsupported methods commonly sent during attach.
-    case "Debugger.setSkipAllPauses":
-    case "Debugger.setBreakpointsActive":
-    case "Debugger.setPauseOnExceptions":
-    case "Debugger.setAsyncCallStackDepth":
-    case "Debugger.setBlackboxPatterns":
-    case "Debugger.setBlackboxedRanges":
-      return {};
+    "Debugger.setSkipAllPauses": stub,
+    "Debugger.setBreakpointsActive": stub,
+    "Debugger.setPauseOnExceptions": stub,
+    "Debugger.setAsyncCallStackDepth": stub,
+    "Debugger.setBlackboxPatterns": stub,
+    "Debugger.setBlackboxedRanges": stub,
 
-    case "Debugger.getScriptSource": {
+    "Debugger.getScriptSource": (ctx, req) => {
       const scriptId = req.params!.scriptId;
       for (const target of ctx.browser.targets.values()) {
         for (const meta of target.compiledScripts) {
@@ -70,12 +70,9 @@ export async function handleDebugger(ctx: DispatchCtx, req: CdpRequest): Promise
         }
       }
       return { scriptSource: "" };
-    }
-
-    default:
-      return {};
-  }
-}
+    },
+  },
+});
 
 export function emitScriptParsed(
   ctx: DispatchCtx,

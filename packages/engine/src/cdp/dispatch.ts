@@ -32,7 +32,7 @@ import { handleInput } from "./input.ts";
 import { handleKitesurf } from "./kitesurf.ts";
 import { handleWebMcp } from "./webmcp.ts";
 import { domStorageDomain } from "./dom-storage.ts";
-import { handleDebugger } from "./debugger.ts";
+import { debuggerDomain } from "./debugger.ts";
 import { handleCss } from "./css.ts";
 import { handleAccessibility } from "./accessibility.ts";
 import { sessionOf } from "./page-session.ts";
@@ -199,7 +199,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         result = await handleWebMcp(ctx, req);
         break;
       case "Debugger":
-        result = await handleDebugger(ctx, req);
+        result = await runDomain(ctx, req, debuggerDomain);
         break;
       case "CSS":
         result = await handleCss(ctx, req);
