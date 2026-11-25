@@ -42,6 +42,7 @@ import {
 import { parseUrlForNode } from "../text-encoding.js";
 import { recordOp, recordCdpMutation } from "../record.js";
 import { ksSpan } from "../otel.js";
+import { recordParsedChildren, withCustomElementReactions } from "../custom-element-reactions.js";
 import { animateElement, animationsFor, type KsAnimation } from "../animations.js";
 import {
   nodeScrollInfoSafe,
@@ -1294,7 +1295,10 @@ class Element extends NodeBase implements Idl.Element {
     // https://webidl.spec.whatwg.org/#LegacyNullToEmptyString
     const htmlText = value === null ? "" : String(value);
     demandSvgTextOutlines(htmlText, this.namespaceURI);
-    ksSpan("dom.innerHTML", { html_bytes: htmlText.length }, () => this.__setInnerHTML(htmlText));
+    withCustomElementReactions(() => {
+      ksSpan("dom.innerHTML", { html_bytes: htmlText.length }, () => this.__setInnerHTML(htmlText));
+      if (!isTemplateElement(this._id)) recordParsedChildren(this);
+    });
   }
   __setInnerHTML(htmlText: string, scriptingOff = inScriptlessDocument(this)): void {
     maybeScheduleSlotchange(this._id);
@@ -1364,7 +1368,9 @@ class Element extends NodeBase implements Idl.Element {
   }
   set outerHTML(value) {
     const htmlText = value === null ? "" : String(value);
-    ksSpan("dom.outerHTML", { html_bytes: htmlText.length }, () => this.__setOuterHTML(htmlText));
+    withCustomElementReactions(() =>
+      ksSpan("dom.outerHTML", { html_bytes: htmlText.length }, () => this.__setOuterHTML(htmlText)),
+    );
   }
   // Limitation: HTML returns silently without a parent and uses the parent as context.
   // This throws and parses inside a temporary div.

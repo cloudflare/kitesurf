@@ -227,6 +227,7 @@ export interface KitesurfInternals {
   // Custom-element registry hooks; page-script owns the registry.
   notifyConnected?: (root: object) => void;
   upgradeCustomElement?: (element: object, tagName: string) => void;
+  upgradeParsedCustomElements?: (nodeIds: readonly number[]) => void;
   customElementObservesAttribute?: (element: object, name: string) => boolean;
   notifyCustomElementAttributeChanged?: (
     element: object,

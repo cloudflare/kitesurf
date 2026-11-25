@@ -140,6 +140,7 @@ import {
 } from "./node-base.js";
 import { __ks_documentImpl_location_get, __ks_documentImpl_location_set } from "./window.js";
 import { ksInternals } from "./internals.js";
+import { withCustomElementReactions } from "./custom-element-reactions.js";
 
 function ksState() {
   return getInternalState();
@@ -1097,17 +1098,19 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       if (!markup) return;
       const host = this.body || this.documentElement;
       if (!host) return;
-      const tmp = this.createElement("div");
-      tmp.innerHTML = markup;
-      // innerHTML marks its scripts already-started, but written scripts run:
-      // pre-ES6 loaders write `<script src>` from inside a script. Marking
-      // them lets the insert hook, notified by the append below, run them.
-      const scripts = tmp.querySelectorAll("script");
-      for (let i = 0; i < scripts.length; i++) {
-        const id = scripts[i]?._id;
-        if (typeof id === "number") markWrittenScript(id);
-      }
-      while (tmp.firstChild) host.appendChild(tmp.firstChild);
+      withCustomElementReactions(() => {
+        const tmp = this.createElement("div");
+        tmp.innerHTML = markup;
+        // innerHTML marks its scripts already-started, but written scripts run:
+        // pre-ES6 loaders write `<script src>` from inside a script. Marking
+        // them lets the insert hook, notified by the append below, run them.
+        const scripts = tmp.querySelectorAll("script");
+        for (let i = 0; i < scripts.length; i++) {
+          const id = scripts[i]?._id;
+          if (typeof id === "number") markWrittenScript(id);
+        }
+        while (tmp.firstChild) host.appendChild(tmp.firstChild);
+      });
     } catch {}
   }
   writeln(...args: Array<Idl.TrustedHTML | string>) {

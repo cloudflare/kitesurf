@@ -322,3 +322,99 @@ test("connecting a host upgrades and connects the elements in its shadow tree", 
     log: ["connected:a", "connected:b", "connected:b", "connected:c", "connected:d"],
   });
 });
+
+test("markup setters upgrade the custom elements they parse, in place", async ({ page }) => {
+  await setContent(page, "<!doctype html><body></body>");
+  const result = await page.evaluate(() => {
+    const log: string[] = [];
+    customElements.define(
+      "x-m",
+      class extends HTMLElement {
+        constructor() {
+          super();
+          const parent = this.parentNode as Element | null;
+          log.push("ctor:" + (parent ? parent.id || parent.nodeName : "none"));
+        }
+        connectedCallback() {
+          log.push("connected");
+        }
+        play() {}
+      },
+    );
+    const div = (id: string, connected = false) => {
+      const d = Object.assign(document.createElement("div"), { id });
+      if (connected) document.body.append(d);
+      return d;
+    };
+    const run = (make: () => Node | null) => {
+      log.length = 0;
+      const element = make() as (Node & { play?: unknown }) | null;
+      return [typeof element?.play, ...log];
+    };
+    const shadow = (id: string, connected = false) =>
+      div(id, connected).attachShadow({ mode: "open" });
+    const range = document.createRange();
+    range.selectNodeContents(document.body);
+    return {
+      innerHTMLDetached: run(() => {
+        const d = div("d1");
+        d.innerHTML = "<x-m></x-m>";
+        return d.firstChild;
+      }),
+      innerHTMLConnected: run(() => {
+        const d = div("d2", true);
+        d.innerHTML = "<x-m></x-m>";
+        return d.firstChild;
+      }),
+      shadowDetached: run(() => {
+        const root = shadow("h1");
+        root.innerHTML = "<x-m></x-m>";
+        return root.firstChild;
+      }),
+      // Issue #147, case B.
+      shadowConnected: run(() => {
+        const root = shadow("h2", true);
+        root.innerHTML = "<x-m></x-m>";
+        return root.firstChild;
+      }),
+      insertAdjacentDetached: run(() => {
+        const d = div("d3");
+        d.insertAdjacentHTML("beforeend", "<x-m></x-m>");
+        return d.firstChild;
+      }),
+      insertAdjacentConnected: run(() => {
+        const d = div("d4", true);
+        d.insertAdjacentHTML("afterbegin", "<x-m></x-m>");
+        return d.firstChild;
+      }),
+      outerHTML: run(() => {
+        const d = div("d5", true);
+        d.innerHTML = "<span></span>";
+        (d.firstChild as Element).outerHTML = "<x-m></x-m>";
+        return d.firstChild;
+      }),
+      contextualFragment: run(() => range.createContextualFragment("<x-m></x-m>").firstChild),
+      template: run(() => {
+        const t = document.createElement("template");
+        t.innerHTML = "<x-m></x-m>";
+        return t.content.firstChild;
+      }),
+      domParser: run(() =>
+        new DOMParser().parseFromString("<x-m></x-m>", "text/html").querySelector("x-m"),
+      ),
+    };
+  });
+
+  expect(result).toEqual({
+    innerHTMLDetached: ["function", "ctor:d1"],
+    innerHTMLConnected: ["function", "ctor:d2", "connected"],
+    shadowDetached: ["function", "ctor:#document-fragment"],
+    shadowConnected: ["function", "ctor:#document-fragment", "connected"],
+    insertAdjacentDetached: ["function", "ctor:d3"],
+    insertAdjacentConnected: ["function", "ctor:d4", "connected"],
+    outerHTML: ["function", "ctor:d5", "connected"],
+    contextualFragment: ["function", "ctor:#document-fragment"],
+    template: ["undefined"],
+    domParser: ["undefined"],
+  });
+});

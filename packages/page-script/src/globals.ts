@@ -3015,6 +3015,11 @@ export function installGlobals(
           fireConnectedCallback: element.isConnected === true,
         });
       };
+      const upgradeParsed = (nodeIds: readonly number[]): void => {
+        for (const id of nodeIds) {
+          for (const element of candidatesUnder(id, true, "")) upgradeIfDefined(element);
+        }
+      };
       ksInternals.notifyConnected = (rootElement: any) => {
         try {
           if (registry.size === 0) return;
@@ -3053,6 +3058,7 @@ export function installGlobals(
             );
           }
           registry.set(tagName, customElementConstructor);
+          ksInternals.upgradeParsedCustomElements = upgradeParsed;
           observedAttributes.set(customElementConstructor, observedAttributeNames);
           try {
             ctorTagNames.set(customElementConstructor, String(tagName));

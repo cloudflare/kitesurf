@@ -40,6 +40,7 @@ import {
 } from "./range.js";
 import { runIteratorPreRemove } from "./traversal.js";
 import { ksSpan } from "./otel.js";
+import { withCustomElementReactions } from "./custom-element-reactions.js";
 import {
   cache,
   hasLiveWrapper,
@@ -1828,8 +1829,10 @@ class NodeBase extends KsEventTarget implements Idl.Node {
   }
   insertAdjacentHTML(position: string, html: string | Idl.TrustedHTML): void {
     const htmlText = String(html == null ? "" : html);
-    return ksSpan("dom.insertAdjacentHTML", { html_bytes: htmlText.length }, () =>
-      this.__insertAdjacentHTML(position, htmlText),
+    withCustomElementReactions(() =>
+      ksSpan("dom.insertAdjacentHTML", { html_bytes: htmlText.length }, () =>
+        this.__insertAdjacentHTML(position, htmlText),
+      ),
     );
   }
   __insertAdjacentHTML(position: string, html: string): void {

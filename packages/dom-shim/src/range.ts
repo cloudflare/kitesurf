@@ -22,6 +22,7 @@ import { dispatchTrustedEvent } from "./events/dispatch.js";
 import { bumpMutationSeq } from "./mutations/seq.js";
 import { getInternalState } from "./internal-state.js";
 import { markRuntimeCreatedScript } from "./mutations/observer.js";
+import { recordParsedChildren, withCustomElementReactions } from "./custom-element-reactions.js";
 import { hasParsedHandle, nodeListGetters, nodeOwnerDoc } from "./registries.js";
 import { makeDomRect, makeDomRectList } from "./element/rect.js";
 import { cloneWrapper, type NodeBase } from "./node-base.js";
@@ -656,13 +657,16 @@ class RangeImpl extends AbstractRangeImpl implements Idl.Range {
       while (context.firstChild) fragment.appendChild(context.firstChild);
       return fragment;
     }
-    const fragment = createDocumentFragmentInternal();
-    if (doc !== document) nodeOwnerDoc.set(fragment, doc);
-    parseFragmentInContext(fragment, ns, localName, html, doc !== document);
-    for (const id of dom.querySelectorAllInSubtree(fragment._id, "script")) {
-      markRuntimeCreatedScript(id);
-    }
-    return fragment;
+    return withCustomElementReactions(() => {
+      const fragment = createDocumentFragmentInternal();
+      if (doc !== document) nodeOwnerDoc.set(fragment, doc);
+      parseFragmentInContext(fragment, ns, localName, html, doc !== document);
+      for (const id of dom.querySelectorAllInSubtree(fragment._id, "script")) {
+        markRuntimeCreatedScript(id);
+      }
+      recordParsedChildren(fragment);
+      return fragment;
+    });
   }
   detach() {}
   getClientRects() {
