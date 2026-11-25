@@ -179,7 +179,12 @@ function buildClassicSegment(
   const source = d.src ? (d.prefetchedSource ?? "") : (d.body ?? "");
   if (!source.trim()) {
     const sourceText = lifecycle(true);
-    return { source: sourceText, sourceLineOffset: 0, lineCount: countLines(sourceText), lexicalNames: [] };
+    return {
+      source: sourceText,
+      sourceLineOffset: 0,
+      lineCount: countLines(sourceText),
+      lexicalNames: [],
+    };
   }
 
   const bodyKey = !d.src ? (d.body || "").trim().slice(0, INLINE_SCRIPT_BODY_KEY_PREFIX_CHARS) : "";

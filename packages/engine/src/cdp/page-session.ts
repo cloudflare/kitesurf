@@ -216,10 +216,7 @@ export function resolveTarget(
 
 /** The page target a session's pre-nav script belongs to: its target, or the page that owns its
  * OOPIF frame. A browser-target session returns null so the caller stores it browser-wide. */
-export function resolvePreNavScriptTarget(
-  ctx: DispatchCtx,
-  sessionId: string,
-): TargetState | null {
+export function resolvePreNavScriptTarget(ctx: DispatchCtx, sessionId: string): TargetState | null {
   for (const t of ctx.browser.targets.values()) {
     if (t.type !== "page") continue;
     if (t.sessions.has(sessionId)) return t;
