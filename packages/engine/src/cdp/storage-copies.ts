@@ -164,10 +164,46 @@ export async function changeLocalStorage(
 }
 
 // `seq` tells the page which of its own batches the area held before these ops, so it replays
-// the rest on top (page-script web-storage.ts).
-function pushTo(copy: StorageCopy, ops: LocalStorageOp[], url: string | null): Promise<unknown> {
-  const params = { op: "apply", area: copy.storage.area, ops, url, seq: copy.applied } as const;
-  return copy.stub.webStorage(params).catch(() => {});
+// the rest on top (page-script web-storage.ts). A long list goes in chunks under JSRPC's cap, in
+// order; page script can run between two chunks and see the first applied alone.
+async function pushTo(copy: StorageCopy, ops: LocalStorageOp[], url: string | null): Promise<void> {
+  for (const chunk of opChunks(ops)) {
+    const params = {
+      op: "apply",
+      area: copy.storage.area,
+      ops: chunk,
+      url,
+      seq: copy.applied,
+    } as const;
+    try {
+      await copy.stub.webStorage(params);
+    } catch (err) {
+      // A page that went away misses nothing; one that is still open keeps a stale copy.
+      if (copy.live) console.warn(`[kitesurf-storage] ${copy.origin}: apply failed`, err);
+      return;
+    }
+  }
+}
+
+// The ops in order, in chunks under SEED_CHUNK_BYTES unless one op alone passes it. No ops still
+// make one empty chunk: the message alone tells the source page which of its batches landed.
+export function opChunks(ops: readonly LocalStorageOp[]): LocalStorageOp[][] {
+  const chunks: LocalStorageOp[][] = [];
+  let chunk: LocalStorageOp[] = [];
+  let bytes = 0;
+  for (const op of ops) {
+    const text = op.op === "clear" ? 0 : op.key.length + (op.op === "set" ? op.value.length : 0);
+    const size = SEED_ENTRY_BYTES + 2 * text;
+    if (chunk.length > 0 && bytes + size > SEED_CHUNK_BYTES) {
+      chunks.push(chunk);
+      chunk = [];
+      bytes = 0;
+    }
+    chunk.push(op);
+    bytes += size;
+  }
+  if (chunk.length > 0 || chunks.length === 0) chunks.push(chunk);
+  return chunks;
 }
 
 // The area's value for each key whose set it dropped, which the source's copy already holds.
