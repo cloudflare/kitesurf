@@ -7,11 +7,26 @@
 
 pub(crate) mod scene_record;
 pub(crate) mod scene_decode;
+#[cfg_attr(
+    not(feature = "scene-rasterizer-wasm"),
+    allow(
+        dead_code,
+        reason = "Shared with renderer-core/scene-host-wasm, which use the raster paths core does not export."
+    )
+)]
 pub(crate) mod scene_replay;
 pub(crate) mod font_container;
+#[cfg_attr(
+    not(feature = "scene-rasterizer-wasm"),
+    allow(
+        dead_code,
+        reason = "Shared with renderer-core/scene-host-wasm, which use the raster paths core does not export."
+    )
+)]
 pub(crate) mod screenshot;
 pub(crate) mod canvas2d;
 pub(crate) mod pdf;
+#[cfg(feature = "pdf")]
 pub(crate) mod pdf_paint;
 pub(crate) mod render;
 pub(crate) mod canvas;
