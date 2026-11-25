@@ -32,10 +32,10 @@ type WritableKey<P, K extends keyof P> = IfEquals<
 
 // A hand-written IDL attribute: each half sees `this` as the prototype's
 // type, the getter returns the attribute's type and the setter takes it.
-interface AttributeAccessors<P, K extends keyof P> {
+// A readonly attribute takes no setter.
+type AttributeAccessors<P, K extends keyof P> = {
   get(this: P): P[K];
-  set?(this: P, value: P[K]): void;
-}
+} & ([WritableKey<P, K>] extends [never] ? { set?: never } : { set?(this: P, value: P[K]): void });
 
 // Installs an attribute no reflection helper fits, in the shape they all
 // install: an enumerable, configurable accessor. The name must be a key the
@@ -395,9 +395,13 @@ const REFERRER_POLICY_KEYWORDS = [
 
 // crossorigin is nullable; unknown and empty values map to anonymous.
 // https://html.spec.whatwg.org/#cors-settings-attribute
+// readonly does not affect assignability, so a prototype without a writable
+// crossOrigin must match a type no attribute has.
 function defineReflectedCrossOrigin<P extends Element>(
   proto: P &
-    ("crossOrigin" extends ReflectKey<P, string | null> ? unknown : { crossOrigin: string | null }),
+    ("crossOrigin" extends ReflectKey<P, string | null>
+      ? unknown
+      : { crossOrigin: "a writable string | null attribute" }),
 ): void {
   Object.defineProperty(proto, "crossOrigin", {
     configurable: true,
