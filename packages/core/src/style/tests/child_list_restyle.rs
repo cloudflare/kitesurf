@@ -395,3 +395,40 @@ fn non_subject_has_descendant_adjacent_sibling_updates_on_insert_between() {
     assert!(dom.insert_before_node(id(&dom, ".w"), spacer, id(&dom, "#b")));
     assert_eq!(color(&dom, "#y"), "rgb(0, 128, 0)");
 }
+
+#[test]
+fn non_subject_has_adjacent_sibling_updates_on_remove_between() {
+    // The removal counterpart: after the inserted spacer goes away, `.a + .b` matches again and
+    // the non-subject anchor's descendant `.y` must regain the red style.
+    let html = r#"<!doctype html><style>
+        .y { color: rgb(0, 128, 0); }
+        .p:has(> .a + .b) .y { color: rgb(255, 0, 0); }
+    </style>
+    <div class="p"><i class="y" id="y"></i><span class="a"></span><span class="b" id="b"></span></div>"#;
+    let dom = DomHandle::new(html, "https://example.test/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+
+    assert_eq!(color(&dom, "#y"), "rgb(255, 0, 0)");
+    let spacer = dom.create_element("span");
+    assert!(dom.insert_before_node(id(&dom, ".p"), spacer, id(&dom, "#b")));
+    assert_eq!(color(&dom, "#y"), "rgb(0, 128, 0)");
+    assert!(dom.remove_node(spacer));
+    assert_eq!(color(&dom, "#y"), "rgb(255, 0, 0)");
+}
+
+#[test]
+fn non_subject_has_adjacent_sibling_updates_on_direct_remove_between() {
+    let html = r#"<!doctype html><style>
+        .y { color: rgb(0, 128, 0); }
+        .p:has(> .a + .b) .y { color: rgb(255, 0, 0); }
+    </style>
+    <div class="p"><i class="y" id="y"></i><span class="a"></span><span id="s"></span><span class="b" id="b"></span></div>"#;
+    let dom = DomHandle::new(html, "https://example.test/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+
+    assert_eq!(color(&dom, "#y"), "rgb(0, 128, 0)");
+    assert!(dom.remove_node(id(&dom, "#s")));
+    assert_eq!(color(&dom, "#y"), "rgb(255, 0, 0)");
+}
