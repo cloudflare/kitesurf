@@ -295,10 +295,6 @@
     "expected": "SKIP",
     "reason": "auto: FAIL after 14.2s: expect(received).resolves.toBeTruthy() / Received promise rejected instead of resolved / Rejected to value: [Error: Waiting for selector `div` failed]"
   },
-  "[waittask.test] waittask specs Frame.waitForSelector should wait for element to be visible (bounding box)": {
-    "expected": "FAIL",
-    "reason": "auto: expect(received).resolves.toBeFalsy() / Received: {\"handle\": {}, \"isolatedHandle\": undefined, Symbol(_isElementHandle): true}"
-  },
   "[waittask.test] waittask specs Frame.waitForSelector xpath should run in specified frame": {
     "expected": "SKIP",
     "reason": "auto: TIMEOUT after 15.0s"
