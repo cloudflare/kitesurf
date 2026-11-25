@@ -5,8 +5,9 @@
 // Mouse and keyboard events enter PageScript; other Input methods are no-ops.
 // Hit-testing is partial, and the DOM shim does not implement KeyboardEvent.
 
-import { makeTargetId, type CdpRequest, type TargetState } from "./types.ts";
+import { CDP_COMMAND_UNHANDLED, makeTargetId, type CdpRequest, type TargetState } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
+import { defineDomain, stub } from "./domain.ts";
 import { makeFrameInfo, makeMainFrameState } from "./frames.ts";
 import type { MouseEventInit } from "@kitesurf/jsrpc-types/page-script";
 import type { ConsoleEntry, JsWindowDrain } from "@kitesurf/jsrpc-types/shared";
@@ -93,31 +94,52 @@ export interface HandleInputOptions {
   replyOnDispatch?: boolean;
 }
 
-export async function handleInput(
+/** The document an embedder observed, which its input must still reach. */
+export interface ExpectedInputDocument {
+  targetId: string;
+  generation: number;
+}
+
+interface InputContext {
+  ctx: DispatchCtx;
+  expected: ExpectedInputDocument | undefined;
+  replyOnDispatch: boolean;
+  assertExpected: (target: TargetState | undefined) => void;
+}
+
+// Waits only when an input-started navigation is pending, so the handler otherwise starts before
+// run returns, as it did when this ran before the switch.
+function inputContext(
   ctx: DispatchCtx,
   req: CdpRequest,
-  expected?: { targetId: string; generation: number },
-  { replyOnDispatch = false }: HandleInputOptions = {},
-): Promise<unknown> {
-  const pendingNavigation = pickTarget(ctx, req.sessionId)?.inputNavigation;
-  if (pendingNavigation) await pendingNavigation;
-  const expectedStub = expected ? pickTarget(ctx, req.sessionId)?.pageScript : undefined;
-  const assertExpected = (target: TargetState | undefined): void => {
-    if (
-      expected &&
-      (!target ||
-        target.targetId !== expected.targetId ||
-        target.navigateGeneration !== expected.generation ||
-        target.pageScript !== expectedStub ||
-        !expectedStub)
-    ) {
-      throw new Error("the observed document retired before input");
-    }
+  expected: ExpectedInputDocument | undefined,
+  { replyOnDispatch = false }: HandleInputOptions,
+): InputContext | Promise<InputContext> {
+  const build = (): InputContext => {
+    const expectedStub = expected ? pickTarget(ctx, req.sessionId)?.pageScript : undefined;
+    const assertExpected = (target: TargetState | undefined): void => {
+      if (
+        expected &&
+        (!target ||
+          target.targetId !== expected.targetId ||
+          target.navigateGeneration !== expected.generation ||
+          target.pageScript !== expectedStub ||
+          !expectedStub)
+      ) {
+        throw new Error("the observed document retired before input");
+      }
+    };
+    if (expected) assertExpected(pickTarget(ctx, req.sessionId));
+    return { ctx, expected, replyOnDispatch, assertExpected };
   };
-  if (expected) assertExpected(pickTarget(ctx, req.sessionId));
-  // The method union keeps each Input command's params tied to its protocol shape.
-  switch (req.method) {
-    case "Input.dispatchMouseEvent": {
+  const pendingNavigation = pickTarget(ctx, req.sessionId)?.inputNavigation;
+  return pendingNavigation ? pendingNavigation.then(build) : build();
+}
+
+export const inputDomain = defineDomain("Input", {
+  context: inputContext,
+  methods: {
+    "Input.dispatchMouseEvent": async ({ ctx, expected, replyOnDispatch, assertExpected }, req) => {
       const target = pickTarget(ctx, req.sessionId);
       if (!target || !target.pageScript) {
         return {};
@@ -223,7 +245,8 @@ export async function handleInput(
           ) {
             assertExpected(target);
             configureWheelDispatch(ctx, target, req.sessionId, queue);
-            return await queue.enqueue(init);
+            await queue.enqueue(init);
+            return {};
           }
         }
         await waitForWheelHandoffDrain(ctx.browser, target.targetId, req.sessionId);
@@ -310,9 +333,9 @@ export async function handleInput(
       } finally {
         releaseWheelFencesNow();
       }
-    }
+    },
 
-    case "Input.dispatchKeyEvent": {
+    "Input.dispatchKeyEvent": async ({ ctx, replyOnDispatch, assertExpected }, req) => {
       const target = pickTarget(ctx, req.sessionId);
       if (!target || !target.pageScript) return {};
       await waitForWheelHandoffDrain(ctx.browser, target.targetId, req.sessionId);
@@ -370,9 +393,9 @@ export async function handleInput(
       } finally {
         for (const release of releaseWheelFences) release();
       }
-    }
+    },
 
-    case "Input.insertText": {
+    "Input.insertText": async ({ ctx, replyOnDispatch, assertExpected }, req) => {
       const target = pickTarget(ctx, req.sessionId);
       if (!target || !target.pageScript) return {};
       await waitForWheelHandoffDrain(ctx.browser, target.targetId, req.sessionId);
@@ -415,20 +438,30 @@ export async function handleInput(
         for (const release of releaseWheelFences) release();
       }
       return {};
-    }
+    },
 
-    case "Input.setIgnoreInputEvents":
-    case "Input.imeSetComposition":
-    case "Input.dispatchTouchEvent":
-    case "Input.dispatchDragEvent":
-    case "Input.synthesizePinchGesture":
-    case "Input.synthesizeScrollGesture":
-    case "Input.synthesizeTapGesture":
-      return {};
+    "Input.setIgnoreInputEvents": stub,
+    "Input.imeSetComposition": stub,
+    "Input.dispatchTouchEvent": stub,
+    "Input.dispatchDragEvent": stub,
+    "Input.synthesizePinchGesture": stub,
+    "Input.synthesizeScrollGesture": stub,
+    "Input.synthesizeTapGesture": stub,
+  },
+});
 
-    default:
-      return {};
-  }
+/**
+ * Runs an Input command for an embedder. With `expected`, the input fails once the observed
+ * document has retired. A command Input does not define answers {}.
+ */
+export async function handleInput(
+  ctx: DispatchCtx,
+  req: CdpRequest,
+  expected?: ExpectedInputDocument,
+  options: HandleInputOptions = {},
+): Promise<unknown> {
+  const result = await inputDomain.run(ctx, req, expected, options);
+  return result === CDP_COMMAND_UNHANDLED ? {} : result;
 }
 
 function scheduleMouseMove(

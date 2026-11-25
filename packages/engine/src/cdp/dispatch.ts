@@ -28,7 +28,7 @@ import { handleDom } from "./dom.ts";
 import { networkDomain, storageDomain } from "./network.ts";
 import { logDomain } from "./log.ts";
 import { fetchDomain } from "./fetch.ts";
-import { handleInput } from "./input.ts";
+import { inputDomain } from "./input.ts";
 import { handleKitesurf } from "./kitesurf.ts";
 import { webMcpDomain } from "./webmcp.ts";
 import { domStorageDomain } from "./dom-storage.ts";
@@ -167,7 +167,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         result = await runDomain(ctx, req, fetchDomain);
         break;
       case "Input":
-        result = await handleInput(ctx, req, undefined, { replyOnDispatch: true });
+        result = await runDomain(ctx, req, inputDomain, undefined, { replyOnDispatch: true });
         break;
       case "Kitesurf": {
         result = await handleKitesurf(ctx, req);
