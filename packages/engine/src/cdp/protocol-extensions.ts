@@ -294,6 +294,39 @@ declare module "devtools-protocol" {
         };
       }
 
+      // A cookie as playwright's storageState holds it, in Chrome's CDP spelling: `expires` is
+      // Unix seconds or -1 for a session cookie, and a leading dot on `domain` makes a domain
+      // cookie. A cookie gives either `url` or `domain` and `path`.
+      interface StorageStateCookie {
+        name: string;
+        value: string;
+        url?: string;
+        domain?: string;
+        path?: string;
+        expires?: number;
+        httpOnly?: boolean;
+        secure?: boolean;
+        sameSite?: "Strict" | "Lax" | "None";
+      }
+
+      interface StorageStateOrigin {
+        /** An http(s) origin, such as `https://example.com`. */
+        origin: string;
+        localStorage: Array<{ name: string; value: string }>;
+      }
+
+      /** playwright's storageState file. Kitesurf ignores the fields it does not keep. */
+      interface StorageState {
+        cookies?: StorageStateCookie[];
+        origins?: StorageStateOrigin[];
+      }
+
+      interface SetStorageStateRequest {
+        storageState: StorageState;
+        /** The default browser context when absent. */
+        browserContextId?: Browser.BrowserContextID;
+      }
+
       // Patterns are JS RegExp syntax, non-unicode and flagless. Lookaround, backreferences,
       // octal escapes, repeats over 1000 and expansions past 8192 steps are refused, and at most
       // 32 patterns of 500 chars each are accepted. One refused pattern rejects the call and
@@ -463,6 +496,10 @@ declare module "devtools-protocol/types/protocol-mapping" {
       "Kitesurf.getMemoryStats": {
         paramsType: [Protocol.Kitesurf.GetMemoryStatsRequest?];
         returnType: Protocol.Kitesurf.GetMemoryStatsResponse;
+      };
+      "Kitesurf.setStorageState": {
+        paramsType: [Protocol.Kitesurf.SetStorageStateRequest];
+        returnType: void;
       };
       "Kitesurf.setOutboundFilters": {
         paramsType: [Protocol.Kitesurf.SetOutboundFiltersRequest?];
