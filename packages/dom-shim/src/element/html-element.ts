@@ -9,6 +9,7 @@ import type * as Idl from "../idl/types.generated.js";
 import { elementDocument } from "../state.js";
 import { MATHML_NS, SVG_NS, TEXT_NODE } from "../constants.js";
 import {
+  defineAttribute,
   defineReflectedString,
   defineReflectedEnum,
   defineReflectedBoolean,
@@ -16,7 +17,7 @@ import {
   defineReflectedNullableEnum,
   asciiLowercaseFast,
 } from "./reflect.js";
-import { Element, renderedTextFragmentNodes } from "./element.js";
+import { Element, elementAttributes, renderedTextFragmentNodes } from "./element.js";
 import type { NodeBase } from "../node-base.js";
 
 type InstalledHTMLElementMembers = Pick<
@@ -177,7 +178,17 @@ defineReflectedEnum(HTMLElementProto, "enterKeyHint", "enterkeyhint", [
   "search",
   "send",
 ]);
-defineReflectedBoolean(HTMLElementProto, "hidden", "hidden");
+// hidden's IDL type also admits "until-found" and the values that clear it. The shim has no
+// hidden-until-found state, so it reflects hidden as a boolean, with a truthy value setting it.
+defineAttribute(HTMLElementProto, "hidden", {
+  get() {
+    return elementAttributes.has.call(this, "hidden");
+  },
+  set(value) {
+    if (value) elementAttributes.set.call(this, "hidden", "");
+    else elementAttributes.remove.call(this, "hidden");
+  },
+});
 defineReflectedBoolean(HTMLElementProto, "inert", "inert");
 defineReflectedBoolean(HTMLElementProto, "autofocus", "autofocus");
 defineReflectedLong(HTMLElementProto, "tabIndex", "tabindex", -1);

@@ -7,6 +7,7 @@
 import type { WrapperInfo } from "../node-base.js";
 import type * as Idl from "../idl/types.generated.js";
 import {
+  defineAttribute,
   defineReflectedString,
   defineReflectedUrl,
   defineReflectedStringNullEmpty,
@@ -14,7 +15,7 @@ import {
   defineReflectedBoolean,
   defineReflectedUnsignedLong,
 } from "./reflect.js";
-import type { Element } from "./element.js";
+import { type Element, elementAttributes } from "./element.js";
 import { HTMLElement, checkInternalConstruct } from "./html-element.js";
 import { HTMLParamElement } from "./html-classes.js";
 
@@ -143,7 +144,16 @@ defineReflectedEnumWithDefaults(
   "eager",
   "eager",
 );
-defineReflectedString(HTMLIFrameElement.prototype, "srcdoc", "srcdoc");
+// The setter takes a TrustedHTML too; the page has no Trusted Types, so any value converts to a
+// string, as a string reflection does.
+defineAttribute(HTMLIFrameElement.prototype, "srcdoc", {
+  get() {
+    return elementAttributes.get.call(this, "srcdoc") ?? "";
+  },
+  set(value) {
+    elementAttributes.set.call(this, "srcdoc", String(value));
+  },
+});
 defineReflectedBoolean(HTMLIFrameElement.prototype, "allowFullscreen", "allowfullscreen");
 
 defineReflectedString(HTMLEmbedElement.prototype, "name", "name");

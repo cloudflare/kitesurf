@@ -9,18 +9,20 @@ import { type Element, elementAttributes } from "./element.js";
 type IfEquals<X, Y, A, B> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? A : B;
 
-// Reflections require writable string keys whose types match the getter.
-// The two-way match admits enum properties narrower than string.
+// Reflections require writable string keys whose type is the reflection's
+// type V, or a keyword union narrower than a string V. So a non-null
+// reflection does not fit a nullable attribute, nor one type a union.
 // IfEquals rejects readonly IDL attributes because reflections install setters.
 type ReflectKey<P, V> = {
   [K in keyof P]-?: K extends string
-    ? [V] extends [P[K]]
-      ? WritableKey<P, K>
-      : [P[K]] extends [V]
+    ? [P[K]] extends [V]
+      ? [V] extends [WidenKeywords<P[K]>]
         ? WritableKey<P, K>
         : never
+      : never
     : never;
 }[keyof P];
+type WidenKeywords<T> = T extends string ? string : T;
 type WritableKey<P, K extends keyof P> = IfEquals<
   { [Q in K]: P[K] },
   { -readonly [Q in K]: P[K] },
