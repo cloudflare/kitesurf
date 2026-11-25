@@ -67,6 +67,14 @@ test("setStorageState replaces the context's cookies and localStorage", async ({
 
   await cdpSession.send("Kitesurf.setStorageState", { storageState: STATE });
   expect(await cookies(cdpSession)).toEqual(["pref=dark", "sid=abc"]);
+  // The file's expires is Unix seconds, and -1 is a session cookie.
+  const jar = (await cdpSession.send("Storage.getCookies", {})).cookies;
+  expect(jar.map(({ name, expires, session }) => ({ name, expires, session }))).toEqual(
+    expect.arrayContaining([
+      { name: "sid", expires: -1, session: true },
+      { name: "pref", expires: 4102444800, session: false },
+    ]),
+  );
   await page.reload({ waitUntil: "load" });
   // sid is HttpOnly, so only pref shows.
   expect(await page.evaluate(() => document.cookie)).toBe("pref=dark");
@@ -92,18 +100,40 @@ test("an open document gets the new localStorage without a storage event", async
   expect(await page.evaluate(() => Reflect.get(window, "__events"))).toEqual([]);
 }, 120_000);
 
+test("an open document gets an area too large for one message", async ({ page, cdpSession }) => {
+  await page.goto(A, { waitUntil: "load" });
+  const count = 200_000;
+  const localStorage = Array.from({ length: count }, (_, i) => ({ name: `k${i}`, value: "v" }));
+  await cdpSession.send("Kitesurf.setStorageState", {
+    storageState: { origins: [{ origin: "https://ks.invalid", localStorage }] },
+  });
+  expect(
+    await page.evaluate(() => [window.localStorage.length, window.localStorage.getItem("k199999")]),
+  ).toEqual([count, "v"]);
+}, 120_000);
+
 test("setStorageState is per browser context", async ({ browser, page, cdpSession }) => {
+  // The default context holds its own state first, so a command that wrote to every context
+  // would wipe it.
+  await page.goto(A, { waitUntil: "load" });
+  await page.evaluate(() => {
+    localStorage.setItem("mine", "default");
+    document.cookie = "own=1; path=/";
+  });
+  await page.evaluate(() => new Promise((r) => setTimeout(r, 0)));
+  await page.reload({ waitUntil: "load" });
+  expect(await read(page)).toEqual({ mine: "default" });
   const context = await browser.createBrowserContext();
   try {
     const browserContextId = context.id;
     await cdpSession.send("Kitesurf.setStorageState", { storageState: STATE, browserContextId });
     expect(await cookies(cdpSession, browserContextId)).toEqual(["pref=dark", "sid=abc"]);
-    expect(await cookies(cdpSession)).toEqual([]);
+    expect(await cookies(cdpSession)).toEqual(["own=1"]);
     const other = await context.newPage();
     await other.goto(A, { waitUntil: "load" });
-    await page.goto(A, { waitUntil: "load" });
+    await page.reload({ waitUntil: "load" });
     expect(await read(other)).toEqual({ token: "t1" });
-    expect(await read(page)).toEqual({});
+    expect(await read(page)).toEqual({ mine: "default" });
   } finally {
     await context.close();
   }
