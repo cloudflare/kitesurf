@@ -1688,6 +1688,51 @@ impl DomHandle {
         out
     }
 
+    /// HTML elements under `root_id` named `local_name` (any hyphenated name when empty), in the
+    /// shadow-including tree order that custom element upgrades follow; templates hold none.
+    #[wasm_bindgen(js_name = "customElementCandidates")]
+    pub fn custom_element_candidates(
+        &self,
+        root_id: u32,
+        include_root: bool,
+        local_name: &str,
+    ) -> Vec<u32> {
+        let Some(root) = self.resolve_node_id(root_id) else {
+            return Vec::new();
+        };
+        let doc = match self.doc.try_borrow() {
+            Ok(d) => d,
+            Err(_) => return Vec::new(),
+        };
+        let mut handles = self.node_handles.borrow_mut();
+        let mut out = Vec::new();
+        let mut stack = vec![root];
+        while let Some(id) = stack.pop() {
+            let Some(node) = doc.get_node(id) else {
+                continue;
+            };
+            if let Some(data) = node.element_data().filter(|d| *d.namespace() == ns!(html)) {
+                let local = &*data.name.local;
+                let matches = if local_name.is_empty() {
+                    local.contains('-')
+                } else {
+                    local == local_name
+                };
+                if matches && (include_root || id != root) {
+                    out.push(handles.external_for(id));
+                }
+                if data.name.local == local_name!("template") {
+                    continue;
+                }
+            }
+            stack.extend(node.children().into_iter().rev());
+            stack.extend(node.attached_shadow_root_id());
+        }
+        drop(handles);
+        drop(doc);
+        out
+    }
+
     #[wasm_bindgen(js_name = "innerTextRendered", unchecked_return_type = "string | null")]
     pub fn inner_text_rendered(&self, node_id: u32) -> JsValue {
         if self.layout_mode.get() == LayoutMode::Off {
