@@ -22,6 +22,7 @@ use boa_engine::{
     js_string,
     module::{ModuleLoader, ModuleRequest, Referrer, SyntheticModuleInitializer},
     object::{builtins::JsPromise, FunctionObjectBuilder, JsObject},
+    optimizer::OptimizerOptions,
     property::Attribute,
     realm::Realm,
     Context, JsArgs, JsNativeError, JsResult, JsString, JsValue as BoaValue, Module,
@@ -534,6 +535,8 @@ async fn eval_to_envelope(src: &str, await_promise: bool) -> String {
         Ok(c) => c,
         Err(e) => return throw_env(&format!("context build: {e}"), "Error"),
     };
+    // Skip AST constant folding: page scripts execute once and folding adds parse-time walks.
+    context.set_optimizer_options(OptimizerOptions::empty());
 
     crate::js::boa_bridge::install_global_bridge(&mut context);
     // Publish the Context so V8-to-Boa trampolines can re-enter
@@ -710,6 +713,8 @@ fn ensure_persistent() -> bool {
         limits.set_native_recursion_limit(256);
         limits.set_stack_size_limit(1 << 18);
         limits.set_loop_iteration_limit(50_000_000);
+        // Skip AST constant folding: page scripts execute once and folding adds parse-time walks.
+        boxed.set_optimizer_options(OptimizerOptions::empty());
         crate::js::boa_bridge::install_global_bridge(&mut boxed);
         PERSIST_CP.with(|c| *c.borrow_mut() = Some(boxed.interner().checkpoint()));
         PERSIST_CP_LEN.with(|l| l.set(boxed.interner().dynamic_len()));
@@ -1607,6 +1612,8 @@ async fn boa_spike_await_impl(js_promise: Promise) -> Result<JsValue, JsValue> {
         .job_executor(queue.clone())
         .build()
         .map_err(|e| JsValue::from_str(&format!("ctx build: {e}")))?;
+    // Skip AST constant folding: page scripts execute once and folding adds parse-time walks.
+    context.set_optimizer_options(OptimizerOptions::empty());
 
     let (bridge, resolvers) = JsPromise::new_pending(&mut context);
     let bridge_job = NativeAsyncJob::new(async move |ctx: &RefCell<&mut Context>| {

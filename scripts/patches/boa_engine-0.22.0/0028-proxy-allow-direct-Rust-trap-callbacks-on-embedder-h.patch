@@ -1,0 +1,359 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Thu, 19 Nov 2026 17:42:21 +0000
+Subject: [PATCH] proxy: allow direct Rust trap callbacks on embedder handlers
+
+Host-owned bridge proxies forward every property read, write, has check,
+and function call to native Rust. Going through JS handler property lookup,
+index stringification, and temporary argument arrays adds overhead on every
+crossing; HostProxyTraps lets those handlers dispatch directly while
+preserving Proxy invariant checks whenever the target has own properties.
+---
+ src/builtins/proxy/mod.rs   | 191 ++++++++++++++++++++++++++----------
+ src/builtins/proxy/tests.rs |  90 +++++++++++++++++
+ 2 files changed, 231 insertions(+), 50 deletions(-)
+
+diff --git a/src/builtins/proxy/mod.rs b/src/builtins/proxy/mod.rs
+index 9dfcbc8..bd92ca8 100644
+--- a/src/builtins/proxy/mod.rs
++++ b/src/builtins/proxy/mod.rs
+@@ -22,7 +22,7 @@ use crate::{
+     js_string,
+     native_function::NativeFunction,
+     object::{
+-        JsData, JsFunction, JsObject, JsPrototype,
++        IndexedProperties, JsData, JsFunction, JsObject, JsPrototype,
+         internal_methods::{
+             CallValue, InternalMethodPropertyContext, InternalObjectMethods,
+             ORDINARY_INTERNAL_METHODS, is_compatible_property_descriptor,
+@@ -34,8 +34,60 @@ use crate::{
+     string::StaticJsStrings,
+     value::Type,
+ };
+-use boa_gc::{Finalize, GcRefCell, Trace};
++use boa_gc::{Finalize, GcRefCell, Trace, empty_trace};
+ use rustc_hash::FxHashSet;
++use std::fmt;
++use std::ptr;
++
++/// Direct Rust callbacks attached as `JsData` to an embedder's Proxy handler so hot
++/// proxy operations avoid handler property lookup, key stringification and call frames.
++#[derive(Clone, Copy)]
++pub struct HostProxyTraps {
++    /// Direct `[[Get]]` hook: `(target, key, receiver, context)`.
++    pub get: Option<fn(&JsObject, &PropertyKey, &JsValue, &mut Context) -> JsResult<JsValue>>,
++    /// Direct `[[Set]]` hook: `(target, key, value, receiver, context)`.
++    pub set:
++        Option<fn(&JsObject, &PropertyKey, &JsValue, &JsValue, &mut Context) -> JsResult<bool>>,
++    /// Direct `[[HasProperty]]` hook: `(target, key, context)`.
++    pub has: Option<fn(&JsObject, &PropertyKey, &mut Context) -> JsResult<bool>>,
++    /// Direct `[[Call]]` hook: `(target, this_arg, args, context)`.
++    pub call: Option<fn(&JsObject, &JsValue, &[JsValue], &mut Context) -> JsResult<JsValue>>,
++}
++
++impl fmt::Debug for HostProxyTraps {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        f.debug_struct("HostProxyTraps").finish_non_exhaustive()
++    }
++}
++
++impl Finalize for HostProxyTraps {}
++
++// SAFETY: `HostProxyTraps` stores only plain function pointers with no GC-managed fields.
++unsafe impl Trace for HostProxyTraps {
++    empty_trace!();
++}
++
++impl JsData for HostProxyTraps {}
++
++fn target_has_no_own_properties(target: &JsObject) -> bool {
++    if !ptr::eq(target.vtable(), &ORDINARY_INTERNAL_METHODS) {
++        return false;
++    }
++    let borrowed = target.borrow();
++    if !borrowed.extensible {
++        return false;
++    }
++    let props = borrowed.properties();
++    let indexed_empty = match &props.indexed_properties {
++        IndexedProperties::DenseI32(v) => v.is_empty(),
++        IndexedProperties::DenseF64(v) => v.is_empty(),
++        IndexedProperties::DenseElement(v) => v.is_empty(),
++        IndexedProperties::SparseElement(m) => m.is_empty(),
++        IndexedProperties::SparseProperty(m) => m.is_empty(),
++    };
++    props.storage.is_empty() && indexed_empty
++}
++
+ /// Javascript `Proxy` object.
+ #[derive(Debug, Clone, Trace, Finalize)]
+ pub struct Proxy {
+@@ -736,24 +788,28 @@ pub(crate) fn proxy_exotic_has_property(
+         .js_expect("Proxy object internal internal method called on non-proxy object")?
+         .try_data()?;
+
+-    // 5. Let trap be ? GetMethod(handler, "has").
+-    let Some(trap) = handler.get_method(js_string!("has"), context)? else {
+-        // 6. If trap is undefined, then
+-        // a. Return ? target.[[HasProperty]](P).
+-        return target.has_property(key.clone(), context);
+-    };
+-
+-    // 7. Let booleanTrapResult be ! ToBoolean(? Call(trap, handler, « target, P »)).
+-    let boolean_trap_result = trap
+-        .call(
+-            &handler.into(),
+-            &[target.clone().into(), key.clone().into()],
+-            context,
+-        )?
+-        .to_boolean();
++    let boolean_trap_result =
++        if let Some(has) = handler.downcast_ref::<HostProxyTraps>().and_then(|h| h.has) {
++            has(&target, key, context)?
++        } else {
++            // 5. Let trap be ? GetMethod(handler, "has").
++            let Some(trap) = handler.get_method(js_string!("has"), context)? else {
++                // 6. If trap is undefined, then
++                // a. Return ? target.[[HasProperty]](P).
++                return target.has_property(key.clone(), context);
++            };
++
++            // 7. Let booleanTrapResult be ! ToBoolean(? Call(trap, handler, « target, P »)).
++            trap.call(
++                &handler.into(),
++                &[target.clone().into(), key.clone().into()],
++                context,
++            )?
++            .to_boolean()
++        };
+
+     // 8. If booleanTrapResult is false, then
+-    if !boolean_trap_result {
++    if !boolean_trap_result && !target_has_no_own_properties(&target) {
+         // a. Let targetDesc be ? target.[[GetOwnProperty]](P).
+         let target_desc = target.__get_own_property__(key, context)?;
+
+@@ -828,19 +884,28 @@ pub(crate) fn proxy_exotic_get(
+         .js_expect("Proxy object internal internal method called on non-proxy object")?
+         .try_data()?;
+
+-    // 5. Let trap be ? GetMethod(handler, "get").
+-    let Some(trap) = handler.get_method(js_string!("get"), context)? else {
+-        // 6. If trap is undefined, then
+-        // a. Return ? target.[[Get]](P, Receiver).
+-        return target.__get__(key, receiver, context);
+-    };
++    let trap_result =
++        if let Some(get) = handler.downcast_ref::<HostProxyTraps>().and_then(|h| h.get) {
++            get(&target, key, &receiver, context)?
++        } else {
++            // 5. Let trap be ? GetMethod(handler, "get").
++            let Some(trap) = handler.get_method(js_string!("get"), context)? else {
++                // 6. If trap is undefined, then
++                // a. Return ? target.[[Get]](P, Receiver).
++                return target.__get__(key, receiver, context);
++            };
++
++            // 7. Let trapResult be ? Call(trap, handler, « target, P, Receiver »).
++            trap.call(
++                &handler.into(),
++                &[target.clone().into(), key.clone().into(), receiver],
++                context,
++            )?
++        };
+
+-    // 7. Let trapResult be ? Call(trap, handler, « target, P, Receiver »).
+-    let trap_result = trap.call(
+-        &handler.into(),
+-        &[target.clone().into(), key.clone().into(), receiver],
+-        context,
+-    )?;
++    if target_has_no_own_properties(&target) {
++        return Ok(trap_result);
++    }
+
+     // 8. Let targetDesc be ? target.[[GetOwnProperty]](P).
+     let target_desc = target.__get_own_property__(key, context)?;
+@@ -898,31 +963,40 @@ pub(crate) fn proxy_exotic_set(
+         .js_expect("Proxy object internal internal method called on non-proxy object")?
+         .try_data()?;
+
+-    // 5. Let trap be ? GetMethod(handler, "set").
+-    let Some(trap) = handler.get_method(js_string!("set"), context)? else {
+-        // 6. If trap is undefined, then
+-        // a. Return ? target.[[Set]](P, V, Receiver).
+-        return target.__set__(key, value, receiver, context);
+-    };
++    let boolean_trap_result =
++        if let Some(set) = handler.downcast_ref::<HostProxyTraps>().and_then(|h| h.set) {
++            set(&target, &key, &value, &receiver, context)?
++        } else {
++            // 5. Let trap be ? GetMethod(handler, "set").
++            let Some(trap) = handler.get_method(js_string!("set"), context)? else {
++                // 6. If trap is undefined, then
++                // a. Return ? target.[[Set]](P, V, Receiver).
++                return target.__set__(key, value, receiver, context);
++            };
++
++            // 7. Let booleanTrapResult be ! ToBoolean(? Call(trap, handler, « target, P, V, Receiver »)).
++            trap.call(
++                &handler.into(),
++                &[
++                    target.clone().into(),
++                    key.clone().into(),
++                    value.clone(),
++                    receiver,
++                ],
++                context,
++            )?
++            .to_boolean()
++        };
+
+-    // 7. Let booleanTrapResult be ! ToBoolean(? Call(trap, handler, « target, P, V, Receiver »)).
+     // 8. If booleanTrapResult is false, return false.
+-    if !trap
+-        .call(
+-            &handler.into(),
+-            &[
+-                target.clone().into(),
+-                key.clone().into(),
+-                value.clone(),
+-                receiver,
+-            ],
+-            context,
+-        )?
+-        .to_boolean()
+-    {
++    if !boolean_trap_result {
+         return Ok(false);
+     }
+
++    if target_has_no_own_properties(&target) {
++        return Ok(true);
++    }
++
+     // 9. Let targetDesc be ? target.[[GetOwnProperty]](P).
+     let target_desc = target.__get_own_property__(&key, context)?;
+
+@@ -1177,6 +1251,23 @@ fn proxy_exotic_call(
+         .js_expect("Proxy object internal internal method called on non-proxy object")?
+         .try_data()?;
+
++    if let Some(call) = handler
++        .downcast_ref::<HostProxyTraps>()
++        .and_then(|h| h.call)
++    {
++        let args = context
++            .vm
++            .stack
++            .calling_convention_pop_arguments(argument_count);
++        let _func = context.vm.stack.pop();
++        let this = context.vm.stack.pop();
++        context.check_runtime_limits()?;
++        let result = call(&target, &this, &args, context)
++            .map_err(|err| err.inject_realm(context.realm().clone()))?;
++        context.vm.stack.push(result);
++        return Ok(CallValue::Complete);
++    }
++
+     // 5. Let trap be ? GetMethod(handler, "apply").
+     let Some(trap) = handler.get_method(js_string!("apply"), context)? else {
+         // 6. If trap is undefined, then
+diff --git a/src/builtins/proxy/tests.rs b/src/builtins/proxy/tests.rs
+index 1c43618..dba6765 100644
+--- a/src/builtins/proxy/tests.rs
++++ b/src/builtins/proxy/tests.rs
+@@ -209,3 +209,93 @@ fn proxy_ownkeys_non_extensible_invariant() {
+         "Proxy trap failed to return all configurable property keys",
+     )]);
+ }
++
++#[test]
++fn host_proxy_traps_dispatch_and_enforce_invariants() {
++    use super::{HostProxyTraps, Proxy};
++    use crate::{
++        Context, JsObject, JsResult, JsValue, Source, js_string,
++        native_function::NativeFunction,
++        object::FunctionObjectBuilder,
++        property::{Attribute, PropertyDescriptor, PropertyKey},
++    };
++
++    fn get_hook(
++        _target: &JsObject,
++        key: &PropertyKey,
++        _recv: &JsValue,
++        _ctx: &mut Context,
++    ) -> JsResult<JsValue> {
++        match key {
++            PropertyKey::Index(i) => Ok(JsValue::from(i.get() * 10)),
++            PropertyKey::String(s) if s == "x" => Ok(JsValue::from(99)),
++            _ => Ok(JsValue::from(7)),
++        }
++    }
++
++    fn set_hook(
++        _target: &JsObject,
++        _key: &PropertyKey,
++        _val: &JsValue,
++        _recv: &JsValue,
++        _ctx: &mut Context,
++    ) -> JsResult<bool> {
++        Ok(true)
++    }
++
++    fn has_hook(_target: &JsObject, key: &PropertyKey, _ctx: &mut Context) -> JsResult<bool> {
++        Ok(matches!(key, PropertyKey::Index(i) if i.get() == 2))
++    }
++
++    fn call_hook(
++        _target: &JsObject,
++        _this: &JsValue,
++        args: &[JsValue],
++        _ctx: &mut Context,
++    ) -> JsResult<JsValue> {
++        let sum: i32 = args.iter().filter_map(|v| v.as_i32()).sum();
++        Ok(JsValue::from(sum))
++    }
++
++    let mut ctx = Context::default();
++    let target = JsObject::from(
++        FunctionObjectBuilder::new(
++            ctx.realm(),
++            NativeFunction::from_fn_ptr(|_, _, _| Ok(JsValue::undefined())),
++        )
++        .build(),
++    );
++    let handler = JsObject::from_proto_and_data(
++        Some(ctx.intrinsics().constructors().object().prototype()),
++        HostProxyTraps {
++            get: Some(get_hook),
++            set: Some(set_hook),
++            has: Some(has_hook),
++            call: Some(call_hook),
++        },
++    );
++    let proxy = Proxy::from_target_and_handler(target.clone(), handler, &mut ctx);
++    ctx.register_global_property(js_string!("p"), proxy, Attribute::all())
++        .unwrap();
++
++    assert_eq!(ctx.eval(Source::from_bytes("p[3]")).unwrap(), JsValue::from(30));
++    assert_eq!(ctx.eval(Source::from_bytes("p.x")).unwrap(), JsValue::from(99));
++    assert_eq!(ctx.eval(Source::from_bytes("2 in p")).unwrap(), JsValue::from(true));
++    assert_eq!(ctx.eval(Source::from_bytes("3 in p")).unwrap(), JsValue::from(false));
++    assert_eq!(ctx.eval(Source::from_bytes("p(10, 20, 3)")).unwrap(), JsValue::from(33));
++
++    // Adding a non-configurable, non-writable property on target must still enforce the
++    // ES Proxy [[Get]] invariant even through HostProxyTraps.
++    target
++        .define_property_or_throw(
++            js_string!("x"),
++            PropertyDescriptor::builder()
++                .value(1)
++                .writable(false)
++                .configurable(false)
++                .build(),
++            &mut ctx,
++        )
++        .unwrap();
++    assert!(ctx.eval(Source::from_bytes("p.x")).is_err());
++}
