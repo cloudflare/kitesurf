@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { WebStorageParams, WebStorageReply } from "@kitesurf/jsrpc-types/page-script";
 
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
-import { changeLocalStorage, StorageCopy } from "../src/cdp/storage-copies.ts";
+import { changeLocalStorage, opChunks, StorageCopy } from "../src/cdp/storage-copies.ts";
 import type { CdpEvent, TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import {
@@ -180,6 +180,25 @@ describe("changeLocalStorage", () => {
       },
       { method: "DOMStorage.domStorageItemsCleared", params: { storageId }, sessionId: "s1" },
     ]);
+  });
+});
+
+describe("opChunks", () => {
+  it("splits a long op list in order, under the message cap", () => {
+    const big = "v".repeat(3 * 1024 * 1024);
+    const ops = [
+      { op: "clear" as const },
+      { op: "set" as const, key: "a", value: big },
+      { op: "set" as const, key: "b", value: big },
+      { op: "remove" as const, key: "c" },
+    ];
+    const chunks = opChunks(ops);
+    expect(chunks.flat()).toEqual(ops);
+    expect(chunks.map((c) => c.length)).toEqual([2, 2]);
+  });
+
+  it("still makes one chunk for no ops, which acks the source page", () => {
+    expect(opChunks([])).toEqual([[]]);
   });
 });
 
