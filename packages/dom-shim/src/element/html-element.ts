@@ -13,7 +13,7 @@ import {
   defineReflectedEnum,
   defineReflectedBoolean,
   defineReflectedLong,
-  defineReflectedEnumWithDefaults,
+  defineReflectedNullableEnum,
   asciiLowercaseFast,
 } from "./reflect.js";
 import { Element, renderedTextFragmentNodes } from "./element.js";
@@ -263,12 +263,14 @@ HTMLElement.prototype.togglePopover = function (_force) {
   return false;
 };
 
-defineReflectedEnumWithDefaults(
+// The empty string takes the empty value default, the auto state.
+// https://html.spec.whatwg.org/#attr-popover
+defineReflectedNullableEnum(
   HTMLElement.prototype,
   "popover",
   "popover",
   ["auto", "manual", "hint"],
-  "",
+  "auto",
   "manual",
 );
 

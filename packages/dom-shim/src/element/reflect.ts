@@ -144,6 +144,34 @@ function defineReflectedEnumWithDefaults<P extends Element>(
     },
   });
 }
+// A DOMString? enumerated attribute limited to known values reads as null
+// while the content attribute is missing, and setting null removes it.
+// https://html.spec.whatwg.org/#reflecting-content-attributes-in-idl-attributes
+function defineReflectedNullableEnum<P extends Element>(
+  proto: P,
+  propName: ReflectKey<P, string | null>,
+  attrName: string,
+  keywords: readonly string[],
+  emptyDefault: string | null,
+  invalidDefault: string | null,
+): void {
+  const lookup = new Set(keywords.map(asciiLowercaseFast));
+  Object.defineProperty(proto, propName, {
+    configurable: true,
+    enumerable: true,
+    get(this: Element) {
+      const v = elementAttributes.get.call(this, attrName);
+      if (v == null) return null;
+      const lc = asciiLowercaseFast(String(v));
+      if (lc === "") return emptyDefault;
+      return lookup.has(lc) ? lc : invalidDefault;
+    },
+    set(this: Element, value: string | null | undefined) {
+      if (value == null) elementAttributes.remove.call(this, attrName);
+      else elementAttributes.set.call(this, attrName, String(value));
+    },
+  });
+}
 function htmlParseInteger(raw: string): number | null {
   const m = /^[\t\n\f\r ]*([+-]?\d+)/.exec(raw);
   if (!m) return null;
@@ -401,6 +429,7 @@ export {
   defineReflectedLimitedPositiveUnsignedLongFallback,
   defineReflectedLong,
   defineReflectedNonNegativeLong,
+  defineReflectedNullableEnum,
   defineReflectedString,
   defineReflectedStringNullEmpty,
   defineReflectedUnsignedLong,
