@@ -449,6 +449,51 @@ export function installGlobals(
       };
     };
   }
+  if (!ksInternals.bridgeHelper) {
+    // Capture Function.prototype.call before page scripts run so mutations cannot intercept it.
+    const directCall = Function.prototype.call.bind(Function.prototype.call) as (
+      fn: Function,
+      thisArg: unknown,
+      ...args: unknown[]
+    ) => unknown;
+    ksInternals.bridgeHelper = {
+      kind(v: unknown): number {
+        if (v === undefined) return 0;
+        if (v === null) return 1;
+        switch (typeof v) {
+          case "boolean":
+            return v ? 3 : 2;
+          case "number":
+            return 4;
+          case "string":
+            return 5;
+          case "function":
+            return 6;
+          case "object":
+            return 7;
+          case "symbol":
+            return 8;
+          default:
+            return 9;
+        }
+      },
+      num(v: unknown): number {
+        return v as number;
+      },
+      call0(fn: Function, thisArg: unknown): unknown {
+        return directCall(fn, thisArg);
+      },
+      call1(fn: Function, thisArg: unknown, a0: unknown): unknown {
+        return directCall(fn, thisArg, a0);
+      },
+      call2(fn: Function, thisArg: unknown, a0: unknown, a1: unknown): unknown {
+        return directCall(fn, thisArg, a0, a1);
+      },
+      call3(fn: Function, thisArg: unknown, a0: unknown, a1: unknown, a2: unknown): unknown {
+        return directCall(fn, thisArg, a0, a1, a2);
+      },
+    };
+  }
   if (!ksGlobal.__ks_resolve_import_map) {
     ksGlobal.__ks_resolve_import_map = function (spec: unknown, referrerUrl?: string): string {
       return resolveImportMap(spec, referrerUrl || ksGlobal.location?.href || "about:blank");

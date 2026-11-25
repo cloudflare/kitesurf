@@ -260,6 +260,15 @@ export interface KitesurfInternals {
   wrapBoaFunction?: (call: Function, construct: Function, handle: number) => Function;
   // The wrapper forwards its own `this` as the trampoline's fourth argument.
   wrapBoaMethod?: (call: Function, fnHandle: number, receiverHandle: number) => Function;
+  // Single-crossing V8 value classification and fixed-arity call helpers for boa_bridge.rs.
+  bridgeHelper?: {
+    kind(v: unknown): number;
+    num(v: unknown): number;
+    call0(fn: Function, thisArg: unknown): unknown;
+    call1(fn: Function, thisArg: unknown, a0: unknown): unknown;
+    call2(fn: Function, thisArg: unknown, a0: unknown, a1: unknown): unknown;
+    call3(fn: Function, thisArg: unknown, a0: unknown, a1: unknown, a2: unknown): unknown;
+  };
   // A baked module's V8 namespace, so boa reuses it instead of fetching. A JSON request only
   // resolves a record the navigate baked as JSON; anything else falls through to the gate.
   nativeImport?: (url: unknown, type?: unknown) => Promise<unknown>;
