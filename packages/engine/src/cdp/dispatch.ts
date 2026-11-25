@@ -7,13 +7,14 @@
 import type {
   BrowserState,
   CdpClientState,
+  CdpReplyBody,
   CdpRequest,
   CdpResponse,
   EventEmitter,
   TargetState,
 } from "./types.ts";
 import type { RequestBlocker } from "../request-blocker.ts";
-import type { CdpDomain } from "./domain.ts";
+import { defineDomain, type CdpDomain } from "./domain.ts";
 import { CDP_COMMAND_UNHANDLED } from "./types.ts";
 import {
   targetDomain,
@@ -118,7 +119,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
           userAgent:
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
           jsVersion: "12.0.0",
-        },
+        } satisfies CdpReplyBody<"Browser.getVersion">,
         sessionId: req.sessionId,
       };
     }
@@ -212,7 +213,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         result = await runDomain(ctx, req, accessibilityDomain);
         break;
       case "Emulation":
-        result = await handleEmulation(ctx, req);
+        result = await runDomain(ctx, req, emulationDomain);
         break;
       // These domains remain unsupported; clients probe them during attach.
       case "Animation":
@@ -320,62 +321,56 @@ function methodNotFound(req: CdpRequest): CdpResponse {
   };
 }
 
-async function handleEmulation(
-  ctx: DispatchCtx,
-  req: CdpRequest,
-): Promise<Record<string, unknown>> {
-  let target: TargetState | null = null;
-  if (req.sessionId) {
+function emulationTarget(ctx: DispatchCtx, sessionId: string | undefined): TargetState | null {
+  if (sessionId) {
     for (const t of ctx.browser.targets.values()) {
-      if (t.sessions.has(req.sessionId)) {
-        target = t;
-        break;
-      }
+      if (t.sessions.has(sessionId)) return t;
     }
   }
-  if (!target) {
-    for (const t of ctx.browser.targets.values()) {
-      if (t.type === "page") {
-        target = t;
-        break;
-      }
-    }
+  for (const t of ctx.browser.targets.values()) {
+    if (t.type === "page") return t;
   }
-  if (!target) return {};
-
-  if (req.method === "Emulation.setDeviceMetricsOverride") {
-    const width = typeof req.params?.width === "number" ? req.params.width : NaN;
-    const height = typeof req.params?.height === "number" ? req.params.height : NaN;
-    if (!Number.isFinite(width) || !Number.isFinite(height)) {
-      return {};
-    }
-    const vp = clampViewport(width, height);
-    target.viewportWidth = vp.width;
-    target.viewportHeight = vp.height;
-    const scale = req.params?.deviceScaleFactor;
-    target.deviceScaleFactor = typeof scale === "number" && scale > 0 ? scale : 1;
-    await sessionOf(ctx, target).callIfLive.setViewport({
-      width: target.viewportWidth,
-      height: target.viewportHeight,
-    });
-    return {};
-  }
-
-  if (req.method === "Emulation.setEmulatedMedia") {
-    const media = typeof req.params?.media === "string" ? req.params.media : "";
-    const normalised = media === "print" ? "print" : "screen";
-    target.emulatedMedia = normalised;
-    await sessionOf(ctx, target).callIfLive.setMediaType({
-      media: normalised,
-    });
-    return {};
-  }
-
-  if (req.method === "Emulation.setUserAgentOverride") {
-    target.userAgentOverride =
-      typeof req.params?.userAgent === "string" ? req.params.userAgent : "";
-    return {};
-  }
-
-  return {};
+  return null;
 }
+
+const emulationDomain = defineDomain("Emulation", {
+  context: (ctx, req) => ({ ctx, target: emulationTarget(ctx, req.sessionId) }),
+  methods: {
+    "Emulation.setDeviceMetricsOverride": async ({ ctx, target }, req) => {
+      if (!target) return {};
+      const width = typeof req.params?.width === "number" ? req.params.width : NaN;
+      const height = typeof req.params?.height === "number" ? req.params.height : NaN;
+      if (!Number.isFinite(width) || !Number.isFinite(height)) {
+        return {};
+      }
+      const vp = clampViewport(width, height);
+      target.viewportWidth = vp.width;
+      target.viewportHeight = vp.height;
+      const scale = req.params?.deviceScaleFactor;
+      target.deviceScaleFactor = typeof scale === "number" && scale > 0 ? scale : 1;
+      await sessionOf(ctx, target).callIfLive.setViewport({
+        width: target.viewportWidth,
+        height: target.viewportHeight,
+      });
+      return {};
+    },
+
+    "Emulation.setEmulatedMedia": async ({ ctx, target }, req) => {
+      if (!target) return {};
+      const media = typeof req.params?.media === "string" ? req.params.media : "";
+      const normalised = media === "print" ? "print" : "screen";
+      target.emulatedMedia = normalised;
+      await sessionOf(ctx, target).callIfLive.setMediaType({
+        media: normalised,
+      });
+      return {};
+    },
+
+    "Emulation.setUserAgentOverride": ({ target }, req) => {
+      if (!target) return {};
+      target.userAgentOverride =
+        typeof req.params?.userAgent === "string" ? req.params.userAgent : "";
+      return {};
+    },
+  },
+});
