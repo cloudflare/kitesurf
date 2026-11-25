@@ -90,7 +90,7 @@ import {
   markRuntimeCreatedScript,
   markWrittenScript,
 } from "./mutations/observer.js";
-import { addListener, removeListener, dispatchOnKey } from "./events/dispatch.js";
+import { addListener, removeListener, dispatchOnKey, reportException } from "./events/dispatch.js";
 import {
   KsEvent,
   KsCustomEvent,
@@ -2894,6 +2894,7 @@ export {
 };
 
 ksInternals.formBehindProxy = formBehindProxy;
+ksInternals.reportException = reportException;
 
 // For page-script's HTMLElement constructor: a wrapper with no upgrade.
 // `new CustomElementCtor()` already runs the user constructor, and a

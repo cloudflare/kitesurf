@@ -418,3 +418,37 @@ test("markup setters upgrade the custom elements they parse, in place", async ({
     domParser: ["undefined"],
   });
 });
+
+test("custom element constructor and callback errors fire the window error event", async ({
+  page,
+}) => {
+  await setContent(
+    page,
+    `<!doctype html><body>
+      <x-ctor-throws></x-ctor-throws><x-attr-throws a="1"></x-attr-throws>
+      <script>
+        window.__errors = [];
+        window.addEventListener("error", (event) => {
+          __errors.push(event.message);
+          event.preventDefault();
+        });
+        customElements.define("x-ctor-throws", class extends HTMLElement {
+          constructor() { super(); throw new Error("ctor"); }
+        });
+        customElements.define("x-attr-throws", class extends HTMLElement {
+          static observedAttributes = ["a"];
+          attributeChangedCallback() { throw new Error("attr"); }
+        });
+        customElements.define("x-connect-throws", class extends HTMLElement {
+          connectedCallback() { throw new Error("connected"); }
+        });
+        document.body.append(document.createElement("x-connect-throws"));
+      </script>
+    </body>`,
+  );
+  expect(await page.evaluate("window.__errors")).toEqual([
+    "Uncaught Error: ctor",
+    "Uncaught Error: attr",
+    "Uncaught Error: connected",
+  ]);
+});

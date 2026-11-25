@@ -2853,6 +2853,10 @@ export function installGlobals(
       const failedElements = new WeakSet<object>();
       const queuedAttributeChanges = new WeakMap<object, any[][]>();
       const whenDefinedResolvers = new Map();
+      const reportCallbackError = (callback: string, tagName: string, error: unknown): void => {
+        ksInternals.reportException?.(error);
+        console.error("[kitesurf] " + callback + " for " + tagName + " threw:", error);
+      };
       const upgradeCustomElement = (
         element: any,
         customElementConstructor: any,
@@ -2877,10 +2881,7 @@ export function installGlobals(
               new customElementConstructor();
             } catch (error) {
               constructed = false;
-              console.warn(
-                "[kitesurf] custom-element constructor for " + tagName + " threw",
-                error,
-              );
+              reportCallbackError("custom-element constructor", tagName, error);
             } finally {
               (htmlElementConstructor as any)._upgradeTarget = null;
             }
@@ -2909,20 +2910,14 @@ export function installGlobals(
               try {
                 attributeChanged.call(element, attr.name, null, attr.value, attr.namespace);
               } catch (error) {
-                console.warn(
-                  "[kitesurf] attributeChangedCallback for " + tagName + " threw",
-                  error,
-                );
+                reportCallbackError("attributeChangedCallback", tagName, error);
               }
             }
             for (const args of queuedAttributeChanges.get(element) || []) {
               try {
                 attributeChanged.call(element, ...args);
               } catch (error) {
-                console.warn(
-                  "[kitesurf] attributeChangedCallback for " + tagName + " threw",
-                  error,
-                );
+                reportCallbackError("attributeChangedCallback", tagName, error);
               }
             }
           }
@@ -2931,7 +2926,7 @@ export function installGlobals(
             try {
               element.connectedCallback();
             } catch (error) {
-              console.warn("[kitesurf] connectedCallback for " + tagName + " threw", error);
+              reportCallbackError("connectedCallback", tagName, error);
             }
           }
         } catch (error) {
@@ -2976,7 +2971,7 @@ export function installGlobals(
         try {
           attributeChanged.call(element, name, oldValue, newValue, namespace);
         } catch (error) {
-          console.warn("[kitesurf] attributeChangedCallback for " + tagName + " threw", error);
+          reportCallbackError("attributeChangedCallback", tagName, error);
         }
       };
       ksInternals.customElementObservesAttribute = (element: any, name: string): boolean => {
@@ -3038,7 +3033,7 @@ export function installGlobals(
               try {
                 element.connectedCallback();
               } catch (error) {
-                console.warn("[kitesurf] connectedCallback for " + tagName + " threw", error);
+                reportCallbackError("connectedCallback", tagName, error);
               }
             }
           }

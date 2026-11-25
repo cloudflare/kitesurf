@@ -241,6 +241,7 @@ export interface KitesurfInternals {
   // custom-element upgrade, for page-script's HTMLElement constructor.
   createElementNoUpgrade?: (tag: string) => unknown;
   inScriptlessDocument?: (node: { _id: number }) => boolean;
+  reportException?: (thrown: unknown) => void;
   // The form behind a form's page-facing proxy, whose members no named control overrides.
   formBehindProxy?: <T extends object>(form: T) => T;
   scrollByWheel?: (hitNodeId: number, dx: number, dy: number) => boolean;
