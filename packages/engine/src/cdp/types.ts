@@ -15,6 +15,7 @@ import type { LearnedScripts } from "../eval/learned-scripts.ts";
 import type { DiagSpanTracker } from "./diag-spans.ts";
 import type { SandboxOutboundOverride } from "../eval/outbound.ts";
 import type { WheelQueue } from "./wheel-queue.ts";
+import type { ScreencastViewer } from "./screencast-viewers.ts";
 import type { StyleCache } from "./style-cache.ts";
 import type { FontProfile } from "./font-profile.ts";
 
@@ -118,10 +119,23 @@ export type EventEmitter = (event: CdpEvent) => void;
  * client, not per browser. Everything the clients share stays on BrowserState.
  */
 export interface CdpClientState {
+  readonly id: string;
   // Page mode treats the socket as the page's own session; browser mode exposes page targets.
   readonly connectionMode: "page" | "browser";
   autoAttach: boolean;
   flatten: boolean;
+  // The CDP sessions this client attached. On a persistent session, events on one of them
+  // reach this client only.
+  readonly sessions: Set<string>;
+  // Page.addScriptToEvaluateOnNewDocument identifiers this client added.
+  readonly preNavScriptIds: Set<string>;
+  // This client's sessions on the synthetic Memory-panel targets, null until announced to it.
+  readonly memoryTargets: {
+    renderer: string | null;
+    engine: string | null;
+    // The Storage target: what the session keeps off the heap. Never announced otherwise.
+    storage: string | null;
+  };
 }
 
 export interface BrowserState {
@@ -164,8 +178,6 @@ export interface BrowserState {
   skipPartialRaster: boolean;
   fontDefer: boolean;
   fontProfile: FontProfile;
-  rendererSessionId: string | null;
-  engineSessionId: string | null;
   wsClosing: boolean;
 
   attributionHeaders: Record<string, string>;
@@ -181,6 +193,10 @@ export interface ScreencastState {
   maxInFlight: number;
   wheelQueue: WheelQueue;
   ownerSessionId: string | undefined;
+  // The client that started or last took over the stream.
+  ownerClientId: string;
+  // Every client session that gets the frames, the owner included (cdp/screencast-viewers.ts).
+  viewers: Map<string, ScreencastViewer>;
   configurationVersion: number;
   appliedConfigurationVersion: number;
   lastAckedSeq: number;
@@ -385,7 +401,12 @@ export interface TargetState {
   screencastAckCount?: number;
   extraHttpHeaders: Record<string, string>;
   userAgentOverride: string;
+  // The client that last set each override. It is cleared when that client leaves a shared session.
+  overrideOwners: Map<TargetOverride, string>;
 }
+
+/** A request or emulation override that a client sets on a target. */
+export type TargetOverride = "extraHttpHeaders" | "userAgent" | "emulatedMedia" | "deviceMetrics";
 
 export interface CompiledScriptMeta {
   scriptId: string;

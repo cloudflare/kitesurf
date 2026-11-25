@@ -79,9 +79,9 @@ function endpointHost(base: string, host: string): string {
 /** The frontend URL attached to this engine's page target, for the request that asked for it. */
 export function inspectorTargetUrl(
   base: string,
-  request: { url: URL; host: string; initialUrl?: string; fontProfile?: string },
+  request: { url: URL; host: string; initialUrl?: string; fontProfile?: string; path?: string },
 ): string {
-  const { url, host, initialUrl, fontProfile } = request;
+  const { url, host, initialUrl, fontProfile, path = "/devtools/page/kitesurf" } = request;
   const endpointParams: string[] = [];
   if (initialUrl !== undefined) endpointParams.push("initialUrl=" + encodeURIComponent(initialUrl));
   if (fontProfile !== undefined) {
@@ -90,7 +90,7 @@ export function inspectorTargetUrl(
   const endpointQuery = endpointParams.length > 0 ? "?" + endpointParams.join("&") : "";
   const params = new URLSearchParams();
   const wsScheme = url.protocol === "https:" ? "wss" : "ws";
-  params.set(wsScheme, `${endpointHost(base, host)}/devtools/page/kitesurf${endpointQuery}`);
+  params.set(wsScheme, `${endpointHost(base, host)}${path}${endpointQuery}`);
   // Response.redirect needs an absolute URL; a same-origin frontend shares the WebSocket's host.
   const frontend = absoluteInspectorBaseUrl(base, `${url.protocol}//${host}`);
   return frontend.replace(/\/$/, "") + "?" + params.toString();

@@ -465,6 +465,49 @@ Access blocks a CDP client that has no browser session. To connect Puppeteer:
 Keep the service token secret. The token gives the same access as a signed-in
 user.
 
+### Stateful sessions
+
+By default, a CDP connection is the whole browser session: the browser ends
+when the WebSocket closes. A deploy can also offer stateful sessions. A
+stateful session runs in a `StatefulBrowser` Durable Object. Its browser
+outlives its clients and serves several clients at the same time.
+
+The template does not declare the class. To turn stateful sessions on, add the
+class to your Wrangler configuration with SQLite storage:
+
+```jsonc
+"durable_objects": {
+  "bindings": [{ "name": "STATEFUL_BROWSER", "class_name": "StatefulBrowser" }],
+},
+"migrations": [{ "tag": "stateful-v1", "new_sqlite_classes": ["StatefulBrowser"] }],
+```
+
+A declared class stays in the Worker's migration history. You cannot remove it
+without a delete migration.
+
+| Request                                                       | Result                                                                             |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `POST /devtools/browser?keep_alive=<ms>`                      | Creates a session. Returns `sessionId`, `webSocketDebuggerUrl` and `pageTargetId`. |
+| `GET /devtools/browser/<sessionId>` (upgrade)                 | Connects a CDP client in browser mode.                                             |
+| `GET /devtools/browser/<sessionId>/page/<targetId>` (upgrade) | Connects a CDP client in page mode, to one page.                                   |
+| `GET /devtools/browser/<sessionId>/json`                      | Lists the session's pages, with their page endpoints.                              |
+
+- The browser outlives its last client for `keep_alive` milliseconds: 60 s by
+  default, from 10 s to 20 min. `Browser.close` and the wall-clock cap end the
+  session at once.
+- The session keeps its network log, cookies, Web Storage and documents in the
+  object's SQLite. Each page runs in a Durable Object facet with a database of
+  its own.
+- A restart of the object ends the session, because the live browser is in
+  memory. A session never hibernates, so after a deploy the object restarts
+  when its update delay runs out: 5 minutes by default. To let sessions finish
+  on the old code, set `durable_objects.code_update_strategy` to `deferred`
+  with a `max_delay` as long as the wall-clock cap. Refer to
+  [Durable Objects code updates](https://developers.cloudflare.com/durable-objects/deployments/durable-objects-code-updates/).
+- Anyone who knows a session id can connect to it. To limit a session to the
+  client that created it, an embedding Worker implements
+  `EngineHost.sessionOwner`.
+
 The engine configuration includes a Worker Loader binding. Kitesurf uses this
 binding to start a separate worker for each page and renderer. Cloudflare
 Dynamic Workers provide this capability, and they require the Workers Paid plan.

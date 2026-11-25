@@ -18,6 +18,7 @@ import {
   handleTarget,
   handleRendererSession,
   handleEngineSession,
+  handleStorageSession,
   handleOopifSession,
   findOopifFrameBySession,
 } from "./target.ts";
@@ -35,7 +36,7 @@ import { handleDebugger } from "./debugger.ts";
 import { handleCss } from "./css.ts";
 import { handleAccessibility } from "./accessibility.ts";
 import { sessionOf } from "./page-session.ts";
-import { clampViewport } from "./viewport.ts";
+import { clampViewport, DEFAULT_VIEWPORT_HEIGHT, DEFAULT_VIEWPORT_WIDTH } from "./viewport.ts";
 import type { KitesurfAnalytics } from "../observability.ts";
 import type { Tracer } from "../tracing.ts";
 import type { HostClock } from "../eval/host-clock.ts";
@@ -86,6 +87,11 @@ export interface DispatchCtx {
   // The client this context acts for. Background work that captured the context keeps acting
   // for that client, even after it leaves.
   client: CdpClientState;
+  // Sends an event to this context's client alone, bypassing the session's routing.
+  emitToClient: EventEmitter;
+  // The contexts of every client connected to the session, this one included while connected.
+  // Announcements that Chrome makes to each client with a matching setting loop over these.
+  peers: () => readonly DispatchCtx[];
 }
 
 // These act on the browser context of a frame session's page, so they skip the OOPIF split
@@ -121,14 +127,18 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         sessionId: req.sessionId,
       };
     }
-    if (req.sessionId && req.sessionId === ctx.browser.rendererSessionId) {
+    if (req.sessionId && req.sessionId === ctx.client.memoryTargets.renderer) {
       const result = await handleRendererSession(ctx, req);
       ctx.browser.networkEvents.drain();
       return { id: req.id, result: result ?? {}, sessionId: req.sessionId };
     }
-    if (req.sessionId && req.sessionId === ctx.browser.engineSessionId) {
+    if (req.sessionId && req.sessionId === ctx.client.memoryTargets.engine) {
       const result = await handleEngineSession(ctx, req);
       ctx.browser.networkEvents.drain();
+      return { id: req.id, result: result ?? {}, sessionId: req.sessionId };
+    }
+    if (req.sessionId && req.sessionId === ctx.client.memoryTargets.storage) {
+      const result = await handleStorageSession(ctx, req);
       return { id: req.id, result: result ?? {}, sessionId: req.sessionId };
     }
     if (req.sessionId && !CONTEXT_STORAGE_METHODS.has(req.method)) {
@@ -307,6 +317,7 @@ async function handleEmulation(
     target.viewportHeight = vp.height;
     const scale = req.params?.deviceScaleFactor;
     target.deviceScaleFactor = typeof scale === "number" && scale > 0 ? scale : 1;
+    target.overrideOwners.set("deviceMetrics", ctx.client.id);
     await sessionOf(ctx, target).callIfLive.setViewport({
       width: target.viewportWidth,
       height: target.viewportHeight,
@@ -318,6 +329,7 @@ async function handleEmulation(
     const media = typeof req.params?.media === "string" ? req.params.media : "";
     const normalised = media === "print" ? "print" : "screen";
     target.emulatedMedia = normalised;
+    target.overrideOwners.set("emulatedMedia", ctx.client.id);
     await sessionOf(ctx, target).callIfLive.setMediaType({
       media: normalised,
     });
@@ -327,8 +339,47 @@ async function handleEmulation(
   if (req.method === "Emulation.setUserAgentOverride") {
     target.userAgentOverride =
       typeof req.params?.userAgent === "string" ? req.params.userAgent : "";
+    target.overrideOwners.set("userAgent", ctx.client.id);
     return {};
   }
 
   return {};
+}
+
+/**
+ * Clears the overrides that a departed client set, so its headers, user agent and emulation do
+ * not apply to the clients that remain. The live page gets the default media and viewport back.
+ */
+export function releaseClientOverrides(ctx: DispatchCtx, clientId: string): void {
+  for (const target of ctx.browser.targets.values()) {
+    for (const [kind, owner] of Array.from(target.overrideOwners)) {
+      if (owner !== clientId) continue;
+      target.overrideOwners.delete(kind);
+      switch (kind) {
+        case "extraHttpHeaders":
+          target.extraHttpHeaders = {};
+          break;
+        case "userAgent":
+          target.userAgentOverride = "";
+          break;
+        case "emulatedMedia":
+          target.emulatedMedia = "screen";
+          void sessionOf(ctx, target)
+            .callIfLive.setMediaType({ media: "screen" })
+            .catch(() => {});
+          break;
+        case "deviceMetrics":
+          target.viewportWidth = null;
+          target.viewportHeight = null;
+          target.deviceScaleFactor = 1;
+          void sessionOf(ctx, target)
+            .callIfLive.setViewport({
+              width: DEFAULT_VIEWPORT_WIDTH,
+              height: DEFAULT_VIEWPORT_HEIGHT,
+            })
+            .catch(() => {});
+          break;
+      }
+    }
+  }
 }

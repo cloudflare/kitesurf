@@ -70,7 +70,13 @@ async function navigate(mode: "fanout" | "large", url: string): Promise<void> {
     cdpDebug: false,
     wsClosing: false,
   });
-  const ctx = stub<DispatchCtx>({ browser, env: {}, client: testClient() });
+  const ctx: DispatchCtx = stub<DispatchCtx>({
+    browser,
+    env: {},
+    client: testClient(),
+    emitToClient: () => {},
+    peers: () => [ctx],
+  });
   const target = createPageTarget(ctx, "about:blank");
   const nav = { id: 1, method: "Page.navigate", params: { url }, sessionId: "S1" } as never;
   await handlePage(ctx, nav).catch(() => {});

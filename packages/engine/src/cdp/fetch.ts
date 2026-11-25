@@ -42,6 +42,7 @@ export async function handleFetch(ctx: DispatchCtx, req: CdpRequest): Promise<un
       }));
       const sessionId = req.sessionId;
       st.emit = (params) => ctx.emit({ method: "Fetch.requestPaused", params, sessionId });
+      st.ownerClientId = ctx.client.id;
       return {};
     }
 

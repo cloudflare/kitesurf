@@ -21,6 +21,14 @@ export interface PageScriptHost {
   deletePage(targetId: string): void;
   /** Retire every page and delete its storage. */
   retireAll(reason: string): void;
+  /** The database of each running page, by target id. */
+  storageStats(): Promise<Record<string, PageStorageStats>>;
+}
+
+/** A page facet's database. */
+export interface PageStorageStats {
+  // The size of the database file.
+  bytes: number;
 }
 
 /** The part of a Durable Object's `ctx.facets` the host uses. */
@@ -32,9 +40,12 @@ export function facetPageScriptHost(facets: PageFacets): PageScriptHost {
   // Pages whose facet storage exists, and the incarnation that runs each page now.
   const pages = new Set<string>();
   const running = new Map<string, number>();
+  // The running facet of each page. Asking a page that is not running would start it.
+  const stubs = new Map<string, Fetcher<PageScriptFacetEntrypoint>>();
   let incarnations = 0;
 
   const abort = (targetId: string, reason: string): void => {
+    stubs.delete(targetId);
     if (!running.delete(targetId)) return;
     try {
       facets.abort(targetId, new Error(`kitesurf: ${reason}`));
@@ -63,6 +74,7 @@ export function facetPageScriptHost(facets: PageFacets): PageScriptHost {
       const stub = facets.get<PageScriptFacetEntrypoint>(targetId, () => ({
         class: worker.getDurableObjectClass<PageScriptFacetEntrypoint>("PageScriptFacet", options),
       }));
+      stubs.set(targetId, stub);
       // SAFETY: the facet runs PageScript's methods, so it keeps the entrypoint's JSRPC contract;
       // Rpc.Provider loses the reply correlation, as for the loaded worker's entrypoint.
       const entry = stub as RpcSessionEntrypoint;
@@ -82,6 +94,19 @@ export function facetPageScriptHost(facets: PageFacets): PageScriptHost {
     },
     retireAll(reason) {
       for (const targetId of Array.from(pages)) remove(targetId, reason);
+    },
+    async storageStats() {
+      const out: Record<string, PageStorageStats> = {};
+      await Promise.all(
+        Array.from(stubs, async ([targetId, stub]) => {
+          try {
+            out[targetId] = await stub.storageStats();
+          } catch {
+            // The page is retiring.
+          }
+        }),
+      );
+      return out;
     },
   };
 }

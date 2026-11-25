@@ -23,6 +23,13 @@ export { SandboxOutbound } from "./eval/outbound.ts";
 // Deny-all gateway used as the pageRenderer's globalOutbound.
 export { DeniedOutbound } from "./eval/denied-outbound.ts";
 export { SpanSink } from "./eval/span-sink.ts";
+export { StatefulBrowser } from "./stateful.ts";
+import {
+  STATEFUL_BROWSER_PATH,
+  createStatefulSession,
+  routeToStatefulSession,
+  statefulRoute,
+} from "./stateful.ts";
 export { PageScriptTail } from "./eval/page-script-tail.ts";
 
 // `Env` is generated from wrangler.jsonc; rerun type generation after changing bindings.
@@ -85,15 +92,19 @@ upgrades.use("/__fixtures/*", async (c, next) => {
   await next();
 });
 
-upgrades.all("*", (c) =>
-  !cdpUpgradeOriginAllowed(c.req.raw, c.env.env)
-    ? c.text("CDP connections from this origin are not allowed", 403)
-    : traceSpan(c.env.env.HOST_TRACER, "ws.connect", () =>
-        handleWebSocket(c.req.raw, c.env.env, c.env.ctx, undefined, {
-          host: c.env.host,
-        }),
-      ),
-);
+upgrades.all("*", (c) => {
+  const { env, ctx, host } = c.env;
+  if (!cdpUpgradeOriginAllowed(c.req.raw, env)) {
+    return c.text("CDP connections from this origin are not allowed", 403);
+  }
+  // A stateful session's browser lives in its Durable Object. Any other path stays stateless.
+  const stateful = statefulRoute(ctx, new URL(c.req.url));
+  return traceSpan(env.HOST_TRACER, "ws.connect", () =>
+    stateful && stateful.endpoint.kind !== "json"
+      ? routeToStatefulSession(env, ctx, c.req.raw, stateful.id, host)
+      : handleWebSocket(c.req.raw, env, ctx, undefined, { host }),
+  );
+});
 
 const app = new Hono<EngineApp>();
 app.onError(rethrow);
@@ -227,6 +238,17 @@ app.get("/json/list", discoveryList);
 app.get("/json/list/", discoveryList);
 
 app.get("/json/protocol", () => Response.json({}));
+
+// Stateful sessions (stateful.ts): create one, and list the pages of one.
+app.post(STATEFUL_BROWSER_PATH, (c) =>
+  createStatefulSession(c.env.env, c.env.ctx, c.req.raw, c.env.host),
+);
+app.get(`${STATEFUL_BROWSER_PATH}/*`, (c, next) => {
+  const { env, ctx, host } = c.env;
+  const stateful = statefulRoute(ctx, new URL(c.req.url));
+  if (stateful?.endpoint.kind !== "json") return next();
+  return routeToStatefulSession(env, ctx, c.req.raw, stateful.id, host);
+});
 
 app.all("/__fixtures/*", (c) =>
   c.env.env.FIXTURES ? c.env.env.FIXTURES.fetch(c.req.raw) : c.text("not found", 404),

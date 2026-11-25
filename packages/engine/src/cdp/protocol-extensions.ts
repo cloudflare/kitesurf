@@ -269,6 +269,8 @@ declare module "devtools-protocol" {
           wasmInitialBytes: number;
           wasmDeltaBytes: number;
         };
+        /** What the session keeps off the heap; null when its store is on the heap. */
+        storage?: StorageMemory | null;
         isolatesKilled?: number;
         total?: {
           bytes: number;
@@ -276,7 +278,26 @@ declare module "devtools-protocol" {
           engineBytes: number;
           pageScriptBytes: number;
           rendererBytes: number;
+          /** storage.bytes, outside `bytes` because it is not heap. */
+          storageBytes?: number;
         };
+      }
+
+      /** What a session keeps off the heap (cdp/storage-memory.ts). */
+      interface StorageMemory {
+        /** The database files: the session's and each running page's. */
+        bytes: number;
+        /** The values that the session store keeps. */
+        valueBytes: number;
+        session: {
+          backend: string;
+          bytes: number;
+          valueBytes: number;
+          keys: number;
+          tables: Record<string, { keys: number; bytes: number }>;
+        };
+        /** The size of each running page facet's database file. */
+        pages: Record<Target.TargetID, { bytes: number }>;
       }
 
       // Patterns are JS RegExp syntax, non-unicode and flagless. Lookaround, backreferences,
