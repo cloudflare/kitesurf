@@ -175,6 +175,7 @@ export function stripFontForShaping(bytes: Uint8Array): Uint8Array | undefined {
 }
 
 export type { DomHandle };
+export type { KsNodeInfo } from "kitesurf-core";
 
 export interface ParentScriptDescriptor {
   src: string | null;

@@ -3,13 +3,15 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { handleDom } from "../src/cdp/dom.ts";
+import { domDomain } from "../src/cdp/dom.ts";
 import { MAX_RETAINED_FALLBACK_HTML_CHARS, releaseFallbackHtml } from "../src/cdp/dom-release.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
-import type { TargetState } from "../src/cdp/types.ts";
+import type { CdpRequest, TargetState } from "../src/cdp/types.ts";
 import type { PageScriptStub } from "../src/eval/page-script.ts";
 import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsrpc-types/query-dom";
 import { testClient } from "./client-state.ts";
+
+const handleDom = (ctx: DispatchCtx, req: CdpRequest) => domDomain.run(ctx, req);
 
 describe("DOM.getDocument before PageScript has a document", () => {
   it("returns an empty document instead of parsing the source HTML in the engine", async () => {

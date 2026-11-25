@@ -47,7 +47,9 @@ type OuterHtmlRequest = (
  * A `Protocol.DOM.GetOuterHTMLResponse` as JSON text, escaped a chunk at a time, so a large page
  * is never held as bytes, a decoded string and that string's JSON copy at once.
  */
-export async function outerHtmlResponse(request: OuterHtmlRequest): Promise<RawJsonResult> {
+export async function outerHtmlResponse(
+  request: OuterHtmlRequest,
+): Promise<RawJsonResult<Protocol.DOM.GetOuterHTMLResponse>> {
   const live = await readOuterHtml(await request({}));
   if (live.complete) return outerHtmlJson(live.escaped);
   // The DOM changed while the live stream was read; a snapshot cannot tear.
@@ -60,7 +62,9 @@ export async function outerHtmlResponse(request: OuterHtmlRequest): Promise<RawJ
 
 // `JSON.stringify` escapes each code point alone, and a streaming decode never splits one, so
 // the pieces join to what stringifying the whole string gives.
-function outerHtmlJson(escaped: readonly string[]): RawJsonResult {
+function outerHtmlJson(
+  escaped: readonly string[],
+): RawJsonResult<Protocol.DOM.GetOuterHTMLResponse> {
   return new RawJsonResult(['{"outerHTML":"', ...escaped, '"}'], () => {
     const outerHTML = escaped.map(unescapeJsonPiece).join("");
     return { outerHTML } satisfies Protocol.DOM.GetOuterHTMLResponse;

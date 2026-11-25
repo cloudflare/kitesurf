@@ -4,12 +4,14 @@
 import { describe, expect, it } from "vitest";
 import type { Protocol } from "devtools-protocol";
 import { buildTree } from "../src/cdp/accessibility.ts";
-import { handleDom } from "../src/cdp/dom.ts";
+import { domDomain } from "../src/cdp/dom.ts";
 import { registerEnsurePageScript } from "../src/cdp/page-session.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { CdpRequest, TargetState } from "../src/cdp/types.ts";
 import type { DomHandle } from "../src/wasm.ts";
 import { testClient } from "./client-state.ts";
+
+const handleDom = (ctx: DispatchCtx, req: CdpRequest) => domDomain.run(ctx, req);
 type Node = Record<string, unknown>;
 const node = (over: Node = {}): Node => ({ nodeId: 2, nodeType: 1, nodeName: "DIV", ...over });
 const doc = (...children: unknown[]): Node =>

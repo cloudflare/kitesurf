@@ -5,10 +5,12 @@
 // Implements CDP DOM commands and coordinates PageScript setup and mutation events.
 
 import type { Protocol } from "devtools-protocol";
+import type { KsNodeInfo } from "../wasm.ts";
 import type { CdpMutation } from "@kitesurf/jsrpc-types/shared";
 
-import type { CdpEvent, CdpRequest, TargetState } from "./types.ts";
+import type { CdpEvent, TargetState } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
+import { defineDomain, stub } from "./domain.ts";
 import {
   getOrCreatePageScript,
   pageScriptCacheKey,
@@ -44,16 +46,18 @@ import { traceSpan } from "../tracing.ts";
 import { emitSessionStart } from "../observability.ts";
 import { reconcileTools } from "./webmcp.ts";
 
-export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
-  const target = resolveTarget(ctx, req.sessionId);
-  const session = sessionOf(ctx, target);
-  const ps = session.ensure();
-
-  switch (req.method) {
-    case "DOM.enable":
+export const domDomain = defineDomain("DOM", {
+  context: (ctx, req) => {
+    const target = resolveTarget(ctx, req.sessionId);
+    const session = sessionOf(ctx, target);
+    return { ctx, target, session, ps: session.ensure() };
+  },
+  methods: {
+    "DOM.enable": ({ target }, req) => {
       registerDomObserver(target, req.sessionId);
       return {};
-    case "DOM.getFrameOwner": {
+    },
+    "DOM.getFrameOwner": async ({ ctx, target, session, ps }, req) => {
       const frameId = req.params?.frameId;
       const f = typeof frameId === "string" ? target.frames.get(frameId) : undefined;
       if (!f || f.ownerBackendNodeId <= 0) {
@@ -66,32 +70,31 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
         backendNodeId: f.ownerBackendNodeId,
         nodeId: f.ownerBackendNodeId,
       };
-    }
-    case "DOM.disable":
-    case "DOM.discardSearchResults":
-    case "DOM.markUndoableState":
-    case "DOM.undo":
-    case "DOM.redo":
-    case "DOM.setNodeStackTracesEnabled":
-      return {};
+    },
+    "DOM.disable": stub,
+    "DOM.discardSearchResults": stub,
+    "DOM.markUndoableState": stub,
+    "DOM.undo": stub,
+    "DOM.redo": stub,
+    "DOM.setNodeStackTracesEnabled": stub,
 
-    case "DOM.getDocument": {
+    "DOM.getDocument": async ({ target, session, ps }, req) => {
       registerDomObserver(target, req.sessionId);
       const subtree = documentSubtree(req.params, GET_DOCUMENT_DEPTH);
       const root = await documentRoot(session, target, ps, subtree, req.method);
       rebindDocument(target, req.sessionId, root);
       return { root };
-    }
+    },
 
-    case "DOM.getFlattenedDocument": {
+    "DOM.getFlattenedDocument": async ({ target, session, ps }, req) => {
       registerDomObserver(target, req.sessionId);
       const subtree = documentSubtree(req.params, GET_FLATTENED_DOCUMENT_DEPTH);
       const root = await documentRoot(session, target, ps, subtree, req.method);
       rebindDocument(target, req.sessionId, root);
       return { nodes: [root] };
-    }
+    },
 
-    case "DOM.requestChildNodes": {
+    "DOM.requestChildNodes": async ({ ctx, target, session, ps }, req) => {
       registerDomObserver(target, req.sessionId);
       const subtree = childNodesSubtree(req.params);
       const id = numericNodeId(req.params);
@@ -112,9 +115,9 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       for (const child of nodes) annotateIframeFrameIds(child, byOwner);
       sendChildNodes(ctx, target, sessionKeyOf(req.sessionId), id, nodes);
       return {};
-    }
+    },
 
-    case "DOM.querySelector": {
+    "DOM.querySelector": async ({ ctx, target, session, ps }, req) => {
       const sel = req.params!.selector;
       if (ps) {
         const r = await session.call.querySelector({ selector: sel });
@@ -128,9 +131,9 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       } catch (err) {
         return { nodeId: 0, error: String(err) };
       }
-    }
+    },
 
-    case "DOM.querySelectorAll": {
+    "DOM.querySelectorAll": async ({ ctx, target, session, ps }, req) => {
       const sel = req.params!.selector;
       if (ps) {
         const r = await session.call.querySelectorAll({ selector: sel });
@@ -144,9 +147,9 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       } catch (err) {
         return { nodeIds: [], error: String(err) };
       }
-    }
+    },
 
-    case "DOM.getOuterHTML": {
+    "DOM.getOuterHTML": async ({ target, session, ps }, req) => {
       const id = numericNodeId(req.params);
       if (ps) {
         const includeDoctype = req.params?.includeDoctype === true;
@@ -166,9 +169,9 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       const dom = requireDom(target);
       if (id == null) return { outerHTML: "" };
       return { outerHTML: dom.outerHTML(id) };
-    }
+    },
 
-    case "DOM.describeNode": {
+    "DOM.describeNode": async ({ target, session, ps }, req) => {
       const id = numericNodeId(req.params);
       if (ps) {
         const objectId = req.params?.objectId;
@@ -180,30 +183,28 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       }
       const dom = requireDom(target);
       if (id == null) {
-        return {
-          node: { nodeId: 0, nodeType: 1, nodeName: "", localName: "", nodeValue: "" },
-        };
+        return { node: emptyDescribedNode() };
       }
       const budgetError = dom.nodeDescriptionBudgetError(id);
       if (budgetError) throw subtreeBudgetError(req.method, budgetError);
-      let node: unknown;
+      let node: KsNodeInfo | null;
       try {
         node = dom.nodeInfo(id);
       } catch {
-        return {
-          node: { nodeId: 0, nodeType: 1, nodeName: "", localName: "", nodeValue: "" },
-        };
+        return { node: emptyDescribedNode() };
       }
       assertDomReplyGraph(node);
       stripAttributeNamespaceSidecars(node);
-      return { node };
-    }
+      // SAFETY: nodeInfo answers null for an id the engine does not know, and the reply has always
+      // sent that null as the node. The assertion keeps it; failing instead changes the wire.
+      return { node: node as Protocol.DOM.Node };
+    },
 
-    case "DOM.resolveNode": {
+    "DOM.resolveNode": async ({ session, ps }, req) => {
       const id = numericNodeId(req.params);
       if (ps && id != null) {
         const r = await session.call.resolveNode({ nodeId: id });
-        if (r.object) return r;
+        if (r.object) return { object: r.object };
       }
       return {
         object: {
@@ -214,16 +215,16 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
           objectId: id != null ? `node:${id}` : crypto.randomUUID(),
         },
       };
-    }
+    },
 
-    case "DOM.requestNode": {
+    "DOM.requestNode": async ({ ctx, target, session, ps }, req) => {
       const objectId = req.params!.objectId;
       const nodeId = objectId.startsWith("node:") ? Number(objectId.slice(5)) || 0 : 0;
       if (ps && nodeId > 0) await pushNodePaths(ctx, target, session, req.sessionId, [nodeId]);
       return { nodeId };
-    }
+    },
 
-    case "DOM.getAttributes": {
+    "DOM.getAttributes": async ({ target, session, ps }, req) => {
       const id = numericNodeId(req.params);
       if (ps) {
         return await session.call.getAttributes(id != null ? { nodeId: id } : {});
@@ -236,32 +237,32 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       } catch {
         return { attributes: [] };
       }
-    }
+    },
 
-    case "DOM.getBoxModel": {
+    "DOM.getBoxModel": async ({ session }, req) => {
       const ref = rectNodeRef(req.params);
       const rect = ref ? await pageScriptRect(session, ref) : null;
       if (!rect) throw new Error("Could not compute box model.");
       return { model: realBoxFor(rect) };
-    }
+    },
 
-    case "DOM.getContentQuads": {
+    "DOM.getContentQuads": async ({ session }, req) => {
       const ref = rectNodeRef(req.params);
       const read = ref ? await session.callIfLive.getRect(ref) : null;
       if (!read) return { quads: [] };
       return { quads: lineBoxRects(read).filter(hasArea).map(rectToQuad) };
-    }
+    },
 
-    case "DOM.getNodeForLocation": {
+    "DOM.getNodeForLocation": async ({ ctx, target, session, ps }, req) => {
       const x = req.params!.x;
       const y = req.params!.y;
       const id = await pageScriptElementFromPoint(session, x, y);
       const nodeId = id >= 0 ? id : 0;
       if (ps && nodeId > 0) await pushNodePaths(ctx, target, session, req.sessionId, [nodeId]);
       return { backendNodeId: nodeId, frameId: target.frameId, nodeId };
-    }
+    },
 
-    case "DOM.focus": {
+    "DOM.focus": async ({ session, ps }, req) => {
       if (ps) {
         const id = numericNodeId(req.params);
         if (id != null) {
@@ -269,9 +270,9 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
         }
       }
       return {};
-    }
+    },
 
-    case "DOM.scrollIntoViewIfNeeded": {
+    "DOM.scrollIntoViewIfNeeded": async ({ session, ps }, req) => {
       // An empty reply read as success: puppeteer skipped its own fallback scroll, and its
       // locator re-checked an off-screen element until it timed out.
       if (!ps) return {};
@@ -284,30 +285,36 @@ export async function handleDom(ctx: DispatchCtx, req: CdpRequest): Promise<unkn
       });
       if (!reply.found) throw new Error("Node is detached from document");
       return {};
-    }
+    },
 
-    case "DOM.highlightNode":
-    case "DOM.hideHighlight":
-      return {};
+    "DOM.highlightNode": stub,
+    "DOM.hideHighlight": stub,
 
-    case "DOM.pushNodesByBackendIdsToFrontend": {
+    "DOM.pushNodesByBackendIdsToFrontend": async ({ ctx, target, session, ps }, req) => {
       const ids = req.params!.backendNodeIds ?? [];
       const valid = ids.filter((n): n is number => typeof n === "number" && n >= 0);
       if (ps) await pushNodePaths(ctx, target, session, req.sessionId, valid);
       return { nodeIds: valid };
-    }
+    },
 
-    case "DOM.pushNodeByPathToFrontend": {
+    "DOM.pushNodeByPathToFrontend": () => {
       return { nodeId: 0 };
-    }
+    },
 
-    case "DOM.setInspectedNode": {
-      return {};
-    }
+    "DOM.setInspectedNode": stub,
+  },
+});
 
-    default:
-      return {};
-  }
+// SAFETY: the engine's placeholder for a node it cannot describe omits backendNodeId, which the
+// protocol's Node requires; PageScript's sends 0. The assertion keeps the reply as it is.
+function emptyDescribedNode(): Protocol.DOM.Node {
+  return {
+    nodeId: 0,
+    nodeType: 1,
+    nodeName: "",
+    localName: "",
+    nodeValue: "",
+  } as Protocol.DOM.Node;
 }
 
 // The client replaces its tree with the new root, so earlier bindings no longer hold.
