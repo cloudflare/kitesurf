@@ -300,15 +300,6 @@ function reportCallbackError(win: any, thrown: unknown): void {
         }),
       );
     }
-    const winHandler = win && win.onerror;
-    const globalHandler = ksGlobal.onerror;
-    const handler =
-      typeof winHandler === "function"
-        ? winHandler
-        : typeof globalHandler === "function"
-          ? globalHandler
-          : null;
-    if (handler) handler.call(win, message, "", 0, 0, thrown);
   } catch {}
   try {
     console.error("[kitesurf] IntersectionObserver callback threw:", thrown);
