@@ -20,6 +20,7 @@ import type {
   CdpParamsOf,
   CdpEvent,
   CdpRequest,
+  CdpRequestOf,
   ChildFrameBudget,
   FrameState,
   NavigationHistoryEntry,
@@ -27,6 +28,8 @@ import type {
   TargetState,
 } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
+import { defineDomain, stub } from "./domain.ts";
+import { CDP_COMMAND_UNHANDLED } from "./types.ts";
 import { resolveTarget, sessionOf, stubQueryDom, type QueryDomResult } from "./page-session.ts";
 import { emitOopifExecutionContext, emitOopifExecutionContextDestroyed } from "./runtime.ts";
 import {
@@ -685,37 +688,32 @@ type InternalHistoryNavigateRequest = Omit<
   };
 };
 
-export async function handlePage(
-  ctx: DispatchCtx,
-  req: CdpRequest | InternalHistoryNavigateRequest,
-): Promise<unknown> {
-  const target = resolveTarget(ctx, req.sessionId);
+export const pageDomain = defineDomain("Page", {
+  context: pageContext,
+  methods: {
+    "Page.enable": stub,
+    "Page.disable": stub,
+    "Page.setLifecycleEventsEnabled": stub,
+    "Page.setInterceptFileChooserDialog": stub,
 
-  switch (req.method) {
-    case "Page.enable":
-    case "Page.disable":
-    case "Page.setLifecycleEventsEnabled":
-    case "Page.setInterceptFileChooserDialog":
-      return {};
-
-    case "Page.getFrameTree": {
+    "Page.getFrameTree": ({ target }) => {
       return { frameTree: buildFrameTree(target) };
-    }
+    },
 
-    case "Page.getResourceTree": {
+    "Page.getResourceTree": ({ target }) => {
       return { frameTree: buildFrameResourceTree(target) };
-    }
+    },
 
-    case "Page.getNavigationHistory": {
+    "Page.getNavigationHistory": ({ target }) => {
       const live = target.navigationHistory[target.navigationHistoryIndex];
       if (live) live.title = target.title;
       return {
         currentIndex: target.navigationHistoryIndex,
         entries: target.navigationHistory.map((e) => ({ ...e })),
       };
-    }
+    },
 
-    case "Page.getLayoutMetrics": {
+    "Page.getLayoutMetrics": async ({ ctx, target }) => {
       // Playwright reads visualViewport before every screenshot. Never spawn
       // an isolate for this read: a target with no document is about:blank,
       // whose content size is the viewport.
@@ -731,9 +729,9 @@ export async function handlePage(
         contentWidth: width,
         contentHeight: height,
       });
-    }
+    },
 
-    case "Page.navigateToHistoryEntry": {
+    "Page.navigateToHistoryEntry": async ({ ctx, target }, req) => {
       const entryId: unknown = req.params?.entryId;
       if (typeof entryId !== "number") {
         throw new Error("Page.navigateToHistoryEntry: entryId (integer) is required");
@@ -754,11 +752,11 @@ export async function handlePage(
           _kitesurfInternal: true,
         },
       } satisfies InternalHistoryNavigateRequest;
-      await handlePage(ctx, navReq);
+      await navigatePage({ ctx, target }, navReq);
       return {};
-    }
+    },
 
-    case "Page.reload": {
+    "Page.reload": async ({ ctx, target }, req) => {
       const params = req.params || {};
       if (typeof params.loaderId === "string" && params.loaderId !== target.loaderId) {
         throw new Error(
@@ -773,7 +771,7 @@ export async function handlePage(
             `gen=${target.navigateGeneration}`,
         );
       }
-      const reloadReq: CdpRequest = {
+      const reloadReq: CdpRequestOf<"Page.navigate"> = {
         ...req,
         method: "Page.navigate",
         params: {
@@ -783,517 +781,27 @@ export async function handlePage(
           ...(target.docReferrer ? { referrer: target.docReferrer } : {}),
         },
       };
-      return await handlePage(ctx, reloadReq);
-    }
+      return await navigatePage({ ctx, target }, reloadReq);
+    },
 
-    case "Page.navigate": {
-      let url = req.params?.url ?? "about:blank";
-      const ksParams = req.params;
-      // target.url and its policy already name an earlier navigation's URL while it runs, and
-      // still do after one that failed; the page that starts this one is the committed one.
-      const committed = target.committedDocument ?? {
-        url: target.url,
-        referrerPolicy: target.docReferrerPolicy ?? null,
-      };
-      const leaving = {
-        url: committed.url,
-        referrerPolicy:
-          parseReferrerPolicy(ksParams?._kitesurfReferrerPolicy) ||
-          parseReferrerPolicy(committed.referrerPolicy),
-      };
-      const ksPostData =
-        typeof ksParams?._kitesurfPostData === "string" ? ksParams._kitesurfPostData : null;
-      const ksPostContentType =
-        typeof ksParams?._kitesurfPostContentType === "string"
-          ? ksParams._kitesurfPostContentType
-          : "application/x-www-form-urlencoded";
-      if (ctx.browser.cdpDebug) {
-        console.log(
-          `[kitesurf-nav] Page.navigate received id=${req.id} ` +
-            `sessionId=${JSON.stringify(req.sessionId)} url=${url} ` +
-            `prevTargetUrl=${JSON.stringify(target.url)} ` +
-            `gen=${target.navigateGeneration}`,
-        );
-      }
-      if (url !== "about:blank" && url !== "") {
-        try {
-          new URL(url);
-        } catch {
-          throw new Error("Cannot navigate to invalid URL");
-        }
-      }
-      // Before this navigation takes over the target: a reopened document's lifecycle it may
-      // replay belongs to the loader the old document still has.
-      if (/^https?:/i.test(url)) await drainBeforeNavigate(ctx, target);
-      // Abort the previous signal so its redirect walk and egress request can stop.
-      target.pendingNavAbort?.abort();
-      const navAbort = new AbortController();
-      target.pendingNavAbort = navAbort;
-      // An input-started navigation announced its loader in Page.frameStartedNavigating.
-      target.loaderId =
-        ksParams?._kitesurfInternal === true && typeof ksParams._kitesurfLoaderId === "string"
-          ? ksParams._kitesurfLoaderId
-          : makeTargetId();
-      const loaderId = target.loaderId;
+    "Page.navigate": navigatePage,
 
-      try {
-        const parsedNavUrl = new URL(url);
-        target.refetchOnPushState =
-          parsedNavUrl.searchParams.get("ks_refetch_on_pushstate") === "1";
-        if (parsedNavUrl.searchParams.has("ks_refetch_on_pushstate")) {
-          parsedNavUrl.searchParams.delete("ks_refetch_on_pushstate");
-          url = parsedNavUrl.toString();
-        }
-        if (
-          ksParams?._kitesurfInternal !== true &&
-          applyTtyNavParams(parsedNavUrl.searchParams, ctx.browser)
-        ) {
-          url = parsedNavUrl.toString();
-        }
-      } catch {}
-      target.url = url;
-      target.title = "";
-      target.html = "";
-      target.fallbackHtmlReleased = false;
-      releaseTargetDom(target);
-      target.docScan = null;
-      target.docCsp = null;
-      target.docCspReportOnly = null;
-      target.docReferrerPolicy = null;
-      target.docReferrer = null;
-      target.docCharset = null;
-      teardownOopifStubs(target, "parent navigate", ctx);
-      ctx.browser.dedicatedWorkers.terminateTarget(target.targetId, "parent navigate");
-      target.frames = new Map();
-      target.frames.set(
-        target.frameId,
-        makeMainFrameState({ frameId: target.frameId, loaderId, url }),
-      );
-
-      ctx.browser.networkEvents.setTargetAttribution(
-        target.frameId,
-        loaderId,
-        targetSessionsNetwork(target, req.sessionId),
-      );
-      ctx.browser.networkEvents.dropStaleLoaderBodies(target.frameId);
-
-      if (url === "about:blank" || url === "") {
-        const html = "<html><head></head><body></body></html>";
-        target.html = html;
-        target.fallbackHtmlReleased = false;
-        const blitzUrl = sanitizeBaseUrl(url);
-        try {
-          target.dom = createDom(html, blitzUrl, true);
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          console.warn("kitesurf: navigate(about:blank) createDom trap:", msg);
-          target.dom = null;
-          return navigateReply(
-            target.frameId,
-            loaderId,
-            `navigate: wasm trap during parse: ${msg}`,
-          );
-        }
-        const {
-          console: capturedConsole,
-          cdpMutations,
-          exceptions,
-        } = await pushNavigateToPageScript(ctx, target, html, blitzUrl);
-        recordNavigationHistory(target, url, req.params?.transitionType ?? "typed");
-        emitNavigationLifecycle(ctx, target, req.sessionId);
-        emitExecutionContextCreated(ctx, target, req.sessionId);
-        emitCapturedConsole(ctx, target, capturedConsole, req.sessionId);
-        emitCapturedExceptions(ctx, target, exceptions, req.sessionId);
-        emitMutations(ctx, target, cdpMutations);
-        clearPendingNavAbort(target, navAbort);
-        return navigateReply(target.frameId, loaderId);
-      }
-
-      emitFrameStartedLoading(ctx, target, mainFrame(target), req.sessionId);
-
-      try {
-        const reqHeaders: Record<string, string> = {
-          "user-agent":
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-          accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        };
-        // A page-started navigation carries the initiating document's origin,
-        // so SameSite=Strict is withheld on a cross-site top-level navigation
-        // just as it is in a browser. CDP-started navigations have no
-        // initiator and keep the existing same-site behavior.
-        const ksInitiatorOrigin =
-          typeof ksParams?._kitesurfInitiatorOrigin === "string"
-            ? ksParams._kitesurfInitiatorOrigin
-            : null;
-        const navExtraHeaders = {
-          ...navigationExtraHeaders(effectiveExtraHeaders(target), ksInitiatorOrigin, url),
-        };
-        if (ksInitiatorOrigin !== null) {
-          const originKeys = Object.keys(navExtraHeaders).filter(
-            (k) => k.toLowerCase() === "origin",
-          );
-          for (const key of originKeys) delete navExtraHeaders[key];
-        }
-        const cookieHeader = jarForTarget(ctx, target).cookieHeaderForUrl(
-          url,
-          ksInitiatorOrigin !== null
-            ? {
-                initiatorOrigin: ksInitiatorOrigin === "null" ? null : ksInitiatorOrigin,
-                topLevel: true,
-                method: ksPostData !== null ? "POST" : "GET",
-              }
-            : undefined,
-        );
-        if (cookieHeader) reqHeaders.cookie = cookieHeader;
-
-        const startedBy =
-          ksParams?._kitesurfInternal === true ? ksParams._kitesurfStartedBy : undefined;
-        Object.assign(reqHeaders, navigationFetchMetadata(startedBy, ksInitiatorOrigin, url));
-        const navReferrer: unknown = req.params?.referrer;
-        const referrerSource =
-          typeof navReferrer === "string" && navReferrer
-            ? null
-            : navigationReferrerSource(leaving, ksInitiatorOrigin);
-        if (typeof navReferrer === "string" && navReferrer) {
-          reqHeaders.referer = navReferrer;
-        } else {
-          const referer = navigationReferrer(leaving, ksInitiatorOrigin, url);
-          if (referer) reqHeaders.referer = referer;
-        }
-
-        for (const [k, v] of Object.entries(navExtraHeaders)) {
-          reqHeaders[k] = v;
-        }
-        const sentReferer =
-          Object.entries(reqHeaders).find(([k]) => k.toLowerCase() === "referer")?.[1] ?? null;
-        target.docReferrer = sentReferer;
-
-        if (ksPostData !== null) {
-          reqHeaders["content-type"] = ksPostContentType;
-          if (ksInitiatorOrigin !== null) reqHeaders.origin = ksInitiatorOrigin;
-        }
-        const requestId = ctx.browser.networkEvents.beginRequest({
-          url,
-          method: ksPostData !== null ? "POST" : "GET",
-          headers: reqHeaders,
-          type: "Document",
-          initiator: { type: "other" },
-          loaderId,
-          frameId: target.frameId,
-          requestId: loaderId,
-        });
-        // Flush requestWillBeSent before egress can complete the document request.
-        ctx.browser.networkEvents.drain();
-
-        let docPageOrigin = "";
-        if (ksInitiatorOrigin === null) {
-          try {
-            docPageOrigin = new URL(url).origin;
-          } catch {}
-        } else if (ksInitiatorOrigin !== "null") {
-          docPageOrigin = ksInitiatorOrigin;
-        }
-        const docProps: CallerOutboundProps = {
-          pageOrigin: docPageOrigin,
-          // A navigation the page started names its initiating document; one the CDP client
-          // started has none, so Private Network Access leaves it alone. An opaque initiator
-          // ("null") still reaches privateNetworkRefusal, which treats it as public.
-          privateNetworkInitiator: ksInitiatorOrigin === null ? undefined : ksInitiatorOrigin,
-          mainFrameId: target.frameId,
-          mainLoaderId: target.loaderId,
-          interceptConnectionId: ctx.connectionId,
-          cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
-          allowDocumentBypass: true,
-          skipRequestBlocker: true,
-          topLevelDocument: true,
-          walksOwnRedirects: true,
-          extraHeaders: navExtraHeaders,
-        };
-        const docOutbound = ctx.browser.sandboxOutbound.parent(docProps);
-        let resp: Response;
-        const abortP = new Promise<never>((_, rej) => {
-          navAbort.signal.addEventListener("abort", () =>
-            rej(new DOMException("navigation replaced", "AbortError")),
-          );
-        });
-        abortP.catch(() => {});
-        let currentUrl = url;
-        const initialSite = schemefulSite(url);
-        const initiatorSite = ksInitiatorOrigin === null ? null : schemefulSite(ksInitiatorOrigin);
-        let chainLeftSite =
-          ksInitiatorOrigin !== null &&
-          (initiatorSite === null || initialSite === null || initiatorSite !== initialSite);
-        let hopBody: Uint8Array | undefined;
-        if (ksPostData !== null) {
-          hopBody = new Uint8Array(ksPostData.length);
-          for (let i = 0; i < ksPostData.length; i++) {
-            hopBody[i] = ksPostData.charCodeAt(i) & 0xff;
-          }
-        }
-        try {
-          const walk = await walkRedirects({
-            url,
-            method: ksPostData !== null ? "POST" : "GET",
-            body: hopBody,
-            signal: navAbort.signal,
-            headers: {
-              ...reqHeaders,
-              "x-kitesurf-resource-type": "Document",
-              "x-kitesurf-initiator": "parser",
-              "x-kitesurf-allow-cross-origin": "1",
-              "x-kitesurf-page-origin": docPageOrigin,
-              "x-kitesurf-network-id": loaderId,
-              ...(sentReferer === null ? { "x-kitesurf-referrer": "no-referrer" } : {}),
-            },
-            taintOriginFrom: ksPostData !== null ? (ksInitiatorOrigin ?? undefined) : undefined,
-            ...(referrerSource ? { referrer: referrerSource } : {}),
-            ...(ksInitiatorOrigin !== null ? { initiatorOrigin: ksInitiatorOrigin } : {}),
-            cookieHeaderFor: (hopUrl, method) =>
-              jarForTarget(ctx, target).cookieHeaderForUrl(
-                hopUrl,
-                chainLeftSite ? { initiatorOrigin: null, topLevel: true, method } : undefined,
-              ),
-            onSetCookie: (hopUrl, hopResp) => {
-              for (const sc of readSetCookieHeaders(hopResp)) {
-                jarForTarget(ctx, target).setFromHeader(hopUrl, sc);
-              }
-            },
-            onRedirect: (hop) => {
-              if (!chainLeftSite) {
-                const from = schemefulSite(hop.fromUrl);
-                const to = schemefulSite(hop.newUrl);
-                if (from === null || to === null || from !== to) {
-                  chainLeftSite = true;
-                }
-              }
-              ctx.browser.networkEvents.redirectRequest(requestId, {
-                newUrl: hop.newUrl,
-                method: hop.method,
-                headers: withoutPlumbingHeaders(hop.headers),
-                status: hop.status,
-                statusText: hop.statusText,
-                responseHeaders: headersToRecord(hop.responseHeaders),
-                loaderId,
-                frameId: target.frameId,
-                type: "Document",
-              });
-            },
-            fetchHop: (hopReq) => {
-              const fetchP = traceSpan(
-                ctx.env.HOST_TRACER,
-                "navigate.fetch_document",
-                () => docOutbound.fetch(hopReq),
-                { url: redactUrl(hopReq.url) },
-              );
-              fetchP.catch(() => {});
-              return Promise.race([fetchP, abortP]);
-            },
-          });
-          if (!walk.ok) {
-            ctx.browser.networkEvents.failRequest(requestId, "net::ERR_TOO_MANY_REDIRECTS");
-            return navigateReply(target.frameId, loaderId, "net::ERR_TOO_MANY_REDIRECTS");
-          }
-          resp = walk.response;
-          currentUrl = walk.finalUrl;
-          // A cross-origin hop cuts the Referer down to its origin, so the
-          // terminal hop's value replaces the one the first request sent.
-          target.docReferrer = walk.referrer || null;
-        } catch (fetchErr) {
-          const errorText = navErrorText(fetchErr, navAbort.signal.aborted);
-          ctx.browser.networkEvents.failRequest(
-            requestId,
-            errorText ?? (fetchErr instanceof Error ? fetchErr.message : String(fetchErr)),
-          );
-          if (errorText) {
-            return navigateReply(target.frameId, loaderId, errorText);
-          }
-          throw fetchErr;
-        }
-        const docKind = documentKind(resp.headers);
-        if (resp.status === 204 || resp.status === 205 || docKind === "blocked") {
-          void resp.body?.cancel().catch(() => {});
-          ctx.browser.networkEvents.completeRequest(requestId, {
-            url: currentUrl,
-            status: resp.status,
-            statusText: resp.statusText,
-            headers: headersToRecord(resp.headers),
-            mimeType: (resp.headers.get("content-type")?.split(";")[0] ?? "").trim() || "text/html",
-            bodyLength: 0,
-            errorText: "net::ERR_ABORTED",
-          });
-          ctx.browser.networkEvents.drain();
-          clearPendingNavAbort(target, navAbort);
-          return navigateReply(target.frameId, loaderId, "net::ERR_ABORTED");
-        }
-        const finalUrl = currentUrl;
-        target.url = finalUrl;
-        target.docReferrerPolicy = resp.headers.get("referrer-policy");
-        target.docCsp = resp.headers.get("content-security-policy");
-        target.docCspReportOnly = resp.headers.get("content-security-policy-report-only");
-        recordNavigationHistory(target, finalUrl, req.params?.transitionType ?? "typed");
-
-        const setCookies = readSetCookieHeaders(resp);
-        for (const sc of setCookies) {
-          jarForTarget(ctx, target).setFromHeader(finalUrl, sc);
-        }
-
-        const ct = resp.headers.get("content-type") ?? "text/html";
-        let pageHtml: string;
-        let networkBody: { body: string; length: number } | null = null;
-        if (docKind === "html") {
-          const read = await traceSpan(ctx.env.HOST_TRACER, "navigate.read_document_body", () =>
-            readCappedBytes(resp, MAX_DOCUMENT_BYTES, ctx.connectionId),
-          );
-          if (!read.ok) {
-            const errorText = cappedErrorText(read.failure);
-            ctx.browser.networkEvents.failRequest(requestId, errorText);
-            clearPendingNavAbort(target, navAbort);
-            return navigateReply(target.frameId, loaderId, errorText);
-          }
-          const buf = read.bytes;
-          const decoded = decodeHtmlBytes(buf, ct);
-          let html = decoded.html;
-          target.docCharset = decoded.charset;
-          const sniffHead = html.replace(/^\uFEFF?\s*/, "");
-          if (ct.includes("application/xhtml") && sniffHead.startsWith("<html")) {
-            html = '<?xml version="1.0" encoding="UTF-8"?>\n' + sniffHead;
-          }
-          target.html = html;
-          target.fallbackHtmlReleased = false;
-          releaseTargetDom(target);
-          target.docScan = traceSpan(
-            ctx.env.HOST_TRACER,
-            "navigate.scan_document",
-            () => scanDocument(html),
-            { bytes: html.length },
-          );
-          target.title = target.docScan.title;
-          pageHtml = html;
-        } else {
-          const read = await readCappedBytes(resp, MAX_DOCUMENT_BYTES, ctx.connectionId);
-          if (!read.ok) {
-            const errorText = cappedErrorText(read.failure);
-            ctx.browser.networkEvents.failRequest(requestId, errorText);
-            clearPendingNavAbort(target, navAbort);
-            return navigateReply(target.frameId, loaderId, errorText);
-          }
-          let wrapper: string;
-          if (docKind === "image") {
-            const base64 = bytesToBase64(read.bytes);
-            wrapper = imageDocumentHtml(read.bytes, base64, ct, finalUrl);
-            networkBody = { body: base64, length: read.bytes.byteLength };
-          } else {
-            const text = new TextDecoder().decode(read.bytes);
-            wrapper =
-              docKind === "json"
-                ? jsonViewerHtml(text, finalUrl)
-                : docKind === "svg"
-                  ? svgDocumentHtml(text, {
-                      width: target.viewportWidth ?? DEFAULT_VIEWPORT_WIDTH,
-                      height: target.viewportHeight ?? DEFAULT_VIEWPORT_HEIGHT,
-                    })
-                  : `<html><head></head><body><pre>${escapeHtml(text)}</pre></body></html>`;
-          }
-          releaseTargetDom(target);
-          target.docScan = scanDocument(wrapper);
-          target.html = wrapper;
-          target.fallbackHtmlReleased = false;
-          pageHtml = wrapper;
-        }
-
-        ctx.browser.networkEvents.completeRequest(requestId, {
-          url: finalUrl,
-          status: resp.status,
-          statusText: resp.statusText,
-          headers: headersToRecord(resp.headers),
-          mimeType: (ct.split(";")[0] ?? "").trim() || "text/html",
-          bodyLength: networkBody?.length ?? pageHtml.length,
-          body: networkBody?.body ?? pageHtml,
-          bodyBase64Encoded: networkBody !== null,
-        });
-        // Drain Network completion before Page.frameNavigated for the main frame.
-        ctx.browser.networkEvents.drain();
-
-        {
-          const mf = mainFrame(target);
-          mf.url = finalUrl;
-          mf.securityOrigin = originOf(finalUrl);
-        }
-        emitFrameNavigated(ctx, target, mainFrame(target), req.sessionId);
-
-        // One admission owner for every child frame and child DOM this navigation retains,
-        // shared by discovery and every load branch.
-        const childBudget = newChildFrameBudget();
-        rebuildFrameTreeChildren(target, childBudget);
-        const childFrames = [...target.frames.values()].filter(
-          (frame) => frame.parentFrameId !== null && frame.lifecycle === "init",
-        );
-        emitChildFrameAttachAndStart(
-          ctx,
-          target.frames,
-          childFrames,
-          targetSessions(target, req.sessionId),
-        );
-        resetPrespawnBudget(target);
-        for (const f of target.frames.values()) {
-          if (f.parentFrameId === null) continue;
-          if (f.lifecycle !== "init") continue;
-          // An opaque child is served by its isolate, whose fetch the prespawn overlaps. A srcdoc
-          // child has no isolate to prespawn.
-          const prespawnable =
-            (f.isCrossOrigin || childFrameIsOpaque(f)) && /^(https?|data):/i.test(f.url);
-          if (prespawnable || f.url === "about:blank" || f.url === "") {
-            f.readyState = "complete";
-            f.pendingLoad = Promise.resolve();
-            prespawnOopifFrame(ctx, target, f);
-            continue;
-          }
-          f.pendingLoad = loadChildFrame(ctx, target, f, req.sessionId, 1, new Set(), childBudget);
-        }
-
-        const armedIframeGate = navigateOwesIframeInstalls(target);
-        const {
-          console: capturedConsole,
-          cdpMutations,
-          exceptions,
-        } = await pushNavigateToPageScript(ctx, target, pageHtml, finalUrl, armedIframeGate);
-        if (target.pageScript) {
-          releaseTargetDom(target);
-          releaseFallbackHtml(target);
-        }
-        await backfillIframeOwnerNodeIds(target);
-        emitFrameDclComplete(ctx, target, mainFrame(target), req.sessionId);
-        scheduleLoadCompleteEmit(ctx, target, req.sessionId, armedIframeGate);
-        emitExecutionContextCreated(ctx, target, req.sessionId);
-        // Reset the DOM domain before delivering mutations from the new generation.
-        emitDocumentUpdated(ctx, target, req.sessionId);
-        emitCapturedConsole(ctx, target, capturedConsole, req.sessionId);
-        emitCapturedExceptions(ctx, target, exceptions, req.sessionId);
-        emitMutations(ctx, target, cdpMutations);
-        if (target.pendingNavAbort === navAbort) target.pendingNavAbort = null;
-        return navigateReply(target.frameId, loaderId);
-      } catch (err) {
-        const errorText = err instanceof Error ? err.message : String(err);
-        return navigateReply(target.frameId, loaderId, errorText);
-      }
-    }
-
-    case "Page.addScriptToEvaluateOnNewDocument": {
+    "Page.addScriptToEvaluateOnNewDocument": ({ ctx }, req) => {
       const id = crypto.randomUUID();
       const source = typeof req.params?.source === "string" ? req.params.source : "";
       if (source) {
         ctx.browser.preNavScripts.set(id, source);
       }
       return { identifier: id };
-    }
+    },
 
-    case "Page.removeScriptToEvaluateOnNewDocument": {
+    "Page.removeScriptToEvaluateOnNewDocument": ({ ctx }, req) => {
       const id = typeof req.params?.identifier === "string" ? req.params.identifier : null;
       if (id) ctx.browser.preNavScripts.delete(id);
       return {};
-    }
+    },
 
-    case "Page.createIsolatedWorld": {
+    "Page.createIsolatedWorld": ({ ctx }, req) => {
       const targetForIsoWorld = (() => {
         try {
           return resolveTarget(ctx, req.sessionId);
@@ -1337,15 +845,14 @@ export async function handlePage(
         sessionId: req.sessionId,
       });
       return { executionContextId: id };
-    }
+    },
 
-    case "Page.setBypassCSP":
-    case "Page.stopLoading":
-    case "Page.bringToFront":
-    case "Page.handleJavaScriptDialog":
-      return {};
+    "Page.setBypassCSP": stub,
+    "Page.stopLoading": stub,
+    "Page.bringToFront": stub,
+    "Page.handleJavaScriptDialog": stub,
 
-    case "Page.setDocumentContent": {
+    "Page.setDocumentContent": async ({ ctx, target }, req) => {
       if (target.type !== "page") {
         return { error: "setDocumentContent requires a page target" };
       }
@@ -1389,9 +896,9 @@ export async function handlePage(
         releaseFallbackHtml(target);
       }
       return {};
-    }
+    },
 
-    case "Page.captureScreenshot": {
+    "Page.captureScreenshot": async ({ ctx, target }, req) => {
       try {
         const reqFormat = req.params?.format;
         const format: ScreenshotFormat =
@@ -1538,9 +1045,9 @@ export async function handlePage(
           error: err instanceof Error ? err.message : String(err),
         };
       }
-    }
+    },
 
-    case "Page.printToPDF": {
+    "Page.printToPDF": async ({ ctx, target }, req) => {
       try {
         const inchToPx = 96;
         const paperWidthIn =
@@ -1662,9 +1169,9 @@ export async function handlePage(
           error: err instanceof Error ? err.message : String(err),
         };
       }
-    }
+    },
 
-    case "Page.startScreencast": {
+    "Page.startScreencast": async ({ ctx, target }, req) => {
       const existing = ctx.browser.screencasts.get(target.targetId);
       const reqFormat = req.params?.format;
       const format: "png" | "jpeg" =
@@ -1808,9 +1315,9 @@ export async function handlePage(
       } finally {
         releaseConfiguration();
       }
-    }
+    },
 
-    case "Page.stopScreencast": {
+    "Page.stopScreencast": ({ ctx, target }, req) => {
       const state = ctx.browser.screencasts.get(target.targetId);
       if (state && state.ownerSessionId === (req.sessionId || undefined)) {
         state.stopped = true;
@@ -1824,9 +1331,9 @@ export async function handlePage(
         ctx.browser.screencasts.delete(target.targetId);
       }
       return {};
-    }
+    },
 
-    case "Page.screencastFrameAck": {
+    "Page.screencastFrameAck": ({ ctx, target }, req) => {
       const state = ctx.browser.screencasts.get(target.targetId);
       if (!state) return {};
       const rawAckId = req.params?.sessionId ?? -1;
@@ -1849,10 +1356,509 @@ export async function handlePage(
       if (ackId > state.lastAckedSeq) state.lastAckedSeq = ackId;
       state.wake?.();
       return {};
+    },
+  },
+});
+
+/** Runs a Page command for an embedder. A command Page does not define answers {}. */
+export async function handlePage(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
+  const result = await pageDomain.run(ctx, req);
+  return result === CDP_COMMAND_UNHANDLED ? {} : result;
+}
+
+interface PageContext {
+  ctx: DispatchCtx;
+  target: TargetState;
+}
+
+function pageContext(ctx: DispatchCtx, req: CdpRequest): PageContext {
+  return { ctx, target: resolveTarget(ctx, req.sessionId) };
+}
+
+// The Page.navigate handler. A history navigation and a reload call it directly; a history
+// navigation's back_forward transition is Kitesurf's own, not a protocol TransitionType.
+async function navigatePage(
+  { ctx, target }: PageContext,
+  req: CdpRequestOf<"Page.navigate"> | InternalHistoryNavigateRequest,
+): Promise<Protocol.Page.NavigateResponse> {
+  let url = req.params?.url ?? "about:blank";
+  const ksParams = req.params;
+  // target.url and its policy already name an earlier navigation's URL while it runs, and
+  // still do after one that failed; the page that starts this one is the committed one.
+  const committed = target.committedDocument ?? {
+    url: target.url,
+    referrerPolicy: target.docReferrerPolicy ?? null,
+  };
+  const leaving = {
+    url: committed.url,
+    referrerPolicy:
+      parseReferrerPolicy(ksParams?._kitesurfReferrerPolicy) ||
+      parseReferrerPolicy(committed.referrerPolicy),
+  };
+  const ksPostData =
+    typeof ksParams?._kitesurfPostData === "string" ? ksParams._kitesurfPostData : null;
+  const ksPostContentType =
+    typeof ksParams?._kitesurfPostContentType === "string"
+      ? ksParams._kitesurfPostContentType
+      : "application/x-www-form-urlencoded";
+  if (ctx.browser.cdpDebug) {
+    console.log(
+      `[kitesurf-nav] Page.navigate received id=${req.id} ` +
+        `sessionId=${JSON.stringify(req.sessionId)} url=${url} ` +
+        `prevTargetUrl=${JSON.stringify(target.url)} ` +
+        `gen=${target.navigateGeneration}`,
+    );
+  }
+  if (url !== "about:blank" && url !== "") {
+    try {
+      new URL(url);
+    } catch {
+      throw new Error("Cannot navigate to invalid URL");
+    }
+  }
+  // Before this navigation takes over the target: a reopened document's lifecycle it may
+  // replay belongs to the loader the old document still has.
+  if (/^https?:/i.test(url)) await drainBeforeNavigate(ctx, target);
+  // Abort the previous signal so its redirect walk and egress request can stop.
+  target.pendingNavAbort?.abort();
+  const navAbort = new AbortController();
+  target.pendingNavAbort = navAbort;
+  // An input-started navigation announced its loader in Page.frameStartedNavigating.
+  target.loaderId =
+    ksParams?._kitesurfInternal === true && typeof ksParams._kitesurfLoaderId === "string"
+      ? ksParams._kitesurfLoaderId
+      : makeTargetId();
+  const loaderId = target.loaderId;
+
+  try {
+    const parsedNavUrl = new URL(url);
+    target.refetchOnPushState = parsedNavUrl.searchParams.get("ks_refetch_on_pushstate") === "1";
+    if (parsedNavUrl.searchParams.has("ks_refetch_on_pushstate")) {
+      parsedNavUrl.searchParams.delete("ks_refetch_on_pushstate");
+      url = parsedNavUrl.toString();
+    }
+    if (
+      ksParams?._kitesurfInternal !== true &&
+      applyTtyNavParams(parsedNavUrl.searchParams, ctx.browser)
+    ) {
+      url = parsedNavUrl.toString();
+    }
+  } catch {}
+  target.url = url;
+  target.title = "";
+  target.html = "";
+  target.fallbackHtmlReleased = false;
+  releaseTargetDom(target);
+  target.docScan = null;
+  target.docCsp = null;
+  target.docCspReportOnly = null;
+  target.docReferrerPolicy = null;
+  target.docReferrer = null;
+  target.docCharset = null;
+  teardownOopifStubs(target, "parent navigate", ctx);
+  ctx.browser.dedicatedWorkers.terminateTarget(target.targetId, "parent navigate");
+  target.frames = new Map();
+  target.frames.set(target.frameId, makeMainFrameState({ frameId: target.frameId, loaderId, url }));
+
+  ctx.browser.networkEvents.setTargetAttribution(
+    target.frameId,
+    loaderId,
+    targetSessionsNetwork(target, req.sessionId),
+  );
+  ctx.browser.networkEvents.dropStaleLoaderBodies(target.frameId);
+
+  if (url === "about:blank" || url === "") {
+    const html = "<html><head></head><body></body></html>";
+    target.html = html;
+    target.fallbackHtmlReleased = false;
+    const blitzUrl = sanitizeBaseUrl(url);
+    try {
+      target.dom = createDom(html, blitzUrl, true);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn("kitesurf: navigate(about:blank) createDom trap:", msg);
+      target.dom = null;
+      return navigateReply(target.frameId, loaderId, `navigate: wasm trap during parse: ${msg}`);
+    }
+    const {
+      console: capturedConsole,
+      cdpMutations,
+      exceptions,
+    } = await pushNavigateToPageScript(ctx, target, html, blitzUrl);
+    recordNavigationHistory(target, url, req.params?.transitionType ?? "typed");
+    emitNavigationLifecycle(ctx, target, req.sessionId);
+    emitExecutionContextCreated(ctx, target, req.sessionId);
+    emitCapturedConsole(ctx, target, capturedConsole, req.sessionId);
+    emitCapturedExceptions(ctx, target, exceptions, req.sessionId);
+    emitMutations(ctx, target, cdpMutations);
+    clearPendingNavAbort(target, navAbort);
+    return navigateReply(target.frameId, loaderId);
+  }
+
+  emitFrameStartedLoading(ctx, target, mainFrame(target), req.sessionId);
+
+  try {
+    const reqHeaders: Record<string, string> = {
+      "user-agent":
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+      accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    };
+    // A page-started navigation carries the initiating document's origin,
+    // so SameSite=Strict is withheld on a cross-site top-level navigation
+    // just as it is in a browser. CDP-started navigations have no
+    // initiator and keep the existing same-site behavior.
+    const ksInitiatorOrigin =
+      typeof ksParams?._kitesurfInitiatorOrigin === "string"
+        ? ksParams._kitesurfInitiatorOrigin
+        : null;
+    const navExtraHeaders = {
+      ...navigationExtraHeaders(effectiveExtraHeaders(target), ksInitiatorOrigin, url),
+    };
+    if (ksInitiatorOrigin !== null) {
+      const originKeys = Object.keys(navExtraHeaders).filter((k) => k.toLowerCase() === "origin");
+      for (const key of originKeys) delete navExtraHeaders[key];
+    }
+    const cookieHeader = jarForTarget(ctx, target).cookieHeaderForUrl(
+      url,
+      ksInitiatorOrigin !== null
+        ? {
+            initiatorOrigin: ksInitiatorOrigin === "null" ? null : ksInitiatorOrigin,
+            topLevel: true,
+            method: ksPostData !== null ? "POST" : "GET",
+          }
+        : undefined,
+    );
+    if (cookieHeader) reqHeaders.cookie = cookieHeader;
+
+    const startedBy =
+      ksParams?._kitesurfInternal === true ? ksParams._kitesurfStartedBy : undefined;
+    Object.assign(reqHeaders, navigationFetchMetadata(startedBy, ksInitiatorOrigin, url));
+    const navReferrer: unknown = req.params?.referrer;
+    const referrerSource =
+      typeof navReferrer === "string" && navReferrer
+        ? null
+        : navigationReferrerSource(leaving, ksInitiatorOrigin);
+    if (typeof navReferrer === "string" && navReferrer) {
+      reqHeaders.referer = navReferrer;
+    } else {
+      const referer = navigationReferrer(leaving, ksInitiatorOrigin, url);
+      if (referer) reqHeaders.referer = referer;
     }
 
-    default:
-      return {};
+    for (const [k, v] of Object.entries(navExtraHeaders)) {
+      reqHeaders[k] = v;
+    }
+    const sentReferer =
+      Object.entries(reqHeaders).find(([k]) => k.toLowerCase() === "referer")?.[1] ?? null;
+    target.docReferrer = sentReferer;
+
+    if (ksPostData !== null) {
+      reqHeaders["content-type"] = ksPostContentType;
+      if (ksInitiatorOrigin !== null) reqHeaders.origin = ksInitiatorOrigin;
+    }
+    const requestId = ctx.browser.networkEvents.beginRequest({
+      url,
+      method: ksPostData !== null ? "POST" : "GET",
+      headers: reqHeaders,
+      type: "Document",
+      initiator: { type: "other" },
+      loaderId,
+      frameId: target.frameId,
+      requestId: loaderId,
+    });
+    // Flush requestWillBeSent before egress can complete the document request.
+    ctx.browser.networkEvents.drain();
+
+    let docPageOrigin = "";
+    if (ksInitiatorOrigin === null) {
+      try {
+        docPageOrigin = new URL(url).origin;
+      } catch {}
+    } else if (ksInitiatorOrigin !== "null") {
+      docPageOrigin = ksInitiatorOrigin;
+    }
+    const docProps: CallerOutboundProps = {
+      pageOrigin: docPageOrigin,
+      // A navigation the page started names its initiating document; one the CDP client
+      // started has none, so Private Network Access leaves it alone. An opaque initiator
+      // ("null") still reaches privateNetworkRefusal, which treats it as public.
+      privateNetworkInitiator: ksInitiatorOrigin === null ? undefined : ksInitiatorOrigin,
+      mainFrameId: target.frameId,
+      mainLoaderId: target.loaderId,
+      interceptConnectionId: ctx.connectionId,
+      cookieKey: cookieKeyFor(ctx.connectionId, target.browserContextId),
+      allowDocumentBypass: true,
+      skipRequestBlocker: true,
+      topLevelDocument: true,
+      walksOwnRedirects: true,
+      extraHeaders: navExtraHeaders,
+    };
+    const docOutbound = ctx.browser.sandboxOutbound.parent(docProps);
+    let resp: Response;
+    const abortP = new Promise<never>((_, rej) => {
+      navAbort.signal.addEventListener("abort", () =>
+        rej(new DOMException("navigation replaced", "AbortError")),
+      );
+    });
+    abortP.catch(() => {});
+    let currentUrl = url;
+    const initialSite = schemefulSite(url);
+    const initiatorSite = ksInitiatorOrigin === null ? null : schemefulSite(ksInitiatorOrigin);
+    let chainLeftSite =
+      ksInitiatorOrigin !== null &&
+      (initiatorSite === null || initialSite === null || initiatorSite !== initialSite);
+    let hopBody: Uint8Array | undefined;
+    if (ksPostData !== null) {
+      hopBody = new Uint8Array(ksPostData.length);
+      for (let i = 0; i < ksPostData.length; i++) {
+        hopBody[i] = ksPostData.charCodeAt(i) & 0xff;
+      }
+    }
+    try {
+      const walk = await walkRedirects({
+        url,
+        method: ksPostData !== null ? "POST" : "GET",
+        body: hopBody,
+        signal: navAbort.signal,
+        headers: {
+          ...reqHeaders,
+          "x-kitesurf-resource-type": "Document",
+          "x-kitesurf-initiator": "parser",
+          "x-kitesurf-allow-cross-origin": "1",
+          "x-kitesurf-page-origin": docPageOrigin,
+          "x-kitesurf-network-id": loaderId,
+          ...(sentReferer === null ? { "x-kitesurf-referrer": "no-referrer" } : {}),
+        },
+        taintOriginFrom: ksPostData !== null ? (ksInitiatorOrigin ?? undefined) : undefined,
+        ...(referrerSource ? { referrer: referrerSource } : {}),
+        ...(ksInitiatorOrigin !== null ? { initiatorOrigin: ksInitiatorOrigin } : {}),
+        cookieHeaderFor: (hopUrl, method) =>
+          jarForTarget(ctx, target).cookieHeaderForUrl(
+            hopUrl,
+            chainLeftSite ? { initiatorOrigin: null, topLevel: true, method } : undefined,
+          ),
+        onSetCookie: (hopUrl, hopResp) => {
+          for (const sc of readSetCookieHeaders(hopResp)) {
+            jarForTarget(ctx, target).setFromHeader(hopUrl, sc);
+          }
+        },
+        onRedirect: (hop) => {
+          if (!chainLeftSite) {
+            const from = schemefulSite(hop.fromUrl);
+            const to = schemefulSite(hop.newUrl);
+            if (from === null || to === null || from !== to) {
+              chainLeftSite = true;
+            }
+          }
+          ctx.browser.networkEvents.redirectRequest(requestId, {
+            newUrl: hop.newUrl,
+            method: hop.method,
+            headers: withoutPlumbingHeaders(hop.headers),
+            status: hop.status,
+            statusText: hop.statusText,
+            responseHeaders: headersToRecord(hop.responseHeaders),
+            loaderId,
+            frameId: target.frameId,
+            type: "Document",
+          });
+        },
+        fetchHop: (hopReq) => {
+          const fetchP = traceSpan(
+            ctx.env.HOST_TRACER,
+            "navigate.fetch_document",
+            () => docOutbound.fetch(hopReq),
+            { url: redactUrl(hopReq.url) },
+          );
+          fetchP.catch(() => {});
+          return Promise.race([fetchP, abortP]);
+        },
+      });
+      if (!walk.ok) {
+        ctx.browser.networkEvents.failRequest(requestId, "net::ERR_TOO_MANY_REDIRECTS");
+        return navigateReply(target.frameId, loaderId, "net::ERR_TOO_MANY_REDIRECTS");
+      }
+      resp = walk.response;
+      currentUrl = walk.finalUrl;
+      // A cross-origin hop cuts the Referer down to its origin, so the
+      // terminal hop's value replaces the one the first request sent.
+      target.docReferrer = walk.referrer || null;
+    } catch (fetchErr) {
+      const errorText = navErrorText(fetchErr, navAbort.signal.aborted);
+      ctx.browser.networkEvents.failRequest(
+        requestId,
+        errorText ?? (fetchErr instanceof Error ? fetchErr.message : String(fetchErr)),
+      );
+      if (errorText) {
+        return navigateReply(target.frameId, loaderId, errorText);
+      }
+      throw fetchErr;
+    }
+    const docKind = documentKind(resp.headers);
+    if (resp.status === 204 || resp.status === 205 || docKind === "blocked") {
+      void resp.body?.cancel().catch(() => {});
+      ctx.browser.networkEvents.completeRequest(requestId, {
+        url: currentUrl,
+        status: resp.status,
+        statusText: resp.statusText,
+        headers: headersToRecord(resp.headers),
+        mimeType: (resp.headers.get("content-type")?.split(";")[0] ?? "").trim() || "text/html",
+        bodyLength: 0,
+        errorText: "net::ERR_ABORTED",
+      });
+      ctx.browser.networkEvents.drain();
+      clearPendingNavAbort(target, navAbort);
+      return navigateReply(target.frameId, loaderId, "net::ERR_ABORTED");
+    }
+    const finalUrl = currentUrl;
+    target.url = finalUrl;
+    target.docReferrerPolicy = resp.headers.get("referrer-policy");
+    target.docCsp = resp.headers.get("content-security-policy");
+    target.docCspReportOnly = resp.headers.get("content-security-policy-report-only");
+    recordNavigationHistory(target, finalUrl, req.params?.transitionType ?? "typed");
+
+    const setCookies = readSetCookieHeaders(resp);
+    for (const sc of setCookies) {
+      jarForTarget(ctx, target).setFromHeader(finalUrl, sc);
+    }
+
+    const ct = resp.headers.get("content-type") ?? "text/html";
+    let pageHtml: string;
+    let networkBody: { body: string; length: number } | null = null;
+    if (docKind === "html") {
+      const read = await traceSpan(ctx.env.HOST_TRACER, "navigate.read_document_body", () =>
+        readCappedBytes(resp, MAX_DOCUMENT_BYTES, ctx.connectionId),
+      );
+      if (!read.ok) {
+        const errorText = cappedErrorText(read.failure);
+        ctx.browser.networkEvents.failRequest(requestId, errorText);
+        clearPendingNavAbort(target, navAbort);
+        return navigateReply(target.frameId, loaderId, errorText);
+      }
+      const buf = read.bytes;
+      const decoded = decodeHtmlBytes(buf, ct);
+      let html = decoded.html;
+      target.docCharset = decoded.charset;
+      const sniffHead = html.replace(/^\uFEFF?\s*/, "");
+      if (ct.includes("application/xhtml") && sniffHead.startsWith("<html")) {
+        html = '<?xml version="1.0" encoding="UTF-8"?>\n' + sniffHead;
+      }
+      target.html = html;
+      target.fallbackHtmlReleased = false;
+      releaseTargetDom(target);
+      target.docScan = traceSpan(
+        ctx.env.HOST_TRACER,
+        "navigate.scan_document",
+        () => scanDocument(html),
+        { bytes: html.length },
+      );
+      target.title = target.docScan.title;
+      pageHtml = html;
+    } else {
+      const read = await readCappedBytes(resp, MAX_DOCUMENT_BYTES, ctx.connectionId);
+      if (!read.ok) {
+        const errorText = cappedErrorText(read.failure);
+        ctx.browser.networkEvents.failRequest(requestId, errorText);
+        clearPendingNavAbort(target, navAbort);
+        return navigateReply(target.frameId, loaderId, errorText);
+      }
+      let wrapper: string;
+      if (docKind === "image") {
+        const base64 = bytesToBase64(read.bytes);
+        wrapper = imageDocumentHtml(read.bytes, base64, ct, finalUrl);
+        networkBody = { body: base64, length: read.bytes.byteLength };
+      } else {
+        const text = new TextDecoder().decode(read.bytes);
+        wrapper =
+          docKind === "json"
+            ? jsonViewerHtml(text, finalUrl)
+            : docKind === "svg"
+              ? svgDocumentHtml(text, {
+                  width: target.viewportWidth ?? DEFAULT_VIEWPORT_WIDTH,
+                  height: target.viewportHeight ?? DEFAULT_VIEWPORT_HEIGHT,
+                })
+              : `<html><head></head><body><pre>${escapeHtml(text)}</pre></body></html>`;
+      }
+      releaseTargetDom(target);
+      target.docScan = scanDocument(wrapper);
+      target.html = wrapper;
+      target.fallbackHtmlReleased = false;
+      pageHtml = wrapper;
+    }
+
+    ctx.browser.networkEvents.completeRequest(requestId, {
+      url: finalUrl,
+      status: resp.status,
+      statusText: resp.statusText,
+      headers: headersToRecord(resp.headers),
+      mimeType: (ct.split(";")[0] ?? "").trim() || "text/html",
+      bodyLength: networkBody?.length ?? pageHtml.length,
+      body: networkBody?.body ?? pageHtml,
+      bodyBase64Encoded: networkBody !== null,
+    });
+    // Drain Network completion before Page.frameNavigated for the main frame.
+    ctx.browser.networkEvents.drain();
+
+    {
+      const mf = mainFrame(target);
+      mf.url = finalUrl;
+      mf.securityOrigin = originOf(finalUrl);
+    }
+    emitFrameNavigated(ctx, target, mainFrame(target), req.sessionId);
+
+    // One admission owner for every child frame and child DOM this navigation retains,
+    // shared by discovery and every load branch.
+    const childBudget = newChildFrameBudget();
+    rebuildFrameTreeChildren(target, childBudget);
+    const childFrames = [...target.frames.values()].filter(
+      (frame) => frame.parentFrameId !== null && frame.lifecycle === "init",
+    );
+    emitChildFrameAttachAndStart(
+      ctx,
+      target.frames,
+      childFrames,
+      targetSessions(target, req.sessionId),
+    );
+    resetPrespawnBudget(target);
+    for (const f of target.frames.values()) {
+      if (f.parentFrameId === null) continue;
+      if (f.lifecycle !== "init") continue;
+      // An opaque child is served by its isolate, whose fetch the prespawn overlaps. A srcdoc
+      // child has no isolate to prespawn.
+      const prespawnable =
+        (f.isCrossOrigin || childFrameIsOpaque(f)) && /^(https?|data):/i.test(f.url);
+      if (prespawnable || f.url === "about:blank" || f.url === "") {
+        f.readyState = "complete";
+        f.pendingLoad = Promise.resolve();
+        prespawnOopifFrame(ctx, target, f);
+        continue;
+      }
+      f.pendingLoad = loadChildFrame(ctx, target, f, req.sessionId, 1, new Set(), childBudget);
+    }
+
+    const armedIframeGate = navigateOwesIframeInstalls(target);
+    const {
+      console: capturedConsole,
+      cdpMutations,
+      exceptions,
+    } = await pushNavigateToPageScript(ctx, target, pageHtml, finalUrl, armedIframeGate);
+    if (target.pageScript) {
+      releaseTargetDom(target);
+      releaseFallbackHtml(target);
+    }
+    await backfillIframeOwnerNodeIds(target);
+    emitFrameDclComplete(ctx, target, mainFrame(target), req.sessionId);
+    scheduleLoadCompleteEmit(ctx, target, req.sessionId, armedIframeGate);
+    emitExecutionContextCreated(ctx, target, req.sessionId);
+    // Reset the DOM domain before delivering mutations from the new generation.
+    emitDocumentUpdated(ctx, target, req.sessionId);
+    emitCapturedConsole(ctx, target, capturedConsole, req.sessionId);
+    emitCapturedExceptions(ctx, target, exceptions, req.sessionId);
+    emitMutations(ctx, target, cdpMutations);
+    if (target.pendingNavAbort === navAbort) target.pendingNavAbort = null;
+    return navigateReply(target.frameId, loaderId);
+  } catch (err) {
+    const errorText = err instanceof Error ? err.message : String(err);
+    return navigateReply(target.frameId, loaderId, errorText);
   }
 }
 

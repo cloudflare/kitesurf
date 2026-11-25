@@ -23,7 +23,7 @@ import {
   oopifSession,
   findOopifFrameBySession,
 } from "./target.ts";
-import { handlePage } from "./page.ts";
+import { pageDomain } from "./page.ts";
 import { runtimeDomain } from "./runtime.ts";
 import { domDomain } from "./dom.ts";
 import { networkDomain, storageDomain } from "./network.ts";
@@ -147,7 +147,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         result = await runDomain(ctx, req, targetDomain);
         break;
       case "Page":
-        result = await handlePage(ctx, req);
+        result = await runDomain(ctx, req, pageDomain);
         break;
       case "Runtime":
         result = await runDomain(ctx, req, runtimeDomain);
