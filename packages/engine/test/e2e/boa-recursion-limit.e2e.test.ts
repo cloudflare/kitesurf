@@ -24,8 +24,17 @@ test("boa recursion far deeper than 256 frames runs from an event listener", asy
   expect(depth).toBe(4000);
 });
 
-test("runs nested on the native stack stay bounded", async ({ page }) => {
+test("runs nested on the native stack keep the old bound", async ({ page }) => {
   await setContent(page, "<script>globalThis.__apply = (fn) => fn();</script>");
+  // A generator resume costs one nested run, as it cost one frame under the old limit of 256.
+  const generators = await page.evaluate(() => {
+    function* walk(n: number): Generator<number> {
+      if (n > 0) yield* walk(n - 1);
+      yield n;
+    }
+    return [...walk(200)].length;
+  });
+  expect(generators).toBe(201);
   const viaCallback = await page
     .evaluate(() => {
       const f = (): void => [0].forEach(f);

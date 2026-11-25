@@ -703,11 +703,11 @@ fn ensure_persistent() -> bool {
         };
         let mut boxed = Box::new(ctx);
         // A JS-to-JS call only grows boa's heap stacks, so the frame limit is near V8's and
-        // React's deep commit traversal fits. A run nested on the machine stack (accessor,
-        // callback, V8 re-entry) cost a frame and a host call under the old limit of 256: keep 128.
+        // React's deep commit traversal fits. Runs nested on the machine stack (an accessor, a
+        // callback, a V8 re-entry, a generator resume) keep the old limit of 256 and its count.
         let limits = boxed.runtime_limits_mut();
         limits.set_recursion_limit(10_000);
-        limits.set_native_recursion_limit(128);
+        limits.set_native_recursion_limit(256);
         limits.set_stack_size_limit(1 << 18);
         limits.set_loop_iteration_limit(50_000_000);
         crate::js::boa_bridge::install_global_bridge(&mut boxed);
