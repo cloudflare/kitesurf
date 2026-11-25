@@ -117,6 +117,16 @@ export function jarForContextId(ctx: DispatchCtx, browserContextId: string | und
   return ctx.browser.cookies;
 }
 
+// A browser context's cookie jar and localStorage by id, with jarForContextId's rule.
+export function storageForContextId(
+  ctx: DispatchCtx,
+  browserContextId: string | undefined,
+): { jar: CookieJar; localStorage: LocalStorage } {
+  const jar = jarForContextId(ctx, browserContextId);
+  const entry = browserContextId ? ctx.browser.contexts.get(browserContextId) : undefined;
+  return { jar, localStorage: entry?.localStorage ?? ctx.browser.localStorage };
+}
+
 export const targetDomain = defineDomain("Target", {
   methods: {
     "Target.setDiscoverTargets": stub,

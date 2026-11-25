@@ -16,7 +16,10 @@ import {
   type QueryDomCarrier,
   type QueryDomMethod,
 } from "./page-session.ts";
-import { engineMemoryBreakdown } from "./target.ts";
+import { engineMemoryBreakdown, storageForContextId } from "./target.ts";
+import { changeLocalStorage } from "./storage-copies.ts";
+import { setCdpCookie } from "../cookies.ts";
+import { parseStorageState, storageStateOps } from "../state/storage-state.ts";
 import { sceneStreamCommand } from "./scene-stream.ts";
 import { sceneHostCommand } from "./scene-host.ts";
 import {
@@ -447,6 +450,28 @@ const kitesurfMethods = {
       return cdpResult(req, { wasmBytes: 0, error: "target not found" });
     }
     return cdpResult(req, (await ask(target)) ?? {});
+  },
+
+  // Replace a browser context's cookies and localStorage with a playwright storageState, as
+  // newContext({ storageState }) starts one; a bad file or context id changes nothing. A cookie the
+  // jar's Set-Cookie checks refuse is dropped. Open documents get the localStorage at once, with
+  // no `storage` event; cookies reach the next request, and document.cookie the next document.
+  "Kitesurf.setStorageState": async (ctx, req) => {
+    const browserContextId: unknown = req.params?.browserContextId;
+    if (browserContextId !== undefined && typeof browserContextId !== "string") {
+      throw new Error("browserContextId: not a string");
+    }
+    const { jar, localStorage } = storageForContextId(ctx, browserContextId);
+    const state = parseStorageState(req.params?.storageState);
+    jar.clear();
+    for (const cookie of state.cookies) setCdpCookie(jar, cookie);
+    const ops = storageStateOps(state, localStorage.origins());
+    await Promise.all(
+      Array.from(ops, ([origin, list]) =>
+        changeLocalStorage(ctx, localStorage, origin, list, { url: null }),
+      ),
+    );
+    return {};
   },
 
   "Kitesurf.setOutboundFilters": async (ctx, req) => {
