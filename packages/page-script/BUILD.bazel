@@ -6,6 +6,13 @@ load("//bazel:checks.bzl", "tsc_test", "workspace_configs")
 
 npm_link_all_packages(name = "node_modules")
 
+# core's fonts tests compare the scan's codepoint tables with the shipped faces. A source file,
+# not a js_library: generated compile_data makes rules_rust move the crate sources into bin/.
+exports_files(
+    ["src/source-scan.ts"],
+    visibility = ["//packages/core:__pkg__"],
+)
+
 js_library(
     name = "startup_probe_source",
     srcs = ["src/startup-probe.ts"],

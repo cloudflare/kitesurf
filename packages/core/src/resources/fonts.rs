@@ -2916,6 +2916,81 @@ mod tests {
         });
     }
 
+    /// The U+2100-U+2BFF codepoints the asset `name` maps to a real glyph.
+    fn symbol_range_coverage(name: &str) -> std::collections::BTreeSet<u32> {
+        use skrifa::{FontRef, MetadataProvider};
+        let bytes = read_asset(name);
+        let font = FontRef::new(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        font.charmap()
+            .mappings()
+            .filter(|(cp, gid)| (0x2100..=0x2BFF).contains(cp) && gid.to_u32() != 0)
+            .map(|(cp, _)| cp)
+            .collect()
+    }
+
+    /// The codepoints of the first `/[…]/` character class after `marker` in `src`.
+    fn class_codepoints(src: &str, marker: &str) -> std::collections::BTreeSet<u32> {
+        let rest = src
+            .split(marker)
+            .nth(1)
+            .unwrap_or_else(|| panic!("{marker} not found"));
+        let class = &rest[rest.find("/[").expect("class") + 2..rest.find("]/").expect("class end")];
+        let mut out = std::collections::BTreeSet::new();
+        let mut start: Option<u32> = None;
+        for part in class.split("\\u").skip(1) {
+            let cp = u32::from_str_radix(&part[..4], 16).expect("hex escape");
+            match start.take() {
+                Some(from) => out.extend(from..=cp),
+                None if part.ends_with('-') => start = Some(cp),
+                None => {
+                    out.insert(cp);
+                }
+            }
+        }
+        out
+    }
+
+    /// page-script fetches Noto Sans Math only for MATH_EXCLUSIVE codepoints, so the set must
+    /// hold every codepoint Math maps that no face a page always has maps: the symbol faces
+    /// and the faces every profile registers before layout. On-demand faces must not count.
+    #[test]
+    fn math_exclusive_matches_the_shipped_faces() {
+        use std::collections::BTreeSet;
+        let profile_always = |p: &UaFontProfile| -> BTreeSet<u32> {
+            let mut set = BTreeSet::new();
+            for (i, path) in p.paths().iter().enumerate() {
+                // page-script fetches the serif trio (slots 4-6) only for pages that name serif.
+                if path.is_empty() || (p.serif_on_demand && (4..7).contains(&i)) {
+                    continue;
+                }
+                set.extend(symbol_range_coverage(path.trim_start_matches("/fonts/")));
+            }
+            set
+        };
+        let mut ua = UA_FONT_PROFILES.iter().map(|p| profile_always(p));
+        let first = ua.next().expect("a profile");
+        let mut always: BTreeSet<u32> = ua.fold(first, |acc, s| &acc & &s);
+        always.extend(symbol_range_coverage("NotoSansSymbols.ttf"));
+        always.extend(symbol_range_coverage("NotoSansSymbols2.ttf"));
+        let want: BTreeSet<u32> = &symbol_range_coverage("NotoSansMath.ttf") - &always;
+        let got = class_codepoints(
+            include_str!("../../../page-script/src/source-scan.ts"),
+            "export const MATH_EXCLUSIVE =",
+        );
+        let hex = |s: BTreeSet<u32>| {
+            s.iter()
+                .take(12)
+                .map(|c| format!("{c:04X}"))
+                .collect::<Vec<_>>()
+        };
+        assert!(
+            got == want,
+            "MATH_EXCLUSIVE drifted: missing {:?}, extra {:?}",
+            hex(&want - &got),
+            hex(&got - &want)
+        );
+    }
+
     #[test]
     fn math_registers_behind_the_symbol_faces_in_the_common_chain() {
         // Fetches land in any order; Math overlaps Symbols 2, so it must still come last.

@@ -39,13 +39,16 @@ const markup = (body: string) => `<style>
 
 const spans = (refs: string[]) => refs.map((ref) => `<span>${ref}</span>`).join("");
 
-// Each glyph sits in its own cell. Unmapped codepoints all paint the same tofu box, so four
+// Each glyph sits in its own cell. Unmapped codepoints all paint the same tofu box, so
 // distinct cell bitmaps, each with ink, mean the symbol faces drew them.
-async function cellBitmaps(target: Page): Promise<{ ink: number[]; distinct: number }> {
+async function cellBitmaps(
+  target: Page,
+  cells: number,
+): Promise<{ ink: number[]; distinct: number }> {
   const png = await decodePng(new Uint8Array(await target.screenshot({ type: "png" })));
   const ink: number[] = [];
   const bitmaps = new Set<string>();
-  for (let cell = 0; cell < GLYPHS.length; cell++) {
+  for (let cell = 0; cell < cells; cell++) {
     let count = 0;
     let bitmap = "";
     for (let y = 0; y < CELL; y++) {
@@ -81,7 +84,7 @@ for (const [name, body] of CASES) {
     await page.setViewport({ width: GLYPHS.length * CELL, height: CELL });
     await setContent(page, markup(body));
     // The screenshot drains the faces the probe demands before it paints.
-    const cells = await cellBitmaps(page);
+    const cells = await cellBitmaps(page, GLYPHS.length);
     const loaded = await families(cdpSession);
     for (const family of FACES) {
       expect(loaded, `${family} registered`).toContain(family);
@@ -90,3 +93,20 @@ for (const [name, body] of CASES) {
     for (const ink of cells.ink) expect(ink).toBeGreaterThan(0);
   });
 }
+
+// Noto Sans Mono maps these operators too, but a page without monospace text never registers
+// Mono, so the scan must still want the math face for them.
+test("math operators on a page without monospace text paint real glyphs", async ({
+  page,
+  cdpSession,
+}) => {
+  const operators = ["&#x2200;", "&#x2264;", "&#x2260;", "&#x221A;", "&#x221E;", "&#x21D2;"];
+  await page.setViewport({ width: operators.length * CELL, height: CELL });
+  await setContent(page, markup(spans(operators)));
+  const cells = await cellBitmaps(page, operators.length);
+  const loaded = await families(cdpSession);
+  expect(loaded).toContain("Noto Sans Math");
+  expect(loaded, "the page asks for no monospace face").not.toContain("Noto Sans Mono");
+  expect(cells.distinct, `ink per cell ${cells.ink.join(", ")}`).toBe(operators.length);
+  for (const ink of cells.ink) expect(ink).toBeGreaterThan(0);
+});

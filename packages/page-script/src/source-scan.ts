@@ -137,12 +137,11 @@ function needsSymbols2(text: string): boolean {
   return SYMBOLS2_EXCLUSIVE.test(text) || hasListMarkers(text);
 }
 
-// Codepoints only Noto Sans Math covers: neither symbol face, no profile's UA face, and not
-// the color-emoji face (which precedes the symbol chain) maps them. Computed from the
-// shipped faces' charmaps; kept inside the SYMBOL_SCAN range so math text always wants the
-// symbol tier too.
+// Codepoints that Noto Sans Math maps and no face a page always has: the symbol faces, and the
+// faces every UA profile registers before layout. Mono, serif, CJK and emoji load on demand, so
+// their coverage keeps a codepoint here; core's math_exclusive test recomputes this set.
 export const MATH_EXCLUSIVE =
-  /[\u219A-\u219B\u219F\u21A1\u21A5\u21A7-\u21AE\u21B0-\u21CF\u21D5-\u21D9\u21DC-\u21E5\u21F1-\u21F2\u21F4-\u21FF\u220F\u2211\u2213-\u2217\u221B-\u221D\u221F\u2221-\u2222\u2224-\u2226\u222B-\u2233\u2239-\u223B\u223E-\u2240\u2242\u2244\u2246\u224D-\u2253\u2256\u2258-\u225E\u2263\u2266-\u226B\u226D\u2276-\u2279\u227C-\u2281\u228A-\u228D\u228F-\u2290\u229D-\u22A1\u22A6-\u22B3\u22B6-\u22B7\u22B9-\u22C1\u22C7\u22CB-\u22CC\u22CF\u22D2-\u22E1\u22E4-\u22FF\u27C0-\u27D4\u27D8-\u27DB\u27DD-\u27E5\u27EC-\u27F4\u27F7-\u27FF\u2900-\u2920\u2923-\u2980\u2982-\u2986\u2989-\u29A2\u29A4-\u29B7\u29B9-\u29BE\u29C0-\u29EA\u29EC-\u29FF\u2A01-\u2A04\u2A07-\u2AFF\u2B0E-\u2B11\u2B30-\u2B4C\u2BFE]/;
+  /[\u219A-\u21AE\u21B0-\u21E5\u21F1-\u21F2\u21F4-\u2211\u2213-\u2217\u221A-\u2298\u229A-\u22C3\u22C7-\u22FF\u2310\u2319\u2320-\u2321\u2336-\u237A\u2395\u239B-\u23AE\u23B0-\u23B9\u23DC-\u23E1\u2500\u2506\u250C\u2510\u2514\u2518\u2550\u2571-\u2572\u2577\u2580\u2584\u2588\u258C\u2590-\u2593\u27C0-\u27FF\u2900-\u2920\u2923-\u2980\u2982-\u29BE\u29C0-\u29EA\u29EC-\u2AFF\u2B0E-\u2B11\u2B30-\u2B4C\u2BFE]/;
 
 function needsMath(text: string): boolean {
   return MATH_EXCLUSIVE.test(text);

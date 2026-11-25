@@ -64,7 +64,10 @@ rust_test(
         proc_macro = True,
         proc_macro_dev = True,
     ),
-    compile_data = glob(["tests_data/**"]) + ["//packages/engine:fonts"],
+    compile_data = glob(["tests_data/**"]) + [
+        "//packages/engine:fonts",
+        "//packages/page-script:src/source-scan.ts",
+    ],
     crate_features = ["blitz", "console_error_panic_hook", "default", "pdf"],
     crate_name = "kitesurf_core",
     crate_root = "src/lib.rs",
