@@ -265,6 +265,10 @@ not include it.
 The copy has only the English text. If you select another language in the
 DevTools settings, DevTools stays in English.
 
+The copy turns on the Protocol Monitor, which shows each CDP message between
+DevTools and the engine. To open it, select **More tools** > **Protocol monitor**.
+The hosted frontend does not have this change.
+
 #### Build the frontend
 
 The `--config=devtools` Bazel option adds the frontend to the build. The first

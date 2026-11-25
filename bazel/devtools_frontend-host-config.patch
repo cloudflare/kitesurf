@@ -1,0 +1,22 @@
+diff --git a/inspector.html b/inspector.html
+--- a/inspector.html
++++ b/inspector.html
+@@ -21,4 +21,5 @@
+ <meta name="referrer" content="no-referrer">
++<script src="./kitesurf_host_config.js"></script>
+ <script type="module" src="./entrypoints/inspector/inspector.js"></script>
+ <link href="./application_tokens.css" rel="stylesheet">
+ <link href="./design_system_tokens.css" rel="stylesheet">
+diff --git a/kitesurf_host_config.js b/kitesurf_host_config.js
+new file mode 100644
+--- /dev/null
++++ b/kitesurf_host_config.js
+@@ -0,0 +1,8 @@
++// Turns on DevTools features that the hosted-mode stub leaves off. The stub merges only
++// globalThis.hostConfigForTesting into hostConfig, which DevTools reads as it boots, so this is a
++// classic script ahead of the module. Not ?isChromeForTesting: it drops the self-XSS paste warning.
++// Protocol Monitor (More tools) only shows the CDP traffic the frontend already exchanges.
++globalThis.hostConfigForTesting = {
++  ...globalThis.hostConfigForTesting,
++  devToolsProtocolMonitor: { enabled: true },
++};
