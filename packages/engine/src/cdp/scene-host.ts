@@ -91,7 +91,9 @@ export async function sceneHostCommand(
   req: SceneHostRequest,
   session: object,
 ): Promise<Protocol.Kitesurf.SceneHostManifest | Protocol.Kitesurf.ReadSceneHostResponse> {
-  if (req.method === "Kitesurf.getSceneHostManifest") return manifest(assets, session);
+  if (req.method === "Kitesurf.getSceneHostManifest") {
+    return manifest(assets, session) satisfies Promise<Protocol.Kitesurf.SceneHostManifest>;
+  }
   const parsed = ReadParams.safeParse(req.params);
   if (!parsed.success) throw new Error("invalid scene-host chunk parameters");
   const { sha256, offset, length } = parsed.data;
@@ -128,5 +130,5 @@ export async function sceneHostCommand(
     offset,
     totalBytes: info.bytes,
     dataB64: bytes.toBase64(),
-  };
+  } satisfies Protocol.Kitesurf.ReadSceneHostResponse;
 }

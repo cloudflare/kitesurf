@@ -10,7 +10,7 @@
 import type { Protocol } from "devtools-protocol";
 import { z } from "zod";
 import type { DispatchCtx } from "./dispatch.ts";
-import type { BrowserState, CdpRequest, CdpRequestOf, TargetState } from "./types.ts";
+import type { BrowserState, CdpReplyBody, CdpRequest, CdpRequestOf, TargetState } from "./types.ts";
 import { stubQueryDom } from "./page-session.ts";
 import {
   claimSceneAck,
@@ -221,7 +221,7 @@ export async function sceneStreamCommand(
   if (req.method === "Kitesurf.stopSceneStream") {
     stopSceneStreams(ctx.browser, target.targetId);
     await active?.done;
-    return {};
+    return {} satisfies CdpReplyBody<"Kitesurf.stopSceneStream">;
   }
   if (req.method === "Kitesurf.sceneFrameAck") {
     const params = AckParams.safeParse(req.params);
@@ -231,7 +231,7 @@ export async function sceneStreamCommand(
         wakeSceneFlow(active.flow);
       }
     }
-    return {};
+    return {} satisfies CdpReplyBody<"Kitesurf.sceneFrameAck">;
   }
   if (req.method === "Kitesurf.getSceneResources") {
     if (!active || !target.pageScript) throw new Error("scene stream not running");
@@ -420,5 +420,5 @@ export async function sceneStreamCommand(
   });
   stream.done = loop;
   ctx.ctx.waitUntil(loop);
-  return { heartbeatMs: SCENE_HEARTBEAT_MS };
+  return { heartbeatMs: SCENE_HEARTBEAT_MS } satisfies Protocol.Kitesurf.StartSceneStreamResponse;
 }
