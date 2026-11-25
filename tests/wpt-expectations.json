@@ -32532,33 +32532,85 @@
     "expected": "PASS",
     "reason": null
   },
+  "/custom-elements/CustomElementRegistry.html": {
+    "expected": "FAIL",
+    "reason": "19/46 subtests. customElements is a plain object, so its methods are not on CustomElementRegistry.prototype, and define() validates neither the name, the constructor nor a reused name or class."
+  },
   "/custom-elements/append-children-to-new-parent-cycle.html": {
     "expected": "PASS",
     "reason": null
+  },
+  "/custom-elements/connected-callbacks-html-fragment-parsing.html": {
+    "expected": "FAIL",
+    "reason": "6/8 subtests. The cloned-document case throws HierarchyRequestError and the XHR-fetched document is null."
   },
   "/custom-elements/connected-callbacks-template.html": {
     "expected": "PASS",
     "reason": null
   },
+  "/custom-elements/connected-callbacks.html": {
+    "expected": "FAIL",
+    "reason": "25/40 subtests. A cloned document already has a document element (HierarchyRequestError) and its host has no attachShadow; the iframe and XHR document cases fail because iframes run no script and the XHR document is null."
+  },
   "/custom-elements/createElement-reentrant-construction.window.html": {
     "expected": "PASS",
     "reason": null
+  },
+  "/custom-elements/custom-element-reaction-queue.html": {
+    "expected": "FAIL",
+    "reason": "0/6 subtests. Every case writes into an iframe's document, and iframes run no script (contentDocument.write is missing)."
   },
   "/custom-elements/historical.html": {
     "expected": "PASS",
     "reason": null
   },
+  "/custom-elements/microtasks-and-constructors.html": {
+    "expected": "FAIL",
+    "reason": "4/5 subtests. Kitesurf parses the whole document before any script runs, so a microtask checkpoint before a parser-created element's constructor already sees its attributes."
+  },
   "/custom-elements/overwritten-customElements-global.html": {
     "expected": "PASS",
     "reason": null
+  },
+  "/custom-elements/parser/parser-constructs-custom-element-in-document-write.html": {
+    "expected": "FAIL",
+    "reason": "1/2 subtests. Kitesurf parses the whole document before any script runs and document.write appends after it, so connectedCallback sees the element's children."
+  },
+  "/custom-elements/parser/parser-constructs-custom-element-synchronously.html": {
+    "expected": "FAIL",
+    "reason": "0/1 subtests. Kitesurf parses the whole document before any script runs, so the constructor sees the nodes that follow the element."
   },
   "/custom-elements/parser/parser-constructs-custom-elements-with-is.html": {
     "expected": "PASS",
     "reason": null
   },
+  "/custom-elements/parser/parser-custom-element-in-foreign-content.html": {
+    "expected": "FAIL",
+    "reason": "0/1 subtests. An element the parser creates in SVG content is not an SVGElement instance."
+  },
+  "/custom-elements/parser/parser-fallsback-to-unknown-element.html": {
+    "expected": "FAIL",
+    "reason": "0/4 subtests. When a constructor throws or returns a non-element, the parser keeps the custom element instead of an HTMLUnknownElement."
+  },
+  "/custom-elements/parser/parser-sets-attributes-and-children.html": {
+    "expected": "FAIL",
+    "reason": "2/5 subtests. Kitesurf parses the whole document before any script runs, so the constructor, attributeChangedCallback and connectedCallback all see the parsed attributes and children."
+  },
+  "/custom-elements/parser/parser-uses-constructed-element.html": {
+    "expected": "FAIL",
+    "reason": "0/2 subtests. The parser keeps its own element instead of the one the constructor returns."
+  },
+  "/custom-elements/parser/parser-uses-registry-of-owner-document.html": {
+    "expected": "FAIL",
+    "reason": "1/2 subtests. The iframe case fails: iframes run no script."
+  },
   "/custom-elements/prevent-extensions-crash.html": {
     "expected": "PASS",
     "reason": null
+  },
+  "/custom-elements/range-and-constructors.html": {
+    "expected": "FAIL",
+    "reason": "0/2 subtests. The constructors that cloneContents and extractContents run see no id attribute and miss a descendant."
   },
   "/custom-elements/reaction-timing.html": {
     "expected": "PASS",
@@ -32591,6 +32643,26 @@
   "/custom-elements/reactions/customized-builtins/HTMLInputElement.html": {
     "expected": "PASS",
     "reason": null
+  },
+  "/custom-elements/upgrading/Document-importNode.html": {
+    "expected": "FAIL",
+    "reason": "0/2 subtests. Both cases import from an iframe's document, and iframes run no script (its customElements is undefined)."
+  },
+  "/custom-elements/upgrading/Node-cloneNode.html": {
+    "expected": "FAIL",
+    "reason": "3/9 subtests. Three cases need an iframe's customElements and iframes run no script; three expect a TypeError for a constructor that returns another element or constructs twice, which upgrades do not check."
+  },
+  "/custom-elements/upgrading/upgrade-custom-element-error-event.html": {
+    "expected": "FAIL",
+    "reason": "0/4 subtests. The autonomous cases define in an iframe and iframes run no script; customized built-ins are unsupported."
+  },
+  "/custom-elements/upgrading/upgrading-enqueue-reactions.html": {
+    "expected": "FAIL",
+    "reason": "0/5 subtests. Every case writes into an iframe's document, and iframes run no script (contentDocument.write is missing)."
+  },
+  "/custom-elements/upgrading/upgrading-parser-created-element.html": {
+    "expected": "FAIL",
+    "reason": "1/6 subtests. Upgrades do not throw when the constructor returns another object or constructs the element twice: there is no SameValue or AlreadyConstructed check."
   },
   "/custom-elements/when-defined-reentry-crash.html": {
     "expected": "PASS",
