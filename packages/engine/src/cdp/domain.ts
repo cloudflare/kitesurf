@@ -35,7 +35,8 @@ export type CdpHandler<M extends CdpMethod, C> = (
  * returned literal gets no excess-property check, so only a method with no result is exact ({}).
  */
 export type CdpDomainMethods<D extends string, C = DispatchCtx> = {
-  [M in CdpMethodsIn<D>]?: CdpHandler<M, C>;
+  // NoInfer: only `context` sets C, so a handler cannot annotate its own context type.
+  [M in CdpMethodsIn<D>]?: CdpHandler<M, NoInfer<C>>;
 };
 
 /** A method Kitesurf accepts and does nothing for. It fits only methods with no result. */
@@ -91,7 +92,7 @@ export function defineDomain<D extends CdpDomainName, C = DispatchCtx, A extends
 
 /** The handlers of a session that answers methods of several domains, keyed by method. */
 export type CdpSessionMethods<C = DispatchCtx> = {
-  [M in CdpMethod]?: CdpHandler<M, C>;
+  [M in CdpMethod]?: CdpHandler<M, NoInfer<C>>;
 };
 
 /**

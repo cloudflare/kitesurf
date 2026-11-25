@@ -142,6 +142,21 @@ describe("handler parameters", () => {
     });
   });
 
+  test("a handler cannot set its own context type", () => {
+    defineDomain("Log", {
+      methods: {
+        // @ts-expect-error with no context, a handler gets the DispatchCtx, which has no tag.
+        "Log.enable": (c: { tag: string }) => (c.tag ? {} : {}),
+      },
+    });
+    defineSessionMethods("Engine", {
+      methods: {
+        // @ts-expect-error the same holds for a session table.
+        "Runtime.enable": (c: { tag: string }) => (c.tag ? {} : {}),
+      },
+    });
+  });
+
   test("a handler cannot read a field the context does not have", () => {
     defineDomain("Log", {
       context: (ctx) => ({ ctx }),
