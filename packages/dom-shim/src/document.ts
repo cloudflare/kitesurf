@@ -33,6 +33,7 @@ import {
   createTextNodeInternal,
   createCommentInternal,
   createDocumentFragmentInternal,
+  inScriptlessDocument,
   opts,
 } from "./state.js";
 import { scrollOffset } from "./layout/scroll.js";
@@ -2902,3 +2903,4 @@ ksInternals.createElementNoUpgrade = (tag: string) => {
     return null;
   }
 };
+ksInternals.inScriptlessDocument = inScriptlessDocument;

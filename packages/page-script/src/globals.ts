@@ -2861,6 +2861,7 @@ export function installGlobals(
         const tagName = options.tagName ?? "?";
         try {
           if (customElementConstructor.prototype.isPrototypeOf(element)) return;
+          if (failedElements.has(element)) return;
           const initialAttributes = (Array.from(element.attributes || []) as any[]).map((attr) => ({
             name: String(attr.localName || attr.name || ""),
             value: String(attr.value),
@@ -2987,44 +2988,34 @@ export function installGlobals(
           !failedElements.has(element)
         );
       };
-      const MAX_CUSTOM_ELEMENT_SHADOW_DEPTH = 16;
       const MAX_CUSTOM_ELEMENT_CONNECTION_DEPTH = 64;
-      const pendingUpgrades: Array<{
-        tagName: string;
-        customElementConstructor: any;
-      }> = [];
-      const collectCustomElements = (tagName: string): any[] => {
+      // Other documents have no registry and a DOMParser one's ids are its handle's. Markup parsed
+      // into a created document reads this ownerDocument, so the scriptless check walks ancestors.
+      const inPageTree = (node: any): boolean =>
+        node === document ||
+        (node?.ownerDocument === document && !ksInternals.inScriptlessDocument?.(node));
+      const customElementCandidates = (root: any, includeRoot: boolean, tagName: string) => {
+        const rootId = root?._id;
+        if (typeof rootId !== "number" || rootId < 0 || !inPageTree(root)) return [];
+        return candidatesUnder(rootId, includeRoot, tagName);
+      };
+      const candidatesUnder = (rootId: number, includeRoot: boolean, tagName: string) => {
         const elements: any[] = [];
-        const visitRoot = (root: any, shadowDepth: number) => {
-          if (shadowDepth > MAX_CUSTOM_ELEMENT_SHADOW_DEPTH || !root?.querySelectorAll) {
-            return;
-          }
-          try {
-            for (const element of root.querySelectorAll(tagName)) elements.push(element);
-            for (const element of root.querySelectorAll("*")) {
-              if (element.shadowRoot) {
-                visitRoot(element.shadowRoot, shadowDepth + 1);
-              }
-            }
-          } catch {}
-        };
-        visitRoot(document, 0);
+        for (const id of state.dom?.customElementCandidates(rootId, includeRoot, tagName) ?? []) {
+          const element = state.resolveNodeId(id);
+          if (element) elements.push(element);
+        }
         return elements;
       };
-      const drainUpgrades = () => {
-        if (pendingUpgrades.length === 0) return;
-        const upgradesToDrain = pendingUpgrades.splice(0, pendingUpgrades.length);
-        for (const pendingUpgrade of upgradesToDrain) {
-          const { tagName, customElementConstructor } = pendingUpgrade;
-          for (const element of collectCustomElements(tagName)) {
-            upgradeCustomElement(element, customElementConstructor, {
-              tagName,
-              fireConnectedCallback: true,
-            });
-          }
-        }
+      const upgradeIfDefined = (element: any): void => {
+        const tagName = String(element.localName || "");
+        const customElementConstructor = registry.get(tagName);
+        if (typeof customElementConstructor !== "function") return;
+        upgradeCustomElement(element, customElementConstructor, {
+          tagName,
+          fireConnectedCallback: element.isConnected === true,
+        });
       };
-      state.drainCustomElementUpgrades = drainUpgrades;
       ksInternals.notifyConnected = (rootElement: any) => {
         try {
           if (registry.size === 0) return;
@@ -3076,7 +3067,12 @@ export function installGlobals(
           try {
             ctorTagNames.set(customElementConstructor, String(tagName));
           } catch {}
-          pendingUpgrades.push({ tagName, customElementConstructor });
+          for (const element of customElementCandidates(document, false, String(tagName))) {
+            upgradeCustomElement(element, customElementConstructor, {
+              tagName,
+              fireConnectedCallback: element.isConnected === true,
+            });
+          }
           const resolvers = whenDefinedResolvers.get(tagName);
           if (resolvers) {
             resolvers.forEach((resolve) => resolve(customElementConstructor));
@@ -3094,8 +3090,13 @@ export function installGlobals(
             whenDefinedResolvers.set(tagName, resolvers);
           });
         },
-        upgrade() {
-          drainUpgrades();
+        upgrade(root) {
+          if (!root || typeof root !== "object" || typeof root.nodeType !== "number") {
+            throw new TypeError("customElements.upgrade: parameter 1 is not of type 'Node'.");
+          }
+          for (const element of customElementCandidates(root, true, "")) {
+            upgradeIfDefined(element);
+          }
         },
         polyfillWrapFlushCallback() {},
       };

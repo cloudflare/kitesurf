@@ -3390,15 +3390,6 @@ function attributesFromNodeInfo(info: unknown): unknown[] | undefined {
   return isUnknownArray(info.attributes) ? info.attributes : undefined;
 }
 
-function drainPageCustomElementUpgrades(upgrades: (() => void) | null): void {
-  if (typeof upgrades !== "function") return;
-  try {
-    upgrades();
-  } catch (error) {
-    console.warn("[kitesurf] custom-element drain threw", error);
-  }
-}
-
 // Incremental invalidation keeps a cached handle current; a full restyle here would redo the
 // whole document's style and layout on every frame or hit test after any DOM change.
 function prepareCachedPaint(paint: DomHandle, fresh: boolean): void {
@@ -4225,7 +4216,6 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       let moduleSuccessCount = 0;
       let moduleFailureCount = 0;
       try {
-        const drainUpgrades = state.drainCustomElementUpgrades;
         const pendingImports: Array<Promise<void>> = [];
         const trackModuleImport = (
           moduleIndex: number,
@@ -4270,7 +4260,6 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
             installInitShims();
             pendingImports.push(moduleImport);
           }
-          drainPageCustomElementUpgrades(drainUpgrades);
         }
         if (pendingImports.length > 0) {
           drainInitShims();
@@ -4508,19 +4497,6 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         loadPhases.plTimers = finalSettleState[1] - settleBaseline[1];
         loadPhases.plInflightEnd = finalSettleState[2];
       }
-      try {
-        state.drainCustomElementUpgrades?.();
-        await drainSettleMicrotasks();
-        const afterUpgradeState = getSettleState();
-        if (
-          afterUpgradeState[0] !== previousSettleState[0] ||
-          afterUpgradeState[2] !== previousSettleState[2]
-        ) {
-          postLoadPassCount++;
-          await yieldToPageTasks();
-        }
-        previousSettleState = afterUpgradeState;
-      } catch {}
       try {
         startLateSpriteSweep();
       } catch {}

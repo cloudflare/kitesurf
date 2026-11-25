@@ -239,6 +239,7 @@ export interface KitesurfInternals {
   // Installed by dom-shim for page-script. createElementNoUpgrade mints a wrapper with no
   // custom-element upgrade, for page-script's HTMLElement constructor.
   createElementNoUpgrade?: (tag: string) => unknown;
+  inScriptlessDocument?: (node: { _id: number }) => boolean;
   // The form behind a form's page-facing proxy, whose members no named control overrides.
   formBehindProxy?: <T extends object>(form: T) => T;
   scrollByWheel?: (hitNodeId: number, dx: number, dy: number) => boolean;

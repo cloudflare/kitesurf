@@ -36,12 +36,6 @@ export function enterMethodScope(meta: ReceivedMeta): void {
     set_ks_trace_parent(traceParent);
   } catch {}
   updateClockFloor(meta.t);
-
-  // Upgrade callbacks before parked I/O; connected callbacks can start requests.
-  try {
-    state.drainCustomElementUpgrades?.();
-  } catch {}
-
   drainDeferParked();
 }
 
