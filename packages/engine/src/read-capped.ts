@@ -151,17 +151,23 @@ export async function readCappedBudgeted(
   body: ReadableStream<Uint8Array> | null,
   cap: number,
   connectionId: string,
+  connectionCap: number = MAX_CONNECTION_READ_BYTES,
+  extraCharge?: (delta: number) => boolean,
 ): Promise<CappedRead> {
   if (!body) return { bytes: new Uint8Array(0), rest: null, failure: null };
   if (
     inFlightBytes >= MAX_CONCURRENT_READ_BYTES ||
-    (inFlightByConnection.get(connectionId) ?? 0) >= MAX_CONNECTION_READ_BYTES
+    (inFlightByConnection.get(connectionId) ?? 0) >= connectionCap
   ) {
     return { bytes: null, rest: body, failure: "budget" };
   }
-  const lease = readLease(connectionId);
+  const lease = readLease(connectionId, connectionCap);
   try {
-    return await readCapped(body, cap, (delta) => lease.charge(delta));
+    return await readCapped(
+      body,
+      cap,
+      (delta) => lease.charge(delta) && (!extraCharge || extraCharge(delta)),
+    );
   } finally {
     lease.release();
   }

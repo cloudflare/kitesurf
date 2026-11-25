@@ -297,4 +297,122 @@ describe("startStylesheetPrefetch", () => {
       job?.cancel();
     }
   });
+
+  it("streams stylesheets over the batch budget or content-length cap without refetching", async () => {
+    const threeMbA = `/*a*/${"a".repeat(3 * 1024 * 1024)}`;
+    const threeMbB = `/*b*/${"b".repeat(3 * 1024 * 1024)}`;
+    const fiveMb = `/*c*/${"c".repeat(5 * 1024 * 1024)}`;
+    const { override, calls } = stubOutbound({
+      "https://example.com/one.css": { status: 200, body: threeMbA },
+      "https://example.com/two.css": { status: 200, body: threeMbB },
+      "https://example.com/huge.css": {
+        status: 200,
+        body: fiveMb,
+        headers: { "content-length": String(fiveMb.length) },
+      },
+    });
+    const html = [
+      '<link rel="stylesheet" href="/one.css">',
+      '<link rel="stylesheet" href="/two.css">',
+      '<link rel="stylesheet" href="/huge.css">',
+    ].join("");
+    const prefetched = startStylesheetPrefetch({
+      html,
+      baseUrl: "https://example.com/",
+      pageUrl: "https://example.com/",
+      pageOrigin: "https://example.com",
+      connectionId: "",
+      mainFrameId: "f1",
+      mainLoaderId: "l1",
+      extraHeaders: {},
+      cookieKey: "",
+      cspHeaders: [],
+      sandboxOutbound: override,
+    });
+    expect(prefetched).not.toBeNull();
+    const makeReq = (url: string) => ({
+      url,
+      method: "GET",
+      headers: [
+        ["x-kitesurf-resource-type", "Stylesheet"],
+        ["x-kitesurf-initiator", "parser"],
+        ["x-kitesurf-stylesheet-cors", "no-cors"],
+        ["x-kitesurf-credentials", "same-origin"],
+      ] as Array<[string, string]>,
+      body: null,
+    });
+    try {
+      const [r1, r2, r3] = await Promise.all([
+        prefetched!.take(makeReq("https://example.com/one.css")),
+        prefetched!.take(makeReq("https://example.com/two.css")),
+        prefetched!.take(makeReq("https://example.com/huge.css")),
+      ]);
+      expect(r1?.status).toBe(200);
+      expect(r2?.status).toBe(200);
+      expect(r3?.status).toBe(200);
+      expect(await r1!.text()).toBe(threeMbA);
+      expect(await r2!.text()).toBe(threeMbB);
+      expect(await r3!.text()).toBe(fiveMb);
+      expect(calls.filter((u) => u.endsWith("/one.css"))).toHaveLength(1);
+      expect(calls.filter((u) => u.endsWith("/two.css"))).toHaveLength(1);
+      expect(calls.filter((u) => u.endsWith("/huge.css"))).toHaveLength(1);
+    } finally {
+      prefetched!.cancel();
+    }
+  });
+
+  it("cancels unclaimed streaming stylesheet bodies on cancel()", async () => {
+    let streamCancelled = false;
+    let bodyReady = () => {};
+    const fetched = new Promise<void>((resolve) => {
+      bodyReady = resolve;
+    });
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        streamCancelled = true;
+      },
+    });
+    const fetcher: Fetcher = {
+      async fetch(): Promise<Response> {
+        bodyReady();
+        return new Response(body, {
+          status: 200,
+          headers: {
+            "content-type": "text/css",
+            "content-length": String(5 * 1024 * 1024),
+          },
+        });
+      },
+      connect(): Socket {
+        throw new Error("unexpected connect");
+      },
+    };
+    const override: SandboxOutboundOverride = {
+      external: false,
+      parent: () => fetcher,
+      loaded: () => fetcher,
+      session: () => ({
+        outbound: async () => new Response("", { status: 404 }),
+        cancelBodies() {},
+      }),
+      final: () => Promise.resolve(new Response("", { status: 404 })),
+    };
+    const job = startStylesheetPrefetch({
+      html: '<link rel="stylesheet" href="/huge.css">',
+      baseUrl: "https://example.com/",
+      pageUrl: "https://example.com/",
+      pageOrigin: "https://example.com",
+      connectionId: "",
+      mainFrameId: "f1",
+      mainLoaderId: "l1",
+      extraHeaders: {},
+      cookieKey: "",
+      cspHeaders: [],
+      sandboxOutbound: override,
+    });
+    await fetched;
+    job!.cancel();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(streamCancelled).toBe(true);
+  });
 });
