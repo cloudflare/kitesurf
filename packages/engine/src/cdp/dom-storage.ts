@@ -8,7 +8,8 @@
 
 import type { LocalStorageOp } from "@kitesurf/jsrpc-types/page-script";
 import type { DispatchCtx } from "./dispatch.ts";
-import type { CdpRequest, FrameState, TargetState } from "./types.ts";
+import type { FrameState, TargetState } from "./types.ts";
+import { defineDomain } from "./domain.ts";
 import type { PageScriptStub } from "../eval/page-script.ts";
 import { localStorageOrigin, type LocalStorage } from "../state/local-storage.ts";
 import { findSessionOwner, localStorageForTarget, sessionStorageForTarget } from "./target.ts";
@@ -85,16 +86,18 @@ function sessionOwner(
   return owner;
 }
 
-export async function handleDomStorage(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
-  const { target, frame } = sessionOwner(ctx, req.sessionId);
-  switch (req.method) {
-    case "DOMStorage.enable":
+export const domStorageDomain = defineDomain("DOMStorage", {
+  context: (ctx, req) => ({ ctx, ...sessionOwner(ctx, req.sessionId) }),
+  methods: {
+    "DOMStorage.enable": ({ target, frame }, req) => {
       target.domStorageSessions.set(req.sessionId ?? NO_SESSION, frame);
       return {};
-    case "DOMStorage.disable":
+    },
+    "DOMStorage.disable": ({ target }, req) => {
       target.domStorageSessions.delete(req.sessionId ?? NO_SESSION);
       return {};
-    case "DOMStorage.getDOMStorageItems": {
+    },
+    "DOMStorage.getDOMStorageItems": async ({ ctx, target }, req) => {
       const { origin, isLocalStorage } = storageIdOrigin(req.params?.storageId);
       if (!isLocalStorage) {
         const reply = await sessionStoragePage(target, origin).webStorage({
@@ -106,19 +109,17 @@ export async function handleDomStorage(ctx: DispatchCtx, req: CdpRequest): Promi
       const storage = localStorageForTarget(ctx, target);
       await flushCopies(storage, origin);
       return { entries: storage.entries(origin) };
-    }
-    case "DOMStorage.setDOMStorageItem": {
+    },
+    "DOMStorage.setDOMStorageItem": ({ ctx, target }, req) => {
       const key = stringParam(req.params?.key, "key");
       const value = stringParam(req.params?.value, "value");
       return changeStorage(ctx, target, req.params?.storageId, [{ op: "set", key, value }]);
-    }
-    case "DOMStorage.removeDOMStorageItem": {
+    },
+    "DOMStorage.removeDOMStorageItem": ({ ctx, target }, req) => {
       const key = stringParam(req.params?.key, "key");
       return changeStorage(ctx, target, req.params?.storageId, [{ op: "remove", key }]);
-    }
-    case "DOMStorage.clear":
-      return changeStorage(ctx, target, req.params?.storageId, [{ op: "clear" }]);
-    default:
-      return {};
-  }
-}
+    },
+    "DOMStorage.clear": ({ ctx, target }, req) =>
+      changeStorage(ctx, target, req.params?.storageId, [{ op: "clear" }]),
+  },
+});

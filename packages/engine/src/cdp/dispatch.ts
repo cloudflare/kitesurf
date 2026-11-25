@@ -31,7 +31,7 @@ import { handleFetch } from "./fetch.ts";
 import { handleInput } from "./input.ts";
 import { handleKitesurf } from "./kitesurf.ts";
 import { handleWebMcp } from "./webmcp.ts";
-import { handleDomStorage } from "./dom-storage.ts";
+import { domStorageDomain } from "./dom-storage.ts";
 import { handleDebugger } from "./debugger.ts";
 import { handleCss } from "./css.ts";
 import { handleAccessibility } from "./accessibility.ts";
@@ -191,7 +191,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
           ctx.browser.networkEvents.drain();
           return methodNotFound(req);
         }
-        result = await handleDomStorage(ctx, req);
+        result = await runDomain(ctx, req, domStorageDomain);
         break;
       case "WebMCP":
         result = await handleWebMcp(ctx, req);
