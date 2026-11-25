@@ -111,6 +111,17 @@ describe("yieldToDuePageTasks", () => {
     expect(hoisted.pageTurns).toBeGreaterThan(0);
   });
 
+  it("lets a microtask chain longer than the settle drain finish", async () => {
+    let finished = false;
+    void (async () => {
+      for (let i = 0; i < 200; i++) await null;
+      finished = true;
+    })();
+    await pageTasks.yieldToDuePageTasks(3);
+    expect(finished).toBe(true);
+    expect(hoisted.pageTurns).toBe(0);
+  });
+
   it("treats a queued port task as due", async () => {
     let ran = false;
     pageTasks.queuePortTask(() => {
