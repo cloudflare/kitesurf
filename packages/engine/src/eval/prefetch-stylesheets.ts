@@ -9,9 +9,10 @@
 import type { SessionOutboundRequest } from "@kitesurf/jsrpc-types/page-script";
 import { getInterception, interceptionMatches } from "../cdp/fetch-interception.ts";
 import {
+  declaredOverCap,
   MAX_CONNECTION_READ_BYTES,
   MAX_STYLESHEET_BYTES,
-  readCappedBytes,
+  readCappedBudgeted,
 } from "../read-capped.ts";
 import { rpcSafeResponse, type SandboxOutboundOverride } from "./outbound.ts";
 
@@ -32,10 +33,28 @@ export interface PrefetchedStylesheets {
   cancel(): void;
 }
 
-interface CachedStylesheet {
-  status: number;
-  headers: Array<[string, string]>;
-  bytes: Uint8Array;
+type CachedStylesheet =
+  | {
+      status: number;
+      headers: Array<[string, string]>;
+      bytes: Uint8Array;
+      stream: null;
+    }
+  | {
+      status: number;
+      headers: Array<[string, string]>;
+      bytes: null;
+      stream: ReadableStream<Uint8Array>;
+    };
+
+function extractStylesheetHeaders(resp: Response): Array<[string, string]> {
+  const respHeaders: Array<[string, string]> = [];
+  resp.headers.forEach((v, k) => {
+    const lowerKey = k.toLowerCase();
+    if (lowerKey === "set-cookie" || lowerKey === "set-cookie2") return;
+    respHeaders.push([k, v]);
+  });
+  return respHeaders;
 }
 
 const NAMED_HTML_REFS = new Map([
@@ -336,6 +355,7 @@ export function startStylesheetPrefetch(
 
   const controller = new AbortController();
   const entries = new Map<string, Promise<CachedStylesheet | null>>();
+  let cancelled = false;
   let batchBytes = 0;
   let active = 0;
   const waiters: Array<() => void> = [];
@@ -391,9 +411,25 @@ export function startStylesheetPrefetch(
         const resp = await outbound.fetch(
           new Request(url, { method: "GET", headers, redirect: "manual", signal: reqCtrl.signal }),
         );
+        const respHeaders = extractStylesheetHeaders(resp);
         const readCap = Math.min(MAX_STYLESHEET_BYTES, MAX_PREFETCH_TOTAL_BYTES);
-        const got = await readCappedBytes(
-          resp,
+        if (declaredOverCap(resp.headers, readCap)) {
+          if (cancelled) {
+            await resp.body?.cancel().catch(() => {});
+            return null;
+          }
+          if (!resp.body) {
+            return {
+              status: resp.status,
+              headers: respHeaders,
+              bytes: new Uint8Array(0),
+              stream: null,
+            };
+          }
+          return { status: resp.status, headers: respHeaders, bytes: null, stream: resp.body };
+        }
+        const got = await readCappedBudgeted(
+          resp.body,
           readCap,
           opts.connectionId,
           MAX_CONNECTION_READ_BYTES,
@@ -404,18 +440,21 @@ export function startStylesheetPrefetch(
             return true;
           },
         );
-        // Hand over whatever the prefetch received, whatever its status: a redirect or an error
-        // page is a response the page would otherwise fetch a second time. Only a response with
-        // no body to give (over budget, or a read error) falls through.
-        if (!got.ok) return null;
-        const respHeaders: Array<[string, string]> = [];
-        resp.headers.forEach((v, k) => {
-          const lowerKey = k.toLowerCase();
-          if (lowerKey === "set-cookie" || lowerKey === "set-cookie2") return;
-          respHeaders.push([k, v]);
-        });
-        kept = true;
-        return { status: resp.status, headers: respHeaders, bytes: got.bytes };
+        if (got.bytes !== null) {
+          kept = true;
+          return { status: resp.status, headers: respHeaders, bytes: got.bytes, stream: null };
+        }
+        if (got.failure === "error") {
+          await got.rest.cancel().catch(() => {});
+          return null;
+        }
+        // Over readCap, batch budget, or connection budget: hand the page the in-flight response
+        // as a stream (replayed chunks plus unread tail) so it is never fetched a second time.
+        if (cancelled) {
+          await got.rest.cancel().catch(() => {});
+          return null;
+        }
+        return { status: resp.status, headers: respHeaders, bytes: null, stream: got.rest };
       } catch {
         return null;
       } finally {
@@ -440,15 +479,21 @@ export function startStylesheetPrefetch(
       const pending = entries.get(key);
       if (!pending) return null;
       entries.delete(key);
-      return pending.then((cached) =>
-        cached
-          ? rpcSafeResponse(
-              new Response(cached.bytes, { status: cached.status, headers: cached.headers }),
-            )
-          : null,
-      );
+      return pending.then((cached) => {
+        if (!cached) return null;
+        const body = cached.stream ?? (cached.bytes.byteLength > 0 ? cached.bytes : null);
+        return rpcSafeResponse(
+          new Response(body, { status: cached.status, headers: cached.headers }),
+        );
+      });
     },
     cancel(): void {
+      cancelled = true;
+      for (const pending of entries.values()) {
+        void pending.then((cached) => {
+          if (cached?.stream) void cached.stream.cancel().catch(() => {});
+        });
+      }
       entries.clear();
       controller.abort();
     },
