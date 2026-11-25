@@ -16,10 +16,10 @@ import type { RequestBlocker } from "../request-blocker.ts";
 import type { CdpDomain } from "./domain.ts";
 import { CDP_COMMAND_UNHANDLED } from "./types.ts";
 import {
-  handleTarget,
-  handleRendererSession,
-  handleEngineSession,
-  handleOopifSession,
+  targetDomain,
+  rendererSession,
+  engineSession,
+  oopifSession,
   findOopifFrameBySession,
 } from "./target.ts";
 import { handlePage } from "./page.ts";
@@ -123,19 +123,19 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
       };
     }
     if (req.sessionId && req.sessionId === ctx.browser.rendererSessionId) {
-      const result = await handleRendererSession(ctx, req);
+      const result = await syntheticSessionReply(ctx, req, rendererSession);
       ctx.browser.networkEvents.drain();
       return { id: req.id, result: result ?? {}, sessionId: req.sessionId };
     }
     if (req.sessionId && req.sessionId === ctx.browser.engineSessionId) {
-      const result = await handleEngineSession(ctx, req);
+      const result = await syntheticSessionReply(ctx, req, engineSession);
       ctx.browser.networkEvents.drain();
       return { id: req.id, result: result ?? {}, sessionId: req.sessionId };
     }
     if (req.sessionId && !CONTEXT_STORAGE_METHODS.has(req.method)) {
       const oopif = findOopifFrameBySession(ctx, req.sessionId);
       if (oopif) {
-        const result = await handleOopifSession(ctx, req, oopif.target, oopif.frame);
+        const result = await runDomain(ctx, req, oopifSession, oopif.target, oopif.frame);
         ctx.browser.networkEvents.drain();
         return { id: req.id, result: result ?? {}, sessionId: req.sessionId };
       }
@@ -143,7 +143,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
     let result: unknown;
     switch (domain) {
       case "Target":
-        result = await handleTarget(ctx, req);
+        result = await runDomain(ctx, req, targetDomain);
         break;
       case "Page":
         result = await handlePage(ctx, req);
@@ -284,6 +284,16 @@ async function runDomain<A extends unknown[]>(
   if (result !== CDP_COMMAND_UNHANDLED) return result;
   warnUndefinedMethod(ctx.browser, req.method);
   return {};
+}
+
+// The engine and renderer targets answer {} to any command their table does not define, by design.
+async function syntheticSessionReply(
+  ctx: DispatchCtx,
+  req: CdpRequest,
+  session: CdpDomain,
+): Promise<unknown> {
+  const result = await session.run(ctx, req);
+  return result === CDP_COMMAND_UNHANDLED ? {} : result;
 }
 
 // The client names the method, so the log is capped per connection and each name is cut short.

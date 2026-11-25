@@ -4,10 +4,11 @@
 
 // Manages CDP browser contexts, targets, sessions, and their lifecycle resources.
 
-import type { BrowserState, CdpRequest } from "./types.ts";
+import type { BrowserState } from "./types.ts";
 import { makeSessionId, makeTargetId, type FrameState, type TargetState } from "./types.ts";
 import type { Protocol } from "devtools-protocol";
 import type { DispatchCtx } from "./dispatch.ts";
+import { defineDomain, defineSessionMethods, stub } from "./domain.ts";
 import { buildFrameResourceTree, buildFrameTree, makeMainFrameState } from "./frames.ts";
 import { retireStub } from "./page-script-generation.ts";
 import { createCookieJar, type CookieJar } from "../cookies.ts";
@@ -115,13 +116,12 @@ export function jarForContextId(ctx: DispatchCtx, browserContextId: string | und
   return ctx.browser.cookies;
 }
 
-export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
-  switch (req.method) {
-    case "Target.setDiscoverTargets":
-    case "Target.setRemoteLocations":
-      return {};
+export const targetDomain = defineDomain("Target", {
+  methods: {
+    "Target.setDiscoverTargets": stub,
+    "Target.setRemoteLocations": stub,
 
-    case "Target.setAutoAttach": {
+    "Target.setAutoAttach": (ctx, req) => {
       if (req.sessionId) return {};
 
       ctx.client.autoAttach = Boolean(req.params?.autoAttach);
@@ -139,9 +139,9 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
         announceExistingOopifTargets(ctx);
       }
       return {};
-    }
+    },
 
-    case "Target.getTargets": {
+    "Target.getTargets": (ctx) => {
       const infos: Protocol.Target.TargetInfo[] = [];
       for (const t of ctx.browser.targets.values()) {
         infos.push(targetInfo(ctx, t));
@@ -152,9 +152,9 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
         }
       }
       return { targetInfos: infos };
-    }
+    },
 
-    case "Target.getTargetInfo": {
+    "Target.getTargetInfo": (ctx, req) => {
       const id = req.params?.targetId ?? BROWSER_TARGET_ID;
       if (id === RENDERER_TARGET_ID) {
         return { targetInfo: rendererTargetInfo(ctx) };
@@ -165,9 +165,9 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
       const t = ctx.browser.targets.get(id);
       if (!t) throw new Error(`No target with id ${id}`);
       return { targetInfo: targetInfo(ctx, t) };
-    }
+    },
 
-    case "Target.createBrowserContext": {
+    "Target.createBrowserContext": (ctx) => {
       const id = `ctx-${ctx.browser.nextBrowserContextId++}`;
       const jar = createCookieJar();
       ctx.browser.contexts.set(id, {
@@ -176,9 +176,9 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
       });
       registerCookieJar(cookieKeyFor(ctx.connectionId, id), jar);
       return { browserContextId: id };
-    }
+    },
 
-    case "Target.disposeBrowserContext": {
+    "Target.disposeBrowserContext": async (ctx, req) => {
       const id = req.params?.browserContextId;
       if (id && ctx.browser.contexts.has(id)) {
         const closes: Promise<boolean>[] = [];
@@ -192,12 +192,13 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
         clearLearnedScripts(ctx.browser.learnedInsertedScripts, id);
       }
       return {};
-    }
+    },
 
-    case "Target.getBrowserContexts":
+    "Target.getBrowserContexts": (ctx) => {
       return { browserContextIds: Array.from(ctx.browser.contexts.keys()) };
+    },
 
-    case "Target.createTarget": {
+    "Target.createTarget": (ctx, req) => {
       const url = req.params?.url ?? "about:blank";
       const bctx = req.params?.browserContextId;
       if (bctx && !ctx.browser.contexts.has(bctx)) {
@@ -212,14 +213,14 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
         autoAttachTarget(ctx, target);
       }
       return { targetId: target.targetId };
-    }
+    },
 
-    case "Target.closeTarget": {
+    "Target.closeTarget": async (ctx, req) => {
       const existed = await closeTargetInternal(ctx, req.params!.targetId);
       return { success: existed };
-    }
+    },
 
-    case "Target.attachToTarget": {
+    "Target.attachToTarget": (ctx, req) => {
       const id = req.params!.targetId;
       if (id === RENDERER_TARGET_ID) {
         const sessionId = announceRendererTarget(ctx);
@@ -271,16 +272,16 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
         }
       }
       throw new Error(`No target with id ${id}`);
-    }
+    },
 
-    case "Target.attachToBrowserTarget": {
+    "Target.attachToBrowserTarget": (ctx) => {
       const sessionId = makeSessionId();
       const browser = ctx.browser.targets.get(BROWSER_TARGET_ID);
       if (browser) browser.sessions.add(sessionId);
       return { sessionId };
-    }
+    },
 
-    case "Target.detachFromTarget": {
+    "Target.detachFromTarget": (ctx, req) => {
       const sessionId = req.params?.sessionId;
       if (sessionId) {
         for (const t of ctx.browser.targets.values()) {
@@ -315,15 +316,11 @@ export async function handleTarget(ctx: DispatchCtx, req: CdpRequest): Promise<u
         }
       }
       return {};
-    }
+    },
 
-    case "Target.activateTarget":
-      return {};
-
-    default:
-      return {};
-  }
-}
+    "Target.activateTarget": stub,
+  },
+});
 
 export function ensureBrowserTarget(ctx: DispatchCtx): TargetState {
   let t = ctx.browser.targets.get(BROWSER_TARGET_ID);
@@ -687,9 +684,10 @@ export function engineMemoryBreakdown(browser: BrowserState): {
   };
 }
 
-export async function handleEngineSession(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
-  switch (req.method) {
-    case "Runtime.enable": {
+// The engine and renderer targets are synthetic: they answer these and {} to everything else.
+export const engineSession = defineSessionMethods("engine", {
+  methods: {
+    "Runtime.enable": (ctx, req) => {
       ctx.emit({
         method: "Runtime.executionContextCreated",
         params: {
@@ -703,19 +701,17 @@ export async function handleEngineSession(ctx: DispatchCtx, req: CdpRequest): Pr
         sessionId: req.sessionId,
       });
       return {};
-    }
-    case "Runtime.getHeapUsage": {
+    },
+    "Runtime.getHeapUsage": (ctx) => {
       const { accountedBytes } = engineMemoryBreakdown(ctx.browser);
-      return { usedSize: accountedBytes, totalSize: accountedBytes };
-    }
-    default:
-      return {};
-  }
-}
+      return heapUsage(accountedBytes);
+    },
+  },
+});
 
-export async function handleRendererSession(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
-  switch (req.method) {
-    case "Runtime.enable": {
+export const rendererSession = defineSessionMethods("renderer", {
+  methods: {
+    "Runtime.enable": (ctx, req) => {
       ctx.emit({
         method: "Runtime.executionContextCreated",
         params: {
@@ -729,15 +725,18 @@ export async function handleRendererSession(ctx: DispatchCtx, req: CdpRequest): 
         sessionId: req.sessionId,
       });
       return {};
-    }
-    case "Runtime.getHeapUsage": {
+    },
+    "Runtime.getHeapUsage": (ctx) => {
       const mem = ctx.browser.rendererManager?.memoryStats();
-      const usedSize = mem?.bytes ?? 0;
-      return { usedSize, totalSize: usedSize };
-    }
-    default:
-      return {};
-  }
+      return heapUsage(mem?.bytes ?? 0);
+    },
+  },
+});
+
+// SAFETY: Kitesurf reports one heap size and omits embedderHeapUsedSize and backingStorageSize,
+// which the protocol's reply requires. The assertion keeps the reply; sending them changes the wire.
+export function heapUsage(usedSize: number): Protocol.Runtime.GetHeapUsageResponse {
+  return { usedSize, totalSize: usedSize } as Protocol.Runtime.GetHeapUsageResponse;
 }
 
 /** The target a session belongs to, and the frame for a frame session. */
@@ -810,14 +809,11 @@ export function destroyOopifTarget(
   });
 }
 
-export async function handleOopifSession(
-  ctx: DispatchCtx,
-  req: CdpRequest,
-  target: TargetState,
-  frame: FrameState,
-): Promise<unknown> {
-  switch (req.method) {
-    case "Network.enable":
+// A frame's own isolate answers these; any other command answers {}.
+export const oopifSession = defineSessionMethods("oopif", {
+  context: (ctx, _req, target: TargetState, frame: FrameState) => ({ ctx, target, frame }),
+  methods: {
+    "Network.enable": ({ ctx }, req) => {
       ctx.browser.networkEvents.setEnabled(req.sessionId, true, {
         maxTotalBufferSize:
           typeof req.params?.maxTotalBufferSize === "number"
@@ -829,20 +825,26 @@ export async function handleOopifSession(
             : undefined,
       });
       return {};
-    case "Network.disable":
+    },
+    "Network.disable": ({ ctx }, req) => {
       ctx.browser.networkEvents.setEnabled(req.sessionId, false);
       return {};
-    case "Log.enable":
+    },
+    "Log.enable": ({ ctx }, req) => {
       ctx.browser.networkEvents.setLogEnabled(req.sessionId, true);
       return {};
-    case "Log.disable":
+    },
+    "Log.disable": ({ ctx }, req) => {
       ctx.browser.networkEvents.setLogEnabled(req.sessionId, false);
       return {};
-    case "Page.getFrameTree":
+    },
+    "Page.getFrameTree": ({ target, frame }) => {
       return { frameTree: buildFrameTree(target, frame) };
-    case "Page.getResourceTree":
+    },
+    "Page.getResourceTree": ({ target, frame }) => {
       return { frameTree: buildFrameResourceTree(target, frame) };
-    case "Runtime.enable": {
+    },
+    "Runtime.enable": ({ ctx, frame }, req) => {
       ctx.emit({
         method: "Runtime.executionContextCreated",
         params: {
@@ -861,45 +863,49 @@ export async function handleOopifSession(
         sessionId: req.sessionId,
       });
       return {};
-    }
-    case "Runtime.getHeapUsage": {
+    },
+    "Runtime.getHeapUsage": async ({ frame }) => {
       try {
         const mem = frame.pageScript
           ? await stubQueryDom(frame.pageScript, "getMemoryStats", {})
           : undefined;
         const usedSize = typeof mem?.bytes === "number" ? mem.bytes : 0;
-        return { usedSize, totalSize: usedSize };
+        return heapUsage(usedSize);
       } catch {
-        return { usedSize: 0, totalSize: 0 };
+        return heapUsage(0);
       }
-    }
-    case "Target.getTargetInfo":
+    },
+    "Target.getTargetInfo": ({ frame }) => {
       return { targetInfo: { ...frameTargetInfo(frame), attached: true } };
+    },
 
-    case "DOM.enable": {
+    "DOM.enable": ({ ctx }, req) => {
       ctx.emit({
         method: "DOM.documentUpdated",
         sessionId: req.sessionId,
       });
       return {};
-    }
-    case "DOM.getDocument": {
+    },
+    "DOM.getDocument": async ({ frame }, req) => {
       const subtree = documentSubtree(req.params, GET_DOCUMENT_DEPTH);
       const r = frame.pageScript
         ? await stubQueryDom(frame.pageScript, "getDocument", subtree)
         : undefined;
       if (r?.budgetError) throw subtreeBudgetError(req.method, r.budgetError);
-      return r?.root ? { root: r.root } : { root: null };
-    }
-    case "DOM.getFlattenedDocument": {
+      const reply: { root: Protocol.DOM.Node | null } = r?.root ? { root: r.root } : { root: null };
+      // SAFETY: with no frame isolate or no document, this has always answered a null root, which
+      // the protocol does not allow. The assertion keeps the reply; failing instead changes the wire.
+      return reply as Protocol.DOM.GetDocumentResponse;
+    },
+    "DOM.getFlattenedDocument": async ({ frame }, req) => {
       const subtree = documentSubtree(req.params, GET_FLATTENED_DOCUMENT_DEPTH);
       const r = frame.pageScript
         ? await stubQueryDom(frame.pageScript, "getDocument", subtree)
         : undefined;
       if (r?.budgetError) throw subtreeBudgetError(req.method, r.budgetError);
       return { nodes: r?.root ? [r.root] : [] };
-    }
-    case "DOM.requestChildNodes": {
+    },
+    "DOM.requestChildNodes": async ({ ctx, frame }, req) => {
       const subtree = childNodesSubtree(req.params);
       const nodeId = oopifNodeId(req.params);
       if (!frame.pageScript || nodeId == null || nodeId <= 0) return {};
@@ -914,21 +920,24 @@ export async function handleOopifSession(
         });
       }
       return {};
-    }
-    case "DOM.getOuterHTML": {
+    },
+    "DOM.getOuterHTML": async ({ frame }, req) => {
       const nodeId = oopifNodeId(req.params);
       const pageScript = frame.pageScript;
-      if (!pageScript) return undefined;
+      // SAFETY: with no frame isolate, these reads answered {}, which lacks the protocol's
+      // required result. The assertion keeps the reply; failing instead changes the wire.
+      if (!pageScript) return {} as Protocol.DOM.GetOuterHTMLResponse;
       return await outerHtmlResponse((mode) =>
         stubQueryDom(pageScript, "getOuterHTML", {
           ...(nodeId != null ? { nodeId } : {}),
           ...mode,
         }),
       );
-    }
-    case "DOM.describeNode": {
+    },
+    "DOM.describeNode": async ({ frame }, req) => {
       const nodeId = oopifNodeId(req.params);
-      if (!frame.pageScript) return undefined;
+      // SAFETY: as for DOM.getOuterHTML.
+      if (!frame.pageScript) return {} as Protocol.DOM.DescribeNodeResponse;
       const result = await stubQueryDom(
         frame.pageScript,
         "describeNode",
@@ -936,20 +945,19 @@ export async function handleOopifSession(
       );
       if (result.budgetError) throw subtreeBudgetError(req.method, result.budgetError);
       return result;
-    }
-    case "DOM.getAttributes": {
+    },
+    "DOM.getAttributes": async ({ frame }, req) => {
       const nodeId = oopifNodeId(req.params);
-      if (!frame.pageScript) return undefined;
+      // SAFETY: as for DOM.getOuterHTML.
+      if (!frame.pageScript) return {} as Protocol.DOM.GetAttributesResponse;
       return await stubQueryDom(
         frame.pageScript,
         "getAttributes",
         nodeId != null ? { nodeId } : {},
       );
-    }
-    default:
-      return {};
-  }
-}
+    },
+  },
+});
 
 function oopifNodeId(
   params: { nodeId?: number; backendNodeId?: number } | undefined,

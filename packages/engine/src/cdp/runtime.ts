@@ -17,7 +17,7 @@ import type { ConsoleEntry } from "@kitesurf/jsrpc-types/shared";
 import { emitScriptParsed, hasDebuggerListeners, makeCompiledScriptMeta } from "./debugger.ts";
 import { emitMutations } from "./dom.ts";
 import { sessionOf } from "./page-session.ts";
-import { jarForTarget } from "./target.ts";
+import { heapUsage, jarForTarget } from "./target.ts";
 import { emitFrameDclComplete, emitFrameLoadComplete } from "./page.ts";
 import { traceSpan } from "../tracing.ts";
 import type { Protocol } from "devtools-protocol";
@@ -623,12 +623,6 @@ export const runtimeDomain = defineDomain("Runtime", {
     // their protocol requires, so they stay undefined: the fallback still answers {} and logs them.
   },
 });
-
-// SAFETY: Kitesurf reports one heap size and omits embedderHeapUsedSize and backingStorageSize,
-// which the protocol's reply requires. The assertion keeps the reply; sending them changes the wire.
-export function heapUsage(usedSize: number): Protocol.Runtime.GetHeapUsageResponse {
-  return { usedSize, totalSize: usedSize } as Protocol.Runtime.GetHeapUsageResponse;
-}
 
 // Writes go under the url of the document that answered. target.url may already name the next
 // document while the old isolate still answers, so a main-frame reply uses the isolate's sealed
