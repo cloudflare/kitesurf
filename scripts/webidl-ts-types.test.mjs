@@ -72,6 +72,16 @@ test("omits one inherited member without weakening its parent or sibling", () =>
   assert.ok(output.includes("export interface Element extends Node {\n}"));
 });
 
+test("maps each interface name to its interface", () => {
+  const output = renderTypes(definitions());
+
+  assert.ok(
+    output.includes(
+      "export interface InterfaceMap {\n  Attr: Attr;\n  Element: Element;\n  Node: Node;\n}",
+    ),
+  );
+});
+
 test("rejects an omission that is neither declared nor inherited", () => {
   assert.throws(() => renderTypes(definitions(), gaps("notAnInheritedMember", "invalid gap")), {
     message: "type gap Attr.notAnInheritedMember: no such member",

@@ -364,6 +364,12 @@ export function renderTypes(
       "}",
     );
   }
+  out.push(
+    "// Each interface by name, so a name type can select its interface.",
+    "export interface InterfaceMap {",
+    ...sorted(interfaces).map((name) => `  ${name}: ${name};`),
+    "}",
+  );
   for (const name of sorted(dictionaries)) {
     const entry = dictionaries.get(name);
     const parent = entry.parent && dictionaries.has(entry.parent) ? ` extends ${entry.parent}` : "";
