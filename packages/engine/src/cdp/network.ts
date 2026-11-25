@@ -4,9 +4,11 @@
 
 // Implements CDP Network commands for cookies, headers, and request tracking.
 
-import type { CdpRequest, TargetState } from "./types.ts";
+import type { TargetState } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
-import { entryToCdp, setCdpCookie, type CookieJar } from "../cookies.ts";
+import { defineDomain, stub } from "./domain.ts";
+import type { Protocol } from "devtools-protocol";
+import { entryToCdp, setCdpCookie, type CdpCookie, type CookieJar } from "../cookies.ts";
 import {
   findSessionOwner,
   jarForContextId,
@@ -16,31 +18,38 @@ import {
 import { localStorageOrigin } from "../state/local-storage.ts";
 import { changeLocalStorage } from "./storage-copies.ts";
 
-export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
-  switch (req.method) {
-    case "Network.enable":
+// SAFETY: Kitesurf's cookies omit priority, sourceScheme and sourcePort, which the protocol's
+// Cookie requires. The assertion keeps the reply as it is; sending them changes the wire.
+function protocolCookies(cookies: CdpCookie[]): Protocol.Network.Cookie[] {
+  return cookies as Protocol.Network.Cookie[];
+}
+
+export const networkDomain = defineDomain("Network", {
+  methods: {
+    "Network.enable": (ctx, req) => {
       ctx.browser.networkEvents.setEnabled(req.sessionId, true, {
         maxTotalBufferSize: req.params?.maxTotalBufferSize,
         maxResourceBufferSize: req.params?.maxResourceBufferSize,
       });
       return {};
+    },
 
-    case "Network.disable":
+    "Network.disable": (ctx, req) => {
       ctx.browser.networkEvents.setEnabled(req.sessionId, false);
       return {};
+    },
 
-    case "Network.setCacheDisabled":
-    case "Network.setBypassServiceWorker":
-      return {};
+    "Network.setCacheDisabled": stub,
+    "Network.setBypassServiceWorker": stub,
 
-    case "Network.setUserAgentOverride": {
+    "Network.setUserAgentOverride": (ctx, req) => {
       const ua = typeof req.params?.userAgent === "string" ? req.params.userAgent : "";
       const resolved = resolveNetworkTarget(ctx, req.sessionId);
       if (resolved) resolved.userAgentOverride = ua;
       return {};
-    }
+    },
 
-    case "Network.setExtraHTTPHeaders": {
+    "Network.setExtraHTTPHeaders": (ctx, req) => {
       const headers = req.params?.headers ?? {};
       const sanitized: Record<string, string> = {};
       for (const [k, v] of Object.entries(headers)) {
@@ -51,18 +60,18 @@ export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<
       const resolved = resolveNetworkTarget(ctx, req.sessionId);
       if (resolved) resolved.extraHttpHeaders = sanitized;
       return {};
-    }
+    },
 
-    case "Network.getAllCookies": {
+    "Network.getAllCookies": (ctx, req) => {
       const jar = jarForTarget(ctx, resolveNetworkTarget(ctx, req.sessionId));
-      return { cookies: jar.getAll().map(entryToCdp) };
-    }
+      return { cookies: protocolCookies(jar.getAll().map(entryToCdp)) };
+    },
 
-    case "Network.getCookies": {
+    "Network.getCookies": (ctx, req) => {
       const jar = jarForTarget(ctx, resolveNetworkTarget(ctx, req.sessionId));
       const urls = req.params?.urls;
       if (!urls || urls.length === 0) {
-        return { cookies: jar.getAll().map(entryToCdp) };
+        return { cookies: protocolCookies(jar.getAll().map(entryToCdp)) };
       }
       const seen = new Set<string>();
       const out = [];
@@ -74,22 +83,22 @@ export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<
           out.push(entryToCdp(c));
         }
       }
-      return { cookies: out };
-    }
+      return { cookies: protocolCookies(out) };
+    },
 
-    case "Network.setCookie": {
+    "Network.setCookie": (ctx, req) => {
       const jar = jarForTarget(ctx, resolveNetworkTarget(ctx, req.sessionId));
       return { success: setCdpCookie(jar, req.params) !== null };
-    }
+    },
 
-    case "Network.setCookies": {
+    "Network.setCookies": (ctx, req) => {
       const jar = jarForTarget(ctx, resolveNetworkTarget(ctx, req.sessionId));
       const list: unknown = req.params?.cookies;
       if (Array.isArray(list)) for (const c of list) setCdpCookie(jar, c);
       return {};
-    }
+    },
 
-    case "Network.deleteCookies": {
+    "Network.deleteCookies": (ctx, req) => {
       const p = req.params!;
       if (!p.name) return {};
       const jar = jarForTarget(ctx, resolveNetworkTarget(ctx, req.sessionId));
@@ -100,56 +109,19 @@ export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<
         path: p.path,
       });
       return {};
-    }
+    },
 
-    case "Network.clearBrowserCookies": {
+    "Network.clearBrowserCookies": (ctx, req) => {
       const jar = jarForTarget(ctx, resolveNetworkTarget(ctx, req.sessionId));
       jar.clear();
       return {};
-    }
+    },
 
-    case "Storage.getCookies": {
-      const sjar = jarForContextId(ctx, req.params?.browserContextId);
-      return { cookies: sjar.getAll().map(entryToCdp) };
-    }
+    "Network.clearBrowserCache": stub,
 
-    case "Storage.setCookies": {
-      const sjar = jarForContextId(ctx, req.params?.browserContextId);
-      const list: unknown = req.params?.cookies;
-      if (Array.isArray(list)) for (const c of list) setCdpCookie(sjar, c);
-      return {};
-    }
+    "Network.emulateNetworkConditionsByRule": () => ({ ruleIds: [] }),
 
-    case "Storage.clearCookies": {
-      jarForContextId(ctx, req.params?.browserContextId).clear();
-      return {};
-    }
-
-    case "Storage.clearDataForOrigin": {
-      const origin = req.params?.origin;
-      const url = typeof origin === "string" ? parseUrl(origin) : null;
-      if (!url) throw new Error(`${String(origin)} is not a valid URL`);
-      await clearOriginData(ctx, req.sessionId, url, req.params?.storageTypes);
-      return {};
-    }
-
-    case "Storage.clearDataForStorageKey": {
-      const key = req.params?.storageKey;
-      // A partitioned key ("https://a.test/^0https://b.test") names data Kitesurf never keeps.
-      const partitioned = typeof key === "string" && key.includes("^");
-      const url = typeof key === "string" ? parseUrl(key.split("^", 1)[0] ?? "") : null;
-      if (!url) throw new Error("Invalid Storage Key given.");
-      await clearOriginData(ctx, req.sessionId, partitioned ? null : url, req.params?.storageTypes);
-      return {};
-    }
-
-    case "Network.clearBrowserCache":
-      return {};
-
-    case "Network.emulateNetworkConditionsByRule":
-      return { ruleIds: [] };
-
-    case "Network.getResponseBody": {
+    "Network.getResponseBody": (ctx, req) => {
       const requestId = req.params!.requestId;
       const tracker = ctx.browser.networkEvents;
       // Chrome rejects an id it never issued. Kitesurf keeps fewer bodies than Chrome, so a known
@@ -158,12 +130,48 @@ export async function handleNetwork(ctx: DispatchCtx, req: CdpRequest): Promise<
         throw new Error("No resource with given identifier found");
       }
       return tracker.getResponseBody(requestId) ?? { body: "", base64Encoded: false };
-    }
+    },
+  },
+});
 
-    default:
+export const storageDomain = defineDomain("Storage", {
+  methods: {
+    "Storage.getCookies": (ctx, req) => {
+      const sjar = jarForContextId(ctx, req.params?.browserContextId);
+      return { cookies: protocolCookies(sjar.getAll().map(entryToCdp)) };
+    },
+
+    "Storage.setCookies": (ctx, req) => {
+      const sjar = jarForContextId(ctx, req.params?.browserContextId);
+      const list: unknown = req.params?.cookies;
+      if (Array.isArray(list)) for (const c of list) setCdpCookie(sjar, c);
       return {};
-  }
-}
+    },
+
+    "Storage.clearCookies": (ctx, req) => {
+      jarForContextId(ctx, req.params?.browserContextId).clear();
+      return {};
+    },
+
+    "Storage.clearDataForOrigin": async (ctx, req) => {
+      const origin = req.params?.origin;
+      const url = typeof origin === "string" ? parseUrl(origin) : null;
+      if (!url) throw new Error(`${String(origin)} is not a valid URL`);
+      await clearOriginData(ctx, req.sessionId, url, req.params?.storageTypes);
+      return {};
+    },
+
+    "Storage.clearDataForStorageKey": async (ctx, req) => {
+      const key = req.params?.storageKey;
+      // A partitioned key ("https://a.test/^0https://b.test") names data Kitesurf never keeps.
+      const partitioned = typeof key === "string" && key.includes("^");
+      const url = typeof key === "string" ? parseUrl(key.split("^", 1)[0] ?? "") : null;
+      if (!url) throw new Error("Invalid Storage Key given.");
+      await clearOriginData(ctx, req.sessionId, partitioned ? null : url, req.params?.storageTypes);
+      return {};
+    },
+  },
+});
 
 export function effectiveExtraHeaders(t: TargetState): Record<string, string> {
   if (!t.userAgentOverride) return t.extraHttpHeaders;

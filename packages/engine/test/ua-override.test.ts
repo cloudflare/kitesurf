@@ -3,7 +3,7 @@
 // https://opensource.org/licenses/Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { handleNetwork, effectiveExtraHeaders } from "../src/cdp/network.ts";
+import { effectiveExtraHeaders, networkDomain } from "../src/cdp/network.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { CdpRequest, TargetState } from "../src/cdp/types.ts";
 import { testClient } from "./client-state.ts";
@@ -44,7 +44,7 @@ describe("Network.setUserAgentOverride storage", () => {
         ["t-attached", attached],
       ]),
     );
-    const res = await handleNetwork(ctx, uaReq("TestUA/1.0", "sess-1"));
+    const res = await networkDomain.run(ctx, uaReq("TestUA/1.0", "sess-1"));
     expect(res).toEqual({});
     expect(attached.userAgentOverride).toBe("TestUA/1.0");
     expect(other.userAgentOverride).toBe("");
@@ -59,7 +59,7 @@ describe("Network.setUserAgentOverride storage", () => {
         ["page", page],
       ]),
     );
-    await handleNetwork(ctx, uaReq("TestUA/2.0"));
+    await networkDomain.run(ctx, uaReq("TestUA/2.0"));
     expect(page.userAgentOverride).toBe("TestUA/2.0");
     expect(browserTarget.userAgentOverride).toBe("");
   });
@@ -67,20 +67,20 @@ describe("Network.setUserAgentOverride storage", () => {
   it("empty string clears a previously set override", async () => {
     const page = makeTarget({ userAgentOverride: "Old/1.0" });
     const ctx = makeCtx(new Map([["page", page]]));
-    await handleNetwork(ctx, uaReq(""));
+    await networkDomain.run(ctx, uaReq(""));
     expect(page.userAgentOverride).toBe("");
   });
 
   it("non-string userAgent param clears rather than storing garbage", async () => {
     const page = makeTarget({ userAgentOverride: "Old/1.0" });
     const ctx = makeCtx(new Map([["page", page]]));
-    await handleNetwork(ctx, uaReq(42));
+    await networkDomain.run(ctx, uaReq(42));
     expect(page.userAgentOverride).toBe("");
   });
 
   it("no page target at all is a silent no-op (empty result)", async () => {
     const ctx = makeCtx(new Map([["browser", makeTarget({ type: "browser" })]]));
-    const res = await handleNetwork(ctx, uaReq("TestUA/3.0"));
+    const res = await networkDomain.run(ctx, uaReq("TestUA/3.0"));
     expect(res).toEqual({});
   });
 });

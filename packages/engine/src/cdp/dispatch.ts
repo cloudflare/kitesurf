@@ -25,7 +25,7 @@ import {
 import { handlePage } from "./page.ts";
 import { handleRuntime } from "./runtime.ts";
 import { handleDom } from "./dom.ts";
-import { handleNetwork } from "./network.ts";
+import { networkDomain, storageDomain } from "./network.ts";
 import { logDomain } from "./log.ts";
 import { fetchDomain } from "./fetch.ts";
 import { handleInput } from "./input.ts";
@@ -155,8 +155,10 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         result = await handleDom(ctx, req);
         break;
       case "Network":
+        result = await runDomain(ctx, req, networkDomain);
+        break;
       case "Storage":
-        result = await handleNetwork(ctx, req);
+        result = await runDomain(ctx, req, storageDomain);
         break;
       case "Log":
         result = await runDomain(ctx, req, logDomain);
