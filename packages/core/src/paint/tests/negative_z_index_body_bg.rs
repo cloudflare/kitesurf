@@ -98,26 +98,60 @@ fn html_filter_invert_inverts_propagated_background_and_text() {
 }
 
 #[test]
-fn propagated_percentage_gradient_stays_scroll_stable() {
+fn html_filter_invert_inverts_canvas_at_large_desktop_viewports() {
     let html = r##"<!doctype html><html><head><style>
-      html, body { margin: 0; height: 100%; }
-      html { background: linear-gradient(to bottom, rgb(0, 0, 0), rgb(255, 255, 255)); }
-      #tall { height: 2000px; }
-    </style></head><body><div id="tall"></div></body></html>"##;
-    let dom = crate::DomHandle::new(html, "https://test.example/");
-    dom.set_viewport(200, 200);
-    dom.resolve_layout();
-    let rasterizer = crate::paint::scene_replay::SceneRasterizer::new();
-    let sample = |scroll_y: i32, vy: u32| {
-        let scene = dom.render_scene_raw(0, scroll_y, 0, 0, false, false);
-        let png = rasterizer.rasterize(&scene, "png", 90, false);
+      html { background: #ffffff; filter: invert(1); }
+      body { margin: 0; }
+      #bar { width: 40px; height: 40px; background: #000000; }
+      #child { width: 400px; height: 400px; background: #000000; filter: brightness(0.9); }
+    </style></head><body><div id="bar"></div><div id="child"></div></body></html>"##;
+    for (vw, vh) in [(1920u32, 1080u32), (1920, 1200), (2560, 1440)] {
+        let png =
+            crate::paint::screenshot::ks_render_html_to_png(html, "https://test.example/", vw, vh);
         let (w, _, pixels) = decode_rgba(&png);
-        pixels[((vy * w + 100) * 4) as usize]
-    };
-    let at_0 = sample(0, 100);
-    let at_100 = sample(100, 0);
-    assert!(
-        (i32::from(at_0) - i32::from(at_100)).abs() <= 4,
-        "content y=100 must render the same gradient colour at scroll 0 and scroll 100; got {at_0} vs {at_100}"
-    );
+        let bg = &pixels[((vh - 20) * w + (vw - 20)) as usize * 4
+            ..((vh - 20) * w + (vw - 20)) as usize * 4 + 4];
+        let bar = &pixels[((20 * w + 20) * 4) as usize..((20 * w + 20) * 4 + 4) as usize];
+        assert!(
+            bg[0] < 32 && bg[1] < 32 && bg[2] < 32,
+            "at {vw}x{vh}, html {{ background: #fff; filter: invert(1) }} must invert canvas to black; got {bg:?}"
+        );
+        assert!(
+            bar[0] > 220 && bar[1] > 220 && bar[2] > 220,
+            "at {vw}x{vh}, black child must invert to white; got {bar:?}"
+        );
+    }
+}
+
+#[test]
+fn propagated_percentage_gradient_stays_scroll_stable() {
+    for target in ["html", "body"] {
+        let html = format!(
+            r##"<!doctype html><html><head><style>
+              html, body {{ margin: 0; height: 100%; }}
+              {target} {{ background: linear-gradient(to bottom, rgb(0, 0, 0), rgb(255, 255, 255)); }}
+              #tall {{ height: 2000px; }}
+            </style></head><body><div id="tall"></div></body></html>"##
+        );
+        let dom = crate::DomHandle::new(&html, "https://test.example/");
+        dom.set_viewport(200, 200);
+        dom.resolve_layout();
+        let rasterizer = crate::paint::scene_replay::SceneRasterizer::new();
+        let sample = |scroll_y: i32, vy: u32| {
+            let scene = dom.render_scene_raw(0, scroll_y, 0, 0, false, false);
+            let png = rasterizer.rasterize(&scene, "png", 90, false);
+            let (w, _, pixels) = decode_rgba(&png);
+            pixels[((vy * w + 100) * 4) as usize]
+        };
+        let at_0 = sample(0, 100);
+        let at_100 = sample(100, 0);
+        assert!(
+            (i32::from(at_0) - 127).abs() <= 4,
+            "{target} gradient must size to the 200px root box (mid grey at y=100), not 2000px overflow; got {at_0}"
+        );
+        assert!(
+            (i32::from(at_0) - i32::from(at_100)).abs() <= 4,
+            "{target} content y=100 must render the same gradient colour at scroll 0 and scroll 100; got {at_0} vs {at_100}"
+        );
+    }
 }

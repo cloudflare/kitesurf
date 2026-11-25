@@ -6,9 +6,9 @@ Subject: [PATCH] Clip filter layers to active render band and cap filter
 
 ---
  src/coarse/bucketer.rs          |  52 ++++++++++---
- src/dispatch/single_threaded.rs | 130 ++++++++++++++++++++++++++++++--
+ src/dispatch/single_threaded.rs | 131 ++++++++++++++++++++++++++++++--
  src/filter/context.rs           |  26 +++++--
- 3 files changed, 186 insertions(+), 22 deletions(-)
+ 3 files changed, 187 insertions(+), 22 deletions(-)
 
 diff --git a/src/coarse/bucketer.rs b/src/coarse/bucketer.rs
 index 5816168..8031149 100644
@@ -93,10 +93,10 @@ index 5816168..8031149 100644
                  }
              }
 diff --git a/src/dispatch/single_threaded.rs b/src/dispatch/single_threaded.rs
-index 6ec506f..b57fe1e 100644
+index 6ec506f..57b4ecd 100644
 --- a/src/dispatch/single_threaded.rs
 +++ b/src/dispatch/single_threaded.rs
-@@ -110,11 +110,34 @@ impl SingleThreadedDispatcher {
+@@ -110,11 +110,35 @@ impl SingleThreadedDispatcher {
          encoded_paints: &[EncodedPaint],
          image_resolver: &dyn ImageResolver,
      ) {
@@ -113,9 +113,10 @@ index 6ec506f..b57fe1e 100644
 +        } else {
 +            None
 +        };
-+        // Aggregate per-frame/band filter pixmap budget (16 MiB RGBA8) so neither
-+        // a single oversized layer nor many small blurred layers can OOM wasm.
-+        const MAX_TOTAL_FILTER_PIXMAP_PIXELS: usize = 4 * 1024 * 1024;
++        // Aggregate per-frame/band filter pixmap budget so neither a single
++        // oversized layer nor many small blurred layers can OOM wasm. Sized to
++        // hold three 2560x1440 single-pass layers (e.g. root + canvas + child).
++        const MAX_TOTAL_FILTER_PIXMAP_PIXELS: usize = 3 * 2560 * 1440;
 +        let mut remaining_pixels = MAX_TOTAL_FILTER_PIXMAP_PIXELS;
 +        let band_windows = band_y.map(|by| self.compute_filter_band_windows(by));
 +        let mut filters = self.rasterize_filter_layers::<S, F>(
@@ -133,7 +134,7 @@ index 6ec506f..b57fe1e 100644
              &mut filters,
              target_init,
              encoded_paints,
-@@ -230,14 +253,69 @@ impl SingleThreadedDispatcher {
+@@ -230,14 +254,69 @@ impl SingleThreadedDispatcher {
          self.recorder.push_draw(draw, strips);
      }
 
@@ -203,7 +204,7 @@ index 6ec506f..b57fe1e 100644
          // We record filter layers upon "push", so nested filter layers get added after their
          // parents. Subsequent sibling filter layers also get added after the previous layer they
          // are composited into. Therefore, iterating in reverse order is enough to ensure that all
-@@ -250,13 +328,31 @@ impl SingleThreadedDispatcher {
+@@ -250,13 +329,31 @@ impl SingleThreadedDispatcher {
              else {
                  unreachable!("filter_layers only contains filter layers");
              };
@@ -236,7 +237,7 @@ index 6ec506f..b57fe1e 100644
              // TODO: See https://github.com/linebender/vello/pull/1701#discussion_r3400709986, explore
              // using pools for more resources.
              let mut pixmap = Pixmap::new(width, height);
-@@ -291,7 +387,7 @@ impl SingleThreadedDispatcher {
+@@ -291,7 +388,7 @@ impl SingleThreadedDispatcher {
              // #[cfg(all(debug_assertions, feature = "std", feature = "png"))]
              // save_filtered_layer_debug(&pixmap, id);
 
@@ -245,7 +246,7 @@ index 6ec506f..b57fe1e 100644
          }
 
          filter_ctx
-@@ -300,11 +396,16 @@ impl SingleThreadedDispatcher {
+@@ -300,11 +397,16 @@ impl SingleThreadedDispatcher {
      fn rasterize_backdrop_filter_layers<S: Simd, F: FineKernel<S>>(
          &self,
          simd: S,
@@ -262,7 +263,7 @@ index 6ec506f..b57fe1e 100644
          for id in self.recorder.backdrop_filter_layers.iter().copied() {
              let RecordedLayerKind::BackdropFilter {
                  filter_data: filter_plan,
-@@ -314,12 +415,29 @@ impl SingleThreadedDispatcher {
+@@ -314,12 +416,29 @@ impl SingleThreadedDispatcher {
              else {
                  unreachable!("backdrop_filter_layers only contains backdrop filter layers");
              };
@@ -293,7 +294,7 @@ index 6ec506f..b57fe1e 100644
              let mut pixmap = Pixmap::new(width, height);
              let params = FineRenderParams {
                  scene_size: (width, height),
-@@ -360,7 +478,7 @@ impl SingleThreadedDispatcher {
+@@ -360,7 +479,7 @@ impl SingleThreadedDispatcher {
                  filter_plan.transform,
              );
 
