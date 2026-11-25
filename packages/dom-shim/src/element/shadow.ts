@@ -71,12 +71,37 @@ const FORBIDDEN_CUSTOM_ELEMENT_NAMES = new Set([
   "missing-glyph",
 ]);
 
+// HTML §4.13.3: valid custom element name (ASCII lowercase start, contains '-',
+// no ASCII uppercase, ASCII whitespace, NUL, '/', '>', or forbidden names).
+// https://html.spec.whatwg.org/#valid-custom-element-name
+function isValidCustomElementName(localName: string): boolean {
+  if (localName.length < 2 || FORBIDDEN_CUSTOM_ELEMENT_NAMES.has(localName)) return false;
+  const first = localName.charCodeAt(0);
+  if (first < 0x61 || first > 0x7a) return false;
+  let hasHyphen = false;
+  for (let i = 1; i < localName.length; i++) {
+    const c = localName.charCodeAt(i);
+    if (c === 0x2d) {
+      hasHyphen = true;
+    } else if (
+      (c >= 0x41 && c <= 0x5a) ||
+      c === 0x00 ||
+      c === 0x09 ||
+      c === 0x0a ||
+      c === 0x0c ||
+      c === 0x0d ||
+      c === 0x20 ||
+      c === 0x2f ||
+      c === 0x3e
+    ) {
+      return false;
+    }
+  }
+  return hasHyphen;
+}
+
 function isValidShadowHostName(localName: string): boolean {
-  if (SHADOW_HOST_SAFELIST.has(localName)) return true;
-  return (
-    /^[a-z][a-z0-9._-]*-[a-z0-9._-]*$/.test(localName) &&
-    !FORBIDDEN_CUSTOM_ELEMENT_NAMES.has(localName)
-  );
+  return SHADOW_HOST_SAFELIST.has(localName) || isValidCustomElementName(localName);
 }
 
 // Keep attachShadow on HTMLElement because DocumentFragmentImpl extends Element.
