@@ -330,9 +330,19 @@ export function adoptIntoDom(
     sourceDom.removeNode(sourceId);
   } catch {}
   registerParsedHandle(wrapper, destDom);
+  if (cache.get(sourceId) === wrapper) cache.delete(sourceId);
   wrapper._id = newId;
-  if (destDom === dom) adoptedWrapperIds.add(newId);
-  if (destOwnerDoc !== undefined) wrapper.ownerDocument = destOwnerDoc;
+  nodeListCache.delete(wrapper);
+  if (destDom === dom) {
+    if (wrapper instanceof NodeBase) cache.set(newId, wrapper);
+    adoptedWrapperIds.add(newId);
+  }
+  if (destOwnerDoc !== undefined) {
+    // Write through the adoptable shape: a live wrapper's `ownerDocument` is a getter, and the
+    // `instanceof` above narrows `wrapper` to the class whose property is read-only.
+    const adoptable: AdoptableNode = wrapper;
+    adoptable.ownerDocument = destOwnerDoc;
+  }
 }
 
 // The clone of a node inside a tree: cloneNode answers a DetachedDocument
