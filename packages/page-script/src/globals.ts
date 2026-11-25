@@ -4019,16 +4019,6 @@ export function installGlobals(
           try {
             event = new (shimEventCtor("Event"))(name);
           } catch {}
-          const handler = (this as any)["on" + name];
-          if (typeof handler === "function") {
-            try {
-              handler.call(this, event);
-            } catch (error) {
-              try {
-                console.error("XHR on" + name + " threw:", error);
-              } catch {}
-            }
-          }
           if (event) {
             try {
               (this as any).dispatchEvent(event);
@@ -4345,6 +4335,16 @@ export function installGlobals(
         (XMLHttpRequestCls as any)[name] = value;
         (XMLHttpRequestCls.prototype as any)[name] = value;
       }
+      defineEventHandlerAttributes(XMLHttpRequestCls, [
+        "readystatechange",
+        "loadstart",
+        "progress",
+        "abort",
+        "error",
+        "load",
+        "timeout",
+        "loadend",
+      ]);
       try {
         Object.defineProperty(XMLHttpRequestCls, "name", { value: "XMLHttpRequest" });
       } catch {}
@@ -4376,12 +4376,6 @@ export function installGlobals(
           (this as any).readyState = 0;
           (this as any).result = null;
           (this as any).error = null;
-          (this as any).onloadstart = null;
-          (this as any).onprogress = null;
-          (this as any).onload = null;
-          (this as any).onabort = null;
-          (this as any).onerror = null;
-          (this as any).onloadend = null;
         }
         get EMPTY() {
           return 0;
@@ -4399,12 +4393,6 @@ export function installGlobals(
             if (detail) Object.assign(event, detail);
           } catch {
             event = { type, ...detail };
-          }
-          const handler = (this as any)["on" + type];
-          if (typeof handler === "function") {
-            try {
-              handler.call(this, event);
-            } catch {}
           }
           try {
             (this as any).dispatchEvent(event);
@@ -4517,6 +4505,14 @@ export function installGlobals(
           this._fire("loadend");
         }
       }
+      defineEventHandlerAttributes(FileReaderStub, [
+        "loadstart",
+        "progress",
+        "load",
+        "abort",
+        "error",
+        "loadend",
+      ]);
       globalThis.FileReader = FileReaderStub as any;
     }
     try {
@@ -5274,6 +5270,56 @@ export function installGlobals(
     delete globalThis.Node;
     delete ksGlobalByKey.EventTarget;
     delete globalThis.getComputedStyle;
+  }
+}
+
+type HandlerSlot = { fn: object; wrapper: (this: EventTarget, event: Event) => unknown };
+const eventHandlerSlots = new WeakMap<object, Map<string, HandlerSlot>>();
+
+// IDL event handler attributes: the handler is a listener added when first set, so dispatch runs
+// it in registration order with target and currentTarget set. [LegacyTreatNonObjectAsNull] keeps
+// a non-callable object in the slot, which then does nothing when the event fires.
+// https://html.spec.whatwg.org/multipage/webappapis.html#event-handler-attributes
+function defineEventHandlerAttributes(
+  brand: abstract new (...args: never[]) => EventTarget,
+  types: readonly string[],
+): void {
+  for (const type of types) {
+    Object.defineProperty(brand.prototype, "on" + type, {
+      configurable: true,
+      enumerable: true,
+      get(this: unknown) {
+        if (!(this instanceof brand)) throw new TypeError("Illegal invocation");
+        return eventHandlerSlots.get(this)?.get(type)?.fn ?? null;
+      },
+      set(this: unknown, value: unknown) {
+        if (!(this instanceof brand)) throw new TypeError("Illegal invocation");
+        let slots = eventHandlerSlots.get(this);
+        const slot = slots?.get(type);
+        if (value === null || (typeof value !== "object" && typeof value !== "function")) {
+          if (slot) {
+            slots!.delete(type);
+            this.removeEventListener(type, slot.wrapper);
+          }
+          return;
+        }
+        if (slot) {
+          slot.fn = value;
+          return;
+        }
+        if (!slots) {
+          slots = new Map();
+          eventHandlerSlots.set(this, slots);
+        }
+        const wrapper = function (this: EventTarget, event: Event) {
+          const fn = eventHandlerSlots.get(this)?.get(type)?.fn;
+          if (typeof fn !== "function") return;
+          if (fn.call(this, event) === false) event.preventDefault();
+        };
+        slots.set(type, { fn: value, wrapper });
+        this.addEventListener(type, wrapper);
+      },
+    });
   }
 }
 

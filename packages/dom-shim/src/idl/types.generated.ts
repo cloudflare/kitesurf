@@ -3371,7 +3371,7 @@ export interface WorkletGlobalScope {
 export interface XMLDocument extends Document {
 }
 export interface XMLHttpRequest extends XMLHttpRequestEventTarget {
-  // onreadystatechange: EventHandler;
+  onreadystatechange: EventHandler;
   // readonly readyState: number;
   open(method: string, url: string): void;
   open(method: string, url: string, async: boolean, username?: string | null, password?: string | null): void;

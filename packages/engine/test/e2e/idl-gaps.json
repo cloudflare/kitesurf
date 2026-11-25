@@ -829,7 +829,6 @@
   "XMLHttpRequest.prototype.abort(): not enumerable",
   "XMLHttpRequest.prototype.getAllResponseHeaders(): not enumerable",
   "XMLHttpRequest.prototype.getResponseHeader(): not enumerable",
-  "XMLHttpRequest.prototype.onreadystatechange: missing attribute",
   "XMLHttpRequest.prototype.open(): length is 3, expected 2",
   "XMLHttpRequest.prototype.open(): not enumerable",
   "XMLHttpRequest.prototype.overrideMimeType(): not enumerable",
