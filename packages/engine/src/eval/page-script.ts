@@ -52,6 +52,7 @@ import {
   dropStashedPageModules,
   stashPageModules,
   type PageIsolateHostExport,
+  type PageIsolateSpec,
 } from "./page-isolate-host.ts";
 
 export interface PageScriptStub extends PageScriptSession {
@@ -216,6 +217,124 @@ function withoutStaticPageModules(
   const perNavigation = { ...modules };
   for (const name of staticNames) delete perNavigation[name];
   return perNavigation;
+}
+
+type PageScriptProps = { KS_TAIL_TOKEN: string; KS_ISOLATE_STAMP: string };
+
+function isStashMiss(err: unknown): boolean {
+  return err instanceof Error && err.message.includes("missing stashed page modules");
+}
+
+function loadPageScriptDirect(
+  loader: Pick<WorkerLoader, "load">,
+  code: WorkerLoaderWorkerCode,
+  props: PageScriptProps,
+): RpcSessionEntrypoint {
+  const stub = loader.load(code);
+  const workerEntrypoint: PageScriptEntrypointStub = stub.getEntrypoint<PageScriptEntrypoint>(
+    "PageScript",
+    { props },
+  );
+  // SAFETY: WorkerLoader follows the PageScript JSRPC contract, but Rpc.Provider loses generic
+  // call/reply correlation and annotates cloneable reply objects with Disposable.
+  // Runtime replies remain PageScriptReply data.
+  // Verified by: packages/engine/test/e2e/demos/page-script-demo.e2e.test.ts.
+  return workerEntrypoint as RpcSessionEntrypoint;
+}
+
+function wrapHostedPageHandle(
+  loader: Pick<WorkerLoader, "load">,
+  handle: Promise<RpcSessionEntrypoint>,
+  fallbackCode: WorkerLoaderWorkerCode | null,
+  props: PageScriptProps,
+  modulesId: string,
+): RpcSessionEntrypoint {
+  let direct: RpcSessionEntrypoint | null = null;
+  let resolved: Promise<RpcSessionEntrypoint> | null = null;
+  // Drop the fallback code as soon as the hosted open succeeds so the engine isolate does not
+  // retain per-navigation modules or baked wasm buffers on the normal hosted path.
+  handle.then(
+    () => {
+      fallbackCode = null;
+    },
+    () => {},
+  );
+  const resolveHandle = (): Promise<RpcSessionEntrypoint> => {
+    if (resolved) return resolved;
+    resolved = (async () => {
+      try {
+        const opened = await handle;
+        fallbackCode = null;
+        return opened;
+      } catch (err) {
+        if (!isStashMiss(err)) {
+          fallbackCode = null;
+          throw err;
+        }
+        dropStashedPageModules(modulesId);
+        if (!direct) {
+          const directCode = fallbackCode;
+          fallbackCode = null;
+          if (!directCode) throw err;
+          direct = loadPageScriptDirect(loader, directCode, props);
+        }
+        return direct;
+      }
+    })();
+    return resolved;
+  };
+  return {
+    openSession: (init) => resolveHandle().then((h) => h.openSession(init)),
+    killIsolate: (reason) =>
+      resolveHandle()
+        .then((h) => h.killIsolate?.(reason) ?? Promise.resolve())
+        .catch(() => {}),
+    // Ends the host's loopback request, which releases the killed isolate.
+    [Symbol.dispose]: () => {
+      fallbackCode = null;
+      dropStashedPageModules(modulesId);
+      if (direct) {
+        const d = direct;
+        direct = null;
+        try {
+          d[Symbol.dispose]?.();
+        } catch {}
+      }
+      handle.then(
+        (h) => {
+          try {
+            h[Symbol.dispose]?.();
+          } catch {}
+        },
+        () => {},
+      );
+    },
+  };
+}
+
+/** Opens a page isolate via PageIsolateHost, falling back to direct load on a stash miss. */
+export function openHostedPageEntrypoint(
+  loader: Pick<WorkerLoader, "load">,
+  host: { open(spec: PageIsolateSpec, modulesId?: string): Promise<RpcSessionEntrypoint> },
+  code: WorkerLoaderWorkerCode,
+  props: PageScriptProps,
+  modulesId: string,
+): RpcSessionEntrypoint {
+  let handle: Promise<RpcSessionEntrypoint>;
+  try {
+    handle = host.open(
+      {
+        code: { ...code, modules: {} },
+        entrypoint: "PageScript",
+        props,
+      },
+      modulesId,
+    );
+  } catch (err) {
+    dropStashedPageModules(modulesId);
+    throw err;
+  }
+  return wrapHostedPageHandle(loader, handle, code, props, modulesId);
 }
 
 interface GetOrCreatePageScriptOptions {
@@ -445,84 +564,14 @@ export const manifest = ${JSON.stringify(wasmBake ? wasmBake.manifest : {})};
       subRequests: PAGE_SCRIPT_SUBREQUEST_CAP,
     },
   };
-  const props = { KS_TAIL_TOKEN: tailToken, KS_ISOLATE_STAMP: isolateStamp };
+  const props: PageScriptProps = { KS_TAIL_TOKEN: tailToken, KS_ISOLATE_STAMP: isolateStamp };
   const host = cx.exports.PageIsolateHost;
-  // A loopback call can reach a replacement isolate, which does not share this module's stash.
-  // The in-process load is the only path that works there, so both branches share it.
-  const loadDirect = (): RpcSessionEntrypoint => {
-    const stub = env.LOADER.load(code);
-    const workerEntrypoint: PageScriptEntrypointStub = stub.getEntrypoint<PageScriptEntrypoint>(
-      "PageScript",
-      { props },
-    );
-    // The RPC adapter needs promises; the local entrypoint contract is synchronous.
-
-    // SAFETY: WorkerLoader follows the PageScript JSRPC contract, but Rpc.Provider loses generic
-    // call/reply correlation and annotates cloneable reply objects with Disposable.
-    // Runtime replies remain PageScriptReply data.
-    // Verified by: packages/engine/test/e2e/demos/page-script-demo.e2e.test.ts.
-    return workerEntrypoint as RpcSessionEntrypoint;
-  };
   let entrypoint: RpcSessionEntrypoint;
   if (host) {
     const modulesId = stashPageModules(withoutStaticPageModules(modules, staticModuleNames));
-    let handle: ReturnType<typeof host.open>;
-    try {
-      handle = host.open(
-        {
-          code: { ...code, modules: {} },
-          entrypoint: "PageScript",
-          props,
-        },
-        modulesId,
-      );
-    } catch (err) {
-      dropStashedPageModules(modulesId);
-      throw err;
-    }
-    let direct: RpcSessionEntrypoint | null = null;
-    const isStashMiss = (err: unknown): boolean =>
-      err instanceof Error && err.message.includes("missing stashed page modules");
-    // Resolve the host handle once. If the call reached a foreign isolate its stash is empty and
-    // open rejects with a stash miss; load the modules here instead of failing navigation.
-    const resolveHandle = async (): Promise<RpcSessionEntrypoint> => {
-      try {
-        return await handle;
-      } catch (err) {
-        if (!isStashMiss(err)) throw err;
-        dropStashedPageModules(modulesId);
-        direct ??= loadDirect();
-        return direct;
-      }
-    };
-    entrypoint = {
-      openSession: (init) => resolveHandle().then((h) => h.openSession(init)),
-      killIsolate: (reason) =>
-        resolveHandle()
-          .then((h) => h.killIsolate?.(reason) ?? Promise.resolve())
-          .catch(() => {}),
-      // Ends the host's loopback request, which releases the killed isolate.
-      [Symbol.dispose]: () => {
-        dropStashedPageModules(modulesId);
-        if (direct) {
-          const d = direct;
-          direct = null;
-          try {
-            d[Symbol.dispose]?.();
-          } catch {}
-        }
-        handle.then(
-          (h) => {
-            try {
-              h[Symbol.dispose]?.();
-            } catch {}
-          },
-          () => {},
-        );
-      },
-    };
+    entrypoint = openHostedPageEntrypoint(env.LOADER, host, code, props, modulesId);
   } else {
-    entrypoint = loadDirect();
+    entrypoint = loadPageScriptDirect(env.LOADER, code, props);
   }
   const tracer = env.HOST_TRACER;
   const spanWrap = tracer
