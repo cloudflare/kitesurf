@@ -114,8 +114,13 @@ import {
   registerTransientObservers,
   recordChildListMutation,
 } from "../mutations/observer.js";
-import { KsPointerEvent, KsInputEvent, KsEvent, KsFocusEvent } from "../events/event.js";
-import type { KsMouseEvent } from "../events/event.js";
+import {
+  KsPointerEvent,
+  KsInputEvent,
+  KsEvent,
+  KsFocusEvent,
+  KsMouseEvent,
+} from "../events/event.js";
 import {
   NodeBase,
   isTemplateElement,
@@ -425,6 +430,11 @@ function runCheckableClickActivation<T>(el: Element, ev: Idl.Event, dispatch: ()
   let result: T;
   try {
     result = dispatch();
+  } catch (err) {
+    setCheckedRawOn(el, preChecked);
+    Reflect.set(el, "indeterminate", preIndeterminate);
+    if (prevCheckedRadio) setCheckedRawOn(prevCheckedRadio, true);
+    throw err;
   } finally {
     activeCheckableClicks.delete(el);
   }
@@ -1645,7 +1655,7 @@ class Element extends NodeBase implements Idl.Element {
   // or its summary ancestor instead of through the dispatch path.
   // https://html.spec.whatwg.org/#dom-click
   override dispatchEvent(event: Idl.Event): boolean {
-    if (event && event.type === "click") {
+    if (event instanceof KsMouseEvent && event.type === "click") {
       return runCheckableClickActivation(this, event, () => super.dispatchEvent(event));
     }
     return super.dispatchEvent(event);

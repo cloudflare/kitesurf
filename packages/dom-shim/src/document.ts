@@ -2277,17 +2277,32 @@ class DetachedDocument implements Idl.Document {
     // create plain `Element` nodes with `namespaceURI === null` and preserved case.
     // https://dom.spec.whatwg.org/#dom-document-createelement
     if (!this._isHtml) {
+      const t = String(tagName);
+      if (t.length === 0 || !isValidXmlName(t)) {
+        throw new DOMException(
+          "createElement: '" + t + "' is not a valid Name",
+          "InvalidCharacterError",
+        );
+      }
       const ns = this._createElementNs === HTML_NS ? HTML_NS : null;
-      const el =
-        ns === HTML_NS
-          ? createElementInternal(tagName)
-          : createElementNSInternal(null, String(tagName));
+      let el: Element;
+      if (ns === HTML_NS) {
+        el = createElementInternal(t);
+        elemNs.set(el._id, {
+          qname: t,
+          ns,
+          viaNS: false,
+        });
+      } else {
+        const id = dom.createElementNS("", t);
+        elemNs.set(id, {
+          qname: t,
+          ns: null,
+          viaNS: false,
+        });
+        el = mintedNode(id, ELEMENT_NODE);
+      }
       elementOwnerIsHtml.set(el._id, false);
-      elemNs.set(el._id, {
-        qname: String(tagName),
-        ns,
-        viaNS: true,
-      });
       xmlOwned.add(el._id);
       fastpathMarkSpecial(el._id);
       nodeOwnerDoc.set(el, this);
