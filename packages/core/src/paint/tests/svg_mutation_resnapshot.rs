@@ -188,6 +188,68 @@ fn inherited_css_fill_does_not_override_child_fill_none_or_explicit_color() {
 }
 
 #[test]
+fn inherited_css_fill_does_not_override_ancestor_group_or_use_fill() {
+    // Case 1: `svg { fill: #dd0000 }` with `<g fill="#0000ff"><rect/></g>` paints a blue rect.
+    let html_group_blue = r##"<html><head><style>
+        svg { fill: #dd0000; }
+    </style></head><body>
+        <svg id="g1" width="96" height="96" viewBox="0 0 96 96">
+            <g fill="#0000ff">
+                <rect x="0" y="0" width="96" height="96"/>
+            </g>
+        </svg>
+    </body></html>"##;
+    let dom_blue = DomHandle::new(html_group_blue, "https://example.com/");
+    dom_blue.set_viewport(800, 600);
+    dom_blue.resolve_layout();
+    let tree_blue = svg_tree_of(&dom_blue, "#g1").expect("group blue svg must parse");
+    assert_eq!(
+        first_fill_rgb(&tree_blue),
+        Some((0x00, 0x00, 0xff)),
+        "inherited svg CSS fill must not override ancestor <g fill=\"#0000ff\">"
+    );
+
+    // Case 2: `svg { fill: #dd0000 }` with `<g fill="none"><rect/></g>` paints no fill.
+    let html_group_none = r##"<html><head><style>
+        svg { fill: #dd0000; }
+    </style></head><body>
+        <svg id="g2" width="96" height="96" viewBox="0 0 96 96">
+            <g fill="none">
+                <rect x="0" y="0" width="96" height="96"/>
+            </g>
+        </svg>
+    </body></html>"##;
+    let dom_none = DomHandle::new(html_group_none, "https://example.com/");
+    dom_none.set_viewport(800, 600);
+    dom_none.resolve_layout();
+    let tree_none = svg_tree_of(&dom_none, "#g2").expect("group none svg must parse");
+    let fills_none = all_path_fills(&tree_none);
+    assert!(
+        fills_none.iter().all(|f| f.is_none()),
+        "inherited svg CSS fill must not override ancestor <g fill=\"none\">: {fills_none:?}"
+    );
+
+    // Case 3: `<symbol>` used through `<use fill="#0000ff">` inherits the `<use>` color.
+    let html_use = r##"<html><head><style>
+        svg { fill: #dd0000; }
+    </style></head><body>
+        <svg id="u" width="96" height="96" viewBox="0 0 96 96">
+            <defs><symbol id="sym"><rect x="0" y="0" width="96" height="96"/></symbol></defs>
+            <use href="#sym" fill="#0000ff"/>
+        </svg>
+    </body></html>"##;
+    let dom_use = DomHandle::new(html_use, "https://example.com/");
+    dom_use.set_viewport(800, 600);
+    dom_use.resolve_layout();
+    let tree_use = svg_tree_of(&dom_use, "#u").expect("use svg must parse");
+    assert_eq!(
+        first_fill_rgb(&tree_use),
+        Some((0x00, 0x00, 0xff)),
+        "inherited svg CSS fill must not override <use fill=\"#0000ff\">"
+    );
+}
+
+#[test]
 fn deeply_nested_calc_in_picture_media_does_not_overflow_stack() {
     let png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAIAAAACUFjqAAAAEklEQVR4nGP4z8CAB+GTG8HSALfKY52fTcuYAAAAAElFTkSuQmCC";
     let depth = 5_000;
