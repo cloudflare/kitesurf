@@ -601,3 +601,189 @@ fn dynamic_pseudo_content_fetches_subset_when_family_already_used_by_body() {
         "dynamically added ::before content must trigger subset fetch on resolve_style"
     );
 }
+
+#[test]
+fn steady_state_restyle_does_not_scan_for_pending_faces() {
+    let stylesheet = r#"
+        @font-face { font-family: "Unused"; src: url("/unused.woff2"); }
+        p { color: rgb(1, 2, 3); }
+    "#;
+    let (mut document, net_provider) = document_with_stylesheet(stylesheet, "<p id='p'>hello</p>");
+    resolve(&mut document, 2);
+    assert!(
+        net_provider.requests().is_empty(),
+        "an unused face stays deferred"
+    );
+    let scans = document.as_ref().font_scan_count();
+    assert!(scans > 0, "the first flush must scan for pending faces");
+
+    // A colour-only restyle keeps the element's font style struct, so it must not arm a scan.
+    let p = document
+        .as_ref()
+        .query_selector("#p")
+        .expect("selector")
+        .expect("#p");
+    {
+        let mut mutator = document.as_mut().mutate();
+        mutator.set_attribute(
+            p,
+            blitz_dom::QualName::new(None, blitz_dom::ns!(), blitz_dom::local_name!("style")),
+            "color: rgb(9, 9, 9)",
+        );
+    }
+    document.as_mut().resolve_style(0.0);
+
+    assert_eq!(
+        document.as_ref().font_scan_count(),
+        scans,
+        "a restyle that changes no font, display state, or text must not walk the flat tree"
+    );
+    assert!(net_provider.requests().is_empty());
+}
+
+#[test]
+fn showing_a_hidden_element_fetches_its_pending_face() {
+    let stylesheet = r#"
+        @font-face { font-family: "Hidden"; src: url("/hidden.woff2"); }
+        .gone { display: none; font-family: "Hidden"; }
+        .shown { font-family: "Hidden"; }
+    "#;
+    let (mut document, net_provider) =
+        document_with_stylesheet(stylesheet, "<div id='d' class='gone'>secret</div>");
+    resolve(&mut document, 2);
+    assert!(
+        net_provider.requests().is_empty(),
+        "a display:none face stays deferred"
+    );
+
+    let d = document
+        .as_ref()
+        .query_selector("#d")
+        .expect("selector")
+        .expect("#d");
+    {
+        let mut mutator = document.as_mut().mutate();
+        mutator.set_attribute(
+            d,
+            blitz_dom::QualName::new(None, blitz_dom::ns!(), blitz_dom::local_name!("class")),
+            "shown",
+        );
+    }
+    document.as_mut().resolve_style(0.0);
+
+    assert_eq!(
+        net_provider.requests(),
+        ["https://fonts.test/hidden.woff2"],
+        "a display:none -> block change must fetch the newly visible face"
+    );
+}
+
+#[test]
+fn changing_font_family_fetches_the_pending_face() {
+    let stylesheet = r#"
+        @font-face { font-family: "Late"; src: url("/late.woff2"); }
+        p { font-family: serif; }
+    "#;
+    let (mut document, net_provider) = document_with_stylesheet(stylesheet, "<p id='p'>hello</p>");
+    resolve(&mut document, 2);
+    assert!(net_provider.requests().is_empty());
+
+    let p = document
+        .as_ref()
+        .query_selector("#p")
+        .expect("selector")
+        .expect("#p");
+    {
+        let mut mutator = document.as_mut().mutate();
+        mutator.set_attribute(
+            p,
+            blitz_dom::QualName::new(None, blitz_dom::ns!(), blitz_dom::local_name!("style")),
+            "font-family: \"Late\"",
+        );
+    }
+    document.as_mut().resolve_style(0.0);
+
+    assert_eq!(
+        net_provider.requests(),
+        ["https://fonts.test/late.woff2"],
+        "a font-family change must fetch the newly used face"
+    );
+}
+
+#[test]
+fn inserted_text_fetches_a_subset_face() {
+    let stylesheet = format!(
+        r#"{} p {{ font-family: "Subset"; }}"#,
+        face(Some("U+0370-03FF"))
+    );
+    let (mut document, net_provider) = document_with_stylesheet(&stylesheet, "<p id='p'>hello</p>");
+    resolve(&mut document, 2);
+    assert!(
+        net_provider.requests().is_empty(),
+        "a subset stays deferred until its codepoint appears"
+    );
+
+    let text_id = {
+        let doc: &mut BaseDocument = document.as_mut();
+        let mut mutator = doc.mutate();
+        mutator.create_text_node("Ω")
+    };
+    let p = document
+        .as_ref()
+        .query_selector("#p")
+        .expect("selector")
+        .expect("#p");
+    {
+        let mut mutator = document.as_mut().mutate();
+        mutator.append_children(p, &[text_id]);
+    }
+    document.as_mut().resolve_style(0.0);
+
+    assert_eq!(
+        net_provider.requests(),
+        [FONT_URL],
+        "inserted text must fetch the subset that covers it"
+    );
+}
+
+#[test]
+fn a_face_declared_after_steady_state_is_fetched() {
+    // The face is declared after the document has settled, and the text already names the
+    // family. Only the new @font-face can arm the scan, so this pins the queue_font_faces path.
+    let (mut document, net_provider) =
+        document_with_stylesheet("", r#"<p id='p' style='font-family: "Late"'>hello</p>"#);
+    resolve(&mut document, 2);
+    assert!(
+        net_provider.requests().is_empty(),
+        "a family with no declared face fetches nothing"
+    );
+
+    let style = {
+        let doc: &mut BaseDocument = document.as_mut();
+        let mut mutator = doc.mutate();
+        let style = mutator.create_element(
+            blitz_dom::QualName::new(None, blitz_dom::ns!(html), blitz_dom::local_name!("style")),
+            vec![],
+        );
+        let text = mutator
+            .create_text_node(r#"@font-face { font-family: "Late"; src: url("/late.woff2"); }"#);
+        mutator.append_children(style, &[text]);
+        style
+    };
+    let head = document
+        .as_ref()
+        .query_selector("head")
+        .expect("selector")
+        .expect("head");
+    {
+        let mut mutator = document.as_mut().mutate();
+        mutator.append_children(head, &[style]);
+    }
+    document.as_mut().resolve_style(0.0);
+
+    assert_eq!(
+        net_provider.requests(),
+        ["https://fonts.test/late.woff2"],
+        "a dynamically declared face must arm the scan and fetch"
+    );
+}
