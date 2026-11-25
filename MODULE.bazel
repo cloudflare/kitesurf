@@ -485,6 +485,9 @@ DEVTOOLS_FRONTEND_LICENSES = {
 http_archive(
     name = "devtools_frontend",
     build_file = "//bazel:devtools_frontend.BUILD",
+    # Turns on the Protocol Monitor; see the script that the patch adds.
+    patch_strip = 1,
+    patches = ["//bazel:devtools_frontend-host-config.patch"],
     remote_file_integrity = DEVTOOLS_FRONTEND_LICENSES,
     remote_file_urls = {
         path: [

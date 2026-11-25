@@ -53,6 +53,7 @@ _TRANSLATIONS = glob(
 _REQUIRED = [
     "LICENSE",
     "inspector.html",
+    "kitesurf_host_config.js",
     "devtools_compatibility.js",
     "entrypoints/inspector/inspector.js",
     "core/i18n/locales/en-US.json",
