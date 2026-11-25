@@ -2988,7 +2988,6 @@ export function installGlobals(
           !failedElements.has(element)
         );
       };
-      const MAX_CUSTOM_ELEMENT_CONNECTION_DEPTH = 64;
       // Other documents have no registry and a DOMParser one's ids are its handle's. Markup parsed
       // into a created document reads this ownerDocument, so the scriptless check walks ancestors.
       const inPageTree = (node: any): boolean =>
@@ -3020,33 +3019,24 @@ export function installGlobals(
         try {
           if (registry.size === 0) return;
           if (!rootElement || rootElement.nodeType !== 1 || !rootElement.isConnected) return;
-          const visit = (element: any, depth: number) => {
-            if (depth > MAX_CUSTOM_ELEMENT_CONNECTION_DEPTH) return;
+          const upgradable = inPageTree(rootElement);
+          for (const element of candidatesUnder(rootElement._id, true, "")) {
             const tagName = String(element.localName || "");
-            if (tagName.indexOf("-") >= 0 && registry.has(tagName)) {
-              const customElementConstructor = registry.get(tagName);
-              if (
-                typeof customElementConstructor === "function" &&
-                !customElementConstructor.prototype.isPrototypeOf(element)
-              ) {
-                upgradeCustomElement(element, customElementConstructor, {
-                  tagName,
-                  fireConnectedCallback: true,
-                });
-              } else if (typeof element.connectedCallback === "function") {
-                try {
-                  element.connectedCallback();
-                } catch (error) {
-                  console.warn("[kitesurf] connectedCallback for " + tagName + " threw", error);
-                }
+            const customElementConstructor = registry.get(tagName);
+            if (typeof customElementConstructor !== "function") continue;
+            if (!customElementConstructor.prototype.isPrototypeOf(element)) {
+              if (upgradable) upgradeIfDefined(element);
+              continue;
+            }
+            const custom = !failedElements.has(element) && !upgradingElements.has(element);
+            if (custom && typeof element.connectedCallback === "function") {
+              try {
+                element.connectedCallback();
+              } catch (error) {
+                console.warn("[kitesurf] connectedCallback for " + tagName + " threw", error);
               }
             }
-            const children = element.children;
-            if (children && children.length) {
-              for (const child of Array.from(children)) visit(child, depth + 1);
-            }
-          };
-          visit(rootElement, 0);
+          }
         } catch {}
       };
       globalThis.customElements = {

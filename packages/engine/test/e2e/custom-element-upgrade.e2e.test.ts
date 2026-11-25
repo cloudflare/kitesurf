@@ -251,3 +251,74 @@ test("define() in a module script lets connected callbacks start I/O", async ({ 
   expect(io.slice(0, 2)).toEqual(["connected", "defined"]);
   expect(io.slice(2).sort()).toEqual(["digest", "fetch:ok", "timer"]);
 });
+
+test("connecting a host upgrades and connects the elements in its shadow tree", async ({
+  page,
+}) => {
+  await setContent(page, "<!doctype html><body></body>");
+  const result = await page.evaluate(() => {
+    const log: string[] = [];
+    class Child extends HTMLElement {
+      connectedCallback() {
+        log.push("connected:" + this.id);
+      }
+      play() {}
+    }
+    // Issue #147, case A: the parent's constructor writes the child into its shadow root.
+    customElements.define("x-child", Child);
+    customElements.define(
+      "x-parent",
+      class extends HTMLElement {
+        constructor() {
+          super();
+          this.attachShadow({ mode: "open" }).innerHTML = '<x-child id="a"></x-child>';
+        }
+      },
+    );
+    document.body.append(document.createElement("x-parent"));
+    const a = document.querySelector("x-parent")!.shadowRoot!.querySelector("x-child") as any;
+
+    const host = document.createElement("div");
+    const root = host.attachShadow({ mode: "closed" });
+    const b = root.appendChild(Object.assign(document.createElement("x-late-child"), { id: "b" }));
+    customElements.define("x-late-child", class extends Child {});
+    const beforeConnect = typeof (b as any).play;
+    document.body.append(host);
+    document.body.prepend(host);
+
+    const deep = document.createElement("div");
+    let cursor: Element = deep;
+    for (let i = 0; i < 100; i++) cursor = cursor.appendChild(document.createElement("div"));
+    cursor.appendChild(Object.assign(document.createElement("x-child"), { id: "c" }));
+    document.body.append(deep);
+
+    const other = document.implementation.createHTMLDocument("");
+    other.body.append(Object.assign(document.createElement("x-child"), { id: "d" }));
+
+    document.body.insertAdjacentHTML("beforeend", "<x-broken></x-broken>");
+    window.addEventListener("error", (event) => event.preventDefault(), { once: true });
+    customElements.define(
+      "x-broken",
+      class extends HTMLElement {
+        constructor() {
+          super();
+          throw new Error("x-broken");
+        }
+        connectedCallback() {
+          log.push("connected:broken");
+        }
+      },
+    );
+    const broken = document.querySelector("x-broken")!;
+    broken.remove();
+    document.body.append(broken);
+    return { a: typeof a.play, beforeConnect, b: typeof (b as any).play, log };
+  });
+
+  expect(result).toEqual({
+    a: "function",
+    beforeConnect: "undefined",
+    b: "function",
+    log: ["connected:a", "connected:b", "connected:b", "connected:c", "connected:d"],
+  });
+});
