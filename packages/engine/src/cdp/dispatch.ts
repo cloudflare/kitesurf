@@ -27,7 +27,7 @@ import { handleRuntime } from "./runtime.ts";
 import { handleDom } from "./dom.ts";
 import { handleNetwork } from "./network.ts";
 import { logDomain } from "./log.ts";
-import { handleFetch } from "./fetch.ts";
+import { fetchDomain } from "./fetch.ts";
 import { handleInput } from "./input.ts";
 import { handleKitesurf } from "./kitesurf.ts";
 import { handleWebMcp } from "./webmcp.ts";
@@ -162,7 +162,7 @@ export async function dispatch(ctx: DispatchCtx, req: CdpRequest): Promise<CdpRe
         result = await runDomain(ctx, req, logDomain);
         break;
       case "Fetch":
-        result = await handleFetch(ctx, req);
+        result = await runDomain(ctx, req, fetchDomain);
         break;
       case "Input":
         result = await handleInput(ctx, req, undefined, { replyOnDispatch: true });

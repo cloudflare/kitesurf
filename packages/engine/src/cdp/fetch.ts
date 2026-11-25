@@ -4,8 +4,8 @@
 
 // Implements CDP Fetch interception commands for pausing and resuming requests.
 
-import type { CdpRequest } from "./types.ts";
 import type { DispatchCtx } from "./dispatch.ts";
+import { defineDomain, stub } from "./domain.ts";
 import {
   ensureInterception,
   getInterception,
@@ -16,9 +16,9 @@ import {
   type InterceptAction,
 } from "./fetch-interception.ts";
 
-export async function handleFetch(ctx: DispatchCtx, req: CdpRequest): Promise<unknown> {
-  switch (req.method) {
-    case "Fetch.enable": {
+export const fetchDomain = defineDomain("Fetch", {
+  methods: {
+    "Fetch.enable": (ctx, req) => {
       const st = ensureInterception(ctx.connectionId);
       const raw = req.params?.patterns ?? [{ urlPattern: "*" }];
       const active = raw.filter((p) => (p.requestStage ?? "Request") === "Request");
@@ -43,9 +43,9 @@ export async function handleFetch(ctx: DispatchCtx, req: CdpRequest): Promise<un
       const sessionId = req.sessionId;
       st.emit = (params) => ctx.emit({ method: "Fetch.requestPaused", params, sessionId });
       return {};
-    }
+    },
 
-    case "Fetch.disable": {
+    "Fetch.disable": (ctx) => {
       const st = getInterception(ctx.connectionId);
       if (st) {
         releaseAllParked(st);
@@ -53,9 +53,9 @@ export async function handleFetch(ctx: DispatchCtx, req: CdpRequest): Promise<un
         st.pendingEmits = [];
       }
       return {};
-    }
+    },
 
-    case "Fetch.continueRequest": {
+    "Fetch.continueRequest": (ctx, req) => {
       const p = req.params!;
       const action: InterceptAction = {
         kind: "continue",
@@ -66,9 +66,9 @@ export async function handleFetch(ctx: DispatchCtx, req: CdpRequest): Promise<un
       };
       resolveOrThrow(ctx, p.requestId, action);
       return {};
-    }
+    },
 
-    case "Fetch.fulfillRequest": {
+    "Fetch.fulfillRequest": (ctx, req) => {
       const p = req.params!;
       resolveOrThrow(ctx, p.requestId, {
         kind: "fulfill",
@@ -77,24 +77,20 @@ export async function handleFetch(ctx: DispatchCtx, req: CdpRequest): Promise<un
         body: p.body,
       });
       return {};
-    }
+    },
 
-    case "Fetch.failRequest": {
+    "Fetch.failRequest": (ctx, req) => {
       const p = req.params!;
       resolveOrThrow(ctx, p.requestId, {
         kind: "fail",
         errorReason: p.errorReason,
       });
       return {};
-    }
+    },
 
-    case "Fetch.continueWithAuth":
-      return {};
-
-    default:
-      return {};
-  }
-}
+    "Fetch.continueWithAuth": stub,
+  },
+});
 
 function resolveOrThrow(ctx: DispatchCtx, interceptionId: string, action: InterceptAction): void {
   const st = ensureInterception(ctx.connectionId);

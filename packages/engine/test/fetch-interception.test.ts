@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
-import { handleFetch } from "../src/cdp/fetch.ts";
+import { fetchDomain } from "../src/cdp/fetch.ts";
 import {
   ensureInterception,
   getInterception,
@@ -29,7 +29,7 @@ const ctx = {
 } as unknown as DispatchCtx;
 
 const enable = (urlPattern: string) =>
-  handleFetch(ctx, { id: 1, method: "Fetch.enable", params: { patterns: [{ urlPattern }] } });
+  fetchDomain.run(ctx, { id: 1, method: "Fetch.enable", params: { patterns: [{ urlPattern }] } });
 
 const enabled = () => {
   const st = getInterception(ctx.connectionId);
@@ -66,7 +66,7 @@ describe("fetch urlPattern matching", () => {
   it("rejects more patterns than the per-call cap", async () => {
     const patterns = Array.from({ length: MAX_GLOB_PATTERNS + 1 }, () => ({ urlPattern: "*" }));
     await expect(
-      handleFetch(ctx, { id: 1, method: "Fetch.enable", params: { patterns } }),
+      fetchDomain.run(ctx, { id: 1, method: "Fetch.enable", params: { patterns } }),
     ).rejects.toThrow(/pattern limit/);
     expect(getInterception(ctx.connectionId)).toBeUndefined();
     unregisterInterception(ctx.connectionId);
