@@ -6,7 +6,7 @@
 // Each generation runs in one pinned JSRPC session; returns must be plain data or bytes, because a
 // returned function becomes a live capability that extends the session.
 
-import { WorkerEntrypoint, RpcTarget, abortIsolate } from "cloudflare:workers";
+import { DurableObject, WorkerEntrypoint, RpcTarget, abortIsolate } from "cloudflare:workers";
 import { pdfScenePages } from "./pdf-stream.ts";
 import { createFrameBitmapDeliveryGate } from "./frame-bitmap-gate.ts";
 import type {
@@ -5850,6 +5850,16 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         return {};
     }
   }
+}
+
+// PageScript hosted as a Durable Object facet (engine eval/page-script-host.ts), which gives the
+// page a database of its own. Only the host class differs: PageScript's methods reach nothing but
+// this.ctx.props, this.env and module state, and both hosts provide those.
+export class PageScriptFacet extends DurableObject {}
+for (const name of Object.getOwnPropertyNames(PageScript.prototype)) {
+  if (name === "constructor") continue;
+  const method = Object.getOwnPropertyDescriptor(PageScript.prototype, name);
+  if (method) Object.defineProperty(PageScriptFacet.prototype, name, method);
 }
 
 type QueryDomActiveState = typeof state & { dom: DomHandle };

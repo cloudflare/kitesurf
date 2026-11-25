@@ -2326,6 +2326,7 @@ async function pushNavigateToPageScriptInner(
           initTimings: raInitTimings,
           capOverrides: ctx.browser.isolateCapOverrides,
           sandboxOutbound: ctx.browser.sandboxOutbound,
+          pageScriptHost: ctx.browser.pageScriptHost,
         }),
       { generation },
     );
