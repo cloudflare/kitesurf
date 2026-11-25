@@ -340,7 +340,9 @@ function copyCommentDataToClone(sourceId: number, cloneId: number): void {
   }
   if (!srcInfo || !cloneInfo) return;
   if (srcInfo.nodeType === COMMENT_NODE) {
-    const text = commentData.get(sourceId) ?? "";
+    // Only createComment and data writes fill commentData: a parsed comment's text lives in the
+    // tree alone, so falling back to "" erased what deepCloneNode had copied.
+    const text = commentData.get(sourceId) ?? srcInfo.nodeValue;
     commentData.set(cloneId, text);
     try {
       dom.setCommentData(cloneId, text);
