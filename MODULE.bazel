@@ -562,3 +562,13 @@ bazelflare_profiles.profile(
         "slots": "1",
     },
 )
+bazelflare_profiles.profile(
+    name = "pptr",
+    exec_properties = {
+        "container-image": "puppeteer-25.16.0",  # bakes scripts/pptr-setup.mjs's PPTR_TAG at /opt/puppeteer
+        "idle-ms": "60000",
+        "instance": "standard-4",
+        "max-vcpu": "200",
+        "slots": "1",
+    },
+)
