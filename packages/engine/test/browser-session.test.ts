@@ -12,6 +12,11 @@ import {
 } from "../src/cdp/connection.ts";
 import type { SessionContext } from "../src/cdp/dispatch.ts";
 import { makeChildFrameState } from "../src/cdp/frames.ts";
+import {
+  drainInterception,
+  ensureInterception,
+  registerParked,
+} from "../src/cdp/fetch-interception.ts";
 import { liveExtraHeaders } from "../src/cdp/extra-headers-registry.ts";
 import { liveExtraHeadersTarget } from "../src/cdp/network.ts";
 
@@ -291,6 +296,52 @@ describe("BrowserSession", () => {
     await vi.waitFor(() => expect(remaining).toBe(1), WAIT);
     expect(session.browser.screencasts.size).toBe(0);
     expect([page.viewportWidth, page.viewportHeight]).toEqual([400, 300]);
+  });
+
+  it("keeps Fetch interception to its owner and hands it over", async () => {
+    let remaining = -1;
+    const request = new Request("http://engine.test/devtools/browser");
+    const session = (current = new BrowserSession(request, {} as Env, sessionCtx, params(), {
+      persistent: true,
+      onClientLeft: (n) => (remaining = n),
+    }));
+    const a = connect(session);
+    const b = connect(session);
+    connect(session);
+    await a.send("Fetch.enable", { patterns: [{ urlPattern: "*" }] });
+    const st = ensureInterception(session.id);
+    const pause = () =>
+      registerParked(st, {
+        url: "https://ks.invalid/",
+        method: "GET",
+        headers: {},
+        resourceType: "Document",
+        frameId: "frame",
+        networkId: "net",
+      });
+    const first = pause();
+    drainInterception(session.id);
+    await vi.waitFor(() => expect(a.events("Fetch.requestPaused")).toHaveLength(1), WAIT);
+    await b.send("Target.getTargets");
+    expect(b.events("Fetch.requestPaused")).toHaveLength(0);
+
+    const foreign = await b.send("Fetch.continueRequest", { requestId: first.interceptionId });
+    expect(foreign.error).toBeDefined();
+    await b.send("Fetch.disable");
+    expect(first.verdict).toBeUndefined();
+    expect(st.ownerClientId).toBe(a.conn.state.id);
+
+    await b.send("Fetch.enable", { patterns: [{ urlPattern: "*" }] });
+    expect(first.verdict).toEqual({ kind: "continue" });
+    const late = await a.send("Fetch.continueRequest", { requestId: first.interceptionId });
+    expect(late.error).toBeDefined();
+
+    const second = pause();
+    b.socket.close(1000, "done");
+    await vi.waitFor(() => expect(remaining).toBe(2), WAIT);
+    expect(second.verdict).toEqual({ kind: "continue" });
+    expect(st.ownerClientId).toBeNull();
+    expect(st.patterns).toEqual([]);
   });
 
   it("tells a late browser-mode client of the existing child frames and attaches it", async () => {

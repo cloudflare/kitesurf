@@ -7,12 +7,12 @@
 import type { DispatchCtx } from "./dispatch.ts";
 import { defineDomain, stub } from "./domain.ts";
 import {
-  disableInterception,
+  disableInterceptionForClient,
   ensureInterception,
-  getInterception,
   MAX_GLOB_PATTERN_CHARS,
   MAX_GLOB_PATTERNS,
   resolveParked,
+  takeOverInterception,
   type InterceptAction,
 } from "./fetch-interception.ts";
 
@@ -36,20 +36,21 @@ export const fetchDomain = defineDomain("Fetch", {
           );
         }
       }
+      takeOverInterception(st, ctx.client.id);
       st.patterns = active.map((p) => ({
         pattern: p.urlPattern ?? "*",
         resourceType: p.resourceType,
       }));
       const sessionId = req.sessionId;
       st.ownerSessionId = sessionId;
-      st.emit = (params) => ctx.emit({ method: "Fetch.requestPaused", params, sessionId });
-      st.ownerClientId = ctx.client.id;
+      // Only the owner hears its pauses, also for a Fetch.enable on the root session.
+      st.emit = (params) => ctx.emitToClient({ method: "Fetch.requestPaused", params, sessionId });
       return {};
     },
 
+    // Another client's Fetch.disable leaves the owner's interception running.
     "Fetch.disable": (ctx) => {
-      const st = getInterception(ctx.connectionId);
-      if (st) disableInterception(st);
+      disableInterceptionForClient(ctx.connectionId, ctx.client.id);
       return {};
     },
 
@@ -97,7 +98,7 @@ export const fetchDomain = defineDomain("Fetch", {
 
 function resolveOrThrow(ctx: DispatchCtx, interceptionId: string, action: InterceptAction): void {
   const st = ensureInterception(ctx.connectionId);
-  if (!resolveParked(st, interceptionId, action)) {
+  if (st.ownerClientId !== ctx.client.id || !resolveParked(st, interceptionId, action)) {
     throw new Error("Invalid InterceptionId.");
   }
 }

@@ -36,7 +36,7 @@ export interface ParkedRequest {
 export interface FetchInterceptionState {
   patterns: CompiledPattern[];
   emit: (params: Protocol.Fetch.RequestPausedEvent) => void;
-  // The client whose Fetch.enable installed `emit`; nobody answers its pauses once it leaves.
+  // The client whose Fetch.enable installed `emit`. Only it resolves the pauses and disables.
   ownerClientId: string | null;
   parked: Map<string, ParkedRequest>;
   nextId: number;
@@ -86,14 +86,10 @@ export function releaseParkedForConnection(connectionId: string): void {
   if (st) releaseAllParked(st);
 }
 
-export function disableInterception(st: FetchInterceptionState): void {
+function endInterception(st: FetchInterceptionState): void {
   releaseAllParked(st);
   st.patterns = [];
   st.pendingEmits = [];
-}
-
-function endInterception(st: FetchInterceptionState): void {
-  disableInterception(st);
   st.emit = () => {};
   st.ownerSessionId = undefined;
   st.ownerClientId = null;
@@ -107,7 +103,19 @@ export function endSessionInterception(connectionId: string, sessionId: string):
   endInterception(st);
 }
 
-/** Stops interception as Fetch.disable would, if `clientId` enabled it. */
+/**
+ * Makes `clientId` the owner. Another client's paused requests continue unchanged, and the
+ * pauses it was not yet told of are dropped, so no client answers a pause it never saw.
+ */
+export function takeOverInterception(st: FetchInterceptionState, clientId: string): void {
+  if (st.ownerClientId !== null && st.ownerClientId !== clientId) {
+    releaseAllParked(st);
+    st.pendingEmits = [];
+  }
+  st.ownerClientId = clientId;
+}
+
+/** Stops interception as Fetch.disable does, if `clientId` owns it. */
 export function disableInterceptionForClient(connectionId: string, clientId: string): void {
   const st = registry.get(connectionId);
   if (!st || st.ownerClientId !== clientId) return;
