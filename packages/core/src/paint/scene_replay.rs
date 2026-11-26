@@ -6,27 +6,36 @@
 //! Each rasterizer instance owns its resource cache and retained-frame state.
 
 use std::borrow::Cow;
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Cursor;
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 use std::panic::{self, RefUnwindSafe};
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 use anyrender::{Glyph as AnyGlyph, ImageRenderer as _, PaintScene};
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 use kurbo::{Affine, BezPath, Point, Shape, Vec2};
-use peniko::{
-    BlendMode, Blob, Color, Fill, FontData, ImageAlphaType, ImageBrush, ImageData, ImageSampler,
-};
+use peniko::{Blob, Color, FontData, ImageAlphaType, ImageData};
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
+use peniko::{BlendMode, Fill, ImageBrush, ImageSampler};
 #[cfg(feature = "scene-rasterizer-wasm")]
 use wasm_bindgen::prelude::*;
 
+use crate::paint::scene_decode::{self, DecodedResources, ResourceKind};
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 use crate::paint::scene_decode::{
-    self, DecodedCap, DecodedFillRule, DecodedJoin, DecodedPaint, DecodedPathEl, DecodedResources,
-    DecodedTransform, ResourceKind, SceneVisitor,
+    DecodedCap, DecodedFillRule, DecodedJoin, DecodedPaint, DecodedPathEl, DecodedTransform,
+    SceneVisitor,
 };
 use crate::paint::scene_record::{
-    font_data_key, fx_hash_u64, FONT_DATA_REF_ASSET, FONT_DATA_REF_BLOB, IMAGE_REF_HINT_BYTES,
+    font_data_key, FONT_DATA_REF_ASSET, FONT_DATA_REF_BLOB, IMAGE_REF_HINT_BYTES,
     RBI_RESOURCE_KIND_FONT_DATA, RBI_RESOURCE_KIND_IMAGE,
 };
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
+use crate::paint::scene_record::fx_hash_u64;
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 use crate::paint::screenshot::{
     encode_jpeg, encode_jpeg_retained, encode_png, encode_webp, ImageFormat, JpegRowCache,
 };
@@ -266,6 +275,7 @@ impl ResourceStore {
         }
     }
 
+    #[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
     fn put_font_asset(&mut self, path: &str, bytes: &[u8]) -> u32 {
         let processed = normalize_font_container(bytes);
         let keys: Vec<u64> = self
@@ -587,6 +597,7 @@ fn opaque_solid_color(img: &ImageData) -> Option<Color> {
     Some(solid(first[0], first[1], first[2], 255))
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 struct ReplayContext<'a> {
     store: &'a ResourceStore,
     inline_images: HashMap<u64, ImageData>,
@@ -595,6 +606,7 @@ struct ReplayContext<'a> {
     image_scale: HashMap<u64, Affine>,
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl<'a> ReplayContext<'a> {
     fn new(store: &'a ResourceStore, resources: &mut DecodedResources) -> Self {
         let inline_images = decode_inline_images(resources);
@@ -655,6 +667,7 @@ impl<'a> ReplayContext<'a> {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 struct ReplayVisitor<'a, 'b, S: PaintScene> {
     scene: &'a mut S,
     ctx: &'a ReplayContext<'b>,
@@ -667,8 +680,10 @@ struct ReplayVisitor<'a, 'b, S: PaintScene> {
     glyph_text_pending: bool,
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 const PIXEL_EDGE_EPSILON: f64 = 1e-3;
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn is_whole_pixel_rect(transform: DecodedTransform, clip_path: &[DecodedPathEl]) -> bool {
     let t = affine(transform);
     let c = t.as_coeffs();
@@ -708,6 +723,7 @@ fn is_whole_pixel_rect(transform: DecodedTransform, clip_path: &[DecodedPathEl])
 }
 
 #[derive(Default)]
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 struct LayerComposeScan {
     non_source_over: bool,
     dimensions: (u32, u32),
@@ -716,6 +732,7 @@ struct LayerComposeScan {
     opaque_background: bool,
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl SceneVisitor for LayerComposeScan {
     fn on_push_layer(
         &mut self,
@@ -802,6 +819,7 @@ impl SceneVisitor for LayerComposeScan {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn scan_layer_composition(scene_bytes: &[u8], dimensions: (u32, u32)) -> LayerComposeScan {
     let mut scan = LayerComposeScan {
         dimensions,
@@ -813,6 +831,7 @@ fn scan_layer_composition(scene_bytes: &[u8], dimensions: (u32, u32)) -> LayerCo
     scan
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn affine(t: DecodedTransform) -> Affine {
     let c = t.0;
     Affine::new([
@@ -825,6 +844,7 @@ fn affine(t: DecodedTransform) -> Affine {
     ])
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn bez_path(els: &[DecodedPathEl]) -> BezPath {
     let mut p = BezPath::new();
     for el in els {
@@ -853,6 +873,7 @@ fn bez_path(els: &[DecodedPathEl]) -> BezPath {
     p
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn mix_from_u8(v: u8) -> peniko::Mix {
     use peniko::Mix::*;
     match v {
@@ -875,6 +896,7 @@ fn mix_from_u8(v: u8) -> peniko::Mix {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn compose_from_u8(v: u8) -> peniko::Compose {
     use peniko::Compose::*;
     match v {
@@ -899,6 +921,7 @@ fn solid(r: u8, g: u8, b: u8, a: u8) -> Color {
     Color::from_rgba8(r, g, b, a)
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn image_sampler() -> ImageSampler {
     ImageSampler {
         x_extend: peniko::Extend::Repeat,
@@ -908,6 +931,7 @@ fn image_sampler() -> ImageSampler {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl<'a, 'b, S: PaintScene> ReplayVisitor<'a, 'b, S> {
     fn fill_with_paint(
         &mut self,
@@ -943,6 +967,7 @@ impl<'a, 'b, S: PaintScene> ReplayVisitor<'a, 'b, S> {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
     fn on_push_layer(
         &mut self,
@@ -1206,6 +1231,7 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 #[derive(Default, Clone, Copy)]
 pub(crate) struct ReplayStats {
     pub missing_fonts: u32,
@@ -1214,6 +1240,7 @@ pub(crate) struct ReplayStats {
     pub opaque: bool,
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 pub(crate) fn replay_into<S: PaintScene>(
     scene_bytes: &[u8],
     store: &ResourceStore,
@@ -1254,12 +1281,17 @@ pub(crate) fn replay_to_rgba(
     replay_to_rgba_with(scene_bytes, store, &mut None, Vec::new())
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 const RENDERER_IMAGE_CACHE_BYTES: usize = 16 * 1024 * 1024;
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 const RENDERER_IMAGE_CACHE_PRUNE_FRAMES: u64 = 1;
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 const RASTER_BAND_ROWS: u16 = 128;
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 const MAX_BANDED_SCENE_DIMENSION: u32 = u16::MAX as u32;
 
 /// A recorded scene whose pixels are produced a bounded band at a time.
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 struct SceneRasterBands {
     render: vello_cpu::PreparedRender,
     width: u16,
@@ -1267,6 +1299,7 @@ struct SceneRasterBands {
     next_row: u16,
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl SceneRasterBands {
     /// Render the next band, or return an empty buffer after the final band.
     fn next_band(&mut self) -> Vec<u8> {
@@ -1290,9 +1323,11 @@ impl SceneRasterBands {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 #[derive(Clone, Default)]
 struct PngOutput(std::rc::Rc<RefCell<Vec<u8>>>);
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl std::io::Write for PngOutput {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         self.0.borrow_mut().extend_from_slice(bytes);
@@ -1305,8 +1340,10 @@ impl std::io::Write for PngOutput {
 }
 
 /// PNG filter type 4 (Paeth), the filter the full-frame encoder emits.
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 const PNG_FILTER_PAETH: u8 = 4;
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn filter_png_row(previous: &[u8], row: &[u8], filtered: &mut [u8]) {
     filtered[0] = PNG_FILTER_PAETH;
     for i in 0..row.len() {
@@ -1335,6 +1372,7 @@ fn filter_png_row(previous: &[u8], row: &[u8], filtered: &mut [u8]) {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn append_png_chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
     out.extend_from_slice(&(data.len() as u32).to_be_bytes());
     out.extend_from_slice(kind);
@@ -1345,9 +1383,12 @@ fn append_png_chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
     out.extend_from_slice(&crc.finalize().to_be_bytes());
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 const PNG_IDAT_LENGTH_OFFSET: usize = 33;
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 const PNG_FIXED_BYTES: usize = 57;
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn patch_png_idat_length(bytes: &mut [u8]) -> Result<usize, String> {
     let data_len = bytes
         .len()
@@ -1361,6 +1402,7 @@ fn patch_png_idat_length(bytes: &mut [u8]) -> Result<usize, String> {
     Ok(data_len)
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 struct StoredPng {
     remaining: usize,
     block_remaining: usize,
@@ -1369,8 +1411,10 @@ struct StoredPng {
 }
 
 /// Longest run between adler32 reductions (zlib's NMAX), so the running sums stay in `u32`.
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 const ADLER_CHUNK: usize = 5552;
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl StoredPng {
     fn write(&mut self, mut data: &[u8], out: &mut Vec<u8>) {
         while !data.is_empty() {
@@ -1397,12 +1441,14 @@ impl StoredPng {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 enum PngCompressor {
     Fast(Option<fdeflate::Compressor<PngOutput>>),
     Stored(StoredPng),
 }
 
 /// PNG encoder that emits the same IDAT stream as the full-frame encoder.
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 struct ScenePngStream {
     bands: SceneRasterBands,
     compressor: PngCompressor,
@@ -1416,8 +1462,10 @@ struct ScenePngStream {
 }
 
 // Each mutable operation marks the stream poisoned until it completes successfully.
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl std::panic::RefUnwindSafe for ScenePngStream {}
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl ScenePngStream {
     /// Encode the next band, returning empty bytes after the final chunk.
     fn next_chunk(&mut self) -> Result<Vec<u8>, String> {
@@ -1509,6 +1557,7 @@ impl ScenePngStream {
 }
 
 /// JPEG encoder that consumes the recorded scene in MCU-aligned bands.
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 #[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen)]
 pub struct SceneJpegStream {
     bands: SceneRasterBands,
@@ -1519,8 +1568,10 @@ pub struct SceneJpegStream {
 }
 
 // A failed or unwound operation leaves the stream poisoned, so it cannot be reused.
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl std::panic::RefUnwindSafe for SceneJpegStream {}
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 #[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen)]
 impl SceneJpegStream {
     /// Encode the next band, returning empty bytes only after the final chunk.
@@ -1538,6 +1589,7 @@ impl SceneJpegStream {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl SceneJpegStream {
     fn next_chunk_inner(&mut self) -> Result<Vec<u8>, String> {
         if self.done {
@@ -1574,10 +1626,12 @@ impl SceneJpegStream {
 }
 
 /// JPEG restart markers cycle FF D0 to FF D7 between the rows of a streamed image.
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn jpeg_restart_marker(row_count: usize) -> [u8; 2] {
     [0xff, 0xd0 + ((row_count - 1) % 8) as u8]
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn set_jpeg_height(header: &mut [u8], height: u16) -> Result<(), String> {
     let mut pos = 2;
     while let Some(segment) = header.get(pos..pos + 4) {
@@ -1601,6 +1655,7 @@ fn set_jpeg_height(header: &mut [u8], height: u16) -> Result<(), String> {
     Err("missing JPEG frame header".to_string())
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 pub(crate) struct CachedRenderer {
     w: u32,
     h: u32,
@@ -1609,9 +1664,11 @@ pub(crate) struct CachedRenderer {
 
 /// The single-pass rasterizer's per-side cap. A frame above it must take the banded path, or the
 /// replay silently clamps it.
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 const MAX_SINGLE_PASS_DIMENSION: u32 = 4096;
 
 /// A framed scene's rendered size in pixels.
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn frame_dimensions(scene: &[u8]) -> Result<(u32, u32), String> {
     let header = scene_decode::parse_header(scene).map_err(|e| e.to_string())?;
     let height = if header.render_h > 0 {
@@ -1624,12 +1681,14 @@ fn frame_dimensions(scene: &[u8]) -> Result<(u32, u32), String> {
 
 /// Whether a frame must be rasterized in bands: one side above the single-pass cap, or an area
 /// too large to retain whole.
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn needs_banded_raster(width: u32, height: u32) -> bool {
     width > MAX_SINGLE_PASS_DIMENSION
         || height > MAX_SINGLE_PASS_DIMENSION
         || (width as usize) * (height as usize) > MAX_RETAINED_PIXELS
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn raster_dimensions(header: &scene_decode::SceneHeader) -> (u32, u32) {
     const MAX_DIM: u32 = MAX_SINGLE_PASS_DIMENSION;
     let h = if header.render_h > 0 {
@@ -1640,6 +1699,7 @@ fn raster_dimensions(header: &scene_decode::SceneHeader) -> (u32, u32) {
     (header.viewport_w.clamp(1, MAX_DIM), h.clamp(1, MAX_DIM))
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 pub(crate) fn replay_to_rgba_with(
     scene_bytes: &[u8],
     store: &ResourceStore,
@@ -1680,7 +1740,10 @@ pub(crate) fn replay_to_rgba_with(
     Ok((buffer, w, h, stats))
 }
 
-#[cfg(feature = "pdf")]
+#[cfg(all(
+    feature = "pdf",
+    any(feature = "scene-rasterizer-wasm", feature = "native-host", test)
+))]
 fn split_pdf_envelope(envelope: &[u8]) -> Vec<&[u8]> {
     let mut out = Vec::new();
     if envelope.len() < PDF_ENVELOPE_U32_BYTES {
@@ -1703,7 +1766,10 @@ fn split_pdf_envelope(envelope: &[u8]) -> Vec<&[u8]> {
     out
 }
 
-#[cfg(feature = "pdf")]
+#[cfg(all(
+    feature = "pdf",
+    any(feature = "scene-rasterizer-wasm", feature = "native-host", test)
+))]
 #[derive(Clone, Copy)]
 struct PdfRenderOptions {
     paper_width: u32,
@@ -1715,7 +1781,10 @@ struct PdfRenderOptions {
     margin_left: u32,
 }
 
-#[cfg(feature = "pdf")]
+#[cfg(all(
+    feature = "pdf",
+    any(feature = "scene-rasterizer-wasm", feature = "native-host", test)
+))]
 #[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen)]
 pub struct StreamingPdf {
     document: Option<krilla::Document>,
@@ -1724,7 +1793,10 @@ pub struct StreamingPdf {
 }
 
 // Replay takes the document out before catching a panic, so it cannot be reused after unwinding.
-#[cfg(feature = "pdf")]
+#[cfg(all(
+    feature = "pdf",
+    any(feature = "scene-rasterizer-wasm", feature = "native-host", test)
+))]
 impl std::panic::RefUnwindSafe for StreamingPdf {}
 
 /// Printable content rectangle `(left, top, width, height)` in CSS pixels.
@@ -1745,7 +1817,10 @@ pub(crate) fn content_box(
     (ml, mt, width, height)
 }
 
-#[cfg(feature = "pdf")]
+#[cfg(all(
+    feature = "pdf",
+    any(feature = "scene-rasterizer-wasm", feature = "native-host", test)
+))]
 fn render_pdf_impl(
     store: &ResourceStore,
     envelope: &[u8],
@@ -1764,7 +1839,10 @@ fn render_pdf_impl(
         .map_err(|e| format!("krilla finish: {:?}", e))
 }
 
-#[cfg(feature = "pdf")]
+#[cfg(all(
+    feature = "pdf",
+    any(feature = "scene-rasterizer-wasm", feature = "native-host", test)
+))]
 fn replay_pdf_page(
     pdf_doc: &mut krilla::Document,
     store: &ResourceStore,
@@ -1840,8 +1918,10 @@ fn u64_le(b: &[u8]) -> u64 {
     u64::from_le_bytes(buf)
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 const MAX_RETAINED_PIXELS: usize = 2560 * 1440;
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 struct RetainedFrame {
     key: String,
     buf: Vec<u8>,
@@ -1853,8 +1933,10 @@ struct RetainedFrame {
     history: Vec<JpegRowCache>,
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 const JPEG_ROW_HISTORY: usize = 4;
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl RetainedFrame {
     fn encode(
         &mut self,
@@ -1958,6 +2040,7 @@ impl RetainedFrame {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 #[inline]
 fn same_rgba_row(left: &[u8], right: &[u8]) -> bool {
     #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
@@ -1989,6 +2072,7 @@ fn same_rgba_row(left: &[u8], right: &[u8]) -> bool {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn changed_rows(old: &[u8], new: &[u8], w: u32) -> (u32, u32) {
     let stride = w as usize * 4;
     let rows = || old.chunks_exact(stride).zip(new.chunks_exact(stride));
@@ -2001,6 +2085,7 @@ fn changed_rows(old: &[u8], new: &[u8], w: u32) -> (u32, u32) {
     (top as u32, bottom as u32 + 1)
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn blit_rgba(
     dst: &mut [u8],
     dst_size: (u32, u32),
@@ -2027,6 +2112,7 @@ fn blit_rgba(
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn encode_rgba_frame_owned(
     fmt: ImageFormat,
     mut buffer: Vec<u8>,
@@ -2040,6 +2126,7 @@ fn encode_rgba_frame_owned(
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn encode_rgba_frame(
     fmt: ImageFormat,
     buffer: &mut [u8],
@@ -2064,6 +2151,7 @@ fn encode_rgba_frame(
 
 /// Wasm replay interface with one session resource cache per instance.
 /// Raster and PDF failures return empty bytes; diagnostics are available via `lastRasterizeInfo`.
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 #[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen)]
 #[derive(Default)]
 pub struct SceneRasterizer {
@@ -2077,8 +2165,10 @@ pub struct SceneRasterizer {
 
 // Manual RefUnwindSafe is valid in single-threaded Wasm: unwinding drops
 // RefCell guards. A raster panic discards renderer state but keeps resources.
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl RefUnwindSafe for SceneRasterizer {}
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl SceneRasterizer {
     /// Record a scene once and retain its resources until its bands are dropped.
     fn start_bands(&self, scene: &[u8]) -> Result<SceneRasterBands, String> {
@@ -2168,6 +2258,7 @@ impl SceneRasterizer {
 }
 
 /// The stored (uncompressed) PNG's encoded length, and the compressed length it must beat.
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn stored_png_sizes(width: u16, height: u16) -> Result<(usize, usize), String> {
     let raw_len = (usize::from(width) * 4 + 1)
         .checked_mul(usize::from(height))
@@ -2188,6 +2279,7 @@ fn stored_png_sizes(width: u16, height: u16) -> Result<(usize, usize), String> {
     Ok((png_len, threshold))
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn collect_png_stream(
     mut stream: ScenePngStream,
     encoded_limit: Option<usize>,
@@ -2205,12 +2297,14 @@ fn collect_png_stream(
     Ok((bytes, data_len))
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn encoded_limit_error(width: u16, height: u16, size: usize, limit: usize) -> String {
     format!(
         "encoded-limit: screenshot {width}x{height} encoded {size} bytes, exceeding limit {limit} bytes; use a clip, JPEG, or lower quality"
     )
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn append_encoded_chunk(
     bytes: &mut Vec<u8>,
     chunk: Vec<u8>,
@@ -2231,6 +2325,7 @@ fn append_encoded_chunk(
     Ok(())
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 #[cfg_attr(feature = "scene-rasterizer-wasm", wasm_bindgen)]
 impl SceneRasterizer {
     /// Create a rasterizer with an empty resource store and no retained frame.
@@ -2302,6 +2397,7 @@ impl SceneRasterizer {
 
     /// Scan a framed scene for resources the store can't satisfy.
     /// Returns [count u32] + count × { kind u8, hash u64 (LE) }.
+    #[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host"))]
     #[cfg_attr(
         feature = "scene-rasterizer-wasm",
         wasm_bindgen(js_name = "missingResources")
@@ -2408,6 +2504,7 @@ impl SceneRasterizer {
     /// Register a fetched font asset file (post-fetch bytes; woff2
     /// is decompressed here). `path` matches pending asset-refs —
     /// see ResourceStore::put_font_asset for why path, not hash.
+    #[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host"))]
     #[cfg_attr(
         feature = "scene-rasterizer-wasm",
         wasm_bindgen(js_name = "putFontAsset")

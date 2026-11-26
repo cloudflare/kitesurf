@@ -8,6 +8,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 use kurbo::Point;
 
 use crate::paint::scene_record::{
@@ -190,6 +191,7 @@ pub enum DecodedPaint {
     Image { content_hash: u64 },
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl DecodedGradient {
     pub fn to_peniko_gradient(&self) -> peniko::Gradient {
         use peniko::color::HueDirection;
@@ -269,6 +271,7 @@ impl DecodedGradient {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn color_space_tag_from_u8(v: u8) -> peniko::color::ColorSpaceTag {
     use peniko::color::ColorSpaceTag;
     match v {
@@ -326,6 +329,7 @@ pub enum DecodedPathEl {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DecodedTransform(pub [f32; 6]);
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl DecodedTransform {
     pub fn is_identity(&self) -> bool {
         let c = self.0;

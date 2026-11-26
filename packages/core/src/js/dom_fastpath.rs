@@ -524,7 +524,7 @@ fn slow_method_call_on(
         }
         Some(js_sys::Reflect::apply(f, &recv, &arr))
     });
-    // A throw rethrows like trap_apply's does: querySelector("[") must still
+    // A throw rethrows like host_trap_call's does: querySelector("[") must still
     // surface the shim's SyntaxError DOMException, not read as undefined.
     match out {
         Some(Ok(v)) => Ok(v8_to_boa(v, ctx)),
@@ -865,7 +865,7 @@ fn make_query_method(
         .into()
 }
 
-// Answers a trap_get from blitz or the method cache, or returns None for the slow path.
+// Answers a host_trap_get from blitz or the method cache, or returns None for the slow path.
 // `receiver` is the node proxy's target. Minted methods capture it, so a method boa keeps
 // also keeps the node's V8 pin, and with it the node.
 pub(crate) fn try_fast_get(

@@ -6,8 +6,11 @@ Subject: [PATCH] proxy: allow direct Rust trap callbacks on embedder handlers
 Host-owned bridge proxies forward every property read, write, has check,
 and function call to native Rust. Going through JS handler property lookup,
 index stringification, and temporary argument arrays adds overhead on every
-crossing; HostProxyTraps lets those handlers dispatch directly while
-preserving Proxy invariant checks whenever the target has own properties.
+crossing; HostProxyTraps lets those handlers dispatch directly. The
+empty-ordinary-target shortcut skips invariant checks for all proxies
+(including page proxies such as `new Proxy({}, handler)`), preserving
+Proxy invariant checks whenever the target has own properties or is not an
+extensible ordinary object.
 ---
  src/builtins/proxy/mod.rs   | 191 ++++++++++++++++++++++++++----------
  src/builtins/proxy/tests.rs |  90 +++++++++++++++++
