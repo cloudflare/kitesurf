@@ -51,7 +51,8 @@ const applyHeaderRules = function (rules, pathname, headers) {
 /** A file from public/, or 404. Only names with an extension are files: the disk service answers
  * a directory with its listing. */
 const serveFile = async function (env, request) {
-  const { pathname } = new URL(request.url);
+  // workerd's disk service answers 404 for a path with an empty segment.
+  const pathname = new URL(request.url).pathname.replace(/\/{2,}/g, "/");
   const extension = /\.([a-z0-9]+)$/i.exec(pathname)?.[1].toLowerCase();
   if (extension === undefined || (request.method !== "GET" && request.method !== "HEAD")) {
     return new Response("not found", { status: 404 });
