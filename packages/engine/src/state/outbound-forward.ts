@@ -63,7 +63,11 @@ function isStatefulNamespace(value: unknown): value is DurableObjectNamespace<St
   );
 }
 
-/** Forwards `request` to the stateful session named in `props`, or null for a stateless one. */
+/**
+ * Forwards `request` to the stateful session named in `props`, or null for a stateless one. A
+ * stateful request that cannot be forwarded fails with a 502: it never takes the stateless
+ * path, where the session's policy and routing are missing.
+ */
 export function forwardToStatefulSession(
   exports: object,
   props: OutboundProps | undefined,
@@ -72,7 +76,13 @@ export function forwardToStatefulSession(
   const id = props?.statefulSessionId;
   if (!id) return null;
   const ns = statefulNamespace(exports);
-  if (!ns) return null;
+  if (!ns) {
+    console.warn(JSON.stringify({ event: "stateful_outbound_forward_unavailable", sessionId: id }));
+    void request.body?.cancel().catch(() => {});
+    return Promise.resolve(
+      new Response("kitesurf: the browser session is unreachable\n", { status: 502 }),
+    );
+  }
   const { externalOutbound: _external, egress: _egress, ...plain } = props;
   const headers = new Headers(request.headers);
   // Percent-encoded: a header value must be Latin-1, and the props carry page-chosen strings.
