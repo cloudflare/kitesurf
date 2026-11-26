@@ -14,6 +14,7 @@ import {
   liveWindow,
   pageUrl,
   nodeFor,
+  mintedNode,
   elementFor,
   isElementNode,
   isShadowRootNode,
@@ -927,6 +928,10 @@ class NodeBase extends KsEventTarget implements Idl.Node {
         let clone: Element;
         if (nsEntry && nsEntry.viaNS !== false) {
           clone = createElementNSInternal(nsEntry.ns, nsEntry.qname);
+        } else if (nsEntry && nsEntry.ns !== HTML_NS) {
+          const id = dom.createElementNS(nsEntry.ns ?? "", nsEntry.qname);
+          elemNs.set(id, { qname: nsEntry.qname, ns: nsEntry.ns, viaNS: false });
+          clone = mintedNode(id, ELEMENT_NODE);
         } else {
           const tag = this._info.localName || this._info.nodeName || "div";
           clone = createElementInternal(tag);

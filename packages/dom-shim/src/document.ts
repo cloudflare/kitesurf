@@ -2254,29 +2254,43 @@ class DetachedDocument implements Idl.Document {
   // live document, then stamp this document as their owner.
   createElement(localName: string, options?: string | Idl.ElementCreationOptions): Element;
   createElement(tagName: string) {
-    const el = createElementInternal(tagName);
-    // NamedNodeMap's own-key filter applies only to HTML elements in HTML
-    // documents. No entry means HTML.
+    // DOM §4.5: `createElement` uses the HTML namespace only for HTML documents
+    // or XHTML (`application/xhtml+xml`); XML documents (including `new Document()`)
+    // create plain `Element` nodes with `namespaceURI === null` and preserved case.
+    // https://dom.spec.whatwg.org/#dom-document-createelement
     if (!this._isHtml) {
-      elementOwnerIsHtml.set(el._id, false);
-      // XML keeps the tag name's case. The namespace is HTML only when
-      // createDocument asked for it, or for a plain `new Document()`.
-      let ns;
-      if (this._createElementNs === undefined) {
-        ns = HTML_NS;
-      } else if (this._createElementNs === HTML_NS) {
-        ns = HTML_NS;
-      } else {
-        ns = null;
+      const t = String(tagName);
+      if (t.length === 0 || !isValidXmlName(t)) {
+        throw new DOMException(
+          "createElement: '" + t + "' is not a valid Name",
+          "InvalidCharacterError",
+        );
       }
-      elemNs.set(el._id, {
-        qname: String(tagName),
-        ns,
-        viaNS: true,
-      });
+      const ns = this._createElementNs === HTML_NS ? HTML_NS : null;
+      let el: Element;
+      if (ns === HTML_NS) {
+        el = createElementInternal(t);
+        elemNs.set(el._id, {
+          qname: t,
+          ns,
+          viaNS: false,
+        });
+      } else {
+        const id = dom.createElementNS("", t);
+        elemNs.set(id, {
+          qname: t,
+          ns: null,
+          viaNS: false,
+        });
+        el = mintedNode(id, ELEMENT_NODE);
+      }
+      elementOwnerIsHtml.set(el._id, false);
       xmlOwned.add(el._id);
       fastpathMarkSpecial(el._id);
+      nodeOwnerDoc.set(el, this);
+      return el;
     }
+    const el = createElementInternal(tagName);
     nodeOwnerDoc.set(el, this);
     return el;
   }

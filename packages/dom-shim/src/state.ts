@@ -104,6 +104,7 @@ export interface ListenerEntry {
   capture: boolean;
   once: boolean;
   passive: boolean;
+  detachAbort?: () => void;
 }
 
 export interface BuildDocumentOpts {

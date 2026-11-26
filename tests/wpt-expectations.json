@@ -9842,8 +9842,8 @@
     "reason": null
   },
   "/dom/events/AddEventListenerOptions-signal.any.html": {
-    "expected": "FAIL",
-    "reason": null
+    "expected": "PASS",
+    "reason": "AddEventListenerOptions.signal AbortSignal support"
   },
   "/dom/events/Body-FrameSet-Event-Handlers.html": {
     "expected": "PASS",
@@ -9894,8 +9894,8 @@
     "reason": null
   },
   "/dom/events/Event-dispatch-detached-input-and-change.html": {
-    "expected": "FAIL",
-    "reason": null
+    "expected": "PASS",
+    "reason": "checkbox/radio click activation on dispatchEvent"
   },
   "/dom/events/Event-dispatch-handlers-changed.html": {
     "expected": "PASS",
@@ -21060,8 +21060,8 @@
     "reason": "3/4 subtests pass. The plain-key subtest loses a race the bridge creates: each key event is its own CDP round-trip, so the page gets a JS turn between the previous test's 'v' keyup and its sticky-modifier undo keyup, and that trailing keyup settles the next subtest's promise early"
   },
   "/uievents/legacy-domevents-tests/approved/dispatchEvent.click.checkbox.html": {
-    "expected": "FAIL",
-    "reason": "activation behavior runs in Element.click() and the CDP input path, not in dispatchEvent, so a page-dispatched synthetic click doesn't toggle a checkbox"
+    "expected": "PASS",
+    "reason": "checkbox/radio click activation on dispatchEvent"
   },
   "/uievents/mouse/cancel-mousedown-in-subframe.html": {
     "expected": "TIMEOUT",

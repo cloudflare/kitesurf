@@ -114,8 +114,13 @@ import {
   registerTransientObservers,
   recordChildListMutation,
 } from "../mutations/observer.js";
-import { KsPointerEvent, KsInputEvent, KsEvent, KsFocusEvent } from "../events/event.js";
-import type { KsMouseEvent } from "../events/event.js";
+import {
+  KsPointerEvent,
+  KsInputEvent,
+  KsEvent,
+  KsFocusEvent,
+  KsMouseEvent,
+} from "../events/event.js";
 import {
   NodeBase,
   isTemplateElement,
@@ -363,42 +368,104 @@ interface Element extends InstalledElementMembers {}
 export const attributeChangeSteps = Symbol("kitesurf.attributeChangeSteps");
 export const activationBehavior = Symbol("kitesurf.activationBehavior");
 
+const activeCheckableClicks = new WeakSet<object>();
+
+function setCheckedRawOn(el: Element, val: boolean | undefined): void {
+  let proto = Object.getPrototypeOf(el);
+  while (proto) {
+    const desc = Object.getOwnPropertyDescriptor(proto, "checked");
+    if (desc && typeof desc.set === "function") {
+      desc.set.call(el, val);
+      return;
+    }
+    proto = Object.getPrototypeOf(proto);
+  }
+  el.checked = val;
+}
+
+function findCheckedRadioPeer(el: Element): Element | null {
+  const name = el.getAttribute("name");
+  if (!name) return null;
+  const root = el.getRootNode();
+  if (!root || !("querySelectorAll" in root) || typeof root.querySelectorAll !== "function") {
+    return null;
+  }
+  const ownerForm: unknown = Reflect.get(el, "form");
+  const candidates = root.querySelectorAll('input[type="radio"]');
+  for (let i = 0; i < candidates.length; i++) {
+    const node = candidates[i];
+    if (
+      node instanceof Element &&
+      node !== el &&
+      node.getAttribute("name") === name &&
+      Reflect.get(node, "form") === ownerForm &&
+      node.checked === true
+    ) {
+      return node;
+    }
+  }
+  return null;
+}
+
+// Legacy pre-activation and post-dispatch `input`/`change` for checkbox/radio
+// click events per HTML §4.10.5.1.15–16 (applies to both `click()` and
+// `dispatchEvent(new MouseEvent("click"))`).
+// https://html.spec.whatwg.org/multipage/input.html#checkbox-state-(type=checkbox)
+function runCheckableClickActivation<T>(el: Element, ev: Idl.Event, dispatch: () => T): T {
+  const tag = (el.nodeName || "").toUpperCase();
+  const type = tag === "INPUT" ? String(el.type || "").toLowerCase() : "";
+  const isCheckable =
+    tag === "INPUT" &&
+    (type === "checkbox" || type === "radio") &&
+    el.disabled !== true &&
+    !activeCheckableClicks.has(el);
+  if (!isCheckable) return dispatch();
+
+  const preChecked = !!el.checked;
+  const preIndeterminate = !!Reflect.get(el, "indeterminate");
+  const prevCheckedRadio = type === "radio" && !preChecked ? findCheckedRadioPeer(el) : null;
+  activeCheckableClicks.add(el);
+  setCheckedRawOn(el, type === "checkbox" ? !preChecked : true);
+  Reflect.set(el, "indeterminate", false);
+  let result: T;
+  try {
+    result = dispatch();
+  } catch (err) {
+    setCheckedRawOn(el, preChecked);
+    Reflect.set(el, "indeterminate", preIndeterminate);
+    if (prevCheckedRadio) setCheckedRawOn(prevCheckedRadio, true);
+    throw err;
+  } finally {
+    activeCheckableClicks.delete(el);
+  }
+  if (ev.defaultPrevented) {
+    setCheckedRawOn(el, preChecked);
+    Reflect.set(el, "indeterminate", preIndeterminate);
+    if (prevCheckedRadio) setCheckedRawOn(prevCheckedRadio, true);
+    return result;
+  }
+  if (el.isConnected) {
+    try {
+      dispatchTrustedEvent(
+        el,
+        new KsInputEvent("input", { bubbles: true, cancelable: false, composed: true }),
+      );
+    } catch {}
+    try {
+      dispatchTrustedEvent(el, new KsEvent("change", { bubbles: true, cancelable: false }));
+    } catch {}
+  }
+  return result;
+}
+
 // The forwarded click runs this same algorithm directly, not a page-replaceable control.click().
 // Forwarding data stays on the call stack so reentrant or later scripted clicks cannot inherit it.
 function runClickSteps(el: Element, forwarded: ForwardedClick | null): void {
   const tag = (el.nodeName || "").toUpperCase();
-  const type = tag === "INPUT" ? String(el.type || "").toLowerCase() : "";
-  const isCheckable = tag === "INPUT" && (type === "checkbox" || type === "radio");
 
   // Disabled controls skip click. Limitation: a disabled fieldset ancestor does not.
   if (el.disabled === true) {
     return;
-  }
-
-  const setCheckedRaw = (val: boolean | undefined) => {
-    let proto = Object.getPrototypeOf(el);
-    while (proto) {
-      const desc = Object.getOwnPropertyDescriptor(proto, "checked");
-      if (desc && typeof desc.set === "function") {
-        desc.set.call(el, val);
-        return;
-      }
-      proto = Object.getPrototypeOf(proto);
-    }
-    el.checked = val;
-  };
-
-  let preChecked;
-  let preIndeterminate;
-  // Legacy pre-activation sets the checked state before dispatch; cancel restores it.
-  // Limitation: radios also clear indeterminate, and cancel does not restore
-  // the radio that was checked before the click.
-  // https://html.spec.whatwg.org/#the-input-element
-  if (isCheckable) {
-    preChecked = !!el.checked;
-    preIndeterminate = !!Reflect.get(el, "indeterminate");
-    setCheckedRaw(type === "checkbox" ? !preChecked : true);
-    Reflect.set(el, "indeterminate", false);
   }
 
   // A click not caused by a pointing device has pointerId -1 and no pointerType.
@@ -411,27 +478,10 @@ function runClickSteps(el: Element, forwarded: ForwardedClick | null): void {
     pointerType: "",
     ...(forwarded ? forwarded.init : {}),
   });
-  if (forwarded && forwarded.trusted) dispatchTrustedEvent(el, ev);
-  else el.dispatchEvent(ev);
-
-  if (isCheckable) {
-    if (ev.defaultPrevented) {
-      setCheckedRaw(preChecked);
-      Reflect.set(el, "indeterminate", preIndeterminate);
-      return;
-    }
-    // Activation fires input and then change, only while connected.
-    // Limitation: HTML also sets composed on input.
-    // https://html.spec.whatwg.org/#checkbox-state-(type=checkbox)
-    if (el.isConnected) {
-      try {
-        dispatchTrustedEvent(el, new KsInputEvent("input", { bubbles: true, cancelable: false }));
-      } catch {}
-      try {
-        dispatchTrustedEvent(el, new KsEvent("change", { bubbles: true, cancelable: false }));
-      } catch {}
-    }
-  }
+  runCheckableClickActivation(el, ev, () => {
+    if (forwarded && forwarded.trusted) dispatchTrustedEvent(el, ev);
+    else el.dispatchEvent(ev);
+  });
 
   if (!ev.defaultPrevented && tag === "A") {
     const rawHref = el.getAttribute && el.getAttribute("href");
@@ -1604,6 +1654,12 @@ class Element extends NodeBase implements Idl.Element {
   // Limitation: there is no click-in-progress flag. Activation runs for this element
   // or its summary ancestor instead of through the dispatch path.
   // https://html.spec.whatwg.org/#dom-click
+  override dispatchEvent(event: Idl.Event): boolean {
+    if (event instanceof KsMouseEvent && event.type === "click") {
+      return runCheckableClickActivation(this, event, () => super.dispatchEvent(event));
+    }
+    return super.dispatchEvent(event);
+  }
   click(): void {
     runClickSteps(this, null);
   }

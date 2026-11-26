@@ -37,6 +37,73 @@ class HTMLSlotElement extends HTMLElement implements Idl.HTMLSlotElement {
     return this.assignedNodes().filter((n): n is Idl.Element => n.nodeType === ELEMENT_NODE);
   }
 }
+// DOM §4.9: built-in HTML elements allowed to host a shadow root.
+// https://dom.spec.whatwg.org/#dom-element-attachshadow
+const SHADOW_HOST_SAFELIST = new Set([
+  "article",
+  "aside",
+  "blockquote",
+  "body",
+  "div",
+  "footer",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "header",
+  "main",
+  "nav",
+  "p",
+  "section",
+  "span",
+]);
+
+const FORBIDDEN_CUSTOM_ELEMENT_NAMES = new Set([
+  "annotation-xml",
+  "color-profile",
+  "font-face",
+  "font-face-src",
+  "font-face-uri",
+  "font-face-format",
+  "font-face-name",
+  "missing-glyph",
+]);
+
+// HTML §4.13.3: valid custom element name (ASCII lowercase start, contains '-',
+// no ASCII uppercase, ASCII whitespace, NUL, '/', '>', or forbidden names).
+// https://html.spec.whatwg.org/#valid-custom-element-name
+function isValidCustomElementName(localName: string): boolean {
+  if (localName.length < 2 || FORBIDDEN_CUSTOM_ELEMENT_NAMES.has(localName)) return false;
+  const first = localName.charCodeAt(0);
+  if (first < 0x61 || first > 0x7a) return false;
+  let hasHyphen = false;
+  for (let i = 1; i < localName.length; i++) {
+    const c = localName.charCodeAt(i);
+    if (c === 0x2d) {
+      hasHyphen = true;
+    } else if (
+      (c >= 0x41 && c <= 0x5a) ||
+      c === 0x00 ||
+      c === 0x09 ||
+      c === 0x0a ||
+      c === 0x0c ||
+      c === 0x0d ||
+      c === 0x20 ||
+      c === 0x2f ||
+      c === 0x3e
+    ) {
+      return false;
+    }
+  }
+  return hasHyphen;
+}
+
+function isValidShadowHostName(localName: string): boolean {
+  return SHADOW_HOST_SAFELIST.has(localName) || isValidCustomElementName(localName);
+}
+
 // Keep attachShadow on HTMLElement because DocumentFragmentImpl extends Element.
 HTMLElement.prototype.attachShadow = function (this: HTMLElement, opts) {
   const mode = opts && opts.mode;
@@ -45,9 +112,9 @@ HTMLElement.prototype.attachShadow = function (this: HTMLElement, opts) {
       "Failed to execute 'attachShadow' on 'Element': mode must be 'open' or 'closed'",
     );
   }
-  if (this.namespaceURI !== HTML_NS) {
+  if (this.namespaceURI !== HTML_NS || !isValidShadowHostName(this.localName)) {
     throw new DOMException(
-      "attachShadow: host element must be in the HTML namespace",
+      "Failed to execute 'attachShadow' on 'Element': This element does not support attachShadow",
       "NotSupportedError",
     );
   }
