@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, openSync, closeSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import net from "node:net";
+import { stopProcessGroup } from "./process-group.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const ENGINE_DIR = resolve(ROOT, "packages/engine");
@@ -26,27 +27,27 @@ const MINIFLARE_VARS = [
 const SUITE_SERVER_VAR = "KITESURF_ALLOW_PRIVATE_NETWORK:1";
 
 const ALL_STOPS = new Set();
+// Each stop sends SIGTERM before it awaits, so an exit handler that cannot wait still lets
+// wrangler delete its temporary bundle.
 function cleanupAll() {
-  for (const s of Array.from(ALL_STOPS)) {
-    try {
-      s();
-    } catch {}
-  }
+  const stops = Array.from(ALL_STOPS, (s) => s());
   ALL_STOPS.clear();
+  return Promise.all(stops);
 }
 let cleanupInstalled = false;
 function installCleanup() {
   if (cleanupInstalled) return;
   cleanupInstalled = true;
-  process.on("exit", cleanupAll);
-  process.on("SIGINT", () => {
-    cleanupAll();
-    process.exit(130);
-  });
-  process.on("SIGTERM", () => {
-    cleanupAll();
-    process.exit(143);
-  });
+  process.on("exit", () => void cleanupAll());
+  for (const [signal, code] of [
+    ["SIGINT", 130],
+    ["SIGTERM", 143],
+  ]) {
+    process.once(signal, async () => {
+      await cleanupAll();
+      process.exit(code);
+    });
+  }
 }
 
 function isFree(port) {
@@ -68,7 +69,7 @@ async function waitHealth(port, timeoutMs) {
   return false;
 }
 
-/** @typedef {{wsEndpoint: string, port: number, stop: () => void}} LocalEngine */
+/** @typedef {{wsEndpoint: string, port: number, stop: () => Promise<void>}} LocalEngine */
 /** @param {{tag: string, launcher: "wrangler" | "miniflare", dist: string, outDir: string, firstPort: number, skipBuildEnv: string, v8Flags?: string | null}} options @returns {{buildBundles: () => Promise<void>, startEngine: () => Promise<LocalEngine>}} */
 export function localEngines({ tag, launcher, dist, outDir, firstPort, skipBuildEnv, v8Flags }) {
   if (v8Flags != null && launcher !== "miniflare")
@@ -153,22 +154,16 @@ export function localEngines({ tag, launcher, dist, outDir, firstPort, skipBuild
       detached: true,
       stdio: ["ignore", fd, fd],
     });
-    const stop = () => {
-      try {
-        if (proc.pid) process.kill(-proc.pid, "SIGKILL");
-      } catch {
-        try {
-          proc.kill("SIGKILL");
-        } catch {}
-      }
+    const stop = async () => {
+      await stopProcessGroup(proc.pid);
       try {
         closeSync(fd);
       } catch {}
     };
     ALL_STOPS.add(stop);
     if (!(await waitHealth(port, ENGINE_HEALTH_STARTUP_BUDGET_MS))) {
-      stop();
       ALL_STOPS.delete(stop);
+      await stop();
       throw new Error(`engine never became healthy on :${port} (see ${logPath})`);
     }
     return {
@@ -176,7 +171,7 @@ export function localEngines({ tag, launcher, dist, outDir, firstPort, skipBuild
       port,
       stop: () => {
         ALL_STOPS.delete(stop);
-        stop();
+        return stop();
       },
     };
   }

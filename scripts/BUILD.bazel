@@ -17,6 +17,11 @@ js_library(
 )
 
 js_library(
+    name = "process_group",
+    srcs = ["process-group.mjs"],
+)
+
+js_library(
     name = "wpt_draws",
     srcs = ["wpt-draws.mjs"],
 )
@@ -44,6 +49,7 @@ js_library(
     data = ["//packages/engine:package_json"],
     deps = [
         ":engine_launcher",
+        ":process_group",
         ":wpt_shared",
         "//:node_modules/pngjs",
         "//:node_modules/puppeteer-core",
@@ -57,6 +63,7 @@ js_library(
     data = ["//packages/engine:package_json"],
     deps = [
         ":engine_launcher",
+        ":process_group",
         "//packages/engine:node_modules/miniflare",
         "//packages/engine:node_modules/wrangler",
     ],

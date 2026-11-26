@@ -164,7 +164,7 @@ async function runBatch(batchEntries, batchIdx, externalWs) {
     `\n[pw-run] batch ${batchIdx}: ${batchFiles.length} file(s)${only ? " (only-selection)" : ""}${eng ? ` on :${eng.port}` : ""}`,
   );
   let results = runPlaywright(ws, batchFiles, grep, label) ?? {};
-  eng?.stop();
+  await eng?.stop();
 
   if (!noRetry) {
     const devs = deviations(results);
@@ -181,7 +181,7 @@ async function runBatch(batchEntries, batchIdx, externalWs) {
         rWs = rEng.wsEndpoint;
       }
       const retry = runPlaywright(rWs, files, grep, `${label}r`);
-      rEng?.stop();
+      await rEng?.stop();
       if (retry) for (const [id, status] of Object.entries(retry)) results[id] = status;
     }
   }

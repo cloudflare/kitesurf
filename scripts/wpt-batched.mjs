@@ -30,6 +30,7 @@ import {
 } from "./wpt-shared.mjs";
 import { planRowDisposition } from "./wpt-collateral.mjs";
 import { DEFAULT_DIST, prepare as prepareEngineDist } from "./wpt-engine.mjs";
+import { stopProcessGroup } from "./process-group.mjs";
 
 const ENGINE_CWD = resolve(ROOT, "packages/engine");
 const EXEC = resolve(ROOT, "scripts/wpt-exec.mjs");
@@ -279,6 +280,7 @@ const ENGINE_LOG_DIR = opts.engineLogDir ? resolve(opts.engineLogDir) : "/tmp";
 mkdirSync(ENGINE_LOG_DIR, { recursive: true });
 const devLogFor = (port) => resolve(ENGINE_LOG_DIR, `ks-dev-batched-${port}.log`);
 const persistDirFor = (port) => resolve(ENGINE_CWD, ".wrangler", `state-wpt-${port}`);
+const runPorts = () => Array.from({ length: 2 * opts.concurrency }, (_, i) => opts.port + i);
 const WS = wsFor(opts.port);
 const WPT_BASE = opts.base ?? DEFAULT_WPT_BASE;
 const BATCH_FILE = `/tmp/wpt-batch-${opts.port}.json`;
@@ -309,13 +311,16 @@ async function probeWpt(ms = 2000) {
 let setGeneration = 0;
 let spareSet = null;
 let currentSet = null;
+let shuttingDown = false;
 
-function killChild(child) {
-  if (!Number.isFinite(child?.pid) || child.pid <= 1) return;
-  // Children are detached process groups so shutdown can stop Wrangler's descendants together.
-  try {
-    process.kill(-child.pid, "SIGKILL");
-  } catch {}
+// Children are detached process groups so shutdown can stop Wrangler's descendants together.
+async function killChild(child) {
+  if (await stopProcessGroup(child?.pid)) return;
+  console.error(
+    yellow(
+      `[batched] engine pid ${child.pid} ignored SIGTERM; its .wrangler/tmp bundle may remain`,
+    ),
+  );
 }
 function pidsOnPort(port) {
   const r = spawnSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], { encoding: "utf8" });
@@ -350,16 +355,20 @@ function refuseHeldPorts(ports) {
   return true;
 }
 function killSet(set) {
-  if (!set) return;
+  if (!set) return Promise.resolve();
   set.cancelled = true;
-  for (const child of set.children.values()) killChild(child);
+  const stopped = Promise.all(Array.from(set.children.values(), killChild));
   set.children.clear();
   if (set === currentSet) currentSet = null;
   if (set === spareSet) spareSet = null;
+  return stopped;
 }
-function killWorkerd() {
-  killSet(currentSet);
-  killSet(spareSet);
+async function killWorkerd() {
+  await Promise.all([killSet(currentSet), killSet(spareSet)]);
+}
+// Call only once every engine has stopped: a later set on the same port recreates its directory.
+function removePersistDirs() {
+  for (const port of runPorts()) rmSync(persistDirFor(port), { recursive: true, force: true });
 }
 
 const PORT_RELEASE_POLL_INTERVAL_MS = 500;
@@ -450,7 +459,7 @@ async function bootEngine(set, i, port, t0) {
     if (await awaitHealthy(port, child, t0)) return true;
     reportBootFailure(port, child, Date.now() - t0, attempt);
     if (attempt >= BOOT_ATTEMPTS) return false;
-    killChild(child);
+    await killChild(child);
     set.children.delete(port);
     await waitPortFree(port);
     if (set.cancelled) return false;
@@ -489,7 +498,8 @@ function bootSet(count) {
     const t0 = Date.now();
     const freed = await Promise.all(ports.map((p) => waitPortFree(p)));
     set.freeMs = Date.now() - t0;
-    if (set.cancelled || !freed.every(Boolean) || refuseHeldPorts(ports)) return null;
+    if (set.cancelled || shuttingDown || !freed.every(Boolean) || refuseHeldPorts(ports))
+      return null;
     for (const [i, port] of ports.entries()) spawnEngine(set, i, port);
     const up = await Promise.all(ports.map((port, i) => bootEngine(set, i, port, t0)));
     set.bootMs = Date.now() - t0;
@@ -766,11 +776,7 @@ function runDiscover() {
     process.exit(2);
   }
 
-  {
-    const footprint = [];
-    for (let i = 0; i < 2 * opts.concurrency; i++) footprint.push(opts.port + i);
-    if (refuseHeldPorts(footprint)) process.exit(2);
-  }
+  if (refuseHeldPorts(runPorts())) process.exit(2);
   if (opts.build) runPrebuild();
   if (opts.engineLauncher === "miniflare") {
     if (opts.build) await prepareEngineDist(opts.engineDist);
@@ -858,6 +864,8 @@ function runDiscover() {
       const bootT0 = Date.now();
       const set = acquireEngines();
       const ports = await set.ready;
+      // The signal handler owns the exit; report nothing from an interrupted run.
+      if (shuttingDown) return;
       if (!ports) {
         console.error(`[batched] engine(s) failed health on batch ${b}. Aborting.`);
         aborted = true;
@@ -867,8 +875,9 @@ function runDiscover() {
       writeFileSync(BATCH_FILE, JSON.stringify([...pending]));
       const execT0 = Date.now();
       const attempt = await runBatch(b, pass === 0 ? remainingMs : null, ports);
+      if (shuttingDown) return;
       const execMs = Date.now() - execT0;
-      killSet(set);
+      void killSet(set);
       console.log(
         dim(
           `[batched] batch ${b + 1} pass ${pass + 1}: ${ports.length} engine(s), boot ${set.bootMs}ms ` +
@@ -1044,7 +1053,8 @@ function runDiscover() {
     console.log(`[batched] engine-stallers → ${opts.stalledOut} (${stalledEngine.size})`);
   }
   console.log(bold(`[batched] ${summary.expected}/${summary.total} matched expectations`));
-  killWorkerd();
+  await killWorkerd();
+  removePersistDirs();
   stopWptServe();
   if (aborted || totalRan === 0) {
     console.error(
@@ -1057,12 +1067,17 @@ function runDiscover() {
 })();
 
 for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
-  process.on(sig, () => {
-    killWorkerd();
+  process.on(sig, async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    await killWorkerd();
+    removePersistDirs();
     stopWptServe();
     process.exit(130);
   });
 }
+// An exit that cannot wait still sends each engine SIGTERM, so each one can clean up.
+process.on("exit", () => void killWorkerd());
 
 function updateExpectations(results) {
   const expectations = loadJSON(EXPECT_FILE, {});
