@@ -1627,10 +1627,6 @@
     "expected": "FAIL",
     "reason": "SyntaxError: Unexpected token '<', \"<!doctype \"... is not valid JSON"
   },
-  "page-request-fulfill.spec.ts::should fulfill with unuassigned status codes": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
   "page-request-fulfill.spec.ts::should not modify the headers sent to the server": {
     "expected": "FAIL",
     "reason": "Error: page.evaluate: TypeError: Failed to fetch"
