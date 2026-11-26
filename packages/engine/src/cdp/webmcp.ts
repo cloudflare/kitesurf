@@ -310,6 +310,8 @@ async function runInvocation(
       if (reply?.notFound === true) {
         status = "Error";
         errorText = reply?.error ?? `no such tool: ${toolName}`;
+      } else if (reply?.canceled === true) {
+        status = "Canceled";
       } else if (reply?.threw === true) {
         status = "Error";
         errorText = reply?.error ?? "tool threw";

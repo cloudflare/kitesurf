@@ -922,3 +922,37 @@ test("toolactivated and toolcancel fire at document.modelContext", async ({ page
     init: "n",
   });
 }, 60_000);
+
+test("removing a declarative tool cancels its execution before submission", async ({ page }) => {
+  const result = await runScenario(
+    page,
+    `<form id="c" toolname="paused" tooldescription="Waits for a submit">` +
+      `<button type="submit">go</button></form>
+    <script>
+    window.__scenario = async () => {
+      const mc = document.modelContext;
+      const out = {};
+      const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+      const form = document.getElementById("c");
+      const cancels = [];
+      mc.addEventListener("toolcancel", (e) => cancels.push(e.toolName));
+      const [paused] = await mc.getTools();
+      const execution = mc.executeTool(paused);
+      await tick();
+      out.activeBefore = form.matches(":tool-form-active");
+      form.removeAttribute("tooldescription");
+      out.rejection = await execution.then(() => "resolved", (e) => e.name);
+      out.activeAfter = form.matches(":tool-form-active");
+      await tick();
+      out.cancels = cancels;
+      return JSON.stringify(out);
+    };
+    </script>`,
+  );
+  expect(result).toEqual({
+    activeBefore: true,
+    rejection: "AbortError",
+    activeAfter: false,
+    cancels: ["paused"],
+  });
+}, 60_000);

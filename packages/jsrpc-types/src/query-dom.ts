@@ -547,6 +547,7 @@ export interface QueryDomMethods {
       error?: string;
       threw?: unknown;
       notFound?: unknown;
+      canceled?: unknown;
       rawOutput?: unknown;
       output?: unknown;
     };

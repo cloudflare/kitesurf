@@ -51,6 +51,7 @@ export interface ToolCallResult {
   error?: string;
   threw?: boolean;
   notFound?: boolean;
+  canceled?: boolean;
 }
 
 interface ActiveExecution {
@@ -108,6 +109,9 @@ let declarativeWatchRevision = 0;
 let declarativeRefreshQueued = false;
 let declarativeHookInstalled = false;
 let pageDeclarativeInterest = false;
+// Cancels a non-autosubmit execution that still waits for its form to be submitted.
+let pendingFormCancels = new Map<DeclarativeForm, Set<() => void>>();
+const declarativeCancels = new WeakSet<object>();
 
 function domError(message: string, name: string): Error {
   const DE = (globalThis as { DOMException?: new (m: string, n: string) => Error }).DOMException;
@@ -379,6 +383,9 @@ function refreshDeclarativeTools(notify: boolean): void {
   const previous = declarativeTools;
   const next = scanDeclarativeTools(previous);
   declarativeTools = next;
+  for (const [name, entry] of previous) {
+    if (next.get(name)?.id !== entry.id) cancelPendingFormExecutions(entry.form);
+  }
   // The first page or CDP read seeds existing forms instead of reporting additions.
   if (!notify) return;
   const removed: string[] = [];
@@ -403,6 +410,13 @@ function refreshDeclarativeTools(notify: boolean): void {
     }
   }
   if (mainContext) notifyChanged(mainContext);
+}
+
+function cancelPendingFormExecutions(form: DeclarativeForm): void {
+  const cancels = pendingFormCancels.get(form);
+  if (!cancels) return;
+  pendingFormCancels.delete(form);
+  for (const cancel of cancels) cancel();
 }
 
 function scheduleDeclarativeRefresh(hint?: MutationHint): void {
@@ -940,6 +954,16 @@ function runExecution(
         (err: unknown) => {
           callbackSettled = true;
           if (settled) return;
+          if (isObjectLike(err) && declarativeCancels.has(err)) {
+            settled = true;
+            detach();
+            reject(err);
+            try {
+              execController.abort();
+            } catch {}
+            queueTask(() => dispatchToolEvent(target, "toolcancel", toolName));
+            return;
+          }
           // The caller sees only the failure, never the tool's own exception.
           settleInTask(() =>
             reject(domError("executeTool: the tool's execute callback rejected", "OperationError")),
@@ -1043,6 +1067,11 @@ function makeDeclarativeExec(entry: DeclarativeTool): ToolExecute {
       activeToolForms.add(entry.form);
       const signal = options?.signal;
       let onAbort: (() => void) | null = null;
+      let cancels = pendingFormCancels.get(form);
+      if (!cancels) {
+        cancels = new Set();
+        pendingFormCancels.set(form, cancels);
+      }
       const cleanup = () => {
         activeToolForms.delete(entry.form);
         if (onSubmit && form.removeEventListener) {
@@ -1051,7 +1080,19 @@ function makeDeclarativeExec(entry: DeclarativeTool): ToolExecute {
         if (onAbort && signal?.removeEventListener) {
           signal.removeEventListener("abort", onAbort);
         }
+        cancels.delete(cancel);
+        if (cancels.size === 0 && pendingFormCancels.get(form) === cancels) {
+          pendingFormCancels.delete(form);
+        }
       };
+      // The form stopped being this tool before its submission: the execution is cancelled.
+      const cancel = () => {
+        cleanup();
+        const err = domError("the declarative tool was unregistered", "AbortError");
+        declarativeCancels.add(err);
+        reject(err);
+      };
+      cancels.add(cancel);
       let onSubmit: ((e: unknown) => void) | null = (ev: unknown) => {
         cleanup();
         const responded = submitEventResponse(ev);
@@ -1268,6 +1309,7 @@ export function createModelContext(deps: {
   declarativeWatchRevision = 0;
   declarativeRefreshQueued = false;
   pageDeclarativeInterest = false;
+  pendingFormCancels = new Map();
   docContexts = new WeakMap();
   getWindow = deps.getWindow;
   getOrigin = deps.getOrigin;
@@ -1408,6 +1450,11 @@ export async function callModelContextTool(
     const result = await pending;
     return returnsDeclarativeOutput ? declarativeResult(result) : normalizeResult(result);
   } catch (err) {
+    if (isObjectLike(err) && declarativeCancels.has(err)) {
+      const context = mainContext;
+      if (context) queueTask(() => dispatchToolEvent(context, "toolcancel", key));
+      return { content: [], isError: true, error: "tool canceled", canceled: true };
+    }
     const message = err instanceof Error ? err.message : String(err);
     return {
       content: [{ type: "text", text: message }],
