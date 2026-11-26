@@ -376,6 +376,12 @@ export type PageScriptEntrypoint = PageScriptSession & {
 
 export type PageScriptEntrypointStub = Fetcher<PageScriptEntrypoint>;
 
+/** PageScript hosted as a Durable Object facet (page-script PageScriptFacet). */
+export type PageScriptFacetEntrypoint = PageScriptSession & {
+  makeRenderPort(): RenderPort & Rpc.RpcTargetBranded;
+  openSession(init: OpenSessionInit): RetainedPageScriptSessionTarget;
+} & Rpc.DurableObjectBranded;
+
 export interface UpstreamEvents {
   "kitesurf.bindingCalled": { name: string; payload: string };
   "kitesurf.diag": { ev: "start" | "end"; op: string; t: number };

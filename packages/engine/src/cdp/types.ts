@@ -142,6 +142,8 @@ export interface BrowserState {
   // The session's data: the host's store, or tables on the heap (state/session-store.ts).
   // Live handles stay on this object.
   store: SessionStore;
+  // Where pages run: a host's Durable Object facets, or null for the loaded worker's entrypoint.
+  pageScriptHost: PageScriptHost | null;
   sandboxOutbound: SandboxOutboundOverride;
   cookies: CookieJar;
   contexts: Map<string, { cookieJar: CookieJar; localStorage: LocalStorage }>;
@@ -214,6 +216,7 @@ import type { PageSession } from "./page-session.ts";
 import type { CookieJar } from "../cookies.ts";
 import type { LocalStorage } from "../state/local-storage.ts";
 import type { SessionStore, StoreTable } from "../state/session-store.ts";
+import type { PageScriptHost } from "../eval/page-script-host.ts";
 
 // One navigation's child-frame admission, shared by every branch and depth: registered child
 // frames and the parse input their retained DOMs charged. A frame refunds its charge when its

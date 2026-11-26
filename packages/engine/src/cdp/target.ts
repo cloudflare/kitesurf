@@ -462,6 +462,8 @@ export async function closeTargetInternal(ctx: DispatchCtx, id: string): Promise
   }
   releaseParkedForConnection(ctx.connectionId);
   await Promise.all(retirements);
+  // A page in a facet takes its storage with it, once its retirement settled.
+  ctx.browser.pageScriptHost?.deletePage(id);
   return existed;
 }
 
