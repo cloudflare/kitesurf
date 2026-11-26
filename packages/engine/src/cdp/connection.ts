@@ -221,6 +221,9 @@ export interface BrowserSessionOptions {
   pageScriptHost?: PageScriptHost;
   // A client left a persistent session that keeps running; `remaining` clients are connected.
   onClientLeft?: (remaining: number) => void;
+  // The session ended. Runs once, at the end of dispose(), after the session's own teardown; a
+  // throw propagates to the caller of dispose().
+  onEnd?: () => void;
   // Where the session keeps its data. Unset, the host's createSessionStore decides.
   store?: SessionStore;
   // The Durable Object that hosts the session (stateful.ts). Its loaded workers' outbound calls
@@ -258,6 +261,7 @@ export class BrowserSession {
   readonly #persistent: boolean;
   readonly #maxSessionMs: number;
   readonly #onClientLeft: BrowserSessionOptions["onClientLeft"];
+  readonly #onEnd: BrowserSessionOptions["onEnd"];
   readonly #commandExtension: DispatchCtx["commandExtension"];
   readonly #requestBlocker: DispatchCtx["requestBlocker"];
   // Insertion order is connection order.
@@ -287,6 +291,7 @@ export class BrowserSession {
     this.#persistent = opts.persistent === true;
     this.#maxSessionMs = params.maxSessionMs;
     this.#onClientLeft = opts.onClientLeft;
+    this.#onEnd = opts.onEnd;
     const connectionId = this.id;
     const options = resolveConnectionOptions(request, connectionId, opts.host, env);
 
@@ -620,6 +625,7 @@ export class BrowserSession {
     // No one waits for these pages to close, so retire their facets now.
     browser.pageScriptHost?.retireAll("browser session ended");
     this.rejoinLocalTrace(() => endLocalTraceSession(this.#env));
+    this.#onEnd?.();
   }
 }
 

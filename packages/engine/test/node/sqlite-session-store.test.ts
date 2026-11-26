@@ -182,6 +182,22 @@ describe("the SQLite store", () => {
     assert.equal(t.get("k"), old);
   });
 
+  test("refuses every write once fenced, and still reads", () => {
+    const store = new SqliteSessionStore(nodeSqlite());
+    const t = store.table("t", anyValue);
+    t.set("a", "1");
+    store.fence();
+    assert.equal(store.fenced, true);
+    assert.throws(() => t.set("b", "2"), /takes no writes/);
+    assert.throws(() => t.delete("a"), /takes no writes/);
+    assert.throws(() => t.clear(), /takes no writes/);
+    assert.throws(() => store.table("u", anyValue).set("c", "3"), /takes no writes/);
+    assert.throws(() => store.drop("t"), /takes no writes/);
+    assert.throws(() => store.clear(), /takes no writes/);
+    assert.equal(t.get("a"), "1");
+    assert.equal(t.has("b"), false);
+  });
+
   test("reads a row that does not decode as missing", () => {
     const storage = nodeSqlite();
     const t = new SqliteSessionStore(storage).table("t", anyValue);

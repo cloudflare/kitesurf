@@ -121,12 +121,22 @@ function decode(tag: unknown, parts: unknown[]): unknown {
   return tag === "s" ? text : JSON.parse(text);
 }
 
+// The write gate of a store and its tables. Once the store is fenced, every write throws.
+interface Fence {
+  fenced: boolean;
+}
+
+function assertOpen(fence: Fence): void {
+  if (fence.fenced) throw new Error("SessionStore: the session has ended and takes no writes");
+}
+
 /** A session store in SQLite. A key's insertion order is the rowid of its first chunk, which an
  * update keeps, so tables iterate in a Map's order. */
 export class SqliteSessionStore implements SessionStore {
   readonly backend = "sqlite";
   readonly limits: Readonly<StoreLimits>;
   readonly #storage: SqliteStorage;
+  readonly #fence: Fence = { fenced: false };
 
   constructor(storage: SqliteStorage, limits: Partial<Omit<StoreLimits, "onHeap">> = {}) {
     this.#storage = storage;
@@ -144,10 +154,23 @@ export class SqliteSessionStore implements SessionStore {
   }
 
   table<V>(name: string, is: StoreGuard<V>): StoreTable<V> {
-    return new SqliteTable(this.#storage, name, is);
+    return new SqliteTable(this.#storage, name, is, this.#fence);
+  }
+
+  /**
+   * Stops all writes, for a session that has ended: work still running when it ended cannot
+   * leave a row behind after its cleanup. Reads still work. A fence cannot be lifted.
+   */
+  fence(): void {
+    this.#fence.fenced = true;
+  }
+
+  get fenced(): boolean {
+    return this.#fence.fenced;
   }
 
   drop(name: string): void {
+    assertOpen(this.#fence);
     this.#storage.sql.exec(`DELETE FROM ${TABLE} WHERE ns = ?`, name);
   }
 
@@ -173,6 +196,7 @@ export class SqliteSessionStore implements SessionStore {
   }
 
   clear(): void {
+    assertOpen(this.#fence);
     this.#storage.sql.exec(`DELETE FROM ${TABLE}`);
   }
 }
@@ -181,11 +205,13 @@ class SqliteTable<V> implements StoreTable<V> {
   readonly #storage: SqliteStorage;
   readonly #ns: string;
   readonly #is: StoreGuard<V>;
+  readonly #fence: Fence;
 
-  constructor(storage: SqliteStorage, ns: string, is: StoreGuard<V>) {
+  constructor(storage: SqliteStorage, ns: string, is: StoreGuard<V>, fence: Fence) {
     this.#storage = storage;
     this.#ns = ns;
     this.#is = is;
+    this.#fence = fence;
   }
 
   #exec(query: string, ...bindings: Array<string | number | null | ArrayBuffer>) {
@@ -227,6 +253,7 @@ class SqliteTable<V> implements StoreTable<V> {
   }
 
   set(key: string, value: V): this {
+    assertOpen(this.#fence);
     const { tag, parts } = encode(value);
     const sqlKey = toSqlKey(key);
     this.#storage.transactionSync(() => {
@@ -254,12 +281,14 @@ class SqliteTable<V> implements StoreTable<V> {
   }
 
   delete(key: string): boolean {
+    assertOpen(this.#fence);
     if (!this.has(key)) return false;
     this.#exec(`DELETE FROM ${TABLE} WHERE ns = ? AND k = ?`, this.#ns, toSqlKey(key));
     return true;
   }
 
   clear(): void {
+    assertOpen(this.#fence);
     this.#exec(`DELETE FROM ${TABLE} WHERE ns = ?`, this.#ns);
   }
 

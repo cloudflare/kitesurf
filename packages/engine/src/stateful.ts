@@ -38,9 +38,9 @@ const KEEP_ALIVE_MAX_MS = 20 * 60_000;
 // An object with no request is evicted after a minute or two, and takes the browser with it. The
 // alarm fires at least this often, which also keeps the object in memory.
 const ALARM_MAX_INTERVAL_MS = 30_000;
-// After the session ends, the storage goes this much later: a navigate or a gateway fetch that
-// is still running can write a row after the end.
-const CLEANUP_DELAY_MS = 30_000;
+// A cleanup re-arms its alarm this far ahead before it deletes, so one that fails runs again
+// after the platform's own alarm retries run out.
+const CLEANUP_RETRY_MS = 60_000;
 
 // The principal the front door resolved (EngineHost.statefulSessions) for a connect. Clients
 // cannot set it: the front door builds the forwarded request's headers itself.
@@ -216,15 +216,15 @@ export class StatefulBrowser extends DurableObject<Env> {
   #keepAliveMs = KEEP_ALIVE_DEFAULT_MS;
   // When the last client left, or null while one is connected.
   #idleSince: number | null = null;
-  // When the session ended, for the cleanup alarm.
-  #endedAt: number | null = null;
+  // Set when the session has ended; the object never hosts another.
+  #ended = false;
 
   protected host(): EngineHost {
     return DEFAULT_ENGINE_HOST;
   }
 
   async create(init: CreateInit): Promise<{ pageTargetId: string }> {
-    if (this.#session || this.#endedAt !== null) {
+    if (this.#session || this.#ended) {
       throw new Error("kitesurf: this object already hosts a session");
     }
     // The session has no host egress: the hook takes a request's ExecutionContext, and a call
@@ -233,10 +233,13 @@ export class StatefulBrowser extends DurableObject<Env> {
       throw new Error("kitesurf: a StatefulBrowser host cannot set egress");
     }
     if (!init.owner) throw new Error("kitesurf: a stateful session needs an owner");
+    // Armed before the first write, so storage never outlives a failed or reset create.
+    await this.ctx.storage.setAlarm(Date.now() + ALARM_MAX_INTERVAL_MS);
     const request = new Request(init.url, { headers: init.headers });
     this.#owner = init.owner;
     this.#keepAliveMs = init.keepAliveMs;
     this.#idleSince = Date.now();
+    const store = new SqliteSessionStore(this.ctx.storage);
     const session = new BrowserSession(
       request,
       this.env,
@@ -245,7 +248,7 @@ export class StatefulBrowser extends DurableObject<Env> {
       {
         persistent: true,
         host: this.host(),
-        store: new SqliteSessionStore(this.ctx.storage),
+        store,
         statefulSessionId: this.ctx.id.toString(),
         pageScriptHost: facetPageScriptHost(this.ctx.facets),
         onClientLeft: (remaining) => {
@@ -253,13 +256,33 @@ export class StatefulBrowser extends DurableObject<Env> {
           this.#idleSince = Date.now();
           void this.#scheduleAlarm();
         },
+        onEnd: () => this.#sessionEnded(store),
       },
     );
     this.#session = session;
     const first = session.openBrowser()[0];
-    if (!first) throw new Error("kitesurf: a new browser has no page");
+    if (!first) {
+      session.dispose({ endReason: "close", closeCode: 1011, wasClean: 0 });
+      throw new Error("kitesurf: a new browser has no page");
+    }
     await this.#scheduleAlarm();
     return { pageTargetId: first.targetId };
+  }
+
+  // The session ended, however it ended. Work still running cannot write to the store after
+  // this, so the alarm can delete the storage at once.
+  #sessionEnded(store: SqliteSessionStore): void {
+    store.fence();
+    this.#ended = true;
+    this.ctx.storage.setAlarm(Date.now()).catch((err: unknown) => {
+      console.warn(
+        JSON.stringify({
+          event: "stateful_cleanup_alarm_failed",
+          sessionId: this.ctx.id.toString(),
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    });
   }
 
   override async fetch(request: Request): Promise<Response> {
@@ -366,26 +389,31 @@ export class StatefulBrowser extends DurableObject<Env> {
   }
 
   override async alarm(): Promise<void> {
-    const session = this.#session;
-    const now = Date.now();
-    // A restarted object wakes with nothing in memory, so what is in storage belongs to nobody.
-    // deleteAll also drops the alarm, and the object can go.
-    if (!session) {
-      await this.ctx.storage.deleteAll();
-      return;
-    }
+    // A restarted object wakes with no session in memory, so what is in storage belongs to
+    // nobody, and an ended session's storage goes too.
     this.#endIfExpired();
-    if (session.disposed) {
-      this.#endedAt ??= now;
-      if (now - this.#endedAt >= CLEANUP_DELAY_MS) {
-        this.#session = null;
-        await this.ctx.storage.deleteAll();
-        return;
-      }
-      await this.ctx.storage.setAlarm(this.#endedAt + CLEANUP_DELAY_MS);
+    if (this.#session && !this.#session.disposed) {
+      await this.#scheduleAlarm();
       return;
     }
-    await this.#scheduleAlarm();
+    await this.#cleanUp();
+  }
+
+  // Deletes everything the session stored, facets included. The alarm is re-armed and committed
+  // first, so a cleanup that throws runs again; deleteAll then drops that alarm with the data.
+  async #cleanUp(): Promise<void> {
+    await this.ctx.storage.setAlarm(Date.now() + CLEANUP_RETRY_MS);
+    await this.ctx.storage.sync();
+    this.#session = null;
+    await this.ctx.storage.deleteAll();
+    console.log(
+      JSON.stringify({
+        event: "stateful_session_storage_deleted",
+        sessionId: this.ctx.id.toString(),
+      }),
+    );
+    // The alarm returns normally, so the platform does not run it again. Do not ctx.abort() here:
+    // with { retryAlarm: false } after deleteAll, it crashed workerd (miniflare 5.20260911.1).
   }
 
   // The next alarm: the keep-alive deadline while no client is connected, and never later than
