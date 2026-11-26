@@ -8773,8 +8773,8 @@
     "reason": "6/12 subtests pass. Same missing-helper failure mode as element-scroll-arguments \u2014 promise_test machinery rejects on the missing waitForCompositorCommit dependency."
   },
   "/css/cssom/CSS-namespace-object-class-string.html": {
-    "expected": "FAIL",
-    "reason": "auto: rebaselined to actual"
+    "expected": "PASS",
+    "reason": "CSS namespace object exposes non-writable configurable @@toStringTag"
   },
   "/css/cssom/CSSConditionRule-conditionText.html": {
     "expected": "PASS",
