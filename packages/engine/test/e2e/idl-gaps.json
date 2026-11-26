@@ -406,7 +406,6 @@
   "HTMLImageElement.prototype.x: missing attribute",
   "HTMLImageElement.prototype.y: missing attribute",
   "HTMLInputElement.prototype.hspace: missing attribute",
-  "HTMLInputElement.prototype.switch: missing attribute",
   "HTMLInputElement.prototype.vspace: missing attribute",
   "HTMLLinkElement.prototype.blocking: no setter",
   "HTMLLinkElement.prototype.disabled: inherited, not own",

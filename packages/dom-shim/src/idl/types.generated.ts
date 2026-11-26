@@ -1785,7 +1785,7 @@ export interface HTMLInputElement extends HTMLElement {
   size: number;
   src: string;
   step: string;
-  // switch: boolean;
+  switch: boolean;
   type: string;
   defaultValue: string;
   value: string;

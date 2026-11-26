@@ -63,6 +63,7 @@ interface HTMLInputElement extends Pick<
   | ValidityMember
   | SelectionMember
   | "alpha"
+  | "switch"
   | "colorSpace"
   | "dirName"
   | "useMap"
@@ -422,6 +423,7 @@ installValidityMixin(HTMLInputElement);
 installSelectionMixin(HTMLInputElement);
 
 defineReflectedBoolean(HTMLInputElement.prototype, "alpha", "alpha");
+defineReflectedBoolean(HTMLInputElement.prototype, "switch", "switch");
 defineReflectedEnumWithDefaults(
   HTMLInputElement.prototype,
   "colorSpace",
