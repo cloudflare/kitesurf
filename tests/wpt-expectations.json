@@ -128,8 +128,8 @@
     "reason": "TIMEOUT: test runs in a window scope and hangs; needs multi-context scheduling not exercised by our test harness."
   },
   "/WebCryptoAPI/crypto_key_cached_slots.https.any.html": {
-    "expected": "FAIL",
-    "reason": "SubtleCrypto's CryptoKey.algorithm and CryptoKey.usages accessors don't cache a stable object (returning a fresh copy each read) \u2014 Chrome caches. Workerd shape gap."
+    "expected": "PASS",
+    "reason": null
   },
   "/WebCryptoAPI/derive_bits_keys/argon2.tentative.https.any.html": {
     "expected": "FAIL",
@@ -402,8 +402,8 @@
     "reason": "Raw-format import key alias table not implemented in workerd."
   },
   "/WebCryptoAPI/normalize-algorithm-name.https.any.html": {
-    "expected": "FAIL",
-    "reason": "Kelvin-sign (U+212A) fold-case for algorithm names is not applied by workerd; the test expects `H<U+212A>DF` and `PB<U+212A>DF2` to be rejected as NotSupportedError but workerd routes them into a different error type."
+    "expected": "PASS",
+    "reason": null
   },
   "/WebCryptoAPI/secure_context/crypto-subtle-secure-context-available.https.sub.html": {
     "expected": "PASS",
@@ -518,56 +518,56 @@
     "reason": "Test times out: a subtest with a malformed compression body never settles."
   },
   "/compression/compression-including-empty-chunk.any.html": {
-    "expected": "FAIL",
-    "reason": "Partial pass. Every remaining subtest exercises the 'brotli' compression format, which workerd's Compression/DecompressionStream doesn't support (accepts only deflate, deflate-raw, gzip). Non-brotli subtests all pass."
+    "expected": "PASS",
+    "reason": null
   },
   "/compression/compression-large-flush-output.any.html": {
-    "expected": "FAIL",
-    "reason": "Partial pass. Every remaining subtest exercises the 'brotli' compression format, which workerd's Compression/DecompressionStream doesn't support (accepts only deflate, deflate-raw, gzip). Non-brotli subtests all pass."
+    "expected": "PASS",
+    "reason": null
   },
   "/compression/compression-multiple-chunks.any.html": {
-    "expected": "FAIL",
-    "reason": "Partial pass. Every remaining subtest exercises the 'brotli' compression format, which workerd's Compression/DecompressionStream doesn't support (accepts only deflate, deflate-raw, gzip). Non-brotli subtests all pass."
+    "expected": "PASS",
+    "reason": null
   },
   "/compression/compression-output-length.any.html": {
-    "expected": "FAIL",
-    "reason": "Partial pass. Every remaining subtest exercises the 'brotli' compression format, which workerd's Compression/DecompressionStream doesn't support (accepts only deflate, deflate-raw, gzip). Non-brotli subtests all pass."
+    "expected": "PASS",
+    "reason": null
   },
   "/compression/compression-stream.any.html": {
-    "expected": "FAIL",
-    "reason": "Partial pass. Every remaining subtest exercises the 'brotli' compression format, which workerd's Compression/DecompressionStream doesn't support (accepts only deflate, deflate-raw, gzip). Non-brotli subtests all pass."
+    "expected": "PASS",
+    "reason": null
   },
   "/compression/decompression-bad-chunks.any.html": {
-    "expected": "FAIL",
-    "reason": "Partial pass. Every remaining subtest exercises the 'brotli' compression format, which workerd's Compression/DecompressionStream doesn't support (accepts only deflate, deflate-raw, gzip). Non-brotli subtests all pass."
+    "expected": "PASS",
+    "reason": null
   },
   "/compression/decompression-buffersource.any.html": {
-    "expected": "FAIL",
-    "reason": "Partial pass. Every remaining subtest exercises the 'brotli' compression format, which workerd's Compression/DecompressionStream doesn't support (accepts only deflate, deflate-raw, gzip). Non-brotli subtests all pass."
+    "expected": "PASS",
+    "reason": null
   },
   "/compression/decompression-correct-input.any.html": {
-    "expected": "FAIL",
-    "reason": "Partial pass. Every remaining subtest exercises the 'brotli' compression format, which workerd's Compression/DecompressionStream doesn't support (accepts only deflate, deflate-raw, gzip). Non-brotli subtests all pass."
+    "expected": "PASS",
+    "reason": null
   },
   "/compression/decompression-corrupt-input.any.html": {
-    "expected": "FAIL",
-    "reason": "26/29 subtests. The 3 fails are 'trailing garbage' subtests, same underlying trailing-bytes strictness as decompression-extra-input.any.html."
+    "expected": "PASS",
+    "reason": null
   },
   "/compression/decompression-empty-input.any.html": {
-    "expected": "FAIL",
-    "reason": "Partial pass. Every remaining subtest exercises the 'brotli' compression format, which workerd's Compression/DecompressionStream doesn't support (accepts only deflate, deflate-raw, gzip). Non-brotli subtests all pass."
+    "expected": "PASS",
+    "reason": null
   },
   "/compression/decompression-extra-input.any.html": {
     "expected": "FAIL",
     "reason": "0/4 subtests. Workerd DecompressionStream throws TypeError on trailing bytes after the compressed end; the spec (and Chrome) require the decoder to stop at end and return what it has. Upstream workerd behaviour."
   },
   "/compression/decompression-split-chunk.any.html": {
-    "expected": "FAIL",
-    "reason": "Partial pass. Every remaining subtest exercises the 'brotli' compression format, which workerd's Compression/DecompressionStream doesn't support (accepts only deflate, deflate-raw, gzip). Non-brotli subtests all pass."
+    "expected": "PASS",
+    "reason": null
   },
   "/compression/decompression-uint8array-output.any.html": {
-    "expected": "FAIL",
-    "reason": "Partial pass. Every remaining subtest exercises the 'brotli' compression format, which workerd's Compression/DecompressionStream doesn't support (accepts only deflate, deflate-raw, gzip). Non-brotli subtests all pass."
+    "expected": "PASS",
+    "reason": null
   },
   "/compression/idlharness.https.any.html": {
     "expected": "FAIL",
@@ -12500,7 +12500,7 @@
     "reason": null
   },
   "/encoding/textdecoder-arguments.any.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/encoding/textdecoder-byte-order-marks.any.html": {
@@ -12532,7 +12532,7 @@
     "reason": null
   },
   "/encoding/textdecoder-mistakes.any.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/encoding/textdecoder-streaming.any.html": {
@@ -13032,7 +13032,7 @@
     "reason": null
   },
   "/fetch/api/response/response-error-from-stream.any.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/fetch/api/response/response-error.any.html": {
@@ -13040,7 +13040,7 @@
     "reason": null
   },
   "/fetch/api/response/response-from-stream.any.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/fetch/api/response/response-headers-guard.any.html": {
@@ -13048,7 +13048,7 @@
     "reason": null
   },
   "/fetch/api/response/response-init-001.any.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/fetch/api/response/response-init-002.any.html": {
@@ -13068,7 +13068,7 @@
     "reason": null
   },
   "/fetch/api/response/response-static-redirect.any.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/fetch/api/response/response-stream-bad-chunk.any.html": {
