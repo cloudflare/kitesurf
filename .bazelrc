@@ -39,9 +39,10 @@ common:bazelflare --noexperimental_throttle_remote_action_building --remote_max_
 # rules_js unpacks and copies hundreds of npm files, each cheaper here than a remote round trip.
 # Their outputs still reach the executors as the inputs of the actions that read them.
 common:bazelflare --modify_execution_info=CopyFile=+no-remote-exec,CopyDirectory=+no-remote-exec,NpmPackageExtract=+no-remote-exec
-# The WPT and Playwright pools' images bake their pinned checkouts (MODULE.bazel), which the
-# executors have instead of the .wpt and .playwright checkouts in this tree.
+# The WPT, Playwright and Puppeteer pools' images bake their pinned checkouts (MODULE.bazel), which
+# the executors have instead of the .wpt, .playwright and .puppeteer checkouts in this tree.
 common:bazelflare --action_env=KITESURF_PW_BASE=/opt/playwright
+common:bazelflare --action_env=KITESURF_PPTR_BASE=/opt/puppeteer
 common:bazelflare --action_env=KITESURF_WPT_DIR=/opt/wpt
 # Stage the prebuilt Chrome DevTools frontend (about 250 MB to download once) into the engine assets
 # at /inspector/. `pnpm run dev` takes it from `common --config=devtools` in .bazelrc.user.

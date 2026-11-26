@@ -15,7 +15,7 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# The e2e suite, the Playwright lane and the WPT gate run on bazelflare's executors.
+# The e2e suite, the Playwright and Puppeteer lanes and the WPT gate run on bazelflare's executors.
 jobs:
   # One job, so the Rust crates compile once: the tests and the dev build share one Bazel output
   # tree, and the checks, the lint tests, the Rust host tests and the vitest suite one invocation.
@@ -76,9 +76,9 @@ jobs:
           path: ${{ steps.setup.outputs.bazel-cache-paths }}
           key: ${{ steps.setup.outputs.bazel-cache-key }}
 
-  # The e2e, wpt and playwright jobs are separate checks, rerun on their own when they flake; on
-  # bazelflare they share the ci job's actions, so the engine compiles once. They save no cache:
-  # the ci job saves the same key on main.
+  # The e2e, wpt, playwright and puppeteer jobs are separate checks, rerun on their own when they
+  # flake; on bazelflare they share the ci job's actions, so the engine compiles once. They save no
+  # cache: the ci job saves the same key on main.
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -129,6 +129,32 @@ jobs:
         with:
           name: playwright-junit
           path: bazel-testlogs/scripts/pw_expectations_test/test.xml
+          if-no-files-found: ignore
+
+  puppeteer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      # Authenticates the job to bazelflare (bazel/bazelflare/credential-helper).
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - id: setup
+        uses: ./.github/actions/setup
+        with:
+          bazel-cache: "true"
+          bazelflare: "true"
+          pnpm-cache: "false"
+      # Each spec boots an engine on a bazelflare executor, whose image holds the pinned Puppeteer
+      # checkout. A fork's pull request has no bazelflare, so main runs the lane once it merges.
+      - if: steps.setup.outputs.bazelflare == 'true'
+        run: bazel test --keep_going --test_output=errors //tests/pptr:specs //tests/pptr:expectations_test
+      - if: always() && steps.setup.outputs.bazelflare == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: puppeteer-junit
+          path: bazel-testlogs/scripts/pptr_expectations_test/test.xml
           if-no-files-found: ignore
 
   wpt:
