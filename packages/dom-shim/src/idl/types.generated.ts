@@ -2373,7 +2373,7 @@ export interface MimeTypeArray {
 }
 export interface ModelContext extends EventTarget {
   registerTool(tool: ModelContextTool, options?: ModelContextRegisterToolOptions): Promise<void>;
-  // getTools(options?: ModelContextGetToolOptions): Promise<Array<Tool>>;
+  getTools(options?: ModelContextGetToolOptions): Promise<Array<Tool>>;
   executeTool(tool: Tool, inputObject?: object, options?: ModelContextExecuteToolOptions): Promise<string>;
   ontoolchange: EventHandler;
   ontoolactivated: EventHandler;

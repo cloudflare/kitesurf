@@ -107,11 +107,6 @@
       "blocking": "returns an array stub, not a DOMTokenList"
     }
   },
-  "ModelContext": {
-    "omit": {
-      "getTools": "returns RegisteredTool records, which lack the pinned IDL's new Tool.outputSchema and Tool.source"
-    }
-  },
   "MutationRecord": {
     "omit": {
       "addedNodes": "an array, not a NodeList: it has length and indexes but no item()",

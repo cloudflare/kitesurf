@@ -8,7 +8,7 @@ import type { DomHandle, KsNodeIdentity } from "../../core/pkg/kitesurf_core";
 import type { BuildDocumentOpts } from "./state.js";
 
 import { getInternalState } from "./internal-state.js";
-import { createModelContext, acquireModelContext, ModelContext } from "./model-context.js";
+import { createModelContext, acquireModelContext, ModelContext, Tool } from "./model-context.js";
 import {
   ELEMENT_NODE,
   TEXT_NODE,
@@ -698,6 +698,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
       promiseOps: ["getTools", "executeTool"],
     }),
   );
+  finalizeInterface(Tool, idlInterfaceMeta("Tool", { brandAttrs: true }));
   finalizeInterface(
     CharacterDataNode,
     idlInterfaceMeta("CharacterData", {
@@ -879,6 +880,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     DOMTokenList: DOMTokenListCls,
     NamedNodeMap: NamedNodeMapCls,
     ModelContext,
+    Tool,
     MutationObserver: MutationObserverImpl,
     MutationRecord,
     DOMParser,

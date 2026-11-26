@@ -850,7 +850,6 @@
   "ToggleEvent.prototype: does not inherit from Event.prototype",
   "ToggleEvent: interface object does not inherit from Event",
   "ToggleEvent: length is 0, expected 1",
-  "Tool: missing interface",
   "Touch: missing interface",
   "TouchList: missing interface",
   "TrackEvent.prototype.track: missing attribute",

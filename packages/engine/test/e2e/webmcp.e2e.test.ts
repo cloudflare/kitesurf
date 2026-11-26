@@ -240,6 +240,7 @@ test("page WebMCP serializes results and propagates cancellation", async ({ page
       readOnlyHint: true,
       untrustedContentHint: false,
       consequentialHint: false,
+      debugging: false,
     },
     callbackSignal: true,
     rejection: "stop",
@@ -258,8 +259,8 @@ test("page WebMCP serializes results and propagates cancellation", async ({ page
     objectResult: '{"ok":true}',
     abortAfterCompletionQueued: "queued completion abort",
     abortBeforeCancelTask: "abort before cancel task",
-    circularError: "UnknownError",
-    callbackError: "UnknownError",
+    circularError: "OperationError",
+    callbackError: "OperationError",
     rejectionOrder: ["next-task", "rejected"],
     callbackRejectionOrder: ["next-task", "rejected"],
     resolutionOrder: ["next-task", "resolved"],
@@ -754,7 +755,7 @@ test("registerTool rejects duplicates, empty fields and bad names", async ({ pag
   expect(
     await page.evaluate(`(async () => {
       const tool = (await document.modelContext.getTools()).find((t) => t.name === "echo");
-      return document.modelContext.executeTool(tool, JSON.stringify({ message: "page" }));
+      return document.modelContext.executeTool(tool, { message: "page" });
     })()`),
   ).toBe('{"content":[{"type":"text","text":"echo: page"}]}');
   expect(listed.find((t) => t.name === "echo")).toEqual({
@@ -816,6 +817,72 @@ async function runScenario(page: Page, body: string): Promise<Record<string, unk
   await page.goto(policyDoc(body), { waitUntil: "load" });
   return JSON.parse(String(await page.evaluate("window.__scenario()"))) as Record<string, unknown>;
 }
+
+test("getTools returns Tool objects that executeTool runs by registration", async ({ page }) => {
+  const result = await runScenario(
+    page,
+    `<script>
+    window.__scenario = async () => {
+      const mc = document.modelContext;
+      const out = {};
+      const errorName = (p) => p.then(() => "resolved", (e) => e.name);
+      const ac = new AbortController();
+      await mc.registerTool({
+        name: "t", description: "first", outputSchema: { type: "string" },
+        annotations: { debugging: true }, execute: (input) => "ran:" + input.x,
+      }, { signal: ac.signal });
+      const [tool] = await mc.getTools();
+      out.isTool = tool instanceof Tool;
+      out.source = tool.source === window;
+      out.fields = [tool.title, tool.inputSchema, tool.outputSchema, tool.annotations];
+      out.json = JSON.stringify(tool);
+      out.spread = Object.keys({ ...tool });
+      try { structuredClone(tool); out.clone = "cloned"; } catch (e) { out.clone = e.name; }
+      try { new Tool(); out.construct = "constructed"; } catch (e) { out.construct = e.name; }
+      out.result = await mc.executeTool(tool, { x: 1 });
+      out.lookalike = await errorName(mc.executeTool({
+        name: tool.name, origin: tool.origin, source: tool.source,
+      }));
+      out.stringInput = await errorName(mc.executeTool(tool, "{}"));
+      out.badOutputSchema = await errorName(mc.registerTool({
+        name: "o", description: "d", outputSchema: { toJSON: () => undefined },
+        execute: () => {},
+      }));
+      ac.abort();
+      await mc.registerTool({ name: "t", description: "second", execute: () => "new" });
+      out.stale = await errorName(mc.executeTool(tool));
+      const [fresh] = await mc.getTools();
+      out.fresh = [await mc.executeTool(fresh), fresh.annotations, fresh.outputSchema];
+      return JSON.stringify(out);
+    };
+    </script>`,
+  );
+  expect(result).toEqual({
+    isTool: true,
+    source: true,
+    fields: [
+      "",
+      null,
+      { type: "string" },
+      {
+        readOnlyHint: false,
+        untrustedContentHint: false,
+        consequentialHint: false,
+        debugging: true,
+      },
+    ],
+    json: "{}",
+    spread: [],
+    clone: "DataCloneError",
+    construct: "TypeError",
+    result: "ran:1",
+    lookalike: "TypeError",
+    stringInput: "TypeError",
+    badOutputSchema: "TypeError",
+    stale: "NotFoundError",
+    fresh: ["new", null, null],
+  });
+}, 60_000);
 
 test("toolactivated and toolcancel fire at document.modelContext", async ({ page }) => {
   const result = await runScenario(
