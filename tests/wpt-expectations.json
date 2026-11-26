@@ -25420,8 +25420,8 @@
     "reason": null
   },
   "/css/CSS2/tables/table-backgrounds-bs-cell-001.xht": {
-    "expected": "FAIL",
-    "reason": null
+    "expected": "PASS",
+    "reason": "Rebaselined: the table background pass now paints column-group, column, row-group, row and cell backgrounds per CSS 2.1 17.5.1, so the table and cell boxes match the reference. The group/row variants still differ."
   },
   "/css/CSS2/tables/table-backgrounds-bs-colgroup-001.xht": {
     "expected": "FAIL",
@@ -25440,8 +25440,8 @@
     "reason": null
   },
   "/css/CSS2/tables/table-backgrounds-bs-table-001.xht": {
-    "expected": "FAIL",
-    "reason": null
+    "expected": "PASS",
+    "reason": "Rebaselined: the table background pass now paints column-group, column, row-group, row and cell backgrounds per CSS 2.1 17.5.1, so the table and cell boxes match the reference. The group/row variants still differ."
   },
   "/css/CSS2/tables/table-cell-001.xht": {
     "expected": "PASS",
