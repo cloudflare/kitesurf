@@ -32,3 +32,14 @@ test("an evaluate that assigns location replies before the navigation starts", a
   expect(order[0]).toBe("reply");
   expect(await navigated).toBe("about:blank");
 }, 60_000);
+
+// Each assignment holds its own report until the reply; the reply still goes first.
+test("an evaluate that assigns location twice replies", async ({ page, cdpSession: cdp }) => {
+  await page.goto(FROM, { waitUntil: "load" });
+  const reply = await cdp.send("Runtime.evaluate", {
+    expression: `location.href = ${JSON.stringify(FROM)}; location.href = "about:blank"; "replied"`,
+    returnByValue: true,
+  });
+  expect(reply.exceptionDetails).toBeUndefined();
+  expect(reply.result.value).toBe("replied");
+}, 60_000);
