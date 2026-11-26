@@ -17,6 +17,7 @@ export type InterceptAction =
   | {
       kind: "fulfill";
       responseCode: number;
+      responsePhrase?: string;
       responseHeaders?: HeaderEntry[];
       body?: string;
     }
