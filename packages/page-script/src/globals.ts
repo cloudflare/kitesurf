@@ -4,6 +4,7 @@
 
 // Installs browser-facing globals and adapters in the PageScript realm.
 
+import { isDomNode } from "./dom-shim.js";
 import { resolveImportMap, resolveModuleRegistryUrl } from "./__ks_import_map.js";
 import { bakedJsonModuleName } from "./baked-module.ts";
 import type { BuildDocumentResult, ShimDocument, ShimNavigator, ShimWindow } from "./types.ts";
@@ -724,11 +725,59 @@ export function installGlobals(
           }
           return objectValue;
         };
+        // DOM nodes are not serializable; throw DataCloneError instead of copying
+        // a real node into a plain object, while still cloning plain objects that
+        // happen to have `nodeType`/`nodeName` properties.
+        // https://html.spec.whatwg.org/multipage/structured-data.html#structuredserializeinternal
+        const findNode = (
+          value: unknown,
+          seen: WeakSet<object>,
+          budget: { left: number },
+        ): boolean => {
+          if (value === null || typeof value !== "object") return false;
+          if (budget.left-- <= 0) return false;
+          const objectValue = value as Record<string, unknown>;
+          if (seen.has(objectValue)) return false;
+          seen.add(objectValue);
+          if (typeof objectValue.nodeType === "number" && isDomNode(objectValue)) return true;
+          if (Array.isArray(objectValue)) {
+            for (let i = 0; i < objectValue.length; i++) {
+              const item = objectValue[i];
+              if (item !== null && typeof item === "object" && findNode(item, seen, budget)) {
+                return true;
+              }
+            }
+            return false;
+          }
+          if (objectValue instanceof Map) {
+            for (const [k, v] of objectValue) {
+              if (findNode(k, seen, budget) || findNode(v, seen, budget)) return true;
+            }
+            return false;
+          }
+          if (objectValue instanceof Set) {
+            for (const v of objectValue) {
+              if (findNode(v, seen, budget)) return true;
+            }
+            return false;
+          }
+          if (!isContainer(objectValue)) return false;
+          for (const key of Object.keys(objectValue)) {
+            const prop = objectValue[key];
+            if (prop !== null && typeof prop === "object" && findNode(prop, seen, budget)) {
+              return true;
+            }
+          }
+          return false;
+        };
         // Native structuredClone cannot traverse Boa proxies; materialize bridged containers first.
         const wrapped: StructuredCloneFunction = function structuredClone(
           value: unknown,
           options?: unknown,
         ): unknown {
+          if (findNode(value, new WeakSet(), { left: 10_000 })) {
+            throw new DOMException("Node object could not be cloned.", "DataCloneError");
+          }
           let bridged = false;
           try {
             bridged = ks_bridge_ever_minted() && containsBridged(value, new WeakSet());
@@ -1392,8 +1441,16 @@ export function installGlobals(
         "SVGGraphicsElement",
         "SVGGeometryElement",
       ]) {
-        if (typeof Reflect.get(globalThis, constructorName) !== "function") {
-          Reflect.set(globalThis, constructorName, class extends (__svgBase as any) {});
+        let svgInterface = Reflect.get(globalThis, constructorName);
+        if (typeof svgInterface !== "function") {
+          svgInterface = class extends (__svgBase as any) {};
+          Reflect.set(globalThis, constructorName, svgInterface);
+        }
+        // Every SVG element interface inherits from SVGElement, which inherits
+        // the Element members (style, SVG timing) that pages rely on.
+        // https://svgwg.org/svg2-draft/types.html#InterfaceSVGElement
+        if (Object.getPrototypeOf(svgInterface.prototype) !== (__svgBase as any).prototype) {
+          Reflect.setPrototypeOf(svgInterface.prototype, (__svgBase as any).prototype);
         }
       }
       const svgRoot = Reflect.get(globalThis, "SVGSVGElement");

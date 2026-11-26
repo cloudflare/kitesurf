@@ -84,6 +84,7 @@ export interface NavigateOptions {
   charset?: string;
   viewportWidth?: number;
   viewportHeight?: number;
+  viewportMobile?: boolean;
   traced?: boolean;
   expectIframeInstalls?: boolean;
   darkColorScheme?: boolean;

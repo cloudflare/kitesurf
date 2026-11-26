@@ -99,6 +99,7 @@ import { webStorage } from "./storage-buckets.ts";
 import { clearSessionOutbound, setSessionOutbound } from "./session-outbound.ts";
 import {
   installResourceFetchBridge,
+  fetchResource,
   fontsIdle,
   fontsInflightCount,
   resolveFontUrlData,
@@ -537,6 +538,38 @@ let __ksOverChain: any[] = [];
 
 let __ksSpaceArmedTarget: any = null;
 let __ksSuppressChar = false;
+
+// A parser-inserted <link rel=preload as=style> fetches at parse time, and its
+// onload handler is how pages swap rel to stylesheet. Start the fetch here and
+// fire the event the element would get.
+// https://html.spec.whatwg.org/multipage/links.html#link-type-preload
+function startParserStylePreloads(): void {
+  const doc = state.document;
+  if (!doc) return;
+  let links: ArrayLike<ShimElement>;
+  try {
+    links = doc.querySelectorAll('link[rel~="preload"]');
+  } catch {
+    return;
+  }
+  for (const link of Array.from(links)) {
+    try {
+      if ((link as any).__ksStylePreloadStarted) continue;
+      if (String(link.getAttribute?.("as") ?? "").toLowerCase() !== "style") continue;
+      (link as any).__ksStylePreloadStarted = true;
+      const href = link.getAttribute?.("href");
+      if (!href) continue;
+      const url = new URL(href, doc.baseURI || state.pageUrl).toString();
+      const corsMode = link.getAttribute?.("crossorigin") != null ? "cors" : "no-cors";
+      // Preloads warm the cache without delaying the document load event.
+      void fetchResource(-1, url, "Stylesheet", corsMode, false).then((ok) => {
+        try {
+          __ks_dispatchTrusted(link, new (shimEventCtor("Event"))(ok ? "load" : "error"));
+        } catch {}
+      });
+    } catch {}
+  }
+}
 
 function __ks_dispatchTrusted(target: any, event: any): boolean {
   if (__ks_dispatchTrustedEvent) {
@@ -1151,6 +1184,9 @@ function __makeCrossOriginContentWindow(iframeElement: any, url: string) {
   return contentWindow;
 }
 
+// A same-origin frame's window exposes its realm's standard globals and DOM
+// element constructors (such as HTMLScriptElement, whose prototype pages read).
+// https://html.spec.whatwg.org/multipage/window-object.html#the-window-object
 function __decorateContentWindow(contentWindow: any) {
   const pageGlobal: any = globalThis;
   const names = [
@@ -1242,9 +1278,30 @@ function __decorateContentWindow(contentWindow: any) {
       contentWindow[globalName] = pageGlobal[globalName];
     }
   }
+  for (const globalName of elementInterfaceNames(pageGlobal)) {
+    if (contentWindow[globalName] === undefined && pageGlobal[globalName] !== undefined) {
+      contentWindow[globalName] = pageGlobal[globalName];
+    }
+  }
 }
 
 const iframeElementsByFrameId = new Map<string, unknown>();
+
+let cachedElementInterfaceNames: string[] | null = null;
+
+function elementInterfaceNames(pageGlobal: Record<string, unknown>): string[] {
+  if (cachedElementInterfaceNames) return cachedElementInterfaceNames;
+  const matched: string[] = [];
+  for (const globalName of Object.getOwnPropertyNames(pageGlobal)) {
+    if (!/^(HTML|SVG|MathML).*Element$/.test(globalName)) continue;
+    const value = Object.getOwnPropertyDescriptor(pageGlobal, globalName)?.value;
+    if (typeof value === "function" && value.prototype !== undefined) {
+      matched.push(globalName);
+    }
+  }
+  cachedElementInterfaceNames = matched;
+  return matched;
+}
 
 function registerSameOriginIframe(frameId: unknown, iframeElement: unknown): void {
   if (typeof frameId !== "string" || frameId.length === 0) return;
@@ -2900,6 +2957,33 @@ function linkReferrerPolicy(anchor: { getAttribute?: (name: string) => string | 
   return attribute("referrerpolicy").trim().toLowerCase();
 }
 
+// Find a named `<iframe>` in the anchor's document matching a non-reserved
+// `target` attribute, matching form submission's target lookup.
+// https://html.spec.whatwg.org/multipage/document-sequences.html#the-rules-for-choosing-a-navigable
+function findNamedTargetIframe(anchor: AttributeTarget, name: string): AttributeTarget | null {
+  const ownerDoc: unknown = Reflect.get(anchor, "ownerDocument");
+  const doc: unknown = ownerDoc && typeof ownerDoc === "object" ? ownerDoc : state.document;
+  if (!doc || typeof doc !== "object") return null;
+  const query: unknown = Reflect.get(doc, "querySelectorAll");
+  if (typeof query !== "function") return null;
+  const frames: unknown = Reflect.apply(query, doc, ["iframe"]);
+  if (!frames || typeof frames !== "object" || !("length" in frames)) return null;
+  const list = frames as ArrayLike<MouseTarget>;
+  for (let i = 0; i < list.length; i++) {
+    const frame = list[i];
+    if (frame && hasAttributeMethods(frame) && frame.getAttribute?.("name") === name) return frame;
+  }
+  return null;
+}
+
+// A `download` anchor for a `blob:` or `data:` URL keeps the current document.
+// Same-origin HTTP(S) downloads still navigate (attachment headers stay handled by the engine).
+// https://html.spec.whatwg.org/multipage/links.html#downloading-resources
+function isInlineDownloadAnchor(anchor: AttributeTarget, resolved: string): boolean {
+  if (!anchor.hasAttribute("download")) return false;
+  return resolved.startsWith("blob:") || resolved.startsWith("data:");
+}
+
 // A click follows a link only when it lands on the link or inside it (HTML's activation behavior
 // runs on the event path), never on a nearby one.
 function activateAnchorNavigation(
@@ -2920,6 +3004,24 @@ function activateAnchorNavigation(
       rawHref,
       state.pageUrl || "https://kitesurf.local/",
     ).toString();
+    if (hasAttributeMethods(anchor)) {
+      if (isInlineDownloadAnchor(anchor, resolved)) return null;
+      const targetName = String(anchor.getAttribute?.("target") ?? "").trim();
+      const targetKeyword = targetName.toLowerCase();
+      if (
+        targetName &&
+        targetKeyword !== "_self" &&
+        targetKeyword !== "_parent" &&
+        targetKeyword !== "_top" &&
+        targetKeyword !== "_blank"
+      ) {
+        const targetFrame = findNamedTargetIframe(anchor, targetName);
+        if (targetFrame) {
+          targetFrame.setAttribute("src", resolved);
+          return null;
+        }
+      }
+    }
     const isHashOnly =
       resolved.includes("#") && resolved.split("#")[0] === state.pageUrl.split("#")[0];
     if (!isHashOnly) {
@@ -3742,8 +3844,14 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
       typeof navigateOptions.viewportWidth === "number" &&
       typeof navigateOptions.viewportHeight === "number"
     ) {
-      const viewportWidth = Math.max(1, Math.floor(navigateOptions.viewportWidth));
-      const viewportHeight = Math.max(1, Math.floor(navigateOptions.viewportHeight));
+      const deviceWidth = Math.max(1, Math.floor(navigateOptions.viewportWidth));
+      const deviceHeight = Math.max(1, Math.floor(navigateOptions.viewportHeight));
+      const { width: viewportWidth, height: viewportHeight } = resolveLayoutViewport(
+        state.dom,
+        deviceWidth,
+        deviceHeight,
+        navigateOptions.viewportMobile === true,
+      );
       state.paintViewportW = viewportWidth;
       state.paintViewportH = viewportHeight;
       try {
@@ -4000,6 +4108,7 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     __ks_activateLabel = built.__ks_activateLabel;
     state.dispatchTrustedEvent = __ks_dispatchTrusted;
     installGlobals(state.document, state.window, built);
+    startParserStylePreloads();
     preinstallStaticIframes();
     ksSpan("dom.mark_engine_functions", null, () =>
       markEngineFunctions([globalThis, state.window, state.document]),
@@ -7112,18 +7221,98 @@ function accessibilityVisibility(dom: QueryDomActiveState["dom"]): boolean {
   return ensurePaintDom() !== null;
 }
 
+// Parse an explicit numeric `width=<px>` from a `<meta name="viewport">` content
+// string, ignoring `device-width` and invalid tokens.
+// https://drafts.csswg.org/css-viewport/#viewport-meta
+function parseMetaViewportWidth(content: string): number | null {
+  for (const part of content.split(/[,;]/)) {
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    const key = part.slice(0, eq).trim().toLowerCase();
+    if (key !== "width") continue;
+    const raw = part
+      .slice(eq + 1)
+      .trim()
+      .toLowerCase();
+    if (raw === "device-width" || raw === "") continue;
+    const parsed = Number.parseFloat(raw);
+    if (Number.isFinite(parsed) && parsed >= 1 && parsed <= 10000) {
+      return Math.round(parsed);
+    }
+  }
+  return null;
+}
+
+// Match engine/src/cdp/viewport.ts limits so a mobile meta viewport cannot grow
+// the raster past the engine's side or pixel caps.
+const MAX_LAYOUT_VIEWPORT_SIDE = 2560;
+const MAX_LAYOUT_VIEWPORT_PIXELS = 2560 * 1440;
+const MIN_LAYOUT_VIEWPORT_DIM = 16;
+
+function clampLayoutViewport(w: number, h: number): { width: number; height: number } {
+  let width = Math.max(MIN_LAYOUT_VIEWPORT_DIM, Math.min(MAX_LAYOUT_VIEWPORT_SIDE, Math.floor(w)));
+  let height = Math.max(MIN_LAYOUT_VIEWPORT_DIM, Math.min(MAX_LAYOUT_VIEWPORT_SIDE, Math.floor(h)));
+  const pixels = width * height;
+  if (pixels > MAX_LAYOUT_VIEWPORT_PIXELS) {
+    const scale = Math.sqrt(MAX_LAYOUT_VIEWPORT_PIXELS / pixels);
+    width = Math.max(MIN_LAYOUT_VIEWPORT_DIM, Math.floor(width * scale));
+    height = Math.max(MIN_LAYOUT_VIEWPORT_DIM, Math.floor(height * scale));
+  }
+  return { width, height };
+}
+
+function resolveLayoutViewport(
+  dom: DomHandle | null,
+  deviceWidth: number,
+  deviceHeight: number,
+  mobile: boolean,
+): { width: number; height: number } {
+  if (!mobile || !dom) return { width: deviceWidth, height: deviceHeight };
+  try {
+    const metaId = dom.querySelector('meta[name="viewport" i]');
+    if (metaId < 0) return { width: deviceWidth, height: deviceHeight };
+    const attrs = dom.attributeList(metaId)?.attributes;
+    if (!Array.isArray(attrs)) return { width: deviceWidth, height: deviceHeight };
+    let content = "";
+    for (let i = 0; i + 1 < attrs.length; i += 2) {
+      if (String(attrs[i]).toLowerCase() === "content") {
+        content = String(attrs[i + 1] ?? "");
+        break;
+      }
+    }
+    if (!content) return { width: deviceWidth, height: deviceHeight };
+    const metaWidth = parseMetaViewportWidth(content);
+    if (metaWidth === null || metaWidth <= deviceWidth) {
+      return { width: deviceWidth, height: deviceHeight };
+    }
+    const scaledHeight = Math.max(
+      deviceHeight,
+      Math.round(deviceHeight * (metaWidth / deviceWidth)),
+    );
+    return clampLayoutViewport(metaWidth, scaledHeight);
+  } catch {
+    return { width: deviceWidth, height: deviceHeight };
+  }
+}
+
 function queryDomSetViewport(
   pageState: QueryDomActiveState,
   queryArgs: Record<string, unknown>,
 ): QueryDomResult<"setViewport"> {
-  const viewportWidth =
+  const deviceWidth =
     queryArgs && typeof queryArgs.width === "number"
       ? Math.max(1, Math.floor(queryArgs.width))
       : DEFAULT_VIEWPORT_WIDTH_PX;
-  const viewportHeight =
+  const deviceHeight =
     queryArgs && typeof queryArgs.height === "number"
       ? Math.max(1, Math.floor(queryArgs.height))
       : DEFAULT_VIEWPORT_HEIGHT_PX;
+  const { width: viewportWidth, height: viewportHeight } = resolveLayoutViewport(
+    pageState.dom,
+    deviceWidth,
+    deviceHeight,
+    queryArgs?.mobile === true,
+  );
   const dimsChanged =
     state.paintViewportW !== viewportWidth || state.paintViewportH !== viewportHeight;
   state.paintViewportW = viewportWidth;

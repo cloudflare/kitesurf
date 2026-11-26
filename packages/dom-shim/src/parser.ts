@@ -32,6 +32,7 @@ import { ksSpan } from "./otel.js";
 import { validateXMLName, validateAndExtract, XML_NS, XMLNS_NS } from "./util/validation.js";
 import { camelToDash } from "./util/strings.js";
 import { DOMImplementationCls } from "./document.js";
+import { inlineStyleOf } from "./element/element.js";
 import type { DetachedDocument, DocumentImpl } from "./document.js";
 import {
   NodeListCls,
@@ -610,6 +611,12 @@ class ParsedElement {
   }
   replaceChild(): never {
     throw notSupported("replaceChild on DOMParser result (read-only)");
+  }
+  // Frame documents build their elements here rather than as Elements, but the
+  // inline style declaration only reads and writes the style attribute.
+  // https://drafts.csswg.org/cssom/#dom-elementcssinlinestyle-style
+  get style(): ReturnType<typeof inlineStyleOf> {
+    return inlineStyleOf(this);
   }
   setAttribute(name: string, value: string | Idl.TrustedType): void {
     if (!this.ownerDocument || !this.ownerDocument._mutable) {

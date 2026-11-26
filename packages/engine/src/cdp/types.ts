@@ -361,6 +361,7 @@ export interface TargetState {
   nextNavigationHistoryId: number;
   viewportWidth: number | null;
   viewportHeight: number | null;
+  viewportMobile: boolean;
   // Emulated device pixel ratio. Rendering stays in CSS pixels, but Playwright
   // divides a `scale: "css"` screenshot's clip scale by it.
   deviceScaleFactor: number;

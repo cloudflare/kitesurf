@@ -14,6 +14,46 @@ interface DialogLike {
   setAttribute(name: string, value: string): void;
   removeAttribute(name: string): void;
   dispatchEvent(event: KsEvent): boolean;
+  querySelectorAll(selector: string): ArrayLike<FocusTarget>;
+  focus?: () => void;
+}
+
+interface FocusTarget {
+  hasAttribute?(name: string): boolean;
+  focus?: () => void;
+}
+
+// The first focusable area in tree order, else the dialog itself.
+// https://html.spec.whatwg.org/multipage/interactive-elements.html#dialog-focusing-steps
+const FOCUSABLE_SELECTOR = [
+  "button:not([disabled])",
+  "input:not([disabled]):not([type=hidden])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "a[href]",
+  "area[href]",
+  "iframe",
+  "summary",
+  "[contenteditable]",
+  "[tabindex]",
+].join(",");
+
+function focusInsideDialog(dialog: DialogLike): void {
+  let target: FocusTarget | null = null;
+  try {
+    const focusables = Array.from(dialog.querySelectorAll(FOCUSABLE_SELECTOR));
+    const autofocus = focusables.find((el) => {
+      const hasAttr = (el as { hasAttribute?: (name: string) => boolean }).hasAttribute;
+      return typeof hasAttr === "function" && hasAttr.call(el, "autofocus");
+    });
+    target = autofocus ?? focusables[0] ?? null;
+  } catch {}
+  const focus = (target ?? dialog).focus;
+  if (typeof focus === "function") {
+    try {
+      focus.call(target ?? dialog);
+    } catch {}
+  }
 }
 
 const returnValues = new WeakMap<object, string>();
@@ -39,6 +79,7 @@ const dialogShowModal = function (this: DialogLike): void {
   }
   modalDialogs.set(this, true);
   this.setAttribute("open", "");
+  focusInsideDialog(this);
 };
 
 const dialogClose = function (this: DialogLike, returnValue?: string): void {
