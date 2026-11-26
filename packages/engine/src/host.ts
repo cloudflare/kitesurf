@@ -29,6 +29,23 @@ export interface ConnectionOptions {
   fontProfile?: FontProfile;
 }
 
+/** The authorization of stateful sessions. The engine refuses what it does not admit. */
+export interface StatefulSessionPolicy {
+  /**
+   * The verified principal behind a request, from what the deploy trusts (ctx.props, a signed
+   * token), never from a header a client sets. Null refuses the request. A session admits only
+   * the principal that created it.
+   */
+  principal(request: Request, env: Env, ctx: ExecutionContext): Promise<string | null>;
+  /** Runs before a create; a response refuses it, as for a quota or a kill switch. */
+  admitCreate?(
+    principal: string,
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<Response | null>;
+}
+
 export interface EngineHost {
   /** Handles unmatched routes; return `null` to keep the engine's 404 response. */
   serveFallback?(url: URL, env: Env): Promise<Response | null>;
@@ -64,10 +81,11 @@ export interface EngineHost {
    * An external outbound takes precedence. Unset uses `fetch`.
    */
   egress?(env: Env, ctx: ExecutionContext): ExternalOutbound | undefined;
-  // The owner of a stateful session (stateful.ts), from the request that creates it or connects
-  // to it. A client connects only to a session that its owner created. Unset, or null at
-  // creation, admits every client that knows the session id.
-  sessionOwner?(request: Request, env: Env, ctx: ExecutionContext): string | null;
+  /**
+   * Who may create and use stateful sessions (stateful.ts). Unset turns the stateful routes off,
+   * unless KITESURF_STATEFUL_UNAUTHENTICATED is "1" for a local test.
+   */
+  statefulSessions?: StatefulSessionPolicy;
   /**
    * Creates the store a session keeps its data in. Unset, or returning nothing, keeps every
    * table on the isolate heap (`MemorySessionStore`), which is what a plain session wants.

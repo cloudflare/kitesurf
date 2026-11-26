@@ -485,6 +485,20 @@ class to your Wrangler configuration with SQLite storage:
 A declared class stays in the Worker's migration history. You cannot remove it
 without a delete migration.
 
+The class alone does not open the stateful routes. An embedding Worker must
+also set `EngineHost.statefulSessions`, the policy that gives the verified
+principal of each request:
+
+- Without a policy, the stateful routes answer 404. For a local test only, set
+  `KITESURF_STATEFUL_UNAUTHENTICATED` to `"1"`: every request then acts as one
+  principal.
+- A request with no principal gets a 401. A session admits only the principal
+  that created it, and another principal gets a 403.
+- `admitCreate` can refuse a create, for example for a quota or a kill switch.
+- A page endpoint gives the same control as the browser endpoint: `Target.*`
+  commands still act on the whole browser. Give a page URL only to a principal
+  that you trust with the whole browser.
+
 | Request                                                       | Result                                                                             |
 | ------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `POST /devtools/browser?keep_alive=<ms>`                      | Creates a session. Returns `sessionId`, `webSocketDebuggerUrl` and `pageTargetId`. |
@@ -504,9 +518,6 @@ without a delete migration.
   on the old code, set `durable_objects.code_update_strategy` to `deferred`
   with a `max_delay` as long as the wall-clock cap. Refer to
   [Durable Objects code updates](https://developers.cloudflare.com/durable-objects/deployments/durable-objects-code-updates/).
-- Anyone who knows a session id can connect to it. To limit a session to the
-  client that created it, an embedding Worker implements
-  `EngineHost.sessionOwner`.
 
 The engine configuration includes a Worker Loader binding. Kitesurf uses this
 binding to start a separate worker for each page and renderer. Cloudflare

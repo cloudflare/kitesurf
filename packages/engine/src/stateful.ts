@@ -4,8 +4,8 @@
 
 // Stateful browser sessions: one StatefulBrowser Durable Object per session, opt-in per request.
 // POST /devtools/browser creates one, and clients connect to /devtools/browser/<sessionId>. The
-// browser outlives its clients for its keep-alive and serves several at once. A deploy that does
-// not declare the class answers the POST with a 404, and plain upgrades stay stateless.
+// browser outlives its clients for its keep-alive and serves several at once. Without the class
+// or an EngineHost.statefulSessions policy, these routes are 404s; plain upgrades stay stateless.
 
 // The session's data lives in the object's SQLite (state/sqlite-session-store.ts), and each page
 // runs in a facet with a database of its own (eval/page-script-host.ts). The live browser stays
@@ -42,9 +42,11 @@ const ALARM_MAX_INTERVAL_MS = 30_000;
 // is still running can write a row after the end.
 const CLEANUP_DELAY_MS = 30_000;
 
-// The owner the front door resolved (EngineHost.sessionOwner) for a connect. Clients cannot set
-// it: the front door builds the forwarded request's headers itself.
+// The principal the front door resolved (EngineHost.statefulSessions) for a connect. Clients
+// cannot set it: the front door builds the forwarded request's headers itself.
 const OWNER_HEADER = "x-kitesurf-stateful-owner";
+// The one principal of a local test deploy that sets KITESURF_STATEFUL_UNAUTHENTICATED.
+const UNAUTHENTICATED_PRINCIPAL = "unauthenticated";
 
 const keepAliveParam = z.coerce.number().int().positive().optional().catch(undefined);
 
@@ -115,7 +117,24 @@ interface CreateInit {
   // The front door's ctx.props, for the session's telemetry and loaded workers.
   props: unknown;
   keepAliveMs: number;
-  owner: string | null;
+  owner: string;
+}
+
+// The principal behind a stateful request: "off" when the deploy installs no policy, which turns
+// the stateful routes off, and null when the policy refuses the request.
+async function statefulPrincipal(
+  host: EngineHost,
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<string | null | "off"> {
+  const policy = host.statefulSessions;
+  if (policy) return policy.principal(request, env, ctx);
+  return env.KITESURF_STATEFUL_UNAUTHENTICATED === "1" ? UNAUTHENTICATED_PRINCIPAL : "off";
+}
+
+function unauthorized(): Response {
+  return new Response("kitesurf: this request has no verified principal\n", { status: 401 });
 }
 
 /**
@@ -129,9 +148,13 @@ export async function createStatefulSession(
   host: EngineHost,
 ): Promise<Response> {
   const ns = statefulNamespace(ctx.exports);
-  if (!ns) {
+  const principal = ns ? await statefulPrincipal(host, request, env, ctx) : "off";
+  if (!ns || principal === "off") {
     return new Response("kitesurf: stateful sessions are not enabled here\n", { status: 404 });
   }
+  if (principal === null) return unauthorized();
+  const refused = await host.statefulSessions?.admitCreate?.(principal, request, env, ctx);
+  if (refused) return refused;
   // The object cannot apply a host egress (see create), and must not send around it.
   if (host.egress?.(env, ctx) !== undefined) {
     return new Response("kitesurf: stateful sessions do not support this deploy's egress\n", {
@@ -150,7 +173,7 @@ export async function createStatefulSession(
     headers: Array.from(request.headers.entries()),
     props: ctx.props,
     keepAliveMs,
-    owner: host.sessionOwner?.(request, env, ctx) ?? null,
+    owner: principal,
   });
   const sessionId = id.toString();
   const requestHost = request.headers.get("host") ?? url.host;
@@ -162,8 +185,11 @@ export async function createStatefulSession(
   });
 }
 
-/** Hands a `/devtools/browser/<sessionId>...` request to the session's object. */
-export function routeToStatefulSession(
+/**
+ * Hands a `/devtools/browser/<sessionId>...` request to the session's object, with the verified
+ * principal it acts for. A 404 while the stateful routes are off.
+ */
+export async function routeToStatefulSession(
   env: Env,
   ctx: ExecutionContext,
   request: Request,
@@ -171,12 +197,12 @@ export function routeToStatefulSession(
   host: EngineHost,
 ): Promise<Response> {
   const ns = statefulNamespace(ctx.exports);
-  if (!ns) return Promise.resolve(new Response("not found", { status: 404 }));
+  const principal = ns ? await statefulPrincipal(host, request, env, ctx) : "off";
+  if (!ns || principal === "off") return statefulSessionNotFound();
+  if (principal === null) return unauthorized();
   const headers = new Headers(request.headers);
-  headers.delete(OWNER_HEADER);
   headers.delete(OUTBOUND_FORWARD_HEADER);
-  const owner = host.sessionOwner?.(request, env, ctx) ?? null;
-  if (owner !== null) headers.set(OWNER_HEADER, owner);
+  headers.set(OWNER_HEADER, principal);
   return ns.get(id).fetch(new Request(request.url, { headers }));
 }
 
@@ -186,7 +212,7 @@ export function routeToStatefulSession(
  */
 export class StatefulBrowser extends DurableObject<Env> {
   #session: BrowserSession | null = null;
-  #owner: string | null = null;
+  #owner = "";
   #keepAliveMs = KEEP_ALIVE_DEFAULT_MS;
   // When the last client left, or null while one is connected.
   #idleSince: number | null = null;
@@ -206,6 +232,7 @@ export class StatefulBrowser extends DurableObject<Env> {
     if (this.host().egress) {
       throw new Error("kitesurf: a StatefulBrowser host cannot set egress");
     }
+    if (!init.owner) throw new Error("kitesurf: a stateful session needs an owner");
     const request = new Request(init.url, { headers: init.headers });
     this.#owner = init.owner;
     this.#keepAliveMs = init.keepAliveMs;
@@ -244,7 +271,7 @@ export class StatefulBrowser extends DurableObject<Env> {
     if (forwarded) return this.#outbound(forwarded.props, forwarded.request);
     const session = this.#session;
     if (!session || session.disposed) return statefulSessionNotFound();
-    if (this.#owner !== null && request.headers.get(OWNER_HEADER) !== this.#owner) {
+    if (request.headers.get(OWNER_HEADER) !== this.#owner) {
       return new Response("kitesurf: this session belongs to another owner\n", { status: 403 });
     }
     const url = new URL(request.url);

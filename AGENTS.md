@@ -71,8 +71,9 @@ Engine-wide invariants. The owning code carries the detail; keep these in sync w
   flag.
 - By default the CDP WebSocket bounds the session. `BrowserSession` (`cdp/connection.ts`) holds
   the browser state and each `ClientConnection` one socket, and the session ends when its socket
-  closes. A deploy that declares `StatefulBrowser` (`stateful.ts`) also hosts opt-in persistent
-  sessions in a Durable Object, which outlive their clients and serve several (README).
+  closes. A deploy that declares `StatefulBrowser` (`stateful.ts`) and installs an
+  `EngineHost.statefulSessions` policy also hosts persistent sessions in a Durable Object, which
+  outlive their clients and serve several (README). Without a policy the stateful routes are off.
 - Each `Page.navigate` loads a fresh anonymous PageScript worker with `env.LOADER.load` and kills
   the previous one. Use `load()`, never a named `LOADER.get`.
 - Wasm panics unwind (`packages/core/.cargo/config.toml`, symlinked into `renderer-core`), so the

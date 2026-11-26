@@ -278,4 +278,6 @@ export default engineE2EConfig({
   // The template declares no Durable Object, so stateful sessions are opt-in per deploy. The
   // engine reaches the class through ctx.exports; the binding only gives miniflare a namespace.
   engineDurableObjects: { STATEFUL_BROWSER: { className: "StatefulBrowser", useSQLite: true } },
+  // No EngineHost policy here, so the stateful routes need the local-test switch.
+  engineBindings: { KITESURF_STATEFUL_UNAUTHENTICATED: "1" },
 });

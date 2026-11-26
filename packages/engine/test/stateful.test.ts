@@ -43,6 +43,12 @@ function fakeExports() {
 }
 
 const env = {} as Env;
+const localTestEnv = { KITESURF_STATEFUL_UNAUTHENTICATED: "1" } as Env;
+
+const policy = (principal: string | null, admitCreate?: () => Promise<Response | null>) =>
+  ({
+    statefulSessions: { principal: async () => principal, admitCreate },
+  }) satisfies EngineHost;
 
 describe("parseStatefulPath", () => {
   it("reads the browser, page and page-list endpoints of a session", () => {
@@ -97,17 +103,46 @@ describe("createStatefulSession", () => {
     expect(res.status).toBe(404);
   });
 
+  it("is off without a policy, unless the local-test switch is on", async () => {
+    const { ctx, seen } = fakeExports();
+    const off = await createStatefulSession(env, ctx, new Request("https://e/x"), {});
+    expect(off.status).toBe(404);
+    expect(seen.init).toBeUndefined();
+
+    const local = await createStatefulSession(localTestEnv, ctx, new Request("https://e/x"), {});
+    expect(local.status).toBe(200);
+    expect(seen.init).toMatchObject({ owner: "unauthenticated" });
+  });
+
+  it("refuses a request with no verified principal, and what admitCreate refuses", async () => {
+    const { ctx, seen } = fakeExports();
+    const res = await createStatefulSession(env, ctx, new Request("https://e/x"), policy(null));
+    expect(res.status).toBe(401);
+    const quota = async () => new Response("over quota", { status: 429 });
+    const refused = await createStatefulSession(
+      env,
+      ctx,
+      new Request("https://e/x"),
+      policy("account-1", quota),
+    );
+    expect(refused.status).toBe(429);
+    expect(seen.init).toBeUndefined();
+  });
+
   it("refuses a create when the host sets an egress the object cannot apply", async () => {
     const { ctx, seen } = fakeExports();
-    const host: EngineHost = { egress: () => ({ fetch: async () => new Response("") }) };
+    const host: EngineHost = {
+      ...policy("account-1"),
+      egress: () => ({ fetch: async () => new Response("") }),
+    };
     const res = await createStatefulSession(env, ctx, new Request("https://e/x"), host);
     expect(res.status).toBe(501);
     expect(seen.init).toBeUndefined();
   });
 
-  it("holds keep_alive to its limits and records the host's owner", async () => {
+  it("holds keep_alive to its limits and records the principal as owner", async () => {
     const { ctx, seen } = fakeExports();
-    const host: EngineHost = { sessionOwner: () => "account-1" };
+    const host = policy("account-1");
     const create = (q: string) =>
       createStatefulSession(env, ctx, new Request(`https://e/devtools/browser${q}`), host);
 
@@ -126,7 +161,7 @@ describe("createStatefulSession", () => {
 });
 
 describe("routeToStatefulSession", () => {
-  it("drops the headers only the engine writes, and sets the host's owner", async () => {
+  it("drops the headers only the engine writes, and sets the verified principal", async () => {
     const { ctx, seen, id } = fakeExports();
     const request = new Request(`https://e/devtools/browser/${SESSION}`, {
       headers: {
@@ -135,12 +170,19 @@ describe("routeToStatefulSession", () => {
         "x-kitesurf-stateful-outbound": "{}",
       },
     });
-    await routeToStatefulSession(env, ctx, request, id, { sessionOwner: () => "account-1" });
+    await routeToStatefulSession(env, ctx, request, id, policy("account-1"));
     expect(seen.request?.headers.get("x-kitesurf-stateful-owner")).toBe("account-1");
     expect(seen.request?.headers.has("x-kitesurf-stateful-outbound")).toBe(false);
     expect(seen.request?.headers.get("upgrade")).toBe("websocket");
+  });
 
-    await routeToStatefulSession(env, ctx, request, id, {});
-    expect(seen.request?.headers.has("x-kitesurf-stateful-owner")).toBe(false);
+  it("refuses a connect with no principal, and keeps the routes off without a policy", async () => {
+    const { ctx, seen, id } = fakeExports();
+    const request = new Request(`https://e/devtools/browser/${SESSION}`, {
+      headers: { "x-kitesurf-stateful-owner": "account-1" },
+    });
+    expect((await routeToStatefulSession(env, ctx, request, id, policy(null))).status).toBe(401);
+    expect((await routeToStatefulSession(env, ctx, request, id, {})).status).toBe(404);
+    expect(seen.request).toBeUndefined();
   });
 });

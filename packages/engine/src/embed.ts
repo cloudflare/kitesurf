@@ -13,7 +13,7 @@ export {
   StatefulBrowser,
 } from "./index.ts";
 export { DEFAULT_ENGINE_HOST } from "./host.ts";
-export type { EngineHost, ConnectionOptions } from "./host.ts";
+export type { EngineHost, ConnectionOptions, StatefulSessionPolicy } from "./host.ts";
 export type { FontProfile } from "./cdp/font-profile.ts";
 export { resolveSessionStore } from "./host.ts";
 export {

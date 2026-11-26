@@ -48,6 +48,10 @@
     // "1" lets page-chosen requests reach loopback and private addresses (Private Network
     // Access). Empty keeps the check; a page is untrusted even on a local engine.
     "KITESURF_ALLOW_PRIVATE_NETWORK": "",
+    // "1" admits every stateful-session request as one principal, for a local test of a deploy
+    // that declares StatefulBrowser but installs no EngineHost.statefulSessions policy. Empty
+    // keeps the stateful routes off without a policy.
+    "KITESURF_STATEFUL_UNAUTHENTICATED": "",
     // Web Bot Auth: origin of the key directory that publishes the public
     // half of the WEB_BOT_AUTH_JWK secret. Empty disables signing.
     "WEB_BOT_AUTH_SIGNATURE_AGENT": "",
@@ -81,6 +85,7 @@
         "KITESURF_INSPECTOR_BASE_URL": "/inspector/inspector.html",
         "KITESURF_INSPECTOR_FALLBACK_URL": "https://chrome-devtools-frontend.appspot.com/serve_rev/@1d17a2e2ee147bb7d6ae2ab6abdb3a2510c17775/inspector.html",
         "KITESURF_ALLOW_PRIVATE_NETWORK": "",
+        "KITESURF_STATEFUL_UNAUTHENTICATED": "",
         "WEB_BOT_AUTH_SIGNATURE_AGENT": "",
         "KITESURF_OTLP_ENDPOINT": "http://localhost:4318/v1/traces",
       },
