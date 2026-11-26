@@ -653,10 +653,10 @@ export function runAfterPendingReply(task: () => void): void {
   else afterReplyTasks.push(task);
 }
 
-// Gives page tasks queued by an engine call up to `maxTurns` turns before its reply. A wheel turn
-// costs ~1.3 ms in workerd even when idle, and then only runs the boa job drain; V8 has already
-// emptied the microtask queue before it. With nothing due, run the drain and wait one native
-// macrotask instead, so page promise chains of any length finish. A paused pump skips the drain.
+// Gives page tasks queued by an engine call up to `maxTurns` turns before its reply. Each turn is a
+// native macrotask; with nothing due, run the boa drain and take one, so page promise chains of any
+// length finish. A paused pump runs no page task (a turn would only wait out its grace cap), so it
+// gets that one macrotask and no drain.
 export async function yieldToDuePageTasks(maxTurns: number): Promise<void> {
   replyDrains++;
   try {
@@ -672,11 +672,13 @@ export async function yieldToDuePageTasks(maxTurns: number): Promise<void> {
 async function takeDuePageTaskTurns(maxTurns: number): Promise<void> {
   for (let turn = 0; turn < maxTurns; turn++) {
     await drainSettleMicrotasks();
+    if (pageTasksPaused()) {
+      await nativeSleep(0);
+      return;
+    }
     if (!pageTimerDueWithin(0)) {
-      if (!pageTasksPaused()) {
-        runBridgedPageJobs();
-        await drainSettleMicrotasks();
-      }
+      runBridgedPageJobs();
+      await drainSettleMicrotasks();
       if (!pageTimerDueWithin(0)) {
         await nativeSleep(0);
         if (pageTasksPaused() || !pageTimerDueWithin(0)) return;

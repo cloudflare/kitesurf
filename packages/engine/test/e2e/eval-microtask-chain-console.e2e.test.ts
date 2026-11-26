@@ -17,7 +17,7 @@ const PAGE = `<!doctype html>
   };
 </script>`;
 
-test("Runtime.evaluate reply follows the console output of an 80-step page chain", async ({
+test("Runtime.evaluate reply follows the console output of 80- and 200-step page chains", async ({
   page,
 }) => {
   await setContent(page, PAGE);
