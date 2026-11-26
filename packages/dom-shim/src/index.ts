@@ -692,7 +692,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     ModelContext,
     idlInterfaceMeta("ModelContext", {
       parent: KsEventTarget,
-      methodLengths: { getTools: 0, executeTool: 1 },
+      methodLengths: { getTools: 0, executeTool: 1, waitForToolsUntil: 1 },
       brandOps: true,
       brandAttrs: true,
       promiseOps: ["getTools", "executeTool"],

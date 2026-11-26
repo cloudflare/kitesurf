@@ -781,6 +781,13 @@ export class ModelContext implements Idl.ModelContext {
     });
   }
 
+  // Nothing in Kitesurf reads tool readiness: CDP announces each tool as it registers.
+  waitForToolsUntil(promise: unknown): void {
+    if (!this._isFullyActive()) throw inactiveDocumentError("waitForToolsUntil");
+    // Reacting to the promise marks a rejection handled, as the spec's reaction does.
+    Promise.resolve(promise).catch(() => {});
+  }
+
   executeTool(tool: unknown, inputObject?: unknown, options?: unknown): Promise<string> {
     const slots = isObjectLike(tool) ? toolSlots.get(tool) : undefined;
     if (!slots) {

@@ -979,3 +979,30 @@ test("a refused duplicate declarative tool retries on its next mutation", async 
   );
   expect(result).toEqual({ initial: ["First"], afterRemove: [], afterMutation: ["Second"] });
 }, 60_000);
+
+test("waitForToolsUntil checks its document and argument", async ({ page }) => {
+  const result = await runScenario(
+    page,
+    `<script>
+    window.__scenario = async () => {
+      const mc = document.modelContext;
+      const out = { rejections: 0 };
+      window.addEventListener("unhandledrejection", () => out.rejections++);
+      mc.waitForToolsUntil(Promise.reject(new Error("handled")));
+      mc.waitForToolsUntil(42);
+      try { mc.waitForToolsUntil(); } catch (e) { out.noArgument = e.name; }
+      try {
+        document.implementation.createHTMLDocument().modelContext
+          .waitForToolsUntil(Promise.resolve());
+      } catch (e) { out.frameless = e.name; }
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      return JSON.stringify(out);
+    };
+    </script>`,
+  );
+  expect(result).toEqual({
+    rejections: 0,
+    noArgument: "TypeError",
+    frameless: "InvalidStateError",
+  });
+}, 60_000);
