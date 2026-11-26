@@ -72,6 +72,14 @@ describe("createStatefulSession", () => {
     expect(res.status).toBe(404);
   });
 
+  it("refuses a create when the host sets an egress the object cannot apply", async () => {
+    const { ctx, seen } = fakeExports();
+    const host: EngineHost = { egress: () => ({ fetch: async () => new Response("") }) };
+    const res = await createStatefulSession(env, ctx, new Request("https://e/x"), host);
+    expect(res.status).toBe(501);
+    expect(seen.init).toBeUndefined();
+  });
+
   it("holds keep_alive to its limits and records the host's owner", async () => {
     const { ctx, seen } = fakeExports();
     const host: EngineHost = { sessionOwner: () => "account-1" };

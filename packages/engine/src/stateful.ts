@@ -123,6 +123,12 @@ export async function createStatefulSession(
   if (!ns) {
     return new Response("kitesurf: stateful sessions are not enabled here\n", { status: 404 });
   }
+  // The object cannot apply a host egress (see create), and must not send around it.
+  if (host.egress?.(env, ctx) !== undefined) {
+    return new Response("kitesurf: stateful sessions do not support this deploy's egress\n", {
+      status: 501,
+    });
+  }
   const url = new URL(request.url);
   const asked = keepAliveParam.parse(url.searchParams.get("keep_alive") ?? undefined);
   const keepAliveMs = Math.min(
@@ -186,6 +192,11 @@ export class StatefulBrowser extends DurableObject<Env> {
     if (this.#session || this.#endedAt !== null) {
       throw new Error("kitesurf: this object already hosts a session");
     }
+    // The session has no host egress: the hook takes a request's ExecutionContext, and a call
+    // forwarded into the object cannot carry the egress stub. Refuse rather than send around it.
+    if (this.host().egress) {
+      throw new Error("kitesurf: a StatefulBrowser host cannot set egress");
+    }
     const request = new Request(init.url, { headers: init.headers });
     this.#owner = init.owner;
     this.#keepAliveMs = init.keepAliveMs;
@@ -196,8 +207,6 @@ export class StatefulBrowser extends DurableObject<Env> {
       sessionContext(this.ctx, init.props),
       parseConnectionParams(request),
       {
-        // No host egress: its hook takes a request's ExecutionContext, and a call forwarded into
-        // the object cannot carry the egress stub.
         persistent: true,
         host: this.host(),
         store: new SqliteSessionStore(this.ctx.storage),
