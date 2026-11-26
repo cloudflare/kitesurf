@@ -33,6 +33,7 @@ import {
   dispatchOnScope,
   installScope,
   isClosing,
+  markTopLevelDone,
 } from "./scope.ts";
 
 type ReceivedInit = {
@@ -123,6 +124,7 @@ export class DedicatedWorker extends WorkerEntrypoint<unknown, DedicatedWorkerPr
         try {
           const run = mod?.default?.run ?? mod?.run;
           if (typeof run === "function") await run.call(globalThis);
+          markTopLevelDone();
           return { ok: true };
         } catch (error) {
           const info = errorInfo(error, params.url);
@@ -133,6 +135,7 @@ export class DedicatedWorker extends WorkerEntrypoint<unknown, DedicatedWorkerPr
           try {
             console.error(info.message);
           } catch {}
+          markTopLevelDone();
           return handled ? { ok: true } : { ok: false, error: info };
         }
       }

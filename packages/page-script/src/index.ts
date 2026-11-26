@@ -7163,7 +7163,11 @@ function queryDomSetMediaType(
 ): QueryDomResult<"setMediaType"> {
   const mediaType = queryArgs && typeof queryArgs.media === "string" ? queryArgs.media : "";
   const normalised = mediaType === "print" ? "print" : "screen";
-  const changed = state.currentMediaType !== normalised;
+  const hasColorScheme = typeof queryArgs?.darkColorScheme === "boolean";
+  const darkColorScheme = hasColorScheme ? (queryArgs.darkColorScheme as boolean) : undefined;
+  const mediaChanged = state.currentMediaType !== normalised;
+  const schemeChanged = hasColorScheme && state.darkColorScheme !== darkColorScheme;
+  const changed = mediaChanged || schemeChanged;
   const quiet = !!(queryArgs && queryArgs.quiet);
   try {
     pageState.dom.setMediaType(mediaType);
@@ -7173,6 +7177,18 @@ function queryDomSetMediaType(
       } catch {}
     }
     state.currentMediaType = normalised;
+    if (darkColorScheme !== undefined) {
+      try {
+        setDarkColorScheme(darkColorScheme);
+      } catch {}
+      pageState.dom.setColorScheme(darkColorScheme);
+      if (state.paintCacheHandle) {
+        try {
+          state.paintCacheHandle.setColorScheme(darkColorScheme);
+        } catch {}
+      }
+      state.darkColorScheme = darkColorScheme;
+    }
     if (changed && !quiet) {
       try {
         const internalState = getInternalState();

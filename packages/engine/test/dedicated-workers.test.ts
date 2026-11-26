@@ -28,8 +28,12 @@ vi.mock("../src/eval/dedicated-worker.ts", () => ({
   },
 }));
 
-import { DedicatedWorkers } from "../src/cdp/dedicated-workers.ts";
-import { DynamicWorkerBudget } from "../src/eval/worker-budget.ts";
+import { DedicatedWorkers, MAX_PENDING_WORKER_MESSAGES } from "../src/cdp/dedicated-workers.ts";
+import {
+  DynamicWorkerBudget,
+  MAX_DYNAMIC_WORKERS,
+  MAX_WORKER_QUEUE_WAIT_MS,
+} from "../src/eval/worker-budget.ts";
 import { notifyIsolateLimit } from "../src/eval/limit-registry.ts";
 import type { DispatchCtx } from "../src/cdp/dispatch.ts";
 import type { TargetState } from "../src/cdp/types.ts";
@@ -112,16 +116,114 @@ describe("DedicatedWorkers", () => {
     expect(spawned[0]!.terminate).toHaveBeenCalledOnce();
   });
 
-  it("fails a second worker with an error and close when the slot is taken", async () => {
-    const { create, delivered } = setup();
-    create(1);
-    create(2);
+  it("holds a worker past the budget and starts it when a slot frees", async () => {
+    const { budget, workers, create, ctx, owner, delivered } = setup();
+    // pageScript, renderer and one navigation slot are already taken.
+    const cap = MAX_DYNAMIC_WORKERS - 3;
+    for (let id = 1; id <= cap; id++) create(id);
     await settle();
+    expect(spawned).toHaveLength(cap);
+    expect(budget.liveOf("worker")).toBe(cap);
+
+    // A worker beyond the cap waits instead of failing.
+    create(cap + 1);
+    await settle();
+    expect(spawned).toHaveLength(cap);
+    expect(delivered).toEqual([]);
+
+    workers.handle(ctx, owner, "kitesurf.workerTerminate", { workerId: 1 });
+    await settle();
+    expect(spawned).toHaveLength(cap + 1);
+    expect(budget.liveOf("worker")).toBe(cap);
+    expect(delivered).toEqual([]);
+  });
+
+  it("buffers messages posted to a queued worker and cancels a terminated queued worker", async () => {
+    const { budget, workers, create, ctx, owner, delivered } = setup();
+    const cap = MAX_DYNAMIC_WORKERS - 3;
+    for (let id = 1; id <= cap; id++) create(id);
+    await settle();
+
+    // Queue one worker and terminate it before a slot frees, and queue another with buffered posts.
+    create(cap + 1);
+    workers.handle(ctx, owner, "kitesurf.workerTerminate", { workerId: cap + 1 });
+    create(cap + 2);
+    workers.handle(ctx, owner, "kitesurf.workerPostMessage", { workerId: cap + 2, data: "first" });
+    workers.handle(ctx, owner, "kitesurf.workerPostMessage", { workerId: cap + 2, data: "second" });
+    await settle();
+    expect(spawned).toHaveLength(cap);
+
+    // Freeing a slot skips the terminated worker and delivers buffered posts to the live one.
+    workers.handle(ctx, owner, "kitesurf.workerTerminate", { workerId: 1 });
+    await settle();
+    expect(spawned).toHaveLength(cap + 1);
+    expect(spawned[cap]!.opts.label).toContain(`-${cap + 2}`);
+    expect(spawned[cap]!.deliverMessage).toHaveBeenNthCalledWith(1, "first");
+    expect(spawned[cap]!.deliverMessage).toHaveBeenNthCalledWith(2, "second");
+    expect(budget.liveOf("worker")).toBe(cap);
+    expect(delivered).toEqual([]);
+  });
+
+  it("fails a queued worker with an error when the slot wait deadline expires", async () => {
+    vi.useFakeTimers();
+    const { budget, workers, create, ctx, owner, delivered } = setup();
+    const cap = MAX_DYNAMIC_WORKERS - 3;
+    for (let id = 1; id <= cap; id++) create(id);
+    await vi.advanceTimersByTimeAsync(0);
+
+    create(cap + 1);
+    await vi.advanceTimersByTimeAsync(MAX_WORKER_QUEUE_WAIT_MS);
+    expect(spawned).toHaveLength(cap);
+    expect(delivered).toContainEqual(
+      expect.objectContaining({
+        workerId: cap + 1,
+        type: "error",
+        message: "Failed to start worker: no isolate slot is free for this worker",
+      }),
+    );
+    expect(delivered).toContainEqual({ workerId: cap + 1, type: "closed" });
+
+    // Freeing a slot afterward must not spawn the timed-out worker.
+    workers.handle(ctx, owner, "kitesurf.workerTerminate", { workerId: 1 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(spawned).toHaveLength(cap);
+    expect(budget.liveOf("worker")).toBe(cap - 1);
+  });
+
+  it("fails a queued worker when buffered postMessage count exceeds the cap", async () => {
+    vi.useFakeTimers();
+    const { workers, create, ctx, owner, delivered } = setup();
+    const cap = MAX_DYNAMIC_WORKERS - 3;
+    for (let id = 1; id <= cap; id++) create(id);
+    await vi.advanceTimersByTimeAsync(0);
+
+    create(cap + 1);
+    for (let i = 0; i <= MAX_PENDING_WORKER_MESSAGES; i++) {
+      workers.handle(ctx, owner, "kitesurf.workerPostMessage", { workerId: cap + 1, data: i });
+    }
+    expect(delivered).toContainEqual(
+      expect.objectContaining({
+        workerId: cap + 1,
+        type: "error",
+        message: "Worker message queue limit exceeded before startup",
+      }),
+    );
+    expect(delivered).toContainEqual({ workerId: cap + 1, type: "closed" });
+  });
+
+  it("delivers more than the queued cap when a starting worker already holds a slot", async () => {
+    const { workers, create, ctx, owner, delivered } = setup();
+    create(1);
+    const total = MAX_PENDING_WORKER_MESSAGES + 1;
+    for (let i = 0; i < total; i++) {
+      workers.handle(ctx, owner, "kitesurf.workerPostMessage", { workerId: 1, data: i });
+    }
+    await settle();
+    expect(delivered).toEqual([]);
     expect(spawned).toHaveLength(1);
-    expect(delivered).toEqual([
-      expect.objectContaining({ workerId: 2, type: "error" }),
-      { workerId: 2, type: "closed" },
-    ]);
+    expect(spawned[0]!.deliverMessage).toHaveBeenCalledTimes(total);
+    expect(spawned[0]!.deliverMessage).toHaveBeenNthCalledWith(1, 0);
+    expect(spawned[0]!.deliverMessage).toHaveBeenNthCalledWith(total, total - 1);
   });
 
   it("keeps workers of different documents apart even with equal ids", async () => {

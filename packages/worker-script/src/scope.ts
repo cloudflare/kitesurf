@@ -46,10 +46,59 @@ const NativeEvent = Event;
 const nativeAddEventListener = globalThis.addEventListener?.bind(globalThis);
 const nativeSetTimeout = globalThis.setTimeout.bind(globalThis);
 const nativeSetInterval = globalThis.setInterval.bind(globalThis);
+const nativeClearTimeout = globalThis.clearTimeout.bind(globalThis);
+const nativeClearInterval = globalThis.clearInterval.bind(globalThis);
 
 let hooks: ScopeHooks = { send: () => {} };
 let closing = false;
 let nameValue = "";
+let topLevelDone = false;
+let idleCheckScheduled = false;
+let activeFetches = 0;
+let activeStreams = 0;
+const activeTimers = new Set<unknown>();
+
+function hasMessageListener(): boolean {
+  if (handlers.get("message")) return true;
+  const list = listeners.get("message");
+  return list !== undefined && list.length > 0;
+}
+
+// Reclaim a finished worker that has no message listener, pending timers,
+// in-flight fetches/body reads, or open EventSource/WebSocket streams.
+// https://html.spec.whatwg.org/multipage/workers.html#the-worker's-lifetime
+function scheduleIdleCloseCheck(): void {
+  if (
+    !topLevelDone ||
+    closing ||
+    idleCheckScheduled ||
+    hasMessageListener() ||
+    activeTimers.size > 0 ||
+    activeFetches > 0 ||
+    activeStreams > 0
+  ) {
+    return;
+  }
+  idleCheckScheduled = true;
+  nativeSetTimeout(() => {
+    idleCheckScheduled = false;
+    if (
+      topLevelDone &&
+      !closing &&
+      !hasMessageListener() &&
+      activeTimers.size === 0 &&
+      activeFetches === 0 &&
+      activeStreams === 0
+    ) {
+      workerClose();
+    }
+  }, 0);
+}
+
+export function markTopLevelDone(): void {
+  topLevelDone = true;
+  scheduleIdleCloseCheck();
+}
 
 interface ListenerRecord {
   fn: Listener;
@@ -90,6 +139,7 @@ function removeListener(type: string, listener: unknown): void {
   if (!record) return;
   record.removed = true;
   list.splice(i, 1);
+  if (type === "message") scheduleIdleCloseCheck();
 }
 
 function defineEventTarget(event: Event): void {
@@ -327,6 +377,7 @@ function defineHandler(type: string): void {
     get: () => handlers.get(type) ?? null,
     set: (fn: unknown) => {
       handlers.set(type, isListener(fn) ? fn : null);
+      if (type === "message" && !isListener(fn)) scheduleIdleCloseCheck();
     },
   });
 }
@@ -446,6 +497,203 @@ function installWorkerClock(createdAt: number): void {
   }
 }
 
+const RESPONSE_BODY_METHODS = ["arrayBuffer", "text", "json", "blob", "bytes", "formData"] as const;
+
+function trackAsyncFetchOp(fn: () => unknown): Promise<unknown> {
+  activeFetches += 1;
+  try {
+    return Promise.resolve(fn()).finally(() => {
+      activeFetches -= 1;
+      scheduleIdleCloseCheck();
+    });
+  } catch (error) {
+    activeFetches -= 1;
+    scheduleIdleCloseCheck();
+    throw error;
+  }
+}
+
+function wrapAsyncIteratorActivity(iterator: unknown): unknown {
+  if (!iterator || typeof iterator !== "object") return iterator;
+  const origNext: unknown = Reflect.get(iterator, "next");
+  if (typeof origNext === "function") {
+    Object.defineProperty(iterator, "next", {
+      configurable: true,
+      writable: true,
+      value: function (this: unknown, ...nextArgs: unknown[]) {
+        return trackAsyncFetchOp(() => Reflect.apply(origNext, this, nextArgs));
+      },
+    });
+  }
+  return iterator;
+}
+
+function wrapReadableStreamActivity(body: object): void {
+  const origGetReader: unknown = Reflect.get(body, "getReader");
+  if (typeof origGetReader === "function") {
+    Object.defineProperty(body, "getReader", {
+      configurable: true,
+      writable: true,
+      value: function (this: unknown, ...readerArgs: unknown[]) {
+        const reader: unknown = Reflect.apply(origGetReader, this, readerArgs);
+        if (!reader || typeof reader !== "object") return reader;
+        const origRead: unknown = Reflect.get(reader, "read");
+        if (typeof origRead === "function") {
+          Object.defineProperty(reader, "read", {
+            configurable: true,
+            writable: true,
+            value: function (this: unknown, ...readArgs: unknown[]) {
+              return trackAsyncFetchOp(() => Reflect.apply(origRead, this, readArgs));
+            },
+          });
+        }
+        return reader;
+      },
+    });
+  }
+
+  const origPipeTo: unknown = Reflect.get(body, "pipeTo");
+  if (typeof origPipeTo === "function") {
+    Object.defineProperty(body, "pipeTo", {
+      configurable: true,
+      writable: true,
+      value: function (this: unknown, ...pipeArgs: unknown[]) {
+        return trackAsyncFetchOp(() => Reflect.apply(origPipeTo, this, pipeArgs));
+      },
+    });
+  }
+
+  const origPipeThrough: unknown = Reflect.get(body, "pipeThrough");
+  if (typeof origPipeThrough === "function") {
+    Object.defineProperty(body, "pipeThrough", {
+      configurable: true,
+      writable: true,
+      value: function (this: unknown, ...pipeArgs: unknown[]) {
+        const out: unknown = Reflect.apply(origPipeThrough, this, pipeArgs);
+        if (out && typeof out === "object") wrapReadableStreamActivity(out);
+        return out;
+      },
+    });
+  }
+
+  const origTee: unknown = Reflect.get(body, "tee");
+  if (typeof origTee === "function") {
+    Object.defineProperty(body, "tee", {
+      configurable: true,
+      writable: true,
+      value: function (this: unknown, ...teeArgs: unknown[]) {
+        const pair: unknown = Reflect.apply(origTee, this, teeArgs);
+        if (Array.isArray(pair)) {
+          for (const branch of pair) {
+            if (branch && typeof branch === "object") wrapReadableStreamActivity(branch);
+          }
+        }
+        return pair;
+      },
+    });
+  }
+
+  const origAsyncIter: unknown = Reflect.get(body, Symbol.asyncIterator);
+  if (typeof origAsyncIter === "function") {
+    Object.defineProperty(body, Symbol.asyncIterator, {
+      configurable: true,
+      writable: true,
+      value: function (this: unknown, ...iterArgs: unknown[]) {
+        return wrapAsyncIteratorActivity(Reflect.apply(origAsyncIter, this, iterArgs));
+      },
+    });
+  }
+}
+
+function wrapResponseBodyReads(res: unknown): unknown {
+  if (!res || typeof res !== "object") return res;
+  for (const method of RESPONSE_BODY_METHODS) {
+    const orig: unknown = Reflect.get(res, method);
+    if (typeof orig !== "function") continue;
+    Object.defineProperty(res, method, {
+      configurable: true,
+      writable: true,
+      value: function (this: unknown, ...bodyArgs: unknown[]) {
+        return trackAsyncFetchOp(() => Reflect.apply(orig, this, bodyArgs));
+      },
+    });
+  }
+  const origClone: unknown = Reflect.get(res, "clone");
+  if (typeof origClone === "function") {
+    Object.defineProperty(res, "clone", {
+      configurable: true,
+      writable: true,
+      value: function (this: unknown, ...cloneArgs: unknown[]) {
+        return wrapResponseBodyReads(Reflect.apply(origClone, this, cloneArgs));
+      },
+    });
+  }
+  const body: unknown = Reflect.get(res, "body");
+  if (body && typeof body === "object") {
+    wrapReadableStreamActivity(body);
+  }
+  return res;
+}
+
+function installFetchActivityTracking(): void {
+  const currentFetch: unknown = Reflect.get(globalThis, "fetch");
+  if (typeof currentFetch !== "function") return;
+  defineValue("fetch", function fetch(this: unknown, ...args: unknown[]): Promise<unknown> {
+    return trackAsyncFetchOp(() =>
+      Promise.resolve(Reflect.apply(currentFetch, this, args)).then((res) =>
+        wrapResponseBodyReads(res),
+      ),
+    );
+  });
+}
+
+function trackOpenStream(streamName: "EventSource" | "WebSocket"): void {
+  const BaseCtor: unknown = Reflect.get(globalThis, streamName);
+  if (typeof BaseCtor !== "function") return;
+  const TrackedStream = new Proxy(BaseCtor, {
+    construct(target, argArray, newTarget): object {
+      const instance: unknown = Reflect.construct(target, argArray, newTarget);
+      if (!instance || typeof instance !== "object") {
+        throw new TypeError(`${streamName} constructor did not return an object`);
+      }
+      activeStreams += 1;
+      let released = false;
+      const release = () => {
+        if (released) return;
+        released = true;
+        activeStreams = Math.max(0, activeStreams - 1);
+        scheduleIdleCloseCheck();
+      };
+      const origClose: unknown = Reflect.get(instance, "close");
+      if (typeof origClose === "function") {
+        Object.defineProperty(instance, "close", {
+          configurable: true,
+          writable: true,
+          value: function (this: unknown, ...closeArgs: unknown[]) {
+            release();
+            return Reflect.apply(origClose, this, closeArgs);
+          },
+        });
+      }
+      const addEvt: unknown = Reflect.get(instance, "addEventListener");
+      if (typeof addEvt === "function") {
+        Reflect.apply(addEvt, instance, ["close", release, { once: true }]);
+        if (streamName === "EventSource") {
+          Reflect.apply(addEvt, instance, [
+            "error",
+            () => {
+              // EventSource.CLOSED === 2; EventSource does not dispatch a "close" event.
+              if (Reflect.get(instance, "readyState") === 2) release();
+            },
+          ]);
+        }
+      }
+      return instance;
+    },
+  });
+  defineValue(streamName, TrackedStream);
+}
+
 function installUncaughtReporting(): void {
   const wrap = (cb: unknown): unknown => {
     if (typeof cb !== "function") return cb;
@@ -461,15 +709,45 @@ function installUncaughtReporting(): void {
   defineValue(
     "setTimeout",
     function setTimeout(cb: unknown, ms?: number, ...args: unknown[]): unknown {
-      return Reflect.apply(nativeSetTimeout, globalThis, [wrap(cb), ms, ...args]);
+      const wrapped = wrap(cb);
+      let handle: unknown;
+      handle = Reflect.apply(nativeSetTimeout, globalThis, [
+        function (this: unknown, ...cbArgs: unknown[]) {
+          activeTimers.delete(handle);
+          try {
+            if (typeof wrapped === "function") return Reflect.apply(wrapped, this, cbArgs);
+          } finally {
+            scheduleIdleCloseCheck();
+          }
+        },
+        ms,
+        ...args,
+      ]);
+      activeTimers.add(handle);
+      return handle;
     },
   );
   defineValue(
     "setInterval",
     function setInterval(cb: unknown, ms?: number, ...args: unknown[]): unknown {
-      return Reflect.apply(nativeSetInterval, globalThis, [wrap(cb), ms, ...args]);
+      const handle = Reflect.apply(nativeSetInterval, globalThis, [wrap(cb), ms, ...args]);
+      activeTimers.add(handle);
+      return handle;
     },
   );
+  defineValue("clearTimeout", function clearTimeout(id?: unknown): void {
+    activeTimers.delete(id);
+    Reflect.apply(nativeClearTimeout, globalThis, [id]);
+    scheduleIdleCloseCheck();
+  });
+  defineValue("clearInterval", function clearInterval(id?: unknown): void {
+    activeTimers.delete(id);
+    Reflect.apply(nativeClearInterval, globalThis, [id]);
+    scheduleIdleCloseCheck();
+  });
+  installFetchActivityTracking();
+  trackOpenStream("EventSource");
+  trackOpenStream("WebSocket");
   try {
     nativeAddEventListener?.("unhandledrejection", (native: Event) => {
       const event = new NativeEvent("unhandledrejection", { cancelable: true });
