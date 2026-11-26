@@ -895,14 +895,6 @@
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
-  "page-evaluate.spec.ts::should not throw an error when evaluation does a synchronous navigation and returns an object": {
-    "expected": "FAIL",
-    "reason": "Error: page.evaluate: Execution context was destroyed, most likely because of a navigation."
-  },
-  "page-evaluate.spec.ts::should not throw an error when evaluation does a synchronous navigation and returns undefined": {
-    "expected": "FAIL",
-    "reason": "Error: page.evaluate: Execution context was destroyed, most likely because of a navigation."
-  },
   "page-evaluate.spec.ts::should not use Array.prototype.toJSON when evaluating": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toEqual(expected) // deep equality"
@@ -910,10 +902,6 @@
   "page-evaluate.spec.ts::should simulate a user gesture": {
     "expected": "FAIL",
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
-  },
-  "page-evaluate.spec.ts::should throw a nice error after a navigation": {
-    "expected": "FAIL",
-    "reason": "Error: page.evaluate: Execution context was destroyed, most likely because of a navigation."
   },
   "page-evaluate.spec.ts::should throw for too deep reference chain": {
     "expected": "FAIL",
