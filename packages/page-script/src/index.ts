@@ -3419,6 +3419,102 @@ function dispatchEnterChange(focused: ShimElement): void {
   } catch {}
 }
 
+// Keyboard option selection (arrows, Home/End, and printable typeahead) for a
+// focused `<select>` element per HTML §4.10.7.
+// https://html.spec.whatwg.org/multipage/form-elements.html#the-select-element
+function handleSelectKeyDown(
+  select: ShimElement,
+  init: KeyEventInit,
+  keyboardEventConstructor: BuildDocumentResult["Event"] | BuildDocumentResult["KeyboardEvent"],
+): void {
+  if (init.ctrlKey || init.metaKey || init.altKey) return;
+  if (Reflect.get(select, "disabled") === true) return;
+  const options: unknown = Reflect.get(select, "options");
+  if (!options || typeof options !== "object") return;
+  const rawLength: unknown = Reflect.get(options, "length");
+  const length = typeof rawLength === "number" ? rawLength : 0;
+  if (length === 0) return;
+
+  const isEnabled = (idx: number): boolean => {
+    const opt: unknown = Reflect.get(options, idx);
+    if (!opt || typeof opt !== "object") return false;
+    if (Reflect.get(opt, "disabled") === true) return false;
+    const parent: unknown = Reflect.get(opt, "parentElement");
+    if (
+      parent &&
+      typeof parent === "object" &&
+      Reflect.get(parent, "tagName") === "OPTGROUP" &&
+      Reflect.get(parent, "disabled") === true
+    ) {
+      return false;
+    }
+    return true;
+  };
+
+  const rawIndex: unknown = Reflect.get(select, "selectedIndex");
+  const current = typeof rawIndex === "number" ? rawIndex : -1;
+  const key = typeof init.key === "string" ? init.key : "";
+  const text = typeof init.text === "string" ? init.text : "";
+  let nextIndex = -1;
+
+  if (key === "ArrowDown" || key === "ArrowRight") {
+    for (let i = current + 1; i < length; i++) {
+      if (isEnabled(i)) {
+        nextIndex = i;
+        break;
+      }
+    }
+  } else if (key === "ArrowUp" || key === "ArrowLeft") {
+    for (let i = current - 1; i >= 0; i--) {
+      if (isEnabled(i)) {
+        nextIndex = i;
+        break;
+      }
+    }
+  } else if (key === "Home") {
+    for (let i = 0; i < length; i++) {
+      if (isEnabled(i)) {
+        nextIndex = i;
+        break;
+      }
+    }
+  } else if (key === "End") {
+    for (let i = length - 1; i >= 0; i--) {
+      if (isEnabled(i)) {
+        nextIndex = i;
+        break;
+      }
+    }
+  } else {
+    const typed = text.length === 1 ? text : key.length === 1 ? key : "";
+    const ASCII_SPACE = 0x20;
+    const ASCII_DELETE = 0x7f;
+    const typedCode = typed ? typed.charCodeAt(0) : 0;
+    if (typed && typedCode > ASCII_SPACE && typedCode !== ASCII_DELETE) {
+      const needle = typed.toLowerCase();
+      for (let offset = 1; offset <= length; offset++) {
+        const idx = (Math.max(current, -1) + offset) % length;
+        if (!isEnabled(idx)) continue;
+        const opt: unknown = Reflect.get(options, idx);
+        const label =
+          opt && typeof opt === "object" ? String(Reflect.get(opt, "textContent") ?? "") : "";
+        if (label.trim().toLowerCase().startsWith(needle)) {
+          nextIndex = idx;
+          break;
+        }
+      }
+    }
+  }
+
+  if (nextIndex === -1 || nextIndex === current) return;
+  Reflect.set(select, "selectedIndex", nextIndex);
+  const EventCtor = ksEventCtors.Event || keyboardEventConstructor;
+  try {
+    __ks_dispatchTrusted(select, new EventCtor("input", { bubbles: true, composed: true }));
+    __ks_dispatchTrusted(select, new EventCtor("change", { bubbles: true, cancelable: false }));
+  } catch {}
+}
+
 function readFormControlAttribute(element: ShimElement, name: string): unknown {
   const getAttribute: unknown = Reflect.get(element, "getAttribute");
   if (typeof getAttribute !== "function") {
@@ -5804,6 +5900,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
         }
       } else if (eventType === "keypress" && !defaultPrevented && typesText) {
         navigateTo = enterKeyText(focused, text, !!init.shiftKey);
+      }
+      if (focused && !defaultPrevented && eventType === "keydown" && focused.tagName === "SELECT") {
+        handleSelectKeyDown(focused, init || {}, KeyboardEventConstructor);
       }
     } catch (err) {
       console.error("[kitesurf] Input.dispatchKeyEvent failed", err);

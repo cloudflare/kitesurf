@@ -97,3 +97,57 @@ test("a script-emptied select re-picks its first option once its options change"
   });
   expect(state).toEqual({ cleared: ["", -1], swapped: ["x", 0] });
 }, 60_000);
+
+test("a focused select responds to arrow keys, Home/End, and typeahead", async ({ page }) => {
+  await setContent(
+    page,
+    `<!doctype html><title>t</title>
+    <select id="lang">
+      <option value="en">English</option>
+      <option value="fr" disabled>Français</option>
+      <option value="de">Deutsch</option>
+      <option value="es">Español</option>
+    </select>
+    <script>
+      window.__events = [];
+      const el = document.getElementById("lang");
+      el.addEventListener("input", () => window.__events.push("input:" + el.value));
+      el.addEventListener("change", () => window.__events.push("change:" + el.value));
+    </script>`,
+  );
+  await page.focus("#lang");
+  await page.keyboard.press("ArrowDown");
+  const afterDown = await page.evaluate(
+    () => (document.getElementById("lang") as HTMLSelectElement).value,
+  );
+  await page.keyboard.press("End");
+  const afterEnd = await page.evaluate(
+    () => (document.getElementById("lang") as HTMLSelectElement).value,
+  );
+  await page.keyboard.press("Home");
+  const afterHome = await page.evaluate(
+    () => (document.getElementById("lang") as HTMLSelectElement).value,
+  );
+  await page.keyboard.press("d");
+  const afterTypeahead = await page.evaluate(() => ({
+    value: (document.getElementById("lang") as HTMLSelectElement).value,
+    events: Reflect.get(window, "__events"),
+  }));
+
+  expect(afterDown).toBe("de");
+  expect(afterEnd).toBe("es");
+  expect(afterHome).toBe("en");
+  expect(afterTypeahead).toEqual({
+    value: "de",
+    events: [
+      "input:de",
+      "change:de",
+      "input:es",
+      "change:es",
+      "input:en",
+      "change:en",
+      "input:de",
+      "change:de",
+    ],
+  });
+}, 60_000);
