@@ -1,0 +1,340 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Tue, 24 Nov 2026 21:52:23 +0000
+Subject: [PATCH] Scroll propagated canvas background and keep in-flow paint
+ under root filter
+
+---
+ src/render.rs            | 95 ++++++++++++++++++++++++++--------------
+ src/render/background.rs | 37 +++++++++++++---
+ src/text.rs              |  4 +-
+ 3 files changed, 94 insertions(+), 42 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index dd415bf..21e85ec 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -254,8 +254,24 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+             return;
+         };
+         let root_id = root_element.id();
+-        let bg_width = (self.width as f32).max(root_element.final_layout().size.width);
+-        let bg_height = (self.height as f32).max(root_element.final_layout().size.height);
++        let root_overflow = root_element.scrollable_overflow();
++        // CSS Backgrounds 3 §2.11.1: size and position propagated canvas
++        // backgrounds against the root element's box (not document overflow),
++        // and widen only the painting area to cover overflow and scroll.
++        let viewport_css_w = (self.width as f64 / self.scale.max(1e-6)) as f32;
++        let viewport_css_h = (self.height as f64 / self.scale.max(1e-6)) as f32;
++        let pos_width = viewport_css_w.max(root_element.final_layout().size.width);
++        let pos_height = viewport_css_h.max(root_element.final_layout().size.height);
++        let paint_width = pos_width
++            .max(root_overflow.x1 as f32)
++            .max(viewport_scroll.x as f32 + viewport_css_w);
++        let paint_height = pos_height
++            .max(root_overflow.y1 as f32)
++            .max(viewport_scroll.y as f32 + viewport_css_h);
++        let root_filter = root_element.primary_styles().and_then(|style| {
++            let current_color = style.clone_color();
++            convert_filters(&style.get_effects().filter.0, &current_color).map(Arc::new)
++        });
+
+         // CSS Backgrounds 3 section 2.11.1 canvas-background propagation. Pick
+         // the element whose complete background paints over the canvas, then
+@@ -285,26 +301,46 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+             }
+         };
+
++        let root_transform = Affine::translate(Vec2 {
++            x: self.initial_x - (viewport_scroll.x * self.scale),
++            y: self.initial_y - (viewport_scroll.y * self.scale),
++        });
+         self.canvas_bg_source_id.set(propagation_source.map(|s| s.id()));
+         if let Some(source) = propagation_source {
+             let canvas_layout = taffy::Layout {
+                 location: taffy::Point { x: 0.0, y: 0.0 },
+                 size: taffy::Size {
+-                    width: bg_width,
+-                    height: bg_height,
++                    width: pos_width,
++                    height: pos_height,
+                 },
+                 ..root_element.final_layout()
+             };
+-            let canvas_cx = self.element_cx(
+-                source,
+-                canvas_layout,
+-                Affine::translate(Vec2 {
+-                    x: self.initial_x,
+-                    y: self.initial_y,
+-                }),
+-                None,
++            let canvas_paint_rect = Rect::new(
++                0.0,
++                0.0,
++                paint_width as f64 * self.scale,
++                paint_height as f64 * self.scale,
+             );
+-            canvas_cx.draw_background(scene);
++            let mut canvas_cx = self.element_cx(source, canvas_layout, root_transform, None);
++            canvas_cx.canvas_paint_rect = Some(canvas_paint_rect);
++            // Apply the root element's CSS filter (e.g. `html { filter: invert(1) }`)
++            // to the propagated canvas background as well so it stays consistent with
++            // filtered root descendants across the full viewport.
++            if let Some(filter) = root_filter {
++                scene.push_layer(
++                    Fill::NonZero,
++                    BlendMode::default(),
++                    1.0,
++                    root_transform,
++                    &canvas_paint_rect,
++                    Some(filter),
++                    None,
++                );
++                canvas_cx.draw_background(scene);
++                scene.pop_layer();
++            } else {
++                canvas_cx.draw_background(scene);
++            }
+         }
+
+         // The root clip rectangle is the viewport (in screen coordinates, with the
+@@ -312,15 +348,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+         // scrollports narrow this rectangle further for their descendants.
+         let viewport_clip_rect = Rect::new(0.0, 0.0, self.width as f64, self.height as f64);
+
+-        self.render_element(
+-            scene,
+-            root_id,
+-            Affine::translate(Vec2 {
+-                x: self.initial_x - (viewport_scroll.x * self.scale),
+-                y: self.initial_y - (viewport_scroll.y * self.scale),
+-            }),
+-            viewport_clip_rect,
+-        );
++        self.render_element(scene, root_id, root_transform, viewport_clip_rect);
+
+         // Render debug overlay
+         if self.dom.devtools().highlight_hover {
+@@ -873,6 +901,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+             list_item: element.list_item_data(),
+             devtools: self.dom.devtools(),
+             custom_widget_scene,
++            canvas_paint_rect: None,
+         }
+     }
+ }
+@@ -930,6 +959,9 @@ struct ElementCx<'dom, 'a> {
+     devtools: &'dom DevtoolSettings,
+     #[cfg_attr(not(feature = "custom-widget"), expect(unused))]
+     custom_widget_scene: Option<&'a Scene>,
++    /// Expanded painting area for propagated canvas backgrounds; keeps the
++    /// element's own `frame` as the positioning area.
++    canvas_paint_rect: Option<Rect>,
+ }
+
+ /// Converts parley BoundingBox into peniko Rect
+@@ -1198,7 +1230,7 @@ impl ElementCx<'_, '_> {
+                 text_transform,
+                 self.scale,
+                 inline_root_id,
+-                text_layout.line_node_offsets(),
++                text_layout.line_item_offsets(),
+                 &mut draw_text_context,
+                 Some(Color::BLACK),
+                 None,
+@@ -1244,7 +1276,7 @@ impl ElementCx<'_, '_> {
+             let Some(span_rect) = span_glyph_bounds(
+                 self.context.dom,
+                 layout,
+-                text_layout.line_node_offsets(),
++                text_layout.line_item_offsets(),
+                 inline_root_id,
+                 span_id,
+             ) else {
+@@ -1274,6 +1306,7 @@ impl ElementCx<'_, '_> {
+                 list_item: None,
+                 devtools: self.devtools,
+                 custom_widget_scene: None,
++                canvas_paint_rect: None,
+             };
+             let clip_path = span_cx.frame.border_box_path();
+             scene.push_layer(
+@@ -1303,7 +1336,7 @@ impl ElementCx<'_, '_> {
+                 text_transform,
+                 self.scale,
+                 inline_root_id,
+-                text_layout.line_node_offsets(),
++                text_layout.line_item_offsets(),
+                 &mut draw_text_context,
+                 Some(Color::BLACK),
+                 None,
+@@ -1952,7 +1985,7 @@ fn create_css_rect(style: &ComputedValues, layout: &Layout, scale: f64) -> CssBo
+ fn span_glyph_bounds(
+     doc: &BaseDocument,
+     layout: &parley::layout::Layout<TextBrush>,
+-    line_node_offsets: &[Vec<(NodeId, f32)>],
++    line_item_offsets: &[Vec<f32>],
+     inline_root_id: NodeId,
+     span_id: NodeId,
+ ) -> Option<Rect> {
+@@ -1975,11 +2008,11 @@ fn span_glyph_bounds(
+
+     let mut bounds: Option<Rect> = None;
+     for (line_index, line) in layout.lines().enumerate() {
+-        let line_offsets = line_node_offsets
++        let line_offsets = line_item_offsets
+             .get(line_index)
+             .map(Vec::as_slice)
+             .unwrap_or(&[]);
+-        for item in line.items() {
++        for (item_index, item) in line.items().enumerate() {
+             let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
+                 continue;
+             };
+@@ -1987,11 +2020,7 @@ fn span_glyph_bounds(
+             if !belongs(run_node) {
+                 continue;
+             }
+-            let shift = line_offsets
+-                .iter()
+-                .find(|(id, _)| *id == run_node)
+-                .map(|(_, offset)| *offset as f64)
+-                .unwrap_or(0.0);
++            let shift = line_offsets.get(item_index).copied().unwrap_or(0.0) as f64;
+             let metrics = glyph_run.run().font_metrics();
+             let baseline = glyph_run.baseline() as f64;
+             let x0 = glyph_run.offset() as f64 + shift;
+diff --git a/src/render/background.rs b/src/render/background.rs
+index eb66d00..f7ca83c 100644
+--- a/src/render/background.rs
++++ b/src/render/background.rs
+@@ -215,7 +215,7 @@ impl ElementCx<'_, '_> {
+             if layer_paints_nothing(&layer) {
+                 continue;
+             }
+-            let background_clip_path = self.box_path(layer.clip);
++            let background_clip_path = self.bg_clip_path(layer.clip);
+
+             self.context.layer_manager.maybe_with_layer(
+                 scene,
+@@ -232,6 +232,17 @@ impl ElementCx<'_, '_> {
+         }
+     }
+
++    fn bg_clip_rect(&self, css_box: BoxModelBox) -> Rect {
++        self.canvas_paint_rect
++            .unwrap_or_else(|| self.box_rect(css_box))
++    }
++
++    fn bg_clip_path(&self, css_box: BoxModelBox) -> BezPath {
++        self.canvas_paint_rect
++            .map(|r| kurbo::Shape::to_path(&r, 0.1))
++            .unwrap_or_else(|| self.box_path(css_box))
++    }
++
+     /// The path of the given CSS box model box for this element
+     pub(super) fn box_path(&self, css_box: BoxModelBox) -> BezPath {
+         match css_box {
+@@ -404,7 +415,7 @@ impl ElementCx<'_, '_> {
+         if bg_color == Color::TRANSPARENT {
+             return;
+         }
+-        let shape = self.box_path(css_box);
++        let shape = self.bg_clip_path(css_box);
+         scene.fill(Fill::NonZero, self.transform, bg_color, None, &shape);
+     }
+
+@@ -512,7 +523,7 @@ impl ElementCx<'_, '_> {
+
+         let bg_pos = (bg_pos.to_vec2() * self.scale).to_point();
+         let bg_size = bg_size * self.scale;
+-        let clip_rect = self.box_rect(layer.clip);
++        let clip_rect = self.bg_clip_rect(layer.clip);
+         let BackgroundRepeat(repeat_x, repeat_y) = layer.repeat;
+         let x = gradient_axis_tiling(
+             *repeat_x,
+@@ -611,12 +622,19 @@ impl ElementCx<'_, '_> {
+         let x_ratio = bg_size.width / image_width;
+         let y_ratio = bg_size.height / image_height;
+
++        let clip_rect = if self.layer_is_fixed(layer) {
++            origin_rect
++        } else {
++            self.bg_clip_rect(layer.clip)
++        };
+         let BackgroundRepeat(repeat_x, repeat_y) = layer.repeat;
+
+         let x = raster_axis_tiling(
+             *repeat_x,
+             origin_rect.x0,
+             origin_rect.width(),
++            clip_rect.x0,
++            clip_rect.width(),
+             bg_pos.x,
+             bg_size.width,
+             image_width,
+@@ -626,6 +644,8 @@ impl ElementCx<'_, '_> {
+             *repeat_y,
+             origin_rect.y0,
+             origin_rect.height(),
++            clip_rect.y0,
++            clip_rect.height(),
+             bg_pos.y,
+             bg_size.height,
+             image_height,
+@@ -674,7 +694,7 @@ impl ElementCx<'_, '_> {
+             (
+                 self.box_rect(layer.origin),
+                 self.transform,
+-                self.box_rect(layer.clip),
++                self.bg_clip_rect(layer.clip),
+             )
+         };
+
+@@ -978,6 +998,8 @@ fn raster_axis_tiling(
+     repeat: BackgroundRepeatKeyword,
+     origin_start: f64,
+     origin_len: f64,
++    clip_start: f64,
++    clip_len: f64,
+     bg_pos: f64,
+     tile_len: f64,
+     image_len: f64,
+@@ -987,10 +1009,11 @@ fn raster_axis_tiling(
+
+     match repeat {
+         Repeat | Round => {
+-            let extend_len = extend(bg_pos, tile_len);
++            let shift = (origin_start + bg_pos) - clip_start;
++            let extend_len = extend(shift, tile_len);
+             AxisTiling {
+-                translate: origin_start - extend_len,
+-                rect_len: (origin_len + extend_len) / ratio,
++                translate: clip_start - extend_len,
++                rect_len: (clip_len + extend_len) / ratio,
+                 count: 1,
+                 stride: 0.0,
+             }
+diff --git a/src/text.rs b/src/text.rs
+index 8a31982..77f81dd 100644
+--- a/src/text.rs
++++ b/src/text.rs
+@@ -579,7 +579,7 @@ pub(crate) fn stroke_text<'a>(
+         transform,
+         scale,
+         inline_root_id,
+-        line_node_offsets,
++        line_item_offsets,
+         context,
+         fill_override,
+         text,
+@@ -595,7 +595,7 @@ pub(crate) fn stroke_text_filtered<'a>(
+     transform: Affine,
+     scale: f64,
+     inline_root_id: NodeId,
+-    line_node_offsets: &[Vec<(NodeId, f32)>],
++    line_item_offsets: &[Vec<f32>],
+     context: &mut DrawTextContext,
+     fill_override: Option<Color>,
+     text: Option<&str>,

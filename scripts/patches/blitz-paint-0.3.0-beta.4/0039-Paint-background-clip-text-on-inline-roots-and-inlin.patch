@@ -1,0 +1,433 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Mon, 23 Nov 2026 12:55:23 +0000
+Subject: [PATCH] Paint background-clip: text on inline roots and inline spans
+
+Background layers with `background-clip: text` were skipped by the background
+painter, so gradient headings with `color: transparent` or
+`-webkit-text-fill-color: transparent` painted invisible.
+
+Paint text-clipped background layers inside an isolated layer masked with
+opaque glyph silhouettes via `Compose::DestIn`, both for inline roots and for
+inline descendant spans.
+---
+ src/render.rs            | 228 ++++++++++++++++++++++++++++++++++++++-
+ src/render/background.rs |  60 +++++++++++
+ src/text.rs              |  61 ++++++-----
+ 3 files changed, 321 insertions(+), 28 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index 3c7f937..275f58d 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -41,7 +41,7 @@ use style::{
+
+ use kurbo::{self, Affine, BezPath, Insets, Point, Rect, Shape, Size, Stroke, Vec2};
+ use parley::layout::Layout as ParleyLayout;
+-use peniko::{self, Fill, ImageData, ImageSampler};
++use peniko::{self, BlendMode, Compose, Fill, ImageData, ImageSampler, Mix};
+ use style::values::generics::color::GenericColor;
+ use taffy::Layout;
+
+@@ -1085,6 +1085,12 @@ impl ElementCx<'_, '_> {
+                 crate::text::draw_text_selection(scene, layout, transform, sel_start, sel_end);
+             }
+
++            // Paint `background-clip: text` layers (on the inline root and on
++            // any inline `<span>` descendants) by isolating the background and
++            // masking it with opaque glyph silhouettes via `Compose::DestIn`.
++            // https://drafts.csswg.org/css-backgrounds-4/#valdef-background-clip-text
++            self.draw_text_clipped_backgrounds(scene, layout, text_layout, transform, node_id);
++
+             // Render text
+             let mut draw_text_context = self.context.draw_text_context.borrow_mut();
+             crate::text::stroke_text(
+@@ -1111,6 +1117,165 @@ impl ElementCx<'_, '_> {
+         }
+     }
+
++    /// Paint `background-clip: text` backgrounds on the inline root and on any
++    /// inline descendant spans by drawing the background into an isolated layer
++    /// and masking it with opaque glyph silhouettes via `Compose::DestIn`.
++    fn draw_text_clipped_backgrounds(
++        &self,
++        scene: &mut impl PaintScene,
++        layout: &parley::layout::Layout<TextBrush>,
++        text_layout: &blitz_dom::node::TextLayout,
++        text_transform: Affine,
++        inline_root_id: NodeId,
++    ) {
++        const ALMOST_OPAQUE: f32 = 1.0 - f32::EPSILON;
++
++        if self.has_text_clipped_background() {
++            let clip_path = self.frame.border_box_path();
++            scene.push_layer(
++                Fill::NonZero,
++                Mix::Normal,
++                ALMOST_OPAQUE,
++                self.transform,
++                &clip_path,
++                None,
++                None,
++            );
++            self.draw_text_clipped_background(scene);
++            scene.push_layer(
++                Fill::NonZero,
++                BlendMode::new(Mix::Normal, Compose::DestIn),
++                1.0,
++                self.transform,
++                &clip_path,
++                None,
++                None,
++            );
++            let mut draw_text_context = self.context.draw_text_context.borrow_mut();
++            crate::text::stroke_text_filtered(
++                scene,
++                layout.lines(),
++                self.context.dom,
++                text_transform,
++                self.scale,
++                inline_root_id,
++                text_layout.line_node_offsets(),
++                &mut draw_text_context,
++                Some(Color::BLACK),
++                None,
++                None,
++            );
++            drop(draw_text_context);
++            scene.pop_layer();
++            scene.pop_layer();
++        }
++
++        // Collect unique inline descendant nodes whose style has `background-clip: text`.
++        let mut span_ids: Vec<NodeId> = Vec::new();
++        for style in layout.styles() {
++            let mut walk = Some(style.brush.id);
++            while let Some(id) = walk {
++                if id == inline_root_id {
++                    break;
++                }
++                if !span_ids.contains(&id) {
++                    if let Some(node) = self.context.dom.get_node(id) {
++                        if node
++                            .primary_styles()
++                            .is_some_and(|s| background::style_has_text_clipped_background(&s))
++                        {
++                            span_ids.push(id);
++                        }
++                    }
++                }
++                walk = self.context.dom.get_node(id).and_then(|n| n.parent_id());
++            }
++        }
++
++        for span_id in span_ids {
++            let Some(span_node) = self.context.dom.get_node(span_id) else {
++                continue;
++            };
++            let Some(span_element) = span_node.element_data() else {
++                continue;
++            };
++            let Some(span_style) = span_node.primary_styles() else {
++                continue;
++            };
++            let Some(span_rect) = span_glyph_bounds(
++                self.context.dom,
++                layout,
++                text_layout.line_node_offsets(),
++                inline_root_id,
++                span_id,
++            ) else {
++                continue;
++            };
++            let local_rect = Rect::new(0.0, 0.0, span_rect.width(), span_rect.height());
++            let span_frame = CssBox::new(
++                local_rect,
++                Insets::ZERO,
++                Insets::ZERO,
++                0.0,
++                NonUniformRoundedRectRadii::default(),
++            );
++            let span_transform =
++                text_transform * Affine::translate((span_rect.x0, span_rect.y0));
++            let span_cx = ElementCx {
++                context: self.context,
++                frame: span_frame,
++                style: (*span_style).clone(),
++                scale: self.scale,
++                node: span_node,
++                element: span_element,
++                transform: span_transform,
++                #[cfg(feature = "svg")]
++                svg: None,
++                text_input: None,
++                list_item: None,
++                devtools: self.devtools,
++                custom_widget_scene: None,
++            };
++            let clip_path = span_cx.frame.border_box_path();
++            scene.push_layer(
++                Fill::NonZero,
++                Mix::Normal,
++                ALMOST_OPAQUE,
++                span_transform,
++                &clip_path,
++                None,
++                None,
++            );
++            span_cx.draw_text_clipped_background(scene);
++            scene.push_layer(
++                Fill::NonZero,
++                BlendMode::new(Mix::Normal, Compose::DestIn),
++                1.0,
++                span_transform,
++                &clip_path,
++                None,
++                None,
++            );
++            let mut draw_text_context = self.context.draw_text_context.borrow_mut();
++            crate::text::stroke_text_filtered(
++                scene,
++                layout.lines(),
++                self.context.dom,
++                text_transform,
++                self.scale,
++                inline_root_id,
++                text_layout.line_node_offsets(),
++                &mut draw_text_context,
++                Some(Color::BLACK),
++                None,
++                Some(span_id),
++            );
++            drop(draw_text_context);
++            scene.pop_layer();
++            scene.pop_layer();
++        }
++    }
++
+     fn draw_text_input_text(&self, scene: &mut impl PaintScene, pos: Point) {
+         // Render the text in text inputs
+         if let Some(input_data) = self.text_input {
+@@ -1742,3 +1907,64 @@ fn create_css_rect(style: &ComputedValues, layout: &Layout, scale: f64) -> CssBo
+     CssBox::new(border_box, border, padding, outline_width, border_radii)
+         .with_corner_shapes(corner_shapes)
+ }
++
++/// Union bounding rect (in scaled inline-layout coordinates) of all glyph runs
++/// belonging to `span_id` (or its descendants).
++fn span_glyph_bounds(
++    doc: &BaseDocument,
++    layout: &parley::layout::Layout<TextBrush>,
++    line_node_offsets: &[Vec<(NodeId, f32)>],
++    inline_root_id: NodeId,
++    span_id: NodeId,
++) -> Option<Rect> {
++    use parley::PositionedLayoutItem;
++
++    let belongs = |mut id: NodeId| -> bool {
++        loop {
++            if id == span_id {
++                return true;
++            }
++            if id == inline_root_id {
++                return false;
++            }
++            let Some(parent) = doc.get_node(id).and_then(|n| n.parent_id()) else {
++                return false;
++            };
++            id = parent;
++        }
++    };
++
++    let mut bounds: Option<Rect> = None;
++    for (line_index, line) in layout.lines().enumerate() {
++        let line_offsets = line_node_offsets
++            .get(line_index)
++            .map(Vec::as_slice)
++            .unwrap_or(&[]);
++        for item in line.items() {
++            let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
++                continue;
++            };
++            let run_node = glyph_run.style().brush.id;
++            if !belongs(run_node) {
++                continue;
++            }
++            let shift = line_offsets
++                .iter()
++                .find(|(id, _)| *id == run_node)
++                .map(|(_, offset)| *offset as f64)
++                .unwrap_or(0.0);
++            let metrics = glyph_run.run().font_metrics();
++            let baseline = glyph_run.baseline() as f64;
++            let x0 = glyph_run.offset() as f64 + shift;
++            let x1 = x0 + glyph_run.advance() as f64;
++            let y0 = baseline - metrics.ascent as f64;
++            let y1 = baseline + metrics.descent as f64;
++            let run_rect = Rect::new(x0, y0, x1, y1);
++            bounds = Some(match bounds {
++                Some(acc) => acc.union(run_rect),
++                None => run_rect,
++            });
++        }
++    }
++    bounds.filter(|r| r.width() > 0.0 && r.height() > 0.0)
++}
+diff --git a/src/render/background.rs b/src/render/background.rs
+index 64f7b45..eb66d00 100644
+--- a/src/render/background.rs
++++ b/src/render/background.rs
+@@ -135,7 +135,67 @@ impl<'a> ImageLayerStyles<'a> {
+     }
+ }
+
++/// Whether a style has any background color or non-`none` background image
++/// layer clipped to `text`.
++/// https://drafts.csswg.org/css-backgrounds-4/#valdef-background-clip-text
++pub(super) fn style_has_text_clipped_background(
++    style: &style::properties::ComputedValues,
++) -> bool {
++    let bg_styles = style.get_background();
++    let layer_count = bg_styles.background_image.0.len();
++    if layer_count == 0 {
++        return false;
++    }
++    let last_clip = *get_cyclic(&bg_styles.background_clip.0, layer_count - 1);
++    if last_clip == StyloBackgroundClip::Text {
++        let current_color = style.clone_color();
++        let bg_color = bg_styles
++            .background_color
++            .resolve_to_absolute(&current_color)
++            .as_srgb_color();
++        if bg_color != Color::TRANSPARENT {
++            return true;
++        }
++    }
++    (0..layer_count).any(|idx| {
++        *get_cyclic(&bg_styles.background_clip.0, idx) == StyloBackgroundClip::Text
++            && !matches!(bg_styles.background_image.0[idx], GenericImage::None)
++    })
++}
++
+ impl ElementCx<'_, '_> {
++    pub(super) fn has_text_clipped_background(&self) -> bool {
++        style_has_text_clipped_background(&self.style)
++    }
++
++    /// Paint only the background layers whose `background-clip` is `text`
++    /// (called inside an isolation layer that is then masked with the glyphs
++    /// via `Compose::DestIn`).
++    pub(super) fn draw_text_clipped_background(&self, scene: &mut impl PaintScene) {
++        let bg_styles = &self.style.get_background();
++        let image_data = self.element.background_images();
++        let layer_count = bg_styles.background_image.0.len();
++        if layer_count == 0 {
++            return;
++        }
++
++        let last_clip = *get_cyclic(&bg_styles.background_clip.0, layer_count - 1);
++        if last_clip == StyloBackgroundClip::Text {
++            self.draw_solid_bg(scene, BoxModelBox::BorderBox);
++        }
++
++        for idx in (0..layer_count).rev() {
++            if *get_cyclic(&bg_styles.background_clip.0, idx) != StyloBackgroundClip::Text {
++                continue;
++            }
++            let layer = ImageLayerStyles::from_background(bg_styles, image_data, idx);
++            if layer_paints_nothing(&layer) {
++                continue;
++            }
++            self.draw_image_layer(scene, &layer);
++        }
++    }
++
+     pub(super) fn draw_background(&self, scene: &mut impl PaintScene) {
+         let bg_styles = &self.style.get_background();
+         let image_data = self.element.background_images();
+diff --git a/src/text.rs b/src/text.rs
+index b265e70..8a31982 100644
+--- a/src/text.rs
++++ b/src/text.rs
+@@ -139,33 +139,6 @@ fn resolve_decoration_entry(doc: &BaseDocument, node_id: NodeId) -> DecorationSt
+         .as_absolute()
+         .map(ToColorColor::as_color_color)
+         .unwrap_or(text_color);
+-    let has_text_clipped_background = {
+-        let background = styles.get_background();
+-        // background-image decides the layer count and the shorter background-clip list
+-        // cycles to match it, so a layer's clip is only the clip of its own image. Checking
+-        // the two lists independently would take `none, linear-gradient(...)` with
+-        // `text, border-box` for a text-clipped gradient and reveal glyphs the author
+-        // deliberately made transparent.
+-        background
+-            .background_image
+-            .0
+-            .iter()
+-            .zip(background.background_clip.0.iter().cycle())
+-            .any(|(image, clip)| {
+-                !matches!(image, style::values::generics::image::GenericImage::None)
+-                    && matches!(
+-                        clip,
+-                        style::properties::generated::longhands::background_clip::single_value::computed_value::T::Text
+-                    )
+-            })
+-    };
+-    let text_fill_color = if text_fill_color == Color::TRANSPARENT && has_text_clipped_background {
+-        // Text-clipped backgrounds are skipped by the background painter, so a transparent fill
+-        // would erase the glyphs instead of leaving a usable fallback color.
+-        text_color
+-    } else {
+-        text_fill_color
+-    };
+
+     let drawn_lines = TextDecorationLine::UNDERLINE
+         | TextDecorationLine::OVERLINE
+@@ -598,6 +571,35 @@ pub(crate) fn stroke_text<'a>(
+     context: &mut DrawTextContext,
+     fill_override: Option<Color>,
+     text: Option<&str>,
++) {
++    stroke_text_filtered(
++        scene,
++        lines,
++        doc,
++        transform,
++        scale,
++        inline_root_id,
++        line_node_offsets,
++        context,
++        fill_override,
++        text,
++        None,
++    );
++}
++
++#[allow(clippy::too_many_arguments)]
++pub(crate) fn stroke_text_filtered<'a>(
++    scene: &mut impl PaintScene,
++    lines: impl Iterator<Item = Line<'a, TextBrush>>,
++    doc: &BaseDocument,
++    transform: Affine,
++    scale: f64,
++    inline_root_id: NodeId,
++    line_node_offsets: &[Vec<(NodeId, f32)>],
++    context: &mut DrawTextContext,
++    fill_override: Option<Color>,
++    text: Option<&str>,
++    only_subtree: Option<NodeId>,
+ ) {
+     let DrawTextContext {
+         stack,
+@@ -683,6 +685,11 @@ pub(crate) fn stroke_text<'a>(
+                 }
+                 path_scratch.extend(ancestors.iter().copied());
+                 path_scratch.reverse();
++                if let Some(target_id) = only_subtree {
++                    if !path_scratch.contains(&target_id) {
++                        continue;
++                    }
++                }
+
+                 let shared = stack
+                     .iter()

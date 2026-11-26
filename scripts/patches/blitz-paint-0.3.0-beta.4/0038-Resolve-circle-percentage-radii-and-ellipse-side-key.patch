@@ -1,0 +1,124 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Mon, 23 Nov 2026 12:30:13 +0000
+Subject: [PATCH] Resolve circle() percentage radii and ellipse() side keywords
+ per CSS Shapes 1
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+`clip-path: circle(50%)` resolved percentages against box width instead of
+`sqrt(width^2 + height^2) / sqrt(2)`, and `ellipse(closest-side closest-side)`
+took the minimum of both axes for each semi-axis, collapsing ellipses on
+non-square boxes into circles.
+
+Split `resolve_circle_radius` and `resolve_ellipse_radius` per CSS Shapes 1 §3.2.
+---
+ src/render/clip_path.rs | 72 ++++++++++++++++++++++++-----------------
+ 1 file changed, 43 insertions(+), 29 deletions(-)
+
+diff --git a/src/render/clip_path.rs b/src/render/clip_path.rs
+index 674b033..32d0c86 100644
+--- a/src/render/clip_path.rs
++++ b/src/render/clip_path.rs
+@@ -117,13 +117,13 @@ impl ElementCx<'_, '_> {
+         match shape {
+             GenericBasicShape::Circle(circle) => {
+                 let (cx, cy) = resolve_position(&circle.position, w, h, ox, oy);
+-                let r = resolve_shape_radius(&circle.radius, w, h, cx - ox, cy - oy);
++                let r = resolve_circle_radius(&circle.radius, w, h, cx - ox, cy - oy);
+                 Some(Circle::new(Point::new(cx, cy), r).into_path(0.1))
+             }
+             GenericBasicShape::Ellipse(ellipse) => {
+                 let (cx, cy) = resolve_position(&ellipse.position, w, h, ox, oy);
+-                let rx = resolve_shape_radius(&ellipse.semiaxis_x, w, h, cx - ox, cy - oy);
+-                let ry = resolve_shape_radius(&ellipse.semiaxis_y, h, w, cy - oy, cx - ox);
++                let rx = resolve_ellipse_radius(&ellipse.semiaxis_x, w, cx - ox);
++                let ry = resolve_ellipse_radius(&ellipse.semiaxis_y, h, cy - oy);
+                 Some(Ellipse::new(Point::new(cx, cy), (rx, ry), 0.0).into_path(0.1))
+             }
+             GenericBasicShape::Polygon(polygon) => {
+@@ -243,43 +243,57 @@ fn resolve_position(
+     }
+ }
+
+-/// Resolve a shape radius keyword or length value
+-fn resolve_shape_radius(
++/// Resolve a `circle()` shape radius per CSS Shapes 1 §3.2: percentage radii
++/// resolve against `sqrt(width² + height²) / sqrt(2)`, not against width alone.
++/// https://drafts.csswg.org/css-shapes-1/#funcdef-basic-shape-circle
++fn resolve_circle_radius(
+     radius: &GenericShapeRadius<LengthPercentage>,
+-    primary_size: f64,
+-    secondary_size: f64,
+-    center_offset_primary: f64,
+-    center_offset_secondary: f64,
++    w: f64,
++    h: f64,
++    cx: f64,
++    cy: f64,
+ ) -> f64 {
+     match radius {
+-        GenericShapeRadius::Length(lp) => resolve_lp(&lp.0, primary_size),
+-        GenericShapeRadius::ClosestSide => center_offset_primary
+-            .min(primary_size - center_offset_primary)
+-            .min(center_offset_secondary)
+-            .min(secondary_size - center_offset_secondary)
++        GenericShapeRadius::Length(lp) => {
++            let basis = w.hypot(h) / std::f64::consts::SQRT_2;
++            resolve_lp(&lp.0, basis).max(0.0)
++        }
++        GenericShapeRadius::ClosestSide => cx
++            .min(w - cx)
++            .min(cy)
++            .min(h - cy)
+             .max(0.0),
+-        GenericShapeRadius::FarthestSide => center_offset_primary
+-            .max(primary_size - center_offset_primary)
+-            .max(center_offset_secondary)
+-            .max(secondary_size - center_offset_secondary),
+-
++        GenericShapeRadius::FarthestSide => cx.max(w - cx).max(cy).max(h - cy).max(0.0),
+         GenericShapeRadius::FarthestCorner => {
+-            let dp = center_offset_primary.max(primary_size - center_offset_primary);
+-            let ds = center_offset_secondary.max(secondary_size - center_offset_secondary);
+-            dp.hypot(ds)
++            let dx = cx.max(w - cx);
++            let dy = cy.max(h - cy);
++            dx.hypot(dy)
+         }
+         GenericShapeRadius::ClosestCorner => {
+-            let dp = center_offset_primary
+-                .min(primary_size - center_offset_primary)
+-                .max(0.0);
+-            let ds = center_offset_secondary
+-                .min(secondary_size - center_offset_secondary)
+-                .max(0.0);
+-            dp.hypot(ds)
++            let dx = cx.min(w - cx).max(0.0);
++            let dy = cy.min(h - cy).max(0.0);
++            dx.hypot(dy)
+         }
+     }
+ }
+
++/// Resolve one semi-axis of an `ellipse()` per CSS Shapes 1 §3.2: `closest-side`
++/// and `farthest-side` measure along that axis alone.
++/// https://drafts.csswg.org/css-shapes-1/#funcdef-basic-shape-ellipse
++fn resolve_ellipse_radius(
++    radius: &GenericShapeRadius<LengthPercentage>,
++    axis_size: f64,
++    center_offset: f64,
++) -> f64 {
++    match radius {
++        GenericShapeRadius::Length(lp) => resolve_lp(&lp.0, axis_size).max(0.0),
++        GenericShapeRadius::ClosestSide => center_offset.min(axis_size - center_offset).max(0.0),
++        GenericShapeRadius::FarthestSide => center_offset.max(axis_size - center_offset).max(0.0),
++        GenericShapeRadius::ClosestCorner => center_offset.min(axis_size - center_offset).max(0.0),
++        GenericShapeRadius::FarthestCorner => center_offset.max(axis_size - center_offset).max(0.0),
++    }
++}
++
+ type GenericPathCommand<Angle, N> = GenericShapeCommand<Angle, GenericPosition<N, N>, N>;
+
+ /// Convert an SVG path() to a kurbo BezPath.

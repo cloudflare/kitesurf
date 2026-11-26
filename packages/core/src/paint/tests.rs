@@ -4,14 +4,18 @@
 
 //! Tests for the paint stage; they use crate internals.
 
+mod background_clip_text;
 mod box_shadow_blur_accuracy;
 mod canvas_draw_sources;
+mod clip_path_shapes;
 mod counter_damage_gate;
+mod css_filters;
 mod damaged_subtree_skip;
 mod glyph_cache_panic;
 mod ink_rect;
 mod inline_block_border;
 mod inline_span_background;
+mod negative_z_index_body_bg;
 mod page_box_pending_style;
 mod paint_damage;
 mod paint_damage_layout_cache;

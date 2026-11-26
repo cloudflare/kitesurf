@@ -29,7 +29,7 @@ const MIN_WEBP_IMAGE_BYTES: usize = 4096;
 
 pub const HEADER_MAGIC: [u8; 4] = *b"KSC0";
 /// Bump on any wire change; the decoder and the CLI's rasterizer manifest require an exact match.
-pub const WIRE_VERSION: u32 = 17;
+pub const WIRE_VERSION: u32 = 18;
 /// u32 fields after magic: version, viewport w/h, scroll x/y, op count (informational, excludes
 /// `Part` and `GlyphText`), resource offset (0 = none, else ends the op stream), render-band
 /// top y and height.
@@ -49,7 +49,13 @@ pub(crate) const TAG_BOX_SHADOW: u8 = 0x07;
 pub(crate) const TAG_TEXT_RUN: u8 = 0x08;
 pub(crate) const TAG_PART: u8 = 0x09;
 pub(crate) const TAG_GLYPH_TEXT: u8 = 0x0a;
+pub(crate) const TAG_LAYER_FILTER: u8 = 0x0b;
+pub(crate) const TAG_BACKDROP_FILTER: u8 = 0x0c;
 pub(crate) const GLYPH_TEXT_RANGE_BYTES: usize = 8;
+
+pub(crate) const FILTER_GAUSSIAN_BLUR: u8 = 0x00;
+pub(crate) const FILTER_COLOR_MATRIX: u8 = 0x01;
+pub(crate) const FILTER_DROP_SHADOW: u8 = 0x02;
 
 // Paint tags: solid is RGBA8, image is a content hash u64, gradient has kind, extend, color
 // space, hue and alpha bytes, geometry, then u16 stops of 21 bytes. Unknown enums decode to
@@ -610,6 +616,63 @@ impl RecordingScene {
     #[inline]
     fn w_rgba8(&mut self, c: Rgba8) {
         self.buf.extend_from_slice(&[c.r, c.g, c.b, c.a]);
+    }
+
+    fn w_layer_filter(&mut self, tag: u8, filter: &anyrender::Filter) {
+        use anyrender::filters::{EdgeMode, FilterEffect};
+        let encode_edge = |mode: EdgeMode| -> u8 {
+            match mode {
+                EdgeMode::Duplicate => 0,
+                EdgeMode::Wrap => 1,
+                EdgeMode::Mirror => 2,
+                EdgeMode::None => 3,
+            }
+        };
+        let mut supported = Vec::new();
+        for node in filter.nodes() {
+            match &node.effect {
+                FilterEffect::GaussianBlur(_)
+                | FilterEffect::ColorMatrix(_)
+                | FilterEffect::DropShadow(_) => supported.push(&node.effect),
+                _ => {}
+            }
+        }
+        let Ok(count) = u8::try_from(supported.len()) else {
+            return;
+        };
+        if count == 0 {
+            return;
+        }
+        self.tag_untracked(tag);
+        self.w_u8(count);
+        for effect in supported {
+            match effect {
+                FilterEffect::GaussianBlur(blur) => {
+                    self.w_u8(FILTER_GAUSSIAN_BLUR);
+                    self.w_f32(blur.std_deviation);
+                    self.w_u8(encode_edge(blur.edge_mode));
+                }
+                FilterEffect::ColorMatrix(matrix) => {
+                    self.w_u8(FILTER_COLOR_MATRIX);
+                    for v in matrix.0 {
+                        self.w_f32(v);
+                    }
+                }
+                FilterEffect::DropShadow(shadow) => {
+                    self.w_u8(FILTER_DROP_SHADOW);
+                    self.w_f32(shadow.dx);
+                    self.w_f32(shadow.dy);
+                    self.w_f32(shadow.std_deviation);
+                    let [r, g, b, a] = shadow.color.components;
+                    self.w_f32(r);
+                    self.w_f32(g);
+                    self.w_f32(b);
+                    self.w_f32(a);
+                    self.w_u8(encode_edge(shadow.edge_mode));
+                }
+                _ => {}
+            }
+        }
     }
 
     fn w_transform(&mut self, a: Affine) {
@@ -1304,9 +1367,15 @@ impl anyrender::PaintScene for RecordingScene {
         alpha: f32,
         transform: Affine,
         clip: &impl Shape,
-        _filter: Option<Arc<anyrender::Filter>>,
-        _backdrop_filter: Option<Arc<anyrender::Filter>>,
+        filter: Option<Arc<anyrender::Filter>>,
+        backdrop_filter: Option<Arc<anyrender::Filter>>,
     ) {
+        if let Some(ref f) = filter {
+            self.w_layer_filter(TAG_LAYER_FILTER, f);
+        }
+        if let Some(ref bf) = backdrop_filter {
+            self.w_layer_filter(TAG_BACKDROP_FILTER, bf);
+        }
         self.tag(TAG_PUSH_LAYER, OP_PUSH_LAYER);
         let bm: BlendMode = blend.into();
         let mix_byte = bm.mix as u8 as u16;

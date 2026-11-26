@@ -10,6 +10,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::panic::{self, RefUnwindSafe};
+use std::sync::Arc;
 
 use anyrender::{Glyph as AnyGlyph, ImageRenderer as _, PaintScene};
 use kurbo::{Affine, BezPath, Point, Shape, Vec2};
@@ -665,6 +666,10 @@ struct ReplayVisitor<'a, 'b, S: PaintScene> {
     open_clip_paths: Vec<bool>,
     /// The scene holds text from `on_glyph_text` that the next glyph run must consume.
     glyph_text_pending: bool,
+    /// CSS filter chain from `on_layer_filter` for the next `on_push_layer`.
+    pending_filter: Option<Arc<anyrender::Filter>>,
+    /// CSS backdrop-filter chain from `on_backdrop_filter` for the next `on_push_layer`.
+    pending_backdrop_filter: Option<Arc<anyrender::Filter>>,
 }
 
 const PIXEL_EDGE_EPSILON: f64 = 1e-3;
@@ -710,6 +715,7 @@ fn is_whole_pixel_rect(transform: DecodedTransform, clip_path: &[DecodedPathEl])
 #[derive(Default)]
 struct LayerComposeScan {
     non_source_over: bool,
+    has_filter: bool,
     dimensions: (u32, u32),
     depth: u32,
     unbalanced: bool,
@@ -717,6 +723,12 @@ struct LayerComposeScan {
 }
 
 impl SceneVisitor for LayerComposeScan {
+    fn on_layer_filter(&mut self, _: &[scene_decode::DecodedFilterEffect]) {
+        self.has_filter = true;
+    }
+    fn on_backdrop_filter(&mut self, _: &[scene_decode::DecodedFilterEffect]) {
+        self.has_filter = true;
+    }
     fn on_push_layer(
         &mut self,
         _: u8,
@@ -943,7 +955,70 @@ impl<'a, 'b, S: PaintScene> ReplayVisitor<'a, 'b, S> {
     }
 }
 
+fn rebuild_filter(effects: &[scene_decode::DecodedFilterEffect]) -> Option<anyrender::Filter> {
+    use anyrender::filters::{EdgeMode, FilterEffect};
+    if effects.is_empty() {
+        return None;
+    }
+    let decode_edge = |mode: u8| -> EdgeMode {
+        match mode {
+            1 => EdgeMode::Wrap,
+            2 => EdgeMode::Mirror,
+            3 => EdgeMode::None,
+            _ => EdgeMode::Duplicate,
+        }
+    };
+    Some(anyrender::Filter::linear_list(effects.iter().map(
+        |effect| match *effect {
+            scene_decode::DecodedFilterEffect::GaussianBlur {
+                std_deviation,
+                edge_mode,
+            } => {
+                let mut e = FilterEffect::blur(std_deviation);
+                if let FilterEffect::GaussianBlur(ref mut b) = e {
+                    b.edge_mode = decode_edge(edge_mode);
+                }
+                e
+            }
+            scene_decode::DecodedFilterEffect::ColorMatrix { matrix } => {
+                let mut e = FilterEffect::opacity(1.0);
+                if let FilterEffect::ColorMatrix(ref mut cm) = e {
+                    cm.0 = matrix;
+                }
+                e
+            }
+            scene_decode::DecodedFilterEffect::DropShadow {
+                dx,
+                dy,
+                std_deviation,
+                rgba,
+                edge_mode,
+            } => {
+                let color = peniko::Color::from_rgba8(
+                    (rgba[0].clamp(0.0, 1.0) * 255.0).round() as u8,
+                    (rgba[1].clamp(0.0, 1.0) * 255.0).round() as u8,
+                    (rgba[2].clamp(0.0, 1.0) * 255.0).round() as u8,
+                    (rgba[3].clamp(0.0, 1.0) * 255.0).round() as u8,
+                );
+                let mut e = FilterEffect::drop_shadow(dx, dy, std_deviation, color);
+                if let FilterEffect::DropShadow(ref mut s) = e {
+                    s.edge_mode = decode_edge(edge_mode);
+                }
+                e
+            }
+        },
+    )))
+}
+
 impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
+    fn on_layer_filter(&mut self, effects: &[scene_decode::DecodedFilterEffect]) {
+        self.pending_filter = rebuild_filter(effects).map(Arc::new);
+    }
+
+    fn on_backdrop_filter(&mut self, effects: &[scene_decode::DecodedFilterEffect]) {
+        self.pending_backdrop_filter = rebuild_filter(effects).map(Arc::new);
+    }
+
     fn on_push_layer(
         &mut self,
         blend_mix: u8,
@@ -953,6 +1028,8 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
         clip_path: &[DecodedPathEl],
     ) {
         let blend = BlendMode::new(mix_from_u8(blend_mix), compose_from_u8(blend_compose));
+        let filter = self.pending_filter.take();
+        let backdrop_filter = self.pending_backdrop_filter.take();
         // The wire carries no clip fill rule (see RecordingScene::push_layer).
         self.scene.push_layer(
             Fill::NonZero,
@@ -960,8 +1037,8 @@ impl<'a, 'b, S: PaintScene> SceneVisitor for ReplayVisitor<'a, 'b, S> {
             alpha,
             affine(transform),
             &bez_path(clip_path),
-            None,
-            None,
+            filter,
+            backdrop_filter,
         );
         self.open_clip_paths.push(false);
     }
@@ -1230,9 +1307,11 @@ pub(crate) fn replay_into<S: PaintScene>(
         missing_fonts: 0,
         missing_images: 0,
         text_runs: 0,
-        clip_paths: !composition.non_source_over,
+        clip_paths: !composition.non_source_over && !composition.has_filter,
         open_clip_paths: Vec::new(),
         glyph_text_pending: false,
+        pending_filter: None,
+        pending_backdrop_filter: None,
     };
     scene_decode::decode(scene_bytes, &mut vis).map_err(|e| e.to_string())?;
     Ok(ReplayStats {

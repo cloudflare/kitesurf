@@ -43,6 +43,7 @@ mod tab_expansion;
 mod table_cell_style;
 mod table_fixed_columns;
 mod table_row_rect;
+mod table_valign_and_percent;
 mod text_field_size;
 mod text_node_rect;
 mod transform_2d_subset;
