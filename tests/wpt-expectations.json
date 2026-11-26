@@ -28,7 +28,7 @@
     "reason": null
   },
   "/FileAPI/blob/Blob-text.any.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/FileAPI/file/File-constructor.any.html": {
@@ -716,7 +716,7 @@
     "reason": null
   },
   "/css/css-align/parsing/align-content-computed.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/align-content-invalid.html": {
@@ -724,11 +724,11 @@
     "reason": null
   },
   "/css/css-align/parsing/align-content-valid.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/align-items-computed.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/align-items-invalid.html": {
@@ -736,11 +736,11 @@
     "reason": null
   },
   "/css/css-align/parsing/align-items-valid.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/align-self-computed.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/align-self-invalid.html": {
@@ -748,7 +748,7 @@
     "reason": null
   },
   "/css/css-align/parsing/align-self-valid.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/column-gap-computed.html": {
@@ -820,7 +820,7 @@
     "reason": null
   },
   "/css/css-align/parsing/justify-content-computed.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/justify-content-invalid.html": {
@@ -828,11 +828,11 @@
     "reason": null
   },
   "/css/css-align/parsing/justify-content-valid.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/justify-items-computed.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/justify-items-invalid.html": {
@@ -840,11 +840,11 @@
     "reason": null
   },
   "/css/css-align/parsing/justify-items-valid.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/justify-self-computed.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/justify-self-invalid.html": {
@@ -852,11 +852,11 @@
     "reason": null
   },
   "/css/css-align/parsing/justify-self-valid.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/place-content-computed.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/place-content-invalid.html": {
@@ -868,11 +868,11 @@
     "reason": null
   },
   "/css/css-align/parsing/place-content-valid.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/place-items-computed.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/place-items-invalid.html": {
@@ -880,15 +880,15 @@
     "reason": null
   },
   "/css/css-align/parsing/place-items-shorthand.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/place-items-valid.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/place-self-computed.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/place-self-invalid.html": {
@@ -896,11 +896,11 @@
     "reason": null
   },
   "/css/css-align/parsing/place-self-shorthand.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/place-self-valid.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-align/parsing/row-gap-computed.html": {
@@ -1140,11 +1140,11 @@
     "reason": null
   },
   "/css/css-anchor-position/parsing/position-visibility-computed.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-anchor-position/parsing/position-visibility-parsing.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-anchor-position/position-anchor-basics.html": {
@@ -2242,7 +2242,7 @@
     "reason": null
   },
   "/css/css-color/parsing/color-computed-lab.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-color/parsing/color-computed-named-color.html": {
@@ -2254,8 +2254,8 @@
     "reason": "4/1169 subtests left: currentcolor-origin rows depend on live-harness color state; powerless-hue-as-none on space conversion; sin(rad/deg) calc typing; sibling-index()."
   },
   "/css/css-color/parsing/color-computed-rgb.html": {
-    "expected": "FAIL",
-    "reason": "4/99 subtests left: f32 float printing (0.5019608) vs Blink's double-based 0.50196078 for 128/255 \u2014 changing stylo's float serializer would rebaseline everything."
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-color/parsing/color-computed.html": {
     "expected": "PASS",
@@ -2330,11 +2330,11 @@
     "reason": null
   },
   "/css/css-color/parsing/color-valid-hsl.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-color/parsing/color-valid-hwb.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-color/parsing/color-valid-lab.html": {
@@ -2342,11 +2342,11 @@
     "reason": "32/150 subtests left: statically-resolvable calc() must serialize preserved-unclamped (lab(calc(150) \u2026)); deliberately deferred."
   },
   "/css/css-color/parsing/color-valid-relative-color.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-color/parsing/color-valid-rgb.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-color/parsing/color-valid-system-color.html": {
@@ -3291,7 +3291,7 @@
     "reason": null
   },
   "/css/css-grid/parsing/grid-content-sized-columns-resolution.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-grid/parsing/grid-row-invalid.html": {
@@ -4759,7 +4759,7 @@
     "reason": null
   },
   "/css/css-multicol/parsing/column-span-valid.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-multicol/parsing/column-width-computed.html": {
@@ -4823,11 +4823,11 @@
     "reason": null
   },
   "/css/css-overflow/parsing/overflow-clip-margin-computed.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-overflow/parsing/overflow-clip-margin.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-overflow/parsing/overflow-computed.html": {
@@ -5888,7 +5888,7 @@
     "reason": null
   },
   "/css/css-text/parsing/white-space-shorthand.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": "Recovered when inline-style removal started expanding shorthands and legacy aliases to the canonical longhands (style.length returns to its pre-write count)."
   },
   "/css/css-text/parsing/white-space-valid.html": {
@@ -6176,7 +6176,7 @@
     "reason": null
   },
   "/css/css-ui/parsing/outline-valid.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-ui/parsing/outline-width-computed.html": {
@@ -6280,8 +6280,8 @@
     "reason": null
   },
   "/css/css-values/attr-all-types.html": {
-    "expected": "FAIL",
-    "reason": "176/179 subtests pass. The three failures are attr() types that Stylo 0.24 accepts at parse time; later WPT revisions removed those subtests."
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-values/attr-argument-grammar.html": {
     "expected": "PASS",
@@ -6454,7 +6454,7 @@
     "reason": "T18 enrollment (css-values): 0/12 subtests pass"
   },
   "/css/css-values/calc-infinity-nan-computed.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-values/calc-infinity-nan-serialize-angle.html": {
@@ -6834,7 +6834,7 @@
     "reason": "T18 enrollment (css-values): measured PASS"
   },
   "/css/css-values/exp-log-compute.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-values/exp-log-invalid.html": {
@@ -6870,7 +6870,7 @@
     "reason": null
   },
   "/css/css-values/hypot-pow-sqrt-computed.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/css/css-values/hypot-pow-sqrt-invalid.html": {
@@ -7228,7 +7228,7 @@
     "reason": "T18 enrollment (css-values): measured PASS"
   },
   "/css/css-values/round-function.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": "T18 enrollment (css-values): measured PASS"
   },
   "/css/css-values/round-mod-rem-computed.html": {
@@ -7369,16 +7369,16 @@
     "reason": null
   },
   "/css/css-values/typed_arithmetic.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): 4/39 subtests pass"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-values/typed_arithmetic_cycle.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (css-values): measured PASS"
   },
   "/css/css-values/update-subpixel-rem-unit.html": {
-    "expected": "FAIL",
-    "reason": "Stylo 0.24 rounds font sizes to 1/60px app units, as Gecko does, so 16.125px computes as 16.1333px. Later WPT revisions use 16.25px to avoid that rounding."
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-values/urls/cross-origin/url-font-cross-origin-anonymous-negative.sub.html": {
     "expected": "FAIL",
@@ -10434,7 +10434,7 @@
     "reason": "kitesurf-iframes-phase2: dynamic iframe insertion + same-origin fetch + post-redirect URL tracking unblock this test."
   },
   "/dom/nodes/Document-adoptNode.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/dom/nodes/Document-characterSet-normalization-1.html": {
@@ -10546,11 +10546,11 @@
     "reason": null
   },
   "/dom/nodes/Document-createProcessingInstruction-xhtml.xhtml": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/dom/nodes/Document-createProcessingInstruction.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/dom/nodes/Document-createTextNode.html": {
@@ -10590,7 +10590,7 @@
     "reason": null
   },
   "/dom/nodes/Document-importNode.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/dom/nodes/DocumentFragment-constructor.html": {
@@ -11782,13 +11782,13 @@
     "timeout": 15000
   },
   "/editing/run/bold.html?1001-2000": {
-    "expected": "FAIL",
-    "reason": "editing/run enrolment. execCommand and queryCommand* run the WPT reference implementation, which the dom-shim build fetches (packages/dom-shim/scripts/editing-implementation.mjs). Most of what still fails is getComputedStyle gaps the algorithms read: presentational hints such as <font size>, <font color> and align= are not reflected, so effective command values and the innerHTML they drive come out wrong.",
+    "expected": "PASS",
+    "reason": null,
     "timeout": 15000
   },
   "/editing/run/bold.html?2001-3000": {
-    "expected": "FAIL",
-    "reason": "editing/run enrolment. execCommand and queryCommand* run the WPT reference implementation, which the dom-shim build fetches (packages/dom-shim/scripts/editing-implementation.mjs). Most of what still fails is getComputedStyle gaps the algorithms read: presentational hints such as <font size>, <font color> and align= are not reflected, so effective command values and the innerHTML they drive come out wrong.",
+    "expected": "PASS",
+    "reason": null,
     "timeout": 15000
   },
   "/editing/run/bold.html?3001-last": {
@@ -12057,13 +12057,13 @@
     "timeout": 15000
   },
   "/editing/run/insertparagraph.html?4001-5000": {
-    "expected": "FAIL",
-    "reason": "editing/run enrolment. execCommand and queryCommand* run the WPT reference implementation, which the dom-shim build fetches (packages/dom-shim/scripts/editing-implementation.mjs). Most of what still fails is getComputedStyle gaps the algorithms read: presentational hints such as <font size>, <font color> and align= are not reflected, so effective command values and the innerHTML they drive come out wrong.",
+    "expected": "PASS",
+    "reason": null,
     "timeout": 15000
   },
   "/editing/run/insertparagraph.html?5001-6000": {
-    "expected": "FAIL",
-    "reason": "editing/run enrolment. execCommand and queryCommand* run the WPT reference implementation, which the dom-shim build fetches (packages/dom-shim/scripts/editing-implementation.mjs). Most of what still fails is getComputedStyle gaps the algorithms read: presentational hints such as <font size>, <font color> and align= are not reflected, so effective command values and the innerHTML they drive come out wrong.",
+    "expected": "PASS",
+    "reason": null,
     "timeout": 15000
   },
   "/editing/run/insertparagraph.html?6001-7000": {
@@ -12112,13 +12112,13 @@
     "timeout": 15000
   },
   "/editing/run/italic.html?1001-2000": {
-    "expected": "FAIL",
-    "reason": "editing/run enrolment. execCommand and queryCommand* run the WPT reference implementation, which the dom-shim build fetches (packages/dom-shim/scripts/editing-implementation.mjs). Most of what still fails is getComputedStyle gaps the algorithms read: presentational hints such as <font size>, <font color> and align= are not reflected, so effective command values and the innerHTML they drive come out wrong.",
+    "expected": "PASS",
+    "reason": null,
     "timeout": 15000
   },
   "/editing/run/italic.html?2001-last": {
-    "expected": "FAIL",
-    "reason": "editing/run enrolment. execCommand and queryCommand* run the WPT reference implementation, which the dom-shim build fetches (packages/dom-shim/scripts/editing-implementation.mjs). Most of what still fails is getComputedStyle gaps the algorithms read: presentational hints such as <font size>, <font color> and align= are not reflected, so effective command values and the innerHTML they drive come out wrong.",
+    "expected": "PASS",
+    "reason": null,
     "timeout": 15000
   },
   "/editing/run/justifycenter.html?1-1000": {
@@ -12127,8 +12127,8 @@
     "timeout": 15000
   },
   "/editing/run/justifycenter.html?1001-2000": {
-    "expected": "FAIL",
-    "reason": "editing/run enrolment. execCommand and queryCommand* run the WPT reference implementation, which the dom-shim build fetches (packages/dom-shim/scripts/editing-implementation.mjs). Most of what still fails is getComputedStyle gaps the algorithms read: presentational hints such as <font size>, <font color> and align= are not reflected, so effective command values and the innerHTML they drive come out wrong.",
+    "expected": "PASS",
+    "reason": null,
     "timeout": 15000
   },
   "/editing/run/justifycenter.html?2001-3000": {
@@ -12137,13 +12137,13 @@
     "timeout": 15000
   },
   "/editing/run/justifycenter.html?3001-4000": {
-    "expected": "FAIL",
-    "reason": "editing/run enrolment. execCommand and queryCommand* run the WPT reference implementation, which the dom-shim build fetches (packages/dom-shim/scripts/editing-implementation.mjs). Most of what still fails is getComputedStyle gaps the algorithms read: presentational hints such as <font size>, <font color> and align= are not reflected, so effective command values and the innerHTML they drive come out wrong.",
+    "expected": "PASS",
+    "reason": null,
     "timeout": 15000
   },
   "/editing/run/justifycenter.html?4001-5000": {
-    "expected": "FAIL",
-    "reason": "editing/run enrolment. execCommand and queryCommand* run the WPT reference implementation, which the dom-shim build fetches (packages/dom-shim/scripts/editing-implementation.mjs). Most of what still fails is getComputedStyle gaps the algorithms read: presentational hints such as <font size>, <font color> and align= are not reflected, so effective command values and the innerHTML they drive come out wrong.",
+    "expected": "PASS",
+    "reason": null,
     "timeout": 60000
   },
   "/editing/run/justifycenter.html?5001-6000": {
@@ -12162,8 +12162,8 @@
     "timeout": 15000
   },
   "/editing/run/justifyfull.html?1001-2000": {
-    "expected": "FAIL",
-    "reason": "editing/run enrolment. execCommand and queryCommand* run the WPT reference implementation, which the dom-shim build fetches (packages/dom-shim/scripts/editing-implementation.mjs). Most of what still fails is getComputedStyle gaps the algorithms read: presentational hints such as <font size>, <font color> and align= are not reflected, so effective command values and the innerHTML they drive come out wrong.",
+    "expected": "PASS",
+    "reason": null,
     "timeout": 15000
   },
   "/editing/run/justifyfull.html?2001-3000": {
@@ -12187,13 +12187,13 @@
     "timeout": 15000
   },
   "/editing/run/justifyleft.html?1001-2000": {
-    "expected": "FAIL",
-    "reason": "editing/run enrolment. execCommand and queryCommand* run the WPT reference implementation, which the dom-shim build fetches (packages/dom-shim/scripts/editing-implementation.mjs). Most of what still fails is getComputedStyle gaps the algorithms read: presentational hints such as <font size>, <font color> and align= are not reflected, so effective command values and the innerHTML they drive come out wrong.",
+    "expected": "PASS",
+    "reason": null,
     "timeout": 15000
   },
   "/editing/run/justifyleft.html?2001-last": {
-    "expected": "FAIL",
-    "reason": "editing/run enrolment. execCommand and queryCommand* run the WPT reference implementation, which the dom-shim build fetches (packages/dom-shim/scripts/editing-implementation.mjs). Most of what still fails is getComputedStyle gaps the algorithms read: presentational hints such as <font size>, <font color> and align= are not reflected, so effective command values and the innerHTML they drive come out wrong.",
+    "expected": "PASS",
+    "reason": null,
     "timeout": 15000
   },
   "/editing/run/justifyright.html?1-1000": {
@@ -12202,13 +12202,13 @@
     "timeout": 15000
   },
   "/editing/run/justifyright.html?1001-2000": {
-    "expected": "FAIL",
-    "reason": "editing/run enrolment. execCommand and queryCommand* run the WPT reference implementation, which the dom-shim build fetches (packages/dom-shim/scripts/editing-implementation.mjs). Most of what still fails is getComputedStyle gaps the algorithms read: presentational hints such as <font size>, <font color> and align= are not reflected, so effective command values and the innerHTML they drive come out wrong.",
+    "expected": "PASS",
+    "reason": null,
     "timeout": 15000
   },
   "/editing/run/justifyright.html?2001-3000": {
-    "expected": "FAIL",
-    "reason": "editing/run enrolment. execCommand and queryCommand* run the WPT reference implementation, which the dom-shim build fetches (packages/dom-shim/scripts/editing-implementation.mjs). Most of what still fails is getComputedStyle gaps the algorithms read: presentational hints such as <font size>, <font color> and align= are not reflected, so effective command values and the innerHTML they drive come out wrong.",
+    "expected": "PASS",
+    "reason": null,
     "timeout": 15000
   },
   "/editing/run/justifyright.html?3001-4000": {
@@ -12287,8 +12287,8 @@
     "timeout": 15000
   },
   "/editing/run/outdent.html?2001-last": {
-    "expected": "FAIL",
-    "reason": "editing/run enrolment. execCommand and queryCommand* run the WPT reference implementation, which the dom-shim build fetches (packages/dom-shim/scripts/editing-implementation.mjs). Most of what still fails is getComputedStyle gaps the algorithms read: presentational hints such as <font size>, <font color> and align= are not reflected, so effective command values and the innerHTML they drive come out wrong.",
+    "expected": "PASS",
+    "reason": null,
     "timeout": 15000
   },
   "/editing/run/removeformat.html": {
@@ -12519,7 +12519,7 @@
     "reason": null
   },
   "/encoding/textdecoder-fatal-streaming.any.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/encoding/textdecoder-fatal.any.html": {
@@ -12535,7 +12535,7 @@
     "reason": null
   },
   "/encoding/textdecoder-mistakes.any.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/encoding/textdecoder-streaming.any.html": {
@@ -12754,7 +12754,7 @@
     "reason": "13/17. https cross-protocol subtests die on wpt-serve's self-signed cert \u2014 workerd's fetch surfaces it as an opaque 'internal error'. Everything on http:// passes."
   },
   "/fetch/api/cors/cors-preflight-cache.any.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": "Passes since the CORS gateway landed preflight, expose-headers filtering, credentials mode and the shim-owned redirect loop."
   },
   "/fetch/api/cors/cors-preflight-not-cors-safelisted.any.html": {
@@ -12762,8 +12762,8 @@
     "reason": "Passes since the CORS gateway landed preflight, expose-headers filtering, credentials mode and the shim-owned redirect loop."
   },
   "/fetch/api/cors/cors-preflight-redirect.any.html": {
-    "expected": "FAIL",
-    "reason": "5/10. The 'on preflight' half passes (a redirected OPTIONS is a network error). The 'after preflight' half asserts the pre-2018 rule that any redirect after a successful preflight fails; current Fetch dropped it, and /cors/redirect-preflight.htm asserts the opposite. We follow the current spec."
+    "expected": "PASS",
+    "reason": null
   },
   "/fetch/api/cors/cors-preflight-referrer.any.html": {
     "expected": "FAIL",
@@ -12929,7 +12929,7 @@
     "reason": null
   },
   "/fetch/api/request/request-bad-port.any.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/fetch/api/request/request-cache-default-conditional.any.html": {
@@ -17707,7 +17707,7 @@
     "reason": "All subtests pass after multiple IDL reflection fixes: missing-default empty string for limited-known-values enums; ascii-only case-insensitive enum matching; unsigned-long for input.height/width; limited-positive-unsigned-long with throw for input.size; limited-positive-with-fallback for textarea.cols/rows; limited-long with throw for {max,min}Length; htmlParseDouble for progress.max; setter no-op on progress.max <= 0."
   },
   "/html/dom/reflection-forms.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": "All subtests pass after multiple IDL reflection fixes: missing-default empty string for limited-known-values enums; ascii-only case-insensitive enum matching; unsigned-long for input.height/width; limited-positive-unsigned-long with throw for input.size; limited-positive-with-fallback for textarea.cols/rows; limited-long with throw for {max,min}Length; htmlParseDouble for progress.max; setter no-op on progress.max <= 0."
   },
   "/html/dom/reflection-grouping.html": {
@@ -19497,7 +19497,7 @@
     "reason": null
   },
   "/performance-timeline/po-disconnect.any.html": {
-    "expected": "PASS",
+    "expected": "TIMEOUT",
     "reason": null
   },
   "/performance-timeline/po-entries-sort.any.html": {
@@ -20506,8 +20506,8 @@
     "reason": "12/26 subtests. Slotting through nested shadow trees (open>closed, closed>open, etc.) works for the first level but mutation triggers (appendChild, slot= attr change) don't re-run the assignment."
   },
   "/shadow-dom/touch-event-retargeting-leak.html": {
-    "expected": "FAIL",
-    "reason": "Retargeting for touch / wheel events doesn't clone relatedTarget; the retarget only touches target/currentTarget."
+    "expected": "PASS",
+    "reason": null
   },
   "/shadow-dom/user-agent-shadow-root-crash.html": {
     "expected": "PASS",
@@ -21058,8 +21058,8 @@
     "reason": "accesskey activation is not implemented; the test never gets its click"
   },
   "/uievents/keyboard/keypress-not-fired-for-modifier-shortcuts.html": {
-    "expected": "FAIL",
-    "reason": "3/4 subtests pass. The plain-key subtest loses a race the bridge creates: each key event is its own CDP round-trip, so the page gets a JS turn between the previous test's 'v' keyup and its sticky-modifier undo keyup, and that trailing keyup settles the next subtest's promise early"
+    "expected": "PASS",
+    "reason": null
   },
   "/uievents/legacy-domevents-tests/approved/dispatchEvent.click.checkbox.html": {
     "expected": "FAIL",
@@ -21138,7 +21138,7 @@
     "reason": null
   },
   "/url/IdnaTestV2.any.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": "Rebaselined 2026-09-16: measures PASS on main (CI and locally, 2671/2671 subtests); the FAIL pin had drifted behind work that landed without a rebaseline. Previous pin: Records the outcome this produces. The baseline agrees, so this is a long-standing gap rather than a rebaselined regression; reproduced on CI and locally."
   },
   "/url/a-element-origin-xhtml.xhtml": {
@@ -21983,7 +21983,7 @@
     "reason": null
   },
   "/webmcp/declarative/duplicate-tool-name.https.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/webmcp/declarative/execute_tool_change_event.https.html": {
@@ -22023,11 +22023,11 @@
     "reason": null
   },
   "/webmcp/declarative/unregister-during-executeTool.https.html": {
-    "expected": "PASS",
+    "expected": "TIMEOUT",
     "reason": null
   },
   "/webmcp/idlharness.https.window.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/webmcp/imperative/detached-frame-executeTool.https.html": {
@@ -22047,7 +22047,7 @@
     "reason": "Needs cross-origin iframes with allow=tools permissions-policy + cross-realm executeTool. Neither the permissions policy nor multi-realm dispatch are implemented."
   },
   "/webmcp/imperative/executeTool-caller-navigate-abort.https.html": {
-    "expected": "FAIL",
+    "expected": "TIMEOUT",
     "reason": "Cross-realm execute: the tool's window handle points at another frame that then navigates. Multi-realm execute isn't implemented (single-document registry)."
   },
   "/webmcp/imperative/executeTool-target-detachment.https.html": {
@@ -22091,7 +22091,7 @@
     "reason": null
   },
   "/webmcp/imperative/opaque-origin-tools.https.html": {
-    "expected": "FAIL",
+    "expected": "TIMEOUT",
     "reason": "CSP sandbox isn't honored, so the document's origin isn't opaque: subtests 1-2 fail at self.origin === 'null' / the missing registered tool. Subtests 3-4 (synchronous NotSupportedError for unparseable and data: origins) pass."
   },
   "/webmcp/imperative/permissions-policy.https.html": {
@@ -23386,7 +23386,7 @@
     "reason": null
   },
   "/css/cssom-view/offsetTopLeft-border-box.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/cssom-view/offsetParent-fixed.html": {
@@ -23442,15 +23442,15 @@
     "reason": null
   },
   "/css/css-lists/counter-001.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-lists/counter-002.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-lists/counter-003.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-lists/counter-004.html": {
@@ -23574,15 +23574,15 @@
     "reason": null
   },
   "/css/css-lists/counters-001.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-lists/counters-002.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-lists/counters-003.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-lists/counters-004.html": {
@@ -23598,19 +23598,19 @@
     "reason": null
   },
   "/css/css-lists/counters-scope-001.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-lists/counters-scope-002.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-lists/counters-scope-003.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-lists/counters-scope-004.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-lists/deep-pseudo-element-remove-update.html": {
@@ -26178,7 +26178,7 @@
     "reason": null
   },
   "/css/css-grid/grid-flex-spanning-items-001.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/grid-flexible-track-fractional-flex-factor.html": {
@@ -27718,7 +27718,7 @@
     "reason": null
   },
   "/css/css-grid/abspos/grid-abspos-staticpos-align-self-safe-001.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": "Rebaselined 2026-09-16: measures PASS on main (CI and locally); the FAIL pin had drifted behind work that landed without a rebaseline."
   },
   "/css/css-grid/abspos/grid-abspos-staticpos-align-self-self-end-large-border-padding.html": {
@@ -29114,11 +29114,11 @@
     "reason": null
   },
   "/webmcp/imperative/executeTool-abort.https.html": {
-    "expected": "PASS",
+    "expected": "TIMEOUT",
     "reason": null
   },
   "/webmcp/imperative/executeTool-error-window-onerror.https.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/webmcp/imperative/exposedTo-invalid-origins.https.html": {
@@ -29126,7 +29126,7 @@
     "reason": null
   },
   "/webmcp/imperative/getTools-imperative-annotations.https.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/webmcp/imperative/getTools-imperative-schema.https.html": {
@@ -29134,11 +29134,11 @@
     "reason": "Stale upstream test: spec PR #241 (2026-08-14) changed RegisteredTool.inputSchema from DOMString to object, and getTools() returns the parsed object per spec. The Chrome-authored test still does JSON.parse(tool.inputSchema) on the old string shape."
   },
   "/webmcp/declarative/executeTool-abort.https.html": {
-    "expected": "PASS",
+    "expected": "TIMEOUT",
     "reason": null
   },
   "/webmcp/declarative/executeTool-respondWith-circular-object.https.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/webmcp/declarative/no-frame-documents.https.html": {
@@ -29170,7 +29170,7 @@
     "reason": null
   },
   "/webmcp/imperative/executeTool-invalid-dictionary.https.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/webmcp/imperative/getTools.https.html": {
@@ -29182,7 +29182,7 @@
     "reason": null
   },
   "/webmcp/imperative/object-arguments.https.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/webmcp/imperative/register-tool-title.https.html": {
@@ -29190,7 +29190,7 @@
     "reason": null
   },
   "/webmcp/imperative/register_tool_invalid_json_schema.https.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/webmcp/imperative/register_tool_name_validation.https.html": {
@@ -32927,7 +32927,7 @@
     "reason": null
   },
   "/html/dom/partial-updates/tentative/fragment/sanitize-regular.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/html/dom/partial-updates/tentative/fragment/src-cancel.html": {
@@ -33103,7 +33103,7 @@
     "reason": null
   },
   "/html/semantics/document-metadata/the-link-element/document-without-browsing-context.html": {
-    "expected": "PASS",
+    "expected": "TIMEOUT",
     "reason": null
   },
   "/html/semantics/document-metadata/the-link-element/link-error-handler-triggers-abort-crash.html": {
@@ -33267,7 +33267,7 @@
     "reason": null
   },
   "/html/semantics/forms/the-button-element/button-type.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/html/semantics/forms/the-button-element/button-validation.html": {
@@ -36597,7 +36597,7 @@
     "reason": null
   },
   "/wasm/core/utf8-invalid-encoding.wast.js.html": {
-    "expected": "PASS",
+    "expected": "FAIL",
     "reason": null
   },
   "/webstorage/storage_functions_not_overwritten.window.html": {
@@ -40450,11 +40450,139 @@
     "reason": null
   },
   "/css/css-env/env-parsing.html": {
-    "expected": "FAIL",
-    "reason": "3/8 subtests pass. Stylo 0.24 parses env()'s name as a <declaration-value>, as css-env-1 now specifies, so trailing tokens no longer make the value invalid at parse time. Later WPT revisions expect them to be valid."
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-env/syntax.tentative.html": {
+    "expected": "PASS",
+    "reason": null
+  },
+  "/css/css-align/content-distribution/parse-align-content-001.html": {
     "expected": "FAIL",
-    "reason": "16/18 subtests pass. Stylo 0.24 parses env()'s name as a <declaration-value>, as css-env-1 now specifies, so env(10px) and env(env(test)) are valid at parse time. Later WPT revisions expect the declaration to apply."
+    "reason": null
+  },
+  "/css/css-align/content-distribution/parse-align-content-003.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-align/content-distribution/parse-justify-content-001.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-align/content-distribution/parse-justify-content-003.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-align/content-distribution/place-content-shorthand-006.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-align/default-alignment/parse-align-items-001.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-align/default-alignment/parse-align-items-003.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-align/default-alignment/parse-justify-items-001.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-align/default-alignment/parse-justify-items-003.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-align/default-alignment/place-items-shorthand-006.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-align/self-alignment/parse-align-self-001.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-align/self-alignment/parse-align-self-003.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-align/self-alignment/parse-justify-self-001.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-align/self-alignment/parse-justify-self-003.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-align/self-alignment/place-self-shorthand-006.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-borders/corner-shape/render-corner-shape.html?corner-shape=-2&border-radius=20%&border-width=20": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-borders/corner-shape/render-corner-shape.html?corner-shape=-7&border-radius=20%&border-width=20": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-borders/corner-shape/render-corner-shape.html?corner-shape=notch&border-radius=30&border-width=30": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-borders/corner-shape/render-corner-shape.html?corner-shape=scoop&border-radius=20%&border-width=20": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-flexbox/getcomputedstyle/flexbox_computedstyle_align-content-flex-end.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-flexbox/getcomputedstyle/flexbox_computedstyle_align-content-flex-start.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-flexbox/getcomputedstyle/flexbox_computedstyle_align-items-flex-end.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-flexbox/getcomputedstyle/flexbox_computedstyle_align-items-flex-start.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-flexbox/getcomputedstyle/flexbox_computedstyle_align-self-flex-end.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-flexbox/getcomputedstyle/flexbox_computedstyle_align-self-flex-start.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-flexbox/getcomputedstyle/flexbox_computedstyle_justify-content-flex-end.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-flexbox/getcomputedstyle/flexbox_computedstyle_justify-content-flex-start.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-grid/grid-model/grid-gutters-and-flex-content-001.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-typed-om/stylevalue-subclasses/numeric-objects/parse.tentative.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-typed-om/the-stylepropertymap/declared/append.tentative.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-typed-om/the-stylepropertymap/inline/append.tentative.html": {
+    "expected": "FAIL",
+    "reason": null
+  },
+  "/css/css-typed-om/the-stylepropertymap/properties/position-visibility.html": {
+    "expected": "FAIL",
+    "reason": null
   }
 }
