@@ -75,6 +75,7 @@ filegroup(
 js_library(
     name = "config",
     srcs = [":package_json", "tsconfig.json", "wrangler.jsonc"],
+    visibility = ["//docker:__pkg__"],
 )
 
 js_library(
