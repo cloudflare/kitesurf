@@ -143,6 +143,24 @@ describe("yieldToDuePageTasks", () => {
     }
   });
 
+  it("takes no task turn for a due task while the pump is paused", async () => {
+    let ran = false;
+    const resume = await pageTasks.pausePageTaskPump();
+    try {
+      pageTasks.queuePortTask(() => {
+        ran = true;
+      });
+      expect(pageTasks.pageTimerDueWithin(0)).toBe(true);
+      await pageTasks.yieldToDuePageTasks(3);
+      expect(hoisted.pageTurns).toBe(0);
+      expect(ran).toBe(false);
+    } finally {
+      resume();
+    }
+    await pageTasks.yieldToDuePageTasks(3);
+    expect(ran).toBe(true);
+  });
+
   it("caps an endless zero-delay chain at maxTurns", async () => {
     let running = true;
     let level = 0;
