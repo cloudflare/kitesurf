@@ -2075,10 +2075,6 @@
     "expected": "SKIP",
     "reason": "times out"
   },
-  "page-wait-for-selector-2.spec.ts::should not consider visible when zero-sized": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toContain(expected) // indexOf"
-  },
   "page-wait-for-selector-2.spec.ts::should run in specified frame xpath": {
     "expected": "SKIP",
     "reason": "times out"
