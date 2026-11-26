@@ -956,3 +956,26 @@ test("removing a declarative tool cancels its execution before submission", asyn
     cancels: ["paused"],
   });
 }, 60_000);
+
+test("a refused duplicate declarative tool retries on its next mutation", async ({ page }) => {
+  const result = await runScenario(
+    page,
+    `<form id="a" toolname="dup" tooldescription="First"></form>` +
+      `<form id="b" toolname="dup" tooldescription="Second"></form>
+    <script>
+    window.__scenario = async () => {
+      const mc = document.modelContext;
+      const out = {};
+      const descriptions = async () => (await mc.getTools()).map((t) => t.description);
+      out.initial = await descriptions();
+      document.getElementById("a").remove();
+      out.afterRemove = await descriptions();
+      document.getElementById("b").append(document.createElement("div"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      out.afterMutation = await descriptions();
+      return JSON.stringify(out);
+    };
+    </script>`,
+  );
+  expect(result).toEqual({ initial: ["First"], afterRemove: [], afterMutation: ["Second"] });
+}, 60_000);

@@ -109,6 +109,9 @@ let declarativeWatchRevision = 0;
 let declarativeRefreshQueued = false;
 let declarativeHookInstalled = false;
 let pageDeclarativeInterest = false;
+// A form refused for a taken name keeps its markup here and retries only once the markup changes,
+// as Chrome retries a refused form on its next mutation, not when the name is freed.
+let rejectedForms = new Map<DeclarativeForm, string>();
 // Cancels a non-autosubmit execution that still waits for its form to be submitted.
 let pendingFormCancels = new Map<DeclarativeForm, Set<() => void>>();
 const declarativeCancels = new WeakSet<object>();
@@ -330,6 +333,20 @@ function declarativeSchema(form: DeclarativeForm): Record<string, unknown> {
   return schema;
 }
 
+function formMarkup(form: DeclarativeForm): string {
+  try {
+    return String(formBehindProxy(form).outerHTML ?? "");
+  } catch {
+    return "";
+  }
+}
+
+interface DeclarativeCandidate {
+  form: DeclarativeForm;
+  name: string;
+  description: string;
+}
+
 function scanDeclarativeTools(
   previous: Map<string, DeclarativeTool>,
 ): Map<string, DeclarativeTool> {
@@ -343,6 +360,15 @@ function scanDeclarativeTools(
     return found;
   }
   declarativeCandidates = forms.length;
+  if (rejectedForms.size > 0) {
+    // A refused form that leaves the candidates retries when it comes back.
+    const candidates = new Set(forms);
+    for (const form of rejectedForms.keys()) {
+      if (!candidates.has(form)) rejectedForms.delete(form);
+    }
+  }
+  const holders: DeclarativeCandidate[] = [];
+  const others: DeclarativeCandidate[] = [];
   for (const form of forms) {
     const name = String(form?.getAttribute?.("toolname") ?? "");
     const description = String(form?.getAttribute?.("tooldescription") ?? "");
@@ -350,11 +376,22 @@ function scanDeclarativeTools(
       !name ||
       !description ||
       name.length > MAX_MODEL_CONTEXT_TOOL_NAME_LENGTH ||
-      !NAME_OK.test(name) ||
-      tools.has(name) ||
-      found.has(name)
+      !NAME_OK.test(name)
     )
       continue;
+    // The form that holds a name keeps it against a duplicate earlier in document order.
+    (previous.get(name)?.form === form ? holders : others).push({ form, name, description });
+  }
+  for (const { form, name, description } of holders.concat(others)) {
+    if (tools.has(name) || found.has(name)) {
+      rejectedForms.set(form, formMarkup(form));
+      continue;
+    }
+    const rejectedMarkup = rejectedForms.get(form);
+    if (rejectedMarkup !== undefined) {
+      if (rejectedMarkup === formMarkup(form)) continue;
+      rejectedForms.delete(form);
+    }
     const autosubmit = form?.getAttribute?.("toolautosubmit") != null;
     const descriptor: CdpTool = {
       name,
@@ -1309,6 +1346,7 @@ export function createModelContext(deps: {
   declarativeWatchRevision = 0;
   declarativeRefreshQueued = false;
   pageDeclarativeInterest = false;
+  rejectedForms = new Map();
   pendingFormCancels = new Map();
   docContexts = new WeakMap();
   getWindow = deps.getWindow;
