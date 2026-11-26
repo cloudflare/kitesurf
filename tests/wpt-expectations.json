@@ -21983,7 +21983,7 @@
     "reason": null
   },
   "/webmcp/declarative/duplicate-tool-name.https.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/webmcp/declarative/execute_tool_change_event.https.html": {
@@ -22024,10 +22024,10 @@
   },
   "/webmcp/declarative/unregister-during-executeTool.https.html": {
     "expected": "TIMEOUT",
-    "reason": null
+    "reason": "Subtest 5 builds a declarative form inside a same-origin iframe document and waits for the parent's toolchange; iframe documents are not scanned for declarative tools. Subtests 1-4 pass."
   },
   "/webmcp/idlharness.https.window.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/webmcp/imperative/detached-frame-executeTool.https.html": {
@@ -29114,11 +29114,11 @@
     "reason": null
   },
   "/webmcp/imperative/executeTool-abort.https.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/webmcp/imperative/executeTool-error-window-onerror.https.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/webmcp/imperative/exposedTo-invalid-origins.https.html": {
@@ -29126,19 +29126,19 @@
     "reason": null
   },
   "/webmcp/imperative/getTools-imperative-annotations.https.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/webmcp/imperative/getTools-imperative-schema.https.html": {
-    "expected": "FAIL",
-    "reason": "Stale upstream test: spec PR #241 (2026-08-14) changed RegisteredTool.inputSchema from DOMString to object, and getTools() returns the parsed object per spec. The Chrome-authored test still does JSON.parse(tool.inputSchema) on the old string shape."
+    "expected": "PASS",
+    "reason": null
   },
   "/webmcp/declarative/executeTool-abort.https.html": {
-    "expected": "TIMEOUT",
+    "expected": "PASS",
     "reason": null
   },
   "/webmcp/declarative/executeTool-respondWith-circular-object.https.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/webmcp/declarative/no-frame-documents.https.html": {
@@ -29170,7 +29170,7 @@
     "reason": null
   },
   "/webmcp/imperative/executeTool-invalid-dictionary.https.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/webmcp/imperative/getTools.https.html": {
@@ -29182,7 +29182,7 @@
     "reason": null
   },
   "/webmcp/imperative/object-arguments.https.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/webmcp/imperative/register-tool-title.https.html": {
@@ -29190,7 +29190,7 @@
     "reason": null
   },
   "/webmcp/imperative/register_tool_invalid_json_schema.https.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/webmcp/imperative/register_tool_name_validation.https.html": {
