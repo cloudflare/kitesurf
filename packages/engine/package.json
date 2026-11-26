@@ -37,12 +37,12 @@
   },
   "devDependencies": {
     "@cloudflare/puppeteer": "1.1.0",
-    "@cloudflare/vitest-plugin": "^1.1.9",
+    "@cloudflare/vitest-plugin": "^1.9.2",
     "@types/node": "^25.6.2",
     "devtools-protocol": "^0.0.1669207",
-    "miniflare": "5.20260911.1-alpha",
+    "miniflare": "5.20261123.1-beta",
     "typescript": "^5.6.0",
     "vitest": "^4.1.12",
-    "wrangler": "^4.131.2"
+    "wrangler": "^4.168.0"
   }
 }

@@ -9,6 +9,6 @@
     ".": "./server.mjs"
   },
   "dependencies": {
-    "miniflare": "5.20260911.1-alpha"
+    "miniflare": "5.20261123.1-beta"
   }
 }
