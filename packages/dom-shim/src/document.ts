@@ -133,6 +133,8 @@ import {
   type TextNode,
   type CommentNode,
   DocumentTypeNode,
+  adoptSubtree,
+  stampOwnerDocument,
   cloneWrapper,
   assertDocumentInsertAllowed,
   compareDocumentPosition,
@@ -629,35 +631,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
         parent.removeChild(node);
       } catch {}
     }
-    // nodeOwnerDoc has no entry for nodes of the live document, so adopting
-    // into it deletes entries and adopting into a detached document sets them.
-    const isLive = this === liveWindow().document;
-    const stamp = (n: NodeBase | null) => {
-      if (!n || typeof n !== "object") return;
-      if (isLive) {
-        nodeOwnerDoc.delete(n);
-      } else {
-        nodeOwnerDoc.set(n, this);
-      }
-      // An adopted doctype has no parent.
-      if (n.nodeType === DOCTYPE_NODE) {
-        if (isLive) {
-          syntheticParent.delete(n);
-        } else {
-          syntheticParent.delete(n);
-        }
-      }
-      // Into the live HTML document: drop the XML flag so tagName upper-cases.
-      // DetachedDocument.adoptNode handles HTML to XML.
-      if (isLive && n.nodeType === ELEMENT_NODE && typeof n._id === "number" && n._id >= 0) {
-        xmlOwned.delete(n._id);
-      }
-      try {
-        const kids = n.childNodes;
-        if (kids) for (let i = 0; i < kids.length; i++) stamp(kids[i]);
-      } catch {}
-    };
-    stamp(node);
+    adoptSubtree(this, node);
     return node;
   }
 
@@ -705,7 +679,9 @@ class DocumentImpl extends NodeBase implements Idl.Document {
       // Attr. AttrCls.cloneNode copies namespace, prefix, localName and value
       // and leaves ownerElement null, as importNode requires.
       if (typeof node.cloneNode === "function") {
-        return node.cloneNode(true);
+        const attr = node.cloneNode(true);
+        if (attr) stampOwnerDocument(attr, this);
+        return attr;
       }
     }
     if (node.nodeType === DOCUMENT_FRAGMENT_NODE) {
@@ -2014,8 +1990,8 @@ class DetachedDocument implements Idl.Document {
         this._topChildren.splice(idx, 1);
       }
     }
+    adoptSubtree(this, node);
     // A doctype has no wasm parent, so syntheticParent gives it one.
-    nodeOwnerDoc.set(node, this);
     if (node.nodeType === DOCTYPE_NODE) {
       syntheticParent.set(node, this);
       this._topChildren.push(node);
@@ -2078,8 +2054,8 @@ class DetachedDocument implements Idl.Document {
         if (existing < idx) idx--;
       }
     }
+    adoptSubtree(this, node);
     // A doctype has no wasm parent, so syntheticParent gives it one.
-    nodeOwnerDoc.set(node, this);
     if (node.nodeType === DOCTYPE_NODE) {
       this._topChildren.splice(idx, 0, node);
       syntheticParent.set(node, this);
@@ -2208,29 +2184,7 @@ class DetachedDocument implements Idl.Document {
         parent.removeChild(node);
       } catch {}
     }
-    const targetIsXml = !this._isHtml;
-    const stamp = (n: NodeBase | null) => {
-      if (!n || typeof n !== "object") return;
-      nodeOwnerDoc.set(n, this);
-      if (n.nodeType === DOCTYPE_NODE) {
-        syntheticParent.delete(n);
-      }
-      if (n.nodeType === ELEMENT_NODE && typeof n._id === "number" && n._id >= 0) {
-        if (targetIsXml) {
-          xmlOwned.add(n._id);
-          // XML tagName casing lives in xmlOwned, so the node must never
-          // take the fast path (fastpath.ts).
-          fastpathMarkSpecial(n._id);
-        } else {
-          xmlOwned.delete(n._id);
-        }
-      }
-      try {
-        const kids = n.childNodes;
-        if (kids) for (let i = 0; i < kids.length; i++) stamp(kids[i]);
-      } catch {}
-    };
-    stamp(node);
+    adoptSubtree(this, node);
     return node;
   }
   // A Document delegates namespace lookup to its documentElement.
@@ -2396,6 +2350,7 @@ class DetachedDocument implements Idl.Document {
     attr._prefix = null;
     attr._localName = finalName;
     attr._ownerElement = null;
+    stampOwnerDocument(attr, this);
     return attr;
   }
   // Traversal state is only the root, so the live document's factories work.
@@ -2844,6 +2799,7 @@ const sharedDocumentMembers: Pick<Idl.Document, SharedDocumentMember> &
     attr._prefix = prefix;
     attr._localName = local;
     attr._ownerElement = null;
+    stampOwnerDocument(attr, this);
     return attr;
   },
   // XPathEvaluatorBase (DOM §8). Maps' startup reads its preload link

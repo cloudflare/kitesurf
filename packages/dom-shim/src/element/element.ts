@@ -123,6 +123,7 @@ import {
   subtreeHasCachedWrapper,
   dropUnwrappedSubtree,
   dropUnwrappedSubtrees,
+  releaseAttr,
 } from "../node-base.js";
 import type { DetachedDocument } from "../document.js";
 import type { HTMLFormElement } from "./forms/form.js";
@@ -823,7 +824,7 @@ class Element extends NodeBase implements Idl.Element {
     if (cache) {
       const attr = cache.get(wasmKey);
       if (attr) {
-        attr._ownerElement = null;
+        releaseAttr(attr);
         cache.delete(wasmKey);
       }
     }
@@ -1077,7 +1078,7 @@ class Element extends NodeBase implements Idl.Element {
         if (info.ns !== ns || info.localName !== localName) continue;
         const attr = cache?.get(wasmKey);
         if (attr) {
-          attr._ownerElement = null;
+          releaseAttr(attr);
           cache?.delete(wasmKey);
         }
         let oldValue: string | null = null;
@@ -1109,7 +1110,7 @@ class Element extends NodeBase implements Idl.Element {
         if (flat[i] !== localName || (nsMap && nsMap.has(localName))) continue;
         const attr = cache?.get(localName);
         if (attr) {
-          attr._ownerElement = null;
+          releaseAttr(attr);
           cache?.delete(localName);
         }
         const oldValue = flat[i + 1];
@@ -1182,7 +1183,7 @@ class Element extends NodeBase implements Idl.Element {
     for (const cachedName of Array.from(cache.keys())) {
       if (!seenNames.has(cachedName)) {
         const stale = cache.get(cachedName);
-        if (stale) stale._ownerElement = null;
+        if (stale) releaseAttr(stale);
         cache.delete(cachedName);
       }
     }
@@ -1234,7 +1235,7 @@ class Element extends NodeBase implements Idl.Element {
     }
     const previous = this.getAttributeNode(attr.name);
     if (previous && previous !== attr) {
-      previous._ownerElement = null;
+      releaseAttr(previous);
     }
     const ns = attr.namespaceURI;
     if (ns) {
@@ -1270,7 +1271,7 @@ class Element extends NodeBase implements Idl.Element {
     } else {
       this.removeAttribute(attr.name);
     }
-    attr._ownerElement = null;
+    releaseAttr(attr);
     return attr;
   }
 
