@@ -10434,7 +10434,7 @@
     "reason": "kitesurf-iframes-phase2: dynamic iframe insertion + same-origin fetch + post-redirect URL tracking unblock this test."
   },
   "/dom/nodes/Document-adoptNode.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/dom/nodes/Document-characterSet-normalization-1.html": {
@@ -10546,11 +10546,11 @@
     "reason": null
   },
   "/dom/nodes/Document-createProcessingInstruction-xhtml.xhtml": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/dom/nodes/Document-createProcessingInstruction.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/dom/nodes/Document-createTextNode.html": {
@@ -10590,7 +10590,7 @@
     "reason": null
   },
   "/dom/nodes/Document-importNode.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/dom/nodes/DocumentFragment-constructor.html": {
@@ -10925,7 +10925,7 @@
     "reason": null
   },
   "/dom/nodes/Node-mutation-adoptNode.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/dom/nodes/Node-nodeName-xhtml.xhtml": {
@@ -11105,7 +11105,7 @@
     "reason": null
   },
   "/dom/nodes/attributes-namednodemap-cross-document.window.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/dom/nodes/attributes-namednodemap.html": {
@@ -17707,8 +17707,8 @@
     "reason": "All subtests pass after multiple IDL reflection fixes: missing-default empty string for limited-known-values enums; ascii-only case-insensitive enum matching; unsigned-long for input.height/width; limited-positive-unsigned-long with throw for input.size; limited-positive-with-fallback for textarea.cols/rows; limited-long with throw for {max,min}Length; htmlParseDouble for progress.max; setter no-op on progress.max <= 0."
   },
   "/html/dom/reflection-forms.html": {
-    "expected": "FAIL",
-    "reason": "All subtests pass after multiple IDL reflection fixes: missing-default empty string for limited-known-values enums; ascii-only case-insensitive enum matching; unsigned-long for input.height/width; limited-positive-unsigned-long with throw for input.size; limited-positive-with-fallback for textarea.cols/rows; limited-long with throw for {max,min}Length; htmlParseDouble for progress.max; setter no-op on progress.max <= 0."
+    "expected": "PASS",
+    "reason": null
   },
   "/html/dom/reflection-grouping.html": {
     "expected": "PASS",
@@ -32928,7 +32928,7 @@
   },
   "/html/dom/partial-updates/tentative/fragment/sanitize-regular.html": {
     "expected": "FAIL",
-    "reason": null
+    "reason": "Needs the tentative template.sanitize attribute and <template for> patching with <?start> markers, neither implemented."
   },
   "/html/dom/partial-updates/tentative/fragment/src-cancel.html": {
     "expected": "PASS",
@@ -33104,7 +33104,7 @@
   },
   "/html/semantics/document-metadata/the-link-element/document-without-browsing-context.html": {
     "expected": "TIMEOUT",
-    "reason": null
+    "reason": "A link moved from a DOMParser document into the page never fires load, while a created link does, so the first subtest times out."
   },
   "/html/semantics/document-metadata/the-link-element/link-error-handler-triggers-abort-crash.html": {
     "expected": "PASS",
@@ -33268,7 +33268,7 @@
   },
   "/html/semantics/forms/the-button-element/button-type.html": {
     "expected": "FAIL",
-    "reason": null
+    "reason": "The commandfor subtest sets button.commandfor, an expando that adds no attribute, so the button stays in the submit state; Chrome fails it too."
   },
   "/html/semantics/forms/the-button-element/button-validation.html": {
     "expected": "PASS",
