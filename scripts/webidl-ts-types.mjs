@@ -337,7 +337,10 @@ export function renderTypes(
     if (parentName && interfaces.has(parentName)) {
       const inherited = inheritedNames(parentName);
       const ownMembers = memberNames(entry.members);
-      const redeclared = [...ownMembers].filter((member) => inherited.has(member)).sort();
+      // An own override listed as a type gap keeps the parent's declaration instead.
+      const redeclared = [...ownMembers]
+        .filter((member) => inherited.has(member) && !typeGaps.has(member))
+        .sort();
       const inheritedOmissions = [...typeGaps].filter(
         ([member]) => !ownMembers.has(member) && inherited.has(member),
       );
