@@ -25,7 +25,13 @@ const TRANSLATED = new Set([
   "bindings",
   "workerLoaders",
 ]);
-const EMPTY_ONLY = new Set(["email", "additionalUnboundDurableObjects", "tails", "streamingTails"]);
+const EMPTY_ONLY = new Set([
+  "email",
+  "additionalUnboundDurableObjects",
+  "tails",
+  "streamingTails",
+  "connectHandlers",
+]);
 // The `assets` keys that docker/front.js implements. routerConfig derives from run_worker_first.
 const ASSET_KEYS = new Set([
   "binding",

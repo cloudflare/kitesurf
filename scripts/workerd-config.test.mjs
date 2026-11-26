@@ -40,6 +40,7 @@ const BASE_OPTIONS = {
   bindings: {},
   workerLoaders: {},
   email: {},
+  connectHandlers: [],
   assets: {
     directory: "../public",
     binding: "FONT_ASSETS",
@@ -143,6 +144,10 @@ test("the generator rejects engine options that front.js does not translate", (t
   const assets = BASE_OPTIONS.assets;
   const cases = [
     [{ options: { ...BASE_OPTIONS, durableObjects: { X: "X" } } }, /sets durableObjects/],
+    [
+      { options: { ...BASE_OPTIONS, connectHandlers: [{ protocol: "tcp", port: 25 }] } },
+      /sets connectHandlers/,
+    ],
     [
       { options: { ...BASE_OPTIONS, assets: { ...assets, html_handling: "none" } } },
       /assets\.html_handling/,
