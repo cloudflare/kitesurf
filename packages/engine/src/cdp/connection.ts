@@ -27,7 +27,7 @@ import { cancelAndRemoveTargetWheelQueues } from "./wheel-queue.ts";
 import { stopSceneStreams } from "./scene-stream.ts";
 import { DynamicWorkerBudget } from "../eval/worker-budget.ts";
 import { DedicatedWorkers } from "./dedicated-workers.ts";
-import { createCookieJar } from "../cookies.ts";
+import { cookieTableName, createCookieJar, isCookieEntryList } from "../cookies.ts";
 import {
   NetworkEventTracker,
   registerTracker,
@@ -35,7 +35,7 @@ import {
 } from "./network-events-registry.ts";
 import { registerCookieJar, unregisterConnectionCookieJars } from "./cookie-jar-registry.ts";
 import { disposeWebMcpConnection } from "./webmcp.ts";
-import { dropConnectionImages } from "../eval/resource-store.ts";
+import { dropConnectionImages, registerResourceStore } from "../eval/resource-store.ts";
 import { unregisterIsolateLimitListenersFor } from "../eval/limit-registry.ts";
 import type { ExternalOutbound } from "../eval/external-outbound.ts";
 import { createSandboxOutboundOverride, type SandboxOutboundExports } from "../eval/outbound.ts";
@@ -50,14 +50,14 @@ import {
   type HostClockTimer,
   type SessionEndFields,
 } from "../observability.ts";
-import { resolveConnectionOptions, type EngineHost } from "../host.ts";
+import { resolveConnectionOptions, resolveSessionStore, type EngineHost } from "../host.ts";
 import type { PageIsolateCapOverrides } from "../eval/page-script.ts";
 import { buildDispatchEnv } from "./dispatch-env.ts";
 import { markArrival } from "./arrival.ts";
-import { StyleCache } from "./style-cache.ts";
+import { MAX_STYLE_CACHE_CHARS, StyleCache, isStyleCacheEntry } from "./style-cache.ts";
+import { isStoredString } from "../state/session-store.ts";
 import { makeWallClock } from "../eval/host-clock.ts";
 import { LocalStorage } from "../state/local-storage.ts";
-import { MemorySessionStore } from "../state/session-store.ts";
 // Wrangler generates the ambient `Env` declaration from wrangler.jsonc.
 
 const NOISY_CDP_METHODS = new Set<string>([
@@ -242,8 +242,13 @@ export class BrowserSession {
     const connectionId = this.id;
     const options = resolveConnectionOptions(request, connectionId, opts.host, env);
 
+    const store = resolveSessionStore(connectionId, env, opts.host);
     // Retain response bodies only when Network.enable requests buffering.
-    const networkEvents = new NetworkEventTracker((event) => this.route(event), connectionId);
+    const networkEvents = new NetworkEventTracker(
+      (event) => this.route(event),
+      connectionId,
+      store,
+    );
 
     this.analytics = new KitesurfAnalytics(
       {
@@ -265,15 +270,17 @@ export class BrowserSession {
     );
 
     registerTracker(connectionId, networkEvents);
+    registerResourceStore(connectionId, store);
     const requestBlocker = opts.host?.requestBlocker;
     if (requestBlocker) registerRequestBlocker(connectionId, requestBlocker);
     this.#requestBlocker = requestBlocker;
 
-    const cookies = createCookieJar();
+    const cookies = createCookieJar(store.table(cookieTableName(), isCookieEntryList));
     registerCookieJar(connectionId, cookies);
     const workerBudget = new DynamicWorkerBudget();
     const browser: BrowserState = {
       targets: new Map(),
+      store,
       sandboxOutbound: createSandboxOutboundOverride(
         (ctx as SessionContext & { exports: SandboxOutboundExports }).exports,
         env,
@@ -281,18 +288,21 @@ export class BrowserSession {
         opts.externalOutbound ? undefined : opts.egress?.(),
       ),
       contexts: new Map(),
-      localStorage: new LocalStorage(new MemorySessionStore()),
+      localStorage: new LocalStorage(store),
       nextBrowserContextId: 1,
       cookies,
       screencasts: new Map(),
-      styleCache: new StyleCache(),
+      styleCache: new StyleCache(
+        MAX_STYLE_CACHE_CHARS,
+        store.table("styleCache", isStyleCacheEntry),
+      ),
       imageCache: new Map(),
       networkEvents,
       layoutMode: params.layoutMode,
       cdpDebug: params.cdpDebug,
       isolateCapOverrides: params.isolateCapOverrides,
       ttyKeyboard: false,
-      preNavScripts: new Map<string, string>(),
+      preNavScripts: store.table("preNavScripts", isStoredString),
       learnedInsertedScripts: new Map(),
       pendingBindings: new Set<string>(),
       execContextSeq: 3,

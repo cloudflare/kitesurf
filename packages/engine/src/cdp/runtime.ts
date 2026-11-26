@@ -548,7 +548,7 @@ export const runtimeDomain = defineDomain("Runtime", {
         if (res.scriptId === null) return {};
         const meta = makeCompiledScriptMeta(res.scriptId, expression, sourceURL);
         if (target) {
-          target.compiledScripts.push(meta);
+          target.compiledScripts.set(meta.scriptId, meta);
           if (hasDebuggerListeners(target)) {
             emitScriptParsedToSessions(ctx, target, meta, oopifFrameCompile);
           }

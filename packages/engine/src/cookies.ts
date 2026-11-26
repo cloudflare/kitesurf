@@ -5,11 +5,14 @@
 // Stores page cookies and selects entries for requests and document.cookie reads.
 
 import { isIpHost, isPublicSuffix, schemefulSite } from "./public-suffix.ts";
+import type { StoreTable } from "./state/session-store.ts";
 
 const MAX_COOKIE_BYTES = 4096;
 const MAX_COOKIES_PER_HOST = 180;
 const MAX_COOKIES_TOTAL = 3000;
 const MILLISECONDS_PER_SECOND = 1_000;
+// The largest time a JS Date can hold.
+const MAX_DATE_MS = 8.64e15;
 
 export interface CookieEntry {
   name: string;
@@ -22,6 +25,36 @@ export interface CookieEntry {
   hostOnly: boolean;
   expiresAt: number | null;
   createdAt: number;
+}
+
+function isCookieEntry(v: unknown): v is CookieEntry {
+  if (typeof v !== "object" || v === null) return false;
+  const c: Record<string, unknown> = { ...v };
+  return (
+    typeof c.name === "string" &&
+    typeof c.value === "string" &&
+    typeof c.host === "string" &&
+    typeof c.path === "string" &&
+    typeof c.secure === "boolean" &&
+    typeof c.httpOnly === "boolean" &&
+    (c.sameSite === null ||
+      c.sameSite === "Strict" ||
+      c.sameSite === "Lax" ||
+      c.sameSite === "None") &&
+    typeof c.hostOnly === "boolean" &&
+    (c.expiresAt === null || typeof c.expiresAt === "number") &&
+    typeof c.createdAt === "number"
+  );
+}
+
+/** The session-store table of a browser context's cookie jar. No id is the default context. */
+export function cookieTableName(browserContextId?: string): string {
+  return browserContextId === undefined ? "cookies" : `cookies:${browserContextId}`;
+}
+
+/** Checks a row of a cookie jar's table: one host's cookies. */
+export function isCookieEntryList(v: unknown): v is CookieEntry[] {
+  return Array.isArray(v) && v.every(isCookieEntry);
 }
 
 export interface RequestContext {
@@ -45,9 +78,11 @@ export interface CookieJar {
   clear(): void;
 }
 
-export function createCookieJar(): CookieJar {
-  const byHost = new Map<string, CookieEntry[]>();
-
+/** A jar over `byHost`, a session-store table by host. Every change is written back with `set`
+ * or `delete`, so a table that hands out copies works. */
+export function createCookieJar(
+  byHost: StoreTable<CookieEntry[]> = new Map<string, CookieEntry[]>(),
+): CookieJar {
   let warned = false;
   function warnOnce(msg: string): void {
     if (warned) return;
@@ -288,7 +323,10 @@ export function createCookieJar(): CookieJar {
     if (a.has("max-age")) {
       const ma = Number(a.get("max-age"));
       if (Number.isFinite(ma)) {
-        expiresAt = Date.now() + ma * MILLISECONDS_PER_SECOND;
+        // Kept finite: a store that serialises the jar as JSON writes Infinity as null, which
+        // reads back as a session cookie, and a far-past delete would come back live.
+        const at = Date.now() + ma * MILLISECONDS_PER_SECOND;
+        expiresAt = Math.min(Math.max(at, -MAX_DATE_MS), MAX_DATE_MS);
       }
     } else if (a.has("expires")) {
       const t = Date.parse(a.get("expires") || "");
@@ -472,7 +510,7 @@ export function createCookieJar(): CookieJar {
       if (kept.length === 0) byHost.delete(host);
       else byHost.set(host, kept);
     } else {
-      for (const [h, list] of byHost) {
+      for (const [h, list] of Array.from(byHost.entries())) {
         const kept = list.filter((c) => {
           if (c.name !== wantName) return true;
           if (wantPath !== undefined && c.path !== wantPath) return true;

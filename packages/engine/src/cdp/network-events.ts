@@ -6,6 +6,14 @@
 
 import type Protocol from "devtools-protocol";
 import type { CdpEvent, EventEmitter } from "./types.ts";
+import {
+  MEMORY_STORE_LIMITS,
+  MemorySessionStore,
+  isStoredString,
+  type SessionStore,
+  type StoreLimits,
+  type StoreTable,
+} from "../state/session-store.ts";
 
 export type ResourceType = Protocol.Network.ResourceType;
 
@@ -42,17 +50,26 @@ interface RequestRecord {
   loaderId: Protocol.Network.LoaderId;
   frameId: Protocol.Page.FrameId;
   sessionIds: Array<string | undefined>;
-  body?: string;
+  // Set while the bodies table holds this request's body.
   bodyBase64Encoded?: boolean;
   bodyBytes?: number;
   completed?: boolean;
 }
 
-const RESPONSE_BODY_CAP = 256 * 1024;
+function isRequestRecord(v: unknown): v is RequestRecord {
+  if (typeof v !== "object" || v === null) return false;
+  const r: Record<string, unknown> = { ...v };
+  return (
+    typeof r.url === "string" &&
+    typeof r.type === "string" &&
+    typeof r.loaderId === "string" &&
+    typeof r.frameId === "string" &&
+    Array.isArray(r.sessionIds)
+  );
+}
 
-const MAX_RETAINED_REQUESTS = 500;
-
-const MAX_RETAINED_BODY_BYTES = 12 * 1024 * 1024;
+// The bodies that stores on the heap retain, summed over every session in the isolate.
+const MAX_ISOLATE_BODY_BYTES = MEMORY_STORE_LIMITS.networkBodyBytes;
 const REQUEST_ID_CONNECTION_PREFIX_CHARS = 8;
 const MILLISECONDS_PER_SECOND = 1_000;
 const SECONDS_PER_DAY = 86_400;
@@ -79,8 +96,14 @@ export function isolateRetainedBodyBytesTotal(): number {
 
 export class NetworkEventTracker {
   private nextSeq = 1;
-  private records = new Map<string, RequestRecord>();
+  // Bodies are kept apart from their records, so a record update never rewrites a body.
+  private readonly records: StoreTable<RequestRecord>;
+  private readonly bodies: StoreTable<string>;
+  private readonly limits: Readonly<StoreLimits>;
   private order: string[] = [];
+  // The requests whose body is retained, with what the stale-loader sweep matches on, so that
+  // dropping bodies never reads every record back from the store.
+  private readonly bodyHolders = new Map<string, { frameId: string; loaderId: string }>();
   private retainedBodyBytesTotal = 0;
 
   private disposed = false;
@@ -156,8 +179,14 @@ export class NetworkEventTracker {
     let total = 0;
     let perBody = 0;
     for (const req of this.enabledSessions.values()) {
-      total = Math.max(total, clampBufferSize(req.maxTotalBufferSize, MAX_RETAINED_BODY_BYTES));
-      perBody = Math.max(perBody, clampBufferSize(req.maxResourceBufferSize, RESPONSE_BODY_CAP));
+      total = Math.max(
+        total,
+        clampBufferSize(req.maxTotalBufferSize, this.limits.networkBodyBytes),
+      );
+      perBody = Math.max(
+        perBody,
+        clampBufferSize(req.maxResourceBufferSize, this.limits.networkBodyBytesPerResource),
+      );
     }
     this.effectiveTotalBytes = total;
     this.effectivePerBodyBytes = perBody;
@@ -200,10 +229,20 @@ export class NetworkEventTracker {
     return this.isEnabled(undefined);
   }
 
+  private readonly emit: EventEmitter;
+  private readonly connectionId: string;
+
   constructor(
-    private readonly emit: EventEmitter,
-    private readonly connectionId: string,
-  ) {}
+    emit: EventEmitter,
+    connectionId: string,
+    store: SessionStore = new MemorySessionStore(),
+  ) {
+    this.emit = emit;
+    this.connectionId = connectionId;
+    this.records = store.table("network.requests", isRequestRecord);
+    this.bodies = store.table("network.bodies", isStoredString);
+    this.limits = store.limits;
+  }
 
   drain(): void {
     if (this.pending.length === 0) return;
@@ -346,9 +385,12 @@ export class NetworkEventTracker {
       type: Protocol.Network.ResourceType;
     },
   ): void {
-    const rec = this.records.get(requestId);
+    const rec = this.record(requestId);
     const prevUrl = rec?.url ?? opts.newUrl;
-    if (rec) rec.url = opts.newUrl;
+    if (rec) {
+      rec.url = opts.newUrl;
+      this.records.set(requestId, rec);
+    }
     const sessionIds = rec?.sessionIds ?? [];
     if (!this.wantsEvents(sessionIds)) return;
     const ts = this.monotonicSeconds();
@@ -404,13 +446,14 @@ export class NetworkEventTracker {
   }
 
   completeRequest(requestId: Protocol.Network.RequestId, opts: CompleteRequestOpts): void {
-    const rec = this.records.get(requestId);
+    const rec = this.record(requestId);
     if (!rec) {
       return;
     }
     if (!rec.completed) {
       rec.completed = true;
       this.inFlightCount--;
+      this.records.set(requestId, rec);
     }
 
     // If the frame has a current attribution, skip bodies from other loaders;
@@ -422,7 +465,7 @@ export class NetworkEventTracker {
       opts.body !== undefined &&
       opts.body.length * 2 <= this.perBodyBudget()
     ) {
-      this.storeBody(rec, opts.body, opts.bodyBase64Encoded ?? false);
+      this.storeBody(requestId, rec, opts.body, opts.bodyBase64Encoded ?? false);
     }
 
     if (!this.wantsEvents(rec.sessionIds)) return;
@@ -579,11 +622,12 @@ export class NetworkEventTracker {
     errorText: string,
     blockedReason?: Protocol.Network.BlockedReason,
   ): void {
-    const rec = this.records.get(requestId);
+    const rec = this.record(requestId);
     if (!rec) return;
     if (!rec.completed) {
       rec.completed = true;
       this.inFlightCount--;
+      this.records.set(requestId, rec);
     }
     const failedEvent: Protocol.Network.LoadingFailedEvent = {
       requestId,
@@ -610,68 +654,98 @@ export class NetworkEventTracker {
   getResponseBody(
     requestId: Protocol.Network.RequestId,
   ): Protocol.Network.GetResponseBodyResponse | null {
-    const rec = this.records.get(requestId);
-    if (!rec || rec.body === undefined) return null;
+    const rec = this.record(requestId);
+    if (rec?.bodyBytes === undefined) return null;
+    const body = this.bodies.get(requestId);
+    if (body === undefined) return null;
     return {
-      body: rec.body,
+      body,
       base64Encoded: rec.bodyBase64Encoded ?? false,
     };
   }
 
+  // A store that serialises values through JSON reads the root session's `undefined` back as
+  // `null`, and the wire must omit that session's id, not send null.
+  private record(requestId: string): RequestRecord | undefined {
+    const rec = this.records.get(requestId);
+    if (rec) rec.sessionIds = rec.sessionIds.map((sid) => sid ?? undefined);
+    return rec;
+  }
+
   private evictIfFull(): void {
-    while (this.order.length > MAX_RETAINED_REQUESTS) {
+    while (this.order.length > this.limits.networkRequests) {
       const id = this.order.shift();
       if (id === undefined) continue;
-      const rec = this.records.get(id);
-      if (rec) this.dropBody(rec);
+      if (this.bodyHolders.has(id)) {
+        const rec = this.record(id);
+        if (rec) this.dropBody(id, rec, false);
+      }
       this.records.delete(id);
     }
   }
 
-  private storeBody(rec: RequestRecord, body: string, base64Encoded: boolean): void {
+  private storeBody(
+    requestId: string,
+    rec: RequestRecord,
+    body: string,
+    base64Encoded: boolean,
+  ): void {
     if (this.disposed) return;
     if (this.effectiveTotalBytes <= 0) return;
-    this.dropBody(rec);
-    rec.body = body;
+    this.dropBody(requestId, rec, false);
+    this.bodies.set(requestId, body);
+    this.bodyHolders.set(requestId, { frameId: rec.frameId, loaderId: rec.loaderId });
     rec.bodyBase64Encoded = base64Encoded;
     rec.bodyBytes = body.length * 2;
+    this.records.set(requestId, rec);
     this.retainedBodyBytesTotal += rec.bodyBytes;
-    isolateRetainedBodyBytes += rec.bodyBytes;
+    if (this.limits.onHeap) isolateRetainedBodyBytes += rec.bodyBytes;
     this.shedBodiesOverBudget();
   }
 
-  private dropBody(rec: RequestRecord): void {
+  // Keeps the record, so the request stays in the Network panel. `save` writes the record back;
+  // a caller that overwrites or deletes the record next skips that write.
+  private dropBody(requestId: string, rec: RequestRecord, save = true): void {
     if (rec.bodyBytes === undefined) return;
     this.retainedBodyBytesTotal -= rec.bodyBytes;
-    isolateRetainedBodyBytes -= rec.bodyBytes;
+    if (this.limits.onHeap) isolateRetainedBodyBytes -= rec.bodyBytes;
     rec.bodyBytes = undefined;
-    rec.body = undefined;
     rec.bodyBase64Encoded = undefined;
+    this.bodies.delete(requestId);
+    this.bodyHolders.delete(requestId);
+    if (save) this.records.set(requestId, rec);
   }
 
   private shedBodiesOverBudget(): void {
     const over = (): boolean =>
-      isolateRetainedBodyBytes > MAX_RETAINED_BODY_BYTES ||
+      (this.limits.onHeap && isolateRetainedBodyBytes > MAX_ISOLATE_BODY_BYTES) ||
       this.retainedBodyBytesTotal > this.effectiveTotalBytes;
     if (!over()) return;
     for (const id of this.order) {
       if (!over()) return;
-      const rec = this.records.get(id);
-      if (rec) this.dropBody(rec);
+      if (!this.bodyHolders.has(id)) continue;
+      const rec = this.record(id);
+      if (rec) this.dropBody(id, rec);
     }
   }
 
   dispose(): void {
     this.disposed = true;
-    for (const rec of this.records.values()) this.dropBody(rec);
+    for (const id of Array.from(this.bodyHolders.keys())) {
+      const rec = this.record(id);
+      if (rec) this.dropBody(id, rec, false);
+    }
+    this.bodyHolders.clear();
     this.records.clear();
+    this.bodies.clear();
     this.order.length = 0;
     this.targetAttributions.clear();
     this.logEnabledSessions.clear();
   }
 
+  /** Bodies on the isolate heap. A store off the heap reports its own size. */
   retainedBodyBytes(): number {
-    return this.retainedBodyBytesTotal;
+    return this.limits.onHeap ? this.retainedBodyBytesTotal : 0;
   }
 
   retainedRequestCount(): number {
@@ -681,10 +755,10 @@ export class NetworkEventTracker {
   dropStaleLoaderBodies(frameId: Protocol.Page.FrameId): void {
     const currentLoaderId = this.targetAttributions.get(frameId)?.loaderId;
     if (currentLoaderId === undefined) return;
-    for (const rec of this.records.values()) {
-      if (rec.frameId === frameId && rec.loaderId !== currentLoaderId) {
-        this.dropBody(rec);
-      }
+    for (const [id, holder] of Array.from(this.bodyHolders)) {
+      if (holder.frameId !== frameId || holder.loaderId === currentLoaderId) continue;
+      const rec = this.record(id);
+      if (rec) this.dropBody(id, rec);
     }
   }
 }
