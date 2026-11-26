@@ -3823,11 +3823,25 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
     const marker = sourceDoctype
       ? `__kitesurf_doctype_${Math.random().toString(36).slice(2)}__`
       : null;
+    const initialViewportW =
+      navigateOptions &&
+      typeof navigateOptions.viewportWidth === "number" &&
+      navigateOptions.viewportWidth > 0
+        ? Math.floor(navigateOptions.viewportWidth)
+        : undefined;
+    const initialViewportH =
+      navigateOptions &&
+      typeof navigateOptions.viewportHeight === "number" &&
+      navigateOptions.viewportHeight > 0
+        ? Math.floor(navigateOptions.viewportHeight)
+        : undefined;
     const navigateDom = DomHandle.scriptedUtf8(
       source.utf8,
       sourceDoctype?.utf8End ?? 0,
       marker ? `<!--${marker}-->` : "",
       safeUrl,
+      initialViewportW,
+      initialViewportH,
     );
     const hasScriptObservers = startupScriptDescriptors.length > 0 || source.eventHandlerAttributes;
     // Free the source before scripts and first layout so it does not count against the isolate
