@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-import type { CDPSession } from "@cloudflare/puppeteer";
+import type { CDPSession, Page } from "@cloudflare/puppeteer";
 import type { Protocol } from "devtools-protocol";
 
 import { expect, test } from "./harness";
@@ -251,6 +251,7 @@ test("page WebMCP serializes results and propagates cancellation", async ({ page
       "signal-aborted",
       "cancel:pageAbort",
       "activated:pageCircular",
+      "activated:boom",
       "activated:pageObject",
       "activated:pageObject",
     ],
@@ -802,4 +803,53 @@ test("a declarative tool form with a control named elements keeps its schema", a
       },
     )
     .toBe("hat");
+}, 60_000);
+
+function policyDoc(body: string): string {
+  const doc = new URL(`${ORIGIN}/__fixtures/policy-doc.html`);
+  doc.searchParams.set("body", body);
+  return doc.toString();
+}
+
+// Each scenario runs as page script and returns JSON, so its ordering stays in one realm.
+async function runScenario(page: Page, body: string): Promise<Record<string, unknown>> {
+  await page.goto(policyDoc(body), { waitUntil: "load" });
+  return JSON.parse(String(await page.evaluate("window.__scenario()"))) as Record<string, unknown>;
+}
+
+test("toolactivated and toolcancel fire at document.modelContext", async ({ page }) => {
+  const result = await runScenario(
+    page,
+    `<script>
+    window.__scenario = async () => {
+      const mc = document.modelContext;
+      const events = [];
+      mc.ontoolactivated = (e) => events.push(["activated", e.toolName,
+        e instanceof ToolActivatedEvent, e.target === mc, e.isTrusted].join(":"));
+      mc.addEventListener("toolcancel", (e) =>
+        events.push(["cancel", e.toolName, e instanceof ToolCancelEvent].join(":")));
+      window.addEventListener("toolactivated", () => events.push("window"));
+      window.addEventListener("toolcancel", () => events.push("window"));
+      await mc.registerTool({
+        name: "wait", description: "waits for its signal",
+        execute: (_, { signal }) => new Promise((resolve) => {
+          signal.addEventListener("abort", () => { events.push("signal"); resolve("late"); });
+        }),
+      });
+      const [tool] = await mc.getTools();
+      const controller = new AbortController();
+      const execution = mc.executeTool(tool, {}, { signal: controller.signal });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      controller.abort("stop");
+      events.push("rejected:" + await execution.catch((e) => e));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const init = new ToolCancelEvent("toolcancel", { toolName: "n" }).toolName;
+      return JSON.stringify({ events, init });
+    };
+    </script>`,
+  );
+  expect(result).toEqual({
+    events: ["activated:wait:true:true:true", "rejected:stop", "signal", "cancel:wait:true"],
+    init: "n",
+  });
 }, 60_000);

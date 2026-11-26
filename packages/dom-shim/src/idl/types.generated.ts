@@ -2376,8 +2376,8 @@ export interface ModelContext extends EventTarget {
   // getTools(options?: ModelContextGetToolOptions): Promise<Array<Tool>>;
   executeTool(tool: Tool, inputObject?: object, options?: ModelContextExecuteToolOptions): Promise<string>;
   ontoolchange: EventHandler;
-  // ontoolactivated: EventHandler;
-  // ontoolcancel: EventHandler;
+  ontoolactivated: EventHandler;
+  ontoolcancel: EventHandler;
 }
 export interface MouseEvent extends UIEvent {
   readonly pageX: number;

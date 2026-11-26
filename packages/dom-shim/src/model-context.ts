@@ -9,11 +9,19 @@
 import type * as Idl from "./idl/types.generated.js";
 import type { UpstreamMessage, WebMcpTool } from "@kitesurf/jsrpc-types/page-script";
 import { sendUpstreamEvent } from "./internal-state.js";
-import { KsEvent, KsInputEvent, KsSubmitEvent, submitEventResponse } from "./events/event.js";
-import { dispatchTrustedEvent } from "./events/dispatch.js";
+import {
+  KsEvent,
+  KsInputEvent,
+  KsSubmitEvent,
+  KsToolActivatedEvent,
+  KsToolCancelEvent,
+  submitEventResponse,
+} from "./events/event.js";
+import { dispatchTrustedEvent, dispatchTrustedOnKey } from "./events/dispatch.js";
 import { formBehindProxy, postMutationHooks } from "./registries.js";
 import type { MutationHint } from "./mutations/seq.js";
 import { DOCUMENT_NODE } from "./constants.js";
+import { KsEventTarget } from "./node-base.js";
 
 const DECLARATIVE_ATTRIBUTES = new Set(["toolname", "tooldescription"]);
 const MAX_MODEL_CONTEXT_TOOL_NAME_LENGTH = 128;
@@ -45,9 +53,14 @@ export interface ToolCallResult {
   notFound?: boolean;
 }
 
+interface ActiveExecution {
+  controller: AbortControllerLike;
+  name: string;
+}
+
 // The page API and CDP share this registry; createModelContext resets it per generation.
 const tools = new Map<string, ToolDefinition>();
-const activeToolExecutions = new Map<string, AbortControllerLike>();
+const activeToolExecutions = new Map<string, ActiveExecution>();
 
 let getWindow: () => unknown = () => undefined;
 let getOrigin: () => string = () => "";
@@ -334,51 +347,52 @@ function notifyChanged(context: ModelContext): void {
   context._changeQueued = true;
   queueMicrotask(() => {
     context._changeQueued = false;
-    context.dispatchEvent(new KsEvent("toolchange"));
+    dispatchContextEvent(context, new KsEvent("toolchange"));
   });
 }
 
-// ModelContext has no node ID, so listeners cannot use the node-keyed DOM registry.
-class ToolEventTarget {
-  private _listeners = new Map<string, Array<(event: Idl.Event) => void>>();
-
-  // Only function listeners are kept; a handleEvent object is ignored.
-  addEventListener(
-    type: string,
-    listener: Idl.EventListener | null,
-    _options: boolean | Idl.AddEventListenerOptions | undefined = undefined,
-  ): void {
-    if (typeof listener !== "function") return;
-    const key = String(type);
-    const list = this._listeners.get(key) ?? [];
-    if (!list.includes(listener)) list.push(listener);
-    this._listeners.set(key, list);
-  }
-
-  removeEventListener(type: string, listener: Idl.EventListener | null): void {
-    const list = this._listeners.get(String(type));
-    if (!list) return;
-    const at = typeof listener === "function" ? list.indexOf(listener) : -1;
-    if (at >= 0) list.splice(at, 1);
-  }
-
-  dispatchEvent(event: Idl.Event): boolean {
-    const list = this._listeners.get(String(event?.type ?? ""));
-    for (const listener of list ? list.slice() : []) {
-      try {
-        listener.call(this, event);
-      } catch (err) {
-        reportListenerError(err);
-      }
-    }
-    return true;
-  }
+function dispatchContextEvent(context: ModelContext, event: KsEvent): void {
+  try {
+    dispatchTrustedOnKey(context, event);
+  } catch {}
 }
 
-function reportListenerError(err: unknown): void {
-  try {
-    console.error("[kitesurf] modelContext listener threw:", err);
-  } catch {}
+function dispatchToolEvent(
+  context: ModelContext,
+  type: "toolactivated" | "toolcancel",
+  toolName: string,
+): void {
+  const event =
+    type === "toolactivated"
+      ? new KsToolActivatedEvent(type, { toolName })
+      : new KsToolCancelEvent(type, { toolName });
+  dispatchContextEvent(context, event);
+}
+
+const eventHandlers = new WeakMap<ModelContext, Map<string, unknown>>();
+
+function eventHandler(context: ModelContext, type: string): Idl.EventHandler {
+  return (eventHandlers.get(context)?.get(type) ?? null) as Idl.EventHandler;
+}
+
+// The handler's listener is added on the first set and stays, so it keeps its place in the
+// listener order. [LegacyTreatNonObjectAsNull] keeps a non-callable object, which does nothing.
+function setEventHandler(context: ModelContext, type: string, handler: unknown): void {
+  let slots = eventHandlers.get(context);
+  if (!slots) {
+    slots = new Map();
+    eventHandlers.set(context, slots);
+  }
+  const first = !slots.has(type);
+  slots.set(type, isObjectOrFunction(handler) ? handler : null);
+  if (!first) return;
+  const handlers = slots;
+  context.addEventListener(type, (event: Idl.Event) => {
+    const current = handlers.get(type);
+    if (typeof current !== "function") return;
+    const result: unknown = current.call(context, event);
+    if (result === false) event.preventDefault();
+  });
 }
 
 type TaskScheduler = (fn: () => void, ms: number) => unknown;
@@ -435,6 +449,10 @@ function toUSVString(s: string): string {
 function isObjectLike(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object";
 }
+
+function isObjectOrFunction(v: unknown): v is Record<string, unknown> {
+  return isObjectLike(v) || typeof v === "function";
+}
 type AbortSignalLike = {
   aborted?: boolean;
   reason?: unknown;
@@ -457,41 +475,46 @@ function createExecutionController(): AbortControllerLike {
   return new AbortControllerCtor();
 }
 
-function executionOptions(signal?: AbortSignal): WebMCP.ToolExecuteCallbackOptions {
-  const executionSignal = signal ?? createExecutionController().signal;
-  return { signal: executionSignal };
-}
-
 let allowConstruct = false;
-export class ModelContext extends ToolEventTarget implements Idl.ModelContext {
+export class ModelContext implements Idl.ModelContext {
   declare _tools: Map<string, ToolDefinition>;
   declare _isMain: boolean;
   declare _getWindow: () => unknown;
   declare _isFullyActive: () => boolean;
   declare _changeQueued: boolean;
+  // finalizeInterface makes EventTarget the parent, which supplies these.
+  declare removeEventListener: Idl.EventTarget["removeEventListener"];
+  declare dispatchEvent: Idl.EventTarget["dispatchEvent"];
 
   constructor() {
-    super();
     if (!allowConstruct) {
       throw new TypeError("Illegal constructor");
     }
     allowConstruct = false;
   }
-  private _ontoolchange: Idl.ModelContext["ontoolchange"] = null;
 
-  get ontoolchange(): Idl.ModelContext["ontoolchange"] {
-    return this._ontoolchange;
+  get ontoolchange(): Idl.EventHandler {
+    return eventHandler(this, "toolchange");
   }
 
-  set ontoolchange(handler: Idl.ModelContext["ontoolchange"]) {
-    if (this._isMain) markDeclarativeInterest();
-    if (this._ontoolchange) {
-      this.removeEventListener("toolchange", this._ontoolchange);
-    }
-    this._ontoolchange = typeof handler === "function" ? handler : null;
-    if (this._ontoolchange) {
-      this.addEventListener("toolchange", this._ontoolchange);
-    }
+  set ontoolchange(handler: Idl.EventHandler) {
+    setEventHandler(this, "toolchange", handler);
+  }
+
+  get ontoolactivated(): Idl.EventHandler {
+    return eventHandler(this, "toolactivated");
+  }
+
+  set ontoolactivated(handler: Idl.EventHandler) {
+    setEventHandler(this, "toolactivated", handler);
+  }
+
+  get ontoolcancel(): Idl.EventHandler {
+    return eventHandler(this, "toolcancel");
+  }
+
+  set ontoolcancel(handler: Idl.EventHandler) {
+    setEventHandler(this, "toolcancel", handler);
   }
 
   addEventListener(
@@ -502,7 +525,7 @@ export class ModelContext extends ToolEventTarget implements Idl.ModelContext {
     if (this._isMain && String(type) === "toolchange") {
       markDeclarativeInterest();
     }
-    super.addEventListener(type, listener, options);
+    KsEventTarget.prototype.addEventListener.call(this, type, listener, options);
   }
 
   registerTool(
@@ -647,7 +670,7 @@ export class ModelContext extends ToolEventTarget implements Idl.ModelContext {
     if (signal && signal.aborted === true) {
       return Promise.reject(signal.reason ?? domError("aborted", "AbortError"));
     }
-    const win = this._getWindow();
+    const target = this;
     return new Promise<string>((resolve, reject) => {
       let settled = false;
       let callbackSettled = false;
@@ -671,7 +694,7 @@ export class ModelContext extends ToolEventTarget implements Idl.ModelContext {
               try {
                 execController.abort();
               } catch {}
-              dispatchWindowToolEvent(win, "toolcancel", toolName);
+              dispatchToolEvent(target, "toolcancel", toolName);
             };
             queueTask(fire);
           }
@@ -680,10 +703,8 @@ export class ModelContext extends ToolEventTarget implements Idl.ModelContext {
       }
       Promise.resolve()
         .then(() => {
-          const p = exec(args, {
-            signal: execController.signal,
-          });
-          dispatchWindowToolEvent(win, "toolactivated", toolName);
+          const p = invokeExecute(exec, args, execController.signal);
+          dispatchToolEvent(target, "toolactivated", toolName);
           return p;
         })
         .then(
@@ -801,18 +822,17 @@ function serializeDeclarative(entry: DeclarativeTool): SerializedTool {
   return out;
 }
 
-function dispatchWindowToolEvent(win: unknown, type: string, toolName: string): void {
+// WebIDL turns a callback's synchronous throw into a rejected promise.
+function invokeExecute(
+  execute: WebMCP.ToolExecuteCallback,
+  args: Record<string, unknown>,
+  signal: AbortSignal,
+): unknown {
   try {
-    if (win === null || (typeof win !== "object" && typeof win !== "function")) return;
-    // `win` is page-owned; narrow only the EventTarget method this bridge needs.
-    const dispatcher = win as Pick<Idl.EventTarget, "dispatchEvent">;
-    if (typeof dispatcher.dispatchEvent !== "function") return;
-    // WebMCP window notifications add page-visible fields to the shared Event.
-    const event = new KsEvent(type) as KsEvent & { toolName: string; detail: string };
-    event.toolName = toolName;
-    event.detail = toolName;
-    dispatcher.dispatchEvent(event);
-  } catch {}
+    return execute(args, { signal });
+  } catch (err) {
+    return Promise.reject(err);
+  }
 }
 
 const activeToolForms = new Set<object>();
@@ -1095,7 +1115,7 @@ export function createModelContext(deps: {
   getOrigin: () => string;
   getDocument: () => unknown;
 }): ModelContext {
-  for (const controller of activeToolExecutions.values()) controller.abort();
+  for (const execution of activeToolExecutions.values()) execution.controller.abort();
   tools.clear();
   activeToolExecutions.clear();
   declarativeTools.clear();
@@ -1233,13 +1253,15 @@ export async function callModelContextTool(
     };
   }
   const id = typeof invocationId === "string" ? invocationId : "";
-  const controller = id === "" ? null : createExecutionController();
-  if (controller) {
-    activeToolExecutions.set(id, controller);
+  const controller = createExecutionController();
+  if (id !== "") {
+    activeToolExecutions.set(id, { controller, name: key });
   }
   try {
     const args = isObjectLike(input) ? input : {};
-    const result = await execute(args, executionOptions(controller?.signal));
+    const pending = invokeExecute(execute, args, controller.signal);
+    if (mainContext) dispatchToolEvent(mainContext, "toolactivated", key);
+    const result = await pending;
     return returnsDeclarativeOutput ? declarativeResult(result) : normalizeResult(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -1250,7 +1272,7 @@ export async function callModelContextTool(
       threw: true,
     };
   } finally {
-    if (controller && activeToolExecutions.get(id) === controller) {
+    if (activeToolExecutions.get(id)?.controller === controller) {
       activeToolExecutions.delete(id);
     }
   }
@@ -1260,11 +1282,10 @@ export async function callModelContextTool(
 export function cancelModelContextTool(invocationId: unknown): boolean {
   const id = typeof invocationId === "string" ? invocationId : "";
   if (id === "") return false;
-  const controller = activeToolExecutions.get(id);
-  if (controller) {
-    activeToolExecutions.delete(id);
-    controller.abort();
-    return true;
-  }
-  return false;
+  const execution = activeToolExecutions.get(id);
+  if (!execution) return false;
+  activeToolExecutions.delete(id);
+  execution.controller.abort();
+  if (mainContext) dispatchToolEvent(mainContext, "toolcancel", execution.name);
+  return true;
 }

@@ -1388,6 +1388,9 @@ export function installGlobals(
     if (built.Node) globalThis.Node = built.Node;
     if (built.Window) globalThis.Window = built.Window;
     if (built.ModelContext) globalThis.ModelContext = built.ModelContext;
+    if (built.ToolActivatedEvent)
+      Reflect.set(globalThis, "ToolActivatedEvent", built.ToolActivatedEvent);
+    if (built.ToolCancelEvent) Reflect.set(globalThis, "ToolCancelEvent", built.ToolCancelEvent);
     for (const [name, cls] of Object.entries(built.htmlElementInterfaces ?? {})) {
       Reflect.set(globalThis, name, cls);
     }
@@ -5203,6 +5206,8 @@ export function installGlobals(
       "DocumentFragment",
       "Document",
       "ModelContext",
+      "ToolActivatedEvent",
+      "ToolCancelEvent",
       "NodeList",
       "HTMLCollection",
       "Range",

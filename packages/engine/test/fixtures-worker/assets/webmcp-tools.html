@@ -81,10 +81,10 @@ window.__registerCancellable = function () {
 // ordering is out of scope.
 window.__cancellationScenario = async function () {
   const events = [];
-  window.addEventListener("toolactivated", (event) => {
+  document.modelContext.addEventListener("toolactivated", (event) => {
     events.push("activated:" + event.toolName);
   });
-  window.addEventListener("toolcancel", (event) => {
+  document.modelContext.addEventListener("toolcancel", (event) => {
     events.push("cancel:" + event.toolName);
   });
 
