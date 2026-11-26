@@ -7,7 +7,7 @@ load("@npm//packages/engine:typescript/package_json.bzl", tsc = "bin")
 load("@npm//packages/engine:wrangler/package_json.bzl", wrangler = "bin")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
-load("//bazel:checks.bzl", "tsc_test", "workspace_configs")
+load("//bazel:checks.bzl", "node_test", "tsc_test", "workspace_configs")
 load("//bazel:host_run.bzl", "host_run")
 load("//bazel:paths.bzl", "bin_relative")
 
@@ -381,6 +381,18 @@ tsc_test(
     project = "test/fixtures-worker/tsconfig.json",
     project_in_data = True,
     size = "medium",
+)
+
+# Engine modules that need node built-ins to test, such as node:sqlite for the SQLite store.
+node_test(
+    name = "node_test",
+    args = ["test/node/*.test.ts"],
+    data = glob([
+        "src/cdp/network-events.ts",
+        "src/eval/page-isolate-entry.ts",
+        "src/state/**",
+        "test/node/**",
+    ]),
 )
 
 build_test(name = "build", targets = [":dist"])
