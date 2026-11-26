@@ -29,6 +29,7 @@ import {
   createStatefulSession,
   routeToStatefulSession,
   statefulRoute,
+  statefulSessionNotFound,
 } from "./stateful.ts";
 export { PageScriptTail } from "./eval/page-script-tail.ts";
 
@@ -99,6 +100,7 @@ upgrades.all("*", (c) => {
   }
   // A stateful session's browser lives in its Durable Object. Any other path stays stateless.
   const stateful = statefulRoute(ctx, new URL(c.req.url));
+  if (stateful === "unknown") return statefulSessionNotFound();
   return traceSpan(env.HOST_TRACER, "ws.connect", () =>
     stateful && stateful.endpoint.kind !== "json"
       ? routeToStatefulSession(env, ctx, c.req.raw, stateful.id, host)
@@ -246,6 +248,7 @@ app.post(STATEFUL_BROWSER_PATH, (c) =>
 app.get(`${STATEFUL_BROWSER_PATH}/*`, (c, next) => {
   const { env, ctx, host } = c.env;
   const stateful = statefulRoute(ctx, new URL(c.req.url));
+  if (stateful === "unknown") return statefulSessionNotFound();
   if (stateful?.endpoint.kind !== "json") return next();
   return routeToStatefulSession(env, ctx, c.req.raw, stateful.id, host);
 });

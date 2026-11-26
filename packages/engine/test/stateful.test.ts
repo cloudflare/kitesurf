@@ -12,6 +12,7 @@ import {
   createStatefulSession,
   parseStatefulPath,
   routeToStatefulSession,
+  statefulRoute,
 } from "../src/stateful.ts";
 
 const SESSION = "a".repeat(64);
@@ -61,6 +62,30 @@ describe("parseStatefulPath", () => {
     expect(parseStatefulPath("/devtools/browser")).toBeNull();
     expect(parseStatefulPath("/devtools/browser/5b2c8a3e-chrome-uuid")).toBeNull();
     expect(parseStatefulPath(`/devtools/browser/${SESSION}/page/short`)).toBeNull();
+  });
+});
+
+describe("statefulRoute", () => {
+  const url = (path: string) => new URL(`https://e${path}`);
+
+  it("leaves a path that names no session to the stateless routes", () => {
+    const { ctx } = fakeExports();
+    expect(statefulRoute(ctx, url("/devtools/browser/5b2c8a3e-chrome-uuid"))).toBeNull();
+  });
+
+  it("never sends a session path to a stateless browser", () => {
+    // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only the field it reads.
+    const undeclared = { exports: {} } as unknown as ExecutionContext;
+    expect(statefulRoute(undeclared, url(`/devtools/browser/${SESSION}`))).toBe("unknown");
+
+    const StatefulBrowser = {
+      idFromString: () => {
+        throw new TypeError("Durable Object ID is not valid for this namespace.");
+      },
+    };
+    // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- only the field it reads.
+    const foreign = { exports: { StatefulBrowser } } as unknown as ExecutionContext;
+    expect(statefulRoute(foreign, url(`/devtools/browser/${SESSION}/json`))).toBe("unknown");
   });
 });
 

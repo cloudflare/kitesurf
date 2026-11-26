@@ -75,16 +75,25 @@ export function statefulPagePath(sessionId: string, targetId: string): string {
   return `${STATEFUL_BROWSER_PATH}/${sessionId}/page/${targetId}`;
 }
 
-// The session that a `/devtools/browser/<sessionId>...` path names, or null when the deploy
-// declares no StatefulBrowser or its namespace did not mint the id. Null falls through to the
-// stateless routes, so a client that appends Chrome's `/devtools/browser/<uuid>` still works.
+/** The answer to a session path whose session the deploy cannot reach. */
+export function statefulSessionNotFound(): Response {
+  return new Response("kitesurf: no such browser session (it ended, or never existed)\n", {
+    status: 404,
+  });
+}
+
+// The session that a `/devtools/browser/<sessionId>...` path names: null when the path names no
+// session, and "unknown" when it does but the deploy declares no StatefulBrowser or its
+// namespace did not mint the id. An unknown session is a 404, never a fresh stateless browser.
+// Chrome's `/devtools/browser/<uuid>` is not a session path, so it stays stateless.
 export function statefulRoute(
   ctx: ExecutionContext,
   url: URL,
-): { id: DurableObjectId; endpoint: StatefulEndpoint } | null {
+): { id: DurableObjectId; endpoint: StatefulEndpoint } | "unknown" | null {
+  const parsed = parseStatefulPath(url.pathname);
+  if (!parsed) return null;
   const ns = statefulNamespace(ctx.exports);
-  const parsed = ns ? parseStatefulPath(url.pathname) : null;
-  if (!ns || !parsed) return null;
+  if (!ns) return "unknown";
   try {
     return { id: ns.idFromString(parsed.sessionId), endpoint: parsed.endpoint };
   } catch (err) {
@@ -95,7 +104,7 @@ export function statefulRoute(
         error: err instanceof Error ? err.message : String(err),
       }),
     );
-    return null;
+    return "unknown";
   }
 }
 
@@ -233,11 +242,7 @@ export class StatefulBrowser extends DurableObject<Env> {
     }
     if (forwarded) return this.#outbound(forwarded.props, forwarded.request);
     const session = this.#session;
-    if (!session || session.disposed) {
-      return new Response("kitesurf: no such browser session (it ended, or never existed)\n", {
-        status: 404,
-      });
-    }
+    if (!session || session.disposed) return statefulSessionNotFound();
     if (this.#owner !== null && request.headers.get(OWNER_HEADER) !== this.#owner) {
       return new Response("kitesurf: this session belongs to another owner\n", { status: 403 });
     }

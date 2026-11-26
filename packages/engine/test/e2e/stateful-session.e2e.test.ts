@@ -365,8 +365,19 @@ test("the session ends when keep_alive runs out with no client", async () => {
     .toBe(404);
 });
 
-test("an id that the namespace did not mint stays a stateless connection", async () => {
-  const browser = await connectPath(engine, `/devtools/browser/${"a".repeat(64)}`);
+test("an id that the namespace did not mint is a 404, not a stateless browser", async () => {
+  const path = `/devtools/browser/${"a".repeat(64)}`;
+  const upgrade = await engine.fetch(`https://ks.invalid${path}`, {
+    headers: { upgrade: "websocket" },
+  });
+  expect(upgrade.status).toBe(404);
+  expect(upgrade.webSocket).toBeNull();
+  await upgrade.body?.cancel();
+  expect(await status(`${path}/json`)).toBe(404);
+});
+
+test("a Chrome-style browser path stays a stateless connection", async () => {
+  const browser = await connectPath(engine, "/devtools/browser/5b2c8a3e-2f1d-4c7b-9e0a-3d6f8b1c2a4e");
   try {
     expect(await browser.pages()).toHaveLength(1);
   } finally {
