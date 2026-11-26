@@ -377,7 +377,10 @@ test("an id that the namespace did not mint is a 404, not a stateless browser", 
 });
 
 test("a Chrome-style browser path stays a stateless connection", async () => {
-  const browser = await connectPath(engine, "/devtools/browser/5b2c8a3e-2f1d-4c7b-9e0a-3d6f8b1c2a4e");
+  const browser = await connectPath(
+    engine,
+    "/devtools/browser/5b2c8a3e-2f1d-4c7b-9e0a-3d6f8b1c2a4e",
+  );
   try {
     expect(await browser.pages()).toHaveLength(1);
   } finally {
