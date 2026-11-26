@@ -635,7 +635,7 @@ class DocumentImpl extends NodeBase implements Idl.Document {
     return node;
   }
 
-  // Partial importNode: elements, text, comments, attrs and fragments.
+  // Partial importNode: elements, text, comments, attrs, doctypes and fragments.
   // The clone is not in xmlOwned, so tagName follows HTML rules.
   importNode(
     node: NodeBase,
@@ -683,6 +683,11 @@ class DocumentImpl extends NodeBase implements Idl.Document {
         if (attr) stampOwnerDocument(attr, this);
         return attr;
       }
+    }
+    if (node.nodeType === DOCTYPE_NODE && node instanceof DocumentTypeNode) {
+      const doctype = node.cloneNode();
+      adoptSubtree(this, doctype);
+      return doctype;
     }
     if (node.nodeType === DOCUMENT_FRAGMENT_NODE) {
       const frag = this.createDocumentFragment();
