@@ -206,6 +206,8 @@ import type { RenderFrameArgs, PrespawnedFrame } from "../eval/oopif-render.ts";
 
 const RENDER_DRAIN_TIMEOUT_MS = 10_000;
 const RENDER_DRAIN_GRACE_MS = 2_500;
+// Capture attempts a screenshot makes while navigations keep replacing the document under it.
+const SCREENSHOT_NAVIGATION_ATTEMPTS = 3;
 
 const MAX_CONSECUTIVE_AUTO_RELOADS = 3;
 const AUTO_RELOAD_SETTLED_MS = 2_000;
@@ -915,8 +917,9 @@ export const pageDomain = defineDomain("Page", {
         assertScreenshotRasterLimits(capture.width, capture.height, format);
 
         const pageUrl = target.url || "https://kitesurf.local/";
-        if (target.pageScript) {
-          const ps = target.pageScript;
+        let ps = target.pageScript;
+        for (let attempt = 1; ps; attempt++) {
+          const generation = target.navigateGeneration;
           const __drainStart = Date.now();
           let drainInfo: Record<string, unknown> | null = null;
           let __graceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -990,6 +993,16 @@ export const pageDomain = defineDomain("Page", {
             );
           }
           if ("failed" in viaRenderer) {
+            // A navigation that started during the capture unloads this document; capture its
+            // replacement, as Chrome captures whatever document is committed.
+            const replaced = !!target.blankReady || target.navigateGeneration !== generation;
+            if (replaced && attempt < SCREENSHOT_NAVIGATION_ATTEMPTS) {
+              ps = await sessionOf(ctx, target).ready();
+              capture = await resolveScreenshotCapture(ctx, target, req.params);
+              clip = capture.clip;
+              assertScreenshotRasterLimits(capture.width, capture.height, format);
+              continue;
+            }
             throw rendererFailure(viaRenderer.failed, capture.width, capture.height);
           }
           if (viaRenderer.bytes && viaRenderer.bytes.length > 0) {
