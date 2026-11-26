@@ -131,19 +131,19 @@
     "expected": "PASS",
     "reason": null
   },
-  "/WebCryptoAPI/derive_bits_keys/argon2.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/derive_bits_keys/argon2.https.any.html": {
     "expected": "FAIL",
     "reason": "Argon2 key derivation not implemented in workerd."
   },
-  "/WebCryptoAPI/derive_bits_keys/cfrg_curves_bits_curve448.tentative.https.any.html": {
+  "/WebCryptoAPI/secure-curves/derive_bits_keys/cfrg_curves_bits_curve448.https.any.html": {
     "expected": "FAIL",
     "reason": "Ed448 / X448 (curve448 family) not implemented in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/derive_bits_keys/cfrg_curves_keys_curve448.tentative.https.any.html": {
+  "/WebCryptoAPI/secure-curves/derive_bits_keys/cfrg_curves_keys_curve448.https.any.html": {
     "expected": "FAIL",
     "reason": "Ed448 / X448 (curve448 family) not implemented in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/digest/cshake.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/digest/cshake.https.any.html": {
     "expected": "FAIL",
     "reason": "SHA-3 / cSHAKE / KangarooTwelve / TurboSHAKE hash families not implemented in workerd. Tentative WebCryptoAPI additions."
   },
@@ -151,31 +151,31 @@
     "expected": "FAIL",
     "reason": "112/116 subtests. Four `empty algorithm object` subtests expect TypeError; workerd throws NotSupportedError. Upstream error-kind quirk."
   },
-  "/WebCryptoAPI/digest/kangarootwelve.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/digest/kangarootwelve.https.any.html": {
     "expected": "FAIL",
     "reason": "SHA-3 / cSHAKE / KangarooTwelve / TurboSHAKE hash families not implemented in workerd. Tentative WebCryptoAPI additions."
   },
-  "/WebCryptoAPI/digest/sha3.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/digest/sha3.https.any.html": {
     "expected": "FAIL",
     "reason": "SHA-3 / cSHAKE / KangarooTwelve / TurboSHAKE hash families not implemented in workerd. Tentative WebCryptoAPI additions."
   },
-  "/WebCryptoAPI/digest/turboshake.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/digest/turboshake.https.any.html": {
     "expected": "FAIL",
     "reason": "SHA-3 / cSHAKE / KangarooTwelve / TurboSHAKE hash families not implemented in workerd. Tentative WebCryptoAPI additions."
   },
-  "/WebCryptoAPI/encap_decap/encap_decap_bits.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/encap_decap/encap_decap_bits.https.any.html": {
     "expected": "FAIL",
     "reason": "Tentative WebCryptoAPI feature not implemented in workerd."
   },
-  "/WebCryptoAPI/encap_decap/encap_decap_keys.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/encap_decap/encap_decap_keys.https.any.html": {
     "expected": "FAIL",
     "reason": "Tentative WebCryptoAPI feature not implemented in workerd."
   },
-  "/WebCryptoAPI/encrypt_decrypt/aes_ocb.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/encrypt_decrypt/aes_ocb.https.any.html": {
     "expected": "FAIL",
     "reason": "AES-OCB mode not implemented in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/encrypt_decrypt/chacha20_poly1305.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/encrypt_decrypt/chacha20_poly1305.https.any.html": {
     "expected": "FAIL",
     "reason": "ChaCha20-Poly1305 AEAD not implemented in workerd. Tentative WebCryptoAPI addition."
   },
@@ -195,7 +195,7 @@
     "expected": "PASS",
     "reason": null
   },
-  "/WebCryptoAPI/generateKey/failures_AES-OCB.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/generateKey/failures_AES-OCB.https.any.html": {
     "expected": "FAIL",
     "reason": "AES-OCB mode not implemented in workerd. Tentative WebCryptoAPI addition."
   },
@@ -211,7 +211,7 @@
     "expected": "PASS",
     "reason": null
   },
-  "/WebCryptoAPI/generateKey/failures_Ed448.tentative.https.any.html": {
+  "/WebCryptoAPI/secure-curves/generateKey/failures_Ed448.https.any.html": {
     "expected": "FAIL",
     "reason": "Ed448 / X448 (curve448 family) not implemented in workerd. Tentative WebCryptoAPI addition."
   },
@@ -219,11 +219,11 @@
     "expected": "PASS",
     "reason": null
   },
-  "/WebCryptoAPI/generateKey/failures_ML-DSA.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/generateKey/failures_ML-DSA.https.any.html": {
     "expected": "FAIL",
     "reason": "Post-quantum algorithm (ML-DSA / ML-KEM / KMAC) not in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/generateKey/failures_ML-KEM.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/generateKey/failures_ML-KEM.https.any.html": {
     "expected": "FAIL",
     "reason": "Post-quantum algorithm (ML-DSA / ML-KEM / KMAC) not in workerd. Tentative WebCryptoAPI addition."
   },
@@ -243,19 +243,19 @@
     "expected": "PASS",
     "reason": null
   },
-  "/WebCryptoAPI/generateKey/failures_X448.tentative.https.any.html": {
+  "/WebCryptoAPI/secure-curves/generateKey/failures_X448.https.any.html": {
     "expected": "FAIL",
     "reason": "Ed448 / X448 (curve448 family) not implemented in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/generateKey/failures_chacha20_poly1305.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/generateKey/failures_chacha20_poly1305.https.any.html": {
     "expected": "FAIL",
     "reason": "ChaCha20-Poly1305 AEAD not implemented in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/generateKey/failures_kmac.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/generateKey/failures_kmac.https.any.html": {
     "expected": "FAIL",
     "reason": "Post-quantum algorithm (ML-DSA / ML-KEM / KMAC) not in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/generateKey/successes_AES-OCB.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/generateKey/successes_AES-OCB.https.any.html": {
     "expected": "FAIL",
     "reason": "AES-OCB mode not implemented in workerd. Tentative WebCryptoAPI addition. Genuinely slower than the 5000ms default: completes in ~6824ms alone, so CI contention tipped it into a TIMEOUT instead of its real outcome. Given headroom rather than pinned.",
     "timeout": 20000
@@ -272,15 +272,15 @@
     "expected": "FAIL",
     "reason": "JWK export of the public key omits the shared `d` coordinate that the spec (and Chrome) include when the test compares public and private JWKs side by side. Half the subtests pass; the JWK-consistency half fails uniformly."
   },
-  "/WebCryptoAPI/generateKey/successes_Ed448.tentative.https.any.html": {
+  "/WebCryptoAPI/secure-curves/generateKey/successes_Ed448.https.any.html": {
     "expected": "FAIL",
     "reason": "Ed448 / X448 (curve448 family) not implemented in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/generateKey/successes_ML-DSA.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/generateKey/successes_ML-DSA.https.any.html": {
     "expected": "FAIL",
     "reason": "Post-quantum algorithm (ML-DSA / ML-KEM / KMAC) not in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/generateKey/successes_ML-KEM.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/generateKey/successes_ML-KEM.https.any.html": {
     "expected": "FAIL",
     "reason": "Post-quantum algorithm (ML-DSA / ML-KEM / KMAC) not in workerd. Tentative WebCryptoAPI addition."
   },
@@ -301,19 +301,19 @@
     "expected": "FAIL",
     "reason": "JWK export of the public key omits the shared `d` coordinate that the spec (and Chrome) include when the test compares public and private JWKs side by side. Half the subtests pass; the JWK-consistency half fails uniformly."
   },
-  "/WebCryptoAPI/generateKey/successes_X448.tentative.https.any.html": {
+  "/WebCryptoAPI/secure-curves/generateKey/successes_X448.https.any.html": {
     "expected": "FAIL",
     "reason": "Ed448 / X448 (curve448 family) not implemented in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/generateKey/successes_chacha20_poly1305.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/generateKey/successes_chacha20_poly1305.https.any.html": {
     "expected": "FAIL",
     "reason": "ChaCha20-Poly1305 AEAD not implemented in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/generateKey/successes_kmac.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/generateKey/successes_kmac.https.any.html": {
     "expected": "FAIL",
     "reason": "Post-quantum algorithm (ML-DSA / ML-KEM / KMAC) not in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/getPublicKey.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/getPublicKey.https.any.html": {
     "expected": "FAIL",
     "reason": "CryptoKey.getPublicKey() not implemented in workerd. Tentative WebCryptoAPI addition."
   },
@@ -329,31 +329,31 @@
     "expected": "FAIL",
     "reason": "Partial: workerd exposes a subset of the WebCryptoAPI IDL \u2014 several attributes / operations / dictionary members from the current spec are missing from the JSG bindings."
   },
-  "/WebCryptoAPI/idlharness.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/idlharness.https.any.html": {
     "expected": "FAIL",
     "reason": "idlharness against the tentative WebCryptoAPI IDL \u2014 asserts constructors / methods for algorithms workerd does not expose yet."
   },
-  "/WebCryptoAPI/import_export/AES-OCB_importKey.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/import_export/AES-OCB_importKey.https.any.html": {
     "expected": "FAIL",
     "reason": "AES-OCB mode not implemented in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/import_export/Argon2_importKey.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/import_export/Argon2_importKey.https.any.html": {
     "expected": "FAIL",
     "reason": "Argon2 key derivation not implemented in workerd."
   },
-  "/WebCryptoAPI/import_export/ChaCha20-Poly1305_importKey.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/import_export/ChaCha20-Poly1305_importKey.https.any.html": {
     "expected": "FAIL",
     "reason": "ChaCha20-Poly1305 AEAD not implemented in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/import_export/KMAC_importKey.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/import_export/KMAC_importKey.https.any.html": {
     "expected": "FAIL",
     "reason": "Tentative WebCryptoAPI feature not implemented in workerd."
   },
-  "/WebCryptoAPI/import_export/ML-DSA_importKey.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/import_export/ML-DSA_importKey.https.any.html": {
     "expected": "FAIL",
     "reason": "Post-quantum algorithm (ML-DSA / ML-KEM / KMAC) not in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/import_export/ML-KEM_importKey.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/import_export/ML-KEM_importKey.https.any.html": {
     "expected": "FAIL",
     "reason": "Post-quantum algorithm (ML-DSA / ML-KEM / KMAC) not in workerd. Tentative WebCryptoAPI addition."
   },
@@ -369,7 +369,7 @@
     "expected": "FAIL",
     "reason": "Partial: workerd rejects a handful of JWK edge shapes the spec accepts (usages sanitization / extractable defaults)."
   },
-  "/WebCryptoAPI/import_export/okp_importKey_Ed448.tentative.https.any.html": {
+  "/WebCryptoAPI/secure-curves/import_export/okp_importKey_Ed448.https.any.html": {
     "expected": "FAIL",
     "reason": "Ed448 / X448 (curve448 family) not implemented in workerd. Tentative WebCryptoAPI addition."
   },
@@ -377,7 +377,7 @@
     "expected": "FAIL",
     "reason": "Partial: workerd rejects a handful of JWK edge shapes the spec accepts (usages sanitization / extractable defaults)."
   },
-  "/WebCryptoAPI/import_export/okp_importKey_X448.tentative.https.any.html": {
+  "/WebCryptoAPI/secure-curves/import_export/okp_importKey_X448.https.any.html": {
     "expected": "FAIL",
     "reason": "Ed448 / X448 (curve448 family) not implemented in workerd. Tentative WebCryptoAPI addition."
   },
@@ -385,7 +385,7 @@
     "expected": "FAIL",
     "reason": "Same workerd error-kind quirks as generateKey/failures \u2014 wrong DOMException type on spec-invalid inputs."
   },
-  "/WebCryptoAPI/import_export/okp_importKey_failures_Ed448.tentative.https.any.html": {
+  "/WebCryptoAPI/secure-curves/import_export/okp_importKey_failures_Ed448.https.any.html": {
     "expected": "FAIL",
     "reason": "Ed448 / X448 (curve448 family) not implemented in workerd. Tentative WebCryptoAPI addition."
   },
@@ -393,11 +393,11 @@
     "expected": "FAIL",
     "reason": "Same workerd error-kind quirks as generateKey/failures \u2014 wrong DOMException type on spec-invalid inputs."
   },
-  "/WebCryptoAPI/import_export/okp_importKey_failures_X448.tentative.https.any.html": {
+  "/WebCryptoAPI/secure-curves/import_export/okp_importKey_failures_X448.https.any.html": {
     "expected": "FAIL",
     "reason": "Ed448 / X448 (curve448 family) not implemented in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/import_export/raw_format_aliases.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/import_export/raw_format_aliases.https.any.html": {
     "expected": "FAIL",
     "reason": "Raw-format import key alias table not implemented in workerd."
   },
@@ -425,11 +425,11 @@
     "expected": "FAIL",
     "reason": "Structured clone of CryptoKey not implemented in workerd (or the RPC/postMessage bridge). Zero subtests pass because the fixture starts with structuredClone(key)."
   },
-  "/WebCryptoAPI/serialization/aes-ocb.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/serialization/aes-ocb.https.any.html": {
     "expected": "FAIL",
     "reason": "AES-OCB mode not implemented in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/serialization/chacha20-poly1305.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/serialization/chacha20-poly1305.https.any.html": {
     "expected": "FAIL",
     "reason": "ChaCha20-Poly1305 AEAD not implemented in workerd. Tentative WebCryptoAPI addition."
   },
@@ -445,7 +445,7 @@
     "expected": "FAIL",
     "reason": "Structured clone of CryptoKey not implemented in workerd (or the RPC/postMessage bridge). Zero subtests pass because the fixture starts with structuredClone(key)."
   },
-  "/WebCryptoAPI/serialization/ed448.tentative.https.any.html": {
+  "/WebCryptoAPI/secure-curves/serialization/ed448.https.any.html": {
     "expected": "FAIL",
     "reason": "Ed448 / X448 (curve448 family) not implemented in workerd. Tentative WebCryptoAPI addition."
   },
@@ -453,15 +453,15 @@
     "expected": "FAIL",
     "reason": "Structured clone of CryptoKey not implemented in workerd (or the RPC/postMessage bridge). Zero subtests pass because the fixture starts with structuredClone(key)."
   },
-  "/WebCryptoAPI/serialization/kmac.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/serialization/kmac.https.any.html": {
     "expected": "FAIL",
     "reason": "Post-quantum algorithm (ML-DSA / ML-KEM / KMAC) not in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/serialization/mldsa.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/serialization/mldsa.https.any.html": {
     "expected": "FAIL",
     "reason": "Post-quantum algorithm (ML-DSA / ML-KEM / KMAC) not in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/serialization/mlkem.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/serialization/mlkem.https.any.html": {
     "expected": "FAIL",
     "reason": "Post-quantum algorithm (ML-DSA / ML-KEM / KMAC) not in workerd. Tentative WebCryptoAPI addition."
   },
@@ -481,7 +481,7 @@
     "expected": "FAIL",
     "reason": "Structured clone of CryptoKey not implemented in workerd (or the RPC/postMessage bridge). Zero subtests pass because the fixture starts with structuredClone(key)."
   },
-  "/WebCryptoAPI/serialization/x448.tentative.https.any.html": {
+  "/WebCryptoAPI/secure-curves/serialization/x448.https.any.html": {
     "expected": "FAIL",
     "reason": "Ed448 / X448 (curve448 family) not implemented in workerd. Tentative WebCryptoAPI addition."
   },
@@ -489,7 +489,7 @@
     "expected": "FAIL",
     "reason": "Partial: EdDSA / KMAC / ML-DSA signature verification incomplete in workerd (or tentative, per the file suffix)."
   },
-  "/WebCryptoAPI/sign_verify/eddsa_curve448.tentative.https.any.html": {
+  "/WebCryptoAPI/secure-curves/sign_verify/eddsa_curve448.https.any.html": {
     "expected": "FAIL",
     "reason": "Ed448 / X448 (curve448 family) not implemented in workerd. Tentative WebCryptoAPI addition."
   },
@@ -497,19 +497,19 @@
     "expected": "FAIL",
     "reason": "Partial: EdDSA / KMAC / ML-DSA signature verification incomplete in workerd (or tentative, per the file suffix)."
   },
-  "/WebCryptoAPI/sign_verify/kmac.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/sign_verify/kmac.https.any.html": {
     "expected": "FAIL",
     "reason": "Post-quantum algorithm (ML-DSA / ML-KEM / KMAC) not in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/sign_verify/mldsa.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/sign_verify/mldsa.https.any.html": {
     "expected": "FAIL",
     "reason": "Post-quantum algorithm (ML-DSA / ML-KEM / KMAC) not in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/supports-modern.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/supports-modern.https.any.html": {
     "expected": "FAIL",
     "reason": "CryptoKey.supports() / SubtleCrypto.supports() introspection API not implemented in workerd. Tentative WebCryptoAPI addition."
   },
-  "/WebCryptoAPI/supports.tentative.https.any.html": {
+  "/WebCryptoAPI/modern-algos/supports.https.any.html": {
     "expected": "FAIL",
     "reason": "CryptoKey.supports() / SubtleCrypto.supports() introspection API not implemented in workerd. Tentative WebCryptoAPI addition."
   },
@@ -1331,147 +1331,147 @@
     "expected": "FAIL",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-color-computed.html": {
+  "/css/css-borders/parsing/border-color-computed.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-color-invalid.html": {
+  "/css/css-borders/parsing/border-color-invalid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-color-shorthand.html": {
+  "/css/css-borders/parsing/border-color-shorthand.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-color-valid.html": {
+  "/css/css-borders/parsing/border-color-valid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-invalid.html": {
+  "/css/css-borders/parsing/border-image-invalid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-outset-computed.html": {
+  "/css/css-borders/parsing/border-image-outset-computed.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-outset-invalid.html": {
+  "/css/css-borders/parsing/border-image-outset-invalid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-outset-valid.html": {
+  "/css/css-borders/parsing/border-image-outset-valid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-repeat-computed.html": {
+  "/css/css-borders/parsing/border-image-repeat-computed.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-repeat-invalid.html": {
+  "/css/css-borders/parsing/border-image-repeat-invalid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-repeat-valid.html": {
+  "/css/css-borders/parsing/border-image-repeat-valid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-shorthand.sub.html": {
+  "/css/css-borders/parsing/border-image-shorthand.sub.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-slice-computed.html": {
+  "/css/css-borders/parsing/border-image-slice-computed.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-slice-invalid.html": {
+  "/css/css-borders/parsing/border-image-slice-invalid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-slice-valid.html": {
+  "/css/css-borders/parsing/border-image-slice-valid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-source-computed.sub.html": {
+  "/css/css-borders/parsing/border-image-source-computed.sub.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-source-invalid.html": {
+  "/css/css-borders/parsing/border-image-source-invalid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-source-valid.html": {
+  "/css/css-borders/parsing/border-image-source-valid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-valid.html": {
+  "/css/css-borders/parsing/border-image-valid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-width-computed.html": {
+  "/css/css-borders/parsing/border-image-width-computed.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-width-invalid.html": {
+  "/css/css-borders/parsing/border-image-width-invalid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-image-width-valid.html": {
+  "/css/css-borders/parsing/border-image-width-valid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-invalid.html": {
+  "/css/css-borders/parsing/border-invalid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-radius-computed.html": {
+  "/css/css-borders/parsing/border-radius-computed.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-radius-invalid.html": {
+  "/css/css-borders/parsing/border-radius-invalid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-radius-valid.html": {
+  "/css/css-borders/parsing/border-radius-valid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-shorthand.html": {
+  "/css/css-borders/parsing/border-shorthand.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-style-computed.html": {
+  "/css/css-borders/parsing/border-style-computed.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-style-invalid.html": {
+  "/css/css-borders/parsing/border-style-invalid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-style-shorthand.html": {
+  "/css/css-borders/parsing/border-style-shorthand.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-style-valid.html": {
+  "/css/css-borders/parsing/border-style-valid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-valid.html": {
+  "/css/css-borders/parsing/border-valid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-width-computed.html": {
+  "/css/css-borders/parsing/border-width-computed.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-width-invalid.html": {
+  "/css/css-borders/parsing/border-width-invalid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-width-shorthand.html": {
+  "/css/css-borders/parsing/border-width-shorthand.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/border-width-valid.html": {
+  "/css/css-borders/parsing/border-width-valid.html": {
     "expected": "PASS",
     "reason": null
   },
@@ -1487,7 +1487,7 @@
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-backgrounds/parsing/webkit-border-radius-valid.html": {
+  "/css/css-borders/parsing/webkit-border-radius-valid.html": {
     "expected": "PASS",
     "reason": "Recovered when inline-style removal started expanding shorthands and legacy aliases to the canonical longhands (style.length returns to its pre-write count)."
   },
@@ -2661,27 +2661,27 @@
     "expected": "FAIL",
     "reason": "T18 enrollment (css-display): 0/6 subtests pass"
   },
-  "/css/css-display/reading-flow/tentative/reading-flow-computed.html": {
+  "/css/css-display/reading-flow/reading-flow-computed.html": {
     "expected": "FAIL",
     "reason": "T18 enrollment (css-display): 0/7 subtests pass"
   },
-  "/css/css-display/reading-flow/tentative/reading-flow-invalid.html": {
+  "/css/css-display/reading-flow/reading-flow-invalid.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (css-display): measured PASS"
   },
-  "/css/css-display/reading-flow/tentative/reading-flow-valid.html": {
+  "/css/css-display/reading-flow/reading-flow-valid.html": {
     "expected": "FAIL",
     "reason": "T18 enrollment (css-display): 0/7 subtests pass"
   },
-  "/css/css-display/reading-flow/tentative/reading-order-computed.html": {
+  "/css/css-display/reading-flow/reading-order-computed.html": {
     "expected": "FAIL",
     "reason": "T18 enrollment (css-display): 0/4 subtests pass"
   },
-  "/css/css-display/reading-flow/tentative/reading-order-invalid.html": {
+  "/css/css-display/reading-flow/reading-order-invalid.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (css-display): measured PASS"
   },
-  "/css/css-display/reading-flow/tentative/reading-order-valid.html": {
+  "/css/css-display/reading-flow/reading-order-valid.html": {
     "expected": "FAIL",
     "reason": "T18 enrollment (css-display): 0/4 subtests pass"
   },
@@ -3162,15 +3162,15 @@
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-grid/grid-lanes/tentative/parsing/flow-tolerance-computed.html": {
+  "/css/css-grid/grid-lanes/tentative/parsing/fit-tolerance-computed.html": {
     "expected": "FAIL",
     "reason": null
   },
-  "/css/css-grid/grid-lanes/tentative/parsing/flow-tolerance-invalid.html": {
+  "/css/css-grid/grid-lanes/tentative/parsing/fit-tolerance-invalid.html": {
     "expected": "PASS",
     "reason": null
   },
-  "/css/css-grid/grid-lanes/tentative/parsing/flow-tolerance-valid.html": {
+  "/css/css-grid/grid-lanes/tentative/parsing/fit-tolerance-valid.html": {
     "expected": "FAIL",
     "reason": null
   },
@@ -4113,7 +4113,7 @@
     "expected": "PASS",
     "reason": "T18 enrollment (css-masking): measured PASS"
   },
-  "/css/css-masking/clip-path/clip-path-path-with-zoom-hittest.html": {
+  "/css/css-masking/clip-path/clip-path-path-with-zoom-hittest-001.html": {
     "expected": "FAIL",
     "reason": "T18 enrollment (css-masking): 0/1 subtests pass"
   },
@@ -9196,91 +9196,91 @@
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-backdrop-filters-animation-blur.html": {
+  "/css/filter-effects/animation/css-backdrop-filters-animation-blur.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-backdrop-filters-animation-brightness.html": {
+  "/css/filter-effects/animation/css-backdrop-filters-animation-brightness.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-backdrop-filters-animation-combined.html": {
+  "/css/filter-effects/animation/css-backdrop-filters-animation-combined.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-backdrop-filters-animation-contrast.html": {
+  "/css/filter-effects/animation/css-backdrop-filters-animation-contrast.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-backdrop-filters-animation-drop-shadow.html": {
+  "/css/filter-effects/animation/css-backdrop-filters-animation-drop-shadow.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-backdrop-filters-animation-grayscale.html": {
+  "/css/filter-effects/animation/css-backdrop-filters-animation-grayscale.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-backdrop-filters-animation-hue-rotate.html": {
+  "/css/filter-effects/animation/css-backdrop-filters-animation-hue-rotate.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-backdrop-filters-animation-invert.html": {
+  "/css/filter-effects/animation/css-backdrop-filters-animation-invert.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-backdrop-filters-animation-opacity.html": {
+  "/css/filter-effects/animation/css-backdrop-filters-animation-opacity.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-backdrop-filters-animation-saturate.html": {
+  "/css/filter-effects/animation/css-backdrop-filters-animation-saturate.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-backdrop-filters-animation-sepia.html": {
+  "/css/filter-effects/animation/css-backdrop-filters-animation-sepia.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-filters-animation-blur.html": {
+  "/css/filter-effects/animation/css-filters-animation-blur.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-filters-animation-brightness.html": {
+  "/css/filter-effects/animation/css-filters-animation-brightness.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-filters-animation-combined-001.html": {
+  "/css/filter-effects/animation/css-filters-animation-combined-001.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-filters-animation-contrast.html": {
+  "/css/filter-effects/animation/css-filters-animation-contrast.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-filters-animation-drop-shadow.html": {
+  "/css/filter-effects/animation/css-filters-animation-drop-shadow.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-filters-animation-grayscale.html": {
+  "/css/filter-effects/animation/css-filters-animation-grayscale.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-filters-animation-hue-rotate.html": {
+  "/css/filter-effects/animation/css-filters-animation-hue-rotate.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-filters-animation-invert.html": {
+  "/css/filter-effects/animation/css-filters-animation-invert.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-filters-animation-opacity.html": {
+  "/css/filter-effects/animation/css-filters-animation-opacity.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-filters-animation-saturate.html": {
+  "/css/filter-effects/animation/css-filters-animation-saturate.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
-  "/css/filter-effects/css-filters-animation-sepia.html": {
+  "/css/filter-effects/animation/css-filters-animation-sepia.html": {
     "expected": "PASS",
     "reason": "T18 enrollment (filter-effects): measured PASS"
   },
@@ -21982,10 +21982,6 @@
     "expected": "FAIL",
     "reason": null
   },
-  "/webmcp/declarative/document-domain-enabled.sub.https.html": {
-    "expected": "TIMEOUT",
-    "reason": "The new upstream wrapper waits for results from a cross-origin iframe. Kitesurf does not execute the child script in the parent realm, so no report arrives. Measured TIMEOUT at 10 seconds running alone."
-  },
   "/webmcp/declarative/duplicate-tool-name.https.html": {
     "expected": "PASS",
     "reason": null
@@ -22045,10 +22041,6 @@
   "/webmcp/imperative/detached-frame-registerTool.https.html": {
     "expected": "PASS",
     "reason": null
-  },
-  "/webmcp/imperative/document-domain-enabled.sub.https.html": {
-    "expected": "TIMEOUT",
-    "reason": "The new upstream wrapper waits for results from a cross-origin iframe. Kitesurf does not execute the child script in the parent realm, so no report arrives. Measured TIMEOUT at 10 seconds running alone."
   },
   "/webmcp/imperative/executeTool-across-trees.https.html": {
     "expected": "TIMEOUT",
@@ -22262,22 +22254,6 @@
   },
   "/webmessaging/message-channels/basics.any.html": {
     "expected": "PASS",
-    "reason": null
-  },
-  "/webmessaging/message-channels/close-event/document-destroyed.tentative.window.html": {
-    "expected": "TIMEOUT",
-    "reason": null
-  },
-  "/webmessaging/message-channels/close-event/entangled-after-back-forward-cache-restore.https.tentative.window.html": {
-    "expected": "FAIL",
-    "reason": null
-  },
-  "/webmessaging/message-channels/close-event/explicitly-closed.tentative.window.html": {
-    "expected": "TIMEOUT",
-    "reason": null
-  },
-  "/webmessaging/message-channels/close-event/garbage-collected.tentative.any.html": {
-    "expected": "TIMEOUT",
     "reason": null
   },
   "/webmessaging/message-channels/close.any.html": {
@@ -29197,10 +29173,6 @@
     "expected": "PASS",
     "reason": null
   },
-  "/webmcp/imperative/executeTool-unauthorized-origin.https.html": {
-    "expected": "PASS",
-    "reason": null
-  },
   "/webmcp/imperative/getTools.https.html": {
     "expected": "PASS",
     "reason": null
@@ -33382,7 +33354,7 @@
     "expected": "PASS",
     "reason": null
   },
-  "/html/semantics/forms/the-input-element/anchor-contenteditable-navigate.html": {
+  "/contenteditable/anchor-contenteditable-navigate.html": {
     "expected": "PASS",
     "reason": null
   },

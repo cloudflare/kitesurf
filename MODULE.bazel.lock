@@ -232,7 +232,7 @@
     "//bazel:executor_profiles.bzl%executor_profiles": {
       "general": {
         "bzlTransitiveDigest": "koALcERVkPHDgiJPBz/pGwIxSCh+eCiJtoBROuu2zmU=",
-        "usagesDigest": "iXkwS0Z8q5Ply/12Gp4L5xLo3S3PpFBCV63Yiv/4U5A=",
+        "usagesDigest": "BtbccU+mPzenOWAYTvSId3E67It38IKakmRc1w6e9Qg=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
           "kitesurf_executor_profiles": {
@@ -251,7 +251,7 @@
                 "slots": "1"
               },
               "wpt": {
-                "container-image": "wpt-6efb1b12",
+                "container-image": "wpt-ed5a113c",
                 "idle-ms": "60000",
                 "instance": "standard-4",
                 "max-vcpu": "1000",

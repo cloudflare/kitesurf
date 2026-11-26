@@ -545,7 +545,7 @@ bazelflare_profiles.profile(
 bazelflare_profiles.profile(
     name = "wpt",
     exec_properties = {
-        "container-image": "wpt-6efb1b12",  # bakes tests/wpt-revision.json's corpus at /opt/wpt
+        "container-image": "wpt-ed5a113c",  # bakes tests/wpt-revision.json's corpus at /opt/wpt
         "idle-ms": "60000",
         "instance": "standard-4",
         "max-vcpu": "1000",

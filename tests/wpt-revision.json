@@ -1,5 +1,5 @@
 {
-  "revision": "6efb1b12b95725c026cb1f5a451138345cfca937",
-  "bumpedAt": "2026-08-29T21:38:58-04:00",
+  "revision": "ed5a113c628a2fe255aad1861b2b6e6c230b1817",
+  "bumpedAt": "2026-11-26T06:20:37-08:00",
   "note": "The WPT corpus this suite is measured against. Bump it with `pnpm wpt:setup --update`, in its own pull request: upstream churn then lands once, reviewed, instead of reddening the gate on every run."
 }
