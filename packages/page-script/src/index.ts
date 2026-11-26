@@ -386,6 +386,7 @@ import {
   pumpDuePageTasks,
   pumpPageTask,
   pausePageTaskPump,
+  runAfterPendingReply,
   runPageTaskOrQueue,
   timerWheelStats,
   timersScheduledCount,
@@ -3904,10 +3905,9 @@ export class PageScript extends WorkerEntrypoint implements PageScriptSession {
                 });
               } catch {}
             };
-            // A cross-document navigation retires this isolate once the new page is fetched.
-            // Report it after the running script returns, as Chrome does, so the reply to the
-            // evaluate that set the location is sent before the engine starts the navigation.
-            if (kind === "navigate") nativeSetTimeout(report, 0);
+            // A cross-document navigation retires this isolate, so report it after the running
+            // script, as Chrome does: the evaluate that set the location must reply first.
+            if (kind === "navigate") nativeSetTimeout(() => runAfterPendingReply(report), 0);
             else report();
           }
         },

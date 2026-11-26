@@ -21,6 +21,7 @@ import {
   drainSettleMicrotasks,
   isEngineScheduling,
   NativePromise,
+  nativeSetTimeout,
   nativeSleep,
   yieldToPageTasks,
 } from "./native-scheduling.ts";
@@ -642,11 +643,33 @@ export function pageTimerDueWithin(windowMs: number): boolean {
   return nextEntry ? nextEntry.due <= nativeTimerNow() + windowMs : false;
 }
 
+let replyDrains = 0;
+const afterReplyTasks: Array<() => void> = [];
+
+// Runs `task` now, or after the reply that yieldToDuePageTasks is draining for: that drain's native
+// macrotask would run a task queued during the engine call ahead of the call's reply.
+export function runAfterPendingReply(task: () => void): void {
+  if (replyDrains === 0) task();
+  else afterReplyTasks.push(task);
+}
+
 // Gives page tasks queued by an engine call up to `maxTurns` turns before its reply. A wheel turn
 // costs ~1.3 ms in workerd even when idle, and then only runs the boa job drain; V8 has already
 // emptied the microtask queue before it. With nothing due, run the drain and wait one native
 // macrotask instead, so page promise chains of any length finish. A paused pump skips the drain.
 export async function yieldToDuePageTasks(maxTurns: number): Promise<void> {
+  replyDrains++;
+  try {
+    await takeDuePageTaskTurns(maxTurns);
+  } finally {
+    replyDrains--;
+    if (replyDrains === 0) {
+      for (const task of afterReplyTasks.splice(0)) nativeSetTimeout(task, 0);
+    }
+  }
+}
+
+async function takeDuePageTaskTurns(maxTurns: number): Promise<void> {
   for (let turn = 0; turn < maxTurns; turn++) {
     await drainSettleMicrotasks();
     if (!pageTimerDueWithin(0)) {
