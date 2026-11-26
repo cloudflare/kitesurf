@@ -243,6 +243,8 @@ function toCdpTool(def: ToolDefinition): CdpTool {
     out.annotations = {
       readOnly: def.annotations.readOnlyHint,
       untrustedContent: def.annotations.untrustedContentHint,
+      consequential: def.annotations.consequentialHint,
+      debugging: def.annotations.debugging,
     };
   }
   return out;

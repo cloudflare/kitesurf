@@ -58,6 +58,8 @@ test("WebMCP announces tools as deltas and invokes them", async ({ page, cdpSess
   expect(echo.annotations).toEqual({
     readOnly: true,
     untrustedContent: false,
+    consequential: false,
+    debugging: false,
   });
   const readTitle = j.added.flatMap((e) => e.tools).find((t) => t.name === "readTitle")!;
   expect(readTitle.inputSchema).toBeUndefined();

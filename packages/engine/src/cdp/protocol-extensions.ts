@@ -65,6 +65,14 @@ declare module "devtools-protocol" {
       }
     }
 
+    namespace WebMCP {
+      // ToolAnnotations hints newer than the pinned devtools-protocol.
+      interface Annotation {
+        consequential?: boolean;
+        debugging?: boolean;
+      }
+    }
+
     namespace Kitesurf {
       type LayoutMode = "full" | "off";
 

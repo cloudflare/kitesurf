@@ -477,6 +477,8 @@ export interface WebMcpTool {
   annotations?: {
     readOnly?: boolean;
     untrustedContent?: boolean;
+    consequential?: boolean;
+    debugging?: boolean;
     autosubmit?: boolean;
   };
   backendNodeId?: number;
