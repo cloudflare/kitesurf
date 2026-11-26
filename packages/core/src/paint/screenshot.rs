@@ -4,6 +4,7 @@
 
 //! Encodes RGBA frames as PNG, JPEG, WebP, or raw bytes for screenshot and scene output.
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 use std::ops::Range;
 #[cfg(feature = "blitz")]
 use wasm_bindgen::prelude::*;
@@ -14,6 +15,7 @@ use crate::resources::fonts::get_or_init_font_context;
 const JPEG_444_QUALITY_THRESHOLD: u8 = 90;
 const JPEG_420_MCU_EDGE_PIXELS: u32 = 16;
 const JPEG_444_MCU_EDGE_PIXELS: u32 = 8;
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 const JPEG_MARKER_BYTES: usize = 2;
 const RGBA_BYTES_PER_PIXEL: usize = 4;
 const RGBA_SCAN_BLOCK_BYTES: usize = 64;
@@ -226,6 +228,7 @@ pub(crate) fn encode_jpeg(
     encode_jpeg_rgba(buffer, width, height, quality)
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 pub(crate) fn encode_jpeg_retained(
     buffer: &mut [u8],
     width: u32,
@@ -278,6 +281,7 @@ fn encode_jpeg_rgba(
     Ok(out)
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 pub(crate) struct JpegRowCache {
     width: u32,
     height: u32,
@@ -288,6 +292,7 @@ pub(crate) struct JpegRowCache {
     hashes: Vec<u64>,
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl JpegRowCache {
     pub(crate) fn encode(
         buffer: &mut [u8],
@@ -449,6 +454,7 @@ impl JpegRowCache {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn assemble_rows<'a>(
     header: &[u8],
     n: usize,
@@ -474,6 +480,7 @@ fn assemble_rows<'a>(
     (out, rows)
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn row_hashes(buffer: &[u8], width: u32, quality: u8) -> Vec<u64> {
     use std::hash::BuildHasher;
     let row_bytes = width as usize * RGBA_BYTES_PER_PIXEL * jpeg_sampling(quality).1 as usize;
@@ -484,6 +491,7 @@ fn row_hashes(buffer: &[u8], width: u32, quality: u8) -> Vec<u64> {
         .collect()
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 pub(crate) fn split_jpeg_rows(bytes: &[u8]) -> Result<(usize, Vec<Range<usize>>), String> {
     let err = || "jpeg row split: malformed stream".to_string();
     let mut pos = 2;
@@ -519,14 +527,17 @@ pub(crate) fn split_jpeg_rows(bytes: &[u8]) -> Result<(usize, Vec<Range<usize>>)
     Err(err())
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 const JPEG_ALPHA_BACKUP_RECORD_BYTES: usize = 7;
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 struct RetainedJpegInput<'a> {
     buffer: &'a mut [u8],
     scratch: &'a mut Vec<u8>,
     sparse: bool,
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl<'a> RetainedJpegInput<'a> {
     fn new(buffer: &'a mut [u8], scratch: &'a mut Vec<u8>) -> Self {
         scratch.clear();
@@ -552,6 +563,7 @@ impl<'a> RetainedJpegInput<'a> {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 impl Drop for RetainedJpegInput<'_> {
     fn drop(&mut self) {
         if self.sparse {
@@ -560,6 +572,7 @@ impl Drop for RetainedJpegInput<'_> {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn composite_rgba_over_white_sparse(buffer: &mut [u8], backup: &mut Vec<u8>) -> bool {
     let buffer_len = buffer.len();
     if buffer_len > u32::MAX as usize {
@@ -664,6 +677,7 @@ fn rgba_block_all_opaque(block: &[u8]) -> bool {
     }
 }
 
+#[cfg(any(feature = "scene-rasterizer-wasm", feature = "native-host", test))]
 fn restore_alpha_backup(buffer: &mut [u8], backup: &[u8]) {
     for record in backup.as_chunks::<JPEG_ALPHA_BACKUP_RECORD_BYTES>().0 {
         let offset = u32::from_le_bytes([record[0], record[1], record[2], record[3]]) as usize;

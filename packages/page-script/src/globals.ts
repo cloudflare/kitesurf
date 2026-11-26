@@ -450,13 +450,13 @@ export function installGlobals(
     };
   }
   if (!ksInternals.bridgeHelper) {
-    // Capture Function.prototype.call before page scripts run so mutations cannot intercept it.
+    // Capture Function.prototype.call and freeze the helper before page scripts run.
     const directCall = Function.prototype.call.bind(Function.prototype.call) as (
       fn: Function,
       thisArg: unknown,
       ...args: unknown[]
     ) => unknown;
-    ksInternals.bridgeHelper = {
+    ksInternals.bridgeHelper = Object.freeze({
       kind(v: unknown): number {
         if (v === undefined) return 0;
         if (v === null) return 1;
@@ -492,7 +492,7 @@ export function installGlobals(
       call3(fn: Function, thisArg: unknown, a0: unknown, a1: unknown, a2: unknown): unknown {
         return directCall(fn, thisArg, a0, a1, a2);
       },
-    };
+    });
   }
   if (!ksGlobal.__ks_resolve_import_map) {
     ksGlobal.__ks_resolve_import_map = function (spec: unknown, referrerUrl?: string): string {

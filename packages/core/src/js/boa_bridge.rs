@@ -88,7 +88,7 @@ pub(crate) fn with_context<R>(f: impl FnOnce(&mut Context) -> R) -> Option<R> {
         //
         // Exclusivity — the property the old comment omitted, and the
         // one this bridge cannot get by simply refusing to nest, since
-        // re-entry is a capability it DEPENDS on: `trap_get` holds boa's
+        // re-entry is a capability it DEPENDS on: `host_trap_get` holds boa's
         // `&mut Context` while it calls `Reflect::get` on a V8 value
         // that may be a boa-backed V8 Proxy, whose `shim_get` lands
         // back here. So the nested borrow must be a REBORROW of the
@@ -1929,7 +1929,8 @@ fn bridge_helper() -> Option<BridgeHelper> {
         return cached;
     }
     let fetched = internals::get("bridgeHelper").map(|v| v.unchecked_into::<BridgeHelper>());
-    // Cache only once present: a test or early boot may install internals later.
+    // Cache the frozen object reference once present so later page mutations
+    // to `ksInternals.bridgeHelper` cannot retarget Rust calls.
     if fetched.is_some() {
         BRIDGE_HELPER.with(|cell| {
             *cell.borrow_mut() = Some(fetched.clone());
@@ -2295,18 +2296,6 @@ fn host_trap_get(
     }
 }
 
-fn trap_get(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<BoaValue> {
-    let Some(target) = args.first().and_then(|v| v.as_object()) else {
-        return Ok(BoaValue::undefined());
-    };
-    let key = match args.get(1) {
-        Some(k) => k.to_property_key(ctx)?,
-        None => PropertyKey::from(JsString::default()),
-    };
-    let receiver = args.get(2).cloned().unwrap_or(BoaValue::undefined());
-    host_trap_get(&target, &key, &receiver, ctx)
-}
-
 // A V8 getter found through a boa object's prototype chain runs with that object as `this`,
 // as OrdinaryGet passes the receiver; a direct read keeps the two-argument form.
 fn inheriting_receiver_for_target(
@@ -2416,17 +2405,6 @@ fn host_trap_has(target: &JsObject, key: &PropertyKey, ctx: &mut Context) -> JsR
     Ok(with_v8(ctx, || Reflect::has(&v8, &v8key)).unwrap_or(false))
 }
 
-fn trap_has(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<BoaValue> {
-    let Some(target) = args.first().and_then(|v| v.as_object()) else {
-        return Ok(BoaValue::from(false));
-    };
-    let key = match args.get(1) {
-        Some(k) => k.to_property_key(ctx)?,
-        None => PropertyKey::from(JsString::default()),
-    };
-    Ok(BoaValue::from(host_trap_has(&target, &key, ctx)?))
-}
-
 fn host_trap_call(
     target: &JsObject,
     this_arg: &BoaValue,
@@ -2486,25 +2464,6 @@ fn host_trap_call(
         Ok(res) => Ok(v8_to_boa(res, ctx)),
         Err(e) => Err(JsError::from_opaque(v8_to_boa(e, ctx))),
     }
-}
-
-fn trap_apply(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<BoaValue> {
-    let Some(target) = args.first().and_then(|v| v.as_object()) else {
-        return Ok(BoaValue::undefined());
-    };
-    let this_arg = args.get(1).cloned().unwrap_or(BoaValue::undefined());
-    let mut call_args = Vec::new();
-    if let Some(list) = args.get(2).and_then(|v| v.as_object()) {
-        let len = list
-            .get(js_string!("length"), ctx)
-            .ok()
-            .and_then(|v| v.as_number())
-            .unwrap_or(0.0) as u32;
-        for i in 0..len {
-            call_args.push(list.get(i, ctx).unwrap_or(BoaValue::undefined()));
-        }
-    }
-    host_trap_call(&target, &this_arg, &call_args, ctx)
 }
 
 fn trap_construct(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<BoaValue> {
@@ -2574,21 +2533,6 @@ fn host_trap_set(
         Ok(ok) => Ok(ok),
         Err(e) => Err(JsError::from_opaque(v8_to_boa(e, ctx))),
     }
-}
-
-fn trap_set(_this: &BoaValue, args: &[BoaValue], ctx: &mut Context) -> JsResult<BoaValue> {
-    let Some(target) = args.first().and_then(|v| v.as_object()) else {
-        return Ok(BoaValue::from(false));
-    };
-    let key = match args.get(1) {
-        Some(k) => k.to_property_key(ctx)?,
-        None => PropertyKey::from(JsString::default()),
-    };
-    let value = args.get(2).cloned().unwrap_or(BoaValue::undefined());
-    let receiver = args.get(3).cloned().unwrap_or(BoaValue::undefined());
-    Ok(BoaValue::from(host_trap_set(
-        &target, &key, &value, &receiver, ctx,
-    )?))
 }
 
 // Whether OrdinaryGet/OrdinarySet reached `handle` through `recv`'s own boa prototype chain. A
@@ -2994,23 +2938,20 @@ fn proxy_handler(callable: bool, ctx: &mut Context) -> JsObject {
                 call: callable.then_some(host_trap_call),
             },
         );
-        let traps: &[(&str, NativeFunctionPointer, usize)] = &[
-            ("get", trap_get, 3),
-            ("has", trap_has, 2),
-            ("set", trap_set, 4),
+        // `get`, `set`, `has`, and `apply` dispatch directly via `HostProxyTraps` above.
+        let common_traps: &[(&str, NativeFunctionPointer, usize)] = &[
             ("ownKeys", trap_own_keys, 1),
             ("defineProperty", trap_define_property, 3),
             ("deleteProperty", trap_delete_property, 2),
             ("getOwnPropertyDescriptor", trap_gopd, 2),
-            ("apply", trap_apply, 3),
-            ("construct", trap_construct, 3),
         ];
-        // A function keeps boa's Function.prototype, so only plain objects ask V8.
-        let proto_trap: &[(&str, NativeFunctionPointer, usize)] =
-            &[("getPrototypeOf", trap_get_prototype_of, 1)];
-        let selected = if callable { &traps[..9] } else { &traps[..7] };
-        let plain_extra = if callable { &[][..] } else { proto_trap };
-        for &(name, f, len) in selected.iter().chain(plain_extra) {
+        // Functions keep boa's Function.prototype and expose `construct`; plain objects ask V8.
+        let extra_traps: &[(&str, NativeFunctionPointer, usize)] = if callable {
+            &[("construct", trap_construct, 3)]
+        } else {
+            &[("getPrototypeOf", trap_get_prototype_of, 1)]
+        };
+        for &(name, f, len) in common_traps.iter().chain(extra_traps) {
             let f = FunctionObjectBuilder::new(ctx.realm(), NativeFunction::from_fn_ptr(f))
                 .length(len)
                 .build();
