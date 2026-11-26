@@ -58,7 +58,10 @@
   },
   "Element": {
     "omit": {
-      "scrollIntoView": "returns undefined; CSSOM View now specifies a promise"
+      "scrollIntoView": "returns undefined; CSSOM View now specifies a promise",
+      "scroll": "resolves to undefined: the pinned IDL now returns Promise<ScrollResult>, a dictionary the shim doesn't build yet",
+      "scrollTo": "resolves to undefined: the pinned IDL now returns Promise<ScrollResult>, a dictionary the shim doesn't build yet",
+      "scrollBy": "resolves to undefined: the pinned IDL now returns Promise<ScrollResult>, a dictionary the shim doesn't build yet"
     }
   },
   "HTMLElement": {
@@ -89,7 +92,9 @@
   },
   "HTMLScriptElement": {
     "omit": {
-      "blocking": "returns an array stub, not a DOMTokenList"
+      "blocking": "returns an array stub, not a DOMTokenList",
+      "innerText": "HTMLElement's string accessor; the pinned IDL now also takes a TrustedScript, so the override no longer extends HTMLElement",
+      "textContent": "HTMLElement's string accessor; the pinned IDL now also takes a TrustedScript, so the override no longer extends HTMLElement"
     }
   },
   "HTMLSelectElement": {
@@ -100,6 +105,11 @@
   "HTMLStyleElement": {
     "omit": {
       "blocking": "returns an array stub, not a DOMTokenList"
+    }
+  },
+  "ModelContext": {
+    "omit": {
+      "getTools": "returns RegisteredTool records, which lack the pinned IDL's new Tool.outputSchema and Tool.source"
     }
   },
   "MutationRecord": {

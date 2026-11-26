@@ -60,6 +60,8 @@ let state: any;
 const realFetch = globalThis.fetch;
 const realWarn = console.warn;
 
+// These imports transform much of page-script and dom-shim, which takes over the default 10 s
+// hook timeout on a loaded CI shard.
 beforeAll(async () => {
   scripts = await vi.importActual("../../page-script/src/scripts.ts");
   inserted = await vi.importActual("../../page-script/src/inserted-scripts.ts");
@@ -67,7 +69,7 @@ beforeAll(async () => {
   stateModule = await vi.importActual("../../page-script/src/state.ts");
   trusted = await vi.importActual("../../page-script/src/trusted-fetch.ts");
   state = stateModule.state;
-});
+}, 30_000);
 
 beforeEach(() => {
   hoisted.importImpl = null;
