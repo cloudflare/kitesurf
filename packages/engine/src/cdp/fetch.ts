@@ -70,9 +70,14 @@ export const fetchDomain = defineDomain("Fetch", {
 
     "Fetch.fulfillRequest": (ctx, req) => {
       const p = req.params!;
+      // Chrome rejects a phrase that is not a valid HTTP reason-phrase; Response would throw later.
+      if (p.responsePhrase !== undefined && !/^[\t\x20-\x7e\x80-\xff]*$/.test(p.responsePhrase)) {
+        throw new Error("Invalid http status code or phrase");
+      }
       resolveOrThrow(ctx, p.requestId, {
         kind: "fulfill",
         responseCode: p.responseCode,
+        responsePhrase: p.responsePhrase,
         responseHeaders: p.responseHeaders,
         body: p.body,
       });

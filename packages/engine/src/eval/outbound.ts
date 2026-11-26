@@ -784,7 +784,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
           tracker.completeRequest(requestId, {
             url: forwardRequest.url,
             status: action.responseCode,
-            statusText: "",
+            statusText: action.responsePhrase ?? "",
             headers: headersToRecord(fulfillHeaders),
             mimeType:
               (fulfillHeaders.get("content-type")?.split(";")[0] ?? "").trim() || "text/plain",
@@ -796,6 +796,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
         const noBody = [101, 204, 205, 304].includes(action.responseCode);
         const fulfilled = new Response(noBody ? null : bodyBytes, {
           status: action.responseCode,
+          statusText: action.responsePhrase ?? "",
           headers: fulfillHeaders,
         });
         if (needsCorsCheck && fulfilled.headers.has("access-control-allow-origin")) {
