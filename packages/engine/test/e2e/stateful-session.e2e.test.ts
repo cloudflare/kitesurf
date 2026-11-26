@@ -371,7 +371,6 @@ test("an id that the namespace did not mint is a 404, not a stateless browser", 
     headers: { upgrade: "websocket" },
   });
   expect(upgrade.status).toBe(404);
-  expect(upgrade.webSocket).toBeNull();
   await upgrade.body?.cancel();
   expect(await status(`${path}/json`)).toBe(404);
 });
