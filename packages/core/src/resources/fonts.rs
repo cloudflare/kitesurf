@@ -6,7 +6,7 @@
 
 use std::cell::Cell;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use linebender_resource_handle::Blob;
@@ -59,6 +59,11 @@ thread_local! {
 
     static FONT_ASSET_HASHES: RefCell<HashMap<u64, &'static str>> =
         RefCell::new(HashMap::new());
+
+    // Dedupe author FontFace registrations across repeated load() calls so
+    // identical faces do not accumulate duplicate blobs in the shared collection.
+    static AUTHOR_FACE_KEYS: RefCell<HashSet<(String, u32, u8, u64)>> =
+        RefCell::new(HashSet::new());
 }
 
 const SFNT_HEADER_BYTES: usize = 12;
@@ -418,6 +423,52 @@ pub fn upgrade_author_font_face(url: String, full_bytes: Vec<u8>) -> bool {
         }
         any
     })
+}
+
+/// JS-callable: register a face a page built with `new FontFace(...)`.
+/// Decompresses the container and registers the bytes under the CSS family
+/// name, so layout shapes with it on the next pass.
+/// https://drafts.csswg.org/css-font-loading/#fontface-interface
+pub(crate) fn register_author_face(family: &str, weight: f32, style: &str, bytes: Vec<u8>) -> bool {
+    let processed = strip_woff_container(bytes);
+    if processed.is_empty() || !has_outline_tables(&processed) {
+        return false;
+    }
+    let (style, style_tag) = match style {
+        "italic" => (parley::fontique::FontStyle::Italic, 1u8),
+        "oblique" => (parley::fontique::FontStyle::Oblique(None), 2u8),
+        _ => (parley::fontique::FontStyle::Normal, 0u8),
+    };
+    let dedupe_key = (
+        family.to_ascii_lowercase(),
+        weight.to_bits(),
+        style_tag,
+        fx_hash_u64(&processed),
+    );
+    if AUTHOR_FACE_KEYS.with(|keys| keys.borrow().contains(&dedupe_key)) {
+        return true;
+    }
+    let ok = SHARED_FONT_CONTEXT.with(|cell| {
+        let mut borrow = cell.borrow_mut();
+        let Some(font_ctx) = borrow.as_mut() else {
+            return false;
+        };
+        let blob = Blob::from(processed);
+        let info = parley::fontique::FontInfoOverride {
+            family_name: Some(family),
+            weight: Some(parley::fontique::FontWeight::new(weight)),
+            style: Some(style),
+            ..Default::default()
+        };
+        let registered = font_ctx.collection.register_fonts(blob, Some(info));
+        registered.iter().any(|(_, faces)| !faces.is_empty())
+    });
+    if ok {
+        AUTHOR_FACE_KEYS.with(|keys| {
+            keys.borrow_mut().insert(dedupe_key);
+        });
+    }
+    ok
 }
 
 fn is_plain_sfnt(bytes: &[u8]) -> bool {

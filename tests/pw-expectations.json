@@ -52,12 +52,12 @@
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
   "elementhandle-misc.spec.ts::should hover": {
-    "expected": "FAIL",
-    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'id') (unknown at :1:52)"
+    "expected": "PASS",
+    "reason": null
   },
   "elementhandle-misc.spec.ts::should hover when Node is removed": {
-    "expected": "FAIL",
-    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'id') (unknown at :1:52)"
+    "expected": "PASS",
+    "reason": null
   },
   "elementhandle-misc.spec.ts::should select single option": {
     "expected": "FAIL",
@@ -380,12 +380,12 @@
     "reason": "times out"
   },
   "locator-misc-1.spec.ts::should hover @smoke": {
-    "expected": "FAIL",
-    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'id') (unknown at :1:52)"
+    "expected": "PASS",
+    "reason": null
   },
   "locator-misc-1.spec.ts::should hover when Node is removed": {
-    "expected": "FAIL",
-    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'id') (unknown at :1:52)"
+    "expected": "PASS",
+    "reason": null
   },
   "locator-misc-1.spec.ts::should select single option": {
     "expected": "FAIL",
@@ -444,8 +444,8 @@
     "reason": "Error: expect(received).toBe(expected) // Object.is equality"
   },
   "page-add-locator-handler.spec.ts::should work with locator.hover()": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+    "expected": "PASS",
+    "reason": null
   },
   "page-add-locator-handler.spec.ts::should work with toHaveScreenshot": {
     "expected": "SKIP",
@@ -692,8 +692,8 @@
     "reason": "Error: frame.goto: Frame was detached"
   },
   "page-click.spec.ts::should not wait with noAutoWaiting 2": {
-    "expected": "FAIL",
-    "reason": "TypeError: Cannot read properties of undefined (reading 'message')"
+    "expected": "PASS",
+    "reason": null
   },
   "page-click.spec.ts::should report nice error when element is detached and force-clicked": {
     "expected": "FAIL",
@@ -1344,16 +1344,16 @@
     "reason": "times out"
   },
   "page-mouse.spec.ts::should trigger hover state": {
-    "expected": "FAIL",
-    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'id') (unknown at :1:52)"
+    "expected": "PASS",
+    "reason": null
   },
   "page-mouse.spec.ts::should trigger hover state on disabled button": {
-    "expected": "FAIL",
-    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'id') (unknown at :1:52)"
+    "expected": "PASS",
+    "reason": null
   },
   "page-mouse.spec.ts::should trigger hover state with removed window.Node": {
-    "expected": "FAIL",
-    "reason": "Error: page.evaluate: Error: TypeError: cannot read properties of null (reading 'id') (unknown at :1:52)"
+    "expected": "PASS",
+    "reason": null
   },
   "page-mouse.spec.ts::should tween mouse movement": {
     "expected": "FAIL",

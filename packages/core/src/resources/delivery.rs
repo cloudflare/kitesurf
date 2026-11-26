@@ -21,6 +21,27 @@ impl DomHandle {
         crate::resources::fonts::stash_author_upgrades(regs)
     }
 
+    /// Registers a face the page created with `new FontFace(...)` and relayouts.
+    /// https://drafts.csswg.org/css-font-loading/#fontface-interface
+    #[wasm_bindgen(js_name = "registerAuthorFontFace")]
+    pub fn register_author_font_face(
+        &self,
+        family: &str,
+        weight: f32,
+        style: &str,
+        bytes: Vec<u8>,
+    ) -> bool {
+        let registered =
+            crate::resources::fonts::register_author_face(family, weight, style, bytes);
+        if registered {
+            if let Ok(mut d) = self.doc.try_borrow_mut() {
+                d.as_mut().fonts_upgraded();
+            }
+            self.layout_dirty.set(true);
+        }
+        registered
+    }
+
     #[wasm_bindgen(js_name = "fontsUpgraded")]
     pub fn fonts_upgraded(&self) {
         if let Ok(mut d) = self.doc.try_borrow_mut() {
@@ -98,6 +119,34 @@ impl DomHandle {
             self.layout_dirty.set(true);
         }
         dispatched
+    }
+
+    /// Resolve `:hover` against the pointer's page position, as a browser does
+    /// on every pointer move. Returns whether hover changed and any rule
+    /// depends on `:hover` (so pages without `:hover` rules skip restyle).
+    /// https://drafts.csswg.org/selectors-4/#the-hover-pseudo
+    #[wasm_bindgen(js_name = "setHoverAt")]
+    pub fn set_hover_at(&self, x: f32, y: f32) -> bool {
+        self.doc.try_borrow_mut().is_ok_and(|mut d| {
+            let prev = d.as_ref().get_hover_node_id();
+            if !d.as_mut().set_hover_to(x, y) {
+                return false;
+            }
+            let next = d.as_ref().get_hover_node_id();
+            // `set_hover_to` only snapshots nodes when a stylesheet rule depends
+            // on `:hover`. Checking `prev`/`next` (and parent for text nodes)
+            // avoids paint invalidation on pages with no `:hover` rules.
+            let doc = d.as_ref();
+            let snapshotted = |id| {
+                doc.get_node(id).is_some_and(|n| {
+                    n.has_snapshot()
+                        || n.parent_id()
+                            .and_then(|pid| doc.get_node(pid))
+                            .is_some_and(|p| p.has_snapshot())
+                })
+            };
+            prev.is_some_and(snapshotted) || next.is_some_and(snapshotted)
+        })
     }
 
     /// Settle a pending fetch with an empty body.

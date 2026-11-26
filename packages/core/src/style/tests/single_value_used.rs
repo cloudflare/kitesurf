@@ -90,3 +90,26 @@ fn single_value_matches_bulk_for_used_value_longhands() {
         }
     }
 }
+
+#[test]
+fn auto_margins_resolve_to_used_pixels() {
+    let dom = DomHandle::new(PAGE, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let auto_node = crate::test_support::query_selector_id(&dom, "#auto");
+    assert_eq!(
+        dom.computed_style_value(auto_node, "margin-left")
+            .as_deref(),
+        Some("300px"),
+    );
+    assert_eq!(
+        dom.computed_style_value(auto_node, "margin-right")
+            .as_deref(),
+        Some("300px"),
+    );
+    assert_eq!(
+        dom.computed_style_value(auto_node, "margin-inline-start")
+            .as_deref(),
+        Some("300px"),
+    );
+}
