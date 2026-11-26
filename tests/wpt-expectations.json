@@ -20679,7 +20679,7 @@
     "reason": null
   },
   "/streams/transferable/transform-stream-members.any.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/streams/transform-streams/backpressure.any.html": {
