@@ -34,32 +34,34 @@ export default {
 };
 `;
 
-const BASE_OPTIONS = {
-  compatibilityDate: "2026-09-11",
-  compatibilityFlags: ["global_fetch_strictly_public"],
-  bindings: {},
-  workerLoaders: {},
-  email: {},
-  assets: {
-    directory: "../public",
-    binding: "FONT_ASSETS",
-    run_worker_first: ["/", "/rbi/*"],
-    routerConfig: { has_user_worker: true },
-    assetConfig: { compatibility_date: "2026-09-11", compatibility_flags: [] },
+const BASE_CONFIG = {
+  $schema: "../../node_modules/wrangler/config-schema.json",
+  name: "kitesurf",
+  main: "src/index.ts",
+  compatibility_date: "2026-09-11",
+  compatibility_flags: ["global_fetch_strictly_public"],
+  limits: { cpu_ms: 300000 },
+  vars: { KITESURF_ENV: "production" },
+  worker_loaders: [{ binding: "LOADER" }],
+  assets: { directory: "./public", binding: "FONT_ASSETS", run_worker_first: ["/", "/rbi/*"] },
+  env: {
+    local: {
+      vars: { KITESURF_INSPECTOR_BASE_URL: "", KITESURF_INSPECTOR_FALLBACK_URL: "" },
+      services: [{ binding: "FIXTURES", service: "kitesurf-fixtures" }],
+    },
   },
 };
 
 const HEADERS = "/fonts/*\n  Cache-Control: public, max-age=31536000, immutable\n  ! X-Drop\n";
 
-/** An image directory with a fake engine dist and a public/ tree. */
-const makeImage = function (t, { options = BASE_OPTIONS, headers = HEADERS, files = {} } = {}) {
+/** An image directory with a fake engine dist, a public/ tree and the engine's wrangler.jsonc. */
+const makeImage = function (t, { config = BASE_CONFIG, headers = HEADERS, files = {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), "kitesurf-workerd-config-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, "dist"));
   mkdirSync(join(root, "public/fonts"), { recursive: true });
   writeFileSync(join(root, "dist/index.js"), FAKE_ENGINE);
-  writeFileSync(join(root, "dist/engine-mf.json"), JSON.stringify(options));
-  writeFileSync(join(root, "container-vars.json"), "{}");
+  writeFileSync(join(root, "wrangler.jsonc"), JSON.stringify(config));
   writeFileSync(join(root, "public/a.txt"), "root a");
   writeFileSync(join(root, "public/fonts/a.txt"), "fonts a");
   writeFileSync(join(root, "public/fonts/a.woff2"), "woff2");
@@ -78,7 +80,7 @@ const generate = function (root) {
     [
       GENERATOR,
       join(root, "dist"),
-      join(root, "container-vars.json"),
+      join(root, "wrangler.jsonc"),
       join(root, "config.capnp"),
       join(root, "env.sh"),
       `--root=${root}`,
@@ -139,30 +141,43 @@ const waitForLog = async function (output, text) {
   }
 };
 
-test("the generator rejects engine options that front.js does not translate", (t) => {
-  const assets = BASE_OPTIONS.assets;
+test("the generator rejects engine config that front.js does not translate", (t) => {
+  const assets = BASE_CONFIG.assets;
   const cases = [
-    [{ options: { ...BASE_OPTIONS, durableObjects: { X: "X" } } }, /sets durableObjects/],
     [
-      { options: { ...BASE_OPTIONS, assets: { ...assets, html_handling: "none" } } },
+      { config: { ...BASE_CONFIG, durable_objects: { bindings: [] } } },
+      /wrangler\.jsonc sets durable_objects/,
+    ],
+    [
+      { config: { ...BASE_CONFIG, connect: [{ protocol: "tcp" }] } },
+      /wrangler\.jsonc sets connect/,
+    ],
+    [
+      { config: { ...BASE_CONFIG, assets: { ...assets, html_handling: "none" } } },
       /assets\.html_handling/,
     ],
     [
       {
-        options: {
-          ...BASE_OPTIONS,
-          assets: {
-            ...assets,
-            assetConfig: { ...assets.assetConfig, not_found_handling: "single-page-application" },
-          },
+        config: {
+          ...BASE_CONFIG,
+          assets: { ...assets, not_found_handling: "single-page-application" },
         },
       },
-      /assets\.assetConfig\.not_found_handling/,
+      /assets\.not_found_handling/,
     ],
     [
-      { options: { ...BASE_OPTIONS, assets: { ...assets, run_worker_first: ["/"] } } },
+      { config: { ...BASE_CONFIG, assets: { ...assets, run_worker_first: ["/"] } } },
       /run_worker_first/,
     ],
+    [
+      { config: { ...BASE_CONFIG, worker_loaders: [{ binding: "LOADER", limits: {} }] } },
+      /worker_loaders sets/,
+    ],
+    [
+      { config: { ...BASE_CONFIG, vars: { KITESURF_ENV: 1 } } },
+      /vars\.KITESURF_ENV is not a string/,
+    ],
+    [{ config: { ...BASE_CONFIG, env: {} } }, /env\.local\.vars\.KITESURF_INSPECTOR_BASE_URL/],
     [{ files: { "public/_redirects": "/a /b 301\n" } }, /_redirects/],
     [{ headers: "https://example.com/*\n  X-A: b\n" }, /_headers:1: only path patterns/],
     [{ headers: "/a/:name\n  X-A: b\n" }, /_headers:1: only path patterns/],
@@ -179,7 +194,7 @@ test("the generator rejects engine options that front.js does not translate", (t
 
 test("the generator lists the experimental flag once", (t) => {
   const root = makeImage(t, {
-    options: { ...BASE_OPTIONS, compatibilityFlags: ["experimental", "nodejs_compat"] },
+    config: { ...BASE_CONFIG, compatibility_flags: ["experimental", "nodejs_compat"] },
   });
   const result = generate(root);
   assert.equal(result.status, 0, result.stderr);
@@ -187,16 +202,28 @@ test("the generator lists the experimental flag once", (t) => {
   assert.match(config, /compatibilityFlags = \["experimental", "nodejs_compat"\]/);
 });
 
+test("the generator takes the top-level vars and only the inspector pair from env.local", (t) => {
+  const local = { KITESURF_INSPECTOR_BASE_URL: "", KITESURF_INSPECTOR_FALLBACK_URL: "https://x/" };
+  const root = makeImage(t, {
+    config: { ...BASE_CONFIG, env: { local: { vars: { ...local, KITESURF_ENV: "local" } } } },
+  });
+  const result = generate(root);
+  assert.equal(result.status, 0, result.stderr);
+  const env = readFileSync(join(root, "env.sh"), "utf8");
+  assert.ok(env.includes("|| KITESURF_ENV='production'"), env);
+  assert.ok(env.includes("|| KITESURF_INSPECTOR_FALLBACK_URL='https://x/'"), env);
+  const config = readFileSync(join(root, "config.capnp"), "utf8");
+  assert.match(config, /\(name = "LOADER", workerLoader = \(\)\)/);
+  assert.doesNotMatch(config, /FIXTURES/);
+});
+
 test("the generator sets the hosted frontend unless the image serves its own", (t) => {
   const hosted = "https://example.com/inspector.html";
   const frontend = { "public/inspector/inspector.html": "" };
   /** The fallback's default in env.sh, for a base and a public/ with these files and dirs. */
   const fallback = function ({ base = "/inspector/inspector.html", files = {}, dirs = [] }) {
-    const vars = JSON.stringify({
-      KITESURF_INSPECTOR_BASE_URL: base,
-      KITESURF_INSPECTOR_FALLBACK_URL: hosted,
-    });
-    const root = makeImage(t, { files: { "container-vars.json": vars, ...files } });
+    const vars = { KITESURF_INSPECTOR_BASE_URL: base, KITESURF_INSPECTOR_FALLBACK_URL: hosted };
+    const root = makeImage(t, { config: { ...BASE_CONFIG, env: { local: { vars } } }, files });
     for (const dir of dirs) mkdirSync(join(root, dir), { recursive: true });
     const result = generate(root);
     assert.equal(result.status, 0, result.stderr);

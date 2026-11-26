@@ -164,17 +164,11 @@ js_binary(
 )
 
 js_binary(
-    name = "container_vars",
+    name = "workerd_config",
     data = [
         "//packages/engine:package_json",
         "//packages/engine:node_modules/wrangler",
     ],
-    entry_point = "container-vars.mjs",
-    visibility = ["//docker:__pkg__"],
-)
-
-js_binary(
-    name = "workerd_config",
     entry_point = "workerd-config.mjs",
     visibility = ["//docker:__pkg__"],
 )
@@ -429,9 +423,11 @@ _HELPERS_DATA = glob(["*.mjs"]) + [
     "//:node_modules/typescript",
     "//packages/engine:e2e_config",
     # wpt-engine.test.mjs serves a dist through the engine server, and workerd-config.test.mjs
-    # runs docker/front.js on the server's workerd.
+    # reads wrangler.jsonc with wrangler and runs docker/front.js on the server's workerd.
     "//docker:front_js",
     "//packages/engine-server:pkg",
+    "//packages/engine:node_modules/wrangler",
+    "//packages/engine:package_json",
     "//:pw_expectations",
     "//:pw_tests",
     "//:wpt_expectations",
