@@ -655,6 +655,37 @@ fn editing_an_evicted_paragraph_lays_out_the_new_text() {
     );
 }
 
+/// An evicted inline root with horizontal inline margins rebuilds the exact same
+/// margin offsets and span rect as a non-evicted root.
+#[test]
+fn evicted_inline_margin_offsets_match_without_eviction() {
+    let html = r#"<!DOCTYPE html><html><head><style>
+      body { margin: 0; font: 16px monospace; }
+      #spacer { height: 5000px; }
+      #s { margin-left: 50px; }
+    </style></head><body>
+      <div id="spacer"></div>
+      <p id="far">xx<span id="s">yy</span> zz</p>
+    </body></html>"#;
+    let (keep, evict) = with_and_without_eviction(html);
+    assert!(
+        is_evicted(&evict, "far"),
+        "precondition: #far below 5000px spacer must be evicted"
+    );
+    let s_keep = keep.query_selector("#s").unwrap() as u32;
+    let s_evict = evict.query_selector("#s").unwrap() as u32;
+    let rect_keep = keep.test_get_inline_aware_rect(s_keep);
+    let rect_evict = evict.test_get_inline_aware_rect(s_evict);
+    assert!(
+        rect_keep.0 >= 50.0,
+        "precondition: margin-left must shift #s: {rect_keep:?}"
+    );
+    assert_eq!(
+        rect_keep, rect_evict,
+        "evicted inline margin rect must match non-evicted rect"
+    );
+}
+
 fn text_and_ranges(base: &BaseDocument) -> Vec<(NodeId, String, String)> {
     inline_roots(base)
         .into_iter()

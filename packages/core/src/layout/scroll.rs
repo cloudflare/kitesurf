@@ -66,7 +66,7 @@ export interface KsScrollOffset {
 pub(crate) struct ScrollInfo {
     scroll_top: f64,
     scroll_left: f64,
-    scroll_width: f64,
+    pub(crate) scroll_width: f64,
     pub(crate) scroll_height: f64,
     client_width: f64,
     client_height: f64,

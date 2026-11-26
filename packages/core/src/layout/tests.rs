@@ -3,15 +3,19 @@
 // https://opensource.org/licenses/Apache-2.0
 
 //! Tests for the layout stage; they use crate internals.
+mod clipped_scroll_width;
 mod abs_filters_width;
 mod abspos_containing_block;
 mod block_align_content;
+mod block_pseudo_in_inline;
 mod box_decorations;
 mod display_none_release;
 mod float_cache_incremental;
+mod float_relative_insets;
 mod float_with_trailing_comment;
 mod grid_minmax;
 mod hit_test_block_axis;
+mod hit_test_clipped;
 mod hit_test_fixed_scroll;
 mod hit_test_line_ripple;
 mod hit_test_paint_order;
@@ -25,6 +29,7 @@ mod inline_break_restore;
 mod inline_eviction;
 mod inline_flow_rect;
 mod inline_font_family;
+mod inline_margins;
 mod list_marker;
 mod nested_inline_abspos;
 mod nowrap_leading_inline_box;

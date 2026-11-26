@@ -1,0 +1,46 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bernardo Pereira <bpereira@cloudflare.com>
+Date: Mon, 23 Nov 2026 10:54:28 +0000
+Subject: [PATCH] Stretch auto-width block boxes inside inline formatting
+ contexts
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A block-level box nested inside an inline formatting context (such as an inline
+`a::before { content: ""; display: block; height: 20px }`) was measured as a
+shrink-to-fit inline box of width 0, keeping it on the same line as following
+inline text instead of occupying its own line.
+
+Stretch in-flow `DisplayOutside::Block` inline boxes with `width: auto` to the
+available line width minus margins per CSS2 §9.2.1.1 / §10.3.3.
+---
+ src/layout/inline.rs | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/src/layout/inline.rs b/src/layout/inline.rs
+index 9ce5eb2..8a2445c 100644
+--- a/src/layout/inline.rs
++++ b/src/layout/inline.rs
+@@ -554,7 +554,20 @@ impl LayoutPassState<'_> {
+             let exports_baseline = !(baseline_source == BaselineSource::Auto
+                 && is_block_axis_scroll_container)
+                 && !contain_layout;
+-            let box_inputs = inline_box_inputs(style.size().width, style.size().height, margin, child_inputs);
++            let is_inflow_block = !is_floated
++                && !is_out_of_flow
++                && style.effective_display().outside() == DisplayOutside::Block;
++            let mut box_inputs =
++                inline_box_inputs(style.size().width, style.size().height, margin, child_inputs);
++            // A block-level box inside an inline formatting context (such as
++            // `a::before { display: block }`) stretches to the line's available
++            // width when `width: auto`, placing it on its own line per CSS2 §9.2.1.1.
++            // https://drafts.csswg.org/css2/#anonymous-block-level
++            if is_inflow_block && style.size().width.is_auto() {
++                if let Some(width) = box_inputs.available_space.width.into_option() {
++                    box_inputs.known_dimensions.width = Some(width);
++                }
++            }
+             drop(style);
+
+             if is_out_of_flow || is_floated {
