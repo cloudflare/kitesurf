@@ -43,10 +43,11 @@ export const SQLITE_STORE_LIMITS: Readonly<StoreLimits> = Object.freeze({
 
 const TABLE = "ks_session_store";
 
-// DO SQLite caps a string, BLOB or row at 2 MB, and a raw document is often bigger. A string
-// splits by UTF-16 code units, at most 3 UTF-8 bytes each, so a chunk is at most 1.5 MB.
-const STRING_CHUNK_UNITS = 512 * 1024;
-const BYTES_CHUNK = 1024 * 1024;
+// DO SQLite caps a string, BLOB or row at 8 MB, and a raw document can be bigger. A string
+// splits by UTF-16 code units, at most 3 UTF-8 bytes each, so either chunk is at most 6 MiB,
+// which leaves the row room for its table name and key.
+const STRING_CHUNK_UNITS = 2 * 1024 * 1024;
+const BYTES_CHUNK = 6 * 1024 * 1024;
 
 // "s" is a string, "b" bytes, and "j" JSON.
 type Tag = "s" | "b" | "j";

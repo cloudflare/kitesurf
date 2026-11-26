@@ -121,11 +121,11 @@ for (const [name, make] of backends) {
       assert.ok(st.bytes >= st.valueBytes);
     });
 
-    test("round-trips values past the 2 MB row limit", () => {
+    test("round-trips values that span several rows", () => {
       const t = make().table("t", anyValue);
       // A naive split would cut a surrogate pair at every chunk boundary.
-      const big = "a" + "🪁".repeat(700_000);
-      const bytes = new Uint8Array(3 * 1024 * 1024 + 7).map((_, i) => i % 251);
+      const big = "a" + "🪁".repeat(1_100_000);
+      const bytes = new Uint8Array(13 * 1024 * 1024 + 7).map((_, i) => i % 251);
       t.set("s", big);
       t.set("b", bytes);
       t.set("j", { big });
@@ -174,10 +174,11 @@ describe("the SQLite store", () => {
       transactionSync: (fn) => base.transactionSync(fn),
     };
     const t = new SqliteSessionStore(storage).table("t", isStoredString);
-    const old = "a".repeat(600_000);
+    // Each value takes two chunks, so the second chunk's insert is the one that fails.
+    const old = "a".repeat(2_500_000);
     t.set("k", old);
     failChunks = true;
-    assert.throws(() => t.set("k", "b".repeat(600_000)), /FULL/);
+    assert.throws(() => t.set("k", "b".repeat(2_500_000)), /FULL/);
     failChunks = false;
     assert.equal(t.get("k"), old);
   });
