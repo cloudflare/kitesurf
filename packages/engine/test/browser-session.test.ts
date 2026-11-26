@@ -337,6 +337,26 @@ describe("BrowserSession", () => {
     expect(b.conn.state.sessions.has(frameSession)).toBe(false);
   });
 
+  it("ends a persistent session past its wall-clock cap before a client joins", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const request = new Request("http://engine.test/devtools/browser");
+      const session = (current = new BrowserSession(
+        request,
+        {} as Env,
+        sessionCtx,
+        params("?ksMaxSessionMs=60000"),
+        { persistent: true },
+      ));
+      vi.setSystemTime(Date.now() + 61_000);
+      expect(() => connect(session)).toThrow("browser session has ended");
+      expect(session.disposed).toBe(true);
+      expect(session.endIfExpired()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("closes an idle client without ending the session", async () => {
     const session = (current = openSession({ persistent: true }));
     const idle = connect(session, params("?ksIdleMs=300"));

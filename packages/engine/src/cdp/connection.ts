@@ -459,6 +459,8 @@ export class BrowserSession {
     params: ConnectionParams,
     opts: ClientOptions = {},
   ): ClientConnection {
+    // The tick enforces the wall-clock cap; a client that arrives between ticks must not get in.
+    if (this.#persistent) this.#closeIfExpired();
     if (this.#disposed) throw new Error("browser session has ended");
     if (!this.#persistent && this.#clients.size > 0) {
       throw new Error("browser session already has a client");
@@ -522,6 +524,12 @@ export class BrowserSession {
   close(code: number, reason: string): void {
     for (const c of Array.from(this.#clients.values())) c.close(code, reason);
     this.dispose({ endReason: "close", closeCode: code, wasClean: 1 });
+  }
+
+  /** Ends a persistent session past its wall-clock cap. True when the session has ended. */
+  endIfExpired(): boolean {
+    if (this.#persistent) this.#closeIfExpired();
+    return this.#disposed;
   }
 
   // Returns true from the tick on which the wall-clock cap fires, and on every later one.

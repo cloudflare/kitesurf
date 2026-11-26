@@ -236,6 +236,7 @@ export class StatefulBrowser extends DurableObject<Env> {
   }
 
   override async fetch(request: Request): Promise<Response> {
+    this.#endIfExpired();
     const forwarded = readForwardedOutbound(request);
     if (forwarded === "invalid") {
       return new Response("kitesurf: malformed gateway forward", { status: 502 });
@@ -315,6 +316,28 @@ export class StatefulBrowser extends DurableObject<Env> {
     return SandboxOutbound.handle(this.env, props, request);
   }
 
+  // Ends the session once its keep-alive or wall-clock cap has passed. An alarm can run late, so
+  // every request checks the deadlines before the session takes it, and the alarm checks too.
+  #endIfExpired(): void {
+    const session = this.#session;
+    if (!session || session.endIfExpired()) return;
+    if (
+      this.#idleSince === null ||
+      session.clientCount > 0 ||
+      Date.now() - this.#idleSince < this.#keepAliveMs
+    ) {
+      return;
+    }
+    console.log(
+      JSON.stringify({
+        event: "stateful_session_keep_alive_expired",
+        sessionId: session.id,
+        keepAliveMs: this.#keepAliveMs,
+      }),
+    );
+    session.dispose({ endReason: "close", closeCode: 1000, wasClean: 1 });
+  }
+
   override async alarm(): Promise<void> {
     const session = this.#session;
     const now = Date.now();
@@ -324,21 +347,7 @@ export class StatefulBrowser extends DurableObject<Env> {
       await this.ctx.storage.deleteAll();
       return;
     }
-    if (
-      !session.disposed &&
-      this.#idleSince !== null &&
-      session.clientCount === 0 &&
-      now - this.#idleSince >= this.#keepAliveMs
-    ) {
-      console.log(
-        JSON.stringify({
-          event: "stateful_session_keep_alive_expired",
-          sessionId: session.id,
-          keepAliveMs: this.#keepAliveMs,
-        }),
-      );
-      session.dispose({ endReason: "close", closeCode: 1000, wasClean: 1 });
-    }
+    this.#endIfExpired();
     if (session.disposed) {
       this.#endedAt ??= now;
       if (now - this.#endedAt >= CLEANUP_DELAY_MS) {
