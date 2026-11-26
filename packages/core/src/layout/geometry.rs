@@ -808,6 +808,11 @@ fn inline_line_rects_for_node(
 ) -> Option<Vec<Rect>> {
     let base: &BaseDocument = doc.as_ref();
     let node = base.get_node(node_id)?;
+    // A block that holds its own lines has a box even at zero size, and text overflowing it is not
+    // its geometry; only content laid out in an ancestor's lines takes its rects from them.
+    if node.flags.is_inline_root() {
+        return None;
+    }
     let inline_root = node.inline_root_ancestor()?;
     let elem = inline_root.element_data()?;
     let inline = elem.inline_layout_data()?;
