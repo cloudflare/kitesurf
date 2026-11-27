@@ -1,0 +1,281 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 27 Nov 2026 19:30:05 +0000
+Subject: [PATCH] Pool CacheInner slots in 64 KiB chunks under std
+
+---
+ src/tree/cache.rs | 233 +++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 230 insertions(+), 3 deletions(-)
+
+diff --git a/src/tree/cache.rs b/src/tree/cache.rs
+index daef2a2..626d575 100644
+--- a/src/tree/cache.rs
++++ b/src/tree/cache.rs
+@@ -444,16 +444,207 @@ impl PartialEq for CacheInner {
+     }
+ }
+
++/// Pooled slot storage for `CacheInner`, following `blitz-dom/src/pool.rs`.
++///
++/// A `CacheBox` is a `Box<CacheInner>` whose slot comes from 64 KiB chunks: no allocator header
++/// or rounding per cache, and a freed slot is reused only by another cache. When the last live
++/// slot is returned the chunks are freed, so a slot pointer stays valid while its box exists.
++// The crate denies `unsafe_code`; a typed slot pool is the one place that needs it.
++#[cfg(feature = "std")]
++#[allow(unsafe_code)]
++mod cache_pool {
++    use super::CacheInner;
++    use std::alloc::{Layout, alloc, handle_alloc_error};
++    use std::marker::PhantomData;
++    use std::mem::{align_of, size_of};
++    use std::ops::{Deref, DerefMut};
++    use std::ptr::NonNull;
++    use std::sync::Mutex;
++
++    /// Bytes per chunk: enough that chunk headers are noise, small enough that a tree with few
++    /// caches strands little.
++    const CHUNK_BYTES: usize = 64 << 10;
++
++    /// A slot covers `CacheInner` and holds a pointer when free.
++    const fn slot_layout() -> Layout {
++        let inner_size = size_of::<CacheInner>();
++        let inner_align = align_of::<CacheInner>();
++        let size = if inner_size > size_of::<usize>() { inner_size } else { size_of::<usize>() };
++        let align = if inner_align > align_of::<usize>() { inner_align } else { align_of::<usize>() };
++        match Layout::from_size_align(size, align) {
++            Ok(layout) => layout.pad_to_align(),
++            Err(_) => panic!("CacheInner has an invalid layout"),
++        }
++    }
++
++    struct Pool {
++        /// Freed slots, linked through their first word.
++        free: *mut u8,
++        /// The unused tail of the newest chunk.
++        bump: *mut u8,
++        end: *mut u8,
++        /// Every chunk still holding a slot, so it can be freed when the pool empties.
++        chunks: std::vec::Vec<(*mut u8, Layout)>,
++        /// The number of slots handed out and not yet returned.
++        live: usize,
++    }
++
++    // SAFETY: the raw pointers only address chunk memory that `chunks` keeps allocated; the pool
++    // is only touched under its Mutex.
++    unsafe impl Send for Pool {}
++
++    impl Pool {
++        const fn new() -> Self {
++            Self {
++                free: std::ptr::null_mut(),
++                bump: std::ptr::null_mut(),
++                end: std::ptr::null_mut(),
++                chunks: std::vec::Vec::new(),
++                live: 0,
++            }
++        }
++    }
++
++    static POOL: Mutex<Pool> = Mutex::new(Pool::new());
++
++    /// The number of live slots and the number of chunk allocations, for the tests.
++    #[cfg(test)]
++    pub(super) fn pool_state() -> (usize, usize) {
++        let pool = POOL.lock().unwrap_or_else(|e| e.into_inner());
++        (pool.live, pool.chunks.len())
++    }
++
++    fn take_slot() -> NonNull<CacheInner> {
++        let layout = slot_layout();
++        let mut pool = POOL.lock().unwrap_or_else(|e| e.into_inner());
++        pool.live += 1;
++        if let Some(slot) = NonNull::new(pool.free) {
++            // SAFETY: a free slot holds the next free pointer in its first word (see `give_slot`).
++            pool.free = unsafe { slot.as_ptr().cast::<*mut u8>().read() };
++            return slot.cast();
++        }
++        if (pool.end as usize) - (pool.bump as usize) < layout.size() {
++            let chunk_size = CHUNK_BYTES.max(layout.size());
++            let chunk = Layout::from_size_align(chunk_size, layout.align()).unwrap_or(layout);
++            // SAFETY: `chunk` has a non-zero size.
++            let start = unsafe { alloc(chunk) };
++            if start.is_null() {
++                handle_alloc_error(chunk);
++            }
++            pool.chunks.push((start, chunk));
++            pool.bump = start;
++            // SAFETY: `start + chunk.size()` is one past the end of the allocation.
++            pool.end = unsafe { start.add(chunk.size()) };
++        }
++        let slot = pool.bump;
++        // SAFETY: the check above leaves at least one slot between `bump` and `end`.
++        pool.bump = unsafe { slot.add(layout.size()) };
++        // SAFETY: `slot` is inside a live chunk, so it is not null.
++        unsafe { NonNull::new_unchecked(slot) }.cast()
++    }
++
++    /// # Safety
++    /// `slot` came from `take_slot()` and holds no live value.
++    unsafe fn give_slot(slot: NonNull<CacheInner>) {
++        let mut pool = POOL.lock().unwrap_or_else(|e| e.into_inner());
++        pool.live -= 1;
++        if pool.live == 0 {
++            // `slot`'s chunk is freed with the rest, so it is not linked onto the free list.
++            for (ptr, layout) in pool.chunks.drain(..) {
++                // SAFETY: every chunk was allocated with this layout and holds no live slot.
++                unsafe { std::alloc::dealloc(ptr, layout) };
++            }
++            pool.chunks = std::vec::Vec::new();
++            pool.free = std::ptr::null_mut();
++            pool.bump = std::ptr::null_mut();
++            pool.end = std::ptr::null_mut();
++            return;
++        }
++        // SAFETY: a slot is at least pointer-sized and pointer-aligned (`slot_layout`).
++        unsafe { slot.as_ptr().cast::<*mut u8>().write(pool.free) };
++        pool.free = slot.as_ptr().cast();
++    }
++
++    pub(super) struct CacheBox {
++        ptr: NonNull<CacheInner>,
++        _owns: PhantomData<CacheInner>,
++    }
++
++    impl CacheBox {
++        pub(super) fn new(value: CacheInner) -> Self {
++            let ptr = take_slot();
++            // SAFETY: the slot is fresh, sized and aligned for `CacheInner`.
++            unsafe { ptr.as_ptr().write(value) };
++            Self { ptr, _owns: PhantomData }
++        }
++    }
++
++    impl Drop for CacheBox {
++        fn drop(&mut self) {
++            // SAFETY: the box owns a live value in its slot, dropped exactly once here.
++            unsafe { std::ptr::drop_in_place(self.ptr.as_ptr()) };
++            // SAFETY: the value was dropped above.
++            unsafe { give_slot(self.ptr) };
++        }
++    }
++
++    impl Deref for CacheBox {
++        type Target = CacheInner;
++        fn deref(&self) -> &CacheInner {
++            // SAFETY: the box owns a live value.
++            unsafe { self.ptr.as_ref() }
++        }
++    }
++
++    impl DerefMut for CacheBox {
++        fn deref_mut(&mut self) -> &mut CacheInner {
++            // SAFETY: the box owns a live value and `&mut self` is unique.
++            unsafe { self.ptr.as_mut() }
++        }
++    }
++
++    impl Clone for CacheBox {
++        fn clone(&self) -> Self {
++            Self::new((**self).clone())
++        }
++    }
++
++    impl PartialEq for CacheBox {
++        fn eq(&self, other: &Self) -> bool {
++            **self == **other
++        }
++    }
++
++    impl std::fmt::Debug for CacheBox {
++        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++            std::fmt::Debug::fmt(&**self, f)
++        }
++    }
++
++    // SAFETY: a CacheBox owns its value like a Box, and the pool it returns the slot to is a Mutex.
++    unsafe impl Send for CacheBox where CacheInner: Send {}
++    // SAFETY: as for Box, shared access only hands out `&CacheInner`.
++    unsafe impl Sync for CacheBox where CacheInner: Sync {}
++}
++
++#[cfg(feature = "std")]
++use cache_pool::CacheBox;
++#[cfg(not(feature = "std"))]
++type CacheBox = Box<CacheInner>;
++
+ // Requests above 48 bytes round up to 8-byte classes, so a byte over 96 costs 8 more bytes on
+ // every node that caches a layout.
+ #[cfg(target_pointer_width = "32")]
+ const _: () = assert!(core::mem::size_of::<CacheInner>() <= 96);
++// The pooled box is one pointer, and `Cache` must stay one pointer wide so the niche in
++// `Option<CacheBox>` keeps the lazy allocation free.
++const _: () = assert!(core::mem::size_of::<Cache>() == core::mem::size_of::<usize>());
+
+ /// A cache for caching the results of a sizing a Grid Item or Flexbox Item
+ #[derive(Debug, Clone, PartialEq)]
+ pub struct Cache {
+     /// Lazily allocated entries; `None` until the first result is stored.
+-    inner: Option<Box<CacheInner>>,
++    inner: Option<CacheBox>,
+ }
+
+ impl Default for Cache {
+@@ -514,7 +705,7 @@ impl Cache {
+         let key = CacheKey::from(input);
+         match input.run_mode {
+             RunMode::PerformLayout => {
+-                let inner = self.inner.get_or_insert_with(|| Box::new(CacheInner::new(mode)));
++                let inner = self.inner.get_or_insert_with(|| CacheBox::new(CacheInner::new(mode)));
+                 inner.final_layout_entry = Some(CacheEntry { key, content: CachedLayout::from(layout_output) })
+             }
+             RunMode::ComputeSize => {
+@@ -528,7 +719,7 @@ impl Cache {
+                 {
+                     return;
+                 }
+-                let inner = self.inner.get_or_insert_with(|| Box::new(CacheInner::new(mode)));
++                let inner = self.inner.get_or_insert_with(|| CacheBox::new(CacheInner::new(mode)));
+                 inner.store_measurement(key, layout_output.size);
+             }
+             RunMode::PerformHiddenLayout => {}
+@@ -913,4 +1104,40 @@ mod tests {
+         cache.store(&content_size, output(1.0));
+         assert_eq!(cache_mode_change_evictions(), evictions + 1);
+     }
++
++    #[test]
++    #[cfg(feature = "std")]
++    fn dropping_the_last_cache_frees_the_pool_chunks() {
++        // The pool is process-wide and the other tests hold caches on their own threads, so the
++        // drained state is awaited: a live count of zero is the only state that frees the chunks.
++        let wait_for_drained_pool = || {
++            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
++            while super::cache_pool::pool_state() != (0, 0) {
++                assert!(
++                    std::time::Instant::now() < deadline,
++                    "the pool still holds slots after the caches were dropped: {:?}",
++                    super::cache_pool::pool_state()
++                );
++                std::thread::sleep(std::time::Duration::from_micros(50));
++            }
++        };
++
++        let mut caches: std::vec::Vec<Cache> = (0..4).map(|_| Cache::new()).collect();
++        for cache in caches.iter_mut() {
++            for width in 0..CACHE_SIZE {
++                cache.store(&input(width as f32), output(width as f32));
++            }
++        }
++        assert!(super::cache_pool::pool_state().0 >= caches.len());
++
++        drop(caches);
++        wait_for_drained_pool();
++
++        // The next store allocates a fresh chunk, and the cache still works.
++        let mut cache = Cache::new();
++        cache.store(&input(1.0), output(1.0));
++        assert_eq!(cache.get(&input(1.0)), Some(output(1.0)));
++        drop(cache);
++        wait_for_drained_pool();
++    }
+ }
