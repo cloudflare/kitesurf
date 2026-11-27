@@ -940,3 +940,27 @@ test("Typed OM append rejects a value associated with another property", async (
   });
   expect(result).toEqual({ append: "TypeError", set: "TypeError", backgroundSize: "" });
 });
+
+test("CSSNumericValue.parse reifies a math function of any numeric type", async ({ page }) => {
+  await setContent(page, "<p>numeric</p>");
+  const result = await page.evaluate(() => {
+    const g = globalThis as any;
+    const parse = (text: string) => {
+      try {
+        const value = g.CSSNumericValue.parse(text);
+        return `${value.constructor.name} ${value}`;
+      } catch (error) {
+        return (error as Error).name;
+      }
+    };
+    return ["calc(1 + 4)", "calc(1s + 2s)", "calc(sign(10em - 10rem))", "calc(1px * 2s)"].map(
+      parse,
+    );
+  });
+  expect(result).toEqual([
+    "CSSMathSum calc(5)",
+    "CSSMathSum calc(3s)",
+    "SyntaxError",
+    "SyntaxError",
+  ]);
+});

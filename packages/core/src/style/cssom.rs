@@ -31,6 +31,7 @@ use style::typed_om::{
     numeric_declaration::NumericDeclaration, MathValue, NumericValue, PerspectiveValue, ToTyped,
     TransformComponent, TypedValue, UnparsedSegment,
 };
+use style::values::specified::calc::{CalcNode, CalcParseFlags, PercentageContext};
 use style_traits::{CssWriter, ParseError, ParsingMode, StyleParseErrorKind, ToCss};
 use wasm_bindgen::prelude::*;
 
@@ -365,14 +366,43 @@ fn parse_typed_numeric_value(css_text: &str) -> Result<TypedStyleValueDto, Strin
         None,
         Default::default(),
     );
-    let mut input = Parser::new(css_text);
-    let declaration = input
+    let typed = match Parser::new(css_text)
         .parse_entirely(|input| NumericDeclaration::parse(&context, input))
-        .map_err(|_| "invalid CSS numeric value".to_string())?;
-    match declaration.to_typed_value() {
+    {
+        Ok(declaration) => declaration.to_typed_value(),
+        Err(_) => {
+            let node = Parser::new(css_text)
+                .parse_entirely(|input| parse_typed_math_function(&context, input))
+                .map_err(|_| "invalid CSS numeric value".to_string())?;
+            node.to_typed_value()
+        }
+    };
+    match typed {
         Some(TypedValue::Numeric(value)) => Ok(numeric_value_to_dto(&value)),
         _ => Err("CSS numeric value could not be reified".to_string()),
     }
+}
+
+// Stylo's NumericDeclaration only accepts a math function that resolves to a <length-percentage>.
+// CSSNumericValue.parse() takes a math function of any calc type, so calc(1 + 4) is a <number>.
+fn parse_typed_math_function(
+    context: &ParserContext,
+    input: &mut Parser,
+) -> Result<CalcNode, ParseError> {
+    let name = input.expect_function()?.clone();
+    let function = CalcNode::math_function(context, &name)?;
+    let node = CalcNode::parse(
+        context,
+        input,
+        function,
+        CalcParseFlags::new(PercentageContext::allowed()),
+    )?;
+    let mut simplified = node.clone();
+    simplified.simplify_and_sort();
+    simplified
+        .numeric_type_as_calc_type()
+        .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))?;
+    Ok(node)
 }
 
 #[derive(serde::Serialize)]
@@ -1466,5 +1496,20 @@ mod typed_style_value_tests {
         );
         assert!(parse_typed_numeric_value("red").is_err());
         assert!(parse_typed_numeric_value("12px trailing").is_err());
+    }
+
+    #[test]
+    fn parses_typed_numeric_math_functions_of_any_type() {
+        let number = parse_numeric_json("calc(1 + 4)");
+        assert_eq!(number["type"], "sum");
+        assert_eq!(number["values"][0]["value"], 5.0);
+        assert_eq!(number["values"][0]["unit"], "number");
+        assert_eq!(
+            parse_numeric_json("calc(2 * min(10px, 20%))")["type"],
+            "product"
+        );
+        assert!(parse_typed_numeric_value("calc(calc(1px * 2s) + 3%)").is_err());
+        assert!(parse_typed_numeric_value("calc(sign(10em - 10rem))").is_err());
+        assert!(parse_typed_numeric_value("calc(1 / sign(10em - 10rem))").is_err());
     }
 }
