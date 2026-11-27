@@ -712,7 +712,7 @@
     "reason": null
   },
   "/css/css-align/inheritance.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-align/parsing/align-content-computed.html": {
@@ -832,7 +832,7 @@
     "reason": null
   },
   "/css/css-align/parsing/justify-items-computed.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-align/parsing/justify-items-invalid.html": {
@@ -872,7 +872,7 @@
     "reason": null
   },
   "/css/css-align/parsing/place-items-computed.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-align/parsing/place-items-invalid.html": {
@@ -2867,7 +2867,7 @@
     "reason": null
   },
   "/css/css-fonts/parsing/font-family-valid.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-fonts/parsing/font-feature-settings-computed.html": {
@@ -6124,11 +6124,11 @@
     "reason": null
   },
   "/css/css-ui/parsing/interactivity-computed.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-ui/parsing/interactivity.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-ui/parsing/outline-color-computed.html": {
@@ -6280,13 +6280,12 @@
     "reason": null
   },
   "/css/css-values/attr-all-types.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "176/179 subtests pass. The three failures are attr() types that Stylo 0.24 accepts at parse time; later WPT revisions removed those subtests."
   },
   "/css/css-values/attr-argument-grammar.html": {
-    "expected": "FAIL",
-    "reason": "8/15 subtests pass. attr() does not take var() in its name, type or unit arguments. The one further earlier pass compared \"\" with \"\" while getComputedStyle read no custom property. \u2014 acceptedRegression: reading custom properties exposed a missing feature; nothing regressed. Exempt from the ledger only; this pin still gates any later outcome change.",
-    "acceptedRegression": true
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-values/attr-container-style-query.html": {
     "expected": "FAIL",
@@ -7378,8 +7377,8 @@
     "reason": "T18 enrollment (css-values): measured PASS"
   },
   "/css/css-values/update-subpixel-rem-unit.html": {
-    "expected": "PASS",
-    "reason": "T18 enrollment (css-values): measured PASS"
+    "expected": "FAIL",
+    "reason": "Stylo 0.24 rounds font sizes to 1/60px app units, as Gecko does, so 16.125px computes as 16.1333px. Later WPT revisions use 16.25px to avoid that rounding."
   },
   "/css/css-values/urls/cross-origin/url-font-cross-origin-anonymous-negative.sub.html": {
     "expected": "FAIL",
@@ -7687,14 +7686,14 @@
     "reason": "T18 enrollment (css-variables): 1/5 subtests pass"
   },
   "/css/css-variables/var-parsing.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "corpusChange": {
       "revision": "6efb1b12b95725c026cb1f5a451138345cfca937",
       "kind": "outcome",
       "from": "PASS",
       "to": "FAIL"
     },
-    "reason": "Upstream made five free-form var() name cases valid because name validation happens during substitution. Stylo rejects them during parsing."
+    "reason": null
   },
   "/css/css-variables/variable-animation-guaranteed-invalid.html": {
     "expected": "PASS",
@@ -7830,14 +7829,14 @@
     "reason": "T18 enrollment (css-variables): measured PASS"
   },
   "/css/css-variables/variable-declaration-29.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "corpusChange": {
       "revision": "6efb1b12b95725c026cb1f5a451138345cfca937",
       "kind": "outcome",
       "from": "PASS",
       "to": "FAIL"
     },
-    "reason": "Upstream changed the initial color to red, so var(--, green) must use its fallback to pass. Stylo rejects the free-form name and leaves the element red."
+    "reason": null
   },
   "/css/css-variables/variable-declaration-30.html": {
     "expected": "PASS",
@@ -8368,14 +8367,14 @@
     "reason": "T18 enrollment (css-variables): measured PASS"
   },
   "/css/css-variables/variable-supports-30.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "corpusChange": {
       "revision": "6efb1b12b95725c026cb1f5a451138345cfca937",
       "kind": "outcome",
       "from": "PASS",
       "to": "FAIL"
     },
-    "reason": "Upstream now expects @supports (color: var(1px)) to pass parse-time validation. Stylo rejects the free-form var() name."
+    "reason": null
   },
   "/css/css-variables/variable-supports-31.html": {
     "expected": "PASS",
@@ -8510,14 +8509,14 @@
     "reason": "T18 enrollment (css-variables): measured PASS"
   },
   "/css/css-variables/variable-supports-64.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "corpusChange": {
       "revision": "6efb1b12b95725c026cb1f5a451138345cfca937",
       "kind": "outcome",
       "from": "PASS",
       "to": "FAIL"
     },
-    "reason": "Upstream now expects @supports (--a: var(1px)) to pass parse-time validation. Stylo rejects the free-form var() name."
+    "reason": null
   },
   "/css/css-variables/variable-supports-65.html": {
     "expected": "PASS",
@@ -16593,7 +16592,7 @@
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.fontBoundingBox-zero-descent.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/html/canvas/element/text/2d.text.measure.fontBoundingBox.ahem.html": {
@@ -18954,8 +18953,8 @@
     "reason": null
   },
   "/html/semantics/forms/the-textarea-element/textarea-newline-bidi.html": {
-    "expected": "FAIL",
-    "reason": "Reftest, pixel-diff 87/480000: textarea newline handling in a bidi paragraph. Per-paragraph resolution inside the editor buffer is approximate."
+    "expected": "PASS",
+    "reason": null
   },
   "/html/semantics/grouping-content/the-ol-element/ol.start-reflection-1.html": {
     "expected": "PASS",
@@ -23303,7 +23302,7 @@
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-table-td-bottom.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-table-td-left.html": {
@@ -23551,7 +23550,7 @@
     "reason": null
   },
   "/css/css-lists/counter-reset-reversed-pseudo-001.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-lists/counter-reset-reversed-pseudo-002.html": {
@@ -24207,7 +24206,7 @@
     "reason": null
   },
   "/css/CSS2/tables/border-spacing-095.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/border-spacing-applies-to-016.xht": {
@@ -24775,83 +24774,83 @@
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-017.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-018.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-019.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-020.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-059.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-060.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-061.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-062.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-063.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-064.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-065.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-066.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-067.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-068.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-069.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-070.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-071.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-072.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-073.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-074.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-075.xht": {
@@ -24863,11 +24862,11 @@
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-077.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-078.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-079.xht": {
@@ -24879,19 +24878,19 @@
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-081.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-082.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-083.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-084.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-085.xht": {
@@ -24927,91 +24926,91 @@
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-093.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-094.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-095.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-096.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-097.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-098.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-099.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-100.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-101.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-102.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-103.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-104.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-105.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-106.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-107.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-108.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-109.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-110.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-111.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-112.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-113.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-114.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-115.xht": {
@@ -25047,131 +25046,131 @@
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-123.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-124.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-125.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-126.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-127.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-128.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-129.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-130.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-131.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-132.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-133.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-134.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-135.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-136.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-137.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-138.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-139.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-140.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-141.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-142.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-143.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-144.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-145.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-146.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-147.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-148.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-149.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-150.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-151.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-152.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-153.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-154.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-155.xht": {
@@ -25183,19 +25182,19 @@
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-157.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-158.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-159.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-160.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-161.xht": {
@@ -25239,11 +25238,11 @@
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-171.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-172.xht": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/CSS2/tables/table-anonymous-objects-173.xht": {
@@ -29543,8 +29542,8 @@
     "reason": null
   },
   "/intersection-observer/svg-intersection-with-fractional-bounds.html": {
-    "expected": "FAIL",
-    "reason": "SVG target bounds and SVG mutation updates are incomplete."
+    "expected": "PASS",
+    "reason": null
   },
   "/intersection-observer/svg-rect-target.html": {
     "expected": "PASS",
@@ -40355,8 +40354,8 @@
     "reason": "80/81 parser subtests pass; innerHTML in a select context incorrectly retains an input element."
   },
   "/css/css-animations/parsing/animation-shorthand.html": {
-    "expected": "FAIL",
-    "reason": "34/36 shorthand subtests pass; Stylo serializes an omitted list-item animation duration as 0s instead of auto."
+    "expected": "PASS",
+    "reason": null
   },
   "/html/browsers/windows/browsing-context.html": {
     "expected": "PASS",
@@ -40447,7 +40446,7 @@
     "reason": null
   },
   "/css/css-shadow/shadow-host-with-before-after.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/cssom/StyleSheetList-constructable-shadow-with-style-recalc.html": {
@@ -40477,5 +40476,13 @@
   "/html/rendering/bidi-rendering/slot-no-isolate-001.html": {
     "expected": "FAIL",
     "reason": null
+  },
+  "/css/css-env/env-parsing.html": {
+    "expected": "FAIL",
+    "reason": "3/8 subtests pass. Stylo 0.24 parses env()'s name as a <declaration-value>, as css-env-1 now specifies, so trailing tokens no longer make the value invalid at parse time. Later WPT revisions expect them to be valid."
+  },
+  "/css/css-env/syntax.tentative.html": {
+    "expected": "FAIL",
+    "reason": "16/18 subtests pass. Stylo 0.24 parses env()'s name as a <declaration-value>, as css-env-1 now specifies, so env(10px) and env(env(test)) are valid at parse time. Later WPT revisions expect the declaration to apply."
   }
 }
