@@ -464,6 +464,13 @@ struct Inherited {
     text_hidden: bool,
     layout_table: bool,
     list_depth: usize,
+    /// Enclosing `<fieldset disabled>` elements that disable this node, counted so the first
+    /// `<legend>` of one escapes only that fieldset, as HTML's disabled-ancestor rule says.
+    disabled_fieldsets: u32,
+    /// A `<select disabled>` or `<optgroup disabled>` holding this node: its options read as
+    /// disabled but stay focusable, which is what Chrome reports.
+    disabled_choice: bool,
+    aria_disabled: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -1576,6 +1583,15 @@ fn implicit_role(node: &Node, name: &str) -> &'static str {
     }
 }
 
+// Only form controls carry a disabled state; a disabling ancestor says nothing about the text and
+// generic boxes between them, which Chrome leaves unmarked.
+fn takes_disabled(name: &str) -> bool {
+    matches!(
+        name,
+        "input" | "textarea" | "select" | "button" | "option" | "optgroup" | "fieldset"
+    )
+}
+
 fn focusable(node: &Node, name: &str) -> bool {
     if attr(node, "disabled").is_some() {
         return false;
@@ -1972,10 +1988,16 @@ impl Context<'_> {
             .map(|v| string_value("string", v))
     }
 
-    fn properties(&self, node: &Node, name: &str, role: &str, depth: usize) -> Vec<Property> {
+    fn properties(
+        &self,
+        node: &Node,
+        name: &str,
+        role: &str,
+        inherited: Inherited,
+    ) -> Vec<Property> {
         let mut properties = Vec::new();
-        self.identity_properties(&mut properties, node, name, role, depth);
-        self.state_properties(&mut properties, node, name);
+        self.identity_properties(&mut properties, node, name, role, inherited);
+        self.state_properties(&mut properties, node, name, inherited);
         self.value_properties(&mut properties, node, name);
         keep_last_of_each(&mut properties);
         properties
@@ -1988,8 +2010,9 @@ impl Context<'_> {
         node: &Node,
         name: &str,
         role: &str,
-        depth: usize,
+        inherited: Inherited,
     ) {
+        let depth = inherited.list_depth;
         if name.len() == 2 && name.starts_with('h') {
             if let Some(level @ b'1'..=b'6') = name.as_bytes().get(1).copied() {
                 out.push(Property::new(
@@ -2024,9 +2047,11 @@ impl Context<'_> {
             out.push(Property::new("url", string_value("string", url)));
         }
 
+        // A disabled fieldset takes focus from its descendants; aria-disabled does not, and an
+        // option keeps the focusability its own select decides (option_focusable).
         let is_focusable = match name {
             "option" => self.option_focusable(node),
-            _ => focusable(node, name),
+            _ => inherited.disabled_fieldsets == 0 && focusable(node, name),
         };
         if is_focusable {
             out.push(Property::new(
@@ -2051,7 +2076,13 @@ impl Context<'_> {
     }
 
     /// ARIA and HTML state flags, in the order the protocol serializes them.
-    fn state_properties(&self, out: &mut Vec<Property>, node: &Node, name: &str) {
+    fn state_properties(
+        &self,
+        out: &mut Vec<Property>,
+        node: &Node,
+        name: &str,
+        inherited: Inherited,
+    ) {
         for (property, aria) in [
             ("expanded", "aria-expanded"),
             ("disabled", "aria-disabled"),
@@ -2082,6 +2113,17 @@ impl Context<'_> {
                     out.push(Property::new(property, bool_value("boolean", true)));
                 }
             }
+        }
+        // Chrome reports the state the element is in, not only the attribute it carries: a
+        // disabled fieldset, select or optgroup disables what it holds, and so does aria-disabled.
+        let inherited_disabled = inherited.disabled_fieldsets > 0
+            || (inherited.disabled_choice && matches!(name, "option" | "optgroup"))
+            || inherited.aria_disabled;
+        if inherited_disabled && attr(node, "disabled").is_none() && takes_disabled(name) {
+            out.push(Property::new("disabled", bool_value("boolean", true)));
+        }
+        if name == "option" && attr(node, "disabled").is_some() {
+            out.push(Property::new("disabled", bool_value("boolean", true)));
         }
         if name == "input" && matches!(input_type(node).as_str(), "checkbox" | "radio") {
             let checked = self.index.checked.get(&self.id(node.id())).copied();
@@ -2292,6 +2334,17 @@ impl Context<'_> {
             next.layout_table = layout_table;
         }
         next.list_depth += usize::from(name == "ul" || name == "ol");
+        let self_disabled = attr(node, "disabled").is_some();
+        next.disabled_fieldsets += u32::from(name == "fieldset" && self_disabled);
+        if name == "legend" && self.escapes_disabled_fieldset(node) {
+            next.disabled_fieldsets = next.disabled_fieldsets.saturating_sub(1);
+        }
+        next.disabled_choice |= matches!(name.as_str(), "select" | "optgroup") && self_disabled;
+        match attr(node, "aria-disabled") {
+            Some("true") => next.aria_disabled = true,
+            Some("false") => next.aria_disabled = false,
+            _ => {}
+        }
 
         ElementStatus {
             tag_name: name,
@@ -2301,6 +2354,22 @@ impl Context<'_> {
             no_box,
             next,
         }
+    }
+
+    /// HTML disables a `<fieldset disabled>`'s descendants except those in its first `<legend>`.
+    fn escapes_disabled_fieldset(&self, node: &Node) -> bool {
+        let Some(parent) = node.parent_id().and_then(|id| self.doc.get_node(id)) else {
+            return false;
+        };
+        if tag(parent).as_str() != "fieldset" || attr(parent, "disabled").is_none() {
+            return false;
+        }
+        parent
+            .children()
+            .iter()
+            .filter_map(|id| self.doc.get_node(id))
+            .find(|child| tag(child).as_str() == "legend")
+            .is_some_and(|first| first.id() == node.id())
     }
 
     /// Whether the element lays out no box of its own.
@@ -2717,7 +2786,7 @@ impl Context<'_> {
         }
 
         let status = self.element_status(node, inherited);
-        self.write_element_node(out, node, parent, id, &status, inherited.list_depth);
+        self.write_element_node(out, node, parent, id, &status, inherited);
         let has_children = self.write_child_ids(out, node, status.no_box);
         if self.index.root_ax == Some(node.id()) {
             self.write_parent(out, node.id(), parent);
@@ -2768,7 +2837,7 @@ impl Context<'_> {
         parent: Option<NodeId>,
         id: u32,
         status: &ElementStatus<'_>,
-        list_depth: usize,
+        inherited: Inherited,
     ) {
         out.push_str(if status.reason.is_some() {
             ",\"ignored\":true"
@@ -2781,7 +2850,7 @@ impl Context<'_> {
         write_string(out, &self.req.frame_id);
         match status.reason {
             Some(reason) => self.write_ignored(out, reason),
-            None => self.write_element_ax(out, node, status, list_depth),
+            None => self.write_element_ax(out, node, status, inherited),
         }
         if self.index.root_ax != Some(node.id()) {
             self.write_parent(out, node.id(), parent);
@@ -2794,7 +2863,7 @@ impl Context<'_> {
         out: &mut S,
         node: &Node,
         status: &ElementStatus<'_>,
-        list_depth: usize,
+        inherited: Inherited,
     ) {
         let role_kind = if status.explicit.is_empty() {
             "internalRole"
@@ -2819,7 +2888,7 @@ impl Context<'_> {
             write_value(out, &value);
         }
 
-        let properties = self.properties(node, &status.tag_name, status.role, list_depth);
+        let properties = self.properties(node, &status.tag_name, status.role, inherited);
         if !properties.is_empty() {
             out.push_str(",\"properties\":[");
             for (index, property) in properties.iter().enumerate() {
