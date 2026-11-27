@@ -184,6 +184,7 @@ export interface PageScriptGlobals extends DomShimGlobals {
   PerformanceMeasure?: Function;
   PerformanceNavigationTiming?: Function;
   PerformanceObserver?: Function;
+  PerformanceObserverEntryList?: Function;
   OffscreenCanvas?: Function;
   Highlight?: Function;
   HighlightRegistry?: Function;
