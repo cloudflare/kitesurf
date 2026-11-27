@@ -3292,7 +3292,7 @@
   },
   "/css/css-grid/parsing/grid-content-sized-columns-resolution.html": {
     "expected": "FAIL",
-    "reason": null
+    "reason": "gridAutoMaxContentUnsorted expects the pre-csswg-drafts#3648 0px 90px; its constrained twin expects 40px 50px. WebKit passes only because justify-content: start keeps that grid off GFC"
   },
   "/css/css-grid/parsing/grid-row-invalid.html": {
     "expected": "PASS",
@@ -27719,7 +27719,7 @@
   },
   "/css/css-grid/abspos/grid-abspos-staticpos-align-self-safe-001.html": {
     "expected": "FAIL",
-    "reason": "Rebaselined 2026-09-16: measures PASS on main (CI and locally); the FAIL pin had drifted behind work that landed without a rebaseline."
+    "reason": "Boxes 3 and 4: the reference's auto-placed static position uses the content edge (taffy patch 0004, as Chrome does); the spec and Safari use the padding edge"
   },
   "/css/css-grid/abspos/grid-abspos-staticpos-align-self-self-end-large-border-padding.html": {
     "expected": "PASS",
@@ -28226,8 +28226,8 @@
     "reason": null
   },
   "/css/css-grid/grid-definition/grid-template-columns-fit-content-001.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "Reference expects the pre-csswg-drafts#3648 0px 95px for fit-content(40px) max-content; the spec gives the fit-content track its 40px. No engine runs fit-content on the new step"
   },
   "/css/css-grid/grid-definition/grid-template-rows-fit-content-001.html": {
     "expected": "FAIL",
@@ -40517,22 +40517,6 @@
     "expected": "FAIL",
     "reason": null
   },
-  "/css/css-borders/corner-shape/render-corner-shape.html?corner-shape=-2&border-radius=20%&border-width=20": {
-    "expected": "FAIL",
-    "reason": null
-  },
-  "/css/css-borders/corner-shape/render-corner-shape.html?corner-shape=-7&border-radius=20%&border-width=20": {
-    "expected": "FAIL",
-    "reason": null
-  },
-  "/css/css-borders/corner-shape/render-corner-shape.html?corner-shape=notch&border-radius=30&border-width=30": {
-    "expected": "FAIL",
-    "reason": null
-  },
-  "/css/css-borders/corner-shape/render-corner-shape.html?corner-shape=scoop&border-radius=20%&border-width=20": {
-    "expected": "FAIL",
-    "reason": null
-  },
   "/css/css-flexbox/getcomputedstyle/flexbox_computedstyle_align-content-flex-end.html": {
     "expected": "FAIL",
     "reason": null
@@ -40562,10 +40546,6 @@
     "reason": null
   },
   "/css/css-flexbox/getcomputedstyle/flexbox_computedstyle_justify-content-flex-start.html": {
-    "expected": "FAIL",
-    "reason": null
-  },
-  "/css/css-grid/grid-model/grid-gutters-and-flex-content-001.html": {
     "expected": "FAIL",
     "reason": null
   },
