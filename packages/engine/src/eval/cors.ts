@@ -330,6 +330,13 @@ function storePreflight(
   preflightCache.set(cacheKey(partition, origin, url, credentialsInclude), entry);
 }
 
+// https://fetch.spec.whatwg.org/#concept-cache-clear
+// The spec key has no credentials mode, so both of this cache's entries for the URL go.
+export function clearPreflightCacheEntries(partition: string, origin: string, url: string): void {
+  preflightCache.delete(cacheKey(partition, origin, url, false));
+  preflightCache.delete(cacheKey(partition, origin, url, true));
+}
+
 export function clearPreflightCache(): void {
   preflightCache.clear();
 }
