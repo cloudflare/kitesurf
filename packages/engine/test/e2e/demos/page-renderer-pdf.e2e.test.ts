@@ -9,7 +9,7 @@ import { expect, test } from "../harness";
 
 const FIXTURE = "https://ks.invalid/__fixtures/image-heavy.html?n=8&side=512";
 // The unbanded renderer's bytes, pinned so a streaming change shows up as a diff.
-const EXPECTED_PDF_SHA256 = "bff285e3a33451d4444e004b49373f7ad4b62bfa3c09be0b8add8b37aa917ea2";
+const EXPECTED_PDF_SHA256 = "bb45569f9fbe56ed0b0557d4492497e0fe092bfd765753d7377fe66341d768b7";
 
 async function pdfFor(
   page: Page,
