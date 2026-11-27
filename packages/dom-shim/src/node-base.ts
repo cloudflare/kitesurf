@@ -48,6 +48,8 @@ import {
   forgetNodeIds,
   adoptedWrapperIds,
   elemNs,
+  xmlOwned,
+  elementOwnerIsHtml,
   hostIdToDoc,
   nodeOwnerDoc,
   formPageProxy,
@@ -371,6 +373,14 @@ function copyElemNsToClone(sourceId: number, cloneId: number): void {
       fastpathMarkSpecial(cloneId);
     }
   }
+  // XML tagName casing lives in xmlOwned and the collection mode in
+  // elementOwnerIsHtml, so a deep clone has to carry both to its subtree.
+  if (xmlOwned.has(sourceId)) {
+    xmlOwned.add(cloneId);
+    fastpathMarkSpecial(cloneId);
+  }
+  const ownerIsHtml = elementOwnerIsHtml.get(sourceId);
+  if (ownerIsHtml !== undefined) elementOwnerIsHtml.set(cloneId, ownerIsHtml);
   let srcChildren: ArrayLike<number> = [];
   let cloneChildren: ArrayLike<number> = [];
   try {
@@ -925,10 +935,14 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       }
       if (nt === ELEMENT_NODE) {
         const nsEntry = elemNs.get(this._id);
+        const isXmlOwned = xmlOwned.has(this._id);
         let clone: Element;
         if (nsEntry && nsEntry.viaNS !== false) {
           clone = createElementNSInternal(nsEntry.ns, nsEntry.qname);
-        } else if (nsEntry && nsEntry.ns !== HTML_NS) {
+        } else if (nsEntry && (nsEntry.ns !== HTML_NS || isXmlOwned)) {
+          // An XML document's createElement stores the original case in
+          // elemNs while wasm has already lowercased the name, so rebuild
+          // from qname instead of this._info.localName.
           const id = dom.createElementNS(nsEntry.ns ?? "", nsEntry.qname);
           elemNs.set(id, { qname: nsEntry.qname, ns: nsEntry.ns, viaNS: false });
           clone = mintedNode(id, ELEMENT_NODE);
@@ -936,6 +950,12 @@ class NodeBase extends KsEventTarget implements Idl.Node {
           const tag = this._info.localName || this._info.nodeName || "div";
           clone = createElementInternal(tag);
         }
+        if (isXmlOwned) {
+          xmlOwned.add(clone._id);
+          fastpathMarkSpecial(clone._id);
+        }
+        const ownerIsHtml = elementOwnerIsHtml.get(this._id);
+        if (ownerIsHtml !== undefined) elementOwnerIsHtml.set(clone._id, ownerIsHtml);
         const attrs = this._attrFlat ? this._attrFlat() : [];
         for (let i = 0; i < attrs.length - 1; i += 2) {
           try {

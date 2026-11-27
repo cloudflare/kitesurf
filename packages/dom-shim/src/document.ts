@@ -2225,6 +2225,20 @@ class DetachedDocument implements Idl.Document {
         enumerable: false,
       });
     }
+    // The clone keeps the creator's element mode: an HTML document clones to
+    // an HTML document, and an XML document keeps createDocument's namespace.
+    if (this._isHtml) {
+      Object.defineProperty(c, "_isHtml", {
+        value: true,
+        enumerable: false,
+      });
+    }
+    if (this._createElementNs !== undefined) {
+      Object.defineProperty(c, "_createElementNs", {
+        value: this._createElementNs,
+        enumerable: false,
+      });
+    }
     if (deep) {
       for (const child of this.childNodes) {
         if (child && typeof child.cloneNode === "function") {
