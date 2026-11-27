@@ -101,10 +101,10 @@ index 0409f2a..96645c2 100644
              Resource::None => {
                  // Do nothing
 diff --git a/src/mutator.rs b/src/mutator.rs
-index f13ed53..c6d4d0d 100644
+index c9840fb..17335aa 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
-@@ -1747,6 +1747,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1757,6 +1757,7 @@ impl<'doc> DocumentMutator<'doc> {
                  && !parent_id.is_some_and(|parent_id| doc.is_non_rendered_text_parent(parent_id))
              {
                  if let Some(text) = doc.nodes[node_id].text_data() {

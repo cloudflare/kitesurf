@@ -26,8 +26,8 @@ Chrome. A number field's spin button is not counted.
 ---
  src/font_metrics.rs | 24 +++++++++++++++++++
  src/layout/mod.rs   | 58 +++++++++++++++++++++++++++++++++++++++------
- src/mutator.rs      | 12 +++++++++-
- 3 files changed, 86 insertions(+), 8 deletions(-)
+ src/mutator.rs      | 22 ++++++++++++++++-
+ 3 files changed, 96 insertions(+), 8 deletions(-)
 
 diff --git a/src/font_metrics.rs b/src/font_metrics.rs
 index c9fa6e3..8ce2908 100644
@@ -152,7 +152,7 @@ index c8c97f7..71b18a5 100644
                                  },
                              ));
 diff --git a/src/mutator.rs b/src/mutator.rs
-index 105e43e..371766d 100644
+index 105e43e..351e48c 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
 @@ -8,7 +8,7 @@ use std::collections::HashSet;
@@ -180,4 +180,21 @@ index 105e43e..371766d 100644
 +        }
 
          let NodeData::Element(ref mut element) = node.data else {
+             return;
+@@ -670,6 +680,16 @@ impl DocumentMutator<'_> {
+         }
+
+         let node = &mut self.doc.nodes[node_id];
++        let text_field_size_removed = name.ns == ns!()
++            && name.local == local_name!("size")
++            && node.element_data().is_some_and(|element| {
++                element.name.local == local_name!("input")
++                    && element.attr(local_name!("size")).is_some()
++            });
++        if node_is_in_document && text_field_size_removed {
++            // As in `set_attribute`: layout reads the size outside Stylo's style diff.
++            node.insert_damage(ONLY_RELAYOUT);
++        }
+
+         let Some(element) = node.element_data_mut() else {
              return;

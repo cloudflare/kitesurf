@@ -745,7 +745,7 @@ index eb39c5b..5e52448 100644
                      return;
                  }
 diff --git a/src/mutator.rs b/src/mutator.rs
-index 84c6212..f13ed53 100644
+index 419adc5..c9840fb 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
 @@ -647,6 +647,15 @@ impl DocumentMutator<'_> {
@@ -764,7 +764,7 @@ index 84c6212..f13ed53 100644
          }
 
          self.note_possible_slot_reassignment(node_id, &name.local);
-@@ -1084,10 +1093,11 @@ impl DocumentMutator<'_> {
+@@ -1094,10 +1103,11 @@ impl DocumentMutator<'_> {
                  self.doc.nodes[*id].set_restyle_hint(RestyleHint::restyle_subtree());
              }
              // `:has()` anchors reading an edge or `:nth-*` position, per Gecko's
@@ -779,7 +779,7 @@ index 84c6212..f13ed53 100644
              ];
              for (id, state) in edge.into_iter().zip(edge_states) {
                  if let Some(id) = id {
-@@ -2076,7 +2086,7 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -2086,7 +2096,7 @@ impl<'doc> DocumentMutator<'doc> {
      fn unload_stylesheet(&mut self, node_id: NodeId) {
          let node = &mut self.doc.nodes[node_id];
          let Some(element) = node.element_data_mut() else {

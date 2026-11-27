@@ -1,0 +1,82 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 27 Nov 2026 10:16:05 +0000
+Subject: [PATCH] Index the child list in child-list restyles instead of
+ copying it
+
+restyle_for_child_list_change runs once per inserted or removed node.
+Upstream moves the parent's child Vec out with mem::take, which is O(1);
+the packed node storage cannot do that, so the rebase copied the whole
+list on every call. Parsing a flat list of N siblings became O(N^2): a
+document with 60,000 spans took 6.3 s to parse natively, and the WPT
+encoding tests and a 180,000-node innerHTML timed out in wasm.
+
+Read the list through ChildIds::get and collect only the later siblings
+when a selector needs them. 60,000 spans now parse in 55 ms.
+---
+ src/mutator.rs | 38 +++++++++++++++++++++-----------------
+ 1 file changed, 21 insertions(+), 17 deletions(-)
+
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 17335aa..69e33f3 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -1077,29 +1077,33 @@ impl DocumentMutator<'_> {
+                 let empty = TSStateForInvalidation::EMPTY;
+                 self.doc.invalidate_relative_selector_ts_dependency(parent_id, empty);
+             }
+-            let children = self.doc.nodes[parent_id].children().to_vec();
+-            let later = if flags.contains(ElementSelectorFlags::HAS_SLOW_SELECTOR_LATER_SIBLINGS) {
+-                changed.end..children.len()
+-            } else {
+-                0..0
+-            };
++            // Index the child list rather than copy it: this runs once per inserted node, so a
++            // copy made parsing a flat list of siblings quadratic.
++            let children = self.doc.nodes[parent_id].children();
++            let len = children.len();
++            let later: Vec<NodeId> =
++                if flags.contains(ElementSelectorFlags::HAS_SLOW_SELECTOR_LATER_SIBLINGS) {
++                    (changed.end..len).filter_map(|i| children.get(i)).collect()
++                } else {
++                    Vec::new()
++                };
+             // The element children that were first/last before an insertion, or are after a
+             // removal; text nodes don't count for `:first-child`/`:last-child`.
+             let mut edge = [None, None];
+             if flags.contains(ElementSelectorFlags::HAS_EDGE_CHILD_SELECTOR) {
+-                let is_element = |id: &NodeId| self.doc.nodes[*id].is_element();
+-                if !children[..changed.start].iter().any(is_element) {
+-                    edge[0] = children[changed.end..].iter().copied().find(is_element);
++                let element_at = |i: usize| {
++                    children
++                        .get(i)
++                        .filter(|id| self.doc.nodes[*id].is_element())
++                };
++                if !(0..changed.start).any(|i| element_at(i).is_some()) {
++                    edge[0] = (changed.end..len).find_map(element_at);
+                 }
+-                if !children[changed.end..].iter().any(is_element) {
+-                    edge[1] = children[..changed.start]
+-                        .iter()
+-                        .rev()
+-                        .copied()
+-                        .find(is_element);
++                if !(changed.end..len).any(|i| element_at(i).is_some()) {
++                    edge[1] = (0..changed.start).rev().find_map(element_at);
+                 }
+             }
+-            for id in children[later.clone()].iter().chain(edge.iter().flatten()) {
++            for id in later.iter().chain(edge.iter().flatten()) {
+                 self.doc.nodes[*id].set_restyle_hint(RestyleHint::restyle_subtree());
+             }
+             // `:has()` anchors reading an edge or `:nth-*` position, per Gecko's
+@@ -1116,7 +1120,7 @@ impl DocumentMutator<'_> {
+             }
+             if flags.intersects(NTH_FLAGS) {
+                 let nth = TSStateForInvalidation::NTH;
+-                for &id in children[later].iter().filter(|&&id| self.doc.nodes[id].is_element()) {
++                for &id in later.iter().filter(|&&id| self.doc.nodes[id].is_element()) {
+                     self.doc.invalidate_relative_selector_ts_dependency(id, nth);
+                 }
+             }

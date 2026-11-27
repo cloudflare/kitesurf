@@ -14,10 +14,10 @@ it queues it again.
  1 file changed, 10 insertions(+)
 
 diff --git a/src/mutator.rs b/src/mutator.rs
-index 9846f5e..6be1c0a 100644
+index 527a7f9..ac0be09 100644
 --- a/src/mutator.rs
 +++ b/src/mutator.rs
-@@ -1551,6 +1551,16 @@ impl<'doc> DocumentMutator<'doc> {
+@@ -1561,6 +1561,16 @@ impl<'doc> DocumentMutator<'doc> {
          // A first sheet is parsed now so its @import and @font-face loads start
          // early; replacing an already registered one waits for resolve.
          for id in self.style_nodes.drain() {
