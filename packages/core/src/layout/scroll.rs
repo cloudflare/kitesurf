@@ -68,7 +68,23 @@ fn effective_overflow_clips(doc: &BaseDocument, node: &Node) -> (bool, bool) {
     if doc.propagates_overflow_to_viewport(node.id()) {
         return (false, false);
     }
+    // CSS Contain 2: layout or paint containment confines a box's scrollable
+    // overflow to its border box, which is how Taffy scores its contribution.
+    use ::style::values::computed::Contain;
+    if node.primary_styles().is_some_and(|styles| {
+        styles
+            .clone_contain()
+            .intersects(Contain::LAYOUT | Contain::PAINT)
+    }) {
+        return (true, true);
+    }
     overflow_clips(node)
+}
+
+fn is_rtl(node: &Node) -> bool {
+    use ::style::properties::generated::longhands::direction::computed_value::T as Direction;
+    node.primary_styles()
+        .is_some_and(|styles| styles.clone_direction() == Direction::Rtl)
 }
 
 fn subtree_has_unclipped_transform(doc: &BaseDocument, node_id: NodeId) -> bool {
@@ -92,38 +108,51 @@ fn subtree_has_unclipped_transform(doc: &BaseDocument, node_id: NodeId) -> bool 
     false
 }
 
-// Compute a child's scrollable overflow contribution in its parent's coordinate
-// space after applying its CSS `transform` and own overflow clipping.
+// Compute a child's scrollable overflow end in its parent's logical coordinate
+// space after applying the child's CSS `transform` and own overflow clipping.
+// Coordinates are measured from the parent's padding-box origin along its inline
+// (mirrored for RTL) and block axes, matching Taffy's scrollable overflow
+// rectangle.
 // https://drafts.csswg.org/css-overflow-3/#scrollable
-fn transformed_child_bottom_right(doc: &BaseDocument, child: &Node, scale: f64) -> (f32, f32) {
+fn transformed_child_overflow_end(
+    doc: &BaseDocument,
+    parent: &Node,
+    child: &Node,
+    scale: f64,
+) -> (f32, f32) {
     let layout = child.final_layout();
     let (clip_x, clip_y) = effective_overflow_clips(doc, child);
-    let (own_right, own_bottom) = if clip_x && clip_y {
-        (layout.size.width, layout.size.height)
-    } else if subtree_has_unclipped_transform(doc, child.id()) {
-        let (r, b) = transformed_overflow_extent(doc, child.id(), scale);
-        (
-            if clip_x { layout.size.width } else { r },
-            if clip_y { layout.size.height } else { b },
-        )
+    // Taffy ends a contribution at `max(border-box size, scrollable overflow)`;
+    // a clipped axis contributes only the border box.
+    let (mut own_right, mut own_bottom) = (layout.size.width, layout.size.height);
+    if !(clip_x && clip_y) {
+        let (overflow_right, overflow_bottom) = if subtree_has_unclipped_transform(doc, child.id())
+        {
+            transformed_overflow_extent(doc, child.id(), scale)
+        } else {
+            (
+                layout.scrollable_overflow_rect.right,
+                layout.scrollable_overflow_rect.bottom,
+            )
+        };
+        if !clip_x {
+            own_right = own_right.max(overflow_right);
+        }
+        if !clip_y {
+            own_bottom = own_bottom.max(overflow_bottom);
+        }
+    }
+    // The extent runs from the child's inline-start border edge: physically the
+    // left edge for RTL.
+    let local_left = if is_rtl(child) {
+        layout.size.width - own_right
     } else {
-        (
-            if clip_x {
-                layout.size.width
-            } else {
-                layout.size.width + layout.scroll_width()
-            },
-            if clip_y {
-                layout.size.height
-            } else {
-                layout.size.height + layout.scroll_height()
-            },
-        )
+        0.0
     };
     let local = Rect::new(
+        local_left as f64 * scale,
         0.0,
-        0.0,
-        own_right as f64 * scale,
+        (local_left + own_right) as f64 * scale,
         own_bottom as f64 * scale,
     );
     let translate = Affine::translate((
@@ -135,7 +164,21 @@ fn transformed_child_bottom_right(doc: &BaseDocument, child: &Node, scale: f64) 
         None => translate,
     };
     let bbox = full.transform_rect_bbox(local);
-    ((bbox.x1 / scale) as f32, (bbox.y1 / scale) as f32)
+    let parent_layout = parent.final_layout();
+    let (right, bottom) = if is_rtl(parent) {
+        (
+            parent_layout.size.width as f64 * scale
+                - bbox.x0
+                - parent_layout.border.right as f64 * scale,
+            bbox.y1 - parent_layout.border.top as f64 * scale,
+        )
+    } else {
+        (
+            bbox.x1 - parent_layout.border.left as f64 * scale,
+            bbox.y1 - parent_layout.border.top as f64 * scale,
+        )
+    };
+    ((right / scale) as f32, (bottom / scale) as f32)
 }
 
 fn transformed_overflow_extent(doc: &BaseDocument, node_id: NodeId, scale: f64) -> (f32, f32) {
@@ -143,16 +186,18 @@ fn transformed_overflow_extent(doc: &BaseDocument, node_id: NodeId, scale: f64) 
         return (0.0, 0.0);
     };
     let layout = node.final_layout();
+    let scroll_container = is_scroll_container(node);
     // An inline root's text extent is absent from `layout_children` (which holds
     // only atomic inline boxes), so seed from Taffy's unclipped extent for inline
-    // roots while block containers recompute from their transformed children.
+    // roots. Block containers rebuild from their transformed children because a
+    // transform can move a child back inside the scroll origin.
     let (mut max_right, mut max_bottom) = if node.flags.is_inline_root() {
         (
-            layout.size.width + layout.scroll_width(),
-            layout.size.height + layout.scroll_height(),
+            layout.scrollable_overflow_rect.right,
+            layout.scrollable_overflow_rect.bottom,
         )
     } else {
-        (layout.size.width, layout.size.height)
+        (0.0, 0.0)
     };
     let mut children = Vec::new();
     collect_overflow_children(node, &mut children);
@@ -160,9 +205,19 @@ fn transformed_overflow_extent(doc: &BaseDocument, node_id: NodeId, scale: f64) 
         let Some(child) = doc.get_node(child_id) else {
             continue;
         };
-        let (r, b) = transformed_child_bottom_right(doc, child, scale);
-        max_right = max_right.max(r);
-        max_bottom = max_bottom.max(b);
+        let (right, bottom) = transformed_child_overflow_end(doc, node, child, scale);
+        max_right = max_right.max(right);
+        max_bottom = max_bottom.max(bottom);
+    }
+    // A scroll container's own end padding is part of its scrollable overflow
+    // region; an inline root's extent already includes its padding.
+    if scroll_container && !node.flags.is_inline_root() {
+        max_right += if is_rtl(node) {
+            layout.padding.left
+        } else {
+            layout.padding.right
+        };
+        max_bottom += layout.padding.bottom;
     }
     (max_right, max_bottom)
 }
@@ -172,10 +227,19 @@ fn node_scroll_excess(doc: &BaseDocument, node: &Node, scale: f64) -> (f32, f32)
     if !subtree_has_unclipped_transform(doc, node.id()) {
         return (layout.scroll_width(), layout.scroll_height());
     }
+    // The same reachable extent Taffy derives from `scrollable_overflow_rect`,
+    // over the transform-aware overflow rectangle.
     let (right, bottom) = transformed_overflow_extent(doc, node.id(), scale);
+    let scrollbar = layout.scrollbar_size;
     (
-        (right - layout.size.width).max(0.0),
-        (bottom - layout.size.height).max(0.0),
+        (right + scrollbar.width.min(layout.size.width) - layout.size.width
+            + layout.border.left
+            + layout.border.right)
+            .max(0.0),
+        (bottom + scrollbar.height.min(layout.size.height) - layout.size.height
+            + layout.border.top
+            + layout.border.bottom)
+            .max(0.0),
     )
 }
 
@@ -391,7 +455,7 @@ impl DomHandle {
                 });
                 if let Some(body) = body_node {
                     let (body_right, body_bottom) =
-                        transformed_child_bottom_right(&doc, body, scale);
+                        transformed_child_overflow_end(&doc, node, body, scale);
                     scroll_width = (body_right - root_client_width).max(0.0);
                     scroll_height = (body_bottom - root_client_height).max(0.0);
                 }
@@ -411,7 +475,7 @@ impl DomHandle {
                         continue;
                     }
                     let (child_right, child_bottom) =
-                        transformed_child_bottom_right(&doc, child, scale);
+                        transformed_child_overflow_end(&doc, node, child, scale);
                     scroll_width = scroll_width.max(child_right - root_client_width);
                     scroll_height = scroll_height.max(child_bottom - root_client_height);
                 }
