@@ -1067,7 +1067,12 @@ fn svg_canvas_bbox(
         }
     };
     if let Some(unode) = tree.node_by_id(key) {
-        return unode.bounding_box()?.transform(unode.abs_transform());
+        // usvg gives a kept node with no geometry, such as an empty `<g>`, no box; Chrome reports
+        // an empty box at the node's transformed origin.
+        let bbox = unode
+            .bounding_box()
+            .or_else(|| usvg::Rect::from_xywh(0.0, 0.0, 0.0, 0.0))?;
+        return bbox.transform(unode.abs_transform());
     }
     if depth >= 32 {
         return None;

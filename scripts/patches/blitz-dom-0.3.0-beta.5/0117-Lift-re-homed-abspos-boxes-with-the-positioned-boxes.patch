@@ -19,13 +19,19 @@ block, the box is lifted there too, in tree order among the lifted boxes, and
 painted from its containing block. Behind a clip or stacking context it stays
 re-homed.
 
+An incremental resolve rebuilds the static parent's paint list only when
+its stored re-home state is stale, so that check now expects the lifted
+state too. Without it, a layer root going away between the parent and the
+containing block left the box re-homed until a full layout, and every
+rebuild of a lifted box's containing block damaged its static parent.
+
 beep-boop-🤖
 ---
- src/layout/paint_tree.rs | 42 +++++++++++++++++++++++++++++++++++++++-
- 1 file changed, 41 insertions(+), 1 deletion(-)
+ src/layout/paint_tree.rs | 49 ++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 47 insertions(+), 2 deletions(-)
 
 diff --git a/src/layout/paint_tree.rs b/src/layout/paint_tree.rs
-index 22b6537..bdab6d3 100644
+index 22b6537..3f09931 100644
 --- a/src/layout/paint_tree.rs
 +++ b/src/layout/paint_tree.rs
 @@ -340,7 +340,24 @@ impl BaseDocument {
@@ -84,3 +90,17 @@ index 22b6537..bdab6d3 100644
      /// Whether `node_id` (an out-of-flow box hoisted past its flow
      /// parent) paints under its flow parent rather than its containing block.
      /// Only boxes with `z-index: auto`/`0`: their paint order is tree order
+@@ -532,7 +572,12 @@ impl BaseDocument {
+                 continue;
+             }
+             let rehomed = child.paint_parent_override() == Some(flow_parent);
+-            if self.paints_rehomed(id) == rehomed {
++            // A box its flow parent would lift paints from here, not re-homed; a layer root
++            // appearing or going away between them flips that without damaging the host.
++            let lifted = self.nodes.get(flow_parent).is_some_and(|parent| {
++                !parent.is_paint_layer_root() && !parent.is_stacking_context_root(false)
++            }) && self.containing_block_is_next_layer_root(flow_parent, id);
++            if (self.paints_rehomed(id) && !lifted) == rehomed {
+                 continue;
+             }
+             let mut cur = Some(flow_parent);

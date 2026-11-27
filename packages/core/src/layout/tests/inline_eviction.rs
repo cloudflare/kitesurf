@@ -472,6 +472,25 @@ fn width_changes_place_absolute_boxes_of_evicted_roots() {
     );
 }
 
+/// A block-level absolutely positioned box with only a horizontal inset takes its static y
+/// from the line it follows, which a summary does not keep, so its root stays shaped and the
+/// box lands where a live layout puts it.
+#[test]
+fn block_level_absolute_box_without_block_inset_keeps_its_root() {
+    let html = annotated_page().replace("right: 0.3em; top: 0.2em;", "right: 0.3em;");
+    let (keep, evict) = with_and_without_eviction(&html);
+    assert!(
+        !is_evicted(&evict, "o39"),
+        "a root whose box needs its line evicted"
+    );
+    let height = page_height(&keep);
+    assert_eq!(
+        keep.render_scene(0, height - 600, 0, 0, false, true),
+        evict.render_scene(0, height - 600, 0, 0, false, true),
+        "scene differs at the bottom"
+    );
+}
+
 /// Roots with absolutely positioned boxes at their static inline position, at four
 /// alignment inputs: an IDL pre block, plain, RTL and centred text.
 fn static_offset_page() -> String {

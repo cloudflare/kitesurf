@@ -174,3 +174,28 @@ fn shape_usvg_dropped_reports_no_box() {
     dom.resolve_layout();
     assert_eq!(rect_of(&dom, "#hidden"), (0.0, 0.0, 0.0, 0.0));
 }
+
+#[test]
+fn empty_group_reports_its_transformed_position() {
+    // usvg keeps a childless group but gives it no bounding box; Chrome reports the empty box at
+    // the group's transformed origin.
+    let dom = DomHandle::new(
+        r#"<!DOCTYPE html><style>body { margin: 0 }</style>
+        <svg width="300" height="200">
+          <g id="empty" transform="translate(70, 80)"></g>
+          <rect id="sibling" x="10" y="20" width="30" height="40"/>
+        </svg>"#,
+        "https://test.example/",
+    );
+    dom.resolve_layout();
+    assert_rect(
+        rect_of(&dom, "#empty"),
+        (70.0, 80.0, 0.0, 0.0),
+        "empty group",
+    );
+    assert_rect(
+        rect_of(&dom, "#sibling"),
+        (10.0, 20.0, 30.0, 40.0),
+        "sibling",
+    );
+}

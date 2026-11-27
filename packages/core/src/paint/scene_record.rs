@@ -269,6 +269,14 @@ impl RecordingScene {
         }
     }
 
+    /// The area that can show, in recording space: `paint_scene` scrolls the render region to
+    /// the origin, and a full-page capture's viewport is the page. Pattern fallbacks skip tiles
+    /// outside it; with no viewport set, they tile the shape's whole bounding box.
+    fn cull_rect(&self) -> Option<kurbo::Rect> {
+        (self.viewport_w > 0 && self.render_h > 0)
+            .then(|| kurbo::Rect::new(0.0, 0.0, self.viewport_w.into(), self.render_h.into()))
+    }
+
     pub fn set_render_region(&mut self, render_top_y: u32, render_h: u32) {
         self.render_top_y = render_top_y;
         self.render_h = render_h;
@@ -1389,6 +1397,7 @@ impl anyrender::PaintScene for RecordingScene {
     ) {
         let paint_ref: PaintRef<'p> = brush.into();
         if let Paint::Pattern(pattern) = paint_ref {
+            let cull_rect = self.cull_rect();
             anyrender::stroke_pattern_tiles(
                 self,
                 pattern,
@@ -1396,7 +1405,7 @@ impl anyrender::PaintScene for RecordingScene {
                 transform,
                 brush_transform,
                 shape,
-                None,
+                cull_rect,
             );
             return;
         }
@@ -1446,6 +1455,7 @@ impl anyrender::PaintScene for RecordingScene {
     ) {
         let paint_ref: PaintRef<'p> = brush.into();
         if let Paint::Pattern(pattern) = paint_ref {
+            let cull_rect = self.cull_rect();
             anyrender::fill_pattern_tiles(
                 self,
                 pattern,
@@ -1453,7 +1463,7 @@ impl anyrender::PaintScene for RecordingScene {
                 transform,
                 brush_transform,
                 shape,
-                None,
+                cull_rect,
             );
             return;
         }
@@ -1491,6 +1501,7 @@ impl anyrender::PaintScene for RecordingScene {
     ) {
         let paint_ref: PaintRef<'p> = brush.into();
         if let Paint::Pattern(pattern) = paint_ref {
+            let cull_rect = self.cull_rect();
             anyrender::draw_glyphs_pattern_tiles(
                 self,
                 pattern,
@@ -1504,7 +1515,7 @@ impl anyrender::PaintScene for RecordingScene {
                 transform,
                 glyph_transform,
                 glyphs,
-                None,
+                cull_rect,
             );
             return;
         }
@@ -1969,6 +1980,40 @@ mod tests {
     use super::*;
     use anyrender::PaintScene as _;
     use kurbo::Rect;
+
+    #[test]
+    fn pattern_fills_tile_only_the_visible_area() {
+        let mut tile_scene = anyrender::recording::Scene::new();
+        tile_scene.fill(
+            PenikoFill::NonZero,
+            Affine::IDENTITY,
+            Color::BLACK,
+            None,
+            &Rect::new(0.0, 0.0, 5.0, 5.0),
+            AntiAliasing::Enabled,
+        );
+        let pattern = anyrender::Pattern::new(tile_scene, Rect::new(0.0, 0.0, 10.0, 10.0));
+        let fill_tall_box = |scene: &mut RecordingScene| {
+            let tall = Rect::new(0.0, 0.0, 1280.0, 20_000.0);
+            let aa = AntiAliasing::Enabled;
+            scene.fill(
+                PenikoFill::NonZero,
+                Affine::IDENTITY,
+                &pattern,
+                None,
+                &tall,
+                aa,
+            );
+            scene.op_count()
+        };
+        let mut culled = RecordingScene::new();
+        culled.set_viewport(1280, 720, 0, 0);
+        let mut unbounded = RecordingScene::new();
+        // 128 by 72 tiles of the 1280 by 720 viewport, against 128 by 2000 for the whole box.
+        let (culled, unbounded) = (fill_tall_box(&mut culled), fill_tall_box(&mut unbounded));
+        assert!(culled < 40_000, "{culled} ops");
+        assert!(unbounded > 200_000, "{unbounded} ops");
+    }
 
     #[test]
     fn image_hash_separates_bytes_lengths_and_lanes() {
