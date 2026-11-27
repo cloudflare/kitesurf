@@ -167,11 +167,12 @@ fn over_budget_svg_layer_is_skipped_and_the_rest_of_the_page_paints() {
 }
 
 /// A text node is two usvg nodes but one outline per glyph, and only the
-/// outlines cost anything per tile. 200 glyphs over 3969 tiles is 810k units,
-/// so the layer is skipped; charging the two nodes alone would paint it.
+/// outlines cost anything per tile. 200 glyphs over the 7500 tiles that reach
+/// an 800x600 viewport is 1.5M units, so the layer is skipped; charging the
+/// two nodes alone (15k) would paint it.
 #[test]
 fn text_heavy_repeated_svg_is_charged_by_its_glyphs() {
-    let html = page(&text_svg(200, "black"), 16, 1000, 1);
+    let html = page(&text_svg(200, "black"), 8, 1000, 1);
     let png = render_png(&html, 800, 600);
     assert_eq!(
         count_color(&png, [0, 0, 0]),
@@ -186,14 +187,15 @@ fn text_heavy_repeated_svg_is_charged_by_its_glyphs() {
 /// paints while the budget lasts and is skipped once the shared tree spent it.
 #[test]
 fn many_elements_sharing_one_over_budget_svg_drain_the_budget() {
-    // 6001 nodes over 10x10 tiles is past the budget, so each layer is refused
-    // after visiting 5243 nodes, and 800 of them leave 120 units.
+    // 6001 nodes over the 14x11 tiles that reach an 800x600 viewport is past
+    // the budget, so each layer is refused after visiting 3404 nodes, and 800
+    // of them leave nothing.
     let over = data_url(&triangles_svg(6000, "lime"));
     let under = data_url(&dot_svg("blue"));
     let html = format!(
         "<!doctype html><style>html,body{{margin:0;background:#fff}}div{{position:absolute;left:0;top:0}}\
          .over{{width:1000px;height:1000px;background-image:url(\"{over}\");\
-         background-size:100px 100px;background-repeat:repeat}}\
+         background-size:60px 60px;background-repeat:repeat}}\
          .under{{width:496px;height:496px;background-image:url(\"{under}\");\
          background-size:8px 8px;background-repeat:repeat}}\
          .solid{{left:600px;width:120px;height:120px;background:#ff0000}}</style>\
@@ -225,7 +227,7 @@ fn over_budget_svg_layer_inside_an_iframe_is_skipped() {
     let over = data_url(&rects_svg(400, "lime"));
     let inner = format!(
         "<!doctype html><style>html,body{{margin:0}}div{{width:1000px;height:1000px;\
-         background-image:url(\"{over}\");background-size:16px 16px;background-repeat:repeat}}\
+         background-image:url(\"{over}\");background-size:4px 4px;background-repeat:repeat}}\
          </style><div></div>"
     );
     let html = format!(

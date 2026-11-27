@@ -12,17 +12,37 @@ Map HTML `valign` attributes on table row groups, rows, and cells to Stylo's
 
 Honour percentage widths on `<col>` and single-column cells under
 `table-layout: auto` using `minmax(min-content, pct)` tracks with cumulative
-percentages capped at 100% per CSS Tables 3 §3.9.4.
+percentages capped at 100% per CSS Tables 3 §3.9.4. A cell percentage resolves
+against the table's inline size, so it only applies when that size is definite;
+an auto-width (shrink-to-fit) table keeps its content sizing.
 ---
- src/layout/table.rs | 51 ++++++++++++++++++++++++++++++++++++++-------
- src/stylo.rs        | 40 +++++++++++++++++++++++++++++++++++
- 2 files changed, 83 insertions(+), 8 deletions(-)
+ src/layout/table.rs | 69 +++++++++++++++++++++++++++++++++++++++------
+ src/stylo.rs        | 40 ++++++++++++++++++++++++++
+ 2 files changed, 101 insertions(+), 8 deletions(-)
 
 diff --git a/src/layout/table.rs b/src/layout/table.rs
-index f20ff15..3a83a11 100644
+index 7d0a9a6..503b4d5 100644
 --- a/src/layout/table.rs
 +++ b/src/layout/table.rs
-@@ -410,14 +410,6 @@ pub(crate) fn build_table_context(
+@@ -408,6 +408,17 @@ pub(crate) fn build_table_context(
+         TableLayout::Fixed => !style.size.width.is_auto(),
+         TableLayout::Auto => false,
+     };
++    // A percentage column width resolves against the table's own inline size,
++    // so it only constrains an auto-layout table whose inline size is definite.
++    // An auto-width table is sized from its content (shrink-to-fit), where a
++    // percentage maximum would collapse the column to its min-content width and
++    // wrap the cell text. `min-content`, `max-content`, `fit-content()` and
++    // `stretch` are content-based, not definite, so they keep content sizing
++    // too.
++    let table_width_is_definite = matches!(
++        style.size.width.expand(),
++        taffy::ExpandedDimension::Length(_) | taffy::ExpandedDimension::Percent(_)
++    );
+
+     let border_collapse = stylo_styles.clone_border_collapse();
+     let border_spacing = stylo_styles.clone_border_spacing().0;
+@@ -419,14 +430,6 @@ pub(crate) fn build_table_context(
      for child_id in children.ids() {
          collect_columns(doc, child_id, wm, &mut columns, &mut column_sizes);
      }
@@ -37,7 +57,15 @@ index f20ff15..3a83a11 100644
      let mut first_cell_border: Option<ServoArc<Border>> = None;
      // Percentage widths set on first-row cells: (column index, percentage, padding + border)
      let mut percent_columns: Vec<(u16, f32, f32)> = Vec::new();
-@@ -475,6 +467,26 @@ pub(crate) fn build_table_context(
+@@ -453,6 +456,7 @@ pub(crate) fn build_table_context(
+                 child_id,
+                 wm,
+                 is_fixed,
++                table_width_is_definite,
+                 border_collapse,
+                 &mut row,
+                 &mut cursor,
+@@ -484,6 +488,26 @@ pub(crate) fn build_table_context(
      }
      let num_columns = cursor.num_columns.max(column_sizes.len() as u16);
      column_sizes.resize(num_columns as usize, remaining_column);
@@ -64,16 +92,43 @@ index f20ff15..3a83a11 100644
      // With no other column to take the table's spare width, the columns that
      // cell widths size (`min_content_ignores_width`) share it: an `auto` maximum stretches.
      if !column_sizes.iter().any(|column| column.max.is_auto()) {
-@@ -940,6 +952,29 @@ fn collect_table_cells(
+@@ -751,6 +775,7 @@ fn collect_table_cells(
+     node_id: NodeId,
+     wm: WritingMode,
+     is_fixed: bool,
++    table_width_is_definite: bool,
+     border_collapse: BorderCollapse,
+     row: &mut u16,
+     cursor: &mut ColumnCursor,
+@@ -805,6 +830,7 @@ fn collect_table_cells(
+                     child_id,
+                     wm,
+                     is_fixed,
++                    table_width_is_definite,
+                     border_collapse,
+                     row,
+                     cursor,
+@@ -850,6 +876,7 @@ fn collect_table_cells(
+                     child_id,
+                     wm,
+                     is_fixed,
++                    table_width_is_definite,
+                     border_collapse,
+                     row,
+                     cursor,
+@@ -967,6 +994,32 @@ fn collect_table_cells(
                      columns.resize(col as usize, style_helpers::auto());
                      columns.push(column);
                  }
 +            } else if !is_fixed
++                && table_width_is_definite
 +                && colspan == 1
 +                && style.size.width.tag() == taffy::CompactLength::PERCENT_TAG
 +            {
 +                // CSS Tables 3 §3.9.4: record the largest percentage width
-+                // declared on any single-column cell in this column.
++                // declared on any single-column cell in this column. The
++                // percentage resolves against the table's inline size, so an
++                // auto-width (shrink-to-fit) table keeps its content sizing.
 +                let pct = style.size.width.value();
 +                if pct > 0.0 {
 +                    if (col as usize) >= columns.len() {

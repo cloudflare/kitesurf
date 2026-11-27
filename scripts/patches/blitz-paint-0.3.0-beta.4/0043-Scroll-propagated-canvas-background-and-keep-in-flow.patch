@@ -5,16 +5,35 @@ Subject: [PATCH] Scroll propagated canvas background and keep in-flow paint
  under root filter
 
 ---
- src/render.rs            | 95 ++++++++++++++++++++++++++--------------
- src/render/background.rs | 37 +++++++++++++---
- src/text.rs              |  4 +-
- 3 files changed, 94 insertions(+), 42 deletions(-)
+ src/render.rs            |  90 +++++++++++++++++--------
+ src/render/background.rs | 142 ++++++++++++++++++++++++++++++++-------
+ 2 files changed, 179 insertions(+), 53 deletions(-)
 
 diff --git a/src/render.rs b/src/render.rs
-index dd415bf..21e85ec 100644
+index c8a285c..5d9b675 100644
 --- a/src/render.rs
 +++ b/src/render.rs
-@@ -254,8 +254,24 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+@@ -104,12 +104,13 @@ impl<'a> PhysicalTracks<'a> {
+ /// Paint-work units one metered scene may spend on repeated SVG background
+ /// tiles: each tile costs the tree's node count.
+ ///
+-/// A layer is capped at 4096 tiles before it is charged
+-/// (`draw_svg_image_layer`), so 4096 * 128 units always affords one such layer
+-/// with up to 128 usvg nodes, and still leaves room for several ordinary
+-/// patterns: two full-viewport 24px tiles of a 100-node tree (465k), or ~68
+-/// 496px 8px dot layers (7.7k each). The pathological input that motivated the
+-/// meter is 33M units, so the budget bounds a screenshot to 1/64 of it:
++/// A layer culls to the tiles that reach the viewport and is capped at
++/// 24,000 of them (`MAX_TILES_PER_LAYER`) before it is charged
++/// (`draw_svg_image_layer`), so an ordinary full-viewport pattern fits and
++/// the budget still leaves room for several: two full-viewport 24px tiles of
++/// a 100-node tree (465k), or ~68 496px 8px dot layers (7.7k each). The
++/// pathological input that motivated the meter is 33M units, so the budget
++/// bounds a screenshot to 1/64 of it:
+ /// measured end-to-end on the debug host test harness, a page at the budget
+ /// takes 5.1 s with 34-node tiles and 9.8 s with 132-node tiles, while the
+ /// 6.6M-unit pathological page takes 0.49 s because every layer is skipped.
+@@ -254,8 +255,24 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
              return;
          };
          let root_id = root_element.id();
@@ -41,7 +60,7 @@ index dd415bf..21e85ec 100644
 
          // CSS Backgrounds 3 section 2.11.1 canvas-background propagation. Pick
          // the element whose complete background paints over the canvas, then
-@@ -285,26 +301,46 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+@@ -285,26 +302,46 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
              }
          };
 
@@ -99,7 +118,7 @@ index dd415bf..21e85ec 100644
          }
 
          // The root clip rectangle is the viewport (in screen coordinates, with the
-@@ -312,15 +348,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+@@ -312,15 +349,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
          // scrollports narrow this rectangle further for their descendants.
          let viewport_clip_rect = Rect::new(0.0, 0.0, self.width as f64, self.height as f64);
 
@@ -116,7 +135,7 @@ index dd415bf..21e85ec 100644
 
          // Render debug overlay
          if self.dom.devtools().highlight_hover {
-@@ -873,6 +901,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+@@ -873,6 +902,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
              list_item: element.list_item_data(),
              devtools: self.dom.devtools(),
              custom_widget_scene,
@@ -124,7 +143,7 @@ index dd415bf..21e85ec 100644
          }
      }
  }
-@@ -930,6 +959,9 @@ struct ElementCx<'dom, 'a> {
+@@ -930,6 +960,9 @@ struct ElementCx<'dom, 'a> {
      devtools: &'dom DevtoolSettings,
      #[cfg_attr(not(feature = "custom-widget"), expect(unused))]
      custom_widget_scene: Option<&'a Scene>,
@@ -134,25 +153,7 @@ index dd415bf..21e85ec 100644
  }
 
  /// Converts parley BoundingBox into peniko Rect
-@@ -1198,7 +1230,7 @@ impl ElementCx<'_, '_> {
-                 text_transform,
-                 self.scale,
-                 inline_root_id,
--                text_layout.line_node_offsets(),
-+                text_layout.line_item_offsets(),
-                 &mut draw_text_context,
-                 Some(Color::BLACK),
-                 None,
-@@ -1244,7 +1276,7 @@ impl ElementCx<'_, '_> {
-             let Some(span_rect) = span_glyph_bounds(
-                 self.context.dom,
-                 layout,
--                text_layout.line_node_offsets(),
-+                text_layout.line_item_offsets(),
-                 inline_root_id,
-                 span_id,
-             ) else {
-@@ -1274,6 +1306,7 @@ impl ElementCx<'_, '_> {
+@@ -1268,6 +1301,7 @@ impl ElementCx<'_, '_> {
                  list_item: None,
                  devtools: self.devtools,
                  custom_widget_scene: None,
@@ -160,53 +161,8 @@ index dd415bf..21e85ec 100644
              };
              let clip_path = span_cx.frame.border_box_path();
              scene.push_layer(
-@@ -1303,7 +1336,7 @@ impl ElementCx<'_, '_> {
-                 text_transform,
-                 self.scale,
-                 inline_root_id,
--                text_layout.line_node_offsets(),
-+                text_layout.line_item_offsets(),
-                 &mut draw_text_context,
-                 Some(Color::BLACK),
-                 None,
-@@ -1952,7 +1985,7 @@ fn create_css_rect(style: &ComputedValues, layout: &Layout, scale: f64) -> CssBo
- fn span_glyph_bounds(
-     doc: &BaseDocument,
-     layout: &parley::layout::Layout<TextBrush>,
--    line_node_offsets: &[Vec<(NodeId, f32)>],
-+    line_item_offsets: &[Vec<f32>],
-     inline_root_id: NodeId,
-     span_id: NodeId,
- ) -> Option<Rect> {
-@@ -1975,11 +2008,11 @@ fn span_glyph_bounds(
-
-     let mut bounds: Option<Rect> = None;
-     for (line_index, line) in layout.lines().enumerate() {
--        let line_offsets = line_node_offsets
-+        let line_offsets = line_item_offsets
-             .get(line_index)
-             .map(Vec::as_slice)
-             .unwrap_or(&[]);
--        for item in line.items() {
-+        for (item_index, item) in line.items().enumerate() {
-             let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
-                 continue;
-             };
-@@ -1987,11 +2020,7 @@ fn span_glyph_bounds(
-             if !belongs(run_node) {
-                 continue;
-             }
--            let shift = line_offsets
--                .iter()
--                .find(|(id, _)| *id == run_node)
--                .map(|(_, offset)| *offset as f64)
--                .unwrap_or(0.0);
-+            let shift = line_offsets.get(item_index).copied().unwrap_or(0.0) as f64;
-             let metrics = glyph_run.run().font_metrics();
-             let baseline = glyph_run.baseline() as f64;
-             let x0 = glyph_run.offset() as f64 + shift;
 diff --git a/src/render/background.rs b/src/render/background.rs
-index eb66d00..f7ca83c 100644
+index eb66d00..8d8d9a4 100644
 --- a/src/render/background.rs
 +++ b/src/render/background.rs
 @@ -215,7 +215,7 @@ impl ElementCx<'_, '_> {
@@ -254,7 +210,95 @@ index eb66d00..f7ca83c 100644
          let BackgroundRepeat(repeat_x, repeat_y) = layer.repeat;
          let x = gradient_axis_tiling(
              *repeat_x,
-@@ -611,12 +622,19 @@ impl ElementCx<'_, '_> {
+@@ -533,14 +544,66 @@ impl ElementCx<'_, '_> {
+             bg_size.height,
+         );
+
+-        if x.count as u64 * y.count as u64 > 4096 {
++        // Draw only the tiles that reach the viewport, as `draw_gradient_layer`
++        // does: a tiled SVG over a canvas-sized layer (a propagated body
++        // background on a tall page) can cover thousands of tiles that are
++        // never visible, and every one re-renders the whole vector tree.
++        //
++        // The tile rect is already in output units (`bg_size`), and the tile
++        // offsets are applied in output space, so both the culling bbox and the
++        // stride are scaled by `base_transform` only. `viewport` maps the SVG
++        // source into the tile and must not be applied twice.
++        let tile_rect = Rect::new(0.0, 0.0, bg_size.width, bg_size.height);
++        let first_tile = (Affine::translate((-self.context.initial_x, -self.context.initial_y))
++            * base_transform)
++            .transform_rect_bbox(tile_rect);
++        // Tiles advance by `stride` in screen space, but the element's
++        // transform also scales the tile itself, so the untransformed stride is
++        // the wrong spacing to cull (or step) with: a scaled-down box loses the
++        // tiles past the first `1/scale` of the viewport. When the transform is
++        // an axis-aligned positive scale, scale the stride too. A rotation,
++        // skew or flip has no per-axis stride, so keep every tile instead of
++        // culling with a spacing the tiling does not use.
++        let [a, b, c, d, ..] = base_transform.as_coeffs();
++        let axis_aligned = b == 0.0 && c == 0.0 && a > 0.0 && d > 0.0;
++        let step_x = if axis_aligned { x.stride * a } else { x.stride };
++        let step_y = if axis_aligned { y.stride * d } else { y.stride };
++        let (x_tiles, y_tiles) = if axis_aligned {
++            (
++                visible_tiles_with_stride(
++                    &x,
++                    first_tile.x0,
++                    first_tile.x1,
++                    self.context.width as f64,
++                    step_x,
++                ),
++                visible_tiles_with_stride(
++                    &y,
++                    first_tile.y0,
++                    first_tile.y1,
++                    self.context.height as f64,
++                    step_y,
++                ),
++            )
++        } else {
++            (0..x.count, 0..y.count)
++        };
++        // A metered scene pays for every tile's tree walk; an interactive or
++        // PDF scene does not, so it keeps the smaller fixed cap that the SVG
++        // path has always used.
++        let max_tiles = if self.context.remaining_work().is_some() {
++            MAX_TILES_PER_LAYER
++        } else {
++            MAX_SVG_TILES_UNMETERED
++        };
++        if x_tiles.len() as u64 * y_tiles.len() as u64 > max_tiles {
+             return;
+         }
+
+-        // The per-layer 4096-tile cap above bounds `tiles`, so the product below
+-        // fits and PAINT_WORK_BUDGET's tile term matches it. Zero tiles draws
+-        // nothing, and the per-tile division below needs a non-zero divisor.
+-        let tiles = x.count as u64 * y.count as u64;
++        // The per-layer cap above bounds `tiles`, so the product below fits.
++        // Zero tiles draws nothing, and the per-tile division below needs a
++        // non-zero divisor.
++        let tiles = x_tiles.len() as u64 * y_tiles.len() as u64;
+         if tiles == 0 {
+             return;
+         }
+@@ -567,11 +630,11 @@ impl ElementCx<'_, '_> {
+             x: x.translate,
+             y: y.translate,
+         });
+-        for row in 0..y.count {
+-            for column in 0..x.count {
++        for row in y_tiles {
++            for column in x_tiles.clone() {
+                 let transform = transform.then_translate(Vec2 {
+-                    x: column as f64 * x.stride,
+-                    y: row as f64 * y.stride,
++                    x: column as f64 * step_x,
++                    y: row as f64 * step_y,
+                 });
+                 anyrender_svg::render_svg_tree(scene, &svg.tree, transform);
+             }
+@@ -611,12 +674,19 @@ impl ElementCx<'_, '_> {
          let x_ratio = bg_size.width / image_width;
          let y_ratio = bg_size.height / image_height;
 
@@ -274,7 +318,7 @@ index eb66d00..f7ca83c 100644
              bg_pos.x,
              bg_size.width,
              image_width,
-@@ -626,6 +644,8 @@ impl ElementCx<'_, '_> {
+@@ -626,6 +696,8 @@ impl ElementCx<'_, '_> {
              *repeat_y,
              origin_rect.y0,
              origin_rect.height(),
@@ -283,7 +327,7 @@ index eb66d00..f7ca83c 100644
              bg_pos.y,
              bg_size.height,
              image_height,
-@@ -674,7 +694,7 @@ impl ElementCx<'_, '_> {
+@@ -674,7 +746,7 @@ impl ElementCx<'_, '_> {
              (
                  self.box_rect(layer.origin),
                  self.transform,
@@ -292,7 +336,16 @@ index eb66d00..f7ca83c 100644
              )
          };
 
-@@ -978,6 +998,8 @@ fn raster_axis_tiling(
+@@ -723,7 +795,7 @@ impl ElementCx<'_, '_> {
+             visible_tiles(&x, first_tile.x0, first_tile.x1, self.context.width as f64),
+             visible_tiles(&y, first_tile.y0, first_tile.y1, self.context.height as f64),
+         );
+-        if x_tiles.len() as u64 * y_tiles.len() as u64 > MAX_GRADIENT_TILES {
++        if x_tiles.len() as u64 * y_tiles.len() as u64 > MAX_TILES_PER_LAYER {
+             return;
+         }
+
+@@ -978,6 +1050,8 @@ fn raster_axis_tiling(
      repeat: BackgroundRepeatKeyword,
      origin_start: f64,
      origin_len: f64,
@@ -301,7 +354,7 @@ index eb66d00..f7ca83c 100644
      bg_pos: f64,
      tile_len: f64,
      image_len: f64,
-@@ -987,10 +1009,11 @@ fn raster_axis_tiling(
+@@ -987,10 +1061,11 @@ fn raster_axis_tiling(
 
      match repeat {
          Repeat | Round => {
@@ -316,25 +369,55 @@ index eb66d00..f7ca83c 100644
                  count: 1,
                  stride: 0.0,
              }
-diff --git a/src/text.rs b/src/text.rs
-index 8a31982..77f81dd 100644
---- a/src/text.rs
-+++ b/src/text.rs
-@@ -579,7 +579,7 @@ pub(crate) fn stroke_text<'a>(
-         transform,
-         scale,
-         inline_root_id,
--        line_node_offsets,
-+        line_item_offsets,
-         context,
-         fill_override,
-         text,
-@@ -595,7 +595,7 @@ pub(crate) fn stroke_text_filtered<'a>(
-     transform: Affine,
-     scale: f64,
-     inline_root_id: NodeId,
--    line_node_offsets: &[Vec<(NodeId, f32)>],
-+    line_item_offsets: &[Vec<f32>],
-     context: &mut DrawTextContext,
-     fill_override: Option<Color>,
-     text: Option<&str>,
+@@ -1013,12 +1088,17 @@ fn raster_axis_tiling(
+     }
+ }
+
+-/// The most gradient tiles one layer draws. Tiles are culled to the viewport
+-/// first, so this holds 8px dots across a 1440x900 viewport (~20.7k tiles).
+-/// It is fixed, not scaled to the viewport, because the first frame's cost
+-/// grows faster than the tile count: 20k tiles took ~1 s, 36k ~3.4 s and
++/// The most repeated-background tiles one layer draws. Tiles are culled to the
++/// viewport first, so this holds 8px dots across a 1440x900 viewport (~20.7k
++/// tiles). It is fixed, not scaled to the viewport, because the first frame's
++/// cost grows faster than the tile count: 20k tiles took ~1 s, 36k ~3.4 s and
+ /// 52k ~6.5 s. A smaller tile across a bigger viewport is dropped instead.
+-const MAX_GRADIENT_TILES: u64 = 24_000;
++const MAX_TILES_PER_LAYER: u64 = 24_000;
++
++/// The most SVG tiles one layer draws when the scene is unmetered (interactive
++/// and PDF paths): each tile walks the whole vector tree, and without a work
++/// budget that walk is the only bound.
++const MAX_SVG_TILES_UNMETERED: u64 = 4_096;
+
+ /// The nodes rendering one tile of a usvg tree walks, the root group included,
+ /// counted only up to `limit + 1`: a tree past `limit` cannot be afforded, so
+@@ -1078,13 +1158,25 @@ fn visible_tiles(
+     first_end: f64,
+     viewport_len: f64,
+ ) -> std::ops::Range<u32> {
+-    if tiling.stride <= 0.0 {
++    visible_tiles_with_stride(tiling, first_start, first_end, viewport_len, tiling.stride)
++}
++
++/// `visible_tiles` with an explicit screen-space stride, for a tiling whose
++/// tiles are scaled by the element's transform.
++fn visible_tiles_with_stride(
++    tiling: &AxisTiling,
++    first_start: f64,
++    first_end: f64,
++    viewport_len: f64,
++    stride: f64,
++) -> std::ops::Range<u32> {
++    if stride <= 0.0 {
+         return 0..tiling.count;
+     }
+     let start = first_start + tiling.translate;
+     let end = first_end + tiling.translate;
+-    let first = ((-end) / tiling.stride).floor().max(0.0);
+-    let last = ((viewport_len - start) / tiling.stride).floor() + 1.0;
++    let first = ((-end) / stride).floor().max(0.0);
++    let last = ((viewport_len - start) / stride).floor() + 1.0;
+     let last = last.min(tiling.count as f64);
+     if !(first < last) {
+         return 0..0;

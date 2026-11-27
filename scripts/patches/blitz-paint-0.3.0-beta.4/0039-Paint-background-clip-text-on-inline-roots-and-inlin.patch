@@ -11,13 +11,13 @@ Paint text-clipped background layers inside an isolated layer masked with
 opaque glyph silhouettes via `Compose::DestIn`, both for inline roots and for
 inline descendant spans.
 ---
- src/render.rs            | 228 ++++++++++++++++++++++++++++++++++++++-
+ src/render.rs            | 214 ++++++++++++++++++++++++++++++++++++++-
  src/render/background.rs |  60 +++++++++++
- src/text.rs              |  61 ++++++-----
- 3 files changed, 321 insertions(+), 28 deletions(-)
+ src/text.rs              |  59 ++++++-----
+ 3 files changed, 305 insertions(+), 28 deletions(-)
 
 diff --git a/src/render.rs b/src/render.rs
-index 3c7f937..275f58d 100644
+index 7d66190..7afa065 100644
 --- a/src/render.rs
 +++ b/src/render.rs
 @@ -41,7 +41,7 @@ use style::{
@@ -29,7 +29,7 @@ index 3c7f937..275f58d 100644
  use style::values::generics::color::GenericColor;
  use taffy::Layout;
 
-@@ -1085,6 +1085,12 @@ impl ElementCx<'_, '_> {
+@@ -1084,6 +1084,12 @@ impl ElementCx<'_, '_> {
                  crate::text::draw_text_selection(scene, layout, transform, sel_start, sel_end);
              }
 
@@ -37,12 +37,12 @@ index 3c7f937..275f58d 100644
 +            // any inline `<span>` descendants) by isolating the background and
 +            // masking it with opaque glyph silhouettes via `Compose::DestIn`.
 +            // https://drafts.csswg.org/css-backgrounds-4/#valdef-background-clip-text
-+            self.draw_text_clipped_backgrounds(scene, layout, text_layout, transform, node_id);
++            self.draw_text_clipped_backgrounds(scene, layout, transform, node_id);
 +
              // Render text
              let mut draw_text_context = self.context.draw_text_context.borrow_mut();
              crate::text::stroke_text(
-@@ -1111,6 +1117,165 @@ impl ElementCx<'_, '_> {
+@@ -1108,6 +1114,161 @@ impl ElementCx<'_, '_> {
          }
      }
 
@@ -53,7 +53,6 @@ index 3c7f937..275f58d 100644
 +        &self,
 +        scene: &mut impl PaintScene,
 +        layout: &parley::layout::Layout<TextBrush>,
-+        text_layout: &blitz_dom::node::TextLayout,
 +        text_transform: Affine,
 +        inline_root_id: NodeId,
 +    ) {
@@ -88,7 +87,6 @@ index 3c7f937..275f58d 100644
 +                text_transform,
 +                self.scale,
 +                inline_root_id,
-+                text_layout.line_node_offsets(),
 +                &mut draw_text_context,
 +                Some(Color::BLACK),
 +                None,
@@ -134,7 +132,6 @@ index 3c7f937..275f58d 100644
 +            let Some(span_rect) = span_glyph_bounds(
 +                self.context.dom,
 +                layout,
-+                text_layout.line_node_offsets(),
 +                inline_root_id,
 +                span_id,
 +            ) else {
@@ -193,7 +190,6 @@ index 3c7f937..275f58d 100644
 +                text_transform,
 +                self.scale,
 +                inline_root_id,
-+                text_layout.line_node_offsets(),
 +                &mut draw_text_context,
 +                Some(Color::BLACK),
 +                None,
@@ -208,7 +204,7 @@ index 3c7f937..275f58d 100644
      fn draw_text_input_text(&self, scene: &mut impl PaintScene, pos: Point) {
          // Render the text in text inputs
          if let Some(input_data) = self.text_input {
-@@ -1742,3 +1907,64 @@ fn create_css_rect(style: &ComputedValues, layout: &Layout, scale: f64) -> CssBo
+@@ -1737,3 +1898,54 @@ fn create_css_rect(style: &ComputedValues, layout: &Layout, scale: f64) -> CssBo
      CssBox::new(border_box, border, padding, outline_width, border_radii)
          .with_corner_shapes(corner_shapes)
  }
@@ -218,7 +214,6 @@ index 3c7f937..275f58d 100644
 +fn span_glyph_bounds(
 +    doc: &BaseDocument,
 +    layout: &parley::layout::Layout<TextBrush>,
-+    line_node_offsets: &[Vec<(NodeId, f32)>],
 +    inline_root_id: NodeId,
 +    span_id: NodeId,
 +) -> Option<Rect> {
@@ -240,11 +235,7 @@ index 3c7f937..275f58d 100644
 +    };
 +
 +    let mut bounds: Option<Rect> = None;
-+    for (line_index, line) in layout.lines().enumerate() {
-+        let line_offsets = line_node_offsets
-+            .get(line_index)
-+            .map(Vec::as_slice)
-+            .unwrap_or(&[]);
++    for line in layout.lines() {
 +        for item in line.items() {
 +            let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
 +                continue;
@@ -253,14 +244,9 @@ index 3c7f937..275f58d 100644
 +            if !belongs(run_node) {
 +                continue;
 +            }
-+            let shift = line_offsets
-+                .iter()
-+                .find(|(id, _)| *id == run_node)
-+                .map(|(_, offset)| *offset as f64)
-+                .unwrap_or(0.0);
 +            let metrics = glyph_run.run().font_metrics();
 +            let baseline = glyph_run.baseline() as f64;
-+            let x0 = glyph_run.offset() as f64 + shift;
++            let x0 = glyph_run.offset() as f64;
 +            let x1 = x0 + glyph_run.advance() as f64;
 +            let y0 = baseline - metrics.ascent as f64;
 +            let y1 = baseline + metrics.descent as f64;
@@ -346,7 +332,7 @@ index 64f7b45..eb66d00 100644
          let bg_styles = &self.style.get_background();
          let image_data = self.element.background_images();
 diff --git a/src/text.rs b/src/text.rs
-index b265e70..8a31982 100644
+index 0ed2b79..b75400c 100644
 --- a/src/text.rs
 +++ b/src/text.rs
 @@ -139,33 +139,6 @@ fn resolve_decoration_entry(doc: &BaseDocument, node_id: NodeId) -> DecorationSt
@@ -383,7 +369,7 @@ index b265e70..8a31982 100644
 
      let drawn_lines = TextDecorationLine::UNDERLINE
          | TextDecorationLine::OVERLINE
-@@ -598,6 +571,35 @@ pub(crate) fn stroke_text<'a>(
+@@ -597,6 +570,33 @@ pub(crate) fn stroke_text<'a>(
      context: &mut DrawTextContext,
      fill_override: Option<Color>,
      text: Option<&str>,
@@ -395,7 +381,6 @@ index b265e70..8a31982 100644
 +        transform,
 +        scale,
 +        inline_root_id,
-+        line_node_offsets,
 +        context,
 +        fill_override,
 +        text,
@@ -411,7 +396,6 @@ index b265e70..8a31982 100644
 +    transform: Affine,
 +    scale: f64,
 +    inline_root_id: NodeId,
-+    line_node_offsets: &[Vec<(NodeId, f32)>],
 +    context: &mut DrawTextContext,
 +    fill_override: Option<Color>,
 +    text: Option<&str>,
@@ -419,7 +403,7 @@ index b265e70..8a31982 100644
  ) {
      let DrawTextContext {
          stack,
-@@ -683,6 +685,11 @@ pub(crate) fn stroke_text<'a>(
+@@ -676,6 +676,11 @@ pub(crate) fn stroke_text<'a>(
                  }
                  path_scratch.extend(ancestors.iter().copied());
                  path_scratch.reverse();

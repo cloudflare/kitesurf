@@ -155,3 +155,111 @@ fn propagated_percentage_gradient_stays_scroll_stable() {
         );
     }
 }
+
+// A propagated body background sizes its painting area to the document
+// overflow so the tiles keep scrolling with the content, but only the tiles
+// that reach the viewport are drawn. With 20px tiles over a 1280px-wide,
+// 3000px-tall page the layer asks for 64 x 150 tiles, which the per-layer tile
+// cap used to reject wholesale: the body background then painted nothing at any
+// scroll position.
+#[test]
+fn propagated_tiled_svg_body_background_paints_while_scrolled() {
+    const WIDTH: u32 = 1280;
+    const HEIGHT: u32 = 400;
+    let svg = "<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'>\
+               <rect width='10' height='10' fill='black'/></svg>"
+        .replace(' ', "%20");
+    let html = format!(
+        r##"<!doctype html><html><head><style>
+          html, body {{ margin: 0; height: 100%; }}
+          body {{
+            background-image: url("data:image/svg+xml;utf8,{svg}");
+            background-size: 20px 20px;
+            background-repeat: repeat;
+          }}
+          #tall {{ height: 3000px; }}
+        </style></head><body><div id="tall"></div></body></html>"##
+    );
+    let dom = crate::DomHandle::new(&html, "https://test.example/");
+    dom.set_viewport(WIDTH, HEIGHT);
+    dom.resolve_layout();
+    // A data-URL SVG is parsed after the first resolve, so drain the image
+    // messages and lay out again before painting.
+    for _ in 0..2 {
+        dom.pump_resource_messages();
+        dom.resolve_layout();
+    }
+    let rasterizer = crate::paint::scene_replay::SceneRasterizer::new();
+    let sample = |scroll_y: i32| {
+        let scene = dom.render_scene_raw(0, scroll_y, 0, 0, false, false);
+        let png = rasterizer.rasterize(&scene, "png", 90, false);
+        let (w, h, pixels) = decode_rgba(&png);
+        assert_eq!(
+            (w, h),
+            (WIDTH, HEIGHT),
+            "the scene rasterized at the wrong size"
+        );
+        let count =
+            |predicate: fn(&[u8]) -> bool| pixels.chunks_exact(4).filter(|p| predicate(p)).count();
+        (
+            count(|p| p[0] < 32 && p[1] < 32 && p[2] < 32),
+            count(|p| p[0] > 220 && p[1] > 220 && p[2] > 220),
+        )
+    };
+    for scroll_y in [0, 1000] {
+        let (black, white) = sample(scroll_y);
+        assert!(
+            black > 2000,
+            "the tiled SVG body background must paint at scroll {scroll_y}; got {black} black pixels"
+        );
+        assert!(
+            white > 2000,
+            "the tiled SVG must keep its white gaps at scroll {scroll_y}; got {white} white pixels"
+        );
+    }
+}
+
+// `visible_tiles` culled, and the tiling stepped, by the untransformed stride
+// in screen space, so a scaled element's tiled background stopped at the first
+// `1/scale` of the viewport. With the transform's scale folded into the stride,
+// the pattern still covers the whole scaled box.
+#[test]
+fn scaled_tiled_svg_background_paints_to_bottom_of_scaled_box() {
+    const SIZE: u32 = 400;
+    let svg = "<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'>\
+               <rect width='20' height='20' fill='black'/></svg>"
+        .replace(' ', "%20");
+    // The box is twice the viewport so that, scaled down by half, its border box
+    // covers the viewport exactly.
+    let html = format!(
+        r##"<!doctype html><html><head><style>
+          html, body {{ margin: 0; background: #ffffff; }}
+          #box {{
+            width: 800px;
+            height: 800px;
+            transform: scale(0.5);
+            transform-origin: 0 0;
+            background-image: url("data:image/svg+xml;utf8,{svg}");
+            background-size: 20px 20px;
+            background-repeat: repeat;
+          }}
+        </style></head><body><div id="box"></div></body></html>"##
+    );
+    let png =
+        crate::paint::screenshot::ks_render_html_to_png(&html, "https://test.example/", SIZE, SIZE);
+    let (w, _, pixels) = decode_rgba(&png);
+    let is_black = |x: u32, y: u32| {
+        let p = &pixels[((y * w + x) * 4) as usize..((y * w + x) * 4 + 4) as usize];
+        p[0] < 32 && p[1] < 32 && p[2] < 32 && p[3] > 200
+    };
+
+    assert!(
+        is_black(200, 5),
+        "the top of the scaled box must be painted"
+    );
+    assert!(
+        is_black(200, 395),
+        "the bottom of the 0.5-scaled box must still be painted; the tiled SVG \
+         background stopped at the first half of the viewport"
+    );
+}
