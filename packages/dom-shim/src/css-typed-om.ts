@@ -2539,6 +2539,11 @@ function splitTopLevelCommas(text: string): string[] {
   return values;
 }
 
+// https://drafts.csswg.org/css-values-4/#css-wide-keywords
+function isCssWideKeyword(text: string): boolean {
+  return /^\s*(?:initial|inherit|unset|revert|revert-layer)\s*$/i.test(text);
+}
+
 function hasTopLevelSemicolon(text: string): boolean {
   let depth = 0;
   let quote = "";
@@ -2847,7 +2852,6 @@ export class StylePropertyMap extends StylePropertyMapReadOnly implements Idl.St
     assertSupportedProperty(property);
     if (
       !LIST_VALUED_PROPERTIES.has(property) ||
-      values.length === 0 ||
       values.some((value) => value instanceof CSSUnparsedValue || /^var\(/i.test(String(value)))
     ) {
       throw new TypeError("Property does not accept multiple values");
@@ -2860,6 +2864,33 @@ export class StylePropertyMap extends StylePropertyMapReadOnly implements Idl.St
     if (/var\(/i.test(current) || /var\(/i.test(shorthand)) {
       throw new TypeError("Cannot append to a variable reference");
     }
+    // Each value must be a list item of the property on its own, and a CSS-wide keyword is a
+    // whole-property value, never a list item.
+    const canon =
+      opts && typeof opts.canonicalizeInlineStyle === "function"
+        ? opts.canonicalizeInlineStyle
+        : null;
+    for (const value of values) {
+      if (value instanceof CSSKeywordValue && isCssWideKeyword(value.value)) {
+        throw new TypeError("A CSS-wide keyword cannot be appended to a list");
+      }
+      if (typeof value !== "string") continue;
+      if (isCssWideKeyword(value)) {
+        throw new TypeError("A CSS-wide keyword cannot be appended to a list");
+      }
+      let valid = true;
+      if (canon) {
+        try {
+          valid = canon(`${property}: ${value}`).length > 0;
+        } catch {
+          valid = false;
+        }
+      }
+      if (!valid || hasTopLevelSemicolon(value)) {
+        throw new TypeError(`Invalid value for ${property}`);
+      }
+    }
+    if (values.length === 0) return;
     const combined = [...(current ? splitTopLevelCommas(current) : []), ...values.map(String)].join(
       ", ",
     );

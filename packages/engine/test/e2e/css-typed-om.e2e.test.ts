@@ -941,6 +941,39 @@ test("Typed OM append rejects a value associated with another property", async (
   expect(result).toEqual({ append: "TypeError", set: "TypeError", backgroundSize: "" });
 });
 
+test("Typed OM append takes each value as one list item", async ({ page }) => {
+  await setContent(page, `<div id="target" style="transition-duration: inherit"></div>`);
+  const result = await page.evaluate(() => {
+    const g = globalThis as any;
+    const map = (document.getElementById("target") as any).attributeStyleMap;
+    const thrown = (run: () => void) => {
+      try {
+        run();
+        return null;
+      } catch (error) {
+        return (error as Error).name;
+      }
+    };
+    const timing = ["cubic-bezier(0", "0", "1", "1)"];
+    const errors = [
+      thrown(() => map.append("transition-duration", "inherit")),
+      thrown(() => map.append("transition-duration", new g.CSSKeywordValue("initial"))),
+      thrown(() => map.append("transition-timing-function", ...timing)),
+    ];
+    const noValues = thrown(() => map.append("transition-duration"));
+    const kept = map.get("transition-duration").toString();
+    map.delete("transition-duration");
+    map.append("transition-duration", "1s, 2s", g.CSS.s(3));
+    return { errors, noValues, kept, appended: map.getAll("transition-duration").map(String) };
+  });
+  expect(result).toEqual({
+    errors: ["TypeError", "TypeError", "TypeError"],
+    noValues: null,
+    kept: "inherit",
+    appended: ["1s", "2s", "3s"],
+  });
+});
+
 test("CSSNumericValue.parse reifies a math function of any numeric type", async ({ page }) => {
   await setContent(page, "<p>numeric</p>");
   const result = await page.evaluate(() => {
