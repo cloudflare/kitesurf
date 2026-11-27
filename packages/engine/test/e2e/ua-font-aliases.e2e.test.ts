@@ -15,6 +15,8 @@ import { setContent } from "./set-content";
 const TEXT = "Hamburgefonstiv 0123";
 const ARIAL_WIDTH = 321.97;
 const TIMES_WIDTH = 295.95;
+// Inter at its 32px optical size, as Chrome draws it under `font-optical-sizing: auto`.
+const INTER_WIDTH = 316.2;
 const TIMES_BOLD_WIDTH = 312;
 const TIMES_ITALIC_WIDTH = 294.2;
 const GEORGIA_WIDTH = 324.94;
@@ -151,12 +153,12 @@ test("platform family names resolve to the macOS-like UA faces", async ({ browse
     expectNear(w(id), ARIAL_WIDTH, id);
   }
   expect(w("apple")).toBe(w("ui"));
-  expect(Math.abs(w("ui") - w("sans"))).toBeGreaterThan(10);
+  expectNear(w("ui"), INTER_WIDTH, "ui");
   expectNear(w("serif"), TIMES_WIDTH, "serif");
   expect(w("times")).toBe(w("serif"));
-  // A family list that matches nothing lands on the fallback chain, which Arimo leads. Chrome
-  // draws it in its standard font, Times; blitz does not end such a list on serif.
-  expect(w("missing")).toBe(w("sans"));
+  // A family list with no generic ends on serif, so one that matches nothing draws in Tinos,
+  // as Chrome draws it in its standard font, Times.
+  expect(w("missing")).toBe(w("serif"));
   // A real bold face, not a synthesized one, which keeps regular advances.
   expectNear(w("bold"), TIMES_BOLD_WIDTH, "bold");
   // Arimo's italic keeps Arial's advances, so only the glyphs tell it apart.
