@@ -76,6 +76,31 @@ fn shadow_content_is_hidden_from_light_tree_walks() {
 }
 
 #[test]
+fn shadow_root_text_content_is_its_descendants_text() {
+    let dom = DomHandle::new(HTML, "https://test.example/");
+    let host = host_id(&dom);
+    let root = dom.attach_shadow(host, "open") as u32;
+
+    let span = dom.create_element("span");
+    let inner = dom.create_text_node("in ");
+    assert!(dom.append_child_node(span, inner));
+    assert!(dom.append_child_node(root, span));
+    let tail = dom.create_text_node("shadow");
+    assert!(dom.append_child_node(root, tail));
+
+    assert_eq!(
+        dom.text_content(root),
+        "in shadow",
+        "a root reads like a fragment"
+    );
+    assert_eq!(
+        dom.text_content(host),
+        "",
+        "the host's text is its light tree only"
+    );
+}
+
+#[test]
 fn dropping_a_host_frees_its_shadow_subtree() {
     let dom = DomHandle::new(HTML, "https://test.example/");
     let host = host_id(&dom);
