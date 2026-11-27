@@ -599,10 +599,6 @@
     "expected": "FAIL",
     "reason": "TimeoutError: locator.click: Timeout 5000ms exceeded."
   },
-  "page-click-timeout-4.spec.ts::should timeout waiting for stable position": {
-    "expected": "FAIL",
-    "reason": "TypeError: Cannot read properties of undefined (reading 'message')"
-  },
   "page-click.spec.ts::ensure events are dispatched in the individual tasks": {
     "expected": "SKIP",
     "reason": "fails slowly (10s): Error: expect(received).toEqual(expected) // deep equality"
