@@ -1012,3 +1012,53 @@ fn accessibility_properties_keep_one_entry_per_name() {
     assert_eq!(properties("#k13", "selected"), ["false"]);
     assert_eq!(properties("#k14", "valuemin"), ["0"]);
 }
+
+// A disabling container marks what it holds, measured against Chrome 158: a disabled fieldset
+// takes focus too, aria-disabled and a disabled select leave it, and the first legend escapes.
+#[test]
+fn accessibility_marks_the_controls_a_container_disables() {
+    let dom = DomHandle::new(
+        "<fieldset id='fs' disabled>\
+           <legend><button id='in-first-legend'>a</button></legend>\
+           <legend><button id='in-second-legend'>b</button></legend>\
+           <input id='in-fieldset'>\
+           <fieldset><input id='in-nested-fieldset'></fieldset>\
+         </fieldset>\
+         <fieldset><input id='in-enabled-fieldset'></fieldset>\
+         <div aria-disabled='true'><div><button id='under-aria'>c</button></div></div>\
+         <div aria-disabled='false'><button id='under-aria-false'>d</button></div>\
+         <select id='sel'><option id='option-plain'>A</option>\
+           <option id='option-disabled' disabled>B</option>\
+           <optgroup disabled><option id='option-in-group'>C</option></optgroup></select>\
+         <select disabled><option id='option-in-select'>D</option></select>",
+        "https://example.test/",
+    );
+    let request = serde_json::json!({"method": "full", "frameId": "F"});
+    let reply: serde_json::Value =
+        serde_json::from_str(&build_json(&dom, &request.to_string()).unwrap()).unwrap();
+    let nodes = reply["nodes"].as_array().unwrap().clone();
+    let state = |selector: &str| -> (bool, bool) {
+        let id = node_id(&dom, selector);
+        let node = nodes
+            .iter()
+            .find(|n| n["backendDOMNodeId"] == id)
+            .unwrap_or_else(|| panic!("{selector} is in the tree"));
+        let has = |want: &str| {
+            node["properties"]
+                .as_array()
+                .is_some_and(|all| all.iter().any(|p| p["name"] == want))
+        };
+        (has("disabled"), has("focusable"))
+    };
+    assert_eq!(state("#in-first-legend"), (false, true));
+    assert_eq!(state("#in-second-legend"), (true, false));
+    assert_eq!(state("#in-fieldset"), (true, false));
+    assert_eq!(state("#in-nested-fieldset"), (true, false));
+    assert_eq!(state("#in-enabled-fieldset"), (false, true));
+    assert_eq!(state("#under-aria"), (true, true));
+    assert_eq!(state("#under-aria-false"), (false, true));
+    assert_eq!(state("#option-plain"), (false, true));
+    assert_eq!(state("#option-disabled"), (true, false));
+    assert_eq!(state("#option-in-group"), (true, false));
+    assert_eq!(state("#option-in-select"), (true, true));
+}
