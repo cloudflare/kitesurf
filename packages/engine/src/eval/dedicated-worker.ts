@@ -56,6 +56,7 @@ export interface SpawnDedicatedWorkerOptions {
   frameId: string;
   loaderId: string;
   extraHeaders: Record<string, string>;
+  extraHeadersTargetId?: string;
   // The page's own budget (pageIsolateCaps): a worker does the page's
   // background work, and must not be a way around a deployment cap.
   cpuMs: number;
@@ -140,6 +141,7 @@ export function spawnDedicatedWorker(
     mainFrameId: opts.frameId,
     mainLoaderId: opts.loaderId,
     extraHeaders: opts.extraHeaders,
+    extraHeadersTargetId: opts.extraHeadersTargetId,
     connectionId: opts.connectionId,
     cookieKey: opts.cookieKey,
   };

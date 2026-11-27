@@ -17,6 +17,8 @@ import {
 } from "./target.ts";
 import { localStorageOrigin } from "../state/local-storage.ts";
 import { changeLocalStorage } from "./storage-copies.ts";
+import { setTargetOverride } from "./target-overrides.ts";
+import { registerExtraHeaders } from "./extra-headers-registry.ts";
 
 // SAFETY: Kitesurf's cookies omit priority, sourceScheme and sourcePort, which the protocol's
 // Cookie requires. The assertion keeps the reply as it is; sending them changes the wire.
@@ -45,7 +47,7 @@ export const networkDomain = defineDomain("Network", {
     "Network.setUserAgentOverride": (ctx, req) => {
       const ua = typeof req.params?.userAgent === "string" ? req.params.userAgent : "";
       const resolved = resolveNetworkTarget(ctx, req.sessionId);
-      if (resolved) resolved.userAgentOverride = ua;
+      if (resolved) setTargetOverride(resolved, "userAgent", ctx.client.id, ua);
       return {};
     },
 
@@ -58,7 +60,7 @@ export const networkDomain = defineDomain("Network", {
         sanitized[k] = v;
       }
       const resolved = resolveNetworkTarget(ctx, req.sessionId);
-      if (resolved) resolved.extraHttpHeaders = sanitized;
+      if (resolved) setTargetOverride(resolved, "extraHttpHeaders", ctx.client.id, sanitized);
       return {};
     },
 
@@ -172,6 +174,12 @@ export const storageDomain = defineDomain("Storage", {
     },
   },
 });
+
+/** Lets the target's loaded documents read its extra headers live; returns the target id. */
+export function liveExtraHeadersTarget(connectionId: string, t: TargetState): string {
+  registerExtraHeaders(connectionId, t.targetId, () => effectiveExtraHeaders(t));
+  return t.targetId;
+}
 
 export function effectiveExtraHeaders(t: TargetState): Record<string, string> {
   if (!t.userAgentOverride) return t.extraHttpHeaders;

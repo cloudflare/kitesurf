@@ -19,8 +19,6 @@ function fakeCtx(): DispatchCtx {
   return {
     browser: {
       networkEvents: { drain() {}, setLogEnabled() {} },
-      rendererSessionId: null,
-      engineSessionId: null,
     },
     client: testClient(),
   } as unknown as DispatchCtx;

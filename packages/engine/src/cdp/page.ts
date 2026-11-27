@@ -160,7 +160,8 @@ import { schemefulSite } from "../public-suffix.ts";
 import { determineReferrer, parseReferrerPolicy } from "@kitesurf/script-gate/referrer-policy";
 import { PageRendererManager, withTimeout } from "../eval/page-renderer.ts";
 import { headersToRecord, type NetworkEventTracker } from "./network-events.ts";
-import { effectiveExtraHeaders } from "./network.ts";
+import { effectiveExtraHeaders, liveExtraHeadersTarget } from "./network.ts";
+import { setTargetOverride } from "./target-overrides.ts";
 import { isWorkerUpstreamEvent } from "./dedicated-workers.ts";
 import { isRecord } from "../guards.ts";
 import { classifyRequest } from "../request-blocker.ts";
@@ -816,6 +817,7 @@ export const pageDomain = defineDomain("Page", {
         // never reads.
         const owner = req.sessionId ? resolvePreNavScriptTarget(ctx, req.sessionId) : null;
         (owner ? owner.preNavScripts : ctx.browser.preNavScripts).set(id, source);
+        ctx.client.preNavScriptIds.add(id);
       }
       return { identifier: id };
     },
@@ -827,6 +829,7 @@ export const pageDomain = defineDomain("Page", {
           resolvePreNavScriptTarget(ctx, req.sessionId)?.preNavScripts.delete(id);
         }
         ctx.browser.preNavScripts.delete(id);
+        ctx.client.preNavScriptIds.delete(id);
       }
       return {};
     },
@@ -1278,6 +1281,7 @@ export const pageDomain = defineDomain("Page", {
         maxInFlight,
         wheelQueue: getWheelQueue(ctx.browser, target.targetId, nextOwner),
         ownerSessionId: nextOwner,
+        ownerClientId: ctx.client.id,
         configurationVersion,
         appliedConfigurationVersion: configurationVersion - 1,
         lastAckedSeq: 0,
@@ -1291,6 +1295,7 @@ export const pageDomain = defineDomain("Page", {
         framesDropped: 0,
       };
       state.configurationVersion = configurationVersion;
+      state.ownerClientId = ctx.client.id;
       if (!existing) {
         ctx.browser.screencasts.set(target.targetId, state);
         ctx.ctx.waitUntil(screencastLoop(ctx, target, state));
@@ -1337,8 +1342,11 @@ export const pageDomain = defineDomain("Page", {
           return {};
         }
 
-        target.viewportWidth = maxWidth;
-        target.viewportHeight = maxHeight;
+        setTargetOverride(target, "deviceMetrics", ctx.client.id, {
+          width: maxWidth,
+          height: maxHeight,
+          scale: target.deviceScaleFactor,
+        });
         if (target.pageScript) {
           try {
             await stubQueryDom(target.pageScript, "setViewport", {
@@ -2557,6 +2565,7 @@ async function pushNavigateToPageScriptInner(
           attributionHeaders: ctx.browser.attributionHeaders,
           mainLoaderId: target.loaderId,
           extraHeaders: effectiveExtraHeaders(target),
+          extraHeadersTargetId: liveExtraHeadersTarget(ctx.connectionId, target),
           initTimings: raInitTimings,
           capOverrides: ctx.browser.isolateCapOverrides,
           sandboxOutbound: ctx.browser.sandboxOutbound,
@@ -2812,7 +2821,11 @@ async function pushNavigateToPageScriptInner(
         });
       } catch {}
     }
-    if (target.cssEnabledSessions.size > 0 || ctx.client.connectionMode === "page") {
+    // Page-mode DevTools reads the sheets without a CSS-enabled session, whoever navigated.
+    if (
+      target.cssEnabledSessions.size > 0 ||
+      ctx.peers().some((p) => p.client.connectionMode === "page")
+    ) {
       try {
         await syncStyleSheetsFromEnumeration(ctx, target, pendingPageScript);
       } catch {}
@@ -4398,7 +4411,7 @@ async function spawnOopifPipeline(
     }
     f.execContextId = ctx.browser.execContextSeq++;
     emitOopifExecutionContext(ctx, f, target.url);
-    announceOopifTarget(ctx, f);
+    for (const peer of ctx.peers()) announceOopifTarget(peer, f);
     if (ctx.browser.skipSpeculativeRaster) return;
     const manager = getRendererManager(ctx, target);
     const res = await recordAndRasterizeFrame(manager, spawn.stub, {
@@ -4481,7 +4494,8 @@ function teardownOopifStubForFrame(
     ctx.browser.dedicatedWorkers.terminateFrame(target.targetId, f.frameId, reason);
   }
   if (ctx && f.parentFrameId !== null) {
-    if (ctx.client.connectionMode === "browser" || f.sessions.size > 0) {
+    // emitFrameTarget announced the frame to every browser-mode client.
+    if (f.sessions.size > 0 || ctx.peers().some((p) => p.client.connectionMode === "browser")) {
       destroyOopifTarget(ctx, f);
     } else {
       ctx.browser.networkEvents.deleteTargetAttribution(f.frameId);

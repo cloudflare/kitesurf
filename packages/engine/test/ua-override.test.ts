@@ -14,6 +14,7 @@ function makeTarget(over: Partial<TargetState> = {}): TargetState {
     sessions: new Set<string>(),
     extraHttpHeaders: {},
     userAgentOverride: "",
+    overrideWriters: {},
     ...over,
   } as TargetState;
 }

@@ -21,7 +21,7 @@ import {
   unregisterIsolateLimitListener,
 } from "../eval/limit-registry.ts";
 import { cookieKeyFor } from "./cookie-jar-registry.ts";
-import { effectiveExtraHeaders } from "./network.ts";
+import { effectiveExtraHeaders, liveExtraHeadersTarget } from "./network.ts";
 
 const WORKER_TARGET_ID_LABEL_CHARS = 8;
 const MAX_WORKER_URL_PREVIEW_CHARS = 80;
@@ -285,6 +285,7 @@ export class DedicatedWorkers {
           frameId: owner.frameId,
           loaderId: owner.loaderId,
           extraHeaders: effectiveExtraHeaders(target),
+          extraHeadersTargetId: liveExtraHeadersTarget(ctx.connectionId, target),
           cpuMs: caps.cpuMs,
           source,
           sandboxOutbound: ctx.browser.sandboxOutbound,
