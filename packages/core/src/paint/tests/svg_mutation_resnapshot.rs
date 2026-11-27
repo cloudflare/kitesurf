@@ -140,6 +140,20 @@ fn all_path_fills(tree: &usvg::Tree) -> Vec<Option<(u8, u8, u8)>> {
     out
 }
 
+fn first_stroke_rgb(tree: &usvg::Tree) -> Option<(u8, u8, u8)> {
+    fn walk(node: &usvg::Node) -> Option<(u8, u8, u8)> {
+        match node {
+            usvg::Node::Group(g) => g.children().iter().find_map(walk),
+            usvg::Node::Path(p) => match p.stroke().map(|s| s.paint()) {
+                Some(usvg::Paint::Color(c)) => Some((c.red, c.green, c.blue)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+    walk(&usvg::Node::Group(Box::new(tree.root().clone())))
+}
+
 #[test]
 fn inherited_css_fill_does_not_override_child_fill_none_or_explicit_color() {
     // Case 1: `.icon { fill: currentColor; color: #dd0000 }` with a `<path fill="none">`
@@ -246,6 +260,323 @@ fn inherited_css_fill_does_not_override_ancestor_group_or_use_fill() {
         first_fill_rgb(&tree_use),
         Some((0x00, 0x00, 0xff)),
         "inherited svg CSS fill must not override <use fill=\"#0000ff\">"
+    );
+}
+
+/// The root `<svg>` inherits paint from an HTML ancestor. Stylo never sees the
+/// `fill=`/`stroke=` presentation attributes, so the snapshot must not stamp an
+/// inherited value over them.
+/// https://svgwg.org/svg2-draft/styling.html#PresentationAttributes
+#[test]
+fn inherited_css_paint_does_not_override_root_attributes() {
+    // fill="none" must survive an inherited `.btn { fill }`.
+    let html_fill_none = r##"<html><head><style>
+        .btn { fill: #d00; }
+    </style></head><body>
+        <div class="btn"><svg id="fn" width="96" height="96" viewBox="0 0 96 96" fill="none" stroke="#00f">
+            <rect x="0" y="0" width="96" height="96"/>
+        </svg></div>
+    </body></html>"##;
+    let dom = DomHandle::new(html_fill_none, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#fn").expect("fill none svg must parse");
+    assert_eq!(
+        first_fill_rgb(&tree),
+        None,
+        "inherited CSS fill must not override the root fill=\"none\" attribute"
+    );
+    assert_eq!(first_stroke_rgb(&tree), Some((0x00, 0x00, 0xff)));
+
+    // fill="#00f" must survive an inherited `span { fill }`.
+    let html_fill_blue = r##"<html><head><style>
+        span { fill: #d00; }
+    </style></head><body>
+        <span><svg id="fb" width="96" height="96" viewBox="0 0 96 96" fill="#00f">
+            <rect x="0" y="0" width="96" height="96"/>
+        </svg></span>
+    </body></html>"##;
+    let dom = DomHandle::new(html_fill_blue, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#fb").expect("fill blue svg must parse");
+    assert_eq!(
+        first_fill_rgb(&tree),
+        Some((0x00, 0x00, 0xff)),
+        "inherited CSS fill must not override the root fill=\"#00f\" attribute"
+    );
+}
+
+/// A root `fill: currentColor` must reach usvg as the keyword so a `color=`
+/// presentation attribute on the `<svg>` or a `<g>` resolves it.
+#[test]
+fn root_currentcolor_fill_resolves_against_presentation_color() {
+    let html_svg = r##"<html><head><style>
+        .icon { fill: currentColor; }
+    </style></head><body>
+        <svg id="cs" class="icon" width="96" height="96" viewBox="0 0 96 96" color="#d00">
+            <rect x="0" y="0" width="96" height="96"/>
+        </svg>
+    </body></html>"##;
+    let dom = DomHandle::new(html_svg, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#cs").expect("svg color svg must parse");
+    assert_eq!(
+        first_fill_rgb(&tree),
+        Some((0xdd, 0x00, 0x00)),
+        "root fill=currentColor must resolve against the <svg color> attribute"
+    );
+
+    let html_group = r##"<html><head><style>
+        .icon { fill: currentColor; }
+    </style></head><body>
+        <svg id="cg" class="icon" width="96" height="96" viewBox="0 0 96 96">
+            <g color="#d00"><rect x="0" y="0" width="96" height="96"/></g>
+        </svg>
+    </body></html>"##;
+    let dom = DomHandle::new(html_group, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#cg").expect("group color svg must parse");
+    assert_eq!(
+        first_fill_rgb(&tree),
+        Some((0xdd, 0x00, 0x00)),
+        "root fill=currentColor must resolve against a <g color> attribute"
+    );
+}
+
+/// Stroke equivalents of the two tests above.
+#[test]
+fn inherited_css_stroke_does_not_override_root_attributes() {
+    // stroke="none" must survive an inherited `.btn { stroke }`.
+    let html_stroke_none = r##"<html><head><style>
+        .btn { stroke: #d00; }
+    </style></head><body>
+        <div class="btn"><svg id="sn" width="96" height="96" viewBox="0 0 96 96" stroke="none">
+            <rect x="0" y="0" width="96" height="96" fill="#0f0"/>
+        </svg></div>
+    </body></html>"##;
+    let dom = DomHandle::new(html_stroke_none, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#sn").expect("stroke none svg must parse");
+    assert_eq!(
+        first_stroke_rgb(&tree),
+        None,
+        "inherited CSS stroke must not override the root stroke=\"none\" attribute"
+    );
+
+    // stroke="#00f" must survive an inherited `span { stroke }`.
+    let html_stroke_blue = r##"<html><head><style>
+        span { stroke: #d00; }
+    </style></head><body>
+        <span><svg id="sb" width="96" height="96" viewBox="0 0 96 96" stroke="#00f">
+            <rect x="0" y="0" width="96" height="96" fill="#0f0"/>
+        </svg></span>
+    </body></html>"##;
+    let dom = DomHandle::new(html_stroke_blue, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#sb").expect("stroke blue svg must parse");
+    assert_eq!(
+        first_stroke_rgb(&tree),
+        Some((0x00, 0x00, 0xff)),
+        "inherited CSS stroke must not override the root stroke=\"#00f\" attribute"
+    );
+}
+
+#[test]
+fn root_currentcolor_stroke_resolves_against_presentation_color() {
+    let html_svg = r##"<html><head><style>
+        .icon { stroke: currentColor; }
+    </style></head><body>
+        <svg id="ss" class="icon" width="96" height="96" viewBox="0 0 96 96" color="#d00">
+            <rect x="0" y="0" width="96" height="96" fill="#0f0"/>
+        </svg>
+    </body></html>"##;
+    let dom = DomHandle::new(html_svg, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#ss").expect("svg color stroke must parse");
+    assert_eq!(
+        first_stroke_rgb(&tree),
+        Some((0xdd, 0x00, 0x00)),
+        "root stroke=currentColor must resolve against the <svg color> attribute"
+    );
+
+    let html_group = r##"<html><head><style>
+        .icon { stroke: currentColor; }
+    </style></head><body>
+        <svg id="sg" class="icon" width="96" height="96" viewBox="0 0 96 96">
+            <g color="#d00"><rect x="0" y="0" width="96" height="96" fill="#0f0"/></g>
+        </svg>
+    </body></html>"##;
+    let dom = DomHandle::new(html_group, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#sg").expect("group color stroke must parse");
+    assert_eq!(
+        first_stroke_rgb(&tree),
+        Some((0xdd, 0x00, 0x00)),
+        "root stroke=currentColor must resolve against a <g color> attribute"
+    );
+}
+
+/// A root `<svg>` with no own `fill=`/`stroke=` attribute must still receive
+/// a paint it inherits from an HTML ancestor: usvg only sees the serialized
+/// snapshot, so the document stylesheet's value would otherwise be lost.
+#[test]
+fn inherited_css_paint_reaches_root_without_own_attribute() {
+    let html_stroke = r##"<html><head><style>
+        .wrap { stroke: #dd0000; }
+    </style></head><body>
+        <div class="wrap"><svg id="is" width="96" height="96" viewBox="0 0 96 96" stroke-width="4">
+            <rect x="8" y="8" width="80" height="80" fill="#0f0"/>
+        </svg></div>
+    </body></html>"##;
+    let dom = DomHandle::new(html_stroke, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#is").expect("inherited stroke svg must parse");
+    assert_eq!(
+        first_stroke_rgb(&tree),
+        Some((0xdd, 0x00, 0x00)),
+        "inherited CSS stroke must reach a root <svg> without its own stroke attribute"
+    );
+
+    let html_fill = r##"<html><head><style>
+        .wrap { fill: #dd0000; }
+    </style></head><body>
+        <div class="wrap"><svg id="if" width="96" height="96" viewBox="0 0 96 96">
+            <rect x="8" y="8" width="80" height="80"/>
+        </svg></div>
+    </body></html>"##;
+    let dom = DomHandle::new(html_fill, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#if").expect("inherited fill svg must parse");
+    assert_eq!(
+        first_fill_rgb(&tree),
+        Some((0xdd, 0x00, 0x00)),
+        "inherited CSS fill must reach a root <svg> without its own fill attribute"
+    );
+}
+
+/// A root `fill`/`stroke` of `currentColor` with no `color=` attribute on the
+/// `<svg>` must resolve against the `color` it inherits from the HTML parent.
+/// An own `color=` on the `<svg>` still wins, and a descendant `<g color=...>`
+/// still overrides it.
+#[test]
+fn root_currentcolor_resolves_against_inherited_color() {
+    let html_fill = r##"<html><head><style>
+        .icon { fill: currentColor; }
+        body { color: #dd0000; }
+    </style></head><body>
+        <svg id="ic" class="icon" fill="currentColor" width="96" height="96" viewBox="0 0 96 96">
+            <rect x="0" y="0" width="96" height="96"/>
+        </svg>
+    </body></html>"##;
+    let dom = DomHandle::new(html_fill, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#ic").expect("inherited color fill svg must parse");
+    assert_eq!(
+        first_fill_rgb(&tree),
+        Some((0xdd, 0x00, 0x00)),
+        "root fill=currentColor must resolve against the color inherited from the HTML parent"
+    );
+
+    let html_stroke = r##"<html><head><style>
+        .icon { stroke: currentColor; }
+        body { color: #dd0000; }
+    </style></head><body>
+        <svg id="sc" class="icon" stroke="currentColor" width="96" height="96" viewBox="0 0 96 96">
+            <rect x="0" y="0" width="96" height="96" fill="#0f0"/>
+        </svg>
+    </body></html>"##;
+    let dom = DomHandle::new(html_stroke, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#sc").expect("inherited color stroke svg must parse");
+    assert_eq!(
+        first_stroke_rgb(&tree),
+        Some((0xdd, 0x00, 0x00)),
+        "root stroke=currentColor must resolve against the color inherited from the HTML parent"
+    );
+
+    // An own `color=` on the root must not be replaced by the inherited one.
+    let html_own_color = r##"<html><head><style>
+        .icon { fill: currentColor; }
+        body { color: #dd0000; }
+    </style></head><body>
+        <svg id="oc" class="icon" color="#0000ff" fill="currentColor" width="96" height="96" viewBox="0 0 96 96">
+            <rect x="0" y="0" width="96" height="96"/>
+        </svg>
+    </body></html>"##;
+    let dom = DomHandle::new(html_own_color, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#oc").expect("own color svg must parse");
+    assert_eq!(
+        first_fill_rgb(&tree),
+        Some((0x00, 0x00, 0xff)),
+        "root fill=currentColor must keep an own <svg color> attribute"
+    );
+
+    let html_own_color_stroke = r##"<html><head><style>
+        .icon { stroke: currentColor; }
+        body { color: #dd0000; }
+    </style></head><body>
+        <svg id="os" class="icon" color="#0000ff" stroke="currentColor" width="96" height="96" viewBox="0 0 96 96">
+            <rect x="0" y="0" width="96" height="96" fill="#0f0"/>
+        </svg>
+    </body></html>"##;
+    let dom = DomHandle::new(html_own_color_stroke, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#os").expect("own color stroke svg must parse");
+    assert_eq!(
+        first_stroke_rgb(&tree),
+        Some((0x00, 0x00, 0xff)),
+        "root stroke=currentColor must keep an own <svg color> attribute"
+    );
+
+    // A descendant `<g color>` still overrides the root color stamp.
+    let html_group_color = r##"<html><head><style>
+        .icon { fill: currentColor; }
+        body { color: #dd0000; }
+    </style></head><body>
+        <svg id="gc" class="icon" color="rgb(0,0,0)" fill="currentColor" width="96" height="96" viewBox="0 0 96 96">
+            <g color="#dd0000"><rect x="0" y="0" width="96" height="96"/></g>
+        </svg>
+    </body></html>"##;
+    let dom = DomHandle::new(html_group_color, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#gc").expect("group color svg must parse");
+    assert_eq!(
+        first_fill_rgb(&tree),
+        Some((0xdd, 0x00, 0x00)),
+        "a descendant <g color> must still override root fill=currentColor"
+    );
+
+    let html_group_color_stroke = r##"<html><head><style>
+        .icon { stroke: currentColor; }
+        body { color: #dd0000; }
+    </style></head><body>
+        <svg id="gs" class="icon" color="rgb(0,0,0)" stroke="currentColor" width="96" height="96" viewBox="0 0 96 96">
+            <g color="#dd0000"><rect x="0" y="0" width="96" height="96" fill="#0f0"/></g>
+        </svg>
+    </body></html>"##;
+    let dom = DomHandle::new(html_group_color_stroke, "https://example.com/");
+    dom.set_viewport(800, 600);
+    dom.resolve_layout();
+    let tree = svg_tree_of(&dom, "#gs").expect("group color stroke svg must parse");
+    assert_eq!(
+        first_stroke_rgb(&tree),
+        Some((0xdd, 0x00, 0x00)),
+        "a descendant <g color> must still override root stroke=currentColor"
     );
 }
 

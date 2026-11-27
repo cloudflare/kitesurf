@@ -5,10 +5,10 @@ Subject: [PATCH] Skip inherited SVG fill/stroke over own attributes and
  refresh responsive images on viewport resize
 
 ---
- src/document.rs       |   5 ++
- src/mutator.rs        | 194 +++++++++++++++++++++++++++++++++++-------
- src/node/serialize.rs | 136 ++++++++++++++++++-----------
- 3 files changed, 254 insertions(+), 81 deletions(-)
+ src/document.rs       |   5 +
+ src/mutator.rs        | 194 +++++++++++++++++++++++++++++++------
+ src/node/serialize.rs | 218 ++++++++++++++++++++++++++++++++----------
+ 3 files changed, 338 insertions(+), 79 deletions(-)
 
 diff --git a/src/document.rs b/src/document.rs
 index 3637929..9cf2c9c 100644
@@ -381,10 +381,10 @@ index fe9b584..6f2247f 100644
  mod test {
      use style::media_queries::MediaType;
 diff --git a/src/node/serialize.rs b/src/node/serialize.rs
-index 93fc911..710e6b3 100644
+index 93fc911..c2bad36 100644
 --- a/src/node/serialize.rs
 +++ b/src/node/serialize.rs
-@@ -344,57 +344,93 @@ impl Node {
+@@ -344,57 +344,179 @@ impl Node {
                          if blend != style::computed_values::mix_blend_mode::T::Normal {
                              style_stamp = Some(format!("mix-blend-mode:{}", blend.to_css_string()));
                          }
@@ -427,7 +427,6 @@ index 93fc911..710e6b3 100644
 -                                    crate::layout::construct::paint_attr(fill_kind, style)
 -                                {
 -                                    stamps.push(("fill", fill));
--                                }
 +                    }
 +                    // usvg only sees the serialized SVG snapshot, never the document
 +                    // stylesheet. Stamp computed fill and stroke on the snapshot root
@@ -451,12 +450,13 @@ index 93fc911..710e6b3 100644
 +                            | "textPath"
 +                            | "use"
 +                    ) {
-+                        let parent_styles = (nesting > 0)
-+                            .then(|| {
-+                                self.parent_id()
-+                                    .and_then(|pid| self.with(pid).primary_styles())
-+                            })
-+                            .flatten();
++                        // Compare against the DOM parent for the root `<svg>` too.
++                        // Its parent is the HTML ancestor it inherits from, so a
++                        // value the `<svg>` only inherited must not be stamped over
++                        // its own `fill=`/`stroke=` presentation attributes.
++                        let parent_styles = self
++                            .parent_id()
++                            .and_then(|pid| self.with(pid).primary_styles());
 +                        let same_paint_as_parent =
 +                            |kind: &style::values::generics::svg::SVGPaintKind<
 +                                style::values::computed::Color,
@@ -477,6 +477,36 @@ index 93fc911..710e6b3 100644
 +                                    ) || ps.clone_color() == style.clone_color())
 +                            };
 +                        let fill_kind = &style.clone_fill().kind;
++                        // usvg resolves `currentColor` against a `color=`
++                        // presentation attribute on the `<svg>` or a `<g>`, which
++                        // Stylo never sees. Stamp the keyword on the snapshot root
++                        // instead of Stylo's computed color so that attribute wins;
++                        // descendants keep resolving their computed color.
++                        let paint_attr_for = |kind: &style::values::generics::svg::SVGPaintKind<
++                            style::values::computed::Color,
++                            style::values::computed::url::ComputedUrl,
++                        >| {
++                            if nesting == 0
++                                && matches!(
++                                    kind,
++                                    style::values::generics::svg::SVGPaintKind::Color(
++                                        style::values::generics::color::GenericColor::CurrentColor
++                                    )
++                                )
++                            {
++                                Some("currentColor".to_string())
++                            } else {
++                                crate::layout::construct::paint_attr(kind, style)
++                            }
++                        };
++                        let has_own_attr = |name: &str| {
++                            data.attrs()
++                                .iter()
++                                .any(|attr| *attr.namespace() == ns!() && &*attr.name.local == name)
++                        };
++                        let has_own_fill = has_own_attr("fill");
++                        let has_own_stroke = has_own_attr("stroke");
++                        let has_own_color = has_own_attr("color");
 +                        let fill_is_initial = matches!(
 +                            fill_kind,
 +                            style::values::generics::svg::SVGPaintKind::Color(
@@ -486,27 +516,31 @@ index 93fc911..710e6b3 100644
 +                                .raw_components()
 +                                == [0.0, 0.0, 0.0, 1.0]
 +                        );
-+                        let should_stamp_fill = match parent_styles.as_deref() {
-+                            Some(ps) => {
-+                                !same_paint_as_parent(fill_kind, &ps.clone_fill().kind, ps)
++                        let root_inherits_fill = nesting == 0
++                            && parent_styles.as_deref().is_some_and(|ps| {
++                                same_paint_as_parent(fill_kind, &ps.clone_fill().kind, ps)
++                            });
++                        let should_stamp_fill = if nesting == 0 {
++                            // A root `<svg>` with its own `fill=` keeps it:
++                            // the value it only inherited from the HTML parent
++                            // must not be stamped over that attribute. Without
++                            // one, stamp any non-initial value (including an
++                            // inherited one) because usvg never sees the
++                            // document stylesheet.
++                            if root_inherits_fill {
++                                !has_own_fill && !fill_is_initial
++                            } else {
++                                // A rule targeting the `<svg>` itself wins over
++                                // its presentation attribute, so stamp even an
++                                // initial value when that attribute is present.
++                                !fill_is_initial || has_own_fill
 +                            }
-+                            None => !fill_is_initial,
-+                        };
-+                        if should_stamp_fill {
-+                            if let Some(fill) =
-+                                crate::layout::construct::paint_attr(fill_kind, style)
-+                            {
-+                                stamps.push(("fill", fill));
-+                            }
-+                        }
-+                        let stroke_kind = &style.clone_stroke().kind;
-+                        let stroke_is_none = matches!(
-+                            stroke_kind,
-+                            style::values::generics::svg::SVGPaintKind::None
-+                        );
-+                        let should_stamp_stroke = match parent_styles.as_deref() {
-+                            Some(ps) => {
-+                                !same_paint_as_parent(stroke_kind, &ps.clone_stroke().kind, ps)
++                        } else {
++                            match parent_styles.as_deref() {
++                                Some(ps) => {
++                                    !same_paint_as_parent(fill_kind, &ps.clone_fill().kind, ps)
+                                 }
++                                None => !fill_is_initial,
                              }
 -                            let stroke_kind = &style.clone_stroke().kind;
 -                            if !matches!(
@@ -517,14 +551,64 @@ index 93fc911..710e6b3 100644
 -                                    crate::layout::construct::paint_attr(stroke_kind, style)
 -                                {
 -                                    stamps.push(("stroke", stroke));
--                                }
-+                            None => !stroke_is_none,
++                        };
++                        if should_stamp_fill {
++                            if let Some(fill) = paint_attr_for(fill_kind) {
++                                stamps.push(("fill", fill));
++                            }
++                        }
++                        let stroke_kind = &style.clone_stroke().kind;
++                        let stroke_is_none = matches!(
++                            stroke_kind,
++                            style::values::generics::svg::SVGPaintKind::None
++                        );
++                        let root_inherits_stroke = nesting == 0
++                            && parent_styles.as_deref().is_some_and(|ps| {
++                                same_paint_as_parent(stroke_kind, &ps.clone_stroke().kind, ps)
++                            });
++                        let should_stamp_stroke = if nesting == 0 {
++                            // Same root rule as fill: a root `stroke=`
++                            // presentation attribute survives an inherited
++                            // value, but an inherited stroke still has to be
++                            // stamped when the root has no attribute of its own.
++                            if root_inherits_stroke {
++                                !has_own_stroke && !stroke_is_none
++                            } else {
++                                !stroke_is_none || has_own_stroke
++                            }
++                        } else {
++                            match parent_styles.as_deref() {
++                                Some(ps) => {
++                                    !same_paint_as_parent(stroke_kind, &ps.clone_stroke().kind, ps)
+                                 }
++                                None => !stroke_is_none,
++                            }
 +                        };
 +                        if should_stamp_stroke {
-+                            if let Some(stroke) =
-+                                crate::layout::construct::paint_attr(stroke_kind, style)
-+                            {
++                            if let Some(stroke) = paint_attr_for(stroke_kind) {
 +                                stamps.push(("stroke", stroke));
++                            }
++                        }
++                        // usvg resolves the `currentColor` keyword against a
++                        // `color=` attribute and falls back to black without
++                        // one. Stamp the computed color (which includes any
++                        // inherited HTML `color`) beside a root keyword; an own
++                        // `<svg color>` still wins because it is left untouched.
++                        // The paint grammar serializes it to sRGB-legacy rgb(),
++                        // which usvg parses (unlike modern color syntax).
++                        if nesting == 0
++                            && !has_own_color
++                            && stamps.iter().any(|(name, value)| {
++                                matches!(*name, "fill" | "stroke") && value == "currentColor"
++                            })
++                        {
++                            if let Some(color) = crate::layout::construct::paint_attr(
++                                &style::values::generics::svg::SVGPaintKind::Color(
++                                    style::values::generics::color::GenericColor::CurrentColor,
++                                ),
++                                style,
++                            ) {
++                                stamps.push(("color", color));
                              }
                          }
                      }
