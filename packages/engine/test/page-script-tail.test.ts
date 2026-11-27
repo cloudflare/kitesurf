@@ -6,6 +6,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { TailExceptionReport } from "../src/engine-errors.ts";
 import {
+  noteIsolateKillRequested,
+  wasIsolateKillRequested,
+} from "../src/eval/isolate-kill-registry.ts";
+import {
   registerIsolateLimitListener,
   unregisterIsolateLimitListener,
   type IsolateLimitNotice,
@@ -24,8 +28,8 @@ class RecordingTail extends PageScriptTail {
   }
 }
 
-function newTail(): RecordingTail {
-  const props: PageScriptTailProps = { scriptName: SCRIPT, ksErrToken: TOKEN };
+function newTail(scriptName = SCRIPT): RecordingTail {
+  const props: PageScriptTailProps = { scriptName, ksErrToken: TOKEN };
   // oxlint-disable-next-line kitesurf/no-chained-type-assertions -- props-only ExecutionContext fixture.
   const ctx = { props } as unknown as ExecutionContext;
   return new RecordingTail(ctx, {});
@@ -136,6 +140,50 @@ describe("PageScriptTail event order", () => {
       traceItem([], [exception(HUNG)], "exception"),
     ]);
     expect(tail.reports).toHaveLength(1);
+  });
+});
+
+describe("PageScriptTail calls cut off by a kill", () => {
+  const ABORTED = "abortIsolate() was called.";
+
+  function cutOff(scriptName: string, thrown: string) {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const tail = newTail(scriptName);
+      tail.tail([traceItem([log("page work")], [exception(thrown)], "exception")]);
+      return { reports: tail.reports, errors: errorSpy.mock.calls, warns: warnSpy.mock.calls };
+    } finally {
+      vi.restoreAllMocks();
+    }
+  }
+
+  it("does not report another call's abort error once the engine requested the kill", () => {
+    noteIsolateKillRequested("page-killed-abort");
+    expect(cutOff("page-killed-abort", ABORTED)).toEqual({ reports: [], errors: [], warns: [] });
+  });
+
+  it("does not report another call's hung cancellation once the engine requested the kill", () => {
+    noteIsolateKillRequested("page-killed-hung");
+    expect(cutOff("page-killed-hung", HUNG).reports).toEqual([]);
+  });
+
+  it("reports an abort error the engine did not request", () => {
+    const { reports, errors } = cutOff("page-not-killed", ABORTED);
+    expect(reports).toHaveLength(1);
+    expect(errors).toHaveLength(1);
+  });
+
+  it("reports other errors from an isolate the engine killed", () => {
+    noteIsolateKillRequested("page-killed-boom");
+    expect(cutOff("page-killed-boom", "boom").reports).toHaveLength(1);
+  });
+
+  it("forgets a kill after a minute", () => {
+    const at = Date.now();
+    noteIsolateKillRequested("page-killed-old", at);
+    expect(wasIsolateKillRequested("page-killed-old", at + 60_000)).toBe(true);
+    expect(wasIsolateKillRequested("page-killed-old", at + 60_001)).toBe(false);
   });
 });
 

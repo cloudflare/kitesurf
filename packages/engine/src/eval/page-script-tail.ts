@@ -7,6 +7,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { getTailTrace } from "./tail-trace-registry.ts";
 import { attachChunked } from "./carrier-spans.ts";
+import { wasIsolateKillRequested } from "./isolate-kill-registry.ts";
 import { notifyIsolateLimit } from "./limit-registry.ts";
 import { parseKsErrLine, type TailExceptionReport } from "../engine-errors.ts";
 import type { Tracer } from "../tracing.ts";
@@ -15,6 +16,8 @@ import type { IsolateKillMarker } from "@kitesurf/jsrpc-types/shared";
 const ISOLATE_KILL_MARKER: IsolateKillMarker = "[ks-kill]";
 /** workerd's message when an invocation can no longer produce a result. */
 const HUNG_INVOCATION_TEXT = "detected that your Worker's code had hung";
+/** workerd's error for a call cut off by abortIsolate(). */
+const ABORT_TEXT = "abortIsolate() was called";
 // workerd's abortIsolate() terminates JS without recording an abort reason, so workerd logs
 // "script terminated for unknown reasons" with a native stack for every requested kill.
 const KILL_CONSOLE_NOTE =
@@ -91,6 +94,8 @@ export class PageScriptTail extends WorkerEntrypoint<
     let dropped = 0;
     // Set when this invocation is the engine's `killIsolate` call.
     let killRequested = false;
+    // Set when a requested kill ended this invocation.
+    let abortedByKill = false;
     // Preserve the latest panic-hook line for error reports with empty wasm stacks.
     let lastPanicBlob: string | undefined;
 
@@ -193,8 +198,12 @@ export class PageScriptTail extends WorkerEntrypoint<
     };
 
     const onException = (ex: TraceException): void => {
-      // The requested abort cancels its own RPC; that is the kill, not a page error.
-      if (killRequested && ex.message.includes(HUNG_INVOCATION_TEXT)) {
+      // The requested abort cancels its own RPC and fails the calls still in flight; those are the
+      // kill, not page errors.
+      const endedByAbort =
+        ex.message.includes(HUNG_INVOCATION_TEXT) || ex.message.includes(ABORT_TEXT);
+      if (endedByAbort && (killRequested || wasIsolateKillRequested(scriptName))) {
+        abortedByKill = true;
         buffer("log", "isolate killed on engine request", ex.timestamp);
         return;
       }
@@ -229,7 +238,7 @@ export class PageScriptTail extends WorkerEntrypoint<
 
     flushSpan();
     if (item.outcome === "ok") return;
-    if (killRequested && item.outcome === "exception") return;
+    if ((killRequested || abortedByKill) && item.outcome === "exception") return;
     if (item.outcome === "exceededCpu" || item.outcome === "exceededMemory") {
       notifyIsolateLimit(scriptName, {
         kind: item.outcome === "exceededCpu" ? "cpu" : "memory",

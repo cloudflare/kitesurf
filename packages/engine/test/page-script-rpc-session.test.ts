@@ -10,6 +10,7 @@ import {
   type RpcSessionCallable,
   type RpcSessionEntrypoint,
 } from "../src/eval/page-script-rpc-session.ts";
+import { wasIsolateKillRequested } from "../src/eval/isolate-kill-registry.ts";
 import {
   registerIsolateLimitListener,
   type IsolateLimitNotice,
@@ -177,6 +178,17 @@ describe("PageScriptRpcSession", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("records the kill for the isolate's tail before it asks the isolate to abort", async () => {
+    let recordedFirst = false;
+    const fake = makeFake();
+    fake.entrypoint.killIsolate = async () => {
+      recordedFirst = wasIsolateKillRequested("page-rpc-kill");
+    };
+    const s = openPageScriptRpcSession(fake.entrypoint, { scriptName: "page-rpc-kill" });
+    await s.killIsolate("generation bump", { atOnce: true });
+    expect(recordedFirst).toBe(true);
   });
 
   it("acknowledges session close when close races session creation", async () => {

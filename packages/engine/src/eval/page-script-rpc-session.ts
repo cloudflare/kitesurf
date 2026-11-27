@@ -24,6 +24,7 @@ import type { QueryDomArgs, QueryDomMethod, QueryDomResult } from "@kitesurf/jsr
 import type { RenderPortStub } from "@kitesurf/jsrpc-types/page-renderer";
 import type { PageScriptStub, UpstreamEventHandler } from "./page-script.ts";
 import { releaseNavigateSource } from "@kitesurf/page-script/source-scan";
+import { noteIsolateKillRequested } from "./isolate-kill-registry.ts";
 import { isIsolateGoneError, notifyIsolateLimit } from "./limit-registry.ts";
 import { collectRetiredWorkers } from "./retired-worker-gc.ts";
 
@@ -344,6 +345,7 @@ export class PageScriptRpcSession implements PageScriptStub {
       .then(() => {
         if (this.isolateGone) return;
         this.isolateGone = true;
+        if (this.scriptName) noteIsolateKillRequested(this.scriptName);
         try {
           return settleTeardownWithin(Promise.resolve(ep.killIsolate?.(reason)));
         } catch {}
