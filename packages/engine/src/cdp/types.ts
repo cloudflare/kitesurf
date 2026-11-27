@@ -365,6 +365,7 @@ export interface TargetState {
   isolateLimitReportedGen?: number;
   navigationHistory: NavigationHistoryEntry[];
   navigationHistoryIndex: number;
+  navigationHistoryScroll: Map<number, { x: number; y: number }>;
   nextNavigationHistoryId: number;
   viewportWidth: number | null;
   viewportHeight: number | null;
@@ -374,6 +375,7 @@ export interface TargetState {
   screencastConfigurationBarrier: Promise<void>;
   screencastConfigurationVersion: number;
   emulatedMedia: "screen" | "print";
+  emulatedDarkColorScheme?: boolean;
   refetchOnPushState: boolean;
   autoReloadUrl: string | null;
   autoReloadCount: number;

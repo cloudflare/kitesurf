@@ -519,6 +519,26 @@ function assertScreenshotRasterLimits(
   }
 }
 
+async function saveCurrentHistoryScroll(ctx: DispatchCtx, target: TargetState): Promise<void> {
+  const current = target.navigationHistory[target.navigationHistoryIndex];
+  if (!current) return;
+  try {
+    // The document being left can be stuck in script, so its metrics read is bounded like the
+    // pre-navigate drain: an unanswered read must not hold the navigation that replaces it.
+    const metrics = await withTimeout(
+      sessionOf(ctx, target).callIfLive.layoutMetrics({}),
+      NAVIGATE_DRAIN_TIMEOUT_MS,
+      "save history scroll",
+    );
+    if (metrics) {
+      target.navigationHistoryScroll.set(current.id, {
+        x: metrics.scrollX,
+        y: metrics.scrollY,
+      });
+    }
+  } catch {}
+}
+
 function recordNavigationHistory(target: TargetState, url: string, transitionType: string): void {
   if (transitionType === "back_forward") return;
   if (transitionType === "reload") {
@@ -533,6 +553,9 @@ function recordNavigationHistory(target: TargetState, url: string, transitionTyp
   if (outgoing) outgoing.title = target.title;
 
   if (target.navigationHistoryIndex < target.navigationHistory.length - 1) {
+    for (let i = target.navigationHistoryIndex + 1; i < target.navigationHistory.length; i++) {
+      target.navigationHistoryScroll.delete(target.navigationHistory[i]!.id);
+    }
     target.navigationHistory.length = target.navigationHistoryIndex + 1;
   }
   const tt = isNavigationTransitionType(transitionType) ? transitionType : "other";
@@ -761,6 +784,7 @@ export const pageDomain = defineDomain("Page", {
         throw new Error(`Page.navigateToHistoryEntry: no entry with id ${entryId}`);
       }
       if (newIndex === target.navigationHistoryIndex) return {};
+      await saveCurrentHistoryScroll(ctx, target);
       const dest = target.navigationHistory[newIndex]!;
       target.navigationHistoryIndex = newIndex;
       const navReq = {
@@ -773,6 +797,23 @@ export const pageDomain = defineDomain("Page", {
         },
       } satisfies InternalHistoryNavigateRequest;
       await navigatePage({ ctx, target }, navReq);
+      // Restore the saved scroll position when history.scrollRestoration is "auto".
+      // https://html.spec.whatwg.org/multipage/nav-history-apis.html#restore-persisted-state
+      const saved = target.navigationHistoryScroll.get(dest.id);
+      if (saved && (saved.x > 0 || saved.y > 0) && target.pageScript) {
+        try {
+          // A restored document can be just as busy as the one left behind; the restore is a
+          // best-effort nicety and is bounded like the save.
+          await withTimeout(
+            target.pageScript.evaluate(
+              `if (typeof history === "undefined" || history.scrollRestoration !== "manual") { window.scrollTo(${saved.x}, ${saved.y}); }`,
+              {},
+            ),
+            NAVIGATE_DRAIN_TIMEOUT_MS,
+            "restore history scroll",
+          );
+        } catch {}
+      }
       return {};
     },
 
@@ -1481,6 +1522,9 @@ async function navigatePage(
   // Before this navigation takes over the target: a reopened document's lifecycle it may
   // replay belongs to the loader the old document still has.
   if (/^https?:/i.test(url)) await drainBeforeNavigate(ctx, target);
+  if (req.params?.transitionType !== "back_forward" && req.params?.transitionType !== "reload") {
+    await saveCurrentHistoryScroll(ctx, target);
+  }
   // Abort the previous signal so its redirect walk and egress request can stop.
   target.pendingNavAbort?.abort();
   const navAbort = new AbortController();
@@ -2639,8 +2683,8 @@ async function pushNavigateToPageScriptInner(
         ...(traced ? { traced: true } : {}),
         expectIframeInstalls: owesIframeInstalls,
         ...(target.docCharset ? { charset: target.docCharset } : {}),
-        ...(ctx.browser.darkColorScheme !== undefined
-          ? { darkColorScheme: ctx.browser.darkColorScheme }
+        ...((target.emulatedDarkColorScheme ?? ctx.browser.darkColorScheme) !== undefined
+          ? { darkColorScheme: target.emulatedDarkColorScheme ?? ctx.browser.darkColorScheme }
           : {}),
         ...(ctx.browser.ttyUaCss
           ? {

@@ -828,16 +828,16 @@
     "reason": "Error: expect(received).toEqual(expected) // deep equality"
   },
   "page-emulate-media.spec.ts::should change the actual colors in css": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+    "expected": "PASS",
+    "reason": null
   },
   "page-emulate-media.spec.ts::should default to light": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+    "expected": "PASS",
+    "reason": null
   },
   "page-emulate-media.spec.ts::should emulate colorScheme should work @smoke": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+    "expected": "PASS",
+    "reason": null
   },
   "page-emulate-media.spec.ts::should emulate contrast ": {
     "expected": "FAIL",
@@ -860,8 +860,8 @@
     "reason": "Error: expect(received).toEqual(expected) // deep equality"
   },
   "page-emulate-media.spec.ts::should work during navigation": {
-    "expected": "FAIL",
-    "reason": "Error: expect(received).toBe(expected) // Object.is equality"
+    "expected": "PASS",
+    "reason": null
   },
   "page-evaluate-callback.spec.ts::should work in a child frame": {
     "expected": "FAIL",

@@ -291,6 +291,35 @@ impl DomHandle {
         self.layout_dirty.set(true);
     }
 
+    // Update the live document's prefers-color-scheme media feature and mark
+    // layout dirty so @media (prefers-color-scheme: ...) rules re-evaluate.
+    // https://drafts.csswg.org/mediaqueries-5/#prefers-color-scheme
+    #[wasm_bindgen(js_name = "setColorScheme")]
+    pub fn set_color_scheme(&self, dark: bool) {
+        use blitz_traits::shell::{ColorScheme, Viewport};
+        let scheme = if dark {
+            ColorScheme::Dark
+        } else {
+            ColorScheme::Light
+        };
+        let mut doc = match self.doc.try_borrow_mut() {
+            Ok(d) => d,
+            Err(_) => return,
+        };
+        let current = doc.viewport();
+        if current.color_scheme == scheme {
+            return;
+        }
+        let next = Viewport::new(
+            current.window_size.0,
+            current.window_size.1,
+            current.hidpi_scale,
+            scheme,
+        );
+        doc.set_viewport(next);
+        self.layout_dirty.set(true);
+    }
+
     #[wasm_bindgen(js_name = "pageBoxJson")]
     pub fn page_box_json(&self) -> String {
         let computed = panic::catch_unwind(panic::AssertUnwindSafe(|| self.compute_page_box()));

@@ -1232,11 +1232,20 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       const bytes = new Uint8Array(body);
       const dims = sniffImageDims(bytes);
       if (!dims) {
-        if (!looksLikeSvg(bytes)) {
-          console.warn(
-            `[ks-outbound] resource-type Image on a non-image body: ${forwardRequest.url}`,
-          );
+        if (looksLikeSvg(bytes)) {
+          // An SVG has no raster dimensions to publish, so hand the body to the
+          // engine, which parses it with usvg for its intrinsic size. Failing it
+          // here made every cross-origin SVG icon zero-sized and a load error.
+          // https://html.spec.whatwg.org/multipage/images.html#sourcing-out-of-band-images
+          return new Response(body, {
+            status: out.status,
+            statusText: out.statusText,
+            headers: scrubKitesurfNamespace(exposeHeaders(out.headers)),
+          });
         }
+        console.warn(
+          `[ks-outbound] resource-type Image on a non-image body: ${forwardRequest.url}`,
+        );
         return shell(false);
       }
       const key = putOpaqueImage(bytes, connectionId, props?.mainFrameId ?? "");

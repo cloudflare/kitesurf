@@ -267,9 +267,10 @@ test("terminate and self.close free the slot for the next worker", async ({ page
       });
     const a = new Worker(blob("postMessage('a')"));
     const aSaid = await firstReply(a);
+    a.terminate();
     const b = new Worker(blob("postMessage('b')"));
     const bSaid = await firstReply(b);
-    a.terminate();
+    b.terminate();
     const c = new Worker(
       blob(
         "postMessage('c'); close(); postMessage('same task'); setTimeout(function () { postMessage('later task'); }, 0)",
@@ -285,7 +286,7 @@ test("terminate and self.close free the slot for the next worker", async ({ page
     d.terminate();
     return { aSaid, bSaid, cSaid, dSaid };
   });
-  expect(out).toEqual({ aSaid: "a", bSaid: "error", cSaid: ["c", "same task"], dSaid: "d" });
+  expect(out).toEqual({ aSaid: "a", bSaid: "b", cSaid: ["c", "same task"], dSaid: "d" });
 });
 
 test("uncaught worker errors fire error on the Worker unless the worker handles them", async ({
@@ -537,3 +538,106 @@ test("a worker created in an OOPIF reports to that frame", async ({ page }) => {
     message: "Failed to start worker: no isolate slot is free for this worker",
   });
 });
+
+test("workers past the budget wait for a slot and then run", async ({ page }) => {
+  await setContent(page, "<p>x</p>");
+  const result = await page.evaluate(async () => {
+    // Keep each worker alive via `onmessage` until explicitly terminated so the
+    // budget saturates and exercises the FIFO queue.
+    const source = "onmessage = () => {}; postMessage('up')";
+    const url = "data:text/javascript," + encodeURIComponent(source);
+    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const workers: Worker[] = [];
+    const replied = new Set<number>();
+    const errored = new Set<number>();
+    for (let index = 0; index < 4; index++) {
+      const worker = new Worker(url);
+      worker.onmessage = () => replied.add(index);
+      worker.onerror = () => errored.add(index);
+      workers.push(worker);
+    }
+    await wait(800);
+    const startedAtOnce = replied.size;
+    // Free a slot whenever a worker has answered, so the queued starts run.
+    for (let round = 0; round < 10 && replied.size < workers.length; round++) {
+      for (const [index, worker] of workers.entries()) {
+        if (replied.has(index)) worker.terminate();
+      }
+      await wait(600);
+    }
+    const total = replied.size;
+    for (const worker of workers) worker.terminate();
+    return { startedAtOnce, total, errored: errored.size };
+  });
+  // The platform allows four dynamic workers, so the reserves leave fewer than
+  // four for the page: the extras wait instead of failing.
+  expect(result.errored).toBe(0);
+  expect(result.startedAtOnce).toBeGreaterThan(0);
+  expect(result.startedAtOnce).toBeLessThan(4);
+  expect(result.total).toBe(4);
+}, 120_000);
+
+test("a queued worker receives buffered postMessage once a slot frees and times out if blocked", async ({
+  page,
+}) => {
+  await setContent(page, "<p>x</p>");
+  const result = await page.evaluate(async () => {
+    const aliveUrl =
+      "data:text/javascript," + encodeURIComponent("onmessage = () => {}; postMessage('up')");
+    const echoUrl =
+      "data:text/javascript," +
+      encodeURIComponent("onmessage = (e) => postMessage('echo:' + e.data);");
+    const a = new Worker(aliveUrl);
+    await new Promise<void>((resolve) => {
+      a.onmessage = () => resolve();
+    });
+    const queued = new Worker(echoUrl);
+    const echoed = new Promise<string>((resolve) => {
+      queued.onmessage = (e) => resolve(String(e.data));
+    });
+    queued.postMessage("ping");
+    a.terminate();
+    const gotEcho = await echoed;
+
+    // Now keep `queued` alive and ensure a new worker past the deadline errors cleanly.
+    const blocked = new Worker(aliveUrl);
+    const blockedErr = await new Promise<string>((resolve) => {
+      blocked.onerror = (e) => resolve(e.message || "error");
+      blocked.onmessage = () => resolve("started");
+    });
+    queued.terminate();
+    blocked.terminate();
+    return { gotEcho, blockedErr };
+  });
+  expect(result.gotEcho).toBe("echo:ping");
+  expect(result.blockedErr).toContain("no isolate slot is free");
+}, 60_000);
+
+test("idle reclaim waits until a worker finishes reading a fetch body", async ({ page }) => {
+  await page.goto("http://127.0.0.1:8787/__fixtures/policy-doc.html", {
+    waitUntil: "domcontentloaded",
+    timeout: 30_000,
+  });
+  const results = await page.evaluate(async () => {
+    const runWorker = (code: string) =>
+      new Promise<number>((resolve, reject) => {
+        const url = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
+        const w = new Worker(url);
+        w.onmessage = (e) => resolve(Number(e.data));
+        w.onerror = (e) => reject(new Error(e.message));
+        setTimeout(
+          () => reject(new Error("worker closed before posting fetch body length")),
+          10_000,
+        );
+      });
+    const arrayBufferLen = await runWorker(
+      `fetch('/__fixtures/slow-red.png?ms=400').then(r => r.arrayBuffer()).then(b => postMessage(b.byteLength));`,
+    );
+    const pipeLen = await runWorker(
+      `fetch('/__fixtures/slow-red.png?ms=400').then(r => { let n = 0; return r.body.pipeTo(new WritableStream({ write(c) { n += c.byteLength; } })).then(() => postMessage(n)); });`,
+    );
+    return { arrayBufferLen, pipeLen };
+  });
+  expect(results.arrayBufferLen).toBeGreaterThan(0);
+  expect(results.pipeLen).toBe(results.arrayBufferLen);
+}, 60_000);
