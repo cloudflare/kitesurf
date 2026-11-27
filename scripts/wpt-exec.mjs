@@ -25,7 +25,7 @@ import {
   createTestdriverBridge,
   attachTestdriverBinding,
 } from "./wpt-testdriver.mjs";
-import { getCachedRefScreenshot } from "./wpt-ref-cache.mjs";
+import { getCachedRefScreenshot, waitForImagesSettled } from "./wpt-ref-cache.mjs";
 
 const DEFAULT_WS = process.env.KITESURF_WS ?? "ws://127.0.0.1:8787/devtools/browser";
 const DEFAULT_BASE = DEFAULT_WPT_BASE;
@@ -645,6 +645,7 @@ async function runReftest(page, testInfo, timeoutMs, deadline, lap = () => {}) {
   const cacheKey = `${testInfo.media ?? ""}\n${testInfo.href}`;
 
   if (testInfo.waiting) await waitForReftestReady(page, deadline);
+  await waitForImagesSettled(page, deadline);
   lap("refWaitMs");
   let testPng;
   try {
@@ -661,8 +662,11 @@ async function runReftest(page, testInfo, timeoutMs, deadline, lap = () => {}) {
       throw { actual: "ERROR", reason: `ref goto failed: ${e.message}`, subtests: [] };
     }
     lap("refGotoMs");
-    // If a reference stays in reftest-wait, capture its current frame but do not cache it.
-    const cacheable = await waitForReftestReady(page, Date.now() + timeoutMs);
+    // If a reference stays in reftest-wait, or its images never arrive, capture its current frame
+    // but do not cache it: every test sharing that reference would compare against the gap.
+    const ready = await waitForReftestReady(page, Date.now() + timeoutMs);
+    const settled = await waitForImagesSettled(page, Date.now() + timeoutMs);
+    const cacheable = ready && settled;
     lap("refWaitMs");
     let png;
     try {

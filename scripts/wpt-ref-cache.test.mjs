@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getCachedRefScreenshot } from "./wpt-ref-cache.mjs";
+import { getCachedRefScreenshot, waitForImagesSettled } from "./wpt-ref-cache.mjs";
 
 test("a never-ready reference is rendered separately by each waiter", async () => {
   const cache = new Map();
@@ -53,4 +53,43 @@ test("a ready reference is shared with concurrent waiters", async () => {
     { png: "ready-shot", cached: true },
   ]);
   assert.equal(renders, 1);
+});
+
+function pageReturning(values) {
+  const seen = [];
+  return {
+    seen,
+    async evaluate(expression) {
+      seen.push(expression);
+      const next = values.shift();
+      if (next instanceof Error) throw next;
+      return next;
+    },
+  };
+}
+
+test("images already loaded settle on the first read", async () => {
+  const page = pageReturning([0]);
+  assert.equal(await waitForImagesSettled(page, Date.now() + 1_000), true);
+  assert.equal(page.seen.length, 1);
+  assert.match(page.seen[0], /document\.images/);
+});
+
+test("a late image settles once the page reports none pending", async () => {
+  const page = pageReturning([2, 1, 0]);
+  assert.equal(await waitForImagesSettled(page, Date.now() + 1_000), true);
+  assert.equal(page.seen.length, 3);
+});
+
+test("an image that never arrives gives up at the deadline", async () => {
+  const page = pageReturning([1, 1, 1, 1]);
+  let clock = 0;
+  const now = () => (clock += 100);
+  assert.equal(await waitForImagesSettled(page, 150, now, 0), false);
+});
+
+// The caller treats this as "do not cache": an unreadable page is no evidence that it painted.
+test("a page that cannot be evaluated does not count as settled", async () => {
+  const page = pageReturning([new Error("Execution context was destroyed")]);
+  assert.equal(await waitForImagesSettled(page, Date.now() + 1_000), false);
 });
