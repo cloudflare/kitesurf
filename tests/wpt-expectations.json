@@ -2242,7 +2242,7 @@
     "reason": null
   },
   "/css/css-color/parsing/color-computed-lab.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-color/parsing/color-computed-named-color.html": {
@@ -2330,23 +2330,23 @@
     "reason": null
   },
   "/css/css-color/parsing/color-valid-hsl.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-color/parsing/color-valid-hwb.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-color/parsing/color-valid-lab.html": {
     "expected": "FAIL",
-    "reason": "32/150 subtests left: statically-resolvable calc() must serialize preserved-unclamped (lab(calc(150) \u2026)); deliberately deferred."
+    "reason": "32/158 subtests left: statically-resolvable calc() must serialize preserved-unclamped (lab(calc(150) \u2026)); deliberately deferred."
   },
   "/css/css-color/parsing/color-valid-relative-color.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-color/parsing/color-valid-rgb.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-color/parsing/color-valid-system-color.html": {
@@ -6454,7 +6454,7 @@
     "reason": "T18 enrollment (css-values): 0/12 subtests pass"
   },
   "/css/css-values/calc-infinity-nan-computed.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-values/calc-infinity-nan-serialize-angle.html": {
@@ -6834,7 +6834,7 @@
     "reason": "T18 enrollment (css-values): measured PASS"
   },
   "/css/css-values/exp-log-compute.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-values/exp-log-invalid.html": {
@@ -6870,7 +6870,7 @@
     "reason": null
   },
   "/css/css-values/hypot-pow-sqrt-computed.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-values/hypot-pow-sqrt-invalid.html": {
@@ -7228,8 +7228,8 @@
     "reason": "T18 enrollment (css-values): measured PASS"
   },
   "/css/css-values/round-function.html": {
-    "expected": "FAIL",
-    "reason": "T18 enrollment (css-values): measured PASS"
+    "expected": "PASS",
+    "reason": null
   },
   "/css/css-values/round-mod-rem-computed.html": {
     "expected": "PASS",
