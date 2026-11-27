@@ -2859,7 +2859,7 @@
     "reason": null
   },
   "/css/css-fonts/parsing/font-family-computed.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-fonts/parsing/font-family-invalid.html": {
@@ -2959,7 +2959,7 @@
     "reason": null
   },
   "/css/css-fonts/parsing/font-size-computed.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-fonts/parsing/font-size-invalid.html": {
@@ -4158,8 +4158,8 @@
     "reason": "T18 enrollment (css-masking): measured PASS"
   },
   "/css/css-masking/clip-path/clip-path-polygon-013.html": {
-    "expected": "PASS",
-    "reason": "T18 enrollment (css-masking): measured PASS"
+    "expected": "FAIL",
+    "reason": "The Ahem web font from @import does not load, so font metrics come from the fallback font since blitz 0.3.0-beta.5. Beta.4 measured zero for the missing family, which passed by accident."
   },
   "/css/css-masking/clip-path/clip-path-rect-001.html": {
     "expected": "PASS",
@@ -5760,7 +5760,7 @@
     "reason": null
   },
   "/css/css-text/parsing/text-indent-computed.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-text/parsing/text-indent-invalid.html": {
@@ -5768,7 +5768,7 @@
     "reason": null
   },
   "/css/css-text/parsing/text-indent-valid.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-text/parsing/text-justify-computed-legacy.html": {
@@ -6775,8 +6775,8 @@
     "reason": "T18 enrollment (css-values): measured PASS"
   },
   "/css/css-values/cap-invalidation.html": {
-    "expected": "PASS",
-    "reason": "T18 enrollment (css-values): measured PASS"
+    "expected": "FAIL",
+    "reason": "The Ahem web font from @import does not load, so font metrics come from the fallback font since blitz 0.3.0-beta.5. Beta.4 measured zero for the missing family, which passed by accident."
   },
   "/css/css-values/ch-empty-pseudo-recalc-on-font-load.html": {
     "expected": "FAIL",
@@ -7185,12 +7185,12 @@
     "reason": "T18 enrollment (css-values): 0/3 subtests pass"
   },
   "/css/css-values/rcap-invalidation.html": {
-    "expected": "PASS",
-    "reason": "T18 enrollment (css-values): measured PASS"
+    "expected": "FAIL",
+    "reason": "The Ahem web font from @import does not load, so font metrics come from the fallback font since blitz 0.3.0-beta.5. Beta.4 measured zero for the missing family, which passed by accident."
   },
   "/css/css-values/rch-invalidation.html": {
-    "expected": "PASS",
-    "reason": "T18 enrollment (css-values): measured PASS"
+    "expected": "FAIL",
+    "reason": "The Ahem web font from @import does not load, so font metrics come from the fallback font since blitz 0.3.0-beta.5. Beta.4 measured zero for the missing family, which passed by accident."
   },
   "/css/css-values/rem-root-font-size-restyle-1.html": {
     "expected": "PASS",
@@ -7205,8 +7205,8 @@
     "reason": "T18 enrollment (css-values): measured PASS"
   },
   "/css/css-values/rex-invalidation.html": {
-    "expected": "PASS",
-    "reason": "T18 enrollment (css-values): measured PASS"
+    "expected": "FAIL",
+    "reason": "The Ahem web font from @import does not load, so font metrics come from the fallback font since blitz 0.3.0-beta.5. Beta.4 measured zero for the missing family, which passed by accident."
   },
   "/css/css-values/rgba-011.html": {
     "expected": "PASS",
@@ -8741,8 +8741,8 @@
     "reason": null
   },
   "/css/cssom-view/scrollWidthHeight.xht": {
-    "expected": "FAIL",
-    "reason": "8/12 subtests pass after paint-dom routing. Remaining 4 fails are ~1-2px off vs Chrome (149 vs 150, 249 vs 250) \u2014 taffy's content_size vs padding-box accounting differs in border accounting for the overflow extent."
+    "expected": "PASS",
+    "reason": null
   },
   "/css/cssom-view/scrollWidthHeightWhenNotScrollable.xht": {
     "expected": "FAIL",
@@ -23187,11 +23187,11 @@
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-nested-table.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-nested-thead-th.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-nested-top.html": {
@@ -23235,7 +23235,7 @@
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-rendering.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-right-002.html": {
@@ -23319,7 +23319,7 @@
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-table-td-top.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-table-tfoot-bottom.html": {
@@ -23327,7 +23327,7 @@
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-table-th-bottom.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-table-th-left.html": {
@@ -23339,7 +23339,7 @@
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-table-th-top.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-position/sticky/position-sticky-table-thead-top.html": {
@@ -26975,7 +26975,7 @@
     "reason": null
   },
   "/css/css-grid/grid-items/grid-inline-items-002.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/grid-items/grid-inline-items-003.html": {
@@ -28451,11 +28451,11 @@
     "reason": null
   },
   "/css/css-grid/alignment/grid-baseline-001.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/alignment/grid-baseline-002.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/alignment/grid-baseline-003.html": {
@@ -28775,7 +28775,7 @@
     "reason": null
   },
   "/css/css-grid/alignment/grid-inline-baseline.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/alignment/grid-item-aspect-ratio-stretch-1.html": {
@@ -28875,19 +28875,19 @@
     "reason": null
   },
   "/css/css-grid/alignment/grid-self-alignment-baseline-with-grid-001.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/alignment/grid-self-alignment-baseline-with-grid-002.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/alignment/grid-self-alignment-baseline-with-grid-003.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/alignment/grid-self-alignment-baseline-with-grid-004.html": {
-    "expected": "FAIL",
+    "expected": "PASS",
     "reason": null
   },
   "/css/css-grid/alignment/grid-self-alignment-stretch-input-range.html": {
@@ -31872,8 +31872,8 @@
     "reason": null
   },
   "/css/css-conditional/container-queries/font-relative-units.html": {
-    "expected": "PASS",
-    "reason": null
+    "expected": "FAIL",
+    "reason": "The Ahem web font from @import does not load, so font metrics come from the fallback font since blitz 0.3.0-beta.5. Beta.4 measured zero for the missing family, which passed by accident."
   },
   "/css/css-conditional/container-queries/grid-container.html": {
     "expected": "PASS",
