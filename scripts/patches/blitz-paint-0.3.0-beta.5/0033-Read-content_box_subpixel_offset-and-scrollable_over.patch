@@ -1,0 +1,60 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 27 Nov 2026 18:40:03 +0000
+Subject: [PATCH] Read content_box_subpixel_offset and scrollable_overflow
+ through accessors
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/render.rs | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index 0d9f400..76bd89a 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -642,7 +642,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+         };
+
+         // Don't render things that are out of view
+-        let overflow = *node.scrollable_overflow();
++        let overflow = node.scrollable_overflow();
+         let transform = self.node_transform(node, parent_style_transform);
+         let screen_transform = Affine::translate(Vec2 {
+             x: -self.initial_x,
+@@ -844,7 +844,7 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+                 // Use the live reach, not the resolve-time cache: pure-scroll
+                 // frames skip resolve, so the cached rect goes stale by the delta.
+                 let mut effect_layer_clip = border_box;
+-                effect_layer_clip = effect_layer_clip.union(*cx.node.scrollable_overflow());
++                effect_layer_clip = effect_layer_clip.union(cx.node.scrollable_overflow());
+                 if let Some((x0, y0, x1, y1)) = cx.node.live_rehomed_reach(self.scale) {
+                     effect_layer_clip = effect_layer_clip.union(Rect::new(
+                         x0 as f64 * self.scale,
+@@ -1246,7 +1246,7 @@ impl ElementCx<'_, '_> {
+                 });
+
+             // Text keeps its unrounded position; only box edges are snapped to whole pixels.
+-            let subpixel_offset = text_layout.content_box_subpixel_offset;
++            let subpixel_offset = text_layout.content_box_subpixel_offset();
+             let pos = Point {
+                 x: pos.x + subpixel_offset.x as f64,
+                 y: pos.y + subpixel_offset.y as f64 + text_layout.block_offset as f64,
+@@ -1301,7 +1301,7 @@ impl ElementCx<'_, '_> {
+             // For single-line inputs, add an offset to vertically center the text input layout
+             // within the content box of it's node.
+             let y_offset = self.node.text_input_v_centering_offset(self.scale);
+-            let subpixel_offset = input_data.content_box_subpixel_offset;
++            let subpixel_offset = input_data.content_box_subpixel_offset();
+             let pos = Point {
+                 x: pos.x + subpixel_offset.x as f64,
+                 y: pos.y + subpixel_offset.y as f64 + y_offset,
+@@ -1383,7 +1383,7 @@ impl ElementCx<'_, '_> {
+         };
+
+         // Text keeps its unrounded position; only box edges are snapped to whole pixels.
+-        let subpixel_offset = list_item.content_box_subpixel_offset;
++        let subpixel_offset = list_item.content_box_subpixel_offset();
+         let pos = Point {
+             x: pos.x
+                 + subpixel_offset.x as f64

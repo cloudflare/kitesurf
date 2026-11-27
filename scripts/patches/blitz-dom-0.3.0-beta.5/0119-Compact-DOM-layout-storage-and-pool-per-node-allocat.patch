@@ -1,0 +1,1474 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 27 Nov 2026 18:40:03 +0000
+Subject: [PATCH] Compact DOM/layout storage and pool per-node allocations
+
+Move presentational_hints into ElementRare (ElementData 64->56 B on wasm32), gate content_box_subpixel_offset on writing-mode (TextLayout 52->44 B on wasm32), pool TextLayout/EvictedLayout/EvictedBreak via PoolBox, compact LayoutData (shared order, [f32; 4] scrollable_overflow, lazy pooled unrounded), and store single-attribute Attributes in a tagged PoolBox<Attribute>.
+
+Signed-off-by: bpereira <bpereira@cloudflare.com>
+---
+ src/layout/construct.rs           |   7 +-
+ src/layout/evict.rs               |   2 +-
+ src/layout/inline/layout.rs       |   6 +-
+ src/layout/list.rs                |   1 +
+ src/layout/paint_tree.rs          |   2 +-
+ src/mutator.rs                    |   4 +-
+ src/node/attributes.rs            | 373 ++++++++++++++++++++++++++++--
+ src/node/element.rs               | 201 +++++++++++++---
+ src/node/node.rs                  |  12 +-
+ src/node/text.rs                  |  72 +++++-
+ src/pool.rs                       |  79 ++++++-
+ src/resolve.rs                    |   4 +-
+ src/stylo/mod.rs                  |   2 +-
+ src/stylo/presentational_hints.rs |  66 +++++-
+ src/stylo/svg_attrs.rs            |   2 +-
+ 15 files changed, 739 insertions(+), 94 deletions(-)
+
+diff --git a/src/layout/construct.rs b/src/layout/construct.rs
+index 47cb03f..9e1c89b 100644
+--- a/src/layout/construct.rs
++++ b/src/layout/construct.rs
+@@ -367,11 +367,11 @@ pub(crate) struct ConstructionTaskResult {
+
+ #[derive(Clone)]
+ pub(crate) enum ConstructionTaskData {
+-    InlineLayout(Box<TextLayout>),
++    InlineLayout(crate::pool::PoolBox<TextLayout>),
+ }
+
+ pub(crate) enum ConstructionTaskResultData {
+-    InlineLayout(Box<TextLayout>),
++    InlineLayout(crate::pool::PoolBox<TextLayout>),
+ }
+
+ /// Accumulator threaded through layout-child collection.
+@@ -1165,7 +1165,8 @@ fn collect_layout_children_with_wrap(
+                 let existing_layout = doc.nodes[container_node_id]
+                     .element_data_mut()
+                     .and_then(|el| el.take_inline_layout_data());
+-                let layout = existing_layout.unwrap_or_else(|| Box::new(TextLayout::unfilled()));
++                let layout = existing_layout
++                    .unwrap_or_else(|| crate::pool::PoolBox::new(TextLayout::unfilled()));
+
+                 // Queue node for inline layout construction. Deferring construction of inline layouts to a
+                 // dedicated phase allows us to multithread the expensive text shaping step.
+diff --git a/src/layout/evict.rs b/src/layout/evict.rs
+index 0522d47..3a062f7 100644
+--- a/src/layout/evict.rs
++++ b/src/layout/evict.rs
+@@ -188,7 +188,7 @@ impl BaseDocument {
+         inline.evict(EvictedLayout {
+             node_id,
+             scale,
+-            breaking: Some(Box::new(breaking)),
++            breaking: Some(crate::pool::PoolBox::new(breaking)),
+         });
+         Eviction::Evicted
+     }
+diff --git a/src/layout/inline/layout.rs b/src/layout/inline/layout.rs
+index 6fc8bb3..34dad59 100644
+--- a/src/layout/inline/layout.rs
++++ b/src/layout/inline/layout.rs
+@@ -1878,7 +1878,11 @@ impl crate::BaseDocument {
+     /// Puts an inline root's layout back after a layout pass and indexes the root once. Each
+     /// measure and layout of a root used to push it again, so the index of a large page grew to
+     /// several times its root count before resolve deduplicated it.
+-    pub(crate) fn put_back_inline_layout(&mut self, node_id: NodeId, mut layout: Box<TextLayout>) {
++    pub(crate) fn put_back_inline_layout(
++        &mut self,
++        node_id: NodeId,
++        mut layout: crate::pool::PoolBox<TextLayout>,
++    ) {
+         let push = !layout.mark_root_indexed();
+         self.nodes[node_id]
+             .data
+diff --git a/src/layout/list.rs b/src/layout/list.rs
+index 5081e09..c3e594d 100644
+--- a/src/layout/list.rs
++++ b/src/layout/list.rs
+@@ -92,6 +92,7 @@ fn node_list_item_child(
+     Some(ListItemLayout {
+         marker,
+         position,
++        #[cfg(feature = "writing-mode")]
+         content_box_subpixel_offset: taffy::Point::ZERO,
+     })
+ }
+diff --git a/src/layout/paint_tree.rs b/src/layout/paint_tree.rs
+index 3f09931..2ed9416 100644
+--- a/src/layout/paint_tree.rs
++++ b/src/layout/paint_tree.rs
+@@ -153,7 +153,7 @@ impl StackingContext {
+             let node = tree.get(child.node_id)?;
+             let position = child.position(tree, sc_root_id);
+             let location = node.final_layout().location;
+-            let mut overflow = *node.scrollable_overflow();
++            let mut overflow = node.scrollable_overflow();
+             if let Some(transform) = node.transform() {
+                 overflow = transform.transform_rect_bbox(overflow);
+             }
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 69e33f3..49583d8 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -509,7 +509,7 @@ impl DocumentMutator<'_> {
+         }
+
+         element.attrs.set(name.clone(), value);
+-        element.presentational_hints.take();
++        element.invalidate_presentational_hints();
+         if node_is_in_document {
+             devtools!(
+                 self,
+@@ -734,7 +734,7 @@ impl DocumentMutator<'_> {
+         if !had_attr {
+             return;
+         }
+-        element.presentational_hints.take();
++        element.invalidate_presentational_hints();
+         self.mutations_occurred |= node_is_in_document;
+         if node_is_in_document {
+             devtools!(
+diff --git a/src/node/attributes.rs b/src/node/attributes.rs
+index 55e816e..688b3cc 100644
+--- a/src/node/attributes.rs
++++ b/src/node/attributes.rs
+@@ -1,8 +1,12 @@
++use std::mem::ManuallyDrop;
+ use std::ops::{Deref, DerefMut};
++use std::ptr::NonNull;
+
+ use markup5ever::{LocalName, Namespace, Prefix, QualName, ns};
+ use thin_vec::ThinVec;
+
++use crate::pool::{Pool, PoolBox, Pooled};
++
+ /// The local part of an attribute's name; see [`Attribute::namespace`] and
+ /// [`Attribute::prefix`] for the rest.
+ #[derive(PartialEq, Eq, Clone, Debug, Hash)]
+@@ -77,42 +81,159 @@ impl std::fmt::Debug for Attribute {
+     }
+ }
+
+-#[derive(Clone, Debug)]
++// SAFETY: an `Attribute` in the pool is reached through exactly one `Attributes` (or a
++// `PoolBox`), which hands out shared or unique access like a `Box` would.
++unsafe impl Pooled for Attribute {
++    fn pool() -> &'static std::sync::Mutex<Pool> {
++        static POOL: std::sync::Mutex<Pool> = std::sync::Mutex::new(Pool::new());
++        &POOL
++    }
++}
++
++/// An element's attributes in one word: most elements with attributes have exactly one, which
++/// is stored as a tagged [`PoolBox`] slot instead of a `ThinVec` and its header.
+ pub struct Attributes {
+-    inner: ThinVec<Attribute>,
++    repr: AttrRepr,
+ }
+
++/// Low bit 0: a `ThinVec` holding zero or at least two attributes. Low bit 1: a
++/// `PoolBox<Attribute>` slot pointer tagged with the low bit; `Attribute` is at least 2-aligned.
++union AttrRepr {
++    many: ManuallyDrop<ThinVec<Attribute>>,
++    one: *mut u8,
++}
++
++const _: () = assert!(std::mem::size_of::<Attributes>() == std::mem::size_of::<usize>());
++const _: () = assert!(std::mem::size_of::<ThinVec<Attribute>>() == std::mem::size_of::<usize>());
++const _: () = assert!(std::mem::align_of::<ThinVec<Attribute>>() == std::mem::align_of::<usize>());
++const _: () = assert!(std::mem::align_of::<Attribute>() >= 2);
++
++const _: fn() = || {
++    fn assert_send_sync<T: Send + Sync>() {}
++    assert_send_sync::<Attribute>();
++};
++
++// SAFETY: `Attribute` and `ThinVec<Attribute>` are `Send`, and a slot belongs to exactly one
++// `Attributes`.
++unsafe impl Send for Attributes {}
++// SAFETY: `Attribute` and `ThinVec<Attribute>` are `Sync`; shared access only hands out
++// `&[Attribute]`.
++unsafe impl Sync for Attributes {}
++
+ impl Attributes {
+-    pub fn new(inner: Vec<Attribute>) -> Self {
++    fn many(vec: ThinVec<Attribute>) -> Self {
+         Self {
+-            inner: inner.into_iter().collect(),
++            repr: AttrRepr {
++                many: ManuallyDrop::new(vec),
++            },
+         }
+     }
+-}
+
+-impl From<Vec<Attribute>> for Attributes {
+-    fn from(inner: Vec<Attribute>) -> Self {
+-        Self::new(inner)
++    fn one(attr: Attribute) -> Self {
++        let ptr = PoolBox::into_raw(PoolBox::new(attr));
++        Self {
++            repr: AttrRepr {
++                one: ptr.as_ptr().map_addr(|addr| addr | 1).cast::<u8>(),
++            },
++        }
+     }
+-}
+
+-/// Collects straight into the list, without a `Vec` to copy from first.
+-impl FromIterator<Attribute> for Attributes {
+-    fn from_iter<I: IntoIterator<Item = Attribute>>(iter: I) -> Self {
+-        Self {
+-            inner: iter.into_iter().collect(),
++    /// The inline attribute slot, when the low tag bit is set.
++    #[inline]
++    fn inline(&self) -> Option<NonNull<Attribute>> {
++        // SAFETY: both fields are one word and every bit pattern is a valid pointer word.
++        let raw = unsafe { self.repr.one };
++        // SAFETY: only a live `PoolBox` slot pointer is tagged, and slot pointers are non-null.
++        (raw.addr() & 1 == 1).then(|| unsafe {
++            NonNull::new_unchecked(raw.map_addr(|addr| addr & !1)).cast()
++        })
++    }
++
++    fn as_slice(&self) -> &[Attribute] {
++        match self.inline() {
++            // SAFETY: the box owns a live value.
++            Some(ptr) => unsafe { std::slice::from_ref(ptr.as_ref()) },
++            // SAFETY: a clear low bit means the `ThinVec` variant.
++            None => unsafe { &self.repr.many },
+         }
+     }
+-}
+
+-impl Attributes {
++    fn as_mut_slice(&mut self) -> &mut [Attribute] {
++        match self.inline() {
++            // SAFETY: the box owns a live value and `&mut self` is unique.
++            Some(mut ptr) => unsafe { std::slice::from_mut(ptr.as_mut()) },
++            // SAFETY: a clear low bit means the `ThinVec` variant.
++            None => unsafe { &mut self.repr.many },
++        }
++    }
++
++    /// Moves the `ThinVec` out, leaving an empty one behind.
++    fn take_many(&mut self) -> ThinVec<Attribute> {
++        debug_assert!(self.inline().is_none());
++        // SAFETY: a clear low bit means the `ThinVec` variant; it is replaced before `self` is
++        // used again, so it is never dropped twice.
++        let vec = unsafe { ManuallyDrop::take(&mut self.repr.many) };
++        self.repr = AttrRepr {
++            many: ManuallyDrop::new(ThinVec::new()),
++        };
++        vec
++    }
++
++    /// The canonical representation for `vec`: inline when it holds exactly one attribute.
++    fn normalized(mut vec: ThinVec<Attribute>) -> Self {
++        match vec.len() {
++            0 => Self::default(),
++            1 => Self::one(vec.pop().expect("len is 1")),
++            _ => Self::many(vec),
++        }
++    }
++
++    pub fn new(inner: Vec<Attribute>) -> Self {
++        inner.into_iter().collect()
++    }
++
++    pub fn push(&mut self, attr: Attribute) {
++        match self.inline() {
++            Some(ptr) => {
++                // SAFETY: the pointer came from `into_raw` and is owned here.
++                let boxed = unsafe { PoolBox::from_raw(ptr) };
++                // Clear the tagged pointer before the slot is given back, so a panic in the
++                // move cannot leave `self` owning a released slot.
++                self.repr = AttrRepr {
++                    many: ManuallyDrop::new(ThinVec::new()),
++                };
++                let first = PoolBox::into_inner(boxed);
++                let mut vec = ThinVec::with_capacity(2);
++                vec.push(first);
++                vec.push(attr);
++                self.repr = AttrRepr {
++                    many: ManuallyDrop::new(vec),
++                };
++            }
++            None => {
++                if self.as_slice().is_empty() {
++                    *self = Self::one(attr);
++                } else {
++                    // SAFETY: a clear low bit means the `ThinVec` variant.
++                    unsafe { (*self.repr.many).push(attr) };
++                }
++            }
++        }
++    }
++
++    pub fn shrink_to_fit(&mut self) {
++        if self.inline().is_none() {
++            // SAFETY: a clear low bit means the `ThinVec` variant.
++            unsafe { (*self.repr.many).shrink_to_fit() };
++        }
++    }
+
+     pub fn get(&mut self, name: &QualName) -> Option<&Attribute> {
+-        self.inner.iter().find(|attr| attr.has_name(name))
++        self.iter().find(|attr| attr.has_name(name))
+     }
+
+     pub fn set(&mut self, name: QualName, value: &str) {
+-        let existing_attr = self.inner.iter_mut().find(|a| a.has_name(&name));
++        let existing_attr = self.iter_mut().find(|a| a.has_name(&name));
+         if let Some(existing_attr) = existing_attr {
+             existing_attr.value = value.into();
+         } else {
+@@ -121,27 +242,143 @@ impl Attributes {
+     }
+
+     pub fn remove(&mut self, name: &QualName) -> Option<Attribute> {
+-        let idx = self.inner.iter().position(|attr| attr.has_name(name));
+-        idx.map(|idx| self.inner.remove(idx))
++        match self.inline() {
++            Some(ptr) => {
++                // SAFETY: the box owns a live value.
++                if !unsafe { ptr.as_ref() }.has_name(name) {
++                    return None;
++                }
++                // SAFETY: the pointer came from `into_raw` and is owned here.
++                let boxed = unsafe { PoolBox::from_raw(ptr) };
++                // Clear the tagged pointer before the slot is given back, so a panic in the
++                // move cannot leave `self` owning a released slot.
++                self.repr = AttrRepr {
++                    many: ManuallyDrop::new(ThinVec::new()),
++                };
++                Some(PoolBox::into_inner(boxed))
++            }
++            None => {
++                let mut vec = self.take_many();
++                let idx = vec.iter().position(|attr| attr.has_name(name));
++                let removed = idx.map(|idx| vec.remove(idx));
++                *self = Self::normalized(vec);
++                removed
++            }
++        }
++    }
++}
++
++impl From<Vec<Attribute>> for Attributes {
++    fn from(inner: Vec<Attribute>) -> Self {
++        Self::new(inner)
++    }
++}
++
++/// Collects straight into the list, without a `Vec` to copy from first. One attribute goes
++/// inline, so the common case allocates nothing beyond its pool slot.
++impl FromIterator<Attribute> for Attributes {
++    fn from_iter<I: IntoIterator<Item = Attribute>>(iter: I) -> Self {
++        let mut iter = iter.into_iter();
++        let Some(first) = iter.next() else {
++            return Self::default();
++        };
++        let Some(second) = iter.next() else {
++            return Self::one(first);
++        };
++        let mut vec = ThinVec::with_capacity(iter.size_hint().0.saturating_add(2));
++        vec.push(first);
++        vec.push(second);
++        vec.extend(iter);
++        Self::many(vec)
+     }
+ }
+
+ impl Deref for Attributes {
+-    type Target = ThinVec<Attribute>;
++    type Target = [Attribute];
+     fn deref(&self) -> &Self::Target {
+-        &self.inner
++        self.as_slice()
+     }
+ }
++
+ impl DerefMut for Attributes {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+-        &mut self.inner
++        self.as_mut_slice()
++    }
++}
++
++impl Drop for Attributes {
++    fn drop(&mut self) {
++        match self.inline() {
++            // SAFETY: the pointer came from `into_raw` and is owned here, dropped exactly once.
++            Some(ptr) => drop(unsafe { PoolBox::from_raw(ptr) }),
++            // SAFETY: a clear low bit means the `ThinVec` variant, dropped exactly once here.
++            None => unsafe { ManuallyDrop::drop(&mut self.repr.many) },
++        }
++    }
++}
++
++impl Clone for Attributes {
++    fn clone(&self) -> Self {
++        match self.inline() {
++            // SAFETY: the box owns a live value.
++            Some(ptr) => Self::one(unsafe { ptr.as_ref() }.clone()),
++            // SAFETY: a clear low bit means the `ThinVec` variant.
++            None => Self::many(ThinVec::clone(unsafe { &self.repr.many })),
++        }
++    }
++}
++
++impl Default for Attributes {
++    fn default() -> Self {
++        Self::many(ThinVec::new())
++    }
++}
++
++impl std::fmt::Debug for Attributes {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        f.debug_struct("Attributes")
++            .field("inner", &self.as_slice())
++            .finish()
++    }
++}
++
++impl<'a> IntoIterator for &'a Attributes {
++    type Item = &'a Attribute;
++    type IntoIter = std::slice::Iter<'a, Attribute>;
++    fn into_iter(self) -> Self::IntoIter {
++        self.iter()
++    }
++}
++
++impl<'a> IntoIterator for &'a mut Attributes {
++    type Item = &'a mut Attribute;
++    type IntoIter = std::slice::IterMut<'a, Attribute>;
++    fn into_iter(self) -> Self::IntoIter {
++        self.iter_mut()
+     }
+ }
+
+ #[cfg(test)]
+ mod tests {
+     use super::{Attribute, Attributes};
+-    use markup5ever::{QualName, local_name, ns};
++    use markup5ever::{LocalName, QualName, local_name, ns};
++
++    fn qual(local: &str) -> QualName {
++        QualName::new(None, ns!(), LocalName::from(local))
++    }
++
++    fn attrs_of(n: usize) -> Attributes {
++        (0..n)
++            .map(|i| Attribute::new(qual(&format!("a{i}")), i.to_string()))
++            .collect()
++    }
++
++    fn contents(attrs: &Attributes) -> Vec<(String, String)> {
++        attrs
++            .iter()
++            .map(|attr| (attr.name.local.to_string(), attr.value.to_string()))
++            .collect()
++    }
+
+     #[test]
+     fn short_values_stay_inline_across_rewrites() {
+@@ -181,4 +418,92 @@ mod tests {
+         assert_eq!(attrs.remove(&names[2]).map(|a| a.qual_name()), Some(names[2].clone()));
+         assert!(attrs.get(&names[2]).is_none() && attrs.get(&names[0]).is_some());
+     }
++
++    #[test]
++    fn one_word_repr_transitions_stay_canonical() {
++        let mut attrs = Attributes::default();
++        assert!(attrs.is_empty());
++        assert_eq!(std::mem::size_of::<Attributes>(), std::mem::size_of::<usize>());
++
++        let id = qual("id");
++        attrs.push(Attribute::new(id.clone(), "x"));
++        assert_eq!(contents(&attrs), [("id".into(), "x".into())]);
++
++        let class = qual("class");
++        attrs.push(Attribute::new(class.clone(), "c"));
++        assert_eq!(
++            contents(&attrs),
++            [("id".into(), "x".into()), ("class".into(), "c".into())]
++        );
++
++        assert_eq!(attrs.remove(&id).map(|attr| attr.value.to_string()), Some("x".into()));
++        assert_eq!(contents(&attrs), [("class".into(), "c".into())]);
++
++        assert!(attrs.remove(&class).is_some());
++        assert!(attrs.is_empty());
++        assert!(attrs.remove(&class).is_none());
++    }
++
++    #[test]
++    fn removing_a_missing_name_keeps_the_inline_attribute_owned() {
++        let mut attrs = attrs_of(1);
++        assert!(attrs.remove(&qual("missing")).is_none());
++        let other = attrs_of(1);
++        let attrs_ptr = attrs.first().unwrap() as *const Attribute;
++        let other_ptr = other.first().unwrap() as *const Attribute;
++        assert!(
++            attrs_ptr != other_ptr,
++            "the inline attribute still owns its slot, so the next allocation cannot reuse it"
++        );
++        assert_eq!(contents(&attrs), [("a0".into(), "0".into())]);
++        drop(attrs);
++        drop(other);
++    }
++
++    #[test]
++    fn collect_handles_zero_one_two_and_four() {
++        for n in [0, 1, 2, 4] {
++            let attrs = attrs_of(n);
++            let expected: Vec<_> = (0..n).map(|i| (format!("a{i}"), i.to_string())).collect();
++            assert_eq!(contents(&attrs), expected);
++        }
++    }
++
++    #[test]
++    fn clone_copies_each_representation_without_aliasing() {
++        for n in [0, 1, 2, 4] {
++            let attrs = attrs_of(n);
++            let mut copy = attrs.clone();
++            assert_eq!(contents(&copy), contents(&attrs));
++            if n > 0 {
++                copy[0].value = "changed".into();
++                assert_ne!(copy[0].value, attrs[0].value);
++            }
++        }
++    }
++
++    #[test]
++    fn drop_handles_each_representation() {
++        for n in [0, 1, 2, 4] {
++            drop(attrs_of(n));
++        }
++        let reused = attrs_of(1);
++        assert_eq!(contents(&reused), [("a0".into(), "0".into())]);
++    }
++
++    #[test]
++    fn shrink_to_fit_keeps_contents_for_each_representation() {
++        let mut many = attrs_of(4);
++        many.shrink_to_fit();
++        let expected: Vec<_> = (0..4).map(|i| (format!("a{i}"), i.to_string())).collect();
++        assert_eq!(contents(&many), expected);
++
++        let mut one = attrs_of(1);
++        one.shrink_to_fit();
++        assert_eq!(contents(&one), [("a0".into(), "0".into())]);
++
++        let mut empty = attrs_of(0);
++        empty.shrink_to_fit();
++        assert!(empty.is_empty());
++    }
+ }
+diff --git a/src/node/element.rs b/src/node/element.rs
+index d769b92..6cbb7a0 100644
+--- a/src/node/element.rs
++++ b/src/node/element.rs
+@@ -73,11 +73,8 @@ pub struct ElementData {
+     /// The element's attributes
+     pub attrs: Attributes,
+
+-    /// The declaration blocks of the element's presentational hints, built from its
+-    /// attributes when style matching first asks for them. Cleared when an attribute changes.
+-    pub(crate) presentational_hints: OnceLock<Option<Box<PresentationalHints>>>,
+-
+-    /// Links, the style attribute, image layers and special data, which few elements have.
++    /// Links, the style attribute, presentational hints, image layers and special data, which
++    /// few elements have.
+     rare: Option<Box<ElementRare>>,
+     // /// Whether the node is a [HTML integration point] (https://html.spec.whatwg.org/multipage/#html-integration-point)
+     // pub mathml_annotation_xml_integration_point: bool,
+@@ -97,12 +94,11 @@ pub struct ElementData {
+     pub layout_data: OnceCell<crate::pool::PoolBox<LayoutData>>,
+ }
+
+-// Pooled per element: 64 bytes on wasm32 release, where the stylo wrapper is 16 and the
+-// presentational-hint cache 8.
++// Pooled per element: 56 bytes on wasm32 release, where the stylo wrapper is 16.
+ #[cfg(target_pointer_width = "32")]
+ const _: () = assert!(
+     std::mem::size_of::<ElementData>()
+-        <= (48 + std::mem::size_of::<style::data::ElementDataWrapper>()).next_multiple_of(8)
++        <= (40 + std::mem::size_of::<style::data::ElementDataWrapper>()).next_multiple_of(8)
+ );
+
+ /// Taffy layout output state (cache, layouts, scroll offset and overflow).
+@@ -122,19 +118,26 @@ unsafe impl crate::pool::Pooled for LayoutData {
+ /// scrollbar size are zero on three in four boxes, so they live in [`BoxEdges`] instead.
+ #[derive(Debug, Clone, Copy)]
+ struct InlineLayout {
+-    order: u32,
+     location: taffy::Point<f32>,
+     size: taffy::Size<f32>,
+     scrollable_overflow_rect: taffy::ScrollableOverflow,
+     margin: taffy::Rect<f32>,
+ }
+
++// Pooled per layout: the unrounded copy of a box whose layouts differ comes from here.
++unsafe impl crate::pool::Pooled for InlineLayout {
++    fn pool() -> &'static std::sync::Mutex<crate::pool::Pool> {
++        static POOL: std::sync::Mutex<crate::pool::Pool> =
++            std::sync::Mutex::new(crate::pool::Pool::new());
++        &POOL
++    }
++}
++
+ impl InlineLayout {
+     const ZERO: Self = Self::of(&Layout::new());
+
+     const fn of(layout: &Layout) -> Self {
+         Self {
+-            order: layout.order,
+             location: layout.location,
+             size: layout.size,
+             scrollable_overflow_rect: layout.scrollable_overflow_rect,
+@@ -142,9 +145,24 @@ impl InlineLayout {
+         }
+     }
+
+-    fn with(&self, edges: &Edges) -> Layout {
++    /// Bit-exact equality of the stored fields, used to elide the unrounded copy.
++    fn eq_bits(&self, other: &Self) -> bool {
++        let r = |r: taffy::Rect<f32>| {
++            [r.left.to_bits(), r.right.to_bits(), r.top.to_bits(), r.bottom.to_bits()]
++        };
++        self.location.x.to_bits() == other.location.x.to_bits()
++            && self.location.y.to_bits() == other.location.y.to_bits()
++            && self.size.width.to_bits() == other.size.width.to_bits()
++            && self.size.height.to_bits() == other.size.height.to_bits()
++            && r(self.scrollable_overflow_rect.rect()) == r(other.scrollable_overflow_rect.rect())
++            && r(self.margin) == r(other.margin)
++            && self.scrollable_overflow_rect.is_reversed()
++                == other.scrollable_overflow_rect.is_reversed()
++    }
++
++    fn with(&self, order: u32, edges: &Edges) -> Layout {
+         Layout {
+-            order: self.order,
++            order,
+             location: self.location,
+             size: self.size,
+             scrollable_overflow_rect: self.scrollable_overflow_rect,
+@@ -214,21 +232,27 @@ impl Default for BoxEdges {
+ #[derive(Debug, Clone)]
+ pub struct LayoutData {
+     pub cache: Cache,
+-    /// Taffy's unrounded and rounded layouts, split between these and `edges`; read through
+-    /// `unrounded_layout` and `final_layout`.
+-    unrounded: InlineLayout,
++    /// Taffy's order, shared by both layouts, and its rounded layout (or unrounded before the
++    /// first `set_final_layout`, when `has_final` is false); read through `unrounded_layout`
++    /// and `final_layout`.
++    order: u32,
++    has_final: bool,
+     rounded: InlineLayout,
++    /// Taffy's unrounded layout while it differs from `rounded`; `None` means they are equal
++    /// (or `rounded` still holds the unrounded layout before `set_final_layout`).
++    unrounded: Option<crate::pool::PoolBox<InlineLayout>>,
+     edges: Option<crate::pool::PoolBox<BoxEdges>>,
+     /// Allocated by the first offset written: few boxes are scrolled or pinned.
+     offsets: Option<Box<BoxOffsets>>,
+-    pub scrollable_overflow: KurboRect,
++    /// Four f32s; read and written through `scrollable_overflow` and `set_scrollable_overflow`.
++    scrollable_overflow: [f32; 4],
+     /// The writing mode this node's layout algorithm ran in (the root takes it from `<body>`),
+     /// recorded by the layout pass for CSSOM geometry lookups.
+     #[cfg(feature = "writing-mode")]
+     pub writing_mode: stylo_taffy::WritingMode,
+     /// Parley text layout (elements with inline inner display mode only). Inline roots are
+     /// laid out by taffy too, so it shares their box; see [`ElementData::inline_layout_data`].
+-    inline_layout: Option<Box<TextLayout>>,
++    inline_layout: Option<crate::pool::PoolBox<TextLayout>>,
+     /// Derived layout and paint children; read through `Node::layout_children`.
+     pub(crate) child_lists: super::node::LayoutChildLists,
+ }
+@@ -238,11 +262,13 @@ impl LayoutData {
+         Self {
+             child_lists: super::node::LayoutChildLists::new(),
+             cache: Cache::new(),
+-            unrounded: InlineLayout::ZERO,
++            order: 0,
++            has_final: false,
+             rounded: InlineLayout::ZERO,
++            unrounded: None,
+             edges: None,
+             offsets: None,
+-            scrollable_overflow: KurboRect::ZERO,
++            scrollable_overflow: [0.0; 4],
+             #[cfg(feature = "writing-mode")]
+             writing_mode: stylo_taffy::WritingMode::empty(),
+             inline_layout: None,
+@@ -273,23 +299,59 @@ impl LayoutData {
+     #[inline]
+     pub fn unrounded_layout(&self) -> Layout {
+         let edges = self.edges.as_deref().map_or(&Edges::ZERO, |edges| &edges.unrounded);
+-        self.unrounded.with(edges)
++        self.unrounded.as_deref().unwrap_or(&self.rounded).with(self.order, edges)
+     }
+
+     /// This box's rounded layout, with any sticky pin shift baked into its location.
+     #[inline]
+     pub fn final_layout(&self) -> Layout {
+         let edges = self.edges.as_deref().map_or(&Edges::ZERO, |edges| &edges.rounded);
+-        self.rounded.with(edges)
++        let base = if self.has_final { &self.rounded } else { &InlineLayout::ZERO };
++        base.with(self.order, edges)
++    }
++
++    /// This box's scrollable overflow in device pixels.
++    #[inline]
++    pub fn scrollable_overflow(&self) -> KurboRect {
++        let [x0, y0, x1, y1] = self.scrollable_overflow;
++        KurboRect::new(x0 as f64, y0 as f64, x1 as f64, y1 as f64)
++    }
++
++    #[inline]
++    pub fn set_scrollable_overflow(&mut self, rect: KurboRect) {
++        self.scrollable_overflow =
++            [rect.x0 as f32, rect.y0 as f32, rect.x1 as f32, rect.y1 as f32];
+     }
+
+     pub fn set_unrounded_layout(&mut self, layout: &Layout) {
+-        self.unrounded = InlineLayout::of(layout);
++        self.order = layout.order;
++        let value = InlineLayout::of(layout);
++        if !self.has_final {
++            self.rounded = value;
++            self.unrounded = None;
++        } else if value.eq_bits(&self.rounded) {
++            self.unrounded = None;
++        } else if let Some(unrounded) = self.unrounded.as_deref_mut() {
++            *unrounded = value;
++        } else {
++            self.unrounded = Some(crate::pool::PoolBox::new(value));
++        }
+         self.set_edges(Edges::of(layout), |edges| &mut edges.unrounded);
+     }
+
+     pub fn set_final_layout(&mut self, layout: &Layout) {
+-        self.rounded = InlineLayout::of(layout);
++        self.order = layout.order;
++        let value = InlineLayout::of(layout);
++        match self.unrounded.as_deref() {
++            Some(unrounded) if unrounded.eq_bits(&value) => self.unrounded = None,
++            Some(_) => {}
++            None if !self.rounded.eq_bits(&value) => {
++                self.unrounded = Some(crate::pool::PoolBox::new(self.rounded));
++            }
++            None => {}
++        }
++        self.rounded = value;
++        self.has_final = true;
+         self.set_edges(Edges::of(layout), |edges| &mut edges.rounded);
+     }
+
+@@ -313,8 +375,21 @@ impl LayoutData {
+
+     /// Moves the rounded layout's location by `(dx, dy)`.
+     pub(crate) fn shift_final_location(&mut self, dx: f32, dy: f32) {
++        if dx == 0.0 && dy == 0.0 {
++            return;
++        }
++        if !self.has_final {
++            self.unrounded = Some(crate::pool::PoolBox::new(self.rounded));
++            self.rounded = InlineLayout::ZERO;
++            self.has_final = true;
++        } else if self.unrounded.is_none() {
++            self.unrounded = Some(crate::pool::PoolBox::new(self.rounded));
++        }
+         self.rounded.location.x += dx;
+         self.rounded.location.y += dy;
++        if self.unrounded.as_deref().is_some_and(|u| u.eq_bits(&self.rounded)) {
++            self.unrounded = None;
++        }
+     }
+
+     fn offsets(&self) -> &BoxOffsets {
+@@ -728,7 +803,7 @@ static NS_MATHML: Namespace = ns!(mathml);
+ static NS_EMPTY: Namespace = ns!();
+
+ /// Element state kept out of line so a common element stays in a smaller allocation.
+-#[derive(Clone, Default)]
++#[derive(Default)]
+ struct ElementRare {
+     /// The prefix and namespace of an element whose name is [`NameNs::Other`].
+     name_ext: Option<Box<(Option<Prefix>, Namespace)>>,
+@@ -756,6 +831,12 @@ struct ElementRare {
+     /// Heterogeneous data that depends on the element's type, such as the image data for
+     /// \<img\> or the text editor for input/textarea elements.
+     special_data: SpecialElementData,
++    /// The declaration blocks of the element's presentational hints, built from its
++    /// attributes when style matching first asks for them. Cleared when an attribute changes.
++    presentational_hints: OnceLock<Option<Box<PresentationalHints>>>,
++    /// Whether this element currently has attributes (or tag/ns) that may produce presentational
++    /// hints, keeping the rare box alive so style matching can lazily populate the cache.
++    may_have_presentational_hints: bool,
+ }
+
+ /// Shared read-only `None` returned by [`ElementData::special_data`] without a rare box.
+@@ -781,6 +862,7 @@ impl ElementRare {
+             && self.list_item_data.is_none()
+             && self.transform.is_none()
+             && matches!(self.special_data, SpecialElementData::None)
++            && !self.may_have_presentational_hints
+     }
+ }
+
+@@ -1044,6 +1126,24 @@ impl ElementData {
+         taken
+     }
+
++    #[inline]
++    pub(crate) fn presentational_hints_cell(
++        &self,
++    ) -> Option<&OnceLock<Option<Box<PresentationalHints>>>> {
++        self.rare
++            .as_deref()
++            .filter(|rare| rare.may_have_presentational_hints)
++            .map(|rare| &rare.presentational_hints)
++    }
++
++    pub(crate) fn invalidate_presentational_hints(&mut self) {
++        let may_have = crate::stylo::may_have_presentational_hints(self);
++        self.update_rare(|rare| {
++            rare.presentational_hints.take();
++            rare.may_have_presentational_hints = may_have;
++        });
++    }
++
+     // Updates an absent box on a stack default, so clearing a field never allocates.
+     fn update_rare(&mut self, update: impl FnOnce(&mut ElementRare)) {
+         match self.rare.as_deref_mut() {
+@@ -1089,7 +1189,7 @@ impl ElementData {
+     }
+
+     /// Sets the text layout; clearing it never allocates the layout box.
+-    pub fn set_inline_layout_data(&mut self, layout: Option<Box<TextLayout>>) {
++    pub fn set_inline_layout_data(&mut self, layout: Option<crate::pool::PoolBox<TextLayout>>) {
+         match layout {
+             Some(layout) => self.layout_data_mut().inline_layout = Some(layout),
+             None => {
+@@ -1098,7 +1198,7 @@ impl ElementData {
+         }
+     }
+
+-    pub fn take_inline_layout_data(&mut self) -> Option<Box<TextLayout>> {
++    pub fn take_inline_layout_data(&mut self) -> Option<crate::pool::PoolBox<TextLayout>> {
+         self.layout_data.get_mut()?.inline_layout.take()
+     }
+ }
+@@ -1259,13 +1359,13 @@ impl Clone for ElementData {
+                     background_images: rare.background_images.clone(),
+                     mask_images: rare.mask_images.clone(),
+                     special_data: rare.special_data.clone(),
++                    may_have_presentational_hints: rare.may_have_presentational_hints,
+                     ..ElementRare::default()
+                 };
+                 (!clone.is_empty()).then(|| Box::new(clone))
+             }),
+
+             // Runtime state: reset to defaults.
+-            presentational_hints: OnceLock::new(),
+             stylo_element_data: Default::default(),
+             element_state: self.element_state,
+             state_flags: NodeStateFlags::for_node(bits),
+@@ -1379,7 +1479,6 @@ impl ElementData {
+             id: id_attr_atom,
+             classes,
+             attrs,
+-            presentational_hints: OnceLock::new(),
+             rare: None,
+
+             stylo_element_data: Default::default(),
+@@ -1390,6 +1489,7 @@ impl ElementData {
+         if name_ns == NameNs::Other {
+             data.update_rare(|rare| rare.name_ext = Some(Box::new((prefix, ns))));
+         }
++        data.invalidate_presentational_hints();
+         data.flush_is_focussable();
+         data.flush_link_state();
+
+@@ -1819,7 +1919,7 @@ impl ElementData {
+         resource_ids
+     }
+
+-    pub fn take_inline_layout(&mut self) -> Option<Box<TextLayout>> {
++    pub fn take_inline_layout(&mut self) -> Option<crate::pool::PoolBox<TextLayout>> {
+         self.take_inline_layout_data()
+     }
+
+@@ -1961,9 +2061,24 @@ pub struct ListItemLayout {
+     /// Offset (in physical CSS px) of the unrounded content box origin from the rounded one in
+     /// `final_layout`. Paint draws text from the unrounded origin so that it keeps its sub-pixel
+     /// position while box edges stay snapped. Set by the `writing-mode` layout pass; zero otherwise.
++    #[cfg(feature = "writing-mode")]
+     pub content_box_subpixel_offset: taffy::Point<f32>,
+ }
+
++impl ListItemLayout {
++    #[inline]
++    pub fn content_box_subpixel_offset(&self) -> taffy::Point<f32> {
++        #[cfg(feature = "writing-mode")]
++        {
++            self.content_box_subpixel_offset
++        }
++        #[cfg(not(feature = "writing-mode"))]
++        {
++            taffy::Point::ZERO
++        }
++    }
++}
++
+ //We seperate chars from strings in order to optimise rendering - ie not needing to
+ //construct a whole parley layout for simple char markers
+ #[derive(Debug, PartialEq, Clone)]
+@@ -2028,10 +2143,11 @@ mod tests {
+         };
+
+         let mut element = ElementData::new(crate::qual_name!("li", html), Vec::new());
+-        element.set_inline_layout_data(Some(Box::default()));
++        element.set_inline_layout_data(Some(crate::pool::PoolBox::default()));
+         element.set_list_item_data(Some(Box::new(ListItemLayout {
+             marker: Marker::Char('•'),
+             position: ListItemLayoutPosition::Inside,
++            #[cfg(feature = "writing-mode")]
+             content_box_subpixel_offset: taffy::Point::ZERO,
+         })));
+
+@@ -2042,6 +2158,31 @@ mod tests {
+         assert!(element.list_item_data().is_some());
+     }
+
++    #[cfg(feature = "svg")]
++    #[test]
++    fn svg_presentational_hints_need_a_hint_attribute() {
++        let plain_group = crate::node::ElementData::new(
++            crate::qual_name!("g", svg),
++            vec![crate::node::Attribute::new(crate::qual_name!("id"), "g1")],
++        );
++        assert!(
++            plain_group.presentational_hints_cell().is_none(),
++            "an SVG element without presentation attributes allocates no rare box"
++        );
++
++        let filled = crate::node::ElementData::new(
++            crate::qual_name!("path", svg),
++            vec![crate::node::Attribute::new(crate::qual_name!("fill"), "red")],
++        );
++        assert!(filled.presentational_hints_cell().is_some());
++
++        let path_d = crate::node::ElementData::new(
++            crate::qual_name!("path", svg),
++            vec![crate::node::Attribute::new(crate::qual_name!("d"), "M0 0")],
++        );
++        assert!(path_d.presentational_hints_cell().is_some());
++    }
++
+     /// Build a [`TextInputData`] with the given text laid out at scale 1.0.
+     fn make_input(is_multiline: bool, text: &str) -> TextInputData {
+         let mut font_ctx = FontContext::new();
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 2db7d94..89890f4 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -1261,13 +1261,13 @@ impl Node {
+     }
+
+     #[inline]
+-    pub fn scrollable_overflow(&self) -> &KurboRect {
+-        &self.layout_data().scrollable_overflow
++    pub fn scrollable_overflow(&self) -> KurboRect {
++        self.layout_data().scrollable_overflow()
+     }
+
+     #[inline]
+-    pub fn scrollable_overflow_mut(&mut self) -> &mut KurboRect {
+-        &mut self.layout_data_mut().scrollable_overflow
++    pub fn set_scrollable_overflow(&mut self, rect: KurboRect) {
++        self.layout_data_mut().set_scrollable_overflow(rect);
+     }
+
+     /// Style data from stylo, if this node kind carries it (element or document
+@@ -2898,7 +2898,7 @@ impl Node {
+         let layout = self.final_layout();
+         let w = layout.size.width.max(layout.scrollable_overflow_rect.right()) as f64 * scale;
+         let h = layout.size.height.max(layout.scrollable_overflow_rect.bottom()) as f64 * scale;
+-        let local = KurboRect::new(0.0, 0.0, w, h).union(*self.scrollable_overflow());
++        let local = KurboRect::new(0.0, 0.0, w, h).union(self.scrollable_overflow());
+         let mut full = Affine::translate((
+             (t.x + layout.location.x) as f64 * scale,
+             (t.y + layout.location.y) as f64 * scale,
+@@ -3125,7 +3125,7 @@ impl Node {
+
+         // `scrollable_overflow` is stored in device (scaled) pixels, whereas the
+         // coordinates here are in CSS pixels, so unscale it before comparing.
+-        let overflow = *self.scrollable_overflow();
++        let overflow = self.scrollable_overflow();
+
+         let matches_overflow = x >= (overflow.x0 / scale) as f32
+             && x <= (overflow.x1 / scale) as f32
+diff --git a/src/node/text.rs b/src/node/text.rs
+index cb988e8..87cd8cb 100644
+--- a/src/node/text.rs
++++ b/src/node/text.rs
+@@ -28,6 +28,14 @@ impl TextBrush {
+     }
+ }
+
++unsafe impl crate::pool::Pooled for TextLayout {
++    fn pool() -> &'static std::sync::Mutex<crate::pool::Pool> {
++        static POOL: std::sync::Mutex<crate::pool::Pool> =
++            std::sync::Mutex::new(crate::pool::Pool::new());
++        &POOL
++    }
++}
++
+ #[derive(Clone)]
+ pub struct TextLayout {
+     /// Shaped text and lines, with the text and source ranges they were
+@@ -41,7 +49,7 @@ pub struct TextLayout {
+     /// layout without inline boxes, whose widths depend on nothing else, so
+     /// that an evicted root is measured without rebuilding it.
+     pub content_widths: Option<(f32, ContentWidths)>,
+-    evicted: Option<Box<EvictedLayout>>,
++    evicted: Option<crate::pool::PoolBox<EvictedLayout>>,
+     /// Whether the last line break can be replayed from the layout alone:
+     /// false when floats shaped the lines, which needs the gone block context.
+     pub replayable_break: bool,
+@@ -62,6 +70,7 @@ pub struct TextLayout {
+     /// Offset (in physical CSS px) of the unrounded content box origin from the rounded one in
+     /// `final_layout`. Paint draws text from the unrounded origin so that it keeps its sub-pixel
+     /// position while box edges stay snapped. Set by the `writing-mode` layout pass; zero otherwise.
++    #[cfg(feature = "writing-mode")]
+     pub content_box_subpixel_offset: taffy::Point<f32>,
+     /// Content width `layout` currently holds lines for, or
+     /// NaN when it holds none: a rebuilt tree has no lines until
+@@ -70,9 +79,11 @@ pub struct TextLayout {
+     pub last_break_width: f32,
+ }
+
+-// Every inline root keeps one, evicted or not: 52 bytes (44 before upstream's
+-// content_box_subpixel_offset) fill a 56-byte wasm32 allocator chunk.
+-#[cfg(target_pointer_width = "32")]
++// Every inline root keeps one, evicted or not: 44 bytes (52 with `writing-mode`) fill a 48-byte
++// wasm32 allocator chunk.
++#[cfg(all(target_pointer_width = "32", not(feature = "writing-mode")))]
++const _: () = assert!(size_of::<TextLayout>() <= 44);
++#[cfg(all(target_pointer_width = "32", feature = "writing-mode"))]
+ const _: () = assert!(size_of::<TextLayout>() <= 52);
+
+ /// A shaped layout and the text it was built from, which are always built
+@@ -183,6 +194,7 @@ impl TextLayout {
+             seq_and_indexed: 0,
+             block_offset: 0.0,
+             span_cb_flags: stylo_taffy::StyleFlags::empty(),
++            #[cfg(feature = "writing-mode")]
+             content_box_subpixel_offset: taffy::Point::ZERO,
+             // NaN = no lines yet; the repair scan gives it some once
+             // the node has a committed box.
+@@ -191,7 +203,7 @@ impl TextLayout {
+     }
+ }
+
+-// Every evicted root keeps one: 20 bytes fill a 24-byte wasm32 chunk.
++// Pooled per evicted root: 20 bytes on wasm32 release.
+ #[cfg(target_pointer_width = "32")]
+ const _: () = assert!(size_of::<EvictedLayout>() <= 20);
+
+@@ -202,6 +214,14 @@ pub(crate) struct InlineRebuild {
+     pub(crate) rebuilt: Arc<Mutex<Vec<NodeId>>>,
+ }
+
++unsafe impl crate::pool::Pooled for EvictedLayout {
++    fn pool() -> &'static std::sync::Mutex<crate::pool::Pool> {
++        static POOL: std::sync::Mutex<crate::pool::Pool> =
++            std::sync::Mutex::new(crate::pool::Pool::new());
++        &POOL
++    }
++}
++
+ /// Everything needed to rebuild an evicted layout with the lines it had:
+ /// the shaping inputs are re-read from the DOM, the line-breaking inputs are
+ /// the ones the dropped layout was last broken with.
+@@ -211,7 +231,15 @@ pub(crate) struct EvictedLayout {
+     pub(crate) scale: f32,
+     /// `None` for a layout never broken (only its text was collected), which
+     /// rebuilds shaped but without lines, as box construction left it.
+-    pub(crate) breaking: Option<Box<EvictedBreak>>,
++    pub(crate) breaking: Option<crate::pool::PoolBox<EvictedBreak>>,
++}
++
++unsafe impl crate::pool::Pooled for EvictedBreak {
++    fn pool() -> &'static std::sync::Mutex<crate::pool::Pool> {
++        static POOL: std::sync::Mutex<crate::pool::Pool> =
++            std::sync::Mutex::new(crate::pool::Pool::new());
++        &POOL
++    }
+ }
+
+ /// The line-breaking inputs an evicted layout was last broken with.
+@@ -219,7 +247,7 @@ pub(crate) struct EvictedLayout {
+ pub(crate) struct EvictedBreak {
+     pub(crate) max_advance: f32,
+     // The indent and clamp are stored apart and narrowed so that every
+-    // evicted root's state fits a smaller wasm32 chunk.
++    // evicted root's state fits a smaller wasm32 slot.
+     indent: f32,
+     indent_options: IndentOptions,
+     pub(crate) alignment: Option<Alignment>,
+@@ -232,7 +260,7 @@ pub(crate) struct EvictedBreak {
+     pub(crate) summary: SummaryCell,
+ }
+
+-// 44 bytes fill a 48-byte wasm32 chunk.
++// Pooled per broken root: 44 bytes on wasm32 release.
+ #[cfg(target_pointer_width = "32")]
+ const _: () = assert!(size_of::<EvictedBreak>() <= 44);
+
+@@ -437,6 +465,18 @@ impl TextLayout {
+         Default::default()
+     }
+
++    #[inline]
++    pub fn content_box_subpixel_offset(&self) -> taffy::Point<f32> {
++        #[cfg(feature = "writing-mode")]
++        {
++            self.content_box_subpixel_offset
++        }
++        #[cfg(not(feature = "writing-mode"))]
++        {
++            taffy::Point::ZERO
++        }
++    }
++
+     /// The shaped, line-broken layout. Rebuilds it first if it was evicted,
+     /// so callers never see the evicted state.
+     pub fn layout(&self, nodes: &crate::NodeTree) -> &parley::layout::Layout<TextBrush> {
+@@ -610,7 +650,7 @@ impl TextLayout {
+             self.text_kind
+                 .get_or_init(|| TextKind::of(&built.content.text));
+         }
+-        self.evicted = Some(Box::new(inputs));
++        self.evicted = Some(crate::pool::PoolBox::new(inputs));
+     }
+ }
+
+@@ -704,6 +744,7 @@ pub struct TextInputData {
+     /// Offset (in physical CSS px) of the unrounded content box origin from the rounded one in
+     /// `final_layout`. Paint draws text from the unrounded origin so that it keeps its sub-pixel
+     /// position while box edges stay snapped. Set by the `writing-mode` layout pass; zero otherwise.
++    #[cfg(feature = "writing-mode")]
+     pub content_box_subpixel_offset: taffy::Point<f32>,
+     /// True when the editor currently holds the
+     /// element's `placeholder` attribute text (because `value`
+@@ -739,6 +780,7 @@ impl TextInputData {
+             editor,
+             is_multiline,
+             scroll_offset: 0.0,
++            #[cfg(feature = "writing-mode")]
+             content_box_subpixel_offset: taffy::Point::ZERO,
+             is_showing_placeholder: false,
+             placeholder_color: None,
+@@ -747,6 +789,18 @@ impl TextInputData {
+         }
+     }
+
++    #[inline]
++    pub fn content_box_subpixel_offset(&self) -> taffy::Point<f32> {
++        #[cfg(feature = "writing-mode")]
++        {
++            self.content_box_subpixel_offset
++        }
++        #[cfg(not(feature = "writing-mode"))]
++        {
++            taffy::Point::ZERO
++        }
++    }
++
+     pub fn set_text(
+         &mut self,
+         font_ctx: &mut FontContext,
+diff --git a/src/pool.rs b/src/pool.rs
+index 24d9d7e..aa4fcb5 100644
+--- a/src/pool.rs
++++ b/src/pool.rs
+@@ -3,9 +3,11 @@
+ //! A `PoolBox<T>` is a `Box<T>` whose slot comes from a pool of same-typed slots carved from
+ //! large chunks: no allocator header or rounding per value, and a freed slot is reused only by
+ //! another `T`, which outlives the short-lived allocations that fragment the general heap.
+-//! Chunks are never returned, so a slot pointer stays valid wherever its box is dropped.
++//! While the pool has a live slot, its chunks stay allocated, so a slot pointer stays valid
++//! until the box that owns it is dropped. When the pool's live slot count returns to zero
++//! (e.g. a document drops) every chunk is freed, so an idle pool holds no memory.
+
+-use std::alloc::{Layout, alloc, handle_alloc_error};
++use std::alloc::{Layout, alloc, dealloc, handle_alloc_error};
+ use std::marker::PhantomData;
+ use std::mem::{align_of, size_of};
+ use std::ops::{Deref, DerefMut};
+@@ -22,10 +24,14 @@ pub struct Pool {
+     /// The unused tail of the newest chunk.
+     bump: *mut u8,
+     end: *mut u8,
++    /// Every chunk this pool allocated, freed once `live` returns to zero.
++    chunks: Vec<(*mut u8, Layout)>,
++    /// Slots currently owned by a `PoolBox`, including ones held as a raw pointer.
++    live: usize,
+ }
+
+-// SAFETY: the raw pointers only address chunk memory that is never freed; the pool is only
+-// touched under its Mutex.
++// SAFETY: the raw pointers only address this pool's chunks, which stay allocated while any slot
++// is live and are only freed under its Mutex; the pool is only touched under that Mutex.
+ unsafe impl Send for Pool {}
+
+ impl Pool {
+@@ -34,6 +40,8 @@ impl Pool {
+             free: std::ptr::null_mut(),
+             bump: std::ptr::null_mut(),
+             end: std::ptr::null_mut(),
++            chunks: Vec::new(),
++            live: 0,
+         }
+     }
+ }
+@@ -56,6 +64,7 @@ const fn slot_layout<T>() -> Layout {
+ fn take_slot<T: Pooled>() -> NonNull<T> {
+     let layout = slot_layout::<T>();
+     let mut pool = T::pool().lock().unwrap_or_else(|e| e.into_inner());
++    pool.live += 1;
+     if let Some(slot) = NonNull::new(pool.free) {
+         // SAFETY: a free slot holds the next free pointer in its first word (see `give_slot`).
+         pool.free = unsafe { slot.as_ptr().cast::<*mut u8>().read() };
+@@ -69,6 +78,7 @@ fn take_slot<T: Pooled>() -> NonNull<T> {
+         if start.is_null() {
+             handle_alloc_error(chunk);
+         }
++        pool.chunks.push((start, chunk));
+         pool.bump = start;
+         // SAFETY: `start + chunk.size()` is one past the end of the allocation.
+         pool.end = unsafe { start.add(chunk.size()) };
+@@ -84,6 +94,20 @@ fn take_slot<T: Pooled>() -> NonNull<T> {
+ /// `slot` came from `take_slot::<T>()` and holds no live value.
+ unsafe fn give_slot<T: Pooled>(slot: NonNull<T>) {
+     let mut pool = T::pool().lock().unwrap_or_else(|e| e.into_inner());
++    pool.live -= 1;
++    if pool.live == 0 {
++        // The last slot is going away, so nothing can point into these chunks any more. The
++        // slot itself must not join the free list: its chunk is freed here.
++        for (ptr, layout) in pool.chunks.drain(..) {
++            // SAFETY: every chunk came from `alloc` with this layout in `take_slot`.
++            unsafe { dealloc(ptr, layout) };
++        }
++        pool.chunks = Vec::new();
++        pool.free = std::ptr::null_mut();
++        pool.bump = std::ptr::null_mut();
++        pool.end = std::ptr::null_mut();
++        return;
++    }
+     // SAFETY: a slot is at least pointer-sized and pointer-aligned (`slot_layout`).
+     unsafe { slot.as_ptr().cast::<*mut u8>().write(pool.free) };
+     pool.free = slot.as_ptr().cast();
+@@ -111,6 +135,21 @@ impl<T: Pooled> PoolBox<T> {
+         unsafe { give_slot(ptr) };
+         value
+     }
++
++    /// Releases the slot as a raw pointer without dropping the value, for callers that need to
++    /// tag the pointer and keep the slot alive elsewhere.
++    pub fn into_raw(this: Self) -> NonNull<T> {
++        let ptr = this.ptr;
++        std::mem::forget(this);
++        ptr
++    }
++
++    /// # Safety
++    /// `ptr` must come from [`PoolBox::into_raw`] on a box that has not been reclaimed or
++    /// dropped, and must be passed to `from_raw` exactly once.
++    pub unsafe fn from_raw(ptr: NonNull<T>) -> Self {
++        Self { ptr, _owns: PhantomData }
++    }
+ }
+
+ impl<T: Pooled> Drop for PoolBox<T> {
+@@ -175,6 +214,7 @@ mod tests {
+
+     #[test]
+     fn freed_slots_are_reused_and_values_survive() {
++        let _anchor = PoolBox::new(Probe(u64::MAX, String::new()));
+         let boxes: Vec<_> = (0..5000).map(|i| PoolBox::new(Probe(i, i.to_string()))).collect();
+         for (i, b) in boxes.iter().enumerate() {
+             assert_eq!(**b, Probe(i as u64, i.to_string()));
+@@ -186,4 +226,35 @@ mod tests {
+         assert!(reused.iter().chain([&again]).any(|b| &**b as *const Probe as usize == addr));
+         assert_eq!(PoolBox::into_inner(again), Probe(7, "x".into()));
+     }
++
++    /// A pool type of its own: the test above also touches the shared `Probe` pool, and these
++    /// assertions need to see the pool's whole state.
++    struct ChunkProbe(u64);
++    unsafe impl Pooled for ChunkProbe {
++        fn pool() -> &'static Mutex<Pool> {
++            static POOL: Mutex<Pool> = Mutex::new(Pool::new());
++            &POOL
++        }
++    }
++
++    #[test]
++    fn dropping_every_box_frees_the_chunks() {
++        let boxes: Vec<_> = (0..5000).map(|i| PoolBox::new(ChunkProbe(i))).collect();
++        assert_eq!(ChunkProbe::pool().lock().unwrap().live, boxes.len());
++        assert!(!ChunkProbe::pool().lock().unwrap().chunks.is_empty());
++        drop(boxes);
++        {
++            let pool = ChunkProbe::pool().lock().unwrap();
++            assert_eq!(pool.live, 0);
++            assert!(pool.chunks.is_empty(), "the last release frees every chunk");
++            assert!(pool.free.is_null() && pool.bump.is_null() && pool.end.is_null());
++        }
++        // A fresh batch allocates new chunks and keeps its values.
++        let again: Vec<_> = (0..100).map(|i| PoolBox::new(ChunkProbe(i))).collect();
++        for (i, b) in again.iter().enumerate() {
++            assert_eq!(b.0, i as u64);
++        }
++        drop(again);
++        assert_eq!(ChunkProbe::pool().lock().unwrap().live, 0);
++    }
+ }
+diff --git a/src/resolve.rs b/src/resolve.rs
+index 814247b..1158cfc 100644
+--- a/src/resolve.rs
++++ b/src/resolve.rs
+@@ -428,7 +428,7 @@ impl BaseDocument {
+                 transform *= t
+             }
+
+-            let overflow = *node.scrollable_overflow();
++            let overflow = node.scrollable_overflow();
+             return transform.transform_rect_bbox(overflow);
+         }
+
+@@ -470,7 +470,7 @@ impl BaseDocument {
+             overflow = overflow.union(child_rect_in_self);
+         }
+
+-        *self.nodes[node_id].scrollable_overflow_mut() = overflow;
++        self.nodes[node_id].set_scrollable_overflow(overflow);
+         self.nodes[node_id].set_layout_children(layout_children);
+
+         let scaled_x = self.nodes[node_id].final_layout().location.x as f64 * scale;
+diff --git a/src/stylo/mod.rs b/src/stylo/mod.rs
+index 45b389e..cf6c05c 100644
+--- a/src/stylo/mod.rs
++++ b/src/stylo/mod.rs
+@@ -13,5 +13,5 @@ mod user_agent;
+ pub(crate) use device::{DeviceChanges, make_device, make_media_data};
+ pub use dom::BlitzNode;
+ pub(crate) use prefs::init_stylo_prefs;
+-pub(crate) use presentational_hints::PresentationalHints;
++pub(crate) use presentational_hints::{PresentationalHints, may_have_hints as may_have_presentational_hints};
+ pub use user_agent::UserAgentStylesheet;
+diff --git a/src/stylo/presentational_hints.rs b/src/stylo/presentational_hints.rs
+index 227bfe3..3c3594a 100644
+--- a/src/stylo/presentational_hints.rs
++++ b/src/stylo/presentational_hints.rs
+@@ -114,22 +114,70 @@ where
+     }
+ }
+
++/// Whether `elem` can produce any presentational hints, checked when attributes change so
++/// elements without hint attributes skip allocating `ElementRare` and scanning on restyle.
++pub(crate) fn may_have_hints(elem: &ElementData) -> bool {
++    let tag = &elem.name.local;
++    if *tag == local_name!("bdi") {
++        return true;
++    }
++    #[cfg(feature = "svg")]
++    let is_svg = *elem.namespace() == ns!(svg);
++    elem.attrs().iter().any(|attr| {
++        let name = &attr.name.local;
++        #[cfg(feature = "svg")]
++        if is_svg && *attr.namespace() == ns!() {
++            if super::svg_attrs::is_presentation_attribute(tag, name)
++                || (*tag == local_name!("svg")
++                    && matches_tag!(name, "width" | "height" | "transform"))
++            {
++                return true;
++            }
++        }
++        matches_tag!(
++            name,
++            "lang"
++                | "align"
++                | "valign"
++                | "width"
++                | "height"
++                | "hspace"
++                | "vspace"
++                | "color"
++                | "size"
++                | "face"
++                | "border"
++                | "cellspacing"
++                | "cellpadding"
++                | "bgcolor"
++                | "hidden"
++                | "dir"
++        ) || (*tag == local_name!("body")
++            && matches!(
++                &**name,
++                "marginwidth" | "marginheight" | "leftmargin" | "topmargin"
++            ))
++    })
++}
++
+ /// The element's presentational hints, built on first use. Most elements have none, so only
+-/// non-empty hints are boxed.
++/// elements that can carry hints hold a `OnceLock` in `ElementRare`.
+ fn presentational_hints<'a>(node: &'a Node, elem: &'a ElementData) -> &'a PresentationalHints {
+     static NONE: PresentationalHints = PresentationalHints {
+         own: None,
+         cell_padding: None,
+         dir_auto: None,
+     };
+-    elem.presentational_hints
+-        .get_or_init(|| {
+-            let hints = compute_presentational_hints(node, elem);
+-            let empty = hints.own.is_none() && hints.cell_padding.is_none() && hints.dir_auto.is_none();
+-            (!empty).then(|| Box::new(hints))
+-        })
+-        .as_deref()
+-        .unwrap_or(&NONE)
++    let Some(cell) = elem.presentational_hints_cell() else {
++        return &NONE;
++    };
++    cell.get_or_init(|| {
++        let hints = compute_presentational_hints(node, elem);
++        let empty = hints.own.is_none() && hints.cell_padding.is_none() && hints.dir_auto.is_none();
++        (!empty).then(|| Box::new(hints))
++    })
++    .as_deref()
++    .unwrap_or(&NONE)
+ }
+
+ /// The table whose `cellpadding` applies to a cell: its first ancestor that isn't a row or row
+diff --git a/src/stylo/svg_attrs.rs b/src/stylo/svg_attrs.rs
+index b8df930..0d753db 100644
+--- a/src/stylo/svg_attrs.rs
++++ b/src/stylo/svg_attrs.rs
+@@ -86,7 +86,7 @@ pub(crate) fn svg_presentation_hint(
+ /// <https://svgwg.org/svg2-draft/styling.html#PresentationAttributes>: the
+ /// geometry properties apply only on the elements they define the geometry
+ /// of; every other CSS property is a presentation attribute on all elements.
+-fn is_presentation_attribute(tag: &str, name: &str) -> bool {
++pub(crate) fn is_presentation_attribute(tag: &str, name: &str) -> bool {
+     match name {
+         // https://svgwg.org/svg2-draft/styling.html#PresentationAttributes
+         // Only this list maps to CSS; any other attribute that happens to
