@@ -1395,6 +1395,24 @@ impl Property {
     }
 }
 
+/// Chrome sends one entry per property name, and each site above pushes the winner last: the
+/// native state after `aria-*` for checked, disabled, required and readonly, `aria-level` after
+/// the tag's own level, and the ARIA value where Core-AAM keeps it (valuemin, valuemax, selected).
+fn keep_last_of_each(properties: &mut Vec<Property>) {
+    let mut index = 0;
+    while index < properties.len() {
+        let name = properties[index].name;
+        if properties[index + 1..]
+            .iter()
+            .any(|later| later.name == name)
+        {
+            properties.remove(index);
+        } else {
+            index += 1;
+        }
+    }
+}
+
 fn string_value(kind: &'static str, value: impl Into<String>) -> Value {
     Value {
         kind,
@@ -1959,6 +1977,7 @@ impl Context<'_> {
         self.identity_properties(&mut properties, node, name, role, depth);
         self.state_properties(&mut properties, node, name);
         self.value_properties(&mut properties, node, name);
+        keep_last_of_each(&mut properties);
         properties
     }
 
@@ -2072,7 +2091,10 @@ impl Context<'_> {
                 string_value("tristate", if checked { "true" } else { "false" }),
             ));
         }
-        if name == "option" && self.option_is_selected(node) {
+        if name == "option"
+            && attr(node, "aria-selected").is_none()
+            && self.option_is_selected(node)
+        {
             out.push(Property::new("selected", bool_value("boolean", true)));
         }
         if name == "details" && attr(node, "open").is_some() {
@@ -2127,11 +2149,16 @@ impl Context<'_> {
         }
 
         if name == "input" && matches!(input_type(node).as_str(), "range" | "number") {
-            for (property, attribute) in [
-                ("valuemin", "min"),
-                ("valuemax", "max"),
-                ("valuenow", "value"),
+            // HTML-AAM declares no conflict for these, so Core-AAM keeps the ARIA value: Chrome
+            // reports aria-valuemin over min, where native checked wins over aria-checked.
+            for (property, attribute, aria) in [
+                ("valuemin", "min", "aria-valuemin"),
+                ("valuemax", "max", "aria-valuemax"),
+                ("valuenow", "value", ""),
             ] {
+                if !aria.is_empty() && attr(node, aria).is_some() {
+                    continue;
+                }
                 if let Some(value) = attr(node, attribute)
                     .map(js_number)
                     .filter(|value| value.is_finite())
