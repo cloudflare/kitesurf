@@ -1,0 +1,51 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 27 Nov 2026 16:20:23 +0000
+Subject: [PATCH] Set a growth limit from a zero non-spanning contribution
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+css-grid-2 §12.5 step 2 sets an intrinsic track's growth limit to the
+largest min-content or max-content contribution of its span-1 items.
+The growth limit was only updated when that contribution was above zero,
+so a track that held only an empty item kept an infinite growth limit.
+Spanning items then treated it as unlimited and put their extra space
+into it instead of into the tracks that the new "distribute space to
+non-affected tracks" step should reach.
+
+The final sizes rarely changed, because an infinite growth limit becomes
+the base size at the end of the algorithm, but css-grid/grid-model/
+grid-gutters-and-flex-content-001.html (WPT ed5a113c) puts a 1px and a
+51px overflow into the wrong column.
+
+Upstream Taffy (main) has the same `> 0.0` check.
+---
+ src/compute/grid/track_sizing.rs | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/src/compute/grid/track_sizing.rs b/src/compute/grid/track_sizing.rs
+index c65bf04..94b017d 100644
+--- a/src/compute/grid/track_sizing.rs
++++ b/src/compute/grid/track_sizing.rs
+@@ -604,6 +604,11 @@ fn resolve_intrinsic_track_sizes<Tree: LayoutPartialTree>(
+         // consider the items in it with a span of 1:
+         let batch_span = batch[0].placement(axis).span();
+         if !is_flex && batch_span == 1 {
++            // An item's contribution sets its track's growth limit even when it is zero, so start
++            // below any contribution to tell "no item" from "a zero contribution".
++            for track in axis_tracks.iter_mut() {
++                track.growth_limit_planned_increase = f32::NEG_INFINITY;
++            }
+             for item in batch.iter_mut() {
+                 let track_index = item.placement_indexes(axis).start + 1;
+                 let track = &axis_tracks[track_index as usize];
+@@ -692,7 +697,7 @@ fn resolve_intrinsic_track_sizes<Tree: LayoutPartialTree>(
+             }
+
+             for track in axis_tracks.iter_mut() {
+-                if track.growth_limit_planned_increase > 0.0 {
++                if track.growth_limit_planned_increase != f32::NEG_INFINITY {
+                     track.growth_limit = if track.growth_limit == f32::INFINITY {
+                         track.growth_limit_planned_increase
+                     } else {

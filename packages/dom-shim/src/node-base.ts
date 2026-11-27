@@ -27,6 +27,7 @@ import {
   createElementNSInternal,
   createTextNodeInternal,
   inScriptlessDocument,
+  AttrCls,
 } from "./state.js";
 import { recordOp, recordCdpMutation } from "./record.js";
 import {
@@ -61,6 +62,7 @@ import {
   nodeListGetters,
   parsedHandle,
   registerParsedHandle,
+  xmlOwned,
 } from "./registries.js";
 import { getInternalState } from "./internal-state.js";
 import type { DocumentFragmentImpl, NodeListCls } from "./collections.js";
@@ -137,6 +139,74 @@ export type AdoptableNode = {
   parentNode?: unknown;
   ownerDocument?: unknown;
 };
+
+// Record doc as n's node document; nodeOwnerDoc has no entry for nodes of the live document.
+export function stampOwnerDocument(n: object, doc: NodeOwnerDocument | null): void {
+  if (!doc || doc === liveWindow().document) nodeOwnerDoc.delete(n);
+  else nodeOwnerDoc.set(n, doc);
+}
+
+// The adopt steps' ownership half: node and its descendants take doc as their node document.
+// Attrs follow their element (NodeBase.ownerDocument). Callers remove node from its parent.
+export function adoptSubtree(doc: NodeOwnerDocument, node: NodeBase): void {
+  const isLive = doc === liveWindow().document;
+  const hostId = (doc as Partial<DetachedDocument>)._hostId;
+  const detached = typeof hostId === "number" && hostIdToDoc.get(hostId) === doc;
+  const toXml = detached && !(doc as DetachedDocument)._isHtml;
+  const stamp = (n: NodeBase | null) => {
+    if (!n || typeof n !== "object") return;
+    stampOwnerDocument(n, doc);
+    // An adopted doctype has no parent.
+    if (n.nodeType === DOCTYPE_NODE) syntheticParent.delete(n);
+    // tagName casing follows xmlOwned, so an XML node must never take the fast path.
+    if (n.nodeType === ELEMENT_NODE && typeof n._id === "number" && n._id >= 0) {
+      if (toXml) {
+        xmlOwned.add(n._id);
+        fastpathMarkSpecial(n._id);
+      } else if (isLive || detached) {
+        xmlOwned.delete(n._id);
+      }
+    }
+    try {
+      const kids = n.childNodes;
+      if (kids) for (let i = 0; i < kids.length; i++) stamp(kids[i]);
+    } catch {}
+  };
+  stamp(node);
+}
+
+// The document a child inserted under parent joins.
+function insertionDocument(parent: NodeBase): NodeOwnerDocument | null {
+  if (parent.nodeType === DOCUMENT_NODE) return parent as NodeOwnerDocument;
+  const hosted = hostIdToDoc.get(parent._id);
+  if (hosted) return hosted;
+  if (isShadowRootNode(parent)) {
+    const host = (parent as Partial<{ host: NodeBase | null }>).host;
+    if (host) return host.ownerDocument;
+  }
+  return parent.ownerDocument;
+}
+
+// Insertion adopts each inserted node (a fragment's children) into parent's node document.
+function adoptForInsertion(parent: NodeBase, node: NodeBase): void {
+  const doc = insertionDocument(parent);
+  if (!doc) return;
+  if (node.nodeType === DOCUMENT_FRAGMENT_NODE) {
+    for (const k of Array.from<NodeBase>(node.childNodes)) {
+      if (k.ownerDocument !== doc) adoptSubtree(doc, k);
+    }
+    return;
+  }
+  if (node.ownerDocument !== doc) adoptSubtree(doc, node);
+}
+
+// An Attr that leaves its element keeps the element's document.
+export function releaseAttr(attr: InstanceType<typeof AttrCls>): void {
+  const el = attr._ownerElement;
+  if (!el) return;
+  attr._ownerElement = null;
+  stampOwnerDocument(attr, el.ownerDocument);
+}
 
 // Above this many children, sibling walks reuse one built child list instead of rescanning ids.
 const MAX_UNLISTED_CHILD_SCAN = 32;
@@ -1218,6 +1288,11 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     return null;
   }
   get ownerDocument(): NodeOwnerDocument | null {
+    // An Attr's document is its element's, so adopting or inserting the element moves both.
+    const self: unknown = this;
+    if (AttrCls !== undefined && self instanceof AttrCls && self._ownerElement) {
+      return self._ownerElement.ownerDocument;
+    }
     // A form read from behind its proxy finds the owner its page-facing proxy holds.
     const owner = nodeOwnerDoc.get(this) ?? nodeOwnerDoc.get(formPageProxy(this));
     if (owner) return owner;
@@ -1257,6 +1332,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
         assertDoctypeOnlyInDocument(this, k, "appendChild");
         assertNotTextIntoDocument(this, k, "appendChild");
       }
+      adoptForInsertion(this, child);
       const prevSiblingForAdd = this.lastChild || null;
       for (const k of kids) {
         if (typeof k._id !== "number" || k._id < 0) continue;
@@ -1287,6 +1363,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       return child;
     }
     if (typeof child._id === "number" && child._id >= 0) {
+      adoptForInsertion(this, child);
       const prevSiblingForAdd = this.lastChild || null;
       let oldParent: NodeBase | null = null;
       let oldPrevSibling: NodeBase | null = null;
@@ -1410,6 +1487,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
         assertDoctypeOnlyInDocument(this, k, "insertBefore");
         assertNotTextIntoDocument(this, k, "insertBefore");
       }
+      adoptForInsertion(this, newChild);
       const prevSiblingForAdd = refChild
         ? refChild.previousSibling || null
         : this.lastChild || null;
@@ -1457,6 +1535,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
       }
       throw notSupported("insertBefore: unsupported new child");
     }
+    adoptForInsertion(this, newChild);
     if (refChild === newChild) {
       const next = newChild.nextSibling;
       if (next) refChild = next;
@@ -1620,6 +1699,7 @@ class NodeBase extends KsEventTarget implements Idl.Node {
     if (typeof oldChild._id !== "number" || oldChild._id < 0) {
       throw notSupported("replaceChild: invalid old child");
     }
+    adoptForInsertion(this, newChild);
     const swapPrev = oldChild.previousSibling || null;
     let swapNext = oldChild.nextSibling || null;
     if (swapNext === newChild) {

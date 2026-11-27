@@ -480,13 +480,13 @@ class AbstractRangeImpl implements Idl.AbstractRange {
     if (token !== ABSTRACT_RANGE_TOKEN) throw new TypeError("Illegal constructor");
     this.#bounds = { startContainer, startOffset, endContainer, endOffset };
   }
-  get startContainer() {
+  get startContainer(): BoundaryNode {
     return this.#bounds.startContainer;
   }
   get startOffset() {
     return this.#bounds.startOffset;
   }
-  get endContainer() {
+  get endContainer(): BoundaryNode {
     return this.#bounds.endContainer;
   }
   get endOffset() {

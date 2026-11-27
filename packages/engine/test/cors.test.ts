@@ -8,6 +8,7 @@ import {
   SandboxOutbound,
   corsFilteredResponse,
   rpcSafeResponse,
+  type SandboxOutboundEnv,
 } from "../src/eval/outbound.ts";
 import { walkRedirects } from "../src/eval/redirect-walk.ts";
 import { NetworkEventTracker } from "../src/cdp/network-events.ts";
@@ -605,6 +606,56 @@ describe("corsPreflight", () => {
     );
     expect((await promise).reason).toBeNull();
     expect(preflightCacheLookup(PARTITION, ORIGIN, url, "PUT", [], false)).toBe(false);
+  });
+});
+
+describe("preflight cache in the gateway", () => {
+  beforeEach(() => clearPreflightCache());
+
+  // Main fetch clears the URL's grants when a request that needed a preflight is a network
+  // error, so the next request preflights again instead of trusting the old grant.
+  it("drops the grant when the actual request fails its CORS check", async () => {
+    const seen: string[] = [];
+    let failNext = false;
+    const send = () =>
+      SandboxOutbound.handle(
+        {} as SandboxOutboundEnv,
+        {
+          pageOrigin: ORIGIN,
+          connectionId: PARTITION,
+          egress: {
+            fetch: async (req) => {
+              seen.push(req.method);
+              if (req.method === "OPTIONS") {
+                return new Response(null, {
+                  headers: {
+                    "access-control-allow-origin": ORIGIN,
+                    "access-control-allow-methods": "PUT",
+                    "access-control-max-age": "600",
+                  },
+                });
+              }
+              const fail = failNext;
+              failNext = false;
+              return new Response("ok", {
+                headers: fail ? {} : { "access-control-allow-origin": ORIGIN },
+              });
+            },
+          },
+        },
+        new Request("http://remote.test/grant", {
+          method: "PUT",
+          body: "x",
+          headers: { "x-kitesurf-resource-type": "Fetch", "x-kitesurf-mode": "cors" },
+        }),
+      );
+    expect((await send()).status).toBe(200);
+    expect((await send()).status).toBe(200);
+    expect(seen).toEqual(["OPTIONS", "PUT", "PUT"]);
+    failNext = true;
+    expect((await send()).headers.get("x-kitesurf-blocked")).toBe("cors");
+    expect((await send()).status).toBe(200);
+    expect(seen).toEqual(["OPTIONS", "PUT", "PUT", "PUT", "OPTIONS", "PUT"]);
   });
 });
 

@@ -8,7 +8,7 @@ import type { DomHandle, KsNodeIdentity } from "../../core/pkg/kitesurf_core";
 import type { BuildDocumentOpts } from "./state.js";
 
 import { getInternalState } from "./internal-state.js";
-import { createModelContext, acquireModelContext, ModelContext } from "./model-context.js";
+import { createModelContext, acquireModelContext, ModelContext, Tool } from "./model-context.js";
 import {
   ELEMENT_NODE,
   TEXT_NODE,
@@ -168,6 +168,8 @@ import {
   KsDragEvent,
   KsMessageEvent,
   KsStorageEvent,
+  KsToolActivatedEvent,
+  KsToolCancelEvent,
   KsTextEvent,
   KsTouchEvent,
   KsErrorEvent,
@@ -690,12 +692,13 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     ModelContext,
     idlInterfaceMeta("ModelContext", {
       parent: KsEventTarget,
-      methodLengths: { getTools: 0, executeTool: 1 },
+      methodLengths: { getTools: 0, executeTool: 1, waitForToolsUntil: 1 },
       brandOps: true,
       brandAttrs: true,
       promiseOps: ["getTools", "executeTool"],
     }),
   );
+  finalizeInterface(Tool, idlInterfaceMeta("Tool", { brandAttrs: true }));
   finalizeInterface(
     CharacterDataNode,
     idlInterfaceMeta("CharacterData", {
@@ -848,6 +851,8 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     DragEvent: KsDragEvent,
     MessageEvent: KsMessageEvent,
     StorageEvent: KsStorageEvent,
+    ToolActivatedEvent: KsToolActivatedEvent,
+    ToolCancelEvent: KsToolCancelEvent,
     TextEvent: KsTextEvent,
     TouchEvent: KsTouchEvent,
     Element,
@@ -875,6 +880,7 @@ const buildDocumentBody = function buildDocument(dom: DomHandle, opts: BuildDocu
     DOMTokenList: DOMTokenListCls,
     NamedNodeMap: NamedNodeMapCls,
     ModelContext,
+    Tool,
     MutationObserver: MutationObserverImpl,
     MutationRecord,
     DOMParser,

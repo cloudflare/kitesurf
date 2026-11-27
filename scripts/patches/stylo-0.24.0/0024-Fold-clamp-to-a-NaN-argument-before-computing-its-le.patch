@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 27 Nov 2026 16:09:28 +0000
+Subject: [PATCH] Fold clamp() to a NaN argument before computing its lengths
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A NaN in any clamp() argument makes the result NaN, and a NaN top-level
+result censors to 0 at used-value time. clamp(50%, NaN * 1px, 100px)
+stayed unsimplified at parse time, because a percentage and a length
+cannot be compared yet. Computing the length leaf then turned NaN into
+0px (CSSPixelLength::finite), so the other arguments won: the width
+came out as 50% or 100px instead of 0px.
+
+The simplifier now folds clamp() to its NaN argument first, as it does
+for min() and max(). Two NaN arguments of different units stay
+unsimplified, so the result keeps a single, consistent type.
+
+Gecko runs this same code, so Firefox has the same bug.
+
+WPT: css/css-values/calc-infinity-nan-computed.html.
+
+beep-boop-🤖
+---
+ values/generics/calc.rs | 30 ++++++++++++++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+
+diff --git a/values/generics/calc.rs b/values/generics/calc.rs
+index fa641d6..18e0666 100644
+--- a/values/generics/calc.rs
++++ b/values/generics/calc.rs
+@@ -1874,6 +1874,36 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+                 ref mut center,
+                 ref mut max,
+             } => {
++                // A NaN argument makes the result NaN, even next to a percentage that cannot be
++                // compared yet. Fold to it now: computing a length leaf censors NaN to 0, which
++                // would otherwise let the other arguments win.
++                let args: [&Self; 3] = [min, center, max];
++                let mut nan_index: Option<usize> = None;
++                for i in 0..args.len() {
++                    if !value_or_stop!(args[i].is_nan_leaf()) {
++                        continue;
++                    }
++                    if let Some(previous) = nan_index {
++                        let same_unit = match (args[previous], args[i]) {
++                            (Self::Leaf(a), Self::Leaf(b)) => a.is_same_unit_as(b),
++                            _ => false,
++                        };
++                        if !same_unit {
++                            return SimplificationResult::Unchanged;
++                        }
++                    }
++                    nan_index = Some(i);
++                }
++                if let Some(index) = nan_index {
++                    let slot = match index {
++                        0 => &mut **min,
++                        1 => &mut **center,
++                        _ => &mut **max,
++                    };
++                    replace_self_with!(slot);
++                    return SimplificationResult::Simplified;
++                }
++
+                 // NOTE: clamp() is max(min, min(center, max))
+                 let min_cmp_center = match min.compare(center) {
+                     Some(o) => o,

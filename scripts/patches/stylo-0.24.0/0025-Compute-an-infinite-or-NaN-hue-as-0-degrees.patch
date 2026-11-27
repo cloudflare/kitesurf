@@ -1,0 +1,183 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 27 Nov 2026 16:09:35 +0000
+Subject: [PATCH] Compute an infinite or NaN hue as 0 degrees
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+css-color-4 treats an infinite or NaN <hue> as 0deg. WPT applies this
+to the computed value, and expects the specified value to keep the
+calc() result as written. normalize_hue() computed
+hue - 360 * floor(hue / 360), which is NaN for any non-finite hue, so:
+
+- lch(50 10 calc(infinity)) computed to lch(50 10 calc(NaN)), not
+  lch(50 10 0).
+- Its specified value serialized as lch(50 10 calc(NaN)), not
+  lch(50 10 calc(infinity)).
+
+Parsing now keeps a non-finite hue as it is, and
+AbsoluteColor::zero_non_finite_hue() sets it to 0 when the color is
+computed or resolved at use time. Color space conversions also treat a
+non-finite hue as 0. This applies to hsl(), hwb(), lch() and oklch().
+
+Gecko runs this same code, so Firefox has the same bug.
+
+WPT: css/css-color/parsing/color-computed-lab.html and
+color-valid-lab.html.
+
+beep-boop-🤖
+---
+ color/color_function.rs   | 18 ++++++++++++++----
+ color/convert.rs          | 10 ++++++++--
+ color/mod.rs              | 14 ++++++++++++++
+ values/specified/color.rs |  9 ++++++++-
+ 4 files changed, 44 insertions(+), 7 deletions(-)
+
+diff --git a/color/color_function.rs b/color/color_function.rs
+index 3dcb5cf..c43d2c0 100644
+--- a/color/color_function.rs
++++ b/color/color_function.rs
+@@ -355,7 +355,7 @@ impl ColorFunction<ComputedColor> {
+                 // out of gamut and not clamp.
+                 let no_origin = origin_color.is_none();
+
+-                let h = h.resolve()?.map(|angle| normalize_hue(angle.degrees()));
++                let h = h.resolve()?.map(|angle| normalize_specified_hue(angle.degrees()));
+                 let s = s.resolve()?.map(|s| {
+                         if no_origin {
+                             s.to_number(SATURATION_RANGE).clamp(0.0, SATURATION_RANGE)
+@@ -393,7 +393,7 @@ impl ColorFunction<ComputedColor> {
+                 let c1_percent = matches!(w, ColorComponent::Value(NumberOrPercentageComponent::Percentage(_)));
+                 let c2_percent = matches!(b, ColorComponent::Value(NumberOrPercentageComponent::Percentage(_)));
+
+-                let h = h.resolve()?.map(|angle| normalize_hue(angle.degrees()));
++                let h = h.resolve()?.map(|angle| normalize_specified_hue(angle.degrees()));
+                 let w = w.resolve()?.map(|w| w.to_number(WHITENESS_RANGE));
+                 let b = b.resolve()?.map(|b| b.to_number(BLACKNESS_RANGE));
+                 let alpha = alpha!(alpha);
+@@ -433,7 +433,7 @@ impl ColorFunction<ComputedColor> {
+                     ColorSpace::Lch,
+                     l.resolve()?.map(|l| l.to_number(LIGHTNESS_RANGE)),
+                     c.resolve()?.map(|c| c.to_number(CHROMA_RANGE)),
+-                    h.resolve()?.map(|angle| normalize_hue(angle.degrees())),
++                    h.resolve()?.map(|angle| normalize_specified_hue(angle.degrees())),
+                     alpha!(alpha),
+                 )
+             },
+@@ -461,7 +461,7 @@ impl ColorFunction<ComputedColor> {
+                     ColorSpace::Oklch,
+                     l.resolve()?.map(|l| l.to_number(LIGHTNESS_RANGE)),
+                     c.resolve()?.map(|c| c.to_number(CHROMA_RANGE)),
+-                    h.resolve()?.map(|angle| normalize_hue(angle.degrees())),
++                    h.resolve()?.map(|angle| normalize_specified_hue(angle.degrees())),
+                     alpha!(alpha),
+                 )
+             },
+@@ -488,6 +488,10 @@ impl ColorFunction<ComputedColor> {
+             .map(|o| ComputedColor::Absolute(o.resolve_to_absolute(current_color)));
+         self.to_computed_value(None, origin)
+             .and_then(|r| r.to_absolute_color())
++            .map(|mut absolute| {
++                absolute.zero_non_finite_hue();
++                absolute
++            })
+             .unwrap_or_else(|_| {
+                 debug_assert!(
+                     false,
+@@ -498,6 +502,12 @@ impl ColorFunction<ComputedColor> {
+     }
+ }
+
++/// Normalize a hue into [0, 360), but keep an infinite or NaN hue for the specified value to
++/// serialize. Computing the color turns it into 0 (AbsoluteColor::zero_non_finite_hue).
++fn normalize_specified_hue(hue: f32) -> f32 {
++    if hue.is_finite() { normalize_hue(hue) } else { hue }
++}
++
+ impl<C: style_traits::ToCss> style_traits::ToCss for ColorFunction<C> {
+     fn to_css<W>(&self, dest: &mut style_traits::CssWriter<W>) -> std::fmt::Result
+     where
+diff --git a/color/convert.rs b/color/convert.rs
+index 53787f0..1ba9b80 100644
+--- a/color/convert.rs
++++ b/color/convert.rs
+@@ -18,9 +18,13 @@ use crate::values::normalize;
+ type Transform = euclid::default::Transform3D<f32>;
+ type Vector = euclid::default::Vector3D<f32>;
+
+-/// Normalize hue into [0, 360).
++/// Normalize hue into [0, 360). An infinite or NaN hue becomes 0 degrees.
++/// <https://drafts.csswg.org/css-color-4/#hue-syntax>
+ #[inline]
+ pub fn normalize_hue(hue: f32) -> f32 {
++    if !hue.is_finite() {
++        return 0.;
++    }
+     hue - 360. * (hue / 360.).floor()
+ }
+
+@@ -66,8 +70,10 @@ pub fn hsl_to_rgb(from: &ColorComponents) -> ColorComponents {
+         }
+     }
+
+-    // Convert missing components to 0.0.
++    // Convert missing components to 0.0, and a non-finite hue to 0deg before the hue_to_rgb
++    // offsets keep it infinite.
+     let ColorComponents(hue, saturation, lightness) = from.map(normalize);
++    let hue = normalize_hue(hue);
+     let saturation = saturation / 100.0;
+     let lightness = lightness / 100.0;
+
+diff --git a/color/mod.rs b/color/mod.rs
+index 311569e..1d0a571 100644
+--- a/color/mod.rs
++++ b/color/mod.rs
+@@ -375,6 +375,20 @@ impl From<ColorComponent<f32>> for ComponentDetails {
+ }
+
+ impl AbsoluteColor {
++    /// Turn an infinite or NaN hue into 0 degrees, as computing the color does. The specified
++    /// value keeps it, so that it serializes as calc(infinity) or calc(NaN).
++    /// <https://drafts.csswg.org/css-color-4/#hue-syntax>
++    pub fn zero_non_finite_hue(&mut self) {
++        let hue = match self.color_space {
++            ColorSpace::Hsl | ColorSpace::Hwb => &mut self.components.0,
++            ColorSpace::Lch | ColorSpace::Oklch => &mut self.components.2,
++            _ => return,
++        };
++        if !hue.is_finite() {
++            *hue = 0.0;
++        }
++    }
++
+     /// Returns whether any color component or alpha is `none`.
+     #[inline]
+     pub fn has_none_components(&self) -> bool {
+diff --git a/values/specified/color.rs b/values/specified/color.rs
+index 7429dbb..66b1964 100644
+--- a/values/specified/color.rs
++++ b/values/specified/color.rs
+@@ -889,6 +889,7 @@ impl Color {
+                 }
+
+                 $color.alpha = normalize($color.alpha);
++                $color.zero_non_finite_hue();
+             }};
+         }
+
+@@ -900,7 +901,13 @@ impl Color {
+                 ComputedColor::Absolute(color)
+             },
+             Color::ColorFunction(ref color_function) => {
+-                color_function.to_computed_color(context)?
++                match color_function.to_computed_color(context)? {
++                    ComputedColor::Absolute(mut color) => {
++                        color.zero_non_finite_hue();
++                        ComputedColor::Absolute(color)
++                    },
++                    computed => computed,
++                }
+             },
+             Color::LightDark(ref ld) => ld.compute(context.ok_or(())?),
+             Color::ColorMix(ref mix) => {

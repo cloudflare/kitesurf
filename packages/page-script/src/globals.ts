@@ -1388,6 +1388,10 @@ export function installGlobals(
     if (built.Node) globalThis.Node = built.Node;
     if (built.Window) globalThis.Window = built.Window;
     if (built.ModelContext) globalThis.ModelContext = built.ModelContext;
+    if (built.Tool) Reflect.set(globalThis, "Tool", built.Tool);
+    if (built.ToolActivatedEvent)
+      Reflect.set(globalThis, "ToolActivatedEvent", built.ToolActivatedEvent);
+    if (built.ToolCancelEvent) Reflect.set(globalThis, "ToolCancelEvent", built.ToolCancelEvent);
     for (const [name, cls] of Object.entries(built.htmlElementInterfaces ?? {})) {
       Reflect.set(globalThis, name, cls);
     }
@@ -1781,6 +1785,253 @@ export function installGlobals(
         return null;
       };
 
+      // https://w3c.github.io/performance-timeline/#the-performanceobserver-interface
+      type PerfObserverState = {
+        callback: Function;
+        observerType: "undefined" | "single" | "multiple";
+        options: Array<{ entryTypes: string[] | null; type: string | null }>;
+        buffer: Array<PerformanceEntry | PerfEntryRecord>;
+        requiresDroppedEntries: boolean;
+      };
+      const __supportedEntryTypes = Object.freeze(["mark", "measure"]);
+      const __perfObserverStates = new WeakMap<object, PerfObserverState>();
+      const __registeredPerfObservers = new Map<object, PerfObserverState>();
+      const __perfObserverSetTimeout = ksGlobal.setTimeout;
+      const __entryListEntries = new WeakMap<object, Array<PerformanceEntry | PerfEntryRecord>>();
+      let __perfObserverTaskQueued = false;
+
+      const __sortByStartTime = function (entries: Array<PerformanceEntry | PerfEntryRecord>) {
+        return entries.slice().sort((a, b) => a.startTime - b.startTime);
+      };
+      const PerformanceObserverEntryList = function PerformanceObserverEntryList() {
+        throw new TypeError("Illegal constructor");
+      };
+      const __entriesOf = function (list: unknown, method: string) {
+        const entries = __entryListEntries.get(list as object);
+        if (!entries) {
+          throw new TypeError(
+            `Failed to execute '${method}' on 'PerformanceObserverEntryList': Illegal invocation`,
+          );
+        }
+        return entries;
+      };
+      defineEnumerableProto(PerformanceObserverEntryList.prototype, {
+        getEntries(this: object) {
+          return __entriesOf(this, "getEntries").slice();
+        },
+        getEntriesByType(this: object, type: unknown) {
+          const entries = __entriesOf(this, "getEntriesByType");
+          if (arguments.length < 1) {
+            throw new TypeError(
+              "Failed to execute 'getEntriesByType' on 'PerformanceObserverEntryList': 1 argument required, but only 0 present.",
+            );
+          }
+          const want = String(type);
+          return entries.filter((e) => e.entryType === want);
+        },
+        getEntriesByName(this: object, name: unknown, ...rest: unknown[]) {
+          const entries = __entriesOf(this, "getEntriesByName");
+          if (arguments.length < 1) {
+            throw new TypeError(
+              "Failed to execute 'getEntriesByName' on 'PerformanceObserverEntryList': 1 argument required, but only 0 present.",
+            );
+          }
+          const wantName = String(name);
+          const wantType = rest[0] === undefined ? null : String(rest[0]);
+          return entries.filter(
+            (e) => e.name === wantName && (wantType === null || e.entryType === wantType),
+          );
+        },
+      });
+      Object.defineProperty(PerformanceObserverEntryList.prototype, Symbol.toStringTag, {
+        value: "PerformanceObserverEntryList",
+        configurable: true,
+      });
+
+      const __runPerfObserverTask = function () {
+        __perfObserverTaskQueued = false;
+        for (const [observer, state] of Array.from(__registeredPerfObservers)) {
+          if (state.buffer.length === 0) continue;
+          const list = Object.create(PerformanceObserverEntryList.prototype);
+          __entryListEntries.set(list, __sortByStartTime(state.buffer));
+          state.buffer = [];
+          // Marks and measures have no buffer limit, so no entry of an observable type drops.
+          const args: unknown[] = [list, observer];
+          if (state.requiresDroppedEntries) {
+            state.requiresDroppedEntries = false;
+            args.push({ droppedEntriesCount: 0 });
+          }
+          try {
+            state.callback.apply(observer, args);
+          } catch (error) {
+            ksInternals.reportException?.(error);
+          }
+        }
+      };
+      const __queuePerfObserverTask = function () {
+        if (__perfObserverTaskQueued) return;
+        __perfObserverTaskQueued = true;
+        if (typeof __perfObserverSetTimeout === "function") {
+          __perfObserverSetTimeout(__runPerfObserverTask, 0);
+        } else {
+          queueMicrotask(__runPerfObserverTask);
+        }
+      };
+      const __queuePerfEntry = function (entry: PerformanceEntry | PerfEntryRecord) {
+        let queued = false;
+        for (const state of __registeredPerfObservers.values()) {
+          const interested = state.options.some((options) =>
+            options.entryTypes
+              ? options.entryTypes.includes(entry.entryType)
+              : options.type === entry.entryType,
+          );
+          if (!interested) continue;
+          state.buffer.push(entry);
+          queued = true;
+        }
+        if (queued) __queuePerfObserverTask();
+      };
+      const __perfObserverStateOf = function (observer: unknown, method: string) {
+        const state = __perfObserverStates.get(observer as object);
+        if (!state) {
+          throw new TypeError(
+            `Failed to execute '${method}' on 'PerformanceObserver': Illegal invocation`,
+          );
+        }
+        return state;
+      };
+      const PerformanceObserver = function PerformanceObserver(this: object, callback: unknown) {
+        if (new.target === undefined) {
+          throw new TypeError(
+            "Failed to construct 'PerformanceObserver': Please use the 'new' operator, this DOM object constructor cannot be called as a function.",
+          );
+        }
+        if (typeof callback !== "function") {
+          throw new TypeError(
+            "Failed to construct 'PerformanceObserver': parameter 1 is not of type 'Function'.",
+          );
+        }
+        __perfObserverStates.set(this, {
+          callback,
+          observerType: "undefined",
+          options: [],
+          buffer: [],
+          requiresDroppedEntries: true,
+        });
+      };
+      defineEnumerableProto(PerformanceObserver.prototype, {
+        observe(this: object, ...args: unknown[]) {
+          const state = __perfObserverStateOf(this, "observe");
+          const options = args[0];
+          if (options !== undefined && options !== null && typeof options !== "object") {
+            throw new TypeError(
+              "Failed to execute 'observe' on 'PerformanceObserver': The provided value is not of type 'PerformanceObserverInit'.",
+            );
+          }
+          const init = (options ?? {}) as Record<string, unknown>;
+          const rawEntryTypes = init.entryTypes as Iterable<unknown> | undefined;
+          if (
+            rawEntryTypes !== undefined &&
+            (rawEntryTypes === null ||
+              typeof rawEntryTypes !== "object" ||
+              typeof rawEntryTypes[Symbol.iterator] !== "function")
+          ) {
+            throw new TypeError(
+              "Failed to execute 'observe' on 'PerformanceObserver': Failed to read the 'entryTypes' property from 'PerformanceObserverInit': The provided value cannot be converted to a sequence.",
+            );
+          }
+          const entryTypes = rawEntryTypes === undefined ? null : Array.from(rawEntryTypes, String);
+          const type = init.type === undefined ? null : String(init.type);
+          const buffered = Boolean(init.buffered);
+          const prefix = "Failed to execute 'observe' on 'PerformanceObserver': ";
+          if (entryTypes === null && type === null) {
+            throw new TypeError(
+              prefix + "An observe() call must include either entryTypes or type arguments.",
+            );
+          }
+          // Like Chrome, and unlike the spec's "any other member", only `type` conflicts with
+          // entryTypes; a `buffered` flag beside entryTypes is ignored.
+          if (entryTypes !== null && type !== null) {
+            throw new TypeError(
+              prefix + "An observe() call must not include both entryTypes and type arguments.",
+            );
+          }
+          if (state.observerType === "undefined") {
+            state.observerType = entryTypes !== null ? "multiple" : "single";
+          }
+          const DOMExceptionCtor = ksGlobal.DOMException || TypeError;
+          if (state.observerType === "single" && entryTypes !== null) {
+            throw new DOMExceptionCtor(
+              prefix +
+                "This observer has performed observe({type:...}, therefore it cannot perform observe({entryTypes:...})",
+              "InvalidModificationError",
+            );
+          }
+          if (state.observerType === "multiple" && type !== null) {
+            throw new DOMExceptionCtor(
+              prefix +
+                "This PerformanceObserver has performed observe({entryTypes:...}, therefore it cannot perform observe({type:...})",
+              "InvalidModificationError",
+            );
+          }
+          state.requiresDroppedEntries = true;
+          if (entryTypes !== null) {
+            const supported = entryTypes.filter((t) => __supportedEntryTypes.includes(t));
+            if (supported.length === 0) {
+              console.warn(
+                "The entryTypes passed to PerformanceObserver.observe() are unsupported.",
+              );
+              return;
+            }
+            state.options = [{ entryTypes: supported, type: null }];
+            __registeredPerfObservers.set(this, state);
+            return;
+          }
+          if (!__supportedEntryTypes.includes(type as string)) {
+            console.warn(`The entry type '${type}' passed to observe() is unsupported.`);
+            return;
+          }
+          const existing = state.options.findIndex((o) => o.type === type);
+          if (existing >= 0) state.options[existing] = { entryTypes: null, type };
+          else state.options.push({ entryTypes: null, type });
+          __registeredPerfObservers.set(this, state);
+          if (buffered) {
+            const entries = __perfEntries.filter((e) => e.entryType === type);
+            if (entries.length > 0) {
+              state.buffer.push(...__sortByStartTime(entries));
+              __queuePerfObserverTask();
+            }
+          }
+        },
+        disconnect(this: object) {
+          const state = __perfObserverStateOf(this, "disconnect");
+          __registeredPerfObservers.delete(this);
+          state.buffer = [];
+          state.options = [];
+        },
+        takeRecords(this: object) {
+          const state = __perfObserverStateOf(this, "takeRecords");
+          const entries = state.buffer;
+          state.buffer = [];
+          return entries;
+        },
+      });
+      Object.defineProperty(PerformanceObserver.prototype, Symbol.toStringTag, {
+        value: "PerformanceObserver",
+        configurable: true,
+      });
+      Object.defineProperty(PerformanceObserver, "prototype", { writable: false });
+      Object.defineProperty(PerformanceObserverEntryList, "prototype", { writable: false });
+      Object.defineProperty(PerformanceObserver, "supportedEntryTypes", {
+        get() {
+          return __supportedEntryTypes;
+        },
+        enumerable: true,
+        configurable: true,
+      });
+      ksGlobal.PerformanceObserver = PerformanceObserver;
+      ksGlobal.PerformanceObserverEntryList = PerformanceObserverEntryList;
+
       const __perfShim = {
         now() {
           return __nativeNow();
@@ -1802,6 +2053,7 @@ export function installGlobals(
           }
           const entry = new PerformanceMark(name, options);
           __perfEntries.push(entry);
+          __queuePerfEntry(entry);
           return entry;
         },
         measure(name, startOrOptions, endMark) {
@@ -1870,6 +2122,7 @@ export function installGlobals(
             detail,
           );
           __perfEntries.push(entry);
+          __queuePerfEntry(entry);
           return entry;
         },
         getEntries() {
@@ -2214,18 +2467,6 @@ export function installGlobals(
         },
       });
       globalThis.ResizeObserver = ResizeObserverStub;
-    }
-    if (typeof ksGlobal.PerformanceObserver !== "function") {
-      const PerformanceObserverStub = function (_callback) {};
-      defineEnumerableProto(PerformanceObserverStub.prototype, {
-        observe() {},
-        disconnect() {},
-        takeRecords() {
-          return [];
-        },
-      });
-      (PerformanceObserverStub as any).supportedEntryTypes = Object.freeze(["mark", "measure"]);
-      ksGlobal.PerformanceObserver = PerformanceObserverStub;
     }
     if (typeof globalThis.Image !== "function") {
       const Image = function Image(width, height) {
@@ -4797,6 +5038,7 @@ export function installGlobals(
       "performance",
       "Performance",
       "PerformanceObserver",
+      "PerformanceObserverEntryList",
       "PerformanceEntry",
       "PerformanceMark",
       "PerformanceMeasure",
@@ -5203,6 +5445,9 @@ export function installGlobals(
       "DocumentFragment",
       "Document",
       "ModelContext",
+      "Tool",
+      "ToolActivatedEvent",
+      "ToolCancelEvent",
       "NodeList",
       "HTMLCollection",
       "Range",

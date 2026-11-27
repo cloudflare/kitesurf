@@ -87,6 +87,7 @@ test("the summary lists unexpected results and retries", () => {
   );
   assert.match(md, /^## WPT expectations gate: failed$/m);
   assert.match(md, /^3 tests: 2 as expected, 1 unexpected fail, 0 unexpected pass\.$/m);
+  assert.match(md, /^2 of 3 tests pass \(66\.7%\); 1 of 2 subtests pass \(50\.0%\)\.$/m);
   assert.match(md, /^\| `\/a\\\|b\.html` \| PASS \| FAIL \| 1\/2 \|$/m);
   assert.match(md, /^\| `\/flake\.html` \| TIMEOUT \| PASS, TIMEOUT \| flake \|$/m);
   assert.match(md, /^- 16 retry candidates exceed it$/m);

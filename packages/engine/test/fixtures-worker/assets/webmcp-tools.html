@@ -81,10 +81,10 @@ window.__registerCancellable = function () {
 // ordering is out of scope.
 window.__cancellationScenario = async function () {
   const events = [];
-  window.addEventListener("toolactivated", (event) => {
+  document.modelContext.addEventListener("toolactivated", (event) => {
     events.push("activated:" + event.toolName);
   });
-  window.addEventListener("toolcancel", (event) => {
+  document.modelContext.addEventListener("toolcancel", (event) => {
     events.push("cancel:" + event.toolName);
   });
 
@@ -140,7 +140,7 @@ window.__cancellationScenario = async function () {
   const queuedCompletionTool = (await document.modelContext.getTools())
     .find((tool) => tool.name === "abortAfterCompletionQueued");
   const abortAfterCompletionQueued = await document.modelContext
-    .executeTool(queuedCompletionTool, "{}", { signal: queuedCompletionController.signal })
+    .executeTool(queuedCompletionTool, {}, { signal: queuedCompletionController.signal })
     .catch((error) => String(error));
   let releaseAfterAbort;
   let callbackStartedResolve;
@@ -163,7 +163,7 @@ window.__cancellationScenario = async function () {
     .find((tool) => tool.name === "abortBeforeCancelTask");
   const abortBeforeCancelTaskExecution = document.modelContext.executeTool(
     abortBeforeCancelTaskTool,
-    "{}",
+    {},
     { signal: abortBeforeCancelTaskController.signal },
   );
   await callbackStarted;
@@ -174,7 +174,7 @@ window.__cancellationScenario = async function () {
   await new Promise((resolve) => setTimeout(resolve, 0));
   const execution = document.modelContext.executeTool(
     abortTool,
-    "{}",
+    {},
     { signal: controller.signal },
   );
   await Promise.resolve();
@@ -188,7 +188,7 @@ window.__cancellationScenario = async function () {
 
   const rejectionOrder = [];
   const failedExecution = document.modelContext
-    .executeTool(circularTool, "{}")
+    .executeTool(circularTool, {})
     .catch((error) => {
       rejectionOrder.push("rejected");
       return error.name;
@@ -201,7 +201,7 @@ window.__cancellationScenario = async function () {
 
   const callbackRejectionOrder = [];
   const rejectedCallback = document.modelContext
-    .executeTool(throwingTool, "{}")
+    .executeTool(throwingTool, {})
     .catch((error) => {
       callbackRejectionOrder.push("rejected");
       return error.name;
@@ -214,7 +214,7 @@ window.__cancellationScenario = async function () {
 
   const resolutionOrder = [];
   const successfulExecution = document.modelContext
-    .executeTool(objectTool, "{}")
+    .executeTool(objectTool, {})
     .then((value) => {
       resolutionOrder.push("resolved");
       return value;
@@ -231,7 +231,7 @@ window.__cancellationScenario = async function () {
   let resultWithoutTimer;
   try {
     const timerlessExecution = document.modelContext
-      .executeTool(objectTool, "{}")
+      .executeTool(objectTool, {})
       .then((value) => {
         timerlessOrder.push("resolved");
         return value;

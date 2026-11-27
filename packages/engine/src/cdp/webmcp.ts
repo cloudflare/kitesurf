@@ -15,11 +15,7 @@ interface PageTool {
   name: string;
   description: string;
   inputSchema?: unknown;
-  annotations?: {
-    readOnly?: boolean;
-    untrustedContent?: boolean;
-    autosubmit?: boolean;
-  };
+  annotations?: Protocol.WebMCP.Annotation;
   backendNodeId?: number;
 }
 
@@ -112,6 +108,12 @@ function coerceTools(raw: unknown): PageTool[] {
       }
       if (typeof ann.untrustedContent === "boolean") {
         annotations.untrustedContent = ann.untrustedContent;
+      }
+      if (typeof ann.consequential === "boolean") {
+        annotations.consequential = ann.consequential;
+      }
+      if (typeof ann.debugging === "boolean") {
+        annotations.debugging = ann.debugging;
       }
       if (typeof ann.autosubmit === "boolean") {
         annotations.autosubmit = ann.autosubmit;
@@ -308,6 +310,8 @@ async function runInvocation(
       if (reply?.notFound === true) {
         status = "Error";
         errorText = reply?.error ?? `no such tool: ${toolName}`;
+      } else if (reply?.canceled === true) {
+        status = "Canceled";
       } else if (reply?.threw === true) {
         status = "Error";
         errorText = reply?.error ?? "tool threw";

@@ -19,6 +19,7 @@ import { labelsForControl } from "./labelable.js";
 import { activationBehavior } from "../element.js";
 import { HTMLElement } from "../html-element.js";
 import { HTMLInputElement } from "./input.js";
+import { HTMLSelectElement } from "./select.js";
 import type { HTMLFormElement } from "./form.js";
 
 const BUTTON_TYPES = new Set(["submit", "reset", "button"]);
@@ -40,9 +41,13 @@ class HTMLButtonElement extends HTMLElement implements Idl.HTMLButtonElement {
   get type() {
     const raw = (this.getAttribute("type") || "").toLowerCase();
     if (BUTTON_TYPES.has(raw)) return raw;
+    // The Auto state is a submit button only without command or commandfor and outside <select>.
+    // https://html.spec.whatwg.org/#dom-button-type
     if (this.hasAttribute("command") || this.hasAttribute("commandfor")) {
       return "button";
     }
+    const parent = this.parentNode;
+    if (parent instanceof HTMLSelectElement) return "button";
     return "submit";
   }
   set type(v) {

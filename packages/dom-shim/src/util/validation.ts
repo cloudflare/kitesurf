@@ -71,6 +71,7 @@ export function validatePIArgs(target: unknown, data: unknown): void {
     if (cp >= 0x3001 && cp <= 0xd7ff) return true;
     if (cp >= 0xf900 && cp <= 0xfdcf) return true;
     if (cp >= 0xfdf0 && cp <= 0xfffd) return true;
+    if (cp >= 0x10000 && cp <= 0xeffff) return true;
     return false;
   }
   function isNameChar(cp: number): boolean {

@@ -1,5 +1,3 @@
-/// <reference types="webmcp-types" />
-
 // Copyright (c) 2026 Cloudflare, Inc.
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
@@ -9,29 +7,39 @@
 import type * as Idl from "./idl/types.generated.js";
 import type { UpstreamMessage, WebMcpTool } from "@kitesurf/jsrpc-types/page-script";
 import { sendUpstreamEvent } from "./internal-state.js";
-import { KsEvent, KsInputEvent, KsSubmitEvent, submitEventResponse } from "./events/event.js";
-import { dispatchTrustedEvent } from "./events/dispatch.js";
+import {
+  KsEvent,
+  KsInputEvent,
+  KsSubmitEvent,
+  KsToolActivatedEvent,
+  KsToolCancelEvent,
+  submitEventResponse,
+} from "./events/event.js";
+import { dispatchTrustedEvent, dispatchTrustedOnKey } from "./events/dispatch.js";
 import { formBehindProxy, postMutationHooks } from "./registries.js";
 import type { MutationHint } from "./mutations/seq.js";
 import { DOCUMENT_NODE } from "./constants.js";
+import { KsEventTarget } from "./node-base.js";
 
 const DECLARATIVE_ATTRIBUTES = new Set(["toolname", "tooldescription"]);
 const MAX_MODEL_CONTEXT_TOOL_NAME_LENGTH = 128;
 
+type ToolAnnotations = Required<Idl.ToolAnnotations>;
+
+// Idl.ToolExecuteCallback, with the platform's AbortSignal the execution controller makes.
+type ToolExecute = (inputObject: object, options: { signal: AbortSignal }) => unknown;
+
+// `id` names one registration, so a Tool from getTools() never runs a same-named successor.
 interface ToolDefinition {
+  id: object;
   name: string;
   title: string | null;
   description: string;
   inputSchema: string;
-  execute: WebMCP.ToolExecuteCallback;
+  outputSchema: string;
+  execute: ToolExecute;
   annotations: ToolAnnotations | null;
 }
-
-type ToolAnnotations = Required<WebMCP.ToolAnnotations> & {
-  consequentialHint: boolean;
-};
-
-export type SerializedTool = Omit<WebMCP.RegisteredTool, "window">;
 
 export type CdpTool = WebMcpTool;
 
@@ -43,11 +51,17 @@ export interface ToolCallResult {
   error?: string;
   threw?: boolean;
   notFound?: boolean;
+  canceled?: boolean;
+}
+
+interface ActiveExecution {
+  controller: AbortControllerLike;
+  name: string;
 }
 
 // The page API and CDP share this registry; createModelContext resets it per generation.
 const tools = new Map<string, ToolDefinition>();
-const activeToolExecutions = new Map<string, AbortControllerLike>();
+const activeToolExecutions = new Map<string, ActiveExecution>();
 
 let getWindow: () => unknown = () => undefined;
 let getOrigin: () => string = () => "";
@@ -80,6 +94,7 @@ interface DeclarativeDocument {
 }
 
 interface DeclarativeTool {
+  id: object;
   descriptor: CdpTool;
   form: DeclarativeForm;
   title: string;
@@ -94,6 +109,12 @@ let declarativeWatchRevision = 0;
 let declarativeRefreshQueued = false;
 let declarativeHookInstalled = false;
 let pageDeclarativeInterest = false;
+// A form refused for a taken name keeps its markup here and retries only once the markup changes,
+// as Chrome retries a refused form on its next mutation, not when the name is freed.
+let rejectedForms = new Map<DeclarativeForm, string>();
+// Cancels a non-autosubmit execution that still waits for its form to be submitted.
+let pendingFormCancels = new Map<DeclarativeForm, Set<() => void>>();
+const declarativeCancels = new WeakSet<object>();
 
 function domError(message: string, name: string): Error {
   const DE = (globalThis as { DOMException?: new (m: string, n: string) => Error }).DOMException;
@@ -105,26 +126,116 @@ function domError(message: string, name: string): Error {
 
 const NAME_OK = /^[A-Za-z0-9_.\-]+$/;
 
-function serializeOne(def: ToolDefinition): SerializedTool {
-  let inputSchema: object | undefined;
-  if (def.inputSchema !== "") {
-    inputSchema = JSON.parse(def.inputSchema) as object;
+interface ToolSlots {
+  id: object;
+  context: ModelContext;
+  declarative: boolean;
+  name: string;
+  title: string;
+  description: string;
+  inputSchema: object | null;
+  outputSchema: object | null;
+  origin: string;
+  annotations: object | null;
+}
+
+const toolSlots = new WeakMap<object, ToolSlots>();
+let allowToolConstruct = false;
+
+function slotsOf(tool: unknown): ToolSlots {
+  const slots = isObjectLike(tool) ? toolSlots.get(tool) : undefined;
+  if (!slots) throw new TypeError("Illegal invocation");
+  return slots;
+}
+
+export class Tool implements Idl.Tool {
+  constructor() {
+    if (!allowToolConstruct) throw new TypeError("Illegal constructor");
+    allowToolConstruct = false;
   }
+
+  get name(): string {
+    return slotsOf(this).name;
+  }
+
+  get title(): string {
+    return slotsOf(this).title;
+  }
+
+  get description(): string {
+    return slotsOf(this).description;
+  }
+
+  get inputSchema(): object | null {
+    return slotsOf(this).inputSchema;
+  }
+
+  get outputSchema(): object | null {
+    return slotsOf(this).outputSchema;
+  }
+
+  get source(): unknown {
+    const { context } = slotsOf(this);
+    if (!context._isFullyActive()) return null;
+    return context._getWindow() ?? null;
+  }
+
+  get origin(): string {
+    return slotsOf(this).origin;
+  }
+
+  get annotations(): object | null {
+    return slotsOf(this).annotations;
+  }
+}
+
+function mintTool(slots: ToolSlots): Tool {
+  allowToolConstruct = true;
+  // V8 cannot serialize a Proxy, so structuredClone(tool) throws DataCloneError, as it does for
+  // any platform object that is not [Serializable].
+  const tool = new Proxy(new Tool(), {});
+  toolSlots.set(tool, slots);
+  return tool;
+}
+
+function parseSchema(json: string): object | null {
+  return json === "" ? null : (JSON.parse(json) as object);
+}
+
+function definitionSlots(def: ToolDefinition, context: ModelContext): ToolSlots {
   return {
-    description: def.description,
-    ...(inputSchema === undefined ? {} : { inputSchema }),
+    id: def.id,
+    context,
+    declarative: false,
     name: def.name,
-    ...(def.annotations !== null ? { annotations: { ...def.annotations } } : {}),
-    origin: getOrigin(),
     title: def.title ?? "",
+    description: def.description,
+    inputSchema: parseSchema(def.inputSchema),
+    outputSchema: parseSchema(def.outputSchema),
+    origin: getOrigin(),
+    annotations: def.annotations === null ? null : { ...def.annotations },
   };
 }
 
-function snapshot(registry: Map<string, ToolDefinition>): SerializedTool[] {
-  const out: SerializedTool[] = [];
-  for (const def of registry.values()) out.push(serializeOne(def));
-  out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-  return out;
+function declarativeSlots(entry: DeclarativeTool, context: ModelContext): ToolSlots {
+  let inputSchema: object | null = null;
+  if (entry.descriptor.inputSchema !== undefined) {
+    try {
+      inputSchema = JSON.parse(JSON.stringify(entry.descriptor.inputSchema)) as object;
+    } catch {}
+  }
+  return {
+    id: entry.id,
+    context,
+    declarative: true,
+    name: entry.descriptor.name,
+    title: entry.title,
+    description: entry.descriptor.description,
+    inputSchema,
+    outputSchema: null,
+    origin: getOrigin(),
+    annotations: null,
+  };
 }
 
 function toCdpTool(def: ToolDefinition): CdpTool {
@@ -139,6 +250,8 @@ function toCdpTool(def: ToolDefinition): CdpTool {
     out.annotations = {
       readOnly: def.annotations.readOnlyHint,
       untrustedContent: def.annotations.untrustedContentHint,
+      consequential: def.annotations.consequentialHint,
+      debugging: def.annotations.debugging,
     };
   }
   return out;
@@ -220,7 +333,23 @@ function declarativeSchema(form: DeclarativeForm): Record<string, unknown> {
   return schema;
 }
 
-function scanDeclarativeTools(): Map<string, DeclarativeTool> {
+function formMarkup(form: DeclarativeForm): string {
+  try {
+    return String(formBehindProxy(form).outerHTML ?? "");
+  } catch {
+    return "";
+  }
+}
+
+interface DeclarativeCandidate {
+  form: DeclarativeForm;
+  name: string;
+  description: string;
+}
+
+function scanDeclarativeTools(
+  previous: Map<string, DeclarativeTool>,
+): Map<string, DeclarativeTool> {
   const found = new Map<string, DeclarativeTool>();
   // The host injects the live DOM shim Document through this internal callback.
   const doc = getDocument() as DeclarativeDocument | null | undefined;
@@ -231,6 +360,15 @@ function scanDeclarativeTools(): Map<string, DeclarativeTool> {
     return found;
   }
   declarativeCandidates = forms.length;
+  if (rejectedForms.size > 0) {
+    // A refused form that leaves the candidates retries when it comes back.
+    const candidates = new Set(forms);
+    for (const form of rejectedForms.keys()) {
+      if (!candidates.has(form)) rejectedForms.delete(form);
+    }
+  }
+  const holders: DeclarativeCandidate[] = [];
+  const others: DeclarativeCandidate[] = [];
   for (const form of forms) {
     const name = String(form?.getAttribute?.("toolname") ?? "");
     const description = String(form?.getAttribute?.("tooldescription") ?? "");
@@ -238,11 +376,22 @@ function scanDeclarativeTools(): Map<string, DeclarativeTool> {
       !name ||
       !description ||
       name.length > MAX_MODEL_CONTEXT_TOOL_NAME_LENGTH ||
-      !NAME_OK.test(name) ||
-      tools.has(name) ||
-      found.has(name)
+      !NAME_OK.test(name)
     )
       continue;
+    // The form that holds a name keeps it against a duplicate earlier in document order.
+    (previous.get(name)?.form === form ? holders : others).push({ form, name, description });
+  }
+  for (const { form, name, description } of holders.concat(others)) {
+    if (tools.has(name) || found.has(name)) {
+      rejectedForms.set(form, formMarkup(form));
+      continue;
+    }
+    const rejectedMarkup = rejectedForms.get(form);
+    if (rejectedMarkup !== undefined) {
+      if (rejectedMarkup === formMarkup(form)) continue;
+      rejectedForms.delete(form);
+    }
     const autosubmit = form?.getAttribute?.("toolautosubmit") != null;
     const descriptor: CdpTool = {
       name,
@@ -254,7 +403,9 @@ function scanDeclarativeTools(): Map<string, DeclarativeTool> {
       descriptor.backendNodeId = form._id;
     }
     const title = String(form?.getAttribute?.("tooltitle") ?? "");
+    const before = previous.get(name);
     found.set(name, {
+      id: before?.form === form ? before.id : {},
       descriptor,
       form,
       title,
@@ -267,8 +418,11 @@ function scanDeclarativeTools(): Map<string, DeclarativeTool> {
 
 function refreshDeclarativeTools(notify: boolean): void {
   const previous = declarativeTools;
-  const next = scanDeclarativeTools();
+  const next = scanDeclarativeTools(previous);
   declarativeTools = next;
+  for (const [name, entry] of previous) {
+    if (next.get(name)?.id !== entry.id) cancelPendingFormExecutions(entry.form);
+  }
   // The first page or CDP read seeds existing forms instead of reporting additions.
   if (!notify) return;
   const removed: string[] = [];
@@ -293,6 +447,13 @@ function refreshDeclarativeTools(notify: boolean): void {
     }
   }
   if (mainContext) notifyChanged(mainContext);
+}
+
+function cancelPendingFormExecutions(form: DeclarativeForm): void {
+  const cancels = pendingFormCancels.get(form);
+  if (!cancels) return;
+  pendingFormCancels.delete(form);
+  for (const cancel of cancels) cancel();
 }
 
 function scheduleDeclarativeRefresh(hint?: MutationHint): void {
@@ -334,51 +495,52 @@ function notifyChanged(context: ModelContext): void {
   context._changeQueued = true;
   queueMicrotask(() => {
     context._changeQueued = false;
-    context.dispatchEvent(new KsEvent("toolchange"));
+    dispatchContextEvent(context, new KsEvent("toolchange"));
   });
 }
 
-// ModelContext has no node ID, so listeners cannot use the node-keyed DOM registry.
-class ToolEventTarget {
-  private _listeners = new Map<string, Array<(event: Idl.Event) => void>>();
-
-  // Only function listeners are kept; a handleEvent object is ignored.
-  addEventListener(
-    type: string,
-    listener: Idl.EventListener | null,
-    _options: boolean | Idl.AddEventListenerOptions | undefined = undefined,
-  ): void {
-    if (typeof listener !== "function") return;
-    const key = String(type);
-    const list = this._listeners.get(key) ?? [];
-    if (!list.includes(listener)) list.push(listener);
-    this._listeners.set(key, list);
-  }
-
-  removeEventListener(type: string, listener: Idl.EventListener | null): void {
-    const list = this._listeners.get(String(type));
-    if (!list) return;
-    const at = typeof listener === "function" ? list.indexOf(listener) : -1;
-    if (at >= 0) list.splice(at, 1);
-  }
-
-  dispatchEvent(event: Idl.Event): boolean {
-    const list = this._listeners.get(String(event?.type ?? ""));
-    for (const listener of list ? list.slice() : []) {
-      try {
-        listener.call(this, event);
-      } catch (err) {
-        reportListenerError(err);
-      }
-    }
-    return true;
-  }
+function dispatchContextEvent(context: ModelContext, event: KsEvent): void {
+  try {
+    dispatchTrustedOnKey(context, event);
+  } catch {}
 }
 
-function reportListenerError(err: unknown): void {
-  try {
-    console.error("[kitesurf] modelContext listener threw:", err);
-  } catch {}
+function dispatchToolEvent(
+  context: ModelContext,
+  type: "toolactivated" | "toolcancel",
+  toolName: string,
+): void {
+  const event =
+    type === "toolactivated"
+      ? new KsToolActivatedEvent(type, { toolName })
+      : new KsToolCancelEvent(type, { toolName });
+  dispatchContextEvent(context, event);
+}
+
+const eventHandlers = new WeakMap<ModelContext, Map<string, unknown>>();
+
+function eventHandler(context: ModelContext, type: string): Idl.EventHandler {
+  return (eventHandlers.get(context)?.get(type) ?? null) as Idl.EventHandler;
+}
+
+// The handler's listener is added on the first set and stays, so it keeps its place in the
+// listener order. [LegacyTreatNonObjectAsNull] keeps a non-callable object, which does nothing.
+function setEventHandler(context: ModelContext, type: string, handler: unknown): void {
+  let slots = eventHandlers.get(context);
+  if (!slots) {
+    slots = new Map();
+    eventHandlers.set(context, slots);
+  }
+  const first = !slots.has(type);
+  slots.set(type, isObjectOrFunction(handler) ? handler : null);
+  if (!first) return;
+  const handlers = slots;
+  context.addEventListener(type, (event: Idl.Event) => {
+    const current = handlers.get(type);
+    if (typeof current !== "function") return;
+    const result: unknown = current.call(context, event);
+    if (result === false) event.preventDefault();
+  });
 }
 
 type TaskScheduler = (fn: () => void, ms: number) => unknown;
@@ -435,6 +597,17 @@ function toUSVString(s: string): string {
 function isObjectLike(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object";
 }
+
+function isObjectOrFunction(v: unknown): v is Record<string, unknown> {
+  return isObjectLike(v) || typeof v === "function";
+}
+
+// WebIDL's ToString, which throws for a Symbol where String() would not.
+function toDomString(value: unknown, what: string): string {
+  if (typeof value === "symbol") throw new TypeError(`${what} cannot be a Symbol`);
+  return String(value);
+}
+
 type AbortSignalLike = {
   aborted?: boolean;
   reason?: unknown;
@@ -457,41 +630,71 @@ function createExecutionController(): AbortControllerLike {
   return new AbortControllerCtor();
 }
 
-function executionOptions(signal?: AbortSignal): WebMCP.ToolExecuteCallbackOptions {
-  const executionSignal = signal ?? createExecutionController().signal;
-  return { signal: executionSignal };
+function abortReason(signal: { readonly reason?: unknown }): unknown {
+  return signal.reason ?? domError("aborted", "AbortError");
+}
+
+// Converts an options dictionary down to the AbortSignal member every WebMCP options type has.
+function optionsDictionary(options: unknown, op: string): Record<string, unknown> {
+  if (options === undefined || options === null) return {};
+  if (!isObjectOrFunction(options)) throw new TypeError(`${op}: options is not an object`);
+  return options;
+}
+
+function signalMember(options: Record<string, unknown>, op: string): AbortSignalLike | undefined {
+  const signal = options.signal;
+  if (signal === undefined) return undefined;
+  if (!isAbortSignalLike(signal))
+    throw new TypeError(`${op}: options.signal is not an AbortSignal`);
+  return signal;
+}
+
+function originSequence(value: unknown, what: string): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new TypeError(`${what} must be a sequence`);
+  return value.map((origin) => toUSVString(toDomString(origin, what)));
 }
 
 let allowConstruct = false;
-export class ModelContext extends ToolEventTarget implements Idl.ModelContext {
+export class ModelContext implements Idl.ModelContext {
   declare _tools: Map<string, ToolDefinition>;
   declare _isMain: boolean;
   declare _getWindow: () => unknown;
   declare _isFullyActive: () => boolean;
   declare _changeQueued: boolean;
+  // finalizeInterface makes EventTarget the parent, which supplies these.
+  declare removeEventListener: Idl.EventTarget["removeEventListener"];
+  declare dispatchEvent: Idl.EventTarget["dispatchEvent"];
 
   constructor() {
-    super();
     if (!allowConstruct) {
       throw new TypeError("Illegal constructor");
     }
     allowConstruct = false;
   }
-  private _ontoolchange: Idl.ModelContext["ontoolchange"] = null;
 
-  get ontoolchange(): Idl.ModelContext["ontoolchange"] {
-    return this._ontoolchange;
+  get ontoolchange(): Idl.EventHandler {
+    return eventHandler(this, "toolchange");
   }
 
-  set ontoolchange(handler: Idl.ModelContext["ontoolchange"]) {
-    if (this._isMain) markDeclarativeInterest();
-    if (this._ontoolchange) {
-      this.removeEventListener("toolchange", this._ontoolchange);
-    }
-    this._ontoolchange = typeof handler === "function" ? handler : null;
-    if (this._ontoolchange) {
-      this.addEventListener("toolchange", this._ontoolchange);
-    }
+  set ontoolchange(handler: Idl.EventHandler) {
+    setEventHandler(this, "toolchange", handler);
+  }
+
+  get ontoolactivated(): Idl.EventHandler {
+    return eventHandler(this, "toolactivated");
+  }
+
+  set ontoolactivated(handler: Idl.EventHandler) {
+    setEventHandler(this, "toolactivated", handler);
+  }
+
+  get ontoolcancel(): Idl.EventHandler {
+    return eventHandler(this, "toolcancel");
+  }
+
+  set ontoolcancel(handler: Idl.EventHandler) {
+    setEventHandler(this, "toolcancel", handler);
   }
 
   addEventListener(
@@ -502,42 +705,48 @@ export class ModelContext extends ToolEventTarget implements Idl.ModelContext {
     if (this._isMain && String(type) === "toolchange") {
       markDeclarativeInterest();
     }
-    super.addEventListener(type, listener, options);
+    KsEventTarget.prototype.addEventListener.call(this, type, listener, options);
   }
 
-  registerTool(
-    tool: Idl.ModelContextTool,
-    options?: Idl.ModelContextRegisterToolOptions,
-  ): Promise<void> {
+  registerTool(tool: unknown, options?: unknown): Promise<void> {
+    let converted: ConvertedTool;
+    let signal: AbortSignalLike | undefined;
+    let exposedTo: string[] | undefined;
+    try {
+      converted = convertTool(tool);
+      const opts = optionsDictionary(options, "registerTool");
+      exposedTo = originSequence(opts.exposedTo, "registerTool: exposedTo");
+      signal = signalMember(opts, "registerTool");
+    } catch (err) {
+      return Promise.reject(err);
+    }
     if (!this._isFullyActive()) {
       return Promise.reject(inactiveDocumentError("registerTool"));
     }
     let def: ToolDefinition;
     try {
-      def = validate(tool, this._tools);
+      def = validate(converted, this._tools);
     } catch (err) {
       return Promise.reject(err);
     }
-
-    const opts = isObjectLike(options) ? options : {};
-    const signal = isAbortSignalLike(opts.signal) ? opts.signal : undefined;
-    if (signal && signal.aborted === true) {
-      return Promise.reject(signal.reason ?? domError("aborted", "AbortError"));
+    // Serializing a schema runs page code (toJSON), which can detach the document or register.
+    if (!this._isFullyActive()) {
+      return Promise.reject(inactiveDocumentError("registerTool"));
     }
-    const exposedTo = opts.exposedTo;
-    if (exposedTo !== undefined) {
-      if (!Array.isArray(exposedTo)) {
-        return Promise.reject(new TypeError("registerTool: exposedTo must be a sequence"));
-      }
-      for (const origin of exposedTo) {
-        if (typeof origin !== "string" || !isTrustworthyOrigin(origin)) {
-          return Promise.reject(
-            domError(
-              `registerTool: exposedTo origin "${String(origin)}" is not a potentially-trustworthy origin`,
-              "SecurityError",
-            ),
-          );
-        }
+    if (this._tools.has(def.name)) {
+      return Promise.reject(duplicateToolError(def.name));
+    }
+    if (signal && signal.aborted === true) {
+      return Promise.reject(abortReason(signal));
+    }
+    for (const origin of exposedTo ?? []) {
+      if (!isTrustworthyOrigin(origin)) {
+        return Promise.reject(
+          domError(
+            `registerTool: exposedTo origin "${origin}" is not a potentially-trustworthy origin`,
+            "SecurityError",
+          ),
+        );
       }
     }
 
@@ -563,7 +772,7 @@ export class ModelContext extends ToolEventTarget implements Idl.ModelContext {
             }
             notifyChanged(context);
           }
-          reject(signal.reason ?? domError("aborted", "AbortError"));
+          reject(abortReason(signal));
         });
       }
       // Queue toolchange before resolving so awaiters observe the notification first.
@@ -572,213 +781,107 @@ export class ModelContext extends ToolEventTarget implements Idl.ModelContext {
     });
   }
 
+  // Nothing in Kitesurf reads tool readiness: CDP announces each tool as it registers.
+  waitForToolsUntil(promise: unknown): void {
+    if (!this._isFullyActive()) throw inactiveDocumentError("waitForToolsUntil");
+    // Reacting to the promise marks a rejection handled, as the spec's reaction does.
+    Promise.resolve(promise).catch(() => {});
+  }
+
   executeTool(tool: unknown, inputObject?: unknown, options?: unknown): Promise<string> {
-    if (!isObjectLike(tool)) {
-      return Promise.reject(new TypeError("executeTool: tool must be a dictionary"));
+    const slots = isObjectLike(tool) ? toolSlots.get(tool) : undefined;
+    if (!slots) {
+      return Promise.reject(new TypeError("executeTool: tool is not a Tool"));
     }
-    if (typeof tool.origin !== "string") {
-      return Promise.reject(new TypeError("executeTool: tool.origin is required"));
+    if (inputObject !== undefined && !isObjectOrFunction(inputObject)) {
+      return Promise.reject(new TypeError("executeTool: inputObject is not an object"));
     }
-    if (typeof tool.name !== "string" || tool.name === "") {
-      return Promise.reject(new TypeError("executeTool: tool.name is required"));
+    let signal: AbortSignalLike | undefined;
+    try {
+      signal = signalMember(optionsDictionary(options, "executeTool"), "executeTool");
+    } catch (err) {
+      return Promise.reject(err);
     }
     if (!this._isFullyActive()) {
       return Promise.reject(inactiveDocumentError("executeTool"));
     }
     let originOk = false;
     try {
-      originOk = new URL(tool.origin).origin !== "null";
+      originOk = new URL(slots.origin).origin !== "null";
     } catch {
       originOk = false;
     }
     if (!originOk) {
       return Promise.reject(
         domError(
-          `executeTool: tool origin "${tool.origin}" is not a supported origin`,
+          `executeTool: tool origin "${slots.origin}" is not a supported origin`,
           "NotSupportedError",
         ),
       );
     }
-    const toolName = tool.name;
-    const def = this._tools.get(toolName);
-    let execFn: WebMCP.ToolExecuteCallback | null = def ? def.execute : null;
-    if (!execFn && this._isMain) {
-      markDeclarativeInterest();
-      // A form can appear before its queued mutation refresh, so rescan before fallback lookup.
-      refreshDeclarativeTools(true);
-      const entry = declarativeTools.get(toolName);
-      if (entry) execFn = makeDeclarativeExec(entry);
+    let inputArguments: string | undefined;
+    try {
+      inputArguments = JSON.stringify(inputObject === undefined ? {} : inputObject);
+    } catch (err) {
+      return Promise.reject(err);
     }
-    if (!execFn) {
-      return Promise.reject(domError(`executeTool: no tool named "${toolName}"`, "UnknownError"));
+    if (inputArguments === undefined) {
+      return Promise.reject(new TypeError("executeTool: inputObject is not JSON-serializable"));
     }
-    const exec = execFn;
-    let args: Record<string, unknown> = {};
-    if (inputObject !== undefined && inputObject !== null) {
-      let raw: string;
-      if (typeof inputObject === "object" || typeof inputObject === "function") {
-        let json: string | undefined;
-        try {
-          json = JSON.stringify(inputObject);
-        } catch (err) {
-          return Promise.reject(err);
-        }
-        if (json === undefined) {
-          return Promise.reject(new TypeError("executeTool: inputObject is not JSON-serializable"));
-        }
-        raw = json;
-      } else {
-        raw = typeof inputObject === "string" ? inputObject : String(inputObject);
-      }
-      let parsedArgs: unknown;
-      try {
-        parsedArgs = JSON.parse(raw);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        return Promise.reject(domError(`executeTool: invalid JSON args: ${msg}`, "UnknownError"));
-      }
-      if (!isObjectLike(parsedArgs)) {
-        return Promise.reject(domError("executeTool: args must be a JSON object", "UnknownError"));
-      }
-      args = parsedArgs;
+    const target = slots.context;
+    if (!target._isFullyActive()) {
+      return Promise.reject(
+        domError("executeTool: the tool's document is not fully active", "InvalidStateError"),
+      );
     }
-    const opts = isObjectLike(options) ? options : {};
-    const signal = isAbortSignalLike(opts.signal) ? opts.signal : undefined;
     if (signal && signal.aborted === true) {
-      return Promise.reject(signal.reason ?? domError("aborted", "AbortError"));
+      return Promise.reject(abortReason(signal));
     }
-    const win = this._getWindow();
-    return new Promise<string>((resolve, reject) => {
-      let settled = false;
-      let callbackSettled = false;
-      const execController = createExecutionController();
-      let onAbort: (() => void) | null = null;
-      const detach = () => {
-        if (onAbort && signal && signal.removeEventListener) {
-          signal.removeEventListener("abort", onAbort);
-        }
-        onAbort = null;
-      };
-      if (signal && signal.addEventListener) {
-        onAbort = () => {
-          if (settled) return;
-          settled = true;
-          detach();
-          reject(signal.reason ?? domError("aborted", "AbortError"));
-          if (!callbackSettled) {
-            const fire = () => {
-              if (callbackSettled) return;
-              try {
-                execController.abort();
-              } catch {}
-              dispatchWindowToolEvent(win, "toolcancel", toolName);
-            };
-            queueTask(fire);
-          }
-        };
-        signal.addEventListener("abort", onAbort);
-      }
-      Promise.resolve()
-        .then(() => {
-          const p = exec(args, {
-            signal: execController.signal,
-          });
-          dispatchWindowToolEvent(win, "toolactivated", toolName);
-          return p;
-        })
-        .then(
-          (v) => {
-            callbackSettled = true;
-            if (settled) return;
-            if (v === undefined) {
-              queueTask(() => {
-                if (settled) return;
-                settled = true;
-                detach();
-                resolve("");
-              });
-              return;
-            }
-            if (typeof v === "string") {
-              queueTask(() => {
-                if (settled) return;
-                settled = true;
-                detach();
-                resolve(v);
-              });
-              return;
-            }
-            let json: string | undefined;
-            try {
-              json = JSON.stringify(v);
-            } catch {
-              json = undefined;
-            }
-            if (json === undefined) {
-              queueTask(() => {
-                if (settled) return;
-                settled = true;
-                detach();
-                reject(
-                  domError("executeTool: tool result is not JSON-serializable", "UnknownError"),
-                );
-              });
-              return;
-            }
-            queueTask(() => {
-              if (settled) return;
-              settled = true;
-              detach();
-              resolve(json);
-            });
-          },
-          (e) => {
-            callbackSettled = true;
-            if (settled) return;
-            const msg = e instanceof Error ? e.message : String(e);
-            queueTask(() => {
-              if (settled) return;
-              settled = true;
-              detach();
-              reject(domError(`executeTool: ${msg}`, "UnknownError"));
-            });
-          },
-        );
-    });
+    const exec = registeredExecute(target, slots);
+    if (!exec) {
+      return Promise.reject(
+        domError(`executeTool: tool "${slots.name}" is not registered`, "NotFoundError"),
+      );
+    }
+    const args: unknown = JSON.parse(inputArguments);
+    if (!isObjectLike(args)) {
+      return Promise.reject(domError("executeTool: the input is not an object", "DataError"));
+    }
+    return runExecution(target, slots.name, exec, args, signal);
   }
 
-  getTools(options?: WebMCP.ModelContextGetToolOptions): Promise<WebMCP.RegisteredTool[]> {
+  getTools(options?: unknown): Promise<Tool[]> {
+    let fromOrigins: string[] | undefined;
+    try {
+      fromOrigins = originSequence(
+        optionsDictionary(options, "getTools").fromOrigins,
+        "getTools: fromOrigins",
+      );
+    } catch (err) {
+      return Promise.reject(err);
+    }
     if (!this._isFullyActive()) {
       return Promise.reject(inactiveDocumentError("getTools"));
     }
-    const opts = isObjectLike(options) ? options : {};
-    const fromOrigins = opts.fromOrigins;
-    if (fromOrigins !== undefined) {
-      if (!Array.isArray(fromOrigins)) {
-        return Promise.reject(new TypeError("getTools: fromOrigins must be a sequence"));
-      }
-      for (const origin of fromOrigins) {
-        if (typeof origin !== "string" || !isTrustworthyOrigin(origin)) {
-          return Promise.reject(
-            domError(
-              `getTools: fromOrigins entry "${String(origin)}" is not a potentially-trustworthy origin`,
-              "SecurityError",
-            ),
-          );
-        }
+    for (const origin of fromOrigins ?? []) {
+      if (!isTrustworthyOrigin(origin)) {
+        return Promise.reject(
+          domError(
+            `getTools: fromOrigins entry "${origin}" is not a potentially-trustworthy origin`,
+            "SecurityError",
+          ),
+        );
       }
     }
-    const win = this._getWindow() as WebMCP.RegisteredTool["window"];
-    const out = snapshot(this._tools);
+    const found: ToolSlots[] = [];
+    for (const def of this._tools.values()) found.push(definitionSlots(def, this));
     if (this._isMain) {
       markDeclarativeInterest();
       refreshDeclarativeTools(true);
-      for (const entry of declarativeTools.values()) {
-        out.push(serializeDeclarative(entry));
-      }
-      out.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+      for (const entry of declarativeTools.values()) found.push(declarativeSlots(entry, this));
     }
-    return Promise.resolve(out.map((tool) => ({ ...tool, window: win })));
+    found.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    return Promise.resolve(found.map(mintTool));
   }
 }
 
@@ -786,33 +889,132 @@ function inactiveDocumentError(op: string): Error {
   return domError(`${op}: the document is not fully active`, "InvalidStateError");
 }
 
-function serializeDeclarative(entry: DeclarativeTool): SerializedTool {
-  const out: SerializedTool = {
-    name: entry.descriptor.name,
-    title: entry.title,
-    description: entry.descriptor.description,
-    origin: getOrigin(),
-  };
-  if (entry.descriptor.inputSchema !== undefined) {
-    try {
-      out.inputSchema = JSON.parse(JSON.stringify(entry.descriptor.inputSchema)) as object;
-    } catch {}
-  }
-  return out;
+function duplicateToolError(name: string): Error {
+  return domError(
+    `registerTool: a tool named "${name}" is already registered`,
+    "InvalidStateError",
+  );
 }
 
-function dispatchWindowToolEvent(win: unknown, type: string, toolName: string): void {
+// Finds the registration a Tool names; a same-named tool registered since is a different one.
+function registeredExecute(context: ModelContext, slots: ToolSlots): ToolExecute | null {
+  if (!slots.declarative) {
+    const def = context._tools.get(slots.name);
+    return def !== undefined && def.id === slots.id ? def.execute : null;
+  }
+  if (!context._isMain) return null;
+  markDeclarativeInterest();
+  // A form can change before its queued mutation refresh, so rescan before the lookup.
+  refreshDeclarativeTools(true);
+  const entry = declarativeTools.get(slots.name);
+  return entry !== undefined && entry.id === slots.id ? makeDeclarativeExec(entry) : null;
+}
+
+// Tool results reach the caller as a string; a string result passes through unquoted.
+function serializeToolResult(value: unknown): string | null {
+  if (value === undefined) return "";
+  if (typeof value === "string") return value;
   try {
-    if (win === null || (typeof win !== "object" && typeof win !== "function")) return;
-    // `win` is page-owned; narrow only the EventTarget method this bridge needs.
-    const dispatcher = win as Pick<Idl.EventTarget, "dispatchEvent">;
-    if (typeof dispatcher.dispatchEvent !== "function") return;
-    // WebMCP window notifications add page-visible fields to the shared Event.
-    const event = new KsEvent(type) as KsEvent & { toolName: string; detail: string };
-    event.toolName = toolName;
-    event.detail = toolName;
-    dispatcher.dispatchEvent(event);
-  } catch {}
+    const json = JSON.stringify(value);
+    return json === undefined ? null : json;
+  } catch {
+    return null;
+  }
+}
+
+// WebIDL turns a callback's synchronous throw into a rejected promise.
+function invokeExecute(execute: ToolExecute, args: object, signal: AbortSignal): unknown {
+  try {
+    return execute(args, { signal });
+  } catch (err) {
+    return Promise.reject(err);
+  }
+}
+
+function runExecution(
+  target: ModelContext,
+  toolName: string,
+  exec: ToolExecute,
+  args: object,
+  signal: AbortSignalLike | undefined,
+): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    let settled = false;
+    let callbackSettled = false;
+    const execController = createExecutionController();
+    let onAbort: (() => void) | null = null;
+    const detach = () => {
+      if (onAbort && signal && signal.removeEventListener) {
+        signal.removeEventListener("abort", onAbort);
+      }
+      onAbort = null;
+    };
+    const settleInTask = (settle: () => void) => {
+      queueTask(() => {
+        if (settled) return;
+        settled = true;
+        detach();
+        settle();
+      });
+    };
+    if (signal && signal.addEventListener) {
+      onAbort = () => {
+        if (settled) return;
+        settled = true;
+        detach();
+        reject(abortReason(signal));
+        if (callbackSettled) return;
+        queueTask(() => {
+          if (callbackSettled) return;
+          try {
+            execController.abort();
+          } catch {}
+          dispatchToolEvent(target, "toolcancel", toolName);
+        });
+      };
+      signal.addEventListener("abort", onAbort);
+    }
+    Promise.resolve()
+      .then(() => {
+        const pending = invokeExecute(exec, args, execController.signal);
+        dispatchToolEvent(target, "toolactivated", toolName);
+        return pending;
+      })
+      .then(
+        (value) => {
+          callbackSettled = true;
+          if (settled) return;
+          const result = serializeToolResult(value);
+          if (result === null) {
+            settleInTask(() =>
+              reject(
+                domError("executeTool: the tool result is not JSON-serializable", "OperationError"),
+              ),
+            );
+          } else {
+            settleInTask(() => resolve(result));
+          }
+        },
+        (err: unknown) => {
+          callbackSettled = true;
+          if (settled) return;
+          if (isObjectLike(err) && declarativeCancels.has(err)) {
+            settled = true;
+            detach();
+            reject(err);
+            try {
+              execController.abort();
+            } catch {}
+            queueTask(() => dispatchToolEvent(target, "toolcancel", toolName));
+            return;
+          }
+          // The caller sees only the failure, never the tool's own exception.
+          settleInTask(() =>
+            reject(domError("executeTool: the tool's execute callback rejected", "OperationError")),
+          );
+        },
+      );
+  });
 }
 
 const activeToolForms = new Set<object>();
@@ -868,13 +1070,14 @@ function dispatchToolSubmit(form: DeclarativeForm): unknown {
   return "";
 }
 
-function makeDeclarativeExec(entry: DeclarativeTool): WebMCP.ToolExecuteCallback {
-  return (args: Record<string, unknown>, options) => {
+function makeDeclarativeExec(entry: DeclarativeTool): ToolExecute {
+  return (input: object, options) => {
+    const args = input as Record<string, unknown>;
     fillDeclarativeControls(entry.form, args);
     if (entry.autosubmit) {
       const submitted = dispatchToolSubmit(entry.form);
       const signal = options?.signal;
-      if (!signal?.addEventListener) return submitted;
+      if (!signal?.addEventListener) return Promise.resolve(submitted);
       return new Promise<unknown>((resolve, reject) => {
         let settled = false;
         const cleanup = () => {
@@ -884,7 +1087,7 @@ function makeDeclarativeExec(entry: DeclarativeTool): WebMCP.ToolExecuteCallback
           if (settled) return;
           settled = true;
           cleanup();
-          reject(signal.reason ?? domError("aborted", "AbortError"));
+          reject(abortReason(signal));
         };
         signal.addEventListener?.("abort", onAbort);
         Promise.resolve(submitted).then(
@@ -908,6 +1111,11 @@ function makeDeclarativeExec(entry: DeclarativeTool): WebMCP.ToolExecuteCallback
       activeToolForms.add(entry.form);
       const signal = options?.signal;
       let onAbort: (() => void) | null = null;
+      let cancels = pendingFormCancels.get(form);
+      if (!cancels) {
+        cancels = new Set();
+        pendingFormCancels.set(form, cancels);
+      }
       const cleanup = () => {
         activeToolForms.delete(entry.form);
         if (onSubmit && form.removeEventListener) {
@@ -916,7 +1124,19 @@ function makeDeclarativeExec(entry: DeclarativeTool): WebMCP.ToolExecuteCallback
         if (onAbort && signal?.removeEventListener) {
           signal.removeEventListener("abort", onAbort);
         }
+        cancels.delete(cancel);
+        if (cancels.size === 0 && pendingFormCancels.get(form) === cancels) {
+          pendingFormCancels.delete(form);
+        }
       };
+      // The form stopped being this tool before its submission: the execution is cancelled.
+      const cancel = () => {
+        cleanup();
+        const err = domError("the declarative tool was unregistered", "AbortError");
+        declarativeCancels.add(err);
+        reject(err);
+      };
+      cancels.add(cancel);
       let onSubmit: ((e: unknown) => void) | null = (ev: unknown) => {
         cleanup();
         const responded = submitEventResponse(ev);
@@ -934,7 +1154,7 @@ function makeDeclarativeExec(entry: DeclarativeTool): WebMCP.ToolExecuteCallback
       if (signal?.addEventListener) {
         onAbort = () => {
           cleanup();
-          reject(signal.reason ?? domError("aborted", "AbortError"));
+          reject(abortReason(signal));
         };
         signal.addEventListener("abort", onAbort);
       }
@@ -1029,63 +1249,92 @@ function markDeclarativeInterest(): void {
   refreshDeclarativeTools(false);
 }
 
-function validate(tool: unknown, registry: Map<string, ToolDefinition>): ToolDefinition {
-  if (!isObjectLike(tool)) {
-    throw new TypeError("registerTool: tool must be an object");
+interface ConvertedTool {
+  name: string;
+  title: string | null;
+  description: string;
+  inputSchema: object | undefined;
+  outputSchema: object | undefined;
+  execute: ToolExecute;
+  annotations: ToolAnnotations | null;
+}
+
+function convertAnnotations(value: unknown): ToolAnnotations | null {
+  if (value === undefined) return null;
+  if (value !== null && !isObjectOrFunction(value)) {
+    throw new TypeError("registerTool: tool.annotations is not an object");
   }
-  const t = tool;
-  const name = typeof t.name === "string" ? t.name : "";
-  const description = typeof t.description === "string" ? t.description : "";
-  if (name === "" || description === "") {
-    throw domError(
-      "registerTool: name and description are required and must be non-empty",
-      "InvalidStateError",
-    );
+  const a: Record<string, unknown> = isObjectOrFunction(value) ? value : {};
+  return {
+    consequentialHint: Boolean(a.consequentialHint),
+    debugging: Boolean(a.debugging),
+    readOnlyHint: Boolean(a.readOnlyHint),
+    untrustedContentHint: Boolean(a.untrustedContentHint),
+  };
+}
+
+function convertSchema(value: unknown, what: string): object | undefined {
+  if (value === undefined) return undefined;
+  if (!isObjectOrFunction(value)) throw new TypeError(`registerTool: ${what} is not an object`);
+  return value;
+}
+
+// WebIDL dictionary conversion: members are read once, in lexicographic order.
+function convertTool(tool: unknown): ConvertedTool {
+  if (tool !== undefined && tool !== null && !isObjectOrFunction(tool)) {
+    throw new TypeError("registerTool: tool is not an object");
   }
-  if (name.length > MAX_MODEL_CONTEXT_TOOL_NAME_LENGTH || !NAME_OK.test(name)) {
+  const t: Record<string, unknown> = isObjectOrFunction(tool) ? tool : {};
+  const annotations = convertAnnotations(t.annotations);
+  const description = t.description;
+  if (description === undefined) throw new TypeError("registerTool: tool.description is required");
+  const descriptionString = toDomString(description, "registerTool: tool.description");
+  const execute = t.execute;
+  if (typeof execute !== "function") {
+    throw new TypeError("registerTool: tool.execute must be a function");
+  }
+  const inputSchema = convertSchema(t.inputSchema, "tool.inputSchema");
+  const name = t.name;
+  if (name === undefined) throw new TypeError("registerTool: tool.name is required");
+  const nameString = toDomString(name, "registerTool: tool.name");
+  const outputSchema = convertSchema(t.outputSchema, "tool.outputSchema");
+  const title = t.title;
+  return {
+    name: nameString,
+    title: title === undefined ? null : toUSVString(toDomString(title, "registerTool: tool.title")),
+    description: descriptionString,
+    inputSchema,
+    outputSchema,
+    execute: execute as ToolExecute,
+    annotations,
+  };
+}
+
+function serializeSchema(schema: object | undefined, what: string): string {
+  if (schema === undefined) return "";
+  const json = JSON.stringify(schema);
+  if (json === undefined) throw new TypeError(`registerTool: ${what} is not JSON-serializable`);
+  return json;
+}
+
+function validate(tool: ConvertedTool, registry: Map<string, ToolDefinition>): ToolDefinition {
+  const { name } = tool;
+  if (registry.has(name)) throw duplicateToolError(name);
+  if (name === "" || name.length > MAX_MODEL_CONTEXT_TOOL_NAME_LENGTH || !NAME_OK.test(name)) {
     throw domError(`registerTool: invalid tool name "${name}"`, "InvalidStateError");
   }
-  if (registry.has(name)) {
-    throw domError(
-      `registerTool: a tool named "${name}" is already registered`,
-      "InvalidStateError",
-    );
+  if (tool.description === "") {
+    throw domError("registerTool: the description must be non-empty", "InvalidStateError");
   }
-  if (typeof t.execute !== "function") {
-    throw new TypeError(`registerTool: tool "${name}" has no execute()`);
-  }
-
-  let inputSchema = "";
-  if (t.inputSchema !== undefined) {
-    if (
-      t.inputSchema === null ||
-      (typeof t.inputSchema !== "object" && typeof t.inputSchema !== "function")
-    ) {
-      throw new TypeError(`registerTool: tool "${name}" inputSchema must be an object`);
-    }
-    const json = JSON.stringify(t.inputSchema);
-    if (json === undefined) {
-      throw new TypeError(`registerTool: tool "${name}" has an unserializable inputSchema`);
-    }
-    inputSchema = json;
-  }
-
-  const rawAnnotations = t.annotations;
-  const annotations = isObjectLike(rawAnnotations)
-    ? {
-        readOnlyHint: rawAnnotations.readOnlyHint === true,
-        untrustedContentHint: rawAnnotations.untrustedContentHint === true,
-        consequentialHint: rawAnnotations.consequentialHint === true,
-      }
-    : null;
-
   return {
+    id: {},
     name,
-    title: typeof t.title === "string" ? toUSVString(t.title) : null,
-    description,
-    inputSchema,
-    execute: t.execute as WebMCP.ToolExecuteCallback,
-    annotations,
+    title: tool.title,
+    description: tool.description,
+    inputSchema: serializeSchema(tool.inputSchema, "inputSchema"),
+    outputSchema: serializeSchema(tool.outputSchema, "outputSchema"),
+    execute: tool.execute,
+    annotations: tool.annotations,
   };
 }
 
@@ -1095,7 +1344,7 @@ export function createModelContext(deps: {
   getOrigin: () => string;
   getDocument: () => unknown;
 }): ModelContext {
-  for (const controller of activeToolExecutions.values()) controller.abort();
+  for (const execution of activeToolExecutions.values()) execution.controller.abort();
   tools.clear();
   activeToolExecutions.clear();
   declarativeTools.clear();
@@ -1104,6 +1353,8 @@ export function createModelContext(deps: {
   declarativeWatchRevision = 0;
   declarativeRefreshQueued = false;
   pageDeclarativeInterest = false;
+  rejectedForms = new Map();
+  pendingFormCancels = new Map();
   docContexts = new WeakMap();
   getWindow = deps.getWindow;
   getOrigin = deps.getOrigin;
@@ -1233,15 +1484,22 @@ export async function callModelContextTool(
     };
   }
   const id = typeof invocationId === "string" ? invocationId : "";
-  const controller = id === "" ? null : createExecutionController();
-  if (controller) {
-    activeToolExecutions.set(id, controller);
+  const controller = createExecutionController();
+  if (id !== "") {
+    activeToolExecutions.set(id, { controller, name: key });
   }
   try {
     const args = isObjectLike(input) ? input : {};
-    const result = await execute(args, executionOptions(controller?.signal));
+    const pending = invokeExecute(execute, args, controller.signal);
+    if (mainContext) dispatchToolEvent(mainContext, "toolactivated", key);
+    const result = await pending;
     return returnsDeclarativeOutput ? declarativeResult(result) : normalizeResult(result);
   } catch (err) {
+    if (isObjectLike(err) && declarativeCancels.has(err)) {
+      const context = mainContext;
+      if (context) queueTask(() => dispatchToolEvent(context, "toolcancel", key));
+      return { content: [], isError: true, error: "tool canceled", canceled: true };
+    }
     const message = err instanceof Error ? err.message : String(err);
     return {
       content: [{ type: "text", text: message }],
@@ -1250,7 +1508,7 @@ export async function callModelContextTool(
       threw: true,
     };
   } finally {
-    if (controller && activeToolExecutions.get(id) === controller) {
+    if (activeToolExecutions.get(id)?.controller === controller) {
       activeToolExecutions.delete(id);
     }
   }
@@ -1260,11 +1518,10 @@ export async function callModelContextTool(
 export function cancelModelContextTool(invocationId: unknown): boolean {
   const id = typeof invocationId === "string" ? invocationId : "";
   if (id === "") return false;
-  const controller = activeToolExecutions.get(id);
-  if (controller) {
-    activeToolExecutions.delete(id);
-    controller.abort();
-    return true;
-  }
-  return false;
+  const execution = activeToolExecutions.get(id);
+  if (!execution) return false;
+  activeToolExecutions.delete(id);
+  execution.controller.abort();
+  if (mainContext) dispatchToolEvent(mainContext, "toolcancel", execution.name);
+  return true;
 }

@@ -596,6 +596,28 @@ export class KsStorageEvent extends KsEvent implements Idl.StorageEvent {
   }
 }
 
+export class KsToolActivatedEvent extends KsEvent implements Idl.ToolActivatedEvent {
+  readonly #toolName: string;
+  constructor(type: string, init?: Idl.ToolActivatedEventInit | null) {
+    super(type, init);
+    this.#toolName = domString(init?.toolName, "");
+  }
+  get toolName() {
+    return this.#toolName;
+  }
+}
+
+export class KsToolCancelEvent extends KsEvent implements Idl.ToolCancelEvent {
+  readonly #toolName: string;
+  constructor(type: string, init?: Idl.ToolCancelEventInit | null) {
+    super(type, init);
+    this.#toolName = domString(init?.toolName, "");
+  }
+  get toolName() {
+    return this.#toolName;
+  }
+}
+
 export class KsErrorEvent extends KsEvent implements Idl.ErrorEvent {
   readonly #message: string;
   readonly #filename: string;
@@ -1265,6 +1287,8 @@ const EVENT_IFACES: Array<[Function, IdlInterfaceName]> = [
   [KsDragEvent, "DragEvent"],
   [KsMessageEvent, "MessageEvent"],
   [KsStorageEvent, "StorageEvent"],
+  [KsToolActivatedEvent, "ToolActivatedEvent"],
+  [KsToolCancelEvent, "ToolCancelEvent"],
   [KsTextEvent, "TextEvent"],
   [KsTouchEvent, "TouchEvent"],
   [KsErrorEvent, "ErrorEvent"],

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 // https://opensource.org/licenses/Apache-2.0
 
-import type { CDPSession } from "@cloudflare/puppeteer";
+import type { CDPSession, Page } from "@cloudflare/puppeteer";
 import type { Protocol } from "devtools-protocol";
 
 import { expect, test } from "./harness";
@@ -58,6 +58,8 @@ test("WebMCP announces tools as deltas and invokes them", async ({ page, cdpSess
   expect(echo.annotations).toEqual({
     readOnly: true,
     untrustedContent: false,
+    consequential: false,
+    debugging: false,
   });
   const readTitle = j.added.flatMap((e) => e.tools).find((t) => t.name === "readTitle")!;
   expect(readTitle.inputSchema).toBeUndefined();
@@ -240,6 +242,7 @@ test("page WebMCP serializes results and propagates cancellation", async ({ page
       readOnlyHint: true,
       untrustedContentHint: false,
       consequentialHint: false,
+      debugging: false,
     },
     callbackSignal: true,
     rejection: "stop",
@@ -251,14 +254,15 @@ test("page WebMCP serializes results and propagates cancellation", async ({ page
       "signal-aborted",
       "cancel:pageAbort",
       "activated:pageCircular",
+      "activated:boom",
       "activated:pageObject",
       "activated:pageObject",
     ],
     objectResult: '{"ok":true}',
     abortAfterCompletionQueued: "queued completion abort",
     abortBeforeCancelTask: "abort before cancel task",
-    circularError: "UnknownError",
-    callbackError: "UnknownError",
+    circularError: "OperationError",
+    callbackError: "OperationError",
     rejectionOrder: ["next-task", "rejected"],
     callbackRejectionOrder: ["next-task", "rejected"],
     resolutionOrder: ["next-task", "resolved"],
@@ -753,7 +757,7 @@ test("registerTool rejects duplicates, empty fields and bad names", async ({ pag
   expect(
     await page.evaluate(`(async () => {
       const tool = (await document.modelContext.getTools()).find((t) => t.name === "echo");
-      return document.modelContext.executeTool(tool, JSON.stringify({ message: "page" }));
+      return document.modelContext.executeTool(tool, { message: "page" });
     })()`),
   ).toBe('{"content":[{"type":"text","text":"echo: page"}]}');
   expect(listed.find((t) => t.name === "echo")).toEqual({
@@ -802,4 +806,203 @@ test("a declarative tool form with a control named elements keeps its schema", a
       },
     )
     .toBe("hat");
+}, 60_000);
+
+function policyDoc(body: string): string {
+  const doc = new URL(`${ORIGIN}/__fixtures/policy-doc.html`);
+  doc.searchParams.set("body", body);
+  return doc.toString();
+}
+
+// Each scenario runs as page script and returns JSON, so its ordering stays in one realm.
+async function runScenario(page: Page, body: string): Promise<Record<string, unknown>> {
+  await page.goto(policyDoc(body), { waitUntil: "load" });
+  return JSON.parse(String(await page.evaluate("window.__scenario()"))) as Record<string, unknown>;
+}
+
+test("getTools returns Tool objects that executeTool runs by registration", async ({ page }) => {
+  const result = await runScenario(
+    page,
+    `<script>
+    window.__scenario = async () => {
+      const mc = document.modelContext;
+      const out = {};
+      const errorName = (p) => p.then(() => "resolved", (e) => e.name);
+      const ac = new AbortController();
+      await mc.registerTool({
+        name: "t", description: "first", outputSchema: { type: "string" },
+        annotations: { debugging: true }, execute: (input) => "ran:" + input.x,
+      }, { signal: ac.signal });
+      const [tool] = await mc.getTools();
+      out.isTool = tool instanceof Tool;
+      out.source = tool.source === window;
+      out.fields = [tool.title, tool.inputSchema, tool.outputSchema, tool.annotations];
+      out.json = JSON.stringify(tool);
+      out.spread = Object.keys({ ...tool });
+      try { structuredClone(tool); out.clone = "cloned"; } catch (e) { out.clone = e.name; }
+      try { new Tool(); out.construct = "constructed"; } catch (e) { out.construct = e.name; }
+      out.result = await mc.executeTool(tool, { x: 1 });
+      out.lookalike = await errorName(mc.executeTool({
+        name: tool.name, origin: tool.origin, source: tool.source,
+      }));
+      out.stringInput = await errorName(mc.executeTool(tool, "{}"));
+      out.badOutputSchema = await errorName(mc.registerTool({
+        name: "o", description: "d", outputSchema: { toJSON: () => undefined },
+        execute: () => {},
+      }));
+      ac.abort();
+      await mc.registerTool({ name: "t", description: "second", execute: () => "new" });
+      out.stale = await errorName(mc.executeTool(tool));
+      const [fresh] = await mc.getTools();
+      out.fresh = [await mc.executeTool(fresh), fresh.annotations, fresh.outputSchema];
+      return JSON.stringify(out);
+    };
+    </script>`,
+  );
+  expect(result).toEqual({
+    isTool: true,
+    source: true,
+    fields: [
+      "",
+      null,
+      { type: "string" },
+      {
+        readOnlyHint: false,
+        untrustedContentHint: false,
+        consequentialHint: false,
+        debugging: true,
+      },
+    ],
+    json: "{}",
+    spread: [],
+    clone: "DataCloneError",
+    construct: "TypeError",
+    result: "ran:1",
+    lookalike: "TypeError",
+    stringInput: "TypeError",
+    badOutputSchema: "TypeError",
+    stale: "NotFoundError",
+    fresh: ["new", null, null],
+  });
+}, 60_000);
+
+test("toolactivated and toolcancel fire at document.modelContext", async ({ page }) => {
+  const result = await runScenario(
+    page,
+    `<script>
+    window.__scenario = async () => {
+      const mc = document.modelContext;
+      const events = [];
+      mc.ontoolactivated = (e) => events.push(["activated", e.toolName,
+        e instanceof ToolActivatedEvent, e.target === mc, e.isTrusted].join(":"));
+      mc.addEventListener("toolcancel", (e) =>
+        events.push(["cancel", e.toolName, e instanceof ToolCancelEvent].join(":")));
+      window.addEventListener("toolactivated", () => events.push("window"));
+      window.addEventListener("toolcancel", () => events.push("window"));
+      await mc.registerTool({
+        name: "wait", description: "waits for its signal",
+        execute: (_, { signal }) => new Promise((resolve) => {
+          signal.addEventListener("abort", () => { events.push("signal"); resolve("late"); });
+        }),
+      });
+      const [tool] = await mc.getTools();
+      const controller = new AbortController();
+      const execution = mc.executeTool(tool, {}, { signal: controller.signal });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      controller.abort("stop");
+      events.push("rejected:" + await execution.catch((e) => e));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const init = new ToolCancelEvent("toolcancel", { toolName: "n" }).toolName;
+      return JSON.stringify({ events, init });
+    };
+    </script>`,
+  );
+  expect(result).toEqual({
+    events: ["activated:wait:true:true:true", "rejected:stop", "signal", "cancel:wait:true"],
+    init: "n",
+  });
+}, 60_000);
+
+test("removing a declarative tool cancels its execution before submission", async ({ page }) => {
+  const result = await runScenario(
+    page,
+    `<form id="c" toolname="paused" tooldescription="Waits for a submit">` +
+      `<button type="submit">go</button></form>
+    <script>
+    window.__scenario = async () => {
+      const mc = document.modelContext;
+      const out = {};
+      const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+      const form = document.getElementById("c");
+      const cancels = [];
+      mc.addEventListener("toolcancel", (e) => cancels.push(e.toolName));
+      const [paused] = await mc.getTools();
+      const execution = mc.executeTool(paused);
+      await tick();
+      out.activeBefore = form.matches(":tool-form-active");
+      form.removeAttribute("tooldescription");
+      out.rejection = await execution.then(() => "resolved", (e) => e.name);
+      out.activeAfter = form.matches(":tool-form-active");
+      await tick();
+      out.cancels = cancels;
+      return JSON.stringify(out);
+    };
+    </script>`,
+  );
+  expect(result).toEqual({
+    activeBefore: true,
+    rejection: "AbortError",
+    activeAfter: false,
+    cancels: ["paused"],
+  });
+}, 60_000);
+
+test("a refused duplicate declarative tool retries on its next mutation", async ({ page }) => {
+  const result = await runScenario(
+    page,
+    `<form id="a" toolname="dup" tooldescription="First"></form>` +
+      `<form id="b" toolname="dup" tooldescription="Second"></form>
+    <script>
+    window.__scenario = async () => {
+      const mc = document.modelContext;
+      const out = {};
+      const descriptions = async () => (await mc.getTools()).map((t) => t.description);
+      out.initial = await descriptions();
+      document.getElementById("a").remove();
+      out.afterRemove = await descriptions();
+      document.getElementById("b").append(document.createElement("div"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      out.afterMutation = await descriptions();
+      return JSON.stringify(out);
+    };
+    </script>`,
+  );
+  expect(result).toEqual({ initial: ["First"], afterRemove: [], afterMutation: ["Second"] });
+}, 60_000);
+
+test("waitForToolsUntil checks its document and argument", async ({ page }) => {
+  const result = await runScenario(
+    page,
+    `<script>
+    window.__scenario = async () => {
+      const mc = document.modelContext;
+      const out = { rejections: 0 };
+      window.addEventListener("unhandledrejection", () => out.rejections++);
+      mc.waitForToolsUntil(Promise.reject(new Error("handled")));
+      mc.waitForToolsUntil(42);
+      try { mc.waitForToolsUntil(); } catch (e) { out.noArgument = e.name; }
+      try {
+        document.implementation.createHTMLDocument().modelContext
+          .waitForToolsUntil(Promise.resolve());
+      } catch (e) { out.frameless = e.name; }
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      return JSON.stringify(out);
+    };
+    </script>`,
+  );
+  expect(result).toEqual({
+    rejections: 0,
+    noArgument: "TypeError",
+    frameless: "InvalidStateError",
+  });
 }, 60_000);

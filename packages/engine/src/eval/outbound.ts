@@ -36,6 +36,7 @@ import {
   isSafelistedMethod,
   needsPreflight,
   preflightCacheLookup,
+  clearPreflightCacheEntries,
 } from "./cors.ts";
 import { wbaHeadersFor, type WbaEnv } from "./web-bot-auth.ts";
 import { directExternalFetch, type ExternalOutbound } from "./external-outbound.ts";
@@ -951,6 +952,12 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       }
     }
 
+    // Main fetch clears the URL's preflight grants when a request that needed one fails.
+    const clearPreflightGrants = (): void => {
+      if (!wantsPreflight || hostEgress || cookieKey === "") return;
+      clearPreflightCacheEntries(cookieKey, pageOrigin || "null", forwardRequest.url);
+    };
+
     if (wantsPreflight) {
       // Grants from a host egress hook are session-scoped (that hook answered them), so
       // they never enter the shared cache, and a host-egress session never trusts one from it.
@@ -1002,6 +1009,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
           clearTimeout(pfTimer);
         }
         if (verdict.reason) {
+          clearPreflightGrants();
           if (requestId && tracker) tracker.failRequest(requestId, verdict.reason);
           return blockedForClient(
             verdict.reason,
@@ -1045,6 +1053,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
       }
     } catch (err) {
       clearTimeout(egressAbortTimer);
+      clearPreflightGrants();
       if (requestId && tracker) {
         tracker.failRequest(requestId, err instanceof Error ? err.message : String(err));
       }
@@ -1095,6 +1104,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
           }
         } catch {}
         if (corpBlocked) {
+          clearPreflightGrants();
           if (requestId && tracker) {
             tracker.failRequest(requestId, "corp-blocked");
           }
@@ -1110,6 +1120,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
     if (needsCorsCheck) {
       const corsFailure = checkCorsResponse(resp, pageOrigin, target, credentialsInclude);
       if (corsFailure) {
+        clearPreflightGrants();
         if (requestId && tracker) {
           tracker.failRequest(requestId, corsFailure.reason);
         }
@@ -1152,6 +1163,7 @@ export class SandboxOutbound extends WorkerEntrypoint<SandboxOutboundEnv, Outbou
           hasUserinfo = next.username !== "" || next.password !== "";
         } catch {}
         if (hasUserinfo) {
+          clearPreflightGrants();
           if (requestId && tracker) {
             tracker.failRequest(requestId, "cors-redirect-userinfo");
           }

@@ -232,7 +232,7 @@
     "//bazel:executor_profiles.bzl%executor_profiles": {
       "general": {
         "bzlTransitiveDigest": "koALcERVkPHDgiJPBz/pGwIxSCh+eCiJtoBROuu2zmU=",
-        "usagesDigest": "iXkwS0Z8q5Ply/12Gp4L5xLo3S3PpFBCV63Yiv/4U5A=",
+        "usagesDigest": "BtbccU+mPzenOWAYTvSId3E67It38IKakmRc1w6e9Qg=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
           "kitesurf_executor_profiles": {
@@ -251,7 +251,7 @@
                 "slots": "1"
               },
               "wpt": {
-                "container-image": "wpt-6efb1b12",
+                "container-image": "wpt-ed5a113c",
                 "idle-ms": "60000",
                 "instance": "standard-4",
                 "max-vcpu": "1000",
@@ -1109,14 +1109,14 @@
           "REPO_MAPPING:rules_rust+,bazel_tools bazel_tools",
           "REPO_MAPPING:rules_rust+,rules_cc rules_cc+",
           "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.lock 0788a1e5e4d8e92892198c4a07ba47cf1ab1a499554c5b71add5e2ad2b6655bf",
-          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.toml 3d0b1239a2b0456a3204f732aa0475616973142b611006fb978a926c7f5591bd",
-          "FILE:@@+cargo_workspaces+cargo_ws_core//patched.json 3d2981b9637a6100cde1847006c1b446ff5def47515e61ef55c41a385830d5a3",
+          "FILE:@@+cargo_workspaces+cargo_ws_core//Cargo.toml 63c00f06b4e469ef8dd7bd788f4bde4516a4c30169bba6ef8b6d85547561a4b9",
+          "FILE:@@+cargo_workspaces+cargo_ws_core//patched.json 7088d692720fa850c4bcecfb41bb485ee44168606a9e171894e458734240e4ee",
           "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.lock 3016afd70c71d7d8f46e1c436a048c7d6542a196d257c9e1dfa3e8997793e949",
-          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.toml 3599a901d166bb8495b3036bf8f573d50355d14ccc30bc0eeca6617c1cdeaae8",
-          "FILE:@@+cargo_workspaces+cargo_ws_renderer//patched.json 3d2981b9637a6100cde1847006c1b446ff5def47515e61ef55c41a385830d5a3",
+          "FILE:@@+cargo_workspaces+cargo_ws_renderer//Cargo.toml fe6e86537edf9eeba196dfa05b9c37f1deda6a001eed1d0fbf4ce7c7d3925b47",
+          "FILE:@@+cargo_workspaces+cargo_ws_renderer//patched.json 7088d692720fa850c4bcecfb41bb485ee44168606a9e171894e458734240e4ee",
           "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.lock c307938dacbf708918bc3a7e6274a1632e7c1901413e6db8734f96a6605ffe11",
-          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.toml 5198653fee594a950d4427d34cf29af332bb1861dd51a0935504e6372291081d",
-          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//patched.json 3d2981b9637a6100cde1847006c1b446ff5def47515e61ef55c41a385830d5a3",
+          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//Cargo.toml 6a6affb1e349c3a879a87c9fb67115aa6b6fefa313f994dbfa5c6e1535cccb4c",
+          "FILE:@@+cargo_workspaces+cargo_ws_scene_host//patched.json 7088d692720fa850c4bcecfb41bb485ee44168606a9e171894e458734240e4ee",
           "FILE:@@+cargo_workspaces+cargo_ws_memprof//Cargo.lock 700ce60a085805e81be18248290fa55c12fd753835006ab68256b8f397261384",
           "FILE:@@+cargo_workspaces+cargo_ws_memprof//Cargo.toml 6982e34060f201166856e8294a4c4a42cd957eb79df82f72f536b5318e6244b8",
           "FILE:@@//packages/kitesurf-cli/Cargo.lock 152fed308b4920eadd2828ba02d0dda6109d0a733cba973a78a25394334fd143",
@@ -1706,7 +1706,8 @@
                 "@@//scripts:patches/blitz-paint-0.3.0-beta.5/0029-Read-packed-node-storage-through-accessors.patch",
                 "@@//scripts:patches/blitz-paint-0.3.0-beta.5/0030-Give-text-layer-scenes-each-glyph-run-s-source-text.patch",
                 "@@//scripts:patches/blitz-paint-0.3.0-beta.5/0031-Clip-the-canvas-background-fill-to-the-painted-surfa.patch",
-                "@@//scripts:patches/blitz-paint-0.3.0-beta.5/0032-Paint-unblurred-shadows-of-corner-shaped-boxes-along.patch"
+                "@@//scripts:patches/blitz-paint-0.3.0-beta.5/0032-Paint-unblurred-shadows-of-corner-shaped-boxes-along.patch",
+                "@@//scripts:patches/blitz-paint-0.3.0-beta.5/0033-Follow-WPT-ed5a113c-s-corner-shape-reference-contour.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "fdcf757ca9b72ebcec2ef488c42a40b1cf54bebd66e440789cc799f9c7dfc7cf",
@@ -5272,7 +5273,11 @@
                 "@@//scripts:patches/stylo-0.24.0/0019-Record-whether-any-relative-selector-reaches-a-later.patch",
                 "@@//scripts:patches/stylo-0.24.0/0020-Align-computed-calc-values-for-Taffy-s-tagged-pointe.patch",
                 "@@//scripts:patches/stylo-0.24.0/0021-Share-more-styles-between-links-and-cousins.patch",
-                "@@//scripts:patches/stylo-0.24.0/0022-Treat-a-webkit-prefixed-function-as-a-font-family-na.patch"
+                "@@//scripts:patches/stylo-0.24.0/0022-Treat-a-webkit-prefixed-function-as-a-font-family-na.patch",
+                "@@//scripts:patches/stylo-0.24.0/0023-Make-pow-log-and-round-propagate-NaN-as-CSS-requires.patch",
+                "@@//scripts:patches/stylo-0.24.0/0024-Fold-clamp-to-a-NaN-argument-before-computing-its-le.patch",
+                "@@//scripts:patches/stylo-0.24.0/0025-Compute-an-infinite-or-NaN-hue-as-0-degrees.patch",
+                "@@//scripts:patches/stylo-0.24.0/0026-Serialize-none-carrying-legacy-colors-in-their-moder.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "bcaf37ee278f57db8274561000dd859cb94d82871fbfde34bbf3045914855376",
@@ -5480,7 +5485,10 @@
                 "@@//scripts:patches/taffy-0.16.0/0011-Store-a-cached-layout-s-positioning-area-out-of-line.patch",
                 "@@//scripts:patches/taffy-0.16.0/0012-Share-a-table-s-spare-width-between-columns-in-propo.patch",
                 "@@//scripts:patches/taffy-0.16.0/0013-Move-a-flex-container-s-intrinsic-main-size-into-its.patch",
-                "@@//scripts:patches/taffy-0.16.0/0014-Size-a-content-sized-flex-line-to-fit-content-in-def.patch"
+                "@@//scripts:patches/taffy-0.16.0/0014-Size-a-content-sized-flex-line-to-fit-content-in-def.patch",
+                "@@//scripts:patches/taffy-0.16.0/0015-Distribute-spanning-items-leftover-space-to-non-affe.patch",
+                "@@//scripts:patches/taffy-0.16.0/0016-Set-a-growth-limit-from-a-zero-non-spanning-contribu.patch",
+                "@@//scripts:patches/taffy-0.16.0/0017-Limit-safe-abspos-overflow-by-the-original-containin.patch"
               ],
               "remote_patch_strip": 1,
               "sha256": "cae92eb1b204bfd239b5c463e1bd2c3ce4913d2d3abfb5c64f5cfee9d65e5c68",
