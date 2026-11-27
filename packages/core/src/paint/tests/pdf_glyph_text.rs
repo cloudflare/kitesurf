@@ -58,18 +58,6 @@ impl SceneVisitor for GlyphTexts {
     ) {
         self.runs.push((glyphs.len(), self.pending.take()));
     }
-    fn on_box_shadow(
-        &mut self,
-        _: DecodedTransform,
-        _: f32,
-        _: f32,
-        _: f32,
-        _: f32,
-        _: (u8, u8, u8, u8),
-        _: f32,
-        _: f32,
-    ) {
-    }
     fn on_glyph_text(&mut self, text: &str, glyph_ranges: &[Range<usize>]) {
         // Drop the bidi controls layout inserts for `dir`; the PDF text layer drops them too.
         let visible = |r: &Range<usize>| {

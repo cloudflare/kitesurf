@@ -1,0 +1,111 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sat, 3 Oct 2026 16:53:55 +0100
+Subject: [PATCH] Honour visibility:hidden on inline text
+
+render.rs skips a box whose visibility is not visible, but inline text
+paints from the inline root, run by run, with no visibility check. A
+hidden <span> or ::after still painted its glyphs, text decorations and
+span background. For example, a math editor that sizes an empty cursor
+with a hidden ::after "c" showed a stray c in every empty expression.
+
+visibility inherits, so each run checks its own node. A hidden run
+keeps its advance and paints nothing. A visible child inside a hidden
+span still paints.
+---
+ src/text.rs                 | 17 +++++++++++++++++
+ src/text_box_decorations.rs |  8 ++++----
+ src/text_decorations.rs     |  6 ++++++
+ 3 files changed, 27 insertions(+), 4 deletions(-)
+
+diff --git a/src/text.rs b/src/text.rs
+index 22812fc..c7bccbe 100644
+--- a/src/text.rs
++++ b/src/text.rs
+@@ -37,6 +37,13 @@ pub(crate) struct TextPaintOptions {
+     pub brush_override: Option<Color>,
+ }
+
++/// Whether a node's inline content paints. Anything but `visible`
++/// (`hidden`, `collapse`) hides it.
++pub(crate) fn is_visible(styles: &style::properties::ComputedValues) -> bool {
++    use style::properties::generated::longhands::visibility::computed_value::T as Visibility;
++    styles.get_inherited_box().visibility == Visibility::Visible
++}
++
+ /// The combined `opacity` of `node_id` and its inline ancestors, excluding
+ /// `inline_root_id` (see `DecorationStackEntry::opacity`).
+ pub(crate) fn inline_opacity(doc: &BaseDocument, node_id: NodeId, inline_root_id: NodeId) -> f32 {
+@@ -142,6 +149,16 @@ pub(crate) fn stroke_text<'a>(
+                 stack.push(entry);
+             }
+
++            // A hidden run keeps its advance (and its record, which pass 3 zips with the
++            // runs) but paints neither its glyphs nor the decorations it would carry.
++            if !stack.last().is_none_or(|entry| entry.visible) {
++                run_records.push(RunRecord {
++                    fill_color: Color::TRANSPARENT,
++                    shadows: None,
++                });
++                continue;
++            }
++
+             // The glyph colour and `text-shadow` come from the run's own node (the stack
+             // top): both inherit, so the innermost inline element already carries the
+             // right values. Shadows are not part of a `background-clip: text` mask, so
+diff --git a/src/text_box_decorations.rs b/src/text_box_decorations.rs
+index a14b244..ac04d11 100644
+--- a/src/text_box_decorations.rs
++++ b/src/text_box_decorations.rs
+@@ -91,8 +91,8 @@ pub(crate) fn paint_span_fragment_backgrounds(
+             None => continue,
+         };
+         let primary = match node.primary_styles() {
+-            Some(p) => p,
+-            None => continue,
++            Some(p) if crate::text::is_visible(&p) => p,
++            _ => continue,
+         };
+         let current_color = primary.clone_color();
+         let bg = primary
+@@ -173,8 +173,8 @@ pub(crate) fn paint_span_fragment_borders(
+             None => continue,
+         };
+         let primary = match node.primary_styles() {
+-            Some(p) => p,
+-            None => continue,
++            Some(p) if crate::text::is_visible(&p) => p,
++            _ => continue,
+         };
+         let current_color = primary.clone_color();
+         let opacity = crate::text::inline_opacity(doc, node.id, inline_root_id);
+diff --git a/src/text_decorations.rs b/src/text_decorations.rs
+index 6e0dd55..8921859 100644
+--- a/src/text_decorations.rs
++++ b/src/text_decorations.rs
+@@ -125,6 +125,10 @@ pub(crate) struct DecorationStackEntry {
+     /// layer in render.rs, but a non-atomic inline box paints no layer of its
+     /// own, so its opacity has to reach its glyphs and decorations here.
+     pub(crate) opacity: f32,
++    /// `visibility` is inherited, so the run's own node decides whether its
++    /// glyphs paint. render.rs only checks it per box, so without this a
++    /// hidden inline span or ::before still paints its text.
++    pub(crate) visible: bool,
+ }
+
+ impl DecorationStackEntry {
+@@ -182,6 +186,7 @@ pub(crate) fn resolve_decoration_entry(
+             decoration: None,
+             text_shadows: None,
+             opacity: 1.0,
++            visible: true,
+         };
+     };
+
+@@ -261,5 +266,6 @@ pub(crate) fn resolve_decoration_entry(
+         decoration,
+         text_shadows,
+         opacity: styles.get_effects().opacity,
++        visible: crate::text::is_visible(&styles),
+     }
+ }

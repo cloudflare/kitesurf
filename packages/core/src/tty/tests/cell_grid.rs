@@ -620,19 +620,6 @@ fn text_run_origins(scene: &[u8]) -> Vec<(f32, f32, String)> {
             _g: &[(u32, f32, f32)],
         ) {
         }
-        #[allow(clippy::too_many_arguments)]
-        fn on_box_shadow(
-            &mut self,
-            _t: DecodedTransform,
-            _a: f32,
-            _b: f32,
-            _c: f32,
-            _d: f32,
-            _r: (u8, u8, u8, u8),
-            _x: f32,
-            _y: f32,
-        ) {
-        }
     }
 
     let mut v = Runs::default();
@@ -755,19 +742,6 @@ fn solid_fill_bounds(scene: &[u8], rgb: (u8, u8, u8)) -> Vec<(f32, f32, f32, f32
             _t: DecodedTransform,
             _p: DecodedPaint,
             _g: &[(u32, f32, f32)],
-        ) {
-        }
-        #[allow(clippy::too_many_arguments)]
-        fn on_box_shadow(
-            &mut self,
-            _t: DecodedTransform,
-            _a: f32,
-            _b: f32,
-            _c: f32,
-            _d: f32,
-            _r: (u8, u8, u8, u8),
-            _x: f32,
-            _y: f32,
         ) {
         }
     }

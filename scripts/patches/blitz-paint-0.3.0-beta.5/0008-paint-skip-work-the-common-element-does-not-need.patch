@@ -1,0 +1,109 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sun, 9 Aug 2026 03:09:12 +0100
+Subject: [PATCH] paint: skip work the common element does not need
+
+Zero width on every border edge is the overwhelmingly common case, and
+it still ran the full path: four colours resolved per element for the
+border.
+
+The clip-path layer shape was built unconditionally, though
+maybe_with_layer ignores the shape when its condition is false, which is
+the common case for an element.
+
+draw_outline likewise resolved the outline colour off the cascade before
+checking outline-style, which is Auto and returns for almost every
+element.
+
+Upstream beta.5 made the box clips and the background colour shape
+allocation-free NonUniformRoundedRects and builds the element_cx
+fallback lazily, so those parts of the original change are gone.
+---
+ src/render.rs        | 25 ++++++++++++++-----------
+ src/render/border.rs | 16 ++++++++++------
+ 2 files changed, 24 insertions(+), 17 deletions(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index d8b43a1..49343e5 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -717,9 +717,15 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+             return;
+         }
+
+-        let default_clip = cx.frame.border_box_path();
+-        let mut clip_path_for_layer = clip_path_shape.unwrap_or(default_clip);
+-        clip_path_for_layer.apply_affine(Affine::scale(self.scale));
++        // Only the clip-path maybe_with_layer call below reads this, and it
++        // does nothing when its flag is false, the common case for an element.
++        let clip_path_for_layer = if has_clip_path {
++            let mut path = clip_path_shape.unwrap_or_else(|| cx.frame.border_box_path());
++            path.apply_affine(Affine::scale(self.scale));
++            path
++        } else {
++            BezPath::new()
++        };
+
+         // clip-path clip ayer
+         self.layer_manager.maybe_with_layer(
+@@ -759,14 +765,11 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+
+                 // The effect layer covers the element's whole painted subtree:
+                 // filter/opacity apply to overflowing content and to abspos
+-
+-                // descendants re-homed here for paint (a filter IS their
+-                // containing block). Border-box-only clipping amputated them
+-
+-                // (WPT filtered-block-is-container: the abspos child painted
+-                // in the transform reference but vanished under the filter).
+-                // Live reach, not the resolve-time cache: pure-scroll frames
+-                // skip resolve and the cached rect goes stale by the delta.
++                // descendants re-homed here for paint (a filter is their
++                // containing block). Clipping to the border box alone cuts them
++                // off (WPT filtered-block-is-container).
++                // Use the live reach, not the resolve-time cache: pure-scroll
++                // frames skip resolve, so the cached rect goes stale by the delta.
+                 let mut effect_layer_clip = border_box;
+                 effect_layer_clip = effect_layer_clip.union(*cx.node.scrollable_overflow());
+                 if let Some((x0, y0, x1, y1)) = cx.node.live_rehomed_reach() {
+diff --git a/src/render/border.rs b/src/render/border.rs
+index e57ded6..a44dbb2 100644
+--- a/src/render/border.rs
++++ b/src/render/border.rs
+@@ -148,6 +148,11 @@ fn sample_points_along_path(path: &BezPath, spacing: f64, count: usize) -> Vec<P
+ impl ElementCx<'_, '_> {
+     /// Draw all borders for a node
+     pub(crate) fn draw_border(&self, scene: &mut impl PaintScene) {
++        let widths = self.frame.border_width;
++        if widths.x0 == 0.0 && widths.y0 == 0.0 && widths.x1 == 0.0 && widths.y1 == 0.0 {
++            return;
++        }
++
+         let style = &*self.style;
+         let border = style.get_border();
+         let current_color = style.clone_color();
+@@ -644,12 +649,6 @@ impl ElementCx<'_, '_> {
+     pub(crate) fn draw_outline(&self, scene: &mut impl PaintScene) {
+         let outline = self.style.get_outline();
+
+-        let current_color = self.style.clone_color();
+-        let color = outline
+-            .outline_color
+-            .resolve_to_absolute(&current_color)
+-            .as_srgb_color();
+-
+         let style = match outline.outline_style {
+             OutlineStyle::Auto => return,
+             OutlineStyle::BorderStyle(style) => style,
+@@ -669,6 +668,11 @@ impl ElementCx<'_, '_> {
+             | BorderStyle::Double => self.frame.outline(),
+         };
+
++        let current_color = self.style.clone_color();
++        let color = outline
++            .outline_color
++            .resolve_to_absolute(&current_color)
++            .as_srgb_color();
+         scene.fill(
+             Fill::NonZero,
+             self.transform,

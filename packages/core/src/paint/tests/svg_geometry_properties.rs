@@ -32,7 +32,7 @@ fn first_path_bbox(tree: &Tree) -> Option<(i32, i32, i32, i32)> {
     fn walk(node: &Node) -> Option<usvg::Rect> {
         match node {
             Node::Group(g) => g.children().iter().find_map(walk),
-            Node::Path(p) => Some(p.bounding_box()),
+            Node::Path(p) => p.bounding_box(),
             _ => None,
         }
     }

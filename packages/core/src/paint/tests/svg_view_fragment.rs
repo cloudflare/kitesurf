@@ -79,7 +79,10 @@ fn target_fragment_shows_only_the_targeted_icon() {
     let tree = blitz_dom::util::parse_svg_image(out.as_bytes())
         .unwrap()
         .tree;
-    let bbox = tree.root().abs_bounding_box();
+    let bbox = tree
+        .root()
+        .abs_bounding_box()
+        .expect("the icon has a bounding box");
     assert_eq!(
         (bbox.x(), bbox.width()),
         (20.0, 10.0),

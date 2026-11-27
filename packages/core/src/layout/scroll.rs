@@ -4,6 +4,7 @@
 
 //! Scroll containers, scroll offsets, and sticky positioning.
 
+use blitz_dom::CopyStyleGetters as _;
 use std::panic;
 
 use blitz_dom::{local_name, Node};
@@ -144,7 +145,7 @@ impl DomHandle {
         use ::style::properties::generated::longhands::position::computed_value::T as Position;
         let sticky = node
             .primary_styles()
-            .is_some_and(|s| s.clone_position() == Position::Sticky);
+            .is_some_and(|s| *s.get_box().get_position() == Position::Sticky);
         if !sticky {
             return vec![0.0, 0.0];
         }
@@ -205,8 +206,8 @@ impl DomHandle {
                 .map(|styles| {
                     let ox = styles.clone_overflow_x();
                     let oy = styles.clone_overflow_y();
-                    let overscroll_x = styles.clone_overscroll_behavior_x();
-                    let overscroll_y = styles.clone_overscroll_behavior_y();
+                    let overscroll_x = *styles.get_overscroll_behavior_x();
+                    let overscroll_y = *styles.get_overscroll_behavior_y();
                     (
                         matches!(ox, Overflow::Scroll | Overflow::Auto | Overflow::Hidden),
                         matches!(oy, Overflow::Scroll | Overflow::Auto | Overflow::Hidden),
@@ -238,9 +239,9 @@ impl DomHandle {
                     (child
                         .element_data()
                         .is_some_and(|element| element.name.local == local_name!("body"))
-                        && child
-                            .primary_styles()
-                            .is_none_or(|styles| styles.clone_position() != Position::Fixed))
+                        && child.primary_styles().is_none_or(|styles| {
+                            *styles.get_box().get_position() != Position::Fixed
+                        }))
                     .then(|| child.final_layout())
                 });
                 if let Some(body_layout) = body_layout {
@@ -264,7 +265,7 @@ impl DomHandle {
                 for child in root_children.filter_map(|id| doc.get_node(*id)) {
                     if child
                         .primary_styles()
-                        .is_some_and(|styles| styles.clone_position() == Position::Fixed)
+                        .is_some_and(|styles| *styles.get_box().get_position() == Position::Fixed)
                     {
                         continue;
                     }
@@ -367,7 +368,7 @@ impl DomHandle {
             Err(_) => return false,
         };
         let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-            doc.scroll_node_by_has_changed(node_id, -dx, -dy, |_event| {})
+            doc.scroll_node_by_has_changed(node_id, -dx, -dy)
         }));
         drop(doc);
         let scrolled = res.unwrap_or(false);

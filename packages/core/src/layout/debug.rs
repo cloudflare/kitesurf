@@ -4,6 +4,7 @@
 
 //! Debug dumps of layout state, and test-only layout probes.
 
+use blitz_dom::CopyStyleGetters as _;
 use blitz_dom::BaseDocument;
 use blitz_traits::NodeId;
 use wasm_bindgen::prelude::*;
@@ -138,7 +139,7 @@ impl DomHandle {
             let _ = writeln!(out, "  tag=<{}>", elem.name.local);
         }
         if let Some(styles) = node.primary_styles() {
-            let pos = styles.clone_position();
+            let pos = *styles.get_box().get_position();
             let _ = writeln!(out, "  position={:?}", pos);
         }
         out

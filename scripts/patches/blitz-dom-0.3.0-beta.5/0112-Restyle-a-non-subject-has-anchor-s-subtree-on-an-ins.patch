@@ -1,0 +1,75 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Mon, 23 Nov 2026 11:01:11 +0000
+Subject: [PATCH] Restyle a non-subject :has() anchor's subtree on an insert
+ between siblings
+
+Inserting between two siblings under a `:has(> .a + .b)` anchor re-matched the
+anchor itself. When the anchor is not the subject (`.p:has(> .a + .b) .y`), the
+element that must change sits under it, so `.y` kept the style from the previous
+match. Restyle the anchor's subtree when it carries
+ANCHORS_RELATIVE_SELECTOR_NON_SUBJECT, keep RESTYLE_SELF for a subject-only
+anchor, and walk ancestors so the descendant form (`.p:has(.a + .b) .y`) is
+covered too.
+
+Gate the walk on the inserted node's parent carrying
+HAS_SLOW_SELECTOR_LATER_SIBLINGS: only then did some selector compare that
+parent's children with a sibling combinator, so only then can the insert break
+a match. Gating on the document's relative selectors alone restyled every
+ancestor up to the root for pages like `body:has(.modal) .x`.
+---
+ src/stylo/traversal.rs | 41 +++++++++++++++++++++++++++++++++--------
+ 1 file changed, 33 insertions(+), 8 deletions(-)
+
+diff --git a/src/stylo/traversal.rs b/src/stylo/traversal.rs
+index b55c85b..8d6fd39 100644
+--- a/src/stylo/traversal.rs
++++ b/src/stylo/traversal.rs
+@@ -542,14 +542,39 @@ impl crate::document::BaseDocument {
+                 self.invalidate_relative_selectors_for_sibling_side_effects(prev, next);
+             } else if let Some(parent) = selectors::Element::parent_element(&element) {
+                 // Inserting between two siblings under a `:has(> .a + .b)` anchor can break a
+-                // child-level sibling combinator without changing the inserted node's own match;
+-                // restyle only the anchor itself (never its whole subtree).
+-                if parent.selector_flags().get().intersects(
+-                    ElementSelectorFlags::ANCHORS_RELATIVE_SELECTOR
+-                        | ElementSelectorFlags::ANCHORS_RELATIVE_SELECTOR_NON_SUBJECT,
+-                ) {
+-                    if let Some(mut data) = parent.mutate_data() {
+-                        data.hint |= RestyleHint::RESTYLE_SELF;
++                // child-level sibling combinator without changing the inserted node's own match.
++                // An anchor that is only the subject re-matches itself, but when the subject is a
++                // descendant (`.p:has(> .a + .b) .y`) the element that must change sits under the
++                // anchor, so the anchor's subtree is restyled as it was before the invalidation
++                // rewrite. The anchor can also be an ancestor of the inserted node's parent, which
++                // is the descendant form (`.p:has(.a + .b) .y`).
++                // Only an insert under a parent whose children some selector compared with a
++                // sibling combinator can break the match. Without that flag (`body:has(.modal)
++                // .x`), walking the ancestors would restyle every anchor up to the root, including
++                // the whole document.
++                if self.has_relative_selectors()
++                    && parent
++                        .selector_flags()
++                        .get()
++                        .intersects(ElementSelectorFlags::HAS_SLOW_SELECTOR_LATER_SIBLINGS)
++                {
++                    let mut anchor = Some(parent);
++                    while let Some(node) = anchor {
++                        let flags = node.selector_flags().get();
++                        if flags
++                            .intersects(ElementSelectorFlags::ANCHORS_RELATIVE_SELECTOR_NON_SUBJECT)
++                        {
++                            if let Some(mut data) = node.mutate_data() {
++                                data.hint |=
++                                    RestyleHint::RESTYLE_SELF | RestyleHint::RESTYLE_DESCENDANTS;
++                            }
++                        } else if flags.intersects(ElementSelectorFlags::ANCHORS_RELATIVE_SELECTOR)
++                        {
++                            if let Some(mut data) = node.mutate_data() {
++                                data.hint |= RestyleHint::RESTYLE_SELF;
++                            }
++                        }
++                        anchor = selectors::Element::parent_element(&node);
+                     }
+                 }
+             }

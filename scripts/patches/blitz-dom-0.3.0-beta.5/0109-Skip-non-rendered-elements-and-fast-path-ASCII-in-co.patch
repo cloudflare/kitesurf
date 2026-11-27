@@ -1,0 +1,228 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 20 Nov 2026 06:57:00 +0000
+Subject: [PATCH] Skip non-rendered elements and fast-path ASCII in codepoint
+ indexing
+
+Skip script, style, title, and noscript text nodes when updating the document codepoint bitset and non-Latin write probe, and use a single-pass ASCII byte loop for codepoint bits.
+---
+ src/document.rs | 105 ++++++++++++++++++++++++++++++++++++++++++++++--
+ src/mutator.rs  |  28 ++++++++-----
+ 2 files changed, 121 insertions(+), 12 deletions(-)
+
+diff --git a/src/document.rs b/src/document.rs
+index 889d79a..2520453 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -2473,6 +2473,19 @@ impl BaseDocument {
+         }
+     }
+
++    /// Whether text nodes directly inside `parent_id` are never rendered as document text.
++    pub(crate) fn is_non_rendered_text_parent(&self, parent_id: NodeId) -> bool {
++        self.nodes[parent_id].element_data().is_some_and(|el| {
++            matches!(
++                el.name.local,
++                local_name!("script")
++                    | local_name!("style")
++                    | local_name!("title")
++                    | local_name!("noscript")
++            )
++        })
++    }
++
+     /// Build the used-codepoint bitset from in-document text nodes, unless built.
+     /// O(text), once per document: the first time a range-gated face
+     /// needs checking. Later connected text writes and subtree insertions
+@@ -2486,6 +2499,12 @@ impl BaseDocument {
+             if !node.flags.is_in_document() {
+                 continue;
+             }
++            if node
++                .parent_id()
++                .is_some_and(|parent_id| self.is_non_rendered_text_parent(parent_id))
++            {
++                continue;
++            }
+             if let Some(text) = node.text_data() {
+                 set_codepoint_bits(&mut bits, &text.content);
+             }
+@@ -5209,6 +5228,45 @@ mod codepoint_probe_tests {
+         assert_eq!(doc.non_latin_text_writes(), writes_seen.wrapping_add(1));
+         assert!(doc.text_uses_codepoints(cjk));
+     }
++
++    #[test]
++    fn non_rendered_elements_do_not_pollute_codepoint_index() {
++        use crate::qual_name;
++
++        let mut doc = BaseDocument::new(DocumentConfig::default());
++        let root_id = doc.root_node().id();
++        let style_id = doc.mutate().create_element(qual_name!("style"), Vec::new());
++        let script_id = doc.mutate().create_element(qual_name!("script"), Vec::new());
++        let style_text = doc.mutate().create_text_node("/* 漢 */");
++        let script_text = doc.mutate().create_text_node("const s = 'Д';");
++
++        doc.mutate().append_children(style_id, &[style_text]);
++        doc.mutate().append_children(script_id, &[script_text]);
++        doc.mutate().append_children(root_id, &[style_id, script_id]);
++
++        let cjk = &[(0x4E00, 0x9FFF)];
++        let cyrillic = &[(0x0400, 0x04FF)];
++        let writes_before = doc.non_latin_text_writes();
++        assert!(!doc.text_uses_codepoints(cjk));
++        assert!(!doc.text_uses_codepoints(cyrillic));
++
++        doc.mutate().set_node_text(style_text, "/* 漢Ж */");
++        doc.mutate()
++            .append_text_to_node(script_text, "const t = '漢';")
++            .expect("text node");
++        assert_eq!(doc.non_latin_text_writes(), writes_before);
++        assert!(!doc.text_uses_codepoints(cjk));
++        assert!(!doc.text_uses_codepoints(cyrillic));
++
++        let p_id = doc.mutate().create_element(qual_name!("p"), Vec::new());
++        let visible_text = doc.mutate().create_text_node("Hello 漢");
++        doc.mutate().append_children(p_id, &[visible_text]);
++        doc.mutate().append_children(root_id, &[p_id]);
++
++        assert!(doc.text_uses_codepoints(&[(0x0048, 0x0048)]));
++        assert!(doc.text_uses_codepoints(cjk));
++        assert!(!doc.text_uses_codepoints(cyrillic));
++    }
+ }
+
+ #[cfg(test)]
+@@ -6356,19 +6414,60 @@ fn note_non_latin_text_write(counter: &mut u32, text: &str) {
+     }
+ }
+
++#[inline]
++fn set_ascii_codepoint_bits(lo: &mut u64, hi: &mut u64, bytes: &[u8]) {
++    let mut w0 = *lo;
++    let mut w1 = *hi;
++    for &b in bytes {
++        if b < 64 {
++            w0 |= 1u64 << b;
++        } else {
++            w1 |= 1u64 << (b - 64);
++        }
++    }
++    *lo = w0;
++    *hi = w1;
++}
++
+ pub(crate) fn note_connected_text_codepoints(
+     used_codepoints: &mut Vec<u64>,
+     non_latin_text_writes: &mut u32,
+     text: &str,
+ ) {
+-    note_non_latin_text_write(non_latin_text_writes, text);
+-    if !used_codepoints.is_empty() {
+-        set_codepoint_bits(used_codepoints, text);
++    if text.is_ascii() {
++        if let [lo, hi, ..] = used_codepoints.as_mut_slice() {
++            set_ascii_codepoint_bits(lo, hi, text.as_bytes());
++        }
++        return;
++    }
++
++    if used_codepoints.is_empty() {
++        note_non_latin_text_write(non_latin_text_writes, text);
++        return;
++    }
++
++    let mut saw_non_latin = false;
++    for ch in text.chars() {
++        if ch >= '\u{0530}' {
++            saw_non_latin = true;
++        }
++        let cp = ch as usize;
++        used_codepoints[cp >> 6] |= 1u64 << (cp & 63);
++    }
++    if saw_non_latin {
++        *non_latin_text_writes = non_latin_text_writes.wrapping_add(1);
+     }
+ }
+
+ /// Set the bit for every codepoint in `text`.
+ pub(crate) fn set_codepoint_bits(bits: &mut [u64], text: &str) {
++    if text.is_ascii() {
++        if let [lo, hi, ..] = bits {
++            set_ascii_codepoint_bits(lo, hi, text.as_bytes());
++        }
++        return;
++    }
++
+     for ch in text.chars() {
+         let cp = ch as usize;
+         bits[cp >> 6] |= 1u64 << (cp & 63);
+diff --git a/src/mutator.rs b/src/mutator.rs
+index 3480d0c..e13a765 100644
+--- a/src/mutator.rs
++++ b/src/mutator.rs
+@@ -8,6 +8,7 @@ use std::collections::HashSet;
+ use std::mem;
+ use std::ops::{Deref, DerefMut, Range};
+
++use crate::document::note_connected_text_codepoints;
+ use crate::layout::damage::{ALL_DAMAGE, CONSTRUCT_BOX, ONLY_RELAYOUT};
+ use crate::net::{ImageHandler, ResourceHandler, StylesheetHandler};
+ use crate::node::{CanvasData, NodeFlags, ShadowRootMode, SpecialElementData, TextInputData};
+@@ -353,8 +354,11 @@ impl DocumentMutator<'_> {
+                 parent.insert_damage(ALL_DAMAGE);
+             }
+
+-            self.doc
+-                .note_text_codepoints(value, node_is_in_document);
++            if !parent_id
++                .is_some_and(|parent_id| self.doc.is_non_rendered_text_parent(parent_id))
++            {
++                self.doc.note_text_codepoints(value, node_is_in_document);
++            }
+             self.maybe_record_node(parent_id);
+         }
+     }
+@@ -365,6 +369,7 @@ impl DocumentMutator<'_> {
+         text: &str,
+     ) -> Result<(), AppendTextErr> {
+         let node_is_in_document = self.doc.nodes[node_id].flags.is_in_document();
++        let parent_id = self.doc.nodes[node_id].parent_id();
+         let node = &mut self.doc.nodes[node_id];
+         node.insert_damage(ALL_DAMAGE);
+         node.mark_ancestors_dirty();
+@@ -382,8 +387,11 @@ impl DocumentMutator<'_> {
+                 if let Some(parent_id) = parent_id {
+                     self.doc.nodes[parent_id].insert_damage(ALL_DAMAGE);
+                 }
+-                self.doc
+-                    .note_text_codepoints(text, node_is_in_document);
++                if !parent_id
++                    .is_some_and(|parent_id| self.doc.is_non_rendered_text_parent(parent_id))
++                {
++                    self.doc.note_text_codepoints(text, node_is_in_document);
++                }
+                 Ok(())
+             }
+             None => Err(AppendTextErr::NotTextNode),
+@@ -1718,13 +1726,15 @@ impl<'doc> DocumentMutator<'doc> {
+
+     fn process_added_subtree(&mut self, node_id: NodeId) {
+         self.doc.iter_subtree_mut(node_id, |node_id, doc| {
+-            let in_template_contents = doc.nodes[node_id]
+-                .parent_id()
+-                .is_some_and(|parent_id| is_template_inert_context(doc, parent_id));
++            let parent_id = doc.nodes[node_id].parent_id();
++            let in_template_contents =
++                parent_id.is_some_and(|parent_id| is_template_inert_context(doc, parent_id));
+             let in_document = !in_template_contents;
+-            if in_document {
++            if in_document
++                && !parent_id.is_some_and(|parent_id| doc.is_non_rendered_text_parent(parent_id))
++            {
+                 if let Some(text) = doc.nodes[node_id].text_data() {
+-                    crate::document::note_connected_text_codepoints(
++                    note_connected_text_codepoints(
+                         &mut doc.used_codepoints,
+                         &mut doc.non_latin_text_writes,
+                         &text.content,

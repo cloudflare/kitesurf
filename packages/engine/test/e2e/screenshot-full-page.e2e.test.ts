@@ -10,9 +10,9 @@ import { setContent } from "./set-content";
 
 // SHA-256 values captured from the unbanded renderer in the main tree.
 const UNBANDED_RENDERER_HASHES = {
-  viewportPng: "931f67454a35850c6895dbd6bb4d405d0522560bac9e9911b0ae6a786a2cf029",
-  viewportJpeg: "704ba6839658da9f9d075e76934c0c49587ced17a29675a139dc3cdd4b410679",
-  tallClipPng: "7cd17acd6085e1189b8437890a94a1483eeed1311f672857792d4664043c57a1",
+  viewportPng: "cac930c918b26ffe231f52bf34790358cb2a2d51a1b705fcb9f1fd8a2dfd558f",
+  viewportJpeg: "645a57555b8d76990b63e8fc3f4ae28c71d8d07f23e6499e329e3a553f7f3188",
+  tallClipPng: "850283320365e604f1a982c7900a7423b564b32fa25ca86cb1e8c4afe211d8a1",
 } as const;
 
 const VIEWPORT = { width: 1280, height: 720 };

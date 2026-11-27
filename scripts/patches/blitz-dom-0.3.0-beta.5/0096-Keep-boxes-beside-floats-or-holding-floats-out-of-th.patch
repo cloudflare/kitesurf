@@ -1,0 +1,135 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sun, 22 Nov 2026 18:52:49 +0000
+Subject: [PATCH] Keep boxes beside floats or holding floats out of the layout
+ cache
+
+Taffy keys its layout cache on the sizes a box gets. Float geometry is
+not in the key, and a cache hit skips layout, so two kinds of box went
+stale under incremental layout.
+
+A block beside floats reused its old lines when the floats changed. On
+Wikipedia, images load after the first layout, the figures float right
+and grow, and the paragraphs beside them kept the full-width lines that
+they broke when the figures were short. The text ran under the images.
+A box laid out with floats reaching below its top now skips the cache
+and records that it did. The next layout skips the cache once more, so
+the box drops the lines that it broke around floats that are gone.
+
+A block that placed a float as a block child registered nothing in the
+formatting context on a cache hit. The inline path already marked its
+roots with placed_floats, but block children did not. Wikipedia's last
+lead figure hangs into the History section, so when the lead section hit
+the cache, the first History figure ignored its clear: right and was
+drawn over it. Every block child whose subtree placed a float now sets
+placed_floats.
+
+Only a full layout that placed no float clears the flag. A size-only
+pass returns before it visits the children of a box whose size is
+known, so it cannot tell that the box holds no float. A flex item, for
+example, measures its children before it lays them out.
+---
+ src/layout/mod.rs | 40 ++++++++++++++++++++++++++++++++++++++--
+ src/node/node.rs  | 16 ++++++++++++++++
+ 2 files changed, 54 insertions(+), 2 deletions(-)
+
+diff --git a/src/layout/mod.rs b/src/layout/mod.rs
+index 1d4dc42..c8c97f7 100644
+--- a/src/layout/mod.rs
++++ b/src/layout/mod.rs
+@@ -884,9 +884,45 @@ impl taffy::LayoutBlockContainer for LayoutPassState<'_> {
+         block_ctx: Option<&mut BlockContext<'_>>,
+     ) -> taffy::LayoutOutput {
+         let inputs = self.with_inline_percentage_height(node_id, inputs);
+-        compute_cached_layout(self, node_id, inputs, |tree, node_id, inputs| {
++        // Taffy's cache key holds no float geometry: a box beside floats now,
++        // or at its last layout, must not reuse an entry from another float
++        // layout, or its lines keep the old float bands (or none).
++        #[cfg(feature = "floats")]
++        {
++            let beside_floats = block_ctx
++                .as_ref()
++                .is_some_and(|ctx| ctx.has_active_floats(0.0));
++            let node = self.node_from_id_mut(node_id);
++            if beside_floats || node.laid_out_beside_floats() {
++                node.clear_layout_cache();
++                node.set_laid_out_beside_floats(beside_floats);
++            }
++        }
++        #[cfg(not(feature = "floats"))]
++        return compute_cached_layout(self, node_id, inputs, |tree, node_id, inputs| {
+             tree.compute_child_layout_internal(node_id, inputs, block_ctx)
+-        })
++        });
++        #[cfg(feature = "floats")]
++        {
++            let Some(block_ctx) = block_ctx else {
++                return compute_cached_layout(self, node_id, inputs, |tree, node_id, inputs| {
++                    tree.compute_child_layout_internal(node_id, inputs, None)
++                });
++            };
++            let run_mode = inputs.run_mode;
++            let output = compute_cached_layout(self, node_id, inputs, |tree, node_id, inputs| {
++                tree.compute_child_layout_internal(node_id, inputs, Some(&mut *block_ctx))
++            });
++            // A cache hit registers no floats in the BFC, so a box whose
++            // subtree placed floats keeps out of the cache (`cache_get`). A
++            // size-only pass can return before it reaches the floats, so only
++            // a full layout clears the flag.
++            let placed = block_ctx.floated_content_height_contribution() > f32::NEG_INFINITY;
++            if placed || run_mode == taffy::RunMode::PerformLayout {
++                self.node_from_id_mut(node_id).set_placed_floats(placed);
++            }
++            output
++        }
+     }
+ }
+
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 4c766c1..2db7d94 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -612,6 +612,7 @@ mod compact_node_tests {
+         assert!(root.hoisted_children().is_none());
+         assert_eq!(root.oof_containing_block(), None);
+         assert!(!root.placed_floats());
++        assert!(!root.laid_out_beside_floats());
+         assert_eq!(root.rehomed_reach(), None);
+         assert!(root.stacking_context().is_none());
+         assert!(root.sc_contribution_cache().is_none());
+@@ -626,6 +627,7 @@ mod compact_node_tests {
+         root.set_hoisted_children(ThinVec::new());
+         root.set_oof_containing_block(None);
+         root.set_placed_floats(false);
++        root.set_laid_out_beside_floats(false);
+         root.set_rehomed_reach(None);
+         root.set_stacking_context(None);
+         assert!(root.take_stacking_context().is_none());
+@@ -699,6 +701,8 @@ struct NodeRare {
+     hoisted_children: RefCell<ThinVec<NodeId>>,
+     oof_containing_block: NodeIdCell,
+     placed_floats: Cell<bool>,
++    /// The last layout ran with floats reaching below this box's top.
++    laid_out_beside_floats: Cell<bool>,
+     rehomed_reach: RefCell<Option<Box<(f32, f32, f32, f32)>>>,
+     stacking_context: RefCell<Option<Box<StackingContext>>>,
+     sc_contribution_cache: RefCell<ThinVec<HoistedPaintChild>>,
+@@ -1028,6 +1032,18 @@ impl Node {
+         }
+     }
+
++    pub fn laid_out_beside_floats(&self) -> bool {
++        self.rare
++            .get()
++            .is_some_and(|rare| rare.laid_out_beside_floats.get())
++    }
++
++    pub fn set_laid_out_beside_floats(&self, value: bool) {
++        if value || self.rare.get().is_some() {
++            self.rare().laid_out_beside_floats.set(value);
++        }
++    }
++
+     pub fn rehomed_reach(&self) -> Option<(f32, f32, f32, f32)> {
+         self.rare
+             .get()

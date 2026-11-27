@@ -22,9 +22,9 @@ exclude = ["scripts/memprof-rewriter", "vendor/wasm-memprof/instrumentor"]
 mod_module_files = "warn"
 
 [workspace.dependencies]
-anyrender = { version = "0.14", default-features = false }
-anyrender_vello_cpu = { version = "0.18", default-features = false }
-vello_cpu = { version = "0.3", default-features = false, features = [
+anyrender = { version = "0.15", default-features = false }
+anyrender_vello_cpu = { version = "0.19", default-features = false }
+vello_cpu = { version = "0.4", default-features = false, features = [
   "std",
   "text",
   "u8_pipeline",
@@ -32,7 +32,7 @@ vello_cpu = { version = "0.3", default-features = false, features = [
 ] }
 peniko = { version = "0.6", default-features = false }
 kurbo = { version = "0.13", default-features = false }
-skrifa = "0.44"
+skrifa = "0.49"
 krilla = { version = "0.8", default-features = false, features = ["raster-images", "simple-text"] }
 image = { version = "=0.25.6", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 jpeg-encoder = { version = "=0.7.0", default-features = false }
@@ -62,37 +62,36 @@ boa_engine = { version = "0.22", default-features = false, features = ["annex-b"
 [patch.crates-io]
 # Patched to replace the blurred-rounded-rect powf with a polynomial fit,
 # which box-shadow paints through here too (blitz-paint -> draw_box_shadow -> vello_cpu).
-vello_cpu = { path = "packages/core/target/vendor-patched/vello_cpu-0.3.0" }
+vello_cpu = { path = "packages/core/target/vendor-patched/vello_cpu-0.4.0" }
 # Patched so consecutive fills of one gradient share one colour LUT: blitz-paint draws a
 # repeating gradient as thousands of tile fills, and each built its own 4096-entry LUT.
-vello_common = { path = "packages/core/target/vendor-patched/vello_common-0.3.0" }
-parley = { path = "packages/core/target/vendor-patched/parley-0.12.0" }
+vello_common = { path = "packages/core/target/vendor-patched/vello_common-0.4.0" }
+parley = { path = "packages/core/target/vendor-patched/parley-0.13.0" }
 # parley 0.12 moved analysis, bidi and shaping into parley_engine, so the
 # base-direction and tab-stop patches carry an engine half here.
-parley_engine = { path = "packages/core/target/vendor-patched/parley_engine-0.12.0" }
-blitz-dom = { path = "packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.4" }
-blitz-paint = { path = "packages/core/target/vendor-patched/blitz-paint-0.3.0-beta.4" }
+parley_engine = { path = "packages/core/target/vendor-patched/parley_engine-0.13.0" }
+blitz-dom = { path = "packages/core/target/vendor-patched/blitz-dom-0.3.0-beta.5" }
+blitz-paint = { path = "packages/core/target/vendor-patched/blitz-paint-0.3.0-beta.5" }
 # Patched so the XHTML sniff stops at the first non-root start tag: a minified
 # page mentioning "xhtml" anywhere on its one line was parsed as XML.
-blitz-html = { path = "packages/core/target/vendor-patched/blitz-html-0.3.0-beta.4" }
+blitz-html = { path = "packages/core/target/vendor-patched/blitz-html-0.3.0-beta.5" }
 # Patched to store NodeId as two u32 halves: 4-byte alignment drops the padding
 # from every node slot.
-blitz-traits = { path = "packages/core/target/vendor-patched/blitz-traits-0.3.0-beta.4" }
+blitz-traits = { path = "packages/core/target/vendor-patched/blitz-traits-0.3.0-beta.5" }
 # Patched to add PaintScene::begin_part/end_part — defaulted no-ops that
 # let blitz-paint say WHICH part of WHICH element it is about to draw, so
 # a consumer does not have to infer it back from geometry. The scene
 # rasterizer crates compile scene_record.rs, which implements the trait.
-anyrender = { path = "packages/core/target/vendor-patched/anyrender-0.14.0" }
-anyrender_svg = { path = "packages/core/target/vendor-patched/anyrender_svg-0.15.0" }
+anyrender = { path = "packages/core/target/vendor-patched/anyrender-0.15.1" }
 # Patched to implement PaintScene::push_clip_path with vello_cpu's clip
 # paths, which clip each draw instead of compositing a separate layer.
-anyrender_vello_cpu = { path = "packages/core/target/vendor-patched/anyrender_vello_cpu-0.18.0" }
-taffy = { path = "packages/core/target/vendor-patched/taffy-0.15.0" }
+anyrender_vello_cpu = { path = "packages/core/target/vendor-patched/anyrender_vello_cpu-0.19.0" }
+taffy = { path = "packages/core/target/vendor-patched/taffy-0.16.0" }
 # Patched so sticky insets stop reaching taffy as relative offsets
 # (taffy would blindly shift the box; sticky.rs owns the shift).
-stylo_taffy = { path = "packages/core/target/vendor-patched/stylo_taffy-0.3.0-beta.4" }
-stylo = { path = "packages/core/target/vendor-patched/stylo-0.22.0" }
-selectors = { path = "packages/core/target/vendor-patched/selectors-0.41.0" }
+stylo_taffy = { path = "packages/core/target/vendor-patched/stylo_taffy-0.3.0-beta.5" }
+stylo = { path = "packages/core/target/vendor-patched/stylo-0.24.0" }
+selectors = { path = "packages/core/target/vendor-patched/selectors-0.43.0" }
 boa_ast = { path = "packages/core/target/vendor-patched/boa_ast-0.22.0" }
 boa_interner = { path = "packages/core/target/vendor-patched/boa_interner-0.22.0" }
 boa_gc = { path = "packages/core/target/vendor-patched/boa_gc-0.22.0" }
@@ -100,7 +99,7 @@ boa_engine = { path = "packages/core/target/vendor-patched/boa_engine-0.22.0" }
 boa_parser = { path = "packages/core/target/vendor-patched/boa_parser-0.22.0" }
 # Patched for SVG2 geometry properties from CSS (`circle { r: 65px }`),
 # which usvg drops. blitz-dom's usvg resolves here too via this patch.
-usvg = { path = "packages/core/target/vendor-patched/usvg-0.48.1" }
+usvg = { path = "packages/core/target/vendor-patched/usvg-0.50.0" }
 ratatui-image = { path = "packages/core/target/vendor-patched/ratatui-image-8.1.1" }
 jpeg-encoder = { path = "packages/core/target/vendor-patched/jpeg-encoder-0.7.0" }
 

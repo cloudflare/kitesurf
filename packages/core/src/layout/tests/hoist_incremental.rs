@@ -194,7 +194,7 @@ const ZINDEX_PAGE: &str = r#"<!doctype html><html><head><style>
  #host{width:200px;height:100px}
  #box{position:absolute;top:5px;left:7px;width:50px;height:50px}
 </style></head><body>
-<div id="cb"><div id="host"><div id="box">b</div></div></div>
+<div id="cb"><div style="isolation:isolate"><div id="host"><div id="box">b</div></div></div></div>
 </body></html>"#;
 
 #[test]

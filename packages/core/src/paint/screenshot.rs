@@ -99,6 +99,7 @@ pub(crate) fn paint_document_to_image_scrolled(
                     Color::WHITE,
                     Default::default(),
                     &Rect::new(0.0, 0.0, render_w as f64, render_h as f64),
+                    anyrender::AntiAliasing::Enabled,
                 );
             }
             paint_scene_bounded(scene, document, scale, render_w, render_h, 0, 0);

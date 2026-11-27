@@ -44,8 +44,18 @@ struct CdpInlineProp {
 
 pub(crate) fn init_style_prefs() {
     stylo_static_prefs::set_pref!("layout.css.color-mix-multi-color.enabled", true);
-    stylo_static_prefs::set_pref!("layout.container-queries.enabled", true);
-    stylo_static_prefs::set_pref!("layout.variable_fonts.enabled", true);
+    stylo_static_prefs::set_pref!("layout.css.container-queries.enabled", true);
+    stylo_static_prefs::set_pref!("layout.css.font-variations.enabled", true);
+    // Stylo 0.24 puts these behind prefs that blitz-dom leaves off; Stylo 0.22 parsed them.
+    stylo_static_prefs::set_pref!("layout.css.anchor-positioning.enabled", true);
+    stylo_static_prefs::set_pref!("layout.css.font-synthesis.enabled", true);
+    stylo_static_prefs::set_pref!("layout.css.font-variant-caps.all-values.enabled", true);
+    stylo_static_prefs::set_pref!("layout.css.font-variant-emoji.enabled", true);
+    stylo_static_prefs::set_pref!("layout.css.hyphens.enabled", true);
+    stylo_static_prefs::set_pref!("layout.css.text-autospace.enabled", true);
+    stylo_static_prefs::set_pref!("layout.css.text-combine-upright.enabled", true);
+    stylo_static_prefs::set_pref!("layout.css.text-emphasis.enabled", true);
+    stylo_static_prefs::set_pref!("layout.css.text-wrap-style.balance.enabled", true);
 }
 
 #[derive(serde::Serialize)]

@@ -1,0 +1,201 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sun, 22 Nov 2026 19:16:34 +0000
+Subject: [PATCH] Let a cell's width size its column, not hold the table wide
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+In the auto table layout algorithm, a cell's length width raises the
+max-content width of its column but not its min-content width
+(css-tables-3 §3.9.4). Tables are laid out as grids, and a cell measured
+its width as both, so a table could not shrink below the sum of its cell
+widths. A Wikipedia table with header widths of 5em, 10em and 48em
+stayed 1100px wide in a 772px column and ran under the figures floated
+beside it.
+
+A single-column cell with a length width now measures its min-content
+width from its content alone. Its max-content width is still its width,
+within its min-width and max-width, so the column also grows to the
+max-content width of its other cells.
+
+The content measurement uses the ContentSize sizing mode. Taffy keeps
+one sizing mode per layout cache and drops the entries when the mode
+changes. So the cell's cache keeps the result as an entry in the mode
+that the grid asked in, under a parent width that no layout passes
+(NaN). The entry lives as long as the cell's other sizes, and the mode
+of the cache does not change. Inline layout ignores min-width and
+max-width in ContentSize, so the table applies them to the result. It
+also keeps the result at least as wide as the cell's padding and
+border.
+
+The spare width of a table goes to the columns without a cell width
+while there are any. A column with a cell width gets a
+minmax(min-content, max-content) track, which does not stretch. Its
+minimum is min-content, not auto: an auto minimum takes a cell's
+min-width, or zero for a scroll container, in place of the width of
+the content. When no column is left to stretch, these columns get an
+auto maximum and share the spare width.
+---
+ src/layout/table.rs | 99 ++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 97 insertions(+), 2 deletions(-)
+
+diff --git a/src/layout/table.rs b/src/layout/table.rs
+index c6638b5..c4efc7b 100644
+--- a/src/layout/table.rs
++++ b/src/layout/table.rs
+@@ -22,8 +22,8 @@ use style::{
+ };
+ use style_traits::values::specified::AllowedNumericType;
+ use taffy::{
+-    CalcHandle, DetailedGridInfo, LayoutPartialTree as _, ResolveOrZero, TrackSizingFunction,
+-    style_helpers,
++    CacheTree as _, CalcHandle, DetailedGridInfo, LayoutGridContainer as _, LayoutPartialTree as _,
++    MaybeMath as _, MaybeResolve as _, ResolveOrZero, TrackSizingFunction, style_helpers,
+ };
+
+ use crate::BaseDocument;
+@@ -124,6 +124,10 @@ pub struct TableCell {
+     /// kept: a converted `taffy::Style` costs about 400 bytes per cell.
+     style_source: ServoArc<ComputedValues>,
+     placement: CellPlacement,
++    /// In the auto table layout algorithm a cell's length `width` raises its column's
++    /// max-content width but not its min-content width (css-tables-3 §3.9.4), so the cell's
++    /// min-content measurement leaves the width out (`cell_content_min_width`).
++    min_content_ignores_width: bool,
+ }
+
+ #[derive(Debug, Clone)]
+@@ -474,6 +478,16 @@ pub(crate) fn build_table_context(
+     }
+     let num_columns = cursor.num_columns.max(column_sizes.len() as u16);
+     column_sizes.resize(num_columns as usize, remaining_column);
++    // With no other column to take the table's spare width, the columns that
++    // cell widths size (`min_content_ignores_width`) share it: an `auto` maximum stretches.
++    if !column_sizes.iter().any(|column| column.max.is_auto()) {
++        for column in column_sizes.iter_mut() {
++            if column.min.is_min_content() && column.max.is_max_content() {
++                *column =
++                    style_helpers::minmax(style_helpers::min_content(), style_helpers::auto());
++            }
++        }
++    }
+     if is_fixed {
+         // In the fixed table layout algorithm, percentage column widths resolve against
+         // the table's content width minus the horizontal border-spacing between columns,
+@@ -852,8 +866,28 @@ fn collect_table_cells(
+                 .map(|v| v.clamp(1, 65534))
+                 .unwrap_or(1);
+             let style = table_cell_style(stylo_style, wm, is_fixed, border_collapse);
++            // A cell that spans several columns keeps its width as a minimum.
++            let min_content_ignores_width = !is_fixed
++                && colspan == 1
++                && style.size.width.tag() == taffy::CompactLength::LENGTH_TAG;
+             let style_source = ServoArc::clone(&**stylo_style);
+             let col = cursor.next_free();
++            // The table's spare width goes to the columns without a cell width (css-tables-3
++            // §3.9.4), so this column must not stretch as `auto` does. An `auto` minimum would
++            // take a cell's `min-width`, or zero for a scroll container, in place of the
++            // content's width, so the minimum is `min-content`.
++            if min_content_ignores_width {
++                if (col as usize) >= columns.len() {
++                    columns.resize(col as usize + 1, style_helpers::auto());
++                }
++                let column = &mut columns[col as usize];
++                if column.min.is_auto() && column.max.is_auto() {
++                    *column = style_helpers::minmax(
++                        style_helpers::min_content(),
++                        style_helpers::max_content(),
++                    );
++                }
++            }
+
+             if first_cell_border.is_none() {
+                 *first_cell_border = Some(stylo_style.clone_border());
+@@ -927,6 +961,7 @@ fn collect_table_cells(
+                     rowspan,
+                     colspan,
+                 },
++                min_content_ignores_width,
+             });
+
+             cursor.place(colspan, rowspan);
+@@ -975,6 +1010,7 @@ fn collect_table_cells(
+                 column: col,
+                 style_source,
+                 placement,
++                min_content_ignores_width: false,
+             });
+             cursor.place(1, 1);
+         }
+@@ -1066,11 +1102,70 @@ impl taffy::LayoutPartialTree for TableTreeWrapper<'_, '_> {
+         {
+             inputs.available_space.width = taffy::AvailableSpace::MinContent;
+         }
++        if cell.min_content_ignores_width
++            && inputs.run_mode == taffy::RunMode::ComputeSize
++            && inputs.axis == taffy::RequestedAxis::Horizontal
++            && inputs.known_dimensions.width.is_none()
++            && inputs.available_space.width == taffy::AvailableSpace::MinContent
++        {
++            return self.cell_content_min_width(node_id, inputs);
++        }
+         let node_id = crate::taffy_node_id(cell.node_id);
+         self.doc.compute_child_layout(node_id, inputs)
+     }
+ }
+
++impl TableTreeWrapper<'_, '_> {
++    /// Measures the min-content width of a cell's content, without the cell's `width`. The
++    /// measurement runs in `ContentSize`, and taffy keeps one sizing mode per layout cache. So the
++    /// cell's cache keeps the result in the mode the grid asked in, under a parent width that no
++    /// layout passes (NaN). It then lives exactly as long as the cell's other sizes.
++    fn cell_content_min_width(
++        &mut self,
++        index: taffy::NodeId,
++        inputs: taffy::LayoutInput,
++    ) -> taffy::LayoutOutput {
++        let node_id = crate::taffy_node_id(self.ctx.cells[usize::from(index)].node_id);
++        let mut cache_key = inputs;
++        cache_key.parent_size.width = Some(f32::NAN);
++        if let Some(cached) = self.doc.cache_get(node_id, &cache_key) {
++            return cached;
++        }
++
++        let mut content_inputs = self.doc.with_inline_percentage_height(node_id, inputs);
++        content_inputs.sizing_mode = taffy::SizingMode::ContentSize;
++        let mut size = self
++            .doc
++            .compute_child_layout_internal(node_id, content_inputs, None)
++            .size;
++
++        // Inline layout drops `min-width` and `max-width` along with the width. The cell is
++        // never narrower than its padding and border.
++        let style = self.get_grid_child_style(index);
++        let basis = inputs.parent_size.width;
++        let padding = style.padding.resolve_or_zero(basis, resolve_calc_value);
++        let border = style.border.resolve_or_zero(basis, resolve_calc_value);
++        let padding_border = padding.left + padding.right + border.left + border.right;
++        let box_sizing_adjustment = match style.box_sizing {
++            taffy::BoxSizing::ContentBox => padding_border,
++            taffy::BoxSizing::BorderBox => 0.0,
++        };
++        let limit = |limit: taffy::LengthPercentageAuto| {
++            limit
++                .maybe_resolve(basis, resolve_calc_value)
++                .maybe_add(box_sizing_adjustment)
++        };
++        size.width = size
++            .width
++            .maybe_clamp(limit(style.min_size.width), limit(style.max_size.width))
++            .max(padding_border);
++
++        let output = taffy::LayoutOutput::from_outer_size(size);
++        self.doc.cache_store(node_id, &cache_key, output.clone());
++        output
++    }
++}
++
+ impl taffy::LayoutGridContainer for TableTreeWrapper<'_, '_> {
+     type GridContainerStyle<'a>
+         = &'a taffy::Style<Atom>

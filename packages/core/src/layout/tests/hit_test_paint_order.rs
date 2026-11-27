@@ -247,3 +247,23 @@ fn clear_completed_wins_when_footer_is_unpositioned() {
         hit,
     );
 }
+
+// A relative grid item is lifted above the grid's in-flow content, so the abspos grid child
+// after it must be lifted to the same level, or the earlier item covers it.
+#[test]
+fn an_abspos_grid_child_paints_over_an_earlier_relative_item() {
+    let dom = DomHandle::new(
+        r#"<!DOCTYPE html><style>body{margin:0}
+          .grid{display:grid;grid-template-columns:100px;grid-template-rows:100px}
+          .item{position:relative;grid-area:1/1}
+          .inner{position:absolute;width:100%;height:100%}
+          .over{position:absolute;width:100px;height:100px;grid-area:1/1}</style>
+        <div class="grid"><div class="item"><div class="inner"></div></div>
+        <div class="over" id="over"></div></div>"#,
+        "https://test.example/",
+    );
+    dom.set_viewport(200, 200);
+    dom.resolve_layout();
+    let over = dom.query_selector("#over").expect("query parses");
+    assert_eq!(dom.element_from_point(50.0, 50.0), over);
+}

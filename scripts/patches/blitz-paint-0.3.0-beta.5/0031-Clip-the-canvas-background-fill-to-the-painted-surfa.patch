@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 27 Nov 2026 00:13:24 +0000
+Subject: [PATCH] Clip the canvas background fill to the painted surface
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Upstream beta.5 fills the propagated canvas color directly, over a rect as large
+as the root element, where beta.4 painted it through draw_background and kept it
+to the surface. Only the surface shows. A fill sized to the document made each
+PDF page band's scene depend on content far below it, so a page beyond the print
+cap changed the bytes of every earlier page.
+
+beep-boop-🤖
+---
+ src/render.rs | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index eae6348..0d9f400 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -304,10 +304,14 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+
+         if let Some(bg_color) = background_color {
+             let bg_color = bg_color.as_srgb_color();
++            // Only the surface shows, and a fill sized to the document would make each band's
++            // scene depend on content far outside it.
++            let surface = Rect::new(0.0, 0.0, self.width as f64, self.height as f64);
+             let rect = Rect::from_origin_size(
+                 (self.initial_x, self.initial_y),
+                 (bg_width as f64, bg_height as f64),
+-            );
++            )
++            .intersect(surface);
+             scene.fill(
+                 Fill::NonZero,
+                 Affine::IDENTITY,

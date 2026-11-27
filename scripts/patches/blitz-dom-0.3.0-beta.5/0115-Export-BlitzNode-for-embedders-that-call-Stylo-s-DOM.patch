@@ -1,0 +1,67 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Thu, 26 Nov 2026 23:55:15 +0000
+Subject: [PATCH] Export BlitzNode for embedders that call Stylo's DOM APIs
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Upstream made BlitzNode a crate-private newtype in beta.5, so Stylo's TElement and
+selectors Element traits are no longer implemented for &Node. Kitesurf computes lazy
+pseudo-element styles with Stylist::lazily_compute_pseudo_element_style, which takes a
+TElement. Export the newtype and its child iterator so it can pass BlitzNode(node).
+
+beep-boop-🤖
+---
+ src/lib.rs       | 1 +
+ src/stylo/dom.rs | 4 ++--
+ src/stylo/mod.rs | 2 +-
+ 3 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/src/lib.rs b/src/lib.rs
+index 3321df9..a5dcd0d 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -76,6 +76,7 @@ pub use cssom::{CssRuleInfo, CssomError};
+ pub use resolved_style::{
+     css_property_is_supported, parse_transform_matrix, resolved_style_property_names,
+ };
++pub use stylo::BlitzNode;
+ pub use stylo_taffy::CopyStyleGetters;
+ pub use stylo_to_kurbo::resolve_2d_transform;
+
+diff --git a/src/stylo/dom.rs b/src/stylo/dom.rs
+index 7ca2f55..a75ef61 100644
+--- a/src/stylo/dom.rs
++++ b/src/stylo/dom.rs
+@@ -39,7 +39,7 @@ use style_dom::ElementState;
+ /// Since BlitzNodes are not persistent (IE we don't keep the pointers around between frames), we choose to just implement
+ /// the tree structure in the nodes themselves, and temporarily give out pointers during the layout phase.
+ #[derive(Clone, Copy, PartialEq, Eq)]
+-pub(crate) struct BlitzNode<'a>(pub(crate) &'a Node);
++pub struct BlitzNode<'a>(pub &'a Node);
+
+ impl std::ops::Deref for BlitzNode<'_> {
+     type Target = Node;
+@@ -920,7 +920,7 @@ impl<'a> TElement for BlitzNode<'a> {
+     // }
+ }
+
+-pub(crate) struct Traverser<'a> {
++pub struct Traverser<'a> {
+     // dom: &'a Slab<Node>,
+     parent: BlitzNode<'a>,
+     child_index: usize,
+diff --git a/src/stylo/mod.rs b/src/stylo/mod.rs
+index 2736354..45b389e 100644
+--- a/src/stylo/mod.rs
++++ b/src/stylo/mod.rs
+@@ -11,7 +11,7 @@ mod traversal;
+ mod user_agent;
+
+ pub(crate) use device::{DeviceChanges, make_device, make_media_data};
+-pub(crate) use dom::BlitzNode;
++pub use dom::BlitzNode;
+ pub(crate) use prefs::init_stylo_prefs;
+ pub(crate) use presentational_hints::PresentationalHints;
+ pub use user_agent::UserAgentStylesheet;

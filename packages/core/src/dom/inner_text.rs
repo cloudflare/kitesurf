@@ -5,6 +5,7 @@
 //! Builds rendered text from DOM nodes using computed visibility and whitespace.
 //! Applies computed text transforms when collecting text runs.
 
+use blitz_dom::CopyStyleGetters as _;
 use ::style::computed_values::white_space_collapse::T as WhiteSpaceCollapse;
 use ::style::properties::generated::longhands::visibility::computed_value::T as Visibility;
 use ::style::values::computed::TextTransform;
@@ -104,7 +105,7 @@ fn element_ctx(doc: &BaseDocument, id: NodeId, inherited: Ctx) -> Ctx {
         WhiteSpaceCollapse::Collapse => Mode::Collapse,
         WhiteSpaceCollapse::Preserve => Mode::Preserve,
         WhiteSpaceCollapse::PreserveBreaks => Mode::PreserveBreaks,
-        WhiteSpaceCollapse::BreakSpaces => Mode::Preserve,
+        WhiteSpaceCollapse::BreakSpaces | WhiteSpaceCollapse::PreserveSpaces => Mode::Preserve,
     };
     let tt = styles.clone_text_transform();
     let case = if tt.intersects(TextTransform::UPPERCASE) {

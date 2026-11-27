@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Sat, 8 Aug 2026 18:42:40 +0100
+Subject: [PATCH] Borrow the style data once in primary_styles
+
+primary_styles took a borrow for its presence check, dropped it, and
+took a second to build the returned ref. Paint calls it per element and
+again per glyph run, so it now borrows once.
+
+The rest of this change (interned class atoms, a RESTYLE_SELF-only hint
+on attribute writes, and snapshots that record the attribute being
+written) landed upstream in blitz 0.3.0-beta.5.
+---
+ src/node/stylo_data.rs | 12 +++++-------
+ 1 file changed, 5 insertions(+), 7 deletions(-)
+
+diff --git a/src/node/stylo_data.rs b/src/node/stylo_data.rs
+index 7323ebf..e221f5c 100644
+--- a/src/node/stylo_data.rs
++++ b/src/node/stylo_data.rs
+@@ -69,13 +69,11 @@ impl StyloData {
+     }
+
+     pub fn primary_styles(&self) -> Option<StyleDataRef<'_>> {
+-        let stylo_element_data = self.get();
+-        if stylo_element_data
+-            .as_ref()
+-            .and_then(|d| d.styles.get_primary())
+-            .is_some()
+-        {
+-            Some(StyleDataRef(self.get().unwrap()))
++        // One borrow, not two: paint calls this per element and per glyph
++        // run, and the discarded first borrow was an atomic round trip.
++        let data = self.get()?;
++        if data.styles.get_primary().is_some() {
++            Some(StyleDataRef(data))
+         } else {
+             None
+         }

@@ -1,0 +1,86 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 27 Nov 2026 06:00:33 +0000
+Subject: [PATCH] Lift re-homed abspos boxes with the positioned boxes of a
+ static parent
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+beta.5 lifts a relative or sticky box out of a static parent to the paint level
+of the nearest positioned or clipping ancestor, so it paints above that ancestor's
+in-flow content (DioxusLabs/blitz#1445). A z-index:auto abspos box re-homed to
+the same static parent stayed in the parent's own paint list, so it painted
+before an earlier relative sibling and under it (WPT css-grid
+grid-items-relative-positioned-containing-block).
+
+When the first layer root above the static parent is the box's containing
+block, the box is lifted there too, in tree order among the lifted boxes, and
+painted from its containing block. Behind a clip or stacking context it stays
+re-homed.
+
+beep-boop-🤖
+---
+ src/layout/paint_tree.rs | 42 +++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 41 insertions(+), 1 deletion(-)
+
+diff --git a/src/layout/paint_tree.rs b/src/layout/paint_tree.rs
+index 22b6537..bdab6d3 100644
+--- a/src/layout/paint_tree.rs
++++ b/src/layout/paint_tree.rs
+@@ -340,7 +340,24 @@ impl BaseDocument {
+             let keyed_base = self.scratch.keyed_children.len();
+
+             for (index, &child_id) in children.iter().enumerate() {
+-                if !owned_here(self, child_id) && self.paints_rehomed(child_id) {
++                if !owned_here(self, child_id)
++                    && self.paints_rehomed(child_id)
++                    && !is_layer_root
++                    && self.containing_block_is_next_layer_root(node_id, child_id)
++                {
++                    // Lifted with the in-flow positioned boxes below, at the paint level of
++                    // its containing block, so it keeps tree order among them.
++                    self.nodes[child_id].set_paint_parent_override(None);
++                    let is_sc_root = self.nodes[child_id].is_stacking_context_root(false);
++                    self.build_paint_tree_impl(
++                        child_id,
++                        match is_sc_root {
++                            true => None,
++                            false => Some(&mut entries),
++                        },
++                    );
++                    entries.push(HoistedPaintChild::new(child_id, 0));
++                } else if !owned_here(self, child_id) && self.paints_rehomed(child_id) {
+                     // An abspos box laid out by an ancestor containing
+                     // block still paints here, in tree order among this node's
+                     // children (CSS 2.1 Appendix E step 8); see
+@@ -453,6 +470,29 @@ impl BaseDocument {
+         }
+     }
+
++    /// Whether the first paint layer root above the static `flow_parent` is the containing
++    /// block of the re-homed `child_id`: no clip lies between them, so painting the child from
++    /// its containing block, among the positioned boxes lifted there, keeps its clipping.
++    fn containing_block_is_next_layer_root(&self, flow_parent: NodeId, child_id: NodeId) -> bool {
++        let Some(cb) = self.nodes.get(child_id).and_then(|n| n.oof_containing_block()) else {
++            return false;
++        };
++        let mut current = self.nodes.get(flow_parent).and_then(|n| n.layout_parent_id());
++        while let Some(id) = current {
++            if id == cb {
++                return true;
++            }
++            let Some(node) = self.nodes.get(id) else {
++                return false;
++            };
++            if node.is_paint_layer_root() || node.is_stacking_context_root(false) {
++                return false;
++            }
++            current = node.layout_parent_id();
++        }
++        false
++    }
++
+     /// Whether `node_id` (an out-of-flow box hoisted past its flow
+     /// parent) paints under its flow parent rather than its containing block.
+     /// Only boxes with `z-index: auto`/`0`: their paint order is tree order

@@ -4,11 +4,15 @@
 
 use crate::DomHandle;
 
+// The isolated wrapper keeps `#ab` in `#host`: with no layer root between `#host` and `#cb`,
+// the box would paint from `#cb` instead, among the positioned boxes lifted there.
 const PAGE: &str = r#"<!DOCTYPE html>
 <html><body style="margin:0">
 <div id="cb" style="position:relative; width:400px; height:300px">
+  <div style="isolation:isolate">
   <div id="host">
     <div id="ab" style="position:absolute; top:10px; left:10px; right:10px; bottom:10px"></div>
+  </div>
   </div>
 </div>
 <div id="filler">text</div>

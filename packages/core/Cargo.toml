@@ -16,20 +16,20 @@ ratatui-image = { version = "=8.1.1", default-features = false }
 # Stylo (Servo/Firefox CSS engine). Used directly by `style/cssom.rs` for
 # stylesheet parsing exposed to JS, and indirectly by Blitz for
 # cascade + computed styles. Pin matches the version blitz
-# 0.3.0-beta.4 uses so we don't end up with two Stylos in the
+# 0.3.0-beta.5 uses so we don't end up with two Stylos in the
 # build.
-stylo = { version = "0.22", default-features = false, features = ["servo"] }
-stylo_atoms = "0.22"
+stylo = { version = "0.24", default-features = false, features = ["servo"] }
+stylo_atoms = "0.24"
 # Au (app units) for resolving stylo <length-percentage> insets in sticky.rs.
 # Already a transitive dep via stylo; cargo unifies on 0.7.
 app_units = "0.7"
 # ToCss/CssWriter for px serialization in computed_style's layout-
 # resolved values (and the color round-trip tests); transitive anyway.
-stylo_traits = "0.22"
-# Runtime style prefs used by init_style_prefs(). Stylo 0.22 enables
+stylo_traits = "0.24"
+# Runtime style prefs used by init_style_prefs(). Stylo 0.24 enables
 # multi-color color-mix by default, but we set it explicitly at start().
-stylo_static_prefs = "0.22"
-servo_arc = "0.5"
+stylo_static_prefs = "0.24"
+servo_arc = "0.6"
 # Reference box for stylo's transform matrices (getComputedStyle's resolved transform).
 # Already a transitive dep via stylo; cargo unifies on 0.22.
 euclid = "0.22"
@@ -84,28 +84,28 @@ foldhash = "0.2"
 # html5ever/markup5ever (the blitz-dom re-export comment near the blitz block
 # still holds — one QualName universe per build).
 html5ever = "=0.40.1"
-blitz-traits = { version = "=0.3.0-beta.4", default-features = false }
-blitz-dom = { version = "=0.3.0-beta.4", default-features = false, features = [
+blitz-traits = { version = "=0.3.0-beta.5", default-features = false }
+blitz-dom = { version = "=0.3.0-beta.5", default-features = false, features = [
   "svg",
   "floats",
   "woff",
 ] }
-blitz-html = { version = "=0.3.0-beta.4", default-features = false }
-blitz-paint = { version = "=0.3.0-beta.4", default-features = false, features = ["svg"] }
+blitz-html = { version = "=0.3.0-beta.5", default-features = false }
+blitz-paint = { version = "=0.3.0-beta.5", default-features = false, features = ["svg"] }
 # Direct dep so getBoundingClientRect can read a shape's bbox out of
 # the inline-svg snapshot blitz-dom already holds (svg_canvas_bbox);
 # the crate is in the artifact through blitz-dom either way.
-usvg = { version = "0.48.1", default-features = false }
+usvg = { version = "0.50.0", default-features = false }
 anyrender = { workspace = true }
 anyrender_vello_cpu = { workspace = true }
 vello_cpu = { workspace = true }
 peniko = { workspace = true }
 kurbo = { workspace = true }
-parley = { version = "0.12.0", default-features = false, features = ["std"] }
+parley = { version = "0.13.0", default-features = false, features = ["std"] }
 # Already in-tree via blitz-dom. computed_style reads CoreStyle::is_replaced
 # off blitz's lazy taffy style, and the layout-cache test plants a taffy
 # cache entry to see whether a resolve cleared it.
-taffy = { version = "0.15", default-features = false }
+taffy = { version = "0.16", default-features = false }
 # Casts parley's F2Dot14 normalized coords to the i16 slice vello_cpu's
 # glyph runs take (canvas2d.rs), as blitz-paint does. Already transitive.
 bytemuck = "1"

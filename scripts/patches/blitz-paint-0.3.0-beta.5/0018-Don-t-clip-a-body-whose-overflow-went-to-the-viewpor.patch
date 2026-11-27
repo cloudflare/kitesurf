@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Sun, 4 Oct 2026 12:07:04 +0100
+Subject: [PATCH] Don't clip a body whose overflow went to the viewport
+
+Paint already skipped the clip on the root element, whose overflow
+applies to the viewport. A body takes the root's place when html is
+overflow: visible (CSS Overflow 3 section 3.3), so it must not clip
+either: a scroll lock's overflow: hidden on body cut portalled popups
+off at the body's height.
+---
+ src/render.rs | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/render.rs b/src/render.rs
+index 600abfd..c682548 100644
+--- a/src/render.rs
++++ b/src/render.rs
+@@ -387,7 +387,11 @@ impl<'dom, 'a> BlitzDomPainter<'dom, 'a> {
+
+     /// The axes in which a node clips its overflow.
+     fn clipped_axes(&self, node: &Node, styles: &ComputedValues) -> BlitzPoint<bool> {
+-        if self.root_element_id == Some(node.id) {
++        // The root's overflow applies to the viewport, and so does a body's that went to the
++        // viewport in the root's place (CSS Overflow 3 section 3.3).
++        if self.root_element_id == Some(node.id)
++            || self.dom.propagates_overflow_to_viewport(node.id)
++        {
+             return BlitzPoint { x: false, y: false };
+         }
+         let box_style = styles.get_box();

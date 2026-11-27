@@ -4,6 +4,7 @@
 
 //! Computes sticky offsets from scroll containers, viewport overflow, and inset constraints.
 
+use blitz_dom::CopyStyleGetters as _;
 use blitz_dom::{BaseDocument, NodeId};
 use style::properties::generated::longhands::direction::computed_value::T as Direction;
 use style::properties::generated::longhands::overflow_y::computed_value::T as Overflow;
@@ -91,7 +92,7 @@ fn scrollport_of(doc: &BaseDocument, id: NodeId, axis: Axis) -> (Option<NodeId>,
             return (Some(parent), fixed_context);
         }
         if let Some(styles) = doc.get_node(parent).and_then(|n| n.primary_styles()) {
-            if styles.clone_position() == Position::Fixed {
+            if *styles.get_box().get_position() == Position::Fixed {
                 fixed_context = true;
             }
         }
@@ -144,7 +145,7 @@ pub(crate) fn collect_sticky_nodes(doc: &BaseDocument) -> Vec<NodeId> {
         let Some(styles) = node.primary_styles() else {
             continue;
         };
-        if styles.clone_position() == Position::Sticky {
+        if *styles.get_box().get_position() == Position::Sticky {
             ids.push(id);
         }
     }

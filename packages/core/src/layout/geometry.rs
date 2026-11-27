@@ -5,6 +5,7 @@
 //! Element geometry: viewport, bounding, inline-aware, and intersection rects, and offset
 //! metrics.
 
+use blitz_dom::CopyStyleGetters as _;
 use std::panic;
 
 use blitz_dom::node::SpecialElementData;
@@ -239,15 +240,17 @@ fn containing_block_of(doc: &HtmlDocument, node: &Node) -> Option<NodeId> {
     use ::style::values::specified::box_::DisplayOutside;
     let position = node
         .primary_styles()
-        .map_or(Position::Static, |s| s.clone_position());
+        .map_or(Position::Static, |s| *s.get_box().get_position());
     let mut current = node.parent_id();
     while let Some(id) = current {
         let parent = doc.get_node(id)?;
         if let Some(styles) = parent.primary_styles().filter(|_| parent.is_element()) {
-            let transformed = !styles.clone_transform().0.is_empty();
+            let transformed = !styles.get_transform().clone().0.is_empty();
             let establishes = match position {
                 Position::Fixed => transformed,
-                Position::Absolute => transformed || styles.clone_position() != Position::Static,
+                Position::Absolute => {
+                    transformed || *styles.get_box().get_position() != Position::Static
+                }
                 _ => styles.clone_display().outside() != DisplayOutside::None,
             };
             if establishes {
@@ -324,14 +327,14 @@ fn clip_to_containing_blocks(
 fn has_clip_path(node: &Node) -> bool {
     use ::style::values::computed::basic_shape::ClipPath;
     node.primary_styles()
-        .is_some_and(|styles| !matches!(styles.clone_clip_path(), ClipPath::None))
+        .is_some_and(|styles| !matches!(styles.get_clip_path().clone(), ClipPath::None))
 }
 
 fn clip_path_edges(node: &Node, [l, t, r, b]: [f32; 4]) -> Option<[f32; 4]> {
     use ::style::values::computed::basic_shape::ClipPath;
     use ::style::values::computed::CSSPixelLength;
     use ::style::values::generics::basic_shape::{GenericBasicShape, ShapeBox, ShapeGeometryBox};
-    let clip_path = node.primary_styles()?.clone_clip_path();
+    let clip_path = node.primary_styles()?.get_clip_path().clone();
     let layout = node.final_layout();
     let reference = |geometry: &ShapeGeometryBox| match geometry {
         ShapeGeometryBox::ShapeBox(ShapeBox::PaddingBox) => padding_edges(node, [l, t, r, b]),
@@ -746,7 +749,12 @@ fn is_out_of_flow(base: &BaseDocument, styled_id: NodeId) -> bool {
     use ::style::properties::generated::longhands::position::computed_value::T as Position;
     base.get_node(styled_id)
         .and_then(|n| n.primary_styles())
-        .is_some_and(|s| matches!(s.clone_position(), Position::Absolute | Position::Fixed))
+        .is_some_and(|s| {
+            matches!(
+                *s.get_box().get_position(),
+                Position::Absolute | Position::Fixed
+            )
+        })
 }
 
 /// Whether a glyph run or inline box styled by `styled_id` belongs to `node_id`'s bounds:
@@ -1059,7 +1067,7 @@ fn svg_canvas_bbox(
         }
     };
     if let Some(unode) = tree.node_by_id(key) {
-        return unode.bounding_box().transform(unode.abs_transform());
+        return unode.bounding_box()?.transform(unode.abs_transform());
     }
     if depth >= 32 {
         return None;
@@ -1133,7 +1141,7 @@ fn svg_descendant_rect_for_node(
         let scale = (content_w / svg_w).min(content_h / svg_h);
         let paint_w = svg_w * scale;
         let paint_h = svg_h * scale;
-        let position = host.primary_styles()?.clone_object_position();
+        let position = host.primary_styles()?.get_object_position().clone();
         use ::style::values::computed::CSSPixelLength;
         let off_x = position
             .horizontal
@@ -1480,7 +1488,7 @@ impl DomHandle {
 
             let own_position = node
                 .primary_styles()
-                .map(|s| s.clone_position())
+                .map(|s| *s.get_box().get_position())
                 .unwrap_or(Position::Static);
             let own_name = local_name(node).unwrap_or_default();
 
@@ -1529,7 +1537,7 @@ impl DomHandle {
                     if p.is_element() && generates_box(p) {
                         let p_pos = p
                             .primary_styles()
-                            .map(|s| s.clone_position())
+                            .map(|s| *s.get_box().get_position())
                             .unwrap_or(Position::Static);
                         let p_name = local_name(p).unwrap_or_default();
                         let table_part = own_position == Position::Static

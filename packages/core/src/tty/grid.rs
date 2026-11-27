@@ -12,8 +12,8 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 
 use crate::paint::scene_decode::{
-    ScenePart, DecodedCap, DecodedFillRule, DecodedJoin, DecodedPaint, DecodedPathEl,
-    DecodedTransform, SceneVisitor,
+    ScenePart, DecodedCap, DecodedFillRule, DecodedJoin, DecodedMaskMode, DecodedPaint,
+    DecodedPathEl, DecodedTransform, SceneVisitor,
 };
 use crate::paint::scene_record::Q3_UNITS_PER_PIXEL;
 use crate::paint::scene_replay::{MISSING_RESOURCE_ENTRY_BYTES, RESOURCE_COUNT_BYTES};
@@ -93,6 +93,9 @@ pub struct TtyGrid {
     bg_coverage: f32,
     part: Vec<(u64, ScenePart)>,
     control_pending: Option<ScenePart>,
+    /// One entry per open layer: whether it is a mask layer, whose content is never visible.
+    mask_layers: Vec<bool>,
+    mask_depth: u32,
     pending_rules: Vec<(isize, isize, isize, [u8; 3])>,
     pending_table_bg: Option<(f32, f32, f32, f32, [u8; 3])>,
     pub cell_collisions: u64,
@@ -107,6 +110,8 @@ impl TtyGrid {
     pub fn new(cols: usize, rows: usize, cell_w: f32, cell_h: f32) -> Self {
         TtyGrid {
             control_pending: None,
+            mask_layers: Vec::new(),
+            mask_depth: 0,
             cols,
             rows,
             cell_w,
@@ -560,6 +565,9 @@ impl SceneVisitor for TtyGrid {
         flags: u8,
     ) {
         self.text_runs += 1;
+        if self.mask_depth > 0 {
+            return;
+        }
         let Ok(text) = std::str::from_utf8(text_utf8) else {
             return;
         };
@@ -613,9 +621,25 @@ impl SceneVisitor for TtyGrid {
         _t: DecodedTransform,
         _clip: &[DecodedPathEl],
     ) {
+        self.mask_layers.push(false);
     }
-    fn on_push_clip_layer(&mut self, _t: DecodedTransform, _clip: &[DecodedPathEl]) {}
-    fn on_pop_layer(&mut self) {}
+    fn on_push_clip_layer(&mut self, _t: DecodedTransform, _clip: &[DecodedPathEl]) {
+        self.mask_layers.push(false);
+    }
+    fn on_push_mask_layer(
+        &mut self,
+        _mode: DecodedMaskMode,
+        _t: DecodedTransform,
+        _clip: &[DecodedPathEl],
+    ) {
+        self.mask_layers.push(true);
+        self.mask_depth += 1;
+    }
+    fn on_pop_layer(&mut self) {
+        if self.mask_layers.pop() == Some(true) {
+            self.mask_depth -= 1;
+        }
+    }
     fn on_part_begin(&mut self, node_id: u64, part: ScenePart) {
         if matches!(part, ScenePart::Checkbox { .. } | ScenePart::Radio { .. }) {
             self.control_pending = Some(part);
@@ -645,6 +669,9 @@ impl SceneVisitor for TtyGrid {
         paint: DecodedPaint,
         path: &[DecodedPathEl],
     ) {
+        if self.mask_depth > 0 {
+            return;
+        }
         if let DecodedPaint::Image { content_hash } = paint {
             self.draw_image(content_hash, &t, path);
             return;
@@ -733,6 +760,9 @@ impl SceneVisitor for TtyGrid {
         paint: DecodedPaint,
         path: &[DecodedPathEl],
     ) {
+        if self.mask_depth > 0 {
+            return;
+        }
         let Some((x0, y0, x1, y1)) = path_bbox(&t, path) else {
             return;
         };
@@ -760,18 +790,6 @@ impl SceneVisitor for TtyGrid {
             _ => [0, 0, 0],
         };
         self.note_rule((x0, y0), (x1, y1), stroke_w, color, false);
-    }
-    fn on_box_shadow(
-        &mut self,
-        _t: DecodedTransform,
-        _x0: f32,
-        _y0: f32,
-        _x1: f32,
-        _y1: f32,
-        _rgba: (u8, u8, u8, u8),
-        _radius: f32,
-        _std_dev: f32,
-    ) {
     }
 }
 

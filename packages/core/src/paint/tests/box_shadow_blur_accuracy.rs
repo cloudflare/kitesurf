@@ -84,12 +84,7 @@ fn render_blur(transform: vello_cpu::kurbo::Affine, std_dev: f32, radius: f32) -
     let mut ctx = vello_cpu::RenderContext::new(W, H);
     ctx.set_transform(transform);
     ctx.set_paint(AlphaColor::<Srgb>::from_rgba8(213, 88, 16, 153));
-    ctx.fill_blurred_rounded_rect(
-        &Rect::new(120.0, 90.0, 360.0, 270.0),
-        radius,
-        std_dev,
-        false,
-    );
+    ctx.fill_blurred_rounded_rect(&Rect::new(120.0, 90.0, 360.0, 270.0), radius, std_dev);
     let mut target = vello_cpu::Pixmap::new(W, H);
     ctx.flush();
     ctx.render(&mut target, &mut vello_cpu::Resources::new());

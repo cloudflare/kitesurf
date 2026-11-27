@@ -59,13 +59,13 @@ const PAGE_MARGIN_CASES = [
     pageRule: "",
     label: "no @page margin",
     pages: 4,
-    hash: "fb315e1d98b0d4b4f21d3a279912e1f96b0d66b006aab0a7d2a9a7137c3e5dae",
+    hash: "2eb932d3b42ff105a572a1dda789cba09481f96f92abc890be902f956e2cd675",
   },
   {
     pageRule: "@page { margin: 2in }",
     label: "@page { margin: 2in }",
     pages: 7,
-    hash: "0d41c8a06c56f4d0fcee80ac35c21556a272dc8ef51b65f1123a6df3d656fd95",
+    hash: "2908b30d07f47f1c70d2ff52e52accf654a0b5f898e9e83def595e520ed381b3",
   },
 ];
 

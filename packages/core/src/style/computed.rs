@@ -4,6 +4,7 @@
 
 //! Computed and resolved style values for `getComputedStyle` and CDP.
 
+use blitz_dom::CopyStyleGetters as _;
 use std::panic;
 
 use blitz_dom::BaseDocument;
@@ -38,7 +39,7 @@ fn in_undisplayed_subtree(doc: &BaseDocument, node: &blitz_dom::Node) -> bool {
             return false;
         };
         if let Some(styles) = ancestor.primary_styles() {
-            return styles.get_box().clone_display().is_none();
+            return styles.get_box().get_display().is_none();
         }
         cur = flat_tree_parent(ancestor);
     }
@@ -105,7 +106,7 @@ impl LonghandContext {
 /// Whether the element generates a box at all: `display: none` and `contents` do not.
 fn has_own_box(styles: &::style::properties::ComputedValues) -> bool {
     use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
-    let display = styles.get_box().clone_display();
+    let display = *styles.get_box().get_display();
     !(display.outside() == DisplayOutside::None && display.inside() == DisplayInside::None)
         && display.inside() != DisplayInside::Contents
 }
@@ -397,7 +398,7 @@ impl DomHandle {
                 let guards = ::style::shared_lock::StylesheetGuards::same(&guard);
                 doc.stylist.lazily_compute_pseudo_element_style(
                     &guards,
-                    node,
+                    blitz_dom::BlitzNode(node),
                     &pseudo_enum,
                     RuleInclusion::All,
                     &primary,
@@ -558,7 +559,7 @@ impl DomHandle {
         }
         use ::style::logical_geometry::{LogicalSide, PhysicalSide, WritingMode};
         use ::style::properties::generated::longhands::position::computed_value::T as Position;
-        if styles.clone_position() != Position::Sticky {
+        if *styles.get_box().get_position() != Position::Sticky {
             return None;
         }
         let insets = self.sticky_resolved_insets(node.id())?;
@@ -695,7 +696,7 @@ fn own_value_longhand(
 /// Blink's resolved `transform`: `none` without a box, else the matrix of the used size.
 fn transform_value(node: &blitz_dom::Node, styles: &::style::properties::ComputedValues) -> String {
     use ::style::values::specified::box_::{DisplayInside, DisplayOutside};
-    let display = styles.get_box().clone_display();
+    let display = *styles.get_box().get_display();
     let boxless = (display.outside() == DisplayOutside::None
         && display.inside() == DisplayInside::None)
         || display.inside() == DisplayInside::Contents;
@@ -703,7 +704,7 @@ fn transform_value(node: &blitz_dom::Node, styles: &::style::properties::Compute
         return "none".to_string();
     }
     let size = node.final_layout().size;
-    resolved_transform(&styles.get_box().clone_transform(), size.width, size.height)
+    resolved_transform(styles.get_box().get_transform(), size.width, size.height)
 }
 
 /// `transform-origin` or `perspective-origin` resolved against the used border box.
@@ -718,7 +719,7 @@ fn origin_value(
     let box_style = styles.get_box();
     let px = |l: CLen| l.to_css_string();
     if id == LonghandId::TransformOrigin {
-        let origin = box_style.clone_transform_origin();
+        let origin = box_style.get_transform_origin().clone();
         let x = origin.horizontal.resolve(CLen::new(size.width));
         let y = origin.vertical.resolve(CLen::new(size.height));
         return if origin.depth.px() == 0.0 {
@@ -727,7 +728,7 @@ fn origin_value(
             format!("{} {} {}", px(x), px(y), px(origin.depth))
         };
     }
-    let origin = box_style.clone_perspective_origin();
+    let origin = box_style.get_perspective_origin().clone();
     let x = origin.horizontal.resolve(CLen::new(size.width));
     let y = origin.vertical.resolve(CLen::new(size.height));
     format!("{} {}", px(x), px(y))
@@ -900,7 +901,7 @@ fn min_size_used_value(
         .and_then(|p| p.primary_styles())
         .is_some_and(|s| {
             matches!(
-                s.get_box().clone_display().inside(),
+                s.get_box().get_display().inside(),
                 DisplayInside::Flex | DisplayInside::Grid
             )
         });

@@ -17,8 +17,8 @@ use crate::paint::scene_record::{
     PATH_PREC_F32, PATH_PREC_Q3, PATH_QUAD, Q3_PIXELS_PER_UNIT, RES_KIND_FONT_METADATA,
     RES_KIND_GLYPH_OUTLINE, RES_KIND_IMAGE, TAG_BOX_SHADOW, TAG_FILL, TAG_GLYPH_RUN,
     TAG_GLYPH_TEXT, TAG_PART, GLYPH_TEXT_RANGE_BYTES, SCENE_RESOURCE_COUNT_BYTES, TAG_POP_LAYER,
-    TAG_PUSH_CLIP_LAYER, TAG_PUSH_LAYER, TAG_STROKE, TAG_TEXT_RUN, TXFORM_FULL, TXFORM_IDENTITY,
-    TXFORM_SAME_AS_PREV, WIRE_VERSION,
+    TAG_ALIASED, TAG_RECT_CLIP, TAG_PUSH_CLIP_LAYER, TAG_PUSH_LAYER, TAG_PUSH_MASK_LAYER,
+    TAG_STROKE, TAG_TEXT_RUN, TXFORM_FULL, TXFORM_IDENTITY, TXFORM_SAME_AS_PREV, WIRE_VERSION,
 };
 
 /// Error returned when a KSC0 scene stream cannot be decoded.
@@ -388,6 +388,32 @@ impl ScenePart {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DecodedMaskMode {
+    Alpha,
+    Luminance,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DecodedBoxShadowKind {
+    Outset,
+    OutsetUnclipped,
+    Inset,
+}
+
+/// The arguments of `PaintScene::draw_box_shadow`. `radii` holds the x and y radius of the
+/// top-left, top-right, bottom-right and bottom-left corners of the box, in that order.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DecodedBoxShadow {
+    pub rect: [f32; 4],
+    pub radii: [f32; 8],
+    pub offset: (f32, f32),
+    pub spread: f32,
+    pub std_dev: f32,
+    pub rgba: (u8, u8, u8, u8),
+    pub kind: DecodedBoxShadowKind,
+}
+
 pub trait SceneVisitor {
     fn on_push_layer(
         &mut self,
@@ -433,21 +459,20 @@ pub trait SceneVisitor {
         paint: DecodedPaint,
         glyphs: &[(u32, f32, f32)],
     );
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "KSC0 BoxShadow fields stay separate and ordered in this visitor callback."
-    )]
-    fn on_box_shadow(
+    fn on_box_shadow(&mut self, _transform: DecodedTransform, _shadow: &DecodedBoxShadow) {}
+    /// A mask layer clips like a clip layer, and what is drawn in it masks what is under it.
+    fn on_push_mask_layer(
         &mut self,
+        _mode: DecodedMaskMode,
         transform: DecodedTransform,
-        rect_x0: f32,
-        rect_y0: f32,
-        rect_x1: f32,
-        rect_y1: f32,
-        rgba: (u8, u8, u8, u8),
-        radius: f32,
-        std_dev: f32,
-    );
+        clip_path: &[DecodedPathEl],
+    ) {
+        self.on_push_clip_layer(transform, clip_path);
+    }
+    /// The next fill or stroke is drawn without anti-aliasing.
+    fn on_aliased(&mut self) {}
+    /// The clip of the next clip or mask layer is a rectangle.
+    fn on_rect_clip(&mut self) {}
     #[allow(
         clippy::too_many_arguments,
         reason = "KSC0 TextRun fields stay separate and ordered in this visitor callback."
@@ -743,18 +768,51 @@ pub fn decode<V: SceneVisitor>(bytes: &[u8], visitor: &mut V) -> Result<SceneHea
             }
             TAG_BOX_SHADOW => {
                 let t = cur.read_transform()?;
-                let x0 = cur.read_f32()?;
-                let y0 = cur.read_f32()?;
-                let x1 = cur.read_f32()?;
-                let y1 = cur.read_f32()?;
-                let r = cur.read_u8()?;
-                let g = cur.read_u8()?;
-                let b = cur.read_u8()?;
-                let a = cur.read_u8()?;
-                let radius = cur.read_f32()?;
+                let mut rect = [0.0; 4];
+                for v in &mut rect {
+                    *v = cur.read_f32()?;
+                }
+                let mut radii = [0.0; 8];
+                for v in &mut radii {
+                    *v = cur.read_f32()?;
+                }
+                let offset = (cur.read_f32()?, cur.read_f32()?);
+                let spread = cur.read_f32()?;
                 let std_dev = cur.read_f32()?;
-                visitor.on_box_shadow(t, x0, y0, x1, y1, (r, g, b, a), radius, std_dev);
+                let rgba = (
+                    cur.read_u8()?,
+                    cur.read_u8()?,
+                    cur.read_u8()?,
+                    cur.read_u8()?,
+                );
+                let kind = match cur.read_u8()? {
+                    1 => DecodedBoxShadowKind::OutsetUnclipped,
+                    2 => DecodedBoxShadowKind::Inset,
+                    _ => DecodedBoxShadowKind::Outset,
+                };
+                let shadow = DecodedBoxShadow {
+                    rect,
+                    radii,
+                    offset,
+                    spread,
+                    std_dev,
+                    rgba,
+                    kind,
+                };
+                visitor.on_box_shadow(t, &shadow);
             }
+            TAG_PUSH_MASK_LAYER => {
+                let mode = match cur.read_u8()? {
+                    1 => DecodedMaskMode::Luminance,
+                    _ => DecodedMaskMode::Alpha,
+                };
+                let t = cur.read_transform()?;
+                path_scratch.clear();
+                cur.read_path(&mut path_scratch)?;
+                visitor.on_push_mask_layer(mode, t, &path_scratch);
+            }
+            TAG_ALIASED => visitor.on_aliased(),
+            TAG_RECT_CLIP => visitor.on_rect_clip(),
             TAG_PART => {
                 let marker_offset = cur.pos;
                 match cur.read_u8()? {
@@ -1248,6 +1306,16 @@ impl SceneVisitor for StatsVisitor {
         self.push_clip_layer += 1;
         self.push();
     }
+    // The recorder counts a mask layer with the compositing layers.
+    fn on_push_mask_layer(
+        &mut self,
+        _mode: DecodedMaskMode,
+        _t: DecodedTransform,
+        _clip: &[DecodedPathEl],
+    ) {
+        self.push_layer += 1;
+        self.push();
+    }
     fn on_pop_layer(&mut self) {
         self.pop_layer += 1;
         self.layer_depth = self.layer_depth.saturating_sub(1);
@@ -1319,21 +1387,7 @@ impl SceneVisitor for StatsVisitor {
         self.text_char_total += bytecount_utf8_chars(text) as u64;
         self.solid_paints += 1;
     }
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "Preserves separate, ordered KSC0 BoxShadow fields in the visitor."
-    )]
-    fn on_box_shadow(
-        &mut self,
-        _t: DecodedTransform,
-        _x0: f32,
-        _y0: f32,
-        _x1: f32,
-        _y1: f32,
-        _rgba: (u8, u8, u8, u8),
-        _radius: f32,
-        _std_dev: f32,
-    ) {
+    fn on_box_shadow(&mut self, _t: DecodedTransform, _shadow: &DecodedBoxShadow) {
         self.box_shadow += 1;
     }
     fn on_op_bytes(&mut self, tag: u8, bytes: usize) {
@@ -1347,7 +1401,7 @@ impl SceneVisitor for StatsVisitor {
 mod tests {
     use super::*;
     use crate::paint::scene_record::RecordingScene;
-    use anyrender::{PaintScene as _, ScenePart as AnyScenePart};
+    use anyrender::{AntiAliasing, PaintScene as _, ScenePart as AnyScenePart};
     use kurbo::{Affine, Rect};
     use peniko::{Color, Fill};
 
@@ -1434,6 +1488,7 @@ mod tests {
             Color::from_rgba8(255, 0, 0, 255),
             None,
             &Rect::new(0.0, 0.0, 100.0, 50.0),
+            AntiAliasing::Enabled,
         );
         scene.push_clip_layer(
             peniko::Fill::NonZero,
@@ -1446,6 +1501,7 @@ mod tests {
             Color::from_rgba8(0, 255, 0, 128),
             None,
             &Rect::new(20.0, 20.0, 80.0, 30.0),
+            AntiAliasing::Enabled,
         );
         scene.stroke(
             &kurbo::Stroke::new(2.0),
@@ -1453,6 +1509,7 @@ mod tests {
             Color::from_rgba8(0, 0, 255, 255),
             None,
             &Rect::new(30.0, 25.0, 70.0, 35.0),
+            AntiAliasing::Enabled,
         );
         scene.pop_layer();
         scene.fill(
@@ -1461,6 +1518,7 @@ mod tests {
             Color::from_rgba8(0, 0, 0, 255),
             None,
             &Rect::new(0.0, 0.0, 100.0, 50.0),
+            AntiAliasing::Enabled,
         );
 
         let stats_json = scene.stats_json();
@@ -1554,22 +1612,6 @@ mod tests {
                 _glyphs: &[(u32, f32, f32)],
             ) {
             }
-            #[allow(
-                clippy::too_many_arguments,
-                reason = "Matches the KSC0 BoxShadow visitor payload."
-            )]
-            fn on_box_shadow(
-                &mut self,
-                _t: DecodedTransform,
-                _x0: f32,
-                _y0: f32,
-                _x1: f32,
-                _y1: f32,
-                _rgba: (u8, u8, u8, u8),
-                _radius: f32,
-                _std_dev: f32,
-            ) {
-            }
         }
 
         let mut scene = RecordingScene::new();
@@ -1589,6 +1631,7 @@ mod tests {
                 Color::from_rgba8(0, 0, 0, 255),
                 None,
                 &rect,
+                AntiAliasing::Enabled,
             );
             scene.end_part();
         }
@@ -1683,6 +1726,7 @@ mod tests {
             brush.as_ref(),
             None,
             &Rect::new(0.0, 0.0, 50.0, 50.0),
+            AntiAliasing::Enabled,
         );
         let framed = scene.finish_framed();
 
@@ -1752,6 +1796,7 @@ mod tests {
             &gradient,
             None,
             &Rect::new(0.0, 0.0, 100.0, 100.0),
+            AntiAliasing::Enabled,
         );
         let framed = scene.finish_framed();
 
@@ -1807,22 +1852,6 @@ mod tests {
                 _: DecodedTransform,
                 _: DecodedPaint,
                 _: &[(u32, f32, f32)],
-            ) {
-            }
-            #[allow(
-                clippy::too_many_arguments,
-                reason = "Matches the KSC0 BoxShadow visitor payload."
-            )]
-            fn on_box_shadow(
-                &mut self,
-                _: DecodedTransform,
-                _: f32,
-                _: f32,
-                _: f32,
-                _: f32,
-                _: (u8, u8, u8, u8),
-                _: f32,
-                _: f32,
             ) {
             }
         }
@@ -1910,6 +1939,7 @@ mod tests {
             &gradient,
             Some(brush_xform),
             &Rect::new(0.0, 0.0, 1000.0, 800.0),
+            AntiAliasing::Enabled,
         );
         let framed = scene.finish_framed();
 
@@ -1967,22 +1997,6 @@ mod tests {
                 _: &[(u32, f32, f32)],
             ) {
             }
-            #[allow(
-                clippy::too_many_arguments,
-                reason = "Matches the KSC0 BoxShadow visitor payload."
-            )]
-            fn on_box_shadow(
-                &mut self,
-                _: DecodedTransform,
-                _: f32,
-                _: f32,
-                _: f32,
-                _: f32,
-                _: (u8, u8, u8, u8),
-                _: f32,
-                _: f32,
-            ) {
-            }
         }
         let mut cap = CaptureBt::default();
         decode(&framed, &mut cap).expect("decode");
@@ -2006,6 +2020,7 @@ mod tests {
             Color::from_rgba8(0, 0, 0, 255),
             None,
             &Rect::new(0.0, 0.0, 10.0, 10.0),
+            AntiAliasing::Enabled,
         );
         let framed = scene.finish_framed();
 
@@ -2065,22 +2080,6 @@ mod tests {
                 _: &[(u32, f32, f32)],
             ) {
             }
-            #[allow(
-                clippy::too_many_arguments,
-                reason = "Matches the KSC0 BoxShadow visitor payload."
-            )]
-            fn on_box_shadow(
-                &mut self,
-                _: DecodedTransform,
-                _: f32,
-                _: f32,
-                _: f32,
-                _: f32,
-                _: (u8, u8, u8, u8),
-                _: f32,
-                _: f32,
-            ) {
-            }
         }
         let mut chk = Chk::default();
         decode(&framed, &mut chk).expect("decode");
@@ -2098,6 +2097,7 @@ mod tests {
             Color::from_rgba8(0, 0, 0, 255),
             None,
             &Rect::new(0.0, 0.0, 10.0, 10.0),
+            AntiAliasing::Enabled,
         );
         let framed = scene.finish_framed();
         let header = parse_header(&framed).expect("header");

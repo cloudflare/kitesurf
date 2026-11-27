@@ -1,0 +1,237 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: bpereira <bpereira@cloudflare.com>
+Date: Fri, 18 Sep 2026 11:31:28 +0100
+Subject: [PATCH] Fix intrinsic heights and relative insets of inline-level
+ boxes
+
+taffy resolves min-content, max-content and stretch on a node's
+children, and every algorithm reading its own size style treats the
+keyword as auto. In an inline formatting context blitz is that parent.
+inline_box_inputs already resolves the width keywords at both
+measurement sites; the height keywords were left as auto.
+
+Resolve them in inline_box_inputs too: min-content and max-content
+measure the box against that space, and stretch fills the definite space
+left after the margins. Every measurement of the box goes through it, so
+both agree.
+
+A position: relative float inside an inline formatting context was
+placed where the float algorithm put it, ignoring its insets. Resolve
+them against the containing block (the inline container's content box,
+direction-aware for left/right) and shift the float's location by them,
+as relative atomic inlines already are. The out-of-flow candidates
+translated with the float move with it.
+
+Relative top and bottom percentages on an atomic inline resolved against
+the inline container's final content height, which this pass is still
+computing. Resolve them against the container's known or styled height
+instead, and against zero when it has none, the same containing block
+relative floats use.
+---
+ src/layout/inline/layout.rs | 117 +++++++++++++++++++++++++++++++++---
+ 1 file changed, 107 insertions(+), 10 deletions(-)
+
+diff --git a/src/layout/inline/layout.rs b/src/layout/inline/layout.rs
+index 82e2ec2..b8dfe8e 100644
+--- a/src/layout/inline/layout.rs
++++ b/src/layout/inline/layout.rs
+@@ -45,7 +45,8 @@ fn float_box_inputs(
+     margin: taffy::Rect<f32>,
+     child_inputs: LayoutInput,
+ ) -> LayoutInput {
+-    let mut inputs = inline_box_inputs(width_style, margin, child_inputs);
++    let mut inputs =
++        inline_box_inputs(width_style, taffy::Dimension::auto(), margin, child_inputs);
+     inputs.available_space.height = AvailableSpace::MaxContent;
+     inputs
+ }
+@@ -53,8 +54,15 @@ fn float_box_inputs(
+ /// Layout inputs for an atomic inline box, with any sizing keyword on its `width` style
+ /// (`min-content`, `max-content`, `fit-content`, `fit-content(...)`, `stretch`) resolved
+ /// into the available space or known width the box is measured with.
++///
++/// `height` keywords resolve here too. taffy only resolves a sizing
++/// keyword on a node's children, and in an inline formatting context blitz is
++/// that parent: `min-content`/`max-content` measure the box against that space,
++/// and `stretch` fills the definite space left after the margins. Every
++/// measurement of the box goes through this, so both agree.
+ fn inline_box_inputs(
+     width_style: taffy::Dimension,
++    height_style: taffy::Dimension,
+     margin: taffy::Rect<f32>,
+     child_inputs: LayoutInput,
+ ) -> LayoutInput {
+@@ -93,6 +101,22 @@ fn inline_box_inputs(
+         }
+         _ => {}
+     }
++
++    match height_style.tag() {
++        CompactLength::MIN_CONTENT_TAG => {
++            inputs.available_space.height = AvailableSpace::MinContent
++        }
++        CompactLength::MAX_CONTENT_TAG => {
++            inputs.available_space.height = AvailableSpace::MaxContent
++        }
++        CompactLength::STRETCH_TAG => {
++            if let Some(height) = inputs.available_space.height.into_option() {
++                inputs.known_dimensions.height = Some(height);
++                inputs.available_space.height = AvailableSpace::Definite(height);
++            }
++        }
++        _ => {}
++    }
+     inputs
+ }
+
+@@ -104,6 +128,8 @@ struct PendingFloat {
+     margin: taffy::Rect<f32>,
+     direction: taffy::FloatDirection,
+     clear: Clear,
++    /// Relative insets, which shift the float from where it is placed
++    relative_inset: Point<f32>,
+ }
+
+ /// Tolerance (in CSS px) for content fitting into a slot
+@@ -173,6 +199,7 @@ impl LayoutPassState<'_> {
+             margin,
+             direction,
+             clear,
++            relative_inset,
+         } = float;
+
+         // Note: `pos` is content-box relative
+@@ -186,8 +213,8 @@ impl LayoutPassState<'_> {
+         );
+
+         let location = taffy::Point {
+-            x: pos.x + margin.left + container_pb.left,
+-            y: pos.y + margin.top + container_pb.top,
++            x: pos.x + margin.left + container_pb.left + relative_inset.x,
++            y: pos.y + margin.top + container_pb.top + relative_inset.y,
+         };
+         let layout = self.nodes[node_id].unrounded_layout_mut();
+         layout.size = output.size;
+@@ -556,7 +583,12 @@ impl LayoutPassState<'_> {
+                 let contain_layout = box_style.slow_clone_contain().contains(Contain::LAYOUT);
+                 let exports_baseline = !(contain_layout
+                     || (baseline_source == BaselineSource::Auto && is_block_axis_scroll_container));
+-                let box_inputs = inline_box_inputs(style.size().width, margin, child_inputs);
++                let box_inputs = inline_box_inputs(
++                    style.size().width,
++                    style.size().height,
++                    margin,
++                    child_inputs,
++                );
+                 drop(style);
+
+                 if is_out_of_flow || is_floated {
+@@ -931,6 +963,58 @@ impl LayoutPassState<'_> {
+                         // shadowed the container and sent its cache bust here.
+                         let float_id = NodeId::from_u64(box_break_data.inline_box_id);
+
++                        // Relative insets shift the float from where it was placed.
++                        let relative_inset = {
++                            let container_direction =
++                                self.nodes[node_id].layout_style().direction();
++                            let child_style = self.child_layout_style(&self.nodes[float_id]);
++                            if child_style.position() == taffy::Position::Relative {
++                                let containing_block_size = Size {
++                                    width: width / scale,
++                                    height: known_dimensions
++                                        .height
++                                        .or(node_size.height)
++                                        .map(|height| {
++                                            (height - content_box_inset.vertical_axis_sum())
++                                                .max(0.0)
++                                        })
++                                        .unwrap_or(0.0),
++                                };
++                                let inset_style = child_style.inset();
++                                let left = inset_style
++                                    .left
++                                    .maybe_resolve(containing_block_size.width, resolve_calc_value);
++                                let right = inset_style
++                                    .right
++                                    .maybe_resolve(containing_block_size.width, resolve_calc_value);
++                                Point {
++                                    x: if container_direction == Direction::Rtl {
++                                        right.map(|value| -value).or(left).unwrap_or(0.0)
++                                    } else {
++                                        left.or(right.map(|value| -value)).unwrap_or(0.0)
++                                    },
++                                    y: inset_style
++                                        .top
++                                        .maybe_resolve(
++                                            containing_block_size.height,
++                                            resolve_calc_value,
++                                        )
++                                        .or_else(|| {
++                                            inset_style
++                                                .bottom
++                                                .maybe_resolve(
++                                                    containing_block_size.height,
++                                                    resolve_calc_value,
++                                                )
++                                                .map(|value| -value)
++                                        })
++                                        .unwrap_or(0.0),
++                                }
++                            } else {
++                                Point::ZERO
++                            }
++                        };
++
+                         let (direction, clear, width_style, margin) = {
+                             let style = self.child_layout_style(&self.nodes[float_id]);
+                             // We can assume that the box is a float because we only set `break_on_box: true` for floats
+@@ -961,6 +1045,7 @@ impl LayoutPassState<'_> {
+                             margin,
+                             direction,
+                             clear,
++                            relative_inset,
+                         };
+
+                         // A float that doesn't fit beside the content already on the line is
+@@ -1189,23 +1274,35 @@ impl LayoutPassState<'_> {
+
+                     // Resolve relative inset offsets against the containing block
+                     // (the content box of the inline container).
+-                    let container_content_size = final_size - content_box_inset.sum_axes();
++                    let containing_block_size = Size {
++                        width: (final_size - content_box_inset.sum_axes()).width,
++                        height: known_dimensions
++                            .height
++                            .or(node_size.height)
++                            .map(|height| (height - content_box_inset.vertical_axis_sum()).max(0.0))
++                            .unwrap_or(0.0),
++                    };
+                     let inset_style = style.inset();
+                     let inset = taffy::Rect {
+                         left: inset_style
+                             .left
+-                            .maybe_resolve(container_content_size.width, resolve_calc_value),
++                            .maybe_resolve(containing_block_size.width, resolve_calc_value),
+                         right: inset_style
+                             .right
+-                            .maybe_resolve(container_content_size.width, resolve_calc_value),
++                            .maybe_resolve(containing_block_size.width, resolve_calc_value),
+                         top: inset_style
+                             .top
+-                            .maybe_resolve(container_content_size.height, resolve_calc_value),
++                            .maybe_resolve(containing_block_size.height, resolve_calc_value),
+                         bottom: inset_style
+                             .bottom
+-                            .maybe_resolve(container_content_size.height, resolve_calc_value),
++                            .maybe_resolve(containing_block_size.height, resolve_calc_value),
+                     };
+-                    let box_inputs = inline_box_inputs(style.size().width, margin, child_inputs);
++                    let box_inputs = inline_box_inputs(
++                        style.size().width,
++                        style.size().height,
++                        margin,
++                        child_inputs,
++                    );
+                     drop(style);
+
+                     if is_absolute {
