@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Liad Yosef <liad.yosef@gmail.com>
+Date: Fri, 27 Nov 2026 23:48:30 +0200
+Subject: [PATCH] Read a shadow root's text content from its descendants
+
+Node::text_content walked elements and anonymous blocks and skipped every
+other kind, so it returned an empty string for a shadow root. A shadow
+root is a DocumentFragment, whose textContent is the text of its
+descendants, so ShadowRoot.textContent in the DOM shim read "" where
+Chrome reads the text. The host's own text content is unchanged: the
+root is not one of its children.
+---
+ src/node/node.rs | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/node/node.rs b/src/node/node.rs
+index 2db7d94..4e76f9a 100644
+--- a/src/node/node.rs
++++ b/src/node/node.rs
+@@ -2771,7 +2771,8 @@ impl Node {
+             NodeData::Text(data) => {
+                 out.push_str(&data.content);
+             }
+-            NodeData::Element(..) | NodeData::AnonymousBlock(..) => {
++            // A shadow root is a DocumentFragment, whose textContent is its descendants' text.
++            NodeData::Element(..) | NodeData::AnonymousBlock(..) | NodeData::ShadowRoot(..) => {
+                 for child_id in self.children().iter() {
+                     self.with(child_id).write_text_content(out);
+                 }
