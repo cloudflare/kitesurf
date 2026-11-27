@@ -135,9 +135,29 @@ export class PageIsolateHandle extends RpcTarget {
     return this.entrypoint.openSession(init);
   }
 
-  killIsolate(reason?: string): Promise<unknown> {
-    return this.entrypoint.killIsolate?.(reason) ?? Promise.resolve();
+  killIsolate(reason?: string): Promise<void> {
+    return settleKill(() => this.entrypoint.killIsolate?.(reason));
   }
+}
+
+// The abort can drop the kill's reply, and workerd cancels a request left waiting on nothing as
+// hung. The timer keeps this request pending until the kill lands; it is shorter than the engine's
+// 1s teardown grace, so the reply arrives before the engine disposes the handle and cancels it.
+export const KILL_REPLY_WAIT_MS = 750;
+
+function settleKill(kill: () => unknown): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, KILL_REPLY_WAIT_MS);
+    const done = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    try {
+      Promise.resolve(kill()).then(done, done);
+    } catch {
+      done();
+    }
+  });
 }
 
 function disposeRpcValue(value: unknown): void {
@@ -200,7 +220,7 @@ export class RendererIsolateHandle extends RpcTarget {
     }
   }
 
-  killIsolate(reason?: string): Promise<unknown> {
-    return Promise.resolve(this.entrypoint.killIsolate(reason));
+  killIsolate(reason?: string): Promise<void> {
+    return settleKill(() => this.entrypoint.killIsolate(reason));
   }
 }
