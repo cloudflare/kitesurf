@@ -181,3 +181,26 @@ fn an_unhoisted_abspos_in_a_span_keeps_its_static_position() {
         }
     }
 }
+
+// A 20px by 14px grid area at (4, 6) inside a 32px by 29px padding box at (1, 1).
+const SAFE_GRID: &str = r#"<!DOCTYPE html><body style="margin:0">
+  <div style="display:grid;position:relative;border:1px solid;padding:2px 1px;width:30px;height:25px;
+              grid:3px 14px 3px / 2px 20px 2px">
+    <div id="t" style="position:absolute;grid-area:2 / 2 / 3 / 3;justify-self:safe end;
+                       align-self:safe center;width:W;height:H"></div>
+  </div>"#;
+
+#[test]
+fn safe_abspos_overflowing_its_area_aligns_within_the_grid() {
+    // It overflows the grid area but fits the padding box, so `safe` keeps end and center.
+    let html = SAFE_GRID.replace("W", "21px").replace("H", "20px");
+    let (x, y, _, _) = rect_of(&html, "#t");
+    assert_eq!((x, y), (3.0, 3.0));
+}
+
+#[test]
+fn safe_abspos_overflowing_the_grid_starts_at_its_padding_edge() {
+    let html = SAFE_GRID.replace("W", "33px").replace("H", "35px");
+    let (x, y, _, _) = rect_of(&html, "#t");
+    assert_eq!((x, y), (1.0, 1.0));
+}

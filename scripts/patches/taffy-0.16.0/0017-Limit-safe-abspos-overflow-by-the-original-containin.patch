@@ -1,0 +1,166 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Rui Figueira <rfigueira@cloudflare.com>
+Date: Fri, 27 Nov 2026 16:29:35 +0000
+Subject: [PATCH] Limit safe abspos overflow by the original containing block
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+css-align-3 §4.4.1.2 gives absolutely positioned boxes the same rule
+for `safe` as for the default overflow alignment: a box that overflows
+its inset-modified containing block stays aligned as specified as far as
+the overflow limit rect allows, and only start-aligns in that rect when
+it does not fit. The limit rect is the bounding rect of the IMCB and the
+original containing block, the one before grid placement narrowed it to
+a grid area.
+
+`safe` instead fell back to the start of the IMCB as soon as the box
+overflowed it, and the default rule bounded the overflow by the grid
+area instead of the grid's padding box. A box at its static position
+(both insets auto) keeps ignoring the default rule: every engine aligns
+it unsafely there, and the css-flexbox and css-grid abspos static
+position tests expect that. WPT ed5a113c changed
+css-grid/abspos/grid-abspos-staticpos-align-self-safe-001-ref.html to
+this behaviour (Safari passes it; Chrome and Firefox do not).
+
+Upstream Taffy (main) has the same start-of-IMCB fallback for `safe`.
+---
+ src/compute/oof.rs | 67 +++++++++++++++++++++++++++-------------------
+ 1 file changed, 39 insertions(+), 28 deletions(-)
+
+diff --git a/src/compute/oof.rs b/src/compute/oof.rs
+index 26f12ca..89b3237 100644
+--- a/src/compute/oof.rs
++++ b/src/compute/oof.rs
+@@ -146,6 +146,8 @@ struct OofAxis {
+     reversed: bool,
+     /// Whether the containing block is a scroll container which scrolls in this axis
+     is_scroll_axis: bool,
++    /// The original containing block, before grid placement narrowed it to a grid area
++    original_cb: Line<f32>,
+ }
+
+ impl OofAxis {
+@@ -159,6 +161,31 @@ impl OofAxis {
+         if self.reversed { AxisStaticEdge::Start } else { AxisStaticEdge::End }
+     }
+
++    /// Align a margin box that overflows its IMCB within the overflow limit rect: the bounding
++    /// rect of the IMCB and the original containing block, extended to infinity in the
++    /// scrollable direction of a scroll container
++    /// <https://www.w3.org/TR/css-align-3/#auto-safety-position>
++    fn align_overflowing(&self, imcb: Line<f32>, margin_box_size: f32, edge: AxisStaticEdge) -> f32 {
++        let mut limit =
++            Line { start: imcb.start.min(self.original_cb.start), end: f32_max(imcb.end, self.original_cb.end) };
++        if self.is_scroll_axis {
++            if self.reversed {
++                limit.start = f32::NEG_INFINITY;
++            } else {
++                limit.end = f32::INFINITY;
++            }
++        }
++        if margin_box_size <= limit.end - limit.start {
++            // 2. Fits within the overflow limit rect: cover the IMCB and align as specified as
++            // far as possible without overflowing the limit
++            let start = align_in_line(imcb, margin_box_size, edge);
++            f32_max(start.min(limit.end - margin_box_size), limit.start)
++        } else {
++            // 3. Start-align within the overflow limit rect
++            align_in_line(limit, margin_box_size, self.start_edge())
++        }
++    }
++
+     /// The inset-modified containing block (IMCB) in this axis
+     /// <https://www.w3.org/TR/css-position-3/#resolving-insets>
+     fn inset_modified_containing_block(&self) -> Line<f32> {
+@@ -259,12 +286,12 @@ impl OofAxis {
+     fn position(&self, size: f32, margin: Line<f32>) -> f32 {
+         let imcb = self.inset_modified_containing_block();
+         match (self.inset.start, self.inset.end) {
+-            // Both insets are auto: static alignment, with safe overflow relative to the IMCB
++            // Both insets are auto: static alignment, with safe overflow limited as for insets
+             (None, None) => {
+                 let sp = self.static_position;
+                 let margin_box_size = size + margin.start + margin.end;
+                 let offset = if sp.align.safety == AlignmentSafety::Safe && margin_box_size > imcb.end - imcb.start {
+-                    align_in_line(imcb, margin_box_size, self.start_edge())
++                    self.align_overflowing(imcb, margin_box_size, sp.align.keyword)
+                 } else {
+                     align_in_line(sp.area, margin_box_size, sp.align.keyword)
+                 };
+@@ -284,37 +311,14 @@ impl OofAxis {
+                 let edge = self.alignment.physical_edge(self.reversed);
+                 let margin_box_start = match self.safety {
+                     AlignmentSafety::Unsafe => align_in_line(imcb, margin_box_size, edge),
+-                    AlignmentSafety::Safe => {
+-                        let edge = if margin_box_size > imcb_size { self.start_edge() } else { edge };
+-                        align_in_line(imcb, margin_box_size, edge)
+-                    }
+-                    // Default overflow alignment for absolutely positioned boxes:
++                    // Default and safe overflow alignment for absolutely positioned boxes:
+                     // <https://www.w3.org/TR/css-align-3/#auto-safety-position>
+-                    AlignmentSafety::Default => {
++                    AlignmentSafety::Safe | AlignmentSafety::Default => {
+                         if margin_box_size <= imcb_size || self.alignment == OofAlignment::Normal {
+                             // 1. Fits within the IMCB: align as specified
+                             align_in_line(imcb, margin_box_size, edge)
+                         } else {
+-                            // The overflow limit rect is the bounding rect of the IMCB and the
+-                            // containing block, extended to infinity in the scrollable direction
+-                            // of a scroll container
+-                            let mut limit = Line { start: imcb.start.min(0.0), end: f32_max(imcb.end, self.cb_size) };
+-                            if self.is_scroll_axis {
+-                                if self.reversed {
+-                                    limit.start = f32::NEG_INFINITY;
+-                                } else {
+-                                    limit.end = f32::INFINITY;
+-                                }
+-                            }
+-                            if margin_box_size <= limit.end - limit.start {
+-                                // 2. Fits within the overflow limit rect: cover the IMCB and align
+-                                // as specified as far as possible without overflowing the limit
+-                                let start = align_in_line(imcb, margin_box_size, edge);
+-                                f32_max(start.min(limit.end - margin_box_size), limit.start)
+-                            } else {
+-                                // 3. Start-align within the overflow limit rect
+-                                align_in_line(limit, margin_box_size, self.start_edge())
+-                            }
++                            self.align_overflowing(imcb, margin_box_size, edge)
+                         }
+                     }
+                 };
+@@ -505,6 +509,7 @@ pub(crate) fn layout_oof_box<Tree: LayoutContainingBlock>(
+     // If the current node is a grid container then the box is positioned relative to the
+     // grid area determined by its grid-placement properties (which falls back to the passed
+     // area for `auto` placement)
++    let original_area = (area_size, area_offset);
+     #[cfg(feature = "grid")]
+     let (area_size, area_offset) = match grid_owner.map(|owner| tree.get_detailed_layout_info(owner)) {
+         Some(DetailedLayoutInfo::Grid(grid_info)) => {
+@@ -595,6 +600,10 @@ pub(crate) fn layout_oof_box<Tree: LayoutContainingBlock>(
+         },
+     };
+
++    let original_cb = |size: f32, offset: f32, area_offset: f32| Line {
++        start: offset - area_offset,
++        end: offset - area_offset + size,
++    };
+     let horizontal = OofAxis {
+         cb_size: area_width,
+         inset: Line { start: left, end: right },
+@@ -605,6 +614,7 @@ pub(crate) fn layout_oof_box<Tree: LayoutContainingBlock>(
+         is_inline: true,
+         reversed: direction.is_rtl(),
+         is_scroll_axis: container_overflow.x.is_scroll_container(),
++        original_cb: original_cb(original_area.0.width, original_area.1.x, area_offset.x),
+     };
+     let vertical = OofAxis {
+         cb_size: area_height,
+@@ -616,6 +626,7 @@ pub(crate) fn layout_oof_box<Tree: LayoutContainingBlock>(
+         is_inline: false,
+         reversed: false,
+         is_scroll_axis: container_overflow.y.is_scroll_container(),
++        original_cb: original_cb(original_area.0.height, original_area.1.y, area_offset.y),
+     };
+     let stretch_fit_size = Size { width: horizontal.stretch_fit_size(), height: vertical.stretch_fit_size() };
+     // The space available to the box's border box is its stretch-fit size (the IMCB minus its
