@@ -46,8 +46,10 @@ bazel test "$@" --test_output=errors --nozip_undeclared_test_outputs "${retry[@]
 gate="$(bazel info "$@" "${quiet[@]}" bazel-testlogs)/scripts/wpt_expectations_test/test.outputs"
 if [[ ! -f $gate/summary.md ]]; then
   no_results "the expectations gate wrote no summary"
-elif [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then
-  cat "$gate/summary.md" >>"$GITHUB_STEP_SUMMARY"
+else
+  # Bazel shows the gate's own output only when it fails, so log the totals here.
+  grep -E '^[0-9]+ (tests:|of [0-9]+ tests pass)' "$gate/summary.md" | sed 's/^/[wpt-gate] /' || true
+  if [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then cat "$gate/summary.md" >>"$GITHUB_STEP_SUMMARY"; fi
 fi
 if [[ ${GITHUB_ACTIONS:-} == true && -f $gate/annotations.txt ]]; then cat "$gate/annotations.txt"; fi
 exit "$status"

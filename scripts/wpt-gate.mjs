@@ -98,6 +98,10 @@ const subtests = (entry) => (entry.subTotal ? `${entry.subPass}/${entry.subTotal
 const cell = (value) => String(value).replace(/[\\|]/g, "\\$&");
 const totalsLine = (s) =>
   `${s.total} tests: ${s.expected} as expected, ${s.unexpectedFail} unexpected fail, ${s.unexpectedPass} unexpected pass`;
+const percent = (part, whole) => (whole ? ((100 * part) / whole).toFixed(1) : "0.0");
+const passingLine = (s) =>
+  `${s.passed} of ${s.total} tests pass (${percent(s.passed, s.total)}%); ` +
+  `${s.subPass} of ${s.subTotal} subtests pass (${percent(s.subPass, s.subTotal)}%)`;
 
 /** @param {Record<string, object>} byFile @param {string[]} notes @returns {string} */
 export function markdownSummary(byFile, notes) {
@@ -114,6 +118,8 @@ export function markdownSummary(byFile, notes) {
     `## WPT expectations gate: ${devs.length ? "failed" : "passed"}`,
     "",
     totalsLine(summarize(byFile)) + ".",
+    "",
+    passingLine(summarize(byFile)) + ".",
   ];
   if (devs.length) {
     lines.push("", `### Unexpected results (${devs.length})`, "");
@@ -195,6 +201,9 @@ function summarize(byFile) {
     expected: rows.length - unexpected,
     unexpectedFail: unexpected - unexpectedPass,
     unexpectedPass,
+    passed: rows.filter((entry) => entry.outcome === "PASS").length,
+    subPass: rows.reduce((sum, entry) => sum + (entry.subPass ?? 0), 0),
+    subTotal: rows.reduce((sum, entry) => sum + (entry.subTotal ?? 0), 0),
   };
 }
 
@@ -244,6 +253,7 @@ function main(argv) {
       `  ${entry.expected} → ${entry.outcome}${entry.subTotal ? `  ${entry.subPass}/${entry.subTotal}` : ""}  ${test}`,
     );
   console.log(`[wpt-gate] ${totalsLine(summarize(byFile))}`);
+  console.log(`[wpt-gate] ${passingLine(summarize(byFile))}`);
   if (devs.length)
     console.log(
       "[wpt-gate] rebaseline deliberate changes with: bazel run //tests/wpt:update_expectations",
