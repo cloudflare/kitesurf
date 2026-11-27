@@ -959,3 +959,56 @@ fn accessibility_flags_the_elements_it_is_told_handle_clicks_except_html_and_bod
     assert!(!clickable("html"));
     assert!(!clickable("body"));
 }
+
+// Chrome sends one entry per property name, and the state it computed, not the ARIA attribute the
+// markup contradicts: measured against Chrome 158 on this markup.
+#[test]
+fn accessibility_properties_keep_one_entry_per_name() {
+    let dom = DomHandle::new(
+        "<input id='k1' type='checkbox' aria-checked='true'>\
+         <input id='k2' type='checkbox' checked aria-checked='false'>\
+         <input id='k8' type='radio' aria-checked='mixed'>\
+         <button id='k3' disabled aria-disabled='false'>k3</button>\
+         <input id='k6' required aria-required='false'>\
+         <input id='k10' readonly aria-readonly='false'>\
+         <details id='k7' open aria-expanded='false'><summary>s</summary>body</details>\
+         <h3 id='k9' aria-level='5'>k9</h3>\
+         <input id='k12' type='range' min='0' max='100' aria-valuemin='10' aria-valuemax='90'>\
+         <input id='k14' type='range' min='0' max='100'>\
+         <select><option id='k13' selected aria-selected='false'>A</option></select>",
+        "https://example.test/",
+    );
+    let request = serde_json::json!({"method": "full", "frameId": "F"});
+    let reply: serde_json::Value =
+        serde_json::from_str(&build_json(&dom, &request.to_string()).unwrap()).unwrap();
+    let nodes = reply["nodes"].as_array().unwrap().clone();
+    let properties = |selector: &str, want: &str| -> Vec<String> {
+        let id = node_id(&dom, selector);
+        let node = nodes
+            .iter()
+            .find(|n| n["backendDOMNodeId"] == id)
+            .unwrap_or_else(|| panic!("{selector} is in the tree"));
+        node["properties"]
+            .as_array()
+            .map(|all| {
+                all.iter()
+                    .filter(|p| p["name"] == want)
+                    .map(|p| p["value"]["value"].to_string())
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    assert_eq!(properties("#k1", "checked"), ["\"false\""]);
+    assert_eq!(properties("#k2", "checked"), ["\"true\""]);
+    assert_eq!(properties("#k8", "checked"), ["\"false\""]);
+    assert_eq!(properties("#k3", "disabled"), ["true"]);
+    assert_eq!(properties("#k6", "required"), ["true"]);
+    assert_eq!(properties("#k10", "readonly"), ["true"]);
+    assert_eq!(properties("#k7", "expanded"), ["true"]);
+    assert_eq!(properties("#k9", "level"), ["5"]);
+    // Core-AAM keeps the ARIA value where HTML-AAM declares no conflict, and Chrome 158 agrees.
+    assert_eq!(properties("#k12", "valuemin"), ["10"]);
+    assert_eq!(properties("#k12", "valuemax"), ["90"]);
+    assert_eq!(properties("#k13", "selected"), ["false"]);
+    assert_eq!(properties("#k14", "valuemin"), ["0"]);
+}
