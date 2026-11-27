@@ -87,3 +87,17 @@ fn spanning_item_overflows_capped_tracks_into_other_spanned_tracks() {
     );
     assert_eq!(sizes, vec![60.0, 30.0]);
 }
+
+#[test]
+fn empty_item_caps_its_track_for_later_spanning_items() {
+    // The empty item sets the first column's growth limit to zero, so the spanning item's
+    // 40px min-content contribution goes to the second column instead.
+    let sizes = used_columns(
+        r##"<!DOCTYPE html><style>
+          .grid { display: grid; grid-template-columns: min-content minmax(20px, min-content); width: 300px; }
+          .span { grid-column: 1 / span 2; width: 40px; height: 10px; }
+          .empty { grid-column: 1; grid-row: 2; }
+        </style><div class="grid"><div class="span"></div><div class="empty"></div></div>"##,
+    );
+    assert_eq!(sizes, vec![0.0, 40.0]);
+}
