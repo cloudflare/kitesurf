@@ -186,27 +186,37 @@ fn p3_hsl_none_preserved() {
         "hsl(none none none / none)"
     );
     assert_eq!(color("hsl(120 none none)"), "hsl(120 none none)");
-    assert_eq!(color("hsl(120 80% none)"), "hsl(120 80 none)");
-    assert_eq!(color("hsl(120 none 50%)"), "hsl(120 none 50)");
-    assert_eq!(color("hsl(120 100% 50% / none)"), "hsl(120 100 50 / none)");
-    assert_eq!(color("hsl(none 100% 50%)"), "hsl(none 100 50)");
-    assert_eq!(color("hsl(120 none 50 / 0.5)"), "hsl(120 none 50 / 0.5)");
+    assert_eq!(color("hsl(120 80% none)"), "hsl(120 80% none)");
+    assert_eq!(color("hsl(120 none 50%)"), "hsl(120 none 50%)");
+    assert_eq!(
+        color("hsl(120 100% 50% / none)"),
+        "hsl(120 100% 50% / none)"
+    );
+    assert_eq!(color("hsl(none 100% 50%)"), "hsl(none 100% 50%)");
+    // Number-form saturation and lightness serialize as percentages too.
+    assert_eq!(color("hsl(120 none 50 / 0.5)"), "hsl(120 none 50% / 0.5)");
+    assert_eq!(color("hsl(120 30 none)"), "hsl(120 30% none)");
 }
 
 #[test]
 fn p3_hwb_none_preserved() {
     assert_eq!(color("hwb(none none none)"), "hwb(none none none)");
-    assert_eq!(color("hwb(120 80% none)"), "hwb(120 80 none)");
-    assert_eq!(color("hwb(120 30 50 / none)"), "hwb(120 30 50 / none)");
+    assert_eq!(color("hwb(120 80% none)"), "hwb(120 80% none)");
+    assert_eq!(color("hwb(120 30 50 / none)"), "hwb(120 30% 50% / none)");
 }
 
 #[test]
-fn p3_rgb_none_specified_is_legacy_with_zeros() {
-    assert_eq!(color("rgb(none none none)"), "rgb(0, 0, 0)");
-    assert_eq!(color("rgb(128 none none)"), "rgb(128, 0, 0)");
-    assert_eq!(color("rgb(128 none none / none)"), "rgba(128, 0, 0, 0)");
-    assert_eq!(color("rgb(20% none none)"), "rgb(51, 0, 0)");
-    assert_eq!(color("rgb(none none none / .5)"), "rgba(0, 0, 0, 0.5)");
+fn p3_rgb_none_specified_goes_modern() {
+    assert_eq!(color("rgb(none none none)"), "color(srgb none none none)");
+    assert_eq!(
+        color("rgb(128 none none / none)"),
+        "color(srgb 0.501961 none none / none)"
+    );
+    assert_eq!(color("rgb(20% none none)"), "color(srgb 0.2 none none)");
+    assert_eq!(
+        color("rgba(none none none / 50%)"),
+        "color(srgb none none none / 0.5)"
+    );
 }
 
 #[test]
@@ -244,30 +254,35 @@ fn p3_no_none_keeps_legacy_rgb() {
 }
 
 #[test]
-fn p3_relative_specified_stays_symbolic_with_zeros() {
+fn p3_relative_specified_keeps_none_in_origin() {
     assert_eq!(
         color("rgb(from rgb(none none none) r g b)"),
-        "rgb(from rgb(0, 0, 0) r g b)"
+        "rgb(from color(srgb none none none) r g b)"
     );
     assert_eq!(
         color("rgb(from rgb(20% none 60%) r g b)"),
-        "rgb(from rgb(51, 0, 153) r g b)"
+        "rgb(from color(srgb 0.2 none 0.6) r g b)"
     );
 }
 
 #[test]
-fn p3_relative_origin_with_none_serializes_legacy() {
+fn p3_relative_origin_with_none_serializes_modern() {
     assert_eq!(
         color("hsl(from hsl(none none none) h s l)"),
-        "hsl(from rgb(0, 0, 0) h s l)"
+        "hsl(from hsl(none none none) h s l)"
     );
     assert_eq!(
         color("hsl(from hsl(120deg none 50% / .5) h s l)"),
-        "hsl(from rgba(128, 128, 128, 0.5) h s l)"
+        "hsl(from hsl(120 none 50% / 0.5) h s l)"
     );
     assert_eq!(
-        color("hsl(from hsl(120deg 20% 50% / none) h s l / alpha)"),
-        "hsl(from rgba(102, 153, 102, 0) h s l / alpha)"
+        color("hwb(from hwb(120deg 20% 50% / none) h w b / alpha)"),
+        "hwb(from hwb(120 20% 50% / none) h w b / alpha)"
+    );
+    // An origin without none keeps the legacy form.
+    assert_eq!(
+        color("hsl(from hsl(120deg 20% 50% / .5) h s none / alpha)"),
+        "hsl(from rgba(102, 153, 102, 0.5) h s none / alpha)"
     );
     assert_eq!(
         computed_color("hsl(from hsl(none none none) h s l)"),
@@ -362,24 +377,24 @@ fn p4_colormix_none_inputs_carry_forward() {
 }
 
 #[test]
-fn f1_relative_and_mix_hsl_none_serialize_numbers() {
+fn f1_relative_and_mix_hsl_none_serialize_percentages() {
     assert_eq!(
         computed_color("hsl(from rebeccapurple h s none)"),
-        "hsl(270 50 none)"
+        "hsl(270 50% none)"
     );
     assert_eq!(
         computed_color("hwb(from hwb(120deg 20% 50%) h w none)"),
-        "hwb(120 20 none)"
+        "hwb(120 20% none)"
     );
     assert_eq!(
         computed_color("color-mix(in hsl, hsl(120deg 40% 40% / none), hsl(0deg 40% 40% / none))"),
-        "hsl(60 40 40 / none)"
+        "hsl(60 40% 40% / none)"
     );
     assert_eq!(computed_color("hsl(120 80% none)"), "hsl(120 80% none)");
-    assert_eq!(computed_color("hsl(270 50 none)"), "hsl(270 50 none)");
+    assert_eq!(computed_color("hsl(270 50 none)"), "hsl(270 50% none)");
     assert_eq!(
         computed_color("hwb(120 20 none / 0.5)"),
-        "hwb(120 20 none / 0.5)"
+        "hwb(120 20% none / 0.5)"
     );
 }
 
@@ -417,14 +432,14 @@ fn f2_lab_family_channel_keyword_none_is_zero() {
 }
 
 #[test]
-fn f3_colormix_items_with_none_serialize_legacy() {
+fn f3_colormix_items_with_none_serialize_modern() {
     assert_eq!(
         color("color-mix(in hsl, hsl(none none none), hsl(none none none))"),
-        "color-mix(in hsl, rgb(0, 0, 0), rgb(0, 0, 0))"
+        "color-mix(in hsl, hsl(none none none), hsl(none none none))"
     );
     assert_eq!(
         color("color-mix(in hsl, hsl(120deg 20% none), hsl(30deg 40% 60%))"),
-        "color-mix(in hsl, rgb(0, 0, 0), rgb(194, 153, 112))"
+        "color-mix(in hsl, hsl(120 20% none), rgb(194, 153, 112))"
     );
 }
 

@@ -36,7 +36,7 @@ test("inline style flush: none colors, shorthand overlap, no-op clears", async (
     return out;
   });
 
-  expect(r.specifiedNone).toBe("rgb(0, 0, 0)");
+  expect(r.specifiedNone).toBe("color(srgb none none none)");
   expect(r.computedNone).toBe("color(srgb none none none)");
   expect(r.marginLeft).toBe("20px");
   expect(r.removedTop).toBe("0px");
