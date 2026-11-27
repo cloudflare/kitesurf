@@ -516,3 +516,41 @@ fn cascade_theme_attribute_flip_updates_var_color() {
     eprintln!("THEME {} -> {}", before, after);
     assert_ne!(before, after);
 }
+
+#[test]
+fn non_finite_hue_computes_to_zero() {
+    for hue in [
+        "calc(infinity)",
+        "calc(-infinity)",
+        "calc(0 / 0)",
+        "calc(NaN)",
+    ] {
+        assert_eq!(
+            computed_color(&format!("lch(50 10 {hue})")),
+            "lch(50 10 0)",
+            "{hue}"
+        );
+        assert_eq!(
+            computed_color(&format!("oklch(0.5 0.1 {hue})")),
+            "oklch(0.5 0.1 0)",
+            "{hue}"
+        );
+    }
+    assert_eq!(computed_color("lch(50 10 calc(400deg))"), "lch(50 10 40)");
+    // The specified value keeps the non-finite hue.
+    assert_eq!(
+        color("lch(50 10 calc(infinity))"),
+        "lch(50 10 calc(infinity))"
+    );
+    assert_eq!(
+        color("oklch(0.5 0.1 calc(0 / 0))"),
+        "oklch(0.5 0.1 calc(NaN))"
+    );
+    assert_eq!(
+        cascade_computed_color("lch(50 10 calc(-infinity))"),
+        "lch(50 10 0)"
+    );
+    // The legacy forms convert to sRGB with a hue of 0deg.
+    assert_eq!(color("hsl(calc(infinity) 100% 50%)"), "rgb(255, 0, 0)");
+    assert_eq!(color("hwb(calc(-infinity) 20% 10%)"), "rgb(230, 51, 51)");
+}
