@@ -24,3 +24,28 @@ export async function getCachedRefScreenshot(cache, key, render) {
     throw err;
   }
 }
+
+const POLL_INTERVAL_MS = 25;
+
+/** A page screenshotted before its images arrive is blank where they belong; polling beats load,
+ * long fired by the time a cached reference is reused. @returns {Promise<boolean>} settled */
+export async function waitForImagesSettled(
+  page,
+  deadline,
+  now = Date.now,
+  pollMs = POLL_INTERVAL_MS,
+) {
+  for (;;) {
+    let pending;
+    try {
+      pending = await page.evaluate(
+        `Array.prototype.filter.call(document.images, (image) => !image.complete).length`,
+      );
+    } catch {
+      return false;
+    }
+    if (!pending) return true;
+    if (now() >= deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+}
